@@ -323,7 +323,7 @@ public static class CifpPathResolver
             );
         }
 
-        return cycles.Select(c => Path.Combine(cacheDir, "FAACIFP18-" + c)).ToList();
+        return [.. cycles.Select(c => Path.Combine(cacheDir, "FAACIFP18-" + c))];
     }
 
     /// <summary>

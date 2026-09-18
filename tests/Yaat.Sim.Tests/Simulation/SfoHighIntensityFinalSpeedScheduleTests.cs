@@ -34,7 +34,7 @@ public class SfoHighIntensityFinalSpeedScheduleTests
         public required double SpawnDistNm { get; init; }
         public required double SpawnIas { get; init; }
         public double MaxIas { get; set; }
-        public SortedDictionary<double, double> IasAtNm { get; } = new();
+        public SortedDictionary<double, double> IasAtNm { get; } = [];
     }
 
     private List<Profile>? RunScenario()
@@ -99,7 +99,7 @@ public class SfoHighIntensityFinalSpeedScheduleTests
             _output.WriteLine($"{p.Callsign, -8} {p.Type, -5} vref={p.Vref:F0} spawn@{p.SpawnDistNm:F1}nm {p.SpawnIas:F0}kt || {row}");
         }
 
-        return profiles.Values.ToList();
+        return [.. profiles.Values];
     }
 
     [Fact]

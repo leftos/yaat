@@ -230,7 +230,7 @@ public sealed class MidfieldCrossingPhase : Phase
         {
             Status = (int)Status,
             ElapsedSeconds = ElapsedSeconds,
-            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            Requirements = Requirements.Count > 0 ? [.. Requirements.Select(r => r.ToSnapshot())] : null,
             Waypoints = Waypoints?.ToSnapshot(),
             TargetLat = _targetLat,
             TargetLon = _targetLon,

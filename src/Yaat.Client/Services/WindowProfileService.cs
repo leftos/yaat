@@ -52,13 +52,13 @@ public sealed class WindowProfileService
             IsControllersPoppedOut = vm.IsControllersPoppedOut,
             IsMetarPoppedOut = vm.IsMetarPoppedOut,
             DataGridLayout = CloneGridLayout(_preferences.GridLayout),
-            LoadedFavoriteSetIds = _preferences.LoadedFavoriteSetIds.ToList(),
+            LoadedFavoriteSetIds = [.. _preferences.LoadedFavoriteSetIds],
             ShowFavoritesBar = vm.ShowFavoritesBar,
             IsFavoritesPanelOpen = FavoritesPanelWindow.IsOpen(vm),
             // Which extra Radar/Ground windows are open and on which airport; their geometry rides the
             // live-helper walk below under the RadarView#n / GroundView#n keys.
-            ExtraRadarViews = vm.ExtraRadarViews.OrderBy(i => i.Ordinal).Select(i => new SavedExtraView(i.Ordinal, i.AirportId)).ToList(),
-            ExtraGroundViews = vm.ExtraGroundViews.OrderBy(i => i.Ordinal).Select(i => new SavedExtraView(i.Ordinal, i.AirportId)).ToList(),
+            ExtraRadarViews = [.. vm.ExtraRadarViews.OrderBy(i => i.Ordinal).Select(i => new SavedExtraView(i.Ordinal, i.AirportId))],
+            ExtraGroundViews = [.. vm.ExtraGroundViews.OrderBy(i => i.Ordinal).Select(i => new SavedExtraView(i.Ordinal, i.AirportId))],
         };
 
         // Flush every open window's helper first so the snapshot we read back
@@ -93,7 +93,7 @@ public sealed class WindowProfileService
         // Snapshot live helpers before we mutate prefs so the caller can
         // distinguish "already open, just reposition" from "about to open via
         // a pop-out toggle, geometry will arrive via Restore()".
-        string[] liveKeys = WindowGeometryHelper.GetActiveHelpers().Select(h => h.WindowName).ToArray();
+        string[] liveKeys = [.. WindowGeometryHelper.GetActiveHelpers().Select(h => h.WindowName)];
 
         foreach ((string? key, SavedWindowGeometry? geo) in profile.WindowGeometries)
         {
@@ -117,7 +117,7 @@ public sealed class WindowProfileService
     /// </summary>
     public IReadOnlyList<string> StagePreferencesPartial(SavedWindowProfile profile, IReadOnlySet<string> selectedGeometryKeys, bool includeGrid)
     {
-        string[] liveKeys = WindowGeometryHelper.GetActiveHelpers().Select(h => h.WindowName).ToArray();
+        string[] liveKeys = [.. WindowGeometryHelper.GetActiveHelpers().Select(h => h.WindowName)];
 
         int staged = 0;
         foreach ((string? key, SavedWindowGeometry? geo) in profile.WindowGeometries)

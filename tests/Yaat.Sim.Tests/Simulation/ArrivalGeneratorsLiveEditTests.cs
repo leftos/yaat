@@ -180,7 +180,7 @@ public class ArrivalGeneratorsLiveEditTests(ITestOutputHelper output)
         List<string> warnings = engine.ApplyGeneratorsJson("not-valid-json");
 
         Assert.NotEmpty(warnings);
-        Assert.Equal(before, engine.Scenario.Generators.Select(g => g.Config.Id).ToList());
+        Assert.Equal(before, [.. engine.Scenario.Generators.Select(g => g.Config.Id)]);
     }
 
     [Fact]
@@ -241,5 +241,5 @@ public class ArrivalGeneratorsLiveEditTests(ITestOutputHelper output)
         JsonSerializer.Serialize(new GeneratorsPayload { AircraftGenerators = arrivalGenerators });
 
     private static List<string> SnapshotIds(IReadOnlyList<GeneratorState> gens) =>
-        gens.Select(g => $"{g.Config.Id}:{g.Config.Runway}:{g.NextSpawnSeconds}").ToList();
+        [.. gens.Select(g => $"{g.Config.Id}:{g.Config.Runway}:{g.NextSpawnSeconds}")];
 }

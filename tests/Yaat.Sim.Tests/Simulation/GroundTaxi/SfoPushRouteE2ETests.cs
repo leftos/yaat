@@ -826,7 +826,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
 
     private static void AssertKinds(MoveRun run, params PushbackLegKind[] expected)
     {
-        PushbackLegKind[] kinds = run.Moves.Select(m => m.Kind).ToArray();
+        PushbackLegKind[] kinds = [.. run.Moves.Select(m => m.Kind)];
         Assert.True(
             expected.SequenceEqual(kinds),
             $"expected moves {string.Join(", ", expected)} but ran {string.Join(", ", run.Moves.Select(m => m.Describe()))}"
@@ -892,7 +892,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
         new TrueHeading(from.NoseDeg + (new TrueHeading(from.NoseDeg).SignedAngleTo(new TrueHeading(to.NoseDeg)) / 2.0)).Degrees;
 
     private static List<PushbackPhase> LiveTugLegs(AircraftState ac) =>
-        ac.Phases!.Phases.OfType<PushbackPhase>().Where(p => p.Status is PhaseStatus.Active or PhaseStatus.Pending).ToList();
+        [.. ac.Phases!.Phases.OfType<PushbackPhase>().Where(p => p.Status is PhaseStatus.Active or PhaseStatus.Pending)];
 
     /// <summary>The tug move queued straight behind the running one, or null.</summary>
     private static PushbackPhase? NextTugMove(AircraftState ac) => LiveTugLegs(ac).Skip(1).FirstOrDefault();

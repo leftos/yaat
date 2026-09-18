@@ -103,7 +103,7 @@ internal static class FilletEdgeSplitPlanner
         var surviving = new List<SurvivingEdgeOp>();
         foreach (GroundEdge edge in consumed)
         {
-            List<CutOnEdge> sorted = edgeCuts.TryGetValue(edge, out List<CutOnEdge>? cutsOnE) ? cutsOnE.OrderBy(c => c.Frac).ToList() : [];
+            List<CutOnEdge> sorted = edgeCuts.TryGetValue(edge, out List<CutOnEdge>? cutsOnE) ? [.. cutsOnE.OrderBy(c => c.Frac)] : [];
             bool aRemoved = removedJunctionIds.Contains(edge.Nodes[0].Id);
             bool bRemoved = removedJunctionIds.Contains(edge.Nodes[1].Id);
 

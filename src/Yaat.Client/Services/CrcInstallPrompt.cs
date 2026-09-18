@@ -91,7 +91,7 @@ public static class CrcInstallPrompt
         noButton.Click += (_, _) => window.Close();
 
         lifetime.MainWindow = window;
-        lifetime.Start(Array.Empty<string>());
+        lifetime.Start([]);
 
         if (userAccepted)
         {

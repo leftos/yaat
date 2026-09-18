@@ -14,7 +14,7 @@ public sealed class AiControllerService
 {
     public AiControllerService(IReadOnlyList<IPositionBrain> brains, IAiStaffing staffing, IAiCommandSink sink, ControllerAiConfig config)
     {
-        Brains = brains.OrderBy(b => ControlRoles.Rank(b.Position.Role)).ThenBy(b => b.Position.PositionId, StringComparer.Ordinal).ToList();
+        Brains = [.. brains.OrderBy(b => ControlRoles.Rank(b.Position.Role)).ThenBy(b => b.Position.PositionId, StringComparer.Ordinal)];
         Staffing = staffing;
         Sink = sink;
         Config = config;

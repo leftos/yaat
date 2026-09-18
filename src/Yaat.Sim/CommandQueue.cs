@@ -303,7 +303,7 @@ public class CommandBlock
         new()
         {
             Trigger = Trigger?.ToSnapshot(),
-            Commands = Commands.Select(c => c.ToSnapshot()).ToList(),
+            Commands = [.. Commands.Select(c => c.ToSnapshot())],
             IsApplied = IsApplied,
             TriggerMet = TriggerMet,
             TriggerClosestApproach = TriggerClosestApproach,
@@ -326,7 +326,7 @@ public class CommandBlock
         new()
         {
             Trigger = dto.Trigger is not null ? BlockTrigger.FromSnapshot(dto.Trigger) : null,
-            Commands = dto.Commands.Select(TrackedCommand.FromSnapshot).ToList(),
+            Commands = [.. dto.Commands.Select(TrackedCommand.FromSnapshot)],
             IsApplied = dto.IsApplied,
             TriggerMet = dto.TriggerMet,
             TriggerClosestApproach = dto.TriggerClosestApproach,
@@ -405,7 +405,7 @@ public class CommandQueue
         return discarded;
     }
 
-    public CommandQueueDto ToSnapshot() => new() { Blocks = Blocks.Select(b => b.ToSnapshot()).ToList(), CurrentBlockIndex = CurrentBlockIndex };
+    public CommandQueueDto ToSnapshot() => new() { Blocks = [.. Blocks.Select(b => b.ToSnapshot())], CurrentBlockIndex = CurrentBlockIndex };
 
     public static CommandQueue FromSnapshot(CommandQueueDto dto)
     {

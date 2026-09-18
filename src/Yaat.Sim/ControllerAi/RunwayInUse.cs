@@ -330,8 +330,8 @@ public sealed class RunwayInUseState(Func<string?, FacilityOps?> knowledge)
         {
             var fixedConfiguration = new RunwayUseDecision(
                 airportId,
-                sets.Departure.Select(RunwayIdentifier.NormalizeDesignator).ToList(),
-                sets.Arrival.Select(RunwayIdentifier.NormalizeDesignator).ToList(),
+                [.. sets.Departure.Select(RunwayIdentifier.NormalizeDesignator)],
+                [.. sets.Arrival.Select(RunwayIdentifier.NormalizeDesignator)],
                 ops.Configuration(named)!.Name,
                 RunwayUseSource.Override,
                 $"configuration {named} set for the session"

@@ -40,7 +40,7 @@ public sealed class SpeechSampleStoreTests : IDisposable
             Llm: null,
             ActiveCallsigns: ["N123AB"],
             ProgrammedFixes: ["KOAK"],
-            AvailableRunwaysByAirport: new Dictionary<string, IReadOnlyList<string>> { ["KOAK"] = new[] { "28R", "28L" } },
+            AvailableRunwaysByAirport: new Dictionary<string, IReadOnlyList<string>> { ["KOAK"] = ["28R", "28L"] },
             TaxiwayNames: ["A", "B"],
             AircraftDestinations: new Dictionary<string, string> { ["N123AB"] = "KOAK" }
         );
@@ -117,7 +117,7 @@ public sealed class SpeechSampleStoreTests : IDisposable
 
         // Surviving entries should be the newest contiguous suffix — verify by timestamp ordering.
         var survivors = store.Entries.Select(e => e.Session.TimestampUtc).ToList();
-        Assert.Equal(survivors.OrderByDescending(t => t).ToList(), survivors);
+        Assert.Equal([.. survivors.OrderByDescending(t => t)], survivors);
         Assert.Equal(baseTime.AddSeconds(9), survivors[0]);
     }
 

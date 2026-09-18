@@ -73,7 +73,7 @@ public static class ArrivalParkingPicker
         var free = names.Where(n => !taken.Contains(n)).ToList();
         if (free.Count == 0)
         {
-            free = names.ToList();
+            free = [.. names];
         }
 
         IReadOnlyList<string> pool = Candidates(callsign, free);

@@ -225,7 +225,7 @@ public static partial class MetarParser
         // CLR/SKC = no layers, no ceiling
         if (ClearSkyRegex().IsMatch(metar))
         {
-            return (Array.Empty<CloudLayer>(), null);
+            return ([], null);
         }
 
         var layers = new List<CloudLayer>();

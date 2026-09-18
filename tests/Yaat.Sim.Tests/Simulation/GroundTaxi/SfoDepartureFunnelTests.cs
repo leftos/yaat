@@ -336,7 +336,7 @@ public class SfoDepartureFunnelTests(ITestOutputHelper output)
 
     private static void AssertQueueOrdinals(Funnel funnel)
     {
-        (AircraftState, int)[] expected = new[] { (funnel.Fun3, 1), (funnel.Fun1, 2), (funnel.Fun4, 3), (funnel.Fun2, 4) };
+        (AircraftState, int)[] expected = [(funnel.Fun3, 1), (funnel.Fun1, 2), (funnel.Fun4, 3), (funnel.Fun2, 4)];
         foreach ((AircraftState? aircraft, int position) in expected)
         {
             Assert.Equal(position, aircraft.Ground.RunwayQueuePosition);

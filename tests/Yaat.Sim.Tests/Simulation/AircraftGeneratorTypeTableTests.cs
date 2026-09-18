@@ -82,7 +82,7 @@ public class AircraftGeneratorTypeTableTests
                 (AircraftState? state, string? error) = AircraftGenerator.Generate(
                     request,
                     primaryAirportId: "KOAK",
-                    existingAircraft: Array.Empty<AircraftState>(),
+                    existingAircraft: [],
                     groundLayout: null,
                     rng,
                     beaconPool: new BeaconCodePool()
@@ -112,7 +112,7 @@ public class AircraftGeneratorTypeTableTests
             (AircraftState? state, string? error) = AircraftGenerator.Generate(
                 request,
                 primaryAirportId: "KOAK",
-                existingAircraft: Array.Empty<AircraftState>(),
+                existingAircraft: [],
                 groundLayout: null,
                 rng,
                 beaconPool: new BeaconCodePool()
@@ -128,9 +128,7 @@ public class AircraftGeneratorTypeTableTests
     {
         // Heavy+Piston: today's bucket is empty. The chain must visit other piston
         // buckets (Large+Piston, Small+Piston) before any non-piston bucket.
-        (WeightClass Weight, EngineKind Engine)[] chain = AircraftGenerator
-            .EnumerateBucketFallbackChain(WeightClass.Heavy, EngineKind.Piston)
-            .ToArray();
+        (WeightClass Weight, EngineKind Engine)[] chain = [.. AircraftGenerator.EnumerateBucketFallbackChain(WeightClass.Heavy, EngineKind.Piston)];
 
         Assert.Equal((WeightClass.Heavy, EngineKind.Piston), chain[0]);
 
@@ -143,7 +141,7 @@ public class AircraftGeneratorTypeTableTests
         Assert.True(lastPistonIndex < firstNonPistonIndex, "engine priority violated: non-piston appears before all piston buckets exhausted");
 
         // The chain must cover every (weight, engine) combination exactly once.
-        (WeightClass Weight, EngineKind Engine)[] distinct = chain.Distinct().ToArray();
+        (WeightClass Weight, EngineKind Engine)[] distinct = [.. chain.Distinct()];
         Assert.Equal(chain.Length, distinct.Length);
         Assert.Equal(Enum.GetValues<WeightClass>().Length * Enum.GetValues<EngineKind>().Length, chain.Length);
     }

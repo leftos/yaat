@@ -2272,7 +2272,7 @@ public sealed class GroundRenderer : IDisposable
         {
             if (ShowSpeechBubbles && IsBubbleActive(ac.SpeechBubble, now))
             {
-                deferred ??= new List<AircraftModel>();
+                deferred ??= [];
                 deferred.Add(ac);
                 continue;
             }

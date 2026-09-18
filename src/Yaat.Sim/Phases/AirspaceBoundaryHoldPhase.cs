@@ -84,7 +84,7 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
             Mode = (int)Mode,
             VolumeId = VolumeId,
             LevelOffCeilingFtMsl = LevelOffCeilingFtMsl,
-            OriginalRoute = _originalRoute.Count > 0 ? _originalRoute.Select(t => t.ToSnapshot()).ToList() : null,
+            OriginalRoute = _originalRoute.Count > 0 ? [.. _originalRoute.Select(t => t.ToSnapshot())] : null,
             OriginalTargetHeadingDeg = _originalTargetHeading?.Degrees,
             OriginalTurnDirection = _originalTurnDirection.HasValue ? (int)_originalTurnDirection.Value : null,
             OriginalTargetSpeed = _originalTargetSpeed,

@@ -26,7 +26,7 @@ public class RunwayEntryPointTests
         node.Edges.OfType<GroundEdge>().Select(e => e.TaxiwayName).Where(n => !string.IsNullOrEmpty(n)).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     private List<GroundNode> HoldShortsOn(string runway, string taxiway) =>
-        _layout is null ? [] : _layout.GetRunwayHoldShortNodes(runway).Where(n => StraightTaxiways(n).SetEquals([taxiway])).ToList();
+        _layout is null ? [] : [.. _layout.GetRunwayHoldShortNodes(runway).Where(n => StraightTaxiways(n).SetEquals([taxiway]))];
 
     [Fact]
     public void OppositeSidesOfTheSameEnd_AreBothFullLength_EvenOnDifferentTaxiways()

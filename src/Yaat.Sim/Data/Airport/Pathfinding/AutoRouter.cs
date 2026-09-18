@@ -146,7 +146,7 @@ public static class AutoRouter
                 maxExpansions,
                 bannedMoves
             );
-            if (result.Route is null || !ctx.HasSameSideCenterlineRun(result.Route.Segments.Select(s => s.Edge).ToList()))
+            if (result.Route is null || !ctx.HasSameSideCenterlineRun([.. result.Route.Segments.Select(s => s.Edge)]))
             {
                 return result;
             }

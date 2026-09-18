@@ -68,9 +68,9 @@ public sealed class BeaconCodePool
     /// </summary>
     public void ConfigureBanks(List<BeaconCodeBankConfig> banks)
     {
-        _ifrBanks = banks.Where(b => b.Type.Equals("Ifr", StringComparison.OrdinalIgnoreCase)).ToList();
-        _vfrBanks = banks.Where(b => b.Type.Equals("Vfr", StringComparison.OrdinalIgnoreCase)).ToList();
-        _anyBanks = banks.Where(b => b.Type.Equals("Any", StringComparison.OrdinalIgnoreCase)).ToList();
+        _ifrBanks = [.. banks.Where(b => b.Type.Equals("Ifr", StringComparison.OrdinalIgnoreCase))];
+        _vfrBanks = [.. banks.Where(b => b.Type.Equals("Vfr", StringComparison.OrdinalIgnoreCase))];
+        _anyBanks = [.. banks.Where(b => b.Type.Equals("Any", StringComparison.OrdinalIgnoreCase))];
         _hasBanks = banks.Count > 0;
         _bankCursors.Clear();
     }

@@ -76,13 +76,13 @@ public class TugKinematicsTests
 
         var pose = new TugPose(OnLaneBeforeSixB(lane), lane.TravelDeg + 60.0);
         LatLon offset = GeoMath.ProjectPoint(pose.Position, new TrueHeading(lane.TravelDeg - 90.0), 40.0 / GeoMath.FeetPerNm);
-        TugMove[] moves = new[]
-        {
+        TugMove[] moves =
+        [
             TugMove.Straight(PushbackLegKind.Pull, 50.0),
             TugMove.ToPoint(PushbackLegKind.Pull, offset),
             TugMove.ViaLine(PushbackLegKind.Pull, lane.SixB.Position, lane.TravelDeg, stopAt: null),
             TugMove.TurnTo(PushbackLegKind.Pull, lane.TravelDeg),
-        };
+        ];
         TugPose otherStart = pose with { NoseTrueDeg = lane.TravelDeg };
         double radiusFt = TugKinematics.TurnRadiusFt(Narrowbody, tight: false);
 

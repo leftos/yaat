@@ -153,7 +153,7 @@ public static class PhraseologyMapper
         if (strippedFillers.Count > 0)
         {
             Log.LogDebug("[Speech] FillerStrip: removed [{Fillers}]", string.Join(", ", strippedFillers));
-            tokens = tokens.Where(t => !FillerWords.Contains(t)).ToList();
+            tokens = [.. tokens.Where(t => !FillerWords.Contains(t))];
         }
         if (context.CustomFixPatterns.Count > 0)
         {
@@ -198,7 +198,7 @@ public static class PhraseologyMapper
         {
             var consumedTokens = tokens.Take(conditionConsumed).ToList();
             Log.LogDebug("[Speech] ConditionPrefix: \"{Spoken}\" → {Canonical}", string.Join(' ', consumedTokens), conditionPrefix);
-            tokens = tokens.Skip(conditionConsumed).ToList();
+            tokens = [.. tokens.Skip(conditionConsumed)];
         }
 
         // Step 4b: collapse NATO phonetic letter runs into taxiway-name tokens. Uses the
@@ -991,9 +991,9 @@ public static class PhraseologyMapper
             // rare case where Whisper drops the suffix word into a digit slot.
             char[] suffixHints = trailing switch
             {
-                '8' => new[] { 'R' },
-                '0' => new[] { 'L', 'C' },
-                _ => Array.Empty<char>(),
+                '8' => ['R'],
+                '0' => ['L', 'C'],
+                _ => [],
             };
 
             foreach (char hint in suffixHints)

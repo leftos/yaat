@@ -511,13 +511,15 @@ public sealed class RecordingArchive : IDisposable
             }
         }
 
-        return result
-            .Select((action, index) => new { Action = action, Index = index })
-            .OrderBy(static entry => entry.Action.ElapsedSeconds)
-            .ThenBy(static entry => entry.Action is RecordedAircraftSpawn ? 0 : 1)
-            .ThenBy(static entry => entry.Index)
-            .Select(static entry => entry.Action)
-            .ToList();
+        return
+        [
+            .. result
+                .Select((action, index) => new { Action = action, Index = index })
+                .OrderBy(static entry => entry.Action.ElapsedSeconds)
+                .ThenBy(static entry => entry.Action is RecordedAircraftSpawn ? 0 : 1)
+                .ThenBy(static entry => entry.Index)
+                .Select(static entry => entry.Action),
+        ];
     }
 
     private static HashSet<string> ReadScenarioAircraftCallsigns(string scenarioJson)

@@ -143,7 +143,7 @@ public static class AiPositionResolver
             StarsAreaConfig? area = ancestry[i].StarsConfiguration?.Areas.FirstOrDefault(a => a.Id == areaId);
             if (area is not null)
             {
-                return area.UnderlyingAirports.ToList();
+                return [.. area.UnderlyingAirports];
             }
         }
 
@@ -184,5 +184,5 @@ public static class AiPositionResolver
     private static bool IsTowerCab(FacilityConfig facility) => facility.Type is "Atct" or "AtctTracon" or "AtctRapcon";
 
     private static List<AiPositionConfig> Sort(IEnumerable<AiPositionConfig> positions) =>
-        positions.OrderBy(p => ControlRoles.Rank(p.Role)).ThenBy(p => p.PositionId, StringComparer.Ordinal).ToList();
+        [.. positions.OrderBy(p => ControlRoles.Rank(p.Role)).ThenBy(p => p.PositionId, StringComparer.Ordinal)];
 }

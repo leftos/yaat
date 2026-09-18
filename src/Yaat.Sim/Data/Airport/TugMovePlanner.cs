@@ -747,7 +747,7 @@ internal sealed class TugPlanBuilder
         _standBehindNames = StandBehindNames(_pathCheck, request);
     }
 
-    internal TugPlan ToPlan() => new(_moves.ToArray(), _end);
+    internal TugPlan ToPlan() => new([.. _moves], _end);
 
     internal bool TryPlanGoal(int index, out string refusal)
     {

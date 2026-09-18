@@ -14,15 +14,16 @@ public record CommandSignatureSet(IReadOnlyList<CommandSignature> Signatures)
 {
     public static CommandSignatureSet FromDefinition(CommandDefinition def, IReadOnlyList<string> aliases)
     {
-        CommandSignature[] sigs = def
-            .Overloads.Select(o => new CommandSignature(
+        CommandSignature[] sigs =
+        [
+            .. def.Overloads.Select(o => new CommandSignature(
                 def.Type,
                 o.VariantLabel is not null ? $"{def.Label} — {o.VariantLabel}" : def.Label,
                 aliases,
                 o.Parameters,
                 o.UsageHint
-            ))
-            .ToArray();
+            )),
+        ];
         return new CommandSignatureSet(sigs);
     }
 }

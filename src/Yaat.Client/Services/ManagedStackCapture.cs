@@ -90,7 +90,7 @@ internal static class ManagedStackCapture
             }
         }
 
-        return threads.ToArray();
+        return [.. threads];
     }
 
     /// <summary>Appends one thread's header and frames. Returns false when the thread had no managed frames (nothing appended).</summary>

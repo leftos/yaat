@@ -42,7 +42,7 @@ public class OakHsDirectionalHintTests(ITestOutputHelper output)
         route.Warnings.Any(w => w.Contains("not in the route issued", StringComparison.OrdinalIgnoreCase));
 
     private static List<string> StraightSegmentTaxiways(TaxiRoute route) =>
-        route.Segments.Select(s => s.TaxiwayName).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        [.. route.Segments.Select(s => s.TaxiwayName).Distinct(StringComparer.OrdinalIgnoreCase)];
 
     private void LogRoute(string label, CommandResult result, TaxiRoute? route)
     {

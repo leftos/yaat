@@ -273,7 +273,7 @@ public class UserPreferencesWindowProfileTests
         prefs.SaveWindowProfile(new SavedWindowProfile { Name = "WPT-Sort-Alpha" });
         prefs.SaveWindowProfile(new SavedWindowProfile { Name = "WPT-Sort-Mike" });
 
-        string[] names = prefs.WindowProfiles.Where(p => p.Name.StartsWith("WPT-Sort-", StringComparison.Ordinal)).Select(p => p.Name).ToArray();
+        string[] names = [.. prefs.WindowProfiles.Where(p => p.Name.StartsWith("WPT-Sort-", StringComparison.Ordinal)).Select(p => p.Name)];
 
         Assert.Equal(["WPT-Sort-Alpha", "WPT-Sort-Mike", "WPT-Sort-Zulu"], names);
 

@@ -31,7 +31,7 @@ public class VStripsSplitHostTests
         return (vm, entry, host, window);
     }
 
-    private static List<VStripsView> StripsViewsOf(VStripsSplitHost host) => host.GetVisualDescendants().OfType<VStripsView>().ToList();
+    private static List<VStripsView> StripsViewsOf(VStripsSplitHost host) => [.. host.GetVisualDescendants().OfType<VStripsView>()];
 
     [AvaloniaFact]
     public async Task SplitHost_RendersOneThenTwoThenOnePane()

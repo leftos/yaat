@@ -49,11 +49,12 @@ public sealed class HeadlessAiStaffing(IReadOnlyList<AiPositionConfig> configure
     public bool IsAssignedToHuman(string callsign) => false;
 
     private static List<AiPositionConfig> Filter(IReadOnlyList<AiPositionConfig> configured, SimScenarioState scenario) =>
-        configured
-            .Where(p => !IsStudentPosition(p, scenario))
-            .OrderBy(p => ControlRoles.Rank(p.Role))
-            .ThenBy(p => p.PositionId, StringComparer.Ordinal)
-            .ToList();
+        [
+            .. configured
+                .Where(p => !IsStudentPosition(p, scenario))
+                .OrderBy(p => ControlRoles.Rank(p.Role))
+                .ThenBy(p => p.PositionId, StringComparer.Ordinal),
+        ];
 
     /// <summary>Compare by callsign, not by TCP: tower-cab positions share a TCP (OAK_GND / OAK_TWR / OAK_DEL are all 3O).</summary>
     private static bool IsStudentPosition(AiPositionConfig position, SimScenarioState scenario) =>

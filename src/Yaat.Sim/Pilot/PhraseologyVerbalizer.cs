@@ -50,7 +50,7 @@ public static class PhraseologyVerbalizer
         var dict = new Dictionary<CanonicalCommandType, PhraseologyRule[]>();
         foreach (IGrouping<CanonicalCommandType, PhraseologyRule> group in PhraseologyRules.All.Where(r => !r.SttOnly).GroupBy(r => r.Type))
         {
-            dict[group.Key] = group.ToArray();
+            dict[group.Key] = [.. group];
         }
         return dict;
     }

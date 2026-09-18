@@ -516,7 +516,7 @@ public partial class CommandInputController : ObservableObject
         if (verbIndex >= 0)
         {
             int argStartIndex = verbIndex + 1;
-            typedArgs = tokens.Skip(argStartIndex).ToArray();
+            typedArgs = [.. tokens.Skip(argStartIndex)];
         }
 
         // Find the active token at the cursor.

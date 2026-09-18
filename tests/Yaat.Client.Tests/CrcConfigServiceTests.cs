@@ -96,7 +96,7 @@ public class CrcConfigServiceTests
     [Fact]
     public void EnumerateCandidates_includes_platform_default()
     {
-        string[] candidates = CrcConfigService.EnumerateCandidates().ToArray();
+        string[] candidates = [.. CrcConfigService.EnumerateCandidates()];
 
         Assert.NotEmpty(candidates);
 

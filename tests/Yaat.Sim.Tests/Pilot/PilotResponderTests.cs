@@ -34,10 +34,10 @@ public class PilotResponderTests
         return ac;
     }
 
-    private static CompoundCommand Compound(params ParsedCommand[] commands) => new([new ParsedBlock(null, commands.ToList())]);
+    private static CompoundCommand Compound(params ParsedCommand[] commands) => new([new ParsedBlock(null, [.. commands])]);
 
     private static CompoundCommand CompoundWithCondition(BlockCondition condition, params ParsedCommand[] commands) =>
-        new([new ParsedBlock(condition, commands.ToList())]);
+        new([new ParsedBlock(condition, [.. commands])]);
 
     private static AircraftState MakeAircraftWithAssignedRunway(string callsign, string runwayId)
     {

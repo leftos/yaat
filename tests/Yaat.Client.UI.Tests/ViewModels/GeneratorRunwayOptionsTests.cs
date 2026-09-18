@@ -16,13 +16,13 @@ public class GeneratorRunwayOptionsTests
     [Fact]
     public void UnionRunwayIds_NullLayout_ReturnsGeneratorRunways_Deduped()
     {
-        ScenarioGeneratorConfig[] generators = new[]
-        {
+        ScenarioGeneratorConfig[] generators =
+        [
             new ScenarioGeneratorConfig { Runway = "28R" },
             new ScenarioGeneratorConfig { Runway = "30" },
             new ScenarioGeneratorConfig { Runway = "28R" },
             new ScenarioGeneratorConfig { Runway = "" },
-        };
+        ];
 
         List<string> union = MainViewModel.UnionRunwayIds(null, generators);
 
@@ -45,11 +45,11 @@ public class GeneratorRunwayOptionsTests
                 },
             ],
         };
-        ScenarioGeneratorConfig[] generators = new[]
-        {
+        ScenarioGeneratorConfig[] generators =
+        [
             new ScenarioGeneratorConfig { Runway = "28R" }, // already in the layout
             new ScenarioGeneratorConfig { Runway = "33" }, // not in the layout — must still be offered
-        };
+        ];
 
         List<string> union = MainViewModel.UnionRunwayIds(layout, generators);
 

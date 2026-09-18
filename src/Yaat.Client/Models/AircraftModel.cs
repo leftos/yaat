@@ -455,7 +455,7 @@ public partial class AircraftModel : ObservableObject
     public List<NavRouteShapeDto> NavRouteShapes { get; set; } = [];
 
     private static List<string> DeriveFixNames(List<NavRouteFixDto>? fixes) =>
-        fixes is null ? [] : fixes.Where(f => f.Name.Length > 0).Select(f => f.Name).ToList();
+        fixes is null ? [] : [.. fixes.Where(f => f.Name.Length > 0).Select(f => f.Name)];
 
     [ObservableProperty]
     private string _equipmentSuffix = "";
@@ -1328,7 +1328,7 @@ public sealed class StatusSortComparer : IComparer
 /// </summary>
 public sealed class PropertySortComparer : IComparer
 {
-    private static readonly Dictionary<string, Func<AircraftModel, IComparable?>> _accessorCache = new();
+    private static readonly Dictionary<string, Func<AircraftModel, IComparable?>> _accessorCache = [];
     private readonly Func<AircraftModel, IComparable?> _accessor;
 
     public PropertySortComparer(string propertyName)

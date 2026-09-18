@@ -536,8 +536,7 @@ public class Issue186ZhuAusStarApproachTests
 
     // --- helpers ---------------------------------------------------------------------------------
 
-    private static HashSet<string> RouteNames(AircraftState? ac) =>
-        ac is null ? new HashSet<string>() : ac.Targets.NavigationRoute.Select(n => n.Name).ToHashSet();
+    private static HashSet<string> RouteNames(AircraftState? ac) => ac is null ? [] : [.. ac.Targets.NavigationRoute.Select(n => n.Name)];
 
     private static double CrossTrackNm(AircraftState ac)
     {

@@ -695,11 +695,11 @@ public class DepartureClearanceHandlerTests
     {
         using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithFixes(("FIXPI", 37.0, -122.0), ("FIXNORM", 37.5, -122.5)));
 
-        CifpLeg[] legs = new[]
-        {
+        CifpLeg[] legs =
+        [
             new CifpLeg("FIXPI", CifpPathTerminator.PI, null, null, null, CifpFixRole.None, 1, null, null, null),
             new CifpLeg("FIXNORM", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 2, null, null, null),
-        };
+        ];
 
         List<NavigationTarget> targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
 
@@ -713,11 +713,11 @@ public class DepartureClearanceHandlerTests
     {
         using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithFixes(("KNOWN", 37.0, -122.0)));
 
-        CifpLeg[] legs = new[]
-        {
+        CifpLeg[] legs =
+        [
             new CifpLeg("UNKNOWN", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 1, null, null, null),
             new CifpLeg("KNOWN", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 2, null, null, null),
-        };
+        ];
 
         List<NavigationTarget> targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
 
@@ -731,7 +731,7 @@ public class DepartureClearanceHandlerTests
         using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithFixes(("FIX1", 37.0, -122.0)));
 
         var alt = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 5000);
-        CifpLeg[] legs = new[] { new CifpLeg("FIX1", CifpPathTerminator.TF, null, alt, null, CifpFixRole.None, 1, null, null, null) };
+        CifpLeg[] legs = [new CifpLeg("FIX1", CifpPathTerminator.TF, null, alt, null, CifpFixRole.None, 1, null, null, null)];
 
         List<NavigationTarget> targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
 
@@ -745,11 +745,11 @@ public class DepartureClearanceHandlerTests
     {
         using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithFixes(("FIX1", 37.0, -122.0)));
 
-        CifpLeg[] legs = new[]
-        {
+        CifpLeg[] legs =
+        [
             new CifpLeg("FIX1", CifpPathTerminator.IF, null, null, null, CifpFixRole.None, 1, null, null, null),
             new CifpLeg("FIX1", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 2, null, null, null),
-        };
+        ];
 
         List<NavigationTarget> targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
 
@@ -1415,7 +1415,7 @@ public class DepartureClearanceHandlerTests
 
         IReadOnlyList<int>? tracked = ac.Phases!.DepartureClearance!.PreClearedHoldShortNodeIds;
         Assert.NotNull(tracked);
-        Assert.Equal([10, 12], tracked!.OrderBy(id => id).ToArray());
+        Assert.Equal([10, 12], [.. tracked!.OrderBy(id => id)]);
     }
 
     // -------------------------------------------------------------------------

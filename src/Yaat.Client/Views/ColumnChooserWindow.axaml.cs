@@ -80,7 +80,7 @@ public partial class ColumnChooserWindow : Window
         }
 
         var selected = new HashSet<ColumnEntry>(selectedItems.Cast<ColumnEntry>());
-        return Entries.Where(e => selected.Contains(e)).ToList();
+        return [.. Entries.Where(e => selected.Contains(e))];
     }
 
     private void ReselectItems(List<ColumnEntry> items)
@@ -206,7 +206,7 @@ public partial class ColumnChooserWindow : Window
     {
         var layout = new SavedGridLayout
         {
-            ColumnOrder = Entries.Select(entry => entry.Key).ToList(),
+            ColumnOrder = [.. Entries.Select(entry => entry.Key)],
             HiddenColumns = Entries.Where(entry => !entry.IsVisible).Select(entry => entry.Key).ToList() is { Count: > 0 } hidden ? hidden : null,
             ColumnWidths = _columnWidths,
             SortColumn = _sortColumn,
@@ -293,7 +293,7 @@ public partial class ColumnChooserWindow : Window
         }
 
         // Update visibility
-        HashSet<string>? hiddenSet = layout.HiddenColumns is { Count: > 0 } ? new HashSet<string>(layout.HiddenColumns) : null;
+        HashSet<string>? hiddenSet = layout.HiddenColumns is { Count: > 0 } ? [.. layout.HiddenColumns] : null;
         foreach (ColumnEntry entry in Entries)
         {
             entry.IsVisible = hiddenSet is null || !hiddenSet.Contains(entry.Key);

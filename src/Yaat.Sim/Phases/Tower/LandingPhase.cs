@@ -169,7 +169,7 @@ public sealed class LandingPhase : Phase
         {
             Status = (int)Status,
             ElapsedSeconds = ElapsedSeconds,
-            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            Requirements = Requirements.Count > 0 ? [.. Requirements.Select(r => r.ToSnapshot())] : null,
             FieldElevation = geometry?.FieldElevation ?? 0,
             RunwayHeadingDeg = geometry?.RunwayHeading.Degrees ?? 0,
             ThresholdLat = geometry?.ThresholdLat ?? 0,
@@ -1207,7 +1207,7 @@ public sealed class LandingPhase : Phase
             rwyDesignator,
             searchPref,
             sidePref,
-            excludeBranchPoints: _unableBranchPoints.Count > 0 ? new HashSet<int>(_unableBranchPoints) : null,
+            excludeBranchPoints: _unableBranchPoints.Count > 0 ? [.. _unableBranchPoints] : null,
             excludeHoldShortNodes: excludeHoldShortNodes,
             filter: candidate =>
             {

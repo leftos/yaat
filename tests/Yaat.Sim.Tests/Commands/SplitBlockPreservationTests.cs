@@ -72,7 +72,7 @@ public class SplitBlockPreservationTests : IDisposable
             .OrderBy(n => n)
             .ToList();
 
-        Assert.Equal(settable, SplitCoverage.Keys.OrderBy(n => n).ToList());
+        Assert.Equal(settable, [.. SplitCoverage.Keys.OrderBy(n => n)]);
     }
 
     [Fact]

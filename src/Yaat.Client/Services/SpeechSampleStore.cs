@@ -192,15 +192,16 @@ public sealed class SpeechSampleStore
                 SchemaVersion: BundleSchemaVersionMulti,
                 YaatVersion: Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "unknown",
                 ExportedUtc: DateTime.UtcNow,
-                Samples: entries
-                    .Select(e => new SpeechSampleBundleEntry(
+                Samples:
+                [
+                    .. entries.Select(e => new SpeechSampleBundleEntry(
                         Id: e.Id,
                         CapturedUtc: e.Session.TimestampUtc,
                         Outcome: e.Session.Outcome.ToString(),
                         UsedLlmFallback: e.Session.UsedLlmFallback,
                         CanonicalCommand: e.Session.CanonicalCommand
-                    ))
-                    .ToList()
+                    )),
+                ]
             );
             WriteEntry(zip, "manifest.json", JsonSerializer.SerializeToUtf8Bytes(manifest, JsonOpts));
 

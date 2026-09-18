@@ -152,11 +152,10 @@ public sealed class TowerListTracker
 
         // Callsign breaks a dwell-second tie, so a list two aircraft entered in the same second reads back in one
         // fixed order on every run.
-        return entries
-            .OrderBy(e => e.EnteredAtSeconds)
-            .ThenBy(e => e.Callsign, StringComparer.Ordinal)
-            .Select(e => (e.Callsign, e.EnteredAtSeconds))
-            .ToList();
+        return
+        [
+            .. entries.OrderBy(e => e.EnteredAtSeconds).ThenBy(e => e.Callsign, StringComparer.Ordinal).Select(e => (e.Callsign, e.EnteredAtSeconds)),
+        ];
     }
 
     /// <summary>

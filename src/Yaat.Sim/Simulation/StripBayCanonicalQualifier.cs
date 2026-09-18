@@ -124,7 +124,7 @@ public static class StripBayCanonicalQualifier
         }
 
         string remainder = tokens[start][(slash + 1)..];
-        string[] inner = remainder.Length == 0 ? tokens.Skip(start + 1).ToArray() : [remainder, .. tokens.Skip(start + 1)];
+        string[] inner = remainder.Length == 0 ? [.. tokens.Skip(start + 1)] : [remainder, .. tokens.Skip(start + 1)];
         var scoped = bays.Where(b => b.Owner.Id.Equals(candidateFacility, StringComparison.OrdinalIgnoreCase)).ToList();
         return TryMatchBayName(inner, scoped, out _);
     }
@@ -138,7 +138,7 @@ public static class StripBayCanonicalQualifier
     private static bool TryResolveOwner(string[] tokens, int start, IReadOnlyList<AccessibleBay> bays, out string facilityId)
     {
         var ordered = bays.OrderBy(b => b.IsExternal ? 1 : 0).ToList();
-        if (TryMatchBayName(tokens.Skip(start).ToArray(), ordered, out AccessibleBay? match))
+        if (TryMatchBayName([.. tokens.Skip(start)], ordered, out AccessibleBay? match))
         {
             facilityId = match!.Owner.Id;
             return true;

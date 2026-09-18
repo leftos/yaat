@@ -476,7 +476,7 @@ public class LiveTrafficAssumeTests
 
         // Past the last fix of a two-fix route: nothing ahead, never turn back.
         ac.Position = GeoMath.ProjectPoint(b, new TrueHeading(90), 1);
-        Assert.Equal(-1, LiveTrafficAssumer.NextFixAhead(ac, route.Take(2).ToList()));
+        Assert.Equal(-1, LiveTrafficAssumer.NextFixAhead(ac, [.. route.Take(2)]));
     }
 
     [Fact]

@@ -833,7 +833,7 @@ public class VStripsViewInteractionTests
         (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
         // Enough strips to overflow the 400px window's rack viewport.
-        string[] ids = Enumerable.Range(0, 10).Select(i => $"S{i:D2}").ToArray();
+        string[] ids = [.. Enumerable.Range(0, 10).Select(i => $"S{i:D2}")];
         SeedStripsInBay(vm, "bay-gnd", [ids, []]);
         (Window _, VStripsView? view) = BootView(vm);
 
@@ -855,7 +855,7 @@ public class VStripsViewInteractionTests
         Assert.True(sv.Offset.Y >= maxBefore - 1.0);
 
         // A new strip arrives at the visual bottom (model index 0), growing the content.
-        string[] grown = new[] { "SNEW" }.Concat(ids).ToArray();
+        string[] grown = ["SNEW", .. ids];
         SeedStripsInBay(vm, "bay-gnd", [grown, []]);
         Dispatcher.UIThread.RunJobs();
         view.UpdateLayout();
@@ -871,7 +871,7 @@ public class VStripsViewInteractionTests
     {
         (VStripsViewModel? vm, List<(string Callsign, string Command)> _) = MakeVm();
         SeedBays(vm, SimpleConfig());
-        string[] ids = Enumerable.Range(0, 10).Select(i => $"S{i:D2}").ToArray();
+        string[] ids = [.. Enumerable.Range(0, 10).Select(i => $"S{i:D2}")];
         SeedStripsInBay(vm, "bay-gnd", [ids, []]);
         (Window _, VStripsView? view) = BootView(vm);
 
@@ -888,7 +888,7 @@ public class VStripsViewInteractionTests
         view.UpdateLayout();
         Dispatcher.UIThread.RunJobs();
 
-        string[] grown = new[] { "SNEW" }.Concat(ids).ToArray();
+        string[] grown = ["SNEW", .. ids];
         SeedStripsInBay(vm, "bay-gnd", [grown, []]);
         Dispatcher.UIThread.RunJobs();
         view.UpdateLayout();
@@ -1012,7 +1012,7 @@ public class VStripsViewInteractionTests
         new(
             FacilityId: "FAC1",
             FacilityName: "Fresno ATCT",
-            Bays: Enumerable.Range(1, 8).Select(i => new StripBayConfigDto($"bay-{i}", $"BAY {i}", 2, "FAC1")).ToArray(),
+            Bays: [.. Enumerable.Range(1, 8).Select(i => new StripBayConfigDto($"bay-{i}", $"BAY {i}", 2, "FAC1"))],
             SeparatorsLocked: false,
             UnderlyingAirports: [],
             EnableArrivalStrips: true,
@@ -1026,8 +1026,8 @@ public class VStripsViewInteractionTests
     // rackStrips (outer = rack index, inner = strip ids in model order bottom-up).
     internal static void SeedStripsInBay(VStripsViewModel vm, string bayId, string[][] rackStrips)
     {
-        string[] flatIds = rackStrips.SelectMany(r => r).ToArray();
-        vm.ReconcileItems(flatIds.Select(FullStrip).ToArray());
+        string[] flatIds = [.. rackStrips.SelectMany(r => r)];
+        vm.ReconcileItems([.. flatIds.Select(FullStrip)]);
         vm.ReconcileFullState(
             new FlightStripsStateDto(
                 PrinterItems: [],
@@ -1040,7 +1040,7 @@ public class VStripsViewInteractionTests
         );
     }
 
-    private static List<string?> ExtractHeaders(MenuFlyout menu) => menu.Items.OfType<MenuItem>().Select(i => (string?)i.Header).ToList();
+    private static List<string?> ExtractHeaders(MenuFlyout menu) => [.. menu.Items.OfType<MenuItem>().Select(i => (string?)i.Header)];
 
     // ApplyBayConfig posts to the dispatcher. Under an Avalonia.Headless test
     // that's fine — RunJobs flushes. The reflection path in the unit-test MakeVm

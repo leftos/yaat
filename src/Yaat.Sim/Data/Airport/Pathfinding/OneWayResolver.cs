@@ -21,7 +21,7 @@ public static class OneWayResolver
 
     // Resolved sets are cached per layout instance: a re-downloaded map produces a new layout object
     // (cache miss → re-resolve against the new node ids), and the old entry is collected with it.
-    private static readonly ConditionalWeakTable<AirportGroundLayout, HashSet<(int, int)>> Cache = new();
+    private static readonly ConditionalWeakTable<AirportGroundLayout, HashSet<(int, int)>> Cache = [];
 
     /// <summary>
     /// Forbidden directed moves for <paramref name="layout"/>, cached. Reads the airport's constraints

@@ -83,7 +83,7 @@ public sealed class AvaloniaFilePickerService : IFilePickerService
         var result = new List<FilePickerFileType>(filters.Count);
         foreach (FilePickerFilter filter in filters)
         {
-            result.Add(new FilePickerFileType(filter.Name) { Patterns = filter.Patterns.ToArray() });
+            result.Add(new FilePickerFileType(filter.Name) { Patterns = [.. filter.Patterns] });
         }
         return result;
     }

@@ -33,7 +33,7 @@ public class WindowGeometryResolveTests
     public void EdgeSnappedWindow_RestoresVerbatim()
     {
         // Reporter's "Local 2" profile: Main flush against the left screen edge, frame at x=-5.
-        WindowGeometryHelper.ScreenInfo[] screens = new[] { Screen(0, 0, 1920, 1009) };
+        WindowGeometryHelper.ScreenInfo[] screens = [Screen(0, 0, 1920, 1009)];
         WindowGeometryHelper.ResolvedGeometry resolved = WindowGeometryHelper.ResolveGeometry(Geo(-5, 0, 610, 1000), screens);
 
         Assert.Equal(-5, resolved.X);
@@ -45,7 +45,7 @@ public class WindowGeometryResolveTests
     [Fact]
     public void FullyOnScreenWindow_RestoresVerbatim()
     {
-        WindowGeometryHelper.ScreenInfo[] screens = new[] { Screen(0, 0, 1920, 1009) };
+        WindowGeometryHelper.ScreenInfo[] screens = [Screen(0, 0, 1920, 1009)];
         WindowGeometryHelper.ResolvedGeometry resolved = WindowGeometryHelper.ResolveGeometry(Geo(0, 0, 611, 1000), screens);
 
         Assert.Equal(0, resolved.X);
@@ -58,7 +58,7 @@ public class WindowGeometryResolveTests
     public void SecondMonitorNegativeCoordinates_RestoreVerbatim()
     {
         // A 1440x877 monitor sits left of the primary; window fills it at x=-1440.
-        WindowGeometryHelper.ScreenInfo[] screens = new[] { Screen(0, 0, 1920, 1009), Screen(-1440, -398, 1440, 877) };
+        WindowGeometryHelper.ScreenInfo[] screens = [Screen(0, 0, 1920, 1009), Screen(-1440, -398, 1440, 877)];
         WindowGeometryHelper.ResolvedGeometry resolved = WindowGeometryHelper.ResolveGeometry(Geo(-1440, -398, 1440, 877, screenIndex: 1), screens);
 
         Assert.Equal(-1440, resolved.X);
@@ -71,7 +71,7 @@ public class WindowGeometryResolveTests
     public void OffScreenWindow_IsClampedIntoWorkArea()
     {
         // Saved on a monitor that no longer exists — rescue-clamp into the primary work area.
-        WindowGeometryHelper.ScreenInfo[] screens = new[] { Screen(0, 0, 1920, 1009) };
+        WindowGeometryHelper.ScreenInfo[] screens = [Screen(0, 0, 1920, 1009)];
         WindowGeometryHelper.ResolvedGeometry resolved = WindowGeometryHelper.ResolveGeometry(Geo(5000, 200, 610, 500), screens);
 
         Assert.Equal(1920 - 610, resolved.X);
@@ -84,7 +84,7 @@ public class WindowGeometryResolveTests
     public void IconicSentinelPosition_IsClampedIntoWorkArea()
     {
         // Legacy prefs/profiles poisoned with the Windows minimized sentinel (-32000,-32000).
-        WindowGeometryHelper.ScreenInfo[] screens = new[] { Screen(0, 0, 1920, 1009) };
+        WindowGeometryHelper.ScreenInfo[] screens = [Screen(0, 0, 1920, 1009)];
         WindowGeometryHelper.ResolvedGeometry resolved = WindowGeometryHelper.ResolveGeometry(Geo(-32000, -32000, 900, 620), screens);
 
         Assert.Equal(0, resolved.X);
@@ -97,7 +97,7 @@ public class WindowGeometryResolveTests
     public void OffScreenClamp_UsesDevicePixelWidthAtHighDpi()
     {
         // 1000 DIP at 150% scaling is 1500 device px; the clamp bound must subtract 1500, not 1000.
-        WindowGeometryHelper.ScreenInfo[] screens = new[] { Screen(0, 0, 1920, 1040, scaling: 1.5) };
+        WindowGeometryHelper.ScreenInfo[] screens = [Screen(0, 0, 1920, 1040, scaling: 1.5)];
         WindowGeometryHelper.ResolvedGeometry resolved = WindowGeometryHelper.ResolveGeometry(Geo(5000, 5000, 1000, 600), screens);
 
         Assert.Equal(1920 - 1500, resolved.X);
@@ -110,7 +110,7 @@ public class WindowGeometryResolveTests
     public void OversizedWindow_IsCappedToWorkAreaInDips()
     {
         // Work area is 1920 device px = 1280 DIP at 150%; a 1400-DIP-wide window must cap to 1280 DIP.
-        WindowGeometryHelper.ScreenInfo[] screens = new[] { Screen(0, 0, 1920, 1040, scaling: 1.5) };
+        WindowGeometryHelper.ScreenInfo[] screens = [Screen(0, 0, 1920, 1040, scaling: 1.5)];
         WindowGeometryHelper.ResolvedGeometry resolved = WindowGeometryHelper.ResolveGeometry(Geo(0, 0, 1400, 600), screens);
 
         Assert.Equal(0, resolved.X);
@@ -123,7 +123,7 @@ public class WindowGeometryResolveTests
     public void BarelyOverhangingWindow_WithMostOfItOffScreen_IsClamped()
     {
         // Only a 20px sliver remains on-screen — too little to grab; rescue applies.
-        WindowGeometryHelper.ScreenInfo[] screens = new[] { Screen(0, 0, 1920, 1009) };
+        WindowGeometryHelper.ScreenInfo[] screens = [Screen(0, 0, 1920, 1009)];
         WindowGeometryHelper.ResolvedGeometry resolved = WindowGeometryHelper.ResolveGeometry(Geo(1900, 300, 610, 500), screens);
 
         Assert.Equal(1920 - 610, resolved.X);

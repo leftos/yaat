@@ -12,7 +12,7 @@ namespace Yaat.Sim.Tests.Helpers;
 public sealed class SimLogBuilder
 {
     private readonly ITestOutputHelper _output;
-    private readonly Dictionary<string, LogLevel> _categories = new();
+    private readonly Dictionary<string, LogLevel> _categories = [];
     private LogLevel _defaultLevel = LogLevel.Warning;
 
     private SimLogBuilder(ITestOutputHelper output) => _output = output;

@@ -95,7 +95,7 @@ public class AircraftStarsState
             TpaType = TpaType,
             TpaSize = TpaSize,
             GlobalLeaderDirection = GlobalLeaderDirection,
-            ForcedPointoutsTo = ForcedPointoutsTo.Count > 0 ? ForcedPointoutsTo.Select(t => t.ToSnapshot()).ToList() : null,
+            ForcedPointoutsTo = ForcedPointoutsTo.Count > 0 ? [.. ForcedPointoutsTo.Select(t => t.ToSnapshot())] : null,
             SharedState = SharedState.Count > 0 ? SharedState.ToDictionary(kv => kv.Key, kv => kv.Value.ToSnapshot()) : null,
         };
 
@@ -137,7 +137,7 @@ public class AircraftStarsState
             TpaType = dto.TpaType,
             TpaSize = dto.TpaSize,
             GlobalLeaderDirection = dto.GlobalLeaderDirection,
-            ForcedPointoutsTo = dto.ForcedPointoutsTo is not null ? dto.ForcedPointoutsTo.Select(Tcp.FromSnapshot).ToList() : [],
+            ForcedPointoutsTo = dto.ForcedPointoutsTo is not null ? [.. dto.ForcedPointoutsTo.Select(Tcp.FromSnapshot)] : [],
             SharedState = dto.SharedState is not null
                 ? dto.SharedState.ToDictionary(kv => kv.Key, kv => StarsTrackSharedState.FromSnapshot(kv.Value))
                 : [],

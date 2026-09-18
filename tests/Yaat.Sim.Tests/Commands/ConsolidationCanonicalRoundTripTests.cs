@@ -12,7 +12,7 @@ namespace Yaat.Sim.Tests.Commands;
 public class ConsolidationCanonicalRoundTripTests
 {
     public static TheoryData<ParsedCommand> Shapes =>
-        new() { new ConsolidateCommand("1N", "1R", Full: false), new ConsolidateCommand("1N", "1R", Full: true), new DeconsolidateCommand("1R") };
+        [new ConsolidateCommand("1N", "1R", Full: false), new ConsolidateCommand("1N", "1R", Full: true), new DeconsolidateCommand("1R")];
 
     [Theory]
     [MemberData(nameof(Shapes))]

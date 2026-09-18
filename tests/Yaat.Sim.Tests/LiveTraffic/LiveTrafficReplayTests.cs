@@ -144,7 +144,7 @@ public class LiveTrafficReplayTests(ITestOutputHelper output)
         Assert.InRange(GeoMath.DistanceNm(expected, shadow.Position), 0, 0.001);
 
         var replay = new SimulationEngine(new TestAirportGroundData());
-        replay.Replay(WithActions(baseline, live.Scenario!.ActionLog.ToList(), 12), 10);
+        replay.Replay(WithActions(baseline, [.. live.Scenario!.ActionLog], 12), 10);
         Assert.InRange(GeoMath.DistanceNm(shadow.Position, replay.World.FindAircraft("UAL123")!.Position), 0, 0.001);
     }
 

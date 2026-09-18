@@ -245,14 +245,14 @@ public class MacroDefinitionTests
     public void ParameterNames_PositionalOrder()
     {
         var def = new MacroDefinition { Name = "TEST", Expansion = "FH &1, CM &2" };
-        Assert.Equal(new[] { "1", "2" }, def.ParameterNames);
+        Assert.Equal(["1", "2"], def.ParameterNames);
     }
 
     [Fact]
     public void ParameterNames_NamedOrder()
     {
         var def = new MacroDefinition { Name = "TEST", Expansion = "FH &hdg, CM &alt" };
-        Assert.Equal(new[] { "hdg", "alt" }, def.ParameterNames);
+        Assert.Equal(["hdg", "alt"], def.ParameterNames);
     }
 
     [Fact]
@@ -296,7 +296,7 @@ public class MacroDefinitionTests
     {
         // Name declares &alt before &hdg — that order should be used regardless of expansion order
         var def = new MacroDefinition { Name = "HC &alt &hdg", Expansion = "FH &hdg, CM &alt" };
-        Assert.Equal(new[] { "alt", "hdg" }, def.ParameterNames);
+        Assert.Equal(["alt", "hdg"], def.ParameterNames);
     }
 
     [Theory]

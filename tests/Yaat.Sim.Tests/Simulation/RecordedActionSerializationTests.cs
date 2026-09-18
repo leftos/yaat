@@ -88,14 +88,15 @@ public class RecordedActionSerializationTests
     }
 
     private static IReadOnlyList<JsonDerivedTypeAttribute> DerivedTypeRegistrations() =>
-        typeof(RecordedAction).GetCustomAttributes<JsonDerivedTypeAttribute>(inherit: false).ToList();
+        [.. typeof(RecordedAction).GetCustomAttributes<JsonDerivedTypeAttribute>(inherit: false)];
 
     private static IReadOnlyList<Type> ConcreteSubtypes() =>
-        typeof(RecordedAction)
-            .Assembly.GetTypes()
-            .Where(t => !t.IsAbstract && t.IsAssignableTo(typeof(RecordedAction)))
-            .OrderBy(t => t.Name, StringComparer.Ordinal)
-            .ToList();
+        [
+            .. typeof(RecordedAction)
+                .Assembly.GetTypes()
+                .Where(t => !t.IsAbstract && t.IsAssignableTo(typeof(RecordedAction)))
+                .OrderBy(t => t.Name, StringComparer.Ordinal),
+        ];
 
     /// <summary>
     /// One realistic sample per concrete subtype. Hand-written rather than reflected so the round trip

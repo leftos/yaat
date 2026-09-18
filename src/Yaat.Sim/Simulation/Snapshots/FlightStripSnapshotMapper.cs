@@ -38,7 +38,7 @@ public static class FlightStripSnapshotMapper
                         {
                             BayId = bayId,
                             RackKey = rackKey,
-                            Columns = columns.Select(col => col.ToList()).ToList(),
+                            Columns = [.. columns.Select(col => col.ToList())],
                         }
                     );
                 }
@@ -48,8 +48,8 @@ public static class FlightStripSnapshotMapper
             {
                 Items = items,
                 BayRacks = bayRacks,
-                DeparturePrinterQueue = strips.DeparturePrinterQueue.ToList(),
-                ArrivalPrinterQueue = strips.ArrivalPrinterQueue.ToList(),
+                DeparturePrinterQueue = [.. strips.DeparturePrinterQueue],
+                ArrivalPrinterQueue = [.. strips.ArrivalPrinterQueue],
                 NextBlankId = strips.NextBlankId,
             };
         }
@@ -83,11 +83,11 @@ public static class FlightStripSnapshotMapper
             {
                 if (!strips.Bays.TryGetValue(rack.BayId, out Dictionary<string, List<string>[]>? racks))
                 {
-                    racks = new Dictionary<string, List<string>[]>();
+                    racks = [];
                     strips.Bays[rack.BayId] = racks;
                 }
 
-                racks[rack.RackKey] = rack.Columns.Select(col => col.ToList()).ToArray();
+                racks[rack.RackKey] = [.. rack.Columns.Select(col => col.ToList())];
             }
 
             strips.DeparturePrinterQueue.AddRange(dto.DeparturePrinterQueue);

@@ -195,8 +195,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     // Per-frame deconfliction result (callsign -> effective text-origin offset). Written on the UI
     // thread at snapshot build; read by the snapshot copy (draw) and by hit-testing; persists across
     // frames to seed the next pass for stability.
-    private readonly Dictionary<string, SKPoint> _resolvedDeconflictOffsets = new();
-    private readonly Dictionary<string, SKPoint> _deconflictScratch = new();
+    private readonly Dictionary<string, SKPoint> _resolvedDeconflictOffsets = [];
+    private readonly Dictionary<string, SKPoint> _deconflictScratch = [];
     private readonly SKPaint _hitTestPaint = new();
     private readonly SKFont _hitTestFont = PlatformHelper.MonospaceFontBold(12);
 
@@ -949,7 +949,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     {
         if (aircraft is null || aircraft.Count == 0)
         {
-            return Array.Empty<AircraftModel>();
+            return [];
         }
 
         var result = new List<AircraftModel>(aircraft.Count);

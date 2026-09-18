@@ -269,7 +269,7 @@ public static class CommandDispatcher
                 return headResult;
             }
 
-            var remainder = new CompoundCommand(compound.Blocks.Skip(1).ToList()) { SourceText = compound.SourceText };
+            var remainder = new CompoundCommand([.. compound.Blocks.Skip(1)]) { SourceText = compound.SourceText };
             CommandResult tailResult = DispatchCompoundCore(remainder, aircraft, ctx);
             string headMsg = headResult.Message ?? "";
             if (string.IsNullOrEmpty(headMsg))
@@ -403,7 +403,7 @@ public static class CommandDispatcher
                     List<string> remainingMessages =
                         remainingBlocks.Count > 0
                             ? EnqueueBlocks(new CompoundCommand(remainingBlocks) { SourceText = compound.SourceText }, 0, aircraft, ctx)
-                            : new List<string>();
+                            : [];
                     AttachAfterRunwayCrossingTriggerForToweredFirstBlock(
                         compound,
                         aircraft,
@@ -3041,7 +3041,7 @@ public static class CommandDispatcher
     )
     {
         bool hasTrackCommand = parsedCommands.Exists(TrackEngine.IsTrackCommand);
-        List<ParsedCommand> applyCommands = hasTrackCommand ? parsedCommands.Where(c => !TrackEngine.IsTrackCommand(c)).ToList() : parsedCommands;
+        List<ParsedCommand> applyCommands = hasTrackCommand ? [.. parsedCommands.Where(c => !TrackEngine.IsTrackCommand(c))] : parsedCommands;
 
         var tracked = new List<TrackedCommand>(parsedCommands.Count);
         foreach (ParsedCommand cmd in parsedCommands)

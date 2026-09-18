@@ -36,7 +36,7 @@ public sealed class ControllerAiConfig
             RunwayConfigurations = RunwayConfigurations
                 .OrderBy(kv => kv.Key, StringComparer.Ordinal)
                 .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase),
-            EnabledPositionIds = EnabledPositionIds.ToList(),
+            EnabledPositionIds = [.. EnabledPositionIds],
             RoleOverrides = RoleOverrides
                 .OrderBy(kv => kv.Key, StringComparer.Ordinal)
                 .ToDictionary(kv => kv.Key, kv => kv.Value.ToString(), StringComparer.Ordinal),
@@ -48,7 +48,7 @@ public sealed class ControllerAiConfig
             Seed = dto.Seed,
             RunwayInUse = dto.RunwayInUse,
             RunwayConfigurations = new Dictionary<string, string>(dto.RunwayConfigurations, StringComparer.OrdinalIgnoreCase),
-            EnabledPositionIds = dto.EnabledPositionIds.ToList(),
+            EnabledPositionIds = [.. dto.EnabledPositionIds],
             RoleOverrides = dto.RoleOverrides.ToDictionary(
                 kv => kv.Key,
                 kv => Enum.Parse<ControlRole>(kv.Value, ignoreCase: true),

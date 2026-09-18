@@ -193,7 +193,7 @@ internal sealed class ReplayDriver(SimulationEngine engine)
         // the client scrubs by calling Replay on one SessionRecording many times.
         if (_engine.Scenario is not null && recording.InitialAtcPositions is { } roster)
         {
-            _engine.Scenario.AtcPositions = roster.Select(ResolvedAtcPosition.FromSnapshot).ToList();
+            _engine.Scenario.AtcPositions = [.. roster.Select(ResolvedAtcPosition.FromSnapshot)];
         }
 
         if (_engine.Scenario is not null)

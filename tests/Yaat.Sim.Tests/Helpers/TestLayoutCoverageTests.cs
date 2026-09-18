@@ -56,11 +56,13 @@ public class TestLayoutCoverageTests(ITestOutputHelper output)
 
     private static List<string> CommittedGeoJsonShortIds() =>
         Directory.Exists(TestDataDir)
-            ? Directory
-                .EnumerateFiles(TestDataDir, "*.geojson")
-                .Select(p => Path.GetFileNameWithoutExtension(p))
-                .Order(StringComparer.OrdinalIgnoreCase)
-                .ToList()
+            ?
+            [
+                .. Directory
+                    .EnumerateFiles(TestDataDir, "*.geojson")
+                    .Select(p => Path.GetFileNameWithoutExtension(p))
+                    .Order(StringComparer.OrdinalIgnoreCase),
+            ]
             : [];
 
     /// <summary>

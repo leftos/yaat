@@ -777,7 +777,7 @@ public static class GroundCommandHandler
         List<TurnDirection?>? hints = null;
         if (command.PathTurnHints is not null)
         {
-            hints = new List<TurnDirection?>(command.PathTurnHints);
+            hints = [.. command.PathTurnHints];
             if (index < hints.Count)
             {
                 hints.RemoveAt(index);
@@ -1585,8 +1585,7 @@ public static class GroundCommandHandler
                 return null;
             }
 
-            combined = new List<TaxiRouteSegment>(explicitRoute.Segments);
-            combined.AddRange(extension.Segments);
+            combined = [.. explicitRoute.Segments, .. extension.Segments];
 
             holdShorts = [.. explicitRoute.HoldShortPoints];
             HoldShortAnnotator.AddImplicitRunwayHoldShorts(groundLayout, extension.Segments, holdShorts);
@@ -2713,7 +2712,7 @@ public static class GroundCommandHandler
         // runways are pre-cleared as upcoming crossings.
         IReadOnlyList<string> upcoming = currentHoldMatch is null
             ? cross.RunwayIds
-            : cross.RunwayIds.Where(r => !string.Equals(r, currentHoldMatch, StringComparison.OrdinalIgnoreCase)).ToList();
+            : [.. cross.RunwayIds.Where(r => !string.Equals(r, currentHoldMatch, StringComparison.OrdinalIgnoreCase))];
 
         CommandResult applied = TryApplyRouteCrossingsAndHoldShorts(aircraft, layout, upcoming, cross.HoldShorts);
         if (!applied.Success)
@@ -3551,7 +3550,7 @@ public static class GroundCommandHandler
         List<GroundNode> candidates = layout.GetRunwayHoldShortNodes(target.Target);
         if (target.OnTaxiway is { } taxiway)
         {
-            candidates = candidates.Where(node => HoldShortAnnotator.NodeOnLocationTaxiway(layout, node.Id, taxiway)).ToList();
+            candidates = [.. candidates.Where(node => HoldShortAnnotator.NodeOnLocationTaxiway(layout, node.Id, taxiway))];
         }
 
         if (candidates.Count == 0)

@@ -94,7 +94,7 @@ public class VStripsDragGestureTests
             (string Callsign, string Command) entry = Assert.Single(captured);
             // rack 0 → "1", index 2 → "3".
             Assert.Equal("STRIP S1 FAC1/GROUND/1/3", entry.Command);
-            Assert.Equal(["S2", "S3", "S1"], vm.Bays[0].Racks[0].Strips.Select(s => s.Id).ToArray());
+            Assert.Equal(["S2", "S3", "S1"], [.. vm.Bays[0].Racks[0].Strips.Select(s => s.Id)]);
         }
         finally
         {
@@ -135,7 +135,7 @@ public class VStripsDragGestureTests
             WaitOutSettle();
 
             Assert.Empty(captured);
-            Assert.Equal(["S1", "S2", "S3"], vm.Bays[0].Racks[0].Strips.Select(s => s.Id).ToArray());
+            Assert.Equal(["S1", "S2", "S3"], [.. vm.Bays[0].Racks[0].Strips.Select(s => s.Id)]);
         }
         finally
         {
@@ -169,7 +169,7 @@ public class VStripsDragGestureTests
 
             Assert.Equal("S2", vm.SelectedStrip?.Id);
             Assert.Empty(captured);
-            Assert.Equal(["S1", "S2"], vm.Bays[0].Racks[0].Strips.Select(s => s.Id).ToArray());
+            Assert.Equal(["S1", "S2"], [.. vm.Bays[0].Racks[0].Strips.Select(s => s.Id)]);
         }
         finally
         {

@@ -140,7 +140,7 @@ public class Issue400RampLaneDestinationCutTests
         Assert.True(LengthFt(cut) <= RampLaneReposition.MaxCrossingFt, $"crossing {LengthFt(cut):F0} ft exceeds the cap");
         int cutIndex = route.Segments.IndexOf(cut);
         Assert.False(
-            Traverses(new TaxiRoute { Segments = route.Segments.Take(cutIndex).ToList(), HoldShortPoints = [] }, "TC"),
+            Traverses(new TaxiRoute { Segments = [.. route.Segments.Take(cutIndex)], HoldShortPoints = [] }, "TC"),
             "TC is only used after the cut"
         );
 

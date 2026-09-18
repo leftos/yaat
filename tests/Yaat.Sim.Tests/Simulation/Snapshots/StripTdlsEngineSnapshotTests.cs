@@ -75,7 +75,13 @@ public class StripTdlsEngineSnapshotTests
                 0,
                 0
             );
-            engine.Strips.Bays["bay-ground"] = new Dictionary<string, List<string>[]> { ["0"] = [new List<string> { "STRIP_AAL100" }] };
+            engine.Strips.Bays["bay-ground"] = new Dictionary<string, List<string>[]>
+            {
+                ["0"] =
+                [
+                    ["STRIP_AAL100"],
+                ],
+            };
             engine.Strips.DeparturePrinterQueue.Add("STRIP_AAL100");
             engine.Strips.NextBlankId = 4;
         }

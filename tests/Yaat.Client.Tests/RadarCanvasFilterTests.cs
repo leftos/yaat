@@ -47,7 +47,7 @@ public class RadarCanvasFilterTests
             groundShownAirportId,
             Now
         );
-        return result.Select(a => a.Callsign).ToList();
+        return [.. result.Select(a => a.Callsign)];
     }
 
     [Fact]

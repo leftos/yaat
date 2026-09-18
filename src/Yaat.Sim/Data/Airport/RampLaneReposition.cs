@@ -133,7 +133,7 @@ public static class RampLaneReposition
             TaxiRoute? tail = TaxiPathfinder.ResolveExplicitPathDetailed(
                 layout,
                 target.Id,
-                path.ToList(),
+                [.. path],
                 out PathfindingFailure? tailFailure,
                 options,
                 category
@@ -364,7 +364,7 @@ public static class RampLaneReposition
         var route = new TaxiRoute
         {
             Segments = [.. head, crossing],
-            HoldShortPoints = resolvedRoute.HoldShortPoints.Where(hs => head.Any(s => s.ToNodeId == hs.NodeId)).ToList(),
+            HoldShortPoints = [.. resolvedRoute.HoldShortPoints.Where(hs => head.Any(s => s.ToNodeId == hs.NodeId))],
             Warnings = resolvedRoute.Warnings,
             MandatoryConnectorCount = resolvedRoute.MandatoryConnectorCount,
             DestinationParking = destination.Type == GroundNodeType.Spot ? null : destination.Name,
@@ -405,7 +405,7 @@ public static class RampLaneReposition
             PathTurnHints = options.PathTurnHints,
             StartHeadingTrue = options.StartHeadingTrue,
         };
-        TaxiRoute? head = TaxiPathfinder.ResolveExplicitPathDetailed(layout, startNodeId, path.ToList(), out _, headOptions, category);
+        TaxiRoute? head = TaxiPathfinder.ResolveExplicitPathDetailed(layout, startNodeId, [.. path], out _, headOptions, category);
         if (head is null)
         {
             return null;
@@ -684,13 +684,13 @@ public static class RampLaneReposition
         reachable.Sort((a, b) => a.Ft.CompareTo(b.Ft));
         if ((noseBearing is null) || (reachable.Count == 0))
         {
-            return reachable.Select(c => c.Node).ToList();
+            return [.. reachable.Select(c => c.Node)];
         }
 
         double marginFt = reachable[0].Ft + CandidateMarginFt;
         bool Ahead((GroundNode Node, double Ft) c) =>
             (c.Ft <= marginFt) && (GeoMath.AbsBearingDifference(GeoMath.BearingTo(position, c.Node.Position), noseBearing.Value) <= MaxReversalDeg);
-        return reachable.Where(Ahead).Concat(reachable.Where(c => !Ahead(c))).Select(c => c.Node).ToList();
+        return [.. reachable.Where(Ahead).Concat(reachable.Where(c => !Ahead(c))).Select(c => c.Node)];
     }
 
     /// <summary>

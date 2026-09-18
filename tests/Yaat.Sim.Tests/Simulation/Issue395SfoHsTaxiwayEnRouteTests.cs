@@ -56,7 +56,7 @@ public class Issue395SfoHsTaxiwayEnRouteTests(ITestOutputHelper output)
     }
 
     private static List<string> SegmentTaxiways(TaxiRoute route) =>
-        route.Segments.Select(s => s.TaxiwayName).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        [.. route.Segments.Select(s => s.TaxiwayName).Distinct(StringComparer.OrdinalIgnoreCase)];
 
     private void LogRoute(string label, TaxiRoute route)
     {

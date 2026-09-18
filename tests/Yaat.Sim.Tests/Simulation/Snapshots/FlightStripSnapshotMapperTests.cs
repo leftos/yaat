@@ -16,7 +16,13 @@ public class FlightStripSnapshotMapperTests
         lock (strips.Gate)
         {
             strips.Items["s1"] = new StripItemRecord("s1", "AAL100", 0, false, ["a", "b", "c", "d", "e", "f", "g", "h", "i"], "fac", "bay1", 0, 0);
-            strips.Bays["bay1"] = new Dictionary<string, List<string>[]> { ["0"] = [new List<string> { "s1" }] };
+            strips.Bays["bay1"] = new Dictionary<string, List<string>[]>
+            {
+                ["0"] =
+                [
+                    ["s1"],
+                ],
+            };
             strips.DeparturePrinterQueue.Add("s1");
             strips.NextBlankId = 5;
         }

@@ -166,7 +166,7 @@ public sealed class TickRecorder
         {
             Version = SchemaVersion,
             AirportId = _airportId,
-            Aircraft = _metadata.Values.OrderBy(m => m.Callsign, StringComparer.Ordinal).ToList(),
+            Aircraft = [.. _metadata.Values.OrderBy(m => m.Callsign, StringComparer.Ordinal)],
             Ticks = _ticks,
         };
 
@@ -255,7 +255,7 @@ public sealed class TickRecorder
             {
                 Version = SchemaVersion,
                 AirportId = _airportId,
-                Aircraft = _metadata.Values.OrderBy(m => m.Callsign, StringComparer.Ordinal).ToList(),
+                Aircraft = [.. _metadata.Values.OrderBy(m => m.Callsign, StringComparer.Ordinal)],
                 Ticks = _ticks,
             };
             WriteJsonFile(_jsonPath, recording);

@@ -35,9 +35,10 @@ public class RunwayDepartureQueueTests
     /// intersection ~1625 ft down.
     /// </summary>
     private List<GroundNode> HoldShortsOn(string taxiway) =>
-        HoldShortNodes()
-            .Where(n => n.Edges.OfType<GroundEdge>().Select(e => e.TaxiwayName).ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals([taxiway]))
-            .ToList();
+        [
+            .. HoldShortNodes()
+                .Where(n => n.Edges.OfType<GroundEdge>().Select(e => e.TaxiwayName).ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals([taxiway])),
+        ];
 
     private AircraftState HoldingShort(string callsign, GroundNode node) => HoldingShortNamed(callsign, node, Runway);
 

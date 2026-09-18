@@ -411,7 +411,7 @@ internal static class EvalRunner
                 && trace.ValueKind == JsonValueKind.Object
                 && trace.TryGetProperty("ActiveCallsigns", out JsonElement acs)
                     ? acs.Deserialize<List<string>>()
-                    : new List<string>(),
+                    : [],
             ["programmedFixes"] = new List<string>(),
         };
         File.WriteAllText(expectedPath, JsonSerializer.Serialize(stub, new JsonSerializerOptions { WriteIndented = true }));

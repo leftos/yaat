@@ -151,7 +151,7 @@ public class UserPreferencesFavoriteSetTests : IDisposable
     private static void InjectLegacyFavorites(string legacyJson)
     {
         string path = YaatPaths.Combine("preferences.json");
-        JsonObject root = File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path))!.AsObject() : new JsonObject();
+        JsonObject root = File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path))!.AsObject() : [];
         foreach ((string? key, JsonNode? value) in JsonNode.Parse(legacyJson)!.AsObject().ToList())
         {
             root[key] = value?.DeepClone();

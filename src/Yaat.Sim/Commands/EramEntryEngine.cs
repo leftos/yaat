@@ -31,7 +31,7 @@ public static class EramEntryEngine
             return new CommandResult(false, Format);
         }
 
-        List<string> args = tokens[1..].ToList();
+        List<string> args = [.. tokens[1..]];
         return tokens[0].ToUpperInvariant() switch
         {
             "TRACK" => ApplyTrack(ac, args, identity),

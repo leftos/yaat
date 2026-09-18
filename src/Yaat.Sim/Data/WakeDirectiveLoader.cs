@@ -124,16 +124,12 @@ public static class WakeDirectiveLoader
             ArtccId = artccId,
             Id = dto.Id.Trim(),
             AirportId = !string.IsNullOrWhiteSpace(dto.AirportId) ? NavigationDatabase.NormalizeAirport(dto.AirportId) : null,
-            Runways = dto
-                .Runways.Select(NormalizeRunway)
-                .Where(static runway => runway.Length > 0)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList(),
+            Runways = [.. dto.Runways.Select(NormalizeRunway).Where(static runway => runway.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase)],
             Operation = operation,
             Relation = relation,
             PrecedingCwt = precedingCwt,
             SucceedingCwt = succeedingCwt,
-            SourceRuleReferences = dto.SourceRuleReferences.Select(static value => value.Trim()).Where(static value => value.Length > 0).ToList(),
+            SourceRuleReferences = [.. dto.SourceRuleReferences.Select(static value => value.Trim()).Where(static value => value.Length > 0)],
             Effects = effects,
             RuleReference = !string.IsNullOrWhiteSpace(dto.RuleReference) ? dto.RuleReference.Trim() : null,
             Notes = !string.IsNullOrWhiteSpace(dto.Notes) ? dto.Notes.Trim() : null,

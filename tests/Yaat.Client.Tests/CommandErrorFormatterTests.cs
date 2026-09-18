@@ -10,7 +10,7 @@ public class CommandErrorFormatterTests
     private static readonly CommandScheme Scheme = CommandScheme.Default();
 
     private static IReadOnlyCollection<AircraftModel> Aircraft(params string[] callsigns) =>
-        callsigns.Select(c => new AircraftModel { Callsign = c }).ToArray();
+        [.. callsigns.Select(c => new AircraftModel { Callsign = c })];
 
     private static ParseFailure? FailureFor(string input)
     {

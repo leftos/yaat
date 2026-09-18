@@ -41,7 +41,7 @@ public class ArrivalStarSpawnTests
             return null;
         }
 
-        List<NavigationTarget> targets = DepartureClearanceHandler.ResolveLegsToTargets(new List<CifpLeg>(star.CommonLegs));
+        List<NavigationTarget> targets = DepartureClearanceHandler.ResolveLegsToTargets([.. star.CommonLegs]);
         if (targets.Count == 0)
         {
             return null;
@@ -76,7 +76,7 @@ public class ArrivalStarSpawnTests
         };
 
     private static (AircraftState? State, string? Error) Generate(SpawnRequest req) =>
-        AircraftGenerator.Generate(req, Airport, Array.Empty<AircraftState>(), groundLayout: null, new Random(1), new BeaconCodePool());
+        AircraftGenerator.Generate(req, Airport, [], groundLayout: null, new Random(1), new BeaconCodePool());
 
     [Fact]
     public void DescendVia_SpawnsEstablishedOnStar_WithConstraints()

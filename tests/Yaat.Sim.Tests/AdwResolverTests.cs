@@ -86,7 +86,7 @@ public class AdwResolverTests
     public void Resolve_Mia30Pair_MarksStraddleTheThresholdPointFourNmApart()
     {
         AirportGroundLayout layout = MiaLayout();
-        AdwWindow[] windows = new[] { new AdwWindow("30", "26L", 2.7, 0.1, "SOP 3-9.D"), new AdwWindow("30", "26R", 2.9, -0.3, "SOP 3-9.E") };
+        AdwWindow[] windows = [new AdwWindow("30", "26L", 2.7, 0.1, "SOP 3-9.D"), new AdwWindow("30", "26R", 2.9, -0.3, "SOP 3-9.E")];
 
         AdwMark inner26L = Assert.Single(AdwResolver.Resolve(layout, windows), m => (m.Kind == AdwMarkKind.Inner) && (m.DepartureRunway == "26L"));
         AdwMark inner26R = Assert.Single(AdwResolver.Resolve(layout, windows), m => (m.Kind == AdwMarkKind.Inner) && (m.DepartureRunway == "26R"));

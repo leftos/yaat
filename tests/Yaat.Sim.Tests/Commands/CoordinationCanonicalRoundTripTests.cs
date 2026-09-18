@@ -12,8 +12,7 @@ namespace Yaat.Sim.Tests.Commands;
 public class CoordinationCanonicalRoundTripTests
 {
     public static TheoryData<ParsedCommand> Shapes =>
-        new()
-        {
+        [
             new CoordinationReleaseCommand(null),
             new CoordinationReleaseCommand("DR"),
             new CoordinationHoldCommand(null, null),
@@ -32,7 +31,7 @@ public class CoordinationCanonicalRoundTripTests
             new CoordinationReorderCommand("DR", 2),
             new CoordinationModifyCommand(null, "EXPECT 28R"),
             new CoordinationModifyCommand("DR", "EXPECT 28R"),
-        };
+        ];
 
     [Theory]
     [MemberData(nameof(Shapes))]

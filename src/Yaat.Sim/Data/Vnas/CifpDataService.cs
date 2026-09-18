@@ -50,10 +50,12 @@ public sealed class CifpDataService : IDisposable
             chain.Add(bundled);
         }
 
-        SupplementaryCifpFilePaths = chain
-            .Where(p => CifpFilePath is null || !string.Equals(p, CifpFilePath, StringComparison.OrdinalIgnoreCase))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        SupplementaryCifpFilePaths =
+        [
+            .. chain
+                .Where(p => CifpFilePath is null || !string.Equals(p, CifpFilePath, StringComparison.OrdinalIgnoreCase))
+                .Distinct(StringComparer.OrdinalIgnoreCase),
+        ];
 
         if (CifpFilePath is not null)
         {

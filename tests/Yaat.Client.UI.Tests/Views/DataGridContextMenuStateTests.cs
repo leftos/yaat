@@ -15,7 +15,7 @@ namespace Yaat.Client.UI.Tests.Views;
 public class DataGridContextMenuStateTests
 {
     private static List<string> Headers(ContextMenu menu) =>
-        menu.Items.OfType<MenuItem>().Where(m => m.Header is string).Select(m => (string)m.Header!).ToList();
+        [.. menu.Items.OfType<MenuItem>().Where(m => m.Header is string).Select(m => (string)m.Header!)];
 
     private static ContextMenu Build(AircraftModel ac)
     {

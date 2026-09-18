@@ -29,7 +29,7 @@ public static class ParsedCommandDummies
             return null;
         }
 
-        object?[] args = ctor.GetParameters().Select(p => MakeDummyArg(p.ParameterType)).ToArray();
+        object?[] args = [.. ctor.GetParameters().Select(p => MakeDummyArg(p.ParameterType))];
         try
         {
             return (ParsedCommand)ctor.Invoke(args);

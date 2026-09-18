@@ -115,7 +115,7 @@ public partial class MainViewModel
         };
     }
 
-    public IReadOnlyList<FavoriteSet> NamedFavoriteSets => _favoriteStore.OrderedSets.Where(s => s.Kind == FavoriteSetKind.Named).ToList();
+    public IReadOnlyList<FavoriteSet> NamedFavoriteSets => [.. _favoriteStore.OrderedSets.Where(s => s.Kind == FavoriteSetKind.Named)];
 
     public bool IsFavoriteSetLoaded(string setId) =>
         _preferences.LoadedFavoriteSetIds.Any(id => string.Equals(id, setId, StringComparison.OrdinalIgnoreCase));
@@ -316,7 +316,7 @@ public partial class MainViewModel
 
         if (mode == FavoriteImportMode.Replace)
         {
-            _preferences.SetLoadedFavoriteSets(result.NewSetIdsToLoad.ToList());
+            _preferences.SetLoadedFavoriteSets([.. result.NewSetIdsToLoad]);
         }
         else
         {

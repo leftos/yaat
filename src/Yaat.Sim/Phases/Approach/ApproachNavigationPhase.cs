@@ -246,14 +246,14 @@ public sealed class ApproachNavigationPhase : Phase
         {
             Status = (int)Status,
             ElapsedSeconds = ElapsedSeconds,
-            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
-            Fixes = Fixes.Select(f => f.ToSnapshot()).ToList(),
+            Requirements = Requirements.Count > 0 ? [.. Requirements.Select(r => r.ToSnapshot())] : null,
+            Fixes = [.. Fixes.Select(f => f.ToSnapshot())],
             CurrentFixIndex = _currentFixIndex,
         };
 
     public static ApproachNavigationPhase FromSnapshot(ApproachNavigationPhaseDto dto)
     {
-        var phase = new ApproachNavigationPhase { Fixes = dto.Fixes.Select(ApproachFix.FromSnapshot).ToList() };
+        var phase = new ApproachNavigationPhase { Fixes = [.. dto.Fixes.Select(ApproachFix.FromSnapshot)] };
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;
         phase._currentFixIndex = dto.CurrentFixIndex;

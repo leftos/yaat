@@ -20,7 +20,7 @@ internal static class Runner
 
         IReadOnlyList<Scene> scenes = sceneFilter is null
             ? allScenes
-            : allScenes.Where(s => string.Equals(s.Name, sceneFilter, StringComparison.OrdinalIgnoreCase)).ToList();
+            : [.. allScenes.Where(s => string.Equals(s.Name, sceneFilter, StringComparison.OrdinalIgnoreCase))];
 
         if (scenes.Count == 0)
         {

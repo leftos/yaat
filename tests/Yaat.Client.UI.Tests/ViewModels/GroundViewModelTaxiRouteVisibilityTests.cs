@@ -15,7 +15,7 @@ public class GroundViewModelTaxiRouteVisibilityTests
     private static IReadOnlySet<string> Set(params string[] items) => new HashSet<string>(items);
 
     private static IReadOnlyList<(string, bool)> Fleet(params (string Callsign, bool HasRoute)[] acs) =>
-        acs.Select(a => ((string, bool))(a.Callsign, a.HasRoute)).ToList();
+        [.. acs.Select(a => ((string, bool))(a.Callsign, a.HasRoute))];
 
     // --- Pure visibility set logic (no view-model, no geometry) ---
 
@@ -62,7 +62,7 @@ public class GroundViewModelTaxiRouteVisibilityTests
 
     private static GroundViewModel BuildVm(params AircraftModel[] aircraft)
     {
-        List<AircraftModel> list = aircraft.ToList();
+        List<AircraftModel> list = [.. aircraft];
         var vm = new GroundViewModel(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask);
         vm.SetAircraftLookup(cs => list.FirstOrDefault(a => a.Callsign == cs));
         vm.SetAircraftProvider(() => list);
@@ -162,7 +162,7 @@ public class GroundViewModelTaxiRouteVisibilityTests
         var vm = new GroundViewModel(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask);
         vm.SetLayoutForTesting(dto);
         vm.SetAircraftLookup(cs => cs == "A" ? ac : null);
-        vm.SetAircraftProvider(() => new List<AircraftModel> { ac });
+        vm.SetAircraftProvider(() => [ac]);
         return vm;
     }
 

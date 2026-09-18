@@ -1127,7 +1127,7 @@ public sealed class LineUpPhase : Phase
         {
             Status = (int)Status,
             ElapsedSeconds = ElapsedSeconds,
-            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            Requirements = Requirements.Count > 0 ? [.. Requirements.Select(r => r.ToSnapshot())] : null,
             RunwayHeadingDeg = PathPlan?.RunwayHeadingDeg ?? _runwayHeadingDeg,
             RollingMode = RollingMode,
             HoldPosition = HoldPosition,

@@ -545,6 +545,6 @@ public sealed class PhaseList
             ActiveApproach = ActiveApproach?.ToSnapshot(),
             LahsoHoldShort = LahsoHoldShort?.ToSnapshot(),
             CurrentIndex = CurrentIndex,
-            Phases = Phases.Select(p => p.ToSnapshot()).ToList(),
+            Phases = [.. Phases.Select(p => p.ToSnapshot())],
         };
 }

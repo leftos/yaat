@@ -49,7 +49,7 @@ public class NavigationRoutePopulationTests
     }
 
     private static string[] RouteFixNames(ScenarioLoadResult result) =>
-        result.ImmediateAircraft[0].State.Targets.NavigationRoute.Select(t => t.Name).ToArray();
+        [.. result.ImmediateAircraft[0].State.Targets.NavigationRoute.Select(t => t.Name)];
 
     // ── Airway expansion ──
 

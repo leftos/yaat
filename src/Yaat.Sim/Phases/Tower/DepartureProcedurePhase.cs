@@ -439,9 +439,9 @@ public sealed class DepartureProcedurePhase : Phase
         {
             Status = (int)Status,
             ElapsedSeconds = ElapsedSeconds,
-            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
-            Legs = Legs.Select(l => l.ToSnapshot()).ToList(),
-            PostRoute = PostRoute.Select(t => t.ToSnapshot()).ToList(),
+            Requirements = Requirements.Count > 0 ? [.. Requirements.Select(r => r.ToSnapshot())] : null,
+            Legs = [.. Legs.Select(l => l.ToSnapshot())],
+            PostRoute = [.. PostRoute.Select(t => t.ToSnapshot())],
             AssignedAltitude = AssignedAltitude,
             CruiseAltitude = CruiseAltitude,
             LegIndex = _legIndex,
@@ -455,8 +455,8 @@ public sealed class DepartureProcedurePhase : Phase
     {
         var phase = new DepartureProcedurePhase
         {
-            Legs = dto.Legs.Select(ProcedureLeg.FromSnapshot).ToList(),
-            PostRoute = dto.PostRoute.Select(NavigationTarget.FromSnapshot).ToList(),
+            Legs = [.. dto.Legs.Select(ProcedureLeg.FromSnapshot)],
+            PostRoute = [.. dto.PostRoute.Select(NavigationTarget.FromSnapshot)],
             AssignedAltitude = dto.AssignedAltitude,
             CruiseAltitude = dto.CruiseAltitude,
         };

@@ -46,7 +46,7 @@ public static class BlockedTurnResolver
     /// <summary>Max bearing error (deg) when matching a corner arc's endpoint to the apex→arm direction.</summary>
     private const double ArcBearingToleranceDeg = 35.0;
 
-    private static readonly ConditionalWeakTable<AirportGroundLayout, BlockedTurnResult> Cache = new();
+    private static readonly ConditionalWeakTable<AirportGroundLayout, BlockedTurnResult> Cache = [];
 
     /// <summary>
     /// Blocked-turn data for <paramref name="layout"/>, cached. Reads the airport's turns from the global

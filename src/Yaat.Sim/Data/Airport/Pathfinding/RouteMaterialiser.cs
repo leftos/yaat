@@ -40,20 +40,21 @@ public static class RouteMaterialiser
         if (runwaySurfaceEntry is { TruncateAt: < 0 } entry)
         {
             segments = [];
-            holdShorts = holdShorts.Where(hs => hs.NodeId == entry.HoldShortNodeId).ToList();
+            holdShorts = [.. holdShorts.Where(hs => hs.NodeId == entry.HoldShortNodeId)];
         }
         else if (truncateAt >= 0 && truncateAt < segments.Count - 1)
         {
-            segments = segments.Take(truncateAt + 1).ToList();
+            segments = [.. segments.Take(truncateAt + 1)];
 
             // Keep the route's own start node: a hold-short the aircraft is already parked at is never
             // any segment's ToNodeId, so filtering on ToNodeId alone would silently drop it.
             int startNodeId = segments.Count > 0 ? segments[0].FromNodeId : -1;
-            holdShorts = holdShorts
-                .Where(hs =>
+            holdShorts =
+            [
+                .. holdShorts.Where(hs =>
                     (hs.NodeId == startNodeId) || segments.Any(s => s.ToNodeId == hs.NodeId) || (hs.NodeId == runwaySurfaceEntry?.HoldShortNodeId)
-                )
-                .ToList();
+                ),
+            ];
         }
 
         // Step 4: Warnings for unauthorized letter taxiways traversed, plus informative

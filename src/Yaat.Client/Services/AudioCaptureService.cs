@@ -128,7 +128,7 @@ public sealed class AudioCaptureService : IDisposable
             }
 
             StopStreamUnsafe();
-            float[] samples = _capturedSamples.ToArray();
+            float[] samples = [.. _capturedSamples];
             _capturedSamples = [];
             Log.LogInformation("Audio capture stopped: {SampleCount} samples ({Seconds:F2}s)", samples.Length, samples.Length / (float)SampleRate);
             return samples;

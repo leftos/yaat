@@ -76,7 +76,7 @@ public sealed class TickTableCommand : ICommand
         var allRows = recording.Ticks.Select(TickDataRow.From).ToList();
         if (options.TickRange is { } r)
         {
-            allRows = allRows.Where(x => x.Time >= r.Lo && x.Time <= r.Hi).ToList();
+            allRows = [.. allRows.Where(x => x.Time >= r.Lo && x.Time <= r.Hi)];
         }
 
         if (allRows.Count == 0)
@@ -93,7 +93,7 @@ public sealed class TickTableCommand : ICommand
         }
         else
         {
-            callsigns = allRows.Select(x => x.Callsign).Distinct().OrderBy(x => x, StringComparer.Ordinal).ToList();
+            callsigns = [.. allRows.Select(x => x.Callsign).Distinct().OrderBy(x => x, StringComparer.Ordinal)];
         }
 
         bool first = true;

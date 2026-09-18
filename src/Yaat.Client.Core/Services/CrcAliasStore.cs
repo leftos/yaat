@@ -133,7 +133,7 @@ public sealed class CrcAliasStore
     public bool TryExpand(string input, out string expanded, out string? error)
     {
         error = null;
-        List<string> tokens = CrcAliasFileParser.Tokenize(input).ToList();
+        List<string> tokens = [.. CrcAliasFileParser.Tokenize(input)];
         int budget = MaxSubstitutions;
 
         for (int i = tokens.Count - 1; i >= 0; i--)

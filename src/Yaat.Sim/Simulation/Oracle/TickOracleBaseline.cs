@@ -84,14 +84,15 @@ public sealed class TickOracleBaseline
             Seed = seed,
             Seconds = seconds,
             FirstDivergentSecond = accumulator.FirstDivergentSecond,
-            Entries = accumulator
-                .Entries.Select(e => new TickOracleBaselineEntry
+            Entries =
+            [
+                .. accumulator.Entries.Select(e => new TickOracleBaselineEntry
                 {
                     Path = e.Path,
                     FirstSecond = e.FirstSecond,
                     Note = existingNotes.GetValueOrDefault(e.Path, ""),
-                })
-                .ToList(),
+                }),
+            ],
         };
 
         return JsonSerializer.Serialize(regenerated, FileOptions) + "\n";
@@ -112,8 +113,8 @@ public sealed class TickOracleBaseline
         // stored FirstDivergentSecond, which are unfiltered. An exempt path would otherwise set the floor for both
         // sides — reintroducing on this assertion exactly the noise the exemption removes from Added and Removed.
         return new TickOracleComparison(
-            Added: observed.Except(accepted, StringComparer.Ordinal).OrderBy(p => p, StringComparer.Ordinal).ToList(),
-            Removed: accepted.Except(observed, StringComparer.Ordinal).OrderBy(p => p, StringComparer.Ordinal).ToList(),
+            Added: [.. observed.Except(accepted, StringComparer.Ordinal).OrderBy(p => p, StringComparer.Ordinal)],
+            Removed: [.. accepted.Except(observed, StringComparer.Ordinal).OrderBy(p => p, StringComparer.Ordinal)],
             ObservedFirstDivergentSecond: observedEntries.Select(e => (int?)e.FirstSecond).Min(),
             AcceptedFirstDivergentSecond: acceptedEntries.Select(e => (int?)e.FirstSecond).Min()
         );

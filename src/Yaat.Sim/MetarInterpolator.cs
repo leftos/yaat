@@ -18,7 +18,7 @@ public static class MetarInterpolator
     /// </summary>
     public static MetarParser.ParsedMetar? GetWeatherForAirport(IEnumerable<string> metars, string airportId)
     {
-        IReadOnlyList<string> metarList = metars as IReadOnlyList<string> ?? metars.ToList();
+        IReadOnlyList<string> metarList = metars as IReadOnlyList<string> ?? [.. metars];
 
         // Exact match first
         MetarParser.ParsedMetar? exact = MetarParser.FindStation(metarList, airportId);
@@ -120,7 +120,7 @@ public static class MetarInterpolator
                     unioned.Add(layer);
                 }
             }
-            layers = unioned.OrderBy(l => l.BaseFeetAgl).ToList();
+            layers = [.. unioned.OrderBy(l => l.BaseFeetAgl)];
             ceiling = null;
         }
 

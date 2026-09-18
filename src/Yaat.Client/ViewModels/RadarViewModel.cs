@@ -279,7 +279,7 @@ public partial class RadarViewModel : ObservableObject
 
     private string? _drawRouteCallsign;
     private readonly List<DrawnWaypoint> _drawnWaypointsMutable = [];
-    private readonly Dictionary<int, WaypointCondition> _waypointConditions = new();
+    private readonly Dictionary<int, WaypointCondition> _waypointConditions = [];
 
     // --- Show nav route state ---
     private static readonly SKColor[] PathColors =
@@ -301,9 +301,9 @@ public partial class RadarViewModel : ObservableObject
     /// </summary>
     public RadarDataBlockViewState DataBlockState { get; } = new();
 
-    private readonly HashSet<string> _shownPathCallsigns = new();
-    private readonly Dictionary<string, (IReadOnlyList<ShownPathEntry> Segments, string Fingerprint)> _pathCache = new();
-    private readonly Dictionary<string, int> _pathColorIndices = new();
+    private readonly HashSet<string> _shownPathCallsigns = [];
+    private readonly Dictionary<string, (IReadOnlyList<ShownPathEntry> Segments, string Fingerprint)> _pathCache = [];
+    private readonly Dictionary<string, int> _pathColorIndices = [];
     private readonly Stack<int> _freeColorIndices = new();
 
     public ObservableCollection<VideoMapToggleItem> MapToggles { get; } = [];
@@ -1575,7 +1575,7 @@ public partial class RadarViewModel : ObservableObject
         name ??= $"{lat:F3},{lon:F3}";
 
         _drawnWaypointsMutable.Add(new DrawnWaypoint(name, lat, lon));
-        DrawnWaypoints = _drawnWaypointsMutable.ToList();
+        DrawnWaypoints = [.. _drawnWaypointsMutable];
     }
 
     public void UndoRouteWaypoint()

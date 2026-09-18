@@ -240,7 +240,7 @@ public static class FilletComparisonGates
     {
         /// <summary>Pre-fillet node IDs that still exist (were not dissolved/filleted away) in the layout.</summary>
         public static HashSet<int> SurvivingStableIds(AirportGroundLayout preFillet, AirportGroundLayout layout) =>
-            preFillet.Nodes.Keys.Where(layout.Nodes.ContainsKey).ToHashSet();
+            [.. preFillet.Nodes.Keys.Where(layout.Nodes.ContainsKey)];
 
         /// <summary>
         /// Pre-fillet node IDs still present in the filleted layout and reachable from hold shorts.
@@ -321,14 +321,11 @@ public static class FilletComparisonGates
             var holdShortIds = layout.Nodes.Values.Where(n => n.Type == GroundNodeType.RunwayHoldShort).Select(n => n.Id).ToHashSet();
             if (holdShortIds.Count == 0)
             {
-                return layout.Nodes.Values.Where(n => n.Type == GroundNodeType.Parking).Select(n => n.Id).ToHashSet();
+                return [.. layout.Nodes.Values.Where(n => n.Type == GroundNodeType.Parking).Select(n => n.Id)];
             }
 
             HashSet<int> reachableFromHoldShort = BfsFrom(holdShortIds, layout);
-            return layout
-                .Nodes.Values.Where(n => n.Type == GroundNodeType.Parking && reachableFromHoldShort.Contains(n.Id))
-                .Select(n => n.Id)
-                .ToHashSet();
+            return [.. layout.Nodes.Values.Where(n => n.Type == GroundNodeType.Parking && reachableFromHoldShort.Contains(n.Id)).Select(n => n.Id)];
         }
 
         private static HashSet<int> BfsFrom(IEnumerable<int> seeds, AirportGroundLayout layout)

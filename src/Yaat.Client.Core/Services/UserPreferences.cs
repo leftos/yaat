@@ -73,11 +73,11 @@ public sealed class UserPreferences
     {
         _data = Load();
         _commandScheme = _data.CommandScheme is not null ? FromSaved(_data.CommandScheme) ?? CommandScheme.Default() : CommandScheme.Default();
-        _macros = _data.Macros.Select(m => new MacroDefinition { Name = m.Name, Expansion = m.Expansion }).ToList();
-        HiddenTerminalKinds = _data
-            .HiddenTerminalKinds.Where(s => Enum.TryParse<TerminalEntryKind>(s, out _))
-            .Select(s => Enum.Parse<TerminalEntryKind>(s))
-            .ToHashSet();
+        _macros = [.. _data.Macros.Select(m => new MacroDefinition { Name = m.Name, Expansion = m.Expansion })];
+        HiddenTerminalKinds =
+        [
+            .. _data.HiddenTerminalKinds.Where(s => Enum.TryParse<TerminalEntryKind>(s, out _)).Select(s => Enum.Parse<TerminalEntryKind>(s)),
+        ];
         MigratePreferences();
     }
 
@@ -574,7 +574,7 @@ public sealed class UserPreferences
 
     public void SetSavedServers(IEnumerable<SavedServer> servers, string lastUsedUrl)
     {
-        _data.SavedServers = servers.ToList();
+        _data.SavedServers = [.. servers];
         _data.LastUsedServerUrl = lastUsedUrl.Trim();
         Save();
     }
@@ -959,7 +959,7 @@ public sealed class UserPreferences
     public void SetMacros(List<MacroDefinition> macros)
     {
         _macros = macros;
-        _data.Macros = macros.Select(m => new SavedMacro { Name = m.Name, Expansion = m.Expansion }).ToList();
+        _data.Macros = [.. macros.Select(m => new SavedMacro { Name = m.Name, Expansion = m.Expansion })];
         Save();
     }
 
@@ -1321,7 +1321,7 @@ public sealed class UserPreferences
     public void SetHiddenTerminalKinds(HashSet<TerminalEntryKind> hidden)
     {
         HiddenTerminalKinds = hidden;
-        _data.HiddenTerminalKinds = hidden.Select(k => k.ToString()).ToList();
+        _data.HiddenTerminalKinds = [.. hidden.Select(k => k.ToString())];
         Save();
     }
 
@@ -1372,7 +1372,7 @@ public sealed class UserPreferences
                 continue;
             }
 
-            profile.LoadedFavoriteSetIds = names.Select(nameToId).Where(id => id is not null).Cast<string>().ToList();
+            profile.LoadedFavoriteSetIds = [.. names.Select(nameToId).Where(id => id is not null).Cast<string>()];
             profile.LoadedFavoriteSetNames = null;
             migrated = true;
         }
@@ -1969,7 +1969,7 @@ public sealed class UserPreferences
 
         // Sync cached conversions back to _data before serializing
         _data.CommandScheme = ToSaved(_commandScheme);
-        _data.Macros = _macros.Select(m => new SavedMacro { Name = m.Name, Expansion = m.Expansion }).ToList();
+        _data.Macros = [.. _macros.Select(m => new SavedMacro { Name = m.Name, Expansion = m.Expansion })];
 
         string json = JsonSerializer.Serialize(_data, JsonOptions);
 

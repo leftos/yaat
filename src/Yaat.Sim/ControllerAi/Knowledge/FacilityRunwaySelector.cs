@@ -124,8 +124,8 @@ public static class FacilityRunwaySelector
 
         return new RunwayUseDecision(
             airportId,
-            sets.Departure.Select(RunwayIdentifier.NormalizeDesignator).ToList(),
-            sets.Arrival.Select(RunwayIdentifier.NormalizeDesignator).ToList(),
+            [.. sets.Departure.Select(RunwayIdentifier.NormalizeDesignator)],
+            [.. sets.Arrival.Select(RunwayIdentifier.NormalizeDesignator)],
             ops.Configuration(configuration)!.Name,
             RunwayUseSource.Knowledge,
             rationale
@@ -152,7 +152,7 @@ public static class FacilityRunwayAssigner
         var allowed = decision.DepartureRunways.Where(end => !matching.Any(rule => rule.Runways.Any(r => SameEnd(r, end)))).ToList();
         if (allowed.Count == 0)
         {
-            allowed = decision.DepartureRunways.ToList();
+            allowed = [.. decision.DepartureRunways];
         }
 
         IOrderedEnumerable<string> ordered =

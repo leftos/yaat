@@ -118,7 +118,7 @@ public static class VideoMapParser
 
         foreach (JsonElement coord in coordArray.EnumerateArray())
         {
-            JsonElement[] arr = coord.EnumerateArray().ToArray();
+            JsonElement[] arr = [.. coord.EnumerateArray()];
             if (arr.Length < 2)
             {
                 continue;

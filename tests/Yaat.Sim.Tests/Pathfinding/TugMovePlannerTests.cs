@@ -784,7 +784,7 @@ public class TugMovePlannerTests
     /// <summary>A stand start off D15 through <paramref name="targets"/>: a spot name, or <c>@stand</c>.</summary>
     private TugPlan PlanFromD15(AirportGroundLayout layout, params string[] targets)
     {
-        TugGoal[] goals = targets.Select(t => t.StartsWith('@') ? TugGoal.Stand(Parking(layout, t[1..])) : TugGoal.Spot(Spot(layout, t))).ToArray();
+        TugGoal[] goals = [.. targets.Select(t => t.StartsWith('@') ? TugGoal.Stand(Parking(layout, t[1..])) : TugGoal.Spot(Spot(layout, t)))];
         _output.WriteLine($"D15 → {string.Join(" → ", targets)}");
         return PlanOrFail(layout, StandStart(Parking(layout, "D15"), goals));
     }
@@ -905,7 +905,7 @@ public class TugMovePlannerTests
     }
 
     private static void AssertKinds(TugPlan plan, params PushbackLegKind[] expected) =>
-        Assert.Equal(expected, plan.Moves.Select(m => m.Move.Kind).ToArray());
+        Assert.Equal(expected, [.. plan.Moves.Select(m => m.Move.Kind)]);
 
     /// <summary>Every maximal run of same-kind moves without a turn stays within 120° of the travel it started with.</summary>
     private void AssertNoLoop(TugPlan plan)

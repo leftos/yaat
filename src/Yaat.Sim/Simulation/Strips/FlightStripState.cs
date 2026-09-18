@@ -22,8 +22,8 @@ public sealed class FlightStripState
     public ConcurrentDictionary<string, StripItemRecord> Items { get; } = new();
     public ConcurrentDictionary<string, Dictionary<string, List<string>[]>> Bays { get; } = new();
 
-    public List<string> DeparturePrinterQueue { get; } = new();
-    public List<string> ArrivalPrinterQueue { get; } = new();
+    public List<string> DeparturePrinterQueue { get; } = [];
+    public List<string> ArrivalPrinterQueue { get; } = [];
 
     public int NextBlankId { get; set; } = 1;
 
@@ -47,7 +47,7 @@ public sealed class FlightStripState
             {
                 if (!Bays.TryGetValue(bay.Id, out Dictionary<string, List<string>[]>? racks))
                 {
-                    racks = new Dictionary<string, List<string>[]>();
+                    racks = [];
                     Bays[bay.Id] = racks;
                 }
 
@@ -57,7 +57,10 @@ public sealed class FlightStripState
                     string key = i.ToString();
                     if (!racks.ContainsKey(key))
                     {
-                        racks[key] = [new List<string>()];
+                        racks[key] =
+                        [
+                            [],
+                        ];
                     }
                 }
             }

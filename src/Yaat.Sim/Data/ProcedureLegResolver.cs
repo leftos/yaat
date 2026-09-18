@@ -214,7 +214,7 @@ internal static class ProcedureLegResolver
             runEnd++;
         }
 
-        return runEnd == 0 ? null : legs.Take(runEnd).ToList();
+        return runEnd == 0 ? null : [.. legs.Take(runEnd)];
     }
 
     private static bool IsCodedLeg(ProcedureLegType type) =>

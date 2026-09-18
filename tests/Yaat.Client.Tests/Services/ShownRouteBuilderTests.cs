@@ -24,8 +24,8 @@ public class ShownRouteBuilderTests
     public void BuildPrimary_StarEndingInVm_ReturnsTailFromAnchorFixOnPublishedHeading()
     {
         // STAR: ENROU → WNDSR (anchor fix) → VM "fly heading 280° for vectors"
-        CifpStarProcedure[] stars = new[]
-        {
+        CifpStarProcedure[] stars =
+        [
             new CifpStarProcedure(
                 Airport,
                 "WNDSR2",
@@ -38,7 +38,7 @@ public class ShownRouteBuilderTests
                 EnrouteTransitions: new Dictionary<string, CifpTransition>(),
                 RunwayTransitions: new Dictionary<string, CifpTransition>()
             ),
-        };
+        ];
 
         var fixes = new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase)
         {
@@ -83,8 +83,8 @@ public class ShownRouteBuilderTests
             ]
         );
 
-        CifpStarProcedure[] stars = new[]
-        {
+        CifpStarProcedure[] stars =
+        [
             new CifpStarProcedure(
                 Airport,
                 "WNDSR2",
@@ -92,7 +92,7 @@ public class ShownRouteBuilderTests
                 EnrouteTransitions: new Dictionary<string, CifpTransition>(),
                 RunwayTransitions: new Dictionary<string, CifpTransition>(StringComparer.OrdinalIgnoreCase) { ["RW30"] = rwyTransition }
             ),
-        };
+        ];
 
         var fixes = new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase)
         {
@@ -134,8 +134,8 @@ public class ShownRouteBuilderTests
             ]
         );
 
-        CifpStarProcedure[] stars = new[]
-        {
+        CifpStarProcedure[] stars =
+        [
             new CifpStarProcedure(
                 Airport,
                 "WNDSR2",
@@ -143,7 +143,7 @@ public class ShownRouteBuilderTests
                 EnrouteTransitions: new Dictionary<string, CifpTransition>(),
                 RunwayTransitions: new Dictionary<string, CifpTransition>(StringComparer.OrdinalIgnoreCase) { ["RW01R"] = rwyTransition }
             ),
-        };
+        ];
 
         var fixes = new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase)
         {
@@ -182,8 +182,8 @@ public class ShownRouteBuilderTests
             ]
         );
 
-        CifpStarProcedure[] stars = new[]
-        {
+        CifpStarProcedure[] stars =
+        [
             new CifpStarProcedure(
                 Airport,
                 "WNDSR2",
@@ -191,7 +191,7 @@ public class ShownRouteBuilderTests
                 EnrouteTransitions: new Dictionary<string, CifpTransition>(),
                 RunwayTransitions: new Dictionary<string, CifpTransition>(StringComparer.OrdinalIgnoreCase) { ["RW31R"] = rwyTransition }
             ),
-        };
+        ];
 
         var fixes = new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase)
         {
@@ -218,8 +218,8 @@ public class ShownRouteBuilderTests
     [Fact]
     public void BuildPrimary_StarEndingAtFix_NoVectorLeg_ReturnsNullTail()
     {
-        CifpStarProcedure[] stars = new[]
-        {
+        CifpStarProcedure[] stars =
+        [
             new CifpStarProcedure(
                 Airport,
                 "WNDSR2",
@@ -231,7 +231,7 @@ public class ShownRouteBuilderTests
                 EnrouteTransitions: new Dictionary<string, CifpTransition>(),
                 RunwayTransitions: new Dictionary<string, CifpTransition>()
             ),
-        };
+        ];
 
         var fixes = new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase)
         {
@@ -266,8 +266,8 @@ public class ShownRouteBuilderTests
             ]
         );
 
-        CifpSidProcedure[] sids = new[]
-        {
+        CifpSidProcedure[] sids =
+        [
             new CifpSidProcedure(
                 Airport,
                 "VECTOR1",
@@ -275,7 +275,7 @@ public class ShownRouteBuilderTests
                 RunwayTransitions: new Dictionary<string, CifpTransition>(StringComparer.OrdinalIgnoreCase) { ["RW28L"] = rwyTransition },
                 EnrouteTransitions: new Dictionary<string, CifpTransition>()
             ),
-        };
+        ];
 
         var fixes = new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase)
         {

@@ -28,7 +28,7 @@ public sealed class Attendance
     private readonly List<AttendedPosition> _positions = [];
 
     /// <summary>The attended position ids, distinct and ordinal-sorted — the form the record and the snapshot carry.</summary>
-    public IReadOnlyList<string> PositionIds => _positions.Select(p => p.PositionId).ToList();
+    public IReadOnlyList<string> PositionIds => [.. _positions.Select(p => p.PositionId)];
 
     /// <summary>
     /// Replaces the whole set with <paramref name="positionIds"/>, resolving each through the room's ARTCC

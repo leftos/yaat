@@ -178,7 +178,7 @@ public sealed class QueryCommand : ICommand
                 {
                     DestinationRunway = options.PathfinderDestinationRunway,
                     ExplicitHoldShorts =
-                        options.PathfinderHoldShorts.Count > 0 ? options.PathfinderHoldShorts.Select(HoldShortTarget.Parse).ToList() : null,
+                        options.PathfinderHoldShorts.Count > 0 ? [.. options.PathfinderHoldShorts.Select(HoldShortTarget.Parse)] : null,
 
                     DestinationHintNode = destHintNode,
                     StartHeadingTrue = options.PathfinderStartHeadingTrue,
@@ -283,7 +283,7 @@ public sealed class QueryCommand : ICommand
         {
             var validationResult = new ValidationResult(
                 warnings.Count,
-                warnings.Select(w => new ValidationWarningDto(w.Code, w.Message, w.Origin)).ToList()
+                [.. warnings.Select(w => new ValidationWarningDto(w.Code, w.Message, w.Origin))]
             );
             formatter.WriteValidation(validationResult);
         }

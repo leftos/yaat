@@ -156,7 +156,7 @@ public class IssueKfb7CappHilptMissingTests(ITestOutputHelper output)
             // (NavRoute fixes) or immediate path (ApproachNavigationPhase fixes) is taken.
             var navRouteFixes = aircraft.Targets.NavigationRoute.Select(n => n.Name).ToList();
             List<string> phaseFixes =
-                aircraft.Phases?.Phases.OfType<ApproachNavigationPhase>().FirstOrDefault()?.Fixes.Select(f => f.Name).ToList() ?? new();
+                aircraft.Phases?.Phases.OfType<ApproachNavigationPhase>().FirstOrDefault()?.Fixes.Select(f => f.Name).ToList() ?? [];
 
             output.WriteLine($"Post-CAPP NavRoute: {string.Join(" → ", navRouteFixes)}");
             output.WriteLine($"Post-CAPP ApproachNavigationPhase fixes: {string.Join(" → ", phaseFixes)}");

@@ -25,12 +25,12 @@ public class UserPreferencesCommandHistoryTests
     public void SetCommandHistory_RoundTripsCallsignAndCommandThroughDisk()
     {
         const string scenarioId = "TEST-roundtrip-ABC";
-        CommandHistoryEntry[] entries = new[]
-        {
+        CommandHistoryEntry[] entries =
+        [
             new CommandHistoryEntry("UAL1", "fh 270"),
             new CommandHistoryEntry("AAL2", "DH 5000"),
             new CommandHistoryEntry("", "PAUSE"),
-        };
+        ];
 
         var writer = new UserPreferences();
         writer.SetCommandHistory(scenarioId, entries);

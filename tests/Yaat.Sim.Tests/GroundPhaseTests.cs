@@ -192,7 +192,7 @@ public class GroundPhaseTests
     /// step they were steered for) and the rate-limited last one.
     /// </summary>
     private static List<PushTick> FullRateTurns(List<PushTick> ticks, double radiusFt) =>
-        ticks.Where(t => (t.MovedFt > 0.1) && (t.NoseTurnDeg >= (0.98 * (t.MovedFt / radiusFt) * (180.0 / Math.PI)))).ToList();
+        [.. ticks.Where(t => (t.MovedFt > 0.1) && (t.NoseTurnDeg >= (0.98 * (t.MovedFt / radiusFt) * (180.0 / Math.PI))))];
 
     /// <summary>
     /// One engine-order second: what the aircraft moved, how far the nose turned, how far the push heading is off the

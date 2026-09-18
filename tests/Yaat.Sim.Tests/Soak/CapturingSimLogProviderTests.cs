@@ -46,7 +46,7 @@ public class CapturingSimLogProviderTests
         }
 
         IReadOnlyList<CapturedLogRecord> records = tap.Drain();
-        Assert.Equal(["w2", "w3", "w4"], records.Select(r => r.Message).ToArray());
+        Assert.Equal(["w2", "w3", "w4"], [.. records.Select(r => r.Message)]);
         Assert.Equal(2, tap.DroppedCount);
     }
 

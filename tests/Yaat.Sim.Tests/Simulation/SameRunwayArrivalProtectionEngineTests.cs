@@ -1046,7 +1046,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     }
 
     private static List<string> SpacingLines(AircraftState aircraft) =>
-        aircraft.PendingNotifications.Where(n => n.Contains("in-trail spacing", StringComparison.Ordinal)).ToList();
+        [.. aircraft.PendingNotifications.Where(n => n.Contains("in-trail spacing", StringComparison.Ordinal))];
 
     private void Report(ArrivalPair pair, string label)
     {

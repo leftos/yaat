@@ -103,7 +103,7 @@ public static class PilotInitialContactEligibility
 
         return context.InitialContactTransfers.AllowsInitialContact(
             context.ArtccId,
-            CandidateAirportIds(aircraft, context.PrimaryAirportId).ToList(),
+            [.. CandidateAirportIds(aircraft, context.PrimaryAirportId)],
             ownerPositionType,
             owner.Callsign,
             targetPositionType,

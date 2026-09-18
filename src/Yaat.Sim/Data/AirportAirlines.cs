@@ -85,19 +85,21 @@ public static class AirportAirlines
                     continue;
                 }
 
-                AirportAirlineEntry[] airlines = (entry?.Airlines ?? [])
-                    .Where(a => !string.IsNullOrWhiteSpace(a.Icao))
-                    .Select(a => new AirportAirlineEntry(
-                        a.Icao!.Trim().ToUpperInvariant(),
-                        Math.Max(0, a.Arrivals),
-                        Math.Max(0, a.Months),
-                        a.Confidence ?? "unknown"
-                    ))
-                    .GroupBy(a => a.Icao, StringComparer.OrdinalIgnoreCase)
-                    .Select(g => g.OrderByDescending(a => a.Arrivals).First())
-                    .OrderByDescending(a => a.Arrivals)
-                    .ThenBy(a => a.Icao, StringComparer.OrdinalIgnoreCase)
-                    .ToArray();
+                AirportAirlineEntry[] airlines =
+                [
+                    .. (entry?.Airlines ?? [])
+                        .Where(a => !string.IsNullOrWhiteSpace(a.Icao))
+                        .Select(a => new AirportAirlineEntry(
+                            a.Icao!.Trim().ToUpperInvariant(),
+                            Math.Max(0, a.Arrivals),
+                            Math.Max(0, a.Months),
+                            a.Confidence ?? "unknown"
+                        ))
+                        .GroupBy(a => a.Icao, StringComparer.OrdinalIgnoreCase)
+                        .Select(g => g.OrderByDescending(a => a.Arrivals).First())
+                        .OrderByDescending(a => a.Arrivals)
+                        .ThenBy(a => a.Icao, StringComparer.OrdinalIgnoreCase),
+                ];
                 if (airlines.Length > 0)
                 {
                     byAirport[normalized] = airlines;
@@ -119,13 +121,13 @@ public static class AirportAirlines
     private static string? FindFixturePath()
     {
         string baseDataDir = Path.Combine(AppContext.BaseDirectory, "Data");
-        string[] candidates = new[]
-        {
+        string[] candidates =
+        [
             Path.Combine(baseDataDir, FixtureFileName),
             Path.Combine(baseDataDir, UncompressedFixtureFileName),
             Path.Combine(AppContext.BaseDirectory, FixtureFileName),
             Path.Combine(AppContext.BaseDirectory, UncompressedFixtureFileName),
-        };
+        ];
 
         foreach (string? candidate in candidates)
         {

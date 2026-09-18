@@ -111,11 +111,12 @@ public static class PilotResponder
             return BuildReadback(compound, aircraft, personality, activityLevel);
         }
 
-        var asApplied = new CompoundCommand(
-            compound
-                .Blocks.Select(b => new ParsedBlock(b.Condition, b.Commands.Select(c => ReferenceEquals(c, issuedTaxi) ? effectiveTaxi : c).ToList()))
-                .ToList()
-        )
+        var asApplied = new CompoundCommand([
+            .. compound.Blocks.Select(b => new ParsedBlock(
+                b.Condition,
+                [.. b.Commands.Select(c => ReferenceEquals(c, issuedTaxi) ? effectiveTaxi : c)]
+            )),
+        ])
         {
             SourceText = compound.SourceText,
         };

@@ -12,7 +12,7 @@ namespace Yaat.Sim.Tests;
 /// </summary>
 public class CifpSupplementaryCacheTests
 {
-    private static string[] Names(IReadOnlyList<string> paths) => paths.Select(p => Path.GetFileName(p)!).ToArray();
+    private static string[] Names(IReadOnlyList<string> paths) => [.. paths.Select(p => Path.GetFileName(p)!)];
 
     [Fact]
     public void ResolveSupplementaryChain_ReturnsPriorCyclesNewestFirst_WithinCap()

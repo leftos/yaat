@@ -2336,7 +2336,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         string? missingSetsNote = null;
         if (profile.LoadedFavoriteSetIds is { } setIds)
         {
-            vm.Preferences.SetLoadedFavoriteSets(setIds.ToList());
+            vm.Preferences.SetLoadedFavoriteSets([.. setIds]);
             int missingCount = setIds.Count(id => vm.FavoriteStore.GetSet(id) is null);
             if (missingCount > 0)
             {

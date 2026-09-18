@@ -877,7 +877,7 @@ public static class AircraftGenerator
                 return exactBucket[rng.Next(exactBucket.Length)];
             }
 
-            string[] compatible = exactBucket.Where(t => fleetTypes.ContainsKey(t)).ToArray();
+            string[] compatible = [.. exactBucket.Where(t => fleetTypes.ContainsKey(t))];
             if (compatible.Length > 0)
             {
                 return compatible[rng.Next(compatible.Length)];
@@ -998,9 +998,12 @@ public static class AircraftGenerator
             return null;
         }
 
-        string[] compatible = Airlines
-            .Where(a => AirlineFleets.TryGetTypes(a, out IReadOnlyDictionary<string, int>? fleet) && bucketTypes.Any(t => fleet.ContainsKey(t)))
-            .ToArray();
+        string[] compatible =
+        [
+            .. Airlines.Where(a =>
+                AirlineFleets.TryGetTypes(a, out IReadOnlyDictionary<string, int>? fleet) && bucketTypes.Any(t => fleet.ContainsKey(t))
+            ),
+        ];
 
         return compatible.Length > 0 ? compatible[rng.Next(compatible.Length)] : null;
     }
@@ -1017,9 +1020,12 @@ public static class AircraftGenerator
             return null;
         }
 
-        AirportAirlineEntry[] compatible = airportAirlines
-            .Where(a => AirlineFleets.TryGetTypes(a.Icao, out IReadOnlyDictionary<string, int>? fleet) && bucketTypes.Any(t => fleet.ContainsKey(t)))
-            .ToArray();
+        AirportAirlineEntry[] compatible =
+        [
+            .. airportAirlines.Where(a =>
+                AirlineFleets.TryGetTypes(a.Icao, out IReadOnlyDictionary<string, int>? fleet) && bucketTypes.Any(t => fleet.ContainsKey(t))
+            ),
+        ];
         if (compatible.Length == 0)
         {
             return null;

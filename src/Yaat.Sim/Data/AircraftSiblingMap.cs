@@ -73,7 +73,7 @@ public static class AircraftSiblingMap
     private sealed class SiblingMapDocument
     {
         [JsonPropertyName("siblings")]
-        public Dictionary<string, SiblingEntry> Siblings { get; set; } = new();
+        public Dictionary<string, SiblingEntry> Siblings { get; set; } = [];
     }
 
     private sealed class SiblingEntry

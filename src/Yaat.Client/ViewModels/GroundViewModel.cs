@@ -260,9 +260,9 @@ public partial class GroundViewModel : ObservableObject
     /// </summary>
     public GroundDataBlockViewState DataBlockState { get; } = new();
 
-    private readonly HashSet<string> _shownTaxiRouteCallsigns = new();
-    private readonly HashSet<string> _taxiRouteHiddenCallsigns = new();
-    private readonly Dictionary<string, int> _taxiColorIndices = new();
+    private readonly HashSet<string> _shownTaxiRouteCallsigns = [];
+    private readonly HashSet<string> _taxiRouteHiddenCallsigns = [];
+    private readonly Dictionary<string, int> _taxiColorIndices = [];
     private string? _hoveredCallsign;
 
     [ObservableProperty]
@@ -1769,7 +1769,7 @@ public partial class GroundViewModel : ObservableObject
             _shownTaxiRouteCallsigns,
             _taxiRouteHiddenCallsigns,
             ShowAllTaxiRoutes,
-            all.Select(ac => (ac.Callsign, ac.HasActiveTaxiRoute)).ToList()
+            [.. all.Select(ac => (ac.Callsign, ac.HasActiveTaxiRoute))]
         );
 
         AllocateRouteColors(effective);

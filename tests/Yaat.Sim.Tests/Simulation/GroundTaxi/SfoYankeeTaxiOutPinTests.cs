@@ -292,7 +292,7 @@ public class SfoYankeeTaxiOutPinTests
     }
 
     /// <summary>The route's segments that are legs of a named taxiway, in route order.</summary>
-    private static List<string> NamedLegs(TaxiRoute route) => route.Segments.Select(s => s.TaxiwayName).Where(IsNamedTaxiway).ToList();
+    private static List<string> NamedLegs(TaxiRoute route) => [.. route.Segments.Select(s => s.TaxiwayName).Where(IsNamedTaxiway)];
 
     /// <summary>
     /// True for a leg of one named taxiway — not the ramp lead-out and not a junction arc, whose name joins

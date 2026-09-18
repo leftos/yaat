@@ -115,7 +115,7 @@ public sealed class ApproachClearance
             InterceptCaptureAngleDeg = InterceptCaptureAngleDeg,
             ForcedInterceptCapture = ForcedInterceptCapture,
             MapHold = MapHold?.ToSnapshot(),
-            MissedApproachFixes = MissedApproachFixes.Count > 0 ? MissedApproachFixes.Select(f => f.ToSnapshot()).ToList() : null,
+            MissedApproachFixes = MissedApproachFixes.Count > 0 ? [.. MissedApproachFixes.Select(f => f.ToSnapshot())] : null,
         };
 
     public static ApproachClearance FromSnapshot(ApproachClearanceDto dto) =>

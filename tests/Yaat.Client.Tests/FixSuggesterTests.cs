@@ -127,7 +127,7 @@ public class FixSuggesterTests
     public void TryAddFixSuggestions_NoDctPattern_ReturnsFalse()
     {
         var suggestions = new ObservableCollection<SuggestionItem>();
-        var scheme = new CommandScheme { Patterns = new Dictionary<CanonicalCommandType, CommandPattern>() };
+        var scheme = new CommandScheme { Patterns = [] };
         CommandInputParseResult? parsed = CommandInputController.ParseCommandInput("DCT SUN", "DCT SUN".Length, CommandScheme.Default());
         Assert.NotNull(parsed);
 

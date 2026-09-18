@@ -115,7 +115,7 @@ public static class AirlineFleets
                     continue;
                 }
 
-                Dictionary<string, int> types = entry.Types ?? new Dictionary<string, int>();
+                Dictionary<string, int> types = entry.Types ?? [];
                 byAirline[icao.ToUpperInvariant()] = new AirlineFleetInfo(
                     icao.ToUpperInvariant(),
                     entry.Name ?? "",

@@ -233,7 +233,7 @@ public sealed class UpwindPhase : Phase
         {
             Status = (int)Status,
             ElapsedSeconds = ElapsedSeconds,
-            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            Requirements = Requirements.Count > 0 ? [.. Requirements.Select(r => r.ToSnapshot())] : null,
             Waypoints = Waypoints?.ToSnapshot(),
             IsExtended = IsExtended,
             TurnCrosswindArmed = TurnCrosswindArmed,

@@ -1108,8 +1108,8 @@ public partial class VStripsView : UserControl
         {
             return;
         }
-        translate.Transitions = new Avalonia.Animation.Transitions
-        {
+        translate.Transitions =
+        [
             new Avalonia.Animation.DoubleTransition
             {
                 Property = TranslateTransform.XProperty,
@@ -1122,7 +1122,7 @@ public partial class VStripsView : UserControl
                 Duration = TimeSpan.FromMilliseconds(SettleAnimationMs),
                 Easing = new Avalonia.Animation.Easings.CubicEaseOut(),
             },
-        };
+        ];
         translate.X = destinationTopLeft.X;
         translate.Y = destinationTopLeft.Y;
         if (_dragGhostScale is { } scale)
@@ -1498,8 +1498,8 @@ public partial class VStripsView : UserControl
         var ghostTransform = new TranslateTransform();
         var ghostScale = new ScaleTransform(zoom, zoom)
         {
-            Transitions = new Avalonia.Animation.Transitions
-            {
+            Transitions =
+            [
                 new Avalonia.Animation.DoubleTransition
                 {
                     Property = ScaleTransform.ScaleXProperty,
@@ -1512,7 +1512,7 @@ public partial class VStripsView : UserControl
                     Duration = TimeSpan.FromMilliseconds(GhostPickupMs),
                     Easing = new Avalonia.Animation.Easings.CubicEaseOut(),
                 },
-            },
+            ],
         };
         var ghost = new Border
         {
@@ -1522,15 +1522,15 @@ public partial class VStripsView : UserControl
             IsHitTestVisible = false,
             RenderTransform = new TransformGroup { Children = { ghostScale, ghostTransform } },
             RenderTransformOrigin = new RelativePoint(0, 0, RelativeUnit.Relative),
-            Transitions = new Avalonia.Animation.Transitions
-            {
+            Transitions =
+            [
                 new Avalonia.Animation.DoubleTransition
                 {
                     Property = OpacityProperty,
                     Duration = TimeSpan.FromMilliseconds(GhostPickupMs),
                     Easing = new Avalonia.Animation.Easings.CubicEaseOut(),
                 },
-            },
+            ],
         };
         Canvas.SetLeft(ghost, 0);
         Canvas.SetTop(ghost, 0);
@@ -1812,7 +1812,7 @@ public partial class VStripsView : UserControl
         var menu = new MenuFlyout();
 
         var addHalfStrip = new MenuItem { Header = "Add half-strip" };
-        addHalfStrip.Click += async (_, _) => await vm.CreateHalfStripAsync(selectedBay, rack.RackIndex, lines: Array.Empty<string>());
+        addHalfStrip.Click += async (_, _) => await vm.CreateHalfStripAsync(selectedBay, rack.RackIndex, lines: []);
         menu.Items.Add(addHalfStrip);
 
         if (!vm.SeparatorsLocked)
@@ -1894,7 +1894,7 @@ public partial class VStripsView : UserControl
     /// </summary>
     private static async Task PushAllInRackAsync(VStripsViewModel vm, StripRackViewModel sourceRack, StripBayViewModel destBay)
     {
-        StripItemViewModel[] snapshot = sourceRack.Strips.ToArray();
+        StripItemViewModel[] snapshot = [.. sourceRack.Strips];
         foreach (StripItemViewModel? strip in snapshot)
         {
             await vm.MoveStripAsync(strip, destBay, rack: 0, index: null);
@@ -2021,15 +2021,15 @@ public partial class VStripsView : UserControl
                 Margin = new Thickness(0, Math.Max(0, topPoint.Value.Y - 1), 0, 0),
                 IsHitTestVisible = false,
                 Opacity = 0,
-                Transitions = new Avalonia.Animation.Transitions
-                {
+                Transitions =
+                [
                     new Avalonia.Animation.DoubleTransition
                     {
                         Property = OpacityProperty,
                         Duration = TimeSpan.FromMilliseconds(80),
                         Easing = new Avalonia.Animation.Easings.CubicEaseOut(),
                     },
-                },
+                ],
             };
             rackContent.Children.Add(line);
             line.Opacity = 1;
@@ -2055,15 +2055,15 @@ public partial class VStripsView : UserControl
         }
         if (animate)
         {
-            transform.Transitions ??= new Avalonia.Animation.Transitions
-            {
+            transform.Transitions ??=
+            [
                 new Avalonia.Animation.DoubleTransition
                 {
                     Property = TranslateTransform.YProperty,
                     Duration = TimeSpan.FromMilliseconds(GapAnimationMs),
                     Easing = new Avalonia.Animation.Easings.CubicEaseOut(),
                 },
-            };
+            ];
         }
         else
         {
@@ -2370,7 +2370,7 @@ public partial class VStripsView : UserControl
                 int targetRack = FindSelectedStripRack(vm) ?? 0;
                 if (e.Key == Key.H)
                 {
-                    await vm.CreateHalfStripAsync(vm.SelectedBay, targetRack, Array.Empty<string>());
+                    await vm.CreateHalfStripAsync(vm.SelectedBay, targetRack, []);
                 }
                 else
                 {
@@ -2635,7 +2635,7 @@ public partial class VStripsView : UserControl
         {
             return;
         }
-        SeparatorStyle[] order = new[] { SeparatorStyle.Handwritten, SeparatorStyle.White, SeparatorStyle.Red, SeparatorStyle.Green };
+        SeparatorStyle[] order = [SeparatorStyle.Handwritten, SeparatorStyle.White, SeparatorStyle.Red, SeparatorStyle.Green];
         SeparatorStyle cur = strip.Type switch
         {
             StripItemType.WhiteSeparator => SeparatorStyle.White,

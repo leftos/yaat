@@ -322,11 +322,10 @@ public class CommandRunDelayTests
             CanonicalCommandType.WarpGround,
         ];
 
-        CanonicalCommandType[] actual = CommandRegistry
-            .ByCategory("Sim Control")
-            .Select(d => d.Type)
-            .OrderBy(t => t.ToString(), StringComparer.Ordinal)
-            .ToArray();
+        CanonicalCommandType[] actual =
+        [
+            .. CommandRegistry.ByCategory("Sim Control").Select(d => d.Type).OrderBy(t => t.ToString(), StringComparer.Ordinal),
+        ];
 
         Assert.Equal(expected, actual);
     }

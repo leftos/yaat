@@ -14,11 +14,10 @@ internal static class ParsedCommandDummyFactory
     /// <summary>
     /// All concrete (non-abstract) ParsedCommand record types in Yaat.Sim, name-ordered.
     /// </summary>
-    public static readonly Type[] AllParsedCommandTypes = typeof(ParsedCommand)
-        .Assembly.GetTypes()
-        .Where(t => t.IsSubclassOf(typeof(ParsedCommand)) && !t.IsAbstract)
-        .OrderBy(t => t.Name)
-        .ToArray();
+    public static readonly Type[] AllParsedCommandTypes =
+    [
+        .. typeof(ParsedCommand).Assembly.GetTypes().Where(t => t.IsSubclassOf(typeof(ParsedCommand)) && !t.IsAbstract).OrderBy(t => t.Name),
+    ];
 
     /// <summary>
     /// Creates a dummy instance of a ParsedCommand subtype using reflection.
@@ -33,7 +32,7 @@ internal static class ParsedCommandDummyFactory
             return null;
         }
 
-        object?[] args = ctor.GetParameters().Select(p => MakeDummyArg(p.ParameterType)).ToArray();
+        object?[] args = [.. ctor.GetParameters().Select(p => MakeDummyArg(p.ParameterType))];
 
         try
         {

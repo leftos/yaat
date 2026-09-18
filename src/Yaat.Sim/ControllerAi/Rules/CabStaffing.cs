@@ -33,7 +33,7 @@ public static class CabStaffing
 
         IReadOnlyDictionary<string, ControlRole> overrides =
             scope.Tick.Scenario.ControllerAi?.RoleOverrides ?? new Dictionary<string, ControlRole>(StringComparer.Ordinal);
-        return AiPositionResolver.Catalog(config, airport, overrides).Where(p => (p.Role == ControlRole.Local) && Covers(p, airport)).ToList();
+        return [.. AiPositionResolver.Catalog(config, airport, overrides).Where(p => (p.Role == ControlRole.Local) && Covers(p, airport))];
     }
 
     private static bool Covers(AiPositionConfig position, string airport) =>

@@ -136,8 +136,9 @@ public partial class LoadScenarioWindow : Window
             return;
         }
 
-        _allArtccItems = visible
-            .Select(s =>
+        _allArtccItems =
+        [
+            .. visible.Select(s =>
             {
                 string facility = "Unknown";
                 Match match = NamePrefixRegex.Match(s.Name);
@@ -146,8 +147,8 @@ public partial class LoadScenarioWindow : Window
                     facility = match.Groups[2].Value;
                 }
                 return new ArtccScenarioItem(s.Id, s.Name, facility);
-            })
-            .ToList();
+            }),
+        ];
 
         _allArtccItems.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
 

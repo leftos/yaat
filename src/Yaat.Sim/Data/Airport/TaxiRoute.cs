@@ -141,8 +141,8 @@ public sealed class TaxiRoute
             {
                 return new TaxiRoute
                 {
-                    Segments = Segments.Take(i + 1).ToList(),
-                    HoldShortPoints = HoldShortPoints.Where(hs => Segments.Take(i + 1).Any(s => s.ToNodeId == hs.NodeId)).ToList(),
+                    Segments = [.. Segments.Take(i + 1)],
+                    HoldShortPoints = [.. HoldShortPoints.Where(hs => Segments.Take(i + 1).Any(s => s.ToNodeId == hs.NodeId))],
                     Warnings = Warnings,
                 };
             }
@@ -339,8 +339,9 @@ public sealed class TaxiRoute
     public TaxiRouteDto ToSnapshot() =>
         new()
         {
-            Segments = Segments
-                .Select(s => new TaxiSegmentDto
+            Segments =
+            [
+                .. Segments.Select(s => new TaxiSegmentDto
                 {
                     FromNodeId = s.FromNodeId,
                     ToNodeId = s.ToNodeId,
@@ -350,11 +351,12 @@ public sealed class TaxiRoute
                     FromLongitude = s.FromNodeId < 0 ? s.Edge.FromNode.Position.Lon : null,
                     ToLatitude = s.ToNodeId < 0 ? s.Edge.ToNode.Position.Lat : null,
                     ToLongitude = s.ToNodeId < 0 ? s.Edge.ToNode.Position.Lon : null,
-                })
-                .ToList(),
+                }),
+            ],
             CurrentSegmentIndex = CurrentSegmentIndex,
-            HoldShortPoints = HoldShortPoints
-                .Select(hs => new HoldShortPointDto
+            HoldShortPoints =
+            [
+                .. HoldShortPoints.Select(hs => new HoldShortPointDto
                 {
                     NodeId = hs.NodeId,
                     RunwayId = hs.TargetName ?? "",
@@ -364,8 +366,8 @@ public sealed class TaxiRoute
                     Reason = hs.Reason,
                     ClearedByAutoCross = hs.ClearedByAutoCross,
                     TailOverRunwayNodeId = hs.TailOverRunwayNodeId,
-                })
-                .ToList(),
+                }),
+            ],
             Description = ToSummary(),
             DestinationParking = DestinationParking,
             DestinationSpot = DestinationSpot,

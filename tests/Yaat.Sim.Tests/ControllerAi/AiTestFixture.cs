@@ -84,14 +84,14 @@ internal static class AiTestFixture
             var config = new ControllerAiConfig
             {
                 Seed = seed,
-                EnabledPositionIds = positions.Select(p => p.PositionId).ToList(),
+                EnabledPositionIds = [.. positions.Select(p => p.PositionId)],
                 RoleOverrides = NoOverrides,
                 RunwayInUse = runwayInUse,
                 RunwayConfigurations = NoRunwayConfigurations,
             };
             scenario.ControllerAi = config;
             engine.ControllerAi = new AiControllerService(
-                positions.Select(brainFor).ToList(),
+                [.. positions.Select(brainFor)],
                 new HeadlessAiStaffing(positions, scenario),
                 new EngineAiCommandSink(engine),
                 config

@@ -56,15 +56,15 @@ public class CifpParserTests
     {
         // Minimal CIFP file with one approach record containing a FAF (D at pos 42)
         // and one terminal waypoint record
-        string[] lines = new[]
-        {
+        string[] lines =
+        [
             // Approach record: airport KOAK, subsection F at pos 12,
             // approach ID I28L (ILS 28L), FAF fix FITKI at pos 29-33,
             // waypoint desc D at pos 42
             BuildApproachLine("KOAK", "I28L  ", "FITKI", 'D'),
             // Terminal waypoint for FITKI
             BuildTerminalWaypointLine("KOAK", "FITKI", "N37424600", "W122131200"),
-        };
+        ];
 
         string tmpFile = Path.GetTempFileName();
         try
@@ -84,13 +84,13 @@ public class CifpParserTests
     [Fact]
     public void Parse_IlsPreferredOverRnav_WhenBothExist()
     {
-        string[] lines = new[]
-        {
+        string[] lines =
+        [
             // RNAV approach (H prefix = lower priority than ILS)
             BuildApproachLine("KOAK", "H28L  ", "RNFIX", 'F'),
             // ILS approach (I prefix = highest priority)
             BuildApproachLine("KOAK", "I28L  ", "ILFIX", 'F'),
-        };
+        ];
 
         string tmpFile = Path.GetTempFileName();
         try
@@ -110,7 +110,7 @@ public class CifpParserTests
     [Fact]
     public void Parse_TerminalWaypoints_ExtractsCoordinates()
     {
-        string[] lines = new[] { BuildTerminalWaypointLine("KOAK", "FITKI", "N37424600", "W122131200") };
+        string[] lines = [BuildTerminalWaypointLine("KOAK", "FITKI", "N37424600", "W122131200")];
 
         string tmpFile = Path.GetTempFileName();
         try
@@ -133,7 +133,7 @@ public class CifpParserTests
     public void Parse_RunwayExtraction_HandlesVariants()
     {
         // I28LY = ILS 28L variant Y
-        string[] lines = new[] { BuildApproachLine("KSFO", "I28LY ", "DUMOS", 'F') };
+        string[] lines = [BuildApproachLine("KSFO", "I28LY ", "DUMOS", 'F')];
 
         string tmpFile = Path.GetTempFileName();
         try
@@ -154,13 +154,13 @@ public class CifpParserTests
     [Fact]
     public void ParseApproaches_IlsApproach_ExtractsCommonLegs()
     {
-        string[] lines = new[]
-        {
+        string[] lines =
+        [
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 10, "GROVE", CifpFixRole.IAF, "IF"),
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 20, "FITKI", CifpFixRole.IF, "TF"),
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 30, "MUXED", CifpFixRole.FAF, "TF"),
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 40, "RW28L", CifpFixRole.MAP, "CF"),
-        };
+        ];
 
         string tmpFile = Path.GetTempFileName();
         try
@@ -196,8 +196,8 @@ public class CifpParserTests
     [Fact]
     public void ParseApproaches_WithTransition_SeparatesTransitionAndCommon()
     {
-        string[] lines = new[]
-        {
+        string[] lines =
+        [
             // Transition "SUNOL" with route type 'A'
             BuildFullApproachLine("KOAK", "I28L  ", 'A', "SUNOL", 10, "SUNOL", CifpFixRole.IAF, "IF"),
             BuildFullApproachLine("KOAK", "I28L  ", 'A', "SUNOL", 20, "GROVE", CifpFixRole.None, "TF"),
@@ -205,7 +205,7 @@ public class CifpParserTests
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 30, "FITKI", CifpFixRole.IF, "TF"),
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 40, "MUXED", CifpFixRole.FAF, "TF"),
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 50, "RW28L", CifpFixRole.MAP, "CF"),
-        };
+        ];
 
         string tmpFile = Path.GetTempFileName();
         try
@@ -230,14 +230,14 @@ public class CifpParserTests
     [Fact]
     public void ParseApproaches_MissedApproach_SeparatedAfterMahp()
     {
-        string[] lines = new[]
-        {
+        string[] lines =
+        [
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 10, "FITKI", CifpFixRole.IF, "TF"),
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 20, "MUXED", CifpFixRole.FAF, "TF"),
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 30, "RW28L", CifpFixRole.MAP, "CF"),
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 40, "GROVE", CifpFixRole.None, "TF"),
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 50, "SUNOL", CifpFixRole.None, "DF"),
-        };
+        ];
 
         string tmpFile = Path.GetTempFileName();
         try
@@ -261,14 +261,14 @@ public class CifpParserTests
     [Fact]
     public void ParseApproaches_HoldInLieu_Detected()
     {
-        string[] lines = new[]
-        {
+        string[] lines =
+        [
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 10, "GROVE", CifpFixRole.IAF, "IF"),
             // HA = hold-in-lieu path terminator
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 20, "FITKI", CifpFixRole.IF, "HA"),
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 30, "MUXED", CifpFixRole.FAF, "TF"),
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 40, "RW28L", CifpFixRole.MAP, "CF"),
-        };
+        ];
 
         string tmpFile = Path.GetTempFileName();
         try
@@ -290,11 +290,11 @@ public class CifpParserTests
     [Fact]
     public void ParseApproaches_RnavApproach_CorrectTypeName()
     {
-        string[] lines = new[]
-        {
+        string[] lines =
+        [
             BuildFullApproachLine("KOAK", "H28LZ ", ' ', "", 10, "GROVE", CifpFixRole.IAF, "IF"),
             BuildFullApproachLine("KOAK", "H28LZ ", ' ', "", 20, "RW28L", CifpFixRole.MAP, "TF"),
-        };
+        ];
 
         string tmpFile = Path.GetTempFileName();
         try
@@ -316,13 +316,13 @@ public class CifpParserTests
     [Fact]
     public void ParseApproaches_MultipleApproaches_AllReturned()
     {
-        string[] lines = new[]
-        {
+        string[] lines =
+        [
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 10, "FITKI", CifpFixRole.FAF, "TF"),
             BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 20, "RW28L", CifpFixRole.MAP, "CF"),
             BuildFullApproachLine("KOAK", "I30   ", ' ', "", 10, "DUMBA", CifpFixRole.FAF, "TF"),
             BuildFullApproachLine("KOAK", "I30   ", ' ', "", 20, "RW30 ", CifpFixRole.MAP, "CF"),
-        };
+        ];
 
         string tmpFile = Path.GetTempFileName();
         try
@@ -343,7 +343,7 @@ public class CifpParserTests
     [Fact]
     public void ParseApproaches_WrongAirport_ReturnsEmpty()
     {
-        string[] lines = new[] { BuildFullApproachLine("KSFO", "I28L  ", ' ', "", 10, "FITKI", CifpFixRole.FAF, "TF") };
+        string[] lines = [BuildFullApproachLine("KSFO", "I28L  ", ' ', "", 10, "FITKI", CifpFixRole.FAF, "TF")];
 
         string tmpFile = Path.GetTempFileName();
         try
@@ -411,11 +411,7 @@ public class CifpParserTests
     public void ParseApproaches_ExistingParseMethod_StillWorks()
     {
         // Regression: ensure the original Parse() method is unaffected
-        string[] lines = new[]
-        {
-            BuildApproachLine("KOAK", "I28L  ", "FITKI", 'D'),
-            BuildTerminalWaypointLine("KOAK", "FITKI", "N37424600", "W122131200"),
-        };
+        string[] lines = [BuildApproachLine("KOAK", "I28L  ", "FITKI", 'D'), BuildTerminalWaypointLine("KOAK", "FITKI", "N37424600", "W122131200")];
 
         string tmpFile = Path.GetTempFileName();
         try
@@ -438,12 +434,12 @@ public class CifpParserTests
     [Fact]
     public void ParseTerminalWaypoints_FiltersbyAirport()
     {
-        string[] lines = new[]
-        {
+        string[] lines =
+        [
             BuildTerminalWaypointLine("KABQ", "CFPTK", "N35004612", "W106431818"),
             BuildTerminalWaypointLine("KABQ", "CFDXH", "N35010000", "W106400000"),
             BuildTerminalWaypointLine("KOAK", "CFOAK", "N37424600", "W122131200"),
-        };
+        ];
 
         string tmpFile = Path.GetTempFileName();
         try
@@ -470,7 +466,7 @@ public class CifpParserTests
     [Fact]
     public void ParseTerminalWaypoints_EmptyForUnknownAirport()
     {
-        string[] lines = new[] { BuildTerminalWaypointLine("KABQ", "CFPTK", "N35004612", "W106431818") };
+        string[] lines = [BuildTerminalWaypointLine("KABQ", "CFPTK", "N35004612", "W106431818")];
 
         string tmpFile = Path.GetTempFileName();
         try
@@ -495,8 +491,8 @@ public class CifpParserTests
         // Leg 040 at PIVLY is an RF leg with arc center fix CFLTZ, radius 0.300 NM (rho=300 thousandths),
         // turn direction Right. CFLTZ is a CIFP terminal waypoint at the airport.
         // To regenerate: grep '^SUSAP KOTHK1FH05-Z ADEROY' tests/Yaat.Sim.Tests/TestData/FAACIFP18.gz (after gunzip)
-        string[] lines = new[]
-        {
+        string[] lines =
+        [
             RealCifpLines.KothCfltzTerminalWaypoint,
             RealCifpLines.KothH05ZDeroy010,
             RealCifpLines.KothH05ZDeroy020,
@@ -504,7 +500,7 @@ public class CifpParserTests
             RealCifpLines.KothH05ZDeroy040PivlyRf,
             RealCifpLines.KothH05ZDeroy050FogixRf,
             RealCifpLines.KothH05ZDeroy060Oxvak,
-        };
+        ];
 
         string tmpFile = Path.GetTempFileName();
         try
@@ -537,7 +533,7 @@ public class CifpParserTests
         // Real CIFP lines from FAACIFP18 (KABQ ILS RWY 3 I03, NODME transition).
         // Leg 020 at BIBQU is an AF leg referencing the ABQ navaid with theta/rho/arc data.
         // To regenerate: grep '^SUSAP KABQK2FI03   ANODME' tests/Yaat.Sim.Tests/TestData/FAACIFP18.gz (after gunzip)
-        string[] lines = new[] { RealCifpLines.KabqI03Nodme010, RealCifpLines.KabqI03Nodme020BibquAf };
+        string[] lines = [RealCifpLines.KabqI03Nodme010, RealCifpLines.KabqI03Nodme020BibquAf];
 
         string tmpFile = Path.GetTempFileName();
         try
@@ -568,13 +564,13 @@ public class CifpParserTests
     {
         // CFMLD (the I32-Y MAP) is a CNF that exists in the CIFP terminal waypoints but not in
         // vNAS NavData, so the parsed leg must carry its coordinates directly.
-        string[] lines = new[]
-        {
+        string[] lines =
+        [
             RealCifpLines.KgsoCfmldTerminalWaypoint,
             RealCifpLines.KgsoI32YCommon010Llink,
             RealCifpLines.KgsoI32YCommon020Ulide,
             RealCifpLines.KgsoI32YCommon030CfmldMap,
-        };
+        ];
 
         string tmpFile = Path.GetTempFileName();
         try
@@ -605,15 +601,15 @@ public class CifpParserTests
         // continuation's reserved padding carries a stray "2" in the speed-limit columns.
         // Issue #184: the parser must skip continuation records, so MATON appears exactly
         // once and never carries a phantom 2-knot speed restriction.
-        string[] lines = new[]
-        {
+        string[] lines =
+        [
             RealCifpLines.KiahH08RyCommon010Jelli,
             RealCifpLines.KiahH08RyCommon011Reign,
             RealCifpLines.KiahH08RyCommon012Eelpo,
             RealCifpLines.KiahH08RyCommon020MatonPrimary,
             RealCifpLines.KiahH08RyCommon020MatonContinuation,
             RealCifpLines.KiahH08RyCommon030Rw08R,
-        };
+        ];
 
         string tmpFile = Path.GetTempFileName();
         try
@@ -645,8 +641,8 @@ public class CifpParserTests
     [Fact]
     public void ParseSids_BasicSid_ExtractsCommonAndRunwayTransitions()
     {
-        string[] lines = new[]
-        {
+        string[] lines =
+        [
             // Runway transition "RW28R"
             BuildSidStarLine('D', "KOAK", "PORTE3", "RW28R", 10, "OAK  "),
             BuildSidStarLine('D', "KOAK", "PORTE3", "RW28R", 20, "REBAS"),
@@ -655,7 +651,7 @@ public class CifpParserTests
             BuildSidStarLine('D', "KOAK", "PORTE3", "", 40, "BRIXX"),
             // Enroute transition "MOLIN"
             BuildSidStarLine('D', "KOAK", "PORTE3", "MOLIN", 50, "MOLIN"),
-        };
+        ];
 
         string tmpFile = Path.GetTempFileName();
         try
@@ -692,8 +688,8 @@ public class CifpParserTests
     [Fact]
     public void ParseStars_BasicStar_ExtractsTransitions()
     {
-        string[] lines = new[]
-        {
+        string[] lines =
+        [
             // Enroute transition "FAITH"
             BuildSidStarLine('E', "KOAK", "SUNOL1", "FAITH", 10, "FAITH"),
             BuildSidStarLine('E', "KOAK", "SUNOL1", "FAITH", 20, "KENNO"),
@@ -702,7 +698,7 @@ public class CifpParserTests
             BuildSidStarLine('E', "KOAK", "SUNOL1", "", 40, "GROVE"),
             // Runway transition "RW28L"
             BuildSidStarLine('E', "KOAK", "SUNOL1", "RW28L", 50, "FITKI"),
-        };
+        ];
 
         string tmpFile = Path.GetTempFileName();
         try
@@ -738,13 +734,13 @@ public class CifpParserTests
         // Real CIFP line from FAACIFP18 (KSFO CIITY3 SID, RW10L runway transition).
         // Leg 040 at fix CIITY has altitude restriction "+ 05000" → AtOrAbove 5000ft.
         // To regenerate: grep '^SUSAP KSFOK2DCIITY3' tests/Yaat.Sim.Tests/TestData/FAACIFP18.gz (after gunzip)
-        string[] lines = new[]
-        {
+        string[] lines =
+        [
             RealCifpLines.KsfoCiity3Rw10LLeg010,
             RealCifpLines.KsfoCiity3Rw10LLeg020,
             RealCifpLines.KsfoCiity3Rw10LLeg030,
             RealCifpLines.KsfoCiity3Rw10LLeg040CiityAtOrAbove5000,
-        };
+        ];
 
         string tmpFile = Path.GetTempFileName();
         try
@@ -774,14 +770,14 @@ public class CifpParserTests
         // ARINC 424 §5.261: HHART carries "230 +" → AtOrAbove (a minimum); the blank-qualifier
         // legs (DOOBI 250, BOPPR 210) → Mandatory. The parser must read the description at
         // column 117, not assume every speed limit is a maximum.
-        string[] lines = new[]
-        {
+        string[] lines =
+        [
             RealCifpLines.KiahDoobi3AllLeg010Doobi,
             RealCifpLines.KiahDoobi3AllLeg020HhartAtOrAbove230,
             RealCifpLines.KiahDoobi3AllLeg030Boppr,
             RealCifpLines.KiahDoobi3AllLeg040Odiss,
             RealCifpLines.KiahDoobi3AllLeg050Bozzz,
-        };
+        ];
 
         string tmpFile = Path.GetTempFileName();
         try
@@ -835,7 +831,7 @@ public class CifpParserTests
     [Fact]
     public void ParseSids_WrongAirport_ReturnsEmpty()
     {
-        string[] lines = new[] { BuildSidStarLine('D', "KSFO", "PORTE3", "", 10, "PORTE") };
+        string[] lines = [BuildSidStarLine('D', "KSFO", "PORTE3", "", 10, "PORTE")];
 
         string tmpFile = Path.GetTempFileName();
         try
@@ -854,11 +850,11 @@ public class CifpParserTests
     [Fact]
     public void ParseStars_AllTransitionName_TreatedAsCommon()
     {
-        string[] lines = new[]
-        {
+        string[] lines =
+        [
             BuildSidStarLine('E', "KOAK", "SUNOL1", "ALL  ", 10, "SUNOL"),
             BuildSidStarLine('E', "KOAK", "SUNOL1", "ALL  ", 20, "GROVE"),
-        };
+        ];
 
         string tmpFile = Path.GetTempFileName();
         try
@@ -880,12 +876,12 @@ public class CifpParserTests
     [Fact]
     public void ParseSids_MultipleRunwayTransitions_AllCaptured()
     {
-        string[] lines = new[]
-        {
+        string[] lines =
+        [
             BuildSidStarLine('D', "KOAK", "PORTE3", "RW28R", 10, "OAK  "),
             BuildSidStarLine('D', "KOAK", "PORTE3", "RW28L", 10, "REBAS"),
             BuildSidStarLine('D', "KOAK", "PORTE3", "", 20, "PORTE"),
-        };
+        ];
 
         string tmpFile = Path.GetTempFileName();
         try

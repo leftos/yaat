@@ -2034,10 +2034,12 @@ public sealed partial class SimulationEngine
             // Misconfigured base/engine combo (e.g. a Heavy turboprop generator, whose whole band has no
             // pool). Fall back to a uniform roll over the classes the engine does have a pool for, so the
             // spawn still resolves to a real type instead of degrading through the fallback chain.
-            band = Enum.GetValues<WeightClass>()
-                .Where(w => AircraftGenerator.GetTypesForCombo(w, engine) is not null)
-                .Select(w => (Weight: w, Share: 1.0))
-                .ToList();
+            band =
+            [
+                .. Enum.GetValues<WeightClass>()
+                    .Where(w => AircraftGenerator.GetTypesForCombo(w, engine) is not null)
+                    .Select(w => (Weight: w, Share: 1.0)),
+            ];
         }
 
         double pick = rng.NextDouble() * band.Sum(e => e.Share);

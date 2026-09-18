@@ -2254,7 +2254,7 @@ internal static class PatternCommandHandler
             return [];
         }
 
-        return reparsed.Value.Blocks.SelectMany(b => b.Commands).ToList();
+        return [.. reparsed.Value.Blocks.SelectMany(b => b.Commands)];
     }
 
     /// <summary>The entry leg a pattern-entry command flies onto, or null if the command is not a pattern entry.</summary>
@@ -2753,7 +2753,7 @@ internal static class PatternCommandHandler
         // far out and touching down short of the runway (same failure as a 360 on final).
         if (aircraft.Phases.CurrentPhase is FinalApproachPhase fa)
         {
-            aircraft.Phases.InsertAfterCurrent(new List<Phase> { sturnPhase, fa.CloneForResume() });
+            aircraft.Phases.InsertAfterCurrent([sturnPhase, fa.CloneForResume()]);
         }
         else
         {
@@ -2851,7 +2851,7 @@ internal static class PatternCommandHandler
 
         if (resumePhase is not null)
         {
-            aircraft.Phases.InsertAfterCurrent(new List<Phase> { turnPhase, resumePhase });
+            aircraft.Phases.InsertAfterCurrent([turnPhase, resumePhase]);
         }
         else
         {

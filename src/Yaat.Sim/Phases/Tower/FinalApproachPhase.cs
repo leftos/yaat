@@ -384,7 +384,7 @@ public sealed class FinalApproachPhase : Phase
         {
             Status = (int)Status,
             ElapsedSeconds = ElapsedSeconds,
-            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            Requirements = Requirements.Count > 0 ? [.. Requirements.Select(r => r.ToSnapshot())] : null,
             SkipInterceptCheck = SkipInterceptCheck,
             ThresholdLat = _thresholdLat,
             ThresholdLon = _thresholdLon,
@@ -783,7 +783,7 @@ public sealed class FinalApproachPhase : Phase
             var sTurn = new STurnPhase { InitialDirection = initialDir, Count = 1 };
             FinalApproachPhase resume = CloneForResume();
             resume._sTurnSpacingCooldownSeconds = STurnSpacingCooldownSeconds;
-            phasesForSTurn.InsertAfterCurrent(new List<Phase> { sTurn, resume });
+            phasesForSTurn.InsertAfterCurrent([sTurn, resume]);
 
             string leadCallsign = ctx.Aircraft.Approach.FollowingCallsign!;
             PilotResponder.RouteSoloOrRpoTransmission(

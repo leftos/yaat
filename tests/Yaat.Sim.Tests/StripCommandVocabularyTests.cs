@@ -300,8 +300,8 @@ public class StripCommandVocabularyTests
         // Every CanonicalCommandType must exist in the registry; this test fails
         // loudly if anything was missed. The project-wide completeness test enforces
         // this for the whole enum but we verify the new verbs specifically here.
-        CanonicalCommandType[] types = new[]
-        {
+        CanonicalCommandType[] types =
+        [
             CanonicalCommandType.StripMove,
             CanonicalCommandType.StripDelete,
             CanonicalCommandType.StripOffset,
@@ -312,7 +312,7 @@ public class StripCommandVocabularyTests
             CanonicalCommandType.SeparatorDelete,
             CanonicalCommandType.BlankCreate,
             CanonicalCommandType.BlankDelete,
-        };
+        ];
 
         foreach (CanonicalCommandType type in types)
         {

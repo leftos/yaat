@@ -29,8 +29,8 @@ public static class WindowGroupRaiser
 
     // Most-recently-activated last. Approximates Z-order on platforms where
     // SortWindowsByZOrder cannot resolve it.
-    private static readonly List<Window> Tracked = new();
-    private static readonly Dictionary<Window, UserPreferences> Preferences = new();
+    private static readonly List<Window> Tracked = [];
+    private static readonly Dictionary<Window, UserPreferences> Preferences = [];
 
     private static bool _groupActive;
     private static bool _deactivationCheckPending;
@@ -174,7 +174,7 @@ public static class WindowGroupRaiser
             }
         }
 
-        Window[] ordered = candidates.ToArray();
+        Window[] ordered = [.. candidates];
         try
         {
             // Ascending Z-order, topmost last. Platforms answer via

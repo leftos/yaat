@@ -260,7 +260,7 @@ public sealed partial class SimulationEngine
     {
         if (block.ParsedCommands is { } live)
         {
-            return live.Where(TrackEngine.IsTrackCommand).ToList();
+            return [.. live.Where(TrackEngine.IsTrackCommand)];
         }
 
         if (string.IsNullOrEmpty(block.SourceCommandText))
@@ -277,7 +277,7 @@ public sealed partial class SimulationEngine
         var trackBlocks = compound.Blocks.Where(b => b.Commands.Exists(TrackEngine.IsTrackCommand)).ToList();
         if (trackBlocks.Count == 1)
         {
-            return trackBlocks[0].Commands.Where(TrackEngine.IsTrackCommand).ToList();
+            return [.. trackBlocks[0].Commands.Where(TrackEngine.IsTrackCommand)];
         }
 
         // Multiple sub-blocks share this source text — disambiguate by the block's at-fix trigger.
@@ -288,7 +288,7 @@ public sealed partial class SimulationEngine
             );
             if (match is not null)
             {
-                return match.Commands.Where(TrackEngine.IsTrackCommand).ToList();
+                return [.. match.Commands.Where(TrackEngine.IsTrackCommand)];
             }
         }
 

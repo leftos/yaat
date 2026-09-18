@@ -136,7 +136,7 @@ public class DataBlockStatePersistenceTests
 
         GroundCanvas canvas = WaitForDockedGroundCanvas(window, vm);
         AircraftModel ac = MakeAircraft();
-        canvas.Aircraft = new[] { ac };
+        canvas.Aircraft = [ac];
         canvas.Viewport.CenterLat = FieldLat;
         canvas.Viewport.CenterLon = FieldLon;
         canvas.Viewport.Zoom = 1.0;
@@ -228,7 +228,7 @@ public class DataBlockStatePersistenceTests
         AircraftModel other = MakeAircraft();
         other.Callsign = "DAL1";
         GroundCanvas canvas = MakeGroundCanvas(ac);
-        canvas.Aircraft = new[] { ac, other };
+        canvas.Aircraft = [ac, other];
         canvas.DeconflictMode = DatablockDeconflictMode.FreeForm;
         Window window = ShowInWindow(canvas);
 
@@ -308,7 +308,7 @@ public class DataBlockStatePersistenceTests
         canvas.AirportCenterLat = FieldLat;
         canvas.AirportCenterLon = FieldLon;
         canvas.AirportElevation = 0;
-        canvas.Aircraft = new[] { ac };
+        canvas.Aircraft = [ac];
         return canvas;
     }
 
@@ -336,7 +336,7 @@ public class DataBlockStatePersistenceTests
         canvas!.Viewport.CenterLat = FieldLat;
         canvas.Viewport.CenterLon = FieldLon;
         canvas.Viewport.Zoom = 1.0;
-        canvas.Aircraft = new[] { ac };
+        canvas.Aircraft = [ac];
         Dispatcher.UIThread.RunJobs();
         return (canvas, window);
     }

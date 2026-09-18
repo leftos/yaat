@@ -121,7 +121,7 @@ internal static class SynthCorpusGenerator
             string spokenCallsign = CallsignParser.IcaoToSpoken(callsign);
             string transcript = $"{spokenCallsign} {spokenBody}";
             List<string> activeCallsigns = BuildActiveCallsigns(callsign, rng);
-            List<string> programmedFixes = fix is null ? new List<string>() : [fix];
+            List<string> programmedFixes = fix is null ? [] : [fix];
 
             // Label verification: the exact transcript must map to the exact canonical +
             // callsign through the production text pipeline (rule mapper only — deterministic,
@@ -234,7 +234,7 @@ internal static class SynthCorpusGenerator
     /// <summary>"28R" → "two eight right"; bare numbers speak digit-by-digit ("30" → "three zero").</summary>
     private static string SpeakRunway(string runway)
     {
-        string digits = new string(runway.TakeWhile(char.IsDigit).ToArray());
+        string digits = new string([.. runway.TakeWhile(char.IsDigit)]);
         string suffix = runway[digits.Length..] switch
         {
             "L" => " left",

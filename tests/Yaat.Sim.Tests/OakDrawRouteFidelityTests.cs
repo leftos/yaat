@@ -205,7 +205,7 @@ public class OakDrawRouteFidelityTests
         }
 
         List<int> denseIds = DenseNodeIds(preview);
-        var dense = new TaxiCommand(denseIds.Select(id => $"#{id}").ToList(), []);
+        var dense = new TaxiCommand([.. denseIds.Select(id => $"#{id}")], []);
         Assert.True(GroundCommandHandler.IsPlausibleNodeRefResolution(layout, dense, preview));
 
         // Same drawn nodes, but a route that wandered twelve times as far — the block-loop signature
@@ -325,10 +325,10 @@ public class OakDrawRouteFidelityTests
                 // Composite junction labels ("W - W6") and runway names must never leak into the readable form.
                 Assert.DoesNotContain(names, n => n.Contains(" - ") || n.Contains("RWY", StringComparison.OrdinalIgnoreCase) || n.Contains('#'));
 
-                List<string> path = TaxiRouteFormatter
-                    .BuildReadableTaxiPath(preview, hasNamedTerminus: false)
-                    .Split(' ', StringSplitOptions.RemoveEmptyEntries)
-                    .ToList();
+                List<string> path =
+                [
+                    .. TaxiRouteFormatter.BuildReadableTaxiPath(preview, hasNamedTerminus: false).Split(' ', StringSplitOptions.RemoveEmptyEntries),
+                ];
                 TaxiRoute? resolved = TaxiPathfinder.ResolveExplicitPath(layout, a.Id, path, out string? fail, new ExplicitPathOptions(), cat);
                 if (resolved is null || !NodeIdSet(preview).SetEquals(NodeIdSet(resolved)))
                 {
@@ -375,10 +375,10 @@ public class OakDrawRouteFidelityTests
         }
 
         // With a named terminus the @parking token pins the stop, so no node-ref is appended.
-        List<string> path = TaxiRouteFormatter
-            .BuildReadableTaxiPath(preview, hasNamedTerminus: true)
-            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
-            .ToList();
+        List<string> path =
+        [
+            .. TaxiRouteFormatter.BuildReadableTaxiPath(preview, hasNamedTerminus: true).Split(' ', StringSplitOptions.RemoveEmptyEntries),
+        ];
         Assert.DoesNotContain(path, t => t.Contains(" - ") || t.StartsWith('#'));
 
         TaxiRoute? resolved = TaxiPathfinder.ResolveExplicitPath(
@@ -429,10 +429,10 @@ public class OakDrawRouteFidelityTests
                 }
 
                 // The command the draw tool copies for a crossing route: readable path + CROSS authorization.
-                List<string> path = TaxiRouteFormatter
-                    .BuildReadableTaxiPath(preview, hasNamedTerminus: false)
-                    .Split(' ', StringSplitOptions.RemoveEmptyEntries)
-                    .ToList();
+                List<string> path =
+                [
+                    .. TaxiRouteFormatter.BuildReadableTaxiPath(preview, hasNamedTerminus: false).Split(' ', StringSplitOptions.RemoveEmptyEntries),
+                ];
                 AircraftState ac = MakeGroundAircraft(a.Position.Lat, a.Position.Lon, 280);
                 CommandResult result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand(path, [], CrossRunways: crossings), layout);
 

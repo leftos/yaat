@@ -53,10 +53,10 @@ public sealed class InitialClimbPhase : Phase
         {
             Status = (int)Status,
             ElapsedSeconds = ElapsedSeconds,
-            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            Requirements = Requirements.Count > 0 ? [.. Requirements.Select(r => r.ToSnapshot())] : null,
             Departure = Departure?.ToSnapshot(),
             AssignedAltitude = AssignedAltitude,
-            DepartureRoute = DepartureRoute is { Count: > 0 } ? DepartureRoute.Select(t => t.ToSnapshot()).ToList() : null,
+            DepartureRoute = DepartureRoute is { Count: > 0 } ? [.. DepartureRoute.Select(t => t.ToSnapshot())] : null,
             IsVfr = IsVfr,
             CruiseAltitude = CruiseAltitude,
             DepartureSidId = DepartureSidId,

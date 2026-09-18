@@ -452,8 +452,8 @@ public class GeoJsonParserTests
         Assert.Equal(ExitSide.Right, rwy.TurnoffForEnd("10L"));
         Assert.Equal(ExitSide.Left, rwy.TurnoffForEnd("28R"));
 
-        Assert.Equal(new[] { "Q", "T" }, rwy.NoTurnoffForEnd("10L"));
-        Assert.Equal(new[] { "L", "P" }, rwy.NoTurnoffForEnd("28R"));
+        Assert.Equal(["Q", "T"], rwy.NoTurnoffForEnd("10L"));
+        Assert.Equal(["L", "P"], rwy.NoTurnoffForEnd("28R"));
 
         // Lookup is case-insensitive (and leading-zero tolerant) via the normalizing accessors
         Assert.NotEmpty(rwy.NoTurnoffForEnd("10l"));

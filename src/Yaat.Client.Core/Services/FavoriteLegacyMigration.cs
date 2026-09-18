@@ -86,9 +86,9 @@ public static class FavoriteLegacyMigration
             }
         }
 
-        preferences.SetLoadedFavoriteSets(
-            legacy.LoadedSetNames.Select(name => nameToId.GetValueOrDefault(name)).Where(id => id is not null).Cast<string>().ToList()
-        );
+        preferences.SetLoadedFavoriteSets([
+            .. legacy.LoadedSetNames.Select(name => nameToId.GetValueOrDefault(name)).Where(id => id is not null).Cast<string>(),
+        ]);
         preferences.MigrateProfileLoadedSetNames(name => nameToId.GetValueOrDefault(name));
         preferences.ClearLegacyFavorites();
         Log.LogInformation("Migrated {Favorites} favorite(s) and {Sets} named set(s) into the favorites store", migratedFavorites, nameToId.Count);

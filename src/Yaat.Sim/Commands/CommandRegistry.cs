@@ -15,7 +15,7 @@ public static class CommandRegistry
     public static CommandDefinition? Get(CanonicalCommandType type) => All.GetValueOrDefault(type);
 
     public static IReadOnlyList<string> AliasesFor(CanonicalCommandType type) =>
-        All.TryGetValue(type, out CommandDefinition? def) ? def.DefaultAliases : Array.Empty<string>();
+        All.TryGetValue(type, out CommandDefinition? def) ? def.DefaultAliases : [];
 
     public static bool IsAliasFor(CanonicalCommandType type, string token)
     {
@@ -30,7 +30,7 @@ public static class CommandRegistry
         return false;
     }
 
-    public static IReadOnlyList<CommandDefinition> ByCategory(string category) => All.Values.Where(d => d.Category == category).ToArray();
+    public static IReadOnlyList<CommandDefinition> ByCategory(string category) => [.. All.Values.Where(d => d.Category == category)];
 
     /// <summary>
     /// Renders the expected signature for a command suitable for inclusion in parse-error

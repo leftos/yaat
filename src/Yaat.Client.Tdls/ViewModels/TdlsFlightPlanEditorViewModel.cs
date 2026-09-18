@@ -485,7 +485,7 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
             return null;
         }
 
-        IReadOnlyList<TdlsClearanceValueDto> candidates = items as IReadOnlyList<TdlsClearanceValueDto> ?? items.ToList();
+        IReadOnlyList<TdlsClearanceValueDto> candidates = items as IReadOnlyList<TdlsClearanceValueDto> ?? [.. items];
 
         TdlsClearanceValueDto? exact = candidates.FirstOrDefault(i => string.Equals(i.Value, wantedValue, StringComparison.Ordinal));
         if (exact is not null)

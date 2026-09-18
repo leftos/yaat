@@ -18,7 +18,7 @@ public class MetarInterpolatorTests
     [Fact]
     public void GetWeather_ExactMatch_ReturnsThatStation()
     {
-        string[] metars = new[] { "KOAK 121853Z 27012KT 10SM BKN025 20/12 A2992" };
+        string[] metars = ["KOAK 121853Z 27012KT 10SM BKN025 20/12 A2992"];
         MetarParser.ParsedMetar? result = MetarInterpolator.GetWeatherForAirport(metars, "OAK");
         Assert.NotNull(result);
         Assert.Equal("KOAK", result.StationId);
@@ -33,7 +33,7 @@ public class MetarInterpolatorTests
     [Fact]
     public void GetWeather_NoMatch_NoFixes_ReturnsNull()
     {
-        string[] metars = new[] { "KSFO 121853Z 27012KT 10SM CLR 20/12 A2992" };
+        string[] metars = ["KSFO 121853Z 27012KT 10SM CLR 20/12 A2992"];
         MetarParser.ParsedMetar? result = MetarInterpolator.GetWeatherForAirport(metars, "LAX");
         Assert.Null(result);
     }
@@ -50,7 +50,7 @@ public class MetarInterpolatorTests
         );
 
         using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
-        string[] metars = new[] { "KLAX 121853Z 27012KT 5SM BKN030 20/12 A2992" };
+        string[] metars = ["KLAX 121853Z 27012KT 5SM BKN030 20/12 A2992"];
         MetarParser.ParsedMetar? result = MetarInterpolator.GetWeatherForAirport(metars, "LAX");
         Assert.NotNull(result);
         Assert.Equal(3000, result.CeilingFeetAgl);
@@ -76,7 +76,7 @@ public class MetarInterpolatorTests
         );
 
         using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
-        string[] metars = new[] { "KSTA 121853Z 27012KT 10SM BKN050 20/12 A2992", "KSTB 121853Z 27012KT 3SM BKN020 20/12 A2992" };
+        string[] metars = ["KSTA 121853Z 27012KT 10SM BKN050 20/12 A2992", "KSTB 121853Z 27012KT 3SM BKN020 20/12 A2992"];
 
         MetarParser.ParsedMetar? result = MetarInterpolator.GetWeatherForAirport(metars, "TSTA");
         Assert.NotNull(result);
@@ -101,7 +101,7 @@ public class MetarInterpolatorTests
         );
 
         using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
-        string[] metars = new[] { "KJFK 121853Z 27012KT 10SM CLR 20/12 A2992" };
+        string[] metars = ["KJFK 121853Z 27012KT 10SM CLR 20/12 A2992"];
         MetarParser.ParsedMetar? result = MetarInterpolator.GetWeatherForAirport(metars, "TSTA");
         Assert.Null(result);
     }

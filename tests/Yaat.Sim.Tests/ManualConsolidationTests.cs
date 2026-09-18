@@ -36,7 +36,7 @@ public class ManualConsolidationTests
 
     private static ConsolidationItem FindItem(List<ConsolidationItem> items, string tcpId) => items.First(i => i.Tcp.Id == tcpId);
 
-    private static HashSet<string> ChildIds(ConsolidationItem item) => item.Children.Select(c => c.Id).ToHashSet();
+    private static HashSet<string> ChildIds(ConsolidationItem item) => [.. item.Children.Select(c => c.Id)];
 
     // ── ConsolidationState unit tests ──────────────────────────
 

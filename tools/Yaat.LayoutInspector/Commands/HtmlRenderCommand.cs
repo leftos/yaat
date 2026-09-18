@@ -55,7 +55,7 @@ public sealed class HtmlRenderCommand : ICommand
                 {
                     DestinationRunway = options.PathfinderDestinationRunway,
                     ExplicitHoldShorts =
-                        options.PathfinderHoldShorts.Count > 0 ? options.PathfinderHoldShorts.Select(HoldShortTarget.Parse).ToList() : null,
+                        options.PathfinderHoldShorts.Count > 0 ? [.. options.PathfinderHoldShorts.Select(HoldShortTarget.Parse)] : null,
                 },
                 AircraftCategory.Jet
             );

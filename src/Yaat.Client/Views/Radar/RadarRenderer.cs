@@ -123,8 +123,8 @@ public sealed class RadarRenderer : IDisposable
 
     public RadarRenderer()
     {
-        SKColor[] colors = new[]
-        {
+        SKColor[] colors =
+        [
             SKColor.Parse("#FF6B6B"),
             SKColor.Parse("#4ECDC4"),
             SKColor.Parse("#FFE66D"),
@@ -133,7 +133,7 @@ public sealed class RadarRenderer : IDisposable
             SKColor.Parse("#B088F9"),
             SKColor.Parse("#F8B500"),
             SKColor.Parse("#45B7D1"),
-        };
+        ];
 
         _pathLinePaints = new SKPaint[colors.Length];
         _pathWaypointPaints = new SKPaint[colors.Length];

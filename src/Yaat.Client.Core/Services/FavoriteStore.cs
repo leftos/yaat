@@ -141,11 +141,12 @@ public sealed class FavoriteStore
 
     /// <summary>All sets in editor display order: Global, airports by key, scenarios by name, named sets by name.</summary>
     public IReadOnlyList<FavoriteSet> OrderedSets =>
-        _sets
-            .OrderBy(s => s.Kind)
-            .ThenBy(s => s.Key ?? "", StringComparer.OrdinalIgnoreCase)
-            .ThenBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        [
+            .. _sets
+                .OrderBy(s => s.Kind)
+                .ThenBy(s => s.Key ?? "", StringComparer.OrdinalIgnoreCase)
+                .ThenBy(s => s.Name, StringComparer.OrdinalIgnoreCase),
+        ];
 
     public FavoriteSet GlobalSet => _sets.First(s => s.Kind == FavoriteSetKind.Global);
 
@@ -387,19 +388,19 @@ public sealed class FavoriteStore
     public List<FavoriteCommand> GetSetFavorites(string setId)
     {
         FavoriteSet? set = GetSet(setId);
-        return set is null ? [] : set.FavoriteIds.Select(GetFavorite).Where(f => f is not null).Cast<FavoriteCommand>().ToList();
+        return set is null ? [] : [.. set.FavoriteIds.Select(GetFavorite).Where(f => f is not null).Cast<FavoriteCommand>()];
     }
 
     /// <summary>Favorites that are not a member of any set, sorted by label (the editor's "Not in any set" view).</summary>
     public List<FavoriteCommand> GetOrphanFavorites()
     {
         var referenced = new HashSet<string>(_sets.SelectMany(s => s.FavoriteIds), StringComparer.OrdinalIgnoreCase);
-        return _favorites.Values.Where(f => !referenced.Contains(f.Id)).OrderBy(f => f.Label, StringComparer.OrdinalIgnoreCase).ToList();
+        return [.. _favorites.Values.Where(f => !referenced.Contains(f.Id)).OrderBy(f => f.Label, StringComparer.OrdinalIgnoreCase)];
     }
 
     /// <summary>Ids of every set the favorite is a member of.</summary>
     public List<string> GetMembershipSetIds(string favoriteId) =>
-        _sets.Where(s => s.FavoriteIds.Contains(favoriteId, StringComparer.OrdinalIgnoreCase)).Select(s => s.Id).ToList();
+        [.. _sets.Where(s => s.FavoriteIds.Contains(favoriteId, StringComparer.OrdinalIgnoreCase)).Select(s => s.Id)];
 
     /// <summary>
     /// Builds the display list: each visible container's ordered block in full — Global, the active
@@ -427,7 +428,7 @@ public sealed class FavoriteStore
             }
         }
 
-        return visible.SelectMany(set => GetSetFavorites(set.Id).Select(f => new FavoriteDisplayEntry(f, set.Id))).ToList();
+        return [.. visible.SelectMany(set => GetSetFavorites(set.Id).Select(f => new FavoriteDisplayEntry(f, set.Id)))];
     }
 
     /// <summary>Appends the given favorites to the set, skipping ids already present or unknown (import merge path).</summary>
@@ -522,7 +523,7 @@ public sealed class FavoriteStore
     /// </summary>
     internal static string SanitizeFileName(string name, string fallback)
     {
-        char[] chars = name.Select(c => (InvalidFileNameChars.Contains(c) || char.IsControl(c)) ? '_' : c).ToArray();
+        char[] chars = [.. name.Select(c => (InvalidFileNameChars.Contains(c) || char.IsControl(c)) ? '_' : c)];
         string sanitized = new string(chars).Trim().Trim('.');
         if (sanitized.Length > 60)
         {
@@ -604,7 +605,7 @@ public sealed class FavoriteStore
     {
         lock (FileLock)
         {
-            return Directory.EnumerateFiles(dir, "*.json").OrderBy(p => p, StringComparer.OrdinalIgnoreCase).ToList();
+            return [.. Directory.EnumerateFiles(dir, "*.json").OrderBy(p => p, StringComparer.OrdinalIgnoreCase)];
         }
     }
 

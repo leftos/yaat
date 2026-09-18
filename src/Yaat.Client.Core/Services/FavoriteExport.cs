@@ -183,7 +183,7 @@ public static class FavoriteExport
     /// A merge keeps today's behaviour: only a manifest can ask for a set to be loaded.
     /// </summary>
     private static List<string> SetIdsToLoadWithoutManifest(List<FavoriteSet> sets, FavoriteImportMode mode) =>
-        mode == FavoriteImportMode.Replace ? sets.Select(s => s.Id).ToList() : [];
+        mode == FavoriteImportMode.Replace ? [.. sets.Select(s => s.Id)] : [];
 
     private static void ClearWhenReplacing(FavoriteStore store, FavoriteImportMode mode)
     {

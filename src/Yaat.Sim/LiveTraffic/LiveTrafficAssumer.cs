@@ -150,7 +150,7 @@ public static class LiveTrafficAssumer
             Procedure = aircraft.Procedure.ToSnapshot(),
             Approach = aircraft.Approach.ToSnapshot(),
             PendingWarningCount = aircraft.PendingWarnings.Count,
-            PendingObservations = aircraft.PendingObservations.ToList(),
+            PendingObservations = [.. aircraft.PendingObservations],
             PendingPilotTransmissionCount = aircraft.PendingPilotTransmissions.Count,
             PendingPilotSpeechCount = aircraft.PendingPilotSpeech.Count,
         };

@@ -106,7 +106,7 @@ public class FixPronunciationTests
             Assert.Single(result.Definitions);
 
             // Sanity-check case-insensitive key behavior at the dictionary level
-            var dict = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase) { ["SYRAH"] = new() { "see rah" } };
+            var dict = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase) { ["SYRAH"] = ["see rah"] };
             Assert.True(dict.ContainsKey("syrah"));
             Assert.True(dict.ContainsKey("SYRAH"));
         }

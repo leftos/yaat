@@ -115,7 +115,7 @@ public sealed class MvaDatabase
             string candidate = Path.Combine(dir.FullName, "src", "Yaat.Sim", DefaultFixtureRelativePath.Replace('/', Path.DirectorySeparatorChar));
             if (Directory.Exists(candidate))
             {
-                return FindGeoJsonFiles(candidate).ToList();
+                return [.. FindGeoJsonFiles(candidate)];
             }
 
             dir = dir.Parent;
@@ -230,7 +230,7 @@ public sealed class MvaDatabase
             var ring = new List<LatLon>();
             foreach (JsonElement coordinate in ringElement.EnumerateArray())
             {
-                JsonElement[] pair = coordinate.EnumerateArray().ToArray();
+                JsonElement[] pair = [.. coordinate.EnumerateArray()];
                 if (pair.Length < 2)
                 {
                     continue;

@@ -93,7 +93,7 @@ public class DatablockDeconflictionTests
     public void CompassSnap_SingleAircraft_KeepsPreferred()
     {
         var pref = new SKPoint(28, -28);
-        DatablockDeconfliction.Item[] items = new[] { Item("AAL1", 500, 500, pref) };
+        DatablockDeconfliction.Item[] items = [Item("AAL1", 500, 500, pref)];
         var resolved = new Dictionary<string, SKPoint>();
 
         DatablockDeconfliction.Resolve(
@@ -111,7 +111,7 @@ public class DatablockDeconflictionTests
     public void CompassSnap_TwoOverlapping_Separates()
     {
         var pref = new SKPoint(28, -28);
-        DatablockDeconfliction.Item[] items = new[] { Item("AAL1", 500, 500, pref), Item("UAL2", 500, 500, pref) };
+        DatablockDeconfliction.Item[] items = [Item("AAL1", 500, 500, pref), Item("UAL2", 500, 500, pref)];
         var resolved = new Dictionary<string, SKPoint>();
 
         DatablockDeconfliction.Resolve(
@@ -149,7 +149,7 @@ public class DatablockDeconflictionTests
     public void CompassSnap_Deterministic()
     {
         var pref = new SKPoint(28, -28);
-        DatablockDeconfliction.Item[] items = new[] { Item("AAL1", 500, 500, pref), Item("UAL2", 510, 505, pref), Item("DAL3", 495, 498, pref) };
+        DatablockDeconfliction.Item[] items = [Item("AAL1", 500, 500, pref), Item("UAL2", 510, 505, pref), Item("DAL3", 495, 498, pref)];
 
         var first = new Dictionary<string, SKPoint>();
         DatablockDeconfliction.Resolve(
@@ -180,12 +180,12 @@ public class DatablockDeconflictionTests
         var pref = new SKPoint(28, -28);
         var options = DatablockDeconfliction.Options.Default(Screen);
 
-        DatablockDeconfliction.Item[] items = new[] { Item("AAL1", 500, 500, pref), Item("UAL2", 500, 500, pref) };
+        DatablockDeconfliction.Item[] items = [Item("AAL1", 500, 500, pref), Item("UAL2", 500, 500, pref)];
         var prev = new Dictionary<string, SKPoint>();
         DatablockDeconfliction.Resolve(DatablockDeconflictMode.CompassSnap, items, options, new Dictionary<string, SKPoint>(), prev);
 
         // Nudge anchors by a fraction of a pixel and feed the prior result back as the stability seed.
-        DatablockDeconfliction.Item[] nudged = new[] { Item("AAL1", 500.3f, 500.2f, pref), Item("UAL2", 500.2f, 500.3f, pref) };
+        DatablockDeconfliction.Item[] nudged = [Item("AAL1", 500.3f, 500.2f, pref), Item("UAL2", 500.2f, 500.3f, pref)];
         var next = new Dictionary<string, SKPoint>();
         DatablockDeconfliction.Resolve(DatablockDeconflictMode.CompassSnap, nudged, options, prev, next);
 
@@ -217,7 +217,7 @@ public class DatablockDeconflictionTests
     public void FreeForm_TwoOverlapping_ReducesOverlap()
     {
         var pref = new SKPoint(28, -28);
-        DatablockDeconfliction.Item[] items = new[] { Item("AAL1", 500, 500, pref), Item("UAL2", 500, 500, pref) };
+        DatablockDeconfliction.Item[] items = [Item("AAL1", 500, 500, pref), Item("UAL2", 500, 500, pref)];
         float initialOverlap = Overlap(new SKRect(528, 472, 568, 502), new SKRect(528, 472, 568, 502));
 
         var resolved = new Dictionary<string, SKPoint>();
@@ -238,7 +238,7 @@ public class DatablockDeconflictionTests
         var smallScreen = new SKRect(0, 0, 120, 120);
         var pref = new SKPoint(28, -28);
         // Anchors clustered near the top-right corner so repulsion would push blocks off-screen if unclamped.
-        DatablockDeconfliction.Item[] items = new[] { Item("AAL1", 110, 15, pref), Item("UAL2", 110, 15, pref), Item("DAL3", 108, 18, pref) };
+        DatablockDeconfliction.Item[] items = [Item("AAL1", 110, 15, pref), Item("UAL2", 110, 15, pref), Item("DAL3", 108, 18, pref)];
         var resolved = new Dictionary<string, SKPoint>();
 
         DatablockDeconfliction.Resolve(
@@ -264,7 +264,7 @@ public class DatablockDeconflictionTests
     {
         var prefA = new SKPoint(28, -28);
         var prefB = new SKPoint(10, 10);
-        DatablockDeconfliction.Item[] items = new[] { Item("AAL1", 500, 500, prefA), Item("UAL2", 500, 500, prefB) };
+        DatablockDeconfliction.Item[] items = [Item("AAL1", 500, 500, prefA), Item("UAL2", 500, 500, prefB)];
         var resolved = new Dictionary<string, SKPoint>();
 
         DatablockDeconfliction.Resolve(
@@ -285,15 +285,15 @@ public class DatablockDeconflictionTests
         var pref = new SKPoint(28, -28);
         // Six co-located aircraft: the eight fixed compass slots cannot seat them all without overlap,
         // so the pass must extend leaders onto larger rings to fully deconflict.
-        DatablockDeconfliction.Item[] items = new[]
-        {
+        DatablockDeconfliction.Item[] items =
+        [
             Item("AAL1", 500, 500, pref),
             Item("UAL2", 500, 500, pref),
             Item("DAL3", 500, 500, pref),
             Item("SWA4", 500, 500, pref),
             Item("JBU5", 500, 500, pref),
             Item("AAY6", 500, 500, pref),
-        };
+        ];
         var resolved = new Dictionary<string, SKPoint>();
 
         DatablockDeconfliction.Resolve(
@@ -313,7 +313,7 @@ public class DatablockDeconflictionTests
     {
         var pref = new SKPoint(28, -28);
         // Two aircraft far apart: neither block overlaps, so both keep their base-ring preferred offset.
-        DatablockDeconfliction.Item[] items = new[] { Item("AAL1", 300, 300, pref), Item("UAL2", 700, 700, pref) };
+        DatablockDeconfliction.Item[] items = [Item("AAL1", 300, 300, pref), Item("UAL2", 700, 700, pref)];
         var resolved = new Dictionary<string, SKPoint>();
 
         DatablockDeconfliction.Resolve(
@@ -336,13 +336,13 @@ public class DatablockDeconflictionTests
         var pref = new SKPoint(28, -28);
         // Four aircraft in a left-to-right row, packed tighter than a block width so labels must move.
         // Items are listed in left-to-right anchor order; resolved block centers must not cross.
-        DatablockDeconfliction.Item[] items = new[]
-        {
+        DatablockDeconfliction.Item[] items =
+        [
             Item("AAA1", 480, 500, pref),
             Item("BBB2", 505, 500, pref),
             Item("CCC3", 530, 500, pref),
             Item("DDD4", 555, 500, pref),
-        };
+        ];
         var resolved = new Dictionary<string, SKPoint>();
 
         DatablockDeconfliction.Resolve(
@@ -368,13 +368,13 @@ public class DatablockDeconflictionTests
     {
         var pref = new SKPoint(28, -28);
         // Four aircraft stacked top-to-bottom, packed tighter than a block height so labels must move.
-        DatablockDeconfliction.Item[] items = new[]
-        {
+        DatablockDeconfliction.Item[] items =
+        [
             Item("AAA1", 500, 470, pref),
             Item("BBB2", 500, 490, pref),
             Item("CCC3", 500, 510, pref),
             Item("DDD4", 500, 530, pref),
-        };
+        ];
         var resolved = new Dictionary<string, SKPoint>();
 
         DatablockDeconfliction.Resolve(
@@ -399,13 +399,13 @@ public class DatablockDeconflictionTests
     public void FreeForm_HorizontalRow_PreservesOrder()
     {
         var pref = new SKPoint(28, -28);
-        DatablockDeconfliction.Item[] items = new[]
-        {
+        DatablockDeconfliction.Item[] items =
+        [
             Item("AAA1", 480, 500, pref),
             Item("BBB2", 505, 500, pref),
             Item("CCC3", 530, 500, pref),
             Item("DDD4", 555, 500, pref),
-        };
+        ];
         var resolved = new Dictionary<string, SKPoint>();
 
         DatablockDeconfliction.Resolve(
@@ -430,15 +430,15 @@ public class DatablockDeconflictionTests
     public void CompassSnap_DenseCluster_Deterministic()
     {
         var pref = new SKPoint(28, -28);
-        DatablockDeconfliction.Item[] items = new[]
-        {
+        DatablockDeconfliction.Item[] items =
+        [
             Item("AAL1", 500, 500, pref),
             Item("UAL2", 500, 500, pref),
             Item("DAL3", 500, 500, pref),
             Item("SWA4", 500, 500, pref),
             Item("JBU5", 500, 500, pref),
             Item("AAY6", 500, 500, pref),
-        };
+        ];
 
         var first = new Dictionary<string, SKPoint>();
         DatablockDeconfliction.Resolve(
@@ -472,7 +472,7 @@ public class DatablockDeconflictionTests
         // Anchor far to the left of the 1000x1000 screen: the symbol is off-display, so its datablock
         // must not be clamped into the viewport. The pass emits no offset and the view falls back to its
         // default placement, which clips off-screen with the symbol instead of stranding a block at the edge.
-        DatablockDeconfliction.Item[] items = new[] { Item("OFF", -800, 500, pref) };
+        DatablockDeconfliction.Item[] items = [Item("OFF", -800, 500, pref)];
         var resolved = new Dictionary<string, SKPoint>();
 
         DatablockDeconfliction.Resolve(mode, items, DatablockDeconfliction.Options.Default(Screen), new Dictionary<string, SKPoint>(), resolved);
@@ -525,7 +525,7 @@ public class DatablockDeconflictionTests
     {
         var pref = new SKPoint(28, -28);
         // A symbol a few pixels past the left edge is still partly visible, so its block keeps deconflicting.
-        DatablockDeconfliction.Item[] items = new[] { Item("EDGE", -10, 500, pref) };
+        DatablockDeconfliction.Item[] items = [Item("EDGE", -10, 500, pref)];
 
         var resolved = new Dictionary<string, SKPoint>();
         DatablockDeconfliction.Resolve(
@@ -560,8 +560,8 @@ public class DatablockDeconflictionTests
         float maxOther = 0f;
         for (float x = 300; x <= 1500; x += stepPx)
         {
-            DatablockDeconfliction.Item[] items = new[]
-            {
+            DatablockDeconfliction.Item[] items =
+            [
                 new DatablockDeconfliction.Item
                 {
                     Callsign = "FDX3647",
@@ -580,7 +580,7 @@ public class DatablockDeconflictionTests
                     IsPinned = false,
                     IsPriority = false,
                 },
-            };
+            ];
             DatablockDeconfliction.Resolve(DatablockDeconflictMode.FreeForm, items, DatablockDeconfliction.Options.Default(big), prev, res);
             prev = new Dictionary<string, SKPoint>(res);
             maxMover = MathF.Max(maxMover, Dist(res["SWA1421"], pref));
@@ -640,8 +640,8 @@ public class DatablockDeconflictionTests
     public void FreeForm_SameRowPair_HopsOppositeWays()
     {
         var pref = new SKPoint(30, -25);
-        DatablockDeconfliction.Item[] items = new[]
-        {
+        DatablockDeconfliction.Item[] items =
+        [
             new DatablockDeconfliction.Item
             {
                 Callsign = "AAA1",
@@ -660,7 +660,7 @@ public class DatablockDeconflictionTests
                 IsPinned = false,
                 IsPriority = false,
             },
-        };
+        ];
         var prev = new Dictionary<string, SKPoint>();
         var res = new Dictionary<string, SKPoint>();
         for (int i = 0; i < 10; i++)
@@ -743,7 +743,7 @@ public class DatablockDeconflictionTests
                 lateMaxMove = MathF.Max(lateMaxMove, moved);
             }
             prev = new Dictionary<string, SKPoint>(res);
-            res = new Dictionary<string, SKPoint>();
+            res = [];
         }
         return (prev, lateMaxMove);
     }

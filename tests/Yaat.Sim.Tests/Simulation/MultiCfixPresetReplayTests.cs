@@ -53,7 +53,7 @@ public class MultiCfixPresetReplayTests(ITestOutputHelper output)
         Assert.NotNull(aircraft);
 
         // All six crossing restrictions stay stamped on the route (additive — nothing lost).
-        string[] restrictedFixes = aircraft.Targets.NavigationRoute.Where(f => f.AltitudeRestriction is not null).Select(f => f.Name).ToArray();
+        string[] restrictedFixes = [.. aircraft.Targets.NavigationRoute.Where(f => f.AltitudeRestriction is not null).Select(f => f.Name)];
         foreach (string? fix in new[] { "NRRLI", "WWAVS", "EPICK", "YERKS", "FOLET", "EDDYY" })
         {
             Assert.Contains(fix, restrictedFixes);

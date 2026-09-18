@@ -11,8 +11,7 @@ namespace Yaat.Sim.Tests;
 public class AircraftFlightPlanAltitudeSnapshotTests
 {
     public static TheoryData<PlannedAltitude> Cases =>
-        new()
-        {
+        [
             PlannedAltitude.None,
             PlannedAltitude.Ifr(24000),
             PlannedAltitude.Block(20000, 25000),
@@ -20,7 +19,7 @@ public class AircraftFlightPlanAltitudeSnapshotTests
             PlannedAltitude.Vfr(null),
             PlannedAltitude.Otp(12000),
             PlannedAltitude.Otp(null),
-        };
+        ];
 
     [Theory]
     [MemberData(nameof(Cases))]

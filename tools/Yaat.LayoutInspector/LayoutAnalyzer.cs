@@ -114,8 +114,8 @@ public sealed class LayoutAnalyzer
             countsByType,
             Layout.Edges.Count,
             Layout.Arcs.Count,
-            taxiwayNames.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList(),
-            Layout.Runways.Select(r => r.Name).ToList(),
+            [.. taxiwayNames.OrderBy(n => n, StringComparer.OrdinalIgnoreCase)],
+            [.. Layout.Runways.Select(r => r.Name)],
             runwayWidths
         );
     }
@@ -424,7 +424,7 @@ public sealed class LayoutAnalyzer
         return new TaxiwayResult(
             name,
             nodes,
-            connectedTaxiways.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList(),
+            [.. connectedTaxiways.OrderBy(n => n, StringComparer.OrdinalIgnoreCase)],
             holdShortCount,
             intersections
         );
@@ -551,7 +551,7 @@ public sealed class LayoutAnalyzer
             designators.Add(id.End2);
         }
 
-        return designators.OrderBy(d => d, StringComparer.OrdinalIgnoreCase).ToList();
+        return [.. designators.OrderBy(d => d, StringComparer.OrdinalIgnoreCase)];
     }
 
     public bool HasRunwayDesignator(string designator)
@@ -570,20 +570,24 @@ public sealed class LayoutAnalyzer
 
     public List<NodeInfo> GetParking()
     {
-        return Layout
-            .Nodes.Values.Where(n => n.Type == GroundNodeType.Parking)
-            .OrderBy(n => n.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(BuildNodeInfo)
-            .ToList();
+        return
+        [
+            .. Layout
+                .Nodes.Values.Where(n => n.Type == GroundNodeType.Parking)
+                .OrderBy(n => n.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(BuildNodeInfo),
+        ];
     }
 
     public List<NodeInfo> GetSpots()
     {
-        return Layout
-            .Nodes.Values.Where(n => (n.Type == GroundNodeType.Spot) || ((n.Name is not null) && (n.Type == GroundNodeType.TaxiwayIntersection)))
-            .OrderBy(n => n.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(BuildNodeInfo)
-            .ToList();
+        return
+        [
+            .. Layout
+                .Nodes.Values.Where(n => (n.Type == GroundNodeType.Spot) || ((n.Name is not null) && (n.Type == GroundNodeType.TaxiwayIntersection)))
+                .OrderBy(n => n.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(BuildNodeInfo),
+        ];
     }
 
     public RunwayResult GetRunwayDetail(string designator)

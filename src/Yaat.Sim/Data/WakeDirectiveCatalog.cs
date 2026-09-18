@@ -8,7 +8,7 @@ public sealed class WakeDirectiveCatalog
 
     public WakeDirectiveCatalog(IEnumerable<WakeDirectiveRule> rules)
     {
-        _rules = rules.ToList();
+        _rules = [.. rules];
     }
 
     public IReadOnlyList<WakeDirectiveRule> FindMatches(WakeDirectiveContext context)
@@ -18,7 +18,7 @@ public sealed class WakeDirectiveCatalog
             return [];
         }
 
-        return _rules.Where(rule => Matches(rule, context)).ToList();
+        return [.. _rules.Where(rule => Matches(rule, context))];
     }
 
     private static bool Matches(WakeDirectiveRule rule, WakeDirectiveContext context)

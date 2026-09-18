@@ -1430,13 +1430,15 @@ public partial class MainViewModel : ObservableObject
         string? selected = SelectedAircraft?.Callsign;
         if (string.IsNullOrEmpty(selected))
         {
-            return CommandHistory.Select(e => e.Command).ToList();
+            return [.. CommandHistory.Select(e => e.Command)];
         }
 
-        return CommandHistory
-            .Where(e => e.Callsign.Length == 0 || string.Equals(e.Callsign, selected, StringComparison.OrdinalIgnoreCase))
-            .Select(e => e.Command)
-            .ToList();
+        return
+        [
+            .. CommandHistory
+                .Where(e => e.Callsign.Length == 0 || string.Equals(e.Callsign, selected, StringComparison.OrdinalIgnoreCase))
+                .Select(e => e.Command),
+        ];
     }
 
     public ObservableCollection<TerminalEntry> TerminalEntries { get; } = [];
@@ -1948,7 +1950,7 @@ public partial class MainViewModel : ObservableObject
         //     AID+slew stay visible because the controller is talking to the underlying jet.
         // Filtering here keeps the rule mapper, LLM fallback, and the speech-debug capture all
         // from advertising callsigns / runways for aircraft that aren't really "active".
-        AircraftModel[] snapshot = Aircraft.Where(a => !a.IsDelayed && (!a.IsUnsupported || a.IsGhostOverlay)).ToArray();
+        AircraftModel[] snapshot = [.. Aircraft.Where(a => !a.IsDelayed && (!a.IsUnsupported || a.IsGhostOverlay))];
         var callsigns = snapshot.Select(a => a.Callsign).Where(cs => !string.IsNullOrEmpty(cs)).ToList();
         AircraftModel? selected = contextAircraft ?? SelectedAircraft;
         IReadOnlyList<string> programmedFixes = [];
@@ -1963,7 +1965,7 @@ public partial class MainViewModel : ObservableObject
                 selected.ActiveStarId,
                 selected.DestinationRunway
             );
-            programmedFixes = fixSet.ToList();
+            programmedFixes = [.. fixSet];
         }
 
         // Whisper biasing prompt is the static ATC vocabulary set (NATO alphabet + phonetic

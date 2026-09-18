@@ -77,7 +77,7 @@ public class GroundCanvasDataBlockHitTests
         canvas.AirportCenterLat = FieldLat;
         canvas.AirportCenterLon = FieldLon;
         canvas.AirportElevation = 0;
-        canvas.Aircraft = new[] { ac };
+        canvas.Aircraft = [ac];
         return canvas;
     }
 }

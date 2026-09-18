@@ -93,10 +93,7 @@ public static class NavRouteOverlayProjector
         polygon.AddRange(right);
         polygon.Add(left[0]);
 
-        return
-        [
-            new NavRouteShapeDto(NavRouteShapeKind.MilitaryRouteCorridor, polygon.Select(p => new[] { p.Lat, p.Lon }).ToList(), null, null, null),
-        ];
+        return [new NavRouteShapeDto(NavRouteShapeKind.MilitaryRouteCorridor, [.. polygon.Select(p => new[] { p.Lat, p.Lon })], null, null, null)];
     }
 
     /// <summary>
@@ -165,7 +162,7 @@ public static class NavRouteOverlayProjector
             );
         }
 
-        return new NavRouteShapeDto(NavRouteShapeKind.ProcedureTurn, points.Select(p => new[] { p.Lat, p.Lon }).ToList(), labels, fix.Lat, fix.Lon);
+        return new NavRouteShapeDto(NavRouteShapeKind.ProcedureTurn, [.. points.Select(p => new[] { p.Lat, p.Lon })], labels, fix.Lat, fix.Lon);
     }
 
     /// <summary>
@@ -286,7 +283,7 @@ public static class NavRouteOverlayProjector
             legNm,
             radiusNm
         );
-        return new NavRouteShapeDto(NavRouteShapeKind.HoldRacetrack, points.Select(p => new[] { p.Lat, p.Lon }).ToList(), null, null, null);
+        return new NavRouteShapeDto(NavRouteShapeKind.HoldRacetrack, [.. points.Select(p => new[] { p.Lat, p.Lon })], null, null, null);
     }
 
     /// <summary>

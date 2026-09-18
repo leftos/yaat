@@ -529,7 +529,7 @@ internal static class TrafficAdvisoryMatcher
 
     private static int AltitudeBucket(AircraftState target) => (int)Math.Round(target.Altitude / 100.0, MidpointRounding.AwayFromZero) * 100;
 
-    private static string NormalizeType(string value) => new(value.Trim().ToUpperInvariant().Where(char.IsLetterOrDigit).ToArray());
+    private static string NormalizeType(string value) => new([.. value.Trim().ToUpperInvariant().Where(char.IsLetterOrDigit)]);
 
     private static bool TokenContains(string? source, string token) =>
         !string.IsNullOrWhiteSpace(source) && NormalizeType(source).Contains(token, StringComparison.OrdinalIgnoreCase);

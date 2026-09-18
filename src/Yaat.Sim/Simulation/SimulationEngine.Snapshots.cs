@@ -34,7 +34,7 @@ public sealed partial class SimulationEngine
             ElapsedSeconds = scenario.ElapsedSeconds,
             Rng = World.Rng.GetState(),
             WeatherJson = World.Weather is not null ? JsonSerializer.Serialize(World.Weather) : null,
-            Aircraft = aircraft.Select(ac => ac.ToSnapshot()).ToList(),
+            Aircraft = [.. aircraft.Select(ac => ac.ToSnapshot())],
             Scenario = scenario.ToSnapshot(),
             Server = CaptureServerSnapshot(aircraft),
         };
@@ -133,7 +133,7 @@ public sealed partial class SimulationEngine
             // other source (unlike the student position, whose only source is the snapshot on a Sim-side run).
             if (scenarioDto.AtcPositions is { } atcPositions)
             {
-                Scenario.AtcPositions = atcPositions.Select(ResolvedAtcPosition.FromSnapshot).ToList();
+                Scenario.AtcPositions = [.. atcPositions.Select(ResolvedAtcPosition.FromSnapshot)];
             }
 
             // Clear and restore queues
@@ -400,16 +400,18 @@ public sealed partial class SimulationEngine
         List<EramCrrGroupSnapshotDto>? crrGroups =
             CrrGroups.Count == 0
                 ? null
-                : CrrGroups
-                    .Values.OrderBy(g => g.Label, StringComparer.Ordinal)
-                    .Select(g => new EramCrrGroupSnapshotDto
-                    {
-                        Label = g.Label,
-                        Color = g.Color,
-                        Latitude = g.Latitude,
-                        Longitude = g.Longitude,
-                    })
-                    .ToList();
+                :
+                [
+                    .. CrrGroups
+                        .Values.OrderBy(g => g.Label, StringComparer.Ordinal)
+                        .Select(g => new EramCrrGroupSnapshotDto
+                        {
+                            Label = g.Label,
+                            Color = g.Color,
+                            Latitude = g.Latitude,
+                            Longitude = g.Longitude,
+                        }),
+                ];
 
         return new ServerSnapshotDto
         {

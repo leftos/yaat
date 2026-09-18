@@ -75,7 +75,7 @@ public partial class WeatherTimelineEditorViewModel : ObservableObject
         {
             Name = string.IsNullOrWhiteSpace(Name) ? "Custom Weather" : Name,
             ArtccId = ArtccId,
-            Periods = Periods.Select(p => p.BuildPeriod()).ToList(),
+            Periods = [.. Periods.Select(p => p.BuildPeriod())],
         };
         return JsonSerializer.Serialize(timeline);
     }

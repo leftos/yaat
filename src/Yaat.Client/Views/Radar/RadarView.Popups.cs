@@ -202,7 +202,7 @@ public partial class RadarView
         }
 
         textBox.Text = "";
-        listBox.ItemsSource = priorityItems ?? Array.Empty<object>();
+        listBox.ItemsSource = priorityItems ?? [];
         popup.IsOpen = true;
         textBox.Focus();
     }
@@ -548,7 +548,7 @@ public partial class RadarView
         return items;
     }
 
-    private static IReadOnlyList<object> BuildRelativeTurnList() => new List<object> { 5, 10, 15, 20, 30, 45, 60, 90 };
+    private static IReadOnlyList<object> BuildRelativeTurnList() => [5, 10, 15, 20, 30, 45, 60, 90];
 
     private static IReadOnlyList<object> BuildSpeedList()
     {
@@ -588,5 +588,5 @@ public partial class RadarView
 
     private static string FormatAltitude(int alt) => alt >= 18000 ? $"FL{alt / 100}" : $"{alt}";
 
-    private static IReadOnlyList<object> BuildRouteFixList(AircraftModel ac) => FixSuggester.CollectRouteFixNames(ac).Cast<object>().ToList();
+    private static IReadOnlyList<object> BuildRouteFixList(AircraftModel ac) => [.. FixSuggester.CollectRouteFixNames(ac).Cast<object>()];
 }

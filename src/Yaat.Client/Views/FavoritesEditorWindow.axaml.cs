@@ -173,13 +173,13 @@ public partial class FavoritesEditorWindow : Window
     private List<int> GetSelectedFavoriteIndices()
     {
         ListBox? list = this.FindControl<ListBox>("FavoritesList");
-        return list is null ? [] : list.Selection.SelectedIndexes.ToList();
+        return list is null ? [] : [.. list.Selection.SelectedIndexes];
     }
 
     private List<FavoriteCommand> GetSelectedFavorites()
     {
         List<FavoriteCommand> favorites = GetSelectedContainerFavorites();
-        return GetSelectedFavoriteIndices().Distinct().Order().Where(i => (i >= 0) && (i < favorites.Count)).Select(i => favorites[i]).ToList();
+        return [.. GetSelectedFavoriteIndices().Distinct().Order().Where(i => (i >= 0) && (i < favorites.Count)).Select(i => favorites[i])];
     }
 
     private void ReselectFavorites(IEnumerable<int> indices)

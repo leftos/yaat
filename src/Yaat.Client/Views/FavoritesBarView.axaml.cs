@@ -1662,6 +1662,6 @@ public partial class FavoritesBarView : UserControl
 
         /// <summary>Set ids of the checked containers, creating on-demand airport/scenario sets as needed.</summary>
         public List<string> ResolveSelectedSetIds(MainViewModel vm) =>
-            _entries.Where(e => e.Box.IsChecked == true).Select(e => vm.EnsureFavoriteContainer(e.Option)).ToList();
+            [.. _entries.Where(e => e.Box.IsChecked == true).Select(e => vm.EnsureFavoriteContainer(e.Option))];
     }
 }

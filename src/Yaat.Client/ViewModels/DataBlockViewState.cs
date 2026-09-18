@@ -13,13 +13,13 @@ public class DataBlockViewState
     private int _nextZOrder = 1;
 
     /// <summary>Manual drag offsets (callsign → screen-space offset from the position symbol).</summary>
-    public Dictionary<string, SKPoint> ManualOffsets { get; } = new();
+    public Dictionary<string, SKPoint> ManualOffsets { get; } = [];
 
     /// <summary>Callsigns whose datablocks are highlighted (middle-click toggle).</summary>
-    public HashSet<string> HighlightedCallsigns { get; } = new();
+    public HashSet<string> HighlightedCallsigns { get; } = [];
 
     /// <summary>Datablock draw order (callsign → z-index); higher draws on top.</summary>
-    public Dictionary<string, int> DataBlockZOrder { get; } = new();
+    public Dictionary<string, int> DataBlockZOrder { get; } = [];
 
     /// <summary>Surfaces the callsign's datablock to the top of the z-order.</summary>
     public void SurfaceDataBlock(string callsign) => DataBlockZOrder[callsign] = _nextZOrder++;
@@ -46,10 +46,10 @@ public class DataBlockViewState
 public sealed class GroundDataBlockViewState : DataBlockViewState
 {
     /// <summary>Callsigns explicitly hidden while <see cref="StartWithAllHidden"/> is off.</summary>
-    public HashSet<string> HiddenDataBlockCallsigns { get; } = new();
+    public HashSet<string> HiddenDataBlockCallsigns { get; } = [];
 
     /// <summary>Callsigns explicitly shown while <see cref="StartWithAllHidden"/> is on.</summary>
-    public HashSet<string> ShownDataBlockCallsigns { get; } = new();
+    public HashSet<string> ShownDataBlockCallsigns { get; } = [];
 
     /// <summary>When true all datablocks start hidden and <see cref="ShownDataBlockCallsigns"/> opts in.</summary>
     public bool StartWithAllHidden { get; private set; }
@@ -97,7 +97,7 @@ public sealed class GroundDataBlockViewState : DataBlockViewState
 public sealed class RadarDataBlockViewState : DataBlockViewState
 {
     /// <summary>Callsigns showing the minified (single-line) datablock.</summary>
-    public HashSet<string> MinifiedCallsigns { get; } = new();
+    public HashSet<string> MinifiedCallsigns { get; } = [];
 
     public void ToggleMinified(string callsign)
     {

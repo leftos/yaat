@@ -96,7 +96,7 @@ internal static class ArmCutResolver
                 CutId cutId = nextCutId;
                 nextCutId = new CutId(nextCutId.Value + 1);
                 (LatLon pos, double brg) = TaxiwayWalk.InterpolateAtDistanceFt(arm.Walk, junction.JunctionNode, dist);
-                var cut = new ResolvedArmCut(cutId, junction.JunctionNodeId, arm.Id, dist, pos, brg, involved.Select(c => c.CornerId).ToList());
+                var cut = new ResolvedArmCut(cutId, junction.JunctionNodeId, arm.Id, dist, pos, brg, [.. involved.Select(c => c.CornerId)]);
                 cuts[cutId] = cut;
                 foreach (CornerSpec? c in involved)
                 {

@@ -55,8 +55,8 @@ internal sealed class TugPathCheck
         _eastFtPerDeg = 60.0 * GeoMath.FeetPerNm * Math.Cos(planStart.Lat * DegToRad);
         _halfLengthFt = TugMovePlanner.FuselageLengthFt(aircraftType) / 2.0;
         _halfSpanFt = TugMovePlanner.WingspanFt(aircraftType) / 2.0;
-        _runways = layout.Runways.SelectMany(RunwaySegments).ToList();
-        _edges = layout.AllEdges.Select(EdgeSegmentOf).ToList();
+        _runways = [.. layout.Runways.SelectMany(RunwaySegments)];
+        _edges = [.. layout.AllEdges.Select(EdgeSegmentOf)];
     }
 
     /// <summary>

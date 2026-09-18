@@ -225,7 +225,7 @@ public class MetarParserTests
     [Fact]
     public void FindStation_MatchesByIcao()
     {
-        string[] metars = new[] { "KSFO 121853Z 27012KT 10SM CLR 20/12 A2992", "KOAK 121853Z 27012KT 3SM BKN025 20/12 A2992" };
+        string[] metars = ["KSFO 121853Z 27012KT 10SM CLR 20/12 A2992", "KOAK 121853Z 27012KT 3SM BKN025 20/12 A2992"];
 
         MetarParser.ParsedMetar? result = MetarParser.FindStation(metars, "OAK");
         Assert.NotNull(result);
@@ -236,7 +236,7 @@ public class MetarParserTests
     [Fact]
     public void FindStation_NoMatch_ReturnsNull()
     {
-        string[] metars = new[] { "KSFO 121853Z 27012KT 10SM CLR 20/12 A2992" };
+        string[] metars = ["KSFO 121853Z 27012KT 10SM CLR 20/12 A2992"];
         Assert.Null(MetarParser.FindStation(metars, "LAX"));
     }
 

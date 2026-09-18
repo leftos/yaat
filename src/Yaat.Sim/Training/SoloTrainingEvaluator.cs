@@ -2040,7 +2040,7 @@ public sealed class SoloTrainingEvaluator
                 wakeContexts[context.SourceEventId] = context;
             }
 
-            return new RunwayEvaluationResult(samples, wakeContexts.Values.ToList());
+            return new RunwayEvaluationResult(samples, [.. wakeContexts.Values]);
         }
 
         public List<WakeDirectiveContext> SampleActiveWakeContexts(List<AircraftState> aircraft, double scenarioElapsedSeconds)
@@ -2060,7 +2060,7 @@ public sealed class SoloTrainingEvaluator
                 contexts[context.SourceEventId] = context;
             }
 
-            return contexts.Values.ToList();
+            return [.. contexts.Values];
         }
 
         public void Reset()
@@ -2638,7 +2638,7 @@ public sealed class SoloTrainingEvaluator
                 }
             }
 
-            return contexts.Values.ToList();
+            return [.. contexts.Values];
         }
 
         private static ActiveSameRunwayViolation? TryCreateDepartureBehindDeparture(

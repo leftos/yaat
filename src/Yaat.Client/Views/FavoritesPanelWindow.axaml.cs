@@ -7,7 +7,7 @@ namespace Yaat.Client.Views;
 
 public partial class FavoritesPanelWindow : Window, IAlwaysOnTopToggle
 {
-    private static readonly ConditionalWeakTable<MainViewModel, FavoritesPanelWindow> OpenWindows = new();
+    private static readonly ConditionalWeakTable<MainViewModel, FavoritesPanelWindow> OpenWindows = [];
 
     private readonly WindowGeometryHelper _geometryHelper;
 

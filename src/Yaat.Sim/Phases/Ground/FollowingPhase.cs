@@ -198,7 +198,7 @@ public sealed class FollowingPhase : Phase
 
             var holdPhase = new HoldingShortPhase(holdShort);
             var resumeFollow = new FollowingPhase(_targetCallsign);
-            ctx.Aircraft.Phases?.InsertAfterCurrent(new Phase[] { holdPhase, resumeFollow });
+            ctx.Aircraft.Phases?.InsertAfterCurrent([holdPhase, resumeFollow]);
             return true;
         }
 

@@ -85,7 +85,7 @@ public class StarSingleDigitRunwayTransitionTests : IDisposable
             return; // offline CIFP fallback lacks BDEGA4/RW01R
         }
 
-        List<NavigationTarget> targets = DepartureClearanceHandler.ResolveLegsToTargets(new List<CifpLeg>(star.CommonLegs));
+        List<NavigationTarget> targets = DepartureClearanceHandler.ResolveLegsToTargets([.. star.CommonLegs]);
         if (targets.Count == 0 || navDb.GetFixPosition(targets[0].Name) is null)
         {
             return;
@@ -108,7 +108,7 @@ public class StarSingleDigitRunwayTransitionTests : IDisposable
         (AircraftState? state, string? error) = AircraftGenerator.Generate(
             request,
             "KSFO",
-            Array.Empty<AircraftState>(),
+            [],
             groundLayout: null,
             new Random(1),
             new BeaconCodePool()

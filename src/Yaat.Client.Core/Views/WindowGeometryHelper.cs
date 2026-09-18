@@ -22,7 +22,7 @@ public sealed class WindowGeometryHelper
     // Velopack update flow) flush every tracked window's geometry before a
     // process restart that bypasses the Avalonia window-closing pipeline.
     private static readonly object RegistryLock = new();
-    private static readonly List<WindowGeometryHelper> ActiveHelpers = new();
+    private static readonly List<WindowGeometryHelper> ActiveHelpers = [];
 
     private readonly Window _window;
     private readonly UserPreferences _preferences;
@@ -88,7 +88,7 @@ public sealed class WindowGeometryHelper
     {
         lock (RegistryLock)
         {
-            return ActiveHelpers.ToArray();
+            return [.. ActiveHelpers];
         }
     }
 
@@ -438,7 +438,7 @@ public sealed class WindowGeometryHelper
         WindowGeometryHelper[] snapshot;
         lock (RegistryLock)
         {
-            snapshot = ActiveHelpers.ToArray();
+            snapshot = [.. ActiveHelpers];
         }
 
         foreach (WindowGeometryHelper helper in snapshot)

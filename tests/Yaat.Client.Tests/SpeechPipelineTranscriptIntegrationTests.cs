@@ -210,7 +210,7 @@ public sealed class SpeechPipelineTranscriptIntegrationTests
             return;
         }
 
-        string[] koakRunways = new[] { "28R", "10L", "28L", "10R", "30", "12", "33", "15" };
+        string[] koakRunways = ["28R", "10L", "28L", "10R", "30", "12", "33", "15"];
         SpeechContext ctx = BuildContext(
             activeCallsigns: ["N9225L"],
             availableRunways: new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase) { ["KOAK"] = koakRunways },

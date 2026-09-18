@@ -238,8 +238,8 @@ public class M101GroundSpawnCheckInTests
     public void AtParking_OneHundredRate_PacesInitialCallupsEveryTwentySeconds()
     {
         SimScenarioState scenario = NewScenario(parkingRatePercent: 100);
-        AircraftState[] aircraft = Enumerable.Range(1, 3).Select(i => MakeAircraft($"N{i}", parkingSpot: "KILO RAMP")).ToArray();
-        AtParkingPhase[] phases = aircraft.Select(_ => new AtParkingPhase()).ToArray();
+        AircraftState[] aircraft = [.. Enumerable.Range(1, 3).Select(i => MakeAircraft($"N{i}", parkingSpot: "KILO RAMP"))];
+        AtParkingPhase[] phases = [.. aircraft.Select(_ => new AtParkingPhase())];
         for (int i = 0; i < aircraft.Length; i++)
         {
             phases[i].OnStart(Ctx(aircraft[i], soloParkingInitialCallupRatePercent: 100, scenario: scenario));

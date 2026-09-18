@@ -20,21 +20,18 @@ namespace Yaat.Sim.Tests;
 public class PhaseAcceptanceAuditTests
 {
     public static TheoryData<CanonicalCommandType> SpeedFamily =>
-        new()
-        {
+        [
             CanonicalCommandType.Speed,
             CanonicalCommandType.Mach,
             CanonicalCommandType.ReduceToFinalApproachSpeed,
             CanonicalCommandType.ResumeNormalSpeed,
             CanonicalCommandType.DeleteSpeedRestrictions,
-        };
+        ];
 
-    public static TheoryData<CanonicalCommandType> AltitudeFamily =>
-        new() { CanonicalCommandType.ClimbMaintain, CanonicalCommandType.DescendMaintain };
+    public static TheoryData<CanonicalCommandType> AltitudeFamily => [CanonicalCommandType.ClimbMaintain, CanonicalCommandType.DescendMaintain];
 
     public static TheoryData<CanonicalCommandType> AdditiveAirborneFamily =>
-        new()
-        {
+        [
             CanonicalCommandType.ClimbMaintain,
             CanonicalCommandType.DescendMaintain,
             CanonicalCommandType.Speed,
@@ -42,7 +39,7 @@ public class PhaseAcceptanceAuditTests
             CanonicalCommandType.ReduceToFinalApproachSpeed,
             CanonicalCommandType.ResumeNormalSpeed,
             CanonicalCommandType.DeleteSpeedRestrictions,
-        };
+        ];
 
     [Theory]
     [MemberData(nameof(AdditiveAirborneFamily))]
@@ -325,9 +322,9 @@ public class PhaseAcceptanceAuditTests
         };
 
     public static TheoryData<Phase> PatternPhases() =>
-        new() { new BasePhase(), new CrosswindPhase(), new DownwindPhase(), new UpwindPhase(), NewPatternEntry() };
+        [new BasePhase(), new CrosswindPhase(), new DownwindPhase(), new UpwindPhase(), NewPatternEntry()];
 
-    public static TheoryData<Phase> PatternLegPhases() => new() { new BasePhase(), new CrosswindPhase(), new DownwindPhase(), new UpwindPhase() };
+    public static TheoryData<Phase> PatternLegPhases() => [new BasePhase(), new CrosswindPhase(), new DownwindPhase(), new UpwindPhase()];
 
     [Theory]
     [MemberData(nameof(PatternPhases))]
@@ -372,11 +369,7 @@ public class PhaseAcceptanceAuditTests
     /// pattern, and the RPO has to be told the entry was cancelled.
     /// </summary>
     public static TheoryData<Phase> PatternInterLegPhases() =>
-        new()
-        {
-            new MidfieldCrossingPhase(),
-            new TeardropReentryPhase { Waypoints = new PatternWaypoints() },
-        };
+        [new MidfieldCrossingPhase(), new TeardropReentryPhase { Waypoints = new PatternWaypoints() }];
 
     [Theory]
     [MemberData(nameof(PatternInterLegPhases))]
@@ -423,7 +416,7 @@ public class PhaseAcceptanceAuditTests
         Assert.False(acceptance.ClearsThePhase, $"{phase.Name} must not be cleared before the tug move is planned");
     }
 
-    public static TheoryData<Phase> TugMoveStartPhases => new() { new AtParkingPhase(), new HoldingAfterPushbackPhase() };
+    public static TheoryData<Phase> TugMoveStartPhases => [new AtParkingPhase(), new HoldingAfterPushbackPhase()];
 
     private static HoldingShortPhase HoldingShortAt(string targetName, HoldShortReason reason) =>
         new(

@@ -63,7 +63,7 @@ public class VStripsViewModelTests
     private static FlightStripsStateDto State(string[]? printer = null, params (string BayId, string[][] Racks)[] bays) =>
         new(
             PrinterItems: printer ?? [],
-            BayItems: bays.Select(b => new StripBayContentsDto(b.BayId, b.Racks)).ToArray(),
+            BayItems: [.. bays.Select(b => new StripBayContentsDto(b.BayId, b.Racks))],
             NewItemInPrinter: false,
             NewItemInArrivalPrinter: false,
             NewItemInBayId: null,

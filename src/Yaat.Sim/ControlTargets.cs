@@ -172,7 +172,7 @@ public class ControlTargets
             SpeedOverridesFinalGate = SpeedOverridesFinalGate,
             HasExplicitTurnRate = HasExplicitTurnRate,
             TargetMach = TargetMach,
-            NavigationRoute = NavigationRoute.Count > 0 ? NavigationRoute.Select(n => n.ToSnapshot()).ToList() : null,
+            NavigationRoute = NavigationRoute.Count > 0 ? [.. NavigationRoute.Select(n => n.ToSnapshot())] : null,
         };
 
     public static void RestoreFrom(ControlTargetsDto dto, ControlTargets targets)

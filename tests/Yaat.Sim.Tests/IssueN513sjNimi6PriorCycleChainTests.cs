@@ -200,7 +200,7 @@ public class IssueN513sjNimi6PriorCycleChainTests
             return null; // bundle no longer has NIMI — premise not met, skip.
         }
 
-        string[] noNimi = lines.Where(l => !l.Contains("KOAKK2DNIMI")).ToArray();
+        string[] noNimi = [.. lines.Where(l => !l.Contains("KOAKK2DNIMI"))];
         string noNimiCurrent = Path.Combine(dir, "FAACIFP18-2606");
         string noNimiPrior = Path.Combine(dir, "FAACIFP18-2605");
         File.WriteAllLines(noNimiCurrent, noNimi);

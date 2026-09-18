@@ -31,10 +31,11 @@ public sealed class DivergenceAccumulator(string leftLabel, string rightLabel)
 
     /// <summary>Every normalized path that diverged, ordered by path.</summary>
     public IReadOnlyList<DivergenceSummaryEntry> Entries =>
-        _byPath
-            .OrderBy(pair => pair.Key, StringComparer.Ordinal)
-            .Select(pair => new DivergenceSummaryEntry(pair.Key, pair.Value.FirstSecond, pair.Value.Examples))
-            .ToList();
+        [
+            .. _byPath
+                .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+                .Select(pair => new DivergenceSummaryEntry(pair.Key, pair.Value.FirstSecond, pair.Value.Examples)),
+        ];
 
     /// <summary>Folds one second's divergences in. Safe to call with an empty list.</summary>
     public void Add(int elapsedSeconds, IReadOnlyList<SnapshotDivergence> divergences)

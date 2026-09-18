@@ -360,7 +360,7 @@ public sealed class GroundArc : IGroundEdge
     public readonly record struct SpeedSample(double LengthFt, double SpeedKts);
 
     private const int SpeedProfileSamples = 16;
-    private readonly Dictionary<AircraftCategory, SpeedSample[]> _speedProfiles = new();
+    private readonly Dictionary<AircraftCategory, SpeedSample[]> _speedProfiles = [];
 
     /// <summary>
     /// Local cornering-speed profile along the stored curve (from <c>Nodes[0]</c>): evenly spaced parameter

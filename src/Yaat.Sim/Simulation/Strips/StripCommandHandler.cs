@@ -79,7 +79,7 @@ internal static class StripCommandHandler
         if (cmd.Tokens.Count > 0 && IsFullStripId(cmd.Tokens[0]))
         {
             explicitId = cmd.Tokens[0];
-            dstTokens = cmd.Tokens.Skip(1).ToList();
+            dstTokens = [.. cmd.Tokens.Skip(1)];
         }
 
         if (explicitId is null && string.IsNullOrEmpty(callsign))
@@ -286,7 +286,7 @@ internal static class StripCommandHandler
                 callsign,
                 source.Type,
                 source.IsOffset,
-                source.FieldValues.ToArray(),
+                [.. source.FieldValues],
                 facilityId,
                 bay.Id,
                 rack,
@@ -515,7 +515,7 @@ internal static class StripCommandHandler
         // fill the 3×2 inline cell grid afterwards. The fields array always
         // has at least one (empty) slot so the LookupKey resolution path
         // doesn't trip on a zero-length array.
-        string[] fields = totalLines == 0 ? new[] { string.Empty } : BuildHalfStripLines(callsign, userLines, totalLines);
+        string[] fields = totalLines == 0 ? [string.Empty] : BuildHalfStripLines(callsign, userLines, totalLines);
         string stripId = bakedStripId ?? StripMutations.NewHalfStripId(engine.Strips);
         var record = new StripItemRecord(
             stripId,

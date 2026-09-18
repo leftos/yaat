@@ -207,7 +207,7 @@ public class ContactCommandHandlerTests
                 }
             }
         }
-        return (null, Array.Empty<PositionConfig>());
+        return (null, []);
     }
 
     private static IEnumerable<string> EnumerateFacilityIds(ArtccConfigRoot config)

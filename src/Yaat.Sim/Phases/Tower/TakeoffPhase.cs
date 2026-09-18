@@ -35,7 +35,7 @@ public sealed class TakeoffPhase : Phase, IGroundRollClock
         {
             Status = (int)Status,
             ElapsedSeconds = ElapsedSeconds,
-            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            Requirements = Requirements.Count > 0 ? [.. Requirements.Select(r => r.ToSnapshot())] : null,
             Airborne = _airborne,
             FieldElevation = _fieldElevation,
             RunwayHeadingDeg = _runwayHeading.Degrees,

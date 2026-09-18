@@ -59,7 +59,7 @@ public static class NatoPhoneticAlphabet
     /// The 26 NATO words in A-Z order. Stable across calls — callers can read this as a
     /// <c>IReadOnlyList</c> without worrying about mutation.
     /// </summary>
-    public static readonly IReadOnlyList<string> Words = LetterToWord.Values.ToList();
+    public static readonly IReadOnlyList<string> Words = [.. LetterToWord.Values];
 
     /// <summary>
     /// Case-insensitive set of the 26 NATO words. Intended for O(1) "is this token a NATO

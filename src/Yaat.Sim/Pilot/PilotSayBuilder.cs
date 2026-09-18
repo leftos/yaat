@@ -314,7 +314,7 @@ public static class PilotSayBuilder
     /// </summary>
     internal static string FriendlyAirportName(string rawName)
     {
-        List<string> tokens = rawName.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries).ToList();
+        List<string> tokens = [.. rawName.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries)];
         while (tokens.Count > 1 && IsGenericAirportSuffix(tokens[^1]))
         {
             tokens.RemoveAt(tokens.Count - 1);

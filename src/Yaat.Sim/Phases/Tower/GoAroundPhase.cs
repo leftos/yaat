@@ -29,7 +29,7 @@ public sealed class GoAroundPhase : Phase
         {
             Status = (int)Status,
             ElapsedSeconds = ElapsedSeconds,
-            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            Requirements = Requirements.Count > 0 ? [.. Requirements.Select(r => r.ToSnapshot())] : null,
             AssignedMagneticHeadingDeg = AssignedMagneticHeading?.Degrees,
             TargetAltitude = TargetAltitude,
             ReenterPattern = ReenterPattern,

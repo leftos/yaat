@@ -9,7 +9,7 @@ public sealed class InitialContactTransferCatalog
 
     public InitialContactTransferCatalog(IEnumerable<InitialContactTransferRule> rules)
     {
-        _rules = rules.ToList();
+        _rules = [.. rules];
         _customArtccIds = _rules
             .Where(rule => !string.IsNullOrWhiteSpace(rule.ArtccId))
             .Select(rule => rule.ArtccId)

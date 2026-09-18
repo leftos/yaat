@@ -83,6 +83,5 @@ public class FavoriteSetEditorModelTests
         Assert.Equal(["A"], source.Select(f => f.Label));
     }
 
-    private static List<FavoriteCommand> Favs(params string[] labels) =>
-        labels.Select(l => new FavoriteCommand { Label = l, CommandText = l }).ToList();
+    private static List<FavoriteCommand> Favs(params string[] labels) => [.. labels.Select(l => new FavoriteCommand { Label = l, CommandText = l })];
 }

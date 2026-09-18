@@ -238,7 +238,7 @@ public class ParallelRunwayCrossingAfterExitTests(ITestOutputHelper output)
         GroundNode n3 = Hs(3, 37.703, rwy28R);
         GroundNode n4 = Twy(4, 37.704);
         GroundNode n5 = Hs(5, 37.705, rwy28R);
-        GroundNode[] nodes = new[] { n0, n1, n2, n3, n4, n5 };
+        GroundNode[] nodes = [n0, n1, n2, n3, n4, n5];
 
         GroundEdge G(GroundNode a, GroundNode b, string name = "G") =>
             new()

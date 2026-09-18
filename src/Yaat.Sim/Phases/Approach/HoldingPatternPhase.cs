@@ -402,7 +402,7 @@ public sealed class HoldingPatternPhase : Phase
         {
             Status = (int)Status,
             ElapsedSeconds = ElapsedSeconds,
-            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            Requirements = Requirements.Count > 0 ? [.. Requirements.Select(r => r.ToSnapshot())] : null,
             FixName = FixName,
             FixLat = FixLat,
             FixLon = FixLon,

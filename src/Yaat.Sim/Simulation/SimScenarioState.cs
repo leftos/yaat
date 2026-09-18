@@ -466,103 +466,111 @@ public sealed class SimScenarioState
             StudentPosition = StudentPosition?.ToSnapshot(),
             StudentTcp = StudentTcp?.ToSnapshot(),
             StudentPositionType = StudentPositionType,
-            AtcPositions = AtcPositions.Select(p => p.ToSnapshot()).ToList(),
+            AtcPositions = [.. AtcPositions.Select(p => p.ToSnapshot())],
             DelayedQueue =
                 DelayedQueue.Count > 0
-                    ? DelayedQueue
-                        .Select(d => new DelayedSpawnDto
+                    ?
+                    [
+                        .. DelayedQueue.Select(d => new DelayedSpawnDto
                         {
                             AircraftJson = JsonSerializer.Serialize(d.Aircraft),
                             SpawnAtSeconds = d.SpawnAtSeconds,
                             HeldForRelease = d.HeldForRelease,
-                        })
-                        .ToList()
+                        }),
+                    ]
                     : null,
             TriggerQueue =
                 TriggerQueue.Count > 0
-                    ? TriggerQueue.Select(t => new ScheduledTriggerDto { Command = t.Command, FireAtSeconds = t.FireAtSeconds }).ToList()
+                    ? [.. TriggerQueue.Select(t => new ScheduledTriggerDto { Command = t.Command, FireAtSeconds = t.FireAtSeconds })]
                     : null,
             PresetQueue =
                 PresetQueue.Count > 0
-                    ? PresetQueue
-                        .Select(p => new ScheduledPresetDto
+                    ?
+                    [
+                        .. PresetQueue.Select(p => new ScheduledPresetDto
                         {
                             Callsign = p.Callsign,
                             Command = p.Command,
                             FireAtSeconds = p.FireAtSeconds,
-                        })
-                        .ToList()
+                        }),
+                    ]
                     : null,
             Generators =
                 Generators.Count > 0
-                    ? Generators
-                        .Select(g => new GeneratorStateDto
+                    ?
+                    [
+                        .. Generators.Select(g => new GeneratorStateDto
                         {
                             ConfigJson = JsonSerializer.Serialize(g.Config),
                             Runway = g.Runway.ToSnapshot(),
                             NextSpawnSeconds = g.NextSpawnSeconds,
                             WasActive = g.WasActive,
-                        })
-                        .ToList()
+                        }),
+                    ]
                     : null,
             VfrArrivalGenerators =
                 VfrArrivalGenerators.Count > 0
-                    ? VfrArrivalGenerators
-                        .Select(g => new VfrArrivalGeneratorStateDto
+                    ?
+                    [
+                        .. VfrArrivalGenerators.Select(g => new VfrArrivalGeneratorStateDto
                         {
                             ConfigJson = JsonSerializer.Serialize(g.Config),
                             NextSpawnSeconds = g.NextSpawnSeconds,
                             WasActive = g.WasActive,
-                        })
-                        .ToList()
+                        }),
+                    ]
                     : null,
             OverflightGenerators =
                 OverflightGenerators.Count > 0
-                    ? OverflightGenerators
-                        .Select(g => new OverflightGeneratorStateDto
+                    ?
+                    [
+                        .. OverflightGenerators.Select(g => new OverflightGeneratorStateDto
                         {
                             ConfigJson = JsonSerializer.Serialize(g.Config),
                             NextSpawnSeconds = g.NextSpawnSeconds,
                             WasActive = g.WasActive,
-                        })
-                        .ToList()
+                        }),
+                    ]
                     : null,
             DelayedHandoffQueue =
                 DelayedHandoffQueue.Count > 0
-                    ? DelayedHandoffQueue
-                        .Select(h => new DelayedHandoffDto
+                    ?
+                    [
+                        .. DelayedHandoffQueue.Select(h => new DelayedHandoffDto
                         {
                             Callsign = h.Callsign,
                             Target = h.Target.ToSnapshot(),
                             FireAtSeconds = h.FireAtSeconds,
-                        })
-                        .ToList()
+                        }),
+                    ]
                     : null,
             CoordinationChannels = CoordinationChannelSnapshotMapper.ToSnapshotDictionary(CoordinationChannels),
-            HeldDepartureAirports = HeldDepartureAirports.Count > 0 ? HeldDepartureAirports.ToList() : null,
+            HeldDepartureAirports = HeldDepartureAirports.Count > 0 ? [.. HeldDepartureAirports] : null,
             ReleaseQueue =
                 ReleaseQueue.Count > 0
-                    ? ReleaseQueue
-                        .Select(r => new ScheduledReleaseDto
+                    ?
+                    [
+                        .. ReleaseQueue.Select(r => new ScheduledReleaseDto
                         {
                             Airport = r.Airport,
                             Callsign = r.Callsign,
                             FireAtSeconds = r.FireAtSeconds,
-                        })
-                        .ToList()
+                        }),
+                    ]
                     : null,
             ActiveTimers =
                 ActiveTimers.Count > 0
-                    ? ActiveTimers
-                        .Select(t => new ActiveTimerDto
+                    ?
+                    [
+                        .. ActiveTimers.Select(t => new ActiveTimerDto
                         {
                             Id = t.Id,
                             Callsign = t.Callsign,
                             Message = t.Message,
                             FireAtSeconds = t.FireAtSeconds,
                             TotalSeconds = t.TotalSeconds,
-                        })
-                        .ToList()
+                        }),
+                    ]
                     : null,
             NextTimerId = NextTimerId,
         };

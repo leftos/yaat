@@ -153,7 +153,7 @@ public static class ArtccConfigResolver
     {
         if (tcpCode.Length < 2 || !int.TryParse(tcpCode[..^1], out int subset))
         {
-            return Array.Empty<PositionConfig>();
+            return [];
         }
         string sectorId = tcpCode[^1..];
         var matches = new List<PositionConfig>();
@@ -1465,7 +1465,7 @@ public static class ArtccConfigResolver
             return [];
         }
 
-        return facility.StarsConfiguration.Tcps.Select(tc => new Tcp(tc.Subset, tc.SectorId, tc.Id, tc.ParentTcpId)).ToList();
+        return [.. facility.StarsConfiguration.Tcps.Select(tc => new Tcp(tc.Subset, tc.SectorId, tc.Id, tc.ParentTcpId))];
     }
 
     /// <summary>

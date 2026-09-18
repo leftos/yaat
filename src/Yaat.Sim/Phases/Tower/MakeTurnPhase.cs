@@ -42,7 +42,7 @@ public sealed class MakeTurnPhase : Phase
         {
             Status = (int)Status,
             ElapsedSeconds = ElapsedSeconds,
-            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            Requirements = Requirements.Count > 0 ? [.. Requirements.Select(r => r.ToSnapshot())] : null,
             Direction = (int)Direction,
             TargetDegrees = TargetDegrees,
             StartHeadingDeg = _startHeading.Degrees,

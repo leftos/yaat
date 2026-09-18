@@ -27,7 +27,7 @@ public partial class VerbMappingRow : ObservableObject
     [ObservableProperty]
     private string _example = "";
 
-    public List<string> AliasesList => Aliases.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).ToList();
+    public List<string> AliasesList => [.. Aliases.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)];
 
     partial void OnAliasesChanged(string value)
     {
@@ -103,9 +103,10 @@ public partial class SettingsViewModel : ObservableObject
     /// </summary>
     public event Action? VisualSettingsChanged;
 
-    private static readonly IReadOnlyList<CommandDefinition> DisplayCommands = CommandRegistry
-        .All.Values.Where(c => c.Type != CanonicalCommandType.DirectTo)
-        .ToArray();
+    private static readonly IReadOnlyList<CommandDefinition> DisplayCommands =
+    [
+        .. CommandRegistry.All.Values.Where(c => c.Type != CanonicalCommandType.DirectTo),
+    ];
 
     [ObservableProperty]
     private string _userInitials = "";
@@ -1174,10 +1175,12 @@ public partial class SettingsViewModel : ObservableObject
 
     public List<SavedMacro> ExportMacros(IEnumerable<MacroRow>? rows = null)
     {
-        return (rows ?? MacroRows)
-            .Where(r => !string.IsNullOrWhiteSpace(r.Name) && !string.IsNullOrWhiteSpace(r.Expansion))
-            .Select(r => new SavedMacro { Name = r.Name.Trim(), Expansion = r.Expansion.Trim() })
-            .ToList();
+        return
+        [
+            .. (rows ?? MacroRows)
+                .Where(r => !string.IsNullOrWhiteSpace(r.Name) && !string.IsNullOrWhiteSpace(r.Expansion))
+                .Select(r => new SavedMacro { Name = r.Name.Trim(), Expansion = r.Expansion.Trim() }),
+        ];
     }
 
     private void LoadMacros()

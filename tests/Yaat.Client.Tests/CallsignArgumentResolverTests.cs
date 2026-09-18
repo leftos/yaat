@@ -11,7 +11,7 @@ public class CallsignArgumentResolverTests
 
     private static AircraftModel Ac(string callsign) => new AircraftModel { Callsign = callsign };
 
-    private static IReadOnlyCollection<AircraftModel> Aircraft(params string[] callsigns) => callsigns.Select(Ac).ToArray();
+    private static IReadOnlyCollection<AircraftModel> Aircraft(params string[] callsigns) => [.. callsigns.Select(Ac)];
 
     [Fact]
     public void Follow_UniqueSubstring_Rewrites()

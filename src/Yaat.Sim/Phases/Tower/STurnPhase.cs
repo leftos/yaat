@@ -33,7 +33,7 @@ public sealed class STurnPhase : Phase
         {
             Status = (int)Status,
             ElapsedSeconds = ElapsedSeconds,
-            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            Requirements = Requirements.Count > 0 ? [.. Requirements.Select(r => r.ToSnapshot())] : null,
             InitialDirection = (int)InitialDirection,
             Count = Count,
             FinalHeadingDeg = _finalHeading.Degrees,

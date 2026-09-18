@@ -54,8 +54,8 @@ public class PushbackMultiParseTests(ITestOutputHelper output)
         PushbackMultiCommand spots = Parse("PUSHM $7 $8");
         PushbackMultiCommand gates = Parse("PUSHM @7 @8");
 
-        Assert.Equal(new[] { "$7", "$8" }, spots.Targets);
-        Assert.Equal(new[] { "@7", "@8" }, gates.Targets);
+        Assert.Equal(["$7", "$8"], spots.Targets);
+        Assert.Equal(["@7", "@8"], gates.Targets);
     }
 
     [Theory]

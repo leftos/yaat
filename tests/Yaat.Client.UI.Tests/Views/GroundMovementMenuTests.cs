@@ -26,7 +26,7 @@ public class GroundMovementMenuTests
     private const double Lon = -122.380;
 
     private static List<string> Headers(ContextMenu menu) =>
-        menu.Items.OfType<MenuItem>().Where(m => m.Header is string).Select(m => (string)m.Header!).ToList();
+        [.. menu.Items.OfType<MenuItem>().Where(m => m.Header is string).Select(m => (string)m.Header!)];
 
     /// <summary>
     /// Pins the whole top-level header sequence of <paramref name="menu"/>. Membership assertions alone

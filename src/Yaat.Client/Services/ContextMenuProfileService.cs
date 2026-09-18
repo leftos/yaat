@@ -46,7 +46,7 @@ public static class ContextMenuProfileService
         MenuGroup.Pattern,
     ]);
 
-    private static readonly FrozenSet<MenuGroup> NoHidden = FrozenSet<MenuGroup>.Empty;
+    private static readonly FrozenSet<MenuGroup> NoHidden = [];
 
     public static ContextMenuProfile GetProfile(string? currentPhase, bool isOnGround)
     {
@@ -137,7 +137,7 @@ public static class ContextMenuProfileService
 
     private static ContextMenuProfile BuildProfile(MenuGroup[] primary, MenuGroup[] explicitSecondary, FrozenSet<MenuGroup> hidden)
     {
-        HashSet<MenuGroup> primarySet = primary.ToHashSet();
+        HashSet<MenuGroup> primarySet = [.. primary];
         FrozenSet<MenuGroup> hiddenSet = hidden;
 
         // Secondary = all phase groups not in primary and not hidden

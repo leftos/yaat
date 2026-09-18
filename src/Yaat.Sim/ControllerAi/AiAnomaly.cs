@@ -61,7 +61,7 @@ public sealed class AiAnomalyLog
 
     /// <summary>The subjects currently open for a kind and position, in ordinal order (so callers close the vanished ones deterministically).</summary>
     public IReadOnlyList<string> OpenSubjects(AiAnomalyKind kind, string positionId) =>
-        _open.Keys.Where(k => k.Kind == kind && k.PositionId == positionId).Select(k => k.Subject).OrderBy(s => s, StringComparer.Ordinal).ToList();
+        [.. _open.Keys.Where(k => k.Kind == kind && k.PositionId == positionId).Select(k => k.Subject).OrderBy(s => s, StringComparer.Ordinal)];
 
     /// <summary>Opens the episode unless it is already open.</summary>
     public void Open(AiAnomalyKind kind, string positionId, string subjectKey, double nowSeconds, string detail)

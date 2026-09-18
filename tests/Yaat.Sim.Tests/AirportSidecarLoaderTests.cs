@@ -70,7 +70,7 @@ public class AirportSidecarLoaderTests
             AirportSidecar airport = Assert.Single(result.Airports);
             Assert.Equal("KOAK", airport.AirportId);
             // avoidTaxiways names are upper-cased and trimmed at load.
-            Assert.Equal(["S", "Z"], airport.AvoidTaxiways.Select(t => t.Name).ToArray());
+            Assert.Equal(["S", "Z"], [.. airport.AvoidTaxiways.Select(t => t.Name)]);
             Assert.Equal("ramp lead", airport.AvoidTaxiways[0].Notes);
             TaxiRouteDefinition route = Assert.Single(airport.TaxiRoutes);
             Assert.Equal("KOAK", route.AirportId);
@@ -144,7 +144,7 @@ public class AirportSidecarLoaderTests
             AirportSidecarLoadResult result = AirportSidecarLoader.LoadAll(tempDir);
 
             AirportSidecar airport = Assert.Single(result.Airports);
-            Assert.Equal(["S"], airport.AvoidTaxiways.Select(t => t.Name).ToArray());
+            Assert.Equal(["S"], [.. airport.AvoidTaxiways.Select(t => t.Name)]);
         }
         finally
         {

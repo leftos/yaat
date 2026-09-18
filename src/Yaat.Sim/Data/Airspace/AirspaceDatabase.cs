@@ -20,7 +20,7 @@ public sealed class AirspaceDatabase
     public AirspaceDatabase(IReadOnlyList<AirspaceVolume> volumes)
     {
         Volumes = volumes;
-        _bravoVolumes = volumes.Where(v => v.Class == AirspaceClass.Bravo).ToList();
+        _bravoVolumes = [.. volumes.Where(v => v.Class == AirspaceClass.Bravo)];
     }
 
     public IEnumerable<AirspaceVolume> FindContaining(LatLon position, double altitudeFtMsl) =>
@@ -230,7 +230,7 @@ public sealed class AirspaceDatabase
             string candidate = Path.Combine(dir.FullName, "src", "Yaat.Sim", DefaultFixtureRelativePath.Replace('/', Path.DirectorySeparatorChar));
             if (Directory.Exists(candidate))
             {
-                return FindGeoJsonFiles(candidate).ToList();
+                return [.. FindGeoJsonFiles(candidate)];
             }
 
             dir = dir.Parent;
@@ -392,7 +392,7 @@ public sealed class AirspaceDatabase
             var ring = new List<LatLon>();
             foreach (JsonElement coordinate in ringElement.EnumerateArray())
             {
-                JsonElement[] pair = coordinate.EnumerateArray().ToArray();
+                JsonElement[] pair = [.. coordinate.EnumerateArray()];
                 if (pair.Length < 2)
                 {
                     continue;

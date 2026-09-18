@@ -98,10 +98,10 @@ public partial class LoadWeatherWindow : Window
             return;
         }
 
-        _allArtccItems = profiles
-            .Select(p => new ArtccWeatherItem(p.Id, p.Name, p.WindLayers.Count))
-            .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        _allArtccItems =
+        [
+            .. profiles.Select(p => new ArtccWeatherItem(p.Id, p.Name, p.WindLayers.Count)).OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase),
+        ];
 
         _artccWeatherList.ItemsSource = _allArtccItems;
         _artccStatusText.Text = $"{_allArtccItems.Count} weather profiles";

@@ -15,12 +15,12 @@ public class TickOracleBaselineTests
     private const string RebaselineVariable = "YAAT_ORACLE_REBASELINE";
 
     private static TickOracleBaseline BaselineOf(params string[] paths) =>
-        new() { Entries = paths.Select(path => new TickOracleBaselineEntry { Path = path, FirstSecond = 5 }).ToList() };
+        new() { Entries = [.. paths.Select(path => new TickOracleBaselineEntry { Path = path, FirstSecond = 5 })] };
 
     private static DivergenceAccumulator SweepOf(params string[] paths)
     {
         var accumulator = new DivergenceAccumulator("live", "replay");
-        accumulator.Add(5, paths.Select(path => new SnapshotDivergence(path, "1", "2")).ToList());
+        accumulator.Add(5, [.. paths.Select(path => new SnapshotDivergence(path, "1", "2"))]);
         return accumulator;
     }
 

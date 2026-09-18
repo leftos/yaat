@@ -182,7 +182,7 @@ public sealed class AiWorldView
         Func<string, bool> isAssignedToHuman
     )
     {
-        var view = new AiWorldView(aircraft.OrderBy(ac => ac.Callsign, StringComparer.Ordinal).ToList());
+        var view = new AiWorldView([.. aircraft.OrderBy(ac => ac.Callsign, StringComparer.Ordinal)]);
         foreach (AircraftState ac in view.Snapshot)
         {
             AiPositionConfig? position = PositionJurisdiction.Resolve(ac, staffed, layoutFor, runwaysFor, isHumanHeld, isAssignedToHuman);

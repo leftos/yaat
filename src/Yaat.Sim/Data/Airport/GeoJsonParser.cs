@@ -244,7 +244,7 @@ public static class GeoJsonParser
                 new GroundRunway
                 {
                     Name = rwy.Name,
-                    Coordinates = new List<(double Lat, double Lon)>(rwy.Coords),
+                    Coordinates = [.. rwy.Coords],
                     WidthFt = rwyWidthFt,
                     HoldShortDistanceFt = rwy.HoldShortDistanceFt,
                     TurnoffByEnd = rwy.TurnoffByEnd,

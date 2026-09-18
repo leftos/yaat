@@ -41,7 +41,7 @@ public static class AdwResolver
     /// </summary>
     private const double OuterMarkHalfLengthFt = 273.5;
 
-    private static readonly ConditionalWeakTable<AirportGroundLayout, IReadOnlyList<AdwMark>> Cache = new();
+    private static readonly ConditionalWeakTable<AirportGroundLayout, IReadOnlyList<AdwMark>> Cache = [];
 
     /// <summary>
     /// ADW marks for <paramref name="layout"/>, cached. Reads the airport's windows from the global

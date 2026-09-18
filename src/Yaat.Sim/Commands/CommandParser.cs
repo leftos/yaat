@@ -2308,7 +2308,7 @@ public static class CommandParser
             return PR.Fail("REPORT requires a target (e.g. REPORT BASE, REPORT 5 FINAL, REPORT MENLO, REPORT OFF)");
         }
 
-        string[] tokens = SplitTokens(arg).Select(t => t.ToUpperInvariant()).ToArray();
+        string[] tokens = [.. SplitTokens(arg).Select(t => t.ToUpperInvariant())];
 
         // Cancel forms: any token is a cancel keyword. An accompanying leg keyword scopes the
         // cancel to that single leg; otherwise cancel all standing reports.
@@ -3365,7 +3365,7 @@ public static class CommandParser
             return PR.Fail(bayError!);
         }
 
-        string[] lines = Array.Empty<string>();
+        string[] lines = [];
         if (bayEnd < headTokens.Count)
         {
             string linesPart = string.Join(' ', headTokens.Skip(bayEnd));
@@ -3818,10 +3818,10 @@ public static class CommandParser
         string trimmed = arg.Trim();
         if (trimmed.Length == 0)
         {
-            return new List<string>();
+            return [];
         }
 
-        return new List<string>(trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        return [.. trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
     }
 
     private static PR ParseSquawkOrReset(string? arg)

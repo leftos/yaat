@@ -158,7 +158,7 @@ public static class TaxiPathfinder
                 continue;
             }
 
-            TaxiRoute route = RouteMaterialiser.Materialise(routeToTarget.Segments.Select(static s => s.Edge).ToList(), runwayContext, []);
+            TaxiRoute route = RouteMaterialiser.Materialise([.. routeToTarget.Segments.Select(static s => s.Edge)], runwayContext, []);
             fallbackRoute ??= route;
             if ((EndsAtDestinationRunwayHoldShort(route, layout, runwayId)) && (!TraversesDestinationRunwaySurface(route, runwayId)))
             {
@@ -289,7 +289,7 @@ public static class TaxiPathfinder
             return null;
         }
 
-        TaxiRoute route = RouteMaterialiser.Materialise(routeToBar.Segments.Select(static s => s.Edge).ToList(), runwayContext, []);
+        TaxiRoute route = RouteMaterialiser.Materialise([.. routeToBar.Segments.Select(static s => s.Edge)], runwayContext, []);
         return IsAdjacentRunwayApproach(route, layout, runwayId) ? route : null;
     }
 
@@ -395,7 +395,7 @@ public static class TaxiPathfinder
         }
 
         // No preference — run all three strategies and return unique routes capped at maxRoutes.
-        RoutePreference[] preferences = new[] { RoutePreference.FewestTurns, RoutePreference.Shortest, RoutePreference.Fastest };
+        RoutePreference[] preferences = [RoutePreference.FewestTurns, RoutePreference.Shortest, RoutePreference.Fastest];
         var results = new List<TaxiRoute>(preferences.Length);
 
         foreach (RoutePreference pref in preferences)

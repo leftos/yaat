@@ -36,7 +36,7 @@ public static class ConsolidationEngine
         // Collect IDs of TCPs that have manual overrides — these should
         // be excluded from auto-computed children lists since they've
         // been moved to a different receiver.
-        HashSet<string> manuallyOverriddenIds = manualOverrides is not null ? manualOverrides.GetSnapshot().Keys.ToHashSet() : new HashSet<string>();
+        HashSet<string> manuallyOverriddenIds = manualOverrides is not null ? [.. manualOverrides.GetSnapshot().Keys] : [];
 
         foreach (Tcp tcp in allTcps)
         {
@@ -159,7 +159,7 @@ public static class ConsolidationEngine
     public static List<Tcp> GetConsolidatedDescendants(List<Tcp> allTcps, Tcp tcp, Func<Tcp, bool> isAttended, ConsolidationState? manualOverrides)
     {
         Dictionary<string, List<Tcp>> childrenOf = BuildChildrenIndex(allTcps);
-        HashSet<string> overriddenIds = manualOverrides is not null ? manualOverrides.GetSnapshot().Keys.ToHashSet() : [];
+        HashSet<string> overriddenIds = manualOverrides is not null ? [.. manualOverrides.GetSnapshot().Keys] : [];
         return CollectConsolidatedDescendants(tcp, childrenOf, isAttended, overriddenIds);
     }
 

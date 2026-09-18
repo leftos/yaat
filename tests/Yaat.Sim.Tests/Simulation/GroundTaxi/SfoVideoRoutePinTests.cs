@@ -218,7 +218,7 @@ public class SfoVideoRoutePinTests
             return [];
         }
 
-        return expected.Split(';', StringSplitOptions.RemoveEmptyEntries).Select(ParseOne).ToArray();
+        return [.. expected.Split(';', StringSplitOptions.RemoveEmptyEntries).Select(ParseOne)];
     }
 
     private static (string Target, HoldShortReason Reason, bool Cleared) ParseOne(string token)

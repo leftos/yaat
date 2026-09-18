@@ -260,7 +260,7 @@ public class TrackResolverTests
         selections.Select("a", dep);
 
         SortedDictionary<string, TrackOwner> snapshot = selections.Snapshot();
-        Assert.Equal(["a", "b"], snapshot.Keys.ToArray());
+        Assert.Equal(["a", "b"], [.. snapshot.Keys]);
 
         var restored = new PositionSelections();
         restored.Select("stale", dep);

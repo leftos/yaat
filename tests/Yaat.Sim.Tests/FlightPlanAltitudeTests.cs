@@ -127,15 +127,14 @@ public class FlightPlanAltitudeTests
     public void Format_Block_RendersFloorBCeiling() => Assert.Equal("200B250", FlightPlanAltitude.Format(PlannedAltitude.Block(20000, 25000)));
 
     public static TheoryData<PlannedAltitude> RoundTripCases =>
-        new()
-        {
+        [
             PlannedAltitude.Ifr(5000),
             PlannedAltitude.Ifr(24000),
             PlannedAltitude.Vfr(null),
             PlannedAltitude.Vfr(5500),
             PlannedAltitude.Otp(null),
             PlannedAltitude.Otp(12000),
-        };
+        ];
 
     [Theory]
     [MemberData(nameof(RoundTripCases))]

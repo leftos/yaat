@@ -771,7 +771,7 @@ public static class StripMutations
 
         string remainderHead = tokens[0][(qualifierSlash + 1)..];
         bool droppedLeadingToken = remainderHead.Length == 0;
-        List<string> inner = droppedLeadingToken ? tokens.Skip(1).ToList() : [remainderHead, .. tokens.Skip(1)];
+        List<string> inner = droppedLeadingToken ? [.. tokens.Skip(1)] : [remainderHead, .. tokens.Skip(1)];
         (AccessibleBay Bay, int Rack, int? Index, int TokensConsumed)? resolved = ResolveBayWithinFacility(inner, facilityBays);
         if (resolved is null)
         {
@@ -1066,20 +1066,26 @@ public static class StripMutations
     {
         if (!state.Bays.TryGetValue(bayId, out Dictionary<string, List<string>[]>? racks))
         {
-            racks = new Dictionary<string, List<string>[]>();
+            racks = [];
             state.Bays[bayId] = racks;
         }
 
         string key = rack.ToString();
         if (!racks.TryGetValue(key, out List<string>[]? rackRows))
         {
-            rackRows = [new List<string>()];
+            rackRows =
+            [
+                [],
+            ];
             racks[key] = rackRows;
         }
 
         if (rackRows.Length == 0)
         {
-            racks[key] = [new List<string>()];
+            racks[key] =
+            [
+                [],
+            ];
             rackRows = racks[key];
         }
 

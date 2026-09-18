@@ -128,7 +128,7 @@ public class PhraseologyMapperTraceTests
     {
         // The simple Map() overload is just a thin discarding wrapper; success/failure semantics
         // must stay byte-identical to the trace-collecting variant.
-        string[] fixtures = new[] { "fly heading two seven zero", "climb and maintain five thousand", "the weather is nice today", "" };
+        string[] fixtures = ["fly heading two seven zero", "climb and maintain five thousand", "the weather is nice today", ""];
         foreach (string? t in fixtures)
         {
             MapResult? direct = PhraseologyMapper.Map(t, MapContext.Empty);

@@ -361,7 +361,7 @@ internal static class NavigationCommandHandler
                 int fixIdx = starBody.ToList().FindIndex(f => f.Equals(cmd.Transition, StringComparison.OrdinalIgnoreCase));
                 if (fixIdx >= 0)
                 {
-                    routeFixes = starBody.Skip(fixIdx).ToList();
+                    routeFixes = [.. starBody.Skip(fixIdx)];
                 }
                 else
                 {
@@ -701,7 +701,7 @@ internal static class NavigationCommandHandler
             return [.. bodyFixes];
         }
 
-        return bodyFixes.Skip(bestIdx).ToList();
+        return [.. bodyFixes.Skip(bestIdx)];
     }
 
     internal static CommandResult DispatchJawy(JoinAirwayCommand cmd, AircraftState aircraft)

@@ -42,7 +42,7 @@ public sealed class TdlsState
     /// scheduler should mark the item as Wilco. Snapshotted with the items, so a restored run acknowledges
     /// at the same sim second the live one did.
     /// </summary>
-    public Dictionary<string, DateTime> ScheduledWilcoAt { get; } = new();
+    public Dictionary<string, DateTime> ScheduledWilcoAt { get; } = [];
 
     public int NextItemId { get; set; } = 1;
 

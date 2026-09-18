@@ -165,10 +165,12 @@ public sealed class NavigationDatabase
     {
         _cifpFilePath = cifpFilePath;
         // Keep only existing files that aren't the primary; preserve the caller's newest→oldest order.
-        _supplementaryCifpFilePaths = (supplementaryCifpFilePaths ?? [])
-            .Where(p => File.Exists(p) && !string.Equals(p, cifpFilePath, StringComparison.OrdinalIgnoreCase))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        _supplementaryCifpFilePaths =
+        [
+            .. (supplementaryCifpFilePaths ?? [])
+                .Where(p => File.Exists(p) && !string.Equals(p, cifpFilePath, StringComparison.OrdinalIgnoreCase))
+                .Distinct(StringComparer.OrdinalIgnoreCase),
+        ];
         artccsBaseDir ??= Path.Combine(AppContext.BaseDirectory, "Data", "ARTCCs");
 
         // Before BuildIndex: it stamps each runway end's elevation, and the per-end landing threshold
@@ -388,7 +390,7 @@ public sealed class NavigationDatabase
         {
             foreach ((string? starId, IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? transitions) in starTransitions)
             {
-                db._starTransitions[starId] = transitions.Select(t => (t.Name, (List<string>)[.. t.Fixes])).ToList();
+                db._starTransitions[starId] = [.. transitions.Select(t => (t.Name, (List<string>)[.. t.Fixes]))];
             }
         }
 
@@ -412,7 +414,7 @@ public sealed class NavigationDatabase
         {
             foreach ((string? sidId, IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? transitions) in sidTransitions)
             {
-                db._sidTransitions[sidId] = transitions.Select(t => (t.Name, (List<string>)[.. t.Fixes])).ToList();
+                db._sidTransitions[sidId] = [.. transitions.Select(t => (t.Name, (List<string>)[.. t.Fixes]))];
             }
         }
 
@@ -433,7 +435,7 @@ public sealed class NavigationDatabase
     /// Returns all fixes as (Name, Lat, Lon) tuples for FRD resolution. Lazily cached.
     /// </summary>
     public IReadOnlyList<(string Name, double Lat, double Lon)> GetFixTuples() =>
-        _fixTuples ??= _navDb.Select(kv => (kv.Key, kv.Value.Lat, kv.Value.Lon)).ToArray();
+        _fixTuples ??= [.. _navDb.Select(kv => (kv.Key, kv.Value.Lat, kv.Value.Lon))];
 
     public int Count => _navDb.Count;
 
@@ -1545,14 +1547,15 @@ public sealed class NavigationDatabase
             // Try alternate type codes (H↔R for RNAV variants; V↔S↔D for the VOR family).
             foreach (char altCode in GetAlternateTypeCodes(typeCode.Value))
             {
-                matches = approaches
-                    .Where(a =>
+                matches =
+                [
+                    .. approaches.Where(a =>
                         a.TypeCode == altCode
                         && a.Runway is not null
                         && a.Runway.Equals(runway, StringComparison.OrdinalIgnoreCase)
                         && (variant is null || a.ApproachId.EndsWith(variant, StringComparison.OrdinalIgnoreCase))
-                    )
-                    .ToList();
+                    ),
+                ];
 
                 if (matches.Count > 0)
                 {
@@ -1802,7 +1805,7 @@ public sealed class NavigationDatabase
         {
             if (!string.IsNullOrEmpty(airway.Id) && airway.Fixes.Count > 0)
             {
-                _airways.TryAdd(airway.Id, new List<string>(airway.Fixes));
+                _airways.TryAdd(airway.Id, [.. airway.Fixes]);
             }
         }
 
@@ -1928,7 +1931,7 @@ public sealed class NavigationDatabase
             }
         }
 
-        CustomProcedureFilePaths = loadResult.Fragments.Select(f => f.FilePath).ToList();
+        CustomProcedureFilePaths = [.. loadResult.Fragments.Select(f => f.FilePath)];
 
         if (_customProcedures.Count > 0)
         {
@@ -2315,7 +2318,7 @@ public sealed class NavigationDatabase
 
     private string[] BuildSortedNames()
     {
-        string[] names = _navDb.Keys.ToArray();
+        string[] names = [.. _navDb.Keys];
         Array.Sort(names, StringComparer.OrdinalIgnoreCase);
         return names;
     }

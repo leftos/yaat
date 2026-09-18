@@ -21,17 +21,16 @@ public static class CoordinationChannelSnapshotMapper
             Id = channel.Id,
             ListId = channel.ListId,
             Title = channel.Title,
-            SendingTcps = channel.SendingTcps.Count > 0 ? channel.SendingTcps.Select(t => t.ToSnapshot()).ToList() : null,
+            SendingTcps = channel.SendingTcps.Count > 0 ? [.. channel.SendingTcps.Select(t => t.ToSnapshot())] : null,
             Receivers =
                 channel.Receivers.Count > 0
-                    ? channel
-                        .Receivers.Select(r => new CoordinationReceiverDto { Tcp = r.Tcp.ToSnapshot(), IsAutoRelease = r.AutoAcknowledge })
-                        .ToList()
+                    ? [.. channel.Receivers.Select(r => new CoordinationReceiverDto { Tcp = r.Tcp.ToSnapshot(), IsAutoRelease = r.AutoAcknowledge })]
                     : null,
             Items =
                 channel.Items.Count > 0
-                    ? channel
-                        .Items.Select(i => new CoordinationItemDto
+                    ?
+                    [
+                        .. channel.Items.Select(i => new CoordinationItemDto
                         {
                             Id = i.Id,
                             AircraftId = i.AircraftId,
@@ -42,8 +41,8 @@ public static class CoordinationChannelSnapshotMapper
                             ExitFix = i.ExitFix,
                             WasAutomaticRelease = i.WasAutomaticRelease,
                             SequenceNumber = i.SequenceNumber,
-                        })
-                        .ToList()
+                        }),
+                    ]
                     : null,
             NextSequence = channel.NextSequence,
         };

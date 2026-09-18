@@ -2680,7 +2680,7 @@ public static class SegmentExpander
         }
 
         PartialRoute newHead = BuildHeadFromRoute(head, route);
-        return (route.Segments.Select(s => s.Edge).ToList(), newHead, null);
+        return ([.. route.Segments.Select(s => s.Edge)], newHead, null);
     }
 
     /// <summary>
@@ -3313,7 +3313,7 @@ public static class SegmentExpander
             return (null, null);
         }
 
-        return (route.Segments.Select(s => s.Edge).ToList(), null);
+        return ([.. route.Segments.Select(s => s.Edge)], null);
     }
 
     // -----------------------------------------------------------------------
@@ -3453,7 +3453,7 @@ public static class SegmentExpander
         );
 
         PartialRoute newHead = BuildHeadFromRoute(head, bestRoute);
-        return (bestRoute.Segments.Select(s => s.Edge).ToList(), newHead, null);
+        return ([.. bestRoute.Segments.Select(s => s.Edge)], newHead, null);
     }
 
     /// <summary>
@@ -3711,7 +3711,7 @@ public static class SegmentExpander
             (TaxiRoute? confinedRoute, PathfindingFailure? _) = AutoRouter.Run(confinedCtx, startOverride: head);
             if (confinedRoute is not null)
             {
-                return (confinedRoute.Segments.Select(s => s.Edge).ToList(), null);
+                return ([.. confinedRoute.Segments.Select(s => s.Edge)], null);
             }
 
             ctx.DiagnosticLog?.Invoke("[extend] confined (cleared+numbered+RAMP) extension found no route; retrying unconstrained");
@@ -3732,7 +3732,7 @@ public static class SegmentExpander
             );
         }
 
-        return (route.Segments.Select(s => s.Edge).ToList(), null);
+        return ([.. route.Segments.Select(s => s.Edge)], null);
     }
 
     // -----------------------------------------------------------------------

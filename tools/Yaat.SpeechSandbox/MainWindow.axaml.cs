@@ -547,7 +547,7 @@ public partial class MainWindow : Window
             return [];
         }
 
-        return raw.Split(['\n', '\r', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        return [.. raw.Split(['\n', '\r', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
     }
 
     /// <summary>
@@ -573,9 +573,10 @@ public partial class MainWindow : Window
             }
 
             string airport = line[..colonIdx].Trim();
-            List<string> runways = line[(colonIdx + 1)..]
-                .Split([' ', ',', '\t'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .ToList();
+            List<string> runways =
+            [
+                .. line[(colonIdx + 1)..].Split([' ', ',', '\t'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+            ];
 
             if (airport.Length > 0 && runways.Count > 0)
             {

@@ -77,8 +77,8 @@ public class FavoritesPanelButtonLayoutTests
     [AvaloniaFact]
     public void PaletteButtons_FillTheirCells_AndTouchHorizontally()
     {
-        FavoriteCommand[] favorites = new[]
-        {
+        FavoriteCommand[] favorites =
+        [
             new FavoriteCommand
             {
                 Label = "LayoutFavA425",
@@ -91,7 +91,7 @@ public class FavoritesPanelButtonLayoutTests
                 CommandText = "TAXI B",
                 Category = FavoriteCommandCategory.Ground,
             },
-        };
+        ];
         (Window? window, MainViewModel? vm, UniformGrid? grid, int originalColumns) = ShowGroundPalette(favorites);
         try
         {
@@ -137,8 +137,8 @@ public class FavoritesPanelButtonLayoutTests
     [AvaloniaFact]
     public void PaletteButtons_OfDifferentHeights_FillTheirCellsVertically()
     {
-        FavoriteCommand[] favorites = new[]
-        {
+        FavoriteCommand[] favorites =
+        [
             new FavoriteCommand
             {
                 Label = "LayoutShort425",
@@ -153,7 +153,7 @@ public class FavoritesPanelButtonLayoutTests
                 Category = FavoriteCommandCategory.Ground,
                 ButtonHeight = 48,
             },
-        };
+        ];
         (Window? window, MainViewModel? vm, UniformGrid? grid, int originalColumns) = ShowGroundPalette(favorites);
         try
         {

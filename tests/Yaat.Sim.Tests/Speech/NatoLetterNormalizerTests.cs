@@ -19,7 +19,7 @@ public class NatoLetterNormalizerTests
     [Fact]
     public void Non_Nato_Passes_Through_Unchanged()
     {
-        string[] input = new[] { "taxi", "via", "hold", "short" };
+        string[] input = ["taxi", "via", "hold", "short"];
         List<string> result = NatoLetterNormalizer.Collapse(input, EmptySet);
         Assert.Equal(input, result);
     }
@@ -41,7 +41,7 @@ public class NatoLetterNormalizerTests
     [Fact]
     public void Mixed_Nato_And_Non_Nato_Only_Collapses_Nato_Runs()
     {
-        string[] input = new[] { "taxi", "via", "tango", "uniform", "whiskey" };
+        string[] input = ["taxi", "via", "tango", "uniform", "whiskey"];
         List<string> result = NatoLetterNormalizer.Collapse(input, EmptySet);
         Assert.Equal(["taxi", "via", "T", "U", "W"], result);
     }

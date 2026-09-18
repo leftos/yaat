@@ -129,8 +129,9 @@ public class AircraftEramState
             RecentHandoffAcceptedAtSeconds = RecentHandoffAcceptedAtSeconds,
             Pointouts =
                 Pointouts.Count > 0
-                    ? Pointouts
-                        .Select(p => new EramPointoutStateDto
+                    ?
+                    [
+                        .. Pointouts.Select(p => new EramPointoutStateDto
                         {
                             OriginatingFacility = p.OriginatingFacility,
                             OriginatingSector = p.OriginatingSector,
@@ -140,8 +141,8 @@ public class AircraftEramState
                             IsRecipientSuppressed = p.IsRecipientSuppressed,
                             IsRSideCleared = p.IsRSideCleared,
                             IsDSideCleared = p.IsDSideCleared,
-                        })
-                        .ToList()
+                        }),
+                    ]
                     : null,
         };
 
@@ -170,8 +171,9 @@ public class AircraftEramState
             RecentHandoffAcceptedAtSeconds = dto.RecentHandoffAcceptedAtSeconds,
             Pointouts = dto.Pointouts is null
                 ? []
-                : dto
-                    .Pointouts.Select(p => new EramPointoutState
+                :
+                [
+                    .. dto.Pointouts.Select(p => new EramPointoutState
                     {
                         OriginatingFacility = p.OriginatingFacility,
                         OriginatingSector = p.OriginatingSector,
@@ -181,7 +183,7 @@ public class AircraftEramState
                         IsRecipientSuppressed = p.IsRecipientSuppressed,
                         IsRSideCleared = p.IsRSideCleared,
                         IsDSideCleared = p.IsDSideCleared,
-                    })
-                    .ToList(),
+                    }),
+                ],
         };
 }

@@ -48,7 +48,7 @@ public static class LayoutCloner
                 new GroundRunway
                 {
                     Name = runway.Name,
-                    Coordinates = runway.Coordinates.ToList(),
+                    Coordinates = [.. runway.Coordinates],
                     WidthFt = runway.WidthFt,
                 }
             );
@@ -66,7 +66,7 @@ public static class LayoutCloner
             TaxiwayName = edge.TaxiwayName,
             DistanceNm = edge.DistanceNm,
             Origin = edge.Origin,
-            IntermediatePoints = edge.IntermediatePoints.ToList(),
+            IntermediatePoints = [.. edge.IntermediatePoints],
         };
     }
 
@@ -84,7 +84,7 @@ public static class LayoutCloner
             EdgeBearingAtNode1Deg = arc.EdgeBearingAtNode1Deg,
             TurnAngleDeg = arc.TurnAngleDeg,
             DistanceNm = arc.DistanceNm,
-            TaxiwayNames = arc.TaxiwayNames.ToArray(),
+            TaxiwayNames = [.. arc.TaxiwayNames],
             Origin = arc.Origin,
         };
     }

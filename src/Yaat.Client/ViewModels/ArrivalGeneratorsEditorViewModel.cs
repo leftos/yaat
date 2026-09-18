@@ -60,7 +60,7 @@ public partial class ArrivalGeneratorsEditorViewModel : ObservableObject
         );
 
         RunwayOptions = runways;
-        PositionOptions = positions.Select(p => new PositionOption(p.Id, p.Callsign, p.Name)).ToList();
+        PositionOptions = [.. positions.Select(p => new PositionOption(p.Id, p.Callsign, p.Name))];
 
         LoadFrom(_initialSnapshot);
     }
@@ -162,9 +162,9 @@ public partial class ArrivalGeneratorsEditorViewModel : ObservableObject
     public GeneratorsPayload BuildPayload() =>
         new()
         {
-            AircraftGenerators = Generators.Select(r => r.ToConfig()).ToList(),
-            VfrArrivalGenerators = VfrArrivalGenerators.Select(r => r.ToConfig()).ToList(),
-            OverflightGenerators = OverflightGenerators.Select(r => r.ToConfig()).ToList(),
+            AircraftGenerators = [.. Generators.Select(r => r.ToConfig())],
+            VfrArrivalGenerators = [.. VfrArrivalGenerators.Select(r => r.ToConfig())],
+            OverflightGenerators = [.. OverflightGenerators.Select(r => r.ToConfig())],
         };
 
     private static string NewId() => Guid.NewGuid().ToString("N");

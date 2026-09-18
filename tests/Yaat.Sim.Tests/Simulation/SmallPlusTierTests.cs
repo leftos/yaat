@@ -137,14 +137,7 @@ public class SmallPlusTierTests
             DistanceNm = 5,
             Altitude = 3000,
         };
-        (AircraftState? state, string? error) = AircraftGenerator.Generate(
-            request,
-            "KOAK",
-            Array.Empty<AircraftState>(),
-            groundLayout: null,
-            rng,
-            new BeaconCodePool()
-        );
+        (AircraftState? state, string? error) = AircraftGenerator.Generate(request, "KOAK", [], groundLayout: null, rng, new BeaconCodePool());
         Assert.True(state is not null, $"SmallPlus+Piston spawn failed: {error}");
         Assert.Equal(AircraftCategory.Piston, AircraftCategorization.Categorize(state!.AircraftType));
     }

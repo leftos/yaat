@@ -260,7 +260,7 @@ public class ConflictAlertDetectorTests
         Assert.Empty(fresh);
 
         // With existing: still in conflict (3.2 < 3.3 hysteresis)
-        List<ConflictAlertDetector.ConflictPair> hysteresis = ConflictAlertDetector.Detect([a, b], Ctx(new HashSet<string> { id }));
+        List<ConflictAlertDetector.ConflictPair> hysteresis = ConflictAlertDetector.Detect([a, b], Ctx([id]));
         Assert.Single(hysteresis);
     }
 
@@ -273,7 +273,7 @@ public class ConflictAlertDetectorTests
 
         string id = ConflictAlertDetector.MakeConflictId("AAL100", "UAL200");
 
-        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx(new HashSet<string> { id }));
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx([id]));
 
         Assert.Empty(result);
     }
@@ -288,7 +288,7 @@ public class ConflictAlertDetectorTests
 
         string id = ConflictAlertDetector.MakeConflictId("AAL100", "UAL200");
 
-        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx(new HashSet<string> { id }));
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx([id]));
 
         Assert.Empty(result);
     }
@@ -303,7 +303,7 @@ public class ConflictAlertDetectorTests
 
         string id = ConflictAlertDetector.MakeConflictId("AAL100", "UAL200");
 
-        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx(new HashSet<string> { id }));
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx([id]));
 
         Assert.Empty(result);
     }
@@ -326,7 +326,7 @@ public class ConflictAlertDetectorTests
         string id = ConflictAlertDetector.MakeConflictId("AAL100", "UAL200");
 
         // Within hysteresis thresholds (2nm < 3.3, 800ft < 1100ft) but diverging both dimensions
-        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx(new HashSet<string> { id }));
+        List<ConflictAlertDetector.ConflictPair> result = ConflictAlertDetector.Detect([a, b], Ctx([id]));
 
         Assert.Empty(result);
     }
@@ -738,7 +738,7 @@ public class ConflictAlertDetectorTests
         Assert.Empty(fresh);
 
         // With existing: still in conflict (3.2 < 3.3 hysteresis)
-        List<ConflictAlertDetector.ConflictPair> hysteresis = ConflictAlertDetector.Detect([a, b], Ctx(new HashSet<string> { id }));
+        List<ConflictAlertDetector.ConflictPair> hysteresis = ConflictAlertDetector.Detect([a, b], Ctx([id]));
         Assert.Single(hysteresis);
     }
 

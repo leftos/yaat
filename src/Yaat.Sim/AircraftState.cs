@@ -556,7 +556,7 @@ public class AircraftState
             IsOnGround = IsOnGround,
             HasBeenAirborne = HasBeenAirborne,
             HasMadeInitialContact = HasMadeInitialContact,
-            AiInitialContactPositionIds = AiInitialContactPositionIds.Count == 0 ? null : AiInitialContactPositionIds.ToList(),
+            AiInitialContactPositionIds = AiInitialContactPositionIds.Count == 0 ? null : [.. AiInitialContactPositionIds],
             HasControllerAcknowledgedInitialContact = HasControllerAcknowledgedInitialContact,
             HasLeftStudentFrequency = HasLeftStudentFrequency,
             SpawnedAtSeconds = SpawnedAtSeconds,
@@ -584,12 +584,12 @@ public class AircraftState
             MilitaryRoute = MilitaryRoute.ToSnapshot(),
             LiveTraffic = LiveTraffic?.ToSnapshot(),
             AssumedFromLiveTraffic = AssumedFromLiveTraffic,
-            PositionHistory = PositionHistory.Count > 0 ? PositionHistory.Select(p => new PositionDto { Lat = p.Lat, Lon = p.Lon }).ToList() : null,
+            PositionHistory = PositionHistory.Count > 0 ? [.. PositionHistory.Select(p => new PositionDto { Lat = p.Lat, Lon = p.Lon })] : null,
             ActiveApproachScore = ActiveApproachScore?.ToSnapshot(),
             Targets = Targets.ToSnapshot(),
             Queue = Queue.ToSnapshot(),
             Phases = Phases?.ToSnapshot(),
-            DeferredDispatches = DeferredDispatches.Count > 0 ? DeferredDispatches.Select(d => d.ToSnapshot()).ToList() : null,
+            DeferredDispatches = DeferredDispatches.Count > 0 ? [.. DeferredDispatches.Select(d => d.ToSnapshot())] : null,
         };
 
     public HashSet<string> GetProgrammedFixes()

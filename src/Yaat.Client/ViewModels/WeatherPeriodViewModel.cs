@@ -77,8 +77,9 @@ public partial class WeatherPeriodViewModel : ObservableObject
             StartMinutes = StartMinutes,
             TransitionMinutes = TransitionMinutes,
             Precipitation = Precipitation,
-            WindLayers = WindLayers
-                .Select(w => new WindLayer
+            WindLayers =
+            [
+                .. WindLayers.Select(w => new WindLayer
                 {
                     Id = Guid.NewGuid().ToString(),
                     Altitude = w.Altitude,
@@ -87,9 +88,9 @@ public partial class WeatherPeriodViewModel : ObservableObject
                     Gusts = w.Gusts,
                     DirectionVariabilityDeg = w.DirectionVariabilityDeg,
                     Variable = w.Variable ? true : null,
-                })
-                .ToList(),
-            Metars = Metars.Where(m => !string.IsNullOrWhiteSpace(m.Text)).Select(m => m.Text.Trim()).ToList(),
+                }),
+            ],
+            Metars = [.. Metars.Where(m => !string.IsNullOrWhiteSpace(m.Text)).Select(m => m.Text.Trim())],
         };
     }
 

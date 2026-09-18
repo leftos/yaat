@@ -925,8 +925,8 @@ public sealed partial class SimulationEngine
                 World.GetSnapshot(),
                 ResolveGroundLayout,
                 RunwayOccupancy.AirportRunways,
-                ConflictAlerts.Conflicts.Values.ToList(),
-                EramConflicts.Conflicts.Values.ToList()
+                [.. ConflictAlerts.Conflicts.Values],
+                [.. EramConflicts.Conflicts.Values]
             )
         );
     }

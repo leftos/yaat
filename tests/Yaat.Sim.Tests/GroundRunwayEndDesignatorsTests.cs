@@ -18,10 +18,10 @@ public class GroundRunwayEndDesignatorsTests
 
         var byName = oak.Runways.ToDictionary(r => r.Name, r => r.EndDesignators, StringComparer.OrdinalIgnoreCase);
 
-        Assert.Equal(new[] { "30", "12" }, byName["30 - 12"]);
-        Assert.Equal(new[] { "28L", "10R" }, byName["28L - 10R"]);
-        Assert.Equal(new[] { "28R", "10L" }, byName["28R - 10L"]);
-        Assert.Equal(new[] { "15", "33" }, byName["15 - 33"]);
+        Assert.Equal(["30", "12"], byName["30 - 12"]);
+        Assert.Equal(["28L", "10R"], byName["28L - 10R"]);
+        Assert.Equal(["28R", "10L"], byName["28R - 10L"]);
+        Assert.Equal(["15", "33"], byName["15 - 33"]);
     }
 
     [Fact]
@@ -33,6 +33,6 @@ public class GroundRunwayEndDesignatorsTests
             Coordinates = [(37.0, -122.0), (37.01, -122.0)],
             WidthFt = 150,
         };
-        Assert.Equal(new[] { "28R", "10L" }, rwy.EndDesignators);
+        Assert.Equal(["28R", "10L"], rwy.EndDesignators);
     }
 }

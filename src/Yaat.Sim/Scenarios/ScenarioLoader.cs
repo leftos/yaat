@@ -717,7 +717,7 @@ public static class ScenarioLoader
 
         NavigationDatabase navDb = NavigationDatabase.Instance;
         string[] tokens = navigationPath.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        List<string> routeTokens = state.FlightPlan.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
+        List<string> routeTokens = [.. state.FlightPlan.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries)];
         bool modified = false;
 
         for (int i = 0; i < tokens.Length; i++)

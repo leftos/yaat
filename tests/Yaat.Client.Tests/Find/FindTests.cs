@@ -18,7 +18,7 @@ file sealed class FakeItem(string text) : IFindableItem
 
 public class FindMatcherTests
 {
-    private static IReadOnlyList<IFindableItem> Items(params string[] texts) => texts.Select(t => (IFindableItem)new FakeItem(t)).ToList();
+    private static IReadOnlyList<IFindableItem> Items(params string[] texts) => [.. texts.Select(t => (IFindableItem)new FakeItem(t))];
 
     [Theory]
     [InlineData("")]

@@ -20,7 +20,7 @@ public class RadarContextMenuStateTests
     }
 
     private static List<string> Headers(MenuItem menu) =>
-        menu.Items.OfType<MenuItem>().Where(m => m.Header is string).Select(m => (string)m.Header!).ToList();
+        [.. menu.Items.OfType<MenuItem>().Where(m => m.Header is string).Select(m => (string)m.Header!)];
 
     [AvaloniaFact]
     public void AirborneIfrOnFinal_TowerHasLanding_NotTakeoff()

@@ -115,8 +115,9 @@ public sealed class AircraftLiveTraffic
             SampleTrueTrack = SampleTrueTrack,
             SampleVerticalSpeed = SampleVerticalSpeed,
             FloorAltitudeFt = FloorAltitudeFt,
-            History = History
-                .Select(h => new LiveTrafficHistoryPointDto
+            History =
+            [
+                .. History.Select(h => new LiveTrafficHistoryPointDto
                 {
                     ObservedAtSimSeconds = h.ObservedAtSimSeconds,
                     Lat = h.Lat,
@@ -124,8 +125,8 @@ public sealed class AircraftLiveTraffic
                     AltitudeFt = h.AltitudeFt,
                     GroundSpeedKts = h.GroundSpeedKts,
                     TrueTrackDeg = h.TrueTrackDeg,
-                })
-                .ToList(),
+                }),
+            ],
             IsCoasting = IsCoasting,
             SourceCoasting = SourceCoasting,
             AssignedAltitudeFt = AssignedAltitudeFt,
