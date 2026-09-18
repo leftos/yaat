@@ -1256,9 +1256,12 @@ public record AircraftDto(
     string IcaoEquipmentCodes = "",
     // Live-traffic shadow (a real aircraft mirrored from the server's feed): not commandable until assumed.
     // LiveTrafficStale = the feed has missed its sweeps and the position is dead-reckoned (CST).
+    // AssumedFromLiveTraffic marks a simulated aircraft that was assumed from the feed — the only state
+    // UNASSUME accepts, so the menus offer the release-to-the-feed item exactly for those.
     bool IsLiveTraffic = false,
     bool LiveTrafficStale = false,
     string? LiveTrafficSource = null,
+    bool AssumedFromLiveTraffic = false,
     // The tug's pose while the aircraft is under tow: the direction from the nose gear out along the towbar to
     // the tug, degrees true, null when no tug is attached. Kept name-for-name in sync with the server's
     // AircraftStateDto; the ground view draws the tug from it.

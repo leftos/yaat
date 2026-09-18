@@ -604,6 +604,7 @@ public partial class RadarView
             Dispatcher.UIThread.Post(() => ShowWarpPopup(cs, "", hdg, alt, spd, (frd, h, a, s) => _ = vm.WarpAsync(cs, init, frd, h, a, s)));
         };
         menu.Items.Add(warpItem);
+        LiveTrafficMenuItems.AddUnassume(menu.Items, ac, cmd => vm.SendRawCommandAsync(cs, init, cmd));
         menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(cs, init)));
         return menu;
     }

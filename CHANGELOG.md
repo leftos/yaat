@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Right-click an aircraft you assumed from live traffic and pick **Release to live feed** to hand it back to the feed, the same as `UNASSUME`.
+
 ## v0.13.2-beta [2026/09/18]
 
 ### Highlights

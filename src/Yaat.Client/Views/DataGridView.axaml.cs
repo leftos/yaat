@@ -228,6 +228,8 @@ public partial class DataGridView : UserControl
             var editItem = new MenuItem { Header = "Edit flight plan" };
             editItem.Click += (_, _) => FlightPlanEditorManager.Open(ac, vm);
             menu.Items.Add(editItem);
+
+            LiveTrafficMenuItems.AddUnassume(menu.Items, ac, cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials));
         }
 
         var deleteItem = new MenuItem { Header = "Delete" };

@@ -385,7 +385,7 @@ Views/
   MetarView.axaml.cs            # METAR tab content: per-airport METAR list over MainViewModel.Metars with a per-scenario favorite-station star toggle
   MetarWindow.axaml.cs          # Pop-out host for MetarView (View > Pop Out METAR)
   FavoritesContextMenu.cs       # Builds the Favorite Commands submenu attached to aircraft right-click menus (list/ground/radar)
-  LiveTrafficMenuItems.cs       # "Assume control" / "Assume and track" items for an assumable live-traffic shadow, shared by the three right-click menus
+  LiveTrafficMenuItems.cs       # "Assume control" / "Assume and track" for an assumable live-traffic shadow and "Release to live feed" (UNASSUME) for an aircraft assumed from the feed, shared by the three right-click menus
   LiveTrafficDvrFlyout.cs       # Click-the-live-badge DVR control: feed log window (GetLiveTrafficWindow), slider + HH:mm → SeekLiveTraffic, Go Live
   LiveSessionWindow.axaml.cs    # Start Live Session picker: facility TreeView (GetArtccFacilityTree) → positions (starred first) → airport combo (LiveSessionAirportDefaults) + ceiling; returns LiveSessionChoice, pre-selects UserPreferences.LastLiveSession
   LiveTrafficFilterEditor.axaml(.cs) # Structured editor UserControl over the canonical filter string, hosted by the Start Live Session Filters tab and the mid-session dialog

@@ -123,6 +123,12 @@ public static class AircraftCommandApplicability
     /// </summary>
     public static bool CanAssume(AircraftModel? ac) => ac is { IsLiveTraffic: true, IsOnGround: false };
 
+    /// <summary>
+    /// Release an assumed aircraft back to the live feed (<c>UNASSUME</c>): only an aircraft the sim is flying
+    /// that came from the feed in the first place — the sim refuses it for a scenario aircraft and for a shadow.
+    /// </summary>
+    public static bool CanUnassume(AircraftModel? ac) => ac is { AssumedFromLiveTraffic: true, IsLiveTraffic: false };
+
     /// <summary>True when the aircraft is operating under VFR.</summary>
     public static bool IsVfr(AircraftModel? ac) => ac is not null && string.Equals(ac.FlightRules, "VFR", StringComparison.OrdinalIgnoreCase);
 

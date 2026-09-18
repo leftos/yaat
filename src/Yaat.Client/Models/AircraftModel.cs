@@ -245,6 +245,14 @@ public partial class AircraftModel : ObservableObject
     private string? _liveTrafficSource;
 
     /// <summary>
+    /// True for a simulated aircraft that was assumed from the live feed. The only state <c>UNASSUME</c> accepts,
+    /// so the menus offer "Release to live feed" exactly for these; back to false when the aircraft becomes a
+    /// shadow again.
+    /// </summary>
+    [ObservableProperty]
+    private bool _assumedFromLiveTraffic;
+
+    /// <summary>
     /// True while the displayed altitude rounds to 000 — the aircraft is below the acquisition
     /// floor (AGL &lt; 100 ft, field-elevation adjusted server-side). The radar withholds the target
     /// while set (matching CRC STARS coast/skip); the ground view keeps a ghost overlay visible
@@ -1161,6 +1169,7 @@ public partial class AircraftModel : ObservableObject
             IsLiveTraffic = dto.IsLiveTraffic,
             LiveTrafficStale = dto.LiveTrafficStale,
             LiveTrafficSource = dto.LiveTrafficSource,
+            AssumedFromLiveTraffic = dto.AssumedFromLiveTraffic,
             BelowDisplayFloor = dto.BelowDisplayFloor,
             IsEstablishedOnApproach = dto.IsEstablishedOnApproach,
             NavRouteFixes = dto.NavigationRoute ?? [],
@@ -1278,6 +1287,7 @@ public partial class AircraftModel : ObservableObject
         IsLiveTraffic = dto.IsLiveTraffic;
         LiveTrafficStale = dto.LiveTrafficStale;
         LiveTrafficSource = dto.LiveTrafficSource;
+        AssumedFromLiveTraffic = dto.AssumedFromLiveTraffic;
         BelowDisplayFloor = dto.BelowDisplayFloor;
         IsEstablishedOnApproach = dto.IsEstablishedOnApproach;
         DistanceFromFix = computeDistance?.Invoke(this);

@@ -367,8 +367,9 @@ bundle's sim seconds back to the real-world feed window (see *Reproducing a repo
   a message without en-route state says nothing) → `AircraftEramState.Pointouts`. Owner precedence: a coarse owner
   (single-letter centre cps, no facility) never replaces a specific one, for owner and pending alike; a completed
   ocr still ends a pending handoff even when its coarse owner write is skipped.
-- **Wire** — `AircraftStateDto.IsLiveTraffic` / `LiveTrafficStale` / `LiveTrafficSource` (+ client `AircraftDto`), all three in
-  `TrainingDtoFingerprint`. Shadows are excluded from auto-TDLS, auto arrival strips and the rolling-call strip
+- **Wire** — `AircraftStateDto.IsLiveTraffic` / `LiveTrafficStale` / `LiveTrafficSource` / `AssumedFromLiveTraffic` (+ client
+  `AircraftDto`), all four in `TrainingDtoFingerprint`. `AssumedFromLiveTraffic` mirrors the `AircraftState` marker `UNASSUME`
+  gates on, so a client can offer the verb; it co-varies with `IsLiveTraffic` today (`Assume` and its rollback write both). Shadows are excluded from auto-TDLS, auto arrival strips and the rolling-call strip
   (`IsDepartureAircraft` / `IsArrivalCandidate` / `IsApproachDepartureCandidate`).
 
 ### Live sessions (no authored scenario)
@@ -499,13 +500,17 @@ harness shows is what the server did.
 
 ## Client (yaat `src/Yaat.Client*`)
 
-- **Model** — `AircraftModel.IsLiveTraffic` / `LiveTrafficStale` / `LiveTrafficSource`, copied in `FromDto` and `UpdateFromDto`.
+- **Model** — `AircraftModel.IsLiveTraffic` / `LiveTrafficStale` / `LiveTrafficSource` / `AssumedFromLiveTraffic`, copied in `FromDto`
+  and `UpdateFromDto`.
   The assume hand-off flips `IsLiveTraffic` in the same `AircraftUpdated`, so every surface below re-evaluates at once.
 - **Applicability** — `AircraftCommandApplicability.IsControllable(ac)` (`!IsLiveTraffic`) gates every maneuver predicate, so
   the phase-aware menu builders offer nothing for a shadow; `CanAssume(ac)` = airborne shadow. `LiveTrafficMenuItems.Add`
   (Views/) appends "Assume control" / "Assume and track" (two commands — the server doesn't couple `ASSUME` and `TRACK`) and
   each right-click surface (`RadarView.ContextMenus`, `DataGridView.axaml.cs`, `GroundView.axaml.cs`) branches on
-  `IsLiveTraffic` to keep only Track / Coordination / Data Block / Display / Delete for shadows.
+  `IsLiveTraffic` to keep only Track / Coordination / Data Block / Display / Delete for shadows. `CanUnassume(ac)` = a simulated
+  aircraft that was assumed from the feed (`AssumedFromLiveTraffic && !IsLiveTraffic` — the `ActionArms.Unassume` gate);
+  `LiveTrafficMenuItems.AddUnassume` puts "Release to live feed" (sends `UNASSUME`) directly above Delete on all three
+  surfaces — inside the radar menu's Sim Control submenu, where that menu keeps Delete.
 - **Rendering** — `TargetRenderer.DrawPositionSymbol` draws a shadow with `_shadowSymbolPaint` (dashed outline circle);
   `ResolveTargetColors` applies `StaleAlpha` (128) to symbol and datablock when `LiveTrafficStale`. `GroundRenderer.DrawAircraft`
   uses the stroke `_shadowAircraftPaint` for shadows with the same stale alpha. Datablock content is untouched (`Status` = `LIVE` /
@@ -538,7 +543,7 @@ harness shows is what the server did.
 ## Tests
 
 `tests/Yaat.Client.Tests/`: `AircraftCommandApplicabilityTests` (shadow → only Assume; surface shadow → nothing; assumed →
-normal), `AircraftViewFilterTests` (tri-state), `LiveTrafficStatusTextTests`; `tests/Yaat.Client.UI.Tests/Views/TargetRendererColorTests`
+normal; `CanUnassume` only for an assumed simulated aircraft), `AircraftModelAssumedFromLiveTrafficTests` (DTO → model, both edges), `AircraftViewFilterTests` (tri-state), `LiveTrafficStatusTextTests`; `tests/Yaat.Client.UI.Tests/Views/TargetRendererColorTests`
 (stale alpha); `tests/Yaat.Client.UI.Tests/ViewModels/MainViewModelLiveSessionTests` (badge projection, Go Live chrome) and
 `Services/LiveSessionAirportDefaultsTests` (tower / TRACON / center airport defaults). yaat-server
 `tests/Yaat.Server.Tests/LiveTraffic/LiveSessionTests`: the synthesized scenario round-trips through `ScenarioLoader`, `StartLiveSessionAsync`

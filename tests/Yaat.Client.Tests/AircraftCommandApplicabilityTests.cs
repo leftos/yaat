@@ -357,6 +357,26 @@ public class AircraftCommandApplicabilityTests
     }
 
     [Fact]
+    public void CanUnassume_OnlyForAnAssumedSimulatedAircraft()
+    {
+        AircraftModel assumed = Shadow(onGround: false);
+        assumed.IsLiveTraffic = false;
+        assumed.AssumedFromLiveTraffic = true;
+        Assert.True(AircraftCommandApplicability.CanUnassume(assumed));
+
+        // A scenario aircraft never came from the feed, so there is nothing to release it back to.
+        AircraftModel scenario = Ac("FinalApproach", onGround: false);
+        Assert.False(AircraftCommandApplicability.CanUnassume(scenario));
+
+        // A shadow is live traffic already; the marker alone must not offer the verb.
+        AircraftModel shadow = Shadow(onGround: false);
+        shadow.AssumedFromLiveTraffic = true;
+        Assert.False(AircraftCommandApplicability.CanUnassume(shadow));
+
+        Assert.False(AircraftCommandApplicability.CanUnassume(null));
+    }
+
+    [Fact]
     public void AssumedAircraft_IsControllableAgain()
     {
         AircraftModel ac = Shadow(onGround: false);
