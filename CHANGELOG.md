@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.13.2-beta [2026/09/18]
+
+### Highlights
+- Generated arrivals spawn behind the arrivals on their runway's final, no longer 28–48 nm out behind outbound departures or VFR traffic.
+- A generated arrival waits a few seconds rather than appearing within 3 nm and 1,000 ft of other traffic.
+- A generated arrival the simulated approach controller slowed speeds back up once it no longer needs to.
+- Auto arrival spacing is off by default for Tower; updating from 0.13.1 turns the Tower setting off once.
 
 ### Changed
 - A generated arrival waits a few seconds rather than appearing within 3 nm and 1,000 ft of other traffic.
