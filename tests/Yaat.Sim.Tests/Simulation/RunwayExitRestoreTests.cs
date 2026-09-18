@@ -10,7 +10,7 @@ using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Simulation;
 
 /// <summary>
 /// A snapshot taken while an aircraft is following its runway-exit path must restore into a phase that keeps

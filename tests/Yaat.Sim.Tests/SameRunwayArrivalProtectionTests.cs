@@ -275,9 +275,9 @@ public class SameRunwayArrivalProtectionTests
             AircraftType = "B738",
             IsOnGround = true,
             IndicatedAirspeed = 60.0,
-            Phases = new Phases.PhaseList(),
+            Phases = new Yaat.Sim.Phases.PhaseList(),
         };
-        landed.Phases.Add(new Phases.Tower.LandingPhase());
+        landed.Phases.Add(new Yaat.Sim.Phases.Tower.LandingPhase());
 
         Assert.Null(SameRunwayArrivalProtection.TryBuildRollout(landed, elapsedSinceThresholdSeconds: 0.0));
     }

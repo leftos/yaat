@@ -3,7 +3,7 @@ using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Data.Vnas;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Data;
 
 /// <summary>
 /// Decode coverage for <see cref="ArtccConfigResolver.ResolveEramToStarsHandoffCode"/> — the code an ERAM

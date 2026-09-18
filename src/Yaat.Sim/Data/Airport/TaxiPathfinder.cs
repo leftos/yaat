@@ -1,6 +1,6 @@
-namespace Yaat.Sim.Data.Airport;
-
 using Yaat.Sim.Data.Airport.Pathfinding;
+
+namespace Yaat.Sim.Data.Airport;
 
 /// <summary>
 /// Taxi pathfinder. Auto-route methods (<see cref="FindRoute"/>, <see cref="FindRoutes"/>) are

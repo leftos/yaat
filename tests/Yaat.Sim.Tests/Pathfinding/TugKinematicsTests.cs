@@ -3,7 +3,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Tests.Helpers;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Pathfinding;
 
 /// <summary>
 /// The tug motion body, flown against the real SFO six alley. The lane is spot 6B's nose-out direction

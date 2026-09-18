@@ -7,7 +7,7 @@ using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Soak;
 using Yaat.Sim.Tests.Helpers;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Pathfinding;
 
 /// <summary>
 /// The tug move planner, measured against the real SFO ground layout with a B738. Every case resolves its nodes by

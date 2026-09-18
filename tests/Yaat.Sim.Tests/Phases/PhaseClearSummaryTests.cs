@@ -3,7 +3,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Phases;
 
 /// <summary>
 /// <see cref="PhaseClearSummary"/> labels what a dispatcher-side phase clear cancelled.

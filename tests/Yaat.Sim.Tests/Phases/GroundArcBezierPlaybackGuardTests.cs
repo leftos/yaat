@@ -3,7 +3,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Tests.Helpers;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Phases;
 
 /// <summary>
 /// Systemic guard for fillet arc playback. <c>GroundNavigator</c> compiles every

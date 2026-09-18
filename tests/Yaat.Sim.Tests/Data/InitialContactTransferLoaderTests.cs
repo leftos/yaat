@@ -1,7 +1,7 @@
 using Xunit;
 using Yaat.Sim.Data;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Data;
 
 public sealed class InitialContactTransferLoaderTests
 {

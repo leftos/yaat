@@ -1,4 +1,4 @@
-namespace Yaat.Client.Services;
+namespace Yaat.Client.Tdls.Services;
 
 // Client-side mirrors of the server vTDLS DTOs. These match the JSON shapes
 // SignalR delivers for "TdlsItemChanged", "TdlsItemRemoved", and

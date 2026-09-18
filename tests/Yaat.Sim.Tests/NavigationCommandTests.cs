@@ -709,7 +709,7 @@ public class NavigationCommandTests : IDisposable
         var runway = new RunwayInfo
         {
             AirportId = "OAK",
-            Id = new Data.Airport.RunwayIdentifier("28L", "10R"),
+            Id = new Yaat.Sim.Data.Airport.RunwayIdentifier("28L", "10R"),
             Designator = "28L",
             Lat1 = 37.72,
             Lon1 = -122.22,

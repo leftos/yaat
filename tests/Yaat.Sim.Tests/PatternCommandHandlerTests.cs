@@ -647,8 +647,8 @@ public class PatternCommandHandlerTests
         CommandResult result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Upwind);
 
         Assert.True(result.Success);
-        Assert.Contains(ac.Phases!.Phases, p => p is Phases.Tower.TouchAndGoPhase);
-        Assert.DoesNotContain(ac.Phases.Phases, p => p is Phases.Tower.LandingPhase);
+        Assert.Contains(ac.Phases!.Phases, p => p is Yaat.Sim.Phases.Tower.TouchAndGoPhase);
+        Assert.DoesNotContain(ac.Phases.Phases, p => p is Yaat.Sim.Phases.Tower.LandingPhase);
     }
 
     [Fact]
@@ -878,13 +878,13 @@ public class PatternCommandHandlerTests
     [Fact]
     public void TryChangePatternDirection_DownwindCrossoverToParallel_Jet_HasNoTeardrop()
     {
-        RunwayInfo? rwy28R = Data.NavigationDatabase.Instance.GetRunway("OAK", "28R");
+        RunwayInfo? rwy28R = Yaat.Sim.Data.NavigationDatabase.Instance.GetRunway("OAK", "28R");
         if (rwy28R is null)
         {
             return;
         }
 
-        IReadOnlyList<RunwayInfo> airportRunways = Data.NavigationDatabase.Instance.GetRunways(rwy28R.AirportId);
+        IReadOnlyList<RunwayInfo> airportRunways = Yaat.Sim.Data.NavigationDatabase.Instance.GetRunways(rwy28R.AirportId);
         PatternWaypoints wpRight = PatternGeometry.Compute(
             rwy28R,
             AircraftCategory.Jet,

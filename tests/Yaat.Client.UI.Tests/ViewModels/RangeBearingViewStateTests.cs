@@ -4,7 +4,7 @@ using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
 using Yaat.Sim;
 
-namespace Yaat.Client.UI.Tests;
+namespace Yaat.Client.UI.Tests.ViewModels;
 
 // Covers the shared state the Radar and Ground views both drive: one store behind both, so slot
 // numbers are globally unique, but each measurement is tagged with the view it was taken in and only

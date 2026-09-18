@@ -1,6 +1,6 @@
 using Yaat.Sim.Commands;
 
-namespace Yaat.Client.Core.Services;
+namespace Yaat.Client.Services;
 
 /// <summary>
 /// Tracks per-aircraft Call-For-Release windows against real wall-clock UTC and reports each expiry

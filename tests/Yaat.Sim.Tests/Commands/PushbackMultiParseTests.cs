@@ -1,7 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Commands;
 
 /// <summary>
 /// The <c>PUSHM</c> grammar: a tug move through two or more ramp points with an optional final rest facing.

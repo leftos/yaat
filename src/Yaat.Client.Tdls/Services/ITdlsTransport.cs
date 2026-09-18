@@ -1,4 +1,6 @@
-namespace Yaat.Client.Services;
+using Yaat.Client.Services;
+
+namespace Yaat.Client.Tdls.Services;
 
 /// <summary>
 /// Narrow transport contract that the vTDLS view-model depends on. Both the

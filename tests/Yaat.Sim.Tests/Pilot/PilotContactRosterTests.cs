@@ -255,6 +255,6 @@ public class PilotContactRosterTests
             studentType,
             "ZOA",
             primaryAirportId,
-            _zoa is null ? Data.InitialContactTransferCatalog.Empty : Data.NavigationDatabase.Instance.InitialContactTransfers
+            _zoa is null ? Yaat.Sim.Data.InitialContactTransferCatalog.Empty : Yaat.Sim.Data.NavigationDatabase.Instance.InitialContactTransfers
         );
 }

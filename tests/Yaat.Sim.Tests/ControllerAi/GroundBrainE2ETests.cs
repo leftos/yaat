@@ -211,7 +211,7 @@ public class GroundBrainE2ETests
     }
 
     /// <summary>The test as tower: one takeoff clearance at a time to the departure holding short of 30 when the runway is clear.</summary>
-    private static void PlayTower(SimulationEngine engine, Phases.RunwayInfo runway30, ref double lastClearance)
+    private static void PlayTower(SimulationEngine engine, Yaat.Sim.Phases.RunwayInfo runway30, ref double lastClearance)
     {
         SimScenarioState scenario = engine.Scenario!;
         if (scenario.ElapsedSeconds - lastClearance < TowerSpacingSeconds)

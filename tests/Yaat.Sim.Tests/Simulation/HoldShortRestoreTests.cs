@@ -4,7 +4,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Simulation;
 
 /// <summary>
 /// A restored <see cref="HoldingShortPhase"/> must share the route's <see cref="HoldShortPoint"/>, not a detached copy.

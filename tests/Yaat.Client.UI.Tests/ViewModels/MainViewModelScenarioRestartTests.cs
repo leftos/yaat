@@ -1,6 +1,5 @@
 using Avalonia.Headless.XUnit;
 using Xunit;
-using Yaat.Client.Core.Services;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;

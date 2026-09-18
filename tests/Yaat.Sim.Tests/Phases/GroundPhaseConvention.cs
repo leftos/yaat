@@ -3,7 +3,7 @@ using System.IO;
 using System.Reflection;
 using Xunit;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Phases;
 
 /// <summary>
 /// Source-level convention guard: every ground motion phase under

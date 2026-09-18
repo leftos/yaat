@@ -22,7 +22,7 @@ public class AutoTrackStepTests
     private static readonly TrackOwner Nct4Q = TrackOwner.CreateStars("NCT_4Q", "NCT", 4, "Q");
     private static readonly TrackOwner Nct4U = TrackOwner.CreateStars("NCT_4U", "NCT", 4, "U");
 
-    private readonly Data.Vnas.ArtccConfigRoot? _zoa = TestArtccConfig.LoadZoa();
+    private readonly Yaat.Sim.Data.Vnas.ArtccConfigRoot? _zoa = TestArtccConfig.LoadZoa();
 
     public AutoTrackStepTests()
     {

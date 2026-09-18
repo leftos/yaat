@@ -7,7 +7,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Tests.Helpers;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Phases;
 
 /// <summary>
 /// The ½-fuselage tail-clearance leg a <see cref="CrossingRunwayPhase"/> appends past the exit-side

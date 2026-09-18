@@ -9,6 +9,7 @@ using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Find;
 using Yaat.Client.Services;
+using Yaat.Client.Tdls.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Sim;
 

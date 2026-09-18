@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
+using Yaat.Client.Tdls.Services;
 using Yaat.Sim.Simulation.Actions;
 
 namespace Yaat.Client.Services;

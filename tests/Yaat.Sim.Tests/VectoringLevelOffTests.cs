@@ -34,7 +34,7 @@ public class VectoringLevelOffTests
             {
                 Name = "FIXBB",
                 Position = new LatLon(37.6, -122.6),
-                AltitudeRestriction = new Data.Vnas.CifpAltitudeRestriction(Data.Vnas.CifpAltitudeRestrictionType.AtOrAbove, 8000),
+                AltitudeRestriction = new Yaat.Sim.Data.Vnas.CifpAltitudeRestriction(Yaat.Sim.Data.Vnas.CifpAltitudeRestrictionType.AtOrAbove, 8000),
             }
         );
         ac.Targets.NavigationRoute.Add(
@@ -42,7 +42,7 @@ public class VectoringLevelOffTests
             {
                 Name = "FIXCC",
                 Position = new LatLon(37.7, -122.7),
-                AltitudeRestriction = new Data.Vnas.CifpAltitudeRestriction(Data.Vnas.CifpAltitudeRestrictionType.At, 5000),
+                AltitudeRestriction = new Yaat.Sim.Data.Vnas.CifpAltitudeRestriction(Yaat.Sim.Data.Vnas.CifpAltitudeRestrictionType.At, 5000),
             }
         );
         return ac;

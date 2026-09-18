@@ -1,5 +1,7 @@
 using Xunit;
 using Yaat.Client.Services;
+using Yaat.Client.Tdls.Services;
+using Yaat.Client.Tdls.ViewModels;
 using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.Tests;

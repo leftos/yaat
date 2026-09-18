@@ -7,7 +7,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Training;
 
-namespace Yaat.Sim.Tests.LandingPhaseTests;
+namespace Yaat.Sim.Tests.Phases.Tower;
 
 /// <summary>
 /// Direct test for M12.4's LandingPhase touchdown completion stamp. The unit-level

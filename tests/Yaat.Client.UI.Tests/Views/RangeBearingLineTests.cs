@@ -2,7 +2,7 @@ using Xunit;
 using Yaat.Client.Views.Map;
 using Yaat.Sim;
 
-namespace Yaat.Client.UI.Tests;
+namespace Yaat.Client.UI.Tests.Views;
 
 // Covers the shared range/bearing (distance measuring) tool: CRC STARS *T label formatting, the
 // fifteen-slot store, latched endpoints following an aircraft, and the Ground View's feet/NM switch.

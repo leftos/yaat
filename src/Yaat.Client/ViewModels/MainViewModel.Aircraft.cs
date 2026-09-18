@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using Yaat.Client.Core.Services;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Views;

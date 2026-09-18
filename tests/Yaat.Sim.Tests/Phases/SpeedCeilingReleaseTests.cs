@@ -3,7 +3,7 @@ using Xunit;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Phases;
 
 /// <summary>
 /// A phase that imposes a <see cref="ControlTargets.SpeedCeiling"/> must release it on the way out.

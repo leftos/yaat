@@ -133,7 +133,7 @@ public class AircraftDebriefAggregatorTests
         b.TrueHeading = new TrueHeading(90);
         b.HasMadeInitialContact = true;
 
-        evaluator.Evaluate([a, b], scenarioElapsedSeconds: 60, Data.Airspace.AirspaceDatabase.Default);
+        evaluator.Evaluate([a, b], scenarioElapsedSeconds: 60, Yaat.Sim.Data.Airspace.AirspaceDatabase.Default);
 
         var context = new AircraftDebriefContext([a, b], [], "OAK");
 

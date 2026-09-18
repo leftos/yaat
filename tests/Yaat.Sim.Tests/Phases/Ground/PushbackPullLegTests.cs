@@ -7,7 +7,7 @@ using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Phases.Ground;
 
 /// <summary>
 /// <see cref="PushbackPhase"/> running one leg of a tug move in each direction: a push, where the tug reverses

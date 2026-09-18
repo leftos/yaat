@@ -217,7 +217,7 @@ public class MltDuringTaxiKeepsGroundRouteTests(ITestOutputHelper output)
     /// destination bar, and the node the re-taxi's 28R crossing hold-short then sits on. Read from the
     /// layout so the standoff below is measured against real graph geometry.
     /// </summary>
-    private static LatLon Bar28RPosition(AircraftState aircraft, Data.Airport.AirportGroundLayout layout)
+    private static LatLon Bar28RPosition(AircraftState aircraft, Yaat.Sim.Data.Airport.AirportGroundLayout layout)
     {
         TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
@@ -338,7 +338,7 @@ public class MltDuringTaxiKeepsGroundRouteTests(ITestOutputHelper output)
         return null;
     }
 
-    private static AircraftState SpawnOnTaxiwayB(SimulationEngine engine, Data.Airport.AirportGroundLayout layout)
+    private static AircraftState SpawnOnTaxiwayB(SimulationEngine engine, Yaat.Sim.Data.Airport.AirportGroundLayout layout)
     {
         var aircraft = new AircraftState
         {

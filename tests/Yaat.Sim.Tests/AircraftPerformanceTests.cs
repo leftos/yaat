@@ -14,14 +14,14 @@ public sealed class AircraftPerformanceTests
     [Fact]
     public void ProfileDatabase_LoadsProfiles()
     {
-        Assert.True(Data.AircraftProfileDatabase.IsInitialized);
-        Assert.True(Data.AircraftProfileDatabase.Count > 100);
+        Assert.True(Yaat.Sim.Data.AircraftProfileDatabase.IsInitialized);
+        Assert.True(Yaat.Sim.Data.AircraftProfileDatabase.Count > 100);
     }
 
     [Fact]
     public void ProfileDatabase_Get_KnownType()
     {
-        AircraftProfile? b738 = Data.AircraftProfileDatabase.Get("B738");
+        AircraftProfile? b738 = Yaat.Sim.Data.AircraftProfileDatabase.Get("B738");
         Assert.NotNull(b738);
         Assert.Equal("B738", b738.TypeCode);
         Assert.Equal(3000, b738.ClimbRateInitial);
@@ -30,14 +30,14 @@ public sealed class AircraftPerformanceTests
     [Fact]
     public void ProfileDatabase_Get_CaseInsensitive()
     {
-        Assert.NotNull(Data.AircraftProfileDatabase.Get("b738"));
-        Assert.NotNull(Data.AircraftProfileDatabase.Get("B738"));
+        Assert.NotNull(Yaat.Sim.Data.AircraftProfileDatabase.Get("b738"));
+        Assert.NotNull(Yaat.Sim.Data.AircraftProfileDatabase.Get("B738"));
     }
 
     [Fact]
     public void ProfileDatabase_Get_StripPrefix()
     {
-        AircraftProfile? profile = Data.AircraftProfileDatabase.Get("H/B738");
+        AircraftProfile? profile = Yaat.Sim.Data.AircraftProfileDatabase.Get("H/B738");
         Assert.NotNull(profile);
         Assert.Equal("B738", profile.TypeCode);
     }
@@ -45,14 +45,14 @@ public sealed class AircraftPerformanceTests
     [Fact]
     public void ProfileDatabase_Get_SiblingFallback_IsSafeUnderParallelAccess()
     {
-        Data.AircraftProfileDatabase.ClearSiblingFallbackWarnings();
+        Yaat.Sim.Data.AircraftProfileDatabase.ClearSiblingFallbackWarnings();
 
         Parallel.For(
             0,
             200,
             _ =>
             {
-                AircraftProfile? profile = Data.AircraftProfileDatabase.Get("A10");
+                AircraftProfile? profile = Yaat.Sim.Data.AircraftProfileDatabase.Get("A10");
                 Assert.NotNull(profile);
                 Assert.Equal("E145", profile.TypeCode);
             }
@@ -60,13 +60,13 @@ public sealed class AircraftPerformanceTests
     }
 
     [Fact]
-    public void ProfileDatabase_Get_UnknownType_ReturnsNull() => Assert.Null(Data.AircraftProfileDatabase.Get("ZZZZ"));
+    public void ProfileDatabase_Get_UnknownType_ReturnsNull() => Assert.Null(Yaat.Sim.Data.AircraftProfileDatabase.Get("ZZZZ"));
 
     [Fact]
     public void ProfileDatabase_Get_NullOrEmpty_ReturnsNull()
     {
-        Assert.Null(Data.AircraftProfileDatabase.Get(null));
-        Assert.Null(Data.AircraftProfileDatabase.Get(""));
+        Assert.Null(Yaat.Sim.Data.AircraftProfileDatabase.Get(null));
+        Assert.Null(Yaat.Sim.Data.AircraftProfileDatabase.Get(""));
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public sealed class AircraftPerformanceTests
     [Fact]
     public void DescentRate_AtCeiling_ReturnsInitialDescentRate()
     {
-        AircraftProfile? profile = Data.AircraftProfileDatabase.Get("B738");
+        AircraftProfile? profile = Yaat.Sim.Data.AircraftProfileDatabase.Get("B738");
         Assert.NotNull(profile);
 
         double rate = AircraftPerformance.DescentRate("B738", AircraftCategory.Jet, profile.Ceiling);
@@ -130,7 +130,7 @@ public sealed class AircraftPerformanceTests
         // Piston/turboprop profiles publish 0 for the initial-descent band ("can't reach").
         // The interpolator skips zero anchors, so the FL100 rate holds at altitude and the
         // anchor swap must not change these types.
-        AircraftProfile? profile = Data.AircraftProfileDatabase.Get("C172");
+        AircraftProfile? profile = Yaat.Sim.Data.AircraftProfileDatabase.Get("C172");
         Assert.NotNull(profile);
         Assert.Equal(0, profile.DescentRateInitial);
 
@@ -230,7 +230,7 @@ public sealed class AircraftPerformanceTests
     {
         // Type in FAA ACD but not in profiles — should use FAA ACD value
         // If there's no such type, this tests the category fallback
-        FaaAircraftRecord? faaRecord = Data.Faa.FaaAircraftDatabase.Get("B738");
+        FaaAircraftRecord? faaRecord = Yaat.Sim.Data.Faa.FaaAircraftDatabase.Get("B738");
         if (faaRecord?.ApproachSpeedKnot is not null)
         {
             // B738 is in profiles, so test with a type that's in FAA ACD but not profiles

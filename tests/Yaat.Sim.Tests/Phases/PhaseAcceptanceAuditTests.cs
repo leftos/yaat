@@ -9,7 +9,7 @@ using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation.Snapshots;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Phases;
 
 /// <summary>
 /// Unit tests for the broader phase-acceptance audit (follow-up to the CTO/CM

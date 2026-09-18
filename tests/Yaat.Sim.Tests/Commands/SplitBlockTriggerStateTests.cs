@@ -1,7 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Commands;
 
 /// <summary>
 /// When a new command supersedes only part of a conditional block, the surviving half is rebuilt — and must carry the

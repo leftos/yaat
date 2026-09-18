@@ -1,7 +1,7 @@
 using Xunit;
 using Yaat.Sim.Data.Vnas;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Data;
 
 /// <summary>
 /// A facility config may define banks for one flight-rules type but not the other (e.g. an IFR bank with no

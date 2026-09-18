@@ -4,7 +4,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Commands;
 
 /// <summary>
 /// A rejected command must leave the aircraft's pending work untouched. <c>docs/command-pipeline.md</c> §5.2 states

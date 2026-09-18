@@ -7,7 +7,7 @@ using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Phases.Ground;
 
 /// <summary>
 /// A tug plan is one continuous tow, not a queue of standing starts. <c>PUSH $6B</c> from SFO gate E6 plans

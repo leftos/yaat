@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using Xunit;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Helpers;
 
 /// <summary>
 /// Guards fixture lookup against filename case. Windows resolves paths case-insensitively, so a GeoJSON committed

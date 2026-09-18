@@ -1,6 +1,7 @@
 using Yaat.Client.Services;
+using Yaat.Client.Tdls.Services;
 
-namespace Yaat.Client.ViewModels;
+namespace Yaat.Client.Tdls.ViewModels;
 
 /// <summary>
 /// Translates vTDLS UI gestures into canonical command strings that the server's

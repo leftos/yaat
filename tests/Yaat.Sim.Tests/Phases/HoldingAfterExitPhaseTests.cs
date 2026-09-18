@@ -5,7 +5,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
 
-namespace Yaat.Sim.Tests.PhaseTests;
+namespace Yaat.Sim.Tests.Phases;
 
 /// <summary>
 /// HoldingAfterExitPhase fires the pilot's "clear of runway at TAXIWAY" transmission.

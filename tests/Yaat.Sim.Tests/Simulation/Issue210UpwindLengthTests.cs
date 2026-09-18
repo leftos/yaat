@@ -29,7 +29,7 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
         AircraftCategory cat,
         RunwayInfo rwy,
         double dt = 1.0,
-        Data.Airport.AirportGroundLayout? groundLayout = null
+        Yaat.Sim.Data.Airport.AirportGroundLayout? groundLayout = null
     ) =>
         new()
         {

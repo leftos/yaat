@@ -1,9 +1,10 @@
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Yaat.Client.Services;
 using Yaat.Sim;
 
-namespace Yaat.Client.Services;
+namespace Yaat.Client.Tdls.Services;
 
 /// <summary>
 /// WASM-side <see cref="ITdlsTransport"/> implementation. Owns its own

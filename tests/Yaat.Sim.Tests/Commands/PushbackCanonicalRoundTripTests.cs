@@ -1,7 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Commands;
 
 /// <summary>
 /// Every accepted <c>PUSH</c> form through <c>Describe → parse → Describe</c>. Canonical text is what the

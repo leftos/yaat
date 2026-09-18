@@ -7,7 +7,7 @@ using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 using Yaat.Sim.Tests.Simulation.GroundTaxi;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Phases.Ground;
 
 /// <summary>
 /// The two decisions <see cref="FollowingPhase"/> makes about a runway hold-short bar it is about to reach:

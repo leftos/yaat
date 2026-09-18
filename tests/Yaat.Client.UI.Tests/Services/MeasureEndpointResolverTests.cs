@@ -3,7 +3,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Sim;
 
-namespace Yaat.Client.UI.Tests;
+namespace Yaat.Client.UI.Tests.Services;
 
 // Covers endpoint resolution for the ".rbl A B" / "*T A B" measuring command: exact callsign, then
 // fix/FRD, then partial callsign, with ambiguity and navdata-not-ready reporting.

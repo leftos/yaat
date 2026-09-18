@@ -2,7 +2,7 @@ using Xunit;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Tests.Helpers;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Phases;
 
 /// <summary>Unit tests for the uncontrolled final-approach speed schedule (<see cref="FinalApproachSpeedSchedule"/>).</summary>
 public class FinalApproachSpeedScheduleTests

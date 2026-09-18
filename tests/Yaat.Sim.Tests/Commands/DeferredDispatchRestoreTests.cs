@@ -1,7 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Commands;
 
 /// <summary>
 /// A deferred dispatch must restore with the same payload it was created with.

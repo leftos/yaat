@@ -27,10 +27,10 @@ indent_size = 4
 # Namespaces and usings
 csharp_style_namespace_declarations = file_scoped:warning
 dotnet_sort_system_directives_first = true
-csharp_using_directive_placement = outside_namespace:suggestion
+csharp_using_directive_placement = outside_namespace:warning
 dotnet_style_namespace_match_folder = true
 dotnet_diagnostic.IDE0161.severity = warning
-dotnet_diagnostic.IDE0130.severity = suggestion
+dotnet_diagnostic.IDE0130.severity = warning
 
 # Braces are always required, even for single-statement bodies
 csharp_prefer_braces = true:warning

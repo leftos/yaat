@@ -2,7 +2,7 @@ using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Data.Vnas;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Data;
 
 /// <summary>
 /// SAAB SAID facility-config parsing. Unlike the flat <c>asdexConfiguration</c>, the SAID schema

@@ -2,7 +2,7 @@ using Xunit;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Tests.Helpers;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Data;
 
 /// <summary>
 /// Coverage for the two facility-set resolvers against the committed ZOA config

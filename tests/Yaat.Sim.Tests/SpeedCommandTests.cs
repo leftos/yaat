@@ -513,7 +513,7 @@ public class SpeedPhysicsTests
         {
             Name = "SUNOL",
             Position = new LatLon(37.5, -121.9),
-            SpeedRestriction = new Data.Vnas.CifpSpeedRestriction(250, Data.Vnas.CifpSpeedRestrictionType.AtOrBelow),
+            SpeedRestriction = new Yaat.Sim.Data.Vnas.CifpSpeedRestriction(250, Yaat.Sim.Data.Vnas.CifpSpeedRestrictionType.AtOrBelow),
         };
 
         FlightPhysics.ApplyFixConstraints(ac, target);
@@ -534,7 +534,7 @@ public class SpeedPhysicsTests
         {
             Name = "SUNOL",
             Position = new LatLon(37.5, -121.9),
-            SpeedRestriction = new Data.Vnas.CifpSpeedRestriction(200, Data.Vnas.CifpSpeedRestrictionType.AtOrBelow),
+            SpeedRestriction = new Yaat.Sim.Data.Vnas.CifpSpeedRestriction(200, Yaat.Sim.Data.Vnas.CifpSpeedRestrictionType.AtOrBelow),
         };
 
         FlightPhysics.ApplyFixConstraints(ac, target);
@@ -555,7 +555,7 @@ public class SpeedPhysicsTests
         {
             Name = "SUNOL",
             Position = new LatLon(37.5, -121.9),
-            SpeedRestriction = new Data.Vnas.CifpSpeedRestriction(260, Data.Vnas.CifpSpeedRestrictionType.AtOrBelow),
+            SpeedRestriction = new Yaat.Sim.Data.Vnas.CifpSpeedRestriction(260, Yaat.Sim.Data.Vnas.CifpSpeedRestrictionType.AtOrBelow),
         };
 
         FlightPhysics.ApplyFixConstraints(ac, target);
@@ -580,7 +580,7 @@ public class SpeedPhysicsTests
         {
             Name = "SUNOL",
             Position = new LatLon(37.5, -121.9),
-            SpeedRestriction = new Data.Vnas.CifpSpeedRestriction(200, Data.Vnas.CifpSpeedRestrictionType.AtOrBelow),
+            SpeedRestriction = new Yaat.Sim.Data.Vnas.CifpSpeedRestriction(200, Yaat.Sim.Data.Vnas.CifpSpeedRestrictionType.AtOrBelow),
         };
 
         FlightPhysics.ApplyFixConstraints(ac, target);

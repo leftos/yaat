@@ -1,10 +1,10 @@
-namespace Yaat.Sim.Tests.Simulation;
-
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
+
+namespace Yaat.Sim.Tests.Simulation;
 
 /// <summary>
 /// E2E tests for runway speed-limiting bug: aircraft rolling on the runway

@@ -1,7 +1,7 @@
 using Xunit;
 using Yaat.Sim.Data.Vnas;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Data;
 
 /// <summary>
 /// <see cref="BeaconCodePool.IsAssignableCode"/> is the single gate on which beacon codes may be

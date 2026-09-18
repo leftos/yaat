@@ -3,7 +3,7 @@ using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 
-namespace Yaat.Sim.Tests;
+namespace Yaat.Sim.Tests.Phases;
 
 /// <summary>
 /// Unit tests for <see cref="GroundNavigator.StraightArrivalThresholdNm"/> — the tangent
