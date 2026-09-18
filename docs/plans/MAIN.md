@@ -128,7 +128,8 @@ Shared files: root `*.md`, `docs/scenario-validation-known-failures.md`, solutio
 
 - [ ] Review the docs structure — user-facing vs internal dev docs (steer 2026-09-02): the root carries USER_GUIDE / COMMANDS / SOLO_TRAINING / GETTING_STARTED / INSTALL beside `docs/`; decide the boundary and where each audience starts
 - [ ] Regenerate `docs/scenario-validation-known-failures.md` (last full run 2026-03-12) with yaat-server's `python tools/validate-all-scenarios.py`
-- [ ] Solution-wide `dotnet format style --severity info --verify-no-changes` reports ~1,930 pre-existing info-level findings (1,706 in yaat, 224 in yaat-server; IDE0290/IDE0028/IDE0330/IDE0042 …) (2026-09-17). The prek hook runs at default severity on staged files only, so the commit gate is unaffected; a one-off `dotnet format style --severity info` sweep would need its own commit and a diff read for behavioural rewrites.
+- [ ] **Strict C# formatting, both repos** (2026-09-18, underway) — [strict-formatting.md](./strict-formatting.md): delve-the-dungeon's style rules as build errors (`EnforceCodeStyleInBuild`, var only when apparent), every existing violation fixed in rule-family commits (IDE0008 alone is ~36k sites), then `dotnet csharpier check` + `dotnet format --verify-no-changes --severity info` in CI and the prek hooks at info severity
+- [ ] Adopt `AnalysisLevel=latest-recommended` (deferred from the strict-formatting pass by decision, 2026-09-18): ~12k CA hits measured — CA1707 8,938 (underscores in test names: switch off under `tests/`), CA1848 1,471 + CA1873 805 (logging delegates / guarded logging), CA1305 319 (culture), CA1859 103, CA1310 92, CA1822 76, the rest ~300. Work it rule by rule, each raised to `warning` in the commit that clears it
 
 ### Singles
 
