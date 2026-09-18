@@ -10,16 +10,11 @@ namespace Yaat.Sim.Phases.Tower;
 /// of the intersecting runway. Waits for CROSS, TAXI, or similar command
 /// to release. Similar to HoldingShortPhase but on a runway surface.
 /// </summary>
-public sealed class RunwayHoldingPhase : Phase
+public sealed class RunwayHoldingPhase(string crossingRunwayId) : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("RunwayHoldingPhase");
 
-    private readonly string _crossingRunwayId;
-
-    public RunwayHoldingPhase(string crossingRunwayId)
-    {
-        _crossingRunwayId = crossingRunwayId;
-    }
+    private readonly string _crossingRunwayId = crossingRunwayId;
 
     public override string Name => $"Holding Short RWY {RunwayIdentifier.ToDisplayDesignator(_crossingRunwayId)}";
 

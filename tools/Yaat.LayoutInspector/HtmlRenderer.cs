@@ -12,17 +12,15 @@ namespace Yaat.LayoutInspector;
 /// rendering, pan/zoom, and hover tooltips. Exports the layout as JSON embedded
 /// in the page; all rendering happens client-side in JavaScript.
 /// </summary>
-public sealed class HtmlRenderer
+public sealed class HtmlRenderer(AirportGroundLayout layout)
 {
-    private readonly AirportGroundLayout _layout;
+    private readonly AirportGroundLayout _layout = layout;
     private readonly HashSet<string> _highlightTaxiways = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<int> _highlightNodes = [];
     private readonly HashSet<string> _highlightRunways = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<int, string> _nodeAnnotations = [];
     private readonly List<int> _routeNodeIds = [];
     private TickRecording? _tickRecording;
-
-    public HtmlRenderer(AirportGroundLayout layout) => _layout = layout;
 
     public void HighlightTaxiway(string name) => _highlightTaxiways.Add(name);
 

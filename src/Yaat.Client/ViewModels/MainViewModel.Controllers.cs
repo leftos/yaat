@@ -12,31 +12,22 @@ namespace Yaat.Client.ViewModels;
 /// One facility group in the CRC-style controller list: a header (id + name) and its controllers.
 /// Collapse state is backed by a shared set so it survives list rebuilds on refresh.
 /// </summary>
-public sealed partial class ControllerGroupVm : ObservableObject
+public sealed partial class ControllerGroupVm(
+    string facilityId,
+    string? facilityName,
+    IReadOnlyList<OnlineControllerDto> controllers,
+    HashSet<string> collapsedFacilities
+) : ObservableObject
 {
-    private readonly HashSet<string> _collapsedFacilities;
+    private readonly HashSet<string> _collapsedFacilities = collapsedFacilities;
 
-    public ControllerGroupVm(
-        string facilityId,
-        string? facilityName,
-        IReadOnlyList<OnlineControllerDto> controllers,
-        HashSet<string> collapsedFacilities
-    )
-    {
-        FacilityId = facilityId;
-        FacilityName = facilityName;
-        Controllers = controllers;
-        _collapsedFacilities = collapsedFacilities;
-        _isExpanded = !collapsedFacilities.Contains(facilityId);
-    }
-
-    public string FacilityId { get; }
-    public string? FacilityName { get; }
+    public string FacilityId { get; } = facilityId;
+    public string? FacilityName { get; } = facilityName;
     public string Header => string.IsNullOrEmpty(FacilityName) ? FacilityId : $"{FacilityId} - {FacilityName}";
-    public IReadOnlyList<OnlineControllerDto> Controllers { get; }
+    public IReadOnlyList<OnlineControllerDto> Controllers { get; } = controllers;
 
     [ObservableProperty]
-    private bool _isExpanded;
+    private bool _isExpanded = !collapsedFacilities.Contains(facilityId);
 
     partial void OnIsExpandedChanged(bool value)
     {

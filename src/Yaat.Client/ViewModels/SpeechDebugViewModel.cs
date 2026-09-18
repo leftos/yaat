@@ -243,14 +243,9 @@ public sealed partial class SpeechDebugViewModel : ObservableObject, IDisposable
 /// <see cref="SpeechSampleEntry"/> (when the session was captured to disk). The row is mostly a
 /// presentation projection — colors, glyphs, clipped transcript — so the XAML stays declarative.
 /// </summary>
-public sealed class SpeechDebugSessionRow : INotifyPropertyChanged
+public sealed class SpeechDebugSessionRow(SpeechSession session) : INotifyPropertyChanged
 {
-    public SpeechDebugSessionRow(SpeechSession session)
-    {
-        Session = session;
-    }
-
-    public SpeechSession Session { get; }
+    public SpeechSession Session { get; } = session;
     public SpeechSampleEntry? Sample { get; private set; }
 
     public bool HasSavedAudio => Sample is not null;

@@ -23,7 +23,7 @@ namespace Yaat.Sim.Phases.Tower;
 /// descent — steepened as needed to capture the path — and the 6° final is the sim's helicopter
 /// glidepath (<see cref="GlideSlopeGeometry.HelicopterAngleDeg"/>).
 /// </summary>
-public sealed class HelicopterApproachPhase : Phase
+public sealed class HelicopterApproachPhase(double targetLat, double targetLon, string? destinationName) : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("HelicopterApproachPhase");
 
@@ -38,9 +38,9 @@ public sealed class HelicopterApproachPhase : Phase
     private const double MinFinalDescentFpm = 150.0;
     private const double LogIntervalSeconds = 3.0;
 
-    private readonly double _targetLat;
-    private readonly double _targetLon;
-    private readonly string? _destinationName;
+    private readonly double _targetLat = targetLat;
+    private readonly double _targetLon = targetLon;
+    private readonly string? _destinationName = destinationName;
 
     private double _fieldElevation;
     private double _holdAltitude;
@@ -50,13 +50,6 @@ public sealed class HelicopterApproachPhase : Phase
 
     /// <summary>The phase owns speed for the whole approach: cruise, the 90/60 kt schedule, and the deceleration to a hover.</summary>
     public override bool ManagesSpeed => true;
-
-    public HelicopterApproachPhase(double targetLat, double targetLon, string? destinationName)
-    {
-        _targetLat = targetLat;
-        _targetLon = targetLon;
-        _destinationName = destinationName;
-    }
 
     /// <summary>
     /// Distance from the spot (nm) at which the 6° final begins: the drop from the rotorcraft pattern

@@ -10,9 +10,9 @@ namespace Yaat.Sim.Simulation;
 /// to individual ZIP entries one at a time, keeping memory usage at O(world-state)
 /// rather than O(snapshots * world-state).
 /// </summary>
-public sealed class RecordingArchiveWriter : IDisposable
+public sealed class RecordingArchiveWriter(Stream output) : IDisposable
 {
-    private readonly ZipArchive _zip;
+    private readonly ZipArchive _zip = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true);
     private readonly List<SnapshotIndexEntry> _snapshotIndex = [];
     private readonly List<string> _layoutAirportIds = [];
     private readonly List<string> _airportGeoJsonIds = [];
@@ -23,11 +23,6 @@ public sealed class RecordingArchiveWriter : IDisposable
     private bool _metarReissuanceEnabled;
     private bool _hasArtccConfig;
     private bool _hasTerminalLog;
-
-    public RecordingArchiveWriter(Stream output)
-    {
-        _zip = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true);
-    }
 
     public void WriteScenario(string scenarioJson) => WriteBrotliEntry("scenario.json.br", scenarioJson);
 

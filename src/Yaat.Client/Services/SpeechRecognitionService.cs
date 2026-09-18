@@ -154,19 +154,29 @@ public sealed record SpeechContext(IReadOnlyList<string> ActiveCallsigns, IReadO
 /// The service holds simulation context only via a <see cref="Func{SpeechContext}"/> so the caller
 /// controls how state is observed (no tight coupling back to <c>MainViewModel</c>).
 /// </summary>
-public sealed class SpeechRecognitionService : IDisposable
+public sealed class SpeechRecognitionService(
+    UserPreferences preferences,
+    AudioCaptureService audio,
+    WhisperSttEngine stt,
+    LocalLlmService? llmService,
+    ISpeechCommandMapper ruleMapper,
+    ISpeechCommandMapper? llmMapper,
+    LocalLlmCallsignResolver? callsignResolver,
+    Func<SpeechContext> contextProvider,
+    SpeechSampleStore? sampleStore
+) : IDisposable
 {
     private static readonly ILogger Log = AppLog.CreateLogger<SpeechRecognitionService>();
 
-    private readonly UserPreferences _preferences;
-    private readonly AudioCaptureService _audio;
-    private readonly WhisperSttEngine _stt;
-    private readonly LocalLlmService? _llmService;
-    private readonly ISpeechCommandMapper _ruleMapper;
-    private readonly ISpeechCommandMapper? _llmMapper;
-    private readonly LocalLlmCallsignResolver? _callsignResolver;
-    private readonly Func<SpeechContext> _contextProvider;
-    private readonly SpeechSampleStore? _sampleStore;
+    private readonly UserPreferences _preferences = preferences;
+    private readonly AudioCaptureService _audio = audio;
+    private readonly WhisperSttEngine _stt = stt;
+    private readonly LocalLlmService? _llmService = llmService;
+    private readonly ISpeechCommandMapper _ruleMapper = ruleMapper;
+    private readonly ISpeechCommandMapper? _llmMapper = llmMapper;
+    private readonly LocalLlmCallsignResolver? _callsignResolver = callsignResolver;
+    private readonly Func<SpeechContext> _contextProvider = contextProvider;
+    private readonly SpeechSampleStore? _sampleStore = sampleStore;
 
     private SpeechStatus _status = SpeechStatus.Idle;
     private CancellationTokenSource? _pendingCts;
@@ -180,29 +190,6 @@ public sealed class SpeechRecognitionService : IDisposable
     /// <summary>Raised on the thread pool after a session is appended to <see cref="SessionHistory"/>.
     /// UI consumers should marshal to the UI thread before touching the collection.</summary>
     public event Action<SpeechSession>? SessionRecorded;
-
-    public SpeechRecognitionService(
-        UserPreferences preferences,
-        AudioCaptureService audio,
-        WhisperSttEngine stt,
-        LocalLlmService? llmService,
-        ISpeechCommandMapper ruleMapper,
-        ISpeechCommandMapper? llmMapper,
-        LocalLlmCallsignResolver? callsignResolver,
-        Func<SpeechContext> contextProvider,
-        SpeechSampleStore? sampleStore
-    )
-    {
-        _preferences = preferences;
-        _audio = audio;
-        _stt = stt;
-        _llmService = llmService;
-        _ruleMapper = ruleMapper;
-        _llmMapper = llmMapper;
-        _callsignResolver = callsignResolver;
-        _contextProvider = contextProvider;
-        _sampleStore = sampleStore;
-    }
 
     /// <summary>Fired whenever the pipeline status changes.</summary>
     public event Action<SpeechStatus>? StatusChanged;

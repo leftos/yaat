@@ -19,7 +19,11 @@ namespace Yaat.Sim.Phases.Tower;
 /// during aborted takeoff"; AIM 4-3-6.d declared distances) — and the overrun is surfaced to
 /// the instructor and the solo evaluator.
 /// </summary>
-public sealed class RejectedTakeoffPhase : Phase
+/// <param name="rollElapsedSeconds">
+/// The roll clock of the takeoff being interrupted, so the reaction window keeps accelerating on
+/// the same point of the spool ramp the roll had reached.
+/// </param>
+public sealed class RejectedTakeoffPhase(double rollElapsedSeconds) : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("RejectedTakeoffPhase");
 
@@ -27,20 +31,11 @@ public sealed class RejectedTakeoffPhase : Phase
     private const double MaxCenterlineCorrectionDeg = 10.0;
 
     private double _reactionRemainingSeconds = RejectedTakeoff.ReactionSeconds;
-    private double _rollElapsedSeconds;
+    private double _rollElapsedSeconds = rollElapsedSeconds;
     private TrueHeading _runwayHeading;
     private double _thresholdLat;
     private double _thresholdLon;
     private double _pavementLengthFt;
-
-    /// <param name="rollElapsedSeconds">
-    /// The roll clock of the takeoff being interrupted, so the reaction window keeps accelerating on
-    /// the same point of the spool ramp the roll had reached.
-    /// </param>
-    public RejectedTakeoffPhase(double rollElapsedSeconds)
-    {
-        _rollElapsedSeconds = rollElapsedSeconds;
-    }
 
     public override string Name => "Rejected Takeoff";
 

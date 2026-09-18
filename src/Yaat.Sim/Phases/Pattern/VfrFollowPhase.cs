@@ -22,7 +22,7 @@ namespace Yaat.Sim.Phases.Pattern;
 /// copying the lead's runway, direction, and altitude — after which the existing
 /// <see cref="AirborneFollowHelper"/> machinery in the pattern phases takes over.
 /// </summary>
-public sealed class VfrFollowPhase : Phase
+public sealed class VfrFollowPhase(string targetCallsign) : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("VfrFollowPhase");
 
@@ -63,7 +63,7 @@ public sealed class VfrFollowPhase : Phase
     /// <summary>Hysteresis state for the free-pursuit shallow widen excursion (lateral spacing tool).</summary>
     private readonly FollowWidenState _widen = new();
 
-    public string TargetCallsign { get; private set; }
+    public string TargetCallsign { get; private set; } = targetCallsign;
 
     /// <summary>
     /// The runway the followed traffic is landing on, captured while the lead is
@@ -75,11 +75,6 @@ public sealed class VfrFollowPhase : Phase
 
     public override string Name => "VFR Follow";
     public override bool ManagesSpeed => true;
-
-    public VfrFollowPhase(string targetCallsign)
-    {
-        TargetCallsign = targetCallsign;
-    }
 
     /// <summary>Update the follow target without recreating the phase.</summary>
     public void UpdateTarget(string targetCallsign) => TargetCallsign = targetCallsign;

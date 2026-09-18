@@ -186,21 +186,13 @@ public abstract class MapCanvasBase : Control
         // refresh matches real radar/ground display behavior.
         InvalidateVisual();
 
-    private sealed class MapDrawOperation : ICustomDrawOperation
+    private sealed class MapDrawOperation(MapCanvasBase owner, Rect bounds, object? snapshot, MapViewport viewport) : ICustomDrawOperation
     {
-        private readonly MapCanvasBase _owner;
-        private readonly object? _snapshot;
-        private readonly MapViewport _viewport;
+        private readonly MapCanvasBase _owner = owner;
+        private readonly object? _snapshot = snapshot;
+        private readonly MapViewport _viewport = viewport;
 
-        public MapDrawOperation(MapCanvasBase owner, Rect bounds, object? snapshot, MapViewport viewport)
-        {
-            _owner = owner;
-            _snapshot = snapshot;
-            _viewport = viewport;
-            Bounds = bounds;
-        }
-
-        public Rect Bounds { get; }
+        public Rect Bounds { get; } = bounds;
 
         public void Dispose() { }
 

@@ -4,11 +4,9 @@ using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Tests;
 
-public class FilletPathfindingTests
+public class FilletPathfindingTests(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper _output;
-
-    public FilletPathfindingTests(ITestOutputHelper output) => _output = output;
+    private readonly ITestOutputHelper _output = output;
 
     private static AirportGroundLayout? LoadOak()
     {

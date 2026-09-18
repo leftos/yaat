@@ -22,7 +22,7 @@ namespace Yaat.Client.Services;
 /// of the service. Disposal terminates PortAudio globally — only call <see cref="Dispose"/> at app
 /// shutdown since there's no way to re-initialize in the same process without side effects.
 /// </summary>
-public sealed class AudioCaptureService : IDisposable
+public sealed class AudioCaptureService(UserPreferences preferences) : IDisposable
 {
     private static readonly ILogger Log = AppLog.CreateLogger<AudioCaptureService>();
 
@@ -30,18 +30,13 @@ public sealed class AudioCaptureService : IDisposable
     // we record directly at this rate to avoid resampling.
     public const int SampleRate = 16000;
 
-    private readonly UserPreferences _preferences;
+    private readonly UserPreferences _preferences = preferences;
     private readonly object _bufferLock = new();
 
     private List<float> _capturedSamples = [];
     private PortAudioSharp.Stream? _stream;
     private bool _portAudioInitialized;
     private bool _isCapturing;
-
-    public AudioCaptureService(UserPreferences preferences)
-    {
-        _preferences = preferences;
-    }
 
     public bool IsCapturing
     {

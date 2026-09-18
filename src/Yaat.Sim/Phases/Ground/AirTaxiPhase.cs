@@ -9,7 +9,7 @@ namespace Yaat.Sim.Phases.Ground;
 /// to destination at AirTaxiSpeed, then hovers over destination.
 /// Per FAA 7110.65 §3-11-1.c: below 100ft AGL, above 20 KIAS.
 /// </summary>
-public sealed class AirTaxiPhase : Phase
+public sealed class AirTaxiPhase(double targetLat, double targetLon, string? destinationName) : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("AirTaxiPhase");
 
@@ -17,9 +17,9 @@ public sealed class AirTaxiPhase : Phase
     private const double BrakeStartNm = 0.10;
     private const double LogIntervalSeconds = 3.0;
 
-    private readonly double _targetLat;
-    private readonly double _targetLon;
-    private readonly string? _destinationName;
+    private readonly double _targetLat = targetLat;
+    private readonly double _targetLon = targetLon;
+    private readonly string? _destinationName = destinationName;
 
     private double _targetAltitude;
     private bool _liftingOff;
@@ -27,13 +27,6 @@ public sealed class AirTaxiPhase : Phase
     private double _timeSinceLastLog;
 
     public override string Name => "AirTaxi";
-
-    public AirTaxiPhase(double targetLat, double targetLon, string? destinationName)
-    {
-        _targetLat = targetLat;
-        _targetLon = targetLon;
-        _destinationName = destinationName;
-    }
 
     public override void OnStart(PhaseContext ctx)
     {

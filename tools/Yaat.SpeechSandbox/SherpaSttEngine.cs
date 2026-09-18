@@ -19,17 +19,12 @@ namespace Yaat.SpeechSandbox;
 /// vocab file, which the published int8 export does not include — regenerate it from the NeMo
 /// tokenizer before wiring hotwords.
 /// </summary>
-internal sealed class SherpaSttEngine : IDisposable
+internal sealed class SherpaSttEngine(string modelDir) : IDisposable
 {
     private static readonly ILogger Log = AppLog.CreateLogger<SherpaSttEngine>();
 
-    private readonly string _modelDir;
+    private readonly string _modelDir = modelDir;
     private OfflineRecognizer? _recognizer;
-
-    public SherpaSttEngine(string modelDir)
-    {
-        _modelDir = modelDir;
-    }
 
     public bool IsConfigured => File.Exists(FindModelFile("encoder")) && File.Exists(Path.Combine(_modelDir, "tokens.txt"));
 

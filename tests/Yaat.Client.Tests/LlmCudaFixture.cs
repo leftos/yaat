@@ -77,16 +77,10 @@ public sealed class LlmCudaFixture : IDisposable
 
     public void Dispose() => _sharedService?.Dispose();
 
-    private sealed class FixtureLlmConfig : ILlmRuntimeConfig
+    private sealed class FixtureLlmConfig(string modelPath, int gpuLayers) : ILlmRuntimeConfig
     {
-        public FixtureLlmConfig(string modelPath, int gpuLayers)
-        {
-            ModelPath = modelPath;
-            GpuLayers = gpuLayers;
-        }
-
-        public string ModelPath { get; }
-        public int GpuLayers { get; }
+        public string ModelPath { get; } = modelPath;
+        public int GpuLayers { get; } = gpuLayers;
     }
 }
 

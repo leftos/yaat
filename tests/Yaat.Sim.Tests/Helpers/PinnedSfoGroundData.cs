@@ -15,18 +15,13 @@ namespace Yaat.Sim.Tests.Helpers;
 /// test to a committed full-precision snapshot keeps the replay deterministic across those
 /// refreshes.
 /// </summary>
-internal sealed class PinnedSfoGroundData : IAirportGroundData
+internal sealed class PinnedSfoGroundData(string sfoGeoJsonPath) : IAirportGroundData
 {
     private readonly TestAirportGroundData _fallback = new();
-    private readonly string _sfoGeoJsonPath;
+    private readonly string _sfoGeoJsonPath = sfoGeoJsonPath;
     private readonly object _lock = new();
     private AirportGroundLayout? _sfo;
     private bool _loaded;
-
-    public PinnedSfoGroundData(string sfoGeoJsonPath)
-    {
-        _sfoGeoJsonPath = sfoGeoJsonPath;
-    }
 
     public AirportGroundLayout? GetLayout(string airportId)
     {

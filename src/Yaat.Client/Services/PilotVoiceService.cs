@@ -90,19 +90,14 @@ public sealed class PilotVoiceService : IAsyncDisposable
     }
 }
 
-internal sealed class SherpaOnnxPilotVoiceSynthesizer : IPilotVoiceSynthesizer
+internal sealed class SherpaOnnxPilotVoiceSynthesizer(UserPreferences preferences) : IPilotVoiceSynthesizer
 {
     private static readonly ILogger Log = AppLog.CreateLogger<SherpaOnnxPilotVoiceSynthesizer>();
 
     private readonly SemaphoreSlim _loadLock = new(1, 1);
-    private readonly PortAudioFloatPlayer _player;
+    private readonly PortAudioFloatPlayer _player = new PortAudioFloatPlayer(preferences);
     private OfflineTts? _tts;
     private string? _loadedVoiceDir;
-
-    public SherpaOnnxPilotVoiceSynthesizer(UserPreferences preferences)
-    {
-        _player = new PortAudioFloatPlayer(preferences);
-    }
 
     public bool IsAvailable => TryFindVoiceDir() is not null && PortAudioFloatPlayer.HasDefaultOutputDevice();
 
@@ -273,18 +268,13 @@ internal static class RadioAudioFx
     }
 }
 
-internal sealed class PortAudioFloatPlayer
+internal sealed class PortAudioFloatPlayer(UserPreferences preferences)
 {
     private static readonly ILogger Log = AppLog.CreateLogger<PortAudioFloatPlayer>();
     private static readonly object InitLock = new();
     private static bool _initialized;
 
-    private readonly UserPreferences _preferences;
-
-    public PortAudioFloatPlayer(UserPreferences preferences)
-    {
-        _preferences = preferences;
-    }
+    private readonly UserPreferences _preferences = preferences;
 
     public static bool HasDefaultOutputDevice()
     {

@@ -17,7 +17,7 @@ namespace Yaat.Client.Services;
 /// cross-platform. Failures (no audio device, device busy) are caught and logged at Warning —
 /// the ding is best-effort by design, never blocking.
 /// </summary>
-public sealed class PilotSpeechAlertService
+public sealed class PilotSpeechAlertService(UserPreferences preferences)
 {
     private static readonly ILogger Log = AppLog.CreateLogger<PilotSpeechAlertService>();
 
@@ -25,13 +25,8 @@ public sealed class PilotSpeechAlertService
     private const float OutputVolume = 0.5f;
 
     private readonly object _lock = new();
-    private readonly PortAudioFloatPlayer _player;
+    private readonly PortAudioFloatPlayer _player = new PortAudioFloatPlayer(preferences);
     private float[]? _cachedDing;
-
-    public PilotSpeechAlertService(UserPreferences preferences)
-    {
-        _player = new PortAudioFloatPlayer(preferences);
-    }
 
     public void PlayDing() => _ = PlayDingAsync();
 

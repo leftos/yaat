@@ -16,16 +16,10 @@ namespace Yaat.Client.Tests;
 /// Skipped silently when no model source is configured (LMKIT_TEST_MODEL env var unset).
 /// </summary>
 [Collection("LLM")]
-public sealed class LlmCudaSanityTest
+public sealed class LlmCudaSanityTest(LlmCudaFixture fixture, ITestOutputHelper output)
 {
-    private readonly LlmCudaFixture _fixture;
-    private readonly ITestOutputHelper _output;
-
-    public LlmCudaSanityTest(LlmCudaFixture fixture, ITestOutputHelper output)
-    {
-        _fixture = fixture;
-        _output = output;
-    }
+    private readonly LlmCudaFixture _fixture = fixture;
+    private readonly ITestOutputHelper _output = output;
 
     [Fact]
     public async Task LoadModel_RunTrivialPrompt_ReportTiming()

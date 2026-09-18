@@ -1332,24 +1332,18 @@ public static class CifpParser
 /// Result of parsing a CIFP file: FAF fix names per runway
 /// and terminal waypoint coordinates.
 /// </summary>
-public sealed class CifpParseResult
+public sealed class CifpParseResult(
+    Dictionary<(string Airport, string Runway), string> fafFixes,
+    Dictionary<string, (double Lat, double Lon)> terminalWaypoints
+)
 {
     /// <summary>
     /// (airport FAA ID, runway ID) → FAF fix identifier.
     /// </summary>
-    public Dictionary<(string Airport, string Runway), string> FafFixes { get; }
+    public Dictionary<(string Airport, string Runway), string> FafFixes { get; } = fafFixes;
 
     /// <summary>
     /// Fix identifier → (lat, lon) for terminal waypoints.
     /// </summary>
-    public Dictionary<string, (double Lat, double Lon)> TerminalWaypoints { get; }
-
-    public CifpParseResult(
-        Dictionary<(string Airport, string Runway), string> fafFixes,
-        Dictionary<string, (double Lat, double Lon)> terminalWaypoints
-    )
-    {
-        FafFixes = fafFixes;
-        TerminalWaypoints = terminalWaypoints;
-    }
+    public Dictionary<string, (double Lat, double Lon)> TerminalWaypoints { get; } = terminalWaypoints;
 }

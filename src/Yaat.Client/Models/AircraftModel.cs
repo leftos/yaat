@@ -1380,14 +1380,9 @@ public sealed class PropertySortComparer : IComparer
 /// Wraps any IComparer to always sort Active aircraft before Delayed,
 /// then delegates to the inner comparer within each group.
 /// </summary>
-public sealed class GroupStableSortComparer : IComparer
+public sealed class GroupStableSortComparer(IComparer inner) : IComparer
 {
-    private readonly IComparer _inner;
-
-    public GroupStableSortComparer(IComparer inner)
-    {
-        _inner = inner;
-    }
+    private readonly IComparer _inner = inner;
 
     public int Compare(object? x, object? y)
     {

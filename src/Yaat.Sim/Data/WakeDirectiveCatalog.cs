@@ -1,15 +1,10 @@
 namespace Yaat.Sim.Data;
 
-public sealed class WakeDirectiveCatalog
+public sealed class WakeDirectiveCatalog(IEnumerable<WakeDirectiveRule> rules)
 {
     public static WakeDirectiveCatalog Empty { get; } = new([]);
 
-    private readonly List<WakeDirectiveRule> _rules;
-
-    public WakeDirectiveCatalog(IEnumerable<WakeDirectiveRule> rules)
-    {
-        _rules = [.. rules];
-    }
+    private readonly List<WakeDirectiveRule> _rules = [.. rules];
 
     public IReadOnlyList<WakeDirectiveRule> FindMatches(WakeDirectiveContext context)
     {

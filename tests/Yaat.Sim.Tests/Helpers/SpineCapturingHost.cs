@@ -18,14 +18,9 @@ namespace Yaat.Sim.Tests.Helpers;
 /// <see cref="StepId.StateChanges"/> entry delivers what the tick steps produced. The strip change sets and the
 /// coordination notifications are recorded the same way.
 /// </summary>
-public sealed class SpineCapturingHost : ISimulationHost
+public sealed class SpineCapturingHost(SimulationEngine engine) : ISimulationHost
 {
-    private readonly ISimulationHost _bare;
-
-    public SpineCapturingHost(SimulationEngine engine)
-    {
-        _bare = engine.BareHost;
-    }
+    private readonly ISimulationHost _bare = engine.BareHost;
 
     /// <summary>Every TDLS change set the spine's drain step handed over, in order.</summary>
     public List<TdlsChangeSet> TdlsChanges { get; } = [];

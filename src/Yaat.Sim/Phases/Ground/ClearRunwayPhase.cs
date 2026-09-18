@@ -15,22 +15,16 @@ namespace Yaat.Sim.Phases.Ground;
 /// runway. The runway hold-short node and the approach (runway-side) node are kept so the navigator can be
 /// rebuilt after a snapshot restore; the navigator itself is transient, like <see cref="CrossingRunwayPhase"/>.
 /// </summary>
-public sealed class ClearRunwayPhase : Phase
+public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("ClearRunwayPhase");
 
-    private readonly int _runwayNodeId;
-    private readonly int _approachNodeId;
+    private readonly int _runwayNodeId = runwayNodeId;
+    private readonly int _approachNodeId = approachNodeId;
 
     private TaxiRoute? _route;
     private GroundNavigator? _navigator;
     private bool _initialized;
-
-    public ClearRunwayPhase(int runwayNodeId, int approachNodeId)
-    {
-        _runwayNodeId = runwayNodeId;
-        _approachNodeId = approachNodeId;
-    }
 
     public override string Name => "Clearing Runway";
 

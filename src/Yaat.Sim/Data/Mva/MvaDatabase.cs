@@ -11,7 +11,7 @@ namespace Yaat.Sim.Data.Mva;
 /// silent no-op (empty database) when no fixture is present. Query <see cref="FindSector"/> for the
 /// controlling MVA sector at a point.
 /// </summary>
-public sealed class MvaDatabase
+public sealed class MvaDatabase(IReadOnlyList<MvaSector> sectors)
 {
     private const string DefaultFixtureRelativePath = "Data/Mva";
 
@@ -24,12 +24,7 @@ public sealed class MvaDatabase
     /// <summary>Pin an explicit instance (tests). Pass null to revert to the lazy default.</summary>
     public static void SetInstance(MvaDatabase? instance) => _instanceOverride = instance;
 
-    public IReadOnlyList<MvaSector> Sectors { get; }
-
-    public MvaDatabase(IReadOnlyList<MvaSector> sectors)
-    {
-        Sectors = sectors;
-    }
+    public IReadOnlyList<MvaSector> Sectors { get; } = sectors;
 
     /// <summary>
     /// The controlling MVA sector at a point, or null if no sector covers it. When sectors overlap

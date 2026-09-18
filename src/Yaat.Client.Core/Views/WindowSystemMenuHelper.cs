@@ -21,7 +21,7 @@ namespace Yaat.Client.Views;
 ///   <item><description><b>macOS:</b> no-op. macOS has no equivalent per-window system menu.</description></item>
 /// </list>
 /// </summary>
-public sealed class WindowSystemMenuHelper
+public sealed class WindowSystemMenuHelper(Window window, WindowGeometryHelper geometryHelper, UserPreferences preferences, string windowName)
 {
     private const uint MF_BYCOMMAND = 0x0000_0000;
     private const uint MF_BYPOSITION = 0x0000_0400;
@@ -38,23 +38,15 @@ public sealed class WindowSystemMenuHelper
 
     private static readonly UIntPtr SubclassId = new(0xA70_A70Au);
 
-    private readonly Window _window;
-    private readonly WindowGeometryHelper _geometryHelper;
-    private readonly UserPreferences _preferences;
-    private readonly string _windowName;
+    private readonly Window _window = window;
+    private readonly WindowGeometryHelper _geometryHelper = geometryHelper;
+    private readonly UserPreferences _preferences = preferences;
+    private readonly string _windowName = windowName;
 
     private SubclassProc? _subclassProc;
     private IntPtr _hwnd;
     private IntPtr _systemMenu;
     private bool _menuInstalled;
-
-    public WindowSystemMenuHelper(Window window, WindowGeometryHelper geometryHelper, UserPreferences preferences, string windowName)
-    {
-        _window = window;
-        _geometryHelper = geometryHelper;
-        _preferences = preferences;
-        _windowName = windowName;
-    }
 
     public void Attach()
     {

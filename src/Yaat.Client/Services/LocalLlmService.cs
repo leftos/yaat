@@ -38,14 +38,9 @@ public interface ILlmRuntimeConfig
 }
 
 /// <summary>Adapter exposing a <see cref="UserPreferences"/> through <see cref="ILlmRuntimeConfig"/>.</summary>
-public sealed class PreferencesLlmRuntimeConfig : ILlmRuntimeConfig
+public sealed class PreferencesLlmRuntimeConfig(UserPreferences preferences) : ILlmRuntimeConfig
 {
-    private readonly UserPreferences _preferences;
-
-    public PreferencesLlmRuntimeConfig(UserPreferences preferences)
-    {
-        _preferences = preferences;
-    }
+    private readonly UserPreferences _preferences = preferences;
 
     public string ModelPath => _preferences.LlmModelPath;
     public int GpuLayers => _preferences.LlmGpuLayers;
@@ -66,11 +61,11 @@ public sealed class PreferencesLlmRuntimeConfig : ILlmRuntimeConfig
 /// syntactically valid YAAT canonical commands; pass <c>null</c> for freeform generation (used
 /// by <see cref="LocalLlmCallsignResolver"/>, which validates against the active list afterward).
 /// </summary>
-public sealed class LocalLlmService : IDisposable
+public sealed class LocalLlmService(ILlmRuntimeConfig config) : IDisposable
 {
     private static readonly ILogger Log = AppLog.CreateLogger<LocalLlmService>();
 
-    private readonly ILlmRuntimeConfig _config;
+    private readonly ILlmRuntimeConfig _config = config;
     private readonly SemaphoreSlim _inferenceLock = new(1, 1);
 
     // Only the expensive LM (model weights + native handles) is cached. SingleTurnConversation is
@@ -79,11 +74,6 @@ public sealed class LocalLlmService : IDisposable
     private LM? _model;
     private string? _loadedSource;
     private int _loadedGpuLayers;
-
-    public LocalLlmService(ILlmRuntimeConfig config)
-    {
-        _config = config;
-    }
 
     /// <summary>
     /// True when a model source is configured. For absolute file paths, also requires the file to

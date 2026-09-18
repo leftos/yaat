@@ -22,14 +22,9 @@ namespace Yaat.Sim.Tests;
 /// looser 100 ft to keep the test stable across runway-width assumptions and small
 /// physics changes).
 /// </summary>
-public class FinalApproachGenuineOffsetTests
+public class FinalApproachGenuineOffsetTests(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper _output;
-
-    public FinalApproachGenuineOffsetTests(ITestOutputHelper output)
-    {
-        _output = output;
-    }
+    private readonly ITestOutputHelper _output = output;
 
     [Fact]
     public void GenuineOffset_18Deg_AlignsToCenterlineByTouchdown()

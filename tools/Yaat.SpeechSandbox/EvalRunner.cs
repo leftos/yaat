@@ -50,26 +50,16 @@ internal sealed record EvalExpectation(
 internal static class EvalRunner
 {
     /// <summary>LLM config for the LMKIT_TEST_MODEL override path. GPU layers stay on auto.</summary>
-    private sealed class OverrideLlmRuntimeConfig : ILlmRuntimeConfig
+    private sealed class OverrideLlmRuntimeConfig(string modelPath) : ILlmRuntimeConfig
     {
-        public OverrideLlmRuntimeConfig(string modelPath)
-        {
-            ModelPath = modelPath;
-        }
-
-        public string ModelPath { get; }
+        public string ModelPath { get; } = modelPath;
         public int GpuLayers => -1;
     }
 
     /// <summary>Whisper config carrying an explicit model source (prefs default or --whisper override).</summary>
-    private sealed class OverrideWhisperRuntimeConfig : IWhisperRuntimeConfig
+    private sealed class OverrideWhisperRuntimeConfig(string modelSource) : IWhisperRuntimeConfig
     {
-        public OverrideWhisperRuntimeConfig(string modelSource)
-        {
-            ModelSource = modelSource;
-        }
-
-        public string ModelSource { get; }
+        public string ModelSource { get; } = modelSource;
     }
 
     public static async Task<int> RunAsync(string[] args)

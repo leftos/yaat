@@ -16,14 +16,9 @@ namespace Yaat.Sim.Tests;
 /// Drives the simulation through SimulationWorld.Tick + a preTick callback that runs
 /// PhaseRunner.Tick — same path SimulationEngine.TickPhysics uses in production.
 /// </summary>
-public class LandingPhaseStabilizationDiagnosticTests
+public class LandingPhaseStabilizationDiagnosticTests(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper _output;
-
-    public LandingPhaseStabilizationDiagnosticTests(ITestOutputHelper output)
-    {
-        _output = output;
-    }
+    private readonly ITestOutputHelper _output = output;
 
     private static RunwayInfo MakeRunway() =>
         TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 0, thresholdLat: 37.0, thresholdLon: -122.0);

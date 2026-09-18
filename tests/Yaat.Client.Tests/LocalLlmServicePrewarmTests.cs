@@ -35,14 +35,9 @@ public class LocalLlmServicePrewarmTests
         Assert.False(service.IsConfigured);
     }
 
-    private sealed class FakeConfig : ILlmRuntimeConfig
+    private sealed class FakeConfig(string modelPath) : ILlmRuntimeConfig
     {
-        public FakeConfig(string modelPath)
-        {
-            ModelPath = modelPath;
-        }
-
-        public string ModelPath { get; }
+        public string ModelPath { get; } = modelPath;
         public int GpuLayers => 0;
     }
 }

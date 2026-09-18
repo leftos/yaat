@@ -26,14 +26,9 @@ public interface IWhisperRuntimeConfig
 }
 
 /// <summary>Adapter exposing a <see cref="UserPreferences"/> through <see cref="IWhisperRuntimeConfig"/>.</summary>
-public sealed class PreferencesWhisperRuntimeConfig : IWhisperRuntimeConfig
+public sealed class PreferencesWhisperRuntimeConfig(UserPreferences preferences) : IWhisperRuntimeConfig
 {
-    private readonly UserPreferences _preferences;
-
-    public PreferencesWhisperRuntimeConfig(UserPreferences preferences)
-    {
-        _preferences = preferences;
-    }
+    private readonly UserPreferences _preferences = preferences;
 
     public string ModelSource => _preferences.WhisperModelSize;
 }
@@ -58,11 +53,11 @@ public sealed class PreferencesWhisperRuntimeConfig : IWhisperRuntimeConfig
 /// - LM-Kit fails to load the model or throws during inference,
 /// - the transcript is empty or matches the noise-marker heuristic.
 /// </summary>
-public sealed class WhisperSttEngine : IDisposable
+public sealed class WhisperSttEngine(IWhisperRuntimeConfig config) : IDisposable
 {
     private static readonly ILogger Log = AppLog.CreateLogger<WhisperSttEngine>();
 
-    private readonly IWhisperRuntimeConfig _config;
+    private readonly IWhisperRuntimeConfig _config = config;
     private readonly SemaphoreSlim _transcribeLock = new(1, 1);
 
     // Cache the LM (model weights + native handles) and the SpeechToText engine that wraps it.
@@ -72,11 +67,6 @@ public sealed class WhisperSttEngine : IDisposable
     private LM? _model;
     private SpeechToText? _stt;
     private string? _loadedModelSource;
-
-    public WhisperSttEngine(IWhisperRuntimeConfig config)
-    {
-        _config = config;
-    }
 
     /// <summary>
     /// True when the configured Whisper model identifier is non-empty. We trust LM-Kit to

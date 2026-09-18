@@ -24,16 +24,11 @@ namespace Yaat.Client.Services;
 /// caller-side pass (in MainWindow) sweeps still-open windows to push the new
 /// geometry onto them via <see cref="WindowGeometryHelper.ApplyGeometry"/>.
 /// </summary>
-public sealed class WindowProfileService
+public sealed class WindowProfileService(UserPreferences preferences)
 {
     private static readonly ILogger Log = AppLog.CreateLogger<WindowProfileService>();
 
-    private readonly UserPreferences _preferences;
-
-    public WindowProfileService(UserPreferences preferences)
-    {
-        _preferences = preferences;
-    }
+    private readonly UserPreferences _preferences = preferences;
 
     /// <summary>
     /// Builds a profile from the current state of every live window plus the

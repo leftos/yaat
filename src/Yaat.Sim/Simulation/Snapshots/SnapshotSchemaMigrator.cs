@@ -4,20 +4,13 @@ namespace Yaat.Sim.Simulation.Snapshots;
 /// Thrown when a snapshot's schema version cannot be upgraded to the current version.
 /// Callers should fall back to command replay (v1 mode) for this recording.
 /// </summary>
-public sealed class SnapshotSchemaException : Exception
+public sealed class SnapshotSchemaException(int snapshotVersion, int requiredVersion)
+    : Exception(
+        $"Snapshot schema version {snapshotVersion} cannot be migrated to version {requiredVersion}. " + "Use command replay mode for this recording."
+    )
 {
-    public int SnapshotVersion { get; }
-    public int RequiredVersion { get; }
-
-    public SnapshotSchemaException(int snapshotVersion, int requiredVersion)
-        : base(
-            $"Snapshot schema version {snapshotVersion} cannot be migrated to version {requiredVersion}. "
-                + "Use command replay mode for this recording."
-        )
-    {
-        SnapshotVersion = snapshotVersion;
-        RequiredVersion = requiredVersion;
-    }
+    public int SnapshotVersion { get; } = snapshotVersion;
+    public int RequiredVersion { get; } = requiredVersion;
 }
 
 /// <summary>

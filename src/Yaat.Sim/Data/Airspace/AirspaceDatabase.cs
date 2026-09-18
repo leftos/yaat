@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Yaat.Sim.Data.Airspace;
 
-public sealed class AirspaceDatabase
+public sealed class AirspaceDatabase(IReadOnlyList<AirspaceVolume> volumes)
 {
     private const string DefaultFixtureRelativePath = "Data/Airspace";
 
@@ -13,15 +13,9 @@ public sealed class AirspaceDatabase
 
     public static AirspaceDatabase Default => DefaultInstance.Value;
 
-    public IReadOnlyList<AirspaceVolume> Volumes { get; }
+    public IReadOnlyList<AirspaceVolume> Volumes { get; } = volumes;
 
-    private readonly List<AirspaceVolume> _bravoVolumes;
-
-    public AirspaceDatabase(IReadOnlyList<AirspaceVolume> volumes)
-    {
-        Volumes = volumes;
-        _bravoVolumes = [.. volumes.Where(v => v.Class == AirspaceClass.Bravo)];
-    }
+    private readonly List<AirspaceVolume> _bravoVolumes = [.. volumes.Where(v => v.Class == AirspaceClass.Bravo)];
 
     public IEnumerable<AirspaceVolume> FindContaining(LatLon position, double altitudeFtMsl) =>
         Volumes.Where(v => v.Contains(position, altitudeFtMsl));

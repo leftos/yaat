@@ -10,17 +10,12 @@ namespace Yaat.Client.ViewModels;
 /// so existing <see cref="StripItemViewModel"/> instances are preserved across
 /// server broadcasts — keeps UI selection stable during moves.
 /// </summary>
-public class StripRackViewModel
+public class StripRackViewModel(int rackIndex)
 {
     private static readonly ILogger Log = SimLog.CreateLogger("StripRackViewModel");
 
-    public int RackIndex { get; }
+    public int RackIndex { get; } = rackIndex;
     public ObservableCollection<StripItemViewModel> Strips { get; } = [];
-
-    public StripRackViewModel(int rackIndex)
-    {
-        RackIndex = rackIndex;
-    }
 
     /// <summary>
     /// Rebuilds <see cref="Strips"/> from <paramref name="newOrder"/> (strip ids

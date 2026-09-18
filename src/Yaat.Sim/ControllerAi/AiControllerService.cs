@@ -10,26 +10,18 @@ namespace Yaat.Sim.ControllerAi;
 /// stream so AI variability never perturbs the pilot or physics streams; the stream is re-seeded on <see cref="Reset"/>
 /// rather than snapshotted (a rewind is not bit-identical for the AI, by design).
 /// </summary>
-public sealed class AiControllerService
+public sealed class AiControllerService(IReadOnlyList<IPositionBrain> brains, IAiStaffing staffing, IAiCommandSink sink, ControllerAiConfig config)
 {
-    public AiControllerService(IReadOnlyList<IPositionBrain> brains, IAiStaffing staffing, IAiCommandSink sink, ControllerAiConfig config)
-    {
-        Brains = [.. brains.OrderBy(b => ControlRoles.Rank(b.Position.Role)).ThenBy(b => b.Position.PositionId, StringComparer.Ordinal)];
-        Staffing = staffing;
-        Sink = sink;
-        Config = config;
-        AiRng = new SerializableRandom(config.Seed);
-    }
+    public IReadOnlyList<IPositionBrain> Brains { get; } =
+    [.. brains.OrderBy(b => ControlRoles.Rank(b.Position.Role)).ThenBy(b => b.Position.PositionId, StringComparer.Ordinal)];
 
-    public IReadOnlyList<IPositionBrain> Brains { get; }
+    public IAiStaffing Staffing { get; } = staffing;
 
-    public IAiStaffing Staffing { get; }
+    public IAiCommandSink Sink { get; } = sink;
 
-    public IAiCommandSink Sink { get; }
+    public ControllerAiConfig Config { get; } = config;
 
-    public ControllerAiConfig Config { get; }
-
-    public SerializableRandom AiRng { get; private set; }
+    public SerializableRandom AiRng { get; private set; } = new SerializableRandom(config.Seed);
 
     /// <summary>Per-airport runway-in-use decisions shared by every brain; re-resolved after a reset.</summary>
     public RunwayInUseState RunwayInUse { get; } = new(FacilityOpsDatabase.For);

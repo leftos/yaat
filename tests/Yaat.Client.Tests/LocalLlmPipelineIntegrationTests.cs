@@ -20,16 +20,9 @@ namespace Yaat.Client.Tests;
 /// 3. Run <c>dotnet test --filter FullyQualifiedName~LocalLlmPipelineIntegration</c>.
 /// </summary>
 [Collection("LLM")]
-public sealed class LocalLlmPipelineIntegrationTests
+public sealed class LocalLlmPipelineIntegrationTests(LlmCudaFixture fixture)
 {
-    private readonly LocalLlmCommandMapper? _mapper;
-
-    public LocalLlmPipelineIntegrationTests(LlmCudaFixture fixture)
-    {
-        // Reuse the fixture's shared LocalLlmService so the 1.1 GB Qwen weights load exactly once
-        // per test run instead of once per test. Null when the GGUF is absent.
-        _mapper = fixture.SharedServiceOrNull is { } shared ? new LocalLlmCommandMapper(shared) : null;
-    }
+    private readonly LocalLlmCommandMapper? _mapper = fixture.SharedServiceOrNull is { } shared ? new LocalLlmCommandMapper(shared) : null;
 
     [Fact]
     public async Task ClimbAndMaintain_ProducesExactCM()

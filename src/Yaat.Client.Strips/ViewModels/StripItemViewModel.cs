@@ -13,10 +13,10 @@ namespace Yaat.Client.ViewModels;
 /// Instances are updated in place (via <see cref="UpdateFromDto"/>) so DataTemplate
 /// bindings stay stable across reconciliation.
 /// </summary>
-public partial class StripItemViewModel : ObservableObject, IFindableItem
+public partial class StripItemViewModel(StripItemDto dto) : ObservableObject, IFindableItem
 {
     [ObservableProperty]
-    private StripItemDto _dto;
+    private StripItemDto _dto = dto;
 
     // In-view Find (Ctrl+F) highlight flags. Written only by the shared FindController;
     // FlightStripControl binds a cyan overlay to them (distinct from the yellow selection ring).
@@ -42,11 +42,6 @@ public partial class StripItemViewModel : ObservableObject, IFindableItem
     /// it. Never set for remote/CRC-created strips, so focus is not stolen.
     /// </summary>
     public bool RequestFocusFirstCell { get; set; }
-
-    public StripItemViewModel(StripItemDto dto)
-    {
-        _dto = dto;
-    }
 
     public string Id => Dto.Id;
     public string? AircraftId => Dto.AircraftId;

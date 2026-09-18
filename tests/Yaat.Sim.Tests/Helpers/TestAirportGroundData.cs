@@ -18,22 +18,17 @@ namespace Yaat.Sim.Tests.Helpers;
 /// fillet generator — so the ~150 existing call sites build the shipping graph.
 /// Pass <see cref="FilletMode.None"/> explicitly for raw-graph (unfilleted) tests.
 /// </summary>
-internal sealed class TestAirportGroundData : IAirportGroundData
+internal sealed class TestAirportGroundData(FilletMode filletMode) : IAirportGroundData
 {
     private const string TestDataDir = "TestData";
 
     private static readonly Dictionary<(FilletMode Mode, string ShortId), AirportGroundLayout?> Cache = [];
     private static readonly object CacheLock = new();
 
-    private readonly FilletMode _filletMode;
+    private readonly FilletMode _filletMode = filletMode;
 
     public TestAirportGroundData()
         : this(FilletMode.Standard) { }
-
-    public TestAirportGroundData(FilletMode filletMode)
-    {
-        _filletMode = filletMode;
-    }
 
     public AirportGroundLayout? GetLayout(string airportId)
     {

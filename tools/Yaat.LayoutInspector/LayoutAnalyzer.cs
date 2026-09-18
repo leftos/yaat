@@ -5,16 +5,10 @@ using static Yaat.Sim.Data.Airport.AirportGroundLayout;
 
 namespace Yaat.LayoutInspector;
 
-public sealed class LayoutAnalyzer
+public sealed class LayoutAnalyzer(AirportGroundLayout layout)
 {
-    public AirportGroundLayout Layout { get; }
-    public string AirportId { get; }
-
-    public LayoutAnalyzer(AirportGroundLayout layout)
-    {
-        Layout = layout;
-        AirportId = layout.AirportId;
-    }
+    public AirportGroundLayout Layout { get; } = layout;
+    public string AirportId { get; } = layout.AirportId;
 
     public static LayoutAnalyzer Load(string geoJsonPath, string? airportCode, FilletMode filletMode)
     {

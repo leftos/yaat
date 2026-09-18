@@ -6,11 +6,9 @@ using Yaat.Sim.Tests.Helpers;
 namespace Yaat.Sim.Tests.Fillet;
 
 /// <summary>Decode degenerate self-loop origins for planner op naming (OAK gate triage).</summary>
-public class FilletDegenerateEdgeDiagnosticTests
+public class FilletDegenerateEdgeDiagnosticTests(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper _output;
-
-    public FilletDegenerateEdgeDiagnosticTests(ITestOutputHelper output) => _output = output;
+    private readonly ITestOutputHelper _output = output;
 
     [Theory]
     [InlineData("oak")]

@@ -14,7 +14,7 @@ namespace Yaat.Sim.Tests.Fillet;
 /// Also guards against zero-distance edges emitted by the edge-split when a tangent cut
 /// lands coincident with an existing Spot or Parking endpoint node.
 /// </summary>
-public class FilletCornerSpanGuardTests
+public class FilletCornerSpanGuardTests(ITestOutputHelper output)
 {
     private const double MaxSaneCornerSpanFt = 300.0;
 
@@ -24,9 +24,7 @@ public class FilletCornerSpanGuardTests
     /// </summary>
     private const double ZeroDistanceEdgeThresholdFt = GeometricAdmissibility.NoOpEdgeThresholdNm * GeoMath.FeetPerNm;
 
-    private readonly ITestOutputHelper _output;
-
-    public FilletCornerSpanGuardTests(ITestOutputHelper output) => _output = output;
+    private readonly ITestOutputHelper _output = output;
 
     [Theory]
     [InlineData("sfo")]

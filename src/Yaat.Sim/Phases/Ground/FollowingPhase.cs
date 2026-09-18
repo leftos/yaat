@@ -12,7 +12,7 @@ namespace Yaat.Sim.Phases.Ground;
 /// Completes when the target is deleted or no longer on the ground.
 /// Requires PhaseContext.AircraftLookup to resolve the target.
 /// </summary>
-public sealed class FollowingPhase : Phase
+public sealed class FollowingPhase(string targetCallsign) : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("FollowingPhase");
 
@@ -32,13 +32,8 @@ public sealed class FollowingPhase : Phase
     private const double HoldShortAngleThreshold = 90.0;
     private const double LogIntervalSeconds = 3.0;
 
-    private readonly string _targetCallsign;
+    private readonly string _targetCallsign = targetCallsign;
     private double _timeSinceLastLog;
-
-    public FollowingPhase(string targetCallsign)
-    {
-        _targetCallsign = targetCallsign;
-    }
 
     public string TargetCallsign => _targetCallsign;
 

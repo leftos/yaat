@@ -13,17 +13,12 @@ namespace Yaat.Sim.Phases.Ground;
 /// Clearance-gated: completes when RunwayCrossing clearance is satisfied
 /// (via CROSS, LUAW, or CTO command).
 /// </summary>
-public sealed class HoldingShortPhase : Phase
+public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("HoldingShortPhase");
 
-    private HoldShortPoint _holdShort;
+    private HoldShortPoint _holdShort = holdShort;
     private bool _hasAnnouncedReady;
-
-    public HoldingShortPhase(HoldShortPoint holdShort)
-    {
-        _holdShort = holdShort;
-    }
 
     public HoldShortPoint HoldShort => _holdShort;
 

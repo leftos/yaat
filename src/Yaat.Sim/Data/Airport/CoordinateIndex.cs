@@ -4,15 +4,10 @@ namespace Yaat.Sim.Data.Airport;
 /// Simple spatial index for fast coordinate snapping within a tolerance.
 /// Uses a grid-based bucketing approach.
 /// </summary>
-internal sealed class CoordinateIndex
+internal sealed class CoordinateIndex(double tolerance)
 {
-    private readonly double _tolerance;
+    private readonly double _tolerance = tolerance;
     private readonly Dictionary<(int LatBucket, int LonBucket), List<(double Lat, double Lon, int NodeId)>> _grid = [];
-
-    public CoordinateIndex(double tolerance)
-    {
-        _tolerance = tolerance;
-    }
 
     public void Add(double lat, double lon, int nodeId)
     {

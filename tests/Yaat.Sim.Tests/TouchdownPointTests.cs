@@ -18,15 +18,9 @@ namespace Yaat.Sim.Tests;
 /// the touchdown zone at 100–3,000 ft. A transport landing short of the threshold is landing on pavement
 /// that may be displaced (departures-only).
 /// </summary>
-public class TouchdownPointTests
+public class TouchdownPointTests(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper _output;
-
-    public TouchdownPointTests(ITestOutputHelper output)
-    {
-        _output = output;
-    }
-
+    private readonly ITestOutputHelper _output = output;
     private const double ThresholdLat = 37.72;
     private const double ThresholdLon = -122.22;
     private const double ThresholdElev = 9.0;

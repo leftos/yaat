@@ -9,7 +9,7 @@ using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Tests;
 
-public class GeoJsonParserTests
+public class GeoJsonParserTests(ITestOutputHelper output)
 {
     /// <summary>Minimal GeoJSON with 2 parking spots, 2 taxiways, and 1 spot.</summary>
     private const string MinimalGeoJson = """
@@ -408,12 +408,7 @@ public class GeoJsonParserTests
         _output.WriteLine($"Wrote layout dump to {outPath}");
     }
 
-    private readonly ITestOutputHelper _output;
-
-    public GeoJsonParserTests(ITestOutputHelper output)
-    {
-        _output = output;
-    }
+    private readonly ITestOutputHelper _output = output;
 
     [Fact]
     public void Parse_OakRunways_ReadsAuthoredFields()

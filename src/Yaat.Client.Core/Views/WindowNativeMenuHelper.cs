@@ -21,22 +21,14 @@ namespace Yaat.Client.Views;
 ///     changes.</description></item>
 /// </list>
 /// </summary>
-public sealed class WindowNativeMenuHelper
+public sealed class WindowNativeMenuHelper(Window window, WindowGeometryHelper geometryHelper, UserPreferences preferences, string windowName)
 {
-    private readonly Window _window;
-    private readonly WindowGeometryHelper _geometryHelper;
-    private readonly UserPreferences _preferences;
-    private readonly string _windowName;
+    private readonly Window _window = window;
+    private readonly WindowGeometryHelper _geometryHelper = geometryHelper;
+    private readonly UserPreferences _preferences = preferences;
+    private readonly string _windowName = windowName;
 
     private NativeMenuItem? _alwaysOnTopItem;
-
-    public WindowNativeMenuHelper(Window window, WindowGeometryHelper geometryHelper, UserPreferences preferences, string windowName)
-    {
-        _window = window;
-        _geometryHelper = geometryHelper;
-        _preferences = preferences;
-        _windowName = windowName;
-    }
 
     public void Attach()
     {

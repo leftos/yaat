@@ -5,14 +5,9 @@ using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Tests;
 
-public class FinalApproachLateralTests
+public class FinalApproachLateralTests(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper _output;
-
-    public FinalApproachLateralTests(ITestOutputHelper output)
-    {
-        _output = output;
-    }
+    private readonly ITestOutputHelper _output = output;
 
     private record ScenarioResult(double FinalXte, double FinalHdgDiff, int CompleteTick);
 

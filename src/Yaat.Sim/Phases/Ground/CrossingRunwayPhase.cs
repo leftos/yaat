@@ -24,15 +24,15 @@ namespace Yaat.Sim.Phases.Ground;
 /// an exactly perpendicular straight line (e.g. SFO H crossing 01L/19R —
 /// see GitHub issue #166).
 /// </summary>
-public sealed class CrossingRunwayPhase : Phase
+public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, string? runwayId) : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("CrossingRunwayPhase");
 
     private const double LogIntervalSeconds = 3.0;
 
-    private readonly int _approachNodeId;
-    private readonly int _targetNodeId;
-    private readonly string? _runwayId;
+    private readonly int _approachNodeId = approachNodeId;
+    private readonly int _targetNodeId = targetNodeId;
+    private readonly string? _runwayId = runwayId;
 
     // Built lazily in OnStart (or first OnTick after snapshot restore) by
     // slicing the aircraft's AssignedTaxiRoute between approach and target.
@@ -47,13 +47,6 @@ public sealed class CrossingRunwayPhase : Phase
     private int _exitRouteIndex = -1;
     private int _tailClearFullSegments;
     private bool _tailClearPartial;
-
-    public CrossingRunwayPhase(int approachNodeId, int targetNodeId, string? runwayId)
-    {
-        _approachNodeId = approachNodeId;
-        _targetNodeId = targetNodeId;
-        _runwayId = runwayId;
-    }
 
     public override string Name => "Crossing Runway";
 

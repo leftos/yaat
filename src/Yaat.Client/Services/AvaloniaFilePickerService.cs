@@ -7,14 +7,9 @@ namespace Yaat.Client.Services;
 // of the given TopLevel (usually a Window). The TopLevel determines which
 // window the picker dialog is modal to, so each Window should construct its
 // own instance rather than share one from MainWindow.
-public sealed class AvaloniaFilePickerService : IFilePickerService
+public sealed class AvaloniaFilePickerService(TopLevel topLevel) : IFilePickerService
 {
-    private readonly TopLevel _topLevel;
-
-    public AvaloniaFilePickerService(TopLevel topLevel)
-    {
-        _topLevel = topLevel;
-    }
+    private readonly TopLevel _topLevel = topLevel;
 
     public async Task<string?> OpenFileAsync(OpenFileOptions options)
     {

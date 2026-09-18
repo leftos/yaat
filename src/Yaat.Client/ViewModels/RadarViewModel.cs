@@ -41,16 +41,21 @@ public enum BriteTarget
     Wxc,
 }
 
-public partial class RadarViewModel : ObservableObject
+public partial class RadarViewModel(
+    ServerConnection connection,
+    VideoMapService videoMapService,
+    Func<string, string, string, Task> sendCommand,
+    Action<AircraftModel?>? onSelectionChanged = null
+) : ObservableObject
 {
     public static readonly double[] RangeRingSizeSteps = [2, 5, 10, 15, 20];
 
     private readonly ILogger _log = AppLog.CreateLogger<RadarViewModel>();
 
-    private readonly ServerConnection _connection;
-    private readonly VideoMapService _videoMapService;
-    private readonly Func<string, string, string, Task> _sendCommand;
-    private readonly Action<AircraftModel?>? _onSelectionChanged;
+    private readonly ServerConnection _connection = connection;
+    private readonly VideoMapService _videoMapService = videoMapService;
+    private readonly Func<string, string, string, Task> _sendCommand = sendCommand;
+    private readonly Action<AircraftModel?>? _onSelectionChanged = onSelectionChanged;
 
     private string? _activeScenarioId;
     private string? _activeArtccId;
@@ -327,19 +332,6 @@ public partial class RadarViewModel : ObservableObject
     /// server round-trip that method needs.
     /// </summary>
     internal void SetScenarioIdForTesting(string? scenarioId) => _activeScenarioId = scenarioId;
-
-    public RadarViewModel(
-        ServerConnection connection,
-        VideoMapService videoMapService,
-        Func<string, string, string, Task> sendCommand,
-        Action<AircraftModel?>? onSelectionChanged = null
-    )
-    {
-        _connection = connection;
-        _videoMapService = videoMapService;
-        _sendCommand = sendCommand;
-        _onSelectionChanged = onSelectionChanged;
-    }
 
     public void SetPreferences(UserPreferences prefs)
     {

@@ -5,14 +5,9 @@ using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Tests;
 
-public class FinalApproachDescentTests
+public class FinalApproachDescentTests(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper _output;
-
-    public FinalApproachDescentTests(ITestOutputHelper output)
-    {
-        _output = output;
-    }
+    private readonly ITestOutputHelper _output = output;
 
     private record DescentResult(double FinalAltitude, double FinalDistNm, int CompleteTick, bool GoAroundTriggered, List<string> Warnings);
 

@@ -9,15 +9,13 @@ namespace Yaat.LayoutInspector;
 /// structural issues — stale node references, degenerate arcs, tangent
 /// misalignment, etc. Runs after fillet generation to catch bugs.
 /// </summary>
-public sealed class LayoutValidator
+public sealed class LayoutValidator(AirportGroundLayout layout)
 {
     /// <summary>A genuine turn arc rounded below this radius (ft) is treated as a degenerate bezier.</summary>
     private const double DegenerateRadiusFt = 5.0;
 
-    private readonly AirportGroundLayout _layout;
+    private readonly AirportGroundLayout _layout = layout;
     private readonly List<ValidationWarning> _warnings = [];
-
-    public LayoutValidator(AirportGroundLayout layout) => _layout = layout;
 
     public List<ValidationWarning> Validate()
     {

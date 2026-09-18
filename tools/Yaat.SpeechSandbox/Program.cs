@@ -555,15 +555,9 @@ public static class Program
     /// preferences. Without this we'd silently rebind to <c>PreferencesLlmRuntimeConfig</c> and
     /// the probe would no longer be reproducible across machines.
     /// </summary>
-    private sealed class ProbeLlmRuntimeConfig : ILlmRuntimeConfig
+    private sealed class ProbeLlmRuntimeConfig(string modelPath, int gpuLayers) : ILlmRuntimeConfig
     {
-        public ProbeLlmRuntimeConfig(string modelPath, int gpuLayers)
-        {
-            ModelPath = modelPath;
-            GpuLayers = gpuLayers;
-        }
-
-        public string ModelPath { get; }
-        public int GpuLayers { get; }
+        public string ModelPath { get; } = modelPath;
+        public int GpuLayers { get; } = gpuLayers;
     }
 }

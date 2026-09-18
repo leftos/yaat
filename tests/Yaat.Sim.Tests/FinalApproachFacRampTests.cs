@@ -20,14 +20,9 @@ namespace Yaat.Sim.Tests;
 /// <c>phase.OnTick()</c> directly bypass phase advance and don't catch
 /// inter-phase regressions like the one this fixture is built for.
 /// </summary>
-public class FinalApproachFacRampTests
+public class FinalApproachFacRampTests(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper _output;
-
-    public FinalApproachFacRampTests(ITestOutputHelper output)
-    {
-        _output = output;
-    }
+    private readonly ITestOutputHelper _output = output;
 
     [Fact]
     public void FacOffsetByMagVar_AlignsToRunwayBeforeFlare()

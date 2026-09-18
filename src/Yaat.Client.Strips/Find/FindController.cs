@@ -10,10 +10,10 @@ namespace Yaat.Client.Find;
 /// <see cref="IFindableItem"/> highlight flags, and asks the host to scroll the current match
 /// into view. UI-agnostic — no Avalonia dependency — so it is unit-testable directly.
 /// </summary>
-public sealed partial class FindController : ObservableObject
+public sealed partial class FindController(Func<IReadOnlyList<IFindableItem>> snapshot, Action<IFindableItem> scrollTo) : ObservableObject
 {
-    private readonly Func<IReadOnlyList<IFindableItem>> _snapshot;
-    private readonly Action<IFindableItem> _scrollTo;
+    private readonly Func<IReadOnlyList<IFindableItem>> _snapshot = snapshot ?? throw new ArgumentNullException(nameof(snapshot));
+    private readonly Action<IFindableItem> _scrollTo = scrollTo ?? throw new ArgumentNullException(nameof(scrollTo));
 
     // Items currently carrying highlight flags. Tracked so a recompute can clear flags on rows
     // that have since left the snapshot (e.g. a vStrips bay switch) — the fresh snapshot alone
@@ -30,12 +30,6 @@ public sealed partial class FindController : ObservableObject
     /// <summary>The search text bound to the find bar's input.</summary>
     [ObservableProperty]
     private string _query = "";
-
-    public FindController(Func<IReadOnlyList<IFindableItem>> snapshot, Action<IFindableItem> scrollTo)
-    {
-        _snapshot = snapshot ?? throw new ArgumentNullException(nameof(snapshot));
-        _scrollTo = scrollTo ?? throw new ArgumentNullException(nameof(scrollTo));
-    }
 
     /// <summary>Bar caption: empty with no query, "No matches", or "{ordinal}/{count}".</summary>
     public string MatchSummary
