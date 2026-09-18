@@ -46,16 +46,10 @@ public partial class TerminalPanelView : UserControl
         TerminalEditor.TextArea.TextView.LineTransformers.Add(_colorizer);
         TerminalEditor.TextArea.Caret.CaretBrush = Brushes.Transparent;
 
-        if (prefs is not null)
-        {
-            prefs.TerminalColorsChanged += OnTerminalColorsChanged;
-        }
+        prefs?.TerminalColorsChanged += OnTerminalColorsChanged;
 
         _scrollViewer = TerminalEditor.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
-        if (_scrollViewer is not null)
-        {
-            _scrollViewer.ScrollChanged += OnScrollChanged;
-        }
+        _scrollViewer?.ScrollChanged += OnScrollChanged;
 
         foreach ((ToggleButton? toggle, TerminalEntryKind _) in EnumerateCategoryToggles())
         {
@@ -110,11 +104,8 @@ public partial class TerminalPanelView : UserControl
             }
         }
 
-        if (_scrollViewer is not null)
-        {
-            _scrollViewer.ScrollChanged -= OnScrollChanged;
-            _scrollViewer = null;
-        }
+        _scrollViewer?.ScrollChanged -= OnScrollChanged;
+        _scrollViewer = null;
 
         if (_colorizer is not null)
         {

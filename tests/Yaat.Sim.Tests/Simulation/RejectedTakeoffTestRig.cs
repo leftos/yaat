@@ -45,8 +45,8 @@ internal static class RejectedTakeoffTestRig
             IndicatedAirspeed = iasKts,
             IsOnGround = true,
             FlightPlan = new AircraftFlightPlan { Departure = "OAK", Altitude = PlannedAltitude.Ifr(5000) },
+            Phases = new PhaseList { AssignedRunway = runway },
         };
-        ac.Phases = new PhaseList { AssignedRunway = runway };
         ac.Phases.Add(new TakeoffPhase());
         return ac;
     }

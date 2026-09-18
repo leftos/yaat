@@ -63,8 +63,8 @@ public class VfrFollowPhaseTests : IDisposable
             // Default: traffic already in sight. Tests that exercise the RTIS
             // gate explicitly set this to false.
             Approach = new AircraftApproachState { HasReportedTrafficInSight = true },
+            Phases = new PhaseList(),
         };
-        ac.Phases = new PhaseList();
         return ac;
     }
 

@@ -253,10 +253,13 @@ public sealed class ApproachNavigationPhase : Phase
 
     public static ApproachNavigationPhase FromSnapshot(ApproachNavigationPhaseDto dto)
     {
-        var phase = new ApproachNavigationPhase { Fixes = [.. dto.Fixes.Select(ApproachFix.FromSnapshot)] };
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
-        phase._currentFixIndex = dto.CurrentFixIndex;
+        var phase = new ApproachNavigationPhase
+        {
+            Fixes = [.. dto.Fixes.Select(ApproachFix.FromSnapshot)],
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
+            _currentFixIndex = dto.CurrentFixIndex,
+        };
         return phase;
     }
 

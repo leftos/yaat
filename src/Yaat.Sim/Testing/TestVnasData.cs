@@ -20,7 +20,7 @@ public static class TestVnasData
 {
     private static string _testDataDir = Path.Combine(AppContext.BaseDirectory, "TestData");
     private static bool _initialized;
-    private static readonly object _lock = new();
+    private static readonly Lock _lock = new();
 
     private static NavigationDatabase? _navigationDatabase;
     private static string? _cifpPath;

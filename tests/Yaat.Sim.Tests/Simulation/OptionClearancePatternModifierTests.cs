@@ -536,8 +536,8 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
                 Destination = "KSFO",
                 FlightRules = "VFR",
             },
+            Phases = new PhaseList { AssignedRunway = runway28R },
         };
-        ac.Phases = new PhaseList { AssignedRunway = runway28R };
         ac.Pattern.PendingLandingClearance = new PendingLandingClearance(ClearanceType.ClearedForOption, "28R", "01L", null);
         ac.Pattern.TrafficDirection = PatternDirection.Left;
 
@@ -732,8 +732,8 @@ public class OptionClearancePatternModifierTests(ITestOutputHelper output)
                 Destination = runway.AirportId,
                 FlightRules = "VFR",
             },
+            Phases = new PhaseList { AssignedRunway = runway, TrafficDirection = PatternDirection.Left },
         };
-        ac.Phases = new PhaseList { AssignedRunway = runway, TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(new FinalApproachPhase());
         ac.Phases.Add(new LandingPhase());
         return ac;

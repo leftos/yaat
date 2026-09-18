@@ -53,9 +53,8 @@ public class AirborneMrtCompletedChainUnitTests
             IndicatedAirspeed = 89,
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { FlightRules = "VFR", Destination = "KOAK" },
+            Phases = new PhaseList { AssignedRunway = runway },
         };
-
-        aircraft.Phases = new PhaseList { AssignedRunway = runway };
         aircraft.Phases.Add(new TaxiingPhase());
         aircraft.Phases.Add(new TakeoffPhase());
         aircraft.Phases.Add(new InitialClimbPhase());

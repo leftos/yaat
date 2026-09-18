@@ -13,7 +13,7 @@ public static class CifpPathResolver
     private const string CifpBaseUrl = "https://aeronav.faa.gov/Upload_313-d/cifp/";
 
     private static readonly ILogger Log = SimLog.CreateLogger("CifpPathResolver");
-    private static readonly object EnsureLock = new();
+    private static readonly Lock EnsureLock = new();
 
     private static volatile bool _ensured;
     private static string? _cachedPath;

@@ -67,10 +67,10 @@ public partial class VStripsView : UserControl
 
     // Resolved once in the constructor — UpdateDrag runs at display rate and
     // must not pay a name-scope lookup per pointer move.
-    private Canvas? _dragGhostCanvas;
-    private Border? _trashZone;
-    private ScrollViewer? _racksScrollViewer;
-    private ScrollViewer? _bayBarScroller;
+    private readonly Canvas? _dragGhostCanvas;
+    private readonly Border? _trashZone;
+    private readonly ScrollViewer? _racksScrollViewer;
+    private readonly ScrollViewer? _bayBarScroller;
 
     // Edge autoscroll: while a drag hovers within AutoscrollEdgeBand px of
     // the racks ScrollViewer's viewport edge, a ~60Hz timer scrolls the
@@ -179,15 +179,9 @@ public partial class VStripsView : UserControl
 
     private void OnFindDataContextChanged(object? sender, EventArgs e)
     {
-        if (_trackedVm is not null)
-        {
-            _trackedVm.PropertyChanged -= OnTrackedVmPropertyChanged;
-        }
+        _trackedVm?.PropertyChanged -= OnTrackedVmPropertyChanged;
         _trackedVm = DataContext as VStripsViewModel;
-        if (_trackedVm is not null)
-        {
-            _trackedVm.PropertyChanged += OnTrackedVmPropertyChanged;
-        }
+        _trackedVm?.PropertyChanged += OnTrackedVmPropertyChanged;
         _findController.Refresh();
     }
 
@@ -1343,13 +1337,7 @@ public partial class VStripsView : UserControl
     /// destination's highlight is the signal there; the strip visually
     /// gives way to it.
     /// </summary>
-    private void SetGhostRecessed(bool recessed)
-    {
-        if (_dragGhost is not null)
-        {
-            _dragGhost.Opacity = recessed ? 0.25 : 0.92;
-        }
-    }
+    private void SetGhostRecessed(bool recessed) => _dragGhost?.Opacity = recessed ? 0.25 : 0.92;
 
     private void SetBayHighlight(Button? button)
     {
@@ -1587,11 +1575,8 @@ public partial class VStripsView : UserControl
 
         // Restore the source presenter first so any post-drop broadcast
         // that re-renders the rack finds it in its normal visible state.
-        if (_draggingSourcePresenter is not null)
-        {
-            _draggingSourcePresenter.IsVisible = true;
-            _draggingSourcePresenter = null;
-        }
+        _draggingSourcePresenter?.IsVisible = true;
+        _draggingSourcePresenter = null;
 
         if (_dragGhostCanvas is not null && _dragGhost is not null)
         {
@@ -2206,10 +2191,7 @@ public partial class VStripsView : UserControl
             return;
         }
         await vm.RequestStripAsync(aircraftId);
-        if (box is not null)
-        {
-            box.Text = "";
-        }
+        box?.Text = "";
     }
 
     private async void OnPrintBlankClick(object? sender, RoutedEventArgs e)

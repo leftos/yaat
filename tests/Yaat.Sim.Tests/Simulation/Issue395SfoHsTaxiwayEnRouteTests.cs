@@ -212,8 +212,8 @@ public class Issue395SfoHsTaxiwayEnRouteTests(ITestOutputHelper output)
             IndicatedAirspeed = 0,
             IsOnGround = true,
             FlightPlan = new AircraftFlightPlan { Departure = "SFO" },
+            Phases = new PhaseList(),
         };
-        ac.Phases = new PhaseList();
 
         ParseResult<ParsedCommand> parsed = CommandParser.Parse("TAXI T7A A A1 1R HS H");
         Assert.True(parsed.IsSuccess, $"parse failed: {parsed.Reason}");

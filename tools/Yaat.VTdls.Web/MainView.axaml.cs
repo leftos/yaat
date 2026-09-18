@@ -72,10 +72,7 @@ public partial class MainView : UserControl
         vm.DclItems.CollectionChanged += (_, _) => RefreshPageTitle(vm);
 
         UserControl? tdlsView = this.FindControl<UserControl>("TdlsView");
-        if (tdlsView is not null)
-        {
-            tdlsView.DataContext = vm;
-        }
+        tdlsView?.DataContext = vm;
 
         if (HasIdentity())
         {
@@ -119,13 +116,8 @@ public partial class MainView : UserControl
         }
     }
 
-    private static void ApplyApplicationTheme(bool dark)
-    {
-        if (Application.Current is not null)
-        {
-            Application.Current.RequestedThemeVariant = dark ? ThemeVariant.Dark : ThemeVariant.Light;
-        }
-    }
+    private static void ApplyApplicationTheme(bool dark) =>
+        Application.Current?.RequestedThemeVariant = dark ? ThemeVariant.Dark : ThemeVariant.Light;
 
     private static void RefreshPageTitle(VTdlsViewModel vm)
     {
@@ -143,10 +135,7 @@ public partial class MainView : UserControl
     private void SetStatus(string text)
     {
         TextBlock? bar = this.FindControl<TextBlock>("StatusBar");
-        if (bar is not null)
-        {
-            bar.Text = text;
-        }
+        bar?.Text = text;
     }
 
     private static Dictionary<string, string> ParseQuery(string search)

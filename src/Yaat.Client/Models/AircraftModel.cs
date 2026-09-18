@@ -1163,9 +1163,9 @@ public partial class AircraftModel : ObservableObject
             LiveTrafficSource = dto.LiveTrafficSource,
             BelowDisplayFloor = dto.BelowDisplayFloor,
             IsEstablishedOnApproach = dto.IsEstablishedOnApproach,
+            NavRouteFixes = dto.NavigationRoute ?? [],
+            NavRouteShapes = dto.NavRouteShapes ?? [],
         };
-        model.NavRouteFixes = dto.NavigationRoute ?? [];
-        model.NavRouteShapes = dto.NavRouteShapes ?? [];
         model.DistanceFromFix = computeDistance?.Invoke(model);
         model.SmartStatus = dto.SmartStatus;
         model.SmartStatusSeverity = dto.SmartStatusSeverity;

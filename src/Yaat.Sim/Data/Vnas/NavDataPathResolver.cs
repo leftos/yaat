@@ -16,7 +16,7 @@ public static class NavDataPathResolver
     private static readonly ILogger Log = SimLog.CreateLogger("NavDataPathResolver");
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     private static readonly JsonSerializerOptions IndentedJsonOptions = new() { WriteIndented = true, PropertyNameCaseInsensitive = true };
-    private static readonly object EnsureLock = new();
+    private static readonly Lock EnsureLock = new();
 
     private static volatile bool _ensured;
     private static string? _cachedPath;

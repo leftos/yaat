@@ -2404,18 +2404,18 @@ public static class CommandRegistry
 
     // --- Helpers ---
 
-    private static CommandParameter R(string name, string typeHint) => new CommandParameter(name, typeHint, false);
+    private static CommandParameter R(string name, string typeHint) => new(name, typeHint, false);
 
-    private static CommandParameter L(string name) => new CommandParameter(name, "literal", false, IsLiteral: true);
+    private static CommandParameter L(string name) => new(name, "literal", false, IsLiteral: true);
 
-    private static CommandParameter Opt(string name, string typeHint) => new CommandParameter(name, typeHint, true);
+    private static CommandParameter Opt(string name, string typeHint) => new(name, typeHint, true);
 
-    private static CommandParameter Rep(string name, string typeHint) => new CommandParameter(name, typeHint, false, Repeatable: true);
+    private static CommandParameter Rep(string name, string typeHint) => new(name, typeHint, false, Repeatable: true);
 
     private static CommandOverload O(string? variantLabel, CommandParameter[] parameters, string? usageHint) =>
-        new CommandOverload(variantLabel, parameters, usageHint);
+        new(variantLabel, parameters, usageHint);
 
-    private static CompoundModifier Mod(string keyword, string? argHint, bool repeatable) => new CompoundModifier(keyword, argHint, repeatable);
+    private static CompoundModifier Mod(string keyword, string? argHint, bool repeatable) => new(keyword, argHint, repeatable);
 
     private static CommandDefinition Bare(
         CanonicalCommandType type,

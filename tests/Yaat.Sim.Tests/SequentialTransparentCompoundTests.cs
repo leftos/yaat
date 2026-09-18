@@ -41,8 +41,8 @@ public class SequentialTransparentCompoundTests
                 Code = 7654,
                 Mode = "Standby",
             },
+            Phases = new PhaseList(),
         };
-        ac.Phases = new PhaseList();
         ac.Phases.Add(new AtParkingPhase());
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
         return ac;

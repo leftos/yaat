@@ -688,18 +688,12 @@ public sealed class LineUpPhase : Phase
         if (_arcState.IsComplete)
         {
             Log.LogDebug("[LineUp] {Callsign}: {From} -> {To} (arc complete)", ctx.Aircraft.Callsign, CurrentState, onComplete);
-            switch (onComplete)
+            CurrentState = onComplete switch
             {
-                case State.PivotStraight:
-                    CurrentState = State.PivotStraight;
-                    break;
-                case State.Rollout:
-                    CurrentState = State.Rollout;
-                    break;
-                default:
-                    CurrentState = onComplete;
-                    break;
-            }
+                State.PivotStraight => State.PivotStraight,
+                State.Rollout => State.Rollout,
+                _ => onComplete,
+            };
         }
 
         return false;
@@ -965,13 +959,7 @@ public sealed class LineUpPhase : Phase
     /// released by LUAW rather than a fresh CTO would flow the graph route at the rolling floor all the way to
     /// the end of the rollout and hard-snap to zero there, instead of braking onto the centerline.
     /// </summary>
-    internal void ClearRollingSpeedFloor()
-    {
-        if (_navigator is not null)
-        {
-            _navigator.MinSpeedKts = 0;
-        }
-    }
+    internal void ClearRollingSpeedFloor() => _navigator?.MinSpeedKts = 0;
 
     /// <summary>
     /// First tick after a snapshot restore: resume the maneuver from the aircraft's current pose, keeping the

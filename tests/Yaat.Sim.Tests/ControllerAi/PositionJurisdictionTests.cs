@@ -32,7 +32,7 @@ public class PositionJurisdictionTests
 
         IReadOnlyList<AiPositionConfig> staffed = Staffed();
         SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
-        Func<AircraftState, string?> resolve = (AircraftState ac) => Resolve(engine, ac, staffed)?.Callsign;
+        string? resolve(AircraftState ac) => Resolve(engine, ac, staffed)?.Callsign;
 
         Assert.Equal("OAK_GND", resolve(engine.FindAircraft(AiTestFixture.Callsign)!));
 

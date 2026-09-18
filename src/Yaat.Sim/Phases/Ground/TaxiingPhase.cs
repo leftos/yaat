@@ -281,18 +281,19 @@ public sealed class TaxiingPhase : Phase
 
     public static TaxiingPhase FromSnapshot(TaxiingPhaseDto dto)
     {
-        var phase = new TaxiingPhase();
-
-        // GroundNavigator's snapshot does not carry the active PathPrimitive
-        // (or its arc/synthesis derived state). Force a re-init on the next
-        // OnTick: SetupCurrentSegment will rebuild the primitive and speed
-        // constraints from route.CurrentSegmentIndex. Without this, the next
-        // Tick would see _currentPrimitive=null, return ArrivedAtNode, and
-        // skip the segment the aircraft was traversing.
-        phase._initialized = false;
-        phase._timeSinceLastLog = dto.TimeSinceLastLog;
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        var phase = new TaxiingPhase
+        {
+            // GroundNavigator's snapshot does not carry the active PathPrimitive
+            // (or its arc/synthesis derived state). Force a re-init on the next
+            // OnTick: SetupCurrentSegment will rebuild the primitive and speed
+            // constraints from route.CurrentSegmentIndex. Without this, the next
+            // Tick would see _currentPrimitive=null, return ArrivedAtNode, and
+            // skip the segment the aircraft was traversing.
+            _initialized = false,
+            _timeSinceLastLog = dto.TimeSinceLastLog,
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
+        };
         phase.RestoreRequirements(dto.Requirements);
 
         if (dto.Navigator is not null)

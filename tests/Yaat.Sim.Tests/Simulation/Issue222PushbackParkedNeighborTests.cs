@@ -64,8 +64,8 @@ public class Issue222PushbackParkedNeighborTests(ITestOutputHelper output)
                 FlightRules = "IFR",
                 Altitude = PlannedAltitude.Ifr(30000),
             },
+            Phases = new PhaseList(),
         };
-        aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new AtParkingPhase());
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
         aircraft.Ground.Layout = layout;

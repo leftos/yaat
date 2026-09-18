@@ -272,7 +272,7 @@ public static class RunwaySafetyAdvisor
                 && (!AwaitsTakeoffClearanceOnRunway(other))
                 && other.Phases?.CurrentPhase is not (LineUpPhase or LinedUpAndWaitingPhase or HoldingInPositionPhase)
             )
-            .Select(other => (Aircraft: other, Kind: RunwayOccupancy.Classify(other, runway, ctx.GroundLayout)?.Kind))
+            .Select(other => (Aircraft: other, RunwayOccupancy.Classify(other, runway, ctx.GroundLayout)?.Kind))
             .ToList();
         var onSurface = arrivals.Where(a => a.Aircraft.IsOnGround && (a.Kind == RunwayUseKind.OnSurface)).Select(a => a.Aircraft.Callsign).ToList();
         // The phase classifier calls the whole approach "Landing"; only an arrival already over the pavement blocks the roll.
@@ -307,7 +307,7 @@ public static class RunwaySafetyAdvisor
     {
         var shadows = ctx.ListAircraft!()
             .Where(other => (!ReferenceEquals(other, aircraft)) && other.IsShadow)
-            .Select(other => (other.Callsign, Kind: RunwayOccupancy.Classify(other, runway, ctx.GroundLayout)?.Kind))
+            .Select(other => (other.Callsign, RunwayOccupancy.Classify(other, runway, ctx.GroundLayout)?.Kind))
             .ToList();
         var onSurface = shadows.Where(s => s.Kind == RunwayUseKind.OnSurface).Select(s => s.Callsign).ToList();
         var landing = shadows.Where(s => s.Kind == RunwayUseKind.Landing).Select(s => s.Callsign).ToList();
@@ -418,7 +418,7 @@ public static class RunwaySafetyAdvisor
             .Select(other =>
                 (
                     other.Callsign,
-                    Kind: RunwayOccupancy.Classify(other, runway, ctx.GroundLayout)?.Kind,
+                    RunwayOccupancy.Classify(other, runway, ctx.GroundLayout)?.Kind,
                     Landed: other.LiveTraffic is { LandedOnRunway: true }
                 )
             )

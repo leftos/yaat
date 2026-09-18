@@ -350,9 +350,8 @@ public class Issue315LuawAfterCrossingTests(ITestOutputHelper output)
                 FlightRules = "IFR",
                 Altitude = PlannedAltitude.Ifr(37000),
             },
+            Phases = new PhaseList(),
         };
-
-        aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new HoldingInPositionPhase());
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
         aircraft.Ground.Layout = layout;

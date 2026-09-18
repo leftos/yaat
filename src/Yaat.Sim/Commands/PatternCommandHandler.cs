@@ -2945,10 +2945,7 @@ internal static class PatternCommandHandler
 
         if (modifier.Direction is { } dir)
         {
-            if (phases is not null)
-            {
-                phases.TrafficDirection = dir;
-            }
+            phases?.TrafficDirection = dir;
 
             aircraft.Pattern.TrafficDirection = dir;
         }

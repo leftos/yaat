@@ -79,9 +79,9 @@ public sealed class VfrHoldPhase : Phase
             FixLat = dto.FixLat,
             FixLon = dto.FixLon,
             OrbitDirection = orbitDirection,
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
         };
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
         phase.RestoreRequirements(dto.Requirements);
         phase._atFix = dto.AtFix;
         phase._cumulativeTurn = dto.CumulativeTurn;

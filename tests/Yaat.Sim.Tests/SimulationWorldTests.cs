@@ -160,8 +160,7 @@ public class SimulationWorldTests
     [Fact]
     public void Clear_SetsGroundLayoutToNull()
     {
-        var world = new SimulationWorld();
-        world.GroundLayout = new AirportGroundLayout { AirportId = "OAK" };
+        var world = new SimulationWorld { GroundLayout = new AirportGroundLayout { AirportId = "OAK" } };
 
         world.Clear();
 

@@ -39,8 +39,8 @@ public class PatternCircuitE2ETests : IDisposable
             IndicatedAirspeed = ias,
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { Departure = "TEST" },
+            Phases = new PhaseList { AssignedRunway = rwy },
         };
-        ac.Phases = new PhaseList { AssignedRunway = rwy };
         return ac;
     }
 

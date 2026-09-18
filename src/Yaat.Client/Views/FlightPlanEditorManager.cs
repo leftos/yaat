@@ -74,10 +74,7 @@ public static class FlightPlanEditorManager
 
     public static void Close()
     {
-        if (_openEditor is not null)
-        {
-            _openEditor.Close();
-            _openEditor = null;
-        }
+        _openEditor?.Close();
+        _openEditor = null;
     }
 }

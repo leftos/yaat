@@ -91,8 +91,8 @@ public class Issue394HoldShortSpotTests(ITestOutputHelper output)
             IndicatedAirspeed = 0,
             IsOnGround = true,
             FlightPlan = new AircraftFlightPlan { Departure = "KSFO" },
+            Phases = new PhaseList(),
         };
-        ac.Phases = new PhaseList();
         return ac;
     }
 

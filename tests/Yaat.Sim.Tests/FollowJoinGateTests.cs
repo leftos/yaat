@@ -116,7 +116,7 @@ public class FollowJoinGateTests
         follower.Phases = new PhaseList();
         follower.Phases.Add(phase);
 
-        Func<string, AircraftState?> lookup = cs =>
+        AircraftState? lookup(string cs) =>
             cs == Leader ? lead
             : cs == Follower ? follower
             : null;

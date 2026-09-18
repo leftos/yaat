@@ -77,34 +77,19 @@ public partial class MacroImportWindow : Window
         InitializeComponent();
 
         ItemsControl? list = this.FindControl<ItemsControl>("ConflictList");
-        if (list is not null)
-        {
-            list.ItemsSource = _items;
-        }
+        list?.ItemsSource = _items;
 
         Button? applyBtn = this.FindControl<Button>("ApplyButton");
-        if (applyBtn is not null)
-        {
-            applyBtn.Click += OnApplyClick;
-        }
+        applyBtn?.Click += OnApplyClick;
 
         Button? overwriteAllBtn = this.FindControl<Button>("OverwriteAllButton");
-        if (overwriteAllBtn is not null)
-        {
-            overwriteAllBtn.Click += OnOverwriteAllClick;
-        }
+        overwriteAllBtn?.Click += OnOverwriteAllClick;
 
         Button? skipAllBtn = this.FindControl<Button>("SkipAllButton");
-        if (skipAllBtn is not null)
-        {
-            skipAllBtn.Click += OnSkipAllClick;
-        }
+        skipAllBtn?.Click += OnSkipAllClick;
 
         Button? cancelBtn = this.FindControl<Button>("CancelButton");
-        if (cancelBtn is not null)
-        {
-            cancelBtn.Click += OnCancelClick;
-        }
+        cancelBtn?.Click += OnCancelClick;
 
         foreach (MacroImportItem item in _items)
         {

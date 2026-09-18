@@ -508,10 +508,7 @@ public static class GroundCommandHandler
 
         // Clear current phases
         PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
-        if (aircraft.Phases is not null)
-        {
-            aircraft.Phases.Clear(ctx);
-        }
+        aircraft.Phases?.Clear(ctx);
 
         // Set up the taxi route and phase
         aircraft.Ground.AssignedTaxiRoute = route;
@@ -3265,10 +3262,7 @@ public static class GroundCommandHandler
 
         // Clear current phases and chain air-taxi → land → the terminus the destination class implies, so the
         // heli lifts off, cruises to the destination, descends, and settles there.
-        if (aircraft.Phases is not null)
-        {
-            aircraft.Phases.Clear(ctx);
-        }
+        aircraft.Phases?.Clear(ctx);
 
         aircraft.Ground.Hold = null;
         // An air taxi supersedes the taxi clearance — the heli flies to the destination, it does not follow the
@@ -3620,10 +3614,7 @@ public static class GroundCommandHandler
         // airport (AIM §4-3-17.b; §3-11-1.c NOTE) and must not carry a helicopter miles across the bay at 100 ft.
         PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         bool onField = IsOnFieldForAirTaxi(aircraft, groundLayout, ctx.FieldElevation);
-        if (aircraft.Phases is not null)
-        {
-            aircraft.Phases.Clear(ctx);
-        }
+        aircraft.Phases?.Clear(ctx);
 
         aircraft.Ground.Hold = null;
         aircraft.Phases = new PhaseList();

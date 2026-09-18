@@ -174,8 +174,8 @@ public class HelicopterAtxiE2ETests(ITestOutputHelper output)
             IndicatedAirspeed = 0,
             IsOnGround = true,
             FlightPlan = new AircraftFlightPlan { Departure = "KOAK" },
+            Phases = new PhaseList(),
         };
-        heli.Phases = new PhaseList();
         heli.Phases.Add(new AtParkingPhase());
         heli.Phases.Start(CommandDispatcher.BuildMinimalContext(heli, layout));
         engine.World.AddAircraft(heli);

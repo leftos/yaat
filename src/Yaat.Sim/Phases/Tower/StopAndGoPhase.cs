@@ -57,9 +57,7 @@ public sealed class StopAndGoPhase : Phase, IGroundRollClock
 
     public static StopAndGoPhase FromSnapshot(StopAndGoPhaseDto dto)
     {
-        var phase = new StopAndGoPhase();
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        var phase = new StopAndGoPhase { Status = (PhaseStatus)dto.Status, ElapsedSeconds = dto.ElapsedSeconds };
         phase.RestoreRequirements(dto.Requirements);
         phase._fieldElevation = dto.FieldElevation;
         phase._runwayHeading = new TrueHeading(dto.RunwayHeadingDeg);

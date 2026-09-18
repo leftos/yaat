@@ -14,7 +14,7 @@ public static class AircraftProfileDatabase
     private static Dictionary<string, AircraftProfile> _lookup = new(StringComparer.OrdinalIgnoreCase);
     private static Dictionary<string, IReadOnlySet<string>> _overriddenFields = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> _siblingFallbackWarned = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly object SiblingFallbackWarnedLock = new();
+    private static readonly Lock SiblingFallbackWarnedLock = new();
 
     public static bool IsInitialized => _lookup.Count > 0;
 

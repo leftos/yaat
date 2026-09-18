@@ -30,9 +30,7 @@ public sealed class HelicopterLandingPhase : Phase
 
     public static HelicopterLandingPhase FromSnapshot(HelicopterLandingPhaseDto dto)
     {
-        var phase = new HelicopterLandingPhase();
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        var phase = new HelicopterLandingPhase { Status = (PhaseStatus)dto.Status, ElapsedSeconds = dto.ElapsedSeconds };
         phase.RestoreRequirements(dto.Requirements);
         phase._fieldElevation = dto.FieldElevation;
         phase._touchedDown = dto.TouchedDown;

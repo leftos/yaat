@@ -211,8 +211,8 @@ public class ClandRunwayTests
             IndicatedAirspeed = 90,
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { Destination = "KMIA", FlightRules = "VFR" },
+            Phases = new PhaseList { AssignedRunway = TestRunwayFactory.Make(designator: designator, airportId: "KMIA", heading: 87) },
         };
-        ac.Phases = new PhaseList { AssignedRunway = TestRunwayFactory.Make(designator: designator, airportId: "KMIA", heading: 87) };
         ac.Phases.Add(new LandingPhase());
         return ac;
     }
@@ -231,9 +231,9 @@ public class ClandRunwayTests
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { Destination = "KOAK", FlightRules = "VFR" },
             Approach = new AircraftApproachState { FollowingCallsign = "N314GT" },
+            // Pursuing its lead: no runway/approach assigned yet (AssignedRunway null).
+            Phases = new PhaseList(),
         };
-        // Pursuing its lead: no runway/approach assigned yet (AssignedRunway null).
-        ac.Phases = new PhaseList();
         ac.Phases.Add(new VfrFollowPhase("N314GT"));
         return ac;
     }

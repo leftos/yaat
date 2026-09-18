@@ -27,7 +27,7 @@ public class EuroScopeTagLayoutTests
         };
     }
 
-    private static TextStyle CreateStyle() => new TextStyle(new SKFont { Size = 12 }, new SKPaint());
+    private static TextStyle CreateStyle() => new(new SKFont { Size = 12 }, new SKPaint());
 
     [Fact]
     public void NoModeCField_WhenTransponderModeIsCharlie()

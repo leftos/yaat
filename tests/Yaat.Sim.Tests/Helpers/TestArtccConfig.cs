@@ -20,7 +20,7 @@ public static class TestArtccConfig
 {
     private const string ZoaSnapshotPath = "TestData/artcc-zoa-snapshot.json";
 
-    private static readonly object Lock = new();
+    private static readonly Lock Lock = new();
     private static ArtccConfigRoot? _zoa;
     private static bool _zoaLoadAttempted;
 

@@ -296,7 +296,7 @@ public class VfrFollowSequencesToFinalTests(ITestOutputHelper output)
         AircraftState superLead = MakeAirborneVfr("BAW286", "A388");
         AircraftState jetLead = MakeAirborneVfr("UAL77", "B738");
 
-        Func<string, AircraftState?> lookup = cs =>
+        AircraftState? lookup(string cs) =>
             cs == "N456CD" ? follower
             : cs == "BAW286" ? superLead
             : cs == "UAL77" ? jetLead

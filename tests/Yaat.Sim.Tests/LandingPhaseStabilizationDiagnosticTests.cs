@@ -42,9 +42,8 @@ public class LandingPhaseStabilizationDiagnosticTests(ITestOutputHelper output)
             VerticalSpeed = vs,
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { Destination = "KTEST" },
+            Phases = new PhaseList { AssignedRunway = rwy, LandingClearance = ClearanceType.ClearedToLand },
         };
-
-        ac.Phases = new PhaseList { AssignedRunway = rwy, LandingClearance = ClearanceType.ClearedToLand };
         ac.Phases.Add(new LandingPhase());
         ac.Targets.TargetSpeed = ias;
         return ac;

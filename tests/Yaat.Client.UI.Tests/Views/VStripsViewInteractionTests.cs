@@ -73,7 +73,7 @@ public class VStripsViewInteractionTests
         Assert.Equal(3, rackStrips.Count);
 
         var positions = rackStrips
-            .Select(s => new { Id = ((StripItemViewModel)s.DataContext!).Id, Y = s.TranslatePoint(new Point(0, 0), view)?.Y ?? double.NaN })
+            .Select(s => new { ((StripItemViewModel)s.DataContext!).Id, Y = s.TranslatePoint(new Point(0, 0), view)?.Y ?? double.NaN })
             .ToDictionary(p => p.Id, p => p.Y);
         // Bottom-up: S1 (model idx 0) should have the largest Y, S3 the smallest.
         Assert.True(positions["S1"] > positions["S2"], $"S1 Y={positions["S1"]} should be > S2 Y={positions["S2"]}");

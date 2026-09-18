@@ -60,8 +60,8 @@ public class M103PatternTrafficCheckInTests
             IndicatedAirspeed = ias,
             IsOnGround = onGround,
             FlightPlan = new AircraftFlightPlan { FlightRules = isVfr ? "VFR" : "IFR", HasFlightPlan = true },
+            Phases = new PhaseList(),
         };
-        ac.Phases = new PhaseList();
         return ac;
     }
 

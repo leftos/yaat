@@ -86,7 +86,7 @@ public sealed class FileLoggerProvider : ILoggerProvider
 
 public sealed class FileLogger(string category, StreamWriter writer) : ILogger
 {
-    private static readonly object WriteLock = new();
+    private static readonly Lock WriteLock = new();
 
     public IDisposable? BeginScope<TState>(TState state)
         where TState : notnull => null;

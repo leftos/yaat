@@ -2774,7 +2774,7 @@ public static class CommandDispatcher
             _ => null,
         };
 
-    internal static CommandResult Ok(string message) => new CommandResult(true, message);
+    internal static CommandResult Ok(string message) => new(true, message);
 
     private static CommandResult ApplyBlock(CommandBlock block, AircraftState aircraft)
     {

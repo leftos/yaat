@@ -260,7 +260,7 @@ public class EramEntryEngineTests
         Assert.Equal("EXPECT ILS 28R", ac.Eram.FreeText);
         Assert.Equal("QS EXPECT ILS 28R UAL1", result.Message);
 
-        string longText = new string('X', EramEntryEngine.FreeTextMaxLength + 5);
+        string longText = new('X', EramEntryEngine.FreeTextMaxLength + 5);
         Assert.True(EramEntryEngine.Apply(ac, $"QS `{longText}", null).Success);
         Assert.Equal(EramEntryEngine.FreeTextMaxLength, ac.Eram.FreeText!.Length);
     }

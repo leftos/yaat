@@ -646,10 +646,7 @@ public static class PilotResponder
     private static PilotSpeechText? BuildClearedToLandClause(AircraftState aircraft, ClearedToLandCommand cland)
     {
         bool runwayChanged = aircraft.Phases?.LandingRunwayChangedFromLowApproach == true;
-        if (aircraft.Phases is not null)
-        {
-            aircraft.Phases.LandingRunwayChangedFromLowApproach = false;
-        }
+        aircraft.Phases?.LandingRunwayChangedFromLowApproach = false;
 
         PilotSpeechText? landingClause = BuildRunwayInstructionClause(aircraft, "cleared to land", explicitRunwayId: cland.RunwayId);
         if ((landingClause is null) || !runwayChanged)

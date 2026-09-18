@@ -43,8 +43,8 @@ public class FinalApproachLateralTests(ITestOutputHelper output)
             IndicatedAirspeed = startSpeed,
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { Departure = "KTEST" },
+            Phases = new PhaseList { AssignedRunway = rwy },
         };
-        ac.Phases = new PhaseList { AssignedRunway = rwy };
         if (isPatternTraffic)
         {
             ac.Phases.TrafficDirection = patternDir;

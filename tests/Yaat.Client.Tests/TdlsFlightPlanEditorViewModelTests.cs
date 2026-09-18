@@ -226,10 +226,11 @@ public class TdlsFlightPlanEditorViewModelTests
     public void IsSendEnabled_False_WhenMandatoryFieldMissing()
     {
         TdlsConfigDto cfg = BuildConfig(mandatoryExpect: true);
-        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed: null, flightPlan: null, isReadOnly: false, opConfigId: null);
-
-        // Wipe Expect — that's mandatory in this config; Send must lock.
-        editor.Expect = null;
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed: null, flightPlan: null, isReadOnly: false, opConfigId: null)
+        {
+            // Wipe Expect — that's mandatory in this config; Send must lock.
+            Expect = null,
+        };
 
         Assert.False(editor.IsSendEnabled);
         Assert.Contains("Expect", editor.MissingMandatoryFieldNames);
@@ -670,8 +671,10 @@ public class TdlsFlightPlanEditorViewModelTests
             flightPlan: null,
             isReadOnly: false,
             opConfigId: null
-        );
-        editor.LocalInfo = "EXP RWY 19L";
+        )
+        {
+            LocalInfo = "EXP RWY 19L",
+        };
 
         editor.SelectedSid = editor.Sids.Single(s => s.Id == "GUNNR7");
 

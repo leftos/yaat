@@ -118,8 +118,8 @@ public class IssueN513sjNimiRvSidCifpMissTests
                 Altitude = PlannedAltitude.Ifr(5000),
                 FlightRules = "IFR",
             },
+            Phases = new PhaseList { AssignedRunway = runway },
         };
-        ac.Phases = new PhaseList { AssignedRunway = runway };
 
         var climb = new InitialClimbPhase
         {
@@ -190,10 +190,10 @@ public class IssueN513sjNimiRvSidCifpMissTests
                 Altitude = PlannedAltitude.Ifr(5000),
                 FlightRules = "IFR",
             },
-        };
-        ac.Phases = new PhaseList
-        {
-            AssignedRunway = TestRunwayFactory.Make(designator: runwayDesignator, airportId: "OAK", heading: runwayHeading, elevationFt: 9),
+            Phases = new PhaseList
+            {
+                AssignedRunway = TestRunwayFactory.Make(designator: runwayDesignator, airportId: "OAK", heading: runwayHeading, elevationFt: 9),
+            },
         };
         return ac;
     }

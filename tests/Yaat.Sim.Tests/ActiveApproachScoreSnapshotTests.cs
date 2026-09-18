@@ -25,15 +25,15 @@ public class ActiveApproachScoreSnapshotTests
             IndicatedAirspeed = 160,
             Position = new LatLon(37.72, -122.22),
             FlightPlan = new AircraftFlightPlan { Destination = "OAK" },
-        };
-        ac.ActiveApproachScore = new ApproachScore
-        {
-            Callsign = "UAL123",
-            AircraftType = "B738",
-            ApproachId = "I28R",
-            RunwayId = "28R",
-            AirportCode = "OAK",
-            EstablishedAtSeconds = 120.0,
+            ActiveApproachScore = new ApproachScore
+            {
+                Callsign = "UAL123",
+                AircraftType = "B738",
+                ApproachId = "I28R",
+                RunwayId = "28R",
+                AirportCode = "OAK",
+                EstablishedAtSeconds = 120.0,
+            },
         };
 
         AircraftSnapshotDto dto = ac.ToSnapshot();
@@ -118,16 +118,16 @@ public class ActiveApproachScoreSnapshotTests
             Callsign = "DAL42",
             AircraftType = "B739",
             Position = new LatLon(37.72, -122.22),
-        };
-        ac.ActiveApproachScore = new ApproachScore
-        {
-            Callsign = "DAL42",
-            AircraftType = "B739",
-            ApproachId = "I30",
-            RunwayId = "30",
-            AirportCode = "OAK",
-            EstablishedAtSeconds = 90.0,
-            LandedAtSeconds = null,
+            ActiveApproachScore = new ApproachScore
+            {
+                Callsign = "DAL42",
+                AircraftType = "B739",
+                ApproachId = "I30",
+                RunwayId = "30",
+                AirportCode = "OAK",
+                EstablishedAtSeconds = 90.0,
+                LandedAtSeconds = null,
+            },
         };
 
         var restored = AircraftState.FromSnapshot(ac.ToSnapshot(), groundLayout: null);

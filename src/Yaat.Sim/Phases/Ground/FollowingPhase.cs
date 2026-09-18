@@ -146,10 +146,12 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
 
     public static FollowingPhase FromSnapshot(FollowingPhaseDto dto)
     {
-        var phase = new FollowingPhase(dto.TargetCallsign);
-        phase._timeSinceLastLog = dto.TimeSinceLastLog;
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        var phase = new FollowingPhase(dto.TargetCallsign)
+        {
+            _timeSinceLastLog = dto.TimeSinceLastLog,
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
+        };
         phase.RestoreRequirements(dto.Requirements);
         return phase;
     }

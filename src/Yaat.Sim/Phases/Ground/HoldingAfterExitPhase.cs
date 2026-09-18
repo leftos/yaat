@@ -121,12 +121,14 @@ public sealed class HoldingAfterExitPhase : Phase
 
     public static HoldingAfterExitPhase FromSnapshot(HoldingAfterExitPhaseDto dto)
     {
-        var phase = new HoldingAfterExitPhase();
-        phase._runwayId = dto.RunwayId;
-        phase._exitTaxiway = dto.ExitTaxiway;
-        phase._holdShortNodeId = dto.HoldShortNodeId;
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        var phase = new HoldingAfterExitPhase
+        {
+            _runwayId = dto.RunwayId,
+            _exitTaxiway = dto.ExitTaxiway,
+            _holdShortNodeId = dto.HoldShortNodeId,
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
+        };
         phase.RestoreRequirements(dto.Requirements);
         return phase;
     }

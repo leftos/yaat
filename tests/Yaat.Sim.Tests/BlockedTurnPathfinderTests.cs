@@ -40,7 +40,7 @@ public class BlockedTurnPathfinderTests
         route.Segments.Any(s => pairs.Contains((s.FromNodeId, s.ToNodeId)) || pairs.Contains((s.ToNodeId, s.FromNodeId)));
 
     private static SearchContext Ctx(AirportGroundLayout layout, int start, int dest, string[] seq, BlockedTurnResult blocked) =>
-        new SearchContext(
+        new(
             layout,
             start,
             new DestinationDescriptor(dest, null, null, null, DestinationKind.Node),

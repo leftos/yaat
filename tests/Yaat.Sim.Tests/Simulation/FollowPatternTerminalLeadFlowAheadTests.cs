@@ -80,7 +80,7 @@ public class FollowPatternTerminalLeadFlowAheadTests
         const PatternDirection Dir = PatternDirection.Left;
         PatternWaypoints wp = PatternGeometry.Compute(rwy, AircraftCategory.Piston, "", 0, Dir, null, null, allRunways, authoredRunway: null);
 
-        Func<string, AircraftState?> lookup = _ => null;
+        static AircraftState? lookup(string _) => null;
 
         var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
         LatLon followerPos = GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading.ToReciprocal(), 1.0);

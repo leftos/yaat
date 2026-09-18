@@ -105,7 +105,7 @@ public class TaxiCtoSequentialNotFiringTests(ITestOutputHelper output)
             Assert.NotNull(ac);
 
             Assert.NotEmpty(ac.Queue.Blocks);
-            CommandBlock ctoBlock = ac.Queue.Blocks[ac.Queue.Blocks.Count - 1];
+            CommandBlock ctoBlock = ac.Queue.Blocks[^1];
             Assert.Null(ctoBlock.Trigger);
             Assert.False(ctoBlock.IsApplied);
             Assert.Contains("CTO", ctoBlock.Description ?? "");

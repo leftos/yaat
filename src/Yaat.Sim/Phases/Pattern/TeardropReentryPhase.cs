@@ -195,13 +195,16 @@ public sealed class TeardropReentryPhase : Phase
 
     public static TeardropReentryPhase FromSnapshot(TeardropReentryPhaseDto dto)
     {
-        var phase = new TeardropReentryPhase { Waypoints = PatternWaypoints.FromSnapshot(dto.Waypoints) };
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
-        phase._outboundLat = dto.OutboundLat;
-        phase._outboundLon = dto.OutboundLon;
-        phase._leadInLat = dto.LeadInLat;
-        phase._leadInLon = dto.LeadInLon;
+        var phase = new TeardropReentryPhase
+        {
+            Waypoints = PatternWaypoints.FromSnapshot(dto.Waypoints),
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
+            _outboundLat = dto.OutboundLat,
+            _outboundLon = dto.OutboundLon,
+            _leadInLat = dto.LeadInLat,
+            _leadInLon = dto.LeadInLon,
+        };
         return phase;
     }
 

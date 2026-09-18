@@ -8,7 +8,7 @@ namespace Yaat.Sim.Tests.Simulation;
 
 public class DelayedSpawnBroadcastTests
 {
-    private static SimulationEngine BuildEngine() => new SimulationEngine(new NullGroundData());
+    private static SimulationEngine BuildEngine() => new(new NullGroundData());
 
     private static void SetupScenarioWithDelayedSpawns(SimulationEngine engine, params int[] spawnAtSeconds)
     {

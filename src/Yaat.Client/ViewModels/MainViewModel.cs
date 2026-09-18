@@ -907,7 +907,7 @@ public partial class MainViewModel : ObservableObject
 
     // 1 s wall-clock sweep for CFR release-window expiry alerts (a stationary held departure stops
     // broadcasting, so expiry can't ride the AircraftUpdated stream). Runs for the app lifetime.
-    private DispatcherTimer? _cfrExpiryTimer;
+    private readonly DispatcherTimer? _cfrExpiryTimer;
     private DateTime _restartBannerHideAtUtc;
 
     public bool HasScenario => ActiveScenarioId is not null;
@@ -1547,9 +1547,11 @@ public partial class MainViewModel : ObservableObject
             _ = Task.Run(() => _speechService.PrewarmAsync(CancellationToken.None));
         }
 
-        AircraftView = new DataGridCollectionView(Aircraft);
-        AircraftView.Filter = obj =>
-            obj is not AircraftModel ac || IsAircraftVisible(ac, _showOnlyActiveAircraft, _aircraftFilterText, _liveTrafficListFilter);
+        AircraftView = new DataGridCollectionView(Aircraft)
+        {
+            Filter = obj =>
+                obj is not AircraftModel ac || IsAircraftVisible(ac, _showOnlyActiveAircraft, _aircraftFilterText, _liveTrafficListFilter),
+        };
         _showOnlyActiveAircraft = _preferences.ShowOnlyActiveAircraft;
         _liveTrafficListFilter = _preferences.LiveTrafficListFilter;
         _showTimelineBar = _preferences.ShowTimelineBar;
@@ -2171,7 +2173,7 @@ public partial class MainViewModel : ObservableObject
 
         foreach (GroundEdge edge in layout.Edges)
         {
-            if (edge.IsRunwayCenterline || edge.IsRamp || edge is not GroundEdge)
+            if (edge.IsRunwayCenterline || edge.IsRamp || edge is null)
             {
                 continue;
             }

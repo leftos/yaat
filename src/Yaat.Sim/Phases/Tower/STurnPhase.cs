@@ -46,9 +46,13 @@ public sealed class STurnPhase : Phase
 
     public static STurnPhase FromSnapshot(STurnPhaseDto dto)
     {
-        var phase = new STurnPhase { InitialDirection = (TurnDirection)dto.InitialDirection, Count = dto.Count };
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        var phase = new STurnPhase
+        {
+            InitialDirection = (TurnDirection)dto.InitialDirection,
+            Count = dto.Count,
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
+        };
         phase.RestoreRequirements(dto.Requirements);
         phase._finalHeading = new TrueHeading(dto.FinalHeadingDeg);
         phase._turnsCompleted = dto.TurnsCompleted;

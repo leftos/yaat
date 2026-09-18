@@ -46,8 +46,8 @@ public class AirborneFollowTests : IDisposable
             IndicatedAirspeed = ias,
             Approach = new AircraftApproachState { FollowingCallsign = followingCallsign },
             FlightPlan = new AircraftFlightPlan { Destination = "KTEST" },
+            Phases = new PhaseList(),
         };
-        ac.Phases = new PhaseList();
         return ac;
     }
 
@@ -870,7 +870,7 @@ public class AirborneFollowTests : IDisposable
             runwayDesignator: "28R"
         );
 
-        Func<string, AircraftState?> lookup = cs => cs == LeadCallsign ? lead : null;
+        AircraftState? lookup(string cs) => cs == LeadCallsign ? lead : null;
         CommandResult result = CommandDispatcher.Dispatch(
             new FollowCommand(LeadCallsign, false),
             follower,
@@ -914,7 +914,7 @@ public class AirborneFollowTests : IDisposable
             runwayDesignator: "28R"
         );
 
-        Func<string, AircraftState?> lookup = cs => cs == LeadCallsign ? lead : null;
+        AircraftState? lookup(string cs) => cs == LeadCallsign ? lead : null;
         CommandResult result = CommandDispatcher.Dispatch(
             new FollowCommand(LeadCallsign, false),
             follower,
@@ -946,7 +946,7 @@ public class AirborneFollowTests : IDisposable
             runwayDesignator: "28R"
         );
 
-        Func<string, AircraftState?> lookup = cs => cs == LeadCallsign ? lead : null;
+        AircraftState? lookup(string cs) => cs == LeadCallsign ? lead : null;
         CommandResult result = CommandDispatcher.Dispatch(
             new FollowCommand(LeadCallsign, false),
             follower,

@@ -208,9 +208,7 @@ public sealed class LandingPhase : Phase
 
     public static LandingPhase FromSnapshot(LandingPhaseDto dto, AirportGroundLayout? groundLayout)
     {
-        var phase = new LandingPhase();
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        var phase = new LandingPhase { Status = (PhaseStatus)dto.Status, ElapsedSeconds = dto.ElapsedSeconds };
         phase.RestoreRequirements(dto.Requirements);
         phase._canGoAround = dto.CanGoAround;
         phase._lahsoHoldShortDistNm = dto.LahsoHoldShortDistNm;
@@ -688,10 +686,7 @@ public sealed class LandingPhase : Phase
         }
 
         // CLANDF override is consumed at touchdown so a later auto-cycle / re-pattern doesn't inherit it.
-        if (ctx.Aircraft.Phases is not null)
-        {
-            ctx.Aircraft.Phases.ForceLanding = false;
-        }
+        ctx.Aircraft.Phases?.ForceLanding = false;
 
         // Air → ground frame flip: the field becomes wheel speed. Snap the airborne IAS to
         // Vtd if the flare overshot it, then convert — touchdown groundspeed is touchdown

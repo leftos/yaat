@@ -415,8 +415,7 @@ public class WindInterpolatorTests
     private static WeatherProfile MakeProfile(List<WindLayer> layers)
     {
         // Use JSON round-trip to exercise the setter-based sort on deserialization
-        var profile = new WeatherProfile();
-        profile.WindLayers = layers;
+        var profile = new WeatherProfile { WindLayers = layers };
         return profile;
     }
 }

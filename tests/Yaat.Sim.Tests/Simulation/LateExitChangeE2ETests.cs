@@ -66,9 +66,8 @@ public class LateExitChangeE2ETests(ITestOutputHelper output)
                 FlightRules = "IFR",
                 Altitude = PlannedAltitude.Ifr(3000),
             },
+            Phases = new PhaseList { AssignedRunway = runway },
         };
-
-        aircraft.Phases = new PhaseList { AssignedRunway = runway };
         aircraft.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
         aircraft.Phases.Add(new LandingPhase());
         aircraft.Phases.Add(new RunwayExitPhase());

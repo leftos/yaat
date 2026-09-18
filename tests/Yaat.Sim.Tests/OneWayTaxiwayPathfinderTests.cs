@@ -34,7 +34,7 @@ public class OneWayTaxiwayPathfinderTests
     }
 
     private static SearchContext Ctx(AirportGroundLayout layout, int from, int to, IReadOnlySet<(int, int)> forbidden, OneWayMode mode) =>
-        new SearchContext(
+        new(
             layout,
             from,
             new DestinationDescriptor(to, null, null, null, DestinationKind.Node),

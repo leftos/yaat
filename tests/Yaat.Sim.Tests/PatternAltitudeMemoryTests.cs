@@ -38,8 +38,7 @@ public class PatternAltitudeMemoryTests
             null,
             authoredRunway: null
         );
-        var phases = new PhaseList { AssignedRunway = runway };
-        phases.TrafficDirection = PatternDirection.Left;
+        var phases = new PhaseList { AssignedRunway = runway, TrafficDirection = PatternDirection.Left };
         phases.Add(currentPhase);
         phases.Start(CommandDispatcher.BuildMinimalContext(ac));
         ac.Phases = phases;
@@ -177,9 +176,9 @@ public class PatternAltitudeMemoryTests
             IndicatedAirspeed = 120,
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { Departure = "KTEST" },
+            // No phases or TrafficDirection = null
+            Phases = new PhaseList { AssignedRunway = DefaultRunway() },
         };
-        // No phases or TrafficDirection = null
-        ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
 
         FlightCommandHandler.ApplyClimbMaintain(new ClimbMaintainCommand(5000), ac);
 
@@ -300,8 +299,7 @@ public class PatternAltitudeMemoryTests
             null,
             authoredRunway: null
         );
-        var phases = new PhaseList { AssignedRunway = runway };
-        phases.TrafficDirection = PatternDirection.Left;
+        var phases = new PhaseList { AssignedRunway = runway, TrafficDirection = PatternDirection.Left };
         phases.Add(new DownwindPhase { Waypoints = waypoints });
         phases.Start(CommandDispatcher.BuildMinimalContext(ac));
         ac.Phases = phases;
@@ -350,8 +348,7 @@ public class PatternAltitudeMemoryTests
             null,
             authoredRunway: null
         );
-        var phases = new PhaseList { AssignedRunway = runway };
-        phases.TrafficDirection = PatternDirection.Left;
+        var phases = new PhaseList { AssignedRunway = runway, TrafficDirection = PatternDirection.Left };
         phases.Add(new DownwindPhase { Waypoints = waypoints });
         phases.Start(CommandDispatcher.BuildMinimalContext(ac));
         ac.Phases = phases;

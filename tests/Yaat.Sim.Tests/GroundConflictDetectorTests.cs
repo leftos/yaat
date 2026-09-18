@@ -1386,8 +1386,8 @@ public class GroundConflictDetectorTests
             TrueHeading = new TrueHeading(0),
             IsOnGround = true,
             IndicatedAirspeed = 0,
+            Phases = new PhaseList(),
         };
-        leader.Phases = new PhaseList();
         leader.Phases.Add(new AtParkingPhase());
         leader.Phases.CurrentPhase!.Status = PhaseStatus.Active;
 

@@ -113,8 +113,8 @@ public class LahsoTests
             IndicatedAirspeed = 140,
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { Destination = "KOAK" },
+            Phases = new PhaseList { AssignedRunway = runway },
         };
-        ac.Phases = new PhaseList { AssignedRunway = runway };
         ac.Phases.Add(new FinalApproachPhase());
         ac.Phases.Add(new LandingPhase());
         return ac;
@@ -167,8 +167,8 @@ public class LahsoTests
             Altitude = 1000,
             IndicatedAirspeed = 140,
             IsOnGround = false,
+            Phases = new PhaseList(),
         };
-        ac.Phases = new PhaseList();
 
         AirportGroundLayout layout = MakeCrossingLayout();
         var cmd = new LandAndHoldShortCommand("33");

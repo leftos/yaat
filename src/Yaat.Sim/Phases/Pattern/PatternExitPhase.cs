@@ -102,9 +102,9 @@ public sealed class PatternExitPhase : Phase
             ExitHeading = new TrueHeading(dto.ExitHeadingDeg),
             Direction = (PatternDirection)dto.Direction,
             ClimbTargetFt = dto.ClimbTargetFt ?? 0,
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
         };
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
         phase.RestoreRequirements(dto.Requirements);
         return phase;
     }

@@ -62,8 +62,8 @@ public class Issue163BareCrossThenHoldTests(ITestOutputHelper output)
                 FlightRules = "VFR",
                 Altitude = PlannedAltitude.Vfr(1500),
             },
+            Phases = new PhaseList(),
         };
-        aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new AtParkingPhase());
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
         aircraft.Ground.Layout = layout;

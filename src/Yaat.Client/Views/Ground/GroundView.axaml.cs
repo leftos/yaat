@@ -44,10 +44,7 @@ public partial class GroundView : UserControl
         }
 
         _resetButton = this.FindControl<Button>("ResetButton");
-        if (_resetButton is not null)
-        {
-            _resetButton.AddHandler(PointerPressedEvent, OnResetButtonPointerPressed, RoutingStrategies.Tunnel);
-        }
+        _resetButton?.AddHandler(PointerPressedEvent, OnResetButtonPointerPressed, RoutingStrategies.Tunnel);
 
         _canvas.NodeRightClicked += OnNodeRightClicked;
         _canvas.AircraftRightClicked += OnAircraftRightClicked;
@@ -85,10 +82,7 @@ public partial class GroundView : UserControl
     {
         base.OnUnloaded(e);
 
-        if (_resetButton is not null)
-        {
-            _resetButton.RemoveHandler(PointerPressedEvent, OnResetButtonPointerPressed);
-        }
+        _resetButton?.RemoveHandler(PointerPressedEvent, OnResetButtonPointerPressed);
 
         if (_canvas is not null)
         {
@@ -1528,11 +1522,8 @@ public partial class GroundView : UserControl
 
     private void CloseActiveContextMenu()
     {
-        if (_activeContextMenu is not null)
-        {
-            _activeContextMenu.Close();
-            _activeContextMenu = null;
-        }
+        _activeContextMenu?.Close();
+        _activeContextMenu = null;
     }
 
     private void ShowContextMenu(ContextMenu menu)
@@ -1614,10 +1605,7 @@ public partial class GroundView : UserControl
 
     private void HideTaxiInput()
     {
-        if (_taxiInputOverlay is not null)
-        {
-            _taxiInputOverlay.IsVisible = false;
-        }
+        _taxiInputOverlay?.IsVisible = false;
 
         _pendingCallsign = null;
         _pendingInitials = null;

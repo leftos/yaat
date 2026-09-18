@@ -58,8 +58,7 @@ public class Issue234Spot7AConflictTests(ITestOutputHelper output)
             return;
         }
 
-        var engine = new SimulationEngine(groundData);
-        engine.Scenario = MakeScenario();
+        var engine = new SimulationEngine(groundData) { Scenario = MakeScenario() };
 
         AircraftState jet = MakeGroundAircraft(Taxiing, "CRJ2", f8.Position, f8.TrueHeading ?? new TrueHeading(0), layout, new AtParkingPhase());
         engine.World.AddAircraft(jet);
@@ -179,8 +178,7 @@ public class Issue234Spot7AConflictTests(ITestOutputHelper output)
             return null;
         }
 
-        var engine = new SimulationEngine(groundData);
-        engine.Scenario = MakeScenario();
+        var engine = new SimulationEngine(groundData) { Scenario = MakeScenario() };
 
         // Spot occupant (B739) facing taxiway A, centroid offset forwardOffsetFt toward A from the marking.
         double hdgToA = GeoMath.BearingTo(spot.Position, aJunction.Position);
@@ -273,8 +271,8 @@ public class Issue234Spot7AConflictTests(ITestOutputHelper output)
                 FlightRules = "IFR",
                 Altitude = PlannedAltitude.Ifr(30000),
             },
+            Phases = new PhaseList(),
         };
-        ac.Phases = new PhaseList();
         ac.Phases.Add(startPhase);
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, layout));
         ac.Ground.Layout = layout;

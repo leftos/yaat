@@ -101,8 +101,8 @@ public class LateExitChangeTests(ITestOutputHelper output)
             IndicatedAirspeed = speedKts,
             IsOnGround = true,
             FlightPlan = new AircraftFlightPlan { Destination = "OAK" },
+            Phases = new PhaseList(),
         };
-        aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(RunwayExitPhase.FromSnapshot(dto, layout));
         aircraft.Ground.Layout = layout;
         aircraft.Ground.LayoutAirportId = "OAK";

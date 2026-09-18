@@ -38,7 +38,7 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
 
     private readonly TdlsConfigDto _config;
     private readonly string? _opConfigId;
-    private bool _suppressDefaults;
+    private readonly bool _suppressDefaults;
 
     public string Callsign { get; }
 

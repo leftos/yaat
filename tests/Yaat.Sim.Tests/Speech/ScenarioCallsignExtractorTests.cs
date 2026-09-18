@@ -74,7 +74,7 @@ public class ScenarioCallsignExtractorTests
     [Fact]
     public void Extract_RejectsOverlongQuoted()
     {
-        string longNoise = new string('A', 50);
+        string longNoise = new('A', 50);
         Assert.Empty(ScenarioCallsignExtractor.Extract($"\"{longNoise}\""));
     }
 }

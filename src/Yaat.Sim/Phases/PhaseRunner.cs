@@ -151,7 +151,7 @@ public static class PhaseRunner
                 // After a GoAroundPhase, honor the captured pre-GA landing intent
                 // (full-stop → next circuit ends in LandingPhase). After any other
                 // cycle terminator the aircraft was already cycling, so keep cycling with TG.
-                bool nextTouchAndGo = current is GoAroundPhase ga ? !ga.NextLandingFullStop : true;
+                bool nextTouchAndGo = current is not GoAroundPhase ga || !ga.NextLandingFullStop;
 
                 // A pattern runway that is not the one just flown (an option clearance's `COPT MLT 28L`
                 // on the 28R final) makes this circuit the runway transition: the aircraft climbs out on
@@ -203,10 +203,7 @@ public static class PhaseRunner
                 if (ctx.Aircraft.Pattern.ExtendNextUpwind)
                 {
                     UpwindPhase? firstUpwind = nextCircuit.OfType<UpwindPhase>().FirstOrDefault();
-                    if (firstUpwind is not null)
-                    {
-                        firstUpwind.IsExtended = true;
-                    }
+                    firstUpwind?.IsExtended = true;
                     ctx.Aircraft.Pattern.ExtendNextUpwind = false;
                 }
 

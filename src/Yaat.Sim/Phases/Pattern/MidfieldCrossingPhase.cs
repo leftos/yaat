@@ -245,11 +245,11 @@ public sealed class MidfieldCrossingPhase : Phase
             Waypoints = dto.Waypoints is not null ? PatternWaypoints.FromSnapshot(dto.Waypoints) : null,
             InitialTurn = dto.InitialTurn is { } turn ? (TurnDirection)turn : null,
             CrossAtPatternAltitude = dto.CrossAtPatternAltitude ?? false,
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
+            _targetLat = dto.TargetLat,
+            _targetLon = dto.TargetLon,
         };
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
-        phase._targetLat = dto.TargetLat;
-        phase._targetLon = dto.TargetLon;
         return phase;
     }
 

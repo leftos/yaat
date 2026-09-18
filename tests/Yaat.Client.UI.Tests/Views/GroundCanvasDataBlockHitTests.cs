@@ -59,10 +59,10 @@ public class GroundCanvasDataBlockHitTests
             Destination = "KLAX",
             FlightRules = "IFR",
             TransponderMode = "C", // avoid the SqStby line so line counts are 2 (ground) / 3 (airborne)
+            IsOnGround = onGround,
+            Altitude = altitude,
+            Position = new LatLon(FieldLat, FieldLon),
         };
-        ac.IsOnGround = onGround;
-        ac.Altitude = altitude;
-        ac.Position = new LatLon(FieldLat, FieldLon);
         return ac;
     }
 

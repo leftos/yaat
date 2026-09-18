@@ -48,9 +48,7 @@ public sealed class TakeoffPhase : Phase, IGroundRollClock
     public static TakeoffPhase FromSnapshot(TakeoffPhaseDto dto)
     {
         DepartureInstruction? departure = dto.Departure is not null ? DepartureInstruction.FromSnapshot(dto.Departure) : null;
-        var phase = new TakeoffPhase();
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        var phase = new TakeoffPhase { Status = (PhaseStatus)dto.Status, ElapsedSeconds = dto.ElapsedSeconds };
         phase.RestoreRequirements(dto.Requirements);
         phase._airborne = dto.Airborne;
         phase._fieldElevation = dto.FieldElevation;

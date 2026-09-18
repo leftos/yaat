@@ -87,8 +87,8 @@ public class Issue242NarrowPatternOvershootTests : IDisposable
             IndicatedAirspeed = 95,
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { Departure = "TEST" },
+            Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Left },
         };
-        ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Left };
 
         List<Phase> phases = PatternBuilder.BuildCircuit(
             rwy,

@@ -29,7 +29,7 @@ public class RadarDatablockLayoutTests
         };
     }
 
-    private static TextStyle CreateStyle() => new TextStyle(new SKFont { Size = 12 }, new SKPaint());
+    private static TextStyle CreateStyle() => new(new SKFont { Size = 12 }, new SKPaint());
 
     /// <summary>Both alert overlays off with no peers — the baseline for every case that isn't about CA or ATPA.</summary>
     private static DatablockOverlays None => new(false, null, false, null);

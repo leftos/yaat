@@ -279,9 +279,12 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
             TargetName = string.IsNullOrEmpty(dto.RunwayId) ? null : dto.RunwayId,
         };
 
-        var phase = new HoldingShortPhase(holdShort) { _hasAnnouncedReady = dto.HasAnnouncedReady };
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        var phase = new HoldingShortPhase(holdShort)
+        {
+            _hasAnnouncedReady = dto.HasAnnouncedReady,
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
+        };
         phase.RestoreRequirements(dto.Requirements);
         return phase;
     }

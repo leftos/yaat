@@ -576,8 +576,8 @@ public class QueuedCommandDimensionTests
             IndicatedAirspeed = 0,
             IsOnGround = true,
             FlightPlan = new AircraftFlightPlan { Departure = "OAK" },
+            Phases = new PhaseList(),
         };
-        ac.Phases = new PhaseList();
         ac.Phases.Add(new AtParkingPhase());
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
         return ac;
@@ -717,8 +717,8 @@ public class QueuedCommandDimensionTests
                 Destination = "KLAX",
                 FlightRules = "IFR",
             },
+            Phases = new PhaseList(),
         };
-        ac.Phases = new PhaseList();
         ac.Phases.Add(
             new HoldingShortPhase(
                 new HoldShortPoint

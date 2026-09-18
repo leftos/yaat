@@ -42,7 +42,7 @@ public class AvoidTaxiwayPathfinderTests
     }
 
     private static SearchContext Ctx(AirportGroundLayout layout, int from, int to, IReadOnlySet<string> avoided, AvoidTaxiwayMode mode) =>
-        new SearchContext(
+        new(
             layout,
             from,
             new DestinationDescriptor(to, null, null, null, DestinationKind.Node),

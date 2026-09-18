@@ -13,7 +13,7 @@ public sealed class SimulationWorld
 {
     private static readonly ILogger Log = SimLog.CreateLogger("SimulationWorld");
 
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
     private readonly List<AircraftState> _aircraft = [];
     private readonly List<CompletedAircraftRecord> _completedAircraft = [];
 

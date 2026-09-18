@@ -216,8 +216,8 @@ public class FlightPlanCommandHandlerTests
             IsOnGround = true,
             FlightPlan = new AircraftFlightPlan { Departure = "KOAK", Destination = "KSFO" },
             Procedure = new AircraftProcedure { ActiveStarId = "EMZOH4", DestinationRunway = "28R" },
+            Phases = new PhaseList(),
         };
-        aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new TaxiingPhase());
         aircraft.Phases.Start(
             new PhaseContext

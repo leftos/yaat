@@ -100,9 +100,7 @@ public class StarsPointoutTests
     [Fact]
     public void Accepted_StatusTransition()
     {
-        var pointout = new StarsPointout(MakeTcp("recipient"), MakeTcp("sender"));
-
-        pointout.Status = StarsPointoutStatus.Accepted;
+        var pointout = new StarsPointout(MakeTcp("recipient"), MakeTcp("sender")) { Status = StarsPointoutStatus.Accepted };
 
         Assert.True(pointout.IsAccepted);
         Assert.False(pointout.IsPending);
@@ -112,9 +110,7 @@ public class StarsPointoutTests
     [Fact]
     public void Rejected_StatusTransition()
     {
-        var pointout = new StarsPointout(MakeTcp("recipient"), MakeTcp("sender"));
-
-        pointout.Status = StarsPointoutStatus.Rejected;
+        var pointout = new StarsPointout(MakeTcp("recipient"), MakeTcp("sender")) { Status = StarsPointoutStatus.Rejected };
 
         Assert.True(pointout.IsRejected);
         Assert.False(pointout.IsPending);

@@ -242,13 +242,13 @@ public sealed class CrosswindPhase : Phase
                     Acquired = dto.LateralOffsetAcquired,
                 }
                 : null,
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
+            _targetLat = dto.TargetLat,
+            _targetLon = dto.TargetLon,
+            _crosswindHeading = new TrueHeading(dto.CrosswindHeadingDeg),
+            _followExtensionWarningIssued = dto.FollowExtensionWarningIssued ?? false,
         };
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
-        phase._targetLat = dto.TargetLat;
-        phase._targetLon = dto.TargetLon;
-        phase._crosswindHeading = new TrueHeading(dto.CrosswindHeadingDeg);
-        phase._followExtensionWarningIssued = dto.FollowExtensionWarningIssued ?? false;
         return phase;
     }
 

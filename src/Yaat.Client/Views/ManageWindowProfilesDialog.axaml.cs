@@ -47,30 +47,12 @@ public partial class ManageWindowProfilesDialog : Window
         Button? close = this.FindControl<Button>("CloseButton");
         ListBox? list = this.FindControl<ListBox>("ProfilesList");
 
-        if (apply is not null)
-        {
-            apply.Click += OnApplyClick;
-        }
-        if (update is not null)
-        {
-            update.Click += OnUpdateClick;
-        }
-        if (rename is not null)
-        {
-            rename.Click += OnRenameClick;
-        }
-        if (delete is not null)
-        {
-            delete.Click += OnDeleteClick;
-        }
-        if (close is not null)
-        {
-            close.Click += (_, _) => Close();
-        }
-        if (list is not null)
-        {
-            list.DoubleTapped += (_, _) => OnApplyClick(null, new RoutedEventArgs());
-        }
+        apply?.Click += OnApplyClick;
+        update?.Click += OnUpdateClick;
+        rename?.Click += OnRenameClick;
+        delete?.Click += OnDeleteClick;
+        close?.Click += (_, _) => Close();
+        list?.DoubleTapped += (_, _) => OnApplyClick(null, new RoutedEventArgs());
 
         Populate();
     }

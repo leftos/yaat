@@ -168,9 +168,8 @@ public class FinalApproachDescentTests(ITestOutputHelper output)
             IndicatedAirspeed = 140,
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { Destination = "OAK" },
+            Phases = new PhaseList { AssignedRunway = rwy },
         };
-
-        ac.Phases = new PhaseList { AssignedRunway = rwy };
         ac.Targets.TargetSpeed = 140;
 
         var phase = new FinalApproachPhase { SkipInterceptCheck = true };
@@ -225,9 +224,8 @@ public class FinalApproachDescentTests(ITestOutputHelper output)
             IndicatedAirspeed = 140,
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { Destination = "OAK" },
+            Phases = new PhaseList { AssignedRunway = rwy },
         };
-
-        ac.Phases = new PhaseList { AssignedRunway = rwy };
         ac.Targets.TargetSpeed = 140;
 
         var phase = new FinalApproachPhase { SkipInterceptCheck = true };
@@ -289,17 +287,16 @@ public class FinalApproachDescentTests(ITestOutputHelper output)
             IndicatedAirspeed = 140,
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { Destination = "OAK" },
-        };
-
-        ac.Phases = new PhaseList
-        {
-            AssignedRunway = rwy,
-            ActiveApproach = new ApproachClearance
+            Phases = new PhaseList
             {
-                ApproachId = "I28R",
-                AirportCode = "OAK",
-                RunwayId = "28R",
-                FinalApproachCourse = rwy.TrueHeading,
+                AssignedRunway = rwy,
+                ActiveApproach = new ApproachClearance
+                {
+                    ApproachId = "I28R",
+                    AirportCode = "OAK",
+                    RunwayId = "28R",
+                    FinalApproachCourse = rwy.TrueHeading,
+                },
             },
         };
         ac.Targets.AssignedAltitude = startAlt;

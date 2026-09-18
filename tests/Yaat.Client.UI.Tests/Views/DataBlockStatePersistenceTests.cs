@@ -292,10 +292,10 @@ public class DataBlockStatePersistenceTests
             Destination = "KLAX",
             FlightRules = "IFR",
             TransponderMode = "C", // avoid the SqStby line so the on-ground block stays two lines
+            IsOnGround = true,
+            Altitude = 0,
+            Position = new LatLon(FieldLat, FieldLon),
         };
-        ac.IsOnGround = true;
-        ac.Altitude = 0;
-        ac.Position = new LatLon(FieldLat, FieldLon);
         return ac;
     }
 

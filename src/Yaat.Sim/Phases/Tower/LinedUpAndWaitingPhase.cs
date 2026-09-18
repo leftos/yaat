@@ -34,9 +34,9 @@ public sealed class LinedUpAndWaitingPhase : Phase
         {
             Departure = dto.Departure is not null ? DepartureInstruction.FromSnapshot(dto.Departure) : null,
             AssignedAltitude = dto.AssignedAltitude,
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
         };
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
         phase.RestoreRequirements(dto.Requirements);
         return phase;
     }

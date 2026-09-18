@@ -93,9 +93,8 @@ public class SlowPistonFasTriggerTests(ITestOutputHelper output)
                 FlightRules = "VFR",
                 Altitude = PlannedAltitude.Vfr(3000),
             },
+            Phases = new PhaseList { AssignedRunway = runway },
         };
-
-        aircraft.Phases = new PhaseList { AssignedRunway = runway };
         aircraft.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
         aircraft.Phases.Add(new LandingPhase());
         aircraft.Ground.Layout = layout;

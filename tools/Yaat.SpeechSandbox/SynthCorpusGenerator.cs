@@ -234,7 +234,7 @@ internal static class SynthCorpusGenerator
     /// <summary>"28R" → "two eight right"; bare numbers speak digit-by-digit ("30" → "three zero").</summary>
     private static string SpeakRunway(string runway)
     {
-        string digits = new string([.. runway.TakeWhile(char.IsDigit)]);
+        string digits = new([.. runway.TakeWhile(char.IsDigit)]);
         string suffix = runway[digits.Length..] switch
         {
             "L" => " left",

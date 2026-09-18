@@ -31,8 +31,8 @@ public sealed class SpeedCeilingReleaseTests
             Altitude = 4000,
             IndicatedAirspeed = 250,
             FlightPlan = new AircraftFlightPlan { Destination = "CCR" },
+            Phases = new PhaseList(),
         };
-        aircraft.Phases = new PhaseList();
 
         var ctx = new PhaseContext
         {

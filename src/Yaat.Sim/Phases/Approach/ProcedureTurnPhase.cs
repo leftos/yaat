@@ -357,11 +357,11 @@ public sealed class ProcedureTurnPhase : Phase
             MaxOutboundDistanceNm = dto.MaxOutboundDistanceNm,
             OneEightyTurnDirection = (TurnDirection)dto.OneEightyTurnDirection,
             MinAltitudeFt = dto.MinAltitudeFt,
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
+            _state = (PtState)dto.State,
+            _ptOutboundTimerSeconds = dto.PtOutboundTimerSeconds,
         };
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
-        phase._state = (PtState)dto.State;
-        phase._ptOutboundTimerSeconds = dto.PtOutboundTimerSeconds;
         return phase;
     }
 

@@ -1115,7 +1115,7 @@ public static class PhraseologyVerbalizer
 
         string prefix = $"{char.ToLowerInvariant(text[0])}-{char.ToLowerInvariant(text[1])}";
         string rest = text[2..];
-        string digits = new string([.. rest.TakeWhile(char.IsDigit)]);
+        string digits = new([.. rest.TakeWhile(char.IsDigit)]);
         string suffix = rest[digits.Length..];
 
         if (digits.Length == 0 || !int.TryParse(digits, out int number))
@@ -1164,7 +1164,7 @@ public static class PhraseologyVerbalizer
         }
 
         string rest = text[2..];
-        string digits = new string([.. rest.TakeWhile(char.IsDigit)]);
+        string digits = new([.. rest.TakeWhile(char.IsDigit)]);
         string suffix = rest[digits.Length..];
         if (digits.Length == 0 || !int.TryParse(digits, out int number))
         {

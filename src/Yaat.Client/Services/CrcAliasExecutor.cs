@@ -78,20 +78,13 @@ public static class CrcAliasExecutor
             return CrcAliasExecution.Unsupported("Alias expands to a radio transmission, which YAAT does not support");
         }
 
-        switch (verb.ToLowerInvariant())
+        return verb.ToLowerInvariant() switch
         {
-            case ".echo":
-                return body.Length == 0 ? CrcAliasExecution.Failed("\".echo\" needs text to print") : CrcAliasExecution.Echo(SplitEchoLines(body));
-            case ".ff":
-            case ".marker":
-            case ".markers":
-            case ".nomarkers":
-                return CrcAliasExecution.ScopeMarkers(text);
-            case ".openurl":
-                return PlanOpenUrl(body);
-            default:
-                return CrcAliasExecution.Unsupported($"\"{verb}\" is not supported in YAAT");
-        }
+            ".echo" => body.Length == 0 ? CrcAliasExecution.Failed("\".echo\" needs text to print") : CrcAliasExecution.Echo(SplitEchoLines(body)),
+            ".ff" or ".marker" or ".markers" or ".nomarkers" => CrcAliasExecution.ScopeMarkers(text),
+            ".openurl" => PlanOpenUrl(body),
+            _ => CrcAliasExecution.Unsupported($"\"{verb}\" is not supported in YAAT"),
+        };
     }
 
     /// <summary>

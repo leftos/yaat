@@ -91,8 +91,8 @@ public class Issue227Coast9ClimbRestrictionTests
                 Altitude = PlannedAltitude.Ifr(39000),
                 FlightRules = "IFR",
             },
+            Phases = new PhaseList { AssignedRunway = rwy },
         };
-        ac.Phases = new PhaseList { AssignedRunway = rwy };
 
         var holding = new HoldingInPositionPhase();
         ac.Phases.Add(holding);

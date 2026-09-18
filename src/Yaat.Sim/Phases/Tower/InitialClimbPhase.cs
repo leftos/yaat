@@ -95,9 +95,9 @@ public sealed class InitialClimbPhase : Phase
             RvSidDeferHeadingUntilMinAlt = dto.RvSidDeferHeadingUntilMinAlt,
             RvSidHoldRunwayHeading = dto.RvSidHoldRunwayHeading,
             DepartureProcedureLegs = dto.DepartureProcedureLegs?.Select(ProcedureLeg.FromSnapshot).ToList(),
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
         };
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
         phase.RestoreRequirements(dto.Requirements);
         phase._fieldElevation = dto.FieldElevation;
         phase._targetAltitude = dto.TargetAltitude;

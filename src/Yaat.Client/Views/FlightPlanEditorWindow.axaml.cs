@@ -74,10 +74,7 @@ public partial class FlightPlanEditorWindow : Window
         // beacon assigned or recycled after the editor opens arrives via a later AircraftUpdated
         // push. Re-target the subscription without re-running the editable-field copy below, which
         // would clobber in-progress edits.
-        if (_aircraft is not null)
-        {
-            _aircraft.PropertyChanged -= OnAircraftPropertyChanged;
-        }
+        _aircraft?.PropertyChanged -= OnAircraftPropertyChanged;
         _aircraft = aircraft;
         _aircraft.PropertyChanged += OnAircraftPropertyChanged;
 
@@ -199,10 +196,7 @@ public partial class FlightPlanEditorWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
-        if (_aircraft is not null)
-        {
-            _aircraft.PropertyChanged -= OnAircraftPropertyChanged;
-        }
+        _aircraft?.PropertyChanged -= OnAircraftPropertyChanged;
 
         base.OnClosed(e);
     }

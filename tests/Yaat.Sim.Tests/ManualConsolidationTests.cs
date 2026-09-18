@@ -119,7 +119,7 @@ public class ManualConsolidationTests
 
         // Only 1T and 1G attended, so 1S and 1H below 1F are unattended.
         var attended = new HashSet<string> { IdT, IdG };
-        Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
+        bool isAttended(Tcp tcp) => attended.Contains(tcp.Id);
 
         state.Consolidate(Tcp1G, Tcp1F, basic: false);
 
@@ -138,7 +138,7 @@ public class ManualConsolidationTests
 
         // 1S is independently attended, so it keeps its own subtree (1S and 1H).
         var attended = new HashSet<string> { IdT, IdG, IdS };
-        Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
+        bool isAttended(Tcp tcp) => attended.Contains(tcp.Id);
 
         state.Consolidate(Tcp1G, Tcp1F, basic: false);
 
@@ -154,7 +154,7 @@ public class ManualConsolidationTests
         var state = new ConsolidationState();
 
         var attended = new HashSet<string> { IdT, IdG };
-        Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
+        bool isAttended(Tcp tcp) => attended.Contains(tcp.Id);
 
         state.Consolidate(Tcp1G, Tcp1F, basic: false); // 1F → 1G
         state.Consolidate(Tcp1T, Tcp1S, basic: false); // 1S → 1T, separately
@@ -224,7 +224,7 @@ public class ManualConsolidationTests
     {
         var state = new ConsolidationState();
         var attended = new HashSet<string> { IdT, IdF };
-        Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
+        bool isAttended(Tcp tcp) => attended.Contains(tcp.Id);
 
         // Manually consolidate 1F under 1T (basic)
         state.Consolidate(Tcp1T, Tcp1F, basic: true);
@@ -248,7 +248,7 @@ public class ManualConsolidationTests
     {
         var state = new ConsolidationState();
         var attended = new HashSet<string> { IdT, IdF };
-        Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
+        bool isAttended(Tcp tcp) => attended.Contains(tcp.Id);
 
         // Full consolidation: 1F under 1T
         state.Consolidate(Tcp1T, Tcp1F, basic: false);
@@ -266,7 +266,7 @@ public class ManualConsolidationTests
     {
         var state = new ConsolidationState();
         var attended = new HashSet<string> { IdT, IdF };
-        Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
+        bool isAttended(Tcp tcp) => attended.Contains(tcp.Id);
 
         // Consolidate 1F under 1T, then deconsolidate
         state.Consolidate(Tcp1T, Tcp1F, basic: true);
@@ -292,7 +292,7 @@ public class ManualConsolidationTests
 
         // Only 1T and 1G attended; 1F/1S/1H auto-consolidated under 1T
         var attended = new HashSet<string> { IdT, IdG };
-        Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
+        bool isAttended(Tcp tcp) => attended.Contains(tcp.Id);
 
         // Without manual overrides: 1S auto-consolidates to 1T
         Tcp? autoOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, true, Tcp1S, isAttended);
@@ -326,7 +326,7 @@ public class ManualConsolidationTests
 
         // Only 1T attended; manually consolidate 1G under 1F (unattended)
         var attended = new HashSet<string> { IdT };
-        Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
+        bool isAttended(Tcp tcp) => attended.Contains(tcp.Id);
 
         state.Consolidate(Tcp1F, Tcp1G, basic: true);
 
@@ -385,7 +385,7 @@ public class ManualConsolidationTests
     {
         var state = new ConsolidationState();
         var attended = new HashSet<string> { IdT, IdF };
-        Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
+        bool isAttended(Tcp tcp) => attended.Contains(tcp.Id);
 
         // Without manual overrides: 1S has no owner (auto off, not attended)
         Tcp? autoOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, false, Tcp1S, isAttended);
@@ -428,7 +428,7 @@ public class ManualConsolidationTests
 
         // 1T and 1F both attended
         var attended = new HashSet<string> { IdT, IdF };
-        Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
+        bool isAttended(Tcp tcp) => attended.Contains(tcp.Id);
 
         // Without overrides: 1T owns itself; CRC adds OurTcp automatically → Children empty
         List<ConsolidationItem> items = ConsolidationEngine.GetConsolidationItems(AllTcps, true, isAttended);
@@ -455,7 +455,7 @@ public class ManualConsolidationTests
 
         // 1T and 1G attended.
         var attended = new HashSet<string> { IdT, IdG };
-        Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
+        bool isAttended(Tcp tcp) => attended.Contains(tcp.Id);
 
         // 1F (child of 1T) is consolidated into 1G.
         state.Consolidate(Tcp1G, Tcp1F, basic: false); // 1F → 1G
@@ -486,7 +486,7 @@ public class ManualConsolidationTests
 
         // Only 1T and 1G attended; consolidate 1F under 1G
         var attended = new HashSet<string> { IdT, IdG };
-        Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
+        bool isAttended(Tcp tcp) => attended.Contains(tcp.Id);
 
         state.Consolidate(Tcp1G, Tcp1F, basic: false);
 
@@ -517,7 +517,7 @@ public class ManualConsolidationTests
         // Only 1T and 1G attended; consolidate the *non-leaf* 1F (which has
         // unattended descendants 1S and 1H) under 1G.
         var attended = new HashSet<string> { IdT, IdG };
-        Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
+        bool isAttended(Tcp tcp) => attended.Contains(tcp.Id);
 
         state.Consolidate(Tcp1G, Tcp1F, basic: false); // 1F → 1G (non-leaf sender)
 
@@ -550,7 +550,7 @@ public class ManualConsolidationTests
         // Only 1G attended; consolidate the *non-leaf* 1F (unattended
         // descendants 1S, 1H) under 1G — with automatic consolidation OFF.
         var attended = new HashSet<string> { IdG };
-        Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
+        bool isAttended(Tcp tcp) => attended.Contains(tcp.Id);
 
         state.Consolidate(Tcp1G, Tcp1F, basic: false); // 1F → 1G (non-leaf sender)
 
@@ -583,7 +583,7 @@ public class ManualConsolidationTests
         // parent 1T. Nobody is working 1F's airspace, so the walk stops at
         // the receiver: no attended owner exists.
         var attended = new HashSet<string> { IdT };
-        Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
+        bool isAttended(Tcp tcp) => attended.Contains(tcp.Id);
 
         state.Consolidate(Tcp1F, Tcp1S, basic: false); // 1S → 1F (receiver unattended)
 
@@ -611,7 +611,7 @@ public class ManualConsolidationTests
         // Auto off, only 1X attended. 1F folds into 1G, and 1G in turn folds
         // into 1X — chained overrides keep hopping regardless of the auto flag.
         var attended = new HashSet<string> { IdX };
-        Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
+        bool isAttended(Tcp tcp) => attended.Contains(tcp.Id);
 
         state.Consolidate(Tcp1G, Tcp1F, basic: false); // 1F → 1G
         state.Consolidate(Tcp1X, Tcp1G, basic: false); // 1G → 1X
@@ -640,7 +640,7 @@ public class ManualConsolidationTests
 
         // Only 1X attended. 1F folds into 1G, and 1G in turn folds into 1X.
         var attended = new HashSet<string> { IdX };
-        Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
+        bool isAttended(Tcp tcp) => attended.Contains(tcp.Id);
 
         state.Consolidate(Tcp1G, Tcp1F, basic: false); // 1F → 1G
         state.Consolidate(Tcp1X, Tcp1G, basic: false); // 1G → 1X

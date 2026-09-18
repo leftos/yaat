@@ -31,7 +31,7 @@ public sealed class AudioCaptureService(UserPreferences preferences) : IDisposab
     public const int SampleRate = 16000;
 
     private readonly UserPreferences _preferences = preferences;
-    private readonly object _bufferLock = new();
+    private readonly Lock _bufferLock = new();
 
     private List<float> _capturedSamples = [];
     private PortAudioSharp.Stream? _stream;

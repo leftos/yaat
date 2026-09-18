@@ -125,8 +125,8 @@ public class RunwayDepartureQueueTests
             IndicatedAirspeed = 0,
             IsOnGround = true,
             FlightPlan = new AircraftFlightPlan { Departure = "OAK" },
+            Phases = new PhaseList(),
         };
-        ac.Phases = new PhaseList();
         ac.Ground.Layout = _layout;
         return ac;
     }

@@ -19,7 +19,7 @@ internal sealed class PinnedSfoGroundData(string sfoGeoJsonPath) : IAirportGroun
 {
     private readonly TestAirportGroundData _fallback = new();
     private readonly string _sfoGeoJsonPath = sfoGeoJsonPath;
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
     private AirportGroundLayout? _sfo;
     private bool _loaded;
 

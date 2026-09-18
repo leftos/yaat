@@ -12,7 +12,7 @@ namespace Yaat.Sim.Simulation;
 /// </summary>
 public sealed class RecordingArchiveWriter(Stream output) : IDisposable
 {
-    private readonly ZipArchive _zip = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true);
+    private readonly ZipArchive _zip = new(output, ZipArchiveMode.Create, leaveOpen: true);
     private readonly List<SnapshotIndexEntry> _snapshotIndex = [];
     private readonly List<string> _layoutAirportIds = [];
     private readonly List<string> _airportGeoJsonIds = [];

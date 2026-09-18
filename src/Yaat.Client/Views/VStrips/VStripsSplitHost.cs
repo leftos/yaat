@@ -50,15 +50,9 @@ public sealed class VStripsSplitHost : ContentControl
 
     private void OnEntryChanged()
     {
-        if (_entry is not null)
-        {
-            _entry.PropertyChanged -= OnEntryPropertyChanged;
-        }
+        _entry?.PropertyChanged -= OnEntryPropertyChanged;
         _entry = DataContext as VStripsDockEntryViewModel;
-        if (_entry is not null)
-        {
-            _entry.PropertyChanged += OnEntryPropertyChanged;
-        }
+        _entry?.PropertyChanged += OnEntryPropertyChanged;
         RebuildLayout();
     }
 

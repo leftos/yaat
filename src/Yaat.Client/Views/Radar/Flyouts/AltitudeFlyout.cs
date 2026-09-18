@@ -103,12 +103,12 @@ internal static class AltitudeFlyout
             return;
         }
 
-        EventHandler<Avalonia.Interactivity.RoutedEventArgs>? handler = null;
-        handler = (_, _) =>
+        void handler(object? _1, Avalonia.Interactivity.RoutedEventArgs _2)
         {
             menu.Opened -= handler;
             Avalonia.Threading.Dispatcher.UIThread.Post(() => focusItem.BringIntoView(), Avalonia.Threading.DispatcherPriority.Loaded);
-        };
+        }
+
         menu.Opened += handler;
     }
 }

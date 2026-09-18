@@ -99,9 +99,8 @@ public class RunwayExitLayoutlessTests
             IsOnGround = true,
             IndicatedAirspeed = 40,
             FlightPlan = new AircraftFlightPlan { Departure = "KSFO", Destination = "KFAT" },
+            Phases = new PhaseList(),
         };
-
-        aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new RunwayExitPhase());
         aircraft.Phases.Add(new HoldingAfterExitPhase());
         return aircraft;

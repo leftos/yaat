@@ -93,8 +93,7 @@ public class MainViewModelBookmarksTests
     [AvaloniaFact]
     public void AddBookmark_RaisesNamePromptForNewBookmark()
     {
-        var vm = new MainViewModel(new FakeFilePickerService());
-        vm.ScenarioElapsedSeconds = 5;
+        var vm = new MainViewModel(new FakeFilePickerService()) { ScenarioElapsedSeconds = 5 };
 
         BookmarkNamePrompt? prompted = null;
         vm.BookmarkNamePromptRequested += p => prompted = p;

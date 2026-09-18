@@ -60,7 +60,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private string? _sortColumnKey;
     private ListSortDirection? _sortDirection;
     private CancellationTokenSource? _autoConnectCts;
-    private Avalonia.Threading.DispatcherTimer? _timelineMarkerTimer;
+    private readonly Avalonia.Threading.DispatcherTimer? _timelineMarkerTimer;
 
     public MainWindow()
     {
@@ -83,22 +83,16 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         Closed += (_, _) => _timelineMarkerTimer?.Stop();
 
         ItemsControl? markerOverlay = this.FindControl<ItemsControl>("TimelineMarkerOverlay");
-        if (markerOverlay is not null)
-        {
-            // Bubble (not Tunnel): the marker template's Border is the deepest visual; we
-            // want its DataContext-bearing element to be the first thing we look at. With
-            // Tunnel, any future addition inside the overlay subtree (context menus, tooltip
-            // surfaces) would also trip this handler before reaching its target.
-            markerOverlay.AddHandler(PointerPressedEvent, OnTimelineMarkerPressed, RoutingStrategies.Bubble);
-        }
+        // Bubble (not Tunnel): the marker template's Border is the deepest visual; we
+        // want its DataContext-bearing element to be the first thing we look at. With
+        // Tunnel, any future addition inside the overlay subtree (context menus, tooltip
+        // surfaces) would also trip this handler before reaching its target.
+        markerOverlay?.AddHandler(PointerPressedEvent, OnTimelineMarkerPressed, RoutingStrategies.Bubble);
 
         ItemsControl? bookmarkOverlay = this.FindControl<ItemsControl>("BookmarkMarkerOverlay");
-        if (bookmarkOverlay is not null)
-        {
-            // Left-click seeks to the bookmark; right-click is handled by the tick's
-            // ContextMenu (Rename/Delete), so OnTimelineBookmarkPressed gates on left button.
-            bookmarkOverlay.AddHandler(PointerPressedEvent, OnTimelineBookmarkPressed, RoutingStrategies.Bubble);
-        }
+        // Left-click seeks to the bookmark; right-click is handled by the tick's
+        // ContextMenu (Rename/Delete), so OnTimelineBookmarkPressed gates on left button.
+        bookmarkOverlay?.AddHandler(PointerPressedEvent, OnTimelineBookmarkPressed, RoutingStrategies.Bubble);
 
         vm.BookmarkNamePromptRequested += OnBookmarkNamePromptRequested;
         vm.TakeControlConfirmation = () =>
@@ -113,54 +107,30 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         _windowProfileService = new WindowProfileService(vm.Preferences);
 
         MenuItem? settingsItem = this.FindControl<MenuItem>("SettingsMenuItem");
-        if (settingsItem is not null)
-        {
-            settingsItem.Click += OnSettingsClick;
-        }
+        settingsItem?.Click += OnSettingsClick;
 
         MenuItem? connectItem = this.FindControl<MenuItem>("ConnectMenuItem");
-        if (connectItem is not null)
-        {
-            connectItem.Click += OnConnectClick;
-        }
+        connectItem?.Click += OnConnectClick;
 
         MenuItem? disconnectItem = this.FindControl<MenuItem>("DisconnectMenuItem");
-        if (disconnectItem is not null)
-        {
-            disconnectItem.Click += OnDisconnectClick;
-        }
+        disconnectItem?.Click += OnDisconnectClick;
 
         MenuItem? loadItem = this.FindControl<MenuItem>("LoadScenarioMenuItem");
-        if (loadItem is not null)
-        {
-            loadItem.Click += OnLoadScenarioClick;
-        }
+        loadItem?.Click += OnLoadScenarioClick;
 
         MenuItem? startLiveItem = this.FindControl<MenuItem>("StartLiveSessionMenuItem");
-        if (startLiveItem is not null)
-        {
-            startLiveItem.Click += OnStartLiveSessionClick;
-        }
+        startLiveItem?.Click += OnStartLiveSessionClick;
 
         WireLiveSessionBadge();
 
         MenuItem? loadWeatherItem = this.FindControl<MenuItem>("LoadWeatherMenuItem");
-        if (loadWeatherItem is not null)
-        {
-            loadWeatherItem.Click += OnLoadWeatherClick;
-        }
+        loadWeatherItem?.Click += OnLoadWeatherClick;
 
         MenuItem? sessionReportItem = this.FindControl<MenuItem>("SessionReportMenuItem");
-        if (sessionReportItem is not null)
-        {
-            sessionReportItem.Click += OnSessionReportClick;
-        }
+        sessionReportItem?.Click += OnSessionReportClick;
 
         MenuItem? newWeatherItem = this.FindControl<MenuItem>("NewWeatherMenuItem");
-        if (newWeatherItem is not null)
-        {
-            newWeatherItem.Click += OnNewWeatherClick;
-        }
+        newWeatherItem?.Click += OnNewWeatherClick;
 
         MenuItem? editWeatherItem = this.FindControl<MenuItem>("EditWeatherMenuItem");
         if (editWeatherItem is not null)
@@ -207,22 +177,13 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
 
         MenuItem? copyViewItem = this.FindControl<MenuItem>("CopyViewSettingsMenuItem");
-        if (copyViewItem is not null)
-        {
-            copyViewItem.Click += OnCopyViewSettingsClick;
-        }
+        copyViewItem?.Click += OnCopyViewSettingsClick;
 
         MenuItem? newRadarWindowItem = this.FindControl<MenuItem>("NewRadarWindowMenuItem");
-        if (newRadarWindowItem is not null)
-        {
-            newRadarWindowItem.Click += OnNewRadarWindowClick;
-        }
+        newRadarWindowItem?.Click += OnNewRadarWindowClick;
 
         MenuItem? newGroundWindowItem = this.FindControl<MenuItem>("NewGroundWindowMenuItem");
-        if (newGroundWindowItem is not null)
-        {
-            newGroundWindowItem.Click += OnNewGroundWindowClick;
-        }
+        newGroundWindowItem?.Click += OnNewGroundWindowClick;
 
         MenuItem? windowProfilesItem = this.FindControl<MenuItem>("WindowProfilesMenuItem");
         if (windowProfilesItem is not null)
@@ -232,34 +193,19 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
 
         MenuItem? favoritesPanelItem = this.FindControl<MenuItem>("FavoritesPanelMenuItem");
-        if (favoritesPanelItem is not null)
-        {
-            favoritesPanelItem.Click += OnFavoritesPanelClick;
-        }
+        favoritesPanelItem?.Click += OnFavoritesPanelClick;
 
         MenuItem? crcItem = this.FindControl<MenuItem>("ConfigureCrcMenuItem");
-        if (crcItem is not null)
-        {
-            crcItem.Click += OnConfigureCrcClick;
-        }
+        crcItem?.Click += OnConfigureCrcClick;
 
         MenuItem? aboutItem = this.FindControl<MenuItem>("AboutMenuItem");
-        if (aboutItem is not null)
-        {
-            aboutItem.Click += OnAboutClick;
-        }
+        aboutItem?.Click += OnAboutClick;
 
         MenuItem? cheatsheetItem = this.FindControl<MenuItem>("HelpCheatsheetMenuItem");
-        if (cheatsheetItem is not null)
-        {
-            cheatsheetItem.Click += OnCommandCheatsheetClick;
-        }
+        cheatsheetItem?.Click += OnCommandCheatsheetClick;
 
         MenuItem? checkUpdatesItem = this.FindControl<MenuItem>("HelpCheckUpdatesMenuItem");
-        if (checkUpdatesItem is not null)
-        {
-            checkUpdatesItem.Click += OnCheckForUpdatesClick;
-        }
+        checkUpdatesItem?.Click += OnCheckForUpdatesClick;
 
         WireUrlMenuItem("HelpGettingStartedMenuItem", DocLinks.GettingStarted);
         WireUrlMenuItem("HelpUserGuideMenuItem", DocLinks.UserGuide);
@@ -378,10 +324,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         foreach (string? debugItemName in new[] { "MicMenuDebugItem", "MicOffMenuDebugItem" })
         {
             MenuItem? item = this.FindControl<MenuItem>(debugItemName);
-            if (item is not null)
-            {
-                item.Click += OnShowSpeechDebugClick;
-            }
+            item?.Click += OnShowSpeechDebugClick;
         }
 
         if (App.AutoConnectTarget is { } target)
@@ -1951,7 +1894,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         var window = new RadarViewWindow(vm.Preferences, instance.GeometryKey, instance.Title) { DataContext = vm };
         window.SetViewModel(instance.Vm);
-        EventHandler<WindowClosingEventArgs> onClosing = (_, _) =>
+        void onClosing(object? _1, WindowClosingEventArgs _2)
         {
             // Drop the bookkeeping BEFORE telling the view-model: CloseExtraRadarView removes the
             // instance, and that CollectionChanged fan-out re-enters CloseExtraRadarWindow on this same
@@ -1964,7 +1907,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             {
                 vm.CloseExtraRadarView(instance);
             }
-        };
+        }
         _extraRadarWindows[instance] = window;
         _extraRadarClosingHandlers[instance] = onClosing;
         window.Closing += onClosing;
@@ -1995,7 +1938,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         var window = new GroundViewWindow(vm.Preferences, instance.GeometryKey, instance.Title) { DataContext = vm };
         window.SetViewModel(instance.Vm);
-        EventHandler<WindowClosingEventArgs> onClosing = (_, _) =>
+        void onClosing(object? _1, WindowClosingEventArgs _2)
         {
             // Same remove-then-notify ordering as the Radar twin above.
             _extraGroundWindows.Remove(instance);
@@ -2004,7 +1947,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             {
                 vm.CloseExtraGroundView(instance);
             }
-        };
+        }
         _extraGroundWindows[instance] = window;
         _extraGroundClosingHandlers[instance] = onClosing;
         window.Closing += onClosing;
@@ -2132,25 +2075,16 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private void RefreshRecentScenariosEnabled(MainViewModel vm)
     {
         MenuItem? recentItem = this.FindControl<MenuItem>("RecentScenariosMenuItem");
-        if (recentItem is not null)
-        {
-            recentItem.IsEnabled = vm.IsInRoom && vm.Preferences.RecentScenarios.Count > 0;
-        }
+        recentItem?.IsEnabled = vm.IsInRoom && vm.Preferences.RecentScenarios.Count > 0;
     }
 
     private void RefreshRecentMenusEnabled(MainViewModel vm)
     {
         MenuItem? recentScenarios = this.FindControl<MenuItem>("RecentScenariosMenuItem");
-        if (recentScenarios is not null)
-        {
-            recentScenarios.IsEnabled = vm.IsInRoom && vm.Preferences.RecentScenarios.Count > 0;
-        }
+        recentScenarios?.IsEnabled = vm.IsInRoom && vm.Preferences.RecentScenarios.Count > 0;
 
         MenuItem? recentWeather = this.FindControl<MenuItem>("RecentWeatherMenuItem");
-        if (recentWeather is not null)
-        {
-            recentWeather.IsEnabled = vm.IsInRoom && vm.Preferences.RecentWeatherFiles.Count > 0;
-        }
+        recentWeather?.IsEnabled = vm.IsInRoom && vm.Preferences.RecentWeatherFiles.Count > 0;
     }
 
     private async void OnLoadScenarioClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -2899,10 +2833,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private void HideBookmarkNamePopup()
     {
         Popup? popup = this.FindControl<Popup>("BookmarkNamePopup");
-        if (popup is not null)
-        {
-            popup.IsOpen = false;
-        }
+        popup?.IsOpen = false;
     }
 
     private async void OnSessionReportClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -3064,10 +2995,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private void WireUrlMenuItem(string name, string url)
     {
         MenuItem? item = this.FindControl<MenuItem>(name);
-        if (item is not null)
-        {
-            item.Click += (_, _) => UrlLauncher.OpenInBrowser(url);
-        }
+        item?.Click += (_, _) => UrlLauncher.OpenInBrowser(url);
     }
 
     private async Task ShowMessageAsync(string message)
@@ -3108,18 +3036,12 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         var settingsVm = dialog.DataContext as SettingsViewModel;
 
         // Subscribe to live preview
-        if (settingsVm is not null)
-        {
-            settingsVm.VisualSettingsChanged += OnPreview;
-        }
+        settingsVm?.VisualSettingsChanged += OnPreview;
 
         await dialog.ShowDialog(this);
 
         // Unsubscribe
-        if (settingsVm is not null)
-        {
-            settingsVm.VisualSettingsChanged -= OnPreview;
-        }
+        settingsVm?.VisualSettingsChanged -= OnPreview;
 
         if (settingsVm?.Saved == true)
         {

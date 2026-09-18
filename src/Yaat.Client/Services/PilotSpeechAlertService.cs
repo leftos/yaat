@@ -24,8 +24,8 @@ public sealed class PilotSpeechAlertService(UserPreferences preferences)
     private const int SampleRate = 44100;
     private const float OutputVolume = 0.5f;
 
-    private readonly object _lock = new();
-    private readonly PortAudioFloatPlayer _player = new PortAudioFloatPlayer(preferences);
+    private readonly Lock _lock = new();
+    private readonly PortAudioFloatPlayer _player = new(preferences);
     private float[]? _cachedDing;
 
     public void PlayDing() => _ = PlayDingAsync();

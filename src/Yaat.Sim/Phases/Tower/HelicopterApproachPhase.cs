@@ -292,12 +292,14 @@ public sealed class HelicopterApproachPhase(double targetLat, double targetLon, 
 
     public static HelicopterApproachPhase FromSnapshot(HelicopterApproachPhaseDto dto)
     {
-        var phase = new HelicopterApproachPhase(dto.TargetLat, dto.TargetLon, dto.DestinationName);
-        phase._fieldElevation = dto.FieldElevation;
-        phase._holdAltitude = dto.HoldAltitude;
-        phase._timeSinceLastLog = dto.TimeSinceLastLog;
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        var phase = new HelicopterApproachPhase(dto.TargetLat, dto.TargetLon, dto.DestinationName)
+        {
+            _fieldElevation = dto.FieldElevation,
+            _holdAltitude = dto.HoldAltitude,
+            _timeSinceLastLog = dto.TimeSinceLastLog,
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
+        };
         phase.RestoreRequirements(dto.Requirements);
         return phase;
     }

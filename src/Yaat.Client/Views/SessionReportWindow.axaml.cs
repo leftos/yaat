@@ -26,16 +26,10 @@ public partial class SessionReportWindow : Window
         _refreshTimer.Tick += async (_, _) => await RefreshAsync();
 
         Button? closeBtn = this.FindControl<Button>("CloseButton");
-        if (closeBtn is not null)
-        {
-            closeBtn.Click += (_, _) => Close();
-        }
+        closeBtn?.Click += (_, _) => Close();
 
         Button? refreshBtn = this.FindControl<Button>("RefreshButton");
-        if (refreshBtn is not null)
-        {
-            refreshBtn.Click += async (_, _) => await RefreshAsync();
-        }
+        refreshBtn?.Click += async (_, _) => await RefreshAsync();
 
         DataGrid? aircraftGrid = this.FindControl<DataGrid>("AircraftDebriefsGrid");
         Button? showOnTimelineBtn = this.FindControl<Button>("ShowOnTimelineButton");
@@ -110,22 +104,16 @@ public partial class SessionReportWindow : Window
         SetItems("RunwayStatsGrid", report.ApproachReport.RunwayStats);
 
         TextBlock? hint = this.FindControl<TextBlock>("AircraftSelectionHint");
-        if (hint is not null)
-        {
-            hint.Text =
-                report.AircraftDebriefs.Count == 0
-                    ? "No aircraft yet — debrief rows appear as aircraft enter the world."
-                    : $"{report.AircraftDebriefs.Count} aircraft tracked this session.";
-        }
+        hint?.Text =
+            report.AircraftDebriefs.Count == 0
+                ? "No aircraft yet — debrief rows appear as aircraft enter the world."
+                : $"{report.AircraftDebriefs.Count} aircraft tracked this session.";
     }
 
     private void SetText(string controlName, string value)
     {
         TextBlock? text = this.FindControl<TextBlock>(controlName);
-        if (text is not null)
-        {
-            text.Text = value;
-        }
+        text?.Text = value;
     }
 
     private void SetItems(string controlName, IEnumerable items)

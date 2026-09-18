@@ -39,17 +39,19 @@ public class MainViewModelLiveSessionTests
     [AvaloniaFact]
     public void BehindRealTime_OffersGoLive_WhileRunning()
     {
-        var vm = new MainViewModel(new FakeFilePickerService());
-        vm.IsLiveSession = true;
-        vm.LiveTrafficStatus = new LiveTrafficStatusDto(
-            true,
-            true,
-            2,
-            5,
-            FeedTimeUtc: DateTimeOffset.UtcNow.AddMinutes(-2),
-            BehindSeconds: 120,
-            Preparing: false
-        );
+        var vm = new MainViewModel(new FakeFilePickerService())
+        {
+            IsLiveSession = true,
+            LiveTrafficStatus = new LiveTrafficStatusDto(
+                true,
+                true,
+                2,
+                5,
+                FeedTimeUtc: DateTimeOffset.UtcNow.AddMinutes(-2),
+                BehindSeconds: 120,
+                Preparing: false
+            ),
+        };
 
         Assert.True(vm.IsBehindRealTime);
         Assert.True(vm.ShowGoLive);
@@ -78,9 +80,11 @@ public class MainViewModelLiveSessionTests
     [AvaloniaFact]
     public void Badge_ReflectsPauseAndPlayback_AndHidesTheScenarioPlaybackChrome()
     {
-        var vm = new MainViewModel(new FakeFilePickerService());
-        vm.IsLiveSession = true;
-        vm.LiveTrafficStatus = new LiveTrafficStatusDto(true, true, 2, 5, null, null, false);
+        var vm = new MainViewModel(new FakeFilePickerService())
+        {
+            IsLiveSession = true,
+            LiveTrafficStatus = new LiveTrafficStatusDto(true, true, 2, 5, null, null, false),
+        };
 
         Assert.Equal("LIVE", vm.LiveSessionBadgeText);
         Assert.Equal(MainViewModel.LiveBadgeColor, vm.LiveSessionBadgeBrush);
@@ -102,8 +106,7 @@ public class MainViewModelLiveSessionTests
     [AvaloniaFact]
     public void ScenarioRoom_KeepsThePlaybackBadgeAndTakeControl()
     {
-        var vm = new MainViewModel(new FakeFilePickerService());
-        vm.IsPlaybackMode = true;
+        var vm = new MainViewModel(new FakeFilePickerService()) { IsPlaybackMode = true };
 
         Assert.False(vm.IsLiveSession);
         Assert.True(vm.ShowPlaybackBadge);
@@ -115,9 +118,11 @@ public class MainViewModelLiveSessionTests
     [AvaloniaFact]
     public void FeedLoss_ShowsInTheBadge_WhileRunning()
     {
-        var vm = new MainViewModel(new FakeFilePickerService());
-        vm.IsLiveSession = true;
-        vm.LiveTrafficStatus = new LiveTrafficStatusDto(true, false, null, 0, null, null, false);
+        var vm = new MainViewModel(new FakeFilePickerService())
+        {
+            IsLiveSession = true,
+            LiveTrafficStatus = new LiveTrafficStatusDto(true, false, null, 0, null, null, false),
+        };
 
         Assert.Equal("LIVE · feed lost", vm.LiveSessionBadgeText);
         Assert.Equal(MainViewModel.FeedLostBadgeColor, vm.LiveSessionBadgeBrush);
@@ -139,11 +144,13 @@ public class MainViewModelLiveSessionTests
     [AvaloniaFact]
     public async Task GoLive_WithoutAConnection_ReportsTheError_AndLeavesPlaybackAlone()
     {
-        var vm = new MainViewModel(new FakeFilePickerService());
-        vm.IsLiveSession = true;
-        vm.IsPlaybackMode = true;
-        vm.PlaybackTapeEnd = 90;
-        vm.StatusText = "sentinel";
+        var vm = new MainViewModel(new FakeFilePickerService())
+        {
+            IsLiveSession = true,
+            IsPlaybackMode = true,
+            PlaybackTapeEnd = 90,
+            StatusText = "sentinel",
+        };
 
         await vm.GoLiveCommand.ExecuteAsync(null);
 

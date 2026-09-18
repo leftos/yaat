@@ -30,40 +30,22 @@ public partial class CommandInputView : UserControl
         base.OnLoaded(e);
 
         TextBox? cmdInput = this.FindControl<TextBox>("CommandInput");
-        if (cmdInput is not null)
-        {
-            cmdInput.KeyDown += OnCommandKeyDown;
-        }
+        cmdInput?.KeyDown += OnCommandKeyDown;
 
         ListBox? suggestionList = this.FindControl<ListBox>("SuggestionList");
-        if (suggestionList is not null)
-        {
-            suggestionList.Tapped += OnSuggestionTapped;
-        }
+        suggestionList?.Tapped += OnSuggestionTapped;
 
         Button? sigHelpPrev = this.FindControl<Button>("SigHelpPrev");
-        if (sigHelpPrev is not null)
-        {
-            sigHelpPrev.Click += OnSigHelpPrevClick;
-        }
+        sigHelpPrev?.Click += OnSigHelpPrevClick;
 
         Button? sigHelpNext = this.FindControl<Button>("SigHelpNext");
-        if (sigHelpNext is not null)
-        {
-            sigHelpNext.Click += OnSigHelpNextClick;
-        }
+        sigHelpNext?.Click += OnSigHelpNextClick;
 
         MenuItem? saveFavItem = this.FindControl<MenuItem>("SaveAsFavoriteMenuItem");
-        if (saveFavItem is not null)
-        {
-            saveFavItem.Click += OnSaveAsFavoriteClick;
-        }
+        saveFavItem?.Click += OnSaveAsFavoriteClick;
 
         Button? liveFiltersButton = this.FindControl<Button>("LiveTrafficFiltersButton");
-        if (liveFiltersButton is not null)
-        {
-            liveFiltersButton.Click += OnLiveTrafficFiltersClick;
-        }
+        liveFiltersButton?.Click += OnLiveTrafficFiltersClick;
 
         // Drive popup IsOpen from code-behind so it respects this view's visibility.
         // Two CommandInputView instances share the same VM — the hidden embedded one
@@ -292,11 +274,5 @@ public partial class CommandInputView : UserControl
         }
     }
 
-    private static void MoveCaret(TextBox? textBox, int position)
-    {
-        if (textBox is not null)
-        {
-            textBox.CaretIndex = position;
-        }
-    }
+    private static void MoveCaret(TextBox? textBox, int position) => textBox?.CaretIndex = position;
 }

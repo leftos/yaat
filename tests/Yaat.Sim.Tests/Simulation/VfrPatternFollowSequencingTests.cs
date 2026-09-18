@@ -140,7 +140,7 @@ public class VfrPatternFollowSequencingTests
             follower.Phases.Add(p);
         }
 
-        Func<string, AircraftState?> lookup = cs =>
+        AircraftState? lookup(string cs) =>
             cs == LeadCallsign ? lead
             : cs == FollowerCallsign ? follower
             : null;
@@ -278,7 +278,7 @@ public class VfrPatternFollowSequencingTests
         };
         lead.Phases.Add(new FinalApproachPhase());
 
-        Func<string, AircraftState?> lookup = cs =>
+        AircraftState? lookup(string cs) =>
             cs == LeadCallsign ? lead
             : cs == FollowerCallsign ? follower
             : null;

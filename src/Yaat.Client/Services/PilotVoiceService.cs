@@ -95,7 +95,7 @@ internal sealed class SherpaOnnxPilotVoiceSynthesizer(UserPreferences preference
     private static readonly ILogger Log = AppLog.CreateLogger<SherpaOnnxPilotVoiceSynthesizer>();
 
     private readonly SemaphoreSlim _loadLock = new(1, 1);
-    private readonly PortAudioFloatPlayer _player = new PortAudioFloatPlayer(preferences);
+    private readonly PortAudioFloatPlayer _player = new(preferences);
     private OfflineTts? _tts;
     private string? _loadedVoiceDir;
 
@@ -271,7 +271,7 @@ internal static class RadioAudioFx
 internal sealed class PortAudioFloatPlayer(UserPreferences preferences)
 {
     private static readonly ILogger Log = AppLog.CreateLogger<PortAudioFloatPlayer>();
-    private static readonly object InitLock = new();
+    private static readonly Lock InitLock = new();
     private static bool _initialized;
 
     private readonly UserPreferences _preferences = preferences;

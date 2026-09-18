@@ -36,15 +36,9 @@ public partial class FavoriteSetNameDialog : Window
             Opened += (_, _) => nameBox.Focus();
         }
 
-        if (okBtn is not null)
-        {
-            okBtn.Click += OnOkClick;
-        }
+        okBtn?.Click += OnOkClick;
 
-        if (cancelBtn is not null)
-        {
-            cancelBtn.Click += OnCancelClick;
-        }
+        cancelBtn?.Click += OnCancelClick;
     }
 
     private void UpdateStatus(string? text)
@@ -59,10 +53,7 @@ public partial class FavoriteSetNameDialog : Window
             status.Text = $"A set named \"{trimmed}\" already exists.";
             status.IsVisible = collides;
         }
-        if (okBtn is not null)
-        {
-            okBtn.IsEnabled = !collides;
-        }
+        okBtn?.IsEnabled = !collides;
     }
 
     private void OnOkClick(object? sender, RoutedEventArgs e)

@@ -103,7 +103,7 @@ public class FinalApproachGenuineOffsetTests(ITestOutputHelper output)
         var world = new SimulationWorld();
         world.AddAircraft(ac);
 
-        void PreTick(AircraftState aircraft, double dt)
+        static void PreTick(AircraftState aircraft, double dt)
         {
             if (aircraft.Phases is null || aircraft.Phases.IsComplete)
             {

@@ -888,8 +888,7 @@ public sealed class RunwayExitPhase : Phase
             CategoryPerformance.TaxiSpeed(ctx.Category) * (ctx.Aircraft.Ground.IsExpeditingExit ? CategoryPerformance.TaxiExpediteMultiplier : 1.0);
         double maxSpeed = Math.Min(_coastSpeed, taxiCeiling);
 
-        _navigator = new GroundNavigator();
-        _navigator.MaxSpeedKts = maxSpeed;
+        _navigator = new GroundNavigator { MaxSpeedKts = maxSpeed };
         if (ctx.Aircraft.Ground.IsExpeditingExit)
         {
             // Brake firmly to the hold-short stop after the turn-off. Corner-speed
@@ -1166,20 +1165,22 @@ public sealed class RunwayExitPhase : Phase
 
     public static RunwayExitPhase FromSnapshot(RunwayExitPhaseDto dto, AirportGroundLayout? groundLayout)
     {
-        var phase = new RunwayExitPhase();
-        phase._exitTaxiway = dto.ExitTaxiway;
-        phase._runwayId = dto.RunwayId;
-        phase._runwayHeading = new TrueHeading(dto.RunwayHeadingDeg);
-        phase._state = (ExitState)dto.ExitStateValue;
-        phase._lastResolvedPreference = dto.LastResolvedPreference.HasValue
-            ? new ExitPreference { Side = (ExitSide)dto.LastResolvedPreference.Value, Taxiway = dto.LastResolvedPreferenceTaxiway }
-            : null;
-        phase._coastSpeed = dto.ExitSpeed;
-        phase._timeSinceLastLog = dto.TimeSinceLastLog;
-        phase._turnStarted = dto.TurnStarted;
-        phase._restoreSegmentIndex = Math.Max(dto.ExitWaypointIndex, 0);
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        var phase = new RunwayExitPhase
+        {
+            _exitTaxiway = dto.ExitTaxiway,
+            _runwayId = dto.RunwayId,
+            _runwayHeading = new TrueHeading(dto.RunwayHeadingDeg),
+            _state = (ExitState)dto.ExitStateValue,
+            _lastResolvedPreference = dto.LastResolvedPreference.HasValue
+                ? new ExitPreference { Side = (ExitSide)dto.LastResolvedPreference.Value, Taxiway = dto.LastResolvedPreferenceTaxiway }
+                : null,
+            _coastSpeed = dto.ExitSpeed,
+            _timeSinceLastLog = dto.TimeSinceLastLog,
+            _turnStarted = dto.TurnStarted,
+            _restoreSegmentIndex = Math.Max(dto.ExitWaypointIndex, 0),
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
+        };
         phase.RestoreRequirements(dto.Requirements);
 
         if (groundLayout is not null)

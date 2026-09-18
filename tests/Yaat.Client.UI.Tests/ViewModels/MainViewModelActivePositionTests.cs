@@ -22,8 +22,7 @@ public class MainViewModelActivePositionTests
     [AvaloniaFact]
     public void SetActiveTcpFromServer_SeedsIndicator_WithoutSendingAs()
     {
-        var vm = new MainViewModel(new FakeFilePickerService());
-        vm.StatusText = "sentinel";
+        var vm = new MainViewModel(new FakeFilePickerService()) { StatusText = "sentinel" };
 
         vm.SetActiveTcpFromServer("3Y");
 

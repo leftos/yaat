@@ -45,8 +45,8 @@ public class TakeoffPhaseIntersectionDepartureTests
             IndicatedAirspeed = 0,
             IsOnGround = true,
             FlightPlan = new AircraftFlightPlan { Departure = "OAK", Altitude = PlannedAltitude.Ifr(5000) },
+            Phases = new PhaseList { AssignedRunway = runway },
         };
-        ac.Phases = new PhaseList { AssignedRunway = runway };
         var takeoff = new TakeoffPhase();
         ac.Phases.Add(takeoff);
 
@@ -88,8 +88,8 @@ public class TakeoffPhaseIntersectionDepartureTests
             IndicatedAirspeed = 0,
             IsOnGround = true,
             FlightPlan = new AircraftFlightPlan { Departure = "OAK", Altitude = PlannedAltitude.Ifr(5000) },
+            Phases = new PhaseList { AssignedRunway = runway },
         };
-        ac.Phases = new PhaseList { AssignedRunway = runway };
         var takeoff = new TakeoffPhase();
         ac.Phases.Add(takeoff);
 

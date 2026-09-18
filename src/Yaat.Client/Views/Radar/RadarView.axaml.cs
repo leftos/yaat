@@ -72,10 +72,7 @@ public partial class RadarView : UserControl
         _canvas.MeasureCancelled += OnMeasureCancelled;
 
         TextBox? filteredText = this.FindControl<TextBox>("FilteredListText");
-        if (filteredText is not null)
-        {
-            filteredText.TextChanged += OnFilteredListTextChanged;
-        }
+        filteredText?.TextChanged += OnFilteredListTextChanged;
 
         // Sync brightness and button states from ViewModel
         if (DataContext is RadarViewModel vm)
@@ -584,10 +581,7 @@ public partial class RadarView : UserControl
     private void UpdateBriteButtonText(RadarViewModel vm, BriteTarget target, string label, string textBlockName)
     {
         TextBlock? tb = this.FindControl<TextBlock>(textBlockName);
-        if (tb is not null)
-        {
-            tb.Text = $"{label} {vm.GetBrightnessPercent(target)}";
-        }
+        tb?.Text = $"{label} {vm.GetBrightnessPercent(target)}";
     }
 
     private void UpdateAllBriteButtons(RadarViewModel vm)
@@ -866,21 +860,15 @@ public partial class RadarView : UserControl
 
     private void CloseActiveContextMenu()
     {
-        if (_activeContextMenu is not null)
-        {
-            _activeContextMenu.Close();
-            _activeContextMenu = null;
-        }
+        _activeContextMenu?.Close();
+        _activeContextMenu = null;
         CloseActiveFieldPopup();
     }
 
     private void CloseActiveFieldPopup()
     {
-        if (_activeFieldPopup is not null)
-        {
-            _activeFieldPopup.Close();
-            _activeFieldPopup = null;
-        }
+        _activeFieldPopup?.Close();
+        _activeFieldPopup = null;
     }
 
     /// <summary>

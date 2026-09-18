@@ -52,8 +52,8 @@ public class S2Oak4FollowSpamTests(ITestOutputHelper output)
                 LastReportedTrafficCallsign = "N436MS",
                 FollowingCallsign = "N436MS",
             },
+            Phases = new PhaseList(),
         };
-        ac.Phases = new PhaseList();
         return ac;
     }
 
@@ -93,7 +93,7 @@ public class S2Oak4FollowSpamTests(ITestOutputHelper output)
         follower.Phases!.Add(new VfrFollowPhase(Leader));
 
         var byCallsign = new Dictionary<string, AircraftState> { [lead.Callsign] = lead, [follower.Callsign] = follower };
-        Func<string, AircraftState?> lookup = cs => byCallsign.TryGetValue(cs, out AircraftState? ac) ? ac : null;
+        AircraftState? lookup(string cs) => byCallsign.TryGetValue(cs, out AircraftState? ac) ? ac : null;
 
         // Sanity: the synthetic spacing must actually trip the gate.
         double spacingNm = GeoMath.DistanceNm(follower.Position, lead.Position);

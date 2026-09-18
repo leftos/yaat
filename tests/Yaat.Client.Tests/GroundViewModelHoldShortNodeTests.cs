@@ -117,5 +117,5 @@ public class GroundViewModelHoldShortNodeTests
         return new GroundViewModel(connection, sendCommand: (_, _, _) => Task.CompletedTask);
     }
 
-    private static AircraftModel MakeAircraft(double lat, double lon) => new AircraftModel { Callsign = "TST123", Position = new LatLon(lat, lon) };
+    private static AircraftModel MakeAircraft(double lat, double lon) => new() { Callsign = "TST123", Position = new LatLon(lat, lon) };
 }

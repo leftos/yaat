@@ -102,7 +102,7 @@ public class FollowPatternSequencingAuditTests
         follower.Approach.HasReportedTrafficInSight = true;
         AttachCircuit(follower, rwy, Cat, Dir, PatternEntryLeg.Downwind, allRunways);
 
-        Func<string, AircraftState?> lookup = cs =>
+        AircraftState? lookup(string cs) =>
             cs == LeadCallsign ? lead
             : cs == FollowerCallsign ? follower
             : null;
@@ -358,7 +358,7 @@ public class FollowPatternSequencingAuditTests
         lead.Phases = new PhaseList { AssignedRunway = rwy };
         lead.Phases.Add(new UpwindPhase { Waypoints = wp });
 
-        Func<string, AircraftState?> lookup = cs =>
+        AircraftState? lookup(string cs) =>
             cs == LeadCallsign ? lead
             : cs == FollowerCallsign ? follower
             : null;
@@ -421,7 +421,7 @@ public class FollowPatternSequencingAuditTests
         lead.Phases = new PhaseList { AssignedRunway = rwy };
         lead.Phases.Add(new UpwindPhase { Waypoints = wp });
 
-        Func<string, AircraftState?> lookup = cs =>
+        AircraftState? lookup(string cs) =>
             cs == LeadCallsign ? lead
             : cs == FollowerCallsign ? follower
             : null;
@@ -534,7 +534,7 @@ public class FollowPatternSequencingAuditTests
         follower.Approach.HasReportedTrafficInSight = true;
         AttachCircuit(follower, rwy, Cat, Dir, entry, allRunways);
 
-        Func<string, AircraftState?> lookup = cs =>
+        AircraftState? lookup(string cs) =>
             cs == LeadCallsign ? lead
             : cs == FollowerCallsign ? follower
             : null;
@@ -684,7 +684,7 @@ public class FollowPatternSequencingAuditTests
         LatLon followerPos = GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading.ToReciprocal(), 1.3);
         AircraftState follower = MakeVfr(FollowerCallsign, followerPos, wp.DownwindHeading, wp.PatternAltitude, 90);
         AttachCircuit(follower, rwy, Cat, Dir, PatternEntryLeg.Downwind, allRunways);
-        Func<string, AircraftState?> lookup = cs => cs == FollowerCallsign ? follower : null;
+        AircraftState? lookup(string cs) => cs == FollowerCallsign ? follower : null;
         follower.Phases!.Start(Ctx(follower, rwy, lookup));
 
         // Held lead: on the SAME downwind, 0.3 nm PAST its base-turn point, IsExtended never
@@ -762,7 +762,7 @@ public class FollowPatternSequencingAuditTests
         AttachCircuit(lead, rwy, Cat, Dir, PatternEntryLeg.Downwind, allRunways);
 
         bool leadPresent = true;
-        Func<string, AircraftState?> lookup = cs =>
+        AircraftState? lookup(string cs) =>
             cs == FollowerCallsign ? follower
             : (leadPresent && (cs == LeadCallsign)) ? lead
             : null;
@@ -852,7 +852,7 @@ public class FollowPatternSequencingAuditTests
         AircraftState lead = MakeVfr(LeadCallsign, leadPos, wp.DownwindHeading, wp.PatternAltitude, 90);
         AttachCircuit(lead, rwy, Cat, Dir, PatternEntryLeg.Downwind, allRunways);
 
-        Func<string, AircraftState?> lookup = cs =>
+        AircraftState? lookup(string cs) =>
             cs == FollowerCallsign ? follower
             : cs == LeadCallsign ? lead
             : null;

@@ -61,10 +61,10 @@ public class NimiRadarVectorsSidTests
                 Altitude = PlannedAltitude.Ifr(11000),
                 FlightRules = "IFR",
             },
-        };
-        ac.Phases = new PhaseList
-        {
-            AssignedRunway = TestRunwayFactory.Make(designator: runwayDesignator, airportId: "OAK", heading: runwayHeading, elevationFt: 6),
+            Phases = new PhaseList
+            {
+                AssignedRunway = TestRunwayFactory.Make(designator: runwayDesignator, airportId: "OAK", heading: runwayHeading, elevationFt: 6),
+            },
         };
         return ac;
     }
@@ -349,8 +349,8 @@ public class NimiRadarVectorsSidTests
                 Altitude = PlannedAltitude.Ifr(11000),
                 FlightRules = "IFR",
             },
+            Phases = new PhaseList { AssignedRunway = runway },
         };
-        ac.Phases = new PhaseList { AssignedRunway = runway };
 
         // Mirror what InsertTowerPhasesAfterCurrent would build: route fixes + RV heading
         // populated from the CIFP. Use a single placeholder fix to satisfy the

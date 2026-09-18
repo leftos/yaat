@@ -38,10 +38,7 @@ public partial class DataGridView : UserControl
         vm.PropertyChanged += OnViewModelPropertyChanged;
 
         TextBox? searchBox = this.FindControl<TextBox>("SearchBox");
-        if (searchBox is not null)
-        {
-            searchBox.KeyDown += OnSearchBoxKeyDown;
-        }
+        searchBox?.KeyDown += OnSearchBoxKeyDown;
     }
 
     protected override void OnUnloaded(RoutedEventArgs e)
@@ -57,10 +54,7 @@ public partial class DataGridView : UserControl
         }
 
         TextBox? searchBox = this.FindControl<TextBox>("SearchBox");
-        if (searchBox is not null)
-        {
-            searchBox.KeyDown -= OnSearchBoxKeyDown;
-        }
+        searchBox?.KeyDown -= OnSearchBoxKeyDown;
 
         if (DataContext is MainViewModel vm)
         {

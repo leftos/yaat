@@ -33,19 +33,16 @@ public static class MeasureEndpointResolver
             return (RblEndpoint.AtPoint(position, token.Trim().ToUpperInvariant()), null);
         }
 
-        switch (outcome)
+        return outcome switch
         {
-            case CallsignMatcher.Outcome.UniqueSubstring:
-                return (RblEndpoint.OnAircraft(match!.Callsign), null);
-            case CallsignMatcher.Outcome.Ambiguous:
-                return (null, CallsignMatcher.FormatAmbiguityMessage(token, candidates));
-            default:
-                return (
-                    null,
-                    resolveFix is not null
-                        ? $"Unknown fix or callsign: {token.ToUpperInvariant()}"
-                        : $"Unknown callsign: {token.ToUpperInvariant()} (navdata still loading — fixes unavailable)"
-                );
-        }
+            CallsignMatcher.Outcome.UniqueSubstring => (RblEndpoint.OnAircraft(match!.Callsign), null),
+            CallsignMatcher.Outcome.Ambiguous => (null, CallsignMatcher.FormatAmbiguityMessage(token, candidates)),
+            _ => (
+                null,
+                resolveFix is not null
+                    ? $"Unknown fix or callsign: {token.ToUpperInvariant()}"
+                    : $"Unknown callsign: {token.ToUpperInvariant()} (navdata still loading — fixes unavailable)"
+            ),
+        };
     }
 }

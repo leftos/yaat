@@ -56,15 +56,9 @@ public partial class ExtraViewAirportDialog : Window
             UpdateStatus(airportBox.Text);
         }
 
-        if (okBtn is not null)
-        {
-            okBtn.Click += OnOkClick;
-        }
+        okBtn?.Click += OnOkClick;
 
-        if (cancelBtn is not null)
-        {
-            cancelBtn.Click += OnCancelClick;
-        }
+        cancelBtn?.Click += OnCancelClick;
     }
 
     private void UpdateStatus(string? text)
@@ -74,15 +68,9 @@ public partial class ExtraViewAirportDialog : Window
         string trimmed = (text ?? "").Trim();
         bool known = !string.IsNullOrEmpty(trimmed) && _isKnownAirport(trimmed);
 
-        if (status is not null)
-        {
-            status.IsVisible = !string.IsNullOrEmpty(trimmed) && !known;
-        }
+        status?.IsVisible = !string.IsNullOrEmpty(trimmed) && !known;
 
-        if (okBtn is not null)
-        {
-            okBtn.IsEnabled = known;
-        }
+        okBtn?.IsEnabled = known;
     }
 
     private void OnOkClick(object? sender, RoutedEventArgs e)

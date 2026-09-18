@@ -35,8 +35,8 @@ public class PatternLateralOffsetTests
             Altitude = 1100,
             IndicatedAirspeed = 90,
             FlightPlan = new AircraftFlightPlan { Departure = "TEST" },
+            Phases = new PhaseList { AssignedRunway = DefaultRunway() },
         };
-        ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
         return ac;
     }
 

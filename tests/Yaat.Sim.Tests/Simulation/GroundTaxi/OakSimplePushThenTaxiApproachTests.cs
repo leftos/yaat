@@ -130,9 +130,8 @@ public class OakSimplePushThenTaxiApproachTests(ITestOutputHelper output)
             IndicatedAirspeed = 0,
             IsOnGround = true,
             FlightPlan = new AircraftFlightPlan { Departure = AirportId, Destination = "LAX" },
+            Phases = new PhaseList(),
         };
-
-        aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new HoldingAfterPushbackPhase());
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
         aircraft.Ground.Layout = layout;

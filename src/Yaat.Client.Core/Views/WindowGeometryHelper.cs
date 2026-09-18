@@ -21,7 +21,7 @@ public sealed class WindowGeometryHelper
     // Process-wide registry of live helpers. Lets external callers (e.g. the
     // Velopack update flow) flush every tracked window's geometry before a
     // process restart that bypasses the Avalonia window-closing pipeline.
-    private static readonly object RegistryLock = new();
+    private static readonly Lock RegistryLock = new();
     private static readonly List<WindowGeometryHelper> ActiveHelpers = [];
 
     private readonly Window _window;

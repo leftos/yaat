@@ -58,8 +58,8 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
             IndicatedAirspeed = 65,
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { Departure = "KOAK" },
+            Phases = new PhaseList { AssignedRunway = rwy },
         };
-        ac.Phases = new PhaseList { AssignedRunway = rwy };
         return ac;
     }
 
@@ -319,8 +319,8 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
                 Altitude = rwy28L.ElevationFt,
                 IsOnGround = true,
                 FlightPlan = new AircraftFlightPlan { Departure = "KOAK" },
+                Phases = new PhaseList { AssignedRunway = rwy28L },
             };
-            ac.Phases = new PhaseList { AssignedRunway = rwy28L };
             if (withLayout)
             {
                 ac.Ground.Layout = layout;
@@ -386,8 +386,8 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
             IndicatedAirspeed = 90,
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { Departure = "KOAK" },
+            Phases = new PhaseList { AssignedRunway = rwy28L, TrafficDirection = PatternDirection.Right },
         };
-        ac.Phases = new PhaseList { AssignedRunway = rwy28L, TrafficDirection = PatternDirection.Right };
         // Key: the aircraft has NO cached ground layout — resolution must come from ctx.GroundLayout.
         ac.Ground.Layout = null;
 
@@ -469,8 +469,8 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
             Altitude = 1500,
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { Departure = "KOAK" },
+            Phases = new PhaseList { AssignedRunway = rwy28L },
         };
-        ac.Phases = new PhaseList { AssignedRunway = rwy28L };
         ac.Ground.Layout = null; // airborne aircraft with no cached layout
 
         CommandResult result = PatternCommandHandler.TryEnterPattern(

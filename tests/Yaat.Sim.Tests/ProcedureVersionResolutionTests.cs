@@ -14,7 +14,7 @@ public class ProcedureVersionResolutionTests
     }
 
     private static CifpLeg MakeLeg(string fix, CifpPathTerminator pt, CifpAltitudeRestriction? alt) =>
-        new CifpLeg(fix, pt, null, alt, null, CifpFixRole.None, 0, null, null, null);
+        new(fix, pt, null, alt, null, CifpFixRole.None, 0, null, null, null);
 
     // ── StripTrailingDigits ──
 

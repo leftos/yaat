@@ -179,9 +179,11 @@ public partial class LiveSessionWindow : Window
     private void OnFacilitySelected()
     {
         var facility = (_facilityTree.SelectedItem as TreeViewItem)?.Tag as FacilityTreeDto;
-        _positionList.ItemsSource = facility is null
-            ? null
-            : facility.Positions.OrderByDescending(p => p.Starred).ThenBy(p => p.Callsign).Select(p => new PositionEntry(p)).ToList();
+        _positionList.ItemsSource = facility
+            ?.Positions.OrderByDescending(p => p.Starred)
+            .ThenBy(p => p.Callsign)
+            .Select(p => new PositionEntry(p))
+            .ToList();
         _positionList.SelectedItem = null;
         _airportBox.ItemsSource = null;
         UpdateStartEnabled();

@@ -9,8 +9,7 @@ public class CallsignPrefixResolverTests
 {
     private static readonly CommandScheme Scheme = CommandScheme.Default();
 
-    private static AircraftModel Ac(string callsign, bool delayed = false) =>
-        new AircraftModel { Callsign = callsign, Status = delayed ? "Delayed (30s)" : "" };
+    private static AircraftModel Ac(string callsign, bool delayed = false) => new() { Callsign = callsign, Status = delayed ? "Delayed (30s)" : "" };
 
     private static IReadOnlyCollection<AircraftModel> Aircraft(params string[] callsigns) => [.. callsigns.Select(cs => Ac(cs))];
 

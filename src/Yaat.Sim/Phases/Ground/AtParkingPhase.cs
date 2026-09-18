@@ -119,9 +119,7 @@ public sealed class AtParkingPhase : Phase
 
     public static AtParkingPhase FromSnapshot(AtParkingPhaseDto dto)
     {
-        var phase = new AtParkingPhase();
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        var phase = new AtParkingPhase { Status = (PhaseStatus)dto.Status, ElapsedSeconds = dto.ElapsedSeconds };
         phase.RestoreRequirements(dto.Requirements);
         return phase;
     }

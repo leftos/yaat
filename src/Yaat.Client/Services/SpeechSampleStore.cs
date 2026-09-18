@@ -44,7 +44,7 @@ public sealed class SpeechSampleStore
     };
 
     private readonly UserPreferences _preferences;
-    private readonly object _ioLock = new();
+    private readonly Lock _ioLock = new();
 
     public SpeechSampleStore(UserPreferences preferences)
         : this(preferences, YaatPaths.Combine("speech-samples")) { }

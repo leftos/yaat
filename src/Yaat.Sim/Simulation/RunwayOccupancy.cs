@@ -148,12 +148,9 @@ public static class RunwayOccupancy
     /// </summary>
     public static RunwayUse? Classify(AircraftState ac, RunwayInfo runway, AirportGroundLayout? layout)
     {
-        RunwayUseKind? kind = ClassifyByPhase(ac, runway);
-        if (kind is null)
-        {
-            kind = ac.Phases is null ? ClassifyByGeometry(ac, runway, layout) : (IsOnPavement(ac, runway) ? RunwayUseKind.Crossing : null);
-        }
-
+        RunwayUseKind? kind =
+            ClassifyByPhase(ac, runway)
+            ?? (ac.Phases is null ? ClassifyByGeometry(ac, runway, layout) : (IsOnPavement(ac, runway) ? RunwayUseKind.Crossing : null));
         if (kind == RunwayUseKind.Departing && ac.LiveTraffic is { LandedOnRunway: true })
         {
             // The runway-use observer saw this shadow land: its rollout is not a takeoff roll (geometry cannot tell).

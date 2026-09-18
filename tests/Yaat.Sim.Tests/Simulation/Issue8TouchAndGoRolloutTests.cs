@@ -110,9 +110,9 @@ public class Issue8TouchAndGoRolloutTests(ITestOutputHelper output)
                     {
                         groundSecondsInTg++;
                     }
-                    else if (tgAirborneAt is null)
+                    else
                     {
-                        tgAirborneAt = now;
+                        tgAirborneAt ??= now;
                     }
 
                     output.WriteLine(

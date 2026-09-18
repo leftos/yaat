@@ -165,8 +165,8 @@ public class PatternAltitudeArgumentTests
             IndicatedAirspeed = 90,
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { Departure = "KOAK", Destination = "KOAK" },
+            Phases = new PhaseList { AssignedRunway = runway },
         };
-        ac.Phases = new PhaseList { AssignedRunway = runway };
 
         CommandResult result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Left, null, 1500);
 

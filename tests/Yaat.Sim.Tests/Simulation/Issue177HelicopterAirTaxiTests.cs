@@ -55,7 +55,7 @@ public class Issue177HelicopterAirTaxiTests(ITestOutputHelper output)
     {
         AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         GroundNode? node = layout?.FindSpotByName("RON1");
-        return node is null ? null : node.Position;
+        return node?.Position;
     }
 
     /// <summary>

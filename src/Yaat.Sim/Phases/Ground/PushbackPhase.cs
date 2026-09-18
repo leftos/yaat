@@ -932,20 +932,20 @@ public sealed class PushbackPhase : Phase
             ContinuesIntoNextMove = dto.ContinuesIntoNextMove,
             ContinuesStandPushOff = dto.ContinuesStandPushOff,
             Amendment = AmendmentFromSnapshot(dto),
+            _progress = new TugMoveProgress(
+                new LatLon(dto.ProgressStartLatitude, dto.ProgressStartLongitude),
+                dto.ProgressStartTravelTrueDeg,
+                dto.ProgressDistanceFt,
+                dto.ProgressCaptured,
+                dto.ProgressMaxTravelDeviationDeg
+            ),
+            _lastPosition = new LatLon(dto.LastLatitude, dto.LastLongitude),
+            _dwellElapsedSeconds = dto.DwellElapsedSeconds,
+            _progressPending = dto.ProgressPending,
+            _pendingPushedFrom = (dto.PendingPushedFromLatitude, dto.PendingPushedFromLongitude) is ({ } fromLat, { } fromLon)
+                ? new LatLon(fromLat, fromLon)
+                : null,
         };
-        phase._progress = new TugMoveProgress(
-            new LatLon(dto.ProgressStartLatitude, dto.ProgressStartLongitude),
-            dto.ProgressStartTravelTrueDeg,
-            dto.ProgressDistanceFt,
-            dto.ProgressCaptured,
-            dto.ProgressMaxTravelDeviationDeg
-        );
-        phase._lastPosition = new LatLon(dto.LastLatitude, dto.LastLongitude);
-        phase._dwellElapsedSeconds = dto.DwellElapsedSeconds;
-        phase._progressPending = dto.ProgressPending;
-        phase._pendingPushedFrom = (dto.PendingPushedFromLatitude, dto.PendingPushedFromLongitude) is ({ } fromLat, { } fromLon)
-            ? new LatLon(fromLat, fromLon)
-            : null;
         return phase;
     }
 
@@ -987,9 +987,9 @@ public sealed class PushbackPhase : Phase
             PlannedEnd = plannedEnd,
             ContinuesIntoNextMove = false,
             ContinuesStandPushOff = false,
+            _progressPending = true,
+            _pendingPushedFrom = owesClearance ? start : null,
         };
-        phase._progressPending = true;
-        phase._pendingPushedFrom = owesClearance ? start : null;
         return phase;
     }
 

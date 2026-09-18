@@ -45,8 +45,8 @@ public class GoAroundClimbOutTests
             IndicatedAirspeed = 80,
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { FlightRules = "VFR", Destination = "KOAK" },
+            Phases = new PhaseList { AssignedRunway = runway },
         };
-        aircraft.Phases = new PhaseList { AssignedRunway = runway };
         return aircraft;
     }
 

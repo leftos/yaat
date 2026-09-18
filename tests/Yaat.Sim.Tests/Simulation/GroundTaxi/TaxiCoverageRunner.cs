@@ -287,9 +287,8 @@ internal static class TaxiCoverageRunner
                 FlightRules = "VFR",
                 Altitude = PlannedAltitude.Vfr(1500),
             },
+            Phases = new PhaseList(),
         };
-
-        aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(BuildInitialPhase(pair, origin));
         PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
         aircraft.Phases.Start(startCtx);

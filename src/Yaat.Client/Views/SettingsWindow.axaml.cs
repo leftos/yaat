@@ -45,52 +45,28 @@ public partial class SettingsWindow : Window
         new WindowGeometryHelper(this, preferences, "Settings", 560, 440).Restore();
 
         Button? saveBtn = this.FindControl<Button>("SaveButton");
-        if (saveBtn is not null)
-        {
-            saveBtn.Click += OnSaveClick;
-        }
+        saveBtn?.Click += OnSaveClick;
 
         Button? cancelBtn = this.FindControl<Button>("CancelButton");
-        if (cancelBtn is not null)
-        {
-            cancelBtn.Click += OnCancelClick;
-        }
+        cancelBtn?.Click += OnCancelClick;
 
         Button? importBtn = this.FindControl<Button>("ImportMacrosButton");
-        if (importBtn is not null)
-        {
-            importBtn.Click += OnImportMacrosClick;
-        }
+        importBtn?.Click += OnImportMacrosClick;
 
         Button? exportSelectedBtn = this.FindControl<Button>("ExportSelectedMacrosButton");
-        if (exportSelectedBtn is not null)
-        {
-            exportSelectedBtn.Click += OnExportSelectedClick;
-        }
+        exportSelectedBtn?.Click += OnExportSelectedClick;
 
         Button? exportAllBtn = this.FindControl<Button>("ExportAllMacrosButton");
-        if (exportAllBtn is not null)
-        {
-            exportAllBtn.Click += OnExportAllClick;
-        }
+        exportAllBtn?.Click += OnExportAllClick;
 
         Button? importVerbsBtn = this.FindControl<Button>("ImportVerbsButton");
-        if (importVerbsBtn is not null)
-        {
-            importVerbsBtn.Click += OnImportVerbsClick;
-        }
+        importVerbsBtn?.Click += OnImportVerbsClick;
 
         Button? exportVerbsBtn = this.FindControl<Button>("ExportVerbsButton");
-        if (exportVerbsBtn is not null)
-        {
-            exportVerbsBtn.Click += OnExportVerbsClick;
-        }
+        exportVerbsBtn?.Click += OnExportVerbsClick;
 
         Button? browseAliasesBtn = this.FindControl<Button>("BrowseCrcAliasDirectoryButton");
-        if (browseAliasesBtn is not null)
-        {
-            browseAliasesBtn.Click += OnBrowseCrcAliasDirectoryClick;
-        }
+        browseAliasesBtn?.Click += OnBrowseCrcAliasDirectoryClick;
 
         foreach (
             string? btnName in new[]

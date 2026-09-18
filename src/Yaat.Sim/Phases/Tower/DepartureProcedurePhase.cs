@@ -459,9 +459,9 @@ public sealed class DepartureProcedurePhase : Phase
             PostRoute = [.. dto.PostRoute.Select(NavigationTarget.FromSnapshot)],
             AssignedAltitude = dto.AssignedAltitude,
             CruiseAltitude = dto.CruiseAltitude,
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
         };
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
         phase.RestoreRequirements(dto.Requirements);
         phase._legIndex = dto.LegIndex;
         phase._overridden = dto.Overridden;

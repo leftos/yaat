@@ -289,9 +289,7 @@ public class MainViewModelStripsTests
     [AvaloniaFact]
     public void SplitRatio_IsClampedToUsableRange()
     {
-        var entry = new VStripsDockEntryViewModel(NewVm().StripsEntries[0].Vm, isStudentEntry: false);
-
-        entry.SplitRatio = 0.01;
+        var entry = new VStripsDockEntryViewModel(NewVm().StripsEntries[0].Vm, isStudentEntry: false) { SplitRatio = 0.01 };
         Assert.Equal(0.15, entry.SplitRatio);
 
         entry.SplitRatio = 0.99;

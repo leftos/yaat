@@ -27,8 +27,8 @@ public sealed class ForcedLandingCommandTests
             IndicatedAirspeed = 140,
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { Destination = "KTEST" },
+            Phases = new PhaseList { AssignedRunway = rwy },
         };
-        ac.Phases = new PhaseList { AssignedRunway = rwy };
         ac.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
         ac.Phases.Add(new LandingPhase());
         return ac;
@@ -52,8 +52,8 @@ public sealed class ForcedLandingCommandTests
             VerticalSpeed = 1000,
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { Destination = "KTEST" },
+            Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Left },
         };
-        ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Left };
         ac.Phases.Add(new GoAroundPhase { ReenterPattern = true, NextLandingFullStop = false });
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
         return ac;

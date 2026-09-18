@@ -29,9 +29,7 @@ public sealed class RunwayHoldingPhase(string crossingRunwayId) : Phase
 
     public static RunwayHoldingPhase FromSnapshot(RunwayHoldingPhaseDto dto)
     {
-        var phase = new RunwayHoldingPhase(dto.CrossingRunwayId);
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        var phase = new RunwayHoldingPhase(dto.CrossingRunwayId) { Status = (PhaseStatus)dto.Status, ElapsedSeconds = dto.ElapsedSeconds };
         phase.RestoreRequirements(dto.Requirements);
         return phase;
     }

@@ -281,79 +281,75 @@ public static class AircraftGenerator
             activeCode = code == 0 ? 1200u : code;
         }
 
-        switch (request.PositionType)
+        return request.PositionType switch
         {
-            case SpawnPositionType.Bearing:
-                return GenerateBearing(
-                    request,
-                    primaryAirportId,
-                    callsign,
-                    aircraftType,
-                    category,
-                    assignedCode,
-                    activeCode,
-                    transponderMode,
-                    flightRules
-                );
-
-            case SpawnPositionType.Runway:
-                return GenerateOnRunway(request, primaryAirportId, callsign, aircraftType, assignedCode, activeCode, transponderMode, flightRules);
-
-            case SpawnPositionType.OnFinal:
-                return GenerateOnFinal(
-                    request,
-                    primaryAirportId,
-                    callsign,
-                    aircraftType,
-                    category,
-                    assignedCode,
-                    activeCode,
-                    transponderMode,
-                    flightRules
-                );
-
-            case SpawnPositionType.AtFix:
-                return GenerateAtFix(
-                    request,
-                    primaryAirportId,
-                    callsign,
-                    aircraftType,
-                    category,
-                    assignedCode,
-                    activeCode,
-                    transponderMode,
-                    flightRules
-                );
-
-            case SpawnPositionType.Parking:
-                return GenerateAtParking(
-                    request,
-                    primaryAirportId,
-                    groundLayout,
-                    callsign,
-                    aircraftType,
-                    assignedCode,
-                    activeCode,
-                    transponderMode,
-                    flightRules
-                );
-
-            case SpawnPositionType.OnStar:
-                return GenerateOnStar(
-                    request,
-                    primaryAirportId,
-                    callsign,
-                    aircraftType,
-                    category,
-                    assignedCode,
-                    activeCode,
-                    transponderMode,
-                    flightRules
-                );
-
-            default:
-                return (null, $"Unknown position type: {request.PositionType}");
-        }
+            SpawnPositionType.Bearing => GenerateBearing(
+                request,
+                primaryAirportId,
+                callsign,
+                aircraftType,
+                category,
+                assignedCode,
+                activeCode,
+                transponderMode,
+                flightRules
+            ),
+            SpawnPositionType.Runway => GenerateOnRunway(
+                request,
+                primaryAirportId,
+                callsign,
+                aircraftType,
+                assignedCode,
+                activeCode,
+                transponderMode,
+                flightRules
+            ),
+            SpawnPositionType.OnFinal => GenerateOnFinal(
+                request,
+                primaryAirportId,
+                callsign,
+                aircraftType,
+                category,
+                assignedCode,
+                activeCode,
+                transponderMode,
+                flightRules
+            ),
+            SpawnPositionType.AtFix => GenerateAtFix(
+                request,
+                primaryAirportId,
+                callsign,
+                aircraftType,
+                category,
+                assignedCode,
+                activeCode,
+                transponderMode,
+                flightRules
+            ),
+            SpawnPositionType.Parking => GenerateAtParking(
+                request,
+                primaryAirportId,
+                groundLayout,
+                callsign,
+                aircraftType,
+                assignedCode,
+                activeCode,
+                transponderMode,
+                flightRules
+            ),
+            SpawnPositionType.OnStar => GenerateOnStar(
+                request,
+                primaryAirportId,
+                callsign,
+                aircraftType,
+                category,
+                assignedCode,
+                activeCode,
+                transponderMode,
+                flightRules
+            ),
+            _ => (null, $"Unknown position type: {request.PositionType}"),
+        };
     }
 
     private static (AircraftState? State, string? Error) GenerateBearing(

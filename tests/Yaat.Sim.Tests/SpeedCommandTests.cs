@@ -758,21 +758,23 @@ public class SpeedPhysicsTests
     public void DistanceFinalTrigger_MetWhenInsideDistance()
     {
         AircraftState ac = CreateAirborne();
-        ac.Phases = new PhaseList();
-        ac.Phases.AssignedRunway = new RunwayInfo
+        ac.Phases = new PhaseList
         {
-            AirportId = "OAK",
-            Id = RunwayIdentifier.Parse("30"),
-            Designator = "30",
-            Lat1 = ac.Position.Lat,
-            Lon1 = ac.Position.Lon,
-            Lat2 = ac.Position.Lat + 0.01,
-            Lon2 = ac.Position.Lon + 0.01,
-            Elevation1Ft = 6,
-            Elevation2Ft = 6,
-            TrueHeading1 = new TrueHeading(300),
-            TrueHeading2 = new TrueHeading(120),
-            WidthFt = 150,
+            AssignedRunway = new RunwayInfo
+            {
+                AirportId = "OAK",
+                Id = RunwayIdentifier.Parse("30"),
+                Designator = "30",
+                Lat1 = ac.Position.Lat,
+                Lon1 = ac.Position.Lon,
+                Lat2 = ac.Position.Lat + 0.01,
+                Lon2 = ac.Position.Lon + 0.01,
+                Elevation1Ft = 6,
+                Elevation2Ft = 6,
+                TrueHeading1 = new TrueHeading(300),
+                TrueHeading2 = new TrueHeading(120),
+                WidthFt = 150,
+            },
         };
 
         var trigger = new BlockTrigger { Type = BlockTriggerType.DistanceFinal, DistanceFinalNm = 10 };

@@ -22,10 +22,12 @@ public class MainViewModelTakeControlTests
     [AvaloniaFact]
     public async Task TakeControl_WhenConfirmationCancelled_ShortCircuitsAndPreservesPlayback()
     {
-        var vm = new MainViewModel(new FakeFilePickerService());
-        vm.IsPlaybackMode = true;
-        vm.PlaybackTapeEnd = 120;
-        vm.StatusText = "sentinel";
+        var vm = new MainViewModel(new FakeFilePickerService())
+        {
+            IsPlaybackMode = true,
+            PlaybackTapeEnd = 120,
+            StatusText = "sentinel",
+        };
 
         bool prompted = false;
         vm.TakeControlConfirmation = () =>
@@ -45,9 +47,7 @@ public class MainViewModelTakeControlTests
     [AvaloniaFact]
     public async Task TakeControl_WhenConfirmed_ProceedsPastTheGate()
     {
-        var vm = new MainViewModel(new FakeFilePickerService());
-        vm.IsPlaybackMode = true;
-        vm.StatusText = "sentinel";
+        var vm = new MainViewModel(new FakeFilePickerService()) { IsPlaybackMode = true, StatusText = "sentinel" };
 
         bool prompted = false;
         vm.TakeControlConfirmation = () =>
@@ -65,8 +65,7 @@ public class MainViewModelTakeControlTests
     [AvaloniaFact]
     public async Task TakeControl_WhenNotInPlayback_DoesNotPrompt()
     {
-        var vm = new MainViewModel(new FakeFilePickerService());
-        vm.IsPlaybackMode = false;
+        var vm = new MainViewModel(new FakeFilePickerService()) { IsPlaybackMode = false };
 
         bool prompted = false;
         vm.TakeControlConfirmation = () =>

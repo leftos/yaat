@@ -98,7 +98,7 @@ public class FinalApproachFacRampTests(ITestOutputHelper output)
         // Mirror SimulationEngine.PreTick: build a PhaseContext per aircraft per tick
         // and run PhaseRunner.Tick. This is how production drives phases — manually
         // calling phase.OnTick() in tests bypasses phase advance and PhaseList wiring.
-        void PreTick(AircraftState aircraft, double dt)
+        static void PreTick(AircraftState aircraft, double dt)
         {
             if (aircraft.Phases is null || aircraft.Phases.IsComplete)
             {

@@ -55,9 +55,7 @@ public sealed class TouchAndGoPhase : Phase, IGroundRollClock
 
     public static TouchAndGoPhase FromSnapshot(TouchAndGoPhaseDto dto)
     {
-        var phase = new TouchAndGoPhase();
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        var phase = new TouchAndGoPhase { Status = (PhaseStatus)dto.Status, ElapsedSeconds = dto.ElapsedSeconds };
         phase.RestoreRequirements(dto.Requirements);
         phase._fieldElevation = dto.FieldElevation;
         phase._runwayHeading = new TrueHeading(dto.RunwayHeadingDeg);

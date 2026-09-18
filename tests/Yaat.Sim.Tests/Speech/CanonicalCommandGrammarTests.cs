@@ -72,8 +72,7 @@ public class CanonicalCommandGrammarTests
         // Split on \n and TrimEnd carriage-return so CRLF line endings on Windows don't smuggle a
         // \r into the last alternative.
         string verbLine = gbnf.Split('\n').First(line => line.StartsWith("verb ::=", StringComparison.Ordinal)).TrimEnd('\r');
-        var alternatives = verbLine
-            .Substring("verb ::= ".Length)
+        var alternatives = verbLine["verb ::= ".Length..]
             .Split(" | ", StringSplitOptions.RemoveEmptyEntries)
             .Select(literal => literal.Trim('"'))
             .ToList();

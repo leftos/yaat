@@ -23,10 +23,10 @@ public partial class SpeechDebugWindow : Window
 {
     private static readonly ILogger Log = AppLog.CreateLogger<SpeechDebugWindow>();
 
-    private SpeechDebugViewModel? _viewModel;
-    private UserPreferences? _preferences;
-    private SpeechSampleStore? _sampleStore;
-    private AudioCaptureService? _audioCapture;
+    private readonly SpeechDebugViewModel? _viewModel;
+    private readonly UserPreferences? _preferences;
+    private readonly SpeechSampleStore? _sampleStore;
+    private readonly AudioCaptureService? _audioCapture;
     private WaveOutEvent? _waveOut;
     private WaveFileReader? _waveReader;
 
@@ -63,22 +63,13 @@ public partial class SpeechDebugWindow : Window
         // visual tree at ctor time. Those are wired via Click="…" attributes in the XAML, which
         // Avalonia resolves against this class each time the template inflates.
         Button? closeBtn = this.FindControl<Button>("CloseButton");
-        if (closeBtn is not null)
-        {
-            closeBtn.Click += (_, _) => Close();
-        }
+        closeBtn?.Click += (_, _) => Close();
 
         Button? settingsBtn = this.FindControl<Button>("SettingsButton");
-        if (settingsBtn is not null)
-        {
-            settingsBtn.Click += OnSettingsClick;
-        }
+        settingsBtn?.Click += OnSettingsClick;
 
         Button? exportSelectedBtn = this.FindControl<Button>("ExportSelectedButton");
-        if (exportSelectedBtn is not null)
-        {
-            exportSelectedBtn.Click += OnExportSelectedClick;
-        }
+        exportSelectedBtn?.Click += OnExportSelectedClick;
     }
 
     private void OnSettingsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -186,13 +177,7 @@ public partial class SpeechDebugWindow : Window
         return string.IsNullOrEmpty(path) ? null : path;
     }
 
-    private void SetPlaybackStatus(string text)
-    {
-        if (_viewModel is not null)
-        {
-            _viewModel.PlaybackStatus = text;
-        }
-    }
+    private void SetPlaybackStatus(string text) => _viewModel?.PlaybackStatus = text;
 
     private void DisposePlayback()
     {

@@ -51,11 +51,7 @@ internal sealed class ReplayDriver(SimulationEngine engine)
 
     public void FastForwardTo(int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier)
     {
-        SimScenarioState? scenario = _engine.Scenario;
-        if (scenario is null)
-        {
-            throw new InvalidOperationException("FastForwardTo requires a loaded scenario");
-        }
+        SimScenarioState? scenario = _engine.Scenario ?? throw new InvalidOperationException("FastForwardTo requires a loaded scenario");
         int currentSeconds = (int)scenario.ElapsedSeconds;
         if (targetSeconds <= currentSeconds)
         {
@@ -205,19 +201,13 @@ internal sealed class ReplayDriver(SimulationEngine engine)
         if (recording.WeatherJson is not null)
         {
             _engine.ApplyWeatherJson(recording.WeatherJson);
-            if (_engine.Scenario is not null)
-            {
-                _engine.Scenario.MetarReissuanceEnabled = recording.MetarReissuanceEnabled;
-            }
+            _engine.Scenario?.MetarReissuanceEnabled = recording.MetarReissuanceEnabled;
         }
 
         // FAS-reduction variety was captured from the recording's initial snapshot: on for
         // sessions recorded with the feature, off for pre-feature recordings so they re-simulate
         // with the original uniform slow-down.
-        if (_engine.Scenario is not null)
-        {
-            _engine.Scenario.FinalApproachSpeedVarietyEnabled = recording.FinalApproachSpeedVarietyEnabled;
-        }
+        _engine.Scenario?.FinalApproachSpeedVarietyEnabled = recording.FinalApproachSpeedVarietyEnabled;
 
         // Deserialize the bundled ARTCC config so TrackResolver's TCP/ERAM fallback works
         // for AS commands targeting positions outside the scenario's StudentTcp/AtcPositions.

@@ -180,7 +180,7 @@ public sealed class SpeechRecognitionService(
 
     private SpeechStatus _status = SpeechStatus.Idle;
     private CancellationTokenSource? _pendingCts;
-    private readonly object _statusLock = new();
+    private readonly Lock _statusLock = new();
 
     // Most recent PTT sessions for the debug window. Newest entries at index 0 (insertion point).
     // Capped at MaxSessionHistory — older entries are dropped as new ones arrive.

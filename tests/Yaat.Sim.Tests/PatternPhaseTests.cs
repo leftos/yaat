@@ -40,8 +40,8 @@ public class PatternPhaseTests
             IndicatedAirspeed = ias,
             IsOnGround = onGround,
             FlightPlan = new AircraftFlightPlan { Departure = "TEST" },
+            Phases = new PhaseList(),
         };
-        ac.Phases = new PhaseList();
         return ac;
     }
 

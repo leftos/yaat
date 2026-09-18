@@ -260,9 +260,9 @@ public sealed class PatternEntryPhase : Phase
             LeadInLat = dto.LeadInLat,
             LeadInLon = dto.LeadInLon,
             _hasAnnouncedInitialCall = dto.HasAnnouncedInitialCall,
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
         };
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
         return phase;
     }
 

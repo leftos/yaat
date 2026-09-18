@@ -47,8 +47,8 @@ public class RunwayOccupancyWarningTests
             IndicatedAirspeed = 90,
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { Destination = "KOAK", FlightRules = "VFR" },
+            Phases = new PhaseList { AssignedRunway = runway },
         };
-        ac.Phases = new PhaseList { AssignedRunway = runway };
         ac.Phases.Add(new LandingPhase());
         return ac;
     }
@@ -66,8 +66,8 @@ public class RunwayOccupancyWarningTests
             IndicatedAirspeed = 0,
             IsOnGround = true,
             FlightPlan = new AircraftFlightPlan { Departure = "OAK" },
+            Phases = new PhaseList { AssignedRunway = runway },
         };
-        ac.Phases = new PhaseList { AssignedRunway = runway };
         foreach (Phase phase in phases)
         {
             ac.Phases.Add(phase);
@@ -88,8 +88,8 @@ public class RunwayOccupancyWarningTests
             IndicatedAirspeed = 0,
             IsOnGround = true,
             FlightPlan = new AircraftFlightPlan { Departure = "OAK" },
+            Phases = new PhaseList(),
         };
-        ac.Phases = new PhaseList();
         ac.Phases.Add(
             new HoldingShortPhase(
                 new HoldShortPoint

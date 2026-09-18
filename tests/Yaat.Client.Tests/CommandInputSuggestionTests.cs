@@ -15,9 +15,9 @@ public class CommandInputSuggestionTests
         NavigationDatabase.SetInstance(NavigationDatabase.ForTesting());
     }
 
-    private static AircraftModel Ac(string callsign) => new AircraftModel { Callsign = callsign };
+    private static AircraftModel Ac(string callsign) => new() { Callsign = callsign };
 
-    private static CommandInputController Controller() => new CommandInputController { NavDbReady = false };
+    private static CommandInputController Controller() => new() { NavDbReady = false };
 
     [Fact]
     public void Follow_TrailingSpace_ShowsAllCallsigns()

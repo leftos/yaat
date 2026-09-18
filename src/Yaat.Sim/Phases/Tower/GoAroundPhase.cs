@@ -48,9 +48,9 @@ public sealed class GoAroundPhase : Phase
             TargetAltitude = dto.TargetAltitude,
             ReenterPattern = dto.ReenterPattern,
             NextLandingFullStop = dto.NextLandingFullStop,
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
         };
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
         phase.RestoreRequirements(dto.Requirements);
         phase._fieldElevation = dto.FieldElevation;
         phase._runwayTrueHeading = new TrueHeading(dto.RunwayTrueHeadingDeg);

@@ -214,13 +214,15 @@ public sealed class AirTaxiPhase(double targetLat, double targetLon, string? des
 
     public static AirTaxiPhase FromSnapshot(AirTaxiPhaseDto dto)
     {
-        var phase = new AirTaxiPhase(dto.TargetLat, dto.TargetLon, dto.DestinationName);
-        phase._targetAltitude = dto.TargetAltitude;
-        phase._liftingOff = dto.LiftingOff;
-        phase._descending = dto.Descending;
-        phase._timeSinceLastLog = dto.TimeSinceLastLog;
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        var phase = new AirTaxiPhase(dto.TargetLat, dto.TargetLon, dto.DestinationName)
+        {
+            _targetAltitude = dto.TargetAltitude,
+            _liftingOff = dto.LiftingOff,
+            _descending = dto.Descending,
+            _timeSinceLastLog = dto.TimeSinceLastLog,
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
+        };
         phase.RestoreRequirements(dto.Requirements);
         return phase;
     }

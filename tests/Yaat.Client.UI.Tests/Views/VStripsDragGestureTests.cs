@@ -375,8 +375,7 @@ public class VStripsDragGestureTests
             FlightStripControl carouselStrip = view.GetVisualDescendants()
                 .OfType<FlightStripControl>()
                 .Single(c =>
-                    ((c.DataContext as StripItemViewModel)?.Id == "P1")
-                    && !c.GetVisualAncestors().OfType<Border>().Any(b => b.Tag is StripRackViewModel)
+                    c.DataContext is StripItemViewModel { Id: "P1" } && !c.GetVisualAncestors().OfType<Border>().Any(b => b.Tag is StripRackViewModel)
                 );
             Point start = carouselStrip.TranslatePoint(new Point(30, 20), window)!.Value;
             Border rack0 = RackBorder(view, rackIndex: 0);
@@ -499,8 +498,7 @@ public class VStripsDragGestureTests
             var rackMountedS1 = view.GetVisualDescendants()
                 .OfType<FlightStripControl>()
                 .Where(c =>
-                    ((c.DataContext as StripItemViewModel)?.Id == "S1")
-                    && c.GetVisualAncestors().OfType<Border>().Any(b => b.Tag is StripRackViewModel)
+                    c.DataContext is StripItemViewModel { Id: "S1" } && c.GetVisualAncestors().OfType<Border>().Any(b => b.Tag is StripRackViewModel)
                 )
                 .ToList();
             Assert.NotEmpty(rackMountedS1);
@@ -512,7 +510,7 @@ public class VStripsDragGestureTests
             int visibleAfterCancel = view.GetVisualDescendants()
                 .OfType<FlightStripControl>()
                 .Count(c =>
-                    ((c.DataContext as StripItemViewModel)?.Id == "S1")
+                    c.DataContext is StripItemViewModel { Id: "S1" }
                     && c.GetVisualAncestors().OfType<Border>().Any(b => b.Tag is StripRackViewModel)
                     && c.IsEffectivelyVisible
                 );

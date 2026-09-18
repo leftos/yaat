@@ -48,8 +48,8 @@ public class ParkingRouteWarningsTests(ITestOutputHelper output)
             IndicatedAirspeed = 0,
             IsOnGround = true,
             FlightPlan = new AircraftFlightPlan { Departure = "SFO" },
+            Phases = new PhaseList(),
         };
-        ac.Phases = new PhaseList();
 
         ParseResult<ParsedCommand> parsed = CommandParser.Parse("TAXI T7A A @F10 HS 28L");
         Assert.True(parsed.IsSuccess, $"parse failed: {parsed.Reason}");

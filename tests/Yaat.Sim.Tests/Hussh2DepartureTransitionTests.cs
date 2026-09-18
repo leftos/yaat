@@ -43,10 +43,10 @@ public class Hussh2DepartureTransitionTests
                 Altitude = PlannedAltitude.Ifr(41000),
                 FlightRules = "IFR",
             },
-        };
-        ac.Phases = new PhaseList
-        {
-            AssignedRunway = TestRunwayFactory.Make(designator: runwayDesignator, airportId: "OAK", heading: runwayHeading, elevationFt: 6),
+            Phases = new PhaseList
+            {
+                AssignedRunway = TestRunwayFactory.Make(designator: runwayDesignator, airportId: "OAK", heading: runwayHeading, elevationFt: 6),
+            },
         };
         return ac;
     }

@@ -413,9 +413,12 @@ public sealed class FinalApproachPhase : Phase
 
     public static FinalApproachPhase FromSnapshot(FinalApproachPhaseDto dto)
     {
-        var phase = new FinalApproachPhase { SkipInterceptCheck = dto.SkipInterceptCheck };
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        var phase = new FinalApproachPhase
+        {
+            SkipInterceptCheck = dto.SkipInterceptCheck,
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
+        };
         phase.RestoreRequirements(dto.Requirements);
         phase._thresholdLat = dto.ThresholdLat;
         phase._thresholdLon = dto.ThresholdLon;

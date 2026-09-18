@@ -54,10 +54,7 @@ public partial class FavoritesEditorWindow : Window
         WireButton("CloseButton", (_, _) => Close());
 
         ListBox? containers = this.FindControl<ListBox>("ContainersList");
-        if (containers is not null)
-        {
-            containers.SelectionChanged += OnContainerSelectionChanged;
-        }
+        containers?.SelectionChanged += OnContainerSelectionChanged;
 
         PopulateContainers();
         PopulateFavorites();
@@ -66,10 +63,7 @@ public partial class FavoritesEditorWindow : Window
     private void WireButton(string name, EventHandler<RoutedEventArgs> handler)
     {
         Button? btn = this.FindControl<Button>(name);
-        if (btn is not null)
-        {
-            btn.Click += handler;
-        }
+        btn?.Click += handler;
     }
 
     private void PopulateContainers()

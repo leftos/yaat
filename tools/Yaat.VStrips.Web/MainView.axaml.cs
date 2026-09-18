@@ -54,10 +54,7 @@ public partial class MainView : UserControl
         };
 
         UserControl? stripsView = this.FindControl<UserControl>("StripsView");
-        if (stripsView is not null)
-        {
-            stripsView.DataContext = vm;
-        }
+        stripsView?.DataContext = vm;
 
         if (HasIdentity())
         {
@@ -89,10 +86,7 @@ public partial class MainView : UserControl
     private void SetStatus(string text)
     {
         TextBlock? bar = this.FindControl<TextBlock>("StatusBar");
-        if (bar is not null)
-        {
-            bar.Text = text;
-        }
+        bar?.Text = text;
     }
 
     private static Dictionary<string, string> ParseQuery(string search)

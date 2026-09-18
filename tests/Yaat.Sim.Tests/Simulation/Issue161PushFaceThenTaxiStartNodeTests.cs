@@ -47,8 +47,8 @@ public class Issue161PushFaceThenTaxiStartNodeTests(ITestOutputHelper output)
             IndicatedAirspeed = 0,
             IsOnGround = true,
             FlightPlan = new AircraftFlightPlan { Departure = "SFO", Destination = "SNA" },
+            Phases = new PhaseList(),
         };
-        ac.Phases = new PhaseList();
         ac.Phases.Add(new HoldingAfterPushbackPhase());
         var ctx = new PhaseContext
         {

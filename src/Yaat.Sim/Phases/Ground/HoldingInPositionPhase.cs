@@ -70,9 +70,7 @@ public sealed class HoldingInPositionPhase : Phase
 
     public static HoldingInPositionPhase FromSnapshot(HoldingInPositionPhaseDto dto)
     {
-        var phase = new HoldingInPositionPhase();
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        var phase = new HoldingInPositionPhase { Status = (PhaseStatus)dto.Status, ElapsedSeconds = dto.ElapsedSeconds };
         phase.RestoreRequirements(dto.Requirements);
         return phase;
     }

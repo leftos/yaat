@@ -56,7 +56,7 @@ public sealed class UserPreferences
     // in the ctor) and writes (Save) would otherwise race on File.Move and
     // fail with UnauthorizedAccessException (Windows) or trample each
     // other's intermediate .tmp files (Linux).
-    private static readonly object FileLock = new();
+    private static readonly Lock FileLock = new();
 
     internal static readonly JsonSerializerOptions JsonOptions = new()
     {

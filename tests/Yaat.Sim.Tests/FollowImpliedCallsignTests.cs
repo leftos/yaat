@@ -42,8 +42,8 @@ public class FollowImpliedCallsignTests : IDisposable
             TrueTrack = new TrueHeading(180),
             Altitude = 3000,
             IndicatedAirspeed = 90,
+            Phases = new PhaseList(),
         };
-        ac.Phases = new PhaseList();
         return ac;
     }
 

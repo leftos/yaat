@@ -477,9 +477,8 @@ public class AircraftState
             Queue = CommandQueue.FromSnapshot(dto.Queue),
             Phases = dto.Phases is not null ? PhaseList.FromSnapshot(dto.Phases, groundLayout) : null,
             ActiveApproachScore = dto.ActiveApproachScore is not null ? ApproachScore.FromSnapshot(dto.ActiveApproachScore) : null,
+            WindComponents = (dto.WindN, dto.WindE),
         };
-
-        ac.WindComponents = (dto.WindN, dto.WindE);
         ControlTargets.RestoreFrom(dto.Targets, ac.Targets);
 
         // Re-link every restored HoldingShortPhase to the taxi route's own HoldShortPoint. Each side round-trips

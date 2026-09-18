@@ -84,19 +84,18 @@ public class TouchdownPointTests(ITestOutputHelper output)
             IndicatedAirspeed = approachSpeedKt,
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { Destination = "KOAK" },
-        };
-
-        ac.Phases = new PhaseList
-        {
-            AssignedRunway = rwy,
-            ActiveApproach = new ApproachClearance
+            Phases = new PhaseList
             {
-                ApproachId = "I28R",
-                AirportCode = "OAK",
-                RunwayId = "28R",
-                FinalApproachCourse = course,
+                AssignedRunway = rwy,
+                ActiveApproach = new ApproachClearance
+                {
+                    ApproachId = "I28R",
+                    AirportCode = "OAK",
+                    RunwayId = "28R",
+                    FinalApproachCourse = course,
+                },
+                LandingClearance = ClearanceType.ClearedToLand,
             },
-            LandingClearance = ClearanceType.ClearedToLand,
         };
         ac.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
         ac.Phases.Add(new LandingPhase());

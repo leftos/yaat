@@ -165,10 +165,7 @@ public sealed partial class FindController(Func<IReadOnlyList<IFindableItem>> sn
 
     private void SelectByIndex(int index)
     {
-        if (_currentItem is not null)
-        {
-            _currentItem.IsCurrentFindMatch = false;
-        }
+        _currentItem?.IsCurrentFindMatch = false;
         if (index >= 0 && index < _matches.Count)
         {
             _currentItem = _matches[index];

@@ -37,8 +37,8 @@ public class GroundCommandHandlerTests
             IndicatedAirspeed = 0,
             IsOnGround = true,
             FlightPlan = new AircraftFlightPlan { Departure = "OAK" },
+            Phases = new PhaseList(),
         };
-        ac.Phases = new PhaseList();
         return ac;
     }
 
@@ -1802,8 +1802,8 @@ public class GroundCommandHandlerTests
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { Destination = "KOAK" },
             Procedure = new AircraftProcedure { ActiveStarId = "WNDSR2" },
+            Phases = new PhaseList(),
         };
-        ac.Phases = new PhaseList();
 
         CommandResult result = GroundCommandHandler.TryAssignRunway(ac, "30");
 
@@ -1841,8 +1841,8 @@ public class GroundCommandHandlerTests
             IsOnGround = false,
             FlightPlan = new AircraftFlightPlan { Destination = "KOAK" },
             Procedure = new AircraftProcedure { ActiveStarId = "WNDSR2" },
+            Phases = new PhaseList(),
         };
-        ac.Phases = new PhaseList();
         RunwayInfo rwy12 = TestRunwayFactory.Make(designator: "12", airportId: "OAK", heading: 120, thresholdLat: 37.73, thresholdLon: -122.22);
         ac.Approach.PendingClearance = new PendingApproachInfo
         {

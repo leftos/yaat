@@ -83,8 +83,8 @@ public class Issue400RampLaneDestinationCutTests
             IsOnGround = true,
             AirportId = "OAK",
             FlightPlan = new AircraftFlightPlan { Departure = "KLAX", Destination = "KOAK" },
+            Phases = new PhaseList(),
         };
-        aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new AtParkingPhase());
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
         aircraft.Ground.Layout = layout;

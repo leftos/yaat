@@ -80,7 +80,7 @@ public class S2Oak3FollowSequencingTests
         var callsigns = byCallsign.Keys.OrderBy(k => k).ToList();
         Assert.Equal(6, callsigns.Count);
 
-        Func<string, AircraftState?> lookup = cs => byCallsign.TryGetValue(cs, out AircraftState? ac) ? ac : null;
+        AircraftState? lookup(string cs) => byCallsign.TryGetValue(cs, out AircraftState? ac) ? ac : null;
         DispatchContext dispatchCtx = TestDispatch.Context(Random.Shared, findAircraft: lookup);
 
         for (int i = 1; i < callsigns.Count; i++)
@@ -118,7 +118,7 @@ public class S2Oak3FollowSequencingTests
             return;
         }
 
-        Func<string, AircraftState?> lookup = cs => byCallsign.TryGetValue(cs, out AircraftState? ac) ? ac : null;
+        AircraftState? lookup(string cs) => byCallsign.TryGetValue(cs, out AircraftState? ac) ? ac : null;
         DispatchContext dispatchCtx = TestDispatch.Context(Random.Shared, findAircraft: lookup);
 
         // Force traffic in sight then FOLLOW.

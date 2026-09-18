@@ -32,8 +32,7 @@ public class MainViewModelMetarSortingTests
     public void PopulateMetars_FavoritesSurfaceToTop_AlphabeticalWithinGroups()
     {
         const string scenarioId = "TEST-metar-fav-sort-scenario";
-        var vm = new MainViewModel(new FakeFilePickerService());
-        vm.ActiveScenarioId = scenarioId;
+        var vm = new MainViewModel(new FakeFilePickerService()) { ActiveScenarioId = scenarioId };
         vm.Preferences.SetFavoriteMetarStation(scenarioId, "SFO", true);
         vm.Preferences.SetFavoriteMetarStation(scenarioId, "NUQ", true);
 
@@ -47,8 +46,7 @@ public class MainViewModelMetarSortingTests
     public void ToggleMetarFavorite_ReordersAndPersists()
     {
         const string scenarioId = "TEST-metar-fav-toggle-scenario";
-        var vm = new MainViewModel(new FakeFilePickerService());
-        vm.ActiveScenarioId = scenarioId;
+        var vm = new MainViewModel(new FakeFilePickerService()) { ActiveScenarioId = scenarioId };
         vm.PopulateMetars([SfoMetar, OakMetar, HafMetar]);
         Assert.Equal(["HAF", "OAK", "SFO"], vm.Metars.Select(m => m.StationId));
 
@@ -68,8 +66,7 @@ public class MainViewModelMetarSortingTests
     public void PopulateMetars_UnparseableMetar_SortsLastAndCannotBeFavorited()
     {
         const string scenarioId = "TEST-metar-fav-unparseable-scenario";
-        var vm = new MainViewModel(new FakeFilePickerService());
-        vm.ActiveScenarioId = scenarioId;
+        var vm = new MainViewModel(new FakeFilePickerService()) { ActiveScenarioId = scenarioId };
 
         vm.PopulateMetars(["bad metar line x", SfoMetar, OakMetar]);
 

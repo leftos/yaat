@@ -669,7 +669,7 @@ public class GroundPhaseTests
         follower.Phases = new PhaseList();
         follower.Phases.Add(new FollowingPhase("LEAD01"));
 
-        Func<string, AircraftState?> lookup = cs => cs == "LEAD01" ? lead : null;
+        AircraftState? lookup(string cs) => cs == "LEAD01" ? lead : null;
         var ctx = new PhaseContext
         {
             Aircraft = follower,

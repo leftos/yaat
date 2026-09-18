@@ -11,12 +11,13 @@ public class MainViewModelStripFilterTests
     [AvaloniaFact]
     public void StripChannel_Visibility_TracksToggle()
     {
-        var vm = new MainViewModel(new FakeFilePickerService());
-
-        // Set the toggle explicitly rather than relying on the persisted default — the UI-test
-        // suite shares one preferences.json per process, so another test may have persisted a
-        // hidden Strip channel.
-        vm.ShowStripEntries = true;
+        var vm = new MainViewModel(new FakeFilePickerService())
+        {
+            // Set the toggle explicitly rather than relying on the persisted default — the UI-test
+            // suite shares one preferences.json per process, so another test may have persisted a
+            // hidden Strip channel.
+            ShowStripEntries = true,
+        };
         Assert.True(vm.IsEntryVisible(TerminalEntryKind.Strip));
 
         vm.ShowStripEntries = false;
@@ -26,12 +27,13 @@ public class MainViewModelStripFilterTests
     [AvaloniaFact]
     public void ShiftClickSoloStrip_IsolatesStrip_ThenRestoresOnUndo()
     {
-        var vm = new MainViewModel(new FakeFilePickerService());
-
-        // Establish a known baseline so the solo snapshot is deterministic regardless of any
-        // filter state persisted by other tests in the shared preferences.json.
-        vm.ShowStripEntries = true;
-        vm.ShowCommandEntries = true;
+        var vm = new MainViewModel(new FakeFilePickerService())
+        {
+            // Establish a known baseline so the solo snapshot is deterministic regardless of any
+            // filter state persisted by other tests in the shared preferences.json.
+            ShowStripEntries = true,
+            ShowCommandEntries = true,
+        };
 
         // Enter solo on the Strip channel: only Strip stays visible.
         vm.OnTerminalCategoryShiftClicked(TerminalEntryKind.Strip);

@@ -99,7 +99,7 @@ public sealed class FavoriteStore
     private static readonly ILogger Log = AppLog.CreateLogger<FavoriteStore>();
 
     // Serializes file IO across instances (parallel tests share YAAT_APPDATA_DIR per process).
-    private static readonly object FileLock = new();
+    private static readonly Lock FileLock = new();
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {

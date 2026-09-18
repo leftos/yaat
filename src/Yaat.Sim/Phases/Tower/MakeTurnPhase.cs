@@ -56,9 +56,13 @@ public sealed class MakeTurnPhase : Phase
 
     public static MakeTurnPhase FromSnapshot(MakeTurnPhaseDto dto)
     {
-        var phase = new MakeTurnPhase { Direction = (TurnDirection)dto.Direction, TargetDegrees = dto.TargetDegrees };
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        var phase = new MakeTurnPhase
+        {
+            Direction = (TurnDirection)dto.Direction,
+            TargetDegrees = dto.TargetDegrees,
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
+        };
         phase.RestoreRequirements(dto.Requirements);
         phase._startHeading = new TrueHeading(dto.StartHeadingDeg);
         phase._cumulativeTurn = dto.CumulativeTurn;

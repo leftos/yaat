@@ -44,8 +44,8 @@ public class AirportE2ETests
             IndicatedAirspeed = 0,
             IsOnGround = true,
             FlightPlan = new AircraftFlightPlan { Departure = departure },
+            Phases = new PhaseList(),
         };
-        ac.Phases = new PhaseList();
         ac.Phases.Add(new AtParkingPhase());
         ac.Phases.Start(MinCtx(ac));
         return ac;
@@ -270,7 +270,7 @@ public class AirportE2ETests
     }
 
     private static RunwayInfo MakeWidthRunway(string airportId, string end1, string end2, int widthFt) =>
-        new RunwayInfo
+        new()
         {
             AirportId = airportId,
             Id = new RunwayIdentifier(end1, end2),

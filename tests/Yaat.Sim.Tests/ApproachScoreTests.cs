@@ -73,13 +73,15 @@ public class ApproachScoreTests
     public void ScoreCreatedAtEstablishment_HasCorrectIdentity()
     {
         AircraftState aircraft = MakeEstablishedAircraft();
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.ActiveApproach = new ApproachClearance
+        aircraft.Phases = new PhaseList
         {
-            ApproachId = "I28R",
-            AirportCode = "OAK",
-            RunwayId = "28R",
-            FinalApproachCourse = new TrueHeading(280),
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(280),
+            },
         };
 
         var phase = new FinalApproachPhase();
@@ -102,13 +104,15 @@ public class ApproachScoreTests
     public void ScoreCreatedAtEstablishment_CapturesInterceptMetrics()
     {
         AircraftState aircraft = MakeEstablishedAircraft(altitude: 3000, distFromThresholdNm: 8.0, ias: 160);
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.ActiveApproach = new ApproachClearance
+        aircraft.Phases = new PhaseList
         {
-            ApproachId = "I28R",
-            AirportCode = "OAK",
-            RunwayId = "28R",
-            FinalApproachCourse = new TrueHeading(280),
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(280),
+            },
         };
 
         var phase = new FinalApproachPhase();
@@ -139,13 +143,15 @@ public class ApproachScoreTests
     public void ScoreCreatedAtEstablishment_SetsActiveApproachScore()
     {
         AircraftState aircraft = MakeEstablishedAircraft();
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.ActiveApproach = new ApproachClearance
+        aircraft.Phases = new PhaseList
         {
-            ApproachId = "I28R",
-            AirportCode = "OAK",
-            RunwayId = "28R",
-            FinalApproachCourse = new TrueHeading(280),
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(280),
+            },
         };
 
         var phase = new FinalApproachPhase();
@@ -167,13 +173,15 @@ public class ApproachScoreTests
 
         // Aircraft above glideslope by 500 ft
         AircraftState aircraft = MakeEstablishedAircraft(altitude: gsAltitude + 500, distFromThresholdNm: distNm);
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.ActiveApproach = new ApproachClearance
+        aircraft.Phases = new PhaseList
         {
-            ApproachId = "I28R",
-            AirportCode = "OAK",
-            RunwayId = "28R",
-            FinalApproachCourse = new TrueHeading(280),
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(280),
+            },
         };
 
         var phase = new FinalApproachPhase();
@@ -196,13 +204,15 @@ public class ApproachScoreTests
 
         // Aircraft below glideslope by 300 ft
         AircraftState aircraft = MakeEstablishedAircraft(altitude: gsAltitude - 300, distFromThresholdNm: distNm);
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.ActiveApproach = new ApproachClearance
+        aircraft.Phases = new PhaseList
         {
-            ApproachId = "I28R",
-            AirportCode = "OAK",
-            RunwayId = "28R",
-            FinalApproachCourse = new TrueHeading(280),
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(280),
+            },
         };
 
         var phase = new FinalApproachPhase();
@@ -219,14 +229,16 @@ public class ApproachScoreTests
     public void ScoreCreatedAtEstablishment_ForcedFlag()
     {
         AircraftState aircraft = MakeEstablishedAircraft();
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.ActiveApproach = new ApproachClearance
+        aircraft.Phases = new PhaseList
         {
-            ApproachId = "I28R",
-            AirportCode = "OAK",
-            RunwayId = "28R",
-            FinalApproachCourse = new TrueHeading(280),
-            Force = true,
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(280),
+                Force = true,
+            },
         };
 
         var phase = new FinalApproachPhase();
@@ -243,14 +255,16 @@ public class ApproachScoreTests
     public void ScoreCreatedAtEstablishment_PatternTrafficFlagged()
     {
         AircraftState aircraft = MakeEstablishedAircraft();
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.TrafficDirection = PatternDirection.Left;
-        aircraft.Phases.ActiveApproach = new ApproachClearance
+        aircraft.Phases = new PhaseList
         {
-            ApproachId = "I28R",
-            AirportCode = "OAK",
-            RunwayId = "28R",
-            FinalApproachCourse = new TrueHeading(280),
+            TrafficDirection = PatternDirection.Left,
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(280),
+            },
         };
 
         var phase = new FinalApproachPhase();
@@ -267,13 +281,15 @@ public class ApproachScoreTests
     public void ScoreCreatedAtEstablishment_NonPatternTraffic_FlagFalse()
     {
         AircraftState aircraft = MakeEstablishedAircraft();
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.ActiveApproach = new ApproachClearance
+        aircraft.Phases = new PhaseList
         {
-            ApproachId = "I28R",
-            AirportCode = "OAK",
-            RunwayId = "28R",
-            FinalApproachCourse = new TrueHeading(280),
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(280),
+            },
         };
 
         var phase = new FinalApproachPhase();
@@ -291,13 +307,15 @@ public class ApproachScoreTests
     {
         // Aircraft close to gate (< 2nm above minimum intercept distance)
         AircraftState aircraft = MakeEstablishedAircraft(distFromThresholdNm: 6.0);
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.ActiveApproach = new ApproachClearance
+        aircraft.Phases = new PhaseList
         {
-            ApproachId = "I28R",
-            AirportCode = "OAK",
-            RunwayId = "28R",
-            FinalApproachCourse = new TrueHeading(280),
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(280),
+            },
         };
 
         var phase = new FinalApproachPhase();
@@ -319,15 +337,17 @@ public class ApproachScoreTests
     public void ScoreCreatedAtEstablishment_Tbl591_Helicopter_FarFromGate_MaxAngle45()
     {
         AircraftState aircraft = MakeEstablishedAircraft(distFromThresholdNm: 8.0, type: "EC45");
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.ActiveApproach = new ApproachClearance
+        aircraft.Phases = new PhaseList
         {
-            ApproachId = "I28R",
-            AirportCode = "OAK",
-            RunwayId = "28R",
-            FinalApproachCourse = new TrueHeading(280),
-            InterceptCaptureDistanceNm = 8.0,
-            InterceptCaptureAngleDeg = 40.0,
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(280),
+                InterceptCaptureDistanceNm = 8.0,
+                InterceptCaptureAngleDeg = 40.0,
+            },
         };
 
         var phase = new FinalApproachPhase();
@@ -348,15 +368,17 @@ public class ApproachScoreTests
     public void ScoreCreatedAtEstablishment_Tbl591_Jet_FarFromGate_MaxAngle30()
     {
         AircraftState aircraft = MakeEstablishedAircraft(distFromThresholdNm: 8.0);
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.ActiveApproach = new ApproachClearance
+        aircraft.Phases = new PhaseList
         {
-            ApproachId = "I28R",
-            AirportCode = "OAK",
-            RunwayId = "28R",
-            FinalApproachCourse = new TrueHeading(280),
-            InterceptCaptureDistanceNm = 8.0,
-            InterceptCaptureAngleDeg = 40.0,
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(280),
+                InterceptCaptureDistanceNm = 8.0,
+                InterceptCaptureAngleDeg = 40.0,
+            },
         };
 
         var phase = new FinalApproachPhase();
@@ -378,13 +400,15 @@ public class ApproachScoreTests
     public void ScoreCreatedAtEstablishment_Tbl591_Helicopter_CloseToGate_MaxAngle20()
     {
         AircraftState aircraft = MakeEstablishedAircraft(distFromThresholdNm: 6.0, type: "EC45");
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.ActiveApproach = new ApproachClearance
+        aircraft.Phases = new PhaseList
         {
-            ApproachId = "I28R",
-            AirportCode = "OAK",
-            RunwayId = "28R",
-            FinalApproachCourse = new TrueHeading(280),
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(280),
+            },
         };
 
         var phase = new FinalApproachPhase();
@@ -402,13 +426,15 @@ public class ApproachScoreTests
     {
         // Aircraft heading matches runway — angle near 0, always legal
         AircraftState aircraft = MakeEstablishedAircraft(heading: 280);
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.ActiveApproach = new ApproachClearance
+        aircraft.Phases = new PhaseList
         {
-            ApproachId = "I28R",
-            AirportCode = "OAK",
-            RunwayId = "28R",
-            FinalApproachCourse = new TrueHeading(280),
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(280),
+            },
         };
 
         var phase = new FinalApproachPhase();
@@ -426,13 +452,15 @@ public class ApproachScoreTests
     {
         // 8nm from threshold is well above minimum intercept distance for most airports
         AircraftState aircraft = MakeEstablishedAircraft(distFromThresholdNm: 8.0);
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.ActiveApproach = new ApproachClearance
+        aircraft.Phases = new PhaseList
         {
-            ApproachId = "I28R",
-            AirportCode = "OAK",
-            RunwayId = "28R",
-            FinalApproachCourse = new TrueHeading(280),
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(280),
+            },
         };
 
         var phase = new FinalApproachPhase();
@@ -450,13 +478,15 @@ public class ApproachScoreTests
     public void SkipInterceptCheck_NoScoreCreated()
     {
         AircraftState aircraft = MakeEstablishedAircraft();
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.ActiveApproach = new ApproachClearance
+        aircraft.Phases = new PhaseList
         {
-            ApproachId = "I28R",
-            AirportCode = "OAK",
-            RunwayId = "28R",
-            FinalApproachCourse = new TrueHeading(280),
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(280),
+            },
         };
 
         var phase = new FinalApproachPhase { SkipInterceptCheck = true };
@@ -635,13 +665,15 @@ public class ApproachScoreTests
     public void ScoreEstablishmentPosition_CapturedCorrectly()
     {
         AircraftState aircraft = MakeEstablishedAircraft(distFromThresholdNm: 8.0);
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.ActiveApproach = new ApproachClearance
+        aircraft.Phases = new PhaseList
         {
-            ApproachId = "I28R",
-            AirportCode = "OAK",
-            RunwayId = "28R",
-            FinalApproachCourse = new TrueHeading(280),
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(280),
+            },
         };
 
         var phase = new FinalApproachPhase();
@@ -705,13 +737,15 @@ public class ApproachScoreTests
     {
         AircraftState aircraft = MakeEstablishedAircraft();
         aircraft.FlightPlan.FlightRules = "VFR";
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.ActiveApproach = new ApproachClearance
+        aircraft.Phases = new PhaseList
         {
-            ApproachId = "VIS28R",
-            AirportCode = "OAK",
-            RunwayId = "28R",
-            FinalApproachCourse = new TrueHeading(280),
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "VIS28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(280),
+            },
         };
 
         var phase = new FinalApproachPhase();
@@ -729,13 +763,15 @@ public class ApproachScoreTests
     {
         // Place aircraft close to threshold (inside minimum intercept distance)
         AircraftState aircraft = MakeEstablishedAircraft(distFromThresholdNm: 2.0);
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.ActiveApproach = new ApproachClearance
+        aircraft.Phases = new PhaseList
         {
-            ApproachId = "VIS28R",
-            AirportCode = "OAK",
-            RunwayId = "28R",
-            FinalApproachCourse = new TrueHeading(280),
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "VIS28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(280),
+            },
         };
 
         var phase = new FinalApproachPhase();
@@ -760,14 +796,16 @@ public class ApproachScoreTests
     public void InterceptDistance_UsesCaptureDistance()
     {
         AircraftState aircraft = MakeEstablishedAircraft(distFromThresholdNm: 4.2);
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.ActiveApproach = new ApproachClearance
+        aircraft.Phases = new PhaseList
         {
-            ApproachId = "I28R",
-            AirportCode = "OAK",
-            RunwayId = "28R",
-            FinalApproachCourse = new TrueHeading(280),
-            InterceptCaptureDistanceNm = 5.7,
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(280),
+                InterceptCaptureDistanceNm = 5.7,
+            },
         };
 
         var phase = new FinalApproachPhase();
@@ -784,14 +822,16 @@ public class ApproachScoreTests
     public void InterceptDistance_FallsBackWhenNoCapture()
     {
         AircraftState aircraft = MakeEstablishedAircraft(distFromThresholdNm: 4.2);
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.ActiveApproach = new ApproachClearance
+        aircraft.Phases = new PhaseList
         {
-            ApproachId = "I28R",
-            AirportCode = "OAK",
-            RunwayId = "28R",
-            FinalApproachCourse = new TrueHeading(280),
-            // No InterceptCaptureDistanceNm set
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(280),
+                // No InterceptCaptureDistanceNm set
+            },
         };
 
         var phase = new FinalApproachPhase();
@@ -810,14 +850,16 @@ public class ApproachScoreTests
     {
         // Capture at 6nm (legal), establish at 4nm (would be illegal with default 7nm min)
         AircraftState aircraft = MakeEstablishedAircraft(distFromThresholdNm: 4.0);
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.ActiveApproach = new ApproachClearance
+        aircraft.Phases = new PhaseList
         {
-            ApproachId = "I28R",
-            AirportCode = "OAK",
-            RunwayId = "28R",
-            FinalApproachCourse = new TrueHeading(280),
-            InterceptCaptureDistanceNm = 8.0,
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(280),
+                InterceptCaptureDistanceNm = 8.0,
+            },
         };
 
         var phase = new FinalApproachPhase();

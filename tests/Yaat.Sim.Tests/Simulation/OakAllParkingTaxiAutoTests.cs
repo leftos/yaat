@@ -124,9 +124,8 @@ public class OakAllParkingTaxiAutoTests(ITestOutputHelper output)
                 FlightRules = "VFR",
                 Altitude = PlannedAltitude.Vfr(1500),
             },
+            Phases = new PhaseList(),
         };
-
-        aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new AtParkingPhase());
         PhaseContext startCtx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
         aircraft.Phases.Start(startCtx);

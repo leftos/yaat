@@ -79,8 +79,8 @@ public class KaseLindz1DepartureE2ETests
                 Altitude = PlannedAltitude.Ifr(33000),
                 FlightRules = "IFR",
             },
+            Phases = new PhaseList { AssignedRunway = rwy },
         };
-        ac.Phases = new PhaseList { AssignedRunway = rwy };
 
         var holding = new HoldingInPositionPhase();
         ac.Phases.Add(holding);
@@ -220,8 +220,8 @@ public class KaseLindz1DepartureE2ETests
                 Altitude = PlannedAltitude.Ifr(33000),
                 FlightRules = "IFR",
             },
+            Phases = new PhaseList { AssignedRunway = rwy },
         };
-        ac.Phases = new PhaseList { AssignedRunway = rwy };
 
         var holding = new HoldingInPositionPhase();
         ac.Phases.Add(holding);

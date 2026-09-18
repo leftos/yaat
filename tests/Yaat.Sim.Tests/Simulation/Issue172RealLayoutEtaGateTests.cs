@@ -123,8 +123,8 @@ public class Issue172RealLayoutEtaGateTests
             IsOnGround = true,
             IndicatedAirspeed = ias,
             Ground = new AircraftGroundOps { AssignedTaxiRoute = route },
+            Phases = new PhaseList(),
         };
-        ac.Phases = new PhaseList();
         ac.Phases.Add(new TaxiingPhase());
         ac.Phases.CurrentPhase!.Status = PhaseStatus.Active;
         return ac;

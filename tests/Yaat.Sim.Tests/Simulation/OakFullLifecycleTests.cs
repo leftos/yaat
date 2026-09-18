@@ -65,9 +65,8 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
                 FlightRules = "VFR",
                 Altitude = PlannedAltitude.Vfr(1500),
             },
+            Phases = new PhaseList { AssignedRunway = runway28R },
         };
-
-        aircraft.Phases = new PhaseList { AssignedRunway = runway28R };
         aircraft.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
         aircraft.Phases.Add(new LandingPhase());
         aircraft.Phases.Add(new RunwayExitPhase());

@@ -23,15 +23,9 @@ public partial class FindBarView : UserControl
 
     private void OnDataContextChanged(object? sender, EventArgs e)
     {
-        if (_controller is not null)
-        {
-            _controller.PropertyChanged -= OnControllerPropertyChanged;
-        }
+        _controller?.PropertyChanged -= OnControllerPropertyChanged;
         _controller = DataContext as FindController;
-        if (_controller is not null)
-        {
-            _controller.PropertyChanged += OnControllerPropertyChanged;
-        }
+        _controller?.PropertyChanged += OnControllerPropertyChanged;
     }
 
     private void OnControllerPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

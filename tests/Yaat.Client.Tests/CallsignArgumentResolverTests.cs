@@ -9,7 +9,7 @@ public class CallsignArgumentResolverTests
 {
     private static readonly CommandScheme Scheme = CommandScheme.Default();
 
-    private static AircraftModel Ac(string callsign) => new AircraftModel { Callsign = callsign };
+    private static AircraftModel Ac(string callsign) => new() { Callsign = callsign };
 
     private static IReadOnlyCollection<AircraftModel> Aircraft(params string[] callsigns) => [.. callsigns.Select(Ac)];
 

@@ -452,7 +452,7 @@ public sealed class NavigationDatabase
     /// </summary>
     public IReadOnlyList<Speech.CustomFixSpeechPattern> CustomFixSpeechPatterns => _customFixSpeechPatterns;
 
-    private List<Speech.CustomFixSpeechPattern> _customFixSpeechPatterns = [];
+    private readonly List<Speech.CustomFixSpeechPattern> _customFixSpeechPatterns = [];
 
     /// <summary>
     /// Phonetic pronunciation hints for fixes whose spelling doesn't match their spoken form.

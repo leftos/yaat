@@ -200,9 +200,11 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
         // in the painted line and a conflict/airport speed-limit ceiling still outrank that floor (see
         // GroundNavigator.ClampBySpeedLimit). The aircraft hands off to the onward TaxiingPhase moving; that
         // phase owns the real deceleration for the destination.
-        _navigator = new GroundNavigator();
-        _navigator.MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category);
-        _navigator.MinSpeedKts = CategoryPerformance.RunwayCrossingSpeed(ctx.Category);
+        _navigator = new GroundNavigator
+        {
+            MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category),
+            MinSpeedKts = CategoryPerformance.RunwayCrossingSpeed(ctx.Category),
+        };
         _navigator.SetupSegment(_crossingRoute, ctx, _ => true);
         ApplyExitHoldShortOffset(ctx);
 
@@ -479,10 +481,12 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
 
     public static CrossingRunwayPhase FromSnapshot(CrossingRunwayPhaseDto dto)
     {
-        var phase = new CrossingRunwayPhase(dto.ApproachNodeId, dto.TargetNodeId, dto.CrossingRunwayId);
-        phase._timeSinceLastLog = dto.TimeSinceLastLog;
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        var phase = new CrossingRunwayPhase(dto.ApproachNodeId, dto.TargetNodeId, dto.CrossingRunwayId)
+        {
+            _timeSinceLastLog = dto.TimeSinceLastLog,
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
+        };
         phase.RestoreRequirements(dto.Requirements);
         // Leave _initialized=false so the first OnTick rebuilds the
         // navigator + route slice from the restored AssignedTaxiRoute.

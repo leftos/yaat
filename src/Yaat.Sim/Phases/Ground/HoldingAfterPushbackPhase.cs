@@ -69,9 +69,7 @@ public sealed class HoldingAfterPushbackPhase : Phase
 
     public static HoldingAfterPushbackPhase FromSnapshot(HoldingAfterPushbackPhaseDto dto)
     {
-        var phase = new HoldingAfterPushbackPhase();
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        var phase = new HoldingAfterPushbackPhase { Status = (PhaseStatus)dto.Status, ElapsedSeconds = dto.ElapsedSeconds };
         phase.RestoreRequirements(dto.Requirements);
         return phase;
     }

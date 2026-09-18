@@ -39,8 +39,8 @@ public class DepartureClearanceHandlerTests
             IndicatedAirspeed = 0,
             IsOnGround = true,
             FlightPlan = new AircraftFlightPlan { Departure = departure, Route = route! },
+            Phases = new PhaseList(),
         };
-        ac.Phases = new PhaseList();
         return ac;
     }
 
@@ -197,8 +197,8 @@ public class DepartureClearanceHandlerTests
             IndicatedAirspeed = 0,
             IsOnGround = true,
             FlightPlan = new AircraftFlightPlan { Departure = "OAK" },
+            Phases = new PhaseList(),
         };
-        ac.Phases = new PhaseList();
 
         HoldingShortPhase holding = MakeHoldingShort();
         ac.Phases.Add(holding);

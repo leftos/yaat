@@ -71,9 +71,6 @@ public sealed class WindowNativeMenuHelper(Window window, WindowGeometryHelper g
         _preferences.WindowTopmostChanged -= OnWindowTopmostChanged;
         _window.Closed -= OnWindowClosed;
 
-        if (_alwaysOnTopItem is not null)
-        {
-            _alwaysOnTopItem.Click -= OnAlwaysOnTopClicked;
-        }
+        _alwaysOnTopItem?.Click -= OnAlwaysOnTopClicked;
     }
 }

@@ -52,7 +52,7 @@ public class BehindGroundTaxiTests
         AircraftState ac = MakeGroundAircraft("N569SX", 37.7272, -122.2097, 335.0);
         StartPhase(ac, new HoldingAfterPushbackPhase());
 
-        Func<string, AircraftState?> findAircraft = _ => null;
+        static AircraftState? findAircraft(string _) => null;
 
         var compound = new CompoundCommand([new ParsedBlock(new GiveWayCondition("GHOST"), [new TaxiCommand(["A", "B"], [])])]);
 
@@ -75,7 +75,7 @@ public class BehindGroundTaxiTests
         AircraftState target = MakeGroundAircraft("N152SP", 37.7281, -122.2117, 112.0);
         StartPhase(ac, new HoldingAfterPushbackPhase());
 
-        Func<string, AircraftState?> findAircraft = cs => cs == "N152SP" ? target : null;
+        AircraftState? findAircraft(string cs) => cs == "N152SP" ? target : null;
 
         var compound = new CompoundCommand([new ParsedBlock(new GiveWayCondition("N152SP"), [new TaxiCommand(["C", "D"], [])])]);
 

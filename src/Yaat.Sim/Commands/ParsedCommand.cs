@@ -656,12 +656,9 @@ public record AtFixCondition(string FixName, double Lat, double Lon, int? Radial
     /// </summary>
     public static AtFixCondition FromName(string fixName, int? radial = null, int? distance = null)
     {
-        (double Lat, double Lon)? pos = Data.NavigationDatabase.Instance.GetFixPosition(fixName);
-        if (pos is null)
-        {
-            throw new ArgumentException($"Unknown fix '{fixName}' — NavigationDatabase has no entry.", nameof(fixName));
-        }
-
+        (double Lat, double Lon)? pos =
+            Data.NavigationDatabase.Instance.GetFixPosition(fixName)
+            ?? throw new ArgumentException($"Unknown fix '{fixName}' — NavigationDatabase has no entry.", nameof(fixName));
         return new AtFixCondition(fixName, pos.Value.Lat, pos.Value.Lon, radial, distance);
     }
 }

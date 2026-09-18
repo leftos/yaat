@@ -1835,10 +1835,7 @@ internal static class DepartureClearanceHandler
 
         // Clear existing phases and set up vertical takeoff
         PhaseContext ctoppCtx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
-        if (aircraft.Phases is not null)
-        {
-            aircraft.Phases.Clear(ctoppCtx);
-        }
+        aircraft.Phases?.Clear(ctoppCtx);
 
         aircraft.Ground.Hold = null;
         aircraft.Phases = new PhaseList();

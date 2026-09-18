@@ -433,15 +433,15 @@ public sealed class HoldingPatternPhase : Phase
             Direction = (TurnDirection)dto.Direction,
             Entry = dto.Entry is { } entry ? (HoldingEntry)entry : null,
             MaxCircuits = dto.MaxCircuits,
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
+            _state = (HoldState)dto.State,
+            _entry = (HoldingEntry)dto.ResolvedEntry,
+            _outboundHeading = new TrueHeading(dto.OutboundHeadingDeg),
+            _correctedOutboundHeading = new TrueHeading(dto.CorrectedOutboundHeadingDeg),
+            _legTimerSeconds = dto.LegTimerSeconds,
+            _circuitsCompleted = dto.CircuitsCompleted,
         };
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
-        phase._state = (HoldState)dto.State;
-        phase._entry = (HoldingEntry)dto.ResolvedEntry;
-        phase._outboundHeading = new TrueHeading(dto.OutboundHeadingDeg);
-        phase._correctedOutboundHeading = new TrueHeading(dto.CorrectedOutboundHeadingDeg);
-        phase._legTimerSeconds = dto.LegTimerSeconds;
-        phase._circuitsCompleted = dto.CircuitsCompleted;
         return phase;
     }
 

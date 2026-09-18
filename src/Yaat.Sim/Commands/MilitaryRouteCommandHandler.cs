@@ -313,11 +313,8 @@ public static class MilitaryRouteCommandHandler
         // Clear() rather than nulling Phases: AircraftState.Phases is a plain property, so dropping
         // it skips MilitaryRoutePhase.OnEnd entirely — the VR beacon code would never be restored
         // and the armed block would stay on the strip after the aircraft had left the route.
-        if (aircraft.Phases is not null)
-        {
-            aircraft.Phases.Clear(CommandDispatcher.BuildMinimalContext(aircraft));
-            aircraft.Phases = null;
-        }
+        aircraft.Phases?.Clear(CommandDispatcher.BuildMinimalContext(aircraft));
+        aircraft.Phases = null;
 
         aircraft.Targets.AltitudeFloor = null;
         aircraft.Targets.AltitudeCeiling = null;

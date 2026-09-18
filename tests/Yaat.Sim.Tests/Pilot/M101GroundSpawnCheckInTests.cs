@@ -28,8 +28,8 @@ public class M101GroundSpawnCheckInTests
             IsOnGround = true,
             FlightPlan = new AircraftFlightPlan { FlightRules = isVfr ? "VFR" : "IFR", HasFlightPlan = hasFlightPlan },
             Ground = new AircraftGroundOps { ParkingSpot = parkingSpot },
+            Phases = new PhaseList(),
         };
-        ac.Phases = new PhaseList();
         return ac;
     }
 

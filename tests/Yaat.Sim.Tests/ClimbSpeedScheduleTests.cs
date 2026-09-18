@@ -46,8 +46,8 @@ public sealed class ClimbSpeedScheduleTests
             TrueHeading = new TrueHeading(280),
             TrueTrack = new TrueHeading(280),
             FlightPlan = new AircraftFlightPlan { Departure = "KTEST" },
+            Phases = new PhaseList { AssignedRunway = runway },
         };
-        ac.Phases = new PhaseList { AssignedRunway = runway };
 
         var phase = new InitialClimbPhase { AssignedAltitude = 35000 };
         var ctx = new PhaseContext
@@ -81,8 +81,8 @@ public sealed class ClimbSpeedScheduleTests
             TrueHeading = new TrueHeading(280),
             TrueTrack = new TrueHeading(280),
             FlightPlan = new AircraftFlightPlan { Departure = "KTEST" },
+            Phases = new PhaseList { AssignedRunway = runway },
         };
-        ac.Phases = new PhaseList { AssignedRunway = runway };
 
         var phase = new InitialClimbPhase { AssignedAltitude = 35000 };
         var ctx = new PhaseContext

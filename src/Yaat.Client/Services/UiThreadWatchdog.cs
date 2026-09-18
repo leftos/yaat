@@ -50,7 +50,7 @@ public sealed class UiThreadWatchdog : IDisposable
     private const uint MbSetForeground = 0x00010000;
     private const uint MbTopMost = 0x00040000;
 
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private Thread? _thread;
     private volatile bool _running;
 

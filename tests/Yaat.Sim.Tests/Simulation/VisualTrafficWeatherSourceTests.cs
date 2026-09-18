@@ -76,7 +76,7 @@ public class VisualTrafficWeatherSourceTests(ITestOutputHelper output)
             MetarInterpolator.MaxInterpolationRangeNm
         );
         Assert.NotNull(near);
-        Assert.Equal("KHWD", near.Value.Item2, ignoreCase: true);
+        Assert.Equal("KHWD", near.Value.StationAirportId, ignoreCase: true);
     }
 
     [Fact]

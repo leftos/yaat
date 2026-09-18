@@ -27,7 +27,7 @@ public class GroundDataBlockLayoutTests
         };
     }
 
-    private static TextStyle CreateStyle() => new TextStyle(new SKFont { Size = 12 }, new SKPaint());
+    private static TextStyle CreateStyle() => new(new SKFont { Size = 12 }, new SKPaint());
 
     [Fact]
     public void Line2_IncludesCwt_WhenCwtCodePresent()

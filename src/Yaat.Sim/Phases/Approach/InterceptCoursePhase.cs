@@ -491,10 +491,7 @@ public sealed class InterceptCoursePhase : Phase
 
         // Clear remaining approach phases and approach clearance
         ctx.Aircraft.Phases?.Clear(ctx);
-        if (ctx.Aircraft.Phases is not null)
-        {
-            ctx.Aircraft.Phases.ActiveApproach = null;
-        }
+        ctx.Aircraft.Phases?.ActiveApproach = null;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
@@ -549,11 +546,11 @@ public sealed class InterceptCoursePhase : Phase
             AssignedInterceptHeading = dto.AssignedInterceptHeadingDeg is { } hdg ? new MagneticHeading(hdg) : null,
             ForcedIntercept = dto.ForcedIntercept,
             RelaxedJoin = dto.RelaxedJoin,
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
+            _previousSignedCrossTrack = dto.PreviousSignedCrossTrack,
+            _approachSpeedSet = dto.ApproachSpeedSet,
         };
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
-        phase._previousSignedCrossTrack = dto.PreviousSignedCrossTrack;
-        phase._approachSpeedSet = dto.ApproachSpeedSet;
         return phase;
     }
 

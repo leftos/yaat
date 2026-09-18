@@ -26,7 +26,7 @@ public sealed class VatsimAuthClient
 {
     private readonly ILogger _log = AppLog.CreateLogger<VatsimAuthClient>();
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(20) };
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private readonly Dictionary<string, StoredSession> _sessions;
     private readonly string _sessionFilePath = YaatPaths.Combine("auth-sessions.json");
 

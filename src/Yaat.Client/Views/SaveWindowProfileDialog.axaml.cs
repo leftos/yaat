@@ -37,15 +37,9 @@ public partial class SaveWindowProfileDialog : Window
             Opened += (_, _) => nameBox.Focus();
         }
 
-        if (okBtn is not null)
-        {
-            okBtn.Click += OnOkClick;
-        }
+        okBtn?.Click += OnOkClick;
 
-        if (cancelBtn is not null)
-        {
-            cancelBtn.Click += OnCancelClick;
-        }
+        cancelBtn?.Click += OnCancelClick;
     }
 
     private void UpdateStatus(string? text, TextBlock? status)

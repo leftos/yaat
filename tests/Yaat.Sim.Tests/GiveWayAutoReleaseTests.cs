@@ -35,7 +35,7 @@ public class GiveWayAutoReleaseTests
     // 3-node convergence layout: routeA 0→2 on taxiway A, routeB 1→2 on taxiway B share node 2.
     private static (TaxiRoute A, TaxiRoute B) MakeConvergingRoutes()
     {
-        GroundNode Node(int id, double lat, double lon) =>
+        static GroundNode Node(int id, double lat, double lon) =>
             new()
             {
                 Id = id,

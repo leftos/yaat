@@ -106,10 +106,7 @@ public partial class FavoritesBarView : UserControl
             _boundVm = vm;
             vm.DisplayFavorites.CollectionChanged += OnFavoritesChanged;
             vm.PropertyChanged += OnViewModelPropertyChanged;
-            if (_columnsBox is not null)
-            {
-                _columnsBox.Value = vm.Preferences.FavoritePanelColumns;
-            }
+            _columnsBox?.Value = vm.Preferences.FavoritePanelColumns;
             RebuildButtons();
         }
     }
@@ -1012,8 +1009,7 @@ public partial class FavoritesBarView : UserControl
 
     private void ShowAddFlyout(Button target, string prefillCommand, FavoriteCommandCategory category)
     {
-        var vm = DataContext as MainViewModel;
-        if (vm is null)
+        if (DataContext is not MainViewModel vm)
         {
             return;
         }
@@ -1091,8 +1087,7 @@ public partial class FavoritesBarView : UserControl
 
     private void ShowEditFlyout(Button target, FavoriteDisplayEntry entry)
     {
-        var vm = DataContext as MainViewModel;
-        if (vm is null)
+        if (DataContext is not MainViewModel vm)
         {
             return;
         }
@@ -1197,8 +1192,7 @@ public partial class FavoritesBarView : UserControl
 
     private void ShowEditBlankFlyout(Button target, FavoriteDisplayEntry entry)
     {
-        var vm = DataContext as MainViewModel;
-        if (vm is null)
+        if (DataContext is not MainViewModel vm)
         {
             return;
         }
@@ -1299,8 +1293,7 @@ public partial class FavoritesBarView : UserControl
 
     private void ShowBatchFlyout(Button target, FavoriteCommandCategory category)
     {
-        var vm = DataContext as MainViewModel;
-        if (vm is null)
+        if (DataContext is not MainViewModel vm)
         {
             return;
         }

@@ -244,8 +244,8 @@ public class IssueN513sjNimi6PriorCycleChainTests
                 Altitude = PlannedAltitude.Ifr(5000),
                 FlightRules = "IFR",
             },
+            Phases = new PhaseList { AssignedRunway = TestRunwayFactory.Make(designator: "28R", airportId: "OAK", heading: 292.0, elevationFt: 9) },
         };
-        ac.Phases = new PhaseList { AssignedRunway = TestRunwayFactory.Make(designator: "28R", airportId: "OAK", heading: 292.0, elevationFt: 9) };
         return ac;
     }
 }

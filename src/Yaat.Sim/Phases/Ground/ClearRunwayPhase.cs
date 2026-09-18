@@ -106,8 +106,7 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
         TaxiRouteSegment segment = VirtualNode.CreateSegment(runwayNode, target, ctx.Aircraft.Ground.CurrentTaxiway ?? "");
         _route = new TaxiRoute { Segments = [segment], HoldShortPoints = [] };
 
-        _navigator = new GroundNavigator();
-        _navigator.MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category);
+        _navigator = new GroundNavigator { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
         _navigator.SetupSegment(_route, ctx, _ => true);
         _initialized = true;
 
@@ -140,9 +139,11 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
 
     public static ClearRunwayPhase FromSnapshot(ClearRunwayPhaseDto dto)
     {
-        var phase = new ClearRunwayPhase(dto.RunwayNodeId, dto.ApproachNodeId);
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        var phase = new ClearRunwayPhase(dto.RunwayNodeId, dto.ApproachNodeId)
+        {
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
+        };
         phase.RestoreRequirements(dto.Requirements);
         return phase;
     }

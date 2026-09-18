@@ -71,9 +71,8 @@ public class LandingPhaseGlidepathFloorTests(ITestOutputHelper output)
                 FlightRules = "VFR",
                 Altitude = PlannedAltitude.Vfr(3000),
             },
+            Phases = new PhaseList { AssignedRunway = rwy },
         };
-
-        aircraft.Phases = new PhaseList { AssignedRunway = rwy };
         aircraft.Phases.Add(new LandingPhase());
         aircraft.Phases.Add(new RunwayExitPhase());
         aircraft.Phases.Add(new HoldingAfterExitPhase());

@@ -37,8 +37,8 @@ public class FilletLandingExitTests
             IndicatedAirspeed = ias,
             IsOnGround = true,
             FlightPlan = new AircraftFlightPlan { Departure = "TEST" },
+            Phases = new PhaseList(),
         };
-        ac.Phases = new PhaseList();
         return ac;
     }
 

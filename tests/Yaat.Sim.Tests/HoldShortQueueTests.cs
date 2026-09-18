@@ -145,7 +145,7 @@ public class HoldShortQueueTests
         var taxiPhase = new TaxiingPhase();
         acB.Phases.Add(taxiPhase);
 
-        Func<int, bool> occupancyCheck = nodeId => nodeId == hsNodeId;
+        bool occupancyCheck(int nodeId) => nodeId == hsNodeId;
         PhaseContext ctx = MakeContext(acB, layout, occupancyCheck);
         acB.Phases.Start(ctx);
 
@@ -228,7 +228,7 @@ public class HoldShortQueueTests
         acB.Phases.Add(taxiPhase);
         acB.IndicatedAirspeed = 5; // creeping forward
 
-        Func<int, bool> occupancyCheck = nodeId => nodeId == hsNodeId;
+        bool occupancyCheck(int nodeId) => nodeId == hsNodeId;
         PhaseContext ctx = MakeContext(acB, layout, occupancyCheck);
         acB.Phases.Start(ctx);
 
@@ -260,8 +260,8 @@ public class HoldShortQueueTests
             TrueHeading = new TrueHeading(0),
             IsOnGround = true,
             IndicatedAirspeed = 0,
+            Phases = new PhaseList(),
         };
-        leader.Phases = new PhaseList();
         leader.Phases.Add(
             new HoldingShortPhase(
                 new HoldShortPoint

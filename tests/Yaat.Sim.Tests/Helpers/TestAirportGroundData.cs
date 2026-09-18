@@ -23,7 +23,7 @@ internal sealed class TestAirportGroundData(FilletMode filletMode) : IAirportGro
     private const string TestDataDir = "TestData";
 
     private static readonly Dictionary<(FilletMode Mode, string ShortId), AirportGroundLayout?> Cache = [];
-    private static readonly object CacheLock = new();
+    private static readonly Lock CacheLock = new();
 
     private readonly FilletMode _filletMode = filletMode;
 

@@ -80,7 +80,7 @@ public class DisplacedThresholdLandingTests
         ac.Targets.TargetSpeed = approachSpeedKt;
         ac.Targets.AssignedAltitude = rwy.ElevationFt + 2000;
 
-        void PreTick(AircraftState aircraft, double dt)
+        static void PreTick(AircraftState aircraft, double dt)
         {
             if (aircraft.Phases is null || aircraft.Phases.IsComplete)
             {

@@ -68,10 +68,7 @@ public partial class RadarView
     {
         _pendingInputAction = null;
         Popup? popup = this.FindControl<Popup>("InputPopup");
-        if (popup is not null)
-        {
-            popup.IsOpen = false;
-        }
+        popup?.IsOpen = false;
     }
 
     // --- List popup ---
@@ -181,10 +178,7 @@ public partial class RadarView
             listBox.ItemsSource = null;
         }
 
-        if (popup is not null)
-        {
-            popup.IsOpen = false;
-        }
+        popup?.IsOpen = false;
     }
 
     // --- Filtered list popup ---
@@ -338,10 +332,7 @@ public partial class RadarView
             listBox.ItemsSource = null;
         }
 
-        if (popup is not null)
-        {
-            popup.IsOpen = false;
-        }
+        popup?.IsOpen = false;
     }
 
     private static IReadOnlyList<object> PrefixSearch(string[] sortedNames, string prefix, int maxResults)
@@ -440,10 +431,7 @@ public partial class RadarView
     {
         _pendingWaypointConditionAction = null;
         Popup? popup = this.FindControl<Popup>("WaypointConditionPopup");
-        if (popup is not null)
-        {
-            popup.IsOpen = false;
-        }
+        popup?.IsOpen = false;
     }
 
     // --- Warp popup ---
@@ -529,10 +517,7 @@ public partial class RadarView
     {
         _pendingWarpAction = null;
         Popup? popup = this.FindControl<Popup>("WarpPopup");
-        if (popup is not null)
-        {
-            popup.IsOpen = false;
-        }
+        popup?.IsOpen = false;
     }
 
     // --- Heading/altitude/route list builders ---

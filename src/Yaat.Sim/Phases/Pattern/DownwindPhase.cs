@@ -639,11 +639,11 @@ public sealed class DownwindPhase : Phase
                     Acquired = dto.LateralOffsetAcquired,
                 }
                 : null,
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
+            _baseTurnAlongTrack = dto.BaseTurnAlongTrack,
+            _abeamAlongTrack = dto.AbeamAlongTrack,
         };
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
-        phase._baseTurnAlongTrack = dto.BaseTurnAlongTrack;
-        phase._abeamAlongTrack = dto.AbeamAlongTrack;
         // Recordings predating the field carry no midfield along-track; recompute it from the
         // waypoints, which is where OnStart derives it from anyway.
         phase._midfieldAlongTrack =

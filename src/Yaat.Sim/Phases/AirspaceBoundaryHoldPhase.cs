@@ -109,9 +109,9 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
             Mode = (AirspaceHoldMode)dto.Mode,
             VolumeId = dto.VolumeId ?? "",
             LevelOffCeilingFtMsl = dto.LevelOffCeilingFtMsl,
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
         };
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
         phase.RestoreRequirements(dto.Requirements);
         if (dto.OriginalRoute is not null)
         {

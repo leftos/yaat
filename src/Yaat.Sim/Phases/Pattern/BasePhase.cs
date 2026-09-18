@@ -318,12 +318,12 @@ public sealed class BasePhase : Phase
                     Acquired = dto.LateralOffsetAcquired,
                 }
                 : null,
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
+            _thresholdLat = dto.ThresholdLat,
+            _thresholdLon = dto.ThresholdLon,
+            _finalHeading = new TrueHeading(dto.FinalHeadingDeg),
         };
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
-        phase._thresholdLat = dto.ThresholdLat;
-        phase._thresholdLon = dto.ThresholdLon;
-        phase._finalHeading = new TrueHeading(dto.FinalHeadingDeg);
         return phase;
     }
 

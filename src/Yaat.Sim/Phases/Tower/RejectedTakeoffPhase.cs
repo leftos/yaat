@@ -67,9 +67,7 @@ public sealed class RejectedTakeoffPhase(double rollElapsedSeconds) : Phase
 
     public static RejectedTakeoffPhase FromSnapshot(RejectedTakeoffPhaseDto dto)
     {
-        var phase = new RejectedTakeoffPhase(dto.RollElapsedSeconds);
-        phase.Status = (PhaseStatus)dto.Status;
-        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        var phase = new RejectedTakeoffPhase(dto.RollElapsedSeconds) { Status = (PhaseStatus)dto.Status, ElapsedSeconds = dto.ElapsedSeconds };
         phase.RestoreRequirements(dto.Requirements);
         phase._reactionRemainingSeconds = dto.ReactionRemainingSeconds;
         phase._runwayHeading = new TrueHeading(dto.RunwayHeadingDeg);
