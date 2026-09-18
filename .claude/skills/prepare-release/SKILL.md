@@ -451,11 +451,11 @@ Once the user approves:
     1. `gh run view <run-id> --repo leftos/yaat --json conclusion,jobs` to find the failed job and
        step, then `gh run view <run-id> --repo leftos/yaat --log-failed > .tmp/<name>-failed.log`
        and read the error lines.
-    2. **Transient signing infrastructure** — Apple's timestamp service (`CMS signature encoding
+    2. **Transient infrastructure** — Apple's timestamp service (`CMS signature encoding
        failed: The timestamp service is not available. (-67885)`), a notarization upload/poll
-       timeout, a runner lost mid-job — re-run the failed jobs: `gh run rerun <run-id> --repo
-       leftos/yaat --failed`, then watch the re-run the same way. The `build` jobs stay green and
-       are not repeated.
+       timeout, `smoke-intel`'s model download from Hugging Face, a runner lost mid-job — re-run
+       the failed jobs: `gh run rerun <run-id> --repo leftos/yaat --failed`, then watch the re-run
+       the same way. The `build` jobs stay green and are not repeated.
     3. **Anything else** (compile error, packaging error, a missing secret) is a release defect:
        report it with the error lines and stop. Do not publish the draft and do not deploy until
        the user decides how to fix forward; a hidden draft is recoverable, a published release
@@ -465,7 +465,17 @@ Once the user approves:
 
     **9b. CLIENT_ONLY publish (skip on SERVER_AFFECTING — the deploy publishes there).** The draft
     release stays invisible until published, and on the client-only path no deploy will do it. Once
-    step 9a has every run green, publish:
+    step 9a has every run green, confirm the draft holds all three installers —
+    `YaatClient-{version}-win-Setup.exe`, `YaatClient-{version}-osx-arm64-Setup.pkg` and
+    `YaatClient-{version}-osx-x64-Setup.pkg`:
+
+    ```bash
+    gh release view v{version} --repo leftos/yaat --json assets --jq '.assets[].name | select(endswith("-Setup.exe") or endswith("-Setup.pkg"))'
+    ```
+
+    A missing one means its run has not uploaded yet: back to 9a. The Discord announcement fires
+    once, on publish, so a release published without an installer is announced without it. With all
+    three listed, publish:
     `gh release edit v{version} --repo leftos/yaat --draft=false`
     Publishing with the user token raises `release: published`, which fires the Discord
     announcement on its own — do **not** also dispatch `discord-release.yml`. Skip the remaining
@@ -488,6 +498,6 @@ Once the user approves:
     ```
 
     `-SkipCiBuild` deploys the image step 10 already built instead of building again; always pass `-NoLogs` — without it the script tails server logs indefinitely and blocks the agent until timeout. The script calls `POST /admin/prepare-restart` first (needs `ADMIN_PASSWORD` in yaat `.env`, matching the droplet) so active training sessions survive the deploy. Use `-SkipSessionSave` only for emergency deploys. Wait for the `Deployment complete!` banner before declaring the release done.
-13. **Verify the release is public.** `release.yml` always creates the GitHub Release as a **draft**; on the deploy path `deploy-to-droplet.ps1` publishes it after verifying the deployed client commit matches the tag — watch for its "Published GitHub release" line. Confirm with `gh release view v{version} --repo leftos/yaat --json isDraft`. If it's still a draft (deploy skipped, failed, the commit check refused, or `release.yml` hadn't created the draft yet when the deploy finished), the release is invisible to users and auto-update; publish manually with `gh release edit v{version} --repo leftos/yaat --draft=false` once the matching server is live. The Discord announcement fires on its own: publishing with a user token (manually or via the deploy script) raises the `release: published` event that triggers `discord-release.yml` — do **not** also dispatch that workflow, or the announcement posts twice.
+13. **Verify the release is public.** `release.yml` always creates the GitHub Release as a **draft**; on the deploy path `deploy-to-droplet.ps1` publishes it after verifying the deployed client commit matches the tag — watch for its "Published GitHub release" line. Confirm with `gh release view v{version} --repo leftos/yaat --json isDraft,assets`: `isDraft` false **and** the three installers of step 9b listed — a public release missing one means its run failed or never uploaded, so go back to step 9a for it. If it's still a draft (deploy skipped, failed, the commit check refused, or `release.yml` hadn't created the draft yet when the deploy finished), the release is invisible to users and auto-update; publish manually with `gh release edit v{version} --repo leftos/yaat --draft=false` once the matching server is live. The Discord announcement fires on its own: publishing with a user token (manually or via the deploy script) raises the `release: published` event that triggers `discord-release.yml` — do **not** also dispatch that workflow, or the announcement posts twice.
 
-The tag push triggers the `release.yml` GitHub Actions workflow. The workflow extracts the matching section from `CHANGELOG.md` (using the tag name), splits out the `### Highlights` subsection for the GitHub Release's "Highlights" block, and uses the rest of the section as the "Changelog" block. The highlights you and the user agreed on in Step 8 are exactly what ships — no AI rewriting at release time. Every release is created as a draft and published by this flow: step 9a for client-only releases, the deploy script for server-affecting ones (full mechanics: `docs/installer-release.md`).
+The tag push triggers the `release.yml` GitHub Actions workflow. The workflow extracts the matching section from `CHANGELOG.md` (using the tag name), splits out the `### Highlights` subsection for the GitHub Release's "Highlights" block, and uses the rest of the section as the "Changelog" block. The highlights you and the user agreed on in Step 8 are exactly what ships — no AI rewriting at release time. Every release is created as a draft and published by this flow: step 9b for client-only releases, the deploy script for server-affecting ones (full mechanics: `docs/installer-release.md`).
