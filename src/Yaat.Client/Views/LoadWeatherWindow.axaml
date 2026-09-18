@@ -1,103 +1,82 @@
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:views="using:Yaat.Client.Views"
-        x:Class="Yaat.Client.Views.LoadWeatherWindow"
-        Icon="avares://Yaat.Client/Resources/icon.png"
-        Title="Load Weather"
-        Width="480"
-        Height="400"
-        MinWidth="360"
-        MinHeight="280"
-        WindowStartupLocation="CenterOwner"
-        CanResize="True">
+<Window
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:views="using:Yaat.Client.Views"
+  x:Class="Yaat.Client.Views.LoadWeatherWindow"
+  Icon="avares://Yaat.Client/Resources/icon.png"
+  Title="Load Weather"
+  Width="480"
+  Height="400"
+  MinWidth="360"
+  MinHeight="280"
+  WindowStartupLocation="CenterOwner"
+  CanResize="True"
+>
+  <DockPanel Margin="12">
+    <!-- Bottom: action buttons -->
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,8,0,0">
+      <Button Content="Load" x:Name="LoadButton" Width="80" IsEnabled="False" />
+      <Button Content="Cancel" x:Name="CancelButton" Width="80" />
+    </StackPanel>
 
-    <DockPanel Margin="12">
+    <TabControl x:Name="SourceTabs">
+      <!-- ARTCC Weather tab -->
+      <TabItem Header="ARTCC Weather" x:Name="ArtccTab">
+        <DockPanel Margin="0,8,0,0">
+          <TextBlock DockPanel.Dock="Top" x:Name="ArtccStatusText" Margin="0,0,0,8" Foreground="{DynamicResource SubtleTextBrush}" />
 
-        <!-- Bottom: action buttons -->
-        <StackPanel DockPanel.Dock="Bottom"
-                    Orientation="Horizontal"
-                    HorizontalAlignment="Right"
-                    Spacing="8"
-                    Margin="0,8,0,0">
-            <Button Content="Load"
-                    x:Name="LoadButton"
-                    Width="80"
-                    IsEnabled="False" />
-            <Button Content="Cancel"
-                    x:Name="CancelButton"
-                    Width="80" />
-        </StackPanel>
+          <ListBox x:Name="ArtccWeatherList" SelectionMode="Single">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="views:ArtccWeatherItem">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Text="{Binding Name}" />
+                  <TextBlock
+                    Text="{Binding LayerCountText}"
+                    Foreground="{DynamicResource SubtleTextBrush}"
+                    FontSize="11"
+                    VerticalAlignment="Center"
+                  />
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+      </TabItem>
 
-        <TabControl x:Name="SourceTabs">
+      <!-- Local Files tab -->
+      <TabItem Header="Local Files" x:Name="LocalTab">
+        <DockPanel Margin="0,8,0,0">
+          <Grid DockPanel.Dock="Top" RowDefinitions="Auto,Auto" Margin="0,0,0,8">
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+              <TextBox Grid.Column="0" x:Name="FolderPathBox" IsReadOnly="True" PlaceholderText="Select a folder…" />
+              <Button Grid.Column="1" Content="Browse…" x:Name="BrowseButton" Margin="8,0,0,0" />
+            </Grid>
+            <TextBlock
+              Grid.Row="1"
+              x:Name="LocalStatusText"
+              VerticalAlignment="Center"
+              Margin="0,8,0,0"
+              Foreground="{DynamicResource SubtleTextBrush}"
+            />
+          </Grid>
 
-            <!-- ARTCC Weather tab -->
-            <TabItem Header="ARTCC Weather" x:Name="ArtccTab">
-                <DockPanel Margin="0,8,0,0">
-                    <TextBlock DockPanel.Dock="Top"
-                               x:Name="ArtccStatusText"
-                               Margin="0,0,0,8"
-                               Foreground="{DynamicResource SubtleTextBrush}" />
-
-                    <ListBox x:Name="ArtccWeatherList"
-                             SelectionMode="Single">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate x:DataType="views:ArtccWeatherItem">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBlock Text="{Binding Name}" />
-                                    <TextBlock Text="{Binding LayerCountText}"
-                                               Foreground="{DynamicResource SubtleTextBrush}"
-                                               FontSize="11"
-                                               VerticalAlignment="Center" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </DockPanel>
-            </TabItem>
-
-            <!-- Local Files tab -->
-            <TabItem Header="Local Files" x:Name="LocalTab">
-                <DockPanel Margin="0,8,0,0">
-
-                    <Grid DockPanel.Dock="Top"
-                          RowDefinitions="Auto,Auto"
-                          Margin="0,0,0,8">
-                        <Grid Grid.Row="0"
-                              ColumnDefinitions="*,Auto">
-                            <TextBox Grid.Column="0"
-                                     x:Name="FolderPathBox"
-                                     IsReadOnly="True"
-                                     PlaceholderText="Select a folder…" />
-                            <Button Grid.Column="1"
-                                    Content="Browse…"
-                                    x:Name="BrowseButton"
-                                    Margin="8,0,0,0" />
-                        </Grid>
-                        <TextBlock Grid.Row="1"
-                                   x:Name="LocalStatusText"
-                                   VerticalAlignment="Center"
-                                   Margin="0,8,0,0"
-                                   Foreground="{DynamicResource SubtleTextBrush}" />
-                    </Grid>
-
-                    <ListBox x:Name="LocalWeatherList"
-                             SelectionMode="Single">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate x:DataType="views:LocalWeatherItem">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBlock Text="{Binding Name}" />
-                                    <TextBlock Text="{Binding LayerCountText}"
-                                               Foreground="{DynamicResource SubtleTextBrush}"
-                                               FontSize="11"
-                                               VerticalAlignment="Center" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </DockPanel>
-            </TabItem>
-
-        </TabControl>
-
-    </DockPanel>
+          <ListBox x:Name="LocalWeatherList" SelectionMode="Single">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="views:LocalWeatherItem">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Text="{Binding Name}" />
+                  <TextBlock
+                    Text="{Binding LayerCountText}"
+                    Foreground="{DynamicResource SubtleTextBrush}"
+                    FontSize="11"
+                    VerticalAlignment="Center"
+                  />
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+      </TabItem>
+    </TabControl>
+  </DockPanel>
 </Window>

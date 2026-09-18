@@ -1,12 +1,12 @@
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="Yaat.Client.Views.VStrips.VStripsViewWindow"
-        Icon="avares://Yaat.Client.Core/Resources/icon.png"
-        Title="Flight Strips">
-
-    <!-- Content is supplied by the host code when creating the window
+<Window
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  x:Class="Yaat.Client.Views.VStrips.VStripsViewWindow"
+  Icon="avares://Yaat.Client.Core/Resources/icon.png"
+  Title="Flight Strips"
+>
+  <!-- Content is supplied by the host code when creating the window
          (MainWindow puts a VStripsSplitHost here so the popped-out window
          supports the same split layouts as the docked tab). This shell only
          sizes, positions, and titles itself. -->
-
 </Window>

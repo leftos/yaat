@@ -1,609 +1,765 @@
-<UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:radar="using:Yaat.Client.Views.Radar"
-             xmlns:vm="using:Yaat.Client.ViewModels"
-             x:Class="Yaat.Client.Views.Radar.RadarView"
-             x:DataType="vm:RadarViewModel">
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:radar="using:Yaat.Client.Views.Radar"
+  xmlns:vm="using:Yaat.Client.ViewModels"
+  x:Class="Yaat.Client.Views.Radar.RadarView"
+  x:DataType="vm:RadarViewModel"
+>
+  <UserControl.Styles>
+    <!-- STARS DCB button: strip Fluent chrome, dark-green theme -->
+    <Style Selector="Button.dcb">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="#00B800" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="#1A3A1A" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="MinWidth" Value="50" />
+      <Setter Property="Padding" Value="4,2" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="VerticalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border
+            Background="{TemplateBinding Background}"
+            BorderBrush="{TemplateBinding BorderBrush}"
+            BorderThickness="{TemplateBinding BorderThickness}"
+            CornerRadius="{TemplateBinding CornerRadius}"
+            Padding="{TemplateBinding Padding}"
+          >
+            <ContentPresenter
+              Content="{TemplateBinding Content}"
+              ContentTemplate="{TemplateBinding ContentTemplate}"
+              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+            />
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="Button.dcb:pointerover">
+      <Setter Property="Background" Value="#0A1F0A" />
+    </Style>
+    <Style Selector="Button.dcb:pressed">
+      <Setter Property="Background" Value="#1A4A1A" />
+      <Setter Property="Foreground" Value="#00DD00" />
+    </Style>
+    <Style Selector="Button.dcb.active">
+      <Setter Property="Background" Value="#1A4A1A" />
+      <Setter Property="Foreground" Value="#00DD00" />
+    </Style>
+    <Style Selector="Button.dcb:disabled">
+      <Setter Property="Foreground" Value="#004400" />
+    </Style>
 
-    <UserControl.Styles>
-        <!-- STARS DCB button: strip Fluent chrome, dark-green theme -->
-        <Style Selector="Button.dcb">
-            <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
-            <Setter Property="FontSize" Value="11" />
-            <Setter Property="Foreground" Value="#00B800" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="#1A3A1A" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="0" />
-            <Setter Property="MinWidth" Value="50" />
-            <Setter Property="Padding" Value="4,2" />
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="VerticalAlignment" Value="Stretch" />
-            <Setter Property="HorizontalContentAlignment" Value="Center" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="Template">
-                <ControlTemplate>
-                    <Border Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="{TemplateBinding CornerRadius}"
-                            Padding="{TemplateBinding Padding}">
-                        <ContentPresenter Content="{TemplateBinding Content}"
-                                          ContentTemplate="{TemplateBinding ContentTemplate}"
-                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
-                    </Border>
-                </ControlTemplate>
-            </Setter>
-        </Style>
-        <Style Selector="Button.dcb:pointerover">
-            <Setter Property="Background" Value="#0A1F0A" />
-        </Style>
-        <Style Selector="Button.dcb:pressed">
-            <Setter Property="Background" Value="#1A4A1A" />
-            <Setter Property="Foreground" Value="#00DD00" />
-        </Style>
-        <Style Selector="Button.dcb.active">
-            <Setter Property="Background" Value="#1A4A1A" />
-            <Setter Property="Foreground" Value="#00DD00" />
-        </Style>
-        <Style Selector="Button.dcb:disabled">
-            <Setter Property="Foreground" Value="#004400" />
-        </Style>
+    <!-- Half-height DCB button for split cells -->
+    <Style Selector="Button.dcb-half">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="#00B800" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="#1A3A1A" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Padding" Value="4,1" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="VerticalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border
+            Background="{TemplateBinding Background}"
+            BorderBrush="{TemplateBinding BorderBrush}"
+            BorderThickness="{TemplateBinding BorderThickness}"
+            CornerRadius="{TemplateBinding CornerRadius}"
+            Padding="{TemplateBinding Padding}"
+          >
+            <ContentPresenter
+              Content="{TemplateBinding Content}"
+              ContentTemplate="{TemplateBinding ContentTemplate}"
+              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+            />
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="Button.dcb-half:pointerover">
+      <Setter Property="Background" Value="#0A1F0A" />
+    </Style>
+    <Style Selector="Button.dcb-half:pressed">
+      <Setter Property="Background" Value="#1A4A1A" />
+      <Setter Property="Foreground" Value="#00DD00" />
+    </Style>
+    <Style Selector="Button.dcb-half.active">
+      <Setter Property="Background" Value="#1A4A1A" />
+      <Setter Property="Foreground" Value="#00DD00" />
+    </Style>
+    <Style Selector="Button.dcb-half:disabled">
+      <Setter Property="Foreground" Value="#004400" />
+    </Style>
 
-        <!-- Half-height DCB button for split cells -->
-        <Style Selector="Button.dcb-half">
-            <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
-            <Setter Property="FontSize" Value="11" />
-            <Setter Property="Foreground" Value="#00B800" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="#1A3A1A" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="0" />
-            <Setter Property="Padding" Value="4,1" />
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="VerticalAlignment" Value="Stretch" />
-            <Setter Property="HorizontalContentAlignment" Value="Center" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="Template">
-                <ControlTemplate>
-                    <Border Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="{TemplateBinding CornerRadius}"
-                            Padding="{TemplateBinding Padding}">
-                        <ContentPresenter Content="{TemplateBinding Content}"
-                                          ContentTemplate="{TemplateBinding ContentTemplate}"
-                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
-                    </Border>
-                </ControlTemplate>
-            </Setter>
-        </Style>
-        <Style Selector="Button.dcb-half:pointerover">
-            <Setter Property="Background" Value="#0A1F0A" />
-        </Style>
-        <Style Selector="Button.dcb-half:pressed">
-            <Setter Property="Background" Value="#1A4A1A" />
-            <Setter Property="Foreground" Value="#00DD00" />
-        </Style>
-        <Style Selector="Button.dcb-half.active">
-            <Setter Property="Background" Value="#1A4A1A" />
-            <Setter Property="Foreground" Value="#00DD00" />
-        </Style>
-        <Style Selector="Button.dcb-half:disabled">
-            <Setter Property="Foreground" Value="#004400" />
-        </Style>
+    <!-- Map shortcut button (double-height, no MinWidth) -->
+    <Style Selector="Button.dcb-map">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="#00B800" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="#1A3A1A" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="MinWidth" Value="44" />
+      <Setter Property="Padding" Value="3,1" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="VerticalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border
+            Background="{TemplateBinding Background}"
+            BorderBrush="{TemplateBinding BorderBrush}"
+            BorderThickness="{TemplateBinding BorderThickness}"
+            CornerRadius="{TemplateBinding CornerRadius}"
+            Padding="{TemplateBinding Padding}"
+          >
+            <ContentPresenter
+              Content="{TemplateBinding Content}"
+              ContentTemplate="{TemplateBinding ContentTemplate}"
+              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+            />
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="Button.dcb-map:pointerover">
+      <Setter Property="Background" Value="#0A1F0A" />
+    </Style>
+    <Style Selector="Button.dcb-map:pressed">
+      <Setter Property="Background" Value="#1A4A1A" />
+      <Setter Property="Foreground" Value="#00DD00" />
+    </Style>
+    <Style Selector="Button.dcb-map.active">
+      <Setter Property="Background" Value="#1A4A1A" />
+      <Setter Property="Foreground" Value="#00DD00" />
+    </Style>
+  </UserControl.Styles>
 
-        <!-- Map shortcut button (double-height, no MinWidth) -->
-        <Style Selector="Button.dcb-map">
-            <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
-            <Setter Property="FontSize" Value="11" />
-            <Setter Property="Foreground" Value="#00B800" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="#1A3A1A" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="0" />
-            <Setter Property="MinWidth" Value="44" />
-            <Setter Property="Padding" Value="3,1" />
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="VerticalAlignment" Value="Stretch" />
-            <Setter Property="HorizontalContentAlignment" Value="Center" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="Template">
-                <ControlTemplate>
-                    <Border Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="{TemplateBinding CornerRadius}"
-                            Padding="{TemplateBinding Padding}">
-                        <ContentPresenter Content="{TemplateBinding Content}"
-                                          ContentTemplate="{TemplateBinding ContentTemplate}"
-                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
-                    </Border>
-                </ControlTemplate>
-            </Setter>
-        </Style>
-        <Style Selector="Button.dcb-map:pointerover">
-            <Setter Property="Background" Value="#0A1F0A" />
-        </Style>
-        <Style Selector="Button.dcb-map:pressed">
-            <Setter Property="Background" Value="#1A4A1A" />
-            <Setter Property="Foreground" Value="#00DD00" />
-        </Style>
-        <Style Selector="Button.dcb-map.active">
-            <Setter Property="Background" Value="#1A4A1A" />
-            <Setter Property="Foreground" Value="#00DD00" />
-        </Style>
-    </UserControl.Styles>
+  <DockPanel>
+    <!-- DCB Container -->
+    <Border
+      x:Name="DcbContainer"
+      DockPanel.Dock="Top"
+      Background="#0D1A0D"
+      Height="80"
+      IsVisible="{Binding IsDcbVisible}"
+      PointerWheelChanged="OnDcbPointerWheelChanged"
+    >
+      <ScrollViewer x:Name="DcbScroller" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
+        <Panel>
+          <!-- ==================== MAIN MENU ==================== -->
+          <Grid
+            x:Name="DcbMainMenu"
+            RowDefinitions="40,40"
+            ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+            IsVisible="{Binding DcbMode, Converter={x:Static radar:RadarView.IsDcbModeMain}}"
+          >
+            <!-- Col 0: RANGE spinner (spans 2 rows) -->
+            <Button x:Name="RangeButton" Classes="dcb" Grid.Row="0" Grid.Column="0" Grid.RowSpan="2" Click="OnRangeClick">
+              <StackPanel HorizontalAlignment="Center">
+                <TextBlock Text="RANGE" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+                <TextBlock
+                  Text="{Binding RangeNm, StringFormat='{}{0:F0}'}"
+                  HorizontalAlignment="Center"
+                  FontFamily="{StaticResource MonoFont}"
+                  FontSize="11"
+                />
+              </StackPanel>
+            </Button>
 
-    <DockPanel>
-        <!-- DCB Container -->
-        <Border x:Name="DcbContainer" DockPanel.Dock="Top" Background="#0D1A0D" Height="80" IsVisible="{Binding IsDcbVisible}" PointerWheelChanged="OnDcbPointerWheelChanged">
-          <ScrollViewer x:Name="DcbScroller" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
-          <Panel>
+            <!-- Col 1: PLACE CNTR / OFF CNTR (split) -->
+            <Button Classes="dcb-half" Grid.Row="0" Grid.Column="1" Content="PLACE CNTR" IsEnabled="False" />
+            <Button Classes="dcb-half" Grid.Row="1" Grid.Column="1" Content="OFF CNTR" Command="{Binding ResetCenterCommand}" />
 
-            <!-- ==================== MAIN MENU ==================== -->
-            <Grid x:Name="DcbMainMenu" RowDefinitions="40,40" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" IsVisible="{Binding DcbMode, Converter={x:Static radar:RadarView.IsDcbModeMain}}">
+            <!-- Col 2: RR spinner (spans 2 rows) — click toggles size adjust, scroll changes size -->
+            <Button x:Name="RrButton" Classes="dcb" Grid.Row="0" Grid.Column="2" Grid.RowSpan="2" Click="OnRrSizeClick">
+              <StackPanel HorizontalAlignment="Center">
+                <TextBlock Text="RR" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+                <TextBlock
+                  Text="{Binding RangeRingSizeNm, StringFormat='{}{0:F0}'}"
+                  HorizontalAlignment="Center"
+                  FontFamily="{StaticResource MonoFont}"
+                  FontSize="11"
+                />
+              </StackPanel>
+            </Button>
 
-                <!-- Col 0: RANGE spinner (spans 2 rows) -->
-                <Button x:Name="RangeButton" Classes="dcb" Grid.Row="0" Grid.Column="0" Grid.RowSpan="2" Click="OnRangeClick">
-                    <StackPanel HorizontalAlignment="Center">
-                        <TextBlock Text="RANGE" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                        <TextBlock Text="{Binding RangeNm, StringFormat='{}{0:F0}'}" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+            <!-- Col 3: PLACE RR / RR CNTR (split) -->
+            <Button Classes="dcb-half" Grid.Row="0" Grid.Column="3" Content="PLACE RR" Command="{Binding StartPlaceRangeRingCommand}" />
+            <Button Classes="dcb-half" Grid.Row="1" Grid.Column="3" Content="RR CNTR" IsEnabled="False" />
+
+            <!-- Col 4: MAPS (spans 2 rows) — opens scrollable map list popup -->
+            <Button Classes="dcb" Grid.Row="0" Grid.Column="4" Grid.RowSpan="2" Content="MAPS" Click="OnMapButtonClick" />
+
+            <!-- Col 5: Map shortcut buttons 3x2 grid (spans 2 rows) -->
+            <ItemsControl Grid.Row="0" Grid.Column="5" Grid.RowSpan="2" Width="240" Height="80" ItemsSource="{Binding MapShortcuts}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <UniformGrid Columns="3" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:MapShortcutItem">
+                  <Button
+                    Classes="dcb-map"
+                    Classes.active="{Binding IsEnabled}"
+                    Tag="{Binding}"
+                    Click="OnMapShortcutClick"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
+                  >
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding StarsId}" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+                      <TextBlock
+                        Text="{Binding ShortName}"
+                        HorizontalAlignment="Center"
+                        FontFamily="{StaticResource MonoFont}"
+                        FontSize="11"
+                        TextTrimming="CharacterEllipsis"
+                        MaxWidth="72"
+                      />
                     </StackPanel>
-                </Button>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
 
-                <!-- Col 1: PLACE CNTR / OFF CNTR (split) -->
-                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="1" Content="PLACE CNTR" IsEnabled="False" />
-                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="1" Content="OFF CNTR" Command="{Binding ResetCenterCommand}" />
+            <!-- Col 6: FIX / MVA (split) — toggle fix display + MVA altitude hints -->
+            <Button
+              x:Name="FixButton"
+              Classes="dcb-half"
+              Classes.active="{Binding ShowFixes}"
+              Grid.Row="0"
+              Grid.Column="6"
+              Content="FIX"
+              Click="OnFixClick"
+            />
+            <Button
+              x:Name="MvaButton"
+              Classes="dcb-half"
+              Classes.active="{Binding ShowMvaHints}"
+              Grid.Row="1"
+              Grid.Column="6"
+              Content="MVA"
+              Click="OnMvaClick"
+            />
 
-                <!-- Col 2: RR spinner (spans 2 rows) — click toggles size adjust, scroll changes size -->
-                <Button x:Name="RrButton" Classes="dcb" Grid.Row="0" Grid.Column="2" Grid.RowSpan="2" Click="OnRrSizeClick">
-                    <StackPanel HorizontalAlignment="Center">
-                        <TextBlock Text="RR" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                        <TextBlock Text="{Binding RangeRingSizeNm, StringFormat='{}{0:F0}'}" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                    </StackPanel>
-                </Button>
+            <!-- Col 7: TOP-DOWN (spans 2 rows) — toggle top-down view -->
+            <Button
+              x:Name="TopDownButton"
+              Classes="dcb"
+              Classes.active="{Binding ShowTopDown}"
+              Grid.Row="0"
+              Grid.Column="7"
+              Grid.RowSpan="2"
+              Content="TOP-DN"
+              Click="OnTopDownClick"
+            />
 
-                <!-- Col 3: PLACE RR / RR CNTR (split) -->
-                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="3" Content="PLACE RR" Command="{Binding StartPlaceRangeRingCommand}" />
-                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="3" Content="RR CNTR" IsEnabled="False" />
+            <!-- Col 8: LOCK/UNLK (spans 2 rows) — toggle pan/zoom lock -->
+            <Button
+              x:Name="LockButton"
+              Classes="dcb"
+              Classes.active="{Binding IsPanZoomLocked}"
+              Grid.Row="0"
+              Grid.Column="8"
+              Grid.RowSpan="2"
+              Content="{Binding IsPanZoomLocked, Converter={x:Static radar:RadarView.BoolToLockLabel}}"
+              Click="OnLockClick"
+            />
 
-                <!-- Col 4: MAPS (spans 2 rows) — opens scrollable map list popup -->
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="4" Grid.RowSpan="2" Content="MAPS" Click="OnMapButtonClick" />
+            <!-- Col 9-14: WX1-WX6 (disabled placeholders, spans 2 rows) -->
+            <Button Classes="dcb" Grid.Row="0" Grid.Column="9" Grid.RowSpan="2" Content="WX1" IsEnabled="False" MinWidth="36" />
+            <Button Classes="dcb" Grid.Row="0" Grid.Column="10" Grid.RowSpan="2" Content="WX2" IsEnabled="False" MinWidth="36" />
+            <Button Classes="dcb" Grid.Row="0" Grid.Column="11" Grid.RowSpan="2" Content="WX3" IsEnabled="False" MinWidth="36" />
+            <Button Classes="dcb" Grid.Row="0" Grid.Column="12" Grid.RowSpan="2" Content="WX4" IsEnabled="False" MinWidth="36" />
+            <Button Classes="dcb" Grid.Row="0" Grid.Column="13" Grid.RowSpan="2" Content="WX5" IsEnabled="False" MinWidth="36" />
+            <Button Classes="dcb" Grid.Row="0" Grid.Column="14" Grid.RowSpan="2" Content="WX6" IsEnabled="False" MinWidth="36" />
 
-                <!-- Col 5: Map shortcut buttons 3x2 grid (spans 2 rows) -->
-                <ItemsControl Grid.Row="0" Grid.Column="5" Grid.RowSpan="2" Width="240" Height="80" ItemsSource="{Binding MapShortcuts}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <UniformGrid Columns="3" />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:MapShortcutItem">
-                            <Button Classes="dcb-map" Classes.active="{Binding IsEnabled}" Tag="{Binding}" Click="OnMapShortcutClick" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding StarsId}" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                                    <TextBlock Text="{Binding ShortName}" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" TextTrimming="CharacterEllipsis" MaxWidth="72" />
-                                </StackPanel>
-                            </Button>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+            <!-- Col 15: BRITE (spans 2 rows) — opens brightness submenu -->
+            <Button Classes="dcb" Grid.Row="0" Grid.Column="15" Grid.RowSpan="2" Content="BRITE" Click="OnBriteClick" />
 
-                <!-- Col 6: FIX / MVA (split) — toggle fix display + MVA altitude hints -->
-                <Button x:Name="FixButton" Classes="dcb-half" Classes.active="{Binding ShowFixes}" Grid.Row="0" Grid.Column="6" Content="FIX" Click="OnFixClick" />
-                <Button x:Name="MvaButton" Classes="dcb-half" Classes.active="{Binding ShowMvaHints}" Grid.Row="1" Grid.Column="6" Content="MVA" Click="OnMvaClick" />
+            <!-- Col 16: DCNF (datablock deconfliction: Off → Snap → Free) / LDR/2 (disabled) -->
+            <Button
+              x:Name="DeconflictButton"
+              Classes="dcb-half"
+              Classes.active="{Binding IsDeconflictActive}"
+              Grid.Row="0"
+              Grid.Column="16"
+              Content="{Binding DeconflictModeLabel}"
+              Click="OnDeconflictClick"
+              ToolTip.Tip="Datablock deconfliction: Off → Snap → Free-form"
+            />
+            <Button Classes="dcb-half" Grid.Row="1" Grid.Column="16" IsEnabled="False">
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <TextBlock Text="LDR" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+                <TextBlock Text="2" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+              </StackPanel>
+            </Button>
 
-                <!-- Col 7: TOP-DOWN (spans 2 rows) — toggle top-down view -->
-                <Button x:Name="TopDownButton" Classes="dcb" Classes.active="{Binding ShowTopDown}" Grid.Row="0" Grid.Column="7" Grid.RowSpan="2" Content="TOP-DN" Click="OnTopDownClick" />
+            <!-- Col 17: CHAR SIZE (disabled, spans 2 rows) -->
+            <Button Classes="dcb" Grid.Row="0" Grid.Column="17" Grid.RowSpan="2" IsEnabled="False">
+              <TextBlock Text="CHAR&#x0a;SIZE" TextAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+            </Button>
 
-                <!-- Col 8: LOCK/UNLK (spans 2 rows) — toggle pan/zoom lock -->
-                <Button x:Name="LockButton" Classes="dcb" Classes.active="{Binding IsPanZoomLocked}" Grid.Row="0" Grid.Column="8" Grid.RowSpan="2" Content="{Binding IsPanZoomLocked, Converter={x:Static radar:RadarView.BoolToLockLabel}}" Click="OnLockClick" />
+            <!-- Col 18: MODE / FSL (disabled, spans 2 rows) -->
+            <Button Classes="dcb" Grid.Row="0" Grid.Column="18" Grid.RowSpan="2" IsEnabled="False">
+              <StackPanel HorizontalAlignment="Center">
+                <TextBlock Text="MODE" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+                <TextBlock Text="FSL" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+              </StackPanel>
+            </Button>
 
-                <!-- Col 9-14: WX1-WX6 (disabled placeholders, spans 2 rows) -->
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="9" Grid.RowSpan="2" Content="WX1" IsEnabled="False" MinWidth="36" />
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="10" Grid.RowSpan="2" Content="WX2" IsEnabled="False" MinWidth="36" />
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="11" Grid.RowSpan="2" Content="WX3" IsEnabled="False" MinWidth="36" />
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="12" Grid.RowSpan="2" Content="WX4" IsEnabled="False" MinWidth="36" />
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="13" Grid.RowSpan="2" Content="WX5" IsEnabled="False" MinWidth="36" />
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="14" Grid.RowSpan="2" Content="WX6" IsEnabled="False" MinWidth="36" />
+            <!-- Col 19: PREF (disabled, spans 2 rows) -->
+            <Button Classes="dcb" Grid.Row="0" Grid.Column="19" Grid.RowSpan="2" Content="PREF" IsEnabled="False" />
 
-                <!-- Col 15: BRITE (spans 2 rows) — opens brightness submenu -->
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="15" Grid.RowSpan="2" Content="BRITE" Click="OnBriteClick" />
+            <!-- Col 20: SITE / FUSED (disabled, spans 2 rows) -->
+            <Button Classes="dcb" Grid.Row="0" Grid.Column="20" Grid.RowSpan="2" IsEnabled="False">
+              <StackPanel HorizontalAlignment="Center">
+                <TextBlock Text="SITE" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+                <TextBlock Text="FUSED" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+              </StackPanel>
+            </Button>
 
-                <!-- Col 16: DCNF (datablock deconfliction: Off → Snap → Free) / LDR/2 (disabled) -->
-                <Button x:Name="DeconflictButton" Classes="dcb-half" Classes.active="{Binding IsDeconflictActive}" Grid.Row="0" Grid.Column="16" Content="{Binding DeconflictModeLabel}" Click="OnDeconflictClick" ToolTip.Tip="Datablock deconfliction: Off → Snap → Free-form" />
-                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="16" IsEnabled="False">
-                    <StackPanel Orientation="Horizontal" Spacing="4">
-                        <TextBlock Text="LDR" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                        <TextBlock Text="2" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                    </StackPanel>
-                </Button>
+            <!-- Col 21: SSA FILTER / GI TEXT FILTER (disabled split) -->
+            <Button Classes="dcb-half" Grid.Row="0" Grid.Column="21" Content="SSA FILTER" IsEnabled="False" />
+            <Button Classes="dcb-half" Grid.Row="1" Grid.Column="21" Content="GI TEXT FILTER" IsEnabled="False" />
 
-                <!-- Col 17: CHAR SIZE (disabled, spans 2 rows) -->
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="17" Grid.RowSpan="2" IsEnabled="False">
-                    <TextBlock Text="CHAR&#x0a;SIZE" TextAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                </Button>
+            <!-- Col 22: SHIFT (spans 2 rows) — switches to Aux -->
+            <Button Classes="dcb" Grid.Row="0" Grid.Column="22" Grid.RowSpan="2" Content="SHIFT" Command="{Binding OpenAuxMenuCommand}" />
+          </Grid>
 
-                <!-- Col 18: MODE / FSL (disabled, spans 2 rows) -->
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="18" Grid.RowSpan="2" IsEnabled="False">
-                    <StackPanel HorizontalAlignment="Center">
-                        <TextBlock Text="MODE" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                        <TextBlock Text="FSL" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                    </StackPanel>
-                </Button>
+          <!-- ==================== AUX MENU ==================== -->
+          <Grid
+            x:Name="DcbAuxMenu"
+            RowDefinitions="40,40"
+            ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+            IsVisible="{Binding DcbMode, Converter={x:Static radar:RadarView.IsDcbModeAux}}"
+          >
+            <!-- Col 0: VOL (disabled, spans 2 rows) -->
+            <Button Classes="dcb" Grid.Row="0" Grid.Column="0" Grid.RowSpan="2" Content="VOL" IsEnabled="False" />
 
-                <!-- Col 19: PREF (disabled, spans 2 rows) -->
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="19" Grid.RowSpan="2" Content="PREF" IsEnabled="False" />
+            <!-- Col 1: HISTORY spinner (spans 2 rows) -->
+            <Button x:Name="HistoryButton" Classes="dcb" Grid.Row="0" Grid.Column="1" Grid.RowSpan="2" Click="OnHistoryClick">
+              <StackPanel HorizontalAlignment="Center">
+                <TextBlock Text="HISTORY" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+                <TextBlock Text="{Binding HistoryCount}" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+              </StackPanel>
+            </Button>
 
-                <!-- Col 20: SITE / FUSED (disabled, spans 2 rows) -->
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="20" Grid.RowSpan="2" IsEnabled="False">
-                    <StackPanel HorizontalAlignment="Center">
-                        <TextBlock Text="SITE" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                        <TextBlock Text="FUSED" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                    </StackPanel>
-                </Button>
+            <!-- Col 2: H_RATE (disabled, spans 2 rows) -->
+            <Button Classes="dcb" Grid.Row="0" Grid.Column="2" Grid.RowSpan="2" Content="H_RATE" IsEnabled="False" />
 
-                <!-- Col 21: SSA FILTER / GI TEXT FILTER (disabled split) -->
-                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="21" Content="SSA FILTER" IsEnabled="False" />
-                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="21" Content="GI TEXT FILTER" IsEnabled="False" />
+            <!-- Col 3: CURSOR HOME (disabled, spans 2 rows) -->
+            <Button Classes="dcb" Grid.Row="0" Grid.Column="3" Grid.RowSpan="2" IsEnabled="False">
+              <TextBlock Text="CURSOR&#x0a;HOME" TextAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+            </Button>
 
-                <!-- Col 22: SHIFT (spans 2 rows) — switches to Aux -->
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="22" Grid.RowSpan="2" Content="SHIFT" Command="{Binding OpenAuxMenuCommand}" />
-            </Grid>
+            <!-- Col 4: CSR SPD (disabled, spans 2 rows) -->
+            <Button Classes="dcb" Grid.Row="0" Grid.Column="4" Grid.RowSpan="2" Content="CSR SPD" IsEnabled="False" />
 
-            <!-- ==================== AUX MENU ==================== -->
-            <Grid x:Name="DcbAuxMenu" RowDefinitions="40,40" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" IsVisible="{Binding DcbMode, Converter={x:Static radar:RadarView.IsDcbModeAux}}">
+            <!-- Col 5: MAP UNCOR (disabled, spans 2 rows) -->
+            <Button Classes="dcb" Grid.Row="0" Grid.Column="5" Grid.RowSpan="2" IsEnabled="False">
+              <TextBlock Text="MAP&#x0a;UNCOR" TextAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+            </Button>
 
-                <!-- Col 0: VOL (disabled, spans 2 rows) -->
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="0" Grid.RowSpan="2" Content="VOL" IsEnabled="False" />
+            <!-- Col 6: UNCOR (disabled, spans 2 rows) -->
+            <Button Classes="dcb" Grid.Row="0" Grid.Column="6" Grid.RowSpan="2" Content="UNCOR" IsEnabled="False" />
 
-                <!-- Col 1: HISTORY spinner (spans 2 rows) -->
-                <Button x:Name="HistoryButton" Classes="dcb" Grid.Row="0" Grid.Column="1" Grid.RowSpan="2" Click="OnHistoryClick">
-                    <StackPanel HorizontalAlignment="Center">
-                        <TextBlock Text="HISTORY" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                        <TextBlock Text="{Binding HistoryCount}" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                    </StackPanel>
-                </Button>
+            <!-- Col 7: BEACON MODE-2 (disabled, spans 2 rows) -->
+            <Button Classes="dcb" Grid.Row="0" Grid.Column="7" Grid.RowSpan="2" IsEnabled="False">
+              <TextBlock Text="BEACON&#x0a;MODE-2" TextAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+            </Button>
 
-                <!-- Col 2: H_RATE (disabled, spans 2 rows) -->
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="2" Grid.RowSpan="2" Content="H_RATE" IsEnabled="False" />
+            <!-- Col 8: RTQC (disabled, spans 2 rows) -->
+            <Button Classes="dcb" Grid.Row="0" Grid.Column="8" Grid.RowSpan="2" Content="RTQC" IsEnabled="False" />
 
-                <!-- Col 3: CURSOR HOME (disabled, spans 2 rows) -->
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="3" Grid.RowSpan="2" IsEnabled="False">
-                    <TextBlock Text="CURSOR&#x0a;HOME" TextAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                </Button>
+            <!-- Col 9: MCP (disabled, spans 2 rows) -->
+            <Button Classes="dcb" Grid.Row="0" Grid.Column="9" Grid.RowSpan="2" Content="MCP" IsEnabled="False" />
 
-                <!-- Col 4: CSR SPD (disabled, spans 2 rows) -->
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="4" Grid.RowSpan="2" Content="CSR SPD" IsEnabled="False" />
+            <!-- Col 10: DCB TOP / DCB LEFT (disabled split) -->
+            <Button Classes="dcb-half" Grid.Row="0" Grid.Column="10" Content="DCB TOP" IsEnabled="False" />
+            <Button Classes="dcb-half" Grid.Row="1" Grid.Column="10" Content="DCB LEFT" IsEnabled="False" />
 
-                <!-- Col 5: MAP UNCOR (disabled, spans 2 rows) -->
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="5" Grid.RowSpan="2" IsEnabled="False">
-                    <TextBlock Text="MAP&#x0a;UNCOR" TextAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                </Button>
+            <!-- Col 11: DCB RIGHT / DCB BOTTOM (disabled split) -->
+            <Button Classes="dcb-half" Grid.Row="0" Grid.Column="11" Content="DCB RIGHT" IsEnabled="False" />
+            <Button Classes="dcb-half" Grid.Row="1" Grid.Column="11" Content="DCB BOTTOM" IsEnabled="False" />
 
-                <!-- Col 6: UNCOR (disabled, spans 2 rows) -->
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="6" Grid.RowSpan="2" Content="UNCOR" IsEnabled="False" />
+            <!-- Col 12: PTL LNTH spinner (spans 2 rows) -->
+            <Button x:Name="PtlLnthButton" Classes="dcb" Grid.Row="0" Grid.Column="12" Grid.RowSpan="2" Click="OnPtlLnthClick">
+              <StackPanel HorizontalAlignment="Center">
+                <TextBlock Text="PTL" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+                <TextBlock
+                  Text="{Binding PtlLengthMinutes, StringFormat='{}{0:F1}'}"
+                  HorizontalAlignment="Center"
+                  FontFamily="{StaticResource MonoFont}"
+                  FontSize="11"
+                />
+              </StackPanel>
+            </Button>
 
-                <!-- Col 7: BEACON MODE-2 (disabled, spans 2 rows) -->
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="7" Grid.RowSpan="2" IsEnabled="False">
-                    <TextBlock Text="BEACON&#x0a;MODE-2" TextAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                </Button>
+            <!-- Col 13: PTL OWN / PTL ALL (split) -->
+            <Button Classes="dcb-half" Classes.active="{Binding PtlOwn}" Grid.Row="0" Grid.Column="13" Content="PTL OWN" Click="OnPtlOwnClick" />
+            <Button Classes="dcb-half" Classes.active="{Binding PtlAll}" Grid.Row="1" Grid.Column="13" Content="PTL ALL" Click="OnPtlAllClick" />
 
-                <!-- Col 8: RTQC (disabled, spans 2 rows) -->
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="8" Grid.RowSpan="2" Content="RTQC" IsEnabled="False" />
+            <!-- Col 14: DWELL ON (disabled, spans 2 rows) -->
+            <Button Classes="dcb" Grid.Row="0" Grid.Column="14" Grid.RowSpan="2" IsEnabled="False">
+              <TextBlock Text="DWELL&#x0a;ON" TextAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+            </Button>
 
-                <!-- Col 9: MCP (disabled, spans 2 rows) -->
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="9" Grid.RowSpan="2" Content="MCP" IsEnabled="False" />
+            <!-- Col 15: TPA/ATPA (disabled, spans 2 rows) -->
+            <Button Classes="dcb" Grid.Row="0" Grid.Column="15" Grid.RowSpan="2" IsEnabled="False">
+              <TextBlock Text="TPA/&#x0a;ATPA" TextAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+            </Button>
 
-                <!-- Col 10: DCB TOP / DCB LEFT (disabled split) -->
-                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="10" Content="DCB TOP" IsEnabled="False" />
-                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="10" Content="DCB LEFT" IsEnabled="False" />
+            <!-- Col 16: TSAS / TIME LINE (disabled split) -->
+            <Button Classes="dcb-half" Grid.Row="0" Grid.Column="16" Content="TSAS" IsEnabled="False" />
+            <Button Classes="dcb-half" Grid.Row="1" Grid.Column="16" Content="TIME LINE" IsEnabled="False" />
 
-                <!-- Col 11: DCB RIGHT / DCB BOTTOM (disabled split) -->
-                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="11" Content="DCB RIGHT" IsEnabled="False" />
-                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="11" Content="DCB BOTTOM" IsEnabled="False" />
+            <!-- Col 17: RBL / CLR RBL (split) — distance measuring tool (STARS *T) -->
+            <Button
+              Classes="dcb-half"
+              Classes.active="{Binding Measure.IsMeasuring}"
+              Grid.Row="0"
+              Grid.Column="17"
+              Content="RBL"
+              Command="{Binding StartMeasureCommand}"
+            />
+            <Button
+              Classes="dcb-half"
+              Grid.Row="1"
+              Grid.Column="17"
+              Content="CLR RBL"
+              IsEnabled="{Binding Measure.HasLines}"
+              Command="{Binding ClearMeasurementsCommand}"
+            />
 
-                <!-- Col 12: PTL LNTH spinner (spans 2 rows) -->
-                <Button x:Name="PtlLnthButton" Classes="dcb" Grid.Row="0" Grid.Column="12" Grid.RowSpan="2" Click="OnPtlLnthClick">
-                    <StackPanel HorizontalAlignment="Center">
-                        <TextBlock Text="PTL" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                        <TextBlock Text="{Binding PtlLengthMinutes, StringFormat='{}{0:F1}'}" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                    </StackPanel>
-                </Button>
+            <!-- Col 18: SHIFT (back to Main) -->
+            <Button Classes="dcb" Grid.Row="0" Grid.Column="18" Grid.RowSpan="2" Content="SHIFT" Command="{Binding CloseDcbSubmenuCommand}" />
+          </Grid>
 
-                <!-- Col 13: PTL OWN / PTL ALL (split) -->
-                <Button Classes="dcb-half" Classes.active="{Binding PtlOwn}" Grid.Row="0" Grid.Column="13" Content="PTL OWN" Click="OnPtlOwnClick" />
-                <Button Classes="dcb-half" Classes.active="{Binding PtlAll}" Grid.Row="1" Grid.Column="13" Content="PTL ALL" Click="OnPtlAllClick" />
+          <!-- ==================== BRITE MENU (10-col x 2-row, STARS layout) ==================== -->
+          <Grid
+            x:Name="DcbBriteMenu"
+            RowDefinitions="40,40"
+            ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+            IsVisible="{Binding DcbMode, Converter={x:Static radar:RadarView.IsDcbModeBrite}}"
+          >
+            <!-- Col 0: DCB / BKC (not wired) -->
+            <Button Classes="dcb-half" Grid.Row="0" Grid.Column="0" IsEnabled="False">
+              <TextBlock x:Name="BriteDcbText" Text="DCB 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+            </Button>
+            <Button Classes="dcb-half" Grid.Row="1" Grid.Column="0" IsEnabled="False">
+              <TextBlock x:Name="BriteBkcText" Text="BKC 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+            </Button>
 
-                <!-- Col 14: DWELL ON (disabled, spans 2 rows) -->
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="14" Grid.RowSpan="2" IsEnabled="False">
-                    <TextBlock Text="DWELL&#x0a;ON" TextAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                </Button>
+            <!-- Col 1: MPA / MPB -->
+            <Button Classes="dcb-half" Grid.Row="0" Grid.Column="1" Tag="{x:Static vm:BriteTarget.MapA}" Click="OnBriteButtonClick">
+              <TextBlock x:Name="BriteMpaText" Text="MPA 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+            </Button>
+            <Button Classes="dcb-half" Grid.Row="1" Grid.Column="1" Tag="{x:Static vm:BriteTarget.MapB}" Click="OnBriteButtonClick">
+              <TextBlock x:Name="BriteMpbText" Text="MPB 60" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+            </Button>
 
-                <!-- Col 15: TPA/ATPA (disabled, spans 2 rows) -->
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="15" Grid.RowSpan="2" IsEnabled="False">
-                    <TextBlock Text="TPA/&#x0a;ATPA" TextAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                </Button>
+            <!-- Col 2: FDB / LST (not wired) -->
+            <Button Classes="dcb-half" Grid.Row="0" Grid.Column="2" IsEnabled="False">
+              <TextBlock x:Name="BriteFdbText" Text="FDB 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+            </Button>
+            <Button Classes="dcb-half" Grid.Row="1" Grid.Column="2" IsEnabled="False">
+              <TextBlock x:Name="BriteLstText" Text="LST 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+            </Button>
 
-                <!-- Col 16: TSAS / TIME LINE (disabled split) -->
-                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="16" Content="TSAS" IsEnabled="False" />
-                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="16" Content="TIME LINE" IsEnabled="False" />
+            <!-- Col 3: POS / LDB (not wired) -->
+            <Button Classes="dcb-half" Grid.Row="0" Grid.Column="3" IsEnabled="False">
+              <TextBlock x:Name="BritePosText" Text="POS 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+            </Button>
+            <Button Classes="dcb-half" Grid.Row="1" Grid.Column="3" IsEnabled="False">
+              <TextBlock x:Name="BriteLdbText" Text="LDB 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+            </Button>
 
-                <!-- Col 17: RBL / CLR RBL (split) — distance measuring tool (STARS *T) -->
-                <Button Classes="dcb-half" Classes.active="{Binding Measure.IsMeasuring}" Grid.Row="0" Grid.Column="17" Content="RBL" Command="{Binding StartMeasureCommand}" />
-                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="17" Content="CLR RBL" IsEnabled="{Binding Measure.HasLines}" Command="{Binding ClearMeasurementsCommand}" />
+            <!-- Col 4: OTH / TLS (not wired) -->
+            <Button Classes="dcb-half" Grid.Row="0" Grid.Column="4" IsEnabled="False">
+              <TextBlock x:Name="BriteOthText" Text="OTH 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+            </Button>
+            <Button Classes="dcb-half" Grid.Row="1" Grid.Column="4" IsEnabled="False">
+              <TextBlock x:Name="BriteTlsText" Text="TLS 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+            </Button>
 
-                <!-- Col 18: SHIFT (back to Main) -->
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="18" Grid.RowSpan="2" Content="SHIFT" Command="{Binding CloseDcbSubmenuCommand}" />
-            </Grid>
+            <!-- Col 5: RR / CMP -->
+            <Button Classes="dcb-half" Grid.Row="0" Grid.Column="5" Tag="{x:Static vm:BriteTarget.RangeRing}" Click="OnBriteButtonClick">
+              <TextBlock x:Name="BriteRrText" Text="RR 60" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+            </Button>
+            <Button Classes="dcb-half" Grid.Row="1" Grid.Column="5" IsEnabled="False">
+              <TextBlock x:Name="BriteCmpText" Text="CMP 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+            </Button>
 
-            <!-- ==================== BRITE MENU (10-col x 2-row, STARS layout) ==================== -->
-            <Grid x:Name="DcbBriteMenu" RowDefinitions="40,40" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" IsVisible="{Binding DcbMode, Converter={x:Static radar:RadarView.IsDcbModeBrite}}">
+            <!-- Col 6: BCN / PRI (not wired) -->
+            <Button Classes="dcb-half" Grid.Row="0" Grid.Column="6" IsEnabled="False">
+              <TextBlock x:Name="BriteBcnText" Text="BCN 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+            </Button>
+            <Button Classes="dcb-half" Grid.Row="1" Grid.Column="6" IsEnabled="False">
+              <TextBlock x:Name="BritePriText" Text="PRI 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+            </Button>
 
-                <!-- Col 0: DCB / BKC (not wired) -->
-                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="0" IsEnabled="False">
-                    <TextBlock x:Name="BriteDcbText" Text="DCB 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                </Button>
-                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="0" IsEnabled="False">
-                    <TextBlock x:Name="BriteBkcText" Text="BKC 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                </Button>
+            <!-- Col 7: HST / WX -->
+            <Button Classes="dcb-half" Grid.Row="0" Grid.Column="7" Tag="{x:Static vm:BriteTarget.Hst}" Click="OnBriteButtonClick">
+              <TextBlock x:Name="BriteHstText" Text="HST 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+            </Button>
+            <Button Classes="dcb-half" Grid.Row="1" Grid.Column="7" IsEnabled="False">
+              <TextBlock x:Name="BriteWxText" Text="WX 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+            </Button>
 
-                <!-- Col 1: MPA / MPB -->
-                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="1" Tag="{x:Static vm:BriteTarget.MapA}" Click="OnBriteButtonClick">
-                    <TextBlock x:Name="BriteMpaText" Text="MPA 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                </Button>
-                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="1" Tag="{x:Static vm:BriteTarget.MapB}" Click="OnBriteButtonClick">
-                    <TextBlock x:Name="BriteMpbText" Text="MPB 60" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                </Button>
+            <!-- Col 8: WXC / (empty) (not wired) -->
+            <Button Classes="dcb-half" Grid.Row="0" Grid.Column="8" IsEnabled="False">
+              <TextBlock x:Name="BriteWxcText" Text="WXC 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+            </Button>
 
-                <!-- Col 2: FDB / LST (not wired) -->
-                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="2" IsEnabled="False">
-                    <TextBlock x:Name="BriteFdbText" Text="FDB 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                </Button>
-                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="2" IsEnabled="False">
-                    <TextBlock x:Name="BriteLstText" Text="LST 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                </Button>
+            <!-- Col 9: DONE (spans 2 rows) — returns to Main -->
+            <Button Classes="dcb" Grid.Row="0" Grid.Column="9" Grid.RowSpan="2" Content="DONE" Command="{Binding CloseDcbSubmenuCommand}" />
+          </Grid>
+        </Panel>
+      </ScrollViewer>
+    </Border>
 
-                <!-- Col 3: POS / LDB (not wired) -->
-                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="3" IsEnabled="False">
-                    <TextBlock x:Name="BritePosText" Text="POS 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                </Button>
-                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="3" IsEnabled="False">
-                    <TextBlock x:Name="BriteLdbText" Text="LDB 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                </Button>
+    <!-- Radar canvas + overlay popups -->
+    <Grid>
+      <radar:RadarCanvas
+        x:Name="Canvas"
+        DataBlockState="{Binding DataBlockState}"
+        Aircraft="{Binding $parent[Window].((vm:MainViewModel)DataContext).Aircraft}"
+        SelectedAircraft="{Binding SelectedAircraft}"
+        VideoMaps="{Binding ActiveVideoMaps}"
+        ShowRangeRings="{Binding ShowRangeRings}"
+        RangeNm="{Binding RangeNm, Mode=TwoWay}"
+        RadarCenterLat="{Binding CenterLat, Mode=TwoWay}"
+        RadarCenterLon="{Binding CenterLon, Mode=TwoWay}"
+        ShowFixes="{Binding ShowFixes}"
+        ShowMvaAltitudeTint="{Binding ShowMvaHints}"
+        Fixes="{Binding Fixes}"
+        PinnedMarkers="{Binding PinnedMarkers}"
+        RangeRingCenterLat="{Binding RangeRingCenterLat}"
+        RangeRingCenterLon="{Binding RangeRingCenterLon}"
+        RangeRingSizeNm="{Binding RangeRingSizeNm, Mode=TwoWay}"
+        IsPanZoomLocked="{Binding IsPanZoomLocked}"
+        IsPlacingRangeRing="{Binding IsPlacingRangeRing}"
+        IsAdjustingRangeRingSize="{Binding IsAdjustingRangeRingSize, Mode=TwoWay}"
+        ShowTopDown="{Binding ShowTopDown}"
+        GroundShownAirportId="{Binding $parent[Window].((vm:MainViewModel)DataContext).GroundShownAirportId}"
+        PtlLengthMinutes="{Binding PtlLengthMinutes}"
+        PtlOwn="{Binding PtlOwn}"
+        PtlAll="{Binding PtlAll}"
+        ProgrammedFixNames="{Binding ProgrammedFixNames}"
+        IsDrawingRoute="{Binding IsDrawingRoute}"
+        IsMeasuring="{Binding Measure.IsMeasuring}"
+        RangeBearingLines="{Binding Measure.Lines}"
+        MeasureAnchor="{Binding Measure.Anchor}"
+        DrawnWaypoints="{Binding DrawnWaypoints}"
+        WaypointConditions="{Binding WaypointConditionsSnapshot}"
+        WeatherInfo="{Binding WeatherInfo}"
+        ShownPaths="{Binding ShownPaths}"
+        ShownShapes="{Binding ShownShapes}"
+        HistoryCount="{Binding HistoryCount}"
+        DeconflictMode="{Binding DeconflictMode}"
+      />
 
-                <!-- Col 4: OTH / TLS (not wired) -->
-                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="4" IsEnabled="False">
-                    <TextBlock x:Name="BriteOthText" Text="OTH 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                </Button>
-                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="4" IsEnabled="False">
-                    <TextBlock x:Name="BriteTlsText" Text="TLS 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                </Button>
-
-                <!-- Col 5: RR / CMP -->
-                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="5" Tag="{x:Static vm:BriteTarget.RangeRing}" Click="OnBriteButtonClick">
-                    <TextBlock x:Name="BriteRrText" Text="RR 60" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                </Button>
-                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="5" IsEnabled="False">
-                    <TextBlock x:Name="BriteCmpText" Text="CMP 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                </Button>
-
-                <!-- Col 6: BCN / PRI (not wired) -->
-                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="6" IsEnabled="False">
-                    <TextBlock x:Name="BriteBcnText" Text="BCN 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                </Button>
-                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="6" IsEnabled="False">
-                    <TextBlock x:Name="BritePriText" Text="PRI 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                </Button>
-
-                <!-- Col 7: HST / WX -->
-                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="7" Tag="{x:Static vm:BriteTarget.Hst}" Click="OnBriteButtonClick">
-                    <TextBlock x:Name="BriteHstText" Text="HST 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                </Button>
-                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="7" IsEnabled="False">
-                    <TextBlock x:Name="BriteWxText" Text="WX 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                </Button>
-
-                <!-- Col 8: WXC / (empty) (not wired) -->
-                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="8" IsEnabled="False">
-                    <TextBlock x:Name="BriteWxcText" Text="WXC 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                </Button>
-
-                <!-- Col 9: DONE (spans 2 rows) — returns to Main -->
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="9" Grid.RowSpan="2" Content="DONE" Command="{Binding CloseDcbSubmenuCommand}" />
-            </Grid>
-
-          </Panel>
-          </ScrollViewer>
+      <!-- MAP popup (shared by GEO MAPS button in Maps submenu) -->
+      <Popup x:Name="MapPopup" IsLightDismissEnabled="True" PlacementTarget="{Binding #DcbContainer}" Placement="Bottom">
+        <Border Background="#0D1A0D" BorderBrush="#1A3A1A" BorderThickness="1" Padding="6">
+          <StackPanel Spacing="4" Width="240">
+            <TextBox
+              x:Name="MapSearchInput"
+              PlaceholderText="Search by name or #..."
+              Text="{Binding MapSearchText}"
+              FontSize="11"
+              FontFamily="{StaticResource MonoFont}"
+              Foreground="#00B800"
+              Background="#0D1A0D"
+              KeyDown="OnMapSearchKeyDown"
+            />
+            <ScrollViewer MaxHeight="300" VerticalScrollBarVisibility="Auto">
+              <ItemsControl ItemsSource="{Binding MapToggles}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:VideoMapToggleItem">
+                    <Grid
+                      ColumnDefinitions="14,*"
+                      Margin="0,1"
+                      Background="Transparent"
+                      IsVisible="{Binding IsVisible}"
+                      ContextRequested="OnMapRowContextRequested"
+                      ToolTip.Tip="Right-click to favorite for ARTCC, airport, or scenario"
+                    >
+                      <TextBlock
+                        Grid.Column="0"
+                        Text="★"
+                        IsVisible="{Binding IsFavorite}"
+                        Foreground="#00E000"
+                        FontSize="11"
+                        VerticalAlignment="Center"
+                        HorizontalAlignment="Center"
+                      />
+                      <CheckBox
+                        Grid.Column="1"
+                        IsChecked="{Binding IsEnabled}"
+                        Click="OnMapToggleClick"
+                        FontSize="11"
+                        FontFamily="{StaticResource MonoFont}"
+                        Foreground="#00B800"
+                      >
+                        <TextBlock Text="{Binding DisplayLabel}" TextTrimming="CharacterEllipsis" />
+                      </CheckBox>
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </StackPanel>
         </Border>
+      </Popup>
 
-        <!-- Radar canvas + overlay popups -->
-        <Grid>
-            <radar:RadarCanvas x:Name="Canvas"
-                               DataBlockState="{Binding DataBlockState}"
-                               Aircraft="{Binding $parent[Window].((vm:MainViewModel)DataContext).Aircraft}"
-                               SelectedAircraft="{Binding SelectedAircraft}"
-                               VideoMaps="{Binding ActiveVideoMaps}"
-                               ShowRangeRings="{Binding ShowRangeRings}"
-                               RangeNm="{Binding RangeNm, Mode=TwoWay}"
-                               RadarCenterLat="{Binding CenterLat, Mode=TwoWay}"
-                               RadarCenterLon="{Binding CenterLon, Mode=TwoWay}"
-                               ShowFixes="{Binding ShowFixes}"
-                               ShowMvaAltitudeTint="{Binding ShowMvaHints}"
-                               Fixes="{Binding Fixes}"
-                               PinnedMarkers="{Binding PinnedMarkers}"
-                               RangeRingCenterLat="{Binding RangeRingCenterLat}"
-                               RangeRingCenterLon="{Binding RangeRingCenterLon}"
-                               RangeRingSizeNm="{Binding RangeRingSizeNm, Mode=TwoWay}"
-                               IsPanZoomLocked="{Binding IsPanZoomLocked}"
-                               IsPlacingRangeRing="{Binding IsPlacingRangeRing}"
-                               IsAdjustingRangeRingSize="{Binding IsAdjustingRangeRingSize, Mode=TwoWay}"
-                               ShowTopDown="{Binding ShowTopDown}"
-                               GroundShownAirportId="{Binding $parent[Window].((vm:MainViewModel)DataContext).GroundShownAirportId}"
-                               PtlLengthMinutes="{Binding PtlLengthMinutes}"
-                               PtlOwn="{Binding PtlOwn}"
-                               PtlAll="{Binding PtlAll}"
-                               ProgrammedFixNames="{Binding ProgrammedFixNames}"
-                               IsDrawingRoute="{Binding IsDrawingRoute}"
-                               IsMeasuring="{Binding Measure.IsMeasuring}"
-                               RangeBearingLines="{Binding Measure.Lines}"
-                               MeasureAnchor="{Binding Measure.Anchor}"
-                               DrawnWaypoints="{Binding DrawnWaypoints}"
-                               WaypointConditions="{Binding WaypointConditionsSnapshot}"
-                               WeatherInfo="{Binding WeatherInfo}"
-                               ShownPaths="{Binding ShownPaths}"
-                               ShownShapes="{Binding ShownShapes}"
-                               HistoryCount="{Binding HistoryCount}"
-                               DeconflictMode="{Binding DeconflictMode}" />
+      <!-- Input popup (free-text entry for commands) -->
+      <Popup x:Name="InputPopup" IsLightDismissEnabled="True" PlacementTarget="{Binding #Canvas}" Placement="Pointer">
+        <Border Background="#222" BorderBrush="#555" BorderThickness="1" Padding="6" CornerRadius="2">
+          <StackPanel Spacing="4">
+            <TextBox x:Name="InputPopupText" Width="160" FontSize="12" KeyDown="OnInputPopupKeyDown" />
+            <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right">
+              <Button Content="OK" Click="OnInputPopupSubmit" Padding="8,2" FontSize="11" />
+              <Button Content="Cancel" Click="OnInputPopupCancel" Padding="8,2" FontSize="11" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+      </Popup>
 
-            <!-- MAP popup (shared by GEO MAPS button in Maps submenu) -->
-            <Popup x:Name="MapPopup"
-                   IsLightDismissEnabled="True"
-                   PlacementTarget="{Binding #DcbContainer}"
-                   Placement="Bottom">
-                <Border Background="#0D1A0D" BorderBrush="#1A3A1A" BorderThickness="1" Padding="6">
-                    <StackPanel Spacing="4" Width="240">
-                        <TextBox x:Name="MapSearchInput" PlaceholderText="Search by name or #..." Text="{Binding MapSearchText}" FontSize="11" FontFamily="{StaticResource MonoFont}" Foreground="#00B800" Background="#0D1A0D" KeyDown="OnMapSearchKeyDown" />
-                        <ScrollViewer MaxHeight="300" VerticalScrollBarVisibility="Auto">
-                            <ItemsControl ItemsSource="{Binding MapToggles}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:VideoMapToggleItem">
-                                        <Grid ColumnDefinitions="14,*"
-                                              Margin="0,1"
-                                              Background="Transparent"
-                                              IsVisible="{Binding IsVisible}"
-                                              ContextRequested="OnMapRowContextRequested"
-                                              ToolTip.Tip="Right-click to favorite for ARTCC, airport, or scenario">
-                                            <TextBlock Grid.Column="0"
-                                                       Text="★"
-                                                       IsVisible="{Binding IsFavorite}"
-                                                       Foreground="#00E000"
-                                                       FontSize="11"
-                                                       VerticalAlignment="Center"
-                                                       HorizontalAlignment="Center" />
-                                            <CheckBox Grid.Column="1"
-                                                      IsChecked="{Binding IsEnabled}"
-                                                      Click="OnMapToggleClick"
-                                                      FontSize="11"
-                                                      FontFamily="{StaticResource MonoFont}"
-                                                      Foreground="#00B800">
-                                                <TextBlock Text="{Binding DisplayLabel}" TextTrimming="CharacterEllipsis" />
-                                            </CheckBox>
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-                    </StackPanel>
-                </Border>
-            </Popup>
+      <!-- Warp popup (FRD + heading + altitude + speed for teleporting aircraft) -->
+      <Popup x:Name="WarpPopup" IsLightDismissEnabled="True" PlacementTarget="{Binding #Canvas}" Placement="Pointer">
+        <Border Background="#222" BorderBrush="#555" BorderThickness="1" Padding="8" CornerRadius="2">
+          <StackPanel Spacing="6" Width="280">
+            <TextBlock x:Name="WarpPopupHeader" FontSize="13" FontWeight="Bold" Foreground="#DDD" />
+            <TextBlock Text="Fix or FRD" FontSize="11" Foreground="#999" />
+            <TextBox
+              x:Name="WarpPopupFrd"
+              PlaceholderText="e.g. SFO or SFO180010"
+              FontSize="12"
+              FontFamily="{StaticResource MonoFont}"
+              KeyDown="OnWarpPopupKeyDown"
+            />
+            <TextBlock Text="Heading" FontSize="11" Foreground="#999" />
+            <TextBox
+              x:Name="WarpPopupHeading"
+              PlaceholderText="0-360"
+              FontSize="12"
+              FontFamily="{StaticResource MonoFont}"
+              KeyDown="OnWarpPopupKeyDown"
+            />
+            <TextBlock Text="Altitude (feet)" FontSize="11" Foreground="#999" />
+            <TextBox
+              x:Name="WarpPopupAltitude"
+              PlaceholderText="e.g. 5000"
+              FontSize="12"
+              FontFamily="{StaticResource MonoFont}"
+              KeyDown="OnWarpPopupKeyDown"
+            />
+            <TextBlock Text="Speed (knots IAS)" FontSize="11" Foreground="#999" />
+            <TextBox
+              x:Name="WarpPopupSpeed"
+              PlaceholderText="e.g. 250"
+              FontSize="12"
+              FontFamily="{StaticResource MonoFont}"
+              KeyDown="OnWarpPopupKeyDown"
+            />
+            <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right" Margin="0,4,0,0">
+              <Button Content="OK" Click="OnWarpPopupSubmit" Padding="8,2" FontSize="11" />
+              <Button Content="Cancel" Click="OnWarpPopupCancel" Padding="8,2" FontSize="11" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+      </Popup>
 
-            <!-- Input popup (free-text entry for commands) -->
-            <Popup x:Name="InputPopup"
-                   IsLightDismissEnabled="True"
-                   PlacementTarget="{Binding #Canvas}"
-                   Placement="Pointer">
-                <Border Background="#222" BorderBrush="#555" BorderThickness="1" Padding="6" CornerRadius="2">
-                    <StackPanel Spacing="4">
-                        <TextBox x:Name="InputPopupText"
-                                 Width="160" FontSize="12"
-                                 KeyDown="OnInputPopupKeyDown" />
-                        <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right">
-                            <Button Content="OK"
-                                    Click="OnInputPopupSubmit"
-                                    Padding="8,2" FontSize="11" />
-                            <Button Content="Cancel"
-                                    Click="OnInputPopupCancel"
-                                    Padding="8,2" FontSize="11" />
-                        </StackPanel>
-                    </StackPanel>
-                </Border>
-            </Popup>
+      <!-- Waypoint condition popup (altitude + commands for draw route waypoints) -->
+      <Popup x:Name="WaypointConditionPopup" IsLightDismissEnabled="True" PlacementTarget="{Binding #Canvas}" Placement="Pointer">
+        <Border Background="#222" BorderBrush="#555" BorderThickness="1" Padding="8" CornerRadius="2">
+          <StackPanel Spacing="6" Width="280">
+            <TextBlock x:Name="WaypointConditionHeader" FontSize="13" FontWeight="Bold" Foreground="#DDD" />
+            <TextBlock Text="Crossing altitude" FontSize="11" Foreground="#999" />
+            <TextBox
+              x:Name="WaypointConditionAltitude"
+              PlaceholderText="e.g. 100, A100, B100"
+              FontSize="12"
+              FontFamily="{StaticResource MonoFont}"
+              KeyDown="OnWaypointConditionKeyDown"
+            />
+            <TextBlock Text="A=at or above, B=at or below, plain=exact. Hundreds of feet." FontSize="10" Foreground="#777" TextWrapping="Wrap" />
+            <TextBlock Text="Commands (executed as AT condition)" FontSize="11" Foreground="#999" Margin="0,4,0,0" />
+            <TextBox
+              x:Name="WaypointConditionCommands"
+              PlaceholderText="e.g. SPD 250, FH 270"
+              FontSize="12"
+              FontFamily="{StaticResource MonoFont}"
+              KeyDown="OnWaypointConditionKeyDown"
+            />
+            <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right" Margin="0,4,0,0">
+              <Button Content="OK" Click="OnWaypointConditionSubmit" Padding="8,2" FontSize="11" />
+              <Button Content="Clear" Click="OnWaypointConditionClear" Padding="8,2" FontSize="11" />
+              <Button Content="Cancel" Click="OnWaypointConditionCancel" Padding="8,2" FontSize="11" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+      </Popup>
 
-            <!-- Warp popup (FRD + heading + altitude + speed for teleporting aircraft) -->
-            <Popup x:Name="WarpPopup"
-                   IsLightDismissEnabled="True"
-                   PlacementTarget="{Binding #Canvas}"
-                   Placement="Pointer">
-                <Border Background="#222" BorderBrush="#555" BorderThickness="1" Padding="8" CornerRadius="2">
-                    <StackPanel Spacing="6" Width="280">
-                        <TextBlock x:Name="WarpPopupHeader" FontSize="13" FontWeight="Bold" Foreground="#DDD" />
-                        <TextBlock Text="Fix or FRD" FontSize="11" Foreground="#999" />
-                        <TextBox x:Name="WarpPopupFrd" PlaceholderText="e.g. SFO or SFO180010" FontSize="12" FontFamily="{StaticResource MonoFont}" KeyDown="OnWarpPopupKeyDown" />
-                        <TextBlock Text="Heading" FontSize="11" Foreground="#999" />
-                        <TextBox x:Name="WarpPopupHeading" PlaceholderText="0-360" FontSize="12" FontFamily="{StaticResource MonoFont}" KeyDown="OnWarpPopupKeyDown" />
-                        <TextBlock Text="Altitude (feet)" FontSize="11" Foreground="#999" />
-                        <TextBox x:Name="WarpPopupAltitude" PlaceholderText="e.g. 5000" FontSize="12" FontFamily="{StaticResource MonoFont}" KeyDown="OnWarpPopupKeyDown" />
-                        <TextBlock Text="Speed (knots IAS)" FontSize="11" Foreground="#999" />
-                        <TextBox x:Name="WarpPopupSpeed" PlaceholderText="e.g. 250" FontSize="12" FontFamily="{StaticResource MonoFont}" KeyDown="OnWarpPopupKeyDown" />
-                        <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right" Margin="0,4,0,0">
-                            <Button Content="OK" Click="OnWarpPopupSubmit" Padding="8,2" FontSize="11" />
-                            <Button Content="Cancel" Click="OnWarpPopupCancel" Padding="8,2" FontSize="11" />
-                        </StackPanel>
-                    </StackPanel>
-                </Border>
-            </Popup>
+      <!-- List popup (scrollable value picker for heading, altitude, DCT) -->
+      <Popup x:Name="ListPopup" IsLightDismissEnabled="True" PlacementTarget="{Binding #Canvas}" Placement="Pointer">
+        <Border Background="#222" BorderBrush="#555" BorderThickness="1" CornerRadius="2">
+          <ListBox
+            x:Name="ListPopupItems"
+            MaxHeight="300"
+            Width="120"
+            FontSize="12"
+            FontFamily="{StaticResource MonoFont}"
+            Background="#222"
+            Foreground="#CCC"
+            SelectionChanged="OnListPopupSelectionChanged"
+          />
+        </Border>
+      </Popup>
 
-            <!-- Waypoint condition popup (altitude + commands for draw route waypoints) -->
-            <Popup x:Name="WaypointConditionPopup"
-                   IsLightDismissEnabled="True"
-                   PlacementTarget="{Binding #Canvas}"
-                   Placement="Pointer">
-                <Border Background="#222" BorderBrush="#555" BorderThickness="1" Padding="8" CornerRadius="2">
-                    <StackPanel Spacing="6" Width="280">
-                        <TextBlock x:Name="WaypointConditionHeader" FontSize="13" FontWeight="Bold" Foreground="#DDD" />
-                        <TextBlock Text="Crossing altitude" FontSize="11" Foreground="#999" />
-                        <TextBox x:Name="WaypointConditionAltitude" PlaceholderText="e.g. 100, A100, B100" FontSize="12" FontFamily="{StaticResource MonoFont}" KeyDown="OnWaypointConditionKeyDown" />
-                        <TextBlock Text="A=at or above, B=at or below, plain=exact. Hundreds of feet." FontSize="10" Foreground="#777" TextWrapping="Wrap" />
-                        <TextBlock Text="Commands (executed as AT condition)" FontSize="11" Foreground="#999" Margin="0,4,0,0" />
-                        <TextBox x:Name="WaypointConditionCommands" PlaceholderText="e.g. SPD 250, FH 270" FontSize="12" FontFamily="{StaticResource MonoFont}" KeyDown="OnWaypointConditionKeyDown" />
-                        <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right" Margin="0,4,0,0">
-                            <Button Content="OK" Click="OnWaypointConditionSubmit" Padding="8,2" FontSize="11" />
-                            <Button Content="Clear" Click="OnWaypointConditionClear" Padding="8,2" FontSize="11" />
-                            <Button Content="Cancel" Click="OnWaypointConditionCancel" Padding="8,2" FontSize="11" />
-                        </StackPanel>
-                    </StackPanel>
-                </Border>
-            </Popup>
-
-            <!-- List popup (scrollable value picker for heading, altitude, DCT) -->
-            <Popup x:Name="ListPopup"
-                   IsLightDismissEnabled="True"
-                   PlacementTarget="{Binding #Canvas}"
-                   Placement="Pointer">
-                <Border Background="#222" BorderBrush="#555" BorderThickness="1" CornerRadius="2">
-                    <ListBox x:Name="ListPopupItems"
-                             MaxHeight="300" Width="120"
-                             FontSize="12" FontFamily="{StaticResource MonoFont}"
-                             Background="#222" Foreground="#CCC"
-                             SelectionChanged="OnListPopupSelectionChanged" />
-                </Border>
-            </Popup>
-
-            <!-- Filtered list popup (text filter + scrollable list for fix name entry) -->
-            <Popup x:Name="FilteredListPopup"
-                   IsLightDismissEnabled="True"
-                   PlacementTarget="{Binding #Canvas}"
-                   Placement="Pointer">
-                <Border Background="#222" BorderBrush="#555" BorderThickness="1" Padding="4" CornerRadius="2">
-                    <StackPanel Width="200" Spacing="4">
-                        <TextBox x:Name="FilteredListText"
-                                 FontSize="12" FontFamily="{StaticResource MonoFont}"
-                                 PlaceholderText="Fix name..."
-                                 KeyDown="OnFilteredListKeyDown" />
-                        <ListBox x:Name="FilteredListItems"
-                                 MaxHeight="250"
-                                 FontSize="12" FontFamily="{StaticResource MonoFont}"
-                                 Background="#222" Foreground="#CCC"
-                                 SelectionChanged="OnFilteredListSelectionChanged" />
-                    </StackPanel>
-                </Border>
-            </Popup>
-        </Grid>
-    </DockPanel>
-
+      <!-- Filtered list popup (text filter + scrollable list for fix name entry) -->
+      <Popup x:Name="FilteredListPopup" IsLightDismissEnabled="True" PlacementTarget="{Binding #Canvas}" Placement="Pointer">
+        <Border Background="#222" BorderBrush="#555" BorderThickness="1" Padding="4" CornerRadius="2">
+          <StackPanel Width="200" Spacing="4">
+            <TextBox
+              x:Name="FilteredListText"
+              FontSize="12"
+              FontFamily="{StaticResource MonoFont}"
+              PlaceholderText="Fix name..."
+              KeyDown="OnFilteredListKeyDown"
+            />
+            <ListBox
+              x:Name="FilteredListItems"
+              MaxHeight="250"
+              FontSize="12"
+              FontFamily="{StaticResource MonoFont}"
+              Background="#222"
+              Foreground="#CCC"
+              SelectionChanged="OnFilteredListSelectionChanged"
+            />
+          </StackPanel>
+        </Border>
+      </Popup>
+    </Grid>
+  </DockPanel>
 </UserControl>

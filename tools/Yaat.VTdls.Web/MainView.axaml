@@ -1,26 +1,32 @@
-<UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vtdls="using:Yaat.Client.Views.VTdls"
-             x:Class="Yaat.VTdls.Web.MainView">
-    <!-- No explicit Background — let the Application's themed
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vtdls="using:Yaat.Client.Views.VTdls"
+  x:Class="Yaat.VTdls.Web.MainView"
+>
+  <!-- No explicit Background — let the Application's themed
          SystemControlBackgroundAltHighBrush show through so the chrome behind
          the vTDLS view tracks the user's dark-mode toggle. -->
-    <Grid RowDefinitions="*,Auto">
-        <vtdls:VTdlsView Grid.Row="0" x:Name="TdlsView" />
-        <!-- Status footer — gives the user visible feedback on connect /
+  <Grid RowDefinitions="*,Auto">
+    <vtdls:VTdlsView Grid.Row="0" x:Name="TdlsView" />
+    <!-- Status footer — gives the user visible feedback on connect /
              room state since the browser tab has no other chrome. Themed
              brushes come from App.axaml's ThemeDictionaries so the bar
              tracks the Application's RequestedThemeVariant. -->
-        <Border Grid.Row="1"
-                Background="{DynamicResource StatusBarBg}"
-                BorderBrush="{DynamicResource StatusBarBorder}"
-                BorderThickness="0,1,0,0"
-                Padding="8,3">
-            <TextBlock x:Name="StatusBar"
-                       Text="Initializing..."
-                       Foreground="{DynamicResource StatusBarFg}"
-                       FontFamily="Consolas,Menlo,DejaVu Sans Mono,monospace"
-                       FontSize="11"/>
-        </Border>
-    </Grid>
+    <Border
+      Grid.Row="1"
+      Background="{DynamicResource StatusBarBg}"
+      BorderBrush="{DynamicResource StatusBarBorder}"
+      BorderThickness="0,1,0,0"
+      Padding="8,3"
+    >
+      <TextBlock
+        x:Name="StatusBar"
+        Text="Initializing..."
+        Foreground="{DynamicResource StatusBarFg}"
+        FontFamily="Consolas,Menlo,DejaVu Sans Mono,monospace"
+        FontSize="11"
+      />
+    </Border>
+  </Grid>
 </UserControl>

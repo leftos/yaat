@@ -1,16 +1,16 @@
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="using:Yaat.Client.ViewModels"
-        xmlns:radar="using:Yaat.Client.Views.Radar"
-        xmlns:views="using:Yaat.Client.Views"
-        x:Class="Yaat.Client.Views.Radar.RadarViewWindow"
-        x:DataType="vm:MainViewModel"
-        Icon="avares://Yaat.Client/Resources/icon.png"
-        Title="Radar View">
-
-    <DockPanel>
-        <views:RestartNotificationView DockPanel.Dock="Top" />
-        <radar:RadarView x:Name="Host" />
-    </DockPanel>
-
+<Window
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels"
+  xmlns:radar="using:Yaat.Client.Views.Radar"
+  xmlns:views="using:Yaat.Client.Views"
+  x:Class="Yaat.Client.Views.Radar.RadarViewWindow"
+  x:DataType="vm:MainViewModel"
+  Icon="avares://Yaat.Client/Resources/icon.png"
+  Title="Radar View"
+>
+  <DockPanel>
+    <views:RestartNotificationView DockPanel.Dock="Top" />
+    <radar:RadarView x:Name="Host" />
+  </DockPanel>
 </Window>

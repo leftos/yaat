@@ -1,106 +1,112 @@
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="Yaat.Client.Views.FlightPlanEditorWindow"
-        Icon="avares://Yaat.Client/Resources/icon.png"
-        Title="Flight Plan"
-        Background="#1A1A1A"
-        SizeToContent="Height"
-        Width="810"
-        MinWidth="720"
-        CanResize="False"
-        WindowStartupLocation="CenterOwner">
+<Window
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  x:Class="Yaat.Client.Views.FlightPlanEditorWindow"
+  Icon="avares://Yaat.Client/Resources/icon.png"
+  Title="Flight Plan"
+  Background="#1A1A1A"
+  SizeToContent="Height"
+  Width="810"
+  MinWidth="720"
+  CanResize="False"
+  WindowStartupLocation="CenterOwner"
+>
+  <Window.Styles>
+    <Style Selector="TextBlock.label">
+      <Setter Property="Foreground" Value="#808080" />
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBox.field">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Background" Value="#0D0D0D" />
+      <Setter Property="Foreground" Value="#00CCCC" />
+      <Setter Property="BorderBrush" Value="#333333" />
+      <Setter Property="Padding" Value="4,2" />
+      <Setter Property="MinHeight" Value="26" />
+    </Style>
+    <Style Selector="TextBlock.value">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Foreground" Value="#00CCCC" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.recycle">
+      <Setter Property="Background" Value="#0D0D0D" />
+      <Setter Property="Foreground" Value="#00CCCC" />
+      <Setter Property="BorderBrush" Value="#333333" />
+      <Setter Property="MinHeight" Value="26" />
+      <Setter Property="MinWidth" Value="26" />
+      <Setter Property="Padding" Value="4,0" />
+      <Setter Property="ToolTip.Tip" Value="Request new beacon code" />
+    </Style>
+  </Window.Styles>
 
-    <Window.Styles>
-        <Style Selector="TextBlock.label">
-            <Setter Property="Foreground" Value="#808080" />
-            <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
-        <Style Selector="TextBox.field">
-            <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="Background" Value="#0D0D0D" />
-            <Setter Property="Foreground" Value="#00CCCC" />
-            <Setter Property="BorderBrush" Value="#333333" />
-            <Setter Property="Padding" Value="4,2" />
-            <Setter Property="MinHeight" Value="26" />
-        </Style>
-        <Style Selector="TextBlock.value">
-            <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="Foreground" Value="#00CCCC" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
-        <Style Selector="Button.recycle">
-            <Setter Property="Background" Value="#0D0D0D" />
-            <Setter Property="Foreground" Value="#00CCCC" />
-            <Setter Property="BorderBrush" Value="#333333" />
-            <Setter Property="MinHeight" Value="26" />
-            <Setter Property="MinWidth" Value="26" />
-            <Setter Property="Padding" Value="4,0" />
-            <Setter Property="ToolTip.Tip" Value="Request new beacon code" />
-        </Style>
-    </Window.Styles>
+  <StackPanel Margin="12" Spacing="8">
+    <!-- Row 1: AID BCN [↻] TYP EQ ICAO-EQ DEP DEST SPD ALT [Submit] -->
+    <Grid ColumnDefinitions="70,60,30,60,40,110,60,60,50,72,Auto">
+      <StackPanel Grid.Column="0" Spacing="2">
+        <TextBlock Text="AID" Classes="label" />
+        <TextBlock x:Name="AidText" Classes="value" />
+      </StackPanel>
+      <StackPanel Grid.Column="1" Spacing="2" Margin="4,0,0,0">
+        <TextBlock Text="BCN" Classes="label" />
+        <TextBlock x:Name="BcnText" Classes="value" />
+      </StackPanel>
+      <StackPanel Grid.Column="2" Spacing="2" Margin="2,0,0,0" VerticalAlignment="Bottom">
+        <TextBlock Text=" " Classes="label" />
+        <Button x:Name="RecycleBcnButton" Content="↻" Classes="recycle" />
+      </StackPanel>
+      <StackPanel Grid.Column="3" Spacing="2" Margin="6,0,0,0">
+        <TextBlock Text="TYP" Classes="label" />
+        <TextBox x:Name="TypBox" Classes="field" MaxLength="10" Width="56" />
+      </StackPanel>
+      <StackPanel Grid.Column="4" Spacing="2" Margin="4,0,0,0">
+        <TextBlock Text="EQ" Classes="label" />
+        <TextBox x:Name="EqBox" Classes="field" MaxLength="4" Width="36" />
+      </StackPanel>
+      <StackPanel
+        Grid.Column="5"
+        Spacing="2"
+        Margin="4,0,0,0"
+        ToolTip.Tip="ICAO field-10a equipment codes (e.g. SDE3FGHIJ5M1RWXY). J5-J7/M1-M3 mark the aircraft SATCOMM-capable on ERAM."
+      >
+        <TextBlock Text="ICAO EQ" Classes="label" />
+        <TextBox x:Name="IcaoEqBox" Classes="field" MaxLength="24" Width="106" />
+      </StackPanel>
+      <StackPanel Grid.Column="6" Spacing="2" Margin="4,0,0,0">
+        <TextBlock Text="DEP" Classes="label" />
+        <TextBox x:Name="DepBox" Classes="field" MaxLength="4" Width="56" />
+      </StackPanel>
+      <StackPanel Grid.Column="7" Spacing="2" Margin="4,0,0,0">
+        <TextBlock Text="DEST" Classes="label" />
+        <TextBox x:Name="DestBox" Classes="field" MaxLength="4" Width="56" />
+      </StackPanel>
+      <StackPanel Grid.Column="8" Spacing="2" Margin="4,0,0,0">
+        <TextBlock Text="SPD" Classes="label" />
+        <TextBox x:Name="SpdBox" Classes="field" MaxLength="4" Width="46" />
+      </StackPanel>
+      <StackPanel Grid.Column="9" Spacing="2" Margin="4,0,0,0">
+        <TextBlock Text="ALT" Classes="label" />
+        <TextBox x:Name="AltBox" Classes="field" MaxLength="7" Width="68" />
+      </StackPanel>
+      <StackPanel Grid.Column="10" VerticalAlignment="Bottom" Margin="8,0,0,0">
+        <Button x:Name="SubmitButton" Content="Amend" MinWidth="64" />
+      </StackPanel>
+    </Grid>
 
-    <StackPanel Margin="12" Spacing="8">
-        <!-- Row 1: AID BCN [↻] TYP EQ ICAO-EQ DEP DEST SPD ALT [Submit] -->
-        <Grid ColumnDefinitions="70,60,30,60,40,110,60,60,50,72,Auto">
-            <StackPanel Grid.Column="0" Spacing="2">
-                <TextBlock Text="AID" Classes="label" />
-                <TextBlock x:Name="AidText" Classes="value" />
-            </StackPanel>
-            <StackPanel Grid.Column="1" Spacing="2" Margin="4,0,0,0">
-                <TextBlock Text="BCN" Classes="label" />
-                <TextBlock x:Name="BcnText" Classes="value" />
-            </StackPanel>
-            <StackPanel Grid.Column="2" Spacing="2" Margin="2,0,0,0" VerticalAlignment="Bottom">
-                <TextBlock Text=" " Classes="label" />
-                <Button x:Name="RecycleBcnButton" Content="↻" Classes="recycle" />
-            </StackPanel>
-            <StackPanel Grid.Column="3" Spacing="2" Margin="6,0,0,0">
-                <TextBlock Text="TYP" Classes="label" />
-                <TextBox x:Name="TypBox" Classes="field" MaxLength="10" Width="56" />
-            </StackPanel>
-            <StackPanel Grid.Column="4" Spacing="2" Margin="4,0,0,0">
-                <TextBlock Text="EQ" Classes="label" />
-                <TextBox x:Name="EqBox" Classes="field" MaxLength="4" Width="36" />
-            </StackPanel>
-            <StackPanel Grid.Column="5" Spacing="2" Margin="4,0,0,0" ToolTip.Tip="ICAO field-10a equipment codes (e.g. SDE3FGHIJ5M1RWXY). J5-J7/M1-M3 mark the aircraft SATCOMM-capable on ERAM.">
-                <TextBlock Text="ICAO EQ" Classes="label" />
-                <TextBox x:Name="IcaoEqBox" Classes="field" MaxLength="24" Width="106" />
-            </StackPanel>
-            <StackPanel Grid.Column="6" Spacing="2" Margin="4,0,0,0">
-                <TextBlock Text="DEP" Classes="label" />
-                <TextBox x:Name="DepBox" Classes="field" MaxLength="4" Width="56" />
-            </StackPanel>
-            <StackPanel Grid.Column="7" Spacing="2" Margin="4,0,0,0">
-                <TextBlock Text="DEST" Classes="label" />
-                <TextBox x:Name="DestBox" Classes="field" MaxLength="4" Width="56" />
-            </StackPanel>
-            <StackPanel Grid.Column="8" Spacing="2" Margin="4,0,0,0">
-                <TextBlock Text="SPD" Classes="label" />
-                <TextBox x:Name="SpdBox" Classes="field" MaxLength="4" Width="46" />
-            </StackPanel>
-            <StackPanel Grid.Column="9" Spacing="2" Margin="4,0,0,0">
-                <TextBlock Text="ALT" Classes="label" />
-                <TextBox x:Name="AltBox" Classes="field" MaxLength="7" Width="68" />
-            </StackPanel>
-            <StackPanel Grid.Column="10" VerticalAlignment="Bottom" Margin="8,0,0,0">
-                <Button x:Name="SubmitButton" Content="Amend" MinWidth="64" />
-            </StackPanel>
-        </Grid>
-
-        <!-- Row 2: RTE -->
-        <StackPanel Spacing="2">
-            <TextBlock Text="RTE" Classes="label" />
-            <TextBox x:Name="RteBox" Classes="field" AcceptsReturn="False" TextWrapping="Wrap" Height="44" />
-        </StackPanel>
-
-        <!-- Row 3: RMK -->
-        <StackPanel Spacing="2">
-            <TextBlock Text="RMK" Classes="label" />
-            <TextBox x:Name="RmkBox" Classes="field" AcceptsReturn="False" TextWrapping="Wrap" Height="44" />
-        </StackPanel>
+    <!-- Row 2: RTE -->
+    <StackPanel Spacing="2">
+      <TextBlock Text="RTE" Classes="label" />
+      <TextBox x:Name="RteBox" Classes="field" AcceptsReturn="False" TextWrapping="Wrap" Height="44" />
     </StackPanel>
+
+    <!-- Row 3: RMK -->
+    <StackPanel Spacing="2">
+      <TextBlock Text="RMK" Classes="label" />
+      <TextBox x:Name="RmkBox" Classes="field" AcceptsReturn="False" TextWrapping="Wrap" Height="44" />
+    </StackPanel>
+  </StackPanel>
 </Window>

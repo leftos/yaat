@@ -1,108 +1,108 @@
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="using:Yaat.Client.ViewModels"
-        x:Class="Yaat.Client.Views.ConnectWindow"
-        x:DataType="vm:ConnectViewModel"
-        Icon="avares://Yaat.Client.Core/Resources/icon.png"
-        Title="Connect to Server"
-        Width="560"
-        Height="500"
-        CanResize="True">
+<Window
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels"
+  x:Class="Yaat.Client.Views.ConnectWindow"
+  x:DataType="vm:ConnectViewModel"
+  Icon="avares://Yaat.Client.Core/Resources/icon.png"
+  Title="Connect to Server"
+  Width="560"
+  Height="500"
+  CanResize="True"
+>
+  <Design.DataContext>
+    <vm:ConnectViewModel />
+  </Design.DataContext>
 
-    <Design.DataContext>
-        <vm:ConnectViewModel />
-    </Design.DataContext>
+  <Grid RowDefinitions="*,Auto,Auto,Auto" Margin="12">
+    <!-- Server list + sidebar buttons -->
+    <Grid ColumnDefinitions="*,Auto">
+      <DataGrid
+        Grid.Column="0"
+        ItemsSource="{Binding Servers}"
+        SelectedItem="{Binding SelectedServer}"
+        AutoGenerateColumns="False"
+        CanUserResizeColumns="True"
+        CanUserSortColumns="False"
+        SelectionMode="Single"
+        IsReadOnly="True"
+      >
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="180" />
+          <DataGridTextColumn Header="URL" Binding="{Binding Url}" Width="*" />
+        </DataGrid.Columns>
+      </DataGrid>
 
-    <Grid RowDefinitions="*,Auto,Auto,Auto" Margin="12">
-
-        <!-- Server list + sidebar buttons -->
-        <Grid ColumnDefinitions="*,Auto">
-            <DataGrid Grid.Column="0"
-                      ItemsSource="{Binding Servers}"
-                      SelectedItem="{Binding SelectedServer}"
-                      AutoGenerateColumns="False"
-                      CanUserResizeColumns="True"
-                      CanUserSortColumns="False"
-                      SelectionMode="Single"
-                      IsReadOnly="True">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="180" />
-                    <DataGridTextColumn Header="URL" Binding="{Binding Url}" Width="*" />
-                </DataGrid.Columns>
-            </DataGrid>
-
-            <StackPanel Grid.Column="1" Margin="8,0,0,0" Spacing="4" VerticalAlignment="Top">
-                <Button Content="Add" Command="{Binding AddServerCommand}" Width="72" />
-                <Button Content="Remove" Command="{Binding RemoveServerCommand}" Width="72" />
-                <Separator Height="8" />
-                <Button Content="↑" Command="{Binding MoveUpCommand}" Width="72" />
-                <Button Content="↓" Command="{Binding MoveDownCommand}" Width="72" />
-                <Separator Height="8" />
-                <Button Content="Restore"
-                        Command="{Binding RestoreDefaultsCommand}"
-                        Width="72"
-                        ToolTip.Tip="Re-add any missing default servers (YAAT1, Local) and reset their URLs to the default values. Custom entries are not touched." />
-            </StackPanel>
-        </Grid>
-
-        <!-- Edit selected server -->
-        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto,*" Margin="0,8,0,0"
-              IsEnabled="{Binding SelectedServer, Converter={x:Static ObjectConverters.IsNotNull}}">
-            <TextBlock Grid.Column="0" Text="Name:" VerticalAlignment="Center" Margin="0,0,6,0" />
-            <TextBox Grid.Column="1" Text="{Binding SelectedServer.Name}" Margin="0,0,12,0" />
-            <TextBlock Grid.Column="2" Text="URL:" VerticalAlignment="Center" Margin="0,0,6,0" />
-            <TextBox Grid.Column="3" Text="{Binding SelectedServer.Url}" />
-        </Grid>
-
-        <!-- Identity strip -->
-        <Border Grid.Row="2"
-                BorderBrush="#3A3A40"
-                BorderThickness="0,1,0,0"
-                Margin="0,12,0,0"
-                Padding="0,12,0,0">
-            <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,80,*">
-                <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3"
-                           Text="You'll sign in with VATSIM when you connect. Your ARTCC is set automatically from VATSIM/VATUSA."
-                           Foreground="#888"
-                           FontSize="11"
-                           TextWrapping="Wrap"
-                           Margin="0,0,0,8" />
-                <TextBlock Grid.Row="1" Grid.Column="0" Text="Initials:" VerticalAlignment="Center" Margin="0,0,6,0" />
-                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding UserInitials}" MaxLength="2" PlaceholderText="AB" />
-            </Grid>
-        </Border>
-
-        <!-- Bottom strip -->
-        <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,12,0,0">
-            <!-- Connecting indicator -->
-            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8"
-                        IsVisible="{Binding IsConnecting}">
-                <ProgressBar IsIndeterminate="True" Width="100" />
-                <TextBlock Text="Connecting..." VerticalAlignment="Center" />
-            </StackPanel>
-            <!-- Error message -->
-            <TextBlock Grid.Column="1" Text="{Binding ErrorMessage}"
-                       Foreground="Red"
-                       TextWrapping="Wrap"
-                       VerticalAlignment="Center"
-                       Margin="8,0" />
-            <!-- Cancel button (only while connecting) -->
-            <Button Grid.Column="2"
-                    Content="Cancel"
-                    x:Name="CancelButton"
-                    IsVisible="{Binding IsConnecting}"
-                    Margin="0,0,8,0"
-                    Command="{Binding CancelConnectCommand}" />
-            <!-- Connect / Close buttons -->
-            <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8">
-                <Button Content="Connect"
-                        Command="{Binding ConnectCommand}"
-                        IsDefault="True"
-                        IsVisible="{Binding !IsConnecting}" />
-                <Button Content="Close"
-                        x:Name="CloseButton"
-                        IsVisible="{Binding !IsConnecting}" />
-            </StackPanel>
-        </Grid>
+      <StackPanel Grid.Column="1" Margin="8,0,0,0" Spacing="4" VerticalAlignment="Top">
+        <Button Content="Add" Command="{Binding AddServerCommand}" Width="72" />
+        <Button Content="Remove" Command="{Binding RemoveServerCommand}" Width="72" />
+        <Separator Height="8" />
+        <Button Content="↑" Command="{Binding MoveUpCommand}" Width="72" />
+        <Button Content="↓" Command="{Binding MoveDownCommand}" Width="72" />
+        <Separator Height="8" />
+        <Button
+          Content="Restore"
+          Command="{Binding RestoreDefaultsCommand}"
+          Width="72"
+          ToolTip.Tip="Re-add any missing default servers (YAAT1, Local) and reset their URLs to the default values. Custom entries are not touched."
+        />
+      </StackPanel>
     </Grid>
+
+    <!-- Edit selected server -->
+    <Grid
+      Grid.Row="1"
+      ColumnDefinitions="Auto,*,Auto,*"
+      Margin="0,8,0,0"
+      IsEnabled="{Binding SelectedServer, Converter={x:Static ObjectConverters.IsNotNull}}"
+    >
+      <TextBlock Grid.Column="0" Text="Name:" VerticalAlignment="Center" Margin="0,0,6,0" />
+      <TextBox Grid.Column="1" Text="{Binding SelectedServer.Name}" Margin="0,0,12,0" />
+      <TextBlock Grid.Column="2" Text="URL:" VerticalAlignment="Center" Margin="0,0,6,0" />
+      <TextBox Grid.Column="3" Text="{Binding SelectedServer.Url}" />
+    </Grid>
+
+    <!-- Identity strip -->
+    <Border Grid.Row="2" BorderBrush="#3A3A40" BorderThickness="0,1,0,0" Margin="0,12,0,0" Padding="0,12,0,0">
+      <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,80,*">
+        <TextBlock
+          Grid.Row="0"
+          Grid.Column="0"
+          Grid.ColumnSpan="3"
+          Text="You'll sign in with VATSIM when you connect. Your ARTCC is set automatically from VATSIM/VATUSA."
+          Foreground="#888"
+          FontSize="11"
+          TextWrapping="Wrap"
+          Margin="0,0,0,8"
+        />
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="Initials:" VerticalAlignment="Center" Margin="0,0,6,0" />
+        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding UserInitials}" MaxLength="2" PlaceholderText="AB" />
+      </Grid>
+    </Border>
+
+    <!-- Bottom strip -->
+    <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,12,0,0">
+      <!-- Connecting indicator -->
+      <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsConnecting}">
+        <ProgressBar IsIndeterminate="True" Width="100" />
+        <TextBlock Text="Connecting..." VerticalAlignment="Center" />
+      </StackPanel>
+      <!-- Error message -->
+      <TextBlock Grid.Column="1" Text="{Binding ErrorMessage}" Foreground="Red" TextWrapping="Wrap" VerticalAlignment="Center" Margin="8,0" />
+      <!-- Cancel button (only while connecting) -->
+      <Button
+        Grid.Column="2"
+        Content="Cancel"
+        x:Name="CancelButton"
+        IsVisible="{Binding IsConnecting}"
+        Margin="0,0,8,0"
+        Command="{Binding CancelConnectCommand}"
+      />
+      <!-- Connect / Close buttons -->
+      <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8">
+        <Button Content="Connect" Command="{Binding ConnectCommand}" IsDefault="True" IsVisible="{Binding !IsConnecting}" />
+        <Button Content="Close" x:Name="CloseButton" IsVisible="{Binding !IsConnecting}" />
+      </StackPanel>
+    </Grid>
+  </Grid>
 </Window>

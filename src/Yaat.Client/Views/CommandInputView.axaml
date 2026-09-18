@@ -1,453 +1,542 @@
-<UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:Yaat.Client.ViewModels"
-             xmlns:svc="using:Yaat.Client.Services"
-             x:Class="Yaat.Client.Views.CommandInputView"
-        x:DataType="vm:MainViewModel">
-
-    <Grid Margin="0,8,0,0"
-          ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto">
-
-        <!-- Selected aircraft label + active-position (TCP) selector -->
-        <StackPanel Grid.Column="0"
-                    Orientation="Horizontal"
-                    VerticalAlignment="Center"
-                    Spacing="8"
-                    Margin="0,0,8,0">
-            <TextBlock VerticalAlignment="Center"
-                       FontWeight="Bold"
-                       Text="{Binding SelectedAircraft.Callsign,
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels"
+  xmlns:svc="using:Yaat.Client.Services"
+  x:Class="Yaat.Client.Views.CommandInputView"
+  x:DataType="vm:MainViewModel"
+>
+  <Grid Margin="0,8,0,0" ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto">
+    <!-- Selected aircraft label + active-position (TCP) selector -->
+    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8" Margin="0,0,8,0">
+      <TextBlock
+        VerticalAlignment="Center"
+        FontWeight="Bold"
+        Text="{Binding SelectedAircraft.Callsign,
                               FallbackValue='(none)',
-                              TargetNullValue='(none)'}" />
-            <ComboBox VerticalAlignment="Center"
-                      MinWidth="64"
-                      IsVisible="{Binding ShowActiveTcpSelector}"
-                      ItemsSource="{Binding ActiveTcpOptions}"
-                      SelectedItem="{Binding ActiveTcp}"
-                      ToolTip.Tip="Operating position — the TCP you act as (AS). Pick another online position to switch." />
-        </StackPanel>
+                              TargetNullValue='(none)'}"
+      />
+      <ComboBox
+        VerticalAlignment="Center"
+        MinWidth="64"
+        IsVisible="{Binding ShowActiveTcpSelector}"
+        ItemsSource="{Binding ActiveTcpOptions}"
+        SelectedItem="{Binding ActiveTcp}"
+        ToolTip.Tip="Operating position — the TCP you act as (AS). Pick another online position to switch."
+      />
+    </StackPanel>
 
-        <!-- Command input with autocomplete popup -->
-        <Panel Grid.Column="1">
-            <TextBox Text="{Binding CommandText}"
-                     CaretIndex="{Binding CommandCaretIndex, Mode=TwoWay}"
-                     PlaceholderText="Enter command (FH 270, CM 240...)"
-                     FontSize="{Binding TerminalFontSize}"
-                     x:Name="CommandInput">
-                <TextBox.ContextFlyout>
-                    <MenuFlyout>
-                        <MenuItem x:Name="SaveAsFavoriteMenuItem"
-                                  Header="Save as favorite..."
-                                  IsEnabled="{Binding CommandText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                    </MenuFlyout>
-                </TextBox.ContextFlyout>
-            </TextBox>
-            <!-- Combined popup for signature help + autocomplete -->
-            <Popup PlacementTarget="{Binding #CommandInput}"
-                   Placement="Top"
-                   IsLightDismissEnabled="False"
-                   Width="{Binding #CommandInput.Bounds.Width}"
-                   x:Name="CommandPopup">
-                <StackPanel>
-                    <!-- Signature help section -->
-                    <Border Background="#1E1E1E"
-                            BorderBrush="#3F3F46"
-                            BorderThickness="1"
-                            CornerRadius="4"
-                            Padding="8,6"
-                            Margin="0,0,0,2"
-                            IsVisible="{Binding CommandInput.SignatureHelp.IsVisible}">
-                        <StackPanel Spacing="2">
-                            <!-- Overload selector (visible when count > 1) -->
-                            <Grid IsVisible="{Binding CommandInput.SignatureHelp.OverloadCount, Converter={x:Static vm:GreaterThanOneConverter.Instance}}">
-                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <Button Content="▲" Padding="2,0" FontSize="10" x:Name="SigHelpPrev" Focusable="False" Background="Transparent" />
-                                    <TextBlock Foreground="#CCCCCC" FontSize="12">
-                                        <TextBlock.Text>
-                                            <MultiBinding StringFormat="{}{0} of {1}">
-                                                <Binding Path="CommandInput.SignatureHelp.SelectedOverloadIndex" Converter="{x:Static vm:PlusOneConverter.Instance}" />
-                                                <Binding Path="CommandInput.SignatureHelp.OverloadCount" />
-                                            </MultiBinding>
-                                        </TextBlock.Text>
-                                    </TextBlock>
-                                    <Button Content="▼" Padding="2,0" FontSize="10" x:Name="SigHelpNext" Focusable="False" Background="Transparent" />
-                                </StackPanel>
-                                <TextBlock Text="Alt+Up/Down" Foreground="#888888" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Center" />
-                            </Grid>
-                            <!-- Signature line -->
-                            <ItemsControl ItemsSource="{Binding CommandInput.SignatureHelp.SignatureParts}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <WrapPanel />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="svc:SignaturePart" x:DataType="svc:SignaturePart">
-                                        <TextBlock Text="{Binding Text}" FontFamily="{StaticResource MonoFont}" FontSize="13" Classes.sigActive="{Binding IsActive}" Classes.sigParam="{Binding IsParameter}">
-                                            <TextBlock.Styles>
-                                                <Style Selector="TextBlock">
-                                                    <Setter Property="Foreground" Value="#D4D4D4" />
-                                                </Style>
-                                                <Style Selector="TextBlock.sigParam">
-                                                    <Setter Property="Foreground" Value="#569CD6" />
-                                                </Style>
-                                                <Style Selector="TextBlock.sigActive">
-                                                    <Setter Property="Foreground" Value="#9CDCFE" />
-                                                    <Setter Property="FontWeight" Value="Bold" />
-                                                </Style>
-                                            </TextBlock.Styles>
-                                        </TextBlock>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <!-- Parameter description (hidden when same as usage hint) -->
-                            <TextBlock Text="{Binding CommandInput.SignatureHelp.ActiveParameterDescription}" Foreground="#B0B0B0" FontStyle="Italic" FontSize="11" IsVisible="{Binding CommandInput.SignatureHelp.ShowParameterDescription}" />
-                            <!-- Usage hint from signature -->
-                            <TextBlock Text="{Binding CommandInput.SignatureHelp.CurrentSignature.UsageHint}" Foreground="#8FBF7F" FontSize="11" IsVisible="{Binding CommandInput.SignatureHelp.CurrentSignature.UsageHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                        </StackPanel>
-                    </Border>
-                    <!-- Autocomplete section -->
-                    <Border Background="#2D2D30"
-                            BorderBrush="#3F3F46"
-                            BorderThickness="1"
-                            CornerRadius="4"
-                            MaxHeight="240"
-                            IsVisible="{Binding CommandInput.IsSuggestionsVisible}">
-                        <ListBox ItemsSource="{Binding CommandInput.Suggestions}"
-                                 SelectedIndex="{Binding CommandInput.SelectedSuggestionIndex}"
-                                 Focusable="False"
-                                 x:Name="SuggestionList"
-                                 Background="Transparent"
-                                 Padding="2">
-                            <ListBox.Styles>
-                                <Style Selector="ListBoxItem TextBlock.tabHint">
-                                    <Setter Property="IsVisible" Value="False" />
-                                </Style>
-                                <Style Selector="ListBoxItem:selected TextBlock.tabHint">
-                                    <Setter Property="IsVisible" Value="True" />
-                                </Style>
-                            </ListBox.Styles>
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid ColumnDefinitions="Auto,*,Auto">
-                                        <TextBlock Grid.Column="0"
-                                            Text="{Binding Text}"
-                                            Foreground="{Binding Kind, Converter={x:Static vm:SuggestionKindColorConverter.Instance}}"
-                                            FontWeight="Bold"
-                                            FontFamily="{StaticResource MonoFont}"
-                                            Margin="4,2" />
-                                        <TextBlock Grid.Column="1"
-                                            Text="{Binding Description}"
-                                            Foreground="{DynamicResource SubtleTextBrush}"
-                                            Margin="8,2,4,2" />
-                                        <TextBlock Grid.Column="2"
-                                            Text="Tab to accept"
-                                            Foreground="#888888"
-                                            FontSize="10"
-                                            VerticalAlignment="Center"
-                                            Margin="4,0,4,0"
-                                            Classes="tabHint" />
-                                    </Grid>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </Border>
+    <!-- Command input with autocomplete popup -->
+    <Panel Grid.Column="1">
+      <TextBox
+        Text="{Binding CommandText}"
+        CaretIndex="{Binding CommandCaretIndex, Mode=TwoWay}"
+        PlaceholderText="Enter command (FH 270, CM 240...)"
+        FontSize="{Binding TerminalFontSize}"
+        x:Name="CommandInput"
+      >
+        <TextBox.ContextFlyout>
+          <MenuFlyout>
+            <MenuItem
+              x:Name="SaveAsFavoriteMenuItem"
+              Header="Save as favorite..."
+              IsEnabled="{Binding CommandText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+            />
+          </MenuFlyout>
+        </TextBox.ContextFlyout>
+      </TextBox>
+      <!-- Combined popup for signature help + autocomplete -->
+      <Popup
+        PlacementTarget="{Binding #CommandInput}"
+        Placement="Top"
+        IsLightDismissEnabled="False"
+        Width="{Binding #CommandInput.Bounds.Width}"
+        x:Name="CommandPopup"
+      >
+        <StackPanel>
+          <!-- Signature help section -->
+          <Border
+            Background="#1E1E1E"
+            BorderBrush="#3F3F46"
+            BorderThickness="1"
+            CornerRadius="4"
+            Padding="8,6"
+            Margin="0,0,0,2"
+            IsVisible="{Binding CommandInput.SignatureHelp.IsVisible}"
+          >
+            <StackPanel Spacing="2">
+              <!-- Overload selector (visible when count > 1) -->
+              <Grid IsVisible="{Binding CommandInput.SignatureHelp.OverloadCount, Converter={x:Static vm:GreaterThanOneConverter.Instance}}">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                  <Button Content="▲" Padding="2,0" FontSize="10" x:Name="SigHelpPrev" Focusable="False" Background="Transparent" />
+                  <TextBlock Foreground="#CCCCCC" FontSize="12">
+                    <TextBlock.Text>
+                      <MultiBinding StringFormat="{}{0} of {1}">
+                        <Binding Path="CommandInput.SignatureHelp.SelectedOverloadIndex" Converter="{x:Static vm:PlusOneConverter.Instance}" />
+                        <Binding Path="CommandInput.SignatureHelp.OverloadCount" />
+                      </MultiBinding>
+                    </TextBlock.Text>
+                  </TextBlock>
+                  <Button Content="▼" Padding="2,0" FontSize="10" x:Name="SigHelpNext" Focusable="False" Background="Transparent" />
                 </StackPanel>
-            </Popup>
-        </Panel>
+                <TextBlock Text="Alt+Up/Down" Foreground="#888888" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Center" />
+              </Grid>
+              <!-- Signature line -->
+              <ItemsControl ItemsSource="{Binding CommandInput.SignatureHelp.SignatureParts}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="svc:SignaturePart" x:DataType="svc:SignaturePart">
+                    <TextBlock
+                      Text="{Binding Text}"
+                      FontFamily="{StaticResource MonoFont}"
+                      FontSize="13"
+                      Classes.sigActive="{Binding IsActive}"
+                      Classes.sigParam="{Binding IsParameter}"
+                    >
+                      <TextBlock.Styles>
+                        <Style Selector="TextBlock">
+                          <Setter Property="Foreground" Value="#D4D4D4" />
+                        </Style>
+                        <Style Selector="TextBlock.sigParam">
+                          <Setter Property="Foreground" Value="#569CD6" />
+                        </Style>
+                        <Style Selector="TextBlock.sigActive">
+                          <Setter Property="Foreground" Value="#9CDCFE" />
+                          <Setter Property="FontWeight" Value="Bold" />
+                        </Style>
+                      </TextBlock.Styles>
+                    </TextBlock>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <!-- Parameter description (hidden when same as usage hint) -->
+              <TextBlock
+                Text="{Binding CommandInput.SignatureHelp.ActiveParameterDescription}"
+                Foreground="#B0B0B0"
+                FontStyle="Italic"
+                FontSize="11"
+                IsVisible="{Binding CommandInput.SignatureHelp.ShowParameterDescription}"
+              />
+              <!-- Usage hint from signature -->
+              <TextBlock
+                Text="{Binding CommandInput.SignatureHelp.CurrentSignature.UsageHint}"
+                Foreground="#8FBF7F"
+                FontSize="11"
+                IsVisible="{Binding CommandInput.SignatureHelp.CurrentSignature.UsageHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+              />
+            </StackPanel>
+          </Border>
+          <!-- Autocomplete section -->
+          <Border
+            Background="#2D2D30"
+            BorderBrush="#3F3F46"
+            BorderThickness="1"
+            CornerRadius="4"
+            MaxHeight="240"
+            IsVisible="{Binding CommandInput.IsSuggestionsVisible}"
+          >
+            <ListBox
+              ItemsSource="{Binding CommandInput.Suggestions}"
+              SelectedIndex="{Binding CommandInput.SelectedSuggestionIndex}"
+              Focusable="False"
+              x:Name="SuggestionList"
+              Background="Transparent"
+              Padding="2"
+            >
+              <ListBox.Styles>
+                <Style Selector="ListBoxItem TextBlock.tabHint">
+                  <Setter Property="IsVisible" Value="False" />
+                </Style>
+                <Style Selector="ListBoxItem:selected TextBlock.tabHint">
+                  <Setter Property="IsVisible" Value="True" />
+                </Style>
+              </ListBox.Styles>
+              <ListBox.ItemTemplate>
+                <DataTemplate>
+                  <Grid ColumnDefinitions="Auto,*,Auto">
+                    <TextBlock
+                      Grid.Column="0"
+                      Text="{Binding Text}"
+                      Foreground="{Binding Kind, Converter={x:Static vm:SuggestionKindColorConverter.Instance}}"
+                      FontWeight="Bold"
+                      FontFamily="{StaticResource MonoFont}"
+                      Margin="4,2"
+                    />
+                    <TextBlock Grid.Column="1" Text="{Binding Description}" Foreground="{DynamicResource SubtleTextBrush}" Margin="8,2,4,2" />
+                    <TextBlock
+                      Grid.Column="2"
+                      Text="Tab to accept"
+                      Foreground="#888888"
+                      FontSize="10"
+                      VerticalAlignment="Center"
+                      Margin="4,0,4,0"
+                      Classes="tabHint"
+                    />
+                  </Grid>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </Border>
+        </StackPanel>
+      </Popup>
+    </Panel>
 
-        <!-- Sim controls -->
-        <Button Grid.Column="2"
-                Margin="8,0,0,0"
-                MinWidth="70"
-                HorizontalContentAlignment="Center"
-                Content="{Binding IsPaused,
+    <!-- Sim controls -->
+    <Button
+      Grid.Column="2"
+      Margin="8,0,0,0"
+      MinWidth="70"
+      HorizontalContentAlignment="Center"
+      Content="{Binding IsPaused,
                     Converter={x:Static
                     vm:PauseButtonConverter.Instance}}"
-                Command="{Binding TogglePauseCommand}" />
+      Command="{Binding TogglePauseCommand}"
+    />
 
-        <ComboBox Grid.Column="3"
-                  Margin="8,0,0,0"
-                  ItemsSource="{Binding SimRateOptions}"
-                  SelectedIndex="{Binding SelectedSimRateIndex}"
-                  IsEnabled="{Binding !SessionLiveTrafficEnabled}"
-                  ToolTip.Tip="{Binding SimRateToolTip}"
-                  MinWidth="70">
-            <ComboBox.ItemTemplate>
-                <DataTemplate>
-                    <TextBlock Text="{Binding StringFormat='{}{0}x'}" />
-                </DataTemplate>
-            </ComboBox.ItemTemplate>
-        </ComboBox>
+    <ComboBox
+      Grid.Column="3"
+      Margin="8,0,0,0"
+      ItemsSource="{Binding SimRateOptions}"
+      SelectedIndex="{Binding SelectedSimRateIndex}"
+      IsEnabled="{Binding !SessionLiveTrafficEnabled}"
+      ToolTip.Tip="{Binding SimRateToolTip}"
+      MinWidth="70"
+    >
+      <ComboBox.ItemTemplate>
+        <DataTemplate>
+          <TextBlock Text="{Binding StringFormat='{}{0}x'}" />
+        </DataTemplate>
+      </ComboBox.ItemTemplate>
+    </ComboBox>
 
-        <!-- Session settings flyout -->
-        <Button Grid.Column="4"
-                Margin="8,0,0,0"
-                Content="&#x2699;"
-                FontSize="14"
-                Padding="6,2"
-                ToolTip.Tip="Session settings"
-                IsVisible="{Binding ActiveScenarioName, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-            <Button.Flyout>
-                <Flyout Placement="TopEdgeAlignedRight" ShowMode="TransientWithDismissOnPointerMoveAway">
-                    <StackPanel Spacing="8" MinWidth="240">
-                        <TextBlock Text="Session Settings" FontWeight="Bold" FontSize="13" Margin="0,0,0,4" />
+    <!-- Session settings flyout -->
+    <Button
+      Grid.Column="4"
+      Margin="8,0,0,0"
+      Content="&#x2699;"
+      FontSize="14"
+      Padding="6,2"
+      ToolTip.Tip="Session settings"
+      IsVisible="{Binding ActiveScenarioName, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+    >
+      <Button.Flyout>
+        <Flyout Placement="TopEdgeAlignedRight" ShowMode="TransientWithDismissOnPointerMoveAway">
+          <StackPanel Spacing="8" MinWidth="240">
+            <TextBlock Text="Session Settings" FontWeight="Bold" FontSize="13" Margin="0,0,0,4" />
 
-                        <CheckBox Content="Solo Training Mode"
-                                  IsChecked="{Binding SessionSoloTrainingMode}" />
+            <CheckBox Content="Solo Training Mode" IsChecked="{Binding SessionSoloTrainingMode}" />
 
-                        <StackPanel Spacing="2"
-                                    IsVisible="{Binding ShowSessionSoloParkingInitialCallupRate}">
-                            <TextBlock Text="Parking call-up interval:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
-                            <Grid ColumnDefinitions="*,Auto"
-                                  ColumnSpacing="8">
-                                <Slider Grid.Column="0"
-                                        Minimum="0"
-                                        Maximum="120"
-                                        TickFrequency="10"
-                                        IsSnapToTickEnabled="True"
-                                        Value="{Binding SessionSoloParkingInitialCallupIntervalSeconds}" />
-                                <TextBlock Grid.Column="1"
-                                           Text="{Binding SessionSoloParkingInitialCallupIntervalLabel}"
-                                           Foreground="{DynamicResource SubtleTextBrush}"
-                                           FontSize="11"
-                                           VerticalAlignment="Center"
-                                           MinWidth="80" />
+            <StackPanel Spacing="2" IsVisible="{Binding ShowSessionSoloParkingInitialCallupRate}">
+              <TextBlock Text="Parking call-up interval:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <Slider
+                  Grid.Column="0"
+                  Minimum="0"
+                  Maximum="120"
+                  TickFrequency="10"
+                  IsSnapToTickEnabled="True"
+                  Value="{Binding SessionSoloParkingInitialCallupIntervalSeconds}"
+                />
+                <TextBlock
+                  Grid.Column="1"
+                  Text="{Binding SessionSoloParkingInitialCallupIntervalLabel}"
+                  Foreground="{DynamicResource SubtleTextBrush}"
+                  FontSize="11"
+                  VerticalAlignment="Center"
+                  MinWidth="80"
+                />
+              </Grid>
+            </StackPanel>
+
+            <StackPanel Spacing="2" IsVisible="{Binding ShowSessionSoloArrivalGeneratorRate}">
+              <TextBlock Text="Arrival generator rate:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <Slider
+                  Grid.Column="0"
+                  Minimum="0"
+                  Maximum="100"
+                  TickFrequency="5"
+                  IsSnapToTickEnabled="True"
+                  Value="{Binding SessionSoloArrivalGeneratorRatePercent}"
+                />
+                <TextBlock
+                  Grid.Column="1"
+                  Text="{Binding SessionSoloArrivalGeneratorRatePercent, StringFormat='{}{0}%'}"
+                  Foreground="{DynamicResource SubtleTextBrush}"
+                  FontSize="11"
+                  VerticalAlignment="Center"
+                  MinWidth="36"
+                />
+              </Grid>
+            </StackPanel>
+
+            <StackPanel Spacing="2" IsVisible="{Binding ShowSessionSoloGoAroundProbability}">
+              <TextBlock Text="Pilot go-around probability:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <Slider
+                  Grid.Column="0"
+                  Minimum="0"
+                  Maximum="100"
+                  TickFrequency="5"
+                  IsSnapToTickEnabled="True"
+                  Value="{Binding SessionSoloGoAroundProbabilityPercent}"
+                />
+                <TextBlock
+                  Grid.Column="1"
+                  Text="{Binding SessionSoloGoAroundProbabilityPercent, StringFormat='{}{0}%'}"
+                  Foreground="{DynamicResource SubtleTextBrush}"
+                  FontSize="11"
+                  VerticalAlignment="Center"
+                  MinWidth="36"
+                />
+              </Grid>
+            </StackPanel>
+
+            <StackPanel Spacing="2">
+              <TextBlock Text="Auto-Delete:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+              <ComboBox
+                ItemsSource="{Binding SessionAutoDeleteOptions}"
+                SelectedIndex="{Binding SessionAutoDeleteIndex}"
+                HorizontalAlignment="Stretch"
+              />
+            </StackPanel>
+
+            <StackPanel Spacing="2">
+              <TextBlock Text="Auto-Accept Delay:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <NumericUpDown
+                  Value="{Binding SessionAutoAcceptDelaySeconds}"
+                  Minimum="-1"
+                  Maximum="60"
+                  Increment="1"
+                  Width="100"
+                  FormatString="0"
+                  Foreground="{DynamicResource TextControlForeground}"
+                />
+                <TextBlock Text="sec (-1 = off)" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" VerticalAlignment="Center" />
+              </StackPanel>
+            </StackPanel>
+
+            <StackPanel Spacing="2">
+              <TextBlock Text="Command Run Delay:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <NumericUpDown
+                  Value="{Binding SessionCommandRunDelayMinSeconds}"
+                  Minimum="0"
+                  Maximum="60"
+                  Increment="1"
+                  Width="100"
+                  FormatString="0"
+                  Foreground="{DynamicResource TextControlForeground}"
+                />
+                <TextBlock Text="to" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" VerticalAlignment="Center" />
+                <NumericUpDown
+                  Value="{Binding SessionCommandRunDelayMaxSeconds}"
+                  Minimum="0"
+                  Maximum="60"
+                  Increment="1"
+                  Width="100"
+                  FormatString="0"
+                  Foreground="{DynamicResource TextControlForeground}"
+                />
+                <TextBlock Text="sec (max 0 = off)" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" VerticalAlignment="Center" />
+              </StackPanel>
+            </StackPanel>
+
+            <CheckBox Content="Auto Cleared-to-Land" IsChecked="{Binding SessionAutoClearedToLand}" />
+
+            <CheckBox Content="Auto Cross-Runway" IsChecked="{Binding SessionAutoCrossRunway}" />
+
+            <CheckBox Content="Auto Pull-Up to Parallel" IsChecked="{Binding SessionAutoPullUpToParallel}" />
+
+            <CheckBox Content="Auto Go-Around on Occupied Runway" IsChecked="{Binding SessionAutoGoAroundOnOccupiedRunway}" />
+
+            <CheckBox Content="Auto Rejected Takeoff on Occupied Runway" IsChecked="{Binding SessionAutoRejectTakeoffOnOccupiedRunway}" />
+
+            <CheckBox
+              Content="Auto Arrival Spacing on Occupied Runway"
+              IsEnabled="{Binding SessionAutoArrivalSpacingApplies}"
+              IsChecked="{Binding SessionAutoArrivalSpacingOnOccupiedRunway}"
+            />
+
+            <CheckBox
+              Content="Live Traffic (SWIM)"
+              IsVisible="{Binding LiveTrafficAvailable}"
+              IsChecked="{Binding SessionLiveTrafficEnabled}"
+              ToolTip.Tip="Mirror real aircraft from the server's live-traffic feed as shadow targets. Not available while warped."
+            />
+
+            <StackPanel Spacing="2" IsVisible="{Binding LiveTrafficAvailable}">
+              <TextBlock Text="Live Traffic Ceiling:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <NumericUpDown
+                  Value="{Binding SessionLiveTrafficCeilingFt}"
+                  Minimum="0"
+                  Maximum="60000"
+                  Increment="1000"
+                  Width="110"
+                  FormatString="0"
+                  Foreground="{DynamicResource TextControlForeground}"
+                />
+                <TextBlock Text="ft (0 = automatic)" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" VerticalAlignment="Center" />
+              </StackPanel>
+            </StackPanel>
+
+            <StackPanel Spacing="2" IsVisible="{Binding LiveTrafficAvailable}">
+              <Button
+                x:Name="LiveTrafficFiltersButton"
+                Content="Live Traffic Filters…"
+                ToolTip.Tip="Which real aircraft the room shadows: flight rules, flight-plan airports, a radius."
+              />
+              <TextBlock
+                Text="{Binding SessionLiveTrafficFilterSummary, StringFormat='Filter: {0}'}"
+                Foreground="{DynamicResource SubtleTextBrush}"
+                FontSize="11"
+                TextWrapping="Wrap"
+              />
+            </StackPanel>
+
+            <CheckBox Content="Validate DCT Fixes" IsChecked="{Binding SessionValidateDctFixes}" />
+
+            <CheckBox Content="Show Pilot Speech (RPO)" IsChecked="{Binding SessionRpoShowPilotSpeech}" />
+
+            <TextBlock
+              Text="Changes apply to all RPOs in this session."
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="10"
+              TextWrapping="Wrap"
+              Margin="0,4,0,0"
+            />
+          </StackPanel>
+        </Flyout>
+      </Button.Flyout>
+    </Button>
+
+    <!-- Hold-for-release rundown flyout -->
+    <Button
+      Grid.Column="5"
+      Margin="8,0,0,0"
+      Content="Releases"
+      FontSize="12"
+      Padding="6,2"
+      ToolTip.Tip="Hold-for-release rundown"
+      IsVisible="{Binding HoldForReleaseActive}"
+    >
+      <Button.Flyout>
+        <Flyout Placement="TopEdgeAlignedRight" ShowMode="TransientWithDismissOnPointerMoveAway">
+          <StackPanel Name="rundownRoot" Spacing="8" MinWidth="300" MaxHeight="420">
+            <TextBlock Text="Departure Releases" FontWeight="Bold" FontSize="13" Margin="0,0,0,4" />
+            <ScrollViewer MaxHeight="340" HorizontalScrollBarVisibility="Disabled">
+              <ItemsControl ItemsSource="{Binding Rundown}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <StackPanel Spacing="2" Margin="0,0,0,8">
+                      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <TextBlock Grid.Column="0" Text="{Binding Header}" FontWeight="Bold" VerticalAlignment="Center" />
+                        <Button
+                          Grid.Column="1"
+                          Content="Release next"
+                          FontSize="11"
+                          Padding="6,1"
+                          IsVisible="{Binding HasDepartures}"
+                          Command="{Binding #rundownRoot.DataContext.ReleaseNextAtAirportCommand}"
+                          CommandParameter="{Binding Airport}"
+                        />
+                      </Grid>
+                      <ItemsControl ItemsSource="{Binding Departures}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate>
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="10,1,0,1">
+                              <StackPanel Grid.Column="0">
+                                <TextBlock Text="{Binding Display}" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+                                <TextBlock Text="{Binding Status}" Foreground="{DynamicResource SubtleTextBrush}" FontSize="10" />
+                              </StackPanel>
+                              <Button
+                                Grid.Column="1"
+                                Content="Release"
+                                FontSize="11"
+                                Padding="6,1"
+                                VerticalAlignment="Center"
+                                Command="{Binding #rundownRoot.DataContext.ReleaseDepartureCommand}"
+                                CommandParameter="{Binding Callsign}"
+                              />
                             </Grid>
-                        </StackPanel>
-
-                        <StackPanel Spacing="2"
-                                    IsVisible="{Binding ShowSessionSoloArrivalGeneratorRate}">
-                            <TextBlock Text="Arrival generator rate:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
-                            <Grid ColumnDefinitions="*,Auto"
-                                  ColumnSpacing="8">
-                                <Slider Grid.Column="0"
-                                        Minimum="0"
-                                        Maximum="100"
-                                        TickFrequency="5"
-                                        IsSnapToTickEnabled="True"
-                                        Value="{Binding SessionSoloArrivalGeneratorRatePercent}" />
-                                <TextBlock Grid.Column="1"
-                                           Text="{Binding SessionSoloArrivalGeneratorRatePercent, StringFormat='{}{0}%'}"
-                                           Foreground="{DynamicResource SubtleTextBrush}"
-                                           FontSize="11"
-                                           VerticalAlignment="Center"
-                                           MinWidth="36" />
-                            </Grid>
-                        </StackPanel>
-
-                        <StackPanel Spacing="2"
-                                    IsVisible="{Binding ShowSessionSoloGoAroundProbability}">
-                            <TextBlock Text="Pilot go-around probability:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
-                            <Grid ColumnDefinitions="*,Auto"
-                                  ColumnSpacing="8">
-                                <Slider Grid.Column="0"
-                                        Minimum="0"
-                                        Maximum="100"
-                                        TickFrequency="5"
-                                        IsSnapToTickEnabled="True"
-                                        Value="{Binding SessionSoloGoAroundProbabilityPercent}" />
-                                <TextBlock Grid.Column="1"
-                                           Text="{Binding SessionSoloGoAroundProbabilityPercent, StringFormat='{}{0}%'}"
-                                           Foreground="{DynamicResource SubtleTextBrush}"
-                                           FontSize="11"
-                                           VerticalAlignment="Center"
-                                           MinWidth="36" />
-                            </Grid>
-                        </StackPanel>
-
-                        <StackPanel Spacing="2">
-                            <TextBlock Text="Auto-Delete:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
-                            <ComboBox ItemsSource="{Binding SessionAutoDeleteOptions}"
-                                      SelectedIndex="{Binding SessionAutoDeleteIndex}"
-                                      HorizontalAlignment="Stretch" />
-                        </StackPanel>
-
-                        <StackPanel Spacing="2">
-                            <TextBlock Text="Auto-Accept Delay:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
-                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                <NumericUpDown Value="{Binding SessionAutoAcceptDelaySeconds}" Minimum="-1" Maximum="60" Increment="1" Width="100" FormatString="0" Foreground="{DynamicResource TextControlForeground}" />
-                                <TextBlock Text="sec (-1 = off)" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </StackPanel>
-
-                        <StackPanel Spacing="2">
-                            <TextBlock Text="Command Run Delay:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
-                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                <NumericUpDown Value="{Binding SessionCommandRunDelayMinSeconds}" Minimum="0" Maximum="60" Increment="1" Width="100" FormatString="0" Foreground="{DynamicResource TextControlForeground}" />
-                                <TextBlock Text="to" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" VerticalAlignment="Center" />
-                                <NumericUpDown Value="{Binding SessionCommandRunDelayMaxSeconds}" Minimum="0" Maximum="60" Increment="1" Width="100" FormatString="0" Foreground="{DynamicResource TextControlForeground}" />
-                                <TextBlock Text="sec (max 0 = off)" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </StackPanel>
-
-                        <CheckBox Content="Auto Cleared-to-Land"
-                                  IsChecked="{Binding SessionAutoClearedToLand}" />
-
-                        <CheckBox Content="Auto Cross-Runway"
-                                  IsChecked="{Binding SessionAutoCrossRunway}" />
-
-                        <CheckBox Content="Auto Pull-Up to Parallel"
-                                  IsChecked="{Binding SessionAutoPullUpToParallel}" />
-
-                        <CheckBox Content="Auto Go-Around on Occupied Runway"
-                                  IsChecked="{Binding SessionAutoGoAroundOnOccupiedRunway}" />
-
-                        <CheckBox Content="Auto Rejected Takeoff on Occupied Runway"
-                                  IsChecked="{Binding SessionAutoRejectTakeoffOnOccupiedRunway}" />
-
-                        <CheckBox Content="Auto Arrival Spacing on Occupied Runway"
-                                  IsEnabled="{Binding SessionAutoArrivalSpacingApplies}"
-                                  IsChecked="{Binding SessionAutoArrivalSpacingOnOccupiedRunway}" />
-
-                        <CheckBox Content="Live Traffic (SWIM)"
-                                  IsVisible="{Binding LiveTrafficAvailable}"
-                                  IsChecked="{Binding SessionLiveTrafficEnabled}"
-                                  ToolTip.Tip="Mirror real aircraft from the server's live-traffic feed as shadow targets. Not available while warped." />
-
-                        <StackPanel Spacing="2" IsVisible="{Binding LiveTrafficAvailable}">
-                            <TextBlock Text="Live Traffic Ceiling:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
-                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                <NumericUpDown Value="{Binding SessionLiveTrafficCeilingFt}" Minimum="0" Maximum="60000" Increment="1000" Width="110" FormatString="0" Foreground="{DynamicResource TextControlForeground}" />
-                                <TextBlock Text="ft (0 = automatic)" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </StackPanel>
-
-                        <StackPanel Spacing="2" IsVisible="{Binding LiveTrafficAvailable}">
-                            <Button x:Name="LiveTrafficFiltersButton"
-                                    Content="Live Traffic Filters…"
-                                    ToolTip.Tip="Which real aircraft the room shadows: flight rules, flight-plan airports, a radius." />
-                            <TextBlock Text="{Binding SessionLiveTrafficFilterSummary, StringFormat='Filter: {0}'}"
-                                       Foreground="{DynamicResource SubtleTextBrush}"
-                                       FontSize="11"
-                                       TextWrapping="Wrap" />
-                        </StackPanel>
-
-                        <CheckBox Content="Validate DCT Fixes"
-                                  IsChecked="{Binding SessionValidateDctFixes}" />
-
-                        <CheckBox Content="Show Pilot Speech (RPO)"
-                                  IsChecked="{Binding SessionRpoShowPilotSpeech}" />
-
-                        <TextBlock Text="Changes apply to all RPOs in this session."
-                                   Foreground="{DynamicResource SubtleTextBrush}"
-                                   FontSize="10"
-                                   TextWrapping="Wrap"
-                                   Margin="0,4,0,0" />
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
                     </StackPanel>
-                </Flyout>
-            </Button.Flyout>
-        </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+            <TextBlock
+              Text="Arm with HFR &lt;airport&gt;; release here or with REL."
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="10"
+              TextWrapping="Wrap"
+              Margin="0,4,0,0"
+            />
+          </StackPanel>
+        </Flyout>
+      </Button.Flyout>
+    </Button>
 
-        <!-- Hold-for-release rundown flyout -->
-        <Button Grid.Column="5"
-                Margin="8,0,0,0"
-                Content="Releases"
-                FontSize="12"
-                Padding="6,2"
-                ToolTip.Tip="Hold-for-release rundown"
-                IsVisible="{Binding HoldForReleaseActive}">
-            <Button.Flyout>
-                <Flyout Placement="TopEdgeAlignedRight" ShowMode="TransientWithDismissOnPointerMoveAway">
-                    <StackPanel Name="rundownRoot" Spacing="8" MinWidth="300" MaxHeight="420">
-                        <TextBlock Text="Departure Releases" FontWeight="Bold" FontSize="13" Margin="0,0,0,4" />
-                        <ScrollViewer MaxHeight="340" HorizontalScrollBarVisibility="Disabled">
-                            <ItemsControl ItemsSource="{Binding Rundown}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Spacing="2" Margin="0,0,0,8">
-                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                                <TextBlock Grid.Column="0" Text="{Binding Header}" FontWeight="Bold" VerticalAlignment="Center" />
-                                                <Button Grid.Column="1"
-                                                        Content="Release next"
-                                                        FontSize="11"
-                                                        Padding="6,1"
-                                                        IsVisible="{Binding HasDepartures}"
-                                                        Command="{Binding #rundownRoot.DataContext.ReleaseNextAtAirportCommand}"
-                                                        CommandParameter="{Binding Airport}" />
-                                            </Grid>
-                                            <ItemsControl ItemsSource="{Binding Departures}">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="10,1,0,1">
-                                                            <StackPanel Grid.Column="0">
-                                                                <TextBlock Text="{Binding Display}" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                                                                <TextBlock Text="{Binding Status}" Foreground="{DynamicResource SubtleTextBrush}" FontSize="10" />
-                                                            </StackPanel>
-                                                            <Button Grid.Column="1"
-                                                                    Content="Release"
-                                                                    FontSize="11"
-                                                                    Padding="6,1"
-                                                                    VerticalAlignment="Center"
-                                                                    Command="{Binding #rundownRoot.DataContext.ReleaseDepartureCommand}"
-                                                                    CommandParameter="{Binding Callsign}" />
-                                                        </Grid>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-                        <TextBlock Text="Arm with HFR &lt;airport&gt;; release here or with REL."
-                                   Foreground="{DynamicResource SubtleTextBrush}"
-                                   FontSize="10"
-                                   TextWrapping="Wrap"
-                                   Margin="0,4,0,0" />
-                    </StackPanel>
-                </Flyout>
-            </Button.Flyout>
-        </Button>
-
-        <!-- Active timers flyout (live countdown + cancel) -->
-        <Button Grid.Column="6"
-                Margin="8,0,0,0"
-                Content="{Binding TimersSummary}"
-                FontSize="12"
-                Padding="6,2"
-                ToolTip.Tip="Active timers"
-                IsVisible="{Binding TimersActive}">
-            <Button.Flyout>
-                <Flyout Placement="TopEdgeAlignedRight" ShowMode="TransientWithDismissOnPointerMoveAway">
-                    <StackPanel Name="timersRoot" Spacing="8" MinWidth="280" MaxHeight="420">
-                        <TextBlock Text="Timers" FontWeight="Bold" FontSize="13" Margin="0,0,0,4" />
-                        <ScrollViewer MaxHeight="340" HorizontalScrollBarVisibility="Disabled">
-                            <ItemsControl ItemsSource="{Binding ActiveTimers}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Margin="0,1">
-                                            <TextBlock Grid.Column="0"
-                                                       Text="{Binding Remaining}"
-                                                       FontFamily="{StaticResource MonoFont}"
-                                                       FontWeight="Bold"
-                                                       VerticalAlignment="Center" />
-                                            <TextBlock Grid.Column="1"
-                                                       Text="{Binding Label}"
-                                                       VerticalAlignment="Center"
-                                                       TextTrimming="CharacterEllipsis" />
-                                            <Button Grid.Column="2"
-                                                    Content="✕"
-                                                    FontSize="11"
-                                                    Padding="6,1"
-                                                    VerticalAlignment="Center"
-                                                    ToolTip.Tip="Cancel timer"
-                                                    Command="{Binding #timersRoot.DataContext.CancelTimerCommand}"
-                                                    CommandParameter="{Binding Id}" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-                        <TextBlock Text="Set with TIMER &lt;mm:ss&gt; [text]; prefix a callsign to attribute it."
-                                   Foreground="{DynamicResource SubtleTextBrush}"
-                                   FontSize="10"
-                                   TextWrapping="Wrap"
-                                   Margin="0,4,0,0" />
-                    </StackPanel>
-                </Flyout>
-            </Button.Flyout>
-        </Button>
-
-    </Grid>
+    <!-- Active timers flyout (live countdown + cancel) -->
+    <Button
+      Grid.Column="6"
+      Margin="8,0,0,0"
+      Content="{Binding TimersSummary}"
+      FontSize="12"
+      Padding="6,2"
+      ToolTip.Tip="Active timers"
+      IsVisible="{Binding TimersActive}"
+    >
+      <Button.Flyout>
+        <Flyout Placement="TopEdgeAlignedRight" ShowMode="TransientWithDismissOnPointerMoveAway">
+          <StackPanel Name="timersRoot" Spacing="8" MinWidth="280" MaxHeight="420">
+            <TextBlock Text="Timers" FontWeight="Bold" FontSize="13" Margin="0,0,0,4" />
+            <ScrollViewer MaxHeight="340" HorizontalScrollBarVisibility="Disabled">
+              <ItemsControl ItemsSource="{Binding ActiveTimers}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Margin="0,1">
+                      <TextBlock
+                        Grid.Column="0"
+                        Text="{Binding Remaining}"
+                        FontFamily="{StaticResource MonoFont}"
+                        FontWeight="Bold"
+                        VerticalAlignment="Center"
+                      />
+                      <TextBlock Grid.Column="1" Text="{Binding Label}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                      <Button
+                        Grid.Column="2"
+                        Content="✕"
+                        FontSize="11"
+                        Padding="6,1"
+                        VerticalAlignment="Center"
+                        ToolTip.Tip="Cancel timer"
+                        Command="{Binding #timersRoot.DataContext.CancelTimerCommand}"
+                        CommandParameter="{Binding Id}"
+                      />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+            <TextBlock
+              Text="Set with TIMER &lt;mm:ss&gt; [text]; prefix a callsign to attribute it."
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="10"
+              TextWrapping="Wrap"
+              Margin="0,4,0,0"
+            />
+          </StackPanel>
+        </Flyout>
+      </Button.Flyout>
+    </Button>
+  </Grid>
 </UserControl>

@@ -1,331 +1,399 @@
-<UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:Yaat.Client.ViewModels"
-             xmlns:svc="using:Yaat.Client.Services"
-             xmlns:find="using:Yaat.Client.Views.Find"
-             x:Class="Yaat.Client.Views.VTdls.VTdlsView"
-             x:DataType="vm:VTdlsViewModel"
-             x:CompileBindings="True"
-             Focusable="True">
-
-    <UserControl.Resources>
-        <!-- Match upstream vTDLS look: black chrome top bar, green list headers,
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels"
+  xmlns:svc="using:Yaat.Client.Services"
+  xmlns:find="using:Yaat.Client.Views.Find"
+  x:Class="Yaat.Client.Views.VTdls.VTdlsView"
+  x:DataType="vm:VTdlsViewModel"
+  x:CompileBindings="True"
+  Focusable="True"
+>
+  <UserControl.Resources>
+    <!-- Match upstream vTDLS look: black chrome top bar, green list headers,
              white list backgrounds, dark-on-light footer. See docs/vtdls/img/
              tdls.png + tdls-empty.png + flight-plan.png. -->
-        <SolidColorBrush x:Key="VTdlsChromeBg" Color="#000000"/>
-        <SolidColorBrush x:Key="VTdlsListHeaderBg" Color="#1ec51e"/>
-        <SolidColorBrush x:Key="VTdlsListBg" Color="#ffffff"/>
-        <SolidColorBrush x:Key="VTdlsListFg" Color="#0000bb"/>
-        <SolidColorBrush x:Key="VTdlsFooterBg" Color="#f0f0f0"/>
-        <SolidColorBrush x:Key="VTdlsFooterFg" Color="#202020"/>
-        <SolidColorBrush x:Key="VTdlsFacilityButtonBg" Color="#1ec51e"/>
-        <SolidColorBrush x:Key="VTdlsSelectedBg" Color="#000000"/>
-        <SolidColorBrush x:Key="VTdlsSelectedFg" Color="#ffffff"/>
-        <SolidColorBrush x:Key="VTdlsListBorder" Color="#a0a0a0"/>
-        <!-- Hover (pointerover) brushes — must be themed so the text stays
+    <SolidColorBrush x:Key="VTdlsChromeBg" Color="#000000" />
+    <SolidColorBrush x:Key="VTdlsListHeaderBg" Color="#1ec51e" />
+    <SolidColorBrush x:Key="VTdlsListBg" Color="#ffffff" />
+    <SolidColorBrush x:Key="VTdlsListFg" Color="#0000bb" />
+    <SolidColorBrush x:Key="VTdlsFooterBg" Color="#f0f0f0" />
+    <SolidColorBrush x:Key="VTdlsFooterFg" Color="#202020" />
+    <SolidColorBrush x:Key="VTdlsFacilityButtonBg" Color="#1ec51e" />
+    <SolidColorBrush x:Key="VTdlsSelectedBg" Color="#000000" />
+    <SolidColorBrush x:Key="VTdlsSelectedFg" Color="#ffffff" />
+    <SolidColorBrush x:Key="VTdlsListBorder" Color="#a0a0a0" />
+    <!-- Hover (pointerover) brushes — must be themed so the text stays
              legible in dark mode. The Avalonia FluentTheme default uses a
              light grey background + dark foreground that becomes invisible
              on our dark list backgrounds. -->
-        <SolidColorBrush x:Key="VTdlsHoverBg" Color="#e0e0e8"/>
-        <SolidColorBrush x:Key="VTdlsHoverFg" Color="#0000bb"/>
-        <!-- Editor label / heading text. Swaps to a light shade in dark mode
+    <SolidColorBrush x:Key="VTdlsHoverBg" Color="#e0e0e8" />
+    <SolidColorBrush x:Key="VTdlsHoverFg" Color="#0000bb" />
+    <!-- Editor label / heading text. Swaps to a light shade in dark mode
              via ApplyTheme so the form stays legible on dark backgrounds. -->
-        <SolidColorBrush x:Key="VTdlsEditorTextFg" Color="#000000"/>
-    </UserControl.Resources>
+    <SolidColorBrush x:Key="VTdlsEditorTextFg" Color="#000000" />
+  </UserControl.Resources>
 
-    <UserControl.Styles>
-        <!-- Tighter list items so the column-wrap density matches upstream. -->
-        <Style Selector="ListBox.tdls > ListBoxItem">
-            <Setter Property="Padding" Value="6,1"/>
-            <Setter Property="MinHeight" Value="18"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="{DynamicResource VTdlsListFg}"/>
-        </Style>
-        <Style Selector="ListBox.tdls > ListBoxItem:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource VTdlsHoverBg}"/>
-            <Setter Property="TextElement.Foreground" Value="{DynamicResource VTdlsHoverFg}"/>
-        </Style>
-        <Style Selector="ListBox.tdls > ListBoxItem:selected /template/ ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource VTdlsSelectedBg}"/>
-            <Setter Property="TextElement.Foreground" Value="{DynamicResource VTdlsSelectedFg}"/>
-        </Style>
-        <!-- Selected + hover lands on its own selector in Avalonia's pseudo-class
+  <UserControl.Styles>
+    <!-- Tighter list items so the column-wrap density matches upstream. -->
+    <Style Selector="ListBox.tdls > ListBoxItem">
+      <Setter Property="Padding" Value="6,1" />
+      <Setter Property="MinHeight" Value="18" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource VTdlsListFg}" />
+    </Style>
+    <Style Selector="ListBox.tdls > ListBoxItem:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource VTdlsHoverBg}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource VTdlsHoverFg}" />
+    </Style>
+    <Style Selector="ListBox.tdls > ListBoxItem:selected /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource VTdlsSelectedBg}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource VTdlsSelectedFg}" />
+    </Style>
+    <!-- Selected + hover lands on its own selector in Avalonia's pseudo-class
              chain; without this the pointerover wins and re-tints a selected
              row back to the hover scheme. Selected has priority. -->
-        <Style Selector="ListBox.tdls > ListBoxItem:selected:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource VTdlsSelectedBg}"/>
-            <Setter Property="TextElement.Foreground" Value="{DynamicResource VTdlsSelectedFg}"/>
-        </Style>
-        <Style Selector="TextBlock.tdls-list-header">
-            <Setter Property="FontFamily" Value="{StaticResource MonoFont}"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="#000000"/>
-            <Setter Property="HorizontalAlignment" Value="Center"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-        <!-- Footer status colour lives in styles rather than as a local Foreground:
+    <Style Selector="ListBox.tdls > ListBoxItem:selected:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource VTdlsSelectedBg}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource VTdlsSelectedFg}" />
+    </Style>
+    <Style Selector="TextBlock.tdls-list-header">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Foreground" Value="#000000" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <!-- Footer status colour lives in styles rather than as a local Foreground:
              a local value outranks a style setter in Avalonia, so a .warning class
              could never repaint an element that set Foreground inline. -->
-        <Style Selector=":is(TextBlock).footer-status">
-            <Setter Property="Foreground" Value="{DynamicResource VTdlsFooterFg}"/>
-        </Style>
-        <Style Selector=":is(TextBlock).footer-status.warning">
-            <Setter Property="Foreground" Value="OrangeRed"/>
-        </Style>
-    </UserControl.Styles>
+    <Style Selector=":is(TextBlock).footer-status">
+      <Setter Property="Foreground" Value="{DynamicResource VTdlsFooterFg}" />
+    </Style>
+    <Style Selector=":is(TextBlock).footer-status.warning">
+      <Setter Property="Foreground" Value="OrangeRed" />
+    </Style>
+  </UserControl.Styles>
 
-    <!-- Page-zoom wrapper: scales the whole vTDLS surface uniformly (web-style
+  <!-- Page-zoom wrapper: scales the whole vTDLS surface uniformly (web-style
          zoom), driven by VTdlsViewModel.ZoomScale from the TDLS zoom preference. -->
-    <LayoutTransformControl>
-        <LayoutTransformControl.LayoutTransform>
-            <ScaleTransform ScaleX="{Binding ZoomScale}" ScaleY="{Binding ZoomScale}" />
-        </LayoutTransformControl.LayoutTransform>
+  <LayoutTransformControl>
+    <LayoutTransformControl.LayoutTransform>
+      <ScaleTransform ScaleX="{Binding ZoomScale}" ScaleY="{Binding ZoomScale}" />
+    </LayoutTransformControl.LayoutTransform>
     <Grid RowDefinitions="28,Auto,*,Auto,22">
-
-        <!-- ── Top chrome bar (header) ─────────────────────────────────────
+      <!-- ── Top chrome bar (header) ─────────────────────────────────────
              Upstream layout: facility-chooser buttons + TIMS / ERAM / CPDLC
              status indicators on the LEFT, FDIO / DCL / DATIS on the RIGHT.
              We render the facility button as the only interactive element;
              the rest are decorative parity placeholders. -->
-        <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto" Background="{DynamicResource VTdlsChromeBg}">
-            <Button Grid.Column="0"
-                    x:Name="FacilityButton"
-                    Content="{Binding FacilityId, FallbackValue='(none)'}"
-                    ToolTip.Tip="Switch this window's TDLS facility"
-                    Margin="4,2"
-                    Padding="8,1"
-                    Background="{DynamicResource VTdlsFacilityButtonBg}"
-                    Foreground="Black"
-                    BorderBrush="Black"
-                    BorderThickness="1"
-                    FontFamily="{StaticResource MonoFont}"
-                    FontWeight="Bold"
-                    FontSize="12"
-                    Click="OnFacilityButtonClick"/>
+      <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto" Background="{DynamicResource VTdlsChromeBg}">
+        <Button
+          Grid.Column="0"
+          x:Name="FacilityButton"
+          Content="{Binding FacilityId, FallbackValue='(none)'}"
+          ToolTip.Tip="Switch this window's TDLS facility"
+          Margin="4,2"
+          Padding="8,1"
+          Background="{DynamicResource VTdlsFacilityButtonBg}"
+          Foreground="Black"
+          BorderBrush="Black"
+          BorderThickness="1"
+          FontFamily="{StaticResource MonoFont}"
+          FontWeight="Bold"
+          FontSize="12"
+          Click="OnFacilityButtonClick"
+        />
 
-            <!-- Decorative parity buttons — these are real on upstream but not
+        <!-- Decorative parity buttons — these are real on upstream but not
                  simulated. They stay rendered so a controller's muscle memory
                  lines up with what they expect to see. -->
-            <Border Grid.Column="1" Background="{DynamicResource VTdlsFacilityButtonBg}" Margin="2,4" Padding="8,1" BorderBrush="Black" BorderThickness="1">
-                <TextBlock Text="TIMS" FontFamily="{StaticResource MonoFont}" FontWeight="Bold" FontSize="12" Foreground="Black"/>
-            </Border>
-            <Border Grid.Column="2" Background="{DynamicResource VTdlsFacilityButtonBg}" Margin="2,4" Padding="8,1" BorderBrush="Black" BorderThickness="1">
-                <TextBlock Text="ERAM" FontFamily="{StaticResource MonoFont}" FontWeight="Bold" FontSize="12" Foreground="Black"/>
-            </Border>
+        <Border
+          Grid.Column="1"
+          Background="{DynamicResource VTdlsFacilityButtonBg}"
+          Margin="2,4"
+          Padding="8,1"
+          BorderBrush="Black"
+          BorderThickness="1"
+        >
+          <TextBlock Text="TIMS" FontFamily="{StaticResource MonoFont}" FontWeight="Bold" FontSize="12" Foreground="Black" />
+        </Border>
+        <Border
+          Grid.Column="2"
+          Background="{DynamicResource VTdlsFacilityButtonBg}"
+          Margin="2,4"
+          Padding="8,1"
+          BorderBrush="Black"
+          BorderThickness="1"
+        >
+          <TextBlock Text="ERAM" FontFamily="{StaticResource MonoFont}" FontWeight="Bold" FontSize="12" Foreground="Black" />
+        </Border>
 
-            <!-- Right-side decorative status panes — FDIO / DCL / DATIS. Real
+        <!-- Right-side decorative status panes — FDIO / DCL / DATIS. Real
                  vTDLS uses these to indicate uplink status; we render them as
                  plain badges so the chrome doesn't look empty. -->
-            <Border Grid.Column="4" Background="#0033cc" Margin="2,4" Padding="8,1" BorderBrush="White" BorderThickness="1">
-                <TextBlock Text="FDIO" FontFamily="{StaticResource MonoFont}" FontWeight="Bold" FontSize="12" Foreground="White"/>
-            </Border>
-            <Border Grid.Column="5" Background="Black" Margin="2,4" Padding="8,1" BorderBrush="White" BorderThickness="1">
-                <TextBlock Text="DCL" FontFamily="{StaticResource MonoFont}" FontWeight="Bold" FontSize="12" Foreground="White"/>
-            </Border>
-            <Border Grid.Column="6" Background="#cc00cc" Margin="2,4,6,4" Padding="8,1" BorderBrush="White" BorderThickness="1">
-                <TextBlock Text="DATIS" FontFamily="{StaticResource MonoFont}" FontWeight="Bold" FontSize="12" Foreground="White"/>
-            </Border>
-        </Grid>
+        <Border Grid.Column="4" Background="#0033cc" Margin="2,4" Padding="8,1" BorderBrush="White" BorderThickness="1">
+          <TextBlock Text="FDIO" FontFamily="{StaticResource MonoFont}" FontWeight="Bold" FontSize="12" Foreground="White" />
+        </Border>
+        <Border Grid.Column="5" Background="Black" Margin="2,4" Padding="8,1" BorderBrush="White" BorderThickness="1">
+          <TextBlock Text="DCL" FontFamily="{StaticResource MonoFont}" FontWeight="Bold" FontSize="12" Foreground="White" />
+        </Border>
+        <Border Grid.Column="6" Background="#cc00cc" Margin="2,4,6,4" Padding="8,1" BorderBrush="White" BorderThickness="1">
+          <TextBlock Text="DATIS" FontFamily="{StaticResource MonoFont}" FontWeight="Bold" FontSize="12" Foreground="White" />
+        </Border>
+      </Grid>
 
-        <!-- ── DCL list (top, full width, column-wrapping) ────────────────── -->
-        <Border Grid.Row="1"
-                Background="{DynamicResource VTdlsListBg}"
-                BorderBrush="{DynamicResource VTdlsListBorder}"
-                BorderThickness="1"
-                MinHeight="180">
-            <Grid RowDefinitions="22,*">
-                <Border Grid.Row="0" Background="{DynamicResource VTdlsListHeaderBg}">
-                    <TextBlock Text="DCL" Classes="tdls-list-header"/>
-                </Border>
-                <!-- ItemsRepeater inside a ScrollViewer with a horizontal-wrap
+      <!-- ── DCL list (top, full width, column-wrapping) ────────────────── -->
+      <Border
+        Grid.Row="1"
+        Background="{DynamicResource VTdlsListBg}"
+        BorderBrush="{DynamicResource VTdlsListBorder}"
+        BorderThickness="1"
+        MinHeight="180"
+      >
+        <Grid RowDefinitions="22,*">
+          <Border Grid.Row="0" Background="{DynamicResource VTdlsListHeaderBg}">
+            <TextBlock Text="DCL" Classes="tdls-list-header" />
+          </Border>
+          <!-- ItemsRepeater inside a ScrollViewer with a horizontal-wrap
                      ItemsPanel gives the column-flow layout upstream uses:
                      items stack downward, then start a new column when the
                      panel height fills. -->
-                <ScrollViewer Grid.Row="1"
-                              HorizontalScrollBarVisibility="Auto"
-                              VerticalScrollBarVisibility="Disabled">
-                    <ListBox x:Name="DclListBox"
-                             Classes="tdls"
-                             ItemsSource="{Binding DclItems}"
-                             SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
-                             Background="Transparent"
-                             BorderThickness="0"
-                             FontFamily="{StaticResource MonoFont}"
-                             FontSize="12">
-                        <ListBox.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel Orientation="Vertical"/>
-                            </ItemsPanelTemplate>
-                        </ListBox.ItemsPanel>
-                        <ListBox.ItemTemplate>
-                            <DataTemplate DataType="vm:TdlsItemViewModel" x:DataType="vm:TdlsItemViewModel">
-                                <Grid>
-                                    <!-- The facility prefix only renders on a consolidated parent page,
+          <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+            <ListBox
+              x:Name="DclListBox"
+              Classes="tdls"
+              ItemsSource="{Binding DclItems}"
+              SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
+              Background="Transparent"
+              BorderThickness="0"
+              FontFamily="{StaticResource MonoFont}"
+              FontSize="12"
+            >
+              <ListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel Orientation="Vertical" />
+                </ItemsPanelTemplate>
+              </ListBox.ItemsPanel>
+              <ListBox.ItemTemplate>
+                <DataTemplate DataType="vm:TdlsItemViewModel" x:DataType="vm:TdlsItemViewModel">
+                  <Grid>
+                    <!-- The facility prefix only renders on a consolidated parent page,
                                          where items from several airports share one list. -->
-                                    <!-- Row text stays a plain TextBlock: SelectableTextBlock marks
+                    <!-- Row text stays a plain TextBlock: SelectableTextBlock marks
                                          PointerPressed handled, so the press never reaches the ListBox
                                          and clicking a row would stop selecting it. -->
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <TextBlock Text="{Binding FacilityId}" Opacity="0.65"
-                                                   IsVisible="{Binding $parent[UserControl].((vm:VTdlsViewModel)DataContext).IsConsolidated}"/>
-                                        <TextBlock Text="{Binding AircraftId}" MinWidth="80"/>
-                                    </StackPanel>
-                                    <!-- In-view Find (Ctrl+F) highlight: thin cyan outline for a
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <TextBlock
+                        Text="{Binding FacilityId}"
+                        Opacity="0.65"
+                        IsVisible="{Binding $parent[UserControl].((vm:VTdlsViewModel)DataContext).IsConsolidated}"
+                      />
+                      <TextBlock Text="{Binding AircraftId}" MinWidth="80" />
+                    </StackPanel>
+                    <!-- In-view Find (Ctrl+F) highlight: thin cyan outline for a
                                          match, thicker outline + fill for the current match. -->
-                                    <Border IsVisible="{Binding IsFindMatch}" IsHitTestVisible="False"
-                                            BorderBrush="#8018C7FF" BorderThickness="1.5" Margin="-3,-1"/>
-                                    <Border IsVisible="{Binding IsCurrentFindMatch}" IsHitTestVisible="False"
-                                            Background="#3018C7FF" BorderBrush="#FF18C7FF" BorderThickness="2" Margin="-3,-1"/>
-                                </Grid>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </ScrollViewer>
-            </Grid>
+                    <Border IsVisible="{Binding IsFindMatch}" IsHitTestVisible="False" BorderBrush="#8018C7FF" BorderThickness="1.5" Margin="-3,-1" />
+                    <Border
+                      IsVisible="{Binding IsCurrentFindMatch}"
+                      IsHitTestVisible="False"
+                      Background="#3018C7FF"
+                      BorderBrush="#FF18C7FF"
+                      BorderThickness="2"
+                      Margin="-3,-1"
+                    />
+                  </Grid>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </ScrollViewer>
+        </Grid>
+      </Border>
+
+      <!-- ── PDC / CPDLC row (50/50 below DCL) ──────────────────────────── -->
+      <Grid Grid.Row="2" ColumnDefinitions="*,*">
+        <!-- PDC -->
+        <Border Grid.Column="0" Background="{DynamicResource VTdlsListBg}" BorderBrush="{DynamicResource VTdlsListBorder}" BorderThickness="1">
+          <Grid RowDefinitions="22,*">
+            <Border Grid.Row="0" Background="{DynamicResource VTdlsListHeaderBg}">
+              <TextBlock Text="PDC" Classes="tdls-list-header" />
+            </Border>
+            <ListBox
+              Grid.Row="1"
+              x:Name="PdcListBox"
+              Classes="tdls"
+              ItemsSource="{Binding PdcItems}"
+              SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
+              Background="Transparent"
+              BorderThickness="0"
+              FontFamily="{StaticResource MonoFont}"
+              FontSize="12"
+            >
+              <ListBox.ItemTemplate>
+                <DataTemplate DataType="vm:TdlsItemViewModel" x:DataType="vm:TdlsItemViewModel">
+                  <Grid>
+                    <!-- Row text stays a plain TextBlock: SelectableTextBlock marks
+                                         PointerPressed handled, so the press never reaches the ListBox
+                                         and clicking a row would stop selecting it. -->
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <TextBlock
+                        Text="{Binding FacilityId}"
+                        Opacity="0.65"
+                        IsVisible="{Binding $parent[UserControl].((vm:VTdlsViewModel)DataContext).IsConsolidated}"
+                      />
+                      <TextBlock Text="{Binding AircraftId}" />
+                    </StackPanel>
+                    <!-- In-view Find (Ctrl+F) highlight: thin cyan outline for a
+                                         match, thicker outline + fill for the current match. -->
+                    <Border IsVisible="{Binding IsFindMatch}" IsHitTestVisible="False" BorderBrush="#8018C7FF" BorderThickness="1.5" Margin="-3,-1" />
+                    <Border
+                      IsVisible="{Binding IsCurrentFindMatch}"
+                      IsHitTestVisible="False"
+                      Background="#3018C7FF"
+                      BorderBrush="#FF18C7FF"
+                      BorderThickness="2"
+                      Margin="-3,-1"
+                    />
+                  </Grid>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </Grid>
         </Border>
 
-        <!-- ── PDC / CPDLC row (50/50 below DCL) ──────────────────────────── -->
-        <Grid Grid.Row="2" ColumnDefinitions="*,*">
-
-            <!-- PDC -->
-            <Border Grid.Column="0"
-                    Background="{DynamicResource VTdlsListBg}"
-                    BorderBrush="{DynamicResource VTdlsListBorder}"
-                    BorderThickness="1">
-                <Grid RowDefinitions="22,*">
-                    <Border Grid.Row="0" Background="{DynamicResource VTdlsListHeaderBg}">
-                        <TextBlock Text="PDC" Classes="tdls-list-header"/>
-                    </Border>
-                    <ListBox Grid.Row="1"
-                             x:Name="PdcListBox"
-                             Classes="tdls"
-                             ItemsSource="{Binding PdcItems}"
-                             SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
-                             Background="Transparent"
-                             BorderThickness="0"
-                             FontFamily="{StaticResource MonoFont}"
-                             FontSize="12">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate DataType="vm:TdlsItemViewModel" x:DataType="vm:TdlsItemViewModel">
-                                <Grid>
-                                    <!-- Row text stays a plain TextBlock: SelectableTextBlock marks
-                                         PointerPressed handled, so the press never reaches the ListBox
-                                         and clicking a row would stop selecting it. -->
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <TextBlock Text="{Binding FacilityId}" Opacity="0.65"
-                                                   IsVisible="{Binding $parent[UserControl].((vm:VTdlsViewModel)DataContext).IsConsolidated}"/>
-                                        <TextBlock Text="{Binding AircraftId}"/>
-                                    </StackPanel>
-                                    <!-- In-view Find (Ctrl+F) highlight: thin cyan outline for a
-                                         match, thicker outline + fill for the current match. -->
-                                    <Border IsVisible="{Binding IsFindMatch}" IsHitTestVisible="False"
-                                            BorderBrush="#8018C7FF" BorderThickness="1.5" Margin="-3,-1"/>
-                                    <Border IsVisible="{Binding IsCurrentFindMatch}" IsHitTestVisible="False"
-                                            Background="#3018C7FF" BorderBrush="#FF18C7FF" BorderThickness="2" Margin="-3,-1"/>
-                                </Grid>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </Grid>
+        <!-- CPDLC — decorative parity; never populates (VATSIM doesn't simulate CPDLC) -->
+        <Border Grid.Column="1" Background="{DynamicResource VTdlsListBg}" BorderBrush="{DynamicResource VTdlsListBorder}" BorderThickness="1">
+          <Grid RowDefinitions="22,*">
+            <Border Grid.Row="0" Background="{DynamicResource VTdlsListHeaderBg}">
+              <TextBlock Text="CPDLC" Classes="tdls-list-header" />
             </Border>
-
-            <!-- CPDLC — decorative parity; never populates (VATSIM doesn't simulate CPDLC) -->
-            <Border Grid.Column="1"
-                    Background="{DynamicResource VTdlsListBg}"
-                    BorderBrush="{DynamicResource VTdlsListBorder}"
-                    BorderThickness="1">
-                <Grid RowDefinitions="22,*">
-                    <Border Grid.Row="0" Background="{DynamicResource VTdlsListHeaderBg}">
-                        <TextBlock Text="CPDLC" Classes="tdls-list-header"/>
-                    </Border>
-                    <!-- Intentionally empty body — upstream renders the list as
+            <!-- Intentionally empty body — upstream renders the list as
                          pure visual parity. No "not simulated" label per the
                          original spec; the empty pane IS the indication. -->
-                </Grid>
-            </Border>
-        </Grid>
+          </Grid>
+        </Border>
+      </Grid>
 
-        <!-- ── Flight-plan editor (visible only when a DCL item is selected) ──
+      <!-- ── Flight-plan editor (visible only when a DCL item is selected) ──
              Mirrors docs/vtdls/img/flight-plan.png pixel-for-pixel as closely
              as Avalonia allows. Upstream uses NO inline labels next to the
              dropdowns — only DEP FREQ is labeled — and the read-only header
              fields A-H are positioned in three columns with no captions
              (controllers learn the field positions). The Expect dropdown sits
              on the same row as H (cruise FL), indented to align with B/E. -->
-        <Border Grid.Row="3"
-                IsVisible="{Binding Editor, Converter={x:Static ObjectConverters.IsNotNull}}"
-                Background="{DynamicResource VTdlsListBg}"
-                BorderBrush="{DynamicResource VTdlsListBorder}"
-                BorderThickness="1"
-                Padding="10">
-            <StackPanel DataContext="{Binding Editor}" Orientation="Vertical">
-
-                <!-- Header block. Four rows; columns are A/D/G/H (~100px),
+      <Border
+        Grid.Row="3"
+        IsVisible="{Binding Editor, Converter={x:Static ObjectConverters.IsNotNull}}"
+        Background="{DynamicResource VTdlsListBg}"
+        BorderBrush="{DynamicResource VTdlsListBorder}"
+        BorderThickness="1"
+        Padding="10"
+      >
+        <StackPanel DataContext="{Binding Editor}" Orientation="Vertical">
+          <!-- Header block. Four rows; columns are A/D/G/H (~100px),
                      B/E/(blank)/Expect-dropdown (~190px Auto), C/F (* — F is
                      right-aligned, C overflows with ellipsis on narrow panes).
                      The Expect dropdown shares its row with the cruise FL
                      (H) value, exactly like the upstream screenshot. -->
-                <Grid ColumnDefinitions="100,190,*" RowDefinitions="Auto,Auto,Auto,Auto" Margin="0,0,0,12">
-                    <!-- Row 0: A B C -->
-                    <SelectableTextBlock Grid.Row="0" Grid.Column="0"
-                                         Text="{Binding Callsign}"
-                                         FontFamily="{StaticResource MonoFont}" FontWeight="Bold" FontSize="13"
-                                         Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                    <SelectableTextBlock Grid.Row="0" Grid.Column="1"
-                                         Text="{Binding FlightPlan.AssignedBeaconCode, StringFormat='\{0:D4\}', FallbackValue=''}"
-                                         FontFamily="{StaticResource MonoFont}" FontSize="11"
-                                         Foreground="{DynamicResource VTdlsEditorTextFg}"
-                                         VerticalAlignment="Center"/>
-                    <SelectableTextBlock Grid.Row="0" Grid.Column="2"
-                                         Text="{Binding FlightPlan.RouteDisplay, FallbackValue=''}"
-                                         FontFamily="{StaticResource MonoFont}" FontSize="11"
-                                         Foreground="{DynamicResource VTdlsEditorTextFg}"
-                                         TextTrimming="CharacterEllipsis"
-                                         VerticalAlignment="Center"/>
+          <Grid ColumnDefinitions="100,190,*" RowDefinitions="Auto,Auto,Auto,Auto" Margin="0,0,0,12">
+            <!-- Row 0: A B C -->
+            <SelectableTextBlock
+              Grid.Row="0"
+              Grid.Column="0"
+              Text="{Binding Callsign}"
+              FontFamily="{StaticResource MonoFont}"
+              FontWeight="Bold"
+              FontSize="13"
+              Foreground="{DynamicResource VTdlsEditorTextFg}"
+            />
+            <SelectableTextBlock
+              Grid.Row="0"
+              Grid.Column="1"
+              Text="{Binding FlightPlan.AssignedBeaconCode, StringFormat='\{0:D4\}', FallbackValue=''}"
+              FontFamily="{StaticResource MonoFont}"
+              FontSize="11"
+              Foreground="{DynamicResource VTdlsEditorTextFg}"
+              VerticalAlignment="Center"
+            />
+            <SelectableTextBlock
+              Grid.Row="0"
+              Grid.Column="2"
+              Text="{Binding FlightPlan.RouteDisplay, FallbackValue=''}"
+              FontFamily="{StaticResource MonoFont}"
+              FontSize="11"
+              Foreground="{DynamicResource VTdlsEditorTextFg}"
+              TextTrimming="CharacterEllipsis"
+              VerticalAlignment="Center"
+            />
 
-                    <!-- Row 1: D E F — F right-aligned for "RMK: ..." -->
-                    <SelectableTextBlock Grid.Row="1" Grid.Column="0"
-                                         Text="{Binding FlightPlan.TypeAndEquipment, FallbackValue=''}"
-                                         FontFamily="{StaticResource MonoFont}" FontSize="11"
-                                         Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                    <!-- E: proposed departure time. Not tracked by the sim yet;
+            <!-- Row 1: D E F — F right-aligned for "RMK: ..." -->
+            <SelectableTextBlock
+              Grid.Row="1"
+              Grid.Column="0"
+              Text="{Binding FlightPlan.TypeAndEquipment, FallbackValue=''}"
+              FontFamily="{StaticResource MonoFont}"
+              FontSize="11"
+              Foreground="{DynamicResource VTdlsEditorTextFg}"
+            />
+            <!-- E: proposed departure time. Not tracked by the sim yet;
                          left blank so the layout still has the upstream slot. -->
-                    <TextBlock Grid.Row="1" Grid.Column="1"
-                               Text=""
-                               FontFamily="{StaticResource MonoFont}" FontSize="11"
-                               Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                    <SelectableTextBlock Grid.Row="1" Grid.Column="2"
-                                         Text="{Binding FlightPlan.RemarksDisplay, FallbackValue=''}"
-                                         FontFamily="{StaticResource MonoFont}" FontSize="11"
-                                         Foreground="{DynamicResource VTdlsEditorTextFg}"
-                                         HorizontalAlignment="Right"
-                                         TextTrimming="CharacterEllipsis"/>
+            <TextBlock
+              Grid.Row="1"
+              Grid.Column="1"
+              Text=""
+              FontFamily="{StaticResource MonoFont}"
+              FontSize="11"
+              Foreground="{DynamicResource VTdlsEditorTextFg}"
+            />
+            <SelectableTextBlock
+              Grid.Row="1"
+              Grid.Column="2"
+              Text="{Binding FlightPlan.RemarksDisplay, FallbackValue=''}"
+              FontFamily="{StaticResource MonoFont}"
+              FontSize="11"
+              Foreground="{DynamicResource VTdlsEditorTextFg}"
+              HorizontalAlignment="Right"
+              TextTrimming="CharacterEllipsis"
+            />
 
-                    <!-- Row 2: G — CID alone -->
-                    <SelectableTextBlock Grid.Row="2" Grid.Column="0"
-                                         Text="{Binding FlightPlan.Cid, FallbackValue=''}"
-                                         FontFamily="{StaticResource MonoFont}" FontSize="11"
-                                         Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+            <!-- Row 2: G — CID alone -->
+            <SelectableTextBlock
+              Grid.Row="2"
+              Grid.Column="0"
+              Text="{Binding FlightPlan.Cid, FallbackValue=''}"
+              FontFamily="{StaticResource MonoFont}"
+              FontSize="11"
+              Foreground="{DynamicResource VTdlsEditorTextFg}"
+            />
 
-                    <!-- Row 3: H (cruise FL) + Expect dropdown -->
-                    <SelectableTextBlock Grid.Row="3" Grid.Column="0"
-                                         Text="{Binding FlightPlan.CruiseFlightLevel, StringFormat='\{0:000\}', FallbackValue=''}"
-                                         FontFamily="{StaticResource MonoFont}" FontSize="11"
-                                         Foreground="{DynamicResource VTdlsEditorTextFg}"
-                                         VerticalAlignment="Center"/>
-                    <ComboBox PlaceholderText="- - - -" Grid.Row="3" Grid.Column="1"
-                              ItemsSource="{Binding Expects}"
-                              SelectedItem="{Binding SelectedExpect}"
-                              DisplayMemberBinding="{Binding Value}"
-                              IsEnabled="{Binding IsEditable}"
-                              HorizontalAlignment="Stretch"
-                              Margin="0,2,4,0"
-                              FontFamily="{StaticResource MonoFont}" FontSize="11"
-                              ToolTip.Tip="Expect"/>
-                </Grid>
+            <!-- Row 3: H (cruise FL) + Expect dropdown -->
+            <SelectableTextBlock
+              Grid.Row="3"
+              Grid.Column="0"
+              Text="{Binding FlightPlan.CruiseFlightLevel, StringFormat='\{0:000\}', FallbackValue=''}"
+              FontFamily="{StaticResource MonoFont}"
+              FontSize="11"
+              Foreground="{DynamicResource VTdlsEditorTextFg}"
+              VerticalAlignment="Center"
+            />
+            <ComboBox
+              PlaceholderText="- - - -"
+              Grid.Row="3"
+              Grid.Column="1"
+              ItemsSource="{Binding Expects}"
+              SelectedItem="{Binding SelectedExpect}"
+              DisplayMemberBinding="{Binding Value}"
+              IsEnabled="{Binding IsEditable}"
+              HorizontalAlignment="Stretch"
+              Margin="0,2,4,0"
+              FontFamily="{StaticResource MonoFont}"
+              FontSize="11"
+              ToolTip.Tip="Expect"
+            />
+          </Grid>
 
-                <!-- Dropdown row 5: SID | Transition | Climb out | Climb via |
+          <!-- Dropdown row 5: SID | Transition | Climb out | Climb via |
                      Maintain. Width ratios measured from upstream screenshot:
                      SSOXS6 ≈ - - - - ≈ Maintain (1x) ; Climb out (2x) ;
                      Climb via dominates (6x) for "CLIMB VIA SID EXCEPT
@@ -339,96 +407,136 @@
                      so the control overflows and lies across the field beside it.
                      No inline labels — controllers learn the field positions,
                      like upstream. -->
-                <Grid Margin="0,0,0,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="1*" MinWidth="100"/>
-                        <ColumnDefinition Width="1*" MinWidth="100"/>
-                        <ColumnDefinition Width="2*"/>
-                        <ColumnDefinition Width="6*"/>
-                        <ColumnDefinition Width="1*" MinWidth="100"/>
-                    </Grid.ColumnDefinitions>
-                    <ComboBox PlaceholderText="- - - -" Grid.Column="0" Margin="0,0,4,0"
-                              ItemsSource="{Binding Sids}"
-                              SelectedItem="{Binding SelectedSid, Mode=TwoWay}"
-                              DisplayMemberBinding="{Binding Name}"
-                              IsEnabled="{Binding IsEditable}"
-                              HorizontalAlignment="Stretch"
-                              FontFamily="{StaticResource MonoFont}" FontSize="11"
-                              ToolTip.Tip="SID"/>
-                    <ComboBox PlaceholderText="- - - -" Grid.Column="1" Margin="0,0,4,0"
-                              ItemsSource="{Binding Transitions}"
-                              SelectedItem="{Binding SelectedTransition, Mode=TwoWay}"
-                              DisplayMemberBinding="{Binding Name}"
-                              IsEnabled="{Binding IsEditable}"
-                              HorizontalAlignment="Stretch"
-                              FontFamily="{StaticResource MonoFont}" FontSize="11"
-                              ToolTip.Tip="Transition"/>
-                    <ComboBox PlaceholderText="- - - -" Grid.Column="2" Margin="0,0,4,0"
-                              ItemsSource="{Binding Climbouts}"
-                              SelectedItem="{Binding SelectedClimbout}"
-                              DisplayMemberBinding="{Binding Value}"
-                              IsEnabled="{Binding IsEditable}"
-                              HorizontalAlignment="Stretch"
-                              FontFamily="{StaticResource MonoFont}" FontSize="11"
-                              ToolTip.Tip="Climb out"/>
-                    <ComboBox PlaceholderText="- - - -" Grid.Column="3" Margin="0,0,4,0"
-                              ItemsSource="{Binding Climbvias}"
-                              SelectedItem="{Binding SelectedClimbvia}"
-                              DisplayMemberBinding="{Binding Value}"
-                              IsEnabled="{Binding IsEditable}"
-                              HorizontalAlignment="Stretch"
-                              FontFamily="{StaticResource MonoFont}" FontSize="11"
-                              ToolTip.Tip="Climb via"/>
-                    <ComboBox PlaceholderText="- - - -" Grid.Column="4"
-                              ItemsSource="{Binding InitialAlts}"
-                              SelectedItem="{Binding SelectedInitialAlt}"
-                              DisplayMemberBinding="{Binding Value}"
-                              IsEnabled="{Binding IsInitialAltEnabled}"
-                              HorizontalAlignment="Stretch"
-                              FontFamily="{StaticResource MonoFont}" FontSize="11"
-                              ToolTip.Tip="Maintain"/>
-                </Grid>
+          <Grid Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="1*" MinWidth="100" />
+              <ColumnDefinition Width="1*" MinWidth="100" />
+              <ColumnDefinition Width="2*" />
+              <ColumnDefinition Width="6*" />
+              <ColumnDefinition Width="1*" MinWidth="100" />
+            </Grid.ColumnDefinitions>
+            <ComboBox
+              PlaceholderText="- - - -"
+              Grid.Column="0"
+              Margin="0,0,4,0"
+              ItemsSource="{Binding Sids}"
+              SelectedItem="{Binding SelectedSid, Mode=TwoWay}"
+              DisplayMemberBinding="{Binding Name}"
+              IsEnabled="{Binding IsEditable}"
+              HorizontalAlignment="Stretch"
+              FontFamily="{StaticResource MonoFont}"
+              FontSize="11"
+              ToolTip.Tip="SID"
+            />
+            <ComboBox
+              PlaceholderText="- - - -"
+              Grid.Column="1"
+              Margin="0,0,4,0"
+              ItemsSource="{Binding Transitions}"
+              SelectedItem="{Binding SelectedTransition, Mode=TwoWay}"
+              DisplayMemberBinding="{Binding Name}"
+              IsEnabled="{Binding IsEditable}"
+              HorizontalAlignment="Stretch"
+              FontFamily="{StaticResource MonoFont}"
+              FontSize="11"
+              ToolTip.Tip="Transition"
+            />
+            <ComboBox
+              PlaceholderText="- - - -"
+              Grid.Column="2"
+              Margin="0,0,4,0"
+              ItemsSource="{Binding Climbouts}"
+              SelectedItem="{Binding SelectedClimbout}"
+              DisplayMemberBinding="{Binding Value}"
+              IsEnabled="{Binding IsEditable}"
+              HorizontalAlignment="Stretch"
+              FontFamily="{StaticResource MonoFont}"
+              FontSize="11"
+              ToolTip.Tip="Climb out"
+            />
+            <ComboBox
+              PlaceholderText="- - - -"
+              Grid.Column="3"
+              Margin="0,0,4,0"
+              ItemsSource="{Binding Climbvias}"
+              SelectedItem="{Binding SelectedClimbvia}"
+              DisplayMemberBinding="{Binding Value}"
+              IsEnabled="{Binding IsEditable}"
+              HorizontalAlignment="Stretch"
+              FontFamily="{StaticResource MonoFont}"
+              FontSize="11"
+              ToolTip.Tip="Climb via"
+            />
+            <ComboBox
+              PlaceholderText="- - - -"
+              Grid.Column="4"
+              ItemsSource="{Binding InitialAlts}"
+              SelectedItem="{Binding SelectedInitialAlt}"
+              DisplayMemberBinding="{Binding Value}"
+              IsEnabled="{Binding IsInitialAltEnabled}"
+              HorizontalAlignment="Stretch"
+              FontFamily="{StaticResource MonoFont}"
+              FontSize="11"
+              ToolTip.Tip="Maintain"
+            />
+          </Grid>
 
-                <!-- Dropdown row 6: Contact info on the left (~25%), large
+          <!-- Dropdown row 6: Contact info on the left (~25%), large
                      gap, then "DEP FREQ" label + dropdown right-aligned (~12%).
                      DEP FREQ is the ONE inline label upstream renders. -->
-                <Grid ColumnDefinitions="3*,7*,Auto,Auto" Margin="0,0,0,8">
-                    <ComboBox PlaceholderText="- - - -" Grid.Column="0"
-                              ItemsSource="{Binding ContactInfos}"
-                              SelectedItem="{Binding SelectedContactInfo}"
-                              DisplayMemberBinding="{Binding Value}"
-                              IsEnabled="{Binding IsEditable}"
-                              HorizontalAlignment="Stretch"
-                              FontFamily="{StaticResource MonoFont}" FontSize="11"
-                              ToolTip.Tip="Contact info"/>
-                    <TextBlock Grid.Column="2"
-                               Text="DEP FREQ"
-                               Margin="0,0,6,0"
-                               VerticalAlignment="Center"
-                               FontFamily="{StaticResource MonoFont}" FontSize="11"
-                               Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                    <ComboBox PlaceholderText="- - - -" Grid.Column="3" MinWidth="100"
-                              ItemsSource="{Binding DepFreqs}"
-                              SelectedItem="{Binding SelectedDepFreq}"
-                              DisplayMemberBinding="{Binding Value}"
-                              IsEnabled="{Binding IsEditable}"
-                              FontFamily="{StaticResource MonoFont}" FontSize="11"
-                              ToolTip.Tip="Departure frequency"/>
-                </Grid>
+          <Grid ColumnDefinitions="3*,7*,Auto,Auto" Margin="0,0,0,8">
+            <ComboBox
+              PlaceholderText="- - - -"
+              Grid.Column="0"
+              ItemsSource="{Binding ContactInfos}"
+              SelectedItem="{Binding SelectedContactInfo}"
+              DisplayMemberBinding="{Binding Value}"
+              IsEnabled="{Binding IsEditable}"
+              HorizontalAlignment="Stretch"
+              FontFamily="{StaticResource MonoFont}"
+              FontSize="11"
+              ToolTip.Tip="Contact info"
+            />
+            <TextBlock
+              Grid.Column="2"
+              Text="DEP FREQ"
+              Margin="0,0,6,0"
+              VerticalAlignment="Center"
+              FontFamily="{StaticResource MonoFont}"
+              FontSize="11"
+              Foreground="{DynamicResource VTdlsEditorTextFg}"
+            />
+            <ComboBox
+              PlaceholderText="- - - -"
+              Grid.Column="3"
+              MinWidth="100"
+              ItemsSource="{Binding DepFreqs}"
+              SelectedItem="{Binding SelectedDepFreq}"
+              DisplayMemberBinding="{Binding Value}"
+              IsEnabled="{Binding IsEditable}"
+              FontFamily="{StaticResource MonoFont}"
+              FontSize="11"
+              ToolTip.Tip="Departure frequency"
+            />
+          </Grid>
 
-                <!-- Dropdown row 7: Local info (~25% wide, left-aligned). -->
-                <Grid ColumnDefinitions="3*,10*" Margin="0,0,0,8">
-                    <ComboBox PlaceholderText="- - - -" Grid.Column="0"
-                              ItemsSource="{Binding LocalInfos}"
-                              SelectedItem="{Binding SelectedLocalInfo}"
-                              DisplayMemberBinding="{Binding Value}"
-                              IsEnabled="{Binding IsEditable}"
-                              HorizontalAlignment="Stretch"
-                              FontFamily="{StaticResource MonoFont}" FontSize="11"
-                              ToolTip.Tip="Local info"/>
-                </Grid>
+          <!-- Dropdown row 7: Local info (~25% wide, left-aligned). -->
+          <Grid ColumnDefinitions="3*,10*" Margin="0,0,0,8">
+            <ComboBox
+              PlaceholderText="- - - -"
+              Grid.Column="0"
+              ItemsSource="{Binding LocalInfos}"
+              SelectedItem="{Binding SelectedLocalInfo}"
+              DisplayMemberBinding="{Binding Value}"
+              IsEnabled="{Binding IsEditable}"
+              HorizontalAlignment="Stretch"
+              FontFamily="{StaticResource MonoFont}"
+              FontSize="11"
+              ToolTip.Tip="Local info"
+            />
+          </Grid>
 
-                <!-- Buttons row: Dump bottom-left, Edit + Cancel + Send
+          <!-- Buttons row: Dump bottom-left, Edit + Cancel + Send
                      bottom-right. Edit is a disabled parity placeholder
                      (upstream uses it to switch a read-only Sent PDC back to
                      editable; YAAT opens the read-only review by clicking the
@@ -436,104 +544,130 @@
                      read-only — a sent PDC can't be resent. Big top margin to
                      match the vertical breathing room in the upstream
                      screenshot. -->
-                <Grid ColumnDefinitions="*,Auto" Margin="0,24,0,0">
-                    <Button Grid.Column="0" Content="Dump"
-                            Click="OnDumpClick"
-                            HorizontalAlignment="Left"
-                            FontFamily="{StaticResource MonoFont}" FontSize="11"
-                            Padding="12,3"
-                            ToolTip.Tip="Dump (F4) — remove this PDC and lock the aircraft out for the session"/>
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                        <Button Content="Edit"
-                                IsEnabled="False"
-                                FontFamily="{StaticResource MonoFont}" FontSize="11"
-                                Padding="12,3"
-                                ToolTip.Tip="Edit — parity placeholder; review a sent PDC by selecting it in the PDC list"/>
-                        <Button Content="Cancel"
-                                Click="OnCancelClick"
-                                FontFamily="{StaticResource MonoFont}" FontSize="11"
-                                Padding="12,3"
-                                ToolTip.Tip="Cancel (F10) — close the editor"/>
-                        <Button Content="Send"
-                                Command="{Binding SendCommand}"
-                                IsEnabled="{Binding IsSendEnabled}"
-                                IsVisible="{Binding IsEditable}"
-                                FontFamily="{StaticResource MonoFont}" FontSize="11"
-                                FontWeight="Bold"
-                                Padding="12,3"
-                                ToolTip.Tip="Send (F12) — issue the PDC to the pilot"/>
-                    </StackPanel>
-                </Grid>
+          <Grid ColumnDefinitions="*,Auto" Margin="0,24,0,0">
+            <Button
+              Grid.Column="0"
+              Content="Dump"
+              Click="OnDumpClick"
+              HorizontalAlignment="Left"
+              FontFamily="{StaticResource MonoFont}"
+              FontSize="11"
+              Padding="12,3"
+              ToolTip.Tip="Dump (F4) — remove this PDC and lock the aircraft out for the session"
+            />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+              <Button
+                Content="Edit"
+                IsEnabled="False"
+                FontFamily="{StaticResource MonoFont}"
+                FontSize="11"
+                Padding="12,3"
+                ToolTip.Tip="Edit — parity placeholder; review a sent PDC by selecting it in the PDC list"
+              />
+              <Button
+                Content="Cancel"
+                Click="OnCancelClick"
+                FontFamily="{StaticResource MonoFont}"
+                FontSize="11"
+                Padding="12,3"
+                ToolTip.Tip="Cancel (F10) — close the editor"
+              />
+              <Button
+                Content="Send"
+                Command="{Binding SendCommand}"
+                IsEnabled="{Binding IsSendEnabled}"
+                IsVisible="{Binding IsEditable}"
+                FontFamily="{StaticResource MonoFont}"
+                FontSize="11"
+                FontWeight="Bold"
+                Padding="12,3"
+                ToolTip.Tip="Send (F12) — issue the PDC to the pilot"
+              />
             </StackPanel>
-        </Border>
+          </Grid>
+        </StackPanel>
+      </Border>
 
-        <!-- ── Footer: clearance-type status (left) + Ops Config menu + decorative status info + Zulu clock (right) ── -->
-        <Grid Grid.Row="4" ColumnDefinitions="*,Auto,Auto,Auto" Background="{DynamicResource VTdlsFooterBg}">
-            <SelectableTextBlock Grid.Column="0"
-                                 x:Name="FooterStatus"
-                                 Classes="footer-status"
-                                 Classes.warning="{Binding IsFooterStatusWarning}"
-                                 Text="{Binding FooterStatusText}"
-                                 FontFamily="{StaticResource MonoFont}"
-                                 FontSize="11"
-                                 VerticalAlignment="Center"
-                                 Margin="8,0"/>
-            <!-- Ops Config menu — upstream renders it in the footer only "when enabled",
+      <!-- ── Footer: clearance-type status (left) + Ops Config menu + decorative status info + Zulu clock (right) ── -->
+      <Grid Grid.Row="4" ColumnDefinitions="*,Auto,Auto,Auto" Background="{DynamicResource VTdlsFooterBg}">
+        <SelectableTextBlock
+          Grid.Column="0"
+          x:Name="FooterStatus"
+          Classes="footer-status"
+          Classes.warning="{Binding IsFooterStatusWarning}"
+          Text="{Binding FooterStatusText}"
+          FontFamily="{StaticResource MonoFont}"
+          FontSize="11"
+          VerticalAlignment="Center"
+          Margin="8,0"
+        />
+        <!-- Ops Config menu — upstream renders it in the footer only "when enabled",
                  as a teal "Ops Config: <name>" button that opens a small Save/Cancel
                  dialog (docs/vtdls/img/opsconfig.png). -->
-            <Button Grid.Column="1"
-                    x:Name="OpsConfigButton"
-                    IsVisible="{Binding AreOpConfigsEnabled}"
-                    Content="{Binding ActiveOpConfigName, StringFormat='Ops Config: \{0\}'}"
-                    Margin="0,1,12,1"
-                    Padding="8,0"
-                    Background="#1ec5c5"
-                    Foreground="Black"
-                    BorderBrush="Black"
-                    BorderThickness="1"
-                    FontFamily="{StaticResource MonoFont}"
-                    FontSize="11"
-                    FontWeight="Bold"
-                    ToolTip.Tip="Change the active DCL operational configuration for this facility"
-                    Click="OnOpsConfigButtonClick"/>
-            <TextBlock Grid.Column="2"
-                       Text="PDC ADR SUPR: ALWAYS    CAF: ON    PDC AUTO: OFF    CPDLC AUTO: OFF"
-                       FontFamily="{StaticResource MonoFont}"
-                       FontSize="11"
-                       VerticalAlignment="Center"
-                       Margin="0,0,12,0"
-                       Foreground="{DynamicResource VTdlsFooterFg}"/>
-            <TextBlock Grid.Column="3"
-                       x:Name="FooterZuluClock"
-                       FontFamily="{StaticResource MonoFont}"
-                       FontSize="11"
-                       FontWeight="Bold"
-                       VerticalAlignment="Center"
-                       Margin="0,0,10,0"
-                       Foreground="{DynamicResource VTdlsFooterFg}"/>
-        </Grid>
+        <Button
+          Grid.Column="1"
+          x:Name="OpsConfigButton"
+          IsVisible="{Binding AreOpConfigsEnabled}"
+          Content="{Binding ActiveOpConfigName, StringFormat='Ops Config: \{0\}'}"
+          Margin="0,1,12,1"
+          Padding="8,0"
+          Background="#1ec5c5"
+          Foreground="Black"
+          BorderBrush="Black"
+          BorderThickness="1"
+          FontFamily="{StaticResource MonoFont}"
+          FontSize="11"
+          FontWeight="Bold"
+          ToolTip.Tip="Change the active DCL operational configuration for this facility"
+          Click="OnOpsConfigButtonClick"
+        />
+        <TextBlock
+          Grid.Column="2"
+          Text="PDC ADR SUPR: ALWAYS    CAF: ON    PDC AUTO: OFF    CPDLC AUTO: OFF"
+          FontFamily="{StaticResource MonoFont}"
+          FontSize="11"
+          VerticalAlignment="Center"
+          Margin="0,0,12,0"
+          Foreground="{DynamicResource VTdlsFooterFg}"
+        />
+        <TextBlock
+          Grid.Column="3"
+          x:Name="FooterZuluClock"
+          FontFamily="{StaticResource MonoFont}"
+          FontSize="11"
+          FontWeight="Bold"
+          VerticalAlignment="Center"
+          Margin="0,0,10,0"
+          Foreground="{DynamicResource VTdlsFooterFg}"
+        />
+      </Grid>
 
-        <!-- Shared in-view Find bar overlay (Ctrl+F). DataContext wired in code-behind;
+      <!-- Shared in-view Find bar overlay (Ctrl+F). DataContext wired in code-behind;
              floats top-right over the DCL/PDC lists. -->
-        <find:FindBarView x:Name="FindBar" Grid.Row="1" Grid.RowSpan="2"/>
+      <find:FindBarView x:Name="FindBar" Grid.Row="1" Grid.RowSpan="2" />
 
-        <!-- Disconnected banner — covers everything when offline. -->
-        <Border Grid.Row="0" Grid.RowSpan="5"
-                Background="#cc992020"
-                BorderBrush="#cc4040"
-                BorderThickness="0,0,0,1"
-                ZIndex="999"
-                IsHitTestVisible="False"
-                IsVisible="{Binding !IsConnected}">
-            <TextBlock Text="DISCONNECTED — read-only until reconnect"
-                       Foreground="White"
-                       FontFamily="{StaticResource MonoFont}"
-                       FontWeight="Bold"
-                       FontSize="14"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       Padding="8,4"/>
-        </Border>
+      <!-- Disconnected banner — covers everything when offline. -->
+      <Border
+        Grid.Row="0"
+        Grid.RowSpan="5"
+        Background="#cc992020"
+        BorderBrush="#cc4040"
+        BorderThickness="0,0,0,1"
+        ZIndex="999"
+        IsHitTestVisible="False"
+        IsVisible="{Binding !IsConnected}"
+      >
+        <TextBlock
+          Text="DISCONNECTED — read-only until reconnect"
+          Foreground="White"
+          FontFamily="{StaticResource MonoFont}"
+          FontWeight="Bold"
+          FontSize="14"
+          HorizontalAlignment="Center"
+          VerticalAlignment="Center"
+          Padding="8,4"
+        />
+      </Border>
     </Grid>
-    </LayoutTransformControl>
+  </LayoutTransformControl>
 </UserControl>

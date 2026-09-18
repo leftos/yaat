@@ -1,175 +1,176 @@
-<UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:Yaat.Client.ViewModels"
-             x:Class="Yaat.Client.Views.VStrips.FlightStripControl"
-             x:DataType="vm:StripItemViewModel"
-             x:CompileBindings="True"
-             Focusable="False"
-             Background="Transparent">
-
-    <UserControl.Styles>
-        <!-- Suppress Avalonia's built-in TextBox cut/copy/paste flyout on
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels"
+  x:Class="Yaat.Client.Views.VStrips.FlightStripControl"
+  x:DataType="vm:StripItemViewModel"
+  x:CompileBindings="True"
+  Focusable="False"
+  Background="Transparent"
+>
+  <UserControl.Styles>
+    <!-- Suppress Avalonia's built-in TextBox cut/copy/paste flyout on
              every inline-edit cell. Right-click on a strip belongs to the
              strip context menu (delete / push / etc.), not to text editing —
              the duplicate flyout would overlap the strip menu and
              intercept Delete clicks. Applied via a shared selector so all
              three cell variants opt out. -->
-        <Style Selector="TextBox.annotation, TextBox.halfcell, TextBox.sep">
-            <Setter Property="ContextMenu" Value="{x:Null}"/>
-            <Setter Property="ContextFlyout" Value="{x:Null}"/>
-        </Style>
-        <!-- Flat-styled annotation TextBox. Looks like a TextBlock until the
+    <Style Selector="TextBox.annotation, TextBox.halfcell, TextBox.sep">
+      <Setter Property="ContextMenu" Value="{x:Null}" />
+      <Setter Property="ContextFlyout" Value="{x:Null}" />
+    </Style>
+    <!-- Flat-styled annotation TextBox. Looks like a TextBlock until the
              user clicks it (then the caret appears). No border / padding /
              background so the strip cell border provides the only chrome.
              Tag carries the canonical annotation slot id which the commit
              handler (OnAnnotationTextLostFocus / KeyDown) passes to
              VStripsViewModel.AnnotateAsync. -->
-        <Style Selector="TextBox.annotation">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="BorderBrush" Value="Transparent"/>
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="MinHeight" Value="0"/>
-            <Setter Property="FontFamily" Value="{StaticResource StripScriptFont}"/>
-            <Setter Property="FontStyle" Value="Italic"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="FontSize" Value="15"/>
-            <Setter Property="Foreground" Value="{StaticResource StripPrintedBrush}"/>
-            <Setter Property="CaretBrush" Value="{StaticResource StripPrintedBrush}"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-        </Style>
-        <!-- Avalonia's Fluent theme re-applies a solid dark Background /
+    <Style Selector="TextBox.annotation">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="FontFamily" Value="{StaticResource StripScriptFont}" />
+      <Setter Property="FontStyle" Value="Italic" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="FontSize" Value="15" />
+      <Setter Property="Foreground" Value="{StaticResource StripPrintedBrush}" />
+      <Setter Property="CaretBrush" Value="{StaticResource StripPrintedBrush}" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <!-- Avalonia's Fluent theme re-applies a solid dark Background /
              BorderBrush on the template's PART_BorderElement in :pointerover,
              :focus, and :focus-within states. Override all three so the
              annotation cell stays visually flat (transparent background,
              zero border) — the caret is the only edit-state cue. -->
-        <Style Selector="TextBox.annotation /template/ Border#PART_BorderElement">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-        </Style>
-        <Style Selector="TextBox.annotation:pointerover /template/ Border#PART_BorderElement">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-        </Style>
-        <Style Selector="TextBox.annotation:focus /template/ Border#PART_BorderElement">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-        </Style>
-        <Style Selector="TextBox.annotation:focus-within /template/ Border#PART_BorderElement">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-        </Style>
-        <!-- Text stays the CRC printed color in every state; the Fluent theme's
+    <Style Selector="TextBox.annotation /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="TextBox.annotation:pointerover /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="TextBox.annotation:focus /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="TextBox.annotation:focus-within /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <!-- Text stays the CRC printed color in every state; the Fluent theme's
              focus-state Foreground override would otherwise swap it to white. -->
-        <Style Selector="TextBox.annotation:focus">
-            <Setter Property="Foreground" Value="{StaticResource StripPrintedBrush}"/>
-        </Style>
-        <Style Selector="TextBox.annotation:pointerover">
-            <Setter Property="Foreground" Value="{StaticResource StripPrintedBrush}"/>
-        </Style>
-        <!-- 3×3 grid cells center their text per CRC. -->
-        <Style Selector="TextBox.annotation.grid">
-            <Setter Property="HorizontalContentAlignment" Value="Center"/>
-            <Setter Property="TextAlignment" Value="Center"/>
-        </Style>
-        <!-- 8a / 8b col-3 slots left-align their text. -->
-        <Style Selector="TextBox.annotation.col3">
-            <Setter Property="HorizontalContentAlignment" Value="Left"/>
-            <Setter Property="TextAlignment" Value="Left"/>
-        </Style>
-        <!-- Half-strip cell grid: same flat-on-cream look as the annotation
+    <Style Selector="TextBox.annotation:focus">
+      <Setter Property="Foreground" Value="{StaticResource StripPrintedBrush}" />
+    </Style>
+    <Style Selector="TextBox.annotation:pointerover">
+      <Setter Property="Foreground" Value="{StaticResource StripPrintedBrush}" />
+    </Style>
+    <!-- 3×3 grid cells center their text per CRC. -->
+    <Style Selector="TextBox.annotation.grid">
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="TextAlignment" Value="Center" />
+    </Style>
+    <!-- 8a / 8b col-3 slots left-align their text. -->
+    <Style Selector="TextBox.annotation.col3">
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="TextAlignment" Value="Left" />
+    </Style>
+    <!-- Half-strip cell grid: same flat-on-cream look as the annotation
              boxes, with thin borders between cells. The grid is 3 rows × 2
              cols; cells are tagged "h0".."h5" so the code-behind can resolve
              the slot index for the HSA dispatch and Tab navigation. -->
-        <Style Selector="TextBox.halfcell">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0,0,1,1"/>
-            <Setter Property="BorderBrush" Value="{StaticResource StripBorderBrush}"/>
-            <Setter Property="Padding" Value="3,1"/>
-            <Setter Property="MinHeight" Value="0"/>
-            <Setter Property="FontFamily" Value="{StaticResource StripScriptFont}"/>
-            <Setter Property="FontStyle" Value="Italic"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Foreground" Value="{StaticResource StripPrintedBrush}"/>
-            <Setter Property="CaretBrush" Value="{StaticResource StripPrintedBrush}"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="HorizontalContentAlignment" Value="Left"/>
-            <Setter Property="TextAlignment" Value="Left"/>
-        </Style>
-        <Style Selector="TextBox.halfcell /template/ Border#PART_BorderElement">
-            <Setter Property="Background" Value="Transparent"/>
-        </Style>
-        <Style Selector="TextBox.halfcell:pointerover /template/ Border#PART_BorderElement">
-            <Setter Property="Background" Value="Transparent"/>
-        </Style>
-        <Style Selector="TextBox.halfcell:focus /template/ Border#PART_BorderElement">
-            <Setter Property="Background" Value="Transparent"/>
-        </Style>
-        <Style Selector="TextBox.halfcell:focus-within /template/ Border#PART_BorderElement">
-            <Setter Property="Background" Value="Transparent"/>
-        </Style>
-        <Style Selector="TextBox.halfcell:focus">
-            <Setter Property="Foreground" Value="{StaticResource StripPrintedBrush}"/>
-        </Style>
-        <Style Selector="TextBox.halfcell:pointerover">
-            <Setter Property="Foreground" Value="{StaticResource StripPrintedBrush}"/>
-        </Style>
-        <!-- Separator label TextBox: a single line centered across the
+    <Style Selector="TextBox.halfcell">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0,0,1,1" />
+      <Setter Property="BorderBrush" Value="{StaticResource StripBorderBrush}" />
+      <Setter Property="Padding" Value="3,1" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="FontFamily" Value="{StaticResource StripScriptFont}" />
+      <Setter Property="FontStyle" Value="Italic" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Foreground" Value="{StaticResource StripPrintedBrush}" />
+      <Setter Property="CaretBrush" Value="{StaticResource StripPrintedBrush}" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="TextAlignment" Value="Left" />
+    </Style>
+    <Style Selector="TextBox.halfcell /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="TextBox.halfcell:pointerover /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="TextBox.halfcell:focus /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="TextBox.halfcell:focus-within /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="TextBox.halfcell:focus">
+      <Setter Property="Foreground" Value="{StaticResource StripPrintedBrush}" />
+    </Style>
+    <Style Selector="TextBox.halfcell:pointerover">
+      <Setter Property="Foreground" Value="{StaticResource StripPrintedBrush}" />
+    </Style>
+    <!-- Separator label TextBox: a single line centered across the
              full-height colored band. Background and border come from the
              Border the TextBox lives inside; only the text foreground /
              caret color depends on the style variant (dark text on white
              backgrounds, light text on red/green). -->
-        <Style Selector="TextBox.sep">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="BorderBrush" Value="Transparent"/>
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="MinHeight" Value="0"/>
-            <Setter Property="FontFamily" Value="{StaticResource MonoFont}"/>
-            <Setter Property="FontSize" Value="32"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="HorizontalContentAlignment" Value="Center"/>
-            <Setter Property="TextAlignment" Value="Center"/>
-        </Style>
-        <Style Selector="TextBox.sep.sep-script">
-            <Setter Property="FontFamily" Value="{StaticResource StripScriptFont}"/>
-            <Setter Property="FontStyle" Value="Italic"/>
-        </Style>
-        <Style Selector="TextBox.sep.sep-dark">
-            <Setter Property="Foreground" Value="{StaticResource StripPrintedBrush}"/>
-            <Setter Property="CaretBrush" Value="{StaticResource StripPrintedBrush}"/>
-        </Style>
-        <Style Selector="TextBox.sep.sep-light">
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="CaretBrush" Value="White"/>
-        </Style>
-        <Style Selector="TextBox.sep /template/ Border#PART_BorderElement">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-        </Style>
-        <Style Selector="TextBox.sep:pointerover /template/ Border#PART_BorderElement">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-        </Style>
-        <Style Selector="TextBox.sep:focus /template/ Border#PART_BorderElement">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-        </Style>
-        <Style Selector="TextBox.sep:focus-within /template/ Border#PART_BorderElement">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-        </Style>
-        <Style Selector="TextBox.sep.sep-dark:focus">
-            <Setter Property="Foreground" Value="{StaticResource StripPrintedBrush}"/>
-        </Style>
-        <Style Selector="TextBox.sep.sep-light:focus">
-            <Setter Property="Foreground" Value="White"/>
-        </Style>
-    </UserControl.Styles>
+    <Style Selector="TextBox.sep">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+      <Setter Property="FontSize" Value="32" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="TextAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBox.sep.sep-script">
+      <Setter Property="FontFamily" Value="{StaticResource StripScriptFont}" />
+      <Setter Property="FontStyle" Value="Italic" />
+    </Style>
+    <Style Selector="TextBox.sep.sep-dark">
+      <Setter Property="Foreground" Value="{StaticResource StripPrintedBrush}" />
+      <Setter Property="CaretBrush" Value="{StaticResource StripPrintedBrush}" />
+    </Style>
+    <Style Selector="TextBox.sep.sep-light">
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="CaretBrush" Value="White" />
+    </Style>
+    <Style Selector="TextBox.sep /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="TextBox.sep:pointerover /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="TextBox.sep:focus /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="TextBox.sep:focus-within /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="TextBox.sep.sep-dark:focus">
+      <Setter Property="Foreground" Value="{StaticResource StripPrintedBrush}" />
+    </Style>
+    <Style Selector="TextBox.sep.sep-light:focus">
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+  </UserControl.Styles>
 
-    <!-- CRC vStrips visual parity:
+  <!-- CRC vStrips visual parity:
          Reference is docs/crc/img/printer.png (DAL713 strip — the red number
          labels in docs/crc/img/departure-strip.png and arrival-strip.png are
          documentation overlays, not rendered).
@@ -190,108 +191,122 @@
          (MaxLines=2) and remarks anchor row 3. With no remarks the route
          wraps across all 3 rows (MaxLines=3).
          All printed text is bold for legibility at controller-desk distance. -->
-    <Border x:Name="StripRoot"
-            Background="{StaticResource StripCellBrush}"
-            BorderBrush="{StaticResource StripBorderBrush}"
-            BorderThickness="1"
-            Margin="1,1,1,0">
-        <Grid>
-            <Grid x:Name="FullStripGrid"
-                  IsVisible="{Binding IsFullStrip}"
-                  Width="535"
-                  ClipToBounds="False"
-                  RowDefinitions="28,23,23"
-                  ColumnDefinitions="118,46,90,*,32,32,33">
-
-                <!-- Column 1, row 1: callsign (top) + revision (bottom-small).
+  <Border
+    x:Name="StripRoot"
+    Background="{StaticResource StripCellBrush}"
+    BorderBrush="{StaticResource StripBorderBrush}"
+    BorderThickness="1"
+    Margin="1,1,1,0"
+  >
+    <Grid>
+      <Grid
+        x:Name="FullStripGrid"
+        IsVisible="{Binding IsFullStrip}"
+        Width="535"
+        ClipToBounds="False"
+        RowDefinitions="28,23,23"
+        ColumnDefinitions="118,46,90,*,32,32,33"
+      >
+        <!-- Column 1, row 1: callsign (top) + revision (bottom-small).
                      DockPanel stacks them so both fit inside a single row. -->
-                <Border Grid.Row="0" Grid.Column="0"
-                        BorderBrush="{StaticResource StripBorderBrush}"
-                        BorderThickness="0,0,1,0" Padding="4,0">
-                    <DockPanel LastChildFill="True">
-                        <TextBlock DockPanel.Dock="Bottom"
-                                   Text="{Binding Revision}"
-                                   FontFamily="{StaticResource MonoFont}"
-                                   FontSize="8" FontWeight="Bold"
-                                   Margin="0,0,0,1"
-                                   Foreground="{StaticResource StripPrintedBrush}"/>
-                        <TextBlock Text="{Binding AircraftIdField}"
-                                   FontFamily="{StaticResource MonoFont}"
-                                   FontSize="13" FontWeight="Bold"
-                                   VerticalAlignment="Top"
-                                   Margin="0,1,0,0"
-                                   Foreground="{StaticResource StripPrintedBrush}"/>
-                    </DockPanel>
-                </Border>
-                <!-- Column 1, row 2: aircraft type (equipment field). -->
-                <Border Grid.Row="1" Grid.Column="0"
-                        BorderBrush="{StaticResource StripBorderBrush}"
-                        BorderThickness="0,0,1,0" Padding="4,0">
-                    <TextBlock Text="{Binding Equipment}"
-                               FontFamily="{StaticResource MonoFont}"
-                               FontSize="13" FontWeight="Bold"
-                               VerticalAlignment="Center"
-                               Foreground="{StaticResource StripPrintedBrush}"/>
-                </Border>
-                <!-- Column 1, row 3: CID + barcode side-by-side. -->
-                <Border Grid.Row="2" Grid.Column="0"
-                        BorderBrush="{StaticResource StripBorderBrush}"
-                        BorderThickness="0,0,1,0" Padding="4,0">
-                    <Grid ColumnDefinitions="Auto,*">
-                        <TextBlock Grid.Column="0"
-                                   Text="{Binding Cid}"
-                                   FontFamily="{StaticResource MonoFont}"
-                                   FontSize="13" FontWeight="Bold"
-                                   VerticalAlignment="Center"
-                                   Foreground="{StaticResource StripPrintedBrush}"/>
-                        <Canvas x:Name="BarcodeCanvas"
-                                Grid.Column="1"
-                                Height="16"
-                                Margin="4,0,0,0"
-                                HorizontalAlignment="Stretch"
-                                VerticalAlignment="Center"/>
-                    </Grid>
-                </Border>
+        <Border Grid.Row="0" Grid.Column="0" BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="0,0,1,0" Padding="4,0">
+          <DockPanel LastChildFill="True">
+            <TextBlock
+              DockPanel.Dock="Bottom"
+              Text="{Binding Revision}"
+              FontFamily="{StaticResource MonoFont}"
+              FontSize="8"
+              FontWeight="Bold"
+              Margin="0,0,0,1"
+              Foreground="{StaticResource StripPrintedBrush}"
+            />
+            <TextBlock
+              Text="{Binding AircraftIdField}"
+              FontFamily="{StaticResource MonoFont}"
+              FontSize="13"
+              FontWeight="Bold"
+              VerticalAlignment="Top"
+              Margin="0,1,0,0"
+              Foreground="{StaticResource StripPrintedBrush}"
+            />
+          </DockPanel>
+        </Border>
+        <!-- Column 1, row 2: aircraft type (equipment field). -->
+        <Border Grid.Row="1" Grid.Column="0" BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="0,0,1,0" Padding="4,0">
+          <TextBlock
+            Text="{Binding Equipment}"
+            FontFamily="{StaticResource MonoFont}"
+            FontSize="13"
+            FontWeight="Bold"
+            VerticalAlignment="Center"
+            Foreground="{StaticResource StripPrintedBrush}"
+          />
+        </Border>
+        <!-- Column 1, row 3: CID + barcode side-by-side. -->
+        <Border Grid.Row="2" Grid.Column="0" BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="0,0,1,0" Padding="4,0">
+          <Grid ColumnDefinitions="Auto,*">
+            <TextBlock
+              Grid.Column="0"
+              Text="{Binding Cid}"
+              FontFamily="{StaticResource MonoFont}"
+              FontSize="13"
+              FontWeight="Bold"
+              VerticalAlignment="Center"
+              Foreground="{StaticResource StripPrintedBrush}"
+            />
+            <Canvas x:Name="BarcodeCanvas" Grid.Column="1" Height="16" Margin="4,0,0,0" HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+          </Grid>
+        </Border>
 
-                <!-- Column 2: beacon / prop-dep / requested altitude. PropDep
+        <!-- Column 2: beacon / prop-dep / requested altitude. PropDep
                      already comes out of the VM with the "P" prefix. -->
-                <Border Grid.Row="0" Grid.Column="1"
-                        BorderBrush="{StaticResource StripBorderBrush}"
-                        BorderThickness="0,0,1,0" Padding="4,0">
-                    <TextBlock Text="{Binding BeaconCode}"
-                               FontFamily="{StaticResource MonoFont}"
-                               FontSize="13" FontWeight="Bold"
-                               VerticalAlignment="Center"
-                               Foreground="{StaticResource StripPrintedBrush}"/>
-                </Border>
-                <Border Grid.Row="1" Grid.Column="1"
-                        BorderBrush="{StaticResource StripBorderBrush}"
-                        BorderThickness="0,0,1,0" Padding="4,0">
-                    <TextBlock Text="{Binding PropDep}"
-                               FontFamily="{StaticResource MonoFont}"
-                               FontSize="13" FontWeight="Bold"
-                               VerticalAlignment="Center"
-                               Foreground="{StaticResource StripPrintedBrush}"/>
-                </Border>
-                <!-- Requested altitude — Canvas wrapper measures the TextBlock
+        <Border Grid.Row="0" Grid.Column="1" BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="0,0,1,0" Padding="4,0">
+          <TextBlock
+            Text="{Binding BeaconCode}"
+            FontFamily="{StaticResource MonoFont}"
+            FontSize="13"
+            FontWeight="Bold"
+            VerticalAlignment="Center"
+            Foreground="{StaticResource StripPrintedBrush}"
+          />
+        </Border>
+        <Border Grid.Row="1" Grid.Column="1" BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="0,0,1,0" Padding="4,0">
+          <TextBlock
+            Text="{Binding PropDep}"
+            FontFamily="{StaticResource MonoFont}"
+            FontSize="13"
+            FontWeight="Bold"
+            VerticalAlignment="Center"
+            Foreground="{StaticResource StripPrintedBrush}"
+          />
+        </Border>
+        <!-- Requested altitude — Canvas wrapper measures the TextBlock
                      with infinite width so "VFR/110" and similar strings spill
                      rightward into the col-3 area instead of clipping at the
                      46px column edge. Canvas.Top centers the 13pt line within
                      the 23px row height (Canvas children ignore VerticalAlignment). -->
-                <Border Grid.Row="2" Grid.Column="1"
-                        BorderBrush="{StaticResource StripBorderBrush}"
-                        BorderThickness="0,0,1,0" Padding="4,0"
-                        ClipToBounds="False">
-                    <Canvas ClipToBounds="False">
-                        <TextBlock Canvas.Left="0" Canvas.Top="3"
-                                   Text="{Binding ReqAltitude}"
-                                   FontFamily="{StaticResource MonoFont}"
-                                   FontSize="13" FontWeight="Bold"
-                                   Foreground="{StaticResource StripPrintedBrush}"/>
-                    </Canvas>
-                </Border>
+        <Border
+          Grid.Row="2"
+          Grid.Column="1"
+          BorderBrush="{StaticResource StripBorderBrush}"
+          BorderThickness="0,0,1,0"
+          Padding="4,0"
+          ClipToBounds="False"
+        >
+          <Canvas ClipToBounds="False">
+            <TextBlock
+              Canvas.Left="0"
+              Canvas.Top="3"
+              Text="{Binding ReqAltitude}"
+              FontFamily="{StaticResource MonoFont}"
+              FontSize="13"
+              FontWeight="Bold"
+              Foreground="{StaticResource StripPrintedBrush}"
+            />
+          </Canvas>
+        </Border>
 
-                <!-- Column 3 row 1: field 8 packs "KOAK KSTS" (dep + optional
+        <!-- Column 3 row 1: field 8 packs "KOAK KSTS" (dep + optional
                      destination, space-separated) per
                      StripMutations.BuildDepartureStripFields. A strip without a
                      destination shows just the departure.
@@ -299,340 +314,454 @@
                      editable like the 3×3 grid but left-aligned per CRC
                      vstrips convention. Tag "8a"/"8b" drives the click-to-edit
                      dispatch in VStripsView / FlightStripControl. -->
-                <Border Grid.Row="0" Grid.Column="2"
-                        BorderBrush="{StaticResource StripBorderBrush}"
-                        BorderThickness="0,0,1,0" Padding="4,0">
-                    <TextBlock Text="{Binding Field8A}"
-                               FontFamily="{StaticResource MonoFont}"
-                               FontSize="13" FontWeight="Bold"
-                               VerticalAlignment="Center"
-                               Foreground="{StaticResource StripPrintedBrush}"/>
-                </Border>
-                <Border Grid.Row="1" Grid.Column="2"
-                        BorderBrush="{StaticResource StripBorderBrush}"
-                        BorderThickness="0,0,1,0" Padding="4,0">
-                    <TextBox Classes="annotation col3" Tag="8a"
-                             Text="{Binding Annotation8A, Mode=OneWay}"
-                             TextChanged="OnAnnotationTextChanged"
-                             LostFocus="OnAnnotationLostFocus"
-                             KeyDown="OnAnnotationKeyDown"/>
-                </Border>
-                <Border Grid.Row="2" Grid.Column="2"
-                        BorderBrush="{StaticResource StripBorderBrush}"
-                        BorderThickness="0,0,1,0" Padding="4,0">
-                    <TextBox Classes="annotation col3" Tag="8b"
-                             Text="{Binding Annotation8B, Mode=OneWay}"
-                             TextChanged="OnAnnotationTextChanged"
-                             LostFocus="OnAnnotationLostFocus"
-                             KeyDown="OnAnnotationKeyDown"/>
-                </Border>
+        <Border Grid.Row="0" Grid.Column="2" BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="0,0,1,0" Padding="4,0">
+          <TextBlock
+            Text="{Binding Field8A}"
+            FontFamily="{StaticResource MonoFont}"
+            FontSize="13"
+            FontWeight="Bold"
+            VerticalAlignment="Center"
+            Foreground="{StaticResource StripPrintedBrush}"
+          />
+        </Border>
+        <Border Grid.Row="1" Grid.Column="2" BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="0,0,1,0" Padding="4,0">
+          <TextBox
+            Classes="annotation col3"
+            Tag="8a"
+            Text="{Binding Annotation8A, Mode=OneWay}"
+            TextChanged="OnAnnotationTextChanged"
+            LostFocus="OnAnnotationLostFocus"
+            KeyDown="OnAnnotationKeyDown"
+          />
+        </Border>
+        <Border Grid.Row="2" Grid.Column="2" BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="0,0,1,0" Padding="4,0">
+          <TextBox
+            Classes="annotation col3"
+            Tag="8b"
+            Text="{Binding Annotation8B, Mode=OneWay}"
+            TextChanged="OnAnnotationTextChanged"
+            LostFocus="OnAnnotationLostFocus"
+            KeyDown="OnAnnotationKeyDown"
+          />
+        </Border>
 
-                <!-- Column 4 path A: no remarks — route wraps across all 3 rows
+        <!-- Column 4 path A: no remarks — route wraps across all 3 rows
                      with MaxLines=3. Single TextBlock; code-behind
                      FitRouteBlock owns block.Text so it can middle-truncate
                      with "***" when the full "DEP … DEST" string overflows.
                      NOTE: no Text binding — binding would race FitRouteBlock
                      and intermittently restore the untrimmed text. -->
-                <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="3"
-                        BorderBrush="{StaticResource StripBorderBrush}"
-                        BorderThickness="0,0,1,0" Padding="6,2"
-                        IsVisible="{Binding !HasRemarks}">
-                    <TextBlock x:Name="RouteBlockNoRemarks"
-                               FontFamily="{StaticResource MonoFont}"
-                               FontSize="12" FontWeight="Bold"
-                               TextWrapping="Wrap"
-                               MaxLines="3"
-                               LineHeight="22"
-                               VerticalAlignment="Top"
-                               Foreground="{StaticResource StripPrintedBrush}"
-                               SizeChanged="OnRouteBlockSizeChanged"/>
-                </Border>
+        <Border
+          Grid.Row="0"
+          Grid.RowSpan="3"
+          Grid.Column="3"
+          BorderBrush="{StaticResource StripBorderBrush}"
+          BorderThickness="0,0,1,0"
+          Padding="6,2"
+          IsVisible="{Binding !HasRemarks}"
+        >
+          <TextBlock
+            x:Name="RouteBlockNoRemarks"
+            FontFamily="{StaticResource MonoFont}"
+            FontSize="12"
+            FontWeight="Bold"
+            TextWrapping="Wrap"
+            MaxLines="3"
+            LineHeight="22"
+            VerticalAlignment="Top"
+            Foreground="{StaticResource StripPrintedBrush}"
+            SizeChanged="OnRouteBlockSizeChanged"
+          />
+        </Border>
 
-                <!-- Column 4 path B: remarks present — route wraps rows 1-2
+        <!-- Column 4 path B: remarks present — route wraps rows 1-2
                      (MaxLines=2), remarks anchor row 3. Same middle-trim
                      pass applies; destination stays pinned at the last line. -->
-                <Border Grid.Row="0" Grid.RowSpan="2" Grid.Column="3"
-                        BorderBrush="{StaticResource StripBorderBrush}"
-                        BorderThickness="0,0,1,0" Padding="6,2,6,0"
-                        IsVisible="{Binding HasRemarks}">
-                    <TextBlock x:Name="RouteBlockWithRemarks"
-                               FontFamily="{StaticResource MonoFont}"
-                               FontSize="12" FontWeight="Bold"
-                               TextWrapping="Wrap"
-                               MaxLines="2"
-                               LineHeight="22"
-                               VerticalAlignment="Top"
-                               Foreground="{StaticResource StripPrintedBrush}"
-                               SizeChanged="OnRouteBlockSizeChanged"/>
-                </Border>
-                <Border Grid.Row="2" Grid.Column="3"
-                        BorderBrush="{StaticResource StripBorderBrush}"
-                        BorderThickness="0,0,1,0" Padding="6,0,6,2"
-                        IsVisible="{Binding HasRemarks}">
-                    <TextBlock Text="{Binding Remarks}"
-                               FontFamily="{StaticResource MonoFont}"
-                               FontSize="12" FontWeight="Bold"
-                               TextWrapping="NoWrap"
-                               TextTrimming="CharacterEllipsis"
-                               VerticalAlignment="Center"
-                               Foreground="{StaticResource StripPrintedBrush}"/>
-                </Border>
+        <Border
+          Grid.Row="0"
+          Grid.RowSpan="2"
+          Grid.Column="3"
+          BorderBrush="{StaticResource StripBorderBrush}"
+          BorderThickness="0,0,1,0"
+          Padding="6,2,6,0"
+          IsVisible="{Binding HasRemarks}"
+        >
+          <TextBlock
+            x:Name="RouteBlockWithRemarks"
+            FontFamily="{StaticResource MonoFont}"
+            FontSize="12"
+            FontWeight="Bold"
+            TextWrapping="Wrap"
+            MaxLines="2"
+            LineHeight="22"
+            VerticalAlignment="Top"
+            Foreground="{StaticResource StripPrintedBrush}"
+            SizeChanged="OnRouteBlockSizeChanged"
+          />
+        </Border>
+        <Border
+          Grid.Row="2"
+          Grid.Column="3"
+          BorderBrush="{StaticResource StripBorderBrush}"
+          BorderThickness="0,0,1,0"
+          Padding="6,0,6,2"
+          IsVisible="{Binding HasRemarks}"
+        >
+          <TextBlock
+            Text="{Binding Remarks}"
+            FontFamily="{StaticResource MonoFont}"
+            FontSize="12"
+            FontWeight="Bold"
+            TextWrapping="NoWrap"
+            TextTrimming="CharacterEllipsis"
+            VerticalAlignment="Center"
+            Foreground="{StaticResource StripPrintedBrush}"
+          />
+        </Border>
 
-                <!-- Columns 5-7: 3×3 annotation grid. Each cell is a flat
+        <!-- Columns 5-7: 3×3 annotation grid. Each cell is a flat
                      TextBox with the canonical box number 1..9 in Tag. The
                      commit handlers (OnAnnotation*) on LostFocus / Enter
                      dispatch AN {Tag} {text} via VStripsViewModel.AnnotateAsync. -->
-                <Border Grid.Row="0" Grid.Column="4"
-                        BorderBrush="{StaticResource StripBorderBrush}"
-                        BorderThickness="0,0,1,1" Padding="2,0">
-                    <TextBox Classes="annotation grid" Tag="1"
-                             Text="{Binding Annotation10, Mode=OneWay}"
-                             TextChanged="OnAnnotationTextChanged"
-                             LostFocus="OnAnnotationLostFocus"
-                             KeyDown="OnAnnotationKeyDown"/>
-                </Border>
-                <Border Grid.Row="0" Grid.Column="5"
-                        BorderBrush="{StaticResource StripBorderBrush}"
-                        BorderThickness="0,0,1,1" Padding="2,0">
-                    <TextBox Classes="annotation grid" Tag="2"
-                             Text="{Binding Annotation11, Mode=OneWay}"
-                             TextChanged="OnAnnotationTextChanged"
-                             LostFocus="OnAnnotationLostFocus"
-                             KeyDown="OnAnnotationKeyDown"/>
-                </Border>
-                <Border Grid.Row="0" Grid.Column="6"
-                        BorderBrush="{StaticResource StripBorderBrush}"
-                        BorderThickness="0,0,0,1" Padding="2,0">
-                    <TextBox Classes="annotation grid" Tag="3"
-                             Text="{Binding Annotation12, Mode=OneWay}"
-                             TextChanged="OnAnnotationTextChanged"
-                             LostFocus="OnAnnotationLostFocus"
-                             KeyDown="OnAnnotationKeyDown"/>
-                </Border>
-                <Border Grid.Row="1" Grid.Column="4"
-                        BorderBrush="{StaticResource StripBorderBrush}"
-                        BorderThickness="0,0,1,1" Padding="2,0">
-                    <TextBox Classes="annotation grid" Tag="4"
-                             Text="{Binding Annotation13, Mode=OneWay}"
-                             TextChanged="OnAnnotationTextChanged"
-                             LostFocus="OnAnnotationLostFocus"
-                             KeyDown="OnAnnotationKeyDown"/>
-                </Border>
-                <Border Grid.Row="1" Grid.Column="5"
-                        BorderBrush="{StaticResource StripBorderBrush}"
-                        BorderThickness="0,0,1,1" Padding="2,0">
-                    <TextBox Classes="annotation grid" Tag="5"
-                             Text="{Binding Annotation14, Mode=OneWay}"
-                             TextChanged="OnAnnotationTextChanged"
-                             LostFocus="OnAnnotationLostFocus"
-                             KeyDown="OnAnnotationKeyDown"/>
-                </Border>
-                <Border Grid.Row="1" Grid.Column="6"
-                        BorderBrush="{StaticResource StripBorderBrush}"
-                        BorderThickness="0,0,0,1" Padding="2,0">
-                    <TextBox Classes="annotation grid" Tag="6"
-                             Text="{Binding Annotation15, Mode=OneWay}"
-                             TextChanged="OnAnnotationTextChanged"
-                             LostFocus="OnAnnotationLostFocus"
-                             KeyDown="OnAnnotationKeyDown"/>
-                </Border>
-                <Border Grid.Row="2" Grid.Column="4"
-                        BorderBrush="{StaticResource StripBorderBrush}"
-                        BorderThickness="0,0,1,0" Padding="2,0">
-                    <TextBox Classes="annotation grid" Tag="7"
-                             Text="{Binding Annotation16, Mode=OneWay}"
-                             TextChanged="OnAnnotationTextChanged"
-                             LostFocus="OnAnnotationLostFocus"
-                             KeyDown="OnAnnotationKeyDown"/>
-                </Border>
-                <Border Grid.Row="2" Grid.Column="5"
-                        BorderBrush="{StaticResource StripBorderBrush}"
-                        BorderThickness="0,0,1,0" Padding="2,0">
-                    <TextBox Classes="annotation grid" Tag="8"
-                             Text="{Binding Annotation17, Mode=OneWay}"
-                             TextChanged="OnAnnotationTextChanged"
-                             LostFocus="OnAnnotationLostFocus"
-                             KeyDown="OnAnnotationKeyDown"/>
-                </Border>
-                <Border Grid.Row="2" Grid.Column="6"
-                        Padding="2,0">
-                    <TextBox Classes="annotation grid" Tag="9"
-                             Text="{Binding Annotation18, Mode=OneWay}"
-                             TextChanged="OnAnnotationTextChanged"
-                             LostFocus="OnAnnotationLostFocus"
-                             KeyDown="OnAnnotationKeyDown"/>
-                </Border>
-            </Grid>
+        <Border Grid.Row="0" Grid.Column="4" BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="0,0,1,1" Padding="2,0">
+          <TextBox
+            Classes="annotation grid"
+            Tag="1"
+            Text="{Binding Annotation10, Mode=OneWay}"
+            TextChanged="OnAnnotationTextChanged"
+            LostFocus="OnAnnotationLostFocus"
+            KeyDown="OnAnnotationKeyDown"
+          />
+        </Border>
+        <Border Grid.Row="0" Grid.Column="5" BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="0,0,1,1" Padding="2,0">
+          <TextBox
+            Classes="annotation grid"
+            Tag="2"
+            Text="{Binding Annotation11, Mode=OneWay}"
+            TextChanged="OnAnnotationTextChanged"
+            LostFocus="OnAnnotationLostFocus"
+            KeyDown="OnAnnotationKeyDown"
+          />
+        </Border>
+        <Border Grid.Row="0" Grid.Column="6" BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="0,0,0,1" Padding="2,0">
+          <TextBox
+            Classes="annotation grid"
+            Tag="3"
+            Text="{Binding Annotation12, Mode=OneWay}"
+            TextChanged="OnAnnotationTextChanged"
+            LostFocus="OnAnnotationLostFocus"
+            KeyDown="OnAnnotationKeyDown"
+          />
+        </Border>
+        <Border Grid.Row="1" Grid.Column="4" BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="0,0,1,1" Padding="2,0">
+          <TextBox
+            Classes="annotation grid"
+            Tag="4"
+            Text="{Binding Annotation13, Mode=OneWay}"
+            TextChanged="OnAnnotationTextChanged"
+            LostFocus="OnAnnotationLostFocus"
+            KeyDown="OnAnnotationKeyDown"
+          />
+        </Border>
+        <Border Grid.Row="1" Grid.Column="5" BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="0,0,1,1" Padding="2,0">
+          <TextBox
+            Classes="annotation grid"
+            Tag="5"
+            Text="{Binding Annotation14, Mode=OneWay}"
+            TextChanged="OnAnnotationTextChanged"
+            LostFocus="OnAnnotationLostFocus"
+            KeyDown="OnAnnotationKeyDown"
+          />
+        </Border>
+        <Border Grid.Row="1" Grid.Column="6" BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="0,0,0,1" Padding="2,0">
+          <TextBox
+            Classes="annotation grid"
+            Tag="6"
+            Text="{Binding Annotation15, Mode=OneWay}"
+            TextChanged="OnAnnotationTextChanged"
+            LostFocus="OnAnnotationLostFocus"
+            KeyDown="OnAnnotationKeyDown"
+          />
+        </Border>
+        <Border Grid.Row="2" Grid.Column="4" BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="0,0,1,0" Padding="2,0">
+          <TextBox
+            Classes="annotation grid"
+            Tag="7"
+            Text="{Binding Annotation16, Mode=OneWay}"
+            TextChanged="OnAnnotationTextChanged"
+            LostFocus="OnAnnotationLostFocus"
+            KeyDown="OnAnnotationKeyDown"
+          />
+        </Border>
+        <Border Grid.Row="2" Grid.Column="5" BorderBrush="{StaticResource StripBorderBrush}" BorderThickness="0,0,1,0" Padding="2,0">
+          <TextBox
+            Classes="annotation grid"
+            Tag="8"
+            Text="{Binding Annotation17, Mode=OneWay}"
+            TextChanged="OnAnnotationTextChanged"
+            LostFocus="OnAnnotationLostFocus"
+            KeyDown="OnAnnotationKeyDown"
+          />
+        </Border>
+        <Border Grid.Row="2" Grid.Column="6" Padding="2,0">
+          <TextBox
+            Classes="annotation grid"
+            Tag="9"
+            Text="{Binding Annotation18, Mode=OneWay}"
+            TextChanged="OnAnnotationTextChanged"
+            LostFocus="OnAnnotationLostFocus"
+            KeyDown="OnAnnotationKeyDown"
+          />
+        </Border>
+      </Grid>
 
-            <!-- Half-strip: narrow cream tile with the opposite side rendered
+      <!-- Half-strip: narrow cream tile with the opposite side rendered
                  as a grey drop-zone (docs/crc/img/half-strip.png). The cream
                  side hosts a 3×2 grid of inline-edit TextBoxes — Tag "h0"…
                  "h5" identifies the slot index for the LostFocus/Tab
                  handlers (FlightStripControl.OnHalfCell*). -->
-            <Grid x:Name="HalfStripGrid"
-                  IsVisible="{Binding IsHalfStrip}"
-                  Width="535"
-                  Height="74"
-                  ColumnDefinitions="*,*">
-                <Border Grid.Column="0"
-                        Background="{StaticResource StripCellBrush}"
-                        BorderBrush="{StaticResource StripBorderBrush}"
-                        BorderThickness="1"
-                        Padding="0"
-                        IsVisible="{Binding !IsHalfStripRight}">
-                    <Grid RowDefinitions="*,*,*" ColumnDefinitions="*,*">
-                        <TextBox Classes="halfcell" Tag="h0" Grid.Row="0" Grid.Column="0"
-                                 Text="{Binding HalfCell0, Mode=OneWay}"
-                                 LostFocus="OnHalfCellLostFocus"
-                                 KeyDown="OnHalfCellKeyDown"/>
-                        <TextBox Classes="halfcell" Tag="h1" Grid.Row="0" Grid.Column="1"
-                                 Text="{Binding HalfCell1, Mode=OneWay}"
-                                 LostFocus="OnHalfCellLostFocus"
-                                 KeyDown="OnHalfCellKeyDown"/>
-                        <TextBox Classes="halfcell" Tag="h2" Grid.Row="1" Grid.Column="0"
-                                 Text="{Binding HalfCell2, Mode=OneWay}"
-                                 LostFocus="OnHalfCellLostFocus"
-                                 KeyDown="OnHalfCellKeyDown"/>
-                        <TextBox Classes="halfcell" Tag="h3" Grid.Row="1" Grid.Column="1"
-                                 Text="{Binding HalfCell3, Mode=OneWay}"
-                                 LostFocus="OnHalfCellLostFocus"
-                                 KeyDown="OnHalfCellKeyDown"/>
-                        <TextBox Classes="halfcell" Tag="h4" Grid.Row="2" Grid.Column="0"
-                                 Text="{Binding HalfCell4, Mode=OneWay}"
-                                 LostFocus="OnHalfCellLostFocus"
-                                 KeyDown="OnHalfCellKeyDown"/>
-                        <TextBox Classes="halfcell" Tag="h5" Grid.Row="2" Grid.Column="1"
-                                 Text="{Binding HalfCell5, Mode=OneWay}"
-                                 LostFocus="OnHalfCellLostFocus"
-                                 KeyDown="OnHalfCellKeyDown"/>
-                    </Grid>
-                </Border>
-                <Border Grid.Column="1"
-                        Background="{StaticResource StripDropZoneBrush}"
-                        IsVisible="{Binding !IsHalfStripRight}"/>
-                <Border Grid.Column="0"
-                        Background="{StaticResource StripDropZoneBrush}"
-                        IsVisible="{Binding IsHalfStripRight}"/>
-                <Border Grid.Column="1"
-                        Background="{StaticResource StripCellBrush}"
-                        BorderBrush="{StaticResource StripBorderBrush}"
-                        BorderThickness="1"
-                        Padding="0"
-                        IsVisible="{Binding IsHalfStripRight}">
-                    <Grid RowDefinitions="*,*,*" ColumnDefinitions="*,*">
-                        <TextBox Classes="halfcell" Tag="h0" Grid.Row="0" Grid.Column="0"
-                                 Text="{Binding HalfCell0, Mode=OneWay}"
-                                 LostFocus="OnHalfCellLostFocus"
-                                 KeyDown="OnHalfCellKeyDown"/>
-                        <TextBox Classes="halfcell" Tag="h1" Grid.Row="0" Grid.Column="1"
-                                 Text="{Binding HalfCell1, Mode=OneWay}"
-                                 LostFocus="OnHalfCellLostFocus"
-                                 KeyDown="OnHalfCellKeyDown"/>
-                        <TextBox Classes="halfcell" Tag="h2" Grid.Row="1" Grid.Column="0"
-                                 Text="{Binding HalfCell2, Mode=OneWay}"
-                                 LostFocus="OnHalfCellLostFocus"
-                                 KeyDown="OnHalfCellKeyDown"/>
-                        <TextBox Classes="halfcell" Tag="h3" Grid.Row="1" Grid.Column="1"
-                                 Text="{Binding HalfCell3, Mode=OneWay}"
-                                 LostFocus="OnHalfCellLostFocus"
-                                 KeyDown="OnHalfCellKeyDown"/>
-                        <TextBox Classes="halfcell" Tag="h4" Grid.Row="2" Grid.Column="0"
-                                 Text="{Binding HalfCell4, Mode=OneWay}"
-                                 LostFocus="OnHalfCellLostFocus"
-                                 KeyDown="OnHalfCellKeyDown"/>
-                        <TextBox Classes="halfcell" Tag="h5" Grid.Row="2" Grid.Column="1"
-                                 Text="{Binding HalfCell5, Mode=OneWay}"
-                                 LostFocus="OnHalfCellLostFocus"
-                                 KeyDown="OnHalfCellKeyDown"/>
-                    </Grid>
-                </Border>
-            </Grid>
+      <Grid x:Name="HalfStripGrid" IsVisible="{Binding IsHalfStrip}" Width="535" Height="74" ColumnDefinitions="*,*">
+        <Border
+          Grid.Column="0"
+          Background="{StaticResource StripCellBrush}"
+          BorderBrush="{StaticResource StripBorderBrush}"
+          BorderThickness="1"
+          Padding="0"
+          IsVisible="{Binding !IsHalfStripRight}"
+        >
+          <Grid RowDefinitions="*,*,*" ColumnDefinitions="*,*">
+            <TextBox
+              Classes="halfcell"
+              Tag="h0"
+              Grid.Row="0"
+              Grid.Column="0"
+              Text="{Binding HalfCell0, Mode=OneWay}"
+              LostFocus="OnHalfCellLostFocus"
+              KeyDown="OnHalfCellKeyDown"
+            />
+            <TextBox
+              Classes="halfcell"
+              Tag="h1"
+              Grid.Row="0"
+              Grid.Column="1"
+              Text="{Binding HalfCell1, Mode=OneWay}"
+              LostFocus="OnHalfCellLostFocus"
+              KeyDown="OnHalfCellKeyDown"
+            />
+            <TextBox
+              Classes="halfcell"
+              Tag="h2"
+              Grid.Row="1"
+              Grid.Column="0"
+              Text="{Binding HalfCell2, Mode=OneWay}"
+              LostFocus="OnHalfCellLostFocus"
+              KeyDown="OnHalfCellKeyDown"
+            />
+            <TextBox
+              Classes="halfcell"
+              Tag="h3"
+              Grid.Row="1"
+              Grid.Column="1"
+              Text="{Binding HalfCell3, Mode=OneWay}"
+              LostFocus="OnHalfCellLostFocus"
+              KeyDown="OnHalfCellKeyDown"
+            />
+            <TextBox
+              Classes="halfcell"
+              Tag="h4"
+              Grid.Row="2"
+              Grid.Column="0"
+              Text="{Binding HalfCell4, Mode=OneWay}"
+              LostFocus="OnHalfCellLostFocus"
+              KeyDown="OnHalfCellKeyDown"
+            />
+            <TextBox
+              Classes="halfcell"
+              Tag="h5"
+              Grid.Row="2"
+              Grid.Column="1"
+              Text="{Binding HalfCell5, Mode=OneWay}"
+              LostFocus="OnHalfCellLostFocus"
+              KeyDown="OnHalfCellKeyDown"
+            />
+          </Grid>
+        </Border>
+        <Border Grid.Column="1" Background="{StaticResource StripDropZoneBrush}" IsVisible="{Binding !IsHalfStripRight}" />
+        <Border Grid.Column="0" Background="{StaticResource StripDropZoneBrush}" IsVisible="{Binding IsHalfStripRight}" />
+        <Border
+          Grid.Column="1"
+          Background="{StaticResource StripCellBrush}"
+          BorderBrush="{StaticResource StripBorderBrush}"
+          BorderThickness="1"
+          Padding="0"
+          IsVisible="{Binding IsHalfStripRight}"
+        >
+          <Grid RowDefinitions="*,*,*" ColumnDefinitions="*,*">
+            <TextBox
+              Classes="halfcell"
+              Tag="h0"
+              Grid.Row="0"
+              Grid.Column="0"
+              Text="{Binding HalfCell0, Mode=OneWay}"
+              LostFocus="OnHalfCellLostFocus"
+              KeyDown="OnHalfCellKeyDown"
+            />
+            <TextBox
+              Classes="halfcell"
+              Tag="h1"
+              Grid.Row="0"
+              Grid.Column="1"
+              Text="{Binding HalfCell1, Mode=OneWay}"
+              LostFocus="OnHalfCellLostFocus"
+              KeyDown="OnHalfCellKeyDown"
+            />
+            <TextBox
+              Classes="halfcell"
+              Tag="h2"
+              Grid.Row="1"
+              Grid.Column="0"
+              Text="{Binding HalfCell2, Mode=OneWay}"
+              LostFocus="OnHalfCellLostFocus"
+              KeyDown="OnHalfCellKeyDown"
+            />
+            <TextBox
+              Classes="halfcell"
+              Tag="h3"
+              Grid.Row="1"
+              Grid.Column="1"
+              Text="{Binding HalfCell3, Mode=OneWay}"
+              LostFocus="OnHalfCellLostFocus"
+              KeyDown="OnHalfCellKeyDown"
+            />
+            <TextBox
+              Classes="halfcell"
+              Tag="h4"
+              Grid.Row="2"
+              Grid.Column="0"
+              Text="{Binding HalfCell4, Mode=OneWay}"
+              LostFocus="OnHalfCellLostFocus"
+              KeyDown="OnHalfCellKeyDown"
+            />
+            <TextBox
+              Classes="halfcell"
+              Tag="h5"
+              Grid.Row="2"
+              Grid.Column="1"
+              Text="{Binding HalfCell5, Mode=OneWay}"
+              LostFocus="OnHalfCellLostFocus"
+              KeyDown="OnHalfCellKeyDown"
+            />
+          </Grid>
+        </Border>
+      </Grid>
 
-            <!-- Separator bands — full-rack-width colored strips with centered
+      <!-- Separator bands — full-rack-width colored strips with centered
                  labels (docs/crc/img/separators.png). The label sits in an
                  inline-edit TextBox (Tag "sep") so single-click edits like
                  the 3×3 annotation grid; the per-style class (sep-dark for
                  white/handwritten, sep-light for red/green) controls
                  foreground via the styles in UserControl.Styles. -->
-            <Border x:Name="HandwrittenSeparator"
-                    IsVisible="{Binding IsHandwrittenSeparator}"
-                    Width="535" Height="74"
-                    Background="{StaticResource StripSeparatorWhiteBrush}"
-                    BorderBrush="{StaticResource StripBorderBrush}"
-                    BorderThickness="1"
-                    Padding="4,0">
-                <TextBox Classes="sep sep-dark sep-script" Tag="sep"
-                         Text="{Binding SeparatorLabel, Mode=OneWay}"
-                         LostFocus="OnSeparatorLostFocus"
-                         KeyDown="OnSeparatorKeyDown"/>
-            </Border>
-            <Border x:Name="WhiteSeparator"
-                    IsVisible="{Binding IsWhiteSeparator}"
-                    Width="535" Height="74"
-                    Background="{StaticResource StripSeparatorWhiteBrush}"
-                    BorderBrush="{StaticResource StripBorderBrush}"
-                    BorderThickness="1"
-                    Padding="4,0">
-                <TextBox Classes="sep sep-dark" Tag="sep"
-                         Text="{Binding SeparatorLabel, Mode=OneWay}"
-                         LostFocus="OnSeparatorLostFocus"
-                         KeyDown="OnSeparatorKeyDown"/>
-            </Border>
-            <Border x:Name="RedSeparator"
-                    IsVisible="{Binding IsRedSeparator}"
-                    Width="535" Height="74"
-                    Background="{StaticResource StripSeparatorRedBrush}"
-                    BorderBrush="{StaticResource StripBorderBrush}"
-                    BorderThickness="1"
-                    Padding="4,0">
-                <TextBox Classes="sep sep-light" Tag="sep"
-                         Text="{Binding SeparatorLabel, Mode=OneWay}"
-                         LostFocus="OnSeparatorLostFocus"
-                         KeyDown="OnSeparatorKeyDown"/>
-            </Border>
-            <Border x:Name="GreenSeparator"
-                    IsVisible="{Binding IsGreenSeparator}"
-                    Width="535" Height="74"
-                    Background="{StaticResource StripSeparatorGreenBrush}"
-                    BorderBrush="{StaticResource StripBorderBrush}"
-                    BorderThickness="1"
-                    Padding="4,0">
-                <TextBox Classes="sep sep-light" Tag="sep"
-                         Text="{Binding SeparatorLabel, Mode=OneWay}"
-                         LostFocus="OnSeparatorLostFocus"
-                         KeyDown="OnSeparatorKeyDown"/>
-            </Border>
+      <Border
+        x:Name="HandwrittenSeparator"
+        IsVisible="{Binding IsHandwrittenSeparator}"
+        Width="535"
+        Height="74"
+        Background="{StaticResource StripSeparatorWhiteBrush}"
+        BorderBrush="{StaticResource StripBorderBrush}"
+        BorderThickness="1"
+        Padding="4,0"
+      >
+        <TextBox
+          Classes="sep sep-dark sep-script"
+          Tag="sep"
+          Text="{Binding SeparatorLabel, Mode=OneWay}"
+          LostFocus="OnSeparatorLostFocus"
+          KeyDown="OnSeparatorKeyDown"
+        />
+      </Border>
+      <Border
+        x:Name="WhiteSeparator"
+        IsVisible="{Binding IsWhiteSeparator}"
+        Width="535"
+        Height="74"
+        Background="{StaticResource StripSeparatorWhiteBrush}"
+        BorderBrush="{StaticResource StripBorderBrush}"
+        BorderThickness="1"
+        Padding="4,0"
+      >
+        <TextBox
+          Classes="sep sep-dark"
+          Tag="sep"
+          Text="{Binding SeparatorLabel, Mode=OneWay}"
+          LostFocus="OnSeparatorLostFocus"
+          KeyDown="OnSeparatorKeyDown"
+        />
+      </Border>
+      <Border
+        x:Name="RedSeparator"
+        IsVisible="{Binding IsRedSeparator}"
+        Width="535"
+        Height="74"
+        Background="{StaticResource StripSeparatorRedBrush}"
+        BorderBrush="{StaticResource StripBorderBrush}"
+        BorderThickness="1"
+        Padding="4,0"
+      >
+        <TextBox
+          Classes="sep sep-light"
+          Tag="sep"
+          Text="{Binding SeparatorLabel, Mode=OneWay}"
+          LostFocus="OnSeparatorLostFocus"
+          KeyDown="OnSeparatorKeyDown"
+        />
+      </Border>
+      <Border
+        x:Name="GreenSeparator"
+        IsVisible="{Binding IsGreenSeparator}"
+        Width="535"
+        Height="74"
+        Background="{StaticResource StripSeparatorGreenBrush}"
+        BorderBrush="{StaticResource StripBorderBrush}"
+        BorderThickness="1"
+        Padding="4,0"
+      >
+        <TextBox
+          Classes="sep sep-light"
+          Tag="sep"
+          Text="{Binding SeparatorLabel, Mode=OneWay}"
+          LostFocus="OnSeparatorLostFocus"
+          KeyDown="OnSeparatorKeyDown"
+        />
+      </Border>
 
-            <!-- Disconnected overlay: diagonal red stroke drawn in code-behind
+      <!-- Disconnected overlay: diagonal red stroke drawn in code-behind
                  so it tracks the rendered bounds. -->
-            <Canvas x:Name="DisconnectedOverlay"
-                    IsVisible="{Binding IsDisconnected}"
-                    IsHitTestVisible="False"/>
+      <Canvas x:Name="DisconnectedOverlay" IsVisible="{Binding IsDisconnected}" IsHitTestVisible="False" />
 
-            <!-- Selection highlight: yellow outline when this strip is the
+      <!-- Selection highlight: yellow outline when this strip is the
                  VStripsViewModel.SelectedStrip. Driven by IsSelected on the
                  StripItemViewModel so selection flows from VM into the visual
                  without extra plumbing. -->
-            <Border IsVisible="{Binding IsSelected}"
-                    IsHitTestVisible="False"
-                    BorderBrush="{StaticResource StripSelectedBorderBrush}"
-                    BorderThickness="2"
-                    Margin="-2"/>
+      <Border
+        IsVisible="{Binding IsSelected}"
+        IsHitTestVisible="False"
+        BorderBrush="{StaticResource StripSelectedBorderBrush}"
+        BorderThickness="2"
+        Margin="-2"
+      />
 
-            <!-- In-view Find (Ctrl+F) highlight. Cyan so it reads distinct from the
+      <!-- In-view Find (Ctrl+F) highlight. Cyan so it reads distinct from the
                  yellow selection ring: a thin outline on every match, a thicker
                  outline plus a faint fill on the current (scrolled-to) match. -->
-            <Border IsVisible="{Binding IsFindMatch}"
-                    IsHitTestVisible="False"
-                    BorderBrush="#8018C7FF"
-                    BorderThickness="2"
-                    Margin="-2"/>
-            <Border IsVisible="{Binding IsCurrentFindMatch}"
-                    IsHitTestVisible="False"
-                    Background="#2818C7FF"
-                    BorderBrush="#FF18C7FF"
-                    BorderThickness="3"
-                    Margin="-3"/>
-        </Grid>
-    </Border>
+      <Border IsVisible="{Binding IsFindMatch}" IsHitTestVisible="False" BorderBrush="#8018C7FF" BorderThickness="2" Margin="-2" />
+      <Border
+        IsVisible="{Binding IsCurrentFindMatch}"
+        IsHitTestVisible="False"
+        Background="#2818C7FF"
+        BorderBrush="#FF18C7FF"
+        BorderThickness="3"
+        Margin="-3"
+      />
+    </Grid>
+  </Border>
 </UserControl>

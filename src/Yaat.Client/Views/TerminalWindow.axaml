@@ -1,16 +1,16 @@
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="using:Yaat.Client.ViewModels"
-        xmlns:views="using:Yaat.Client.Views"
-        x:Class="Yaat.Client.Views.TerminalWindow"
-        x:DataType="vm:MainViewModel"
-        Icon="avares://Yaat.Client/Resources/icon.png"
-        Title="Terminal">
-
-    <DockPanel Margin="8">
-        <views:FavoritesBarView x:Name="FavoritesBar" DockPanel.Dock="Bottom" IsVisible="{Binding ShowFavoritesBar}" />
-        <views:CommandInputView x:Name="CommandInputView" DockPanel.Dock="Bottom" />
-        <views:TerminalPanelView />
-    </DockPanel>
-
+<Window
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels"
+  xmlns:views="using:Yaat.Client.Views"
+  x:Class="Yaat.Client.Views.TerminalWindow"
+  x:DataType="vm:MainViewModel"
+  Icon="avares://Yaat.Client/Resources/icon.png"
+  Title="Terminal"
+>
+  <DockPanel Margin="8">
+    <views:FavoritesBarView x:Name="FavoritesBar" DockPanel.Dock="Bottom" IsVisible="{Binding ShowFavoritesBar}" />
+    <views:CommandInputView x:Name="CommandInputView" DockPanel.Dock="Bottom" />
+    <views:TerminalPanelView />
+  </DockPanel>
 </Window>

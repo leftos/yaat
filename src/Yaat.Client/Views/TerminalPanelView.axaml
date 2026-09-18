@@ -1,127 +1,146 @@
-<UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:Yaat.Client.ViewModels"
-             xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
-             x:Class="Yaat.Client.Views.TerminalPanelView"
-        x:DataType="vm:MainViewModel">
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels"
+  xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
+  x:Class="Yaat.Client.Views.TerminalPanelView"
+  x:DataType="vm:MainViewModel"
+>
+  <DockPanel>
+    <!-- Header -->
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto" Margin="4,2">
+      <TextBlock
+        Grid.Column="0"
+        Text="Terminal"
+        FontWeight="Bold"
+        FontSize="12"
+        VerticalAlignment="Center"
+        Margin="0,0,8,0"
+        Foreground="{DynamicResource SubtleTextBrush}"
+      />
+      <TextBox
+        Grid.Column="1"
+        Text="{Binding TerminalSearchText, Mode=TwoWay}"
+        PlaceholderText="Filter..."
+        FontSize="11"
+        Padding="4,1"
+        MinHeight="0"
+        MaxWidth="400"
+        HorizontalAlignment="Left"
+        VerticalAlignment="Center"
+        Margin="0,0,6,0"
+      />
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" Margin="0,0,6,0">
+        <Button
+          x:Name="TimestampModeButton"
+          Content="{Binding TerminalTimestampModeLabel}"
+          Command="{Binding CycleTerminalTimestampModeCommand}"
+          FontSize="10"
+          Padding="4,1"
+          Foreground="{DynamicResource SubtleTextBrush}"
+          ToolTip.Tip="Timestamp shown per line. Click to cycle: wall-clock / sim-elapsed / both."
+        />
+        <ToggleButton
+          x:Name="CmdToggle"
+          IsChecked="{Binding ShowCommandEntries}"
+          Content="CMD"
+          FontSize="10"
+          Padding="4,1"
+          Foreground="White"
+          ToolTip.Tip="Show commands. Shift+Click: solo (toggle to restore)."
+        />
+        <ToggleButton
+          x:Name="RspToggle"
+          IsChecked="{Binding ShowResponseEntries}"
+          Content="RSP"
+          FontSize="10"
+          Padding="4,1"
+          Foreground="LightGray"
+          ToolTip.Tip="Show responses. Shift+Click: solo (toggle to restore)."
+        />
+        <ToggleButton
+          x:Name="SysToggle"
+          IsChecked="{Binding ShowSystemEntries}"
+          Content="SYS"
+          FontSize="10"
+          Padding="4,1"
+          Foreground="Gray"
+          ToolTip.Tip="Show system messages. Shift+Click: solo (toggle to restore)."
+        />
+        <ToggleButton
+          x:Name="SayToggle"
+          IsChecked="{Binding ShowSayEntries}"
+          Content="SAY"
+          FontSize="10"
+          Padding="4,1"
+          Foreground="Green"
+          ToolTip.Tip="Show pilot/SAY transmissions. Shift+Click: solo (toggle to restore)."
+        />
+        <ToggleButton
+          x:Name="WrnToggle"
+          IsChecked="{Binding ShowWarningEntries}"
+          Content="WRN"
+          FontSize="10"
+          Padding="4,1"
+          Foreground="Orange"
+          ToolTip.Tip="Show warnings. Shift+Click: solo (toggle to restore)."
+        />
+        <ToggleButton
+          x:Name="ErrToggle"
+          IsChecked="{Binding ShowErrorEntries}"
+          Content="ERR"
+          FontSize="10"
+          Padding="4,1"
+          Foreground="Red"
+          ToolTip.Tip="Show errors. Shift+Click: solo (toggle to restore)."
+        />
+        <ToggleButton
+          x:Name="ChatToggle"
+          IsChecked="{Binding ShowChatEntries}"
+          Content="CHAT"
+          FontSize="10"
+          Padding="4,1"
+          Foreground="Cyan"
+          ToolTip.Tip="Show chat. Shift+Click: solo (toggle to restore)."
+        />
+        <ToggleButton
+          x:Name="TdlsToggle"
+          IsChecked="{Binding ShowTdlsEntries}"
+          Content="TDLS"
+          FontSize="10"
+          Padding="4,1"
+          Foreground="#FFB000"
+          ToolTip.Tip="Show vTDLS PDC broadcasts. Shift+Click: solo (toggle to restore)."
+        />
+        <ToggleButton
+          x:Name="StripToggle"
+          IsChecked="{Binding ShowStripEntries}"
+          Content="STRP"
+          FontSize="10"
+          Padding="4,1"
+          Foreground="#C586C0"
+          ToolTip.Tip="Show flight-strip commands and feedback. Shift+Click: solo (toggle to restore)."
+        />
+      </StackPanel>
+    </Grid>
 
-    <DockPanel>
-
-        <!-- Header -->
-        <Grid DockPanel.Dock="Top"
-              ColumnDefinitions="Auto,*,Auto"
-              Margin="4,2">
-            <TextBlock Grid.Column="0"
-                       Text="Terminal"
-                       FontWeight="Bold"
-                       FontSize="12"
-                       VerticalAlignment="Center"
-                       Margin="0,0,8,0"
-                       Foreground="{DynamicResource SubtleTextBrush}" />
-            <TextBox Grid.Column="1"
-                     Text="{Binding TerminalSearchText, Mode=TwoWay}"
-                     PlaceholderText="Filter..."
-                     FontSize="11"
-                     Padding="4,1"
-                     MinHeight="0"
-                     MaxWidth="400"
-                     HorizontalAlignment="Left"
-                     VerticalAlignment="Center"
-                     Margin="0,0,6,0" />
-            <StackPanel Grid.Column="2"
-                        Orientation="Horizontal"
-                        Spacing="2"
-                        VerticalAlignment="Center"
-                        Margin="0,0,6,0">
-                <Button x:Name="TimestampModeButton"
-                        Content="{Binding TerminalTimestampModeLabel}"
-                        Command="{Binding CycleTerminalTimestampModeCommand}"
-                        FontSize="10"
-                        Padding="4,1"
-                        Foreground="{DynamicResource SubtleTextBrush}"
-                        ToolTip.Tip="Timestamp shown per line. Click to cycle: wall-clock / sim-elapsed / both." />
-                <ToggleButton x:Name="CmdToggle"
-                              IsChecked="{Binding ShowCommandEntries}"
-                              Content="CMD"
-                              FontSize="10"
-                              Padding="4,1"
-                              Foreground="White"
-                              ToolTip.Tip="Show commands. Shift+Click: solo (toggle to restore)." />
-                <ToggleButton x:Name="RspToggle"
-                              IsChecked="{Binding ShowResponseEntries}"
-                              Content="RSP"
-                              FontSize="10"
-                              Padding="4,1"
-                              Foreground="LightGray"
-                              ToolTip.Tip="Show responses. Shift+Click: solo (toggle to restore)." />
-                <ToggleButton x:Name="SysToggle"
-                              IsChecked="{Binding ShowSystemEntries}"
-                              Content="SYS"
-                              FontSize="10"
-                              Padding="4,1"
-                              Foreground="Gray"
-                              ToolTip.Tip="Show system messages. Shift+Click: solo (toggle to restore)." />
-                <ToggleButton x:Name="SayToggle"
-                              IsChecked="{Binding ShowSayEntries}"
-                              Content="SAY"
-                              FontSize="10"
-                              Padding="4,1"
-                              Foreground="Green"
-                              ToolTip.Tip="Show pilot/SAY transmissions. Shift+Click: solo (toggle to restore)." />
-                <ToggleButton x:Name="WrnToggle"
-                              IsChecked="{Binding ShowWarningEntries}"
-                              Content="WRN"
-                              FontSize="10"
-                              Padding="4,1"
-                              Foreground="Orange"
-                              ToolTip.Tip="Show warnings. Shift+Click: solo (toggle to restore)." />
-                <ToggleButton x:Name="ErrToggle"
-                              IsChecked="{Binding ShowErrorEntries}"
-                              Content="ERR"
-                              FontSize="10"
-                              Padding="4,1"
-                              Foreground="Red"
-                              ToolTip.Tip="Show errors. Shift+Click: solo (toggle to restore)." />
-                <ToggleButton x:Name="ChatToggle"
-                              IsChecked="{Binding ShowChatEntries}"
-                              Content="CHAT"
-                              FontSize="10"
-                              Padding="4,1"
-                              Foreground="Cyan"
-                              ToolTip.Tip="Show chat. Shift+Click: solo (toggle to restore)." />
-                <ToggleButton x:Name="TdlsToggle"
-                              IsChecked="{Binding ShowTdlsEntries}"
-                              Content="TDLS"
-                              FontSize="10"
-                              Padding="4,1"
-                              Foreground="#FFB000"
-                              ToolTip.Tip="Show vTDLS PDC broadcasts. Shift+Click: solo (toggle to restore)." />
-                <ToggleButton x:Name="StripToggle"
-                              IsChecked="{Binding ShowStripEntries}"
-                              Content="STRP"
-                              FontSize="10"
-                              Padding="4,1"
-                              Foreground="#C586C0"
-                              ToolTip.Tip="Show flight-strip commands and feedback. Shift+Click: solo (toggle to restore)." />
-            </StackPanel>
-        </Grid>
-
-        <!-- Scrolling terminal text (read-only, colorized per entry kind) -->
-        <ae:TextEditor x:Name="TerminalEditor"
-                       IsReadOnly="True"
-                       ShowLineNumbers="False"
-                       FontFamily="{StaticResource MonoFont}"
-                       FontSize="{Binding TerminalFontSize}"
-                       WordWrap="True"
-                       Background="#1A1A1E"
-                       Foreground="White"
-                       Padding="4"
-                       HorizontalScrollBarVisibility="Disabled"
-                       VerticalScrollBarVisibility="Auto">
-            <ae:TextEditor.Options>
-                <ae:TextEditorOptions AllowScrollBelowDocument="False" />
-            </ae:TextEditor.Options>
-        </ae:TextEditor>
-
-    </DockPanel>
+    <!-- Scrolling terminal text (read-only, colorized per entry kind) -->
+    <ae:TextEditor
+      x:Name="TerminalEditor"
+      IsReadOnly="True"
+      ShowLineNumbers="False"
+      FontFamily="{StaticResource MonoFont}"
+      FontSize="{Binding TerminalFontSize}"
+      WordWrap="True"
+      Background="#1A1A1E"
+      Foreground="White"
+      Padding="4"
+      HorizontalScrollBarVisibility="Disabled"
+      VerticalScrollBarVisibility="Auto"
+    >
+      <ae:TextEditor.Options>
+        <ae:TextEditorOptions AllowScrollBelowDocument="False" />
+      </ae:TextEditor.Options>
+    </ae:TextEditor>
+  </DockPanel>
 </UserControl>

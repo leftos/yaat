@@ -1,323 +1,347 @@
-<UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:Yaat.Client.ViewModels"
-             xmlns:vstrips="using:Yaat.Client.Views.VStrips"
-             xmlns:find="using:Yaat.Client.Views.Find"
-             xmlns:svc="using:Yaat.Client.Services"
-             x:Class="Yaat.Client.Views.VStrips.VStripsView"
-             x:DataType="vm:VStripsViewModel"
-             x:CompileBindings="True"
-             Focusable="True">
-
-    <UserControl.Styles>
-        <!-- Own bay buttons: filled, neutral grey. External (push-only) bays:
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels"
+  xmlns:vstrips="using:Yaat.Client.Views.VStrips"
+  xmlns:find="using:Yaat.Client.Views.Find"
+  xmlns:svc="using:Yaat.Client.Services"
+  x:Class="Yaat.Client.Views.VStrips.VStripsView"
+  x:DataType="vm:VStripsViewModel"
+  x:CompileBindings="True"
+  Focusable="True"
+>
+  <UserControl.Styles>
+    <!-- Own bay buttons: filled, neutral grey. External (push-only) bays:
              transparent fill, thin outline — matches CRC's BOS vs CD/GC/LC
              distinction in docs/crc/img/header.png. -->
-        <Style Selector="Button.external">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderBrush" Value="#808080"/>
-            <Setter Property="BorderThickness" Value="1"/>
-        </Style>
-        <!-- Selected own bay: thick white outline on top of the solid grey
+    <Style Selector="Button.external">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="#808080" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <!-- Selected own bay: thick white outline on top of the solid grey
              fill, matching CRC's CD button in docs/crc/img/header.png so the
              controller can tell at a glance which bay drives the rack area.
              External bays cannot be selected (SelectBayAsync returns early
              for them), so this only fires on own bays in practice. -->
-        <Style Selector="Button.selected">
-            <Setter Property="BorderBrush" Value="White"/>
-            <Setter Property="BorderThickness" Value="2"/>
-        </Style>
-        <!-- Trash zone lights up while a dragged strip hovers it — replaces
+    <Style Selector="Button.selected">
+      <Setter Property="BorderBrush" Value="White" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <!-- Trash zone lights up while a dragged strip hovers it — replaces
              the drop-effects cursor feedback the OS drag loop used to give.
              The class is toggled from ResolveHover in the code-behind. -->
-        <Style Selector="Border#TrashZone.drag-over">
-            <Setter Property="Background" Value="#6A2525"/>
-            <Setter Property="BorderBrush" Value="#E05555"/>
-        </Style>
-        <!-- A bay button hovered by a dragged strip lights up in the same
+    <Style Selector="Border#TrashZone.drag-over">
+      <Setter Property="Background" Value="#6A2525" />
+      <Setter Property="BorderBrush" Value="#E05555" />
+    </Style>
+    <!-- A bay button hovered by a dragged strip lights up in the same
              yellow as the drop-insertion line: dropping here TRANSFERS the
              strip to that bay, as opposed to repositioning it within the
              current bay's racks. Toggled from ResolveHover; wins over the
              .external and .selected border styling while active. -->
-        <Style Selector="Button.drag-over">
-            <Setter Property="Background" Value="#4A4430"/>
-            <Setter Property="BorderBrush" Value="#FFD700"/>
-            <Setter Property="BorderThickness" Value="2"/>
-        </Style>
-    </UserControl.Styles>
+    <Style Selector="Button.drag-over">
+      <Setter Property="Background" Value="#4A4430" />
+      <Setter Property="BorderBrush" Value="#FFD700" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+  </UserControl.Styles>
 
-    <Grid RowDefinitions="Auto,56,*">
-
-        <!-- Current-METAR bar (row 0). Shows the displayed facility's airport METARs
+  <Grid RowDefinitions="Auto,56,*">
+    <!-- Current-METAR bar (row 0). Shows the displayed facility's airport METARs
              (the airport for a tower, all underlying airports for a TRACON) so students
              see the training METAR, not just instructors/RPOs. When connected with no
              weather loaded it shows a standard default report (calm/10SM/CLR/29.92),
              matching the desktop METAR panel. Collapsed shows the primary airport's raw
              line; the chevron expands to every in-scope airport. -->
-        <Border Grid.Row="0"
-                IsVisible="{Binding HasMetars}"
-                Background="#1E1E22"
-                BorderBrush="#3A3A40"
-                BorderThickness="0,0,0,1">
-            <DockPanel LastChildFill="True" Margin="4,2">
-                <Button DockPanel.Dock="Left"
-                        Command="{Binding ToggleMetarExpandedCommand}"
-                        Background="Transparent" BorderThickness="0"
-                        Padding="4,0" Margin="0,0,4,0" MinWidth="20"
-                        ToolTip.Tip="Show/hide all airports">
-                    <Panel>
-                        <TextBlock Text="▾" IsVisible="{Binding IsMetarExpanded}"
-                                   FontFamily="{StaticResource MonoFont}" FontSize="12" Foreground="#C0C0C0"/>
-                        <TextBlock Text="▸" IsVisible="{Binding !IsMetarExpanded}"
-                                   FontFamily="{StaticResource MonoFont}" FontSize="12" Foreground="#C0C0C0"/>
-                    </Panel>
-                </Button>
-                <TextBlock DockPanel.Dock="Left" Text="METAR"
-                           VerticalAlignment="Center" Margin="0,0,8,0"
-                           FontFamily="{StaticResource MonoFont}" FontSize="11"
-                           FontWeight="Bold" Foreground="#8AB4F8"/>
-                <!-- Collapsed: just the primary airport's raw METAR line. -->
-                <SelectableTextBlock Text="{Binding PrimaryMetar.Raw}"
-                                     IsVisible="{Binding !IsMetarExpanded}"
-                                     VerticalAlignment="Center"
-                                     TextTrimming="CharacterEllipsis"
-                                     FontFamily="{StaticResource MonoFont}" FontSize="12"
-                                     Foreground="#D0D0D0"/>
-                <!-- Expanded: every in-scope airport, one raw line each. -->
-                <ItemsControl IsVisible="{Binding IsMetarExpanded}"
-                              ItemsSource="{Binding Metars}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="svc:StripMetarEntry" x:DataType="svc:StripMetarEntry">
-                            <SelectableTextBlock Text="{Binding Raw}"
-                                                 Margin="0,1"
-                                                 FontFamily="{StaticResource MonoFont}" FontSize="12"
-                                                 Foreground="#D0D0D0"/>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </DockPanel>
-        </Border>
+    <Border Grid.Row="0" IsVisible="{Binding HasMetars}" Background="#1E1E22" BorderBrush="#3A3A40" BorderThickness="0,0,0,1">
+      <DockPanel LastChildFill="True" Margin="4,2">
+        <Button
+          DockPanel.Dock="Left"
+          Command="{Binding ToggleMetarExpandedCommand}"
+          Background="Transparent"
+          BorderThickness="0"
+          Padding="4,0"
+          Margin="0,0,4,0"
+          MinWidth="20"
+          ToolTip.Tip="Show/hide all airports"
+        >
+          <Panel>
+            <TextBlock Text="▾" IsVisible="{Binding IsMetarExpanded}" FontFamily="{StaticResource MonoFont}" FontSize="12" Foreground="#C0C0C0" />
+            <TextBlock Text="▸" IsVisible="{Binding !IsMetarExpanded}" FontFamily="{StaticResource MonoFont}" FontSize="12" Foreground="#C0C0C0" />
+          </Panel>
+        </Button>
+        <TextBlock
+          DockPanel.Dock="Left"
+          Text="METAR"
+          VerticalAlignment="Center"
+          Margin="0,0,8,0"
+          FontFamily="{StaticResource MonoFont}"
+          FontSize="11"
+          FontWeight="Bold"
+          Foreground="#8AB4F8"
+        />
+        <!-- Collapsed: just the primary airport's raw METAR line. -->
+        <SelectableTextBlock
+          Text="{Binding PrimaryMetar.Raw}"
+          IsVisible="{Binding !IsMetarExpanded}"
+          VerticalAlignment="Center"
+          TextTrimming="CharacterEllipsis"
+          FontFamily="{StaticResource MonoFont}"
+          FontSize="12"
+          Foreground="#D0D0D0"
+        />
+        <!-- Expanded: every in-scope airport, one raw line each. -->
+        <ItemsControl IsVisible="{Binding IsMetarExpanded}" ItemsSource="{Binding Metars}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="svc:StripMetarEntry" x:DataType="svc:StripMetarEntry">
+              <SelectableTextBlock Text="{Binding Raw}" Margin="0,1" FontFamily="{StaticResource MonoFont}" FontSize="12" Foreground="#D0D0D0" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </DockPanel>
+    </Border>
 
-        <!-- Drag ghost overlay: absolutely-positioned Canvas that sits above
+    <!-- Drag ghost overlay: absolutely-positioned Canvas that sits above
              every control (bay buttons, racks, printer panel) so the ghost
              tracks the pointer freely. Code-behind populates it with a clone
              of the dragged strip's FlightStripControl on drag start, updates
              the Canvas position in OnGenericDragOver, and clears it when the
              drag finishes. IsHitTestVisible=false keeps hover/drop events
              flowing to the underlying drop targets. -->
-        <Canvas x:Name="DragGhostCanvas"
-                Grid.Row="0" Grid.RowSpan="3"
-                ZIndex="1000"
-                IsHitTestVisible="False"/>
+    <Canvas x:Name="DragGhostCanvas" Grid.Row="0" Grid.RowSpan="3" ZIndex="1000" IsHitTestVisible="False" />
 
-        <!-- Shared inline editor, instantiated once per VStripsView. Round 3
+    <!-- Shared inline editor, instantiated once per VStripsView. Round 3
              annotation/half-strip/separator edits all reuse it via Open(). -->
-        <vstrips:InlineTextEditPopup x:Name="InlineEditor"
-                                     Grid.Row="0" Grid.RowSpan="3"/>
+    <vstrips:InlineTextEditPopup x:Name="InlineEditor" Grid.Row="0" Grid.RowSpan="3" />
 
-        <!-- Disconnected banner: red strip pinned to the top of the workspace
+    <!-- Disconnected banner: red strip pinned to the top of the workspace
              whenever the SignalR transport is down. While visible, the code-
              behind drops every input that would otherwise dispatch a command
              (drag/drop, right-click menus, keyboard shortcuts) so a stale
              view can't act. The bay layout itself stays — VStripsViewModel.
              OnConnectionLost only clears strip CONTENTS, not the bay shells —
              so the controller still sees the workspace structure. -->
-        <Border x:Name="DisconnectedBanner"
-                Grid.Row="2"
-                VerticalAlignment="Top"
-                HorizontalAlignment="Stretch"
-                Background="#992020"
-                BorderBrush="#cc4040"
-                BorderThickness="0,0,0,1"
-                ZIndex="999"
-                IsHitTestVisible="False"
-                IsVisible="{Binding !IsConnected}">
-            <TextBlock Text="DISCONNECTED — read-only until reconnect"
-                       Foreground="White"
-                       FontFamily="{StaticResource MonoFont}"
-                       FontWeight="Bold"
-                       FontSize="12"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       Padding="8,4"/>
-        </Border>
+    <Border
+      x:Name="DisconnectedBanner"
+      Grid.Row="2"
+      VerticalAlignment="Top"
+      HorizontalAlignment="Stretch"
+      Background="#992020"
+      BorderBrush="#cc4040"
+      BorderThickness="0,0,0,1"
+      ZIndex="999"
+      IsHitTestVisible="False"
+      IsVisible="{Binding !IsConnected}"
+    >
+      <TextBlock
+        Text="DISCONNECTED — read-only until reconnect"
+        Foreground="White"
+        FontFamily="{StaticResource MonoFont}"
+        FontWeight="Bold"
+        FontSize="12"
+        HorizontalAlignment="Center"
+        VerticalAlignment="Center"
+        Padding="8,4"
+      />
+    </Border>
 
-        <!-- Header: bay buttons + trash + zoom + printer toggle -->
-        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto,Auto,Auto" Background="#252529">
-
-            <!-- Facility switcher button — matches CRC's leftmost facility
+    <!-- Header: bay buttons + trash + zoom + printer toggle -->
+    <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto,Auto,Auto" Background="#252529">
+      <!-- Facility switcher button — matches CRC's leftmost facility
                  indicator (docs/crc/img/header.png: BOS box on the left),
                  including showing the short facility id; the full name lives
                  in the tooltip. Click opens a MenuFlyout of accessible
                  facilities built by OnFacilityButtonClick in the code-behind. -->
-            <!-- Sizing across the header follows docs/crc/img/header.png:
+      <!-- Sizing across the header follows docs/crc/img/header.png:
                  the bay drop zones dominate the bar height, the facility
                  button sits half-height on the left, and trash/printer are
                  square icon buttons on the right. -->
-            <Button Grid.Column="0"
-                    x:Name="FacilityButton"
-                    Content="{Binding FacilityId}"
-                    ToolTip.Tip="{Binding FacilityButtonToolTip}"
-                    Margin="4,10"
-                    Padding="12,0"
-                    VerticalAlignment="Stretch"
-                    VerticalContentAlignment="Center"
-                    FontFamily="{StaticResource MonoFont}"
-                    FontSize="15"
-                    Click="OnFacilityButtonClick"/>
+      <Button
+        Grid.Column="0"
+        x:Name="FacilityButton"
+        Content="{Binding FacilityId}"
+        ToolTip.Tip="{Binding FacilityButtonToolTip}"
+        Margin="4,10"
+        Padding="12,0"
+        VerticalAlignment="Stretch"
+        VerticalContentAlignment="Center"
+        FontFamily="{StaticResource MonoFont}"
+        FontSize="15"
+        Click="OnFacilityButtonClick"
+      />
 
-            <!-- The bay strip scrolls horizontally under the mouse wheel
+      <!-- The bay strip scrolls horizontally under the mouse wheel
                  (vertical or tilt — see OnBayBarWheel in the code-behind)
                  when there are more bays than fit the window, so hidden bay
                  buttons stay reachable without resizing. Scrollbar hidden:
                  the wheel is the scroll affordance, and a bar under the
                  drop zones would eat header height. -->
-            <ScrollViewer Grid.Column="1"
-                          x:Name="BayBarScroller"
-                          HorizontalScrollBarVisibility="Hidden"
-                          VerticalScrollBarVisibility="Disabled">
-                <ItemsControl ItemsSource="{Binding Bays}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel Orientation="Horizontal"/>
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="vm:StripBayViewModel" x:DataType="vm:StripBayViewModel">
-                            <!-- External bays render as thinner outlined buttons (matches CRC
+      <ScrollViewer Grid.Column="1" x:Name="BayBarScroller" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
+        <ItemsControl ItemsSource="{Binding Bays}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Horizontal" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="vm:StripBayViewModel" x:DataType="vm:StripBayViewModel">
+              <!-- External bays render as thinner outlined buttons (matches CRC
                                  docs/crc/img/header.png: BOS vs CD/GC/LC). Own bays render with
                                  a solid fill to signal viewability. -->
-                            <Button x:Name="BayButton"
-                                    Content="{Binding Name}"
-                                    Tag="{Binding}"
-                                    Margin="3,4"
-                                    Padding="20,0"
-                                    MinWidth="110"
-                                    VerticalAlignment="Stretch"
-                                    VerticalContentAlignment="Center"
-                                    HorizontalContentAlignment="Center"
-                                    FontFamily="{StaticResource MonoFont}"
-                                    FontSize="15"
-                                    Classes.external="{Binding IsExternal}"
-                                    Classes.selected="{Binding IsSelected}"
-                                    Click="OnBayButtonClick"/>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
+              <Button
+                x:Name="BayButton"
+                Content="{Binding Name}"
+                Tag="{Binding}"
+                Margin="3,4"
+                Padding="20,0"
+                MinWidth="110"
+                VerticalAlignment="Stretch"
+                VerticalContentAlignment="Center"
+                HorizontalContentAlignment="Center"
+                FontFamily="{StaticResource MonoFont}"
+                FontSize="15"
+                Classes.external="{Binding IsExternal}"
+                Classes.selected="{Binding IsSelected}"
+                Click="OnBayButtonClick"
+              />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
 
-            <!-- Zoom controls scale the racks area (not the header) via a
+      <!-- Zoom controls scale the racks area (not the header) via a
                  LayoutTransformControl. Min 0.5, max 1.5, 0.1 steps. Sits to
                  the left of the trash can so pointer travel from the bays to
                  the zoom +/- is shorter than the reach to the trash. -->
-            <StackPanel Grid.Column="2" Orientation="Horizontal"
-                        VerticalAlignment="Center" Margin="8,0,4,0" Spacing="2">
-                <Button Content="−"
-                        Padding="8,4" MinWidth="32"
-                        FontFamily="{StaticResource MonoFont}" FontSize="13"
-                        ToolTip.Tip="Zoom out"
-                        Command="{Binding ZoomOutCommand}"/>
-                <TextBlock Text="{Binding ZoomLabel}"
-                           MinWidth="42"
-                           VerticalAlignment="Center"
-                           HorizontalAlignment="Center"
-                           TextAlignment="Center"
-                           FontFamily="{StaticResource MonoFont}" FontSize="12"
-                           Foreground="#C0C0C0"/>
-                <Button Content="+"
-                        Padding="8,4" MinWidth="32"
-                        FontFamily="{StaticResource MonoFont}" FontSize="13"
-                        ToolTip.Tip="Zoom in"
-                        Command="{Binding ZoomInCommand}"/>
-            </StackPanel>
+      <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,4,0" Spacing="2">
+        <Button
+          Content="−"
+          Padding="8,4"
+          MinWidth="32"
+          FontFamily="{StaticResource MonoFont}"
+          FontSize="13"
+          ToolTip.Tip="Zoom out"
+          Command="{Binding ZoomOutCommand}"
+        />
+        <TextBlock
+          Text="{Binding ZoomLabel}"
+          MinWidth="42"
+          VerticalAlignment="Center"
+          HorizontalAlignment="Center"
+          TextAlignment="Center"
+          FontFamily="{StaticResource MonoFont}"
+          FontSize="12"
+          Foreground="#C0C0C0"
+        />
+        <Button
+          Content="+"
+          Padding="8,4"
+          MinWidth="32"
+          FontFamily="{StaticResource MonoFont}"
+          FontSize="13"
+          ToolTip.Tip="Zoom in"
+          Command="{Binding ZoomInCommand}"
+        />
+      </StackPanel>
 
-            <Border Grid.Column="3"
-                    x:Name="TrashZone"
-                    Width="48"
-                    Margin="4,5"
-                    Background="#3A1A1A"
-                    BorderBrush="#8A3A3A"
-                    BorderThickness="1"
-                    CornerRadius="2"
-                    ToolTip.Tip="Drag here to delete">
-                <!-- Geometry trash glyph drawn at 22x22. Replaces the
+      <Border
+        Grid.Column="3"
+        x:Name="TrashZone"
+        Width="48"
+        Margin="4,5"
+        Background="#3A1A1A"
+        BorderBrush="#8A3A3A"
+        BorderThickness="1"
+        CornerRadius="2"
+        ToolTip.Tip="Drag here to delete"
+      >
+        <!-- Geometry trash glyph drawn at 22x22. Replaces the
                      U+1F5D1 emoji which renders fine in Skia desktop (system
                      emoji fallback) but tofus in Avalonia.Browser since the
                      Inter font we ship has no emoji glyphs and there's no
                      font fallback configured. Path keeps the visual without
                      pulling in a 1MB+ emoji font. -->
-                <Path Width="22" Height="22"
-                      HorizontalAlignment="Center"
-                      VerticalAlignment="Center"
-                      Stroke="#E0C0C0"
-                      StrokeThickness="1.6"
-                      Data="M4.7 6.3 L17.3 6.3 M3.1 6.3 L18.9 6.3 L17.8 20.4 L4.2 20.4 Z M7.9 9.4 L7.9 17.3 M11 9.4 L11 17.3 M14.1 9.4 L14.1 17.3 M7.9 6.3 L7.9 3.9 L14.1 3.9 L14.1 6.3"/>
-            </Border>
+        <Path
+          Width="22"
+          Height="22"
+          HorizontalAlignment="Center"
+          VerticalAlignment="Center"
+          Stroke="#E0C0C0"
+          StrokeThickness="1.6"
+          Data="M4.7 6.3 L17.3 6.3 M3.1 6.3 L18.9 6.3 L17.8 20.4 L4.2 20.4 Z M7.9 9.4 L7.9 17.3 M11 9.4 L11 17.3 M14.1 9.4 L14.1 17.3 M7.9 6.3 L7.9 3.9 L14.1 3.9 L14.1 6.3"
+        />
+      </Border>
 
-            <!-- Printer icon button + red dep/arr strip-count badge, matching
+      <!-- Printer icon button + red dep/arr strip-count badge, matching
                  CRC's printer button in docs/crc/img/header.png. The Panel
                  hosts the badge so it can overlap the button's top-right
                  corner without being clipped by the ToggleButton. -->
-            <Panel Grid.Column="4" Margin="4,0,6,0">
-                <ToggleButton x:Name="PrinterToggle"
-                              Width="48"
-                              Margin="0,5"
-                              Padding="0"
-                              HorizontalContentAlignment="Center"
-                              VerticalContentAlignment="Center"
-                              IsChecked="{Binding Printer.IsOpen, Mode=TwoWay}"
-                              IsEnabled="{Binding IsConnected}"
-                              ToolTip.Tip="Printer (Tab)">
-                    <!-- Geometry printer glyph drawn at 22x22 — same
+      <Panel Grid.Column="4" Margin="4,0,6,0">
+        <ToggleButton
+          x:Name="PrinterToggle"
+          Width="48"
+          Margin="0,5"
+          Padding="0"
+          HorizontalContentAlignment="Center"
+          VerticalContentAlignment="Center"
+          IsChecked="{Binding Printer.IsOpen, Mode=TwoWay}"
+          IsEnabled="{Binding IsConnected}"
+          ToolTip.Tip="Printer (Tab)"
+        >
+          <!-- Geometry printer glyph drawn at 22x22 — same
                          no-emoji-font rationale as the trash glyph above. -->
-                    <Path Width="22" Height="22"
-                          Stroke="#D0D0D0"
-                          StrokeThickness="1.6"
-                          Data="M7 6.5 L7 2.5 L15 2.5 L15 6.5 M3.5 6.5 L18.5 6.5 L18.5 14.5 L15 14.5 M3.5 6.5 L3.5 14.5 L7 14.5 M7 11 L15 11 L15 19.5 L7 19.5 Z M15.8 8.8 L16.4 8.8"/>
-                </ToggleButton>
-                <Border IsVisible="{Binding Printer.HasQueuedStrips}"
-                        IsHitTestVisible="False"
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Top"
-                        Margin="0,0,-4,0"
-                        Background="#C43333"
-                        CornerRadius="9"
-                        Padding="5,1">
-                    <TextBlock Text="{Binding Printer.BadgeText}"
-                               FontFamily="{StaticResource MonoFont}"
-                               FontSize="10"
-                               Foreground="White"/>
-                </Border>
-            </Panel>
-        </Grid>
+          <Path
+            Width="22"
+            Height="22"
+            Stroke="#D0D0D0"
+            StrokeThickness="1.6"
+            Data="M7 6.5 L7 2.5 L15 2.5 L15 6.5 M3.5 6.5 L18.5 6.5 L18.5 14.5 L15 14.5 M3.5 6.5 L3.5 14.5 L7 14.5 M7 11 L15 11 L15 19.5 L7 19.5 Z M15.8 8.8 L16.4 8.8"
+          />
+        </ToggleButton>
+        <Border
+          IsVisible="{Binding Printer.HasQueuedStrips}"
+          IsHitTestVisible="False"
+          HorizontalAlignment="Right"
+          VerticalAlignment="Top"
+          Margin="0,0,-4,0"
+          Background="#C43333"
+          CornerRadius="9"
+          Padding="5,1"
+        >
+          <TextBlock Text="{Binding Printer.BadgeText}" FontFamily="{StaticResource MonoFont}" FontSize="10" Foreground="White" />
+        </Border>
+      </Panel>
+    </Grid>
 
-        <!-- Main area: selected bay's racks. Printer is now a full-area modal
+    <!-- Main area: selected bay's racks. Printer is now a full-area modal
              overlay (see below) rather than a side column, matching
              docs/crc/img/printer.png. -->
-        <Grid Grid.Row="2">
-            <ScrollViewer x:Name="RacksScrollViewer"
-                          HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
-                          ScrollChanged="OnRacksScrollChanged">
-                <!-- LayoutTransformControl scales the racks area (including
+    <Grid Grid.Row="2">
+      <ScrollViewer
+        x:Name="RacksScrollViewer"
+        HorizontalScrollBarVisibility="Auto"
+        VerticalScrollBarVisibility="Auto"
+        ScrollChanged="OnRacksScrollChanged"
+      >
+        <!-- LayoutTransformControl scales the racks area (including
                      strips, padding, and rack widths) without affecting the
                      header. Bound to VStripsViewModel.ZoomScale. Avalonia's
                      LayoutTransform path allocates real bounds under the
                      transform so the ScrollViewer still works correctly. -->
-                <LayoutTransformControl>
-                    <LayoutTransformControl.LayoutTransform>
-                        <ScaleTransform ScaleX="{Binding ZoomScale}"
-                                        ScaleY="{Binding ZoomScale}"/>
-                    </LayoutTransformControl.LayoutTransform>
-                    <ItemsControl x:Name="RacksHost"
-                                  ItemsSource="{Binding SelectedBay.Racks}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal"/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="vm:StripRackViewModel" x:DataType="vm:StripRackViewModel">
-                                <!-- Rack is a fixed-width column that fits a single
+        <LayoutTransformControl>
+          <LayoutTransformControl.LayoutTransform>
+            <ScaleTransform ScaleX="{Binding ZoomScale}" ScaleY="{Binding ZoomScale}" />
+          </LayoutTransformControl.LayoutTransform>
+          <ItemsControl x:Name="RacksHost" ItemsSource="{Binding SelectedBay.Racks}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Orientation="Horizontal" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="vm:StripRackViewModel" x:DataType="vm:StripRackViewModel">
+                <!-- Rack is a fixed-width column that fits a single
                                      full strip (535 px) plus its padding. Matches CRC
                                      racks which don't stretch — extra bays scroll
                                      horizontally via the parent ScrollViewer.
@@ -325,14 +349,14 @@
                                      resolve it via ancestor lookup regardless of
                                      whether the user drops on a strip, the rack
                                      padding, or empty space below the last strip. -->
-                                <!-- Rack renders strips bottom-up visually while the
+                <!-- Rack renders strips bottom-up visually while the
                                      wire order is newest-first (index 0 = newest).
                                      DockPanel with LastChildFill=False docks each
                                      successive ContentPresenter to Bottom, so item 0
                                      lands at the visual bottom and subsequent items
                                      stack upward — matching CRC bottom-up FIFO
                                      semantics. -->
-                                <!-- Background=Transparent is load-bearing for drag-drop:
+                <!-- Background=Transparent is load-bearing for drag-drop:
                                      without a background, Avalonia's hit-testing skips
                                      the Border's empty areas (the top padding and any
                                      unfilled space above the bottom-docked strips), so
@@ -340,45 +364,46 @@
                                      and OnRootDrop can't walk back to the rack. Transparent
                                      keeps the Border invisible while making it a solid
                                      hit-test target across its full arranged bounds. -->
-                                <Border BorderBrush="#3A3A40" BorderThickness="0,0,1,0"
-                                        Padding="4" Margin="0"
-                                        Width="547"
-                                        VerticalAlignment="Stretch"
-                                        Background="Transparent"
-                                        Tag="{Binding}">
-                                    <!-- Grid wrapper lets the drop-preview code-behind
+                <Border
+                  BorderBrush="#3A3A40"
+                  BorderThickness="0,0,1,0"
+                  Padding="4"
+                  Margin="0"
+                  Width="547"
+                  VerticalAlignment="Stretch"
+                  Background="Transparent"
+                  Tag="{Binding}"
+                >
+                  <!-- Grid wrapper lets the drop-preview code-behind
                                          add an overlay yellow line (append case) as
                                          a sibling of the strips host. -->
-                                    <Grid x:Name="RackContent">
-                                        <ItemsControl x:Name="RackStripsHost"
-                                                      Tag="{Binding}"
-                                                      VerticalAlignment="Stretch"
-                                                      ItemsSource="{Binding Strips}">
-                                            <ItemsControl.Styles>
-                                                <Style Selector="ItemsControl > ContentPresenter">
-                                                    <Setter Property="DockPanel.Dock" Value="Bottom"/>
-                                                </Style>
-                                            </ItemsControl.Styles>
-                                            <ItemsControl.ItemsPanel>
-                                                <ItemsPanelTemplate>
-                                                    <DockPanel LastChildFill="False"/>
-                                                </ItemsPanelTemplate>
-                                            </ItemsControl.ItemsPanel>
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate DataType="vm:StripItemViewModel" x:DataType="vm:StripItemViewModel">
-                                                    <vstrips:FlightStripControl Tag="{Binding}"/>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
+                  <Grid x:Name="RackContent">
+                    <ItemsControl x:Name="RackStripsHost" Tag="{Binding}" VerticalAlignment="Stretch" ItemsSource="{Binding Strips}">
+                      <ItemsControl.Styles>
+                        <Style Selector="ItemsControl > ContentPresenter">
+                          <Setter Property="DockPanel.Dock" Value="Bottom" />
+                        </Style>
+                      </ItemsControl.Styles>
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <DockPanel LastChildFill="False" />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:StripItemViewModel" x:DataType="vm:StripItemViewModel">
+                          <vstrips:FlightStripControl Tag="{Binding}" />
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                </LayoutTransformControl>
-            </ScrollViewer>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </LayoutTransformControl>
+      </ScrollViewer>
 
-            <!-- Printer modal — matches docs/crc/img/printer.png. Centered
+      <!-- Printer modal — matches docs/crc/img/printer.png. Centered
                  dark panel with: request-strip input + button, print-blank
                  button, then one carousel per printer (departure + arrival
                  sections, always both) with left/right arrows flanking a
@@ -386,153 +411,135 @@
                  move-to-bay / move-all / delete buttons. Dims the backdrop to
                  signal modal focus but still lets the user drag strips out if
                  they target a rack. -->
-            <!-- No backdrop dim — the racks stay fully visible behind the
+      <!-- No backdrop dim — the racks stay fully visible behind the
                  printer modal so "Move to Bay" updates show up immediately
                  without having to close the printer. The outer wrapper has
                  no Background so pointer events in its transparent margins
                  pass through to the racks underneath (a Transparent brush
                  would still intercept hit-testing). The inner modal has a
                  solid background and is fully interactive. -->
-            <Border IsVisible="{Binding Printer.IsOpen}">
-                <Border HorizontalAlignment="Center" VerticalAlignment="Center"
-                        Width="760"
-                        Background="#2B2D31"
-                        BorderBrush="#4A4A52" BorderThickness="1"
-                        CornerRadius="4"
-                        Padding="18"
-                        IsEnabled="{Binding IsConnected}">
-                    <DockPanel>
-                        <!-- Header row with Close (X) button -->
-                        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
-                            <TextBlock Grid.Column="0" Text=""
-                                       HorizontalAlignment="Center"
-                                       FontSize="16" FontWeight="Bold"
-                                       Foreground="White"/>
-                            <Button Grid.Column="1" Content="×"
-                                    Background="Transparent" BorderThickness="0"
-                                    FontSize="18"
-                                    Click="OnPrinterCloseClick"/>
-                        </Grid>
+      <Border IsVisible="{Binding Printer.IsOpen}">
+        <Border
+          HorizontalAlignment="Center"
+          VerticalAlignment="Center"
+          Width="760"
+          Background="#2B2D31"
+          BorderBrush="#4A4A52"
+          BorderThickness="1"
+          CornerRadius="4"
+          Padding="18"
+          IsEnabled="{Binding IsConnected}"
+        >
+          <DockPanel>
+            <!-- Header row with Close (X) button -->
+            <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+              <TextBlock Grid.Column="0" Text="" HorizontalAlignment="Center" FontSize="16" FontWeight="Bold" Foreground="White" />
+              <Button Grid.Column="1" Content="×" Background="Transparent" BorderThickness="0" FontSize="18" Click="OnPrinterCloseClick" />
+            </Grid>
 
-                        <!-- Request-Strip + Print-Blank row -->
-                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
-                                    HorizontalAlignment="Center" Spacing="8" Margin="0,4">
-                            <TextBox x:Name="RequestStripInput"
-                                     Width="220"
-                                     PlaceholderText="AAL123"
-                                     FontFamily="{StaticResource MonoFont}"
-                                     FontSize="13"/>
-                            <Button Content="Request Strip"
-                                    Background="#2EA37A" Foreground="White"
-                                    Padding="14,4"
-                                    Click="OnRequestStripClick"/>
-                        </StackPanel>
-                        <Button DockPanel.Dock="Top" Content="Print Blank Strip"
-                                Background="#2F6FB8" Foreground="White"
-                                Padding="16,4" Margin="0,8,0,4"
-                                HorizontalAlignment="Center"
-                                Click="OnPrintBlankClick"/>
+            <!-- Request-Strip + Print-Blank row -->
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8" Margin="0,4">
+              <TextBox x:Name="RequestStripInput" Width="220" PlaceholderText="AAL123" FontFamily="{StaticResource MonoFont}" FontSize="13" />
+              <Button Content="Request Strip" Background="#2EA37A" Foreground="White" Padding="14,4" Click="OnRequestStripClick" />
+            </StackPanel>
+            <Button
+              DockPanel.Dock="Top"
+              Content="Print Blank Strip"
+              Background="#2F6FB8"
+              Foreground="White"
+              Padding="16,4"
+              Margin="0,8,0,4"
+              HorizontalAlignment="Center"
+              Click="OnPrintBlankClick"
+            />
 
-                        <!-- Arrival printer — stacked below departure. Shown only when the
+            <!-- Arrival printer — stacked below departure. Shown only when the
                              facility's vNAS strips config separates arrival strips into
                              their own printer; unified facilities route arrivals into the
                              main carousel above. -->
-                        <StackPanel DockPanel.Dock="Bottom"
-                                    Spacing="6" Margin="0,16,0,0"
-                                    IsVisible="{Binding Printer.SeparateArrivalCarousel}">
-                            <Separator Margin="0,4" Background="#4A4A52"/>
-                            <TextBlock Text="Arrival Printer:" HorizontalAlignment="Center"
-                                       FontSize="14" Foreground="White"/>
-                            <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
-                                <Button Grid.Column="0" Content="‹"
-                                        Background="Transparent" BorderThickness="0"
-                                        Foreground="White" FontSize="22"
-                                        Click="OnArrivalPrevClick"/>
-                                <ContentControl Grid.Column="1" Content="{Binding Printer.VisibleArrivalStrip}"
-                                                HorizontalAlignment="Center">
-                                    <ContentControl.ContentTemplate>
-                                        <DataTemplate DataType="vm:StripItemViewModel" x:DataType="vm:StripItemViewModel">
-                                            <vstrips:FlightStripControl Tag="{Binding}"/>
-                                        </DataTemplate>
-                                    </ContentControl.ContentTemplate>
-                                </ContentControl>
-                                <Button Grid.Column="2" Content="›"
-                                        Background="Transparent" BorderThickness="0"
-                                        Foreground="White" FontSize="22"
-                                        Click="OnArrivalNextClick"/>
-                            </Grid>
-                            <TextBlock Text="{Binding Printer.ArrivalCounter}"
-                                       HorizontalAlignment="Center"
-                                       Foreground="#C0C0C0"/>
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12" Margin="0,6">
-                                <Button Content="Move to Bay"
-                                        Background="#2F6FB8" Foreground="White"
-                                        Padding="14,4"
-                                        Click="OnArrivalMoveToBayClick"/>
-                                <Button Content="Move All to Bay"
-                                        Background="#2F6FB8" Foreground="White"
-                                        Padding="14,4"
-                                        Click="OnArrivalMoveAllToBayClick"/>
-                                <Button Content="Delete"
-                                        Background="#B8323A" Foreground="White"
-                                        Padding="14,4"
-                                        Click="OnArrivalDeleteClick"/>
-                            </StackPanel>
-                        </StackPanel>
+            <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,16,0,0" IsVisible="{Binding Printer.SeparateArrivalCarousel}">
+              <Separator Margin="0,4" Background="#4A4A52" />
+              <TextBlock Text="Arrival Printer:" HorizontalAlignment="Center" FontSize="14" Foreground="White" />
+              <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
+                <Button
+                  Grid.Column="0"
+                  Content="‹"
+                  Background="Transparent"
+                  BorderThickness="0"
+                  Foreground="White"
+                  FontSize="22"
+                  Click="OnArrivalPrevClick"
+                />
+                <ContentControl Grid.Column="1" Content="{Binding Printer.VisibleArrivalStrip}" HorizontalAlignment="Center">
+                  <ContentControl.ContentTemplate>
+                    <DataTemplate DataType="vm:StripItemViewModel" x:DataType="vm:StripItemViewModel">
+                      <vstrips:FlightStripControl Tag="{Binding}" />
+                    </DataTemplate>
+                  </ContentControl.ContentTemplate>
+                </ContentControl>
+                <Button
+                  Grid.Column="2"
+                  Content="›"
+                  Background="Transparent"
+                  BorderThickness="0"
+                  Foreground="White"
+                  FontSize="22"
+                  Click="OnArrivalNextClick"
+                />
+              </Grid>
+              <TextBlock Text="{Binding Printer.ArrivalCounter}" HorizontalAlignment="Center" Foreground="#C0C0C0" />
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12" Margin="0,6">
+                <Button Content="Move to Bay" Background="#2F6FB8" Foreground="White" Padding="14,4" Click="OnArrivalMoveToBayClick" />
+                <Button Content="Move All to Bay" Background="#2F6FB8" Foreground="White" Padding="14,4" Click="OnArrivalMoveAllToBayClick" />
+                <Button Content="Delete" Background="#B8323A" Foreground="White" Padding="14,4" Click="OnArrivalDeleteClick" />
+              </StackPanel>
+            </StackPanel>
 
-                        <!-- Departure printer carousel (the only carousel for unified facilities) -->
-                        <StackPanel Spacing="6" Margin="0,16,0,0">
-                            <Separator Margin="0,4" Background="#4A4A52"/>
-                            <TextBlock Text="{Binding Printer.DepartureSectionLabel}"
-                                       HorizontalAlignment="Center"
-                                       FontSize="14" Foreground="White"/>
-                            <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
-                                <Button Grid.Column="0" Content="‹"
-                                        Background="Transparent" BorderThickness="0"
-                                        Foreground="White" FontSize="22"
-                                        Click="OnDeparturePrevClick"/>
-                                <ContentControl Grid.Column="1"
-                                                Content="{Binding Printer.VisibleDepartureStrip}"
-                                                HorizontalAlignment="Center">
-                                    <ContentControl.ContentTemplate>
-                                        <DataTemplate DataType="vm:StripItemViewModel" x:DataType="vm:StripItemViewModel">
-                                            <vstrips:FlightStripControl Tag="{Binding}"/>
-                                        </DataTemplate>
-                                    </ContentControl.ContentTemplate>
-                                </ContentControl>
-                                <Button Grid.Column="2" Content="›"
-                                        Background="Transparent" BorderThickness="0"
-                                        Foreground="White" FontSize="22"
-                                        Click="OnDepartureNextClick"/>
-                            </Grid>
-                            <TextBlock Text="{Binding Printer.DepartureCounter}"
-                                       HorizontalAlignment="Center"
-                                       Foreground="#C0C0C0"/>
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12" Margin="0,6">
-                                <Button Content="Move to Bay"
-                                        Background="#2F6FB8" Foreground="White"
-                                        Padding="14,4"
-                                        Click="OnDepartureMoveToBayClick"/>
-                                <Button Content="Move All to Bay"
-                                        Background="#2F6FB8" Foreground="White"
-                                        Padding="14,4"
-                                        Click="OnDepartureMoveAllToBayClick"/>
-                                <Button Content="Delete"
-                                        Background="#B8323A" Foreground="White"
-                                        Padding="14,4"
-                                        Click="OnDepartureDeleteClick"/>
-                            </StackPanel>
-                        </StackPanel>
-                    </DockPanel>
-                </Border>
-            </Border>
+            <!-- Departure printer carousel (the only carousel for unified facilities) -->
+            <StackPanel Spacing="6" Margin="0,16,0,0">
+              <Separator Margin="0,4" Background="#4A4A52" />
+              <TextBlock Text="{Binding Printer.DepartureSectionLabel}" HorizontalAlignment="Center" FontSize="14" Foreground="White" />
+              <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
+                <Button
+                  Grid.Column="0"
+                  Content="‹"
+                  Background="Transparent"
+                  BorderThickness="0"
+                  Foreground="White"
+                  FontSize="22"
+                  Click="OnDeparturePrevClick"
+                />
+                <ContentControl Grid.Column="1" Content="{Binding Printer.VisibleDepartureStrip}" HorizontalAlignment="Center">
+                  <ContentControl.ContentTemplate>
+                    <DataTemplate DataType="vm:StripItemViewModel" x:DataType="vm:StripItemViewModel">
+                      <vstrips:FlightStripControl Tag="{Binding}" />
+                    </DataTemplate>
+                  </ContentControl.ContentTemplate>
+                </ContentControl>
+                <Button
+                  Grid.Column="2"
+                  Content="›"
+                  Background="Transparent"
+                  BorderThickness="0"
+                  Foreground="White"
+                  FontSize="22"
+                  Click="OnDepartureNextClick"
+                />
+              </Grid>
+              <TextBlock Text="{Binding Printer.DepartureCounter}" HorizontalAlignment="Center" Foreground="#C0C0C0" />
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12" Margin="0,6">
+                <Button Content="Move to Bay" Background="#2F6FB8" Foreground="White" Padding="14,4" Click="OnDepartureMoveToBayClick" />
+                <Button Content="Move All to Bay" Background="#2F6FB8" Foreground="White" Padding="14,4" Click="OnDepartureMoveAllToBayClick" />
+                <Button Content="Delete" Background="#B8323A" Foreground="White" Padding="14,4" Click="OnDepartureDeleteClick" />
+              </StackPanel>
+            </StackPanel>
+          </DockPanel>
+        </Border>
+      </Border>
 
-            <!-- Shared in-view Find bar overlay (Ctrl+F). DataContext is wired to the
+      <!-- Shared in-view Find bar overlay (Ctrl+F). DataContext is wired to the
                  view's FindController in code-behind; sits top-right over the racks. -->
-            <find:FindBarView x:Name="FindBar"/>
-
-        </Grid>
-
+      <find:FindBarView x:Name="FindBar" />
     </Grid>
-
+  </Grid>
 </UserControl>

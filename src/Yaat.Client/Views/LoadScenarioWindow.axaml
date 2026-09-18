@@ -1,125 +1,91 @@
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:views="using:Yaat.Client.Views"
-        x:Class="Yaat.Client.Views.LoadScenarioWindow"
-        Icon="avares://Yaat.Client/Resources/icon.png"
-        Title="Load Scenario"
-        Width="580"
-        Height="500"
-        MinWidth="400"
-        MinHeight="350"
-        WindowStartupLocation="CenterOwner"
-        CanResize="True">
+<Window
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:views="using:Yaat.Client.Views"
+  x:Class="Yaat.Client.Views.LoadScenarioWindow"
+  Icon="avares://Yaat.Client/Resources/icon.png"
+  Title="Load Scenario"
+  Width="580"
+  Height="500"
+  MinWidth="400"
+  MinHeight="350"
+  WindowStartupLocation="CenterOwner"
+  CanResize="True"
+>
+  <DockPanel Margin="12">
+    <!-- Bottom: action buttons -->
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,8,0,0">
+      <Button Content="Load" x:Name="LoadButton" Width="80" IsEnabled="False" />
+      <Button Content="Cancel" x:Name="CancelButton" Width="80" />
+    </StackPanel>
 
-    <DockPanel Margin="12">
-
-        <!-- Bottom: action buttons -->
-        <StackPanel DockPanel.Dock="Bottom"
-                    Orientation="Horizontal"
-                    HorizontalAlignment="Right"
-                    Spacing="8"
-                    Margin="0,8,0,0">
-            <Button Content="Load"
-                    x:Name="LoadButton"
-                    Width="80"
-                    IsEnabled="False" />
-            <Button Content="Cancel"
-                    x:Name="CancelButton"
-                    Width="80" />
-        </StackPanel>
-
-        <TabControl x:Name="SourceTabs">
-
-            <!-- ARTCC Scenarios tab -->
-            <TabItem Header="ARTCC Scenarios" x:Name="ArtccTab">
-                <DockPanel Margin="0,8,0,0">
-
-                    <!-- Filter + status. Rating filter is server-side: scenarios above the user's
+    <TabControl x:Name="SourceTabs">
+      <!-- ARTCC Scenarios tab -->
+      <TabItem Header="ARTCC Scenarios" x:Name="ArtccTab">
+        <DockPanel Margin="0,8,0,0">
+          <!-- Filter + status. Rating filter is server-side: scenarios above the user's
                          verified rating never leave the server, so there's no rating dropdown here.
                          The HiddenByGateCount surfaces in ArtccGateText if > 0. -->
-                    <StackPanel DockPanel.Dock="Top"
-                                Orientation="Horizontal"
-                                Spacing="12"
-                                Margin="0,0,0,8">
-                        <StackPanel Orientation="Horizontal" Spacing="4">
-                            <TextBlock Text="Facility:" VerticalAlignment="Center" />
-                            <ComboBox x:Name="ArtccFacilityFilter" MinWidth="100" />
-                        </StackPanel>
-                        <TextBlock x:Name="ArtccStatusText"
-                                   VerticalAlignment="Center"
-                                   Foreground="{DynamicResource SubtleTextBrush}" />
-                    </StackPanel>
+          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="12" Margin="0,0,0,8">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <TextBlock Text="Facility:" VerticalAlignment="Center" />
+              <ComboBox x:Name="ArtccFacilityFilter" MinWidth="100" />
+            </StackPanel>
+            <TextBlock x:Name="ArtccStatusText" VerticalAlignment="Center" Foreground="{DynamicResource SubtleTextBrush}" />
+          </StackPanel>
 
-                    <TextBlock x:Name="ArtccGateText"
-                               DockPanel.Dock="Top"
-                               TextWrapping="Wrap"
-                               Margin="0,0,0,8"
-                               Foreground="{DynamicResource SubtleTextBrush}"
-                               FontSize="11"
-                               IsVisible="False" />
+          <TextBlock
+            x:Name="ArtccGateText"
+            DockPanel.Dock="Top"
+            TextWrapping="Wrap"
+            Margin="0,0,0,8"
+            Foreground="{DynamicResource SubtleTextBrush}"
+            FontSize="11"
+            IsVisible="False"
+          />
 
-                    <ListBox x:Name="ArtccScenarioList"
-                             SelectionMode="Single">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate x:DataType="views:ArtccScenarioItem">
-                                <TextBlock Text="{Binding Name}" />
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </DockPanel>
-            </TabItem>
+          <ListBox x:Name="ArtccScenarioList" SelectionMode="Single">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="views:ArtccScenarioItem">
+                <TextBlock Text="{Binding Name}" />
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+      </TabItem>
 
-            <!-- Local Files tab -->
-            <TabItem Header="Local Files" x:Name="LocalTab">
-                <DockPanel Margin="0,8,0,0">
+      <!-- Local Files tab -->
+      <TabItem Header="Local Files" x:Name="LocalTab">
+        <DockPanel Margin="0,8,0,0">
+          <!-- folder picker + filters -->
+          <Grid DockPanel.Dock="Top" RowDefinitions="Auto,Auto" Margin="0,0,0,8">
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+              <TextBox Grid.Column="0" x:Name="FolderPathBox" IsReadOnly="True" PlaceholderText="Select a folder…" />
+              <Button Grid.Column="1" Content="Browse…" x:Name="BrowseButton" Margin="8,0,0,0" />
+            </Grid>
 
-                    <!-- folder picker + filters -->
-                    <Grid DockPanel.Dock="Top"
-                          RowDefinitions="Auto,Auto"
-                          Margin="0,0,0,8">
+            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="12" Margin="0,8,0,0">
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <TextBlock Text="Facility:" VerticalAlignment="Center" />
+                <ComboBox x:Name="FacilityFilter" MinWidth="100" />
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <TextBlock Text="Rating:" VerticalAlignment="Center" />
+                <ComboBox x:Name="RatingFilter" MinWidth="80" />
+              </StackPanel>
+              <TextBlock x:Name="LocalStatusText" VerticalAlignment="Center" Foreground="{DynamicResource SubtleTextBrush}" />
+            </StackPanel>
+          </Grid>
 
-                        <Grid Grid.Row="0"
-                              ColumnDefinitions="*,Auto">
-                            <TextBox Grid.Column="0"
-                                     x:Name="FolderPathBox"
-                                     IsReadOnly="True"
-                                     PlaceholderText="Select a folder…" />
-                            <Button Grid.Column="1"
-                                    Content="Browse…"
-                                    x:Name="BrowseButton"
-                                    Margin="8,0,0,0" />
-                        </Grid>
-
-                        <StackPanel Grid.Row="1"
-                                    Orientation="Horizontal"
-                                    Spacing="12"
-                                    Margin="0,8,0,0">
-                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                <TextBlock Text="Facility:" VerticalAlignment="Center" />
-                                <ComboBox x:Name="FacilityFilter" MinWidth="100" />
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                <TextBlock Text="Rating:" VerticalAlignment="Center" />
-                                <ComboBox x:Name="RatingFilter" MinWidth="80" />
-                            </StackPanel>
-                            <TextBlock x:Name="LocalStatusText"
-                                       VerticalAlignment="Center"
-                                       Foreground="{DynamicResource SubtleTextBrush}" />
-                        </StackPanel>
-                    </Grid>
-
-                    <ListBox x:Name="LocalScenarioList"
-                             SelectionMode="Single">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate x:DataType="views:LocalScenarioItem">
-                                <TextBlock Text="{Binding Name}" />
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </DockPanel>
-            </TabItem>
-
-        </TabControl>
-
-    </DockPanel>
+          <ListBox x:Name="LocalScenarioList" SelectionMode="Single">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="views:LocalScenarioItem">
+                <TextBlock Text="{Binding Name}" />
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+      </TabItem>
+    </TabControl>
+  </DockPanel>
 </Window>
