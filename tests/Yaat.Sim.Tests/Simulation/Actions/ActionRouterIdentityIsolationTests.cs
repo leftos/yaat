@@ -75,7 +75,7 @@ public class ActionRouterIdentityIsolationTests
         var dep = TrackOwner.CreateStars("SFO_DEP", "NCT", 4, "U");
         engine.PositionSelections.Select("conn-1", dep);
 
-        StateSnapshotDto snapshot = engine.CaptureSnapshot(0);
+        StateSnapshotDto snapshot = engine.CaptureSnapshot();
         Assert.NotNull(snapshot.Server?.PositionSelections);
         Assert.Equal("SFO_DEP", snapshot.Server.PositionSelections["conn-1"].Callsign);
 
@@ -98,7 +98,7 @@ public class ActionRouterIdentityIsolationTests
         }
 
         SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
-        StateSnapshotDto snapshot = engine.CaptureSnapshot(0);
+        StateSnapshotDto snapshot = engine.CaptureSnapshot();
         var withoutSelections = new StateSnapshotDto
         {
             SchemaVersion = snapshot.SchemaVersion,

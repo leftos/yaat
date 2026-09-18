@@ -24,7 +24,7 @@ namespace Yaat.Sim.Simulation;
 // Snapshot capture and restore, for both the sim state and the server's slice of it.
 public sealed partial class SimulationEngine
 {
-    public StateSnapshotDto CaptureSnapshot(int actionIndex)
+    public StateSnapshotDto CaptureSnapshot()
     {
         SimScenarioState scenario = Scenario ?? throw new InvalidOperationException("No scenario loaded.");
         List<AircraftState> aircraft = World.GetSnapshot();

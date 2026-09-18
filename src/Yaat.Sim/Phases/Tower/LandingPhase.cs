@@ -726,21 +726,13 @@ public sealed class LandingPhase : Phase
             _exitResolutionEnabled = currentPref is not null;
         }
 
-        // Default decel rate — may be bumped by braking plan or LAHSO
-        double decelRate = plan.DefaultDecel;
-
         // LAHSO: enforce stop at the hold-short distance
         if (_hasLahso)
         {
             double distFromThreshold = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(plan.ThresholdLat, plan.ThresholdLon));
             double distToHoldShort = _lahsoHoldShortDistNm - distFromThreshold;
 
-            if ((distToHoldShort > 0) && (ctx.Aircraft.IndicatedAirspeed > 1.0))
-            {
-                double lahsoDecel = RolloutBraking.RequiredDecelKtsPerSec(ctx.Aircraft.GroundSpeed, 0, distToHoldShort);
-                if (lahsoDecel > decelRate) { }
-            }
-            else if (distToHoldShort <= 0)
+            if (distToHoldShort <= 0)
             {
                 // Past the hold-short point — enforce immediate stop via a sub-coast target.
                 ctx.Targets.TargetSpeed = 0;

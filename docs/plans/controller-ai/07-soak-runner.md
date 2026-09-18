@@ -90,7 +90,7 @@ loop until budget or completion or fatal:
     catch (Exception ex) { monitor.ReportTickException(ex); break; }   // state poisoned → end episode
     monitor.OnTick(BuildContext(collector.DrainTick(), outcomes, logTap.Drain()))
     if (elapsed % snapshotInterval == 0 || monitor.OpenedHardOrProgressFindingThisTick)
-        recording.WriteSnapshot(engine.ActiveSim.CaptureSnapshot(actionCount))
+        recording.WriteSnapshot(engine.ActiveSim.CaptureSnapshot())
 monitor.OnEpisodeEnd()                                // completion audit
 recording.Finish(actionLog, findingsAsBookmarks)      // rename .partial → final
 FindingsWriter.Write(...)

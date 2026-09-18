@@ -123,7 +123,7 @@ public class StripTdlsEngineSnapshotTests
         SimulationEngine engine = Load();
         Seed(engine);
 
-        StateSnapshotDto snapshot = engine.CaptureSnapshot(actionIndex: 0);
+        StateSnapshotDto snapshot = engine.CaptureSnapshot();
         StateSnapshotDto serialized = JsonSerializer.Deserialize<StateSnapshotDto>(JsonSerializer.Serialize(snapshot))!;
 
         SimulationEngine restored = Load();
@@ -148,7 +148,7 @@ public class StripTdlsEngineSnapshotTests
     {
         SimulationEngine engine = Load();
         Seed(engine);
-        StateSnapshotDto snapshot = engine.CaptureSnapshot(actionIndex: 0);
+        StateSnapshotDto snapshot = engine.CaptureSnapshot();
 
         // A pre-feature snapshot: the server section is there, its strip and TDLS slices are not.
         var preFeature = new StateSnapshotDto
@@ -191,7 +191,7 @@ public class StripTdlsEngineSnapshotTests
             },
         ]);
 
-        StateSnapshotDto snapshot = engine.CaptureSnapshot(actionIndex: 0);
+        StateSnapshotDto snapshot = engine.CaptureSnapshot();
         var preFeature = new StateSnapshotDto
         {
             SchemaVersion = snapshot.SchemaVersion,

@@ -259,7 +259,7 @@ public static class AutoRouter
             );
 
             // Destination check.
-            if (IsAtDestination(current.HeadNodeId, destinationNode, ctx))
+            if (IsAtDestination(current.HeadNodeId, destinationNode))
             {
                 int baseDepth = startOverride?.Depth ?? 0;
                 int newEdgeCount = current.Depth - baseDepth;
@@ -422,11 +422,12 @@ public static class AutoRouter
     }
 
     /// <summary>
-    /// True when <paramref name="nodeId"/> satisfies the destination for this search.
-    /// For runway destinations: any <see cref="GroundNodeType.RunwayHoldShort"/> matching the runway.
-    /// For all others: exact node-ID match against <paramref name="destinationNode"/>.
+    /// True when <paramref name="nodeId"/> satisfies the destination for this search: an exact node-ID match against
+    /// <paramref name="destinationNode"/>. The destination is always a single node — a runway destination is resolved
+    /// to its full-length line-up hold-short before the search starts
+    /// (<see cref="RouteMaterialiser.FindFullLengthLineupHoldShort"/>).
     /// </summary>
-    private static bool IsAtDestination(int nodeId, GroundNode destinationNode, SearchContext ctx) => nodeId == destinationNode.Id;
+    private static bool IsAtDestination(int nodeId, GroundNode destinationNode) => nodeId == destinationNode.Id;
 
     /// <summary>
     /// Resolve the target <see cref="GroundNode"/> from the context.

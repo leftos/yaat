@@ -113,7 +113,7 @@ public class ReplayAtcRosterTests
         engine.Scenario!.AtcPositions.Add(Resolve(_zoa, OakDepPositionId, ["KOAK"]));
         engine.Scenario.AtcPositions.Add(Resolve(_zoa, OakTwrPositionId, []));
 
-        StateSnapshotDto snapshot = engine.CaptureSnapshot(actionIndex: 0);
+        StateSnapshotDto snapshot = engine.CaptureSnapshot();
 
         if (Engine() is not { } restored)
         {
@@ -154,7 +154,7 @@ public class ReplayAtcRosterTests
 
         engine.Scenario!.AtcPositions.Add(Resolve(_zoa, OakDepPositionId, ["KOAK"]));
 
-        JsonNode node = JsonNode.Parse(JsonSerializer.Serialize(engine.CaptureSnapshot(actionIndex: 0), RecordingJsonOptions.Default))!;
+        JsonNode node = JsonNode.Parse(JsonSerializer.Serialize(engine.CaptureSnapshot(), RecordingJsonOptions.Default))!;
         node["Scenario"]!.AsObject().Remove("AtcPositions");
         StateSnapshotDto legacy = JsonSerializer.Deserialize<StateSnapshotDto>(node.ToJsonString(), RecordingJsonOptions.Default)!;
         Assert.Null(legacy.Scenario.AtcPositions);

@@ -105,7 +105,7 @@ public class AttendanceRecordTests
         IReadOnlyList<string> expected = engine.Attendance.PositionIds;
         Assert.NotEmpty(expected);
 
-        StateSnapshotDto snapshot = engine.CaptureSnapshot(actionIndex: 0);
+        StateSnapshotDto snapshot = engine.CaptureSnapshot();
 
         if (Engine() is not { } restored)
         {

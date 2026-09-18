@@ -249,7 +249,7 @@ public class GroundBrainE2ETests
         return (
             JsonSerializer.Serialize(scenario.ActionLog, RecordingJsonOptions.Default),
             JsonSerializer.Serialize(anomalies, RecordingJsonOptions.Default),
-            WithoutVirtualNodeIds(JsonSerializer.Serialize(engine.CaptureSnapshot(scenario.ActionLog.Count - 1), RecordingJsonOptions.Default))
+            WithoutVirtualNodeIds(JsonSerializer.Serialize(engine.CaptureSnapshot(), RecordingJsonOptions.Default))
         );
     }
 

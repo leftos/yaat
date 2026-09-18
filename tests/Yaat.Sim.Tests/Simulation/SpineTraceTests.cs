@@ -155,7 +155,7 @@ public class SpineTraceTests
         Assert.Equal(first, other.StepTrace.LastDigest);
     }
 
-    private static string Serialize(SimulationEngine engine) => JsonSerializer.Serialize(engine.CaptureSnapshot(0), RecordingJsonOptions.Default);
+    private static string Serialize(SimulationEngine engine) => JsonSerializer.Serialize(engine.CaptureSnapshot(), RecordingJsonOptions.Default);
 
     /// <summary>One airborne aircraft in a hand-built scenario: enough for every step to have something to iterate.</summary>
     private static SimulationEngine BuildEngine()

@@ -94,7 +94,7 @@ public class SessionClockTests
     public void Snapshot_RoundTripsTheModelDate_AndOlderSnapshotsKeepTheLoadedDate()
     {
         SimulationEngine engine = LoadAndTick(Day2024);
-        StateSnapshotDto snapshot = engine.CaptureSnapshot(0);
+        StateSnapshotDto snapshot = engine.CaptureSnapshot();
         Assert.Equal(Day2024, snapshot.Scenario.SessionStartUtc);
 
         var restored = new SimulationEngine(new TestAirportGroundData());
@@ -116,7 +116,7 @@ public class SessionClockTests
     {
         var engine = new SimulationEngine(new TestAirportGroundData());
         engine.LoadScenario(ScenarioJson, 42, Instant);
-        StateSnapshotDto snapshot = engine.CaptureSnapshot(0);
+        StateSnapshotDto snapshot = engine.CaptureSnapshot();
         Assert.Equal(Instant, snapshot.Scenario.SessionStartUtc);
 
         StateSnapshotDto serialized = JsonSerializer.Deserialize<StateSnapshotDto>(JsonSerializer.Serialize(snapshot))!;

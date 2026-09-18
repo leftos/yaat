@@ -56,7 +56,7 @@ public class ControllerAiDeterminismTests
         return (
             JsonSerializer.Serialize(scenario.ActionLog, RecordingJsonOptions.Default),
             JsonSerializer.Serialize(anomalies, RecordingJsonOptions.Default),
-            JsonSerializer.Serialize(engine.CaptureSnapshot(scenario.ActionLog.Count - 1), RecordingJsonOptions.Default)
+            JsonSerializer.Serialize(engine.CaptureSnapshot(), RecordingJsonOptions.Default)
         );
     }
 }

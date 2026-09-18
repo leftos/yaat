@@ -250,9 +250,13 @@ public class OakAllExitsTests(ITestOutputHelper output)
 
         double totalHeadingChange = headingSamples.Count >= 2 ? Math.Abs(NormalizeAngle(headingSamples[^1].Heading - headingSamples[0].Heading)) : 0;
 
+        string? finalTaxiway = aircraft.Ground.CurrentTaxiway;
+        Assert.NotNull(finalTaxiway);
+        Assert.Contains(finalTaxiway, thresholdOrder);
+
         return new ExitResult
         {
-            FinalTaxiway = aircraft.Ground.CurrentTaxiway,
+            FinalTaxiway = finalTaxiway,
             FinalHeading = aircraft.TrueHeading.Degrees,
             TotalHeadingChange = totalHeadingChange,
             TotalSeconds = exitEndTime,

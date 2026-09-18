@@ -164,7 +164,7 @@ public class AutoDeleteTickTests
         Assert.True(timedEngine.Scenario!.HasOngoingTrafficSource);
         Assert.Equal("Parked", timedEngine.Scenario.EffectiveAutoDeleteMode);
 
-        StateSnapshotDto snapshot = timedEngine.CaptureSnapshot(-1);
+        StateSnapshotDto snapshot = timedEngine.CaptureSnapshot();
         Assert.True(snapshot.Scenario.HasOngoingTrafficSource);
         staticEngine.RestoreFromSnapshot(snapshot);
         Assert.True(staticEngine.Scenario.HasOngoingTrafficSource);

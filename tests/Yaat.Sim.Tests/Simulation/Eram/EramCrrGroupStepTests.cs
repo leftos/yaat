@@ -171,7 +171,7 @@ public class EramCrrGroupStepTests
         Assert.True(engine.Actions.ApplyRecorded(Created(0, "Green", 37.5, -122.0), host).Success);
         Assert.True(engine.Actions.ApplyRecorded(new RecordedEramCrrGroup(0, "ALT", "Coral", 38.0, -121.0), host).Success);
 
-        StateSnapshotDto snapshot = engine.CaptureSnapshot(engine.Scenario!.ActionLog.Count);
+        StateSnapshotDto snapshot = engine.CaptureSnapshot();
 
         SimulationEngine restored = Engine()!;
         restored.RestoreFromSnapshot(snapshot);

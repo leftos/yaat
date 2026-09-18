@@ -247,7 +247,7 @@ public class TowerListStepTests
         (string Callsign, double EnteredAtSeconds) entry = Assert.Single(OakEntries(engine));
         Assert.Equal(1, entry.EnteredAtSeconds);
 
-        StateSnapshotDto snapshot = engine.CaptureSnapshot(actionIndex: 0);
+        StateSnapshotDto snapshot = engine.CaptureSnapshot();
 
         // Out of range and back in: the engine now holds the same aircraft under a much later dwell second.
         MoveOutOfRange(engine);
@@ -293,7 +293,7 @@ public class TowerListStepTests
         Assert.True(nctP1[0].EnteredAtSeconds < nctP1[1].EnteredAtSeconds, "the OAK departure entered NCT's P1 first");
         Assert.Equal([FatCallsign], fatP1.Select(e => e.Callsign).ToList());
 
-        StateSnapshotDto snapshot = engine.CaptureSnapshot(actionIndex: 0);
+        StateSnapshotDto snapshot = engine.CaptureSnapshot();
 
         // Both out to the Sierra: every list empties, so what the restore puts back can only have come from the snapshot.
         engine.FindAircraft(Callsign)!.Position = new LatLon(41.5, -117.0);

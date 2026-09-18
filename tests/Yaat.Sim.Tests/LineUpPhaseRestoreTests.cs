@@ -103,7 +103,7 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
             {
                 break;
             }
-            band.Add(engine.CaptureSnapshot(0));
+            band.Add(engine.CaptureSnapshot());
         }
 
         return band;
@@ -448,7 +448,7 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
         LineUpPhase livePhase = Assert.IsType<LineUpPhase>(live.Phases?.CurrentPhase);
         Assert.True(livePhase.RollingMode, "fixture check: the recorded CTO must put the line-up in rolling mode");
 
-        SimulationEngine? restoredEngine = RestoreInFreshEngine(twin.CaptureSnapshot(0));
+        SimulationEngine? restoredEngine = RestoreInFreshEngine(twin.CaptureSnapshot());
         Assert.NotNull(restoredEngine);
         AircraftState? restoredAc = restoredEngine.FindAircraft(Callsign);
         Assert.NotNull(restoredAc);

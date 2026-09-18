@@ -171,7 +171,7 @@ public class ControllerAiServiceTests
         };
         scenario.AiAnomalies.Open(AiAnomalyKind.StuckAircraft, ground, "N1", 1, "");
 
-        string json = JsonSerializer.Serialize(engine.CaptureSnapshot(-1), RecordingJsonOptions.Default);
+        string json = JsonSerializer.Serialize(engine.CaptureSnapshot(), RecordingJsonOptions.Default);
         StateSnapshotDto restored = JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!;
         scenario.ControllerAi = null;
         engine.RestoreFromSnapshot(restored);
