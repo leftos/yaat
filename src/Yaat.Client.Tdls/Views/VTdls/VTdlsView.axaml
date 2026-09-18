@@ -1,10 +1,9 @@
 <UserControl
   xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-  xmlns:vm="using:Yaat.Client.ViewModels"
-  xmlns:svc="using:Yaat.Client.Services"
+  xmlns:vm="using:Yaat.Client.Tdls.ViewModels"
   xmlns:find="using:Yaat.Client.Views.Find"
-  x:Class="Yaat.Client.Views.VTdls.VTdlsView"
+  x:Class="Yaat.Client.Tdls.Views.VTdls.VTdlsView"
   x:DataType="vm:VTdlsViewModel"
   x:CompileBindings="True"
   Focusable="True"

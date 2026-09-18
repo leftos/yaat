@@ -1,7 +1,7 @@
 using System.Text.Json.Serialization;
-using Yaat.Client.Tdls.Services;
+using Yaat.Client.Services;
 
-namespace Yaat.Client.Services;
+namespace Yaat.Client.Tdls.Services;
 
 /// <summary>
 /// vTDLS-side companion to <c>YaatHubJsonContext</c>. Registers every DTO that

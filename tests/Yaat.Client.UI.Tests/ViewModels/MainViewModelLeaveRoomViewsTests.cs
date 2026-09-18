@@ -3,6 +3,7 @@ using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.Tdls.Services;
+using Yaat.Client.Tdls.ViewModels;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 

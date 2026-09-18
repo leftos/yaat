@@ -7,6 +7,8 @@ using Avalonia.VisualTree;
 using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.Tdls.Services;
+using Yaat.Client.Tdls.ViewModels;
+using Yaat.Client.Tdls.Views.VTdls;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.VTdls;
 

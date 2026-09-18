@@ -1,7 +1,7 @@
 <Window
   xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-  xmlns:vtdls="using:Yaat.Client.Views.VTdls"
+  xmlns:vtdls="using:Yaat.Client.Tdls.Views.VTdls"
   x:Class="Yaat.Client.Views.VTdls.VTdlsViewWindow"
   Icon="avares://Yaat.Client.Core/Resources/icon.png"
   Title="vTDLS"

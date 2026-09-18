@@ -10,6 +10,7 @@ using Velopack;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Client.Tdls.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Map;
 using Yaat.Sim;

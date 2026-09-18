@@ -5,10 +5,9 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Services;
 using Yaat.Client.Tdls.Services;
-using Yaat.Client.Tdls.ViewModels;
 using Yaat.Sim;
 
-namespace Yaat.Client.ViewModels;
+namespace Yaat.Client.Tdls.ViewModels;
 
 /// <summary>
 /// Root view-model for the vTDLS clone. One instance per active facility tab /

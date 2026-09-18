@@ -3,7 +3,7 @@ using Yaat.Client.Find;
 using Yaat.Client.Services;
 using Yaat.Client.Tdls.Services;
 
-namespace Yaat.Client.ViewModels;
+namespace Yaat.Client.Tdls.ViewModels;
 
 /// <summary>
 /// View-model for a single TDLS list entry. One instance per server-side

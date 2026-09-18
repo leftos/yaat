@@ -8,7 +8,7 @@ using Yaat.Client.Tdls.Services;
 using Yaat.Sim;
 using Yaat.Sim.Simulation.Tdls;
 
-namespace Yaat.Client.ViewModels;
+namespace Yaat.Client.Tdls.ViewModels;
 
 /// <summary>
 /// View-model for the nine-field flight-plan editor that opens on selecting a
