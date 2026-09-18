@@ -54,6 +54,18 @@ jobs:
       - name: Restore
         run: dotnet restore
 
+      # Formatting and style are build gates, not suggestions. CSharpier owns whitespace and line breaks (C# and
+      # XAML); `dotnet format style` verifies every info-level IDE rule. A bare `dotnet format` is never run: its
+      # whitespace pass fights CSharpier.
+      - name: Restore tools
+        run: dotnet tool restore
+
+      - name: Formatting (CSharpier)
+        run: dotnet csharpier check .
+
+      - name: Style diagnostics
+        run: dotnet format style yaat.slnx --verify-no-changes --severity info --no-restore
+
       - name: Build
         run: dotnet build --no-restore --configuration Release /warnaserror
 

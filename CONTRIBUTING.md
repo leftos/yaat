@@ -34,16 +34,30 @@ dotnet test            # Run all tests
 
 ### Formatting
 
-Run these commands before every commit, in this order:
+Formatting and style are build gates. The rules live in `.editorconfig`; `Directory.Build.props` turns on
+`EnforceCodeStyleInBuild` and `TreatWarningsAsErrors`, so a rule at `warning` fails the build, and CI also fails on any
+info-level style finding and on any file CSharpier would change (C# and `.axaml`).
+
+The `prek` pre-commit hooks apply the fixers to staged files and re-stage them. To do the same by hand, in this order:
 
 ```bash
-dotnet format style           # Fix code style issues
-dotnet format analyzers       # Fix analyzer warnings
-dotnet csharpier format .     # Apply CSharpier formatting
-dotnet build                  # Verify the build still passes
+dotnet tool restore                                  # CSharpier is a pinned local tool
+dotnet format style --severity info                  # Fix code style issues (run twice: one pass does not always converge)
+dotnet format analyzers                              # Fix analyzer warnings
+dotnet csharpier format .                            # Whitespace and line breaks
+dotnet build -p:TreatWarningsAsErrors=true           # Verify the build still passes
 ```
 
+What CI checks: `dotnet csharpier check .` and `dotnet format style yaat.slnx --verify-no-changes --severity info`.
+
+The conventions the rules encode: braces on every control-flow body; file-scoped namespaces that match the folder path;
+`var` only when the right-hand side names the type (`new T()`, a cast) and the explicit type everywhere else; expression
+bodies for single-line methods; primary constructors; collection expressions; a named tuple local keeps its name rather
+than being deconstructed.
+
 Do **not** run bare `dotnet format` — its whitespace rules conflict with CSharpier.
+
+`git config blame.ignoreRevsFile .git-blame-ignore-revs` hides the mechanical formatting commits from `git blame`.
 
 ### Conventions
 

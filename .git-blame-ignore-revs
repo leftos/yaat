@@ -5,3 +5,15 @@ a837882fdf69e6e3e8e2420c82baf6b56fe41f01
 
 # var policy (IDE0007/IDE0008)
 ad749d7053bc120420e0bd5c358b66fbadf15ed1
+
+# expression bodies (IDE0022)
+96099e37a27c351cd10f8ec8a79b87c31677ab2f
+
+# collection expressions
+9c8052f131c83a64c4000f742688cab88e71b17a
+
+# primary constructors (IDE0290)
+2b4c2e290a9ee385736e2e2bd3158de87d141854
+
+# info-level style sweep
+fe793d66694534e0a9a8f613e084548eefe485e2

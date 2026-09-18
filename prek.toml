@@ -37,8 +37,8 @@ stages = ["pre-commit"]
 
 [[repos.hooks]]
 id = "dotnet-format-style"
-name = "dotnet format style"
-entry = "bash tools/hooks/dotnet-format-wrapper.sh style"
+name = "dotnet format style (info)"
+entry = "bash tools/hooks/dotnet-format-wrapper.sh style info"
 language = "system"
 types = ["c#"]
 require_serial = true
@@ -47,7 +47,7 @@ stages = ["pre-commit"]
 [[repos.hooks]]
 id = "dotnet-format-analyzers"
 name = "dotnet format analyzers"
-entry = "bash tools/hooks/dotnet-format-wrapper.sh analyzers"
+entry = "bash tools/hooks/dotnet-format-wrapper.sh analyzers warn"
 language = "system"
 types = ["c#"]
 require_serial = true
@@ -55,10 +55,10 @@ stages = ["pre-commit"]
 
 [[repos.hooks]]
 id = "csharpier"
-name = "dotnet csharpier format"
+name = "dotnet csharpier format (C# + XAML)"
 entry = "bash tools/hooks/csharpier-wrapper.sh"
 language = "system"
-types = ["c#"]
+files = '\.(cs|axaml)$'
 require_serial = true
 stages = ["pre-commit"]
 
