@@ -162,10 +162,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     public event Action<int>? TickCompleted;
 
-    internal void FireTickCompleted(int elapsedSeconds)
-    {
-        TickCompleted?.Invoke(elapsedSeconds);
-    }
+    internal void FireTickCompleted(int elapsedSeconds) => TickCompleted?.Invoke(elapsedSeconds);
 
     /// <summary>
     /// Fires during the post-physics drain for each <see cref="AircraftState.PendingWarnings"/>
@@ -178,10 +175,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     public event Action<string, string>? WarningEmitted;
 
-    internal void FireWarningEmitted(string callsign, string warning)
-    {
-        WarningEmitted?.Invoke(callsign, warning);
-    }
+    internal void FireWarningEmitted(string callsign, string warning) => WarningEmitted?.Invoke(callsign, warning);
 
     /// <summary>
     /// Fires during the post-physics drain for each <see cref="AircraftState.PendingPilotSpeech"/>
@@ -192,10 +186,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     public event Action<string, string>? PilotSpeechEmitted;
 
-    internal void FirePilotSpeechEmitted(string callsign, string speech)
-    {
-        PilotSpeechEmitted?.Invoke(callsign, speech);
-    }
+    internal void FirePilotSpeechEmitted(string callsign, string speech) => PilotSpeechEmitted?.Invoke(callsign, speech);
 
     public SimulationEngine(IAirportGroundData groundData, ILogger? logger = null)
     {
@@ -243,17 +234,12 @@ public sealed partial class SimulationEngine
 
     // --- Snapshots ---
 
-    public AircraftState? FindAircraft(string callsign)
-    {
-        return World.GetSnapshot().FirstOrDefault(a => a.Callsign.Equals(callsign, StringComparison.OrdinalIgnoreCase));
-    }
+    public AircraftState? FindAircraft(string callsign) =>
+        World.GetSnapshot().FirstOrDefault(a => a.Callsign.Equals(callsign, StringComparison.OrdinalIgnoreCase));
 
     // --- Public mutations ---
 
-    internal void EmitTerminal(string kind, string callsign, string message)
-    {
-        AddTerminalEntry(new TerminalEntry(kind, callsign, message));
-    }
+    internal void EmitTerminal(string kind, string callsign, string message) => AddTerminalEntry(new TerminalEntry(kind, callsign, message));
 
     /// <summary>
     /// Takes an aircraft out of the world on a controller's or a host's decision: stamps

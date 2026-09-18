@@ -109,10 +109,8 @@ public class PhraseologyVerbalizerTests
     [Theory]
     [InlineData(45, "forty five")]
     [InlineData(270, "two seventy")]
-    public void DegreesWords_RelativeTurnsUseGroupedForm(int degrees, string expected)
-    {
+    public void DegreesWords_RelativeTurnsUseGroupedForm(int degrees, string expected) =>
         Assert.Equal(expected, PhraseologyVerbalizer.DegreesWords(degrees));
-    }
 
     // --- Speed ---
 
@@ -221,22 +219,13 @@ public class PhraseologyVerbalizerTests
     // --- Helpers exposed for AtParkingPhase + responder ---
 
     [Fact]
-    public void HeadingDigits_Wraps360ToZero()
-    {
-        Assert.Equal("zero zero zero", PhraseologyVerbalizer.HeadingDigits(new MagneticHeading(360)));
-    }
+    public void HeadingDigits_Wraps360ToZero() => Assert.Equal("zero zero zero", PhraseologyVerbalizer.HeadingDigits(new MagneticHeading(360)));
 
     [Fact]
-    public void HeadingDigits_NegativeWraps()
-    {
-        Assert.Equal("two seven zero", PhraseologyVerbalizer.HeadingDigits(new MagneticHeading(-90)));
-    }
+    public void HeadingDigits_NegativeWraps() => Assert.Equal("two seven zero", PhraseologyVerbalizer.HeadingDigits(new MagneticHeading(-90)));
 
     [Fact]
-    public void DigitsWords_Padding()
-    {
-        Assert.Equal("zero zero one", PhraseologyVerbalizer.DigitsWords(1, minWidth: 3));
-    }
+    public void DigitsWords_Padding() => Assert.Equal("zero zero one", PhraseologyVerbalizer.DigitsWords(1, minWidth: 3));
 
     [Fact]
     public void SpellRunway_LeftRightCenter()
@@ -271,22 +260,16 @@ public class PhraseologyVerbalizerTests
     // --- VerbalizeTerminal (compact controller form: digits + identifiers, shared rule patterns) ---
 
     [Fact]
-    public void VerbalizeTerminal_FlyHeading_UsesDigits()
-    {
+    public void VerbalizeTerminal_FlyHeading_UsesDigits() =>
         Assert.Equal("fly heading 270", PhraseologyVerbalizer.VerbalizeTerminal(new FlyHeadingCommand(new MagneticHeading(270))));
-    }
 
     [Fact]
-    public void VerbalizeTerminal_ClimbMaintain_UsesDigits()
-    {
+    public void VerbalizeTerminal_ClimbMaintain_UsesDigits() =>
         Assert.Equal("climb and maintain 5000", PhraseologyVerbalizer.VerbalizeTerminal(new ClimbMaintainCommand(5000)));
-    }
 
     [Fact]
-    public void VerbalizeTerminal_TaxiPathOnly_UsesSpaceJoinedLetters()
-    {
+    public void VerbalizeTerminal_TaxiPathOnly_UsesSpaceJoinedLetters() =>
         Assert.Equal("taxi via B C", PhraseologyVerbalizer.VerbalizeTerminal(new TaxiCommand(["B", "C"], [])));
-    }
 
     [Fact]
     public void VerbalizeTerminal_TaxiWithRunway_CompactIdentifiers()
@@ -307,32 +290,23 @@ public class PhraseologyVerbalizerTests
     // --- Frequency formatting (FAA 7110.65 §2-4-16) ---
 
     [Fact]
-    public void FrequencyToWords_TwoDecimalDigits()
-    {
-        Assert.Equal("one two five point three five", PhraseologyVerbalizer.FrequencyToWords(125.35));
-    }
+    public void FrequencyToWords_TwoDecimalDigits() => Assert.Equal("one two five point three five", PhraseologyVerbalizer.FrequencyToWords(125.35));
 
     [Fact]
-    public void FrequencyToWords_OneDecimalDigit_NoZeroPad()
-    {
+    public void FrequencyToWords_OneDecimalDigit_NoZeroPad() =>
         // 7110.65 §2-4-16 example: 121.5 MHz → "One two one point five." Trailing zeros dropped.
         Assert.Equal("one two one point five", PhraseologyVerbalizer.FrequencyToWords(121.5));
-    }
 
     [Fact]
-    public void FrequencyToWords_ThirdDecimalTruncated()
-    {
+    public void FrequencyToWords_ThirdDecimalTruncated() =>
         // 7110.65 §2-4-16 example: 135.275 MHz → "One three five point two seven."
         Assert.Equal("one three five point two seven", PhraseologyVerbalizer.FrequencyToWords(135.275));
-    }
 
     [Fact]
-    public void FrequencyToWords_WholeNumber_SingleZeroAfterPoint()
-    {
+    public void FrequencyToWords_WholeNumber_SingleZeroAfterPoint() =>
         // 7110.65 §2-4-16 example: 369.0 MHz → "Three six niner point zero." YAAT uses "nine"
         // for digit 9 across all spoken numbers; see DigitToWord in AtcNumberParser.
         Assert.Equal("three six nine point zero", PhraseologyVerbalizer.FrequencyToWords(369.0));
-    }
 
     [Fact]
     public void FrequencyToWords_LiveAtcExamples()
@@ -352,11 +326,9 @@ public class PhraseologyVerbalizerTests
     }
 
     [Fact]
-    public void FrequencyToWords_FloatingPointTolerance()
-    {
+    public void FrequencyToWords_FloatingPointTolerance() =>
         // 119.6 represented as 119.60000000000001 (binary-fp drift) must not produce extra digits.
         Assert.Equal("one one nine point six", PhraseologyVerbalizer.FrequencyToWords(119.60000000000001));
-    }
 
     // --- Speed: round-knot pilot colloquial forms ---
 

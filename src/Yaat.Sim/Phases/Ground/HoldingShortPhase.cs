@@ -36,10 +36,7 @@ public sealed class HoldingShortPhase : Phase
     /// reason, so restoring rebuilds a detached copy and both of those properties are lost. Called by
     /// <see cref="AircraftState.FromSnapshot"/> once the route is available.
     /// </summary>
-    internal void RebindHoldShort(HoldShortPoint holdShort)
-    {
-        _holdShort = holdShort;
-    }
+    internal void RebindHoldShort(HoldShortPoint holdShort) => _holdShort = holdShort;
 
     public override string Name => _holdShort.TargetName is { } target ? $"Holding Short {HoldShortTarget.Describe(target)}" : "Holding Short";
 
@@ -264,10 +261,7 @@ public sealed class HoldingShortPhase : Phase
             : $"aircraft is holding short of {target}; only RES/FOLLOWG/CROSS/HSC, a new TAXI, or DEL apply";
     }
 
-    protected override List<ClearanceRequirement> CreateRequirements()
-    {
-        return [new ClearanceRequirement { Type = ClearanceType.RunwayCrossing }];
-    }
+    protected override List<ClearanceRequirement> CreateRequirements() => [new ClearanceRequirement { Type = ClearanceType.RunwayCrossing }];
 
     public override PhaseDto ToSnapshot() =>
         new HoldingShortPhaseDto

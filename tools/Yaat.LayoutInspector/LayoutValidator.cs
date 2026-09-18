@@ -353,15 +353,10 @@ public sealed class LayoutValidator
         }
     }
 
-    private void Warn(string code, string message, IGroundEdge? edge)
-    {
-        _warnings.Add(new ValidationWarning(code, message, edge?.Origin));
-    }
+    private void Warn(string code, string message, IGroundEdge? edge) => _warnings.Add(new ValidationWarning(code, message, edge?.Origin));
 
-    private void Warn(string code, string message, GroundArc? arc)
-    {
+    private void Warn(string code, string message, GroundArc? arc) =>
         _warnings.Add(new ValidationWarning(code, message, (arc as IGroundEdge)?.Origin));
-    }
 }
 
 public sealed record ValidationWarning(string Code, string Message, string? Origin);

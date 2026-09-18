@@ -510,13 +510,9 @@ public static class CoordinationCommandHandler
         return matches[0];
     }
 
-    private static bool IsSender(CoordinationChannel channel, Tcp tcp)
-    {
-        return channel.SendingTcps.Any(s => s.Subset == tcp.Subset && s.SectorId.Equals(tcp.SectorId, StringComparison.OrdinalIgnoreCase));
-    }
+    private static bool IsSender(CoordinationChannel channel, Tcp tcp) =>
+        channel.SendingTcps.Any(s => s.Subset == tcp.Subset && s.SectorId.Equals(tcp.SectorId, StringComparison.OrdinalIgnoreCase));
 
-    private static bool IsReceiver(CoordinationChannel channel, Tcp tcp)
-    {
-        return channel.Receivers.Any(r => r.Tcp.Subset == tcp.Subset && r.Tcp.SectorId.Equals(tcp.SectorId, StringComparison.OrdinalIgnoreCase));
-    }
+    private static bool IsReceiver(CoordinationChannel channel, Tcp tcp) =>
+        channel.Receivers.Any(r => r.Tcp.Subset == tcp.Subset && r.Tcp.SectorId.Equals(tcp.SectorId, StringComparison.OrdinalIgnoreCase));
 }

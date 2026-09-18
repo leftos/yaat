@@ -42,10 +42,8 @@ public class SameRunwayArrivalProtectionTests
     [InlineData(AircraftCategory.Turboprop, 60.0)]
     [InlineData(AircraftCategory.Piston, 50.0)]
     [InlineData(AircraftCategory.Helicopter, 50.0)]
-    public void AirborneLeader_UsesPerCategoryConstant(AircraftCategory leaderCategory, double expectedSeconds)
-    {
+    public void AirborneLeader_UsesPerCategoryConstant(AircraftCategory leaderCategory, double expectedSeconds) =>
         Assert.Equal(expectedSeconds, SameRunwayArrivalProtection.AirborneLeaderIntervalSeconds(leaderCategory), 3);
-    }
 
     [Fact]
     public void RadarFloor_BindsOverAZeroWakeRequirement()
@@ -500,10 +498,8 @@ public class SameRunwayArrivalProtectionTests
     // §5-7-3.e: helicopters 60 kt, at any distance.
     [InlineData(AircraftCategory.Helicopter, 25.0, 60.0)]
     [InlineData(AircraftCategory.Helicopter, 4.0, 60.0)]
-    public void RegulatoryFloor_IsTheCategoryAndDistanceFigure(AircraftCategory category, double distanceNm, double expectedKts)
-    {
+    public void RegulatoryFloor_IsTheCategoryAndDistanceFigure(AircraftCategory category, double distanceNm, double expectedKts) =>
         Assert.Equal(expectedKts, SameRunwayArrivalProtection.RegulatoryFloorKts(category, distanceNm), 3);
-    }
 
     [Fact]
     public void Ceiling_FloorsAtTheRegulatorySpeedRatherThanVref()
@@ -622,10 +618,8 @@ public class SameRunwayArrivalProtectionTests
     [InlineData(10.0, true)]
     [InlineData(10.1, false)]
     [InlineData(4.0, true)]
-    public void TowerAuthority_BeginsAtTenMiles(double distanceToThresholdNm, bool expectedInside)
-    {
+    public void TowerAuthority_BeginsAtTenMiles(double distanceToThresholdNm, bool expectedInside) =>
         Assert.Equal(expectedInside, SameRunwayArrivalProtection.IsInsideTowerSpeedAuthority(distanceToThresholdNm));
-    }
 
     [Fact]
     public void FinalApproachSpeed_IsVrefPlusTheWindAdditive_NeverBareVref()

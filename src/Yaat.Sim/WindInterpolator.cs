@@ -234,10 +234,8 @@ public static class WindInterpolator
     /// translation, so only this component affects groundspeed; the crosswind component
     /// produces a side force, not drift.
     /// </summary>
-    public static double HeadwindComponentKts(double windFromDeg, double windSpeedKts, double trueHeadingDeg)
-    {
-        return windSpeedKts * Math.Cos((windFromDeg - trueHeadingDeg) * DegToRad);
-    }
+    public static double HeadwindComponentKts(double windFromDeg, double windSpeedKts, double trueHeadingDeg) =>
+        windSpeedKts * Math.Cos((windFromDeg - trueHeadingDeg) * DegToRad);
 
     /// <summary>
     /// Computes the Wind Correction Angle (WCA) in degrees.

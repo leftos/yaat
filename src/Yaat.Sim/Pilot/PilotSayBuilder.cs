@@ -383,10 +383,7 @@ public static class PilotSayBuilder
         "KANSAS CITY",
     ];
 
-    private static int RoundToNearest(double value, int increment)
-    {
-        return (int)(Math.Round(value / increment) * increment);
-    }
+    private static int RoundToNearest(double value, int increment) => (int)(Math.Round(value / increment) * increment);
 
     private static int NormalizeHeading(int hdg)
     {

@@ -127,10 +127,8 @@ public class VfrCommandPolicyTests(ITestOutputHelper output)
     [InlineData(VfrCommandsForIfr.None, false)]
     [InlineData(VfrCommandsForIfr.EnterFinalOnly, true)]
     [InlineData(VfrCommandsForIfr.All, true)]
-    public void AllowsForIfr_EnterFinal(VfrCommandsForIfr mode, bool expected)
-    {
+    public void AllowsForIfr_EnterFinal(VfrCommandsForIfr mode, bool expected) =>
         Assert.Equal(expected, VfrCommandPolicy.AllowsForIfr(ParseSingle("EF 28R"), mode));
-    }
 
     /// <summary>EnterFinalOnly opens up EF and nothing else — not even its sibling pattern entries.</summary>
     [Theory]

@@ -40,10 +40,8 @@ public class AircraftCommandApplicabilityTests
     [InlineData("vfr", true)]
     [InlineData("IFR", false)]
     [InlineData("", false)]
-    public void IsVfr_MatchesFlightRules(string rules, bool expected)
-    {
+    public void IsVfr_MatchesFlightRules(string rules, bool expected) =>
         Assert.Equal(expected, AircraftCommandApplicability.IsVfr(Ac("", false, rules)));
-    }
 
     [Fact]
     public void NullAircraft_AllPredicatesFalse()
@@ -72,18 +70,14 @@ public class AircraftCommandApplicabilityTests
     [InlineData("LinedUpAndWaiting", true, false)] // already on the runway
     [InlineData("At Parking", true, false)]
     [InlineData("FinalApproach", false, false)] // airborne arrival
-    public void CanLineUpAndWait_ByPhase(string phase, bool onGround, bool expected)
-    {
+    public void CanLineUpAndWait_ByPhase(string phase, bool onGround, bool expected) =>
         Assert.Equal(expected, AircraftCommandApplicability.CanLineUpAndWait(Ac(phase, onGround)));
-    }
 
     [Theory]
     [InlineData("28R", true)]
     [InlineData("", false)] // taxiing with no runway assigned yet
-    public void CanLineUpAndWait_Taxiing_RequiresAssignedRunway(string runway, bool expected)
-    {
+    public void CanLineUpAndWait_Taxiing_RequiresAssignedRunway(string runway, bool expected) =>
         Assert.Equal(expected, AircraftCommandApplicability.CanLineUpAndWait(Ac("Taxiing", true, assignedRunway: runway)));
-    }
 
     // --- Departures: Cleared for takeoff ---
 
@@ -95,18 +89,14 @@ public class AircraftCommandApplicabilityTests
     [InlineData("Takeoff", false, false)] // airborne — already departing
     [InlineData("At Parking", true, false)]
     [InlineData("FinalApproach", false, false)]
-    public void CanClearForTakeoff_ByPhase(string phase, bool onGround, bool expected)
-    {
+    public void CanClearForTakeoff_ByPhase(string phase, bool onGround, bool expected) =>
         Assert.Equal(expected, AircraftCommandApplicability.CanClearForTakeoff(Ac(phase, onGround)));
-    }
 
     [Theory]
     [InlineData("28R", true)]
     [InlineData("", false)]
-    public void CanClearForTakeoff_Taxiing_RequiresAssignedRunway(string runway, bool expected)
-    {
+    public void CanClearForTakeoff_Taxiing_RequiresAssignedRunway(string runway, bool expected) =>
         Assert.Equal(expected, AircraftCommandApplicability.CanClearForTakeoff(Ac("Taxiing", true, assignedRunway: runway)));
-    }
 
     [Theory]
     [InlineData("VFR", VfrCommandsForIfr.None, true)]
@@ -115,10 +105,8 @@ public class AircraftCommandApplicabilityTests
     [InlineData("IFR", VfrCommandsForIfr.None, false)]
     [InlineData("IFR", VfrCommandsForIfr.EnterFinalOnly, false)]
     [InlineData("IFR", VfrCommandsForIfr.All, true)]
-    public void ShowVfrTakeoffModifiers_VfrOrOptedIn(string rules, VfrCommandsForIfr mode, bool expected)
-    {
+    public void ShowVfrTakeoffModifiers_VfrOrOptedIn(string rules, VfrCommandsForIfr mode, bool expected) =>
         Assert.Equal(expected, AircraftCommandApplicability.ShowVfrTakeoffModifiers(Ac("LinedUpAndWaiting", true, rules), mode));
-    }
 
     // --- Departures: Cancel takeoff ---
 
@@ -128,10 +116,8 @@ public class AircraftCommandApplicabilityTests
     [InlineData("Takeoff", true, true)]
     [InlineData("Takeoff", false, false)]
     [InlineData("Holding Short 28L", true, false)]
-    public void CanCancelTakeoff_ByPhase(string phase, bool onGround, bool expected)
-    {
+    public void CanCancelTakeoff_ByPhase(string phase, bool onGround, bool expected) =>
         Assert.Equal(expected, AircraftCommandApplicability.CanCancelTakeoff(Ac(phase, onGround)));
-    }
 
     // --- Arrivals: Cleared to land (both rules, throughout the pattern + approach) ---
 
@@ -166,10 +152,8 @@ public class AircraftCommandApplicabilityTests
     [InlineData("FinalApproach", "IFR", VfrCommandsForIfr.All, true)]
     [InlineData("Downwind", "IFR", VfrCommandsForIfr.All, true)]
     [InlineData("Landing", "VFR", VfrCommandsForIfr.All, false)] // no pending landing phase
-    public void CanIssueVfrOption_RequiresPendingLandingAndRules(string phase, string rules, VfrCommandsForIfr mode, bool expected)
-    {
+    public void CanIssueVfrOption_RequiresPendingLandingAndRules(string phase, string rules, VfrCommandsForIfr mode, bool expected) =>
         Assert.Equal(expected, AircraftCommandApplicability.CanIssueVfrOption(Ac(phase, false, rules), mode));
-    }
 
     // --- Arrivals: Go around ---
 
@@ -183,10 +167,8 @@ public class AircraftCommandApplicabilityTests
     [InlineData("Landing", false)] // committed rollout — not offered
     [InlineData("GoAround", false)] // already going around
     [InlineData("InitialClimb", false)]
-    public void CanGoAround_ByPhase(string phase, bool expected)
-    {
+    public void CanGoAround_ByPhase(string phase, bool expected) =>
         Assert.Equal(expected, AircraftCommandApplicability.CanGoAround(Ac(phase, false)));
-    }
 
     // --- Arrivals during transient maneuvers (360/270/S-turn/procedure-turn) ---
     // CurrentPhase drops the leg/approach name; a landing in the sequence keeps the items.
@@ -235,10 +217,8 @@ public class AircraftCommandApplicabilityTests
     [InlineData("ClearedToLand", true)]
     [InlineData("ClearedForOption", true)]
     [InlineData("", false)]
-    public void CanCancelLandingClearance_RequiresActiveClearance(string clearance, bool expected)
-    {
+    public void CanCancelLandingClearance_RequiresActiveClearance(string clearance, bool expected) =>
         Assert.Equal(expected, AircraftCommandApplicability.CanCancelLandingClearance(Ac("FinalApproach", false, landingClearance: clearance)));
-    }
 
     /// <summary>A clearance pre-issued against a queued entry is cancellable too, with no phase yet.</summary>
     [Fact]
@@ -259,10 +239,8 @@ public class AircraftCommandApplicabilityTests
     [InlineData("Runway Exit", true)]
     [InlineData("Landing-H", false)] // helicopters land to a spot, not a runway exit
     [InlineData("FinalApproach", false)]
-    public void CanExitRunway_ByPhase(string phase, bool expected)
-    {
+    public void CanExitRunway_ByPhase(string phase, bool expected) =>
         Assert.Equal(expected, AircraftCommandApplicability.CanExitRunway(Ac(phase, false)));
-    }
 
     // --- Pattern entry (airborne VFR; inbound / holding / pending-landing) ---
 
@@ -275,10 +253,8 @@ public class AircraftCommandApplicabilityTests
     [InlineData("Downwind", "IFR", false, false)]
     [InlineData("Taxiing", "VFR", true, false)] // on ground
     [InlineData("InitialClimb", "VFR", false, false)] // departing
-    public void CanEnterPattern_ByPhaseAndRules(string phase, string rules, bool onGround, bool expected)
-    {
+    public void CanEnterPattern_ByPhaseAndRules(string phase, string rules, bool onGround, bool expected) =>
         Assert.Equal(expected, AircraftCommandApplicability.CanEnterPattern(Ac(phase, onGround, rules), VfrCommandsForIfr.EnterFinalOnly));
-    }
 
     /// <summary>
     /// The circuit-leg entries (ELD/ERD/ELB/ERB) only open up for an IFR aircraft under the full
@@ -316,10 +292,8 @@ public class AircraftCommandApplicabilityTests
     [InlineData("IFR", VfrCommandsForIfr.None, false)]
     [InlineData("IFR", VfrCommandsForIfr.EnterFinalOnly, false)]
     [InlineData("IFR", VfrCommandsForIfr.All, true)]
-    public void CanIssuePatternManeuvers_VfrOrOptedIn(string rules, VfrCommandsForIfr mode, bool expected)
-    {
+    public void CanIssuePatternManeuvers_VfrOrOptedIn(string rules, VfrCommandsForIfr mode, bool expected) =>
         Assert.Equal(expected, AircraftCommandApplicability.CanIssuePatternManeuvers(Ac("Downwind", false, rules), mode));
-    }
 
     // --- Ground routing: draw / preset taxi route ---
 
@@ -341,10 +315,8 @@ public class AircraftCommandApplicabilityTests
     [InlineData("Following UAL123", false, false)] // not on ground (guards airborne name reuse)
     [InlineData("VFR Follow", false, false)] // airborne pattern follow — distinct phase name
     [InlineData("FinalApproach", false, false)] // airborne arrival
-    public void CanDrawTaxiRoute_ByPhase(string phase, bool onGround, bool expected)
-    {
+    public void CanDrawTaxiRoute_ByPhase(string phase, bool onGround, bool expected) =>
         Assert.Equal(expected, AircraftCommandApplicability.CanDrawTaxiRoute(Ac(phase, onGround)));
-    }
 
     // --- Live traffic shadows ---
 

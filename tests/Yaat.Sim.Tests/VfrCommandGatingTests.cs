@@ -60,10 +60,8 @@ public class VfrCommandGatingTests : IDisposable
         return ac;
     }
 
-    private CommandResult Dispatch(AircraftState aircraft, ParsedCommand command)
-    {
-        return CommandDispatcher.Dispatch(command, aircraft, TestDispatch.Context(new Random(0), validateDctFixes: false));
-    }
+    private CommandResult Dispatch(AircraftState aircraft, ParsedCommand command) =>
+        CommandDispatcher.Dispatch(command, aircraft, TestDispatch.Context(new Random(0), validateDctFixes: false));
 
     [Theory]
     [InlineData("ERD 28R")]

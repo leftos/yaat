@@ -152,10 +152,8 @@ public partial class FavoritesEditorWindow : Window
         list.ItemsSource = GetSelectedContainerFavorites().Select(DescribeFavorite).ToList();
     }
 
-    private List<FavoriteCommand> GetSelectedContainerFavorites()
-    {
-        return IsOrphansViewSelected ? _store.GetOrphanFavorites() : _store.GetSetFavorites(_selectedContainerId);
-    }
+    private List<FavoriteCommand> GetSelectedContainerFavorites() =>
+        IsOrphansViewSelected ? _store.GetOrphanFavorites() : _store.GetSetFavorites(_selectedContainerId);
 
     private string DescribeFavorite(FavoriteCommand favorite)
     {
@@ -298,15 +296,11 @@ public partial class FavoritesEditorWindow : Window
         PopulateFavorites();
     }
 
-    private void OnMoveUpClick(object? sender, RoutedEventArgs e)
-    {
+    private void OnMoveUpClick(object? sender, RoutedEventArgs e) =>
         ReorderSelection(static (list, indices) => FavoriteSetEditorModel.MoveUp(list, indices));
-    }
 
-    private void OnMoveDownClick(object? sender, RoutedEventArgs e)
-    {
+    private void OnMoveDownClick(object? sender, RoutedEventArgs e) =>
         ReorderSelection(static (list, indices) => FavoriteSetEditorModel.MoveDown(list, indices));
-    }
 
     private void ReorderSelection(Func<List<string>, IReadOnlyCollection<int>, List<int>> reorder)
     {

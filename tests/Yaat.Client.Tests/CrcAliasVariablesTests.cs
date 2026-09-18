@@ -8,16 +8,12 @@ public class CrcAliasVariablesTests
     private static readonly CrcAliasContext Oakland = new("KOAK", "KJFK", "SUNOL Q126 ALTAM");
 
     [Fact]
-    public void DepAndArr_ResolveFromTheFlightPlan()
-    {
+    public void DepAndArr_ResolveFromTheFlightPlan() =>
         Assert.Equal("dep=KOAK&dest=KJFK", CrcAliasVariables.Substitute("dep=$dep&dest=$arr", Oakland));
-    }
 
     [Fact]
-    public void FullRoute_IsDepartureRouteDestination()
-    {
+    public void FullRoute_IsDepartureRouteDestination() =>
         Assert.Equal("KOAK SUNOL Q126 ALTAM KJFK", CrcAliasVariables.Substitute("$fullroute", Oakland));
-    }
 
     /// <summary>vNAS routes can carry a leading <c>+</c> marker, which CRC strips for display.</summary>
     [Fact]
@@ -38,10 +34,8 @@ public class CrcAliasVariablesTests
     }
 
     [Fact]
-    public void BlankField_ResolvesToTheCrcSentinel()
-    {
+    public void BlankField_ResolvesToTheCrcSentinel() =>
         Assert.Equal("----", CrcAliasVariables.Substitute("$arr", new CrcAliasContext("KOAK", "", "SUNOL")));
-    }
 
     /// <summary>
     /// The two-pass ordering is what makes this work: <c>$fullroute</c> is already literal by the time
@@ -56,17 +50,11 @@ public class CrcAliasVariablesTests
     }
 
     [Fact]
-    public void UnknownVariables_AreLeftLiteral()
-    {
-        Assert.Equal("$squawk $freq()", CrcAliasVariables.Substitute("$squawk $freq()", Oakland));
-    }
+    public void UnknownVariables_AreLeftLiteral() => Assert.Equal("$squawk $freq()", CrcAliasVariables.Substitute("$squawk $freq()", Oakland));
 
     /// <summary>Positional slots are already resolved by the store, so this pass must not touch them.</summary>
     [Fact]
-    public void PositionalSlots_AreLeftLiteral()
-    {
-        Assert.Equal("$1 $2", CrcAliasVariables.Substitute("$1 $2", Oakland));
-    }
+    public void PositionalSlots_AreLeftLiteral() => Assert.Equal("$1 $2", CrcAliasVariables.Substitute("$1 $2", Oakland));
 
     [Fact]
     public void TextWithoutVariables_IsUnchanged()

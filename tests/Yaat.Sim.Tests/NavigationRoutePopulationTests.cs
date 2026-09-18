@@ -48,10 +48,8 @@ public class NavigationRoutePopulationTests
         return ScenarioLoader.Load(scenarioJson, null, new SerializableRandom(42), MagneticDeclination.EvaluationDateUtc);
     }
 
-    private static string[] RouteFixNames(ScenarioLoadResult result)
-    {
-        return result.ImmediateAircraft[0].State.Targets.NavigationRoute.Select(t => t.Name).ToArray();
-    }
+    private static string[] RouteFixNames(ScenarioLoadResult result) =>
+        result.ImmediateAircraft[0].State.Targets.NavigationRoute.Select(t => t.Name).ToArray();
 
     // ── Airway expansion ──
 

@@ -141,34 +141,22 @@ public class WindowGeometryStartupDriftTests
     private static readonly WindowGeometryHelper.ResolvedGeometry Resolved = new(-7, 0, 610, 1000);
 
     [Fact]
-    public void ExactLanding_IsAccepted()
-    {
-        Assert.True(WindowGeometryHelper.IsAtResolvedGeometry(Resolved, new PixelPoint(-7, 0), 610, 1000));
-    }
+    public void ExactLanding_IsAccepted() => Assert.True(WindowGeometryHelper.IsAtResolvedGeometry(Resolved, new PixelPoint(-7, 0), 610, 1000));
 
     [Fact]
-    public void SubPixelRoundingJitter_IsAccepted()
-    {
+    public void SubPixelRoundingJitter_IsAccepted() =>
         Assert.True(WindowGeometryHelper.IsAtResolvedGeometry(Resolved, new PixelPoint(-6, 1), 610.5, 999.5));
-    }
 
     [Fact]
-    public void WindowShovedPastLeftEdge_IsRejected()
-    {
+    public void WindowShovedPastLeftEdge_IsRejected() =>
         // Issue #408's symptom: the top-left main window ends up offset past the left screen edge.
         Assert.False(WindowGeometryHelper.IsAtResolvedGeometry(Resolved, new PixelPoint(-100, 0), 610, 1000));
-    }
 
     [Fact]
-    public void VerticalDrift_IsRejected()
-    {
-        Assert.False(WindowGeometryHelper.IsAtResolvedGeometry(Resolved, new PixelPoint(-7, -406), 610, 1000));
-    }
+    public void VerticalDrift_IsRejected() => Assert.False(WindowGeometryHelper.IsAtResolvedGeometry(Resolved, new PixelPoint(-7, -406), 610, 1000));
 
     [Fact]
-    public void HeightCappedByWrongScreen_IsRejected()
-    {
+    public void HeightCappedByWrongScreen_IsRejected() =>
         // A stale ScreenIndex can cap the restored height to a smaller monitor's work area.
         Assert.False(WindowGeometryHelper.IsAtResolvedGeometry(Resolved, new PixelPoint(-7, 0), 610, 877));
-    }
 }

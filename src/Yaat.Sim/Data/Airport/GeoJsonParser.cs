@@ -33,15 +33,11 @@ public static class GeoJsonParser
 
     private static string SanitizeJson(string json) => LeadingZeroRegex.Replace(json, "$1");
 
-    public static AirportGroundLayout Parse(string airportId, string geoJson, string? runwayAirportCode)
-    {
-        return Parse(airportId, geoJson, runwayAirportCode, FilletMode.Standard);
-    }
+    public static AirportGroundLayout Parse(string airportId, string geoJson, string? runwayAirportCode) =>
+        Parse(airportId, geoJson, runwayAirportCode, FilletMode.Standard);
 
-    public static AirportGroundLayout Parse(string airportId, string geoJson, string? runwayAirportCode, bool applyFillets)
-    {
-        return Parse(airportId, geoJson, runwayAirportCode, applyFillets ? FilletMode.Standard : FilletMode.None);
-    }
+    public static AirportGroundLayout Parse(string airportId, string geoJson, string? runwayAirportCode, bool applyFillets) =>
+        Parse(airportId, geoJson, runwayAirportCode, applyFillets ? FilletMode.Standard : FilletMode.None);
 
     public static AirportGroundLayout Parse(string airportId, string geoJson, string? runwayAirportCode, FilletMode filletMode)
     {
@@ -71,10 +67,8 @@ public static class GeoJsonParser
     /// Parse from multiple GeoJSON files (separate parking, taxiways, spots, runways).
     /// Features are merged and classified directly — no re-serialization.
     /// </summary>
-    public static AirportGroundLayout ParseMultiple(string airportId, IEnumerable<string> geoJsonFiles, string? runwayAirportCode)
-    {
-        return ParseMultiple(airportId, geoJsonFiles, runwayAirportCode, FilletMode.Standard);
-    }
+    public static AirportGroundLayout ParseMultiple(string airportId, IEnumerable<string> geoJsonFiles, string? runwayAirportCode) =>
+        ParseMultiple(airportId, geoJsonFiles, runwayAirportCode, FilletMode.Standard);
 
     public static AirportGroundLayout ParseMultiple(
         string airportId,
@@ -324,10 +318,8 @@ public static class GeoJsonParser
         return layout;
     }
 
-    private static void ConnectParkingToTaxiway(GroundNode parking, AirportGroundLayout layout)
-    {
+    private static void ConnectParkingToTaxiway(GroundNode parking, AirportGroundLayout layout) =>
         ConnectToNearestTaxiway(parking, layout, ParkingConnectMaxNm);
-    }
 
     private static void ConnectGateGroupsToAnchors(IReadOnlyList<GroundNode> parkingNodes, AirportGroundLayout layout)
     {
@@ -428,10 +420,8 @@ public static class GeoJsonParser
         return best;
     }
 
-    private static bool HasDirectEdge(AirportGroundLayout layout, int fromNodeId, int toNodeId)
-    {
-        return layout.Edges.Any(e => e.HasNode(fromNodeId) && e.HasNode(toNodeId));
-    }
+    private static bool HasDirectEdge(AirportGroundLayout layout, int fromNodeId, int toNodeId) =>
+        layout.Edges.Any(e => e.HasNode(fromNodeId) && e.HasNode(toNodeId));
 
     /// <summary>
     /// Remove overlapping edges: when two taxiways share an identical segment (same

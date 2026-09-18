@@ -194,10 +194,8 @@ public class Issue177HelicopterAirTaxiTests(ITestOutputHelper output)
     [InlineData(40.0, 5.0)]
     [InlineData(80.0, 5.0)]
     [InlineData(20.0, 17.5)]
-    public void AirTaxi_SteerTurnRate_ScalesWithGroundspeed(double groundSpeedKts, double expected)
-    {
+    public void AirTaxi_SteerTurnRate_ScalesWithGroundspeed(double groundSpeedKts, double expected) =>
         Assert.Equal(expected, AirTaxiPhase.SteerTurnRate(AircraftCategory.Helicopter, groundSpeedKts), 3);
-    }
 
     [Fact]
     public void AirTaxi_SteerTurnRate_FasterNearHover()

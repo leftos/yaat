@@ -83,10 +83,7 @@ public sealed class ApproachEvaluator
     }
 
     /// <summary>Clears all stored scores. Called on scenario unload.</summary>
-    public void Reset()
-    {
-        _stored.Clear();
-    }
+    public void Reset() => _stored.Clear();
 
     // --- Grading ---
 

@@ -43,10 +43,7 @@ public class CompoundPolicyTests
     [InlineData("ASSUME")] // the lone hand-off verb is the supported form
     [InlineData("UNASSUME")] // ...as is the lone way back
     [InlineData("NOTE hold at gate; expect delay")] // free text the single parser accepts whole
-    public void NonChains_AndChainCapableCommands_PassThrough(string command)
-    {
-        Assert.Null(CompoundPolicy.FindNonCompoundableInChain(command));
-    }
+    public void NonChains_AndChainCapableCommands_PassThrough(string command) => Assert.Null(CompoundPolicy.FindNonCompoundableInChain(command));
 
     /// <summary>
     /// With a space before the separator the leading verb's token is bare, so <c>CommandParser.Parse</c> reads the whole
@@ -135,8 +132,6 @@ public class CompoundPolicyTests
     [InlineData("CTO MR270")] // the departure modifier itself
     [InlineData("R270")] // single command, not a pairing
     [InlineData("CTO, SQ 1234")] // a takeoff clearance may still be paired with other verbs
-    public void TakeoffWithoutAPairedImmediateTurn_PassesThrough(string command)
-    {
+    public void TakeoffWithoutAPairedImmediateTurn_PassesThrough(string command) =>
         Assert.Null(CompoundPolicy.FindTakeoffPairedWithImmediateTurn(command));
-    }
 }

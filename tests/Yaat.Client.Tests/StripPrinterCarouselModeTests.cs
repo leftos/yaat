@@ -74,8 +74,5 @@ public class StripPrinterCarouselModeTests
         string product,
         bool includeYaatSuffix,
         string expected
-    )
-    {
-        Assert.Equal(expected, ClientProductTitle.Build(pending, facilityId, product, includeYaatSuffix));
-    }
+    ) => Assert.Equal(expected, ClientProductTitle.Build(pending, facilityId, product, includeYaatSuffix));
 }

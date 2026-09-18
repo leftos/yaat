@@ -409,10 +409,7 @@ public partial class MainViewModel
     }
 
     [RelayCommand]
-    private void CancelRestartScenario()
-    {
-        ShowRestartScenarioConfirmation = false;
-    }
+    private void CancelRestartScenario() => ShowRestartScenarioConfirmation = false;
 
     /// <summary>
     /// Surfaces a rejected scenario action in the terminal as well as the status bar. The status bar

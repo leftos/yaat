@@ -45,15 +45,11 @@ public static class FlightPhysics
     private const double DegToRad = Math.PI / 180.0;
     private const double NmPerDegLat = 60.0;
 
-    public static void Update(AircraftState aircraft, double deltaSeconds)
-    {
+    public static void Update(AircraftState aircraft, double deltaSeconds) =>
         Update(aircraft, deltaSeconds, aircraftLookup: null, weather: null, simTimeSeconds: 0, PhysicsTickOptions.Default);
-    }
 
-    public static void Update(AircraftState aircraft, double deltaSeconds, Func<string, AircraftState?>? aircraftLookup)
-    {
+    public static void Update(AircraftState aircraft, double deltaSeconds, Func<string, AircraftState?>? aircraftLookup) =>
         Update(aircraft, deltaSeconds, aircraftLookup, weather: null, simTimeSeconds: 0, PhysicsTickOptions.Default);
-    }
 
     public static void Update(
         AircraftState aircraft,
@@ -61,10 +57,7 @@ public static class FlightPhysics
         Func<string, AircraftState?>? aircraftLookup,
         WeatherProfile? weather,
         double simTimeSeconds
-    )
-    {
-        Update(aircraft, deltaSeconds, aircraftLookup, weather, simTimeSeconds, PhysicsTickOptions.Default);
-    }
+    ) => Update(aircraft, deltaSeconds, aircraftLookup, weather, simTimeSeconds, PhysicsTickOptions.Default);
 
     public static void Update(
         AircraftState aircraft,
@@ -1852,10 +1845,8 @@ public static class FlightPhysics
     /// trigger would then never fire. Widening the band to one tick of travel guarantees at
     /// least one sample lands inside it.
     /// </summary>
-    private static double ReachAltitudeToleranceFt(AircraftState aircraft, double deltaSeconds)
-    {
-        return Math.Max(AltitudeSnapFt, Math.Abs(aircraft.VerticalSpeed) / 60.0 * deltaSeconds);
-    }
+    private static double ReachAltitudeToleranceFt(AircraftState aircraft, double deltaSeconds) =>
+        Math.Max(AltitudeSnapFt, Math.Abs(aircraft.VerticalSpeed) / 60.0 * deltaSeconds);
 
     /// <summary>
     /// Latches when the aircraft enters <see cref="Yaat.Sim.Phases.Ground.CrossingRunwayPhase"/>,
@@ -1931,10 +1922,7 @@ public static class FlightPhysics
     /// continues (7110.65 §3-8-2); a full stop ends the cycle instead, and the pilot simply could not
     /// comply with the queued instruction — P/CG UNABLE.
     /// </summary>
-    private static void MarkCycleTerminatorMissed(CommandBlock block)
-    {
-        block.TriggerMissed = true;
-    }
+    private static void MarkCycleTerminatorMissed(CommandBlock block) => block.TriggerMissed = true;
 
     /// <summary>
     /// Drops the blocks whose <see cref="BlockTriggerType.AfterCycleTerminator"/> condition was marked

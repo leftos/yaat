@@ -27,8 +27,6 @@ public class ConsolidationCanonicalRoundTripTests
     }
 
     [Fact]
-    public void FullConsolidation_IsTheConPlusVerb()
-    {
+    public void FullConsolidation_IsTheConPlusVerb() =>
         Assert.Equal("CON+ 1N 1R", CommandDescriber.DescribeCommand(new ConsolidateCommand("1N", "1R", Full: true)));
-    }
 }

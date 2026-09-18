@@ -93,10 +93,8 @@ public sealed class TickRecorder
     /// keeps working across rehydration). Writes the JSON to
     /// <paramref name="jsonPath"/> on <see cref="IDisposable.Dispose"/>.
     /// </summary>
-    public static IDisposable Attach(SimulationEngine engine, string jsonPath, params string[] callsigns)
-    {
-        return new AttachedRecorder(engine, jsonPath, callsigns);
-    }
+    public static IDisposable Attach(SimulationEngine engine, string jsonPath, params string[] callsigns) =>
+        new AttachedRecorder(engine, jsonPath, callsigns);
 
     /// <summary>
     /// Record the current state of all attached aircraft at <paramref name="time"/>.
@@ -122,10 +120,7 @@ public sealed class TickRecorder
     /// Write the full recording (metadata + ticks) to a JSON file. Creates
     /// parent directories if needed.
     /// </summary>
-    public void WriteJson(string path)
-    {
-        WriteJsonFile(path, BuildRecording());
-    }
+    public void WriteJson(string path) => WriteJsonFile(path, BuildRecording());
 
     /// <summary>
     /// Walk up from the current directory to find the repo root (contains yaat.slnx).

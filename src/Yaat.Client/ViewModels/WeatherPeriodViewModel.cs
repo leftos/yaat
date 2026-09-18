@@ -59,28 +59,16 @@ public partial class WeatherPeriodViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void AddLayer()
-    {
-        WindLayers.Add(new WindLayerRow());
-    }
+    private void AddLayer() => WindLayers.Add(new WindLayerRow());
 
     [RelayCommand]
-    private void RemoveLayer(WindLayerRow layer)
-    {
-        WindLayers.Remove(layer);
-    }
+    private void RemoveLayer(WindLayerRow layer) => WindLayers.Remove(layer);
 
     [RelayCommand]
-    private void AddMetar()
-    {
-        Metars.Add(new MetarRow());
-    }
+    private void AddMetar() => Metars.Add(new MetarRow());
 
     [RelayCommand]
-    private void RemoveMetar(MetarRow metar)
-    {
-        Metars.Remove(metar);
-    }
+    private void RemoveMetar(MetarRow metar) => Metars.Remove(metar);
 
     public WeatherPeriod BuildPeriod()
     {

@@ -54,10 +54,8 @@ internal sealed class CoordinateIndex
         return null;
     }
 
-    private (int LatBucket, int LonBucket) BucketKey(double lat, double lon)
-    {
-        return ((int)Math.Floor(lat / _tolerance), (int)Math.Floor(lon / _tolerance));
-    }
+    private (int LatBucket, int LonBucket) BucketKey(double lat, double lon) =>
+        ((int)Math.Floor(lat / _tolerance), (int)Math.Floor(lon / _tolerance));
 
     public void Add(LatLon position, int nodeId) => Add(position.Lat, position.Lon, nodeId);
 

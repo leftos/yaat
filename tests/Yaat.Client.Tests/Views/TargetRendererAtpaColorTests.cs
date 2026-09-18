@@ -16,10 +16,8 @@ public class TargetRendererAtpaColorTests
     [InlineData(AtpaConeState.Monitor, 90, 180, 255)]
     [InlineData(AtpaConeState.Warning, 255, 255, 0)]
     [InlineData(AtpaConeState.Alert, 255, 55, 0)]
-    public void AtpaConeColorFor_MapsEachState(AtpaConeState state, byte r, byte g, byte b)
-    {
+    public void AtpaConeColorFor_MapsEachState(AtpaConeState state, byte r, byte g, byte b) =>
         Assert.Equal(new SKColor(r, g, b), TargetRenderer.AtpaConeColorFor(state));
-    }
 
     [Fact]
     public void AtpaConeColorFor_EscalatesDistinctly()

@@ -8,13 +8,8 @@ namespace Yaat.Client.Tests.Views;
 
 internal sealed class HeadlessTestApp : Application
 {
-    public override void Initialize()
-    {
-        Styles.Add(new FluentTheme());
-    }
+    public override void Initialize() => Styles.Add(new FluentTheme());
 
-    public static AppBuilder BuildAvaloniaApp()
-    {
-        return AppBuilder.Configure<HeadlessTestApp>().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = true });
-    }
+    public static AppBuilder BuildAvaloniaApp() =>
+        AppBuilder.Configure<HeadlessTestApp>().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = true });
 }

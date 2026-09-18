@@ -24,16 +24,11 @@ public class TdlsFlightPlanInfoDtoTests
         );
 
     [Fact]
-    public void TypeAndEquipment_JoinsTheTypeAndTheSuffix()
-    {
-        Assert.Equal("B77W/L", Info("B77W", "L").TypeAndEquipment);
-    }
+    public void TypeAndEquipment_JoinsTheTypeAndTheSuffix() => Assert.Equal("B77W/L", Info("B77W", "L").TypeAndEquipment);
 
     [Theory]
     [InlineData("")]
     [InlineData(null)]
-    public void TypeAndEquipment_WithoutASuffix_IsTheBareType(string? equipmentSuffix)
-    {
+    public void TypeAndEquipment_WithoutASuffix_IsTheBareType(string? equipmentSuffix) =>
         Assert.Equal("B77W", Info("B77W", equipmentSuffix!).TypeAndEquipment);
-    }
 }

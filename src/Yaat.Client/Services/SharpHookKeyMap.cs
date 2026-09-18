@@ -29,10 +29,7 @@ internal static class SharpHookKeyMap
     private const ushort VkLWin = 0x5B;
     private const ushort VkRWin = 0x5C;
 
-    public static Key ToAvaloniaKey(KeyCode code)
-    {
-        return Map.TryGetValue(code, out Key key) ? key : Key.None;
-    }
+    public static Key ToAvaloniaKey(KeyCode code) => Map.TryGetValue(code, out Key key) ? key : Key.None;
 
     /// <summary>
     /// Same as <see cref="ToAvaloniaKey(KeyCode)"/>, but on Windows uses the raw VK code to

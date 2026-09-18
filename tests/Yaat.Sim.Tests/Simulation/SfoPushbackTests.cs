@@ -18,10 +18,7 @@ public class SfoPushbackTests(ITestOutputHelper output)
     private readonly ITestOutputHelper _output = output;
     private const string ScenarioPath = "TestData/sfo-gc-scenario.json";
 
-    private static string? LoadScenarioJson()
-    {
-        return File.Exists(ScenarioPath) ? File.ReadAllText(ScenarioPath) : null;
-    }
+    private static string? LoadScenarioJson() => File.Exists(ScenarioPath) ? File.ReadAllText(ScenarioPath) : null;
 
     private static SimulationEngine? BuildEngine()
     {

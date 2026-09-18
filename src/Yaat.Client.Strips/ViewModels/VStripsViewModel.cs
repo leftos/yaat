@@ -398,10 +398,7 @@ public partial class VStripsViewModel : ObservableObject
         Dispatcher.UIThread.Post(() => ReconcileFullState(state));
     }
 
-    private void OnStripItemsChanged(List<StripItemDto> items)
-    {
-        Dispatcher.UIThread.Post(() => ReconcileItems(items));
-    }
+    private void OnStripItemsChanged(List<StripItemDto> items) => Dispatcher.UIThread.Post(() => ReconcileItems(items));
 
     private void OnMetarsChanged(IReadOnlyList<string> metars) => Dispatcher.UIThread.Post(() => ApplyMetars(metars));
 
@@ -1303,10 +1300,7 @@ public partial class VStripsViewModel : ObservableObject
     /// client computes both SEPD and SEP commands and wants them to go out
     /// via the same <c>_sendCommand</c> as the rest of the VM operations.
     /// </summary>
-    public async Task DispatchRawAsync(string canonical)
-    {
-        await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
-    }
+    public async Task DispatchRawAsync(string canonical) => await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
 
     /// <summary>
     /// True when sending a STRIP move at <paramref name="index"/> in

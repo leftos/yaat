@@ -127,18 +127,12 @@ public sealed class NavigationDatabase
         string cifpFilePath,
         string? artccsBaseDir = null,
         IReadOnlyList<string>? supplementaryCifpFilePaths = null
-    )
-    {
-        _defaultInstance = new NavigationDatabase(navData, cifpFilePath, artccsBaseDir, supplementaryCifpFilePaths);
-    }
+    ) => _defaultInstance = new NavigationDatabase(navData, cifpFilePath, artccsBaseDir, supplementaryCifpFilePaths);
 
     /// <summary>
     /// Sets the process-wide default instance (for production and test initialization).
     /// </summary>
-    public static void SetInstance(NavigationDatabase db)
-    {
-        _defaultInstance = db;
-    }
+    public static void SetInstance(NavigationDatabase db) => _defaultInstance = db;
 
     /// <summary>
     /// Sets a thread-local override visible only to the current async execution context.
@@ -438,10 +432,8 @@ public sealed class NavigationDatabase
     /// <summary>
     /// Returns all fixes as (Name, Lat, Lon) tuples for FRD resolution. Lazily cached.
     /// </summary>
-    public IReadOnlyList<(string Name, double Lat, double Lon)> GetFixTuples()
-    {
-        return _fixTuples ??= _navDb.Select(kv => (kv.Key, kv.Value.Lat, kv.Value.Lon)).ToArray();
-    }
+    public IReadOnlyList<(string Name, double Lat, double Lon)> GetFixTuples() =>
+        _fixTuples ??= _navDb.Select(kv => (kv.Key, kv.Value.Lat, kv.Value.Lon)).ToArray();
 
     public int Count => _navDb.Count;
 
@@ -537,20 +529,14 @@ public sealed class NavigationDatabase
     /// Returns the friendly natural-language name for a custom fix alias (e.g. <c>OAK30NUM</c>
     /// → "Oakland Runway 30 Numbers"), or null if the alias isn't a registered custom fix.
     /// </summary>
-    public string? GetCustomFixName(string alias)
-    {
-        return _customFixNames.TryGetValue(alias, out string? name) ? name : null;
-    }
+    public string? GetCustomFixName(string alias) => _customFixNames.TryGetValue(alias, out string? name) ? name : null;
 
     /// <summary>
     /// Returns phonetic pronunciations for a fix, or an empty list if none are registered. Used
     /// by the speech pipeline to bias Whisper's decoder toward both canonical and phonetic spellings
     /// of non-obviously-pronounced fix names.
     /// </summary>
-    public IReadOnlyList<string> GetFixPronunciations(string fix)
-    {
-        return _fixPronunciations.TryGetValue(fix, out List<string>? list) ? list : [];
-    }
+    public IReadOnlyList<string> GetFixPronunciations(string fix) => _fixPronunciations.TryGetValue(fix, out List<string>? list) ? list : [];
 
     /// <summary>
     /// Returns the natural-language label for a fix used in spoken traffic advisories: the first
@@ -831,15 +817,9 @@ public sealed class NavigationDatabase
         return null;
     }
 
-    public IReadOnlyList<RunwayInfo> GetRunways(string airportCode)
-    {
-        return _runways.TryGetValue(airportCode, out List<RunwayInfo>? list) ? list : [];
-    }
+    public IReadOnlyList<RunwayInfo> GetRunways(string airportCode) => _runways.TryGetValue(airportCode, out List<RunwayInfo>? list) ? list : [];
 
-    public IReadOnlyList<string>? GetSidBody(string sidId)
-    {
-        return _sidBodies.TryGetValue(sidId, out List<string>? body) ? body : null;
-    }
+    public IReadOnlyList<string>? GetSidBody(string sidId) => _sidBodies.TryGetValue(sidId, out List<string>? body) ? body : null;
 
     /// <summary>
     /// True when <paramref name="sidName"/> resolves to a SID in the vNAS nav data whose body carries
@@ -934,10 +914,7 @@ public sealed class NavigationDatabase
         return transitions.Select(t => (t.Name, (IReadOnlyList<string>)t.Fixes)).ToList();
     }
 
-    public IReadOnlyList<string>? GetStarBody(string starId)
-    {
-        return _starBodies.TryGetValue(starId, out List<string>? body) ? body : null;
-    }
+    public IReadOnlyList<string>? GetStarBody(string starId) => _starBodies.TryGetValue(starId, out List<string>? body) ? body : null;
 
     /// <summary>
     /// Resolves a potentially outdated STAR ID to the current version.
@@ -978,18 +955,12 @@ public sealed class NavigationDatabase
         return transitions.Select(t => (t.Name, (IReadOnlyList<string>)t.Fixes)).ToList();
     }
 
-    public IReadOnlyList<string>? GetAirwayFixes(string airwayId)
-    {
-        return _airways.TryGetValue(airwayId, out List<string>? fixes) ? fixes : null;
-    }
+    public IReadOnlyList<string>? GetAirwayFixes(string airwayId) => _airways.TryGetValue(airwayId, out List<string>? fixes) ? fixes : null;
 
     /// <summary>All known airway identifiers (e.g. V27, J80). Symmetric with <see cref="GetAirwayFixes"/>.</summary>
     public IEnumerable<string> AirwayIds => _airways.Keys;
 
-    public bool IsAirway(string id)
-    {
-        return _airways.ContainsKey(id);
-    }
+    public bool IsAirway(string id) => _airways.ContainsKey(id);
 
     public IReadOnlyList<string> ExpandAirwaySegment(string airwayId, string fromFix, string toFix)
     {
@@ -1040,20 +1011,14 @@ public sealed class NavigationDatabase
     /// <summary>
     /// Returns true if the token is a known SID or STAR identifier.
     /// </summary>
-    public bool IsSidOrStar(string token)
-    {
-        return _sidAllFixes.ContainsKey(token) || _starAllFixes.ContainsKey(token);
-    }
+    public bool IsSidOrStar(string token) => _sidAllFixes.ContainsKey(token) || _starAllFixes.ContainsKey(token);
 
     /// <summary>
     /// Expands a route string into constituent fix names.
     /// SID/STAR identifiers are expanded to all body + transition
     /// fixes (ordered). Used for autocomplete highlighting.
     /// </summary>
-    public IReadOnlyList<string> ExpandRoute(string route)
-    {
-        return RouteExpander.Expand(route, this);
-    }
+    public IReadOnlyList<string> ExpandRoute(string route) => RouteExpander.Expand(route, this);
 
     /// <summary>
     /// Expands a route string for navigation. Strips leading fixes within 1nm of the
@@ -2600,10 +2565,7 @@ public sealed class NavigationDatabase
     /// for <paramref name="code"/>, or <c>null</c> if the code isn't a known VHF navaid.
     /// Sourced from CIFP section D primary records.
     /// </summary>
-    public string? GetNavaidName(string code)
-    {
-        return _navaidNames.TryGetValue(code, out string? name) ? name : null;
-    }
+    public string? GetNavaidName(string code) => _navaidNames.TryGetValue(code, out string? name) ? name : null;
 
     /// <summary>
     /// Returns the spoken facility type for a navaid ("VOR", "VORTAC", "TACAN", "DME", "NDB"),
@@ -2611,10 +2573,7 @@ public sealed class NavigationDatabase
     /// (ARINC 424 field 5.35). Used by pilot speech to say e.g. "Mendocino VORTAC" rather than
     /// defaulting every navaid to "VOR".
     /// </summary>
-    public string? GetNavaidType(string code)
-    {
-        return _navaidTypes.TryGetValue(code, out string? type) ? type : null;
-    }
+    public string? GetNavaidType(string code) => _navaidTypes.TryGetValue(code, out string? type) ? type : null;
 
     /// <summary>
     /// Canonicalizes an airport identifier by uppercasing and stripping the CONUS

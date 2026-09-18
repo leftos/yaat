@@ -135,10 +135,8 @@ public class PushbackMultiParseTests(ITestOutputHelper output)
     [InlineData("PUSHM $6A $6B", "Tug move to spot 6A, then spot 6B")]
     [InlineData("PUSHM #1926 $5A", "Tug move to node 1926, then spot 5A")]
     [InlineData("PUSHM @D15 $6A FACE E", "Tug move to parking D15, then spot 6A, facing E")]
-    public void Natural_ListsTheLegsInOrderAndKeepsTheFacing(string input, string expectedNatural)
-    {
+    public void Natural_ListsTheLegsInOrderAndKeepsTheFacing(string input, string expectedNatural) =>
         Assert.Equal(expectedNatural, CommandDescriber.DescribeNatural(Parse(input)));
-    }
 
     /// <summary>The verb is a ground command: a fired dimension of None would wipe the aircraft's queue.</summary>
     [Fact]

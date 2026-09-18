@@ -19,10 +19,8 @@ public static class StripBayCanonicalQualifier
     private static readonly string[] IdPrefixes = ["STRIP_", "HSTRIP_", "SEP_", "BLANK_", "ARRIVAL_"];
 
     /// <summary>Qualifies every unit of a possibly-compound canonical (see <see cref="CompoundCanonical.RewriteUnits"/>).</summary>
-    public static string QualifyCompound(string canonical, IReadOnlyList<AccessibleBay> bays)
-    {
-        return CompoundCanonical.RewriteUnits(canonical, unit => Qualify(unit, bays));
-    }
+    public static string QualifyCompound(string canonical, IReadOnlyList<AccessibleBay> bays) =>
+        CompoundCanonical.RewriteUnits(canonical, unit => Qualify(unit, bays));
 
     /// <summary>
     /// Qualifies the bay token in <paramref name="canonical"/> against

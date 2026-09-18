@@ -290,8 +290,5 @@ public sealed class TowerCabImageService : IDisposable
         return degrees + minutes + seconds;
     }
 
-    public void Dispose()
-    {
-        _http.Dispose();
-    }
+    public void Dispose() => _http.Dispose();
 }

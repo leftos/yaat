@@ -195,16 +195,14 @@ public sealed class AirTaxiPhase : Phase
         return hoverRate + (cruiseRate - hoverRate) * t;
     }
 
-    public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
-    {
+    public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd) =>
         // Any airborne maneuvering command (FH, turns, CM/DM, SPD, DCT, a new ATXI/LAND, DEL) pulls
         // the heli out of the air-taxi and hands control to the command queue. HPP (hover present
         // position) and a re-issued ATXI/LAND are routed by the dispatcher's tower-command path
         // before this gate; the ground HOLD/RES verbs don't apply to an airborne heli. The
         // dispatcher dry-runs the command before clearing the phase, so ground commands that can't
         // apply airborne (TAXI/PUSH) are rejected without orphaning the phase.
-        return CommandAcceptance.ClearsPhase;
-    }
+        CommandAcceptance.ClearsPhase;
 
     public override PhaseDto ToSnapshot() =>
         new AirTaxiPhaseDto

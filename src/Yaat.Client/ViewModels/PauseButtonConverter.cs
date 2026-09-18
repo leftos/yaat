@@ -7,13 +7,7 @@ public class PauseButtonConverter : IValueConverter
 {
     public static readonly PauseButtonConverter Instance = new();
 
-    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-    {
-        return value is true ? "Unpause" : "Pause";
-    }
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value is true ? "Unpause" : "Pause";
 
-    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
-    {
-        throw new NotSupportedException();
-    }
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }

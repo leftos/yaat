@@ -207,10 +207,7 @@ public partial class FlightPlanEditorWindow : Window
         base.OnClosed(e);
     }
 
-    private void OnFieldChanged(object? sender, TextChangedEventArgs e)
-    {
-        SubmitButton.IsEnabled = HasChanges();
-    }
+    private void OnFieldChanged(object? sender, TextChangedEventArgs e) => SubmitButton.IsEnabled = HasChanges();
 
     private bool HasChanges()
     {

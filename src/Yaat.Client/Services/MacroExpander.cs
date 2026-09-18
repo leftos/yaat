@@ -138,10 +138,7 @@ public static partial class MacroExpander
         return prev is ' ' or ';' or ',';
     }
 
-    private static bool IsSeparator(char c)
-    {
-        return c is ' ' or ';' or ',';
-    }
+    private static bool IsSeparator(char c) => c is ' ' or ';' or ',';
 
     private static MacroDefinition? FindMacro(string name, IReadOnlyList<MacroDefinition> macros)
     {

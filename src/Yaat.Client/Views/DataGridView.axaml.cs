@@ -20,10 +20,7 @@ public partial class DataGridView : UserControl
         KeyDown += OnDataGridViewKeyDown;
     }
 
-    public DataGrid? GetDataGrid()
-    {
-        return this.FindControl<DataGrid>("AircraftGrid");
-    }
+    public DataGrid? GetDataGrid() => this.FindControl<DataGrid>("AircraftGrid");
 
     protected override void OnLoaded(RoutedEventArgs e)
     {

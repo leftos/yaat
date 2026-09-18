@@ -33,10 +33,7 @@ public sealed class PilotSpeechAlertService
         _player = new PortAudioFloatPlayer(preferences);
     }
 
-    public void PlayDing()
-    {
-        _ = PlayDingAsync();
-    }
+    public void PlayDing() => _ = PlayDingAsync();
 
     private async Task PlayDingAsync()
     {

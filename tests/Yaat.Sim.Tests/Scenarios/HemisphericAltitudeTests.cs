@@ -63,20 +63,16 @@ public class HemisphericAltitudeTests
 
     /// <summary>Beyond the tolerance there is no honest answer — the caller keeps the raw altitude and warns.</summary>
     [Fact]
-    public void Snap_ReturnsNull_WhenNoConformingLevelIsWithinTolerance()
-    {
+    public void Snap_ReturnsNull_WhenNoConformingLevelIsWithinTolerance() =>
         // Eastbound wants 5500 or 7500. The band 6100-6300 sits 600 ft above the first and 1200 ft below the
         // second, so neither is reachable within the 500 ft tolerance.
         Assert.Null(HemisphericAltitude.Snap(magneticCourseDeg: 90, desiredFt: 6200, minFt: 6100, maxFt: 6300));
-    }
 
     /// <summary>A level exactly at the tolerance edge is still accepted.</summary>
     [Fact]
-    public void Snap_AcceptsALevelExactlyAtTheToleranceEdge()
-    {
+    public void Snap_AcceptsALevelExactlyAtTheToleranceEdge() =>
         // 5500 is exactly 500 ft below the band floor.
         Assert.Equal(5500, HemisphericAltitude.Snap(magneticCourseDeg: 90, desiredFt: 6100, minFt: 6000, maxFt: 6200));
-    }
 
     [Fact]
     public void Snap_NeverReturnsANegativeLevel()

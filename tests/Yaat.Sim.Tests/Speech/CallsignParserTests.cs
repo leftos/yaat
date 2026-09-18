@@ -156,16 +156,11 @@ public class CallsignParserTests
     }
 
     [Fact]
-    public void TryParseLeading_NoCallsign_ReturnsNull()
-    {
-        Assert.Null(CallsignParser.TryParseLeading("climb and maintain 5000", NoActiveCallsigns));
-    }
+    public void TryParseLeading_NoCallsign_ReturnsNull() => Assert.Null(CallsignParser.TryParseLeading("climb and maintain 5000", NoActiveCallsigns));
 
     [Fact]
-    public void TryParseLeading_TelephonyWithoutNumber_ReturnsNull()
-    {
+    public void TryParseLeading_TelephonyWithoutNumber_ReturnsNull() =>
         Assert.Null(CallsignParser.TryParseLeading("southwest climb", NoActiveCallsigns));
-    }
 
     [Fact]
     public void TryParseLeading_SharedCallsign_PrefersActiveMatch()
@@ -199,11 +194,9 @@ public class CallsignParserTests
     }
 
     [Fact]
-    public void TryParseTrailing_NoCallsignAtEnd_ReturnsNull()
-    {
+    public void TryParseTrailing_NoCallsignAtEnd_ReturnsNull() =>
         // "southwest 123" is at the start, not the end, so TryParseTrailing should find nothing.
         Assert.Null(CallsignParser.TryParseTrailing("southwest 123 climb and maintain 5000", NoActiveCallsigns));
-    }
 
     // --- IcaoToSpoken (primary paired form) ---
 
@@ -215,20 +208,15 @@ public class CallsignParserTests
     [InlineData("ASA42", "alaska forty two")]
     [InlineData("SWA5", "southwest five")]
     [InlineData("UAL100", "united one zero zero")]
-    public void IcaoToSpoken_AirlineCallsign_UsesPairedForm(string icao, string expected)
-    {
+    public void IcaoToSpoken_AirlineCallsign_UsesPairedForm(string icao, string expected) =>
         Assert.Equal(expected, CallsignParser.IcaoToSpoken(icao));
-    }
 
     [Theory]
     [InlineData("N12345", "november one two three four five")]
     [InlineData("N42", "november four two")]
     [InlineData("N123BS", "november one two three bravo sierra")]
     [InlineData("N7AB", "november seven alpha bravo")]
-    public void IcaoToSpoken_UsGeneralAviation(string icao, string expected)
-    {
-        Assert.Equal(expected, CallsignParser.IcaoToSpoken(icao));
-    }
+    public void IcaoToSpoken_UsGeneralAviation(string icao, string expected) => Assert.Equal(expected, CallsignParser.IcaoToSpoken(icao));
 
     [Theory]
     // Bolivia: CP-prefix. No digit-delimiter, so full NATO phonetic.
@@ -240,10 +228,7 @@ public class CallsignParserTests
     [InlineData("GABCD", "golf alpha bravo charlie delta")]
     // Germany: D-XXXX
     [InlineData("DEABC", "delta echo alpha bravo charlie")]
-    public void IcaoToSpoken_ForeignGeneralAviation(string icao, string expected)
-    {
-        Assert.Equal(expected, CallsignParser.IcaoToSpoken(icao));
-    }
+    public void IcaoToSpoken_ForeignGeneralAviation(string icao, string expected) => Assert.Equal(expected, CallsignParser.IcaoToSpoken(icao));
 
     [Fact]
     public void IcaoToSpoken_UnknownAirline_UsesNatoPhonetic()

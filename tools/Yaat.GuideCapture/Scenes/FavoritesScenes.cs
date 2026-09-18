@@ -35,10 +35,8 @@ internal sealed class FavoritesPanelScene : StandaloneWindowSceneBase
 
     public override int Height => 360;
 
-    public override Window CreateWindow(CaptureContext ctx)
-    {
-        return new FavoritesPanelWindow(new UserPreferences()) { DataContext = FavoritesSceneData.CreateViewModel() };
-    }
+    public override Window CreateWindow(CaptureContext ctx) =>
+        new FavoritesPanelWindow(new UserPreferences()) { DataContext = FavoritesSceneData.CreateViewModel() };
 }
 
 internal static class FavoritesSceneData

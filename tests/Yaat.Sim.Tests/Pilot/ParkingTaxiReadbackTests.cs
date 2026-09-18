@@ -82,10 +82,8 @@ public class ParkingTaxiReadbackTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void ParkingNameWithDash_IsSpelledOut()
-    {
+    public void ParkingNameWithDash_IsSpelledOut() =>
         Assert.Equal("taxi to parking four one dash one zero", Spoken(new TaxiCommand([], [], DestinationParking: "41-10")));
-    }
 
     [Theory]
     [InlineData("CARGO1", "taxi to parking cargo one")]
@@ -95,10 +93,8 @@ public class ParkingTaxiReadbackTests(ITestOutputHelper output)
     [InlineData("FDX1", "taxi to parking foxtrot delta xray one")]
     [InlineData("SBE4", "taxi to parking sierra bravo echo four")]
     [InlineData("A13V", "taxi to parking alpha one three victor")]
-    public void WordLikeParkingNames_AreSpokenAsWords(string name, string expected)
-    {
+    public void WordLikeParkingNames_AreSpokenAsWords(string name, string expected) =>
         Assert.Equal(expected, Spoken(new TaxiCommand([], [], DestinationParking: name)));
-    }
 
     [Fact]
     public void SpotNamedWithTheNoun_DropsTheRepeatedNoun()
@@ -108,8 +104,6 @@ public class ParkingTaxiReadbackTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void ParkingAndSpotBothSet_SpotWinsLikeTheCanonicalForm()
-    {
+    public void ParkingAndSpotBothSet_SpotWinsLikeTheCanonicalForm() =>
         Assert.Equal("taxi to spot seven alpha", Spoken(new TaxiCommand([], [], DestinationParking: "B12", DestinationSpot: "7A")));
-    }
 }

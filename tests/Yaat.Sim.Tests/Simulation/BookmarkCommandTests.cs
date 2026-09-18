@@ -76,10 +76,7 @@ public class BookmarkCommandTests
     [InlineData("BM PREV", BookmarkAction.Prev)]
     [InlineData("BM DEL ALL", BookmarkAction.DeleteAll)]
     [InlineData("BM DELETE all", BookmarkAction.DeleteAll)]
-    public void SubVerbsWithoutArguments(string input, BookmarkAction expected)
-    {
-        Assert.Equal(expected, Parse(input).Action);
-    }
+    public void SubVerbsWithoutArguments(string input, BookmarkAction expected) => Assert.Equal(expected, Parse(input).Action);
 
     [Theory]
     [InlineData("BM DEL 3")]
@@ -158,10 +155,7 @@ public class BookmarkCommandTests
     [InlineData("-1")]
     [InlineData("bm-")]
     [InlineData("3.5")]
-    public void TryNormalizeId_RejectsGarbage(string token)
-    {
-        Assert.False(TimelineBookmark.TryNormalizeId(token, out _));
-    }
+    public void TryNormalizeId_RejectsGarbage(string token) => Assert.False(TimelineBookmark.TryNormalizeId(token, out _));
 
     [Fact]
     public void CanonicalRoundTrip()

@@ -674,8 +674,5 @@ public sealed class DownwindPhase : Phase
                 or ClearanceType.ClearedLowApproach;
     }
 
-    protected override List<ClearanceRequirement> CreateRequirements()
-    {
-        return [];
-    }
+    protected override List<ClearanceRequirement> CreateRequirements() => [];
 }

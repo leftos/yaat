@@ -361,19 +361,15 @@ public sealed record SearchContext(
     /// <see cref="OneWayResolver"/> (per-layout cached). Empty when no database is initialized or the
     /// airport is unconfigured.
     /// </summary>
-    private static IReadOnlySet<(int, int)> ResolveOneWayMoves(AirportGroundLayout layout)
-    {
-        return NavigationDatabase.InstanceOrNull is null ? EmptyForbiddenMoves : OneWayResolver.GetForbiddenMoves(layout);
-    }
+    private static IReadOnlySet<(int, int)> ResolveOneWayMoves(AirportGroundLayout layout) =>
+        NavigationDatabase.InstanceOrNull is null ? EmptyForbiddenMoves : OneWayResolver.GetForbiddenMoves(layout);
 
     /// <summary>
     /// Resolves the blocked turns for <paramref name="layout"/> via <see cref="BlockedTurnResolver"/>
     /// (per-layout cached). Empty when no database is initialized or the airport is unconfigured.
     /// </summary>
-    private static BlockedTurnResult ResolveBlockedTurns(AirportGroundLayout layout)
-    {
-        return NavigationDatabase.InstanceOrNull is null ? BlockedTurnResult.Empty : BlockedTurnResolver.GetBlocked(layout);
-    }
+    private static BlockedTurnResult ResolveBlockedTurns(AirportGroundLayout layout) =>
+        NavigationDatabase.InstanceOrNull is null ? BlockedTurnResult.Empty : BlockedTurnResolver.GetBlocked(layout);
 
     /// <summary>
     /// Looks up the avoided-taxiway set for <paramref name="layout"/>'s airport from the global

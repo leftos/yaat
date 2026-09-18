@@ -75,10 +75,7 @@ public sealed class LlmCudaFixture : IDisposable
     /// <summary>Shared <see cref="LocalLlmService"/> — null when no model source is configured.</summary>
     public LocalLlmService? SharedServiceOrNull => _sharedService;
 
-    public void Dispose()
-    {
-        _sharedService?.Dispose();
-    }
+    public void Dispose() => _sharedService?.Dispose();
 
     private sealed class FixtureLlmConfig : ILlmRuntimeConfig
     {

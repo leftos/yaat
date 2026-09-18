@@ -148,15 +148,8 @@ public sealed class CrossingRunwayPhase : Phase
         return false;
     }
 
-    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
-    {
-        Log.LogDebug("[Crossing] {Callsign}: OnEnd ({Status})", ctx.Aircraft.Callsign, endStatus);
-        // Speed targets are owned by the next phase. The typical successor is
-        // TaxiingPhase (TaxiingPhase.cs BuildResumePhases) — zeroing IAS here
-        // would force a stop the aircraft has to re-accelerate from. If the
-        // route ends after the crossing, the inserted HoldingInPositionPhase
-        // / AtParkingPhase will brake to zero on its own.
-    }
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus) =>
+        Log.LogDebug("[Crossing] {Callsign}: OnEnd ({Status})", ctx.Aircraft.Callsign, endStatus); // Speed targets are owned by the next phase. The typical successor is// TaxiingPhase (TaxiingPhase.cs BuildResumePhases) — zeroing IAS here// would force a stop the aircraft has to re-accelerate from. If the// route ends after the crossing, the inserted HoldingInPositionPhase// / AtParkingPhase will brake to zero on its own.
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {

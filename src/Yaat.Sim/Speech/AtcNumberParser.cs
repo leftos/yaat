@@ -359,10 +359,7 @@ public static class AtcNumberParser
         return parts.Count == 0 ? "" : string.Join(' ', parts);
     }
 
-    private static string DigitsToSpokenDigits(int value)
-    {
-        return string.Join(' ', value.ToString().Select(c => DigitToWord[c - '0']));
-    }
+    private static string DigitsToSpokenDigits(int value) => string.Join(' ', value.ToString().Select(c => DigitToWord[c - '0']));
 
     /// <summary>
     /// Cardinal word for a small non-negative integer: 5 → "five", 21 → "twenty one".

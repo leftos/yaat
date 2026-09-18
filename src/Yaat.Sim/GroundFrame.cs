@@ -19,10 +19,8 @@ public static class GroundFrame
     /// current altitude and cached headwind: TAS = GS + headwind, then density-corrected
     /// to IAS. Used to gate rotation during the takeoff roll.
     /// </summary>
-    public static double IasForGroundSpeed(AircraftState aircraft, double groundSpeedKts)
-    {
-        return WindInterpolator.TasToIas(groundSpeedKts + aircraft.HeadwindKts, aircraft.Altitude);
-    }
+    public static double IasForGroundSpeed(AircraftState aircraft, double groundSpeedKts) =>
+        WindInterpolator.TasToIas(groundSpeedKts + aircraft.HeadwindKts, aircraft.Altitude);
 
     /// <summary>
     /// Air → ground at touchdown: converts the airborne IAS to wheel speed

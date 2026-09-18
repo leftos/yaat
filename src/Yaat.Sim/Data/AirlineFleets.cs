@@ -79,10 +79,8 @@ public static class AirlineFleets
     }
 
     /// <summary>True if the given airline is recorded as operating the given aircraft type (≥1 airframe).</summary>
-    public static bool Operates(string airlineIcao, string typeIcao)
-    {
-        return TryGetTypes(airlineIcao, out IReadOnlyDictionary<string, int>? types) && types.ContainsKey(typeIcao.ToUpperInvariant());
-    }
+    public static bool Operates(string airlineIcao, string typeIcao) =>
+        TryGetTypes(airlineIcao, out IReadOnlyDictionary<string, int>? types) && types.ContainsKey(typeIcao.ToUpperInvariant());
 
     /// <summary>All airline ICAOs in the map, in insertion order (alphabetical from generator).</summary>
     public static IEnumerable<string> AllAirlineIcaos() => _data.Value.ByAirline.Keys;

@@ -187,11 +187,9 @@ public class GroundCanvasFitTests
 
     // ── Helpers ──────────────────────────────────────────────────
 
-    private static (GroundCanvas Canvas, Window Window) MakeCanvas()
-    {
+    private static (GroundCanvas Canvas, Window Window) MakeCanvas() =>
         // Detached canvas with no visual root yet; tests opt into a window via AttachAndSize.
-        return (new GroundCanvas(), null!);
-    }
+        (new GroundCanvas(), null!);
 
     private static (GroundCanvas Canvas, Window Window) BindCanvasToViewModel(GroundViewModel vm)
     {

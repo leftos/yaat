@@ -31,28 +31,20 @@ public class ClientVersionsTests
     [InlineData("1.2.3.4")]
     [InlineData("-1.2.3")]
     [InlineData("1..3")]
-    public void TryParse_RejectsWhatItCannotRead(string? input)
-    {
-        Assert.False(ClientVersions.TryParse(input, out _));
-    }
+    public void TryParse_RejectsWhatItCannotRead(string? input) => Assert.False(ClientVersions.TryParse(input, out _));
 
     [Theory]
     [InlineData("0.9.17-beta", "0.9.18-beta")]
     [InlineData("0.9.9-beta", "0.9.18-beta")]
     [InlineData("0.8.99-beta", "0.9.0-beta")]
-    public void IsOlderThan_DetectsAnOutdatedClient(string candidate, string required)
-    {
+    public void IsOlderThan_DetectsAnOutdatedClient(string candidate, string required) =>
         Assert.True(ClientVersions.IsOlderThan(candidate, required));
-    }
 
     [Theory]
     [InlineData("0.9.18-beta", "0.9.18-beta")]
     [InlineData("0.9.19-beta", "0.9.18-beta")]
     [InlineData("1.0.0", "0.9.18-beta")]
-    public void IsOlderThan_AcceptsCurrentOrNewer(string candidate, string required)
-    {
-        Assert.False(ClientVersions.IsOlderThan(candidate, required));
-    }
+    public void IsOlderThan_AcceptsCurrentOrNewer(string candidate, string required) => Assert.False(ClientVersions.IsOlderThan(candidate, required));
 
     // The suffix is deliberately not part of the ordering: a release and its numeric equal are the
     // same version here, where SemVer would rank the prerelease lower and gate out a shipped build.
@@ -70,8 +62,6 @@ public class ClientVersionsTests
     [InlineData(null, "0.9.18-beta")]
     [InlineData("0.9.17-beta", "not-a-version")]
     [InlineData("0.9.17-beta", null)]
-    public void IsOlderThan_FailsOpenOnAnUnreadableVersion(string? candidate, string? required)
-    {
+    public void IsOlderThan_FailsOpenOnAnUnreadableVersion(string? candidate, string? required) =>
         Assert.False(ClientVersions.IsOlderThan(candidate, required));
-    }
 }

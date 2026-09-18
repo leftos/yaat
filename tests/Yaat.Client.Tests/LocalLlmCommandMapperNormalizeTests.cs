@@ -23,10 +23,8 @@ public class LocalLlmCommandMapperNormalizeTests
     [InlineData("TAXI A B C HS 28R", "TAXI A B C HS 28R")]
     [InlineData("AT CEPIN TAXI A B C", "AT CEPIN TAXI A B C")]
     [InlineData("TAXI A B C D HS 28R, GIVEWAY N123AB", "TAXI A B C D HS 28R, GIVEWAY N123AB")]
-    public void NormalizeOutput_ValidCanonicalCommands_ReturnsCleaned(string input, string expected)
-    {
+    public void NormalizeOutput_ValidCanonicalCommands_ReturnsCleaned(string input, string expected) =>
         Assert.Equal(expected, LocalLlmCommandMapper.NormalizeOutput(input));
-    }
 
     [Theory]
     [InlineData("")]
@@ -35,14 +33,8 @@ public class LocalLlmCommandMapperNormalizeTests
     [InlineData("CM 5000 - this means climb and maintain 5000")]
     [InlineData("lowercase only")]
     [InlineData("123 FH")] // starts with digits — not a verb
-    public void NormalizeOutput_InvalidOutput_ReturnsNull(string input)
-    {
-        Assert.Null(LocalLlmCommandMapper.NormalizeOutput(input));
-    }
+    public void NormalizeOutput_InvalidOutput_ReturnsNull(string input) => Assert.Null(LocalLlmCommandMapper.NormalizeOutput(input));
 
     [Fact]
-    public void NormalizeOutput_StripsMarkdownCodeFence()
-    {
-        Assert.Equal("CM 5000", LocalLlmCommandMapper.NormalizeOutput("```\nCM 5000\n```"));
-    }
+    public void NormalizeOutput_StripsMarkdownCodeFence() => Assert.Equal("CM 5000", LocalLlmCommandMapper.NormalizeOutput("```\nCM 5000\n```"));
 }

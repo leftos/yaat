@@ -348,8 +348,5 @@ internal static class TaxiCoverageRunner
         };
     }
 
-    private static bool AtNode(LatLon a, LatLon b)
-    {
-        return GeoMath.DistanceNm(a, b) * GeoMath.FeetPerNm <= ParkingArrivalToleranceFt;
-    }
+    private static bool AtNode(LatLon a, LatLon b) => GeoMath.DistanceNm(a, b) * GeoMath.FeetPerNm <= ParkingArrivalToleranceFt;
 }

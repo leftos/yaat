@@ -86,10 +86,7 @@ public class ReplayAtcRosterTests
     }
 
     /// <summary>The bare engine over the parked-at-OAK fixture with the ZOA config attached, roster empty.</summary>
-    private SimulationEngine? Engine()
-    {
-        return _zoa is null ? null : AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
-    }
+    private SimulationEngine? Engine() => _zoa is null ? null : AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
 
     private static ResolvedAtcPosition Resolve(ArtccConfigRoot config, string positionId, List<string> autoTrackAirportIds) =>
         new()

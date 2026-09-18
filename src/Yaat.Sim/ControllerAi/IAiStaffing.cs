@@ -39,10 +39,7 @@ public sealed class HeadlessAiStaffing(IReadOnlyList<AiPositionConfig> configure
 
     public IReadOnlyList<AiPositionConfig> ActivePositions => _active;
 
-    public void Refresh()
-    {
-        _active = Filter(configured, scenario);
-    }
+    public void Refresh() => _active = Filter(configured, scenario);
 
     public bool IsHumanHeld(TrackOwner owner) =>
         scenario.SoloTrainingMode && scenario.StudentPosition is { } student && owner.MatchesPosition(student);

@@ -530,60 +530,44 @@ public class VisualDetectionTests
     // -------------------------------------------------------------------------
 
     [Fact]
-    public void BankOcclusion_RightTurn_TargetLeftAndBelow_Occluded()
-    {
+    public void BankOcclusion_RightTurn_TargetLeftAndBelow_Occluded() =>
         // Right bank +25°, target on left (high-wing side) at same altitude
         Assert.True(VisualDetection.IsOccludedByBank(25.0, new TrueHeading(360), new TrueHeading(315), 3000, 3000));
-    }
 
     [Fact]
-    public void BankOcclusion_RightTurn_TargetLeftAndAbove_NotOccluded()
-    {
+    public void BankOcclusion_RightTurn_TargetLeftAndAbove_NotOccluded() =>
         // Right bank +25°, target on left but well above (above 1000ft buffer)
         Assert.False(VisualDetection.IsOccludedByBank(25.0, new TrueHeading(360), new TrueHeading(315), 3000, 4500));
-    }
 
     [Fact]
-    public void BankOcclusion_RightTurn_TargetRightAndBelow_NotOccluded()
-    {
+    public void BankOcclusion_RightTurn_TargetRightAndBelow_NotOccluded() =>
         // Right bank +25°, target on right (low-wing side)
         Assert.False(VisualDetection.IsOccludedByBank(25.0, new TrueHeading(360), new TrueHeading(45), 3000, 3000));
-    }
 
     [Fact]
-    public void BankOcclusion_RightTurn_TargetAhead_NotOccluded()
-    {
+    public void BankOcclusion_RightTurn_TargetAhead_NotOccluded() =>
         // Right bank +25°, target ahead (within 10° nose cone)
         Assert.False(VisualDetection.IsOccludedByBank(25.0, new TrueHeading(360), new TrueHeading(5), 3000, 3000));
-    }
 
     [Fact]
-    public void BankOcclusion_LeftTurn_TargetRightAndBelow_Occluded()
-    {
+    public void BankOcclusion_LeftTurn_TargetRightAndBelow_Occluded() =>
         // Left bank -25°, target on right (high-wing side) at same altitude
         Assert.True(VisualDetection.IsOccludedByBank(-25.0, new TrueHeading(360), new TrueHeading(45), 3000, 3000));
-    }
 
     [Fact]
-    public void BankOcclusion_ShallowBank_NotOccluded()
-    {
+    public void BankOcclusion_ShallowBank_NotOccluded() =>
         // Bank only 12° → below threshold
         Assert.False(VisualDetection.IsOccludedByBank(12.0, new TrueHeading(360), new TrueHeading(315), 3000, 3000));
-    }
 
     [Fact]
-    public void BankOcclusion_ModerateBank_SameAltitude_Occluded()
-    {
+    public void BankOcclusion_ModerateBank_SameAltitude_Occluded() =>
         // Bank 20° (moderate), target at same altitude (within 500ft buffer)
         Assert.True(VisualDetection.IsOccludedByBank(20.0, new TrueHeading(360), new TrueHeading(315), 3000, 3000));
-    }
 
     [Fact]
-    public void BankOcclusion_ModerateBank_Target600Above_NotOccluded()
-    {
+    public void BankOcclusion_ModerateBank_Target600Above_NotOccluded() =>
         // Bank 20° (moderate), target 600ft above → above 500ft buffer for moderate bank
         Assert.False(VisualDetection.IsOccludedByBank(20.0, new TrueHeading(360), new TrueHeading(315), 3000, 3600));
-    }
 
     // -------------------------------------------------------------------------
     // Aircraft size (CWT-based range)

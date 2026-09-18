@@ -48,10 +48,8 @@ public class FinalApproachSpeedScheduleTests
     [InlineData(144, 214, 189)] // B738: min(189, 189) = 189
     [InlineData(126, 196, 171)] // E75L: min(171, 171) = 171
     [InlineData(100, 110, 130)] // slow type: never below the 1.3·Vref configuration speed
-    public void ApproachFlapSpeed_SitsBetweenCleanAndConfigurationSpeed(double vref, double clean, double expected)
-    {
+    public void ApproachFlapSpeed_SitsBetweenCleanAndConfigurationSpeed(double vref, double clean, double expected) =>
         Assert.Equal(expected, FinalApproachSpeedSchedule.ApproachFlapSpeedKts(vref, clean), 3);
-    }
 
     [Fact]
     public void ApproachFlapReachGate_JetsAndTurbopropsHaveVariety_PistonsHaveNoStage()

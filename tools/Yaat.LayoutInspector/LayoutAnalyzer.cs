@@ -217,10 +217,7 @@ public sealed class LayoutAnalyzer
         return GeoMath.BearingTo(fromLat, fromLon, toLat, toLon);
     }
 
-    public NodeInfo? GetNodeDetail(int id)
-    {
-        return Layout.Nodes.TryGetValue(id, out GroundNode? node) ? BuildNodeInfo(node) : null;
-    }
+    public NodeInfo? GetNodeDetail(int id) => Layout.Nodes.TryGetValue(id, out GroundNode? node) ? BuildNodeInfo(node) : null;
 
     /// <summary>Max hops the bridge BFS walks looking for an alternate route between an edge pair's arms.</summary>
     private const int BridgeMaxHops = 6;
@@ -274,10 +271,7 @@ public sealed class LayoutAnalyzer
     }
 
     /// <summary>Included angle (0..180°) between two outbound bearings: 0 = same direction, 180 = opposite.</summary>
-    private static double FanAngle(double bearingADeg, double bearingBDeg)
-    {
-        return Math.Abs((((bearingADeg - bearingBDeg) + 540.0) % 360.0) - 180.0);
-    }
+    private static double FanAngle(double bearingADeg, double bearingBDeg) => Math.Abs((((bearingADeg - bearingBDeg) + 540.0) % 360.0) - 180.0);
 
     /// <summary>
     /// Shortest hop path from <paramref name="from"/> to <paramref name="to"/> that never revisits

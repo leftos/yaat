@@ -15,16 +15,10 @@ public class FdRegionMappingTests
     [InlineData("ZFW", "dfw")]
     [InlineData("ZDV", "slc")]
     [InlineData("ZAN", "alaska")]
-    public void GetRegion_KnownArtcc_ReturnsRegion(string artccId, string expected)
-    {
-        Assert.Equal(expected, FdRegionMapping.GetRegion(artccId));
-    }
+    public void GetRegion_KnownArtcc_ReturnsRegion(string artccId, string expected) => Assert.Equal(expected, FdRegionMapping.GetRegion(artccId));
 
     [Fact]
-    public void GetRegion_UnknownArtcc_ReturnsNull()
-    {
-        Assert.Null(FdRegionMapping.GetRegion("ZZZZ"));
-    }
+    public void GetRegion_UnknownArtcc_ReturnsNull() => Assert.Null(FdRegionMapping.GetRegion("ZZZZ"));
 
     [Fact]
     public void GetRegion_CaseInsensitive()
@@ -34,8 +28,5 @@ public class FdRegionMappingTests
     }
 
     [Fact]
-    public void GetRegion_EmptyString_ReturnsNull()
-    {
-        Assert.Null(FdRegionMapping.GetRegion(""));
-    }
+    public void GetRegion_EmptyString_ReturnsNull() => Assert.Null(FdRegionMapping.GetRegion(""));
 }

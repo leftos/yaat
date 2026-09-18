@@ -29,10 +29,7 @@ public class AirportE2ETests
 
     private static readonly Helpers.TestAirportGroundData GroundData = new();
 
-    private static AirportGroundLayout? LoadLayout(string airportId, string subdir)
-    {
-        return GroundData.GetLayout(airportId);
-    }
+    private static AirportGroundLayout? LoadLayout(string airportId, string subdir) => GroundData.GetLayout(airportId);
 
     private static AircraftState MakeGroundAircraft(string departure = "OAK", LatLon? position = null)
     {

@@ -15,10 +15,7 @@ public class SpeciCriteriaTests
     ) => new(calm, dir, speed, null, variable, null, null, null, 0, null, vis, [], ceiling, 29.92, precip);
 
     [Fact]
-    public void NoChange_NotWorthy()
-    {
-        Assert.False(SpeciCriteria.IsSpeciWorthy(Cond(), Cond(), null, null, null));
-    }
+    public void NoChange_NotWorthy() => Assert.False(SpeciCriteria.IsSpeciWorthy(Cond(), Cond(), null, null, null));
 
     [Theory]
     [InlineData(270, 12, 320, 12, true)] // 50 deg shift, both >= 10 kt
@@ -32,10 +29,8 @@ public class SpeciCriteriaTests
     }
 
     [Fact]
-    public void WindShift_FromCalm_NotWorthy()
-    {
+    public void WindShift_FromCalm_NotWorthy() =>
         Assert.False(SpeciCriteria.IsSpeciWorthy(Cond(calm: true, speed: 0), Cond(dir: 90, speed: 15), null, null, null));
-    }
 
     [Theory]
     [InlineData(5.0, 2.5, true)] // crosses 3 downward
@@ -83,14 +78,9 @@ public class SpeciCriteriaTests
     }
 
     [Fact]
-    public void PrecipitationOnset_Worthy()
-    {
-        Assert.True(SpeciCriteria.IsSpeciWorthy(Cond(precip: false), Cond(precip: true), null, null, null));
-    }
+    public void PrecipitationOnset_Worthy() => Assert.True(SpeciCriteria.IsSpeciWorthy(Cond(precip: false), Cond(precip: true), null, null, null));
 
     [Fact]
-    public void PrecipitationCessation_Worthy()
-    {
+    public void PrecipitationCessation_Worthy() =>
         Assert.True(SpeciCriteria.IsSpeciWorthy(Cond(precip: true), Cond(precip: false), null, null, null));
-    }
 }

@@ -247,15 +247,11 @@ public class HelicopterLandGateTests
     [Theory]
     [InlineData(500.0, 9.0, 1.0)]
     [InlineData(1509.0, 9.0, 3.5)]
-    public void TopOfDescent_IsTransitDropPlusBuffer(double holdAltitude, double fieldElevation, double expectedNm)
-    {
+    public void TopOfDescent_IsTransitDropPlusBuffer(double holdAltitude, double fieldElevation, double expectedNm) =>
         Assert.Equal(expectedNm, HelicopterApproachPhase.TopOfDescentNm(holdAltitude, fieldElevation), 2);
-    }
 
     [Fact]
-    public void FinalStart_Is400FtDropOnTheSixDegreePath()
-    {
+    public void FinalStart_Is400FtDropOnTheSixDegreePath() =>
         // 500 ft AGL pattern altitude down to the 100 ft AGL air-taxi height over the spot at 6° ≈ 0.63 nm.
         Assert.Equal(0.626, HelicopterApproachPhase.FinalStartNm(AircraftCategory.Helicopter), 2);
-    }
 }

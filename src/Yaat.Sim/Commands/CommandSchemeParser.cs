@@ -17,10 +17,7 @@ public record ParseFailure(string Verb, string Reason, string? Expected = null);
 
 public static class CommandSchemeParser
 {
-    public static CompoundParseResult? ParseCompound(string input, CommandScheme scheme)
-    {
-        return ParseCompound(input, scheme, out _);
-    }
+    public static CompoundParseResult? ParseCompound(string input, CommandScheme scheme) => ParseCompound(input, scheme, out _);
 
     public static CompoundParseResult? ParseCompound(string input, CommandScheme scheme, out ParseFailure? failure)
     {
@@ -586,10 +583,7 @@ public static class CommandSchemeParser
         return string.Join(", ", canonicalCommands);
     }
 
-    public static ParsedInput? Parse(string input, CommandScheme scheme)
-    {
-        return Parse(input, scheme, out _);
-    }
+    public static ParsedInput? Parse(string input, CommandScheme scheme) => Parse(input, scheme, out _);
 
     public static ParsedInput? Parse(string input, CommandScheme scheme, out ParseFailure? failure)
     {

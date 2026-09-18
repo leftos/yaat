@@ -220,13 +220,7 @@ public sealed class LowApproachPhase : Phase
         return complete;
     }
 
-    public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
-    {
-        return CommandAcceptance.ClearsPhase;
-    }
+    public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd) => CommandAcceptance.ClearsPhase;
 
-    protected override List<ClearanceRequirement> CreateRequirements()
-    {
-        return [];
-    }
+    protected override List<ClearanceRequirement> CreateRequirements() => [];
 }

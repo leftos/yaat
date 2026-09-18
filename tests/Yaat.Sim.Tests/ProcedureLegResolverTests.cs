@@ -169,14 +169,8 @@ public class ProcedureLegResolverTests
     }
 
     [Fact]
-    public void LeadingPlainFix_ReturnsNull()
-    {
-        Assert.Null(ProcedureLegResolver.ExtractActiveDepartureLegs([Tf("ABCDE"), Cf("FGHIJ")]));
-    }
+    public void LeadingPlainFix_ReturnsNull() => Assert.Null(ProcedureLegResolver.ExtractActiveDepartureLegs([Tf("ABCDE"), Cf("FGHIJ")]));
 
     [Fact]
-    public void AllPlainFixes_ReturnsNull()
-    {
-        Assert.Null(ProcedureLegResolver.ExtractActiveDepartureLegs([Tf("ABCDE"), Tf("FGHIJ"), Tf("KLMNO")]));
-    }
+    public void AllPlainFixes_ReturnsNull() => Assert.Null(ProcedureLegResolver.ExtractActiveDepartureLegs([Tf("ABCDE"), Tf("FGHIJ"), Tf("KLMNO")]));
 }

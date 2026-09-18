@@ -131,10 +131,7 @@ public class RampLaneRepositionTests
     [InlineData("m4", "M5", true)]
     [InlineData("TE", "M4", false)]
     [InlineData("TE", "TE", false)]
-    public void AreSiblingLanes(string a, string b, bool expected)
-    {
-        Assert.Equal(expected, RampLaneReposition.AreSiblingLanes(a, b));
-    }
+    public void AreSiblingLanes(string a, string b, bool expected) => Assert.Equal(expected, RampLaneReposition.AreSiblingLanes(a, b));
 
     [Fact]
     public void GateB20S_TaxiM4_CutsAcrossOntoM4ThenFollowsTheGraph()

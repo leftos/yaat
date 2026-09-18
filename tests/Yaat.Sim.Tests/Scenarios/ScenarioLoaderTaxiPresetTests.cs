@@ -125,8 +125,5 @@ public class ScenarioLoaderTaxiPresetTests
     }
 
     [Fact]
-    public void HasTaxiPreset_EmptyList_ReturnsFalse()
-    {
-        Assert.False(ScenarioLoader.HasTaxiPreset([]));
-    }
+    public void HasTaxiPreset_EmptyList_ReturnsFalse() => Assert.False(ScenarioLoader.HasTaxiPreset([]));
 }

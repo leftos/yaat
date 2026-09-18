@@ -40,10 +40,7 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>Advances the clock to the second about to be simulated. Only this — the sub-tick replay step keeps its own clock.</summary>
-    public void BeginSecond()
-    {
-        RequireScenario().ElapsedSeconds += 1;
-    }
+    public void BeginSecond() => RequireScenario().ElapsedSeconds += 1;
 
     /// <summary>
     /// Opens the second the clock now points at: resets the trace for it and applies the host's pre-tick recorded

@@ -39,10 +39,7 @@ public class LocalLlmCallsignResolverTests
     [InlineData("NONE")]
     [InlineData("none")]
     [InlineData("None")]
-    public void ValidateAgainstActive_None_ReturnsNull(string raw)
-    {
-        Assert.Null(LocalLlmCallsignResolver.ValidateAgainstActive(raw, Active));
-    }
+    public void ValidateAgainstActive_None_ReturnsNull(string raw) => Assert.Null(LocalLlmCallsignResolver.ValidateAgainstActive(raw, Active));
 
     [Theory]
     [InlineData("")]
@@ -51,14 +48,9 @@ public class LocalLlmCallsignResolverTests
     [InlineData("I think it's N9225L")] // first token not a callsign
     [InlineData("N")] // partial
     [InlineData("garbage")]
-    public void ValidateAgainstActive_InvalidOrAbsent_ReturnsNull(string raw)
-    {
+    public void ValidateAgainstActive_InvalidOrAbsent_ReturnsNull(string raw) =>
         Assert.Null(LocalLlmCallsignResolver.ValidateAgainstActive(raw, Active));
-    }
 
     [Fact]
-    public void ValidateAgainstActive_EmptyActiveList_ReturnsNull()
-    {
-        Assert.Null(LocalLlmCallsignResolver.ValidateAgainstActive("N9225L", []));
-    }
+    public void ValidateAgainstActive_EmptyActiveList_ReturnsNull() => Assert.Null(LocalLlmCallsignResolver.ValidateAgainstActive("N9225L", []));
 }

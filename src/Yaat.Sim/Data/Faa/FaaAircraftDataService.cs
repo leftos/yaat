@@ -78,15 +78,9 @@ public sealed class FaaAircraftDataService : IDisposable
         Log.LogWarning("No FAA ACD data available; category defaults will be used");
     }
 
-    public void Dispose()
-    {
-        _http.Dispose();
-    }
+    public void Dispose() => _http.Dispose();
 
-    private static void ApplyRecords(Dictionary<string, FaaAircraftRecord> records)
-    {
-        FaaAircraftDatabase.Initialize(records);
-    }
+    private static void ApplyRecords(Dictionary<string, FaaAircraftRecord> records) => FaaAircraftDatabase.Initialize(records);
 
     private static bool TryLoadFromJson(string path)
     {

@@ -85,10 +85,7 @@ public sealed class TakeoffPhase : Phase, IGroundRollClock
     /// <summary>
     /// Called by the dispatcher when CTO is issued.
     /// </summary>
-    public void SetAssignedDeparture(DepartureInstruction? departure)
-    {
-        Departure = departure;
-    }
+    public void SetAssignedDeparture(DepartureInstruction? departure) => Departure = departure;
 
     public override void OnStart(PhaseContext ctx)
     {
@@ -208,10 +205,7 @@ public sealed class TakeoffPhase : Phase, IGroundRollClock
         // pattern altitude − 300 ft AND past the departure end of runway for VFR (AIM 4-3-2).
     }
 
-    private static bool TickAirborneClimb(double agl)
-    {
-        return agl >= CompletionAgl;
-    }
+    private static bool TickAirborneClimb(double agl) => agl >= CompletionAgl;
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {

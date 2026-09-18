@@ -149,10 +149,8 @@ public class Issue186ZhuAusStarApproachTests
     // ---------------------------------------------------------------------------------------------
 
     [Fact]
-    public void Swa8623_JfacI18R_JoinsLocalizer_DoesNotBlowThrough()
-    {
+    public void Swa8623_JfacI18R_JoinsLocalizer_DoesNotBlowThrough() =>
         RunJoinTest("SWA8623", snapshotBeforeJfac: 731, jfacWindowEnd: 738, watchSeconds: 160);
-    }
 
     // ---------------------------------------------------------------------------------------------
     // #3 — SWA387: 2nd JFAC I18L @463 is a clean ~24 deg intercept. After JFAC it must HOLD its
@@ -252,20 +250,16 @@ public class Issue186ZhuAusStarApproachTests
     // ---------------------------------------------------------------------------------------------
 
     [Fact]
-    public void Swa387_SteepJfac_TurnsToJoin_DoesNotBlowThrough()
-    {
+    public void Swa387_SteepJfac_TurnsToJoin_DoesNotBlowThrough() =>
         RunJoinTest("SWA387", snapshotBeforeJfac: 422, jfacWindowEnd: 430, watchSeconds: 150);
-    }
 
     // ---------------------------------------------------------------------------------------------
     // #1 — SWA1743: JFAC I18L @604 (steep ~90 deg, ~2.6nm E). Per the ruling, turn to join.
     // ---------------------------------------------------------------------------------------------
 
     [Fact]
-    public void Swa1743_Jfac_TurnsToJoin_DoesNotBlowThrough()
-    {
+    public void Swa1743_Jfac_TurnsToJoin_DoesNotBlowThrough() =>
         RunJoinTest("SWA1743", snapshotBeforeJfac: 603, jfacWindowEnd: 610, watchSeconds: 150);
-    }
 
     // ---------------------------------------------------------------------------------------------
     // Edge case (aviation-review): a steep JFAC now captures and S-turns onto the localizer; with

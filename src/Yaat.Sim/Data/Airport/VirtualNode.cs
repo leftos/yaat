@@ -184,19 +184,20 @@ public static class VirtualNode
     /// Infers the continuation edge from the graph (prefers same taxiway, falls back to best-aligned).
     /// Used for tail clearance past intersections and hold-short lines.
     /// </summary>
-    public static GroundNode OffsetPast(AirportGroundLayout layout, GroundNode node, GroundNode approachFrom, double offsetNm)
-    {
-        return OffsetPastCore(layout, node, approachFrom.Position.Lat, approachFrom.Position.Lon, offsetNm);
-    }
+    public static GroundNode OffsetPast(AirportGroundLayout layout, GroundNode node, GroundNode approachFrom, double offsetNm) =>
+        OffsetPastCore(layout, node, approachFrom.Position.Lat, approachFrom.Position.Lon, offsetNm);
 
     /// <summary>
     /// Overload for when the approach direction is a position rather than a node
     /// (e.g., aircraft on runway centerline approaching an exit).
     /// </summary>
-    public static GroundNode OffsetPast(AirportGroundLayout layout, GroundNode node, double approachFromLat, double approachFromLon, double offsetNm)
-    {
-        return OffsetPastCore(layout, node, approachFromLat, approachFromLon, offsetNm);
-    }
+    public static GroundNode OffsetPast(
+        AirportGroundLayout layout,
+        GroundNode node,
+        double approachFromLat,
+        double approachFromLon,
+        double offsetNm
+    ) => OffsetPastCore(layout, node, approachFromLat, approachFromLon, offsetNm);
 
     private static GroundNode OffsetPastCore(AirportGroundLayout layout, GroundNode node, double approachLat, double approachLon, double offsetNm)
     {

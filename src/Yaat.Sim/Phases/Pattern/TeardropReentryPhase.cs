@@ -205,8 +205,5 @@ public sealed class TeardropReentryPhase : Phase
         return phase;
     }
 
-    protected override List<ClearanceRequirement> CreateRequirements()
-    {
-        return [];
-    }
+    protected override List<ClearanceRequirement> CreateRequirements() => [];
 }

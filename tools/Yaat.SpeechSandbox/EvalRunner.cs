@@ -421,10 +421,8 @@ internal static class EvalRunner
         return null;
     }
 
-    private static List<string>? ReadStringList(JsonElement root, string property)
-    {
-        return root.TryGetProperty(property, out JsonElement el) && el.ValueKind == JsonValueKind.Array ? el.Deserialize<List<string>>() : null;
-    }
+    private static List<string>? ReadStringList(JsonElement root, string property) =>
+        root.TryGetProperty(property, out JsonElement el) && el.ValueKind == JsonValueKind.Array ? el.Deserialize<List<string>>() : null;
 
     /// <summary>Case-insensitive canonical comparison with comma/space separators normalized.</summary>
     private static bool CanonicalsMatch(string expected, string? actual)

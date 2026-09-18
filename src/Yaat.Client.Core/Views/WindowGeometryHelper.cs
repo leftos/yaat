@@ -133,10 +133,7 @@ public sealed class WindowGeometryHelper
     /// to terminate via a path that bypasses the window-closing pipeline
     /// (e.g. Velopack's <c>ApplyUpdatesAndRestart</c>).
     /// </summary>
-    public void FlushSavedGeometry()
-    {
-        SaveCurrentGeometry("flush");
-    }
+    public void FlushSavedGeometry() => SaveCurrentGeometry("flush");
 
     /// <summary>
     /// Pushes a previously-saved geometry onto the live window (used when

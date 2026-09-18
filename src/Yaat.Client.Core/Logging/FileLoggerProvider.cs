@@ -37,15 +37,9 @@ public sealed class FileLoggerProvider : ILoggerProvider
         }
     }
 
-    public ILogger CreateLogger(string categoryName)
-    {
-        return _loggers.GetOrAdd(categoryName, name => new FileLogger(name, _writer));
-    }
+    public ILogger CreateLogger(string categoryName) => _loggers.GetOrAdd(categoryName, name => new FileLogger(name, _writer));
 
-    public void Dispose()
-    {
-        _writer.Dispose();
-    }
+    public void Dispose() => _writer.Dispose();
 
     /// <summary>
     /// Shifts <c>log</c> → <c>log.1</c> → <c>log.2</c> … dropping the oldest. Returns the exception
@@ -95,15 +89,9 @@ public sealed class FileLogger(string category, StreamWriter writer) : ILogger
     private static readonly object WriteLock = new();
 
     public IDisposable? BeginScope<TState>(TState state)
-        where TState : notnull
-    {
-        return null;
-    }
+        where TState : notnull => null;
 
-    public bool IsEnabled(LogLevel logLevel)
-    {
-        return logLevel != LogLevel.None;
-    }
+    public bool IsEnabled(LogLevel logLevel) => logLevel != LogLevel.None;
 
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
     {

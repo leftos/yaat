@@ -57,10 +57,7 @@ public partial class MainViewModel
         return ends;
     }
 
-    internal void StashLoadedScenarioJson(string scenarioJson)
-    {
-        LoadedScenarioJson = scenarioJson;
-    }
+    internal void StashLoadedScenarioJson(string scenarioJson) => LoadedScenarioJson = scenarioJson;
 
     internal void StashScenarioGeneratorsAndPositions(
         IReadOnlyList<ScenarioGeneratorConfig>? generators,

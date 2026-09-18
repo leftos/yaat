@@ -787,16 +787,15 @@ public partial class CommandInputController : ObservableObject
 
     private static bool IsKnownVerb(string token, CommandScheme scheme) => scheme.IsKnownVerb(token);
 
-    private static bool IsCompleteSyntaxPattern(string token)
-    {
+    private static bool IsCompleteSyntaxPattern(string token) =>
         // Matches T{digits}L or T{digits}R — a complete relative turn command
-        return token.Length >= 3 && token[0] is 'T' or 't' && char.IsDigit(token[1]) && token[^1] is 'L' or 'l' or 'R' or 'r';
-    }
+        token.Length >= 3
+        && token[0] is 'T' or 't'
+        && char.IsDigit(token[1])
+        && token[^1] is 'L' or 'l' or 'R' or 'r';
 
-    internal static string StripConditionPrefix(string fragment, out string? conditionVerb)
-    {
-        return StripConditionPrefix(fragment, out conditionVerb, out _, out _);
-    }
+    internal static string StripConditionPrefix(string fragment, out string? conditionVerb) =>
+        StripConditionPrefix(fragment, out conditionVerb, out _, out _);
 
     /// <summary>
     /// Detects when the fragment starts with "&lt;callsign&gt; &lt;CONDITION-KEYWORD&gt; ..." so the caller
@@ -1060,10 +1059,7 @@ public partial class CommandInputController : ObservableObject
         }
     }
 
-    private static string BuildMacroDescription(MacroDefinition macro)
-    {
-        return macro.Expansion;
-    }
+    private static string BuildMacroDescription(MacroDefinition macro) => macro.Expansion;
 
     private void AddCallsignSuggestions(
         string activeTokenText,

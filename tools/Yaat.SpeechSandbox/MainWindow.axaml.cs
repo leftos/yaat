@@ -337,10 +337,7 @@ public partial class MainWindow : Window
     /// Whisper prompt (the static vocabulary is enough for whisper-large-turbo3 to recognize
     /// arbitrary tail numbers cleanly), so the sandbox should mirror that.
     /// </summary>
-    private void RebuildWhisperPromptFromInputs()
-    {
-        this.FindControl<TextBox>("WhisperPromptBox")!.Text = WhisperBiasingPrompt.Default;
-    }
+    private void RebuildWhisperPromptFromInputs() => this.FindControl<TextBox>("WhisperPromptBox")!.Text = WhisperBiasingPrompt.Default;
 
     private async void OnRunClicked(object? sender, RoutedEventArgs e)
     {
@@ -535,10 +532,7 @@ public partial class MainWindow : Window
         this.FindControl<TextBox>("LogBox")!.Text = string.Empty;
     }
 
-    private void SetStatus(string status)
-    {
-        this.FindControl<TextBlock>("StatusText")!.Text = status;
-    }
+    private void SetStatus(string status) => this.FindControl<TextBlock>("StatusText")!.Text = status;
 
     private void AppendLog(string line)
     {

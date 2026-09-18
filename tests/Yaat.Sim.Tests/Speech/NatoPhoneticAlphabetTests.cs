@@ -96,15 +96,10 @@ public class NatoPhoneticAlphabetTests
     [InlineData('9', "nine")]
     [InlineData('A', "alpha")]
     [InlineData('z', "zulu")]
-    public void SpellChar_Digits_And_Letters(char input, string expected)
-    {
-        Assert.Equal(expected, NatoPhoneticAlphabet.SpellChar(input));
-    }
+    public void SpellChar_Digits_And_Letters(char input, string expected) => Assert.Equal(expected, NatoPhoneticAlphabet.SpellChar(input));
 
     [Fact]
-    public void SpellChar_Unknown_Returns_Uppercase()
-    {
+    public void SpellChar_Unknown_Returns_Uppercase() =>
         // Anything non-ASCII / non-digit / non-letter falls through to its uppercase form.
         Assert.Equal("-", NatoPhoneticAlphabet.SpellChar('-'));
-    }
 }

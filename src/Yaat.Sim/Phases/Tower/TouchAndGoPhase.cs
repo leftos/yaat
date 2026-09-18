@@ -182,8 +182,5 @@ public sealed class TouchAndGoPhase : Phase, IGroundRollClock
         };
     }
 
-    protected override List<ClearanceRequirement> CreateRequirements()
-    {
-        return [];
-    }
+    protected override List<ClearanceRequirement> CreateRequirements() => [];
 }

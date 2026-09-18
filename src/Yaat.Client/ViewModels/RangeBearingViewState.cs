@@ -56,10 +56,7 @@ public sealed partial class RangeBearingViewState : ObservableObject
     }
 
     /// <summary>Arms the tool so the next map click picks the first endpoint.</summary>
-    public void Arm()
-    {
-        Report(_store.Arm() ? ArmedStatus : FullStatus);
-    }
+    public void Arm() => Report(_store.Arm() ? ArmedStatus : FullStatus);
 
     /// <summary>
     /// Feeds the tool a clicked endpoint: the first click anchors, the second completes the measurement.
@@ -98,10 +95,7 @@ public sealed partial class RangeBearingViewState : ObservableObject
     }
 
     /// <summary>Removes one measurement by slot number.</summary>
-    public void Remove(int slot)
-    {
-        Report(_store.Remove(slot) ? $"Measurement {slot} removed" : $"No measurement {slot}");
-    }
+    public void Remove(int slot) => Report(_store.Remove(slot) ? $"Measurement {slot} removed" : $"No measurement {slot}");
 
     /// <summary>Removes every measurement.</summary>
     public void Clear()
@@ -115,10 +109,7 @@ public sealed partial class RangeBearingViewState : ObservableObject
     /// Drops measurements latched to an aircraft that no longer exists, matching CRC's behaviour when a
     /// track is dropped. Called whenever the aircraft list changes.
     /// </summary>
-    public void PruneMissing(Func<string, AircraftModel?> findAircraft)
-    {
-        _store.PruneMissing(callsign => findAircraft(callsign) is not null);
-    }
+    public void PruneMissing(Func<string, AircraftModel?> findAircraft) => _store.PruneMissing(callsign => findAircraft(callsign) is not null);
 
     /// <summary>Adapts an aircraft lookup into the position and groundspeed the resolver needs.</summary>
     public static RblTrackLookup TrackLookup(Func<string, AircraftModel?> findAircraft) =>

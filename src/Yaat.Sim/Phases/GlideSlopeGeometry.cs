@@ -16,19 +16,14 @@ public static class GlideSlopeGeometry
     /// local reference set) uses for copter procedures; the publications carried here specify no VFR
     /// rotorcraft approach angle (AIM §10-1-2 covers copter IAP minima and speeds only).
     /// </summary>
-    public static double AngleForCategory(AircraftCategory category)
-    {
-        return category == AircraftCategory.Helicopter ? HelicopterAngleDeg : StandardAngleDeg;
-    }
+    public static double AngleForCategory(AircraftCategory category) =>
+        category == AircraftCategory.Helicopter ? HelicopterAngleDeg : StandardAngleDeg;
 
     /// <summary>
     /// Feet of altitude per nautical mile for the given glideslope angle.
     /// Standard 3°: ~318 ft/nm (rule of thumb: 300 ft/nm).
     /// </summary>
-    public static double FeetPerNm(double angleDeg = StandardAngleDeg)
-    {
-        return Math.Tan(angleDeg * DegToRad) * 6076.12;
-    }
+    public static double FeetPerNm(double angleDeg = StandardAngleDeg) => Math.Tan(angleDeg * DegToRad) * 6076.12;
 
     /// <summary>
     /// Target altitude (MSL) at a given distance from the landing threshold, on a glidepath that crosses

@@ -68,10 +68,7 @@ public class LiveTrafficConflictAlertTests
     }
 
     [Fact]
-    public void VfrShadow_DoesNotAlert()
-    {
-        Assert.Empty(Detect(Shadow("LIVE1", B, ifr: false), Simulated("SIM1", A)));
-    }
+    public void VfrShadow_DoesNotAlert() => Assert.Empty(Detect(Shadow("LIVE1", B, ifr: false), Simulated("SIM1", A)));
 
     [Fact]
     public void CoastingShadow_DoesNotAlert()

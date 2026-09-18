@@ -86,10 +86,7 @@ public sealed class STurnPhase : Phase
         );
     }
 
-    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
-    {
-        _speed.Resume(ctx);
-    }
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus) => _speed.Resume(ctx);
 
     public override bool OnTick(PhaseContext ctx)
     {
@@ -190,8 +187,5 @@ public sealed class STurnPhase : Phase
         }
     }
 
-    protected override List<ClearanceRequirement> CreateRequirements()
-    {
-        return [];
-    }
+    protected override List<ClearanceRequirement> CreateRequirements() => [];
 }

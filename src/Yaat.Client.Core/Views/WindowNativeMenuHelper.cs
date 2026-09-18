@@ -62,10 +62,7 @@ public sealed class WindowNativeMenuHelper
         _window.Closed += OnWindowClosed;
     }
 
-    private void OnAlwaysOnTopClicked(object? sender, EventArgs e)
-    {
-        _geometryHelper.ToggleTopmost();
-    }
+    private void OnAlwaysOnTopClicked(object? sender, EventArgs e) => _geometryHelper.ToggleTopmost();
 
     private void OnWindowTopmostChanged(string windowName, bool isTopmost)
     {

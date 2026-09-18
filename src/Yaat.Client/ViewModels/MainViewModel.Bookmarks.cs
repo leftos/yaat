@@ -140,10 +140,8 @@ public partial class MainViewModel
     }
 
     /// <summary>Snapshot the current bookmarks for embedding into a recording archive on save.</summary>
-    public IReadOnlyList<TimelineBookmark> SnapshotBookmarks()
-    {
-        return [.. Bookmarks.Select(b => new TimelineBookmark(b.Id, b.TimeSeconds, b.Name, b.CreatorInitials))];
-    }
+    public IReadOnlyList<TimelineBookmark> SnapshotBookmarks() =>
+        [.. Bookmarks.Select(b => new TimelineBookmark(b.Id, b.TimeSeconds, b.Name, b.CreatorInitials))];
 
     private void OnBookmarksChanged(BookmarksChangedDto dto) => Dispatcher.UIThread.Post(() => ApplyBookmarks(dto.Bookmarks));
 

@@ -47,19 +47,15 @@ public class ZoaParseFixTests : IDisposable
     [InlineData("SPD 210 DM 040", "SPD 210, DM 040")]
     [InlineData("FH 270 CM 5000 SPD 250", "FH 270, CM 5000, SPD 250")]
     [InlineData("DM 6000 FH 270 SPD 190", "DM 6000, FH 270, SPD 190")]
-    public void ExpandMultiCommand_SplitsHeadingAltitudeCombos(string input, string expected)
-    {
+    public void ExpandMultiCommand_SplitsHeadingAltitudeCombos(string input, string expected) =>
         Assert.Equal(expected, CommandSchemeParser.ExpandMultiCommand(input));
-    }
 
     [Theory]
     [InlineData("FH 270")]
     [InlineData("CM 5000")]
     [InlineData("TAXI Y M1 HS A RWY 01L")]
-    public void ExpandMultiCommand_LeavesNonMatchingInputUnchanged(string input)
-    {
+    public void ExpandMultiCommand_LeavesNonMatchingInputUnchanged(string input) =>
         Assert.Equal(input, CommandSchemeParser.ExpandMultiCommand(input));
-    }
 
     [Fact]
     public void ParseCompound_FH_CM_ReturnsTwoCommands()
@@ -83,19 +79,14 @@ public class ZoaParseFixTests : IDisposable
     [InlineData("WAIT 5 FH 270", "WAIT 5; FH 270")]
     [InlineData("WAIT 5 WAIT 10 FH 270", "WAIT 5; WAIT 10; FH 270")]
     [InlineData("DELAY 5 CM 3000", "WAIT 5; CM 3000")]
-    public void ExpandWait_SplitsWaitFromFollowingCommand(string input, string expected)
-    {
+    public void ExpandWait_SplitsWaitFromFollowingCommand(string input, string expected) =>
         Assert.Equal(expected, CommandSchemeParser.ExpandWait(input));
-    }
 
     [Theory]
     [InlineData("WAIT 5")]
     [InlineData("FH 270")]
     [InlineData("CM 5000; SPD 250")]
-    public void ExpandWait_LeavesNonWaitInputUnchanged(string input)
-    {
-        Assert.Equal(input, CommandSchemeParser.ExpandWait(input));
-    }
+    public void ExpandWait_LeavesNonWaitInputUnchanged(string input) => Assert.Equal(input, CommandSchemeParser.ExpandWait(input));
 
     [Fact]
     public void ParseCompound_WaitThenHeading_ReturnsTwoBlocks()
@@ -406,10 +397,7 @@ public class ZoaParseFixTests : IDisposable
     // --- SPD in ExpandMultiCommand ---
 
     [Fact]
-    public void ExpandMultiCommand_SPD_DM()
-    {
-        Assert.Equal("SPD 210, DM 040", CommandSchemeParser.ExpandMultiCommand("SPD 210 DM 040"));
-    }
+    public void ExpandMultiCommand_SPD_DM() => Assert.Equal("SPD 210, DM 040", CommandSchemeParser.ExpandMultiCommand("SPD 210 DM 040"));
 
     // --- HOLD flexibility ---
 
@@ -530,10 +518,8 @@ public class ZoaParseFixTests : IDisposable
     [InlineData("DM 020 DCT VPCOL", "DM 020, DCT VPCOL")]
     [InlineData("DCT VPCOL CM 030", "DCT VPCOL, CM 030")]
     [InlineData("DCT VPCOL FH 270", "DCT VPCOL, FH 270")]
-    public void ExpandMultiCommand_DCT_DoesNotSwallowFollowingVerbs(string input, string expected)
-    {
+    public void ExpandMultiCommand_DCT_DoesNotSwallowFollowingVerbs(string input, string expected) =>
         Assert.Equal(expected, CommandSchemeParser.ExpandMultiCommand(input));
-    }
 
     [Fact]
     public void ParseDirectTo_RejectsUnknownFixNames()

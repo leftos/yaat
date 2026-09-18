@@ -42,10 +42,7 @@ public class AtcNumberParserTests
     [InlineData("flight level three five zero", "35000")]
     [InlineData("flight level one eight zero", "18000")]
     [InlineData("fl two five zero", "25000")]
-    public void NormalizeDigits_PureNumberPhrase(string input, string expected)
-    {
-        Assert.Equal(expected, AtcNumberParser.NormalizeDigits(input));
-    }
+    public void NormalizeDigits_PureNumberPhrase(string input, string expected) => Assert.Equal(expected, AtcNumberParser.NormalizeDigits(input));
 
     [Theory]
     // Embedded in ATC commands
@@ -97,19 +94,14 @@ public class AtcNumberParserTests
     [InlineData("turn left heading to 4 0", "turn left heading 240")]
     [InlineData("fly heading to 070", "fly heading 070")]
     [InlineData("climb and maintain 8,000 to fly heading to 7-0.", "climb and maintain 8000 to fly heading 270")]
-    public void NormalizeDigits_WithCommandContext(string input, string expected)
-    {
-        Assert.Equal(expected, AtcNumberParser.NormalizeDigits(input));
-    }
+    public void NormalizeDigits_WithCommandContext(string input, string expected) => Assert.Equal(expected, AtcNumberParser.NormalizeDigits(input));
 
     [Theory]
     [InlineData("", "")]
     [InlineData("   ", "   ")]
     [InlineData("climb and maintain", "climb and maintain")]
-    public void NormalizeDigits_NoNumbers_PassesThrough(string input, string expected)
-    {
+    public void NormalizeDigits_NoNumbers_PassesThrough(string input, string expected) =>
         Assert.Equal(expected, AtcNumberParser.NormalizeDigits(input));
-    }
 
     // --- NormalizeDigits: paired-cardinal flight-number coalescing ---
     //
@@ -140,10 +132,8 @@ public class AtcNumberParserTests
     // did. "Fly heading two thirty" = heading 230. "Reduce speed to one eighty" = speed 180.
     [InlineData("fly heading two thirty", "fly heading 230")]
     [InlineData("reduce speed to one eighty", "reduce speed to 180")]
-    public void NormalizeDigits_PairedCardinalFlightNumbers(string input, string expected)
-    {
+    public void NormalizeDigits_PairedCardinalFlightNumbers(string input, string expected) =>
         Assert.Equal(expected, AtcNumberParser.NormalizeDigits(input));
-    }
 
     // --- FlightNumberToWords: digit → spoken form ---
 
@@ -154,16 +144,11 @@ public class AtcNumberParserTests
     [InlineData(1234, "one two three four")]
     [InlineData(4500, "four five zero zero")]
     [InlineData(0, "zero")]
-    public void FlightNumberToWords_Returns_DigitByDigit(int flight, string expected)
-    {
+    public void FlightNumberToWords_Returns_DigitByDigit(int flight, string expected) =>
         Assert.Equal(expected, AtcNumberParser.FlightNumberToWords(flight));
-    }
 
     [Fact]
-    public void FlightNumberToWords_Negative_ReturnsEmpty()
-    {
-        Assert.Equal("", AtcNumberParser.FlightNumberToWords(-1));
-    }
+    public void FlightNumberToWords_Negative_ReturnsEmpty() => Assert.Equal("", AtcNumberParser.FlightNumberToWords(-1));
 
     // --- FlightNumberToPairedWords: digit → paired spoken form ---
 
@@ -194,16 +179,11 @@ public class AtcNumberParserTests
     [InlineData(9999, "ninety nine ninety nine")]
     // 5 digits
     [InlineData(12345, "one twenty three forty five")]
-    public void FlightNumberToPairedWords_Returns_PairedForm(int flight, string expected)
-    {
+    public void FlightNumberToPairedWords_Returns_PairedForm(int flight, string expected) =>
         Assert.Equal(expected, AtcNumberParser.FlightNumberToPairedWords(flight));
-    }
 
     [Fact]
-    public void FlightNumberToPairedWords_Negative_ReturnsEmpty()
-    {
-        Assert.Equal("", AtcNumberParser.FlightNumberToPairedWords(-1));
-    }
+    public void FlightNumberToPairedWords_Negative_ReturnsEmpty() => Assert.Equal("", AtcNumberParser.FlightNumberToPairedWords(-1));
 
     // --- AltitudeToWords: digit → spoken form ---
 
@@ -216,16 +196,11 @@ public class AtcNumberParserTests
     [InlineData(18000, "flight level one eight zero")]
     [InlineData(35000, "flight level three five zero")]
     [InlineData(41000, "flight level four one zero")]
-    public void AltitudeToWords_Returns_SpokenForm(int altitude, string expected)
-    {
+    public void AltitudeToWords_Returns_SpokenForm(int altitude, string expected) =>
         Assert.Equal(expected, AtcNumberParser.AltitudeToWords(altitude));
-    }
 
     [Theory]
     [InlineData(0)]
     [InlineData(-1000)]
-    public void AltitudeToWords_NonPositive_ReturnsEmpty(int altitude)
-    {
-        Assert.Equal("", AtcNumberParser.AltitudeToWords(altitude));
-    }
+    public void AltitudeToWords_NonPositive_ReturnsEmpty(int altitude) => Assert.Equal("", AtcNumberParser.AltitudeToWords(altitude));
 }

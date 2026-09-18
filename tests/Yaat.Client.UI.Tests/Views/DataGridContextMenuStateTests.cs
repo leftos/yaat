@@ -14,10 +14,8 @@ namespace Yaat.Client.UI.Tests.Views;
 // clearances). The phase-aware items now flow through AircraftCommandApplicability.
 public class DataGridContextMenuStateTests
 {
-    private static List<string> Headers(ContextMenu menu)
-    {
-        return menu.Items.OfType<MenuItem>().Where(m => m.Header is string).Select(m => (string)m.Header!).ToList();
-    }
+    private static List<string> Headers(ContextMenu menu) =>
+        menu.Items.OfType<MenuItem>().Where(m => m.Header is string).Select(m => (string)m.Header!).ToList();
 
     private static ContextMenu Build(AircraftModel ac)
     {

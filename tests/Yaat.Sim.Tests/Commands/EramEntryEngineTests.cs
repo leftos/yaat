@@ -183,10 +183,7 @@ public class EramEntryEngineTests
     [InlineData("QR")]
     [InlineData("QR 0")]
     [InlineData("QR X")]
-    public void Qr_WithoutAPositiveAltitude_IsRefused(string entry)
-    {
-        Assert.False(EramEntryEngine.Apply(Aircraft(), entry, null).Success);
-    }
+    public void Qr_WithoutAPositiveAltitude_IsRefused(string entry) => Assert.False(EramEntryEngine.Apply(Aircraft(), entry, null).Success);
 
     [Theory]
     [InlineData("QS 090", "H090")]
@@ -314,8 +311,5 @@ public class EramEntryEngineTests
     [InlineData("")]
     [InlineData("QZ 350")]
     [InlineData("HELLO")]
-    public void UnknownEntry_IsRefused(string entry)
-    {
-        Assert.False(EramEntryEngine.Apply(Aircraft(), entry, Sector44).Success);
-    }
+    public void UnknownEntry_IsRefused(string entry) => Assert.False(EramEntryEngine.Apply(Aircraft(), entry, Sector44).Success);
 }

@@ -74,8 +74,5 @@ internal sealed class ManeuverSpeedController
     /// Cancels the pending auto-resume when the controller takes over speed mid-maneuver, so
     /// completing the maneuver does not clobber the newly assigned speed.
     /// </summary>
-    public void CancelAutoResume()
-    {
-        SpeedReduced = false;
-    }
+    public void CancelAutoResume() => SpeedReduced = false;
 }

@@ -178,10 +178,8 @@ public sealed class Issue308AirspaceLevelOffTests
     [InlineData(2100, 0, 2000)]
     [InlineData(1500, 0, 1400)]
     [InlineData(4000, 1000, 3900)]
-    public void LevelOffCeiling_IsTheHighestRoundHundredBelowTheFloor(int floorFtMsl, double surfaceElevationFt, int expected)
-    {
+    public void LevelOffCeiling_IsTheHighestRoundHundredBelowTheFloor(int floorFtMsl, double surfaceElevationFt, int expected) =>
         Assert.Equal(expected, AirspaceAvoidance.LevelOffCeilingFt(floorFtMsl, magneticCourseDeg: 0, surfaceElevationFt));
-    }
 
     // Above 3000 AGL the level must conform to 14 CFR 91.159: eastbound is an odd thousand + 500,
     // westbound an even thousand + 500. Under a 6000 ft floor that is 5500 and 4500, not 5900.
@@ -189,10 +187,8 @@ public sealed class Issue308AirspaceLevelOffTests
     [InlineData(6000, 90, 5500)]
     [InlineData(6000, 270, 4500)]
     [InlineData(4000, 0, 3500)]
-    public void LevelOffCeiling_ConformsToHemisphericRuleAbove3000Agl(int floorFtMsl, double magneticCourse, int expected)
-    {
+    public void LevelOffCeiling_ConformsToHemisphericRuleAbove3000Agl(int floorFtMsl, double magneticCourse, int expected) =>
         Assert.Equal(expected, AirspaceAvoidance.LevelOffCeilingFt(floorFtMsl, magneticCourse, surfaceElevationFt: 0));
-    }
 
     [Fact]
     public void AssignedAltitudeThroughTheShelf_DrawsAnUnableWithACounterOffer()
@@ -242,11 +238,9 @@ public sealed class Issue308AirspaceLevelOffTests
     }
 
     [Fact]
-    public void SpeedAboveTheBravoShelfFloor_KeepsTheOrdinary250Limit()
-    {
+    public void SpeedAboveTheBravoShelfFloor_KeepsTheOrdinary250Limit() =>
         // Inside the shelf's altitude band the aircraft is in Class B proper, where 91.117(c) does not apply.
         Assert.False(AirspaceDatabase.Default.IsUnderClassBShelf(UnderSfoShelf, altitudeFtMsl: 2500));
-    }
 
     [Fact]
     public void AwayFrom_TurnsTheNoseAwayFromTheBoundary()

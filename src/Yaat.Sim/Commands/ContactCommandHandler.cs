@@ -81,10 +81,8 @@ public static class ContactCommandHandler
     // Prefer the position's published RadioName ("NorCal Approach", "Oakland Tower") over the
     // generic FacilityShortname ("Approach", "Tower") so the readback identifies the actual
     // facility. Falls back when RadioName is empty (rare in well-formed vNAS configs).
-    private static string ResolveFacilityName(PositionConfig position)
-    {
-        return string.IsNullOrWhiteSpace(position.RadioName) ? FacilityShortname.From(position.Callsign) : position.RadioName.Trim();
-    }
+    private static string ResolveFacilityName(PositionConfig position) =>
+        string.IsNullOrWhiteSpace(position.RadioName) ? FacilityShortname.From(position.Callsign) : position.RadioName.Trim();
 
     public static CommandResult HandleFrequencyChangeApproved(AircraftState aircraft, DispatchContext ctx)
     {

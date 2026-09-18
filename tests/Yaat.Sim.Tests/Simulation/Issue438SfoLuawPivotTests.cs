@@ -27,16 +27,12 @@ public class Issue438SfoLuawPivotTests(ITestOutputHelper output)
     private const double MaxNetTurnDeg = 120.0;
 
     [Fact]
-    public void Ual859HoldingShort01RAtA1_LinesUpWithoutPivotingInACircle()
-    {
+    public void Ual859HoldingShort01RAtA1_LinesUpWithoutPivotingInACircle() =>
         RunLineup("UAL859", "01R", new LatLon(37.60687155024075, -122.381946548138), 120.85);
-    }
 
     [Fact]
-    public void Dal819HoldingShort01LAtM1_LinesUpWithoutPivotingInACircle()
-    {
+    public void Dal819HoldingShort01LAtM1_LinesUpWithoutPivotingInACircle() =>
         RunLineup("DAL819", "01L", new LatLon(37.608439953128396, -122.38383474182635), 120.79);
-    }
 
     private void RunLineup(string callsign, string runwayDesignator, LatLon position, double headingDeg)
     {

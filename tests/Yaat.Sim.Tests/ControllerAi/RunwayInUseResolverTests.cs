@@ -105,10 +105,7 @@ public class RunwayInUseResolverTests
     }
 
     [Fact]
-    public void NoRunways_ResolvesToNothing()
-    {
-        Assert.Null(RunwayInUseResolver.Resolve("ZZZZ", "30", Wind(100, 8), [], ModelDate));
-    }
+    public void NoRunways_ResolvesToNothing() => Assert.Null(RunwayInUseResolver.Resolve("ZZZZ", "30", Wind(100, 8), [], ModelDate));
 
     [Fact]
     public void State_MemoizesPerAirport_AppliesTheOverrideOnlyToThePrimaryAirport_AndRefreshesOnAWeatherChange()

@@ -184,10 +184,8 @@ public static class TaxiPathfinder
             && (route.HoldShortPoints.Any(hs => (hs.NodeId == finalNodeId) && (hs.Reason == HoldShortReason.DestinationRunway)));
     }
 
-    private static bool TraversesDestinationRunwaySurface(TaxiRoute route, string runwayId)
-    {
-        return route.Segments.Any(segment => (segment.Edge.Edge.IsRunwayCenterline) && (segment.Edge.Edge.MatchesRunway(runwayId)));
-    }
+    private static bool TraversesDestinationRunwaySurface(TaxiRoute route, string runwayId) =>
+        route.Segments.Any(segment => (segment.Edge.Edge.IsRunwayCenterline) && (segment.Edge.Edge.MatchesRunway(runwayId)));
 
     /// <summary>
     /// Route for a bare <c>TAXI &lt;rwy&gt;</c>: the aircraft is expected to already be at that runway, so the only
@@ -435,10 +433,7 @@ public static class TaxiPathfinder
         GroundNode startNode,
         string runwayId,
         List<GroundNode> holdShortNodes
-    )
-    {
-        return RouteMaterialiser.FindFullLengthLineupHoldShort(layout, startNode, runwayId, holdShortNodes);
-    }
+    ) => RouteMaterialiser.FindFullLengthLineupHoldShort(layout, startNode, runwayId, holdShortNodes);
 
     /// <summary>
     /// Runs the A* auto-router with two-pass hard-gate semantics. Pass 1 hard-excludes avoided taxiways

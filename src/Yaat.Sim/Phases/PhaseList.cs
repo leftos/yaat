@@ -280,10 +280,7 @@ public sealed class PhaseList
         return CurrentPhase is FinalApproachPhase || (ActiveApproach is not null && ApproachCommandHandler.IsArrivalApproachPhase(CurrentPhase));
     }
 
-    public void Add(Phase phase)
-    {
-        Phases.Add(phase);
-    }
+    public void Add(Phase phase) => Phases.Add(phase);
 
     public void Start(PhaseContext ctx)
     {

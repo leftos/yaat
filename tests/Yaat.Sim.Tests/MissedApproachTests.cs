@@ -84,10 +84,7 @@ public class MissedApproachTests
         );
     }
 
-    private static RunwayInfo MakeRunway()
-    {
-        return TestRunwayFactory.Make(designator: "28", airportId: "KTEST", heading: 280, elevationFt: 100);
-    }
+    private static RunwayInfo MakeRunway() => TestRunwayFactory.Make(designator: "28", airportId: "KTEST", heading: 280, elevationFt: 100);
 
     private static AircraftState MakeAircraft(bool isPattern = false)
     {
@@ -111,10 +108,8 @@ public class MissedApproachTests
         return aircraft;
     }
 
-    private static NavigationDatabase MakeFixLookup()
-    {
-        return TestNavDbFactory.WithFixes(("FINIX", 37.01, -122.05), ("MAPWP", 37.02, -122.08), ("MHOLD", 37.03, -122.10));
-    }
+    private static NavigationDatabase MakeFixLookup() =>
+        TestNavDbFactory.WithFixes(("FINIX", 37.01, -122.05), ("MAPWP", 37.02, -122.08), ("MHOLD", 37.03, -122.10));
 
     [Fact]
     public void BuildMissedApproachFixes_ResolvesFixPositions()
@@ -435,10 +430,7 @@ public class MissedApproachTests
         Assert.Equal(2000, goAroundPhase.TargetAltitude);
     }
 
-    private static CifpApproachProcedure MakeProcedureWithHold()
-    {
-        return MakeProcedure(mapLegs: [MapLeg1, MapLeg2, MapHoldLeg]);
-    }
+    private static CifpApproachProcedure MakeProcedureWithHold() => MakeProcedure(mapLegs: [MapLeg1, MapLeg2, MapHoldLeg]);
 
     [Fact]
     public void ExtractMissedApproachHold_ReturnsHoldFromHmLeg()

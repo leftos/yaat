@@ -313,8 +313,5 @@ public sealed class UiThreadWatchdog : IDisposable
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern int MessageBoxW(IntPtr hWnd, string text, string caption, uint type);
 
-    public void Dispose()
-    {
-        _running = false;
-    }
+    public void Dispose() => _running = false;
 }

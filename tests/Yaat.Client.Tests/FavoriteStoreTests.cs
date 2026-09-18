@@ -90,10 +90,8 @@ public class FavoriteStoreTests : IDisposable
     [InlineData("  spaced  ", "spaced")]
     [InlineData("...", "favorite")]
     [InlineData("", "favorite")]
-    public void SanitizeFileName_ReplacesIllegalCharacters(string input, string expected)
-    {
+    public void SanitizeFileName_ReplacesIllegalCharacters(string input, string expected) =>
         Assert.Equal(expected, FavoriteStore.SanitizeFileName(input, "favorite"));
-    }
 
     [Fact]
     public void CreateNamedSet_RejectsBlankAndCaseInsensitiveCollision()

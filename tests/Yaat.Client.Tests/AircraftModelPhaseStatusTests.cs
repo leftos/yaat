@@ -140,10 +140,7 @@ public class AircraftModelPhaseStatusTests
     }
 
     [Fact]
-    public void RunwayExit_NoContext_FallsBack()
-    {
-        Assert.Equal("Exiting runway", Text(new AircraftStatusView { CurrentPhase = "Runway Exit" }));
-    }
+    public void RunwayExit_NoContext_FallsBack() => Assert.Equal("Exiting runway", Text(new AircraftStatusView { CurrentPhase = "Runway Exit" }));
 
     // --- Holding after exit ----------------------------------------------------
 
@@ -167,10 +164,8 @@ public class AircraftModelPhaseStatusTests
     }
 
     [Fact]
-    public void HoldingAfterExit_NoContext_FallsBack()
-    {
+    public void HoldingAfterExit_NoContext_FallsBack() =>
         Assert.Equal("Clear of runway", Text(new AircraftStatusView { CurrentPhase = "Holding After Exit" }));
-    }
 
     // --- VFR follow ------------------------------------------------------------
 
@@ -182,10 +177,7 @@ public class AircraftModelPhaseStatusTests
     }
 
     [Fact]
-    public void VfrFollow_WithoutTargetCallsign()
-    {
-        Assert.Equal("VFR follow", Text(new AircraftStatusView { CurrentPhase = "VFR Follow" }));
-    }
+    public void VfrFollow_WithoutTargetCallsign() => Assert.Equal("VFR follow", Text(new AircraftStatusView { CurrentPhase = "VFR Follow" }));
 
     // --- AirTaxi / Crossing Runway with runway context -------------------------
 
@@ -223,10 +215,7 @@ public class AircraftModelPhaseStatusTests
     }
 
     [Fact]
-    public void CrossingRunway_NoRunway()
-    {
-        Assert.Equal("Crossing runway", Text(new AircraftStatusView { CurrentPhase = "Crossing Runway" }));
-    }
+    public void CrossingRunway_NoRunway() => Assert.Equal("Crossing runway", Text(new AircraftStatusView { CurrentPhase = "Crossing Runway" }));
 
     // --- Heading suppression matrix --------------------------------------------
 

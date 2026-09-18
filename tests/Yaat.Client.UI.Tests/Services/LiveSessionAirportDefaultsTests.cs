@@ -141,8 +141,6 @@ public class LiveSessionAirportDefaultsTests
     }
 
     [Fact]
-    public void PositionCallsignPrefix_NotInTheFacilityAirports_FallsBackToPrimary()
-    {
+    public void PositionCallsignPrefix_NotInTheFacilityAirports_FallsBackToPrimary() =>
         Assert.Equal("SJC", LiveSessionAirportDefaults.Resolve(PrefixTree(), "lax-app").Default);
-    }
 }

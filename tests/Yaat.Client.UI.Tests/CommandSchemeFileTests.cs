@@ -56,14 +56,8 @@ public class CommandSchemeFileTests
     }
 
     [Fact]
-    public void Deserialize_MalformedJson_Throws()
-    {
-        Assert.Throws<JsonException>(() => CommandSchemeFile.Deserialize("{ \"verbs\": "));
-    }
+    public void Deserialize_MalformedJson_Throws() => Assert.Throws<JsonException>(() => CommandSchemeFile.Deserialize("{ \"verbs\": "));
 
     [Fact]
-    public void Deserialize_MissingVerbsObject_Throws()
-    {
-        Assert.Throws<JsonException>(() => CommandSchemeFile.Deserialize("""{ "macros": [] }"""));
-    }
+    public void Deserialize_MissingVerbsObject_Throws() => Assert.Throws<JsonException>(() => CommandSchemeFile.Deserialize("""{ "macros": [] }"""));
 }

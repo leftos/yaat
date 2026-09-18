@@ -101,10 +101,8 @@ public class RunwayAndAltitudeArgumentTests
     [InlineData("1L", "01L")]
     [InlineData("36", "36")]
     [InlineData("18C", "18C")]
-    public void RunwayArgument_AcceptsRunwayShapes_Normalized(string token, string expected)
-    {
+    public void RunwayArgument_AcceptsRunwayShapes_Normalized(string token, string expected) =>
         Assert.Equal(expected, RunwayArgument.TryParse(token));
-    }
 
     [Theory]
     [InlineData("015")] // three digits — an altitude, never a runway
@@ -115,10 +113,7 @@ public class RunwayAndAltitudeArgumentTests
     [InlineData("28X")] // X is not a runway suffix
     [InlineData("")]
     [InlineData("KOAK+010")]
-    public void RunwayArgument_RejectsEverythingElse(string token)
-    {
-        Assert.Null(RunwayArgument.TryParse(token));
-    }
+    public void RunwayArgument_RejectsEverythingElse(string token) => Assert.Null(RunwayArgument.TryParse(token));
 
     /// <summary>
     /// The altitude validator keeps the whole <see cref="AltitudeResolver"/> grammar — the two-digit
@@ -130,20 +125,14 @@ public class RunwayAndAltitudeArgumentTests
     [InlineData("020", 2000)]
     [InlineData("1500", 1500)]
     [InlineData("100", 10000)]
-    public void AltitudeArgument_ReadsEveryAltitudeForm(string token, int expected)
-    {
-        Assert.Equal(expected, AltitudeArgument.TryParse(token));
-    }
+    public void AltitudeArgument_ReadsEveryAltitudeForm(string token, int expected) => Assert.Equal(expected, AltitudeArgument.TryParse(token));
 
     [Theory]
     [InlineData("28R")]
     [InlineData("28X")]
     [InlineData("0")]
     [InlineData("")]
-    public void AltitudeArgument_RejectsWhatIsNotAnAltitude(string token)
-    {
-        Assert.Null(AltitudeArgument.TryParse(token));
-    }
+    public void AltitudeArgument_RejectsWhatIsNotAnAltitude(string token) => Assert.Null(AltitudeArgument.TryParse(token));
 
     // ---------------------------------------------------------------------------------------------
     // Overload resolution

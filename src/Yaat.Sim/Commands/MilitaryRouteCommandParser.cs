@@ -111,10 +111,8 @@ public static class MilitaryRouteCommandParser
         return PR.Ok(new ClearedOutOfMilitaryRouteCommand(destination, route, altitude));
     }
 
-    internal static PR ParseSayExitFixEstimate(string? arg)
-    {
-        return string.IsNullOrWhiteSpace(arg) ? PR.Ok(new SayExitFixEstimateCommand()) : PR.Fail($"SAYEXIT takes no arguments, got '{arg.Trim()}'");
-    }
+    internal static PR ParseSayExitFixEstimate(string? arg) =>
+        string.IsNullOrWhiteSpace(arg) ? PR.Ok(new SayExitFixEstimateCommand()) : PR.Fail($"SAYEXIT takes no arguments, got '{arg.Trim()}'");
 
     /// <summary>
     /// <c>CAR AR1</c> — cleared to refuel along the track at its published block.

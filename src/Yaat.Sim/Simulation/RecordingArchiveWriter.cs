@@ -29,10 +29,7 @@ public sealed class RecordingArchiveWriter : IDisposable
         _zip = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true);
     }
 
-    public void WriteScenario(string scenarioJson)
-    {
-        WriteBrotliEntry("scenario.json.br", scenarioJson);
-    }
+    public void WriteScenario(string scenarioJson) => WriteBrotliEntry("scenario.json.br", scenarioJson);
 
     public void WriteWeather(string? weatherJson, bool metarReissuanceEnabled)
     {

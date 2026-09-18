@@ -34,10 +34,8 @@ public class TaxiCanonicalRoundTripTests
     [InlineData("TAXI T421 C Z B M1 1L HS $17", "TAXI T421 C Z B M1 RWY 1L HS $17")]
     [InlineData("TAXI K $8 HS $8", "TAXI K $8 HS $8")]
     [InlineData("TAXI >A B <C D", "TAXI >A B <C D")]
-    public void Canonical_CarriesFullClearance(string input, string expectedCanonical)
-    {
+    public void Canonical_CarriesFullClearance(string input, string expectedCanonical) =>
         Assert.Equal(expectedCanonical, CommandDescriber.DescribeCommand(Parse(input)));
-    }
 
     [Theory]
     [InlineData("TAXI A B RWY 28R")]
@@ -73,8 +71,6 @@ public class TaxiCanonicalRoundTripTests
     [InlineData("TAXI C D J HS C@J", "Taxi via C D J, hold short of C at J")]
     [InlineData("TAXI S T U @B12", "Taxi via S T U to parking B12")]
     [InlineData("TAXI C Z HS $17", "Taxi via C Z, hold short of spot 17")]
-    public void Natural_CarriesFullClearance(string input, string expectedNatural)
-    {
+    public void Natural_CarriesFullClearance(string input, string expectedNatural) =>
         Assert.Equal(expectedNatural, CommandDescriber.DescribeNatural(Parse(input)));
-    }
 }

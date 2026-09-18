@@ -29,10 +29,7 @@ public static class SimLog
     /// test's lifetime and cause NREs in unrelated parallel tests when the helper
     /// is disposed). Production startup calls <see cref="Initialize"/> instead.
     /// </summary>
-    public static void InitializeForTest(ILoggerFactory factory)
-    {
-        _scopedFactory.Value = factory;
-    }
+    public static void InitializeForTest(ILoggerFactory factory) => _scopedFactory.Value = factory;
 
     public static ILogger CreateLogger<T>() => new DeferredLogger(typeof(T).Name);
 

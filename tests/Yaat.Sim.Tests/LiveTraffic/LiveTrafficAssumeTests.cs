@@ -818,10 +818,8 @@ public class LiveTrafficAssumeTests
     [InlineData(4_200, 270, true, 4_500)]
     [InlineData(6_600, 90, false, 5_500)]
     [InlineData(6_600, 270, false, 6_500)]
-    public void NextVfrCruisingAltitude_FollowsTheHemisphericRule(double alt, double course, bool up, double expected)
-    {
+    public void NextVfrCruisingAltitude_FollowsTheHemisphericRule(double alt, double course, bool up, double expected) =>
         Assert.Equal(expected, LiveTrafficAssumer.NextVfrCruisingAltitude(alt, course, up));
-    }
 
     [Fact]
     public void InitialClimb_HoldsRunwayHeading_NotDirectToTheFirstFix()

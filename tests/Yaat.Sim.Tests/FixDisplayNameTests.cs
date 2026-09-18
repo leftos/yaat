@@ -42,23 +42,16 @@ public class FixDisplayNameTests
     }
 
     [Fact]
-    public void GetFixDisplayName_CustomFix_ReturnsFriendlyName()
-    {
+    public void GetFixDisplayName_CustomFix_ReturnsFriendlyName() =>
         Assert.Equal("Oakland Runway 30 Numbers", NavigationDatabase.Instance.GetFixDisplayName("OAK30NUM"));
-    }
 
     [Fact]
-    public void GetFixDisplayName_PhoneticOnlyHint_ReturnsNull()
-    {
+    public void GetFixDisplayName_PhoneticOnlyHint_ReturnsNull() =>
         // SYRAH is in ambiguous.json as a pure phonetic spelling ("see rah") with no displayName.
         Assert.Null(NavigationDatabase.Instance.GetFixDisplayName("SYRAH"));
-    }
 
     [Fact]
-    public void GetFixDisplayName_UnknownFix_ReturnsNull()
-    {
-        Assert.Null(NavigationDatabase.Instance.GetFixDisplayName("SUNOL"));
-    }
+    public void GetFixDisplayName_UnknownFix_ReturnsNull() => Assert.Null(NavigationDatabase.Instance.GetFixDisplayName("SUNOL"));
 
     // --- Presentation helpers ---
 
@@ -77,10 +70,7 @@ public class FixDisplayNameTests
     }
 
     [Fact]
-    public void FixDisplayText_LowercaseInput_NormalizesId()
-    {
-        Assert.Equal("Lake Chabot (VPCBT)", PhraseologyVerbalizer.FixDisplayText("vpcbt"));
-    }
+    public void FixDisplayText_LowercaseInput_NormalizesId() => Assert.Equal("Lake Chabot (VPCBT)", PhraseologyVerbalizer.FixDisplayText("vpcbt"));
 
     // --- Command-response messages (RPO terminal) ---
 

@@ -261,34 +261,20 @@ public partial class LoadScenarioWindow : Window
         ApplyLocalFilter();
     }
 
-    private void RebuildLocalFilters()
-    {
-        InitFilters(_facilityFilter, _ratingFilter, _allLocalItems, i => i.Facility, i => i.Rating);
-    }
+    private void RebuildLocalFilters() => InitFilters(_facilityFilter, _ratingFilter, _allLocalItems, i => i.Facility, i => i.Rating);
 
-    private void ApplyLocalFilter()
-    {
+    private void ApplyLocalFilter() =>
         ApplyFilter(_facilityFilter, _ratingFilter, _localScenarioList, _localStatusText, _allLocalItems, i => i.Facility, i => i.Rating);
-    }
 
     // --- Selection / load ---
 
     private bool IsArtccTabActive => _sourceTabs.SelectedIndex == 0;
 
-    private void OnTabChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        UpdateLoadButton();
-    }
+    private void OnTabChanged(object? sender, SelectionChangedEventArgs e) => UpdateLoadButton();
 
-    private void OnArtccSelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        UpdateLoadButton();
-    }
+    private void OnArtccSelectionChanged(object? sender, SelectionChangedEventArgs e) => UpdateLoadButton();
 
-    private void OnLocalSelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        UpdateLoadButton();
-    }
+    private void OnLocalSelectionChanged(object? sender, SelectionChangedEventArgs e) => UpdateLoadButton();
 
     private void UpdateLoadButton()
     {

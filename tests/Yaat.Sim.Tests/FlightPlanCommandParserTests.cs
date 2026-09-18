@@ -30,10 +30,7 @@ public class FlightPlanCommandParserTests
     }
 
     [Fact]
-    public void Apt_NoArg_ReturnsNull()
-    {
-        Assert.Null(CommandParser.Parse("APT").Value);
-    }
+    public void Apt_NoArg_ReturnsNull() => Assert.Null(CommandParser.Parse("APT").Value);
 
     [Fact]
     public void Apt_FaaCode_Parses()
@@ -67,22 +64,13 @@ public class FlightPlanCommandParserTests
     }
 
     [Fact]
-    public void Fp_NoArgs_ReturnsNull()
-    {
-        Assert.Null(CommandParser.Parse("FP").Value);
-    }
+    public void Fp_NoArgs_ReturnsNull() => Assert.Null(CommandParser.Parse("FP").Value);
 
     [Fact]
-    public void Fp_MissingAltitudeAndRoute_ReturnsNull()
-    {
-        Assert.Null(CommandParser.Parse("FP B738").Value);
-    }
+    public void Fp_MissingAltitudeAndRoute_ReturnsNull() => Assert.Null(CommandParser.Parse("FP B738").Value);
 
     [Fact]
-    public void Fp_NonNumericAltitude_ReturnsNull()
-    {
-        Assert.Null(CommandParser.Parse("FP B738 ABC ROUTE").Value);
-    }
+    public void Fp_NonNumericAltitude_ReturnsNull() => Assert.Null(CommandParser.Parse("FP B738 ABC ROUTE").Value);
 
     [Fact]
     public void Remarks_ParsesText()
@@ -101,15 +89,10 @@ public class FlightPlanCommandParserTests
     }
 
     [Fact]
-    public void Remarks_NoArgs_ReturnsNull()
-    {
-        Assert.Null(CommandParser.Parse("REMARKS").Value);
-    }
+    public void Remarks_NoArgs_ReturnsNull() => Assert.Null(CommandParser.Parse("REMARKS").Value);
 
     [Fact]
-    public void Fp_MissingRoute_ReturnsNull()
-    {
+    public void Fp_MissingRoute_ReturnsNull() =>
         // Only type + altitude, no route
         Assert.Null(CommandParser.Parse("FP B738 220").Value);
-    }
 }

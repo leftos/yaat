@@ -114,10 +114,8 @@ public static class WindObservation
         return new ObservedWind(meanDirection, meanSpeed, peak, peakDirection, peakElapsed, lull);
     }
 
-    private static WindAtAltitude SampleAt(WeatherProfile weather, double surfaceAltitude, double sampleTime)
-    {
+    private static WindAtAltitude SampleAt(WeatherProfile weather, double surfaceAltitude, double sampleTime) =>
         // Phase 0 is the observation instrument's phase; aircraft sample the same field at
         // their own callsign phase.
-        return WindInterpolator.GetWindAt(weather, surfaceAltitude, sampleTime, 0);
-    }
+        WindInterpolator.GetWindAt(weather, surfaceAltitude, sampleTime, 0);
 }

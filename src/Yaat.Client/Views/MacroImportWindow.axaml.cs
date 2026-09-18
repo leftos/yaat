@@ -149,10 +149,7 @@ public partial class MacroImportWindow : Window
         Close(BuildResult());
     }
 
-    private void OnCancelClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        Close(null);
-    }
+    private void OnCancelClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => Close(null);
 
     private MacroImportResult BuildResult()
     {

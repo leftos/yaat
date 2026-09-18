@@ -190,8 +190,6 @@ public class GroundCommandParserTaxiSpotTests
     [InlineData("HS $17@Z")]
     [InlineData("HS $")]
     [InlineData("RES HS @A12")]
-    public void Parse_MalformedSpotHoldShort_Fails(string input)
-    {
+    public void Parse_MalformedSpotHoldShort_Fails(string input) =>
         Assert.False(CommandParser.Parse(input).IsSuccess, $"'{input}' should fail to parse");
-    }
 }

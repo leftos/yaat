@@ -1124,10 +1124,8 @@ public sealed class RunwayExitPhase : Phase
         return null;
     }
 
-    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
-    {
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus) =>
         Log.LogDebug("[Exit] {Callsign}: OnEnd ({Status}), taxiway={Twy}", ctx.Aircraft.Callsign, endStatus, _exitTaxiway ?? "none");
-    }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {

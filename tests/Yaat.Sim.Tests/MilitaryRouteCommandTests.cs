@@ -173,10 +173,7 @@ public sealed class MilitaryRouteCommandTests
     }
 
     [Fact]
-    public void Xmtr_WhenNotOnARoute_IsRejected()
-    {
-        Assert.False(Apply(AircraftOnIr149(), "XMTR KLRD").Success);
-    }
+    public void Xmtr_WhenNotOnARoute_IsRejected() => Assert.False(Apply(AircraftOnIr149(), "XMTR KLRD").Success);
 
     [Fact]
     public void Cmtr_ParserRejectsAnInvalidAltitude()

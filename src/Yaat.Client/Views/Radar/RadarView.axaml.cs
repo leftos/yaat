@@ -133,10 +133,7 @@ public partial class RadarView : UserControl
         }
     }
 
-    private void OnMeasureCancelled()
-    {
-        (DataContext as RadarViewModel)?.Measure?.Cancel();
-    }
+    private void OnMeasureCancelled() => (DataContext as RadarViewModel)?.Measure?.Cancel();
 
     private void OnEuroScopeFieldClicked(AircraftModel ac, TagFieldId field, Point pos)
     {

@@ -1112,10 +1112,7 @@ public sealed class LineUpPhase : Phase
     /// every end status is deliberate: a line-up cancelled or skipped mid-rollout hands the aircraft to a taxi phase,
     /// whose navigator writes the heading itself and wants no rate ceiling from us.
     /// </summary>
-    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
-    {
-        ctx.Targets.TurnRateOverride = null;
-    }
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus) => ctx.Targets.TurnRateOverride = null;
 
     // ---- Snapshot ----
     // The snapshot carries the phase's mode and progress (RollingMode, HoldPosition, the runway heading, the

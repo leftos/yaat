@@ -25,11 +25,9 @@ public class PatternTurbineTpaTests
     }
 
     [Fact]
-    public void TurbopropCategoryPatternAltitude_Is1500Agl()
-    {
+    public void TurbopropCategoryPatternAltitude_Is1500Agl() =>
         // AIM 4-3-3.a.2 keys on propulsion; every YAAT turboprop is turbine-powered.
         Assert.Equal(1500, CategoryPerformance.PatternAltitudeAgl(AircraftCategory.Turboprop));
-    }
 
     [Theory]
     [InlineData(AircraftCategory.Jet, 1109)]

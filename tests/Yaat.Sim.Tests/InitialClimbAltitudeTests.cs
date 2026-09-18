@@ -18,10 +18,7 @@ public class InitialClimbAltitudeTests
 {
     private const double FieldElevation = 100;
 
-    private static RunwayInfo MakeRunway()
-    {
-        return TestRunwayFactory.Make(designator: "28", airportId: "KSFO", elevationFt: FieldElevation);
-    }
+    private static RunwayInfo MakeRunway() => TestRunwayFactory.Make(designator: "28", airportId: "KSFO", elevationFt: FieldElevation);
 
     private static double RunResolve(
         DepartureInstruction departure,

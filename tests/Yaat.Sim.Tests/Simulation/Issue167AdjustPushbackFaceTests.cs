@@ -23,10 +23,7 @@ public class Issue167AdjustPushbackFaceTests(ITestOutputHelper output)
     /// <summary>A targeted push off B12 that a facing change may amend: onto taxiway Y, lined up northbound.</summary>
     private const string PushYankeeFacingNorth = "PUSH Y FACE N";
 
-    private static string? LoadScenarioJson()
-    {
-        return File.Exists(ScenarioPath) ? File.ReadAllText(ScenarioPath) : null;
-    }
+    private static string? LoadScenarioJson() => File.Exists(ScenarioPath) ? File.ReadAllText(ScenarioPath) : null;
 
     private static AirportGroundLayout? LoadSfo() => new TestAirportGroundData().GetLayout("SFO");
 

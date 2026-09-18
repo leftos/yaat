@@ -22,10 +22,7 @@ public partial class App : Application
     /// </summary>
     public static string LocationOrigin { get; set; } = "";
 
-    public override void Initialize()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
+    public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
     public override void OnFrameworkInitializationCompleted()
     {

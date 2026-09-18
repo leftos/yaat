@@ -76,10 +76,7 @@ public class VfrCommandGateTests
     }
 
     [Fact]
-    public void NullTarget_Passes()
-    {
-        Assert.True(VfrCommandGate.Evaluate(null, "ELD 28L", VfrCommandsForIfr.None).Allowed);
-    }
+    public void NullTarget_Passes() => Assert.True(VfrCommandGate.Evaluate(null, "ELD 28L", VfrCommandsForIfr.None).Allowed);
 
     /// <summary>
     /// The server owns the grammar and produces the better message, so an unparseable command is
@@ -89,17 +86,12 @@ public class VfrCommandGateTests
     [InlineData("NOTACOMMAND")]
     [InlineData("")]
     [InlineData("@@@ ###")]
-    public void UnparseableInput_Passes(string canonical)
-    {
-        Assert.True(VfrCommandGate.Evaluate(Ifr(), canonical, VfrCommandsForIfr.None).Allowed);
-    }
+    public void UnparseableInput_Passes(string canonical) => Assert.True(VfrCommandGate.Evaluate(Ifr(), canonical, VfrCommandsForIfr.None).Allowed);
 
     /// <summary>A trailing block separator still parses, so the gate must not treat it as an escape hatch.</summary>
     [Fact]
-    public void TrailingSeparator_DoesNotBypassTheGate()
-    {
+    public void TrailingSeparator_DoesNotBypassTheGate() =>
         Assert.False(VfrCommandGate.Evaluate(Ifr(), "ELD 28L ;", VfrCommandsForIfr.EnterFinalOnly).Allowed);
-    }
 
     /// <summary>The RPO force-override prefix must not hide the command from the gate.</summary>
     [Fact]

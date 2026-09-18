@@ -12,10 +12,7 @@ public static class CommandRegistry
     /// </summary>
     public static IReadOnlyDictionary<string, CanonicalCommandType> AliasToCanonicType { get; } = BuildAliasToCanonicType();
 
-    public static CommandDefinition? Get(CanonicalCommandType type)
-    {
-        return All.GetValueOrDefault(type);
-    }
+    public static CommandDefinition? Get(CanonicalCommandType type) => All.GetValueOrDefault(type);
 
     public static IReadOnlyList<string> AliasesFor(CanonicalCommandType type) =>
         All.TryGetValue(type, out CommandDefinition? def) ? def.DefaultAliases : Array.Empty<string>();
@@ -33,10 +30,7 @@ public static class CommandRegistry
         return false;
     }
 
-    public static IReadOnlyList<CommandDefinition> ByCategory(string category)
-    {
-        return All.Values.Where(d => d.Category == category).ToArray();
-    }
+    public static IReadOnlyList<CommandDefinition> ByCategory(string category) => All.Values.Where(d => d.Category == category).ToArray();
 
     /// <summary>
     /// Renders the expected signature for a command suitable for inclusion in parse-error
@@ -2410,35 +2404,18 @@ public static class CommandRegistry
 
     // --- Helpers ---
 
-    private static CommandParameter R(string name, string typeHint)
-    {
-        return new CommandParameter(name, typeHint, false);
-    }
+    private static CommandParameter R(string name, string typeHint) => new CommandParameter(name, typeHint, false);
 
-    private static CommandParameter L(string name)
-    {
-        return new CommandParameter(name, "literal", false, IsLiteral: true);
-    }
+    private static CommandParameter L(string name) => new CommandParameter(name, "literal", false, IsLiteral: true);
 
-    private static CommandParameter Opt(string name, string typeHint)
-    {
-        return new CommandParameter(name, typeHint, true);
-    }
+    private static CommandParameter Opt(string name, string typeHint) => new CommandParameter(name, typeHint, true);
 
-    private static CommandParameter Rep(string name, string typeHint)
-    {
-        return new CommandParameter(name, typeHint, false, Repeatable: true);
-    }
+    private static CommandParameter Rep(string name, string typeHint) => new CommandParameter(name, typeHint, false, Repeatable: true);
 
-    private static CommandOverload O(string? variantLabel, CommandParameter[] parameters, string? usageHint)
-    {
-        return new CommandOverload(variantLabel, parameters, usageHint);
-    }
+    private static CommandOverload O(string? variantLabel, CommandParameter[] parameters, string? usageHint) =>
+        new CommandOverload(variantLabel, parameters, usageHint);
 
-    private static CompoundModifier Mod(string keyword, string? argHint, bool repeatable)
-    {
-        return new CompoundModifier(keyword, argHint, repeatable);
-    }
+    private static CompoundModifier Mod(string keyword, string? argHint, bool repeatable) => new CompoundModifier(keyword, argHint, repeatable);
 
     private static CommandDefinition Bare(
         CanonicalCommandType type,

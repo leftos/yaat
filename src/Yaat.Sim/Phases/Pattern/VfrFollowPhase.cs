@@ -82,10 +82,7 @@ public sealed class VfrFollowPhase : Phase
     }
 
     /// <summary>Update the follow target without recreating the phase.</summary>
-    public void UpdateTarget(string targetCallsign)
-    {
-        TargetCallsign = targetCallsign;
-    }
+    public void UpdateTarget(string targetCallsign) => TargetCallsign = targetCallsign;
 
     public override void OnStart(PhaseContext ctx)
     {

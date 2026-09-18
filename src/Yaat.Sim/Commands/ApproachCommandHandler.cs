@@ -1635,10 +1635,8 @@ public static class ApproachCommandHandler
         return transitionFixes;
     }
 
-    private static List<ApproachFix> BuildApproachFixes(CifpApproachProcedure procedure)
-    {
-        return BuildFixesFromLegs(procedure.CommonLegs, stopAtMahp: true);
-    }
+    private static List<ApproachFix> BuildApproachFixes(CifpApproachProcedure procedure) =>
+        BuildFixesFromLegs(procedure.CommonLegs, stopAtMahp: true);
 
     private static List<ApproachFix> BuildFixesFromLegs(IReadOnlyList<CifpLeg> legs, bool stopAtMahp)
     {
@@ -1937,10 +1935,7 @@ public static class ApproachCommandHandler
     }
 
     /// <summary>Clears a deferred approach clearance so it cannot activate after an immediate approach.</summary>
-    internal static void ClearPendingApproach(AircraftState aircraft)
-    {
-        aircraft.Approach.PendingClearance = null;
-    }
+    internal static void ClearPendingApproach(AircraftState aircraft) => aircraft.Approach.PendingClearance = null;
 
     /// <summary>
     /// Clears arrival procedure state when the destination airport or routing context is superseded

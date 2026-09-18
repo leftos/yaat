@@ -138,10 +138,7 @@ public partial class SettingsWindow : Window
         Close();
     }
 
-    private void OnCancelClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        Close();
-    }
+    private void OnCancelClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => Close();
 
     private async void OnBrowseCrcAliasDirectoryClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {

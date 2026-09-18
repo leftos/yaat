@@ -257,10 +257,7 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
         }
     }
 
-    public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
-    {
-        return CommandAcceptance.Allowed;
-    }
+    public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd) => CommandAcceptance.Allowed;
 
     private void SetHoldingTargets(PhaseContext ctx)
     {

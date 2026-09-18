@@ -2545,11 +2545,9 @@ public static class SegmentExpander
         WaypointToken currentToken,
         int targetNodeId,
         SearchContext ctx
-    )
-    {
+    ) =>
         // First: walk to terminus of current taxiway near the target node, then route to target.
-        return RouteToSpecificNode(head, targetNodeId, ctx);
-    }
+        RouteToSpecificNode(head, targetNodeId, ctx);
 
     private static (List<DirectionalEdge>? Edges, PartialRoute? Head, PathfindingFailure? Failure) RouteFromNodeRefToTaxiway(
         PartialRoute head,
@@ -3644,10 +3642,8 @@ public static class SegmentExpander
     /// as the AutoRouter start so admissibility fires on the detour's first edge — without this,
     /// the detour can pick a first edge that U-turns against the aircraft's existing heading.
     /// </summary>
-    private static (TaxiRoute? Route, PathfindingFailure? Failure) RunBoundedDetour(SearchContext ctx, PartialRoute priorHead)
-    {
-        return AutoRouter.Run(ctx, startOverride: priorHead, maxExpansions: MaxDetourExpansions);
-    }
+    private static (TaxiRoute? Route, PathfindingFailure? Failure) RunBoundedDetour(SearchContext ctx, PartialRoute priorHead) =>
+        AutoRouter.Run(ctx, startOverride: priorHead, maxExpansions: MaxDetourExpansions);
 
     /// <summary>
     /// True when the walk has already reached <paramref name="taxiwayName"/>: the head stands on a node

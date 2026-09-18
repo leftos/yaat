@@ -21,19 +21,15 @@ public static class AircraftPerformance
     /// Install a profile correction adapter. Call once at startup before any performance
     /// lookups. Pass null to revert to the default pass-through adapter.
     /// </summary>
-    public static void SetProfileCorrectionAdapter(IProfileCorrectionAdapter? adapter)
-    {
+    public static void SetProfileCorrectionAdapter(IProfileCorrectionAdapter? adapter) =>
         _correctionAdapter = adapter ?? new PassthroughProfileCorrectionAdapter();
-    }
 
     /// <summary>
     /// Resolve a speed value that may be Mach (values &lt; 1.0) to IAS at the given altitude.
     /// Values &gt;= 1.0 are treated as KIAS and returned as-is.
     /// </summary>
-    public static double ResolveSpeed(double value, double altitudeFt)
-    {
-        return value > 0 && value < 1.0 ? WindInterpolator.MachToIas(value, altitudeFt) : value;
-    }
+    public static double ResolveSpeed(double value, double altitudeFt) =>
+        value > 0 && value < 1.0 ? WindInterpolator.MachToIas(value, altitudeFt) : value;
 
     /// <summary>
     /// Linear interpolation between altitude-based breakpoints.
@@ -281,10 +277,7 @@ public static class AircraftPerformance
     /// guaranteed to stop on remaining runway, so a takeoff is "go" instead.
     /// Approximated as Vr − 5 kts per FAA expert anchored to 14 CFR Part 25.
     /// </summary>
-    public static double DecisionSpeed(string aircraftType, AircraftCategory cat)
-    {
-        return Math.Max(0, RotationSpeed(aircraftType, cat) - 5);
-    }
+    public static double DecisionSpeed(string aircraftType, AircraftCategory cat) => Math.Max(0, RotationSpeed(aircraftType, cat) - 5);
 
     public static double InitialClimbSpeed(string aircraftType, AircraftCategory cat)
     {
@@ -393,10 +386,7 @@ public static class AircraftPerformance
         return Math.Min(AuthoredGustExcess(surface), MaxWindAdditiveKts);
     }
 
-    private static double AuthoredGustExcess(WindLayer surface)
-    {
-        return surface.Gusts is { } gust && gust > surface.Speed ? gust - surface.Speed : 0;
-    }
+    private static double AuthoredGustExcess(WindLayer surface) => surface.Gusts is { } gust && gust > surface.Speed ? gust - surface.Speed : 0;
 
     public static double TouchdownSpeed(string aircraftType, AircraftCategory cat)
     {

@@ -15,10 +15,7 @@ internal static class TestNavDbFactory
         IReadOnlyDictionary<string, (double Lat, double Lon)>? fixes = null,
         IReadOnlyList<RunwayInfo>? runways = null,
         IReadOnlyDictionary<string, double>? elevations = null
-    )
-    {
-        return NavigationDatabase.ForTesting(fixes, runways, null, elevations);
-    }
+    ) => NavigationDatabase.ForTesting(fixes, runways, null, elevations);
 
     /// <summary>Creates a NavigationDatabase with the given airport elevations (for AGL altitude resolution).</summary>
     internal static NavigationDatabase WithElevations(params (string Code, double ElevationFt)[] elevations)
@@ -61,10 +58,7 @@ internal static class TestNavDbFactory
     }
 
     /// <summary>Creates a NavigationDatabase with the given runway(s).</summary>
-    internal static NavigationDatabase WithRunways(params RunwayInfo[] runways)
-    {
-        return NavigationDatabase.ForTesting(null, runways);
-    }
+    internal static NavigationDatabase WithRunways(params RunwayInfo[] runways) => NavigationDatabase.ForTesting(null, runways);
 
     /// <summary>Creates a NavigationDatabase with fixes and a runway.</summary>
     internal static NavigationDatabase WithFixesAndRunways(IReadOnlyList<(string Name, double Lat, double Lon)> fixes, params RunwayInfo[] runways)
@@ -85,10 +79,7 @@ internal static class TestNavDbFactory
         IReadOnlyList<CifpStarProcedure>? stars = null,
         IReadOnlyDictionary<string, IReadOnlyList<string>>? starBodies = null,
         IReadOnlyDictionary<string, IReadOnlyList<string>>? sidBodies = null
-    )
-    {
-        return NavigationDatabase.ForTesting(fixes, null, null, null, sids, stars, starBodies, null, null, sidBodies);
-    }
+    ) => NavigationDatabase.ForTesting(fixes, null, null, null, sids, stars, starBodies, null, null, sidBodies);
 
     /// <summary>
     /// Creates a NavigationDatabase with explicit fix positions, star bodies, star transitions, and airways.

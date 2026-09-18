@@ -87,10 +87,8 @@ public static class SpeciCriteria
         return AngularDifference(a.WindDirTrueDeg, b.WindDirTrueDeg) >= WindShiftDegrees;
     }
 
-    private static bool IsSquall(ReportedConditions a, ReportedConditions b)
-    {
-        return (b.WindSpeedKt >= a.WindSpeedKt + SquallIncreaseKt) && (b.WindSpeedKt >= SquallMinSpeedKt);
-    }
+    private static bool IsSquall(ReportedConditions a, ReportedConditions b) =>
+        (b.WindSpeedKt >= a.WindSpeedKt + SquallIncreaseKt) && (b.WindSpeedKt >= SquallMinSpeedKt);
 
     private static bool WithinShiftWindow(ObservedWind? now, ObservedWind? baseline)
     {

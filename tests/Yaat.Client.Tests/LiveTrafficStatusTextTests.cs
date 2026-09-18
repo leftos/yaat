@@ -18,10 +18,8 @@ public class LiveTrafficStatusTextTests
     }
 
     [Fact]
-    public void Disconnected_ReadsDisconnected()
-    {
+    public void Disconnected_ReadsDisconnected() =>
         Assert.Equal("LIVE · disconnected", MainViewModel.FormatLiveTrafficStatus(new LiveTrafficStatusDto(true, false, 120, 3, null, null, false)));
-    }
 
     [Fact]
     public void Connected_ShowsTracksAndAge()

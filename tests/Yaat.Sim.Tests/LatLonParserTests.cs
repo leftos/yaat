@@ -57,8 +57,5 @@ public class LatLonParserTests
     [InlineData("4270N7110W")] // minutes >= 60
     [InlineData("9500N7110W")] // latitude out of range
     [InlineData("4220X7110W")] // bad hemisphere
-    public void Parse_Malformed_ReturnsNull(string input)
-    {
-        Assert.Null(LatLonParser.Parse(input));
-    }
+    public void Parse_Malformed_ReturnsNull(string input) => Assert.Null(LatLonParser.Parse(input));
 }

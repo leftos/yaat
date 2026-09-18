@@ -30,15 +30,9 @@ public partial class RadarView
         textBox.Focus();
     }
 
-    private void OnInputPopupSubmit(object? sender, RoutedEventArgs e)
-    {
-        SubmitInputPopup();
-    }
+    private void OnInputPopupSubmit(object? sender, RoutedEventArgs e) => SubmitInputPopup();
 
-    private void OnInputPopupCancel(object? sender, RoutedEventArgs e)
-    {
-        CloseInputPopup();
-    }
+    private void OnInputPopupCancel(object? sender, RoutedEventArgs e) => CloseInputPopup();
 
     private void OnInputPopupKeyDown(object? sender, KeyEventArgs e)
     {
@@ -397,15 +391,9 @@ public partial class RadarView
         altBox.Focus();
     }
 
-    private void OnWaypointConditionSubmit(object? sender, RoutedEventArgs e)
-    {
-        SubmitWaypointConditionPopup();
-    }
+    private void OnWaypointConditionSubmit(object? sender, RoutedEventArgs e) => SubmitWaypointConditionPopup();
 
-    private void OnWaypointConditionCancel(object? sender, RoutedEventArgs e)
-    {
-        CloseWaypointConditionPopup();
-    }
+    private void OnWaypointConditionCancel(object? sender, RoutedEventArgs e) => CloseWaypointConditionPopup();
 
     private void OnWaypointConditionClear(object? sender, RoutedEventArgs e)
     {
@@ -490,15 +478,9 @@ public partial class RadarView
         frdBox.Focus();
     }
 
-    private void OnWarpPopupSubmit(object? sender, RoutedEventArgs e)
-    {
-        SubmitWarpPopup();
-    }
+    private void OnWarpPopupSubmit(object? sender, RoutedEventArgs e) => SubmitWarpPopup();
 
-    private void OnWarpPopupCancel(object? sender, RoutedEventArgs e)
-    {
-        CloseWarpPopup();
-    }
+    private void OnWarpPopupCancel(object? sender, RoutedEventArgs e) => CloseWarpPopup();
 
     private void OnWarpPopupKeyDown(object? sender, KeyEventArgs e)
     {
@@ -566,10 +548,7 @@ public partial class RadarView
         return items;
     }
 
-    private static IReadOnlyList<object> BuildRelativeTurnList()
-    {
-        return new List<object> { 5, 10, 15, 20, 30, 45, 60, 90 };
-    }
+    private static IReadOnlyList<object> BuildRelativeTurnList() => new List<object> { 5, 10, 15, 20, 30, 45, 60, 90 };
 
     private static IReadOnlyList<object> BuildSpeedList()
     {
@@ -607,10 +586,7 @@ public partial class RadarView
         return items;
     }
 
-    private static string FormatAltitude(int alt)
-    {
-        return alt >= 18000 ? $"FL{alt / 100}" : $"{alt}";
-    }
+    private static string FormatAltitude(int alt) => alt >= 18000 ? $"FL{alt / 100}" : $"{alt}";
 
     private static IReadOnlyList<object> BuildRouteFixList(AircraftModel ac) => FixSuggester.CollectRouteFixNames(ac).Cast<object>().ToList();
 }

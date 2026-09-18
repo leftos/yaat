@@ -120,10 +120,8 @@ public class CanonicalCommandGrammarTests
     }
 
     [Fact]
-    public void Default_IsCachedAcrossAccesses()
-    {
+    public void Default_IsCachedAcrossAccesses() =>
         // Lazy<T> contract — the same string instance comes back on repeated access. This isn't
         // about correctness so much as about not re-enumerating CommandRegistry per PTT press.
         Assert.Same(CanonicalCommandGrammar.Default, CanonicalCommandGrammar.Default);
-    }
 }

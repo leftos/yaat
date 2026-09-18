@@ -87,10 +87,8 @@ public sealed class VatsimAuthClient
         return refreshed?.AccessToken;
     }
 
-    public VatsimIdentity? GetIdentity(string serverUrl)
-    {
-        return TryGetSession(NormalizeServer(serverUrl), out StoredSession? session) ? ToIdentity(session) : null;
-    }
+    public VatsimIdentity? GetIdentity(string serverUrl) =>
+        TryGetSession(NormalizeServer(serverUrl), out StoredSession? session) ? ToIdentity(session) : null;
 
     public void SignOut(string serverUrl)
     {

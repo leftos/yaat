@@ -48,8 +48,5 @@ public static class FdRegionMapping
     /// <summary>
     /// Returns the FD region code for the given ARTCC, or null if unknown.
     /// </summary>
-    public static string? GetRegion(string artccId)
-    {
-        return ArtccToRegion.GetValueOrDefault(artccId);
-    }
+    public static string? GetRegion(string artccId) => ArtccToRegion.GetValueOrDefault(artccId);
 }

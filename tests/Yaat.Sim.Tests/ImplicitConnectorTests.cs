@@ -58,10 +58,7 @@ public class ImplicitConnectorTests
     }
 
     [Fact]
-    public void BuildAuthorizedTaxiwaySet_EmptySequence_ReturnsNull()
-    {
-        Assert.Null(SearchContext.BuildAuthorizedTaxiwaySet([], LfConnector()));
-    }
+    public void BuildAuthorizedTaxiwaySet_EmptySequence_ReturnsNull() => Assert.Null(SearchContext.BuildAuthorizedTaxiwaySet([], LfConnector()));
 
     [Fact]
     public void Loader_ParsesAndValidatesConnectors()

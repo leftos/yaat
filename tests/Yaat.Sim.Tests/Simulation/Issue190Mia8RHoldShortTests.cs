@@ -256,9 +256,6 @@ public class Issue190Mia8RHoldShortTests(ITestOutputHelper output)
             return layouts.TryGetValue(shortId, out AirportGroundLayout? layout) ? layout : _fallback.GetLayout(airportId);
         }
 
-        public string? GetSourceGeoJson(string airportId)
-        {
-            return _fallback.GetSourceGeoJson(airportId);
-        }
+        public string? GetSourceGeoJson(string airportId) => _fallback.GetSourceGeoJson(airportId);
     }
 }

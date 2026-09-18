@@ -12,10 +12,8 @@ public static class FaaAircraftDatabase
 
     public static int Count => _lookup.Count;
 
-    public static void Initialize(Dictionary<string, FaaAircraftRecord> lookup)
-    {
+    public static void Initialize(Dictionary<string, FaaAircraftRecord> lookup) =>
         _lookup = new Dictionary<string, FaaAircraftRecord>(lookup, StringComparer.OrdinalIgnoreCase);
-    }
 
     /// <summary>
     /// Get the full FAA ACD record for an ICAO type designator.

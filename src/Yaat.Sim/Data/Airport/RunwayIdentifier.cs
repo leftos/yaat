@@ -118,21 +118,13 @@ public readonly partial struct RunwayIdentifier : IEquatable<RunwayIdentifier>
     /// Returns true if this identifier and <paramref name="other"/> share
     /// at least one designator (i.e., they reference the same physical runway).
     /// </summary>
-    public bool Overlaps(RunwayIdentifier other)
-    {
-        return Contains(other.End1) || Contains(other.End2);
-    }
+    public bool Overlaps(RunwayIdentifier other) => Contains(other.End1) || Contains(other.End2);
 
-    public bool Equals(RunwayIdentifier other)
-    {
+    public bool Equals(RunwayIdentifier other) =>
         // Order-independent: (28R,10L) == (10L,28R)
-        return (Eq(End1, other.End1) && Eq(End2, other.End2)) || (Eq(End1, other.End2) && Eq(End2, other.End1));
-    }
+        (Eq(End1, other.End1) && Eq(End2, other.End2)) || (Eq(End1, other.End2) && Eq(End2, other.End1));
 
-    public override bool Equals(object? obj)
-    {
-        return obj is RunwayIdentifier other && Equals(other);
-    }
+    public override bool Equals(object? obj) => obj is RunwayIdentifier other && Equals(other);
 
     public override int GetHashCode()
     {
@@ -145,10 +137,7 @@ public readonly partial struct RunwayIdentifier : IEquatable<RunwayIdentifier>
     /// <summary>
     /// Returns "{End1}/{End2}" preserving construction order.
     /// </summary>
-    public override string ToString()
-    {
-        return string.Equals(End1, End2, StringComparison.OrdinalIgnoreCase) ? End1 : $"{End1}/{End2}";
-    }
+    public override string ToString() => string.Equals(End1, End2, StringComparison.OrdinalIgnoreCase) ? End1 : $"{End1}/{End2}";
 
     public static bool operator ==(RunwayIdentifier left, RunwayIdentifier right)
     {
@@ -259,8 +248,5 @@ public readonly partial struct RunwayIdentifier : IEquatable<RunwayIdentifier>
         return designator;
     }
 
-    private static bool Eq(string a, string b)
-    {
-        return string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
-    }
+    private static bool Eq(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 }

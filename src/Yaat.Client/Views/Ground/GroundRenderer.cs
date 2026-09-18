@@ -1275,15 +1275,11 @@ public sealed class GroundRenderer : IDisposable
         canvas.DrawPath(path, paint);
     }
 
-    private void DrawHoverRoute(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, TaxiRoute? route)
-    {
+    private void DrawHoverRoute(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, TaxiRoute? route) =>
         DrawRoute(canvas, vp, layout, route, _hoverRoutePaint);
-    }
 
-    private void DrawPreviewRoute(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, TaxiRoute? route)
-    {
+    private void DrawPreviewRoute(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, TaxiRoute? route) =>
         DrawRoute(canvas, vp, layout, route, _previewRoutePaint);
-    }
 
     private void DrawShownTaxiRoutes(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, IReadOnlyList<ShownTaxiRouteEntry>? entries)
     {
@@ -1304,10 +1300,8 @@ public sealed class GroundRenderer : IDisposable
         }
     }
 
-    private void DrawDrawHoverPreview(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, TaxiRoute? hoverRoute)
-    {
+    private void DrawDrawHoverPreview(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, TaxiRoute? hoverRoute) =>
         DrawRoute(canvas, vp, layout, hoverRoute, _drawHoverPreviewPaint);
-    }
 
     private void DrawDrawnRoute(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, TaxiRoute? drawnRoute, IReadOnlyList<int>? waypoints)
     {
@@ -1482,10 +1476,7 @@ public sealed class GroundRenderer : IDisposable
         IReadOnlyDictionary<int, (float X, float Y)> nodeScreenPos,
         int nodeId,
         GroundNode node
-    )
-    {
-        return nodeScreenPos.TryGetValue(nodeId, out (float X, float Y) pos) ? pos : vp.LatLonToScreen(node.Position.Lat, node.Position.Lon);
-    }
+    ) => nodeScreenPos.TryGetValue(nodeId, out (float X, float Y) pos) ? pos : vp.LatLonToScreen(node.Position.Lat, node.Position.Lon);
 
     private void DrawNodes(
         SKCanvas canvas,
@@ -2664,10 +2655,8 @@ public sealed class GroundRenderer : IDisposable
     /// Draws the distance measuring tool's range/bearing lines. Called after <see cref="Render" /> so
     /// measurements stay legible over aircraft symbols, datablocks, and the surface layers.
     /// </summary>
-    public void DrawRangeBearingLines(SKCanvas canvas, MapViewport vp, IReadOnlyList<ResolvedRbl>? lines, ResolvedRbl? pending)
-    {
+    public void DrawRangeBearingLines(SKCanvas canvas, MapViewport vp, IReadOnlyList<ResolvedRbl>? lines, ResolvedRbl? pending) =>
         _rangeBearingRenderer.Draw(canvas, vp, lines, pending);
-    }
 
     public void Dispose()
     {

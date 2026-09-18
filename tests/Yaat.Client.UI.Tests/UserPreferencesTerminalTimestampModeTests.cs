@@ -11,10 +11,7 @@ namespace Yaat.Client.UI.Tests;
 public class UserPreferencesTerminalTimestampModeTests
 {
     [Fact]
-    public void Default_IsWallClock()
-    {
-        Assert.Equal(TerminalTimestampMode.WallClock, new UserPreferences().TerminalTimestampMode);
-    }
+    public void Default_IsWallClock() => Assert.Equal(TerminalTimestampMode.WallClock, new UserPreferences().TerminalTimestampMode);
 
     [Fact]
     public void SetTerminalTimestampMode_PersistsAcrossInstances()

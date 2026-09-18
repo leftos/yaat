@@ -43,34 +43,19 @@ public sealed class TdlsCommandParserTests
     [Theory]
     [InlineData("TDLSOPS")]
     [InlineData("TDLSOPS OAK")]
-    public void TDLSOPS_RequiresBothArguments(string input)
-    {
-        Assert.False(CommandParser.Parse(input).IsSuccess);
-    }
+    public void TDLSOPS_RequiresBothArguments(string input) => Assert.False(CommandParser.Parse(input).IsSuccess);
 
     [Fact]
-    public void TDLSQ_NoArgs_ParsesAsQueueCommand()
-    {
-        Assert.IsType<TdlsQueueCommand>(Parse("TDLSQ"));
-    }
+    public void TDLSQ_NoArgs_ParsesAsQueueCommand() => Assert.IsType<TdlsQueueCommand>(Parse("TDLSQ"));
 
     [Fact]
-    public void TDLSW_NoArgs_ParsesAsWilcoCommand()
-    {
-        Assert.IsType<TdlsWilcoCommand>(Parse("TDLSW"));
-    }
+    public void TDLSW_NoArgs_ParsesAsWilcoCommand() => Assert.IsType<TdlsWilcoCommand>(Parse("TDLSW"));
 
     [Fact]
-    public void TDLSDUMP_NoArgs_ParsesAsDumpCommand()
-    {
-        Assert.IsType<TdlsDumpCommand>(Parse("TDLSDUMP"));
-    }
+    public void TDLSDUMP_NoArgs_ParsesAsDumpCommand() => Assert.IsType<TdlsDumpCommand>(Parse("TDLSDUMP"));
 
     [Fact]
-    public void TDLSD_Alias_ParsesAsDumpCommand()
-    {
-        Assert.IsType<TdlsDumpCommand>(Parse("TDLSD"));
-    }
+    public void TDLSD_Alias_ParsesAsDumpCommand() => Assert.IsType<TdlsDumpCommand>(Parse("TDLSD"));
 
     [Fact]
     public void TDLSS_NineFields_ParsesAsSendWithAllFieldsPositional()

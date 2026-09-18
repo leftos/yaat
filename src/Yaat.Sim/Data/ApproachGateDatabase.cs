@@ -134,8 +134,5 @@ public static class ApproachGateDatabase
         return approachGate + InterceptPaddingNm;
     }
 
-    private static string NormalizeAirport(string airportId)
-    {
-        return airportId.StartsWith('K') ? airportId[1..] : airportId;
-    }
+    private static string NormalizeAirport(string airportId) => airportId.StartsWith('K') ? airportId[1..] : airportId;
 }

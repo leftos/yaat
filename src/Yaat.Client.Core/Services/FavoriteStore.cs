@@ -349,10 +349,7 @@ public sealed class FavoriteStore
     }
 
     /// <summary>Appends the favorite to the set (no-op when already a member).</summary>
-    public void AddToSet(string setId, string favoriteId)
-    {
-        InsertInSet(setId, favoriteId, int.MaxValue);
-    }
+    public void AddToSet(string setId, string favoriteId) => InsertInSet(setId, favoriteId, int.MaxValue);
 
     /// <summary>Inserts the favorite at the given position in the set's order (clamped; no-op when already a member).</summary>
     public void InsertInSet(string setId, string favoriteId, int index)
@@ -401,10 +398,8 @@ public sealed class FavoriteStore
     }
 
     /// <summary>Ids of every set the favorite is a member of.</summary>
-    public List<string> GetMembershipSetIds(string favoriteId)
-    {
-        return _sets.Where(s => s.FavoriteIds.Contains(favoriteId, StringComparer.OrdinalIgnoreCase)).Select(s => s.Id).ToList();
-    }
+    public List<string> GetMembershipSetIds(string favoriteId) =>
+        _sets.Where(s => s.FavoriteIds.Contains(favoriteId, StringComparer.OrdinalIgnoreCase)).Select(s => s.Id).ToList();
 
     /// <summary>
     /// Builds the display list: each visible container's ordered block in full — Global, the active
@@ -638,10 +633,7 @@ public sealed class FavoriteStore
         WriteEntityFile(_favoriteFiles, favorite.Id, _commandsDir, stem, favorite);
     }
 
-    private void SaveSetFile(FavoriteSet set)
-    {
-        WriteEntityFile(_setFiles, set.Id, _setsDir, SanitizeFileName(set.DisplayName, "set"), set);
-    }
+    private void SaveSetFile(FavoriteSet set) => WriteEntityFile(_setFiles, set.Id, _setsDir, SanitizeFileName(set.DisplayName, "set"), set);
 
     private void WriteEntityFile<T>(Dictionary<string, string> files, string id, string dir, string stem, T entity)
     {

@@ -223,15 +223,10 @@ public sealed class SimulationWorld
         }
     }
 
-    public void Tick(double deltaSeconds, double simTimeSeconds)
-    {
-        Tick(deltaSeconds, simTimeSeconds, preTick: null, timingCallback: null);
-    }
+    public void Tick(double deltaSeconds, double simTimeSeconds) => Tick(deltaSeconds, simTimeSeconds, preTick: null, timingCallback: null);
 
-    public void Tick(double deltaSeconds, double simTimeSeconds, Action<AircraftState, double>? preTick)
-    {
+    public void Tick(double deltaSeconds, double simTimeSeconds, Action<AircraftState, double>? preTick) =>
         Tick(deltaSeconds, simTimeSeconds, preTick, timingCallback: null);
-    }
 
     /// <summary>
     /// Tick with optional timing instrumentation. <paramref name="timingCallback"/>
@@ -433,10 +428,7 @@ public sealed class SimulationWorld
         return result;
     }
 
-    public void ExpectPilotReadback(string callsign, double elapsedSeconds)
-    {
-        ActiveFrequency.ExpectReadback(callsign, elapsedSeconds);
-    }
+    public void ExpectPilotReadback(string callsign, double elapsedSeconds) => ActiveFrequency.ExpectReadback(callsign, elapsedSeconds);
 
     /// <summary>
     /// Clears the awaiting-controller-response gate when the controller dispatches a
@@ -445,10 +437,7 @@ public sealed class SimulationWorld
     /// either way other pilots' proactive transmissions are no longer held by the
     /// controller-response gate for this callsign.
     /// </summary>
-    public void AcknowledgeControllerResponse(string callsign)
-    {
-        ActiveFrequency.AcknowledgeControllerResponse(callsign);
-    }
+    public void AcknowledgeControllerResponse(string callsign) => ActiveFrequency.AcknowledgeControllerResponse(callsign);
 
     public List<PilotTransmission> DrainReadyPilotTransmissions(double elapsedSeconds)
     {

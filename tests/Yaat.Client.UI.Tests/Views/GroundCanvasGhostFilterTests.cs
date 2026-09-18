@@ -19,10 +19,7 @@ public class GroundCanvasGhostFilterTests
     private const double CenterLon = -122.22;
 
     [AvaloniaFact]
-    public void NormalTrack_IsVisible()
-    {
-        Assert.True(IsVisibleOnGroundView(new AircraftModel { Callsign = "SWA1", IsUnsupported = false }));
-    }
+    public void NormalTrack_IsVisible() => Assert.True(IsVisibleOnGroundView(new AircraftModel { Callsign = "SWA1", IsUnsupported = false }));
 
     [AvaloniaFact]
     public void PurePhantom_IsHidden()
@@ -78,10 +75,7 @@ public class GroundCanvasGhostFilterTests
     }
 
     [AvaloniaFact]
-    public void DelayedSpawn_IsHidden()
-    {
-        Assert.False(IsVisibleOnGroundView(new AircraftModel { Callsign = "DAL2", Status = "Delayed (30s)" }));
-    }
+    public void DelayedSpawn_IsHidden() => Assert.False(IsVisibleOnGroundView(new AircraftModel { Callsign = "DAL2", Status = "Delayed (30s)" }));
 
     // Places the single aircraft at the viewport center and clicks its projected screen position;
     // FindAircraftAtPoint returns it only if FilterActiveAircraft kept it on the Ground View.

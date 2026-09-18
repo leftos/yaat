@@ -2472,15 +2472,11 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
     }
 
-    private async void OnNewRadarWindowClick(object? sender, RoutedEventArgs e)
-    {
+    private async void OnNewRadarWindowClick(object? sender, RoutedEventArgs e) =>
         await OpenExtraViewAsync("New Radar Window", (vm, airportId) => vm.OpenExtraRadarView(airportId));
-    }
 
-    private async void OnNewGroundWindowClick(object? sender, RoutedEventArgs e)
-    {
+    private async void OnNewGroundWindowClick(object? sender, RoutedEventArgs e) =>
         await OpenExtraViewAsync("New Ground Window", (vm, airportId) => vm.OpenExtraGroundView(airportId));
-    }
 
     /// <summary>
     /// Asks which airport the new Radar/Ground window is based on, then opens it. A second view has no
@@ -2864,15 +2860,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
     }
 
-    private void OnBookmarkNameSubmit(object? sender, RoutedEventArgs e)
-    {
-        CommitBookmarkName();
-    }
+    private void OnBookmarkNameSubmit(object? sender, RoutedEventArgs e) => CommitBookmarkName();
 
-    private void OnBookmarkNameCancel(object? sender, RoutedEventArgs e)
-    {
-        CancelBookmarkName();
-    }
+    private void OnBookmarkNameCancel(object? sender, RoutedEventArgs e) => CancelBookmarkName();
 
     // Light-dismiss (clicking away) closes the popup without Save/Cancel; treat it as a cancel so an
     // Add prompt still drops the (unnamed) bookmark, matching the pre-sync "Add always creates" behavior.
@@ -2948,13 +2938,11 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
     }
 
-    private void OnDisconnectClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
+    private void OnDisconnectClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e) =>
         // The bound DisconnectCommand handles the actual disconnect; this
         // handler just stops any in-flight autoconnect retry loop so it
         // doesn't immediately reconnect us.
         _autoConnectCts?.Cancel();
-    }
 
     private async void OnConnectClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
@@ -3400,10 +3388,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         return IsModifierOnlyKey(_pttKey) || e.KeyModifiers == _pttModifiers;
     }
 
-    private static bool IsModifierOnlyKey(Key key)
-    {
-        return key is Key.LeftShift or Key.RightShift or Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin;
-    }
+    private static bool IsModifierOnlyKey(Key key) =>
+        key is Key.LeftShift or Key.RightShift or Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin;
 
     /// <summary>
     /// Confirms the destructive, playback-ending Take Control, with <paramref name="message"/> as the body text — the

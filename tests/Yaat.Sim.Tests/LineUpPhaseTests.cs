@@ -519,17 +519,12 @@ public class LineUpPhaseTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void IsAircraftEligibleForRollingTakeoff_B738_True()
-    {
-        Assert.True(LineUpPhase.IsAircraftEligibleForRollingTakeoff("B738"));
-    }
+    public void IsAircraftEligibleForRollingTakeoff_B738_True() => Assert.True(LineUpPhase.IsAircraftEligibleForRollingTakeoff("B738"));
 
     [Fact]
-    public void IsAircraftEligibleForRollingTakeoff_B744Heavy_False()
-    {
+    public void IsAircraftEligibleForRollingTakeoff_B744Heavy_False() =>
         // FAA 7110.65 §3-9-5.3: Heavy aircraft prohibited from rolling takeoffs.
         Assert.False(LineUpPhase.IsAircraftEligibleForRollingTakeoff("B744"));
-    }
 
     [Fact]
     public void TryUpgradeToRolling_HeavyAircraft_Rejected()

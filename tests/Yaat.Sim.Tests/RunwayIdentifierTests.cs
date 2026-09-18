@@ -192,10 +192,8 @@ public class RunwayIdentifierTests
     [InlineData("26L/08R", "26L/8R")]
     [InlineData("RWY 08R", "RWY 8R")]
     [InlineData("28R/10L", "28R/10L")]
-    public void ToDisplayDesignator_StripsLeadingZero(string padded, string expected)
-    {
+    public void ToDisplayDesignator_StripsLeadingZero(string padded, string expected) =>
         Assert.Equal(expected, RunwayIdentifier.ToDisplayDesignator(padded));
-    }
 
     [Fact]
     public void ToDisplayDesignator_IsInverseOfNormalize()
@@ -238,10 +236,7 @@ public class RunwayIdentifierTests
     [InlineData("1", "19")]
     [InlineData("9", "27")]
     [InlineData("12R", "30L")]
-    public void ComputeOpposite_Correct(string input, string expected)
-    {
-        Assert.Equal(expected, RunwayIdentifier.ComputeOpposite(input));
-    }
+    public void ComputeOpposite_Correct(string input, string expected) => Assert.Equal(expected, RunwayIdentifier.ComputeOpposite(input));
 
     /// <summary>
     /// vNAS/CIFP procedure ids carry a type prefix of one or more letters and, when an airport
@@ -258,8 +253,6 @@ public class RunwayIdentifierTests
     [InlineData("R16RZ", "16R")]
     [InlineData("VDM-A", null)]
     [InlineData("", null)]
-    public void FromApproachId_ExtractsDesignator(string approachId, string? expected)
-    {
+    public void FromApproachId_ExtractsDesignator(string approachId, string? expected) =>
         Assert.Equal(expected, RunwayIdentifier.FromApproachId(approachId));
-    }
 }

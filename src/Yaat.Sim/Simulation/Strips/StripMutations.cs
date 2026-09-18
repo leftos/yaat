@@ -934,20 +934,15 @@ public static class StripMutations
     /// for the Proposed Departure Time field. The clock is anchored at the session start and advances with
     /// the scenario, so the same strip reprints the same text on a rewind or a reconstruction.
     /// </summary>
-    internal static string FormatProposedDepartureTime(SimScenarioState scenario)
-    {
-        return scenario.SimTimeUtc.ToString("HHmm", System.Globalization.CultureInfo.InvariantCulture);
-    }
+    internal static string FormatProposedDepartureTime(SimScenarioState scenario) =>
+        scenario.SimTimeUtc.ToString("HHmm", System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>
     /// Formats a filed cruise altitude for the strip's requested-altitude box and any
     /// other CRC field that follows the same convention. Delegates to the shared
     /// <see cref="FlightPlanAltitude.Format"/> so IFR/VFR/OTP all use one rendering.
     /// </summary>
-    public static string FormatRequestedAltitude(PlannedAltitude altitude)
-    {
-        return FlightPlanAltitude.Format(altitude);
-    }
+    public static string FormatRequestedAltitude(PlannedAltitude altitude) => FlightPlanAltitude.Format(altitude);
 
     /// <summary>
     /// Formats the arrival's ETA as <c>HHmm</c>: the session clock at print time

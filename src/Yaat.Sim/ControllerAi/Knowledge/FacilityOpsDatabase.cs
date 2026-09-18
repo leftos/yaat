@@ -28,10 +28,7 @@ public static class FacilityOpsDatabase
 
     public static IReadOnlyList<FacilityOps> Files => _files;
 
-    public static void Initialize(string directory, NavigationDatabase navigation)
-    {
-        SetInstance(LoadDirectory(directory, navigation));
-    }
+    public static void Initialize(string directory, NavigationDatabase navigation) => SetInstance(LoadDirectory(directory, navigation));
 
     public static void SetInstance(IReadOnlyList<FacilityOps> files)
     {

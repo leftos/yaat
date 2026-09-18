@@ -303,26 +303,18 @@ public class LandingExitDecelTests
     // -- ExitTurnOffSpeed (pure math, no layout) --
 
     [Fact]
-    public void ExitTurnOffSpeed_NullAngle_ReturnsFallback()
-    {
+    public void ExitTurnOffSpeed_NullAngle_ReturnsFallback() =>
         Assert.Equal(CategoryPerformance.RunwayExitSpeed(AircraftCategory.Jet), CategoryPerformance.ExitTurnOffSpeed(AircraftCategory.Jet, null));
-    }
 
     [Fact]
-    public void ExitTurnOffSpeed_SmallAngle_ReturnsHighSpeed()
-    {
+    public void ExitTurnOffSpeed_SmallAngle_ReturnsHighSpeed() =>
         Assert.Equal(CategoryPerformance.HighSpeedExitSpeed(AircraftCategory.Jet), CategoryPerformance.ExitTurnOffSpeed(AircraftCategory.Jet, 30));
-    }
 
     [Fact]
-    public void ExitTurnOffSpeed_LargeAngle_ReturnsStandard()
-    {
+    public void ExitTurnOffSpeed_LargeAngle_ReturnsStandard() =>
         Assert.Equal(CategoryPerformance.StandardExitSpeed(AircraftCategory.Jet), CategoryPerformance.ExitTurnOffSpeed(AircraftCategory.Jet, 80));
-    }
 
     [Fact]
-    public void ExitTurnOffSpeed_ExactThreshold_ReturnsHighSpeed()
-    {
+    public void ExitTurnOffSpeed_ExactThreshold_ReturnsHighSpeed() =>
         Assert.Equal(CategoryPerformance.HighSpeedExitSpeed(AircraftCategory.Jet), CategoryPerformance.ExitTurnOffSpeed(AircraftCategory.Jet, 45));
-    }
 }

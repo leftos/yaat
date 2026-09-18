@@ -70,8 +70,5 @@ public static class AppLog
     /// Disposes the logger factory, flushing all buffered output.
     /// Call on fatal crash before exiting.
     /// </summary>
-    public static void Flush()
-    {
-        _factory?.Dispose();
-    }
+    public static void Flush() => _factory?.Dispose();
 }

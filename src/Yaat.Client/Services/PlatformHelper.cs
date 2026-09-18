@@ -14,10 +14,8 @@ public static class PlatformHelper
     /// <summary>
     /// Returns true if the platform's "action" modifier is held (Cmd on macOS, Ctrl elsewhere).
     /// </summary>
-    public static bool HasActionModifier(KeyModifiers modifiers)
-    {
-        return IsMacOS ? modifiers.HasFlag(KeyModifiers.Meta) : modifiers.HasFlag(KeyModifiers.Control);
-    }
+    public static bool HasActionModifier(KeyModifiers modifiers) =>
+        IsMacOS ? modifiers.HasFlag(KeyModifiers.Meta) : modifiers.HasFlag(KeyModifiers.Control);
 
     /// <summary>
     /// The platform's "action" modifier name for display (⌘ on macOS, Ctrl elsewhere).

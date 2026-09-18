@@ -582,10 +582,8 @@ public class M102AirborneCheckInTests
     [InlineData(337.6, "north")]
     [InlineData(359.9, "north")]
     [InlineData(360, "north")]
-    public void BearingToCardinal8_QuantizesCorrectly(double bearingDeg, string expected)
-    {
+    public void BearingToCardinal8_QuantizesCorrectly(double bearingDeg, string expected) =>
         Assert.Equal(expected, PilotResponder.BearingToCardinal8(bearingDeg));
-    }
 
     [Theory]
     [InlineData(0, "northbound")]
@@ -601,10 +599,8 @@ public class M102AirborneCheckInTests
     [InlineData(314.9, "westbound")]
     [InlineData(315.1, "northbound")]
     [InlineData(359.9, "northbound")]
-    public void HeadingToBoundCardinal_QuantizesCorrectly(double headingDeg, string expected)
-    {
+    public void HeadingToBoundCardinal_QuantizesCorrectly(double headingDeg, string expected) =>
         Assert.Equal(expected, PilotResponder.HeadingToBoundCardinal(headingDeg));
-    }
 
     // ─────────────────────────────────────────────────────────────────────
     // PilotProactive.TickAirborneCheckIn — gate / idempotency tests

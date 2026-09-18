@@ -16,10 +16,7 @@ public static class HalfStripEditCanonicalRewriter
     private static readonly string[] RetiredVerbs = ["HSE", "HALFSTRIPEDIT"];
 
     /// <summary>Rewrites every retired-verb unit of a possibly-compound canonical.</summary>
-    public static string Rewrite(string canonical)
-    {
-        return CompoundCanonical.RewriteUnits(canonical, RewriteUnit);
-    }
+    public static string Rewrite(string canonical) => CompoundCanonical.RewriteUnits(canonical, RewriteUnit);
 
     private static string RewriteUnit(string unit)
     {

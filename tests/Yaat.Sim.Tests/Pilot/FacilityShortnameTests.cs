@@ -16,30 +16,18 @@ public class FacilityShortnameTests
     [InlineData("OAK_DEL", "Clearance")]
     [InlineData("OAK_CD", "Clearance")]
     [InlineData("OAK_FSS", "Radio")]
-    public void From_MapsKnownSuffix(string callsign, string expected)
-    {
-        Assert.Equal(expected, FacilityShortname.From(callsign));
-    }
+    public void From_MapsKnownSuffix(string callsign, string expected) => Assert.Equal(expected, FacilityShortname.From(callsign));
 
     [Theory]
     [InlineData("oak_twr", "Tower")]
     [InlineData("OAK_Twr", "Tower")]
-    public void From_IsCaseInsensitive(string callsign, string expected)
-    {
-        Assert.Equal(expected, FacilityShortname.From(callsign));
-    }
+    public void From_IsCaseInsensitive(string callsign, string expected) => Assert.Equal(expected, FacilityShortname.From(callsign));
 
     [Fact]
-    public void From_FallsBackToVerbatimForUnknownSuffix()
-    {
-        Assert.Equal("OAK_OPS", FacilityShortname.From("OAK_OPS"));
-    }
+    public void From_FallsBackToVerbatimForUnknownSuffix() => Assert.Equal("OAK_OPS", FacilityShortname.From("OAK_OPS"));
 
     [Fact]
-    public void From_FallsBackToVerbatimWhenNoUnderscore()
-    {
-        Assert.Equal("UNICOM", FacilityShortname.From("UNICOM"));
-    }
+    public void From_FallsBackToVerbatimWhenNoUnderscore() => Assert.Equal("UNICOM", FacilityShortname.From("UNICOM"));
 
     [Fact]
     public void From_HandlesEmptyOrWhitespace()

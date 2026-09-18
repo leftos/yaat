@@ -107,15 +107,9 @@ public sealed class BeaconCodePool
         _bankCursors.Clear();
     }
 
-    public void MarkUsed(uint code)
-    {
-        _assigned.Add(code);
-    }
+    public void MarkUsed(uint code) => _assigned.Add(code);
 
-    public void Release(uint code)
-    {
-        _assigned.Remove(code);
-    }
+    public void Release(uint code) => _assigned.Remove(code);
 
     /// <summary>Whether <paramref name="code"/> is currently assigned to an aircraft.</summary>
     public bool IsAssigned(uint code) => _assigned.Contains(code);
@@ -200,12 +194,10 @@ public sealed class BeaconCodePool
         return null;
     }
 
-    private static int GetBankKey(BeaconCodeBankConfig bank)
-    {
+    private static int GetBankKey(BeaconCodeBankConfig bank) =>
         // Deterministic, collision-free key for distinct ranges (octal codes ≤ 7777). Stable across
         // processes — unlike HashCode.Combine — so per-bank cursors round-trip through snapshots.
-        return (bank.Start * 10000) + bank.End;
-    }
+        (bank.Start * 10000) + bank.End;
 
     private static int CountOctalRange(uint start, uint end)
     {

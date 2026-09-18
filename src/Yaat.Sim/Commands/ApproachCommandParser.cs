@@ -267,18 +267,12 @@ internal static class ApproachCommandParser
     /// Parses JRADO fixRadial — a single token where the last 3 digits are the radial
     /// and the rest is the fix name (e.g., "OAK090" → fix=OAK, radial=090).
     /// </summary>
-    internal static PR ParseJrado(string? arg)
-    {
-        return ParseRadialCommand(arg, outbound: true);
-    }
+    internal static PR ParseJrado(string? arg) => ParseRadialCommand(arg, outbound: true);
 
     /// <summary>
     /// Parses JRADI fixRadial — same format as JRADO but inbound.
     /// </summary>
-    internal static PR ParseJradi(string? arg)
-    {
-        return ParseRadialCommand(arg, outbound: false);
-    }
+    internal static PR ParseJradi(string? arg) => ParseRadialCommand(arg, outbound: false);
 
     /// <summary>
     /// Parses HOLDP fixName inboundCourse [legLength[M]] [direction] [entry].

@@ -535,12 +535,10 @@ public static class PatternGeometry
     /// intersect within both runway surfaces. Converging runways that meet beyond
     /// their endpoints do NOT count as crossing.
     /// </summary>
-    public static bool RunwaysCross(RunwayInfo a, RunwayInfo b)
-    {
+    public static bool RunwaysCross(RunwayInfo a, RunwayInfo b) =>
         // Use line segment intersection test on the two centerlines.
         // Each runway is a segment from (Lat1,Lon1) to (Lat2,Lon2).
-        return SegmentsIntersect(a.Lat1, a.Lon1, a.Lat2, a.Lon2, b.Lat1, b.Lon1, b.Lat2, b.Lon2);
-    }
+        SegmentsIntersect(a.Lat1, a.Lon1, a.Lat2, a.Lon2, b.Lat1, b.Lon1, b.Lat2, b.Lon2);
 
     /// <summary>
     /// Tests whether two line segments (p1→p2 and p3→p4) intersect.
@@ -566,8 +564,6 @@ public static class PatternGeometry
     /// 2D cross product of vectors (b-a) and (c-a).
     /// Positive = c is left of a→b, negative = right, zero = collinear.
     /// </summary>
-    private static double CrossProduct(double ax, double ay, double bx, double by, double cx, double cy)
-    {
-        return ((bx - ax) * (cy - ay)) - ((by - ay) * (cx - ax));
-    }
+    private static double CrossProduct(double ax, double ay, double bx, double by, double cx, double cy) =>
+        ((bx - ax) * (cy - ay)) - ((by - ay) * (cx - ax));
 }

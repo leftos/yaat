@@ -102,10 +102,7 @@ public class FlightPlanAltitudeTests
     [InlineData("B080/120")]
     [InlineData("A100")]
     [InlineData("VFR/abc")]
-    public void Parse_Unsupported_ReturnsNull(string input)
-    {
-        Assert.Null(FlightPlanAltitude.Parse(input));
-    }
+    public void Parse_Unsupported_ReturnsNull(string input) => Assert.Null(FlightPlanAltitude.Parse(input));
 
     [Fact]
     public void Format_IfrAltitude_RendersThreeDigits()
@@ -115,34 +112,19 @@ public class FlightPlanAltitudeTests
     }
 
     [Fact]
-    public void Format_VfrNoAltitude_RendersBareVfr()
-    {
-        Assert.Equal("VFR", FlightPlanAltitude.Format(PlannedAltitude.Vfr(null)));
-    }
+    public void Format_VfrNoAltitude_RendersBareVfr() => Assert.Equal("VFR", FlightPlanAltitude.Format(PlannedAltitude.Vfr(null)));
 
     [Fact]
-    public void Format_VfrWithAltitude_RendersVfrSlash()
-    {
-        Assert.Equal("VFR/055", FlightPlanAltitude.Format(PlannedAltitude.Vfr(5500)));
-    }
+    public void Format_VfrWithAltitude_RendersVfrSlash() => Assert.Equal("VFR/055", FlightPlanAltitude.Format(PlannedAltitude.Vfr(5500)));
 
     [Fact]
-    public void Format_OtpNoAltitude_RendersBareOtp()
-    {
-        Assert.Equal("OTP", FlightPlanAltitude.Format(PlannedAltitude.Otp(null)));
-    }
+    public void Format_OtpNoAltitude_RendersBareOtp() => Assert.Equal("OTP", FlightPlanAltitude.Format(PlannedAltitude.Otp(null)));
 
     [Fact]
-    public void Format_OtpWithAltitude_RendersOtpSlash()
-    {
-        Assert.Equal("OTP/120", FlightPlanAltitude.Format(PlannedAltitude.Otp(12000)));
-    }
+    public void Format_OtpWithAltitude_RendersOtpSlash() => Assert.Equal("OTP/120", FlightPlanAltitude.Format(PlannedAltitude.Otp(12000)));
 
     [Fact]
-    public void Format_Block_RendersFloorBCeiling()
-    {
-        Assert.Equal("200B250", FlightPlanAltitude.Format(PlannedAltitude.Block(20000, 25000)));
-    }
+    public void Format_Block_RendersFloorBCeiling() => Assert.Equal("200B250", FlightPlanAltitude.Format(PlannedAltitude.Block(20000, 25000)));
 
     public static TheoryData<PlannedAltitude> RoundTripCases =>
         new()

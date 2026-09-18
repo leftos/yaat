@@ -59,10 +59,7 @@ public class SnapshotTreeDiffTests
     }
 
     [Fact]
-    public void PropertyNullOnBothSides_ReportsNothing()
-    {
-        Assert.Empty(Diff("""{"A":null}""", """{"A":null}"""));
-    }
+    public void PropertyNullOnBothSides_ReportsNothing() => Assert.Empty(Diff("""{"A":null}""", """{"A":null}"""));
 
     [Fact]
     public void PropertyNullOnOneSideAndValuedOnTheOther_RendersNullNotAbsent()
@@ -175,10 +172,8 @@ public class SnapshotTreeDiffTests
     }
 
     [Fact]
-    public void EmbeddedJsonString_ThatIsIdentical_ReportsNothing()
-    {
+    public void EmbeddedJsonString_ThatIsIdentical_ReportsNothing() =>
         Assert.Empty(Diff("""{"ConfigJson":"{\"Rate\":5}"}""", """{"ConfigJson":"{\"Rate\":5}"}"""));
-    }
 
     [Fact]
     public void EmbeddedJsonProperty_HoldingNonJson_FallsBackToComparingTheStrings()
@@ -234,8 +229,5 @@ public class SnapshotTreeDiffTests
     [InlineData("Aircraft[AAL1].Phases[2].Requirements[0].Type", "Aircraft[*].Phases[*].Requirements[*].Type")]
     [InlineData("Scenario.ElapsedSeconds", "Scenario.ElapsedSeconds")]
     [InlineData("Broken[unterminated", "Broken[unterminated")]
-    public void Normalize_CollapsesEveryCollectionKey(string concrete, string expected)
-    {
-        Assert.Equal(expected, DivergencePath.Normalize(concrete));
-    }
+    public void Normalize_CollapsesEveryCollectionKey(string concrete, string expected) => Assert.Equal(expected, DivergencePath.Normalize(concrete));
 }

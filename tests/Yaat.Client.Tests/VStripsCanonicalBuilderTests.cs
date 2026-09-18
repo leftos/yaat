@@ -37,19 +37,15 @@ public class VStripsCanonicalBuilderTests
     }
 
     [Fact]
-    public void BuildStripDeleteById_PrefixesId()
-    {
+    public void BuildStripDeleteById_PrefixesId() =>
         // Id form is the only safe target for a scanned copy that shares a
         // callsign with the original. UI emits this; terminal entry uses
         // the bare verb above.
         Assert.Equal("STRIPD STRIP_UAL100_a1b2c3d4", VStripsCanonicalBuilder.BuildStripDeleteById("STRIP_UAL100_a1b2c3d4"));
-    }
 
     [Fact]
-    public void BuildStripOffsetById_PrefixesId()
-    {
+    public void BuildStripOffsetById_PrefixesId() =>
         Assert.Equal("STRIPO STRIP_UAL100", VStripsCanonicalBuilder.BuildStripOffsetById("STRIP_UAL100"));
-    }
 
     [Fact]
     public void BuildStripMoveById_PrefixesIdBeforeDestSpec()
@@ -85,10 +81,7 @@ public class VStripsCanonicalBuilderTests
     }
 
     [Fact]
-    public void BuildAnnotate_WithText_EmitsAnWithText()
-    {
-        Assert.Equal("AN 3 RV", VStripsCanonicalBuilder.BuildAnnotate("3", "RV"));
-    }
+    public void BuildAnnotate_WithText_EmitsAnWithText() => Assert.Equal("AN 3 RV", VStripsCanonicalBuilder.BuildAnnotate("3", "RV"));
 
     [Fact]
     public void BuildAnnotate_EmptyOrNullText_EmitsBareAn()
@@ -99,10 +92,7 @@ public class VStripsCanonicalBuilderTests
     }
 
     [Fact]
-    public void BuildAnnotate_TrimsText()
-    {
-        Assert.Equal("AN 1 GATE", VStripsCanonicalBuilder.BuildAnnotate("1", "  GATE  "));
-    }
+    public void BuildAnnotate_TrimsText() => Assert.Equal("AN 1 GATE", VStripsCanonicalBuilder.BuildAnnotate("1", "  GATE  "));
 
     [Fact]
     public void BuildAnnotate_8aAnd8b_PassThroughVerbatim()
@@ -115,43 +105,33 @@ public class VStripsCanonicalBuilderTests
     }
 
     [Fact]
-    public void BuildHalfStripCreate_WithLines_UsesBackslashSeparator()
-    {
+    public void BuildHalfStripCreate_WithLines_UsesBackslashSeparator() =>
         // 0-based rack 1 → wire rack 2 (1-based).
         Assert.Equal("HSC OAK/Ground/2 NORDO\\KOAK\\28L", VStripsCanonicalBuilder.BuildHalfStripCreate("OAK", "Ground", 1, ["NORDO", "KOAK", "28L"]));
-    }
 
     [Fact]
-    public void BuildHalfStripCreate_NoLines_OmitsPayload()
-    {
+    public void BuildHalfStripCreate_NoLines_OmitsPayload() =>
         // 0-based rack 0 → wire rack 1.
         Assert.Equal("HSC OAK/Local/1", VStripsCanonicalBuilder.BuildHalfStripCreate("OAK", "Local", 0, []));
-    }
 
     [Fact]
-    public void BuildHalfStripAmend_PrefixesStripIdThenLines()
-    {
+    public void BuildHalfStripAmend_PrefixesStripIdThenLines() =>
         // Half-strip mutations always pass strip.Id (HSTRIP_…) — duplicate
         // first-line text would otherwise produce ambiguous matches. Lines are
         // backslash-joined: the parser's id form splits on '\' only.
         Assert.Equal(@"HSA HSTRIP_abc123 NEW\LINE2", VStripsCanonicalBuilder.BuildHalfStripAmend("HSTRIP_abc123", ["NEW", "LINE2"]));
-    }
 
     [Fact]
-    public void BuildHalfStripMove_UsesStripIdAndSlashDest()
-    {
+    public void BuildHalfStripMove_UsesStripIdAndSlashDest() =>
         // 0-based rack 1 / index 2 → wire rack 2 / index 3.
         Assert.Equal("HSM HSTRIP_abc123 OAK/Local/2/3", VStripsCanonicalBuilder.BuildHalfStripMove("HSTRIP_abc123", "OAK", "Local", 1, 2));
-    }
 
     [Fact]
-    public void BuildHalfStripMove_MultiWordBay_PreservesSpaceInWire()
-    {
+    public void BuildHalfStripMove_MultiWordBay_PreservesSpaceInWire() =>
         // CRC bay names contain literal spaces ("Local 1"). The canonical must
         // round-trip through whitespace tokenization on the server (handler
         // resolves multi-word bays via StripMutations.ResolveStripDest).
         Assert.Equal("HSM HSTRIP_abc123 OAK/Local 1/1/2", VStripsCanonicalBuilder.BuildHalfStripMove("HSTRIP_abc123", "OAK", "Local 1", 0, 1));
-    }
 
     [Fact]
     public void BuildHalfStripDeleteOffsetSlide_AreStripIdKeyed()
@@ -166,11 +146,9 @@ public class VStripsCanonicalBuilderTests
     [InlineData(SeparatorStyle.White, 'W')]
     [InlineData(SeparatorStyle.Red, 'R')]
     [InlineData(SeparatorStyle.Green, 'G')]
-    public void BuildSeparatorCreate_MapsStyleToChar_SlashCompoundWire(SeparatorStyle style, char styleChar)
-    {
+    public void BuildSeparatorCreate_MapsStyleToChar_SlashCompoundWire(SeparatorStyle style, char styleChar) =>
         // 0-based rack 0 / index 3 → wire rack 1 / index 4, slash-compound.
         Assert.Equal($"SEP {styleChar} OAK/Ground/1/4 HOLD", VStripsCanonicalBuilder.BuildSeparatorCreate(style, "OAK", "Ground", 0, 3, "HOLD"));
-    }
 
     [Fact]
     public void BuildSeparatorCreate_NoLabel_OmitsTail()
@@ -189,12 +167,10 @@ public class VStripsCanonicalBuilderTests
     }
 
     [Fact]
-    public void BuildSeparatorDelete_LabelWinsOverIndex()
-    {
+    public void BuildSeparatorDelete_LabelWinsOverIndex() =>
         // When a label is supplied, the index argument is ignored; bay/rack is
         // slash-compound with 1-based rack.
         Assert.Equal("SEPD OAK/Ground/3 HOLD", VStripsCanonicalBuilder.BuildSeparatorDelete("OAK", "Ground", 2, "HOLD", 5));
-    }
 
     [Fact]
     public void BuildSeparatorDelete_NoLabel_UsesIndex_SlashCompoundWire()
@@ -213,10 +189,7 @@ public class VStripsCanonicalBuilderTests
     }
 
     [Fact]
-    public void BuildBlankCreate_NullBay_EmitsBareVerb()
-    {
-        Assert.Equal("BLANK", VStripsCanonicalBuilder.BuildBlankCreate(null, null, null, null));
-    }
+    public void BuildBlankCreate_NullBay_EmitsBareVerb() => Assert.Equal("BLANK", VStripsCanonicalBuilder.BuildBlankCreate(null, null, null, null));
 
     [Fact]
     public void BuildBlankCreate_WithBay_EmitsFullPosition_SlashCompoundWire()
@@ -229,15 +202,11 @@ public class VStripsCanonicalBuilderTests
     }
 
     [Fact]
-    public void BuildBlankDelete_WithRack_EmitsRack_SlashCompoundWire()
-    {
+    public void BuildBlankDelete_WithRack_EmitsRack_SlashCompoundWire() =>
         // 0-based rack 1 → wire bay/2.
         Assert.Equal("BLANKD OAK/Ground/2", VStripsCanonicalBuilder.BuildBlankDelete("OAK", "Ground", 1));
-    }
 
     [Fact]
-    public void BuildBlankDelete_WithoutRack_EmitsBayOnly()
-    {
+    public void BuildBlankDelete_WithoutRack_EmitsBayOnly() =>
         Assert.Equal("BLANKD OAK/Ground", VStripsCanonicalBuilder.BuildBlankDelete("OAK", "Ground", null));
-    }
 }

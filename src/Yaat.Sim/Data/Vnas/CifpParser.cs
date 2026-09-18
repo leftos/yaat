@@ -249,15 +249,11 @@ public static class CifpParser
     /// Extracts shared column data from an ARINC 424 procedure leg record.
     /// Columns are identical for subsections D (SID), E (STAR), and F (approach).
     /// </summary>
-    public static IReadOnlyList<CifpSidProcedure> ParseSids(string cifpFilePath, string airportIcao)
-    {
-        return ParseSidStarProcedures(cifpFilePath, airportIcao, 'D', BuildSidProcedure);
-    }
+    public static IReadOnlyList<CifpSidProcedure> ParseSids(string cifpFilePath, string airportIcao) =>
+        ParseSidStarProcedures(cifpFilePath, airportIcao, 'D', BuildSidProcedure);
 
-    public static IReadOnlyList<CifpStarProcedure> ParseStars(string cifpFilePath, string airportIcao)
-    {
-        return ParseSidStarProcedures(cifpFilePath, airportIcao, 'E', BuildStarProcedure);
-    }
+    public static IReadOnlyList<CifpStarProcedure> ParseStars(string cifpFilePath, string airportIcao) =>
+        ParseSidStarProcedures(cifpFilePath, airportIcao, 'E', BuildStarProcedure);
 
     private static IReadOnlyList<T> ParseSidStarProcedures<T>(
         string cifpFilePath,

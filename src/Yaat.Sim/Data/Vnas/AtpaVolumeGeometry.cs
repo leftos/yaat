@@ -213,8 +213,5 @@ public static class AtpaVolumeGeometry
         return true;
     }
 
-    public static double HeadingDelta(double a, double b)
-    {
-        return ((a - b) % 360 + 540) % 360 - 180;
-    }
+    public static double HeadingDelta(double a, double b) => ((a - b) % 360 + 540) % 360 - 180;
 }

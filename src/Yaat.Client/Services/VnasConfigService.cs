@@ -79,8 +79,5 @@ public sealed class VnasConfigService : IDisposable
         }
     }
 
-    public void Dispose()
-    {
-        _http.Dispose();
-    }
+    public void Dispose() => _http.Dispose();
 }

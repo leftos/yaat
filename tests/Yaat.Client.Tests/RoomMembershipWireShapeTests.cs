@@ -28,16 +28,11 @@ public class RoomMembershipWireShapeTests
         + "IsPaused:Boolean, SimRate:Double, ElapsedSeconds:Double, AircraftCount:Int32";
 
     [Fact]
-    public void RoomMemberDto_MatchesTheAgreedWireShape()
-    {
-        Assert.Equal(RoomMemberShape, DescribePrimaryConstructor(typeof(RoomMemberDto)));
-    }
+    public void RoomMemberDto_MatchesTheAgreedWireShape() => Assert.Equal(RoomMemberShape, DescribePrimaryConstructor(typeof(RoomMemberDto)));
 
     [Fact]
-    public void TrainingRoomInfoDto_MatchesTheAgreedWireShape()
-    {
+    public void TrainingRoomInfoDto_MatchesTheAgreedWireShape() =>
         Assert.Equal(RoomInfoShape, DescribePrimaryConstructor(typeof(TrainingRoomInfoDto)));
-    }
 
     // Constructor parameters, not properties: the client copy adds display-only members
     // (KindLabel, JoinedAtText) that the server has no business carrying, and those must not

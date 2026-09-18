@@ -400,8 +400,7 @@ public sealed class InitialClimbPhase : Phase
         }
     }
 
-    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
-    {
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus) =>
         // Clear any directional bias the departure set (RelativeTurnDeparture /
         // FlyHeadingDeparture / DirectFixDeparture with direction). The phase
         // exits at HeadingToleranceDeg=1.0°, but UpdateHeading's snap that
@@ -410,16 +409,12 @@ public sealed class InitialClimbPhase : Phase
         // navigation) would then inherit the stale direction and turn the
         // long way around to the next heading.
         ctx.Targets.PreferredTurnDirection = null;
-    }
 
     /// <summary>
     /// Whether the departure instruction involves a turn away from runway heading.
     /// DefaultDeparture and RunwayHeadingDeparture stay on runway heading.
     /// </summary>
-    private bool DepartureRequiresTurn()
-    {
-        return Departure is not (null or DefaultDeparture or RunwayHeadingDeparture);
-    }
+    private bool DepartureRequiresTurn() => Departure is not (null or DefaultDeparture or RunwayHeadingDeparture);
 
     /// <summary>
     /// Hand off to <see cref="DepartureProcedurePhase"/> to fly the coded SID legs. Inserted

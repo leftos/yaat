@@ -363,10 +363,7 @@ public sealed class HoldingPatternPhase : Phase
         return new TrueHeading(_outboundHeading.Degrees - (TripleDriftFactor * inboundWca));
     }
 
-    private bool AtFix(PhaseContext ctx)
-    {
-        return GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(FixLat, FixLon)) < ArrivalNm;
-    }
+    private bool AtFix(PhaseContext ctx) => GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(FixLat, FixLon)) < ArrivalNm;
 
     private static void DecelerateToHoldingSpeed(PhaseContext ctx)
     {
@@ -448,10 +445,7 @@ public sealed class HoldingPatternPhase : Phase
         return phase;
     }
 
-    protected override List<ClearanceRequirement> CreateRequirements()
-    {
-        return [];
-    }
+    protected override List<ClearanceRequirement> CreateRequirements() => [];
 
     private enum HoldState
     {

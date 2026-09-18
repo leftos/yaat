@@ -3798,10 +3798,8 @@ internal static class PatternCommandHandler
     /// clearances (TG/SG/LA/COPT), which are VFR-only, so the left-traffic fallback here only
     /// covers the IFR case that the dispatcher already rejects.
     /// </summary>
-    private static void EnsurePatternMode(AircraftState aircraft)
-    {
+    private static void EnsurePatternMode(AircraftState aircraft) =>
         aircraft.Phases!.TrafficDirection = GoAroundHelper.ResolvePatternIntent(aircraft) ?? PatternDirection.Left;
-    }
 
     internal static CommandResult TryGoAround(GoAroundCommand ga, AircraftState aircraft, AirportGroundLayout? groundLayout)
     {

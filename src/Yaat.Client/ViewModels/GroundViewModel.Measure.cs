@@ -24,25 +24,16 @@ public partial class GroundViewModel
     public const RblView MeasureView = RblView.Ground;
 
     /// <summary>Injects the measuring-tool state whose slot pool is shared with the radar view.</summary>
-    public void SetMeasureState(RangeBearingViewState state)
-    {
-        Measure = state;
-    }
+    public void SetMeasureState(RangeBearingViewState state) => Measure = state;
 
     /// <summary>Resolves a latched measurement endpoint against the ground view's aircraft list.</summary>
     public RblTrackLookup MeasureTrackLookup => RangeBearingViewState.TrackLookup(cs => _findAircraft?.Invoke(cs));
 
     /// <summary>Arms the tool from the toolbar button, hotkey, or context menu.</summary>
     [RelayCommand]
-    private void StartMeasure()
-    {
-        Measure?.Arm();
-    }
+    private void StartMeasure() => Measure?.Arm();
 
     /// <summary>Clears every measurement.</summary>
     [RelayCommand]
-    private void ClearMeasurements()
-    {
-        Measure?.Clear();
-    }
+    private void ClearMeasurements() => Measure?.Clear();
 }

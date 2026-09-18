@@ -10,10 +10,7 @@ namespace Yaat.Client.UI.Tests;
 public class UserPreferencesScrollSensitivityTests
 {
     [Fact]
-    public void Default_IsOne()
-    {
-        Assert.Equal(1.0, new UserPreferences().ScrollSensitivity);
-    }
+    public void Default_IsOne() => Assert.Equal(1.0, new UserPreferences().ScrollSensitivity);
 
     [Fact]
     public void SetScrollSensitivity_PersistsAcrossInstances()

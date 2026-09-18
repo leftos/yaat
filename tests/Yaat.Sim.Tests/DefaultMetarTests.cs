@@ -7,16 +7,10 @@ public class DefaultMetarTests
     private static readonly DateTime Obs = new(2026, 6, 3, 19, 53, 0, DateTimeKind.Utc);
 
     [Fact]
-    public void Build_FaaId_PrefixesK_AndStampsDdHHmmZ()
-    {
-        Assert.Equal("KSFO 031953Z AUTO 00000KT 10SM CLR A2992", DefaultMetar.Build("SFO", Obs));
-    }
+    public void Build_FaaId_PrefixesK_AndStampsDdHHmmZ() => Assert.Equal("KSFO 031953Z AUTO 00000KT 10SM CLR A2992", DefaultMetar.Build("SFO", Obs));
 
     [Fact]
-    public void Build_IcaoId_LeavesStationUnchanged()
-    {
-        Assert.Equal("KOAK 031953Z AUTO 00000KT 10SM CLR A2992", DefaultMetar.Build("KOAK", Obs));
-    }
+    public void Build_IcaoId_LeavesStationUnchanged() => Assert.Equal("KOAK 031953Z AUTO 00000KT 10SM CLR A2992", DefaultMetar.Build("KOAK", Obs));
 
     [Fact]
     public void Build_RoundTrips_ToCalmWindAndStandardAltimeter()

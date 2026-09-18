@@ -306,10 +306,7 @@ public static class WindVariation
     }
 
     /// <summary>1 at/below the full-amplitude band, 0 at/above the zero band, smoothstep between.</summary>
-    public static double AmplitudeTaper(double heightAglFt)
-    {
-        return SmoothTaper(heightAglFt, FullAmplitudeTopAglFt, ZeroAmplitudeTopAglFt);
-    }
+    public static double AmplitudeTaper(double heightAglFt) => SmoothTaper(heightAglFt, FullAmplitudeTopAglFt, ZeroAmplitudeTopAglFt);
 
     private static double SmoothTaper(double heightAglFt, double fullTopFt, double zeroTopFt)
     {
@@ -327,15 +324,11 @@ public static class WindVariation
         return 1.0 - (x * x * (3.0 - (2.0 * x)));
     }
 
-    private static double LongitudinalNoise(double t, double basePeriodSeconds)
-    {
-        return OctaveNoise(t, basePeriodSeconds, SeedLongitudinal, includeMeander: false, LongitudinalEnvelopeScale);
-    }
+    private static double LongitudinalNoise(double t, double basePeriodSeconds) =>
+        OctaveNoise(t, basePeriodSeconds, SeedLongitudinal, includeMeander: false, LongitudinalEnvelopeScale);
 
-    private static double LateralNoise(double t, double basePeriodSeconds)
-    {
-        return OctaveNoise(t, basePeriodSeconds, SeedLateral, includeMeander: true, LateralEnvelopeScale);
-    }
+    private static double LateralNoise(double t, double basePeriodSeconds) =>
+        OctaveNoise(t, basePeriodSeconds, SeedLateral, includeMeander: true, LateralEnvelopeScale);
 
     /// <summary>
     /// Normalized band-limited value noise in [-1, 1]: three octaves at period ratio 3 and

@@ -63,8 +63,5 @@ public static class FieldElevationResolver
     /// True when the aircraft's displayed altitude rounds to 000 — i.e. it sits below the
     /// acquisition floor (AGL &lt; 100 ft) and should be withheld from radar / coast on STARS.
     /// </summary>
-    public static bool IsBelowDisplayFloor(AircraftState ac, NavigationDatabase navDb)
-    {
-        return ac.Altitude < Resolve(ac, navDb) + AcquisitionFloorAglFt;
-    }
+    public static bool IsBelowDisplayFloor(AircraftState ac, NavigationDatabase navDb) => ac.Altitude < Resolve(ac, navDb) + AcquisitionFloorAglFt;
 }

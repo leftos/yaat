@@ -83,24 +83,17 @@ public class RouteSplicerTests
     }
 
     [Fact]
-    public void DepartureSwap_MultipleTokens_Rejected()
-    {
+    public void DepartureSwap_MultipleTokens_Rejected() =>
         // The departure airport must be the only element entered.
         Assert.Null(RouteSplicer.Splice(Dep, Enroute, Dest, "KBED.SSOXS↑"));
-    }
 
     [Fact]
-    public void ReversedSplice_ResumeAnchorBeforeJoin_Rejected()
-    {
+    public void ReversedSplice_ResumeAnchorBeforeJoin_Rejected() =>
         // PARCH3.SSOXS: join at PARCH3 (idx3), resume anchor SSOXS exists only earlier (idx1) → reversed.
         Assert.Null(RouteSplicer.Splice(Dep, Enroute, Dest, "PARCH3.SSOXS"));
-    }
 
     [Fact]
-    public void EmptyArg_Rejected()
-    {
-        Assert.Null(RouteSplicer.Splice(Dep, Enroute, Dest, "   "));
-    }
+    public void EmptyArg_Rejected() => Assert.Null(RouteSplicer.Splice(Dep, Enroute, Dest, "   "));
 
     [Fact]
     public void CaseInsensitiveAnchors_MatchExistingRoute()

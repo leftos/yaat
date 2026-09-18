@@ -13,10 +13,8 @@ public class ProcedureVersionResolutionTests
         TestVnasData.EnsureInitialized();
     }
 
-    private static CifpLeg MakeLeg(string fix, CifpPathTerminator pt, CifpAltitudeRestriction? alt)
-    {
-        return new CifpLeg(fix, pt, null, alt, null, CifpFixRole.None, 0, null, null, null);
-    }
+    private static CifpLeg MakeLeg(string fix, CifpPathTerminator pt, CifpAltitudeRestriction? alt) =>
+        new CifpLeg(fix, pt, null, alt, null, CifpFixRole.None, 0, null, null, null);
 
     // ── StripTrailingDigits ──
 
@@ -28,10 +26,8 @@ public class ProcedureVersionResolutionTests
     [InlineData("AB", "AB")]
     [InlineData("A1", "A1")] // 2-char minimum preserved
     [InlineData("STAR12", "STAR")]
-    public void StripTrailingDigits_ReturnsExpected(string input, string expected)
-    {
+    public void StripTrailingDigits_ReturnsExpected(string input, string expected) =>
         Assert.Equal(expected, NavigationDatabase.StripTrailingDigits(input));
-    }
 
     // ── ResolveStarId ──
 

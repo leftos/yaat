@@ -11,10 +11,8 @@ public static class WakeTurbulenceData
 {
     private static Dictionary<string, string> _cwtLookup = new(StringComparer.OrdinalIgnoreCase);
 
-    public static void Initialize(Dictionary<string, string> lookup)
-    {
+    public static void Initialize(Dictionary<string, string> lookup) =>
         _cwtLookup = new Dictionary<string, string>(lookup, StringComparer.OrdinalIgnoreCase);
-    }
 
     /// <summary>Get CWT code (A-I) for an aircraft type designator. Returns null if unknown.</summary>
     public static string? GetCwt(string aircraftType)

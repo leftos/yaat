@@ -214,13 +214,7 @@ public sealed class VfrHoldPhase : Phase
         }
     }
 
-    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
-    {
-        _speed.Resume(ctx);
-    }
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus) => _speed.Resume(ctx);
 
-    protected override List<ClearanceRequirement> CreateRequirements()
-    {
-        return [];
-    }
+    protected override List<ClearanceRequirement> CreateRequirements() => [];
 }

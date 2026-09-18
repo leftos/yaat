@@ -53,10 +53,7 @@ public partial class VStripsViewWindow : Window, IAlwaysOnTopToggle
     /// changes both flow through that one string. The host calls this
     /// whenever the entry reports a title change.
     /// </summary>
-    public void SetWindowTitle(string baseTitle)
-    {
-        _geometryHelper.SetBaseTitle(baseTitle);
-    }
+    public void SetWindowTitle(string baseTitle) => _geometryHelper.SetBaseTitle(baseTitle);
 
     public void ToggleAlwaysOnTop() => _geometryHelper.ToggleTopmost();
 }

@@ -813,10 +813,7 @@ public sealed class AirportGroundLayout
     /// Returns all nodes that have at least one edge on the named taxiway.
     /// Index is built eagerly by <see cref="RebuildAdjacencyLists"/>.
     /// </summary>
-    public List<GroundNode> GetNodesOnTaxiway(string taxiwayName)
-    {
-        return _nodesByTaxiway?.GetValueOrDefault(taxiwayName) ?? [];
-    }
+    public List<GroundNode> GetNodesOnTaxiway(string taxiwayName) => _nodesByTaxiway?.GetValueOrDefault(taxiwayName) ?? [];
 
     private Dictionary<string, List<GroundNode>>? _nodesByTaxiway;
 
@@ -904,10 +901,7 @@ public sealed class AirportGroundLayout
     /// Find a named spot, searching helipads first, then parking, then spot nodes.
     /// Used by LAND command to resolve destination by name.
     /// </summary>
-    public GroundNode? FindSpotByName(string name)
-    {
-        return FindHelipadByName(name) ?? FindParkingByName(name) ?? FindSpotNodeByName(name);
-    }
+    public GroundNode? FindSpotByName(string name) => FindHelipadByName(name) ?? FindParkingByName(name) ?? FindSpotNodeByName(name);
 
     /// <summary>
     /// Find a named spot node (GroundNodeType.Spot only).

@@ -46,10 +46,7 @@ public sealed class RecordingArchive : IDisposable
         return new RecordingArchive(zip, ownedStream: fs);
     }
 
-    public string ReadScenarioJson()
-    {
-        return ReadBrotliEntry("scenario.json.br");
-    }
+    public string ReadScenarioJson() => ReadBrotliEntry("scenario.json.br");
 
     public string? ReadWeatherJson()
     {
@@ -370,10 +367,8 @@ public sealed class RecordingArchive : IDisposable
     /// how a Sim-side replay recovers the roster the deferred autotrack pass matches departures against. Returns null
     /// when the recording has no snapshots or the snapshot predates the roster.
     /// </summary>
-    private IReadOnlyList<AtcPositionDto>? ReadInitialAtcPositions()
-    {
-        return Manifest.Snapshots.Count == 0 ? null : FirstSnapshot.State.Scenario.AtcPositions;
-    }
+    private IReadOnlyList<AtcPositionDto>? ReadInitialAtcPositions() =>
+        Manifest.Snapshots.Count == 0 ? null : FirstSnapshot.State.Scenario.AtcPositions;
 
     /// <summary>
     /// Read the resolved student position from the first snapshot's scenario block. The scenario

@@ -51,10 +51,8 @@ public static class PilotResponder
     /// controller responses stay on the Response channel; this queue represents what the pilot says
     /// when the frequency is available.
     /// </summary>
-    public static void QueueSoloPilotTransmission(AircraftState aircraft, PilotSpeechText text, PilotTransmissionKind kind, string sourceKind)
-    {
+    public static void QueueSoloPilotTransmission(AircraftState aircraft, PilotSpeechText text, PilotTransmissionKind kind, string sourceKind) =>
         aircraft.PendingPilotTransmissions.Add(new PilotTransmission(aircraft.Callsign, text.Terminal, text.Tts, sourceKind, kind));
-    }
 
     /// <summary>
     /// Queues a solo-training SAY-channel readback for delayed radio transcript and typed
@@ -805,10 +803,7 @@ public static class PilotResponder
     /// No controller-side rule equivalent — this is a pure pilot utterance, so it lives here
     /// rather than in <c>PhraseologyRules</c>.
     /// </summary>
-    public static PilotSpeechText BuildReadyToTaxi(AircraftState aircraft)
-    {
-        return BuildReadyToTaxi(aircraft, "ground", "A");
-    }
+    public static PilotSpeechText BuildReadyToTaxi(AircraftState aircraft) => BuildReadyToTaxi(aircraft, "ground", "A");
 
     public static PilotSpeechText BuildReadyToTaxi(AircraftState aircraft, string facilityCallName, string? atisLetter)
     {
@@ -846,10 +841,8 @@ public static class PilotResponder
     /// solo-training mode. Output:
     /// <c>"[N123AB] tower, november one two three alpha bravo holding short runway two eight right, ready for departure."</c>
     /// </summary>
-    public static PilotSpeechText BuildHoldingShortReady(AircraftState aircraft, string runwayId)
-    {
-        return BuildHoldingShortReady(aircraft, runwayId, "tower");
-    }
+    public static PilotSpeechText BuildHoldingShortReady(AircraftState aircraft, string runwayId) =>
+        BuildHoldingShortReady(aircraft, runwayId, "tower");
 
     public static PilotSpeechText BuildHoldingShortReady(AircraftState aircraft, string runwayId, string facilityCallName)
     {
@@ -866,10 +859,7 @@ public static class PilotResponder
     /// takeoff clearance has been issued — the "did you forget me?" call. Output:
     /// <c>"[N123AB] tower, november one two three alpha bravo runway two eight right, ready."</c>
     /// </summary>
-    public static PilotSpeechText BuildLinedUpReady(AircraftState aircraft, string runwayId)
-    {
-        return BuildLinedUpReady(aircraft, runwayId, "tower");
-    }
+    public static PilotSpeechText BuildLinedUpReady(AircraftState aircraft, string runwayId) => BuildLinedUpReady(aircraft, runwayId, "tower");
 
     public static PilotSpeechText BuildLinedUpReady(AircraftState aircraft, string runwayId, string facilityCallName)
     {
@@ -895,10 +885,7 @@ public static class PilotResponder
         bool ifrWithActiveApproach,
         string? approachId,
         int distanceMilesForVfr
-    )
-    {
-        return BuildOnFinal(aircraft, runwayId, ifrWithActiveApproach, approachId, distanceMilesForVfr, "tower", "A");
-    }
+    ) => BuildOnFinal(aircraft, runwayId, ifrWithActiveApproach, approachId, distanceMilesForVfr, "tower", "A");
 
     public static PilotSpeechText BuildOnFinal(
         AircraftState aircraft,
@@ -944,10 +931,8 @@ public static class PilotResponder
     /// by <c>!HasMadeInitialContact</c>. Output:
     /// <c>"[N123AB] tower, november one two three alpha bravo, three miles south at one thousand five hundred, request closed traffic, with information Alpha."</c>
     /// </summary>
-    public static PilotSpeechText BuildClosedTrafficRequest(AircraftState aircraft, LatLon airportPosition, int altitudeFt)
-    {
-        return BuildClosedTrafficRequest(aircraft, airportPosition, altitudeFt, "tower", "A");
-    }
+    public static PilotSpeechText BuildClosedTrafficRequest(AircraftState aircraft, LatLon airportPosition, int altitudeFt) =>
+        BuildClosedTrafficRequest(aircraft, airportPosition, altitudeFt, "tower", "A");
 
     public static PilotSpeechText BuildClosedTrafficRequest(
         AircraftState aircraft,

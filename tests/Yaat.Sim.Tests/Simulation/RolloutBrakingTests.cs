@@ -50,21 +50,14 @@ public class RolloutBrakingTests
     [Theory]
     [InlineData(0.0)]
     [InlineData(-0.5)]
-    public void RequiredDecel_WithNoDistanceLeft_ReportsFirmBraking(double distanceNm)
-    {
+    public void RequiredDecel_WithNoDistanceLeft_ReportsFirmBraking(double distanceNm) =>
         Assert.Equal(RolloutBraking.FirmBrakingRateKtsPerSec, RolloutBraking.RequiredDecelKtsPerSec(40.0, 15.0, distanceNm));
-    }
 
     [Fact]
-    public void BrakingDistance_WithNoDecelRate_IsZeroRatherThanInfinite()
-    {
-        Assert.Equal(0.0, RolloutBraking.BrakingDistanceNm(40.0, 15.0, 0.0));
-    }
+    public void BrakingDistance_WithNoDecelRate_IsZeroRatherThanInfinite() => Assert.Equal(0.0, RolloutBraking.BrakingDistanceNm(40.0, 15.0, 0.0));
 
     /// <summary>Already at or below the target speed needs no room.</summary>
     [Fact]
-    public void BrakingDistance_WhenAlreadySlowEnough_IsNotPositive()
-    {
+    public void BrakingDistance_WhenAlreadySlowEnough_IsNotPositive() =>
         Assert.True(RolloutBraking.BrakingDistanceNm(15.0, 15.0, RolloutBraking.FirmBrakingRateKtsPerSec) <= 0.0);
-    }
 }

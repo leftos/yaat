@@ -1500,15 +1500,9 @@ public partial class MainViewModel : ObservableObject
     /// handler which calls <see cref="UserPreferences.SetSpeechEnabled"/> — that setter is
     /// idempotent (early-returns if unchanged), so this is safe to call even when the value
     /// hasn't actually moved.</summary>
-    public void RefreshIsSpeechEnabledFromPrefs()
-    {
-        IsSpeechEnabled = _preferences.SpeechEnabled;
-    }
+    public void RefreshIsSpeechEnabledFromPrefs() => IsSpeechEnabled = _preferences.SpeechEnabled;
 
-    public void RefreshWindowTitleFromPrefs()
-    {
-        OnPropertyChanged(nameof(WindowTitle));
-    }
+    public void RefreshWindowTitleFromPrefs() => OnPropertyChanged(nameof(WindowTitle));
 
     public MainViewModel(IFilePickerService filePicker)
     {
@@ -1800,17 +1794,11 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task CheckForUpdateAsync()
-    {
-        await RunUpdateCheckAsync();
-    }
+    private async Task CheckForUpdateAsync() => await RunUpdateCheckAsync();
 
     /// <summary>Clears the server's "you're behind" banner for this session.</summary>
     [RelayCommand]
-    private void DismissServerUpdateNotice()
-    {
-        ServerUpdateNotice = null;
-    }
+    private void DismissServerUpdateNotice() => ServerUpdateNotice = null;
 
     [RelayCommand]
     private async Task UpdateNowAsync()
@@ -2193,10 +2181,7 @@ public partial class MainViewModel : ObservableObject
         return taxiwayNames;
     }
 
-    private void HandleSpeechServiceStatusChange(SpeechStatus status)
-    {
-        Avalonia.Threading.Dispatcher.UIThread.Post(() => SpeechStatus = status);
-    }
+    private void HandleSpeechServiceStatusChange(SpeechStatus status) => Avalonia.Threading.Dispatcher.UIThread.Post(() => SpeechStatus = status);
 
     private void HandleSpeechServiceCommandReady(SpeechResult result)
     {
@@ -3192,15 +3177,13 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    public void RefreshCommandScheme()
-    {
+    public void RefreshCommandScheme() =>
         // Reloads the command-input macro cache after a Settings save. Command-scheme verb
         // aliases are read live from _preferences.CommandScheme by the parser, so nothing else
         // needs refreshing here. Session settings (auto-delete, command run delay, auto
         // pull-up, etc.) are deliberately NOT pushed: those are the loading RPO's defaults
         // applied once at scenario load and changed mid-session only via the gear flyout.
         _commandInput.Macros = _preferences.Macros;
-    }
 
     private void SetRadarAirportPosition(string? airportId)
     {
@@ -3388,15 +3371,9 @@ public partial class MainViewModel : ObservableObject
 
     private bool _isApplyingSessionSettings;
 
-    private void OnSessionSettingsChanged(SessionSettingsDto dto)
-    {
-        Avalonia.Threading.Dispatcher.UIThread.Post(() => ApplySessionSettings(dto));
-    }
+    private void OnSessionSettingsChanged(SessionSettingsDto dto) => Avalonia.Threading.Dispatcher.UIThread.Post(() => ApplySessionSettings(dto));
 
-    private void OnServerLiveTrafficStatus(LiveTrafficStatusDto dto)
-    {
-        Avalonia.Threading.Dispatcher.UIThread.Post(() => LiveTrafficStatus = dto);
-    }
+    private void OnServerLiveTrafficStatus(LiveTrafficStatusDto dto) => Avalonia.Threading.Dispatcher.UIThread.Post(() => LiveTrafficStatus = dto);
 
     internal void ApplySessionSettings(SessionSettingsDto dto)
     {

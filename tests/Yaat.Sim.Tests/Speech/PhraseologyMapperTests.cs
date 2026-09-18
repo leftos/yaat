@@ -720,11 +720,9 @@ public class PhraseologyMapperTests
     }
 
     [Fact]
-    public void Taxi_ToParkingWithAnEnglishWord_IsRejected()
-    {
+    public void Taxi_ToParkingWithAnEnglishWord_IsRejected() =>
         // "the ramp" is not a name a layout could resolve — reject so the LLM path gets the transcript.
         Assert.Null(PhraseologyMapper.Map("taxi to parking the ramp", NoContext));
-    }
 
     [Theory]
     [InlineData("B 12", "parking", "", "B12")]
@@ -872,17 +870,12 @@ public class PhraseologyMapperTests
     }
 
     [Fact]
-    public void OnlyFiller_ReturnsNull()
-    {
-        Assert.Null(PhraseologyMapper.Map("uh um please sir", NoContext));
-    }
+    public void OnlyFiller_ReturnsNull() => Assert.Null(PhraseologyMapper.Map("uh um please sir", NoContext));
 
     [Fact]
-    public void NoMatch_ReturnsNull()
-    {
+    public void NoMatch_ReturnsNull() =>
         // Pure garbage with no rule match yields null.
         Assert.Null(PhraseologyMapper.Map("quantum entanglement gravitational waves", NoContext));
-    }
 
     [Fact]
     public void FillerWords_AreStripped()

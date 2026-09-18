@@ -160,8 +160,5 @@ public class UserPreferencesFavoriteSetTests : IDisposable
         File.WriteAllText(path, root.ToJsonString());
     }
 
-    private static void ClearLegacyFavoritesFromDisk(UserPreferences prefs)
-    {
-        prefs.ClearLegacyFavorites();
-    }
+    private static void ClearLegacyFavoritesFromDisk(UserPreferences prefs) => prefs.ClearLegacyFavorites();
 }

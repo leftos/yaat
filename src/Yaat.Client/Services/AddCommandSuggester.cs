@@ -482,10 +482,7 @@ internal static class AddCommandSuggester
     /// True when the <c>@</c>-stripped position token is a complete fix/radial/distance string, so
     /// the next slot must be the spawn altitude rather than a type/airline override.
     /// </summary>
-    private static bool IsCompleteFrdToken(string token)
-    {
-        return FrdResolver.ParseFrd(token) is { Radial: not null, Distance: not null };
-    }
+    private static bool IsCompleteFrdToken(string token) => FrdResolver.ParseFrd(token) is { Radial: not null, Distance: not null };
 
     private static void AddArrivalRouteSuggestions(
         string fullText,

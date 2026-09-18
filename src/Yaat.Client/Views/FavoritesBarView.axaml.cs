@@ -126,10 +126,7 @@ public partial class FavoritesBarView : UserControl
         }
     }
 
-    private void OnFavoritesChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        RebuildButtons();
-    }
+    private void OnFavoritesChanged(object? sender, NotifyCollectionChangedEventArgs e) => RebuildButtons();
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
@@ -987,20 +984,12 @@ public partial class FavoritesBarView : UserControl
         e.Handled = true;
     }
 
-    private void OnFavoritePointerReleased(object? sender, PointerReleasedEventArgs e)
-    {
-        EndFavoriteDrag();
-    }
+    private void OnFavoritePointerReleased(object? sender, PointerReleasedEventArgs e) => EndFavoriteDrag();
 
-    private void OnFavoritePointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
-    {
-        EndFavoriteDrag();
-    }
+    private void OnFavoritePointerCaptureLost(object? sender, PointerCaptureLostEventArgs e) => EndFavoriteDrag();
 
-    private FavoriteDisplayEntry? FindFavoriteAt(Point point)
-    {
-        return this.GetVisualsAt(point).OfType<Button>().Select(button => button.Tag).OfType<FavoriteDisplayEntry>().FirstOrDefault();
-    }
+    private FavoriteDisplayEntry? FindFavoriteAt(Point point) =>
+        this.GetVisualsAt(point).OfType<Button>().Select(button => button.Tag).OfType<FavoriteDisplayEntry>().FirstOrDefault();
 
     private void EndFavoriteDrag()
     {
@@ -1352,15 +1341,9 @@ public partial class FavoritesBarView : UserControl
         flyout.ShowAt(target);
     }
 
-    private FavoriteCommandCategory GetActiveAddCategory()
-    {
-        return IsPaletteMode ? _selectedPaletteCategory : FavoriteCommandCategory.Air;
-    }
+    private FavoriteCommandCategory GetActiveAddCategory() => IsPaletteMode ? _selectedPaletteCategory : FavoriteCommandCategory.Air;
 
-    private static int GetPanelColumns(MainViewModel vm)
-    {
-        return Math.Clamp(vm.Preferences.FavoritePanelColumns, 1, 20);
-    }
+    private static int GetPanelColumns(MainViewModel vm) => Math.Clamp(vm.Preferences.FavoritePanelColumns, 1, 20);
 
     private static StackPanel CreateEditorPanel(
         string title,
@@ -1450,10 +1433,7 @@ public partial class FavoritesBarView : UserControl
         return btn;
     }
 
-    private static Button CreateInsertBlankButton(string content)
-    {
-        return CreateSmallActionButton(content);
-    }
+    private static Button CreateInsertBlankButton(string content) => CreateSmallActionButton(content);
 
     private static Button CreateSmallActionButton(string content)
     {
@@ -1519,35 +1499,22 @@ public partial class FavoritesBarView : UserControl
         };
     }
 
-    private static FavoriteCommandCategory NormalizeCategory(FavoriteCommand favorite)
-    {
-        return MainViewModel.NormalizeFavoriteCategory(favorite.Category);
-    }
+    private static FavoriteCommandCategory NormalizeCategory(FavoriteCommand favorite) => MainViewModel.NormalizeFavoriteCategory(favorite.Category);
 
-    private static double GetButtonHeight(FavoriteCommand favorite)
-    {
-        return ClampDimension(favorite.ButtonHeight, FavoriteCommandDefaults.ButtonHeight, 24, 72);
-    }
+    private static double GetButtonHeight(FavoriteCommand favorite) =>
+        ClampDimension(favorite.ButtonHeight, FavoriteCommandDefaults.ButtonHeight, 24, 72);
 
-    private static double ClampDimension(double value, double fallback, double min, double max)
-    {
-        return double.IsFinite(value) && value > 0 ? Math.Clamp(value, min, max) : fallback;
-    }
+    private static double ClampDimension(double value, double fallback, double min, double max) =>
+        double.IsFinite(value) && value > 0 ? Math.Clamp(value, min, max) : fallback;
 
-    private static string GetFavoriteBackgroundColor(FavoriteCommand favorite)
-    {
-        return Color.TryParse(favorite.BackgroundColor, out _) ? favorite.BackgroundColor : FavoriteCommandDefaults.BackgroundColor;
-    }
+    private static string GetFavoriteBackgroundColor(FavoriteCommand favorite) =>
+        Color.TryParse(favorite.BackgroundColor, out _) ? favorite.BackgroundColor : FavoriteCommandDefaults.BackgroundColor;
 
-    private static string GetFavoriteTextColor(FavoriteCommand favorite)
-    {
-        return Color.TryParse(favorite.TextColor, out _) ? favorite.TextColor : FavoriteCommandDefaults.TextColor;
-    }
+    private static string GetFavoriteTextColor(FavoriteCommand favorite) =>
+        Color.TryParse(favorite.TextColor, out _) ? favorite.TextColor : FavoriteCommandDefaults.TextColor;
 
-    private static IBrush ParseBrush(string? color, string fallback)
-    {
-        return Color.TryParse(color, out Color parsed) ? new SolidColorBrush(parsed) : new SolidColorBrush(Color.Parse(fallback));
-    }
+    private static IBrush ParseBrush(string? color, string fallback) =>
+        Color.TryParse(color, out Color parsed) ? new SolidColorBrush(parsed) : new SolidColorBrush(Color.Parse(fallback));
 
     private string BuildFavoriteToolTip(FavoriteCommand favorite)
     {
@@ -1645,15 +1612,9 @@ public partial class FavoritesBarView : UserControl
         return panel;
     }
 
-    private static double GetDimensionValue(NumericUpDown box, double fallback)
-    {
-        return box.Value is { } value ? (double)value : fallback;
-    }
+    private static double GetDimensionValue(NumericUpDown box, double fallback) => box.Value is { } value ? (double)value : fallback;
 
-    private static string ToHex(Color color)
-    {
-        return $"#{color.R:X2}{color.G:X2}{color.B:X2}";
-    }
+    private static string ToHex(Color color) => $"#{color.R:X2}{color.G:X2}{color.B:X2}";
 
     /// <summary>
     /// The "In" checkbox group of a favorite flyout: one checkbox per container — Global, the active
@@ -1700,9 +1661,7 @@ public partial class FavoritesBarView : UserControl
         public int SelectedCount => _entries.Count(e => e.Box.IsChecked == true);
 
         /// <summary>Set ids of the checked containers, creating on-demand airport/scenario sets as needed.</summary>
-        public List<string> ResolveSelectedSetIds(MainViewModel vm)
-        {
-            return _entries.Where(e => e.Box.IsChecked == true).Select(e => vm.EnsureFavoriteContainer(e.Option)).ToList();
-        }
+        public List<string> ResolveSelectedSetIds(MainViewModel vm) =>
+            _entries.Where(e => e.Box.IsChecked == true).Select(e => vm.EnsureFavoriteContainer(e.Option)).ToList();
     }
 }

@@ -73,8 +73,5 @@ public partial class MainViewModel
     }
 
     [RelayCommand]
-    private async Task CancelTimer(int id)
-    {
-        await _connection.SendCommandAsync("", $"TIMER CANCEL {id}", _preferences.UserInitials);
-    }
+    private async Task CancelTimer(int id) => await _connection.SendCommandAsync("", $"TIMER CANCEL {id}", _preferences.UserInitials);
 }

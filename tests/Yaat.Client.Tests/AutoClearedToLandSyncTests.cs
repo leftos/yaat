@@ -54,10 +54,7 @@ public class AutoClearedToLandSyncTests
     }
 
     [Fact]
-    public void ApplyToAircraft_EmptyCollection_DoesNotThrow()
-    {
-        AutoClearedToLandSync.ApplyToAircraft([], true);
-    }
+    public void ApplyToAircraft_EmptyCollection_DoesNotThrow() => AutoClearedToLandSync.ApplyToAircraft([], true);
 
     [Fact]
     public void ApplyToAircraft_LeavesUnrelatedFieldsAlone()

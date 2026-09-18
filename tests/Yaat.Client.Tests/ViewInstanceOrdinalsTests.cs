@@ -10,28 +10,16 @@ namespace Yaat.Client.Tests;
 public class ViewInstanceOrdinalsTests
 {
     [Fact]
-    public void NextFree_NoneTaken_StartsAtTwo()
-    {
-        Assert.Equal(2, ViewInstanceOrdinals.NextFree([]));
-    }
+    public void NextFree_NoneTaken_StartsAtTwo() => Assert.Equal(2, ViewInstanceOrdinals.NextFree([]));
 
     [Fact]
-    public void NextFree_ContiguousTaken_AppendsAfterHighest()
-    {
-        Assert.Equal(4, ViewInstanceOrdinals.NextFree([2, 3]));
-    }
+    public void NextFree_ContiguousTaken_AppendsAfterHighest() => Assert.Equal(4, ViewInstanceOrdinals.NextFree([2, 3]));
 
     [Fact]
-    public void NextFree_LowestTakenIsThree_ReusesTwo()
-    {
-        Assert.Equal(2, ViewInstanceOrdinals.NextFree([3]));
-    }
+    public void NextFree_LowestTakenIsThree_ReusesTwo() => Assert.Equal(2, ViewInstanceOrdinals.NextFree([3]));
 
     [Fact]
-    public void NextFree_GapInTaken_FillsTheGap()
-    {
-        Assert.Equal(3, ViewInstanceOrdinals.NextFree([2, 4]));
-    }
+    public void NextFree_GapInTaken_FillsTheGap() => Assert.Equal(3, ViewInstanceOrdinals.NextFree([2, 4]));
 
     [Fact]
     public void Keys_ArePrefixPlusOrdinal()

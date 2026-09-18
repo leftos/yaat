@@ -336,10 +336,8 @@ public partial class MainViewModel
     /// that did not survive the restart stays on the scope frozen where it was. The server therefore
     /// sends its post-restart manifest and we replace the list wholesale, the same way a rewind does.
     /// </summary>
-    internal void OnScenarioRestarted(List<AircraftDto> manifest)
-    {
+    internal void OnScenarioRestarted(List<AircraftDto> manifest) =>
         Avalonia.Threading.Dispatcher.UIThread.Post(() => ApplyScenarioRestart(manifest));
-    }
 
     /// <summary>
     /// Replaces the aircraft list with <paramref name="manifest"/>. Split out of
@@ -361,10 +359,7 @@ public partial class MainViewModel
     /// deleted on our side. The client that issued the rewind is excluded from this broadcast; it
     /// applies the same manifest from the RPC result instead.
     /// </summary>
-    internal void OnScenarioRewound(List<AircraftDto> manifest)
-    {
-        Avalonia.Threading.Dispatcher.UIThread.Post(() => ApplyScenarioRewind(manifest));
-    }
+    internal void OnScenarioRewound(List<AircraftDto> manifest) => Avalonia.Threading.Dispatcher.UIThread.Post(() => ApplyScenarioRewind(manifest));
 
     /// <summary>
     /// The rewind counterpart to <see cref="ApplyScenarioRestart"/> — same UI-thread-by-contract split,
@@ -551,11 +546,9 @@ public partial class MainViewModel
         return null;
     }
 
-    private void ApplyAutoClearedToLand(AircraftModel model)
-    {
+    private void ApplyAutoClearedToLand(AircraftModel model) =>
         // Drives the radar / tower-cab "NoLndgClnc" datablock suppression. The Info-column status
         // is computed server-side (AircraftStatusDescriber) and already accounts for the session
         // auto-clear setting, so no client-side status recompute is needed here.
         model.IsAutoClearedToLand = _isAutoClearedToLand;
-    }
 }

@@ -20,10 +20,7 @@ public class FreezeDumpWriterTests : IDisposable
         Directory.CreateDirectory(_dir);
     }
 
-    public void Dispose()
-    {
-        Directory.Delete(_dir, recursive: true);
-    }
+    public void Dispose() => Directory.Delete(_dir, recursive: true);
 
     [Fact]
     public void WritesReadableDumpFile()

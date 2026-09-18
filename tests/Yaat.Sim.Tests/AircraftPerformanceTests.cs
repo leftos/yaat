@@ -60,10 +60,7 @@ public sealed class AircraftPerformanceTests
     }
 
     [Fact]
-    public void ProfileDatabase_Get_UnknownType_ReturnsNull()
-    {
-        Assert.Null(Data.AircraftProfileDatabase.Get("ZZZZ"));
-    }
+    public void ProfileDatabase_Get_UnknownType_ReturnsNull() => Assert.Null(Data.AircraftProfileDatabase.Get("ZZZZ"));
 
     [Fact]
     public void ProfileDatabase_Get_NullOrEmpty_ReturnsNull()
@@ -297,23 +294,15 @@ public sealed class AircraftPerformanceTests
     }
 
     [Fact]
-    public void RotationSpeed_ProfiledType()
-    {
+    public void RotationSpeed_ProfiledType() =>
         // B738: rotateSpeed = 145
         Assert.Equal(145, AircraftPerformance.RotationSpeed("B738", AircraftCategory.Jet));
-    }
 
     [Fact]
-    public void IsSpeedLimitWaived_NormalAircraft_False()
-    {
-        Assert.False(AircraftPerformance.IsSpeedLimitWaived("B738"));
-    }
+    public void IsSpeedLimitWaived_NormalAircraft_False() => Assert.False(AircraftPerformance.IsSpeedLimitWaived("B738"));
 
     [Fact]
-    public void IsSpeedLimitWaived_UnknownType_False()
-    {
-        Assert.False(AircraftPerformance.IsSpeedLimitWaived("ZZZZ"));
-    }
+    public void IsSpeedLimitWaived_UnknownType_False() => Assert.False(AircraftPerformance.IsSpeedLimitWaived("ZZZZ"));
 
     [Fact]
     public void ClimbSpeed_Below10k_CappedAt250()

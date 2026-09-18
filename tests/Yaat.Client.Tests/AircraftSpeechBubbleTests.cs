@@ -112,16 +112,10 @@ public class AircraftSpeechBubbleTests
     }
 
     [Fact]
-    public void TryBuild_PrefOff_ReturnsNull()
-    {
-        Assert.Null(Build(showSpeechBubbles: false));
-    }
+    public void TryBuild_PrefOff_ReturnsNull() => Assert.Null(Build(showSpeechBubbles: false));
 
     [Fact]
-    public void TryBuild_SoloMode_SuppressesSpeechBubble()
-    {
-        Assert.Null(Build(soloMode: true));
-    }
+    public void TryBuild_SoloMode_SuppressesSpeechBubble() => Assert.Null(Build(soloMode: true));
 
     [Theory]
     [InlineData(TerminalEntryKind.Command)]
@@ -129,26 +123,19 @@ public class AircraftSpeechBubbleTests
     [InlineData(TerminalEntryKind.System)]
     [InlineData(TerminalEntryKind.Error)]
     [InlineData(TerminalEntryKind.Chat)]
-    public void TryBuild_NonSpeechKind_ReturnsNull(TerminalEntryKind kind)
-    {
+    public void TryBuild_NonSpeechKind_ReturnsNull(TerminalEntryKind kind) =>
         Assert.Null(Build(showWarningBubbles: true, kind: kind, message: "anything"));
-    }
 
     [Theory]
     [InlineData("")]
     [InlineData(null)]
-    public void TryBuild_EmptyOrNullMessage_ReturnsNull(string? message)
-    {
-        Assert.Null(Build(message: message!));
-    }
+    public void TryBuild_EmptyOrNullMessage_ReturnsNull(string? message) => Assert.Null(Build(message: message!));
 
     // --- WARN bubbles (opt-in, amber) -------------------------------------
 
     [Fact]
-    public void TryBuild_WarningKind_OptInOff_ReturnsNull()
-    {
+    public void TryBuild_WarningKind_OptInOff_ReturnsNull() =>
         Assert.Null(Build(showWarningBubbles: false, kind: TerminalEntryKind.Warning, message: "queue cleared"));
-    }
 
     [Fact]
     public void TryBuild_WarningKind_OptInOn_ReturnsWarningBubble()
@@ -170,11 +157,9 @@ public class AircraftSpeechBubbleTests
     }
 
     [Fact]
-    public void TryBuild_WarningKind_MasterToggleOff_ReturnsNull()
-    {
+    public void TryBuild_WarningKind_MasterToggleOff_ReturnsNull() =>
         // The WARN opt-in still requires the master "show speech bubbles" switch.
         Assert.Null(Build(showSpeechBubbles: false, showWarningBubbles: true, kind: TerminalEntryKind.Warning, message: "queue cleared"));
-    }
 
     [Fact]
     public void TryBuild_SayKind_WarnOptInOn_StaysSpeechSeverity()

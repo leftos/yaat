@@ -48,10 +48,7 @@ public class Issue429FatApproachesTests
         TestVnasData.EnsureInitialized();
     }
 
-    private SimulationEngine? BuildEngine()
-    {
-        return BuildEngineWith(new TestAirportGroundData());
-    }
+    private SimulationEngine? BuildEngine() => BuildEngineWith(new TestAirportGroundData());
 
     private SimulationEngine? BuildEngineWith(IAirportGroundData groundData)
     {

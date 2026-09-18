@@ -21,37 +21,22 @@ public class NavigationDatabaseNoCifpTests
         );
 
     [Fact]
-    public void GetSids_WithNoCifpFile_ReturnsEmpty()
-    {
-        Assert.Empty(CifpLessDb().GetSids("KOAK"));
-    }
+    public void GetSids_WithNoCifpFile_ReturnsEmpty() => Assert.Empty(CifpLessDb().GetSids("KOAK"));
 
     [Fact]
-    public void GetStars_WithNoCifpFile_ReturnsEmpty()
-    {
-        Assert.Empty(CifpLessDb().GetStars("KOAK"));
-    }
+    public void GetStars_WithNoCifpFile_ReturnsEmpty() => Assert.Empty(CifpLessDb().GetStars("KOAK"));
 
     [Fact]
-    public void GetApproaches_WithNoCifpFile_ReturnsEmpty()
-    {
-        Assert.Empty(CifpLessDb().GetApproaches("KOAK"));
-    }
+    public void GetApproaches_WithNoCifpFile_ReturnsEmpty() => Assert.Empty(CifpLessDb().GetApproaches("KOAK"));
 
     /// <summary>The magnetic-variation loader already guarded — pin it so the four stay consistent.</summary>
     [Fact]
-    public void GetAirportMagneticVariation_WithNoCifpFile_ReturnsNull()
-    {
-        Assert.Null(CifpLessDb().GetAirportMagneticVariation("KOAK"));
-    }
+    public void GetAirportMagneticVariation_WithNoCifpFile_ReturnsNull() => Assert.Null(CifpLessDb().GetAirportMagneticVariation("KOAK"));
 
     /// <summary>
     /// The path that actually failed: resolving procedure patterns for a destination airport, which is
     /// what <c>MainViewModel.BuildSpeechContext</c> does for every aircraft in the room.
     /// </summary>
     [Fact]
-    public void GetProcedurePatterns_WithNoCifpFile_ReturnsEmpty()
-    {
-        Assert.Empty(CifpLessDb().GetProcedurePatterns(["KOAK", "KSFO"]));
-    }
+    public void GetProcedurePatterns_WithNoCifpFile_ReturnsEmpty() => Assert.Empty(CifpLessDb().GetProcedurePatterns(["KOAK", "KSFO"]));
 }

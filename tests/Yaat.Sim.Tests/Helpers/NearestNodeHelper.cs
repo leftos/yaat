@@ -34,8 +34,6 @@ public static class NearestNodeHelper
         return string.Join(", ", parts);
     }
 
-    public static void Log(ITestOutputHelper output, string prefix, AircraftState aircraft, AirportGroundLayout layout, int count = 3)
-    {
+    public static void Log(ITestOutputHelper output, string prefix, AircraftState aircraft, AirportGroundLayout layout, int count = 3) =>
         output.WriteLine($"{prefix} nearestNodes=[{Describe(aircraft, layout, count)}]");
-    }
 }

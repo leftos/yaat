@@ -20,10 +20,7 @@ public class PhoneticFixMatcherTests
     [InlineData("PHONE", "FN")] // PH → F
     [InlineData("KNOT", "NT")] // silent leading K
     [InlineData("", "")]
-    public void Phonetize_ProducesExpectedCode(string input, string expected)
-    {
-        Assert.Equal(expected, PhoneticFixMatcher.Phonetize(input));
-    }
+    public void Phonetize_ProducesExpectedCode(string input, string expected) => Assert.Equal(expected, PhoneticFixMatcher.Phonetize(input));
 
     // --- Levenshtein sanity ---
 
@@ -33,24 +30,17 @@ public class PhoneticFixMatcherTests
     [InlineData("SUNOL", "SUNNY", 2)] // 2 substitutions (O→N, L→Y)
     [InlineData("", "CEPIN", 5)]
     [InlineData("CEPIN", "", 5)]
-    public void Levenshtein_ReturnsExpected(string a, string b, int expected)
-    {
-        Assert.Equal(expected, PhoneticFixMatcher.Levenshtein(a, b));
-    }
+    public void Levenshtein_ReturnsExpected(string a, string b, int expected) => Assert.Equal(expected, PhoneticFixMatcher.Levenshtein(a, b));
 
     // --- TryMatch: programmed-fix scope ---
 
     [Fact]
-    public void TryMatch_ExactMatch_ReturnsCanonical()
-    {
+    public void TryMatch_ExactMatch_ReturnsCanonical() =>
         Assert.Equal("CEPIN", PhoneticFixMatcher.TryMatch("CEPIN", ProgrammedFixes, allowFullDatabaseFallback: false));
-    }
 
     [Fact]
-    public void TryMatch_CaseInsensitiveExact()
-    {
+    public void TryMatch_CaseInsensitiveExact() =>
         Assert.Equal("SUNOL", PhoneticFixMatcher.TryMatch("sunol", ProgrammedFixes, allowFullDatabaseFallback: false));
-    }
 
     [Theory]
     [InlineData("sepin", "CEPIN")] // 1 raw edit + phonetic match (both SPN)
@@ -73,18 +63,14 @@ public class PhoneticFixMatcherTests
     }
 
     [Fact]
-    public void TryMatch_NoCloseMatch_ReturnsNull()
-    {
+    public void TryMatch_NoCloseMatch_ReturnsNull() =>
         // "quantum" isn't close to any programmed fix.
         Assert.Null(PhoneticFixMatcher.TryMatch("quantum", ProgrammedFixes, allowFullDatabaseFallback: false));
-    }
 
     [Fact]
-    public void TryMatch_EmptyProgrammedFixes_ReturnsNull()
-    {
+    public void TryMatch_EmptyProgrammedFixes_ReturnsNull() =>
         // No candidates + fallback disabled → no match possible.
         Assert.Null(PhoneticFixMatcher.TryMatch("CEPIN", [], allowFullDatabaseFallback: false));
-    }
 
     // --- TryMatch: threshold behavior ---
 

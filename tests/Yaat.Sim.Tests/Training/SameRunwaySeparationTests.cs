@@ -18,8 +18,6 @@ public class SameRunwaySeparationTests
     [InlineData(SrsCategory.II, SrsCategory.II, 4500.0)]
     [InlineData(SrsCategory.III, SrsCategory.I, 6000.0)]
     [InlineData(SrsCategory.I, SrsCategory.III, 6000.0)]
-    public void RequiredDepartureBehindDeparture_FollowsParagraph396a(SrsCategory preceding, SrsCategory succeeding, double expectedFt)
-    {
+    public void RequiredDepartureBehindDeparture_FollowsParagraph396a(SrsCategory preceding, SrsCategory succeeding, double expectedFt) =>
         Assert.Equal(expectedFt, SameRunwaySeparation.RequiredDepartureBehindDepartureFt(preceding, succeeding));
-    }
 }

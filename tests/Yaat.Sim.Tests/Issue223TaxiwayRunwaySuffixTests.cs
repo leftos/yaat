@@ -18,10 +18,7 @@ public class Issue223TaxiwayRunwaySuffixTests
     [InlineData("AC")]
     [InlineData("BR")]
     [InlineData("SL")]
-    public void IsRunwayArg_LetterPrefixedSuffix_IsNotRunway(string token)
-    {
-        Assert.False(CommandParser.IsRunwayArg(token));
-    }
+    public void IsRunwayArg_LetterPrefixedSuffix_IsNotRunway(string token) => Assert.False(CommandParser.IsRunwayArg(token));
 
     [Theory]
     [InlineData("28R")]
@@ -31,10 +28,7 @@ public class Issue223TaxiwayRunwaySuffixTests
     [InlineData("1R")]
     [InlineData("30")] // bare 2-digit runway
     [InlineData("28L")]
-    public void IsRunwayArg_RealRunway_IsRunway(string token)
-    {
-        Assert.True(CommandParser.IsRunwayArg(token));
-    }
+    public void IsRunwayArg_RealRunway_IsRunway(string token) => Assert.True(CommandParser.IsRunwayArg(token));
 
     [Fact]
     public void ParseTaxi_KeepsTaxiwayEndingInC_InPath()

@@ -57,10 +57,7 @@ public sealed class AirportLayoutDownloader : IDisposable
     /// Returns the cache path for <paramref name="airportId"/> regardless of whether the
     /// file exists yet. Always uses the FAA code (leading K stripped).
     /// </summary>
-    public string GetCachePath(string airportId)
-    {
-        return Path.Combine(_cacheDir, ToFaaCode(airportId) + ".geojson");
-    }
+    public string GetCachePath(string airportId) => Path.Combine(_cacheDir, ToFaaCode(airportId) + ".geojson");
 
     /// <summary>
     /// Returns the GeoJSON text for <paramref name="airportId"/>, fetching from the

@@ -398,10 +398,8 @@ internal static class HoldShortAnnotator
         return int.MaxValue;
     }
 
-    private static bool IsPassed(TaxiRoute route, HoldShortPoint holdShort)
-    {
-        return holdShort.IsCleared && SegmentIndexOf(route, holdShort) < route.CurrentSegmentIndex;
-    }
+    private static bool IsPassed(TaxiRoute route, HoldShortPoint holdShort) =>
+        holdShort.IsCleared && SegmentIndexOf(route, holdShort) < route.CurrentSegmentIndex;
 
     /// <summary>
     /// Appends a hold-short point at the last segment node, marking it as

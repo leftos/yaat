@@ -17,29 +17,21 @@ public class RangeBearingLineFormatterTests
     }
 
     [Fact]
-    public void BearingIsZeroPaddedToThreeDigits()
-    {
+    public void BearingIsZeroPaddedToThreeDigits() =>
         Assert.StartsWith("005/", RangeBearingLineFormatter.Format(1.0, 5.0, null, 1, RblUnits.NauticalMiles), StringComparison.Ordinal);
-    }
 
     [Fact]
-    public void BearingZeroRendersAs360()
-    {
+    public void BearingZeroRendersAs360() =>
         // CRC's NavCalc.NormalizeHeading maps 0 to 360; bearings are read as 360, never 000.
         Assert.StartsWith("360/", RangeBearingLineFormatter.Format(1.0, 0.0, null, 1, RblUnits.NauticalMiles), StringComparison.Ordinal);
-    }
 
     [Fact]
-    public void BearingWrapsAboveThreeSixty()
-    {
+    public void BearingWrapsAboveThreeSixty() =>
         Assert.StartsWith("010/", RangeBearingLineFormatter.Format(1.0, 370.0, null, 1, RblUnits.NauticalMiles), StringComparison.Ordinal);
-    }
 
     [Fact]
-    public void NegativeBearingNormalizes()
-    {
+    public void NegativeBearingNormalizes() =>
         Assert.StartsWith("350/", RangeBearingLineFormatter.Format(1.0, -10.0, null, 1, RblUnits.NauticalMiles), StringComparison.Ordinal);
-    }
 
     [Fact]
     public void MinutesToGoIsAppendedBeforeSlot()
@@ -355,10 +347,8 @@ public class RangeBearingLineResolverTests
     }
 
     [Fact]
-    public void PendingLineIsNullWithoutAnAnchor()
-    {
+    public void PendingLineIsNullWithoutAnAnchor() =>
         Assert.Null(RangeBearingLineResolver.ResolvePending(null, Oakland, _ => null, RblUnits.NauticalMiles));
-    }
 
     [Fact]
     public void ResolveOnlyReturnsLinesBelongingToTheRequestedView()
@@ -428,10 +418,7 @@ public class RblLabelPlacementTests
     }
 
     [Fact]
-    public void LineEntirelyOffScreenGetsNoLabel()
-    {
-        Assert.Null(RblLabelPlacement.Compute(-500f, -50f, -100f, -20f, LabelW, LabelH, ViewW, ViewH));
-    }
+    public void LineEntirelyOffScreenGetsNoLabel() => Assert.Null(RblLabelPlacement.Compute(-500f, -50f, -100f, -20f, LabelW, LabelH, ViewW, ViewH));
 
     [Fact]
     public void LabelNearTheEdgeIsClampedFullyInsideTheViewport()

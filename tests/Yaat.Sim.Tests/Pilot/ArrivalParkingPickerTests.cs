@@ -159,8 +159,6 @@ public class ArrivalParkingPickerTests
     [InlineData("GA13", false)]
     [InlineData("FDX1", false)]
     [InlineData("41-10", false)]
-    public void IsGateNumber_DigitsWithAtMostOneTrailingLetter(string name, bool expected)
-    {
+    public void IsGateNumber_DigitsWithAtMostOneTrailingLetter(string name, bool expected) =>
         Assert.Equal(expected, ArrivalParkingPicker.IsGateNumber(name));
-    }
 }

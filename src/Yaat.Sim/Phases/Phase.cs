@@ -85,10 +85,7 @@ public abstract class Phase
     /// Default: ClearsPhase (most commands exit the phase system).
     /// Override to reject commands during critical sub-states.
     /// </summary>
-    public virtual CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
-    {
-        return CommandAcceptance.ClearsPhase;
-    }
+    public virtual CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd) => CommandAcceptance.ClearsPhase;
 
     /// <summary>
     /// Called after the dispatcher accepts a command (CanAcceptCommand returned Allowed)
@@ -101,10 +98,7 @@ public abstract class Phase
     /// <summary>
     /// Override to define clearance requirements for this phase.
     /// </summary>
-    protected virtual List<ClearanceRequirement> CreateRequirements()
-    {
-        return [];
-    }
+    protected virtual List<ClearanceRequirement> CreateRequirements() => [];
 
     /// <summary>
     /// Restores requirements from a DTO list. Call from FromSnapshot inside subclasses.

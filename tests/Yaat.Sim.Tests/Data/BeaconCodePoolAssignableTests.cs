@@ -40,10 +40,8 @@ public class BeaconCodePoolAssignableTests
     // DoD-allocated block.
     [InlineData(5001u)]
     [InlineData(5062u)]
-    public void ReservedCodes_AreNotAssignable(uint code)
-    {
+    public void ReservedCodes_AreNotAssignable(uint code) =>
         Assert.False(BeaconCodePool.IsAssignableCode(code), $"{code:D4} must never be auto-assigned");
-    }
 
     [Theory]
     [InlineData(0001u)]
@@ -55,10 +53,8 @@ public class BeaconCodePoolAssignableTests
     [InlineData(4777u)]
     [InlineData(5063u)] // just past the DoD block
     [InlineData(7477u)] // just below the 7500 block
-    public void OrdinaryDiscreteCodes_AreAssignable(uint code)
-    {
+    public void OrdinaryDiscreteCodes_AreAssignable(uint code) =>
         Assert.True(BeaconCodePool.IsAssignableCode(code), $"{code:D4} should be assignable");
-    }
 
     /// <summary>
     /// The sequential fallback (no configured banks) is the only path where IsAssignableCode is the sole

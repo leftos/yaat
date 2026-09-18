@@ -65,11 +65,9 @@ public class CfrParserTests
     }
 
     [Fact]
-    public void Apreq_IsNotAnAlias()
-    {
+    public void Apreq_IsNotAnAlias() =>
         // APREQ (Approval Request) is broader than a departure release, so it is deliberately not a CFR alias.
         Assert.False(CommandParser.Parse("APREQ 0530").IsSuccess);
-    }
 
     [Fact]
     public void Cfr_InvalidTime_Fails()

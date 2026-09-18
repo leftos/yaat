@@ -283,16 +283,10 @@ public class SfoBravoToOneLeftConnectorTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void AF1B_To1R_StillFails_SameMessage()
-    {
-        AssertUnreachableRunway("1R");
-    }
+    public void AF1B_To1R_StillFails_SameMessage() => AssertUnreachableRunway("1R");
 
     [Fact]
-    public void AF1B_To28L_StillFails_SameMessage()
-    {
-        AssertUnreachableRunway("28L");
-    }
+    public void AF1B_To28L_StillFails_SameMessage() => AssertUnreachableRunway("28L");
 
     private void AssertUnreachableRunway(string runway)
     {

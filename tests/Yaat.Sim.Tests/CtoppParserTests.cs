@@ -13,10 +13,7 @@ public class CtoppParserTests : IDisposable
         _scope = NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting());
     }
 
-    public void Dispose()
-    {
-        _scope.Dispose();
-    }
+    public void Dispose() => _scope.Dispose();
 
     [Fact]
     public void BareCtopp_ParsesAsPresentPositionHover_DefaultAltitude()

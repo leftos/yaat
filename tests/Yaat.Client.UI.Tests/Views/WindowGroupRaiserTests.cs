@@ -18,10 +18,7 @@ public class WindowGroupRaiserTests : IDisposable
         WindowGroupRaiser.ResetForTest();
     }
 
-    public void Dispose()
-    {
-        WindowGroupRaiser.ResetForTest();
-    }
+    public void Dispose() => WindowGroupRaiser.ResetForTest();
 
     [AvaloniaFact]
     public void ComputeRaiseOrder_ExcludesMinimizedPinnedHiddenOwned_ActivatedLast()

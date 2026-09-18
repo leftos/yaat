@@ -303,16 +303,11 @@ public class SmartStatusTests
     }
 
     [Fact]
-    public void Pushback()
-    {
-        Assert.Equal("Pushing back", Text(new AircraftStatusView { CurrentPhase = "Pushback", IsOnGround = true }));
-    }
+    public void Pushback() => Assert.Equal("Pushing back", Text(new AircraftStatusView { CurrentPhase = "Pushback", IsOnGround = true }));
 
     [Fact]
-    public void HoldingShort_WithTarget()
-    {
+    public void HoldingShort_WithTarget() =>
         Assert.Equal("Holding short 28R", Text(new AircraftStatusView { CurrentPhase = "Holding Short 28R", IsOnGround = true }));
-    }
 
     [Fact]
     public void HoldingShort_RunwayWithCurrentTaxiway()
@@ -347,10 +342,8 @@ public class SmartStatusTests
     }
 
     [Fact]
-    public void HoldingShort_TaxiwayNoCurrentTaxiway()
-    {
+    public void HoldingShort_TaxiwayNoCurrentTaxiway() =>
         Assert.Equal("Holding short of E", Text(new AircraftStatusView { CurrentPhase = "Holding Short E", IsOnGround = true }));
-    }
 
     [Fact]
     public void Taxiing_WithRunway_WithRoute()
@@ -399,10 +392,7 @@ public class SmartStatusTests
     }
 
     [Fact]
-    public void Takeoff()
-    {
-        Assert.Equal("Takeoff 28R", Text(new AircraftStatusView { CurrentPhase = "Takeoff", AssignedRunway = "28R" }));
-    }
+    public void Takeoff() => Assert.Equal("Takeoff 28R", Text(new AircraftStatusView { CurrentPhase = "Takeoff", AssignedRunway = "28R" }));
 
     [Fact]
     public void LiningUp_CrossRunway_ShowsDepartureRunway()
@@ -641,10 +631,8 @@ public class SmartStatusTests
     }
 
     [Fact]
-    public void HoldingPattern_WithFix()
-    {
+    public void HoldingPattern_WithFix() =>
         Assert.Equal("Holding at CEPIN", Text(new AircraftStatusView { CurrentPhase = "HoldingPattern", NavigatingTo = "CEPIN" }));
-    }
 
     [Fact]
     public void Landing_WithClearance()
@@ -661,10 +649,7 @@ public class SmartStatusTests
     }
 
     [Fact]
-    public void GoAround()
-    {
-        Assert.Equal("Go-around 28R", Text(new AircraftStatusView { CurrentPhase = "GoAround", ClearedRunway = "28R" }));
-    }
+    public void GoAround() => Assert.Equal("Go-around 28R", Text(new AircraftStatusView { CurrentPhase = "GoAround", ClearedRunway = "28R" }));
 
     [Fact]
     public void PatternDownwind()
@@ -683,10 +668,7 @@ public class SmartStatusTests
     }
 
     [Fact]
-    public void TouchAndGo()
-    {
-        Assert.Equal("Touch-and-go 28R", Text(new AircraftStatusView { CurrentPhase = "TouchAndGo", ClearedRunway = "28R" }));
-    }
+    public void TouchAndGo() => Assert.Equal("Touch-and-go 28R", Text(new AircraftStatusView { CurrentPhase = "TouchAndGo", ClearedRunway = "28R" }));
 
     [Fact]
     public void NoPhase_OnGround_Stationary()
@@ -847,112 +829,64 @@ public class SmartStatusTests
     }
 
     [Fact]
-    public void FormatAltitudeCompact_Below18000()
-    {
-        Assert.Equal("10,000", FormatAltitudeCompact(10000));
-    }
+    public void FormatAltitudeCompact_Below18000() => Assert.Equal("10,000", FormatAltitudeCompact(10000));
 
     [Fact]
-    public void FormatAltitudeCompact_AtOrAbove18000()
-    {
-        Assert.Equal("FL350", FormatAltitudeCompact(35000));
-    }
+    public void FormatAltitudeCompact_AtOrAbove18000() => Assert.Equal("FL350", FormatAltitudeCompact(35000));
 
     [Fact]
-    public void FormatAltitudeCompact_FL180()
-    {
-        Assert.Equal("FL180", FormatAltitudeCompact(18000));
-    }
+    public void FormatAltitudeCompact_FL180() => Assert.Equal("FL180", FormatAltitudeCompact(18000));
 
     [Fact]
-    public void HoldPresentPosition()
-    {
-        Assert.Equal("Hold present position", Text(new AircraftStatusView { CurrentPhase = "HPP-L" }));
-    }
+    public void HoldPresentPosition() => Assert.Equal("Hold present position", Text(new AircraftStatusView { CurrentPhase = "HPP-L" }));
 
     [Fact]
-    public void STurns()
-    {
-        Assert.Equal("S-turns", Text(new AircraftStatusView { CurrentPhase = "S-Turns" }));
-    }
+    public void STurns() => Assert.Equal("S-turns", Text(new AircraftStatusView { CurrentPhase = "S-Turns" }));
 
     [Fact]
-    public void Following()
-    {
-        Assert.Equal("Following UAL456", Text(new AircraftStatusView { CurrentPhase = "Following UAL456" }));
-    }
+    public void Following() => Assert.Equal("Following UAL456", Text(new AircraftStatusView { CurrentPhase = "Following UAL456" }));
 
     [Fact]
-    public void TurnPhase()
-    {
-        Assert.Equal("Turning", Text(new AircraftStatusView { CurrentPhase = "TurnL90" }));
-    }
+    public void TurnPhase() => Assert.Equal("Turning", Text(new AircraftStatusView { CurrentPhase = "TurnL90" }));
 
     [Fact]
-    public void RunwayExit()
-    {
-        Assert.Equal("Exiting runway", Text(new AircraftStatusView { CurrentPhase = "Runway Exit" }));
-    }
+    public void RunwayExit() => Assert.Equal("Exiting runway", Text(new AircraftStatusView { CurrentPhase = "Runway Exit" }));
 
     [Fact]
-    public void PatternEntry_FallbackWithoutKind()
-    {
+    public void PatternEntry_FallbackWithoutKind() =>
         Assert.Equal("Right pattern entry", Text(new AircraftStatusView { CurrentPhase = "Pattern Entry", PatternDirection = "Right" }));
-    }
 
     [Fact]
-    public void MidfieldCrossing()
-    {
+    public void MidfieldCrossing() =>
         Assert.Equal("Midfield crossing 28R", Text(new AircraftStatusView { CurrentPhase = "MidfieldCrossing", AssignedRunway = "28R" }));
-    }
 
     [Fact]
-    public void InterceptCourse_WithApproach()
-    {
+    public void InterceptCourse_WithApproach() =>
         Assert.Equal("Intercepting ILS28R", Text(new AircraftStatusView { CurrentPhase = "InterceptCourse", ActiveApproachId = "ILS28R" }));
-    }
 
     [Fact]
-    public void InterceptCourse_NoApproach()
-    {
+    public void InterceptCourse_NoApproach() =>
         Assert.Equal("Intercepting course", Text(new AircraftStatusView { CurrentPhase = "InterceptCourse", ActiveApproachId = null }));
-    }
 
     [Fact]
-    public void ProceedToFix()
-    {
+    public void ProceedToFix() =>
         Assert.Equal("Proceeding to OAKEY", Text(new AircraftStatusView { CurrentPhase = "ProceedToFix", NavigatingTo = "OAKEY" }));
-    }
 
     [Fact]
-    public void StopAndGo()
-    {
-        Assert.Equal("Stop-and-go 28R", Text(new AircraftStatusView { CurrentPhase = "StopAndGo", ClearedRunway = "28R" }));
-    }
+    public void StopAndGo() => Assert.Equal("Stop-and-go 28R", Text(new AircraftStatusView { CurrentPhase = "StopAndGo", ClearedRunway = "28R" }));
 
     [Fact]
-    public void LowApproach()
-    {
+    public void LowApproach() =>
         Assert.Equal("Low approach 28R", Text(new AircraftStatusView { CurrentPhase = "LowApproach", ClearedRunway = "28R" }));
-    }
 
     [Fact]
-    public void AirTaxi()
-    {
-        Assert.Equal("Air taxi", Text(new AircraftStatusView { CurrentPhase = "AirTaxi" }));
-    }
+    public void AirTaxi() => Assert.Equal("Air taxi", Text(new AircraftStatusView { CurrentPhase = "AirTaxi" }));
 
     [Fact]
-    public void CrossingRunway()
-    {
-        Assert.Equal("Crossing runway", Text(new AircraftStatusView { CurrentPhase = "Crossing Runway" }));
-    }
+    public void CrossingRunway() => Assert.Equal("Crossing runway", Text(new AircraftStatusView { CurrentPhase = "Crossing Runway" }));
 
     [Fact]
-    public void HoldingAfterExit()
-    {
-        Assert.Equal("Clear of runway", Text(new AircraftStatusView { CurrentPhase = "Holding After Exit" }));
-    }
+    public void HoldingAfterExit() => Assert.Equal("Clear of runway", Text(new AircraftStatusView { CurrentPhase = "Holding After Exit" }));
 
     [Fact]
     public void AlertPriority_HandoffOverridesPhase()
@@ -1046,10 +980,8 @@ public class SmartStatusTests
     }
 
     [Fact]
-    public void VfrFollow_NullFollowingCallsign_FallsBackToGenericLabel()
-    {
+    public void VfrFollow_NullFollowingCallsign_FallsBackToGenericLabel() =>
         Assert.Equal("VFR follow", Text(new AircraftStatusView { CurrentPhase = "VFR Follow", FollowingCallsign = null }));
-    }
 
     /// <summary>
     /// A clearance pre-issued while the pattern entry is still queued has no phase to describe it, so

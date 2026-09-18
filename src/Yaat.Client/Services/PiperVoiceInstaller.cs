@@ -222,8 +222,5 @@ public sealed partial class PiperVoiceInstaller : ObservableObject
         }
     }
 
-    private void SetProgress(double value)
-    {
-        Progress = Math.Round(Math.Clamp(value, 0.0, 1.0), 3);
-    }
+    private void SetProgress(double value) => Progress = Math.Round(Math.Clamp(value, 0.0, 1.0), 3);
 }

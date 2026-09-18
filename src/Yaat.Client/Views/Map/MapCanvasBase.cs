@@ -79,10 +79,7 @@ public abstract class MapCanvasBase : Control
     public double ScrollSensitivity { get; set; } = 1.0;
 
     /// <summary>Triggers an immediate repaint (before the next timer tick).</summary>
-    public void MarkDirty()
-    {
-        InvalidateVisual();
-    }
+    public void MarkDirty() => InvalidateVisual();
 
     /// <summary>
     /// Called on the UI thread to capture styled property values into a
@@ -111,10 +108,7 @@ public abstract class MapCanvasBase : Control
         context.Custom(op);
     }
 
-    protected override Size MeasureOverride(Size availableSize)
-    {
-        return availableSize;
-    }
+    protected override Size MeasureOverride(Size availableSize) => availableSize;
 
     protected override void OnSizeChanged(SizeChangedEventArgs e)
     {
@@ -185,14 +179,12 @@ public abstract class MapCanvasBase : Control
         e.Handled = true;
     }
 
-    private void OnInvalidateTick(object? sender, EventArgs e)
-    {
+    private void OnInvalidateTick(object? sender, EventArgs e) =>
         // Always repaint at ~10fps. Aircraft positions change via property
         // updates on items within the bound ObservableCollection, which don't
         // trigger styled-property change notifications on the canvas. Continuous
         // refresh matches real radar/ground display behavior.
         InvalidateVisual();
-    }
 
     private sealed class MapDrawOperation : ICustomDrawOperation
     {

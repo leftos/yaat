@@ -92,10 +92,7 @@ public sealed partial class MacroDefinition
     /// <summary>
     /// Extracts the base macro name (first token) from a full Name string.
     /// </summary>
-    public static string ExtractBaseName(string name)
-    {
-        return name.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
-    }
+    public static string ExtractBaseName(string name) => name.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
 
     /// <summary>
     /// Validates that explicit parameters (if declared) all appear in the expansion.

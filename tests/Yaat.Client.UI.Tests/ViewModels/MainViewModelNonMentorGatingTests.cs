@@ -31,28 +31,16 @@ public class MainViewModelNonMentorGatingTests
         };
 
     [AvaloniaFact]
-    public void NonMentor_CannotLoadScenario()
-    {
-        Assert.False(InRoom(nonMentor: true).CanLoadScenario);
-    }
+    public void NonMentor_CannotLoadScenario() => Assert.False(InRoom(nonMentor: true).CanLoadScenario);
 
     [AvaloniaFact]
-    public void MentorInRoom_CanLoadScenario()
-    {
-        Assert.True(InRoom(nonMentor: false).CanLoadScenario);
-    }
+    public void MentorInRoom_CanLoadScenario() => Assert.True(InRoom(nonMentor: false).CanLoadScenario);
 
     [AvaloniaFact]
-    public void NonMentor_CannotUnloadScenario()
-    {
-        Assert.False(InRoom(nonMentor: true).UnloadScenarioCommand.CanExecute(null));
-    }
+    public void NonMentor_CannotUnloadScenario() => Assert.False(InRoom(nonMentor: true).UnloadScenarioCommand.CanExecute(null));
 
     [AvaloniaFact]
-    public void MentorInRoom_CanUnloadScenario()
-    {
-        Assert.True(InRoom(nonMentor: false).UnloadScenarioCommand.CanExecute(null));
-    }
+    public void MentorInRoom_CanUnloadScenario() => Assert.True(InRoom(nonMentor: false).UnloadScenarioCommand.CanExecute(null));
 
     /// <summary>
     /// The gate has to re-evaluate when the non-mentor flag arrives — it is set at connect time, after the

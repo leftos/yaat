@@ -345,8 +345,6 @@ public class StripCommandParserTests
     [InlineData("/GROUND/2")]
     [InlineData("OAK/GROUND/0")]
     [InlineData("OAK/GROUND/1/0")]
-    public void TryParseStripDest_RejectsMalformedSpecs(string spec)
-    {
+    public void TryParseStripDest_RejectsMalformedSpecs(string spec) =>
         Assert.False(CommandParser.TryParseStripDest(spec, out _, out _, out _, out _, out _));
-    }
 }

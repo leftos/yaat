@@ -69,19 +69,15 @@ public class FollowingPhaseHoldShortTests(ITestOutputHelper output)
     /// onto the runway without a takeoff clearance, and what ranks it at the front of the departure line.
     /// </summary>
     [Fact]
-    public void Follower_AtTheBarOfItsOwnDestinationRunway_HoldsAsDestinationRunway()
-    {
+    public void Follower_AtTheBarOfItsOwnDestinationRunway_HoldsAsDestinationRunway() =>
         AssertHoldReasonApproachingThe1RBar(destinationRunway: "1R", expected: HoldShortReason.DestinationRunway);
-    }
 
     /// <summary>
     /// A bar protecting any other runway is a crossing, whatever the follower is ultimately departing from.
     /// </summary>
     [Fact]
-    public void Follower_AtTheBarOfAnotherRunway_HoldsAsRunwayCrossing()
-    {
+    public void Follower_AtTheBarOfAnotherRunway_HoldsAsRunwayCrossing() =>
         AssertHoldReasonApproachingThe1RBar(destinationRunway: "28L", expected: HoldShortReason.RunwayCrossing);
-    }
 
     private void AssertHoldReasonApproachingThe1RBar(string destinationRunway, HoldShortReason expected)
     {

@@ -68,11 +68,9 @@ public sealed class PatternExitPhase : Phase
         return established;
     }
 
-    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
-    {
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus) =>
         // Clear the directional bias the exit turn set so a subsequent vector doesn't inherit it.
         ctx.Targets.PreferredTurnDirection = null;
-    }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
@@ -111,8 +109,5 @@ public sealed class PatternExitPhase : Phase
         return phase;
     }
 
-    protected override List<ClearanceRequirement> CreateRequirements()
-    {
-        return [];
-    }
+    protected override List<ClearanceRequirement> CreateRequirements() => [];
 }

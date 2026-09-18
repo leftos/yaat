@@ -242,10 +242,7 @@ public class HeldReleaseServiceTests
     }
 
     [Fact]
-    public void Rundown_AtParking_ReadsAtGate()
-    {
-        Assert.Equal("At gate (held)", RundownStatusFor(new AtParkingPhase()));
-    }
+    public void Rundown_AtParking_ReadsAtGate() => Assert.Equal("At gate (held)", RundownStatusFor(new AtParkingPhase()));
 
     // A pushing aircraft has left the stand; calling it "At gate" hides the state the
     // controller is sequencing around.
@@ -267,10 +264,8 @@ public class HeldReleaseServiceTests
     }
 
     [Fact]
-    public void Rundown_HoldingAfterPushback_ReadsPushedBack()
-    {
+    public void Rundown_HoldingAfterPushback_ReadsPushedBack() =>
         Assert.Equal("Pushed back (held)", RundownStatusFor(new HoldingAfterPushbackPhase()));
-    }
 
     [Fact]
     public void Release_UnknownAirport_Fails()

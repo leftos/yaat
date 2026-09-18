@@ -16,10 +16,8 @@ public class TakeoffDepartureTests
     private const double FieldElevation = 0;
     private const double RunwayHeading = 280;
 
-    private static RunwayInfo MakeRunway(double heading = RunwayHeading)
-    {
-        return TestRunwayFactory.Make(designator: "28", airportId: "KSFO", heading: heading, elevationFt: FieldElevation);
-    }
+    private static RunwayInfo MakeRunway(double heading = RunwayHeading) =>
+        TestRunwayFactory.Make(designator: "28", airportId: "KSFO", heading: heading, elevationFt: FieldElevation);
 
     /// <summary>
     /// Drives a full takeoff → initial climb sequence with the given departure: ground

@@ -6,11 +6,9 @@ namespace Yaat.Sim.Tests.Speech;
 public class AircraftTypeNamesTests
 {
     [Fact]
-    public void Count_IsAtLeastOneThousand()
-    {
+    public void Count_IsAtLeastOneThousand() =>
         // AircraftSpecs.json has ~2600 designators with some spoken form.
         Assert.True(AircraftTypeNames.Count >= 1000, $"Expected ≥1000 types, got {AircraftTypeNames.Count}");
-    }
 
     // --- TryGetManufacturer ---
 
@@ -42,10 +40,7 @@ public class AircraftTypeNamesTests
     }
 
     [Fact]
-    public void TryGetManufacturer_UnknownType_ReturnsFalse()
-    {
-        Assert.False(AircraftTypeNames.TryGetManufacturer("ZQX9", out _));
-    }
+    public void TryGetManufacturer_UnknownType_ReturnsFalse() => Assert.False(AircraftTypeNames.TryGetManufacturer("ZQX9", out _));
 
     [Fact]
     public void TryGetManufacturer_EmptyOrNull_ReturnsFalse()
@@ -88,10 +83,7 @@ public class AircraftTypeNamesTests
     }
 
     [Fact]
-    public void TryGetFamily_UnknownType_ReturnsFalse()
-    {
-        Assert.False(AircraftTypeNames.TryGetFamily("ZQX9", out _));
-    }
+    public void TryGetFamily_UnknownType_ReturnsFalse() => Assert.False(AircraftTypeNames.TryGetFamily("ZQX9", out _));
 
     // --- GetSpokenNames ---
 

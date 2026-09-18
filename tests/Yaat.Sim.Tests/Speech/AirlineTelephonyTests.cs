@@ -6,10 +6,8 @@ namespace Yaat.Sim.Tests.Speech;
 public class AirlineTelephonyTests
 {
     [Fact]
-    public void Count_IsAtLeastFiveThousand()
-    {
+    public void Count_IsAtLeastFiveThousand() =>
         Assert.True(AirlineTelephony.Count >= 5000, $"Expected ≥5000 airlines, got {AirlineTelephony.Count}");
-    }
 
     [Theory]
     [InlineData("AAL", "AMERICAN")]
@@ -36,11 +34,9 @@ public class AirlineTelephonyTests
     }
 
     [Fact]
-    public void TryGetTelephony_UnknownIcao_ReturnsFalse()
-    {
+    public void TryGetTelephony_UnknownIcao_ReturnsFalse() =>
         // QZX is not in the OpenFlights dataset (ZZZ is — Zabaykalskii Airlines).
         Assert.False(AirlineTelephony.TryGetTelephony("QZX", out _));
-    }
 
     [Fact]
     public void TryGetTelephony_EmptyOrNull_ReturnsFalse()

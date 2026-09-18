@@ -26,10 +26,8 @@ public static class AircraftCategorization
     /// AircraftSpecs.json EngineType field). Call once
     /// at startup before any physics simulation runs.
     /// </summary>
-    public static void Initialize(Dictionary<string, AircraftCategory> lookup)
-    {
+    public static void Initialize(Dictionary<string, AircraftCategory> lookup) =>
         _lookup = new Dictionary<string, AircraftCategory>(lookup, StringComparer.OrdinalIgnoreCase);
-    }
 
     public static AircraftCategory Categorize(string aircraftType)
     {

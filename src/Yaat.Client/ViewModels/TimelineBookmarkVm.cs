@@ -57,20 +57,11 @@ public partial class TimelineBookmarkVm : ObservableObject
     private static readonly IBrush BookmarkBrush = new SolidColorBrush(Color.FromRgb(255, 200, 40));
 
     [RelayCommand]
-    private void Rename()
-    {
-        RenameRequested(this);
-    }
+    private void Rename() => RenameRequested(this);
 
     [RelayCommand]
-    private void Delete()
-    {
-        DeleteRequested(this);
-    }
+    private void Delete() => DeleteRequested(this);
 
     [RelayCommand]
-    private async Task Jump()
-    {
-        await JumpRequested(this);
-    }
+    private async Task Jump() => await JumpRequested(this);
 }

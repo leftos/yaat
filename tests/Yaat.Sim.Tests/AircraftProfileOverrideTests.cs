@@ -17,12 +17,10 @@ public sealed class AircraftProfileOverrideTests
     // --- SF50 end-to-end: the seeded correction ---
 
     [Fact]
-    public void Sf50_HasEffectiveProfile_AfterOverrideSeed()
-    {
+    public void Sf50_HasEffectiveProfile_AfterOverrideSeed() =>
         // Before the override layer the SF50 had no profile (generic-jet category fallback).
         // The seed gives it a real effective profile.
         Assert.NotNull(AircraftProfileDatabase.Get("SF50"));
-    }
 
     [Fact]
     public void Sf50_ClimbSpeed_UsesOverride_NotCategoryDefault()
@@ -71,10 +69,7 @@ public sealed class AircraftProfileOverrideTests
     }
 
     [Fact]
-    public void Sf50_Ceiling_UsesOverride()
-    {
-        Assert.Equal(31000, AircraftPerformance.Ceiling("SF50"));
-    }
+    public void Sf50_Ceiling_UsesOverride() => Assert.Equal(31000, AircraftPerformance.Ceiling("SF50"));
 
     [Fact]
     public void Sf50_UnspecifiedField_FallsToCategoryBaseline()
@@ -104,11 +99,9 @@ public sealed class AircraftProfileOverrideTests
     }
 
     [Fact]
-    public void IsOverridden_StripsTypePrefix()
-    {
+    public void IsOverridden_StripsTypePrefix() =>
         // A wake/equipment prefix on the type must still resolve the override set.
         Assert.True(AircraftProfileDatabase.IsOverridden("H/SF50", nameof(AircraftProfile.ClimbSpeedInitial)));
-    }
 
     // --- ApplyTo partial merge (pure unit) ---
 

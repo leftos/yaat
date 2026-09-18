@@ -428,10 +428,8 @@ public static class LmKitModelCatalog
     /// preference is a custom file path or URI not in the catalog — callers should treat null as
     /// "user has a custom source, leave the dropdown unselected" rather than an error.
     /// </summary>
-    public static LmKitModelEntry? FindById(IEnumerable<LmKitModelEntry> catalog, string modelId)
-    {
-        return catalog.FirstOrDefault(e => string.Equals(e.ModelId, modelId, StringComparison.OrdinalIgnoreCase));
-    }
+    public static LmKitModelEntry? FindById(IEnumerable<LmKitModelEntry> catalog, string modelId) =>
+        catalog.FirstOrDefault(e => string.Equals(e.ModelId, modelId, StringComparison.OrdinalIgnoreCase));
 }
 
 /// <summary>

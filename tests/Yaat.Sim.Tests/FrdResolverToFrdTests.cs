@@ -161,10 +161,7 @@ public class FrdResolverToFrdTests
     [InlineData("TOOLONG169001", false)] // anchor longer than 5 chars
     [InlineData("OA1169001", false)] // digit inside the anchor
     [InlineData("", false)]
-    public void IsFrdIdentifier_ClassifiesNames(string name, bool expected)
-    {
-        Assert.Equal(expected, FrdResolver.IsFrdIdentifier(name));
-    }
+    public void IsFrdIdentifier_ClassifiesNames(string name, bool expected) => Assert.Equal(expected, FrdResolver.IsFrdIdentifier(name));
 
     // vNAS NavData publishes thousands of adapted fixes whose identifiers are themselves FRD
     // strings (OAK169001, ABI037030, …). Anchoring on one emits an FRD-of-an-FRD such as

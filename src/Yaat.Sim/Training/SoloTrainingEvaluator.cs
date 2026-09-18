@@ -225,10 +225,8 @@ public sealed class SoloTrainingEvaluator
         }
     }
 
-    public List<SoloTrainingEvent> Evaluate(List<AircraftState> aircraft, double scenarioElapsedSeconds, AirspaceDatabase airspace)
-    {
-        return Evaluate(aircraft, scenarioElapsedSeconds, airspace, SoloTrainingServiceContext.Empty);
-    }
+    public List<SoloTrainingEvent> Evaluate(List<AircraftState> aircraft, double scenarioElapsedSeconds, AirspaceDatabase airspace) =>
+        Evaluate(aircraft, scenarioElapsedSeconds, airspace, SoloTrainingServiceContext.Empty);
 
     public List<SoloTrainingEvent> Evaluate(
         List<AircraftState> aircraft,
@@ -803,10 +801,8 @@ public sealed class SoloTrainingEvaluator
         _lastDebriefHash = 0;
     }
 
-    internal static SeparationRequirement? ResolveRequirement(AircraftState a, AircraftState b, AirspaceDatabase airspace)
-    {
-        return ResolveRequirement(a, b, airspace, lookaheadSeconds: 0.0);
-    }
+    internal static SeparationRequirement? ResolveRequirement(AircraftState a, AircraftState b, AirspaceDatabase airspace) =>
+        ResolveRequirement(a, b, airspace, lookaheadSeconds: 0.0);
 
     internal static SeparationRequirement? ResolveRequirement(AircraftState a, AircraftState b, AirspaceDatabase airspace, double lookaheadSeconds)
     {

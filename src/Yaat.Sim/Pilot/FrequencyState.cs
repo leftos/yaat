@@ -62,10 +62,7 @@ public sealed class FrequencyState
         }
     }
 
-    public void Enqueue(PilotTransmission transmission)
-    {
-        _pending.Enqueue(transmission);
-    }
+    public void Enqueue(PilotTransmission transmission) => _pending.Enqueue(transmission);
 
     public PilotTransmission? TryDequeueReady(double elapsedSeconds)
     {

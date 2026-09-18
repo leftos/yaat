@@ -21,21 +21,17 @@ public class FlightPlanVoiceTests
     [InlineData("/V/ NEW PILOT", FlightPlanVoice.Full)]
     [InlineData("/R/ STUDENT", FlightPlanVoice.ReceiveOnly)]
     [InlineData("PBN/A1 /T/ RMK", FlightPlanVoice.TextOnly)]
-    public void ParseVoiceType_DerivesFromMarker_DefaultsFull(string? remarks, int expected)
-    {
+    public void ParseVoiceType_DerivesFromMarker_DefaultsFull(string? remarks, int expected) =>
         Assert.Equal(expected, FlightPlanVoice.ParseVoiceType(remarks));
-    }
 
     [Theory]
     [InlineData("STS/HOSP")]
     [InlineData("SEL/ABCD")]
     [InlineData("RVR/2400")]
     [InlineData("DOF/250704")]
-    public void ParseVoiceType_FreeTextSlashTokens_DoNotFalsePositive(string remarks)
-    {
+    public void ParseVoiceType_FreeTextSlashTokens_DoNotFalsePositive(string remarks) =>
         // Only /v/ /r/ /t/ (letter bracketed by slashes) are markers — other slash tokens stay full voice.
         Assert.Equal(FlightPlanVoice.Full, FlightPlanVoice.ParseVoiceType(remarks));
-    }
 
     [Fact]
     public void ApplyVoiceMarker_EmptyRemarks_WritesBareMarker()
@@ -46,10 +42,8 @@ public class FlightPlanVoiceTests
     }
 
     [Fact]
-    public void ApplyVoiceMarker_PreservesFreeText_PrependsMarker()
-    {
+    public void ApplyVoiceMarker_PreservesFreeText_PrependsMarker() =>
         Assert.Equal("/t/ NEW PILOT", FlightPlanVoice.ApplyVoiceMarker("NEW PILOT", FlightPlanVoice.TextOnly));
-    }
 
     [Fact]
     public void ApplyVoiceMarker_ReplacesExistingMarker_KeepsRest()

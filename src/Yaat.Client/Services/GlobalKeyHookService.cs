@@ -101,15 +101,10 @@ public sealed class GlobalKeyHookService : IDisposable
         }
     }
 
-    private void OnHookEnabled(object? sender, HookEventArgs e)
-    {
+    private void OnHookEnabled(object? sender, HookEventArgs e) =>
         Log.LogInformation("Global keyboard hook enabled (libuiohook is receiving events system-wide)");
-    }
 
-    private void OnHookDisabled(object? sender, HookEventArgs e)
-    {
-        Log.LogInformation("Global keyboard hook disabled");
-    }
+    private void OnHookDisabled(object? sender, HookEventArgs e) => Log.LogInformation("Global keyboard hook disabled");
 
     private void OnKeyPressed(object? sender, KeyboardHookEventArgs e)
     {

@@ -970,10 +970,8 @@ public static class AircraftGenerator
         }
     }
 
-    private static IEnumerable<WeightClass> OrderByDistance(WeightClass center)
-    {
-        return Enum.GetValues<WeightClass>().OrderBy(w => Math.Abs((int)w - (int)center));
-    }
+    private static IEnumerable<WeightClass> OrderByDistance(WeightClass center) =>
+        Enum.GetValues<WeightClass>().OrderBy(w => Math.Abs((int)w - (int)center));
 
     private static string GenerateCallsign(SpawnRequest request, string? airline, IReadOnlyCollection<AircraftState> existingAircraft, Random rng)
     {

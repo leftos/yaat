@@ -310,10 +310,7 @@ public class MacroDefinitionTests
     [InlineData("HC &hdg &alt", true)]
     [InlineData("HC &hdg &hdg", false)] // duplicate param
     [InlineData("HC &1bad", false)] // param starts with digit
-    public void IsValidName(string name, bool expected)
-    {
-        Assert.Equal(expected, MacroDefinition.IsValidName(name));
-    }
+    public void IsValidName(string name, bool expected) => Assert.Equal(expected, MacroDefinition.IsValidName(name));
 
     [Fact]
     public void Validate_ExplicitParamNotInExpansion_ReturnsError()
@@ -339,14 +336,8 @@ public class MacroDefinitionTests
     }
 
     [Fact]
-    public void ExtractBaseName_PlainName()
-    {
-        Assert.Equal("HC", MacroDefinition.ExtractBaseName("HC"));
-    }
+    public void ExtractBaseName_PlainName() => Assert.Equal("HC", MacroDefinition.ExtractBaseName("HC"));
 
     [Fact]
-    public void ExtractBaseName_WithParams()
-    {
-        Assert.Equal("HC", MacroDefinition.ExtractBaseName("HC &hdg &alt"));
-    }
+    public void ExtractBaseName_WithParams() => Assert.Equal("HC", MacroDefinition.ExtractBaseName("HC &hdg &alt"));
 }

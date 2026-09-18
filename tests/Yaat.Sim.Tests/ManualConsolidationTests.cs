@@ -34,15 +34,9 @@ public class ManualConsolidationTests
 
     private static readonly List<Tcp> AllTcps = [Tcp1T, Tcp1F, Tcp1S, Tcp1H, Tcp1G, Tcp1X];
 
-    private static ConsolidationItem FindItem(List<ConsolidationItem> items, string tcpId)
-    {
-        return items.First(i => i.Tcp.Id == tcpId);
-    }
+    private static ConsolidationItem FindItem(List<ConsolidationItem> items, string tcpId) => items.First(i => i.Tcp.Id == tcpId);
 
-    private static HashSet<string> ChildIds(ConsolidationItem item)
-    {
-        return item.Children.Select(c => c.Id).ToHashSet();
-    }
+    private static HashSet<string> ChildIds(ConsolidationItem item) => item.Children.Select(c => c.Id).ToHashSet();
 
     // ── ConsolidationState unit tests ──────────────────────────
 

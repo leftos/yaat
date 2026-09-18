@@ -126,10 +126,7 @@ public partial class ArrivalGeneratorsEditorViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void RemoveGenerator()
-    {
-        SelectedGenerator = RemoveSelected(Generators, SelectedGenerator);
-    }
+    private void RemoveGenerator() => SelectedGenerator = RemoveSelected(Generators, SelectedGenerator);
 
     [RelayCommand]
     private void AddVfrArrivalGenerator()
@@ -140,10 +137,7 @@ public partial class ArrivalGeneratorsEditorViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void RemoveVfrArrivalGenerator()
-    {
-        SelectedVfrArrivalGenerator = RemoveSelected(VfrArrivalGenerators, SelectedVfrArrivalGenerator);
-    }
+    private void RemoveVfrArrivalGenerator() => SelectedVfrArrivalGenerator = RemoveSelected(VfrArrivalGenerators, SelectedVfrArrivalGenerator);
 
     [RelayCommand]
     private void AddOverflightGenerator()
@@ -154,10 +148,7 @@ public partial class ArrivalGeneratorsEditorViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void RemoveOverflightGenerator()
-    {
-        SelectedOverflightGenerator = RemoveSelected(OverflightGenerators, SelectedOverflightGenerator);
-    }
+    private void RemoveOverflightGenerator() => SelectedOverflightGenerator = RemoveSelected(OverflightGenerators, SelectedOverflightGenerator);
 
     [RelayCommand]
     private void Revert()

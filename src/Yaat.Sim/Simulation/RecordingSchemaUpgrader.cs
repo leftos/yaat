@@ -50,10 +50,8 @@ public static class RecordingSchemaUpgrader
     /// Migrate every snapshot in <paramref name="input"/> to the current schema, returning the rewritten
     /// container bytes. See the type summary for the container-detection contract.
     /// </summary>
-    public static RecordingUpgradeResult Upgrade(byte[] input)
-    {
-        return RecordingCompression.IsZipArchive(input) ? UpgradeZip(input) : UpgradeSessionRecordingBytes(input);
-    }
+    public static RecordingUpgradeResult Upgrade(byte[] input) =>
+        RecordingCompression.IsZipArchive(input) ? UpgradeZip(input) : UpgradeSessionRecordingBytes(input);
 
     // --- non-zip SessionRecording blob (.br / .json[.gz]) ---
 

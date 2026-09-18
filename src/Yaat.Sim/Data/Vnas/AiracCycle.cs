@@ -53,10 +53,7 @@ public static class AiracCycle
     /// <summary>
     /// Returns the current AIRAC cycle identifier.
     /// </summary>
-    public static string GetCurrentCycleId()
-    {
-        return GetCycleId(DateOnly.FromDateTime(DateTime.UtcNow));
-    }
+    public static string GetCurrentCycleId() => GetCycleId(DateOnly.FromDateTime(DateTime.UtcNow));
 
     /// <summary>
     /// Returns the number of AIRAC cycles between two cycle ids: positive when
@@ -64,10 +61,7 @@ public static class AiracCycle
     /// negative when older. Used to bound how far back retired procedures may be resolved
     /// (recency cap on the supplementary CIFP chain).
     /// </summary>
-    public static int CyclesBetween(string fromCycleId, string toCycleId)
-    {
-        return CycleIndex(toCycleId) - CycleIndex(fromCycleId);
-    }
+    public static int CyclesBetween(string fromCycleId, string toCycleId) => CycleIndex(toCycleId) - CycleIndex(fromCycleId);
 
     /// <summary>
     /// Linear cycle index relative to <see cref="Epoch"/> (the first cycle of 2025 = 0).

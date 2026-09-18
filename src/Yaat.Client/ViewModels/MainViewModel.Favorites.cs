@@ -127,10 +127,8 @@ public partial class MainViewModel
         RefreshDisplayFavorites();
     }
 
-    public static FavoriteCommandCategory NormalizeFavoriteCategory(FavoriteCommandCategory category)
-    {
-        return Enum.IsDefined(category) ? category : FavoriteCommandCategory.Air;
-    }
+    public static FavoriteCommandCategory NormalizeFavoriteCategory(FavoriteCommandCategory category) =>
+        Enum.IsDefined(category) ? category : FavoriteCommandCategory.Air;
 
     /// <summary>Airport-id normalization shared with the video-map favorite scopes (trim + uppercase, blank → null).</summary>
     public static string? NormalizeFavoriteAirportId(string? airportId) => FavoriteStore.NormalizeAirportId(airportId);
@@ -197,10 +195,7 @@ public partial class MainViewModel
     }
 
     /// <summary>Saves the favorite entity and appends it to each destination set.</summary>
-    public void AddFavorite(FavoriteCommand favorite, IReadOnlyList<string> setIds)
-    {
-        AddFavorites([favorite], setIds);
-    }
+    public void AddFavorite(FavoriteCommand favorite, IReadOnlyList<string> setIds) => AddFavorites([favorite], setIds);
 
     /// <summary>Saves each favorite entity and appends all of them to each destination set (shared entities, not copies).</summary>
     public void AddFavorites(IReadOnlyList<FavoriteCommand> favorites, IReadOnlyList<string> setIds)
@@ -245,25 +240,13 @@ public partial class MainViewModel
 
     public List<string> GetFavoriteMembership(string favoriteId) => _favoriteStore.GetMembershipSetIds(favoriteId);
 
-    public void InsertBlankBefore(FavoriteDisplayEntry anchor, FavoriteCommand blank)
-    {
-        InsertBlankNear(anchor, blank, offset: 0);
-    }
+    public void InsertBlankBefore(FavoriteDisplayEntry anchor, FavoriteCommand blank) => InsertBlankNear(anchor, blank, offset: 0);
 
-    public void InsertBlankAfter(FavoriteDisplayEntry anchor, FavoriteCommand blank)
-    {
-        InsertBlankNear(anchor, blank, offset: 1);
-    }
+    public void InsertBlankAfter(FavoriteDisplayEntry anchor, FavoriteCommand blank) => InsertBlankNear(anchor, blank, offset: 1);
 
-    public void MoveFavoriteBefore(FavoriteDisplayEntry moving, FavoriteDisplayEntry anchor)
-    {
-        MoveFavoriteNear(moving, anchor, offset: 0);
-    }
+    public void MoveFavoriteBefore(FavoriteDisplayEntry moving, FavoriteDisplayEntry anchor) => MoveFavoriteNear(moving, anchor, offset: 0);
 
-    public void MoveFavoriteAfter(FavoriteDisplayEntry moving, FavoriteDisplayEntry anchor)
-    {
-        MoveFavoriteNear(moving, anchor, offset: 1);
-    }
+    public void MoveFavoriteAfter(FavoriteDisplayEntry moving, FavoriteDisplayEntry anchor) => MoveFavoriteNear(moving, anchor, offset: 1);
 
     private void InsertBlankNear(FavoriteDisplayEntry anchor, FavoriteCommand blank, int offset)
     {

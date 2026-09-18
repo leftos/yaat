@@ -166,10 +166,8 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
     /// taxiway B and must complete lineup with proper end state.
     /// </summary>
     [Fact]
-    public void N436MS_LineUp28R_CompletesWithOnCenterlineAlignedStop()
-    {
+    public void N436MS_LineUp28R_CompletesWithOnCenterlineAlignedStop() =>
         AssertLineUpCompletesCleanly(callsign: "N436MS", ctoSecond: 47, budgetSeconds: 60);
-    }
 
     /// <summary>
     /// Issue #203: lining up from taxiway B (a ~106° turn onto 28R) the aircraft

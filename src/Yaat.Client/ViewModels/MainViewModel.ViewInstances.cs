@@ -425,10 +425,8 @@ public partial class MainViewModel
         }
     }
 
-    private void OnExtraGroundViewsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
-    {
+    private void OnExtraGroundViewsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) =>
         // An extra Ground View window is always visible, so opening or closing one changes whether the
         // radar should surface that airport's ground speech bubbles.
         OnPropertyChanged(nameof(GroundShownAirportId));
-    }
 }

@@ -34,14 +34,8 @@ public class RepositionCommandParseTests
     }
 
     [Fact]
-    public void RposLoc_MissingCoordinates_Fails()
-    {
-        Assert.False(CommandParser.Parse("RPOSLOC N123").IsSuccess);
-    }
+    public void RposLoc_MissingCoordinates_Fails() => Assert.False(CommandParser.Parse("RPOSLOC N123").IsSuccess);
 
     [Fact]
-    public void RposMove_MissingTarget_Fails()
-    {
-        Assert.False(CommandParser.Parse("RPOSMOVE N1").IsSuccess);
-    }
+    public void RposMove_MissingTarget_Fails() => Assert.False(CommandParser.Parse("RPOSMOVE N1").IsSuccess);
 }

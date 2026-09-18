@@ -14,8 +14,6 @@ public class GroundRendererTokenTests
     [InlineData("Spot", "9", "$9")]
     [InlineData("Parking", "F7", "@F7")]
     [InlineData("Helipad", "H1", "@H1")]
-    public void CommandTokenFor_UsesDollarForSpot_AtForParkingAndHelipad(string nodeType, string name, string expected)
-    {
+    public void CommandTokenFor_UsesDollarForSpot_AtForParkingAndHelipad(string nodeType, string name, string expected) =>
         Assert.Equal(expected, GroundRenderer.CommandTokenFor(nodeType, name));
-    }
 }

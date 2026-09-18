@@ -829,10 +829,8 @@ public class CifpParserTests
     [Theory]
     [InlineData("", ' ')]
     [InlineData("000", '-')]
-    public void ParseSpeedRestriction_EmptyOrZero_ReturnsNull(string speedStr, char desc)
-    {
+    public void ParseSpeedRestriction_EmptyOrZero_ReturnsNull(string speedStr, char desc) =>
         Assert.Null(CifpParser.ParseSpeedRestriction(speedStr, desc));
-    }
 
     [Fact]
     public void ParseSids_WrongAirport_ReturnsEmpty()

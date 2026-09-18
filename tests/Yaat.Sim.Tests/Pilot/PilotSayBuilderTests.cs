@@ -17,10 +17,7 @@ public class PilotSayBuilderTests
     [InlineData(1, "001")]
     [InlineData(90, "090")]
     [InlineData(270, "270")]
-    public void PlainHeading_AlwaysThreeDigitsZeroPadded(int hdg, string expected)
-    {
-        Assert.Equal(expected, PilotSayBuilder.PlainHeading(hdg));
-    }
+    public void PlainHeading_AlwaysThreeDigitsZeroPadded(int hdg, string expected) => Assert.Equal(expected, PilotSayBuilder.PlainHeading(hdg));
 
     [Theory]
     [InlineData(0, "0")]
@@ -32,19 +29,14 @@ public class PilotSayBuilderTests
     [InlineData(18000, "FL180")]
     [InlineData(25000, "FL250")]
     [InlineData(35000, "FL350")]
-    public void PlainAltitude_CommaThousandsBelowFL180_FlightLevelAbove(int alt, string expected)
-    {
+    public void PlainAltitude_CommaThousandsBelowFL180_FlightLevelAbove(int alt, string expected) =>
         Assert.Equal(expected, PilotSayBuilder.PlainAltitude(alt));
-    }
 
     [Theory]
     [InlineData(0.78, "0.78")]
     [InlineData(0.65, "0.65")]
     [InlineData(0.8, "0.80")]
-    public void PlainMach_TwoDecimals(double mach, string expected)
-    {
-        Assert.Equal(expected, PilotSayBuilder.PlainMach(mach));
-    }
+    public void PlainMach_TwoDecimals(double mach, string expected) => Assert.Equal(expected, PilotSayBuilder.PlainMach(mach));
 
     [Theory]
     [InlineData("I19L", "ILS 19L")]
@@ -58,10 +50,7 @@ public class PilotSayBuilderTests
     [InlineData("R09", "RNAV 09")]
     [InlineData("L05", "LOC 05")]
     [InlineData("N28", "NDB 28")]
-    public void PlainApproach_ExpandsTypeAndKeepsRunwayPlain(string id, string expected)
-    {
-        Assert.Equal(expected, PilotSayBuilder.PlainApproach(id));
-    }
+    public void PlainApproach_ExpandsTypeAndKeepsRunwayPlain(string id, string expected) => Assert.Equal(expected, PilotSayBuilder.PlainApproach(id));
 
     // ── BuildPosition ────────────────────────────────────────────────────────
     // Position reports anchor on fixes the working controller is likely to recognize:
@@ -327,10 +316,8 @@ public class PilotSayBuilderTests
     [InlineData("NORMAN Y MINETA SAN JOSE INTL", "Norman Y Mineta Airport")]
     [InlineData("PALO ALTO", "Palo Alto Airport")]
     [InlineData("SEATTLE-TACOMA INTL", "Seattle-Tacoma Airport")]
-    public void FriendlyAirportName_StripsSuffixesAndAppendsAirport(string raw, string expected)
-    {
+    public void FriendlyAirportName_StripsSuffixesAndAppendsAirport(string raw, string expected) =>
         Assert.Equal(expected, PilotSayBuilder.FriendlyAirportName(raw));
-    }
 
     // ── BuildHeading ─────────────────────────────────────────────────────────
     // A pilot reports MAGNETIC heading, not the aircraft's true heading. The current

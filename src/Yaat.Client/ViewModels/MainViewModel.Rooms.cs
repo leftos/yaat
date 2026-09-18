@@ -430,10 +430,7 @@ public partial class MainViewModel
     }
 
     [RelayCommand]
-    private void DismissRoomList()
-    {
-        ShowRoomList = false;
-    }
+    private void DismissRoomList() => ShowRoomList = false;
 
     [RelayCommand(CanExecute = nameof(CanShowRooms))]
     private async Task ShowRoomsAsync()
@@ -457,10 +454,7 @@ public partial class MainViewModel
     }
 
     [RelayCommand]
-    private void DismissRoomMembersPanel()
-    {
-        ShowRoomMembersPanel = false;
-    }
+    private void DismissRoomMembersPanel() => ShowRoomMembersPanel = false;
 
     // Refreshes both pull lobbies (CRC clients + waiting RPOs) plus the in-room CRC list for the unified
     // Room Members modal.
@@ -1129,10 +1123,7 @@ public partial class MainViewModel
         await AssignAircraftAsync([callsign], member.ConnectionId);
     }
 
-    public async Task ReleaseControlAsync(string callsign)
-    {
-        await UnassignAircraftAsync([callsign]);
-    }
+    public async Task ReleaseControlAsync(string callsign) => await UnassignAircraftAsync([callsign]);
 
     public void BuildRpoMenuItems(ItemsControl menu, List<string> callsigns)
     {

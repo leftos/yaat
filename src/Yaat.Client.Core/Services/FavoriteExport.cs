@@ -92,10 +92,8 @@ public static class FavoriteExport
     /// wipes the store first, but only once the file has parsed into something usable — an
     /// unrecognized file returns null and leaves the store untouched either way.
     /// </summary>
-    public static FavoriteImportResult? ImportFile(FavoriteStore store, string fileName, Stream input, FavoriteImportMode mode)
-    {
-        return fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ? ImportZip(store, input, mode) : ImportSingleJson(store, input, mode);
-    }
+    public static FavoriteImportResult? ImportFile(FavoriteStore store, string fileName, Stream input, FavoriteImportMode mode) =>
+        fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ? ImportZip(store, input, mode) : ImportSingleJson(store, input, mode);
 
     private static FavoriteImportResult? ImportZip(FavoriteStore store, Stream input, FavoriteImportMode mode)
     {
@@ -184,10 +182,8 @@ public static class FavoriteExport
     /// (a set zip, a lone set json) has to name its own sets as loaded or the import is invisible.
     /// A merge keeps today's behaviour: only a manifest can ask for a set to be loaded.
     /// </summary>
-    private static List<string> SetIdsToLoadWithoutManifest(List<FavoriteSet> sets, FavoriteImportMode mode)
-    {
-        return mode == FavoriteImportMode.Replace ? sets.Select(s => s.Id).ToList() : [];
-    }
+    private static List<string> SetIdsToLoadWithoutManifest(List<FavoriteSet> sets, FavoriteImportMode mode) =>
+        mode == FavoriteImportMode.Replace ? sets.Select(s => s.Id).ToList() : [];
 
     private static void ClearWhenReplacing(FavoriteStore store, FavoriteImportMode mode)
     {

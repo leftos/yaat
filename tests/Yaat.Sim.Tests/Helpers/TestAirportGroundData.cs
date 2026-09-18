@@ -79,10 +79,7 @@ internal sealed class TestAirportGroundData : IAirportGroundData
         return File.Exists(path) ? File.ReadAllText(path) : null;
     }
 
-    private static string NormalizeShortId(string airportId)
-    {
-        return airportId.Length == 4 && airportId[0] == 'K' ? airportId[1..] : airportId;
-    }
+    private static string NormalizeShortId(string airportId) => airportId.Length == 4 && airportId[0] == 'K' ? airportId[1..] : airportId;
 
     /// <summary>
     /// Resolves the GeoJSON fixture for <paramref name="shortId"/>, matching the filename without regard to case.

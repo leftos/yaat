@@ -14,14 +14,10 @@ namespace Yaat.Client.Tests;
 public class SpeechModelDefaultsTests
 {
     [Fact]
-    public void DefaultLlmModel_MatchesCatalogRecommendation()
-    {
+    public void DefaultLlmModel_MatchesCatalogRecommendation() =>
         Assert.Equal(LmKitModelCatalog.RecommendedLlmId, new UserPreferences().LlmModelPath);
-    }
 
     [Fact]
-    public void DefaultWhisperModel_MatchesCatalogRecommendation()
-    {
+    public void DefaultWhisperModel_MatchesCatalogRecommendation() =>
         Assert.Equal(LmKitModelCatalog.RecommendedWhisperId, new UserPreferences().WhisperModelSize);
-    }
 }

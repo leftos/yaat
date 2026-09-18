@@ -32,10 +32,7 @@ public static class TestVnasData
     /// Sets the directory containing test data files (NavData.dat, FAACIFP18.gz, etc.).
     /// Must be called before <see cref="NavigationDb"/> or <see cref="EnsureInitialized"/>.
     /// </summary>
-    public static void SetTestDataDir(string path)
-    {
-        _testDataDir = path;
-    }
+    public static void SetTestDataDir(string path) => _testDataDir = path;
 
     /// <summary>
     /// Returns a <see cref="NavigationDatabase"/> loaded from NavData.dat (and optionally CIFP),

@@ -6,20 +6,12 @@ namespace Yaat.Client.Tests;
 
 public class SignatureHelpStateTests
 {
-    private static CommandSignatureSet MakeSet(params CommandSignature[] sigs)
-    {
-        return new CommandSignatureSet(sigs);
-    }
+    private static CommandSignatureSet MakeSet(params CommandSignature[] sigs) => new CommandSignatureSet(sigs);
 
-    private static CommandParameter Lit(string name)
-    {
-        return new CommandParameter(name, "literal", false, IsLiteral: true);
-    }
+    private static CommandParameter Lit(string name) => new CommandParameter(name, "literal", false, IsLiteral: true);
 
-    private static CommandSignature MakeSig(string label, CommandParameter[] parameters, string? hint = null)
-    {
-        return new CommandSignature(CanonicalCommandType.FlyHeading, label, ["FH"], parameters, hint);
-    }
+    private static CommandSignature MakeSig(string label, CommandParameter[] parameters, string? hint = null) =>
+        new CommandSignature(CanonicalCommandType.FlyHeading, label, ["FH"], parameters, hint);
 
     [Fact]
     public void Show_SetsSingleOverload()

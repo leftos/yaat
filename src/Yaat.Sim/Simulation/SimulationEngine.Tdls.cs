@@ -283,11 +283,9 @@ public sealed partial class SimulationEngine
     /// Uses <see cref="NavigationDatabase.AirportIdsMatch"/> so ICAO ("KOAK") filed
     /// plans match FAA ("OAK") scenario airport ids.
     /// </summary>
-    public static bool IsDepartureAircraft(AircraftState ac, SimScenarioState scenario)
-    {
+    public static bool IsDepartureAircraft(AircraftState ac, SimScenarioState scenario) =>
         // A live-traffic shadow is real traffic: no auto-TDLS PDC and no auto-printed strip for it.
-        return !ac.IsShadow && NavigationDatabase.AirportIdsMatch(ac.FlightPlan.Departure, scenario.PrimaryAirportId);
-    }
+        !ac.IsShadow && NavigationDatabase.AirportIdsMatch(ac.FlightPlan.Departure, scenario.PrimaryAirportId);
 
     /// <summary>
     /// Everything a loaded ARTCC configuration puts on the engine before any verb or step runs: the scenario's

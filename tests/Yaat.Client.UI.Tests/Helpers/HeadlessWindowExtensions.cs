@@ -44,10 +44,7 @@ internal static class HeadlessWindowExtensions
         Dispatcher.UIThread.RunJobs();
     }
 
-    public static void PumpDispatcher()
-    {
-        Dispatcher.UIThread.RunJobs();
-    }
+    public static void PumpDispatcher() => Dispatcher.UIThread.RunJobs();
 
     public static void DispatchKey(this Window window, Key key, RawInputModifiers modifiers = RawInputModifiers.None)
     {

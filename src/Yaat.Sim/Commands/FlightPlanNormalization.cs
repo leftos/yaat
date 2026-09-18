@@ -73,10 +73,7 @@ public static class FlightPlanNormalization
     /// FAA→ICAO as usual. The plain <see cref="CanonicalizeAirport"/> collapses empty to null, which is correct for the
     /// create/route-split path but silently drops a clear on amend.
     /// </summary>
-    public static string? CanonicalizeAirportPreservingClear(string? input)
-    {
-        return input is null ? null : (CanonicalizeAirport(input) ?? "");
-    }
+    public static string? CanonicalizeAirportPreservingClear(string? input) => input is null ? null : (CanonicalizeAirport(input) ?? "");
 
     /// <summary>
     /// Splits a flight-plan route string into departure / destination / middle waypoints, matching the typed

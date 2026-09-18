@@ -16,16 +16,10 @@ public class WakeTurbulenceDataTests
     [InlineData("B738", "F")]
     [InlineData("E170", "G")]
     [InlineData("C172", "I")]
-    public void GetCwt_KnownTypes_ReturnsCorrectCode(string type, string expected)
-    {
-        Assert.Equal(expected, WakeTurbulenceData.GetCwt(type));
-    }
+    public void GetCwt_KnownTypes_ReturnsCorrectCode(string type, string expected) => Assert.Equal(expected, WakeTurbulenceData.GetCwt(type));
 
     [Fact]
-    public void GetCwt_UnknownType_ReturnsNull()
-    {
-        Assert.Null(WakeTurbulenceData.GetCwt("ZZZZ"));
-    }
+    public void GetCwt_UnknownType_ReturnsNull() => Assert.Null(WakeTurbulenceData.GetCwt("ZZZZ"));
 
     [Theory]
     // CWT category -> coarse weight class. D is a HEAVY widebody bucket (B744/A339/IL76), not Large.
@@ -37,22 +31,14 @@ public class WakeTurbulenceDataTests
     [InlineData("B738", WakeTurbulenceData.WakeClass.Large)] // F
     [InlineData("CRJ7", WakeTurbulenceData.WakeClass.Large)] // G
     [InlineData("C172", WakeTurbulenceData.WakeClass.Small)] // I
-    public void WakeClassForType_MapsCwtToWeightClass(string type, WakeTurbulenceData.WakeClass expected)
-    {
+    public void WakeClassForType_MapsCwtToWeightClass(string type, WakeTurbulenceData.WakeClass expected) =>
         Assert.Equal(expected, WakeTurbulenceData.WakeClassForType(type, AircraftCategorization.Categorize(type)));
-    }
 
     [Fact]
-    public void GetCwt_TypeWithEquipmentSuffix_StripsSlash()
-    {
-        Assert.Equal(WakeTurbulenceData.GetCwt("B738"), WakeTurbulenceData.GetCwt("B738/L"));
-    }
+    public void GetCwt_TypeWithEquipmentSuffix_StripsSlash() => Assert.Equal(WakeTurbulenceData.GetCwt("B738"), WakeTurbulenceData.GetCwt("B738/L"));
 
     [Fact]
-    public void GetCwt_CaseInsensitive()
-    {
-        Assert.Equal(WakeTurbulenceData.GetCwt("B738"), WakeTurbulenceData.GetCwt("b738"));
-    }
+    public void GetCwt_CaseInsensitive() => Assert.Equal(WakeTurbulenceData.GetCwt("B738"), WakeTurbulenceData.GetCwt("b738"));
 
     [Theory]
     // Common airline types go through the FAA ACD physical-dimension formula
@@ -86,12 +72,10 @@ public class WakeTurbulenceDataTests
     [InlineData(AircraftCategory.Turboprop, 6.4)]
     [InlineData(AircraftCategory.Piston, 2.7)]
     [InlineData(AircraftCategory.Helicopter, 2.7)]
-    public void TrafficDetectionRangeNm_FallbackByCategory(AircraftCategory cat, double expected)
-    {
+    public void TrafficDetectionRangeNm_FallbackByCategory(AircraftCategory cat, double expected) =>
         // "ZZZZ" has no FAA ACD record and no CWT entry, so falls all the way
         // through to the category fallback.
         Assert.Equal(expected, WakeTurbulenceData.TrafficDetectionRangeNm("ZZZZ", cat));
-    }
 
     [Theory]
     // FAA CWT mile-based on-approach minima, 7110.65 TBL 5-5-2. (leader CWT -> follower CWT)
@@ -159,8 +143,6 @@ public class WakeTurbulenceDataTests
     [InlineData(WakeTurbulenceData.WakeClass.Super, WakeTurbulenceData.WakeClass.Small, 8.0)]
     [InlineData(WakeTurbulenceData.WakeClass.Large, WakeTurbulenceData.WakeClass.Small, 0.0)]
     [InlineData(WakeTurbulenceData.WakeClass.Small, WakeTurbulenceData.WakeClass.Small, 0.0)]
-    public void OnApproachWakeSeparation_CoarseClass(WakeTurbulenceData.WakeClass lead, WakeTurbulenceData.WakeClass follow, double expected)
-    {
+    public void OnApproachWakeSeparation_CoarseClass(WakeTurbulenceData.WakeClass lead, WakeTurbulenceData.WakeClass follow, double expected) =>
         Assert.Equal(expected, WakeTurbulenceData.OnApproachWakeSeparationNm(lead, follow), precision: 1);
-    }
 }

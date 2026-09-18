@@ -213,10 +213,7 @@ public class SimulationWorldTests
     [InlineData(1202u, false)] // monitored VFR conspicuity code (gliders)
     [InlineData(301u, true)] // 0301 discrete
     [InlineData(7355u, true)] // discrete, below the withheld block
-    public void IsAssignableBeaconCode_ClassifiesCodes(uint code, bool expected)
-    {
-        Assert.Equal(expected, BeaconCodePool.IsAssignableCode(code));
-    }
+    public void IsAssignableBeaconCode_ClassifiesCodes(uint code, bool expected) => Assert.Equal(expected, BeaconCodePool.IsAssignableCode(code));
 
     [Fact]
     public void Tick_CallsPreTick()

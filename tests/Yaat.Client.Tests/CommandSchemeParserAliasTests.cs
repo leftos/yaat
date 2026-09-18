@@ -30,10 +30,8 @@ public class CommandSchemeParserAliasTests
     // an alias word typed inside an RDH message becomes a separator (the line then fails on the tail, loudly).
     [InlineData("RDH 1 hold short THEN advise", "RDH 1 hold short ; advise")]
     [InlineData("rdh 1 taxi and hold", "rdh 1 taxi , hold")]
-    public void NormalizeSeparatorAliases_SubstitutesOutsideSay(string input, string expected)
-    {
+    public void NormalizeSeparatorAliases_SubstitutesOutsideSay(string input, string expected) =>
         Assert.Equal(expected, CommandSchemeParser.NormalizeSeparatorAliases(input));
-    }
 
     /// <summary>
     /// A verb whose argument is a free-text message keeps its words: SAY/SAYF, and the coordination message
@@ -46,10 +44,8 @@ public class CommandSchemeParserAliasTests
     [InlineData("sayf hello and world")]
     [InlineData("RDTXT /1 fly direct THEN accept")]
     [InlineData("RDTXT EXPECT DELAY AND HOLD")]
-    public void NormalizeSeparatorAliases_PreservesSayBlockArguments(string input)
-    {
+    public void NormalizeSeparatorAliases_PreservesSayBlockArguments(string input) =>
         Assert.Equal(input, CommandSchemeParser.NormalizeSeparatorAliases(input));
-    }
 
     [Theory]
     [InlineData("WAIT 1 SAY FOO AND THEN, BAR")]
@@ -62,13 +58,11 @@ public class CommandSchemeParserAliasTests
     [InlineData("WAIT 1 SAY WAIT FOR THE TAG TO \"DISAPPEAR\", AND THEN, TYPE F4 (CALLSIGN) ENTER.")]
     [InlineData("ONHS SAY HOLDING SHORT AND WAITING")]
     [InlineData("OTG SAY CLIMBING AND TURNING")]
-    public void NormalizeSeparatorAliases_PreservesSayAfterTransparentPrefixes(string input)
-    {
+    public void NormalizeSeparatorAliases_PreservesSayAfterTransparentPrefixes(string input) =>
         // WAIT/DELAY/WAITD and condition verbs (AT/LV/ATFN/ONHO/ONH/ONHS/OTG) are transparent
         // prefixes: the token after them starts a command, so SAY there begins a literal
         // message whose AND/THEN words must not become separators.
         Assert.Equal(input, CommandSchemeParser.NormalizeSeparatorAliases(input));
-    }
 
     /// <summary>
     /// <c>OTG</c> ("on the go") is a condition prefix like <c>ONHS</c>: the canonicalizer keeps the
@@ -87,34 +81,26 @@ public class CommandSchemeParserAliasTests
     }
 
     [Fact]
-    public void NormalizeSeparatorAliases_ThenBeforeSayStillSubstitutes()
-    {
+    public void NormalizeSeparatorAliases_ThenBeforeSayStillSubstitutes() =>
         // THEN before SAYF substitutes to `;`; the AND inside the SAYF literal stays put.
         Assert.Equal("H180 ; SAYF GOOD AND CLEAR", CommandSchemeParser.NormalizeSeparatorAliases("H180 THEN SAYF GOOD AND CLEAR"));
-    }
 
     [Fact]
-    public void NormalizeSeparatorAliases_SaySubCommandPreservesAndUntilNextComma()
-    {
+    public void NormalizeSeparatorAliases_SaySubCommandPreservesAndUntilNextComma() =>
         // After `,`, SAYF is at sub-command-start and its literal runs only until the next `,`.
         // AND inside that literal must NOT be rewritten.
         Assert.Equal("H180 , SAYF FOO AND BAR", CommandSchemeParser.NormalizeSeparatorAliases("H180 , SAYF FOO AND BAR"));
-    }
 
     [Fact]
-    public void NormalizeSeparatorAliases_SayBlockwideKeepsCommasLiteral()
-    {
+    public void NormalizeSeparatorAliases_SayBlockwideKeepsCommasLiteral() =>
         // SAYF at block start absorbs subsequent commas as literal text — AND after a literal comma
         // inside the SAY argument must still NOT be substituted.
         Assert.Equal("SAYF HELLO, WORLD AND PEACE", CommandSchemeParser.NormalizeSeparatorAliases("SAYF HELLO, WORLD AND PEACE"));
-    }
 
     [Fact]
-    public void NormalizeSeparatorAliases_BlockBoundaryAfterSayResumesSubstitution()
-    {
+    public void NormalizeSeparatorAliases_BlockBoundaryAfterSayResumesSubstitution() =>
         // SAYF block ends at `;`; the next block resumes normal AND/THEN substitution.
         Assert.Equal("SAYF HELLO WORLD; H180 , D250", CommandSchemeParser.NormalizeSeparatorAliases("SAYF HELLO WORLD; H180 AND D250"));
-    }
 
     // --- End-to-end ParseCompound: alias inputs produce same canonical as punctuation ---
 

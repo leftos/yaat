@@ -54,20 +54,14 @@ public class TpaJRingConeCommandTests
     [InlineData("CONE 0")]
     [InlineData("CONE 30.1")]
     [InlineData("JRING abc")]
-    public void TpaSizeOutOfRange_Fails(string input)
-    {
-        Assert.False(CommandParser.Parse(input).IsSuccess);
-    }
+    public void TpaSizeOutOfRange_Fails(string input) => Assert.False(CommandParser.Parse(input).IsSuccess);
 
     [Theory]
     [InlineData("JRING 1")]
     [InlineData("JRING 30")]
     [InlineData("CONE 1")]
     [InlineData("CONE 30")]
-    public void TpaSizeAtRangeBounds_Succeeds(string input)
-    {
-        Assert.True(CommandParser.Parse(input).IsSuccess);
-    }
+    public void TpaSizeAtRangeBounds_Succeeds(string input) => Assert.True(CommandParser.Parse(input).IsSuccess);
 
     [Fact]
     public void Canonical_RoundTrips()

@@ -45,16 +45,10 @@ public class Skw3078FixComparisonCapture(ITestOutputHelper output)
         "Diagnostic capture tool — mutates GroundConflictDetector global flags; run in isolation to regenerate artifacts.";
 
     [Fact(Skip = CaptureSkip)]
-    public void Capture_Before()
-    {
-        Capture(checkEnabled: false, requireStationary: true, ".tmp/skw3078-before.json");
-    }
+    public void Capture_Before() => Capture(checkEnabled: false, requireStationary: true, ".tmp/skw3078-before.json");
 
     [Fact(Skip = CaptureSkip)]
-    public void Capture_After()
-    {
-        Capture(checkEnabled: true, requireStationary: true, ".tmp/skw3078-after.json");
-    }
+    public void Capture_After() => Capture(checkEnabled: true, requireStationary: true, ".tmp/skw3078-after.json");
 
     /// <summary>
     /// Variant: wingspan-based lateral clearance applies to any obstacle
@@ -64,10 +58,8 @@ public class Skw3078FixComparisonCapture(ITestOutputHelper output)
     /// interaction timing. Captured here for direct visual comparison.
     /// </summary>
     [Fact(Skip = CaptureSkip)]
-    public void Capture_AfterNoStationaryRestriction()
-    {
+    public void Capture_AfterNoStationaryRestriction() =>
         Capture(checkEnabled: true, requireStationary: false, ".tmp/skw3078-after-no-stationary.json");
-    }
 
     private void Capture(bool checkEnabled, bool requireStationary, string outputRelPath)
     {

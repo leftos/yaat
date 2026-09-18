@@ -13,22 +13,13 @@ namespace Yaat.Client.Tests;
 public class VTdlsCanonicalBuilderTests
 {
     [Fact]
-    public void BuildQueue_IsStaticVerb()
-    {
-        Assert.Equal("TDLSQ", VTdlsCanonicalBuilder.BuildQueue());
-    }
+    public void BuildQueue_IsStaticVerb() => Assert.Equal("TDLSQ", VTdlsCanonicalBuilder.BuildQueue());
 
     [Fact]
-    public void BuildWilco_IsStaticVerb()
-    {
-        Assert.Equal("TDLSW", VTdlsCanonicalBuilder.BuildWilco());
-    }
+    public void BuildWilco_IsStaticVerb() => Assert.Equal("TDLSW", VTdlsCanonicalBuilder.BuildWilco());
 
     [Fact]
-    public void BuildDump_IsStaticVerb()
-    {
-        Assert.Equal("TDLSDUMP", VTdlsCanonicalBuilder.BuildDump());
-    }
+    public void BuildDump_IsStaticVerb() => Assert.Equal("TDLSDUMP", VTdlsCanonicalBuilder.BuildDump());
 
     [Fact]
     public void BuildSend_PipeSeparatesNineFieldsInCanonicalOrder()

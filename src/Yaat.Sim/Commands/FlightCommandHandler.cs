@@ -1075,10 +1075,8 @@ internal static class FlightCommandHandler
         aircraft.Procedure.DestinationRunway = null;
     }
 
-    private static string AltitudeVerb(AircraftState aircraft, int targetAltitude)
-    {
-        return aircraft.Altitude > targetAltitude ? "Descend and maintain" : "Climb and maintain";
-    }
+    private static string AltitudeVerb(AircraftState aircraft, int targetAltitude) =>
+        aircraft.Altitude > targetAltitude ? "Descend and maintain" : "Climb and maintain";
 
     private static string PreviousAltitude(AircraftState aircraft, int newAltitude)
     {

@@ -217,10 +217,7 @@ public static class CallsignParser
         return variants;
     }
 
-    private static bool IsUsGa(string upper)
-    {
-        return upper.Length >= 2 && upper[0] == 'N' && char.IsDigit(upper[1]);
-    }
+    private static bool IsUsGa(string upper) => upper.Length >= 2 && upper[0] == 'N' && char.IsDigit(upper[1]);
 
     private static bool TrySplitAirline(string upper, out string icao, out string flightNumber)
     {

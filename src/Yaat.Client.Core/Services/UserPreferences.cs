@@ -1488,18 +1488,14 @@ public sealed class UserPreferences
     /// Returns the favorited video-map ids saved under the given scope key (ARTCC id, airport id, or
     /// scenario id). Empty when nothing has been favorited for that key.
     /// </summary>
-    public IReadOnlyList<string> GetFavoriteVideoMaps(FavoriteMapScope scope, string key)
-    {
-        return FavoriteVideoMapStore(scope).TryGetValue(key, out List<string>? maps) ? maps : [];
-    }
+    public IReadOnlyList<string> GetFavoriteVideoMaps(FavoriteMapScope scope, string key) =>
+        FavoriteVideoMapStore(scope).TryGetValue(key, out List<string>? maps) ? maps : [];
 
     /// <summary>
     /// True when <paramref name="mapId"/> is favorited under the given scope key.
     /// </summary>
-    public bool IsFavoriteVideoMap(FavoriteMapScope scope, string key, string mapId)
-    {
-        return FavoriteVideoMapStore(scope).TryGetValue(key, out List<string>? maps) && maps.Contains(mapId);
-    }
+    public bool IsFavoriteVideoMap(FavoriteMapScope scope, string key, string mapId) =>
+        FavoriteVideoMapStore(scope).TryGetValue(key, out List<string>? maps) && maps.Contains(mapId);
 
     /// <summary>
     /// Adds or removes <paramref name="mapId"/> from the favorites saved under the given scope key,
@@ -1536,10 +1532,8 @@ public sealed class UserPreferences
     /// <summary>
     /// True when the METAR station (display id, e.g. "OAK") is favorited for the given scenario.
     /// </summary>
-    public bool IsFavoriteMetarStation(string scenarioId, string stationId)
-    {
-        return _data.FavoriteMetarStationsByScenario.TryGetValue(scenarioId, out List<string>? stations) && stations.Contains(stationId);
-    }
+    public bool IsFavoriteMetarStation(string scenarioId, string stationId) =>
+        _data.FavoriteMetarStationsByScenario.TryGetValue(scenarioId, out List<string>? stations) && stations.Contains(stationId);
 
     /// <summary>
     /// Adds or removes <paramref name="stationId"/> from the METAR stations favorited for the given
@@ -1585,10 +1579,7 @@ public sealed class UserPreferences
         Save();
     }
 
-    public double? GetGroundRotation(string airportId)
-    {
-        return _data.GroundRotationByAirport.TryGetValue(airportId, out double r) ? r : null;
-    }
+    public double? GetGroundRotation(string airportId) => _data.GroundRotationByAirport.TryGetValue(airportId, out double r) ? r : null;
 
     public void SetGroundRotation(string airportId, double rotation)
     {
@@ -1676,10 +1667,7 @@ public sealed class UserPreferences
         Save();
     }
 
-    public string? GetScenarioAirport(string scenarioId)
-    {
-        return _data.ScenarioAirports.TryGetValue(scenarioId, out string? airport) ? airport : null;
-    }
+    public string? GetScenarioAirport(string scenarioId) => _data.ScenarioAirports.TryGetValue(scenarioId, out string? airport) ? airport : null;
 
     public void SetScenarioAirport(string scenarioId, string airportId)
     {

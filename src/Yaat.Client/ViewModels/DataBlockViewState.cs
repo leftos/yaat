@@ -54,10 +54,8 @@ public sealed class GroundDataBlockViewState : DataBlockViewState
     /// <summary>When true all datablocks start hidden and <see cref="ShownDataBlockCallsigns"/> opts in.</summary>
     public bool StartWithAllHidden { get; private set; }
 
-    public bool IsDataBlockHidden(string callsign)
-    {
-        return StartWithAllHidden ? !ShownDataBlockCallsigns.Contains(callsign) : HiddenDataBlockCallsigns.Contains(callsign);
-    }
+    public bool IsDataBlockHidden(string callsign) =>
+        StartWithAllHidden ? !ShownDataBlockCallsigns.Contains(callsign) : HiddenDataBlockCallsigns.Contains(callsign);
 
     public void ToggleHiddenDataBlock(string callsign)
     {

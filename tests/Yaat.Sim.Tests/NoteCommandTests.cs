@@ -34,10 +34,7 @@ public class NoteCommandTests
     }
 
     [Fact]
-    public void Note_MapsToCanonicalType()
-    {
-        Assert.Equal(CanonicalCommandType.Note, CommandDescriber.ToCanonicalType(new NoteCommand("x")));
-    }
+    public void Note_MapsToCanonicalType() => Assert.Equal(CanonicalCommandType.Note, CommandDescriber.ToCanonicalType(new NoteCommand("x")));
 
     [Fact]
     public void Note_NaturalDescription()

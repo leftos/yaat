@@ -158,8 +158,6 @@ public sealed class MilitaryRouteReadbackTests
     [InlineData("V495 SEA", "victor four ninety five, Seattle VORTAC")]
     [InlineData("J80", "juliett eighty")]
     [InlineData("A700", "alpha seven hundred")]
-    public void SpellRouteString_SpellsAirwaysPhoneticallyInGroupForm(string route, string expected)
-    {
+    public void SpellRouteString_SpellsAirwaysPhoneticallyInGroupForm(string route, string expected) =>
         Assert.Equal(expected, PhraseologyVerbalizer.SpellRouteString(route));
-    }
 }

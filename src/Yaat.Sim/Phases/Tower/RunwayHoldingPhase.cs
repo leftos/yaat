@@ -95,8 +95,5 @@ public sealed class RunwayHoldingPhase : Phase
         };
     }
 
-    protected override List<ClearanceRequirement> CreateRequirements()
-    {
-        return [new ClearanceRequirement { Type = ClearanceType.RunwayCrossing }];
-    }
+    protected override List<ClearanceRequirement> CreateRequirements() => [new ClearanceRequirement { Type = ClearanceType.RunwayCrossing }];
 }

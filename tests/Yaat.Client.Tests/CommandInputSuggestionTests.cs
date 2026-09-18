@@ -15,15 +15,9 @@ public class CommandInputSuggestionTests
         NavigationDatabase.SetInstance(NavigationDatabase.ForTesting());
     }
 
-    private static AircraftModel Ac(string callsign)
-    {
-        return new AircraftModel { Callsign = callsign };
-    }
+    private static AircraftModel Ac(string callsign) => new AircraftModel { Callsign = callsign };
 
-    private static CommandInputController Controller()
-    {
-        return new CommandInputController { NavDbReady = false };
-    }
+    private static CommandInputController Controller() => new CommandInputController { NavDbReady = false };
 
     [Fact]
     public void Follow_TrailingSpace_ShowsAllCallsigns()
@@ -421,10 +415,8 @@ public class CommandInputSuggestionTests
     [InlineData("AAL1234", false)]
     [InlineData("", false)]
     [InlineData("   ", false)]
-    public void StartsWithChatPrefix_DetectsLeadingPrefix(string text, bool expected)
-    {
+    public void StartsWithChatPrefix_DetectsLeadingPrefix(string text, bool expected) =>
         Assert.Equal(expected, CommandInputController.StartsWithChatPrefix(text));
-    }
 
     [Fact]
     public void Caret_InMiddleOfFirstToken_SuggestsCallsignsAndVerbs()

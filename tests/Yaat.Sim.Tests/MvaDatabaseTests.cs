@@ -36,17 +36,13 @@ public sealed class MvaDatabaseTests
     [InlineData(37.3626, -121.9291, 2000)] // SJC
     [InlineData(38.6951, -121.5910, 1700)] // SMF / Sacramento
     [InlineData(39.1000, -120.0500, 11200)] // Sierra near Tahoe
-    public void GetFloorFtMsl_ReturnsChartedFloor(double lat, double lon, int expectedFloor)
-    {
+    public void GetFloorFtMsl_ReturnsChartedFloor(double lat, double lon, int expectedFloor) =>
         Assert.Equal(expectedFloor, MvaDatabase.Default.GetFloorFtMsl(new LatLon(lat, lon)));
-    }
 
     [Fact]
-    public void GetFloorFtMsl_OutsideCoverage_ReturnsNull()
-    {
+    public void GetFloorFtMsl_OutsideCoverage_ReturnsNull() =>
         // Mid-Atlantic — well outside any NorCal sector.
         Assert.Null(MvaDatabase.Default.GetFloorFtMsl(new LatLon(40.0, -70.0)));
-    }
 
     [Fact]
     public void Contains_PointInsideHole_BelongsToTheInnerSectorNotTheSurroundingOne()

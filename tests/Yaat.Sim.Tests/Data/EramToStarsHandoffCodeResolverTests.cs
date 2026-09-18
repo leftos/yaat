@@ -97,10 +97,7 @@ public sealed class EramToStarsHandoffCodeResolverTests
     [InlineData("2B")] // bare TCP — '2' is not a neighbor prefix (this resolves via ResolveTcpCode, not here)
     [InlineData("Q")] // too short to carry a TCP
     [InlineData("")]
-    public void ResolveEramToStarsHandoffCode_InvalidCode_ReturnsNull(string code)
-    {
-        Assert.Null(Config().ResolveEramToStarsHandoffCode(code));
-    }
+    public void ResolveEramToStarsHandoffCode_InvalidCode_ReturnsNull(string code) => Assert.Null(Config().ResolveEramToStarsHandoffCode(code));
 
     [Fact]
     public void ResolveTcpCode_BareTcp_StillResolvesDirectly()

@@ -192,13 +192,7 @@ public sealed class StopAndGoPhase : Phase, IGroundRollClock
         };
     }
 
-    internal void TriggerGo()
-    {
-        _goTriggered = true;
-    }
+    internal void TriggerGo() => _goTriggered = true;
 
-    protected override List<ClearanceRequirement> CreateRequirements()
-    {
-        return [];
-    }
+    protected override List<ClearanceRequirement> CreateRequirements() => [];
 }

@@ -374,22 +374,15 @@ public class ScenarioDifficultyHelperTests
         """;
 
     [Fact]
-    public void HasParkingSpawns_AllParkingAircraftScripted_ReturnsFalse()
-    {
+    public void HasParkingSpawns_AllParkingAircraftScripted_ReturnsFalse() =>
         Assert.False(ScenarioDifficultyHelper.HasParkingSpawns(ParkingWithTaxiPreset));
-    }
 
     [Fact]
-    public void HasParkingSpawns_MixedScriptedAndUnscripted_ReturnsTrue()
-    {
+    public void HasParkingSpawns_MixedScriptedAndUnscripted_ReturnsTrue() =>
         Assert.True(ScenarioDifficultyHelper.HasParkingSpawns(ParkingMixedScriptedAndUnscripted));
-    }
 
     [Fact]
-    public void HasParkingSpawns_NoPresets_ReturnsTrue()
-    {
-        Assert.True(ScenarioDifficultyHelper.HasParkingSpawns(EasyOnlyWithParking));
-    }
+    public void HasParkingSpawns_NoPresets_ReturnsTrue() => Assert.True(ScenarioDifficultyHelper.HasParkingSpawns(EasyOnlyWithParking));
 
     [Fact]
     public void ScenarioSetupPlan_AllParkingScripted_HidesParkingSlider()

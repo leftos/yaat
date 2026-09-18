@@ -198,10 +198,7 @@ public partial class GroundView : UserControl
         }
     }
 
-    private void OnMeasureCancelled()
-    {
-        (DataContext as GroundViewModel)?.Measure?.Cancel();
-    }
+    private void OnMeasureCancelled() => (DataContext as GroundViewModel)?.Measure?.Cancel();
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
@@ -348,10 +345,7 @@ public partial class GroundView : UserControl
         e.Handled = true;
     }
 
-    private void OnResetView(object? sender, RoutedEventArgs e)
-    {
-        _canvas?.ResetView();
-    }
+    private void OnResetView(object? sender, RoutedEventArgs e) => _canvas?.ResetView();
 
     private void OnToggleLock(object? sender, RoutedEventArgs e)
     {
@@ -1402,10 +1396,8 @@ public partial class GroundView : UserControl
         parent.Items.Add(defaultSub);
     }
 
-    private static void AttachPreviewHover(MenuItem item, GroundViewModel vm, TaxiRoute route)
-    {
+    private static void AttachPreviewHover(MenuItem item, GroundViewModel vm, TaxiRoute route) =>
         item.PointerEntered += (_, _) => vm.PreviewRoute = route;
-    }
 
     internal static void AddHoldShortCrossingItems(
         ContextMenu menu,
@@ -1655,10 +1647,7 @@ public partial class GroundView : UserControl
         }
     }
 
-    private void OnTaxiInputLostFocus(object? sender, RoutedEventArgs e)
-    {
-        HideTaxiInput();
-    }
+    private void OnTaxiInputLostFocus(object? sender, RoutedEventArgs e) => HideTaxiInput();
 
     private string GetInitials()
     {

@@ -217,10 +217,7 @@ public sealed class MilitaryRouteDatabaseTests
     }
 
     [Fact]
-    public void FromJson_MissingRoutesArray_YieldsEmptyDatabase()
-    {
-        Assert.Equal(0, MilitaryRouteDatabase.FromJson("""{"metadata":{}}""").Count);
-    }
+    public void FromJson_MissingRoutesArray_YieldsEmptyDatabase() => Assert.Equal(0, MilitaryRouteDatabase.FromJson("""{"metadata":{}}""").Count);
 
     private static double FrdCoverage(MilitaryRouteType type)
     {

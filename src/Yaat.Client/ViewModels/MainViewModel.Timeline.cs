@@ -11,40 +11,22 @@ namespace Yaat.Client.ViewModels;
 public partial class MainViewModel
 {
     [RelayCommand]
-    private async Task RewindToStart()
-    {
-        await RewindToSeconds(0);
-    }
+    private async Task RewindToStart() => await RewindToSeconds(0);
 
     [RelayCommand]
-    private async Task RewindBack30()
-    {
-        await RewindToSeconds(Math.Max(0, ScenarioElapsedSeconds - 30));
-    }
+    private async Task RewindBack30() => await RewindToSeconds(Math.Max(0, ScenarioElapsedSeconds - 30));
 
     [RelayCommand]
-    private async Task RewindBack15()
-    {
-        await RewindToSeconds(Math.Max(0, ScenarioElapsedSeconds - 15));
-    }
+    private async Task RewindBack15() => await RewindToSeconds(Math.Max(0, ScenarioElapsedSeconds - 15));
 
     [RelayCommand]
-    private async Task SkipForward15()
-    {
-        await RewindToSeconds(Math.Min(PlaybackTapeEnd, ScenarioElapsedSeconds + 15));
-    }
+    private async Task SkipForward15() => await RewindToSeconds(Math.Min(PlaybackTapeEnd, ScenarioElapsedSeconds + 15));
 
     [RelayCommand]
-    private async Task SkipForward30()
-    {
-        await RewindToSeconds(Math.Min(PlaybackTapeEnd, ScenarioElapsedSeconds + 30));
-    }
+    private async Task SkipForward30() => await RewindToSeconds(Math.Min(PlaybackTapeEnd, ScenarioElapsedSeconds + 30));
 
     [RelayCommand]
-    private async Task JumpToEnd()
-    {
-        await RewindToSeconds(PlaybackTapeEnd);
-    }
+    private async Task JumpToEnd() => await RewindToSeconds(PlaybackTapeEnd);
 
     [RelayCommand]
     private async Task TogglePlayback()

@@ -19,28 +19,17 @@ public class FixSuggesterTests
     // -------------------------------------------------------------------------
 
     [Fact]
-    public void GetTextBeforeLastWord_MultipleWords_ReturnsPrefix()
-    {
+    public void GetTextBeforeLastWord_MultipleWords_ReturnsPrefix() =>
         Assert.Equal("AAL123 DCT ", FixSuggester.GetTextBeforeLastWord("AAL123 DCT SUN"));
-    }
 
     [Fact]
-    public void GetTextBeforeLastWord_SingleWord_ReturnsEmpty()
-    {
-        Assert.Equal("", FixSuggester.GetTextBeforeLastWord("DCT"));
-    }
+    public void GetTextBeforeLastWord_SingleWord_ReturnsEmpty() => Assert.Equal("", FixSuggester.GetTextBeforeLastWord("DCT"));
 
     [Fact]
-    public void GetTextBeforeLastWord_TrailingSpace_ReturnsFullText()
-    {
-        Assert.Equal("DCT SUNOL ", FixSuggester.GetTextBeforeLastWord("DCT SUNOL "));
-    }
+    public void GetTextBeforeLastWord_TrailingSpace_ReturnsFullText() => Assert.Equal("DCT SUNOL ", FixSuggester.GetTextBeforeLastWord("DCT SUNOL "));
 
     [Fact]
-    public void GetTextBeforeLastWord_Empty_ReturnsEmpty()
-    {
-        Assert.Equal("", FixSuggester.GetTextBeforeLastWord(""));
-    }
+    public void GetTextBeforeLastWord_Empty_ReturnsEmpty() => Assert.Equal("", FixSuggester.GetTextBeforeLastWord(""));
 
     // -------------------------------------------------------------------------
     // CollectRouteFixNames

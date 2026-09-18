@@ -92,10 +92,7 @@ public sealed class VnasDataService : IDisposable
         LogSummary();
     }
 
-    public void Dispose()
-    {
-        _http.Dispose();
-    }
+    public void Dispose() => _http.Dispose();
 
     private async Task<VnasConfig?> FetchConfigAsync()
     {

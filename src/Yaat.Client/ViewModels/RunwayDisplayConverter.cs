@@ -13,13 +13,8 @@ public class RunwayDisplayConverter : IValueConverter
 {
     public static readonly RunwayDisplayConverter Instance = new();
 
-    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-    {
-        return value is string s ? RunwayIdentifier.ToDisplayDesignator(s) : value;
-    }
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is string s ? RunwayIdentifier.ToDisplayDesignator(s) : value;
 
-    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
-    {
-        throw new NotSupportedException();
-    }
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }

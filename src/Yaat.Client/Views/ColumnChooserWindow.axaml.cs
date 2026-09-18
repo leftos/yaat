@@ -350,10 +350,7 @@ public partial class ColumnChooserWindow : Window
         Close();
     }
 
-    private void OnCancel(object? sender, RoutedEventArgs e)
-    {
-        Close();
-    }
+    private void OnCancel(object? sender, RoutedEventArgs e) => Close();
 }
 
 public partial class ColumnEntry : ObservableObject

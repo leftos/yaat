@@ -43,10 +43,7 @@ public class CrcAliasFileParserTests
     [InlineData(".noBodyJustAName")]
     [InlineData("no leading dot")]
     [InlineData(".has-hyphen body")] // name must be \w+
-    public void MalformedLines_AreSkipped(string line)
-    {
-        Assert.Empty(Parse(line));
-    }
+    public void MalformedLines_AreSkipped(string line) => Assert.Empty(Parse(line));
 
     /// <summary>
     /// CRC drops an indented definition because it tests its regex against the untrimmed line.
@@ -69,10 +66,7 @@ public class CrcAliasFileParserTests
 
     /// <summary>A gap stops the count, so <c>$3</c> is never substituted — matching CRC.</summary>
     [Fact]
-    public void ArgumentCount_StopsAtFirstGap()
-    {
-        Assert.Equal(1, Assert.Single(Parse(".GAP .echo $1 and $3")).ArgumentCount);
-    }
+    public void ArgumentCount_StopsAtFirstGap() => Assert.Equal(1, Assert.Single(Parse(".GAP .echo $1 and $3")).ArgumentCount);
 
     [Fact]
     public void LaterDefinitions_AreReturnedInFileOrder()
@@ -84,8 +78,5 @@ public class CrcAliasFileParserTests
     }
 
     [Fact]
-    public void Tokenize_CollapsesRunsOfSpaces()
-    {
-        Assert.Equal([".echo", "a", "b"], CrcAliasFileParser.Tokenize("  .echo   a  b "));
-    }
+    public void Tokenize_CollapsesRunsOfSpaces() => Assert.Equal([".echo", "a", "b"], CrcAliasFileParser.Tokenize("  .echo   a  b "));
 }

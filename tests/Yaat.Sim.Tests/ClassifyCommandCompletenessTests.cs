@@ -305,10 +305,8 @@ public class ClassifyCommandCompletenessTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void ClassifyCommand_ExpediteWithAltitude_IsAltitude()
-    {
+    public void ClassifyCommand_ExpediteWithAltitude_IsAltitude() =>
         // The dummy factory passes null for ExpediteCommand's nullable Altitude, so the sweep above
         // only exercises the bare-EXP (Immediate) arm; pin the EXP <alt> arm explicitly.
         Assert.Equal(TrackedCommandType.Altitude, CommandDescriber.ClassifyCommand(new ExpediteCommand(5000)));
-    }
 }

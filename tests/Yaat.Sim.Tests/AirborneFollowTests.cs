@@ -272,10 +272,8 @@ public class AirborneFollowTests : IDisposable
     [InlineData(AircraftCategory.Turboprop, 1.5)]
     [InlineData(AircraftCategory.Piston, 1.0)]
     [InlineData(AircraftCategory.Helicopter, 1.0)]
-    public void DesiredDistance_VariesByLeaderCategory(AircraftCategory cat, double expected)
-    {
+    public void DesiredDistance_VariesByLeaderCategory(AircraftCategory cat, double expected) =>
         Assert.Equal(expected, AirborneFollowHelper.DesiredDistanceForLeader(cat));
-    }
 
     // -------------------------------------------------------------------------
     // Airborne FOLLOW command dispatch

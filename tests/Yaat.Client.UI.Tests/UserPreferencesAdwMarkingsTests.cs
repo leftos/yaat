@@ -23,10 +23,7 @@ public class UserPreferencesAdwMarkingsTests
         );
 
     [Fact]
-    public void GroundShowAdwMarkings_DefaultsOn()
-    {
-        Assert.True(new UserPreferences().GroundShowAdwMarkings);
-    }
+    public void GroundShowAdwMarkings_DefaultsOn() => Assert.True(new UserPreferences().GroundShowAdwMarkings);
 
     [Fact]
     public void SetGroundLabelFilters_PersistsAdwMarkings()

@@ -127,21 +127,13 @@ public sealed class StarsHandoffCodeResolverTests
     [InlineData("OAK")] // no delta prefix — a real primary scratchpad value, not a handoff
     [InlineData("3")] // digits without the delta discriminator are not interfacility handoffs
     [InlineData("")]
-    public void ResolveStarsHandoffCode_InvalidEntry_ReturnsNull(string code)
-    {
-        Assert.Null(Config().ResolveStarsHandoffCode("NCT", code));
-    }
+    public void ResolveStarsHandoffCode_InvalidEntry_ReturnsNull(string code) => Assert.Null(Config().ResolveStarsHandoffCode("NCT", code));
 
     [Fact]
-    public void ResolveStarsHandoffCode_SenderWithoutHandoffIds_ReturnsNull()
-    {
+    public void ResolveStarsHandoffCode_SenderWithoutHandoffIds_ReturnsNull() =>
         // FAT in this fixture has an empty starsHandoffIds list, so it cannot originate `3.
         Assert.Null(Config().ResolveStarsHandoffCode("FAT", "`3"));
-    }
 
     [Fact]
-    public void ResolveStarsHandoffCode_UnknownSenderFacility_ReturnsNull()
-    {
-        Assert.Null(Config().ResolveStarsHandoffCode("ZZZ", "`3"));
-    }
+    public void ResolveStarsHandoffCode_UnknownSenderFacility_ReturnsNull() => Assert.Null(Config().ResolveStarsHandoffCode("ZZZ", "`3"));
 }

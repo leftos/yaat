@@ -167,20 +167,11 @@ public partial class LoadWeatherWindow : Window
 
     private bool IsArtccTabActive => _sourceTabs.SelectedIndex == 0;
 
-    private void OnTabChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        UpdateLoadButton();
-    }
+    private void OnTabChanged(object? sender, SelectionChangedEventArgs e) => UpdateLoadButton();
 
-    private void OnArtccSelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        UpdateLoadButton();
-    }
+    private void OnArtccSelectionChanged(object? sender, SelectionChangedEventArgs e) => UpdateLoadButton();
 
-    private void OnLocalSelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        UpdateLoadButton();
-    }
+    private void OnLocalSelectionChanged(object? sender, SelectionChangedEventArgs e) => UpdateLoadButton();
 
     private void UpdateLoadButton()
     {

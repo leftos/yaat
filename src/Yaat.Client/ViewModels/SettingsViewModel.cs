@@ -60,10 +60,7 @@ public partial class MacroRow : ObservableObject
     private string _preview = "";
 
     [RelayCommand]
-    private void Remove()
-    {
-        RemoveAction?.Invoke(this);
-    }
+    private void Remove() => RemoveAction?.Invoke(this);
 
     partial void OnNameChanged(string value)
     {
@@ -1105,16 +1102,10 @@ public partial class SettingsViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void AddMacro()
-    {
-        MacroRows.Add(new MacroRow { RemoveAction = r => MacroRows.Remove(r) });
-    }
+    private void AddMacro() => MacroRows.Add(new MacroRow { RemoveAction = r => MacroRows.Remove(r) });
 
     [RelayCommand]
-    private void ClearAllMacros()
-    {
-        MacroRows.Clear();
-    }
+    private void ClearAllMacros() => MacroRows.Clear();
 
     public void ImportMacros(MacroImportResult result)
     {
@@ -1305,10 +1296,7 @@ public partial class SettingsViewModel : ObservableObject
         return labels;
     }
 
-    private static string? LabelForType(CanonicalCommandType type)
-    {
-        return CommandRegistry.Get(type)?.Label;
-    }
+    private static string? LabelForType(CanonicalCommandType type) => CommandRegistry.Get(type)?.Label;
 
     private static int AutoDeleteOverrideToIndex(string value) =>
         value switch
@@ -1329,40 +1317,22 @@ public partial class SettingsViewModel : ObservableObject
         };
 
     [RelayCommand]
-    private void StartKeyCapture()
-    {
-        StartKeyCaptureFor("AircraftSelect");
-    }
+    private void StartKeyCapture() => StartKeyCaptureFor("AircraftSelect");
 
     [RelayCommand]
-    private void StartFocusInputKeyCapture()
-    {
-        StartKeyCaptureFor("FocusInput");
-    }
+    private void StartFocusInputKeyCapture() => StartKeyCaptureFor("FocusInput");
 
     [RelayCommand]
-    private void StartTakeControlKeyCapture()
-    {
-        StartKeyCaptureFor("TakeControl");
-    }
+    private void StartTakeControlKeyCapture() => StartKeyCaptureFor("TakeControl");
 
     [RelayCommand]
-    private void StartAlwaysOnTopKeyCapture()
-    {
-        StartKeyCaptureFor("AlwaysOnTop");
-    }
+    private void StartAlwaysOnTopKeyCapture() => StartKeyCaptureFor("AlwaysOnTop");
 
     [RelayCommand]
-    private void StartQuickBookmarkKeyCapture()
-    {
-        StartKeyCaptureFor("QuickBookmark");
-    }
+    private void StartQuickBookmarkKeyCapture() => StartKeyCaptureFor("QuickBookmark");
 
     [RelayCommand]
-    private void StartPttKeyCapture()
-    {
-        StartKeyCaptureFor("Ptt");
-    }
+    private void StartPttKeyCapture() => StartKeyCaptureFor("Ptt");
 
     private void StartKeyCaptureFor(string target)
     {
@@ -1604,10 +1574,7 @@ public partial class SettingsViewModel : ObservableObject
     /// <see cref="LmKitModelEntry.StatusMessage"/> surfaces that to the user.
     /// </summary>
     [RelayCommand]
-    private void DeleteSelectedWhisperModel()
-    {
-        SelectedWhisperLmKitModel?.Delete();
-    }
+    private void DeleteSelectedWhisperModel() => SelectedWhisperLmKitModel?.Delete();
 
     /// <summary>
     /// Pre-downloads the currently selected LLM into LM-Kit's cache. Same shape as the Whisper
@@ -1625,10 +1592,7 @@ public partial class SettingsViewModel : ObservableObject
 
     /// <summary>Deletes the currently selected LLM from LM-Kit's cache.</summary>
     [RelayCommand]
-    private void DeleteSelectedLlmModel()
-    {
-        SelectedLlmLmKitModel?.Delete();
-    }
+    private void DeleteSelectedLlmModel() => SelectedLlmLmKitModel?.Delete();
 
     [RelayCommand]
     private void ResetAllColors()
@@ -1813,16 +1777,10 @@ public partial class SettingsViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void CancelCudaBackendInstall()
-    {
-        _cudaInstallCts?.Cancel();
-    }
+    private void CancelCudaBackendInstall() => _cudaInstallCts?.Cancel();
 
     [RelayCommand]
-    private void UninstallCudaBackend()
-    {
-        CudaBackend?.Uninstall();
-    }
+    private void UninstallCudaBackend() => CudaBackend?.Uninstall();
 
     // ---------- Piper voice install ----------
 
@@ -1854,16 +1812,10 @@ public partial class SettingsViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void CancelPiperVoicePackInstall()
-    {
-        _piperVoiceInstallCts?.Cancel();
-    }
+    private void CancelPiperVoicePackInstall() => _piperVoiceInstallCts?.Cancel();
 
     [RelayCommand]
-    private void UninstallPiperVoicePack()
-    {
-        PiperVoice.Uninstall();
-    }
+    private void UninstallPiperVoicePack() => PiperVoice.Uninstall();
 
     /// <summary>
     /// Opens the on-disk speech-samples directory in the OS file explorer. The folder may not
@@ -1892,8 +1844,5 @@ public partial class SettingsViewModel : ObservableObject
     /// button in an Expander they explicitly opened.
     /// </summary>
     [RelayCommand]
-    private void DeleteAllSpeechSamples()
-    {
-        _speechSampleStore?.DeleteAll();
-    }
+    private void DeleteAllSpeechSamples() => _speechSampleStore?.DeleteAll();
 }

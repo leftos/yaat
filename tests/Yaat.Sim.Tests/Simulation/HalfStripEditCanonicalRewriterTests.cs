@@ -22,10 +22,8 @@ public class HalfStripEditCanonicalRewriterTests
     // Compound units are rewritten independently; separators and padding survive.
     [InlineData(@"HSE HSTRIP_x a; AN 3 RV", @"HSA HSTRIP_x a; AN 3 RV")]
     [InlineData(@"AN 3 RV, HSE HSTRIP_x a\b", @"AN 3 RV, HSA HSTRIP_x a\b")]
-    public void Rewrite_RetiredHseVerb_BecomesHsaIdForm(string recorded, string expected)
-    {
+    public void Rewrite_RetiredHseVerb_BecomesHsaIdForm(string recorded, string expected) =>
         Assert.Equal(expected, HalfStripEditCanonicalRewriter.Rewrite(recorded));
-    }
 
     [Theory]
     [InlineData(@"HSA HSTRIP_abc123 a\b")]
@@ -35,10 +33,7 @@ public class HalfStripEditCanonicalRewriterTests
     [InlineData("H 270")]
     [InlineData("")]
     [InlineData("   ")]
-    public void Rewrite_OtherCanonicals_Unchanged(string recorded)
-    {
-        Assert.Same(recorded, HalfStripEditCanonicalRewriter.Rewrite(recorded));
-    }
+    public void Rewrite_OtherCanonicals_Unchanged(string recorded) => Assert.Same(recorded, HalfStripEditCanonicalRewriter.Rewrite(recorded));
 
     [Fact]
     public void Rewrite_IsIdempotent()

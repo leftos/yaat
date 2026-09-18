@@ -277,13 +277,11 @@ public sealed class HelicopterApproachPhase : Phase
         Log.LogDebug("[Approach-H] {Callsign}: ended ({Status})", ctx.Aircraft.Callsign, endStatus);
     }
 
-    public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
-    {
+    public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd) =>
         // Any airborne manoeuvring command pulls the heli off the approach and hands control to the
         // command queue, exactly as for an air taxi; HPP and a re-issued ATXI/LAND are routed by the
         // dispatcher's tower-command path before this gate.
-        return CommandAcceptance.ClearsPhase;
-    }
+        CommandAcceptance.ClearsPhase;
 
     public override PhaseDto ToSnapshot() =>
         new HelicopterApproachPhaseDto

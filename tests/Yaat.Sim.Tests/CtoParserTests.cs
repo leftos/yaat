@@ -14,10 +14,7 @@ public class CtoParserTests : IDisposable
         _scope = NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting());
     }
 
-    public void Dispose()
-    {
-        _scope.Dispose();
-    }
+    public void Dispose() => _scope.Dispose();
 
     [Fact]
     public void BareCto_ParsesAsDefaultDeparture()

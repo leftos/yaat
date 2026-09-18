@@ -31,10 +31,7 @@ public class CrcAliasExecutorTests
     }
 
     [Fact]
-    public void Echo_WithNoBodyFails()
-    {
-        Assert.Equal(CrcAliasAction.Failed, Plan(".echo").Action);
-    }
+    public void Echo_WithNoBodyFails() => Assert.Equal(CrcAliasAction.Failed, Plan(".echo").Action);
 
     [Theory]
     [InlineData(".ff")]
@@ -82,22 +79,13 @@ public class CrcAliasExecutorTests
     }
 
     [Fact]
-    public void OpenUrl_PrependsHttpWhenSchemeless()
-    {
-        Assert.Equal("http://example.test/", Plan(".openurl example.test").Url);
-    }
+    public void OpenUrl_PrependsHttpWhenSchemeless() => Assert.Equal("http://example.test/", Plan(".openurl example.test").Url);
 
     [Fact]
-    public void OpenUrl_RefusesNonWebSchemes()
-    {
-        Assert.Equal(CrcAliasAction.Failed, Plan(".openurl file:///C:/Windows/System32").Action);
-    }
+    public void OpenUrl_RefusesNonWebSchemes() => Assert.Equal(CrcAliasAction.Failed, Plan(".openurl file:///C:/Windows/System32").Action);
 
     [Fact]
-    public void OpenUrl_WithNoArgumentFails()
-    {
-        Assert.Equal(CrcAliasAction.Failed, Plan(".openurl").Action);
-    }
+    public void OpenUrl_WithNoArgumentFails() => Assert.Equal(CrcAliasAction.Failed, Plan(".openurl").Action);
 
     [Theory]
     [InlineData(".am rte +..OAL.J92.BTY..+")]
@@ -123,8 +111,5 @@ public class CrcAliasExecutorTests
     }
 
     [Fact]
-    public void EmptyExpansion_Fails()
-    {
-        Assert.Equal(CrcAliasAction.Failed, Plan("   ").Action);
-    }
+    public void EmptyExpansion_Fails() => Assert.Equal(CrcAliasAction.Failed, Plan("   ").Action);
 }

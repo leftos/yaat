@@ -322,10 +322,7 @@ public static class ScenarioLoader
         }
     }
 
-    private static string NormalizeAirportCode(string code)
-    {
-        return (code.StartsWith('K') && code.Length == 4) ? code[1..] : code;
-    }
+    private static string NormalizeAirportCode(string code) => (code.StartsWith('K') && code.Length == 4) ? code[1..] : code;
 
     private static LoadedAircraft? LoadAircraft(
         ScenarioAircraft ac,
@@ -862,10 +859,8 @@ public static class ScenarioLoader
         return navigationPath;
     }
 
-    private static void ReplaceProcedureToken(string[] tokens, int index, string[] dotParts, string resolvedId)
-    {
+    private static void ReplaceProcedureToken(string[] tokens, int index, string[] dotParts, string resolvedId) =>
         tokens[index] = dotParts.Length > 1 ? resolvedId + "." + dotParts[1] : resolvedId;
-    }
 
     private static void ReplaceInRoute(List<string> routeTokens, string oldName, string newName)
     {

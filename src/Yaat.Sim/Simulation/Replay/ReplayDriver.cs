@@ -36,10 +36,7 @@ internal sealed class ReplayDriver(SimulationEngine engine)
     /// restored state. This is what makes the hybrid pattern work: replay to load the scenario, restore to jump to a
     /// saved state, then step forward from there.
     /// </summary>
-    public void ReseekAfterRestore(int restoredSeconds)
-    {
-        _host?.Pump.SeekTo(restoredSeconds);
-    }
+    public void ReseekAfterRestore(int restoredSeconds) => _host?.Pump.SeekTo(restoredSeconds);
 
     /// <summary>Arms the driver with an action log and positions the pump at <paramref name="seconds"/>.</summary>
     public void Arm(List<RecordedAction> actions, int seconds)
@@ -49,10 +46,8 @@ internal sealed class ReplayDriver(SimulationEngine engine)
         _host = new ReplayHost(_engine, pump, applier: null);
     }
 
-    public void FromStartTo(int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier)
-    {
+    public void FromStartTo(int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier) =>
         Range(0, targetSeconds, actions, actionApplier);
-    }
 
     public void FastForwardTo(int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier)
     {
@@ -74,10 +69,8 @@ internal sealed class ReplayDriver(SimulationEngine engine)
         Arm(actions, targetSeconds);
     }
 
-    public void Range(int startSeconds, int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier)
-    {
+    public void Range(int startSeconds, int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier) =>
         RangeCore(startSeconds, targetSeconds, actions, actionApplier, archiveForVerification: null, drifts: null);
-    }
 
     public ReplayResult RangeWithVerification(
         int startSeconds,

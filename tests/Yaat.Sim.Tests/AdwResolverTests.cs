@@ -26,10 +26,7 @@ public class AdwResolverTests
     private static double LengthFt(AdwMark mark) => GeoMath.DistanceNm(mark.A.Lat, mark.A.Lon, mark.B.Lat, mark.B.Lon) * GeoMath.FeetPerNm;
 
     [Fact]
-    public void Resolve_NoWindows_ReturnsEmpty()
-    {
-        Assert.Empty(AdwResolver.Resolve(MiaLayout(), []));
-    }
+    public void Resolve_NoWindows_ReturnsEmpty() => Assert.Empty(AdwResolver.Resolve(MiaLayout(), []));
 
     [Fact]
     public void Resolve_OuterMark_SitsOutOnFinalNotDownTheRunway()

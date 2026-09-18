@@ -431,11 +431,9 @@ public sealed partial class CudaBackendInstaller : ObservableObject
         }
     }
 
-    private void SetProgress(double value)
-    {
+    private void SetProgress(double value) =>
         // Quantize to 0.1% so a 500 MB download doesn't fire 10,000 PropertyChanged events
         // into Avalonia's binding pipeline. [ObservableProperty] compares with
         // EqualityComparer<double>.Default so an unchanged rounded value is a no-op.
         Progress = Math.Round(Math.Clamp(value, 0.0, 1.0), 3);
-    }
 }

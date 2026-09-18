@@ -323,10 +323,7 @@ public partial class GroundViewModel : ObservableObject
         }
     }
 
-    public void SetElevationLookup(Func<string, double?> lookup)
-    {
-        _getAirportElevation = lookup;
-    }
+    public void SetElevationLookup(Func<string, double?> lookup) => _getAirportElevation = lookup;
 
     public void SetTowerCabServices(
         VnasConfigService vnasConfigService,
@@ -867,10 +864,7 @@ public partial class GroundViewModel : ObservableObject
         return node?.Id;
     }
 
-    public GroundNodeDto? GetNode(int nodeId)
-    {
-        return Layout?.Nodes.Find(n => n.Id == nodeId);
-    }
+    public GroundNodeDto? GetNode(int nodeId) => Layout?.Nodes.Find(n => n.Id == nodeId);
 
     public List<string> GetNodeTaxiwayNames(int nodeId)
     {
@@ -922,30 +916,16 @@ public partial class GroundViewModel : ObservableObject
         await _sendCommand(callsign, $"TAXI {taxiways}", initials);
     }
 
-    public async Task HoldPositionAsync(string callsign, string initials)
-    {
-        await _sendCommand(callsign, "HP", initials);
-    }
+    public async Task HoldPositionAsync(string callsign, string initials) => await _sendCommand(callsign, "HP", initials);
 
-    public async Task ResumeAsync(string callsign, string initials)
-    {
-        await _sendCommand(callsign, "RES", initials);
-    }
+    public async Task ResumeAsync(string callsign, string initials) => await _sendCommand(callsign, "RES", initials);
 
-    public async Task PushbackAsync(string callsign, string initials)
-    {
-        await _sendCommand(callsign, "PUSH", initials);
-    }
+    public async Task PushbackAsync(string callsign, string initials) => await _sendCommand(callsign, "PUSH", initials);
 
-    public async Task CrossRunwayAsync(string callsign, string initials, string runwayId)
-    {
+    public async Task CrossRunwayAsync(string callsign, string initials, string runwayId) =>
         await _sendCommand(callsign, $"CROSS {runwayId}", initials);
-    }
 
-    public async Task LineUpAndWaitAsync(string callsign, string initials)
-    {
-        await _sendCommand(callsign, "LUAW", initials);
-    }
+    public async Task LineUpAndWaitAsync(string callsign, string initials) => await _sendCommand(callsign, "LUAW", initials);
 
     public async Task ClearedForTakeoffAsync(string callsign, string initials, string? arg)
     {
@@ -953,86 +933,39 @@ public partial class GroundViewModel : ObservableObject
         await _sendCommand(callsign, cmd, initials);
     }
 
-    public async Task GoAroundAsync(string callsign, string initials)
-    {
-        await _sendCommand(callsign, "GA", initials);
-    }
+    public async Task GoAroundAsync(string callsign, string initials) => await _sendCommand(callsign, "GA", initials);
 
-    public async Task CancelTakeoffClearanceAsync(string callsign, string initials)
-    {
-        await _sendCommand(callsign, "CTOC", initials);
-    }
+    public async Task CancelTakeoffClearanceAsync(string callsign, string initials) => await _sendCommand(callsign, "CTOC", initials);
 
-    public async Task ClearedToLandAsync(string callsign, string initials)
-    {
-        await _sendCommand(callsign, "CLAND", initials);
-    }
+    public async Task ClearedToLandAsync(string callsign, string initials) => await _sendCommand(callsign, "CLAND", initials);
 
-    public async Task ForceLandingAsync(string callsign, string initials)
-    {
-        await _sendCommand(callsign, "CLANDF", initials);
-    }
+    public async Task ForceLandingAsync(string callsign, string initials) => await _sendCommand(callsign, "CLANDF", initials);
 
-    public async Task CancelLandingClearanceAsync(string callsign, string initials)
-    {
-        await _sendCommand(callsign, "CLC", initials);
-    }
+    public async Task CancelLandingClearanceAsync(string callsign, string initials) => await _sendCommand(callsign, "CLC", initials);
 
-    public async Task TouchAndGoAsync(string callsign, string initials)
-    {
-        await _sendCommand(callsign, "TG", initials);
-    }
+    public async Task TouchAndGoAsync(string callsign, string initials) => await _sendCommand(callsign, "TG", initials);
 
-    public async Task StopAndGoAsync(string callsign, string initials)
-    {
-        await _sendCommand(callsign, "SG", initials);
-    }
+    public async Task StopAndGoAsync(string callsign, string initials) => await _sendCommand(callsign, "SG", initials);
 
-    public async Task LowApproachAsync(string callsign, string initials)
-    {
-        await _sendCommand(callsign, "LA", initials);
-    }
+    public async Task LowApproachAsync(string callsign, string initials) => await _sendCommand(callsign, "LA", initials);
 
-    public async Task ClearedForOptionAsync(string callsign, string initials)
-    {
-        await _sendCommand(callsign, "COPT", initials);
-    }
+    public async Task ClearedForOptionAsync(string callsign, string initials) => await _sendCommand(callsign, "COPT", initials);
 
-    public async Task ExitLeftAsync(string callsign, string initials)
-    {
-        await _sendCommand(callsign, "EL", initials);
-    }
+    public async Task ExitLeftAsync(string callsign, string initials) => await _sendCommand(callsign, "EL", initials);
 
-    public async Task ExitRightAsync(string callsign, string initials)
-    {
-        await _sendCommand(callsign, "ER", initials);
-    }
+    public async Task ExitRightAsync(string callsign, string initials) => await _sendCommand(callsign, "ER", initials);
 
     /// <summary>Pushes back to an absolute magnetic facing given as an 8-point compass cardinal (N, NE, E, SE, S, SW, W, NW).</summary>
-    public async Task PushbackFacingAsync(string callsign, string initials, string cardinal)
-    {
+    public async Task PushbackFacingAsync(string callsign, string initials, string cardinal) =>
         await _sendCommand(callsign, $"PUSH FACE {cardinal}", initials);
-    }
 
-    public async Task SendRawCommandAsync(string callsign, string initials, string command)
-    {
-        await _sendCommand(callsign, command, initials);
-    }
+    public async Task SendRawCommandAsync(string callsign, string initials, string command) => await _sendCommand(callsign, command, initials);
 
-    public async Task HoldShortAsync(string callsign, string initials, string target)
-    {
-        await _sendCommand(callsign, $"HS {target}", initials);
-    }
+    public async Task HoldShortAsync(string callsign, string initials, string target) => await _sendCommand(callsign, $"HS {target}", initials);
 
-    public async Task DeleteAsync(string callsign, string initials)
-    {
-        await _sendCommand(callsign, "DEL", initials);
-    }
+    public async Task DeleteAsync(string callsign, string initials) => await _sendCommand(callsign, "DEL", initials);
 
-    public async Task WarpToNodeAsync(string callsign, string initials, int nodeId)
-    {
-        await _sendCommand(callsign, $"WARPG #{nodeId}", initials);
-    }
+    public async Task WarpToNodeAsync(string callsign, string initials, int nodeId) => await _sendCommand(callsign, $"WARPG #{nodeId}", initials);
 
     public List<TaxiRoute> FindRoutesToNode(int fromNodeId, int toNodeId, AircraftCategory category)
     {
@@ -1691,16 +1624,10 @@ public partial class GroundViewModel : ObservableObject
 
     // --- Shown taxi routes ---
 
-    public void SetAircraftLookup(Func<string, AircraftModel?> lookup)
-    {
-        _findAircraft = lookup;
-    }
+    public void SetAircraftLookup(Func<string, AircraftModel?> lookup) => _findAircraft = lookup;
 
     /// <summary>Supplies the full live aircraft list, needed when "show all taxiing routes" is on.</summary>
-    public void SetAircraftProvider(Func<IReadOnlyList<AircraftModel>> provider)
-    {
-        _aircraftProvider = provider;
-    }
+    public void SetAircraftProvider(Func<IReadOnlyList<AircraftModel>> provider) => _aircraftProvider = provider;
 
     partial void OnShowAllTaxiRoutesChanged(bool value) => RefreshShownTaxiRoutes();
 
@@ -2090,10 +2017,7 @@ public partial class GroundViewModel : ObservableObject
         DrawHoverPreview = FindRouteToNode(_drawWaypointIds[^1], nodeId.Value, _drawAircraft is { } da ? CategoryFor(da) : AircraftCategory.Jet);
     }
 
-    public void CancelDrawRoute()
-    {
-        ClearDrawState();
-    }
+    public void CancelDrawRoute() => ClearDrawState();
 
     private void ClearDrawState()
     {

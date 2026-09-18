@@ -258,11 +258,9 @@ public class Issue143OakErdCompoundAndGaDirectionTests(ITestOutputHelper output)
 
     // --- Helpers ---
 
-    private static AircraftState SpawnAirborneOverOak(SimulationEngine engine, string callsign, double trueHeadingDeg, double altFt)
-    {
+    private static AircraftState SpawnAirborneOverOak(SimulationEngine engine, string callsign, double trueHeadingDeg, double altFt) =>
         // Drop the aircraft a few miles east of OAK 28R threshold on the right downwind side.
-        return SpawnAirborneAt(engine, callsign, lat: 37.66, lon: -122.16, headingDeg: trueHeadingDeg, altFt: altFt, destination: "OAK");
-    }
+        SpawnAirborneAt(engine, callsign, lat: 37.66, lon: -122.16, headingDeg: trueHeadingDeg, altFt: altFt, destination: "OAK");
 
     private static AircraftState SpawnAirborneAt(
         SimulationEngine engine,

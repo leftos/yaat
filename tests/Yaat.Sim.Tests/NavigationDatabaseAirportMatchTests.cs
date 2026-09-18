@@ -30,10 +30,8 @@ public class NavigationDatabaseAirportMatchTests
     [InlineData("", "OAK", false)]
     [InlineData(null, "OAK", false)]
     [InlineData("KOAK", null, false)]
-    public void AirportIdsMatch_HandlesIcaoAndFaaEquivalence(string? a, string? b, bool expected)
-    {
+    public void AirportIdsMatch_HandlesIcaoAndFaaEquivalence(string? a, string? b, bool expected) =>
         Assert.Equal(expected, NavigationDatabase.AirportIdsMatch(a, b));
-    }
 
     [Fact]
     public void NormalizeAirport_StripsKPrefixForCONUS()
@@ -63,8 +61,6 @@ public class NavigationDatabaseAirportMatchTests
     [InlineData("OAK", "SFO", false)]
     [InlineData("OAK", "", false)]
     [InlineData("", "OAK", false)]
-    public void AirportIdsMatchResolved_MatchesEitherFaaOrIcao(string a, string b, bool expected)
-    {
+    public void AirportIdsMatchResolved_MatchesEitherFaaOrIcao(string a, string b, bool expected) =>
         Assert.Equal(expected, NavigationDatabase.Instance.AirportIdsMatchResolved(a, b));
-    }
 }

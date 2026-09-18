@@ -42,16 +42,10 @@ public class ScenarioCallsignExtractorTests
     [InlineData("/V/ CALLSING AIRSHARE")] // typo'd label, unquoted — not supported
     [InlineData("")]
     [InlineData("   ")]
-    public void Extract_NoMatch_ReturnsEmpty(string remarks)
-    {
-        Assert.Empty(ScenarioCallsignExtractor.Extract(remarks));
-    }
+    public void Extract_NoMatch_ReturnsEmpty(string remarks) => Assert.Empty(ScenarioCallsignExtractor.Extract(remarks));
 
     [Fact]
-    public void Extract_NullInput_ReturnsEmpty()
-    {
-        Assert.Empty(ScenarioCallsignExtractor.Extract(null));
-    }
+    public void Extract_NullInput_ReturnsEmpty() => Assert.Empty(ScenarioCallsignExtractor.Extract(null));
 
     // --- Multiple / dedupe ---
 
@@ -73,11 +67,9 @@ public class ScenarioCallsignExtractorTests
     }
 
     [Fact]
-    public void Extract_RejectsNumericQuoted()
-    {
+    public void Extract_RejectsNumericQuoted() =>
         // Quoted strings that look like flight numbers or remarks shouldn't be treated as telephony.
         Assert.Empty(ScenarioCallsignExtractor.Extract("\"1385\""));
-    }
 
     [Fact]
     public void Extract_RejectsOverlongQuoted()

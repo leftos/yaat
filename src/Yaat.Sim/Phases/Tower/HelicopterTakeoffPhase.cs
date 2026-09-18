@@ -71,10 +71,7 @@ public sealed class HelicopterTakeoffPhase : Phase
     /// <summary>Departure instruction from CTO command.</summary>
     public DepartureInstruction? Departure { get; private set; }
 
-    public void SetAssignedDeparture(DepartureInstruction? departure)
-    {
-        Departure = departure;
-    }
+    public void SetAssignedDeparture(DepartureInstruction? departure) => Departure = departure;
 
     public override void OnStart(PhaseContext ctx)
     {

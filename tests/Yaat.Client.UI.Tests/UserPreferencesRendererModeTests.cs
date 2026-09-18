@@ -11,10 +11,7 @@ namespace Yaat.Client.UI.Tests;
 public class UserPreferencesRendererModeTests
 {
     [Fact]
-    public void Default_IsAuto()
-    {
-        Assert.Equal(RendererMode.Auto, new UserPreferences().RendererMode);
-    }
+    public void Default_IsAuto() => Assert.Equal(RendererMode.Auto, new UserPreferences().RendererMode);
 
     [Fact]
     public void SetRendererMode_PersistsAcrossInstances()

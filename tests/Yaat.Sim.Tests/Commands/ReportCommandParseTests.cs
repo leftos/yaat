@@ -101,8 +101,5 @@ public class ReportCommandParseTests
     [InlineData("REPORT MENLO", "REPORT MENLO")]
     [InlineData("REPORT OFF", "REPORT OFF")]
     [InlineData("REPORT BASE OFF", "REPORT OFF BASE")]
-    public void CanonicalRoundTrip(string input, string canonical)
-    {
-        Assert.Equal(canonical, CommandDescriber.DescribeCommand(Parse(input)));
-    }
+    public void CanonicalRoundTrip(string input, string canonical) => Assert.Equal(canonical, CommandDescriber.DescribeCommand(Parse(input)));
 }

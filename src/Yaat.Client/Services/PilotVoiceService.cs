@@ -226,10 +226,7 @@ internal sealed class SherpaOnnxPilotVoiceSynthesizer : IPilotVoiceSynthesizer
         }
     }
 
-    private static string? TryFindVoiceDir()
-    {
-        return PilotVoicePack.FindInstalledDirectory();
-    }
+    private static string? TryFindVoiceDir() => PilotVoicePack.FindInstalledDirectory();
 }
 
 internal static class RadioAudioFx

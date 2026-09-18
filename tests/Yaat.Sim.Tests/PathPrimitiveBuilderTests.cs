@@ -364,14 +364,12 @@ public class PathPrimitiveBuilderTests
     }
 
     [Fact]
-    public void SlowTurn_SpeedCapIsWalkingPace()
-    {
+    public void SlowTurn_SpeedCapIsWalkingPace() =>
         // SlowTurnSpeedKts should be ~walking pace — low enough that full
         // nose-wheel deflection is mechanically usable without tyre scrub
         // dominating. Guard against accidental future tuning into an
         // unrealistic regime.
         Assert.InRange(CategoryPerformance.SlowTurnSpeedKts, 1.0, 5.0);
-    }
 
     // ---- SlowTurnToPoint: the Dubins arc-then-tangent-line aim at a point ----
 

@@ -126,8 +126,5 @@ public sealed class LinedUpAndWaitingPhase : Phase
         };
     }
 
-    protected override List<ClearanceRequirement> CreateRequirements()
-    {
-        return [new ClearanceRequirement { Type = ClearanceType.ClearedForTakeoff }];
-    }
+    protected override List<ClearanceRequirement> CreateRequirements() => [new ClearanceRequirement { Type = ClearanceType.ClearedForTakeoff }];
 }

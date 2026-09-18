@@ -432,10 +432,8 @@ public static class SpawnParser
         );
     }
 
-    private static string FrdRedirectError(string frdToken)
-    {
-        return $"'{frdToken}' looks like a fix/radial/distance position — spawn there with: @{frdToken.ToUpperInvariant()} {{altitude}}";
-    }
+    private static string FrdRedirectError(string frdToken) =>
+        $"'{frdToken}' looks like a fix/radial/distance position — spawn there with: @{frdToken.ToUpperInvariant()} {{altitude}}";
 
     private static bool TryParseRules(string token, out FlightRulesKind rules)
     {

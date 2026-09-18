@@ -121,10 +121,8 @@ public class AtpaProcessorConeStateTests
     // not closing (or diverging) and currently separated -> Monitor
     [InlineData(4.0, 3.0, 0.0, AtpaConeState.Monitor)]
     [InlineData(4.0, 3.0, -50.0, AtpaConeState.Monitor)]
-    public void DetermineConeState_MatchesStarsThresholds(double actualNm, double allowedNm, double closureKt, AtpaConeState expected)
-    {
+    public void DetermineConeState_MatchesStarsThresholds(double actualNm, double allowedNm, double closureKt, AtpaConeState expected) =>
         Assert.Equal(expected, AtpaProcessor.DetermineConeState(actualNm, allowedNm, closureKt));
-    }
 
     [Fact]
     public void Process_WellSeparatedPair_YieldsMonitorState()

@@ -337,16 +337,10 @@ public class StripCommandVocabularyTests
     }
 
     [Fact]
-    public void Canonical_StripDelete()
-    {
-        Assert.Equal("STRIPD", CommandDescriber.DescribeCommand(new StripDeleteCommand()));
-    }
+    public void Canonical_StripDelete() => Assert.Equal("STRIPD", CommandDescriber.DescribeCommand(new StripDeleteCommand()));
 
     [Fact]
-    public void Canonical_StripOffset()
-    {
-        Assert.Equal("STRIPO", CommandDescriber.DescribeCommand(new StripOffsetCommand()));
-    }
+    public void Canonical_StripOffset() => Assert.Equal("STRIPO", CommandDescriber.DescribeCommand(new StripOffsetCommand()));
 
     [Fact]
     public void Canonical_Hsm_AllTokens()
@@ -372,16 +366,12 @@ public class StripCommandVocabularyTests
     }
 
     [Fact]
-    public void Canonical_Hso_AircraftScoped()
-    {
+    public void Canonical_Hso_AircraftScoped() =>
         Assert.Equal("HSO", CommandDescriber.DescribeCommand(new HalfStripOffsetCommand(null, null, null, null)));
-    }
 
     [Fact]
-    public void Canonical_Hss_KeyOnly()
-    {
+    public void Canonical_Hss_KeyOnly() =>
         Assert.Equal("HSS KEY1", CommandDescriber.DescribeCommand(new HalfStripSlideCommand(null, null, null, "KEY1")));
-    }
 
     [Fact]
     public void Canonical_Sep_Handwritten_Label()
@@ -405,20 +395,11 @@ public class StripCommandVocabularyTests
     }
 
     [Fact]
-    public void Canonical_Blank_PrinterQueue()
-    {
-        Assert.Equal("BLANK", CommandDescriber.DescribeCommand(new BlankCreateCommand([])));
-    }
+    public void Canonical_Blank_PrinterQueue() => Assert.Equal("BLANK", CommandDescriber.DescribeCommand(new BlankCreateCommand([])));
 
     [Fact]
-    public void Canonical_Blank_Bay()
-    {
-        Assert.Equal("BLANK Ground", CommandDescriber.DescribeCommand(new BlankCreateCommand(["Ground"])));
-    }
+    public void Canonical_Blank_Bay() => Assert.Equal("BLANK Ground", CommandDescriber.DescribeCommand(new BlankCreateCommand(["Ground"])));
 
     [Fact]
-    public void Canonical_Blankd_Bay()
-    {
-        Assert.Equal("BLANKD Ground", CommandDescriber.DescribeCommand(new BlankDeleteCommand(["Ground"])));
-    }
+    public void Canonical_Blankd_Bay() => Assert.Equal("BLANKD Ground", CommandDescriber.DescribeCommand(new BlankDeleteCommand(["Ground"])));
 }

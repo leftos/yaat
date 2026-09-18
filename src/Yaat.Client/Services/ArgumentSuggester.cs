@@ -430,20 +430,11 @@ internal static class ArgumentSuggester
         }
     }
 
-    private static bool IsRunwayHint(string typeHint)
-    {
-        return typeHint.Contains("runway", StringComparison.OrdinalIgnoreCase);
-    }
+    private static bool IsRunwayHint(string typeHint) => typeHint.Contains("runway", StringComparison.OrdinalIgnoreCase);
 
-    private static bool IsTaxiwayHint(string typeHint)
-    {
-        return typeHint.Contains("taxiway", StringComparison.OrdinalIgnoreCase);
-    }
+    private static bool IsTaxiwayHint(string typeHint) => typeHint.Contains("taxiway", StringComparison.OrdinalIgnoreCase);
 
-    private static bool IsSpotHint(string typeHint)
-    {
-        return typeHint.Contains("spot", StringComparison.OrdinalIgnoreCase);
-    }
+    private static bool IsSpotHint(string typeHint) => typeHint.Contains("spot", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// The self-contained sigil modifier (<c>@</c> parking, <c>$</c> spot) the command declares for the
@@ -544,25 +535,13 @@ internal static class ArgumentSuggester
             || typeHint.Contains("military route", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool IsFixHint(string typeHint)
-    {
-        return typeHint.Contains("fix name", StringComparison.OrdinalIgnoreCase);
-    }
+    private static bool IsFixHint(string typeHint) => typeHint.Contains("fix name", StringComparison.OrdinalIgnoreCase);
 
-    private static bool IsApproachHint(string typeHint)
-    {
-        return typeHint.Contains("approach ID", StringComparison.OrdinalIgnoreCase);
-    }
+    private static bool IsApproachHint(string typeHint) => typeHint.Contains("approach ID", StringComparison.OrdinalIgnoreCase);
 
-    private static bool IsCallsignHint(string typeHint)
-    {
-        return typeHint.Contains("callsign", StringComparison.OrdinalIgnoreCase);
-    }
+    private static bool IsCallsignHint(string typeHint) => typeHint.Contains("callsign", StringComparison.OrdinalIgnoreCase);
 
-    private static bool IsPatternLegHint(string typeHint)
-    {
-        return typeHint.Contains("pattern leg", StringComparison.OrdinalIgnoreCase);
-    }
+    private static bool IsPatternLegHint(string typeHint) => typeHint.Contains("pattern leg", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Airway / military-route values for JAWY and CMTR.

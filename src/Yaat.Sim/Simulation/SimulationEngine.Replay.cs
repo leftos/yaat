@@ -38,10 +38,7 @@ public sealed partial class SimulationEngine
             engine.RunProfile = RunProfile.Replay;
         }
 
-        public void Dispose()
-        {
-            _engine.RunProfile = _previous;
-        }
+        public void Dispose() => _engine.RunProfile = _previous;
     }
 
     /// <summary>
@@ -63,10 +60,8 @@ public sealed partial class SimulationEngine
     /// host-owned verbs (strips, TDLS, coordination); pass a custom <paramref name="actionApplier"/> to handle those
     /// (server rewind).
     /// </summary>
-    public void ReplayFromStartTo(int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier = null)
-    {
+    public void ReplayFromStartTo(int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier = null) =>
         _replay.FromStartTo(targetSeconds, actions, actionApplier);
-    }
 
     /// <summary>
     /// Advance the engine from its current <c>ElapsedSeconds</c> to <paramref name="targetSeconds"/>,
@@ -76,20 +71,16 @@ public sealed partial class SimulationEngine
     /// a snapshot to rewind). Updates the replay cursor so subsequent <see cref="ReplayOneSecond"/> calls
     /// continue from <paramref name="targetSeconds"/>.
     /// </summary>
-    public void FastForwardTo(int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier = null)
-    {
+    public void FastForwardTo(int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier = null) =>
         _replay.FastForwardTo(targetSeconds, actions, actionApplier);
-    }
 
     /// <summary>
     /// Replays from <paramref name="startSeconds"/> to <paramref name="targetSeconds"/>,
     /// applying actions and ticking physics for each second in the range.
     /// When startSeconds is 0, actions at t=0 are applied first.
     /// </summary>
-    public void ReplayRange(int startSeconds, int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier = null)
-    {
+    public void ReplayRange(int startSeconds, int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier = null) =>
         _replay.Range(startSeconds, targetSeconds, actions, actionApplier);
-    }
 
     /// <summary>
     /// Replay variant that compares engine state against snapshots in the supplied
@@ -104,10 +95,7 @@ public sealed partial class SimulationEngine
         List<RecordedAction> actions,
         RecordingArchive archive,
         Action<RecordedAction>? actionApplier = null
-    )
-    {
-        return _replay.RangeWithVerification(startSeconds, targetSeconds, actions, archive, actionApplier);
-    }
+    ) => _replay.RangeWithVerification(startSeconds, targetSeconds, actions, archive, actionApplier);
 
     /// <summary>
     /// Formats <see cref="TickTimings"/> for diagnostic output. Sorted by total time desc.
@@ -130,10 +118,8 @@ public sealed partial class SimulationEngine
 
     public const int SnapshotIntervalSeconds = 5;
 
-    public void Replay(SessionRecording recording, double targetSeconds)
-    {
+    public void Replay(SessionRecording recording, double targetSeconds) =>
         ReplayWithScenarioOverride(recording, targetSeconds, configureAfterLoad: static _ => { });
-    }
 
     /// <summary>
     /// Replay variant that runs <paramref name="configureAfterLoad"/> on the freshly loaded
@@ -141,10 +127,8 @@ public sealed partial class SimulationEngine
     /// override scenario state (e.g. <c>ValidateDctFixes</c>) when replaying older recordings
     /// that predate a setting being persisted in the action log.
     /// </summary>
-    public void ReplayWithScenarioOverride(SessionRecording recording, double targetSeconds, Action<SimScenarioState> configureAfterLoad)
-    {
+    public void ReplayWithScenarioOverride(SessionRecording recording, double targetSeconds, Action<SimScenarioState> configureAfterLoad) =>
         _replay.To(recording, targetSeconds, configureAfterLoad);
-    }
 
     /// <summary>
     /// Arms the replay driver against a scenario that was loaded by something other than a recording, with the
@@ -167,10 +151,7 @@ public sealed partial class SimulationEngine
     /// actions at the new time, and advances weather. Call after <see cref="Replay"/>
     /// or <see cref="ArmReplay"/> to continue the recording second-by-second while inspecting state between ticks.
     /// </summary>
-    public void ReplayOneSecond()
-    {
-        _replay.OneSecond();
-    }
+    public void ReplayOneSecond() => _replay.OneSecond();
 
     /// <summary>
     /// Advances the replay by one physics sub-tick (0.25 s). This is the
@@ -182,8 +163,5 @@ public sealed partial class SimulationEngine
     /// <see cref="ReplayOneSecond"/>'s semantics exactly when called four
     /// times in succession starting from an integer second.
     /// </summary>
-    public void ReplayOneSubTick()
-    {
-        _replay.OneSubTick();
-    }
+    public void ReplayOneSubTick() => _replay.OneSubTick();
 }

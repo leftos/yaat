@@ -210,22 +210,13 @@ public class MetarParserTests
     // -------------------------------------------------------------------------
 
     [Fact]
-    public void Parse_Null_ReturnsNull()
-    {
-        Assert.Null(MetarParser.Parse(null));
-    }
+    public void Parse_Null_ReturnsNull() => Assert.Null(MetarParser.Parse(null));
 
     [Fact]
-    public void Parse_Empty_ReturnsNull()
-    {
-        Assert.Null(MetarParser.Parse(""));
-    }
+    public void Parse_Empty_ReturnsNull() => Assert.Null(MetarParser.Parse(""));
 
     [Fact]
-    public void Parse_TooShort_ReturnsNull()
-    {
-        Assert.Null(MetarParser.Parse("KOAK"));
-    }
+    public void Parse_TooShort_ReturnsNull() => Assert.Null(MetarParser.Parse("KOAK"));
 
     // -------------------------------------------------------------------------
     // FindStation
@@ -258,10 +249,7 @@ public class MetarParserTests
     [InlineData("KOAK", "KOAK")]
     [InlineData("koak", "KOAK")]
     [InlineData("SFO", "KSFO")]
-    public void ToIcao_ConvertCorrectly(string input, string expected)
-    {
-        Assert.Equal(expected, MetarParser.ToIcao(input));
-    }
+    public void ToIcao_ConvertCorrectly(string input, string expected) => Assert.Equal(expected, MetarParser.ToIcao(input));
 
     // -------------------------------------------------------------------------
     // Parse — vertical visibility (VV / indefinite ceiling)

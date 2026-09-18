@@ -57,8 +57,5 @@ public class GeneratorRunwayOptionsTests
     }
 
     [Fact]
-    public void UnionRunwayIds_NoLayoutNoGenerators_IsEmpty()
-    {
-        Assert.Empty(MainViewModel.UnionRunwayIds(null, []));
-    }
+    public void UnionRunwayIds_NoLayoutNoGenerators_IsEmpty() => Assert.Empty(MainViewModel.UnionRunwayIds(null, []));
 }

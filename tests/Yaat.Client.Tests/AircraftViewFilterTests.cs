@@ -69,14 +69,12 @@ public class AircraftViewFilterTests
     }
 
     [Fact]
-    public void UnsupportedGhostStillProducesNoAltitudeAsgnSmartStatus()
-    {
+    public void UnsupportedGhostStillProducesNoAltitudeAsgnSmartStatus() =>
         // Sanity-check that the underlying status projection is unchanged — the filter is the layer
         // that hides the row, not a status rewrite. An unsupported phantom is airborne with no phase,
         // SID, altitude, or route, which the describer reports with a leading "No altitude asgn"
         // warning (now prepended to the normal status rather than replacing it).
         Assert.StartsWith("No altitude asgn", Describe(new AircraftStatusView { IsOnGround = false }).Text);
-    }
 
     [Fact]
     public void Filter_TextSearch_MatchesPrependedWarningStatus()

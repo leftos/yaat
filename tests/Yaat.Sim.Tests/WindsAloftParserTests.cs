@@ -102,10 +102,7 @@ public class WindsAloftParserTests
     }
 
     [Fact]
-    public void Parse_NoFtHeader_ReturnsEmpty()
-    {
-        Assert.Empty(WindsAloftParser.Parse("some random text\nwith no FT header"));
-    }
+    public void Parse_NoFtHeader_ReturnsEmpty() => Assert.Empty(WindsAloftParser.Parse("some random text\nwith no FT header"));
 
     [Fact]
     public void DecodeWind_InvalidCode_ReturnsNull()

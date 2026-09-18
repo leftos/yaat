@@ -148,13 +148,11 @@ public sealed class MilitaryRouteExpansionTests
     }
 
     [Fact]
-    public void ResolveFixOrFrd_RadialOnlyShape_IsNotTreatedAsAnFrd()
-    {
+    public void ResolveFixOrFrd_RadialOnlyShape_IsNotTreatedAsAnFrd() =>
         // FrdResolver also accepts {FIX}{radial:3}, which matches any 5+ character identifier
         // ending in three digits. Honouring it here would resolve a real fix of that shape to its
         // anchor's position instead of its own, so route anchoring takes the full form only.
         Assert.Null(NavDb.ResolveFixOrFrd("ZZZZ123"));
-    }
 
     [Fact]
     public void ProgrammedFixes_IncludeTheRoutePointsForScopeHighlighting()

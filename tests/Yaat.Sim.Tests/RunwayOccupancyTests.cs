@@ -436,12 +436,10 @@ public class RunwayOccupancyTests
     }
 
     [Fact]
-    public void Shadow_AcceleratingThroughTaxiSpeed_IsAlreadyDeparting()
-    {
+    public void Shadow_AcceleratingThroughTaxiSpeed_IsAlreadyDeparting() =>
         // 6 kt/s from brake release: a jet is at 25 kt four seconds in. The fixed 35 kt gate would call it OnSurface
         // for two more seconds; the acceleration branch sees the roll now.
         Assert.Equal(RunwayUseKind.Departing, Kind(SurfaceShadow(1, 7, 13, 19, 25)));
-    }
 
     [Fact]
     public void Shadow_MovingSteadilyAlongTheRunway_IsOnSurface_UntilTheSpeedGate()

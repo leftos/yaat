@@ -34,10 +34,7 @@ public class MainViewModelLiveSessionTests
         double? behind,
         bool preparing,
         string expected
-    )
-    {
-        Assert.Equal(expected, MainViewModel.DescribeLiveSession(live, paused, playback, connected, behind, preparing));
-    }
+    ) => Assert.Equal(expected, MainViewModel.DescribeLiveSession(live, paused, playback, connected, behind, preparing));
 
     [AvaloniaFact]
     public void BehindRealTime_OffersGoLive_WhileRunning()

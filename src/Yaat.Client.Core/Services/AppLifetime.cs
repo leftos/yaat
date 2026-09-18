@@ -11,8 +11,5 @@ public static class AppLifetime
 {
     public static bool IsShuttingDown { get; private set; }
 
-    public static void MarkShuttingDown()
-    {
-        IsShuttingDown = true;
-    }
+    public static void MarkShuttingDown() => IsShuttingDown = true;
 }

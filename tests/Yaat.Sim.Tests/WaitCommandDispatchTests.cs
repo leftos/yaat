@@ -56,10 +56,7 @@ public class WaitCommandDispatchTests
         ac.Phases.Start(ctx);
     }
 
-    private static CompoundCommand WaitCompound(double seconds)
-    {
-        return new CompoundCommand([new ParsedBlock(null, [new WaitCommand(seconds)])]);
-    }
+    private static CompoundCommand WaitCompound(double seconds) => new CompoundCommand([new ParsedBlock(null, [new WaitCommand(seconds)])]);
 
     // -------------------------------------------------------------------------
     // ToCanonicalType mapping

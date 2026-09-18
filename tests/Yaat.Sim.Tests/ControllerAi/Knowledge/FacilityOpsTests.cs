@@ -85,10 +85,8 @@ public class FacilityOpsTests
     }
 
     [Fact]
-    public void AMissingDirectory_IsNoKnowledge_NotAnError()
-    {
+    public void AMissingDirectory_IsNoKnowledge_NotAnError() =>
         Assert.Empty(FacilityOpsDatabase.LoadDirectory(Path.Combine(Path.GetTempPath(), $"yaat-no-such-dir-{Guid.NewGuid():N}"), Navigation));
-    }
 
     [Theory]
     [InlineData("B738", SopAircraftClass.J)]
@@ -98,10 +96,8 @@ public class FacilityOpsTests
     [InlineData("C208", SopAircraftClass.P)]
     [InlineData("C172", SopAircraftClass.P)]
     [InlineData("P28A", SopAircraftClass.P)]
-    public void SopAircraftClass_FollowsTheNctDefinitions(string type, SopAircraftClass expected)
-    {
+    public void SopAircraftClass_FollowsTheNctDefinitions(string type, SopAircraftClass expected) =>
         Assert.Equal(expected, SopAircraftClassifier.Classify(type));
-    }
 
     [Fact]
     public void AssignmentPredicates_MatchOnEveryStatedField()

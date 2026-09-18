@@ -31,10 +31,7 @@ public sealed class SerializableRandom : Random
 
     public RngState GetState() => new((long)_s0, (long)_s1, (long)_s2, (long)_s3);
 
-    public override int Next()
-    {
-        return (int)(NextUInt64() >> 33); // 31 non-negative bits
-    }
+    public override int Next() => (int)(NextUInt64() >> 33); // 31 non-negative bits
 
     public override int Next(int maxValue)
     {
@@ -83,16 +80,11 @@ public sealed class SerializableRandom : Random
         return (int)((long)(NextUInt64() % (ulong)range) + minValue);
     }
 
-    public override double NextDouble()
-    {
+    public override double NextDouble() =>
         // 53 bits of mantissa
-        return (NextUInt64() >> 11) * (1.0 / (1UL << 53));
-    }
+        (NextUInt64() >> 11) * (1.0 / (1UL << 53));
 
-    protected override double Sample()
-    {
-        return NextDouble();
-    }
+    protected override double Sample() => NextDouble();
 
     private ulong NextUInt64()
     {

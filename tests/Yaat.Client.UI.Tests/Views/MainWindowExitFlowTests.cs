@@ -31,10 +31,7 @@ public class MainWindowExitFlowTests
         bool isConfirmedClose,
         bool hasActiveScenario,
         bool expected
-    )
-    {
-        Assert.Equal(expected, MainWindow.ShouldConfirmExit(reason, isProgrammatic, isConfirmedClose, hasActiveScenario));
-    }
+    ) => Assert.Equal(expected, MainWindow.ShouldConfirmExit(reason, isProgrammatic, isConfirmedClose, hasActiveScenario));
 
     [AvaloniaFact]
     public void CloseWithActiveScenario_CancelsAndStaysOpen()

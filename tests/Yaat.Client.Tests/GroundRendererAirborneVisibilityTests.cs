@@ -21,28 +21,17 @@ public class GroundRendererAirborneVisibilityTests
     private static WeatherDisplayInfo Weather(int? ceilingFeetAgl) => new("SFO", 270, 10, null, 29.92, ceilingFeetAgl);
 
     [Fact]
-    public void ResolveMaxAgl_NoWeather_UsesSixThousand()
-    {
-        Assert.Equal(6000, GroundRenderer.ResolveAirborneMaxAglFt(null));
-    }
+    public void ResolveMaxAgl_NoWeather_UsesSixThousand() => Assert.Equal(6000, GroundRenderer.ResolveAirborneMaxAglFt(null));
 
     [Fact]
-    public void ResolveMaxAgl_ClearSky_UsesSixThousand()
-    {
-        Assert.Equal(6000, GroundRenderer.ResolveAirborneMaxAglFt(Weather(ceilingFeetAgl: null)));
-    }
+    public void ResolveMaxAgl_ClearSky_UsesSixThousand() => Assert.Equal(6000, GroundRenderer.ResolveAirborneMaxAglFt(Weather(ceilingFeetAgl: null)));
 
     [Fact]
-    public void ResolveMaxAgl_LowCeiling_CapsAtCeiling()
-    {
-        Assert.Equal(800, GroundRenderer.ResolveAirborneMaxAglFt(Weather(ceilingFeetAgl: 800)));
-    }
+    public void ResolveMaxAgl_LowCeiling_CapsAtCeiling() => Assert.Equal(800, GroundRenderer.ResolveAirborneMaxAglFt(Weather(ceilingFeetAgl: 800)));
 
     [Fact]
-    public void ResolveMaxAgl_HighCeiling_CapsAtSixThousand()
-    {
+    public void ResolveMaxAgl_HighCeiling_CapsAtSixThousand() =>
         Assert.Equal(6000, GroundRenderer.ResolveAirborneMaxAglFt(Weather(ceilingFeetAgl: 8000)));
-    }
 
     [Fact]
     public void IsAirborneVisible_JustBelowCap_Visible()

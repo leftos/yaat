@@ -57,16 +57,10 @@ public class CommandDescriberCompletenessTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void DescribeCommand_CoversAllParsedCommandTypes()
-    {
-        AssertAllTypesCovered(CommandDescriber.DescribeCommand, "DescribeCommand");
-    }
+    public void DescribeCommand_CoversAllParsedCommandTypes() => AssertAllTypesCovered(CommandDescriber.DescribeCommand, "DescribeCommand");
 
     [Fact]
-    public void DescribeNatural_CoversAllParsedCommandTypes()
-    {
-        AssertAllTypesCovered(CommandDescriber.DescribeNatural, "DescribeNatural");
-    }
+    public void DescribeNatural_CoversAllParsedCommandTypes() => AssertAllTypesCovered(CommandDescriber.DescribeNatural, "DescribeNatural");
 
     /// <summary>
     /// Asserts that a describer produces an explicit friendly string for every ParsedCommand

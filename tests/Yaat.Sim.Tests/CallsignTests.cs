@@ -13,10 +13,8 @@ public class CallsignTests
     [InlineData("1234567")]
     [InlineData("N12345")]
     [InlineData("AAL2839")]
-    public void IsValid_AcceptsAlphanumericAndDashUpToSeven(string callsign)
-    {
+    public void IsValid_AcceptsAlphanumericAndDashUpToSeven(string callsign) =>
         Assert.True(Callsign.IsValid(callsign), $"Expected '{callsign}' to be valid");
-    }
 
     [Theory]
     [InlineData("*T")]
@@ -33,8 +31,6 @@ public class CallsignTests
     [InlineData("UAL238 ")]
     [InlineData("UAL.238")]
     [InlineData("N42_42")]
-    public void IsValid_RejectsInvalid(string? callsign)
-    {
+    public void IsValid_RejectsInvalid(string? callsign) =>
         Assert.False(Callsign.IsValid(callsign), $"Expected '{callsign ?? "<null>"}' to be invalid");
-    }
 }

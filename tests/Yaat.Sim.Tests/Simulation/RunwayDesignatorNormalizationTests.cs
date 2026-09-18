@@ -23,10 +23,8 @@ public sealed class RunwayDesignatorNormalizationTests(ITestOutputHelper output)
     [InlineData("RWY8R/26L", "08R", true)]
     [InlineData("RWY09/27", "9", true)]
     [InlineData("RWY09/27", "09", true)]
-    public void RunwayNameContainsDesignator_NormalizesLeadingZero(string edgeName, string designator, bool expected)
-    {
+    public void RunwayNameContainsDesignator_NormalizesLeadingZero(string edgeName, string designator, bool expected) =>
         Assert.Equal(expected, IGroundEdge.RunwayNameContainsDesignator(edgeName, designator));
-    }
 
     [Fact]
     public void FindRunwayRoute_PaddedAndUnpaddedDesignatorMatch()

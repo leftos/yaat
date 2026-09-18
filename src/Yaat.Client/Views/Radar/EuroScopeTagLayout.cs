@@ -286,12 +286,12 @@ public static class EuroScopeTagLayout
         return x + width + FieldGap;
     }
 
-    private static string OwnerMarker(AircraftModel ac)
-    {
+    private static string OwnerMarker(AircraftModel ac) =>
         // Whoever owns the track, show their initials. Uncontrolled -> "--" (so the field
         // remains a stable click target for the assume-track action).
-        return string.IsNullOrEmpty(ac.AssignedTo) ? "--" : ac.AssignedTo;
-    }
+        string.IsNullOrEmpty(ac.AssignedTo)
+            ? "--"
+            : ac.AssignedTo;
 
     private static string FormatTypeCwt(AircraftModel ac)
     {

@@ -140,17 +140,13 @@ public sealed class StartNodeHoldShortArmingTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void ParkedOnTheBar_Arms()
-    {
+    public void ParkedOnTheBar_Arms() =>
         // The original #316 case: re-routed while already holding at the bar.
         AssertHoldsShortOf10R(startOffsetFt: 40, startIasKts: 0);
-    }
 
     [Fact]
-    public void ApproachingFromBeyondTheParkedRadius_ArmsInsteadOfCrossing()
-    {
+    public void ApproachingFromBeyondTheParkedRadius_ArmsInsteadOfCrossing() =>
         // Re-routed while still rolling toward the bar from beyond the 150 ft parked radius:
         // must brake to the bar and hold, not sail through the one-shot check and cross 10R.
         AssertHoldsShortOf10R(startOffsetFt: 250, startIasKts: 15);
-    }
 }

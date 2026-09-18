@@ -39,10 +39,12 @@ public static class GroundCommandHandler
     /// (<c>TAXI 1L</c>) is honoured only when the aircraft is already at that runway's hold-short — see
     /// <see cref="TaxiPathfinder.FindAdjacentRunwayRoute"/>; <see cref="TryTaxiAuto"/> is the explicit auto-route.
     /// </summary>
-    internal static CommandResult TryTaxi(AircraftState aircraft, TaxiCommand taxi, AirportGroundLayout? groundLayout, bool autoCrossRunway = false)
-    {
-        return TryTaxiCore(aircraft, taxi, groundLayout, autoCrossRunway, allowRemoteRunwayAutoRoute: false);
-    }
+    internal static CommandResult TryTaxi(
+        AircraftState aircraft,
+        TaxiCommand taxi,
+        AirportGroundLayout? groundLayout,
+        bool autoCrossRunway = false
+    ) => TryTaxiCore(aircraft, taxi, groundLayout, autoCrossRunway, allowRemoteRunwayAutoRoute: false);
 
     private static CommandResult TryTaxiCore(
         AircraftState aircraft,

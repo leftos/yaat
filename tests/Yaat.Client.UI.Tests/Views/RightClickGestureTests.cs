@@ -98,10 +98,7 @@ public class RightClickGestureTests
     }
 
     [Fact]
-    public void ReleaseWithoutAPressOwesNothing()
-    {
-        Assert.Null(new RightClickGesture().Release());
-    }
+    public void ReleaseWithoutAPressOwesNothing() => Assert.Null(new RightClickGesture().Release());
 
     [Fact]
     public void DoubleReleaseOnlyOwesOneMenu()
