@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Scenarios;
@@ -131,7 +132,7 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
     /// giving it back and the arrival does not accelerate on the tick the handoff is accepted. The ceiling left
     /// standing is then an ordinary assigned speed with nobody re-stamping it — the manager would otherwise re-derive
     /// a different figure every tick as the gap changes, which is what the three quiet ticks here assert it does not
-    /// — and it lapses the way any other does: the student's own speed command, or the §5-7-1.d / AIM 4-4-12.a.7
+    /// — and it lapses the way any other does: the student's own speed command, or the §5-7-1.d / AIM 4-4-12.g
     /// window.
     /// </summary>
     [Fact]
@@ -326,7 +327,10 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
         {
             engine.TickOneSecond();
             AircraftState follower = engine.FindAircraft(FollowerCallsign)!;
-            if (Math.Abs(follower.IndicatedAirspeed - ScheduledKts(follower, rwy30)) <= SimulationEngine.SpeedRestoreDeadbandKts)
+            if (
+                Math.Abs(follower.IndicatedAirspeed - ScheduledKts(follower, rwy30, engine.World.GroundLayout))
+                <= ArrivalSpacingManager.SpeedRestoreDeadbandKts
+            )
             {
                 restoredAt = t;
             }
@@ -334,8 +338,9 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
 
         AircraftState restoredFollower = engine.FindAircraft(FollowerCallsign)!;
         output.WriteLine(
-            $"restored at t={restoredAt}s: IAS {restoredFollower.IndicatedAirspeed:F0} kt, scheduled {ScheduledKts(restoredFollower, rwy30):F0} kt, "
-                + $"{AlongFinalNm(restoredFollower, rwy30):F1} nm"
+            $"restored at t={restoredAt}s: IAS {restoredFollower.IndicatedAirspeed:F0} kt, "
+                + $"scheduled {ScheduledKts(restoredFollower, rwy30, engine.World.GroundLayout):F0} kt, "
+                + $"{AlongFinalNm(restoredFollower, rwy30, engine.World.GroundLayout):F1} nm"
         );
         Assert.True(restoredAt > 0, "the follower was not given its scheduled speed back within 60 s of becoming the lead");
 
@@ -420,7 +425,10 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
             engine.TickOneSecond();
             Assert.NotNull(engine.FindAircraft(LeaderCallsign)); // still a follower throughout
             follower = engine.FindAircraft(FollowerCallsign)!;
-            if ((follower.Targets.SpeedCeiling is { } ceiling) && (follower.IndicatedAirspeed >= ceiling - SimulationEngine.SpeedRestoreDeadbandKts))
+            if (
+                (follower.Targets.SpeedCeiling is { } ceiling)
+                && (follower.IndicatedAirspeed >= ceiling - ArrivalSpacingManager.SpeedRestoreDeadbandKts)
+            )
             {
                 restoredAt = t;
             }
@@ -432,7 +440,7 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
         );
         Assert.True(restoredAt > 0, "the follower was not given its raised ceiling back within 60 s");
         Assert.True(
-            follower.IndicatedAirspeed > iasBefore + SimulationEngine.SpeedRestoreDeadbandKts,
+            follower.IndicatedAirspeed > iasBefore + ArrivalSpacingManager.SpeedRestoreDeadbandKts,
             $"the follower did not accelerate: {iasBefore:F0} → {follower.IndicatedAirspeed:F0} kt"
         );
     }
@@ -474,7 +482,7 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
 
         output.WriteLine($"IAS {iasBefore:F0} kt, max IAS after {maxIas:F0} kt, largest shortfall below the ceiling {maxShortfall:F0} kt");
         Assert.True(
-            maxShortfall > SimulationEngine.SpeedRestoreDeadbandKts,
+            maxShortfall > ArrivalSpacingManager.SpeedRestoreDeadbandKts,
             "premise: the raised ceiling must leave the follower slow enough that a restore would otherwise be issued"
         );
         Assert.True(maxIas <= iasBefore + 1.0, $"the follower was re-accelerated during a pending handoff: {iasBefore:F0} → {maxIas:F0} kt");
@@ -521,10 +529,10 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
         double target = Math.Max(gen30.Config.IntervalDistance, Math.Max(RadarFloorNm, wake));
         double expected = ArrivalSpacingManager.SpacingCeilingKts(
             leader.IndicatedAirspeed,
-            AlongFinalNm(follower, rwy30) - AlongFinalNm(leader, rwy30),
+            AlongFinalNm(follower, rwy30, engine.World.GroundLayout) - AlongFinalNm(leader, rwy30, engine.World.GroundLayout),
             target,
             AircraftPerformance.ApproachSpeed(follower.AircraftType, followerCategory),
-            ScheduledKts(follower, rwy30)
+            ScheduledKts(follower, rwy30, engine.World.GroundLayout)
         );
 
         engine.TickOneSecond();
@@ -583,17 +591,18 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
 
         AircraftCategory followerCategory = AircraftCategorization.Categorize(follower.AircraftType);
         double wake = WakeTurbulenceData.OnApproachWakeSeparationNm(leader.AircraftType, leaderCategory, follower.AircraftType, followerCategory);
+
         var alongCourse = new InTrailPair
         {
             LeaderIasKts = leader.IndicatedAirspeed,
             LeaderGsKts = leader.GroundSpeed * Math.Cos(offsetDeg * Math.PI / 180.0),
             LeaderVrefKts = AircraftPerformance.ApproachSpeed(leader.AircraftType, leaderCategory),
-            LeaderDistanceNm = AlongFinalNm(leader, rwy30),
-            FollowerDistanceNm = AlongFinalNm(follower, rwy30),
+            LeaderDistanceNm = AlongFinalNm(leader, rwy30, engine.World.GroundLayout),
+            FollowerDistanceNm = AlongFinalNm(follower, rwy30, engine.World.GroundLayout),
             FollowerIasKts = follower.IndicatedAirspeed,
             FollowerGsKts = follower.GroundSpeed,
             FollowerVrefKts = AircraftPerformance.ApproachSpeed(follower.AircraftType, followerCategory),
-            FollowerScheduledKts = ScheduledKts(follower, rwy30),
+            FollowerScheduledKts = ScheduledKts(follower, rwy30, engine.World.GroundLayout),
             TargetNm = Math.Max(gen30.Config.IntervalDistance, Math.Max(RadarFloorNm, wake)),
         };
         double expected = ArrivalSpacingManager.InTrailCeilingKts(alongCourse);
@@ -667,12 +676,12 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
         (SimulationEngine? engine, RunwayInfo? rwy30) = setup.Value;
 
         AircraftState follower = engine.FindAircraft(FollowerCallsign)!;
-        double gate = SimulationEngine.SpeedRestoreGateNm(AircraftCategorization.Categorize(follower.AircraftType), follower.Callsign);
-        double distance = AlongFinalNm(follower, rwy30);
-        double shortfall = ScheduledKts(follower, rwy30) - follower.IndicatedAirspeed;
+        double gate = ArrivalSpacingManager.SpeedRestoreGateNm(AircraftCategorization.Categorize(follower.AircraftType), follower.Callsign);
+        double distance = AlongFinalNm(follower, rwy30, engine.World.GroundLayout);
+        double shortfall = ScheduledKts(follower, rwy30, engine.World.GroundLayout) - follower.IndicatedAirspeed;
         output.WriteLine($"follower at {distance:F1} nm (restore gate {gate:F1} nm), {shortfall:F0} kt below scheduled");
         Assert.True(distance < gate, $"premise: the follower must be inside the restore gate ({distance:F1} nm vs {gate:F1} nm)");
-        Assert.True(shortfall > SimulationEngine.SpeedRestoreDeadbandKts, "premise: outside the gate this shortfall would be restored");
+        Assert.True(shortfall > ArrivalSpacingManager.SpeedRestoreDeadbandKts, "premise: outside the gate this shortfall would be restored");
 
         double iasAtRemoval = follower.IndicatedAirspeed;
         engine.World.RemoveAircraft(LeaderCallsign);
@@ -743,8 +752,8 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
         AircraftState leader = InjectArrival(engine, rwy30, LeaderCallsign, "B739", 2.3, isGeneratorArrival: true);
         leader.IndicatedAirspeed = 144.0;
         AircraftState follower = InjectArrival(engine, rwy30, FollowerCallsign, "B763", 2.3 + 26.0, isGeneratorArrival: true);
-        double followerDistance = AlongFinalNm(follower, rwy30);
-        double scheduled = ScheduledKts(follower, rwy30);
+        double followerDistance = AlongFinalNm(follower, rwy30, engine.World.GroundLayout);
+        double scheduled = ScheduledKts(follower, rwy30, engine.World.GroundLayout);
 
         engine.TickOneSecond();
 
@@ -846,12 +855,12 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
         {
             engine.TickOneSecond();
             AircraftState follower = engine.FindAircraft(FollowerCallsign)!;
-            double shortfall = ScheduledKts(follower, rwy30) - follower.IndicatedAirspeed;
+            double shortfall = ScheduledKts(follower, rwy30, engine.World.GroundLayout) - follower.IndicatedAirspeed;
             if (shortfall >= 15.0)
             {
                 slowed = true;
                 output.WriteLine(
-                    $"t={t}s: follower {follower.IndicatedAirspeed:F0} kt at {AlongFinalNm(follower, rwy30):F1} nm, "
+                    $"t={t}s: follower {follower.IndicatedAirspeed:F0} kt at {AlongFinalNm(follower, rwy30, engine.World.GroundLayout):F1} nm, "
                         + $"{shortfall:F0} kt below scheduled, ceiling {follower.Targets.SpeedCeiling?.ToString("F0") ?? "(none)"}"
                 );
             }
@@ -869,24 +878,35 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
     {
         AircraftState leader = engine.FindAircraft(LeaderCallsign)!;
         AircraftCategory category = AircraftCategorization.Categorize(leader.AircraftType);
-        (LatLon position, double altitudeFt) = AircraftInitializer.FinalApproachPoint(runway, category, AlongFinalNm(leader, runway) - nm);
+        (LatLon position, double altitudeFt) = AircraftInitializer.FinalApproachPoint(
+            runway,
+            category,
+            AlongFinalNm(leader, runway, engine.World.GroundLayout) - nm
+        );
         leader.Position = position;
         leader.Altitude = altitudeFt;
     }
 
-    private static double ScheduledKts(AircraftState aircraft, RunwayInfo runway)
+    private static double ScheduledKts(AircraftState aircraft, RunwayInfo runway, AirportGroundLayout? layout)
     {
         AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
         double vref = AircraftPerformance.ApproachSpeed(aircraft.AircraftType, category);
-        return ArrivalSpacingManager.ScheduledFinalSpeedKts(aircraft.AircraftType, category, vref, aircraft.Callsign, AlongFinalNm(aircraft, runway));
+        return ArrivalSpacingManager.ScheduledFinalSpeedKts(
+            aircraft.AircraftType,
+            category,
+            vref,
+            aircraft.Callsign,
+            AlongFinalNm(aircraft, runway, layout)
+        );
     }
 
-    private static double AlongFinalNm(AircraftState aircraft, RunwayInfo runway)
-    {
-        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
-        var outbound = new TrueHeading((runway.TrueHeading.Degrees + 180.0) % 360.0);
-        return GeoMath.AlongTrackDistanceNm(aircraft.Position, threshold, outbound);
-    }
+    /// <summary>
+    /// Distance (nm) along the final to the runway's <em>landing</em> threshold — the datum the spacing manager
+    /// measures its corridor with, so an arm's own arithmetic is fed the numbers the manager saw rather than ones a
+    /// displaced threshold has shifted.
+    /// </summary>
+    private static double AlongFinalNm(AircraftState aircraft, RunwayInfo runway, AirportGroundLayout? layout) =>
+        RunwayOccupancy.DistanceToAssignedThresholdNm(aircraft, runway, layout);
 
     private SimulationEngine? LoadOakEngine()
     {

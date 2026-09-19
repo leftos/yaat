@@ -9,6 +9,11 @@ namespace Yaat.Sim.Simulation;
 /// the aircraft immediately ahead on the same final via the corridor query, the override
 /// latch, and stamping <see cref="ControlTargets.SpeedCeiling"/>); these helpers compute the
 /// numbers and are unit-tested directly.
+///
+/// <para>It also owns the policy for giving a speed back, because more than one caller applies it: how far below the
+/// speed an arrival should be flying is worth a restore (<see cref="SpeedRestoreDeadbandKts"/>) and how close to the
+/// threshold it stops being worth one (<see cref="SpeedRestoreGateNm"/>). The generator stream's own restore and the
+/// instructor's <c>RNS</c> on an arrival already on final are the same judgement and read the same two figures.</para>
 /// </summary>
 public static class ArrivalSpacingManager
 {
@@ -91,6 +96,42 @@ public static class ArrivalSpacingManager
     /// cannot divide by zero.
     /// </summary>
     private const double MinLeaderDistanceNm = 0.1;
+
+    /// <summary>
+    /// How far (kt) below the speed it should be flying an arrival may be before its speed is given back. A pilot
+    /// complying with a speed adjustment holds it within ±10 kt (AIM 4-4-12.c; 7110.65 §5-7-1.g NOTE 1), so a
+    /// difference inside that band is not one a controller would correct. Shared by the generator stream's own restore
+    /// (<c>SimulationEngine.RestoreManagedSpeed</c>) and by <c>RNS</c>
+    /// (<see cref="Commands.FlightCommandHandler.ApplyResumeNormalSpeed"/>), which are the same judgement.
+    /// </summary>
+    public const double SpeedRestoreDeadbandKts = 10.0;
+
+    /// <summary>
+    /// Margin (nm) kept outside the first deceleration stage <see cref="Phases.Tower.FinalApproachPhase"/> would start
+    /// on its own, inside which no speed is restored, so an arrival is never sped up only to be slowed again moments
+    /// later. A judgement call under §5-7-1.a.2(b) (speed adjustments are not achieved instantaneously) and
+    /// §5-7-1.a.3(c) (allow increased time and distance for a speed adjustment at greater speed and in a clean
+    /// configuration).
+    /// </summary>
+    private const double RestoreGateMarginNm = 5.0;
+
+    /// <summary>
+    /// Distance from the threshold (nm) inside which an arrival's speed is no longer restored: the latest point the
+    /// phase could start its first deceleration stage, plus <see cref="RestoreGateMarginNm"/>. That stage is the clean →
+    /// approach-flap bleed, which starts no farther out than the aircraft's approach-flap reach gate plus
+    /// <see cref="Phases.Tower.FinalApproachPhase.ApproachFlapTriggerHeadroomNm"/>. A category with no approach-flap
+    /// stage (a piston) starts with the configuration bleed, bounded here by
+    /// <see cref="Phases.Tower.FinalApproachPhase.MaxConfigTriggerNm"/>: the phase's own cap slides outward with a
+    /// larger FAS reach gate, but a piston's clean-to-configuration bleed is under ~20 kt and starts no farther out than
+    /// about 7.3 nm, so the gate still keeps more than 5 nm of margin.
+    /// </summary>
+    public static double SpeedRestoreGateNm(AircraftCategory category, string callsign)
+    {
+        double firstStageTriggerCapNm = Phases.Tower.FinalApproachSpeedSchedule.ApproachFlapReachGateNm(category, callsign) is { } flapGate
+            ? flapGate + Phases.Tower.FinalApproachPhase.ApproachFlapTriggerHeadroomNm
+            : Phases.Tower.FinalApproachPhase.MaxConfigTriggerNm;
+        return firstStageTriggerCapNm + RestoreGateMarginNm;
+    }
 }
 
 /// <summary>

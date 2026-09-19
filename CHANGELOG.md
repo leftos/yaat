@@ -6,6 +6,10 @@
 - Right-click an aircraft you assumed from live traffic and pick **Release to live feed** to hand it back to the feed, the same as `UNASSUME`.
 
 ### Fixed
+- `RNS` to an arrival slowed on a long final speeds it back up to its approach profile.
+- The simulated approach controller says "resume normal speed" or "resume published speed" when it lifts an in-trail speed reduction.
+- An approach clearance issued while an in-trail speed reduction is in force restates the speed.
+- Generated arrivals measure their in-trail spacing from the landing threshold on runways with a displaced threshold.
 - `DMN` works as an alias of `CMN` (force altitude), as it does in ATCTrainer.
 - `TAXIAUTO @` and `TAXIALL @` autocomplete parking and helipad names.
 - Taxiway autocomplete works on every `TAXI` route token, not just the first.

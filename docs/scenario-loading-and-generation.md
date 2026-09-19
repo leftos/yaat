@@ -492,7 +492,8 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
   - the same-runway protection pass does not own the ceiling (`SameRunwayProtectionCeilingKts`);
   - nothing else set `TargetSpeed`;
   - the aircraft is more than `SpeedRestoreDeadbandKts` (10 kt, AIM 4-4-12.c) slow;
-  - it is outside `SpeedRestoreGateNm`: the phase's first deceleration-stage trigger cap (approach-flap reach gate + 3 NM, or
+  - it is outside `SpeedRestoreGateNm` (on `ArrivalSpacingManager`, with `SpeedRestoreDeadbandKts` — `RNS` to an aircraft in
+    `FinalApproachPhase` applies the same two tests before it hands the profile speed back): the phase's first deceleration-stage trigger cap (approach-flap reach gate + 3 NM, or
     `MaxConfigTriggerNm` for a category with no flap stage) plus 5 NM, so it is never sped up only to be slowed moments later.
 
   The phase's approach-flap and configuration stages no longer latch just because the aircraft is already below the stage

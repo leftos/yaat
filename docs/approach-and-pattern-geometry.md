@@ -1131,8 +1131,8 @@ Which command handler builds which phase (parsing/dispatch live in
   next tick is correct.
 - **TeardropReentry's per-waypoint altitudes are TPA+250 / TPA+50 / TPA**, not "+500 → TPA." The +500 is the
   *entry* altitude handed in by `MidfieldCrossingPhase`; the class comment / log describe the band loosely.
-- **Pattern phases set `ManagesSpeed = true`; approach phases do NOT.** `DownwindPhase`, `BasePhase`,
-  `PatternEntryPhase`, `TeardropReentryPhase`, and `VfrFollowPhase` all override `ManagesSpeed` to `true`, so
+- **Pattern phases — and `FinalApproachPhase` — set `ManagesSpeed = true`; the other approach phases do NOT.** `DownwindPhase`, `BasePhase`,
+  `PatternEntryPhase`, `TeardropReentryPhase`, `VfrFollowPhase` and `FinalApproachPhase` (`Phases/Tower/`) all override `ManagesSpeed` to `true`, so
   `FlightPhysics`' auto speed schedule is suppressed and the phase owns `TargetSpeed`. The **approach** phases
   (`InterceptCoursePhase`, `ApproachNavigationPhase`, `HoldingPatternPhase`, `ProcedureTurnPhase`) leave
   `ManagesSpeed` at its default `false` — auto speed is instead suppressed because `ActiveApproach` is set (see

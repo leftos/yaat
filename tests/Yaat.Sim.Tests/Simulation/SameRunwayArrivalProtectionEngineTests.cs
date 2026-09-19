@@ -3,6 +3,7 @@ using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Scenarios;
@@ -351,7 +352,8 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
 
     /// <summary>
     /// One terminal line per engagement, not one per tick — and a second one when a follower whose conflict cleared
-    /// runs into a new one, which is the truth of what the controller had to do.
+    /// runs into a new one, which is the truth of what the controller had to do. The release between them speaks its
+    /// own §5-7-4 line, so the full exchange is reduce / resume / reduce.
     /// </summary>
     [Fact]
     public void ProtectionAnnouncesOncePerEngagement_NotPerTick()
@@ -383,7 +385,9 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
 
         lines = SpacingLines(pair.Follower);
         output.WriteLine($"after a release and a fresh engagement: {string.Join(" | ", lines)}");
-        Assert.Equal(2, lines.Count);
+        Assert.Equal(2, lines.Count(l => l.Contains("reduce speed to", StringComparison.Ordinal)));
+        Assert.Single(lines, l => l.Contains("resume normal speed", StringComparison.Ordinal));
+        Assert.Equal(3, lines.Count);
     }
 
     /// <summary>
@@ -473,7 +477,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     /// controller's frequency and configuring to land, so the simulated tower may say "reduce to final approach
     /// speed" (§5-7-3.f, lower speeds when operationally advantageous) instead of stopping at the §5-7-3.c.1.b
     /// 170-kt floor. The assigned figure is Vapp — Vref plus the wind additive — never bare Vref, and the line
-    /// carries no number, so there is nothing to round to 5-kt increments (§5-7-1.a.7). The sim speaks for the local
+    /// carries no number, so there is nothing to round to 5-kt increments (§5-7-1.g). The sim speaks for the local
     /// controller only while the student is working a ground position; the arm sets one.
     /// </summary>
     [Fact]
@@ -1045,8 +1049,280 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
         Assert.Null(pair.Follower.Targets.SpeedCeiling);
     }
 
+    /// <summary>
+    /// The pass lifting its own standing reduction is a speed adjustment being terminated, and §5-7-4 has the
+    /// controller say so: "resume normal speed" (§5-7-4.a) where nothing else constrains the arrival.
+    /// </summary>
+    [Fact]
+    public void Release_WithNothingPublishedUnderneath_SaysResumeNormalSpeed()
+    {
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            return;
+        }
+
+        pair.Pass();
+        Report(pair, "engaged");
+        Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Empty(ReleaseLines(pair.Follower));
+
+        pair.PlaceFollowerAt(ClearOfConflictDistanceNm);
+        pair.Pass();
+        Report(pair, "released with nothing published underneath");
+
+        string line = Assert.Single(ReleaseLines(pair.Follower));
+        output.WriteLine($"release line: {line}");
+        Assert.Contains($"→ {pair.Follower.Callsign}: resume normal speed (in-trail spacing, 30)", line, StringComparison.Ordinal);
+        Assert.Null(pair.Follower.Targets.SpeedCeiling);
+    }
+
+    /// <summary>
+    /// Over a published restriction the phrase is the other one: the arrival was flying an unpublished ATC speed and
+    /// has to meet the published one again (§5-7-4.c), which is also exactly what the restore puts back.
+    /// </summary>
+    [Fact]
+    public void Release_OverADisplacedPublishedCeiling_SaysResumePublishedSpeed()
+    {
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            return;
+        }
+
+        pair.Follower.Targets.SpeedCeiling = PublishedCrossingCeilingKts;
+
+        pair.Pass();
+        Report(pair, "engaged over a published ceiling");
+        Assert.Equal(PublishedCrossingCeilingKts, pair.Follower.Approach.SameRunwayProtectionDisplacedCeilingKts);
+
+        pair.PlaceFollowerAt(ClearOfConflictDistanceNm);
+        pair.Pass();
+        Report(pair, "released over a published ceiling");
+
+        string line = Assert.Single(ReleaseLines(pair.Follower));
+        output.WriteLine($"release line: {line}");
+        Assert.Contains($"→ {pair.Follower.Callsign}: resume published speed (in-trail spacing, 30)", line, StringComparison.Ordinal);
+        Assert.Equal(PublishedCrossingCeilingKts, pair.Follower.Targets.SpeedCeiling);
+    }
+
+    /// <summary>
+    /// §5-7-1.b.4 — inside 5 nm the controller issues no speed adjustment, and "resume normal speed" is one: the
+    /// release at the window happens silently, the way the pilot is already making their own adjustments there (AIM
+    /// 4-4-12.g). The arm engages outside the window first so the silence is attributable to the boundary.
+    /// </summary>
+    [Fact]
+    public void Release_InsideFiveMiles_IsSilent()
+    {
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            return;
+        }
+
+        pair.Engine.Scenario!.StudentPositionType = "TWR";
+
+        pair.Pass();
+        Report(pair, "engaged outside the §5-7-1.b.4 window");
+        Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+
+        pair.PlaceFollowerAt(4.0);
+        pair.Pass();
+        Report(pair, "released inside the §5-7-1.b.4 window");
+
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Empty(ReleaseLines(pair.Follower));
+    }
+
+    /// <summary>
+    /// A reduction stamped before the approach clearance stays in force past it, so it has to be restated (§5-7-1.c;
+    /// AIM 4-4-12.g — the pilot may otherwise take the clearance as cancelling the assigned speed). The figure is
+    /// the standing ceiling in 5-knot increments (§5-7-1.g) and the ceiling itself is left exactly where it was.
+    /// </summary>
+    [Fact]
+    public void ApproachClearance_WhileProtectionHoldsAReduction_RestatesTheSpeed()
+    {
+        ArrivalPair? pair = ExpectedApproachPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            output.WriteLine("skipped: scenario, navdata, OAK layout or an approach to runway 30 is unavailable");
+            return;
+        }
+
+        pair.Pass();
+        Report(pair, "engaged before the approach clearance");
+        double stamped = Assert.IsType<double>(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+
+        CommandResult result = pair.Engine.SendCommand(pair.Follower.Callsign, $"CAPP {pair.Follower.Approach.Expected}");
+        Assert.True(result.Success, result.Message);
+
+        List<string> restated = RestatementLines(pair.Follower);
+        output.WriteLine($"restatement: {string.Join(" | ", restated)}");
+        string line = Assert.Single(restated);
+        Assert.Contains($"→ {pair.Follower.Callsign}: maintain {RestatedSpeedKts} knots", line, StringComparison.Ordinal);
+        Assert.Equal(stamped, pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Equal(stamped, pair.Follower.Targets.SpeedCeiling);
+    }
+
+    /// <summary>
+    /// A published crossing restriction the aircraft has not reached yet is still a published restriction, so the
+    /// phrase is "resume published speed" (§5-7-4.c) even with nothing on the ceiling underneath the pass.
+    /// <see cref="FlightPhysics"/> only turns such a fix into a <see cref="ControlTargets.SpeedCeiling"/> on the tick
+    /// it sequences, so the displaced ceiling being null says nothing about what is ahead — reading it alone would put
+    /// "resume normal speed" on an arrival that §5-7-4.a's NOTE reserves the phrase away from.
+    /// </summary>
+    [Fact]
+    public void Release_WithAnUnsequencedPublishedSpeedAhead_SaysResumePublishedSpeed()
+    {
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            return;
+        }
+
+        pair.Follower.Targets.NavigationRoute.Add(
+            new NavigationTarget
+            {
+                Name = UnsequencedFixName,
+                Position = pair.Follower.Position,
+                SpeedRestriction = new CifpSpeedRestriction(UnsequencedCrossingSpeedKts, CifpSpeedRestrictionType.AtOrBelow),
+            }
+        );
+
+        pair.Pass();
+        Report(pair, "engaged with a published crossing speed still ahead");
+        Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionDisplacedCeilingKts); // premise: nothing underneath the stamp
+
+        pair.PlaceFollowerAt(ClearOfConflictDistanceNm);
+        pair.Pass();
+        Report(pair, "released with that restriction still unsequenced");
+
+        string line = Assert.Single(ReleaseLines(pair.Follower));
+        output.WriteLine($"release line: {line}");
+        Assert.Contains($"→ {pair.Follower.Callsign}: resume published speed (in-trail spacing, 30)", line, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The pass speaks for the simulated approach controller, so once that controller's issuing gate closes under a
+    /// standing reduction — the instructor switching the setting off mid-session — the ceiling still comes back but
+    /// nothing is said: there is no longer a position in the sim whose instruction it would be.
+    /// </summary>
+    [Fact]
+    public void Release_AfterTheApproachControllerGateCloses_IsSilent()
+    {
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            return;
+        }
+
+        pair.Pass();
+        Report(pair, "engaged");
+        Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+
+        pair.Engine.Scenario!.AutoArrivalSpacingOnOccupiedRunway = false;
+        pair.Pass();
+        Report(pair, "released after the gate closed");
+
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Null(pair.Follower.Targets.SpeedCeiling);
+        Assert.Empty(ReleaseLines(pair.Follower));
+    }
+
+    /// <summary>
+    /// A handoff of the track to the student defers the release entirely: §5-4-5.b bars the transferring controller
+    /// from changing the aircraft's speed from the moment the handoff is initiated, and §5-4-6.c has the receiving
+    /// controller comply with the restrictions it was issued under, so the reduction stands for the student to inherit
+    /// instead of being handed back the tick its conflict clears.
+    /// </summary>
+    [Fact]
+    public void Release_DuringAHandoffToTheStudent_IsDeferred()
+    {
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            return;
+        }
+
+        pair.Pass();
+        Report(pair, "engaged");
+        double stamped = Assert.IsType<double>(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+
+        pair.Engine.Scenario!.StudentPosition = TrackOwner.CreateNonNas(StudentTowerCallsign);
+        pair.Engine.Scenario.StudentPositionType = "TWR";
+        pair.Follower.Track.Owner = TrackOwner.CreateNonNas(SimulatedApproachCallsign);
+        CommandResult handoff = TrackEngine.ApplyHandoff(pair.Follower, pair.Engine.Scenario, identity: null, tcpCode: null, redirect: null);
+        Assert.True(handoff.Success, handoff.Message);
+
+        pair.PlaceFollowerAt(ClearOfConflictDistanceNm);
+        pair.Pass();
+        Report(pair, "conflict cleared while the handoff is pending");
+
+        Assert.Equal(stamped, pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Equal(stamped, pair.Follower.Targets.SpeedCeiling);
+        Assert.Empty(ReleaseLines(pair.Follower));
+    }
+
+    /// <summary>
+    /// The approach clearance restates a figure the approach controller assigned, not the tower's own instruction: a
+    /// latched "reduce to final approach speed" (§5-7-3.f) names no number and belongs to the local controller, so the
+    /// clearance carries no restatement at all.
+    /// </summary>
+    [Fact]
+    public void ApproachClearance_WithTheTowerInstructionLatched_DoesNotRestate()
+    {
+        ArrivalPair? pair = ExpectedApproachPair(TowerAuthorityLeaderDistanceNm, TowerAuthorityFollowerDistanceNm);
+        if (pair is null)
+        {
+            output.WriteLine("skipped: scenario, navdata, OAK layout or an approach to runway 30 is unavailable");
+            return;
+        }
+
+        pair.Engine.Scenario!.StudentPositionType = "GND";
+
+        pair.Pass();
+        Report(pair, "the tower instruction latched");
+        Assert.True(pair.Follower.Approach.SameRunwayProtectionFasInstructed);
+        Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+
+        CommandResult result = pair.Engine.SendCommand(pair.Follower.Callsign, $"CAPP {pair.Follower.Approach.Expected}");
+        Assert.True(result.Success, result.Message);
+
+        output.WriteLine($"spacing lines after the clearance: {string.Join(" | ", SpacingLines(pair.Follower))}");
+        Assert.Empty(RestatementLines(pair.Follower));
+    }
+
+    /// <summary>
+    /// The figure (kt) the approach clearance restates for this fixture, written out rather than computed from the
+    /// function under test. At <see cref="FollowerDistanceNm"/> the jet follower's reduction bottoms out on
+    /// §5-7-3.c.1.b's 170 kt — a floor, not an arithmetic result — so it is already a 5-knot increment and the
+    /// restatement says it unchanged.
+    /// </summary>
+    private const int RestatedSpeedKts = 170;
+
+    /// <summary>Name of the fix an arm parks an unsequenced published crossing speed on.</summary>
+    private const string UnsequencedFixName = "CEPIN";
+
+    /// <summary>The published crossing speed (kt) on that fix — the figure the motivating bundle's own STAR carried.</summary>
+    private const int UnsequencedCrossingSpeedKts = 210;
+
+    /// <summary>The student's own position in the handoff arm — a tower student, the room this pass is built for.</summary>
+    private const string StudentTowerCallsign = "OAK_TWR";
+
+    /// <summary>The position handing the track over in that arm: the approach controller the sim is playing.</summary>
+    private const string SimulatedApproachCallsign = "NCT_APP";
+
     private static List<string> SpacingLines(AircraftState aircraft) =>
         [.. aircraft.PendingNotifications.Where(n => n.Contains("in-trail spacing", StringComparison.Ordinal))];
+
+    /// <summary>The §5-7-4 line the pass says when it terminates its own reduction.</summary>
+    private static List<string> ReleaseLines(AircraftState aircraft) =>
+        [.. aircraft.PendingNotifications.Where(n => n.Contains(": resume ", StringComparison.Ordinal))];
+
+    /// <summary>The §5-7-1.c line the approach clearance carries when a reduction is standing.</summary>
+    private static List<string> RestatementLines(AircraftState aircraft) =>
+        [.. aircraft.PendingNotifications.Where(n => n.Contains("restated with the approach clearance", StringComparison.Ordinal))];
 
     private void Report(ArrivalPair pair, string label)
     {

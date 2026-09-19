@@ -501,6 +501,18 @@ public class SameRunwayArrivalProtectionTests
     public void RegulatoryFloor_IsTheCategoryAndDistanceFigure(AircraftCategory category, double distanceNm, double expectedKts) =>
         Assert.Equal(expectedKts, SameRunwayArrivalProtection.RegulatoryFloorKts(category, distanceNm), 3);
 
+    /// <summary>
+    /// §5-7-1.g — speed adjustments are expressed in 5-knot increments — so the spoken figure is the nearest multiple
+    /// of 5, and a figure exactly between two of them rounds away from zero rather than to the even one .NET's default
+    /// would pick: 182.5 is said as 185, not 180, and 187.5 as 190.
+    /// </summary>
+    [Theory]
+    [InlineData(182.4, 180.0)]
+    [InlineData(182.5, 185.0)]
+    [InlineData(187.5, 190.0)]
+    public void SpokenSpeed_IsTheNearestFiveKnots(double speedKts, double expectedKts) =>
+        Assert.Equal(expectedKts, SameRunwayArrivalProtection.SpokenSpeedKts(speedKts), 3);
+
     [Fact]
     public void Ceiling_FloorsAtTheRegulatorySpeedRatherThanVref()
     {

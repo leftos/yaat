@@ -57,8 +57,10 @@ namespace Yaat.Sim.Simulation;
 /// long as circumstances permit"). Stated simplification: §5-7-3.c.1.b's "20 <i>flying</i> miles" is path distance
 /// and this uses direct distance to the threshold, which errs permissive. Inside <see cref="TowerSpeedAuthorityNm"/>
 /// that floor may drop as far as <see cref="FinalApproachSpeedKts"/>: the arrival is on the local controller's
-/// frequency by then, so the simulated tower may say "reduce to final approach speed" under §5-7-3.f, and at that
-/// range the aircraft is configuring for landing rather than being asked to hold Vref clean. Such an instruction is
+/// frequency by then, and at that range it is configuring for landing rather than being asked to hold Vref clean, so
+/// §5-7-3.f authorises the <em>lower speed</em> ("lower speeds may be assigned when operationally advantageous"). The
+/// words the sim puts on it — "reduce to final approach speed" — are its own wording, not phraseology that paragraph
+/// prescribes. Such an instruction is
 /// <em>held</em> through the §5-7-1.b.4 window, because that paragraph forbids <em>issuing</em> speed adjustments
 /// inside 5 nm / the FAF, not keeping one already issued. <see cref="SimulationEngine"/> decides when to reach for
 /// that floor; the functions here only supply it.</para>
@@ -228,6 +230,74 @@ public static class SameRunwayArrivalProtection
     /// <see cref="Phases.Tower.FinalApproachPhase"/> Vapp formula), never bare Vref.
     /// </summary>
     public static double FinalApproachSpeedKts(double vrefKts, double windAdditiveKts) => vrefKts + windAdditiveKts;
+
+    /// <summary>
+    /// <paramref name="speedKts"/> as a controller says it: the nearest 5 knots, §5-7-1.g ("express speed
+    /// adjustments … in 5-knot increments"). Only the spoken figure is quantised — the ceiling the physics flies stays
+    /// continuous, because a speed integrator is not a radio.
+    /// </summary>
+    public static double SpokenSpeedKts(double speedKts) => Math.Round(speedKts / 5.0, MidpointRounding.AwayFromZero) * 5.0;
+
+    /// <summary>
+    /// Attribution for the simulated approach controller when the arrival's track is unowned — every line below falls
+    /// back to it.
+    /// </summary>
+    public const string SimulatedApproachControllerLabel = "TRACON";
+
+    /// <summary>What every line here is tagged with, so the instructor can tell a spacing instruction from any other.</summary>
+    private const string SpacingTag = "in-trail spacing";
+
+    /// <summary>
+    /// The line a fresh engagement carries: the reduction the simulated approach controller is assigning, spoken in
+    /// the 5-knot increments <see cref="SpokenSpeedKts"/> applies (§5-7-1.g).
+    /// </summary>
+    /// <param name="positionCallsign">The position speaking — the track owner, else <see cref="SimulatedApproachControllerLabel"/>.</param>
+    /// <param name="aircraftCallsign">The arrival being reduced.</param>
+    /// <param name="ceilingKts">The ceiling being assigned, unquantised.</param>
+    /// <param name="runwayDesignator">The landing runway the spacing is for.</param>
+    public static string EngagementLine(string positionCallsign, string aircraftCallsign, double ceilingKts, string runwayDesignator) =>
+        $"{positionCallsign} → {aircraftCallsign}: reduce speed to {SpokenSpeedKts(ceilingKts):F0} ({SpacingTag}, {runwayDesignator})";
+
+    /// <summary>
+    /// The simulated local controller's "reduce to final approach speed" (§5-7-3.f). It names no figure, so there is
+    /// nothing here to express in 5-knot increments.
+    /// </summary>
+    /// <param name="towerCallsign">The tower position speaking.</param>
+    /// <param name="aircraftCallsign">The arrival being reduced.</param>
+    /// <param name="runwayDesignator">The landing runway the spacing is for.</param>
+    public static string TowerFinalApproachSpeedLine(string towerCallsign, string aircraftCallsign, string runwayDesignator) =>
+        $"{towerCallsign} → {aircraftCallsign}: reduce to final approach speed ({SpacingTag}, {runwayDesignator})";
+
+    /// <summary>
+    /// The line the reduction coming off carries. Which phrase is which is §5-7-4: with nothing published ahead of the
+    /// arrival it is free to fly its own profile again, "resume normal speed" (§5-7-4.a, whose NOTE confines that
+    /// phrase to where there is no underlying published speed restriction); with one still to meet it is
+    /// "resume published speed" (§5-7-4.c).
+    /// </summary>
+    /// <param name="positionCallsign">The position speaking — the track owner, else <see cref="SimulatedApproachControllerLabel"/>.</param>
+    /// <param name="aircraftCallsign">The arrival being released.</param>
+    /// <param name="publishedRestrictionAhead">True when a published speed restriction still binds it.</param>
+    /// <param name="runwayDesignator">The landing runway the spacing was for.</param>
+    public static string ReleaseLine(string positionCallsign, string aircraftCallsign, bool publishedRestrictionAhead, string runwayDesignator)
+    {
+        string instruction = publishedRestrictionAhead ? "resume published speed" : "resume normal speed";
+        return $"{positionCallsign} → {aircraftCallsign}: {instruction} ({SpacingTag}, {runwayDesignator})";
+    }
+
+    /// <summary>
+    /// The line an approach clearance carries when a reduction this pass assigned is still in force. §5-7-1.c requires
+    /// a previously assigned speed to be restated at the time the approach clearance is issued if it is to stay in
+    /// force, because AIM 4-4-12.g has the pilot otherwise making their own speed adjustments once cleared for the
+    /// approach. The figure is spoken in the 5-knot increments <see cref="SpokenSpeedKts"/> applies.
+    /// </summary>
+    /// <param name="positionCallsign">The position speaking — the track owner, else <see cref="SimulatedApproachControllerLabel"/>.</param>
+    /// <param name="aircraftCallsign">The arrival being restated to.</param>
+    /// <param name="ceilingKts">The standing reduction, unquantised.</param>
+    public static string RestatementLine(string positionCallsign, string aircraftCallsign, double ceilingKts) =>
+        $"{positionCallsign} → {aircraftCallsign}: maintain {SpokenSpeedKts(ceilingKts):F0} knots ({SpacingTag}, {RestatementReason})";
+
+    /// <summary>Why a restatement is being spoken, the tail of <see cref="RestatementLine"/> — §5-7-1.c's "if required".</summary>
+    private const string RestatementReason = "restated with the approach clearance";
 
     /// <summary>
     /// Path distance (nm) the leader must still cover past its hold-short node before <em>all parts</em> of it are

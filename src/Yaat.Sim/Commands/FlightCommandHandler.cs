@@ -6,6 +6,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Commands;
 
@@ -322,7 +323,53 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedCommandIsControllerIssued = false;
         aircraft.Targets.SpeedOverridesFinalGate = false;
         aircraft.Procedure.LastProcedureSpeedKts = null;
+        RestoreFinalApproachProfileSpeed(aircraft);
         return CommandDispatcher.Ok("Resume normal speed");
+    }
+
+    /// <summary>
+    /// Gives an aircraft on final the profile speed back, because clearing the fields above does not. AIM 4-4-12.f.1:
+    /// "resume normal speed" terminates the ATC speed adjustment and the pilot returns to the normal profile — but
+    /// <see cref="FinalApproachPhase.ManagesSpeed"/> suppresses the physics auto-schedule, and the phase writes no
+    /// speed target of its own before its deceleration stages, which only ever bleed downward. So an arrival slowed on
+    /// a long final and then told to resume simply kept the slow speed, the same gap the generator stream closes with
+    /// <c>SimulationEngine.RestoreManagedSpeed</c>, and this is that judgement applied to the command: the speed is
+    /// <see cref="ArrivalSpacingManager.ScheduledFinalSpeedKts"/> at the aircraft's own distance, issued only when it
+    /// is more than <see cref="ArrivalSpacingManager.SpeedRestoreDeadbandKts"/> slow (inside that band the pilot is
+    /// complying, AIM 4-4-12.c) and still outside <see cref="ArrivalSpacingManager.SpeedRestoreGateNm"/>, so nothing is
+    /// sped up moments before the phase would slow it again.
+    ///
+    /// <para>The target written here is not an explicit speed command:
+    /// <see cref="ControlTargets.HasExplicitSpeedCommand"/> and
+    /// <see cref="ControlTargets.SpeedCommandIsControllerIssued"/> stay false, so the phase's own stages take the
+    /// aircraft over at their gates exactly as they would have, and <see cref="FlightPhysics"/> nulls the target as
+    /// soon as it is reached.</para>
+    /// </summary>
+    private static void RestoreFinalApproachProfileSpeed(AircraftState aircraft)
+    {
+        if (aircraft.Phases?.CurrentPhase is not FinalApproachPhase finalApproach)
+        {
+            return;
+        }
+
+        // The phase caches the distance each tick; before its first one it still holds the sentinel, and a speed
+        // scheduled at "MaxValue nm" would be the clean speed for an aircraft whose position is not yet known here.
+        double distanceNm = finalApproach.DistanceToThresholdNm;
+        if (!double.IsFinite(distanceNm) || (distanceNm >= double.MaxValue))
+        {
+            return;
+        }
+
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        double vref = AircraftPerformance.ApproachSpeed(aircraft.AircraftType, category);
+        double scheduled = ArrivalSpacingManager.ScheduledFinalSpeedKts(aircraft.AircraftType, category, vref, aircraft.Callsign, distanceNm);
+        if (
+            (aircraft.IndicatedAirspeed < scheduled - ArrivalSpacingManager.SpeedRestoreDeadbandKts)
+            && (distanceNm >= ArrivalSpacingManager.SpeedRestoreGateNm(category, aircraft.Callsign))
+        )
+        {
+            aircraft.Targets.TargetSpeed = scheduled;
+        }
     }
 
     internal static CommandResult ApplyReduceToFinalApproachSpeed(AircraftState aircraft, DispatchContext ctx)

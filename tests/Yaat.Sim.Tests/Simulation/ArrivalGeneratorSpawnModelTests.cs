@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
@@ -518,6 +519,55 @@ public class ArrivalGeneratorSpawnModelTests(ITestOutputHelper output)
         engine.TickOneSecond();
 
         Assert.Empty(engine.GeneratorSpawnLog);
+    }
+
+    /// <summary>Along-final distance (nm) the landing-threshold arm places its arrival at, measured from the landing threshold.</summary>
+    private const double LandingThresholdProbeNm = 6.0;
+
+    /// <summary>
+    /// Tolerance (nm) the corridor reading is held to. Well under the 0.049 nm SFO 28R's 300 ft displacement is worth,
+    /// so a reading taken from the pavement threshold cannot pass, and above the ~0.006 nm the placement projection and
+    /// the along-track measurement disagree by over 6 nm (they are different geodesy: the arm projects a point along a
+    /// heading, the corridor decomposes the vector to it).
+    /// </summary>
+    private const double LandingThresholdProbeToleranceNm = 0.02;
+
+    /// <summary>
+    /// The corridor measures along-final distance from the <em>landing</em> threshold, not the pavement threshold.
+    /// 7110.65 §5-5-4.h applies the wake minima the spawn gap is built from when the leader is over the landing
+    /// threshold, and SFO 28R's is displaced 300 ft: read from the pavement, an arrival 6.000 nm from the landing
+    /// threshold reports ~5.956 nm and every spawn placed behind it inherits a datum short by the displacement.
+    /// </summary>
+    [Fact]
+    public void CorridorDistance_IsMeasuredFromTheLandingThreshold()
+    {
+        SimulationEngine? engine = BuildLoadedEngine(intervalTime: 3600, randomizeInterval: false);
+        if ((engine is null) || (engine.Scenario is null))
+        {
+            output.WriteLine("SKIP: navdata or the SFO ground layout is unavailable");
+            return;
+        }
+
+        GeneratorState gen = engine.Scenario.Generators.Single(g => g.Config.Runway == "28R");
+        AirportGroundLayout? layout = engine.World.GroundLayout;
+        double displacementFt = LandingThreshold.DisplacementFt(gen.Runway, layout);
+        Assert.True(displacementFt > 0, $"premise: SFO 28R's landing threshold must be displaced, read {displacementFt:F0} ft");
+
+        LatLon landingThreshold = LandingThreshold.Resolve(gen.Runway, layout);
+        AircraftState arrival = GeneratorArrivalOnFinal(gen.Runway, "UAL1", LandingThresholdProbeNm);
+        arrival.Position = GeoMath.ProjectPoint(landingThreshold, gen.Runway.TrueHeading.ToReciprocal(), LandingThresholdProbeNm);
+        engine.World.AddAircraft(arrival);
+
+        (double DistanceNm, AircraftState Aircraft) entry = Assert.Single(engine.CorridorAircraft(gen));
+        var pavement = new LatLon(gen.Runway.ThresholdLatitude, gen.Runway.ThresholdLongitude);
+        var outbound = new TrueHeading((gen.Runway.TrueHeading.Degrees + 180.0) % 360.0);
+        output.WriteLine(
+            $"28R displaced {displacementFt:F0} ft ({displacementFt / GeoMath.FeetPerNm:F4} nm); corridor reports "
+                + $"{entry.DistanceNm:F4} nm for an arrival {LandingThresholdProbeNm:F3} nm from the landing threshold "
+                + $"(direct {GeoMath.DistanceNm(arrival.Position, landingThreshold):F4} nm, "
+                + $"pavement datum {GeoMath.AlongTrackDistanceNm(arrival.Position, pavement, outbound):F4} nm)"
+        );
+        Assert.Equal(LandingThresholdProbeNm, entry.DistanceNm, LandingThresholdProbeToleranceNm);
     }
 
     /// <summary>A B738 generator arrival in <c>FinalApproachPhase</c> on the runway's final, placed the way the generator places one.</summary>

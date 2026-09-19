@@ -359,7 +359,7 @@ If `Position` is non-finite or out of range (`|lat| > 90`, `|lon| > 180`), the W
   the snap nulls `TargetSpeed`, and with the auto schedule suppressed nothing raises IAS again when the ceiling rises or is removed —
   the aircraft holds the ceiling speed until the phase writes its own target. `FinalApproachPhase` writes none before its deceleration
   stages, so whoever stamps a ceiling on an aircraft on a long final must also restore its speed (the generator stream's
-  `RestoreManagedSpeed`, `docs/scenario-loading-and-generation.md`). `RNS` has the same gap (backlog).
+  `RestoreManagedSpeed`, `docs/scenario-loading-and-generation.md`). `RNS` closes it for itself: `FlightCommandHandler.ApplyResumeNormalSpeed` writes the scheduled final-approach speed back for an aircraft in `FinalApproachPhase` outside `ArrivalSpacingManager.SpeedRestoreGateNm` and more than `SpeedRestoreDeadbandKts` slow (AIM 4-4-12.f.1). Both restores are one-shot writes: a target reached under a lower regulatory cap (a Class B shelf's 200 kt, 91.117(c)) is nulled there and nothing re-accelerates the aircraft once the cap lifts.
 - **There are FOUR aircraft categories — Jet, Turboprop, Piston, Helicopter.** CLAUDE.md's summary lists only the first three; the Helicopter
   column is real and aviation-reviewed. Unknown ICAO types fall back to **Jet** (after the sibling-map attempt).
 - **Constants are NOT read from `CategoryPerformance` directly in production.** `AircraftPerformance.*` is the entry point: per-type profile with

@@ -80,6 +80,7 @@ public static class ApproachCommandHandler
 
         // Cancel existing speed restrictions per 7110.65 §5-7-1
         aircraft.Targets.TargetSpeed = null;
+        RestateStandingInTrailReduction(aircraft);
 
         FinalApproachCourseResult facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway, NavigationDatabase.Instance);
         TrueHeading finalCourse = facResult.Course;
@@ -2024,6 +2025,40 @@ public static class ApproachCommandHandler
         }
 
         return phases.LandingClearance is not null || phases.ActiveApproach is not null || IsArrivalApproachPhase(phases.CurrentPhase);
+    }
+
+    /// <summary>
+    /// Says out loud a same-runway in-trail reduction that outlives the approach clearance. The clearance cancels the
+    /// speed restrictions above (§5-7-1), but the reduction the simulated TRACON is holding this arrival to is not one
+    /// of them — it is re-stamped every tick and the aircraft keeps flying it — and §5-7-1.c requires a previously
+    /// assigned speed to be restated at the time the approach clearance is issued if it is to stay in force, because
+    /// AIM 4-4-12.g otherwise has the pilot making their own speed adjustments once cleared. Nothing is written to the
+    /// aircraft: <see cref="ControlTargets.SpeedCeiling"/> belongs to that pass, and this is only the controller
+    /// saying it.
+    ///
+    /// <para>A latched simulated-tower instruction is not restated. What that arrival was told is "reduce to final
+    /// approach speed" — the local controller's words under §5-7-3.f, and never a number — so the approach controller
+    /// issuing the clearance has neither the instruction nor the figure to restate.</para>
+    /// </summary>
+    private static void RestateStandingInTrailReduction(AircraftState aircraft)
+    {
+        if (aircraft.Approach.SameRunwayProtectionFasInstructed)
+        {
+            return;
+        }
+
+        if (aircraft.Approach.SameRunwayProtectionCeilingKts is not { } standingReductionKts)
+        {
+            return;
+        }
+
+        aircraft.PendingNotifications.Add(
+            SameRunwayArrivalProtection.RestatementLine(
+                aircraft.Track.Owner?.Callsign ?? SameRunwayArrivalProtection.SimulatedApproachControllerLabel,
+                aircraft.Callsign,
+                standingReductionKts
+            )
+        );
     }
 
     private static void ClearExistingPhases(AircraftState aircraft)
