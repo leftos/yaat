@@ -32,6 +32,7 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 
 - Worktrees: `git worktree add ../yaat.wt/<slug> -b <slug> main` from the main checkout; `../yaat-server` is the sibling of the main checkout, so a worktree session resolves it from there (see `prepare-release`'s `$SERVER` resolution).
 - Ceiling: three implementers. Every `Yaat.Sim` ship runs the cross-repo gate on `main`, and those serialize there anyway.
+- Depends on, where yaat's file lists hide it: a `Yaat.Sim` signature, `AircraftState` field or `CanonicalCommandType` one item adds and another item's client or yaat-server work consumes; a hub method or `AircraftUpdated` field (`docs/training-hub-contract.md`) one item adds and another renders; two items that each change the snapshot schema (`SnapshotSchemaMigrator` orders the migrations).
 
 ## Docs map
 
