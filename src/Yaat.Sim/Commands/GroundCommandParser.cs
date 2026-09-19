@@ -62,8 +62,30 @@ internal static class GroundCommandParser
             idx = 1;
         }
 
-        // Remaining tokens describe taxiway and/or orientation.
+        // Remaining tokens describe taxiway and/or orientation. A sigil with no name behind it names
+        // nothing, and only the first token carries a destination sigil, so a later one would be misread
+        // as a facing taxiway (PUSH TE @B27) — refuse both rather than guess.
         string[] rest = tokens[idx..];
+        foreach (string token in rest)
+        {
+            if (token == "@")
+            {
+                return PR.Fail("@ needs a gate or helipad name — PUSH @A10");
+            }
+
+            if (token == "$")
+            {
+                return PR.Fail("$ needs a spot name — PUSH $7A");
+            }
+
+            if ((token.Length > 1) && (token.StartsWith('@') || token.StartsWith('$')))
+            {
+                return PR.Fail(
+                    $"'{token.ToUpperInvariant()}' must be the first PUSH argument — a @gate or $spot destination comes before any taxiway or facing"
+                );
+            }
+        }
+
         bool hasParkingOrSpot = parking is not null || spot is not null;
 
         // Bare PUSH or just @parking/$spot — no taxiway, no orientation.

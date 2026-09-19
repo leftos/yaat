@@ -153,6 +153,20 @@ public class CtoClientParserTests
     }
 
     [Fact]
+    public void ForceAltitude_DmnConcatenated_StaysDistinctFromDm()
+    {
+        // The client's concatenation mirror splits the verb off the digits, so DMN and DM are the one pair
+        // that could swallow each other here.
+        CompoundParseResult? forced = CommandSchemeParser.ParseCompound("DMN240", _scheme);
+        CompoundParseResult? descend = CommandSchemeParser.ParseCompound("DM240", _scheme);
+
+        Assert.NotNull(forced);
+        Assert.NotNull(descend);
+        Assert.Equal("CMN 240", forced.CanonicalString);
+        Assert.Equal("DM 240", descend.CanonicalString);
+    }
+
+    [Fact]
     public void ClimbMaintain_ViceAlias_Concatenated()
     {
         // C was removed as CM alias for ATCTrainer compatibility (C is not an ATCTrainer alias)

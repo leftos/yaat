@@ -690,7 +690,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | Bookmark | `BM Go-around 28R` | `BOOKMARK` | Marks the current timeline position (global). `BM LIST`, `BM REN <id> <name>`, `BM DEL <id\|ALL>`, `BM GO <id>`, `BM NEXT`, `BM PREV` |
 | Add aircraft | `ADD IFR H J ...` | — | — |
 | Force heading | `FHN 270` | — | — |
-| Force altitude | `CMN 240` | — | — |
+| Force altitude | `CMN 240` / `DMN 240` | — | — |
 | Force speed | `SPDN 250` | `SLN`, `SPEEDN` | — |
 | Set turn rate | `TRATE 3` | — | — |
 | Warp | `WARP FRD [hdg] [alt] [spd]` | — | — |
@@ -711,6 +711,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | `PUSH TE FACE E` | Push back onto TE's centreline lined up along whichever direction of TE is closest to east, and stop once lined up |
 | `PUSH TE TAIL W` | Same — `TAIL W` and `FACE E` resolve to the same alignment |
 | `PUSH TE T` | Push back onto taxiway TE, lined up facing toward taxiway T |
+| `PUSH TE @B27` | Refused: a `@gate` or `$spot` destination must be the first `PUSH` argument (`PUSH @B27`), never a later one |
 | `PUSH @4A` | Push back to gate 4A and park there on the stand's own heading, the way a tug lines an aircraft up on a stand: pushed or pulled onto the stand's line from whichever side needs fewer reversals. A stand takes **no facing** — `PUSH @4A FACE NE` is refused. |
 | `PUSH $7A` | Push onto spot 7A — the tug works the aircraft onto the spot's line from whichever side needs the fewest reversals (a push past the mark then a pull back, or a turn then a pull), always ending with a slow pull forward onto the mark, lined up **nose-out** toward the parent taxiway with the nosewheel on the mark |
 | `PUSH $7A TAIL W` | Push onto spot 7A with tail pointing west (= face east), overriding the default nose-out facing |
@@ -1806,7 +1807,7 @@ When you need to immediately correct an aircraft's state (rather than waiting fo
 | Command | Effect |
 |---------|--------|
 | `FHN 270` | Force heading: immediately set heading to 270° |
-| `CMN 50` | Force altitude: immediately set altitude to 5,000 ft |
+| `CMN 50` / `DMN 50` | Force altitude: immediately set altitude to 5,000 ft |
 | `SPDN 250` | Force speed: immediately set IAS to 250 knots (aliases: `SLN`, `SPEEDN`) |
 | `TRATE 3` | Set turn rate: override default turn rate to 3°/sec (range 0.5–45; omit argument to clear) |
 

@@ -212,14 +212,15 @@ internal static class ArgumentSuggester
             }
         }
 
-        // Suggest compound modifiers once every overload's fixed (non-repeatable) parameters are
-        // satisfied. A trailing repeatable parameter is optional-to-repeat, so it does not block a
-        // modifier — CROSS 28R can offer both another runway and the HS modifier.
-        bool hasModifiers = false;
-        if (def.CompoundModifiers is { Length: > 0 } && def.Overloads.All(o => paramIndex >= FixedParamCount(o)))
-        {
-            hasModifiers = true;
-        }
+        // Suggest compound modifiers as soon as they can mean something. A parameterless overload is a
+        // complete command on its own, so a command that has one (CROSS, CTO, CLAND, EL/ER) offers its
+        // modifiers from the first slot; where every overload takes arguments, each must have got them
+        // first. A trailing repeatable parameter is optional-to-repeat, so it does not block a modifier —
+        // CROSS 28R can offer both another runway and the HS modifier.
+        CompoundModifier[] offerableModifiers = OfferableModifiers(def, paramIndex);
+        bool hasModifiers =
+            (offerableModifiers.Length > 0)
+            && (def.Overloads.Any(o => o.Parameters.Length == 0) || def.Overloads.All(o => paramIndex >= RequiredBeforeModifiers(o)));
 
         if (
             !hasLiterals
@@ -292,7 +293,7 @@ internal static class ArgumentSuggester
 
         if (hasModifiers)
         {
-            AddCompoundModifierSuggestions(def, parsed, fullText, partial, suggestions, maxSuggestions);
+            AddCompoundModifierSuggestions(offerableModifiers, parsed, fullText, partial, suggestions, maxSuggestions);
         }
 
         return true;
@@ -304,6 +305,18 @@ internal static class ArgumentSuggester
         && (parsed.ParameterIndex >= 1)
         && (parsed.TypedArgs.Length > 0)
         && parsed.TypedArgs[0].StartsWith('@');
+
+    /// <summary>
+    /// The parameter index at which an overload lets a compound modifier be offered, consulted only for a
+    /// command whose every overload takes arguments. The first slot there belongs to the parameter: for
+    /// <c>TAXI</c> it is where the instructor picks the first taxiway, and a list of keywords would crowd
+    /// the taxiway names out of a ten-row dropdown. The keywords are offered from the next slot on, and a
+    /// keyword typed into the first slot still parses (<c>TAXI RWY 28R</c> is the no-route form). So an
+    /// overload with parameters requires one of them, a trailing-repeatable-only overload one repeat, and
+    /// a parameterless overload none.
+    /// </summary>
+    private static int RequiredBeforeModifiers(CommandOverload overload) =>
+        overload.Parameters.Length == 0 ? 0 : Math.Max(1, FixedParamCount(overload));
 
     /// <summary>
     /// The count of fixed (non-repeatable) parameters in an overload. A single trailing repeatable
@@ -391,8 +404,23 @@ internal static class ArgumentSuggester
         }
     }
 
+    /// <summary>
+    /// The compound modifiers whose keyword may be offered at the caret's parameter position. A modifier the
+    /// parser only reads off the leading token (<c>PUSH</c>'s and <c>TAXIAUTO</c>'s <c>@</c>/<c>$</c>) drops
+    /// out past the first argument, where the same token means something else or nothing at all.
+    /// </summary>
+    private static CompoundModifier[] OfferableModifiers(CommandDefinition def, int paramIndex)
+    {
+        if (def.CompoundModifiers is not { Length: > 0 } modifiers)
+        {
+            return [];
+        }
+
+        return paramIndex == 0 ? modifiers : [.. modifiers.Where(m => !m.LeadingTokenOnly)];
+    }
+
     private static void AddCompoundModifierSuggestions(
-        CommandDefinition def,
+        CompoundModifier[] modifiers,
         CommandInputParseResult parsed,
         string fullText,
         string partial,
@@ -412,7 +440,7 @@ internal static class ArgumentSuggester
             typedModifiers.Add(parsed.Tokens[i]);
         }
 
-        foreach (CompoundModifier mod in def.CompoundModifiers!)
+        foreach (CompoundModifier mod in modifiers)
         {
             if (suggestions.Count >= maxSuggestions)
             {

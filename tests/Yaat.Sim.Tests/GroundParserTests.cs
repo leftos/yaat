@@ -406,6 +406,36 @@ public class GroundParserTests
         Assert.Contains("PUSH @A10 does not take a facing — the aircraft parks on the stand's own heading", cmd.Reason, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// PUSH reads a <c>@gate</c>/<c>$spot</c> destination off its first argument alone, so a sigil token
+    /// anywhere later is refused instead of being silently read as a facing taxiway.
+    /// </summary>
+    [Theory]
+    [InlineData("PUSH TE @B27")]
+    [InlineData("PUSH TE $7A")]
+    [InlineData("PUSH $6A @B27")]
+    [InlineData("PUSH FACE N @B27")]
+    public void Push_SigilPastTheFirstToken_Refused(string input)
+    {
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse(input);
+
+        Assert.False(cmd.IsSuccess, $"'{input}' parsed as {cmd.Value}");
+        Assert.Contains("must be the first PUSH argument", cmd.Reason, StringComparison.Ordinal);
+    }
+
+    /// <summary>A sigil with no name behind it names nothing, and says so rather than reporting misplacement.</summary>
+    [Theory]
+    [InlineData("PUSH @", "@ needs a gate or helipad name")]
+    [InlineData("PUSH $", "$ needs a spot name")]
+    [InlineData("PUSH TE @", "@ needs a gate or helipad name")]
+    public void Push_BareSigil_Refused(string input, string expectedReason)
+    {
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse(input);
+
+        Assert.False(cmd.IsSuccess, $"'{input}' parsed as {cmd.Value}");
+        Assert.Contains(expectedReason, cmd.Reason, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Push_SpotPlusTail()
     {

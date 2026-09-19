@@ -295,7 +295,7 @@ public static class CommandRegistry
                 "Sim Control",
                 CommandDimension.None,
                 false,
-                ["CMN"],
+                ["CMN", "DMN"],
                 [O(null, [R("altitude", "altitude in hundreds")], "Instantly set altitude")]
             ),
             Cmd(
@@ -808,7 +808,7 @@ public static class CommandRegistry
                 CommandDimension.Ground,
                 false,
                 ["TAXI"],
-                [O(null, [R("route", "taxiway names")], "Taxi via route")],
+                [O(null, [Rep("route", "taxiway names")], "Taxi via route")],
                 [
                     Mod("RWY", "runway", false),
                     Mod("HS", "taxiway/runway/$spot", true),
@@ -913,7 +913,8 @@ public static class CommandRegistry
                 CommandDimension.Ground,
                 true,
                 ["TAXIALL"],
-                [O(null, [R("destination", "runway, @parking, or $spot")], "Taxi all parked aircraft to destination (A* pathfinding)")]
+                [O(null, [R("destination", "runway, @parking, or $spot")], "Taxi all parked aircraft to destination (A* pathfinding)")],
+                [Mod("@", "parking", false) with { LeadingTokenOnly = true }, Mod("$", "spot", false) with { LeadingTokenOnly = true }]
             ),
             Cmd(
                 TaxiAuto,
@@ -922,7 +923,8 @@ public static class CommandRegistry
                 CommandDimension.Ground,
                 false,
                 ["TAXIAUTO"],
-                [O(null, [R("destination", "runway, @parking, or $spot")], "Auto-route taxi to runway, parking, or spot (A* pathfinding)")]
+                [O(null, [R("destination", "runway, @parking, or $spot")], "Auto-route taxi to runway, parking, or spot (A* pathfinding)")],
+                [Mod("@", "parking", false) with { LeadingTokenOnly = true }, Mod("$", "spot", false) with { LeadingTokenOnly = true }]
             ),
             Bare(BreakConflict, "Break Conflict", "Ground", CommandDimension.Ground, false, ["BREAK"]),
             Bare(ClearRunway, "Clear Runway", "Ground", CommandDimension.Ground, false, ["CLRWY", "CLEARRWY"]),

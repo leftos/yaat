@@ -14,8 +14,9 @@ namespace Yaat.Sim.Tests.Commands;
 ///
 /// <para>Two invariants carry weight beyond the shapes. Every target keeps its sigil: it is the only thing
 /// separating spot <c>$7</c> from gate <c>@7</c>, and stripping it is how <c>ATXI $7</c> once resolved to gate 7
-/// at KOAK. And every target needs one: plain <c>PUSH TE @B27</c> silently reads <c>@B27</c> as a facing taxiway
-/// because only its first token's sigil is honoured, so here a sigil-less token is refused outright.</para>
+/// at KOAK. And every target needs one: <c>PUSH</c> honours a sigil on its first token alone and
+/// <c>ParsePushback</c> refuses a later one (<c>PUSH TE @B27</c>), so here a sigil-less token is refused
+/// outright rather than read as a second kind of name.</para>
 /// </summary>
 public class PushbackMultiParseTests(ITestOutputHelper output)
 {

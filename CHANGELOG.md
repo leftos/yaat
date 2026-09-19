@@ -6,6 +6,11 @@
 - Right-click an aircraft you assumed from live traffic and pick **Release to live feed** to hand it back to the feed, the same as `UNASSUME`.
 
 ### Fixed
+- `DMN` works as an alias of `CMN` (force altitude), as it does in ATCTrainer.
+- `TAXIAUTO @` and `TAXIALL @` autocomplete parking and helipad names.
+- Taxiway autocomplete works on every `TAXI` route token, not just the first.
+- `CROSS`, `CTO`, `CLAND`, `EL` and `ER` offer their modifier keywords (`HS`, `IMM`, `NODEL`, …) before the first argument is typed.
+- `PUSH TE @B27` is refused with a message saying the `@gate`/`$spot` destination comes first, instead of pushing toward a taxiway named `@B27`.
 - A `LAHSO` lander brakes to a stop with its nose short of the hold-short point instead of coasting across it.
 - A `LAHSO` lander exits at a taxiway before the hold-short point when it can make one, and holds on the runway only when it cannot.
 - A go-around, `TG`/`SG`/`LA`/`COPT` or `CANCLAND` after `LAHSO` cancels the hold-short.
