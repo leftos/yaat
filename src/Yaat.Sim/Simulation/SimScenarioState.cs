@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Yaat.Sim.Asdex;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
@@ -422,6 +423,12 @@ public sealed class SimScenarioState
 
     public Dictionary<string, CoordinationChannel> CoordinationChannels { get; set; } = [];
 
+    /// <summary>
+    /// The ASDE-X Safety Logic configuration a CRC surface display last pushed, or null while no display has pushed
+    /// one. Written by a <see cref="RecordedAsdexSafetyLogicChange"/> and read by the surface-alert detector.
+    /// </summary>
+    public AsdexSafetyLogicConfig? AsdexSafetyLogicConfig { get; set; }
+
     public ScenarioSnapshotDto ToSnapshot() =>
         new()
         {
@@ -573,5 +580,6 @@ public sealed class SimScenarioState
                     ]
                     : null,
             NextTimerId = NextTimerId,
+            AsdexSafetyLogicConfig = AsdexSafetyLogicConfig?.ToSnapshot(),
         };
 }

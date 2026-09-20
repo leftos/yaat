@@ -4,19 +4,20 @@ using Yaat.Sim.Simulation.Spine;
 namespace Yaat.Sim.Simulation.Actions;
 
 /// <summary>
-/// The action-path view of a host: the arm bodies the host still owns and the consumers a Sim arm notifies. The
-/// <see cref="ActionRouter"/> resolves an action's scope and identity, then either runs a Sim body or calls one of the
-/// slots here; a host that has nothing to do in a slot refuses it with a result rather than silently succeeding,
-/// so a replay records the same verdict live produced once the host that produced it answers the slot.
-/// There are no default implementations — a new slot fails the build in every host until each has answered.
+/// The action-path view of a host: the consumers a Sim arm notifies. The <see cref="ActionRouter"/> resolves an
+/// action's scope and identity, runs the Sim body for it, and hands what the body touched to the consumers here
+/// before it returns the verdict. There are no default implementations — a new consumer fails the build in every
+/// host until each has answered.
 ///
 /// <para>
-/// One <c>Apply*</c> member is left: the ASDE-X safety-logic configuration, whose state is still the room's. Strips,
-/// TDLS, coordination, bookmarks, the session clock, the ERAM CRR groups and the ASDE-X / SAID display state are the
+/// No <c>Apply*</c> member is left: every recorded state change has an engine body. Strips,
+/// TDLS, coordination, bookmarks, the session clock, the ERAM CRR groups, the ASDE-X safety-logic configuration and
+/// the ASDE-X / SAID display state are the
 /// engine's (<see cref="SimulationEngine.Strips"/> / <see cref="SimulationEngine.Tdls"/> /
 /// <see cref="SimScenarioState.CoordinationChannels"/> / <see cref="SimScenarioState.Bookmarks"/> /
 /// <see cref="SimScenarioState.IsPaused"/> and <see cref="SimScenarioState.SimRate"/> /
-/// <see cref="SimulationEngine.CrrGroups"/> / the <c>Asdex*</c> and <c>Said*</c> fields of
+/// <see cref="SimulationEngine.CrrGroups"/> / <see cref="SimScenarioState.AsdexSafetyLogicConfig"/> /
+/// the <c>Asdex*</c> and <c>Said*</c> fields of
 /// <see cref="AircraftStarsState"/> — all but the bookmarks snapshotted, the timeline metadata a rewind carries over
 /// verbatim instead, so every run kind carries them), their mutation bodies are the engine's, and what those bodies
 /// touched reaches the host through
@@ -39,11 +40,6 @@ namespace Yaat.Sim.Simulation.Actions;
 /// </summary>
 public interface IActionHost : IStateChangeConsumer
 {
-    // --- Slots: bodies the host owns ---
-
-    /// <summary>A recorded CRC ASDE-X safety-logic configuration push; the facility's runway configuration is the room's.</summary>
-    void ApplyRecordedAsdexSafetyLogic(RecordedAsdexSafetyLogicChange change);
-
     // --- Consumers: what a Sim arm hands over ---
 
     /// <summary>An aircraft a command put into the world (<c>SPAWN</c>, <c>ADD</c>, <c>GHOST</c>).</summary>

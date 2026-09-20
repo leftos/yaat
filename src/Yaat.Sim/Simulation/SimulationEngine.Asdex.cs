@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Simulation.Actions;
 
@@ -83,6 +84,28 @@ public sealed partial class SimulationEngine
                 OnSaidAircraft(mutation, ac => TrackEngine.HandleSaidVerb(ac, SaidVerb.Unsuspend));
                 break;
         }
+    }
+
+    /// <summary>
+    /// Applies one recorded CRC ASDE-X safety-logic configuration push: the facility's runway footprints, active
+    /// runway configuration and inhibited arrival-alert positions become the scenario's configuration, which the
+    /// surface-alert detector reads. Snapshotted scenario state, so a rewind onto a snapshot that predates the push
+    /// rebuilds the configuration from the log rather than keeping a stale one. With no scenario loaded there is
+    /// nothing to write to and the push is dropped.
+    /// </summary>
+    public void ApplyRecordedAsdexSafetyLogic(RecordedAsdexSafetyLogicChange change)
+    {
+        if (Scenario is not { } scenario)
+        {
+            _logger.LogDebug(
+                "ASDE-X safety-logic push for facility {FacilityId} at t={Seconds} dropped: no scenario is loaded",
+                change.FacilityId,
+                change.ElapsedSeconds
+            );
+            return;
+        }
+
+        scenario.AsdexSafetyLogicConfig = change.Config;
     }
 
     /// <summary>

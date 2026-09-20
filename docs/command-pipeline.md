@@ -61,16 +61,16 @@ SendCommandAsync(connectionId, callsign, command, initials)
   │    ↓ refuse a chain with a non-compoundable verb; split a scoped-special compound into units
   │    ↓ RecordedCommandClassifier.Classify → ArmTable.For(kind)
   │    ↓ resolve the scope (Aircraft: FindAircraft, else "Aircraft 'X' not found") and the identity
-  │    ↓ run the row: a Sim body (ActionArms, StripCommandHandler, TdlsCommandHandler, CoordinationCommandHandler) or a host slot (RoomHost →
-  │      bookmarks, the clock, ASDE-X); the body notifies the host's consumers
+  │    ↓ run the row: a Sim body (ActionArms, StripCommandHandler, TdlsCommandHandler, CoordinationCommandHandler, BookmarkCommandHandler,
+  │      TransportCommandHandler — IActionHost has no body slot); the body notifies the host's consumers
   │    ↓ record the text with its verdict (RecordedCommand.Accepted), accepted or not
   ↓ terminal echo: "Command" (or "Strip" for a strip verb) + "Response" / "Error"; a global or
     position-scoped command echoes with no callsign
   ↓ FlushTerminalEntries — the SAY-class and spawn lines the sim queued
 ```
 
-Adding a new verb means giving it a `RecordedCommandKind`, an `ArmTable` row and — only if its state is still the
-room's — an `IActionHost` slot; nothing is added to `SendCommandAsync`. The CRC handlers issue through the same router
+Adding a new verb means giving it a `RecordedCommandKind` and an `ArmTable` row whose body is the engine's (`IActionHost`
+carries consumers only — no body slot); nothing is added to `SendCommandAsync`. The CRC handlers issue through the same router
 (`RecordAndDispatch` / `RecordAndDispatchStrip` / `RecordAndDispatchFlightPlan`, each prefixing `AS {tcp}` where the
 identity must round-trip), so a CRC-entered command and a typed one are one arm.
 
@@ -80,8 +80,8 @@ Every entry point — the typed terminal, the CRC handlers, the AI sink, Sim rep
 the bare test engine — goes through this table and nothing else (ADR [0007](adr/0007-one-action-router.md)). *Scope* is
 what the router resolves before the arm runs: `Global` resolves nothing (an empty callsign applies), `Callsign` hands the
 arm the text, `Aircraft` requires a present aircraft (else the identical "Aircraft 'X' not found" on every run kind),
-`Position` resolves the acting position. A *Host* body is an `IActionHost` slot the room fills and the bare / replay
-hosts refuse or ignore — step-4 debt, listed in the interface header. `Never` means the verb is not written to the action
+`Position` resolves the acting position. Every body is a *Sim* body: `IActionHost` has no body slot left, so the room,
+the bare host and the replay host differ only in what their consumers do with what a body touched. `Never` means the verb is not written to the action
 log and the router ignores it from a record.
 
 | Kind | Verbs | Scope | Body | Recorded |
@@ -121,7 +121,7 @@ it addresses the issuing connection's position, not an aircraft) and `RDAUTO` (a
 addressed to a position). The CRC entries that write state no verb covers are not rows here — they are derived records
 (`RecordedStarsSharedStateChange`, `RecordedClearanceChange`, `RecordedHoldAnnotationChange`, `RecordedEramEntry`,
 `RecordedEramCrrGroup`, `RecordedStripRequest`, `RecordedAsdexSafetyLogicChange`), applied by `ActionRouter.ApplyRecorded`
-through their Sim applier or host slot; see [snapshots-and-replay.md](snapshots-and-replay.md) § RecordedAction.
+through their Sim applier; see [snapshots-and-replay.md](snapshots-and-replay.md) § RecordedAction.
 
 The router records **every** routed command with its verdict (`RecordedCommand.Accepted`); the draws a fresh action
 made — the pilot-reaction delay (see [Deferred dispatch](#deferred-dispatch--wait-behind-and-the-command-run-delay)),

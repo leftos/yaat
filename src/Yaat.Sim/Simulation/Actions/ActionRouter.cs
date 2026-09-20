@@ -31,7 +31,7 @@ public sealed class ActionRouter
     /// <summary>The arm the most recent action took; null before the first.</summary>
     public ActionTrace? LastTrace { get; private set; }
 
-    /// <summary>A fresh action on the bare host: slots refused, consumers discarded.</summary>
+    /// <summary>A fresh action on the bare host: consumers discarded.</summary>
     public ActionOutcome Issue(ActionInput input) => Issue(input, _engine.BareHost);
 
     public ActionOutcome Issue(ActionInput input, IActionHost host)
@@ -60,9 +60,8 @@ public sealed class ActionRouter
     /// Applies one recorded action: a command through <see cref="Apply(RecordedCommand, IActionHost)"/>, a derived
     /// record (spawn, live-traffic sample or removal, flight-plan amendment, beacon recycle, weather, setting,
     /// generators, STARS shared state, clearance, hold annotation, ERAM entry, ERAM CRR group, ASDE-X or SAID
-    /// mutation, strip request, CRC attendance, a <c>.AUTOTRACK</c> roster change) through its Sim applier
-    /// with the host told what changed, and a record of host-owned state (an ASDE-X safety-logic push) through the
-    /// host's slot. A chat line and a diagnostic record apply
+    /// mutation, ASDE-X safety-logic push, strip request, CRC attendance, a <c>.AUTOTRACK</c> roster change) through
+    /// its Sim applier with the host told what changed. A chat line and a diagnostic record apply
     /// nothing. A derived record the live room applied whose apply refuses here — its aircraft is gone, an ERAM entry's
     /// guard answers differently — logs a <c>replay-fidelity</c> warning like a command whose verdict changed.
     /// </summary>
@@ -182,7 +181,7 @@ public sealed class ActionRouter
             case RecordedStripRequest request:
                 return StripRequests.PrintRequestedStrip(_engine, request);
             case RecordedAsdexSafetyLogicChange safetyLogic:
-                host.ApplyRecordedAsdexSafetyLogic(safetyLogic);
+                _engine.ApplyRecordedAsdexSafetyLogic(safetyLogic);
                 return Applied;
             case RecordedAttendanceChange attendance:
                 _engine.Attendance.Replace(attendance.AttendedPositionIds, _engine.Scenario?.ArtccConfig);

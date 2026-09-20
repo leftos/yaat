@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Sim.Asdex;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
@@ -15,9 +16,9 @@ namespace Yaat.Sim.Tests.Simulation.Actions;
 
 /// <summary>
 /// The derived records a CRC handler writes for state it used to change without a trace — per-TCP STARS shared
-/// state, the departure clearance, the hold annotation, an ERAM keyboard entry, a CRR group — apply through the
-/// router on every run kind: the Sim-owned ones on the bare engine, the room-owned CRR group through the host's
-/// slot. A record whose aircraft is gone is refused with a replay-fidelity warning, the way a command whose verdict
+/// state, the departure clearance, the hold annotation, an ERAM keyboard entry, a CRR group, the ASDE-X safety-logic
+/// configuration — apply through the router on every run kind, each through its own engine body, on the bare engine.
+/// A record whose aircraft is gone is refused with a replay-fidelity warning, the way a command whose verdict
 /// changed is; a fresh derived record is recorded only when it applied.
 /// </summary>
 public class RecordedStateChangeTests
@@ -227,7 +228,7 @@ public class RecordedStateChangeTests
     }
 
     [Fact]
-    public void AsdexSafetyLogicChange_ReachesTheHostSlot()
+    public void AsdexSafetyLogicChange_WritesTheScenariosConfig()
     {
         if (Engine() is not { } engine)
         {
@@ -235,12 +236,13 @@ public class RecordedStateChangeTests
         }
 
         var host = new AttendanceActionHost();
-        var change = new RecordedAsdexSafetyLogicChange(0, "OAK", """{"Runways":[],"RunwayConfigurationId":"WEST"}""");
+        var config = new AsdexSafetyLogicConfig([], "WEST", []);
+        var change = new RecordedAsdexSafetyLogicChange(0, "OAK", config);
 
         CommandResult applied = engine.Actions.ApplyRecorded(change, host);
 
         Assert.True(applied.Success, applied.Message);
-        Assert.Same(change, Assert.Single(host.AsdexSafetyLogicChanges));
+        Assert.Same(config, engine.Scenario!.AsdexSafetyLogicConfig);
     }
 
     [Fact]

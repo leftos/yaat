@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Xunit;
+using Yaat.Sim.Asdex;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -221,7 +222,15 @@ public class RecordedActionSerializationTests
             new RecordedEramEntry(100.0, "AAL100", "QR 350", "07"),
             new RecordedEramCrrGroup(105.0, "ALPHA", "Green", 37.7213, -122.2208),
             new RecordedStripRequest(110.0, "AAL100", "OAK", "STRIP_11"),
-            new RecordedAsdexSafetyLogicChange(115.0, "OAK", "{\"runwayAreas\":[{\"runwayId\":\"30\"}],\"activeConfigurationId\":\"cfg-1\"}"),
+            new RecordedAsdexSafetyLogicChange(
+                115.0,
+                "OAK",
+                new AsdexSafetyLogicConfig(
+                    [new AsdexRunwayConfig("30", [new LatLon(37.7213, -122.2208), new LatLon(37.7222, -122.2101)], IsClosed: true)],
+                    "cfg-1",
+                    ["OAK_TWR"]
+                )
+            ),
             new RecordedAttendanceChange(120.0, ["OAK_TWR", "OAK_GND", "NCT_W_APP"]),
             new RecordedAutoTrackChange(125.0, "OAK_TWR", ["OAK", "-HWD"]),
         };

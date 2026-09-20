@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Yaat.Sim.Asdex;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Simulation.Snapshots;
 
@@ -232,11 +233,12 @@ public sealed record RecordedStripRequest(double ElapsedSeconds, string Callsign
 
 /// <summary>
 /// A CRC ASDE-X safety-logic configuration push (<c>UpdateAsdexSafetyLogicConfiguration</c>) for one facility: the
-/// runway areas, the active runway-configuration id and the positions whose arrival alerts are inhibited. Room state,
-/// so a host slot applies it; <see cref="ConfigJson"/> is the inbound configuration DTO in its JSON form, kept whole
-/// rather than re-modelled here because the shape is CRC's wire contract, which Yaat.Sim does not carry.
+/// runway areas, the active runway-configuration id and the positions whose arrival alerts are inhibited, carried as
+/// the Sim-native <see cref="AsdexSafetyLogicConfig"/> the server's wire DTO projects to. Scenario state, applied by
+/// <see cref="SimulationEngine.ApplyRecordedAsdexSafetyLogic"/> on every run kind.
 /// </summary>
-public sealed record RecordedAsdexSafetyLogicChange(double ElapsedSeconds, string FacilityId, string ConfigJson) : RecordedAction(ElapsedSeconds);
+public sealed record RecordedAsdexSafetyLogicChange(double ElapsedSeconds, string FacilityId, AsdexSafetyLogicConfig Config)
+    : RecordedAction(ElapsedSeconds);
 
 /// <summary>
 /// The set of CRC positions being worked at that second, as the live host derived it from its connection registry.

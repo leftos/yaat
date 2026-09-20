@@ -1,5 +1,4 @@
 using Yaat.Sim.Commands;
-using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Simulation.Strips;
 using Yaat.Sim.Simulation.Tdls;
@@ -7,8 +6,8 @@ using Yaat.Sim.Simulation.Tdls;
 namespace Yaat.Sim.Tests.Helpers;
 
 /// <summary>
-/// An action host with no room: the one remaining slot captured, every consumer counted or ignored. Attendance is
-/// engine state (<see cref="AttendanceTestSupport.Attend"/>), not something the host answers.
+/// An action host with no room: every consumer counted or ignored. Attendance is engine state
+/// (<see cref="AttendanceTestSupport.Attend"/>), not something the host answers.
 /// </summary>
 public sealed class AttendanceActionHost : IActionHost
 {
@@ -27,10 +26,6 @@ public sealed class AttendanceActionHost : IActionHost
     public List<(string ConnectionId, string Callsign, List<string> Lines)> ShownQueues { get; } = [];
 
     public void OnConsolidationChanged() => ConsolidationChanges++;
-
-    public List<RecordedAsdexSafetyLogicChange> AsdexSafetyLogicChanges { get; } = [];
-
-    public void ApplyRecordedAsdexSafetyLogic(RecordedAsdexSafetyLogicChange change) => AsdexSafetyLogicChanges.Add(change);
 
     public void OnAircraftSpawned(AircraftState aircraft) => SpawnedCallsigns.Add(aircraft.Callsign);
 

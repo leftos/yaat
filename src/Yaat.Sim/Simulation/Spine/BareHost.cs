@@ -13,8 +13,8 @@ namespace Yaat.Sim.Simulation.Spine;
 /// Every host step is empty: there is no room, no feed, no controller to broadcast to. The consumers fire the
 /// engine's events (<see cref="SimulationEngine.WarningEmitted"/>, <see cref="SimulationEngine.TerminalEntryEmitted"/>,
 /// <see cref="SimulationEngine.PilotSpeechEmitted"/>) so tests
-/// and the solo client observe the same lines the RPO would see. As an <see cref="IActionHost"/> it refuses every slot
-/// (the bodies are the live server's) and discards every consumer. The replay host delegates everything it does not
+/// and the solo client observe the same lines the RPO would see. As an <see cref="IActionHost"/> it discards every
+/// consumer: every recorded state change has an engine body, so there is nothing to refuse. The replay host delegates everything it does not
 /// override here.
 /// </summary>
 internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
@@ -101,9 +101,7 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
     /// <summary>Discarded: the scores are consumed by the approach evaluator only where a controller can be debriefed.</summary>
     public void OnApproachScores(List<ApproachScore> scores) { }
 
-    // --- IActionHost: no room, so every slot is refused and every consumer is a no-op ---
-
-    public void ApplyRecordedAsdexSafetyLogic(RecordedAsdexSafetyLogicChange change) { }
+    // --- IActionHost: no room, so every consumer is a no-op ---
 
     public void OnAircraftSpawned(AircraftState aircraft) { }
 

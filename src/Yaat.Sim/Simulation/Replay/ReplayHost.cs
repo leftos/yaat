@@ -91,9 +91,7 @@ internal sealed class ReplayHost : ISimulationHost
 
     public void OnApproachScores(List<ApproachScore> scores) => _bare.OnApproachScores(scores);
 
-    // --- IActionHost: a replay has no room, so every slot is the bare host's refusal and every consumer its no-op ---
-
-    public void ApplyRecordedAsdexSafetyLogic(RecordedAsdexSafetyLogicChange change) => _bare.ApplyRecordedAsdexSafetyLogic(change);
+    // --- IActionHost: a replay has no room, so every consumer is the bare host's no-op ---
 
     public void OnAircraftSpawned(AircraftState aircraft) => _bare.OnAircraftSpawned(aircraft);
 

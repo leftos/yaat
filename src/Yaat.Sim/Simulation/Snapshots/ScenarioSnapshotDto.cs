@@ -127,6 +127,27 @@ public sealed class ScenarioSnapshotDto
     // Active TIMER countdowns. Optional so older snapshots deserialize cleanly (no timers).
     public List<ActiveTimerDto>? ActiveTimers { get; init; }
     public int NextTimerId { get; init; }
+
+    // The ASDE-X Safety Logic configuration a CRC surface display pushed. Optional: null in snapshots that predate it
+    // and in every session where no display ever pushed one, which is also what the scenario state then holds.
+    public AsdexSafetyLogicConfigDto? AsdexSafetyLogicConfig { get; init; }
+}
+
+/// <summary>Snapshot of <c>AsdexSafetyLogicConfig</c>: the configured runway footprints, the runway-configuration id they came from,
+/// and the positions whose arrival alerts are inhibited.</summary>
+public sealed class AsdexSafetyLogicConfigDto
+{
+    public required List<AsdexRunwayConfigDto> Runways { get; init; }
+    public required string RunwayConfigurationId { get; init; }
+    public required List<string> InhibitedArrivalAlertPositionIds { get; init; }
+}
+
+/// <summary>Snapshot of one <c>AsdexRunwayConfig</c>.</summary>
+public sealed class AsdexRunwayConfigDto
+{
+    public required string Id { get; init; }
+    public required List<LatLon> AreaPoints { get; init; }
+    public required bool IsClosed { get; init; }
 }
 
 /// <summary>

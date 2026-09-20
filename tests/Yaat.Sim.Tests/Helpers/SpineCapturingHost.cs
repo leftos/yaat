@@ -126,8 +126,6 @@ public sealed class SpineCapturingHost(SimulationEngine engine) : ISimulationHos
 
     // --- IActionHost ---
 
-    public void ApplyRecordedAsdexSafetyLogic(RecordedAsdexSafetyLogicChange change) => _bare.ApplyRecordedAsdexSafetyLogic(change);
-
     public void OnAircraftSpawned(AircraftState aircraft) => _bare.OnAircraftSpawned(aircraft);
 
     public void OnAircraftDeleted(string callsign, AircraftState? lastState) => _bare.OnAircraftDeleted(callsign, lastState);

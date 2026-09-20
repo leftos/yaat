@@ -6,6 +6,7 @@
 - Right-click an aircraft you assumed from live traffic and pick **Release to live feed** to hand it back to the feed, the same as `UNASSUME`.
 
 ### Fixed
+- Rewinding to before a CRC ASDE-X safety-logic change (a closed runway, inhibited arrival alerts) undoes it, instead of keeping the newest configuration.
 - **Edit Aircraft Generators…** shows the room's generators and positions after joining or reconnecting to a room, instead of opening empty (#442).
 - `RNS` to an arrival slowed on a long final speeds it back up to its approach profile.
 - The simulated approach controller says "resume normal speed" or "resume published speed" when it lifts an in-trail speed reduction.

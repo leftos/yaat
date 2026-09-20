@@ -36,7 +36,9 @@ The consequences that were genuine choices:
   the bare and replay hosts answer honestly (refuse or no-op) rather than pretending. Each slot is
   listed as step-4 debt; the table is complete now, not when step 4 lands. (Superseded in part 2026-09-07: strips, TDLS
   and coordination crossed whole in step 4 and are Sim arms with no slot; the slots left are the ASDE-X / SAID
-  mutations and inhibits, CRR groups, bookmarks and the clock.)
+  mutations and inhibits, CRR groups, bookmarks and the clock. Superseded in full 2026-09-19: those crossed
+  2026-09-08 and the ASDE-X safety-logic configuration, the last, on 2026-09-19 — `IActionHost` has no body slot,
+  every arm is a Sim body.)
 - **Every routed command is recorded with its verdict, accepted or not** (`RecordedCommand.Accepted`).
   A replay that reaches the other verdict logs a `replay-fidelity` warning; it is never silenced by
   skipping the record. Before this the live chain recorded successes only, so a refused live command

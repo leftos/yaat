@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Asdex;
 using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data;
@@ -295,6 +296,12 @@ public sealed partial class SimulationEngine
             }
 
             CoordinationChannelSnapshotMapper.RestoreChannels(Scenario.CoordinationChannels, scenarioDto.CoordinationChannels);
+
+            // Replace, never merge: a snapshot that predates the last push (or predates the feature) carries no
+            // configuration, and the log's pushes after this snapshot are what rebuild it.
+            Scenario.AsdexSafetyLogicConfig = scenarioDto.AsdexSafetyLogicConfig is { } asdexConfig
+                ? AsdexSafetyLogicConfig.FromSnapshot(asdexConfig)
+                : null;
         }
 
         // Reset engine-level state, then restore from snapshot if available

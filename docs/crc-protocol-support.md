@@ -94,7 +94,7 @@ Authoritative interface definitions: `..\vatsim-vnas\messaging\` (sibling repo)
 - [x] `SaveAsdexTempDataPreset(facilityId, AsdexTempDataPresetDto)` — stores preset
 - [x] `ToggleAsdexTempDataPreset(facilityId, tempDataPresetId)` — toggles preset active state
 - [x] `DeleteAsdexTempDataPreset(facilityId, tempDataPresetId)` — removes preset
-- [x] `UpdateAsdexSafetyLogicConfiguration(facilityId, AsdexSafetyLogicConfigurationDto)` — acknowledged (config storage deferred)
+- [x] `UpdateAsdexSafetyLogicConfiguration(facilityId, AsdexSafetyLogicConfigurationDto)` — recorded (`RecordedAsdexSafetyLogicChange`) and stored as scenario state (`SimScenarioState.AsdexSafetyLogicConfig`, Sim-native via `DtoConverter.FromAsdexSafetyLogicConfigDto`), echoed to the `AsdexSafetyLogicConfiguration` topic; refused with no scenario loaded. The topic has no clear, so a configuration a rewind drops is not withdrawn from displays (see [crc-display-state.md](crc-display-state.md))
 
 ### Flight Strips
 

@@ -329,7 +329,7 @@ topic (STARS / ASDE-X / ERAM / Tower-Cab / ground), it goes in *that* topic's fi
   initial subscribe (first `DetectChanges` returns `All`) but never updates live. The struct's structural equality is
   what detects change.
 - **`SendCommandAsync` has no routing of its own.** A new verb gets a `RecordedCommandKind` and an `ArmTable` row in
-  Yaat.Sim (and an `IActionHost` slot only while its state is the room's); a CRC handler that can issue it goes through
+  Yaat.Sim (its body is the engine's — `IActionHost` carries consumers only, no `Apply*` slot); a CRC handler that can issue it goes through
   `RecordAndDispatch*` so the same row runs and the text is recorded.
 - **Recording is the router's.** Every routed command is recorded with its verdict (`RecordedCommand.Accepted`) — typed
   or CRC-sourced; the CRC entry points prepend `AS {tcp}` so identity round-trips on replay. A handler that mutates state without recording breaks replay
