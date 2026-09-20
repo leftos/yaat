@@ -13,8 +13,8 @@ pwsh tools/Yaat.ClientDriver.Mcp/smoke.ps1
 
 [CmdletBinding()]
 param(
-    [string]$Command = 'dotnet',
-    [string[]]$Arguments = @('run', '--project', 'tools/Yaat.ClientDriver.Mcp', '--no-build'),
+    [string]$Command = 'pwsh',
+    [string[]]$Arguments = @('-NoProfile', '-File', 'tools/Yaat.ClientDriver.Mcp/launch.ps1'),
     [string[]]$ExpectedTools = @(
         'launch_yaat',
         'list_processes',

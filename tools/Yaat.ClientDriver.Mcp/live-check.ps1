@@ -15,8 +15,8 @@ pwsh tools/Yaat.ClientDriver.Mcp/live-check.ps1 -WithInput
 
 [CmdletBinding()]
 param(
-    [string]$Command = 'dotnet',
-    [string[]]$Arguments = @('run', '--project', 'tools/Yaat.ClientDriver.Mcp', '--no-build'),
+    [string]$Command = 'pwsh',
+    [string[]]$Arguments = @('-NoProfile', '-File', 'tools/Yaat.ClientDriver.Mcp/launch.ps1'),
     [string]$AppDataDir = '.tmp/client-driver/live-appdata',
     [switch]$WithInput
 )

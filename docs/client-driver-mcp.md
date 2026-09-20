@@ -9,10 +9,11 @@ Windows only (`net10.0-windows`, `System.Windows.Automation`); `EnableWindowsTar
 `.mcp.json` at the repo root registers it for Claude Code as `yaat-client-driver`:
 
 ```json
-{ "type": "stdio", "command": "dotnet", "args": ["run", "--project", "tools/Yaat.ClientDriver.Mcp", "--no-build"] }
+{ "type": "stdio", "command": "pwsh", "args": ["-NoProfile", "-File", "tools/Yaat.ClientDriver.Mcp/launch.ps1"] }
 ```
 
-- **Build it once per clone, and after changing it:** `dotnet build tools/Yaat.ClientDriver.Mcp`. `--no-build` is deliberate: stdout is the protocol channel, and a building `dotnet run` would write MSBuild output into it. With `--no-build`, nothing reaches stdout before the first JSON-RPC frame; all logging goes to stderr.
+- **Build it once per clone, and after changing it:** `dotnet build tools/Yaat.ClientDriver.Mcp`. The launcher never builds: stdout is the protocol channel, and MSBuild output would corrupt it. Nothing reaches stdout before the first JSON-RPC frame; all logging goes to stderr.
+- **It runs from a copy, not from `bin/`.** `launch.ps1` copies the build output to `%LOCALAPPDATA%/yaat/client-driver-mcp/run-<launcher pid>/` and starts `dotnet <copy>/Yaat.ClientDriver.Mcp.dll`. A server running out of `bin/` locks its own exe and dlls, and the solution build — which prek runs on every commit — then fails with `MSB3027`. Copies whose launcher has exited are pruned at the next launch. A running session keeps the build it started with; reconnect the server (`/mcp`) to pick up a rebuild.
 - Claude Code reads `.mcp.json` at session start and asks once to approve a project server.
 - The server's working directory is the repo root, so the relative defaults below resolve there.
 - `launch_yaat` needs a built client: `dotnet build src/Yaat.Client`.

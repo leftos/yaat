@@ -141,7 +141,7 @@ tools/hooks/claude-guard-read.sh   # Claude Code PreToolUse(Read) guard: denies 
 tools/hooks/claude-guard-cases.jsonl    # Expected allow/deny table for the Bash guard.
 tools/hooks/test-claude-guards.sh       # Runs the table above; wired into prek (`claude-guards`) and triggered only when a guard file changes.
 tools/gate.sh                     # Wraps a build/test command: full output to a log, only the tail (plus the failure lines on red) on screen, exits with the command's own status, also failing when the log holds `Build FAILED` or `error CS`. Use for every dotnet build/test/run; `cmd | tee` floods the context with the whole log and reports tee's status.
-.mcp.json                         # Claude Code project MCP registration: `yaat-client-driver` → `dotnet run --project tools/Yaat.ClientDriver.Mcp --no-build`
+.mcp.json                         # Claude Code project MCP registration: `yaat-client-driver` → `pwsh tools/Yaat.ClientDriver.Mcp/launch.ps1`, which runs the server from a shadow copy of its build output outside the repo so a running server never locks `bin/`
 tools/measure-test-loop.ps1       # Measures the developer test loop (discovery, one-class, whole-project wall+CPU, incremental/cold build, full gate) as medians over N runs. Detects xunit.v3 vs TUnit from the csproj and picks the matching filter syntax, so a framework-migration branch can be diffed against main. Baseline numbers: docs/plans/tunit-migration.md.
 tools/analyze-test-schedule.py    # Reads a TRX of per-test durations and LPT-packs it onto N workers under both scheduling models (xunit's per-collection vs per-test), reporting the makespan gap. Answers "would a different scheduler help?" without changing frameworks — on this suite the gap measures 0.0s.
 tools/gen-synthetic-suite.py      # Emits a throwaway test project matching Yaat.Sim.Tests' shape (class/test/InlineData counts) in xunit.v3 or TUnit, with trivial bodies. Measures a framework's *compile* cost at our scale without converting real files — how the TUnit source generator was shown to add ~5s per incremental build at 9,306 cases.
@@ -1658,6 +1658,7 @@ WindowCapture.cs               # CopyFromScreen of a window's bounds, downscale,
 Tools/ProcessTools.cs          # launch_yaat (Yaat.Client.exe only, scratch YAAT_APPDATA_DIR), list_processes, stop_process (pid + start time, or a Yaat.Client by name), tail_yaat_log
 Tools/InspectTools.cs          # list_windows, dump_tree, find_elements, get_value, screenshot
 Tools/InputTools.cs            # invoke, click, click_point, set_text, send_keys, focus
+launch.ps1                     # What `.mcp.json` runs: copies bin/ to %LOCALAPPDATA%/yaat/client-driver-mcp/run-<pid> and starts the server there, so a running server never locks the build output; prunes dead sessions' copies
 McpStdio.ps1                   # Dot-sourced JSON-RPC-over-stdio plumbing for the two scripts
 smoke.ps1                      # Protocol smoke: stdout is pure JSON, every tool listed; opens no window
 live-check.ps1                 # Live pass against a real client (-WithInput types and clicks); captures CRC's first display window when CRC is running

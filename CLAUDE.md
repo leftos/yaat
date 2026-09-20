@@ -22,7 +22,7 @@ dotnet run --project src/Yaat.Client                    # Run client (needs yaat
 dotnet run --project tools/Yaat.Scratch                 # Ad-hoc throwaway scratchpad (intentionally empty placeholder)
 dotnet run --project tools/Yaat.SpeechSandbox           # Speech sandbox GUI (or `-- --pipeline <wav>`, `--lmkit-stt`, `--lmkit-models`, `--lmkit-gpus`, `--yaat-catalog`, `--llm-probe`)
 dotnet run --project tools/Yaat.GuideCapture            # Regenerate USER_GUIDE.md screenshots into docs/user-guide/img/ (or `-- --scene <name>`)
-dotnet build tools/Yaat.ClientDriver.Mcp                # Once per clone: the `yaat-client-driver` MCP server in `.mcp.json` runs with --no-build (see docs/client-driver-mcp.md)
+dotnet build tools/Yaat.ClientDriver.Mcp                # Once per clone: the `yaat-client-driver` MCP server in `.mcp.json` runs a shadow copy of this build output and never builds (see docs/client-driver-mcp.md)
 dotnet run --project tools/Yaat.RecordingConsolidator    # Dedupe recording .zip fixtures in tests/Yaat.Sim.Tests/TestData (see the `consolidate-recordings` skill)
 pwsh tools/test-all.ps1                                 # Build + test both yaat and yaat-server (excludes Nightly + PathfinderGrid sweeps for speed)
 pwsh tools/test-all.ps1 -Full                           # ...including the heavy Nightly + PathfinderGrid sweeps (CI/nightly run these)
