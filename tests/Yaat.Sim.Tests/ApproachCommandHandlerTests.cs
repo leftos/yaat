@@ -1036,7 +1036,7 @@ public class ApproachCommandHandlerTests
     public void Jfac_KeepsAssignedSpeed_ClearsAssignedHeading()
     {
         // JFAC/JLOC is a lateral "join the localizer" vector, not an approach clearance:
-        // it does NOT cancel a previously assigned speed (7110.65 5-7-1.h.4 — only an
+        // it does NOT cancel a previously assigned speed (7110.65 §5-7-1.d — only an
         // approach/climb-via/descend-via clearance cancels assigned speeds). It does clear
         // the assigned heading because the approach phases take over lateral steering.
         AircraftState aircraft = MakeAircraft();

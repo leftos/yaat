@@ -118,8 +118,9 @@ public class Issue184VectorsStarAppSpeedsTests(ITestOutputHelper output)
     {
         // Bug #4: a CASST arrival crosses ZOEEE at 240, then must slow to the CASST 210
         // crossing restriction and MAINTAIN 210 past CASST — even though `DEPART CASST 267`
-        // vectors it off the STAR. The CFIX 210 is an ATC-assigned speed (7110.65 5-7-1.h.4),
-        // which a bare vector does not cancel; it persists until an approach/via clearance.
+        // vectors it off the STAR. The CFIX 210 is an ATC-assigned speed (7110.65 §5-7-1.e assigns
+        // it with the vector; §5-7-1.d — only an approach or climb via/descend via clearance
+        // cancels it), so it persists until the approach clearance.
         // (Two underlying fixes: `DEPART` preserves the CFIX restriction it lands on, and the
         // crossed speed is published as a ceiling.)
         SessionRecording? recording = LoadRecording();

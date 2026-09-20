@@ -22,7 +22,7 @@ public sealed class SnapshotSchemaException(int snapshotVersion, int requiredVer
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 27;
+    public const int CurrentSchemaVersion = 28;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -168,6 +168,12 @@ public static class SnapshotSchemaMigrator
         //   same-runway protection holds through the §5-7-1.b.4 window instead of releasing there. No data
         //   transformation — the field is optional and older snapshots default to false: the pass simply re-issues the
         //   instruction on the next tick if the conflict persists and the follower is still outside 5 nm.
+        // V27→V28: Added AircraftApproachStateDto.SameRunwayProtectionDropoutSeconds, the debounce clock the same-runway
+        //   protection runs while an arrival it owns is momentarily outside the ±45° track window that makes a
+        //   not-yet-cleared follower part of the runway's stream. The pass holds the reduction silently for that long
+        //   instead of releasing it and issuing it again a tick later. No data transformation — the field is optional and
+        //   older snapshots default to 0, which reads as "the drop-out starts now": a restore taken in the middle of one
+        //   holds the reduction for the full hysteresis again rather than releasing it early.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (AircraftSnapshotDto ac in snapshot.Aircraft)

@@ -73,8 +73,8 @@ public class AircraftApproachState
     /// <summary>
     /// The ceiling <see cref="SameRunwayProtectionCeilingKts"/> was stamped over, or null when the aircraft carried
     /// none. A scenario-scripted arrival flies a STAR and can be carrying a published crossing-speed restriction,
-    /// which it is required to comply with (§5-7-1.b NOTE) and which a controller may remove only with DELETE SPEED
-    /// RESTRICTIONS (§5-7-2.e); <see cref="FlightPhysics"/> publishes one just once, on the tick the fix is
+    /// which it is required to comply with (§5-7-1.d NOTE) and which a controller may remove only with DELETE SPEED
+    /// RESTRICTIONS (§5-7-4.d); <see cref="FlightPhysics"/> publishes one just once, on the tick the fix is
     /// sequenced, and never re-stamps it. Releasing the protection by nulling the ceiling outright would therefore
     /// delete that restriction permanently, so the displaced value is stashed here and restored instead. Only
     /// meaningful while <see cref="SameRunwayProtectionCeilingKts"/> is non-null. Snapshot-serialized.
@@ -91,6 +91,19 @@ public class AircraftApproachState
     /// Snapshot-serialized.
     /// </summary>
     public bool SameRunwayProtectionFasInstructed { get; set; }
+
+    /// <summary>
+    /// Simulated seconds the same-runway protection pass has owned this aircraft's speed without re-stamping it, while
+    /// it still looks like a follower the pass would protect. Before its approach clearance an arrival's membership of
+    /// the runway's stream is a track test (<see cref="Commands.ApproachCommandHandler.IsOnFinal"/>'s ±45° window),
+    /// and one tick outside it would otherwise release the reduction and let the next tick issue it again — the
+    /// alternating decreases and increases §5-7-1's lead and §5-7-1.a.3(e) tell the controller to avoid. The pass
+    /// instead holds the reduction silently while this stays under
+    /// <see cref="Simulation.SameRunwayArrivalProtection.ReleaseHysteresisSeconds"/>, and releases once it does not.
+    /// Reset to 0 on every re-stamp and on release, so it measures one continuous drop-out rather than a session's
+    /// worth of them. Snapshot-serialized, so a restore taken mid-drop-out does not restart the debounce.
+    /// </summary>
+    public double SameRunwayProtectionDropoutSeconds { get; set; }
 
     /// <summary>
     /// Deferred pattern-leg reports armed by the controller's <c>REPORT</c> command. When set,
@@ -152,6 +165,7 @@ public class AircraftApproachState
             SameRunwayProtectionCeilingKts = SameRunwayProtectionCeilingKts,
             SameRunwayProtectionDisplacedCeilingKts = SameRunwayProtectionDisplacedCeilingKts,
             SameRunwayProtectionFasInstructed = SameRunwayProtectionFasInstructed,
+            SameRunwayProtectionDropoutSeconds = SameRunwayProtectionDropoutSeconds,
             ReportArmedCrosswind = ReportArmedCrosswind,
             ReportArmedDownwind = ReportArmedDownwind,
             ReportArmedBase = ReportArmedBase,
@@ -176,6 +190,7 @@ public class AircraftApproachState
             SameRunwayProtectionCeilingKts = dto.SameRunwayProtectionCeilingKts,
             SameRunwayProtectionDisplacedCeilingKts = dto.SameRunwayProtectionDisplacedCeilingKts,
             SameRunwayProtectionFasInstructed = dto.SameRunwayProtectionFasInstructed,
+            SameRunwayProtectionDropoutSeconds = dto.SameRunwayProtectionDropoutSeconds,
             ReportArmedCrosswind = dto.ReportArmedCrosswind,
             ReportArmedDownwind = dto.ReportArmedDownwind,
             ReportArmedBase = dto.ReportArmedBase,

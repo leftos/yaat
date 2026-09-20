@@ -78,7 +78,7 @@ public static class ApproachCommandHandler
 
         (CifpApproachProcedure? procedure, RunwayInfo? approachRunway, string? airport) = resolved;
 
-        // Cancel existing speed restrictions per 7110.65 §5-7-1
+        // Cancel existing speed restrictions per 7110.65 §5-7-1.d
         aircraft.Targets.TargetSpeed = null;
         RestateStandingInTrailReduction(aircraft);
 
@@ -306,7 +306,7 @@ public static class ApproachCommandHandler
 
         (CifpApproachProcedure? procedure, RunwayInfo? approachRunway, string? airport) = resolved;
 
-        // Cancel existing speed restrictions per 7110.65 §5-7-1
+        // Cancel existing speed restrictions per 7110.65 §5-7-1.d
         aircraft.Targets.TargetSpeed = null;
 
         FinalApproachCourseResult facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway, NavigationDatabase.Instance);
@@ -428,7 +428,7 @@ public static class ApproachCommandHandler
         // Resolve altitude: explicit or present
         int altitude = cmd.Altitude ?? (int)(aircraft.Targets.TargetAltitude ?? aircraft.Altitude);
 
-        // Cancel existing speed restrictions per 7110.65 §5-7-1
+        // Cancel existing speed restrictions per 7110.65 §5-7-1.d
         aircraft.Targets.TargetSpeed = null;
 
         // Set heading and altitude immediately
@@ -623,7 +623,7 @@ public static class ApproachCommandHandler
             }
         }
 
-        // Cancel speed restrictions per 7110.65 §5-7-1
+        // Cancel speed restrictions per 7110.65 §5-7-1.d
         aircraft.Targets.TargetSpeed = null;
 
         // Clear assigned heading — approach takes over steering

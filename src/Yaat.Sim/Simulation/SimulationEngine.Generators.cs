@@ -434,7 +434,7 @@ public sealed partial class SimulationEngine
     /// <em>hand-over</em>: the ceiling is left exactly where it stands, because the receiving controller inherits the
     /// restrictions the aircraft is flying (§5-4-5.h.3, §5-4-6.c) and it then lapses like any other assigned speed —
     /// the student's own speed command, or <see cref="FlightPhysics"/>'s auto-cancel at the 5 nm / FAF window
-    /// (§5-7-1.d, AIM 4-4-12.g). The controller assigning a speed or deleting the speed restrictions is a
+    /// (§5-7-1.b.4, AIM 4-4-12.g). The controller assigning a speed or deleting the speed restrictions is a
     /// <em>release</em>: that assignment owns the speed, so the managed ceiling comes off
     /// (<see cref="ReleaseManagedSpeedCeiling"/>). Either way the manager never writes the ceiling again.</para>
     ///
@@ -535,7 +535,7 @@ public sealed partial class SimulationEngine
         // without giving it back and the arrival does not accelerate on the tick the handoff is accepted.
         // The ceiling left standing is then an ordinary assigned speed with nobody re-stamping it: it lapses
         // the way any other does — the student's own speed command, or
-        // FlightPhysics.AutoCancelSpeedAtFinal at the 5 nm / FAF window (§5-7-1.d, AIM 4-4-12.g).
+        // FlightPhysics.AutoCancelSpeedAtFinal at the 5 nm / FAF window (§5-7-1.b.4, AIM 4-4-12.g).
         if (StudentOwnsTrack(aircraft, scenario))
         {
             aircraft.Approach.AutoSpacingReleased = true;
@@ -720,13 +720,21 @@ public sealed partial class SimulationEngine
     private const double FinalSpeedAdjustmentCutoffNm = 5.0;
 
     /// <summary>
+    /// Simulated seconds one <see cref="ApplySameRunwayArrivalProtection"/> invocation stands for. The pass runs in the
+    /// pre-physics segment, which <see cref="RunSecond"/> and the sub-tick replay step both enter exactly once per
+    /// simulated second — the <see cref="PhysicsSubTickRate"/> quarter-second physics sub-ticks follow it — so the
+    /// drop-out clock it keeps advances by a whole second per pass rather than by a physics delta.
+    /// </summary>
+    private const double ProtectionPassIntervalSeconds = 1.0;
+
+    /// <summary>
     /// Same-runway arrival protection — the simulated TRACON for arrivals the arrival generator never touches.
     /// <see cref="ApplyArrivalSpacing"/> only manages generator arrivals inside a generator's own corridor, so a
     /// scenario-scripted arrival stream is delivered with no in-trail management at all and the trailing arrival
     /// can reach the threshold before the leading one has cleared the runway — an illegal delivery under §3-10-3.a.1
     /// that the occupied-runway go-around then has to catch. Each tick this pass walks every runway's arrivals
     /// front-to-back, predicts the interval between consecutive threshold crossings, and where the leader will still
-    /// be on the pavement stamps a <see cref="ControlTargets.SpeedCeiling"/> on the follower — §5-7-1.a.3.a, reduce
+    /// be on the pavement stamps a <see cref="ControlTargets.SpeedCeiling"/> on the follower — §5-7-1.a.3(a), reduce
     /// the trailing aircraft — until the interval opens. The ceiling only ever lowers the phase's speed target and
     /// floors at the follower's Vref (§5-7-3.f authorises going below the §5-7-3.c floors for spacing). It is
     /// released — restoring whatever ceiling it displaced, which on a scripted STAR arrival may be a published
@@ -759,7 +767,7 @@ public sealed partial class SimulationEngine
         // approach controller doing the spacing, which a student on APP or CTR is themselves — gates it here; the
         // release loop below stays unconditional, which is what hands every owned speed back on the tick the setting
         // is switched off or the student takes a position that owns the stream.
-        if (scenario.AutoArrivalSpacingOnOccupiedRunway && scenario.HasSimulatedApproachController)
+        if (IssuingGateOpen(scenario))
         {
             foreach (List<(double DistanceNm, AircraftState Aircraft, RunwayInfo Runway, bool PreClearance)> stream in BuildRunwayArrivalStreams())
             {
@@ -797,25 +805,98 @@ public sealed partial class SimulationEngine
                     if (owned)
                     {
                         protectedThisTick.Add(follower.Callsign);
+                        follower.Approach.SameRunwayProtectionDropoutSeconds = 0.0;
                     }
                 }
             }
         }
 
-        // Anything the pass owned but did not re-stamp this tick has either cleared its conflict, entered the
-        // §5-7-1.b.4 window, or stopped being eligible: hand its speed back. A latched tower instruction is released
-        // here too — it survives the conflict clearing and the §5-7-1.b.4 window, but not the aircraft leaving the
-        // arrival stream (it landed or went around) or someone else taking its speed.
+        ReleaseProtectionNotReStamped(protectedThisTick, scenario);
+    }
+
+    /// <summary>
+    /// Hands back everything the pass owned but did not re-stamp this tick: a conflict that cleared, an arrival that
+    /// entered the §5-7-1.b.4 window or stopped being eligible, one that landed or went around, or the issuing gate
+    /// closing under it. A latched tower instruction comes off here too — it survives the conflict clearing and the
+    /// §5-7-1.b.4 window, but not the aircraft leaving the arrival stream or someone else taking its speed.
+    ///
+    /// <para>One case does not release: a not-yet-cleared follower that has only momentarily fallen out of the stream
+    /// (<see cref="HoldsAcrossPreClearanceDropout"/>), where the reduction is held silently and the drop-out clock
+    /// advances instead.</para>
+    /// </summary>
+    private void ReleaseProtectionNotReStamped(HashSet<string> protectedThisTick, SimScenarioState scenario)
+    {
         foreach (AircraftState aircraft in World.GetSnapshot())
         {
-            if (PassOwnsProtection(aircraft) && !protectedThisTick.Contains(aircraft.Callsign))
+            if (!PassOwnsProtection(aircraft) || protectedThisTick.Contains(aircraft.Callsign))
             {
-                RunwayInfo? runway = ResolveArrivalRunway(aircraft);
-                double distance = runway is null ? double.NaN : RunwayOccupancy.DistanceToAssignedThresholdNm(aircraft, runway, World.GroundLayout);
-                ReleaseProtectionUnlessHandingOff(aircraft, runway, distance, scenario);
+                continue;
             }
+
+            RunwayInfo? runway = ResolveArrivalRunway(aircraft);
+            double distance = runway is null ? double.NaN : RunwayOccupancy.DistanceToAssignedThresholdNm(aircraft, runway, World.GroundLayout);
+            if (HoldsAcrossPreClearanceDropout(aircraft, runway, distance, scenario))
+            {
+                aircraft.Approach.SameRunwayProtectionDropoutSeconds += ProtectionPassIntervalSeconds;
+                continue;
+            }
+
+            ReleaseProtectionUnlessHandingOff(aircraft, runway, distance, scenario);
         }
     }
+
+    /// <summary>
+    /// True for the one drop-out worth riding out: a not-yet-cleared arrival that has left the ±45° track window which
+    /// is the whole of its stream membership (<see cref="IsRunwayArrival"/>), and nothing else. A drift or a momentary
+    /// turn fails that test for a tick or two; releasing there would speak a termination and the next pass would issue
+    /// the reduction again — the alternate decreases and increases §5-7-1's lead and §5-7-1.a.3(e) tell the controller
+    /// to avoid. So the aircraft is held, nothing spoken and the ceiling untouched, while every one of these holds: the
+    /// issuing gate is open (a gate that closes under the pass hands everything back on that tick), the landing runway
+    /// still resolves, nobody else owns the speed, the aircraft is out of the track window but still looks like a
+    /// pre-clearance follower, it sits between the §5-7-1.b.4 window and the pre-clearance range, and the hold has not
+    /// run past <see cref="SameRunwayArrivalProtection.ReleaseHysteresisSeconds"/>.
+    ///
+    /// <para>Every other reason to stop re-stamping releases on the tick it happens, which is what §5-7-1's
+    /// "terminate speed adjustments when no longer needed" asks for: the conflict clearing while the arrival is still
+    /// on final, the arrival landing or going around, a phase or a clearance taking it over, another controller taking
+    /// its speed, or it leaving the 5-20 nm band.</para>
+    /// </summary>
+    private static bool HoldsAcrossPreClearanceDropout(
+        AircraftState aircraft,
+        RunwayInfo? runway,
+        double distanceToThresholdNm,
+        SimScenarioState scenario
+    )
+    {
+        if ((runway is not { } landingRunway) || (!IssuingGateOpen(scenario)) || HasOtherSpeedAuthority(aircraft, scenario))
+        {
+            return false;
+        }
+
+        if (!IsPreClearanceArrivalOutsideTheTrackWindow(aircraft, landingRunway))
+        {
+            return false;
+        }
+
+        // An unmeasurable distance fails the relational pattern the way NaN fails every comparison, so an arrival the
+        // stream can no longer place is released rather than held.
+        return (distanceToThresholdNm is > FinalSpeedAdjustmentCutoffNm and <= SameRunwayArrivalProtection.PreClearanceRangeNm)
+            && (aircraft.Approach.SameRunwayProtectionDropoutSeconds < SameRunwayArrivalProtection.ReleaseHysteresisSeconds);
+    }
+
+    /// <summary>
+    /// True when this is an arrival the pre-clearance arm of the stream would admit but for its track: simulated and
+    /// airborne, with neither a phase of its own nor an <c>AssignedRunway</c> — the discriminator
+    /// <see cref="IsRunwayArrival"/> uses for "no clearance yet", so a cleared arrival, whose membership is the
+    /// clearance rather than a heading, is never held here — and currently outside the ±45° window. An aircraft inside
+    /// the window has not dropped out at all: whatever stopped the pass re-stamping it is a real reason to let go.
+    /// </summary>
+    private static bool IsPreClearanceArrivalOutsideTheTrackWindow(AircraftState aircraft, RunwayInfo runway) =>
+        (!aircraft.IsOnGround)
+        && (!aircraft.IsShadow)
+        && (aircraft.Phases?.CurrentPhase is null)
+        && (aircraft.Phases?.AssignedRunway is null)
+        && (!ApproachCommandHandler.IsOnFinal(aircraft, runway));
 
     /// <summary>
     /// The pass's one way out of an engagement: hands the ceiling back
@@ -844,10 +925,18 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        bool mayAnnounce =
-            scenario.AutoArrivalSpacingOnOccupiedRunway && scenario.HasSimulatedApproachController && (!StudentOwnsTrack(aircraft, scenario));
+        bool mayAnnounce = IssuingGateOpen(scenario) && (!StudentOwnsTrack(aircraft, scenario));
         ReleaseSameRunwayProtection(aircraft, runway, distanceToThresholdNm, mayAnnounce);
     }
+
+    /// <summary>
+    /// The pass's issuing gate: the instructor's setting is on and the simulated approach controller this pass speaks
+    /// for exists at all — a student working approach or center does this sequencing themselves. With it closed the
+    /// stream is not walked, nothing is held across a drop-out, and nothing is spoken; the release loop still runs, so
+    /// everything the pass owns is handed back on the tick the gate closes.
+    /// </summary>
+    private static bool IssuingGateOpen(SimScenarioState scenario) =>
+        scenario.AutoArrivalSpacingOnOccupiedRunway && scenario.HasSimulatedApproachController;
 
     /// <summary>
     /// True while the same-runway protection pass owns this aircraft's speed — it has a ceiling stamped, a latched
@@ -865,7 +954,7 @@ public sealed partial class SimulationEngine
     ///
     /// <para>The ceiling left standing is then an ordinary assigned speed with nobody in the sim re-stamping it: it
     /// lapses the way any other does — the student's own speed command, or <c>FlightPhysics.AutoCancelSpeedAtFinal</c>
-    /// at the 5 nm / FAF window (§5-7-1.d, AIM 4-4-12.g).</para>
+    /// at the 5 nm / FAF window (§5-7-1.b.4, AIM 4-4-12.g).</para>
     /// </summary>
     private static void HandOverSameRunwayProtection(AircraftState aircraft)
     {
@@ -873,6 +962,7 @@ public sealed partial class SimulationEngine
         approach.SameRunwayProtectionCeilingKts = null;
         approach.SameRunwayProtectionDisplacedCeilingKts = null;
         approach.SameRunwayProtectionFasInstructed = false;
+        approach.SameRunwayProtectionDropoutSeconds = 0.0;
     }
 
     /// <summary>
@@ -880,8 +970,8 @@ public sealed partial class SimulationEngine
     /// ceiling it displaced back rather than clearing the field. Unlike a generator arrival — which spawns on final
     /// with its route cleared and so carries no other ceiling, the invariant
     /// <see cref="ReleaseManagedSpeedCeiling"/> relies on — a scenario-scripted arrival flies a STAR and may be
-    /// carrying a published crossing-speed restriction it is required to comply with (§5-7-1.b NOTE; a controller
-    /// removes one only with DELETE SPEED RESTRICTIONS, §5-7-2.e). <see cref="FlightPhysics"/> publishes that
+    /// carrying a published crossing-speed restriction it is required to comply with (§5-7-1.d NOTE; a controller
+    /// removes one only with DELETE SPEED RESTRICTIONS, §5-7-4.d). <see cref="FlightPhysics"/> publishes that
     /// restriction on the single tick the fix is sequenced and never re-stamps it, so clearing the field outright
     /// would delete it for the rest of the flight. Restores only while the ceiling is still the exact value this
     /// pass stamped — anything that has lowered it since owns it now and is left alone, the compare-before-clear
@@ -912,7 +1002,9 @@ public sealed partial class SimulationEngine
     {
         AircraftApproachState approach = aircraft.Approach;
         bool towerInstructionWasLatched = approach.SameRunwayProtectionFasInstructed;
+        bool afterExpiredHold = approach.SameRunwayProtectionDropoutSeconds >= SameRunwayArrivalProtection.ReleaseHysteresisSeconds;
         approach.SameRunwayProtectionFasInstructed = false;
+        approach.SameRunwayProtectionDropoutSeconds = 0.0;
         if (approach.SameRunwayProtectionCeilingKts is not { } stamped)
         {
             return;
@@ -926,7 +1018,7 @@ public sealed partial class SimulationEngine
                 (runway is { } speakingRunway)
                 && mayAnnounce
                 && (!towerInstructionWasLatched)
-                && MayAnnounceRelease(aircraft, speakingRunway, distanceToThresholdNm)
+                && MayAnnounceRelease(aircraft, speakingRunway, distanceToThresholdNm, afterExpiredHold)
             )
             {
                 AnnounceProtectionReleased(aircraft, speakingRunway, displaced);
@@ -939,40 +1031,68 @@ public sealed partial class SimulationEngine
 
     /// <summary>
     /// True when the simulated approach controller is still talking to this arrival and may terminate its speed
-    /// adjustment out loud: it is airborne, still inbound to the runway (one that has landed or broken off is no longer
-    /// being spaced and has nothing to resume), and outside <see cref="FinalSpeedAdjustmentCutoffNm"/>. Inside that
-    /// window the release is silent because the arrival is flying its own approach by then: the approach clearance has
-    /// superseded the assignment and the pilot is making their own speed adjustments from there (§5-7-1.d, AIM
-    /// 4-4-12.g), so a line terminating something the clearance already terminated is a speed adjustment more than the
-    /// minimum necessary (§5-7-1.a.3(e)). The inbound test takes either form the stream admits: a cleared arrival
-    /// (<see cref="ApproachCommandHandler.IsInboundToLand"/>) or one still flying a route toward the runway with only
-    /// an expected approach, where membership is the track test.
+    /// adjustment out loud: it is airborne and simulated, and outside <see cref="FinalSpeedAdjustmentCutoffNm"/>.
+    /// Inside that window the release is silent because the arrival is flying its own approach by then: the approach
+    /// clearance has superseded the assignment and the pilot is making their own speed adjustments from there
+    /// (§5-7-1.d, AIM 4-4-12.g), so a line terminating something the clearance already terminated is a speed
+    /// adjustment more than the minimum necessary (§5-7-1.a.3(e)).
+    ///
+    /// <para>Outside it the ordinary release also has to be one the arrival can act on — still inbound to the runway,
+    /// in either form the stream admits: a cleared arrival (<see cref="ApproachCommandHandler.IsInboundToLand"/>) or
+    /// one flying a route toward the runway with only an expected approach, where membership is the track test. One
+    /// that has landed, gone around or broken off is no longer being spaced and has nothing to resume.</para>
+    ///
+    /// <para>A release that follows an expired hold (<paramref name="afterExpiredHold"/>) is the exception, and it
+    /// has to be: the hold only ever expires on an arrival that is <em>outside</em> the track window, so the inbound
+    /// test would silence exactly the case §5-7-4's lead is about. The reduction is an ATC-assigned speed, and being
+    /// vectored off is not one of the things that cancels one — §5-7-1.e cancels a <em>published</em> restriction on
+    /// a vector, and §5-7-1.d lists only an approach or a climb via/descend via clearance — so the aircraft is still
+    /// flying it and has to be told it may stop.</para>
     /// </summary>
-    private static bool MayAnnounceRelease(AircraftState aircraft, RunwayInfo runway, double distanceToThresholdNm) =>
-        (!aircraft.IsOnGround)
-        && double.IsFinite(distanceToThresholdNm)
-        && (distanceToThresholdNm > FinalSpeedAdjustmentCutoffNm)
-        && (ApproachCommandHandler.IsInboundToLand(aircraft) || ApproachCommandHandler.IsOnFinal(aircraft, runway));
+    private static bool MayAnnounceRelease(AircraftState aircraft, RunwayInfo runway, double distanceToThresholdNm, bool afterExpiredHold)
+    {
+        if (aircraft.IsOnGround || aircraft.IsShadow || (!double.IsFinite(distanceToThresholdNm)))
+        {
+            return false;
+        }
+
+        if (distanceToThresholdNm <= FinalSpeedAdjustmentCutoffNm)
+        {
+            return false;
+        }
+
+        return afterExpiredHold || ApproachCommandHandler.IsInboundToLand(aircraft) || ApproachCommandHandler.IsOnFinal(aircraft, runway);
+    }
 
     /// <summary>
     /// Terminal line for the reduction coming off, attributed like <see cref="AnnounceProtectionEngaged"/> to the
-    /// position that owns the track. §5-7-4.a's NOTE confines "resume normal speed" to an arrival with no underlying
-    /// published speed restriction, and a null displaced ceiling does not establish that: <see cref="FlightPhysics"/>
-    /// publishes a STAR crossing restriction as a ceiling on the single tick its fix sequences, so a restriction still
-    /// ahead of the aircraft has never been a ceiling yet. Either one — the ceiling this pass covered up, or a fix
-    /// still to come on the route — makes it "resume published speed" (§5-7-4.c). The ceiling has already been put
-    /// back by the caller, so the line describes what the aircraft is now flying rather than promising anything.
+    /// position that owns the track. Three cases, tested in this order. A fix still ahead on the route carrying a
+    /// <see cref="CifpSpeedRestriction"/> is a published restriction the arrival has to meet again, so it is "resume
+    /// published speed" (§5-7-4.c) — and only the route establishes that, because <see cref="FlightPhysics"/> turns
+    /// such a fix into a ceiling on the single tick it sequences, so one still ahead has never been a ceiling yet.
+    /// Failing that, a ceiling the release has put back is a speed that still stands with nothing published behind it
+    /// — an ATC crossing speed the aircraft has been vectored off, which <c>DEPART</c> leaves as a bare ceiling with
+    /// the route cleared — and neither §5-7-4 phrase describes it, so the figure is restated instead
+    /// (<see cref="SameRunwayArrivalProtection.ReleaseRestatementLine"/>). With neither, the arrival flies its own
+    /// profile again: "resume normal speed" (§5-7-4.a, whose NOTE reserves the phrase for exactly that). The ceiling
+    /// has already been put back by the caller, so every line describes what the aircraft is now flying rather than
+    /// promising anything.
     /// </summary>
     private static void AnnounceProtectionReleased(AircraftState aircraft, RunwayInfo runway, double? displacedCeilingKts)
     {
-        bool publishedAhead = (displacedCeilingKts is not null) || aircraft.Targets.NavigationRoute.Any(fix => fix.SpeedRestriction is not null);
+        string positionCallsign = aircraft.Track.Owner?.Callsign ?? SameRunwayArrivalProtection.SimulatedApproachControllerLabel;
+        bool publishedAhead = aircraft.Targets.NavigationRoute.Any(fix => fix.SpeedRestriction is not null);
+
+        if ((!publishedAhead) && (displacedCeilingKts is { } restatedKts))
+        {
+            aircraft.PendingNotifications.Add(
+                SameRunwayArrivalProtection.ReleaseRestatementLine(positionCallsign, aircraft.Callsign, restatedKts, runway.Designator)
+            );
+            return;
+        }
+
         aircraft.PendingNotifications.Add(
-            SameRunwayArrivalProtection.ReleaseLine(
-                aircraft.Track.Owner?.Callsign ?? SameRunwayArrivalProtection.SimulatedApproachControllerLabel,
-                aircraft.Callsign,
-                publishedAhead,
-                runway.Designator
-            )
+            SameRunwayArrivalProtection.ReleaseLine(positionCallsign, aircraft.Callsign, publishedAhead, runway.Designator)
         );
     }
 

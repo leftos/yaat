@@ -413,7 +413,7 @@ public class PatternPhaseTests
     /// <summary>
     /// The default Final entry point is the glideslope/TPA intercept — about 4.7 nm out for a jet, and
     /// <c>EF FINAL &lt;dist&gt;</c> can place it further. Commanding Vref there would fly the whole
-    /// straight-in slow, below the 170/210 kt floors 7110.65 §5-7-3.c.1.b sets for an arriving turbojet,
+    /// straight-in slow, below the 170/210 kt floors 7110.65 §5-7-3.c.1(b) sets for an arriving turbojet,
     /// and would defeat FinalApproachPhase's staged 1.3·Vref → Vref profile. A distant Final entry joins
     /// at pattern speed and lets that phase own the deceleration.
     /// </summary>

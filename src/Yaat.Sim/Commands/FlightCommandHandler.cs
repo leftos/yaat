@@ -23,9 +23,9 @@ internal static class FlightCommandHandler
 
     /// <summary>
     /// Minimum speed (KIAS) ATC may assign a helicopter via a radar speed instruction
-    /// (7110.65 §5-7-3.5: "assign a speed not less than 60 knots"). A plain SPD below this is
+    /// (7110.65 §5-7-3.e: "assign a speed not less than 60 knots"). A plain SPD below this is
     /// floored to it; a forced assignment (SPEEDF, or the SPEEDN / SPDN / SLN teleport) bypasses
-    /// the floor and may command any speed (the §5-7-3.6 "operationally advantageous" exception).
+    /// the floor and may command any speed (the §5-7-3.f "operationally advantageous" exception).
     /// </summary>
     private const int HelicopterMinRadarSpeedKts = 60;
 
@@ -267,7 +267,7 @@ internal static class FlightCommandHandler
         if (flooredForHeli)
         {
             aircraft.PendingWarnings.Add(
-                $"Speed {cmd.Speed} below helicopter minimum; floored to {HelicopterMinRadarSpeedKts} KIAS [7110.65 §5-7-3.5]"
+                $"Speed {cmd.Speed} below helicopter minimum; floored to {HelicopterMinRadarSpeedKts} KIAS [7110.65 §5-7-3.e]"
             );
         }
 

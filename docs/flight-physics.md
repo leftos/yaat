@@ -229,7 +229,7 @@ procedure speed restriction at the constrained fix rather than reacting after it
 when within 10% of the change time (accel starts immediately). It is fully suppressed when `HasExplicitSpeedCommand`, `SpeedRestrictionsDeleted`,
 or `TargetMach` is set.
 
-A `CFIX <fix> <speed>` "cross at" restriction is an ATC-assigned speed that **persists past the fix** (7110.65 §5-7-1.h.4): the
+A `CFIX <fix> <speed>` "cross at" restriction is an ATC-assigned speed that **persists past the fix** (7110.65 §5-7-1.d): the
 crossed restriction is published as a `ControlTargets.SpeedCeiling` (in `UpdateNavigation` at fix sequencing, and in the `DEPART`
 block's `ApplyAction`), so a bare vector does not cancel it — only an approach / climb-via / descend-via clearance does. Fix-derived
 target speeds are floored at the type's approach speed (`ClampFixSpeedToApproachFloor` → `AircraftPerformance.ApproachSpeed`,

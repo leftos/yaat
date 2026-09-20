@@ -12,6 +12,8 @@ namespace Yaat.Sim.Tests;
 /// crossing-speed restriction instead of restoring it. Schema 27 adds the third of them,
 /// <see cref="AircraftApproachState.SameRunwayProtectionFasInstructed"/>: the latch recording that the simulated tower
 /// has already told this arrival to reduce to final approach speed, which the pass holds through the §5-7-1.b.4 window.
+/// Schema 28 adds the fourth, <see cref="AircraftApproachState.SameRunwayProtectionDropoutSeconds"/>: how long the pass
+/// has been holding a reduction across a momentary drop-out of the pre-clearance track test.
 /// </summary>
 public class SameRunwayProtectionSnapshotTests
 {
@@ -106,6 +108,29 @@ public class SameRunwayProtectionSnapshotTests
         );
 
         Assert.False(legacy.SameRunwayProtectionFasInstructed);
+    }
+
+    [Fact]
+    public void ProtectionDropoutSeconds_RoundTripsThroughASnapshot()
+    {
+        AircraftState aircraft = Arrival();
+        aircraft.Targets.SpeedCeiling = 170.0;
+        aircraft.Approach.SameRunwayProtectionCeilingKts = 170.0;
+        aircraft.Approach.SameRunwayProtectionDropoutSeconds = 6.0;
+
+        var restored = AircraftState.FromSnapshot(aircraft.ToSnapshot(), groundLayout: null);
+
+        // Losing the clock across a rewind would restart the debounce, holding a reduction whose aircraft has long
+        // since turned away for the full hysteresis again.
+        Assert.Equal(6.0, restored.Approach.SameRunwayProtectionDropoutSeconds);
+        Assert.Equal(170.0, restored.Approach.SameRunwayProtectionCeilingKts);
+
+        // A pre-V28 snapshot carries no such field: it restores at zero, i.e. "any drop-out starts now".
+        var legacy = AircraftApproachState.FromSnapshot(
+            new AircraftApproachStateDto { HasReportedFieldInSight = false, HasReportedTrafficInSight = false }
+        );
+
+        Assert.Equal(0.0, legacy.SameRunwayProtectionDropoutSeconds);
     }
 
     [Fact]

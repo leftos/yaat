@@ -34,7 +34,7 @@ public static class FinalApproachSpeedVariety
     /// Outer cap (NM). At Vref this far out the aircraft is a long, slow drag-in that compresses the
     /// arrival stream in the zone ATC is still speed-managing — the gratuitous "slowed far too early"
     /// behavior we deliberately exclude (no 8-10 NM Vref drag-ins). ~1590 ft AGL on a 3° path, and
-    /// already below the 7110.65 §5-7-2 ATC-assignable floor (170 kt jet / 150 kt turboprop within
+    /// already below the 7110.65 §5-7-3.c ATC-assignable floor (170 kt jet / 150 kt turboprop within
     /// 20 mi), though inside the final the pilot owns approach speed regardless.
     /// </summary>
     public const double CapNm = 5.0;

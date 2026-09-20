@@ -37,6 +37,13 @@ public sealed class AircraftApproachStateDto
     public bool SameRunwayProtectionFasInstructed { get; init; }
 
     /// <summary>
+    /// The pass's drop-out debounce clock (simulated seconds). Non-required so older snapshots default to 0 — a
+    /// restore taken while the pass was holding a reduction across a momentary drop-out starts the debounce over,
+    /// which at worst holds that reduction for the full hysteresis again rather than releasing it early.
+    /// </summary>
+    public double SameRunwayProtectionDropoutSeconds { get; init; }
+
+    /// <summary>
     /// Deferred REPORT command armed state. All non-required so older snapshots default to
     /// unarmed (<see langword="false"/> / <see langword="null"/>).
     /// </summary>

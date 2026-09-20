@@ -132,7 +132,7 @@ public class ArrivalGeneratorInTrailSpacingTests(ITestOutputHelper output)
     /// giving it back and the arrival does not accelerate on the tick the handoff is accepted. The ceiling left
     /// standing is then an ordinary assigned speed with nobody re-stamping it — the manager would otherwise re-derive
     /// a different figure every tick as the gap changes, which is what the three quiet ticks here assert it does not
-    /// — and it lapses the way any other does: the student's own speed command, or the §5-7-1.d / AIM 4-4-12.g
+    /// — and it lapses the way any other does: the student's own speed command, or the §5-7-1.b.4 / AIM 4-4-12.g
     /// window.
     /// </summary>
     [Fact]

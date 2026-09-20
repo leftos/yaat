@@ -147,7 +147,8 @@ public class NavigationCommandTests : IDisposable
     {
         // Issue #184 bug #4: `CFIX CASST 6000 210` then `DEPART CASST 267`. The depart must
         // not discard the cross-at restriction it lands on, and after the turn the assigned
-        // crossing speed persists as a ceiling (7110.65 5-7-1.h.4).
+        // crossing speed persists as a ceiling (7110.65 §5-7-1.e assigns it with the vector;
+        // §5-7-1.d — only an approach or climb via/descend via clearance cancels it).
         AircraftState aircraft = MakeAircraft(heading: 090, altitude: 7000);
         aircraft.Targets.NavigationRoute.Add(
             new NavigationTarget

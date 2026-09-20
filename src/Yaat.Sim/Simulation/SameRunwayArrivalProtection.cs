@@ -53,8 +53,8 @@ namespace Yaat.Sim.Simulation;
 /// speeds may be assigned when operationally advantageous") is what authorises the <c>Min(scheduled, …)</c> collapse,
 /// so a 110-kt piston is not floored at 200 kt. It is <em>not</em> a general licence to assign Vref — Vref is only a
 /// valid speed with the gear and landing flaps out, so commanding it at 12 nm and 4,000 ft asserts a configuration
-/// the aircraft does not have and contradicts §5-7-1.a.3.d ("allow aircraft to operate in a clean configuration as
-/// long as circumstances permit"). Stated simplification: §5-7-3.c.1.b's "20 <i>flying</i> miles" is path distance
+/// the aircraft does not have and contradicts §5-7-1.a.3(d) ("allow aircraft to operate in a clean configuration as
+/// long as circumstances permit"). Stated simplification: §5-7-3.c.1(b)'s "20 <i>flying</i> miles" is path distance
 /// and this uses direct distance to the threshold, which errs permissive. Inside <see cref="TowerSpeedAuthorityNm"/>
 /// that floor may drop as far as <see cref="FinalApproachSpeedKts"/>: the arrival is on the local controller's
 /// frequency by then, and at that range it is configuring for landing rather than being asked to hold Vref clean, so
@@ -86,10 +86,16 @@ public static class SameRunwayArrivalProtection
     /// protection re-engages, emitting a fresh terminal line each lap. Ten seconds is about what one speed
     /// adjustment buys at those gains, and matches what a controller does: issue one reduction and let it ride
     /// rather than take it off the moment the numbers tip over.
+    ///
+    /// <para>The same figure debounces the other boundary an engagement can limit-cycle on: a follower that has not
+    /// been cleared for its approach yet belongs to the runway's stream only while its track is within 45° of the
+    /// landing course, and a drift or a momentary turn out of that window would otherwise terminate the reduction and
+    /// have the next tick issue it again. The pass holds it for this long
+    /// (<see cref="AircraftApproachState.SameRunwayProtectionDropoutSeconds"/>) before letting go.</para>
     /// </summary>
     public const double ReleaseHysteresisSeconds = 10.0;
 
-    /// <summary>Distance to the threshold (NM) inside which the lower §5-7-3.c.1.b / §5-7-3.c.2.b floors apply.</summary>
+    /// <summary>Distance to the threshold (NM) inside which the lower §5-7-3.c.1(b) / §5-7-3.c.2(b) floors apply.</summary>
     public const double RegulatoryFloorDistanceNm = 20.0;
 
     /// <summary>
@@ -101,7 +107,7 @@ public static class SameRunwayArrivalProtection
 
     /// <summary>
     /// Distance to the threshold (NM) from which an arrival known to be inbound to a runway (an expected approach)
-    /// but not yet cleared is spaced — the §5-7-3.c.1.b / §5-7-3.c.2.b 20-mile boundary, beyond which the pass could
+    /// but not yet cleared is spaced — the §5-7-3.c.1(b) / §5-7-3.c.2(b) 20-mile boundary, beyond which the pass could
     /// only ever assign the 210/200 figures.
     /// </summary>
     public const double PreClearanceRangeNm = RegulatoryFloorDistanceNm;
@@ -109,13 +115,13 @@ public static class SameRunwayArrivalProtection
     /// <summary>§5-7-3.c.1.a — turbojet arrival below 10,000 ft, beyond 20 flying miles.</summary>
     public const double JetFloorKts = 210.0;
 
-    /// <summary>§5-7-3.c.1.b — turbojet arrival within 20 flying miles of the threshold.</summary>
+    /// <summary>§5-7-3.c.1(b) — turbojet arrival within 20 flying miles of the threshold.</summary>
     public const double JetFloorWithin20Kts = 170.0;
 
     /// <summary>§5-7-3.c.2.a — reciprocating or turboprop arrival below 10,000 ft, beyond 20 flying miles.</summary>
     public const double RecipFloorKts = 200.0;
 
-    /// <summary>§5-7-3.c.2.b — reciprocating or turboprop arrival within 20 flying miles of the threshold.</summary>
+    /// <summary>§5-7-3.c.2(b) — reciprocating or turboprop arrival within 20 flying miles of the threshold.</summary>
     public const double RecipFloorWithin20Kts = 150.0;
 
     /// <summary>§5-7-3.e — helicopters, at any distance.</summary>
@@ -205,7 +211,7 @@ public static class SameRunwayArrivalProtection
     /// <summary>
     /// The lowest speed §5-7-3 lets a controller assign this arrival at this distance: §5-7-3.c.1 for a turbojet,
     /// §5-7-3.c.2 for a reciprocating or turboprop aircraft, §5-7-3.e for a helicopter. The 20-mile boundary is
-    /// §5-7-3.c.1.b / §5-7-3.c.2.b; see the class note on flying-vs-direct distance.
+    /// §5-7-3.c.1(b) / §5-7-3.c.2(b); see the class note on flying-vs-direct distance.
     /// </summary>
     public static double RegulatoryFloorKts(AircraftCategory category, double distanceToThresholdNm)
     {
@@ -269,10 +275,12 @@ public static class SameRunwayArrivalProtection
         $"{towerCallsign} → {aircraftCallsign}: reduce to final approach speed ({SpacingTag}, {runwayDesignator})";
 
     /// <summary>
-    /// The line the reduction coming off carries. Which phrase is which is §5-7-4: with nothing published ahead of the
-    /// arrival it is free to fly its own profile again, "resume normal speed" (§5-7-4.a, whose NOTE confines that
-    /// phrase to where there is no underlying published speed restriction); with one still to meet it is
-    /// "resume published speed" (§5-7-4.c).
+    /// The line the reduction coming off carries when the arrival is being handed back to a speed of its own choosing
+    /// or to a published one. Which phrase is which is §5-7-4: with a published restriction still to meet on the route
+    /// or procedure it is "resume published speed" (§5-7-4.c); with nothing published ahead and nothing else standing
+    /// underneath, the arrival is free to fly its own profile again — "resume normal speed" (§5-7-4.a, whose NOTE
+    /// confines that phrase to where there is no underlying published speed restriction). The third case, a speed the
+    /// release puts back that neither phrase describes, is <see cref="ReleaseRestatementLine"/>.
     /// </summary>
     /// <param name="positionCallsign">The position speaking — the track owner, else <see cref="SimulatedApproachControllerLabel"/>.</param>
     /// <param name="aircraftCallsign">The arrival being released.</param>
@@ -283,6 +291,27 @@ public static class SameRunwayArrivalProtection
         string instruction = publishedRestrictionAhead ? "resume published speed" : "resume normal speed";
         return $"{positionCallsign} → {aircraftCallsign}: {instruction} ({SpacingTag}, {runwayDesignator})";
     }
+
+    /// <summary>
+    /// The line the reduction coming off carries when the ceiling it displaced is still there underneath and no
+    /// published restriction is left ahead — an ATC crossing speed the aircraft was given at a fix it has since been
+    /// vectored off, say, which lives on as a bare <see cref="ControlTargets.SpeedCeiling"/> with no route behind it.
+    /// Neither termination phrase fits: §5-7-4.c scopes "resume published speed" to "subsequent published speed
+    /// restrictions on the route or procedure", and "resume normal speed" would cancel a speed that still stands
+    /// (§5-7-4.a's NOTE). §5-7-4's lead — "Advise aircraft when speed adjustments are no longer needed" — rules out
+    /// saying nothing, so the speed being handed back is restated instead: §5-7-2.a.1's "MAINTAIN (specific speed)
+    /// KNOTS", spoken in the 5-knot increments <see cref="SpokenSpeedKts"/> applies (§5-7-1.g).
+    /// </summary>
+    /// <param name="positionCallsign">The position speaking — the track owner, else <see cref="SimulatedApproachControllerLabel"/>.</param>
+    /// <param name="aircraftCallsign">The arrival being released.</param>
+    /// <param name="displacedCeilingKts">The ceiling the release has put back, unquantised.</param>
+    /// <param name="runwayDesignator">The landing runway the spacing was for.</param>
+    public static string ReleaseRestatementLine(
+        string positionCallsign,
+        string aircraftCallsign,
+        double displacedCeilingKts,
+        string runwayDesignator
+    ) => $"{positionCallsign} → {aircraftCallsign}: maintain {SpokenSpeedKts(displacedCeilingKts):F0} knots ({SpacingTag}, {runwayDesignator})";
 
     /// <summary>
     /// The line an approach clearance carries when a reduction this pass assigned is still in force. §5-7-1.c requires

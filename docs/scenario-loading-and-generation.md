@@ -512,7 +512,7 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
   5 NM / FAF auto-cancel. Uses no RNG, so replay/rewind
   stay deterministic; it runs during replay too — old recordings have `IsGeneratorArrival` false (the marker is set at
   `SpawnGeneratedArrival`, snapshot-serialized) and are therefore unaffected. Aviation-reviewed against 7110.65 §5-5-4 (radar
-  floor), §5-7-1.c.3.1 ("reduce the trailing aircraft first"), and §5-9-5.a (approach control owns final separation until handoff).
+  floor), §5-7-1.a.3(a)1 ("reduce the trailing aircraft first"), and §5-9-5.a (approach control owns final separation until handoff).
 - **`ApplySameRunwayArrivalProtection`** (runs each tick immediately after `ApplyArrivalSpacing`) — the same simulated-TRACON idea
   for the arrivals `ApplyArrivalSpacing` cannot see. That pass is scoped to `IsGeneratorArrival` inside a generator corridor, so a
   **scenario-scripted** arrival got no in-trail management at all and could be delivered inside the leading arrival's runway
@@ -525,7 +525,12 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
   when an aircraft is clear. Like the generator pass it stamps only `SpeedCeiling` — never `TargetSpeed`, never
   `HasExplicitSpeedCommand` — but unlike it, a scripted arrival **does** carry published crossing-speed ceilings, so the release
   restores the displaced value instead of nulling the field (nulling it would silently delete a restriction the aircraft is required
-  to comply with, §5-7-1.b NOTE / §5-7-2.e). **Override:** the student owning the track, or a *human*-issued speed command —
+  to comply with, §5-7-1.d NOTE / §5-7-4.d). **Release line** (`AnnounceProtectionReleased`), three cases in this order: a fix
+  still ahead on `Targets.NavigationRoute` carries a speed restriction → "resume published speed" (§5-7-4.c, scoped to
+  *subsequent* published restrictions; sequenced fixes are pruned from the route, so only one still ahead counts); else the
+  release put a displaced ceiling back — a `DEPART`-at-fix crossing speed, or a STAR speed already crossed with none ahead → the
+  figure is restated, `NCT → UAL123: maintain 210 knots (in-trail spacing, 28R)` (`ReleaseRestatementLine`; §5-7-2.a.1, because the
+  speed still stands and §5-7-4.a's NOTE bars "resume normal speed" over it); else "resume normal speed" (§5-7-4.a). **Override:** the student owning the track, or a *human*-issued speed command —
   `ControlTargets.SpeedCommandIsControllerIssued`, distinguished from a scenario preset via `DispatchContext.IsScenarioScripted`,
   because a preset `AT <fix> SPD <n>` is scenario scripting rather than a controller taking authority. Floors at the §5-7-3.c
   figures (turbojet 210/170, recip+turboprop 200/150, helicopter 60), **not** at Vref, while the simulated *approach* controller
@@ -534,8 +539,16 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
   - **Pre-clearance engagement.** Stream membership resolves the runway from `Phases.AssignedRunway`, else from
     `Approach.Expected` / `Procedure.DestinationRunway` via `ApproachCommandHandler.ResolveApproach` (`ResolveArrivalRunway`,
     memoized per airport+hint). An airborne aircraft with no phase of its own, established on that runway's final course
-    (`IsOnFinal`) and inside `PreClearanceRangeNm` (20 NM, the §5-7-3.c.1.b boundary) is spaced before its `CAPP` fires — the
+    (`IsOnFinal`) and inside `PreClearanceRangeNm` (20 NM, the §5-7-3.c.1(b) boundary) is spaced before its `CAPP` fires — the
     scripted `CFIX …; CAPP …` composition left it unmanaged at 210 kt for the 45 s the clearance waited in the queue.
+    Membership there is a ±45° track test, which a drift can fail for a tick, so a drop-out is debounced
+    (`HoldsAcrossPreClearanceDropout`): while the follower is still pre-clearance (`AssignedRunway` and `CurrentPhase` null),
+    really outside the track window, between 5 and 20 NM, with the issuing gate open (`IssuingGateOpen`) and nobody else owning
+    its speed, the reduction is held silently and `AircraftApproachState.SameRunwayProtectionDropoutSeconds` (snapshot schema 28)
+    advances 1 s per pass, up to `ReleaseHysteresisSeconds` (10 s). Re-stamp, release and handover zero it. A hold that expires
+    releases **out loud** even though the aircraft is no longer on final (§5-7-4's lead: the sim's own assignment is still
+    hanging on it); a conflict that simply clears, or the gate closing, releases on that tick as before (§5-7-1's lead,
+    "avoid adjustments requiring alternate decreases and increases", is the only licence for the hold).
   - **The simulated local controller's "reduce to final approach speed".** Inside `TowerSpeedAuthorityNm` (10 NM — the arrival is
     assumed on the tower frequency) and only when the student is on a ground position (`SimScenarioState.IsStudentGroundPosition`:
     `StudentPositionType == "GND"`, which the classifier assigns to GND, GC and DEL), a predicted conflict is answered with Vapp (`FinalApproachSpeedKts` = Vref + `WindApproachAdditive`) instead of the §5-7-3.c
@@ -554,7 +567,7 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
     handoff) does not release the speed: `HandOverSameRunwayProtection` clears the pass's ownership fields and leaves
     `SpeedCeiling` standing — the receiving controller inherits the restriction (§5-4-5.h.3, §5-4-6.c) — so it lapses the way any
     assigned speed does, on the student's own speed command or `FlightPhysics.AutoCancelSpeedAtFinal` at the 5 NM / FAF window
-    (§5-7-1.d, AIM 4-4-12.a.7). Inside 10 NM with no tower-level authority (any student position other than ground, including a tower student who has not yet
+    (§5-7-1.b.4, AIM 4-4-12.g). Inside 10 NM with no tower-level authority (any student position other than ground, including a tower student who has not yet
     accepted the handoff, an approach student, or no student position at all), the pass issues nothing new but **holds** an
     approach reduction already in force (`HoldApproachReductionInsideTowerBoundary`: the same stamped ceiling re-applied each
     tick, no conflict re-evaluation, no new terminal line) until the student takes the aircraft (hand-over, above) or the

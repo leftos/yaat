@@ -126,8 +126,9 @@ internal static class NavigationCommandHandler
             {
                 // A crossing-restriction speed assigned at this fix is an ATC-assigned speed,
                 // not a published one — it persists through the depart vector until an approach
-                // or via clearance (7110.65 5-7-1.h.4 / NOTE after h.5). Publish it as a ceiling
-                // so the aircraft does not accelerate back to default cruise after the turn.
+                // or via clearance (7110.65 §5-7-1.e assigns it with the vector; §5-7-1.d — only
+                // an approach or climb via/descend via clearance cancels it). Publish it as a
+                // ceiling so the aircraft does not accelerate back to default cruise after the turn.
                 NavigationTarget? departFix = ac.Targets.NavigationRoute.Find(f => f.Name.Equals(cmd.FixName, StringComparison.OrdinalIgnoreCase));
                 if (departFix?.SpeedRestriction is { } crossingSpeed && !ac.Targets.HasExplicitSpeedCommand)
                 {
@@ -1015,7 +1016,7 @@ internal static class NavigationCommandHandler
         TrueHeading finalCourse = facResult.Course;
 
         // JFAC/JLOC is a lateral "join the localizer" vector, not an approach clearance: it does
-        // NOT cancel a previously assigned speed (7110.65 §5-7-4 / §5-7-1.h.4 only on approach
+        // NOT cancel a previously assigned speed (7110.65 §5-7-4 / §5-7-1.d only on approach
         // clearance, resume-normal, or descend-via). Keep the assigned speed and any STAR
         // crossing-speed ceiling — the aircraft holds them through the intercept until CAPP.
 

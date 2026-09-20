@@ -6,7 +6,7 @@ namespace Yaat.Sim.Tests;
 
 /// <summary>
 /// A plain SPD speed instruction can't assign a helicopter below the radar-speed minimum
-/// (60 KIAS, 7110.65 §5-7-3); ApplySpeed floors it. The force-speed command (SPEEDN) is
+/// (60 KIAS, 7110.65 §5-7-3.e); ApplySpeed floors it. The force-speed command (SPEEDN) is
 /// exempt and may command any speed. The floor only applies airborne. Surfaced as a
 /// follow-up from issue #177 (SPD is one of the air-taxi break-out commands).
 /// </summary>
@@ -33,6 +33,11 @@ public class HelicopterSpeedFloorTests
         Assert.Equal(60, heli.Targets.TargetSpeed);
         Assert.Equal(60, heli.Targets.AssignedSpeed);
         Assert.Contains("Speed 60", result.Message!);
+
+        // The floor is 7110.65 §5-7-3.e ("To helicopters: Assign a speed not less than 60 knots"):
+        // §5-7-3 numbers its items a-f, so the warning the instructor reads cites the letter.
+        string warning = Assert.Single(heli.PendingWarnings);
+        Assert.Contains("§5-7-3.e", warning);
     }
 
     [Fact]

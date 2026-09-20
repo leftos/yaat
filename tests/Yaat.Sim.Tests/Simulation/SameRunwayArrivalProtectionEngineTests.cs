@@ -124,9 +124,9 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
 
     /// <summary>
     /// The release must put back the ceiling it displaced, not null the field. A scenario-scripted arrival flies a
-    /// STAR and can be carrying a published crossing-speed restriction (§5-7-1.b NOTE) that
+    /// STAR and can be carrying a published crossing-speed restriction (§5-7-1.d NOTE) that
     /// <see cref="FlightPhysics"/> stamps once, on the tick the fix is sequenced, and never re-stamps — so clearing
-    /// the field outright deletes it for the rest of the flight, which only DELETE SPEED RESTRICTIONS (§5-7-2.e) may
+    /// the field outright deletes it for the rest of the flight, which only DELETE SPEED RESTRICTIONS (§5-7-4.d) may
     /// do.
     /// </summary>
     [Fact]
@@ -396,7 +396,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     /// <c>CFIX … ; CAPP …</c> composition the motivating bundle flew: the CAPP waits in the command queue behind a
     /// fix condition, so until it fires the aircraft carries no <c>AssignedRunway</c> and runs no approach phase at
     /// all, and a pass that waited for the clearance had barely any of the 20→5 nm window left to work in. The
-    /// ceiling is still the §5-7-3.c.1.b turbojet figure — being early does not license a lower assignment.
+    /// ceiling is still the §5-7-3.c.1(b) turbojet figure — being early does not license a lower assignment.
     /// </summary>
     [Fact]
     public void ExpectedApproachFollower_IsSpacedBeforeItsApproachClearance()
@@ -449,8 +449,206 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// The track test is momentary in a way the clearance test is not: a not-yet-cleared follower drifting a few
+    /// degrees, or being turned onto a base leg for a second, leaves the ±45° window and comes straight back. Releasing
+    /// there would speak "resume normal speed" and the next pass would say "reduce speed to" again — the alternate
+    /// decreases and increases §5-7-1's lead and §5-7-1.a.3(e) tell the controller to avoid — so the pass holds the
+    /// reduction, silently, for <see cref="SameRunwayArrivalProtection.ReleaseHysteresisSeconds"/>.
+    /// </summary>
+    [Fact]
+    public void PreClearanceFollower_LeavingTheTrackWindowBriefly_KeepsItsReductionSilently()
+    {
+        ArrivalPair? pair = ExpectedApproachPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            output.WriteLine("skipped: scenario, navdata, OAK layout or an approach to runway 30 is unavailable");
+            return;
+        }
+
+        pair.Pass();
+        Report(pair, "engaged before the approach clearance");
+        double stamped = Assert.IsType<double>(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+
+        TurnFollowerAcrossTheFinalCourse(pair);
+        for (int pass = 0; pass < BriefDropoutPasses; pass++)
+        {
+            pair.Pass();
+        }
+
+        Report(pair, "briefly outside the track window");
+        Assert.Equal(stamped, pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Equal(stamped, pair.Follower.Targets.SpeedCeiling);
+        Assert.Equal(BriefDropoutPasses, pair.Follower.Approach.SameRunwayProtectionDropoutSeconds);
+
+        TurnFollowerOntoTheFinalCourse(pair);
+        pair.Pass();
+        Report(pair, "back inside the track window");
+
+        // One instruction for the whole episode, nothing terminating it in between, and the ceiling never moved.
+        Assert.Single(ReductionLines(pair.Follower));
+        Assert.Empty(ReleaseLines(pair.Follower));
+        Assert.Empty(ReleaseRestatementLines(pair.Follower));
+        Assert.Equal(stamped, pair.Follower.Targets.SpeedCeiling);
+        Assert.Equal(0.0, pair.Follower.Approach.SameRunwayProtectionDropoutSeconds);
+    }
+
+    /// <summary>
+    /// The debounce is a hold, not a licence: an arrival that stays off the final course past
+    /// <see cref="SameRunwayArrivalProtection.ReleaseHysteresisSeconds"/> is being vectored somewhere else and its
+    /// speed goes back — out loud. Being vectored off does not cancel the reduction on its own (§5-7-1.e cancels a
+    /// published restriction on a vector; §5-7-1.d lists only an approach or a climb via/descend via clearance as
+    /// cancelling an assigned one), so the aircraft is still flying it and §5-7-4's lead applies: advise it when the
+    /// adjustment is no longer needed. This is the one release that is announced without the inbound test, which by
+    /// construction no expired hold can pass.
+    /// </summary>
+    [Fact]
+    public void PreClearanceFollower_OutsideTheTrackWindowPastTheHysteresis_IsReleased()
+    {
+        ArrivalPair? pair = ExpectedApproachPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            output.WriteLine("skipped: scenario, navdata, OAK layout or an approach to runway 30 is unavailable");
+            return;
+        }
+
+        pair.Pass();
+        Report(pair, "engaged before the approach clearance");
+        Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+
+        TurnFollowerAcrossTheFinalCourse(pair);
+        for (int pass = 0; pass < SustainedDropoutPasses; pass++)
+        {
+            pair.Pass();
+        }
+
+        Report(pair, "outside the track window past the hysteresis");
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionDisplacedCeilingKts);
+        Assert.Null(pair.Follower.Targets.SpeedCeiling);
+        Assert.Equal(0.0, pair.Follower.Approach.SameRunwayProtectionDropoutSeconds);
+        Assert.Single(ReductionLines(pair.Follower));
+
+        string line = Assert.Single(ReleaseLines(pair.Follower));
+        output.WriteLine($"release line: {line}");
+        Assert.Contains($"→ {pair.Follower.Callsign}: resume normal speed (in-trail spacing, 30)", line, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The hold is for the track test dropping out and for nothing else. A follower still on the final course whose
+    /// conflict has simply opened up has nothing left to be protected from, and §5-7-1's lead — "terminate speed
+    /// adjustments when no longer needed" — has its speed handed back on that tick rather than ten seconds later.
+    /// </summary>
+    [Fact]
+    public void PreClearanceFollower_WhoseConflictClears_IsReleasedAtOnce()
+    {
+        ArrivalPair? pair = ExpectedApproachPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            output.WriteLine("skipped: scenario, navdata, OAK layout or an approach to runway 30 is unavailable");
+            return;
+        }
+
+        pair.Pass();
+        Report(pair, "engaged before the approach clearance");
+        Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+
+        // Only the interval opens: the follower stays on the landing course and inside the pre-clearance range, so
+        // nothing about its stream membership has changed and the release cannot be attributed to the track test.
+        pair.PlaceFollowerAtInterval(SameRunwayArrivalProtection.ReleaseHysteresisSeconds + DeadbandProbeSeconds);
+        pair.Pass();
+        Report(pair, "conflict cleared, still on the final course");
+
+        double distance = RunwayOccupancy.DistanceToAssignedThresholdNm(pair.Follower, pair.Runway, pair.Engine.World.GroundLayout);
+        Assert.InRange(distance, FiveMileWindowNm, SameRunwayArrivalProtection.PreClearanceRangeNm);
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Null(pair.Follower.Targets.SpeedCeiling);
+        Assert.Equal(0.0, pair.Follower.Approach.SameRunwayProtectionDropoutSeconds);
+        Assert.Single(ReleaseLines(pair.Follower));
+    }
+
+    /// <summary>
+    /// The hold belongs to the simulated approach controller, so it ends the moment that controller does. With the
+    /// instructor's setting switched off mid-drop-out there is no position in the sim holding the arrival to anything:
+    /// the speed comes back on that tick — the release loop's standing promise — and silently, because the position
+    /// whose instruction it was no longer exists.
+    /// </summary>
+    [Fact]
+    public void PreClearanceFollower_DroppedOut_IsReleasedAtOnceWhenTheSettingGoesOff()
+    {
+        ArrivalPair? pair = ExpectedApproachPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            output.WriteLine("skipped: scenario, navdata, OAK layout or an approach to runway 30 is unavailable");
+            return;
+        }
+
+        pair.Pass();
+        Report(pair, "engaged before the approach clearance");
+        Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+
+        TurnFollowerAcrossTheFinalCourse(pair);
+        pair.Pass();
+        Report(pair, "one second into the drop-out");
+        Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Equal(1.0, pair.Follower.Approach.SameRunwayProtectionDropoutSeconds);
+
+        pair.Engine.Scenario!.AutoArrivalSpacingOnOccupiedRunway = false;
+        pair.Pass();
+        Report(pair, "with the setting switched off mid-drop-out");
+
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Null(pair.Follower.Targets.SpeedCeiling);
+        Assert.Equal(0.0, pair.Follower.Approach.SameRunwayProtectionDropoutSeconds);
+        Assert.Empty(ReleaseLines(pair.Follower));
+    }
+
+    /// <summary>
+    /// The student taking the track mid-drop-out is a handoff, not a release — the speed goes with the track — and the
+    /// drop-out clock goes with it too. A stale one left on the aircraft would be read as most of a hysteresis already
+    /// spent the next time the pass owned it.
+    /// </summary>
+    [Fact]
+    public void Handover_MidDropout_ZeroesTheDropoutClock()
+    {
+        ArrivalPair? pair = ExpectedApproachPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            output.WriteLine("skipped: scenario, navdata, OAK layout or an approach to runway 30 is unavailable");
+            return;
+        }
+
+        pair.Engine.Scenario!.StudentPositionType = "TWR";
+        pair.Engine.Scenario.StudentPosition = new TrackOwner(
+            StudentTowerCallsign,
+            FacilityId: "OAK",
+            Subset: 3,
+            SectorId: "T",
+            OwnerType: TrackOwnerType.Stars
+        );
+
+        pair.Pass();
+        Report(pair, "engaged with the student on the tower position");
+        Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+
+        TurnFollowerAcrossTheFinalCourse(pair);
+        pair.Pass();
+        pair.Pass();
+        Report(pair, "two seconds into the drop-out");
+        Assert.Equal(2.0, pair.Follower.Approach.SameRunwayProtectionDropoutSeconds);
+
+        TurnFollowerOntoTheFinalCourse(pair);
+        pair.Follower.Track.Owner = pair.Engine.Scenario.StudentPosition;
+        pair.Follower.Track.HandoffAccepted = true;
+        pair.Pass();
+        Report(pair, "after the student took the track");
+
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Equal(0.0, pair.Follower.Approach.SameRunwayProtectionDropoutSeconds);
+    }
+
+    /// <summary>
     /// The pre-clearance stream reaches out to <see cref="SameRunwayArrivalProtection.PreClearanceRangeNm"/> and no
-    /// further — the §5-7-3.c.1.b / §5-7-3.c.2.b 20-mile boundary, beyond which the only speeds this pass could
+    /// further — the §5-7-3.c.1(b) / §5-7-3.c.2(b) 20-mile boundary, beyond which the only speeds this pass could
     /// assign are the 210/200 figures an arrival at that range is already flying. The pair conflicts, so the arm
     /// fails for the boundary and not for want of anything to space.
     /// </summary>
@@ -475,7 +673,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     /// <summary>
     /// Lever 2 — inside <see cref="SameRunwayArrivalProtection.TowerSpeedAuthorityNm"/> the arrival is on the local
     /// controller's frequency and configuring to land, so the simulated tower may say "reduce to final approach
-    /// speed" (§5-7-3.f, lower speeds when operationally advantageous) instead of stopping at the §5-7-3.c.1.b
+    /// speed" (§5-7-3.f, lower speeds when operationally advantageous) instead of stopping at the §5-7-3.c.1(b)
     /// 170-kt floor. The assigned figure is Vapp — Vref plus the wind additive — never bare Vref, and the line
     /// carries no number, so there is nothing to round to 5-kt increments (§5-7-1.g). The sim speaks for the local
     /// controller only while the student is working a ground position; the arm sets one.
@@ -513,8 +711,8 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
 
     /// <summary>
     /// Outside that range the arrival is still the approach controller's and still clean, so the floor stays at the
-    /// §5-7-3.c.1.b figure and no instruction is latched — Vref with the gear and flaps up is a speed the aircraft
-    /// does not have (§5-7-1.a.3.d).
+    /// §5-7-3.c.1(b) figure and no instruction is latched — Vref with the gear and flaps up is a speed the aircraft
+    /// does not have (§5-7-1.a.3(d)).
     /// </summary>
     [Fact]
     public void OutsideTenMiles_TheFloorStaysAtTheRegulatoryFigure()
@@ -1078,11 +1276,14 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Over a published restriction the phrase is the other one: the arrival was flying an unpublished ATC speed and
-    /// has to meet the published one again (§5-7-4.c), which is also exactly what the restore puts back.
+    /// A ceiling this pass displaced is not by itself something published: a <c>DEPART</c>-at-fix crossing speed
+    /// becomes a bare <see cref="ControlTargets.SpeedCeiling"/> with the route cleared out behind it. §5-7-4.c scopes
+    /// "resume published speed" to "subsequent published speed restrictions on the route or procedure", of which there
+    /// are none here; "resume normal speed" would cancel a speed that still stands (§5-7-4.a's NOTE); and §5-7-4's lead
+    /// bars saying nothing. So the speed being handed back is restated — §5-7-2.a.1, "MAINTAIN (specific speed) KNOTS".
     /// </summary>
     [Fact]
-    public void Release_OverADisplacedPublishedCeiling_SaysResumePublishedSpeed()
+    public void Release_OverDisplacedCeilingWithNoPublishedRestrictionAhead_RestatesTheSpeed()
     {
         ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
         if (pair is null)
@@ -1091,18 +1292,22 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
         }
 
         pair.Follower.Targets.SpeedCeiling = PublishedCrossingCeilingKts;
+        // Premise: the ceiling is all there is — no fix on the route still carries a restriction to resume to.
+        Assert.DoesNotContain(pair.Follower.Targets.NavigationRoute, fix => fix.SpeedRestriction is not null);
 
         pair.Pass();
-        Report(pair, "engaged over a published ceiling");
+        Report(pair, "engaged over a displaced ceiling");
         Assert.Equal(PublishedCrossingCeilingKts, pair.Follower.Approach.SameRunwayProtectionDisplacedCeilingKts);
 
         pair.PlaceFollowerAt(ClearOfConflictDistanceNm);
         pair.Pass();
-        Report(pair, "released over a published ceiling");
+        Report(pair, "released over a displaced ceiling with nothing published ahead");
 
-        string line = Assert.Single(ReleaseLines(pair.Follower));
+        string line = Assert.Single(ReleaseRestatementLines(pair.Follower));
         output.WriteLine($"release line: {line}");
-        Assert.Contains($"→ {pair.Follower.Callsign}: resume published speed (in-trail spacing, 30)", line, StringComparison.Ordinal);
+        Assert.Contains($"→ {pair.Follower.Callsign}: maintain 210 knots (in-trail spacing, 30)", line, StringComparison.Ordinal);
+        Assert.DoesNotContain("resume", line, StringComparison.Ordinal);
+        Assert.Empty(ReleaseLines(pair.Follower));
         Assert.Equal(PublishedCrossingCeilingKts, pair.Follower.Targets.SpeedCeiling);
     }
 
@@ -1296,7 +1501,7 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     /// <summary>
     /// The figure (kt) the approach clearance restates for this fixture, written out rather than computed from the
     /// function under test. At <see cref="FollowerDistanceNm"/> the jet follower's reduction bottoms out on
-    /// §5-7-3.c.1.b's 170 kt — a floor, not an arithmetic result — so it is already a 5-knot increment and the
+    /// §5-7-3.c.1(b)'s 170 kt — a floor, not an arithmetic result — so it is already a 5-knot increment and the
     /// restatement says it unchanged.
     /// </summary>
     private const int RestatedSpeedKts = 170;
@@ -1313,12 +1518,61 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     /// <summary>The position handing the track over in that arm: the approach controller the sim is playing.</summary>
     private const string SimulatedApproachCallsign = "NCT_APP";
 
+    /// <summary>
+    /// Passes a brief drop-out out of the track window lasts. The pass runs in the pre-physics segment, once per
+    /// simulated second, so a pass is a second: half the hysteresis is comfortably inside it.
+    /// </summary>
+    private const int BriefDropoutPasses = (int)(SameRunwayArrivalProtection.ReleaseHysteresisSeconds / 2.0);
+
+    /// <summary>Passes a drop-out needs to out-run the hysteresis: one per second of it, plus the pass that releases.</summary>
+    private const int SustainedDropoutPasses = (int)SameRunwayArrivalProtection.ReleaseHysteresisSeconds + 1;
+
+    /// <summary>
+    /// The §5-7-1.b.4 window (nm), written out because the engine's own constant is private: the lower bound the
+    /// conflict-cleared arm checks its follower is still outside of.
+    /// </summary>
+    private const double FiveMileWindowNm = 5.0;
+
+    /// <summary>
+    /// Turns the follower 90° across the landing course, which is outside the ±45° window
+    /// <c>ApproachCommandHandler.IsOnFinal</c> allows — the only thing that makes a not-yet-cleared arrival part of
+    /// the runway's stream, so this alone drops it out of the pass's walk.
+    /// </summary>
+    private static void TurnFollowerAcrossTheFinalCourse(ArrivalPair pair)
+    {
+        var across = new TrueHeading((pair.Runway.TrueHeading.Degrees + 90.0) % 360.0);
+        pair.Follower.TrueHeading = across;
+        pair.Follower.TrueTrack = across;
+    }
+
+    /// <summary>Puts it back on the landing course, where the stream walk picks it up again.</summary>
+    private static void TurnFollowerOntoTheFinalCourse(ArrivalPair pair)
+    {
+        pair.Follower.TrueHeading = pair.Runway.TrueHeading;
+        pair.Follower.TrueTrack = pair.Runway.TrueHeading;
+    }
+
+    /// <summary>The engagement lines — the reductions the pass has actually issued, one per engagement.</summary>
+    private static List<string> ReductionLines(AircraftState aircraft) =>
+        [.. aircraft.PendingNotifications.Where(n => n.Contains(": reduce speed to ", StringComparison.Ordinal))];
+
     private static List<string> SpacingLines(AircraftState aircraft) =>
         [.. aircraft.PendingNotifications.Where(n => n.Contains("in-trail spacing", StringComparison.Ordinal))];
 
     /// <summary>The §5-7-4 line the pass says when it terminates its own reduction.</summary>
     private static List<string> ReleaseLines(AircraftState aircraft) =>
         [.. aircraft.PendingNotifications.Where(n => n.Contains(": resume ", StringComparison.Ordinal))];
+
+    /// <summary>
+    /// The §5-7-2.a.1 line a release speaks when the speed it hands back is restated rather than resumed — told apart
+    /// from the approach clearance's restatement by its tail, which names the runway the spacing was for.
+    /// </summary>
+    private static List<string> ReleaseRestatementLines(AircraftState aircraft) =>
+        [
+            .. aircraft.PendingNotifications.Where(n =>
+                n.Contains(": maintain ", StringComparison.Ordinal) && (!n.Contains("restated with the approach clearance", StringComparison.Ordinal))
+            ),
+        ];
 
     /// <summary>The §5-7-1.c line the approach clearance carries when a reduction is standing.</summary>
     private static List<string> RestatementLines(AircraftState aircraft) =>

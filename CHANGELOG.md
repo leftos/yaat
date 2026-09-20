@@ -10,6 +10,9 @@
 - `RNS` to an arrival slowed on a long final speeds it back up to its approach profile.
 - The simulated approach controller says "resume normal speed" or "resume published speed" when it lifts an in-trail speed reduction.
 - An approach clearance issued while an in-trail speed reduction is in force restates the speed.
+- When an in-trail speed reduction is lifted from an arrival that still holds an assigned speed with no published restriction ahead, the simulated approach controller restates it ("maintain 210 knots") instead of saying "resume published speed".
+- An arrival not yet cleared for its approach that drifts off the final course for a few seconds keeps its in-trail speed reduction, instead of hearing "resume normal speed" followed by "reduce speed to" again.
+- The helicopter minimum-speed warning cites 7110.65 §5-7-3.e.
 - Generated arrivals measure their in-trail spacing from the landing threshold on runways with a displaced threshold.
 - `DMN` works as an alias of `CMN` (force altitude), as it does in ATCTrainer.
 - `TAXIAUTO @` and `TAXIALL @` autocomplete parking and helipad names.

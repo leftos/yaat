@@ -33,7 +33,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// is now spaced from t=141 while it is still flying its route with no phase of its own.
 /// (2) <b>Final approach speed.</b> Inside <c>SameRunwayArrivalProtection.TowerSpeedAuthorityNm</c> the
 /// arrival is on the simulated local controller's frequency and configuring to land, so that controller
-/// may say "reduce to final approach speed" (§5-7-3.f) rather than stopping at the §5-7-3.c.1.b 170-kt
+/// may say "reduce to final approach speed" (§5-7-3.f) rather than stopping at the §5-7-3.c.1(b) 170-kt
 /// floor — and keeps it through the §5-7-1.b.4 window, which forbids issuing a new adjustment inside 5
 /// nm, not flying one already issued. SKW5536's preset is a bare <c>CAPP 28L</c>, so it is the second
 /// lever alone that moves it.</para>
@@ -220,7 +220,7 @@ public class SfoGroundControlArrivalGoAroundTests(ITestOutputHelper output)
             trace.FasInstructed,
             $"The simulated tower never told {follower} to reduce to final approach speed. Inside "
                 + $"SameRunwayArrivalProtection.TowerSpeedAuthorityNm that instruction is the rest of the authority "
-                + $"this delivery needs (§5-7-3.f); without it the pass is back to the §5-7-3.c.1.b 170-kt floor. "
+                + $"this delivery needs (§5-7-3.f); without it the pass is back to the §5-7-3.c.1(b) 170-kt floor. "
                 + $"Phases seen: {seen}."
         );
 

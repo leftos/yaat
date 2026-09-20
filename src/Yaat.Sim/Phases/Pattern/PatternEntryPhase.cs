@@ -165,7 +165,7 @@ public sealed class PatternEntryPhase : Phase
     /// How close to the threshold a Final entry has to join before the entry itself commands approach
     /// speed. Beyond it, <see cref="Phases.Tower.FinalApproachPhase"/>'s staged 1.3·Vref → Vref profile
     /// owns the deceleration, and commanding Vref early would fly the whole run-in slow — well outside
-    /// the 170/210 kt floors of 7110.65 §5-7-3.c.1.b for an arriving turbojet. The default Final entry
+    /// the 170/210 kt floors of 7110.65 §5-7-3.c.1(b) for an arriving turbojet. The default Final entry
     /// point is the glideslope/TPA intercept (about 4.7 nm for a jet), so only a deliberately close-in
     /// join qualifies — chiefly the #292 low-approach runway retarget, which builds its entry 0.5 nm out.
     /// </summary>

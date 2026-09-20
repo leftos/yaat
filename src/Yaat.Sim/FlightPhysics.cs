@@ -211,7 +211,7 @@ public static class FlightPhysics
                 aircraft.Targets.AssignedSpeed = sequenced.RevertAssignedSpeed;
             }
 
-            // AIM 5-4-1 NOTE 2 / 7110.65 5-7-1.h.7 NOTE 3: once at a "cross at" speed the
+            // AIM 5-4-1 NOTE 2 / 7110.65 §5-7-1.g NOTE 3: once at a "cross at" speed the
             // pilot maintains it until ATC reassigns or the approach speed takes over.
             // Publish the crossed restriction as a ceiling so the auto altitude-band schedule
             // cannot accelerate the aircraft back to default cruise while flying the remaining
@@ -220,9 +220,10 @@ public static class FlightPhysics
             {
                 if (crossedSpeed.Type == CifpSpeedRestrictionType.AtOrAbove)
                 {
-                    // 7110.65 5-7-1.h.4: a "cross at or above" speed is a minimum. Publish it as
-                    // a floor so the aircraft holds at or above it past the fix — never a ceiling
-                    // that would cap it to the minimum.
+                    // A "cross at or above" speed is a minimum (ARINC 424 speed-descriptor coding;
+                    // the phraseology analogue is 7110.65 §5-7-2.a.2, "maintain (speed) knots or
+                    // greater"). Publish it as a floor so the aircraft holds at or above it past
+                    // the fix — never a ceiling that would cap it to the minimum.
                     aircraft.Targets.SpeedFloor = aircraft.Targets.SpeedFloor is { } existingFloor
                         ? Math.Max(existingFloor, crossedSpeed.SpeedKts)
                         : crossedSpeed.SpeedKts;

@@ -93,7 +93,7 @@ public static class PhraseologyRules
             // Neutral "maintain {alt}" — caller may want CM vs DM based on current alt.
             // For now we emit CM; a future iteration can add context-sensitive dispatch.
             new(["maintain", "{alt}"], "CM {alt}", ClimbMaintain),
-            // Speed — 7110.65 5-7-2 canonical form is "MAINTAIN (speed) KNOTS".
+            // Speed — 7110.65 §5-7-2.a.1 canonical form is "MAINTAIN (speed) KNOTS".
             new(["maintain", "{spd}", "knots"], "SPD {spd}", Speed, PilotShortcuts: ["{spd} knots", "speed {spd} knots"]),
             new(["reduce", "speed", "to?", "{spd}"], "SPD {spd}", Speed),
             new(["increase", "speed", "to?", "{spd}"], "SPD {spd}", Speed),
@@ -162,7 +162,7 @@ public static class PhraseologyRules
             new(["turn", "right", "direct", "to?", "{fix}"], "TRDCT {fix}", TurnRightDirectTo, PilotShortcuts: ["right direct {fix}"]),
             new(["when", "able", "direct", "to?", "{fix}"], "ADCT {fix}", AppendDirectTo, PilotShortcuts: ["when able direct {fix}"]),
             new(["after", "{current}", "direct", "to?", "{fix}"], "ADCT {fix}", AppendDirectTo),
-            // Cross-fix altitude restrictions. FAA 7110.65 §4-5-7, §5-7-5, AIM §4-4-10, §5-3-1.
+            // Cross-fix altitude restrictions. FAA 7110.65 §4-5-7, §5-7-2.d, AIM §4-4-10, §5-3-1.
             // The bare "cross {fix} at {alt}" form is declared first so it wins the verbalizer's
             // first-declared tiebreaker for AltType=At with no speed. AT-OR-ABOVE / AT-OR-BELOW
             // are marked SttOnly because the verbalizer short-circuits those altType values
@@ -173,7 +173,7 @@ public static class PhraseologyRules
             new(["cross", "{fix}", "at", "and?", "maintain", "{alt}"], "CFIX {fix} AT {alt}", CrossFix),
             new(["cross", "{fix}", "at", "or", "above", "{alt}"], "CFIX {fix} A{alt}", CrossFix, SttOnly: true),
             new(["cross", "{fix}", "at", "or", "below", "{alt}"], "CFIX {fix} B{alt}", CrossFix, SttOnly: true),
-            // Combined altitude + speed crossing (7110.65 §5-7-5: "CROSS (fix) AT AND MAINTAIN
+            // Combined altitude + speed crossing (7110.65 §5-7-2.d: "CROSS (fix) AT AND MAINTAIN
             // (altitude) AT (specified speed) KNOTS"). The trailing "{speed} knots" literal
             // anchors the second "at" so it can't be confused with the first.
             new(["cross", "{fix}", "at", "and?", "maintain?", "{alt}", "at", "{speed}", "knots"], "CFIX {fix} AT {alt} {speed}", CrossFix),

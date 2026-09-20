@@ -707,7 +707,7 @@ public static class CommandDispatcher
         // Authorize the descent on the join already in progress. The glideslope still gates on the
         // aircraft's lateral establishment (5°/0.15nm) — a relaxed join is not a PTACF forced
         // intercept, so ForcedInterceptCapture stays false and the gate is not bypassed even from a
-        // steep cut. Cancel speed adjustments per 7110.65 §5-7-1 (approach clearances cancel
+        // steep cut. Cancel speed adjustments per 7110.65 §5-7-1.d (approach clearances cancel
         // previously assigned speeds).
         clearance.LateralInterceptOnly = false;
         aircraft.Targets.TargetSpeed = null;

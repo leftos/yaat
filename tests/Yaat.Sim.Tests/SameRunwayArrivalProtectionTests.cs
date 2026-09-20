@@ -513,10 +513,22 @@ public class SameRunwayArrivalProtectionTests
     public void SpokenSpeed_IsTheNearestFiveKnots(double speedKts, double expectedKts) =>
         Assert.Equal(expectedKts, SameRunwayArrivalProtection.SpokenSpeedKts(speedKts), 3);
 
+    /// <summary>
+    /// The release line that restates the speed rather than resuming one is §5-7-2.a.1's "MAINTAIN (specific speed)
+    /// KNOTS", so the figure it names obeys the same §5-7-1.g 5-knot increments every other spoken figure here does: a
+    /// 212 kt ceiling handed back is said as 210, even though the ceiling the physics flies stays at 212.
+    /// </summary>
+    [Fact]
+    public void ReleaseRestatement_SpeaksTheHandedBackSpeedInFiveKnotIncrements() =>
+        Assert.Equal(
+            "NCT_APP → UAL123: maintain 210 knots (in-trail spacing, 30)",
+            SameRunwayArrivalProtection.ReleaseRestatementLine("NCT_APP", "UAL123", 212.0, "30")
+        );
+
     [Fact]
     public void Ceiling_FloorsAtTheRegulatorySpeedRatherThanVref()
     {
-        // A jet 12 nm out with a huge shortfall: §5-7-3.c.1.b stops the reduction at 170 kt, not at the 141 kt Vref,
+        // A jet 12 nm out with a huge shortfall: §5-7-3.c.1(b) stops the reduction at 170 kt, not at the 141 kt Vref,
         // which is only a valid speed with gear and landing flaps out.
         double ceiling = SameRunwayArrivalProtection.ProtectionCeilingKts(
             leaderIasKts: 150.0,
@@ -557,7 +569,7 @@ public class SameRunwayArrivalProtectionTests
     public void Ceiling_DoesNotFloorASlowPistonAtTheRecipFigure()
     {
         // §5-7-3.f — "lower speeds may be assigned when operationally advantageous" — is what the Min(scheduled, …)
-        // encodes: a 110-kt piston cannot be floored at the 150 kt §5-7-3.c.2.b figure it never flies.
+        // encodes: a 110-kt piston cannot be floored at the 150 kt §5-7-3.c.2(b) figure it never flies.
         double ceiling = SameRunwayArrivalProtection.ProtectionCeilingKts(
             leaderIasKts: 95.0,
             shortfallSeconds: 60.0,
