@@ -1,6 +1,11 @@
+using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Asdex;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation.Actions;
+using Yaat.Sim.Simulation.Spine;
 
 namespace Yaat.Sim.Simulation;
 
@@ -106,6 +111,147 @@ public sealed partial class SimulationEngine
         }
 
         scenario.AsdexSafetyLogicConfig = change.Config;
+    }
+
+    /// <summary>Airports farther than this from a configured runway footprint are not its owner.</summary>
+    private const double AsdexRunwayAirportSearchNm = 5;
+
+    /// <summary>
+    /// The post-physics ASDE-X Safety Logic pass: the configured runway footprints plus the ground layout's taxiways
+    /// go to the stateless detector, and what it finds is diffed against the alerts the scenario is already holding.
+    /// Only the difference leaves the engine — the alerts that appeared and the ids that went away — because CRC's
+    /// alert topic is additive with an explicit delete. Runs on every run kind: the standing set is snapshotted
+    /// scenario state, so a replay, a rewind and a session restore all reach the alert picture the live room had.
+    /// </summary>
+    public void TickAsdexAlerts(IHostConsumers host)
+    {
+        if (Scenario is not { } scenario)
+        {
+            return;
+        }
+
+        AsdexSafetyLogicConfig? config = scenario.AsdexSafetyLogicConfig;
+
+        // No active safety-logic config (no CRC ASDE-X driving it) — clear any stale alerts.
+        if ((config is null) || (config.Runways.Count == 0))
+        {
+            ImmutableSortedDictionary<string, AsdexSafetyAlert> standing = scenario.ActiveAsdexAlerts;
+            if (standing.Count > 0)
+            {
+                var stale = standing.Keys.ToList();
+                scenario.ActiveAsdexAlerts = standing.Clear();
+                host.OnAsdexAlertsChanged([], stale);
+            }
+
+            return;
+        }
+
+        if (NavigationDatabase.InstanceOrNull is not { } navDb)
+        {
+            return;
+        }
+
+        List<AircraftState> aircraft = World.GetSnapshot();
+        double fieldElevationFt = aircraft.Count > 0 ? FieldElevationResolver.Resolve(aircraft[0], navDb) : 0;
+        List<AsdexRunwaySurface> runways = BuildAsdexRunwaySurfaces(config.Runways, navDb, fieldElevationFt);
+        List<AsdexTaxiwaySegment> taxiways = BuildAsdexTaxiwaySegments(World.GroundLayout);
+
+        ApplyAsdexDetection(scenario, AsdexSafetyLogicDetector.Detect(runways, taxiways, aircraft, fieldElevationFt), host);
+    }
+
+    /// <summary>
+    /// Folds one tick's detector findings into the scenario's standing set and tells the host what moved. An alert
+    /// already standing is left as it is (its id is the identity the display keyed on); one the detector no longer
+    /// reports is cleared by id. A tick that moves nothing leaves the standing set's reference alone, so a reader
+    /// holding it keeps reading the same instance.
+    /// </summary>
+    private void ApplyAsdexDetection(SimScenarioState scenario, IReadOnlyList<AsdexSafetyAlert> detected, IHostConsumers host)
+    {
+        ImmutableSortedDictionary<string, AsdexSafetyAlert> active = scenario.ActiveAsdexAlerts;
+        var detectedById = detected.ToDictionary(alert => alert.Id);
+
+        var newAlerts = detected.Where(alert => !active.ContainsKey(alert.Id)).ToList();
+        var clearedIds = active.Keys.Where(id => !detectedById.ContainsKey(id)).ToList();
+
+        if ((newAlerts.Count == 0) && (clearedIds.Count == 0))
+        {
+            return;
+        }
+
+        var next = active.ToBuilder();
+        foreach (AsdexSafetyAlert alert in newAlerts)
+        {
+            next[alert.Id] = alert;
+            _logger.LogWarning("ASDE-X Safety Logic alert: {Kind} {Lines}", alert.Kind, string.Join(" / ", alert.MessageLines));
+        }
+
+        foreach (string id in clearedIds)
+        {
+            next.Remove(id);
+        }
+
+        scenario.ActiveAsdexAlerts = next.ToImmutable();
+        host.OnAsdexAlertsChanged(newAlerts, clearedIds);
+    }
+
+    private static List<AsdexRunwaySurface> BuildAsdexRunwaySurfaces(
+        IReadOnlyList<AsdexRunwayConfig> runways,
+        NavigationDatabase navDb,
+        double fieldElevationFt
+    )
+    {
+        var surfaces = new List<AsdexRunwaySurface>(runways.Count);
+        foreach (AsdexRunwayConfig runway in runways)
+        {
+            if (runway.AreaPoints.Count == 0)
+            {
+                continue;
+            }
+
+            var area = runway.AreaPoints.ToList();
+            var centroid = new LatLon(area.Average(point => point.Lat), area.Average(point => point.Lon));
+            double variation = MagneticDeclination.GetDeclination(centroid.Lat, centroid.Lon);
+            double elevation = ResolveAsdexRunwayElevation(runway.Id, centroid, navDb) ?? fieldElevationFt;
+            surfaces.Add(new AsdexRunwaySurface(runway.Id, area, runway.IsClosed, variation, elevation));
+        }
+
+        return surfaces;
+    }
+
+    /// <summary>The CRC safety-logic config names runways without an airport, so the owning airport is the
+    /// nearest one to the footprint; the runway end's threshold elevation is the AGL datum for arrivals over it.</summary>
+    private static double? ResolveAsdexRunwayElevation(string runwayId, LatLon centroid, NavigationDatabase navDb)
+    {
+        (string Id, double Lat, double Lon)? airport = navDb.FindNearestSizeableAirport(
+            centroid,
+            minRunwayLengthFt: 0,
+            maxRangeNm: AsdexRunwayAirportSearchNm
+        );
+        return airport is null ? null : navDb.GetRunway(airport.Value.Id, runwayId)?.ElevationFt;
+    }
+
+    private static List<AsdexTaxiwaySegment> BuildAsdexTaxiwaySegments(AirportGroundLayout? layout)
+    {
+        if (layout is null)
+        {
+            return [];
+        }
+
+        var segments = new List<AsdexTaxiwaySegment>();
+        foreach (GroundEdge edge in layout.Edges)
+        {
+            // Only true taxiways: not runway centerlines, runway-crossing links, or ramps.
+            if (edge.IsRunwayCenterline || edge.IsRunwayCrossingLink || edge.IsRamp || (edge.Nodes.Length < 2))
+            {
+                continue;
+            }
+
+            LatLon start = edge.Nodes[0].Position;
+            LatLon end = edge.Nodes[^1].Position;
+            segments.Add(new AsdexTaxiwaySegment(edge.TaxiwayName, start, end));
+        }
+
+        return segments;
     }
 
     /// <summary>

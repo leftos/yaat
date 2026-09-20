@@ -1,3 +1,4 @@
+using Yaat.Sim.Asdex;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
@@ -24,8 +25,6 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
     public void ApplyPreTickRecordedActions(int second) { }
 
     public void LiveTrafficSync() { }
-
-    public void AsdexAlerts() { }
 
     public void SurfaceCoastExpiry() { }
 
@@ -134,6 +133,9 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     /// <summary>Discarded: a bare engine has no CRC client to re-push the CRR topic to. The groups are engine state.</summary>
     public void OnEramCrrGroupsChanged() { }
+
+    /// <summary>Discarded: a bare engine has no surface display to alert. The standing set is engine state.</summary>
+    public void OnAsdexAlertsChanged(IReadOnlyList<AsdexSafetyAlert> newAlerts, IReadOnlyList<string> clearedAlertIds) { }
 
     public void OnTimersChanged() { }
 

@@ -55,7 +55,9 @@ public static class SpineOrder
         // than pinned; only a broadcasting host does anything with the returned diff.
         SpineStep.Sim(StepId.ConflictAlerts, static (engine, host) => host.OnConflictAlerts(engine.TickConflictAlerts())),
         SpineStep.Sim(StepId.EramConflictAlerts, static (engine, host) => host.OnEramConflictAlerts(engine.TickEramConflictAlerts())),
-        SpineStep.Host(StepId.AsdexAlerts, static host => host.AsdexAlerts()),
+        // The detector runs on every path, like the other two: an alert set a snapshot restore repopulated is
+        // re-examined rather than pinned, and only a broadcasting host does anything with the returned diff.
+        SpineStep.Sim(StepId.AsdexAlerts, static (engine, host) => engine.TickAsdexAlerts(host)),
         // Runs on every path (ADR 0002 membership: live wins): an empty list outside solo mode, and the evaluator's
         // own record of what it has scored is engine state a replay must rebuild like any other.
         SpineStep.Sim(StepId.SoloTrainingEvaluation, static (engine, host) => host.OnSoloTrainingEvents(engine.TickSoloTrainingEvaluation())),

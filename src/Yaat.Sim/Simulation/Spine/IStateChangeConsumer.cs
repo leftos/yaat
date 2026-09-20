@@ -1,3 +1,4 @@
+using Yaat.Sim.Asdex;
 using Yaat.Sim.Simulation.Strips;
 using Yaat.Sim.Simulation.Tdls;
 
@@ -57,4 +58,13 @@ public interface IStateChangeConsumer
     /// explicit <c>DeleteEramCrrGroups</c> itself.
     /// </summary>
     void OnEramCrrGroupsChanged();
+
+    /// <summary>
+    /// The ASDE-X Safety Logic alerts the post-physics detector pass raised and cleared this second. The diff rather
+    /// than the whole set, because CRC's alert topic is additive with an explicit delete: the new alerts go out as
+    /// <c>ReceiveAsdexAlerts</c> and the cleared ids as <c>DeleteAsdexAlerts</c>. Never called with both sides empty.
+    /// Same suppression rule as <see cref="OnStripsChanged"/> — a reconstruction stays silent. Nothing re-sends the
+    /// standing set when it lands: a display learns it from its next initial-data build and from later diffs.
+    /// </summary>
+    void OnAsdexAlertsChanged(IReadOnlyList<AsdexSafetyAlert> newAlerts, IReadOnlyList<string> clearedAlertIds);
 }

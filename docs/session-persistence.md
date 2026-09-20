@@ -22,11 +22,11 @@ Each `{roomId}.checkpoint.zip` contains:
 | `actions.json.br` | Full `ActionLog` (rewind/export) |
 | `terminal-log.json.br` | `TerminalLog` (omitted when empty) |
 | `bookmarks.json` | Shared timeline bookmarks, in the same `RecordingBookmarks` payload a recording export writes (omitted when the room has none). Ids are restored verbatim; the id counter is not archived, so the restore resumes it one past the highest restored id |
-| `snapshot-final.json.br` | Live `StateSnapshotDto` at save time — including the strips and the vTDLS session (`ServerSnapshotDto.Strips` / `.Tdls`, since 2026-09-07) and the ASDE-X safety-logic configuration (`ScenarioSnapshotDto.AsdexSafetyLogicConfig`) |
-| `room-state.json.br` | ASDEX / SAID surface temp data, presets and seeded-facility markers, ERAM prefs, line numbers, assignments by CID (`RoomStateSnapshotDto`; strips, TDLS and the ASDE-X safety-logic configuration are in the Sim snapshot instead) |
+| `snapshot-final.json.br` | Live `StateSnapshotDto` at save time — including the strips and the vTDLS session (`ServerSnapshotDto.Strips` / `.Tdls`, since 2026-09-07) and the ASDE-X safety-logic configuration and standing alerts (`ScenarioSnapshotDto.AsdexSafetyLogicConfig` / `.ActiveAsdexAlerts`) |
+| `room-state.json.br` | ASDEX / SAID surface temp data, presets and seeded-facility markers, ERAM prefs, line numbers, assignments by CID (`RoomStateSnapshotDto`; strips, TDLS, the ASDE-X safety-logic configuration and the standing ASDE-X alerts are in the Sim snapshot instead) |
 | `weather.json` / `artcc-config.json.br` | Optional bundled weather and ARTCC config |
 
-Restore applies the final snapshot directly (no replay-from-zero). Coordination channel in-flight items are included in the scenario snapshot DTO.
+Restore applies the final snapshot directly (no replay-from-zero). Coordination channel in-flight items are included in the scenario snapshot DTO. So are the standing ASDE-X safety alerts (`SimScenarioState.ActiveAsdexAlerts`): they ride the Sim snapshot through a prepared restart, so the first tick after it diffs against the alerts the displays were showing instead of announcing them again (`SessionPersistenceTests.PreparedRestart_RestoresTheActiveAlerts`).
 
 The room is registered in `TrainingRoomManager` before any of its state exists, so `RestoreRoomFromArchiveAsync` runs the whole rebuild — engine creation, `ReloadForRewindAsync`, the snapshot and room-state restores, `LeavePlayback`, the attendance sync and the returned summary — under the room's tick gate (`TrainingRoom.GuardAsync`, the same semaphore `RoomTickLoopService` takes per second). Without it the tick loop could advance a half-restored room between the awaits. `TrainingRoomManager.RoomRegistered` (raised outside the manager's lock) is how `SessionPersistenceTests` takes the gate at registration and asserts the restore cannot finish while it is held.
 

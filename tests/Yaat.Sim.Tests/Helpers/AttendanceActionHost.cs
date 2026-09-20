@@ -1,3 +1,4 @@
+using Yaat.Sim.Asdex;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Simulation.Strips;
@@ -91,6 +92,12 @@ public sealed class AttendanceActionHost : IActionHost
     public int EramCrrGroupChanges { get; private set; }
 
     public void OnEramCrrGroupsChanged() => EramCrrGroupChanges++;
+
+    /// <summary>Every ASDE-X Safety Logic diff a drain handed over, in order.</summary>
+    public List<(IReadOnlyList<AsdexSafetyAlert> NewAlerts, IReadOnlyList<string> ClearedAlertIds)> AsdexAlertChanges { get; } = [];
+
+    public void OnAsdexAlertsChanged(IReadOnlyList<AsdexSafetyAlert> newAlerts, IReadOnlyList<string> clearedAlertIds) =>
+        AsdexAlertChanges.Add((newAlerts, clearedAlertIds));
 
     public void OnTimersChanged() { }
 

@@ -98,6 +98,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
   - **Session clock**: `Simulation/TransportStepTests.cs` (`PAUSE`/`UNPAUSE`/`SIMRATE` on the bare engine: the clamp to 1..16, the live-traffic refusal, `(false, "No active scenario")`, one `OnSimStateChanged` per accepted verb, a recorded `PAUSE` inert)
   - **ASDE-X / SAID mutations**: `Simulation/Asdex/AsdexMutationStepTests.cs` (a recorded tag / edit / suspend / inhibit / terminate on the bare engine and the SAID twins, the terminate consumer once, an edit carrying an empty field stored as written, `ASDXALERTS` clearing two inhibits, a `ReplayDriver` replay holding the tag)
   - **ASDE-X safety-logic configuration**: `Simulation/Asdex/AsdexSafetyLogicConfigStepTests.cs` (a recorded push writes the scenario's config on the bare engine and is a no-op with no scenario loaded, the config round-trips through a snapshot and restores as null from a snapshot without one, the record round-trips through recording JSON, a scenario unload clears it)
+  - **ASDE-X alert step**: `Simulation/Asdex/AsdexAlertStepTests.cs` (on the bare engine a closed runway with an aircraft on it raises the alert and hands the consumer the new alert, the conflict ending clears it and hands over its id, a reader holding the standing set is not disturbed by a later tick, no configuration raises nothing, the set round-trips through a snapshot and restores as empty from a snapshot without one, a scenario unload clears it, the alert order is the same across runs)
   - **ERAM CRR groups**: `Simulation/Eram/EramCrrGroupStepTests.cs` (a recorded create / replace / recolor / null-latitude delete on the bare engine, one `OnEramCrrGroupsChanged` per applied record, an unknown colour, the snapshot round-trip, a `ReplayDriver` replay rebuilding the group, the Sim-vs-wire colour numbering)
   - **Coordination**: `Simulation/Coordination/CoordinationStepTests.cs` (the coordination bodies on the bare engine over the real ZOA `POAK` list: `RD`/`RDH`/`RDR`/`RDACK`/`RDDEL`/`RDPOS`/`RDTXT`/`RDAUTO`, the deterministic `{ListId}-{SequenceNumber}` id, the timers step reached through `RunSecond` and its dirty flag delivered by the `StateChanges` spine step, a `TRACK` voiding the items, a non-sender refused, and a `ReplayDriver` replay holding the same item id as live)
   - **TDLS**: `Simulation/Tdls/TdlsStepTests.cs` (the vTDLS bodies on the bare engine: the spawn hook's auto-queue, the four tick steps — auto-queue, auto-WILCO, TTL expiry, track removal — the `TDLSQ`/`TDLSS`/`TDLSW`/`TDLSDUMP`/`TDLSOPS` command handler, and the change tracker the router drains into the host — over real OAK navdata with no server in the process)
@@ -634,7 +635,7 @@ ConflictAlertDetector.cs       # Static STARS CA detection: 3nm/1000ft threshold
 EramConflictDetector.cs        # Static ERAM (en-route) STCA detection: 5nm lateral (3nm at/below FL230) + 1000ft vertical, 4-min extrapolation, uses assigned/interim data-block altitudes, scoped per ERAM facility
 EramConflictState.cs           # Per-facility ERAM conflict-alert state (active STCA pairs) driving the Center data-block flash
 Asdex/AsdexSafetyLogicDetector.cs  # Static ASDE-X Safety Logic detection: closed-runway, occupied-runway, taxi-onto-active-runway, taxiway-landing incursions → CRC surface alerts;
-                                    # alignment is an axis test (back-taxi = runway user), arrival AGL measured from AsdexRunwaySurface.ElevationFt (server resolves it from the nav-DB runway)
+                                    # alignment is an axis test (back-taxi = runway user), arrival AGL measured from AsdexRunwaySurface.ElevationFt (SimulationEngine.TickAsdexAlerts resolves it from the nav-DB runway)
 Asdex/AsdexSafetyLogicConfig.cs    # AsdexSafetyLogicConfig (Runways, RunwayConfigurationId, InhibitedArrivalAlertPositionIds) + AsdexRunwayConfig (Id, AreaPoints as LatLon,
                                     # IsClosed): the safety-logic configuration a CRC surface display pushes, Sim-native. Scenario state
                                     # (SimScenarioState.AsdexSafetyLogicConfig); ToSnapshot / FromSnapshot map it to ScenarioSnapshotDto's AsdexSafetyLogicConfigDto.
@@ -1277,7 +1278,12 @@ SimulationEngine.Asdex.cs      # The recorded CRC ASDE-X / SAID display mutation
                                # so the room's one-shot delete marker fires) and EnableAllAsdexAlerts (ASDXALERTS, a per-aircraft sweep, a Sim arm). A CRC
                                # EditDbFields echo stores "" as written; only the typed ASDXSP1-family maps an empty argument to null (clear).
                                # ApplyRecordedAsdexSafetyLogic(RecordedAsdexSafetyLogicChange) writes Scenario.AsdexSafetyLogicConfig — the body for a CRC
-                               # safety-logic push on every run kind; dropped with a Debug line when no scenario is loaded
+                               # safety-logic push on every run kind; dropped with a Debug line when no scenario is loaded.
+                               # TickAsdexAlerts(IHostConsumers) is the post-physics alert step (a Sim spine step on every run kind): the configured runway
+                               # footprints (elevation from the nearest airport's nav-DB runway within 5 nm) + the ground layout's true taxiways go to
+                               # AsdexSafetyLogicDetector.Detect, and ApplyAsdexDetection folds the findings into Scenario.ActiveAsdexAlerts and hands the
+                               # host only the diff (IStateChangeConsumer.OnAsdexAlertsChanged: new alerts, cleared ids; never both empty). No config
+                               # standing clears the set. A tick that moves nothing leaves the set's reference alone
 SimulationEngine.Eram.cs       # The ERAM CRR-group definitions (crossed from yaat-server 2026-09-08): CrrGroups (label → EramCrrGroup, case-insensitive) and
                                # ApplyCrrGroup(RecordedEramCrrGroup) — create/replace/recolor, null latitude = delete — marking the dirty flag DrainStateChangesInto
                                # hands the host as OnEramCrrGroupsChanged (the room re-pushes the whole EramCrrGroups topic; a delete is still the CRC handler's
@@ -1302,7 +1308,8 @@ AddAircraftOutcome.cs          # What an ADD produced: the aircraft now in the w
 SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination, ArtccConfig (loaded from bundle on replay), LiveTrafficFilter (carried from room settings),
                                # SessionStartUtc (the pinned instant t=0 is anchored to: the room clock for a live load or restart, the recorded instant for a replay, ProcessDayUtc — the unclamped process day — where no clock exists; snapshotted + in the recording manifest) + SimTimeUtc (start + elapsed) + MagneticModelDateUtc (derived: the start's UTC day),
                                # AiStaffedPositions (published by the AI host; never snapshotted) + PilotContacts (memoized PilotContactRoster) + IsAiStaffed,
-                               # AsdexSafetyLogicConfig (the last CRC safety-logic push, null until a display pushes one; snapshotted, read by the surface-alert step)
+                               # AsdexSafetyLogicConfig (the last CRC safety-logic push, null until a display pushes one; snapshotted, read by the surface-alert step),
+                               # ActiveAsdexAlerts (the standing ASDE-X alerts by id: an ordinal ImmutableSortedDictionary swapped by reference — written only on the tick thread, read off the tick gate by the CRC initial-data build; snapshotted)
 ScenarioPacing.cs              # Shared solo-training pacing helpers for parking call-up intervals and arrival generator rates
 ArrivalSpacingManager.cs       # Pure in-trail spacing math for the generator stream, plus the speed-restore policy (SpeedRestoreGateNm, SpeedRestoreDeadbandKts) RestoreManagedSpeed and RNS-on-final share — simulated approach-controller speed equalization: SpacingCeilingKts (proportional ceiling) and InTrailCeilingKts (raises it with a time-based closure allowance while the pair — InTrailPair: leader/follower IAS, GS, Vref, along-final distance, target gap — is farther apart than the target, bounded by the leader's Vref so the gap still holds when it crosses the threshold, 7110.65 §5-5-4.h); SimulationEngine.ApplyArrivalSpacing drives it
 SameRunwayArrivalProtection.cs # Same-runway arrival protection: required threshold interval (category constant / live leader rollout, floored by 3 NM radar + wake), §5-7-3.c distance-keyed speed floor, the 20 NM pre-clearance range, the 10 NM tower speed authority + Vapp (§5-7-3.f), and the shared vacate arithmetic OccupiedRunwayGoAround projects against; SimulationEngine.ApplySameRunwayArrivalProtection drives it
@@ -1363,13 +1370,15 @@ SpineStep.cs                   # One list entry: a sim step (engine body, gets o
 IHostSteps.cs                  # The host's step view — every server-owned body as a named member, no defaults (a new member breaks every host); header lists the
                                # step-4 debt (LiveTrafficSync). CoordinationTimers and TowerLists moved out 2026-09-07 (SimulationEngine.TickCoordinationTimers / TickTowerLists). The two strip auto-print passes (AutoArrivalStrips/
                                # AutoApproachDepartureStrips) and the four TDLS tick steps (AutoTdlsQueue/TdlsAutoWilco/TdlsExpiry/TdlsTrackRemoval) moved
-                               # out — they're Sim steps now, engine bodies in SimulationEngine.Strips.cs / SimulationEngine.Tdls.cs
+                               # out — they're Sim steps now, engine bodies in SimulationEngine.Strips.cs / SimulationEngine.Tdls.cs. AsdexAlerts moved out
+                               # 2026-09-20 (SimulationEngine.TickAsdexAlerts)
 IHostConsumers.cs              # The host's consumer view — OnPrePhysics / OnTerminalEntries / OnConflictAlerts / the drains / OnStripsChanged / OnTdlsChanged / OnCoordinationChanged
                                # (IStateChangeConsumer, shared with IActionHost) for what the strip, TDLS and coordination mutations touched
 IStateChangeConsumer.cs        # Where a drained StripChangeSet / TdlsChangeSet and the coordination dirty flag (OnCoordinationChanged, payload-less) go. Declared on its own because both halves of a host reach it: the action
                                # router holds the action view (IActionHost) and the post-physics drain step the consumer view (IHostConsumers), and one
                                # implementation on a host answers both. OnStripsChanged / OnTdlsChanged: the host broadcasts unless suppressed; a
-                               # reconstruction drops them and the room re-syncs afterwards
+                               # reconstruction drops them and the room re-syncs afterwards. OnAsdexAlertsChanged(newAlerts, clearedAlertIds): the ASDE-X
+                               # alert step's diff (CRC's alert topic is additive with an explicit delete); the room broadcasts it unless suppressed
 ISimulationHost.cs             # IHostSteps + IHostConsumers + Actions.IActionHost; four implementations (BareHost, ReplayHost, yaat-server LiveRoomHost / ReconstructionHost)
 StepTrace.cs                   # Per-second (StepId, subTick) sequence + FNV-1a digest + counts; on by default, allocation-free once warm
 BareHost.cs                    # The Test-run host: every spine slot empty, consumers fire the engine's events; as an IActionHost
@@ -1558,7 +1567,8 @@ PhaseSnapshotDto.cs            # Polymorphic PhaseDto with [JsonDerivedType] for
                                # RunwayInfoDto, ApproachClearanceDto, DepartureClearanceDto, PatternWaypointsDto, etc.
 ScenarioSnapshotDto.cs         # SimScenarioState DTO: queues, generators, settings, coordination channels; ControllerAi (ControllerAiConfigDto, null when off);
                                # AtcPositions (AtcPositionDto: the resolved ATC roster — scenario atc record + owner + TCP; null in a pre-feature snapshot leaves the loader's roster);
-                               # AsdexSafetyLogicConfig (AsdexSafetyLogicConfigDto + AsdexRunwayConfigDto; null-absent, no schema bump — a restore replaces, so null restores as no config)
+                               # AsdexSafetyLogicConfig (AsdexSafetyLogicConfigDto + AsdexRunwayConfigDto; null-absent, no schema bump — a restore replaces, so null restores as no config);
+                               # ActiveAsdexAlerts (List<AsdexSafetyAlertDto>, ordinal-sorted by id; null-absent, no schema bump — a restore replaces, so null restores as an empty set)
 ServerSnapshotDto.cs           # Server-side state: consolidation overrides, conflict alerts, beacon code pool, position selections, attended CRC
                                # positions, the flight strips (Strips) + vTDLS session (Tdls), the tower-list dwell entries (TowerLists, schema 23) and the
                                # ERAM CRR group definitions (CrrGroups, 2026-09-08; membership rides each aircraft's ERAM state) — all null-absent in a
@@ -1772,7 +1782,7 @@ See [session-persistence.md](session-persistence.md) for planned-restart room ch
     ConsolidationState.cs      # Thread-safe manual consolidation overrides per room
     RoomEngineFactory.cs       # Creates RoomEngine with shared singleton deps
     RoomTickLoopService.cs # Thin orchestrator: 1s tick loop iterating rooms
-    TickProcessor.cs           # Stateless tick logic (physics, spawns, triggers, pilot proactive hooks, ASDE-X alerts); drains ready solo frequency transmissions as SAY entries and emits PilotTransmissionBroadcast
+    TickProcessor.cs           # Stateless tick logic (physics, spawns, triggers, pilot proactive hooks); drains ready solo frequency transmissions as SAY entries and emits PilotTransmissionBroadcast
     ScenarioLifecycleService.cs # Scenario load/unload/spawn/generator logic
     ScenarioState.cs           # Per-room active scenario state: queues, positions, generators, channels
     TrainingBroadcastService.cs # SignalR hub context wrapper for training clients, including PilotTransmissionBroadcast fan-out.

@@ -166,7 +166,8 @@ spine's (`SpineOrder` in Yaat.Sim, [tick-loop.md](tick-loop.md)), and `RoomHost`
 - **Post-physics**: no ATC pass of its own (auto-accept, the point-out timeout, the two autotrack passes, the coordination timers and
   the tower lists are Yaat.Sim spine steps now, `SimulationEngine.TrackAutomation` / `SimulationEngine.Coordination.cs`,
   and the first three read the recorded `Attendance`), the consumers of the engine's
-  detectors (`BroadcastConflictAlerts`, `BroadcastEramConflictAlerts`), `ProcessAsdexAlerts`,
+  detectors (`BroadcastConflictAlerts`, `BroadcastEramConflictAlerts`; the ASDE-X alert diff goes through
+  `RoomHost.OnAsdexAlertsChanged` → `ICrcBroadcast.BroadcastAsdexAlertsAsync`, with no `TickProcessor` body),
   `ProcessSoloTrainingEvaluation`, the drain consumers (`BroadcastWarnings` / `Notifications` / `PilotSpeech` /
   `PilotReadbacks` / `PilotTransmissions`, `ProcessApproachScores`) — the strip auto-print, the deferred strip dispatch
   and the four TDLS steps are Sim steps (`SimulationEngine.Strips.cs` / `.Tdls.cs`); the room only pushes what the

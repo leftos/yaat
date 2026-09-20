@@ -1,3 +1,5 @@
+using Yaat.Sim.Asdex;
+
 namespace Yaat.Sim.Simulation.Snapshots;
 
 /// <summary>
@@ -131,6 +133,24 @@ public sealed class ScenarioSnapshotDto
     // The ASDE-X Safety Logic configuration a CRC surface display pushed. Optional: null in snapshots that predate it
     // and in every session where no display ever pushed one, which is also what the scenario state then holds.
     public AsdexSafetyLogicConfigDto? AsdexSafetyLogicConfig { get; init; }
+
+    // The ASDE-X Safety Logic alerts standing at the moment of the snapshot, ordinal-sorted by id. Optional: null in
+    // snapshots that predate it and in every second where the detector found nothing, which is also what the scenario
+    // state then holds. Snapshotted because the per-tick diff against it is what decides which alerts a display is
+    // told about — a restore that started from an empty set would re-announce every standing alert.
+    public List<AsdexSafetyAlertDto>? ActiveAsdexAlerts { get; init; }
+}
+
+/// <summary>Snapshot of one standing <c>AsdexSafetyAlert</c>: the detector rebuilds an identical record from the
+/// world, so this exists to keep the set a rewind or a session restore lands on identical to the live one.</summary>
+public sealed class AsdexSafetyAlertDto
+{
+    public required string Id { get; init; }
+    public required AsdexAlertKind Kind { get; init; }
+    public required List<string> RunwayIds { get; init; }
+    public required List<string> Callsigns { get; init; }
+    public required List<string> MessageLines { get; init; }
+    public required bool PlayAuralAlert { get; init; }
 }
 
 /// <summary>Snapshot of <c>AsdexSafetyLogicConfig</c>: the configured runway footprints, the runway-configuration id they came from,

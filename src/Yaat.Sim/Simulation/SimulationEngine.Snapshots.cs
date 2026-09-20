@@ -311,6 +311,23 @@ public sealed partial class SimulationEngine
             Scenario.AsdexSafetyLogicConfig = scenarioDto.AsdexSafetyLogicConfig is { } asdexConfig
                 ? AsdexSafetyLogicConfig.FromSnapshot(asdexConfig)
                 : null;
+
+            // Same rule for the standing alerts: a snapshot from before they were raised carries none, and the
+            // detector re-raises whatever the restored world still warrants on the next tick.
+            var restoredAlerts = Scenario.ActiveAsdexAlerts.Clear().ToBuilder();
+            foreach (AsdexSafetyAlertDto alertDto in scenarioDto.ActiveAsdexAlerts ?? [])
+            {
+                restoredAlerts[alertDto.Id] = new AsdexSafetyAlert(
+                    alertDto.Id,
+                    alertDto.Kind,
+                    [.. alertDto.RunwayIds],
+                    [.. alertDto.Callsigns],
+                    [.. alertDto.MessageLines],
+                    alertDto.PlayAuralAlert
+                );
+            }
+
+            Scenario.ActiveAsdexAlerts = restoredAlerts.ToImmutable();
         }
 
         // Reset engine-level state, then restore from snapshot if available

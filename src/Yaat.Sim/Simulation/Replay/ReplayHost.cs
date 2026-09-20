@@ -1,3 +1,4 @@
+using Yaat.Sim.Asdex;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
@@ -52,8 +53,6 @@ internal sealed class ReplayHost : ISimulationHost
     public void ApplyRecordedActionsThrough(int second) => _pump.ApplyThrough(second, _applier);
 
     public void LiveTrafficSync() => _bare.LiveTrafficSync();
-
-    public void AsdexAlerts() => _bare.AsdexAlerts();
 
     public void SurfaceCoastExpiry() => _bare.SurfaceCoastExpiry();
 
@@ -118,6 +117,9 @@ internal sealed class ReplayHost : ISimulationHost
     public void OnSimStateChanged() => _bare.OnSimStateChanged();
 
     public void OnEramCrrGroupsChanged() => _bare.OnEramCrrGroupsChanged();
+
+    public void OnAsdexAlertsChanged(IReadOnlyList<AsdexSafetyAlert> newAlerts, IReadOnlyList<string> clearedAlertIds) =>
+        _bare.OnAsdexAlertsChanged(newAlerts, clearedAlertIds);
 
     public void OnTimersChanged() => _bare.OnTimersChanged();
 

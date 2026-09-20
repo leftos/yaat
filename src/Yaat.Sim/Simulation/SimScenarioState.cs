@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json;
 using Yaat.Sim.Asdex;
 using Yaat.Sim.Data;
@@ -429,6 +430,32 @@ public sealed class SimScenarioState
     /// </summary>
     public AsdexSafetyLogicConfig? AsdexSafetyLogicConfig { get; set; }
 
+    private volatile ImmutableSortedDictionary<string, AsdexSafetyAlert> _activeAsdexAlerts = ImmutableSortedDictionary.Create<
+        string,
+        AsdexSafetyAlert
+    >(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The ASDE-X Safety Logic alerts standing right now, keyed by alert id. Maintained by
+    /// <see cref="SimulationEngine.TickAsdexAlerts"/>, which diffs the detector's findings against this set and hands
+    /// the host only what appeared and what went away. Ordinal-sorted so every iteration that can reach a snapshot, a
+    /// broadcast or a recording is in the same order on every run.
+    ///
+    /// <para>
+    /// <b>Gate invariant.</b> The set is written only on the tick thread — the detector pass, the clear when no
+    /// safety-logic configuration stands, and the snapshot restore — and every write replaces the whole collection
+    /// rather than editing one in place. Readers run on any thread: the initial-data build for a newly subscribing
+    /// CRC client (<c>CrcBroadcastService.BuildAsdexAlertsData</c>) enumerates this from a connection's thread. They
+    /// take the reference once and read an immutable set, which a concurrent tick cannot disturb; reading the
+    /// property twice in one body can straddle a tick and see two different sets.
+    /// </para>
+    /// </summary>
+    public ImmutableSortedDictionary<string, AsdexSafetyAlert> ActiveAsdexAlerts
+    {
+        get => _activeAsdexAlerts;
+        set => _activeAsdexAlerts = value;
+    }
+
     public ScenarioSnapshotDto ToSnapshot() =>
         new()
         {
@@ -581,5 +608,20 @@ public sealed class SimScenarioState
                     : null,
             NextTimerId = NextTimerId,
             AsdexSafetyLogicConfig = AsdexSafetyLogicConfig?.ToSnapshot(),
+            ActiveAsdexAlerts =
+                ActiveAsdexAlerts.Count > 0
+                    ?
+                    [
+                        .. ActiveAsdexAlerts.Values.Select(a => new AsdexSafetyAlertDto
+                        {
+                            Id = a.Id,
+                            Kind = a.Kind,
+                            RunwayIds = [.. a.RunwayIds],
+                            Callsigns = [.. a.Callsigns],
+                            MessageLines = [.. a.MessageLines],
+                            PlayAuralAlert = a.PlayAuralAlert,
+                        }),
+                    ]
+                    : null,
         };
 }

@@ -1,3 +1,4 @@
+using Yaat.Sim.Asdex;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
@@ -64,6 +65,15 @@ public sealed class SpineCapturingHost(SimulationEngine engine) : ISimulationHos
         _bare.OnEramCrrGroupsChanged();
     }
 
+    /// <summary>Every ASDE-X Safety Logic diff the post-physics detector step handed over, in order.</summary>
+    public List<(IReadOnlyList<AsdexSafetyAlert> NewAlerts, IReadOnlyList<string> ClearedAlertIds)> AsdexAlertChanges { get; } = [];
+
+    public void OnAsdexAlertsChanged(IReadOnlyList<AsdexSafetyAlert> newAlerts, IReadOnlyList<string> clearedAlertIds)
+    {
+        AsdexAlertChanges.Add((newAlerts, clearedAlertIds));
+        _bare.OnAsdexAlertsChanged(newAlerts, clearedAlertIds);
+    }
+
     public void OnTdlsChanged(TdlsChangeSet changes)
     {
         TdlsChanges.Add(changes);
@@ -81,8 +91,6 @@ public sealed class SpineCapturingHost(SimulationEngine engine) : ISimulationHos
     public void ApplyPreTickRecordedActions(int second) => _bare.ApplyPreTickRecordedActions(second);
 
     public void LiveTrafficSync() => _bare.LiveTrafficSync();
-
-    public void AsdexAlerts() => _bare.AsdexAlerts();
 
     public void SurfaceCoastExpiry() => _bare.SurfaceCoastExpiry();
 
