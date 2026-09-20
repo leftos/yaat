@@ -1290,6 +1290,8 @@ The protected corridor either side of the centerline is drawn on the radar under
 | `SPD 180 UNTIL AXMUL` | Fix-based: maintain 180 until reaching AXMUL, then resume normal speed |
 | `SPD 180 AXMUL` | ATCTrainer alias for `SPD 180 UNTIL AXMUL` |
 
+**Speed limits (14 CFR 91.117)** — an assigned speed above the limit (250 knots below 10,000 ft, 200 knots beneath a Class B shelf) is flown at the limit and taken up when the limit no longer applies — climbing through 10,000 ft or leaving the shelf — without a new instruction. A chained command behind it (`SPD 280; H 090`) advances once the aircraft has settled at the limit.
+
 **Floor and ceiling** — `SPD 210+` sets a minimum speed; the aircraft accelerates only if below 210 but maintains its current speed if already faster. `SPD 210-` sets a maximum; the aircraft decelerates only if above 210. Both are enforced continuously and respect the 250-knot limit below 10,000 ft. An exact speed command (`SPD 210`) clears any active floor or ceiling.
 
 **Helicopter minimum** — a `SPD` value below 60 KIAS issued to an airborne helicopter is floored to 60 (the 7110.65 §5-7-3.5 minimum for radar-vectored helicopters), with a warning. Use a force-speed command (`SPEEDF` or the teleporting `SPDN`/`SPEEDN`) to command a lower speed.

@@ -758,6 +758,35 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// "Approach clearances or climb via/descend via clearances cancel any previously assigned speeds" (7110.65
+    /// §5-7-1.d). A target the aircraft is still carrying only because 14 CFR 91.117 held it short of it is one of those
+    /// assignments, so the clearance takes it with the rest instead of leaving it to bite when the cap lifts.
+    /// </summary>
+    [Fact]
+    public void Capp_ClearsASpeedTargetTheRegulatoryCapHeldTheAircraftShortOf()
+    {
+        NavigationDatabase? navDb = GetNavDb();
+        if (navDb is null)
+        {
+            return;
+        }
+
+        AircraftState aircraft = MakeAircraft(route: "SJC V334 UPEND", destinationRunway: "19L", heading: 320, lat: 37.5, lon: -122.1);
+        // Below 10,000 ft on an assignment above 91.117(a)'s 250 kt: physics flies the cap and the assignment stands.
+        aircraft.Altitude = 6000;
+        aircraft.IndicatedAirspeed = 250;
+        aircraft.Targets.TargetSpeed = 280;
+        aircraft.Targets.HasExplicitSpeedCommand = true;
+        var cmd = new ClearedApproachCommand("I19L", "KSFO", false, null, null, null, null, null, null, null, null);
+
+        CommandResult result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
+
+        output.WriteLine($"CAPP result: {result.Success} — {result.Message}; target {aircraft.Targets.TargetSpeed?.ToString("F0") ?? "(none)"}");
+        Assert.True(result.Success, result.Message);
+        Assert.Null(aircraft.Targets.TargetSpeed);
+    }
+
     // --- ProgrammedFixResolver with STAR runway transitions ---
 
     [Fact]

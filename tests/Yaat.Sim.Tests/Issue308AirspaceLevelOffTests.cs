@@ -242,6 +242,240 @@ public sealed class Issue308AirspaceLevelOffTests
         // Inside the shelf's altitude band the aircraft is in Class B proper, where 91.117(c) does not apply.
         Assert.False(AirspaceDatabase.Default.IsUnderClassBShelf(UnderSfoShelf, altitudeFtMsl: 2500));
 
+    /// <summary>
+    /// 14 CFR 91.117 bends a speed assignment; it does not cancel it. The pilot complies with the cap "without
+    /// notification" (7110.65 §5-7-2 NOTE 1) and only ATC terminates a speed adjustment (§5-7-4), so an aircraft
+    /// stopped short of its assigned speed by the cap is still carrying that assignment.
+    /// </summary>
+    [Fact]
+    public void TargetAboveTheCap_IsKeptWhenTheCappedSpeedIsReached()
+    {
+        AircraftState ac = JetBelow10k(ias: 230);
+        ac.Targets.TargetSpeed = 280;
+
+        Tick(ac, seconds: 60);
+
+        Assert.Equal(Below10kSpeedLimitKts, ac.IndicatedAirspeed, 0.5);
+        Assert.Equal(280, Assert.IsType<double>(ac.Targets.TargetSpeed), 0.5);
+    }
+
+    /// <summary>
+    /// And it is the assignment that retires the target, not the cap: through 10,000 ft the aircraft takes up the
+    /// speed it was given, reaches it, and only then has nothing left to fly to.
+    /// </summary>
+    [Fact]
+    public void TargetAboveTheCap_IsReachedAndNulledOnceTheCapLifts()
+    {
+        AircraftState ac = JetBelow10k(ias: 230);
+        ac.Targets.TargetSpeed = 280;
+        Tick(ac, seconds: 60);
+        Assert.Equal(Below10kSpeedLimitKts, ac.IndicatedAirspeed, 0.5); // premise: held down by 91.117(a)
+
+        ac.Altitude = 10_500;
+
+        Tick(ac, seconds: 60);
+
+        Assert.Equal(280, ac.IndicatedAirspeed, 0.5);
+        Assert.Null(ac.Targets.TargetSpeed);
+    }
+
+    /// <summary>An assignment the aircraft may fly in full is still retired the moment it is flying it.</summary>
+    [Fact]
+    public void TargetAtOrBelowTheCap_StillNullsOnArrival()
+    {
+        AircraftState ac = JetBelow10k(ias: 230);
+        ac.Targets.TargetSpeed = 240;
+
+        Tick(ac, seconds: 60);
+
+        Assert.Equal(240, ac.IndicatedAirspeed, 0.5);
+        Assert.Null(ac.Targets.TargetSpeed);
+    }
+
+    /// <summary>
+    /// A <see cref="ControlTargets.SpeedCeiling"/> is not a regulatory cap: it is the last word on what this aircraft
+    /// flies here, so arriving on it retires the target exactly as before.
+    /// </summary>
+    [Fact]
+    public void CeilingClampedTarget_StillNullsOnArrival()
+    {
+        AircraftState ac = JetBelow10k(ias: 230);
+        ac.Targets.TargetSpeed = 240;
+        ac.Targets.SpeedCeiling = 220;
+
+        Tick(ac, seconds: 60);
+
+        Assert.Equal(220, ac.IndicatedAirspeed, 0.5);
+        Assert.Null(ac.Targets.TargetSpeed);
+    }
+
+    /// <summary>
+    /// Both clamps at once, with the ceiling the tighter of the two: the aircraft flies the lower, and the assignment
+    /// outlives both. It unwinds in the order the clamps lift — the ceiling first, then the cap — and only arriving on
+    /// the assigned speed itself retires it, because nothing but ATC ends a speed adjustment (7110.65 §5-7-4).
+    /// </summary>
+    [Fact]
+    public void TargetAboveTheCap_UnderALowerCeiling_UnwindsCeilingThenCap()
+    {
+        AircraftState ac = JetBelow10k(ias: 230);
+        ac.Targets.TargetSpeed = 280;
+        ac.Targets.SpeedCeiling = 220;
+
+        Tick(ac, seconds: 60);
+
+        Assert.Equal(220, ac.IndicatedAirspeed, 0.5);
+        Assert.Equal(280, Assert.IsType<double>(ac.Targets.TargetSpeed), 0.5);
+        // A chained SPD is finished in this state: the aircraft is flying the fastest speed allowed it here.
+        Assert.True(FlightPhysics.IsSpeedAssignmentHeldAtRegulatoryLimit(ac), "the held assignment must read as complete at the clamped speed");
+
+        ac.Targets.SpeedCeiling = null;
+        Tick(ac, seconds: 60);
+
+        Assert.Equal(Below10kSpeedLimitKts, ac.IndicatedAirspeed, 0.5);
+        Assert.Equal(280, Assert.IsType<double>(ac.Targets.TargetSpeed), 0.5);
+
+        ac.Altitude = 10_500;
+        Tick(ac, seconds: 60);
+
+        Assert.Equal(280, ac.IndicatedAirspeed, 0.5);
+        Assert.Null(ac.Targets.TargetSpeed);
+    }
+
+    /// <summary>
+    /// Neither is the ground-conflict speed limit, which caps a taxiing aircraft that 91.117 never reaches at all
+    /// (the cap is airborne-only). Arriving on it retires the target.
+    /// </summary>
+    [Fact]
+    public void GroundSpeedLimitClampedTarget_StillNullsOnArrival()
+    {
+        AircraftState ac = Airborne(ClearOfClassB, trueHeading: 90, altitude: 20, ias: 0);
+        ac.AircraftType = JetType;
+        ac.IsOnGround = true;
+        ac.Ground.SpeedLimit = 10;
+        ac.Targets.TargetSpeed = 20;
+
+        Tick(ac, seconds: 60);
+
+        Assert.Equal(10, ac.IndicatedAirspeed, 0.5);
+        Assert.Null(ac.Targets.TargetSpeed);
+    }
+
+    /// <summary>
+    /// The cap limits what the aircraft flies, not only what it may be told to fly. A pilot complies with 91.117(c)
+    /// beneath a Class B shelf without being told to (7110.65 §5-7-2 NOTE 1; AIM 4-4-12.i), so an aircraft that comes
+    /// under one faster than 200 kt with nothing left to fly to slows to it of its own accord.
+    /// </summary>
+    [Fact]
+    public void StandingSpeedAboveTheCap_WithNoTarget_SlowsToTheCap()
+    {
+        AircraftState ac = JetUnderTheShelf(ias: 222);
+        Assert.Null(ac.Targets.TargetSpeed); // premise: nothing is flying it to a speed
+
+        Tick(ac, seconds: 30);
+
+        Assert.Equal(ClassBShelfSpeedLimitKts, ac.IndicatedAirspeed, 0.5);
+        Assert.Null(ac.Targets.TargetSpeed);
+    }
+
+    /// <summary>The correction is to the lower of the cap and an active ceiling: a ceiling under the cap still binds.</summary>
+    [Fact]
+    public void StandingSpeedAboveTheCap_RespectsALowerSpeedCeiling()
+    {
+        AircraftState ac = JetUnderTheShelf(ias: 222);
+        ac.Targets.SpeedCeiling = 190;
+
+        Tick(ac, seconds: 30);
+
+        Assert.Equal(190, ac.IndicatedAirspeed, 0.5);
+        Assert.Null(ac.Targets.TargetSpeed);
+    }
+
+    /// <summary>
+    /// A <see cref="ControlTargets.SpeedFloor"/> above the cap does not hold the aircraft up there. 91.117 outranks an
+    /// ATC "or greater", which is why the floor is already clamped to the cap where it mints a target of its own.
+    /// </summary>
+    [Fact]
+    public void StandingSpeedAboveTheCap_IgnoresASpeedFloorAboveTheCap()
+    {
+        AircraftState ac = JetUnderTheShelf(ias: 222);
+        ac.Targets.SpeedFloor = 210;
+
+        Tick(ac, seconds: 30);
+
+        Assert.Equal(ClassBShelfSpeedLimitKts, ac.IndicatedAirspeed, 0.5);
+    }
+
+    /// <summary>Inside the snap window there is nothing to correct — only a real overspeed mints a target.</summary>
+    [Fact]
+    public void StandingSpeedAtOrUnderTheCap_MintsNoTarget()
+    {
+        AircraftState atTheCap = JetUnderTheShelf(ias: 200);
+        AircraftState insideTheSnapWindow = JetUnderTheShelf(ias: 201);
+
+        Tick(atTheCap, seconds: 30);
+        Tick(insideTheSnapWindow, seconds: 30);
+
+        Assert.Equal(ClassBShelfSpeedLimitKts, atTheCap.IndicatedAirspeed, 0.5);
+        Assert.Null(atTheCap.Targets.TargetSpeed);
+        Assert.Equal(201, insideTheSnapWindow.IndicatedAirspeed, 0.5);
+        Assert.Null(insideTheSnapWindow.Targets.TargetSpeed);
+    }
+
+    /// <summary>14 CFR 91.117 is an airborne limit; what a taxiing aircraft may do is the ground-conflict limit's business.</summary>
+    [Fact]
+    public void OnGround_NeverMintsARegulatoryTarget()
+    {
+        AircraftState ac = JetUnderTheShelf(ias: 222);
+        ac.IsOnGround = true;
+        ac.Altitude = 9;
+
+        Tick(ac, seconds: 30);
+
+        Assert.Null(ac.Targets.TargetSpeed);
+        Assert.Equal(222, ac.IndicatedAirspeed, 0.5);
+    }
+
+    /// <summary>14 CFR 91.117(a) — the cap below 10,000 ft with no Class B shelf overhead.</summary>
+    private const double Below10kSpeedLimitKts = 250.0;
+
+    /// <summary>14 CFR 91.117(c) — the cap in the airspace underlying Class B.</summary>
+    private const double ClassBShelfSpeedLimitKts = 200.0;
+
+    /// <summary>A type with no 91.117(d) minimum-safe-speed waiver, so the cap applies to it in full.</summary>
+    private const string JetType = "C25C";
+
+    /// <summary>Well east of every Bay Area Class B footprint, so only the 250 kt below-10,000 cap applies.</summary>
+    private static readonly LatLon ClearOfClassB = new(37.6258, -120.9544);
+
+    /// <summary>A jet under the SFO Bravo shelf, where 91.117(c) caps it at 200 kt.</summary>
+    private static AircraftState JetUnderTheShelf(double ias)
+    {
+        AircraftState ac = Airborne(UnderSfoShelf, trueHeading: 292.3, altitude: 1500, ias: ias);
+        ac.AircraftType = JetType;
+        Assert.True(AirspaceDatabase.Default.IsUnderClassBShelf(ac.Position, ac.Altitude), "premise: 91.117(c)'s 200 kt is what applies here");
+        return ac;
+    }
+
+    /// <summary>A jet out from under every shelf and below 10,000 ft, where 91.117(a)'s 250 kt is the only cap on it.</summary>
+    private static AircraftState JetBelow10k(double ias)
+    {
+        AircraftState ac = Airborne(ClearOfClassB, trueHeading: 90, altitude: 8000, ias: ias);
+        ac.AircraftType = JetType;
+        Assert.False(
+            AirspaceDatabase.Default.IsUnderClassBShelf(ac.Position, ac.Altitude),
+            "premise: nothing but 91.117(a) may cap the aircraft here"
+        );
+        return ac;
+    }
+
+    private static void Tick(AircraftState ac, int seconds)
+    {
+        for (int i = 0; i < seconds; i++)
+        {
+            FlightPhysics.Update(ac, 1.0);
+        }
+    }
+
     [Fact]
     public void AwayFrom_TurnsTheNoseAwayFromTheBoundary()
     {

@@ -38,7 +38,7 @@ classifies `Immediate` to a curated allowlist — a new command silently falling
 |---|---|---|
 | `Heading` | `NavigationRoute` empty and heading within 0.5° of target | `IsHeadingReached` |
 | `Altitude` | `Targets.TargetAltitude` nulled (within 10 ft) **or the aircraft is on the ground** | on-ground: `UpdateAltitude` early-returns, so a pre-issued climb counts as accepted-and-pending — the chain advances while the target stays armed for departure (the standard pre-departure "maintain" clearance, 7110.65 §4-3-2.e / AIM §4-4-10.7). Speed deliberately gets **no** such escape: `UpdateSpeed` runs on the ground and genuinely converges, so its target nulls normally — the asymmetry is intentional |
-| `Speed` | `Targets.TargetSpeed` nulled (within 2 kt) | |
+| `Speed` | `Targets.TargetSpeed` nulled (within 2 kt), or `FlightPhysics.IsSpeedAssignmentHeldAtRegulatoryLimit` | An assignment above the 14 CFR 91.117 limit keeps its target standing at the cap; the block completes once IAS settles within 2 kt of `min(limit, SpeedCeiling)` (`SPD 210; H 090` under a Class B shelf advances at 200) |
 | `Navigation` | `Targets.NavigationRoute` fully consumed | 0.5 nm arrival / turn anticipation |
 | `Immediate` | instantly on apply | one-shot commands, and **every phase-installing command** — see below |
 | `Wait` | countdown elapsed (`WaitRemainingSeconds` / `WaitRemainingDistanceNm`) | |

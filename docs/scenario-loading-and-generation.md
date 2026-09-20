@@ -502,7 +502,9 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
   - no handoff to the student is in progress, counted from *initiation* (§5-4-5.b; the lead's standing ceiling is then held
     for the student to inherit, §5-4-6.c);
   - the same-runway protection pass does not own the ceiling (`SameRunwayProtectionCeilingKts`);
-  - nothing else set `TargetSpeed`;
+  - nothing else set `TargetSpeed` — the restore skips while a target stands, and that includes its own earlier restore held
+    short by the 14 CFR 91.117 cap: a target above the cap stays standing at the cap (`FlightPhysics.ArriveAtGoal`) and the
+    aircraft takes it up when the cap lifts, so no second write is needed or made;
   - the aircraft is more than `SpeedRestoreDeadbandKts` (10 kt, AIM 4-4-12.c) slow;
   - it is outside `SpeedRestoreGateNm` (on `ArrivalSpacingManager`, with `SpeedRestoreDeadbandKts` — `RNS` to an aircraft in
     `FinalApproachPhase` applies the same two tests before it hands the profile speed back): the phase's first deceleration-stage trigger cap (approach-flap reach gate + 3 NM, or

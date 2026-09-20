@@ -28,6 +28,8 @@
 - A `LAHSO` lander brakes to a stop with its nose short of the hold-short point instead of coasting across it.
 - A `LAHSO` lander exits at a taxiway before the hold-short point when it can make one, and holds on the runway only when it cannot.
 - A go-around, `TG`/`SG`/`LA`/`COPT` or `CANCLAND` after `LAHSO` cancels the hold-short.
+- Aircraft held down to 200 or 250 knots by the 14 CFR 91.117 speed limits take their assigned speed back up once the limit no longer applies.
+- Aircraft with no assigned speed slow to the 200- or 250-knot limit on their own.
 
 ## v0.13.2-beta [2026/09/18]
 

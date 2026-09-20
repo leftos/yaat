@@ -545,7 +545,11 @@ RouteSplicer.cs                # ERAM AM RTE route-splice grammar (docs/crc/eram
 FlightPhysics.cs               # Static 8-step Update: navigation→descentPlan→climbPlan→speedPlan→heading→altitude→speed→position→queue; PhysicsTickOptions carries the per-tick scenario inputs (solo/RPO routing flags, magnetic-model day)
                                # UpdateSpeedPlanning: proactive speed look-ahead for procedure fixes (mirrors descent/climb planning)
                                # Auto speed schedule: skipped when ActiveApproach or ManagesSpeed (pattern phases)
-                               # 14 CFR 91.117: 250 KIAS cap below 10,000 ft in UpdateSpeed() and ApplyFixConstraints()
+                               # 14 CFR 91.117: 250 KIAS cap below 10,000 ft in UpdateSpeed() and ApplyFixConstraints(); public
+                               #   RegulatorySpeedLimit(aircraft) adds the 200 KIAS Class B shelf cap. A TargetSpeed above the limit
+                               #   stays standing at the cap (ArriveAtGoal) and is taken up when the cap lifts; an aircraft with no
+                               #   target over the limit slows to it (BoundsCorrectionTarget); a chained SPD completes on
+                               #   IsSpeedAssignmentHeldAtRegulatoryLimit
                                # UpdateSpeed: physics is the sole integrator of ground speed. SpeedChangeRate splits airborne
                                #   AircraftPerformance accel/decel from on-ground CategoryPerformance.TaxiAccelRate/TaxiDecelRate,
                                #   each overridable per aircraft via ControlTargets.DesiredAccelRate/DesiredDecelRate (a tug move

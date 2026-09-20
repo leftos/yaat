@@ -1039,10 +1039,6 @@ public static class FlightPhysics
     private const double SpeedLimitUnderClassBKts = 200;
 
     /// <summary>
-    /// The regulatory speed cap at the aircraft's present position, or <see cref="double.MaxValue"/> when
-    /// none applies. 91.117(d) exempts aircraft whose minimum safe speed exceeds the limit.
-    /// </summary>
-    /// <summary>
     /// The regulatory speed cap at the aircraft's present position, or <see cref="double.MaxValue"/>
     /// when none applies.
     ///
@@ -1052,9 +1048,9 @@ public static class FlightPhysics
     /// training route exception, so it survives. 91.117(d) is the opposite shape: it reaches every
     /// paragraph of the section, including (c), but only up to the aircraft's minimum safe speed.
     /// </summary>
-    private static double RegulatorySpeedLimit(AircraftState aircraft, bool below10k, bool militaryRouteWaived, bool minimumSafeSpeedWaived)
+    public static double RegulatorySpeedLimit(AircraftState aircraft)
     {
-        if (!below10k)
+        if (aircraft.IsOnGround || (aircraft.Altitude >= 10_000))
         {
             return double.MaxValue;
         }
@@ -1062,7 +1058,7 @@ public static class FlightPhysics
         bool underShelf = Data.Airspace.AirspaceDatabase.Default.IsUnderClassBShelf(aircraft.Position, aircraft.Altitude);
         double cap = underShelf ? SpeedLimitUnderClassBKts : SpeedLimitBelow10kKts;
 
-        if (militaryRouteWaived && !underShelf)
+        if (aircraft.MilitaryRoute.SpeedLimitWaived && !underShelf)
         {
             return double.MaxValue;
         }
@@ -1070,15 +1066,14 @@ public static class FlightPhysics
         // 91.117(d): "If the minimum safe airspeed for any particular operation is greater than the
         // maximum speed prescribed in this section, the aircraft may be operated at that minimum
         // speed." That is a floor under the cap, not a removal of it.
-        return minimumSafeSpeedWaived ? Math.Max(cap, AircraftPerformance.MinimumSafeSpeedKts(aircraft.AircraftType)) : cap;
+        return AircraftPerformance.IsSpeedLimitWaived(aircraft.AircraftType)
+            ? Math.Max(cap, AircraftPerformance.MinimumSafeSpeedKts(aircraft.AircraftType))
+            : cap;
     }
 
     private static void UpdateSpeed(AircraftState aircraft, AircraftCategory cat, double deltaSeconds)
     {
-        bool below10k = !aircraft.IsOnGround && aircraft.Altitude < 10_000;
-        bool minimumSafeSpeedWaived = AircraftPerformance.IsSpeedLimitWaived(aircraft.AircraftType);
-        bool militaryRouteWaived = aircraft.MilitaryRoute.SpeedLimitWaived;
-        double regulatoryLimit = RegulatorySpeedLimit(aircraft, below10k, militaryRouteWaived, minimumSafeSpeedWaived);
+        double regulatoryLimit = RegulatorySpeedLimit(aircraft);
 
         // Mach hold: recompute equivalent IAS each tick so the aircraft maintains constant Mach.
         if (aircraft.Targets.TargetMach is { } targetMach && !aircraft.IsOnGround)
@@ -1087,20 +1082,10 @@ public static class FlightPhysics
             aircraft.Targets.TargetSpeed = machIas;
         }
 
-        // Floor/ceiling enforcement: if IAS violates a floor or ceiling, create a target to correct it.
+        // Bound enforcement: if IAS violates a floor, a ceiling or 14 CFR 91.117, create a target to correct it.
         if (aircraft.Targets.TargetSpeed is null)
         {
-            double effectiveFloor = Math.Min(aircraft.Targets.SpeedFloor ?? 0, regulatoryLimit);
-            double effectiveCeiling = Math.Min(aircraft.Targets.SpeedCeiling ?? double.MaxValue, regulatoryLimit);
-
-            if (aircraft.Targets.SpeedFloor is not null && aircraft.IndicatedAirspeed < effectiveFloor)
-            {
-                aircraft.Targets.TargetSpeed = effectiveFloor;
-            }
-            else if (aircraft.Targets.SpeedCeiling is not null && aircraft.IndicatedAirspeed > effectiveCeiling)
-            {
-                aircraft.Targets.TargetSpeed = effectiveCeiling;
-            }
+            aircraft.Targets.TargetSpeed = BoundsCorrectionTarget(aircraft, regulatoryLimit);
         }
 
         // Auto speed schedule: when no explicit speed target exists and aircraft is
@@ -1148,7 +1133,9 @@ public static class FlightPhysics
             goal = Math.Min(goal, limit);
         }
 
-        // 14 CFR 91.117: 250 KIAS below 10,000 ft MSL, 200 KIAS under a Class B shelf.
+        // 14 CFR 91.117: 250 KIAS below 10,000 ft MSL, 200 KIAS under a Class B shelf. A cap that bites here
+        // holds the aircraft short of the speed it was told to fly, which is not the same as reaching it.
+        bool heldShortByRegulatoryLimit = goal > regulatoryLimit;
         goal = Math.Min(goal, regulatoryLimit);
 
         // Honor SpeedCeiling continuously, including when a non-procedural source
@@ -1173,14 +1160,101 @@ public static class FlightPhysics
 
         if (Math.Abs(diff) < snapWindow)
         {
-            aircraft.IndicatedAirspeed = goal;
-            aircraft.Targets.TargetSpeed = null;
+            ArriveAtGoal(aircraft, goal, heldShortByRegulatoryLimit);
             return;
         }
 
         double change = Math.Min(Math.Abs(diff), maxChange);
 
         aircraft.IndicatedAirspeed += accelerating ? change : -change;
+    }
+
+    /// <summary>
+    /// The speed target that corrects a bound the aircraft is violating, or null when it is within all of them.
+    /// Ordered: a <see cref="ControlTargets.SpeedFloor"/> it is under, a <see cref="ControlTargets.SpeedCeiling"/> it is
+    /// over, then 14 CFR 91.117 itself.
+    ///
+    /// The regulatory arm is what makes the cap bite on a standing speed rather than only on an assignment: a pilot
+    /// complies with 91.117 without being told to (7110.65 §5-7-2 NOTE 1; AIM 4-4-12.i), so an aircraft that comes under
+    /// a Class B shelf faster than 200 kt with nothing left to fly to slows to it. A floor above the cap does not hold
+    /// the aircraft up there — 91.117 outranks an ATC "or greater", which is the same clamp
+    /// <paramref name="regulatoryLimit"/> already puts on the floor. On the ground the cap does not apply at all; the
+    /// ground-conflict <see cref="AircraftGroundOps.SpeedLimit"/> governs there.
+    /// </summary>
+    private static double? BoundsCorrectionTarget(AircraftState aircraft, double regulatoryLimit)
+    {
+        double effectiveFloor = Math.Min(aircraft.Targets.SpeedFloor ?? 0, regulatoryLimit);
+        double effectiveCeiling = Math.Min(aircraft.Targets.SpeedCeiling ?? double.MaxValue, regulatoryLimit);
+
+        if ((aircraft.Targets.SpeedFloor is not null) && (aircraft.IndicatedAirspeed < effectiveFloor))
+        {
+            return effectiveFloor;
+        }
+
+        if ((aircraft.Targets.SpeedCeiling is not null) && (aircraft.IndicatedAirspeed > effectiveCeiling))
+        {
+            return effectiveCeiling;
+        }
+
+        if (!aircraft.IsOnGround && (aircraft.IndicatedAirspeed > regulatoryLimit + SpeedSnapKts))
+        {
+            return regulatoryLimit;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// IAS snaps onto the integration goal, and the target that asked for it is retired — unless 14 CFR 91.117 is what
+    /// stopped the aircraft short of that target, in which case the assignment stands and the aircraft takes it up again
+    /// where the cap no longer applies. The regulatory cap bends a speed assignment rather than cancelling it: the pilot
+    /// complies with 91.117 "without notification" (7110.65 §5-7-2.a NOTE 1), even "resume normal speed" "does not relieve
+    /// the pilot of those speed restrictions which are applicable to 14 CFR section 91.117" (AIM 4-4-12.f.1), and only
+    /// ATC terminates a speed adjustment (§5-7-4). Retiring the target at the cap would strand the aircraft there
+    /// wherever a phase with <c>ManagesSpeed</c> suppresses the auto schedule that would otherwise pick the speed back up.
+    ///
+    /// Only the 91.117 clamp defers the retirement, and it defers it whichever clamp the aircraft actually settles on: a
+    /// <see cref="ControlTargets.SpeedCeiling"/> below the cap holds it lower still, and the assignment stands behind
+    /// both until ATC ends it. A target at or under the regulatory limit is retired on arrival as it always was, whether
+    /// the aircraft reached the target itself or a <see cref="ControlTargets.SpeedCeiling"/> or the ground-conflict
+    /// <see cref="AircraftGroundOps.SpeedLimit"/> stopped it there — those two are the last word on what this aircraft
+    /// flies where it is, and neither is a rule the aircraft stops obeying by flying somewhere else.
+    /// </summary>
+    private static void ArriveAtGoal(AircraftState aircraft, double goal, bool heldShortByRegulatoryLimit)
+    {
+        aircraft.IndicatedAirspeed = goal;
+        if (!heldShortByRegulatoryLimit)
+        {
+            aircraft.Targets.TargetSpeed = null;
+        }
+    }
+
+    /// <summary>
+    /// True when the aircraft is flying the clamped speed 14 CFR 91.117 allows it here and carrying an assignment above
+    /// that — the state <see cref="ArriveAtGoal"/> leaves it in. The assignment has gone as far as it can go where the
+    /// aircraft is, which is what a chained <c>SPD</c> needs to count as finished (<see cref="UpdateBlockCompletion"/>):
+    /// the target no longer nulls at the cap, so completion cannot be read off a null target alone.
+    ///
+    /// The settled test is against the goal the clamps actually produce, the lower of the cap and an active
+    /// <see cref="ControlTargets.SpeedCeiling"/>, and not against the assignment: an aircraft given 210 under a 200 kt
+    /// shelf while flying 250 is still carrying out the reduction, and a chain behind it waits for the aircraft to get
+    /// there just as it would for an uncapped one.
+    /// </summary>
+    public static bool IsSpeedAssignmentHeldAtRegulatoryLimit(AircraftState aircraft)
+    {
+        if (aircraft.Targets.TargetSpeed is not { } target)
+        {
+            return false;
+        }
+
+        double regulatoryLimit = RegulatorySpeedLimit(aircraft);
+        if (target <= regulatoryLimit)
+        {
+            return false;
+        }
+
+        double clampedGoal = Math.Min(regulatoryLimit, aircraft.Targets.SpeedCeiling ?? double.MaxValue);
+        return Math.Abs(aircraft.IndicatedAirspeed - clampedGoal) <= SpeedSnapKts;
     }
 
     /// <summary>
@@ -1767,7 +1841,10 @@ public static class FlightPhysics
                 // target can't be reached and nulled; treat a grounded altitude assignment as
                 // accepted-and-pending — the chain advances while TargetAltitude stays armed for departure.
                 TrackedCommandType.Altitude => (aircraft.Targets.TargetAltitude is null) || aircraft.IsOnGround,
-                TrackedCommandType.Speed => aircraft.Targets.TargetSpeed is null,
+                // A speed the 91.117 clamp holds the aircraft short of keeps its target standing (ArriveAtGoal), so the
+                // assignment being flown out no longer shows as a null target; the aircraft is at the fastest speed it
+                // may fly here and the instruction is as done as it can be, which is what the chain advances on.
+                TrackedCommandType.Speed => (aircraft.Targets.TargetSpeed is null) || IsSpeedAssignmentHeldAtRegulatoryLimit(aircraft),
                 TrackedCommandType.Navigation => aircraft.Targets.NavigationRoute.Count == 0,
                 TrackedCommandType.Immediate => true,
                 TrackedCommandType.Wait => CheckWaitComplete(block, aircraft, deltaSeconds),

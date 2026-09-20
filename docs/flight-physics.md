@@ -65,7 +65,7 @@ The numbered "8/10-step" list in [tick-loop.md](tick-loop.md) is the canonical o
 | `AltitudeFloor` / `AltitudeCeiling` | `double?` ft MSL | "maintain VFR at/above" / "at/below" handlers | `ResolveAltitudeGoal` | Persist until cleared |
 | `DesiredVerticalRate` | `double?` fpm (+ = climb) | phases (glidepath, flare, initial climb), generators and live-traffic seeding, the instructor | `UpdateAltitude` | Nulled on altitude snap and on fix revert; null = category rate. A set value is flown verbatim — expedite never scales a commanded rate (7110.65 §4-5-7 NOTE 4). (`EXPEDITE` does not write a value here — it sets `Procedure.IsExpediting`, which scales only the profile-rate branch via `CategoryPerformance.ExpediteVerticalRate`. `NORM`/CM/DM/snap clear it) |
 | `PlannedVerticalRate` | `double?` fpm (+ = climb) | climb/descent planners only | `UpdateAltitude` (behind `DesiredVerticalRate`) | **Transient**: `Update` nulls it before the planners run every tick, so it exists only while a constrained fix is in the route — a vector that clears the route releases it on the next tick (issue #429: a `CFIX` rate outlived `FH` and held an A319 at 730 fpm through `DM`/`EXP`). Flown verbatim like a phase rate; not in `ControlTargetsDto` (re-derived after restore) |
-| `TargetSpeed` | `double?` KIAS | `SPD`/`SLOW` handlers, speed planner, Mach hold, phases | `UpdateSpeed` | **Self-nulls** on snap (±2 kt) |
+| `TargetSpeed` | `double?` KIAS | `SPD`/`SLOW` handlers, speed planner, Mach hold, phases | `UpdateSpeed` | **Self-nulls** on snap (±2 kt), except a target above the 91.117 limit, which stands at the cap |
 | `DesiredDecelRate` | `double?` kt/s (+ = decel) | `LandingPhase` / `RunwayExitPhase` / `PushbackPhase` (the towbar rate) | `UpdateSpeed` **decel branch only** | Must be cleared on phase transition; null = category default |
 | `DesiredAccelRate` | `double?` kt/s (+ = accel) | `PushbackPhase` only (`CategoryPerformance.TugAccelRate`, 0.3 kt/s: a tow picks up speed at the towbar rate, not the aircraft's breakaway rate) | `UpdateSpeed` **accel branch only** | Re-published every tick by the phase and nulled in its `OnEnd`; null = category default |
 | `SpeedFloor` / `SpeedCeiling` | `double?` KIAS | floor/ceiling handlers, AIM 5-4-1 procedural memory | `UpdateSpeed`, `UpdateSpeedPlanning`, `ApplyFixConstraints` | Persist; enforced continuously |
@@ -83,7 +83,8 @@ This is the single most important `ControlTargets` distinction:
 
 - **`TargetX` is the transient physics goal.** `TargetAltitude` and `TargetSpeed` **self-null the moment the goal is reached** —
   `UpdateAltitude` nulls `TargetAltitude` and `DesiredVerticalRate` and clears `IsExpediting` on the ±10 ft snap (`FlightPhysics.cs:820`);
-  `UpdateSpeed` nulls `TargetSpeed` on the ±2 kt snap (`FlightPhysics.cs:982`). "My target vanished" is by design.
+  `UpdateSpeed` nulls `TargetSpeed` on the ±2 kt snap (`ArriveAtGoal`, `FlightPhysics.cs:1223`). "My target vanished" is by design. A
+  `TargetSpeed` above the 14 CFR 91.117 limit is the exception: it stays standing at the cap until the uncapped speed is reached.
 - **`AssignedX` is persistent UI/autopilot state.** `AssignedAltitude`/`AssignedSpeed`/`AssignedMagneticHeading` persist past the snap so the
   controller still sees the last assigned value on the datablock and the autopilot can hold it.
 
@@ -124,7 +125,7 @@ This is the load-bearing model the rest of physics rests on. (This material prev
   heading in wind.)
 - **Mach hold** recomputes equivalent IAS each tick: `UpdateSpeed` reads `TargetMach`, calls `WindInterpolator.MachToIas(mach, alt)`
   (`WindInterpolator.cs:129`), and writes the result into `TargetSpeed` so a constant-Mach cruise descends in IAS as it climbs
-  (`FlightPhysics.cs:887`). Below 10,000 ft the Mach-derived IAS is still capped at 250 unless waived.
+  (`FlightPhysics.cs:1078`). The Mach-derived IAS is still clamped to `RegulatorySpeedLimit` — 250 below 10,000 ft, 200 under a Class B shelf.
 
 `WindInterpolator` also provides `TasToIas` (`:117`, the inverse — used for resolving cruise TAS to an IAS), `IasToMach` (`:142`),
 `ComputeWindCorrectionAngle` (`:184`), and `GetWindComponents` (`:86`). Wind layers are vector-interpolated by altitude
@@ -196,26 +197,40 @@ planner owns the route. Both also activate (outside via mode) whenever the route
 
 ## Speed integration (`UpdateSpeed`) + look-ahead planning
 
-`UpdateSpeed(aircraft, cat, deltaSeconds)` (`FlightPhysics.cs:881`) is a layered cascade. The layers run in this exact order; getting the order
+`UpdateSpeed(aircraft, cat, deltaSeconds)` (`FlightPhysics.cs:1074`) is a layered cascade. The layers run in this exact order; getting the order
 wrong silently lets one layer stomp or lose to another:
 
-Layers 1, 2 and 5 all clamp against `RegulatorySpeedLimit(aircraft, below10k, speedLimitWaived)`, resolved once at the top of the method:
-`double.MaxValue` at or above 10,000 ft or when `IsSpeedLimitWaived` (14 CFR 91.117(d)); **200 kt** when
-`AirspaceDatabase.IsUnderClassBShelf` puts the aircraft laterally inside a Class B footprint but below its floor (91.117(c)); otherwise **250 kt**
-(91.117(a)).
+Layers 1, 2 and 5 all clamp against the public `FlightPhysics.RegulatorySpeedLimit(aircraft)` (`:1051`), resolved once at the top of the
+method. It takes the aircraft alone and has four arms: `double.MaxValue` on the ground or at or above 10,000 ft; `double.MaxValue` for an
+aircraft whose `MilitaryRoute.SpeedLimitWaived` is set and which is **not** under a Class B shelf (the AP/1B waiver reaches 91.117(a) only);
+otherwise the cap — **200 kt** when `AirspaceDatabase.IsUnderClassBShelf` puts the aircraft laterally inside a Class B footprint but below its
+floor (91.117(c)), else **250 kt** (91.117(a)) — raised to `max(cap, AircraftPerformance.MinimumSafeSpeedKts)` for a type with
+`AircraftPerformance.IsSpeedLimitWaived` (91.117(d): a floor under the cap, never a removal of it).
 
-1. **Mach hold** — if `TargetMach` set and airborne, write `MachToIas(...)` into `TargetSpeed`, clamped to the regulatory limit (`:887`).
-2. **Floor/ceiling self-target** — if `TargetSpeed` is null and IAS violates a `SpeedFloor`/`SpeedCeiling`, set `TargetSpeed` to the breached
-   bound (`:899`). The regulatory limit also clamps the *effective* floor/ceiling here.
+1. **Mach hold** — if `TargetMach` set and airborne, write `MachToIas(...)` into `TargetSpeed`, clamped to the regulatory limit (`:1078`).
+2. **Floor/ceiling/91.117 self-target** (`BoundsCorrectionTarget`, `:1184`) — if `TargetSpeed` is null, mint a target that corrects the bound
+   the aircraft is violating. Branch order is load-bearing: a `SpeedFloor` it is under, then a `SpeedCeiling` it is over, then 91.117 itself.
+   The regulatory limit clamps the *effective* floor and ceiling, so a `SpeedFloor` above the cap never holds the aircraft up there. The
+   regulatory arm is airborne-only: an aircraft with no target whose IAS exceeds the limit by more than `SpeedSnapKts` slows to it at the
+   ordinary decel rate, with no transmission — pilots comply with 91.117 without notification (7110.65 §5-7-2.a NOTE 1, §5-7-3.f NOTE 1).
+   Because the ceiling branch runs first, an aircraft over both lands on `min(cap, SpeedCeiling)`.
 3. **Auto altitude-band schedule** — if `TargetSpeed` is null, airborne, **not** `HasExplicitSpeedCommand`, `ActiveApproach` is null, the current
    phase does **not** have `ManagesSpeed == true`, and the aircraft is climbing/descending toward a target altitude → set `TargetSpeed` to
-   `AircraftPerformance.DefaultSpeed(...)`, honoring an active `SpeedCeiling` (`:925`). This is the layer the approach/pattern phases suppress.
-4. **Ground `SpeedLimit` clamp** — `goal = min(goal, Ground.SpeedLimit)` when on the ground (`:961`); this is the ground-conflict cap from
+   `AircraftPerformance.DefaultSpeed(...)`, honoring an active `SpeedCeiling` (`:1091`). This is the layer the approach/pattern phases suppress.
+4. **Ground `SpeedLimit` clamp** — `goal = min(goal, Ground.SpeedLimit)` when on the ground (`:1131`); this is the ground-conflict cap from
    [tick-loop.md](tick-loop.md)'s `GroundConflictDetector`.
-5. **14 CFR 91.117** — `goal = min(goal, RegulatorySpeedLimit(...))` (`:966`): 250 below 10,000 ft, 200 under a Class B shelf.
+5. **14 CFR 91.117** — `goal = min(goal, regulatoryLimit)` (`:1138`): 250 below 10,000 ft, 200 under a Class B shelf. The layer first
+   records `heldShortByRegulatoryLimit = goal > regulatoryLimit` — the cap holding the aircraft short of the speed it was told to fly — for
+   layer 7.
 6. **`SpeedCeiling` continuous clamp** — `goal = min(goal, SpeedCeiling)` again, so even a non-procedural `TargetSpeed` (auto schedule,
-   pre-ceiling controller assignment) cannot escape the cap (`:975`).
-7. **Snap + integrate** — `|diff| < snapWindow` → snap IAS, **null `TargetSpeed`**; the window is `SpeedSnapKts` (2 kt, `:14`) airborne but
+   pre-ceiling controller assignment) cannot escape the cap (`:1144`).
+7. **Snap + integrate** — `|diff| < snapWindow` → `ArriveAtGoal` (`:1223`) snaps IAS and **nulls `TargetSpeed` unless
+   `heldShortByRegulatoryLimit`**: a target above the regulatory limit stays standing at the cap, whichever clamp the aircraft actually
+   settles on (a lower `SpeedCeiling` included), and is nulled only when the uncapped target is reached — so the aircraft takes its assigned
+   or restored speed back up when the cap lifts (leaving the shelf, climbing through 10,000 ft; 220 → 250 → 280 as a ceiling and then the
+   cap unwind). A target at or under the limit that a `SpeedCeiling` or the ground `SpeedLimit` stops retires on arrival. Only ATC ends a
+   speed assignment (7110.65 §5-7-4), and a pilot must not fly an ATC speed that exceeds 91.117 (AIM 4-4-12.i; 200 kt beneath Class B,
+   AIM 4-4-12.j and 4-4-12.k NOTE). The window is `SpeedSnapKts` (2 kt, `:38`) airborne but
    `rate × deltaSeconds` on the ground, so a taxiing aircraft never snaps further than the one sub-tick it would have integrated anyway
    (2 kt is two whole seconds of taxi acceleration). Otherwise accelerate/decelerate at `SpeedChangeRate`: airborne
    `DesiredAccelRate ?? AircraftPerformance.AccelRate` / `DesiredDecelRate ?? AircraftPerformance.DecelRate`; on the ground
@@ -224,7 +239,7 @@ Layers 1, 2 and 5 all clamp against `RegulatorySpeedLimit(aircraft, below10k, sp
    `DesiredDecelRate` is ignored when accelerating and `DesiredAccelRate` when decelerating. A tug move publishes both
    (`CategoryPerformance.TugAccelRate` 0.3 kt/s / `TugDecelRate` 1.0 kt/s), so nothing on a towbar starts or stops at the taxi rates.
 
-**Look-ahead planning** (`UpdateSpeedPlanning`, `:458`) runs before the integrator and pre-sets `TargetSpeed` so the aircraft *arrives* at a
+**Look-ahead planning** (`UpdateSpeedPlanning`, `:533`) runs before the integrator and pre-sets `TargetSpeed` so the aircraft *arrives* at a
 procedure speed restriction at the constrained fix rather than reacting after it: it computes change-time vs time-to-fix and starts decel only
 when within 10% of the change time (accel starts immediately). It is fully suppressed when `HasExplicitSpeedCommand`, `SpeedRestrictionsDeleted`,
 or `TargetMach` is set.
@@ -356,15 +371,38 @@ If `Position` is non-finite or out of range (`|lat| > 90`, `|lon| > 180`), the W
 - **`IndicatedAirspeed` is the only airspeed source of truth; `GroundSpeed` has no setter.** It is recomputed on every read from TAS + cached
   `WindComponents`. Trying to "set ground speed," or assuming `GS == IAS` airborne, is wrong — they diverge with altitude (TAS) and wind.
 - **`TargetSpeed` and `TargetAltitude` self-null on arrival** (±2 kt / ±10 ft). "My target vanished" is by design. `AssignedSpeed`/
-  `AssignedAltitude` persist for the UI/autopilot; `TargetX` is the transient physics goal. Don't conflate them.
-- **`UpdateSpeed` is a fixed 7-layer cascade** (Mach hold → floor/ceiling self-target → auto altitude-band schedule (suppressed by
-  `ActiveApproach` OR `ManagesSpeed`) → ground `SpeedLimit` clamp → 91.117 250-kt cap (unless `IsSpeedLimitWaived`) → continuous `SpeedCeiling`
-  clamp → snap+integrate). Add a new speed influence at the wrong layer and it silently loses to or stomps another.
+  `AssignedAltitude` persist for the UI/autopilot; `TargetX` is the transient physics goal. Don't conflate them. The one exception is a
+  `TargetSpeed` above the 14 CFR 91.117 limit, which stays standing at the cap (the 91.117 bullet below).
+- **`UpdateSpeed` is a fixed 7-layer cascade** (Mach hold → floor/ceiling/91.117 self-target (`BoundsCorrectionTarget`) → auto altitude-band
+  schedule (suppressed by `ActiveApproach` OR `ManagesSpeed`) → ground `SpeedLimit` clamp → 91.117 cap (`RegulatorySpeedLimit`: 250 below
+  10,000 ft, 200 under a Class B shelf; sets the held-short flag) → continuous `SpeedCeiling` clamp → snap+integrate (`ArriveAtGoal`)). Add a
+  new speed influence at the wrong layer and it silently loses to or stomps another.
+- **14 CFR 91.117 bends a speed assignment; it never cancels it.** A `TargetSpeed` above `RegulatorySpeedLimit` is kept when the aircraft
+  arrives at the cap and nulled only when the uncapped target is reached, so the aircraft takes its assigned or restored speed back up when
+  the cap lifts — leaving a Class B shelf, climbing through 10,000 ft. Only ATC ends an assignment (7110.65 §5-7-4; §5-7-4.a NOTE: "resume
+  normal speed" does not relieve 91.117), and the pilot complies with 91.117 without notification (§5-7-2.a NOTE 1) and must not fly an ATC
+  speed that exceeds it (AIM 4-4-12.i; 200 kt beneath Class B, AIM 4-4-12.j and 4-4-12.k NOTE). The other half is the re-bite: an airborne
+  aircraft with **no** target whose IAS is over the limit by more than `SpeedSnapKts` gets a self-target at `min(cap, SpeedCeiling)` and
+  slows at the ordinary rate, silently. Consequences, all reviewed and intended:
+  - **A null `TargetSpeed` is not the only "speed command done" signal.** A chained `SPD` completes on
+    `TargetSpeed is null || FlightPhysics.IsSpeedAssignmentHeldAtRegulatoryLimit(aircraft)` (`UpdateBlockCompletion`): `SPD 210; H 090` under
+    a shelf advances once the aircraft has settled at 200 with 210 still standing. The settled test is against
+    `min(limit, SpeedCeiling)`, not the assignment, so an aircraft still slowing toward the cap keeps the chain waiting.
+  - **`InitialClimbPhase` writes its climb speed only when `TargetSpeed is null`**, so a retained assignment keeps it quiet for as long as
+    the assignment stands.
+  - **The generator stream's `RestoreManagedSpeed` skips while a target stands** — its own capped restore included; the standing target
+    does the re-acceleration.
+  - **`TargetSpeed` can show the regulatory limit on an aircraft nobody assigned a speed** (data block, aircraft list, snapshot): that is
+    the re-bite's self-target, and it nulls once the aircraft is down to the limit.
+  - **The sim tolerates limit + 2 kt indefinitely** — the re-bite threshold is the snap window, and an aircraft inside it has no target to
+    fly.
+  - **An approach clearance still clears a retained target** (`ApproachCommandHandler`; 7110.65 §5-7-1.d / AIM 4-4-12.g), and the
+    final-approach speed schedule overwrites whatever stands before touchdown.
 - **A `SpeedCeiling` is a one-way ratchet under a `ManagesSpeed` phase.** The floor/ceiling self-target drags IAS down to the ceiling,
   the snap nulls `TargetSpeed`, and with the auto schedule suppressed nothing raises IAS again when the ceiling rises or is removed —
   the aircraft holds the ceiling speed until the phase writes its own target. `FinalApproachPhase` writes none before its deceleration
   stages, so whoever stamps a ceiling on an aircraft on a long final must also restore its speed (the generator stream's
-  `RestoreManagedSpeed`, `docs/scenario-loading-and-generation.md`). `RNS` closes it for itself: `FlightCommandHandler.ApplyResumeNormalSpeed` writes the scheduled final-approach speed back for an aircraft in `FinalApproachPhase` outside `ArrivalSpacingManager.SpeedRestoreGateNm` and more than `SpeedRestoreDeadbandKts` slow (AIM 4-4-12.f.1). When the aircraft is on that profile and either test fails, nothing is handed back — re-accelerating it a few miles before the phase slows it again is what §5-7-1's lead ("Avoid adjustments requiring alternate decreases and increases") and §5-7-1.a.3(e) rule out, and AIM 4-4-12.f scopes "resume normal speed" to before an approach clearance — and the instructor's answer says so: `Resume normal speed — already on its final approach speed profile, no change` instead of the plain `Resume normal speed` every other case gets (the pilot readback is the same either way; `ResumeNormalSpeedOnFinalTests`). Both restores are one-shot writes: a target reached under a lower regulatory cap (a Class B shelf's 200 kt, 91.117(c)) is nulled there and nothing re-accelerates the aircraft once the cap lifts.
+  `RestoreManagedSpeed`, `docs/scenario-loading-and-generation.md`). `RNS` closes it for itself: `FlightCommandHandler.ApplyResumeNormalSpeed` writes the scheduled final-approach speed back for an aircraft in `FinalApproachPhase` outside `ArrivalSpacingManager.SpeedRestoreGateNm` and more than `SpeedRestoreDeadbandKts` slow (AIM 4-4-12.f.1). When the aircraft is on that profile and either test fails, nothing is handed back — re-accelerating it a few miles before the phase slows it again is what §5-7-1's lead ("Avoid adjustments requiring alternate decreases and increases") and §5-7-1.a.3(e) rule out, and AIM 4-4-12.f scopes "resume normal speed" to before an approach clearance — and the instructor's answer says so: `Resume normal speed — already on its final approach speed profile, no change` instead of the plain `Resume normal speed` every other case gets (the pilot readback is the same either way; `ResumeNormalSpeedOnFinalTests`). Both restores are one-shot writes, and one write is enough under a lower regulatory cap (a Class B shelf's 200 kt, 91.117(c)): the restored target stays standing at the cap and the aircraft takes it up once the cap lifts (the 91.117 bullet above).
 - **There are FOUR aircraft categories — Jet, Turboprop, Piston, Helicopter.** CLAUDE.md's summary lists only the first three; the Helicopter
   column is real and aviation-reviewed. Unknown ICAO types fall back to **Jet** (after the sibling-map attempt).
 - **Constants are NOT read from `CategoryPerformance` directly in production.** `AircraftPerformance.*` is the entry point: per-type profile with

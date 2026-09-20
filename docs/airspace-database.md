@@ -227,8 +227,12 @@ phase lifecycle, `ManagesSpeed` contagion, and the snapshot contract. The featur
 a Class B footprint but below its floor. `FlightPhysics.RegulatorySpeedLimit` reads it on every speed update
 and caps indicated airspeed at **200 kt** there instead of the ordinary 250 below 10,000 ft. The lookup
 walks a Bravo-only pre-filtered list, and each volume rejects a far-away point on its bounding box first.
-`AircraftPerformance.IsSpeedLimitWaived` (14 CFR 91.117(d)) exempts aircraft whose minimum safe speed is
-higher.
+`AircraftPerformance.IsSpeedLimitWaived` (14 CFR 91.117(d)) lets an aircraft whose minimum safe speed is
+higher fly that speed instead (`max(cap, MinimumSafeSpeedKts)`), and the military-route waiver of 91.117(a)
+does not reach the shelf. An assigned speed above the cap stays standing while the aircraft flies 200 and is
+taken back up once it leaves the shelf; an aircraft with no speed target that comes under a shelf faster
+than 200 slows to it on its own (AIM 4-4-12.j, 4-4-12.k NOTE) — see
+[flight-physics.md](flight-physics.md#speed-integration-updatespeed--look-ahead-planning).
 
 ### Entry gates
 

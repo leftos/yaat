@@ -153,7 +153,15 @@ public class CompoundConditionalLookaheadTests
         FlightPhysics.Update(aircraft, 1.0);
 
         Assert.True(aircraft.Queue.Blocks[2].IsApplied);
-        Assert.Null(aircraft.Targets.TargetSpeed);
+        double? standing = aircraft.Targets.TargetSpeed;
+        Assert.False(
+            (standing == 210) || (standing == 180),
+            $"the chain's own speeds are gone once its last block has fired, but {standing:F0} kt is still standing"
+        );
+        Assert.True(
+            (standing is null) || (standing.Value == FlightPhysics.RegulatorySpeedLimit(aircraft)),
+            $"the chain's own speeds (210, 180) are gone; only the 91.117 correction may stand, not {standing:F0} kt"
+        );
         Assert.False(aircraft.Targets.HasExplicitSpeedCommand);
     }
 
@@ -173,5 +181,73 @@ public class CompoundConditionalLookaheadTests
         Assert.Null(aircraft.Targets.TargetSpeed);
         Assert.False(aircraft.Targets.HasExplicitSpeedCommand);
         Assert.NotNull(aircraft.Phases?.CurrentPhase);
+    }
+
+    /// <summary>
+    /// 14 CFR 91.117 holds an aircraft short of an assigned speed without ending the assignment, so the target stays
+    /// standing at the cap. The block carrying it is nonetheless finished — the aircraft is flying the fastest speed it
+    /// lawfully may where it is, and there is nothing further for that instruction to do — so the chain behind it runs.
+    /// </summary>
+    [Fact]
+    public void SpeedHeldAtTheRegulatoryCap_StillAdvancesTheChain()
+    {
+        AircraftState aircraft = MakeAircraftUnderTheBravoShelf(ias: 220);
+
+        DispatchOk(aircraft, "SPD 210; H 090");
+
+        Assert.Equal(2, aircraft.Queue.Blocks.Count);
+        Assert.True(aircraft.Queue.Blocks[0].IsApplied);
+        Assert.False(aircraft.Queue.Blocks[1].IsApplied);
+        Assert.Equal(210, aircraft.Targets.TargetSpeed);
+
+        for (int i = 0; i < 12; i++)
+        {
+            FlightPhysics.Update(aircraft, 1.0);
+        }
+
+        Assert.Equal(ClassBShelfSpeedLimitKts, aircraft.IndicatedAirspeed, 0.5);
+        Assert.True(aircraft.Queue.Blocks[1].IsApplied, "the heading block never fired behind a speed the 200 kt cap capped");
+        Assert.Equal(90, aircraft.Targets.AssignedMagneticHeading?.Degrees);
+        // The assignment outlives the cap that bent it: only ATC ends a speed adjustment (7110.65 §5-7-4).
+        Assert.Equal(210, Assert.IsType<double>(aircraft.Targets.TargetSpeed), 0.5);
+    }
+
+    /// <summary>
+    /// And it is arriving on the capped speed that finishes the block, not merely being assigned one above the cap: an
+    /// aircraft still decelerating toward the cap is mid-instruction, so the chain waits for it.
+    /// </summary>
+    [Fact]
+    public void SpeedAboveTheCap_DoesNotCompleteBeforeReachingTheCap()
+    {
+        AircraftState aircraft = MakeAircraftUnderTheBravoShelf(ias: 250);
+
+        DispatchOk(aircraft, "SPD 210; H 090");
+
+        FlightPhysics.Update(aircraft, 1.0);
+        FlightPhysics.Update(aircraft, 1.0);
+
+        Assert.True(
+            aircraft.IndicatedAirspeed > ClassBShelfSpeedLimitKts + 10.0,
+            $"premise: two seconds of deceleration leaves the aircraft well above the cap, not at {aircraft.IndicatedAirspeed:F0} kt"
+        );
+        Assert.False(aircraft.Queue.Blocks[1].IsApplied, "the heading block fired while the speed reduction was still running");
+    }
+
+    /// <summary>14 CFR 91.117(c): the cap in the airspace underlying Class B.</summary>
+    private const double ClassBShelfSpeedLimitKts = 200.0;
+
+    /// <summary>The reported position in the issue #308 recording: laterally under the SFO Class B shelf, below its floor.</summary>
+    private static readonly LatLon UnderSfoShelf = new(37.7387, -122.2474);
+
+    /// <summary>Free-flying under the SFO Bravo shelf, where 91.117(c) allows this aircraft 200 kt and no more.</summary>
+    private static AircraftState MakeAircraftUnderTheBravoShelf(double ias)
+    {
+        AircraftState aircraft = MakeAircraft(altitude: 1500, ias: ias);
+        aircraft.Position = UnderSfoShelf;
+        aircraft.TrueHeading = new TrueHeading(292.3);
+        aircraft.TrueTrack = new TrueHeading(292.3);
+        aircraft.Targets.TargetTrueHeading = new TrueHeading(292.3);
+        Assert.Equal(ClassBShelfSpeedLimitKts, FlightPhysics.RegulatorySpeedLimit(aircraft));
+        return aircraft;
     }
 }
