@@ -19,7 +19,8 @@ Writes `.tmp/issue-triage/`: `issues.tsv` (number, date, labels, linked PR, titl
 `bodies/<N>.md` (body + comments), `refs.txt` (issue numbers cited by commits since the last tag and
 by the changelog's Unreleased section), `changelog-unreleased.md`, `plan-refs.txt` (plan lines in
 both repos citing an open issue, then open checkboxes naming a class the body names), `touched-files.txt` (files each body names, with the count of
-commits since the tag that touched each). yaat-server has no tags, so its window is
+commits since the tag that touched each), `new-comments.md` (per open issue, the comments posted
+since the index's `<!-- triage-open-issues: <UTC timestamp> -->` stamp; with no stamp, every comment). yaat-server has no tags, so its window is
 `--since=<yaat tag date>`. Read `issues.tsv`, `refs.txt`, `plan-refs.txt`, `touched-files.txt`, then
 every `bodies/<N>.md`. Read a comment thread to the end: the reporter or owner often states the
 current state there ("fixed in abc123, leaving open until confirmed").
@@ -30,10 +31,19 @@ Apply the first row that matches:
 
 | Verdict | Predicate | Plan action |
 |---|---|---|
-| `planned` | `plan-refs.txt` cites `#N` from a live plan line (not a folder-map row) | none; the pointer already exists |
+| `planned` | `plan-refs.txt` cites `#N` from a live plan line (not a folder-map row) | the pointer already exists; re-read it against `new-comments.md` (below) |
 | `pr-linked` | `issues.tsv` shows a linked PR, or an open PR title carries `(#N)` | one Backlog line naming every PR↔issue pair, routed to the `land-bot-pr` skill; the issue's own scope notes are not plan items |
 | `probably-fixed` | `refs.txt` cites `#N`, or a bullet in `changelog-unreleased.md` satisfies the body's ask (the matching rules are `prepare-release` step 6d: read the body, a partial fix is not a fix) | none; report the evidence. Closing belongs to `prepare-release` step 6d after the release ships |
 | `open` | everything else | place it (Step 3) |
+
+**A `planned` issue is re-read, never skipped.** For every issue `new-comments.md` shows activity on,
+read the new comments against the plan line that cites `#N` and change the line when a comment
+changes what the next agent would do: a reporter's answer that rules a theory in or out, a new repro
+or attachment, a second symptom, a changed scope, a "still happens in <version>", a blocker lifted
+or raised. The line states the current state, with the date of the answer; it does not narrate the
+thread. A comment that adds nothing (thanks, a bump, the agent's own audit comment) changes nothing;
+say so in the table. An "issue updated" time later than the stamp with no new comment means the body
+or labels were edited: re-read `bodies/<N>.md`.
 
 `touched-files.txt` settles `open` vs `probably-fixed` cheaply: a file with zero commits since the tag
 is untouched; a file with commits gets `git log <tag>..HEAD --oneline -- <file>` and the subjects say
@@ -76,12 +86,17 @@ sync when a file is added there.
 
 Post one table — `#`, verdict, evidence (one cell: the commit, changelog bullet, PR or plan line),
 placement (file + section), group — followed by the exact lines to add or change, then stop for the
-user's go. On approval edit `MAIN.md` and the subplans, show `git diff --stat docs/plans`, and offer
+user's go. A `planned` row's evidence cell says what its new comments changed, or "no new comments".
+On approval edit `MAIN.md` and the subplans, set the index's stamp line (under the hygiene stamp) to
+the time the gather ran, `<!-- triage-open-issues: $(date -u +%Y-%m-%dT%H:%M:%SZ) -->` — also when
+no line changed, so the next run lists only what arrived after this one — show `git diff --stat docs/plans`, and offer
 a `docs:` commit; the global rule against auto-commit still holds.
 
 ## Completion
 
 Every number in `issues.tsv` appears in the table with a verdict from Step 2; every `open` issue has
-a placement; every `pr-linked` pair names its PR; every `probably-fixed` verdict names its evidence.
+a placement; every `pr-linked` pair names its PR; every `probably-fixed` verdict names its evidence; every
+issue with activity in `new-comments.md` has its plan line confirmed current or changed; the index's
+triage stamp is set.
 About ten tool calls for a tracker of this size (eight open issues): one gather, the reads, the
 table.

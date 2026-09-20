@@ -37,6 +37,20 @@ while IFS=$'\t' read -r n _; do
     >"$out/bodies/$n.md"
 done <"$out/issues.tsv"
 
+# The index carries `<!-- triage-open-issues: <UTC ISO-8601> -->`, written when a triage is applied.
+# No stamp means no triage has recorded one, so every comment counts as new.
+since="$(grep -oE 'triage-open-issues: [0-9TZ:-]+' "$root/docs/plans/MAIN.md" | tail -1 | cut -d' ' -f2 || true)"
+{
+  echo "# activity on each open issue since the last triage (${since:-no stamp: every comment listed})"
+  while IFS=$'\t' read -r n _; do
+    gh issue view "$n" --repo "$repo" --json number,updatedAt,comments \
+      | jq -r --arg since "${since:-}" '
+          [.comments[] | select(.createdAt > $since)] as $new
+          | "## #\(.number): \($new | length) new comment(s), issue updated \(.updatedAt)",
+            ($new[] | "**\(.author.login)** (\(.createdAt)):\n\(.body)\n")'
+  done <"$out/issues.tsv"
+} >"$out/new-comments.md"
+
 {
   echo "# issue numbers cited by commits since $tag (yaat)"
   git -C "$root" log "$tag..HEAD" --format='%h %s%n%b' | grep -oE '#[0-9]+' | sort | uniq -c
