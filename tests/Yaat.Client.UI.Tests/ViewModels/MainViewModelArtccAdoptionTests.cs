@@ -25,7 +25,11 @@ public class MainViewModelArtccAdoptionTests
             IsPaused: true,
             SimRate: 1.0,
             PrimaryAirportId: null,
-            AllAircraft: []
+            AllAircraft: [],
+            AircraftGenerators: [],
+            VfrArrivalGenerators: [],
+            OverflightGenerators: [],
+            Positions: []
         );
 
     [AvaloniaFact]

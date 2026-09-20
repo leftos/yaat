@@ -27,7 +27,11 @@ public class MainViewModelRoomMembersTests
             IsPaused: true,
             SimRate: 1.0,
             PrimaryAirportId: null,
-            AllAircraft: []
+            AllAircraft: [],
+            AircraftGenerators: [],
+            VfrArrivalGenerators: [],
+            OverflightGenerators: [],
+            Positions: []
         );
 
     private static RoomMemberDto Member(string initials, string kind, string connectionId) =>

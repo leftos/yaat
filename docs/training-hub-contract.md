@@ -369,6 +369,16 @@ documented in [flight-strips.md](flight-strips.md) and [vtdls.md](vtdls.md).
 `ScenarioLoadedDto.AllAircraft`, `LoadScenarioResult.AllAircraft`, and `RewindResultDto.Aircraft` all carry the complete
 manifest, built by `DtoConverter.ToTrainingDto` for every aircraft regardless of fingerprint.
 
+The same three scenario-activation DTOs — `RoomStateDto`, `ScenarioLoadedDto`, `LoadScenarioResult` — also carry the
+generator editor's sources: `AircraftGenerators`, `VfrArrivalGenerators`, `OverflightGenerators` and `Positions`
+(`ScenarioPositionDto`, from `ScenarioLifecycleService.BuildPositionDtos`). All three read the **live**
+`SimScenarioState` generator lists, so a set replaced through `LoadArrivalGenerators` is what a later joiner receives,
+not the scenario's authored set. On `RoomStateDto` the four are required members (empty lists with no scenario);
+`ArrivalGeneratorsChanged` is the live push and carries the generators only, since positions are fixed for a scenario.
+`JoinRoom` builds its `RoomStateDto` under the room's tick gate (`room.GuardAsync`): `BuildRoomState` enumerates live
+room collections (the generator lists, the manifest, timers, bookmarks) that a tick or a concurrent hub mutation
+rewrites in place.
+
 This split is the source of the most common wire bug — see the checklist below.
 
 ## Session-settings fan-out

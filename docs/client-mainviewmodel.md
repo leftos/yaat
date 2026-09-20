@@ -154,7 +154,14 @@ DTOs project into one shape (`ScenarioId`, `ScenarioName`, `PrimaryAirportId`, `
 **Per-path extras stay at the call site:** the `ApplySimState` signature differs (the join path passes elapsed/
 playback/tape-end; loader & broadcast use the 2-arg form), `_studentPositionType` and `_isAutoClearedToLand` are set
 by the loader/broadcast paths, the `ApplySessionSettingsFrom*` adapter differs, and the loader path additionally fires
-the `Send*` preference pushes.
+the `Send*` preference pushes. The join path needs no `_isAutoClearedToLand` line of its own: `ApplySessionSettingsFromRoom`
+ends in `ApplyAutoClearedToLandLocally`, which sets the field from the room's shared value and re-stamps every aircraft.
+
+**Every path stashes the generator editor's sources.** `StashScenarioGeneratorsAndPositions`
+(`MainViewModel.ArrivalGenerators.cs`) fills `LatestArrivalGenerators` / `LatestVfrArrivalGenerators` /
+`LatestOverflightGenerators` / `LatestPositions`, which Tools → "Edit Aircraft Generators…" opens against with no fetch
+of its own. All three DTOs carry the four lists and all three entry methods call it; a path that skipped it would open
+the editor empty, and Apply from an empty editor replaces the room's generators with nothing (#442).
 
 `ClearScenarioState` (`Scenario.cs:578`) is the symmetric teardown: it nulls the active-scenario properties, clears
 `Aircraft`, clears the ground layout / video maps / shown paths, and resets session settings to a neutral

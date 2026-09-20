@@ -1362,6 +1362,15 @@ public record RoomStateDto(
     double SimRate,
     string? PrimaryAirportId,
     List<AircraftDto> AllAircraft,
+    // The room's live generator sets and ARTCC position list, so the generator editor opens against the
+    // room's configuration on the join path too (the loader and broadcast paths get the same four from
+    // LoadScenarioResultDto / ScenarioLoadedDto). Positionally required — hence ahead of the optional
+    // tail, since C# forbids a required parameter after an optional one — and nullable so a server that
+    // omits them binds null rather than an empty list; the stash treats null as empty.
+    List<Yaat.Sim.Scenarios.ScenarioGeneratorConfig>? AircraftGenerators,
+    List<Yaat.Sim.Scenarios.VfrArrivalGeneratorConfig>? VfrArrivalGenerators,
+    List<Yaat.Sim.Scenarios.OverflightGeneratorConfig>? OverflightGenerators,
+    List<ScenarioPositionDto>? Positions,
     PositionDisplayConfigDto? PositionDisplayConfig = null,
     double ElapsedSeconds = 0,
     bool IsPlayback = false,

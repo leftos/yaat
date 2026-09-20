@@ -806,6 +806,12 @@ public partial class MainViewModel
             RoomMembers.Add(member);
         }
 
+        // Seed the generator editor's sources for every room, scenario or not: the server sends four empty
+        // lists for a scenario-less room, and stashing those clears whatever the previously joined room left
+        // behind. Inside the scenario branch this would leave the editor holding the earlier room's
+        // generators — which its Apply would then post into a room that never had them.
+        StashScenarioGeneratorsAndPositions(state.AircraftGenerators, state.VfrArrivalGenerators, state.OverflightGenerators, state.Positions);
+
         if (state.ScenarioId is not null)
         {
             ApplyScenarioBootstrap(
