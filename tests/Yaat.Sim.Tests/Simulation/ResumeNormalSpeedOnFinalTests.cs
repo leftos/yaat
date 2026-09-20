@@ -311,6 +311,153 @@ public class ResumeNormalSpeedOnFinalTests(ITestOutputHelper output)
         Assert.Null(aircraft.Targets.TargetSpeed);
     }
 
+    /// <summary>
+    /// Inside the restore gate the command clears the speed fields and hands nothing back, which is right — §5-7-1's
+    /// lead ("Avoid adjustments requiring alternate decreases and increases") and §5-7-1.a.3(e) ("keep the number of
+    /// speed adjustments per aircraft to the minimum required") are exactly what speeding an arrival up a couple of
+    /// miles before the phase slows it again would break. It used to read to the instructor as an ordinary "Resume
+    /// normal speed", with the aircraft then flying on at the reduced speed for the rest of the approach and nothing
+    /// saying why. The answer says so instead.
+    ///
+    /// <para>AIM 4-4-12.f scopes the phrase itself the same way: ATC advises "resume normal speed" when it determines
+    /// <em>before an approach clearance is issued</em> that speed adjustment is no longer necessary. An arrival already
+    /// flying its final approach profile is past that point, which is why there is nothing here to give back.</para>
+    /// </summary>
+    [Fact]
+    public void Rns_InsideTheRestoreGate_SaysAlreadyOnProfile()
+    {
+        double gate = RestoreGateNm(TurbopropCallsign, TurbopropType);
+        (SimulationEngine Engine, RunwayInfo Runway)? setup = ArrivalOnLongFinal(TurbopropCallsign, TurbopropType, gate - InsideGateMarginNm);
+        if (setup is null)
+        {
+            output.WriteLine("SKIP: scenario, navdata or the OAK layout is unavailable");
+            return;
+        }
+        (SimulationEngine engine, RunwayInfo runway) = setup.Value;
+
+        AircraftState aircraft = engine.FindAircraft(TurbopropCallsign)!;
+        double commanded = Math.Round(Math.Min(ScheduledKts(aircraft, runway), RegulatoryCapKts(aircraft)) - ReductionKts);
+        CommandResult reduction = engine.SendCommand(TurbopropCallsign, $"SPD {commanded:F0}");
+        Assert.True(reduction.Success, reduction.Message);
+        SettleAt(engine, TurbopropCallsign, commanded);
+
+        aircraft = engine.FindAircraft(TurbopropCallsign)!;
+        double distanceNm = AlongFinalNm(aircraft, runway);
+        Assert.True(distanceNm < gate, $"premise: the arrival must be inside the restore gate ({distanceNm:F1} nm vs {gate:F1} nm)");
+
+        CommandResult resume = engine.SendCommand(TurbopropCallsign, "RNS");
+        Assert.True(resume.Success, resume.Message);
+
+        output.WriteLine($"answer inside the gate: {resume.Message}");
+        Assert.Equal(NoChangeAnswer, resume.Message);
+        Assert.Null(aircraft.Targets.TargetSpeed);
+    }
+
+    /// <summary>
+    /// The same answer inside the ±10 kt band a complying pilot holds (AIM 4-4-12.c): there is nothing to give back,
+    /// so nothing changes, and the instructor is told that rather than being left to infer it.
+    /// </summary>
+    [Fact]
+    public void Rns_WithinTheDeadband_SaysAlreadyOnProfile()
+    {
+        (SimulationEngine Engine, RunwayInfo Runway)? setup = ArrivalOnLongFinal(
+            TurbopropCallsign,
+            TurbopropType,
+            RestoreGateNm(TurbopropCallsign, TurbopropType) + OutsideGateMarginNm
+        );
+        if (setup is null)
+        {
+            output.WriteLine("SKIP: scenario, navdata or the OAK layout is unavailable");
+            return;
+        }
+        (SimulationEngine engine, RunwayInfo runway) = setup.Value;
+
+        AircraftState aircraft = engine.FindAircraft(TurbopropCallsign)!;
+        double commanded = Math.Round(ScheduledKts(aircraft, runway) - (ArrivalSpacingManager.SpeedRestoreDeadbandKts / 2.0));
+        CommandResult reduction = engine.SendCommand(TurbopropCallsign, $"SPD {commanded:F0}");
+        Assert.True(reduction.Success, reduction.Message);
+        SettleAt(engine, TurbopropCallsign, commanded);
+
+        aircraft = engine.FindAircraft(TurbopropCallsign)!;
+        double shortfall = ScheduledKts(aircraft, runway) - aircraft.IndicatedAirspeed;
+        Assert.True(shortfall <= ArrivalSpacingManager.SpeedRestoreDeadbandKts, "premise: the arrival must be inside the deadband");
+
+        CommandResult resume = engine.SendCommand(TurbopropCallsign, "RNS");
+        Assert.True(resume.Success, resume.Message);
+
+        output.WriteLine($"answer inside the deadband: {resume.Message}");
+        Assert.Equal(NoChangeAnswer, resume.Message);
+        Assert.Null(aircraft.Targets.TargetSpeed);
+    }
+
+    /// <summary>
+    /// Where the command does hand the profile speed back the answer is the plain one — the suffix is a statement that
+    /// nothing moved, so it may never appear on the arm that moves something.
+    /// </summary>
+    [Fact]
+    public void Rns_OutsideTheGateAndSlow_StillSaysResumeNormalSpeed_AndRestores()
+    {
+        (SimulationEngine Engine, RunwayInfo Runway)? setup = ArrivalOnLongFinal(
+            TurbopropCallsign,
+            TurbopropType,
+            RestoreGateNm(TurbopropCallsign, TurbopropType) + OutsideGateMarginNm
+        );
+        if (setup is null)
+        {
+            output.WriteLine("SKIP: scenario, navdata or the OAK layout is unavailable");
+            return;
+        }
+        (SimulationEngine engine, RunwayInfo runway) = setup.Value;
+
+        SlowTheArrival(engine, TurbopropCallsign, TurbopropType, runway, ReductionKts);
+        AircraftState aircraft = engine.FindAircraft(TurbopropCallsign)!;
+
+        CommandResult resume = engine.SendCommand(TurbopropCallsign, "RNS");
+        Assert.True(resume.Success, resume.Message);
+
+        output.WriteLine($"answer outside the gate: {resume.Message}");
+        Assert.Equal(PlainAnswer, resume.Message);
+        Assert.NotNull(aircraft.Targets.TargetSpeed);
+    }
+
+    /// <summary>
+    /// The suffix belongs to the final-approach profile case alone. A vectored inbound with no approach phase has no
+    /// profile to be on, so the command answers exactly as it always did.
+    /// </summary>
+    [Fact]
+    public void Rns_NotOnFinalApproach_StillSaysResumeNormalSpeed()
+    {
+        (SimulationEngine Engine, RunwayInfo Runway)? setup = ArrivalOnLongFinal(
+            TurbopropCallsign,
+            TurbopropType,
+            RestoreGateNm(TurbopropCallsign, TurbopropType) + OutsideGateMarginNm
+        );
+        if (setup is null)
+        {
+            output.WriteLine("SKIP: scenario, navdata or the OAK layout is unavailable");
+            return;
+        }
+        (SimulationEngine engine, RunwayInfo runway) = setup.Value;
+
+        SlowTheArrival(engine, TurbopropCallsign, TurbopropType, runway, ReductionKts);
+        AircraftState aircraft = engine.FindAircraft(TurbopropCallsign)!;
+
+        // The same arrival, handed back to vectors: no approach phase, so nothing here is flying a final profile.
+        aircraft.Phases = null;
+
+        CommandResult resume = engine.SendCommand(TurbopropCallsign, "RNS");
+        Assert.True(resume.Success, resume.Message);
+
+        output.WriteLine($"answer off the approach: {resume.Message}");
+        Assert.Equal(PlainAnswer, resume.Message);
+    }
+
+    /// <summary>The answer when the command cleared the fields and the final-approach restore handed nothing back.</summary>
+    private const string NoChangeAnswer = "Resume normal speed — already on its final approach speed profile, no change";
+
+    /// <summary>The answer everywhere else.</summary>
+    private const string PlainAnswer = "Resume normal speed";
+
     /// <summary>How far (nm) inside its own restore gate the no-restore arm places the arrival.</summary>
     private const double InsideGateMarginNm = 2.0;
 

@@ -346,7 +346,8 @@ public sealed partial class SimulationEngine
     internal List<(double DistanceNm, AircraftState Aircraft)> CorridorAircraft(GeneratorState gen)
     {
         RunwayInfo rwy = gen.Runway;
-        LatLon threshold = LandingThreshold.Resolve(rwy, World.GroundLayout);
+        AirportGroundLayout? layout = ResolveAirportLayout(rwy.AirportId);
+        LatLon threshold = LandingThreshold.Resolve(rwy, layout);
         var outbound = new TrueHeading((rwy.TrueHeading.Degrees + 180.0) % 360.0);
         double maxAlong = gen.Config.MaxDistance + FinalCorridorMarginNm;
 
@@ -367,7 +368,7 @@ public sealed partial class SimulationEngine
             {
                 continue;
             }
-            if (!IsArrivalToRunway(ac, rwy))
+            if (!IsArrivalToRunway(ac, rwy, layout))
             {
                 continue;
             }
@@ -384,9 +385,16 @@ public sealed partial class SimulationEngine
     /// close parallel inside the corridor band counts too — harmless, since it only adds spacing at spawn, and in line with
     /// the 7110.65 §5-5-4 note that parallel runways less than 2,500 feet apart are considered a single runway.
     /// </summary>
-    private static bool IsArrivalToRunway(AircraftState aircraft, RunwayInfo runway)
+    /// <param name="aircraft">The aircraft being tested for membership.</param>
+    /// <param name="runway">The runway whose corridor it may belong to.</param>
+    /// <param name="layout">
+    /// <paramref name="runway"/>'s own field's layout (<see cref="ResolveAirportLayout"/>) — the same one the caller
+    /// measured the corridor's along-track distances with, so the on-final test and the distance never read a
+    /// different threshold.
+    /// </param>
+    private static bool IsArrivalToRunway(AircraftState aircraft, RunwayInfo runway, AirportGroundLayout? layout)
     {
-        if (ApproachCommandHandler.IsOnFinal(aircraft, runway))
+        if (ApproachCommandHandler.IsOnFinal(aircraft, runway, layout))
         {
             return true;
         }
@@ -591,7 +599,7 @@ public sealed partial class SimulationEngine
         double leaderOffsetRad = leader.TrueTrack.AbsAngleTo(gen.Runway.TrueHeading) * Math.PI / 180.0;
         double leaderAlongCourseGsKts = leader.GroundSpeed * Math.Max(0.0, Math.Cos(leaderOffsetRad));
 
-        double ceiling = ApproachCommandHandler.IsOnFinal(leader, gen.Runway)
+        double ceiling = ApproachCommandHandler.IsOnFinal(leader, gen.Runway, ResolveAirportLayout(gen.Runway.AirportId))
             ? ArrivalSpacingManager.InTrailCeilingKts(
                 new InTrailPair
                 {
@@ -834,14 +842,16 @@ public sealed partial class SimulationEngine
             }
 
             RunwayInfo? runway = ResolveArrivalRunway(aircraft);
-            double distance = runway is null ? double.NaN : RunwayOccupancy.DistanceToAssignedThresholdNm(aircraft, runway, World.GroundLayout);
-            if (HoldsAcrossPreClearanceDropout(aircraft, runway, distance, scenario))
+            AirportGroundLayout? layout = runway is null ? null : ResolveAirportLayout(runway.AirportId);
+            double distance = runway is null ? double.NaN : RunwayOccupancy.DistanceToAssignedThresholdNm(aircraft, runway, layout);
+            var datum = new ArrivalThresholdDatum(runway, layout, distance);
+            if (HoldsAcrossPreClearanceDropout(aircraft, datum, scenario))
             {
                 aircraft.Approach.SameRunwayProtectionDropoutSeconds += ProtectionPassIntervalSeconds;
                 continue;
             }
 
-            ReleaseProtectionUnlessHandingOff(aircraft, runway, distance, scenario);
+            ReleaseProtectionUnlessHandingOff(aircraft, datum, scenario);
         }
     }
 
@@ -861,19 +871,15 @@ public sealed partial class SimulationEngine
     /// on final, the arrival landing or going around, a phase or a clearance taking it over, another controller taking
     /// its speed, or it leaving the 5-20 nm band.</para>
     /// </summary>
-    private static bool HoldsAcrossPreClearanceDropout(
-        AircraftState aircraft,
-        RunwayInfo? runway,
-        double distanceToThresholdNm,
-        SimScenarioState scenario
-    )
+    private static bool HoldsAcrossPreClearanceDropout(AircraftState aircraft, ArrivalThresholdDatum datum, SimScenarioState scenario)
     {
+        (RunwayInfo? runway, AirportGroundLayout? layout, double distanceToThresholdNm) = datum;
         if ((runway is not { } landingRunway) || (!IssuingGateOpen(scenario)) || HasOtherSpeedAuthority(aircraft, scenario))
         {
             return false;
         }
 
-        if (!IsPreClearanceArrivalOutsideTheTrackWindow(aircraft, landingRunway))
+        if (!IsPreClearanceArrivalOutsideTheTrackWindow(aircraft, landingRunway, layout))
         {
             return false;
         }
@@ -891,12 +897,12 @@ public sealed partial class SimulationEngine
     /// clearance rather than a heading, is never held here — and currently outside the ±45° window. An aircraft inside
     /// the window has not dropped out at all: whatever stopped the pass re-stamping it is a real reason to let go.
     /// </summary>
-    private static bool IsPreClearanceArrivalOutsideTheTrackWindow(AircraftState aircraft, RunwayInfo runway) =>
+    private static bool IsPreClearanceArrivalOutsideTheTrackWindow(AircraftState aircraft, RunwayInfo runway, AirportGroundLayout? layout) =>
         (!aircraft.IsOnGround)
         && (!aircraft.IsShadow)
         && (aircraft.Phases?.CurrentPhase is null)
         && (aircraft.Phases?.AssignedRunway is null)
-        && (!ApproachCommandHandler.IsOnFinal(aircraft, runway));
+        && (!ApproachCommandHandler.IsOnFinal(aircraft, runway, layout));
 
     /// <summary>
     /// The pass's one way out of an engagement: hands the ceiling back
@@ -913,12 +919,7 @@ public sealed partial class SimulationEngine
     /// the student owns the track, where the speed is theirs and a line from the sim would be a second controller
     /// talking to their aircraft. A release still happens in both cases; it is simply silent.</para>
     /// </summary>
-    private static void ReleaseProtectionUnlessHandingOff(
-        AircraftState aircraft,
-        RunwayInfo? runway,
-        double distanceToThresholdNm,
-        SimScenarioState scenario
-    )
+    private static void ReleaseProtectionUnlessHandingOff(AircraftState aircraft, ArrivalThresholdDatum datum, SimScenarioState scenario)
     {
         if (HandoffToStudentInProgress(aircraft, scenario))
         {
@@ -926,8 +927,18 @@ public sealed partial class SimulationEngine
         }
 
         bool mayAnnounce = IssuingGateOpen(scenario) && (!StudentOwnsTrack(aircraft, scenario));
-        ReleaseSameRunwayProtection(aircraft, runway, distanceToThresholdNm, mayAnnounce);
+        ReleaseSameRunwayProtection(aircraft, datum, mayAnnounce);
     }
+
+    /// <summary>
+    /// An arrival's landing runway, that runway's own field's layout (<see cref="ResolveAirportLayout"/>) and its
+    /// distance to the landing threshold measured with that layout — carried together so the pass cannot decide "is it
+    /// on final" against one datum and "how far out is it" against another. On a displaced runway the two thresholds
+    /// are hundreds of feet apart, which is the difference between an arrival being inside the §5-7-1.b.4 window and
+    /// outside it. <see cref="DistanceNm"/> is <see cref="double.NaN"/> when no runway resolved, which fails every
+    /// comparison the pass makes of it.
+    /// </summary>
+    private readonly record struct ArrivalThresholdDatum(RunwayInfo? Runway, AirportGroundLayout? Layout, double DistanceNm);
 
     /// <summary>
     /// The pass's issuing gate: the instructor's setting is on and the simulated approach controller this pass speaks
@@ -995,10 +1006,12 @@ public sealed partial class SimulationEngine
     /// mid-session, or the student moving up to approach — which is a change of who is controlling, not an instruction.</para>
     /// </summary>
     /// <param name="aircraft">The arrival whose ceiling the pass is handing back.</param>
-    /// <param name="runway">Its landing runway, named in the line; null when it cannot be resolved, which is silent.</param>
-    /// <param name="distanceToThresholdNm">Its distance to that landing threshold, against the 5 nm window.</param>
+    /// <param name="datum">
+    /// Its landing runway — named in the line, and null when it cannot be resolved, which is silent — with that
+    /// runway's layout and its distance to the landing threshold against the 5 nm window.
+    /// </param>
     /// <param name="mayAnnounce">True when the simulated approach controller is still the position working it.</param>
-    private static void ReleaseSameRunwayProtection(AircraftState aircraft, RunwayInfo? runway, double distanceToThresholdNm, bool mayAnnounce)
+    private static void ReleaseSameRunwayProtection(AircraftState aircraft, ArrivalThresholdDatum datum, bool mayAnnounce)
     {
         AircraftApproachState approach = aircraft.Approach;
         bool towerInstructionWasLatched = approach.SameRunwayProtectionFasInstructed;
@@ -1015,10 +1028,10 @@ public sealed partial class SimulationEngine
             double? displaced = approach.SameRunwayProtectionDisplacedCeilingKts;
             aircraft.Targets.SpeedCeiling = displaced;
             if (
-                (runway is { } speakingRunway)
+                (datum.Runway is { } speakingRunway)
                 && mayAnnounce
                 && (!towerInstructionWasLatched)
-                && MayAnnounceRelease(aircraft, speakingRunway, distanceToThresholdNm, afterExpiredHold)
+                && MayAnnounceRelease(aircraft, speakingRunway, datum, afterExpiredHold)
             )
             {
                 AnnounceProtectionReleased(aircraft, speakingRunway, displaced);
@@ -1049,19 +1062,21 @@ public sealed partial class SimulationEngine
     /// a vector, and §5-7-1.d lists only an approach or a climb via/descend via clearance — so the aircraft is still
     /// flying it and has to be told it may stop.</para>
     /// </summary>
-    private static bool MayAnnounceRelease(AircraftState aircraft, RunwayInfo runway, double distanceToThresholdNm, bool afterExpiredHold)
+    private static bool MayAnnounceRelease(AircraftState aircraft, RunwayInfo runway, ArrivalThresholdDatum datum, bool afterExpiredHold)
     {
-        if (aircraft.IsOnGround || aircraft.IsShadow || (!double.IsFinite(distanceToThresholdNm)))
+        if (aircraft.IsOnGround || aircraft.IsShadow || (!double.IsFinite(datum.DistanceNm)))
         {
             return false;
         }
 
-        if (distanceToThresholdNm <= FinalSpeedAdjustmentCutoffNm)
+        if (datum.DistanceNm <= FinalSpeedAdjustmentCutoffNm)
         {
             return false;
         }
 
-        return afterExpiredHold || ApproachCommandHandler.IsInboundToLand(aircraft) || ApproachCommandHandler.IsOnFinal(aircraft, runway);
+        return afterExpiredHold
+            || ApproachCommandHandler.IsInboundToLand(aircraft)
+            || ApproachCommandHandler.IsOnFinal(aircraft, runway, datum.Layout);
     }
 
     /// <summary>
@@ -1168,13 +1183,14 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
+            AirportGroundLayout? layout = ResolveAirportLayout(runway.AirportId);
             bool preClearance = aircraft.Phases?.AssignedRunway is null;
-            if (!IsRunwayArrival(aircraft, runway, preClearance))
+            if (!IsRunwayArrival(aircraft, runway, layout, preClearance))
             {
                 continue;
             }
 
-            double distance = RunwayOccupancy.DistanceToAssignedThresholdNm(aircraft, runway, World.GroundLayout);
+            double distance = RunwayOccupancy.DistanceToAssignedThresholdNm(aircraft, runway, layout);
 
             // An airborne aircraft whose along-course position puts it behind the landing threshold is not part of
             // this runway's arrival stream — it is overflying, going around, or set up for the reciprocal end — and
@@ -1213,7 +1229,7 @@ public sealed partial class SimulationEngine
     /// the threshold but not past it. "On final" there has to be the track test, because there is no approach phase
     /// to read it off.
     /// </summary>
-    private bool IsRunwayArrival(AircraftState aircraft, RunwayInfo runway, bool preClearance)
+    private static bool IsRunwayArrival(AircraftState aircraft, RunwayInfo runway, AirportGroundLayout? layout, bool preClearance)
     {
         if (!preClearance)
         {
@@ -1221,12 +1237,12 @@ public sealed partial class SimulationEngine
                 || ((!aircraft.IsOnGround) && ApproachCommandHandler.IsInboundToLand(aircraft));
         }
 
-        if (aircraft.IsOnGround || (aircraft.Phases?.CurrentPhase is not null) || !ApproachCommandHandler.IsOnFinal(aircraft, runway))
+        if ((aircraft.IsOnGround) || (aircraft.Phases?.CurrentPhase is not null) || (!ApproachCommandHandler.IsOnFinal(aircraft, runway, layout)))
         {
             return false;
         }
 
-        double distance = RunwayOccupancy.DistanceToAssignedThresholdNm(aircraft, runway, World.GroundLayout);
+        double distance = RunwayOccupancy.DistanceToAssignedThresholdNm(aircraft, runway, layout);
         return distance is > 0.0 and <= SameRunwayArrivalProtection.PreClearanceRangeNm;
     }
 
@@ -1238,8 +1254,10 @@ public sealed partial class SimulationEngine
     /// scripted <c>CFIX … ; CAPP …</c> composition, where the approach clearance waits in the command queue behind a
     /// fix condition and the aircraft has no phase of its own until it fires.
     /// </summary>
-    private bool IsProtectionEligible(AircraftState follower, RunwayInfo runway, SimScenarioState scenario, bool preClearance)
+    internal bool IsProtectionEligible(AircraftState follower, RunwayInfo runway, SimScenarioState scenario, bool preClearance)
     {
+        AirportGroundLayout? layout = ResolveAirportLayout(runway.AirportId);
+
         // Followers only — deliberately asymmetric. A live-traffic shadow flies its feed and skips the sim's speed
         // integrator entirely, so a ceiling stamped on it would change nothing while the instructor still read a
         // "reduce speed" line for an instruction no one issued. A shadow ahead is a different matter: it really is
@@ -1255,7 +1273,7 @@ public sealed partial class SimulationEngine
             return false;
         }
 
-        if (!IsRunwayArrival(follower, runway, preClearance))
+        if (!IsRunwayArrival(follower, runway, layout, preClearance))
         {
             return false;
         }
@@ -1269,11 +1287,11 @@ public sealed partial class SimulationEngine
         // pilot's own speed from the FAF anyway. The distance is the along-course one to the landing threshold, the
         // datum the stream is ordered by and the release is measured against, so one arrival is never both inside the
         // window for the pass and outside it for the line that terminates the reduction.
-        double thresholdDistance = RunwayOccupancy.DistanceToAssignedThresholdNm(follower, runway, World.GroundLayout);
+        double thresholdDistance = RunwayOccupancy.DistanceToAssignedThresholdNm(follower, runway, layout);
         if (
             (!follower.Approach.SameRunwayProtectionFasInstructed)
             && (thresholdDistance <= FinalSpeedAdjustmentCutoffNm)
-            && ApproachCommandHandler.IsOnFinal(follower, runway)
+            && ApproachCommandHandler.IsOnFinal(follower, runway, layout)
         )
         {
             return false;
@@ -1341,7 +1359,7 @@ public sealed partial class SimulationEngine
         SimScenarioState scenario
     )
     {
-        AirportGroundLayout? layout = World.GroundLayout;
+        AirportGroundLayout? layout = ResolveAirportLayout(runway.AirportId);
         double followerEta = RunwayOccupancy.SecondsToAssignedThreshold(follower, runway, layout);
         double leaderEta = LeaderThresholdEtaSeconds(leader, runway, layout);
         if (!double.IsFinite(followerEta) || !double.IsFinite(leaderEta))
@@ -1358,7 +1376,7 @@ public sealed partial class SimulationEngine
         // controller has nothing more to say to it, and the simulated tower speaks only for a student who is working
         // the ground. With neither able to issue, all that is left is to keep flying what was already assigned.
         bool insideTowerBoundary = SameRunwayArrivalProtection.IsInsideTowerSpeedAuthority(followerDistanceNm);
-        bool towerAuthority = scenario.IsStudentGroundPosition && insideTowerBoundary && ApproachCommandHandler.IsOnFinal(follower, runway);
+        bool towerAuthority = scenario.IsStudentGroundPosition && insideTowerBoundary && ApproachCommandHandler.IsOnFinal(follower, runway, layout);
         if (insideTowerBoundary && !towerAuthority)
         {
             return HoldApproachReductionInsideTowerBoundary(follower);
@@ -1408,7 +1426,7 @@ public sealed partial class SimulationEngine
         double? displaced = DisplacedCeilingKts(follower);
         if (displaced is { } binding && binding <= ceiling)
         {
-            ReleaseProtectionUnlessHandingOff(follower, runway, followerDistanceNm, scenario);
+            ReleaseProtectionUnlessHandingOff(follower, new ArrivalThresholdDatum(runway, layout, followerDistanceNm), scenario);
             return false;
         }
 

@@ -1499,6 +1499,224 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// <c>PTAC</c> issues an approach clearance of its own — heading, altitude, "cleared approach" — so §5-7-1.c binds
+    /// it exactly as it binds <c>CAPP</c>: a reduction the pass is holding this arrival to outlives the clearance and
+    /// has to be restated, or AIM 4-4-12.g has the pilot taking the clearance as cancelling it. Same line, same figure.
+    /// </summary>
+    [Fact]
+    public void Ptac_WithAStandingInTrailReduction_RestatesTheSpeed()
+    {
+        ArrivalPair? pair = ExpectedApproachPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            output.WriteLine("skipped: scenario, navdata, OAK layout or an approach to runway 30 is unavailable");
+            return;
+        }
+
+        pair.Pass();
+        Report(pair, "engaged before the PTAC");
+        Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+
+        CommandResult result = pair.Engine.SendCommand(pair.Follower.Callsign, $"PTAC PH PA {pair.Follower.Approach.Expected}");
+        Assert.True(result.Success, result.Message);
+
+        List<string> restated = RestatementLines(pair.Follower);
+        output.WriteLine($"restatement: {string.Join(" | ", restated)}");
+        string line = Assert.Single(restated);
+        Assert.Contains($"→ {pair.Follower.Callsign}: maintain {RestatedSpeedKts} knots", line, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The restatement is the controller saying the speed again, not a second assignment: the ceiling the pass stamped
+    /// is left exactly where it was and the aircraft is still flying it after the clearance, while the clearance's own
+    /// §5-7-1.d cancellation takes the explicit target away — which is what makes the restatement necessary.
+    /// </summary>
+    [Fact]
+    public void Ptac_WithAStandingInTrailReduction_LeavesTheCeilingStanding()
+    {
+        ArrivalPair? pair = ExpectedApproachPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            output.WriteLine("skipped: scenario, navdata, OAK layout or an approach to runway 30 is unavailable");
+            return;
+        }
+
+        pair.Pass();
+        Report(pair, "engaged before the PTAC");
+        double stamped = Assert.IsType<double>(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+
+        CommandResult result = pair.Engine.SendCommand(pair.Follower.Callsign, $"PTAC PH PA {pair.Follower.Approach.Expected}");
+        Assert.True(result.Success, result.Message);
+
+        Report(pair, "after the PTAC");
+        Assert.Equal(stamped, pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Equal(stamped, pair.Follower.Targets.SpeedCeiling);
+        Assert.Null(pair.Follower.Targets.TargetSpeed);
+    }
+
+    /// <summary>
+    /// With nothing standing there is nothing to restate: a <c>PTAC</c> to an arrival the pass has looked at and left
+    /// alone carries no speed line at all, rather than inventing one out of whatever the aircraft happens to be flying.
+    /// </summary>
+    [Fact]
+    public void Ptac_WithNoReduction_SaysNothingAboutSpeed()
+    {
+        ArrivalPair? pair = ExpectedApproachPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            output.WriteLine("skipped: scenario, navdata, OAK layout or an approach to runway 30 is unavailable");
+            return;
+        }
+
+        pair.PlaceFollowerAt(ClearOfConflictDistanceNm);
+        pair.Pass();
+        Report(pair, "no conflict, so no reduction");
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+
+        CommandResult result = pair.Engine.SendCommand(pair.Follower.Callsign, $"PTAC PH PA {pair.Follower.Approach.Expected}");
+        Assert.True(result.Success, result.Message);
+
+        Assert.Empty(RestatementLines(pair.Follower));
+        Assert.Empty(SpacingLines(pair.Follower));
+    }
+
+    /// <summary>KSJC 12R/30L is authored <c>"threshold": "1297 - 2537"</c>: landing 30L starts 2,537 ft downfield.</summary>
+    private const double SjcDisplacementFt = 2537.0;
+
+    /// <summary>§5-7-1.b.4's no-adjustment window (nm) — the boundary the two datums fall on opposite sides of.</summary>
+    private const double FinalAdjustmentWindowNm = 5.0;
+
+    /// <summary>
+    /// Distance (nm) from KSJC 30L's pavement end that is inside <see cref="FinalAdjustmentWindowNm"/> measured from
+    /// there and outside it measured from the landing threshold 2,537 ft further down.
+    /// </summary>
+    private const double SjcProbeFromPavementNm = 4.8;
+
+    /// <summary>
+    /// The pass measures an arrival against <em>the runway's</em> own field, never against whatever layout the
+    /// aircraft happens to carry. An airborne arrival often carries none — a scripted one with no destination, a
+    /// live-traffic shadow — and <see cref="SimulationWorld.GroundLayout"/> is the scenario's primary airport, which
+    /// knows nothing of a satellite's runways: read either of those and a displaced runway's landing threshold
+    /// vanishes. On KSJC 30L, whose landing threshold is <see cref="SjcDisplacementFt"/> ft (0.42 nm) down the
+    /// pavement, that is the difference between an arrival being inside the §5-7-1.b.4 window and outside it — at
+    /// <see cref="SjcProbeFromPavementNm"/> nm from the pavement end it is 5.2 nm from the threshold it may land on,
+    /// and the simulated approach controller may still slow it. Both arrivals, the one carrying its field's layout and
+    /// the one carrying nothing, have to be given that same answer.
+    /// </summary>
+    [Fact]
+    public void ProtectionPass_UsesTheRunwaysLayout_WhenTheAircraftCarriesNone()
+    {
+        SecondaryFieldProbe? probe = SjcDisplacedArrivals();
+        if (probe is null)
+        {
+            output.WriteLine("skipped: scenario, navdata, the OAK or SJC layout, or KSJC 30L is unavailable");
+            return;
+        }
+
+        (SimulationEngine engine, RunwayInfo runway, AirportGroundLayout layout, AircraftState carrying, AircraftState bare) = probe.Value;
+        SimScenarioState scenario = Assert.IsType<SimScenarioState>(engine.Scenario);
+
+        // Premise: the primary airport's layout carries no displacement for a KSJC runway, so measuring through it is
+        // measuring to the pavement end — 0.42 nm short of where this arrival may touch down.
+        Assert.Equal(0.0, LandingThreshold.DisplacementFt(runway, engine.World.GroundLayout));
+        Assert.Equal(SjcDisplacementFt, LandingThreshold.DisplacementFt(runway, layout));
+
+        double pavementDatumNm = RunwayOccupancy.DistanceToAssignedThresholdNm(bare, runway, engine.World.GroundLayout);
+        double landingDatumNm = RunwayOccupancy.DistanceToAssignedThresholdNm(bare, runway, layout);
+        output.WriteLine($"primary-layout datum {pavementDatumNm:F2} nm, landing datum {landingDatumNm:F2} nm");
+        Assert.InRange(pavementDatumNm, 4.5, FinalAdjustmentWindowNm); // premise: inside the window on the pavement datum
+        Assert.True(landingDatumNm > FinalAdjustmentWindowNm, $"premise: outside the window on the landing datum ({landingDatumNm:F2} nm)");
+
+        Assert.True(
+            engine.IsProtectionEligible(bare, runway, scenario, preClearance: true),
+            "an arrival carrying no layout was measured to the pavement end, not to the runway's landing threshold"
+        );
+        Assert.True(
+            engine.IsProtectionEligible(carrying, runway, scenario, preClearance: true),
+            "the arrival carrying its field's layout got a different answer from the identical one that carries none"
+        );
+    }
+
+    /// <summary>
+    /// Two identical pre-clearance arrivals on KSJC 30L's final — a runway at neither the scenario's primary airport
+    /// nor any generator's — one carrying the SJC layout and one carrying nothing. Null when the scenario, navdata,
+    /// either layout or the runway is unavailable (silent skip).
+    /// </summary>
+    private static SecondaryFieldProbe? SjcDisplacedArrivals()
+    {
+        if (!File.Exists(ScenarioPath))
+        {
+            return null;
+        }
+        TestVnasData.EnsureInitialized();
+        if (TestVnasData.NavigationDb is null)
+        {
+            return null;
+        }
+
+        var groundData = new TestAirportGroundData();
+        if ((groundData.GetLayout("OAK") is null) || (groundData.GetLayout("SJC") is not { } sjcLayout))
+        {
+            return null;
+        }
+        if (NavigationDatabase.Instance.GetRunway("KSJC", "30L") is not { } runway)
+        {
+            return null;
+        }
+
+        var engine = new SimulationEngine(groundData);
+        engine.LoadScenario(File.ReadAllText(ScenarioPath), rngSeed: 1, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+        if (engine.Scenario is null)
+        {
+            return null;
+        }
+
+        engine.Scenario.SoloArrivalGeneratorRatePercent = 0;
+        engine.Scenario.AutoArrivalSpacingOnOccupiedRunway = true;
+
+        AircraftState carrying = InjectSecondaryFieldArrival(engine, runway, "SJC1", sjcLayout);
+        AircraftState bare = InjectSecondaryFieldArrival(engine, runway, "SJC2", layout: null);
+        return new SecondaryFieldProbe(engine, runway, sjcLayout, carrying, bare);
+    }
+
+    /// <summary>
+    /// A pre-clearance arrival — no phase, no assigned runway, tracking the landing course — placed
+    /// <see cref="SjcProbeFromPavementNm"/> nm back from <paramref name="runway"/>'s pavement end on its extended
+    /// centreline, with <paramref name="layout"/> bound to it or nothing at all.
+    /// </summary>
+    private static AircraftState InjectSecondaryFieldArrival(SimulationEngine engine, RunwayInfo runway, string callsign, AirportGroundLayout? layout)
+    {
+        var pavement = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        var aircraft = new AircraftState
+        {
+            Callsign = callsign,
+            AircraftType = "B739",
+            Position = GeoMath.ProjectPoint(pavement, runway.TrueHeading.ToReciprocal(), SjcProbeFromPavementNm),
+            TrueHeading = runway.TrueHeading,
+            TrueTrack = runway.TrueHeading,
+            Altitude = 1600,
+            IndicatedAirspeed = ExpectedArrivalSpeedKts,
+            IsOnGround = false,
+            IsGeneratorArrival = false,
+            FlightPlan = new AircraftFlightPlan { Destination = "KSJC" },
+            Phases = null,
+        };
+        aircraft.Ground.Layout = layout;
+
+        engine.World.AddAircraft(aircraft);
+        return aircraft;
+    }
+
+    /// <summary>The two arrivals of <see cref="SjcDisplacedArrivals"/>, with the engine and the runway they are on.</summary>
+    private readonly record struct SecondaryFieldProbe(
+        SimulationEngine Engine,
+        RunwayInfo Runway,
+        AirportGroundLayout Layout,
+        AircraftState Carrying,
+        AircraftState Bare
+    );
+
+    /// <summary>
     /// The figure (kt) the approach clearance restates for this fixture, written out rather than computed from the
     /// function under test. At <see cref="FollowerDistanceNm"/> the jet follower's reduction bottoms out on
     /// §5-7-3.c.1(b)'s 170 kt — a floor, not an arithmetic result — so it is already a 5-knot increment and the

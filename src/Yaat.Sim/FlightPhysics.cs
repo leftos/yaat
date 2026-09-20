@@ -2104,7 +2104,9 @@ public static class FlightPhysics
             return;
         }
 
-        double dist = GeoMath.DistanceNm(aircraft.Position, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude));
+        // The five miles are measured to the threshold the aircraft may land on, not to the pavement end: behind a
+        // displaced threshold the two are hundreds of feet apart and the rule's window opens at the landing one.
+        double dist = GeoMath.DistanceNm(aircraft.Position, LandingThreshold.Resolve(runway, aircraft.Ground.Layout));
         if (dist > 5.0)
         {
             return;
@@ -2113,7 +2115,7 @@ public static class FlightPhysics
         // Distance alone is not the rule — §5-7-1.b.4 applies on final. Pattern traffic flies its whole
         // circuit inside 5 nm, so auto-cancelling there stripped an assigned speed the moment it was
         // issued.
-        if (!Commands.ApproachCommandHandler.IsOnFinal(aircraft, runway))
+        if (!Commands.ApproachCommandHandler.IsOnFinal(aircraft, runway, aircraft.Ground.Layout))
         {
             return;
         }

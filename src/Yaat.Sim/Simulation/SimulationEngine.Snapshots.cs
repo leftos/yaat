@@ -61,7 +61,16 @@ public sealed partial class SimulationEngine
 
         foreach (AircraftSnapshotDto acDto in snapshot.Aircraft)
         {
-            var ac = AircraftState.FromSnapshot(acDto, groundLayout);
+            // Each aircraft goes back to the layout it was carrying, not to the primary airport's: AircraftGroundOps
+            // persists the airport id for exactly this (the layout itself is [JsonIgnore]), and an aircraft bound to a
+            // second field — an arrival to a satellite, a departure that taxied there — would otherwise come back from
+            // a rewind measuring its final against the primary's runways. That flips on-final and distance-to-threshold
+            // verdicts across a rewind, which replay determinism does not allow. The primary stays the fallback for a
+            // snapshot that carries no id, or one naming a field this engine's ground data has no map for.
+            AirportGroundLayout? aircraftLayout = acDto.Ground.LayoutAirportId is { } layoutAirportId
+                ? ResolveAirportLayout(layoutAirportId) ?? groundLayout
+                : groundLayout;
+            var ac = AircraftState.FromSnapshot(acDto, aircraftLayout);
             World.AddAircraft(ac);
         }
 

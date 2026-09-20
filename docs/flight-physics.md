@@ -237,9 +237,14 @@ target speeds are floored at the type's approach speed (`ClampFixSpeedToApproach
 `;` compound (`SimulationEngine.DispatchPresetCommands`), so each subsequent `CFIX` becomes a deferred "at &lt;previous fix&gt;" queue block.
 
 **`AutoCancelSpeedAtFinal`** (`:1402`) runs right after `UpdateSpeed`: for an aircraft **inbound to land**
-(`ApproachCommandHandler.IsInboundToLand`) at ≤ 5 nm from the assigned-runway threshold it releases the *explicit ATC* speed
+(`ApproachCommandHandler.IsInboundToLand`) and on final (`IsOnFinal` — pattern traffic flies its whole circuit inside 5 nm) at
+≤ 5 nm from the assigned runway's **landing** threshold it releases the *explicit ATC* speed
 restriction (gated on `HasExplicitSpeedCommand`), per 7110.65 §5-7-1.b.4 — the controller can no longer adjust the speed, so
-the pilot owns the approach speed. **It never lets the aircraft accelerate:**
+the pilot owns the approach speed. Both the distance and the on-final test read `LandingThreshold.Resolve(runway, aircraft.Ground.Layout)`,
+the same datum `SPD`'s 5 nm-final rejection uses, so the command and the gate that releases it agree on where the five miles
+start; on a displaced runway that is downfield of the pavement end (KSJC 30L: 0.42 nm), and with no layout it is the pavement
+threshold. The choice of datum is a judgement call — see
+[landing-and-runway-exit.md](landing-and-runway-exit.md#displaced-thresholds-which-datum). **It never lets the aircraft accelerate:**
 - If a phase owns speed (active approach, pattern leg, or final — `ActiveApproach != null` or `CurrentPhase.ManagesSpeed`), the
   assignment is cleared outright (`TargetSpeed`/`HasExplicitSpeedCommand`/`SpeedFloor`/`SpeedCeiling` nulled); the phase already
   drives the approach speed and never re-accelerates, so no cap is needed.
@@ -359,7 +364,7 @@ If `Position` is non-finite or out of range (`|lat| > 90`, `|lon| > 180`), the W
   the snap nulls `TargetSpeed`, and with the auto schedule suppressed nothing raises IAS again when the ceiling rises or is removed —
   the aircraft holds the ceiling speed until the phase writes its own target. `FinalApproachPhase` writes none before its deceleration
   stages, so whoever stamps a ceiling on an aircraft on a long final must also restore its speed (the generator stream's
-  `RestoreManagedSpeed`, `docs/scenario-loading-and-generation.md`). `RNS` closes it for itself: `FlightCommandHandler.ApplyResumeNormalSpeed` writes the scheduled final-approach speed back for an aircraft in `FinalApproachPhase` outside `ArrivalSpacingManager.SpeedRestoreGateNm` and more than `SpeedRestoreDeadbandKts` slow (AIM 4-4-12.f.1). Both restores are one-shot writes: a target reached under a lower regulatory cap (a Class B shelf's 200 kt, 91.117(c)) is nulled there and nothing re-accelerates the aircraft once the cap lifts.
+  `RestoreManagedSpeed`, `docs/scenario-loading-and-generation.md`). `RNS` closes it for itself: `FlightCommandHandler.ApplyResumeNormalSpeed` writes the scheduled final-approach speed back for an aircraft in `FinalApproachPhase` outside `ArrivalSpacingManager.SpeedRestoreGateNm` and more than `SpeedRestoreDeadbandKts` slow (AIM 4-4-12.f.1). When the aircraft is on that profile and either test fails, nothing is handed back — re-accelerating it a few miles before the phase slows it again is what §5-7-1's lead ("Avoid adjustments requiring alternate decreases and increases") and §5-7-1.a.3(e) rule out, and AIM 4-4-12.f scopes "resume normal speed" to before an approach clearance — and the instructor's answer says so: `Resume normal speed — already on its final approach speed profile, no change` instead of the plain `Resume normal speed` every other case gets (the pilot readback is the same either way; `ResumeNormalSpeedOnFinalTests`). Both restores are one-shot writes: a target reached under a lower regulatory cap (a Class B shelf's 200 kt, 91.117(c)) is nulled there and nothing re-accelerates the aircraft once the cap lifts.
 - **There are FOUR aircraft categories — Jet, Turboprop, Piston, Helicopter.** CLAUDE.md's summary lists only the first three; the Helicopter
   column is real and aviation-reviewed. Unknown ICAO types fall back to **Jet** (after the sibling-map attempt).
 - **Constants are NOT read from `CategoryPerformance` directly in production.** `AircraftPerformance.*` is the entry point: per-type profile with

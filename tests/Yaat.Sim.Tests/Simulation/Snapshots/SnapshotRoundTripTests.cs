@@ -1,11 +1,13 @@
 ﻿using System.Text.Json;
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation.Snapshots;
 
@@ -917,5 +919,69 @@ public class SnapshotRoundTripTests
 
         Assert.True(recording.HasSnapshots);
         Assert.Equal(2, recording.Version);
+    }
+
+    /// <summary>The OAK scenario every engine-level arm here loads; its primary airport is KOAK.</summary>
+    private const string ScenarioPath = "TestData/issue153-s2-oak-5-2-scenario.json";
+
+    /// <summary>
+    /// A restore puts each aircraft back on the layout it was carrying, not on the primary airport's.
+    /// <c>AircraftGroundOps.Layout</c> is <c>[JsonIgnore]</c> and <c>LayoutAirportId</c> is the carrier that exists so
+    /// restore can reattach it — the shape <c>SimulationEngine.RestoreFromSnapshot</c> already uses for the delayed
+    /// spawn queue. Rebinding everything to the primary instead silently moves an aircraft bound to a second field
+    /// onto the wrong airport's runways, and the on-final and distance-to-threshold verdicts measured from them flip
+    /// across a rewind — which replay determinism does not allow. An aircraft with no id keeps the primary, which is
+    /// the only case that fallback is for.
+    /// </summary>
+    [Fact]
+    public void Restore_RebindsAnAircraftToItsOwnAirportsLayout()
+    {
+        if (!File.Exists(ScenarioPath))
+        {
+            return;
+        }
+
+        var groundData = new TestAirportGroundData();
+        if ((groundData.GetLayout("OAK") is not { } oakLayout) || (groundData.GetLayout("SJC") is not { } sjcLayout))
+        {
+            return;
+        }
+
+        var engine = new SimulationEngine(groundData);
+        engine.LoadScenario(File.ReadAllText(ScenarioPath), rngSeed: 1, sessionStartUtc: MagneticDeclination.EvaluationDateUtc);
+        if (engine.Scenario is null)
+        {
+            return;
+        }
+
+        Assert.Same(oakLayout, engine.World.GroundLayout); // premise: the primary is OAK, so SJC is the second field
+        engine.World.AddAircraft(Bound("SJC900", sjcLayout));
+        engine.World.AddAircraft(Bound("OAK900", layout: null));
+
+        engine.RestoreFromSnapshot(engine.CaptureSnapshot());
+
+        AircraftState restoredSatellite = Assert.IsType<AircraftState>(engine.FindAircraft("SJC900"));
+        AircraftState restoredPrimary = Assert.IsType<AircraftState>(engine.FindAircraft("OAK900"));
+        Assert.Same(sjcLayout, restoredSatellite.Ground.Layout);
+        Assert.Equal("SJC", restoredSatellite.Ground.LayoutAirportId);
+        Assert.Same(oakLayout, restoredPrimary.Ground.Layout);
+    }
+
+    /// <summary>An airborne aircraft carrying <paramref name="layout"/>, or none at all.</summary>
+    private static AircraftState Bound(string callsign, AirportGroundLayout? layout)
+    {
+        var aircraft = new AircraftState
+        {
+            Callsign = callsign,
+            AircraftType = "B739",
+            Position = new LatLon(37.40, -121.85),
+            TrueHeading = new TrueHeading(300),
+            TrueTrack = new TrueHeading(300),
+            Altitude = 3000,
+            IndicatedAirspeed = 210,
+            IsOnGround = false,
+        };
+        aircraft.Ground.Layout = layout;
+        return aircraft;
     }
 }

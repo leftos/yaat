@@ -13,8 +13,8 @@ namespace Yaat.Sim.Data.Airport;
 /// callers that legitimately want the pavement — runway rectangles, takeoff rolls, hold-short bars — keep
 /// using <see cref="RunwayInfo.ThresholdLatitude"/> directly.
 ///
-/// AIM 2-3-3.b.8.2: the pavement behind a displaced threshold is usable for takeoff in either direction
-/// and for rollout from the opposite end, but not for landing in that direction.
+/// AIM 2-3-3.h.2: the portion of runway behind a displaced threshold "is available for takeoffs in either
+/// direction and landings from the opposite direction" — but not for landing in this one.
 /// </summary>
 public static class LandingThreshold
 {

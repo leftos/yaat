@@ -430,6 +430,7 @@ public static class ApproachCommandHandler
 
         // Cancel existing speed restrictions per 7110.65 §5-7-1.d
         aircraft.Targets.TargetSpeed = null;
+        RestateStandingInTrailReduction(aircraft);
 
         // Set heading and altitude immediately
         aircraft.Targets.NavigationRoute.Clear();
@@ -1991,7 +1992,15 @@ public static class ApproachCommandHandler
     /// and still be flying toward the threshold, so the upwind leg (same heading, opposite side, flying
     /// away) is not mistaken for final.
     /// </summary>
-    internal static bool IsOnFinal(AircraftState aircraft, RunwayInfo runway)
+    /// <param name="aircraft">The aircraft being tested.</param>
+    /// <param name="runway">The landing runway end.</param>
+    /// <param name="layout">
+    /// The ground layout the runway's threshold displacement is read from
+    /// (<see cref="LandingThreshold.Resolve(RunwayInfo, AirportGroundLayout?)"/>): the threshold being flown toward is
+    /// the landing one, so an aircraft over the departures-only pavement behind a displaced threshold is still on final
+    /// rather than past it. Null — no ground map for the field — falls back to the pavement threshold.
+    /// </param>
+    internal static bool IsOnFinal(AircraftState aircraft, RunwayInfo runway, AirportGroundLayout? layout)
     {
         if (aircraft.Phases?.CurrentPhase is FinalApproachPhase or LandingPhase or LowApproachPhase)
         {
@@ -2003,7 +2012,7 @@ public static class ApproachCommandHandler
             return false;
         }
 
-        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        LatLon threshold = LandingThreshold.Resolve(runway, layout);
         double bearingToThreshold = GeoMath.BearingTo(aircraft.Position, threshold);
         return aircraft.TrueTrack.AbsAngleTo(new TrueHeading(bearingToThreshold)) <= 90.0;
     }
@@ -2037,8 +2046,8 @@ public static class ApproachCommandHandler
     /// saying it.
     ///
     /// <para>A latched simulated-tower instruction is not restated. What that arrival was told is "reduce to final
-    /// approach speed" — the local controller's words under §5-7-3.f, and never a number — so the approach controller
-    /// issuing the clearance has neither the instruction nor the figure to restate.</para>
+    /// approach speed" — a speed below the §5-7-3.c minima under §5-7-3.f, and never a number — so the approach
+    /// controller issuing the clearance has neither the instruction nor the figure to restate.</para>
     /// </summary>
     private static void RestateStandingInTrailReduction(AircraftState aircraft)
     {

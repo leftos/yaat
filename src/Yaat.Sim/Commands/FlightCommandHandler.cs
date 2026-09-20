@@ -214,8 +214,10 @@ internal static class FlightCommandHandler
         // (military, compression).
         if (!cmd.Force && !aircraft.IsOnGround && ApproachCommandHandler.IsInboundToLand(aircraft) && aircraft.Phases?.AssignedRunway is { } spdRwy)
         {
-            double spdDist = GeoMath.DistanceNm(aircraft.Position, new LatLon(spdRwy.ThresholdLatitude, spdRwy.ThresholdLongitude));
-            if (spdDist <= 5.0 && ApproachCommandHandler.IsOnFinal(aircraft, spdRwy))
+            // Measured to the landing threshold, the same datum the physics auto-cancel uses, so the command and the
+            // gate that releases it never disagree about where the five miles start.
+            double spdDist = GeoMath.DistanceNm(aircraft.Position, LandingThreshold.Resolve(spdRwy, aircraft.Ground.Layout));
+            if (spdDist <= 5.0 && ApproachCommandHandler.IsOnFinal(aircraft, spdRwy, aircraft.Ground.Layout))
             {
                 return new CommandResult(false, "Cannot assign speed inside 5nm final [7110.65 §5-7-1.b.4]");
             }
@@ -323,8 +325,14 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedCommandIsControllerIssued = false;
         aircraft.Targets.SpeedOverridesFinalGate = false;
         aircraft.Procedure.LastProcedureSpeedKts = null;
-        RestoreFinalApproachProfileSpeed(aircraft);
-        return CommandDispatcher.Ok("Resume normal speed");
+
+        // Clearing the fields above is the whole command in most cases, but on a final approach it can leave the
+        // arrival flying exactly what it already was — and an answer of "Resume normal speed" then reads as a speed
+        // change the instructor never gets. Say which of the two happened.
+        bool alreadyOnProfile = RestoreFinalApproachProfileSpeed(aircraft);
+        return CommandDispatcher.Ok(
+            alreadyOnProfile ? "Resume normal speed — already on its final approach speed profile, no change" : "Resume normal speed"
+        );
     }
 
     /// <summary>
@@ -345,19 +353,27 @@ internal static class FlightCommandHandler
     /// aircraft over at their gates exactly as they would have, and <see cref="FlightPhysics"/> nulls the target as
     /// soon as it is reached.</para>
     /// </summary>
-    private static void RestoreFinalApproachProfileSpeed(AircraftState aircraft)
+    /// <returns>
+    /// True when the arrival is on a final-approach profile and was already flying it, so nothing was handed back —
+    /// inside <see cref="ArrivalSpacingManager.SpeedRestoreGateNm"/>, or within
+    /// <see cref="ArrivalSpacingManager.SpeedRestoreDeadbandKts"/> of the scheduled speed. False both when the profile
+    /// speed was restored and when there is no final-approach profile to be on, which the caller answers alike: the
+    /// one thing the command's answer distinguishes is a speed that did not move.
+    /// </returns>
+    private static bool RestoreFinalApproachProfileSpeed(AircraftState aircraft)
     {
         if (aircraft.Phases?.CurrentPhase is not FinalApproachPhase finalApproach)
         {
-            return;
+            return false;
         }
 
         // The phase caches the distance each tick; before its first one it still holds the sentinel, and a speed
         // scheduled at "MaxValue nm" would be the clean speed for an aircraft whose position is not yet known here.
+        // With no distance there is no schedule either, so this is not "already on profile" — it is unknown.
         double distanceNm = finalApproach.DistanceToThresholdNm;
         if (!double.IsFinite(distanceNm) || (distanceNm >= double.MaxValue))
         {
-            return;
+            return false;
         }
 
         AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
@@ -369,7 +385,10 @@ internal static class FlightCommandHandler
         )
         {
             aircraft.Targets.TargetSpeed = scheduled;
+            return false;
         }
+
+        return true;
     }
 
     internal static CommandResult ApplyReduceToFinalApproachSpeed(AircraftState aircraft, DispatchContext ctx)

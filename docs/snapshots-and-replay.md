@@ -59,7 +59,7 @@ The table lists only the steps with a data *transform*; the authoritative full c
 Some state is intentionally runtime-only:
 
 - **`AircraftState.DeclinationCachePosition`** — `null` means "not cached"; warms up on the first tick after a round-trip.
-- **`Ground.Layout`** is `[JsonIgnore]`. Only `Ground.LayoutAirportId` round-trips. On restore, `SimulationEngine` re-resolves the layout from the airport ID against the loaded ground graphs. This avoids embedding an entire taxiway graph per aircraft.
+- **`Ground.Layout`** is `[JsonIgnore]`. Only `Ground.LayoutAirportId` round-trips. On restore, `SimulationEngine.RestoreFromSnapshot` re-resolves the layout from the airport ID against the engine's ground data — for each live aircraft (`ResolveAirportLayout(LayoutAirportId)`, falling back to the primary airport's layout when the snapshot carries no id or names a field with no map) and for each aircraft in the delayed-spawn queue alike. An aircraft bound to a secondary airport therefore comes back on that airport's layout, so its on-final and distance-to-threshold verdicts are the same before and after a rewind (`SnapshotRoundTripTests`). This avoids embedding an entire taxiway graph per aircraft.
 - **`PendingObservations`** (pilot "watch for condition" state) — ephemeral, never restored.
 - **`CommandBlock.ApplyAction` / `CommandBlock.ParsedCommands`** — the queued-block closure and its parsed
   commands are runtime-only; `SourceCommandText` is the durable carrier. `SimulationEngine.RehydrateRestoredQueueBlocks`

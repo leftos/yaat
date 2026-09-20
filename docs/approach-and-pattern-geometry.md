@@ -92,7 +92,7 @@ then projected:
 when no airport map is loaded), and the arrival waypoints — `Threshold`, `DownwindAbeam`, and therefore
 `BaseTurn` — are built on `LandingThreshold.Resolve`, i.e. the **landing** threshold. `DepartureEnd` and
 `CrosswindTurn` deliberately stay on the **pavement** end: AIM 4-3-2 anchors the crosswind turn beyond the
-*departure* end, and pre-threshold pavement is usable for takeoff in either direction (AIM 2-3-3.b.8.2). At
+*departure* end, and pre-threshold pavement is usable for takeoff in either direction (AIM 2-3-3.h.2). At
 KSJC 30L (2,537 ft displaced) that is a 0.42 nm shift in the arrival half of the pattern and none in the
 departure half. Full datum table: [`landing-and-runway-exit.md`](landing-and-runway-exit.md#displaced-thresholds-which-datum).
 
@@ -1059,7 +1059,7 @@ Which command handler builds which phase (parsing/dispatch live in
 | **CAPP** (cleared approach) — implied PTAC (on vectors, no nav route) | `ApproachCommandHandler.TryClearedApproach` (`:143`) | `InterceptCoursePhase` (`ForcedIntercept = cmd.Force`) → `FinalApproachPhase` → landing |
 | **CAPP** — published procedure | `ApproachCommandHandler.TryClearedApproach` (`:189`+) | optional `ProcedureTurnPhase` / hold-in-lieu `HoldingPatternPhase` → `ApproachNavigationPhase` → `FinalApproachPhase` → landing |
 | **JAPP** (join approach) | `ApproachCommandHandler.TryJoinApproach` (`:330`) | `ApproachNavigationPhase` (+ HILPT hold) → `FinalApproachPhase` → landing |
-| **PTAC** (present-heading intercept) | `ApproachCommandHandler.TryPtac` (`:395`) | `InterceptCoursePhase` (`ForcedIntercept = cmd.Forced`) → `FinalApproachPhase` → landing |
+| **PTAC** (present-heading intercept) | `ApproachCommandHandler.TryPtac` (`:413`) | `InterceptCoursePhase` (`ForcedIntercept = cmd.Forced`) → `FinalApproachPhase` → landing |
 | Missed-approach hold | `ApproachCommandHandler` (`:1053`) | `ApproachNavigationPhase` → `HoldingPatternPhase` |
 | **Pattern** (TPAT / pattern legs, SA/MNA/TB/EXT/OFL/OFR) | `PatternCommandHandler` (`:462`, `:486`) | `PatternEntryPhase` / `MidfieldCrossingPhase` / `TeardropReentryPhase` + circuit legs |
 | **EF** (enter final) — parallel sidestep | `PatternCommandHandler.TryEnterPattern` → `ApplySidestep` | none — retargets the **active** `FinalApproachPhase` in place (`RetargetRunway`); only when the target is a parallel of the runway the aircraft is on final for, ≥ `MinSidestepAglFt` |
@@ -1067,6 +1067,17 @@ Which command handler builds which phase (parsing/dispatch live in
 | **CVA** / **CVAF** (cleared visual approach; IFR-only; `Force` bypasses the RFIS field-in-sight gate) | `ApproachCommandHandler.TryClearedVisualApproach` (`:459`) | by angle off final: straight-in `FinalApproachPhase` (≤30°); angled-join `ApproachNavigationPhase` (one `INTCP` fix) → `FinalApproachPhase` (30–90°); IFR-visual pattern `PatternEntryPhase` → Downwind → Base → `FinalApproachPhase` (>90°) → landing. `ApproachId = "VIS<rwy>"`. Acquisition gate (§7-4-3.a): following → requires `HasReportedTrafficInSight` (and lead not a super); otherwise → requires `HasReportedFieldInSight`. `Force` (CVAF) sets the required flag |
 | **FOLLOW** / **FOLLOWF** (VFR-only; `Force` bypasses the RTIS traffic-in-sight gate) | `CommandDispatcher.TryAirborneFollow` (`:2758`) | `VfrFollowPhase` |
 | Holding (HOLD) | `NavigationCommandHandler` (`:876`) | `HoldingPatternPhase` |
+
+**An approach clearance cancels the assigned speed and restates a standing in-trail reduction.** `TryClearedApproachCore`
+and `TryPtac` both null `Targets.TargetSpeed` (7110.65 §5-7-1.d) and then call `RestateStandingInTrailReduction`. When the
+same-runway protection pass is holding the arrival to a reduction (`Approach.SameRunwayProtectionCeilingKts` set), the
+reduction outlives the clearance — the pass re-stamps its `SpeedCeiling` every tick — so the controller says it:
+`NCT → UAL123: maintain 180 knots (in-trail spacing, restated with the approach clearance)`
+(`SameRunwayArrivalProtection.RestatementLine`; the speaker is the track owner, else the simulated approach controller).
+§5-7-1.c requires a previously assigned speed to be restated with the approach clearance if it is to stay in force, and
+AIM 4-4-12.g otherwise has the pilot making their own speed adjustments. The line is plain, with no "until (fix)", and it
+writes nothing to the aircraft. It is silent when nothing stands, and when the latched instruction is the simulated tower's
+"reduce to final approach speed" (`SameRunwayProtectionFasInstructed`) — that instruction carries no figure to restate.
 
 ## Footguns & pitfalls
 

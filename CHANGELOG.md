@@ -10,12 +10,16 @@
 - Rewinding to before a CRC ASDE-X safety-logic change (a closed runway, inhibited arrival alerts) undoes it, instead of keeping the newest configuration.
 - **Edit Aircraft Generators…** shows the room's generators and positions after joining or reconnecting to a room, instead of opening empty (#442).
 - `RNS` to an arrival slowed on a long final speeds it back up to its approach profile.
+- `RNS` to an arrival already on its final approach speed profile says so instead of answering as if it had sped the aircraft up.
 - The simulated approach controller says "resume normal speed" or "resume published speed" when it lifts an in-trail speed reduction.
 - An approach clearance issued while an in-trail speed reduction is in force restates the speed.
+- `PTAC` issued while an in-trail speed reduction is in force restates the speed, as `CAPP` does.
 - When an in-trail speed reduction is lifted from an arrival that still holds an assigned speed with no published restriction ahead, the simulated approach controller restates it ("maintain 210 knots") instead of saying "resume published speed".
 - An arrival not yet cleared for its approach that drifts off the final course for a few seconds keeps its in-trail speed reduction, instead of hearing "resume normal speed" followed by "reduce speed to" again.
 - The helicopter minimum-speed warning cites 7110.65 §5-7-3.e.
 - Generated arrivals measure their in-trail spacing from the landing threshold on runways with a displaced threshold.
+- On a runway with a displaced threshold, the 5-mile final window for speed assignments and the in-trail spacing of arrivals are measured from the landing threshold — at every airport in the scenario, not only the primary one.
+- Rewinding keeps an aircraft at a secondary airport on that airport's ground layout.
 - `DMN` works as an alias of `CMN` (force altitude), as it does in ATCTrainer.
 - `TAXIAUTO @` and `TAXIALL @` autocomplete parking and helipad names.
 - Taxiway autocomplete works on every `TAXI` route token, not just the first.

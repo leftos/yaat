@@ -147,6 +147,29 @@ public sealed partial class SimulationEngine
 
     // --- Three-phase tick API ---
 
+    /// <summary>
+    /// The ground layout for <paramref name="airportId"/>'s own field, or null when the engine's ground data has no
+    /// map for it. <see cref="SimulationWorld.GroundLayout"/> — the scenario's primary airport, resolved through the
+    /// same ground data — answers for that airport without a second lookup.
+    ///
+    /// <para>This is the datum a measurement <em>about a runway</em> resolves through: a landing threshold
+    /// (<see cref="LandingThreshold"/>) and a distance to it (<see cref="RunwayOccupancy"/>) belong to the runway's
+    /// field, not to whichever layout the aircraft happens to be carrying. An airborne arrival's
+    /// <see cref="AircraftGroundOps.Layout"/> is null for a scripted arrival with no destination and for every
+    /// live-traffic shadow, so reading a displacement off it measures one aircraft in a stream against the pavement
+    /// end while the aircraft beside it measures against the real landing threshold — hundreds of feet apart on a
+    /// displaced runway, and enough to put one of them inside the §5-7-1.b.4 window and the other outside it.</para>
+    /// </summary>
+    internal AirportGroundLayout? ResolveAirportLayout(string airportId)
+    {
+        if ((World.GroundLayout is { } primary) && NavigationDatabase.AirportIdsMatch(airportId, primary.AirportId))
+        {
+            return primary;
+        }
+
+        return _groundData.GetLayout(airportId);
+    }
+
     public AirportGroundLayout? ResolveGroundLayout(AircraftState aircraft)
     {
         // An aircraft physically on the ground taxis on the airport its wheels are on —

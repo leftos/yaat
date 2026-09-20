@@ -417,7 +417,7 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
     *bind*, they do not add). `rearmost` is the rearmost arrival to the runway (`RearmostInbound` over `CorridorAircraft`).
     The corridor is airborne aircraft within 2 NM of the extended centreline, out to `MaxDistance` + 3 NM. **Position alone
     does not make an arrival.** An aircraft there counts only when it is on final for the runway (`ApproachCommandHandler.IsOnFinal`:
-    a final/landing/low-approach phase, or tracking within 45° of the landing course toward the threshold) or is inbound to land
+    a final/landing/low-approach phase, or tracking within 45° of the landing course toward the landing threshold) or is inbound to land
     on this runway whatever its track (`IsInboundToLand` plus its assigned or active-approach runway — a wide intercept or a
     base leg inside the band). A departure turned out along the extended centreline, or climbing out with its departure
     runway assigned, is not an arrival: before this rule, an outbound VFR departure turned `FH 110` down OAK 30's final
@@ -465,7 +465,7 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
   - **Proportional term** (`SpacingCeilingKts`): `leaderIAS + clamp((gap − target)·25, ±20)`. The follower equalizes to the
     leader's speed at the target gap and slows (down to its own Vref) when closer.
   - **Time-based allowance** (only while `gap > target`, and only behind a leader that is on final —
-    `ApproachCommandHandler.IsOnFinal(leader, runway)`; a leader in the stream only through its landing intent, on a base
+    `ApproachCommandHandler.IsOnFinal(leader, runway, layout)`; a leader in the stream only through its landing intent, on a base
     leg or a downwind moving away, gets the proportional term alone, because its time to the threshold is not
     `distance / speed`). The leader's ground speed enters as its along-course component, `GS × max(0, cos θ)` for a
     track θ off the final course, because `IsOnFinal` accepts a track up to 45° off and the bound needs the closure along
@@ -476,6 +476,18 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
     Vref as the lower bound, gap ≥ target holds throughout the leader's remaining run.
   - The result is the larger of the two terms, clamped to `[followerVref, followerScheduledSpeed]`. Before the allowance, the
     +20 kt cap pinned a follower 26 NM behind a leader on 2 NM final to 164 kt (S2-OAK-P, 2026-09-17).
+
+  **One threshold datum per runway.** Every distance and every "on final" verdict in this pass and in
+  `ApplySameRunwayArrivalProtection` is measured from the runway's **landing** threshold
+  (`LandingThreshold.Resolve(runway, layout)`), and `layout` is the *runway's own field's* —
+  `SimulationEngine.ResolveAirportLayout(runway.AirportId)`: `World.GroundLayout` for the primary airport, the ground data's
+  layout for any other field, null when there is no map (which falls back to the pavement threshold). It is never read off
+  the aircraft: an airborne arrival's `Ground.Layout` is null for a scripted arrival with no destination and for every
+  live-traffic shadow, so two aircraft in one stream would be measured against thresholds hundreds of feet apart on a
+  displaced runway — enough to put one inside the §5-7-1.b.4 window and the other outside it. `CorridorAircraft` resolves the
+  layout once and hands it to `IsArrivalToRunway`, so the along-track distance and the on-final test read the same threshold;
+  a generator runway at a secondary airport gets its displacement applied like the primary's. Why the landing threshold:
+  [landing-and-runway-exit.md](landing-and-runway-exit.md#displaced-thresholds-which-datum).
 
   The ceiling is enforced continuously and downstream of the phase by `FlightPhysics.UpdateSpeed`
   (`goal = min(TargetSpeed, SpeedCeiling)`), so it only ever *lowers* the speed and collapses to exactly Vref inside 5 NM (never
@@ -575,6 +587,20 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
     boundary would produce. A ceiling somebody cancelled (`RNS` nulls it) is not re-imposed: the hold returns false when nothing
     is standing. The front-of-stream aircraft keeps a held reduction inside 10 NM for the same reason, where outside it is
     released.
+  - **Restated with the approach clearance.** A reduction in force when the approach clearance is issued is said again by
+    the clearing controller: `CAPP` and `PTAC` both call `ApproachCommandHandler.RestateStandingInTrailReduction`, which adds
+    `NCT → UAL123: maintain 180 knots (in-trail spacing, restated with the approach clearance)`
+    (`SameRunwayArrivalProtection.RestatementLine`) — plain, with no "until (fix)". The clearance cancels assigned speeds
+    (§5-7-1.d), but this pass re-stamps its ceiling every tick and the aircraft keeps flying it, so §5-7-1.c requires the
+    restatement and AIM 4-4-12.g would otherwise have the pilot flying their own speeds. Nothing is written to the aircraft.
+    Silent when no reduction stands (`SameRunwayProtectionCeilingKts` null) and when the latched instruction is the simulated
+    tower's "reduce to final approach speed", which carries no figure.
+  - **Threshold datum.** The pass follows the one-datum rule under `ApplyArrivalSpacing`: stream membership
+    (`IsRunwayArrival`), eligibility (`IsProtectionEligible`), the ETAs, the drop-out debounce and the release all use the
+    layout `ResolveAirportLayout(runway.AirportId)` returns. The release path carries runway, layout and distance together as
+    one `ArrivalThresholdDatum`, so "is it on final" and "how far out is it" cannot be decided against different thresholds;
+    its distance is `NaN` when no runway resolved, which fails every comparison made of it. A displaced runway at a
+    secondary field is measured from its landing threshold, as the primary's is.
   - **Setting and student position.** `SimScenarioState.AutoArrivalSpacingOnOccupiedRunway` gates the whole pass, and so does
     `HasSimulatedApproachController` (`StudentPositionType is not ("APP" or "CTR")` — a student on approach or center *is* the
     approach controller; null, an RPO-only room, counts as having one); with either false the release loop still runs so anything
@@ -726,7 +752,8 @@ The four queues are part of the scenario snapshot so a rewind checkpoint can res
 `SimulationEngine.RestoreFromSnapshot` (`SimulationEngine.cs:142`) clears and rebuilds all four queues from the DTOs. The one
 runtime-only field that does not survive JSON is `AircraftState.Ground.Layout` (it's `[JsonIgnore]`d in `AircraftGroundOps.cs:20`)
 — on restore, the delayed aircraft's layout is **reattached by airport id** from the persisted `LayoutAirportId`
-(`SimulationEngine.cs:207`). If you add a runtime-only reference to a queued type, you must reattach it the same way or it comes
+(`SimulationEngine.cs:207`), and each live aircraft is re-bound to its own airport's layout the same way (primary layout as
+the fallback). If you add a runtime-only reference to a queued type, you must reattach it the same way or it comes
 back null after a rewind. See [snapshots-and-replay.md](snapshots-and-replay.md) for the full DTO tree and the `[JsonIgnore]`
 reattachment pattern.
 
