@@ -135,6 +135,42 @@ public class DatablockHitTestParityTests
     }
 
     [AvaloniaFact]
+    public void HitTestRect_MatchesDrawRect_WhenAtpaLeadFilteredFromDraw()
+    {
+        // ATPA in-trail pair on final: the lead touches down first, so it is on the ground and the
+        // radar's FilterAircraft drops it from the draw pass — while the trailing aircraft is still
+        // airborne and still carries AtpaLeadCallsign. The renderer indexes conflict/ATPA peers from
+        // the *filtered* draw list (TargetRenderer._callsignIndex), so it resolves no lead and omits
+        // the ATPA in-trail row. The hit-test path (ComputeStableRectAtOrigin → ResolveByCallsign)
+        // scans the *unfiltered* bound collection, resolves the on-ground lead, and measures the
+        // taller block. Draw and hit-test must still agree, or the block is clickable/draggable in an
+        // empty region below what is drawn.
+        AircraftModel ac = CreateModel();
+        ac.AtpaLeadCallsign = "SWA1234";
+        ac.AtpaAllowedSeparationNm = 3.0;
+        AircraftModel lead = CreateModel();
+        lead.Callsign = "SWA1234";
+        lead.IsOnGround = true;
+        lead.Position = new LatLon(37.0, -122.0 + (2.50 / 60.0));
+        var canvas = new RadarCanvas { ShowAtpa = true, Aircraft = [ac, lead] };
+
+        // The renderer's peer index is built from the same filtered list the draw pass uses, so the
+        // on-ground lead is invisible to the draw path and the ATPA row is not drawn.
+        IReadOnlyList<AircraftModel> drawn = RadarCanvas.FilterAircraft(
+            canvas.Aircraft,
+            canvas.ShowTopDown,
+            canvas.ShowSpeechBubbles,
+            canvas.AlwaysShowGroundBubblesOnRadar,
+            groundShownAirportId: null,
+            DateTime.UtcNow
+        );
+        AircraftModel? drawLead = drawn.FirstOrDefault(a => string.Equals(a.Callsign, "SWA1234", StringComparison.Ordinal));
+        Assert.Null(drawLead);
+
+        Assert.Equal(DrawRectAtOrigin(ac, canvas, canvas.DatablockTextSize, drawLead), canvas.ComputeStableRectAtOrigin(ac));
+    }
+
+    [AvaloniaFact]
     public void HitTestRect_GrowsWithFontSize()
     {
         AircraftModel ac = CreateModel();
