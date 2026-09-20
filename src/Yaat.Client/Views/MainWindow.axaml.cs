@@ -17,6 +17,7 @@ using MsBox.Avalonia.Enums;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Client.Services.Discord;
 using Yaat.Client.Tdls.ViewModels;
 using Yaat.Client.Tdls.Views.VTdls;
 using Yaat.Client.ViewModels;
@@ -317,6 +318,15 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             _globalKeyHook.KeyDown += OnGlobalKeyDown;
             _globalKeyHook.KeyUp += OnGlobalKeyUp;
             _globalKeyHook.Start();
+        }
+
+        // Discord rich presence, same deal: only the desktop entry point enables it, so a headless
+        // test host never opens an IPC connection to the developer's own Discord client. The service
+        // itself does nothing until a scenario is published to it. Disposed in OnClosing.
+        if (App.DiscordRichPresenceAvailable)
+        {
+            _richPresence = new DiscordRichPresenceService(DiscordApplicationId);
+            vm.RichPresence = _richPresence;
         }
 
         // Wire the "Show speech recognition debugging..." items on both mic-status menus (one for
@@ -3053,6 +3063,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             vm.ApplyStripsZoomPercent(vm.Preferences.StripsZoomPercent);
             vm.ApplyTdlsZoomPercent(vm.Preferences.TdlsZoomPercent);
             vm.RefreshIsSpeechEnabledFromPrefs();
+            vm.RefreshRichPresence();
             vm.RefreshWindowTitleFromPrefs();
             vm.ReloadCrcAliases();
             ApplyKeybinds(vm.Preferences);
@@ -3218,6 +3229,11 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     // as a backup path (when the hook fails to start or the user doesn't grant accessibility
     // permissions on macOS).
     private GlobalKeyHookService? _globalKeyHook;
+
+    /// <summary>The Discord application this client publishes its rich presence under.</summary>
+    private const string DiscordApplicationId = "1551088521731772439";
+
+    private DiscordRichPresenceService? _richPresence;
 
     // Edge-triggered PTT flag. The global hook delivers auto-repeat key presses as separate
     // events even though the physical key is held, and we want StartPtt to fire exactly once
@@ -3502,6 +3518,18 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             hook.Dispose();
             _globalKeyHook = null;
             Log.LogInformation("MainWindow closing: global key hook disposed");
+        }
+
+        if (_isMainWindowClosing && _richPresence is { } richPresence)
+        {
+            // Bounded internally the same way the key hook's teardown is: closing the IPC connection
+            // must not be able to hold up shutdown on the UI thread.
+            richPresence.Dispose();
+            _richPresence = null;
+            if (DataContext is MainViewModel presenceVm)
+            {
+                presenceVm.RichPresence = null;
+            }
         }
 
         if (_isMainWindowClosing && _autoConnectCts is { } cts)

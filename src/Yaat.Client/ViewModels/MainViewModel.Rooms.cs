@@ -821,7 +821,8 @@ public partial class MainViewModel
                     state.PrimaryAirportId,
                     state.PositionDisplayConfig,
                     state.FlightStripsConfig,
-                    state.AllAircraft
+                    state.AllAircraft,
+                    state.ElapsedSeconds
                 )
             );
             IsLiveSession = state.IsLiveSession;
@@ -902,7 +903,8 @@ public partial class MainViewModel
         }
     }
 
-    private void OnRoomMemberChanged(RoomMemberChangedDto dto)
+    /// <summary>Internal so a test can drive the late-arriving scenario name without a live hub.</summary>
+    internal void OnRoomMemberChanged(RoomMemberChangedDto dto)
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
@@ -911,9 +913,12 @@ public partial class MainViewModel
                 return;
             }
 
-            if (dto.ScenarioName is not null)
+            if ((dto.ScenarioName is not null) && (dto.ScenarioName != ActiveScenarioName))
             {
                 ActiveScenarioName = dto.ScenarioName;
+                // A bootstrap that arrived without a name left the raw scenario id on Discord; now
+                // that the real name is here, republish under it.
+                RefreshRichPresence();
             }
 
             RoomMembers.Clear();

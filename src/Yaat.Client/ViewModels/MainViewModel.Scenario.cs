@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Client.Services.Discord;
 using Yaat.Sim.Scenarios;
 
 namespace Yaat.Client.ViewModels;
@@ -15,6 +16,16 @@ public partial class MainViewModel
     // Pending scenario source: either a file path or pre-fetched JSON from the API.
     private string? _pendingScenarioSource;
     private string? _pendingApiScenarioId;
+
+    // When the active scenario started, as Discord counts it: a joiner's is back-dated by the room's
+    // elapsed time so the timer on their profile matches everyone else's rather than restarting at zero.
+    private long _richPresenceStartUnixSeconds;
+
+    /// <summary>
+    /// Where the active scenario is published as the user's Discord status. Null when the app runs
+    /// without the service — headless test hosts, and any host that does not construct it.
+    /// </summary>
+    public IRichPresencePublisher? RichPresence { get; set; }
 
     [RelayCommand(CanExecute = nameof(CanLoadScenario))]
     private async Task LoadScenarioAsync()
@@ -462,7 +473,8 @@ public partial class MainViewModel
                 result.PrimaryAirportId,
                 result.PositionDisplayConfig,
                 result.FlightStripsConfig,
-                result.AllAircraft
+                result.AllAircraft,
+                ElapsedSeconds: 0
             )
         );
         StashScenarioGeneratorsAndPositions(result.AircraftGenerators, result.VfrArrivalGenerators, result.OverflightGenerators, result.Positions);
@@ -504,7 +516,8 @@ public partial class MainViewModel
                     dto.PrimaryAirportId,
                     dto.PositionDisplayConfig,
                     dto.FlightStripsConfig,
-                    dto.AllAircraft
+                    dto.AllAircraft,
+                    ElapsedSeconds: 0
                 )
             );
             StashScenarioGeneratorsAndPositions(dto.AircraftGenerators, dto.VfrArrivalGenerators, dto.OverflightGenerators, dto.Positions);
@@ -615,6 +628,65 @@ public partial class MainViewModel
 
         // With no weather loaded yet, show default standard METARs for the scenario's airports.
         ApplyDefaultWeatherIfNoWeather();
+
+        StartRichPresence(bootstrap.ElapsedSeconds);
+    }
+
+    /// <summary>
+    /// Stamps when the newly active scenario started — back-dated by however long it has already been
+    /// running, so a joiner's Discord timer matches the room's — and publishes it. Shared by both
+    /// scenario-identity writers: the bootstrap router and the recording load.
+    /// </summary>
+    private void StartRichPresence(double elapsedSeconds)
+    {
+        _richPresenceStartUnixSeconds = DateTimeOffset.UtcNow.AddSeconds(-elapsedSeconds).ToUnixTimeSeconds();
+        RefreshRichPresence();
+    }
+
+    /// <summary>
+    /// Publishes the active scenario as the user's Discord status, or withdraws whatever is showing
+    /// when the setting is off or no scenario is loaded. Called on every scenario activation and
+    /// again when the Settings window saves, so the toggle takes effect immediately.
+    /// </summary>
+    public void RefreshRichPresence()
+    {
+        if (RichPresence is not { } presence)
+        {
+            return;
+        }
+
+        if (!_preferences.DiscordRichPresenceEnabled || (ActiveScenarioId is null))
+        {
+            presence.Clear();
+            return;
+        }
+
+        var activity = new DiscordActivity(
+            ActiveScenarioName ?? ActiveScenarioId,
+            RichPresenceStateLine(_preferences.ArtccId, ActiveScenarioPrimaryAirportId),
+            _richPresenceStartUnixSeconds
+        );
+        presence.Publish(activity);
+    }
+
+    /// <summary>
+    /// The second Discord line: the ARTCC and the airport, whichever of the two is known, or null
+    /// when neither is — Discord omits the line rather than showing an empty one.
+    /// </summary>
+    private static string? RichPresenceStateLine(string artccId, string? airportId)
+    {
+        List<string> parts = [];
+        if (!string.IsNullOrWhiteSpace(artccId))
+        {
+            parts.Add(artccId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(airportId))
+        {
+            parts.Add(airportId);
+        }
+
+        return parts.Count == 0 ? null : string.Join(" · ", parts);
     }
 
     private async Task BootstrapStudentTdlsAsync(string? primaryAirportId)
@@ -678,6 +750,10 @@ public partial class MainViewModel
         ActiveScenarioName = null;
         ActiveScenarioPrimaryAirportId = null;
         IsLiveSession = false;
+        // Nothing is running, so nothing is shown. Every way out of a scenario reaches here: unload,
+        // leaving the room, disconnecting, being kicked, and a rejoin that failed.
+        RichPresence?.Clear();
+        _richPresenceStartUnixSeconds = 0;
         SetStudentPositionType(null);
         _isAutoClearedToLand = false;
         foreach (RadarViewModel radar in AllRadarViews)

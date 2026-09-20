@@ -30,7 +30,7 @@ The class is split across partial files by concern. The split is purely organiza
 |---|---|
 | `MainViewModel.cs` | Constructor + event subscriptions; `SendCommandAsync` pipeline; nav-data init (`InitializeNavDataAsync`); tab / pop-out index arithmetic (`IsTabVisible` / `FindNextVisibleTabIndex` / `EnsureSelectedTabVisible`); terminal-filter toggles + solo (`_isProgrammaticTerminalToggle`); session-settings echo guard (`_isApplyingSessionSettings`); `BuildSpeechContext`; speech-result handlers; `ApplySimState`; the `GridLayoutReset` / `RequestCommandInputFocus` / `TerminalFilterChanged` View-bridge events. |
 | `MainViewModel.Rooms.cs` | Connect / disconnect / create-join-leave room; CRC lobby + room members; reconnect + server-restart banner; `ApplyRoomState` / `ClearRoomState`; aircraft assignments + RPO control (`TakeControlAsync` / `GiveControlAsync` / `ReleaseControlAsync`); `PermittedArtccs` + `SelectedCreateArtccId` (the Create Room ARTCC picker, shown only with operator grants) and `SetActiveArtcc` — `UserPreferences.ArtccId` is "the ARTCC in effect": home at sign-in, the room's `CreatorArtccId` while in a room (adopted in `ApplyRoomState`, restored in `ClearRoomState`), which every ARTCC-scoped consumer (scenario picker, live session, weather, CRC aliases, web-client URLs) reads. |
-| `MainViewModel.Scenario.cs` | Scenario load / unload; difficulty + setup plan (`ScenarioSetupPlan`); **`ApplyScenarioBootstrap`** (the fan-out router); `ApplyScenarioResult` (loader path); `OnScenarioLoaded` (broadcast path); `ClearScenarioState`. |
+| `MainViewModel.Scenario.cs` | Scenario load / unload; difficulty + setup plan (`ScenarioSetupPlan`); **`ApplyScenarioBootstrap`** (the fan-out router); `ApplyScenarioResult` (loader path); `OnScenarioLoaded` (broadcast path); `ClearScenarioState`; the Discord rich-presence publish (`RichPresence`, `StartRichPresence`, `RefreshRichPresence`). |
 | `MainViewModel.Aircraft.cs` | SignalR aircraft handlers (`OnAircraftUpdated` / `OnAircraftSpawned` / `OnAircraftDeleted`); terminal-entry broadcast; speech-bubble attach; `OnPilotTransmissionReceived` → `PilotVoiceService`; `OnSimulationStateChanged`. |
 | `MainViewModel.Timeline.cs` | Rewind / recording / export-progress; the command-marker buffer (`_commandMarkerHistory` + `_commandMarkerLock`); timeline-marker poll (`RefreshTimelineMarkersAsync`); save/load recording injects/reads the `bookmarks.json` archive entry. |
 | `MainViewModel.Bookmarks.cs` | Shared timeline bookmarks — server-authoritative, synced across RPOs (GitHub issue #288): `Bookmarks` mirror collection; add / quick-add / rename / delete route through hub RPCs (`ServerConnection.Add/Rename/DeleteBookmarkAsync`); `ApplyBookmarks` reconciles from the `BookmarksChanged` broadcast / `RoomStateDto.Bookmarks` join seed; `BookmarkNamePromptRequested` event (view shows the name popup); `SnapshotBookmarks` for the recording-save `bookmarks.json` stitch. Cleared at session boundaries alongside `Aircraft.Clear()`. Also owns the client half of the `BM` verb (`TryHandleBookmarkLocallyAsync`): `BM LIST` prints to this client's terminal only and `BM GO/NEXT/PREV` drive `RewindToSeconds`, while add/rename/delete fall through to `MainViewModel.HandleBookmarkGlobalCommand` → `SendCommandAsync` → the server. |
@@ -133,23 +133,29 @@ then flips `_commandInput.NavDbReady = true` and pushes elevation lookups into `
 ## Scenario activation — three paths, one router
 
 A scenario becomes active through **three** distinct entry points, and they all **must** funnel through
-`ApplyScenarioBootstrap` (`MainViewModel.Scenario.cs:474`):
+`ApplyScenarioBootstrap` (`MainViewModel.Scenario.cs:544`):
 
 | Path | Trigger | Entry method | Carries |
 |---|---|---|---|
-| **Loader** | This client invoked `LoadScenario` | `ApplyScenarioResult(LoadScenarioResultDto)` (`Scenario.cs:407`) | full `AllAircraft`, sim state, session settings; also pushes **this RPO's** preferences to the server |
-| **Broadcast** | Another client loaded a scenario | `OnScenarioLoaded(ScenarioLoadedDto)` (`Scenario.cs:435`) | same fields; does **not** push preferences (only the loading RPO does) |
-| **Join / reconnect** | `JoinRoom` returned a room with a scenario | `ApplyRoomState(RoomStateDto)` (`Rooms.cs:594`) | snapshot incl. `ElapsedSeconds`/`IsPlayback`/`TapeEnd` |
+| **Loader** | This client invoked `LoadScenario` | `ApplyScenarioResult(LoadScenarioResultDto)` (`Scenario.cs:460`) | full `AllAircraft`, sim state, session settings; also pushes **this RPO's** preferences to the server |
+| **Broadcast** | Another client loaded a scenario | `OnScenarioLoaded(ScenarioLoadedDto)` (`Scenario.cs:499`) | same fields; does **not** push preferences (only the loading RPO does) |
+| **Join / reconnect** | `JoinRoom` returned a room with a scenario | `ApplyRoomState(RoomStateDto)` (`Rooms.cs:789`) | snapshot incl. `ElapsedSeconds`/`IsPlayback`/`TapeEnd` |
 
 `ScenarioBootstrap` (`ScenarioBootstrap.cs`) is a small record that exists precisely so the three differently-named
 DTOs project into one shape (`ScenarioId`, `ScenarioName`, `PrimaryAirportId`, `PositionDisplayConfig`,
-`FlightStripsConfig`, `Aircraft`). `ApplyScenarioBootstrap` then does the work common to all three:
+`FlightStripsConfig`, `Aircraft`, `ElapsedSeconds`). `ElapsedSeconds` is how long the scenario has already been
+running when this client picks it up: the loader and broadcast paths pass 0 (both fire as the scenario starts), the
+join path passes the room's `RoomStateDto.ElapsedSeconds`. `ApplyScenarioBootstrap` then does the work common to all
+three:
 
 - sets `ActiveScenarioId`/`Name`/`PrimaryAirportId` and `_commandInput.PrimaryAirportId`,
 - rebuilds the `Aircraft` collection from the DTOs (recomputing `InitialDelayedSpawnCount` /
   `PendingDelayedSpawnCount`),
 - fans out to `Radar.ApplyScenarioBootstrap` / `Ground.ApplyScenarioBootstrap`, `VStrips.ApplyBayConfig`, and the
-  vTDLS bootstrap (`BootstrapStudentTdlsAsync`).
+  vTDLS bootstrap (`BootstrapStudentTdlsAsync`),
+- ends in `StartRichPresence(bootstrap.ElapsedSeconds)`, which stamps the Discord start time (now minus the elapsed
+  seconds, so a joiner's timer matches the room's) and publishes through `RefreshRichPresence` — see
+  [discord-integration.md](discord-integration.md#desktop-client-rich-presence).
 
 **Per-path extras stay at the call site:** the `ApplySimState` signature differs (the join path passes elapsed/
 playback/tape-end; loader & broadcast use the 2-arg form), `_studentPositionType` and `_isAutoClearedToLand` are set
@@ -163,9 +169,22 @@ ends in `ApplyAutoClearedToLandLocally`, which sets the field from the room's sh
 of its own. All three DTOs carry the four lists and all three entry methods call it; a path that skipped it would open
 the editor empty, and Apply from an empty editor replaces the room's generators with nothing (#442).
 
-`ClearScenarioState` (`Scenario.cs:578`) is the symmetric teardown: it nulls the active-scenario properties, clears
-`Aircraft`, clears the ground layout / video maps / shown paths, and resets session settings to a neutral
-`SessionSettingsDto`.
+**A recording load is a second scenario-identity writer.** `ApplyRecordingResult` (`MainViewModel.Timeline.cs:647`,
+reached by the loading client and by the `RecordingLoaded` broadcast) sets `ActiveScenarioId`/`Name`/`PrimaryAirportId`
+itself and does not go through the router, so it makes its own `StartRichPresence(result.ElapsedSeconds)` call — the
+tape position is where the Discord timer starts. Anything keyed on "the active scenario changed" has to be wired into
+both `ApplyScenarioBootstrap` and `ApplyRecordingResult`. A rewind or skip (`RewindToSeconds`) goes through neither,
+and leaves the published start time alone.
+
+`RefreshRichPresence` republishes from the current `ActiveScenario*` properties without touching the start time: the
+Settings window calls it on save (so the `DiscordRichPresenceEnabled` toggle takes effect at once), and
+`OnRoomMemberChanged` calls it when a scenario name arrives after a bootstrap that had none (until then the first line
+is the raw scenario id). `MainViewModel.RichPresence` is a settable `IRichPresencePublisher?` that `MainWindow` assigns;
+left null (a headless test host, unless the test assigns a fake) every call is a no-op.
+
+`ClearScenarioState` (`Scenario.cs:747`) is the symmetric teardown: it nulls the active-scenario properties, clears the
+published Discord presence, clears `Aircraft`, clears the ground layout / video maps / shown paths, and resets session
+settings to a neutral `SessionSettingsDto`.
 
 ## Session-settings echo suppression
 
@@ -498,7 +517,8 @@ wedging the UI thread (#347):
 - **Three scenario-activation paths, one router.** `ApplyScenarioResult` (loader), `OnScenarioLoaded` (broadcast),
   and `ApplyRoomState` (join/reconnect) all go through `ApplyScenarioBootstrap`. Wiring a new scenario-derived field
   into only the loader path silently breaks it for joiners and restart-restore rejoins. Add it to the
-  `ScenarioBootstrap` record so all three paths carry it.
+  `ScenarioBootstrap` record so all three paths carry it. `ApplyRecordingResult` writes the scenario identity without
+  the router, so a consumer of "the active scenario changed" (the Discord presence publish) is wired there too.
 - **Session settings need the echo guard.** A new `Session*` `[ObservableProperty]` with an `OnXxxChanged` that
   re-sends to the server must early-return on `_isApplyingSessionSettings`, and the field must be added to all four
   `ApplySessionSettingsFrom*` adapters + `SessionSettingsDto`. Miss the guard and the value ping-pongs with the

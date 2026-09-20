@@ -1790,6 +1790,7 @@ The tables below list every setting on each tab, what it does, and its default. 
 |---------|--------------|---------|
 | **Initials (2 letters)** | Your operating initials, shown in the terminal panel so other RPOs can see who issued each command. Suggested from your name at sign-in and auto-uppercased; stays editable. | *(from your name)* |
 | **ARTCC** | Read-only. Filled in automatically from your VATSIM/VATUSA profile (US controllers from VATUSA, everyone else from their VATSIM subdivision) and re-resolves on its own if you transfer facilities. While you're in a room it shows that room's ARTCC (see [Visiting another ARTCC](#visiting-another-artcc)). | *(auto)* |
+| **Discord → Show the scenario I'm running as my Discord status** | While a scenario is loaded, your Discord profile shows its name, the ARTCC and the airport, with a timer counting from when the scenario started (someone who joins a running room gets the room's elapsed time, not a fresh zero). Nothing is shown when no scenario is loaded, and the room and the other people in it are never shown. Needs the Discord desktop app running on the same computer — without it the setting does nothing. Uncheck it and press **Save** to remove the status straight away. | On |
 
 Your VATSIM CID, name, and controller rating also come from **VATSIM sign-in** when you connect — they are not entered by hand. See [Signing in with VATSIM](#signing-in-with-vatsim).
 

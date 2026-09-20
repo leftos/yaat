@@ -716,6 +716,11 @@ public partial class MainViewModel
         }
 
         ShowTimelineBar = true;
+
+        // The recording is the active scenario now, and this path does not go through the bootstrap
+        // router, so it publishes its own presence — otherwise Discord keeps showing the scenario the
+        // recording replaced. The tape's position is where its clock starts.
+        StartRichPresence(result.ElapsedSeconds);
     }
 
     private static string FormatTime(double seconds)

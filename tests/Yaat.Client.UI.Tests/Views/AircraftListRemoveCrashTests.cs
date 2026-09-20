@@ -53,7 +53,7 @@ public class AircraftListRemoveCrashTests
     private static (Window window, MainViewModel vm, DataGrid grid) HostGrid(IEnumerable<AircraftDto> aircraft)
     {
         var vm = new MainViewModel(new FakeFilePickerService());
-        vm.ApplyScenarioBootstrap(new ScenarioBootstrap("scenario-237", "Remove Crash", "OAK", null, null, [.. aircraft]));
+        vm.ApplyScenarioBootstrap(new ScenarioBootstrap("scenario-237", "Remove Crash", "OAK", null, null, [.. aircraft], ElapsedSeconds: 0));
 
         var view = new DataGridView { DataContext = vm };
         var window = new Window
@@ -97,7 +97,8 @@ public class AircraftListRemoveCrashTests
                 "OAK",
                 null,
                 null,
-                [MakeAircraft("AAA1"), MakeAircraft("BBB1"), MakeAircraft("CCC1")]
+                [MakeAircraft("AAA1"), MakeAircraft("BBB1"), MakeAircraft("CCC1")],
+                ElapsedSeconds: 0
             )
         );
 

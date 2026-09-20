@@ -4,6 +4,7 @@
 
 ### Added
 - Right-click an aircraft you assumed from live traffic and pick **Release to live feed** to hand it back to the feed, the same as `UNASSUME`.
+- Your Discord status shows the scenario you are running — its name, ARTCC and airport, with an elapsed timer — while Discord is open on the same computer. On by default; turn it off in Settings → Identity (#439).
 
 ### Fixed
 - Rewinding to before a CRC ASDE-X safety-logic change (a closed runway, inhibited arrival alerts) undoes it, instead of keeping the newest configuration.

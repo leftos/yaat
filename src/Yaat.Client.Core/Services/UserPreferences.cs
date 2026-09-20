@@ -461,6 +461,9 @@ public sealed class UserPreferences
     /// <summary>When true, activating any YAAT window raises all YAAT windows above other apps (CRC-style group raise).</summary>
     public bool RaiseWindowsTogether => _data.RaiseWindowsTogether;
 
+    /// <summary>When true, the scenario being run is published to Discord as the user's rich-presence status.</summary>
+    public bool DiscordRichPresenceEnabled => _data.DiscordRichPresenceEnabled;
+
     /// <summary>When true, the favorites bar is shown (in the main window when the Terminal is docked, in the Terminal window when it is popped out).</summary>
     public bool ShowFavoritesBar => _data.ShowFavoritesBar;
 
@@ -1069,6 +1072,17 @@ public sealed class UserPreferences
         }
 
         _data.RaiseWindowsTogether = enabled;
+        Save();
+    }
+
+    public void SetDiscordRichPresenceEnabled(bool enabled)
+    {
+        if (_data.DiscordRichPresenceEnabled == enabled)
+        {
+            return;
+        }
+
+        _data.DiscordRichPresenceEnabled = enabled;
         Save();
     }
 
@@ -1850,6 +1864,7 @@ public sealed class UserPreferences
             AlwaysOnTopKey = GetFieldOr(obj, "alwaysOnTopKey", "Ctrl+Shift+T"),
             QuickBookmarkKey = GetFieldOr(obj, "quickBookmarkKey", "Ctrl+B"),
             RaiseWindowsTogether = GetFieldOr(obj, "raiseWindowsTogether", true),
+            DiscordRichPresenceEnabled = GetFieldOr(obj, "discordRichPresenceEnabled", true),
             ShowFavoritesBar = GetFieldOr(obj, "showFavoritesBar", true),
             IsFavoritesPanelOpen = GetFieldOr(obj, "isFavoritesPanelOpen", false),
             HiddenTerminalKinds = GetFieldOr<List<string>>(obj, "hiddenTerminalKinds", []),
@@ -2168,6 +2183,7 @@ public sealed class UserPreferences
         public string AlwaysOnTopKey { get; set; } = "Ctrl+Shift+T";
         public string QuickBookmarkKey { get; set; } = "Ctrl+B";
         public bool RaiseWindowsTogether { get; set; } = true;
+        public bool DiscordRichPresenceEnabled { get; set; } = true;
         public bool ShowFavoritesBar { get; set; } = true;
         public bool IsFavoritesPanelOpen { get; set; }
         public List<string> HiddenTerminalKinds { get; set; } = [];

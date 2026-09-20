@@ -61,7 +61,8 @@ public class MainViewModelScenarioRestartTests
                 "OAK",
                 null,
                 null,
-                [MakeAircraft("SWA101", "Active"), MakeAircraft("UAL202", "Active"), MakeAircraft("FDX303", "Active")]
+                [MakeAircraft("SWA101", "Active"), MakeAircraft("UAL202", "Active"), MakeAircraft("FDX303", "Active")],
+                ElapsedSeconds: 0
             )
         );
         Assert.Equal(3, vm.Aircraft.Count);
@@ -78,7 +79,9 @@ public class MainViewModelScenarioRestartTests
     public void OnScenarioRestarted_RestoresStaleAircraftToTheirManifestState()
     {
         MainViewModel vm = NewVm();
-        vm.ApplyScenarioBootstrap(new ScenarioBootstrap("scenario-1", "OAK Ground", "OAK", null, null, [MakeAircraft("UAL202", "Active")]));
+        vm.ApplyScenarioBootstrap(
+            new ScenarioBootstrap("scenario-1", "OAK Ground", "OAK", null, null, [MakeAircraft("UAL202", "Active")], ElapsedSeconds: 0)
+        );
         Assert.False(vm.Aircraft[0].IsDelayed);
 
         // Same callsign, but the restart re-queued it — a merge would have left it showing Active at
@@ -99,7 +102,9 @@ public class MainViewModelScenarioRestartTests
     public void OnScenarioRestarted_RecomputesDelayedSpawnCounters()
     {
         MainViewModel vm = NewVm();
-        vm.ApplyScenarioBootstrap(new ScenarioBootstrap("scenario-1", "OAK Ground", "OAK", null, null, [MakeAircraft("SWA101", "Active")]));
+        vm.ApplyScenarioBootstrap(
+            new ScenarioBootstrap("scenario-1", "OAK Ground", "OAK", null, null, [MakeAircraft("SWA101", "Active")], ElapsedSeconds: 0)
+        );
         Assert.Equal(0, vm.InitialDelayedSpawnCount);
         Assert.Equal(0, vm.PendingDelayedSpawnCount);
 
@@ -124,7 +129,15 @@ public class MainViewModelScenarioRestartTests
     {
         MainViewModel vm = NewVm();
         vm.ApplyScenarioBootstrap(
-            new ScenarioBootstrap("scenario-1", "OAK Ground", "OAK", null, null, [MakeAircraft("SWA101", "Active"), MakeAircraft("FDX303", "Active")])
+            new ScenarioBootstrap(
+                "scenario-1",
+                "OAK Ground",
+                "OAK",
+                null,
+                null,
+                [MakeAircraft("SWA101", "Active"), MakeAircraft("FDX303", "Active")],
+                ElapsedSeconds: 0
+            )
         );
         vm.ApplyBookmarks([new TimelineBookmarkDto("bm-1", 120, "Before the go-around", "JD")]);
         Assert.True(vm.HasBookmarks);
@@ -140,7 +153,9 @@ public class MainViewModelScenarioRestartTests
     public void ScenarioRestarted_DropsBookmarksWithTheTape()
     {
         MainViewModel vm = NewVm();
-        vm.ApplyScenarioBootstrap(new ScenarioBootstrap("scenario-1", "OAK Ground", "OAK", null, null, [MakeAircraft("SWA101", "Active")]));
+        vm.ApplyScenarioBootstrap(
+            new ScenarioBootstrap("scenario-1", "OAK Ground", "OAK", null, null, [MakeAircraft("SWA101", "Active")], ElapsedSeconds: 0)
+        );
         vm.ApplyBookmarks([new TimelineBookmarkDto("bm-1", 120, "Before the go-around", "JD")]);
         Assert.True(vm.HasBookmarks);
 

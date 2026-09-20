@@ -68,6 +68,21 @@
                 FontSize="11"
               />
             </StackPanel>
+            <Separator Margin="0,4" />
+            <TextBlock Text="Discord" FontWeight="SemiBold" />
+            <StackPanel Spacing="4">
+              <CheckBox
+                Content="Show the scenario I'm running as my Discord status"
+                IsChecked="{Binding DiscordRichPresenceEnabled}"
+                ToolTip.Tip="Uses Discord Rich Presence on this computer. Shows the scenario name, ARTCC and airport — never the room or other people."
+              />
+              <TextBlock
+                Text="Your Discord profile shows the scenario name, your ARTCC and the airport while a scenario is loaded, and nothing when one isn't."
+                TextWrapping="Wrap"
+                Foreground="{DynamicResource SubtleTextBrush}"
+                FontSize="11"
+              />
+            </StackPanel>
           </StackPanel>
         </ScrollViewer>
       </TabItem>

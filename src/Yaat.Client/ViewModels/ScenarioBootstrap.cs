@@ -19,11 +19,16 @@ namespace Yaat.Client.ViewModels;
 /// reaches this code when <c>RoomStateDto.ScenarioId</c> is non-null).</param>
 /// <param name="ScenarioName">Nullable because <c>RoomStateDto</c> allows it
 /// to be null when the room has a scenario loaded without a display name.</param>
+/// <param name="ElapsedSeconds">How long the scenario has already been running
+/// when this client picks it up. Zero on the loader and broadcast paths, which
+/// both fire as the scenario starts; the join path carries the room's clock, so
+/// a joiner's elapsed-time displays match the room rather than restarting.</param>
 public sealed record ScenarioBootstrap(
     string ScenarioId,
     string? ScenarioName,
     string? PrimaryAirportId,
     PositionDisplayConfigDto? PositionDisplayConfig,
     FlightStripsConfigDto? FlightStripsConfig,
-    IReadOnlyList<AircraftDto> Aircraft
+    IReadOnlyList<AircraftDto> Aircraft,
+    double ElapsedSeconds
 );

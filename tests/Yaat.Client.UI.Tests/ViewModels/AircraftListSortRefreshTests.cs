@@ -81,7 +81,8 @@ public class AircraftListSortRefreshTests
                     MakeAircraft("FFF1"),
                     MakeAircraft("DEL1", "Delayed (60s)"),
                     MakeAircraft("DEL2", "Delayed (90s)"),
-                ]
+                ],
+                ElapsedSeconds: 0
             )
         );
 
@@ -117,7 +118,8 @@ public class AircraftListSortRefreshTests
                     MakeAircraft("Q3", destination: "EEE"),
                     MakeAircraft("DEL1", "Delayed (60s)", "ZZZ"),
                     MakeAircraft("DEL2", "Delayed (90s)", "ZZZ"),
-                ]
+                ],
+                ElapsedSeconds: 0
             )
         );
 
@@ -148,7 +150,8 @@ public class AircraftListSortRefreshTests
                 "OAK",
                 null,
                 null,
-                [MakeAircraft("BBB1"), MakeAircraft("DDD1"), MakeAircraft("FFF1"), MakeAircraft("CCC1", "Delayed (60s)")]
+                [MakeAircraft("BBB1"), MakeAircraft("DDD1"), MakeAircraft("FFF1"), MakeAircraft("CCC1", "Delayed (60s)")],
+                ElapsedSeconds: 0
             )
         );
 

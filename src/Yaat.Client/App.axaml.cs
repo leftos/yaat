@@ -24,6 +24,15 @@ public class App : Application
     /// </summary>
     public static bool GlobalKeyHookEnabled { get; set; }
 
+    /// <summary>
+    /// Whether <see cref="Views.MainWindow"/> constructs the Discord rich-presence service. Only the
+    /// desktop entry point (<c>Program.Main</c>) turns this on: a headless test host must not open an
+    /// IPC connection to the developer's own Discord client and publish a status from a test run.
+    /// Separate from the user's <c>DiscordRichPresenceEnabled</c> preference, which decides whether
+    /// the constructed service is given anything to show.
+    /// </summary>
+    public static bool DiscordRichPresenceAvailable { get; set; }
+
     private static UiThreadWatchdog? _uiWatchdog;
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);

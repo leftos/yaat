@@ -113,6 +113,7 @@ public static class Program
         }
 
         App.GlobalKeyHookEnabled = true;
+        App.DiscordRichPresenceAvailable = true;
 
         try
         {

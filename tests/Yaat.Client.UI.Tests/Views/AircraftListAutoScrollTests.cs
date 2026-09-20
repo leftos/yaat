@@ -46,7 +46,7 @@ public class AircraftListAutoScrollTests
     private static (Window window, MainViewModel vm, DataGrid grid) HostGrid(IEnumerable<AircraftDto> aircraft)
     {
         var vm = new MainViewModel(new FakeFilePickerService());
-        vm.ApplyScenarioBootstrap(new ScenarioBootstrap("scenario-351", "Auto Scroll", "OAK", null, null, [.. aircraft]));
+        vm.ApplyScenarioBootstrap(new ScenarioBootstrap("scenario-351", "Auto Scroll", "OAK", null, null, [.. aircraft], ElapsedSeconds: 0));
 
         var view = new DataGridView { DataContext = vm };
         var window = new Window

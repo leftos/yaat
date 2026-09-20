@@ -277,6 +277,9 @@ public partial class SettingsViewModel : ObservableObject
     private bool _raiseWindowsTogether;
 
     [ObservableProperty]
+    private bool _discordRichPresenceEnabled;
+
+    [ObservableProperty]
     private bool _mainWindowTopmost;
 
     [ObservableProperty]
@@ -735,6 +738,7 @@ public partial class SettingsViewModel : ObservableObject
         _audioInputDevice = _preferences.AudioInputDevice;
         _audioOutputDevice = _preferences.AudioOutputDevice;
         _raiseWindowsTogether = _preferences.RaiseWindowsTogether;
+        _discordRichPresenceEnabled = _preferences.DiscordRichPresenceEnabled;
         _mainWindowTopmost = _preferences.MainWindowGeometry?.IsTopmost ?? false;
         _groundViewTopmost = _preferences.GroundViewWindowGeometry?.IsTopmost ?? false;
         _radarViewTopmost = _preferences.RadarViewWindowGeometry?.IsTopmost ?? false;
@@ -904,6 +908,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetSpeechSampleSettings(SpeechSampleCaptureEnabled, SpeechSampleCacheMaxMb);
         _preferences.SetAudioSettings(AudioInputDevice, AudioOutputDevice);
         _preferences.SetRaiseWindowsTogether(RaiseWindowsTogether);
+        _preferences.SetDiscordRichPresenceEnabled(DiscordRichPresenceEnabled);
         _preferences.SetWindowTopmost("Main", MainWindowTopmost);
         _preferences.SetWindowTopmost("GroundView", GroundViewTopmost);
         _preferences.SetWindowTopmost("RadarView", RadarViewTopmost);

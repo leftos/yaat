@@ -107,7 +107,7 @@ Project-reference direction: `Yaat.Client` → `Yaat.Client.Core` → `Yaat.Clie
 - `..\crc-decompiled\CRC\` (sibling of the yaat repo root) — private git repo of the ILSpy-decompiled CRC (2.15 baseline + 2.17; re-decompile + commit on each CRC update). Key: `Vatsim.Nas.Crc.Ui.Displays.Stars.Elements/DisplayElementTracks.cs`, `…Stars.Consolidation/ConsolidationManager.cs`, `…Stars.Tracks/Track.cs`, `TrackOwnerExtensions.cs`
 - On each CRC update, also regenerate the CRC wire-contract snapshot in yaat-server: `dotnet run --project tools/CrcWireDump` (reads the installed CRC's `Vatsim.Nas.Messaging.dll`/`Vatsim.Nas.Common.dll` metadata into `docs/crc-wire/messaging-contract.json`; `CrcWireContractTests` diffs every `Yaat.Server.Dtos` MessagePack layout against it). The end-to-end procedure — changelog source, decompiler pin, what to diff — is the `crc-update-check` skill (reference: yaat-server `docs/crc-update.md`).
 - [`scenario-validation.md`](docs/scenario-validation.md) — validating scenario preset commands (`VnasScenarioParseTests`); [`scenario-validation-known-failures.md`](docs/scenario-validation-known-failures.md) lists the failures that are *not* parser bugs (scenario typos, features we won't implement) — check it before chasing one
-- [`discord-integration.md`](docs/discord-integration.md) — Discord bot and GitHub Actions workflows
+- [`discord-integration.md`](docs/discord-integration.md) — Discord bot and GitHub Actions workflows; the desktop client's Rich Presence (`src/Yaat.Client/Services/Discord/`)
 
 Subsystem references — open the matching doc *before* exploring, searching, or editing the listed code; each carries its own overview, contracts, and footguns:
 

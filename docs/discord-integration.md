@@ -1,5 +1,9 @@
 # Discord Integration
 
+YAAT touches Discord in two unrelated ways: the community server's automation (GitHub Actions workflows, the bot, the
+server-cost tracker) and the desktop client's [Rich Presence](#desktop-client-rich-presence), which shows the scenario a
+user is running on their own Discord profile.
+
 ## GitHub Actions Workflows (`.github/workflows/`)
 
 | Workflow | Repo | Trigger | What it does |
@@ -80,3 +84,83 @@ Shows how close YAAT's hosting bill (`MONTHLY_COST_USD`, $24/mo on DigitalOcean)
 **Admin commands** (owner-only, behind `DISCORD_ALLOWED_USER_ID`): `/support-refresh` re-renders both surfaces from the ledger; `/support-forget <transaction_id>` drops one payment (test event, refund) and re-renders.
 
 **Setup.** `DISCORD_BOT_TOKEN=<token> pnpm run setup-support -- --guild <id> [--category <id>] [--kofi-url URL] [--cost 24] [--dry-run]` — idempotently creates the roles, the two channels (voice: `@everyone` denied Connect; text: `@everyone` denied Send Messages/threads, the bot allowed), posts + pins the seed embed, writes `support-config.json` (commit it), and prints the remaining manual steps. The bot needs **Manage Channels** and **Manage Roles** for this. Then `wrangler secret put KOFI_VERIFICATION_TOKEN`, deploy, set the webhook URL to `https://<worker>/kofi` on ko-fi.com/manage/webhooks, and re-register the slash commands.
+
+## Desktop client Rich Presence
+
+While a scenario is active, the desktop client publishes it as the signed-in Discord user's activity (GitHub issue
+#439). Nothing here involves the bot, the server or a network call: the client talks to the Discord desktop app on the
+same machine over Discord's local RPC channel.
+
+**What is sent.** One activity under YAAT's own Discord application, id `1551088521731772439`
+(`MainWindow.DiscordApplicationId`), with no image assets:
+
+| Discord field | Value |
+|---|---|
+| `details` (line 1) | `ActiveScenarioName`, or the scenario id until a name is known |
+| `state` (line 2) | `ARTCC · airport` from `UserPreferences.ArtccId` and `ActiveScenarioPrimaryAirportId` — only the half that is known; the field is left off the wire when neither is |
+| `timestamps.start` | Unix seconds the scenario started, which Discord renders as a running elapsed timer. Stamped as "now minus `ElapsedSeconds`", so a joiner's timer matches the room's and a loaded recording starts at its tape position. It is a wall-clock stamp: pause, sim rate, rewind and skip do not move it |
+
+Nothing is published when no scenario is active, and the room, its members and other people's names never go on the
+wire. Both text fields are clamped to 128 characters (`DiscordRpcJson.Clamp`, ellipsis-terminated, never splitting a
+surrogate pair) because Discord rejects a longer one outright and the rejection only comes back in the `SET_ACTIVITY`
+response, which the client does not inspect.
+
+**User control.** `UserPreferences.DiscordRichPresenceEnabled` (JSON key `discordRichPresenceEnabled`, default `true`),
+the **Discord** checkbox on Settings → Identity. It takes effect on Settings save via `MainViewModel.RefreshRichPresence`.
+The publish points in the scenario lifecycle are described in
+[client-mainviewmodel.md](client-mainviewmodel.md#scenario-activation--three-paths-one-router).
+
+**Protocol.** Discord's RPC over local IPC (<https://discord.com/developers/docs/topics/rpc>), hand-rolled — no package
+dependency:
+
+- **Endpoint**: `discord-ipc-0` … `discord-ipc-9`, tried in order. A Windows named pipe (200 ms connect bound per
+  endpoint); elsewhere a Unix domain socket in the first of `XDG_RUNTIME_DIR`, `TMPDIR`, `TMP`, `TEMP` that is set,
+  else `/tmp`.
+- **Frame**, both directions: `[int32 opcode LE][int32 length LE][UTF-8 JSON]`. Opcodes: 0 handshake, 1 frame, 2 close,
+  3 ping, 4 pong. A declared length that is negative or above 64 KiB is refused on read.
+- **Conversation**: the client sends opcode 0 `{"v":1,"client_id":"…"}`, waits for the opcode-1 frame whose `evt` is
+  `READY`, then sends opcode 1 `{"cmd":"SET_ACTIVITY","args":{"pid":…,"activity":{…}},"nonce":"…"}`. `pid` is the
+  client's own process id (Discord keys the activity on it). A ping is answered with a pong carrying the same payload.
+
+**Files** (`src/Yaat.Client/Services/Discord/`):
+
+| File | Role |
+|---|---|
+| `DiscordIpcFrame.cs` | Frame read/write, opcode constants, the payload cap |
+| `DiscordActivity.cs` | The `DiscordActivity` record (`Details`, `State`, `StartUnixSeconds`) and `DiscordRpcJson`, the `Utf8JsonWriter` builders for the handshake and `SET_ACTIVITY` payloads |
+| `IDiscordIpcConnector.cs` / `DiscordIpcConnector.cs` | Finds and opens the endpoint; returns null when Discord is not running |
+| `IRichPresencePublisher.cs` | What `MainViewModel` sees: `Publish(activity)` / `Clear()`, both fire-and-forget |
+| `DiscordRichPresenceService.cs` | The worker that owns the connection |
+
+**Worker behaviour.** `DiscordRichPresenceService` runs one background task. `Publish`/`Clear` only record the wanted
+activity and wake it; the latest value wins, so a change that lands mid-connect replaces the earlier one instead of
+queueing behind it. The worker connects only while an activity is wanted and keeps the connection open to answer
+pings and pick up changes.
+
+**Fail-silent, with back-off.** Discord not running is the ordinary case, so every failure is cheap and none reaches
+the user. A sweep that finds no endpoint, a handshake Discord does not acknowledge within 10 s, a close frame and a
+dropped connection all end the session; the worker retries after 5 s, doubling to a 60 s ceiling, and resets to 5 s
+after a session that ended cleanly. A change to the wanted activity cuts a back-off short, so starting a scenario never
+waits out a minute inherited from an earlier failure. Logging goes to `AppLog` at Debug (per-endpoint misses at Trace);
+"Discord is not running" is logged once per absence — again only after a connection has succeeded in between.
+`Dispose` cancels the worker and waits at most 2 s, because it runs on the UI thread from `MainWindow.OnClosing`; a
+worker wedged in a native pipe call is abandoned with a warning rather than holding the window open.
+
+**Kept out of tests.** `MainWindow` constructs the service only when `App.DiscordRichPresenceAvailable` is true, and
+only `Program.Main` sets it — so a headless host (`Yaat.Client.UI.Tests`, `Yaat.GuideCapture`) never opens a pipe to
+the developer's own Discord and publishes a status from a test run. `MainViewModel.RichPresence` stays null there;
+`MainViewModelRichPresenceTests` assigns a recording fake. The service has an internal constructor taking an
+`IDiscordIpcConnector` and a `TimeProvider`: `DiscordRichPresenceServiceTests` scripts Discord's side over an
+in-memory duplex stream and drives the handshake timeout and back-off with a manual clock.
+
+### Footguns
+
+- **Clearing is closing the connection.** Discord drops an application's activity as soon as its IPC connection goes
+  away, and that is the only mechanism `Clear()` uses. A `SET_ACTIVITY` frame with a null activity is not relied on —
+  do not "optimise" the close into one to keep the pipe warm.
+- **The availability flag and the preference are different switches.** `App.DiscordRichPresenceAvailable` decides
+  whether the service exists at all (host-level, never persisted); `DiscordRichPresenceEnabled` decides whether the
+  existing service is given anything to show.
+- **`ApplyRecordingResult` is a publish point too.** A recording load replaces the scenario without going through
+  `ApplyScenarioBootstrap`; without its own `StartRichPresence` call Discord would keep showing the scenario the
+  recording replaced.
