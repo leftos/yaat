@@ -1,5 +1,6 @@
 # YAAT plans — index
 <!-- plan-doc-hygiene: 2026-09-18 c34590cf -->
+<!-- triage-open-issues: 2026-09-20T19:50:31Z -->
 
 Entry point for `docs/plans/`. One line per item; the detail lives in the linked subplan. Finished items and finished plans are deleted, never left ticked (steer 2026-09-14) — git history is the record (a plan whose rationale or status table still has reference value is promoted into `docs/` instead). Issue-specific plans live in [`open-issues/`](./open-issues/) and are deleted once implemented.
 
@@ -8,6 +9,7 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 ## Bug reports and feature requests
 
 - [ ] **#440 N346G not drawn in the tower cab, visible on SAID** (same bundle): nothing in yaat-server's Tower Cab feed (`CrcVisibilityTracker.GetVisibleTowerCabAirports`, `DtoConverter.ToTowerCab`) or CRC's tower cab gates on transponder Off / no flight plan, and four other stationary t=0 spawns were visible. The reporter answered 2026-09-18: icon and tag both missing for the whole session, airborne included, and the tower cab was never reopened — so the Shift+click hidden-tag theory is out and the aircraft never reached (or was dropped by) CRC's tower-cab repository; the one difference at t=0 is that N346G had no flight plan. Unblocked: reproduce first. Findings are on the issue. A live repro can use the `yaat-client-driver` MCP server ([`docs/client-driver-mcp.md`](../client-driver-mcp.md)) with CRC running beside the client — its CRC path is still unexercised
+- [ ] **Radar datablock hit-test / deconfliction rect is one row taller than the drawn block when the ATPA lead or conflict peer is filtered out of the draw pass** (#443, nightly-review 2026-09-20): `RadarCanvas.ResolveByCallsign` scans the unfiltered collection while `TargetRenderer` indexes the filtered one — draft PR #444 ↔ #443 carries the fix and the red-first parity test; land it with the `land-bot-pr` skill
 - [ ] Live-session assume UX (ZOA Discord 2026-08-31): bulk-assume modes, snapshot-then-assume-all, snapshot-as-scenario authoring — yaat-server [live-traffic-swim/09-live-sessions.md](../../../yaat-server/docs/plans/live-traffic-swim/09-live-sessions.md) §3. Auto-assume on first command + `UNASSUME` shipped 2026-09-08 (user pick) and the "Release to live feed" menu item with its wire marker 2026-09-18; the right-click menus still offer a shadow no manoeuvre (the typed auto-assume has no menu equivalent) — noted in §3
 
 ## Current programme
