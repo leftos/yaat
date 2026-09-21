@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <Version>0.13.2-beta</Version>
+    <Version>0.13.3-beta</Version>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
   </PropertyGroup>

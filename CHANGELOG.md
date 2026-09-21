@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.13.3-beta [2026/09/21]
+
+### Highlights
+- Your Discord status shows the scenario you are running; turn it off in Settings → Identity.
+- Right-click an aircraft you assumed from live traffic and pick **Release to live feed** to hand it back.
+- Aircraft held to the 200- or 250-knot limits take their assigned speed back once the limit no longer applies, and slow to it on their own when unassigned.
+- A `LAHSO` lander stops short of the hold-short point, or exits at a taxiway before it.
 
 ### Added
 - Right-click an aircraft you assumed from live traffic and pick **Release to live feed** to hand it back to the feed, the same as `UNASSUME`.
@@ -17,7 +23,6 @@
 - When an in-trail speed reduction is lifted from an arrival that still holds an assigned speed with no published restriction ahead, the simulated approach controller restates it ("maintain 210 knots") instead of saying "resume published speed".
 - An arrival not yet cleared for its approach that drifts off the final course for a few seconds keeps its in-trail speed reduction, instead of hearing "resume normal speed" followed by "reduce speed to" again.
 - The helicopter minimum-speed warning cites 7110.65 §5-7-3.e.
-- Generated arrivals measure their in-trail spacing from the landing threshold on runways with a displaced threshold.
 - On a runway with a displaced threshold, the 5-mile final window for speed assignments and the in-trail spacing of arrivals are measured from the landing threshold — at every airport in the scenario, not only the primary one.
 - Rewinding keeps an aircraft at a secondary airport on that airport's ground layout.
 - `DMN` works as an alias of `CMN` (force altitude), as it does in ATCTrainer.
