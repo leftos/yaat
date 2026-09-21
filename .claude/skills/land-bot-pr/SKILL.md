@@ -7,7 +7,7 @@ description: "Land a nightly-review bot fix PR end to end: find the PR linked to
 
 The nightly-review bot files an issue **and** a fix PR together, on a
 `nightly-review/<date>-<slug>` branch (e.g. #333 ↔ #334, #271 ↔ #272). Landing
-one hits the same six traps every time. Each step below exists because one of
+one hits the same seven traps every time. Each step below exists because one of
 them cost a session.
 
 **Before implementing anything from an issue, check whether a PR is already
@@ -111,9 +111,30 @@ git -C "$YAAT" rebase main pr-<PR>
 ```
 
 Code hunks usually rebase clean; verify rather than assume (Step 4's
-`git apply --3way --check` on any hunk you are unsure of). Then add the
-changelog commit with the `changelog-and-commit` skill, and push the rebased
-branch:
+`git apply --3way --check` on any hunk you are unsure of).
+
+**Trap 7 — the bot's commit never went through this repo's pre-commit hooks,**
+so it can carry a CSharpier or `dotnet format` violation that CI rejects
+(#444's `RadarCanvas.cs` had a multi-line `if` CSharpier collapses; the PR's
+own CI run was red before the merge and `main` went red after it). The rebase
+leaves `pr-<PR>` checked out in the worktree you ran it from, so run the hooks
+over exactly the PR's files there — never `--all-files`, and not a bare
+`prek run`, which sees only staged files and there are none:
+
+```bash
+prek run --from-ref main --to-ref HEAD
+git diff --cached --stat        # the csharpier/whitespace hooks fix and stage; non-empty means they changed something
+```
+
+A non-empty staged diff is a formatting fix the hooks applied: commit it onto
+`pr-<PR>` (`chore: apply pre-commit formatting to <file>`) before going on. A
+hook that *fails* (`dotnet format style`, the build) is a real defect in the
+PR — fix it as you would your own code. This ranged form was verified against
+the #444 file on 2026-09-21: it reformatted and staged the fix; a bare
+`prek run` on the same branch passed vacuously.
+
+Then add the changelog commit with the `changelog-and-commit` skill, and push
+the rebased branch:
 
 ```bash
 git -C "$YAAT" push --force-with-lease origin pr-<PR>:<head-branch>
@@ -145,7 +166,9 @@ tools/gate.sh .tmp/test-all.log pwsh tools/test-all.ps1
 
 `test-all.ps1` is the right gate here rather than a bare `dotnet test`: a bot fix
 in `Yaat.Sim` can break the sibling yaat-server repo, which yaat's own suite
-cannot see.
+cannot see. Neither command checks formatting — that is Step 6's ranged
+`prek run`, and CI's `dotnet csharpier check .` / `dotnet format style
+--verify-no-changes` fail the merge commit when it was skipped.
 
 ## Step 8: Merge with `--merge`, never `--rebase`
 
@@ -203,5 +226,7 @@ one, and prefer the `--check`/`--dry-run` form first where the command has one.
       `git checkout <branch> -- <file>`.
 - [ ] `origin/main` was fast-forwarded from local `main` **before** the rebase.
 - [ ] Rebase happened before the changelog bullet was added.
+- [ ] `prek run --from-ref main --to-ref HEAD` ran on the rebased branch; any
+      staged formatting fix was committed onto `pr-<PR>`.
 - [ ] `tools/gate.sh` build + `test-all.ps1` both green.
 - [ ] Merged with `--merge`. Not `--rebase`, not `--squash`.
