@@ -119,7 +119,7 @@ AGENTS.md                         # Codex project wrapper; points Codex back to 
 tests/CLAUDE.md                   # Test-project Claude guidance: docs/test-harness.md pointer + the singleton-race, YAAT_APPDATA_DIR and xunit.runner.json gotchas (moved out of the root CLAUDE.md).
 Setup-CrcEnvironment.ps1          # Adds YAAT1 to CRC's DevEnvironments.json (-Servers overrides for self-hosted)
 deploy-targets.ps1                # Per-deployment map (DropletIp, ServerPath, ServerUrl, RemoteEnvFile) + Resolve-DeployTarget; dot-sourced by the deploy scripts
-deploy-to-droplet.ps1             # Deploys yaat-server to a droplet (CI-built ghcr image by default; -BuildOnDroplet / -BuildImageOnly variants)
+deploy-to-droplet.ps1             # Deploys yaat-server to a droplet (CI-built ghcr image by default; -BuildOnDroplet / -BuildImageOnly variants; -ServerRef/-ClientRef pin a hotfix build to a branch/tag instead of both mains)
 deploy-secrets.ps1                # Merges yaat-server/.env + .env.<target> over the droplet's env file (key names only printed, timestamped backup, -DryRun)
 deploy-ladd.ps1                   # Ships yaat-server/ladd/ladd.json (FAA LADD block list, restricted) to <ServerPath>/ladd/; -Restart recreates the container
 update-ladd.ps1                   # Monthly LADD routine in one command: fetch-ladd.py (ADX portal document sync) -> refresh-ladd.py -> deploy-ladd.ps1 ->

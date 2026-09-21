@@ -2,6 +2,7 @@
 # Usage: .\deploy-to-droplet.ps1 [-Target <name>] [-NoLogs] [-SkipSessionSave] [-DrainSeconds <sec>]
 #        .\deploy-to-droplet.ps1 [-Target <name>] -BuildImageOnly   (build+push the ghcr image in CI, no deploy)
 #        .\deploy-to-droplet.ps1 [-Target <name>] -SkipCiBuild [-NoLogs] ...   (deploy the already-built image)
+#        .\deploy-to-droplet.ps1 [-Target <name>] -ServerRef hotfix/<name> -ClientRef <tag|sha> ...   (hotfix: pinned refs)
 #        .\deploy-to-droplet.ps1 [-Target <name>] -BuildOnDroplet [-NoCache] [-CacheReserveGb <gb>] ...
 #        .\deploy-to-droplet.ps1 -Target yaat2 -RebootOnly [-NoLogs] [-SkipSessionSave] [-DrainSeconds <sec>]
 #        .\deploy-to-droplet.ps1 [-Target <name>] -StatusOnly    (report active rooms only, no deploy)
@@ -50,6 +51,17 @@
 # -SkipCiBuild  Skip the CI image-build step and deploy whatever ghcr.io currently holds as
 #               :latest. Only meaningful right after a -BuildImageOnly run (or another deploy)
 #               has produced the intended image — otherwise the droplet redeploys a stale build.
+#
+# -ServerRef / -ClientRef  Pin what the CI image builds (default: both "main", which ships
+#               every commit on both mains, released or not). -ServerRef is the yaat-server
+#               branch or tag the workflow runs on; -ClientRef is the yaat branch, tag or
+#               commit the submodule is checked out at. The server hotfix flow: read the
+#               running commits from <url>/api/version, branch hotfix/<name> off the server
+#               one, commit the fix there and push it, then deploy with
+#               -ServerRef hotfix/<name> -ClientRef <the running client commit or its release tag>.
+#               Merge the hotfix branch into main afterwards. Combines with -BuildImageOnly;
+#               refused with -SkipCiBuild, -BuildOnDroplet and -RebootOnly, which build nothing.
+#               The droplet's `git pull` of the compose files still tracks yaat-server main.
 #
 # -WaitForEmptyRooms  Do NOT deploy. Poll the target's /admin/status endpoint every
 #                     -PollSeconds (default 60) and block until the server reports zero
@@ -110,6 +122,8 @@ param(
   [string]$KillRoom,
   [switch]$BuildImageOnly,
   [switch]$SkipCiBuild,
+  [string]$ServerRef = "main",
+  [string]$ClientRef = "main",
   [int]$DrainSeconds = 30,
   [int]$PollSeconds = 60,
   [int]$CacheReserveGb = 10
@@ -146,6 +160,12 @@ $estimatedDowntime =
 $serverRepo = "leftos/yaat-server"
 $clientRepo = "leftos/yaat"
 $composeImageFiles = "-f docker-compose.yml -f docker-compose.image.yml"
+
+# -ServerRef / -ClientRef only steer the CI image build; the other paths never build one.
+$refsPinned = ($ServerRef -ne "main") -or ($ClientRef -ne "main")
+if ($refsPinned -and ($SkipCiBuild -or $BuildOnDroplet -or $RebootOnly)) {
+  throw "-ServerRef/-ClientRef pin the CI image build, which -SkipCiBuild, -BuildOnDroplet and -RebootOnly do not run. Drop the pins or the flag."
+}
 
 # Load this target's secrets from a local .env.<target> if present, else the shared .env.
 $envFile = Join-Path $PSScriptRoot ".env.$Target"
@@ -359,10 +379,12 @@ function Invoke-WaitForEmptyRooms {
 # gh CLI to be authenticated with rights on $serverRepo. Throws on dispatch or build failure.
 function Invoke-CiImageBuild {
   $reason = "deploy-$Target-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-  Write-Host "  Dispatching docker-image.yml (reason: $reason)..." -ForegroundColor Gray
-  gh workflow run docker-image.yml --repo $serverRepo -f reason=$reason
+  Write-Host "  Dispatching docker-image.yml (reason: $reason; server $ServerRef, client $ClientRef)..." -ForegroundColor Gray
+  # The server code is the ref the dispatch runs on (a branch or tag — gh refuses a bare
+  # commit here); the client closure is the workflow's client_ref input (any ref).
+  gh workflow run docker-image.yml --repo $serverRepo --ref $ServerRef -f reason=$reason -f client_ref=$ClientRef
   if ($LASTEXITCODE -ne 0) {
-    throw "gh workflow run docker-image.yml failed (exit $LASTEXITCODE). Is gh authenticated with access to $serverRepo?"
+    throw "gh workflow run docker-image.yml failed (exit $LASTEXITCODE). Is gh authenticated with access to $serverRepo, and does $ServerRef exist there as a branch or tag?"
   }
 
   # The dispatch API returns before the run exists; find ours by the reason baked into run-name.
