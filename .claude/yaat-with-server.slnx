@@ -1,0 +1,35 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="../src/Yaat.Client/Yaat.Client.csproj" />
+    <Project Path="../src/Yaat.Client.Core/Yaat.Client.Core.csproj" />
+    <Project Path="../src/Yaat.Client.Strips/Yaat.Client.Strips.csproj" />
+    <Project Path="../src/Yaat.Client.Tdls/Yaat.Client.Tdls.csproj" />
+    <Project Path="../src/Yaat.Sim/Yaat.Sim.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="../tests/Yaat.Client.Tests/Yaat.Client.Tests.csproj" />
+    <Project Path="../tests/Yaat.Client.UI.Tests/Yaat.Client.UI.Tests.csproj" />
+    <Project Path="../tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="../tools/Yaat.CifpInspector/Yaat.CifpInspector.csproj" />
+    <Project Path="../tools/Yaat.ClientDriver.Mcp/Yaat.ClientDriver.Mcp.csproj" />
+    <Project Path="../tools/Yaat.GuideCapture/Yaat.GuideCapture.csproj" />
+    <Project Path="../tools/Yaat.LayoutInspector/Yaat.LayoutInspector.csproj" />
+    <Project Path="../tools/Yaat.RecordingConsolidator/Yaat.RecordingConsolidator.csproj" />
+    <Project Path="../tools/Yaat.Scratch/Yaat.Scratch.csproj" />
+    <Project Path="../tools/Yaat.SpeechSandbox/Yaat.SpeechSandbox.csproj" />
+    <Project Path="../tools/Yaat.VStrips.Web/Yaat.VStrips.Web.csproj" />
+    <Project Path="../tools/Yaat.VTdls.Web/Yaat.VTdls.Web.csproj" />
+  </Folder>
+  <Folder Name="/yaat-server/">
+    <Project Path="../../yaat-server/src/Yaat.Server/Yaat.Server.csproj" />
+    <Project Path="../../yaat-server/src/ProbeClient/ProbeClient.csproj" />
+    <Project Path="../../yaat-server/tests/Yaat.Server.Tests/Yaat.Server.Tests.csproj" />
+    <Project Path="../../yaat-server/tools/CrcWireDump/CrcWireDump.csproj" />
+    <Project Path="../../yaat-server/tools/Yaat.ScenarioValidator/Yaat.ScenarioValidator.csproj" />
+    <Project Path="../../yaat-server/tools/Yaat.RecordingUpgrader/Yaat.RecordingUpgrader.csproj" />
+    <Project Path="../../yaat-server/tools/Yaat.SoakRunner/Yaat.SoakRunner.csproj" />
+    <Project Path="../../yaat-server/tools/Yaat.SwimSlice/Yaat.SwimSlice.csproj" />
+  </Folder>
+</Solution>

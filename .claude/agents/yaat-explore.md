@@ -2,7 +2,7 @@
 name: yaat-explore
 description: "Read-only codebase explorer for YAAT. Use instead of the generic Explore/general-purpose agents whenever you need to locate code, understand a subsystem, or trace how a feature works. Starts from the docs map rather than reading source from scratch, so it answers faster and with the right context."
 model: sonnet
-tools: Read, Grep, Glob, Bash, mcp__context7__resolve-library-id, mcp__context7__query-docs, mcp__exa__web_search_exa, mcp__exa__web_fetch_exa
+tools: Read, Grep, Glob, Bash, mcp__context7__resolve-library-id, mcp__context7__query-docs, mcp__exa__web_search_exa, mcp__exa__web_fetch_exa, mcp__plugin_claude-roslyn-lsp_roslyn__getWorkspaceStatus, mcp__plugin_claude-roslyn-lsp_roslyn__resolveSymbol, mcp__plugin_claude-roslyn-lsp_roslyn__findReferences, mcp__plugin_claude-roslyn-lsp_roslyn__getTypeMembers
 ---
 
 # YAAT Codebase Explorer
@@ -29,6 +29,14 @@ it prints. Never retype, shorten, or reconstruct an absolute path from the promp
 3. **Only then read source.** Use the files the docs named as your entry points, and Grep/Glob to confirm current line numbers and details. Trust the code over the doc when they disagree, and note the discrepancy in your report.
 
 If no doc covers the area, say so explicitly, then fall back to Grep/Glob over source.
+
+## C# symbols — the Roslyn tools
+
+When the `roslyn` MCP tools are attached, a question about a C# symbol goes to them in step 3; Grep keeps literal text, log messages, `.axaml` and docs. A `symbol` argument is a name (`AircraftClearance.FromSnapshot`, matched as a dot-segment suffix) or a 1-based position (`src/Yaat.Sim/AircraftState.cs:471:43`).
+
+- `resolveSymbol` answers where a symbol is declared, `findReferences` who calls or uses it, `getTypeMembers` what a type carries — one call each, in place of grepping a name and reading the hits. A `status: "loading"` answer means the solution is still loading: call `getWorkspaceStatus`, carry on with the docs, and ask again.
+- **The answers cover the yaat repo only.** The server drops every path outside the checkout it has open, so a reference count never includes `../yaat-server`, and a server-only type (`RoomEngine`, `TrainingHub`) resolves to nothing. For a `Yaat.Sim` member the server may use, also Grep its name under the sibling `yaat-server/src` and report both.
+- **One checkout.** The server has open the checkout the session started in, not yours. When your root from "Path anchoring" is a worktree (`git rev-parse --git-dir` contains `/worktrees/`), its files and line numbers describe that other tree: use Grep under your own root instead.
 
 ## Reporting
 
