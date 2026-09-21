@@ -1359,20 +1359,27 @@ internal static class StripCommandHandler
         }
 
         (StripBayConfig? bay, string _, int rack, int? indexOrNull, int _) = resolved.Value;
-        // BLANKD bay vs bay/rack: if the caller supplied a rack (indicated by
-        // a slash in the dest-spec, which makes rack a non-zero or zero value
-        // with an explicit signal), match only in that rack. The resolver
-        // returns rack = 0 both for "no slash" and for explicit "/1" (→ 0),
-        // so we distinguish via whether the original tokens contain a slash.
-        bool hasRackArg = false;
+        // BLANKD bay vs bay/rack: if the caller supplied a rack, match only in
+        // that rack; without one, delete a blank anywhere in the bay (blanks are
+        // fungible). The resolver returns rack = 0 both for "no rack" and for an
+        // explicit "/1" (→ 0), so it can't tell us which was typed. The bay
+        // reference is always facility-qualified (FACILITY/BAY), which contributes
+        // exactly one slash, so a rack was supplied only when a *second* slash
+        // appears (FACILITY/BAY/RACK). Counting slashes across every token stays
+        // correct for multi-word bays whose qualifier and first bay word share a
+        // token ("OAK/BAY Sutro/2" → 2 slashes → rack given).
+        int slashCount = 0;
         foreach (string tok in tokens)
         {
-            if (tok.IndexOf('/') >= 0)
+            foreach (char c in tok)
             {
-                hasRackArg = true;
-                break;
+                if (c == '/')
+                {
+                    slashCount++;
+                }
             }
         }
+        bool hasRackArg = slashCount >= 2;
         _ = indexOrNull;
 
         string? targetStripId = null;
