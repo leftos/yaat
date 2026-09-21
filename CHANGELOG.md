@@ -30,6 +30,7 @@
 - A go-around, `TG`/`SG`/`LA`/`COPT` or `CANCLAND` after `LAHSO` cancels the hold-short.
 - Aircraft held down to 200 or 250 knots by the 14 CFR 91.117 speed limits take their assigned speed back up once the limit no longer applies.
 - Aircraft with no assigned speed slow to the 200- or 250-knot limit on their own.
+- The radar datablock's clickable and draggable area no longer extends one row below the drawn block when its conflict peer or ATPA lead is filtered out of the draw (#443).
 
 ## v0.13.2-beta [2026/09/18]
 
