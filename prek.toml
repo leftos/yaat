@@ -87,10 +87,15 @@ files = '^tools/hooks/(claude-guard-bash\.sh|claude-guard-cases\.jsonl|test-clau
 pass_filenames = false
 stages = ["pre-commit"]
 
+# `files` limits the build to commits that can change its output: compile inputs,
+# project/solution files, analyzer config, and every extension a csproj `Include`s
+# as content or a resource (embedded JSON/geojson/tsv/ttf/png, Avalonia .axaml,
+# LayoutInspector's html/css/js). Docs-, plan- or recording-only commits skip it.
 [[repos.hooks]]
 id = "dotnet-build"
 name = "dotnet build (warnings as errors)"
 entry = "dotnet build -p:TreatWarningsAsErrors=true"
 language = "system"
+files = '\.(cs|csproj|slnx?|props|targets|axaml|xaml|resx|razor|cshtml|proto|json|geojson|cifp|tsv|br|ttf|otf|png|ico|svg|html|css|js|onnx|pem|txt|config|editorconfig|globalconfig|ruleset|baseline)$'
 pass_filenames = false
 stages = ["pre-commit"]
