@@ -2198,11 +2198,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             return false;
         }
 
-        if (
-            ac.IsOnGround
-            && !showTopDown
-            && !ShouldSurfaceGroundBubble(ac, showSpeechBubbles, alwaysShowGroundBubbles, groundShownAirportId, nowUtc)
-        )
+        if (ac.IsOnGround && !showTopDown && !ShouldSurfaceGroundBubble(ac, showSpeechBubbles, alwaysShowGroundBubbles, groundShownAirportId, nowUtc))
         {
             return false;
         }
