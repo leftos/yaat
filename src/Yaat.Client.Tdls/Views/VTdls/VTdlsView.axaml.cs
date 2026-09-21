@@ -1,7 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
-using Avalonia.Data;
+using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -293,7 +293,7 @@ public partial class VTdlsView : UserControl
         var picker = new ComboBox
         {
             ItemsSource = vm.OpConfigs.ToList(),
-            DisplayMemberBinding = new Binding(nameof(TdlsOpConfigDto.Name)),
+            ItemTemplate = new FuncDataTemplate<TdlsOpConfigDto>((config, _) => new TextBlock { Text = config.Name }),
             SelectedItem = vm.OpConfigs.FirstOrDefault(c => string.Equals(c.Id, vm.ActiveOpConfigId, StringComparison.Ordinal)),
             MinWidth = 140,
             FontFamily = mono,
