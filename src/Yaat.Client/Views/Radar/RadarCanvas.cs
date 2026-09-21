@@ -1765,9 +1765,13 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     private AircraftModel? ResolveAtpaLead(AircraftModel ac) => ShowAtpa ? ResolveByCallsign(ac.AtpaLeadCallsign) : null;
 
     /// <summary>
-    /// Scans the bound aircraft collection for a callsign, or null when the callsign is unset or the
-    /// aircraft isn't bound. The hit-test path has no per-frame callsign index (that lives on the
-    /// renderer), so this is a linear scan over the small bound list.
+    /// Scans the bound aircraft collection for a callsign, or null when the callsign is unset, the
+    /// aircraft isn't bound, or it would be filtered out of the draw. The hit-test path has no
+    /// per-frame callsign index (that lives on the renderer, built from the already-filtered draw
+    /// list), so this is a linear scan over the small bound list — but it must apply the same
+    /// <see cref="IsDrawable"/> gate the renderer's index does, or a peer the draw omitted (e.g. an
+    /// ATPA lead that has just landed) would still add its in-trail row to the hit-test/deconfliction
+    /// rect while the drawn block has none.
     /// </summary>
     private AircraftModel? ResolveByCallsign(string? callsign)
     {
@@ -1776,9 +1780,13 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             return null;
         }
 
+        DateTime nowUtc = DateTime.UtcNow;
         foreach (AircraftModel candidate in Aircraft)
         {
-            if (string.Equals(candidate.Callsign, callsign, StringComparison.Ordinal))
+            if (
+                string.Equals(candidate.Callsign, callsign, StringComparison.Ordinal)
+                && IsDrawable(candidate, ShowTopDown, ShowSpeechBubbles, AlwaysShowGroundBubblesOnRadar, GroundShownAirportId, nowUtc)
+            )
             {
                 return candidate;
             }
@@ -2160,33 +2168,55 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         var result = new List<AircraftModel>(aircraft.Count);
         foreach (AircraftModel ac in aircraft)
         {
-            if (ac.IsDelayed)
+            if (IsDrawable(ac, showTopDown, showSpeechBubbles, alwaysShowGroundBubbles, groundShownAirportId, nowUtc))
             {
-                continue;
+                result.Add(ac);
             }
-
-            if (
-                ac.IsOnGround
-                && !showTopDown
-                && !ShouldSurfaceGroundBubble(ac, showSpeechBubbles, alwaysShowGroundBubbles, groundShownAirportId, nowUtc)
-            )
-            {
-                continue;
-            }
-
-            // Airborne but the displayed altitude still rounds to 000 (below the acquisition floor):
-            // withhold the target from the radar so it matches CRC STARS' coast/skip. The aircraft
-            // remains on the ground view until it climbs above the floor. Top-down (ground) mode keeps
-            // showing low traffic.
-            if (!ac.IsOnGround && ac.BelowDisplayFloor && !showTopDown)
-            {
-                continue;
-            }
-
-            result.Add(ac);
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// The per-aircraft predicate behind <see cref="FilterAircraft"/>: true when this aircraft is drawn
+    /// on the radar under the given view settings. Split out so both the visibility filter and the
+    /// conflict/ATPA peer resolution (<see cref="ResolveByCallsign"/>) apply the exact same rule — a
+    /// peer the draw pass filters out must not be resolved for the hit-test/deconfliction rect either,
+    /// or the block's rect no longer matches what is drawn.
+    /// </summary>
+    private static bool IsDrawable(
+        AircraftModel ac,
+        bool showTopDown,
+        bool showSpeechBubbles,
+        bool alwaysShowGroundBubbles,
+        string? groundShownAirportId,
+        DateTime nowUtc
+    )
+    {
+        if (ac.IsDelayed)
+        {
+            return false;
+        }
+
+        if (
+            ac.IsOnGround
+            && !showTopDown
+            && !ShouldSurfaceGroundBubble(ac, showSpeechBubbles, alwaysShowGroundBubbles, groundShownAirportId, nowUtc)
+        )
+        {
+            return false;
+        }
+
+        // Airborne but the displayed altitude still rounds to 000 (below the acquisition floor):
+        // withhold the target from the radar so it matches CRC STARS' coast/skip. The aircraft
+        // remains on the ground view until it climbs above the floor. Top-down (ground) mode keeps
+        // showing low traffic.
+        if (!ac.IsOnGround && ac.BelowDisplayFloor && !showTopDown)
+        {
+            return false;
+        }
+
+        return true;
     }
 
     /// <summary>
