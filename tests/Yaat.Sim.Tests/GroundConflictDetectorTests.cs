@@ -10,6 +10,7 @@ using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests;
 
+[Collection("GroundConflictDebugSink")]
 public class GroundConflictDetectorTests
 {
     /// <summary>

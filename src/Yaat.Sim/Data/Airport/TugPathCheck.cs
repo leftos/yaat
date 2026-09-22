@@ -8,6 +8,7 @@ internal enum TugPathSeverity
     Runway,
     HoldingPosition,
     MovementArea,
+    ParkedNeighbour,
 }
 
 /// <summary>A flown-path refusal and the rule it comes from.</summary>

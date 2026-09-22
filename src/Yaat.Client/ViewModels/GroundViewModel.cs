@@ -2186,6 +2186,9 @@ public partial class GroundViewModel : ObservableObject
             StartsAtStand = _drawAircraft.CurrentPhase == "At Parking",
             AircraftType = _drawAircraft.AircraftType,
             Goals = goals,
+            // The preview draws the shape of the move; the server plans the one that flies, against the parked
+            // aircraft it owns the state of, so a preview route may still be refused for a neighbour it cannot see.
+            ParkedNeighbours = [],
             FinalFacingTrueDeg = null,
             PreviousKind = null,
         };

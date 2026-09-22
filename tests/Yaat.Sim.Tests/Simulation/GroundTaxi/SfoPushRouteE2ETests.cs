@@ -923,6 +923,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
             StartsAtStand = false,
             AircraftType = ac.AircraftType,
             Goals = [TugGoal.Spot(Spot(layout, AlleySpot)), TugGoal.Spot(Spot(layout, EndSpot))],
+            ParkedNeighbours = [],
             FinalFacingTrueDeg = null,
             PreviousKind = PushbackLegKind.Push,
         };

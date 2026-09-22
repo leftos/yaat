@@ -208,6 +208,7 @@ public class GroundViewModelPushRouteTests
             StartsAtStand = ac.CurrentPhase == "At Parking",
             AircraftType = ac.AircraftType,
             Goals = goals,
+            ParkedNeighbours = [],
             FinalFacingTrueDeg = null,
             PreviousKind = null,
         };

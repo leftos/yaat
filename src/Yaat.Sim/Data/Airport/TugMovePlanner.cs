@@ -174,6 +174,33 @@ public sealed record TugAmendment(TugGoalKind GoalKind, int? NodeId, string? Tax
         };
 }
 
+/// <summary>
+/// A parked or held aircraft near a planned tug move: the planner sweeps every candidate's flown path against it with
+/// the same outline rule <c>GroundConflictDetector</c> holds the move under way to, so a candidate that would swing
+/// into it is dropped at planning time instead of being accepted and then dead-stopped mid-manoeuvre.
+/// </summary>
+public sealed record TugParkedNeighbour
+{
+    /// <summary>The neighbour's callsign, for the refusal.</summary>
+    public required string Callsign { get; init; }
+
+    /// <summary>Where it stands.</summary>
+    public required LatLon Position { get; init; }
+
+    /// <summary>Its nose heading, degrees true.</summary>
+    public required double TrueHeadingDeg { get; init; }
+
+    /// <summary>ICAO type designator; sets its outline.</summary>
+    public required string AircraftType { get; init; }
+
+    /// <summary>The stand it is parked on, or null when it is not on a named stand.</summary>
+    public required string? StandName { get; init; }
+
+    /// <summary>How a refusal names it: the callsign, with the stand when it is on one.</summary>
+    /// <returns>For example <c>SKW3398 at D1</c>.</returns>
+    public string Describe() => StandName is { } stand ? $"{Callsign} at {stand}" : Callsign;
+}
+
 /// <summary>What to plan: where the aircraft is, what it is, and where the tug is to take it.</summary>
 public sealed record TugRequest
 {
@@ -188,6 +215,12 @@ public sealed record TugRequest
 
     /// <summary>The goals, in order; at least one.</summary>
     public required IReadOnlyList<TugGoal> Goals { get; init; }
+
+    /// <summary>
+    /// The parked or held aircraft near the move; every candidate's flown path is swept against each. Empty when the
+    /// caller has no view of the other aircraft, which plans the move blind to them.
+    /// </summary>
+    public required IReadOnlyList<TugParkedNeighbour> ParkedNeighbours { get; init; }
 
     /// <summary>A facing that overrides the last goal's, degrees true, or null.</summary>
     public required double? FinalFacingTrueDeg { get; init; }
@@ -1332,8 +1365,105 @@ internal sealed class TugPlanBuilder
 
         (string? shapeReason, double? finalPullOvershootFt) =
             goal.Shape == TugGoalShape.Faced ? FacedDropReason(goal, candidate, offStand) : (null, null);
-        TugPathRefusal? path = _pathCheck?.Check(candidate.Traces, goal.ExemptNames, goal.Subject);
+        TugPathRefusal? path = _pathCheck?.Check(candidate.Traces, goal.ExemptNames, goal.Subject) ?? NeighbourRefusal(goal, candidate);
         return new TugVerdict(shapeReason, path, finalPullOvershootFt);
+    }
+
+    /// <summary>
+    /// The first parked or held neighbour a candidate's flown path swings into, as a refusal, or null when it clears
+    /// them all. Each move is swept from its own start with the moves flown through from it before the first reversal —
+    /// the run <c>GroundConflictDetector</c> brakes for as that move begins — against the same floor the detector
+    /// anchors to that move's start pose, so the planner and the detector cannot disagree about which swing is flyable.
+    ///
+    /// <para>Only a <see cref="TugGoalShape.Faced"/> goal is judged this way, because only it has templates to choose
+    /// between: dropping the one that swings into a neighbour leaves the others. The single-shape goals — a bare push,
+    /// a push straight back to a taxiway, a line capture, a facing — have nothing to fall back on, and refusing them
+    /// would take away the tug's own answer to a blocked alley, which is to creep up and stop short of the aircraft in
+    /// it (<see cref="GroundConflictDetector"/>'s outline stop). Those keep going to the tug.</para>
+    ///
+    /// <para>Limiting the check to faced goals is a judgement call: the towing references — AC 00-65A §11.9 and §11.17 —
+    /// leave the swing to the wing walkers and the tug crew and give no rule for which move to refuse, and the 7110.65
+    /// and the AIM say nothing about towing at all.</para>
+    /// </summary>
+    /// <param name="goal">The goal being planned, for the refusal's wording.</param>
+    /// <param name="candidate">The candidate whose flown path is swept.</param>
+    /// <returns>The refusal, or null when every neighbour stays clear.</returns>
+    private TugPathRefusal? NeighbourRefusal(ResolvedTugGoal goal, TugCandidate candidate)
+    {
+        IReadOnlyList<TugMoveTrace> traces = candidate.Traces;
+        if ((goal.Shape != TugGoalShape.Faced) || (_request.ParkedNeighbours.Count == 0))
+        {
+            return null;
+        }
+
+        var frame = new GroundOutlineFrame(_request.Start.Position);
+        for (int i = 0; i < traces.Count; i++)
+        {
+            List<(TugPose Pose, double AlongFt)> path = RunPathFrom(traces, i);
+            if (path.Count == 0)
+            {
+                continue;
+            }
+
+            var moverSize = GroundOutlineSize.Of(_request.AircraftType, towedNoseFirst: traces[i].Move.Kind == PushbackLegKind.Pull);
+            foreach (TugParkedNeighbour neighbour in _request.ParkedNeighbours)
+            {
+                GroundOutlineSweepResult swept = GroundOutlineSweep.Sweep(
+                    path,
+                    path[0].Pose,
+                    frame,
+                    moverSize,
+                    neighbour.Position,
+                    neighbour.TrueHeadingDeg,
+                    GroundOutlineSize.Of(neighbour.AircraftType, towedNoseFirst: false)
+                );
+                if (swept.Foul is not { } foul)
+                {
+                    continue;
+                }
+
+                Log.LogDebug(
+                    "Tug {Subject}: {Template} move {Move} swings within {ClearanceFt:F1} ft of {Neighbour} (started {StartFt:F1} ft "
+                        + "off, floor {FloorFt:F1} ft) {AlongFt:F1} ft along",
+                    goal.Subject,
+                    candidate.Template,
+                    i + 1,
+                    foul.ClearanceFt,
+                    neighbour.Describe(),
+                    swept.StartClearanceFt,
+                    swept.FloorFt,
+                    foul.AlongFt
+                );
+                return new TugPathRefusal(TugPathSeverity.ParkedNeighbour, $"Unable, {goal.Subject} would swing into {neighbour.Describe()}");
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The poses of move <paramref name="index"/> and of every move flown through from it before the first reversal,
+    /// each with how far along that run it sits, feet.
+    /// </summary>
+    /// <param name="traces">The candidate's moves.</param>
+    /// <param name="index">The move the run starts at.</param>
+    /// <returns>The run's poses with their along-distances.</returns>
+    private static List<(TugPose Pose, double AlongFt)> RunPathFrom(IReadOnlyList<TugMoveTrace> traces, int index)
+    {
+        var path = new List<(TugPose Pose, double AlongFt)>();
+        double alongFt = 0.0;
+        LatLon? previous = null;
+        for (int i = index; (i < traces.Count) && (traces[i].Move.Kind == traces[index].Move.Kind); i++)
+        {
+            foreach (TugPose pose in traces[i].Samples)
+            {
+                alongFt += previous is { } from ? GeoMath.DistanceNm(from, pose.Position) * GeoMath.FeetPerNm : 0.0;
+                path.Add((pose, alongFt));
+                previous = pose.Position;
+            }
+        }
+
+        return path;
     }
 
     /// <summary>

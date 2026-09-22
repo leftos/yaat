@@ -1427,94 +1427,46 @@ public static class GroundConflictDetector
     {
         IReadOnlyList<(TugPose Pose, double AlongFt)> path = tugMove.RemainingPath(mover, TugRunContinuation(mover));
         var frame = new GroundOutlineFrame(mover.Position);
-        var moverSize = GroundOutlineSize.Of(mover.AircraftType, towedNoseFirst: tugMove.Kind == PushbackLegKind.Pull);
-        var obstacleSize = GroundOutlineSize.Of(obstacle.AircraftType, towedNoseFirst: false);
-        OutlinePoint obstacleCentre = frame.ToLocal(obstacle.Position);
-        var obstacleOutline = GroundOutline.At(obstacleCentre, obstacle.TrueHeading.Degrees, obstacleSize);
-        TugPose startPose = tugMove.StartPose(mover);
-        double startFt = GroundOutline.Clearance(
-            GroundOutline.At(frame.ToLocal(startPose.Position), startPose.NoseTrueDeg, moverSize),
-            obstacleOutline
+        GroundOutlineSweepResult swept = GroundOutlineSweep.Sweep(
+            path,
+            tugMove.StartPose(mover),
+            frame,
+            GroundOutlineSize.Of(mover.AircraftType, towedNoseFirst: tugMove.Kind == PushbackLegKind.Pull),
+            obstacle.Position,
+            obstacle.TrueHeading.Degrees,
+            GroundOutlineSize.Of(obstacle.AircraftType, towedNoseFirst: false)
         );
-        double floorFt = Math.Max(OutlineClearanceSlackFt, Math.Min(WingtipBufferFt, startFt) - OutlineClearanceSlackFt);
-        double reachFt = moverSize.ReachFt + obstacleSize.ReachFt;
-        double closestFt = double.MaxValue;
-        for (int i = 0; i < path.Count; i++)
+        if (swept.Foul is not { } foul)
         {
-            (TugPose pose, double alongFt) = path[i];
-            OutlinePoint centre = frame.ToLocal(pose.Position);
-            if ((OutlinePoint.Distance(centre, obstacleCentre) - reachFt) >= floorFt)
-            {
-                continue;
-            }
-
-            double clearanceFt = ClearanceAt(pose, frame, moverSize, obstacleOutline);
-            closestFt = Math.Min(closestFt, clearanceFt);
-            if (clearanceFt < floorFt)
-            {
-                (TugPose Pose, double AlongFt) previous = path[Math.Max(0, i - 1)];
-                double previousClearanceFt = ClearanceAt(previous.Pose, frame, moverSize, obstacleOutline);
-                double crossingFt = FloorCrossingAlongFt(floorFt, (previous.AlongFt, previousClearanceFt), (alongFt, clearanceFt));
-                diagnosticLog?.Invoke(
-                    $"    [Outline] {mover.Callsign}→{obstacle.Callsign}: {tugMove.Kind} started {startFt:F1}ft off, sample {i}/{path.Count} "
-                        + $"{alongFt:F1}ft along {clearanceFt:F1}ft < floor({floorFt:F1}ft), crossing {crossingFt:F1}ft along, in the way"
-                );
-                Log.LogDebug(
-                    "[Outline] {Callsign}: {Kind} move comes within {ClearanceFt:F1} ft of {Other} (started {StartFt:F1} ft off, "
-                        + "floor {FloorFt:F1} ft) at sample {Sample} of {Samples}, {AlongFt:F1} ft along, crossing the floor "
-                        + "{CrossingFt:F1} ft along",
-                    mover.Callsign,
-                    tugMove.Kind,
-                    clearanceFt,
-                    obstacle.Callsign,
-                    startFt,
-                    floorFt,
-                    i,
-                    path.Count,
-                    alongFt,
-                    crossingFt
-                );
-                return crossingFt;
-            }
+            string closestText = swept.ClosestFt is { } closestFt ? $"{closestFt:F1}ft" : "nothing in reach";
+            diagnosticLog?.Invoke(
+                $"    [Outline] {mover.Callsign}→{obstacle.Callsign}: {tugMove.Kind} started {swept.StartClearanceFt:F1}ft off, closest "
+                    + $"{closestText} over {swept.SampleCount} samples ≥ floor({swept.FloorFt:F1}ft), passable"
+            );
+            return null;
         }
 
-        string closestText = closestFt < double.MaxValue ? $"{closestFt:F1}ft" : "nothing in reach";
         diagnosticLog?.Invoke(
-            $"    [Outline] {mover.Callsign}→{obstacle.Callsign}: {tugMove.Kind} started {startFt:F1}ft off, closest {closestText} over "
-                + $"{path.Count} samples ≥ floor({floorFt:F1}ft), passable"
+            $"    [Outline] {mover.Callsign}→{obstacle.Callsign}: {tugMove.Kind} started {swept.StartClearanceFt:F1}ft off, sample "
+                + $"{foul.SampleIndex}/{swept.SampleCount} {foul.AlongFt:F1}ft along {foul.ClearanceFt:F1}ft < floor({swept.FloorFt:F1}ft), "
+                + $"crossing {foul.CrossingAlongFt:F1}ft along, in the way"
         );
-        return null;
-    }
-
-    /// <summary>
-    /// The mover's outline clearance from the neighbour at one sample of its path, feet.
-    /// </summary>
-    private static double ClearanceAt(TugPose pose, GroundOutlineFrame frame, GroundOutlineSize moverSize, GroundOutline obstacleOutline) =>
-        GroundOutline.Clearance(GroundOutline.At(frame.ToLocal(pose.Position), pose.NoseTrueDeg, moverSize), obstacleOutline);
-
-    /// <summary>
-    /// How far along the path the clearance falls through <paramref name="floorFt"/> between the last sample that was
-    /// clear of it (<paramref name="from"/>) and the first that is under it (<paramref name="to"/>), feet: the two
-    /// samples' along-distances interpolated at the crossing.
-    ///
-    /// <para>The samples are a few feet apart and the simulation is redone every couple of feet of travel, so the along
-    /// distance of the first fouled <em>sample</em> steps down in jumps of the sample spacing and back up whenever the
-    /// grid moves. The braking limit is read off that distance, so those jumps would land in the tug's speed. The
-    /// crossing point is a property of the path, not of the grid it was sampled on, and moves smoothly as the mover
-    /// closes.</para>
-    ///
-    /// <para><paramref name="to"/>'s own along-distance is the answer when the clearance does not fall between the two
-    /// — the live pose itself already fouling the neighbour, which is <c>from</c> and <c>to</c> at once.</para>
-    /// </summary>
-    private static double FloorCrossingAlongFt(double floorFt, (double AlongFt, double ClearanceFt) from, (double AlongFt, double ClearanceFt) to)
-    {
-        if ((from.ClearanceFt <= to.ClearanceFt) || (from.ClearanceFt < floorFt))
-        {
-            return to.AlongFt;
-        }
-
-        double fraction = (from.ClearanceFt - floorFt) / (from.ClearanceFt - to.ClearanceFt);
-        return from.AlongFt + (fraction * (to.AlongFt - from.AlongFt));
+        Log.LogDebug(
+            "[Outline] {Callsign}: {Kind} move comes within {ClearanceFt:F1} ft of {Other} (started {StartFt:F1} ft off, "
+                + "floor {FloorFt:F1} ft) at sample {Sample} of {Samples}, {AlongFt:F1} ft along, crossing the floor "
+                + "{CrossingFt:F1} ft along",
+            mover.Callsign,
+            tugMove.Kind,
+            foul.ClearanceFt,
+            obstacle.Callsign,
+            swept.StartClearanceFt,
+            swept.FloorFt,
+            foul.SampleIndex,
+            swept.SampleCount,
+            foul.AlongFt,
+            foul.CrossingAlongFt
+        );
+        return foul.CrossingAlongFt;
     }
 
     /// <summary>

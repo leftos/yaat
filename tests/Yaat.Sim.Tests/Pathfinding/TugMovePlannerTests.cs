@@ -683,6 +683,142 @@ public class TugMovePlannerTests
         AssertEndsOnSpot(layout, plan, spot, aircraftType);
     }
 
+    /// <summary>The regional jet the five-alley stands at SFO are pushed off in the field cases.</summary>
+    private const string FiveAlleyRegional = "E75L";
+
+    /// <summary>
+    /// The field case from the SFO GC 28/01 bundle: D2 → spot 5A with an E75L parked at the adjacent stand D1. The
+    /// planner sweeps every candidate's flown path against the neighbour with the same outline floor
+    /// <c>GroundConflictDetector</c> holds the move under way to, so it either picks a candidate that keeps clear of it
+    /// or refuses naming it — never one the detector then dead-stops halfway through.
+    /// </summary>
+    [Fact]
+    public void PushToSpot_WithNeighbourAtAdjacentStand_ClearsOrRefusesNamingIt()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode spot = Spot(layout, "5A");
+        GroundNode stand = Parking(layout, "D2");
+        GroundNode neighbourStand = Parking(layout, "D1");
+        var neighbour = new TugParkedNeighbour
+        {
+            Callsign = "SKW3398",
+            Position = neighbourStand.Position,
+            TrueHeadingDeg = 4.9,
+            AircraftType = FiveAlleyRegional,
+            StandName = "D1",
+        };
+        TugRequest request = StandStart(stand, FiveAlleyRegional, TugGoal.Spot(spot)) with { ParkedNeighbours = [neighbour] };
+        _output.WriteLine($"D2 → 5A, {FiveAlleyRegional}, {neighbour.Describe()} {FeetBetween(stand.Position, neighbourStand.Position):F0} ft away");
+
+        TugPlan? plan = TugMovePlanner.Plan(layout, request, out string refusal);
+        if (plan is null)
+        {
+            _output.WriteLine($"refused: {refusal}");
+            Assert.Contains("SKW3398", refusal, StringComparison.Ordinal);
+            return;
+        }
+
+        LogPlan(layout, request.Start, plan);
+        double closestFt = ClosestOutlineClearanceFt(plan, request, neighbour);
+        double floorFt = GroundOutlineSweep.FloorFt(StartClearanceFt(request, neighbour));
+        _output.WriteLine($"the chosen plan comes within {closestFt:F1} ft of {neighbour.Describe()} (floor {floorFt:F1} ft)");
+        Assert.True(
+            closestFt >= floorFt,
+            $"the chosen plan swings within {closestFt:F1} ft of {neighbour.Describe()}, under its {floorFt:F1} ft floor"
+        );
+        AssertEndsOnSpot(layout, plan, spot, FiveAlleyRegional);
+    }
+
+    /// <summary>
+    /// The split the plan-time neighbour sweep is drawn on: only a goal with templates to choose between is judged by
+    /// it. A bare <c>PUSH TE</c> off OAK gate 25 with a B738 parked crossways on the push line is one shape and one
+    /// shape only, so it is planned as it always was and the tug creeps up and stops short of the neighbour — the
+    /// behaviour <c>GroundConflictDetector</c> owns. The plan really does sweep through the neighbour, which is what
+    /// makes this a pin and not a vacuous pass.
+    /// </summary>
+    [Fact]
+    public void BarePushToTaxiway_WithANeighbourOnThePushLine_IsStillPlanned()
+    {
+        if (LoadOak() is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode stand = Parking(layout, "25");
+        GroundNode exit = layout.FindExitByTaxiway(stand.Position, "TE") ?? throw new InvalidOperationException("no taxiway TE exit near gate 25");
+        double pushDeg = new TrueHeading(stand.TrueHeading!.Value.Degrees + 180.0).Degrees;
+        var neighbour = new TugParkedNeighbour
+        {
+            Callsign = "PRK1",
+            Position = GeoMath.ProjectPoint(stand.Position, new TrueHeading(pushDeg), 230.0 / GeoMath.FeetPerNm),
+            TrueHeadingDeg = new TrueHeading(pushDeg + 90.0).Degrees,
+            AircraftType = Narrowbody,
+            StandName = null,
+        };
+        TugRequest request = StandStart(stand, Narrowbody, TugGoal.StraightBackTo(exit, "TE")) with { ParkedNeighbours = [neighbour] };
+
+        TugPlan plan = PlanOrFail(layout, request);
+
+        double closestFt = ClosestOutlineClearanceFt(plan, request, neighbour);
+        _output.WriteLine($"the planned push sweeps to {closestFt:F1} ft of {neighbour.Describe()} and is still planned");
+        Assert.True(closestFt <= 0.0, $"test setup: the planned push passes {closestFt:F1} ft clear of the neighbour, so it pins nothing");
+    }
+
+    /// <summary>
+    /// The other side of that split: a faced goal whose every template fouls is refused naming the neighbour. Another
+    /// E75L is standing on spot 5A itself, so every candidate ends inside it, whichever side and template it is flown
+    /// on.
+    /// </summary>
+    [Fact]
+    public void PushToSpot_WithTheSpotOccupied_IsRefusedNamingTheNeighbour()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode spot = Spot(layout, "5A");
+        var neighbour = new TugParkedNeighbour
+        {
+            Callsign = "SKW3400",
+            Position = spot.Position,
+            TrueHeadingDeg = 118.0,
+            AircraftType = FiveAlleyRegional,
+            StandName = null,
+        };
+        TugRequest request = StandStart(Parking(layout, "D2"), FiveAlleyRegional, TugGoal.Spot(spot)) with { ParkedNeighbours = [neighbour] };
+
+        string refusal = Refusal(layout, request);
+
+        Assert.Contains("SKW3400", refusal, StringComparison.Ordinal);
+    }
+
+    /// <summary>The clearance the plan's start pose has from the neighbour, feet — the pose its first move's floor is anchored to.</summary>
+    private static double StartClearanceFt(TugRequest request, TugParkedNeighbour neighbour) =>
+        OutlineClearanceFt(request.Start, request.AircraftType, neighbour);
+
+    /// <summary>The closest any sample of the plan's flown path comes to the neighbour's outline, feet.</summary>
+    private static double ClosestOutlineClearanceFt(TugPlan plan, TugRequest request, TugParkedNeighbour neighbour) =>
+        plan.Moves.SelectMany(m => m.Samples).Select(pose => OutlineClearanceFt(pose, request.AircraftType, neighbour)).DefaultIfEmpty(0.0).Min();
+
+    /// <summary>One pose's outline clearance from the neighbour, feet.</summary>
+    private static double OutlineClearanceFt(TugPose pose, string aircraftType, TugParkedNeighbour neighbour)
+    {
+        var frame = new GroundOutlineFrame(pose.Position);
+        return GroundOutline.Clearance(
+            GroundOutline.At(frame.ToLocal(pose.Position), pose.NoseTrueDeg, GroundOutlineSize.Of(aircraftType, towedNoseFirst: false)),
+            GroundOutline.At(
+                frame.ToLocal(neighbour.Position),
+                neighbour.TrueHeadingDeg,
+                GroundOutlineSize.Of(neighbour.AircraftType, towedNoseFirst: false)
+            )
+        );
+    }
+
     /// <summary>
     /// A two-goal move whose second leg starts on movement-area pavement: D15 pushes onto the taxiway A node nearest
     /// the six-alley mouth, and from there back onto spot 6A. Leg 2 begins with the fuselage lying across taxiway A —
@@ -798,6 +934,7 @@ public class TugMovePlannerTests
             StartsAtStand = true,
             AircraftType = aircraftType,
             Goals = goals,
+            ParkedNeighbours = [],
             FinalFacingTrueDeg = null,
             PreviousKind = null,
         };
@@ -810,6 +947,7 @@ public class TugMovePlannerTests
             StartsAtStand = false,
             AircraftType = Narrowbody,
             Goals = [goal],
+            ParkedNeighbours = [],
             FinalFacingTrueDeg = null,
             PreviousKind = null,
         };

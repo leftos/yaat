@@ -1754,7 +1754,7 @@ public static class GroundCommandHandler
     {
         if (aircraft.Phases?.CurrentPhase is PushbackPhase)
         {
-            return TryAmendPushback(aircraft, push, groundLayout);
+            return TryAmendPushback(aircraft, push, groundLayout, listAircraft);
         }
 
         if (aircraft.Phases?.CurrentPhase is not (AtParkingPhase or HoldingAfterPushbackPhase))
@@ -1776,6 +1776,7 @@ public static class GroundCommandHandler
             StartsAtStand = atStand,
             AircraftType = aircraft.AircraftType,
             Goals = [target.Goal],
+            ParkedNeighbours = ParkedNeighboursNear(aircraft, listAircraft),
             FinalFacingTrueDeg = target.FinalFacingTrueDeg,
             PreviousKind = null,
         };
@@ -2058,7 +2059,12 @@ public static class GroundCommandHandler
     /// push-off, which keeps running; every move queued behind it is replaced. A tug move that ends on a stand is
     /// never amended: the aircraft parks on the stand's own heading.
     /// </summary>
-    private static CommandResult TryAmendPushback(AircraftState aircraft, PushbackCommand push, AirportGroundLayout? groundLayout)
+    private static CommandResult TryAmendPushback(
+        AircraftState aircraft,
+        PushbackCommand push,
+        AirportGroundLayout? groundLayout,
+        Func<IReadOnlyList<AircraftState>>? listAircraft
+    )
     {
         bool headingOnly =
             (push.Taxiway is null)
@@ -2099,6 +2105,7 @@ public static class GroundCommandHandler
             StartsAtStand = true,
             AircraftType = aircraft.AircraftType,
             Goals = [amended.Goal],
+            ParkedNeighbours = ParkedNeighboursNear(aircraft, listAircraft),
             FinalFacingTrueDeg = amended.FinalFacingTrueDeg,
             PreviousKind = LastTugMotionKind(pushOff),
         };
@@ -2219,6 +2226,7 @@ public static class GroundCommandHandler
             StartsAtStand = atStand,
             AircraftType = aircraft.AircraftType,
             Goals = goals,
+            ParkedNeighbours = ParkedNeighboursNear(aircraft, listAircraft),
             FinalFacingTrueDeg = finalFacingTrueDeg,
             PreviousKind = LastTugMotionKind(aircraft.Phases.CurrentPhase as PushbackPhase),
         };
@@ -2243,6 +2251,73 @@ public static class GroundCommandHandler
 
         InstallTugMove(aircraft, groundLayout, plan, terminus, null);
         return CommandDispatcher.Ok($"Tug move to {destination}, {goals.Count} legs");
+    }
+
+    /// <summary>
+    /// How far from the aircraft a parked or held neighbour is fed to <see cref="TugMovePlanner"/>, feet: a swing radius
+    /// about the start pose, wide enough to hold every aircraft a candidate could swing into as it comes off the stand,
+    /// and short enough that a ramp's worth of parked aircraft is not swept against every candidate.
+    ///
+    /// <para>The range is anchored on the start pose alone, so a longer relocation runs out of it — an SFO stand-to-spot
+    /// move can cover more than 500 ft (D15 to spot 6A is about 521 ft) — and a neighbour near the far end is never fed
+    /// to the planner. That is deliberate: the planner chooses the template that gets the aircraft off its stand, and
+    /// <see cref="GroundConflictDetector"/> owns the drive from there. A judgement call.</para>
+    /// </summary>
+    private const double ParkedNeighbourRangeFt = 400.0;
+
+    /// <summary>
+    /// The parked or held aircraft within <see cref="ParkedNeighbourRangeFt"/> of the aircraft, as the planner sees
+    /// them: a candidate that would swing into one is dropped at planning time rather than accepted and then held at a
+    /// standstill by <see cref="GroundConflictDetector"/> halfway through the manoeuvre. Empty when the caller has no
+    /// view of the other aircraft.
+    /// </summary>
+    /// <param name="aircraft">The aircraft the move is planned for.</param>
+    /// <param name="listAircraft">Every aircraft in the world, or null when the caller has none.</param>
+    /// <returns>The neighbours to plan around.</returns>
+    private static IReadOnlyList<TugParkedNeighbour> ParkedNeighboursNear(AircraftState aircraft, Func<IReadOnlyList<AircraftState>>? listAircraft)
+    {
+        if (listAircraft is null)
+        {
+            return [];
+        }
+
+        var near = new List<TugParkedNeighbour>();
+        foreach (AircraftState other in listAircraft())
+        {
+            // A dry-run dispatch plans against a clone standing exactly where the original does, so the callsign — not
+            // the reference — is what tells the aircraft apart from itself.
+            bool self = ReferenceEquals(other, aircraft) || string.Equals(other.Callsign, aircraft.Callsign, StringComparison.OrdinalIgnoreCase);
+            if (self || !GroundConflictDetector.IsParkedOrHeld(other))
+            {
+                continue;
+            }
+
+            if ((GeoMath.DistanceNm(aircraft.Position, other.Position) * GeoMath.FeetPerNm) > ParkedNeighbourRangeFt)
+            {
+                continue;
+            }
+
+            // A neighbour the aircraft already touches where it stands is no candidate's to avoid — every candidate
+            // fouls it at its first sample — and it has a refusal of its own that says so and names both aircraft
+            // (OverlapRefusal). Planning around it would answer that placement error with the wrong message.
+            if (GroundOutline.ClearanceBetween(aircraft, aTowedNoseFirst: false, other) < GroundConflictDetector.OutlineClearanceSlackFt)
+            {
+                continue;
+            }
+
+            near.Add(
+                new TugParkedNeighbour
+                {
+                    Callsign = other.Callsign,
+                    Position = other.Position,
+                    TrueHeadingDeg = other.TrueHeading.Degrees,
+                    AircraftType = other.AircraftType,
+                    StandName = other.Ground.ParkingSpot,
+                }
+            );
+        }
+
+        return near;
     }
 
     /// <summary>

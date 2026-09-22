@@ -7,6 +7,7 @@
 - A taxi that ends anywhere other than the gate it named leaves the aircraft holding position, not parked at that gate.
 - `TAXI $spot` arrives along the spot's own lane and stops facing along it, instead of cutting across the ramp and stopping across the lane with its nose over the neighbouring one.
 - Aircraft on neighbouring parallel taxiways no longer slow to a crawl or stop for each other as they pass; the wingtip-room test that already let traffic pass a parked aircraft now also applies to a mover on a parallel lane.
+- `PUSH $spot` and `PUSH @gate` are planned around aircraft parked or held nearby: the tug takes a swing that clears them, or the push is refused naming the aircraft in the way, instead of stopping dead mid-manoeuvre.
 - `APT` to a different airport cancels a pattern or approach to the old one, so a following `ELB`/`ERD`/`EF` resolves its runway at the new destination instead of failing with "not found".
 - `APT` typed at the front of a `,` block applies before the manoeuvre in the same block, so `APT OAK, ELB 28L 4, CLAND` works in one line.
 - `APT` to the airport an aircraft is already approaching or flying a pattern at only corrects the flight plan; the approach or pattern is kept.

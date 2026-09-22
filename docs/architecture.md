@@ -605,6 +605,7 @@ GroundRollProfile.cs           # GroundRollProfile: the takeoff-roll spool ramp 
                                # closed forms SpeedAt/DistanceKtSecondsAt/TimeAtSpeed/TimeToCoverKtSeconds; the roll phases integrate it
                                # and every roll predictor (WillBeFlying, PrecedingDepartureBlock, RejectedTakeoff) projects on it.
 GroundOutline.cs               # Plan-view aircraft outline for ground clearance (fuselage with a 30 ft tug lead on a pull, wing, tailplane) in a flat GroundOutlineFrame; Clearance between two outlines, ClearanceBetween two aircraft. GroundConflictDetector sweeps it along a tug move's RemainingPath against parked/held neighbours; GroundCommandHandler refuses a tow that starts already touching one
+GroundOutlineSweep.cs          # The per-sample outline sweep (Sweep) and floor rule (FloorFt) shared by GroundConflictDetector.TugMoveFoulsParkedAt (a tow under way) and TugPlanBuilder.Judge (candidate templates against TugRequest.ParkedNeighbours at plan time), so planner and detector cannot disagree
 GroundConflictDetector.cs      # Static pairwise ground proximity → SpeedLimit overrides. Runway priority via RunwayOccupancy.ClassifyByPhase;
                                # tug move vs parked/held neighbour: the outline sweep over the move's continuing run (TugMoveFoulsParkedAt +
                                # TugRunContinuation, floor anchored to the move's start) and a braking limit down to the towbar rate rather than
