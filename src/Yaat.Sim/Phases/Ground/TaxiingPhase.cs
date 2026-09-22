@@ -493,8 +493,9 @@ public sealed class TaxiingPhase : Phase
 
     /// <summary>
     /// Finish the route: apply any pending departure clearance and insert the terminal phase
-    /// (<see cref="AtParkingPhase"/> for a gate, otherwise <see cref="HoldingInPositionPhase"/> — a spot
-    /// is an intermediate waypoint where the aircraft awaits further instructions, not a parked gate).
+    /// (<see cref="AtParkingPhase"/> for a gate the route actually reaches — see
+    /// <see cref="EndsAtParkingStand"/> — otherwise <see cref="HoldingInPositionPhase"/>, since a spot is an
+    /// intermediate waypoint where the aircraft awaits further instructions, not a parked gate).
     /// Shared by normal last-segment arrival and the nose-at-spot terminal stop.
     /// </summary>
     private static bool CompleteRoute(PhaseContext ctx, TaxiRoute route)
@@ -506,7 +507,7 @@ public sealed class TaxiingPhase : Phase
         PhaseList? phases = ctx.Aircraft.Phases;
         if (phases is not null && phases.Phases.Count <= phases.CurrentIndex + 1)
         {
-            if (route.DestinationParking is not null)
+            if (EndsAtParkingStand(ctx, route))
             {
                 ctx.Aircraft.Ground.ParkingSpot = route.DestinationParking;
                 phases.InsertAfterCurrent(new AtParkingPhase());
@@ -518,6 +519,37 @@ public sealed class TaxiingPhase : Phase
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// The route really ended on the stand it named: its last node <em>is</em> that stand's node. A route that
+    /// stops short — refused an extension, cut off at a via, truncated at a crossing — leaves the aircraft
+    /// somewhere else entirely, and parking it there would put an <see cref="AtParkingPhase"/> on a gate the
+    /// aircraft never reached. With no layout to resolve the name against, the named destination is all there
+    /// is and it is taken at face value.
+    /// </summary>
+    /// <param name="ctx">Phase context, for the layout.</param>
+    /// <param name="route">The completed route.</param>
+    /// <returns>True when the terminal phase is <see cref="AtParkingPhase"/>.</returns>
+    private static bool EndsAtParkingStand(PhaseContext ctx, TaxiRoute route)
+    {
+        if (route.DestinationParking is not { } parking)
+        {
+            return false;
+        }
+
+        if (ctx.GroundLayout is not { } layout)
+        {
+            return true;
+        }
+
+        GroundNode? stand = layout.FindHelipadByName(parking) ?? layout.FindParkingByName(parking);
+        if ((stand is null) || (route.Segments.Count == 0))
+        {
+            return true;
+        }
+
+        return route.Segments[^1].ToNodeId == stand.Id;
     }
 
     /// <summary>
@@ -552,13 +584,17 @@ public sealed class TaxiingPhase : Phase
             ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
             route.CurrentSegmentIndex = route.Segments.Count;
+            TaxiRouteSegment lastLeg = route.Segments[^1];
             Log.LogDebug(
-                "[Taxi] {Callsign}: nose-at-spot stop at {Spot} — centroid {Dist:F0}ft from spot node (half-length {Half:F0}ft, hdg {Hdg:F0})",
+                "[Taxi] {Callsign}: nose-at-spot stop at {Spot} — centroid {Dist:F0}ft from spot node (half-length {Half:F0}ft), "
+                    + "hdg {Hdg:F0} against last leg {Leg} bearing {LegBrg:F0}",
                 ctx.Aircraft.Callsign,
                 route.DestinationSpot,
                 distToSpotNm * GeoMath.FeetPerNm,
                 lengthFt / 2.0,
-                ctx.Aircraft.TrueHeading.Degrees
+                ctx.Aircraft.TrueHeading.Degrees,
+                lastLeg.TaxiwayName,
+                lastLeg.Edge.ArrivalBearing
             );
             return CompleteRoute(ctx, route);
         }
@@ -774,7 +810,7 @@ public sealed class TaxiingPhase : Phase
             return [];
         }
 
-        if (route.DestinationParking is not null)
+        if (EndsAtParkingStand(ctx, route))
         {
             ctx.Aircraft.Ground.ParkingSpot = route.DestinationParking;
             return [new AtParkingPhase()];

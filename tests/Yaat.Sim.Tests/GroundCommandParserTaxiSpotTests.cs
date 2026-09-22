@@ -154,6 +154,59 @@ public class GroundCommandParserTaxiSpotTests
         Assert.Equal(["$8"], taxi.HoldShorts.Select(h => h.ToCanonical()));
     }
 
+    /// <summary>
+    /// A spot named before a <c>@gate</c> destination is a via, not the destination: the aircraft taxis
+    /// through the spot's lane and parks at the gate. Only a trailing spot is the destination.
+    /// </summary>
+    [Fact]
+    public void SpotBeforeParking_IsVia()
+    {
+        ParseResult<ParsedCommand> result = GroundCommandParser.ParseTaxi("A $7B @E2");
+
+        Assert.True(result.IsSuccess, result.Reason);
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(result.Value);
+
+        Assert.Equal(["A", "$7B"], taxi.Path);
+        Assert.Equal("E2", taxi.DestinationParking);
+        Assert.Null(taxi.DestinationSpot);
+    }
+
+    [Fact]
+    public void TrailingSpot_IsDestination()
+    {
+        ParseResult<ParsedCommand> result = GroundCommandParser.ParseTaxi("T5 $5A");
+
+        Assert.True(result.IsSuccess, result.Reason);
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(result.Value);
+
+        Assert.Equal(["T5"], taxi.Path);
+        Assert.Equal("5A", taxi.DestinationSpot);
+        Assert.Null(taxi.DestinationParking);
+    }
+
+    [Fact]
+    public void TwoSpots_FirstIsVia()
+    {
+        ParseResult<ParsedCommand> result = GroundCommandParser.ParseTaxi("$7A $7B");
+
+        Assert.True(result.IsSuccess, result.Reason);
+        TaxiCommand taxi = Assert.IsType<TaxiCommand>(result.Value);
+
+        Assert.Equal(["$7A"], taxi.Path);
+        Assert.Equal("7B", taxi.DestinationSpot);
+        Assert.Null(taxi.DestinationParking);
+    }
+
+    /// <summary>A takeoff runway and a ramp destination still contradict each other when the spot is a via.</summary>
+    [Fact]
+    public void SpotViaWithRunway_Rejected()
+    {
+        ParseResult<ParsedCommand> result = GroundCommandParser.ParseTaxi("A $7B RWY 1L");
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("cannot name both a runway", result.Reason);
+    }
+
     [Fact]
     public void ParseTaxi_ParkingInsideHs_Fails()
     {

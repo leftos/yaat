@@ -7,20 +7,17 @@ using Yaat.Sim.Tests.Helpers;
 namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 
 /// <summary>
-/// SFO's five alley carries two sub-lanes, T5 and T5A, that run side by side down the ramp and meet nowhere
-/// on it — the graph joins them only out at the T5 / Alpha junction. <c>TAXI $5A</c> from gate D2 therefore
-/// resolved to a 998 ft route down T5, out to Alpha and back up T5A for a move whose straight line is 529 ft
-/// and whose two spots are 71 ft apart. The apron between the sub-lanes is aircraft-usable pavement the pilot
-/// routes across at his own discretion (7110.65 §3-7-2 NOTE 2, AIM 4-3-20.g.7, AIM 2-3-4.c.2), so the
-/// clearance is honoured by leaving the painted line where the lanes come abreast and driving straight in.
+/// SFO's five alley carries two sub-lanes, T5 and T5A, that run side by side down the ramp and meet nowhere on
+/// it — the graph joins them only out at the T5 / Alpha junction. <c>TAXI $5A</c> from gate D2 used to be
+/// honoured by leaving the painted line at spot 5 and driving the 71 ft straight across to spot 5A, which left
+/// the aircraft stopped on the marking at the crossing's own heading — 45° across a lane that runs 118 / 298.
+/// A spot is entered along the lane it sits on, so the clearance takes the alley's 998 ft route out to Alpha
+/// and back up T5A instead, and the apron cut is not offered for a spot destination.
 /// </summary>
 public class SfoFiveAlleySpotCutTests
 {
-    /// <summary>The straight line from D2 to spot 5A is 529 ft; a route that still loops out to Alpha is 998 ft.</summary>
-    private const double MaxRouteFt = 750.0;
-
-    /// <summary>The cut from spot 5 crosses 71 ft; the min-total alternative crosses a 345 ft diagonal of open apron.</summary>
-    private const double MaxCrossingFt = 150.0;
+    /// <summary>The lane route down T5, out to Alpha and back up T5A measures 998 ft; the bound is a drift guard.</summary>
+    private const double MaxRouteFt = 1200.0;
 
     private readonly ITestOutputHelper _output;
 
@@ -65,7 +62,7 @@ public class SfoFiveAlleySpotCutTests
     }
 
     [Fact]
-    public void GateD2_TaxiToSpot5A_CutsAcrossTheAlleyInsteadOfLoopingOutToAlpha()
+    public void GateD2_TaxiToSpot5A_ArrivesUpT5AInsteadOfCuttingAcrossTheAlley()
     {
         SfoGround? built = SfoGroundHarness.Build(_output, autoCross: false);
         if (built is null)
@@ -95,24 +92,16 @@ public class SfoFiveAlleySpotCutTests
 
         Assert.Equal("5A", route.DestinationSpot);
         Assert.Equal(spot5A.Id, route.Segments[^1].ToNodeId);
-        Assert.DoesNotContain(route.Segments, TouchesAlpha);
 
-        TaxiRouteSegment crossing = route.Segments[^1];
-        double crossingFt = crossing.Edge.DistanceNm * GeoMath.FeetPerNm;
-        GroundNode? spot5 = ground.Layout.FindSpotNodeByName("5");
-        Assert.True(spot5 is not null, "SFO layout has no spot named '5'");
-        _output.WriteLine($"crossing: #{crossing.FromNodeId}-#{crossing.ToNodeId}({crossing.TaxiwayName}) {crossingFt:F0} ft, spot 5 = #{spot5.Id}");
-        // These two pin the smallest-crossing objective, which the total-length bound below cannot: minimising
-        // prefix + crossing instead cuts out at the far end of the lane across a 345 ft diagonal of open apron for a
-        // 625 ft total, which passes that bound. A 345 ft diagonal fails both of these.
-        Assert.True(
-            crossingFt < MaxCrossingFt,
-            $"the free-space crossing is {crossingFt:F0} ft; expected under {MaxCrossingFt:F0} ft (the cut from spot 5 measures 71 ft)"
-        );
-        Assert.Equal(spot5.Id, crossing.FromNodeId);
-        // Measured baselines: the uncut graph route is 998 ft (down T5, out to the T5 / Alpha junction, back up T5A),
-        // the straight line D2 -> spot 5A is 529 ft, and the cut route is 689 ft — down the lane to spot 5, then a
-        // 71 ft crossing. The bound is a regression guard with headroom for fillet-geometry drift, not a derived limit.
+        // The lanes meet only at Alpha, so honouring the spot's own lane means going round by it.
+        Assert.Contains(route.Segments, TouchesAlpha);
+
+        TaxiRouteSegment arrival = route.Segments[^1];
+        _output.WriteLine($"arrival leg: #{arrival.FromNodeId}-#{arrival.ToNodeId}({arrival.TaxiwayName})");
+        Assert.True(arrival.Edge.Edge.MatchesTaxiway("T5A"), $"the last leg arrives on {arrival.TaxiwayName}, not up spot 5A's own lane");
+        // The shape the rule forbids: a free-space apron leg that ends on the spot marking, which stops the
+        // aircraft across its lane. The 71 ft cut from spot 5 is exactly that.
+        Assert.DoesNotContain(route.Segments, s => (s.ToNodeId == spot5A.Id) && s.TaxiwayName.Equals("RAMP", StringComparison.OrdinalIgnoreCase));
         Assert.True(
             route.TotalDistanceFt < MaxRouteFt,
             $"route is {route.TotalDistanceFt:F0} ft for a {straightFt:F0} ft move; expected under {MaxRouteFt:F0} ft"

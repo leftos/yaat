@@ -68,6 +68,15 @@ public static class RampLaneReposition
     private const double ParkedToleranceFt = 30.0;
 
     /// <summary>
+    /// How much run along its own lane an arrival at a spot needs before the spot node. A spot marking is
+    /// entered along the lane it sits on — that is what makes the aircraft end up parked along the lane rather
+    /// than across it — so a crossing may only land far enough up the lane for the aircraft to be straight by
+    /// the time it reaches the marking. Not a published figure: 100 ft is a fuselage length for the regional
+    /// jets and turboprops that use SFO's spot lanes.
+    /// </summary>
+    private const double SpotAlignmentRunFt = 100.0;
+
+    /// <summary>
     /// How many times longer than the straight drive the remaining graph route must be before a resolved route is
     /// re-cut. Measured, not published: nothing in 7110.65 or the AIM says when a pilot leaves the painted line for
     /// the apron, so the bound comes from the cases either side of it — SFO D2 → $5A cuts at 5.36, B20S → M4 at
@@ -141,6 +150,14 @@ public static class RampLaneReposition
             if (tail is null)
             {
                 Log.LogDebug("[Reposition] route from {Lane} node {Node} does not resolve: {Reason}", lane, target.Id, tailFailure?.HumanMessage);
+                continue;
+            }
+
+            // Re-acquiring the painted line on a spot marking with nothing left to taxi would end the clearance
+            // on the spot at the crossing's own heading — across the lane. A spot is entered along its lane.
+            if ((target.Type == GroundNodeType.Spot) && (tail.Segments.Count == 0))
+            {
+                Log.LogDebug("[Reposition] {Lane} node {Node} is a spot the clearance would end on from the side; trying the next", lane, target.Id);
                 continue;
             }
 
@@ -257,7 +274,7 @@ public static class RampLaneReposition
             foreach ((GroundNode? target, double crossingFt) in reachable)
             {
                 TaxiRoute? tail = TaxiPathfinder.FindRoute(layout, target.Id, destination.Id, category);
-                if (tail is null)
+                if ((tail is null) || !EntersSpotAlongItsLane(destination, destinationLane, tail))
                 {
                     continue;
                 }
@@ -271,10 +288,9 @@ public static class RampLaneReposition
     }
 
     /// <summary>
-    /// Improve a parking / spot route that already resolved but only reaches the stand the long way round: SFO
-    /// <c>TAXI $5A</c> from gate D2 runs 998 ft down alley lane T5, out to the T5 / Alpha junction and back up T5A
-    /// for a move whose straight line is 529 ft, because the two sub-lanes of the five alley meet nowhere on the
-    /// ramp. Every node the route passes that carries a lane of the stand's own family is tried as the point where
+    /// Improve a parking route that already resolved but only reaches the stand the long way round: OAK
+    /// <c>TAXI @22</c> out of a stand whose alley the graph joins to the rest of the ramp only at its far end.
+    /// Every node the route passes that carries a lane of the stand's own family is tried as the point where
     /// the pilot leaves the painted line and drives straight across the apron to the stand; the shortest
     /// <em>crossing</em> wins — ties to the earlier point on the route — because the crossing is unmodelled pavement
     /// with no graph guidance, so the aircraft stays on the painted line as far as it goes and then steps the
@@ -285,13 +301,21 @@ public static class RampLaneReposition
     /// <see cref="MinDetourRatio"/> / <see cref="MinDetourSavingFt"/> are measured thresholds, not published values.
     /// Null when the destination is not a stand on a ramp taxilane, or no candidate clears both bars — the caller
     /// then keeps the route the graph gave it.
+    ///
+    /// <para>A spot is never re-cut to. The crossing here always lands on the destination node itself, and a spot
+    /// is entered along the lane it sits on (see <see cref="EntersSpotAlongItsLane"/>), so there is no candidate
+    /// landing point this shape could offer: SFO <c>TAXI $5A</c> from gate D2 takes the long way round the five
+    /// alley and arrives up T5A, rather than stopping across the lane 71 ft after leaving spot 5.</para>
     /// </summary>
     public static RampLaneDestinationCutPlan? TryPlanResolvedRouteCut(AirportGroundLayout layout, TaxiRoute resolvedRoute, GroundNode destination)
     {
-        if (
-            (resolvedRoute.Segments.Count == 0) || (destination.Type is not (GroundNodeType.Parking or GroundNodeType.Spot or GroundNodeType.Helipad))
-        )
+        if ((resolvedRoute.Segments.Count == 0) || (destination.Type is not (GroundNodeType.Parking or GroundNodeType.Helipad)))
         {
+            if (destination.Type == GroundNodeType.Spot)
+            {
+                Log.LogDebug("[Reposition] {Dest} is a spot — entered along its own lane, never cut to from the side", destination.Name);
+            }
+
             return null;
         }
 
@@ -367,8 +391,7 @@ public static class RampLaneReposition
             HoldShortPoints = [.. resolvedRoute.HoldShortPoints.Where(hs => head.Any(s => s.ToNodeId == hs.NodeId))],
             Warnings = resolvedRoute.Warnings,
             MandatoryConnectorCount = resolvedRoute.MandatoryConnectorCount,
-            DestinationParking = destination.Type == GroundNodeType.Spot ? null : destination.Name,
-            DestinationSpot = destination.Type == GroundNodeType.Spot ? destination.Name : null,
+            DestinationParking = destination.Name,
         };
         string lane = family.Order(StringComparer.Ordinal).FirstOrDefault(l => HasStraightEdgeOf(cut.Node, l)) ?? destinationLane;
         Log.LogInformation(
@@ -457,6 +480,29 @@ public static class RampLaneReposition
             tail.ToSummary()
         );
         return new RampLaneDestinationCutPlan(origin, target, lane, destinationLane, crossingFt, route);
+    }
+
+    /// <summary>
+    /// The graph tail brings the aircraft into a spot along the spot's own lane, with at least
+    /// <see cref="SpotAlignmentRunFt"/> of run to straighten out on: the last edge is an edge of that lane
+    /// ending at the spot node. A crossing that lands on the spot itself, or one node short of it, leaves the
+    /// aircraft stopped on the marking at whatever heading the free-space leg happened to arrive on — which is
+    /// across its own lane, not along it. Only spots are constrained; a gate is entered on its stand heading.
+    /// </summary>
+    private static bool EntersSpotAlongItsLane(GroundNode destination, string destinationLane, TaxiRoute tail)
+    {
+        if (destination.Type != GroundNodeType.Spot)
+        {
+            return true;
+        }
+
+        if (tail.Segments.Count == 0)
+        {
+            return false;
+        }
+
+        TaxiRouteSegment last = tail.Segments[^1];
+        return (last.ToNodeId == destination.Id) && last.Edge.Edge.MatchesTaxiway(destinationLane) && (tail.TotalDistanceFt >= SpotAlignmentRunFt);
     }
 
     private static bool HasStraightEdgeOf(GroundNode node, string lane) => node.Edges.Any(e => (e is GroundEdge) && e.MatchesTaxiway(lane));

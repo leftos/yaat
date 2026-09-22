@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Fixed
+- `TAXI A $7B @E2` routes through spot 7B to gate E2, or is refused by name when the gate cannot be reached that way, instead of parking the aircraft at the spot while reporting it at the gate.
+- A taxi that ends anywhere other than the gate it named leaves the aircraft holding position, not parked at that gate.
+- `TAXI $spot` arrives along the spot's own lane and stops facing along it, instead of cutting across the ramp and stopping across the lane with its nose over the neighbouring one.
 - Aircraft on neighbouring parallel taxiways no longer slow to a crawl or stop for each other as they pass; the wingtip-room test that already let traffic pass a parked aircraft now also applies to a mover on a parallel lane.
 
 ## v0.13.3-beta [2026/09/21]

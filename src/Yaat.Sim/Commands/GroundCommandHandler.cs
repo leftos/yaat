@@ -76,6 +76,18 @@ public static class GroundCommandHandler
         TaxiCommand asCleared = taxi;
         TaxiCommand? effectiveCommand = null;
 
+        // A $spot inside the path is a via — the route has to pass through that spot's node on its way to the
+        // destination. The resolver already understands a #nodeId token, so the via is rewritten into one here,
+        // the one place the clearance first meets the layout. The readback still names the lanes, because it is
+        // built from the resolved route's segments and from asCleared above.
+        (TaxiCommand withSpotVias, string? unknownSpot) = ResolveSpotVias(groundLayout, taxi);
+        if (unknownSpot is not null)
+        {
+            return new CommandResult(false, $"unknown spot {unknownSpot}");
+        }
+
+        taxi = withSpotVias;
+
         // A taxiway named only as a hold-short target ("... HS E") can also be a directional hint.
         // With a destination the clearance is resolved as cleared first and the hint is folded into
         // the path only when that route cannot honor it (see ResolveRoute below — issue #395: SFO
@@ -1481,6 +1493,72 @@ public static class GroundCommandHandler
     }
 
     /// <summary>
+    /// Rewrites every <c>$spot</c> via in the path to the <c>#nodeId</c> token the resolver routes through, so a
+    /// clearance that names a spot on the way ("A $7B @E2") is made to pass through that spot's node. The trailing
+    /// spot destination is not in the path (the parser split it out), so only vias are touched. Returns the command
+    /// unchanged with the offending name when the field has no spot by that name.
+    /// </summary>
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="taxi">The parsed clearance.</param>
+    /// <returns>The rewritten command, and the unknown spot name when one could not be resolved.</returns>
+    private static (TaxiCommand Command, string? UnknownSpot) ResolveSpotVias(AirportGroundLayout layout, TaxiCommand taxi)
+    {
+        if (!taxi.Path.Exists(t => t.StartsWith('$')))
+        {
+            return (taxi, null);
+        }
+
+        var path = new List<string>(taxi.Path.Count);
+        foreach (string token in taxi.Path)
+        {
+            if (!token.StartsWith('$'))
+            {
+                path.Add(token);
+                continue;
+            }
+
+            string name = token[1..];
+            if (layout.FindSpotNodeByName(name) is not { } spot)
+            {
+                return (taxi, name);
+            }
+
+            path.Add($"#{spot.Id}");
+        }
+
+        return (taxi with { Path = path }, null);
+    }
+
+    /// <summary>
+    /// The name of the last spot the path is routed through, or null when it names none — the via a destination
+    /// the graph cannot reach from it is refused by name ("Cannot reach parking 'E2' via 7B"), so the controller
+    /// sees which part of his own clearance is the problem rather than a bare "from end of taxi route".
+    /// </summary>
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="path">The clearance path, spot vias already rewritten to node references.</param>
+    /// <returns>The spot's name, or null.</returns>
+    private static string? LastSpotViaName(AirportGroundLayout layout, IReadOnlyList<string> path)
+    {
+        for (int i = path.Count - 1; i >= 0; i--)
+        {
+            if (!NodeRefToken.IsNodeReference(path[i]))
+            {
+                continue;
+            }
+
+            if (
+                layout.Nodes.TryGetValue(NodeRefToken.ParseNodeId(path[i]), out GroundNode? node)
+                && node is { Type: GroundNodeType.Spot, Name: { Length: > 0 } spotName }
+            )
+            {
+                return spotName;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// The node a parking / spot clearance ends at: <c>@</c> = helipad or parking only, <c>$</c> = spot only; null
     /// when absent or unknown.
     /// </summary>
@@ -1551,6 +1629,14 @@ public static class GroundCommandHandler
 
         if (explicitRoute is null)
         {
+            // The clearance named a spot the destination cannot be reached from (SFO "A $7B @E2": T7B's ramp end
+            // has no edge to E2). Name the via rather than the graph node, so the refusal points at the clearance.
+            if ((failure is { Kind: FailureKind.DestinationUnreachable }) && (LastSpotViaName(groundLayout, taxi.Path) is { } blockedVia))
+            {
+                string blockedKind = taxi.DestinationSpot is not null ? "spot" : "parking";
+                failure = DestinationFailure($"Cannot reach {blockedKind} '{destLabel}' via {blockedVia}");
+            }
+
             return null;
         }
 
@@ -1578,7 +1664,8 @@ public static class GroundCommandHandler
             {
                 Log.LogDebug("[TryTaxi] Cannot extend from node {EndNode} to {DestLabel}", endNodeId, destLabel);
                 string destKind = taxi.DestinationSpot is not null ? "spot" : "parking";
-                failure = DestinationFailure($"Cannot reach {destKind} '{destLabel}' from end of taxi route");
+                string reachedBy = LastSpotViaName(groundLayout, taxi.Path) is { } via ? $"via {via}" : "from end of taxi route";
+                failure = DestinationFailure($"Cannot reach {destKind} '{destLabel}' {reachedBy}");
                 return null;
             }
 
@@ -1625,6 +1712,15 @@ public static class GroundCommandHandler
 
     private static TaxiRoute SetDestination(TaxiRoute route, TaxiCommand taxi)
     {
+        // A clearance has exactly one destination: a spot named before a gate is a via in the path, not a second
+        // destination (see ParseTaxiTokens). Both set would make the terminal phase — park or hold — ambiguous.
+        if ((taxi.DestinationParking is not null) && (taxi.DestinationSpot is not null))
+        {
+            throw new InvalidOperationException(
+                $"taxi clearance names both parking '{taxi.DestinationParking}' and spot '{taxi.DestinationSpot}' as its destination"
+            );
+        }
+
         // TaxiRoute uses init-only props, so return a new instance with destination set.
         return new TaxiRoute
         {

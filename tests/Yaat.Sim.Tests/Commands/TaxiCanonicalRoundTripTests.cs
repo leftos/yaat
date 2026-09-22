@@ -33,6 +33,7 @@ public class TaxiCanonicalRoundTripTests
     [InlineData("TAXI TE $7A", "TAXI TE $7A")]
     [InlineData("TAXI T421 C Z B M1 1L HS $17", "TAXI T421 C Z B M1 RWY 1L HS $17")]
     [InlineData("TAXI K $8 HS $8", "TAXI K $8 HS $8")]
+    [InlineData("TAXI A $7B @E2", "TAXI A $7B @E2")]
     [InlineData("TAXI >A B <C D", "TAXI >A B <C D")]
     public void Canonical_CarriesFullClearance(string input, string expectedCanonical) =>
         Assert.Equal(expectedCanonical, CommandDescriber.DescribeCommand(Parse(input)));
@@ -47,6 +48,7 @@ public class TaxiCanonicalRoundTripTests
     [InlineData("TAXI >A B <C D RWY 28R CROSS 10L HS E")]
     [InlineData("TAXI T421 C Z B M1 1L HS $17")]
     [InlineData("TAXI K $8 HS $8")]
+    [InlineData("TAXI A $7B @E2")]
     public void Canonical_RoundTripsThroughParser(string input)
     {
         string canonical = CommandDescriber.DescribeCommand(Parse(input));

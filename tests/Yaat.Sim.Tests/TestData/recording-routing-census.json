@@ -1680,6 +1680,20 @@
     "Solo": false
   },
   {
+    "File": "sfo-gc-28-01-spot-lanes-recording.zip",
+    "Commands": 140,
+    "ByKind": {
+      "Compound": 79,
+      "Delete": 4,
+      "SetActivePosition": 1,
+      "Strip": 56
+    },
+    "Unparsed": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
     "File": "sfo-gc-arrival-goarounds-recording.yaat-bug-report-bundle.zip",
     "Commands": 163,
     "ByKind": {

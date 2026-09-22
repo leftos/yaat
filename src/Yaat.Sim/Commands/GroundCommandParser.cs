@@ -393,7 +393,9 @@ internal static class GroundCommandParser
     /// Shared taxi token parser. Handles path, HS, RWY, CROSS keywords, @parking, and $spot tokens.
     /// If detectTrailingRunway is true and no explicit RWY keyword was found,
     /// treats the last path token as a destination runway if it looks like one.
-    /// Outside an HS clause, tokens starting with @ set DestinationParking and $ set DestinationSpot.
+    /// Outside an HS clause, a token starting with @ sets DestinationParking; a token starting with $ joins
+    /// the path in order and only a trailing one becomes DestinationSpot, so a spot named before a @gate
+    /// ("A $7B @E2") is a via the route passes through and the two destination fields are never both set.
     /// An HS clause owns every following token until the next keyword: <c>$17</c> there is a spot
     /// hold-short target and <c>@A12</c> is rejected (ATCTrainer grammar — the path optionally ends
     /// with a runway, parking, or spot destination, then the hold-short list follows).
@@ -481,9 +483,11 @@ internal static class GroundCommandParser
                 continue;
             }
 
+            // $token = spot. Collected in path order; only a trailing one is the destination (below).
             if (token.StartsWith('$') && token.Length > 1)
             {
-                destSpot = token[1..].ToUpperInvariant();
+                path.Add(token.ToUpperInvariant());
+                pathTurnHints.Add(null);
                 continue;
             }
 
@@ -499,6 +503,16 @@ internal static class GroundCommandParser
             (TurnDirection? hint, string? name) = StripTurnHint(token);
             path.Add(name.ToUpperInvariant());
             pathTurnHints.Add(hint);
+        }
+
+        // A trailing spot is the destination ("TAXI T5 $5A"); every earlier one is a via the route has to
+        // pass through ("TAXI A $7B @E2" — through 7B's lane, park at E2). A clearance that already names a
+        // gate has its destination, so even its last spot stays a via — the two can never both be set.
+        if (destParking is null && path.Count > 0 && path[^1].StartsWith('$'))
+        {
+            destSpot = path[^1][1..];
+            path.RemoveAt(path.Count - 1);
+            pathTurnHints.RemoveAt(pathTurnHints.Count - 1);
         }
 
         // If no explicit RWY keyword, check if last path token is a runway. A lone runway token
@@ -523,7 +537,7 @@ internal static class GroundCommandParser
 
         // A takeoff-runway assignment and a ramp destination contradict each other (7110.65 §3-7-2.b's
         // leading-runway form is for an assigned takeoff runway).
-        if (destRunway is not null && (destParking is not null || destSpot is not null))
+        if (destRunway is not null && (destParking is not null || destSpot is not null || path.Exists(t => t.StartsWith('$'))))
         {
             return PR.Fail("a taxi clearance cannot name both a runway (RWY) and a parking/spot destination");
         }
