@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.13.4-beta [2026/09/21]
+
+### Highlights
+- `PUSH` to a spot or gate plans around aircraft parked or held nearby, or refuses naming the aircraft in the way.
+- A hold-short issued while taxiing brakes for the line on the current segment; one too close to make answers "unable to hold short, stopping".
+- Aircraft on neighbouring parallel taxiways pass each other instead of slowing or stopping.
+- `APT` to a different airport cancels the old pattern or approach, so `ELB`/`ERD`/`EF` resolve the new runway.
 
 ### Fixed
 - `TAXI A $7B @E2` routes through spot 7B to gate E2 (read back as "via A, spot 7B"), or is refused by name when the gate cannot be reached that way, instead of parking the aircraft at the spot while reporting it at the gate.
