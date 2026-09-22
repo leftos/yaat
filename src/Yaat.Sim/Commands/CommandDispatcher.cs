@@ -454,22 +454,8 @@ public static class CommandDispatcher
         // Now that validation passed, clear phases if the command requires it
         if (shouldClearPhases)
         {
-            PhaseContext phaseCtx = BuildMinimalContext(aircraft);
-            bool clearedGoAround = aircraft.Phases?.CurrentPhase is GoAroundPhase;
-            string? clearedSummary = aircraft.Phases is { } pl ? PhaseClearSummary.Build(pl) : null;
-            aircraft.Phases?.Clear(phaseCtx);
-            aircraft.Phases = null;
-            aircraft.Targets.TurnRateOverride = null;
-            aircraft.Targets.HasExplicitTurnRate = false;
-            aircraft.Targets.PreferredTurnDirection = null;
-            AirborneFollowHelper.ClearFollowState(aircraft);
-            ResumeAssignedAltitudeAfterPhaseClear(aircraft, clearedGoAround);
-
-            if (clearedSummary is not null)
-            {
-                string src = compound.SourceText ?? CommandDescriber.DescribeNatural(compound.Blocks[0].Commands[0]);
-                aircraft.PendingWarnings.Add($"{aircraft.Callsign} {clearedSummary} cancelled by {src}");
-            }
+            string src = compound.SourceText ?? CommandDescriber.DescribeNatural(compound.Blocks[0].Commands[0]);
+            ClearPhaseChain(aircraft, src);
         }
 
         // Conditional incoming commands are purely additive: append the triggered block
@@ -2652,6 +2638,35 @@ public static class CommandDispatcher
     }
 
     /// <summary>
+    /// Tears down the aircraft's whole phase chain and the control state the chain owned: the
+    /// <see cref="PhaseList"/> is cleared through a real <see cref="PhaseContext"/> and dropped
+    /// (so the runway assignment, landing clearance and cleared-runway id go with it), turn-rate
+    /// and turn-direction overrides are released, airborne FOLLOW state is cleared, and the
+    /// last assigned altitude is re-armed where <see cref="ResumeAssignedAltitudeAfterPhaseClear"/>
+    /// allows it. When the chain described something the controller would want to know about
+    /// (<see cref="PhaseClearSummary.Build"/>), a warning naming it and <paramref name="cancelledBy"/>
+    /// is appended to <see cref="AircraftState.PendingWarnings"/>.
+    /// </summary>
+    internal static void ClearPhaseChain(AircraftState aircraft, string cancelledBy)
+    {
+        PhaseContext phaseCtx = BuildMinimalContext(aircraft);
+        bool clearedGoAround = aircraft.Phases?.CurrentPhase is GoAroundPhase;
+        string? clearedSummary = aircraft.Phases is { } pl ? PhaseClearSummary.Build(pl) : null;
+        aircraft.Phases?.Clear(phaseCtx);
+        aircraft.Phases = null;
+        aircraft.Targets.TurnRateOverride = null;
+        aircraft.Targets.HasExplicitTurnRate = false;
+        aircraft.Targets.PreferredTurnDirection = null;
+        AirborneFollowHelper.ClearFollowState(aircraft);
+        ResumeAssignedAltitudeAfterPhaseClear(aircraft, clearedGoAround);
+
+        if (clearedSummary is not null)
+        {
+            aircraft.PendingWarnings.Add($"{aircraft.Callsign} {clearedSummary} cancelled by {cancelledBy}");
+        }
+    }
+
+    /// <summary>
     /// Field elevation (ft MSL) for an aircraft without an assigned runway — parked, taxiing, or a
     /// helicopter air-taxi / relocation with no runway. Resolves the operating airport's elevation
     /// rather than defaulting to 0 MSL, so a heli air-taxiing to a helipad descends to field level
@@ -3281,20 +3296,7 @@ public static class CommandDispatcher
                             // Mirror the phase-clear sequence DispatchCompoundCore performs
                             // once validation succeeds. We are already past validation here
                             // (the block was enqueued via the same dispatcher).
-                            PhaseContext phaseCtx = BuildMinimalContext(ac);
-                            string? clearedSummary = ac.Phases is { } pl ? PhaseClearSummary.Build(pl) : null;
-                            ac.Phases?.Clear(phaseCtx);
-                            ac.Phases = null;
-                            ac.Targets.TurnRateOverride = null;
-                            ac.Targets.HasExplicitTurnRate = false;
-                            ac.Targets.PreferredTurnDirection = null;
-                            AirborneFollowHelper.ClearFollowState(ac);
-                            ResumeAssignedAltitudeAfterPhaseClear(ac, currentPhase is GoAroundPhase);
-
-                            if (clearedSummary is not null)
-                            {
-                                ac.PendingWarnings.Add($"{ac.Callsign} {clearedSummary} cancelled by {CommandDescriber.DescribeNatural(cmd)}");
-                            }
+                            ClearPhaseChain(ac, CommandDescriber.DescribeNatural(cmd));
 
                             // Now apply the tower command against the cleared phase state.
                             result = ApplyCommand(cmd, ac, ctx);
