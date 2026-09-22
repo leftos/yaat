@@ -122,6 +122,16 @@ public static class GroundConflictDetector
     // closing/arbitration rules (one holds, one goes) instead.
     private const double HeadOnMinHeadingDiffDeg = 150.0;
 
+    // How far two tracks may differ from parallel (0°) or anti-parallel (180°) and still count as
+    // neighbouring lanes for HasParallelTrackLateralRoom. Two aircraft on adjacent taxiways pass each
+    // other; they are not closing on one another, whatever the straight-line distance says. Measured at
+    // SFO, taxiways A and B: the centrelines are ~160 ft apart and opposite-direction passes bottom out
+    // at 238 ft, inside both the two-B738 trail ring (254 ft) and the 300 ft head-on ring — so without
+    // this bypass a B738 crawled at 5 kt for 65 s and stopped for 20 s while three aircraft passed on
+    // the neighbouring lane. The tolerance covers a lane's own curvature and the wander of a nose
+    // heading within it, while a genuine crossing (more than 20° off) keeps the distance rule.
+    private const double ParallelTrackToleranceDeg = 20.0;
+
     // When two same-priority movers would each stop for the other, hold the "follower" (the one
     // with the other nearer dead-ahead — a small off-nose angle) and release the "lead" (the one
     // with the other more abeam), which increases separation as it proceeds. This is the auto
@@ -1076,7 +1086,13 @@ public static class GroundConflictDetector
             return TugMoveLimit(mover, tugMove, obstacle, distFt, diagnosticLog);
         }
 
-        if (WingspanLateralCheckEnabled && stationaryGate && (RequiredLateralClearanceFt(mover, obstacle) is { } requiredLateralFt))
+        // A moving obstacle on a neighbouring, near-parallel lane is passing rather than closing, so it takes
+        // the lateral bypass too: it is as safe to pass as a parked one, and without this the straight-line
+        // distance rule crawls or stops an aircraft for traffic on the taxiway alongside it.
+        double obstacleDir = obstacle.Ground.PushbackTrueHeading?.Degrees ?? obstacle.TrueHeading.Degrees;
+        bool lateralGate = stationaryGate || (!isStationary && HasParallelTrackLateralRoom(mover, moveDir, obstacle, obstacleDir, distFt));
+
+        if (WingspanLateralCheckEnabled && lateralGate && (RequiredLateralClearanceFt(mover, obstacle) is { } requiredLateralFt))
         {
             double lateralFt = distFt * Math.Sin(angleDiff * Math.PI / 180.0);
             if (lateralFt > requiredLateralFt)
@@ -1669,6 +1685,13 @@ public static class GroundConflictDetector
             return;
         }
 
+        // Anti-parallel on two lanes far enough apart to pass abeam is a pass, not a head-on: neither
+        // aircraft is on the other's track. A same-corridor head-on has ~no lateral offset and still holds.
+        if (HasParallelTrackLateralRoom(a, dirA, b, dirB, distFt))
+        {
+            return;
+        }
+
         if (arbitrate)
         {
             // The pair is a Crossing on the ground graph — i.e. they are on different, non-converging
@@ -1925,6 +1948,36 @@ public static class GroundConflictDetector
         double distFt = GeoMath.DistanceNm(mover.Position, obstacle.Position) * FtPerNm;
         double lateralFt = distFt * Math.Sin(angleDiff * Math.PI / 180.0);
         return lateralFt > requiredLateralFt;
+    }
+
+    /// <summary>
+    /// True when the two aircraft are travelling on near-parallel tracks — within
+    /// <see cref="ParallelTrackToleranceDeg"/> of parallel or of anti-parallel — that are far enough apart for
+    /// them to pass: each aircraft's lateral offset from the other's track exceeds the pair's
+    /// <see cref="RequiredLateralClearanceFt"/>. Traffic on the taxiway alongside is passing, not closing,
+    /// however small the straight-line distance between the two gets, so neither the closing distance rule in
+    /// <see cref="ComputeClosingLimit"/> nor the head-on rule in <see cref="ResolveHeadOn"/> applies to it.
+    ///
+    /// <para>Both offsets are measured because the tolerance lets the two tracks differ, so the offset of B from
+    /// A's track and the offset of A from B's are not the same number. A crossing pair — more than the tolerance
+    /// off parallel — is never covered here and keeps the distance rule.</para>
+    /// </summary>
+    private static bool HasParallelTrackLateralRoom(AircraftState a, double dirA, AircraftState b, double dirB, double distFt)
+    {
+        double trackDiff = HeadingDifference(dirA, dirB);
+        if ((trackDiff > ParallelTrackToleranceDeg) && (trackDiff < 180.0 - ParallelTrackToleranceDeg))
+        {
+            return false;
+        }
+
+        if ((RequiredLateralClearanceFt(a, b) is not { } requiredForA) || (RequiredLateralClearanceFt(b, a) is not { } requiredForB))
+        {
+            return false;
+        }
+
+        double lateralFromA = distFt * Math.Sin(HeadingDifference(dirA, GeoMath.BearingTo(a.Position, b.Position)) * Math.PI / 180.0);
+        double lateralFromB = distFt * Math.Sin(HeadingDifference(dirB, GeoMath.BearingTo(b.Position, a.Position)) * Math.PI / 180.0);
+        return (lateralFromA > requiredForA) && (lateralFromB > requiredForB);
     }
 
     /// <summary>

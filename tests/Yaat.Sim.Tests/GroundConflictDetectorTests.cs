@@ -1882,4 +1882,234 @@ public class GroundConflictDetectorTests
             $"Lead SWA863 should proceed (SWA1182 is ~71° off its nose), got limit={swa863.Ground.SpeedLimit?.ToString("F1") ?? "null"}"
         );
     }
+
+    // -------------------------------------------------------------------------
+    // Parallel-track lateral room: two aircraft on neighbouring taxiways pass
+    // each other instead of trailing or stopping (SFO ground control, taxiways
+    // A and B, centrelines ~160 ft apart, passes bottoming out at ~238 ft).
+    // -------------------------------------------------------------------------
+
+    /// <summary>Track of the lane the subject aircraft of the parallel-pass tests taxis on.</summary>
+    private const double ParallelTrackDeg = 118.0;
+
+    /// <summary>The reciprocal of <see cref="ParallelTrackDeg"/> — the track of the aircraft coming the other way on the neighbouring lane.</summary>
+    private const double ParallelReciprocalTrackDeg = 298.0;
+
+    /// <summary>Lateral separation of the two lanes in the measured field pass: inside the two-B738 trail ring (254 ft) and the 300 ft head-on ring.</summary>
+    private const double ParallelLateralFt = 238.0;
+
+    /// <summary>Along-track offset between the two aircraft in the field pass — they are nearly abeam.</summary>
+    private const double ParallelAlongFt = 50.0;
+
+    /// <summary>Lateral separation too tight for two B738s to pass (their half-spans plus the wingtip buffer need 142.4 ft).</summary>
+    private const double TooCloseLateralFt = 120.0;
+
+    /// <summary>The FAA wingspan of an aircraft type, in feet.</summary>
+    /// <param name="type">ICAO type designator.</param>
+    /// <returns>Wingspan in feet.</returns>
+    /// <exception cref="InvalidOperationException">The FAA database carries no dimensions for that type.</exception>
+    private static double WingspanFt(string type) =>
+        FaaAircraftDatabase.Get(type)?.WingspanFt ?? throw new InvalidOperationException($"the FAA database has no dimensions for '{type}'");
+
+    /// <summary>
+    /// A point <paramref name="alongFt"/> ahead of <paramref name="origin"/> along <paramref name="trackDeg"/> and
+    /// <paramref name="lateralFt"/> to the right of that track.
+    /// </summary>
+    private static LatLon AlongAndAbeam(LatLon origin, double trackDeg, double alongFt, double lateralFt)
+    {
+        LatLon ahead = GeoMath.ProjectPoint(origin, new TrueHeading(trackDeg), alongFt / FtPerNm);
+        return GeoMath.ProjectPoint(ahead, new TrueHeading((trackDeg + 90.0) % 360.0), lateralFt / FtPerNm);
+    }
+
+    /// <summary>
+    /// An aircraft of an explicit type — <see cref="MakeAircraft"/> is hard-wired to a B738, and the wingspan pair is
+    /// exactly what the lateral tests turn on.
+    /// </summary>
+    private static AircraftState MakeTypedAircraft(string callsign, string type, LatLon position, double heading, double gs) =>
+        new()
+        {
+            Callsign = callsign,
+            AircraftType = type,
+            Position = position,
+            TrueHeading = new TrueHeading(heading),
+            IsOnGround = true,
+            IndicatedAirspeed = gs,
+            Ground = new AircraftGroundOps(),
+        };
+
+    /// <summary>
+    /// A single 600 ft route segment centred on <paramref name="laneCenter"/> and running along <paramref name="trackDeg"/>,
+    /// with real node positions. Distinct node ids per lane keep the pair a Crossing (no shared upcoming node).
+    /// </summary>
+    private static TaxiRoute ParallelLaneRoute(LatLon laneCenter, double trackDeg, int fromId, int toId)
+    {
+        var from = new GroundNode
+        {
+            Id = fromId,
+            Position = GeoMath.ProjectPoint(laneCenter, new TrueHeading((trackDeg + 180.0) % 360.0), 300.0 / FtPerNm),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var to = new GroundNode
+        {
+            Id = toId,
+            Position = GeoMath.ProjectPoint(laneCenter, new TrueHeading(trackDeg), 300.0 / FtPerNm),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        return MakeRoute(MakeGeoSeg(from, to));
+    }
+
+    /// <summary>
+    /// Two B738s passing in opposite directions on neighbouring taxiways, 238 ft apart laterally and nearly abeam.
+    /// They are inside the trail ring (254 ft) and inside the 300 ft head-on ring, but they have far more lateral
+    /// room than the 142.4 ft their half-spans plus the wingtip buffer need, so neither may be slowed or held —
+    /// on the graph (one holds) or off it (both stop). The SFO taxiway A/B field case.
+    /// </summary>
+    [Fact]
+    public void ParallelTaxiways_OppositeDirection_238ft_NoLimit()
+    {
+        var basePos = new LatLon(BaseLat, BaseLon);
+        LatLon otherPos = AlongAndAbeam(basePos, ParallelTrackDeg, ParallelAlongFt, ParallelLateralFt);
+
+        AircraftState a = MakeAircraft("AAA", basePos, heading: ParallelTrackDeg, gs: 20);
+        AircraftState b = MakeAircraft("BBB", otherPos, heading: ParallelReciprocalTrackDeg, gs: 20);
+        GroundConflictDetector.ApplySpeedLimits([a, b], null);
+
+        Assert.Null(a.Ground.SpeedLimit);
+        Assert.Null(b.Ground.SpeedLimit);
+
+        // Same geometry with routes on two separate lanes. The layout only has to be non-null here: it is what makes
+        // the pair's routes "known" to the crossing resolution, which then arbitrates the head-on instead of stopping both.
+        (AirportGroundLayout? layout, GroundNode _, GroundNode _, GroundNode _) = BuildSimpleLayout();
+        AircraftState routedA = MakeAircraft(
+            "AAA",
+            basePos,
+            heading: ParallelTrackDeg,
+            gs: 20,
+            taxiRoute: ParallelLaneRoute(basePos, ParallelTrackDeg, 10, 11),
+            phase: new TaxiingPhase()
+        );
+        AircraftState routedB = MakeAircraft(
+            "BBB",
+            otherPos,
+            heading: ParallelReciprocalTrackDeg,
+            gs: 20,
+            taxiRoute: ParallelLaneRoute(otherPos, ParallelReciprocalTrackDeg, 12, 13),
+            phase: new TaxiingPhase()
+        );
+        GroundConflictDetector.ApplySpeedLimits([routedA, routedB], layout);
+
+        Assert.Null(routedA.Ground.SpeedLimit);
+        Assert.Null(routedB.Ground.SpeedLimit);
+    }
+
+    /// <summary>
+    /// The same pass with the widest pair of the field case: an A359 against a B738 needs 189.9 ft and the lanes give
+    /// 238 ft, so the wider wingspan still passes.
+    /// </summary>
+    [Fact]
+    public void ParallelTaxiways_OppositeDirection_A359vsB738_238ft_NoLimit()
+    {
+        var basePos = new LatLon(BaseLat, BaseLon);
+        LatLon otherPos = AlongAndAbeam(basePos, ParallelTrackDeg, ParallelAlongFt, ParallelLateralFt);
+
+        double requiredFt = (WingspanFt("A359") / 2) + (WingspanFt("B738") / 2) + GroundConflictDetector.WingtipBufferFt;
+        Assert.True(
+            requiredFt < ParallelLateralFt,
+            $"test geometry: the pair needs {requiredFt:F1} ft and the lanes are {ParallelLateralFt:F0} ft apart"
+        );
+
+        AircraftState heavy = MakeTypedAircraft("THY9WC", "A359", basePos, ParallelTrackDeg, 20);
+        AircraftState narrow = MakeTypedAircraft("WJA1508", "B738", otherPos, ParallelReciprocalTrackDeg, 20);
+        GroundConflictDetector.ApplySpeedLimits([heavy, narrow], null);
+
+        Assert.Null(heavy.Ground.SpeedLimit);
+        Assert.Null(narrow.Ground.SpeedLimit);
+    }
+
+    /// <summary>Two B738s on neighbouring lanes going the same way, 238 ft apart laterally: a pass, not a trail.</summary>
+    [Fact]
+    public void ParallelTaxiways_SameDirection_NoLimit()
+    {
+        var basePos = new LatLon(BaseLat, BaseLon);
+        LatLon otherPos = AlongAndAbeam(basePos, ParallelTrackDeg, ParallelAlongFt, ParallelLateralFt);
+
+        AircraftState a = MakeAircraft("AAA", basePos, heading: ParallelTrackDeg, gs: 20);
+        AircraftState b = MakeAircraft("BBB", otherPos, heading: ParallelTrackDeg, gs: 20);
+        GroundConflictDetector.ApplySpeedLimits([a, b], null);
+
+        Assert.Null(a.Ground.SpeedLimit);
+        Assert.Null(b.Ground.SpeedLimit);
+    }
+
+    /// <summary>
+    /// Parallel tracks with only 120 ft between them — less than the 142.4 ft two B738s need — is not a pass: the
+    /// head-on rule still stops them (off the graph, both).
+    /// </summary>
+    [Fact]
+    public void ParallelTaxiways_TooClose_StillLimited()
+    {
+        var basePos = new LatLon(BaseLat, BaseLon);
+        LatLon otherPos = AlongAndAbeam(basePos, ParallelTrackDeg, ParallelAlongFt, TooCloseLateralFt);
+
+        AircraftState a = MakeAircraft("AAA", basePos, heading: ParallelTrackDeg, gs: 20);
+        AircraftState b = MakeAircraft("BBB", otherPos, heading: ParallelReciprocalTrackDeg, gs: 20);
+        GroundConflictDetector.ApplySpeedLimits([a, b], null);
+
+        Assert.Equal(0.0, a.Ground.SpeedLimit);
+        Assert.Equal(0.0, b.Ground.SpeedLimit);
+    }
+
+    /// <summary>
+    /// An obstacle crossing from the side (90° off the mover's track) at the same 238 ft is not a parallel-track pass:
+    /// the distance rule still governs it and the mover keeps its trail limit.
+    /// </summary>
+    [Fact]
+    public void CrossingFromSide_238ft_StillLimited()
+    {
+        var basePos = new LatLon(BaseLat, BaseLon);
+        LatLon otherPos = AlongAndAbeam(basePos, ParallelTrackDeg, ParallelAlongFt, ParallelLateralFt);
+
+        AircraftState mover = MakeAircraft("AAA", basePos, heading: ParallelTrackDeg, gs: 20);
+        AircraftState crosser = MakeAircraft("BBB", otherPos, heading: (ParallelTrackDeg + 90.0) % 360.0, gs: 20);
+        GroundConflictDetector.ApplySpeedLimits([mover, crosser], null);
+
+        Assert.NotNull(mover.Ground.SpeedLimit);
+    }
+
+    /// <summary>
+    /// Two aircraft nose to nose on ONE taxiway have no lateral room at all, so the same-edge head-on rule still holds
+    /// one of them: the parallel-track bypass must not reach this branch.
+    /// </summary>
+    [Fact]
+    public void SameEdgeHeadOn_StillHolds()
+    {
+        (AirportGroundLayout? layout, GroundNode _, GroundNode _, GroundNode _) = BuildSimpleLayout();
+        GroundEdge edge01 = layout.Edges[0];
+
+        AircraftState north = MakeAircraft(
+            "NORTH",
+            new LatLon(BaseLat, BaseLon),
+            heading: 0,
+            gs: 12,
+            taxiRoute: MakeRoute(MakeSeg(0, 1, "A", edge01)),
+            phase: new TaxiingPhase()
+        );
+        AircraftState south = MakeAircraft(
+            "SOUTH",
+            new LatLon(BaseLat + 2.5 * OffsetLatPer100Ft, BaseLon),
+            heading: 180,
+            gs: 12,
+            taxiRoute: MakeRoute(MakeSeg(1, 0, "A", edge01)),
+            phase: new TaxiingPhase()
+        );
+
+        GroundConflictDetector.ApplySpeedLimits([north, south], layout);
+
+        // Equal remaining route → callsign tie-break holds SOUTH; NORTH proceeds.
+        Assert.Equal(0.0, south.Ground.SpeedLimit);
+        Assert.True(
+            north.Ground.SpeedLimit is null || north.Ground.SpeedLimit > 0,
+            $"NORTH should proceed, got limit={north.Ground.SpeedLimit?.ToString("F1") ?? "null"}"
+        );
+    }
 }

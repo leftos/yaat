@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Aircraft on neighbouring parallel taxiways no longer slow to a crawl or stop for each other as they pass; the wingtip-room test that already let traffic pass a parked aircraft now also applies to a mover on a parallel lane.
+
 ## v0.13.3-beta [2026/09/21]
 
 ### Highlights
