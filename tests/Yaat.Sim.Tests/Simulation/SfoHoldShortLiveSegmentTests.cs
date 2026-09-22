@@ -336,7 +336,7 @@ public class SfoHoldShortLiveSegmentTests(ITestOutputHelper output)
     {
         const double MaxCrossTrackFt = 200.0;
 
-        double eastBearing = EastBearingAlongB(layout, junction);
+        double eastBearing = EastBearingAlongB(junction);
         GroundNode best = junction;
         double bestScore = double.MaxValue;
         double bestAlongFt = 0;
@@ -366,7 +366,7 @@ public class SfoHoldShortLiveSegmentTests(ITestOutputHelper output)
     }
 
     /// <summary>Bearing from <paramref name="junction"/> along B toward the rising longitude (east).</summary>
-    private static double EastBearingAlongB(AirportGroundLayout layout, GroundNode junction)
+    private static double EastBearingAlongB(GroundNode junction)
     {
         foreach (IGroundEdge edge in junction.Edges)
         {
