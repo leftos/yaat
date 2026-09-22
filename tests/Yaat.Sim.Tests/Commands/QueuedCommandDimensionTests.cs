@@ -961,6 +961,36 @@ public class QueuedCommandDimensionTests
         Assert.Equal(CommandDimension.Ground, block.Dimensions);
     }
 
+    /// <summary>
+    /// A leading APT is peeled off the front of its own block and applied before the rest of the block is
+    /// dispatched, so the remainder holds fewer commands than the source text it carries. The matcher has to
+    /// recognise the block in the tail of the re-parsed candidate; matching the candidate whole finds nothing
+    /// and the restore drops the instruction with "queued command lost after restore".
+    /// </summary>
+    [Fact]
+    public void RestoredPeeledRemainder_MatchesTheTailOfItsSourceText()
+    {
+        AircraftState ac = AirborneAtOakland();
+        Dispatch("APT OAK, ELB 28L 4", ac, preserveConditionals: false);
+
+        CommandBlock queued = ac.Queue.Blocks[^1];
+        Assert.Equal("APT OAK, ELB 28L 4", queued.SourceCommandText);
+        Assert.Single(queued.Commands);
+        Assert.Equal(CommandDescriber.DescribeCommand(queued.ParsedCommands![0]), queued.Description);
+
+        // What a snapshot restore leaves: the durable fields, with ParsedCommands and ApplyAction gone.
+        var restored = CommandBlock.FromSnapshot(queued.ToSnapshot());
+        Assert.Null(restored.ParsedCommands);
+
+        Assert.True(
+            CommandDispatcher.RehydrateRestoredBlock(restored, ac, Ctx(preserveConditionals: true)),
+            "the peeled remainder must rehydrate from the tail of its source text"
+        );
+        Assert.Single(restored.ParsedCommands!);
+        Assert.IsType<EnterLeftBaseCommand>(restored.ParsedCommands![0]);
+        Assert.NotNull(restored.ApplyAction);
+    }
+
     // ---------------------------------------------------------------------------------------------------
     // The dry-run clone must model the WHOLE partition. ClearConflictingBlocks removes every pending block
     // and returns the survivors for the caller to re-append (DispatchCompoundCore does that after

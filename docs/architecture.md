@@ -745,6 +745,9 @@ Commands/CommandDispatcher.cs       # Static: DispatchCompound (phase interactio
                                     # SplitBlockNonConflicting: splits mixed-dimension blocks on partial conflicts
                                     # RejectFlightPlanCommand: refuses DA/FP/RMK at both public entries (the server applies flight-plan edits; replay skips them)
                                     # ApplyCommandCore passes ctx.GroundLayout to CTOPP/ATXI/LAND handlers
+                                    # ClearPhaseChain: the one phase-teardown path (immediate dispatch, triggered re-dispatch, APT to another airport)
+                                    # PeelTransparentHead: a leading all-transparent `;` block, or a leading APT inside a `,` block (`APT OAK, ELB 28L 4`),
+                                    # applies first and the remainder re-dispatches fresh; RehydrateRestoredBlock matches a peeled remainder by command-count suffix
 Commands/ConditionalList.cs         # Unified conditional list: pending queue trigger blocks + DeferredDispatches (WAIT/WAITD/BEHIND)
                                     # Enumerate/ToLines/Delete — backs SHOWAT/SHOWCOND, Pending Cmds column, DELAT/DELCOND/DC; excludes reaction-delay deferrals
 Commands/DispatchContext.cs         # Record: GroundLayout, Rng, Weather, FindAircraft/ListAircraft, ValidateDctFixes, AutoCrossRunway, PreserveConditionals, IsScenarioScripted,
@@ -818,7 +821,9 @@ Commands/RunwaySafetyAdvisor.cs     # Non-blocking 7110.65 3-9-4/3-9-6 occupied-
                                     # Suppressed when ArtccConfigResolver.AirportHasFullSafetyLogic finds an ASDE-X config with runway configurations
                                     # for the airport (CRC Safety Logic covers the incursion there)
 Commands/FlightPlanCommandHandler.cs # Flight-plan amendment validation: TryChangeDestination resolves FAA/ICAO airport input via NavigationDatabase.TryResolveAirport,
-                                    # writes canonical ICAO to FlightPlan.Destination, rejects unknown airports; clears the arrival procedure state the old destination had.
+                                    # writes canonical ICAO to FlightPlan.Destination, rejects unknown airports; clears the arrival procedure state the old destination had,
+                                    # cancelling (ClearPhaseChain + "cancelled by APT OAK" warning) a pattern/approach/go-around flown to another airport; APT to the
+                                    # airport it is already arriving at is a plan correction that keeps everything; a departure's chain is never touched.
                                     # The dispatcher's ChangeDestination arm (phase-transparent, so a bare APT edits a parked or holding aircraft's plan) on every run kind
 Commands/FlightPlanNormalization.cs # Flight-plan input normalization shared by the typed FP/VP/DA verbs (the router's flight-plan arm) and the CRC editor: type/suffix split
                                     # (default suffix A), FAA→ICAO airport canonicalization (unknown identifiers pass through; the amend variant keeps the clear sentinel),

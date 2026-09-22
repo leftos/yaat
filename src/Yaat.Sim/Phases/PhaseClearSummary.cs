@@ -78,7 +78,11 @@ public static class PhaseClearSummary
         return current.Name;
     }
 
-    private static bool IsPatternFamily(Phase p) =>
+    /// <summary>
+    /// True for a phase that belongs to a VFR circuit or the final/landing pair an instrument approach
+    /// shares with it. Shared with the destination-change teardown so "flying a pattern" means one thing.
+    /// </summary>
+    internal static bool IsPatternFamily(Phase p) =>
         p
             is PatternEntryPhase
                 or UpwindPhase

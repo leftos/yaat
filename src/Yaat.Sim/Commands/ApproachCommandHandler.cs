@@ -1933,22 +1933,53 @@ public static class ApproachCommandHandler
     internal static void ClearPendingApproach(AircraftState aircraft) => aircraft.Approach.PendingClearance = null;
 
     /// <summary>
-    /// Clears arrival procedure state when the destination airport or routing context is superseded
-    /// (e.g. APT to a new airport). Does not clear departure-only fields such as <see cref="AircraftProcedure.DepartureRunway"/>,
-    /// and does not tear down ground-departure phases (taxi, lineup, takeoff) when the aircraft is not in an
-    /// arrival-approach context.
+    /// Clears arrival procedure state when the destination airport is superseded (APT to another airport).
+    ///
+    /// Two gates decide what happens. The first is intent: only an aircraft that is actually arriving
+    /// somewhere — an approach cleared or pending, a VFR circuit, a go-around, a landing clearance — has an
+    /// arrival to lose. A departure never does, airborne or not: <see cref="PhaseList.AssignedRunway"/> is
+    /// the DEPARTURE runway while <see cref="InitialClimbPhase"/> owns the climb-out, so an airport test
+    /// alone would destroy the climb chain of a jet that had just left the field. The second gate is the
+    /// airport: when the arrival is flown to <paramref name="newDestination"/> already, the edit is the RPO
+    /// correcting a mis-filed plan toward the airport the aircraft is being worked into, and nothing is
+    /// cleared at all — cancelling the approach and wiping the route it is flying would be the opposite of
+    /// what was asked. Otherwise the arrival belongs to the airport being left: the whole phase chain goes
+    /// through <see cref="CommandDispatcher.ClearPhaseChain"/> (runway assignment and landing clearance with
+    /// it, the RPO warned that <paramref name="cancelledBy"/> cancelled it), so a following pattern entry
+    /// resolves its runway at the new airport, and the route, STAR, expected approach and destination runway
+    /// are dropped. Departure-only fields such as <see cref="AircraftProcedure.DepartureRunway"/> are never
+    /// touched.
     /// </summary>
-    internal static void ClearArrivalProcedureState(AircraftState aircraft)
+    internal static void ClearArrivalProcedureState(AircraftState aircraft, string newDestination, string cancelledBy)
     {
-        bool hadArrivalApproach =
+        Phase? current = aircraft.Phases?.CurrentPhase;
+        bool hasArrivalIntent =
             aircraft.Approach.PendingClearance is not null
             || aircraft.Phases?.ActiveApproach is not null
-            || IsArrivalApproachPhase(aircraft.Phases?.CurrentPhase);
+            || IsArrivalApproachPhase(current)
+            || (current is not null && PhaseClearSummary.IsPatternFamily(current))
+            || current is GoAroundPhase
+            || aircraft.Phases?.LandingClearance is not null;
 
-        if (hadArrivalApproach && aircraft.Phases is not null)
+        string? arrivalAirport =
+            aircraft.Phases?.AssignedRunway?.AirportId
+            ?? aircraft.Phases?.ActiveApproach?.AirportCode
+            ?? aircraft.Approach.PendingClearance?.Clearance.AirportCode;
+
+        if (hasArrivalIntent && arrivalAirport is not null && NavigationDatabase.Instance.AirportIdsMatchResolved(arrivalAirport, newDestination))
         {
-            PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft);
-            aircraft.Phases.Clear(ctx);
+            return;
+        }
+
+        if (hasArrivalIntent && aircraft.Phases is not null)
+        {
+            CommandDispatcher.ClearPhaseChain(aircraft, cancelledBy);
+        }
+        else
+        {
+            // ClearPhaseChain drops the FOLLOW state itself; without a chain to tear down, a FOLLOW aimed
+            // at traffic into the old airport still has to go with the rest of the arrival state below.
+            Phases.AirborneFollowHelper.ClearFollowState(aircraft);
         }
 
         ClearPendingApproach(aircraft);
@@ -1961,7 +1992,6 @@ public static class ApproachCommandHandler
         aircraft.Procedure.StarViaFloor = null;
         aircraft.Approach.HasReportedFieldInSight = false;
         aircraft.Approach.HasReportedTrafficInSight = false;
-        Phases.AirborneFollowHelper.ClearFollowState(aircraft);
         aircraft.PendingObservations.RemoveAll(o => o is TrafficAcquisitionObservation);
     }
 

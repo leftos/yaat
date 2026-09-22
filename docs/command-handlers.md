@@ -94,7 +94,7 @@ one unconditional block and calls `DispatchCompound`; there is no second dispatc
 5. **Dry-run validation** — `DryRunValidate` (`:812`) runs the first block on a clone whose queue has first been cleared the way step 7 will
    clear it. If it fails, return the error; **real state is unchanged**.
 6. **Post-validation phase clear** — only now (after dry-run passes) does the deferred `ClearsPhase` actually clear the `PhaseList`
-   (`CommandDispatcher.cs:176`).
+   (`CommandDispatcher.ClearPhaseChain`).
 7. **Dimension-aware queue clearing** — `ClearConflictingBlocks` (`:1798`) removes queued blocks whose dimensions overlap the incoming command;
    non-conflicting blocks survive and are re-appended.
 8. **Enqueue + apply first block** — `EnqueueBlocks` (`:1985`) appends the new blocks; the first new block with no trigger is applied immediately via
@@ -134,8 +134,10 @@ Both are `CommandResult` values detected by identity/substring, **not** exceptio
 - `PhaseShouldBeCleared` (`CommandDispatcher.cs:25`) — a private static `CommandResult` instance. `DispatchCompoundCore` and `BuildApplyAction` test
   it with `ReferenceEquals`. Clearing is deferred until after `DryRunValidate` succeeds so an invalid command never destroys pattern/approach state.
   The clear sequence (build a `PhaseContext` via `BuildMinimalContext`, capture a `PhaseClearSummary`, `Phases.Clear(ctx)`, null out `Phases`, reset
-  turn-rate overrides, `AirborneFollowHelper.ClearFollowState`) is **re-implemented identically** at `CommandDispatcher.cs:176` (immediate dispatch)
-  and `CommandDispatcher.cs:2110` (triggered re-dispatch). Both sites must stay in sync.
+  turn-rate overrides, `AirborneFollowHelper.ClearFollowState`, `ResumeAssignedAltitudeAfterPhaseClear`, then the "… cancelled by …" warning) is
+  `CommandDispatcher.ClearPhaseChain(aircraft, cancelledBy)`, called from `DispatchCompoundCore` (immediate dispatch), the triggered re-dispatch,
+  and `ApproachCommandHandler.ClearArrivalProcedureState` (an `APT` to an airport other than the one an arrival — approach, pattern, go-around or
+  landing clearance — is flown to; a departure's chain is never torn down, and an `APT` to the airport already being arrived at clears nothing).
 - `CommandResult.NoDispatcherArm` — set true by `ApplyCommand`'s `default:` arm, which also logs the command type (for bug triage) and
   returns a plain user-facing message: a ground command to an airborne aircraft → "… requires the aircraft to be on the ground", otherwise
   "Unable to …". `DryRunApplyCommand` and `WithRejectedCommand` branch on the typed flag (no message-string parsing) to know a verb fell
@@ -374,8 +376,8 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
 - **`PhaseShouldBeCleared` is a sentinel value, not an exception** — detected by `ReferenceEquals`. The no-dispatcher-arm case is the typed
   `CommandResult.NoDispatcherArm` flag. Returning a generic failure where one is expected silently breaks tower-fallback routing.
 - **Phase clearing is deferred until after dry-run.** `DispatchWithPhase` returns the sentinel rather than clearing in place; clearing before
-  validation would destroy pattern/approach state on a command that then fails. The same clear sequence is duplicated in `BuildApplyAction`
-  (`:2110`) for triggered blocks — both sites must stay in sync.
+  validation would destroy pattern/approach state on a command that then fails. Immediate dispatch, the triggered re-dispatch in
+  `BuildApplyAction`, and `ClearArrivalProcedureState` (APT to another airport) all clear through `CommandDispatcher.ClearPhaseChain`.
 - **Dry-run runs the first block on a clone.** Handlers must be clone-safe: any write to a singleton, a sibling aircraft, or off-clone state leaks
   out. `TerminalEmitter` is nulled in the dry-run context specifically so SAY-class verbs don't broadcast phantom pilot transmissions.
 - **Never call `Queue.Clear()` in a handler.** Queue clearing is dimension-aware (`ClearConflictingBlocks` + `SplitBlockNonConflicting`); a handler
@@ -411,14 +413,19 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
   The **broad** list has a second job inside the gate: it is what `FindPhaseGateDriverIndex` uses to skip transparent siblings when picking the
   command the phase's `CanAcceptCommand` is asked about. Adding a status verb to only the narrow list therefore still lets it wrongly drive the gate
   when it leads a mixed parallel block.
-- **A mixed parallel block gates on its interactive command, not its first.** `SQ, SQNORM, PUSH` is one block of three parallel commands. Because
-  `PUSH` is not transparent, the block loses the `IsAllTransparent` fast path and reaches the gate — where the *driver* (`PUSH`), not the leading
-  `SQ`, is checked against `CanAcceptCommand`, and the transparent siblings are applied via `ApplyParallelSibling`. Order within the block does not
-  matter. Regression coverage: `PhaseTransparentCommandTests.ParallelBlock_*_AtParking_AppliesAll`. The `;`-sequenced form is handled one step
-  earlier: `DispatchCompoundCore` **peels** a leading all-transparent block (`SQ; SQNORM; PUSH; …`), applies it immediately, and re-dispatches the
-  remainder, so the gate is always driven by a block that contains a phase-interactive command (issue #407 — before the peel, a lone leading `SQ`
-  fell through `FindPhaseGateDriverIndex`'s fallback, drove the gate, and `AtParkingPhase` rejected the whole compound). Unlike the atomic `,`
-  block, a sequential head commits before a later block can fail. Regression coverage: `SequentialTransparentCompoundTests`.
+- **A mixed parallel block gates on its interactive command, not its first.** `PUSH, SQ, SQNORM` is one block of three parallel commands. Because
+  `PUSH` is not transparent, the block loses the `IsAllTransparent` fast path and reaches the gate — where the *driver* (`PUSH`) is checked against
+  `CanAcceptCommand`, and the transparent siblings after it are applied via `ApplyParallelSibling`. Regression coverage:
+  `PhaseTransparentCommandTests.ParallelBlock_*_AtParking_AppliesAll`. Order within the block does not matter, with one exception. Two heads are
+  **peeled** by `DispatchCompoundCore` before the gate (`PeelTransparentHead`): a leading all-transparent `;` block (`SQ; SQNORM; PUSH; …`, issue
+  #407 — before the peel, a lone leading `SQ` fell through `FindPhaseGateDriverIndex`'s fallback, drove the gate, and `AtParkingPhase` rejected the
+  whole compound), and a leading `APT` inside a `,` block (`APT OAK, ELB 28L 4, CLAND` → head `APT OAK`, remainder `ELB 28L 4, CLAND`). The head
+  applies immediately and the remainder re-dispatches fresh. The `,` peel is APT-only on purpose: a pattern entry resolves its runway at whichever
+  airport the flight plan names when it runs, so `APT` typed first must land first — while other transparent verbs (`TR`, `EXP`, `DELAT`, …) are
+  not order-free, and peeling `TR 3, FH 090` would apply the turn rate before the `FH` phase clear wipes it. The price is that a peeled head
+  commits before the rest of its own block can fail (`Destination changed to KOAK; but Runway 35L not found at OAK`), as a `;` head always did.
+  Regression coverage: `SequentialTransparentCompoundTests`, `AptCancelsPatternAtOtherAirportTests`,
+  `PhaseTransparentCommandTests.ParallelBlock_LeadingTurnRate_SurvivesPhaseClear`.
 - **Installing a phase has a lifecycle.** Build a fresh `PhaseList`, `Clear()` the old one with a `PhaseContext`, `Add` phases, then `Start()` with
   another `PhaseContext` (see `DispatchJfac`, `TryAirborneFollow` at `CommandDispatcher.cs:2387` — the install sequence is at `:2452`, `DispatchHoldingPattern`). Use
   `BuildMinimalContext` (`:1666`) to construct the `PhaseContext`. Skip the `Clear()`/`Start()` and you leave stale phase indices or unstarted phases.

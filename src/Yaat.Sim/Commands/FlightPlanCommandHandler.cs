@@ -12,9 +12,10 @@ internal static class FlightPlanCommandHandler
 {
     /// <summary>
     /// Validates the user-supplied airport identifier, normalizes it to the canonical
-    /// ICAO form, and writes it to <c>aircraft.FlightPlan.Destination</c>. Returns a
-    /// failure <see cref="CommandResult"/> (without mutating the aircraft) if the input
-    /// is empty or does not match any known airport.
+    /// ICAO form, and writes it to <c>aircraft.FlightPlan.Destination</c>. A real change of
+    /// airport also clears the arrival state tied to the old one, cancelling an approach or
+    /// pattern flown to a runway there. Returns a failure <see cref="CommandResult"/>
+    /// (without mutating the aircraft) if the input is empty or does not match any known airport.
     /// </summary>
     internal static CommandResult TryChangeDestination(AircraftState aircraft, string input)
     {
@@ -32,7 +33,7 @@ internal static class FlightPlanCommandHandler
         string? previous = aircraft.FlightPlan.Destination;
         if (!string.IsNullOrEmpty(previous) && !previous.Equals(canonical, StringComparison.OrdinalIgnoreCase))
         {
-            ApproachCommandHandler.ClearArrivalProcedureState(aircraft);
+            ApproachCommandHandler.ClearArrivalProcedureState(aircraft, canonical, $"APT {NavigationDatabase.NormalizeAirport(canonical)}");
         }
 
         aircraft.FlightPlan.Destination = canonical;

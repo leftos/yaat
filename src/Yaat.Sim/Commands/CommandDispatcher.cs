@@ -254,38 +254,30 @@ public static class CommandDispatcher
         // the remainder as if it had been typed alone. Without the peel, the lone transparent
         // command became the phase-gate driver and a restrictive phase (AtParkingPhase)
         // rejected the whole compound (issue #407). Sequencing a transparent command is
-        // instantaneous, so applying it up front preserves `;` semantics; unlike a `,` block
-        // (one atomic instant, gated before anything applies), a sequential head may commit
-        // before a later block fails — that partial progress is inherent to `;`.
+        // instantaneous, so applying it up front preserves `;` semantics; a sequential head may
+        // commit before a later block fails — that partial progress is inherent to `;`.
+        //
+        // Inside a `,` block only APT is peeled to the front (`APT OAK, ELB 28L 4, CLAND` → head
+        // `APT OAK`, remainder `ELB 28L 4, CLAND`), because a pattern entry or approach behind it
+        // resolves its runway at whichever airport the flight plan names when it runs — unpeeled, the
+        // block applied the entry first and refused it with "Runway 28L not found at SJC" (N428KK).
+        // No other phase-transparent verb is peeled: the list is not a list of order-free commands.
+        // TR sets a turn-rate override that a following phase-clearing verb (FH) wipes, EXP assigns an
+        // altitude, DELAT edits the queue the rest of the block then writes — each of those has to keep
+        // its place among its siblings. The price of the peel is that such a `,` head carries the same
+        // partial-commit caveat as a `;` head: the block is no longer one atomic instant gated before
+        // anything applies, so a head that applied stays applied when the rest of its own block fails
+        // (the response then reads "<head>; but <why>").
         if (compound.Blocks.Count > 1 && IsFullyTransparentBlock(compound.Blocks[0]))
         {
-            CommandResult headResult = ApplyTransparentCompound(
-                new CompoundCommand([compound.Blocks[0]]) { SourceText = compound.SourceText },
-                aircraft,
-                ctx
-            );
-            if (!headResult.Success)
-            {
-                return headResult;
-            }
+            var sequentialRemainder = new CompoundCommand([.. compound.Blocks.Skip(1)]) { SourceText = compound.SourceText };
+            return PeelTransparentHead(compound.Blocks[0], sequentialRemainder, " ; then ", aircraft, ctx);
+        }
 
-            var remainder = new CompoundCommand([.. compound.Blocks.Skip(1)]) { SourceText = compound.SourceText };
-            CommandResult tailResult = DispatchCompoundCore(remainder, aircraft, ctx);
-            string headMsg = headResult.Message ?? "";
-            if (string.IsNullOrEmpty(headMsg))
-            {
-                return tailResult;
-            }
-
-            return tailResult.Success
-                ? tailResult with
-                {
-                    Message = string.IsNullOrEmpty(tailResult.Message) ? headMsg : $"{headMsg} ; then {tailResult.Message}",
-                }
-                : tailResult with
-                {
-                    Message = $"{headMsg}; but {tailResult.Message}",
-                };
+        if (compound.Blocks.Count > 0 && TakeLeadingDestinationChanges(compound.Blocks[0]) is { } split)
+        {
+            var parallelRemainder = new CompoundCommand([split.Tail, .. compound.Blocks.Skip(1)]) { SourceText = compound.SourceText };
+            return PeelTransparentHead(split.Head, parallelRemainder, ", ", aircraft, ctx);
         }
 
         // Pattern modifiers (EXT / SA / MNA) on an aircraft with no active phase must apply directly,
@@ -719,6 +711,72 @@ public static class CommandDispatcher
     /// </summary>
     private static bool IsFullyTransparentBlock(ParsedBlock block) =>
         block.Condition is null && block.Commands.Count > 0 && block.Commands.All(IsTransparentCommand);
+
+    /// <summary>
+    /// Splits a parallel block that opens with one or more <c>APT</c>s into that leading run and the rest
+    /// (<c>APT OAK, ELB 28L 4, CLAND</c> → head <c>APT OAK</c>, tail <c>ELB 28L 4, CLAND</c>), so the
+    /// destination is in force before the siblings that read it resolve their runway. Null — no split —
+    /// when the block is conditional, holds a single command, opens with anything but <c>APT</c>, or is
+    /// <c>APT</c> all through: the tail is never empty, and an all-transparent block belongs to the
+    /// <c>;</c>-head peel and the all-transparent fast path instead. Only <c>APT</c> is taken; the rest of
+    /// the phase-transparent list is not order-free and keeps its place among its siblings.
+    /// </summary>
+    private static (ParsedBlock Head, ParsedBlock Tail)? TakeLeadingDestinationChanges(ParsedBlock block)
+    {
+        if (block.Condition is not null || block.Commands.Count <= 1)
+        {
+            return null;
+        }
+
+        List<ParsedCommand> leading = [.. block.Commands.TakeWhile(cmd => cmd is ChangeDestinationCommand)];
+        if (leading.Count == 0 || leading.Count == block.Commands.Count)
+        {
+            return null;
+        }
+
+        return (new ParsedBlock(null, leading), new ParsedBlock(null, [.. block.Commands.Skip(leading.Count)]));
+    }
+
+    /// <summary>
+    /// Applies a transparent head block immediately and dispatches the rest of the compound fresh, joining
+    /// the two responses with <paramref name="successSeparator"/> — <c>" ; then "</c> for a sequential head,
+    /// <c>", "</c> for commands peeled off the front of one parallel block, which the RPO typed as one
+    /// instant. The head is applied through <see cref="ApplyTransparentCompound"/>, which stops at its first
+    /// failing command: a head that fails returns alone, but a multi-command head may already have applied
+    /// the commands ahead of the failure. A head that applied is named in the failure of whatever follows it,
+    /// so the RPO reads which half of the transmission took effect.
+    /// </summary>
+    private static CommandResult PeelTransparentHead(
+        ParsedBlock head,
+        CompoundCommand remainder,
+        string successSeparator,
+        AircraftState aircraft,
+        DispatchContext ctx
+    )
+    {
+        CommandResult headResult = ApplyTransparentCompound(new CompoundCommand([head]) { SourceText = remainder.SourceText }, aircraft, ctx);
+        if (!headResult.Success)
+        {
+            return headResult;
+        }
+
+        CommandResult tailResult = DispatchCompoundCore(remainder, aircraft, ctx);
+        string headMsg = headResult.Message ?? "";
+        if (string.IsNullOrEmpty(headMsg))
+        {
+            return tailResult;
+        }
+
+        return tailResult.Success
+            ? tailResult with
+            {
+                Message = string.IsNullOrEmpty(tailResult.Message) ? headMsg : $"{headMsg}{successSeparator}{tailResult.Message}",
+            }
+            : tailResult with
+            {
+                Message = $"{headMsg}; but {tailResult.Message}",
+            };
+    }
 
     private static bool IsAllTransparent(CompoundCommand compound)
     {
@@ -3105,6 +3163,12 @@ public static class CommandDispatcher
     /// path and the pattern pre-arm already recover from) and picks this block's sub-block by matching
     /// the serialized <see cref="CommandBlock.Description"/> against each candidate's regenerated
     /// description — longest match wins, so a candidate that is a suffix of another can't shadow it.
+    ///
+    /// A block may hold fewer commands than the candidate it came from: a leading <c>APT</c> is peeled off
+    /// the front of its block before the rest is dispatched, and the remainder keeps the whole original
+    /// source text. So each candidate is matched on its last <see cref="CommandBlock.Commands"/><c>.Count</c>
+    /// commands — that list of <see cref="TrackedCommand"/>s is serialized (<c>CommandBlockDto.Commands</c>),
+    /// one entry per parsed command, so it survives the restore and says how many commands this block holds.
     /// Returns false when the text no longer parses or no candidate matches (the caller warns).
     /// </summary>
     internal static bool RehydrateRestoredBlock(CommandBlock block, AircraftState aircraft, DispatchContext ctx)
@@ -3120,14 +3184,21 @@ public static class CommandDispatcher
             return false;
         }
 
+        int commandCount = block.Commands.Count;
         List<ParsedCommand>? matched = null;
         int matchedLength = -1;
         foreach (ParsedBlock candidate in compound.Blocks)
         {
-            string candidateDescription = string.Join(", ", candidate.Commands.Select(CommandDescriber.DescribeCommand));
+            if (commandCount == 0 || candidate.Commands.Count < commandCount)
+            {
+                continue;
+            }
+
+            List<ParsedCommand> suffix = [.. candidate.Commands.Skip(candidate.Commands.Count - commandCount)];
+            string candidateDescription = string.Join(", ", suffix.Select(CommandDescriber.DescribeCommand));
             if (candidateDescription.Length > matchedLength && block.Description.EndsWith(candidateDescription, StringComparison.Ordinal))
             {
-                matched = [.. candidate.Commands];
+                matched = suffix;
                 matchedLength = candidateDescription.Length;
             }
         }

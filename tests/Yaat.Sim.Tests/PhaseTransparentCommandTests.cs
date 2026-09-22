@@ -316,8 +316,8 @@ public class PhaseTransparentCommandTests
 
     /// <summary>
     /// Bug: a parallel block mixing phase-transparent commands with one phase-interactive
-    /// command (<c>SQ 0233, SQNORM, PUSH</c>) loses the all-transparent fast path, so it routes
-    /// through DispatchWithPhase — which gated the block on its FIRST command. That first command
+    /// command (<c>SQ 0233, SQNORM, PUSH</c>) loses the all-transparent fast path, so it reached
+    /// DispatchWithPhase — which gated the block on its FIRST command. That first command
     /// was the transparent SQ, which AtParkingPhase.CanAcceptCommand rejects ("aircraft is parked
     /// with engines off"), even though each command succeeds when issued individually. The
     /// phase-interactive command must drive the gate regardless of its position in the block.
@@ -364,6 +364,27 @@ public class PhaseTransparentCommandTests
         Assert.Equal(233u, ac.Transponder.Code);
         Assert.Equal("C", ac.Transponder.Mode);
         Assert.False(ac.Phases?.CurrentPhase is AtParkingPhase, "PUSH should have moved the aircraft out of AtParkingPhase");
+    }
+
+    /// <summary>
+    /// A phase-transparent verb that owns control state keeps its place among its siblings. <c>TR 3, FH 090</c>
+    /// on a pattern aircraft cancels the pattern and leaves the 3°/s turn rate in force, because the whole
+    /// block applies after the phase chain is torn down. Applying the TR ahead of the block instead would set
+    /// the override and then have the chain teardown wipe it, so the vector would fly at the default rate.
+    /// </summary>
+    [Fact]
+    public void ParallelBlock_LeadingTurnRate_SurvivesPhaseClear()
+    {
+        AircraftState ac = MakeAircraftInUpwind();
+        Assert.IsType<UpwindPhase>(ac.Phases!.CurrentPhase);
+
+        var compound = new CompoundCommand([new ParsedBlock(null, [new SetTurnRateCommand(3.0), new FlyHeadingCommand(new MagneticHeading(90))])]);
+        CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
+
+        Assert.True(result.Success, result.Message);
+        Assert.Null(ac.Phases);
+        Assert.True(ac.Targets.HasExplicitTurnRate, "TR must survive the phase clear its sibling vector triggers");
+        Assert.Equal(3.0, ac.Targets.TurnRateOverride);
     }
 
     private static AircraftState MakeAircraftOnFinalApproach()
