@@ -318,6 +318,50 @@ public class StripStepTests
     }
 
     [Fact]
+    public void BlankDelete_NoRack_DeletesABlankOutsideRackZero()
+    {
+        if (Engine(DepartureAtOak, "OAK_TWR", "TWR") is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+
+        // A single blank in rack 2 (1-based) of Ground 1; rack 1 is empty.
+        ActionOutcome created = Issue(engine, host, "", "BLANK OAK/Ground 1/2");
+        Assert.True(created.Result.Success, created.Result.Message);
+        StripItemRecord blank = Assert.Single(engine.Strips.Items.Values, i => i.Type == StripMutations.BlankStripType);
+        Assert.Equal(1, blank.Rack);
+
+        // BLANKD with no rack must delete a blank anywhere in the bay — blanks are fungible
+        // (docs/flight-strips.md: "deletes one blank from the specified bay/rack ... blanks are fungible").
+        ActionOutcome deleted = Issue(engine, host, "", "BLANKD OAK/Ground 1");
+
+        Assert.True(deleted.Result.Success, deleted.Result.Message);
+        Assert.DoesNotContain(engine.Strips.Items.Values, i => i.Type == StripMutations.BlankStripType);
+    }
+
+    [Fact]
+    public void BlankDelete_WithRack_LeavesBlanksInOtherRacks()
+    {
+        if (Engine(DepartureAtOak, "OAK_TWR", "TWR") is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        Assert.True(Issue(engine, host, "", "BLANK OAK/Ground 1/1").Result.Success);
+        Assert.True(Issue(engine, host, "", "BLANK OAK/Ground 1/2").Result.Success);
+
+        // Rack-scoped delete removes only the rack-1 (0-based) blank, leaving rack 0's.
+        ActionOutcome deleted = Issue(engine, host, "", "BLANKD OAK/Ground 1/2");
+
+        Assert.True(deleted.Result.Success, deleted.Result.Message);
+        StripItemRecord remaining = Assert.Single(engine.Strips.Items.Values, i => i.Type == StripMutations.BlankStripType);
+        Assert.Equal(0, remaining.Rack);
+    }
+
+    [Fact]
     public void DeferredAnnotate_AppliesInsideTheEngine()
     {
         if (Engine(DepartureAtOak, "OAK_TWR", "TWR") is not { } engine)
