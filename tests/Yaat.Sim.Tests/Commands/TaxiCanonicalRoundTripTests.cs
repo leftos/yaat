@@ -73,6 +73,13 @@ public class TaxiCanonicalRoundTripTests
     [InlineData("TAXI C D J HS C@J", "Taxi via C D J, hold short of C at J")]
     [InlineData("TAXI S T U @B12", "Taxi via S T U to parking B12")]
     [InlineData("TAXI C Z HS $17", "Taxi via C Z, hold short of spot 17")]
+    // A $spot in the path is a point on the route, said as "spot 7B" — never shown as the raw sigil.
+    [InlineData("TAXI A $7B @E2", "Taxi via A, spot 7B to parking E2")]
+    // The taxiway after a spot via gets the closing comma too, or it reads as part of the spot's name.
+    [InlineData("TAXI A $7B C @E2", "Taxi via A, spot 7B, C to parking E2")]
+    // A trailing $spot is the destination, not a via, and keeps its "to spot" wording.
+    [InlineData("TAXI TE $7A", "Taxi via TE to spot 7A")]
+    [InlineData("TAXI K $8 HS $8", "Taxi via K to spot 8, hold short of spot 8")]
     public void Natural_CarriesFullClearance(string input, string expectedNatural) =>
         Assert.Equal(expectedNatural, CommandDescriber.DescribeNatural(Parse(input)));
 }

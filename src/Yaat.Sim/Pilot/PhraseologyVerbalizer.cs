@@ -582,6 +582,26 @@ public static class PhraseologyVerbalizer
     }
 
     /// <summary>
+    /// The crew's answer to a hold-short the aircraft is already too close to make: <c>unable to hold short
+    /// of tango, stopping</c>. "Unable" is the P/CG word for exactly this — "indicates inability to comply
+    /// with a specific instruction, request, or clearance" — and AIM 4-4-7.c leaves the choice with the crew:
+    /// "it is the responsibility of the pilot to accept or refuse the clearance issued". The clearance being
+    /// refused is the one AIM 2-3-5.b.3 defines: told to hold short of a taxiway, "the pilot MUST STOP so that
+    /// no part of the aircraft extends beyond the holding position marking", which is what an aircraft inside
+    /// its braking distance cannot do. The shape — the word, then what the aircraft will do instead — follows
+    /// the 7110.65 §2-1-18.c template for the same exchange the other way round ("state the word 'UNABLE'
+    /// and, time permitting, a reason").
+    ///
+    /// <para>Direct-rendered rather than added as a <see cref="PhraseologyRule"/>: rules are bidirectional,
+    /// and this wording is a pilot answer that must never become controller input for STT to match.</para>
+    /// </summary>
+    /// <param name="target">The hold-short target as issued.</param>
+    /// <param name="spoken">True for the spoken (TTS) form, false for the compact terminal form.</param>
+    /// <returns>The rendered clause.</returns>
+    public static string RenderUnableHoldShort(HoldShortTarget target, bool spoken) =>
+        $"unable to hold short of {RenderHoldShortTarget(target, spoken ? Spoken : Terminal)}, stopping";
+
+    /// <summary>
     /// Spoken form of one hold-short target in a direct-rendered clause: <c>runway two eight right</c>
     /// for a runway target (the "runway" word is mandatory — a taxiway target read back as a runway
     /// would assert a runway hold the controller never issued), <c>charlie</c> for a taxiway target.

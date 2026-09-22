@@ -68,13 +68,24 @@ public static class RampLaneReposition
     private const double ParkedToleranceFt = 30.0;
 
     /// <summary>
+    /// Floor on <see cref="SpotAlignmentRunFt"/>. Not a published figure: 100 ft is a fuselage length for the
+    /// regional jets and turboprops that use SFO's spot lanes, and a run shorter than one of those is short
+    /// for anything. The length of an aircraft the FAA database has no record of comes from
+    /// <see cref="HoldShortAnnotator.CwtFallbackLengthFt"/>, which reads the type's wake category.
+    /// </summary>
+    private const double DefaultAircraftLengthFt = 100.0;
+
+    /// <summary>
     /// How much run along its own lane an arrival at a spot needs before the spot node. A spot marking is
     /// entered along the lane it sits on — that is what makes the aircraft end up parked along the lane rather
     /// than across it — so a crossing may only land far enough up the lane for the aircraft to be straight by
-    /// the time it reaches the marking. Not a published figure: 100 ft is a fuselage length for the regional
-    /// jets and turboprops that use SFO's spot lanes.
+    /// the time it reaches the marking. One fuselage of run, because that is the length that has to end up on
+    /// the line: a 242 ft widebody landing 110 ft up the lane is still crossing it when it reaches the marking,
+    /// where a 106 ft regional jet is straight.
     /// </summary>
-    private const double SpotAlignmentRunFt = 100.0;
+    /// <param name="aircraftLengthFt">Fuselage length of the arriving aircraft, in feet.</param>
+    /// <returns>Required run in feet.</returns>
+    private static double SpotAlignmentRunFt(double aircraftLengthFt) => Math.Max(DefaultAircraftLengthFt, aircraftLengthFt);
 
     /// <summary>
     /// How many times longer than the straight drive the remaining graph route must be before a resolved route is
@@ -208,7 +219,8 @@ public static class RampLaneReposition
         IReadOnlyList<string> path,
         GroundNode destination,
         ExplicitPathOptions options,
-        AircraftCategory category
+        AircraftCategory category,
+        double aircraftLengthFt
     )
     {
         if (destination.Type is not (GroundNodeType.Parking or GroundNodeType.Spot or GroundNodeType.Helipad))
@@ -274,7 +286,7 @@ public static class RampLaneReposition
             foreach ((GroundNode? target, double crossingFt) in reachable)
             {
                 TaxiRoute? tail = TaxiPathfinder.FindRoute(layout, target.Id, destination.Id, category);
-                if ((tail is null) || !EntersSpotAlongItsLane(destination, destinationLane, tail))
+                if ((tail is null) || !EntersSpotAlongItsLane(destination, destinationLane, tail, aircraftLengthFt))
                 {
                     continue;
                 }
@@ -489,7 +501,12 @@ public static class RampLaneReposition
     /// aircraft stopped on the marking at whatever heading the free-space leg happened to arrive on — which is
     /// across its own lane, not along it. Only spots are constrained; a gate is entered on its stand heading.
     /// </summary>
-    private static bool EntersSpotAlongItsLane(GroundNode destination, string destinationLane, TaxiRoute tail)
+    /// <param name="destination">The stand or spot the clearance ends at.</param>
+    /// <param name="destinationLane">The lane that destination sits on.</param>
+    /// <param name="tail">The graph route from the crossing's landing point to the destination.</param>
+    /// <param name="aircraftLengthFt">Fuselage length of the arriving aircraft, in feet.</param>
+    /// <returns>True when the tail enters the spot along its lane with enough run.</returns>
+    internal static bool EntersSpotAlongItsLane(GroundNode destination, string destinationLane, TaxiRoute tail, double aircraftLengthFt)
     {
         if (destination.Type != GroundNodeType.Spot)
         {
@@ -502,7 +519,9 @@ public static class RampLaneReposition
         }
 
         TaxiRouteSegment last = tail.Segments[^1];
-        return (last.ToNodeId == destination.Id) && last.Edge.Edge.MatchesTaxiway(destinationLane) && (tail.TotalDistanceFt >= SpotAlignmentRunFt);
+        return (last.ToNodeId == destination.Id)
+            && last.Edge.Edge.MatchesTaxiway(destinationLane)
+            && (tail.TotalDistanceFt >= SpotAlignmentRunFt(aircraftLengthFt));
     }
 
     private static bool HasStraightEdgeOf(GroundNode node, string lane) => node.Edges.Any(e => (e is GroundEdge) && e.MatchesTaxiway(lane));

@@ -366,6 +366,7 @@ public sealed class TaxiRoute
                     Reason = hs.Reason,
                     ClearedByAutoCross = hs.ClearedByAutoCross,
                     TailOverRunwayNodeId = hs.TailOverRunwayNodeId,
+                    Unable = hs.Unable,
                 }),
             ],
             Description = ToSummary(),
@@ -445,6 +446,7 @@ public sealed class TaxiRoute
                         Latitude = hs.Latitude,
                         Longitude = hs.Longitude,
                         TailOverRunwayNodeId = hs.TailOverRunwayNodeId,
+                        Unable = hs.Unable,
                     }
                 );
             }
@@ -508,6 +510,16 @@ public sealed class HoldShortPoint
     /// Computed hold-short position longitude. See <see cref="Latitude"/>.
     /// </summary>
     public double? Longitude { get; set; }
+
+    /// <summary>
+    /// True when the aircraft was already inside its own braking distance of this bar when the bar was
+    /// armed, so the painted stop cannot be made. <see cref="Latitude"/>/<see cref="Longitude"/> are then
+    /// moved forward to the point the aircraft can actually stop at (never past the node the bar protects),
+    /// the taxi brakes at the full taxi rate onto it, and the pilot answers "unable … stopping" instead of
+    /// reading back a hold it will not fly. Set once, at the moment the bar is armed; a bar the aircraft has
+    /// room for is never flagged.
+    /// </summary>
+    public bool Unable { get; set; }
 
     /// <summary>
     /// When this taxiway hold-short sits within a fuselage length past a runway the route crosses, the

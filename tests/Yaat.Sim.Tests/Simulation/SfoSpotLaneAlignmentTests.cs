@@ -27,6 +27,16 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
     /// <summary>Ground speed below which the aircraft counts as stopped.</summary>
     private const double AtRestKts = 1.0;
 
+    /// <summary>
+    /// The flat run floor the one-fuselage rule replaced, and the lower edge of the window the two disagree
+    /// over. Held here rather than read from <c>RampLaneReposition</c>, where it is now private: this is the
+    /// old rule the test contrasts against, and it must not follow the production constant if that moves.
+    /// </summary>
+    private const double RunFloorFt = 100.0;
+
+    /// <summary>How many spot-lane approaches the search below pathfinds before giving up.</summary>
+    private const int MaxLaneCandidates = 50;
+
     private static double DistanceFt(LatLon a, LatLon b) => GeoMath.DistanceNm(a, b) * GeoMath.FeetPerNm;
 
     /// <summary>Every direction the spot's own lane runs in at the spot node, both ways down each edge.</summary>
@@ -235,6 +245,90 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
         int stopped = TickToRest(engine, aircraft, maxSeconds: 300);
         Assert.True(stopped > 0, "SKW3396 never came to rest at spot 5A");
         AssertRestingOnSpotAlongLane(aircraft, spot5A, "T5A");
+    }
+
+    /// <summary>
+    /// The run a ramp cut must leave into a spot is one fuselage, not a flat 100 ft: a landing point that
+    /// gives a 106 ft regional jet room to straighten out leaves a 242 ft B77W still crossing its own lane
+    /// when its nose reaches the marking. Driven from a landing node the SFO graph really offers between the
+    /// two lengths, resolved from the layout rather than named.
+    /// </summary>
+    [Fact]
+    public void SpotAlignmentRun_IsOneFuselage_NotAFlatHundredFeet()
+    {
+        SfoGround? built = SfoGroundHarness.Build(output, autoCross: true);
+        if (built is null)
+        {
+            return;
+        }
+
+        AirportGroundLayout layout = built.Value.Layout;
+        double widebodyFt = FaaAircraftDatabase.Get("B77W")?.LengthFt ?? 0;
+        Assert.True(widebodyFt > 200.0, $"B77W length came back as {widebodyFt:F0} ft");
+
+        (GroundNode Spot, string Lane, TaxiRoute Tail)? found = FindShortLaneApproach(layout, widebodyFt);
+        if (found is null)
+        {
+            output.WriteLine($"no SFO spot lane offers a landing node between {RunFloorFt:F0} and {widebodyFt:F0} ft of run — nothing to compare");
+            return;
+        }
+
+        (GroundNode spot, string lane, TaxiRoute tail) = found.Value;
+        output.WriteLine($"spot {spot.Name} on {lane}: landing node gives {tail.TotalDistanceFt:F0} ft of run");
+
+        Assert.True(
+            RampLaneReposition.EntersSpotAlongItsLane(spot, lane, tail, RunFloorFt),
+            $"{tail.TotalDistanceFt:F0} ft is enough run for a {RunFloorFt:F0} ft aircraft"
+        );
+        Assert.False(
+            RampLaneReposition.EntersSpotAlongItsLane(spot, lane, tail, widebodyFt),
+            $"{tail.TotalDistanceFt:F0} ft of run was accepted for a {widebodyFt:F0} ft B77W"
+        );
+    }
+
+    /// <summary>
+    /// The first spot in the layout whose own lane offers a graph approach of between <see cref="RunFloorFt"/>
+    /// and <paramref name="widebodyFt"/> feet of run — the window where the flat 100 ft rule and the
+    /// one-fuselage rule disagree. Bounded at <see cref="MaxLaneCandidates"/> A* searches: SFO has enough
+    /// spots, lanes and nodes that an exhaustive sweep is minutes of pathfinding on the no-match path, and a
+    /// window this wide is either hit early or not there.
+    /// </summary>
+    /// <param name="layout">SFO ground layout.</param>
+    /// <param name="widebodyFt">Upper bound on the run, in feet.</param>
+    /// <returns>The spot, its lane, and the graph tail into it; null when the layout offers none.</returns>
+    private static (GroundNode Spot, string Lane, TaxiRoute Tail)? FindShortLaneApproach(AirportGroundLayout layout, double widebodyFt)
+    {
+        int tried = 0;
+        foreach (GroundNode spot in layout.Nodes.Values.Where(n => n.Type == GroundNodeType.Spot))
+        {
+            foreach (string lane in spot.Edges.Where(e => e is GroundEdge).Select(e => e.TaxiwayName).Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                foreach (GroundNode from in layout.GetNodesOnTaxiway(lane).Where(n => n.Id != spot.Id))
+                {
+                    if (++tried > MaxLaneCandidates)
+                    {
+                        return null;
+                    }
+
+                    TaxiRoute? tail = TaxiPathfinder.FindRoute(layout, from.Id, spot.Id, AircraftCategory.Jet);
+                    if (
+                        (tail is null)
+                        || (tail.Segments.Count == 0)
+                        || (tail.TotalDistanceFt < RunFloorFt)
+                        || (tail.TotalDistanceFt >= widebodyFt)
+                        || !tail.Segments[^1].Edge.Edge.MatchesTaxiway(lane)
+                        || (tail.Segments[^1].ToNodeId != spot.Id)
+                    )
+                    {
+                        continue;
+                    }
+
+                    return (spot, lane, tail);
+                }
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

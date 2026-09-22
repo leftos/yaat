@@ -72,4 +72,11 @@ public sealed class HoldShortPointDto
     /// (issue #172 tail-over-runway state). Null in the normal case and on legacy snapshots.
     /// </summary>
     public int? TailOverRunwayNodeId { get; init; }
+
+    /// <summary>
+    /// True when the bar could not be made when it was armed, so <see cref="Latitude"/>/<see cref="Longitude"/>
+    /// hold the stop the aircraft can actually reach rather than the painted line. Defaults to false on legacy
+    /// snapshots, which is correct: those routes carried only makeable bars.
+    /// </summary>
+    public bool Unable { get; init; }
 }

@@ -50,6 +50,14 @@ public sealed class TaxiingPhase : Phase
     private bool _startNodeHoldDone;
     private double _timeSinceLastLog;
 
+    // Set when a command changed the route's hold-shorts under a taxi already in progress. Transient —
+    // raised by the command handler and consumed by the next tick, never snapshotted; a replayed command
+    // raises it again at the same tick it did live.
+    private bool _holdShortsDirty;
+
+    /// <summary>Node of the bar whose stop was already moved forward for being unmakeable; moved once, never again.</summary>
+    private int? _unableStopNodeId;
+
     // Set when this phase completes to hand off to a still-moving CrossingRunwayPhase
     // (pre-cleared crossing), so OnEnd does not brake the aircraft to a stop. Transient —
     // set and consumed within the same completing tick, never snapshotted.
@@ -141,6 +149,16 @@ public sealed class TaxiingPhase : Phase
             _nav.RouteEndSpeedKts = routeEndSpeed;
             _nav.RefreshSpeedConstraints(route, ctx, nodeId => IsHoldShortCleared(route, nodeId));
             Log.LogDebug("[Taxi] {Callsign}: route-end speed re-planned to {Speed:F1}kt", ctx.Aircraft.Callsign, routeEndSpeed);
+        }
+
+        // A hold-short armed mid-segment (standalone HS, RES HS) after this segment's speed profile was
+        // built: re-aim at the bar and re-plan the braking now. Left to the next SetupCurrentSegment, the
+        // aircraft keeps the junction node as its target and only meets the bar on arrival, which it
+        // overruns — the SFO B/T case this phase's re-aim exists for.
+        if (_holdShortsDirty)
+        {
+            _holdShortsDirty = false;
+            ReaimAtChangedHoldShort(ctx, route);
         }
 
         // HOLD / GIVEWAY: the aircraft stops where it is, but the steering tick below still runs — see the
@@ -277,6 +295,7 @@ public sealed class TaxiingPhase : Phase
             TimeSinceLastLog = _timeSinceLastLog,
             PrevDistToTarget = _nav.PrevDistToTarget,
             Navigator = _nav.ToSnapshot(),
+            UnableStopNodeId = _unableStopNodeId,
         };
 
     public static TaxiingPhase FromSnapshot(TaxiingPhaseDto dto)
@@ -291,6 +310,7 @@ public sealed class TaxiingPhase : Phase
             // skip the segment the aircraft was traversing.
             _initialized = false,
             _timeSinceLastLog = dto.TimeSinceLastLog,
+            _unableStopNodeId = dto.UnableStopNodeId,
             Status = (PhaseStatus)dto.Status,
             ElapsedSeconds = dto.ElapsedSeconds,
         };
@@ -316,6 +336,171 @@ public sealed class TaxiingPhase : Phase
         }
 
         return phase;
+    }
+
+    /// <summary>
+    /// Tells a taxi already under way that the route's hold-short set changed — a standalone <c>HS</c> or a
+    /// <c>RES HS</c> armed a bar after the current segment's speed profile was built. The next tick re-aims
+    /// the navigator at that bar and re-plans the braking for it.
+    /// </summary>
+    public void NotifyHoldShortsChanged() => _holdShortsDirty = true;
+
+    /// <summary>
+    /// Distance (ft) an aircraft needs to brake from <paramref name="groundSpeedKts"/> to a standstill at
+    /// the category's taxi deceleration rate — v² / 2a, the same rate the navigator's braking curve and
+    /// <see cref="FlightPhysics"/> fly, so a bar inside this distance is one the aircraft physically cannot
+    /// stop at.
+    ///
+    /// <para>No reaction time is added, deliberately. At the jet taxi rate (5 kt/s) the figure already
+    /// matches a crew reacting and then braking hard: from 28 kt, v²/2a gives 132.3 ft where a 1 s reaction
+    /// (49.7 ft) plus a 0.42 g max-effort stop (82.7 ft) gives 132.4 ft, so a reaction term would double-count
+    /// it. The equivalence is the jet's; a piston at 2 kt/s over-reads by about 74 ft from 20 kt, which is
+    /// conservative — it calls a bar unmakeable a little early. No FAA document gives a taxi stopping
+    /// distance, so both the rate and this reading of it are judgement calls.</para>
+    /// </summary>
+    /// <param name="groundSpeedKts">Current ground speed in knots.</param>
+    /// <param name="category">Aircraft category, which sets the taxi brake rate.</param>
+    /// <returns>Braking distance in feet.</returns>
+    public static double HoldShortBrakingDistanceFt(double groundSpeedKts, AircraftCategory category)
+    {
+        double speedFtPerSec = groundSpeedKts * GeoMath.FeetPerNm / 3600.0;
+        double decelFtPerSec2 = CategoryPerformance.TaxiDecelRate(category) * GeoMath.FeetPerNm / 3600.0;
+        return decelFtPerSec2 <= 0 ? 0 : (speedFtPerSec * speedFtPerSec) / (2.0 * decelFtPerSec2);
+    }
+
+    /// <summary>
+    /// Distance (ft) left along the route before the aircraft reaches <paramref name="holdShort"/>'s painted
+    /// stop position: the remainder of the segment in progress plus every whole segment up to the bar's node,
+    /// less the setback the bar sits back from that node. Negative once the bar is behind the aircraft, and
+    /// <see cref="double.PositiveInfinity"/> when the bar has no computed position or is on no segment ahead
+    /// (nothing to measure, so nothing is ever called unmakeable on it).
+    /// </summary>
+    /// <param name="layout">Ground layout the route is resolved on.</param>
+    /// <param name="route">The route being taxied.</param>
+    /// <param name="position">The aircraft's current position.</param>
+    /// <param name="holdShort">The bar to measure to.</param>
+    /// <returns>Distance in feet.</returns>
+    public static double AlongRouteDistanceToHoldShortFt(AirportGroundLayout layout, TaxiRoute route, LatLon position, HoldShortPoint holdShort)
+    {
+        if (
+            holdShort.Latitude is not { } barLat
+            || holdShort.Longitude is not { } barLon
+            || !layout.Nodes.TryGetValue(holdShort.NodeId, out GroundNode? barNode)
+        )
+        {
+            return double.PositiveInfinity;
+        }
+
+        // The segment in progress is measured from the aircraft, whole segments by their own length. A route
+        // that has not started yet (CurrentSegmentIndex < 0) is walked from segment 0, which is then the one
+        // the aircraft is on. The in-progress leg is measured straight to the node rather than along the
+        // navigator's primitive: GroundNavigator publishes no remaining-distance for the arc or Bézier it is
+        // flying, so on a fillet this reads a little short — conservative, since it can only call a bar
+        // unmakeable sooner.
+        int firstIndex = Math.Max(0, route.CurrentSegmentIndex);
+        double alongFt = 0;
+        for (int i = firstIndex; i < route.Segments.Count; i++)
+        {
+            TaxiRouteSegment seg = route.Segments[i];
+            alongFt +=
+                i == firstIndex
+                    ? GeoMath.DistanceNm(position, seg.Edge.ToNode.Position) * GeoMath.FeetPerNm
+                    : seg.Edge.DistanceNm * GeoMath.FeetPerNm;
+
+            if (seg.ToNodeId == holdShort.NodeId)
+            {
+                return alongFt - (GeoMath.DistanceNm(new LatLon(barLat, barLon), barNode.Position) * GeoMath.FeetPerNm);
+            }
+        }
+
+        return double.PositiveInfinity;
+    }
+
+    /// <summary>
+    /// True when <paramref name="holdShort"/> is closer than the distance the aircraft needs to brake to a
+    /// stop: the painted bar cannot be made and the aircraft will come to rest past it whatever it does.
+    /// </summary>
+    /// <param name="layout">Ground layout the route is resolved on.</param>
+    /// <param name="route">The route being taxied.</param>
+    /// <param name="aircraft">The aircraft the bar was armed for.</param>
+    /// <param name="category">Aircraft category, which sets the taxi brake rate.</param>
+    /// <param name="holdShort">The bar to judge.</param>
+    /// <returns>True when the bar is unmakeable.</returns>
+    public static bool IsHoldShortUnmakeable(
+        AirportGroundLayout layout,
+        TaxiRoute route,
+        AircraftState aircraft,
+        AircraftCategory category,
+        HoldShortPoint holdShort
+    ) => AlongRouteDistanceToHoldShortFt(layout, route, aircraft.Position, holdShort) < HoldShortBrakingDistanceFt(aircraft.GroundSpeed, category);
+
+    /// <summary>
+    /// Re-aims the segment in progress at a bar armed after its profile was built, and — when that bar is
+    /// inside the aircraft's braking distance — slides it forward to the stop the aircraft can actually make
+    /// so the navigator brakes at the full taxi rate onto that point. Both halves end in a speed re-plan;
+    /// a change that touched no bar on this segment's target node re-plans only, since a bar further along
+    /// the route is picked up by the profile's forward walk.
+    /// </summary>
+    private void ReaimAtChangedHoldShort(PhaseContext ctx, TaxiRoute route)
+    {
+        if (
+            route.GetHoldShortAt(_nav.TargetNodeId) is { IsCleared: false, Latitude: not null, Longitude: not null } bar
+            && ctx.GroundLayout is { } layout
+        )
+        {
+            if (!bar.Unable && IsHoldShortUnmakeable(layout, route, ctx.Aircraft, ctx.Category, bar))
+            {
+                bar.Unable = true;
+            }
+
+            // Once per bar. A later hold-short change re-enters here with the bar already moved, and
+            // re-projecting from the aircraft's new position each time would ratchet the stop forward.
+            if (bar.Unable && (_unableStopNodeId != bar.NodeId))
+            {
+                MoveBarToBrakingDistance(ctx, layout, bar);
+                _unableStopNodeId = bar.NodeId;
+            }
+
+            _nav.OverrideTargetPosition(bar.Latitude.Value, bar.Longitude.Value);
+        }
+
+        _nav.RefreshSpeedConstraints(route, ctx, nodeId => IsHoldShortCleared(route, nodeId));
+    }
+
+    /// <summary>
+    /// Moves an unmakeable bar to the point the aircraft can stop at — its braking distance ahead on the
+    /// aircraft's current heading, clamped at the node the bar protects so the stop is never planned beyond
+    /// the intersection itself. The heading is the path's tangent where the aircraft is now; the straight
+    /// line to the node is its chord, which on a fillet arc would put the stop off the pavement.
+    ///
+    /// <para>Clamping at the node makes the modelled overrun a lower bound: an aircraft that cannot make the
+    /// bar does not stop at the junction either, it keeps going. For a runway target that matters — AIM
+    /// 2-3-5.a.1 makes the holding position marking the boundary of the runway safety area, so anything past
+    /// it is already an incursion, and the modelled stop understates how far in the aircraft ends up.</para>
+    /// </summary>
+    private static void MoveBarToBrakingDistance(PhaseContext ctx, AirportGroundLayout layout, HoldShortPoint bar)
+    {
+        if (!layout.Nodes.TryGetValue(bar.NodeId, out GroundNode? barNode))
+        {
+            return;
+        }
+
+        double toNodeFt = GeoMath.DistanceNm(ctx.Aircraft.Position, barNode.Position) * GeoMath.FeetPerNm;
+        double aheadFt = Math.Min(HoldShortBrakingDistanceFt(ctx.Aircraft.GroundSpeed, ctx.Category), toNodeFt);
+        LatLon stop = GeoMath.ProjectPoint(ctx.Aircraft.Position, ctx.Aircraft.TrueHeading, aheadFt / GeoMath.FeetPerNm);
+
+        Log.LogInformation(
+            "[Taxi] {Callsign}: hold short of {Target} unmakeable at {Gs:F1}kt — stopping {Ahead:F0}ft ahead, {ToNode:F0}ft short of node {NodeId}",
+            ctx.Aircraft.Callsign,
+            bar.TargetName,
+            ctx.Aircraft.GroundSpeed,
+            aheadFt,
+            toNodeFt - aheadFt,
+            bar.NodeId
+        );
+
+        bar.Latitude = stop.Lat;
+        bar.Longitude = stop.Lon;
     }
 
     private void SetupCurrentSegment(PhaseContext ctx, TaxiRoute route)

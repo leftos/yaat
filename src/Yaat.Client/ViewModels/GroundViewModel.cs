@@ -12,6 +12,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
+using Yaat.Sim.Data.Faa;
 
 namespace Yaat.Client.ViewModels;
 
@@ -1561,7 +1562,8 @@ public partial class GroundViewModel : ObservableObject
             routeTaxiways,
             destination,
             options,
-            category
+            category,
+            FaaAircraftDatabase.Get(ac.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(ac.AircraftType)
         );
         return cut is not null ? cut.Route : WithApproachLeg(route, ac.Position, ac.Heading);
     }

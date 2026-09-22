@@ -83,7 +83,7 @@ public static class GroundCommandHandler
         (TaxiCommand withSpotVias, string? unknownSpot) = ResolveSpotVias(groundLayout, taxi);
         if (unknownSpot is not null)
         {
-            return new CommandResult(false, $"unknown spot {unknownSpot}");
+            return new CommandResult(false, $"Unknown spot {unknownSpot}");
         }
 
         taxi = withSpotVias;
@@ -333,7 +333,8 @@ public static class GroundCommandHandler
                     PathTurnHints = taxi.PathTurnHints,
                     StartHeadingTrue = startHeadingTrueDeg,
                 },
-                category
+                category,
+                FaaAircraftDatabase.Get(aircraft.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraft.AircraftType)
             );
             if (cut is not null)
             {
@@ -2637,11 +2638,29 @@ public static class GroundCommandHandler
         return where is null ? "Hold position" : $"Hold position ({where})";
     }
 
+    /// <summary>
+    /// RES. Releases a HOLD/GIVEWAY, and — for an aircraft that is not held at all but has been stopped or
+    /// pinned to a crawl by the ground conflict detector this tick (<see cref="AircraftGroundOps.SpeedLimit"/>
+    /// is at or below <see cref="GroundConflictDetector.SlowTaxiSpeedKts"/>, which the detector clears and
+    /// re-derives every pass) — does what the controller plainly means by "resume taxi" to a stalled aircraft:
+    /// it breaks the conflict, exactly as BREAK does. Refusing with "not held" left the controller no way to
+    /// read the difference between a hold and a detector stall except to know that BREAK is the other word.
+    ///
+    /// <para>Only a stall or a crawl. A higher cap is the detector holding trail speed behind traffic that is
+    /// itself moving — the aircraft is taxiing, just slower — and breaking detection there would switch off
+    /// collision protection for <see cref="BreakDurationSeconds"/> seconds on an aircraft nobody asked about.</para>
+    /// </summary>
     internal static CommandResult TryResumeTaxi(AircraftState aircraft)
     {
         if (!aircraft.Ground.IsImmobile)
         {
-            return new CommandResult(false, "Aircraft is not held");
+            if (aircraft.Ground.SpeedLimit is not { } limit || limit > GroundConflictDetector.SlowTaxiSpeedKts)
+            {
+                return new CommandResult(false, "Aircraft is not held");
+            }
+
+            CommandResult broken = TryBreakConflict(aircraft);
+            return broken.Success ? CommandDispatcher.Ok("Resume taxi — breaking ground conflict") : broken;
         }
 
         aircraft.Ground.Hold = null;
@@ -2769,7 +2788,48 @@ public static class GroundCommandHandler
         }
 
         RecomputeHoldShortPositions(aircraft, layout, route);
+        NotifyTaxiHoldShortsChanged(aircraft);
         return CommandDispatcher.Ok("");
+    }
+
+    /// <summary>
+    /// Tells a taxi already under way that its hold-shorts changed, so the segment in progress is re-aimed
+    /// at the new bar on the next tick instead of driving on to the junction node it was set up for.
+    /// </summary>
+    private static void NotifyTaxiHoldShortsChanged(AircraftState aircraft) =>
+        (aircraft.Phases?.CurrentPhase as TaxiingPhase)?.NotifyHoldShortsChanged();
+
+    /// <summary>
+    /// Flags the bar just armed as one the aircraft cannot make — it is closer than the distance needed to
+    /// brake to a stop — and answers whether it did. The taxi phase moves the stop forward to the point it
+    /// can reach; the answer is decided here, at dispatch, because the controller and the crew are told in
+    /// the same breath as the clearance. What cannot be complied with is refused rather than read back:
+    /// P/CG "UNABLE" is "inability to comply with a specific instruction, request, or clearance", and the
+    /// instruction here is AIM 2-3-5.b.3's — "the pilot MUST STOP so that no part of the aircraft extends
+    /// beyond the holding position marking".
+    /// </summary>
+    private static bool MarkUnmakeableHoldShort(AircraftState aircraft, AirportGroundLayout layout, TaxiRoute route, ExplicitHoldShortPlan plan)
+    {
+        int nodeId = plan.Outcome switch
+        {
+            ExplicitHoldShortOutcome.ReArm when plan.Existing is { } existing => existing.NodeId,
+            ExplicitHoldShortOutcome.Add => plan.NodeId,
+            _ => -1,
+        };
+
+        if (route.GetHoldShortAt(nodeId) is not { IsCleared: false } bar)
+        {
+            return false;
+        }
+
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        if (!TaxiingPhase.IsHoldShortUnmakeable(layout, route, aircraft, category, bar))
+        {
+            return false;
+        }
+
+        bar.Unable = true;
+        return true;
     }
 
     /// <summary>
@@ -3279,8 +3339,20 @@ public static class GroundCommandHandler
 
         aircraft.Ground.IsExpeditingTaxi = false;
 
-        Log.LogDebug("[HS] {Callsign}: hold short of {Target} ({Outcome})", aircraft.Callsign, hs.Target.ToCanonical(), plan.Outcome);
-        return CommandDispatcher.Ok($"Hold short of {hs.Target.ToNatural()}");
+        bool unable = MarkUnmakeableHoldShort(aircraft, groundLayout, route, plan);
+        NotifyTaxiHoldShortsChanged(aircraft);
+
+        Log.LogDebug(
+            "[HS] {Callsign}: hold short of {Target} ({Outcome}), unable={Unable}",
+            aircraft.Callsign,
+            hs.Target.ToCanonical(),
+            plan.Outcome,
+            unable
+        );
+
+        return CommandDispatcher.Ok(
+            unable ? $"Unable to hold short of {hs.Target.ToNatural()} — stopping" : $"Hold short of {hs.Target.ToNatural()}"
+        );
     }
 
     internal static CommandResult TryFollow(
@@ -3877,7 +3949,7 @@ public static class GroundCommandHandler
         return info.ForApproach(closerDesignator);
     }
 
-    private const double BreakDurationSeconds = 15.0;
+    internal const double BreakDurationSeconds = 15.0;
 
     internal static CommandResult TryBreakConflict(AircraftState aircraft)
     {

@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
@@ -313,6 +314,7 @@ public static class PilotResponder
                 includeRunway: false
             ),
             AcknowledgePilotContactCommand => null,
+            HoldShortCommand hsc when IsUnmakeableHoldShort(aircraft, hsc) => BuildUnableHoldShortClause(hsc),
             ClearedToLandCommand cland => BuildClearedToLandClause(aircraft, cland) ?? VerbalizeDual(cland, personality, activityLevel),
             LandAndHoldShortCommand lahso => BuildLandAndHoldShortClause(aircraft, lahso),
             TouchAndGoCommand tg => AppendTrafficPatternClause(
@@ -346,6 +348,77 @@ public static class PilotResponder
             SayExitFixEstimateCommand => null,
             _ => VerbalizeDual(cmd, personality, activityLevel),
         };
+
+    /// <summary>
+    /// True when the bar this <c>HS</c> armed is one the aircraft cannot make. The command handler flags it at
+    /// dispatch (<see cref="HoldShortPoint.Unable"/>) from the aircraft's speed and the distance left to the
+    /// painted line, so the readback built in the same breath reports what the aircraft will actually do
+    /// instead of reading back a hold it will overrun.
+    ///
+    /// <para>The bar looked at is the first one ahead on the route matching the target, not any bar that
+    /// matches: a route crossing the same taxiway twice carries two, and the one further on — which the
+    /// aircraft has all the room in the world for — must not answer for the one just armed.</para>
+    /// </summary>
+    private static bool IsUnmakeableHoldShort(AircraftState aircraft, HoldShortCommand cmd)
+    {
+        if (aircraft.Ground.AssignedTaxiRoute is not { } route)
+        {
+            return false;
+        }
+
+        HoldShortPoint? armed = null;
+        int armedIndex = int.MaxValue;
+        foreach (HoldShortPoint bar in route.HoldShortPoints)
+        {
+            if (bar.IsCleared || !HoldShortAnnotator.TargetMatches(bar.TargetName, cmd.Target.MatchKey))
+            {
+                continue;
+            }
+
+            int index = SegmentIndexAhead(route, bar.NodeId);
+            if ((armed is null) || (index < armedIndex))
+            {
+                armed = bar;
+                armedIndex = index;
+            }
+        }
+
+        return armed?.Unable == true;
+    }
+
+    /// <summary>
+    /// Index of the route segment that ends at <paramref name="nodeId"/>, counting from the segment in
+    /// progress, or <see cref="int.MaxValue"/> when no segment ahead ends there — which orders a bar the
+    /// route has already passed, or one on no segment at all, behind every bar still to come.
+    /// </summary>
+    /// <param name="route">The route being taxied.</param>
+    /// <param name="nodeId">The node the bar protects.</param>
+    /// <returns>The segment index, or <see cref="int.MaxValue"/>.</returns>
+    private static int SegmentIndexAhead(TaxiRoute route, int nodeId)
+    {
+        for (int i = Math.Max(0, route.CurrentSegmentIndex); i < route.Segments.Count; i++)
+        {
+            if (route.Segments[i].ToNodeId == nodeId)
+            {
+                return i;
+            }
+        }
+
+        return int.MaxValue;
+    }
+
+    /// <summary>
+    /// "unable to hold short of tango, stopping" — the two delivered forms of the refusal P/CG "UNABLE"
+    /// names ("inability to comply with a specific instruction, request, or clearance"), which AIM 4-4-7.c
+    /// leaves to the pilot: "it is the responsibility of the pilot to accept or refuse the clearance issued".
+    /// </summary>
+    /// <param name="cmd">The hold-short being refused.</param>
+    /// <returns>The terminal and spoken forms of the answer.</returns>
+    private static PilotSpeechText BuildUnableHoldShortClause(HoldShortCommand cmd) =>
+        new(
+            PhraseologyVerbalizer.RenderUnableHoldShort(cmd.Target, spoken: false),
+            PhraseologyVerbalizer.RenderUnableHoldShort(cmd.Target, spoken: true)
+        );
 
     /// <summary>
     /// FAA JO 7110.65 §9-2-6.a "CLEARED INTO IR (designator)", with the published-altitudes,

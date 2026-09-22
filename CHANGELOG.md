@@ -3,11 +3,14 @@
 ## Unreleased
 
 ### Fixed
-- `TAXI A $7B @E2` routes through spot 7B to gate E2, or is refused by name when the gate cannot be reached that way, instead of parking the aircraft at the spot while reporting it at the gate.
+- `TAXI A $7B @E2` routes through spot 7B to gate E2 (read back as "via A, spot 7B"), or is refused by name when the gate cannot be reached that way, instead of parking the aircraft at the spot while reporting it at the gate.
 - A taxi that ends anywhere other than the gate it named leaves the aircraft holding position, not parked at that gate.
-- `TAXI $spot` arrives along the spot's own lane and stops facing along it, instead of cutting across the ramp and stopping across the lane with its nose over the neighbouring one.
+- `TAXI $spot` arrives along the spot's own lane, joining it at least a fuselage length out, and stops facing along it, instead of cutting across the ramp and stopping across the lane with its nose over the neighbouring one.
 - Aircraft on neighbouring parallel taxiways no longer slow to a crawl or stop for each other as they pass; the wingtip-room test that already let traffic pass a parked aircraft now also applies to a mover on a parallel lane.
 - `PUSH $spot` and `PUSH @gate` are planned around aircraft parked or held nearby: the tug takes a swing that clears them, or the push is refused naming the aircraft in the way, instead of stopping dead mid-manoeuvre.
+- A hold-short issued to a taxiing aircraft brakes for the painted line on the taxiway segment it is on, instead of driving on to the intersection and stopping in it.
+- A hold-short the aircraft is already too close to make is answered "unable to hold short of Tango, stopping": it brakes to a stop short of the intersection and the response says the line was not made.
+- `RES` to an aircraft stopped or crawling under the ground conflict detector resumes it by breaking the conflict, instead of refusing with "Aircraft is not held".
 - `APT` to a different airport cancels a pattern or approach to the old one, so a following `ELB`/`ERD`/`EF` resolves its runway at the new destination instead of failing with "not found".
 - `APT` typed at the front of a `,` block applies before the manoeuvre in the same block, so `APT OAK, ELB 28L 4, CLAND` works in one line.
 - `APT` to the airport an aircraft is already approaching or flying a pattern at only corrects the flight plan; the approach or pattern is kept.

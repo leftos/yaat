@@ -69,7 +69,13 @@ public static class GroundConflictDetector
     /// <summary>Gap left between the two fuselage ends at a stop, on top of the pair's half-lengths (<see cref="GetSeparation"/>).</summary>
     public const double StopBufferFt = 25.0;
 
-    /// <summary>Wingtip room left between two aircraft passing abeam, on top of the pair's half-wingspans (<see cref="RequiredLateralClearanceFt"/>).</summary>
+    /// <summary>
+    /// Wingtip room left between two aircraft passing abeam, on top of the pair's half-wingspans (<see cref="RequiredLateralClearanceFt"/>).
+    /// A detector-frame figure, deliberately below the AC 150/5300-13B design wingtip allowance (0.2 W + 20 ft on a taxiway, 0.1 W + 20 ft
+    /// on a taxilane): the design value buys centreline-tracking error the sim does not have, and importing it would ask 160.9 ft of SFO's
+    /// 160 ft A/B spacing and hold every parallel-lane pass. 7110.65 has no taxiway-separation paragraph; its §3-1-1 NOTE, AIM 4-3-18.b and
+    /// AIM 2-3-4.b.1 ("being centered on the taxiway centerline does not guarantee wingtip clearance") put wingtip avoidance on the pilot.
+    /// </summary>
     public const double WingtipBufferFt = 25.0;
 
     /// <summary>
@@ -89,7 +95,7 @@ public static class GroundConflictDetector
     private const double DetectorIntervalSeconds = 1.0 / SimulationEngine.PhysicsSubTickRate;
     private const double OppositeStopDistanceFt = 300.0;
     private const double PushbackBufferFt = 200.0;
-    private const double SlowTaxiSpeedKts = 5.0;
+    internal const double SlowTaxiSpeedKts = 5.0;
 
     /// <summary>How far past the current separation <see cref="RouteLateralClearanceFt"/> looks along the route.</summary>
     private const double RouteClearanceBoundFactor = 1.5;
@@ -129,7 +135,12 @@ public static class GroundConflictDetector
     // at 238 ft, inside both the two-B738 trail ring (254 ft) and the 300 ft head-on ring — so without
     // this bypass a B738 crawled at 5 kt for 65 s and stopped for 20 s while three aircraft passed on
     // the neighbouring lane. The tolerance covers a lane's own curvature and the wander of a nose
-    // heading within it, while a genuine crossing (more than 20° off) keeps the distance rule.
+    // heading within it, while a genuine crossing (more than 20° off) keeps the distance rule. The 20°
+    // has no FAA basis — a judgement call. The test is instantaneous, with no look-ahead: two tracks
+    // converging inside the tolerance keep the bypass until the lateral offset decays through the
+    // requirement, and the distance rule then resumes with that margin already spent. A jet survives it
+    // (a B738 stops from 20 kt in ~68 ft against a 142 ft requirement); the known edge is two pistons on
+    // twin lanes (61 ft requirement vs ~95 ft to stop at 2 kt/s).
     private const double ParallelTrackToleranceDeg = 20.0;
 
     // When two same-priority movers would each stop for the other, hold the "follower" (the one

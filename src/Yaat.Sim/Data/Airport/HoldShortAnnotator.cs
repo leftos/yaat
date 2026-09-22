@@ -40,7 +40,7 @@ internal readonly record struct ExplicitHoldShortPlan
 /// Post-processes a resolved taxi route to insert hold-short points at runway
 /// crossings, explicit controller-specified holds, and destination runway holds.
 /// </summary>
-internal static class HoldShortAnnotator
+public static class HoldShortAnnotator
 {
     private static readonly ILogger Log = SimLog.CreateLogger("HoldShortAnnotator");
 
@@ -437,8 +437,13 @@ internal static class HoldShortAnnotator
     /// nose-at-the-mark setback — the taxiway setback would put a widebody back in the junction
     /// behind the spot. Taxiway hold-shorts are offset back from the intersection node along the
     /// approach edge by <paramref name="aircraftLengthFt"/> + buffer.
+    ///
+    /// <para>The taxiway setback is what AIM 2-3-5.b.3 asks of the pilot: told to hold short of a taxiway,
+    /// "the pilot MUST STOP the aircraft at a point which provides adequate clearance from an aircraft on
+    /// the intersecting taxiway" — a whole fuselage back from the junction is that point, since the aircraft's
+    /// position is its centre. The 30 ft on top is a judgement call: no FAA document gives a figure for it.</para>
     /// </summary>
-    internal static void ComputeHoldShortPositions(AirportGroundLayout layout, TaxiRoute route, double aircraftLengthFt)
+    public static void ComputeHoldShortPositions(AirportGroundLayout layout, TaxiRoute route, double aircraftLengthFt)
     {
         const double bufferFt = 30.0;
         double taxiwayOffsetNm = (aircraftLengthFt + bufferFt) / GeoMath.FeetPerNm;
@@ -446,7 +451,10 @@ internal static class HoldShortAnnotator
 
         foreach (HoldShortPoint hs in route.HoldShortPoints)
         {
-            if (!layout.Nodes.TryGetValue(hs.NodeId, out GroundNode? hsNode))
+            // An unable bar's position is the stop the taxi phase moved it to, not the painted line: the
+            // aircraft was already inside its braking distance when the bar was armed, so recomputing the
+            // setback here would put the bar back somewhere nobody is going to stop.
+            if (hs.Unable || !layout.Nodes.TryGetValue(hs.NodeId, out GroundNode? hsNode))
             {
                 continue;
             }
@@ -564,7 +572,7 @@ internal static class HoldShortAnnotator
     /// <summary>
     /// Estimates aircraft fuselage length (ft) from CWT code when FAA ACD data is unavailable.
     /// </summary>
-    internal static double CwtFallbackLengthFt(string? aircraftType)
+    public static double CwtFallbackLengthFt(string? aircraftType)
     {
         string? cwt = WakeTurbulenceData.GetCwt(aircraftType ?? "");
         return cwt switch

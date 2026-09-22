@@ -1103,7 +1103,7 @@ CoordinateIndex.cs             # Spatial index for coordinate-based lookups
 RunwayCrossingDetector.cs      # Detect taxiway/runway crossings; seat hold-short bars at the constant perpendicular standoff (geojson holdShortDistance, else AC 150/5300-13B width heuristic) — see docs/ground/hold-short-placement.md
 RunwayIntersectionCalculator.cs # Runway centerline/projected-path intersections for LAHSO and solo-training runway scoring. Reported distances are on the PAVEMENT datum (their consumers are departures rolling from it); ComputeHoldShortDistanceNm is the exception and subtracts the displacement, so a LAHSO distance is an available landing distance.
 RunwayEntryPoint.cs            # Classify a runway hold short as full-length vs intersection departure for a given end: nearest hold short (along-track on the pavement centerline) is full length, plus an OPPOSITE-side one within OppositeSideBandFt or on the same taxiway (one entrance reachable from both sides); SAME-side extras are always named intersections. Display only, feeds RunwayDepartureQueue
-HoldShortAnnotator.cs          # Annotate hold-short points on taxi routes; ComputeHoldShortPositions offsets taxiway HS by fuselage length. Owns RouteCrossesRunwayAfterStart, the shared "is the route's start bar the entry side of a crossing it makes" predicate — RouteMaterialiser.AnnotateStartCrossing uses the same one so the two annotators cannot drift (see docs/ground/pathfinder.md)
+HoldShortAnnotator.cs          # Public: annotate hold-short points on taxi routes; ComputeHoldShortPositions offsets taxiway HS by fuselage length (skips an Unable bar, whose position is the stop TaxiingPhase moved it to; the client's push preview calls it and CwtFallbackLengthFt). Owns RouteCrossesRunwayAfterStart, the shared "is the route's start bar the entry side of a crossing it makes" predicate — RouteMaterialiser.AnnotateStartCrossing uses the same one so the two annotators cannot drift (see docs/ground/pathfinder.md)
 RunwayCrossingEnd.cs           # Which end of a crossed runway to name (nearest threshold) from a bar's combined "28R/10L" target — the pilot's hold-short report and the AI's CROSS agree
 
 # Data/
@@ -1592,7 +1592,7 @@ TowerListSnapshotMapper.cs     # TowerListTracker ⇄ TowerListSnapshotDto (list
                                # a list without a facility id or for a (facility, list) the room does not configure is dropped with one aggregated warning; the list airports are the ARTCC's, never snapshotted)
 TdlsSnapshotMapper.cs          # TdlsState ⇄ TdlsSnapshotDto. Restore replaces the session state and leaves TdlsState.Configs alone — the scenario
                                # load that runs before a restore has just re-derived it from the ARTCC, and the snapshot never carried it
-TaxiRouteDto.cs                # Taxi route segments + hold-short points (re-resolved from ground layout on restore)
+TaxiRouteDto.cs                # Taxi route segments + hold-short points (re-resolved from ground layout on restore; HoldShortPointDto.Unable keeps a moved unmakeable bar where it is)
 SnapshotSchemaMigrator.cs      # Sequential migration chain for snapshot DTO versioning; SnapshotSchemaException
 
 # Soak/ — soak-testing harness pieces shared by the yaat-server soak runner and live attach (docs/plans/controller-ai/08)

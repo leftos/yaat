@@ -1258,6 +1258,76 @@ public class GroundCommandHandlerTests
         Assert.False(result.Success);
     }
 
+    /// <summary>
+    /// RES to an aircraft the ground conflict detector has stopped — the "why is it crawling and RES says it
+    /// isn't held" stall — does what the controller meant: it breaks the conflict, exactly as BREAK does.
+    /// </summary>
+    [Fact]
+    public void Res_OnDetectorStall_BreaksConflict()
+    {
+        AircraftState ac = MakeGroundAircraft();
+        ac.Ground.Hold = null;
+        ac.Ground.SpeedLimit = 0;
+
+        CommandResult result = GroundCommandHandler.TryResumeTaxi(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(GroundCommandHandler.BreakDurationSeconds, ac.Ground.ConflictBreakRemainingSeconds);
+        Assert.Null(ac.Ground.SpeedLimit);
+    }
+
+    /// <summary>
+    /// The detector's crawl floor itself counts as held: an aircraft pinned at 5 kt behind an obstacle is the
+    /// same stall the controller is looking at, and RES breaks it.
+    /// </summary>
+    [Fact]
+    public void Res_OnDetectorCrawl_BreaksConflict()
+    {
+        AircraftState ac = MakeGroundAircraft();
+        ac.Ground.Hold = null;
+        ac.Ground.SpeedLimit = GroundConflictDetector.SlowTaxiSpeedKts;
+
+        CommandResult result = GroundCommandHandler.TryResumeTaxi(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(GroundCommandHandler.BreakDurationSeconds, ac.Ground.ConflictBreakRemainingSeconds);
+        Assert.Null(ac.Ground.SpeedLimit);
+    }
+
+    /// <summary>
+    /// A trail-speed cap behind moving traffic is not a stall: the aircraft is taxiing, just slower, and RES
+    /// must not switch off its collision protection for the next 15 s on the strength of it.
+    /// </summary>
+    [Fact]
+    public void Res_OnDetectorTrailAtSpeed_StillRefused()
+    {
+        AircraftState ac = MakeGroundAircraft();
+        ac.Ground.Hold = null;
+        ac.Ground.SpeedLimit = 15.0;
+
+        CommandResult result = GroundCommandHandler.TryResumeTaxi(ac);
+
+        Assert.False(result.Success);
+        Assert.Equal("Aircraft is not held", result.Message);
+        Assert.Equal(0.0, ac.Ground.ConflictBreakRemainingSeconds);
+        Assert.Equal(15.0, ac.Ground.SpeedLimit);
+    }
+
+    /// <summary>An aircraft that is neither held nor capped has nothing to resume, and RES still says so.</summary>
+    [Fact]
+    public void Res_NotHeldNotStalled_StillRefused()
+    {
+        AircraftState ac = MakeGroundAircraft();
+        ac.Ground.Hold = null;
+        ac.Ground.SpeedLimit = null;
+
+        CommandResult result = GroundCommandHandler.TryResumeTaxi(ac);
+
+        Assert.False(result.Success);
+        Assert.Equal("Aircraft is not held", result.Message);
+        Assert.Equal(0.0, ac.Ground.ConflictBreakRemainingSeconds);
+    }
+
     [Fact]
     public void Resume_ClearsExplicitHoldShortPhase()
     {

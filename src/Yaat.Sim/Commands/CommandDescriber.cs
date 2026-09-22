@@ -2507,32 +2507,46 @@ public static class CommandDescriber
     }
 
     /// <summary>
-    /// Human-readable taxi path with node-reference tokens dropped and turn hints spoken as
-    /// "right on A" / "left on C". Falls back to the bare taxiway list when no token carries a hint.
+    /// The route half of a natural-language TAXI: the cleared taxiways, each with its turn hint, and any
+    /// <c>$spot</c> via said as "spot 7B" rather than shown as the raw sigil — the same word the pilot
+    /// readback and the spot destination use. A spot via is set off with a comma on both sides ("via A,
+    /// spot 7B, C") because it names a point on the route, not another taxiway to join: without the second
+    /// comma the taxiway after it reads as part of the spot's name.
     /// </summary>
     private static string FormatTaxiNaturalPath(TaxiCommand taxi)
     {
         List<TurnDirection?>? hints = taxi.PathTurnHints;
-        var rendered = new List<string>(taxi.Path.Count);
+        var body = new StringBuilder();
+        bool previousWasSpot = false;
         for (int i = 0; i < taxi.Path.Count; i++)
         {
-            if (NodeRefToken.IsNodeReference(taxi.Path[i]))
+            string token = taxi.Path[i];
+            if (NodeRefToken.IsNodeReference(token))
             {
                 continue;
             }
 
+            bool isSpot = HoldShortTarget.IsSpotTargetName(token);
+            string display = isSpot ? $"spot {token[1..]}" : token;
             TurnDirection? hint = (hints is not null && i < hints.Count) ? hints[i] : null;
-            rendered.Add(
+
+            if (body.Length > 0)
+            {
+                body.Append((isSpot || previousWasSpot) ? ", " : " ");
+            }
+
+            body.Append(
                 hint switch
                 {
-                    TurnDirection.Right => $"right on {taxi.Path[i]}",
-                    TurnDirection.Left => $"left on {taxi.Path[i]}",
-                    _ => taxi.Path[i],
+                    TurnDirection.Right => $"right on {display}",
+                    TurnDirection.Left => $"left on {display}",
+                    _ => display,
                 }
             );
+            previousWasSpot = isSpot;
         }
 
-        return string.Join(" ", rendered);
+        return body.ToString();
     }
 
     private static string FormatTaxiAllCanonical(TaxiAllCommand taxiAll)

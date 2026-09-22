@@ -52,7 +52,9 @@ public entries: they are the `ActionRouter`'s flight-plan arm (`RecordedCommandK
 `SimulationEngine.AmendFlightPlan` and records the `RecordedAmendFlightPlan` that carries its effect; from a record only the creator tag is applied.
 
 `BreakConflictCommand` (`BREAK`) and `GoCommand` (`GO`) are the inverse case: they have an arm **only** in `TryApplyTowerCommand`, never in
-`ApplyCommand`. `BREAK` is classified as a ground command (`CommandDescriber.IsGroundCommand`, `CommandDescriber.cs:933`); `GO` is in neither
+`ApplyCommand`. `RES` on an aircraft that is not held but is stalled by the ground conflict detector (`Ground.SpeedLimit` at or below
+`GroundConflictDetector.SlowTaxiSpeedKts`) performs `TryBreakConflict` itself and answers `Resume taxi — breaking ground conflict`, so the
+controller's "resume" to a stuck aircraft does what `BREAK` does; a higher cap (trail speed) still refuses `Aircraft is not held`. `BREAK` is classified as a ground command (`CommandDescriber.IsGroundCommand`, `CommandDescriber.cs:933`); `GO` is in neither
 `IsGroundCommand` nor `IsTowerCommand` (`CommandDescriber.cs:868`). Both reach `TryApplyTowerCommand` only when a phase is active: a directly-typed
 `BREAK`/`GO` parses into a `CompoundCommand` and flows through `DispatchCompound` → the phase gate (`DispatchWithPhase`) → `TryApplyTowerCommand`.
 (The single-command `Dispatch` entry point — used by the engine-level `TaxiAll` fan-out and by tests — is a thin wrapper that puts the verb in
