@@ -68,7 +68,7 @@ All five overlays flow VM → `GroundCanvas` `StyledProperty` → `RenderSnapsho
 | **Hover route** | `HoverTaxiRoute` | mouse-hover over an aircraft (below) | solid white, stroke 5 |
 | Draw-mode route | `DrawnRoutePreview` + `DrawWaypoints` | interactive "Draw taxi route…" mode | — |
 | Draw-mode hover | `DrawHoverPreview` | node hover during draw mode | — |
-| Push-route preview | `PushRoutePreview` (`TugPlan?`) + `DrawWaypoints` | interactive "Push route…" mode: `GroundViewModel.RefreshPushRoutePreview` re-plans through `TugMovePlanner.Plan` on every added or undone point, resolving tokens with the sim's own `GroundCommandHandler.ResolveTugGoal` | `DrawPushLegs`: each move's simulated samples as a polyline in push/pull colour, an arrowhead at the move's end, a dot at every reversal. Not a `TaxiRoute` — the plan carries its own path |
+| Push-route preview | `PushRoutePreview` (`TugPlan?`) + `DrawWaypoints` | interactive "Push route…" mode: `GroundViewModel.RefreshPushRoutePreview` re-plans through `TugMovePlanner.Plan` on every added or undone point, against the same parked neighbours the server uses (`TugParkedNeighbours.Build` over the client's aircraft), resolving tokens with the sim's own `GroundCommandHandler.ResolveTugGoal` | `DrawPushLegs`: each move's simulated samples as a polyline in push/pull colour, an arrowhead at the move's end, a dot at every reversal. Not a `TaxiRoute` — the plan carries its own path |
 
 `ShownTaxiRouteEntry(Callsign, Route, Color)` pairs a resolved route with its palette color; `GroundRenderer` maps the color back to the matching pre-built `SKPaint`.
 

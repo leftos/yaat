@@ -2188,23 +2188,68 @@ public partial class GroundViewModel : ObservableObject
             goals.Add(goal);
         }
 
+        // The neighbours are chosen by the same body the simulation plans the executed move with, from the aircraft
+        // the server's world holds, so a push the server would refuse for a neighbour shows that refusal here.
+        TugNeighbourCandidate subject = TugCandidateOf(_drawAircraft);
+        List<TugNeighbourCandidate> others = ServerWorldCandidates();
         var request = new TugRequest
         {
             Start = new TugPose(_drawAircraft.Position, _drawAircraft.Heading.Degrees),
             StartsAtStand = _drawAircraft.CurrentPhase == "At Parking",
             AircraftType = _drawAircraft.AircraftType,
             Goals = goals,
-            // The preview draws the shape of the move; the server plans the one that flies, against the parked
-            // aircraft it owns the state of, so a preview route may still be refused for a neighbour it cannot see.
-            ParkedNeighbours = [],
+            ParkedNeighbours = TugParkedNeighbours.Build(subject, others),
             FinalFacingTrueDeg = null,
             PreviousKind = null,
         };
 
-        TugPlan? plan = TugMovePlanner.Plan(_domainLayout, request, out string refusal);
-        PushRoutePreview = plan;
-        PushRouteRefusal = plan is null ? refusal : null;
+        (PushRoutePreview, PushRouteRefusal) = PlanPushPreview(_domainLayout, request, subject, others);
     }
+
+    /// <summary>
+    /// Plans the drawn move and, as the simulation does once a plan exists, refuses it when the aircraft already
+    /// overlaps a parked or held neighbour where it stands.
+    /// </summary>
+    /// <returns>The plan and no refusal, or no plan and the refusal the server would answer the command with.</returns>
+    private static (TugPlan? Plan, string? Refusal) PlanPushPreview(
+        AirportGroundLayout layout,
+        TugRequest request,
+        TugNeighbourCandidate subject,
+        IReadOnlyList<TugNeighbourCandidate> others
+    )
+    {
+        TugPlan? plan = TugMovePlanner.Plan(layout, request, out string refusal);
+        if (plan is null)
+        {
+            return (null, refusal);
+        }
+
+        return TugParkedNeighbours.FindStartOverlap(subject, plan, others) is { } overlap ? (null, overlap.Refusal) : (plan, null);
+    }
+
+    /// <summary>
+    /// Every aircraft this view knows that the server's world holds. A delayed spawn is listed ahead of its spawn time
+    /// but is not in the world yet, so the server's tug planning cannot see it and neither may the preview.
+    /// </summary>
+    private List<TugNeighbourCandidate> ServerWorldCandidates()
+    {
+        IReadOnlyList<AircraftModel> all = _aircraftProvider?.Invoke() ?? [];
+        return [.. all.Where(ac => !ac.IsDelayed).Select(TugCandidateOf)];
+    }
+
+    private static TugNeighbourCandidate TugCandidateOf(AircraftModel aircraft) =>
+        new()
+        {
+            Callsign = aircraft.Callsign,
+            Position = aircraft.Position,
+            TrueHeadingDeg = aircraft.Heading.Degrees,
+            AircraftType = aircraft.AircraftType,
+            StandName = string.IsNullOrEmpty(aircraft.ParkingSpot) ? null : aircraft.ParkingSpot,
+            IsImmobile = aircraft.IsHeld,
+            PhaseName = string.IsNullOrEmpty(aircraft.CurrentPhase) ? null : aircraft.CurrentPhase,
+            GroundSpeedKts = aircraft.GroundSpeed,
+            TargetSpeedKts = aircraft.TargetSpeedKts,
+        };
 
     /// <summary>The clicked target nodes, in order. Index 0 of the waypoint list is the aircraft's own node.</summary>
     private List<GroundNode> CurrentPushTargets()

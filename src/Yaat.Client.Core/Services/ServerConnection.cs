@@ -1272,7 +1272,10 @@ public record AircraftDto(
     // The tug's pose while the aircraft is under tow: the direction from the nose gear out along the towbar to
     // the tug, degrees true, null when no tug is attached. Kept name-for-name in sync with the server's
     // AircraftStateDto; the ground view draws the tug from it.
-    double? TowbarTrueHeadingDeg = null
+    double? TowbarTrueHeadingDeg = null,
+    // The speed the aircraft is commanding, knots, null when it commands none. Kept name-for-name in sync with the
+    // server's AircraftStateDto; the push-route preview reads it to tell a parked or held neighbour from a creeping one.
+    double? TargetSpeedKts = null
 );
 
 public record LoadScenarioResultDto(

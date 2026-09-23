@@ -178,6 +178,107 @@ public class GroundViewModelPushRouteTests
         Assert.Null(vm.PushRoutePreview);
     }
 
+    // An E75L on stand D4 drawn to SFO spot 5A and on to 5B, with another E75L standing on 5A itself (303 ft off,
+    // inside the server's neighbour range): every candidate for the first goal ends inside it, so the server refuses
+    // the push naming it. The preview plans against the same parked neighbours, so it shows that refusal before the
+    // command is sent. (The simulation's D2 case puts 5A 528 ft off, outside that range.)
+    [Fact]
+    public void PushRoutePreview_SeesAParkedNeighbourAndRefusesLikeTheServer()
+    {
+        if (LoadSfoLayout() is not { } layout)
+        {
+            return; // test data absent — skip
+        }
+
+        GroundNode spot = SfoSpot(layout, "5A");
+        AircraftModel neighbour = MakeFiveAlleyNeighbour(spot.Position, "Holding After Pushback", groundSpeedKts: 0, targetSpeedKts: null);
+        GroundViewModel vm = StartFiveAlleyPush(layout, neighbour);
+
+        Assert.Null(vm.PushRoutePreview);
+        Assert.NotNull(vm.PushRouteRefusal);
+        Assert.Contains("SKW3400", vm.PushRouteRefusal, StringComparison.Ordinal);
+    }
+
+    // The same push with the aircraft on 5A lining up — creeping at 2 kt under a 2 kt command. It is a mover, not a
+    // parked obstacle, so the planner does not sweep against it and the push plans as it would on an empty spot.
+    [Fact]
+    public void PushRoutePreview_IgnoresALiningUpNeighbourCreeping()
+    {
+        if (LoadSfoLayout() is not { } layout)
+        {
+            return; // test data absent — skip
+        }
+
+        GroundNode spot = SfoSpot(layout, "5A");
+        AircraftModel neighbour = MakeFiveAlleyNeighbour(spot.Position, "LiningUp", groundSpeedKts: 2, targetSpeedKts: 2);
+        GroundViewModel vm = StartFiveAlleyPush(layout, neighbour);
+
+        Assert.Null(vm.PushRouteRefusal);
+        Assert.NotNull(vm.PushRoutePreview);
+    }
+
+    // The same push with another E75L parked on top of the aircraft on D4: their outlines already overlap where they
+    // stand, a placement error the server refuses the tow for, naming both, rather than planning around. The
+    // preview shows that refusal, word for word, instead of a clean route.
+    [Fact]
+    public void PushRoutePreview_OverlappingANeighbour_RefusesLikeTheServer()
+    {
+        if (LoadSfoLayout() is not { } layout)
+        {
+            return; // test data absent — skip
+        }
+
+        GroundNode stand = layout.FindParkingByName("D4")!;
+        AircraftModel neighbour = MakeFiveAlleyNeighbour(stand.Position, "At Parking", groundSpeedKts: 0, targetSpeedKts: null);
+        GroundViewModel vm = StartFiveAlleyPush(layout, neighbour);
+
+        Assert.Null(vm.PushRoutePreview);
+        Assert.Equal("Unable, SKW3398 is up against SKW3400 — their outlines overlap; reposition one of them before towing", vm.PushRouteRefusal);
+    }
+
+    private static GroundViewModel StartFiveAlleyPush(AirportGroundLayout layout, AircraftModel neighbour)
+    {
+        GroundNode stand = layout.FindParkingByName("D4")!;
+        var ac = new AircraftModel
+        {
+            Callsign = "SKW3398",
+            AircraftType = "E75L",
+            Position = stand.Position,
+            Heading = stand.TrueHeading!.Value,
+            CurrentPhase = "At Parking",
+            ParkingSpot = "D4",
+        };
+
+        GroundViewModel vm = MakeViewModel();
+        vm.SetDomainLayoutForTesting(layout);
+        vm.SetAircraftProvider(() => [ac, neighbour]);
+        vm.StartPushRoute(ac);
+        Assert.True(vm.AddPushWaypoint(SfoSpot(layout, "5A").Id));
+        Assert.True(vm.AddPushWaypoint(SfoSpot(layout, "5B").Id));
+        return vm;
+    }
+
+    private static AircraftModel MakeFiveAlleyNeighbour(LatLon position, string phase, double groundSpeedKts, double? targetSpeedKts) =>
+        new()
+        {
+            Callsign = "SKW3400",
+            AircraftType = "E75L",
+            Position = position,
+            Heading = new TrueHeading(118.0),
+            CurrentPhase = phase,
+            GroundSpeed = groundSpeedKts,
+            TargetSpeedKts = targetSpeedKts,
+        };
+
+    private static GroundNode SfoSpot(AirportGroundLayout layout, string name) =>
+        layout.Nodes.Values.First(n => (n.Type == GroundNodeType.Spot) && (n.Name == name));
+
+    private static AirportGroundLayout? LoadSfoLayout()
+    {
+        string path = Path.Combine("TestData", "sfo.geojson");
+        return File.Exists(path) ? GeoJsonParser.Parse("SFO", File.ReadAllText(path), null, FilletMode.Standard) : null;
+    }
+
     private static GroundViewModel MakeViewModel()
     {
         var connection = new ServerConnection();

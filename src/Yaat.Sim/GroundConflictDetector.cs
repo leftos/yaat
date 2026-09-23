@@ -417,7 +417,9 @@ public static class GroundConflictDetector
     /// just zeroed its speed, and it crept through the aircraft ahead one sub-tick at a time (#409).
     /// A held or lined-up-and-waiting aircraft pins <c>TargetSpeed</c> to 0, so it still reads as at rest.
     /// </summary>
-    private static bool IsAtRest(AircraftState ac) => (ac.GroundSpeed < HeldStationarySpeedKts) && !(ac.Targets.TargetSpeed > 0);
+    private static bool IsAtRest(AircraftState ac) => IsAtRest(ac.GroundSpeed, ac.Targets.TargetSpeed);
+
+    private static bool IsAtRest(double groundSpeedKts, double? targetSpeedKts) => (groundSpeedKts < HeldStationarySpeedKts) && !(targetSpeedKts > 0);
 
     private static (MovementState State, double? MoveDirection) Classify(AircraftState ac)
     {
@@ -1700,7 +1702,19 @@ public static class GroundConflictDetector
     /// is a mover, not an obstacle (#407, #409).
     /// </summary>
     internal static bool IsParkedOrHeld(AircraftState ac) =>
-        (ac.Ground.IsImmobile || IsStationaryPhase(ac.Phases?.CurrentPhase?.Name)) && IsAtRest(ac);
+        IsParkedOrHeld(ac.Ground.IsImmobile, ac.Phases?.CurrentPhase?.Name, ac.GroundSpeed, ac.Targets.TargetSpeed);
+
+    /// <summary>
+    /// The same classification from the plain facts it reads, for a caller that holds no <see cref="AircraftState"/> —
+    /// the client, which sees the other aircraft only as they arrive on the wire.
+    /// </summary>
+    /// <param name="isImmobile">The aircraft is under a controller hold.</param>
+    /// <param name="phaseName">Its current phase's name, or null when it has none.</param>
+    /// <param name="groundSpeedKts">Its ground speed, knots.</param>
+    /// <param name="targetSpeedKts">The speed it is commanding, knots, or null when it commands none.</param>
+    /// <returns>True when the aircraft is a passable obstacle at rest.</returns>
+    public static bool IsParkedOrHeld(bool isImmobile, string? phaseName, double groundSpeedKts, double? targetSpeedKts) =>
+        (isImmobile || IsStationaryPhase(phaseName)) && IsAtRest(groundSpeedKts, targetSpeedKts);
 
     private static (double StopFt, double TrailFt) GetSeparation(AircraftState leader, AircraftState trailer)
     {

@@ -131,6 +131,13 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     private double _groundSpeed;
 
+    /// <summary>
+    /// The speed the aircraft is commanding, knots, null when it commands none. Tells a parked or held aircraft from one
+    /// creeping under command, so the push-route preview plans around the same neighbours the simulation does.
+    /// </summary>
+    [ObservableProperty]
+    private double? _targetSpeedKts;
+
     [ObservableProperty]
     private uint _beaconCode;
 
@@ -1073,6 +1080,7 @@ public partial class AircraftModel : ObservableObject
             TowbarHeading = dto.TowbarTrueHeadingDeg.HasValue ? new TrueHeading(dto.TowbarTrueHeadingDeg.Value) : null,
             Altitude = dto.Altitude,
             GroundSpeed = dto.GroundSpeed,
+            TargetSpeedKts = dto.TargetSpeedKts,
             BeaconCode = dto.BeaconCode,
             AssignedBeaconCode = dto.AssignedBeaconCode,
             CommandedSquawkVfr = dto.CommandedSquawkVfr,
@@ -1189,6 +1197,7 @@ public partial class AircraftModel : ObservableObject
         TowbarHeading = dto.TowbarTrueHeadingDeg.HasValue ? new TrueHeading(dto.TowbarTrueHeadingDeg.Value) : null;
         Altitude = dto.Altitude;
         GroundSpeed = dto.GroundSpeed;
+        TargetSpeedKts = dto.TargetSpeedKts;
         BeaconCode = dto.BeaconCode;
         AssignedBeaconCode = dto.AssignedBeaconCode;
         CommandedSquawkVfr = dto.CommandedSquawkVfr;

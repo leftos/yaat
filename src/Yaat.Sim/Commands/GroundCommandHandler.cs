@@ -2263,71 +2263,17 @@ public static class GroundCommandHandler
     }
 
     /// <summary>
-    /// How far from the aircraft a parked or held neighbour is fed to <see cref="TugMovePlanner"/>, feet: a swing radius
-    /// about the start pose, wide enough to hold every aircraft a candidate could swing into as it comes off the stand,
-    /// and short enough that a ramp's worth of parked aircraft is not swept against every candidate.
-    ///
-    /// <para>The range is anchored on the start pose alone, so a longer relocation runs out of it — an SFO stand-to-spot
-    /// move can cover more than 500 ft (D15 to spot 6A is about 521 ft) — and a neighbour near the far end is never fed
-    /// to the planner. That is deliberate: the planner chooses the template that gets the aircraft off its stand, and
-    /// <see cref="GroundConflictDetector"/> owns the drive from there. A judgement call.</para>
-    /// </summary>
-    private const double ParkedNeighbourRangeFt = 400.0;
-
-    /// <summary>
-    /// The parked or held aircraft within <see cref="ParkedNeighbourRangeFt"/> of the aircraft, as the planner sees
-    /// them: a candidate that would swing into one is dropped at planning time rather than accepted and then held at a
-    /// standstill by <see cref="GroundConflictDetector"/> halfway through the manoeuvre. Empty when the caller has no
-    /// view of the other aircraft.
+    /// The parked or held aircraft near the aircraft, as <see cref="TugMovePlanner"/> sees them — built by
+    /// <see cref="TugParkedNeighbours.Build"/>, the body the client's push-route preview plans against too. Empty when
+    /// the caller has no view of the other aircraft.
     /// </summary>
     /// <param name="aircraft">The aircraft the move is planned for.</param>
     /// <param name="listAircraft">Every aircraft in the world, or null when the caller has none.</param>
     /// <returns>The neighbours to plan around.</returns>
-    private static IReadOnlyList<TugParkedNeighbour> ParkedNeighboursNear(AircraftState aircraft, Func<IReadOnlyList<AircraftState>>? listAircraft)
-    {
-        if (listAircraft is null)
-        {
-            return [];
-        }
-
-        var near = new List<TugParkedNeighbour>();
-        foreach (AircraftState other in listAircraft())
-        {
-            // A dry-run dispatch plans against a clone standing exactly where the original does, so the callsign — not
-            // the reference — is what tells the aircraft apart from itself.
-            bool self = ReferenceEquals(other, aircraft) || string.Equals(other.Callsign, aircraft.Callsign, StringComparison.OrdinalIgnoreCase);
-            if (self || !GroundConflictDetector.IsParkedOrHeld(other))
-            {
-                continue;
-            }
-
-            if ((GeoMath.DistanceNm(aircraft.Position, other.Position) * GeoMath.FeetPerNm) > ParkedNeighbourRangeFt)
-            {
-                continue;
-            }
-
-            // A neighbour the aircraft already touches where it stands is no candidate's to avoid — every candidate
-            // fouls it at its first sample — and it has a refusal of its own that says so and names both aircraft
-            // (OverlapRefusal). Planning around it would answer that placement error with the wrong message.
-            if (GroundOutline.ClearanceBetween(aircraft, aTowedNoseFirst: false, other) < GroundOutlineSweep.OutlineClearanceSlackFt)
-            {
-                continue;
-            }
-
-            near.Add(
-                new TugParkedNeighbour
-                {
-                    Callsign = other.Callsign,
-                    Position = other.Position,
-                    TrueHeadingDeg = other.TrueHeading.Degrees,
-                    AircraftType = other.AircraftType,
-                    StandName = other.Ground.ParkingSpot,
-                }
-            );
-        }
-
-        return near;
-    }
+    private static IReadOnlyList<TugParkedNeighbour> ParkedNeighboursNear(AircraftState aircraft, Func<IReadOnlyList<AircraftState>>? listAircraft) =>
+        listAircraft is null
+            ? []
+            : TugParkedNeighbours.Build(TugNeighbourCandidate.From(aircraft), listAircraft().Select(TugNeighbourCandidate.From));
 
     /// <summary>
     /// Why a planned tug move may not be installed: the aircraft's <see cref="GroundOutline"/> already touches or
@@ -2355,37 +2301,20 @@ public static class GroundCommandHandler
             return null;
         }
 
-        bool towedNoseFirst = (plan.Moves.Count > 0) && (plan.Moves[0].Move.Kind == PushbackLegKind.Pull);
-        foreach (AircraftState other in listAircraft())
+        IEnumerable<TugNeighbourCandidate> others = listAircraft().Select(TugNeighbourCandidate.From);
+        if (TugParkedNeighbours.FindStartOverlap(TugNeighbourCandidate.From(aircraft), plan, others) is not { } overlap)
         {
-            // A dry-run dispatch plans against a clone of the aircraft standing exactly where the original does, so the
-            // callsign — not the reference — is what tells the aircraft apart from itself.
-            bool self = ReferenceEquals(other, aircraft) || string.Equals(other.Callsign, aircraft.Callsign, StringComparison.OrdinalIgnoreCase);
-            if (self || !GroundConflictDetector.IsParkedOrHeld(other))
-            {
-                continue;
-            }
-
-            double clearanceFt = GroundOutline.ClearanceBetween(aircraft, towedNoseFirst, other);
-            if (clearanceFt >= GroundOutlineSweep.OutlineClearanceSlackFt)
-            {
-                continue;
-            }
-
-            Log.LogDebug(
-                "[TugMove] {Callsign}: refused, outline overlaps {Other} at the start (clearance {ClearanceFt:F1} ft, towed nose-first={Towed})",
-                aircraft.Callsign,
-                other.Callsign,
-                clearanceFt,
-                towedNoseFirst
-            );
-            return new CommandResult(
-                false,
-                $"Unable, {aircraft.Callsign} is up against {other.Callsign} — their outlines overlap; reposition one of them before towing"
-            );
+            return null;
         }
 
-        return null;
+        Log.LogDebug(
+            "[TugMove] {Callsign}: refused, outline overlaps {Other} at the start (clearance {ClearanceFt:F1} ft, towed nose-first={Towed})",
+            aircraft.Callsign,
+            overlap.NeighbourCallsign,
+            overlap.ClearanceFt,
+            overlap.TowedNoseFirst
+        );
+        return new CommandResult(false, overlap.Refusal);
     }
 
     /// <summary>

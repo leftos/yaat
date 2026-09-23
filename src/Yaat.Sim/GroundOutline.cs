@@ -162,12 +162,31 @@ internal readonly record struct GroundOutline(OutlineSegment Fuselage, OutlineSe
     /// <param name="aTowedNoseFirst">This aircraft is on a pull, so a tug and towbar lead its nose.</param>
     /// <param name="b">The other aircraft.</param>
     /// <returns>The clearance between the two outlines, feet.</returns>
-    public static double ClearanceBetween(AircraftState a, bool aTowedNoseFirst, AircraftState b)
+    public static double ClearanceBetween(AircraftState a, bool aTowedNoseFirst, AircraftState b) =>
+        ClearanceBetween(
+            new TugPose(a.Position, a.TrueHeading.Degrees),
+            a.AircraftType,
+            aTowedNoseFirst,
+            new TugPose(b.Position, b.TrueHeading.Degrees),
+            b.AircraftType
+        );
+
+    /// <summary>
+    /// How close two aircraft's outlines come where they stand, feet, from their poses and types alone; zero when
+    /// they touch or overlap. The frame is centred on <paramref name="a"/>, so the pair may sit anywhere on the field.
+    /// </summary>
+    /// <param name="a">One aircraft's pose; its position is the frame's origin.</param>
+    /// <param name="aType">That aircraft's ICAO type designator.</param>
+    /// <param name="aTowedNoseFirst">That aircraft is on a pull, so a tug and towbar lead its nose.</param>
+    /// <param name="b">The other aircraft's pose.</param>
+    /// <param name="bType">The other aircraft's ICAO type designator.</param>
+    /// <returns>The clearance between the two outlines, feet.</returns>
+    public static double ClearanceBetween(TugPose a, string aType, bool aTowedNoseFirst, TugPose b, string bType)
     {
         var frame = new GroundOutlineFrame(a.Position);
         return Clearance(
-            At(frame.ToLocal(a.Position), a.TrueHeading.Degrees, GroundOutlineSize.Of(a.AircraftType, aTowedNoseFirst)),
-            At(frame.ToLocal(b.Position), b.TrueHeading.Degrees, GroundOutlineSize.Of(b.AircraftType, towedNoseFirst: false))
+            At(frame.ToLocal(a.Position), a.NoseTrueDeg, GroundOutlineSize.Of(aType, aTowedNoseFirst)),
+            At(frame.ToLocal(b.Position), b.NoseTrueDeg, GroundOutlineSize.Of(bType, towedNoseFirst: false))
         );
     }
 
