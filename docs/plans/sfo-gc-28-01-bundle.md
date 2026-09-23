@@ -23,7 +23,6 @@ Take the waves top to bottom. Wave 2 shares the pathfinder code, so fix it toget
 
 ## Wave 3: ground motion and push geometry
 
-- [ ] **#458 A B744 holding short of T on B blocks traffic crossing on T**: measure before designing (stop point against the bar, nose to T's centreline, the crosser's path, the detector's clearance). The user's point, 2026-09-22: the holder's nose blocks the crosser, not its wingtips. `HoldShortAnnotator.ComputeHoldShortPositions` (setback = length + 30 ft to the aircraft's centre), `GroundConflictDetector`
 - [ ] **#459 Turn from T onto B overshoots past 90° and corrects back**: the `GroundNavigator` entry-alignment family (`Ual58Spot9ReversalTests` is the precedent). UAL2164 at bundle t≈1905–1950
 
 ## Wave 4: features

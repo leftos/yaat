@@ -106,3 +106,9 @@ _Avoid_: synthetic action, side-effect record
 The property that a recorded action reaches the same verdict when re-applied as it did live. A
 difference is reported, never hidden by dropping the record.
 _Avoid_: determinism (determinism is the same-seed, same-world property of the simulation itself)
+
+## Ground movement
+
+**Wingtip-clearance floor**:
+The least distance from a taxiway hold-short holder's nose to the centreline of the taxiway it holds short of: the half-span of the widest aircraft the airport can take, judged by its widest runway, plus 25 ft (`HoldShortAnnotator.WingtipClearanceFloorFt`, docs/ground/hold-short-placement.md).
+_Avoid_: setback (the setback is where the aircraft's centre stops; the floor is a minimum the nose must keep)

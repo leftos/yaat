@@ -62,6 +62,15 @@ GeoJSON shape-point happens to sit nearby, scattering the standoff by up to the 
 out past it. Tightening to the coincident-node threshold forces a node at the exact standoff whenever
 no shape-point is essentially already there, making placement angle-independent.
 
+## Stopping short of a taxiway — the wingtip-clearance floor
+
+Where no intersecting-taxiway marking is painted (the layout carries none), AIM 2-3-5.b.3 has the pilot stop "at a point which provides adequate clearance from an aircraft on the intersecting taxiway". `HoldShortAnnotator.ComputeHoldShortPositions` does that for every hold-short whose target is a **taxiway** (explicit `HS <twy>`, router-added, or `HS <x>@<twy>` naming a taxiway):
+
+- **Which branch.** The half-length "nose at the mark" stop is keyed on the target — a runway crossing or destination runway, a `RunwayHoldShort` node, or a spot target — never on the node's type. SFO's B/T bar node is Spot "32", and keying on the node type stopped a B744 holding short of T with its nose 34.5 ft from T's centreline (#458).
+- **The floor.** The nose stays at least `max(L/2 + 30, floor)` from the crossed taxiway's centreline, measured perpendicular to its straight edges (fillet arcs excluded), never to the bar node. `floor` comes from the airport's widest runway as a whole-airport worst case (the layout has no taxiway width or design group): < 75 ft → 49.5, < 100 → 64.5, < 150 → 84, < 200 → 132 (150 ft maps to ADG V: OAK 30 carries MD-11s), ≥ 200 → 156 ft (half the ADG span ceiling + 25 ft; the 25 ft is a judgement call). Placement walks back along the route from where it meets the crossed centreline until the nose clears; the centre is L/2 further back.
+- **Caps.** The just-past-runway stop still wins (no floor, no new warning there). Otherwise the walk-back stops at the previous junction on the route (the last node that is a runway hold-short or has more than two non-ramp edges off the target), tail at that junction. It never moves forward of the old `length + 30` stop. When the clamp leaves the nose short of the floor, the route carries `holding short of TWY T — wingtip clearance from T not assured (N ft)`; a recompute replaces that warning rather than adding another.
+- A stop that lands behind an aircraft already rolling (an `HS` armed mid-taxi) is unmakeable in the usual way (`TaxiingPhase.IsHoldShortUnmakeable`).
+
 ## Placement is not selection
 
 This file covers where the bars **are**. Which one a *route* binds its `HoldShortPoint` to is a separate

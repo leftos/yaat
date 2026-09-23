@@ -19,6 +19,7 @@
 ### Fixed
 - The Ground view's push route draws the planned tow from the first point clicked, and a single point sends as a plain `PUSH`.
 - `PUSH <taxiway> <facing taxiway>` no longer refuses for swinging across the facing taxiway where the aircraft lines up, as SFO `PUSH A F1` from D7 did.
+- An aircraft holding short of a taxiway stops far enough back to clear the wingtips of traffic crossing on it, instead of blocking it.
 - The Ground view's push-route preview refuses a move that would swing into a parked aircraft, as sending it would, instead of showing it as fine.
 - `TAXI` to a spot or gate from a stand that first needs a turn onto a neighbouring lane ends at that spot or gate instead of holding short.
 - `SQ 1200` silences the radar's assigned-code mismatch flash as `SQV` does; squawking any other code, or a bare `SQ`, brings it back.
