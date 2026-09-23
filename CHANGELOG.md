@@ -4,6 +4,7 @@
 
 ### Fixed
 - `SQ 1200` silences the radar's assigned-code mismatch flash as `SQV` does; squawking any other code, or a bare `SQ`, brings it back.
+- `BLANKD <facility>/<bay>` without a rack deletes a blank from any rack of the bay, taking the lowest rack first.
 
 ## v0.13.4-beta [2026/09/21]
 

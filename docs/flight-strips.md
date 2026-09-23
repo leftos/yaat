@@ -776,7 +776,10 @@ Create and delete blank strips:
 - `BLANK [bay[/rack[/index]]]` creates a blank full-size strip. Without
   arguments, adds the blank to the printer queue (not a specific bay).
 - `BLANKD bay[/rack]` deletes one blank from the specified bay/rack
-  (blanks are fungible).
+  (blanks are fungible). Without a rack it searches every rack of the bay;
+  either way it takes the lowest rack, then the lowest index, so a replay
+  deletes the same blank. The facility qualifier's `/` does not count as a
+  rack: a rack was given only when the reference carries a second `/`.
 
 ## CRC protocol integration
 

@@ -670,4 +670,83 @@ public class StripStepTests
         Assert.True(attended.Result.Success, attended.Result.Message);
         Assert.DoesNotContain("no controller connected", attended.Result.Message);
     }
+
+    /// <summary>
+    /// Blanks are fungible, so <c>BLANKD &lt;facility&gt;/&lt;bay&gt;</c> with no rack deletes one wherever it sits —
+    /// including outside rack 1. The mandatory facility qualifier puts a slash in token 0, which the old
+    /// "a slash means a rack was typed" test read as a rack, pinning the search to rack 1.
+    /// </summary>
+    [Fact]
+    public void BlankDelete_NoRack_DeletesABlankOutsideRackZero()
+    {
+        if (Engine(DepartureAtOak, "OAK_TWR", "TWR") is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        ActionOutcome created = Issue(engine, host, "", "BLANK OAK/Ground 1/2");
+
+        Assert.True(created.Result.Success, created.Result.Message);
+        StripItemRecord blank = Assert.Single(engine.Strips.Items.Values, i => i.Type == StripMutations.BlankStripType);
+        Assert.Equal(1, blank.Rack); // wire rack 2 → rack index 1, outside the rack the search used to be pinned to
+
+        ActionOutcome deleted = Issue(engine, host, "", "BLANKD OAK/Ground 1");
+
+        Assert.True(deleted.Result.Success, deleted.Result.Message);
+        Assert.DoesNotContain(engine.Strips.Items.Values, i => i.Type == StripMutations.BlankStripType);
+    }
+
+    /// <summary>
+    /// The pick among several blanks is deterministic — lowest rack, then lowest index — because the item store
+    /// enumerates in no stable order and a recording has to replay byte-for-byte.
+    /// </summary>
+    [Fact]
+    public void BlankDelete_NoRack_PicksLowestRackThenIndex()
+    {
+        if (Engine(DepartureAtOak, "OAK_TWR", "TWR") is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        ActionOutcome rack0First = Issue(engine, host, "", "BLANK OAK/Ground 1/1");
+        ActionOutcome rack1First = Issue(engine, host, "", "BLANK OAK/Ground 1/2");
+        Assert.True(rack0First.Result.Success, rack0First.Result.Message);
+        Assert.True(rack1First.Result.Success, rack1First.Result.Message);
+        Assert.True(Issue(engine, host, "", "BLANK OAK/Ground 1/1").Result.Success);
+
+        ActionOutcome deleted = Issue(engine, host, "", "BLANKD OAK/Ground 1");
+
+        Assert.True(deleted.Result.Success, deleted.Result.Message);
+        Assert.NotNull(rack0First.ToRecord);
+        Assert.NotNull(rack1First.ToRecord);
+        List<StripItemRecord> remaining = [.. engine.Strips.Items.Values.Where(i => i.Type == StripMutations.BlankStripType)];
+        Assert.Equal(2, remaining.Count);
+        Assert.DoesNotContain(remaining, i => i.Id == rack0First.ToRecord.StripId); // the lowest rack-and-index blank
+        Assert.Contains(remaining, i => (i.Id == rack1First.ToRecord.StripId) && (i.Rack == 1) && (i.Index == 0));
+        Assert.Contains(remaining, i => (i.Rack == 0) && (i.Index == 1)); // the other wire-rack-1 blank
+    }
+
+    /// <summary>
+    /// A rack that IS given still narrows the search to that rack: a bay with a blank only in rack 2 fails a
+    /// <c>BLANKD</c> aimed at its (empty) rack 1.
+    /// </summary>
+    [Fact]
+    public void BlankDelete_WithRack_OnlySearchesThatRack()
+    {
+        if (Engine(DepartureAtOak, "OAK_TWR", "TWR") is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        Assert.True(Issue(engine, host, "", "BLANK OAK/Ground 1/2").Result.Success);
+
+        ActionOutcome deleted = Issue(engine, host, "", "BLANKD OAK/Ground 1/1");
+
+        Assert.False(deleted.Result.Success);
+        Assert.Contains("No blank strips in Ground 1", deleted.Result.Message);
+        Assert.Single(engine.Strips.Items.Values, i => i.Type == StripMutations.BlankStripType);
+    }
 }

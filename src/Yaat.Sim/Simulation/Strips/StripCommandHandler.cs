@@ -1359,23 +1359,18 @@ internal static class StripCommandHandler
         }
 
         (StripBayConfig? bay, string _, int rack, int? indexOrNull, int _) = resolved.Value;
-        // BLANKD bay vs bay/rack: if the caller supplied a rack (indicated by
-        // a slash in the dest-spec, which makes rack a non-zero or zero value
-        // with an explicit signal), match only in that rack. The resolver
-        // returns rack = 0 both for "no slash" and for explicit "/1" (→ 0),
-        // so we distinguish via whether the original tokens contain a slash.
-        bool hasRackArg = false;
-        foreach (string tok in tokens)
-        {
-            if (tok.IndexOf('/') >= 0)
-            {
-                hasRackArg = true;
-                break;
-            }
-        }
+        // BLANKD bay vs bay/rack: a rack was typed iff the tokens carry two slashes or more. The mandatory
+        // FACILITY/ qualifier accounts for exactly one of them, and the bay name may share that token
+        // ("OAK/Ground" / "Sutro/1/1"), so a token count or a single slash cannot tell the two forms apart.
+        // The resolver returns rack = 0 both for "no rack" and for explicit "/1" (→ 0).
+        int slashCount = tokens.Sum(tok => tok.Count(c => c == '/'));
+        bool hasRackArg = slashCount >= 2;
         _ = indexOrNull;
 
-        string? targetStripId = null;
+        // The item store is a ConcurrentDictionary and enumerates in no stable order, so the pick has to be
+        // total-ordered by hand: lowest rack, then lowest index, then ordinal id. A recording replays
+        // byte-for-byte only if the same blank is chosen every run.
+        StripItemRecord? target = null;
         foreach (StripItemRecord item in engine.Strips.Items.Values)
         {
             if (item.Type != StripMutations.BlankStripType)
@@ -1390,11 +1385,13 @@ internal static class StripCommandHandler
             {
                 continue;
             }
-
-            targetStripId = item.Id;
-            break;
+            if (PrecedesBlank(item, target))
+            {
+                target = item;
+            }
         }
 
+        string? targetStripId = target?.Id;
         if (targetStripId is null)
         {
             return new CommandResult(false, $"No blank strips in {bay.Name}");
@@ -1405,14 +1402,25 @@ internal static class StripCommandHandler
     }
 
     /// <summary>
-    /// BLANKD syntax is <c>BLANKD &lt;bay&gt; [&lt;rack&gt;]</c>. The bay portion can be a
-    /// multi-token name (greedy match). A rack arg is present when the token count exceeds
-    /// the number of whitespace-separated words in the bay name.
+    /// The total order the no-rack <c>BLANKD</c> pick walks its candidates in: lowest rack, then lowest
+    /// index, then ordinal id. The item store enumerates in no stable order, so only a total order makes two
+    /// runs of the same recording delete the same blank.
     /// </summary>
-    private static bool ResolveAccessibleBaysRackGiven(int tokenCount, string bayName)
+    private static bool PrecedesBlank(StripItemRecord item, StripItemRecord? target)
     {
-        int bayWordCount = bayName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
-        return tokenCount > bayWordCount;
+        if (target is null)
+        {
+            return true;
+        }
+        if (item.Rack != target.Rack)
+        {
+            return item.Rack < target.Rack;
+        }
+        if (item.Index != target.Index)
+        {
+            return item.Index < target.Index;
+        }
+        return string.CompareOrdinal(item.Id, target.Id) < 0;
     }
 
     // ── Helpers ───────────────────────────────────────────────────
