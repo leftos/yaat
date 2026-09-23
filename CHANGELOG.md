@@ -7,6 +7,7 @@
 - Departures removed that way appear in the debrief as "Departed".
 
 ### Changed
+- Right-clicking an airborne live-traffic aircraft offers the full command menu; picking a command assumes the aircraft first, as typing one does.
 - `NODEL` also keeps a departure from being deleted by the departure distance setting.
 - Aircraft types missing from the aircraft database are sized by wake category for ground spacing, runway-exit stopping points and same-runway arrival spacing.
 

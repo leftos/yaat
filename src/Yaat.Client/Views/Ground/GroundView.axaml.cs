@@ -515,10 +515,13 @@ public partial class GroundView : UserControl
 
         if (ac is { IsLiveTraffic: true })
         {
-            // A shadow takes no ground / flight commands until assumed; surface shadows are not assumable at all.
+            // An assumable shadow takes the two assume items and then the same ground command groups a simulated
+            // aircraft gets: a command sent to an airborne shadow auto-assumes it server-side, so the groups apply
+            // as they are. A surface shadow is not assumable and keeps its read-only menu.
             if (LiveTrafficMenuItems.Add(menu, ac, cmd => vm.SendRawCommandAsync(callsign, initials, cmd)))
             {
                 menu.Items.Add(new Separator());
+                AddSimulatedAircraftItems(menu, vm, target);
             }
         }
         else
@@ -641,8 +644,10 @@ public partial class GroundView : UserControl
     }
 
     /// <summary>
-    /// The phase-aware command items for a simulated (non-shadow) aircraft: release checks, pushback, taxi holds,
-    /// hold-short / crossing, takeoff and landing clearances, runway exits and taxi-route drawing.
+    /// The phase-aware ground command items, for a simulated aircraft and for an assumable live-traffic shadow:
+    /// release checks, pushback, taxi holds, hold-short / crossing, takeoff and landing clearances, runway exits
+    /// and taxi-route drawing. An airborne shadow has no ground phase, so the state-gated predicates inside yield
+    /// nothing for it, and a surface shadow never reaches here, being unassumable.
     /// </summary>
     internal void AddSimulatedAircraftItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target)
     {

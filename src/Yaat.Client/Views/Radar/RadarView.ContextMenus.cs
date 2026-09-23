@@ -142,26 +142,42 @@ public partial class RadarView
 
         if (ac is { IsLiveTraffic: true })
         {
-            // A shadow takes no flight commands until assumed: no relative-traffic or phase groups, and the
-            // Sim Control submenu shrinks to Delete (hide) — Warp is refused for it server-side.
             if (LiveTrafficMenuItems.Add(menu, ac, cmd => vm.SendRawCommandAsync(callsign, initials, cmd)))
             {
+                // An assumable shadow then gets the same items a simulated aircraft gets: a command sent to an
+                // airborne shadow auto-assumes it server-side, so they apply as they are — minus the ask-pilot
+                // queries, which the server refuses for a shadow.
                 menu.Items.Add(new Separator());
             }
-
-            menu.Items.Add(BuildTrackSubmenu(vm, callsign, initials));
-            menu.Items.Add(BuildDataBlockSubmenu(vm, callsign, initials));
-            menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
-            menu.Items.Add(BuildDisplaySubmenu(vm, callsign));
-            menu.Items.Add(new Separator());
-            menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(callsign, initials)));
-            FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
-            ShowContextMenu(menu);
-            return;
+            else
+            {
+                // A surface shadow is never assumable: its menu is read-only, the display groups and a Delete.
+                menu.Items.Add(BuildTrackSubmenu(vm, callsign, initials));
+                menu.Items.Add(BuildDataBlockSubmenu(vm, callsign, initials));
+                menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
+                menu.Items.Add(BuildDisplaySubmenu(vm, callsign));
+                menu.Items.Add(new Separator());
+                menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(callsign, initials)));
+                FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
+                ShowContextMenu(menu);
+                return;
+            }
         }
 
         AddRelativeTrafficItems(menu, vm, prevSelected, callsign, initials);
+        AddAircraftCommandGroups(menu, vm, ac, callsign, initials);
 
+        ShowContextMenu(menu);
+    }
+
+    /// <summary>
+    /// The phase-aware command groups, the always-visible track / data block / squawk / coordination / display
+    /// submenus and the Sim Control submenu, exactly as a simulated aircraft gets them. For a live-traffic shadow
+    /// the read-only ask-pilot queries stay out (<see cref="AircraftCommandApplicability.CanAskPilot"/>); everything
+    /// else, Warp included, applies, because it goes through the command path and so auto-assumes the shadow first.
+    /// </summary>
+    private void AddAircraftCommandGroups(ContextMenu menu, RadarViewModel vm, AircraftModel? ac, string callsign, string initials)
+    {
         ContextMenuProfile profile = ContextMenuProfileService.GetProfile(ac?.CurrentPhase, ac?.IsOnGround ?? false);
 
         foreach (MenuGroup group in profile.PrimaryGroups)
@@ -184,7 +200,11 @@ public partial class RadarView
         menu.Items.Add(BuildTrackSubmenu(vm, callsign, initials));
         menu.Items.Add(BuildDataBlockSubmenu(vm, callsign, initials));
         menu.Items.Add(BuildSquawkSubmenu(vm, callsign, initials));
-        menu.Items.Add(BuildAskPilotSubmenu(vm, callsign, initials));
+        if (AircraftCommandApplicability.CanAskPilot(ac))
+        {
+            menu.Items.Add(BuildAskPilotSubmenu(vm, callsign, initials));
+        }
+
         menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
         menu.Items.Add(BuildDisplaySubmenu(vm, callsign));
         menu.Items.Add(new Separator());
@@ -192,8 +212,6 @@ public partial class RadarView
 
         // RPO control
         FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
-
-        ShowContextMenu(menu);
     }
 
     /// <summary>
@@ -604,6 +622,7 @@ public partial class RadarView
             Dispatcher.UIThread.Post(() => ShowWarpPopup(cs, "", hdg, alt, spd, (frd, h, a, s) => _ = vm.WarpAsync(cs, init, frd, h, a, s)));
         };
         menu.Items.Add(warpItem);
+
         LiveTrafficMenuItems.AddUnassume(menu.Items, ac, cmd => vm.SendRawCommandAsync(cs, init, cmd));
         menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(cs, init)));
         return menu;

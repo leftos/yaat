@@ -6,15 +6,21 @@ namespace Yaat.Client.Views;
 
 /// <summary>
 /// The context-menu items every surface (aircraft list, radar, ground) offers on either side of the live-traffic
-/// hand-off. <see cref="Add"/> covers the shadow side: a shadow is read-only until assumed, so its assume items are
-/// the only maneuver-like ones it gets and the callers skip their phase-aware command groups for it; surface shadows
-/// are never assumable (<see cref="AircraftCommandApplicability.CanAssume"/>), so for them nothing is added and the
-/// menu carries only track / display / delete items. <see cref="AddUnassume"/> covers the other side: the simulated
-/// aircraft that came from the feed, which may be released back to it.
+/// hand-off. <see cref="Add"/> covers the shadow side: an assumable shadow (<see cref="AircraftCommandApplicability.CanAssume"/>,
+/// which is every airborne one) takes the two assume items ahead of the callers' own command groups, because a
+/// command sent to an airborne shadow auto-assumes it server-side and then applies — so the groups a simulated
+/// aircraft gets apply to it as they are, minus the two the server refuses for a shadow: the ask-pilot queries
+/// (<see cref="AircraftCommandApplicability.CanAskPilot"/>) and the flight-plan editor
+/// (<see cref="AircraftCommandApplicability.CanEditFlightPlan"/>). A surface shadow is never assumable, so for it
+/// nothing is added and the menu carries only track / display / delete items. <see cref="AddUnassume"/> covers the
+/// other side: the simulated aircraft that came from the feed, which may be released back to it.
 /// </summary>
 public static class LiveTrafficMenuItems
 {
-    /// <summary>Appends "Assume control" and "Assume and track" when the shadow is assumable; returns whether anything was added.</summary>
+    /// <summary>
+    /// Appends "Assume control" and "Assume and track" when the shadow is assumable, ahead of the caller's own
+    /// command groups; returns whether anything was added.
+    /// </summary>
     public static bool Add(ContextMenu menu, AircraftModel ac, Func<string, Task> sendCommand)
     {
         if (!AircraftCommandApplicability.CanAssume(ac))

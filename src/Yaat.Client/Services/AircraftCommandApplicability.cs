@@ -113,15 +113,31 @@ public static class AircraftCommandApplicability
     /// <summary>
     /// Whether the sim will accept flight / ground commands for this aircraft at all. A live-traffic shadow
     /// (<see cref="AircraftModel.IsLiveTraffic"/>) is read-only until assumed — the server rejects every such
-    /// command with "ASSUME first" — so no maneuver predicate below offers anything for it.
+    /// command with "ASSUME first" — but a command sent to one the sim would auto-assume
+    /// (<see cref="CanAssume"/>) counts as controllable: the dispatcher assumes the shadow and applies the
+    /// command in the same call, exactly as it does for a typed command. A surface shadow is never assumable
+    /// and stays uncontrollable, so no maneuver predicate below offers anything for it.
     /// </summary>
-    public static bool IsControllable([NotNullWhen(true)] AircraftModel? ac) => ac is not null && !ac.IsLiveTraffic;
+    public static bool IsControllable([NotNullWhen(true)] AircraftModel? ac) => ac is not null && (!ac.IsLiveTraffic || CanAssume(ac));
 
     /// <summary>
     /// Assume control of a live-traffic shadow (<c>ASSUME</c>): airborne shadows only. Surface shadows come from
     /// ASDE-X with no flight plan or air vector to seed a simulated aircraft from, so they are never assumable.
     /// </summary>
     public static bool CanAssume(AircraftModel? ac) => ac is { IsLiveTraffic: true, IsOnGround: false };
+
+    /// <summary>
+    /// Ask-pilot queries ("say altitude", "say heading") — never for a live-traffic shadow, assumable or not:
+    /// they are read-only queries and the auto-assume gate skips those (<c>IsReadOnlyQuery</c>), so the server
+    /// answers every one of them with "ASSUME first".
+    /// </summary>
+    public static bool CanAskPilot(AircraftModel? ac) => ac is { IsLiveTraffic: false };
+
+    /// <summary>
+    /// Edit an aircraft's flight plan — never for a live-traffic shadow, assumable or not: the flight-plan editor
+    /// is not a command, so the edit never reaches the dispatcher's auto-assume gate and the server refuses it.
+    /// </summary>
+    public static bool CanEditFlightPlan(AircraftModel? ac) => ac is { IsLiveTraffic: false };
 
     /// <summary>
     /// Release an assumed aircraft back to the live feed (<c>UNASSUME</c>): only an aircraft the sim is flying
@@ -260,9 +276,9 @@ public static class AircraftCommandApplicability
     /// accepts an aircraft at a stand and one resting on a ramp spot after a completed pushback ("Holding After
     /// Pushback"), so a pushed aircraft can be repositioned without a TAXI first. It refuses the other two holds
     /// ("Holding After Exit", "Holding In Position"), which therefore get no item — offering one that can only
-    /// produce a refusal is worse than offering nothing. The <see cref="IsControllable"/> guard is for consistency
-    /// with the rest of this class and for future callers: both menu surfaces already route live-traffic shadows
-    /// to their own item set before reaching here.
+    /// produce a refusal is worse than offering nothing. The <see cref="IsControllable"/> guard keeps surface
+    /// live-traffic shadows, which are never assumable, out; an assumable (airborne) shadow reaches the phase test
+    /// below and is refused there, having no ground phase.
     /// </summary>
     public static bool CanPushBack(AircraftModel? ac)
     {
@@ -278,7 +294,8 @@ public static class AircraftCommandApplicability
     /// Hold position (<c>HOLD</c>) — an aircraft that is moving under its own or a tug's power: a pushback (plain
     /// or to a spot), a taxi, or a taxi-follow. FollowingPhase is named "Following &lt;callsign&gt;", so the prefix
     /// test matches the ground follow; the airborne pattern-follow phase is named "VFR Follow" and is not matched.
-    /// The <see cref="IsControllable"/> guard is for consistency and future callers, as in <see cref="CanPushBack"/>.
+    /// The <see cref="IsControllable"/> guard keeps surface live-traffic shadows, which are never assumable, out,
+    /// as in <see cref="CanPushBack"/>.
     /// </summary>
     public static bool CanHoldPosition(AircraftModel? ac)
     {
@@ -297,7 +314,8 @@ public static class AircraftCommandApplicability
     /// reachable unheld — Holding In Position after a WARPG, a completed taxi to a spot, or a rejected/cancelled
     /// takeoff — so the phase alone cannot gate the item. The hold-short holds are a different RES path (satisfying
     /// a crossing clearance, no hold directive needed) and are deliberately not covered here. The
-    /// <see cref="IsControllable"/> guard is for consistency and future callers, as in <see cref="CanPushBack"/>.
+    /// <see cref="IsControllable"/> guard keeps surface live-traffic shadows, which are never assumable, out, as
+    /// in <see cref="CanPushBack"/>.
     /// </summary>
     public static bool CanResumeTaxi(AircraftModel? ac)
     {

@@ -468,11 +468,13 @@ harness shows is what the server did.
 - **Model** — `AircraftModel.IsLiveTraffic` / `LiveTrafficStale` / `LiveTrafficSource` / `AssumedFromLiveTraffic`, copied in `FromDto`
   and `UpdateFromDto`.
   The assume hand-off flips `IsLiveTraffic` in the same `AircraftUpdated`, so every surface below re-evaluates at once.
-- **Applicability** — `AircraftCommandApplicability.IsControllable(ac)` (`!IsLiveTraffic`) gates every maneuver predicate, so
-  the phase-aware menu builders offer nothing for a shadow; `CanAssume(ac)` = airborne shadow. `LiveTrafficMenuItems.Add`
-  (Views/) appends "Assume control" / "Assume and track" (two commands — the server doesn't couple `ASSUME` and `TRACK`) and
-  each right-click surface (`RadarView.ContextMenus`, `DataGridView.axaml.cs`, `GroundView.axaml.cs`) branches on
-  `IsLiveTraffic` to keep only Track / Coordination / Data Block / Display / Delete for shadows. `CanUnassume(ac)` = a simulated
+- **Applicability** — `AircraftCommandApplicability.IsControllable(ac)` (`!IsLiveTraffic || CanAssume(ac)`) gates every maneuver
+  predicate; `CanAssume(ac)` = airborne shadow, which any manoeuvre command auto-assumes server-side (`CommandDispatcher.TryAssumeShadow`),
+  so the menus offer it the phase-aware groups a simulated aircraft gets. `LiveTrafficMenuItems.Add` (Views/) prepends "Assume
+  control" / "Assume and track" (two commands — the server doesn't couple `ASSUME` and `TRACK`). Each right-click surface
+  (`RadarView.ContextMenus`, `DataGridView.axaml.cs`, `GroundView.axaml.cs`) leaves out for an airborne shadow what the server
+  refuses — Ask pilot (read-only queries, `CanAskPilot`) and Edit flight plan (refused ahead of the gate, `CanEditFlightPlan`); Warp goes through the command path and auto-assumes like any other verb — and keeps a
+  surface shadow (not assumable) to Track / Coordination / Data Block / Display / Delete. `CanUnassume(ac)` = a simulated
   aircraft that was assumed from the feed (`AssumedFromLiveTraffic && !IsLiveTraffic` — the `ActionArms.Unassume` gate);
   `LiveTrafficMenuItems.AddUnassume` puts "Release to live feed" (sends `UNASSUME`) directly above Delete on all three
   surfaces — inside the radar menu's Sim Control submenu, where that menu keeps Delete.

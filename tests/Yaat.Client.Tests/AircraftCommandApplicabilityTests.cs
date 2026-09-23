@@ -60,6 +60,8 @@ public class AircraftCommandApplicabilityTests
         Assert.False(AircraftCommandApplicability.CanEnterFinal(null, VfrCommandsForIfr.All));
         Assert.False(AircraftCommandApplicability.CanIssuePatternManeuvers(null, VfrCommandsForIfr.All));
         Assert.False(AircraftCommandApplicability.CanDrawTaxiRoute(null));
+        Assert.False(AircraftCommandApplicability.CanAskPilot(null));
+        Assert.False(AircraftCommandApplicability.CanEditFlightPlan(null));
     }
 
     // --- Departures: Line up and wait ---
@@ -328,18 +330,62 @@ public class AircraftCommandApplicabilityTests
     }
 
     [Fact]
-    public void AirborneShadow_OnlyAssumeApplies()
+    public void IsControllable_AirborneShadow_IsTrue() => Assert.True(AircraftCommandApplicability.IsControllable(Shadow(onGround: false)));
+
+    [Fact]
+    public void IsControllable_SurfaceShadow_IsFalse() => Assert.False(AircraftCommandApplicability.IsControllable(Shadow(onGround: true)));
+
+    // Ask-pilot and the flight-plan editor are not command-path groups: the server refuses a read-only query on a
+    // shadow, and refuses a plan edit ahead of the auto-assume gate, so both stay out of every shadow's menu.
+    [Theory]
+    [InlineData(false, false, true)] // simulated aircraft
+    [InlineData(true, false, false)] // airborne shadow
+    [InlineData(true, true, false)] // surface shadow
+    public void CanAskPilot_SimulatedAircraftOnly(bool liveTraffic, bool onGround, bool expected)
+    {
+        AircraftModel ac = liveTraffic ? Shadow(onGround) : Ac("FinalApproach", onGround);
+        Assert.Equal(expected, AircraftCommandApplicability.CanAskPilot(ac));
+    }
+
+    [Theory]
+    [InlineData(false, false, true)] // simulated aircraft
+    [InlineData(true, false, false)] // airborne shadow
+    [InlineData(true, true, false)] // surface shadow
+    public void CanEditFlightPlan_SimulatedAircraftOnly(bool liveTraffic, bool onGround, bool expected)
+    {
+        AircraftModel ac = liveTraffic ? Shadow(onGround) : Ac("FinalApproach", onGround);
+        Assert.Equal(expected, AircraftCommandApplicability.CanEditFlightPlan(ac));
+    }
+
+    /// <summary>
+    /// The airborne arrival / pattern group applies to an assumable shadow as it does to a simulated
+    /// aircraft: a command sent to an airborne shadow auto-assumes it server-side before it is applied.
+    /// </summary>
+    [Fact]
+    public void CanClearToLand_AirborneShadow_IsTrue()
+    {
+        AircraftModel ac = Shadow(onGround: false);
+        ac.CurrentPhase = "FinalApproach";
+        ac.PhaseSequence = "FinalApproach > Landing";
+        Assert.True(AircraftCommandApplicability.CanClearToLand(ac));
+        Assert.True(AircraftCommandApplicability.CanGoAround(ac));
+    }
+
+    /// <summary>
+    /// An airborne shadow is controllable now that a command would auto-assume it, so the airborne command
+    /// groups apply; only the state-gated arrival items stay out while it has no arrival phase.
+    /// </summary>
+    [Fact]
+    public void AirborneShadow_IsControllableWithNoArrivalPhaseYet()
     {
         AircraftModel ac = Shadow(onGround: false);
         Assert.True(AircraftCommandApplicability.CanAssume(ac));
-        Assert.False(AircraftCommandApplicability.IsControllable(ac));
+        Assert.True(AircraftCommandApplicability.IsControllable(ac));
         Assert.False(AircraftCommandApplicability.CanClearToLand(ac));
         Assert.False(AircraftCommandApplicability.CanGoAround(ac));
-        Assert.False(AircraftCommandApplicability.CanCancelLandingClearance(ac));
-        Assert.False(AircraftCommandApplicability.CanEnterPattern(ac, VfrCommandsForIfr.All));
-        Assert.False(AircraftCommandApplicability.CanEnterFinal(ac, VfrCommandsForIfr.All));
-        Assert.False(AircraftCommandApplicability.CanIssuePatternManeuvers(ac, VfrCommandsForIfr.All));
         Assert.False(AircraftCommandApplicability.CanIssueVfrOption(ac, VfrCommandsForIfr.All));
+        Assert.True(AircraftCommandApplicability.CanEnterPattern(ac, VfrCommandsForIfr.All));
+        Assert.True(AircraftCommandApplicability.CanEnterFinal(ac, VfrCommandsForIfr.All));
     }
 
     [Fact]

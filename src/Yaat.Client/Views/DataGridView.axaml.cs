@@ -5,6 +5,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Radar.Flyouts;
 
@@ -202,35 +203,7 @@ public partial class DataGridView : UserControl
             return;
         }
 
-        if (ac.IsLiveTraffic)
-        {
-            // A shadow takes no flight / ground / pilot commands until assumed.
-            if (LiveTrafficMenuItems.Add(menu, ac, cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials)))
-            {
-                menu.Items.Add(new Separator());
-            }
-
-            menu.Items.Add(BuildTrackSubmenu(vm, callsign, initials));
-            menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
-            menu.Items.Add(new Separator());
-        }
-        else
-        {
-            AddPhaseAwareItems(menu, ac, vm, callsign, initials);
-
-            menu.Items.Add(new Separator());
-            menu.Items.Add(BuildTrackSubmenu(vm, callsign, initials));
-            menu.Items.Add(BuildSquawkSubmenu(vm, callsign, initials));
-            menu.Items.Add(BuildAskPilotSubmenu(vm, callsign, initials));
-            menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
-
-            menu.Items.Add(new Separator());
-            var editItem = new MenuItem { Header = "Edit flight plan" };
-            editItem.Click += (_, _) => FlightPlanEditorManager.Open(ac, vm);
-            menu.Items.Add(editItem);
-
-            LiveTrafficMenuItems.AddUnassume(menu.Items, ac, cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials));
-        }
+        AddCommandGroups(menu, ac, vm, callsign, initials);
 
         var deleteItem = new MenuItem { Header = "Delete" };
         deleteItem.Click += async (_, _) => await vm.Connection.SendCommandAsync(callsign, "DEL", initials);
@@ -245,6 +218,51 @@ public partial class DataGridView : UserControl
         vm.BuildRpoMenuItems(menu, selectedCallsigns);
 
         grid.ContextMenu = menu;
+    }
+
+    /// <summary>
+    /// The command groups between the favorites block and the Delete item. An assumable live-traffic shadow takes
+    /// the two assume items and then the same phase-aware groups a simulated aircraft gets: a command sent to an
+    /// airborne shadow auto-assumes it server-side, so the groups apply as they are, minus the two the server
+    /// refuses for a shadow — the ask-pilot queries (<see cref="AircraftCommandApplicability.CanAskPilot"/>) and
+    /// the flight-plan editor (<see cref="AircraftCommandApplicability.CanEditFlightPlan"/>). A surface shadow is
+    /// not assumable and keeps its read-only track / coordination menu.
+    /// </summary>
+    private static void AddCommandGroups(ContextMenu menu, AircraftModel ac, MainViewModel vm, string callsign, string initials)
+    {
+        if (LiveTrafficMenuItems.Add(menu, ac, cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials)))
+        {
+            menu.Items.Add(new Separator());
+        }
+        else if (ac.IsLiveTraffic)
+        {
+            menu.Items.Add(BuildTrackSubmenu(vm, callsign, initials));
+            menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
+            menu.Items.Add(new Separator());
+            return;
+        }
+
+        AddPhaseAwareItems(menu, ac, vm, callsign, initials);
+
+        menu.Items.Add(new Separator());
+        menu.Items.Add(BuildTrackSubmenu(vm, callsign, initials));
+        menu.Items.Add(BuildSquawkSubmenu(vm, callsign, initials));
+        if (AircraftCommandApplicability.CanAskPilot(ac))
+        {
+            menu.Items.Add(BuildAskPilotSubmenu(vm, callsign, initials));
+        }
+
+        menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
+
+        menu.Items.Add(new Separator());
+        if (AircraftCommandApplicability.CanEditFlightPlan(ac))
+        {
+            var editItem = new MenuItem { Header = "Edit flight plan" };
+            editItem.Click += (_, _) => FlightPlanEditorManager.Open(ac, vm);
+            menu.Items.Add(editItem);
+        }
+
+        LiveTrafficMenuItems.AddUnassume(menu.Items, ac, cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials));
     }
 
     private void OnDataGridViewKeyDown(object? sender, KeyEventArgs e)
