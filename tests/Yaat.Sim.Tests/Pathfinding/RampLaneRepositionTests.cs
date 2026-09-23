@@ -150,13 +150,16 @@ public class RampLaneRepositionTests
 
         RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(
             layout,
-            gate.Position,
-            gate.TrueHeading!.Value,
-            null,
-            path,
-            failure,
-            options,
-            AircraftCategory.Jet
+            new RampLaneRepositionRequest
+            {
+                Position = gate.Position,
+                Heading = gate.TrueHeading!.Value,
+                CurrentTaxiway = null,
+                Path = path,
+                Options = options,
+                Category = AircraftCategory.Jet,
+            },
+            failure
         );
         Assert.NotNull(plan);
         _output.WriteLine($"plan: lane {plan.Lane} target #{plan.TargetNode.Id} crossing {plan.CrossingFt:F0} ft; {plan.Route.ToSummary()}");
@@ -190,13 +193,16 @@ public class RampLaneRepositionTests
 
         RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(
             layout,
-            gate.Position,
-            gate.TrueHeading!.Value,
-            null,
-            path,
-            failure,
-            options,
-            AircraftCategory.Jet
+            new RampLaneRepositionRequest
+            {
+                Position = gate.Position,
+                Heading = gate.TrueHeading!.Value,
+                CurrentTaxiway = null,
+                Path = path,
+                Options = options,
+                Category = AircraftCategory.Jet,
+            },
+            failure
         );
         Assert.NotNull(plan);
         _output.WriteLine($"plan: lane {plan.Lane} target #{plan.TargetNode.Id} crossing {plan.CrossingFt:F0} ft; {plan.Route.ToSummary()}");
@@ -224,7 +230,19 @@ public class RampLaneRepositionTests
         // dead end as an unreachable destination rather than blaming M4 outright.
         PathfindingFailure failure = FailureFor(layout, onM3.Position, heading, path, options)!;
 
-        RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(layout, onM3.Position, heading, "M3", path, failure, options, AircraftCategory.Jet);
+        RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(
+            layout,
+            new RampLaneRepositionRequest
+            {
+                Position = onM3.Position,
+                Heading = heading,
+                CurrentTaxiway = "M3",
+                Path = path,
+                Options = options,
+                Category = AircraftCategory.Jet,
+            },
+            failure
+        );
         Assert.NotNull(plan);
         _output.WriteLine($"plan: lane {plan.Lane} target #{plan.TargetNode.Id} crossing {plan.CrossingFt:F0} ft; {plan.Route.ToSummary()}");
 
@@ -252,13 +270,16 @@ public class RampLaneRepositionTests
         PathfindingFailure failure = FailureFor(layout, gate.Position, gate.TrueHeading!.Value, path, options)!;
         RampLaneRepositionPlan plan = RampLaneReposition.TryPlan(
             layout,
-            gate.Position,
-            gate.TrueHeading!.Value,
-            null,
-            path,
-            failure,
-            options,
-            AircraftCategory.Jet
+            new RampLaneRepositionRequest
+            {
+                Position = gate.Position,
+                Heading = gate.TrueHeading!.Value,
+                CurrentTaxiway = null,
+                Path = path,
+                Options = options,
+                Category = AircraftCategory.Jet,
+            },
+            failure
         )!;
 
         // The free-space leg's virtual start is not a layout node; restore rebuilds it from the recorded position.
@@ -298,7 +319,19 @@ public class RampLaneRepositionTests
         Assert.Equal(FailureKind.DestinationUnreachable, failure.Kind);
         Assert.Equal("A", failure.InfeasibleTaxiway);
 
-        RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(layout, onM3.Position, heading, "M3", path, failure, options, AircraftCategory.Jet);
+        RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(
+            layout,
+            new RampLaneRepositionRequest
+            {
+                Position = onM3.Position,
+                Heading = heading,
+                CurrentTaxiway = "M3",
+                Path = path,
+                Options = options,
+                Category = AircraftCategory.Jet,
+            },
+            failure
+        );
         Assert.Null(plan);
     }
 
@@ -318,13 +351,16 @@ public class RampLaneRepositionTests
 
         RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(
             layout,
-            gate.Position,
-            gate.TrueHeading!.Value,
-            null,
-            path,
-            failure,
-            options,
-            AircraftCategory.Piston
+            new RampLaneRepositionRequest
+            {
+                Position = gate.Position,
+                Heading = gate.TrueHeading!.Value,
+                CurrentTaxiway = null,
+                Path = path,
+                Options = options,
+                Category = AircraftCategory.Piston,
+            },
+            failure
         );
         Assert.Null(plan);
     }
@@ -346,13 +382,16 @@ public class RampLaneRepositionTests
 
         RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(
             layout,
-            gate.Position,
-            gate.TrueHeading!.Value,
-            null,
-            path,
-            failure,
-            options,
-            AircraftCategory.Jet
+            new RampLaneRepositionRequest
+            {
+                Position = gate.Position,
+                Heading = gate.TrueHeading!.Value,
+                CurrentTaxiway = null,
+                Path = path,
+                Options = options,
+                Category = AircraftCategory.Jet,
+            },
+            failure
         );
         Assert.Null(plan);
     }
@@ -370,13 +409,16 @@ public class RampLaneRepositionTests
 
         RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(
             layout,
-            gate.Position,
-            gate.TrueHeading!.Value,
-            null,
-            path,
-            failure,
-            options,
-            AircraftCategory.Jet
+            new RampLaneRepositionRequest
+            {
+                Position = gate.Position,
+                Heading = gate.TrueHeading!.Value,
+                CurrentTaxiway = null,
+                Path = path,
+                Options = options,
+                Category = AircraftCategory.Jet,
+            },
+            failure
         );
         Assert.Null(plan);
     }
@@ -392,13 +434,16 @@ public class RampLaneRepositionTests
 
         RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(
             layout,
-            gate.Position,
-            gate.TrueHeading!.Value,
-            null,
-            path,
-            failure,
-            options,
-            AircraftCategory.Jet
+            new RampLaneRepositionRequest
+            {
+                Position = gate.Position,
+                Heading = gate.TrueHeading!.Value,
+                CurrentTaxiway = null,
+                Path = path,
+                Options = options,
+                Category = AircraftCategory.Jet,
+            },
+            failure
         );
         Assert.NotNull(plan);
         Assert.Equal("M9", plan.Lane);

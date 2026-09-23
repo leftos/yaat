@@ -76,7 +76,7 @@ public class Issue222PushbackParkedNeighborTests(ITestOutputHelper output)
     /// <summary>
     /// The separation and the lateral room the detector measures against the neighbour — the separation times the
     /// sine of the angle between the push direction and the bearing to it — beside the room a pass needs: the two
-    /// half-spans plus <see cref="GroundConflictDetector.WingtipBufferFt"/>.
+    /// half-spans plus <see cref="GroundOutlineSweep.WingtipBufferFt"/>.
     /// </summary>
     private static string DescribeLateral(AircraftState pusher, AircraftState neighbour)
     {
@@ -88,7 +88,7 @@ public class Issue222PushbackParkedNeighborTests(ITestOutputHelper output)
         double requiredFt =
             (FaaAircraftDatabase.Get(pusher.AircraftType)?.WingspanFt ?? double.NaN) / 2.0
             + (FaaAircraftDatabase.Get(neighbour.AircraftType)?.WingspanFt ?? double.NaN) / 2.0
-            + GroundConflictDetector.WingtipBufferFt;
+            + GroundOutlineSweep.WingtipBufferFt;
         return $"gs={pusher.GroundSpeed:F1}kt sep={sepFt:F0}ft push={pushDeg:F1}° bearing={bearingDeg:F1}° ({offPushDeg:F1}° off) "
             + $"lateral={lateralFt:F1}ft required={requiredFt:F1}ft";
     }

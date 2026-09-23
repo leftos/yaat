@@ -153,6 +153,56 @@ public class Issue396RampLaneRepositionTests
         );
     }
 
+    /// <summary>
+    /// A spot clearance rescued by the start-of-route ramp cut still ends on the spot: the route carries the
+    /// destination so the taxi finishes with the nose-at-spot stop rather than holding in position.
+    /// </summary>
+    [Fact]
+    public void TaxiToSpotFromB20S_RepositionsAndKeepsDestinationSpot()
+    {
+        SimulationEngine? engine = BuildEngine(out AirportGroundLayout? layout);
+        if (engine is null || layout is null)
+        {
+            return;
+        }
+
+        AircraftState aircraft = AddParkedAt(engine, layout, "AAL436", "B77W", "B20S", "SFO");
+        CommandResult result = engine.SendCommand("AAL436", "TAXI M4 M1 A $9");
+        _output.WriteLine($"result: {result.Success} — {result.Message}");
+        Assert.True(result.Success, result.Message);
+
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
+        Assert.NotNull(route);
+        _output.WriteLine("route: " + string.Join(" ", route.Segments.Select(s => s.TaxiwayName)));
+        AssertRepositionsOnto(route, "M4", result);
+        Assert.Equal("9", route.DestinationSpot);
+    }
+
+    /// <summary>
+    /// The parking equivalent: gate G9 hangs off spot 9's RAMP lead-in, and the cut route keeps it as the
+    /// destination so the taxi ends at the stand.
+    /// </summary>
+    [Fact]
+    public void TaxiToGateFromB20S_RepositionsAndKeepsDestinationParking()
+    {
+        SimulationEngine? engine = BuildEngine(out AirportGroundLayout? layout);
+        if (engine is null || layout is null)
+        {
+            return;
+        }
+
+        AircraftState aircraft = AddParkedAt(engine, layout, "AAL436", "B77W", "B20S", "SFO");
+        CommandResult result = engine.SendCommand("AAL436", "TAXI M4 M1 A @G9");
+        _output.WriteLine($"result: {result.Success} — {result.Message}");
+        Assert.True(result.Success, result.Message);
+
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
+        Assert.NotNull(route);
+        _output.WriteLine("route: " + string.Join(" ", route.Segments.Select(s => s.TaxiwayName)));
+        AssertRepositionsOnto(route, "M4", result);
+        Assert.Equal("G9", route.DestinationParking);
+    }
+
     [Fact]
     public void TaxiM5FromB20S_RepositionsOntoM5()
     {

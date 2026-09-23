@@ -33,13 +33,33 @@ internal readonly record struct GroundOutlineSweepResult(
 internal static class GroundOutlineSweep
 {
     /// <summary>
-    /// The clearance a sweep may not fall through, feet: <see cref="GroundConflictDetector.WingtipBufferFt"/>, or — for
+    /// Wingtip room left between two aircraft passing abeam, on top of the pair's half-wingspans
+    /// (<see cref="GroundConflictDetector.RequiredLateralClearanceFt"/>). A detector-frame figure, deliberately below the
+    /// AC 150/5300-13B design wingtip allowance (0.2 W + 20 ft on a taxiway, 0.1 W + 20 ft on a taxilane): the design value
+    /// buys centreline-tracking error the sim does not have, and importing it would ask 160.9 ft of SFO's 160 ft A/B spacing
+    /// and hold every parallel-lane pass. 7110.65 has no taxiway-separation paragraph; its §3-1-1 NOTE, AIM 4-3-18.b and
+    /// AIM 2-3-4.b.1 ("being centered on the taxiway centerline does not guarantee wingtip clearance") put wingtip avoidance
+    /// on the pilot.
+    /// </summary>
+    public const double WingtipBufferFt = 25.0;
+
+    /// <summary>
+    /// Slack under the "no closer than the move started" floor of <see cref="GroundConflictDetector.TugMoveFoulsParkedAt"/>,
+    /// feet: sampling and rounding noise between the live outline and the path's samples, not room. It is also the floor's
+    /// own lower bound, so the floor never goes to zero or below and a mover whose outline already touches a neighbour's is
+    /// held rather than released. The command-time refusal of a tug move that starts inside a neighbour reads contact by the
+    /// same slack.
+    /// </summary>
+    public const double OutlineClearanceSlackFt = 0.5;
+
+    /// <summary>
+    /// The clearance a sweep may not fall through, feet: <see cref="WingtipBufferFt"/>, or — for
     /// a neighbour the move already starts closer to than that, as the aircraft on the next stand usually is — no
-    /// closer than it started, less <see cref="GroundConflictDetector.OutlineClearanceSlackFt"/>. Never below that
+    /// closer than it started, less <see cref="OutlineClearanceSlackFt"/>. Never below that
     /// slack, so contact is never passable.
     ///
     /// <para>The floor this works out to — 24.5 ft for the pair of E75Ls on adjacent SFO gates, off
-    /// <see cref="GroundConflictDetector.WingtipBufferFt"/>'s 25 ft — sits between AC 150/5300-13B's taxilane-to-object
+    /// <see cref="WingtipBufferFt"/>'s 25 ft — sits between AC 150/5300-13B's taxilane-to-object
     /// wingtip allowance (0.1 W + 10 ft, about 20.2 ft for an ADG-III E75L) and its taxilane-to-taxilane allowance
     /// (0.1 W + 20 ft, about 30.2 ft). The planner therefore refuses swings the object standard would permit, and that
     /// is deliberate: a tow past a parked aircraft is walked, not flown down a design taxilane, and AC 00-65A §11.9 puts
@@ -49,10 +69,7 @@ internal static class GroundOutlineSweep
     /// <param name="startClearanceFt">The clearance at the pose the floor is anchored to, feet.</param>
     /// <returns>The floor, feet.</returns>
     internal static double FloorFt(double startClearanceFt) =>
-        Math.Max(
-            GroundConflictDetector.OutlineClearanceSlackFt,
-            Math.Min(GroundConflictDetector.WingtipBufferFt, startClearanceFt) - GroundConflictDetector.OutlineClearanceSlackFt
-        );
+        Math.Max(OutlineClearanceSlackFt, Math.Min(WingtipBufferFt, startClearanceFt) - OutlineClearanceSlackFt);
 
     /// <summary>
     /// Sweeps <paramref name="path"/> against one neighbour. The floor is anchored to <paramref name="startPose"/> —

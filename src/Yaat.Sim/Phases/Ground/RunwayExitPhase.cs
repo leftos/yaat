@@ -848,7 +848,8 @@ public sealed class RunwayExitPhase : Phase
         // Append a virtual segment past the hold-short node so the aircraft's tail
         // clears the hold-short line. The virtual node is offset along the graph edge.
         GroundNode holdShortNode = _exitPath[^1];
-        double lengthFt = FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? 60.0;
+        double lengthFt =
+            FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(ctx.Aircraft.AircraftType);
         double halfLengthNm = (lengthFt / 2.0) / GeoMath.FeetPerNm;
 
         GroundNode virtualTarget;

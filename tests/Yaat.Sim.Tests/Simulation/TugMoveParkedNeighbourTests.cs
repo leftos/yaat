@@ -304,7 +304,7 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
 
         Assert.True(run.CompletedSecond > 0, $"the pull never finished within {BudgetSeconds}s");
         Assert.True(run.LongestHoldSeconds <= MaxHoldSeconds, $"the pull was held at a zero speed limit for {run.LongestHoldSeconds}s");
-        Assert.True(run.ClosestWithTugFt >= GroundConflictDetector.WingtipBufferFt, $"the outlines came within {run.ClosestWithTugFt:F1} ft");
+        Assert.True(run.ClosestWithTugFt >= GroundOutlineSweep.WingtipBufferFt, $"the outlines came within {run.ClosestWithTugFt:F1} ft");
     }
 
     /// <summary>
@@ -403,7 +403,7 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
     /// <summary>
     /// A full span less <see cref="StartingGapFt"/> abeam: the wingtips overlap by that much with the two wing
     /// segments collinear, which the clearance measures as a few ten-billionths of a foot rather than zero — contact
-    /// inside <see cref="GroundConflictDetector.OutlineClearanceSlackFt"/> all the same.
+    /// inside <see cref="GroundOutlineSweep.OutlineClearanceSlackFt"/> all the same.
     /// </summary>
     private static double CollinearWingtipsAbeamFt => GroundOutlineSize.Of(Narrowbody, towedNoseFirst: false).WingspanFt - StartingGapFt;
 
@@ -420,7 +420,7 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
         double startClearanceFt = GroundOutline.ClearanceBetween(pusher, aTowedNoseFirst: false, parked);
         output.WriteLine($"a B738 parked {abeamFt:F1} ft abeam leaves {startClearanceFt:E3} ft of the pusher's outline");
         Assert.True(
-            startClearanceFt < GroundConflictDetector.OutlineClearanceSlackFt,
+            startClearanceFt < GroundOutlineSweep.OutlineClearanceSlackFt,
             $"test setup: the pair starts {startClearanceFt:F1} ft apart, clear of the refusal"
         );
         return (pusher, parked);
@@ -482,7 +482,7 @@ public class TugMoveParkedNeighbourTests(ITestOutputHelper output)
     /// <summary>
     /// The same gate with the neighbour placed wingtip to wingtip instead: the wing segments are collinear, so the
     /// overlap measures a few ten-billionths of a foot rather than a clean zero. Contact inside
-    /// <see cref="GroundConflictDetector.OutlineClearanceSlackFt"/> is contact — the push is refused like any other
+    /// <see cref="GroundOutlineSweep.OutlineClearanceSlackFt"/> is contact — the push is refused like any other
     /// overlap, rather than slipping through an exact-zero test.
     /// </summary>
     [Fact]

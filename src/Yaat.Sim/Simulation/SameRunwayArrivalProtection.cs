@@ -127,9 +127,6 @@ public static class SameRunwayArrivalProtection
     /// <summary>§5-7-3.e — helicopters, at any distance.</summary>
     public const double HelicopterFloorKts = 60.0;
 
-    /// <summary>Fuselage length (ft) assumed for a type the FAA database does not carry — the figure <see cref="RunwayExitPhase"/> uses.</summary>
-    private const double DefaultAircraftLengthFt = 60.0;
-
     /// <summary>
     /// Live rollout state of a leader that has already touched down, used to refine the required interval from what
     /// the aircraft is actually doing instead of the per-category constant. Two legs along the path it will fly to
@@ -331,10 +328,12 @@ public static class SameRunwayArrivalProtection
     /// <summary>
     /// Path distance (nm) the leader must still cover past its hold-short node before <em>all parts</em> of it are
     /// across the holding position marking (AIM 2-3-5.a.1, AIM 4-3-21.b): half a fuselage length, which is exactly
-    /// the offset <see cref="RunwayExitPhase"/> taxis to past that node.
+    /// the offset <see cref="RunwayExitPhase"/> taxis to past that node. The fuselage length comes from the FAA
+    /// database, or for a type it does not carry from <see cref="HoldShortAnnotator.CwtFallbackLengthFt"/> — the
+    /// resolver <see cref="RunwayExitPhase"/> uses, so the two agree on an unknown type too.
     /// </summary>
     public static double TailClearanceNm(string aircraftType) =>
-        (FaaAircraftDatabase.Get(aircraftType)?.LengthFt ?? DefaultAircraftLengthFt) / 2.0 / GeoMath.FeetPerNm;
+        (FaaAircraftDatabase.Get(aircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraftType)) / 2.0 / GeoMath.FeetPerNm;
 
     /// <summary>
     /// The live rollout of an aircraft that has landed and is vacating, or null when there is nothing to read it

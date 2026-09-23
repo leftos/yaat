@@ -444,6 +444,47 @@ public class GroundConflictDetectorTests
         Assert.True(anyLimited, "Expected at least one aircraft to have a speed limit on same edge");
     }
 
+    /// <summary>
+    /// A leader whose type the FAA database does not carry is sized by its wake category: the A225 is CWT A (super),
+    /// so the CWT resolver gives it 250 ft and the stop ring against a B738 trailer is (250 + 129.5) / 2 + 25 ft. A
+    /// trailer 20 ft inside that ring must stop, not merely match the leader's speed as it would behind a 60 ft guess.
+    /// </summary>
+    [Fact]
+    public void SameEdgeTrailing_UnknownHeavyLeader_StopRingUsesCwtLength()
+    {
+        Assert.Null(FaaAircraftDatabase.Get("A225"));
+        Assert.Equal("A", WakeTurbulenceData.GetCwt("A225"));
+
+        (AirportGroundLayout? layout, GroundNode _, GroundNode _, GroundNode _) = BuildSimpleLayout();
+        GroundEdge edge01 = layout.Edges[0];
+        double stopRingFt = ((HoldShortAnnotator.CwtFallbackLengthFt("A225") + LengthFt("B738")) / 2) + GroundConflictDetector.StopBufferFt;
+        double gapFt = stopRingFt - 20.0;
+
+        AircraftState trailer = MakeAircraft(
+            "TRAIL",
+            new LatLon(BaseLat, BaseLon),
+            heading: 0,
+            gs: 15,
+            taxiRoute: MakeRoute(MakeSeg(0, 1, "A", edge01)),
+            phase: new TaxiingPhase()
+        );
+        AircraftState leader = MakeAircraft(
+            "LEAD",
+            new LatLon(BaseLat + (gapFt / 100.0 * OffsetLatPer100Ft), BaseLon),
+            heading: 0,
+            gs: 10,
+            taxiRoute: MakeRoute(MakeSeg(0, 1, "A", edge01)),
+            phase: new TaxiingPhase()
+        );
+        leader.AircraftType = "A225";
+
+        GroundConflictDetector.ApplySpeedLimits([trailer, leader], layout);
+
+        Assert.Null(leader.Ground.SpeedLimit);
+        Assert.NotNull(trailer.Ground.SpeedLimit);
+        Assert.Equal(0.0, trailer.Ground.SpeedLimit!.Value);
+    }
+
     [Fact]
     public void TwoTaxiing_ConvergingOnSameNode_FartherOneSlows()
     {
@@ -2013,7 +2054,7 @@ public class GroundConflictDetectorTests
         var basePos = new LatLon(BaseLat, BaseLon);
         LatLon otherPos = AlongAndAbeam(basePos, ParallelTrackDeg, ParallelAlongFt, ParallelLateralFt);
 
-        double requiredFt = (WingspanFt("A359") / 2) + (WingspanFt("B738") / 2) + GroundConflictDetector.WingtipBufferFt;
+        double requiredFt = (WingspanFt("A359") / 2) + (WingspanFt("B738") / 2) + GroundOutlineSweep.WingtipBufferFt;
         Assert.True(
             requiredFt < ParallelLateralFt,
             $"test geometry: the pair needs {requiredFt:F1} ft and the lanes are {ParallelLateralFt:F0} ft apart"

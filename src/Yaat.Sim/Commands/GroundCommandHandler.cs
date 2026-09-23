@@ -285,23 +285,27 @@ public static class GroundCommandHandler
         // A parallel ramp lane the map does not connect (SFO M3 → M4): the pilot cuts across the apron onto it
         // and taxis the clearance as issued — from a gate or mid-lane. Only for sibling numbered lanes over
         // open apron; see RampLaneReposition.
+        GroundNode? destinationNode = FindTaxiDestinationNode(groundLayout, taxi);
         if (route is null && failure is not null && !AirportGroundLayout.HasRunwayCenterlineEdge(startNode))
         {
             RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(
                 groundLayout,
-                aircraft.Position,
-                aircraft.TrueHeading,
-                aircraft.Ground.CurrentTaxiway,
-                taxi.Path,
-                failure,
-                new ExplicitPathOptions
+                new RampLaneRepositionRequest
                 {
-                    ExplicitHoldShorts = taxi.HoldShorts,
-                    DestinationRunway = taxi.DestinationRunway,
-
-                    PathTurnHints = taxi.PathTurnHints,
+                    Position = aircraft.Position,
+                    Heading = aircraft.TrueHeading,
+                    CurrentTaxiway = aircraft.Ground.CurrentTaxiway,
+                    Path = taxi.Path,
+                    Options = new ExplicitPathOptions
+                    {
+                        ExplicitHoldShorts = taxi.HoldShorts,
+                        DestinationRunway = taxi.DestinationRunway,
+                        DestinationHintNode = destinationNode,
+                        PathTurnHints = taxi.PathTurnHints,
+                    },
+                    Category = category,
                 },
-                category
+                failure
             );
             if (plan is not null)
             {
@@ -317,24 +321,27 @@ public static class GroundCommandHandler
         if (
             route is null
             && failure is { Kind: FailureKind.DestinationUnreachable, InfeasibleTaxiway: null }
-            && FindTaxiDestinationNode(groundLayout, taxi) is { } cutDestination
+            && destinationNode is { } cutDestination
         )
         {
             RampLaneDestinationCutPlan? cut = RampLaneReposition.TryPlanDestinationCut(
                 groundLayout,
-                startNode.Id,
-                taxi.Path,
-                cutDestination,
-                new ExplicitPathOptions
+                new RampLaneDestinationCutRequest
                 {
-                    ExplicitHoldShorts = taxi.HoldShorts,
-                    DestinationRunway = taxi.DestinationRunway,
-
-                    PathTurnHints = taxi.PathTurnHints,
-                    StartHeadingTrue = startHeadingTrueDeg,
-                },
-                category,
-                FaaAircraftDatabase.Get(aircraft.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraft.AircraftType)
+                    StartNodeId = startNode.Id,
+                    Path = taxi.Path,
+                    Destination = cutDestination,
+                    Options = new ExplicitPathOptions
+                    {
+                        ExplicitHoldShorts = taxi.HoldShorts,
+                        DestinationRunway = taxi.DestinationRunway,
+                        PathTurnHints = taxi.PathTurnHints,
+                        StartHeadingTrue = startHeadingTrueDeg,
+                    },
+                    Category = category,
+                    AircraftLengthFt =
+                        FaaAircraftDatabase.Get(aircraft.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraft.AircraftType),
+                }
             );
             if (cut is not null)
             {
@@ -348,7 +355,7 @@ public static class GroundCommandHandler
         // down T5, out to Alpha and back up T5A for a 529 ft move) is flown as the apron cut instead. The two
         // blocks above only fire when the graph fails; this one improves a success, and only when the crossing is
         // drivable and materially shorter.
-        if ((route is not null) && (FindTaxiDestinationNode(groundLayout, taxi) is { } resolvedDestination))
+        if ((route is not null) && (destinationNode is { } resolvedDestination))
         {
             RampLaneDestinationCutPlan? improved = RampLaneReposition.TryPlanResolvedRouteCut(groundLayout, route, resolvedDestination);
             if (improved is not null)
@@ -2301,7 +2308,7 @@ public static class GroundCommandHandler
             // A neighbour the aircraft already touches where it stands is no candidate's to avoid — every candidate
             // fouls it at its first sample — and it has a refusal of its own that says so and names both aircraft
             // (OverlapRefusal). Planning around it would answer that placement error with the wrong message.
-            if (GroundOutline.ClearanceBetween(aircraft, aTowedNoseFirst: false, other) < GroundConflictDetector.OutlineClearanceSlackFt)
+            if (GroundOutline.ClearanceBetween(aircraft, aTowedNoseFirst: false, other) < GroundOutlineSweep.OutlineClearanceSlackFt)
             {
                 continue;
             }
@@ -2324,7 +2331,7 @@ public static class GroundCommandHandler
     /// <summary>
     /// Why a planned tug move may not be installed: the aircraft's <see cref="GroundOutline"/> already touches or
     /// overlaps a parked or held neighbour's where it stands — their clearance is under
-    /// <see cref="GroundConflictDetector.OutlineClearanceSlackFt"/>, the same half-foot of sampling and rounding noise
+    /// <see cref="GroundOutlineSweep.OutlineClearanceSlackFt"/>, the same half-foot of sampling and rounding noise
     /// the detector refuses to read as room (a pair placed exactly wingtip to wingtip measures a few ten-billionths of
     /// a foot, not a clean zero). A modelled collision at the start is a scenario or placement error
     /// the tow must not paper over — the tug would be driving one aircraft through another from its first foot, and
@@ -2359,7 +2366,7 @@ public static class GroundCommandHandler
             }
 
             double clearanceFt = GroundOutline.ClearanceBetween(aircraft, towedNoseFirst, other);
-            if (clearanceFt >= GroundConflictDetector.OutlineClearanceSlackFt)
+            if (clearanceFt >= GroundOutlineSweep.OutlineClearanceSlackFt)
             {
                 continue;
             }

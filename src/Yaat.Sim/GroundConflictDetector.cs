@@ -64,27 +64,8 @@ public static class GroundConflictDetector
     /// <summary>Floor on the stop distance <see cref="GetSeparation"/> returns, for pairs too short to earn a larger one.</summary>
     public const double DefaultStopDistanceFt = 100.0;
 
-    private const double DefaultAircraftLengthFt = 60.0;
-
     /// <summary>Gap left between the two fuselage ends at a stop, on top of the pair's half-lengths (<see cref="GetSeparation"/>).</summary>
     public const double StopBufferFt = 25.0;
-
-    /// <summary>
-    /// Wingtip room left between two aircraft passing abeam, on top of the pair's half-wingspans (<see cref="RequiredLateralClearanceFt"/>).
-    /// A detector-frame figure, deliberately below the AC 150/5300-13B design wingtip allowance (0.2 W + 20 ft on a taxiway, 0.1 W + 20 ft
-    /// on a taxilane): the design value buys centreline-tracking error the sim does not have, and importing it would ask 160.9 ft of SFO's
-    /// 160 ft A/B spacing and hold every parallel-lane pass. 7110.65 has no taxiway-separation paragraph; its §3-1-1 NOTE, AIM 4-3-18.b and
-    /// AIM 2-3-4.b.1 ("being centered on the taxiway centerline does not guarantee wingtip clearance") put wingtip avoidance on the pilot.
-    /// </summary>
-    public const double WingtipBufferFt = 25.0;
-
-    /// <summary>
-    /// Slack under the "no closer than the move started" floor of <see cref="TugMoveFoulsParkedAt"/>, feet: sampling and rounding noise
-    /// between the live outline and the path's samples, not room. It is also the floor's own lower bound, so the floor
-    /// never goes to zero or below and a mover whose outline already touches a neighbour's is held rather than released.
-    /// The command-time refusal of a tug move that starts inside a neighbour reads contact by the same slack.
-    /// </summary>
-    internal const double OutlineClearanceSlackFt = 0.5;
 
     /// <summary>
     /// How often <see cref="ApplySpeedLimits"/> runs, seconds: once per physics sub-tick
@@ -649,7 +630,8 @@ public static class GroundConflictDetector
         // rule does not oscillate).
         if (winner.IndicatedAirspeed > ConvergenceMinWinnerSpeedKts)
         {
-            double winnerLengthFt = FaaAircraftDatabase.Get(winner.AircraftType)?.LengthFt ?? DefaultAircraftLengthFt;
+            double winnerLengthFt =
+                FaaAircraftDatabase.Get(winner.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(winner.AircraftType);
             double winnerClearSec = (winnerDistFt + winnerLengthFt) / (winner.IndicatedAirspeed * FtPerNm / 3600.0);
             double yielderSpeedKts = Math.Max(yielder.IndicatedAirspeed, ConvergenceNominalTaxiSpeedKts);
             double yielderArriveSec = yielderDistFt / (yielderSpeedKts * FtPerNm / 3600.0);
@@ -1175,7 +1157,9 @@ public static class GroundConflictDetector
         }
 
         int start = Math.Max(route.CurrentSegmentIndex, 0);
-        double boundFt = (distFt * RouteClearanceBoundFactor) + (FaaAircraftDatabase.Get(obstacle.AircraftType)?.LengthFt ?? DefaultAircraftLengthFt);
+        double boundFt =
+            (distFt * RouteClearanceBoundFactor)
+            + (FaaAircraftDatabase.Get(obstacle.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(obstacle.AircraftType));
         double? closestFt = null;
         double walkedFt = 0;
         for (int i = start; (i < route.Segments.Count) && (walkedFt < boundFt); i++)
@@ -1194,7 +1178,7 @@ public static class GroundConflictDetector
     /// fillet arc is sampled off its Bézier and a straight edge is walked through its
     /// <see cref="GroundEdge.IntermediatePoints"/>. The chord would be optimistic by the segment's sagitta —
     /// 22 ft on a 75 ft / 90° gate fillet and 46 ft on a 600 ft / 45° high-speed turnoff, both past the 25 ft
-    /// <see cref="WingtipBufferFt"/> the caller adds, so a mover could be cleared to pass a wingtip it would
+    /// <see cref="GroundOutlineSweep.WingtipBufferFt"/> the caller adds, so a mover could be cleared to pass a wingtip it would
     /// actually swing into.
     /// </summary>
     private static double EdgeClearanceFt(DirectionalEdge edge, LatLon point)
@@ -1412,9 +1396,9 @@ public static class GroundConflictDetector
 
     /// <summary>
     /// Where a tug move fouls a parked or held neighbour: its <see cref="GroundOutline"/>, swept along the rest of its
-    /// move (<see cref="PushbackPhase.RemainingPath"/>), may not come within <see cref="WingtipBufferFt"/> of the
+    /// move (<see cref="PushbackPhase.RemainingPath"/>), may not come within <see cref="GroundOutlineSweep.WingtipBufferFt"/> of the
     /// neighbour's — or, for a neighbour the move already started closer to than that, as the aircraft on the next stand
-    /// usually is, no closer than it was when the move began, less <see cref="OutlineClearanceSlackFt"/>. Null when the
+    /// usually is, no closer than it was when the move began, less <see cref="GroundOutlineSweep.OutlineClearanceSlackFt"/>. Null when the
     /// whole move clears; otherwise how far along the remaining path the first fouled sample sits, which is what
     /// <see cref="ComputeClosingLimit"/> stops the move by.
     ///
@@ -1423,7 +1407,7 @@ public static class GroundConflictDetector
     /// neighbour ratchets itself into contact a foot at a time. Anchored to the start, "no closer than it was" is a
     /// fixed line for the whole move, and the live pose is judged against it like every other sample.</para>
     ///
-    /// <para>The floor never drops below <see cref="OutlineClearanceSlackFt"/>, so contact is never passable: a mover
+    /// <para>The floor never drops below <see cref="GroundOutlineSweep.OutlineClearanceSlackFt"/>, so contact is never passable: a mover
     /// whose outline already touches the neighbour's is held rather than released by a floor that has gone to zero. That
     /// is the runtime backstop for the command-time refusal of a move that starts inside a neighbour — a move that
     /// should never have been accepted must still not be driven any further by the tug.</para>
@@ -1707,8 +1691,9 @@ public static class GroundConflictDetector
 
     private static (double StopFt, double TrailFt) GetSeparation(AircraftState leader, AircraftState trailer)
     {
-        double leaderLength = FaaAircraftDatabase.Get(leader.AircraftType)?.LengthFt ?? DefaultAircraftLengthFt;
-        double trailerLength = FaaAircraftDatabase.Get(trailer.AircraftType)?.LengthFt ?? DefaultAircraftLengthFt;
+        double leaderLength = FaaAircraftDatabase.Get(leader.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(leader.AircraftType);
+        double trailerLength =
+            FaaAircraftDatabase.Get(trailer.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(trailer.AircraftType);
         double stopDist = Math.Max(DefaultStopDistanceFt, ((leaderLength + trailerLength) / 2) + StopBufferFt);
         double trailDist = Math.Max(DefaultTrailDistanceFt, stopDist + 100.0);
         return (stopDist, trailDist);
@@ -1874,7 +1859,7 @@ public static class GroundConflictDetector
 
     /// <summary>
     /// True when <paramref name="mover"/> could pass <paramref name="obstacle"/> with at least
-    /// half-wingspans plus <see cref="WingtipBufferFt"/> of lateral room, given the mover's
+    /// half-wingspans plus <see cref="GroundOutlineSweep.WingtipBufferFt"/> of lateral room, given the mover's
     /// current heading. Mirrors the wingspan-bypass geometry in <see cref="ComputeClosingLimit"/>
     /// (an obstacle abeam or behind the heading is never blocking). Used by
     /// <see cref="FlightPhysics.UpdateGiveWayResume"/>'s stalemate-bypass fallback.
@@ -1884,7 +1869,7 @@ public static class GroundConflictDetector
 
     /// <summary>
     /// True when <paramref name="mover"/> could pass <paramref name="obstacle"/> with at least
-    /// half-wingspans plus <see cref="WingtipBufferFt"/> of lateral room while travelling along
+    /// half-wingspans plus <see cref="GroundOutlineSweep.WingtipBufferFt"/> of lateral room while travelling along
     /// <paramref name="moverDirectionDeg"/> (an obstacle abeam or behind that direction is never
     /// blocking). The direction is explicit because a pusher moves tail-first: its motion runs along
     /// <c>Ground.PushbackTrueHeading</c>, the reciprocal of the nose heading.
@@ -1892,7 +1877,7 @@ public static class GroundConflictDetector
     /// <para>The obstacle contributes half its wingspan whatever its orientation: a neighbour sitting
     /// perpendicular to the mover's track actually presents half its length instead (a B738's 64.8 ft
     /// half-length against the 58.8 ft half-span used here), a 6–15 ft understatement for common types
-    /// that the 25 ft <see cref="WingtipBufferFt"/> absorbs.</para>
+    /// that the 25 ft <see cref="GroundOutlineSweep.WingtipBufferFt"/> absorbs.</para>
     /// </summary>
     internal static bool HasWingspanLateralClearance(AircraftState mover, double moverDirectionDeg, AircraftState obstacle)
     {
@@ -1945,7 +1930,7 @@ public static class GroundConflictDetector
 
     /// <summary>
     /// The side-by-side room two aircraft need to pass each other: half of each wingspan plus
-    /// <see cref="WingtipBufferFt"/>. Null when the FAA database carries no wingspan for either type, which
+    /// <see cref="GroundOutlineSweep.WingtipBufferFt"/>. Null when the FAA database carries no wingspan for either type, which
     /// every caller treats as "cannot show the pass is safe" rather than as a clearance.
     /// </summary>
     private static double? RequiredLateralClearanceFt(AircraftState mover, AircraftState obstacle)
@@ -1957,6 +1942,6 @@ public static class GroundConflictDetector
             return null;
         }
 
-        return (moverSpanFt / 2) + (obstacleSpanFt / 2) + WingtipBufferFt;
+        return (moverSpanFt / 2) + (obstacleSpanFt / 2) + GroundOutlineSweep.WingtipBufferFt;
     }
 }

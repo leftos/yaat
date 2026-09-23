@@ -54,9 +54,6 @@ public sealed class LandingPhase : Phase
     /// </summary>
     private const double LahsoStopMarginNm = 50.0 / GeoMath.FeetPerNm;
 
-    /// <summary>Length (ft) assumed for a type the FAA aircraft-characteristics database does not carry.</summary>
-    private const double UnknownTypeLengthFt = 60.0;
-
     // --- Stabilization gate (FSF ALAR Briefing Note 7.1; FAA InFO 11009 endorses FSF criteria) ---
 
     private const double StabilizedSpeedFactor = 1.3; // above 1.3·Vref → unstabilized
@@ -1192,12 +1189,17 @@ public sealed class LandingPhase : Phase
 
     /// <summary>
     /// How far the aircraft's nose leads <c>AircraftState.Position</c>, which is the centroid: half the FAA
-    /// aircraft-characteristics length, the same source and 60 ft fallback <see cref="Ground.RunwayExitPhase"/>
-    /// uses for its tail-clearance offset. Resolved once and cached — the type does not change mid-landing.
+    /// aircraft-characteristics length, or for a type that database does not carry
+    /// <see cref="HoldShortAnnotator.CwtFallbackLengthFt"/> — the same source and fallback
+    /// <see cref="Ground.RunwayExitPhase"/> uses for its tail-clearance offset. Resolved once and cached — the type does
+    /// not change mid-landing.
     /// </summary>
     private double NoseOffsetNm(PhaseContext ctx)
     {
-        _noseOffsetNm ??= (FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? UnknownTypeLengthFt) / 2.0 / GeoMath.FeetPerNm;
+        _noseOffsetNm ??=
+            (FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(ctx.Aircraft.AircraftType))
+            / 2.0
+            / GeoMath.FeetPerNm;
         return _noseOffsetNm.Value;
     }
 

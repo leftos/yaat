@@ -1533,13 +1533,16 @@ public partial class GroundViewModel : ObservableObject
         {
             RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(
                 _domainLayout,
-                ac.Position,
-                ac.Heading,
-                ac.CurrentTaxiway,
-                routeTaxiways,
-                failure,
-                options,
-                category
+                new RampLaneRepositionRequest
+                {
+                    Position = ac.Position,
+                    Heading = ac.Heading,
+                    CurrentTaxiway = ac.CurrentTaxiway,
+                    Path = routeTaxiways,
+                    Options = options,
+                    Category = category,
+                },
+                failure
             );
             if (plan is not null)
             {
@@ -1558,12 +1561,15 @@ public partial class GroundViewModel : ObservableObject
 
         RampLaneDestinationCutPlan? cut = RampLaneReposition.TryPlanDestinationCut(
             _domainLayout,
-            nodeId.Value,
-            routeTaxiways,
-            destination,
-            options,
-            category,
-            FaaAircraftDatabase.Get(ac.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(ac.AircraftType)
+            new RampLaneDestinationCutRequest
+            {
+                StartNodeId = nodeId.Value,
+                Path = routeTaxiways,
+                Destination = destination,
+                Options = options,
+                Category = category,
+                AircraftLengthFt = FaaAircraftDatabase.Get(ac.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(ac.AircraftType),
+            }
         );
         return cut is not null ? cut.Route : WithApproachLeg(route, ac.Position, ac.Heading);
     }

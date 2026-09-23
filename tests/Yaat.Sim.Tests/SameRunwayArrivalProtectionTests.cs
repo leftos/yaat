@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -195,6 +196,23 @@ public class SameRunwayArrivalProtectionTests
         Assert.Equal(0.1 / 12.0 * 3600.0, SameRunwayArrivalProtection.SecondsToRunwayClear(slow), 3);
     }
 
+    /// <summary>
+    /// A type the FAA database does not carry is sized by its wake category, the same resolver
+    /// <see cref="RunwayExitPhase"/> uses: the A225 is CWT A (super), so its tail clears the bar half of the CWT
+    /// resolver's 250 ft past the hold-short node, not half of a 60 ft guess.
+    /// </summary>
+    [Fact]
+    public void TailClearance_UnknownType_UsesCwtFallbackLength()
+    {
+        TestVnasData.EnsureInitialized();
+        Assert.Null(FaaAircraftDatabase.Get("A225"));
+        Assert.Equal("A", WakeTurbulenceData.GetCwt("A225"));
+
+        double tailFt = SameRunwayArrivalProtection.TailClearanceNm("A225") * GeoMath.FeetPerNm;
+
+        Assert.Equal(HoldShortAnnotator.CwtFallbackLengthFt("A225") / 2.0, tailFt, 6);
+    }
+
     [Fact]
     public void TailClearance_PastTheBarAddsTime()
     {
@@ -300,7 +318,11 @@ public class SameRunwayArrivalProtectionTests
     /// <c>RunwayExitPhase.FromSnapshot</c> against the real layout so the hold-short node is a real one. Null
     /// when the layout fixture is unavailable (silent skip).
     /// </summary>
-    private static AircraftState? ExitingLeader(double remainderFt, double groundSpeedKts)
+    private static AircraftState? ExitingLeader(double remainderFt, double groundSpeedKts) =>
+        ExitingLeader(ExitingLeaderType, remainderFt, groundSpeedKts);
+
+    /// <summary><see cref="ExitingLeader(double, double)"/> for an aircraft of <paramref name="aircraftType"/>.</summary>
+    private static AircraftState? ExitingLeader(string aircraftType, double remainderFt, double groundSpeedKts)
     {
         AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (layout is null)
@@ -315,7 +337,7 @@ public class SameRunwayArrivalProtectionTests
         }
 
         (GroundNode? branch, GroundNode? holdShort, string? taxiway) = pair.Value;
-        double tailFt = SameRunwayArrivalProtection.TailClearanceNm(ExitingLeaderType) * GeoMath.FeetPerNm;
+        double tailFt = SameRunwayArrivalProtection.TailClearanceNm(aircraftType) * GeoMath.FeetPerNm;
         double toHoldShortFt = Math.Max(0.0, remainderFt - tailFt);
         double bearingToBranch = GeoMath.BearingTo(holdShort.Position, branch.Position);
         (double lat, double lon) = GeoMath.ProjectPoint(holdShort.Position, new TrueHeading(bearingToBranch), toHoldShortFt / GeoMath.FeetPerNm);
@@ -333,12 +355,14 @@ public class SameRunwayArrivalProtectionTests
             RunwayHeadingDeg = 281.0,
             ExitStateValue = (int)RunwayExitPhase.ExitState.FollowingExitPath,
             ExitWaypointNodeIds = [branch.Id, holdShort.Id],
+            ExitWaypointIndex = 1,
         };
 
         var aircraft = new AircraftState
         {
             Callsign = "LEAD",
-            AircraftType = ExitingLeaderType,
+            AircraftType = aircraftType,
+            AirportId = "OAK",
             Position = new LatLon(lat, lon),
             TrueHeading = new TrueHeading(bearingToBranch + 180.0),
             IsOnGround = true,
@@ -382,6 +406,52 @@ public class SameRunwayArrivalProtectionTests
     {
         double stoppingFt = steadyKts * steadyKts / (2.0 * ExitDecelKtsPerSec) / 3600.0 * GeoMath.FeetPerNm;
         return ((remainderFt - stoppingFt) / GeoMath.FeetPerNm / steadyKts * 3600.0) + (steadyKts / ExitDecelKtsPerSec);
+    }
+
+    /// <summary>
+    /// The prediction and the phase must agree on where "clear" is for a type the FAA database does not carry too.
+    /// An A225 (CWT A) exiting OAK 28R is ticked until <see cref="RunwayExitPhase"/> ends; it must stop past the
+    /// hold-short node by the <see cref="SameRunwayArrivalProtection.TailClearanceNm"/> the protection measures to,
+    /// not by half of a flat 60 ft guess.
+    /// </summary>
+    [Fact]
+    public void UnknownType_ExitStopMatchesProtectionTailClearance()
+    {
+        TestVnasData.EnsureInitialized();
+        Assert.Null(FaaAircraftDatabase.Get("A225"));
+
+        AircraftState? leader = ExitingLeader("A225", remainderFt: 600.0, groundSpeedKts: 15.0);
+        if (leader is null)
+        {
+            return;
+        }
+
+        var engine = new SimulationEngine(new TestAirportGroundData())
+        {
+            Scenario = new SimScenarioState
+            {
+                ScenarioId = "t",
+                ScenarioName = "t",
+                RngSeed = 0,
+                OriginalScenarioJson = "{}",
+                PrimaryAirportId = "OAK",
+            },
+        };
+        GroundNode holdShort = ((RunwayExitPhase)leader.Phases!.CurrentPhase!).TargetHoldShortNode!;
+        engine.World.AddAircraft(leader);
+
+        for (int t = 0; (t < 120) && (leader.Phases?.CurrentPhase is RunwayExitPhase); t++)
+        {
+            engine.TickOneSecond();
+        }
+
+        Assert.False(leader.Phases?.CurrentPhase is RunwayExitPhase, "the exit never completed");
+        double pastBarFt = GeoMath.DistanceNm(holdShort.Position, leader.Position) * GeoMath.FeetPerNm;
+        double expectedFt = SameRunwayArrivalProtection.TailClearanceNm("A225") * GeoMath.FeetPerNm;
+        Assert.True(
+            Math.Abs(pastBarFt - expectedFt) <= 15.0,
+            $"the exit stopped {pastBarFt:F1} ft past the hold-short node; the protection clears it at {expectedFt:F1} ft"
+        );
     }
 
     [Fact]

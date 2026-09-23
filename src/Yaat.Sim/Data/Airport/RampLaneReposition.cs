@@ -25,6 +25,50 @@ public sealed record RampLaneDestinationCutPlan(
     TaxiRoute Route
 );
 
+/// <summary>What <see cref="RampLaneReposition.TryPlan"/> plans a start-of-route lane switch from.</summary>
+public sealed record RampLaneRepositionRequest
+{
+    /// <summary>Where the aircraft is.</summary>
+    public required LatLon Position { get; init; }
+
+    /// <summary>The aircraft's true heading; only read when it is rolling on a lane.</summary>
+    public required TrueHeading Heading { get; init; }
+
+    /// <summary>The taxiway the aircraft reports it is on, or null when it is parked or off the graph.</summary>
+    public required string? CurrentTaxiway { get; init; }
+
+    /// <summary>The cleared taxiway path; its first entry is the lane to switch onto.</summary>
+    public required IReadOnlyList<string> Path { get; init; }
+
+    /// <summary>The routing options the graph route from the new lane is resolved with.</summary>
+    public required ExplicitPathOptions Options { get; init; }
+
+    /// <summary>The aircraft's performance category.</summary>
+    public required AircraftCategory Category { get; init; }
+}
+
+/// <summary>What <see cref="RampLaneReposition.TryPlanDestinationCut"/> plans a destination-end apron cut from.</summary>
+public sealed record RampLaneDestinationCutRequest
+{
+    /// <summary>The graph node the clearance is resolved from.</summary>
+    public required int StartNodeId { get; init; }
+
+    /// <summary>The cleared taxiway path; its last lane is the one the cut leaves from.</summary>
+    public required IReadOnlyList<string> Path { get; init; }
+
+    /// <summary>The parking, spot or helipad node the clearance ends at.</summary>
+    public required GroundNode Destination { get; init; }
+
+    /// <summary>The routing options both graph halves are resolved with.</summary>
+    public required ExplicitPathOptions Options { get; init; }
+
+    /// <summary>The aircraft's performance category.</summary>
+    public required AircraftCategory Category { get; init; }
+
+    /// <summary>The aircraft's fuselage length, feet; sets how much lane run a spot arrival needs.</summary>
+    public required double AircraftLengthFt { get; init; }
+}
+
 /// <summary>
 /// Lets the pilot switch between parallel ramp taxilanes the ground map does not connect. SFO's Terminal 1
 /// ramp has M3 / M4 / M5 side by side with open apron between them and no painted connectors; the graph
@@ -68,12 +112,13 @@ public static class RampLaneReposition
     private const double ParkedToleranceFt = 30.0;
 
     /// <summary>
-    /// Floor on <see cref="SpotAlignmentRunFt"/>. Not a published figure: 100 ft is a fuselage length for the
-    /// regional jets and turboprops that use SFO's spot lanes, and a run shorter than one of those is short
-    /// for anything. The length of an aircraft the FAA database has no record of comes from
+    /// The shortest run along its lane a spot arrival is given: <see cref="SpotAlignmentRunFt"/> never drops below
+    /// it, however short the aircraft. Not a published figure: 100 ft is a fuselage length for the regional jets and
+    /// turboprops that use SFO's spot lanes, and a run shorter than one of those is short for anything. It floors
+    /// the run and is not a length for an unknown type — that comes from
     /// <see cref="HoldShortAnnotator.CwtFallbackLengthFt"/>, which reads the type's wake category.
     /// </summary>
-    private const double DefaultAircraftLengthFt = 100.0;
+    private const double MinimumAlignmentRunFt = 100.0;
 
     /// <summary>
     /// How much run along its own lane an arrival at a spot needs before the spot node. A spot marking is
@@ -85,7 +130,7 @@ public static class RampLaneReposition
     /// </summary>
     /// <param name="aircraftLengthFt">Fuselage length of the arriving aircraft, in feet.</param>
     /// <returns>Required run in feet.</returns>
-    private static double SpotAlignmentRunFt(double aircraftLengthFt) => Math.Max(DefaultAircraftLengthFt, aircraftLengthFt);
+    private static double SpotAlignmentRunFt(double aircraftLengthFt) => Math.Max(MinimumAlignmentRunFt, aircraftLengthFt);
 
     /// <summary>
     /// How many times longer than the straight drive the remaining graph route must be before a resolved route is
@@ -111,17 +156,15 @@ public static class RampLaneReposition
     /// lane node lies within <see cref="MaxCrossingFt"/> across open apron, or the graph route from that node
     /// does not resolve — the caller then falls through to its other recoveries.
     /// </summary>
-    public static RampLaneRepositionPlan? TryPlan(
-        AirportGroundLayout layout,
-        LatLon position,
-        TrueHeading heading,
-        string? currentTaxiway,
-        IReadOnlyList<string> path,
-        PathfindingFailure failure,
-        ExplicitPathOptions options,
-        AircraftCategory category
-    )
+    public static RampLaneRepositionPlan? TryPlan(AirportGroundLayout layout, RampLaneRepositionRequest request, PathfindingFailure failure)
     {
+        LatLon position = request.Position;
+        TrueHeading heading = request.Heading;
+        string? currentTaxiway = request.CurrentTaxiway;
+        IReadOnlyList<string> path = request.Path;
+        ExplicitPathOptions options = request.Options;
+        AircraftCategory category = request.Category;
+
         if ((path.Count == 0) || !IsLaneUnreachableFailure(failure, path[0]))
         {
             return null;
@@ -213,16 +256,15 @@ public static class RampLaneReposition
     /// is not a ramp taxilane, the two are not siblings, no crossing within <see cref="MaxCrossingFt"/> over open
     /// apron exists, or either graph half does not resolve — the caller then falls through to its other recoveries.
     /// </summary>
-    public static RampLaneDestinationCutPlan? TryPlanDestinationCut(
-        AirportGroundLayout layout,
-        int startNodeId,
-        IReadOnlyList<string> path,
-        GroundNode destination,
-        ExplicitPathOptions options,
-        AircraftCategory category,
-        double aircraftLengthFt
-    )
+    public static RampLaneDestinationCutPlan? TryPlanDestinationCut(AirportGroundLayout layout, RampLaneDestinationCutRequest request)
     {
+        int startNodeId = request.StartNodeId;
+        IReadOnlyList<string> path = request.Path;
+        GroundNode destination = request.Destination;
+        ExplicitPathOptions options = request.Options;
+        AircraftCategory category = request.Category;
+        double aircraftLengthFt = request.AircraftLengthFt;
+
         if (destination.Type is not (GroundNodeType.Parking or GroundNodeType.Spot or GroundNodeType.Helipad))
         {
             return null;

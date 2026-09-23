@@ -458,7 +458,7 @@ public class SfoSixAlleyChoreographyTests
 
     /// <summary>
     /// The side-by-side room the pair needs to pass each other: half of each wingspan plus
-    /// <see cref="GroundConflictDetector.WingtipBufferFt"/>, the same arithmetic the detector itself applies,
+    /// <see cref="GroundOutlineSweep.WingtipBufferFt"/>, the same arithmetic the detector itself applies,
     /// so the floor tracks the detector rather than a number copied out of it.
     /// </summary>
     /// <param name="moverType">ICAO type of the aircraft doing the passing.</param>
@@ -470,7 +470,7 @@ public class SfoSixAlleyChoreographyTests
         double? obstacleSpanFt = FaaAircraftDatabase.Get(obstacleType)?.WingspanFt;
         Assert.True(moverSpanFt is not null, $"the FAA database carries no wingspan for {moverType}");
         Assert.True(obstacleSpanFt is not null, $"the FAA database carries no wingspan for {obstacleType}");
-        return (moverSpanFt!.Value / 2) + (obstacleSpanFt!.Value / 2) + GroundConflictDetector.WingtipBufferFt;
+        return (moverSpanFt!.Value / 2) + (obstacleSpanFt!.Value / 2) + GroundOutlineSweep.WingtipBufferFt;
     }
 
     /// <summary>
