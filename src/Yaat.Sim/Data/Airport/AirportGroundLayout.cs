@@ -991,6 +991,13 @@ public sealed class AirportGroundLayout
         return best;
     }
 
+    /// <summary>
+    /// The nearest node an aircraft can leave. A node with no edges (a GeoJSON spot marker joined to no taxiway,
+    /// e.g. SFO spot "30") is skipped: starting a route there makes every taxi infeasible.
+    /// </summary>
+    /// <param name="lat">Query latitude.</param>
+    /// <param name="lon">Query longitude.</param>
+    /// <returns>The nearest connected node, or null for a layout with none.</returns>
     public GroundNode? FindNearestNode(double lat, double lon)
     {
         GroundNode? best = null;
@@ -998,6 +1005,11 @@ public sealed class AirportGroundLayout
 
         foreach (GroundNode node in Nodes.Values)
         {
+            if (node.Edges.Count == 0)
+            {
+                continue;
+            }
+
             double dist = GeoMath.DistanceNm(new LatLon(lat, lon), node.Position);
             if (dist < bestDist)
             {
