@@ -1775,6 +1775,15 @@ public static class FlightPhysics
             return;
         }
 
+        // A target taxiing into the merge ahead of us will get there first: fall in behind it now rather than wait for
+        // it to reach our route. The conflict detector keeps the in-trail spacing from here.
+        if (GroundConflictDetector.TargetReachesMergeFirst(aircraft, target))
+        {
+            Log.LogInformation("GIVEWAY released for {Callsign}: {Target} reaches the merge first", aircraft.Callsign, yieldTarget);
+            ClearGiveWayHold(aircraft);
+            return;
+        }
+
         var trigger = new BlockTrigger { Type = BlockTriggerType.GiveWay, TargetCallsign = yieldTarget };
 
         if (IsGiveWayMet(aircraft, trigger, aircraftLookup))

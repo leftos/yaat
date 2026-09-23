@@ -1872,6 +1872,74 @@ public static class GroundConflictDetector
         return null;
     }
 
+    /// <summary>
+    /// True when <paramref name="target"/> is taxiing and will reach the node where its route merges into
+    /// <paramref name="held"/>'s before <paramref name="held"/> does, and both routes leave that node the same way: the
+    /// target is committed to the merge ahead, so the aircraft giving way to it can start rolling and fall in behind it.
+    /// Traffic coming the other way along the held route also meets it at a shared node, but leaves it toward the held
+    /// aircraft, so it never qualifies. Distances are measured along the routes.
+    /// </summary>
+    internal static bool TargetReachesMergeFirst(AircraftState held, AircraftState target)
+    {
+        if (held.Ground.AssignedTaxiRoute is not { } heldRoute || target.Ground.AssignedTaxiRoute is not { } targetRoute)
+        {
+            return false;
+        }
+
+        if (target.GroundSpeed <= GiveWayConstants.StationarySpeedThresholdKts)
+        {
+            return false;
+        }
+
+        if (FindSharedUpcomingNode(heldRoute, targetRoute) is not { } mergeNodeId)
+        {
+            return false;
+        }
+
+        return (RouteToNode(target, targetRoute, mergeNodeId) is { } targetLeg)
+            && targetLeg.OnFinalTaxiwayIntoNode
+            && (RouteToNode(held, heldRoute, mergeNodeId) is { } heldLeg)
+            && (targetLeg.NextNodeId is { } targetNext)
+            && (targetNext == heldLeg.NextNodeId)
+            && (targetLeg.DistanceFt < heldLeg.DistanceFt);
+    }
+
+    /// <summary>
+    /// How far along <paramref name="route"/> <paramref name="aircraft"/> is from <paramref name="nodeId"/>, in feet; the
+    /// node the route goes to next; and whether the aircraft is already on the taxiway that leads into the node (it
+    /// changes taxiway, if at all, only through the junction fillet ending there). Null when the node is not within
+    /// <see cref="ConvergenceLookaheadFt"/>.
+    /// </summary>
+    private static (double DistanceFt, int? NextNodeId, bool OnFinalTaxiwayIntoNode)? RouteToNode(AircraftState aircraft, TaxiRoute route, int nodeId)
+    {
+        int start = Math.Max(route.CurrentSegmentIndex, 0);
+        string? currentTaxiway = start < route.Segments.Count ? route.Segments[start].TaxiwayName : null;
+        bool sameTaxiway = true;
+        double walkedFt = 0;
+        for (int i = start; i < route.Segments.Count; i++)
+        {
+            TaxiRouteSegment segment = route.Segments[i];
+            walkedFt +=
+                i == start ? GeoMath.DistanceNm(aircraft.Position, segment.Edge.ToNode.Position) * FtPerNm : segment.Edge.DistanceNm * FtPerNm;
+            if (segment.ToNodeId == nodeId)
+            {
+                bool entersThroughJunctionArc = segment.Edge.Edge is GroundArc;
+                bool onFinal = sameTaxiway && (entersThroughJunctionArc || (segment.TaxiwayName == currentTaxiway));
+                int? next = i + 1 < route.Segments.Count ? route.Segments[i + 1].ToNodeId : null;
+                return (walkedFt, next, onFinal);
+            }
+
+            sameTaxiway &= segment.TaxiwayName == currentTaxiway;
+
+            if (walkedFt > ConvergenceLookaheadFt)
+            {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
     internal static bool ShareUpcomingNode(AircraftState subject, AircraftState reference)
     {
         TaxiRoute? routeA = subject.Ground.AssignedTaxiRoute;

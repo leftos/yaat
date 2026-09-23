@@ -6,7 +6,6 @@ Take the waves top to bottom. Wave 1 is small and removes RPO workarounds. Wave 
 
 ## Wave 1: small fixes
 
-- [ ] **#453 `GIVEWAY` never releases on its own**: decided 2026-09-22 that it resumes once the target has passed or no longer conflicts, and `RES` stays as the manual override. Fix site: `GroundCommandHandler.TryGiveWay`. Gate: `aviation-sim-expert`
 
 ## Wave 2: taxi routing (`SegmentExpander`, `RouteCostFunction`; `docs/ground/pathfinder.md`)
 

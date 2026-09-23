@@ -27,6 +27,7 @@
 - The Ground View shows the wind and altimeter of the airport it depicts after live weather loads, instead of the first station in the list.
 - `TAXI` works for an aircraft holding beside a spot marker not joined to any taxiway, such as SFO spot 30, instead of failing every route.
 - `PUSH <taxiway> TAIL <direction>` or `FACE <direction>` at the end of a taxiway faces the way asked, instead of the opposite way.
+- An aircraft giving way to traffic merging onto its route ahead falls in behind once that traffic is on its last taxiway into the merge.
 
 ## v0.13.4-beta [2026/09/21]
 

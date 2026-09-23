@@ -642,7 +642,9 @@ HoldDirective.cs               # Structured ground-hold directive: HoldKind { Ho
 GiveWayConstants.cs            # Auto-release tuning for direct GIVEWAY holds (FlightPhysics.UpdateGiveWayResume):
                                # safety-timeout (300s), target-stationary threshold (30s),
                                # stationary speed threshold, timeout clear-distance. Direct holds
-                               # only — deferred BEHIND keeps pure-geometry release.
+                               # only — deferred BEHIND keeps pure-geometry release. A direct hold
+                               # also releases on GroundConflictDetector.TargetReachesMergeFirst
+                               # (target on its last taxiway into the merge, nearer it, same way out).
 ConflictAlertDetector.cs       # Static STARS CA detection: 3nm/1000ft thresholds, 5s extrapolation, hysteresis, approach suppression;
                                # IsPairEligible = CASUP pair suppression + live-traffic shadow policy (shared with the ERAM detector)
 EramConflictDetector.cs        # Static ERAM (en-route) STCA detection: 5nm lateral (3nm at/below FL230) + 1000ft vertical, 4-min extrapolation, uses assigned/interim data-block altitudes, scoped per ERAM facility

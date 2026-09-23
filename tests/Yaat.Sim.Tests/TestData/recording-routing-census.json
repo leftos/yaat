@@ -1116,6 +1116,22 @@
     "Solo": false
   },
   {
+    "File": "issue453-asa826-giveway-recording.yaat-bug-report-bundle.zip",
+    "Commands": 269,
+    "ByKind": {
+      "Compound": 170,
+      "Delete": 18,
+      "SetActivePosition": 1,
+      "Strip": 80
+    },
+    "Unparsed": [
+      "LUAW $5A"
+    ],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
     "File": "issue7-mlt-cross-runway-wrong-side-recording.yaat-bug-report-bundle.zip",
     "Commands": 191,
     "ByKind": {
