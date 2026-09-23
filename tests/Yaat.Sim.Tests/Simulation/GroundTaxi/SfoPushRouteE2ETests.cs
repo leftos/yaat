@@ -125,11 +125,12 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     private const double DefaultFuselageLengthFt = 110.0;
 
     /// <summary>
-    /// <c>PUSH $6A</c> off D15: the push-off, a push down onto the T6A lane, then a reversal and a pull up the lane
-    /// onto the mark — flown without a pivot or a crab, ending nose-out on the rest point.
+    /// <c>PUSH $6A</c> off D15: the straight push-off, a second straight push, a push onto the T6A lane's line, then a
+    /// reversal and a creep pull up the lane onto the mark — flown without a pivot or a crab, ending nose-out on the rest
+    /// point.
     /// </summary>
     [Fact]
-    public void PushFromD15ToSixA_PushesPushesThenPulls_WithoutPivotOrCrab()
+    public void PushFromD15ToSixA_PushesStraightThenOntoTheLineThenPulls_WithoutPivotOrCrab()
     {
         if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
         {
@@ -144,7 +145,13 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
         MoveRun run = TickMove(ground, ac, MoveBudgetSeconds);
 
         Assert.True(run.CompletedSecond > 0, $"the move never finished within {MoveBudgetSeconds}s (phase={PhaseName(ac)})");
-        AssertKinds(run, PushbackLegKind.Push, PushbackLegKind.Push, PushbackLegKind.Pull);
+        AssertMoves(
+            run,
+            (PushbackLegKind.Push, TugMoveShape.Straight, false),
+            (PushbackLegKind.Push, TugMoveShape.Straight, false),
+            (PushbackLegKind.Push, TugMoveShape.ViaLine, false),
+            (PushbackLegKind.Pull, TugMoveShape.ViaLine, true)
+        );
         AssertTugMotion(run);
         AssertRestsOnSpot(ground.Layout, ac, AlleySpot);
         Assert.IsType<HoldingAfterPushbackPhase>(ac.Phases?.CurrentPhase);
@@ -234,13 +241,13 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The move kinds the planner chose are the kinds that run: push off the stand, push down to the T6A lane,
-    /// pull up onto 6A, push down to the T6B lane, pull up onto 6B. A push sets <c>Ground.PushbackTrueHeading</c> —
-    /// the heading <see cref="FlightPhysics"/> displaces along, tail-first — for its whole run; a pull leaves it
-    /// null, so the aircraft moves nose-first.
+    /// The moves the planner chose are the moves that run: two straight pushes off the stand, a push onto the T6A
+    /// lane's line, a creep pull up onto 6A, a push onto the T6B lane's line, a creep pull up onto 6B. A push sets
+    /// <c>Ground.PushbackTrueHeading</c> — the heading <see cref="FlightPhysics"/> displaces along, tail-first — for
+    /// its whole run; a pull leaves it null, so the aircraft moves nose-first.
     /// </summary>
     [Fact]
-    public void PushmFromD15_RunsPushPushPullPushPull()
+    public void PushmFromD15_PushesStraightThenOntoEachLineThenCreepsOntoEachSpot()
     {
         if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
         {
@@ -255,7 +262,15 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
 
         MoveRun run = TickMove(ground, ac, MoveBudgetSeconds);
 
-        AssertKinds(run, PushbackLegKind.Push, PushbackLegKind.Push, PushbackLegKind.Pull, PushbackLegKind.Push, PushbackLegKind.Pull);
+        AssertMoves(
+            run,
+            (PushbackLegKind.Push, TugMoveShape.Straight, false),
+            (PushbackLegKind.Push, TugMoveShape.Straight, false),
+            (PushbackLegKind.Push, TugMoveShape.ViaLine, false),
+            (PushbackLegKind.Pull, TugMoveShape.ViaLine, true),
+            (PushbackLegKind.Push, TugMoveShape.ViaLine, false),
+            (PushbackLegKind.Pull, TugMoveShape.ViaLine, true)
+        );
         foreach (Sample? sample in run.Samples.Where(s => s.Phase is not null))
         {
             bool push = sample.Phase!.Kind == PushbackLegKind.Push;
@@ -824,11 +839,12 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
         );
     }
 
-    private static void AssertKinds(MoveRun run, params PushbackLegKind[] expected)
+    /// <summary>The moves that ran, in order, are <paramref name="expected"/>: each one's kind, shape and whether it creeps onto the mark.</summary>
+    private static void AssertMoves(MoveRun run, params (PushbackLegKind Kind, TugMoveShape Shape, bool Creep)[] expected)
     {
-        PushbackLegKind[] kinds = [.. run.Moves.Select(m => m.Kind)];
+        (PushbackLegKind Kind, TugMoveShape Shape, bool Creep)[] ran = [.. run.Moves.Select(m => (m.Kind, m.Phase.Move.Shape, m.Phase.Move.Creep))];
         Assert.True(
-            expected.SequenceEqual(kinds),
+            expected.SequenceEqual(ran),
             $"expected moves {string.Join(", ", expected)} but ran {string.Join(", ", run.Moves.Select(m => m.Describe()))}"
         );
     }

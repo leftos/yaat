@@ -14,6 +14,10 @@
 - Holding Ctrl in the Ground View labels the nearest ground node with its `#id`, type and name.
 
 ### Changed
+- A push to a spot backs straight out before turning onto the spot's lane, and keeps clear of the neighbouring taxiway where it can.
+- `PUSH <taxiway> <facing>` ends lined up with the nose toward the facing taxiway, stopped short of the junction instead of on it.
+- Tugs keep a steady 5 kt through turns, so pushes finish sooner.
+- A push that will foul a taxiway, runs long to reach its taxiway, or faces a distant junction adds a note to the terminal.
 - A TAXI whose named route does not reach its destination taxis as far as cleared and holds short of the missing taxiway, saying which one it needs.
 - The TAXI readback repeats the clearance as issued; ramp lanes the route adds are not read back, and other added taxiways are flagged.
 - A pilot holding short where an incomplete route ends asks for further taxi.
@@ -26,6 +30,9 @@
 - The terminal's filter box is wide enough to show a full airline callsign.
 
 ### Fixed
+- `PUSH $7A` and `PUSH $7B` from SFO gate F8 are no longer refused.
+- A taxi starting just short of a curved junction no longer fails with an internal error.
+- A taxi whose first turn aims past a hold-short now stops at the painted bar, not on the junction.
 - A TAXI naming a numbered taxilane such as T5A now drives that lane instead of its parallel sibling.
 - An aircraft holding short of a taxiway starts its next `TAXI` on that taxiway, instead of rejoining the named taxiway across the airport.
 - A re-issued `TAXI` follows the route as cleared instead of crossing a runway twice, as SFO `TAXI A F 28L` from B did.

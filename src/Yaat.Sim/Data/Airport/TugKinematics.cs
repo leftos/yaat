@@ -265,8 +265,12 @@ public static class TugKinematics
     /// step longer than the 1 ft window can otherwise step over it and send the move round again.
     /// </summary>
     private const double PassedPointToleranceFt = 3.0;
-    private const double CaptureCrossTrackFt = 1.0;
-    private const double CaptureTravelErrorDeg = 1.0;
+
+    /// <summary>How far off its line a line move may be and count as lined up, feet.</summary>
+    internal const double CaptureCrossTrackFt = 1.0;
+
+    /// <summary>How far off its line's direction a line move's travel may be and count as lined up, degrees.</summary>
+    internal const double CaptureTravelErrorDeg = 1.0;
     private const double FacingToleranceDeg = 0.5;
     private const double SampleSpacingFt = 5.0;
     private const double SampleSpacingSlackFt = 1e-9;

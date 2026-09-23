@@ -51,6 +51,9 @@ public sealed record TugGoal
     /// <summary>The taxiway a <see cref="TugGoalKind.TaxiwayLine"/> or <see cref="TugGoalKind.StraightBackTo"/> goal names.</summary>
     public string? TaxiwayName { get; init; }
 
+    /// <summary>The facing taxiway a <c>PUSH &lt;taxiway&gt; &lt;facing taxiway&gt;</c> names; null for every other goal.</summary>
+    public string? FacingTaxiwayName { get; init; }
+
     /// <summary>How a refusal names the goal: <c>spot 6B</c>, <c>D16</c>, <c>taxiway Y</c>, <c>the pushback</c>.</summary>
     public required string Label { get; init; }
 
@@ -232,10 +235,65 @@ public sealed record TugRequest
     public required PushbackLegKind? PreviousKind { get; init; }
 }
 
-/// <summary>A planned tug move: every move with its simulated path, and where the aircraft ends up.</summary>
+/// <summary>What kind of thing a <see cref="TugPlanWarning"/> tells the RPO.</summary>
+public enum TugPlanWarningKind
+{
+    /// <summary>A push kept out of the movement area still reaches into a taxiway's object-free area.</summary>
+    FoulsTaxiway,
+
+    /// <summary>A push onto a taxiway tows a long way across the ramp before it lines up on it.</summary>
+    LongPushToTaxiway,
+}
+
+/// <summary>Something the plan could not avoid, or that the RPO may not have meant, as data; the terminal text is formatted from it.</summary>
+/// <param name="Kind">What it is about.</param>
+/// <param name="Taxiway">The taxiway it concerns.</param>
+public abstract record TugPlanWarning(TugPlanWarningKind Kind, string Taxiway);
+
+/// <summary>
+/// A push kept out of the movement area (a spot, stand or node goal) that no candidate could keep outside a taxiway's
+/// object-free area: the plan is the one that reaches in least, and this names where it still does.
+/// </summary>
+/// <param name="Taxiway">The taxiway fouled.</param>
+/// <param name="Part">The part of the aircraft that reaches in deepest.</param>
+/// <param name="PeakPenetrationFt">How far inside the object-free half-width that part reaches, feet.</param>
+public sealed record TugFoulsTaxiwayWarning(string Taxiway, TugFootprintPart Part, double PeakPenetrationFt)
+    : TugPlanWarning(TugPlanWarningKind.FoulsTaxiway, Taxiway);
+
+/// <summary>
+/// A push onto a taxiway that tows more than <see cref="TugMovePlanner.LongPushToTaxiwayFt"/> before the aircraft is
+/// lined up on it — accepted, since the RPO may mean it, but worth a note in case the taxiway was mis-typed.
+/// </summary>
+/// <param name="Taxiway">The taxiway pushed onto.</param>
+/// <param name="DistanceFt">The tow before the aircraft is lined up, feet, rounded to the nearest 50.</param>
+public sealed record TugLongPushWarning(string Taxiway, double DistanceFt) : TugPlanWarning(TugPlanWarningKind.LongPushToTaxiway, Taxiway);
+
+/// <summary>A planned tug move: every move with its simulated path, where the aircraft ends up, and what to tell the RPO.</summary>
 /// <param name="Moves">The moves in order; each trace carries its <see cref="TugMove"/>.</param>
 /// <param name="End">The simulated end pose.</param>
-public sealed record TugPlan(IReadOnlyList<TugMoveTrace> Moves, TugPose End);
+/// <param name="Warnings">What the plan could not avoid, or the RPO may not have meant; empty when there is nothing to say.</param>
+/// <param name="FacingJunctionFt">
+/// For a <c>PUSH &lt;taxiway&gt; &lt;facing taxiway&gt;</c>, how far the junction with the facing taxiway lies from
+/// where the push ends, feet; null for every other push.
+/// </param>
+/// <param name="FacingTaxiwayName">The facing taxiway <paramref name="FacingJunctionFt"/> measures to; null with it.</param>
+public sealed record TugPlan(
+    IReadOnlyList<TugMoveTrace> Moves,
+    TugPose End,
+    IReadOnlyList<TugPlanWarning> Warnings,
+    double? FacingJunctionFt,
+    string? FacingTaxiwayName
+)
+{
+    /// <summary>
+    /// The facing taxiway's junction lies more than <see cref="TugMovePlanner.FarFacingJunctionFt"/> from where the
+    /// push ends: the facing only chose the direction along the taxiway, which the RPO is told.
+    /// </summary>
+    public bool FacingTaxiwayIsFar => FacingJunctionFt > TugMovePlanner.FarFacingJunctionFt;
+
+    /// <summary><see cref="FacingJunctionFt"/> as the RPO's note gives it (<see cref="TugMovePlanner.NoteDistanceFt"/>); null with it.</summary>
+    public double? FacingJunctionNoteFt => FacingJunctionFt is { } ft ? TugMovePlanner.NoteDistanceFt(ft) : null;
+}
 
 /// <summary>
 /// Plans a tug move — every <c>PUSH</c> form and <c>PUSHM</c> — as a chain of <see cref="TugMove"/>s flown by
@@ -267,10 +325,16 @@ public sealed record TugPlan(IReadOnlyList<TugMoveTrace> Moves, TugPose End);
 /// on along the line until it reaches the edge's point nearest the aircraft. Either way it ends on the taxiway.
 /// Otherwise the taxiway is not behind the aircraft and the push is refused.</para>
 ///
+/// <para><b>Off a stand onto a spot's lane.</b> Besides the three templates, a spot goal off a stand gets a
+/// straight-then-line candidate per side: the push-off, a straight push along the stand's lead-in line to where a
+/// pivot on the line-capture roll-out radius lands on the spot's lane, then the push capturing the lane. Those
+/// candidates are ranked by path length plus a penalty on how far the aircraft departs the lead-in line before it
+/// reaches the lane, so the push goes straight back toward the lane before it pivots.</para>
+///
 /// <para><b>Room before a reversal.</b> A faced-goal candidate dropped only because its final pull onto the stop runs
-/// past it by up to <see cref="TugPlanBuilder.MaxRoomRetryOvershootFt"/> is retried once with a straight move of the
-/// kind before the reversal, 1.5 × the overshoot + 10 ft long, inserted just before that reversal; the retry is
-/// judged like any other candidate.</para>
+/// past it by up to (1 + <see cref="TugKinematics.RolloutMarginRadii"/>) × the routine turn radius — the most one line
+/// capture can need — is retried once with a straight move of the kind before the reversal, 1.5 × the overshoot +
+/// 10 ft long, inserted just before that reversal; the retry is judged like any other candidate.</para>
 ///
 /// <para><b>Refusals.</b> A goal further than <see cref="MaxGoalDistanceFt"/> away, a goal on a runway holding
 /// position, and a plan whose flown path puts the aircraft's footprint near a runway, across an edge touching a
@@ -296,6 +360,28 @@ public static class TugMovePlanner
     /// judgement call. It covers SFO's taxiway Y, 186 ft behind the B gates, for a B738 and an E75L alike.
     /// </summary>
     public const double StandBehindExemptionFt = 300.0;
+
+    /// <summary>
+    /// A push onto a taxiway that tows further than this before the aircraft is lined up on it carries a
+    /// <see cref="TugLongPushWarning"/>, feet; a judgement call: from SFO F3, A's line lies about 1,285 ft across the
+    /// ramp, and <c>PUSH A F1</c> tows about 1,400 ft to line up on it.
+    /// </summary>
+    public const double LongPushToTaxiwayFt = 500.0;
+
+    /// <summary>What every distance in a push note is rounded to, feet: a note reads "about", not a survey.</summary>
+    public const double NoteRoundingFt = 50.0;
+
+    /// <summary>A distance as a push note gives it: rounded to the nearest <see cref="NoteRoundingFt"/>.</summary>
+    /// <param name="distanceFt">The measured distance, feet.</param>
+    /// <returns>The rounded distance, feet.</returns>
+    public static double NoteDistanceFt(double distanceFt) => Math.Round(distanceFt / NoteRoundingFt) * NoteRoundingFt;
+
+    /// <summary>
+    /// A facing taxiway whose junction lies further than this from where a <c>PUSH &lt;taxiway&gt; &lt;facing
+    /// taxiway&gt;</c> ends is far (<see cref="TugPlan.FacingTaxiwayIsFar"/>), feet; a judgement call: SFO D10's
+    /// junction, about 630 ft past the stop, is not far; F3's, about 2,650 ft past it, is.
+    /// </summary>
+    public const double FarFacingJunctionFt = 1500.0;
 
     /// <summary>The simulation step every candidate is flown with, feet.</summary>
     internal const double StepFt = 1.0;
@@ -400,6 +486,26 @@ public static class TugMovePlanner
     /// <summary>How far <paramref name="point"/> lies ahead of <paramref name="reference"/> along <paramref name="headingDeg"/>, feet.</summary>
     internal static double AlongFt(LatLon point, LatLon reference, double headingDeg) =>
         GeoMath.AlongTrackDistanceNm(point, reference, new TrueHeading(headingDeg)) * GeoMath.FeetPerNm;
+
+    /// <summary>
+    /// An edge's centreline as points from <paramref name="from"/> to its other end: the two nodes with the edge's
+    /// intermediate points between them, in that order.
+    /// </summary>
+    /// <param name="edge">The edge.</param>
+    /// <param name="from">The end node the points start at.</param>
+    /// <returns>The centreline's points.</returns>
+    internal static List<LatLon> EdgePointsFrom(GroundEdge edge, GroundNode from)
+    {
+        var points = new List<LatLon> { edge.Nodes[0].Position };
+        points.AddRange(edge.IntermediatePoints.Select(q => new LatLon(q.Lat, q.Lon)));
+        points.Add(edge.Nodes[1].Position);
+        if (edge.Nodes[0].Id != from.Id)
+        {
+            points.Reverse();
+        }
+
+        return points;
+    }
 
     private static void ValidateRequest(TugRequest request)
     {
@@ -595,8 +701,11 @@ public static class TugGoalResolver
 /// </summary>
 internal readonly record struct TugRun(PushbackLegKind Kind, double StartTravelDeg, bool HasTurn, double MaxDeviationDeg)
 {
-    /// <summary>A run without a turn that wanders further than this from its start travel is a loop; a judgement call.</summary>
-    internal const double MaxWanderDeg = 120.0;
+    /// <summary>
+    /// A run without a turn that wanders further than this from its start travel is a loop; a judgement call, set so
+    /// a push off a stand can pivot onto a spot's lane in one capture (SFO F8 → 7A pivots 133°, E12 → 7B 123°).
+    /// </summary>
+    internal const double MaxWanderDeg = 150.0;
 
     internal bool Wandered => !HasTurn && (MaxDeviationDeg > MaxWanderDeg);
 
@@ -652,6 +761,9 @@ internal sealed class TugCandidate
     /// <summary>Every move so far finished inside its travel budget.</summary>
     internal bool Flyable { get; private set; } = true;
 
+    /// <summary>The junction with the facing taxiway a <c>PUSH &lt;taxiway&gt; &lt;facing taxiway&gt;</c> candidate points the nose toward.</summary>
+    internal GroundNode? FacingJunction { get; set; }
+
     internal IReadOnlyList<TugMoveTrace> Traces => _traces;
 
     internal int Reversals => _traces.Count(t => t.Move.DwellBefore);
@@ -681,6 +793,14 @@ internal sealed class TugCandidate
 }
 
 /// <summary>
+/// One direction a <c>PUSH &lt;taxiway&gt; &lt;facing taxiway&gt;</c> can end in: the line to capture, the stop along it
+/// (null stops once lined up), the direction of travel along it (away from the junction, so the nose points at it),
+/// whether the exit lies on this side of the junction, and whether the junction lies beyond the stop distance from
+/// the exit, so the push stops as soon as it is lined up.
+/// </summary>
+internal readonly record struct TugTaxiwaySide(LatLon LinePoint, LatLon? Stop, double TravelDeg, bool ExitSide, bool BeyondStopDistance);
+
+/// <summary>
 /// How a candidate was judged: the shape rule it breaks, the flown-path rule it breaks, and — when the only shape
 /// rule it breaks is its final line pull running past the stop — how far past, feet.
 /// </summary>
@@ -695,6 +815,9 @@ internal sealed class TugChoiceTally
     internal TugCandidate? Best { get; set; }
 
     internal TugPathRefusal? PathRefusal { get; set; }
+
+    /// <summary>Every candidate that survived judging, in the order judged.</summary>
+    internal List<TugCandidate> Survivors { get; } = [];
 }
 
 /// <summary>Plans a request goal by goal, holding the plan so far.</summary>
@@ -760,15 +883,28 @@ internal sealed class TugPlanBuilder
     /// <summary>How far a move onto a stop point, push or pull, may run past it.</summary>
     private const double StopOvershootToleranceFt = 3.0;
 
+    /// <summary>
+    /// How far past the lane's heading a lane goal's final pull onto its line may swing the nose before it turns back,
+    /// degrees: the pull turns onto the lane heading without passing it.
+    /// </summary>
+    internal const double MaxPullPastLineDeg = 5.0;
+
+    /// <summary>The step the fouling fallback shortens the straight-then-line straight by, feet; a judgement call.</summary>
+    private const double FallbackStraightStepFt = 10.0;
+
+    /// <summary>
+    /// How many feet of path one foot of lateral departure from the stand's lead-in line costs when a spot goal off a
+    /// stand is ranked; a judgement call.
+    /// </summary>
+    private const double LeadInDeparturePenalty = 4.0;
+
     /// <summary>How far a push onto a spot's staging point may run past it; a judgement call.</summary>
     private const double StagingOvershootToleranceFt = 100.0;
 
     /// <summary>
-    /// The largest final-pull overshoot, feet, a faced-goal candidate is retried for with room before its reversal;
-    /// a judgement call, as are the room's <see cref="RoomRetryOvershootFactor"/> and <see cref="RoomRetryPadFt"/>.
+    /// How long the room a faced-goal candidate is retried with before its reversal is, as a multiple of its final
+    /// pull's overshoot, plus <see cref="RoomRetryPadFt"/>; judgement calls.
     /// </summary>
-    internal const double MaxRoomRetryOvershootFt = 60.0;
-
     private const double RoomRetryOvershootFactor = 1.5;
 
     private const double RoomRetryPadFt = 10.0;
@@ -785,6 +921,13 @@ internal sealed class TugPlanBuilder
     private TugPose _end;
     private PushbackLegKind? _lastKind;
     private TugRun? _run;
+    private readonly List<TugPlanWarning> _warnings = [];
+    private GroundNode? _facingJunction;
+    private string? _facingTaxiwayName;
+    private TugTaxiwayClearance? _clearance;
+
+    /// <summary>Each ranked candidate's <see cref="LeadInDepartureFt"/>; a candidate belongs to one goal, and its moves never change once judged.</summary>
+    private readonly Dictionary<TugCandidate, double> _leadInDepartureByCandidate = [];
 
     internal TugPlanBuilder(AirportGroundLayout? layout, TugRequest request)
     {
@@ -796,7 +939,14 @@ internal sealed class TugPlanBuilder
         _standBehindNames = StandBehindNames(_pathCheck, request);
     }
 
-    internal TugPlan ToPlan() => new([.. _moves], _end);
+    internal TugPlan ToPlan() =>
+        new(
+            [.. _moves],
+            _end,
+            [.. _warnings],
+            _facingJunction is { } junction ? GeoMath.DistanceNm(_end.Position, junction.Position) * GeoMath.FeetPerNm : null,
+            _facingTaxiwayName
+        );
 
     internal bool TryPlanGoal(int index, out string refusal)
     {
@@ -812,17 +962,191 @@ internal sealed class TugPlanBuilder
             return false;
         }
 
-        TugCandidate? best = Choose(goal, candidates, offStand, out refusal);
+        TugCandidate? best = Choose(goal, candidates, offStand, out refusal, out List<TugCandidate> survivors);
         if (best is null)
         {
             return false;
         }
 
+        if (IsKeptOffTheMovementArea(goal))
+        {
+            best = ClearOfTaxiways(goal, best, survivors, offStand);
+        }
+
+        if (goal.Shape == TugGoalShape.TaxiwayLine)
+        {
+            NoteLongPush(goal, best);
+        }
+
         _moves.AddRange(best.Traces);
+        if (best.FacingJunction is { } facingJunction)
+        {
+            _facingJunction = facingJunction;
+            _facingTaxiwayName = goal.Goal.FacingTaxiwayName;
+        }
         _end = best.End;
         _lastKind = best.LastKind;
         _run = TugRun.Follow(_run, best.Traces).Open;
         return true;
+    }
+
+    /// <summary>
+    /// A goal in the non-movement area — a spot, a stand, a node — whose push is held outside the object-free area of
+    /// every movement-area taxiway it does not name. A push the command sends onto a taxiway, a bare push and a
+    /// <c>PUSH FACE</c> are not.
+    /// </summary>
+    private bool IsKeptOffTheMovementArea(ResolvedTugGoal goal) => (_layout is not null) && (goal.Shape is TugGoalShape.Faced or TugGoalShape.ToNode);
+
+    /// <summary>
+    /// A lane goal: a spot, faced along its lane, reached off a stand — the goal the straight-then-line candidates, the
+    /// fouling fallback, the lead-in-departure ranking and the pull-past-the-line rule are for.
+    /// </summary>
+    /// <param name="goal">The goal.</param>
+    /// <param name="offStand">The goal is the plan's first and the plan starts on a stand.</param>
+    /// <returns>True for a lane goal.</returns>
+    private static bool IsLaneGoal(ResolvedTugGoal goal, bool offStand) =>
+        offStand && (goal.Shape == TugGoalShape.Faced) && (goal.Goal.Kind == TugGoalKind.Spot);
+
+    /// <summary>
+    /// The candidate a non-movement-area goal keeps: the chosen one when its flown outline stays outside the object-free
+    /// area of every protected taxiway — the movement-area taxiways but those the goal names, the taxiway straight behind
+    /// the stand, and any the outline already reaches into where the goal starts. Otherwise the best clear candidate
+    /// among the survivors and the fouling fallback (<see cref="ShorterStraightThenLineCandidates"/>), ranked as
+    /// <see cref="Choose"/> ranks them; with none clear, the one reaching in least deep, then for least exposure, and a
+    /// <see cref="TugFoulsTaxiwayWarning"/> on the plan. Never a refusal.
+    /// </summary>
+    private TugCandidate ClearOfTaxiways(ResolvedTugGoal goal, TugCandidate chosen, List<TugCandidate> survivors, bool offStand)
+    {
+        TugTaxiwayClearance clearance = _clearance ??= new TugTaxiwayClearance(_layout!, _request.AircraftType);
+        var excluded = new HashSet<string>(goal.ExemptNames, StringComparer.OrdinalIgnoreCase);
+        excluded.UnionWith(clearance.TaxiwaysFouledAt(_end));
+        TugTaxiwayFouling chosenFouling = clearance.Measure(chosen.Traces, excluded);
+        LogChosenClearance(goal, chosen, excluded, chosenFouling);
+        if (!chosenFouling.Fouls)
+        {
+            return chosen;
+        }
+
+        List<TugCandidate> pool = [.. survivors.Concat(FallbackSurvivors(goal, offStand))];
+        return BestClear(goal, offStand, pool.Where(c => (c != chosen) && !clearance.Fouls(c.Traces, excluded)))
+            ?? LeastFouling(goal, [.. pool.Select(c => (c, c == chosen ? chosenFouling : clearance.Measure(c.Traces, excluded)))]);
+    }
+
+    private static void LogChosenClearance(ResolvedTugGoal goal, TugCandidate chosen, HashSet<string> excluded, TugTaxiwayFouling fouling) =>
+        Log.LogDebug(
+            "Tug {Subject}: kept clear of every movement-area taxiway's object-free area but {Excluded}; {Template} {Verdict}",
+            goal.Subject,
+            excluded.Count == 0 ? "none" : string.Join("/", excluded.Order(StringComparer.OrdinalIgnoreCase)),
+            chosen.Template,
+            fouling.Fouls ? $"reaches {fouling.PeakFt:F1} ft into {fouling.Taxiway}'s with the {fouling.Part}" : "stays clear"
+        );
+
+    /// <summary>The best of the candidates that stay clear, ranked as <see cref="Choose"/> ranks them; null when there are none.</summary>
+    private TugCandidate? BestClear(ResolvedTugGoal goal, bool offStand, IEnumerable<TugCandidate> clear)
+    {
+        TugCandidate? bestClear = null;
+        foreach (TugCandidate candidate in clear)
+        {
+            bestClear = IsBetter(goal, offStand, candidate, bestClear) ? candidate : bestClear;
+        }
+
+        if (bestClear is not null)
+        {
+            Log.LogDebug("Tug {Subject}: {Template} ({Moves}) stays clear instead", goal.Subject, bestClear.Template, bestClear.Describe());
+        }
+
+        return bestClear;
+    }
+
+    /// <summary>The pool's candidate reaching in least deep, then for least exposure, with a <see cref="TugFoulsTaxiwayWarning"/> on the plan.</summary>
+    private TugCandidate LeastFouling(ResolvedTugGoal goal, List<(TugCandidate Candidate, TugTaxiwayFouling Fouling)> pool)
+    {
+        (TugCandidate least, TugTaxiwayFouling leastFouling) = pool.OrderBy(p => p.Fouling.PeakFt).ThenBy(p => p.Fouling.ExposureFtFt).First();
+        Log.LogDebug(
+            "Tug {Subject}: no candidate stays clear; {Template} ({Moves}) reaches least, {PeakFt:F1} ft into {Taxiway}'s with the {Part}",
+            goal.Subject,
+            least.Template,
+            least.Describe(),
+            leastFouling.PeakFt,
+            leastFouling.Taxiway,
+            leastFouling.Part
+        );
+        _warnings.Add(new TugFoulsTaxiwayWarning(leastFouling.Taxiway!, leastFouling.Part, leastFouling.PeakFt));
+        return least;
+    }
+
+    /// <summary>The fouling fallback's candidates that survive judging, for a spot goal off a stand; none for any other goal.</summary>
+    private List<TugCandidate> FallbackSurvivors(ResolvedTugGoal goal, bool offStand)
+    {
+        if (!IsLaneGoal(goal, offStand))
+        {
+            return [];
+        }
+
+        var pushOff = TugMove.Straight(PushbackLegKind.Push, TugMovePlanner.FuselageLengthFt(_request.AircraftType) / 2.0);
+        var survivors = new List<TugCandidate>();
+        foreach (TugCandidate candidate in ShorterStraightThenLineCandidates(goal, pushOff))
+        {
+            TugVerdict verdict = Judge(goal, candidate, offStand);
+            if (!verdict.Dropped)
+            {
+                survivors.Add(candidate);
+            }
+            else if (RoomBeforeReversal(candidate, verdict) is { } retry && !Judge(goal, retry, offStand).Dropped)
+            {
+                survivors.Add(retry);
+            }
+        }
+
+        return survivors;
+    }
+
+    /// <summary>
+    /// A <c>PUSH &lt;taxiway&gt; &lt;facing taxiway&gt;</c> that tows more than <see cref="TugMovePlanner.LongPushToTaxiwayFt"/>
+    /// before the aircraft is lined up on the taxiway: a <see cref="TugLongPushWarning"/>, the distance rounded for the note
+    /// (<see cref="TugMovePlanner.NoteDistanceFt"/>).
+    /// </summary>
+    private void NoteLongPush(ResolvedTugGoal goal, TugCandidate chosen)
+    {
+        double towFt = PathToLineUpFt(chosen);
+        if (towFt <= TugMovePlanner.LongPushToTaxiwayFt)
+        {
+            return;
+        }
+
+        Log.LogDebug("Tug {Subject}: tows {TowFt:F0} ft before it is lined up on {Taxiway}", goal.Subject, towFt, goal.Goal.TaxiwayName);
+        _warnings.Add(new TugLongPushWarning(goal.Goal.TaxiwayName!, TugMovePlanner.NoteDistanceFt(towFt)));
+    }
+
+    /// <summary>
+    /// How far a candidate ending on a line capture tows before it is lined up, feet: every move before the last, and the
+    /// last up to its first sample within <see cref="TugKinematics"/>' capture tolerance
+    /// (<see cref="TugKinematics.CaptureCrossTrackFt"/> off the line, the travel within
+    /// <see cref="TugKinematics.CaptureTravelErrorDeg"/> of it) — the whole of it when it never gets there.
+    /// </summary>
+    private static double PathToLineUpFt(TugCandidate candidate)
+    {
+        IReadOnlyList<TugMoveTrace> traces = candidate.Traces;
+        double towFt = traces.Take(traces.Count - 1).Sum(t => t.PathLengthFt);
+        TugMoveTrace last = traces[^1];
+        TugMove move = last.Move;
+        var line = new TrueHeading(move.LineTravelTrueDeg);
+        LatLon? previous = null;
+        foreach (TugPose sample in last.Samples)
+        {
+            towFt += previous is { } from ? GeoMath.DistanceNm(from, sample.Position) * GeoMath.FeetPerNm : 0.0;
+            previous = sample.Position;
+            double offFt = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(sample.Position, move.Point, line)) * GeoMath.FeetPerNm;
+            if (
+                (offFt <= TugKinematics.CaptureCrossTrackFt)
+                && (TugMovePlanner.AbsDiffDeg(sample.TravelTrueDeg(move.Kind), move.LineTravelTrueDeg) <= TugKinematics.CaptureTravelErrorDeg)
+            )
+            {
+                return towFt;
+            }
+        }
+
+        return towFt;
     }
 
     /// <summary>
@@ -901,8 +1225,15 @@ internal sealed class TugPlanBuilder
         refusal = string.Empty;
         switch (goal.Shape)
         {
+            case TugGoalShape.Faced when IsLaneGoal(goal, offStand):
+                candidates = FacedCandidates(goal, pushOff);
+                candidates.AddRange(StraightThenLineCandidates(goal, pushOff!));
+                return true;
             case TugGoalShape.Faced:
                 candidates = FacedCandidates(goal, pushOff);
+                return true;
+            case TugGoalShape.TaxiwayLine when TaxiwayLineCandidates(goal, pushOff) is { Count: > 0 } lined:
+                candidates = lined;
                 return true;
             case TugGoalShape.ToNode:
                 return TryToNodeCandidate(goal, pushOff, out candidates, out refusal);
@@ -998,6 +1329,392 @@ internal sealed class TugPlanBuilder
     }
 
     private static PushbackLegKind Opposite(PushbackLegKind kind) => kind == PushbackLegKind.Push ? PushbackLegKind.Pull : PushbackLegKind.Push;
+
+    /// <summary>
+    /// The straight-then-line candidates off a stand onto a spot's lane: after the half-fuselage push-off, a straight
+    /// push to where the pivot onto the lane starts (<see cref="PivotLeadFt"/> short of the lane), then a push capturing
+    /// the lane; the push side carries on to the staging point, the pull side captures the lane floating and pulls
+    /// along it onto the stop. Nothing when the lane is closer than that.
+    /// </summary>
+    private IEnumerable<TugCandidate> StraightThenLineCandidates(ResolvedTugGoal goal, TugMove pushOff) =>
+        StraightThenLineStraightFt(goal, pushOff) is { } straightFt ? StraightThenLine(goal, pushOff, straightFt) : [];
+
+    /// <summary>
+    /// The fouling fallback for a spot goal off a stand: the straight-then-line candidates with the straight cut short —
+    /// every <see cref="FallbackStraightStepFt"/> shorter than <see cref="StraightThenLineCandidates"/>' down to one
+    /// step — so the push pivots onto the lane earlier and further from the taxiway behind it. Built only when the chosen
+    /// candidate fouls a taxiway's object-free area.
+    /// </summary>
+    private IEnumerable<TugCandidate> ShorterStraightThenLineCandidates(ResolvedTugGoal goal, TugMove pushOff)
+    {
+        if (StraightThenLineStraightFt(goal, pushOff) is not { } fullFt)
+        {
+            yield break;
+        }
+
+        for (double straightFt = fullFt - FallbackStraightStepFt; straightFt > TugMovePlanner.StepFt; straightFt -= FallbackStraightStepFt)
+        {
+            foreach (TugCandidate candidate in StraightThenLine(goal, pushOff, straightFt))
+            {
+                yield return candidate;
+            }
+        }
+    }
+
+    /// <summary>
+    /// How long the straight push of a straight-then-line candidate is: from the push-off's end to where the pivot onto
+    /// the lane starts (<see cref="PivotLeadFt"/> short of the lane). Null when the lane is closer than that.
+    /// </summary>
+    private double? StraightThenLineStraightFt(ResolvedTugGoal goal, TugMove pushOff)
+    {
+        TugPose from = NewCandidate("probe", pushOff).End;
+        if ((LaneCrossingFt(goal, from) is not { } crossFt) || (PivotLeadFt(goal, from) is not { } leadFt))
+        {
+            return null;
+        }
+
+        double straightFt = crossFt - leadFt;
+        return straightFt > TugMovePlanner.StepFt ? straightFt : null;
+    }
+
+    /// <summary>The push-side and pull-side straight-then-line candidates with a straight push of <paramref name="straightFt"/>.</summary>
+    private IEnumerable<TugCandidate> StraightThenLine(ResolvedTugGoal goal, TugMove pushOff, double straightFt)
+    {
+        foreach (PushbackLegKind side in new[] { PushbackLegKind.Push, PushbackLegKind.Pull })
+        {
+            TugCandidate candidate = NewCandidate($"T0 straight {straightFt:F0} ft then line, {side} side", pushOff);
+            candidate.Add(TugMove.Straight(PushbackLegKind.Push, straightFt));
+            if (side == PushbackLegKind.Pull)
+            {
+                candidate.Add(LineMove(goal, PushbackLegKind.Push, stopAt: null));
+            }
+
+            AddApproach(candidate, goal, side);
+            yield return candidate;
+        }
+    }
+
+    /// <summary>
+    /// How far along the push line from <paramref name="from"/> the reference point reaches the spot's lane, feet: the
+    /// first straight, non-ramp edge the push ray crosses that carries a name of the spot's own straight non-ramp edges
+    /// (the ramp lane through the spot); failing that, the push ray's intersection with the spot's approach line. Null
+    /// when neither lies behind the aircraft.
+    /// </summary>
+    private double? LaneCrossingFt(ResolvedTugGoal goal, TugPose from)
+    {
+        double pushDeg = from.TravelTrueDeg(PushbackLegKind.Push);
+        var laneNames = new HashSet<string>(
+            goal.Goal.Node!.Edges.OfType<GroundEdge>().Where(e => !e.IsRamp && !e.IsRunwayCenterline).Select(e => e.TaxiwayName),
+            StringComparer.OrdinalIgnoreCase
+        );
+        bool IsLane(IGroundEdge edge) => (edge is GroundEdge straight) && !straight.IsRamp && laneNames.Contains(straight.TaxiwayName);
+        if (
+            (laneNames.Count > 0)
+            && (_pathCheck!.FirstCrossing(from.Position, pushDeg, (TugMovePlanner.StepFt, TugMovePlanner.MaxGoalDistanceFt), IsLane) is { } hit)
+        )
+        {
+            Log.LogDebug(
+                "Tug {Subject}: the push ray crosses lane {Lane} edge {NodeA}-{NodeB} {DistanceFt:F1} ft behind",
+                goal.Subject,
+                hit.Edge.TaxiwayName,
+                hit.Edge.Nodes[0].Id,
+                hit.Edge.Nodes[1].Id,
+                hit.DistanceFt
+            );
+            return hit.DistanceFt;
+        }
+
+        double offLineFt = GeoMath.SignedCrossTrackDistanceNm(from.Position, goal.Stop, new TrueHeading(goal.FacingTrueDeg)) * GeoMath.FeetPerNm;
+        double closingRate = Math.Sin((pushDeg - goal.FacingTrueDeg) * Math.PI / 180.0);
+        double alongFt = Math.Abs(closingRate) < 0.1 ? -1.0 : -offLineFt / closingRate;
+        Log.LogDebug(
+            "Tug {Subject}: no lane edge ({Names}) on the push ray; the approach line is {AlongFt:F1} ft along it",
+            goal.Subject,
+            string.Join("/", laneNames),
+            alongFt
+        );
+        return alongFt > 0.0 ? alongFt : null;
+    }
+
+    /// <summary>
+    /// How far before the lane, along the push line, the pivot onto the lane starts, feet: a turn of Δ from the push
+    /// travel onto the lane's push travel (into the ramp) lands tangent on the lane from R·(1 − cos Δ) off it, which
+    /// the push line closes at sin Δ per foot — R·tan(Δ/2), on the line-capture roll-out radius R = 1.15 × the routine
+    /// radius (<see cref="TugKinematics.RolloutMarginRadii"/>). One roll-out radius for a square pivot. Null past a
+    /// pivot of <see cref="TugRun.MaxWanderDeg"/>, which no same-kind run may wander through without a turn, and where
+    /// the lead grows without bound.
+    /// </summary>
+    private double? PivotLeadFt(ResolvedTugGoal goal, TugPose from)
+    {
+        double pivotDeg = TugMovePlanner.AbsDiffDeg(
+            from.TravelTrueDeg(PushbackLegKind.Push),
+            TugKinematics.FlipForKind(goal.FacingTrueDeg, PushbackLegKind.Push)
+        );
+        if (pivotDeg > TugRun.MaxWanderDeg)
+        {
+            return null;
+        }
+
+        double rolloutFt = TugKinematics.RolloutMarginRadii * TugKinematics.TurnRadiusFt(_request.AircraftType, tight: false);
+        return rolloutFt * Math.Tan(pivotDeg / 2.0 * Math.PI / 180.0);
+    }
+
+    /// <summary><see cref="LeadInDepartureFt"/> of a candidate, measured once: the ranking compares a candidate many times.</summary>
+    private double CachedLeadInDepartureFt(ResolvedTugGoal goal, TugCandidate candidate)
+    {
+        if (!_leadInDepartureByCandidate.TryGetValue(candidate, out double departureFt))
+        {
+            departureFt = LeadInDepartureFt(goal, candidate);
+            _leadInDepartureByCandidate[candidate] = departureFt;
+        }
+
+        return departureFt;
+    }
+
+    /// <summary>
+    /// The largest lateral departure of the reference point, nose or tail from the stand's lead-in line, feet, over the
+    /// candidate's poses until the reference point first comes within one routine turn radius of the approach line.
+    /// </summary>
+    private double LeadInDepartureFt(ResolvedTugGoal goal, TugCandidate candidate)
+    {
+        TugPose start = _request.Start;
+        var lead = new TrueHeading(start.NoseTrueDeg);
+        double halfNm = TugMovePlanner.FuselageLengthFt(_request.AircraftType) / 2.0 / GeoMath.FeetPerNm;
+        double radiusFt = TugKinematics.TurnRadiusFt(_request.AircraftType, tight: false);
+        double maxFt = 0.0;
+        foreach (TugPose pose in candidate.Traces.SelectMany(t => t.Samples))
+        {
+            double laneOffFt =
+                Math.Abs(GeoMath.SignedCrossTrackDistanceNm(pose.Position, goal.Stop, new TrueHeading(goal.FacingTrueDeg))) * GeoMath.FeetPerNm;
+            if (laneOffFt <= radiusFt)
+            {
+                break;
+            }
+
+            var nose = new TrueHeading(pose.NoseTrueDeg);
+            foreach (
+                LatLon point in new[]
+                {
+                    pose.Position,
+                    GeoMath.ProjectPoint(pose.Position, nose, halfNm),
+                    GeoMath.ProjectPoint(pose.Position, nose.ToReciprocal(), halfNm),
+                }
+            )
+            {
+                maxFt = Math.Max(maxFt, Math.Abs(GeoMath.SignedCrossTrackDistanceNm(point, start.Position, lead)) * GeoMath.FeetPerNm);
+            }
+        }
+
+        return maxFt;
+    }
+
+    /// <summary>The candidate's total nose rotation, degrees, summed sample to sample.</summary>
+    private static double TotalRotationDeg(TugCandidate candidate)
+    {
+        double totalDeg = 0.0;
+        TugPose? previous = null;
+        foreach (TugPose pose in candidate.Traces.SelectMany(t => t.Samples))
+        {
+            totalDeg += previous is { } last ? TugMovePlanner.AbsDiffDeg(last.NoseTrueDeg, pose.NoseTrueDeg) : 0.0;
+            previous = pose;
+        }
+
+        return totalDeg;
+    }
+
+    /// <summary>
+    /// A <c>PUSH &lt;taxiway&gt; &lt;facing taxiway&gt;</c>: a push onto the taxiway's line with the nose toward its
+    /// junction with the facing taxiway, in whichever direction along the taxiway turns the nose least (the ranking,
+    /// <see cref="IsBetter"/>). When the exit lies within one stop distance (a routine turn radius plus half a fuselage)
+    /// of the junction, both directions away from the junction are candidates, each stopping with the nose tip one
+    /// routine turn radius short of it. When the junction is farther, the facing taxiway only says which way the nose
+    /// points: the one candidate is the push onto the line through the exit, nose toward the junction, stopping as soon
+    /// as it is lined up — never a tow along the taxiway toward a far
+    /// junction. Null when the goal names no facing taxiway or the junction cannot be found.
+    /// </summary>
+    private List<TugCandidate>? TaxiwayLineCandidates(ResolvedTugGoal goal, TugMove? pushOff)
+    {
+        if ((_layout is null) || (goal.Goal.FacingTaxiwayName is not { } facingName))
+        {
+            return null;
+        }
+
+        string taxiway = goal.Goal.TaxiwayName!;
+        GroundNode exit = goal.Goal.Node!;
+        if (FacingJunction(_layout, taxiway, facingName, exit) is not { } junction)
+        {
+            Log.LogDebug("Tug {Subject}: no {Taxiway}/{Facing} junction", goal.Subject, taxiway, facingName);
+            return null;
+        }
+
+        double backFt =
+            TugKinematics.TurnRadiusFt(_request.AircraftType, tight: false) + (TugMovePlanner.FuselageLengthFt(_request.AircraftType) / 2.0);
+        List<TugTaxiwaySide> sides = ReachableSides(taxiway, junction, exit, backFt);
+        Log.LogDebug(
+            "Tug {Subject}: {Taxiway}/{Facing} junction node {Node}; {Count} direction(s), {Stop}",
+            goal.Subject,
+            taxiway,
+            facingName,
+            junction.Id,
+            sides.Count,
+            sides.Any(s => s.BeyondStopDistance)
+                ? "the junction is far, so the push stops once lined up at the exit"
+                : $"stopping {backFt:F0} ft back from the junction"
+        );
+        return [.. sides.Select(side => SideCandidate(taxiway, junction, side, pushOff))];
+    }
+
+    /// <summary>The node joining <paramref name="taxiway"/> and <paramref name="facingName"/> nearest the exit, or null when they never meet.</summary>
+    private static GroundNode? FacingJunction(AirportGroundLayout layout, string taxiway, string facingName, GroundNode exit) =>
+        layout
+            .Nodes.Values.Where(n =>
+                n.Edges.OfType<GroundEdge>().Any(e => e.MatchesTaxiway(taxiway))
+                && n.Edges.OfType<GroundEdge>().Any(e => e.MatchesTaxiway(facingName))
+            )
+            .MinBy(n => GeoMath.DistanceNm(n.Position, exit.Position));
+
+    /// <summary>
+    /// The directions along the taxiway away from the junction a push can end in (<see cref="SideLine"/>): only the exit's
+    /// own when the junction lies beyond the stop distance from it, else the exit's side and any other whose stop lies
+    /// within <see cref="TugMovePlanner.MaxGoalDistanceFt"/>.
+    /// </summary>
+    private List<TugTaxiwaySide> ReachableSides(string taxiway, GroundNode junction, GroundNode exit, double backFt)
+    {
+        List<TugTaxiwaySide> sides =
+        [
+            .. junction.Edges.OfType<GroundEdge>().Where(e => e.MatchesTaxiway(taxiway)).Select(e => SideLine(taxiway, junction, e, exit, backFt)),
+        ];
+        bool beyond = sides.Any(s => s.BeyondStopDistance);
+        return [.. sides.Where(s => beyond ? s.BeyondStopDistance : IsWithinReach(s))];
+    }
+
+    /// <summary>A side the push can end on when the junction is near: the exit's own, or one whose stop is within <see cref="TugMovePlanner.MaxGoalDistanceFt"/>.</summary>
+    private bool IsWithinReach(TugTaxiwaySide side) =>
+        side.ExitSide || ((GeoMath.DistanceNm(_end.Position, side.Stop ?? side.LinePoint) * GeoMath.FeetPerNm) <= TugMovePlanner.MaxGoalDistanceFt);
+
+    /// <summary>The push onto one side's line, nose toward the junction.</summary>
+    private TugCandidate SideCandidate(string taxiway, GroundNode junction, TugTaxiwaySide side, TugMove? pushOff)
+    {
+        double noseDeg = new TrueHeading(side.TravelDeg).ToReciprocal().Degrees;
+        TugCandidate candidate = NewCandidate($"onto {taxiway} nose {noseDeg:F0} toward node {junction.Id}", pushOff);
+        candidate.FacingJunction = junction;
+        candidate.Add(TugMove.ViaLine(PushbackLegKind.Push, side.LinePoint, side.TravelDeg, side.Stop));
+        return candidate;
+    }
+
+    /// <summary>
+    /// One side of the junction along the taxiway, reached from its edge <paramref name="first"/>. When the exit node
+    /// lies along that side, <c>J</c> ft from the junction, the line is the one through the exit node on the taxiway's
+    /// direction there away from the junction: stopping <paramref name="backFt"/> − J ft past the exit when the junction
+    /// is that close, else — the junction far — stopping as soon as the push lines up on it. Otherwise (the far side,
+    /// or the exit is the junction): the line through the point <paramref name="backFt"/> along the taxiway, stopping
+    /// there.
+    /// </summary>
+    private static TugTaxiwaySide SideLine(string taxiway, GroundNode junction, GroundEdge first, GroundNode exit, double backFt)
+    {
+        if ((exit.Id != junction.Id) && (AlongToNode(taxiway, junction, first, exit) is { } reach))
+        {
+            double offsetFt = backFt - reach.AlongFt;
+            if (offsetFt < 0.0)
+            {
+                return new TugTaxiwaySide(exit.Position, null, reach.ArrivalDeg, ExitSide: true, BeyondStopDistance: true);
+            }
+
+            LatLon stop = GeoMath.ProjectPoint(exit.Position, new TrueHeading(reach.ArrivalDeg), offsetFt / GeoMath.FeetPerNm);
+            return new TugTaxiwaySide(exit.Position, stop, reach.ArrivalDeg, ExitSide: true, BeyondStopDistance: false);
+        }
+
+        (LatLon point, double travelDeg) = WalkAlong(taxiway, junction, first, backFt);
+        return new TugTaxiwaySide(point, point, travelDeg, ExitSide: exit.Id == junction.Id, BeyondStopDistance: false);
+    }
+
+    /// <summary>
+    /// How far along the taxiway's straight edges from <paramref name="from"/>, starting on <paramref name="first"/>
+    /// and carrying on nearest straight ahead at each node, <paramref name="target"/> is reached, feet, and the
+    /// direction of travel on arriving there; null when it is not within three times
+    /// <see cref="TugMovePlanner.MaxGoalDistanceFt"/>.
+    /// </summary>
+    private static (double AlongFt, double ArrivalDeg)? AlongToNode(string taxiway, GroundNode from, GroundEdge first, GroundNode target)
+    {
+        GroundNode at = from;
+        GroundEdge edge = first;
+        double alongFt = 0.0;
+        while (alongFt <= 3.0 * TugMovePlanner.MaxGoalDistanceFt)
+        {
+            GroundNode next = edge.OtherNode(at);
+            List<LatLon> points = TugMovePlanner.EdgePointsFrom(edge, at);
+            double arrivalDeg = GeoMath.BearingTo(points[^2], points[^1]);
+            for (int i = 0; i + 1 < points.Count; i++)
+            {
+                alongFt += GeoMath.DistanceNm(points[i], points[i + 1]) * GeoMath.FeetPerNm;
+            }
+
+            if (next.Id == target.Id)
+            {
+                return (alongFt, arrivalDeg);
+            }
+
+            GroundEdge current = edge;
+            GroundEdge? onward = next
+                .Edges.OfType<GroundEdge>()
+                .Where(e => (e != current) && e.MatchesTaxiway(taxiway))
+                .MinBy(e => TugMovePlanner.AbsDiffDeg(GeoMath.BearingTo(next.Position, e.OtherNode(next).Position), arrivalDeg));
+            if (onward is null)
+            {
+                return null;
+            }
+
+            at = next;
+            edge = onward;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The point <paramref name="distanceFt"/> along the taxiway's straight edges from <paramref name="from"/>, starting
+    /// on <paramref name="first"/> and at each node carrying on along the edge of the taxiway nearest straight ahead,
+    /// with the direction of travel there. Stops at the last node when the taxiway ends first.
+    /// </summary>
+    private static (LatLon Point, double TravelDeg) WalkAlong(string taxiway, GroundNode from, GroundEdge first, double distanceFt)
+    {
+        GroundNode at = from;
+        GroundEdge edge = first;
+        double leftFt = distanceFt;
+        double travelDeg = GeoMath.BearingTo(from.Position, first.OtherNode(from).Position);
+        for (int hop = 0; hop < 50; hop++)
+        {
+            List<LatLon> points = TugMovePlanner.EdgePointsFrom(edge, at);
+            for (int i = 0; i + 1 < points.Count; i++)
+            {
+                double segFt = GeoMath.DistanceNm(points[i], points[i + 1]) * GeoMath.FeetPerNm;
+                travelDeg = GeoMath.BearingTo(points[i], points[i + 1]);
+                if (segFt >= leftFt)
+                {
+                    return (GeoMath.ProjectPoint(points[i], new TrueHeading(travelDeg), leftFt / GeoMath.FeetPerNm), travelDeg);
+                }
+
+                leftFt -= segFt;
+            }
+
+            GroundNode next = edge.OtherNode(at);
+            GroundEdge current = edge;
+            double headingDeg = travelDeg;
+            GroundEdge? onward = next
+                .Edges.OfType<GroundEdge>()
+                .Where(e => (e != current) && e.MatchesTaxiway(taxiway))
+                .MinBy(e => TugMovePlanner.AbsDiffDeg(GeoMath.BearingTo(next.Position, e.OtherNode(next).Position), headingDeg));
+            if (onward is null)
+            {
+                return (next.Position, travelDeg);
+            }
+
+            at = next;
+            edge = onward;
+        }
+
+        return (at.Position, travelDeg);
+    }
 
     /// <summary>
     /// The side move onto the approach line; a spot push stops at the staging point and creeps forward onto the
@@ -1259,20 +1976,27 @@ internal sealed class TugPlanBuilder
     /// among the candidates whose shape was sound, else the generic one: a candidate dropped for its shape was never a
     /// way to fly the move, so the pavement it would have crossed is not the reason the move is refused.
     /// </summary>
-    private TugCandidate? Choose(ResolvedTugGoal goal, List<TugCandidate> candidates, bool offStand, out string refusal)
+    private TugCandidate? Choose(
+        ResolvedTugGoal goal,
+        List<TugCandidate> candidates,
+        bool offStand,
+        out string refusal,
+        out List<TugCandidate> survivors
+    )
     {
         var tally = new TugChoiceTally();
         foreach (TugCandidate candidate in candidates)
         {
             TugVerdict verdict = Judge(goal, candidate, offStand);
-            Tally(goal, candidate, verdict, tally);
+            Tally(goal, candidate, verdict, tally, offStand);
             if (RoomBeforeReversal(candidate, verdict) is { } retry)
             {
-                Tally(goal, retry, Judge(goal, retry, offStand), tally);
+                Tally(goal, retry, Judge(goal, retry, offStand), tally, offStand);
             }
         }
 
         TugCandidate? best = tally.Best;
+        survivors = tally.Survivors;
         refusal = best is null ? (tally.PathRefusal?.Message ?? $"Unable, cannot line up on {goal.Name} from here") : string.Empty;
         if (best is not null)
         {
@@ -1290,7 +2014,7 @@ internal sealed class TugPlanBuilder
     }
 
     /// <summary>Logs a judged candidate and counts it: a survivor may become the best, a path-only drop may become the refusal.</summary>
-    private static void Tally(ResolvedTugGoal goal, TugCandidate candidate, TugVerdict verdict, TugChoiceTally tally)
+    private void Tally(ResolvedTugGoal goal, TugCandidate candidate, TugVerdict verdict, TugChoiceTally tally, bool offStand)
     {
         if (verdict.Dropped)
         {
@@ -1313,19 +2037,20 @@ internal sealed class TugPlanBuilder
             candidate.Reversals,
             candidate.PathLengthFt
         );
-        tally.Best = IsBetter(candidate, tally.Best) ? candidate : tally.Best;
+        tally.Survivors.Add(candidate);
+        tally.Best = IsBetter(goal, offStand, candidate, tally.Best) ? candidate : tally.Best;
     }
 
     /// <summary>
     /// The one retry a candidate gets when it was dropped only because its final pull onto the stop ran past it by
-    /// no more than <see cref="MaxRoomRetryOvershootFt"/>: the same moves with a straight of the kind before the
+    /// no more than <see cref="RoomRetryLimitFt"/>: the same moves with a straight of the kind before the
     /// reversal, <see cref="RoomRetryOvershootFactor"/> × the overshoot + <see cref="RoomRetryPadFt"/> long,
     /// inserted just before the reversal into that pull, so the pull has room to capture its line before the stop.
     /// Null when the candidate gets no retry, including when the pull reverses a move of an earlier goal.
     /// </summary>
     private TugCandidate? RoomBeforeReversal(TugCandidate candidate, TugVerdict verdict)
     {
-        if ((verdict.Path is not null) || (verdict.FinalPullOvershootFt is not { } overshootFt) || (overshootFt > MaxRoomRetryOvershootFt))
+        if ((verdict.Path is not null) || (verdict.FinalPullOvershootFt is not { } overshootFt) || (overshootFt > RoomRetryLimitFt()))
         {
             return null;
         }
@@ -1349,10 +2074,39 @@ internal sealed class TugPlanBuilder
         return retry;
     }
 
-    private static bool IsBetter(TugCandidate candidate, TugCandidate? best) =>
-        (best is null)
-        || (candidate.Reversals < best.Reversals)
-        || ((candidate.Reversals == best.Reversals) && (candidate.PathLengthFt < best.PathLengthFt));
+    /// <summary>
+    /// The final-pull overshoot a candidate is retried for, feet: the along-line travel one line capture can need at
+    /// most — a 90° turn-in on the routine radius plus the roll-out arc, (1 + <see cref="TugKinematics.RolloutMarginRadii"/>) × R.
+    /// </summary>
+    private double RoomRetryLimitFt() => (1.0 + TugKinematics.RolloutMarginRadii) * TugKinematics.TurnRadiusFt(_request.AircraftType, tight: false);
+
+    private bool IsBetter(ResolvedTugGoal goal, bool offStand, TugCandidate candidate, TugCandidate? best)
+    {
+        if (best is null)
+        {
+            return true;
+        }
+
+        if (candidate.Reversals != best.Reversals)
+        {
+            return candidate.Reversals < best.Reversals;
+        }
+
+        if (IsLaneGoal(goal, offStand))
+        {
+            double Score(TugCandidate c) => c.PathLengthFt + (LeadInDeparturePenalty * CachedLeadInDepartureFt(goal, c));
+            return Score(candidate) < Score(best);
+        }
+
+        if (goal.Shape == TugGoalShape.TaxiwayLine)
+        {
+            double candidateDeg = TotalRotationDeg(candidate);
+            double bestDeg = TotalRotationDeg(best);
+            return Math.Abs(candidateDeg - bestDeg) > 1.0 ? candidateDeg < bestDeg : candidate.PathLengthFt < best.PathLengthFt;
+        }
+
+        return candidate.PathLengthFt < best.PathLengthFt;
+    }
 
     private static TugPathRefusal? MoreSevere(TugPathRefusal? current, TugPathRefusal? found) =>
         (found is { } next) && ((current is not { } held) || (next.Severity < held.Severity)) ? found : current;
@@ -1501,15 +2255,40 @@ internal sealed class TugPlanBuilder
         }
 
         TugMoveTrace last = traces[^1];
+        bool linePull = (last.Move.Kind == PushbackLegKind.Pull) && (last.Move.Shape == TugMoveShape.ViaLine);
+        double pastDeg = (linePull && IsLaneGoal(goal, offStand)) ? PastLineDeg(last) : 0.0;
+        if (pastDeg > MaxPullPastLineDeg)
+        {
+            return ($"the pull onto the line swung the nose {pastDeg:F1}° past the line's heading", null);
+        }
+
         if ((EndDropReason(goal, last) ?? OvershootDropReason(goal, traces.Take(traces.Count - 1))) is { } reason)
         {
             return (reason, null);
         }
 
-        bool linePull = (last.Move.Kind == PushbackLegKind.Pull) && (last.Move.Shape == TugMoveShape.ViaLine);
         return (StopOvershootFt(last, goal) is { } stopFt) && (stopFt > StopOvershootToleranceFt)
             ? (StopOvershootReason(last.Move.Kind, stopFt), linePull ? stopFt : null)
             : (OvershootDropReason(goal, [last]), null);
+    }
+
+    /// <summary>
+    /// How far a line move's direction of travel swings past its line's direction, degrees: measured on the side
+    /// opposite the one the move starts on, so a capture that turns in, passes the line heading and turns back shows
+    /// the angle it passed it by; zero for one that turns onto the line heading without crossing it.
+    /// </summary>
+    private static double PastLineDeg(TugMoveTrace trace)
+    {
+        var line = new TrueHeading(trace.Move.LineTravelTrueDeg);
+        IReadOnlyList<TugPose> samples = trace.Samples;
+        if (samples.Count == 0)
+        {
+            return 0.0;
+        }
+
+        double startDeg = line.SignedAngleTo(new TrueHeading(samples[0].TravelTrueDeg(trace.Move.Kind)));
+        double side = startDeg >= 0.0 ? 1.0 : -1.0;
+        return Math.Max(0.0, samples.Max(s => -side * line.SignedAngleTo(new TrueHeading(s.TravelTrueDeg(trace.Move.Kind)))));
     }
 
     private static string StopOvershootReason(PushbackLegKind kind, double overshootFt) =>

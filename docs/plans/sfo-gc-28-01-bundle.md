@@ -21,9 +21,25 @@ Take the waves top to bottom. Wave 3 measures before it designs. Wave 4 is the f
 
 **How the push-planner rethink is designed (user 2026-09-23):** whenever it is unclear how a push should be designed, render the candidate options as LayoutInspector tick-playback HTML, one run per option (TickRecorder JSON → `--ticks --html`, with the involved taxiways highlighted and the key nodes annotated), and send them to the user for feedback before anything is built. The user picks or corrects the shape from the renders; no push geometry is decided from reasoning alone.
 
-- [ ] **`PUSH $spot` from SFO gates (renders 2026-09-23, main checkout `.tmp/push-spots/`):** F8 `PUSH $7A` / `PUSH $7B` are refused ("cannot line up on spot … from here") — every candidate's final pull overshoots by ~61 ft against `TugMovePlanner.MaxRoomRetryOvershootFt = 60` (`TugMovePlanner.cs:783`; F8 → 7 passes at 58.2 ft); the completed pulls onto a lane swing ~60° past it and loop back (F8 → 7, E1 → 7, E12 → 7B) and end in a 25–40 s creep at 1.4–1.7 kt. Forced render (limit raised to 80 ft, `.tmp/push-spots/push-forced-f8.html`): F8 → 7A/7B then fly and end nose on the mark facing A — the 60 ft retry limit is the only refusal. User verdict 2026-09-23: the pull onto the lane looks fine. **The push planner needs a rethink off the gate:** it should push straight back (toward the taxilane the aircraft will occupy) first and pivot close to that taxilane, not pivot immediately out of the gate — today the push-turn swings the aircraft across the neighbouring gate, which is likely occupied (F8: nose 77 ft off its lead-in line during the push-turn). Lift or re-derive the overshoot retry limit as part of the same rethink
-  - UAL2183 (`PUSH T9` from F4, then `TAXI T9 $9`) drives T8 B5 T9, because F4's lead-out joins T8. Deferred to this rethink (user 2026-09-23), not a routing fix.
-- [ ] **`PUSH <X> <facing>` ends short of the facing taxiway, nose toward it** (user 2026-09-23, from the D7 `PUSH A F1` playback: today the aircraft pushes tail-south and stops 8 ft south of the A/F1 junction, nose 10° north, right on the intersection. From there it needs a hard pivot to join F1, if it can at all). Wanted: end lined up on X, nose toward X's junction with the facing taxiway, stopped at least one turn radius short of that junction and never on it, so it can taxi forward and turn onto the facing taxiway. Choose the push direction (tail one way along X or the other) that allows this with the least turn; at D7 that means pushing tail-north, not south. Push judging is settled separately (R2a, user 2026-09-23): encroaching on other movement-area taxiways is expected, and a push is refused only for runway or hold-short crossings or for going more than half a span past X's centreline. Plan it together with the gate push-off rethink above, using LayoutInspector tick-playback renders (the D7 render is `.tmp/d7-push-a-f1.html` in the main checkout)
+- [ ] **Push part 2** (after the push-planner rethink, part 1, landed):
+  - (a) **Per-form `PUSH` readbacks** (table approved by the user 2026-09-23). Each readback says what the tug will do. The parentheticals marked RPO-only are terminal-only, never spoken:
+
+    | Command | Readback |
+    |---|---|
+    | bare `PUSH` | "Push straight back" + RPO-only "(nose west)", the heading reduced to the 8-point compass the `FACE` arguments use |
+    | `PUSH FACE E` | "Push back, face east" |
+    | `PUSH TAIL W` | "Push back, tail west" (never converted to face) |
+    | `PUSH A` (across) | "Push straight back to taxiway A" |
+    | `PUSH A` (along) | "Push onto A, nose along A" |
+    | `PUSH A FACE E` | "Push onto A, face east" |
+    | `PUSH TE T` | "Push onto TE, face taxiway T" |
+    | `PUSH #1926` | "Push to node 1926, hold"; onto a gate node "Push to gate 4A, park" |
+    | `PUSH @4A` | "Push to gate 4A, park on the stand" |
+    | `PUSH $7A` | "Push to spot 7A" + RPO-only "(nose out toward A)" |
+    | `PUSH $7A TAIL W` | "Push to spot 7A, tail west" |
+    | `PUSHM $6A $6B` | "Push to spot 6B via spot 6A"; with more points "via spot 6A, spot 6, taxiway K" |
+  - (b) **UAL2183**: after `PUSH T9` from F4, the next `TAXI T9 $9` drives T8 B5 T9, because F4's lead-out joins T8 — derive the taxiway the aircraft occupies after a push.
+  - (c) **SFO push demo video** (user 2026-09-23; after (a) and (b) land): drive a real YAAT session through the yaat-client-driver MCP server with the `video-capture` skill — an empty SFO scenario, `ADD` aircraft at gates, the worked `PUSH` cases — with the command overlaid on the ground view as a checklist/chapter list (an ffmpeg `drawtext`/`overlay` post-pass).
 
 ## Wave 4: features
 

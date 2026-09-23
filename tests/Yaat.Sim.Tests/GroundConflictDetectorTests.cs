@@ -6,6 +6,7 @@ using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests;
@@ -855,6 +856,47 @@ public class GroundConflictDetectorTests
     }
 
     /// <summary>
+    /// A B738 pushed at the full tow speed straight back toward a B738 parked dead astern, from every distance between
+    /// 140 and 220 ft in 1 ft steps: wherever the outline stop limits the push, the limit asks the tug to shed no more
+    /// than the towbar rate (<see cref="CategoryPerformance.TugDecelRate"/>) over one detector interval — physics
+    /// clamps the speed to the limit at once, so a lower limit would brake the tow harder than a towbar can. At least
+    /// one distance must put the stop inside the tug's braking distance, so the check cannot pass on no limit at all.
+    /// </summary>
+    [Fact]
+    public void TugMoveTowardParkedNeighbour_NeverAskedToBrakeHarderThanTheTowbarRate()
+    {
+        double speedKts = CategoryPerformance.PushbackSpeed(AircraftCategory.Jet);
+        double floorKts = speedKts - (CategoryPerformance.TugDecelRate(AircraftCategory.Jet) / SimulationEngine.PhysicsSubTickRate);
+        int braked = 0;
+        for (int distanceFt = 140; distanceFt <= 220; distanceFt++)
+        {
+            LatLon pusherPosition = new(BaseLat + ((distanceFt / 100.0) * OffsetLatPer100Ft), BaseLon);
+            AircraftState a = MakeAircraft("A", pusherPosition, heading: 0, gs: speedKts, pushbackHeading: 180);
+            a.Phases = new PhaseList();
+            a.Phases.Add(StraightPushFrom(a));
+            a.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+            AircraftState b = MakeAircraft("B", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, phase: new AtParkingPhase());
+            var diagnostics = new List<string>();
+
+            GroundConflictDetector.ApplySpeedLimits([a, b], null, 1.0 / SimulationEngine.PhysicsSubTickRate, diagnostics.Add);
+
+            if (a.Ground.SpeedLimit is not { } limitKts)
+            {
+                continue;
+            }
+
+            braked += limitKts < speedKts ? 1 : 0;
+            Assert.True(
+                limitKts >= floorKts - 1e-9,
+                $"{distanceFt} ft astern: a tow at {speedKts:F2} kt was limited to {limitKts:F2} kt, under the {floorKts:F2} kt the towbar "
+                    + $"can brake to in one detector interval:{Environment.NewLine}{string.Join(Environment.NewLine, diagnostics)}"
+            );
+        }
+
+        Assert.True(braked > 0, "no distance put the parked aircraft inside the tug's braking distance, so nothing was checked");
+    }
+
+    /// <summary>
     /// A B738 mid-push off a stand, tail-first to the south. The phase is started while the aircraft is at
     /// <paramref name="standPosition"/> — what <see cref="PushbackPhase.HasRampPriority"/> measures from — and
     /// the aircraft is then placed where the push has got to, so passing the same point for both leaves it
@@ -1218,6 +1260,55 @@ public class GroundConflictDetectorTests
 
         // 2 kt is under the commanded creep: the tow is being braked for the neighbour, and the operator sees who for.
         GroundConflictDetector.ShowTugMoveYield(mover, parked, limitKts: 2);
+
+        Assert.Equal("PRK", mover.Ground.AutoYieldTarget);
+        Assert.False(mover.Ground.AutoYieldIsFollowing);
+    }
+
+    /// <summary>
+    /// A B738 towed at the 5 kt push pace, <paramref name="remainingFt"/> short of the move's end — outside a creep, so
+    /// the tug is commanded the full pace.
+    /// </summary>
+    private static AircraftState MakeTowedPuller(LatLon position, double remainingFt)
+    {
+        var phase = new PushbackPhase
+        {
+            Move = TugMove.Straight(PushbackLegKind.Pull, remainingFt),
+            PlannedEnd = GeoMath.ProjectPoint(position, new TrueHeading(0), remainingFt / FtPerNm),
+            ContinuesIntoNextMove = false,
+            ContinuesStandPushOff = false,
+        };
+        return MakeAircraft("TUG", position, heading: 0, gs: 2, phase: phase);
+    }
+
+    [Fact]
+    public void TugMoveMidTurn_LimitAboveTheGearSpeed_ShowsNoYieldTarget()
+    {
+        AircraftState parked = MakeAircraft("PRK", new LatLon(BaseLat, BaseLon + OffsetLonPer100Ft), heading: 0, gs: 0, phase: new AtParkingPhase());
+        AircraftState mover = MakeTowedPuller(new LatLon(BaseLat, BaseLon), remainingFt: 200);
+        mover.Ground.TowbarTrueHeading = new TrueHeading(mover.TrueHeading.Degrees + 60.0);
+        var tugMove = (PushbackPhase)mover.Phases!.CurrentPhase!;
+        Assert.Equal(CategoryPerformance.PushbackSpeed(AircraftCategory.Jet), tugMove.CommandedSpeedKts(mover));
+        Assert.Equal(2.5, tugMove.CommandedGearSpeedKts(mover), 6);
+
+        // The towbar 60° off the nose puts the main gear at 5 kt × cos 60° = 2.5 kt: a 3 kt limit is above it and takes
+        // nothing off the tow, though it is under the tug's own pace.
+        GroundConflictDetector.ShowTugMoveYield(mover, parked, limitKts: 3);
+
+        Assert.Null(mover.Ground.AutoYieldTarget);
+    }
+
+    [Fact]
+    public void TugMoveStraightAhead_LimitBelowThePace_ShowsTheNeighbour()
+    {
+        AircraftState parked = MakeAircraft("PRK", new LatLon(BaseLat, BaseLon + OffsetLonPer100Ft), heading: 0, gs: 0, phase: new AtParkingPhase());
+        AircraftState mover = MakeTowedPuller(new LatLon(BaseLat, BaseLon), remainingFt: 200);
+        Assert.Null(mover.Ground.TowbarTrueHeading);
+        var tugMove = (PushbackPhase)mover.Phases!.CurrentPhase!;
+        Assert.Equal(CategoryPerformance.PushbackSpeed(AircraftCategory.Jet), tugMove.CommandedGearSpeedKts(mover));
+
+        // No towbar direction yet: the gear runs at the tug's 5 kt, so the same 3 kt limit is braking the tow.
+        GroundConflictDetector.ShowTugMoveYield(mover, parked, limitKts: 3);
 
         Assert.Equal("PRK", mover.Ground.AutoYieldTarget);
         Assert.False(mover.Ground.AutoYieldIsFollowing);

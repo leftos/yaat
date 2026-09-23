@@ -200,7 +200,12 @@ public sealed class TaxiingPhase : Phase
         }
 
         bool isLastSegment = route.CurrentSegmentIndex + 1 >= route.Segments.Count;
+        int targetBeforeTick = _nav.TargetNodeId;
         NavigatorResult result = _nav.Tick(ctx, isLastSegment, nodeId => IsHoldShortCleared(route, nodeId));
+        if (_nav.TargetNodeId != targetBeforeTick)
+        {
+            AimAtPaintedBar(route);
+        }
 
         if (held)
         {
@@ -529,15 +534,22 @@ public sealed class TaxiingPhase : Phase
         }
 
         _nav.SetupSegment(route, ctx, nodeId => IsHoldShortCleared(route, nodeId));
-
-        // Override target position with hold-short offset if applicable
-        HoldShortPoint? hs = route.GetHoldShortAt(_nav.TargetNodeId);
-        if (hs is not null && !hs.IsCleared && hs.Latitude is not null && hs.Longitude is not null)
-        {
-            _nav.OverrideTargetPosition(hs.Latitude.Value, hs.Longitude.Value);
-        }
-
+        AimAtPaintedBar(route);
         _initialized = true;
+    }
+
+    /// <summary>
+    /// Aims the navigator at the painted bar of an uncleared hold-short on the node it is now targeting, rather than at
+    /// the node itself: the bar sits back from the junction it protects. Run after every segment set-up, and after any
+    /// navigator tick that moved the target on by itself — an entry-alignment arc that retires the legs it was aimed
+    /// past, or hands a fillet over on the aimed line, sets up the next target without this phase's set-up running.
+    /// </summary>
+    private void AimAtPaintedBar(TaxiRoute route)
+    {
+        if (route.GetHoldShortAt(_nav.TargetNodeId) is { IsCleared: false, Latitude: { } barLat, Longitude: { } barLon })
+        {
+            _nav.OverrideTargetPosition(barLat, barLon);
+        }
     }
 
     /// <summary>

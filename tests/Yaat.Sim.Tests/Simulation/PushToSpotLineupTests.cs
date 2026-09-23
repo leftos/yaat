@@ -27,6 +27,15 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
 {
     private const string Pushed = "PSH1";
 
+    /// <summary>
+    /// How much deeper into the ramp than its final rest the centroid must reach, feet: the push flies 64 ft behind the
+    /// spot and rests 45 ft from it, a 19 ft reverse past the rest, rounded down to 5 ft.
+    /// </summary>
+    private const double ReversePastMarginFt = 15.0;
+
+    /// <summary>The least the creep pull onto the mark must cover, feet: it flies 18.9 ft, rounded down to 5 ft.</summary>
+    private const double MinCreepPullFt = 15.0;
+
     [Fact]
     public void PushToSpot7A_EndsNoseOutNosewheelOnSpot_ViaReversePastThenForward()
     {
@@ -73,12 +82,16 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
 
         CommandResult cmd = engine.SendCommand(Pushed, "PUSH $7A");
         Assert.True(cmd.Success, $"PUSH command failed: {cmd.Message}");
+        PushbackPhase lastMove = Assert.IsType<PushbackPhase>(ac.Phases?.Phases.OfType<PushbackPhase>().LastOrDefault());
 
         // Signed depth is negative out toward the taxiway (start side) and positive behind the spot in
         // the ramp, so the max over the whole run is the staging point — no need to gate on passing.
         double maxDepthIntoRampFt = double.MinValue; // deepest the centroid gets behind the spot
         double finalDistFt = double.NaN;
         double finalHdg = double.NaN;
+        double lastMoveFt = 0.0;
+        LatLon previousPosition = ac.Position;
+        bool previousInLastMove = false;
         for (int t = 1; t <= 240; t++)
         {
             engine.TickOneSecond();
@@ -88,6 +101,14 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
                 break;
             }
 
+            bool inLastMove = ReferenceEquals(a.Phases?.CurrentPhase, lastMove);
+            if (previousInLastMove && inLastMove)
+            {
+                lastMoveFt += GeoMath.DistanceNm(previousPosition, a.Position) * GeoMath.FeetPerNm;
+            }
+
+            previousPosition = a.Position;
+            previousInLastMove = inLastMove;
             double distFt = GeoMath.DistanceNm(a.Position, spot.Position) * GeoMath.FeetPerNm;
             maxDepthIntoRampFt = Math.Max(maxDepthIntoRampFt, DepthIntoRamp(a.Position, spot.Position, hdgIntoRamp));
 
@@ -102,7 +123,8 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
 
         output.WriteLine(
             $"PUSH $7A: rest {finalDistFt:F0}ft from spot (half-length {halfLenFt:F0}ft), nose {finalHdg:F0}° "
-                + $"(out={hdgOut:F0}°), deepest-behind {maxDepthIntoRampFt:F0}ft."
+                + $"(out={hdgOut:F0}°), deepest-behind {maxDepthIntoRampFt:F0}ft, last move {lastMove.Kind} {lastMove.Move.Shape}"
+                + $"{(lastMove.Move.Creep ? " creep" : "")} {lastMoveFt:F1}ft."
         );
 
         Assert.False(double.IsNaN(finalDistFt), "aircraft never settled at the spot");
@@ -119,12 +141,21 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
         double hdgErr = new TrueHeading(hdgOut).AbsAngleTo(new TrueHeading(finalHdg));
         Assert.True(hdgErr <= 12.0, $"nose ended {finalHdg:F0}° — expected ~{hdgOut:F0}° (out toward the taxiway), off by {hdgErr:F0}°.");
 
-        // 3. Reversed PAST the spot, then pulled forward: the centroid went deeper into the ramp than its
-        //    final rest before coming forward onto the marking (pre-fix: single reverse straight to the
-        //    spot, never overshooting behind it).
+        // 3. Reversed PAST the spot, then pulled forward: the last move is a forward creep pull that covers
+        //    ground and ends on the marking, and the centroid went deeper into the ramp than its final rest
+        //    before it (pre-fix: single reverse straight to the spot, never overshooting behind it).
         Assert.True(
-            maxDepthIntoRampFt > finalDistFt + 20.0,
-            $"no reverse-past-then-forward: deepest-behind was {maxDepthIntoRampFt:F0}ft vs final {finalDistFt:F0}ft. "
+            (lastMove.Kind == PushbackLegKind.Pull) && lastMove.Move.Creep,
+            $"the last move is a {lastMove.Kind} {lastMove.Move.Shape}{(lastMove.Move.Creep ? " creep" : "")}, not the forward creep pull onto the mark"
+        );
+        Assert.True(
+            lastMoveFt >= MinCreepPullFt,
+            $"the creep pull onto the mark covered {lastMoveFt:F1}ft, under the {MinCreepPullFt:F0}ft it flies"
+        );
+        Assert.True(
+            maxDepthIntoRampFt > finalDistFt + ReversePastMarginFt,
+            $"no reverse-past-then-forward: deepest-behind was {maxDepthIntoRampFt:F0}ft vs final {finalDistFt:F0}ft "
+                + $"(needs more than {ReversePastMarginFt:F0}ft past the rest). "
                 + "Expected the tug to overshoot behind the spot then pull forward to line up."
         );
     }

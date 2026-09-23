@@ -19,15 +19,15 @@ namespace Yaat.Sim.Phases.Ground;
 /// angle each step implies (<see cref="SteerTowbar"/>), set as the move starts and dropped as it ends unless the
 /// tow flows into the next move. <see cref="FlightPhysics"/> moves the aircraft.</para>
 ///
-/// <para><b>Speed.</b> <see cref="CategoryPerformance.PushbackSpeed"/>, or
-/// <see cref="CategoryPerformance.PushbackAlignSpeed"/> on the last stretch of a creep move; on a step that turns
-/// by more than a quarter of the most it may, slowed so the outer wingtip keeps the same pace. The tug picks the
-/// speed up at <see cref="CategoryPerformance.TugAccelRate"/> and sheds it at
+/// <para><b>Speed.</b> The tug holds <see cref="CategoryPerformance.PushbackSpeed"/> through straights and turns alike,
+/// or <see cref="CategoryPerformance.PushbackAlignSpeed"/> over the last <see cref="AlignCreepFt"/> of a creep move;
+/// through a turn the main gear runs slower than the tug by the cosine of the nose-gear steer angle. The
+/// tug picks the speed up at <see cref="CategoryPerformance.TugAccelRate"/> and sheds it at
 /// <see cref="CategoryPerformance.TugDecelRate"/>, both published as
 /// <see cref="ControlTargets.DesiredAccelRate"/> / <see cref="ControlTargets.DesiredDecelRate"/> for physics to
-/// integrate, so nothing on a towbar starts or stops at the aircraft's own taxi rates. Every stop is a braking
-/// curve onto its end speed: ahead of the next turn in the move onto the wingtip cap, and — on a move that ends at
-/// a genuine stop, the plan's last move or the one before a reversal's dwell — onto
+/// integrate, so nothing on a towbar starts or stops at the aircraft's own taxi rates. Every slowdown is a braking
+/// curve onto its end speed: onto the alignment creep ahead of a creep move's last stretch, and — on a move that ends
+/// at a genuine stop, the plan's last move or the one before a reversal's dwell — onto
 /// <see cref="FinalApproachKts"/> for the last <see cref="FinalApproachFt"/>, so the final step lands inside the
 /// 1 ft stop tolerance before the move stops dead. A move that continues into the next one
 /// (<see cref="ContinuesIntoNextMove"/>) takes no end-of-move curve: it holds its speed to the boundary and hands
@@ -51,13 +51,6 @@ public sealed class PushbackPhase : Phase
     /// <summary>Ground speed at or below which a dwelling aircraft counts as stopped, knots.</summary>
     private const double AtRestKts = 0.01;
 
-    /// <summary>
-    /// A step counts as turning when it turns the direction of travel by more than this fraction of the most a step
-    /// that long may turn it (step length / turn radius); a judgement call. A straight never turns, and a line
-    /// move holding its line turns by a sliver of that.
-    /// </summary>
-    private const double TurningStepFraction = 0.25;
-
     private const double RadToDeg = 180.0 / Math.PI;
 
     /// <summary>Within this distance of the planned end the tug is down to <see cref="FinalApproachKts"/>.</summary>
@@ -65,6 +58,12 @@ public sealed class PushbackPhase : Phase
 
     /// <summary>The last-stretch speed: a quarter-second step at 1 kt is 0.42 ft, inside the 1 ft stop tolerance.</summary>
     public const double FinalApproachKts = 1.0;
+
+    /// <summary>
+    /// How far before its end a creep move slows to <see cref="CategoryPerformance.PushbackAlignSpeed"/>, feet; a
+    /// judgement call: the alignment creep is the last stretch onto the mark, not the whole pull-forward.
+    /// </summary>
+    public const double AlignCreepFt = 30.0;
 
     /// <summary>Feet per second per knot: how fast a knot is, for the braking curve's unit conversion.</summary>
     private const double FtPerSecPerKt = GeoMath.FeetPerNm / 3600.0;
@@ -90,9 +89,9 @@ public sealed class PushbackPhase : Phase
     private LatLon? _pendingPushedFrom;
     private double _timeSinceLastLog;
 
-    // One cache per caller: the turn look-ahead asks for this move alone and the conflict detector for the continuing
-    // run, on alternating sub-ticks, so a single cache would invalidate each one on the other's call and simulate both
-    // chains every sub-tick. None of it is snapshotted.
+    // One cache per continuation shape: a call for this move alone and one for the continuing run can alternate
+    // sub-tick by sub-tick, so a single cache would invalidate each one on the other's call and simulate both chains
+    // every sub-tick. None of it is snapshotted.
     private readonly PathCache _movePathCache = new();
     private readonly PathCache _runPathCache = new();
 
@@ -556,8 +555,7 @@ public sealed class PushbackPhase : Phase
             return;
         }
 
-        double radiusFt = TugKinematics.TurnRadiusFt(ctx.Aircraft.AircraftType, Move.Tight);
-        ctx.Targets.TargetSpeed = MoveSpeedKts(ctx, pose, radiusFt, turning: false);
+        ctx.Targets.TargetSpeed = MoveSpeedKts(ctx, pose, steerDeg: 0.0);
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
@@ -603,28 +601,25 @@ public sealed class PushbackPhase : Phase
     /// Sets this tick's speed and steers the direction of travel by the distance physics is about to move the
     /// aircraft. That distance is taken at the slower of the current speed and the new target: physics moves the
     /// speed toward the target before it moves the aircraft, so the aircraft covers at least that much and never
-    /// turns tighter than the radius, speeding up or braking. The step is first steered at the uncapped speed; when
-    /// it turns (<see cref="IsTurningStep"/>), the speed is capped for the wingtip and the step re-steered at it — a
-    /// shorter step may turn less, but never by a smaller share of its maximum, so it still counts as turning.
+    /// turns tighter than the radius, speeding up or braking.
+    ///
+    /// <para>The speed depends on the steer angle the step implies (<see cref="MoveSpeedKts"/>), and the step on the
+    /// speed, so the step is first probed at the straight-ahead speed: its turn gives the steer angle, the steer angle
+    /// the main gear's speed, and the step at that speed is the one steered and flown.</para>
     /// </summary>
     private void Drive(PhaseContext ctx, TugPose pose)
     {
         AircraftState aircraft = ctx.Aircraft;
         PublishTugRates(ctx);
         double radiusFt = TugKinematics.TurnRadiusFt(aircraft.AircraftType, Move.Tight);
-        double speedKts = MoveSpeedKts(ctx, pose, radiusFt, turning: false);
+        double probeStepFt = StepFt(ctx, MoveSpeedKts(ctx, pose, steerDeg: 0.0));
+        double probeTurnDeg = TravelTurnDeg(pose, TugKinematics.SteerTravel(pose, Move, _progress, radiusFt, probeStepFt));
+        double speedKts = MoveSpeedKts(ctx, pose, SteerDeg(aircraft.AircraftType, probeTurnDeg, probeStepFt));
         double stepFt = StepFt(ctx, speedKts);
         double travelDeg = TugKinematics.SteerTravel(pose, Move, _progress, radiusFt, stepFt);
-        if (IsTurningStep(pose, travelDeg, stepFt, radiusFt))
-        {
-            speedKts = MoveSpeedKts(ctx, pose, radiusFt, turning: true);
-            stepFt = StepFt(ctx, speedKts);
-            travelDeg = TugKinematics.SteerTravel(pose, Move, _progress, radiusFt, stepFt);
-        }
-
         ctx.Targets.TargetSpeed = speedKts;
         var travel = new TrueHeading(travelDeg);
-        double travelTurnDeg = new TrueHeading(pose.TravelTrueDeg(Move.Kind)).SignedAngleTo(travel);
+        double travelTurnDeg = TravelTurnDeg(pose, travelDeg);
         if (Move.Kind == PushbackLegKind.Push)
         {
             aircraft.Ground.PushbackTrueHeading = travel;
@@ -667,14 +662,37 @@ public sealed class PushbackPhase : Phase
             return;
         }
 
-        double? recordedWheelbaseFt = Data.Faa.FaaAircraftDatabase.Get(aircraft.AircraftType)?.WheelbaseFt;
-        double wheelbaseFt =
-            (recordedWheelbaseFt is { } recorded && (recorded > 0.0)) ? recorded : TugKinematics.TurnRadiusFt(aircraft.AircraftType, tight: false);
-        double curvaturePerFt = (travelTurnDeg / RadToDeg) / stepFt;
-        double steerDeg = Math.Atan(wheelbaseFt * curvaturePerFt) * RadToDeg;
+        double steerDeg = SteerDeg(aircraft.AircraftType, travelTurnDeg, stepFt);
         double towbarSide = Move.Kind == PushbackLegKind.Push ? -1.0 : 1.0;
         aircraft.Ground.TowbarTrueHeading = new TrueHeading(aircraft.TrueHeading.Degrees + (towbarSide * steerDeg));
     }
+
+    /// <summary>
+    /// The nose-gear steer angle a step implies, degrees off the fuselage axis, positive when the travel turns
+    /// clockwise: <c>δ = atan(L·κ)</c> on the bicycle model <see cref="SteerTowbar"/> describes. Zero for a step of no
+    /// length.
+    /// </summary>
+    /// <param name="aircraftType">The towed type, for its wheelbase.</param>
+    /// <param name="travelTurnDeg">How far the step turns the direction of travel, degrees, positive clockwise.</param>
+    /// <param name="stepFt">The step's length, feet.</param>
+    /// <returns>The steer angle, degrees.</returns>
+    private static double SteerDeg(string aircraftType, double travelTurnDeg, double stepFt)
+    {
+        if (stepFt <= 0.0)
+        {
+            return 0.0;
+        }
+
+        double? recordedWheelbaseFt = Data.Faa.FaaAircraftDatabase.Get(aircraftType)?.WheelbaseFt;
+        double wheelbaseFt =
+            (recordedWheelbaseFt is { } recorded && (recorded > 0.0)) ? recorded : TugKinematics.TurnRadiusFt(aircraftType, tight: false);
+        double curvaturePerFt = (travelTurnDeg / RadToDeg) / stepFt;
+        return Math.Atan(wheelbaseFt * curvaturePerFt) * RadToDeg;
+    }
+
+    /// <summary>How far a step onto <paramref name="travelDeg"/> turns the move's direction of travel from the pose's, degrees, positive clockwise.</summary>
+    private double TravelTurnDeg(TugPose pose, double travelDeg) =>
+        new TrueHeading(pose.TravelTrueDeg(Move.Kind)).SignedAngleTo(new TrueHeading(travelDeg));
 
     /// <summary>The distance physics will move the aircraft this tick toward a target speed, feet.</summary>
     private static double StepFt(PhaseContext ctx, double targetKts)
@@ -685,39 +703,32 @@ public sealed class PushbackPhase : Phase
     }
 
     /// <summary>
-    /// Whether a step turned the direction of travel by more than <see cref="TurningStepFraction"/> of the most a
-    /// step of <paramref name="stepFt"/> may turn it. A step of zero length never turns.
+    /// The main gear's speed this tick. The tug holds the push speed through straights and turns alike, or the
+    /// alignment creep once a creep move is within <see cref="AlignCreepFt"/> of its end; the main gear — the point the
+    /// move steers and physics moves — runs at that times <c>cos δ</c>, <c>δ</c> the nose-gear steer angle
+    /// (<see cref="SteerDeg"/>): on the bicycle model the nose gear, and the tug on its towbar, travel faster than the
+    /// main gear by <c>1 / cos δ</c>, so a B738 on a routine turn (δ = 45°) moves its main gear at 3.5 kt and on a tight
+    /// one (δ = 67.5°) at 1.9 kt while the tug keeps 5 kt. The gear speed is braked onto the alignment creep ahead of
+    /// that stretch and, on a move that ends at a standstill, onto <see cref="FinalApproachKts"/> for the last
+    /// <see cref="FinalApproachFt"/> before the planned end; both curves bound the gear speed from above, unscaled.
+    /// Both approaches are <see cref="BrakeCurveKts"/>, so the tug arrives at the speed it needs instead of dropping
+    /// onto it at the boundary. A move that continues into the next one takes no end-of-move curve: it is not stopping
+    /// there, and the crawl would restart the whole tow from walking pace at every boundary.
     /// </summary>
-    private bool IsTurningStep(TugPose pose, double travelDeg, double stepFt, double radiusFt)
+    /// <param name="ctx">The phase context.</param>
+    /// <param name="pose">The live pose.</param>
+    /// <param name="steerDeg">The nose-gear steer angle this tick's step implies, degrees; zero straight ahead.</param>
+    private double MoveSpeedKts(PhaseContext ctx, TugPose pose, double steerDeg)
     {
-        double maxTurnDeg = (stepFt / radiusFt) * RadToDeg;
-        double turnedDeg = new TrueHeading(travelDeg).AbsAngleTo(new TrueHeading(pose.TravelTrueDeg(Move.Kind)));
-        return turnedDeg > (TurningStepFraction * maxTurnDeg);
-    }
-
-    /// <summary>
-    /// The tug's speed this tick: the push speed, or the alignment creep once a creep move is within the spot
-    /// pull-forward distance of its end; while turning, scaled by R / (R + half-span) so the outer wingtip keeps
-    /// that pace (a judgement call, AC 00-65A §11.14: towing no faster than the walking team); braked down that
-    /// same wingtip cap on the run in to the next turn the move makes; and, on a move that ends at a standstill,
-    /// braked onto <see cref="FinalApproachKts"/> for the last <see cref="FinalApproachFt"/> before the planned
-    /// end. Both approaches are <see cref="BrakeCurveKts"/>, so the tug arrives at the speed it needs instead of
-    /// dropping onto it at the boundary. A move that continues into the next one takes no end-of-move curve: it is
-    /// not stopping there, and the crawl would restart the whole tow from walking pace at every boundary.
-    /// </summary>
-    private double MoveSpeedKts(PhaseContext ctx, TugPose pose, double radiusFt, bool turning)
-    {
-        string type = ctx.Aircraft.AircraftType;
         double remainingFt = FeetBetween(pose.Position, PlannedEnd);
-        double baseKts = BaseSpeedKts(type, ctx.Category, remainingFt);
-        double halfSpanFt = TugMovePlanner.WingspanFt(type) / 2.0;
-        double turningCapKts = baseKts * radiusFt / (radiusFt + halfSpanFt);
+        double speedKts = GearSpeedKts(BaseSpeedKts(ctx.Category, remainingFt), steerDeg);
         double decelKtPerSec = CategoryPerformance.TugDecelRate(ctx.Category);
-        double speedKts = turning ? turningCapKts : baseKts;
-
-        if (NextTurnAlongFt(ctx.Aircraft, radiusFt) is { } turnAtFt)
+        if (Move.Creep)
         {
-            speedKts = Math.Min(speedKts, BrakeCurveKts(turnAtFt, turningCapKts, decelKtPerSec));
+            speedKts = Math.Min(
+                speedKts,
+                BrakeCurveKts(remainingFt - AlignCreepFt, CategoryPerformance.PushbackAlignSpeed(ctx.Category), decelKtPerSec)
+            );
         }
 
         return ContinuesIntoNextMove ? speedKts : Math.Min(speedKts, BrakeCurveKts(remainingFt - FinalApproachFt, FinalApproachKts, decelKtPerSec));
@@ -725,58 +736,51 @@ public sealed class PushbackPhase : Phase
 
     /// <summary>
     /// The speed this move commands from where the aircraft stands, knots: <see cref="CategoryPerformance.PushbackSpeed"/>,
-    /// or <see cref="CategoryPerformance.PushbackAlignSpeed"/> once a creep move is inside the spot pull-forward distance
-    /// of its end. The turn and stop curves <see cref="MoveSpeedKts"/> lays over it only ever lower it, so this is the
-    /// pace the move is asking for right now.
+    /// or <see cref="CategoryPerformance.PushbackAlignSpeed"/> once a creep move is inside <see cref="AlignCreepFt"/> of
+    /// its end. The stop curves <see cref="MoveSpeedKts"/> lays over it only ever lower it, so this is the pace the move
+    /// is asking for right now.
     ///
-    /// <para><see cref="GroundConflictDetector"/> reads it to tell a tow that is slowing for a neighbour from one running
+    /// <para><see cref="GroundConflictDetector"/> reads it, as the gear speed <see cref="CommandedGearSpeedKts"/> derives from
+    /// it, to tell a tow that is slowing for a neighbour from one running
     /// at its commanded pace: a limit at or above this is not slowing the move at all, and a creep move's last stretch is
     /// commanded well under the push speed.</para>
     /// </summary>
     /// <param name="aircraft">The aircraft this phase is driving.</param>
     /// <returns>The speed the move commands from the live pose, knots.</returns>
     public double CommandedSpeedKts(AircraftState aircraft) =>
-        BaseSpeedKts(aircraft.AircraftType, AircraftCategorization.Categorize(aircraft.AircraftType), FeetBetween(aircraft.Position, PlannedEnd));
-
-    /// <summary>The push speed, or a creep move's alignment speed once it is within the pull-forward distance of its end.</summary>
-    private double BaseSpeedKts(string aircraftType, AircraftCategory category, double remainingFt) =>
-        (Move.Creep && (remainingFt <= TugMovePlanner.SpotPullForwardFt(aircraftType)))
-            ? CategoryPerformance.PushbackAlignSpeed(category)
-            : CategoryPerformance.PushbackSpeed(category);
+        BaseSpeedKts(AircraftCategorization.Categorize(aircraft.AircraftType), FeetBetween(aircraft.Position, PlannedEnd));
 
     /// <summary>
-    /// How far along the rest of the move the next turning step lies, feet: the along-path distance of the last
-    /// sample of <see cref="RemainingPath"/> still running straight, zero when the move is turning here and now.
-    /// Null when nothing left of the move turns. A pair of samples counts as turning by the same test a live step
-    /// does (<see cref="IsTurningStep"/>): more than <see cref="TurningStepFraction"/> of the most a step that long
-    /// may turn the aircraft.
+    /// The main-gear speed this move commands from where the aircraft stands, knots: the tug's pace
+    /// (<see cref="CommandedSpeedKts"/>) times <c>cos δ</c>, <c>δ</c> the nose-gear steer angle, which the towbar shows as
+    /// its angle off the nose (<see cref="AircraftGroundOps.TowbarTrueHeading"/>; straight ahead, <c>δ = 0</c>, when no
+    /// towbar direction is set yet). Mid-turn the gear runs slower than the tug.
     ///
-    /// <para>The look-ahead is this move's alone — it passes no continuation — so a turn that opens the next move is
-    /// entered at the boundary speed and braked onto the wingtip cap from there.</para>
+    /// <para><see cref="GroundConflictDetector"/> compares an outline limit, which caps the main gear, with this: a limit
+    /// at or above it is not slowing the tow.</para>
     /// </summary>
     /// <param name="aircraft">The aircraft this phase is driving.</param>
-    /// <param name="radiusFt">The turn radius the move is flown on, feet.</param>
-    /// <returns>The distance to the next turn, or null when the rest of the move is straight.</returns>
-    private double? NextTurnAlongFt(AircraftState aircraft, double radiusFt)
+    /// <returns>The main-gear speed the move commands from the live pose, knots.</returns>
+    public double CommandedGearSpeedKts(AircraftState aircraft)
     {
-        IReadOnlyList<(TugPose Pose, double AlongFt)> path = RemainingPath(aircraft, []);
-        for (int i = 1; i < path.Count; i++)
-        {
-            double stepFt = path[i].AlongFt - path[i - 1].AlongFt;
-            if (stepFt <= 0.0)
-            {
-                continue;
-            }
-
-            double turnedDeg = new TrueHeading(path[i - 1].Pose.NoseTrueDeg).AbsAngleTo(new TrueHeading(path[i].Pose.NoseTrueDeg));
-            if (turnedDeg > (TurningStepFraction * (stepFt / radiusFt) * RadToDeg))
-            {
-                return path[i - 1].AlongFt;
-            }
-        }
-
-        return null;
+        double steerDeg = aircraft.Ground.TowbarTrueHeading is { } towbar ? aircraft.TrueHeading.AbsAngleTo(towbar) : 0.0;
+        return GearSpeedKts(CommandedSpeedKts(aircraft), steerDeg);
     }
+
+    /// <summary>
+    /// The main gear's speed for a tug pace and a nose-gear steer angle, knots: <c>pace · cos δ</c>. On the bicycle model
+    /// the nose gear, and the tug on its towbar, run faster than the main gear by <c>1 / cos δ</c>.
+    /// </summary>
+    /// <param name="tugPaceKts">The tug's speed, knots.</param>
+    /// <param name="steerDeg">The nose-gear steer angle off the fuselage axis, degrees.</param>
+    /// <returns>The main-gear speed, knots.</returns>
+    private static double GearSpeedKts(double tugPaceKts, double steerDeg) => tugPaceKts * Math.Cos(steerDeg / RadToDeg);
+
+    /// <summary>The push speed, or a creep move's alignment speed once it is within <see cref="AlignCreepFt"/> of its end.</summary>
+    private double BaseSpeedKts(AircraftCategory category, double remainingFt) =>
+        (Move.Creep && (remainingFt <= AlignCreepFt))
+            ? CategoryPerformance.PushbackAlignSpeed(category)
+            : CategoryPerformance.PushbackSpeed(category);
 
     /// <summary>
     /// The speed a tug braking at <paramref name="decelKtPerSec"/> may hold <paramref name="distanceFt"/> before a

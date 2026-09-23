@@ -423,6 +423,18 @@ public sealed class GroundNavigatorDto
     public double? DecelRateKts { get; init; }
     public double? NextSegmentBearing { get; init; }
     public int TicksNearTarget { get; init; }
+
+    /// <summary>
+    /// The current fillet segment is being flown as the straight line a node-aimed alignment arc rolled out on, from
+    /// <see cref="SegmentFromLat"/>/<see cref="SegmentFromLon"/> to the fillet's to-node, not as its curve.
+    /// </summary>
+    public bool OnAimedLineOverFillet { get; init; }
+
+    /// <summary>
+    /// The from-node of the fillet <see cref="OnAimedLineOverFillet"/> is flown over; null (a snapshot without it) reads
+    /// as no aimed line, so the restore plays the fillet as its curve.
+    /// </summary>
+    public int? AimedLineFilletFromNodeId { get; init; }
 }
 
 public sealed class FollowingPhaseDto : PhaseDto

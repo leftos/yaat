@@ -1352,12 +1352,37 @@ public static class GroundConflictDetector
             return null;
         }
 
-        double limitKts = TugMoveBrakingLimitKts(mover, failAlongFt);
+        double curveKts = TugMoveBrakingLimitKts(mover, failAlongFt);
+        double limitKts = failAlongFt > 0.0 ? Math.Max(curveKts, TowbarBrakingFloorKts(mover)) : curveKts;
         diagnosticLog?.Invoke(
             $"    [Closing] {mover.Callsign}→{obstacle.Callsign}: tug move fouls {failAlongFt:F1}ft along ≤ margin({marginFt:F1}ft) → "
-                + $"limit={limitKts:F2}kt"
+                + $"curve={curveKts:F2}kt, limit={limitKts:F2}kt"
         );
         return (limitKts, "outline stop");
+    }
+
+    /// <summary>
+    /// The lowest speed a tow may be limited to on this detector pass, knots: its speed now less what the tug sheds at
+    /// the towbar rate (<see cref="CategoryPerformance.TugDecelRate"/>) over one detector interval
+    /// (<see cref="DetectorIntervalSeconds"/>). Physics clamps the speed to <see cref="AircraftGroundOps.SpeedLimit"/> at
+    /// once, so a limit under this would brake the tow harder than a towbar can.
+    ///
+    /// <para>The braking curve (<see cref="TugMoveBrakingLimitKts"/>) already falls at the towbar rate while the
+    /// fouled point holds still, but that point is the floor crossing interpolated between two path samples, and it
+    /// jitters by a foot or two as the samples move with the mover — enough, from a curve the tug is riding, to ask
+    /// for more than the towbar rate in one pass. Floored here, the tug sheds the jitter over the next passes instead.
+    /// A live pose already under the floor (the fouled point at zero along) is the runtime contact backstop and is
+    /// held at zero, not floored.</para>
+    ///
+    /// <para>The speed is <see cref="AircraftState.GroundSpeed"/>, the one the rest of the tug-move code reads. The floor
+    /// relies on the braking curve having already slowed the tug before the fouled point: it only stops a jitter from
+    /// asking for more than the towbar rate, so a tow that arrived at the margin still at speed would be floored above
+    /// the stop the curve asks for and run on into the neighbour until the contact backstop holds it.</para>
+    /// </summary>
+    private static double TowbarBrakingFloorKts(AircraftState mover)
+    {
+        AircraftCategory category = AircraftCategorization.Categorize(mover.AircraftType);
+        return Math.Max(0.0, mover.GroundSpeed - (CategoryPerformance.TugDecelRate(category) * DetectorIntervalSeconds));
     }
 
     /// <summary>
@@ -1490,6 +1515,10 @@ public static class GroundConflictDetector
     /// runs its last stretch at <see cref="CategoryPerformance.PushbackAlignSpeed"/>, and a limit between the two is not
     /// slowing that move at all — annotating it would name a yield target for a tow going exactly as fast as it asked
     /// to.</para>
+    ///
+    /// <para>The limit caps the main gear, so it is compared with the gear speed the move commands
+    /// (<see cref="PushbackPhase.CommandedGearSpeedKts"/>), not the tug's: mid-turn the gear runs slower than the tug, and a
+    /// limit between the two is not slowing the tow either.</para>
     /// </summary>
     public static void ShowTugMoveYield(AircraftState mover, AircraftState obstacle, double limitKts)
     {
@@ -1498,7 +1527,7 @@ public static class GroundConflictDetector
             return;
         }
 
-        if (limitKts >= tugMove.CommandedSpeedKts(mover))
+        if (limitKts >= tugMove.CommandedGearSpeedKts(mover))
         {
             return;
         }

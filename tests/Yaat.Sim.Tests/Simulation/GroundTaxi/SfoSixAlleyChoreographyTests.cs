@@ -76,11 +76,13 @@ public class SfoSixAlleyChoreographyTests
 
     /// <summary>
     /// How long after the push the arrival is cleared to taxi in the concurrent run. From the 28L bar the arrival
-    /// reaches the alley about 60 s after its clearance, and the D15 push onto 6B makes its final push along the
-    /// T6B lane at t≈90–100 s and creeps onto the mark until t≈123 s (measured), so a clearance 40 s into the push
-    /// brings the arrival up T6A abeam the pusher while it is still rolling on the other lane.
+    /// reaches the alley about 55 s after its clearance, and the D15 push onto 6B runs along the T6B lane until it
+    /// creeps onto the mark at t≈114 s, so a clearance 25 s into the push brings the arrival up T6A abeam the pusher
+    /// at t≈80 s while it is still rolling on the other lane (measured: trail-capped to about 5 kt, parked t=93 s).
+    /// Cleared at 40 s the arrival closed only after the push had finished (t=105 s); anything from 20 to 28 s gives
+    /// the trail cap.
     /// </summary>
-    private const int ArrivalClearanceSeconds = 40;
+    private const int ArrivalClearanceSeconds = 25;
     private const int PushBudgetSeconds = 200;
     private const int ArrivalBudgetSeconds = 240;
     private const int ChoreographyBudgetSeconds = 400;

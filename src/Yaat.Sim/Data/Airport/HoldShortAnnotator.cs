@@ -549,30 +549,8 @@ public static class HoldShortAnnotator
     /// </summary>
     /// <param name="widestRunwayWidthFt">Width (ft) of the airport's widest runway.</param>
     /// <returns>The floor (ft) from the holder's nose to the crossed taxiway's centreline.</returns>
-    public static double WingtipClearanceFloorFt(double widestRunwayWidthFt)
-    {
-        if (widestRunwayWidthFt < 75.0)
-        {
-            return 49.5; // ADG I: 49 ft span
-        }
-
-        if (widestRunwayWidthFt < 100.0)
-        {
-            return 64.5; // ADG II: 79 ft span
-        }
-
-        if (widestRunwayWidthFt < 150.0)
-        {
-            return 84.0; // ADG III: 118 ft span
-        }
-
-        if (widestRunwayWidthFt < 200.0)
-        {
-            return 132.0; // ADG V on purpose (214 ft span): KOAK 30 is 150 ft wide and carries MD-11s and B744Fs
-        }
-
-        return 156.0; // ADG VI: 262 ft span
-    }
+    public static double WingtipClearanceFloorFt(double widestRunwayWidthFt) =>
+        (AirplaneDesignGroups.MaxWingspanFt(AirplaneDesignGroups.FromRunwayWidth(widestRunwayWidthFt)) / 2.0) + 25.0;
 
     /// <summary>
     /// Holds a taxiway hold-short's nose at least <c>max(L/2 + 30, floor)</c> from the crossed taxiway's centreline,

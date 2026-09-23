@@ -567,10 +567,32 @@ public sealed class GroundNavigator
     private bool _segmentFromIsVirtual;
 
     /// <summary>
-    /// The route the active entry-alignment arc was built from, held so the legs the arc is aimed past can be
-    /// retired when it completes. Null when no entry alignment is in progress.
+    /// The route the active node-aimed entry-alignment arc was built from, held so the legs the arc is aimed past
+    /// can be retired, and a fillet it rolls out onto handed over on the aimed line, when it completes. Null when no
+    /// entry alignment is in progress or the active one is aimed at a bearing.
     /// </summary>
     private TaxiRoute? _alignmentRoute;
+
+    /// <summary>
+    /// The segment whose to-node the active node-aimed alignment arc — free-space or reversal — is aimed at,
+    /// whether that is the segment being aligned onto or one beyond it. -1 when the arc is aimed at a bearing.
+    /// When that segment is a fillet, the arc rolls out on the straight line to the fillet's far end rather than
+    /// on the curve, so it is handed over on that line (<see cref="InstallAimedLineOverFillet"/>).
+    /// </summary>
+    private int _nodeAimSegmentIndex = -1;
+
+    /// <summary>
+    /// True while the current primitive is the straight <see cref="InstallAimedLineOverFillet"/> laid over a fillet
+    /// segment. Round-trips through the snapshot so a restore mid-way along it rebuilds the straight, not the curve
+    /// the aircraft is not standing on.
+    /// </summary>
+    private bool _onAimedLineOverFillet;
+
+    /// <summary>
+    /// The from-node of the fillet <see cref="_onAimedLineOverFillet"/> is flying as the aimed line; null when no aimed
+    /// line is being flown. Round-trips with it, so the restore rebuilds the line only on the fillet it was laid over.
+    /// </summary>
+    private int? _aimedLineFilletFromNodeId;
 
     /// <summary>
     /// The segment whose to-node the active node-aimed alignment arc — free-space or reversal — is aimed at,
@@ -598,6 +620,11 @@ public sealed class GroundNavigator
             return;
         }
 
+        if (TryRebuildAimedLine(route, seg, ctx, isHoldShortCleared))
+        {
+            return;
+        }
+
         PathPrimitive segmentPrimitive = PathPrimitiveBuilder.FromSegment(seg);
 
         GroundNode from = seg.Edge.FromNode;
@@ -612,7 +639,10 @@ public sealed class GroundNavigator
         _cumulativeTurnSinceAdvanceDeg = 0.0;
         _alignmentRoute = null;
         _aimedPastThroughSegmentIndex = -1;
+        _nodeAimSegmentIndex = -1;
         _entryArcAimedAtNodeOffRealLeg = false;
+        _onAimedLineOverFillet = false;
+        _aimedLineFilletFromNodeId = null;
 
         // Corner rounding: when the aircraft heading is significantly off the segment's first tangent,
         // build a slow-turn from its current pose to the segment's start direction and stash the real
@@ -663,6 +693,32 @@ public sealed class GroundNavigator
 
         BuildSpeedConstraints(route, ctx, isHoldShortCleared);
         LogSegmentSetup(route, seg, ctx);
+    }
+
+    /// <summary>
+    /// Rebuild the line an aimed alignment arc rolled out on when <paramref name="seg"/> is the fillet being flown as it
+    /// (a snapshot restored mid-way along it, or the owning phase re-running setup on the same segment), from the line's
+    /// own anchor. The fillet is recognised by both its ends — the to-node the line runs to and the from-node recorded
+    /// when it was laid — so a different fillet into the same node is never rebuilt as this one's line. Its Bézier would
+    /// write the aircraft onto a curve it is not standing on. Returns false, leaving the ordinary setup to run, otherwise.
+    /// </summary>
+    private bool TryRebuildAimedLine(TaxiRoute route, TaxiRouteSegment seg, PhaseContext ctx, Func<int, bool> isHoldShortCleared)
+    {
+        if (
+            !_onAimedLineOverFillet
+            || (seg.Edge.Edge is not GroundArc)
+            || (seg.ToNodeId != TargetNodeId)
+            || (seg.FromNodeId != _aimedLineFilletFromNodeId)
+        )
+        {
+            return false;
+        }
+
+        GroundNode filletEnd = seg.Edge.ToNode;
+        TargetLat = filletEnd.Position.Lat;
+        TargetLon = filletEnd.Position.Lon;
+        InstallAimedLineOverFillet(route, seg, ctx, isHoldShortCleared, new LatLon(_segmentFromLat, _segmentFromLon));
+        return true;
     }
 
     /// <summary>
@@ -785,7 +841,8 @@ public sealed class GroundNavigator
                 if (aimed is not null)
                 {
                     bool aimedPast = aimNode.SegmentIndex > route.CurrentSegmentIndex;
-                    _alignmentRoute = aimedPast ? route : null;
+                    _alignmentRoute = route;
+                    _nodeAimSegmentIndex = aimNode.SegmentIndex;
                     _aimedPastThroughSegmentIndex = aimedPast ? aimNode.SegmentIndex : -1;
                     return (aimed, aimedPast ? "node-ahead" : "node", false);
                 }
@@ -828,7 +885,8 @@ public sealed class GroundNavigator
             if (aimedReversal is not null)
             {
                 bool reversalAimedPast = reversalAim.SegmentIndex > route.CurrentSegmentIndex;
-                _alignmentRoute = reversalAimedPast ? route : null;
+                _alignmentRoute = route;
+                _nodeAimSegmentIndex = reversalAim.SegmentIndex;
                 _aimedPastThroughSegmentIndex = reversalAimedPast ? reversalAim.SegmentIndex : -1;
                 _entryArcAimedAtNodeOffRealLeg = true;
                 return (aimedReversal, reversalAimedPast ? "node-reversal-ahead" : "node-reversal", reversalFlip);
@@ -1190,31 +1248,8 @@ public sealed class GroundNavigator
             _ => NavigatorResult.ArrivedAtNode,
         };
 
-        // Orbit invariant: accumulate net signed heading change within the current primitive and hard-fail
-        // if it reaches a full circle without advancing. No legitimate single-segment maneuver nets 360°
-        // (an arc sweeps <180° by admissibility, a straight ~0°, and a slow-turn <180° except a point-aimed
-        // alignment arc, which may sweep up to PathPrimitiveBuilder.MaxAimSweepDeg), so crossing it means
-        // the navigator is circling a node it cannot converge on — a pure-pursuit orbit that would otherwise
-        // crawl indefinitely at the slow-turn floor. Surfacing it as a throw makes every such case a hard
-        // test failure with an actionable message instead of a silent slow taxi.
-        _cumulativeTurnSinceAdvanceDeg += GeoMath.SignedBearingDifference(ctx.Aircraft.TrueHeading.Degrees, headingBeforeDeg);
-        if (Math.Abs(_cumulativeTurnSinceAdvanceDeg) >= OrbitTurnLimitDeg)
+        if (OrbitLimitReached(ctx, headingBeforeDeg))
         {
-            string message =
-                $"[Nav] pure-pursuit orbit: {ctx.Aircraft.Callsign} accumulated {_cumulativeTurnSinceAdvanceDeg:F0}° of net turn on "
-                + $"segment→node {TargetNodeId} ({_currentPrimitive?.Kind}) without advancing — it is circling a node it cannot "
-                + $"converge on. pos=({ctx.Aircraft.Position.Lat:F6},{ctx.Aircraft.Position.Lon:F6}) gs={ctx.Aircraft.GroundSpeed:F1}kt.";
-
-            if (ThrowOnOrbit)
-            {
-                throw new InvalidOperationException(message);
-            }
-
-            // Shipping app: never crash a live session. Log the invariant breach and recover by
-            // advancing past the node the navigator cannot converge on (the advance-on-pass guard in
-            // TickStraight should already prevent reaching here; this is the belt-and-suspenders path).
-            Log.LogError("{OrbitMessage}", message);
-            _cumulativeTurnSinceAdvanceDeg = 0.0;
             return NavigatorResult.ArrivedAtNode;
         }
 
@@ -1224,26 +1259,95 @@ public sealed class GroundNavigator
         // hasn't advanced yet.
         if (result == NavigatorResult.ArrivedAtNode && _pendingSegmentPrimitive is not null)
         {
-            if (TryRetireLegsTheArcAimedPast(ctx, isHoldShortCleared))
-            {
-                return NavigatorResult.Navigating;
-            }
-
-            PathPrimitive seg = _pendingSegmentPrimitive;
-            _pendingSegmentPrimitive = null;
-            _currentPrimitive = seg;
-            ReleaseHeadingHold(ctx, seg);
-            ReanchorFreeSpaceLine(ctx);
-            BeginPrimitive(seg);
-            PrevDistToTarget = double.MaxValue;
-            // A new primitive begins — give it its own full-circle budget so a legitimate
-            // entry-alignment turn plus the segment's own turn don't sum across the swap.
-            _cumulativeTurnSinceAdvanceDeg = 0.0;
-            Log.LogDebug("[Nav] Entry alignment complete; engaging real segment primitive {Kind}", seg.Kind);
+            CompleteEntryAlignment(ctx, isHoldShortCleared);
             return NavigatorResult.Navigating;
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Orbit invariant: accumulate net signed heading change within the current primitive and hard-fail
+    /// if it reaches a full circle without advancing. No legitimate single-segment maneuver nets 360°
+    /// (an arc sweeps &lt;180° by admissibility, a straight ~0°, and a slow-turn &lt;180° except a point-aimed
+    /// alignment arc, which may sweep up to PathPrimitiveBuilder.MaxAimSweepDeg), so crossing it means
+    /// the navigator is circling a node it cannot converge on — a pure-pursuit orbit that would otherwise
+    /// crawl indefinitely at the slow-turn floor. Surfacing it as a throw makes every such case a hard
+    /// test failure with an actionable message instead of a silent slow taxi. Returns true when the shipping
+    /// app has logged the breach and the tick is to report an arrival past the node.
+    /// </summary>
+    private bool OrbitLimitReached(PhaseContext ctx, double headingBeforeDeg)
+    {
+        _cumulativeTurnSinceAdvanceDeg += GeoMath.SignedBearingDifference(ctx.Aircraft.TrueHeading.Degrees, headingBeforeDeg);
+        if (Math.Abs(_cumulativeTurnSinceAdvanceDeg) < OrbitTurnLimitDeg)
+        {
+            return false;
+        }
+
+        string message =
+            $"[Nav] pure-pursuit orbit: {ctx.Aircraft.Callsign} accumulated {_cumulativeTurnSinceAdvanceDeg:F0}° of net turn on "
+            + $"segment→node {TargetNodeId} ({_currentPrimitive?.Kind}) without advancing — it is circling a node it cannot "
+            + $"converge on. pos=({ctx.Aircraft.Position.Lat:F6},{ctx.Aircraft.Position.Lon:F6}) gs={ctx.Aircraft.GroundSpeed:F1}kt.";
+
+        if (ThrowOnOrbit)
+        {
+            throw new InvalidOperationException(message);
+        }
+
+        // Shipping app: never crash a live session. Log the invariant breach and recover by
+        // advancing past the node the navigator cannot converge on (the advance-on-pass guard in
+        // TickStraight should already prevent reaching here; this is the belt-and-suspenders path).
+        Log.LogError("{OrbitMessage}", message);
+        _cumulativeTurnSinceAdvanceDeg = 0.0;
+        return true;
+    }
+
+    /// <summary>
+    /// The entry-alignment slow-turn has finished: retire the legs it was aimed past, or hand a fillet it was aimed
+    /// at the end of over on the aimed line, or else engage the deferred segment primitive.
+    /// </summary>
+    private void CompleteEntryAlignment(PhaseContext ctx, Func<int, bool> isHoldShortCleared)
+    {
+        if (TryRetireLegsTheArcAimedPast(ctx, isHoldShortCleared) || TryHandOverOnAimedLine(ctx, isHoldShortCleared))
+        {
+            return;
+        }
+
+        PathPrimitive seg = _pendingSegmentPrimitive!;
+        _pendingSegmentPrimitive = null;
+        _currentPrimitive = seg;
+        ReleaseHeadingHold(ctx, seg);
+        ReanchorFreeSpaceLine(ctx);
+        BeginPrimitive(seg);
+        PrevDistToTarget = double.MaxValue;
+        // A new primitive begins — give it its own full-circle budget so a legitimate
+        // entry-alignment turn plus the segment's own turn don't sum across the swap.
+        _cumulativeTurnSinceAdvanceDeg = 0.0;
+        Log.LogDebug("[Nav] Entry alignment complete; engaging real segment primitive {Kind}", seg.Kind);
+    }
+
+    /// <summary>
+    /// Hand an alignment arc aimed at the current segment's OWN to-node over on the line it rolled out on, when that
+    /// segment is a fillet: the arc's exit tangent passes through the fillet's far end, not along its curve, so the
+    /// fillet is flown as that line (<see cref="InstallAimedLineOverFillet"/>). The counterpart of
+    /// <see cref="TryRetireLegsTheArcAimedPast"/> for an arc aimed at its own segment's end. Returns false (leaving the
+    /// ordinary swap to run) when the arc was aimed at a bearing, past the current segment, or onto a segment that is
+    /// not a fillet.
+    /// </summary>
+    private bool TryHandOverOnAimedLine(PhaseContext ctx, Func<int, bool> isHoldShortCleared)
+    {
+        if (
+            (_pendingSegmentPrimitive is not PathPrimitiveBezier)
+            || (_alignmentRoute is not { } aimedRoute)
+            || (_nodeAimSegmentIndex != aimedRoute.CurrentSegmentIndex)
+            || (aimedRoute.CurrentSegment is not { Edge.Edge: GroundArc } aimedFillet)
+        )
+        {
+            return false;
+        }
+
+        InstallAimedLineOverFillet(aimedRoute, aimedFillet, ctx, isHoldShortCleared, ctx.Aircraft.Position);
+        return true;
     }
 
     /// <summary>
@@ -1272,11 +1376,84 @@ public sealed class GroundNavigator
         _pendingSegmentPrimitive = null;
         route.CurrentSegmentIndex = _aimedPastThroughSegmentIndex;
 
+        if (route.CurrentSegment is { Edge.Edge: GroundArc } aimedFillet)
+        {
+            GroundNode filletEnd = aimedFillet.Edge.ToNode;
+            TargetNodeId = aimedFillet.ToNodeId;
+            TargetLat = filletEnd.Position.Lat;
+            TargetLon = filletEnd.Position.Lon;
+            InstallAimedLineOverFillet(route, aimedFillet, ctx, isHoldShortCleared, ctx.Aircraft.Position);
+            return true;
+        }
+
         // SetupSegment clears the aim bookkeeping before it builds anything, so this retirement cannot cascade:
         // the arc has rolled out on the line to the aimed segment's own to-node, and whatever that segment
         // installs is a fresh aim solved from where the aircraft now stands.
         SetupSegment(route, ctx, isHoldShortCleared);
         return true;
+    }
+
+    /// <summary>
+    /// Hand a node-aimed alignment arc over to the fillet segment <paramref name="fillet"/> it was aimed at the far end
+    /// of, on the straight line it rolled out on rather than on the fillet's curve. The arc's exit tangent passes
+    /// through the fillet's to-node, so the aircraft now points straight at it from somewhere off the curve — at SFO
+    /// gate E2 ~50 ft from the fillet's start and ~27 ft abeam it. Played as its Bézier from the nearest curve point,
+    /// that offset would be bled off over the few feet of arc left, far faster than the aircraft drives (invariant
+    /// I8). The straight runs from the live position onto the to-node, which is where the route's next segment starts,
+    /// and arrives there through the ordinary straight arrival, so the owning phase's node arrival still fires.
+    ///
+    /// <para>
+    /// <paramref name="lineFrom"/> anchors the line: the live position when an alignment arc hands over, the line's
+    /// original anchor when a snapshot restored mid-way along it rebuilds it. The target node is the caller's.
+    /// </para>
+    /// </summary>
+    private void InstallAimedLineOverFillet(
+        TaxiRoute route,
+        TaxiRouteSegment fillet,
+        PhaseContext ctx,
+        Func<int, bool> isHoldShortCleared,
+        LatLon lineFrom
+    )
+    {
+        GroundNode filletEnd = fillet.Edge.ToNode;
+        var straight = new PathPrimitiveStraight
+        {
+            Kind = PathPrimitiveKind.Straight,
+            LengthFt = GeoMath.DistanceNm(lineFrom, filletEnd.Position) * GeoMath.FeetPerNm,
+            ToNodeId = fillet.ToNodeId,
+            FromLat = lineFrom.Lat,
+            FromLon = lineFrom.Lon,
+            ToLat = filletEnd.Position.Lat,
+            ToLon = filletEnd.Position.Lon,
+            BearingDeg = GeoMath.BearingTo(lineFrom, filletEnd.Position),
+        };
+
+        _pendingSegmentPrimitive = null;
+        _currentPrimitive = straight;
+        _segmentFromLat = lineFrom.Lat;
+        _segmentFromLon = lineFrom.Lon;
+        _segmentFromIsVirtual = false;
+        _alignmentRoute = null;
+        _aimedPastThroughSegmentIndex = -1;
+        _nodeAimSegmentIndex = -1;
+        _entryArcAimedAtNodeOffRealLeg = false;
+        _onAimedLineOverFillet = true;
+        _aimedLineFilletFromNodeId = fillet.FromNodeId;
+        PrevDistToTarget = double.MaxValue;
+        _cumulativeTurnSinceAdvanceDeg = 0.0;
+        ReleaseHeadingHold(ctx, straight);
+        BeginPrimitive(straight);
+        BuildSpeedConstraints(route, ctx, isHoldShortCleared);
+        Log.LogDebug(
+            "[Nav] seg={SegIdx}/{Total}: fillet {FromId}->{ToId} flown as the aimed line ({LengthFt:F0} ft from ({Lat:F6},{Lon:F6}))",
+            route.CurrentSegmentIndex,
+            route.Segments.Count,
+            fillet.FromNodeId,
+            fillet.ToNodeId,
+            straight.LengthFt,
+            lineFrom.Lat,
+            lineFrom.Lon
+        );
     }
 
     /// <summary>
@@ -1852,7 +2029,7 @@ public sealed class GroundNavigator
         target = Math.Min(target, connectorCap);
 
         // Cap on the current corner arc: the local cornering speed ahead along the curve on the braking curve.
-        double arcCap = _currentArcProfile is { } arcProfile ? ArcProfileLimitKts(arcProfile, _bezierTraveledFt, decelRate) : double.MaxValue;
+        double arcCap = BezierArcCapKts(decelRate);
         target = Math.Min(target, arcCap);
 
         if (Log.IsEnabled(LogLevel.Debug))
@@ -2241,13 +2418,24 @@ public sealed class GroundNavigator
     /// </summary>
     private double CurrentCurveCapKts(PhaseContext ctx)
     {
-        if ((_currentPrimitive is PathPrimitiveBezier) && (_currentArcProfile is { } arcProfile))
+        if (_currentPrimitive is PathPrimitiveBezier)
         {
-            return ArcProfileLimitKts(arcProfile, _bezierTraveledFt, DecelRateKts ?? CategoryPerformance.TaxiDecelRate(ctx.Category));
+            return BezierArcCapKts(DecelRateKts ?? CategoryPerformance.TaxiDecelRate(ctx.Category));
         }
 
         return _currentPrimitive is PathPrimitiveSlowTurn slowTurn ? slowTurn.MaxSpeedKts : double.MaxValue;
     }
+
+    /// <summary>
+    /// The arc-speed profile limit (kts) of the Bézier being played, at the distance travelled along it; <see cref="double.MaxValue"/>
+    /// when the current primitive is not a Bézier or its segment carries no profile. The profile belongs to the curve:
+    /// a fillet flown as the straight an aimed alignment arc rolled out on (<see cref="InstallAimedLineOverFillet"/>)
+    /// corners nowhere, so its profile caps nothing.
+    /// </summary>
+    private double BezierArcCapKts(double decelRateKtsPerSec) =>
+        (_currentPrimitive is PathPrimitiveBezier) && (_currentArcProfile is { } arcProfile)
+            ? ArcProfileLimitKts(arcProfile, _bezierTraveledFt, decelRateKtsPerSec)
+            : double.MaxValue;
 
     /// <summary>
     /// The navigator's only speed-publishing site: physics owns ground speed, and it needs the braking
@@ -2360,6 +2548,8 @@ public sealed class GroundNavigator
             MaxSpeedKts = MaxSpeedKts,
             DecelRateKts = DecelRateKts,
             NextSegmentBearing = _nextSegmentBearing,
+            OnAimedLineOverFillet = _onAimedLineOverFillet,
+            AimedLineFilletFromNodeId = _aimedLineFilletFromNodeId,
         };
 
     public static GroundNavigator FromSnapshot(GroundNavigatorDto dto) =>
@@ -2375,5 +2565,7 @@ public sealed class GroundNavigator
             MaxSpeedKts = dto.MaxSpeedKts,
             DecelRateKts = dto.DecelRateKts,
             _nextSegmentBearing = dto.NextSegmentBearing,
+            _onAimedLineOverFillet = dto.OnAimedLineOverFillet,
+            _aimedLineFilletFromNodeId = dto.AimedLineFilletFromNodeId,
         };
 }

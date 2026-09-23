@@ -34,15 +34,9 @@ public class PushbackMoveBoundaryTests
     private const int BudgetSeconds = 400;
 
     /// <summary>
-    /// The floor the tow holds between boundaries, knots. The tug runs at 5 kt and slows to 2.33 kt on a turning
-    /// step at a B738's <em>routine</em> radius — the R / (R + half-span) wingtip cap, R = wheelbase 51.2 ft
-    /// against a half-span of 58.75 ft — so a sample below this is the aircraft braking for a move boundary
-    /// rather than steering through one. Well clear of the 1 kt final-approach crawl and of the standing restart
-    /// that follows it.
-    ///
-    /// <para>The floor holds because every turn a plan invents uses the routine radius; the tight radius
-    /// (≈0.41 × wheelbase) caps a B738 to about 1.32 kt and would trip this floor, and it is only ever reached by
-    /// an explicit <c>PUSH FACE</c> that rotates the nose more than 135°, which this scenario never issues.</para>
+    /// The floor the tow holds between boundaries, knots. The tug runs at 5 kt through straights and turns alike, so a
+    /// sample below this is the aircraft braking for a move boundary rather than steering through one. Well clear of
+    /// the 1 kt final-approach crawl and of the standing restart that follows it.
     /// </summary>
     private const double ContinuousSpeedFloorKts = 2.0;
 
@@ -85,11 +79,9 @@ public class PushbackMoveBoundaryTests
     /// <summary>A second in which the nose turned by more than this is a turning second.</summary>
     private const double TurnNoticedDeg = 1.0;
 
-    /// <summary>How far over the wingtip cap the first turning second may be, knots.</summary>
-    private const double TurnCapToleranceKts = 0.5;
-
-    /// <summary>How far under push speed the tug must already be the second before the nose comes round, knots.</summary>
-    private const double EasedOffByKts = 0.5;
+    /// <summary>How far under push speed a second may be and still count as holding it, knots.</summary>
+    /// <summary>How far the tug's speed — the gear's over <c>cos δ</c> — may sit from the push speed mid-turn, knots.</summary>
+    private const double TugPaceToleranceKts = 0.2;
 
     /// <summary>
     /// The fastest the tug may still be going the second before it comes to a stand, knots: the last stretch is
@@ -143,8 +135,7 @@ public class PushbackMoveBoundaryTests
             Assert.True(
                 sample.GroundSpeedKts >= ContinuousSpeedFloorKts,
                 $"the tow dropped to {sample.GroundSpeedKts:F1} kt at t={sample.Second}s, between rolling at t={samples[rolling].Second}s "
-                    + $"and slowing for the reversal at t={samples[slowingForReversal].Second}s — it either stopped at a move boundary or "
-                    + $"steered on the tight radius, whose wingtip cap (~1.3 kt) is below this floor: {Trace(samples)}"
+                    + $"and slowing for the reversal at t={samples[slowingForReversal].Second}s — it stopped at a move boundary: {Trace(samples)}"
             );
         }
     }
@@ -307,19 +298,19 @@ public class PushbackMoveBoundaryTests
     }
 
     /// <summary>
-    /// The tug is already down to the wingtip cap when the nose starts to come round, and was easing before it:
-    /// the move looks ahead to its next turning step and brakes onto <c>R / (R + half-span)</c> of the push speed
-    /// over the distance the towbar rate needs, so the second before the turn is already off push speed.
+    /// The tug does not ease off for a turn, with no wingtip-pace slowdown: the second before the nose starts to come
+    /// round the tug — the main gear's speed over the cosine of the nose-gear steer angle — is at push speed, and the
+    /// second it starts to it is at least that. Not exactly that: the steer angle is set the moment the turn begins while
+    /// the gear brakes onto its slower turning pace at the tug's rate, so the entry second can read the tug a little
+    /// over push speed. The settled seconds of a turn are held to push speed by
+    /// <c>PushTowSpeedTests.TurningTow_TugHoldsPushbackSpeed</c>.
     ///
     /// <para>The turn judged is the first one the tug meets <em>inside</em> a move: the same phase instance as
-    /// the second before, which was itself still running straight. A turn that opens a move is a different case —
-    /// the look-ahead is scoped to the move being flown, so nothing brakes the tug before a boundary that hands
-    /// it straight into a turn, and the plan's first push turn does exactly that. Judging that second here would
-    /// pin the boundary carry-over instead of the look-ahead. A second in the middle of a turn already under way
-    /// is not the entry to one either.</para>
+    /// the second before, which was itself still running straight. A second in the middle of a turn already under
+    /// way is not the entry to one.</para>
     /// </summary>
     [Fact]
-    public void EasesOffBeforeTheTurn()
+    public void HoldsPushSpeedThroughTheTurn()
     {
         PushRun? run = RunPush();
         if (run is null)
@@ -342,28 +333,29 @@ public class PushbackMoveBoundaryTests
 
         Assert.True(turning > 0, $"the tug never entered a turn inside a move: {Trace(samples)}");
 
-        double radiusFt = TugKinematics.TurnRadiusFt(PusherType, false);
-        double halfSpanFt = TugMovePlanner.WingspanFt(PusherType) / 2.0;
         double pushKts = CategoryPerformance.PushbackSpeed(AircraftCategory.Jet);
-        double capKts = pushKts * radiusFt / (radiusFt + halfSpanFt);
         SpeedSample entry = samples[turning];
         SpeedSample before = samples[turning - 1];
         _output.WriteLine(
-            $"first in-move turn over the second to t={entry.Second}s: {before.GroundSpeedKts:F2} kt → {entry.GroundSpeedKts:F2} kt "
-                + $"(cap {capKts:F2} kt, push speed {pushKts:F1} kt)"
+            $"first in-move turn over the second to t={entry.Second}s: tug {TugKts(before):F2} kt → {TugKts(entry):F2} kt "
+                + $"(gear {before.GroundSpeedKts:F2} → {entry.GroundSpeedKts:F2} kt, steer {before.SteerDeg:F1}° → {entry.SteerDeg:F1}°; "
+                + $"push speed {pushKts:F1} kt)"
         );
 
         Assert.True(
-            entry.GroundSpeedKts <= capKts + TurnCapToleranceKts,
-            $"the nose came round over the second to t={entry.Second}s with the tug doing {entry.GroundSpeedKts:F2} kt, past the "
-                + $"{capKts:F2} kt wingtip cap it should have braked onto first: {Trace(samples)}"
+            Math.Abs(TugKts(before) - pushKts) <= TugPaceToleranceKts,
+            $"the tug was doing {TugKts(before):F2} kt at t={before.Second}s, the second before the nose came round, not the "
+                + $"{pushKts:F1} kt push speed — it eased off for the turn: {Trace(samples)}"
         );
         Assert.True(
-            before.GroundSpeedKts <= pushKts - EasedOffByKts,
-            $"the tug was still doing {before.GroundSpeedKts:F2} kt at t={before.Second}s, the second before the nose came round — it "
-                + $"dropped onto the {capKts:F2} kt cap at the turn instead of easing onto it ahead of it: {Trace(samples)}"
+            TugKts(entry) >= pushKts - TugPaceToleranceKts,
+            $"the nose came round over the second to t={entry.Second}s with the tug doing {TugKts(entry):F2} kt (gear "
+                + $"{entry.GroundSpeedKts:F2} kt, steer {entry.SteerDeg:F1}°), under the {pushKts:F1} kt push speed: {Trace(samples)}"
         );
     }
+
+    /// <summary>The tug's speed in a sample: the main gear's over the cosine of the nose-gear steer angle.</summary>
+    private static double TugKts(SpeedSample sample) => sample.GroundSpeedKts / Math.Cos(sample.SteerDeg * Math.PI / 180.0);
 
     /// <summary>Whether the nose turned by more than <see cref="TurnNoticedDeg"/> over the second ending at <paramref name="index"/>.</summary>
     private static bool TurnedInSecond(List<SpeedSample> samples, int index) =>
@@ -408,7 +400,8 @@ public class PushbackMoveBoundaryTests
     /// <param name="NoseTrueDeg">True heading of the nose at the end of that second.</param>
     /// <param name="Phase">The phase driving the aircraft at the end of that second — one instance per planned move.</param>
     /// <param name="Pushing">The aircraft was being pushed (tail-first) rather than pulled.</param>
-    private readonly record struct SpeedSample(int Second, double GroundSpeedKts, double NoseTrueDeg, Phase? Phase, bool Pushing);
+    /// <param name="SteerDeg">The nose-gear steer angle at the end of that second — the towbar's angle off the nose; zero with no towbar set.</param>
+    private readonly record struct SpeedSample(int Second, double GroundSpeedKts, double NoseTrueDeg, Phase? Phase, bool Pushing, double SteerDeg);
 
     /// <summary>A finished E6 push to 6B: the world it ran in, the per-second samples and when it came to rest.</summary>
     private readonly record struct PushRun(SfoGround Ground, AircraftState Aircraft, GroundNode Spot, List<SpeedSample> Samples, int DoneSecond);
@@ -451,7 +444,8 @@ public class PushbackMoveBoundaryTests
                         aircraft.GroundSpeed,
                         aircraft.TrueHeading.Degrees,
                         aircraft.Phases?.CurrentPhase,
-                        aircraft.Ground.PushbackTrueHeading is not null
+                        aircraft.Ground.PushbackTrueHeading is not null,
+                        aircraft.Ground.TowbarTrueHeading is { } towbar ? towbar.AbsAngleTo(aircraft.TrueHeading) : 0.0
                     )
                 );
                 everPushed |= aircraft.Phases?.CurrentPhase is PushbackPhase;

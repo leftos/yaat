@@ -2828,8 +2828,47 @@ public static class GroundCommandHandler
         }
 
         InstallTugMove(aircraft, groundLayout, plan, target.Terminus, atStand ? TugAmendment.For(target.Goal, start) : null);
-        return CommandDispatcher.Ok(target.Message);
+        return CommandDispatcher.Ok(WithPushNotes(target.Message, plan));
     }
+
+    /// <summary>
+    /// The push readback with the plan's notes for the RPO appended as parentheticals: each <see cref="TugPlan.Warnings"/>
+    /// entry, then, when the facing taxiway's junction is far (<see cref="TugPlan.FacingTaxiwayIsFar"/>), that the facing
+    /// only chose the direction. The readback is the RPO terminal's text; the pilot's spoken readback is verbalized from
+    /// the command and never carries these.
+    /// </summary>
+    /// <param name="readback">The readback without notes.</param>
+    /// <param name="plan">The accepted plan.</param>
+    /// <returns>The readback, followed by its notes when there are any.</returns>
+    private static string WithPushNotes(string readback, TugPlan plan)
+    {
+        List<string> notes = [.. plan.Warnings.Select(PushNote)];
+        if (plan.FacingTaxiwayIsFar && (plan.FacingTaxiwayName is { } facingTaxiway) && (plan.FacingJunctionNoteFt is { } junctionFt))
+        {
+            notes.Add($"({facingTaxiway} is {junctionFt:F0} ft away; facing only)");
+        }
+
+        return notes.Count == 0 ? readback : readback + " " + string.Join(" ", notes);
+    }
+
+    /// <summary>The RPO note for one <see cref="TugPlanWarning"/>.</summary>
+    private static string PushNote(TugPlanWarning warning) =>
+        warning switch
+        {
+            TugFoulsTaxiwayWarning foul => $"({FootprintPartName(foul.Part)} will foul taxiway {foul.Taxiway}, coordinate with ground)",
+            TugLongPushWarning longPush => $"(taxiway {longPush.Taxiway} is {longPush.DistanceFt:F0} ft away; long push)",
+            _ => throw new InvalidOperationException($"No push readback note for a {warning.Kind} warning"),
+        };
+
+    private static string FootprintPartName(TugFootprintPart part) =>
+        part switch
+        {
+            TugFootprintPart.Nose => "nose",
+            TugFootprintPart.Tail => "tail",
+            TugFootprintPart.LeftWing => "left wing",
+            TugFootprintPart.RightWing => "right wing",
+            _ => throw new ArgumentOutOfRangeException(nameof(part), part, "Unknown aircraft footprint part"),
+        };
 
     /// <summary>What a <c>PUSH</c> form asks for: the goal, an explicit final facing, where it ends, and the readback.</summary>
     private sealed record PushTarget(TugGoal Goal, double? FinalFacingTrueDeg, TugTerminus Terminus, string Message);
@@ -2933,7 +2972,7 @@ public static class GroundCommandHandler
 
         // The readback echoes the facing the aircraft will end on, which is the taxiway's own direction (true).
         int? echoedHeading = push.MagneticHeading is null ? null : FlightPhysics.BearingToDisplayInt(facingTrueDeg);
-        var goal = TugGoal.TaxiwayLine(exitNode, taxiway, facingTrueDeg);
+        TugGoal goal = TugGoal.TaxiwayLine(exitNode, taxiway, facingTrueDeg) with { FacingTaxiwayName = push.FacingTaxiway };
         return PushResolution.Of(new PushTarget(goal, null, TugTerminus.Holding, PushMessage(push, echoedHeading)));
     }
 
@@ -3288,7 +3327,7 @@ public static class GroundCommandHandler
             facingTrueDeg,
             DescribeMoves(plan)
         );
-        return CommandDispatcher.Ok(amendedMessage);
+        return CommandDispatcher.Ok(WithPushNotes(amendedMessage, plan));
     }
 
     /// <summary>
@@ -3412,7 +3451,7 @@ public static class GroundCommandHandler
         }
 
         InstallTugMove(aircraft, groundLayout, plan, terminus, null);
-        return CommandDispatcher.Ok($"Tug move to {destination}, {goals.Count} legs");
+        return CommandDispatcher.Ok(WithPushNotes($"Tug move to {destination}, {goals.Count} legs", plan));
     }
 
     /// <summary>

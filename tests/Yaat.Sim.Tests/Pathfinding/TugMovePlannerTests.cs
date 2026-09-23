@@ -25,7 +25,9 @@ public class TugMovePlannerTests
     private const double EndFacingToleranceDeg = 2.0;
     private const double LegHandoverToleranceFt = 3.0;
     private const double AlongTaxiwayProbeFt = 1000.0;
-    private const double MaxRunDeviationDeg = 120.0;
+
+    /// <summary>The planner's same-kind wander limit, degrees: a push off a stand may pivot onto a spot's lane in one capture.</summary>
+    private const double MaxSameKindWanderDeg = 150.0;
 
     /// <summary>How far past an edge's end a point may project and still count as on that edge, feet.</summary>
     private const double ExtentSlackFt = 1.0;
@@ -57,7 +59,7 @@ public class TugMovePlannerTests
     }
 
     [Fact]
-    public void D15ToSixA_PushesOffPushesPastTheMarkThenPullsOntoIt()
+    public void D15ToSixA_PushesStraightThenOntoTheLineThenPullsOntoIt()
     {
         if (LoadSfo() is not { } layout)
         {
@@ -67,8 +69,15 @@ public class TugMovePlannerTests
         GroundNode sixA = Spot(layout, "6A");
         TugPlan plan = PlanFromD15(layout, "6A");
 
-        AssertKinds(plan, PushbackLegKind.Push, PushbackLegKind.Push, PushbackLegKind.Pull);
-        Assert.True(plan.Moves[2].Move.DwellBefore, "the pull onto 6A reverses the push before it, so it has to dwell first");
+        AssertMoves(
+            plan,
+            (PushbackLegKind.Push, TugMoveShape.Straight),
+            (PushbackLegKind.Push, TugMoveShape.Straight),
+            (PushbackLegKind.Push, TugMoveShape.ViaLine),
+            (PushbackLegKind.Pull, TugMoveShape.ViaLine)
+        );
+        Assert.True(plan.Moves[3].Move.DwellBefore, "the pull onto 6A reverses the push before it, so it has to dwell first");
+        Assert.True(plan.Moves[3].Move.Creep, "the pull onto 6A is the creep onto the mark");
         AssertEndsOnSpot(layout, plan, sixA);
     }
 
@@ -82,9 +91,18 @@ public class TugMovePlannerTests
 
         GroundNode sixB = Spot(layout, "6B");
         TugPlan plan = PlanFromD15(layout, "6A", "6B");
-        LogSideTest(layout, Spot(layout, "6A"), sixB, plan.Moves[2].End);
+        LogSideTest(layout, Spot(layout, "6A"), sixB, plan.Moves[3].End);
 
-        AssertKinds(plan, PushbackLegKind.Push, PushbackLegKind.Push, PushbackLegKind.Pull, PushbackLegKind.Push, PushbackLegKind.Pull);
+        AssertMoves(
+            plan,
+            (PushbackLegKind.Push, TugMoveShape.Straight),
+            (PushbackLegKind.Push, TugMoveShape.Straight),
+            (PushbackLegKind.Push, TugMoveShape.ViaLine),
+            (PushbackLegKind.Pull, TugMoveShape.ViaLine),
+            (PushbackLegKind.Push, TugMoveShape.ViaLine),
+            (PushbackLegKind.Pull, TugMoveShape.ViaLine)
+        );
+        Assert.True(plan.Moves[3].Move.Creep, "the pull onto 6A is the creep onto the first mark");
         Assert.True(plan.Moves[^1].Move.Creep, "the last pull onto 6B is the creep onto the mark");
         AssertEndsOnSpot(layout, plan, sixB);
     }
@@ -197,7 +215,7 @@ public class TugMovePlannerTests
     [InlineData("6A")]
     [InlineData("6A", "6B")]
     [InlineData("6A", "@D16")]
-    public void EverySameKindRunWithoutATurn_StaysWithin120DegreesOfItsStartTravel(params string[] targets)
+    public void EverySameKindRunWithoutATurn_StaysWithin150DegreesOfItsStartTravel(params string[] targets)
     {
         if (LoadSfo() is not { } layout)
         {
@@ -206,7 +224,7 @@ public class TugMovePlannerTests
 
         TugPlan plan = PlanFromD15(layout, targets);
 
-        AssertNoLoop(plan);
+        AssertNoLoop(plan, MaxSameKindWanderDeg);
     }
 
     /// <summary>
@@ -516,7 +534,7 @@ public class TugMovePlannerTests
 
     /// <summary>
     /// A bare <c>PUSH B</c> off B12: the push crosses taxiways Y and A on the way. A push onto a taxiway is judged by how
-    /// far its centre goes past that taxiway, not by the taxiways it sweeps over (user decision 2026-09-23), and a
+    /// far its centre goes past that taxiway, not by the taxiways it sweeps over, and a
     /// straight push stops with its centre on B — accepted.
     /// </summary>
     [Fact]
@@ -691,7 +709,8 @@ public class TugMovePlannerTests
 
     /// <summary>
     /// The five-alley spot pushes whose capture of the lane used to wander past 120°: gate D2 to spot 5A (issue #233's
-    /// E75L, and a CRJ7) and gate C9 to spot 5B (an E75L). Each plans without a loop and ends on the spot's rest pose.
+    /// E75L, and a CRJ7) and gate C9 to spot 5B (an E75L). Each plans without a loop — no same-kind run wanders past the
+    /// planner's 150° limit — and ends on the spot's rest pose.
     /// </summary>
     [Theory]
     [InlineData("D2", "5A", "E75L")]
@@ -709,7 +728,7 @@ public class TugMovePlannerTests
 
         TugPlan plan = PlanOrFail(layout, StandStart(Parking(layout, standName), aircraftType, TugGoal.Spot(spot)));
 
-        AssertNoLoop(plan);
+        AssertNoLoop(plan, MaxSameKindWanderDeg);
         AssertEndsOnSpot(layout, plan, spot, aircraftType);
     }
 
@@ -1075,8 +1094,14 @@ public class TugMovePlannerTests
     private static void AssertKinds(TugPlan plan, params PushbackLegKind[] expected) =>
         Assert.Equal(expected, [.. plan.Moves.Select(m => m.Move.Kind)]);
 
-    /// <summary>Every maximal run of same-kind moves without a turn stays within 120° of the travel it started with.</summary>
-    private void AssertNoLoop(TugPlan plan)
+    private static void AssertMoves(TugPlan plan, params (PushbackLegKind Kind, TugMoveShape Shape)[] expected)
+    {
+        (PushbackLegKind Kind, TugMoveShape Shape)[] planned = [.. plan.Moves.Select(m => (m.Move.Kind, m.Move.Shape))];
+        Assert.Equal(expected, planned);
+    }
+
+    /// <summary>Every maximal run of same-kind moves without a turn stays within <paramref name="maxDeg"/> of the travel it started with.</summary>
+    private void AssertNoLoop(TugPlan plan, double maxDeg)
     {
         int runStart = 0;
         while (runStart < plan.Moves.Count)
@@ -1093,7 +1118,7 @@ public class TugMovePlannerTests
             double worstDeg = run.SelectMany(m => m.Samples).Max(s => AbsDiffDeg(s.TravelTrueDeg(kind), startTravel));
             bool hasTurn = run.Any(m => m.Move.Shape == TugMoveShape.TurnTo);
             _output.WriteLine($"run of moves {runStart + 1}-{runEnd + 1} ({kind}): worst travel deviation {worstDeg:F1}°, turn: {hasTurn}");
-            Assert.True(hasTurn || (worstDeg <= MaxRunDeviationDeg), $"the {kind} run of moves {runStart + 1}-{runEnd + 1} wandered {worstDeg:F1}°");
+            Assert.True(hasTurn || (worstDeg <= maxDeg), $"the {kind} run of moves {runStart + 1}-{runEnd + 1} wandered {worstDeg:F1}°");
             runStart = runEnd + 1;
         }
     }
