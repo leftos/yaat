@@ -4,6 +4,14 @@ One RPO session: `S1-SFO-2 _ Ground Control 28_01 (High Intensity Optional).yaat
 
 **The recording.** The full 22 MB bundle is not in the repo; ask the user for it. A 400 s trim is committed as `tests/Yaat.Sim.Tests/TestData/issue453-asa826-giveway-recording.yaat-bug-report-bundle.zip`. It covers the first 400 s only, and every remaining item happens later. For a replay test, trim the full bundle around the item's time (`bug_bundle.py trim`), install it (`bug_bundle.py install --issue N`), then regenerate the routing census for the new fixture (`YAAT_ROUTING_CENSUS_REGENERATE=1` on `RecordingCorpusRoutingCensusTests`; the diff must be a pure addition). A dispatch-level test on the real SFO layout, built from a pose read out of the bundle (`bug_bundle.py snapshot --at T --callsign X`), is cheaper and was enough for #451, #452 and the #454 repro.
 
+**The full bundle** is at `X:\Downloads\S1-SFO-2 _ Ground Control 28_01 (High Intensity Optional).yaat-bug-report-bundle.zip` on the maintainer's machine (user 2026-09-22).
+
+**Decisions (user 2026-09-22):**
+- #454/#461, a TAXI whose named route doesn't reach its destination: every named taxiway is taxied for real (never swapped for a sibling). After the last one the aircraft may continue to the destination only across ramp / non-movement taxilanes (the ramp-lane cut: T5A → alley → T5B side → D1 is fine). If reaching it needs any movement-area taxiway that was not named, it taxis the named route and holds short of that taxiway, with a terminal note naming what is missing.
+- #455 and #457 share one cause (aviation review 2026-09-22, bundle server log lines 450–458): `GroundCommandHandler`'s current-taxiway prepend (~L168-186) turns a re-issued `TAXI A F 28L` into `B A F` (southbound entry onto A, U-turn across 01L/19R; the first issue resolved correctly to `B B1 A F`), and `TAXI A` after holding short of K into `B A`. A and F do meet (node #54), so no curated A/F connector (the first #457 decision rested on a missing-junction premise). Fix: prepend the current taxiway only when the as-cleared route cannot start from where the aircraft stands; the taxiway an aircraft holds short of counts as where it stands.
+- Movement vs non-movement for the #454 rule: `RampLaneReposition.IsRampTaxilane` (name heuristic, also behind `TugPavementClassifier.IsMovementArea`) marks SFO's AF, AY1–AY4, B1–B5, BC, CG, CZ, Q1, Z2, ZS as non-movement. Both: a topology check by default (a lane joined at both ends to lettered movement taxiways is movement area) and a per-airport sidecar list that overrides it where present.
+- No METAR for the depicted airport: the Ground View and Radar View show none, with a "No METAR for SFO" note, never another station's.
+
 Take the waves top to bottom. Wave 2 shares the pathfinder code, so fix it together. Wave 3 measures before it designs. Wave 4 is the two features.
 
 ## Wave 2: taxi routing (`SegmentExpander`, `RouteCostFunction`; `docs/ground/pathfinder.md`)
@@ -23,6 +31,7 @@ Take the waves top to bottom. Wave 2 shares the pathfinder code, so fix it toget
 
 - [ ] **#461 Best-effort `TAXI` toward a runway or gate the named route doesn't reach**: taxi the given route, use the destination as the direction hint on the last taxiway, and hold short before leaving it. Needs a design interview and an aviation review first
 - [ ] **#462 Choose push or pull per segment of a drawn push route**: `GroundViewModel.AddPushWaypoint`, `TugMovePlanner`
+- [ ] **Free-hand push drawing** (user 2026-09-22): a drawn push should not snap to graph nodes — the RPO draws anywhere on the ramp, and a point is a free position (lat/lon, plus a facing), not a `$spot`/`@gate`/`#node`. Needs a target form the command carries (typed and drawn stay one text), a `TugGoal` for a free pose, and the same refusals. Design together with #462
 
 ## Found on the way (not yet an issue)
 
