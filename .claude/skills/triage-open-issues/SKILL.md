@@ -18,8 +18,8 @@ bash .claude/skills/triage-open-issues/scripts/gather.sh
 Writes `.tmp/issue-triage/`: `issues.tsv` (number, date, labels, linked PR, title), `open-prs.tsv`,
 `bodies/<N>.md` (body + comments), `refs.txt` (issue numbers cited by commits since the last tag and
 by the changelog's Unreleased section), `changelog-unreleased.md`, `plan-refs.txt` (plan lines in
-both repos citing an open issue, then open checkboxes naming a class the body names), `touched-files.txt` (files each body names, with the count of
-commits since the tag that touched each), `new-comments.md` (per open issue, the comments posted
+both repos citing an open issue, then open checkboxes naming a class the body names), `touched-files.txt` (files each body names, with two counts of
+commits since the tag that touched each: yaat's, then yaat-server's), `new-comments.md` (per open issue, the comments posted
 since the index's `<!-- triage-open-issues: <UTC timestamp> -->` stamp; with no stamp, every comment). yaat-server has no tags, so its window is
 `--since=<yaat tag date>`. Read `issues.tsv`, `refs.txt`, `plan-refs.txt`, `touched-files.txt`, then
 every `bodies/<N>.md`. Read a comment thread to the end: the reporter or owner often states the
@@ -45,8 +45,8 @@ thread. A comment that adds nothing (thanks, a bump, the agent's own audit comme
 say so in the table. An "issue updated" time later than the stamp with no new comment means the body
 or labels were edited: re-read `bodies/<N>.md`.
 
-`touched-files.txt` settles `open` vs `probably-fixed` cheaply: a file with zero commits since the tag
-is untouched; a file with commits gets `git log <tag>..HEAD --oneline -- <file>` and the subjects say
+`touched-files.txt` settles `open` vs `probably-fixed` cheaply: a file with zero commits in both columns
+is untouched; a file with commits gets `git log <tag>..HEAD --oneline -- <file>` (in yaat-server, `git log --since=<tag date>`) and the subjects say
 whether the change was the issue's or unrelated churn. A bot issue (`nightly-review` label) states
 its confidence and carries a red-first repro; that is the evidence, and re-deriving the root cause
 from source is the implementer's work. Rule 1 in Step 3 needs the plan files that name the

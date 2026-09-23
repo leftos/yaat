@@ -7,7 +7,14 @@ set -euo pipefail
 
 repo="leftos/yaat"
 root="$(git rev-parse --show-toplevel)"
+main="$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd)"
+# The server beside this checkout (the main one, or a pair's), else the sibling of the main checkout.
 server="$(dirname "$root")/yaat-server"
+[ -e "$server/.git" ] || server="$(dirname "$main")/yaat-server"
+if [ ! -e "$server/.git" ]; then
+  echo "gather.sh: no yaat-server checkout beside $root or $main; the triage needs its commits and plans" >&2
+  exit 1
+fi
 out="$root/.tmp/issue-triage"
 mkdir -p "$out"
 
@@ -16,9 +23,7 @@ tag_date="$(git -C "$root" log -1 --format=%cs "$tag")"
 {
   echo "tag: $tag ($tag_date)"
   echo "yaat commits since tag: $(git -C "$root" rev-list --count "$tag..HEAD")"
-  if [ -d "$server/.git" ]; then
-    echo "yaat-server commits since $tag_date: $(git -C "$server" rev-list --count --since="$tag_date" HEAD)"
-  fi
+  echo "yaat-server commits since $tag_date: $(git -C "$server" rev-list --count --since="$tag_date" HEAD)"
 } >"$out/window.txt"
 
 gh issue list --repo "$repo" --state open --limit 200 \
@@ -55,9 +60,7 @@ since="$(grep -oE 'triage-open-issues: [0-9TZ:-]+' "$root/docs/plans/MAIN.md" | 
   echo "# issue numbers cited by commits since $tag (yaat)"
   git -C "$root" log "$tag..HEAD" --format='%h %s%n%b' | grep -oE '#[0-9]+' | sort | uniq -c
   echo "# issue numbers cited by yaat-server commits since $tag_date"
-  if [ -d "$server/.git" ]; then
-    git -C "$server" log --since="$tag_date" --format='%h %s%n%b' | grep -oE 'issues/[0-9]+|#[0-9]+' | sort | uniq -c
-  fi
+  git -C "$server" log --since="$tag_date" --format='%h %s%n%b' | grep -oE 'issues/[0-9]+|#[0-9]+' | sort | uniq -c
   echo "# issue numbers cited in CHANGELOG.md Unreleased"
   awk '/^## Unreleased/{p=1;next} /^## /{if(p)exit} p' "$root/CHANGELOG.md" | grep -oE '#[0-9]+' | sort | uniq -c
 } >"$out/refs.txt" || true
@@ -78,12 +81,13 @@ awk '/^## Unreleased/{p=1;next} /^## /{if(p)exit} p' "$root/CHANGELOG.md" >"$out
 } >"$out/plan-refs.txt"
 
 {
-  echo "# files each issue body names, with the commits since the tag that touched them"
+  echo "# files each issue body names, with the commits since the tag that touched them (yaat by tag, yaat-server by its date)"
   while IFS=$'\t' read -r n _; do
     echo "## #$n"
     { grep -oE '(src|tests|tools)/[A-Za-z0-9_./-]+\.(cs|axaml|py|md)' "$out/bodies/$n.md" || true; } | sort -u | while read -r f; do
       count="$(git -C "$root" rev-list --count "$tag..HEAD" -- "$f" 2>/dev/null || echo 0)"
-      echo "$count  $f"
+      server_count="$(git -C "$server" rev-list --count --since="$tag_date" HEAD -- "$f" 2>/dev/null || echo 0)"
+      echo "$count  $server_count  $f"
     done
   done <"$out/issues.tsv"
 } >"$out/touched-files.txt"
