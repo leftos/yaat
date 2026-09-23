@@ -72,7 +72,13 @@ public partial class MainViewModel
             IsPrimary = isPrimary,
             SettingsKeySuffix = settingsKeySuffix,
         };
-        vm.ShownAirportChanged += () => OnPropertyChanged(nameof(GroundShownAirportId));
+        vm.ShownAirportChanged += () =>
+        {
+            OnPropertyChanged(nameof(GroundShownAirportId));
+            // The layout usually lands after the weather (it is fetched async), so re-pick this view's
+            // station whenever the airport it shows changes.
+            vm.WeatherInfo = PickGroundWeather(_allWeatherInfo, vm.Layout?.AirportId);
+        };
         vm.SetAircraftLookup(cs => Aircraft.FirstOrDefault(a => a.Callsign == cs));
         vm.SetAircraftProvider(() => Aircraft);
         vm.SetTowerCabServices(_vnasConfigService, _towerCabImageService, _airportResolver);

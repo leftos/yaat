@@ -22,6 +22,7 @@
 - Two rooms using the same callsign no longer disturb each other's CRC displays.
 - Aircraft on slightly converging parallel taxiways slow for each other while there is still room to stop, instead of passing too close.
 - `WARPG` works on arrivals that have landed, instead of refusing with "No airport layout loaded for this aircraft".
+- The Ground View shows the wind and altimeter of the airport it depicts after live weather loads, instead of the first station in the list.
 
 ## v0.13.4-beta [2026/09/21]
 

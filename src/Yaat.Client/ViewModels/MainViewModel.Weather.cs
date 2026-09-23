@@ -270,27 +270,27 @@ public partial class MainViewModel
         return sanitized.ToString();
     }
 
-    private void OnWeatherChanged(WeatherChangedDto dto)
+    private void OnWeatherChanged(WeatherChangedDto dto) => Avalonia.Threading.Dispatcher.UIThread.Post(() => ApplyWeatherChanged(dto));
+
+    /// <summary>Applies a room weather change to the METAR list and every radar and ground view. Runs on the UI thread.</summary>
+    internal void ApplyWeatherChanged(WeatherChangedDto dto)
     {
-        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        ActiveWeatherName = dto.Name;
+
+        if (dto.Name is null)
         {
-            ActiveWeatherName = dto.Name;
+            SetActiveWeatherJson(null);
+            ApplyDefaultWeatherIfNoWeather();
+        }
+        else
+        {
+            SetActiveWeatherJson(dto.SourceJson);
 
-            if (dto.Name is null)
-            {
-                SetActiveWeatherJson(null);
-                ApplyDefaultWeatherIfNoWeather();
-            }
-            else
-            {
-                SetActiveWeatherJson(dto.SourceJson);
-
-                IReadOnlyList<WeatherDisplayInfo>? allInfo = ExtractAllWeatherDisplay(dto.Metars);
-                _allWeatherInfo = allInfo;
-                ApplyWeatherToAllViews(allInfo);
-                PopulateMetars(dto.Metars);
-            }
-        });
+            IReadOnlyList<WeatherDisplayInfo>? allInfo = ExtractAllWeatherDisplay(dto.Metars);
+            _allWeatherInfo = allInfo;
+            ApplyWeatherToAllViews(allInfo);
+            PopulateMetars(dto.Metars);
+        }
     }
 
     public void PopulateMetars(IReadOnlyList<string>? metars)
