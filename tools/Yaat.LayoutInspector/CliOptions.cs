@@ -138,7 +138,13 @@ public sealed record CliOptions
     public List<(string Runway, string Taxiway, string? Side)> ExitQueries { get; init; } = [];
 
     public string? HtmlOutputPath { get; init; }
-    public string? TicksJsonPath { get; init; }
+
+    /// <summary>
+    /// <c>--ticks</c> sources in the order given, each an optional label and a TickRecorder
+    /// JSON path. Repeated flags merge into one recording (see <c>TickRecordingMerger</c>),
+    /// so several runs of the same case overlay as separate, distinctly coloured aircraft.
+    /// </summary>
+    public List<(string? Label, string Path)> TickSources { get; init; } = [];
 
     public List<string> HtmlHighlightTaxiways { get; init; } = [];
     public List<string> HtmlHighlightRunways { get; init; } = [];
@@ -221,7 +227,7 @@ public sealed record CliOptions
         bool debugExits = false;
         var exitQueries = new List<(string Runway, string Taxiway, string? Side)>();
         string? htmlOutput = null;
-        string? ticksJsonPath = null;
+        var tickSources = new List<(string? Label, string Path)>();
         var htmlHighlightTaxiways = new List<string>();
         var htmlHighlightRunways = new List<string>();
         var htmlHighlightNodes = new List<int>();
@@ -371,7 +377,7 @@ public sealed record CliOptions
                     htmlOutput = args[++i];
                     break;
                 case "--ticks" when i + 1 < args.Length:
-                    ticksJsonPath = args[++i];
+                    tickSources.Add(ParseTickSource(args[++i]));
                     break;
                 case "--html-taxiway" when i + 1 < args.Length:
                     foreach (string ht in SplitCsv(args[++i]))
@@ -546,7 +552,7 @@ public sealed record CliOptions
             DebugExits = debugExits,
             ExitQueries = exitQueries,
             HtmlOutputPath = htmlOutput,
-            TicksJsonPath = ticksJsonPath,
+            TickSources = tickSources,
             HtmlHighlightTaxiways = htmlHighlightTaxiways,
             HtmlHighlightRunways = htmlHighlightRunways,
             HtmlHighlightNodes = htmlHighlightNodes,
@@ -583,6 +589,28 @@ public sealed record CliOptions
         || (PathDistanceNodes.Count > 0);
 
     private static IEnumerable<string> SplitCsv(string s) => s.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    /// <summary>
+    /// Splits a <c>--ticks</c> value into <c>[LABEL=]PATH</c>. The split happens on the first
+    /// '=' only when the text before it looks like a label — no path separator, no '.' — so
+    /// <c>X:/tmp/a.json</c> and <c>.tmp/a=b.json</c> stay whole paths.
+    /// </summary>
+    private static (string? Label, string Path) ParseTickSource(string value)
+    {
+        int separator = value.IndexOf('=');
+        if (separator <= 0)
+        {
+            return (null, value);
+        }
+
+        string label = value[..separator];
+        if (label.IndexOfAny(['/', '\\', '.']) >= 0)
+        {
+            return (null, value);
+        }
+
+        return (label, value[(separator + 1)..]);
+    }
 
     private static FilletMode ParseFilletMode(string value)
     {

@@ -9,12 +9,13 @@
 
 ## Scope and the iron rules
 
-There are three test projects:
+The test projects:
 
 | Project | Tests | Notable harness wiring |
 |---|---|---|
 | `tests/Yaat.Sim.Tests` | Simulation, commands, physics, phases, navdata, parsers, ground/pathfinder | `ModuleInit` warms CIFP/NavData + `GroundNavigator.ThrowOnOrbit`; `xunit.runner.json` parallelizes collections |
 | `tests/Yaat.Client.UI.Tests` | Avalonia headless UI / `MainViewModel` / `UserPreferences` | `ModuleInit` redirects `YAAT_APPDATA_DIR`; `xunit.runner.json` *disables* collection parallelism |
+| `tests/Yaat.LayoutInspector.Tests` | LayoutInspector CLI parsing and tick-recording merge | None — plain unit tests over the tool project |
 | yaat-server tests (`../yaat-server`) | Server rooms, hub, broadcast | Reached only via `tools/test-all.ps1` — bare `dotnet test` from yaat never builds them |
 
 The non-negotiable rules, each detailed below:
@@ -172,7 +173,7 @@ override — see `NavigationDatabase.Instance` / `InstanceOrNull` — but `Ensur
 
 ## Running tests
 
-All four test projects use xunit.v3 on the Microsoft.Testing.Platform runner (`UseMicrosoftTestingPlatformRunner` in each csproj;
+Every test project uses xunit.v3 on the Microsoft.Testing.Platform runner (`UseMicrosoftTestingPlatformRunner` in each csproj;
 `global.json` in both repos tells `dotnet test` to use it). Consequences:
 
 - `dotnet test yaat.slnx` runs the test assemblies **concurrently** (Sim, Client, Client.UI in parallel; yaat-server's suite the same way).

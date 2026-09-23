@@ -71,7 +71,7 @@ inspector-template.html     Client-side pan/zoom/tick-overlay; URL-hash persiste
 |------|---------|
 | `--html <path>` | Interactive HTML render |
 | `--html-taxiway`, `--html-runway`, `--html-node`, `--html-annotate`, `--html-route` | Highlight/overlay options (repeatable) |
-| `--ticks <json>` | Overlay a TickRecorder JSON recording as an animated aircraft path |
+| `--ticks [LABEL=]<json>` | Overlay a TickRecorder JSON recording as an animated aircraft path. Repeatable: several recordings merge into one playback; a LABEL renames that recording's aircraft (one aircraft → `LABEL`, several → `LABEL:CALLSIGN`) and, with two or more recordings, each aircraft gets its own palette colour. The tick-table flags read the merged set, one block per callsign |
 
 Pan/zoom state is persisted in `location.hash` — refreshing the page preserves the current view.
 

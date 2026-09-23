@@ -14,15 +14,22 @@ public sealed class TickTableCommand : ICommand
 {
     public int Execute(LayoutAnalyzer analyzer, CliOptions options)
     {
-        if (options.TicksJsonPath is null)
+        if (options.TickSources.Count == 0)
         {
             Console.Error.WriteLine("error: --tick-table and --tick-summary require --ticks <json>");
             return 2;
         }
 
-        if (!File.Exists(options.TicksJsonPath))
+        TickSourceRead read = TickRecordingLoader.ReadAll(options.TickSources);
+        foreach (TickSourceProblem problem in read.Problems)
         {
-            Console.Error.WriteLine($"error: {options.TicksJsonPath} not found");
+            Console.Error.WriteLine(
+                problem.Issue == TickSourceIssue.FileNotFound ? $"error: {problem.Path} not found" : $"error: {problem.Path} is empty or unreadable"
+            );
+        }
+
+        if (read.Problems.Count > 0)
+        {
             return 1;
         }
 
@@ -66,10 +73,14 @@ public sealed class TickTableCommand : ICommand
             }
         }
 
-        TickRecording? recording = TickJsonReader.Read(options.TicksJsonPath);
-        if (recording is null)
+        TickRecording recording;
+        try
         {
-            Console.Error.WriteLine("error: tick recording is empty or unreadable");
+            recording = TickRecordingMerger.Merge(read.Loaded);
+        }
+        catch (TickMergeException ex)
+        {
+            Console.Error.WriteLine($"error: {ex.Message}");
             return 1;
         }
 

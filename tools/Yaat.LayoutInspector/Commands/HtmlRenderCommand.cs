@@ -76,19 +76,31 @@ public sealed class HtmlRenderCommand : ICommand
             }
         }
 
-        if (options.TicksJsonPath is not null)
+        if (options.TickSources.Count > 0)
         {
-            TickRecording? recording = TickJsonReader.Read(options.TicksJsonPath);
-            if (recording is null)
+            TickSourceRead read = TickRecordingLoader.ReadAll(options.TickSources);
+            foreach (TickSourceProblem problem in read.Problems)
             {
-                Console.Error.WriteLine($"warning: --ticks {options.TicksJsonPath} is empty or unreadable; HTML will render without tick overlay");
+                Console.Error.WriteLine($"warning: --ticks {problem.Path} is empty or unreadable; skipped");
             }
-            else
+
+            if (read.Loaded.Count > 0)
             {
-                htmlRenderer.SetTickRecording(recording);
-                Console.Error.WriteLine(
-                    $"Loaded {recording.Ticks.Count} tick events for {recording.Aircraft.Count} aircraft from {options.TicksJsonPath}"
-                );
+                try
+                {
+                    TickRecording recording = TickRecordingMerger.Merge(read.Loaded);
+                    htmlRenderer.SetTickRecording(recording);
+                    string origin =
+                        read.Loaded.Count == 1
+                            ? read.Loaded[0].Path
+                            : $"{read.Loaded.Count} recordings ({string.Join(", ", read.Loaded.Select(s => s.Path))})";
+                    Console.Error.WriteLine($"Loaded {recording.Ticks.Count} tick events for {recording.Aircraft.Count} aircraft from {origin}");
+                }
+                catch (TickMergeException ex)
+                {
+                    Console.Error.WriteLine($"error: {ex.Message}");
+                    return 1;
+                }
             }
         }
 

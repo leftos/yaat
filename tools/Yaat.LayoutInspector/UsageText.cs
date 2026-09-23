@@ -57,7 +57,7 @@ public static class UsageText
         Console.WriteLine("  --html-node <id>[,<id>...]           Highlight one or more nodes (also repeatable)");
         Console.WriteLine("  --html-annotate <id> <text>  Add annotation label to a node");
         Console.WriteLine("  --html-route <ids>       Highlight a comma-separated route of node ids");
-        Console.WriteLine("  --ticks <json>           Overlay tick data (TickRecorder JSON recording) with animation player");
+        Console.WriteLine("  --ticks [LABEL=]<json>   Overlay tick data (TickRecorder JSON); repeat to compare runs, each LABEL names its aircraft");
         Console.WriteLine();
         Console.WriteLine("Tick-table output:");
         Console.WriteLine("  --tick-table             Compact per-tick table to stdout (requires --ticks)");

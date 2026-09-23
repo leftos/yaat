@@ -111,6 +111,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 - **UI tests**: `tests/Yaat.Client.UI.Tests/` — headless window tests for views and layout; `Views/MessageBoxDialogTests.cs` drives a custom and a standard MsBox dialog to a button click so a MessageBox.Avalonia pin that does not load against the shipped Avalonia (the 3.x line under Avalonia 12, GitHub #437) fails there instead of in a user's dialog
   - **Discord Rich Presence**: `ViewModels/MainViewModelRichPresenceTests.cs` (a recording `IRichPresencePublisher` fake on `MainViewModel.RichPresence`: a join publishes name + `ARTCC · airport` back-dated by the room's elapsed seconds, a recording load publishes its own scenario, a late scenario name republishes, no scenario / preference off publishes nothing, leaving clears, the state line omits the missing half), `UserPreferencesDiscordRichPresenceTests.cs` (`DiscordRichPresenceEnabled` defaults on and round-trips)
   - **Departure auto-delete**: `UserPreferencesDepartureAutoDeleteTests.cs` (a preferences file without `departureAutoDeleteDistanceNm` reads null; a set distance persists and null clears it), `ViewModels/MainViewModelSessionSettingsTests.cs` (the session-flyout box follows `DepartureAutoDeleteDistanceNm` from `SessionSettingsDto` and the load result, null blanking it)
+- **LayoutInspector tests**: `tests/Yaat.LayoutInspector.Tests/` — CLI option parsing and tick-recording merge; `CliOptionsTicksTests.cs` (`--ticks` is repeatable, `[LABEL=]<path>` split only when the text before `=` has no path separator or `.`, repeated flags keep their order, no `--ticks` leaves `TickSources` empty), `TickRecordingMergerTests.cs` (`TickRecordingMerger.Merge`: a LABEL renames a one-aircraft run's callsign to the label and a multi-aircraft run's to `LABEL:CALLSIGN`, merged aircraft get palette colours while a single unlabelled recording keeps its own, ticks are ordered by time with source order preserved on ties, and it throws `TickMergeException` on a shared unlabelled callsign or recordings from different airports)
 - **Test data**: `tests/Yaat.Sim.Tests/TestData/` — NavData.dat + `navdata-manifest.json`, FAACIFP18.gz + `cifp-manifest.json`, airport GeoJSON, `oak-u-w-fillet-corner-recording.zip` (E2E fillet routing test fixture), `oak-push-then-taxi-approach-recording.zip` (DAL2150 PUSH-then-TAXI off OAK gate 15, for the approach-leg replay test), `s2-oak5-follow-heli-recording.zip` (S2-OAK-5 bundle: FOLLOW behind a straight-in jet, helicopter LAND @spot from off-field, CRC flight-plan amendment during a hover hold), `ual58-spot9-reversal-recording.yaat-bug-report-bundle.zip` (UAL58 B77W off SFO gate G10: `TAXI T9 $9` to spot 9, then `TAXI A F 28L` reversing onto taxiway A — the entry-alignment reversal fixture for `Ual58Spot9ReversalTests`), `recording-routing-census.json` (per-fixture routing census of every recorded command — the triage worklist for the action-router work). Refresh pins: `tools/refresh-navdata.py`, FAA CIFP via `CifpPathResolver` at test load.
 - **Shared loader**: `TestVnasData.EnsureInitialized()` — always use this, never synthetic stubs
 
@@ -1629,7 +1630,7 @@ Loads airport GeoJSON and queries the ground graph (nodes, taxiways, runways, ex
 
 ```
 Program.cs                     # Thin entry: parse args → bootstrap → dispatch ICommand
-CliOptions.cs                  # Options record + TryParse (all arg parsing lives here, including comma-separated --node id lists, batch query flags, --html-route, --pathfinder)
+CliOptions.cs                  # Options record + TryParse (all arg parsing lives here, including comma-separated --node id lists, batch query flags, --html-route, --pathfinder, repeatable --ticks [LABEL=]<path> sources)
 UsageText.cs                   # --help text
 Bootstrap.cs                   # NavData auto-discovery (walks up to yaat.slnx) + debug logger wiring
 
@@ -1641,8 +1642,10 @@ Commands/
   TickTableCommand.cs          # --tick-table / --tick-summary: TickRecorder JSON → fixed-width text table; optional --tick-ref + --tick-hold-shorts add cross-track / along-track columns
 
 Tick/
-  TickRecording.cs             # Top-level TickRecorder JSON schema (mirrors Yaat.Sim.Tests.Helpers.TickRecording); rejects unknown major versions
+  TickRecording.cs             # Top-level TickRecorder JSON schema as sealed records (mirrors Yaat.Sim.Tests.Helpers.TickRecording); rejects unknown major versions
   TickJsonReader.cs            # JSON file → TickRecording
+  TickRecordingLoader.cs       # Reads every --ticks source; a missing/empty/malformed file becomes a TickSourceProblem instead of hiding the others
+  TickRecordingMerger.cs       # Merges --ticks sources into one recording: a LABEL renames a source's aircraft (one aircraft → LABEL, several → LABEL:CALLSIGN), palette-colours multi-source merges, orders ticks by time; throws TickMergeException on a shared unlabelled callsign or mixed airports
   TickDataRow.cs               # One per-tick aircraft state row used by both HTML overlay and text formatter
   RunwayReference.cs           # Runway centerline (lat/lon + true heading) for signed xteFt / hdgErr columns
   HoldShortResolver.cs         # Resolve --tick-hold-shorts taxiway letters → GroundNode list + along-track distance math

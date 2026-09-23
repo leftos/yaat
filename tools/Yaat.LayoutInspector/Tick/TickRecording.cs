@@ -7,7 +7,7 @@ namespace Yaat.LayoutInspector.Tick;
 /// <c>Yaat.Sim.Tests.Helpers.TickRecording</c>). Bumped on incompatible
 /// schema changes — the reader rejects unknown major versions.
 /// </summary>
-public sealed class TickRecording
+public sealed record TickRecording
 {
     public const int CurrentVersion = 1;
 
@@ -24,7 +24,7 @@ public sealed class TickRecording
     public List<TickEvent> Ticks { get; init; } = [];
 }
 
-public sealed class AircraftMetadata
+public sealed record AircraftMetadata
 {
     [JsonPropertyName("callsign")]
     public string Callsign { get; init; } = "";
@@ -42,7 +42,7 @@ public sealed class AircraftMetadata
     public string Color { get; init; } = "#1e88e5";
 }
 
-public sealed class TickEvent
+public sealed record TickEvent
 {
     [JsonPropertyName("t")]
     public int T { get; init; }
@@ -78,7 +78,7 @@ public sealed class TickEvent
     public string? Status { get; init; }
 }
 
-public sealed class NavTickDto
+public sealed record NavTickDto
 {
     [JsonPropertyName("targetNodeId")]
     public int TargetNodeId { get; init; }

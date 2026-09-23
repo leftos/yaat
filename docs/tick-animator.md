@@ -42,6 +42,8 @@ recorded path — to-scale aircraft shape, trail, and a per-tick overlay of time
 taxiway. Pan/zoom state persists in `location.hash`. Add `--html-taxiway`, `--html-runway`, `--html-node` or
 `--html-annotate` to highlight what the test is about.
 
+To compare runs of the same case (today vs a prototype, before vs after a change), pass each recording with a label: `--ticks TODAY=.tmp/a.json --ticks NEW=.tmp/b.json`. They play back together in one page, each run's aircraft renamed to its label and drawn in its own colour.
+
 ## 3. Read the numbers instead
 
 The same recording feeds the text analyses:
