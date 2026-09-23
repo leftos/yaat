@@ -8,6 +8,19 @@ from *samples*, not from `FlightPhysics`; it has no phases, an empty command que
 command until it is assumed (which converts it in place into an ordinary simulated aircraft). The sim is feed-agnostic:
 it sees `LiveTrafficSample`s for a callsign and never knows where they came from beyond `LiveTrafficSource`.
 
+## Design decisions
+
+Taken with the owner on 2026-08-26 (issue #150), then revised by an adversarial review the same day (yaat-server `docs/plans/live-traffic-swim/05-adversarial-review.md`). The feed-structure reference throughout was vatsim-server-rs, which already ingests SWIM for CRC.
+
+- **Our own FAA SWIM subscription, not a re-publisher.** vatsim-server-rs by default reads a third-party NATS broker that re-publishes the raw XML and fetches flight plans from a separate indexing service; YAAT subscribes to SCDS itself and indexes SFDPS flight plans by GUFI in its own correlator, so no third-party hop sits between the FAA and the server.
+- **Solace SMF, not AMQP.** SCDS delivers over Solace SMF only: JMS is the authorized client, the Solace .NET SMF API is a permitted but helpdesk-unsupported exception (compression mandatory), and AMQP is not offered. The draft assumed AMQP 1.0; research corrected it before any transport code was written.
+- **A C# port inside yaat-server, not a Rust sidecar.** The ingest (parser, correlator, LADD filter) is a port of vatsim-server-rs's logic into a hosted service that owns the process-wide `LiveTrafficStore`: rooms read that store in-process on the tick thread, one subscription serves every room, and rooms never touch the feed.
+- **Live-only v1, recorded from day one.** SCDS offers no history to cloud subscribers (no Lost Message Retrieval), so "start in the past" could only come from YAAT's own raw log; v1 shipped live-only, but every applied sample was a `RecordedLiveTrafficSample` from the start so rewind, bookmarks and bug bundles reproduce shadow traffic. The raw log later made the DVR possible (*Live sessions* below).
+- **An assumed aircraft flies its flight plan**, rejoining the route from its last sample; a VFR-coded shadow assumes into a VFR state, never an IFR heading hold.
+- **Shadows are first-class runway users** (review decision A1): they occupy runways and feed the runway advisories, ground conflict and the evaluator — no "visible but inert" middle ground, where a trainee would be rewarded for clearing a departure under a real one-mile final (§3-9-4, §3-10-3). The review recommended excluding traffic around the room's airports for v1; the owner chose the bigger option.
+- **No warp with live traffic**: real traffic cannot be accelerated, so `WARP` above 1× is refused while live traffic is on, and live traffic cannot be enabled while warped.
+- **Conflict alerts are gated**, never shadow↔shadow (real pairs are separated by things the sim cannot see), shadow↔simulated only for an IFR shadow off the approach corridors, with per-pair `CASUP` (*Shadows as runway and ground participants* below).
+
 ## Files
 
 | File | Role |
@@ -296,24 +309,7 @@ bundle's sim seconds back to the real-world feed window (see *Reproducing a repo
   Reviewed by aviation-sim-expert 2026-08-26. The boundaries are the FAA NASR ARB LOW+HIGH strata (one ring each, union for
   containment) built by `tools/build-artcc-boundaries.py` (re-run per 28-day cycle; Honolulu, San Juan and the oceanic centers
   carry a single UNLIMITED volume; Guam has no ARB segments and is absent), so the 30 nm buffer only covers the handoff band.
-- **`LiveTrafficFilter`** (`Yaat.Sim.LiveTraffic`, shared) — which traffic the room shadows, carried on
-  `SimScenarioState.LiveTrafficFilter` as a canonical string (`RULES=VFR;APT=OAK,SFO;MATCH=DEP;NOPLAN=1;CENTER=SUNOL;RADIUS=15`,
-  empty = everything; `TryParse`/`Serialize`/`Describe`). Set via `LiveSessionRequestDto.Filter` at Start Live Session or the
-  hub's `SetLiveTrafficFilter` mid-session; `SimControlService.SetLiveTrafficFilter` validates (parse + radius-centre
-  resolution) and canonicalizes before recording it as a `RecordedSettingChange`, so recorded values always parse. The rules
-  part (`LiveTrafficFilterMatcher.Matches` via `LiveTrafficAircraftFactory.RulesOf`: a plan answers; no plan + a §5-2-11.a
-  VFR conspicuity code (1200/1202/1203/1255/1277) = VFR; no plan + a discrete or missing code = **Unknown** — usually VFR
-  flight following on an assigned code or an uncorrelated IFR plan, so a one-sided rules filter excludes it rather than
-  guessing; only "both" shows it) and the flight-plan-airport part (FAA↔ICAO twins via `AirportIdsMatchResolved`;
-  no-plan targets excluded unless `NOPLAN=1`, and a plan that doesn't carry the *side being asked about* — TAIS plans
-  often hold a single airport — falls to the same toggle instead of hard-missing) gate the per-track spawn/refresh path;
-  a shadow that stops matching is torn down promptly (`Filtered`, one aggregated terminal line naming the count). The
-  radius part **replaces the lateral scope** (`RoomLiveTrafficScope.Build` swaps in a single circle at
-  `ResolveFilterCenter` — airport, fix, or FRD — keeping the ceiling; the surface airport survives only if the primary
-  airport lies inside the radius, so distant ground targets aren't stamped with the wrong field), letting a room watch a
-  fix outside its facility's footprint — the set-filter terminal line warns that the home field is no longer covered.
-  Aviation-reviewed 2026-08-31; the deferred findings (three-state flight-rules on the shadow's datablock, gating CA to
-  the facility volume) are tracked in yaat `docs/plans/MAIN.md`.
+- **`LiveTrafficFilter`** (`Yaat.Sim.LiveTraffic`, shared) — which traffic the room shadows, carried on `SimScenarioState.LiveTrafficFilter` as a canonical string (`RULES=VFR;APT=OAK,SFO;MATCH=DEP;NOPLAN=1;CENTER=SUNOL;RADIUS=15`, empty = everything; `TryParse`/`Serialize`/`Describe`). Set via `LiveSessionRequestDto.Filter` at Start Live Session or the hub's `SetLiveTrafficFilter` mid-session; `SimControlService.SetLiveTrafficFilter` validates (parse + radius-centre resolution) and canonicalizes before recording it as a `RecordedSettingChange`, so recorded values always parse. The rules part (`LiveTrafficFilterMatcher.Matches` via `LiveTrafficAircraftFactory.RulesOf`: a plan answers; no plan + a §5-2-11.a VFR conspicuity code (1200/1202/1203/1255/1277) = VFR; no plan + a discrete or missing code = **Unknown** — usually VFR flight following on an assigned code or an uncorrelated IFR plan, so a one-sided rules filter excludes it rather than guessing; only "both" shows it) and the flight-plan-airport part (FAA↔ICAO twins via `AirportIdsMatchResolved`; no-plan targets excluded unless `NOPLAN=1`, and a plan that doesn't carry the *side being asked about* — TAIS plans often hold a single airport — falls to the same toggle instead of hard-missing) gate the per-track spawn/refresh path; a shadow that stops matching is torn down promptly (`Filtered`, one aggregated terminal line naming the count). The radius part **replaces the lateral scope** (`RoomLiveTrafficScope.Build` swaps in a single circle at `ResolveFilterCenter` — airport, fix, or FRD — keeping the ceiling; the surface airport survives only if the primary airport lies inside the radius, so distant ground targets aren't stamped with the wrong field), letting a room watch a fix outside its facility's footprint — the set-filter terminal line warns that the home field is no longer covered. Aviation-reviewed 2026-08-31; the deferred findings (three-state flight-rules on the shadow's datablock, gating CA to the facility volume) are tracked in yaat `docs/plans/MAIN.md`, Wave 9.
 - **`ShadowTrafficSync.Sync`** — the last pre-physics step (`TickProcessor` `Pre.LiveTraffic`), so a sample lands at second *t*,
   is recorded at *t*, and replays pre-tick at *t*. Inert while `IsBroadcastSuppressed` (rewind reconstruction) or in tape
   playback — the recorded samples own the world then. **Time anchor**: `(wallUtc, ElapsedSeconds)` set on the first sync and
@@ -341,20 +337,7 @@ bundle's sim seconds back to the real-world feed window (see *Reproducing a repo
   `DEL` on a shadow removes it as `Deleted` and adds it to `RoomLiveTrafficState.Suppressed` until live traffic is toggled
   (a rewind past the `DEL` rebuilds the set from the removal record — see *Recording and replay*);
   turning the setting off removes every shadow as `Disabled` (assumed aircraft stay).
-- **Real-world ownership** (yaat-server plan 11) — the feed's controlling position becomes the shadow's `TrackOwner`.
-  The correlator reads TAIS `cps` gated by `ocr` (ownership change reason): a completed state makes cps the owner, but
-  `ocr=pending` makes cps the **receiving** sector of an in-progress handoff (vatsim-server-rs parity — applying cps
-  unconditionally jumps ownership at handoff-initiate); cps shape decides the kind (2-char digit+sector = a sector at
-  the publishing TRACON, one letter = the overlying centre). SFDPS `controllingUnit`/`controllingSector` set the ERAM
-  owner and the handoff element the pending one. All four ride on `LiveTrafficSample` (recorded → replays reproduce
-  the datablocks) and `LiveTrafficOwnerResolver` (Yaat.Sim) resolves them against the scenario's ArtccConfig into a
-  `TrackOwner` (real position callsign when a TCP/sector matches, synthetic with the right subset/sector otherwise) plus
-  the `HandoffPeer`/`OnHandoff` pending display. **The feed yields silently**: `AircraftTrack.Owner`'s setter clears
-  `OwnerFromLiveFeed` on any ordinary write, so a controller's TRACK takes the target and only a DROP (owner back to
-  null) lets the feed re-apply; `SimulationEngine.TickAutoAccept` skips feed-owned tracks so real-world handoffs complete only when
-  the feed says so. `RoomControllerCollector.Collect` fills the CRC OpenPositions topic and the client controller list
-  with synthesized "Real World" positions (ARTCC root + student facility subtree, radar-capable only) during live
-  sessions, so owned tracks point at positions that exist. Tests: `ShadowOwnershipTests`.
+- **Real-world ownership** — the feed's controlling position becomes the shadow's `TrackOwner`. The correlator reads TAIS `cps` gated by `ocr` (ownership change reason): a completed state makes cps the owner, but `ocr=pending` makes cps the **receiving** sector of an in-progress handoff (vatsim-server-rs parity — applying cps unconditionally jumps ownership at handoff-initiate); cps shape decides the kind (2-char digit+sector = a sector at the publishing TRACON, one letter = the overlying centre). SFDPS `controllingUnit`/`controllingSector` set the ERAM owner and the handoff element the pending one. All four ride on `LiveTrafficSample` (recorded → replays reproduce the datablocks) and `LiveTrafficOwnerResolver` (Yaat.Sim) resolves them against the scenario's ArtccConfig into a `TrackOwner` (real position callsign when a TCP/sector matches, synthetic with the right subset/sector otherwise) plus the `HandoffPeer`/`OnHandoff` pending display. **The feed yields silently**: `AircraftTrack.Owner`'s setter clears `OwnerFromLiveFeed` on any ordinary write, so a controller's TRACK takes the target and only a DROP (owner back to null) lets the feed re-apply; `SimulationEngine.TickAutoAccept` skips feed-owned tracks so real-world handoffs complete only when the feed says so. `RoomControllerCollector.Collect` fills the CRC OpenPositions topic and the client controller list with synthesized "Real World" positions (ARTCC root + student facility subtree, radar-capable only) during live sessions, so owned tracks point at positions that exist. Tests: `ShadowOwnershipTests`.
 - **Real-world scratchpads** — TAIS `scratchPad1`/`scratchPad2` ride `LiveTrack.ScratchPad1/2` →
   `LiveTrafficSample.Scratchpad1/2` (recorded, so replays reproduce them) and land on `AircraftStarsState.Scratchpad1/2`
   in `LiveTrafficOwnerResolver.Apply` under the same feed-yield gate as ownership: null = the feed has never said
@@ -396,25 +379,7 @@ every shadow (`LiveTrafficRemovalReason.Reanchored`) so the same second re-spawn
 vertical speed, ground-roll detection or CA prediction straddles the gap), and prints `live traffic rejoined — real traffic moved on
 mm:ss; N shadows re-acquired from the feed`. Gaps under 15 s keep their shadows; the next sample re-places them.
 
-**DVR (behind real time).** A live session that pauses does not jump: the first sync after a gap longer than
-`ReacquireGapSeconds` opens a `RoomLiveTrafficReplay` at `LastSyncWallUtc` (`ShadowTrafficSync.TryStartReplay`; the shadows the
-room holds are consistent with that instant and are kept). The replay is a private `LiveTrafficStore` + `SwimTrackCorrelator`
-+ `SwimIngestPipeline` (the LADD list in force) on a `ManualClock`, fed by a background task from `SwimRawLogFollower` — the
-raw-log directory read as one stamp-ordered stream that follows the hour file the writer is still appending to — starting
-`LeadIn` (10 min) before the instant so plans and sticky state exist; `IsReady` flips once the lead-in is applied (until then
-the sync returns early and the badge says PREPARING). While a replay is on, the sync's "now" is `replay.TargetUtc`, the source
-store is the replay's, and each synced second calls `replay.Advance(1 s)`; a paused room advances nothing, so pause = DVR and
-resume continues behind real time. `LiveTrafficReplayFactory` (DI singleton) opens replays from `SwimOptions.RawLog`, refuses an
-instant outside `Window()` (oldest file hour .. now) or past `MaxConcurrent` (2), and a refusal falls back to the live reacquire
-with the reason on the terminal. `RoomEngine.SeekLiveTrafficAsync(utc)` (hub `SeekLiveTraffic`, `StartLiveSession.StartUtc`)
-drops every non-shadow aircraft (they belong to the timeline being left), removes the shadows (`Reanchored`), opens a fresh
-replay there and records `RecordedSettingChange("LiveTrafficFeedTimeUtc")` (a no-op on replay — the recorded samples drive it).
-`GoLive` disposes the replay and sets `RoomLiveTrafficState.RejoinLive` so the next sync reacquires from the shared store
-instead of opening another replay. `LiveTrafficStatusDto` carries `FeedTimeUtc`, `BehindSeconds` (null while live) and
-`Preparing`; the client badge shows `LIVE −mm:ss` / `PREPARING`, and clicking it opens `LiveTrafficDvrFlyout` (window from
-`GetLiveTrafficWindow`, slider + HH:mm → `SeekLiveTraffic`, Go Live). Replays are disposed on Go Live, seek, live traffic off and
-room close (`TrainingRoomManager.RemoveRoom`). Tests: `SwimRawLogFollowerTests`, `LiveTrafficDvrTests`. Scrubbing inside the server's raw-log window ("DVR") is designed in
-yaat-server `docs/plans/live-traffic-swim/09-live-sessions.md` and not built.
+**DVR (behind real time).** A live session that pauses does not jump: the first sync after a gap longer than `ReacquireGapSeconds` opens a `RoomLiveTrafficReplay` at `LastSyncWallUtc` (`ShadowTrafficSync.TryStartReplay`; the shadows the room holds are consistent with that instant and are kept). The replay is a private `LiveTrafficStore` + `SwimTrackCorrelator` + `SwimIngestPipeline` (the LADD list in force) on a `ManualClock`, fed by a background task from `SwimRawLogFollower` — the raw-log directory read as one stamp-ordered stream that follows the hour file the writer is still appending to — starting `LeadIn` (10 min) before the instant so plans and sticky state exist; `IsReady` flips once the lead-in is applied (until then the sync returns early and the badge says PREPARING). While a replay is on, the sync's "now" is `replay.TargetUtc`, the source store is the replay's, and each synced second calls `replay.Advance(1 s)`; a paused room advances nothing, so pause = DVR and resume continues behind real time. `LiveTrafficReplayFactory` (DI singleton) opens replays from `SwimOptions.RawLog`, refuses an instant outside `Window()` (oldest file hour .. now) or past `MaxConcurrent` (2), and a refusal falls back to the live reacquire with the reason on the terminal. `RoomEngine.SeekLiveTrafficAsync(utc)` (hub `SeekLiveTraffic`, `StartLiveSession.StartUtc`) drops every non-shadow aircraft (they belong to the timeline being left), removes the shadows (`Reanchored`), opens a fresh replay there and records `RecordedSettingChange("LiveTrafficFeedTimeUtc")` (a no-op on replay — the recorded samples drive it). `GoLive` disposes the replay and sets `RoomLiveTrafficState.RejoinLive` so the next sync reacquires from the shared store instead of opening another replay. `LiveTrafficStatusDto` carries `FeedTimeUtc`, `BehindSeconds` (null while live) and `Preparing`; the client badge shows `LIVE −mm:ss` / `PREPARING`, and clicking it opens `LiveTrafficDvrFlyout` (window from `GetLiveTrafficWindow`, slider + HH:mm → `SeekLiveTraffic`, Go Live). Replays are disposed on Go Live, seek, live traffic off and room close (`TrainingRoomManager.RemoveRoom`). Tests: `SwimRawLogFollowerTests`, `LiveTrafficDvrTests`. Scrubbing inside the server's raw-log window ("DVR") is built as described here; its design record is yaat-server `docs/plans/live-traffic-swim/09-live-sessions.md` §2.
 
 Surface coverage is a property of the feed, not the sim: SMES (ASDE-X/ASSC) publishes surface tracks only for its
 equipped airports — 43 in the program; KSFO is one, KOAK is not — so no feed populates the OAK ground view in a live

@@ -1,5 +1,5 @@
 # YAAT plans — index
-<!-- plan-doc-hygiene: 2026-09-22 23d4148a -->
+<!-- plan-doc-hygiene: 2026-09-22 23d4148a yaat-server@dc27e1aa -->
 <!-- triage-open-issues: 2026-09-21T06:31:25Z -->
 
 Entry point for `docs/plans/`. One line per item; the detail lives in the linked subplan. Finished items and finished plans are deleted, never left ticked (steer 2026-09-14) — git history is the record (a plan whose rationale or status table still has reference value is promoted into `docs/` instead). Issue-specific plans live in [`open-issues/`](./open-issues/) and are deleted once implemented.
@@ -139,6 +139,7 @@ Shared files: `RunwaySafetyAdvisor.cs`, yaat-server `LiveTraffic/`, `docs/plans/
 
 - [ ] Live-traffic follow-ups from the 2026-08-31 aviation review: (a) gate `RunwaySafetyAdvisor.WarnIfTrafficOnFinal` / `WarnIfLiveTrafficOnRunway` on a coasting shadow (7110.65 §5-13-7); (b) re-verify `GroundAcceleration` against the coast semantics the receipt-recency fix introduced (the other two behaviours it un-deadened — shadow-vs-simulated conflict alerts, the assume coast note — got tests in that fix, `57a1b5b0`; `GroundAcceleration_IsUnknown_WithTooFewSamples_OrWhileCoasting` predates it); (c) surface per-track observation age to the instructor
 - [ ] Design the ASDE-X identity-override rule (override identity, never the track key) — yaat-server `live-traffic-swim/08-remaining-work.md` §5
+- [ ] Live-session filter follow-ups deferred by yaat-server `live-traffic-swim/10-live-session-filters.md` (re-added 2026-09-22; the pointer promised them here): (a) three-state rules on the shadow's datablock/assume path; (b) CA gated to the facility volume (`ConflictAlertDetector.IsPairEligible` has no volume gate); (c) SFDPS flight-rules enum audit
 
 ### Wave 10 — Docs and repo hygiene
 
