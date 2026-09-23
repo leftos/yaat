@@ -44,15 +44,39 @@ public static class GroundCommandHandler
         TaxiCommand taxi,
         AirportGroundLayout? groundLayout,
         bool autoCrossRunway = false
-    ) => TryTaxiCore(aircraft, taxi, groundLayout, autoCrossRunway, allowRemoteRunwayAutoRoute: false);
+    ) => TryTaxi(aircraft, taxi, groundLayout, autoCrossRunway, listAircraft: null);
 
-    private static CommandResult TryTaxiCore(
+    /// <summary>
+    /// A <c>TAXI</c> dispatched with the world's aircraft in view: a spot line-up from the ramp
+    /// (<see cref="RampLaneReposition.TryPlanSpotLineUp"/>) is planned clear of every other aircraft on the ground.
+    /// </summary>
+    internal static CommandResult TryTaxi(
         AircraftState aircraft,
         TaxiCommand taxi,
         AirportGroundLayout? groundLayout,
         bool autoCrossRunway,
-        bool allowRemoteRunwayAutoRoute
-    )
+        Func<IReadOnlyList<AircraftState>>? listAircraft
+    ) => TryTaxiCore(aircraft, taxi, groundLayout, new TaxiCoreOptions(autoCrossRunway, AllowRemoteRunwayAutoRoute: false, listAircraft));
+
+    /// <summary>The dispatch-level switches a TAXI or TAXIAUTO resolves under.</summary>
+    /// <param name="AutoCrossRunway">The scenario pre-clears runway crossings.</param>
+    /// <param name="AllowRemoteRunwayAutoRoute">A bare runway destination may be auto-routed from afar (TAXIAUTO).</param>
+    /// <param name="ListAircraft">Every aircraft in the world, or null when the caller has no world.</param>
+    private sealed record TaxiCoreOptions(bool AutoCrossRunway, bool AllowRemoteRunwayAutoRoute, Func<IReadOnlyList<AircraftState>>? ListAircraft);
+
+    /// <summary>What <see cref="ApplySpotLineUp"/> needs beyond the aircraft, the layout and the resolved route.</summary>
+    /// <param name="Category">The aircraft's performance category.</param>
+    /// <param name="AircraftLengthFt">Its fuselage length, feet.</param>
+    /// <param name="ClearedPath">The taxiways the clearance named, as the controller worded it.</param>
+    /// <param name="ListAircraft">Every aircraft in the world, or null when the caller has no world.</param>
+    private sealed record SpotLineUpInputs(
+        AircraftCategory Category,
+        double AircraftLengthFt,
+        IReadOnlyList<string> ClearedPath,
+        Func<IReadOnlyList<AircraftState>>? ListAircraft
+    );
+
+    private static CommandResult TryTaxiCore(AircraftState aircraft, TaxiCommand taxi, AirportGroundLayout? groundLayout, TaxiCoreOptions options)
     {
         if (!aircraft.IsOnGround)
         {
@@ -221,7 +245,7 @@ public static class GroundCommandHandler
                 );
                 // TAXIAUTO at the bar has nothing to route either — the full-length auto-route would
                 // otherwise return an empty fallback with no destination hold-short to hold at.
-                if (!allowRemoteRunwayAutoRoute || (adjacent is { Segments.Count: 0 }))
+                if (!options.AllowRemoteRunwayAutoRoute || (adjacent is { Segments.Count: 0 }))
                 {
                     routeFailure = adjacent is null ? DestinationFailure(adjacentReason ?? $"No route to runway {command.DestinationRunway}") : null;
                     return adjacent;
@@ -286,6 +310,8 @@ public static class GroundCommandHandler
         // and taxis the clearance as issued — from a gate or mid-lane. Only for sibling numbered lanes over
         // open apron; see RampLaneReposition.
         GroundNode? destinationNode = FindTaxiDestinationNode(groundLayout, taxi);
+        double aircraftLengthFt =
+            FaaAircraftDatabase.Get(aircraft.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraft.AircraftType);
         if (route is null && failure is not null && !AirportGroundLayout.HasRunwayCenterlineEdge(startNode))
         {
             RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(
@@ -339,8 +365,7 @@ public static class GroundCommandHandler
                         StartHeadingTrue = startHeadingTrueDeg,
                     },
                     Category = category,
-                    AircraftLengthFt =
-                        FaaAircraftDatabase.Get(aircraft.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraft.AircraftType),
+                    AircraftLengthFt = aircraftLengthFt,
                 }
             );
             if (cut is not null)
@@ -404,13 +429,19 @@ public static class GroundCommandHandler
             return new CommandResult(false, $"Cannot resolve taxi route: {pathStr}");
         }
 
+        route = ApplySpotLineUp(
+            aircraft,
+            groundLayout,
+            route,
+            destinationNode,
+            new SpotLineUpInputs(category, aircraftLengthFt, asCleared.Path, options.ListAircraft)
+        );
+
         // The resolver starts from the nearest graph node, which after a pushback onto open apron can be a
         // hundred feet from the aircraft. Drive it there rather than letting the navigator snap onto segment 0.
         route = TaxiApproachLeg.Prepend(groundLayout, aircraft.Position, aircraft.TrueHeading, route);
 
         // Compute dynamic hold-short positions based on aircraft fuselage length
-        double aircraftLengthFt =
-            FaaAircraftDatabase.Get(aircraft.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraft.AircraftType);
         HoldShortAnnotator.ComputeHoldShortPositions(groundLayout, route, aircraftLengthFt);
 
         string hsDetails = string.Join(", ", route.HoldShortPoints.Select(h => $"{h.TargetName}@{h.NodeId}({h.Reason})"));
@@ -474,7 +505,7 @@ public static class GroundCommandHandler
             }
         }
 
-        TaxiRouteAutoCross.Apply(route, autoCrossRunway);
+        TaxiRouteAutoCross.Apply(route, options.AutoCrossRunway);
 
         // Pre-clear specific runway crossings from CROSS keywords in the TAXI command
         if (taxi.CrossRunways is { Count: > 0 })
@@ -942,6 +973,56 @@ public static class GroundCommandHandler
     }
 
     /// <summary>
+    /// A spot cleared from the ramp is a line-up to leave it (#456): the aircraft comes up the spot's lane from the
+    /// ramp side and stops facing the movement-area taxiway the lane joins, rather than arriving from that taxiway.
+    /// Only a spot destination and an aircraft that starts off the movement area qualify — at its stand (the one
+    /// phase the geometry cannot see) or by where it stands (<see cref="RampLaneReposition.StartsOffMovementArea"/>);
+    /// the plan itself decides the rest and hands the resolved route back when it declines.
+    /// </summary>
+    /// <param name="aircraft">The aircraft cleared.</param>
+    /// <param name="layout">The airport it is on.</param>
+    /// <param name="route">The route the clearance resolved to.</param>
+    /// <param name="destination">The clearance's destination node, if any.</param>
+    /// <param name="inputs">Its category, length, the clearance as worded, and the world's aircraft.</param>
+    /// <returns>The line-up route, or <paramref name="route"/>.</returns>
+    private static TaxiRoute ApplySpotLineUp(
+        AircraftState aircraft,
+        AirportGroundLayout layout,
+        TaxiRoute route,
+        GroundNode? destination,
+        SpotLineUpInputs inputs
+    )
+    {
+        if (
+            (destination is not { Type: GroundNodeType.Spot })
+            || !RampLaneReposition.StartsOffMovementArea(
+                layout,
+                aircraft.Position,
+                aircraft.Phases?.CurrentPhase is AtParkingPhase,
+                aircraft.AircraftType
+            )
+        )
+        {
+            return route;
+        }
+
+        IEnumerable<AircraftState> others = inputs.ListAircraft?.Invoke() ?? [];
+        var request = new SpotLineUpRequest
+        {
+            Callsign = aircraft.Callsign,
+            AircraftType = aircraft.AircraftType,
+            Position = aircraft.Position,
+            Route = route,
+            Spot = destination,
+            Category = inputs.Category,
+            AircraftLengthFt = inputs.AircraftLengthFt,
+            ClearedTaxiways = inputs.ClearedPath,
+            OtherGroundAircraft = [.. others.Where(a => a.IsOnGround).Select(TugNeighbourCandidate.From)],
+        };
+        return RampLaneReposition.TryPlanSpotLineUp(layout, request) ?? route;
+    }
+
+    /// <summary>
     /// TAXIAUTO &lt;RWY&gt; or TAXIAUTO @&lt;PARKING&gt; — delegates to <see cref="TryTaxi"/>
     /// with an empty taxiway path so the standard pipeline's existing A* route resolvers
     /// (<see cref="ResolveRunwayRouteByAStar"/> / <see cref="ResolveParkingRoute"/>) discover
@@ -953,6 +1034,18 @@ public static class GroundCommandHandler
         TaxiAutoCommand autoTaxi,
         AirportGroundLayout? groundLayout,
         bool autoCrossRunway = false
+    ) => TryTaxiAuto(aircraft, autoTaxi, groundLayout, autoCrossRunway, listAircraft: null);
+
+    /// <summary>
+    /// A <c>TAXIAUTO</c> dispatched with the world's aircraft in view, as the matching
+    /// <see cref="TryTaxi(AircraftState, TaxiCommand, AirportGroundLayout?, bool, Func{IReadOnlyList{AircraftState}}?)"/>.
+    /// </summary>
+    internal static CommandResult TryTaxiAuto(
+        AircraftState aircraft,
+        TaxiAutoCommand autoTaxi,
+        AirportGroundLayout? groundLayout,
+        bool autoCrossRunway,
+        Func<IReadOnlyList<AircraftState>>? listAircraft
     )
     {
         if (autoTaxi.DestinationRunway is null && autoTaxi.DestinationParking is null && autoTaxi.DestinationSpot is null)
@@ -976,7 +1069,7 @@ public static class GroundCommandHandler
             DestinationSpot: autoTaxi.DestinationSpot
         );
 
-        return TryTaxiCore(aircraft, taxi, groundLayout, autoCrossRunway, allowRemoteRunwayAutoRoute: true);
+        return TryTaxiCore(aircraft, taxi, groundLayout, new TaxiCoreOptions(autoCrossRunway, AllowRemoteRunwayAutoRoute: true, listAircraft));
     }
 
     /// <summary>

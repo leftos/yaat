@@ -24,6 +24,12 @@ public static class TaxiApproachLeg
     private const double MaxOffRouteBearingDeg = 90.0;
 
     /// <summary>
+    /// Cross-track over remaining along-track: up to this ratio the line is intercepted at atan(0.5) ≈ 27°, so
+    /// pure pursuit closes onto it before the segment ends.
+    /// </summary>
+    private const double MaxOffLineRatio = 0.5;
+
+    /// <summary>
     /// How close (deg) the aircraft's own heading must be to the runway centerline it is standing on — in
     /// either direction of that edge — for the drive to count as a roll along the runway rather than a move
     /// across the pavement beside it.
@@ -47,9 +53,12 @@ public static class TaxiApproachLeg
     /// one sits half a fuselage behind the bar node, and driving up to the node would put its nose past the
     /// holding-position marking (AIM 2-3-5.a.1); <see cref="Phases.Ground.TaxiingPhase"/> also needs the real
     /// node id to hold at the bar;</item>
-    /// <item>the node lies within <see cref="MaxOffRouteBearingDeg"/> of the route's own departure bearing — a node
-    /// behind the aircraft with the route continuing ahead means it has already driven past the start, and pure
-    /// pursuit converges onto the line from where it is;</item>
+    /// <item>the node lies within <see cref="MaxOffRouteBearingDeg"/> of the route's own departure bearing, or the
+    /// aircraft sits close enough to the first segment's own line for pure pursuit to converge onto it —
+    /// <see cref="MaxOffLineRatio"/> of the segment's length still ahead of the aircraft. A node behind the aircraft
+    /// with the route continuing ahead means it has already driven past the start, and pure pursuit converges onto
+    /// the line from where it is — but only while the line is within reach: an aircraft stopped well abeam a short
+    /// lane's start cannot close the cross-track inside that segment, so the leg is prepended and driven instead;</item>
     /// <item>the drive is short enough (<see cref="RampLaneReposition.MaxCrossingFt"/>) and crosses no runway
     /// centerline — a free-space leg follows no painted line and is not obstacle-aware. A roll ALONG the
     /// runway the aircraft is ON (<see cref="AlongRunwayBoundFt"/>) is the exception: it is bounded by that
@@ -86,6 +95,8 @@ public static class TaxiApproachLeg
             MandatoryConnectorCount = route.MandatoryConnectorCount,
             DestinationParking = route.DestinationParking,
             DestinationSpot = route.DestinationSpot,
+            // The leg is one more segment ahead of the spot line-up's pull.
+            SpotLineUpPullFromSegment = route.SpotLineUpPullFromSegment + 1,
         };
     }
 
@@ -102,10 +113,9 @@ public static class TaxiApproachLeg
             return "the route starts at a holding position";
         }
 
-        double offRouteDeg = GeoMath.AbsBearingDifference(GeoMath.BearingTo(position, from.Position), route.Segments[0].Edge.DepartureBearing);
-        if (offRouteDeg > MaxOffRouteBearingDeg)
+        if (PastStartRefusal(position, route, from) is { } pastStart)
         {
-            return $"the node is {offRouteDeg:F0}° off the route's departure bearing — the aircraft is past it";
+            return pastStart;
         }
 
         if (AlongRunwayBoundFt(layout, position, heading, from) is { } runwayLengthFt)
@@ -119,6 +129,45 @@ public static class TaxiApproachLeg
         }
 
         return layout.RunwayCenterlineBetween(position, from.Position) ? "a runway centerline lies between" : null;
+    }
+
+    /// <summary>
+    /// The refusal for an aircraft that has already driven past the route's start node, or null when it has not.
+    /// A node more than <see cref="MaxOffRouteBearingDeg"/> off the route's departure bearing is behind the
+    /// aircraft; it is refused as "past it" while the aircraft is beyond the first segment's end, or close enough
+    /// to the segment's line — within <see cref="MaxOffLineRatio"/> of the length still ahead of it — for pure
+    /// pursuit to converge onto it. Further abeam than that, the leg is driven instead.
+    /// </summary>
+    /// <param name="position">Where the aircraft stands.</param>
+    /// <param name="route">The resolved graph route.</param>
+    /// <param name="from">The route's start node.</param>
+    /// <returns>The refusal, or null.</returns>
+    private static string? PastStartRefusal(LatLon position, TaxiRoute route, GroundNode from)
+    {
+        double departureBearingDeg = route.Segments[0].Edge.DepartureBearing;
+        double offRouteDeg = GeoMath.AbsBearingDifference(GeoMath.BearingTo(position, from.Position), departureBearingDeg);
+        if (offRouteDeg <= MaxOffRouteBearingDeg)
+        {
+            return null;
+        }
+
+        var departureHeading = new TrueHeading(departureBearingDeg);
+        double crossTrackFt = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(position, from.Position, departureHeading)) * GeoMath.FeetPerNm;
+        double alongTrackFt = GeoMath.AlongTrackDistanceNm(position, from.Position, departureHeading) * GeoMath.FeetPerNm;
+        double remainingAlongFt = (route.Segments[0].Edge.DistanceNm * GeoMath.FeetPerNm) - alongTrackFt;
+        if (remainingAlongFt <= 0.0)
+        {
+            return $"the node is {offRouteDeg:F0}° off the route's departure bearing — the aircraft is past it, "
+                + $"{-remainingAlongFt:F0} ft beyond the first segment's end";
+        }
+
+        if (crossTrackFt <= (MaxOffLineRatio * remainingAlongFt))
+        {
+            return $"the node is {offRouteDeg:F0}° off the route's departure bearing — the aircraft is past it, "
+                + $"{crossTrackFt:F0} ft abeam the line with {remainingAlongFt:F0} ft of the first segment left";
+        }
+
+        return null;
     }
 
     /// <summary>

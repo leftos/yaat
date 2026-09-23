@@ -122,6 +122,8 @@ Shared files: `SimulationEngine.Strips.cs`, `StripMutations.cs`, `AirTaxiPhase.c
 
 ### Wave 8 — Client UI cleanup
 
+- [ ] The Ground View's route overlay re-plans a spot line-up (#456) from the aircraft's nearest node on every refresh, so partway across the apron or early on the run-in it draws a different join or a leg back out, until the aircraft reaches the lane (user pick 2026-09-23: backlog). The ramp cuts have the same limitation mid-cut. Fix: carry the line-up's approach point and join in the aircraft update so `GroundViewModel.ResolveRemainingRoute` draws the server's remaining line-up instead of re-planning; red cases were `SpotLineUp_PartwayAlongTheRunIn_DrawsNoLegBackOut` at 0.15/0.3 and an apron-crossing case at 0.3/0.6 of the crossing (`GroundViewModelApproachLegOverlayTests`)
+
 - [ ] **Ctrl shows the nearest node in the Ground View** (user 2026-09-23): while Ctrl is held the cursor snaps to the nearest graph node of any type and labels it with its node id (the `#node` that `PUSH #<id>` / `PUSHM` take). Not Alt: Alt+left-drag stays the distance ruler, unchanged (user decision). Ctrl because the Ground View uses no Ctrl gesture and the Radar View's Ctrl+hover already shows the MVA tooltip, the same "hold to inspect" idiom. Waits for the #456 worktree to land (both touch `GroundViewModel.cs`)
 
 Shared files: `UserPreferences.cs`, `RadarDatablockLayout.cs`, `GroundViewModel.cs`, `RadarViewModel.cs`, `SettingsWindow.axaml.cs`, `NavRouteOverlayProjector.cs`. Gate: `csharp-reviewer`.

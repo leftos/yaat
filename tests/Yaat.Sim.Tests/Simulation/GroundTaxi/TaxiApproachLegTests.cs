@@ -264,6 +264,81 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         Assert.Same(route, result);
     }
 
+    /// <summary>
+    /// An aircraft that has rolled beyond the end of the route's first segment, on its line, has driven past the
+    /// start node and is not sent back to it — there is no length of that segment left to be abeam of.
+    /// </summary>
+    [Fact]
+    public void BeyondTheFirstSegmentsEnd_AddsNoLeg()
+    {
+        AirportGroundLayout? layout = LoadOakLayout();
+        if (layout is null)
+        {
+            return;
+        }
+
+        Assert.True(layout.Nodes.TryGetValue(StraightFromNodeId, out GroundNode? from), $"node {StraightFromNodeId} missing from the OAK layout");
+        Assert.True(layout.Nodes.TryGetValue(StraightToNodeId, out GroundNode? to), $"node {StraightToNodeId} missing from the OAK layout");
+
+        IGroundEdge? alongEdge = from.Edges.FirstOrDefault(e => e.OtherNode(from).Id == StraightToNodeId);
+        Assert.NotNull(alongEdge);
+
+        double alongBearing = GeoMath.BearingTo(from.Position, to.Position);
+        LatLon position = Project(to.Position, alongBearing, PastNodeStandoffFt);
+        output.WriteLine($"aircraft {PastNodeStandoffFt:F0} ft beyond node {StraightToNodeId}, the end of the segment from {StraightFromNodeId}");
+
+        var route = new TaxiRoute
+        {
+            Segments = [new TaxiRouteSegment { TaxiwayName = alongEdge.TaxiwayName, Edge = alongEdge.Directed(from, to) }],
+            HoldShortPoints = [],
+        };
+
+        TaxiRoute result = TaxiApproachLeg.Prepend(layout, position, new TrueHeading(alongBearing), route);
+
+        Assert.Same(route, result);
+    }
+
+    /// <summary>
+    /// An aircraft past the start node but far abeam the first segment's line — more cross-track than half the length
+    /// still ahead of it — cannot close onto the line inside that segment, so the leg is prepended and driven.
+    /// </summary>
+    [Fact]
+    public void PastTheStartNodeButFarOffTheLine_PrependsTheLeg()
+    {
+        AirportGroundLayout? layout = LoadOakLayout();
+        if (layout is null)
+        {
+            return;
+        }
+
+        Assert.True(layout.Nodes.TryGetValue(StraightFromNodeId, out GroundNode? from), $"node {StraightFromNodeId} missing from the OAK layout");
+        Assert.True(layout.Nodes.TryGetValue(StraightToNodeId, out GroundNode? to), $"node {StraightToNodeId} missing from the OAK layout");
+        IGroundEdge? alongEdge = from.Edges.FirstOrDefault(e => e.OtherNode(from).Id == StraightToNodeId);
+        Assert.NotNull(alongEdge);
+
+        double alongBearing = GeoMath.BearingTo(from.Position, to.Position);
+        double remainingFt = (alongEdge.DistanceNm * GeoMath.FeetPerNm) - PastNodeStandoffFt;
+        double abeamFt = remainingFt * 0.75;
+        LatLon position = Project(Project(from.Position, alongBearing, PastNodeStandoffFt), (alongBearing + 90.0) % 360.0, abeamFt);
+        output.WriteLine(
+            $"aircraft {PastNodeStandoffFt:F0} ft past node {StraightFromNodeId}, {abeamFt:F0} ft abeam with {remainingFt:F0} ft of the segment left"
+        );
+
+        var route = new TaxiRoute
+        {
+            Segments = [new TaxiRouteSegment { TaxiwayName = alongEdge.TaxiwayName, Edge = alongEdge.Directed(from, to) }],
+            HoldShortPoints = [],
+            SpotLineUpPullFromSegment = 0,
+        };
+
+        TaxiRoute result = TaxiApproachLeg.Prepend(layout, position, new TrueHeading(alongBearing), route);
+
+        Assert.NotSame(route, result);
+        Assert.True(result.Segments[0].FromNodeId < 0, "the first segment is not the free-space leg from the aircraft");
+        Assert.Equal(StraightFromNodeId, result.Segments[0].ToNodeId);
+        Assert.Equal(1, result.SpotLineUpPullFromSegment);
+    }
+
     /// <summary>Node 1144 — the from-node of OAK taxiway G's 28R exit fillet, on the runway centerline.</summary>
     private const int RunwayExitNodeId = 1144;
 

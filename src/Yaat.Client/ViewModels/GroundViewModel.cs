@@ -1517,17 +1517,27 @@ public partial class GroundViewModel : ObservableObject
             options,
             category
         );
+        // The server replaces a route that reaches the stand only the long way round (SFO $5A: down T5, out to Alpha,
+        // back up T5A) with a straight drive across the apron, so the overlay has to make the same substitution or it
+        // draws a detour the aircraft is not flying.
+        RampLaneDestinationCutPlan? improved =
+            (route is not null) && (destination is not null) ? RampLaneReposition.TryPlanResolvedRouteCut(_domainLayout, route, destination) : null;
+
+        // The server lines a spot cleared from the ramp up to leave it before anything else looks at the route's
+        // shape, and a line-up's resolved route typically starts back up the lane behind the aircraft — so it comes
+        // ahead of the reversal check, exactly as the server applies it.
+        if (
+            (route is not null)
+            && (destination is not null)
+            && (TryClientSpotLineUp(ac, improved?.Route ?? route, destination, ParseRouteTaxiways(ac.TaxiRoute), category) is { } lineUp)
+        )
+        {
+            return lineUp;
+        }
+
         if ((route is not null) && !StartsWithReversal(route, ac.Heading))
         {
-            // The server replaces a route that reaches the stand only the long way round (SFO $5A: down T5, out to
-            // Alpha, back up T5A) with a straight drive across the apron, so the overlay has to make the same
-            // substitution or it draws a detour the aircraft is not flying.
-            if ((destination is not null) && (RampLaneReposition.TryPlanResolvedRouteCut(_domainLayout, route, destination) is { } improved))
-            {
-                return WithApproachLeg(improved.Route, ac.Position, ac.Heading);
-            }
-
-            return WithApproachLeg(route, ac.Position, ac.Heading);
+            return WithApproachLeg(improved?.Route ?? route, ac.Position, ac.Heading);
         }
 
         // While the pilot cuts across a ramp onto a parallel lane the map does not connect (SFO M3 → M4),
@@ -1576,6 +1586,51 @@ public partial class GroundViewModel : ObservableObject
             }
         );
         return cut is not null ? cut.Route : WithApproachLeg(route, ac.Position, ac.Heading);
+    }
+
+    /// <summary>
+    /// The server's spot line-up (<see cref="RampLaneReposition.TryPlanSpotLineUp"/>) rebuilt from what the client
+    /// knows: the same start rule (at its stand — the "At Parking" phase — or off the movement area where it stands),
+    /// the clearance's taxiways as broadcast, and every other aircraft on the ground the server's world holds. Null
+    /// when the destination is not a spot, the aircraft starts on the movement area, or the plan declines.
+    /// </summary>
+    /// <param name="ac">The aircraft whose route is drawn.</param>
+    /// <param name="route">The route rebuilt from its broadcast taxiways.</param>
+    /// <param name="destination">Its taxi destination.</param>
+    /// <param name="clearedTaxiways">The broadcast taxiway sequence.</param>
+    /// <param name="category">Its performance category.</param>
+    /// <returns>The line-up route, or null.</returns>
+    private TaxiRoute? TryClientSpotLineUp(
+        AircraftModel ac,
+        TaxiRoute route,
+        GroundNode destination,
+        IReadOnlyList<string> clearedTaxiways,
+        AircraftCategory category
+    )
+    {
+        if (
+            (_domainLayout is null)
+            || (destination.Type != GroundNodeType.Spot)
+            || !RampLaneReposition.StartsOffMovementArea(_domainLayout, ac.Position, ac.CurrentPhase == "At Parking", ac.AircraftType)
+        )
+        {
+            return null;
+        }
+
+        IReadOnlyList<AircraftModel> all = _aircraftProvider?.Invoke() ?? [];
+        var request = new SpotLineUpRequest
+        {
+            Callsign = ac.Callsign,
+            AircraftType = ac.AircraftType,
+            Position = ac.Position,
+            Route = route,
+            Spot = destination,
+            Category = category,
+            AircraftLengthFt = FaaAircraftDatabase.Get(ac.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(ac.AircraftType),
+            ClearedTaxiways = clearedTaxiways,
+            OtherGroundAircraft = [.. all.Where(other => !other.IsDelayed && other.IsOnGround).Select(TugCandidateOf)],
+        };
+        return RampLaneReposition.TryPlanSpotLineUp(_domainLayout, request);
     }
 
     /// <summary>

@@ -17,6 +17,7 @@
 - The terminal's filter box is wide enough to show a full airline callsign.
 
 ### Fixed
+- `TAXI` to a spot from the ramp lines the aircraft up on the spot facing out of the ramp, turning onto the spot's lane just short of it.
 - The Ground view's push route draws the planned tow from the first point clicked, and a single point sends as a plain `PUSH`.
 - `PUSH <taxiway> <facing taxiway>` no longer refuses for swinging across the facing taxiway where the aircraft lines up, as SFO `PUSH A F1` from D7 did.
 - An aircraft holding short of a taxiway stops far enough back to clear the wingtips of traffic crossing on it, instead of blocking it.

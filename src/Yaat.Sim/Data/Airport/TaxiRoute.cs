@@ -26,6 +26,13 @@ public sealed class TaxiRoute
     /// <summary>Spot destination name ($ prefix), if any.</summary>
     public string? DestinationSpot { get; init; }
 
+    /// <summary>
+    /// For a spot line-up (<see cref="RampLaneReposition.TryPlanSpotLineUp"/>), the index of the first segment on the
+    /// spot's lane: from there the taxi holds the slow pull speed up the lane onto the spot
+    /// (<see cref="Phases.Ground.TaxiingPhase.SpotLineUpPullSpeedKts"/>). Null on every other route.
+    /// </summary>
+    public int? SpotLineUpPullFromSegment { get; init; }
+
     public double TotalDistanceNm => Segments.Sum(s => s.Edge.DistanceNm);
 
     /// <summary>The whole route's length in feet — the unit every ground-distance rule in the taxi stack is written in.</summary>
@@ -131,7 +138,8 @@ public sealed class TaxiRoute
 
     /// <summary>
     /// Returns a shallow copy of this route truncated to end at the segment whose
-    /// ToNodeId matches <paramref name="nodeId"/>. If the node is not found, returns this route.
+    /// ToNodeId matches <paramref name="nodeId"/>. If the node is not found, returns this route. A spot line-up's
+    /// pull (<see cref="SpotLineUpPullFromSegment"/>) survives when its first segment is kept.
     /// </summary>
     public TaxiRoute TruncateAt(int nodeId)
     {
@@ -144,6 +152,7 @@ public sealed class TaxiRoute
                     Segments = [.. Segments.Take(i + 1)],
                     HoldShortPoints = [.. HoldShortPoints.Where(hs => Segments.Take(i + 1).Any(s => s.ToNodeId == hs.NodeId))],
                     Warnings = Warnings,
+                    SpotLineUpPullFromSegment = SpotLineUpPullFromSegment <= i ? SpotLineUpPullFromSegment : null,
                 };
             }
         }
@@ -372,6 +381,7 @@ public sealed class TaxiRoute
             Description = ToSummary(),
             DestinationParking = DestinationParking,
             DestinationSpot = DestinationSpot,
+            SpotLineUpPullFromSegment = SpotLineUpPullFromSegment,
         };
 
     /// <summary>
@@ -459,6 +469,7 @@ public sealed class TaxiRoute
             CurrentSegmentIndex = dto.CurrentSegmentIndex,
             DestinationParking = dto.DestinationParking,
             DestinationSpot = dto.DestinationSpot,
+            SpotLineUpPullFromSegment = dto.SpotLineUpPullFromSegment,
         };
     }
 }

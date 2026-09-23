@@ -32,6 +32,13 @@ public sealed class TaxiingPhase : Phase
     // nose-at-spot terminal stop lands cleanly instead of braking abruptly from taxi speed.
     private const double SpotApproachSpeedKts = 4.0;
 
+    /// <summary>
+    /// The pull up the lane onto the spot at the end of a spot line-up (#456): from the start of the lined-up straight
+    /// (<see cref="TaxiRoute.SpotLineUpPullFromSegment"/>) the taxi is held to this until the spot-approach crawl takes
+    /// over, so the aircraft rolls out of its quarter turn and creeps up to the marking instead of accelerating.
+    /// </summary>
+    public const double SpotLineUpPullSpeedKts = 5.0;
+
     // How close to the route's start node the aircraft must be for a hold-short there to take the
     // stop. Well inside the hold-short standoff (>=125 ft from centerline), so honouring it can
     // never place the aircraft on the runway.
@@ -138,6 +145,12 @@ public sealed class TaxiingPhase : Phase
         _nav.MaxSpeedKts =
             ctx.Aircraft.Ground.CommandedTaxiSpeedKts
             ?? (ctx.Aircraft.Ground.IsExpeditingTaxi ? baseTaxiSpeed * CategoryPerformance.TaxiExpediteMultiplier : baseTaxiSpeed);
+
+        // A spot line-up pulls up its lane onto the spot slowly; the spot-approach crawl below still takes over.
+        if ((route.SpotLineUpPullFromSegment is { } pullFrom) && (route.CurrentSegmentIndex >= pullFrom))
+        {
+            _nav.MaxSpeedKts = Math.Min(_nav.MaxSpeedKts, SpotLineUpPullSpeedKts);
+        }
 
         // A takeoff clearance can arrive mid-segment, after the speed profile for the segment in progress was
         // built with a stop at the bar. Re-plan the profile then and there, or the aircraft brakes for a bar it

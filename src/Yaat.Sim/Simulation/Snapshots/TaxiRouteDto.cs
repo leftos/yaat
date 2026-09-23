@@ -16,6 +16,12 @@ public sealed class TaxiRouteDto
     public int? DestinationNodeId { get; init; }
     public string? DestinationParking { get; init; }
     public string? DestinationSpot { get; init; }
+
+    /// <summary>
+    /// The first segment of a spot line-up's slow pull up the lane (<c>TaxiRoute.SpotLineUpPullFromSegment</c>).
+    /// Null on every other route and on older snapshots, which never held a line-up — additive, no schema bump.
+    /// </summary>
+    public int? SpotLineUpPullFromSegment { get; init; }
 }
 
 public sealed class TaxiSegmentDto

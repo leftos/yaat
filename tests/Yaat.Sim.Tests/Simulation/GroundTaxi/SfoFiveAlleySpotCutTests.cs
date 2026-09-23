@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -11,13 +12,18 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// it — the graph joins them only out at the T5 / Alpha junction. <c>TAXI $5A</c> from gate D2 used to be
 /// honoured by leaving the painted line at spot 5 and driving the 71 ft straight across to spot 5A, which left
 /// the aircraft stopped on the marking at the crossing's own heading — 45° across a lane that runs 118 / 298.
-/// A spot is entered along the lane it sits on, so the clearance takes the alley's 998 ft route out to Alpha
-/// and back up T5A instead, and the apron cut is not offered for a spot destination.
+/// A spot is entered along the lane it sits on, and a spot cleared from the ramp is a line-up to leave it (#456):
+/// the aircraft drives across the apron to T5A on the ramp side of the spot, turns onto the lane and pulls up it
+/// onto 5A facing Alpha. It never goes out onto Alpha — which the clearance does not name — to turn back in, as
+/// the alley's 998 ft graph route did, and no apron cut ends on the spot marking itself.
 /// </summary>
 public class SfoFiveAlleySpotCutTests
 {
-    /// <summary>The lane route down T5, out to Alpha and back up T5A measures 998 ft; the bound is a drift guard.</summary>
+    /// <summary>The graph route down T5, out to Alpha and back up T5A measured 998 ft; the bound is a drift guard.</summary>
     private const double MaxRouteFt = 1200.0;
+
+    /// <summary>How far the arrival and the resting heading may sit off the lane toward Alpha.</summary>
+    private const double FacingToleranceDeg = 15.0;
 
     private readonly ITestOutputHelper _output;
 
@@ -29,8 +35,8 @@ public class SfoFiveAlleySpotCutTests
 
     private static bool OnTaxiway(GroundNode node, string twy) => node.Edges.Any(e => e.MatchesTaxiway(twy));
 
-    /// <summary>The T5 / Alpha junction the detour turns around at is the only node on this route that touches Alpha.</summary>
-    private static bool TouchesAlpha(TaxiRouteSegment seg) => OnTaxiway(seg.Edge.FromNode, "A") || OnTaxiway(seg.Edge.ToNode, "A");
+    /// <summary>The segment runs on taxiway Alpha — a straight edge of it or a junction arc that carries its name.</summary>
+    private static bool OnAlpha(TaxiRouteSegment seg) => seg.Edge.Edge.MatchesTaxiway("A");
 
     /// <summary>
     /// Every node of the uncut graph route with how far along it lies, how far the stand is from it, and what a cut
@@ -62,7 +68,7 @@ public class SfoFiveAlleySpotCutTests
     }
 
     [Fact]
-    public void GateD2_TaxiToSpot5A_ArrivesUpT5AInsteadOfCuttingAcrossTheAlley()
+    public void GateD2_TaxiToSpot5A_LinesUpOnT5AFacingAlpha()
     {
         SfoGround? built = SfoGroundHarness.Build(_output, autoCross: false);
         if (built is null)
@@ -93,10 +99,21 @@ public class SfoFiveAlleySpotCutTests
         Assert.Equal("5A", route.DestinationSpot);
         Assert.Equal(spot5A.Id, route.Segments[^1].ToNodeId);
 
-        // The lanes meet only at Alpha, so honouring the spot's own lane means going round by it.
-        Assert.Contains(route.Segments, TouchesAlpha);
+        // A line-up from the gate stays on the ramp: nothing on Alpha, which the clearance does not name.
+        Assert.DoesNotContain(route.Segments, OnAlpha);
+
+        GroundNode alphaJunction = ground.Layout.FindIntersectionNode("A", "T5A") ?? throw new InvalidOperationException("no A / T5A junction");
+        double towardAlphaDeg = GeoMath.BearingTo(spot5A.Position, alphaJunction.Position);
+        double exitDeg = spot5A
+            .Edges.Where(e => (e is GroundEdge) && e.MatchesTaxiway("T5A"))
+            .Select(e => GeoMath.BearingTo(spot5A.Position, e.OtherNode(spot5A).Position))
+            .MinBy(b => GeoMath.AbsBearingDifference(b, towardAlphaDeg));
 
         TaxiRouteSegment arrival = route.Segments[^1];
+        Assert.True(
+            GeoMath.AbsBearingDifference(arrival.Edge.ArrivalBearing, exitDeg) <= FacingToleranceDeg,
+            $"the last leg arrives at 5A travelling {arrival.Edge.ArrivalBearing:F0}, not toward Alpha ({exitDeg:F0})"
+        );
         _output.WriteLine($"arrival leg: #{arrival.FromNodeId}-#{arrival.ToNodeId}({arrival.TaxiwayName})");
         Assert.True(arrival.Edge.Edge.MatchesTaxiway("T5A"), $"the last leg arrives on {arrival.TaxiwayName}, not up spot 5A's own lane");
         // The shape the rule forbids: a free-space apron leg that ends on the spot marking, which stops the
@@ -106,5 +123,16 @@ public class SfoFiveAlleySpotCutTests
             route.TotalDistanceFt < MaxRouteFt,
             $"route is {route.TotalDistanceFt:F0} ft for a {straightFt:F0} ft move; expected under {MaxRouteFt:F0} ft"
         );
+
+        int stopped = SfoGroundHarness.TickUntil(
+            ground.Engine,
+            () => (aircraft.GroundSpeed < 1.0) && (aircraft.Phases?.CurrentPhase is HoldingInPositionPhase),
+            400,
+            null
+        );
+        Assert.True(stopped > 0, "UAL1234 never came to rest at spot 5A");
+        double offDeg = GeoMath.AbsBearingDifference(aircraft.TrueHeading.Degrees, exitDeg);
+        _output.WriteLine($"UAL1234 rests heading {aircraft.TrueHeading.Degrees:F1}, {offDeg:F1}° off T5A toward Alpha ({exitDeg:F0})");
+        Assert.True(offDeg <= FacingToleranceDeg, $"UAL1234 rests heading {aircraft.TrueHeading.Degrees:F1}, {offDeg:F1}° off T5A toward Alpha");
     }
 }
