@@ -149,6 +149,97 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         Assert.Equal("Taxi via T U W W1 RWY 30 [taxiing via T — not in the route issued]", result.Message);
     }
 
+    /// <summary>
+    /// The same pushback, with the aircraft known to be on T: following T onto U is taxiing along the taxiway it
+    /// occupies, not a deviation from the route issued, so no note names T.
+    /// </summary>
+    [Fact]
+    public void PushedOntoT_OccupyingT_NoNoteForT()
+    {
+        AirportGroundLayout? layout = LoadOakLayout();
+        if (layout is null)
+        {
+            return;
+        }
+
+        AircraftState aircraft = MakeAircraft(layout, new LatLon(PushedLat, PushedLon), PushedHeadingDeg);
+        aircraft.Ground.CurrentTaxiway = "T";
+        CommandResult result = GroundCommandHandler.TryTaxi(
+            aircraft,
+            new TaxiCommand(Path: ["U", "W"], HoldShorts: [], DestinationRunway: "30"),
+            layout
+        );
+        Assert.True(result.Success, $"TryTaxi failed: {result.Message}");
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
+        Assert.NotNull(route);
+        output.WriteLine($"result: {result.Message}");
+
+        Assert.Equal("T U W W1", route.FormatTaxiwaySequence());
+        Assert.Equal("Taxi via T U W W1 RWY 30", result.Message);
+    }
+
+    /// <summary>
+    /// The same pushback with a stale current taxiway (W, which the start node does not lie on): the aircraft is not
+    /// on the taxiway the route bridges along, so the note for T stays.
+    /// </summary>
+    [Fact]
+    public void PushedOntoT_StaleCurrentTaxiway_KeepsNoteForT()
+    {
+        AirportGroundLayout? layout = LoadOakLayout();
+        if (layout is null)
+        {
+            return;
+        }
+
+        AircraftState aircraft = MakeAircraft(layout, new LatLon(PushedLat, PushedLon), PushedHeadingDeg);
+        aircraft.Ground.CurrentTaxiway = "W";
+        CommandResult result = GroundCommandHandler.TryTaxi(
+            aircraft,
+            new TaxiCommand(Path: ["U", "W"], HoldShorts: [], DestinationRunway: "30"),
+            layout
+        );
+        Assert.True(result.Success, $"TryTaxi failed: {result.Message}");
+        output.WriteLine($"result: {result.Message}");
+
+        Assert.Equal("Taxi via T U W W1 RWY 30 [taxiing via T — not in the route issued]", result.Message);
+    }
+
+    /// <summary>An SFO aircraft on F, 40 ft short of the F/A junction (node 54, the start node), nosed 298° towards it.</summary>
+    private static readonly LatLon SfoOnFShortOfA = new(37.61906270023921, -122.38060898289163);
+
+    private const double SfoOnFShortOfAHeadingDeg = 297.9;
+
+    /// <summary>
+    /// A stale current taxiway that names the very taxiway the route bridges along: an SFO aircraft on F, cleared
+    /// <c>TAXI B</c>, bridges F → E → B, and its current taxiway still reads E although the start node does not lie on
+    /// E. It is not on E, so the note for E stays.
+    /// </summary>
+    [Fact]
+    public void BridgesAlongE_StaleCurrentTaxiwayE_KeepsNoteForE()
+    {
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        {
+            return;
+        }
+
+        AircraftState aircraft = MakeAircraft(ground.Layout, SfoOnFShortOfA, SfoOnFShortOfAHeadingDeg);
+        aircraft.Ground.CurrentTaxiway = "E";
+        GroundNode? start = ground.Layout.FindNearestNodeForTaxi(aircraft.Position, aircraft.TrueHeading);
+        Assert.NotNull(start);
+        Assert.DoesNotContain(start.Edges, e => e.MatchesTaxiway("E"));
+
+        CommandResult result = GroundCommandHandler.TryTaxi(
+            aircraft,
+            new TaxiCommand(Path: ["B"], HoldShorts: [], DestinationRunway: null),
+            ground.Layout
+        );
+        Assert.True(result.Success, $"TryTaxi failed: {result.Message}");
+        output.WriteLine($"start {start.Id}; result: {result.Message}");
+
+        Assert.Equal("F E B", aircraft.Ground.AssignedTaxiRoute?.FormatTaxiwaySequence());
+        Assert.Contains("taxiing via E — not in the route issued", result.Message);
+    }
+
     /// <summary>An aircraft standing on the start node has nothing to bridge.</summary>
     [Fact]
     public void StandingOnTheStartNode_AddsNoLeg()

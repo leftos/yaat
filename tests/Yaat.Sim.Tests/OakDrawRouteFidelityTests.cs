@@ -105,7 +105,14 @@ public class OakDrawRouteFidelityTests
 
         // What the server executes when the full node list is committed.
         var densePath = DenseNodeIds(preview).Select(id => $"#{id}").ToList();
-        TaxiRoute? resolved = TaxiPathfinder.ResolveExplicitPath(layout, a.Id, densePath, out string? fail, new ExplicitPathOptions(), cat);
+        TaxiRoute? resolved = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            a.Id,
+            densePath,
+            out string? fail,
+            new ExplicitPathOptions { OccupiedTaxiway = null },
+            cat
+        );
 
         Assert.True(resolved is not null, $"dense path failed to resolve: {fail}");
         // Faithful: the dense command visits exactly the previewed nodes — no parallel-taxiway
@@ -329,7 +336,14 @@ public class OakDrawRouteFidelityTests
                 [
                     .. TaxiRouteFormatter.BuildReadableTaxiPath(preview, hasNamedTerminus: false).Split(' ', StringSplitOptions.RemoveEmptyEntries),
                 ];
-                TaxiRoute? resolved = TaxiPathfinder.ResolveExplicitPath(layout, a.Id, path, out string? fail, new ExplicitPathOptions(), cat);
+                TaxiRoute? resolved = TaxiPathfinder.ResolveExplicitPath(
+                    layout,
+                    a.Id,
+                    path,
+                    out string? fail,
+                    new ExplicitPathOptions { OccupiedTaxiway = null },
+                    cat
+                );
                 if (resolved is null || !NodeIdSet(preview).SetEquals(NodeIdSet(resolved)))
                 {
                     broken++;
@@ -386,7 +400,7 @@ public class OakDrawRouteFidelityTests
             start.Id,
             path,
             out string? fail,
-            new ExplicitPathOptions { DestinationHintNode = parking },
+            new ExplicitPathOptions { OccupiedTaxiway = null, DestinationHintNode = parking },
             cat
         );
         Assert.True(resolved is not null, $"readable parking path failed: {fail}");

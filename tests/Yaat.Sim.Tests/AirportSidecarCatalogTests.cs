@@ -157,7 +157,7 @@ public class AirportSidecarCatalogTests
             startNode!.Id,
             route.GetPathTokens(),
             out string? failReason,
-            new ExplicitPathOptions { DestinationRunway = route.DestinationRunway },
+            new ExplicitPathOptions { OccupiedTaxiway = null, DestinationRunway = route.DestinationRunway },
             AircraftCategory.Jet
         );
 
@@ -190,7 +190,7 @@ public class AirportSidecarCatalogTests
             startNode!.Id,
             bogus.GetPathTokens(),
             out string? failReason,
-            new ExplicitPathOptions(),
+            new ExplicitPathOptions { OccupiedTaxiway = null },
             AircraftCategory.Jet
         );
 

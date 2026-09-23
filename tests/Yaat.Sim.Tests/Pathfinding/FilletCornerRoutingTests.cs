@@ -21,6 +21,15 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
     private const int OakUwJunctionCentre = 17;
     private const int OakWArcExit = 691;
 
+    /// <summary>UAL2164's stop on T after crossing 28L in the S1-SFO-2 bundle (#459), nosed south-west.</summary>
+    private const int SfoTAfter28LCrossing = 855;
+
+    private const double SfoTSouthboundHeading = 209.0;
+    private const int SfoTbArcEntry = 1394;
+
+    /// <summary>The tangent cut on B where the right-hand T/B fillet ends (spot "32" shares the node).</summary>
+    private const int SfoTbRightArcExit = 30;
+
     private static readonly RoutePreference[] AllPreferences = [RoutePreference.FewestTurns, RoutePreference.Shortest, RoutePreference.Fastest];
 
     private static AirportGroundLayout? LoadLayout(string airportId)
@@ -43,7 +52,7 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
             OakTeStart,
             ["TE", "U", "W", "W1"],
             out string? failReason,
-            new ExplicitPathOptions { DestinationRunway = "30" },
+            new ExplicitPathOptions { OccupiedTaxiway = null, DestinationRunway = "30" },
             AircraftCategory.Jet
         );
 
@@ -55,6 +64,74 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
         Assert.IsType<GroundArc>(corner.Edge.Edge);
         Assert.DoesNotContain(route.Segments, s => s.FromNodeId == OakUwJunctionCentre || s.ToNodeId == OakUwJunctionCentre);
         RouteGeometryAsserts.AssertNoSquarePivotWhereFilletExists(route, "OAK 904 TE U W W1 -> 30");
+    }
+
+    [Fact]
+    public void ExplicitTaxi_SfoTRightOntoB_TurnsOntoBOverTheFilletArc()
+    {
+        AirportGroundLayout? layout = LoadLayout("SFO");
+        if (layout is null)
+        {
+            return;
+        }
+
+        // UAL2164 after crossing 28L on T (node 855), heading 209°, cleared "TAXI >B".
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            SfoTAfter28LCrossing,
+            ["T", "B"],
+            out string? failReason,
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                PathTurnHints = [null, TurnDirection.Right],
+                StartHeadingTrue = SfoTSouthboundHeading,
+            },
+            AircraftCategory.Jet
+        );
+
+        Assert.Null(failReason);
+        Assert.NotNull(route);
+        Dump(route);
+
+        RouteGeometryAsserts.AssertNoSquarePivotWhereFilletExists(route, "SFO 855 T >B");
+        Assert.Contains(route.Segments, s => (s.Edge.Edge is GroundArc) && (s.FromNodeId == SfoTbArcEntry) && (s.ToNodeId == SfoTbRightArcExit));
+    }
+
+    [Fact]
+    public void ExplicitTaxi_SfoTLeftOntoB_TurnsOntoBOverTheFilletArc()
+    {
+        AirportGroundLayout? layout = LoadLayout("SFO");
+        if (layout is null)
+        {
+            return;
+        }
+
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            SfoTAfter28LCrossing,
+            ["T", "B"],
+            out string? failReason,
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                PathTurnHints = [null, TurnDirection.Left],
+                StartHeadingTrue = SfoTSouthboundHeading,
+            },
+            AircraftCategory.Jet
+        );
+
+        Assert.Null(failReason);
+        Assert.NotNull(route);
+        Dump(route);
+
+        RouteGeometryAsserts.AssertNoSquarePivotWhereFilletExists(route, "SFO 855 T <B");
+        TaxiRouteSegment corner = Assert.Single(route.Segments, s => s.Edge.Edge is GroundArc);
+        GroundArc arc = Assert.IsType<GroundArc>(corner.Edge.Edge);
+        Assert.Contains("T", arc.TaxiwayNames);
+        Assert.Contains("B", arc.TaxiwayNames);
+        double netTurn = GeoMath.SignedBearingDifference(corner.Edge.DepartureBearing, corner.Edge.ArrivalBearing);
+        Assert.True(netTurn < -45.0, $"T->B corner arc {corner.FromNodeId}->{corner.ToNodeId} turns {netTurn:F0}°, expected a left turn");
     }
 
     [Theory]

@@ -748,8 +748,11 @@ public static class RouteMaterialiser
         }
 
         var warned = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (TaxiRouteSegment seg in segments)
+        int bridgeEnd = OccupiedBridgeEnd(segments, ctx);
+        for (int i = 0; i < segments.Count; i++)
         {
+            TaxiRouteSegment seg = segments[i];
+
             // Junction arcs ("X - Y") are transitions between taxiways, not a traversal of one —
             // never an "unauthorized taxiway" deviation.
             if (seg.Edge.Edge is GroundArc { TaxiwayNames.Length: >= 2 })
@@ -758,6 +761,10 @@ public static class RouteMaterialiser
             }
 
             string name = seg.TaxiwayName;
+            if ((i < bridgeEnd) && name.Equals(ctx.OccupiedTaxiway, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
 
             // RAMP (apron / parking access) is never an unauthorized deviation — it is excluded by
             // IsLetterOnlyTaxiway, so the parking-bridge and arrival RAMP legs are not flagged here.
@@ -773,6 +780,23 @@ public static class RouteMaterialiser
         }
 
         return warnings;
+    }
+
+    /// <summary>
+    /// How many leading segments bridge from the start onto the first cleared taxiway: the index of the first segment
+    /// on it, or 0 when the aircraft occupies no taxiway, the path is empty, or the route never reaches it. Along those
+    /// segments the taxiway the aircraft occupies (<see cref="SearchContext.OccupiedTaxiway"/>) is not a deviation from
+    /// the route issued (THY9WC on B, cleared <c>TAXI A F</c>: B → B1 → A).
+    /// </summary>
+    private static int OccupiedBridgeEnd(List<TaxiRouteSegment> segments, SearchContext ctx)
+    {
+        if ((ctx.OccupiedTaxiway is null) || (ctx.WaypointSequence.Count == 0))
+        {
+            return 0;
+        }
+
+        string firstCleared = ctx.WaypointSequence[0];
+        return Math.Max(segments.FindIndex(s => s.Edge.Edge.MatchesTaxiway(firstCleared)), 0);
     }
 
     /// <summary>

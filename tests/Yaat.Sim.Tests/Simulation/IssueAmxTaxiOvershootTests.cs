@@ -136,6 +136,7 @@ public class IssueAmxTaxiOvershootTests(ITestOutputHelper output)
             out string? failReason,
             new ExplicitPathOptions
             {
+                OccupiedTaxiway = null,
                 DestinationRunway = "1L",
 
                 DiagnosticLog = msg => output.WriteLine(msg),

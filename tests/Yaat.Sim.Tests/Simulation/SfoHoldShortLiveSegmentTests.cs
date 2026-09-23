@@ -5,6 +5,7 @@ using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -47,6 +48,15 @@ public class SfoHoldShortLiveSegmentTests(ITestOutputHelper output)
 
     /// <summary>Session second the replayed window starts at — SKW5416 rolling west on B toward the T bar.</summary>
     private const int WindowStartSeconds = 1265;
+
+    /// <summary>
+    /// Recorded snapshot the window is restored from: after SKW5416's <c>TAXI B</c> (t=1221) and <c>TAXI B T</c>
+    /// (t=1233), so the taxi the field controller saw is the recorded one, not a re-resolution by today's router.
+    /// </summary>
+    private const int RestoreSeconds = 1260;
+
+    /// <summary>The last SKW5416 command before the window the restore must follow (<c>TAXI B T</c>).</summary>
+    private const int LastPreWindowTaxiSeconds = 1233;
 
     /// <summary>How many seconds of the window are watched for the detector's cap to engage.</summary>
     private const int WindowSeconds = 25;
@@ -175,10 +185,10 @@ public class SfoHoldShortLiveSegmentTests(ITestOutputHelper output)
 
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
-        // Pinned to the traffic, not to a distance: Replay(recording, t) re-simulates from t=0, so any sim
-        // change before the window moves a "within 300 ft at 24 kt" trigger and the case quietly stops being
-        // the one the field controller saw. So pass one measures the second SWA2644's cap engages on SKW5416,
-        // and pass two re-simulates the same window — the replay is deterministic — to issue on the second
+        // Pinned to the traffic, not to a distance: the window starts from the recorded snapshot at RestoreSeconds,
+        // but the seconds from there to the window are still re-simulated, so a sim change can move a "within 300 ft
+        // at 24 kt" trigger and the case quietly stops being the one the field controller saw. So pass one measures
+        // the second SWA2644's cap engages on SKW5416, and pass two re-simulates the same window — the replay is deterministic — to issue on the second
         // before it: the last second SKW5416 is still rolling at taxi speed, which is the moment reproduced.
         // (The cap lands inside the tick that reports it, at 5 kt, so that tick is already too late.)
         int secondsToCap = SecondsUntilDetectorCap(recording, groundData);
@@ -222,8 +232,10 @@ public class SfoHoldShortLiveSegmentTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The recorded session replayed to the start of the window, with the aircraft and the B/T junction the
-    /// case turns on. Two passes need the same starting point, and the replay gives a deterministic one.
+    /// The recorded session restored from its snapshot at <see cref="RestoreSeconds"/> and replayed to the start of
+    /// the window, with the aircraft and the B/T junction the case turns on. Restoring keeps SKW5416's recorded taxi
+    /// (re-simulating from t=0 re-resolves its earlier TAXI clearances with today's router). Two passes need the same
+    /// starting point, and the restore plus replay gives a deterministic one.
     /// </summary>
     /// <param name="recording">The session recording.</param>
     /// <param name="groundData">Ground data the engine resolves SFO from.</param>
@@ -234,7 +246,17 @@ public class SfoHoldShortLiveSegmentTests(ITestOutputHelper output)
     )
     {
         var engine = new SimulationEngine(groundData);
-        engine.Replay(recording, WindowStartSeconds);
+        engine.Replay(recording, 0);
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        Assert.NotNull(archive);
+        using (archive)
+        {
+            TimedSnapshot snapshot = Assert.IsType<TimedSnapshot>(archive.ReadSnapshotAt(RestoreSeconds));
+            Assert.InRange(snapshot.ElapsedSeconds, LastPreWindowTaxiSeconds + 1, WindowStartSeconds - 1);
+            engine.RestoreFromSnapshot(snapshot.State);
+        }
+
+        engine.FastForwardTo(WindowStartSeconds, recording.Actions);
 
         AircraftState? aircraft = engine.FindAircraft("SKW5416");
         Assert.NotNull(aircraft);

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Commands.Arguments;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
@@ -33,6 +34,9 @@ public static class GroundCommandHandler
     // rejection. Ramp-alley scale: B4 → M3 is 206 ft; the next real taxiway (B20S → M1) is 563 ft, so the
     // radius is kept well short of it.
     private const double GateAdjacentTaxiwayMaxFt = 450.0;
+
+    /// <summary>Smallest turn between two consecutive segments of a held-short leg that counts as a reversal.</summary>
+    private const double HeldShortLegReversalDeg = 150.0;
 
     /// <summary>
     /// A controller-typed or scenario-preset <c>TAXI</c>. A bare runway destination with no taxiways named
@@ -75,6 +79,12 @@ public static class GroundCommandHandler
         IReadOnlyList<string> ClearedPath,
         Func<IReadOnlyList<AircraftState>>? ListAircraft
     );
+
+    /// <summary>The command a TAXI clearance resolved from, its route, and the failure when no route resolved.</summary>
+    private sealed record StartResolution(TaxiCommand Command, TaxiRoute? Route, PathfindingFailure? Failure);
+
+    /// <summary>Resolves one candidate command to a route, or to null with the failure.</summary>
+    private delegate TaxiRoute? TaxiRouteResolver(TaxiCommand command, out PathfindingFailure? failure);
 
     private static CommandResult TryTaxiCore(AircraftState aircraft, TaxiCommand taxi, AirportGroundLayout? groundLayout, TaxiCoreOptions options)
     {
@@ -174,40 +184,16 @@ public static class GroundCommandHandler
             return new CommandResult(false, $"{aircraft.Callsign} has already taxied past the whole route");
         }
 
-        // Infer the taxiway the aircraft is already on. The controller clears a continuation
-        // ("TAXI E") without re-naming the taxiway the aircraft currently occupies; prepending it
-        // makes the explicit pathfinder start there instead of bridging onto the first cleared
-        // taxiway (which both flags the occupied taxiway "not in the route issued" and hard-fails
-        // when the bridge's hop cap can't reach it). Guards:
-        //   * start node actually lies on that taxiway — a stale CurrentTaxiway never injects a phantom leg;
-        //   * path doesn't already begin with it;
-        //   * the two taxiways share a direct junction node — i.e. the aircraft can turn straight from
-        //     its current taxiway onto the first cleared one. When they meet only across a runway (e.g.
-        //     SFO M↔H across 01L/19R, zero shared nodes) prepending would re-route the crossing through a
-        //     named-junction search instead of the runway-crossing bridge, so it is left to that path.
-        // Remember the as-cleared path so the prepend can be undone below if it strands the route.
-        List<string> pathAsCleared = taxi.Path;
-        List<TurnDirection?>? pathTurnHintsAsCleared = taxi.PathTurnHints;
-        bool prependedCurrentTaxiway = false;
-        if (
-            taxi.Path.Count > 0
-            && aircraft.Ground.CurrentTaxiway is { Length: > 0 } currentTwy
-            && !taxi.Path[0].Equals(currentTwy, StringComparison.OrdinalIgnoreCase)
-            && startNode.Edges.Any(e => e.MatchesTaxiway(currentTwy))
-            && SharesDirectJunction(groundLayout, currentTwy, taxi.Path[0])
-        )
-        {
-            // The aircraft is already on currentTwy, so it makes no turn onto it: prepend a null hint
-            // to keep PathTurnHints index-aligned with Path. The controller's hint on the first cleared
-            // taxiway thereby becomes the (mid-route) turn from currentTwy onto it.
-            taxi = taxi with
-            {
-                Path = [currentTwy, .. taxi.Path],
-                PathTurnHints = taxi.PathTurnHints is null ? null : [null, .. taxi.PathTurnHints],
-            };
-            prependedCurrentTaxiway = true;
-            Log.LogDebug("[TryTaxi] {Callsign}: prepended current taxiway {Twy} to cleared path", aircraft.Callsign, currentTwy);
-        }
+        // Where the cleared path starts: the candidates ResolveFromBestStart tries (see the resolution below
+        // ResolveRoute). The taxiway held short of is no candidate when the aircraft already stands on the first
+        // cleared taxiway: holding short of K on B, "TAXI B T" continues along B across K.
+        bool standsOnFirstCleared = (taxi.Path.Count > 0) && startNode.Edges.Any(e => e.MatchesTaxiway(taxi.Path[0]));
+        TaxiCommand? heldShortPrepend =
+            (!standsOnFirstCleared && (HeldShortTaxiway(aircraft) is { } heldShortTwy))
+                ? PrependTaxiwayJoiningPath(groundLayout, taxi, heldShortTwy)
+                : null;
+        string? occupiedTaxiway = OccupiedTaxiway(aircraft, startNode);
+        TaxiCommand? currentTaxiwayPrepend = CurrentTaxiwayPrepend(groundLayout, occupiedTaxiway, taxi);
 
         Log.LogDebug(
             "[TryTaxi] {Callsign}: nearest node {NodeId} ({NodeType}) at ({NLat:F6}, {NLon:F6}), dist={Dist:F4}nm, path=[{Path}], "
@@ -231,7 +217,7 @@ public static class GroundCommandHandler
         {
             if (command.DestinationParking is not null || command.DestinationSpot is not null)
             {
-                return ResolveParkingRoute(groundLayout, startNode, command, out routeFailure, category, startHeadingTrueDeg);
+                return ResolveParkingRoute(groundLayout, startNode, command, out routeFailure, category, startHeadingTrueDeg, occupiedTaxiway);
             }
 
             if ((command.Path.Count == 0) && (command.DestinationRunway is not null))
@@ -252,7 +238,7 @@ public static class GroundCommandHandler
                 }
             }
 
-            return ResolveStandardRoute(groundLayout, startNode, command, out routeFailure, category, startHeadingTrueDeg);
+            return ResolveStandardRoute(groundLayout, startNode, command, out routeFailure, category, startHeadingTrueDeg, occupiedTaxiway);
         }
 
         // As-cleared first: the route the named taxiways produce on their own wins when it honors every
@@ -284,27 +270,11 @@ public static class GroundCommandHandler
             return ResolveDirect(AugmentPathWithHoldShortTaxiways(command, foldTargets), out routeFailure);
         }
 
-        TaxiRoute? route = ResolveRoute(taxi, out PathfindingFailure? failure);
+        StartResolution start = ResolveFromBestStart(aircraft.Callsign, taxi, heldShortPrepend, currentTaxiwayPrepend, ResolveRoute);
+        taxi = start.Command;
+        TaxiRoute? route = start.Route;
+        PathfindingFailure? failure = start.Failure;
         string? failReason = failure?.HumanMessage;
-
-        // The current-taxiway prepend above is an optimization: start on the taxiway the aircraft
-        // occupies rather than bridging onto the first cleared one. When the aircraft sits at the far
-        // end of a stub connector, prepending forces the route back to that connector's only junction
-        // with the first cleared taxiway, which can strand the onward transition — SIA31 holding at the
-        // NE end of the B5 spot got "B5 B B1 …", routing B5 back to the B5/B junction (node 117) and
-        // making B→B1 infeasible. When the prepended path yields no route, drop the prepend and bridge
-        // directly onto the first cleared taxiway (the original, un-prepended behaviour).
-        if (route is null && prependedCurrentTaxiway)
-        {
-            Log.LogDebug(
-                "[TryTaxi] {Callsign}: prepended-path resolution failed ({Reason}); retrying without the current-taxiway prepend",
-                aircraft.Callsign,
-                failReason ?? "no route"
-            );
-            taxi = taxi with { Path = pathAsCleared, PathTurnHints = pathTurnHintsAsCleared };
-            route = ResolveRoute(taxi, out failure);
-            failReason = failure?.HumanMessage;
-        }
 
         // A parallel ramp lane the map does not connect (SFO M3 → M4): the pilot cuts across the apron onto it
         // and taxis the clearance as issued — from a gate or mid-lane. Only for sibling numbered lanes over
@@ -324,6 +294,7 @@ public static class GroundCommandHandler
                     Path = taxi.Path,
                     Options = new ExplicitPathOptions
                     {
+                        OccupiedTaxiway = occupiedTaxiway,
                         ExplicitHoldShorts = taxi.HoldShorts,
                         DestinationRunway = taxi.DestinationRunway,
                         DestinationHintNode = destinationNode,
@@ -359,6 +330,7 @@ public static class GroundCommandHandler
                     Destination = cutDestination,
                     Options = new ExplicitPathOptions
                     {
+                        OccupiedTaxiway = occupiedTaxiway,
                         ExplicitHoldShorts = taxi.HoldShorts,
                         DestinationRunway = taxi.DestinationRunway,
                         PathTurnHints = taxi.PathTurnHints,
@@ -1073,11 +1045,220 @@ public static class GroundCommandHandler
     }
 
     /// <summary>
+    /// Resolves the cleared path from the first start that resolves. A candidate that fails leaves the as-cleared
+    /// command and its failure in place, so the readback and every recovery after it see the clearance as issued.
+    /// </summary>
+    private static StartResolution ResolveFromBestStart(
+        string callsign,
+        TaxiCommand asCleared,
+        TaxiCommand? heldShortPrepend,
+        TaxiCommand? currentTaxiwayPrepend,
+        TaxiRouteResolver resolve
+    )
+    {
+        // The controller clears a continuation ("TAXI E") without re-naming the taxiway the aircraft is on, so the
+        // path is resolved from the first of these that resolves:
+        //   1. the taxiway the aircraft holds short of, prepended — holding short of K on B, "TAXI A" means
+        //      "K A", never back along B to some other B/A junction (#455). Only when its leg turns onto that
+        //      taxiway and follows it to the first junction with the first cleared one, holding short of no runway,
+        //      crossing none and never reversing (HeldShortLegRejection);
+        //   2. the path as cleared, bridging from the start node onto its first taxiway;
+        //   3. only when that fails, the taxiway the aircraft occupies prepended. Prepending it unconditionally
+        //      forced the entry onto the first cleared taxiway through a junction the two share, whichever way
+        //      that entry then had to go: THY9WC on B, "TAXI A F 28L" became "B A F", entered A southbound and
+        //      U-turned across 01L/19R where the as-cleared route took B1 (#457).
+        if (heldShortPrepend is not null)
+        {
+            TaxiRoute? heldShortRoute = resolve(heldShortPrepend, out PathfindingFailure? heldShortFailure);
+            string? rejection = heldShortRoute is null
+                ? (heldShortFailure?.HumanMessage ?? "no route")
+                : HeldShortLegRejection(heldShortRoute, heldShortPrepend.Path[1]);
+            Log.LogDebug(
+                "[TryTaxi] {Callsign}: holding short of {Twy}; path [{Path}] {Outcome}",
+                callsign,
+                heldShortPrepend.Path[0],
+                string.Join(" ", heldShortPrepend.Path),
+                rejection is null ? "resolved" : $"not taken — {rejection}"
+            );
+            if (rejection is null)
+            {
+                return new StartResolution(heldShortPrepend, heldShortRoute, heldShortFailure);
+            }
+        }
+
+        TaxiRoute? route = resolve(asCleared, out PathfindingFailure? failure);
+        if ((route is not null) || (currentTaxiwayPrepend is null))
+        {
+            return new StartResolution(asCleared, route, failure);
+        }
+
+        TaxiRoute? prepended = resolve(currentTaxiwayPrepend, out PathfindingFailure? prependFailure);
+        Log.LogDebug(
+            "[TryTaxi] {Callsign}: as-cleared path failed ({Reason}); current-taxiway path [{Path}] {Outcome}",
+            callsign,
+            failure?.HumanMessage ?? "no route",
+            string.Join(" ", currentTaxiwayPrepend.Path),
+            prepended is null ? "did not resolve either" : "resolved"
+        );
+        return prepended is null
+            ? new StartResolution(asCleared, null, failure)
+            : new StartResolution(currentTaxiwayPrepend, prepended, prependFailure);
+    }
+
+    /// <summary>
+    /// Why the route of a held-short prepend is not the plain turn onto the taxiway held short of, or null when it is.
+    /// Its leg up to <paramref name="firstCleared"/> must join it at the first junction of the two the leg reaches, hold
+    /// short of no runway, cross none, and never reverse — including the turn onto <paramref name="firstCleared"/>.
+    /// </summary>
+    private static string? HeldShortLegRejection(TaxiRoute route, string firstCleared)
+    {
+        if (HeldShortLegEnd(route, firstCleared) is not { } joinIndex)
+        {
+            return $"never joins {firstCleared}";
+        }
+
+        List<TaxiRouteSegment> leg = route.Segments.GetRange(0, joinIndex);
+        int lastTurnIndex = Math.Min(joinIndex, route.Segments.Count - 1);
+        return ReversalUpTo(route.Segments, lastTurnIndex) ?? RunwayOnLeg(route, leg) ?? PassedJunctionOnLeg(leg, firstCleared);
+    }
+
+    /// <summary>
+    /// The index of the first segment on <paramref name="firstCleared"/>; the segment count when the route ends at a
+    /// junction with it without entering it (a clearance with no destination ends there); null when it does neither.
+    /// </summary>
+    private static int? HeldShortLegEnd(TaxiRoute route, string firstCleared)
+    {
+        int joinIndex = route.Segments.FindIndex(s => s.Edge.Edge.MatchesTaxiway(firstCleared));
+        if (joinIndex >= 0)
+        {
+            return joinIndex;
+        }
+
+        bool endsAtJunction = (route.Segments.Count > 0) && route.Segments[^1].Edge.ToNode.Edges.Any(e => e.MatchesTaxiway(firstCleared));
+        return endsAtJunction ? route.Segments.Count : null;
+    }
+
+    private static string? ReversalUpTo(List<TaxiRouteSegment> segments, int lastIndex)
+    {
+        for (int i = 1; i <= lastIndex; i++)
+        {
+            double turn = GeoMath.AbsBearingDifference(segments[i - 1].Edge.ArrivalBearing, segments[i].Edge.DepartureBearing);
+            if (turn >= HeldShortLegReversalDeg)
+            {
+                return $"reverses ({turn:F0}°) at node {segments[i].FromNodeId}";
+            }
+        }
+
+        return null;
+    }
+
+    private static string? RunwayOnLeg(TaxiRoute route, List<TaxiRouteSegment> leg)
+    {
+        var legNodeIds = new HashSet<int>();
+        foreach (TaxiRouteSegment segment in leg)
+        {
+            legNodeIds.Add(segment.FromNodeId);
+            legNodeIds.Add(segment.ToNodeId);
+            if (AirportGroundLayout.HasRunwayCenterlineEdge(segment.Edge.ToNode))
+            {
+                return $"crosses a runway at node {segment.ToNodeId}";
+            }
+        }
+
+        HoldShortPoint? runwayBar = route.HoldShortPoints.FirstOrDefault(h =>
+            (h.Reason is HoldShortReason.RunwayCrossing or HoldShortReason.DestinationRunway) && legNodeIds.Contains(h.NodeId)
+        );
+        return runwayBar is null ? null : $"holds short of runway {runwayBar.TargetName} at node {runwayBar.NodeId}";
+    }
+
+    /// <summary>
+    /// A junction with <paramref name="firstCleared"/> the leg runs through before the one it turns at. Only straight
+    /// edges mark a junction: a fillet's tangent point bears the arc onto <paramref name="firstCleared"/> short of the
+    /// junction the leg may still turn at square.
+    /// </summary>
+    private static string? PassedJunctionOnLeg(List<TaxiRouteSegment> leg, string firstCleared)
+    {
+        for (int i = 0; i < leg.Count - 1; i++)
+        {
+            GroundNode node = leg[i].Edge.ToNode;
+            if (node.Edges.Any(e => (e is not GroundArc) && e.MatchesTaxiway(firstCleared)))
+            {
+                return $"passes the {firstCleared} junction at node {node.Id}";
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The taxiway the aircraft holds short of where it stands: the target of the explicit hold-short its
+    /// <see cref="HoldingShortPhase"/> is holding at. Null when it is not holding short, or holds short of a
+    /// runway or a spot. A runway is recognised by its shape (<c>28L</c>, <c>10L/28R</c>), not by looking it up: the
+    /// layout's runway lookup matches one end at a time, so it misses a target naming the whole runway.
+    /// </summary>
+    public static string? HeldShortTaxiway(AircraftState aircraft)
+    {
+        if (
+            aircraft.Phases?.CurrentPhase
+            is not HoldingShortPhase { HoldShort: { Reason: HoldShortReason.ExplicitHoldShort, TargetName: { Length: > 0 } target } }
+        )
+        {
+            return null;
+        }
+
+        bool isRunway = (RunwayArgument.TryParse(target) is not null) || target.Contains('/');
+        return (HoldShortTarget.IsSpotTargetName(target) || isRunway) ? null : target;
+    }
+
+    /// <summary>
+    /// The taxiway the aircraft occupies, prepended to the cleared path — the fallback start when the path as
+    /// cleared does not resolve. Null unless the start node lies on <see cref="AircraftGroundOps.CurrentTaxiway"/>
+    /// (a stale value never injects a phantom leg) and that taxiway joins the first cleared one.
+    /// </summary>
+    private static TaxiCommand? CurrentTaxiwayPrepend(AirportGroundLayout groundLayout, string? occupiedTaxiway, TaxiCommand taxi) =>
+        occupiedTaxiway is null ? null : PrependTaxiwayJoiningPath(groundLayout, taxi, occupiedTaxiway);
+
+    /// <summary>
+    /// <see cref="AircraftGroundOps.CurrentTaxiway"/> when the start node lies on it, else null: a stale value (the
+    /// aircraft has since left that taxiway) never counts as the taxiway it stands on.
+    /// </summary>
+    private static string? OccupiedTaxiway(AircraftState aircraft, GroundNode startNode) =>
+        ((aircraft.Ground.CurrentTaxiway is { Length: > 0 } currentTwy) && startNode.Edges.Any(e => e.MatchesTaxiway(currentTwy)))
+            ? currentTwy
+            : null;
+
+    /// <summary>
+    /// <paramref name="taxi"/> with <paramref name="taxiway"/> put in front of its path, or null when the path is
+    /// empty, already starts with it, or the two taxiways share no direct junction node. When they meet only across
+    /// a runway (SFO M↔H across 01L/19R, zero shared nodes) a prepend would re-route the crossing through a
+    /// named-junction search instead of the runway-crossing bridge, so that case is left to the bridge.
+    /// </summary>
+    private static TaxiCommand? PrependTaxiwayJoiningPath(AirportGroundLayout groundLayout, TaxiCommand taxi, string taxiway)
+    {
+        if (
+            (taxi.Path.Count == 0)
+            || taxi.Path[0].Equals(taxiway, StringComparison.OrdinalIgnoreCase)
+            || !SharesDirectJunction(groundLayout, taxiway, taxi.Path[0])
+        )
+        {
+            return null;
+        }
+
+        // No hint was given for the prepended taxiway: a null hint keeps PathTurnHints index-aligned with Path, and the
+        // controller's hint on the first cleared taxiway becomes the turn from the prepended taxiway onto it.
+        return taxi with
+        {
+            Path = [taxiway, .. taxi.Path],
+            PathTurnHints = taxi.PathTurnHints is null ? null : [null, .. taxi.PathTurnHints],
+        };
+    }
+
+    /// <summary>
     /// True when a single graph node carries edges on both <paramref name="fromTaxiway"/> and
     /// <paramref name="toTaxiway"/> — i.e. the two taxiways meet at a direct junction the explicit
     /// pathfinder can turn through (mirrors <c>SegmentExpander.FindJunctionCandidates</c>). False when
     /// they meet only across a runway (separate "X - RWY" / "Y - RWY" crossing arcs, no shared node),
-    /// where prepending the current taxiway would mis-route the crossing.
+    /// where prepending a taxiway would mis-route the crossing.
     /// </summary>
     private static bool SharesDirectJunction(AirportGroundLayout groundLayout, string fromTaxiway, string toTaxiway)
     {
@@ -1266,7 +1447,8 @@ public static class GroundCommandHandler
         TaxiCommand taxi,
         out PathfindingFailure? failure,
         AircraftCategory category,
-        double startHeadingTrueDeg
+        double startHeadingTrueDeg,
+        string? occupiedTaxiway
     )
     {
         // Empty path + destination runway → A* to nearest hold-short node
@@ -1291,6 +1473,7 @@ public static class GroundCommandHandler
             out failure,
             new ExplicitPathOptions
             {
+                OccupiedTaxiway = occupiedTaxiway,
                 ExplicitHoldShorts = taxi.HoldShorts,
                 DestinationRunway = taxi.DestinationRunway,
 
@@ -1685,7 +1868,8 @@ public static class GroundCommandHandler
         TaxiCommand taxi,
         out PathfindingFailure? failure,
         AircraftCategory category,
-        double startHeadingTrueDeg
+        double startHeadingTrueDeg,
+        string? occupiedTaxiway
     )
     {
         failure = null;
@@ -1719,6 +1903,7 @@ public static class GroundCommandHandler
             out failure,
             new ExplicitPathOptions
             {
+                OccupiedTaxiway = occupiedTaxiway,
                 ExplicitHoldShorts = taxi.HoldShorts,
                 DestinationRunway = taxi.DestinationRunway,
 

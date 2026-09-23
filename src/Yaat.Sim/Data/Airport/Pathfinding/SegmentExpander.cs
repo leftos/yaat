@@ -1797,6 +1797,14 @@ public static class SegmentExpander
         return d;
     }
 
+    /// <summary>
+    /// The bearing a turn hint judges an onward edge by. A straight edge is judged by its bearing. A fillet
+    /// <see cref="GroundArc"/> departs tangent to the taxiway it leaves, so its departure bearing reads as
+    /// straight ahead however far it turns; it is judged by its arrival bearing instead, which credits it with
+    /// its net turn onto the taxiway it joins.
+    /// </summary>
+    private static double HintJudgedBearing(DirectionalEdge edge) => edge.Edge is GroundArc ? edge.ArrivalBearing : edge.DepartureBearing;
+
     private static bool TurnMatchesHint(double signedTurnDeg, TurnDirection hint) =>
         hint == TurnDirection.Right ? signedTurnDeg > TurnHintDeadbandDeg : signedTurnDeg < -TurnHintDeadbandDeg;
 
@@ -1838,8 +1846,8 @@ public static class SegmentExpander
             }
 
             GroundNode neighbor = edge.OtherNode(junction);
-            double departure = edge.Directed(junction, neighbor).DepartureBearing;
-            if (TurnMatchesHint(SignedTurnDeg(arrivalBearing, departure), hint))
+            double onward = HintJudgedBearing(edge.Directed(junction, neighbor));
+            if (TurnMatchesHint(SignedTurnDeg(arrivalBearing, onward), hint))
             {
                 return 0.0;
             }
@@ -1850,7 +1858,7 @@ public static class SegmentExpander
 
     /// <summary>
     /// Penalise a first-taxiway junction candidate (token 0) when the initial direction along that
-    /// taxiway — the departure bearing of the candidate's first edge — does not match the hint on
+    /// taxiway — the <see cref="HintJudgedBearing"/> of the candidate's first edge — does not match the hint on
     /// token 0 relative to the aircraft's current heading (<see cref="SearchContext.StartHeadingTrue"/>).
     /// This is how "right onto A" picks which way along A the route starts. Zero unless this is the
     /// first segment, token 0 carries a hint, and the start heading is known.
@@ -1873,12 +1881,12 @@ public static class SegmentExpander
             return 0.0;
         }
 
-        return TurnMatchesHint(SignedTurnDeg(startHeading, segEdges[0].DepartureBearing), hint) ? 0.0 : TurnHintMismatchPenaltyNm;
+        return TurnMatchesHint(SignedTurnDeg(startHeading, HintJudgedBearing(segEdges[0])), hint) ? 0.0 : TurnHintMismatchPenaltyNm;
     }
 
     /// <summary>
     /// First-step bias for a single-taxiway clearance with a turn hint (e.g. <c>TAXI &gt;A</c>): the
-    /// position of the neighbour reached by the taxiway edge whose departure from the start is the
+    /// position of the neighbour reached by the taxiway edge whose <see cref="HintJudgedBearing"/> is the
     /// hinted turn relative to <paramref name="startHeadingTrue"/>. Null when no edge matches — the
     /// terminus walk then keeps its admissibility-only direction.
     /// </summary>
@@ -1897,8 +1905,8 @@ public static class SegmentExpander
             }
 
             GroundNode neighbor = edge.OtherNode(node);
-            double departure = edge.Directed(node, neighbor).DepartureBearing;
-            if (TurnMatchesHint(SignedTurnDeg(startHeadingTrue, departure), hint))
+            double onward = HintJudgedBearing(edge.Directed(node, neighbor));
+            if (TurnMatchesHint(SignedTurnDeg(startHeadingTrue, onward), hint))
             {
                 return neighbor.Position;
             }

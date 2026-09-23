@@ -78,6 +78,7 @@ public class SfoTaxiBToF1RampConnectorTests
             out string? failReason,
             new ExplicitPathOptions
             {
+                OccupiedTaxiway = null,
                 DestinationHintNode = f1,
                 ExplicitHoldShorts = [HoldShortTarget.Parse("B4")],
                 StartHeadingTrue = StartHeadingTrue,

@@ -44,7 +44,12 @@ public class SfoBravoToOneLeftConnectorTests(ITestOutputHelper output)
             start.Id,
             [.. path],
             out failReason,
-            new ExplicitPathOptions { DestinationRunway = runway, DiagnosticLog = diag.Add },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                DestinationRunway = runway,
+                DiagnosticLog = diag.Add,
+            },
             AircraftCategory.Jet
         );
 

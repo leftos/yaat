@@ -972,7 +972,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
             start = onTaxiway;
         }
 
-        var options = new ExplicitPathOptions { StartHeadingTrue = ac.TrueHeading.Degrees };
+        var options = new ExplicitPathOptions { OccupiedTaxiway = null, StartHeadingTrue = ac.TrueHeading.Degrees };
         AircraftCategory category = AircraftCategorization.Categorize(ac.AircraftType);
         return TaxiPathfinder.ResolveExplicitPathDetailed(layout, start.Id, [TaxiOutTaxiway], out _, options, category) is not null;
     }

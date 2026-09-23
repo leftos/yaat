@@ -71,7 +71,12 @@ public class Issue235SfoTaxiBKAParkingLoopTests
             start.Id,
             ["D", "B", "K", "A"],
             out string? failReason,
-            new ExplicitPathOptions { DestinationHintNode = f10, DiagnosticLog = msg => _output.WriteLine(msg) },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                DestinationHintNode = f10,
+                DiagnosticLog = msg => _output.WriteLine(msg),
+            },
             AircraftCategory.Jet
         );
 

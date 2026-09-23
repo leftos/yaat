@@ -150,6 +150,36 @@ public class Issue400RampLaneDestinationCutTests
         Assert.DoesNotContain("unable", result.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// The same cut with V left out of the clearance (<c>TAXI T TE @22</c>) by an aircraft known to be on V: the route
+    /// still bridges along V onto T, and V is the taxiway it stands on, not a deviation, so no note names it.
+    /// </summary>
+    [Fact]
+    public void TaxiTTeToSpot22_OccupyingV_NoNoteForV()
+    {
+        SimulationEngine? engine = BuildEngine(out AirportGroundLayout? layout);
+        if (engine is null || layout is null)
+        {
+            return;
+        }
+
+        AircraftState aircraft = AddStoppedOnV(engine, layout, "SWA690");
+        aircraft.Ground.CurrentTaxiway = "V";
+        CommandResult result = engine.SendCommand("SWA690", "TAXI T TE @22");
+        _output.WriteLine($"result: {result.Success} — {result.Message}");
+        Assert.True(result.Success, result.Message);
+
+        TaxiRoute? route = aircraft.Ground.AssignedTaxiRoute;
+        Assert.NotNull(route);
+        _output.WriteLine("route: " + string.Join(" ", route.Segments.Select(s => $"{s.FromNodeId}-{s.ToNodeId}({s.TaxiwayName})")));
+
+        Assert.True(Traverses(route, "V"), "route must bridge along V");
+        Assert.Contains(route.Segments, IsFreeSpaceLeg);
+        Assert.Equal("22", route.DestinationParking);
+        Assert.DoesNotContain(route.Warnings, w => w.Contains("not in the route issued", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain("not in the route issued", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public void TaxiVTTeToSpot22_AircraftReachesTheSpot()
     {

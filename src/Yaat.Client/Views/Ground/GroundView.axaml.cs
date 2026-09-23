@@ -1064,7 +1064,7 @@ public partial class GroundView : UserControl
                 fromNodeId.Value,
                 route.GetPathTokens(),
                 out _,
-                new ExplicitPathOptions { DestinationRunway = route.DestinationRunway },
+                new ExplicitPathOptions { OccupiedTaxiway = null, DestinationRunway = route.DestinationRunway },
                 AircraftCategory.Jet
             );
             if (resolved is null)

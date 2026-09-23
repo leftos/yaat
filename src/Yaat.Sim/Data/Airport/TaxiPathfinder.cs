@@ -67,7 +67,7 @@ public static class TaxiPathfinder
                 break;
         }
 
-        var ctx = SearchContext.Compile(
+        SearchContext ctx = SearchContext.Compile(
             layout,
             fromNodeId,
             waypointSequence: taxiwayNames,
@@ -81,7 +81,10 @@ public static class TaxiPathfinder
             diagnosticLog: options.DiagnosticLog,
             waypointTurnHints: options.PathTurnHints,
             startHeadingTrue: options.StartHeadingTrue
-        );
+        ) with
+        {
+            OccupiedTaxiway = options.OccupiedTaxiway,
+        };
 
         (TaxiRoute? route, failure) = SegmentExpander.Run(ctx);
         return failure is null ? route : null;

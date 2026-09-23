@@ -190,6 +190,7 @@ public class IssueFllDal880TaxiBacktrackBTests(ITestOutputHelper output)
             out string? failReason,
             new ExplicitPathOptions
             {
+                OccupiedTaxiway = null,
                 DestinationRunway = "10L",
                 ExplicitHoldShorts = [HoldShortTarget.Parse("10L")],
 

@@ -104,7 +104,7 @@ public class Req1MembershipArcSweepTests
                         startId,
                         [x, y],
                         out _,
-                        new ExplicitPathOptions(),
+                        new ExplicitPathOptions { OccupiedTaxiway = null },
                         AircraftCategory.Jet
                     );
 

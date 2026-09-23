@@ -48,6 +48,7 @@ public sealed class OakMultiCrossingTaxiTests(ITestOutputHelper output)
 
         var opts = new ExplicitPathOptions
         {
+            OccupiedTaxiway = null,
             DestinationRunway = "30",
             ExplicitHoldShorts = [HoldShortTarget.Parse("28R")],
 

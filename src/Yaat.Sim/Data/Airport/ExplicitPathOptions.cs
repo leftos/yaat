@@ -41,4 +41,11 @@ public sealed class ExplicitPathOptions
     /// arrival bearing and do not need it).
     /// </summary>
     public double? StartHeadingTrue { get; init; }
+
+    /// <summary>
+    /// The taxiway the aircraft occupies at the start node, or null when it occupies none or the caller does not
+    /// track it. A route that follows it from the start onto the first cleared taxiway is not following a taxiway
+    /// "not in the route issued": the aircraft is already on it.
+    /// </summary>
+    public required string? OccupiedTaxiway { get; init; }
 }

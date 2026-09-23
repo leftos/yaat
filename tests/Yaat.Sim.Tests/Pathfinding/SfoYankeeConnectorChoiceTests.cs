@@ -66,6 +66,7 @@ public class SfoYankeeConnectorChoiceTests
             out string? failReason,
             new ExplicitPathOptions
             {
+                OccupiedTaxiway = null,
                 DestinationRunway = "1R",
                 ExplicitHoldShorts = [],
                 StartHeadingTrue = StartHeadingDeg,

@@ -28,7 +28,7 @@ public class RampLaneRepositionTests
 
     private static AirportGroundLayout? OakLayout() => TestVnasData.NavigationDb is null ? null : new TestAirportGroundData().GetLayout("OAK");
 
-    private static ExplicitPathOptions Options(string? destinationRunway) => new() { DestinationRunway = destinationRunway };
+    private static ExplicitPathOptions Options(string? destinationRunway) => new() { DestinationRunway = destinationRunway, OccupiedTaxiway = null };
 
     /// <summary>Resolve from the graph node nearest <paramref name="position"/> the way TryTaxi does, returning the structured failure.</summary>
     private static PathfindingFailure? FailureFor(

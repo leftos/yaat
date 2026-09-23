@@ -61,7 +61,12 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
             fromNodeId: WCrossNode,
             taxiwayNames: ["W"],
             out failReason,
-            new ExplicitPathOptions { PathTurnHints = [hint], StartHeadingTrue = AcrossWHeadingDeg },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                PathTurnHints = [hint],
+                StartHeadingTrue = AcrossWHeadingDeg,
+            },
             AircraftCategory.Jet
         );
     }
@@ -181,7 +186,7 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
             fromNodeId: 1,
             taxiwayNames: ["A", "B"],
             out failReason,
-            new ExplicitPathOptions { PathTurnHints = [null, bHint] },
+            new ExplicitPathOptions { OccupiedTaxiway = null, PathTurnHints = [null, bHint] },
             AircraftCategory.Jet
         );
 
@@ -252,7 +257,12 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
             fromNodeId: 10,
             taxiwayNames: ["A", "B"],
             out failReason,
-            new ExplicitPathOptions { PathTurnHints = [aHint, null], StartHeadingTrue = 0.0 },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                PathTurnHints = [aHint, null],
+                StartHeadingTrue = 0.0,
+            },
             AircraftCategory.Jet
         );
 
@@ -311,7 +321,12 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
             fromNodeId: 20,
             taxiwayNames: ["A"],
             out failReason,
-            new ExplicitPathOptions { PathTurnHints = [aHint], StartHeadingTrue = 0.0 },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                PathTurnHints = [aHint],
+                StartHeadingTrue = 0.0,
+            },
             AircraftCategory.Jet
         );
 
@@ -374,7 +389,7 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
             fromNodeId: 1,
             taxiwayNames: ["A", "B"],
             out failReason,
-            new ExplicitPathOptions { PathTurnHints = [null, bHint] },
+            new ExplicitPathOptions { OccupiedTaxiway = null, PathTurnHints = [null, bHint] },
             AircraftCategory.Jet
         );
 

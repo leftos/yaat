@@ -53,6 +53,7 @@ public sealed class HtmlRenderCommand : ICommand
                 out string? _,
                 new ExplicitPathOptions
                 {
+                    OccupiedTaxiway = null,
                     DestinationRunway = options.PathfinderDestinationRunway,
                     ExplicitHoldShorts =
                         options.PathfinderHoldShorts.Count > 0 ? [.. options.PathfinderHoldShorts.Select(HoldShortTarget.Parse)] : null,

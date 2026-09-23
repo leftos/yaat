@@ -40,6 +40,13 @@ public sealed record SearchContext(
     Action<string>? DiagnosticLog
 )
 {
+    /// <summary>
+    /// The taxiway the aircraft occupies at the start node (<see cref="ExplicitPathOptions.OccupiedTaxiway"/>), or
+    /// null. The leading segments that follow it onto the first cleared taxiway are not a deviation from the route
+    /// issued. Explicit routes set it; every other search leaves it null.
+    /// </summary>
+    public string? OccupiedTaxiway { get; init; }
+
     private static readonly IReadOnlySet<string> EmptyAvoidedTaxiways = new HashSet<string>();
     private static readonly IReadOnlySet<(int, int)> EmptyForbiddenMoves = new HashSet<(int, int)>();
     private static readonly IReadOnlySet<(int, int, int)> EmptyBlockedTurns = new HashSet<(int, int, int)>();

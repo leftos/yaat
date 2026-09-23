@@ -176,6 +176,7 @@ public sealed class QueryCommand : ICommand
                 out string? pfFailReason,
                 new ExplicitPathOptions
                 {
+                    OccupiedTaxiway = null,
                     DestinationRunway = options.PathfinderDestinationRunway,
                     ExplicitHoldShorts =
                         options.PathfinderHoldShorts.Count > 0 ? [.. options.PathfinderHoldShorts.Select(HoldShortTarget.Parse)] : null,
@@ -458,7 +459,7 @@ public sealed class QueryCommand : ICommand
             nodeId,
             [taxiway],
             out string? failReason,
-            new ExplicitPathOptions { DiagnosticLog = msg => diag.Add(msg) },
+            new ExplicitPathOptions { OccupiedTaxiway = null, DiagnosticLog = msg => diag.Add(msg) },
             AircraftCategory.Jet
         );
 

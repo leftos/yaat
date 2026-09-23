@@ -67,7 +67,7 @@ public class FirstHopHeadingBiasTests
             fromNodeId: 10,
             taxiwayNames: ["A", "B"],
             out failReason,
-            new ExplicitPathOptions { StartHeadingTrue = headingTrue },
+            new ExplicitPathOptions { OccupiedTaxiway = null, StartHeadingTrue = headingTrue },
             AircraftCategory.Jet
         );
 
@@ -148,7 +148,7 @@ public class FirstHopHeadingBiasTests
             fromNodeId: 20,
             taxiwayNames: ["A"],
             out string? failReason,
-            new ExplicitPathOptions { StartHeadingTrue = 270.0 },
+            new ExplicitPathOptions { OccupiedTaxiway = null, StartHeadingTrue = 270.0 },
             AircraftCategory.Jet
         );
 

@@ -1505,6 +1505,7 @@ public partial class GroundViewModel : ObservableObject
         GroundNode? destination = FindTaxiDestinationNode(_domainLayout, ac.TaxiDestination);
         var options = new ExplicitPathOptions
         {
+            OccupiedTaxiway = null,
             DestinationRunway = string.IsNullOrEmpty(ac.AssignedRunway) ? null : ac.AssignedRunway,
             DestinationHintNode = destination,
         };

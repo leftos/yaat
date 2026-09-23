@@ -19,6 +19,11 @@
 - The terminal's filter box is wide enough to show a full airline callsign.
 
 ### Fixed
+- An aircraft holding short of a taxiway starts its next `TAXI` on that taxiway, instead of rejoining the named taxiway across the airport.
+- A re-issued `TAXI` follows the route as cleared instead of crossing a runway twice, as SFO `TAXI A F 28L` from B did.
+- `TAXI >B` turns onto B over the corner curve instead of overshooting past 90° and correcting back.
+- A `TAXI` that begins along the taxiway the aircraft is on no longer reads back "not in the route issued" for it.
+- `TAXI` a bare taxiway with no destination, from a taxiway it crosses, now turns onto it and continues along it instead of stopping at the junction.
 - `TAXI` to a spot from the ramp lines the aircraft up on the spot facing out of the ramp, turning onto the spot's lane just short of it.
 - The Ground view's push route draws the planned tow from the first point clicked, and a single point sends as a plain `PUSH`.
 - `PUSH <taxiway> <facing taxiway>` no longer refuses for swinging across the facing taxiway where the aircraft lines up, as SFO `PUSH A F1` from D7 did.

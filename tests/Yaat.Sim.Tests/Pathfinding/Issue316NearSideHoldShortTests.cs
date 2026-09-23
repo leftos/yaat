@@ -58,7 +58,12 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
             fromNodeId: crossing.Near.Id,
             taxiwayNames: ["F", "C"],
             out string? failReason,
-            new ExplicitPathOptions { ExplicitHoldShorts = [HoldShortTarget.Parse("10R")], DestinationRunway = "28R" },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                ExplicitHoldShorts = [HoldShortTarget.Parse("10R")],
+                DestinationRunway = "28R",
+            },
             AircraftCategory.Jet
         );
 
@@ -98,7 +103,7 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
             fromNodeId: crossing.Near.Id,
             taxiwayNames: ["F", "C"],
             out string? failReason,
-            new ExplicitPathOptions { DestinationRunway = "28R" },
+            new ExplicitPathOptions { OccupiedTaxiway = null, DestinationRunway = "28R" },
             AircraftCategory.Jet
         );
 
@@ -135,7 +140,7 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
             fromNodeId: crossing.Near.Id,
             taxiwayNames: ["F", "C"],
             out string? failReason,
-            new ExplicitPathOptions { DestinationRunway = "28R" },
+            new ExplicitPathOptions { OccupiedTaxiway = null, DestinationRunway = "28R" },
             AircraftCategory.Jet
         );
 
@@ -185,7 +190,12 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
             fromNodeId: backOnF.Id,
             taxiwayNames: ["F", "C"],
             out string? failReason,
-            new ExplicitPathOptions { ExplicitHoldShorts = [HoldShortTarget.Parse("10R")], DestinationRunway = "28R" },
+            new ExplicitPathOptions
+            {
+                OccupiedTaxiway = null,
+                ExplicitHoldShorts = [HoldShortTarget.Parse("10R")],
+                DestinationRunway = "28R",
+            },
             AircraftCategory.Jet
         );
 

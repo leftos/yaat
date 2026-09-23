@@ -56,6 +56,7 @@ public class RunwayDestinationJunctionTests
             out string? failReason,
             new ExplicitPathOptions
             {
+                OccupiedTaxiway = null,
                 DestinationRunway = "33",
 
                 DiagnosticLog = msg => _output.WriteLine(msg),

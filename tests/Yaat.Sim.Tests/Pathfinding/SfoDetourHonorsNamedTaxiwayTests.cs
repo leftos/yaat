@@ -58,6 +58,7 @@ public class SfoDetourHonorsNamedTaxiwayTests
             out string? failReason,
             new ExplicitPathOptions
             {
+                OccupiedTaxiway = null,
                 DestinationRunway = "28L",
                 ExplicitHoldShorts = [HoldShortTarget.Parse("1L")],
                 StartHeadingTrue = StandHeadingDeg,

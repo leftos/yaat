@@ -93,6 +93,7 @@ public class SfoT9AB1ConnectorTests
             out string? failReason,
             new ExplicitPathOptions
             {
+                OccupiedTaxiway = null,
                 DestinationRunway = "28L",
                 ExplicitHoldShorts = [HoldShortTarget.Parse("1L")],
 

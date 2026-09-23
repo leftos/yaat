@@ -531,6 +531,7 @@ public static class RampLaneReposition
     {
         var headOptions = new ExplicitPathOptions
         {
+            OccupiedTaxiway = options.OccupiedTaxiway,
             ExplicitHoldShorts = options.ExplicitHoldShorts,
             DestinationRunway = null,
 
