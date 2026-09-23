@@ -1946,6 +1946,24 @@ public class GroundConflictDetectorTests
     /// <summary>Lateral separation too tight for two B738s to pass (their half-spans plus the wingtip buffer need 142.4 ft).</summary>
     private const double TooCloseLateralFt = 120.0;
 
+    /// <summary>Convergence of the merging pair in the look-ahead tests: inside the tolerance, so the bypass still has to decide them.</summary>
+    private const double ConvergingTrackDiffDeg = 15.0;
+
+    /// <summary>Convergence of the crossing pair: 18°, off the tolerance's 20° edge but far enough apart to cross within the look-ahead.</summary>
+    private const double CrossingTrackDiffDeg = 18.0;
+
+    /// <summary>Lateral offset of the piston twin-lane pairs in the look-ahead tests: clear of the 61.1 ft two C172s need.</summary>
+    private const double PistonLateralFt = 80.0;
+
+    /// <summary>Nose wander of the leading aircraft in the route-segment test: inside its lane, but more than the pair's margin can spare.</summary>
+    private const double NoseWanderDeg = 5.0;
+
+    /// <summary>Lateral offset of the two B738 lanes in the nose-wander test: above their 142.4 ft requirement by less than the wander drifts.</summary>
+    private const double NoseWanderLateralFt = 155.0;
+
+    /// <summary>Along-track offset of the converging pair, which puts the two 89.4 ft apart — inside the 100 ft stop distance.</summary>
+    private const double ConvergingAlongFt = 40.0;
+
     /// <summary>The FAA wingspan of an aircraft type, in feet.</summary>
     /// <param name="type">ICAO type designator.</param>
     /// <returns>Wingspan in feet.</returns>
@@ -2099,6 +2117,182 @@ public class GroundConflictDetectorTests
 
         Assert.Equal(0.0, a.Ground.SpeedLimit);
         Assert.Equal(0.0, b.Ground.SpeedLimit);
+    }
+
+    /// <summary>
+    /// Two C172s merging into one lane — twin lanes converging <see cref="ConvergingTrackDiffDeg"/>° inside the
+    /// tolerance, so the bypass has to decide them, but their offsets from each other's track decay as the lanes close.
+    /// Those offsets are 80.0 ft and 87.6 ft, both clear of the 61.1 ft two pistons need, and the ~49 ft the lanes close
+    /// in the 7.5 s either takes to brake to a stop from 15 kt (2 kt/s taxi decel) is the stopping margin already spent
+    /// by the time the merge is close. The look-ahead reads the projected offset as inside the requirement and does not
+    /// grant the bypass, so the distance rule governs: the two sit 89 ft apart, inside the 100 ft stop distance, and the
+    /// converging aircraft stops rather than carrying on into the neighbouring lane.
+    /// </summary>
+    [Fact]
+    public void ParallelTaxiways_ConvergingPistonsMergingLanes_LoseTheBypassWhileStoppingRoomRemains()
+    {
+        var basePos = new LatLon(BaseLat, BaseLon);
+        LatLon otherPos = AlongAndAbeam(basePos, ParallelTrackDeg, ConvergingAlongFt, PistonLateralFt);
+
+        double requiredFt = WingspanFt("C172") + GroundOutlineSweep.WingtipBufferFt;
+        Assert.True(
+            requiredFt < PistonLateralFt,
+            $"test geometry: the pair needs {requiredFt:F1} ft and the twin lanes are {PistonLateralFt:F0} ft apart"
+        );
+
+        AircraftState a = MakeTypedAircraft("N123AA", "C172", basePos, ParallelTrackDeg, 15);
+        AircraftState b = MakeTypedAircraft("N456BB", "C172", otherPos, ParallelTrackDeg - ConvergingTrackDiffDeg, 15);
+        GroundConflictDetector.ApplySpeedLimits([a, b], null);
+
+        Assert.Equal(0.0, a.Ground.SpeedLimit);
+        Assert.Null(b.Ground.SpeedLimit);
+    }
+
+    /// <summary>
+    /// The same two C172s at the same 80 ft offset on exactly parallel tracks, the follower closing along-track: an
+    /// offset that does not decay is clear however far ahead it is projected, so the bypass stands and neither is
+    /// limited. This is the pass the bypass exists for.
+    /// </summary>
+    [Fact]
+    public void ParallelTaxiways_ExactlyParallelPistons_KeepTheBypass()
+    {
+        var basePos = new LatLon(BaseLat, BaseLon);
+        LatLon otherPos = AlongAndAbeam(basePos, ParallelTrackDeg, ParallelAlongFt, PistonLateralFt);
+
+        AircraftState a = MakeTypedAircraft("N123AA", "C172", basePos, ParallelTrackDeg, 15);
+        AircraftState b = MakeTypedAircraft("N456BB", "C172", otherPos, ParallelTrackDeg, 10);
+        GroundConflictDetector.ApplySpeedLimits([a, b], null);
+
+        Assert.Null(a.Ground.SpeedLimit);
+        Assert.Null(b.Ground.SpeedLimit);
+    }
+
+    /// <summary>
+    /// Two C172s whose lanes cross at <see cref="CrossingTrackDiffDeg"/>° at 25 kt — inside the tolerance, so the bypass
+    /// has to decide them. Each offset clears the 61.1 ft two pistons need at both ends of the look-ahead: 80.0 ft /
+    /// 88.4 ft now and 76.5 ft / 68.1 ft at the capped 12 s, and B runs through A's track line 80 / sin 18° = 259 ft
+    /// along its own path, inside the 506 ft the horizon projects. A look-ahead that read only magnitudes would call
+    /// both ends a pass and grant the bypass; the signed offsets see each cross the other's line inside the horizon and
+    /// deny it, and the distance rule stops the crossing aircraft where the two are 89 ft apart.
+    /// </summary>
+    [Fact]
+    public void ParallelTaxiways_ConvergingPistonsThatCrossInsideTheHorizon_LoseTheBypass()
+    {
+        const double speedKts = 25.0;
+        const double stopSeconds = speedKts / 2.0; // 2 kt/s piston brake rate (CategoryPerformance.TaxiDecelRate)
+        double horizonFt = Math.Min(stopSeconds, GroundConflictDetector.ParallelTrackLookAheadCapSeconds) * speedKts * FtPerNm / 3600.0;
+        var basePos = new LatLon(BaseLat, BaseLon);
+        LatLon otherPos = AlongAndAbeam(basePos, ParallelTrackDeg, ConvergingAlongFt, PistonLateralFt);
+
+        double requiredFt = WingspanFt("C172") + GroundOutlineSweep.WingtipBufferFt;
+        double crossingFt = PistonLateralFt / Math.Sin(CrossingTrackDiffDeg * Math.PI / 180.0);
+        double farSideFt = (horizonFt * Math.Sin(CrossingTrackDiffDeg * Math.PI / 180.0)) - PistonLateralFt;
+        Assert.True(crossingFt < horizonFt, $"test geometry: the pair crosses at {crossingFt:F0} ft along, inside the {horizonFt:F0} ft horizon");
+        Assert.True(
+            farSideFt > requiredFt,
+            $"test geometry: the crossing aircraft ends up {farSideFt:F0} ft out on the far side, clear of the {requiredFt:F1} ft requirement"
+        );
+
+        AircraftState a = MakeTypedAircraft("N123AA", "C172", basePos, ParallelTrackDeg, speedKts);
+        AircraftState b = MakeTypedAircraft("N456BB", "C172", otherPos, ParallelTrackDeg - CrossingTrackDiffDeg, speedKts);
+        GroundConflictDetector.ApplySpeedLimits([a, b], null);
+
+        Assert.Equal(0.0, a.Ground.SpeedLimit);
+        Assert.Null(b.Ground.SpeedLimit);
+    }
+
+    /// <summary>
+    /// The field-pass lanes with the second aircraft heading 15° <em>away</em> from the first: the offsets only grow, so
+    /// both signs hold and the bypass stands. A pair that separates is a pass however close it starts.
+    /// </summary>
+    [Fact]
+    public void ParallelTaxiways_DivergingPair_KeepsTheBypass()
+    {
+        var basePos = new LatLon(BaseLat, BaseLon);
+        LatLon otherPos = AlongAndAbeam(basePos, ParallelTrackDeg, ParallelAlongFt, ParallelLateralFt);
+
+        AircraftState a = MakeAircraft("AAA", basePos, heading: ParallelTrackDeg, gs: 20);
+        AircraftState b = MakeAircraft("BBB", otherPos, heading: ParallelTrackDeg + ConvergingTrackDiffDeg, gs: 20);
+        GroundConflictDetector.ApplySpeedLimits([a, b], null);
+
+        Assert.Null(a.Ground.SpeedLimit);
+        Assert.Null(b.Ground.SpeedLimit);
+    }
+
+    /// <summary>
+    /// Two pistons nose to nose on neighbouring lanes 80 ft apart and inside the 300 ft head-on ring: two C172s need
+    /// 61.1 ft, so the bypass has to stand the head-on rule down. Off the graph that rule stops both, so this is the
+    /// guard that the anti-parallel pass still reaches it.
+    /// </summary>
+    [Fact]
+    public void ParallelTaxiways_AntiParallelTwinLanes_KeepTheBypass()
+    {
+        var basePos = new LatLon(BaseLat, BaseLon);
+        LatLon otherPos = AlongAndAbeam(basePos, ParallelTrackDeg, ParallelAlongFt, PistonLateralFt);
+
+        AircraftState a = MakeTypedAircraft("N123AA", "C172", basePos, ParallelTrackDeg, 15);
+        AircraftState b = MakeTypedAircraft("N456BB", "C172", otherPos, ParallelReciprocalTrackDeg, 15);
+        GroundConflictDetector.ApplySpeedLimits([a, b], null);
+
+        Assert.Null(a.Ground.SpeedLimit);
+        Assert.Null(b.Ground.SpeedLimit);
+    }
+
+    /// <summary>
+    /// Two B738s on parallel route segments close enough that a few degrees of nose wander spends the pair's margin
+    /// over the look-ahead, with only the leading aircraft's nose wandered <see cref="NoseWanderDeg"/>° toward the
+    /// other. Each projection follows its own route segment (both lanes run along <see cref="ParallelTrackDeg"/>), so
+    /// the wander costs nothing and the bypass stands. Projecting along the noses instead leaves 138.3 ft at the far
+    /// end against 142.4 ft needed, which denies the bypass and limits the wanderer 163 ft from its neighbour.
+    /// </summary>
+    [Fact]
+    public void ParallelTaxiways_NoseWanderOnStraightRouteSegments_KeepsTheBypass()
+    {
+        const double speedKts = 20.0;
+        const double jetBrakeKts = 5.0; // CategoryPerformance.TaxiDecelRate for a jet
+        double horizonFt = Math.Min(speedKts / jetBrakeKts, GroundConflictDetector.ParallelTrackLookAheadCapSeconds) * speedKts * FtPerNm / 3600.0;
+        var basePos = new LatLon(BaseLat, BaseLon);
+        LatLon otherPos = AlongAndAbeam(basePos, ParallelTrackDeg, ParallelAlongFt, NoseWanderLateralFt);
+
+        // The two measurements the detector makes on the current positions: the lane itself, and the one along the
+        // wandered nose that ComputeClosingLimit's lateral test takes. Both have to clear the requirement, and the
+        // second is the tight one the wander eats into; projecting along the nose instead is what falls inside it.
+        double requiredFt = WingspanFt("B738") + GroundOutlineSweep.WingtipBufferFt;
+        double wanderRad = NoseWanderDeg * Math.PI / 180.0;
+        double laneDistFt = Math.Sqrt((ParallelAlongFt * ParallelAlongFt) + (NoseWanderLateralFt * NoseWanderLateralFt));
+        double noseTiltedFt = laneDistFt * Math.Sin(Math.Atan2(NoseWanderLateralFt, ParallelAlongFt) - wanderRad);
+        double acrossFt = NoseWanderLateralFt - (horizonFt * Math.Sin(wanderRad));
+        double alongFt = ParallelAlongFt + horizonFt - (horizonFt * Math.Cos(wanderRad));
+        double noseProjectedFt = Math.Sqrt((acrossFt * acrossFt) + (alongFt * alongFt)) * Math.Sin(Math.Atan2(acrossFt, alongFt) - wanderRad);
+        Assert.True(
+            noseTiltedFt > requiredFt,
+            $"test geometry: the lanes give {noseTiltedFt:F1} ft of room against the {requiredFt:F1} ft two B738s need"
+        );
+        Assert.True(
+            noseProjectedFt < requiredFt,
+            $"test geometry: projecting along the wandered nose leaves {noseProjectedFt:F1} ft, inside the {requiredFt:F1} ft requirement"
+        );
+
+        AircraftState a = MakeAircraft(
+            "AAA",
+            basePos,
+            heading: ParallelTrackDeg + NoseWanderDeg,
+            gs: 20,
+            taxiRoute: ParallelLaneRoute(basePos, ParallelTrackDeg, 10, 11),
+            phase: new TaxiingPhase()
+        );
+        AircraftState b = MakeAircraft(
+            "BBB",
+            otherPos,
+            heading: ParallelTrackDeg,
+            gs: 20,
+            taxiRoute: ParallelLaneRoute(otherPos, ParallelTrackDeg, 12, 13),
+            phase: new TaxiingPhase()
+        );
+        GroundConflictDetector.ApplySpeedLimits([a, b], null);
+
+        Assert.Null(a.Ground.SpeedLimit);
+        Assert.Null(b.Ground.SpeedLimit);
     }
 
     /// <summary>

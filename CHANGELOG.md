@@ -17,6 +17,7 @@
 - `BLANKD <facility>/<bay>` without a rack deletes a blank from any rack of the bay, taking the lowest rack first.
 - CRC's tower cab is re-sent every aircraft every 10 seconds, so one that failed to appear shows up instead of staying missing.
 - Two rooms using the same callsign no longer disturb each other's CRC displays.
+- Aircraft on slightly converging parallel taxiways slow for each other while there is still room to stop, instead of passing too close.
 
 ## v0.13.4-beta [2026/09/21]
 

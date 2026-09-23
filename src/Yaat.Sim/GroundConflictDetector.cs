@@ -117,12 +117,25 @@ public static class GroundConflictDetector
     // this bypass a B738 crawled at 5 kt for 65 s and stopped for 20 s while three aircraft passed on
     // the neighbouring lane. The tolerance covers a lane's own curvature and the wander of a nose
     // heading within it, while a genuine crossing (more than 20° off) keeps the distance rule. The 20°
-    // has no FAA basis — a judgement call. The test is instantaneous, with no look-ahead: two tracks
-    // converging inside the tolerance keep the bypass until the lateral offset decays through the
-    // requirement, and the distance rule then resumes with that margin already spent. A jet survives it
-    // (a B738 stops from 20 kt in ~68 ft against a 142 ft requirement); the known edge is two pistons on
-    // twin lanes (61 ft requirement vs ~95 ft to stop at 2 kt/s).
+    // has no FAA basis — a judgement call. Two tracks converging inside the tolerance still keep the bypass while
+    // their lateral offset exceeds the requirement, but not on the current offset alone: the offsets are also
+    // projected ParallelTrackLookAheadCapSeconds ahead, so a pair that would close through the requirement inside its
+    // own stopping time loses the bypass while it still has the room to brake. The projection follows the aircraft's
+    // current taxi-route segment where it has one and that segment runs within this tolerance of its travel direction,
+    // so a nose wandered a few degrees inside its lane does not spend the lane's margin on the wander; the travel
+    // direction is the fallback (no route, a finished route, a pushback running against its own segment). The offsets
+    // are signed, so a pair that crosses a track line anywhere inside the look-ahead loses the bypass whatever the two
+    // ends of the projection measure. Exactly parallel or anti-parallel tracks keep their offset under it and pass as
+    // before. A jet survives the instantaneous test alone (a B738 stops from 20 kt in ~68 ft against a 142 ft
+    // requirement); the known edge it missed is two pistons on twin lanes (61 ft requirement vs ~95 ft to stop at
+    // 2 kt/s).
     private const double ParallelTrackToleranceDeg = 20.0;
+
+    /// <summary>How far ahead, seconds, the parallel-track bypass projects the two tracks before granting it: the
+    /// longer of the pair's own stopping times, capped here so a slow-category aircraft's stopping time at speed
+    /// cannot project the pair far down the taxiway. Public because the detector's tests build their geometry — a
+    /// crossing that has to fall inside it — from the same figure.</summary>
+    public const double ParallelTrackLookAheadCapSeconds = 12.0;
 
     // When two same-priority movers would each stop for the other, hold the "follower" (the one
     // with the other nearer dead-ahead — a small off-nose angle) and release the "lead" (the one
@@ -1083,7 +1096,7 @@ public static class GroundConflictDetector
         // the lateral bypass too: it is as safe to pass as a parked one, and without this the straight-line
         // distance rule crawls or stops an aircraft for traffic on the taxiway alongside it.
         double obstacleDir = obstacle.Ground.PushbackTrueHeading?.Degrees ?? obstacle.TrueHeading.Degrees;
-        bool lateralGate = stationaryGate || (!isStationary && HasParallelTrackLateralRoom(mover, moveDir, obstacle, obstacleDir, distFt));
+        bool lateralGate = stationaryGate || (!isStationary && HasParallelTrackLateralRoom(mover, moveDir, obstacle, obstacleDir));
 
         if (WingspanLateralCheckEnabled && lateralGate && (RequiredLateralClearanceFt(mover, obstacle) is { } requiredLateralFt))
         {
@@ -1634,7 +1647,7 @@ public static class GroundConflictDetector
 
         // Anti-parallel on two lanes far enough apart to pass abeam is a pass, not a head-on: neither
         // aircraft is on the other's track. A same-corridor head-on has ~no lateral offset and still holds.
-        if (HasParallelTrackLateralRoom(a, dirA, b, dirB, distFt))
+        if (HasParallelTrackLateralRoom(a, dirA, b, dirB))
         {
             return;
         }
@@ -1909,8 +1922,24 @@ public static class GroundConflictDetector
     /// <para>Both offsets are measured because the tolerance lets the two tracks differ, so the offset of B from
     /// A's track and the offset of A from B's are not the same number. A crossing pair — more than the tolerance
     /// off parallel — is never covered here and keeps the distance rule.</para>
+    ///
+    /// <para>The offsets are measured twice: where the two are now, and where they will be at the end of the
+    /// look-ahead, both against the same track line — the bearing the aircraft is projected along, chosen by
+    /// <see cref="ProjectionBearingDeg"/>: its current taxi-route segment where that segment runs within
+    /// <see cref="ParallelTrackToleranceDeg"/> of its travel direction (<paramref name="dirA"/>/<paramref name="dirB"/>, so
+    /// a push projects backwards along the way its tail is going), the travel direction itself otherwise. The route
+    /// segment is preferred because it is the line the aircraft will actually drive: a nose wandered a few degrees
+    /// inside its lane would project off the lane and spend the pair's margin on the wander. Each aircraft runs its
+    /// bearing for its own speed times the longer of the pair's stopping times (<see cref="StopTimeSeconds"/>), capped at
+    /// <see cref="ParallelTrackLookAheadCapSeconds"/>: the moment by which a bypass granted now would have to be paid
+    /// for out of the stopping margin. Both offsets are signed and have to keep to the same side of the other's track
+    /// line as well as clear their requirements, so a pair that crosses a track line anywhere inside the look-ahead
+    /// loses the bypass — at that crossing the offset is zero, whatever either end of the projection measures — and the
+    /// distance rule takes over while there is still room to brake. Exactly parallel or anti-parallel tracks keep both
+    /// their side and their offset under the projection, so the neighbouring-lane pass the bypass exists for is
+    /// untouched.</para>
     /// </summary>
-    private static bool HasParallelTrackLateralRoom(AircraftState a, double dirA, AircraftState b, double dirB, double distFt)
+    private static bool HasParallelTrackLateralRoom(AircraftState a, double dirA, AircraftState b, double dirB)
     {
         double trackDiff = HeadingDifference(dirA, dirB);
         if ((trackDiff > ParallelTrackToleranceDeg) && (trackDiff < 180.0 - ParallelTrackToleranceDeg))
@@ -1923,10 +1952,69 @@ public static class GroundConflictDetector
             return false;
         }
 
-        double lateralFromA = distFt * Math.Sin(HeadingDifference(dirA, GeoMath.BearingTo(a.Position, b.Position)) * Math.PI / 180.0);
-        double lateralFromB = distFt * Math.Sin(HeadingDifference(dirB, GeoMath.BearingTo(b.Position, a.Position)) * Math.PI / 180.0);
-        return (lateralFromA > requiredForA) && (lateralFromB > requiredForB);
+        double bearingA = ProjectionBearingDeg(a, dirA);
+        double bearingB = ProjectionBearingDeg(b, dirB);
+        (double FromA, double FromB) current = LateralOffsetsFt(a.Position, bearingA, b.Position, bearingB);
+        if ((Math.Abs(current.FromA) <= requiredForA) || (Math.Abs(current.FromB) <= requiredForB))
+        {
+            return false;
+        }
+
+        double horizonSeconds = Math.Min(Math.Max(StopTimeSeconds(a), StopTimeSeconds(b)), ParallelTrackLookAheadCapSeconds);
+        LatLon projectedA = GeoMath.ProjectPointRaw(a.Position, bearingA, a.GroundSpeed * horizonSeconds / 3600.0);
+        LatLon projectedB = GeoMath.ProjectPointRaw(b.Position, bearingB, b.GroundSpeed * horizonSeconds / 3600.0);
+
+        (double FromA, double FromB) projected = LateralOffsetsFt(projectedA, bearingA, projectedB, bearingB);
+        return ClearsTrackLine(current.FromA, projected.FromA, requiredForA) && ClearsTrackLine(current.FromB, projected.FromB, requiredForB);
     }
+
+    /// <summary>
+    /// The bearing to project <paramref name="ac"/> along, and to measure the other aircraft's signed offset against:
+    /// the bearing of its current taxi-route segment — read as the chord from the segment's departure node to its
+    /// arrival node, the way the route-lateral test reads an arc — when that segment runs within
+    /// <see cref="ParallelTrackToleranceDeg"/> of its travel direction <paramref name="travelDirDeg"/>, otherwise the
+    /// travel direction itself. No route, a route with no segment left to drive, and a segment set off the direction of
+    /// travel (a pushback running against its own segment, a lane's fillet) all fall back to the travel direction.
+    /// </summary>
+    private static double ProjectionBearingDeg(AircraftState ac, double travelDirDeg)
+    {
+        if (ac.Ground.AssignedTaxiRoute?.CurrentSegment is not { } segment)
+        {
+            return travelDirDeg;
+        }
+
+        double segmentBearing = GeoMath.BearingTo(segment.Edge.FromNode.Position, segment.Edge.ToNode.Position);
+        return HeadingDifference(travelDirDeg, segmentBearing) > ParallelTrackToleranceDeg ? travelDirDeg : segmentBearing;
+    }
+
+    /// <summary>
+    /// How long <paramref name="ac"/> takes to brake to a stop from its current ground speed at its category's taxi
+    /// deceleration rate (<see cref="CategoryPerformance.TaxiDecelRate"/>), seconds: the window the parallel-track
+    /// bypass has to stay good for.
+    /// </summary>
+    private static double StopTimeSeconds(AircraftState ac) =>
+        ac.GroundSpeed / CategoryPerformance.TaxiDecelRate(AircraftCategorization.Categorize(ac.AircraftType));
+
+    /// <summary>
+    /// True when one aircraft's signed offset from the other's track line clears <paramref name="requiredFt"/> at both
+    /// ends of the look-ahead — <paramref name="currentFt"/> where it is now, <paramref name="projectedFt"/> where the
+    /// projection leaves it — and stays on the same side of that line. The offset is linear over a straight-line
+    /// projection (the line belongs to the other aircraft, which runs along it), so equal signs at the two ends mean
+    /// it never reaches zero in between and its smallest magnitude over the horizon is at one of the ends. A sign
+    /// change is this pair crossing that track line inside the look-ahead, where the offset is zero: no room measured
+    /// either side of the crossing is worth anything.
+    /// </summary>
+    private static bool ClearsTrackLine(double currentFt, double projectedFt, double requiredFt) =>
+        (Math.Sign(currentFt) == Math.Sign(projectedFt)) && (Math.Abs(currentFt) > requiredFt) && (Math.Abs(projectedFt) > requiredFt);
+
+    /// <summary>
+    /// The signed lateral offset of each aircraft from the other's track line, feet, when the two sit at
+    /// <paramref name="posA"/>/<paramref name="posB"/> and travel along <paramref name="dirA"/>/<paramref name="dirB"/>:
+    /// positive to the right of that direction. One formula measures the offsets where they are now and where the
+    /// projection leaves them, and a sign change between the two is the pair crossing that track line.
+    /// </summary>
+    private static (double FromA, double FromB) LateralOffsetsFt(LatLon posA, double dirA, LatLon posB, double dirB) =>
+        (GeoMath.SignedCrossTrackDistanceNmRaw(posB, posA, dirA) * FtPerNm, GeoMath.SignedCrossTrackDistanceNmRaw(posA, posB, dirB) * FtPerNm);
 
     /// <summary>
     /// The side-by-side room two aircraft need to pass each other: half of each wingspan plus

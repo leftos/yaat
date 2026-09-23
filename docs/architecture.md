@@ -626,7 +626,8 @@ GroundConflictDetector.cs      # Static pairwise ground proximity → SpeedLimit
                                # (deterministic holder, never both stopped), incl.
                                # converging-merge arbitration — except a parallel-lane pass
                                # (HasParallelTrackLateralRoom: tracks within 20° of parallel/anti-parallel,
-                               # each with more room from the other's track than half-spans + WingtipBufferFt),
+                               # each with more room from the other's track than half-spans + WingtipBufferFt,
+                               # now and projected along the route segment over the pair's stopping time, same side of the track),
                                # where ComputeClosingLimit's moving-obstacle lateral bypass and ResolveHeadOn's
                                # 300 ft ring both stand down and neither aircraft holds. DebugSink logs the
                                # specific hold kind so the controller GIVEWAY relationship is observable
