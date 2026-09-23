@@ -990,7 +990,7 @@ public static class CommandDispatcher
             case WarpCommand cmd:
                 return FlightCommandHandler.ApplyWarp(cmd, aircraft);
             case WarpGroundCommand cmd:
-                return FlightCommandHandler.ApplyWarpGround(cmd, aircraft);
+                return FlightCommandHandler.ApplyWarpGround(cmd, aircraft, ctx.GroundLayout);
 
             // --- Turn rate ---
             case SetTurnRateCommand cmd:

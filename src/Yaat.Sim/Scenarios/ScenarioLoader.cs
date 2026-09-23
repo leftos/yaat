@@ -432,6 +432,13 @@ public static class ScenarioLoader
             state.Ground.AutoDeleteExempt = true;
             state.Ground.IsScriptedDeparture = HasTaxiPreset(ac.PresetCommands);
         }
+        else
+        {
+            // An airborne spawn lands at its destination: carry that layout from spawn, as the OnFinal path does,
+            // so the aircraft is not left without one once it is on the ground (issue #448).
+            string? destId = ac.FlightPlan?.Destination;
+            state.Ground.Layout = !string.IsNullOrEmpty(destId) ? groundData?.GetLayout(destId) : null;
+        }
 
         string navigationPath = ResolveVersionChanges(cond.NavigationPath ?? "", state, warnings);
         ArrivalRouteResolver.PopulateNavigationRoute(state, navigationPath, warnings);

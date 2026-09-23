@@ -6,7 +6,6 @@ Take the waves top to bottom. Wave 1 is small and removes RPO workarounds. Wave 
 
 ## Wave 1: small fixes
 
-- [ ] **#448 `WARPG` always refuses with "No airport layout loaded"**: it reads the raw `aircraft.Ground.Layout` instead of the dispatch context's resolved layout. Fix site: `FlightCommandHandler.ApplyWarpGround`, `CommandDispatcher` WarpGround arm
 - [ ] **#449 Ground View shows the first METAR (KAUN) instead of its own airport's**: the weather is picked while the layout is still loading and never re-picked. Fix site: `MainViewModel.Weather.PickGroundWeather`, `GroundViewModel.LoadLayoutAsync`
 - [ ] **#450 Terminal search box too narrow, no clear button**: `TerminalPanelView.axaml`, following the ✕ pattern in `FindBarView.axaml`
 - [ ] **#451 An aircraft stopped on an edgeless spot marker can't be taxied**: the start-node fallback accepts a node with zero edges. Fix site: `GroundCommandHandler` start-node lookup, `AirportGroundLayout.FindNearestNode`

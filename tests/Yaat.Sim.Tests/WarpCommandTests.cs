@@ -570,6 +570,31 @@ public class WarpCommandTests
         Assert.True(push.Success, $"Expected PUSH success, got: {push.Message}");
     }
 
+    /// <summary>
+    /// Issue #448: an arrival that landed and taxied carries no cached <c>Ground.Layout</c>; TAXI resolves the
+    /// layout through the dispatch context, so WARPG must too instead of refusing "No airport layout loaded".
+    /// </summary>
+    [Fact]
+    public void WarpGround_WithoutCachedLayout_UsesDispatchContextLayout()
+    {
+        AirportGroundLayout? layout = SfoLayout();
+        if (layout is null)
+        {
+            return;
+        }
+
+        AircraftState ac = MakeSfoAircraft(layout);
+        ac.Ground.Layout = null;
+
+        CommandResult result = DispatchText(ac, "WARPG A E", layout);
+
+        Assert.True(result.Success, $"Expected success, got: {result.Message}");
+        GroundNode? node = CommandDispatcher.FindTaxiwayIntersection(layout, "A", "E");
+        Assert.NotNull(node);
+        Assert.Equal(node.Position.Lat, ac.Position.Lat, 6);
+        Assert.Equal(node.Position.Lon, ac.Position.Lon, 6);
+    }
+
     [Fact]
     public void WarpGround_ByNodeId_ToGate_LeavesAircraftAtParking()
     {

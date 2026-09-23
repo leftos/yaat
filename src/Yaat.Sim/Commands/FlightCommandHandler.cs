@@ -978,9 +978,17 @@ internal static class FlightCommandHandler
         return CommandDispatcher.Ok($"Warped to {cmd.PositionLabel}, heading {heading.Degrees:000}, {altitude:N0} ft, {speed} kts");
     }
 
-    internal static CommandResult ApplyWarpGround(WarpGroundCommand cmd, AircraftState aircraft)
+    /// <summary>
+    /// Teleports an aircraft onto a node of the ground layout and leaves it idling there.
+    /// </summary>
+    /// <param name="cmd">The parsed WARPG command naming the target node, stand, spot or intersection.</param>
+    /// <param name="aircraft">The aircraft to move.</param>
+    /// <param name="groundLayout">The dispatch context's resolved layout. The aircraft's own cached
+    /// <c>Ground.Layout</c> is unset for an arrival that landed and taxied, so it is not read here.</param>
+    /// <returns>The command result.</returns>
+    internal static CommandResult ApplyWarpGround(WarpGroundCommand cmd, AircraftState aircraft, AirportGroundLayout? groundLayout)
     {
-        AirportGroundLayout? layout = aircraft.Ground.Layout;
+        AirportGroundLayout? layout = groundLayout;
         if (layout is null)
         {
             return new CommandResult(false, "No airport layout loaded for this aircraft");

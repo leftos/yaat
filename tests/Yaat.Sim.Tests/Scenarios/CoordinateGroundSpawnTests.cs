@@ -199,6 +199,45 @@ public class CoordinateGroundSpawnTests
         Assert.True(state.IndicatedAirspeed > 0, "Airborne spawn resolves to a cruise speed");
     }
 
+    // An arrival authored at a point in the air, as S1-SFO-2's arrivals are (issue #448).
+    private const string AirborneCoordinatesArrival = """
+        {
+          "id": "test",
+          "name": "Test",
+          "primaryAirportId": "SFO",
+          "aircraft": [
+            {
+              "id": "ac1",
+              "aircraftId": "SKW3398",
+              "aircraftType": "E75L",
+              "startingConditions": { "type": "Coordinates", "coordinates": { "lat": 37.40, "lon": -122.05 }, "altitude": 6000, "heading": 300 },
+              "flightplan": { "rules": "IFR", "departure": "KLAX", "destination": "KSFO" },
+              "airportId": "SFO"
+            }
+          ]
+        }
+        """;
+
+    /// <summary>
+    /// Issue #448: an airborne Coordinates arrival carries its destination's layout from spawn, as an OnFinal spawn
+    /// does, so once it has landed every ground verb and the cached-layout readers see the airport it is on.
+    /// </summary>
+    [Fact]
+    public void CoordinatesAirborneArrival_CarriesDestinationLayout()
+    {
+        ScenarioLoadResult result = ScenarioLoader.Load(
+            AirborneCoordinatesArrival,
+            new TestAirportGroundData(),
+            new Random(0),
+            MagneticDeclination.EvaluationDateUtc
+        );
+
+        AircraftState state = Assert.Single(result.ImmediateAircraft).State;
+        Assert.False(state.IsOnGround);
+        Assert.NotNull(state.Ground.Layout);
+        Assert.Equal("SFO", state.Ground.LayoutAirportId, ignoreCase: true);
+    }
+
     [Fact]
     public void CoordinatesAtFieldElevation_ExplicitSpeed_StaysAirborne()
     {
