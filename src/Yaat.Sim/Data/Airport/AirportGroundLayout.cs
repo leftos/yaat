@@ -2479,10 +2479,27 @@ public sealed class AirportGroundLayout
 
     /// <summary>
     /// Get the heading along the named taxiway at the given node, choosing the
-    /// direction closest to <paramref name="preferredBearing"/>.
+    /// direction closest to <paramref name="preferredBearing"/>. When every edge of the taxiway at the node
+    /// points away from the preference (the node is the taxiway's end), the taxiway's line extended past the
+    /// end is the answer: an aircraft lined up there can face either way along the line.
     /// Returns null if no matching taxiway edge exists at the node.
     /// </summary>
     public double? GetEdgeBearingForTaxiway(GroundNode node, string taxiwayName, double preferredBearing)
+    {
+        if (GetNearestEdgeBearingForTaxiway(node, taxiwayName, preferredBearing) is not { } bearing)
+        {
+            return null;
+        }
+
+        if (GeoMath.AbsBearingDifference(bearing, preferredBearing) < 90.0)
+        {
+            return bearing;
+        }
+
+        return new TrueHeading(bearing + 180.0).Degrees;
+    }
+
+    private static double? GetNearestEdgeBearingForTaxiway(GroundNode node, string taxiwayName, double preferredBearing)
     {
         double? bestBearing = null;
         double bestDiff = double.MaxValue;

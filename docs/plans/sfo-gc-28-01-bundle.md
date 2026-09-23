@@ -6,9 +6,6 @@ Take the waves top to bottom. Wave 1 is small and removes RPO workarounds. Wave 
 
 ## Wave 1: small fixes
 
-- [ ] **Radar View lists every METAR for a tower or ground student position** (user steer 2026-09-22, with #449): the radar filters by the student position's STARS area (`ArtccConfigService.GetPositionDisplayConfig`), which returns nothing for a facility with no STARS configuration, so SFO GC shows KAUN and the rest. Wanted, as CRC STARS does: the position's subordinate airports; OAK_TWR shows only OAK, OAK_APP and SFO_DEP their own areas' airports
-- [ ] **#451 An aircraft stopped on an edgeless spot marker can't be taxied**: the start-node fallback accepts a node with zero edges. Fix site: `GroundCommandHandler` start-node lookup, `AirportGroundLayout.FindNearestNode`
-- [ ] **#452 `PUSH Y TAIL S` faces the reciprocal**: the facing is taken from `AirportGroundLayout.GetEdgeBearingForTaxiway`, which returns the only edge at the exit node regardless of the hint
 - [ ] **#453 `GIVEWAY` never releases on its own**: decided 2026-09-22 that it resumes once the target has passed or no longer conflicts, and `RES` stays as the manual override. Fix site: `GroundCommandHandler.TryGiveWay`. Gate: `aviation-sim-expert`
 
 ## Wave 2: taxi routing (`SegmentExpander`, `RouteCostFunction`; `docs/ground/pathfinder.md`)

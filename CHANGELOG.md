@@ -25,6 +25,8 @@
 - Aircraft on slightly converging parallel taxiways slow for each other while there is still room to stop, instead of passing too close.
 - `WARPG` works on arrivals that have landed, instead of refusing with "No airport layout loaded for this aircraft".
 - The Ground View shows the wind and altimeter of the airport it depicts after live weather loads, instead of the first station in the list.
+- `TAXI` works for an aircraft holding beside a spot marker not joined to any taxiway, such as SFO spot 30, instead of failing every route.
+- `PUSH <taxiway> TAIL <direction>` or `FACE <direction>` at the end of a taxiway faces the way asked, instead of the opposite way.
 
 ## v0.13.4-beta [2026/09/21]
 
