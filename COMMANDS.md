@@ -670,7 +670,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | Return to live traffic | `UNASSUME` | — | Releases an assumed aircraft to the feed; the shadow returns on the next update if the feed still tracks it |
 | Auto-delete on hold-short | `ONHS DEL` | — | Queues a delete that fires when the aircraft reaches HoldingAfterExit after landing. Datablock shows a trailing `*` while armed. |
 | Auto-delete after a crossing | `CROSS 19R; DEL` | — | Queues a delete that fires once the aircraft is clear of the far side of the runway it just crossed. Same `*` marker. |
-| Cancel auto-delete | `NODEL` | — | Strips every queued delete — `ONHS DEL`, `CROSS …; DEL`, `AT <fix> DEL` — and re-arms `AutoDeleteExempt` so scenario-level auto-delete also won't touch the aircraft. Distinct from the `NODEL` *modifier* on `CLAND`/`TAXI`/`EL`/`ER`/`EXIT`/`LAND`, which sets the exempt flag at the time those commands are issued. |
+| Cancel auto-delete | `NODEL` | — | Strips every queued delete — `ONHS DEL`, `CROSS …; DEL`, `AT <fix> DEL` — and re-arms `AutoDeleteExempt` so scenario-level auto-delete also won't touch the aircraft, the departure auto-delete distance included. Distinct from the `NODEL` *modifier* on `CLAND`/`TAXI`/`EL`/`ER`/`EXIT`/`LAND`, which sets the exempt flag at the time those commands are issued. |
 | Delete conditional(s) | `DELAT` / `DELAT 2` | `DELCOND`, `DC`, `CXL`, `CLR` | — |
 | Show conditional list | `SHOWAT` | `SHOWCOND` | — |
 | Say | `SAY text` | `SAYF` | — |
@@ -1799,7 +1799,7 @@ For busy tower / local scenarios with a steady arrival flow, landing aircraft pi
 |---------|--------|
 | `ONHS DEL` | Queue auto-delete for this aircraft. Fires when it reaches the hold-short after landing. Bypasses `AutoDeleteExempt` (controller explicitly asked). |
 | `CROSS 19R; DEL` | Queue auto-delete behind a runway crossing — fires once the aircraft is clear of the far side. For arrivals that must cross a parallel before they can leave the scope (see [Ground Operations](#ground-operations)). |
-| `NODEL` | Cancel **any** queued delete — however it was armed — and re-arm `AutoDeleteExempt` so scenario-level auto-delete also leaves the aircraft alone. |
+| `NODEL` | Cancel **any** queued delete — however it was armed — and re-arm `AutoDeleteExempt` so scenario-level auto-delete also leaves the aircraft alone. Also keeps a departure from the session's *delete departures beyond (nm)* setting. |
 
 `ONHS DEL` can be issued any time during the approach or rollout (typically during the landing rollout once an exit has been chosen). The pilot still calls "clear of runway" on phase entry before the delete fires.
 
@@ -1808,6 +1808,8 @@ For busy tower / local scenarios with a steady arrival flow, landing aircraft pi
 The radar / Tower Cab datablock shows a trailing `*` on the callsign while a delete is armed, so you can see at a glance which aircraft are pre-marked. The `*` clears either when `NODEL` cancels the request or when the auto-delete itself removes the aircraft a moment later.
 
 `NODEL` as a bare verb is distinct from the `NODEL` *modifier* on `CLAND` / `LAND` / `TAXI` / `EL` / `ER` / `EXIT`. The modifier sets `AutoDeleteExempt` at the time those commands are issued; the bare verb does the same plus strips every queued delete block.
+
+Both forms also mark the aircraft as kept by the controller, which is the only thing that exempts it from the session's departure auto-delete distance (Settings > *Auto-delete departures beyond (nm)*, or *Delete departures beyond (nm)* in the session flyout). That setting removes an airborne departure from the primary airport once it is farther than the set distance, tracked or not and whatever the arrival auto-delete mode. A plain `AutoDeleteExempt` does not protect it, because spawn sets that flag on every aircraft that starts on the ground.
 
 ### Force Override Commands
 

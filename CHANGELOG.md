@@ -2,7 +2,12 @@
 
 ## Unreleased
 
+### Added
+- Settings and the session flyout take a distance beyond which departures from the primary airport are deleted automatically; blank keeps them.
+- Departures removed that way appear in the debrief as "Departed".
+
 ### Changed
+- `NODEL` also keeps a departure from being deleted by the departure distance setting.
 - Aircraft types missing from the aircraft database are sized by wake category for ground spacing, runway-exit stopping points and same-runway arrival spacing.
 
 ### Fixed

@@ -295,6 +295,13 @@ public sealed class SimScenarioState
     public string? ScenarioAutoDeleteMode { get; set; }
     public string? ClientAutoDeleteOverride { get; set; }
 
+    /// <summary>
+    /// Session setting: an airborne departure from the primary airport farther than this many nm from it is
+    /// auto-deleted, whatever <see cref="EffectiveAutoDeleteMode"/> says; a local flight filed back to the primary airport
+    /// (closed traffic, practice approaches) is kept. Null (the default) keeps departures.
+    /// </summary>
+    public double? DepartureAutoDeleteDistanceNm { get; set; }
+
     /// <summary>The scenario keeps spawning traffic (timed spawns or generators) — see <see cref="Scenarios.ScenarioLoadResult.HasOngoingTrafficSource"/>.</summary>
     public bool HasOngoingTrafficSource { get; set; }
 
@@ -495,6 +502,7 @@ public sealed class SimScenarioState
             IsStudentTowerPosition = IsStudentTowerPosition,
             ScenarioAutoDeleteMode = ScenarioAutoDeleteMode,
             ClientAutoDeleteOverride = ClientAutoDeleteOverride,
+            DepartureAutoDeleteDistanceNm = DepartureAutoDeleteDistanceNm,
             HasOngoingTrafficSource = HasOngoingTrafficSource,
             ArtccId = ArtccId,
             StudentPosition = StudentPosition?.ToSnapshot(),

@@ -114,6 +114,7 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `RequestFlightStripForAircraftAsync(callsign)` | `RequestFlightStripForAircraft` | `RequestFlightStripForAircraft(callsign)` `:886` |
 | `SetAutoAcceptDelayAsync(seconds)` | `SetAutoAcceptDelay` | `SetAutoAcceptDelay(seconds)` `:524` |
 | `SetAutoDeleteModeAsync(mode)` | `SetAutoDeleteMode` | `SetAutoDeleteMode(mode)` `:545` |
+| `SetDepartureAutoDeleteDistanceAsync(distanceNm)` | `SetDepartureAutoDeleteDistance` | `SetDepartureAutoDeleteDistance(distanceNm)` — returns `CommandResultDto`; null turns it off, a value outside 1–500 nm is refused with the reason and no broadcast |
 | `SetValidateDctFixesAsync(validate)` | `SetValidateDctFixes` | `SetValidateDctFixes(...)` `:771` |
 | `SetRpoShowPilotSpeechAsync(enabled)` | `SetRpoShowPilotSpeech` | `SetRpoShowPilotSpeech(...)` `:792` |
 | `SetSoloTrainingModeAsync(enabled)` | `SetSoloTrainingMode` | `SetSoloTrainingMode(...)` `:811` |
@@ -383,14 +384,7 @@ This split is the source of the most common wire bug — see the checklist below
 
 ## Session-settings fan-out
 
-Roughly 13 session-settings fields are duplicated across **four** DTOs and must move in lockstep:
-`LoadScenarioResult` (`TrainingDtos.cs:105`), `RoomStateDto` (`:182`), `ScenarioLoadedDto` (`:213`), and
-`SessionSettingsDto` (`:241`) — with the same set on the client side. The fields:
-`AutoDeleteOverride`, `EffectiveAutoDeleteMode`, `AutoAcceptDelaySeconds`, `AutoClearedToLand`, `AutoCrossRunway`,
-`AutoPullUpToParallel`, `AutoGoAroundOnOccupiedRunway`, `AutoRejectTakeoffOnOccupiedRunway`, `AutoArrivalSpacingOnOccupiedRunway`, `ValidateDctFixes`, `SoloTrainingMode`, `SoloParkingInitialCallupRatePercent`,
-`SoloArrivalGeneratorRatePercent`, `SoloGoAroundProbabilityPercent`, `HasSoloParkingInitialCallupSource`,
-`HasSoloArrivalGeneratorSource`, `RpoShowPilotSpeech`, `CommandRunDelayMinSeconds`, `CommandRunDelayMaxSeconds`,
-`LiveTrafficEnabled`, `LiveTrafficCeilingFt`.
+Roughly 13 session-settings fields are duplicated across **four** DTOs and must move in lockstep: `LoadScenarioResult` (`TrainingDtos.cs:105`), `RoomStateDto` (`:182`), `ScenarioLoadedDto` (`:213`), and `SessionSettingsDto` (`:241`) — with the same set on the client side. The fields: `AutoDeleteOverride`, `EffectiveAutoDeleteMode`, `DepartureAutoDeleteDistanceNm`, `AutoAcceptDelaySeconds`, `AutoClearedToLand`, `AutoCrossRunway`, `AutoPullUpToParallel`, `AutoGoAroundOnOccupiedRunway`, `AutoRejectTakeoffOnOccupiedRunway`, `AutoArrivalSpacingOnOccupiedRunway`, `ValidateDctFixes`, `SoloTrainingMode`, `SoloParkingInitialCallupRatePercent`, `SoloArrivalGeneratorRatePercent`, `SoloGoAroundProbabilityPercent`, `HasSoloParkingInitialCallupSource`, `HasSoloArrivalGeneratorSource`, `RpoShowPilotSpeech`, `CommandRunDelayMinSeconds`, `CommandRunDelayMaxSeconds`, `LiveTrafficEnabled`, `LiveTrafficCeilingFt`.
 The four DTOs feed three different paths — initial join (`RoomStateDto`), scenario load
 (`LoadScenarioResult` / `ScenarioLoadedDto`), and live update (`SessionSettingsDto`). Add a setting to fewer than all
 four and it silently drops on whichever path you missed.

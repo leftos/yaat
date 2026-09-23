@@ -306,6 +306,20 @@
             </StackPanel>
 
             <StackPanel Spacing="2">
+              <TextBlock Text="Delete departures beyond (nm)" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+              <NumericUpDown
+                Value="{Binding SessionDepartureAutoDeleteDistanceNm}"
+                Minimum="1"
+                Maximum="500"
+                Increment="1"
+                Width="100"
+                HorizontalAlignment="Left"
+                Foreground="{DynamicResource TextControlForeground}"
+                ToolTip.Tip="Removes departures from the primary airport once they are farther than this from it. Leave blank to keep them."
+              />
+            </StackPanel>
+
+            <StackPanel Spacing="2">
               <TextBlock Text="Auto-Accept Delay:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
               <StackPanel Orientation="Horizontal" Spacing="4">
                 <NumericUpDown

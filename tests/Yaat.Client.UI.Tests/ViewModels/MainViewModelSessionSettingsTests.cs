@@ -17,6 +17,7 @@ public class MainViewModelSessionSettingsTests
             new SessionSettingsDto(
                 AutoDeleteOverride: null,
                 EffectiveAutoDeleteMode: "Parked",
+                DepartureAutoDeleteDistanceNm: null,
                 AutoAcceptDelaySeconds: 5,
                 AutoClearedToLand: true,
                 AutoCrossRunway: true,
@@ -64,6 +65,7 @@ public class MainViewModelSessionSettingsTests
             new SessionSettingsDto(
                 AutoDeleteOverride: "Parked",
                 EffectiveAutoDeleteMode: "Parked",
+                DepartureAutoDeleteDistanceNm: null,
                 AutoAcceptDelaySeconds: 5,
                 AutoClearedToLand: false,
                 AutoCrossRunway: false,
@@ -95,6 +97,7 @@ public class MainViewModelSessionSettingsTests
             new SessionSettingsDto(
                 AutoDeleteOverride: null,
                 EffectiveAutoDeleteMode: null,
+                DepartureAutoDeleteDistanceNm: null,
                 AutoAcceptDelaySeconds: -1,
                 AutoClearedToLand: false,
                 AutoCrossRunway: false,
@@ -151,6 +154,64 @@ public class MainViewModelSessionSettingsTests
         Assert.Equal(65, vm.SessionSoloArrivalGeneratorRatePercent);
         Assert.True(vm.SessionRpoShowPilotSpeech);
     }
+
+    [AvaloniaFact]
+    public void ApplySessionSettings_UsesDepartureAutoDeleteDistanceForTheBox_AndNullBlanksIt()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+
+        vm.ApplySessionSettings(SessionSettingsWithDepartureDistance(30));
+        Assert.Equal(30m, vm.SessionDepartureAutoDeleteDistanceNm);
+
+        vm.ApplySessionSettings(SessionSettingsWithDepartureDistance(null));
+        Assert.Null(vm.SessionDepartureAutoDeleteDistanceNm);
+    }
+
+    [AvaloniaFact]
+    public void ApplySessionSettingsFromLoadScenarioResult_CarriesDepartureAutoDeleteDistance()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+
+        vm.ApplySessionSettingsFromLoadScenarioResult(
+            new LoadScenarioResultDto(
+                Success: true,
+                Name: "Test",
+                ScenarioId: "scenario-1",
+                AircraftCount: 0,
+                DelayedCount: 0,
+                IsPaused: true,
+                SimRate: 1,
+                PrimaryAirportId: "OAK",
+                Warnings: [],
+                AllAircraft: [],
+                DepartureAutoDeleteDistanceNm: 45
+            )
+        );
+
+        Assert.Equal(45m, vm.SessionDepartureAutoDeleteDistanceNm);
+    }
+
+    private static SessionSettingsDto SessionSettingsWithDepartureDistance(double? distanceNm) =>
+        new(
+            AutoDeleteOverride: null,
+            EffectiveAutoDeleteMode: null,
+            DepartureAutoDeleteDistanceNm: distanceNm,
+            AutoAcceptDelaySeconds: -1,
+            AutoClearedToLand: false,
+            AutoCrossRunway: false,
+            AutoPullUpToParallel: false,
+            AutoGoAroundOnOccupiedRunway: false,
+            AutoRejectTakeoffOnOccupiedRunway: false,
+            AutoArrivalSpacingOnOccupiedRunway: false,
+            ValidateDctFixes: false,
+            SoloTrainingMode: false,
+            SoloParkingInitialCallupRatePercent: 100,
+            SoloArrivalGeneratorRatePercent: 100,
+            SoloGoAroundProbabilityPercent: 0,
+            HasSoloParkingInitialCallupSource: false,
+            HasSoloArrivalGeneratorSource: false,
+            RpoShowPilotSpeech: false
+        );
 
     /// <summary>
     /// The flyout's auto arrival spacing toggle is greyed out for a student who is themselves the approach

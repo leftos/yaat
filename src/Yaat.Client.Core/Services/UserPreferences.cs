@@ -189,6 +189,9 @@ public sealed class UserPreferences
     public int CommandRunDelayMinSeconds => _data.CommandRunDelayMinSeconds;
     public int CommandRunDelayMaxSeconds => _data.CommandRunDelayMaxSeconds;
     public string AutoDeleteOverride => _data.AutoDeleteOverride;
+
+    /// <summary>The user's default departure auto-delete distance in nm, sent when a scenario loads; null keeps departures.</summary>
+    public double? DepartureAutoDeleteDistanceNm => _data.DepartureAutoDeleteDistanceNm;
     public bool IsDataGridPoppedOut => _data.IsDataGridPoppedOut;
     public bool IsGroundViewPoppedOut => _data.IsGroundViewPoppedOut;
     public bool IsRadarViewPoppedOut => _data.IsRadarViewPoppedOut;
@@ -600,6 +603,12 @@ public sealed class UserPreferences
     public void SetAutoDeleteOverride(string value)
     {
         _data.AutoDeleteOverride = value;
+        Save();
+    }
+
+    public void SetDepartureAutoDeleteDistanceNm(double? distanceNm)
+    {
+        _data.DepartureAutoDeleteDistanceNm = distanceNm;
         Save();
     }
 
@@ -1786,6 +1795,7 @@ public sealed class UserPreferences
             CommandRunDelayMinSeconds = GetFieldOr(obj, "commandRunDelayMinSeconds", 0),
             CommandRunDelayMaxSeconds = GetFieldOr(obj, "commandRunDelayMaxSeconds", 0),
             AutoDeleteOverride = GetFieldOr(obj, "autoDeleteOverride", ""),
+            DepartureAutoDeleteDistanceNm = GetFieldOr<double?>(obj, "departureAutoDeleteDistanceNm", null),
             IsDataGridPoppedOut = GetFieldOr(obj, "isDataGridPoppedOut", false),
             IsGroundViewPoppedOut = GetFieldOr(obj, "isGroundViewPoppedOut", false),
             IsRadarViewPoppedOut = GetFieldOr(obj, "isRadarViewPoppedOut", false),
@@ -2073,6 +2083,7 @@ public sealed class UserPreferences
         public int CommandRunDelayMinSeconds { get; set; }
         public int CommandRunDelayMaxSeconds { get; set; }
         public string AutoDeleteOverride { get; set; } = "";
+        public double? DepartureAutoDeleteDistanceNm { get; set; }
         public bool IsDataGridPoppedOut { get; set; }
         public bool IsGroundViewPoppedOut { get; set; }
         public bool IsRadarViewPoppedOut { get; set; }

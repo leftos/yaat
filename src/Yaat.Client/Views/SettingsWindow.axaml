@@ -186,6 +186,18 @@
               />
             </StackPanel>
             <StackPanel Spacing="4">
+              <TextBlock Text="Auto-delete departures beyond (nm)" Foreground="{DynamicResource SubtleTextBrush}" />
+              <NumericUpDown
+                Value="{Binding DepartureAutoDeleteDistanceNm}"
+                Minimum="1"
+                Maximum="500"
+                Increment="1"
+                Width="110"
+                HorizontalAlignment="Left"
+                ToolTip.Tip="Removes departures from the primary airport once they are farther than this from it. Leave blank to keep them."
+              />
+            </StackPanel>
+            <StackPanel Spacing="4">
               <CheckBox Content="Validate DCT fixes against programmed route" IsChecked="{Binding ValidateDctFixes}" />
               <TextBlock
                 Text="When enabled, DCT to a fix not in the aircraft's route or expected approach is rejected. Use DCTF to override. Requires issuing EAPP (Expect Approach) to program approach fixes."

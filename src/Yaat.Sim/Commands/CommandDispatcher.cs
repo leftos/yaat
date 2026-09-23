@@ -1006,6 +1006,7 @@ public static class CommandDispatcher
             {
                 int removed = RemoveQueuedDeleteBlocks(aircraft);
                 aircraft.Ground.AutoDeleteExempt = true;
+                aircraft.Ground.NoDeleteRequested = true;
                 aircraft.Ground.PendingAutoDelete = false;
                 string msg =
                     removed > 0

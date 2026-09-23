@@ -107,6 +107,7 @@ internal sealed record AircraftDebriefRow(
             "HandedOff" => "Handed off",
             "Dropped" => "Dropped",
             "Transited" => "Transited",
+            "Departed" => "Departed",
             _ => "Active",
         };
 

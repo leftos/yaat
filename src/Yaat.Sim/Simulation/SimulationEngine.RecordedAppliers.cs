@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
@@ -294,6 +295,17 @@ public sealed partial class SimulationEngine
                 // Null/empty string is a valid value: it means "clear the override and
                 // fall back to the scenario default".
                 scenario.ClientAutoDeleteOverride = string.IsNullOrEmpty(setting.Value) ? null : setting.Value;
+                break;
+            case "DepartureAutoDeleteDistanceNm":
+                // Invariant-culture nm; null/empty turns the departure sweep off.
+                if (string.IsNullOrEmpty(setting.Value))
+                {
+                    scenario.DepartureAutoDeleteDistanceNm = null;
+                }
+                else if (double.TryParse(setting.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out double departureRangeNm))
+                {
+                    scenario.DepartureAutoDeleteDistanceNm = departureRangeNm;
+                }
                 break;
             case "ValidateDctFixes":
                 if (bool.TryParse(setting.Value, out bool validate))

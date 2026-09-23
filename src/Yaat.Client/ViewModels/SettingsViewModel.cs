@@ -147,6 +147,10 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private int _selectedAutoDeleteIndex;
 
+    /// <summary>Default departure auto-delete distance in nm (1–500, bound to a NumericUpDown); null (blank) keeps departures.</summary>
+    [ObservableProperty]
+    private decimal? _departureAutoDeleteDistanceNm;
+
     [ObservableProperty]
     private bool _validateDctFixes;
 
@@ -678,6 +682,7 @@ public partial class SettingsViewModel : ObservableObject
         _commandRunDelayMinSeconds = _preferences.CommandRunDelayMinSeconds;
         _commandRunDelayMaxSeconds = _preferences.CommandRunDelayMaxSeconds;
         _selectedAutoDeleteIndex = AutoDeleteOverrideToIndex(_preferences.AutoDeleteOverride);
+        _departureAutoDeleteDistanceNm = _preferences.DepartureAutoDeleteDistanceNm is { } distanceNm ? (decimal)distanceNm : null;
         _validateDctFixes = _preferences.ValidateDctFixes;
         _euroScopeMode = _preferences.EuroScopeMode;
         _flashNoLandingClearance = _preferences.FlashNoLandingClearance;
@@ -863,6 +868,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetAutoAcceptSettings(AutoAcceptEnabled, AutoAcceptDelaySeconds);
         _preferences.SetCommandRunDelay(CommandRunDelayMinSeconds, CommandRunDelayMaxSeconds);
         _preferences.SetAutoDeleteOverride(IndexToAutoDeleteOverride(SelectedAutoDeleteIndex));
+        _preferences.SetDepartureAutoDeleteDistanceNm(DepartureAutoDeleteDistanceNm is { } distanceNm ? (double)distanceNm : null);
         _preferences.SetValidateDctFixes(ValidateDctFixes);
         _preferences.SetRpoShowPilotSpeech(RpoShowPilotSpeech);
         _preferences.SetSoloTrainingMode(SoloTrainingMode);

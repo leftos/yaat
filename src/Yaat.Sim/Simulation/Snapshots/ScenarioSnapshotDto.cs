@@ -92,6 +92,9 @@ public sealed class ScenarioSnapshotDto
     public string? ScenarioAutoDeleteMode { get; init; }
     public string? ClientAutoDeleteOverride { get; init; }
 
+    /// <summary>Optional: earlier snapshots lack it and restore null (departures kept).</summary>
+    public double? DepartureAutoDeleteDistanceNm { get; init; }
+
     /// <summary>Optional: earlier snapshots lack it and keep the scenario's literal mode (no derived Parked default).</summary>
     public bool HasOngoingTrafficSource { get; init; }
 

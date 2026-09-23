@@ -485,6 +485,7 @@ public partial class MainViewModel
         _ = SendAutoAcceptDelay();
         _ = SendCommandRunDelay();
         _ = SendAutoDeleteMode();
+        _ = SendDepartureAutoDeleteDistance(_preferences.DepartureAutoDeleteDistanceNm);
         _ = SendValidateDctFixes();
         _ = SendSoloTrainingMode();
         _ = SendRpoShowPilotSpeech();
@@ -819,7 +820,7 @@ public partial class MainViewModel
             entry.Vm.Clear();
         }
         ApplySessionSettings(
-            new SessionSettingsDto(null, null, -1, false, false, true, true, true, true, true, false, 100, 100, 0, false, false, false)
+            new SessionSettingsDto(null, null, null, -1, false, false, true, true, true, true, true, false, 100, 100, 0, false, false, false)
         );
 
         // Active position no longer applies without a scenario; hide the indicator.

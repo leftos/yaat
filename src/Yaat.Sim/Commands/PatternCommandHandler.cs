@@ -3902,6 +3902,7 @@ internal static class PatternCommandHandler
                 if (armed.Success && ctl.NoDelete)
                 {
                     aircraft.Ground.AutoDeleteExempt = true;
+                    aircraft.Ground.NoDeleteRequested = true;
                 }
                 return armed;
             }
@@ -3949,6 +3950,7 @@ internal static class PatternCommandHandler
                 if (ctl.NoDelete)
                 {
                     aircraft.Ground.AutoDeleteExempt = true;
+                    aircraft.Ground.NoDeleteRequested = true;
                 }
                 RunwaySafetyAdvisor.WarnIfRunwayOccupied(aircraft, assignedRunway, ctx);
                 return CommandDispatcher.Ok($"Cleared to land{CommandDispatcher.RunwayLabel(aircraft)}");
@@ -3973,6 +3975,7 @@ internal static class PatternCommandHandler
             if (ctl.NoDelete)
             {
                 aircraft.Ground.AutoDeleteExempt = true;
+                aircraft.Ground.NoDeleteRequested = true;
             }
             if (aircraft.Phases.ClearedRunwayId is { } armedRunwayId)
             {
@@ -4247,6 +4250,7 @@ internal static class PatternCommandHandler
         if (ctl.NoDelete)
         {
             aircraft.Ground.AutoDeleteExempt = true;
+            aircraft.Ground.NoDeleteRequested = true;
         }
 
         RunwaySafetyAdvisor.WarnIfRunwayOccupied(aircraft, runwayB, ctx);

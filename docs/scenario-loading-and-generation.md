@@ -693,10 +693,7 @@ reproduces every magnetic→true conversion, so the replayed action log lands on
 
 ### Session settings belong to the room, not the scenario object
 
-Both entry points construct a **brand-new `SimScenarioState`**, so anything a controller changed mid-session dies with the old
-object unless it is carried. `TrainingRoom.SessionSettings` (`yaat-server: …/Simulation/RoomSessionSettings.cs`) is that carrier:
-the auto-* toggles, `ValidateDctFixes`, solo mode and its pacing percentages, the auto-accept and command-run delays, the
-auto-delete override, and the dynamic-METAR intent. Both construction sites end with `room.SessionSettings.ApplyTo(scenario)`.
+Both entry points construct a **brand-new `SimScenarioState`**, so anything a controller changed mid-session dies with the old object unless it is carried. `TrainingRoom.SessionSettings` (`yaat-server: …/Simulation/RoomSessionSettings.cs`) is that carrier: the auto-* toggles, `ValidateDctFixes`, solo mode and its pacing percentages, the auto-accept and command-run delays, the auto-delete override, the departure auto-delete distance, and the dynamic-METAR intent. Both construction sites end with `room.SessionSettings.ApplyTo(scenario)`.
 
 The division of labour:
 

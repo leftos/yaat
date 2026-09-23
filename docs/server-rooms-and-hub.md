@@ -163,27 +163,14 @@ spine's (`SpineOrder` in Yaat.Sim, [tick-loop.md](tick-loop.md)), and `RoomHost`
   the host), and records generator spawns *after* their autotrack so the recorded snapshot carries the
   owner; `BroadcastTerminalEntries` takes the spine's drain; `ProcessDelayedHandoffs`; `SyncLiveTraffic` runs
   `ShadowTrafficSync.Sync` last — the pre-physics mutator of the aircraft set (see [live-traffic.md](live-traffic.md)).
-- **Post-physics**: no ATC pass of its own (auto-accept, the point-out timeout, the two autotrack passes, the coordination timers and
-  the tower lists are Yaat.Sim spine steps now, `SimulationEngine.TrackAutomation` / `SimulationEngine.Coordination.cs`,
-  and the first three read the recorded `Attendance`), the consumers of the engine's
-  detectors (`BroadcastConflictAlerts`, `BroadcastEramConflictAlerts`; the ASDE-X alert diff goes through
-  `RoomHost.OnAsdexAlertsChanged` → `ICrcBroadcast.BroadcastAsdexAlertsAsync`, with no `TickProcessor` body),
-  `ProcessSoloTrainingEvaluation`, the drain consumers (`BroadcastWarnings` / `Notifications` / `PilotSpeech` /
-  `PilotReadbacks` / `PilotTransmissions`, `ProcessApproachScores`) — the strip auto-print, the deferred strip dispatch
-  and the four TDLS steps are Sim steps (`SimulationEngine.Strips.cs` / `.Tdls.cs`); the room only pushes what the
-  change trackers drained (`RoomHost.OnStripsChanged` / `OnTdlsChanged` → `StripBroadcaster` /
-  `TdlsBroadcaster.BroadcastChanges`) — `ProcessAutoDelete`, `ProcessSurfaceCoast`, and the rundown / live-traffic-status / timers
-  "broadcast if changed" tail. (`SimulationEngine.TickDeferredAutoTrack` claims a departure only once it first appears on
-  STARS — i.e. crosses the acquisition floor, `FieldElevationResolver.IsBelowDisplayFloor` — so a track is never owned
-  before it is displayed; `TickFlightPlanCreatorAutoTrack` runs before it so an explicit VP/DA controller wins over
-  scenario `AutoTrackAirportIds` for the aircraft they just filed for.)
+- **Post-physics**: no ATC pass of its own (auto-accept, the point-out timeout, the two autotrack passes, the coordination timers and the tower lists are Yaat.Sim spine steps now, `SimulationEngine.TrackAutomation` / `SimulationEngine.Coordination.cs`, and the first three read the recorded `Attendance`), the consumers of the engine's detectors (`BroadcastConflictAlerts`, `BroadcastEramConflictAlerts`; the ASDE-X alert diff goes through `RoomHost.OnAsdexAlertsChanged` → `ICrcBroadcast.BroadcastAsdexAlertsAsync`, with no `TickProcessor` body), `ProcessSoloTrainingEvaluation`, the drain consumers (`BroadcastWarnings` / `Notifications` / `PilotSpeech` / `PilotReadbacks` / `PilotTransmissions`, `ProcessApproachScores`) — the strip auto-print, the deferred strip dispatch and the four TDLS steps are Sim steps (`SimulationEngine.Strips.cs` / `.Tdls.cs`); the room only pushes what the change trackers drained (`RoomHost.OnStripsChanged` / `OnTdlsChanged` → `StripBroadcaster` / `TdlsBroadcaster.BroadcastChanges`) — `HandleAutoDeleted` (reached through `RoomHost.OnAutoDeleted` with the aircraft `SimulationEngine.TickAutoDelete` removed; it tears down each callsign's assignment and change-tracker entry, then broadcasts the delete), `ProcessSurfaceCoast`, and the rundown / live-traffic-status / timers "broadcast if changed" tail. (`SimulationEngine.TickDeferredAutoTrack` claims a departure only once it first appears on STARS — i.e. crosses the acquisition floor, `FieldElevationResolver.IsBelowDisplayFloor` — so a track is never owned before it is displayed; `TickFlightPlanCreatorAutoTrack` runs before it so an explicit VP/DA controller wins over scenario `AutoTrackAirportIds` for the aircraft they just filed for.)
+
+`TickAutoDelete` removes, each second: an aircraft whose queued `DEL` fired (`Ground.PendingAutoDelete`, which overrides `AutoDeleteExempt`); a landed aircraft stuck at a layout-less airport; a generated overflight past its exit radius (stamped `CompletionReason.Transited`); an airborne departure filed from the primary airport farther than the session's `DepartureAutoDeleteDistanceNm` from the airport reference point (stamped `Departed` unless already stamped, e.g. `HandedOff`); and whatever the effective `OnLanding`/`Parked` mode selects. The departure distance is off by default (null) and is set with the hub's `SetDepartureAutoDeleteDistance` (1–500 nm). It applies in every arrival mode, `Never` included, and to tracked aircraft. It ignores `AutoDeleteExempt`, because spawn sets that on every ground-started aircraft. It skips an aircraft a controller kept with `NODEL` (`Ground.NoDeleteRequested`, set by the bare verb and by the `NODEL` modifier on `TAXI`/`LAND`/`CLAND`/`EXIT`), a local flight filed back to the primary airport, and live-traffic shadows, whose lifetime the feed owns.
 
 Per-step timing lives on the engine: attach a dictionary to `SimulationEngine.TickTimings` and every spine step records
 under its `StepId` name (the soak runner's `--timings`, `ReconstructionBenchmarkTests`).
 
-Several of these guard on `room.IsBroadcastSuppressed` before broadcasting (e.g. `BroadcastConflictAlerts`,
-`ProcessAutoDelete`). A new broadcast from a tick-processor method must add the
-same guard or it leaks replay/snapshot-engine state to real clients.
+Several of these guard on `room.IsBroadcastSuppressed` before broadcasting (e.g. `BroadcastConflictAlerts`, `HandleAutoDeleted`'s CRC disconnect). A new broadcast from a tick-processor method must add the same guard or it leaks replay/snapshot-engine state to real clients.
 
 ## `AircraftChangeTracker` — the delta engine (`Simulation/AircraftChangeTracker.cs`)
 
@@ -252,13 +239,7 @@ only that room's `World.GetSnapshot()` (`:786`-`789`). There is no global aircra
 error. `UpdatePausedSince` (`:97`) stamps the continuous-pause clock that the retirement sweep reads; `IsAbandoned`
 (`:76`) is true when no clients are connected.
 
-**Session settings outlive the scenario.** `SessionSettings` (`RoomSessionSettings`) holds the room's copy of everything
-a controller can toggle mid-session — the auto-* flags, `ValidateDctFixes`, solo mode and pacing, the auto-accept and
-command-run delays, the auto-delete override, the dynamic-METAR intent. A load, restart, or rewind builds a **new**
-`SimScenarioState`, and `ScenarioLifecycleService` seeds it with `room.SessionSettings.ApplyTo(scenario)` at both
-construction sites. The scenario stays the runtime source of truth (every gate and DTO reads it, falling back to the room
-copy only when no scenario is loaded); `SimControlService` writes both. See
-[scenario-loading-and-generation.md](scenario-loading-and-generation.md#session-settings-belong-to-the-room-not-the-scenario-object).
+**Session settings outlive the scenario.** `SessionSettings` (`RoomSessionSettings`) holds the room's copy of everything a controller can toggle mid-session — the auto-* flags, `ValidateDctFixes`, solo mode and pacing, the auto-accept and command-run delays, the auto-delete override, the departure auto-delete distance, the dynamic-METAR intent. A load, restart, or rewind builds a **new** `SimScenarioState`, and `ScenarioLifecycleService` seeds it with `room.SessionSettings.ApplyTo(scenario)` at both construction sites. The scenario stays the runtime source of truth (every gate and DTO reads it, falling back to the room copy only when no scenario is loaded); `SimControlService` writes both. See [scenario-loading-and-generation.md](scenario-loading-and-generation.md#session-settings-belong-to-the-room-not-the-scenario-object).
 
 **Members are connections, not people.** `Members` is keyed by SignalR connection id and each `RoomMember` carries
 `Kind` (`ClientKind.Main` / `VStrips` / `VTdls`) and `JoinedAtUtc`. vStrips and vTDLS browser tabs join over the same

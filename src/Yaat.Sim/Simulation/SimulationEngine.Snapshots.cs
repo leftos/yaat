@@ -133,6 +133,7 @@ public sealed partial class SimulationEngine
             Scenario.IsStudentTowerPosition = scenarioDto.IsStudentTowerPosition;
             Scenario.ScenarioAutoDeleteMode = scenarioDto.ScenarioAutoDeleteMode;
             Scenario.ClientAutoDeleteOverride = scenarioDto.ClientAutoDeleteOverride;
+            Scenario.DepartureAutoDeleteDistanceNm = scenarioDto.DepartureAutoDeleteDistanceNm;
             Scenario.HasOngoingTrafficSource = scenarioDto.HasOngoingTrafficSource;
             Scenario.StudentPosition = scenarioDto.StudentPosition is not null ? TrackOwner.FromSnapshot(scenarioDto.StudentPosition) : null;
             Scenario.StudentTcp = scenarioDto.StudentTcp is not null ? Tcp.FromSnapshot(scenarioDto.StudentTcp) : null;

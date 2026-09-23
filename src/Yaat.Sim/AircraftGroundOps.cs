@@ -67,12 +67,20 @@ public class AircraftGroundOps
     /// <summary>
     /// Per-aircraft auto-delete request raised by a queued <c>ONHS DEL</c> block
     /// (or any queued <see cref="Commands.DeleteCommand"/>) whose trigger has fired.
-    /// The hosting sweep — yaat-server's <c>TickProcessor.ProcessAutoDelete</c> in
-    /// production, the test's manual sweep in standalone Yaat.Sim tests — observes
-    /// this flag, removes the aircraft, and fires the appropriate broadcast chain.
+    /// <see cref="Simulation.SimulationEngine.TickAutoDelete"/> observes this flag and removes
+    /// the aircraft; yaat-server's <c>TickProcessor.HandleAutoDeleted</c> (reached through
+    /// <c>RoomHost.OnAutoDeleted</c>) then fires the teardown and delete broadcasts.
     /// Cleared by <see cref="Commands.CancelAutoDeleteCommand"/> (NODEL).
     /// </summary>
     public bool PendingAutoDelete { get; set; }
+
+    /// <summary>
+    /// Set by a controller's explicit <see cref="Commands.CancelAutoDeleteCommand"/> (NODEL). Unlike
+    /// <see cref="AutoDeleteExempt"/>, which spawn also sets on every ground-started aircraft, this marks only the
+    /// controller's own request, so the departure distance sweep in
+    /// <see cref="Simulation.SimulationEngine.TickAutoDelete"/> can skip exactly the aircraft someone asked to keep.
+    /// </summary>
+    public bool NoDeleteRequested { get; set; }
 
     /// <summary>
     /// When true, the active TaxiingPhase raises its straight-line speed cap by
@@ -282,6 +290,7 @@ public class AircraftGroundOps
             GiveWayTarget = Hold?.YieldTarget,
             AutoDeleteExempt = AutoDeleteExempt,
             PendingAutoDelete = PendingAutoDelete,
+            NoDeleteRequested = NoDeleteRequested,
             ConflictBreakRemainingSeconds = ConflictBreakRemainingSeconds,
             SpeedLimit = SpeedLimit,
             AutoYieldTarget = AutoYieldTarget,
@@ -320,6 +329,7 @@ public class AircraftGroundOps
             Hold = HoldFromSnapshot(dto.IsHeld, dto.GiveWayTarget),
             AutoDeleteExempt = dto.AutoDeleteExempt,
             PendingAutoDelete = dto.PendingAutoDelete,
+            NoDeleteRequested = dto.NoDeleteRequested,
             ConflictBreakRemainingSeconds = dto.ConflictBreakRemainingSeconds,
             SpeedLimit = dto.SpeedLimit,
             AutoYieldTarget = dto.AutoYieldTarget,

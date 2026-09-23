@@ -641,6 +641,13 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         await _connection!.InvokeAsync("SetAutoDeleteMode", mode);
     }
 
+    /// <summary>Sets the room's departure auto-delete distance in nm (null turns it off); the server refuses a value outside 1–500.</summary>
+    public async Task<CommandResultDto> SetDepartureAutoDeleteDistanceAsync(double? distanceNm)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<CommandResultDto>("SetDepartureAutoDeleteDistance", distanceNm);
+    }
+
     public async Task SetValidateDctFixesAsync(bool validate)
     {
         EnsureConnected();
@@ -1283,6 +1290,7 @@ public record LoadScenarioResultDto(
     PositionDisplayConfigDto? PositionDisplayConfig = null,
     string? AutoDeleteOverride = null,
     string? EffectiveAutoDeleteMode = null,
+    double? DepartureAutoDeleteDistanceNm = null,
     int AutoAcceptDelaySeconds = -1,
     bool AutoClearedToLand = false,
     bool AutoCrossRunway = false,
@@ -1377,6 +1385,7 @@ public record RoomStateDto(
     double TapeEnd = 0,
     string? AutoDeleteOverride = null,
     string? EffectiveAutoDeleteMode = null,
+    double? DepartureAutoDeleteDistanceNm = null,
     int AutoAcceptDelaySeconds = -1,
     bool AutoClearedToLand = false,
     bool AutoCrossRunway = false,
@@ -1472,6 +1481,7 @@ public record ScenarioLoadedDto(
     string? StudentPositionType = null,
     string? AutoDeleteOverride = null,
     string? EffectiveAutoDeleteMode = null,
+    double? DepartureAutoDeleteDistanceNm = null,
     int AutoAcceptDelaySeconds = -1,
     bool AutoClearedToLand = false,
     bool AutoCrossRunway = false,
@@ -1561,6 +1571,7 @@ public record AtpaResultsChangedDto(List<AtpaPairDto> Pairs);
 public record SessionSettingsDto(
     string? AutoDeleteOverride,
     string? EffectiveAutoDeleteMode,
+    double? DepartureAutoDeleteDistanceNm,
     int AutoAcceptDelaySeconds,
     bool AutoClearedToLand,
     bool AutoCrossRunway,

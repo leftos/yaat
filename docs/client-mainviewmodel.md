@@ -188,13 +188,7 @@ settings to a neutral `SessionSettingsDto`.
 
 ## Session-settings echo suppression
 
-The session-settings flyout binds 13 `[ObservableProperty]` fields (`SessionAutoDeleteIndex`,
-`SessionAutoAcceptDelaySeconds`, `SessionAutoClearedToLand`, `SessionAutoCrossRunway`, `SessionValidateDctFixes`,
-`SessionSoloTrainingMode`, the three solo-pacing rates, the two `HasSolo*Source` flags, `SessionRpoShowPilotSpeech`,
-`SessionLiveTrafficEnabled` + `SessionLiveTrafficCeilingFt` — see [live-traffic.md](live-traffic.md) "Client" for the
-status-bar indicator and the Aircraft List tri-state that hang off them — …). Each has an `OnXxxChanged` partial that re-sends the new value to the server. The problem: when the **server**
-broadcasts a settings change, applying it to the bound property would re-trigger `OnXxxChanged`, which would re-send
-it — a ping-pong.
+The session-settings flyout binds 13 `[ObservableProperty]` fields (`SessionAutoDeleteIndex`, `SessionDepartureAutoDeleteDistanceNm` (a nullable `decimal` for its `NumericUpDown`, blank = off), `SessionAutoAcceptDelaySeconds`, `SessionAutoClearedToLand`, `SessionAutoCrossRunway`, `SessionValidateDctFixes`, `SessionSoloTrainingMode`, the three solo-pacing rates, the two `HasSolo*Source` flags, `SessionRpoShowPilotSpeech`, `SessionLiveTrafficEnabled` + `SessionLiveTrafficCeilingFt` — see [live-traffic.md](live-traffic.md) "Client" for the status-bar indicator and the Aircraft List tri-state that hang off them — …). Each has an `OnXxxChanged` partial that re-sends the new value to the server. The problem: when the **server** broadcasts a settings change, applying it to the bound property would re-trigger `OnXxxChanged`, which would re-send it — a ping-pong.
 
 The guard is `_isApplyingSessionSettings` (`MainViewModel.cs:2434`). `ApplySessionSettings(SessionSettingsDto)`
 (`MainViewModel.cs:2441`) sets it `true`, writes all 13 properties, then sets it `false`. Every `OnXxxChanged`

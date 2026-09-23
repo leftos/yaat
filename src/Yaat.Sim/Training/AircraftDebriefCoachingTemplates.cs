@@ -43,6 +43,7 @@ internal static class AircraftDebriefCoachingTemplates
             (_, CompletionReason.HandedOff) => "Clean handoff.",
             (_, CompletionReason.Dropped) => "Dropped before completion.",
             (_, CompletionReason.Transited) => "Clean transit.",
+            (_, CompletionReason.Departed) => "Departed the area.",
             (OperationKind.Departure, CompletionReason.Active) => "In service.",
             (OperationKind.Arrival, CompletionReason.Active) => "On approach.",
             (OperationKind.Transit, CompletionReason.Active) => "In transit.",

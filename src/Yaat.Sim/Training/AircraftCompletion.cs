@@ -24,6 +24,12 @@ public enum CompletionReason
     /// <see cref="Simulation.SimulationEngine.TickAutoDelete"/> — the transit did what it was spawned to do.
     /// </summary>
     Transited,
+
+    /// <summary>
+    /// A departure from the primary airport flew beyond the session's departure auto-delete distance. Set by
+    /// <see cref="Simulation.SimulationEngine.TickAutoDelete"/>.
+    /// </summary>
+    Departed,
 }
 
 /// <summary>

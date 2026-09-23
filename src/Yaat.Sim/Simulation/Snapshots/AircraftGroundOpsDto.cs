@@ -10,6 +10,9 @@ public sealed class AircraftGroundOpsDto
     public string? GiveWayTarget { get; init; }
     public required bool AutoDeleteExempt { get; init; }
     public bool PendingAutoDelete { get; init; }
+
+    /// <summary>A controller's explicit <c>NODEL</c>; optional — earlier snapshots restore false.</summary>
+    public bool NoDeleteRequested { get; init; }
     public required double ConflictBreakRemainingSeconds { get; init; }
     public double? SpeedLimit { get; init; }
 

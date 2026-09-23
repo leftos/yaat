@@ -693,8 +693,9 @@ public sealed partial class SimulationEngine
 
     /// <summary>
     /// Per-second auto-delete pass: decides which aircraft to remove (per-aircraft <c>ONHS DEL</c> opt-in,
-    /// stuck-after-landing at a layout-less airport, a generated overflight past its exit radius, or the
-    /// scenario's <c>OnLanding</c>/<c>Parked</c> mode), removes them from the world, and returns the removed
+    /// stuck-after-landing at a layout-less airport, a generated overflight past its exit radius, a departure past the
+    /// session's <see cref="SimScenarioState.DepartureAutoDeleteDistanceNm"/>, or the scenario's
+    /// <c>OnLanding</c>/<c>Parked</c> mode), removes them from the world, and returns the removed
     /// states so the host can fan out its delete broadcasts (each state carries the last position for a
     /// surface-track coast/drop). A spine step (<see cref="Spine.StepId.AutoDelete"/>) on every run kind; the host
     /// receives the removed states through <see cref="Spine.IHostConsumers.OnAutoDeleted"/>.
@@ -719,7 +720,11 @@ public sealed partial class SimulationEngine
             // has fired. This bypasses AutoDeleteExempt — the controller explicitly asked for the delete.
             bool perAircraftDelete = ac.Ground.PendingAutoDelete;
 
-            if (!perAircraftDelete && ac.Ground.AutoDeleteExempt)
+            // The session's departure distance ignores AutoDeleteExempt — spawn sets it on every ground-started
+            // aircraft, so honouring it would keep every departure — and answers to NODEL alone.
+            bool departureBeyondRange = IsDepartureBeyondAutoDeleteDistance(ac, scenario);
+
+            if (!perAircraftDelete && !departureBeyondRange && ac.Ground.AutoDeleteExempt)
             {
                 continue;
             }
@@ -742,6 +747,7 @@ public sealed partial class SimulationEngine
                 perAircraftDelete
                 || stuckAfterLanding
                 || departedOverflight
+                || departureBeyondRange
                 || (
                     !modeDisabled
                     && mode switch
@@ -779,6 +785,13 @@ public sealed partial class SimulationEngine
                 ac.CompletionReason = CompletionReason.Transited;
             }
 
+            // Likewise a departure the session's distance removes has left the area, not been dropped.
+            if ((ac.CompletionReason == CompletionReason.Active) && IsDepartureBeyondAutoDeleteDistance(ac, scenario))
+            {
+                ac.CompletedAtSeconds = scenario.ElapsedSeconds;
+                ac.CompletionReason = CompletionReason.Departed;
+            }
+
             World.RemoveAircraft(ac.Callsign);
             _logger.LogInformation(
                 "Auto-deleted {Callsign} (mode={Mode}) in scenario '{Name}' at t={T}s",
@@ -790,6 +803,44 @@ public sealed partial class SimulationEngine
         }
 
         return toDelete;
+    }
+
+    /// <summary>
+    /// True when the session's <see cref="SimScenarioState.DepartureAutoDeleteDistanceNm"/> is set and this is an airborne
+    /// departure from the primary airport, farther from the airport's reference point than that distance, that no controller
+    /// has kept with <c>NODEL</c>. A track owner does not keep it. A local flight filed back to the primary airport is kept. Live-traffic shadows are left to the feed, which owns
+    /// their lifetime and would re-spawn a removed one on its next sync.
+    /// </summary>
+    private static bool IsDepartureBeyondAutoDeleteDistance(AircraftState aircraft, SimScenarioState scenario)
+    {
+        if (scenario.DepartureAutoDeleteDistanceNm is not { } distanceNm)
+        {
+            return false;
+        }
+
+        if (aircraft.IsOnGround || aircraft.IsShadow || aircraft.Ground.NoDeleteRequested)
+        {
+            return false;
+        }
+
+        string? primaryAirportId = scenario.PrimaryAirportId;
+        if (!NavigationDatabase.AirportIdsMatch(aircraft.FlightPlan.Departure, primaryAirportId))
+        {
+            return false;
+        }
+
+        // A local flight (closed traffic, practice approaches) files back to the primary airport and is coming back.
+        if (NavigationDatabase.AirportIdsMatch(aircraft.FlightPlan.Destination, primaryAirportId))
+        {
+            return false;
+        }
+
+        if (string.IsNullOrEmpty(primaryAirportId) || NavigationDatabase.Instance.GetFixPosition(primaryAirportId) is not { } airport)
+        {
+            return false;
+        }
+
+        return GeoMath.DistanceNm(aircraft.Position.Lat, aircraft.Position.Lon, airport.Lat, airport.Lon) > distanceNm;
     }
 
     /// <summary>

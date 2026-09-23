@@ -543,6 +543,7 @@ public static class GroundCommandHandler
         if (taxi.NoDelete)
         {
             aircraft.Ground.AutoDeleteExempt = true;
+            aircraft.Ground.NoDeleteRequested = true;
         }
 
         aircraft.Phases = new PhaseList();
@@ -3856,6 +3857,7 @@ public static class GroundCommandHandler
         if (land.NoDelete)
         {
             aircraft.Ground.AutoDeleteExempt = true;
+            aircraft.Ground.NoDeleteRequested = true;
         }
 
         // Clear current phases and set up the arrival → land sequence. On the field (or hovering over it
@@ -4083,6 +4085,7 @@ public static class GroundCommandHandler
         if (noDelete)
         {
             aircraft.Ground.AutoDeleteExempt = true;
+            aircraft.Ground.NoDeleteRequested = true;
         }
 
         aircraft.Ground.IsExpeditingExit = expedite;

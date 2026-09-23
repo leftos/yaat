@@ -217,6 +217,10 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private int _sessionAutoDeleteIndex;
 
+    /// <summary>The room's departure auto-delete distance in nm (1–500, bound to a NumericUpDown); null (blank) keeps departures.</summary>
+    [ObservableProperty]
+    private decimal? _sessionDepartureAutoDeleteDistanceNm;
+
     [ObservableProperty]
     private string? _activeAutoDeleteMode;
 
@@ -3372,6 +3376,22 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    private async Task SendDepartureAutoDeleteDistance(double? distanceNm)
+    {
+        try
+        {
+            CommandResultDto result = await _connection.SetDepartureAutoDeleteDistanceAsync(distanceNm);
+            if (!result.Success)
+            {
+                _log.LogWarning("Server refused departure auto-delete distance {Distance}: {Reason}", distanceNm, result.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to set departure auto-delete distance");
+        }
+    }
+
     // --- Session settings (flyout) ---
 
     private bool _isApplyingSessionSettings;
@@ -3385,6 +3405,7 @@ public partial class MainViewModel : ObservableObject
         _isApplyingSessionSettings = true;
         ActiveAutoDeleteMode = dto.EffectiveAutoDeleteMode;
         SessionAutoDeleteIndex = AutoDeleteModeToIndex(dto.AutoDeleteOverride);
+        SessionDepartureAutoDeleteDistanceNm = dto.DepartureAutoDeleteDistanceNm is { } departureDistanceNm ? (decimal)departureDistanceNm : null;
         SessionAutoAcceptDelaySeconds = dto.AutoAcceptDelaySeconds;
         SessionCommandRunDelayMinSeconds = dto.CommandRunDelayMinSeconds;
         SessionCommandRunDelayMaxSeconds = dto.CommandRunDelayMaxSeconds;
@@ -3418,6 +3439,7 @@ public partial class MainViewModel : ObservableObject
             new SessionSettingsDto(
                 state.AutoDeleteOverride,
                 state.EffectiveAutoDeleteMode,
+                state.DepartureAutoDeleteDistanceNm,
                 state.AutoAcceptDelaySeconds,
                 state.AutoClearedToLand,
                 state.AutoCrossRunway,
@@ -3448,6 +3470,7 @@ public partial class MainViewModel : ObservableObject
             new SessionSettingsDto(
                 dto.AutoDeleteOverride,
                 dto.EffectiveAutoDeleteMode,
+                dto.DepartureAutoDeleteDistanceNm,
                 dto.AutoAcceptDelaySeconds,
                 dto.AutoClearedToLand,
                 dto.AutoCrossRunway,
@@ -3478,6 +3501,7 @@ public partial class MainViewModel : ObservableObject
             new SessionSettingsDto(
                 result.AutoDeleteOverride,
                 result.EffectiveAutoDeleteMode,
+                result.DepartureAutoDeleteDistanceNm,
                 result.AutoAcceptDelaySeconds,
                 result.AutoClearedToLand,
                 result.AutoCrossRunway,
@@ -3512,6 +3536,14 @@ public partial class MainViewModel : ObservableObject
         var mode = IndexToActiveAutoDeleteMode(value);
         ActiveAutoDeleteMode = mode;
         _ = _connection.SetAutoDeleteModeAsync(mode);
+    }
+
+    partial void OnSessionDepartureAutoDeleteDistanceNmChanged(decimal? value)
+    {
+        if (!_isApplyingSessionSettings)
+        {
+            _ = SendDepartureAutoDeleteDistance(value is { } distanceNm ? (double)distanceNm : null);
+        }
     }
 
     partial void OnSessionAutoAcceptDelaySecondsChanged(int value)

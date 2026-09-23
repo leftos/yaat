@@ -1155,7 +1155,8 @@ public record UnassumeCommand : ParsedCommand;
 
 /// <summary>
 /// Cancel any pending auto-delete on this aircraft and re-arm
-/// <see cref="AircraftGroundOps.AutoDeleteExempt"/>. Bare verb <c>NODEL</c>.
+/// <see cref="AircraftGroundOps.AutoDeleteExempt"/>. Also sets <see cref="AircraftGroundOps.NoDeleteRequested"/>, which keeps
+/// the aircraft from the session's departure-distance auto-delete. Bare verb <c>NODEL</c>.
 /// </summary>
 public record CancelAutoDeleteCommand : ParsedCommand;
 

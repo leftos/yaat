@@ -1806,6 +1806,7 @@ These are your **default** preferences, applied when *you* load a scenario. To c
 | **Delay (seconds)** *(when auto-accept on)* | Handoffs are auto-accepted after this delay. 0 = immediate. | 5 |
 | **Command run delay — Min / Max (seconds)** | Commands take effect after a random delay in this range, simulating pilot reaction / FMC setup time. Set both equal for a fixed delay; set Max to 0 to disable. See [Command Run Delay](#command-run-delay). | 0 / 0 |
 | **Default Auto-Delete** | Your default rule for removing aircraft after landing/parking: Use Scenario Setting, Never, On Landing, or On Parking. See [Auto-Delete](#auto-delete). | Use Scenario Setting |
+| **Auto-delete departures beyond (nm)** | Removes an airborne departure from the primary airport once it is farther than this many nm (1–500) from the airport, whatever the auto-delete rule above says. Leave blank to keep departures. See [Auto-Delete](#auto-delete). | Blank (off) |
 | **Validate DCT fixes against programmed route** | Rejects a `DCT` to a fix not in the aircraft's route or expected approach. Use `DCTF` to override; requires `EAPP` to program approach fixes. | Off |
 
 **Simulation Shortcuts** (sub-group) — see [Simulation Shortcuts](#simulation-shortcuts) for the full detail:
@@ -2072,6 +2073,8 @@ Scenarios can define an `autoDeleteMode` that removes aircraft after landing or 
 When a scenario leaves the mode unset (`None`, the ATCTrainer default) but keeps spawning traffic — timed spawns or any generator — YAAT deletes arrivals when they reach their parking spot, so the field does not fill up with aircraft that have nowhere to go. A static scenario (initial aircraft only) keeps its parked arrivals; they can be taxied out again as departures. "Never" in Settings keeps them everywhere.
 
 To exempt a specific aircraft, append `NODEL` to `CLAND`, `TAXI`, `EL`, `ER`, or `EXIT` commands.
+
+**Departures** can be cleaned up by distance instead. Set **Settings > Scenarios > Auto-delete departures beyond (nm)** as your default, or change it for the running session with **Delete departures beyond (nm)** in the session-settings (⚙) flyout. Once an airborne aircraft filed out of the primary airport is farther than that from the field, it is removed, whether or not someone is tracking it and whatever the auto-delete mode above (even "Never"). A local flight filed back to the primary airport (closed traffic, practice approaches) is kept, and so are live-traffic aircraft. To keep one departure, issue `NODEL` against it, or taxi it out with `TAXI … NODEL`. A removed departure shows as **Departed** on the Session Report's Aircraft tab. The setting is off (blank) by default and accepts 1–500 nm.
 
 #### Speech recognition debugging
 
