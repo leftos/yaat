@@ -29,10 +29,12 @@ public class AircraftTransponder
     public bool HasReportedModeC { get; set; }
 
     /// <summary>
-    /// Latched true when the pilot has been told to squawk VFR (<c>SQVFR</c>/<c>SQV</c>). While set, the
+    /// Latched true when the pilot has been told to squawk VFR (<c>SQVFR</c>/<c>SQV</c>, or <c>SQ 1200</c>). While set, the
     /// YAAT Radar View suppresses the assigned-vs-reported beacon-code mismatch flash — the stale assigned
-    /// discrete code is noise the RPO should ignore. Released only when a new beacon code is assigned (see
-    /// <see cref="AssignCode"/>). This is an RPO-display latch only; it does not affect pilot/transponder behavior.
+    /// discrete code is noise the RPO should ignore. Released when a new beacon code is assigned (see
+    /// <see cref="AssignCode"/>), when another code is squawked (<c>SQ &lt;code&gt;</c>), or when the pilot is put back on
+    /// the assigned code (<c>SQ</c> with no code). This is an RPO-display latch only; it does not affect
+    /// pilot/transponder behavior.
     /// </summary>
     public bool CommandedSquawkVfr { get; set; }
 

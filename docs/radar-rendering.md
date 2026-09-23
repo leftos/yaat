@@ -297,9 +297,9 @@ full block, so this line is purely additive — a normal (matching) aircraft sho
 builds it only inside a Full Data Block — YAAT surfaces it at FDB/PDB/LDB alike (an assigned-but-not-yet-squawked code is
 worth flagging to the RPO regardless of who tracks the aircraft). It is therefore **not** gated on track ownership. Instead
 a per-aircraft latch, `AircraftDto.CommandedSquawkVfr` (server `Transponder.CommandedSquawkVfr`), turns the flash off: it
-latches when the pilot is told to squawk VFR (`SQVFR`/`SQV`) — at which point the stale assigned discrete code is noise the
-RPO should ignore — and releases only when a new beacon code is assigned (Flight Plan Editor recycle, `RequestNewBeaconCode`,
-an FP amendment, or a CRC beacon assign). "Squawk VFR" is a pilot instruction only; it does not change `AssignedCode`.
+latches when the pilot is told to squawk VFR (`SQVFR`/`SQV`, or `SQ 1200`) — at which point the stale assigned discrete code is noise the
+RPO should ignore — and releases when a new beacon code is assigned (Flight Plan Editor recycle, `RequestNewBeaconCode`,
+an FP amendment, or a CRC beacon assign) or the pilot is told `SQ` any other code or `SQ` alone (back to the assigned code). "Squawk VFR" is a pilot instruction only; it does not change `AssignedCode`.
 `TryGetSquawkMismatch` returns false while the latch is set.
 
 ## Student-scope datablock view

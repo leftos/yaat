@@ -556,12 +556,18 @@ internal static class FlightCommandHandler
     internal static CommandResult ApplySquawk(SquawkCommand cmd, AircraftState aircraft)
     {
         aircraft.Transponder.Code = cmd.Code;
+        // Squawking 1200 by instruction IS squawking VFR, so this latches off the assigned-vs-reported
+        // mismatch flash exactly as SQV does; any other code is a real assignment and releases it.
+        aircraft.Transponder.CommandedSquawkVfr = (cmd.Code == 1200);
         return CommandDispatcher.Ok($"Squawk {cmd.Code:D4}");
     }
 
     internal static CommandResult ApplySquawkReset(AircraftState aircraft)
     {
         aircraft.Transponder.Code = aircraft.Transponder.AssignedCode;
+        // Back on the assigned code: the reported-vs-assigned mismatch the squawk-VFR latch hid is resolved,
+        // so the flash resumes.
+        aircraft.Transponder.CommandedSquawkVfr = false;
         return CommandDispatcher.Ok($"Squawk {aircraft.Transponder.AssignedCode:D4}");
     }
 
@@ -569,7 +575,8 @@ internal static class FlightCommandHandler
     {
         aircraft.Transponder.Code = 1200;
         // Latch off the RPO's assigned-vs-reported mismatch flash: the pilot is now squawking VFR by
-        // instruction, so the stale assigned discrete code is noise. Released when a new code is assigned.
+        // instruction (as with SQ 1200), so the stale assigned discrete code is noise. Released by a new
+        // assigned code, by SQ <other code>, or by a bare SQ that puts the pilot back on the assigned code.
         aircraft.Transponder.CommandedSquawkVfr = true;
         return CommandDispatcher.Ok("Squawk VFR");
     }

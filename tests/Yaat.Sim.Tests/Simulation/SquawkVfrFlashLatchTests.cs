@@ -63,6 +63,70 @@ public class SquawkVfrFlashLatchTests(ITestOutputHelper output)
         Assert.Equal(303u, ac.Transponder.AssignedCode); // assigned code untouched
     }
 
+    /// <summary>
+    /// <c>SQ 1200</c> is the same instruction as <c>SQVFR</c> spelled with the code: the commanded code
+    /// latches the suppression too, so the RPO does not see the datablock flash 1200 against the stale
+    /// assigned discrete.
+    /// </summary>
+    [Fact]
+    public void Squawk1200_LatchesSuppression_LikeSquawkVfr()
+    {
+        SimulationEngine engine = BuildEngine();
+        AddVfrAircraft(engine, "N427MX", assigned: 303, code: 303);
+
+        CommandResult result = engine.SendCommand("N427MX", "SQ 1200");
+
+        Assert.True(result.Success, result.Message);
+        AircraftState? ac = engine.FindAircraft("N427MX");
+        Assert.NotNull(ac);
+        Assert.Equal(1200u, ac.Transponder.Code);
+        Assert.True(ac.Transponder.CommandedSquawkVfr); // latch set by the commanded code
+        Assert.Equal(303u, ac.Transponder.AssignedCode); // assigned code untouched
+    }
+
+    /// <summary>
+    /// A later <c>SQ &lt;other code&gt;</c> clears the latch: the pilot is no longer squawking VFR, so the
+    /// assigned-vs-reported mismatch is real information again.
+    /// </summary>
+    [Fact]
+    public void SquawkOtherCode_AfterSquawkVfr_ReleasesLatch()
+    {
+        SimulationEngine engine = BuildEngine();
+        AddVfrAircraft(engine, "N427MX", assigned: 303, code: 303);
+        engine.SendCommand("N427MX", "SQVFR");
+        Assert.True(engine.FindAircraft("N427MX")!.Transponder.CommandedSquawkVfr);
+
+        CommandResult result = engine.SendCommand("N427MX", "SQ 4306");
+
+        Assert.True(result.Success, result.Message);
+        AircraftState? ac = engine.FindAircraft("N427MX");
+        Assert.NotNull(ac);
+        Assert.Equal(4306u, ac.Transponder.Code);
+        Assert.False(ac.Transponder.CommandedSquawkVfr); // no longer squawking VFR
+        Assert.Equal(303u, ac.Transponder.AssignedCode);
+    }
+
+    /// <summary>
+    /// A bare <c>SQ</c> puts the pilot back on the assigned code, which is the discrete the RPO assigned — the
+    /// mismatch is resolved, so the latch that hid it has to release.
+    /// </summary>
+    [Fact]
+    public void SquawkReset_AfterSquawkVfr_ReleasesLatch()
+    {
+        SimulationEngine engine = BuildEngine();
+        AddVfrAircraft(engine, "N427MX", assigned: 303, code: 303);
+        engine.SendCommand("N427MX", "SQVFR");
+        Assert.True(engine.FindAircraft("N427MX")!.Transponder.CommandedSquawkVfr);
+
+        CommandResult result = engine.SendCommand("N427MX", "SQ");
+
+        Assert.True(result.Success, result.Message);
+        AircraftState? ac = engine.FindAircraft("N427MX");
+        Assert.NotNull(ac);
+        Assert.Equal(303u, ac.Transponder.Code); // back on the assigned code
+        Assert.False(ac.Transponder.CommandedSquawkVfr); // no longer squawking VFR
+    }
+
     [Fact]
     public void RequestNewBeaconCode_ReleasesLatch()
     {

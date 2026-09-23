@@ -501,5 +501,5 @@ fingerprint captures the exact DTO value.
   flight-plan squawk the strip and the Flight Plan Editor's BCN box show). Reading `BeaconCode` where you meant the
   assigned code shows `0000` until the pilot squawks — that was the N263FY FPE bug. A third field, `CommandedSquawkVfr`
   ← `Transponder.CommandedSquawkVfr`, is the RPO-display latch that suppresses the radar's assigned-vs-reported mismatch
-  flash after a `SQVFR`/`SQV` (released when a new code is assigned); it is in `TrainingDtoFingerprint` so the flash turns
+  flash after a `SQVFR`/`SQV` or `SQ 1200` (released when a new code is assigned, on `SQ` any other code, or on a bare `SQ`); it is in `TrainingDtoFingerprint` so the flash turns
   off / back on live.
