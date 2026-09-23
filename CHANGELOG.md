@@ -7,11 +7,13 @@
 - Selecting several live aircraft in the Aircraft List offers **Assume selected live traffic** on right-click.
 - Settings and the session flyout take a distance beyond which departures from the primary airport are deleted automatically; blank keeps them.
 - Departures removed that way appear in the debrief as "Departed".
+- The terminal's filter box has a ✕ button that clears it.
 
 ### Changed
 - Right-clicking an airborne live-traffic aircraft offers the full command menu; picking a command assumes the aircraft first, as typing one does.
 - `NODEL` also keeps a departure from being deleted by the departure distance setting.
 - Aircraft types missing from the aircraft database are sized by wake category for ground spacing, runway-exit stopping points and same-runway arrival spacing.
+- The terminal's filter box is wide enough to show a full airline callsign.
 
 ### Fixed
 - The Ground view's push-route preview refuses a move that would swing into a parked aircraft, as sending it would, instead of showing it as fine.

@@ -130,7 +130,7 @@ Right-click any terminal line and choose **Rewind to this moment** to jump the r
 
 #### Filters
 
-The terminal header includes toggle buttons to filter entries by kind: **CMD**, **RSP**, **SYS**, **SAY**, **WRN**, **ERR**, **CHAT**, **TDLS**, **STRP**. Click a toggle to hide/show that kind. The **STRP** toggle hides flight-strip command echoes and their feedback in one click, which is handy when strip traffic is burying requests and commands. **Shift+Click** a toggle to *solo* that channel (hide all others); Shift+Click it again to restore the previous set. Hidden entries remain in the backing store — toggling a filter back on restores all entries. All entries are always written to the client log file regardless of filter state. Filter state persists across sessions.
+The terminal header includes toggle buttons to filter entries by kind: **CMD**, **RSP**, **SYS**, **SAY**, **WRN**, **ERR**, **CHAT**, **TDLS**, **STRP**. Click a toggle to hide/show that kind. The **STRP** toggle hides flight-strip command echoes and their feedback in one click, which is handy when strip traffic is burying requests and commands. **Shift+Click** a toggle to *solo* that channel (hide all others); Shift+Click it again to restore the previous set. Hidden entries remain in the backing store — toggling a filter back on restores all entries. All entries are always written to the client log file regardless of filter state. Filter state persists across sessions. The **Filter...** box beside the toggles shows only lines containing its text (a callsign, say); the **✕** beside it clears it.
 
 #### Multi-User Visibility
 

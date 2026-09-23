@@ -1218,6 +1218,9 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnTerminalSearchTextChanged(string value) => TerminalFilterChanged?.Invoke();
 
+    [RelayCommand]
+    private void ClearTerminalSearch() => TerminalSearchText = "";
+
     private void OnTerminalToggleChanged()
     {
         if (_isProgrammaticTerminalToggle)
