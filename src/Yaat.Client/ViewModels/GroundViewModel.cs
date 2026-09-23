@@ -1519,10 +1519,13 @@ public partial class GroundViewModel : ObservableObject
             category
         );
         // The server replaces a route that reaches the stand only the long way round (SFO $5A: down T5, out to Alpha,
-        // back up T5A) with a straight drive across the apron, so the overlay has to make the same substitution or it
-        // draws a detour the aircraft is not flying.
+        // back up T5A) with a drive across the apron that rolls in on the stand heading, so the overlay has to make the
+        // same substitution or it draws a detour the aircraft is not flying.
+        double aircraftLengthFt = FaaAircraftDatabase.Get(ac.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(ac.AircraftType);
         RampLaneDestinationCutPlan? improved =
-            (route is not null) && (destination is not null) ? RampLaneReposition.TryPlanResolvedRouteCut(_domainLayout, route, destination) : null;
+            (route is not null) && (destination is not null)
+                ? RampLaneReposition.TryPlanResolvedRouteCut(_domainLayout, route, destination, aircraftLengthFt)
+                : null;
 
         // The server lines a spot cleared from the ramp up to leave it before anything else looks at the route's
         // shape, and a line-up's resolved route typically starts back up the lane behind the aircraft — so it comes

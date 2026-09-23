@@ -476,7 +476,7 @@ public class RampLaneRepositionTests
         );
         _output.WriteLine("route: " + string.Join(" ", route.Segments.Select(s => $"{s.FromNodeId}-{s.ToNodeId}({s.TaxiwayName})")));
 
-        RampLaneDestinationCutPlan? cut = RampLaneReposition.TryPlanResolvedRouteCut(layout, route, stand);
+        RampLaneDestinationCutPlan? cut = RampLaneReposition.TryPlanResolvedRouteCut(layout, route, stand, TugMovePlanner.FuselageLengthFt("B738"));
         if (!expectCut)
         {
             Assert.Null(cut);

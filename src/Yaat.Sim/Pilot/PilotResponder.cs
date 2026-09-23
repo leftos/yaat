@@ -1543,12 +1543,15 @@ public static class PilotResponder
     /// <summary>
     /// Pilot transmission for a taxi-side hold-short report ("holding short of [label] at [taxiway]").
     /// Used when the ground phase reaches a hold-short node where the label is a generic identifier
-    /// (taxiway intersection, ILS-critical area, etc.) rather than a specific runway designator.
+    /// (taxiway intersection, ILS-critical area, etc.) rather than a specific runway designator. With
+    /// <paramref name="requestFurtherTaxi"/> — the end of a route that could not reach its destination as cleared — the
+    /// report ends asking for the rest of the way ("holding short of C at E, request further taxi").
     /// </summary>
-    public static PilotSpeechText BuildHoldingShortTaxi(AircraftState aircraft, string label, string taxiway)
+    public static PilotSpeechText BuildHoldingShortTaxi(AircraftState aircraft, string label, string taxiway, bool requestFurtherTaxi)
     {
         string spoken = SpokenOwnCallsign(aircraft);
-        return new PilotSpeechText($"{label} at {taxiway}.", $"{spoken}, {label} at {taxiway}.");
+        string request = requestFurtherTaxi ? ", request further taxi" : "";
+        return new PilotSpeechText($"{label} at {taxiway}{request}.", $"{spoken}, {label} at {taxiway}{request}.");
     }
 
     /// <summary>

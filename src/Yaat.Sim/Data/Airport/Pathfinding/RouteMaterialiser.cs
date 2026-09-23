@@ -9,6 +9,12 @@ namespace Yaat.Sim.Data.Airport.Pathfinding;
 public static class RouteMaterialiser
 {
     /// <summary>
+    /// The controller's note for a movement-area taxiway the route drives that the clearance did not name:
+    /// <c>taxiing via T — not in the route issued</c>.
+    /// </summary>
+    public static string NotInRouteIssuedWarning(string taxiway) => $"taxiing via {taxiway} — not in the route issued";
+
+    /// <summary>
     /// Produce a <see cref="TaxiRoute"/> from a committed edge sequence and search context.
     /// <paramref name="insertions"/> are mandatory connectors the resolver had to bridge between
     /// cleared taxiways with no direct junction — surfaced as informative notifications rather
@@ -775,7 +781,7 @@ public static class RouteMaterialiser
                 && warned.Add(name)
             )
             {
-                warnings.Add($"taxiing via {name} — not in the route issued");
+                warnings.Add(NotInRouteIssuedWarning(name));
             }
         }
 

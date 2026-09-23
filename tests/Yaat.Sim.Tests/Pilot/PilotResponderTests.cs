@@ -1313,9 +1313,21 @@ public class PilotResponderTests
     {
         AircraftState ac = MakeAircraft("N172SP");
 
-        PilotSpeechText result = PilotResponder.BuildHoldingShortTaxi(ac, "holding short of 28R", "B");
+        PilotSpeechText result = PilotResponder.BuildHoldingShortTaxi(ac, "holding short of 28R", "B", requestFurtherTaxi: false);
 
         Assert.Contains("holding short of 28R at B", result.Tts);
+        Assert.DoesNotContain("request further taxi", result.Tts);
+    }
+
+    [Fact]
+    public void BuildHoldingShortTaxi_RouteIncomplete_RequestsFurtherTaxi()
+    {
+        AircraftState ac = MakeAircraft("N9225L");
+
+        PilotSpeechText result = PilotResponder.BuildHoldingShortTaxi(ac, "holding short of C", "E", requestFurtherTaxi: true);
+
+        Assert.Equal("holding short of C at E, request further taxi.", result.Terminal);
+        Assert.EndsWith(", holding short of C at E, request further taxi.", result.Tts);
     }
 
     [Fact]

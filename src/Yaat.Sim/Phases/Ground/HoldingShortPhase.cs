@@ -58,12 +58,15 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
         // Generate notification
         string target = HoldShortTarget.Describe(_holdShort.TargetName ?? "unknown");
         string taxiway = ctx.Aircraft.Ground.CurrentTaxiway ?? "taxiway";
-        string label = _holdShort.Reason == HoldShortReason.ExplicitHoldShort ? $"holding short of {target}" : $"holding short runway {target}";
+        // A route-incomplete hold is short of the taxiway the route still needs, so it reads like a controller's HS.
+        bool heldAtNamedTarget = _holdShort.Reason is HoldShortReason.ExplicitHoldShort or HoldShortReason.RouteIncomplete;
+        string label = heldAtNamedTarget ? $"holding short of {target}" : $"holding short runway {target}";
         string warningText = $"{ctx.Aircraft.Callsign} {label} at {taxiway}";
-        PilotSpeechText speechText =
-            _holdShort.Reason == HoldShortReason.ExplicitHoldShort
-                ? PilotResponder.BuildHoldingShortTaxi(ctx.Aircraft, label, taxiway)
-                : PilotResponder.BuildHoldingShortCrossing(ctx.Aircraft, ResolveSpokenCrossingRunway(ctx, target));
+        // At the end of a route that could not reach its destination the pilot asks for the rest of the way.
+        bool requestFurtherTaxi = _holdShort.Reason == HoldShortReason.RouteIncomplete;
+        PilotSpeechText speechText = heldAtNamedTarget
+            ? PilotResponder.BuildHoldingShortTaxi(ctx.Aircraft, label, taxiway, requestFurtherTaxi)
+            : PilotResponder.BuildHoldingShortCrossing(ctx.Aircraft, ResolveSpokenCrossingRunway(ctx, target));
         PilotResponder.RouteRpoTransmission(ctx.Aircraft, ctx.SoloTrainingMode, ctx.RpoShowPilotSpeech, speechText.Tts, warningText);
 
         // Tail-over-runway (issue #172 W3): the aircraft holds at the taxiway line with its tail still
@@ -149,9 +152,16 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
     /// Whether this bar protects a runway. A <see cref="HoldShortReason.RunwayCrossing"/> or
     /// <see cref="HoldShortReason.DestinationRunway"/> hold always does. An explicit <c>HS</c> bar usually
     /// names a taxiway (<c>F1</c>) or a spot (<c>$17</c>), but a controller can also spell a runway
-    /// (<c>HS 1R</c>), so that case is decided on the target name.
+    /// (<c>HS 1R</c>), so that case is decided on the target name. A route-incomplete hold is short of a taxiway,
+    /// never a runway.
     /// </summary>
-    private bool ProtectsARunway => (_holdShort.Reason != HoldShortReason.ExplicitHoldShort) || IsRunwayTargetName(_holdShort.TargetName);
+    private bool ProtectsARunway =>
+        _holdShort.Reason switch
+        {
+            HoldShortReason.RouteIncomplete => false,
+            HoldShortReason.ExplicitHoldShort => IsRunwayTargetName(_holdShort.TargetName),
+            _ => true,
+        };
 
     /// <summary>
     /// Whether a <see cref="HoldShortPoint.TargetName"/> reads as a runway. The route carries either a single
@@ -213,7 +223,9 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
     {
         return cmd switch
         {
-            CanonicalCommandType.CrossRunway => CommandAcceptance.ClearsPhase,
+            CanonicalCommandType.CrossRunway => _holdShort.Reason == HoldShortReason.RouteIncomplete
+                ? CommandAcceptance.Rejected(RejectionMessage())
+                : CommandAcceptance.ClearsPhase,
             CanonicalCommandType.LineUpAndWait => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.ClearedForTakeoff => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Taxi or CanonicalCommandType.TaxiAuto => CommandAcceptance.ClearsPhase,
@@ -227,11 +239,14 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
             CanonicalCommandType.ClearRunway => _holdShort.TailOverRunwayNodeId is not null
                 ? CommandAcceptance.Allowed
                 : CommandAcceptance.Rejected("CLRWY only applies when holding short of a taxiway with the tail over a runway"),
-            CanonicalCommandType.Resume => _holdShort.Reason == HoldShortReason.DestinationRunway
-                ? CommandAcceptance.Rejected(
+            CanonicalCommandType.Resume => _holdShort.Reason switch
+            {
+                HoldShortReason.DestinationRunway => CommandAcceptance.Rejected(
                     $"holding short of destination runway {RunwayIdentifier.ToDisplayDesignator(_holdShort.TargetName ?? "runway")} — RES does not apply (issue CTO or LUAW)"
-                )
-                : CommandAcceptance.ClearsPhase,
+                ),
+                HoldShortReason.RouteIncomplete => CommandAcceptance.Rejected(RejectionMessage()),
+                _ => CommandAcceptance.ClearsPhase,
+            },
             // FOLLOWG from a bar that protects no runway — the "holding short at a taxiway or spot bar" case
             // COMMANDS.md lists. GroundCommandHandler.TryFollow does the replacing: it clears Ground.Hold and
             // swaps the phase list for a FollowingPhase. A bar that DOES protect a runway falls through to the
@@ -246,10 +261,16 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort) : Phase
     /// <summary>
     /// What is still available from this bar. The two bars offer different sets, so naming the wrong one sends
     /// the controller looking for a command that cannot apply: a runway bar has no RES and no FOLLOWG (it takes
-    /// a crossing or a takeoff clearance to leave), while a taxiway or spot bar has both.
+    /// a crossing or a takeoff clearance to leave), while a taxiway or spot bar has both. The end of a route that could not
+    /// reach its destination takes only a new TAXI that names the taxiway the route needs.
     /// </summary>
     private string RejectionMessage()
     {
+        if (_holdShort.Reason == HoldShortReason.RouteIncomplete)
+        {
+            return $"holding short of {_holdShort.TargetName} where the route issued ends — issue a TAXI that includes {_holdShort.TargetName}";
+        }
+
         string target = HoldShortTarget.Describe(_holdShort.TargetName ?? "the runway");
         return ProtectsARunway
             ? $"aircraft is holding short of {target}; only CROSS/LUAW/CTO/HSC, a new TAXI, or DEL apply — to follow traffic across, issue CROSS <rwy>; FOLLOWG <leader>"

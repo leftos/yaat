@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands.Arguments;
 using Yaat.Sim.Data;
@@ -192,7 +193,7 @@ public static class GroundCommandHandler
             (!standsOnFirstCleared && (HeldShortTaxiway(aircraft) is { } heldShortTwy))
                 ? PrependTaxiwayJoiningPath(groundLayout, taxi, heldShortTwy)
                 : null;
-        string? occupiedTaxiway = OccupiedTaxiway(aircraft, startNode);
+        string? occupiedTaxiway = OccupiedTaxiway(aircraft, startNode, groundLayout);
         TaxiCommand? currentTaxiwayPrepend = CurrentTaxiwayPrepend(groundLayout, occupiedTaxiway, taxi);
 
         Log.LogDebug(
@@ -354,7 +355,12 @@ public static class GroundCommandHandler
         // drivable and materially shorter.
         if ((route is not null) && (destinationNode is { } resolvedDestination))
         {
-            RampLaneDestinationCutPlan? improved = RampLaneReposition.TryPlanResolvedRouteCut(groundLayout, route, resolvedDestination);
+            RampLaneDestinationCutPlan? improved = RampLaneReposition.TryPlanResolvedRouteCut(
+                groundLayout,
+                route,
+                resolvedDestination,
+                aircraftLengthFt
+            );
             if (improved is not null)
             {
                 route = improved.Route;
@@ -388,24 +394,22 @@ public static class GroundCommandHandler
             }
         }
 
+        // Last, a clearance whose taxiways do not join up: hold short of the taxiway the route needs, or refuse naming it.
+        var startLink = new StartLinkInputs(aircraft.Callsign, groundLayout, startNode, taxi, occupiedTaxiway, category);
+        MissingTaxiwayFallback fallback = ApplyMissingTaxiwayFallbacks(startLink, route, cmd => ResolveRoute(cmd, out _));
+        route = fallback.Held ?? route;
         if (route is null)
         {
             Log.LogWarning("[TryTaxi] {Callsign}: route resolution failed — {Reason}", aircraft.Callsign, failReason ?? "no matching taxiways");
-
-            if (failReason is not null)
-            {
-                return new CommandResult(false, failReason);
-            }
-
-            string pathStr = string.Join(" ", taxi.Path);
-            return new CommandResult(false, $"Cannot resolve taxi route: {pathStr}");
+            return new CommandResult(false, UnresolvedTaxiMessage(fallback.Refusal, failReason, taxi));
         }
 
+        // A route held short of a missing taxiway never reaches the spot, so there is nothing to line up on.
         route = ApplySpotLineUp(
             aircraft,
             groundLayout,
             route,
-            destinationNode,
+            fallback.Held is null ? destinationNode : null,
             new SpotLineUpInputs(category, aircraftLengthFt, asCleared.Path, options.ListAircraft)
         );
 
@@ -649,7 +653,7 @@ public static class GroundCommandHandler
         }
         else
         {
-            msg = $"Taxi via {route.ToSummary(BuildTurnHintMap(taxi), taxi.Path)}";
+            msg = BuildTaxiReadback(route, groundLayout, taxi, occupiedTaxiway, fallback.Held is not null);
         }
 
         if (route.Warnings.Count > 0)
@@ -1219,13 +1223,181 @@ public static class GroundCommandHandler
         occupiedTaxiway is null ? null : PrependTaxiwayJoiningPath(groundLayout, taxi, occupiedTaxiway);
 
     /// <summary>
-    /// <see cref="AircraftGroundOps.CurrentTaxiway"/> when the start node lies on it, else null: a stale value (the
-    /// aircraft has since left that taxiway) never counts as the taxiway it stands on.
+    /// The TAXI readback's taxiway filter: the clearance as issued, so a taxiway is named only when the clearance
+    /// named it or the aircraft occupies it. A path of node references alone (a drawn route) names nothing, so
+    /// every taxiway it drives is shown.
     /// </summary>
-    private static string? OccupiedTaxiway(AircraftState aircraft, GroundNode startNode) =>
-        ((aircraft.Ground.CurrentTaxiway is { Length: > 0 } currentTwy) && startNode.Edges.Any(e => e.MatchesTaxiway(currentTwy)))
-            ? currentTwy
+    private static Func<string, bool> ReadbackTaxiwayFilter(IReadOnlyList<string> path, string? occupiedTaxiway)
+    {
+        HashSet<string> named = ClearanceTaxiwayNames(path, occupiedTaxiway);
+        return path.All(t => t.StartsWith('#')) ? static _ => true : named.Contains;
+    }
+
+    private static HashSet<string> ClearanceTaxiwayNames(IReadOnlyList<string> path, string? occupiedTaxiway)
+    {
+        var named = new HashSet<string>(path.Where(t => !t.StartsWith('#')), StringComparer.OrdinalIgnoreCase);
+        if (occupiedTaxiway is not null)
+        {
+            named.Add(occupiedTaxiway);
+        }
+
+        return named;
+    }
+
+    /// <summary>
+    /// Warn about each movement-area taxiway the route drives that the clearance did not name (and the readback
+    /// therefore leaves out), in the materialiser's words (<c>taxiing via X — not in the route issued</c>). Ramp
+    /// taxilanes and RAMP are nonmovement area and stay silent; junction arcs, runway centerlines and free-space
+    /// legs are not a taxiway driven; the taxiway the aircraft occupies counts as named. A taxiway another warning
+    /// already names (the resolver's connector notices, or this warning itself) is not warned again, and neither is
+    /// any of <paramref name="implied"/>, the taxiways the clearance implies (the runway-entry connector, the gate's or
+    /// spot's short lead-in). A drawn route of node references alone names no taxiway, so it is not checked.
+    /// </summary>
+    private static void WarnUnclearedMovementAreaTaxiways(
+        TaxiRoute route,
+        AirportGroundLayout groundLayout,
+        IReadOnlyList<string> path,
+        string? occupiedTaxiway,
+        IEnumerable<string?> implied
+    )
+    {
+        if (path.All(t => t.StartsWith('#')))
+        {
+            return;
+        }
+
+        var classification = MovementAreaClassification.For(groundLayout);
+        HashSet<string> named = ClearanceTaxiwayNames(path, occupiedTaxiway);
+        named.UnionWith(implied.OfType<string>());
+
+        IEnumerable<string> driven = route
+            .Segments.Select(s => s.Edge.Edge)
+            .Where(IsTaxiwayDriven)
+            .SelectMany(SegmentExpander.EdgeNames)
+            .Where(name => SegmentExpander.IsUnclearedMovementAreaName(name, named, classification));
+        foreach (string name in driven)
+        {
+            if (!route.Warnings.Any(w => NamesTaxiway(w, name)))
+            {
+                route.Warnings.Add(RouteMaterialiser.NotInRouteIssuedWarning(name));
+            }
+        }
+    }
+
+    /// <summary>An edge that drives a taxiway: not a junction arc between two, a runway centreline, or a free-space leg.</summary>
+    private static bool IsTaxiwayDriven(IGroundEdge edge) =>
+        (edge is not GroundArc { TaxiwayNames.Length: >= 2 }) && !edge.IsRunwayCenterline && !VirtualNode.IsVirtualEdge(edge);
+
+    /// <summary>
+    /// The TAXI readback: the clearance as issued. Lanes and taxiways the driven path adds are left out, and a
+    /// movement-area taxiway among them is warned instead (<see cref="WarnUnclearedMovementAreaTaxiways"/>) — except the
+    /// implied ones, the runway-entry connector and the gate's or spot's short lead-in, which are driven silently, so the
+    /// resolver's own warning about the lead-in is withdrawn too. A route that ends short of its destination has no lead-in.
+    /// </summary>
+    private static string BuildTaxiReadback(TaxiRoute route, AirportGroundLayout layout, TaxiCommand taxi, string? occupiedTaxiway, bool endsShort)
+    {
+        string? impliedLeadIn = endsShort ? null : ImpliedDestinationLeadIn(route, layout, taxi, occupiedTaxiway);
+        if (impliedLeadIn is not null)
+        {
+            route.Warnings.RemoveAll(w => w == RouteMaterialiser.NotInRouteIssuedWarning(impliedLeadIn));
+        }
+
+        WarnUnclearedMovementAreaTaxiways(route, layout, taxi.Path, occupiedTaxiway, [ImpliedRunwayEntryConnector(route, taxi), impliedLeadIn]);
+        return $"Taxi via {route.ToSummary(BuildTurnHintMap(taxi), taxi.Path, ReadbackTaxiwayFilter(taxi.Path, occupiedTaxiway))}";
+    }
+
+    /// <summary>
+    /// Why an unresolved TAXI is refused: the missing link the start needs (with the resolver's own reason alongside
+    /// when it has one), else the resolver's reason, else the path that did not resolve.
+    /// </summary>
+    private static string UnresolvedTaxiMessage(string? missingLinkRefusal, string? failReason, TaxiCommand taxi) =>
+        (missingLinkRefusal, failReason) switch
+        {
+            ({ } refusal, { } reason) => $"{refusal} ({reason})",
+            ({ } refusal, null) => refusal,
+            (null, { } reason) => reason,
+            _ => $"Cannot resolve taxi route: {string.Join(" ", taxi.Path)}",
+        };
+
+    /// <summary>
+    /// The runway-entry connector a runway clearance implies: the numbered variant of the clearance's last taxiway
+    /// that the resolver extends onto to reach the cleared runway's bar (OAK <c>TAXI U W RWY 30</c> ends on W1). It
+    /// is recognised by the resolver's own choice (<see cref="SegmentExpander.IsNumberedVariant"/> of the last
+    /// cleared taxiway) on the route's final straight taxiway segment, when the route ends holding short of its
+    /// destination runway. Null for any other route.
+    /// </summary>
+    private static string? ImpliedRunwayEntryConnector(TaxiRoute route, TaxiCommand taxi)
+    {
+        if ((taxi.DestinationRunway is null) || !route.HoldShortPoints.Any(h => h.Reason == HoldShortReason.DestinationRunway))
+        {
+            return null;
+        }
+
+        string? lastCleared = taxi.Path.LastOrDefault(t => !t.StartsWith('#'));
+        TaxiRouteSegment? lastStraight = route.Segments.LastOrDefault(s =>
+            (s.Edge.Edge is not GroundArc) && !s.Edge.Edge.IsRunwayCenterline && !VirtualNode.IsVirtualEdge(s.Edge.Edge)
+        );
+        return (lastCleared is not null) && (lastStraight is not null) && SegmentExpander.IsNumberedVariant(lastStraight.TaxiwayName, lastCleared)
+            ? lastStraight.TaxiwayName
             : null;
+    }
+
+    /// <summary>
+    /// The gate's or spot's lead-in taxiway the clearance implies (<see cref="SegmentExpander.ImpliedDestinationLeadIn"/>:
+    /// OAK <c>TAXI G @SIG1</c> ends on 635 ft of D), judged on the route as the resolver built it. Null for a runway or
+    /// destination-less clearance. The caller skips it for a route held short of a missing taxiway.
+    /// </summary>
+    private static string? ImpliedDestinationLeadIn(TaxiRoute route, AirportGroundLayout groundLayout, TaxiCommand taxi, string? occupiedTaxiway)
+    {
+        var classification = MovementAreaClassification.For(groundLayout);
+        HashSet<string> named = ClearanceTaxiwayNames(taxi.Path, occupiedTaxiway);
+        return SegmentExpander.ImpliedDestinationLeadIn(
+            [.. route.Segments.Select(s => s.Edge.Edge)],
+            taxi.DestinationParking,
+            taxi.DestinationSpot,
+            name => SegmentExpander.IsUnclearedMovementAreaName(name, named, classification)
+        );
+    }
+
+    /// <summary><paramref name="text"/> mentions <paramref name="taxiway"/> as a whole token (<c>A1</c> is not in <c>A10</c>).</summary>
+    private static bool NamesTaxiway(string text, string taxiway) =>
+        Regex.IsMatch(text, $@"(?<![A-Za-z0-9]){Regex.Escape(taxiway)}(?![A-Za-z0-9])", RegexOptions.IgnoreCase);
+
+    /// <summary>
+    /// The taxiway the aircraft occupies: <see cref="AircraftGroundOps.CurrentTaxiway"/> when the start node lies on it
+    /// (a stale value — the aircraft has since left that taxiway — never counts as the taxiway it stands on), else the
+    /// taxiway whose line the aircraft's position projects onto, within <see cref="RampLaneReposition.CurrentLaneMaxFt"/>:
+    /// an aircraft standing on pavement whose current taxiway was never set still occupies it (issue #454). An aircraft on
+    /// a stand (its start node is the parking node, or it is still recorded as parked) occupies no taxiway, however
+    /// close the stand sits to one.
+    ///
+    /// <para>The projection is the ground code's own nearest-edge lookup, so fillet arcs, runway centerlines and RAMP
+    /// edges are not candidates; an edge whose name is blank is no taxiway, and a ramp taxilane is no taxiway the
+    /// controller cleared — an aircraft standing on one (a spot or stand whose nearest edge is the lane hanging off it)
+    /// occupies nothing, and the clearance's own route is left to resolve as it always did. A virtual start node — one
+    /// not in the layout graph — lies on a layout edge, and the projection names that edge.</para>
+    /// </summary>
+    private static string? OccupiedTaxiway(AircraftState aircraft, GroundNode startNode, AirportGroundLayout groundLayout)
+    {
+        if ((aircraft.Ground.CurrentTaxiway is { Length: > 0 } currentTwy) && startNode.Edges.Any(e => e.MatchesTaxiway(currentTwy)))
+        {
+            return currentTwy;
+        }
+
+        bool onStand = (startNode.Type is GroundNodeType.Parking) || (aircraft.Ground.ParkingSpot is not null);
+        if (onStand || (groundLayout.FindNearestTaxiEdge(aircraft.Position) is not { } nearest))
+        {
+            return null;
+        }
+
+        string name = nearest.Edge.TaxiwayName;
+        return
+            ((nearest.DistNm * GeoMath.FeetPerNm) <= RampLaneReposition.CurrentLaneMaxFt)
+            && (name.Length > 0)
+            && MovementAreaClassification.For(groundLayout).IsMovementArea(name)
+            ? name
+            : null;
+    }
 
     /// <summary>
     /// <paramref name="taxi"/> with <paramref name="taxiway"/> put in front of its path, or null when the path is
@@ -1754,6 +1926,583 @@ public static class GroundCommandHandler
         );
         bestDropRoute.Warnings.Add($"unable via {droppedName} — no route via {droppedName} reaches {destLabel}; {droppedName} omitted");
         return new DroppedTaxiwayRoute(droppedName, bestCommand, bestDropRoute);
+    }
+
+    /// <summary>
+    /// A runway clearance whose resolved route never reaches a holding position for that runway: the route stops
+    /// wherever the named taxiways run out (OAK <c>TAXI F C HS 33 RWY 28R</c> ends past the 33 crossing on C).
+    /// </summary>
+    private static bool IsRunwayRouteShortOfItsRunway(TaxiRoute route, TaxiCommand taxi) =>
+        (taxi.DestinationRunway is not null)
+        && (route.Segments.Count > 0)
+        && !route.HoldShortPoints.Any(h => h.Reason is HoldShortReason.DestinationRunway or HoldShortReason.RouteIncomplete);
+
+    /// <summary>
+    /// What the clearance's missing taxiways leave the TAXI with: <paramref name="Held"/>, a route held short of the
+    /// taxiway the route needs, or <paramref name="Refusal"/>, the reason naming that taxiway when no route is left.
+    /// </summary>
+    private sealed record MissingTaxiwayFallback(TaxiRoute? Held, string? Refusal);
+
+    /// <summary>
+    /// The recoveries for a clearance whose taxiways do not join up, run after every other one. First the start: when it
+    /// does not reach the clearance's first taxiway through the taxiways cleared (N9225L <c>TAXI D @NEW1</c> from the E
+    /// exit needs C), the aircraft holds short of the missing link on the taxiway it occupies, or, with no route at all,
+    /// the refusal names that link. Then the end (issue #461, OAK <c>RWY 28R TAXI F C HS 33</c> from OLD1): the named
+    /// route does not reach its destination — a runway route that resolved without reaching its runway counts — but one
+    /// more movement-area taxiway would, so the route is taxied as issued and held short of it. A start that never
+    /// reaches the first taxiway is refused rather than held at the end: that hold would drive the missing link silently.
+    /// </summary>
+    private static MissingTaxiwayFallback ApplyMissingTaxiwayFallbacks(
+        StartLinkInputs inputs,
+        TaxiRoute? route,
+        Func<TaxiCommand, TaxiRoute?> resolve
+    )
+    {
+        if (CheckStartReachesFirstCleared(inputs, route, resolve) is { } link)
+        {
+            LogStartLinkOutcome(inputs, link, route);
+            if ((link.Held is not null) || (route is null))
+            {
+                return new MissingTaxiwayFallback(link.Held, link.Held is null ? link.Refusal : null);
+            }
+        }
+
+        bool shortOfDestination = (route is null) || IsRunwayRouteShortOfItsRunway(route, inputs.Taxi);
+        TaxiRoute? held = shortOfDestination ? TryHoldShortOfMissingTaxiway(inputs.Callsign, inputs.Layout, inputs.Taxi, resolve) : null;
+        return new MissingTaxiwayFallback(held, null);
+    }
+
+    /// <summary>How the TAXI answers a start that does not reach its first cleared taxiway: held, refused, or the resolved route accepted.</summary>
+    private static void LogStartLinkOutcome(StartLinkInputs inputs, MissingLinkOutcome link, TaxiRoute? route)
+    {
+        string outcome =
+            link.Held is { } held ? $"holding short on {inputs.OccupiedTaxiway} at node {held.Segments[^1].ToNodeId}"
+            : route is null ? $"refusing: {link.Refusal}"
+            : "accepting the route resolved";
+        Log.LogInformation(
+            "[TryTaxi] {Callsign}: start does not reach {First} as cleared; missing link {Missing} — {Outcome}",
+            inputs.Callsign,
+            link.First,
+            link.Missing,
+            outcome
+        );
+    }
+
+    /// <summary>
+    /// The most candidates <see cref="TryHoldShortOfMissingTaxiway"/> resolves, nearest the destination first: each is a
+    /// full route resolution, and the TAXI runs on the shared tick thread.
+    /// </summary>
+    private const int MaxMissingTaxiwayCandidates = 6;
+
+    /// <summary>What every candidate of <see cref="TryHoldShortOfMissingTaxiway"/> is judged against.</summary>
+    private sealed record MissingTaxiwayTarget(TaxiCommand Taxi, string LastCleared, GroundNode? DestinationNode, LatLon? Threshold);
+
+    /// <summary>
+    /// One candidate X: <paramref name="Complete"/>, the clearance with X appended resolved to its destination;
+    /// <paramref name="Held"/>, that route held short of X; <paramref name="ThresholdNm"/>, how far its runway entry is from
+    /// the threshold.
+    /// </summary>
+    private sealed record MissingTaxiwayCandidate(string Taxiway, TaxiRoute Complete, TaxiRoute Held, double ThresholdNm);
+
+    /// <summary>
+    /// Issue #461: the clearance's taxiways do not reach its destination, but one more movement-area taxiway X off the
+    /// last cleared taxiway would. The route is the clearance with X appended, resolved as usual — so the junction onto X
+    /// is the one the resolver's own destination-reach probe picks, with X counted as cleared — cut at the first node
+    /// after the last cleared taxiway is reached that lies on X. The aircraft holds short of X there
+    /// (<see cref="HoldShortReason.RouteIncomplete"/>) and the controller is told what the route needs. Among several X,
+    /// a runway destination prefers the one whose runway entry is nearest the threshold (the full-length entry, the
+    /// resolver's rule for a numbered-variant choice), then the better route; a gate or spot prefers the better route.
+    /// A numbered variant of the last taxiway is never X for a runway: the clearance implies it. At most
+    /// <see cref="MaxMissingTaxiwayCandidates"/> X are tried, those meeting the last taxiway nearest the destination
+    /// first. Null when the path ends on no plain taxiway or no single extra taxiway reaches the destination.
+    /// </summary>
+    private static TaxiRoute? TryHoldShortOfMissingTaxiway(
+        string callsign,
+        AirportGroundLayout layout,
+        TaxiCommand taxi,
+        Func<TaxiCommand, TaxiRoute?> resolve
+    )
+    {
+        string? lastCleared = taxi.Path.Count > 0 ? taxi.Path[^1] : null;
+        if (!HasDestination(taxi) || (lastCleared is null) || lastCleared.StartsWith('#') || (layout.GetNodesOnTaxiway(lastCleared).Count == 0))
+        {
+            return null;
+        }
+
+        GroundNode? destinationNode = FindTaxiDestinationNode(layout, taxi);
+        LatLon? threshold = taxi.DestinationRunway is { } rwy ? RouteMaterialiser.ResolveRunwayThreshold(layout.AirportId, rwy) : null;
+        var target = new MissingTaxiwayTarget(taxi, lastCleared, destinationNode, threshold);
+        MissingTaxiwayCandidate? best = null;
+        foreach (string missing in MissingTaxiwayCandidates(layout, taxi, lastCleared, destinationNode?.Position ?? threshold))
+        {
+            MissingTaxiwayCandidate? candidate = EvaluateMissingTaxiway(layout, target, missing, resolve);
+            if ((candidate is not null) && ((best is null) || IsBetterMissingTaxiway(candidate, best)))
+            {
+                best = candidate;
+            }
+        }
+
+        if (best is null)
+        {
+            return null;
+        }
+
+        Log.LogInformation(
+            "[TryTaxi] {Callsign}: route does not reach its destination as cleared; holding short of {Missing} at node {Node} ({Summary})",
+            callsign,
+            best.Taxiway,
+            best.Held.Segments[^1].ToNodeId,
+            best.Held.ToSummary()
+        );
+        return best.Held;
+    }
+
+    /// <summary>
+    /// The clearance with <paramref name="missing"/> appended, when that reaches the destination and can be held short
+    /// of <paramref name="missing"/> once the last cleared taxiway is reached; else null.
+    /// </summary>
+    private static MissingTaxiwayCandidate? EvaluateMissingTaxiway(
+        AirportGroundLayout layout,
+        MissingTaxiwayTarget target,
+        string missing,
+        Func<TaxiCommand, TaxiRoute?> resolve
+    )
+    {
+        TaxiCommand taxi = target.Taxi;
+        TaxiCommand augmented = taxi with { Path = [.. taxi.Path, missing], PathTurnHints = taxi.PathTurnHints is { } h ? [.. h, null] : null };
+        TaxiRoute? complete = resolve(augmented);
+        if ((complete is null) || !ReachesDestination(complete, taxi, target.DestinationNode))
+        {
+            return null;
+        }
+
+        int reached = complete.Segments.FindIndex(s => s.Edge.Edge.MatchesTaxiway(target.LastCleared));
+        TaxiRoute? held = reached < 0 ? null : HoldShortBeforeTaxiway(complete, layout, reached, missing, MissingTaxiwayWarning(taxi, missing));
+        return held is null
+            ? null
+            : new MissingTaxiwayCandidate(missing, complete, held, DestinationEntryToThresholdNm(layout, complete, target.Threshold));
+    }
+
+    /// <summary>
+    /// The movement-area taxiways meeting <paramref name="lastCleared"/> that the clearance does not name — never a ramp
+    /// taxilane, RAMP, a runway, or (for a runway destination) a numbered variant of the last taxiway — ordered by how
+    /// near their junction with it lies to <paramref name="toward"/> (the destination; name order without one), at most
+    /// <see cref="MaxMissingTaxiwayCandidates"/>.
+    /// </summary>
+    private static List<string> MissingTaxiwayCandidates(AirportGroundLayout layout, TaxiCommand taxi, string lastCleared, LatLon? toward)
+    {
+        var classification = MovementAreaClassification.For(layout);
+        var cleared = new HashSet<string>(taxi.Path, StringComparer.OrdinalIgnoreCase);
+        var nearestNm = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        foreach (GroundNode node in layout.GetNodesOnTaxiway(lastCleared))
+        {
+            double nm = toward is { } at ? GeoMath.DistanceNm(node.Position, at) : 0.0;
+            foreach (string name in node.Edges.SelectMany(SegmentExpander.EdgeNames))
+            {
+                bool implied = (taxi.DestinationRunway is not null) && SegmentExpander.IsNumberedVariant(name, lastCleared);
+                bool candidate = !implied && SegmentExpander.IsUnclearedMovementAreaName(name, cleared, classification);
+                if (candidate && (!nearestNm.TryGetValue(name, out double bestNm) || (nm < bestNm)))
+                {
+                    nearestNm[name] = nm;
+                }
+            }
+        }
+
+        return
+        [
+            .. nearestNm
+                .OrderBy(kv => kv.Value)
+                .ThenBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
+                .Take(MaxMissingTaxiwayCandidates)
+                .Select(kv => kv.Key),
+        ];
+    }
+
+    /// <summary>The route reaches what the clearance named: the runway's holding position, or the gate / spot node.</summary>
+    private static bool ReachesDestination(TaxiRoute route, TaxiCommand taxi, GroundNode? destinationNode)
+    {
+        if (taxi.DestinationRunway is not null)
+        {
+            return route.HoldShortPoints.Any(h => h.Reason == HoldShortReason.DestinationRunway);
+        }
+
+        return (destinationNode is not null) && (route.Segments.Count > 0) && (route.Segments[^1].ToNodeId == destinationNode.Id);
+    }
+
+    /// <summary>
+    /// How far the runway entry <paramref name="route"/> holds short at lies from <paramref name="threshold"/>, in nm;
+    /// zero when there is no threshold (a gate or spot, or no navdata), so the comparison falls to the route itself.
+    /// </summary>
+    private static double DestinationEntryToThresholdNm(AirportGroundLayout layout, TaxiRoute route, LatLon? threshold)
+    {
+        HoldShortPoint? entry = route.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.DestinationRunway);
+        if ((threshold is not { } at) || (entry is null) || !layout.Nodes.TryGetValue(entry.NodeId, out GroundNode? node))
+        {
+            return 0.0;
+        }
+
+        return GeoMath.DistanceNm(node.Position, at);
+    }
+
+    /// <summary>A runway entry nearer the threshold wins (beyond 100 ft); otherwise the better route does.</summary>
+    private static bool IsBetterMissingTaxiway(MissingTaxiwayCandidate candidate, MissingTaxiwayCandidate best)
+    {
+        const double SameEntryNm = 100.0 / GeoMath.FeetPerNm;
+        if (Math.Abs(candidate.ThresholdNm - best.ThresholdNm) > SameEntryNm)
+        {
+            return candidate.ThresholdNm < best.ThresholdNm;
+        }
+
+        return SegmentExpander.IsBetterRoute(candidate.Complete, best.Complete);
+    }
+
+    /// <summary>
+    /// <paramref name="complete"/> cut at the first node, from segment <paramref name="fromIndex"/> on, that lies on
+    /// <paramref name="missing"/> — or, when that node is runway pavement, at the runway's near-side bar
+    /// (<see cref="KeepOffRunwayPavement"/>): no edge of it is driven, the hold-shorts ahead of the cut are kept, and the
+    /// route ends held short (<see cref="HoldShortsAtCut"/>). Warnings that only concern pavement past the cut are dropped
+    /// and <paramref name="warning"/> is added. Null when the cut leaves nothing to taxi.
+    /// </summary>
+    private static TaxiRoute? HoldShortBeforeTaxiway(TaxiRoute complete, AirportGroundLayout layout, int fromIndex, string missing, string warning)
+    {
+        int keep = KeepOffRunwayPavement(complete, layout, CutBeforeTaxiway(complete, layout, fromIndex, missing));
+        if (keep <= 0)
+        {
+            return null;
+        }
+
+        List<TaxiRouteSegment> kept = [.. complete.Segments.Take(keep)];
+        var droppedNames = complete
+            .Segments.Skip(keep)
+            .SelectMany(s => SegmentExpander.EdgeNames(s.Edge.Edge))
+            .Where(n => !kept.Any(k => k.Edge.Edge.MatchesTaxiway(n)))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return new TaxiRoute
+        {
+            Segments = kept,
+            HoldShortPoints = HoldShortsAtCut(complete, kept, missing),
+            Warnings = [.. complete.Warnings.Where(w => !droppedNames.Any(n => NamesTaxiway(w, n))), warning],
+            MandatoryConnectorCount = complete.MandatoryConnectorCount,
+        };
+    }
+
+    /// <summary>
+    /// How many segments of <paramref name="complete"/>, from <paramref name="fromIndex"/> on, reach the first node on
+    /// <paramref name="missing"/> without driving it; -1 when the route never meets it.
+    /// </summary>
+    private static int CutBeforeTaxiway(TaxiRoute complete, AirportGroundLayout layout, int fromIndex, string missing)
+    {
+        for (int i = fromIndex; i < complete.Segments.Count; i++)
+        {
+            if (complete.Segments[i].Edge.Edge.MatchesTaxiway(missing))
+            {
+                return i;
+            }
+
+            if (layout.Nodes.TryGetValue(complete.Segments[i].ToNodeId, out GroundNode? node) && node.Edges.Any(e => e.MatchesTaxiway(missing)))
+            {
+                return i + 1;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// <paramref name="keep"/> segments of <paramref name="complete"/>, or fewer, so the route never ends on a runway: a
+    /// cut past a runway's near-side bar — the node the route holds at to cross it or to reach it — and short of the
+    /// far-side bar (SFO <c>TAXI A2 @B1</c> cut where A2 becomes M1 on the 01L threshold) moves back to that bar, which
+    /// stays the route's runway hold. A taxiway may change its name on runway pavement, so the first node on the missing
+    /// taxiway can be a runway centreline or end node. -1 when the cut is on a runway centreline and no bar comes before it.
+    /// </summary>
+    private static int KeepOffRunwayPavement(TaxiRoute complete, AirportGroundLayout layout, int keep)
+    {
+        if (keep <= 0)
+        {
+            return keep;
+        }
+
+        var runwayBars = complete.HoldShortPoints.Where(IsRunwayHold).Select(h => h.NodeId).ToHashSet();
+        int barKeep = -1;
+        bool onPavementSinceBar = false;
+        for (int i = 0; i < keep; i++)
+        {
+            int nodeId = complete.Segments[i].ToNodeId;
+            GroundNode? node = layout.Nodes.GetValueOrDefault(nodeId);
+            if (runwayBars.Contains(nodeId))
+            {
+                (barKeep, onPavementSinceBar) = (i + 1, false);
+                continue;
+            }
+
+            bool centreline = IsOnRunwayCentreline(node);
+            barKeep = (barKeep > 0) && onPavementSinceBar && !centreline && (node?.Type == GroundNodeType.RunwayHoldShort) ? -1 : barKeep;
+            onPavementSinceBar |= centreline;
+        }
+
+        if (barKeep > 0)
+        {
+            return barKeep;
+        }
+
+        return IsOnRunwayCentreline(layout.Nodes.GetValueOrDefault(complete.Segments[keep - 1].ToNodeId)) ? -1 : keep;
+    }
+
+    private static bool IsOnRunwayCentreline(GroundNode? node) => (node is not null) && AirportGroundLayout.HasRunwayCenterlineEdge(node);
+
+    private static bool IsRunwayHold(HoldShortPoint hold) => hold.Reason is HoldShortReason.RunwayCrossing or HoldShortReason.DestinationRunway;
+
+    /// <summary>
+    /// The hold-shorts of <paramref name="complete"/> on the <paramref name="kept"/> part, ending the route held short:
+    /// a runway bar at the cut stays the hold there, uncleared (the route goes no further, so the aircraft holds short of
+    /// the runway); any other hold already there stands; with none, a <see cref="HoldShortReason.RouteIncomplete"/> hold
+    /// of <paramref name="missing"/> is added.
+    /// </summary>
+    private static List<HoldShortPoint> HoldShortsAtCut(TaxiRoute complete, List<TaxiRouteSegment> kept, string missing)
+    {
+        int holdNodeId = kept[^1].ToNodeId;
+        var keptNodes = new HashSet<int>(kept.Select(s => s.ToNodeId)) { kept[0].FromNodeId };
+        List<HoldShortPoint> holdShorts =
+        [
+            .. complete
+                .HoldShortPoints.Where(h => keptNodes.Contains(h.NodeId))
+                .Select(h => (h.NodeId == holdNodeId) && h.IsCleared && IsRunwayHold(h) ? Uncleared(h) : h),
+        ];
+        if (!holdShorts.Any(h => h.NodeId == holdNodeId))
+        {
+            holdShorts.Add(
+                new HoldShortPoint
+                {
+                    NodeId = holdNodeId,
+                    Reason = HoldShortReason.RouteIncomplete,
+                    TargetName = missing,
+                }
+            );
+        }
+
+        return holdShorts;
+    }
+
+    private static HoldShortPoint Uncleared(HoldShortPoint hold) =>
+        new()
+        {
+            NodeId = hold.NodeId,
+            Reason = hold.Reason,
+            TargetName = hold.TargetName,
+            Latitude = hold.Latitude,
+            Longitude = hold.Longitude,
+        };
+
+    /// <summary>
+    /// The controller's note for a route held short of <paramref name="missing"/>: <c>Holding short of B: route to RWY
+    /// 28R needs B, not in clearance</c>. The destination reads as the command writes it (<c>RWY 28R</c>, <c>@D1</c>,
+    /// <c>$9</c>); a clearance with no destination reads as its last taxiway.
+    /// </summary>
+    private static string MissingTaxiwayWarning(TaxiCommand taxi, string missing)
+    {
+        string destination =
+            taxi.DestinationRunway is { } rwy ? $"RWY {RunwayIdentifier.ToDisplayDesignator(rwy)}"
+            : taxi.DestinationParking is { } parking ? $"@{parking}"
+            : taxi.DestinationSpot is { } spot ? $"${spot}"
+            : taxi.Path.LastOrDefault(t => !t.StartsWith('#')) ?? "the destination";
+        return $"Holding short of {missing}: route to {destination} needs {missing}, not in clearance";
+    }
+
+    /// <summary>What <see cref="CheckStartReachesFirstCleared"/> needs to know about the TAXI being resolved.</summary>
+    private sealed record StartLinkInputs(
+        string Callsign,
+        AirportGroundLayout Layout,
+        GroundNode StartNode,
+        TaxiCommand Taxi,
+        string? OccupiedTaxiway,
+        AircraftCategory Category
+    );
+
+    /// <summary>
+    /// A start that does not reach the clearance's first taxiway <paramref name="First"/> as cleared: the route held
+    /// short of the missing link <paramref name="Missing"/>, when one can be placed, and the refusal naming that link.
+    /// </summary>
+    private sealed record MissingLinkOutcome(TaxiRoute? Held, string Refusal, string First, string Missing);
+
+    /// <summary>
+    /// N9225L <c>TAXI D @NEW1</c> from the E exit: the start does not reach the clearance's first taxiway through the
+    /// cleared and occupied taxiways and the apron, so the way there drives a missing link X — the first uncleared
+    /// movement-area taxiway on the resolved route when there is one, else on the unconstrained route to the nearest
+    /// node of the first taxiway. When the aircraft occupies a taxiway and the clearance with X added ahead of its first
+    /// taxiway resolves as cleared, the aircraft holds short of X on the taxiway it occupies
+    /// (<c>Holding short of C: route to @NEW1 needs C, not in clearance</c>); the refusal is always returned
+    /// (<c>Unable, route to D from E needs C, not in clearance</c>). Null when the start reaches the first taxiway, the
+    /// clearance is a drawn route, or no X is found.
+    /// </summary>
+    private static MissingLinkOutcome? CheckStartReachesFirstCleared(StartLinkInputs inputs, TaxiRoute? route, Func<TaxiCommand, TaxiRoute?> resolve)
+    {
+        int firstIndex = FirstClearedTaxiwayAhead(inputs.Layout, inputs.StartNode, inputs.Taxi, inputs.OccupiedTaxiway);
+        if (firstIndex < 0)
+        {
+            return null;
+        }
+
+        string first = inputs.Taxi.Path[firstIndex];
+        var classification = MovementAreaClassification.For(inputs.Layout);
+        HashSet<string> named = ClearanceTaxiwayNames(inputs.Taxi.Path, inputs.OccupiedTaxiway);
+        bool IsBlocked(string name) => SegmentExpander.IsUnclearedMovementAreaName(name, named, classification);
+        if (ReachesTaxiwayWithout(inputs.StartNode, first, IsBlocked))
+        {
+            return null;
+        }
+
+        IReadOnlyList<TaxiRouteSegment>? way =
+            route?.Segments ?? WayToNearestNodeOf(inputs.Layout, inputs.StartNode, first, inputs.Category)?.Segments;
+        if ((way is null) || (FirstBlockedBefore(way, first, IsBlocked) is not { } missing))
+        {
+            return null;
+        }
+
+        string refusal = inputs.OccupiedTaxiway is { } occupied
+            ? $"Unable, route to {first} from {occupied} needs {missing}, not in clearance"
+            : $"Unable, route to {first} needs {missing}, not in clearance";
+        TaxiRoute? held = inputs.OccupiedTaxiway is null ? null : HoldShortOfMissingLink(inputs, firstIndex, missing, resolve);
+        return new MissingLinkOutcome(held, refusal, first, missing);
+    }
+
+    /// <summary>
+    /// The clearance with <paramref name="missing"/> put ahead of its first taxiway, held short of it on the occupied
+    /// taxiway — when that route reaches what the clearance clears it to; else null.
+    /// </summary>
+    private static TaxiRoute? HoldShortOfMissingLink(StartLinkInputs inputs, int firstIndex, string missing, Func<TaxiCommand, TaxiRoute?> resolve)
+    {
+        TaxiCommand taxi = inputs.Taxi;
+        TaxiCommand augmented = taxi with
+        {
+            Path = [.. taxi.Path.Take(firstIndex), missing, .. taxi.Path.Skip(firstIndex)],
+            PathTurnHints = taxi.PathTurnHints is { } hints ? [.. hints.Take(firstIndex), null, .. hints.Skip(firstIndex)] : null,
+        };
+        TaxiRoute? complete = resolve(augmented);
+        return (complete is not null) && ReachesClearance(complete, taxi, inputs.Layout)
+            ? HoldShortBeforeTaxiway(complete, inputs.Layout, 0, missing, MissingTaxiwayWarning(taxi, missing))
+            : null;
+    }
+
+    /// <summary>
+    /// The index in the path of the clearance's first taxiway the aircraft is not already on: tokens naming the occupied
+    /// taxiway or a taxiway at the start node are passed over. -1 for a drawn route (a <c>#node</c> token comes first) or
+    /// when that token names no taxiway in the layout (a runway).
+    /// </summary>
+    private static int FirstClearedTaxiwayAhead(AirportGroundLayout layout, GroundNode start, TaxiCommand taxi, string? occupied)
+    {
+        for (int i = 0; i < taxi.Path.Count; i++)
+        {
+            string token = taxi.Path[i];
+            if (token.StartsWith('#'))
+            {
+                return -1;
+            }
+
+            if (token.Equals(occupied, StringComparison.OrdinalIgnoreCase) || start.Edges.Any(e => e.MatchesTaxiway(token)))
+            {
+                continue;
+            }
+
+            return layout.GetNodesOnTaxiway(token).Count > 0 ? i : -1;
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="start"/> reaches a straight edge of <paramref name="taxiway"/> over edges carrying no
+    /// <paramref name="isBlocked"/> name — never along a runway centreline.
+    /// </summary>
+    private static bool ReachesTaxiwayWithout(GroundNode start, string taxiway, Func<string, bool> isBlocked)
+    {
+        var seen = new HashSet<int> { start.Id };
+        var frontier = new Queue<GroundNode>([start]);
+        while (frontier.TryDequeue(out GroundNode? node))
+        {
+            if (node.Edges.Any(e => (e is not GroundArc) && e.MatchesTaxiway(taxiway)))
+            {
+                return true;
+            }
+
+            foreach (IGroundEdge edge in node.Edges)
+            {
+                if (edge.IsRunwayCenterline || SegmentExpander.EdgeNames(edge).Any(isBlocked))
+                {
+                    continue;
+                }
+
+                GroundNode next = edge.OtherNode(node);
+                if (seen.Add(next.Id))
+                {
+                    frontier.Enqueue(next);
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The unconstrained route from <paramref name="start"/> to the node with a straight edge of <paramref name="taxiway"/>
+    /// nearest it.
+    /// </summary>
+    private static TaxiRoute? WayToNearestNodeOf(AirportGroundLayout layout, GroundNode start, string taxiway, AircraftCategory category)
+    {
+        GroundNode? nearest = layout
+            .GetNodesOnTaxiway(taxiway)
+            .Where(n => n.Edges.Any(e => (e is not GroundArc) && e.MatchesTaxiway(taxiway)))
+            .MinBy(n => GeoMath.DistanceNm(n.Position, start.Position));
+        return nearest is null ? null : TaxiPathfinder.FindRoute(layout, start.Id, nearest.Id, category);
+    }
+
+    /// <summary>
+    /// The first <paramref name="isBlocked"/> name <paramref name="way"/> drives before it reaches <paramref name="taxiway"/>;
+    /// free-space legs and runway centrelines are passed over. Null when the way reaches the taxiway first, or never.
+    /// </summary>
+    private static string? FirstBlockedBefore(IReadOnlyList<TaxiRouteSegment> way, string taxiway, Func<string, bool> isBlocked)
+    {
+        foreach (TaxiRouteSegment segment in way)
+        {
+            IGroundEdge edge = segment.Edge.Edge;
+            if (VirtualNode.IsVirtualEdge(edge) || edge.IsRunwayCenterline)
+            {
+                continue;
+            }
+
+            string? blocked = SegmentExpander.EdgeNames(edge).FirstOrDefault(isBlocked);
+            if (blocked is not null)
+            {
+                return blocked;
+            }
+
+            if (edge.MatchesTaxiway(taxiway))
+            {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The route reaches what <paramref name="taxi"/> clears it to: its destination (<see cref="ReachesDestination"/>),
+    /// or, with none, its last taxiway — driven, or joined at the route's end (a path-only route stops where it meets it).
+    /// </summary>
+    private static bool ReachesClearance(TaxiRoute route, TaxiCommand taxi, AirportGroundLayout layout)
+    {
+        if (HasDestination(taxi))
+        {
+            return ReachesDestination(route, taxi, FindTaxiDestinationNode(layout, taxi));
+        }
+
+        string? last = taxi.Path.LastOrDefault(t => !t.StartsWith('#'));
+        if ((last is null) || (route.Segments.Count == 0))
+        {
+            return false;
+        }
+
+        bool endsOnLast = layout.Nodes.TryGetValue(route.Segments[^1].ToNodeId, out GroundNode? end) && end.Edges.Any(e => e.MatchesTaxiway(last));
+        return endsOnLast || route.Segments.Any(s => s.Edge.Edge.MatchesTaxiway(last));
     }
 
     /// <summary>

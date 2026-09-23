@@ -415,7 +415,12 @@ public static class SegmentExpander
         {
             if (ctx.Destination.TargetNodeId is { } destId && head.HeadNodeId != destId)
             {
-                (List<DirectionalEdge>? extEdges, PathfindingFailure? extFailure) = ExtendToDestination(head, destId, ctx);
+                (List<DirectionalEdge>? extEdges, PathfindingFailure? extFailure) = ExtendToDestination(
+                    head,
+                    destId,
+                    ctx,
+                    UnclearedMovementAreaTaxiways(ctx)
+                );
                 if (extFailure is not null)
                 {
                     return (null, extFailure);
@@ -1018,6 +1023,7 @@ public static class SegmentExpander
         List<DirectionalEdge>? bestWalk = null;
         PartialRoute? bestStopHead = null;
         double bestTotal = double.MaxValue;
+        IReadOnlySet<string> uncleared = UnclearedMovementAreaTaxiways(ctx);
 
         foreach (GroundNode? cand in candidates)
         {
@@ -1027,9 +1033,23 @@ public static class SegmentExpander
                 continue;
             }
 
-            (List<DirectionalEdge>? extEdges, PathfindingFailure? extFailure) = ExtendToDestination(candHead, destId, ctx);
+            (List<DirectionalEdge>? extEdges, PathfindingFailure? extFailure) = ExtendToDestination(candHead, destId, ctx, uncleared);
             if (extFailure is not null || extEdges is null)
             {
+                continue;
+            }
+
+            // A stop reached only through the junction node (a junction-edge arc, or no edge at all) never drives
+            // the named taxiway. That is fine when the stand hangs straight off the junction (SFO "TAXI B K A @F10":
+            // K/A junction, then RAMP to F10), but not when the extension then runs down another lane instead
+            // (issue #454, SFO "TAXI B K A T5A @D1" taxiing T5B): the clearance named the taxiway, so drive it.
+            bool drivesNamed = walkEdges.Any(e => (e.Edge is not GroundArc) && e.Edge.MatchesTaxiway(taxiwayName));
+            if (!drivesNamed && !ExtensionStaysOnClearedOrApron(extEdges, ctx))
+            {
+                ctx.DiagnosticLog?.Invoke(
+                    $"[beststop] twy={taxiwayName} stop={cand.Id} skipped: the walk drives no straight {taxiwayName} edge "
+                        + "and the extension leaves the cleared taxiways and apron"
+                );
                 continue;
             }
 
@@ -1056,6 +1076,20 @@ public static class SegmentExpander
         ctx.DiagnosticLog?.Invoke($"[beststop] twy={taxiwayName} dest={destId} stop={bestStopHead!.HeadNodeId} total={bestTotal:F3}");
         return (bestWalk, bestStopHead, bestTotal);
     }
+
+    /// <summary>
+    /// Every edge of <paramref name="extEdges"/> is apron or cleared pavement: each name it carries is <c>RAMP</c>,
+    /// blank, the destination stand's own name (its lead-in), or a taxiway of the clearance. A taxiway or ramp lane
+    /// the clearance did not name disqualifies the extension.
+    /// </summary>
+    private static bool ExtensionStaysOnClearedOrApron(List<DirectionalEdge> extEdges, SearchContext ctx) =>
+        extEdges.All(e =>
+            EdgeNames(e.Edge)
+                .All(name =>
+                    IsApronName(name, ctx.Destination.ParkingName, ctx.Destination.SpotName)
+                    || ctx.WaypointSequence.Contains(name, StringComparer.OrdinalIgnoreCase)
+                )
+        );
 
     /// <summary>
     /// The distinct numbered-connector / RAMP taxiway names that branch off <paramref name="clearedTaxiway"/>
@@ -3677,7 +3711,8 @@ public static class SegmentExpander
     private static (List<DirectionalEdge>? Edges, PathfindingFailure? Failure) ExtendToDestination(
         PartialRoute head,
         int destinationNodeId,
-        SearchContext ctx
+        SearchContext ctx,
+        IReadOnlySet<string> uncleared
     )
     {
         ctx.DiagnosticLog?.Invoke($"[extend] extending to destination #{destinationNodeId} from head={head.HeadNodeId}");
@@ -3696,30 +3731,25 @@ public static class SegmentExpander
             AuthorizedTaxiways = null,
         };
 
-        // Prefer an extension confined to the cleared taxiways + numbered connectors + RAMP (the
-        // "impliable" set): a controller clearing "TAXI B @F1" expects the gate reached by staying on B
-        // and turning onto the ramp connector, NOT by threading uncleared letter taxiways (e.g. B Q A T9
-        // RAMP). Hard-exclude every letter taxiway the controller did not name — numbered connectors and
-        // RAMP stay free, so the join stays on the cleared taxiway until a numbered ramp connector
-        // branches off. Fall back to an unconstrained search only when the confined one finds no route,
-        // so a gate genuinely reachable only across an uncleared taxiway still resolves. Mirrors the
-        // runway-destination fallback's hard-constraint (see ResolveExplicit's last-resort A*).
-        IReadOnlySet<string> unauthorized = UnnamedLetterTaxiways(ctx.Layout, ctx.AuthorizedTaxiways);
-        if (unauthorized.Count > 0)
+        // The extension stays on the cleared taxiways, the ramp taxilanes and RAMP: a controller clearing "TAXI B @F1"
+        // expects the gate reached by staying on B and turning onto the ramp lane, never by threading a movement-area
+        // taxiway the clearance did not name (B Q A T9 RAMP). Every such taxiway is hard-excluded; when the stand is
+        // reachable only across one, the extension fails, and the TAXI handler holds the aircraft short of that taxiway
+        // instead (issue #461). The one exception is the destination's own short lead-in taxiway (see
+        // TryExtendViaImpliedLeadIn), tried only once the confined search has failed. The caller computes the uncleared
+        // set once per search, not once per candidate stop.
+        SearchContext confinedCtx =
+            uncleared.Count > 0 ? extCtx with { AvoidedTaxiways = uncleared, AvoidMode = AvoidTaxiwayMode.HardExclude } : extCtx;
+        (TaxiRoute? route, PathfindingFailure? failure) = AutoRouter.Run(confinedCtx, startOverride: head);
+        if (((failure is not null) || (route is null)) && (TryExtendViaImpliedLeadIn(head, destinationNodeId, extCtx, uncleared) is { } leadIn))
         {
-            SearchContext confinedCtx = extCtx with { AvoidedTaxiways = unauthorized, AvoidMode = AvoidTaxiwayMode.HardExclude };
-            (TaxiRoute? confinedRoute, PathfindingFailure? _) = AutoRouter.Run(confinedCtx, startOverride: head);
-            if (confinedRoute is not null)
-            {
-                return ([.. confinedRoute.Segments.Select(s => s.Edge)], null);
-            }
-
-            ctx.DiagnosticLog?.Invoke("[extend] confined (cleared+numbered+RAMP) extension found no route; retrying unconstrained");
+            route = leadIn;
+            failure = null;
         }
 
-        (TaxiRoute? route, PathfindingFailure? failure) = AutoRouter.Run(extCtx, startOverride: head);
         if (failure is not null || route is null)
         {
+            ctx.DiagnosticLog?.Invoke("[extend] confined (cleared + ramp taxilanes + RAMP) extension found no route");
             return (
                 null,
                 new PathfindingFailure(
@@ -3734,6 +3764,164 @@ public static class SegmentExpander
 
         return ([.. route.Segments.Select(s => s.Edge)], null);
     }
+
+    /// <summary>
+    /// The longest run an uncleared movement-area taxiway may be driven as a gate's or spot's implied lead-in, in feet
+    /// (the implied-lead-in rule): a short run onto the stand's own taxiway is implied; a longer one needs the taxiway named.
+    /// </summary>
+    public const double MaxImpliedLeadInFt = 1000.0;
+
+    /// <summary>
+    /// The confined extension admitting one uncleared movement-area taxiway X as the destination's implied lead-in: OAK
+    /// <c>TAXI G @SIG1</c> drives 635 ft of D and then only apron to SIG1. X is any uncleared taxiway touching the apron
+    /// around the destination (the nodes reached from it along RAMP and its own lane); each is tried with every other
+    /// uncleared taxiway still excluded, and a route counts only when <see cref="ImpliedDestinationLeadIn"/> names X on
+    /// it. The best route by <see cref="IsBetterRoute"/> wins. Null for a destination that is no gate or spot, or when no
+    /// X qualifies.
+    /// </summary>
+    private static TaxiRoute? TryExtendViaImpliedLeadIn(
+        PartialRoute head,
+        int destinationNodeId,
+        SearchContext extCtx,
+        IReadOnlySet<string> uncleared
+    )
+    {
+        string? parkingName = extCtx.Destination.ParkingName;
+        string? spotName = extCtx.Destination.SpotName;
+        if (((parkingName is null) && (spotName is null)) || !extCtx.Layout.Nodes.TryGetValue(destinationNodeId, out GroundNode? destination))
+        {
+            return null;
+        }
+
+        TaxiRoute? best = null;
+        foreach (string leadIn in LeadInCandidates(destination, parkingName, spotName, uncleared))
+        {
+            var others = new HashSet<string>(
+                uncleared.Where(n => !n.Equals(leadIn, StringComparison.OrdinalIgnoreCase)),
+                StringComparer.OrdinalIgnoreCase
+            );
+            SearchContext leadInCtx = extCtx with { AvoidedTaxiways = others, AvoidMode = AvoidTaxiwayMode.HardExclude };
+            (TaxiRoute? route, PathfindingFailure? _) = AutoRouter.Run(leadInCtx, startOverride: head);
+            if (route is null)
+            {
+                continue;
+            }
+
+            string? implied = ImpliedDestinationLeadIn([.. route.Segments.Select(s => s.Edge.Edge)], parkingName, spotName, uncleared.Contains);
+            extCtx.DiagnosticLog?.Invoke(
+                $"[extend] lead-in {leadIn}: route {route.FormatTaxiwaySequence()} ({route.TotalDistanceNm * GeoMath.FeetPerNm:F0} ft), implied={implied ?? "no"}"
+            );
+            if (string.Equals(implied, leadIn, StringComparison.OrdinalIgnoreCase) && ((best is null) || IsBetterRoute(route, best)))
+            {
+                best = route;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// The uncleared taxiways meeting the apron around <paramref name="destination"/>: every node reached from it along
+    /// RAMP and the destination's own lane, and the <paramref name="uncleared"/> names on the edges at those nodes.
+    /// </summary>
+    private static SortedSet<string> LeadInCandidates(GroundNode destination, string? parkingName, string? spotName, IReadOnlySet<string> uncleared)
+    {
+        var names = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seen = new HashSet<int> { destination.Id };
+        var frontier = new Queue<GroundNode>([destination]);
+        while (frontier.TryDequeue(out GroundNode? node))
+        {
+            foreach (IGroundEdge edge in node.Edges)
+            {
+                IReadOnlyList<string> edgeNames = EdgeNames(edge);
+                names.UnionWith(edgeNames.Where(uncleared.Contains));
+                bool apron = edgeNames.All(n => IsApronName(n, parkingName, spotName));
+                GroundNode next = edge.OtherNode(node);
+                if (apron && seen.Add(next.Id))
+                {
+                    frontier.Enqueue(next);
+                }
+            }
+        }
+
+        return names;
+    }
+
+    /// <summary>
+    /// The uncleared movement-area taxiway X that <paramref name="edges"/> drive as the destination's implied lead-in,
+    /// or null. X is the one <paramref name="isUncleared"/> name on the last edge that is not
+    /// apron (RAMP, the destination stand's or spot's own lane, a free-space leg), so after X the route drives only apron to
+    /// the gate or spot; and the edges driven on X, straight and arc, total at most <see cref="MaxImpliedLeadInFt"/>.
+    /// </summary>
+    public static string? ImpliedDestinationLeadIn(
+        IReadOnlyList<IGroundEdge> edges,
+        string? parkingName,
+        string? spotName,
+        Func<string, bool> isUncleared
+    )
+    {
+        if ((parkingName is null) && (spotName is null))
+        {
+            return null;
+        }
+
+        int last = edges.Count - 1;
+        while ((last >= 0) && (VirtualNode.IsVirtualEdge(edges[last]) || EdgeNames(edges[last]).All(n => IsApronName(n, parkingName, spotName))))
+        {
+            last--;
+        }
+
+        if (last < 0)
+        {
+            return null;
+        }
+
+        List<string> unclearedNames = [.. EdgeNames(edges[last]).Where(isUncleared)];
+        if (unclearedNames.Count != 1)
+        {
+            return null;
+        }
+
+        string leadIn = unclearedNames[0];
+        double runFt = edges.Where(e => EdgeNames(e).Contains(leadIn, StringComparer.OrdinalIgnoreCase)).Sum(e => e.DistanceNm) * GeoMath.FeetPerNm;
+        return runFt <= MaxImpliedLeadInFt ? leadIn : null;
+    }
+
+    /// <summary>Every name an edge carries: an arc's taxiway names, or a straight edge's name split on <c>" - "</c>.</summary>
+    public static IReadOnlyList<string> EdgeNames(IGroundEdge edge) =>
+        edge is GroundArc arc
+            ? arc.TaxiwayNames
+            : edge.TaxiwayName.Split(" - ", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+    private static bool IsApronName(string name, string? parkingName, string? spotName) =>
+        name.Equals("RAMP", StringComparison.OrdinalIgnoreCase)
+        || name.Equals(parkingName, StringComparison.OrdinalIgnoreCase)
+        || name.Equals(spotName, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Every movement-area taxiway in the layout the clearance did not name: not in the waypoint sequence, not RAMP, not
+    /// a ramp taxilane (<see cref="MovementAreaClassification.IsRampTaxilane"/>), not the destination stand's or spot's
+    /// own lead-in. Runway pavement is left to the centreline rules, so a runway name is never listed.
+    /// </summary>
+    private static IReadOnlySet<string> UnclearedMovementAreaTaxiways(SearchContext ctx)
+    {
+        var classification = MovementAreaClassification.For(ctx.Layout);
+        var cleared = new HashSet<string>(ctx.WaypointSequence, StringComparer.OrdinalIgnoreCase);
+        cleared.UnionWith(new[] { ctx.Destination.ParkingName, ctx.Destination.SpotName }.OfType<string>());
+        return ctx
+            .Layout.Nodes.Values.SelectMany(n => n.Edges)
+            .SelectMany(EdgeNames)
+            .Where(name => IsUnclearedMovementAreaName(name, cleared, classification))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// A movement-area taxiway name that <paramref name="cleared"/> leaves out: never blank, RAMP, a ramp taxilane
+    /// (<see cref="MovementAreaClassification.IsMovementArea"/>) or runway pavement (a <c>RWY</c> name or a
+    /// <c>RWY…:link</c> stub). The one rule the TAXI extension, its readback warning and the missing-taxiway fallback share.
+    /// </summary>
+    public static bool IsUnclearedMovementAreaName(string name, IReadOnlySet<string> cleared, MovementAreaClassification classification) =>
+        (name.Length > 0) && !cleared.Contains(name) && !IsRunwayWaypoint(name) && !name.Contains(':') && classification.IsMovementArea(name);
 
     // -----------------------------------------------------------------------
     // Helpers

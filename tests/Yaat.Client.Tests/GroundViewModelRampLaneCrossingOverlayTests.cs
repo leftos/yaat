@@ -66,7 +66,7 @@ public class GroundViewModelRampLaneCrossingOverlayTests
     /// Issue #400: the destination-end twin. OAK "TAXI V T TE @22" cuts across the apron from TE's northern end onto
     /// TC (spot 22's lane). While the aircraft is still on TE the named route "V T TE TC" resolves from its nearest
     /// node only by doubling back through the TE/TC junction at T — the overlay must instead draw the server's
-    /// free-space crossing, which needs the broadcast taxi destination.
+    /// free-space crossing and the roll-in onto the stand heading, which needs the broadcast taxi destination.
     /// </summary>
     [Fact]
     public void CrossingFromTeOntoTcForSpot22_OverlayDrawsTheFreeSpaceLeg()
@@ -98,7 +98,16 @@ public class GroundViewModelRampLaneCrossingOverlayTests
         Assert.NotNull(route);
         GroundNode spot22 = layout.FindParkingByName("22")!;
         Assert.Equal(spot22.Id, route!.Segments[^1].ToNodeId);
-        Assert.Contains(route.Segments, s => (s.FromNodeId >= 0) && (s.ToNodeId >= 0) && !s.Edge.FromNode.Edges.Any(e => e.HasNode(s.ToNodeId)));
+        TaxiRouteSegment crossing = route.Segments[^2];
+        TaxiRouteSegment rollIn = route.Segments[^1];
+        Assert.True(VirtualNode.IsVirtualEdge(crossing.Edge.Edge), $"the overlay should draw the apron crossing: {crossing.TaxiwayName}");
+        Assert.True(VirtualNode.IsVirtualEdge(rollIn.Edge.Edge), $"the overlay should draw the roll-in: {rollIn.TaxiwayName}");
+        Assert.Equal(crossing.ToNodeId, rollIn.FromNodeId);
+        double standHeading = Assert.IsType<TrueHeading>(spot22.TrueHeading).Degrees;
+        Assert.True(
+            GeoMath.AbsBearingDifference(rollIn.Edge.ArrivalBearing, standHeading) <= 1.0,
+            $"the roll-in runs {rollIn.Edge.ArrivalBearing:F1}°, not on the {standHeading:F1}° stand heading"
+        );
         Assert.DoesNotContain(route.Segments, s => s.ToNodeId == 136);
     }
 }

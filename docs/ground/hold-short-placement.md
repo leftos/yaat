@@ -139,6 +139,15 @@ is actually covered.
 
 Measured (B738 on B westbound at 30 kt): issued 584 ft out → holds 271 ft from the junction node (the bar binds a fillet split node ~111 ft east of `FindIntersectionNode("B","T")`, plus the length+30 setback); issued 178 ft out → "unable", rolls 74 ft and stops 105 ft short of the junction. The field crawl at 5 kt in the bundle was the conflict detector's cap for SWA2644 on T (a crossing pair), not the hold-short.
 
+## Route-incomplete holds
+
+A `HoldShortReason.RouteIncomplete` point ends a route that could not reach its destination as cleared. The TAXI handler cuts the route before the taxiway X the destination needs and the clearance did not name (the fallback is described in [pathfinder.md](./pathfinder.md#incomplete-clearances--the-route-incomplete-hold-issue-461)). Its `TargetName` is X, a taxiway, so `ComputeHoldShortPositions` places it on the **taxiway setback** and wingtip floor above, not on the half-length runway stop. The one exception is a hold node that is itself a `RunwayHoldShort` node.
+
+- **Never on runway pavement.** A cut that would end on a runway centreline or between a runway's two bars moves back to the near-side runway bar (`KeepOffRunwayPavement`). That bar keeps its own runway reason, uncleared, and no `RouteIncomplete` point is added there, so the aircraft holds short of the runway, not of X.
+- **Not a runway bar.** `HoldingShortPhase.ProtectsARunway` is false for it. The aircraft reports "holding short of X at <taxiway>, request further taxi". `RES` and `CROSS` are rejected with `holding short of X where the route issued ends — issue a TAXI that includes X`, and a new `TAXI` replaces it.
+- **Re-armed by `HS X`.** A later `HS X` there turns it into an ordinary explicit hold. `RES` then releases that hold, but the route ends at the hold, so the aircraft does not move until a new `TAXI` names X.
+- The point round-trips through `TaxiRoute` and `HoldingShortPhase` snapshots like any other reason.
+
 ## Footguns
 
 - **Node IDs are ephemeral.** They are assigned by mint order and regenerated on every parse; any

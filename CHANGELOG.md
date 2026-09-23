@@ -14,6 +14,10 @@
 - Holding Ctrl in the Ground View labels the nearest ground node with its `#id`, type and name.
 
 ### Changed
+- A TAXI whose named route does not reach its destination taxis as far as cleared and holds short of the missing taxiway, saying which one it needs.
+- The TAXI readback repeats the clearance as issued; ramp lanes the route adds are not read back, and other added taxiways are flagged.
+- A pilot holding short where an incomplete route ends asks for further taxi.
+- A short cut across the ramp to a stand now rolls in on the stand's heading, so the aircraft parks lined up.
 - Taxiway connectors between two taxiways, or with a runway hold bar, count as movement area; lanes serving gates count as ramp.
 - Right-clicking an airborne live-traffic aircraft offers the full command menu; picking a command assumes the aircraft first, as typing one does.
 - The radar's Ctrl MVA tooltip appears and clears as Ctrl is pressed or released, without moving the pointer.
@@ -22,6 +26,7 @@
 - The terminal's filter box is wide enough to show a full airline callsign.
 
 ### Fixed
+- A TAXI naming a numbered taxilane such as T5A now drives that lane instead of its parallel sibling.
 - An aircraft holding short of a taxiway starts its next `TAXI` on that taxiway, instead of rejoining the named taxiway across the airport.
 - A re-issued `TAXI` follows the route as cleared instead of crossing a runway twice, as SFO `TAXI A F 28L` from B did.
 - `TAXI >B` turns onto B over the corner curve instead of overshooting past 90° and correcting back.

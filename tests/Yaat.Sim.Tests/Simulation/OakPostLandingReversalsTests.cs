@@ -114,8 +114,11 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
 
             Assert.Equal("Holding After Exit", ac!.Phases?.CurrentPhase?.Name);
 
+            // E does not meet D: C joins them, and the clearance does not name it, so the aircraft holds short of C on E
+            // The route it drives is the part along E.
             CommandResult taxi = engine.SendCommand("N9225L", "TAXI D @NEW1");
             Assert.True(taxi.Success, $"TAXI D @NEW1 failed: {taxi.Message}");
+            Assert.Contains("Holding short of C: route to @NEW1 needs C, not in clearance", taxi.Message);
 
             ac = engine.FindAircraft("N9225L");
             Assert.NotNull(ac);
@@ -126,12 +129,16 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
             output.WriteLine($"N9225L AssignedTaxiRoute: {segments.Count} segments, {reversals} reversal(s)");
             Assert.True(reversals == 0, $"N9225L TAXI D @NEW1 produced {reversals} reversal(s) in {segments.Count} segments");
 
-            // Tick forward so the aircraft taxis to NEW1 — also produces the full trajectory
-            // in the attached recorder's CSV for post-hoc visualization with LayoutInspector.
-            TickUntilAtParking(engine, "N9225L", maxTicks: 600);
-            ac = engine.FindAircraft("N9225L");
+            // Tick forward so the aircraft taxis to the hold — also produces the trajectory in the attached recorder's
+            // CSV for post-hoc visualization with LayoutInspector.
+            for (int t = 0; (t < 300) && (ac!.Phases?.CurrentPhase?.Name != "Holding Short C"); t++)
+            {
+                engine.TickOneSecond();
+                ac = engine.FindAircraft("N9225L");
+            }
+
             Assert.NotNull(ac);
-            Assert.Equal("At Parking", ac.Phases?.CurrentPhase?.Name);
+            Assert.Equal("Holding Short C", ac.Phases?.CurrentPhase?.Name);
         }
     }
 
@@ -301,6 +308,11 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
             output.WriteLine(
                 $"N436MS at t=614: phase={ac.Phases?.CurrentPhase?.Name} pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6}) gs={ac.GroundSpeed:F1}"
             );
+
+            // N9225L's recorded TAXI D @NEW1 holds it short of C on E, the exit N436MS takes; the controller clears it on
+            // with the taxiway it was missing so N436MS is not stuck behind it.
+            CommandResult release = engine.SendCommand("N9225L", "TAXI C D @NEW1");
+            Assert.True(release.Success, $"N9225L TAXI C D @NEW1 failed: {release.Message}");
 
             CommandResult taxi = engine.SendCommand("N436MS", "TAXI C @JSX1");
             Assert.True(taxi.Success, $"TAXI C @JSX1 failed after replay: {taxi.Message}");

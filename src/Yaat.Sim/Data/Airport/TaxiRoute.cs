@@ -200,11 +200,39 @@ public sealed class TaxiRoute
     /// end resolved from <paramref name="clearedRunways"/> (pass the command's taxi path; non-runway tokens
     /// are ignored).
     /// </summary>
-    public string ToSummary(IReadOnlyDictionary<string, TurnDirection>? turnHints, IReadOnlyCollection<string> clearedRunways)
+    public string ToSummary(IReadOnlyDictionary<string, TurnDirection>? turnHints, IReadOnlyCollection<string> clearedRunways) =>
+        ToSummary(turnHints, clearedRunways, static _ => true);
+
+    /// <summary>
+    /// The summary above naming only the taxiways <paramref name="includeTaxiway"/> keeps: the TAXI readback
+    /// renders the clearance as issued, not every lane the driven path adds. Runways taxied along, hold-shorts
+    /// and the destination are always shown. A taxiway left adjacent to itself by a dropped leg is named once.
+    /// </summary>
+    public string ToSummary(
+        IReadOnlyDictionary<string, TurnDirection>? turnHints,
+        IReadOnlyCollection<string> clearedRunways,
+        Func<string, bool> includeTaxiway
+    )
     {
         var parts = new List<string>();
+        string? lastShown = null;
+        bool droppedSinceLast = false;
         foreach ((string? twy, bool isRunway) in TaxiwaySequence(clearedRunways))
         {
+            if (!isRunway && !includeTaxiway(twy))
+            {
+                droppedSinceLast = true;
+                continue;
+            }
+
+            if (droppedSinceLast && string.Equals(twy, lastShown, StringComparison.OrdinalIgnoreCase))
+            {
+                droppedSinceLast = false;
+                continue;
+            }
+
+            lastShown = twy;
+            droppedSinceLast = false;
             if (isRunway)
             {
                 parts.Add($"on {twy}");
@@ -488,6 +516,13 @@ public enum HoldShortReason
     RunwayCrossing,
     ExplicitHoldShort,
     DestinationRunway,
+
+    /// <summary>
+    /// The end of a route that could not reach its destination as cleared: the aircraft holds short of the taxiway
+    /// the destination needs and the clearance did not name. It stops there like an explicit hold-short, but it is
+    /// the resolver's, not the controller's: a later <c>HS</c> of that taxiway or a new TAXI replaces it.
+    /// </summary>
+    RouteIncomplete,
 }
 
 public sealed class HoldShortPoint

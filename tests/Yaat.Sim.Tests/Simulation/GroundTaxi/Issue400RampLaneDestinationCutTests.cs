@@ -15,8 +15,9 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// end. Spot 22 hangs off TC's northern ramp cluster; TE's northern cluster is a separate graph island ~330 ft
 /// away across open apron. <c>TAXI V T TE @22</c> therefore had no graph route from TE's end to the spot, and the
 /// handler dropped TE and quietly substituted TC ("Taxi via V T TC @22 [taxiing via TC — not in the route issued;
-/// unable via TE …]"). The pilot can simply cross the apron from TE onto TC, so the clearance is honoured with a
-/// free-space leg at the destination end — the destination-side twin of the issue #396 start-side cut.
+/// unable via TE …]"). The pilot can simply cross the apron from TE, so the clearance is honoured with free-space legs
+/// at the destination end — across to a point on the stand's centreline, then in on the stand heading — the
+/// destination-side twin of the issue #396 start-side cut.
 /// </summary>
 public class Issue400RampLaneDestinationCutTests
 {
@@ -98,9 +99,34 @@ public class Issue400RampLaneDestinationCutTests
                 .Any(tok => string.Equals(tok, twy, StringComparison.OrdinalIgnoreCase))
         );
 
-    /// <summary>A free-space leg: both endpoints are layout nodes but no layout edge joins them.</summary>
+    /// <summary>
+    /// A free-space leg: a virtual segment (the crossing to a roll-in point, or the roll-in itself), or a segment between
+    /// two layout nodes no layout edge joins.
+    /// </summary>
     private static bool IsFreeSpaceLeg(TaxiRouteSegment seg) =>
-        (seg.FromNodeId >= 0) && (seg.ToNodeId >= 0) && !seg.Edge.FromNode.Edges.Any(e => e.HasNode(seg.ToNodeId));
+        VirtualNode.IsVirtualEdge(seg.Edge.Edge)
+        || ((seg.FromNodeId >= 0) && (seg.ToNodeId >= 0) && !seg.Edge.FromNode.Edges.Any(e => e.HasNode(seg.ToNodeId)));
+
+    /// <summary>
+    /// The route ends in the two free-space legs of a roll-in: a crossing to a point on the stand's centreline, then a
+    /// leg from that point into the stand on the stand heading, together within the crossing cap.
+    /// </summary>
+    private static void AssertRollsInToStand(TaxiRoute route, GroundNode stand)
+    {
+        TaxiRouteSegment crossing = route.Segments[^2];
+        TaxiRouteSegment rollIn = route.Segments[^1];
+        Assert.True(VirtualNode.IsVirtualEdge(crossing.Edge.Edge), $"the second-last segment should be the apron crossing: {crossing.TaxiwayName}");
+        Assert.True(VirtualNode.IsVirtualEdge(rollIn.Edge.Edge), $"the last segment should be the roll-in: {rollIn.TaxiwayName}");
+        Assert.Equal(crossing.ToNodeId, rollIn.FromNodeId);
+        Assert.Equal(stand.Id, rollIn.ToNodeId);
+        double standHeading = Assert.IsType<TrueHeading>(stand.TrueHeading).Degrees;
+        Assert.True(
+            GeoMath.AbsBearingDifference(rollIn.Edge.ArrivalBearing, standHeading) <= 1.0,
+            $"the roll-in runs {rollIn.Edge.ArrivalBearing:F1}°, not on the {standHeading:F1}° stand heading"
+        );
+        double driveFt = LengthFt(crossing) + LengthFt(rollIn);
+        Assert.True(driveFt <= RampLaneReposition.MaxCrossingFt, $"the drive of {driveFt:F0} ft exceeds the cap");
+    }
 
     private static double LengthFt(TaxiRouteSegment seg) =>
         GeoMath.DistanceNm(seg.Edge.FromNode.Position, seg.Edge.ToNode.Position) * GeoMath.FeetPerNm;
@@ -134,10 +160,10 @@ public class Issue400RampLaneDestinationCutTests
         Assert.Equal(spot22.Id, route.Segments[^1].ToNodeId);
 
         var cuts = route.Segments.Where(IsFreeSpaceLeg).ToList();
-        Assert.True(cuts.Count == 1, $"expected exactly one free-space leg, found {cuts.Count}");
+        Assert.True(cuts.Count == 2, $"expected the crossing and the roll-in, found {cuts.Count} free-space legs");
+        AssertRollsInToStand(route, spot22);
         TaxiRouteSegment cut = cuts[0];
         Assert.True(OnTaxiway(cut.Edge.FromNode, "TE"), $"the cut must leave from a TE node, not #{cut.FromNodeId}");
-        Assert.True(LengthFt(cut) <= RampLaneReposition.MaxCrossingFt, $"crossing {LengthFt(cut):F0} ft exceeds the cap");
         int cutIndex = route.Segments.IndexOf(cut);
         Assert.False(
             Traverses(new TaxiRoute { Segments = [.. route.Segments.Take(cutIndex)], HoldShortPoints = [] }, "TC"),
@@ -175,6 +201,7 @@ public class Issue400RampLaneDestinationCutTests
 
         Assert.True(Traverses(route, "V"), "route must bridge along V");
         Assert.Contains(route.Segments, IsFreeSpaceLeg);
+        AssertRollsInToStand(route, layout.FindParkingByName("22")!);
         Assert.Equal("22", route.DestinationParking);
         Assert.DoesNotContain(route.Warnings, w => w.Contains("not in the route issued", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain("not in the route issued", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -276,6 +303,10 @@ public class Issue400RampLaneDestinationCutTests
         Assert.Equal(route.Segments.Count, restored.Segments.Count);
         Assert.Equal(route.Segments.Select(s => (s.FromNodeId, s.ToNodeId)), restored.Segments.Select(s => (s.FromNodeId, s.ToNodeId)));
         Assert.Equal(route.Segments.Count(IsFreeSpaceLeg), restored.Segments.Count(IsFreeSpaceLeg));
+        GroundNode spot22 = layout.FindParkingByName("22")!;
+        AssertRollsInToStand(route, spot22);
+        AssertRollsInToStand(restored, spot22);
+        Assert.Equal(route.Segments[^2].Edge.ToNode.Position, restored.Segments[^2].Edge.ToNode.Position);
         Assert.Equal("22", restored.DestinationParking);
     }
 }

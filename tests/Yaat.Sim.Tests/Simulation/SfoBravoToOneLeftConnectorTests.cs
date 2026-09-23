@@ -224,7 +224,7 @@ public class SfoBravoToOneLeftConnectorTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void TryTaxi_AF1B_1L_EchoNamesM1()
+    public void TryTaxi_AF1B_1L_NoticeNamesM1()
     {
         AirportGroundLayout? layout = LoadSfo();
         if (layout is null)
@@ -250,8 +250,7 @@ public class SfoBravoToOneLeftConnectorTests(ITestOutputHelper output)
         CommandResult result = engine.SendCommand(Callsign, "TAXI A F1 B 1L");
         output.WriteLine($"echo: {result.Message}");
         Assert.True(result.Success, $"TAXI A F1 B 1L from spot 2 must be accepted: {result.Message}");
-        Assert.Contains("A F1 B M1", result.Message, StringComparison.Ordinal);
-        Assert.Contains("[via M1 — B reaches 1L through M1]", result.Message, StringComparison.Ordinal);
+        Assert.Equal("Taxi via A F1 B RWY 1L [via M1 — B reaches 1L through M1]", result.Message);
 
         AircraftState? aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);

@@ -146,7 +146,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         output.WriteLine($"sequence: {route.FormatTaxiwaySequence()}");
 
         Assert.Equal("T U W W1", route.FormatTaxiwaySequence());
-        Assert.Equal("Taxi via T U W W1 RWY 30 [taxiing via T — not in the route issued]", result.Message);
+        Assert.Equal("Taxi via U W RWY 30 [taxiing via T — not in the route issued]", result.Message);
     }
 
     /// <summary>
@@ -175,7 +175,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         output.WriteLine($"result: {result.Message}");
 
         Assert.Equal("T U W W1", route.FormatTaxiwaySequence());
-        Assert.Equal("Taxi via T U W W1 RWY 30", result.Message);
+        Assert.Equal("Taxi via T U W RWY 30", result.Message);
     }
 
     /// <summary>
@@ -201,7 +201,7 @@ public class TaxiApproachLegTests(ITestOutputHelper output)
         Assert.True(result.Success, $"TryTaxi failed: {result.Message}");
         output.WriteLine($"result: {result.Message}");
 
-        Assert.Equal("Taxi via T U W W1 RWY 30 [taxiing via T — not in the route issued]", result.Message);
+        Assert.Equal("Taxi via U W RWY 30 [taxiing via T — not in the route issued]", result.Message);
     }
 
     /// <summary>An SFO aircraft on F, 40 ft short of the F/A junction (node 54, the start node), nosed 298° towards it.</summary>

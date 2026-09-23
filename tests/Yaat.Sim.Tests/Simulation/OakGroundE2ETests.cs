@@ -14,12 +14,12 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Tests two bugs:
 /// 1. N346G and N172SP overlap at the 28R hold-short — the ground conflict detector
 ///    must keep them separated when queueing behind N436MS.
-/// 2. N569SX stops well short of SIG1 parking after TAXI G @SIG1 — the braking curve
+/// 2. N569SX stops well short of SIG1 parking after TAXI C G @SIG1 — the braking curve
 ///    must target the node itself, not the arrival threshold.
 ///
 /// Scenario: 01HG3N8Q5PPR7QXZK33ZPC4D5M (S2-OAK-4 VFR Transitions/Radar Concepts).
 /// Preset commands at t=0: N436MS TAXI B 28R, N172SP TAXI D C B 28R, N346G TAXI C B 28R.
-/// Manual commands: N569SX CLAND (when on final), then TAXI G @SIG1 (after runway exit).
+/// Manual commands: N569SX CLAND (when on final), then TAXI C G @SIG1 (after runway exit onto E).
 /// </summary>
 public class OakGroundE2ETests(ITestOutputHelper output)
 {
@@ -109,10 +109,10 @@ public class OakGroundE2ETests(ITestOutputHelper output)
                 n569ExitedRunway = true;
                 output.WriteLine($"t={t}: N569SX exited runway at ({n569.Position.Lat:F6}, {n569.Position.Lon:F6}) on {n569.Ground.CurrentTaxiway}");
 
-                // Send TAXI G @SIG1
-                CommandResult taxiResult = engine.SendCommand("N569SX", "TAXI G @SIG1");
-                Assert.True(taxiResult.Success, $"TAXI G @SIG1 failed: {taxiResult.Message}");
-                output.WriteLine($"t={t}: N569SX TAXI G @SIG1 — {taxiResult.Message}");
+                // E does not meet G; C joins them, so the clearance names it. D, SIG1's short lead-in off G, is implied.
+                CommandResult taxiResult = engine.SendCommand("N569SX", "TAXI C G @SIG1");
+                Assert.True(taxiResult.Success, $"TAXI C G @SIG1 failed: {taxiResult.Message}");
+                output.WriteLine($"t={t}: N569SX TAXI C G @SIG1 — {taxiResult.Message}");
 
                 // Auto-delete runs on every run kind: an arrival that is not exempt vanishes the second it parks, as
                 // it does live. The final-state assertions below want it on the scope, so keep it the way an

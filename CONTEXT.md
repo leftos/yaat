@@ -117,6 +117,18 @@ _Avoid_: ramp cut (a ramp cut is a free-space shortcut between lanes; a line-up 
 The least distance from a taxiway hold-short holder's nose to the centreline of the taxiway it holds short of: the half-span of the widest aircraft the airport can take, judged by its widest runway, plus 25 ft (`HoldShortAnnotator.WingtipClearanceFloorFt`, docs/ground/hold-short-placement.md).
 _Avoid_: setback (the setback is where the aircraft's centre stops; the floor is a minimum the nose must keep)
 
+**Route-incomplete hold**:
+Where a TAXI whose taxiways do not reach its destination ends: the aircraft taxis the route as issued and holds short of the one taxiway the route still needs, and the controller is told which (`HoldShortReason.RouteIncomplete`, docs/ground/pathfinder.md). Only a new TAXI that includes that taxiway moves it on.
+_Avoid_: explicit hold-short (that is the controller's `HS`; this one is the resolver's), partial route
+
+**Implied lead-in**:
+An uncleared movement-area taxiway a TAXI to a gate or spot may still drive, because the destination hangs off it: only apron follows it and no more than 1,000 ft of it is driven (`SegmentExpander.MaxImpliedLeadInFt`, docs/ground/pathfinder.md). The readback leaves it out.
+_Avoid_: connector (a connector bridges two cleared taxiways), lead-out
+
+**Roll-in**:
+The last part of a direct stand cut: the apron crossing ends one fuselage length out on the stand's centreline (the approach point), and a second straight leg runs in on the stand heading so the aircraft parks lined up (`RampLaneReposition.RollInApproachNode`, docs/ground/pathfinder.md).
+_Avoid_: line-up (a line-up faces a spot along its lane), pull-in
+
 ## Live traffic
 
 **Shadow**:

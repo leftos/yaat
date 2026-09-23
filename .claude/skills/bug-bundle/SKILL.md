@@ -8,7 +8,7 @@ description: "Inspect, extract, install, and validate YAAT v4 bug bundles. Use w
 Python CLI that makes v4 bug bundles (`*.yaat-bug-report-bundle.zip`,
 `*-recording.zip`) easy to triage, install into TestData, and validate.
 
-Requires `brotli` (`pip install brotli`).
+Requires `brotli` to read bundles. With no `brotli` installed, run the tool as `uv run --with brotli python tools/bug_bundle.py …`: every `python tools/bug_bundle.py` command below works the same with that prefix.
 
 ## Usage
 

@@ -345,7 +345,9 @@ public class Issue396RampLaneRepositionTests
             result.Success,
             $"taxiway A lies across active runways from 41-15 — the clearance must be rejected, not rerouted: {result.Message}"
         );
+        Assert.StartsWith("Unable, route to A needs C, not in clearance (", result.Message);
         Assert.Contains("via A", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("runway", result.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

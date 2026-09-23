@@ -65,7 +65,10 @@ public sealed record RampLaneDestinationCutRequest
     /// <summary>The aircraft's performance category.</summary>
     public required AircraftCategory Category { get; init; }
 
-    /// <summary>The aircraft's fuselage length, feet; sets how much lane run a spot arrival needs.</summary>
+    /// <summary>
+    /// The aircraft's fuselage length, feet; sets how much lane run a spot arrival needs and how far out from a stand
+    /// the roll-in onto its heading starts.
+    /// </summary>
     public required double AircraftLengthFt { get; init; }
 }
 
@@ -185,7 +188,7 @@ public static class RampLaneReposition
     private const double MinDetourSavingFt = 100.0;
 
     /// <summary>How far from the aircraft the lane it currently occupies may be when inferred from geometry.</summary>
-    private const double CurrentLaneMaxFt = 150.0;
+    public const double CurrentLaneMaxFt = 150.0;
 
     /// <summary>
     /// How far (deg) a spot arrival may run off its lane's bearing toward the lane's movement-area end and still
@@ -346,6 +349,20 @@ public static class RampLaneReposition
         }
 
         HashSet<string> family = LaneFamily(layout, lane);
+
+        // A stand is cut to directly from the named lane: the aircraft leaves the lane it was cleared along and drives
+        // across the apron to the stand, rolling in on the stand's heading when it has one, rather than onto a sibling
+        // lane and in along the stand's lead-in. A spot keeps the lane-then-lead-in shape, because it is entered along
+        // its own lane.
+        if (destination.Type != GroundNodeType.Spot)
+        {
+            RampLaneDestinationCutPlan? direct = TryPlanDirectStandCut(layout, request, lane, destinationLane, family);
+            if (direct is not null)
+            {
+                return direct;
+            }
+        }
+
         var targets = layout
             .GetNodesOnTaxiway(destinationLane)
             .Where(n => HasStraightEdgeOf(n, destinationLane))
@@ -399,26 +416,182 @@ public static class RampLaneReposition
     }
 
     /// <summary>
+    /// The destination cut from the cleared lane to the stand: SFO <c>TAXI B K A T5A @D1</c> drives T5A to the point
+    /// nearest D1 and crosses the apron to the stand, never onto T5B. The stand is rolled into on its heading: the
+    /// crossing ends at <see cref="RollInApproachNode"/>, one fuselage out on the stand's centreline, and a second
+    /// straight leg runs in on the stand heading, so the aircraft parks lined up with the stand rather than at whatever
+    /// angle the crossing arrived on. Origins are straight-edge nodes of the lane, tried shortest drive first (up to
+    /// <see cref="MaxCutOrigins"/> whose clearance head resolves); the whole drive must stay within
+    /// <see cref="MaxCrossingFt"/> and pass <see cref="IsRollInCuttable"/>. Null when the stand has no heading or no
+    /// origin qualifies — the caller then plans the sibling-lane cut.
+    /// </summary>
+    private static RampLaneDestinationCutPlan? TryPlanDirectStandCut(
+        AirportGroundLayout layout,
+        RampLaneDestinationCutRequest request,
+        string lane,
+        string destinationLane,
+        HashSet<string> family
+    )
+    {
+        GroundNode destination = request.Destination;
+        if (RollInApproachNode(destination, request.AircraftLengthFt) is not { } approach)
+        {
+            return null;
+        }
+
+        var laneNodes = layout
+            .GetNodesOnTaxiway(lane)
+            .Where(n => HasStraightEdgeOf(n, lane) && !AirportGroundLayout.HasRunwayCenterlineEdge(n))
+            .Select(n => (Node: n, Ft: RollInDriveFt(n, approach, destination)))
+            .OrderBy(c => c.Ft)
+            .ToList();
+        var origins = laneNodes
+            .Where(c => (c.Ft <= MaxCrossingFt) && IsRollInCuttable(layout, c.Node, approach, destination, family))
+            .Take(MaxCutOrigins)
+            .ToList();
+        if (origins.Count == 0)
+        {
+            foreach ((GroundNode node, double ft) in laneNodes.Take(MaxCutOrigins))
+            {
+                Log.LogDebug(
+                    "[Reposition] direct cut {Lane} node {Node} → {Dest} rolling in: {Ft:F0} ft, drivable {Drivable}",
+                    lane,
+                    node.Id,
+                    destination.Name,
+                    ft,
+                    IsRollInCuttable(layout, node, approach, destination, family)
+                );
+            }
+        }
+
+        foreach ((GroundNode origin, double _) in origins)
+        {
+            TaxiRoute? head = ResolveHeadTo(layout, request.StartNodeId, request.Path, origin, request.Options, request.Category);
+            if (head is null)
+            {
+                Log.LogDebug("[Reposition] clearance does not resolve to {Lane} node {Node}; trying the next direct-cut origin", lane, origin.Id);
+                continue;
+            }
+
+            return BuildDirectStandCutPlan(head, origin, approach, destination, (lane, destinationLane));
+        }
+
+        Log.LogDebug(
+            "[Reposition] no {Lane} node within {Max:F0} ft of {Dest} cuts to it; trying the sibling lane",
+            lane,
+            MaxCrossingFt,
+            destination.Name
+        );
+        return null;
+    }
+
+    /// <summary>
+    /// Where a roll-in onto a stand starts: on the stand's centreline, one fuselage out from the stand node along the
+    /// reciprocal of its heading, so the last fuselage length is driven on the stand heading and the aircraft stops
+    /// lined up with the stand. Null when the stand carries no heading.
+    /// </summary>
+    private static GroundNode? RollInApproachNode(GroundNode stand, double aircraftLengthFt)
+    {
+        if (stand.TrueHeading is not { } standHeading)
+        {
+            return null;
+        }
+
+        LatLon point = GeoMath.ProjectPoint(stand.Position, standHeading.ToReciprocal(), aircraftLengthFt / GeoMath.FeetPerNm);
+        return VirtualNode.Create(point.Lat, point.Lon);
+    }
+
+    /// <summary>The free-space drive from <paramref name="origin"/> through the roll-in point to the stand.</summary>
+    private static double RollInDriveFt(GroundNode origin, GroundNode approach, GroundNode destination) =>
+        DistanceFt(origin.Position, approach.Position) + DistanceFt(approach.Position, destination.Position);
+
+    /// <summary>
+    /// <paramref name="node"/> is a point the pilot can leave the painted line at to roll into the stand: it carries a
+    /// straight edge of the stand's lane family (so the aircraft is on that ramp's pavement, not passing it on a
+    /// taxiway), and both free-space legs — from the node to <paramref name="approach"/>, and from there in to the
+    /// stand — cross no runway centerline and only apron and family lanes.
+    /// </summary>
+    private static bool IsRollInCuttable(
+        AirportGroundLayout layout,
+        GroundNode node,
+        GroundNode approach,
+        GroundNode destination,
+        HashSet<string> family
+    ) =>
+        (node.Id != destination.Id)
+        && family.Any(lane => HasStraightEdgeOf(node, lane))
+        && IsClearLeg(layout, node.Position, approach, family)
+        && IsClearLeg(layout, approach.Position, destination, family);
+
+    /// <summary>
+    /// The two free-space legs of a roll-in, both apron rather than a lane: named RAMP so the broadcast taxiway
+    /// sequence and the readback stay the clearance as issued, and the client rebuilds the same cut from the destination.
+    /// </summary>
+    private static List<TaxiRouteSegment> RollInLegs(GroundNode origin, GroundNode approach, GroundNode destination) =>
+        [VirtualNode.CreateSegment(origin, approach, "RAMP"), VirtualNode.CreateSegment(approach, destination, "RAMP")];
+
+    /// <summary>
+    /// The direct stand cut's route: the clearance head to <paramref name="origin"/>, then across the apron to
+    /// <paramref name="approach"/> and in on the stand heading.
+    /// </summary>
+    private static RampLaneDestinationCutPlan BuildDirectStandCutPlan(
+        TaxiRoute head,
+        GroundNode origin,
+        GroundNode approach,
+        GroundNode destination,
+        (string Lane, string DestinationLane) lanes
+    )
+    {
+        List<TaxiRouteSegment> legs = RollInLegs(origin, approach, destination);
+        double driveFt = legs.Sum(l => l.Edge.DistanceNm) * GeoMath.FeetPerNm;
+        var route = new TaxiRoute
+        {
+            Segments = [.. head.Segments, .. legs],
+            HoldShortPoints = [.. head.HoldShortPoints],
+            Warnings = [.. head.Warnings],
+            MandatoryConnectorCount = head.MandatoryConnectorCount,
+            DestinationParking = destination.Name,
+        };
+        Log.LogInformation(
+            "[Reposition] taxiing {Lane} to node {Origin}, cutting {Ft:F0} ft across the ramp to {Dest}, rolling in on the stand heading",
+            lanes.Lane,
+            origin.Id,
+            driveFt,
+            destination.Name
+        );
+        return new RampLaneDestinationCutPlan(origin, destination, lanes.Lane, lanes.DestinationLane, driveFt, route);
+    }
+
+    /// <summary>
     /// Improve a parking route that already resolved but only reaches the stand the long way round: OAK
     /// <c>TAXI @22</c> out of a stand whose alley the graph joins to the rest of the ramp only at its far end.
     /// Every node the route passes that carries a lane of the stand's own family is tried as the point where
-    /// the pilot leaves the painted line and drives straight across the apron to the stand; the shortest
-    /// <em>crossing</em> wins — ties to the earlier point on the route — because the crossing is unmodelled pavement
-    /// with no graph guidance, so the aircraft stays on the painted line as far as it goes and then steps the
-    /// shortest distance across, the way a ramp is actually driven. The crossing keeps the existing bounds —
-    /// <see cref="MaxCrossingFt"/>, no runway centerline, no pavement outside "family ∪ RAMP" (see
-    /// <see cref="CrossesForeignPavement"/>) — so which cuts are drivable at all is decided exactly as it already
-    /// was; only <em>when</em> one is worth making is new, and
+    /// the pilot leaves the painted line and drives across the apron to the stand, rolling in on its heading from
+    /// <see cref="RollInApproachNode"/> as the direct stand cut does; the shortest <em>drive</em> wins — ties to the
+    /// earlier point on the route — because the drive is unmodelled pavement with no graph guidance, so the aircraft
+    /// stays on the painted line as far as it goes and then steps the shortest distance across, the way a ramp is
+    /// actually driven. Both legs keep the existing bounds — <see cref="MaxCrossingFt"/> in total, no runway
+    /// centerline, no pavement outside "family ∪ RAMP" (see <see cref="CrossesForeignPavement"/>);
     /// <see cref="MinDetourRatio"/> / <see cref="MinDetourSavingFt"/> are measured thresholds, not published values.
-    /// Null when the destination is not a stand on a ramp taxilane, or no candidate clears both bars — the caller
-    /// then keeps the route the graph gave it.
+    /// Null when the destination is not a stand with a heading on a ramp taxilane, or no candidate clears both bars —
+    /// the caller then keeps the route the graph gave it.
     ///
-    /// <para>A spot is never re-cut to. The crossing here always lands on the destination node itself, and a spot
+    /// <para>A spot is never re-cut to. The drive here always ends on the destination node itself, and a spot
     /// is entered along the lane it sits on (see <see cref="EntersSpotAlongItsLane"/>), so there is no candidate
     /// landing point this shape could offer: SFO <c>TAXI $5A</c> from gate D2 takes the long way round the five
     /// alley and arrives up T5A, rather than stopping across the lane 71 ft after leaving spot 5.</para>
     /// </summary>
-    public static RampLaneDestinationCutPlan? TryPlanResolvedRouteCut(AirportGroundLayout layout, TaxiRoute resolvedRoute, GroundNode destination)
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="resolvedRoute">The route the graph resolved to the stand.</param>
+    /// <param name="destination">The stand the route ends at.</param>
+    /// <param name="aircraftLengthFt">Fuselage length of the aircraft, feet; how far out from the stand the roll-in starts.</param>
+    /// <returns>The cut plan, or null to keep the resolved route.</returns>
+    public static RampLaneDestinationCutPlan? TryPlanResolvedRouteCut(
+        AirportGroundLayout layout,
+        TaxiRoute resolvedRoute,
+        GroundNode destination,
+        double aircraftLengthFt
+    )
     {
         if ((resolvedRoute.Segments.Count == 0) || (destination.Type is not (GroundNodeType.Parking or GroundNodeType.Helipad)))
         {
@@ -436,6 +609,11 @@ public static class RampLaneReposition
             return null;
         }
 
+        if (RollInApproachNode(destination, aircraftLengthFt) is not { } approach)
+        {
+            return null;
+        }
+
         HashSet<string> family = LaneFamily(layout, destinationLane);
         double totalFt = resolvedRoute.TotalDistanceFt;
         (GroundNode Node, int HeadSegments, double CutFt, double ResultFt)? best = null;
@@ -443,8 +621,8 @@ public static class RampLaneReposition
         {
             GroundNode node = i == 0 ? resolvedRoute.Segments[0].Edge.FromNode : resolvedRoute.Segments[i - 1].Edge.ToNode;
             double prefixFt = resolvedRoute.PrefixDistanceFt(i);
-            double cutFt = DistanceFt(node.Position, destination.Position);
-            if (!IsWorthCutting(totalFt - prefixFt, cutFt) || !IsCuttableFrom(layout, node, destination, family))
+            double cutFt = RollInDriveFt(node, approach, destination);
+            if (!IsWorthCutting(totalFt - prefixFt, cutFt) || !IsRollInCuttable(layout, node, approach, destination, family))
             {
                 continue;
             }
@@ -461,7 +639,8 @@ public static class RampLaneReposition
             return null;
         }
 
-        return BuildResolvedRouteCutPlan(resolvedRoute, destination, destinationLane, family, best.Value);
+        string lane = family.Order(StringComparer.Ordinal).FirstOrDefault(l => HasStraightEdgeOf(best.Value.Node, l)) ?? destinationLane;
+        return BuildResolvedRouteCutPlan(resolvedRoute, destination, approach, (lane, destinationLane), best.Value);
     }
 
     /// <summary>
@@ -473,50 +652,35 @@ public static class RampLaneReposition
     private static bool IsWorthCutting(double remainingGraphFt, double cutFt) =>
         (cutFt <= MaxCrossingFt) && (remainingGraphFt >= (cutFt * MinDetourRatio)) && ((remainingGraphFt - cutFt) >= MinDetourSavingFt);
 
-    /// <summary>
-    /// <paramref name="node"/> is a point the pilot can leave the route at: it carries a straight edge of the
-    /// stand's lane family (so the aircraft is on that ramp's pavement, not passing it on a taxiway), and the
-    /// straight line from it to the stand crosses only apron and family lanes.
-    /// </summary>
-    private static bool IsCuttableFrom(AirportGroundLayout layout, GroundNode node, GroundNode destination, HashSet<string> family) =>
-        (node.Id != destination.Id)
-        && family.Any(lane => HasStraightEdgeOf(node, lane))
-        && !layout.RunwayCenterlineBetween(node.Position, destination.Position)
-        && !CrossesForeignPavement(layout, node.Position, destination, family);
-
     private static RampLaneDestinationCutPlan BuildResolvedRouteCutPlan(
         TaxiRoute resolvedRoute,
         GroundNode destination,
-        string destinationLane,
-        HashSet<string> family,
+        GroundNode approach,
+        (string Lane, string DestinationLane) lanes,
         (GroundNode Node, int HeadSegments, double CutFt, double ResultFt) cut
     )
     {
         var head = resolvedRoute.Segments.Take(cut.HeadSegments).ToList();
-        // The crossing is apron, not the lane: named RAMP so the broadcast taxiway sequence stays the pavement the
-        // aircraft actually follows, and the client rebuilds the same cut from the destination.
-        TaxiRouteSegment crossing = VirtualNode.CreateSegment(cut.Node, destination, "RAMP");
         var route = new TaxiRoute
         {
-            Segments = [.. head, crossing],
+            Segments = [.. head, .. RollInLegs(cut.Node, approach, destination)],
             HoldShortPoints = [.. resolvedRoute.HoldShortPoints.Where(hs => head.Any(s => s.ToNodeId == hs.NodeId))],
             Warnings = resolvedRoute.Warnings,
             MandatoryConnectorCount = resolvedRoute.MandatoryConnectorCount,
             DestinationParking = destination.Name,
         };
-        string lane = family.Order(StringComparer.Ordinal).FirstOrDefault(l => HasStraightEdgeOf(cut.Node, l)) ?? destinationLane;
         Log.LogInformation(
-            "[Reposition] leaving {Lane} at node {Node} and driving {Ft:F0} ft across the ramp to {Dest} on {DestLane}: "
-                + "{ResultFt:F0} ft instead of the {GraphFt:F0} ft the graph resolved",
-            lane,
+            "[Reposition] leaving {Lane} at node {Node} and driving {Ft:F0} ft across the ramp to {Dest} on {DestLane}, rolling in on "
+                + "the stand heading: {ResultFt:F0} ft instead of the {GraphFt:F0} ft the graph resolved",
+            lanes.Lane,
             cut.Node.Id,
             cut.CutFt,
             destination.Name,
-            destinationLane,
+            lanes.DestinationLane,
             cut.ResultFt,
             resolvedRoute.TotalDistanceFt
         );
-        return new RampLaneDestinationCutPlan(cut.Node, destination, lane, destinationLane, cut.CutFt, route);
+        return new RampLaneDestinationCutPlan(cut.Node, destination, lanes.Lane, lanes.DestinationLane, cut.CutFt, route);
     }
 
     /// <summary>The clearance resolved so that it ends exactly at <paramref name="origin"/>, or null.</summary>
