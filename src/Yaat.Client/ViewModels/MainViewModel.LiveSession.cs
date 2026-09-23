@@ -188,6 +188,76 @@ public partial class MainViewModel
         }
     }
 
+    /// <summary>
+    /// Sends a bulk live-traffic assume and writes one terminal line summarizing it. Each refused hand-off already reached
+    /// the terminal through the per-command echo, so the summary only counts them.
+    /// </summary>
+    public async Task AssumeLiveTrafficAsync(AssumeLiveTrafficRequestDto request)
+    {
+        try
+        {
+            AssumeLiveTrafficResultDto result = await _connection.AssumeLiveTrafficAsync(request);
+            _log.LogInformation(
+                "Bulk live-traffic assume ({Mode}): {Assumed} of {Considered}, error {Error}",
+                request.Mode,
+                result.Assumed,
+                result.Considered,
+                result.Error ?? "none"
+            );
+            AddSystemEntry(FormatAssumeLiveTrafficSummary(result));
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Bulk live-traffic assume failed");
+            AddSystemEntry($"Assume live traffic failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>Assumes the listed live-traffic shadows (the aircraft list's multi-selection), stale ones included.</summary>
+    public Task AssumeSelectedLiveTrafficAsync(List<string> callsigns) =>
+        AssumeLiveTrafficAsync(
+            new AssumeLiveTrafficRequestDto
+            {
+                Mode = AssumeLiveTrafficMode.Selected,
+                Center = null,
+                RadiusNm = null,
+                Rules = Yaat.Sim.LiveTraffic.LiveTrafficRulesFilter.Both,
+                Callsigns = callsigns,
+                Initials = _preferences.UserInitials,
+            }
+        );
+
+    /// <summary>
+    /// "Assumed 3 of 5 live aircraft (1 on the ground, 1 stale)": the counts that are non-zero go in the parentheses, in
+    /// that order, with refusals last; a refused request is its error text alone.
+    /// </summary>
+    public static string FormatAssumeLiveTrafficSummary(AssumeLiveTrafficResultDto result)
+    {
+        if (result.Error is { } error)
+        {
+            return error;
+        }
+
+        List<string> parts = [];
+        if (result.SkippedOnGround > 0)
+        {
+            parts.Add($"{result.SkippedOnGround} on the ground");
+        }
+
+        if (result.SkippedStale > 0)
+        {
+            parts.Add($"{result.SkippedStale} stale");
+        }
+
+        if (result.Refused.Count > 0)
+        {
+            parts.Add($"{result.Refused.Count} refused");
+        }
+
+        string summary = $"Assumed {result.Assumed} of {result.Considered} live aircraft";
+        return parts.Count == 0 ? summary : $"{summary} ({string.Join(", ", parts)})";
+    }
+
     /// <summary>Leaves playback / pause and rejoins real time. No confirmation: the tape's future is only feed samples.</summary>
     [RelayCommand]
     private async Task GoLive()

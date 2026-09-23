@@ -47,6 +47,9 @@ public partial class CommandInputView : UserControl
         Button? liveFiltersButton = this.FindControl<Button>("LiveTrafficFiltersButton");
         liveFiltersButton?.Click += OnLiveTrafficFiltersClick;
 
+        Button? assumeLiveButton = this.FindControl<Button>("AssumeLiveTrafficButton");
+        assumeLiveButton?.Click += OnAssumeLiveTrafficClick;
+
         // Drive popup IsOpen from code-behind so it respects this view's visibility.
         // Two CommandInputView instances share the same VM — the hidden embedded one
         // must not open its popup (would appear at 0,0).
@@ -257,6 +260,21 @@ public partial class CommandInputView : UserControl
         if (result is not null)
         {
             vm.SessionLiveTrafficFilter = result;
+        }
+    }
+
+    private async void OnAssumeLiveTrafficClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm || TopLevel.GetTopLevel(this) is not Window window)
+        {
+            return;
+        }
+
+        var dialog = new AssumeLiveTrafficWindow(vm.Preferences, vm.ActiveScenarioPrimaryAirportId ?? "");
+        AssumeLiveTrafficRequestDto? request = await dialog.ShowDialog<AssumeLiveTrafficRequestDto?>(window);
+        if (request is not null)
+        {
+            await vm.AssumeLiveTrafficAsync(request);
         }
     }
 

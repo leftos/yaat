@@ -63,6 +63,8 @@ namespace Yaat.Client.Services;
 [JsonSerializable(typeof(SessionSettingsDto))]
 [JsonSerializable(typeof(LiveTrafficStatusDto))]
 [JsonSerializable(typeof(LiveSessionRequestDto))]
+[JsonSerializable(typeof(AssumeLiveTrafficRequestDto))]
+[JsonSerializable(typeof(AssumeLiveTrafficResultDto))]
 [JsonSerializable(typeof(LiveTrafficWindowDto))]
 [JsonSerializable(typeof(FacilityTreeDto))]
 [JsonSerializable(typeof(PositionSummaryDto))]

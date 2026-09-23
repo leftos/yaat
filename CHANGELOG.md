@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Added
+- **Assume Live Traffic…** in the session flyout assumes every airborne live aircraft, or those within a radius, optionally VFR or IFR only.
+- Selecting several live aircraft in the Aircraft List offers **Assume selected live traffic** on right-click.
 - Settings and the session flyout take a distance beyond which departures from the primary airport are deleted automatically; blank keeps them.
 - Departures removed that way appear in the debrief as "Departed".
 

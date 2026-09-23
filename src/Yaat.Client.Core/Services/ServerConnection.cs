@@ -771,6 +771,16 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         return await _connection!.InvokeAsync<LoadScenarioResultDto>("StartLiveSession", request);
     }
 
+    /// <summary>
+    /// Bulk <c>ASSUME</c> of live-traffic shadows: the server picks them (all, within a radius, or the listed callsigns) and
+    /// sends each its own recorded <c>ASSUME</c>. A refused request comes back with <see cref="AssumeLiveTrafficResultDto.Error"/> set.
+    /// </summary>
+    public async Task<AssumeLiveTrafficResultDto> AssumeLiveTrafficAsync(AssumeLiveTrafficRequestDto request)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<AssumeLiveTrafficResultDto>("AssumeLiveTraffic", request);
+    }
+
     /// <summary>Live session only: stand the room at a feed instant inside the server's raw-log window (DVR seek).</summary>
     public async Task<CommandResultDto> SeekLiveTrafficAsync(DateTimeOffset feedUtc)
     {
@@ -1452,6 +1462,39 @@ public record LiveTrafficWindowDto(
 /// and the traffic filter in <see cref="Yaat.Sim.LiveTraffic.LiveTrafficFilter"/> canonical form (null/empty = everything).
 /// </summary>
 public record LiveSessionRequestDto(string PositionId, string PrimaryAirportId, int CeilingFt, DateTimeOffset? StartUtc, string? Filter);
+
+/// <summary>Which live-traffic shadows a bulk assume takes. Serialized as its number; keep the order the server's copy has.</summary>
+public enum AssumeLiveTrafficMode
+{
+    All,
+    WithinRadius,
+    Selected,
+}
+
+/// <summary>
+/// A bulk <c>ASSUME</c> of live-traffic shadows. <c>All</c> and <c>WithinRadius</c> let the server pick every shadow that passes
+/// <see cref="Rules"/> (and lies within <see cref="RadiusNm"/> of <see cref="Center"/>); <c>Selected</c> sends <see cref="Callsigns"/>.
+/// </summary>
+public record AssumeLiveTrafficRequestDto
+{
+    public required AssumeLiveTrafficMode Mode { get; init; }
+    public required string? Center { get; init; }
+    public required double? RadiusNm { get; init; }
+    public required Yaat.Sim.LiveTraffic.LiveTrafficRulesFilter Rules { get; init; }
+    public required List<string> Callsigns { get; init; }
+    public required string Initials { get; init; }
+}
+
+/// <summary>What a bulk assume did; <see cref="Refused"/> holds "CALLSIGN: message", <see cref="Error"/> a refused request.</summary>
+public record AssumeLiveTrafficResultDto
+{
+    public required int Considered { get; init; }
+    public required int Assumed { get; init; }
+    public required int SkippedOnGround { get; init; }
+    public required int SkippedStale { get; init; }
+    public required List<string> Refused { get; init; }
+    public required string? Error { get; init; }
+}
 
 /// <summary>One position as the live-session picker lists it; <c>Frequency</c> in Hz as vNAS stores it.</summary>
 public record PositionSummaryDto(string Id, string Name, string Callsign, long Frequency, bool Starred);

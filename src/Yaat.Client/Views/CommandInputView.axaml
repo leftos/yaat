@@ -414,6 +414,19 @@
               />
             </StackPanel>
 
+            <Button
+              x:Name="AssumeLiveTrafficButton"
+              Content="Assume Live Traffic…"
+              ToolTip.Tip="Hand real aircraft to the room as simulated aircraft: every airborne shadow, or those within a radius of an airport or fix."
+            >
+              <Button.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                  <Binding Path="LiveTrafficAvailable" />
+                  <Binding Path="SessionLiveTrafficEnabled" />
+                </MultiBinding>
+              </Button.IsVisible>
+            </Button>
+
             <CheckBox Content="Validate DCT Fixes" IsChecked="{Binding SessionValidateDctFixes}" />
 
             <CheckBox Content="Show Pilot Speech (RPO)" IsChecked="{Binding SessionRpoShowPilotSpeech}" />

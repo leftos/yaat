@@ -110,6 +110,7 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `ConfirmUnloadScenarioAsync()` | `ConfirmUnloadScenario` | `ConfirmUnloadScenario()` `:460` |
 | `RestartScenarioAsync()` | `RestartScenario` | `RestartScenario()` — re-runs the loaded scenario from t=0 with a new RNG seed; **not** mentor-gated (see below) |
 | `SendCommandAsync(callsign, command, initials)` | `SendCommand` | `SendCommand(...)` `:508` |
+| `AssumeLiveTrafficAsync(request)` | `AssumeLiveTraffic` | `AssumeLiveTraffic(AssumeLiveTrafficRequestDto)` → `AssumeLiveTrafficResultDto` — bulk `ASSUME` of live-traffic shadows (All / WithinRadius / Selected); one room gate around a per-callsign `RoomEngine.SendCommandAsync(..., "ASSUME", ...)` loop, so each hand-off is its own recorded command. The mode enum (`AssumeLiveTrafficMode`) lives in `Yaat.Server.LiveTraffic`, not `Yaat.Server.Dtos`: `CrcWireContractTests` requires every enum in `Dtos` to exist in the CRC contract |
 | `SendChatAsync(initials, message)` | `SendChat` | `SendChat(...)` `:896` |
 | `AmendFlightPlanAsync(callsign, dto)` | `AmendFlightPlan` | `AmendFlightPlan(...)` `:847` |
 | `RequestNewBeaconCodeAsync(callsign)` | `RequestNewBeaconCode` | `RequestNewBeaconCode(callsign)` `:869` |

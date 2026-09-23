@@ -1,0 +1,58 @@
+<Window
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  x:Class="Yaat.Client.Views.AssumeLiveTrafficWindow"
+  Icon="avares://Yaat.Client/Resources/icon.png"
+  Title="Assume Live Traffic"
+  Width="420"
+  Height="300"
+  MinWidth="380"
+  MinHeight="280"
+  WindowStartupLocation="CenterOwner"
+  CanResize="True"
+>
+  <DockPanel Margin="12">
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,8,0,0">
+      <Button Content="Assume" x:Name="AssumeButton" Width="80" />
+      <Button Content="Cancel" x:Name="CancelButton" Width="80" />
+    </StackPanel>
+
+    <TextBlock
+      DockPanel.Dock="Top"
+      Text="Hand real aircraft to the room as simulated aircraft, each with its own ASSUME. Aircraft on the ground and stale targets are skipped."
+      TextWrapping="Wrap"
+      Foreground="{DynamicResource SubtleTextBrush}"
+      Margin="0,0,0,8"
+    />
+
+    <StackPanel Spacing="8">
+      <RadioButton x:Name="AllRadio" GroupName="AssumeLiveTrafficMode" Content="All live traffic" IsChecked="True" />
+      <RadioButton x:Name="RadiusRadio" GroupName="AssumeLiveTrafficMode" Content="Within radius" />
+      <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="6" Margin="24,0,0,0">
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="Center:" VerticalAlignment="Center" />
+        <TextBox Grid.Row="0" Grid.Column="1" x:Name="CenterBox" PlaceholderText="Airport, fix or FRD" />
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="Radius (nm):" VerticalAlignment="Center" />
+        <NumericUpDown
+          Grid.Row="1"
+          Grid.Column="1"
+          x:Name="RadiusBox"
+          Value="10"
+          Minimum="0"
+          Maximum="500"
+          Increment="1"
+          FormatString="0.#"
+          HorizontalAlignment="Left"
+          Width="120"
+        />
+      </Grid>
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <TextBlock Text="Flight rules:" VerticalAlignment="Center" />
+        <ComboBox x:Name="RulesBox" SelectedIndex="0" Width="120">
+          <ComboBoxItem Content="Both" />
+          <ComboBoxItem Content="VFR only" />
+          <ComboBoxItem Content="IFR only" />
+        </ComboBox>
+      </StackPanel>
+    </StackPanel>
+  </DockPanel>
+</Window>

@@ -405,6 +405,7 @@ Views/
   LiveSessionWindow.axaml.cs    # Start Live Session picker: facility TreeView (GetArtccFacilityTree) → positions (starred first) → airport combo (LiveSessionAirportDefaults) + ceiling; returns LiveSessionChoice, pre-selects UserPreferences.LastLiveSession
   LiveTrafficFilterEditor.axaml(.cs) # Structured editor UserControl over the canonical filter string, hosted by the Start Live Session Filters tab and the mid-session dialog
   LiveTrafficFilterWindow.axaml(.cs) # Mid-session filter dialog opened from the session-settings flyout
+  AssumeLiveTrafficWindow.axaml(.cs) # Bulk-assume dialog (all / within radius of airport-fix-FRD, flight-rules filter) from the session-settings flyout → AssumeLiveTraffic hub call
   FavoritesContextMenuModel.cs  # Pure model behind FavoritesContextMenu: resolves active favorites against the clicked aircraft for headless tests
   DataGridView.axaml.cs         # Aircraft data grid (extracted from MainWindow)
   DataGridView.ContextMenu.cs   # Partial: phase-aware right-click menu builders
