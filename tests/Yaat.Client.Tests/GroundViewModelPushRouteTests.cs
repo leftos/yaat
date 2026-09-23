@@ -97,20 +97,54 @@ public class GroundViewModelPushRouteTests
         Assert.Equal(ac.Heading.Degrees, first.NoseTrueDeg, 9);
     }
 
+    // One clicked point is a complete move, not a half-built route: plain `PUSH` takes a single destination, so
+    // the preview draws the leg from the aircraft to that one point the moment it is clicked.
     [Fact]
-    public void OneTarget_IsAHalfBuiltRouteWithNoPreviewAndNoRefusal()
+    public void OneTarget_PreviewsTheMoveFromTheAircraft()
     {
         GroundViewModel vm = MakeViewModel();
         vm.SetLayoutForTesting(RampLayout());
         AircraftModel ac = MakeAircraft();
 
         vm.StartPushRoute(ac);
-        Assert.True(vm.AddPushWaypoint(2));
+        Assert.True(vm.AddPushWaypoint(2)); // Spot "A"
 
-        Assert.Null(vm.PushRoutePreview);
         Assert.Null(vm.PushRouteRefusal);
-        Assert.Null(vm.FinishPushRoute());
-        Assert.True(vm.IsDrawingRoute);
+        Assert.NotNull(vm.PushRoutePreview);
+
+        // The path carries its own start, so the first leg runs from where the aircraft stands.
+        TugPose first = vm.PushRoutePreview!.Moves[0].Samples[0];
+        Assert.Equal(ac.Position.Lat, first.Position.Lat, 9);
+        Assert.Equal(ac.Position.Lon, first.Position.Lon, 9);
+        Assert.Equal(ac.Heading.Degrees, first.NoseTrueDeg, 9);
+    }
+
+    [Fact]
+    public void OneTarget_FinishSendsPlainPush()
+    {
+        GroundViewModel vm = MakeViewModel();
+        vm.SetLayoutForTesting(RampLayout());
+        AircraftModel ac = MakeAircraft();
+
+        vm.StartPushRoute(ac);
+        Assert.True(vm.AddPushWaypoint(2)); // Spot "A"
+
+        Assert.Equal("PUSH $A", vm.FinishPushRoute());
+        Assert.False(vm.IsDrawingRoute);
+    }
+
+    [Fact]
+    public void OneUnnamedNode_FinishSendsPushNode()
+    {
+        GroundViewModel vm = MakeViewModel();
+        vm.SetLayoutForTesting(RampLayout());
+        AircraftModel ac = MakeAircraft();
+
+        vm.StartPushRoute(ac);
+        Assert.True(vm.AddPushWaypoint(4)); // plain taxiway intersection, unnamed
+
+        Assert.Equal("PUSH #4", vm.FinishPushRoute());
+        Assert.False(vm.IsDrawingRoute);
     }
 
     [Fact]
@@ -133,13 +167,13 @@ public class GroundViewModelPushRouteTests
 
         vm.UndoPushWaypoint();
 
-        // One target left is a half-built route, not an error: the banner clears rather than greeting the
-        // controller with the planner's "needs at least two points" the moment they undo (or the moment they
-        // pick "Push route…", which seeds exactly one). Nothing is sendable until a second point is picked.
-        Assert.Null(vm.PushRoutePreview);
+        // One target left is the move itself, not an error: the banner clears and the preview redraws it, and
+        // the single point is sendable as plain `PUSH` rather than greeting the controller with the planner's
+        // "needs at least two points" the moment they undo (or pick "Push route…", which seeds exactly one).
         Assert.Null(vm.PushRouteRefusal);
-        Assert.Null(vm.FinishPushRoute());
-        Assert.True(vm.IsDrawingRoute);
+        Assert.NotNull(vm.PushRoutePreview);
+        Assert.Equal("PUSH $A", vm.FinishPushRoute());
+        Assert.False(vm.IsDrawingRoute);
     }
 
     [Fact]

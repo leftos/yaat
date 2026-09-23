@@ -37,6 +37,10 @@ public class PushbackCanonicalRoundTripTests(ITestOutputHelper output)
     [InlineData("PUSH @4A", "PUSH @4A")]
     [InlineData("PUSH $7A", "PUSH $7A")]
     [InlineData("PUSH $7A TAIL W", "PUSH $7A FACE E")]
+    [InlineData("PUSH #1926", "PUSH #1926")]
+    [InlineData("PUSH #1926 FACE E", "PUSH #1926 FACE E")]
+    [InlineData("PUSH #1926 TAIL W", "PUSH #1926 FACE E")]
+    [InlineData("PUSH #1926 F1", "PUSH #1926 F1")]
     public void EveryAcceptedForm_CanonicalReParsesToTheSameCommand(string input, string expectedCanonical)
     {
         PushbackCommand first = Parse(input);

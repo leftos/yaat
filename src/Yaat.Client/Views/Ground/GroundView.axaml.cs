@@ -1170,8 +1170,9 @@ public partial class GroundView : UserControl
     }
 
     /// <summary>
-    /// Commits the drawn tug move: the right-clicked node is the last target, and the PUSHM command goes
-    /// straight out. A refused move sends nothing and stays in draw mode with its refusal on screen.
+    /// Commits the drawn tug move: the right-clicked node is the last target, and the PUSH (one target) or PUSHM
+    /// (two or more) command goes straight out. A refused move sends nothing and stays in draw mode with its refusal
+    /// on screen.
     /// </summary>
     private void FinishPushRoute(GroundViewModel vm, int nodeId)
     {

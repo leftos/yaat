@@ -214,7 +214,7 @@ public class WaitCommandDispatchTests
         StartPhase(ac, new AtParkingPhase());
 
         // BEHIND UAL999 PUSH T9
-        var compound = new CompoundCommand([new ParsedBlock(new GiveWayCondition("UAL999"), [new PushbackCommand(null, "T9", null, null, null)])]);
+        var compound = new CompoundCommand([new ParsedBlock(new GiveWayCondition("UAL999"), [new PushbackCommand(null, "T9", null, null)])]);
 
         CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
 
@@ -266,7 +266,7 @@ public class WaitCommandDispatchTests
         AircraftState ac = MakeGroundAircraft();
         StartPhase(ac, new AtParkingPhase());
 
-        var compound = new CompoundCommand([new ParsedBlock(new GiveWayCondition("UAL999"), [new PushbackCommand(null, "T9", null, null, null)])]);
+        var compound = new CompoundCommand([new ParsedBlock(new GiveWayCondition("UAL999"), [new PushbackCommand(null, "T9", null, null)])]);
 
         CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42)));
 

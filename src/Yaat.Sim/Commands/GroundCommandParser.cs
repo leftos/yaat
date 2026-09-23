@@ -6,11 +6,11 @@ namespace Yaat.Sim.Commands;
 internal static class GroundCommandParser
 {
     /// <summary>
-    /// Parses PUSH [@parking|$spot|taxiway] [orientation].
+    /// Parses PUSH [@parking|$spot|#node|taxiway] [orientation].
     /// Orientation forms: <c>&lt;C</c> (tail toward cardinal C), <c>&gt;C</c> (face cardinal C),
     /// <c>FACE C</c>, <c>TAIL C</c>, or a second taxiway name (face along push-taxiway toward it).
     /// Cardinals: N, NE, E, SE, S, SW, W, NW.
-    /// Examples: PUSH, PUSH &lt;E, PUSH FACE NE, PUSH TE, PUSH TE TAIL W, PUSH TE T, PUSH @A10, PUSH $7A FACE E.
+    /// Examples: PUSH, PUSH &lt;E, PUSH FACE NE, PUSH TE, PUSH TE TAIL W, PUSH TE T, PUSH @A10, PUSH $7A FACE E, PUSH #1926.
     /// A stand destination takes no facing, neither an orientation nor a facing taxiway: the aircraft parks on the
     /// stand's own heading.
     /// </summary>
@@ -18,47 +18,53 @@ internal static class GroundCommandParser
     {
         PR parsed = ParsePushbackForm(arg);
         if (
-            parsed.Value is PushbackCommand { DestinationParking: { } stand } push
+            parsed.Value is PushbackCommand { Destination.Parking: { } stand } push
             && ((push.MagneticHeading is not null) || (push.FacingTaxiway is not null))
         )
         {
-            return PR.Fail(StandFacingRefusal(stand));
+            return PR.Fail(StandFacingRefusal($"PUSH @{stand}"));
         }
 
         return parsed;
     }
 
-    /// <summary>Why a <c>PUSH @stand</c> with a facing is refused; the handler refuses a hand-built one the same way.</summary>
-    /// <param name="stand">The stand's name as typed.</param>
+    /// <summary>
+    /// Why a stand destination with a facing is refused: the parser for <c>PUSH @stand</c>, and the handler for a hand-built
+    /// one, a <c>PUSH #node</c> naming a stand and a <c>PUSHM</c> ending on one.
+    /// </summary>
+    /// <param name="subject">The command as the controller reads it back: <c>PUSH @B13</c>, <c>PUSH #953</c>, <c>PUSHM to D15</c>.</param>
     /// <returns>The refusal text.</returns>
-    internal static string StandFacingRefusal(string stand) =>
-        $"PUSH @{stand} does not take a facing — the aircraft parks on the stand's own heading";
+    internal static string StandFacingRefusal(string subject) => $"{subject} does not take a facing — the aircraft parks on the stand's own heading";
 
     private static PR ParsePushbackForm(string? arg)
     {
         if (arg is null)
         {
-            return PR.Ok(new PushbackCommand(null, null, null, null, null));
+            return PR.Ok(new PushbackCommand(null, null, null, null));
         }
 
         string[] tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
-            return PR.Ok(new PushbackCommand(null, null, null, null, null));
+            return PR.Ok(new PushbackCommand(null, null, null, null));
         }
 
-        // Strip optional leading @parking or $spot token; remember which.
-        string? parking = null;
-        string? spot = null;
+        // Strip optional leading @parking, $spot or #node token; remember which.
+        PushDestination? destination = null;
         int idx = 0;
         if (tokens[0].StartsWith('@') && tokens[0].Length > 1)
         {
-            parking = tokens[0][1..].ToUpperInvariant();
+            destination = PushDestination.AtParking(tokens[0][1..].ToUpperInvariant());
             idx = 1;
         }
         else if (tokens[0].StartsWith('$') && tokens[0].Length > 1)
         {
-            spot = tokens[0][1..].ToUpperInvariant();
+            destination = PushDestination.AtSpot(tokens[0][1..].ToUpperInvariant());
+            idx = 1;
+        }
+        else if (NodeRefToken.IsNodeReference(tokens[0]))
+        {
+            destination = PushDestination.AtNode(NodeRefToken.ParseNodeId(tokens[0]));
             idx = 1;
         }
 
@@ -78,25 +84,35 @@ internal static class GroundCommandParser
                 return PR.Fail("$ needs a spot name — PUSH $7A");
             }
 
-            if ((token.Length > 1) && (token.StartsWith('@') || token.StartsWith('$')))
+            if (token == "#")
+            {
+                return PR.Fail("# needs a node id — PUSH #1926");
+            }
+
+            if (token.StartsWith('#') && !NodeRefToken.IsNodeReference(token))
+            {
+                return PR.Fail($"'{token.ToUpperInvariant()}' is not a node id — PUSH #1926");
+            }
+
+            if ((token.Length > 1) && (token.StartsWith('@') || token.StartsWith('$') || token.StartsWith('#')))
             {
                 return PR.Fail(
-                    $"'{token.ToUpperInvariant()}' must be the first PUSH argument — a @gate or $spot destination comes before any taxiway or facing"
+                    $"'{token.ToUpperInvariant()}' must be the first PUSH argument — a @gate, $spot or #node comes before any taxiway or facing"
                 );
             }
         }
 
-        bool hasParkingOrSpot = parking is not null || spot is not null;
+        bool hasDestination = destination is not null;
 
-        // Bare PUSH or just @parking/$spot — no taxiway, no orientation.
+        // Bare PUSH or just @parking/$spot/#node — no taxiway, no orientation.
         if (rest.Length == 0)
         {
-            return PR.Ok(new PushbackCommand(null, null, null, parking, spot));
+            return PR.Ok(new PushbackCommand(null, null, null, destination));
         }
 
         // Helper to assemble the result with a taxiway and an optional magnetic facing heading.
-        static PushbackCommand Build(MagneticHeading? hdg, string? taxiway, string? facingTwy, string? parking, string? spot) =>
-            new(hdg, taxiway, facingTwy, parking, spot);
+        static PushbackCommand Build(MagneticHeading? hdg, string? taxiway, string? facingTwy, PushDestination? dest) =>
+            new(hdg, taxiway, facingTwy, dest);
 
         // First, try to read an orientation directly (no taxiway): PUSH <E, PUSH FACE E, PUSH $7A TAIL W.
         (MagneticHeading? Hdg, int Consumed, string? Error) orient = TryOrientation(rest, 0);
@@ -112,7 +128,7 @@ internal static class GroundCommandParser
                 return PR.Fail("unexpected tokens after PUSH orientation");
             }
 
-            return PR.Ok(Build(orient.Hdg, null, null, parking, spot));
+            return PR.Ok(Build(orient.Hdg, null, null, destination));
         }
 
         // Otherwise the first remaining token is a taxiway (or a destination name).
@@ -127,8 +143,8 @@ internal static class GroundCommandParser
         if (rest.Length == 1)
         {
             // PUSH TE / PUSH @A10 TE / PUSH $7A TE
-            // For parking/spot variants, a trailing token is a facing taxiway; for plain PUSH it's the push-onto taxiway.
-            return hasParkingOrSpot ? PR.Ok(Build(null, null, taxiway, parking, spot)) : PR.Ok(Build(null, taxiway, null, parking, spot));
+            // For a destination (parking, spot or node), a trailing token is a facing taxiway; for plain PUSH it's the push-onto taxiway.
+            return hasDestination ? PR.Ok(Build(null, null, taxiway, destination)) : PR.Ok(Build(null, taxiway, null, destination));
         }
 
         // Look for an orientation starting at rest[1].
@@ -146,15 +162,15 @@ internal static class GroundCommandParser
             }
 
             // PUSH TE <E / PUSH TE FACE E / PUSH $7A FACE E
-            // For parking/spot, the taxiway slot is unused; orientation is absolute facing.
-            return hasParkingOrSpot ? PR.Ok(Build(orient2.Hdg, null, null, parking, spot)) : PR.Ok(Build(orient2.Hdg, taxiway, null, parking, spot));
+            // For a destination, the taxiway slot is unused; orientation is absolute facing.
+            return hasDestination ? PR.Ok(Build(orient2.Hdg, null, null, destination)) : PR.Ok(Build(orient2.Hdg, taxiway, null, destination));
         }
 
         if (rest.Length == 2 && !int.TryParse(rest[1], out _))
         {
             // PUSH TE T → onto TE facing toward T (kept form).
             string facingTwy = rest[1].ToUpperInvariant();
-            return PR.Ok(Build(null, taxiway, facingTwy, parking, spot));
+            return PR.Ok(Build(null, taxiway, facingTwy, destination));
         }
 
         return PR.Fail("unrecognized PUSH arguments");

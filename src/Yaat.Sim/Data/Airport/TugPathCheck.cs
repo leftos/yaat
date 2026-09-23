@@ -28,7 +28,7 @@ internal readonly record struct TugPathRefusal(TugPathSeverity Severity, string 
 /// flat feet east and north of the plan's start, the frame <c>GeoMath.ProjectPoint</c> steps in. Holds one plan's
 /// precomputed segments and memoized pavement verdicts, so one instance serves every candidate of a plan.
 /// </summary>
-internal sealed class TugPathCheck
+public sealed class TugPathCheck
 {
     private const double Epsilon = 1e-9;
 
@@ -62,8 +62,15 @@ internal sealed class TugPathCheck
 
     /// <summary>
     /// The first rule the path breaks — runway, then holding position, then movement area — or null when clear.
+    /// <paramref name="junctionEdges"/> (indices into the layout's <c>AllEdges</c>, from
+    /// <see cref="FacingJunctionEdgeIndices"/>) are exempt from the movement-area rule only, over the whole path.
     /// </summary>
-    internal TugPathRefusal? Check(IReadOnlyList<TugMoveTrace> traces, IReadOnlySet<string> exemptNames, string subject)
+    internal TugPathRefusal? Check(
+        IReadOnlyList<TugMoveTrace> traces,
+        IReadOnlySet<string> exemptNames,
+        IReadOnlySet<int> junctionEdges,
+        string subject
+    )
     {
         var poses = traces
             .SelectMany((t, move) => t.Samples.Select((p, sample) => new LocalPose(Local(p.Position), p.NoseTrueDeg * DegToRad, move, sample)))
@@ -77,8 +84,156 @@ internal sealed class TugPathCheck
         Box box = Box.Around(poses).Padded((2.0 * _halfLengthFt) + (2.0 * _halfSpanFt));
         return RunwayRefusal(poses, box, subject)
             ?? HoldingPositionRefusal(poses, box, subject)
-            ?? MovementAreaRefusal(poses, box, exemptNames, subject);
+            ?? MovementAreaRefusal(poses, box, exemptNames, junctionEdges, subject);
     }
+
+    /// <summary>
+    /// The junction pavement a <c>PUSH &lt;taxiway&gt; &lt;facing taxiway&gt;</c> may lie across: the goal taxiway's own
+    /// intersection pavement by the exit node. The walk runs out along the goal taxiway's centreline from
+    /// <paramref name="exitNode"/>, then on along the junction taxiways — the facing taxiway and every taxiway meeting the
+    /// goal taxiway at a centreline node the first walk reached — with the distance carried on from the exit node, so
+    /// both legs together stay within one fuselage length. An edge is in the set only when it is a junction taxiway's
+    /// (an arc when any name it carries is the goal taxiway or a junction taxiway, a corner fillet onto a third taxiway
+    /// included) and its far end is inside that walk; an edge touching a runway holding position is never in it, nor walked through. A facing taxiway that meets
+    /// the goal taxiway further than a fuselage length from the exit node adds nothing. Returned by edge index, never by
+    /// name: a name would exempt every piece of those taxiways.
+    /// </summary>
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="aircraftType">ICAO type designator; sets the fuselage length that bounds both walks.</param>
+    /// <param name="exitNode">The goal taxiway's exit node the push lines up through.</param>
+    /// <param name="goalTaxiway">The taxiway pushed onto.</param>
+    /// <param name="facingTaxiway">The taxiway the push lines up facing toward.</param>
+    /// <returns>Indices into <see cref="AirportGroundLayout.AllEdges"/>.</returns>
+    public static IReadOnlySet<int> FacingJunctionEdgeIndices(
+        AirportGroundLayout layout,
+        string aircraftType,
+        GroundNode exitNode,
+        string goalTaxiway,
+        string facingTaxiway
+    )
+    {
+        double boundFt = TugMovePlanner.FuselageLengthFt(aircraftType);
+        Dictionary<int, double> onGoal = WalkWithin(
+            layout,
+            new Dictionary<int, double> { [exitNode.Id] = 0.0 },
+            boundFt,
+            e => (e is GroundEdge) && string.Equals(e.TaxiwayName, goalTaxiway, StringComparison.OrdinalIgnoreCase)
+        );
+        HashSet<string> junctionNames = JunctionTaxiwayNames(layout, onGoal.Keys, goalTaxiway, facingTaxiway);
+        Dictionary<int, double> onJunction = WalkWithin(layout, onGoal, boundFt, IsJunction);
+        var indices = new HashSet<int>();
+        int index = 0;
+        foreach (IGroundEdge edge in layout.AllEdges)
+        {
+            if (IsJunction(edge) && (NearestReachFt(edge, onJunction) is { } nearFt) && ((nearFt + EdgeLengthFt(edge)) <= boundFt))
+            {
+                indices.Add(index);
+            }
+
+            index++;
+        }
+
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Junction of {Goal} at node {NodeId} facing {Facing} ({BoundFt:F0} ft bound): {GoalNodes} nodes along it, taxiways {Names}, exempt edges {Edges}",
+                goalTaxiway,
+                exitNode.Id,
+                facingTaxiway,
+                boundFt,
+                onGoal.Count,
+                string.Join("/", junctionNames),
+                indices.Count == 0 ? "none" : string.Join(", ", indices)
+            );
+        }
+
+        return indices;
+
+        bool IsJunction(IGroundEdge edge)
+        {
+            string[] names = RampLaneReposition.EdgeNames(edge);
+            bool arcOntoGoal = (edge is GroundArc) && names.Contains(goalTaxiway, StringComparer.OrdinalIgnoreCase);
+            return !TouchesHoldShort(edge) && (arcOntoGoal || names.Any(junctionNames.Contains));
+        }
+    }
+
+    /// <summary>
+    /// The junction taxiways: the facing taxiway, and every other taxiway with an edge at one of the goal taxiway's
+    /// centreline nodes the walk reached. Runways, and edges touching a runway holding position, name none.
+    /// </summary>
+    private static HashSet<string> JunctionTaxiwayNames(
+        AirportGroundLayout layout,
+        IEnumerable<int> goalNodeIds,
+        string goalTaxiway,
+        string facingTaxiway
+    )
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { facingTaxiway };
+        foreach (IGroundEdge edge in goalNodeIds.SelectMany(id => layout.Nodes[id].Edges).Where(e => !TouchesHoldShort(e)))
+        {
+            names.UnionWith(
+                RampLaneReposition
+                    .EdgeNames(edge)
+                    .Where(n =>
+                        !string.Equals(n, goalTaxiway, StringComparison.OrdinalIgnoreCase) && !n.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
+                    )
+            );
+        }
+
+        return names;
+    }
+
+    /// <summary>
+    /// The nodes reached from <paramref name="seeds"/> (node id → the distance already walked to it, feet) along edges
+    /// <paramref name="along"/> accepts, each with its shortest walked distance, keeping only those within
+    /// <paramref name="boundFt"/>.
+    /// </summary>
+    private static Dictionary<int, double> WalkWithin(
+        AirportGroundLayout layout,
+        IReadOnlyDictionary<int, double> seeds,
+        double boundFt,
+        Func<IGroundEdge, bool> along
+    )
+    {
+        var reached = new Dictionary<int, double>(seeds);
+        var queue = new Queue<GroundNode>(seeds.Keys.Select(id => layout.Nodes[id]));
+        while (queue.Count > 0)
+        {
+            GroundNode node = queue.Dequeue();
+            foreach (IGroundEdge edge in node.Edges.Where(along))
+            {
+                GroundNode far = edge.Nodes[0].Id == node.Id ? edge.Nodes[1] : edge.Nodes[0];
+                double farFt = reached[node.Id] + EdgeLengthFt(edge);
+                if ((farFt <= boundFt) && (!reached.TryGetValue(far.Id, out double held) || (farFt < held)))
+                {
+                    reached[far.Id] = farFt;
+                    queue.Enqueue(far);
+                }
+            }
+        }
+
+        return reached;
+    }
+
+    /// <summary>The walked distance to whichever end of the edge the walk reached nearer, or null when it reached neither.</summary>
+    private static double? NearestReachFt(IGroundEdge edge, Dictionary<int, double> reached)
+    {
+        double? nearest = null;
+        foreach (GroundNode node in edge.Nodes)
+        {
+            if (reached.TryGetValue(node.Id, out double ft) && ((nearest is not { } held) || (ft < held)))
+            {
+                nearest = ft;
+            }
+        }
+
+        return nearest;
+    }
+
+    private static double EdgeLengthFt(IGroundEdge edge) => edge.DistanceNm * GeoMath.FeetPerNm;
+
+    private static bool TouchesHoldShort(IGroundEdge edge) =>
+        (edge.Nodes[0].Type == GroundNodeType.RunwayHoldShort) || (edge.Nodes[1].Type == GroundNodeType.RunwayHoldShort);
 
     /// <summary>
     /// The nearest edge that the straight ray from <paramref name="from"/> along <paramref name="travelTrueDeg"/>
@@ -275,7 +430,18 @@ internal sealed class TugPathCheck
         return null;
     }
 
-    private TugPathRefusal? MovementAreaRefusal(List<LocalPose> poses, Box box, IReadOnlySet<string> exemptNames, string subject)
+    /// <summary>
+    /// The first sample whose fuselage crosses movement-area pavement it may not, as a refusal. Pavement the goal names
+    /// is exempt throughout, the pavement at either end over its end run, and the junction edges
+    /// throughout; the junction edges that alone kept a crossing from refusing are logged.
+    /// </summary>
+    private TugPathRefusal? MovementAreaRefusal(
+        List<LocalPose> poses,
+        Box box,
+        IReadOnlySet<string> exemptNames,
+        IReadOnlySet<int> junctionEdges,
+        string subject
+    )
     {
         var movementEdges = _edges
             .Where(e => box.Overlaps(e.A, e.B) && !RampLaneReposition.EdgeNames(e.Edge).Any(exemptNames.Contains))
@@ -287,6 +453,7 @@ internal sealed class TugPathCheck
         HashSet<int> leaving = PavementAt(poses[0], movementEdges, adjacency);
         HashSet<int> arriving = PavementAt(poses[^1], movementEdges, adjacency);
         var runs = new EndRuns(leaving, LeavingRunLength(poses, movementEdges, leaving), arriving, ArrivingRunStart(poses, movementEdges, arriving));
+        var junctionUsed = new SortedDictionary<int, MovementEdge>();
         for (int sample = 0; sample < poses.Count; sample++)
         {
             (Pt nose, Pt tail) = Fuselage(poses[sample]);
@@ -298,9 +465,30 @@ internal sealed class TugPathCheck
                     continue;
                 }
 
+                if (junctionEdges.Contains(edge.Segment.Index))
+                {
+                    junctionUsed.TryAdd(edge.Segment.Index, edge);
+                    continue;
+                }
+
                 LogCrossing(subject, poses[sample], edge);
                 return new TugPathRefusal(TugPathSeverity.MovementArea, $"Unable, {subject} would put the aircraft on taxiway {edge.Name}");
             }
+        }
+
+        if ((junctionUsed.Count > 0) && Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "{Subject}: the fuselage crosses junction pavement, exempt: edges {Edges}",
+                subject,
+                string.Join(
+                    ", ",
+                    junctionUsed.Select(u =>
+                        $"[{u.Key}] {u.Value.Segment.Edge.Nodes[0].Id}-{u.Value.Segment.Edge.Nodes[1].Id} "
+                        + $"{u.Value.Segment.Edge.GetType().Name} {string.Join("/", RampLaneReposition.EdgeNames(u.Value.Segment.Edge))}"
+                    )
+                )
+            );
         }
 
         return null;
@@ -506,11 +694,8 @@ internal sealed class TugPathCheck
         }
     }
 
-    private EdgeSegment EdgeSegmentOf(IGroundEdge edge)
-    {
-        bool touchesHoldShort = (edge.Nodes[0].Type == GroundNodeType.RunwayHoldShort) || (edge.Nodes[1].Type == GroundNodeType.RunwayHoldShort);
-        return new EdgeSegment(edge, Local(edge.Nodes[0].Position), Local(edge.Nodes[1].Position), touchesHoldShort);
-    }
+    private EdgeSegment EdgeSegmentOf(IGroundEdge edge, int index) =>
+        new(edge, index, Local(edge.Nodes[0].Position), Local(edge.Nodes[1].Position), TouchesHoldShort(edge));
 
     private static double Distance(Pt a, Pt b) => Math.Sqrt(((a.X - b.X) * (a.X - b.X)) + ((a.Y - b.Y) * (a.Y - b.Y)));
 
@@ -610,7 +795,8 @@ internal sealed class TugPathCheck
 
     private sealed record RunwaySegment(string Name, double HalfWidthFt, Pt A, Pt B);
 
-    private sealed record EdgeSegment(IGroundEdge Edge, Pt A, Pt B, bool TouchesHoldShort);
+    /// <summary>An edge as its chord in the local frame, with its index into the layout's <c>AllEdges</c>.</summary>
+    private sealed record EdgeSegment(IGroundEdge Edge, int Index, Pt A, Pt B, bool TouchesHoldShort);
 
     /// <summary>An axis-aligned box in the local frame, used to skip pavement nowhere near the path.</summary>
     private readonly record struct Box(double MinX, double MinY, double MaxX, double MaxY)

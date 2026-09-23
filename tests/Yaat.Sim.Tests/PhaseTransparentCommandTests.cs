@@ -356,7 +356,7 @@ public class PhaseTransparentCommandTests
         AircraftState ac = MakeAircraftAtParking();
 
         var compound = new CompoundCommand([
-            new ParsedBlock(null, [new PushbackCommand(null, null, null, null, null), new SquawkCommand(233u), new SquawkNormalCommand()]),
+            new ParsedBlock(null, [new PushbackCommand(null, null, null, null), new SquawkCommand(233u), new SquawkNormalCommand()]),
         ]);
         CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
 

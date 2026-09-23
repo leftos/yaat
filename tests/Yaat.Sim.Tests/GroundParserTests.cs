@@ -293,8 +293,8 @@ public class GroundParserTests
         Assert.Null(push.MagneticHeading);
         Assert.Null(push.Taxiway);
         Assert.Null(push.FacingTaxiway);
-        Assert.Null(push.DestinationParking);
-        Assert.Null(push.DestinationSpot);
+        Assert.Null(push.Destination?.Parking);
+        Assert.Null(push.Destination?.Spot);
     }
 
     [Fact]
@@ -441,8 +441,35 @@ public class GroundParserTests
     {
         ParseResult<ParsedCommand> cmd = CommandParser.Parse("PUSH $7A TAIL W");
         PushbackCommand push = Assert.IsType<PushbackCommand>(cmd.Value);
-        Assert.Equal("7A", push.DestinationSpot);
+        Assert.Equal("7A", push.Destination?.Spot);
         Assert.Equal(90, push.MagneticHeading!.Value.ToDisplayInt());
+    }
+
+    /// <summary>A <c>#node</c> first argument is a node destination, with the same optional facing a spot takes.</summary>
+    [Theory]
+    [InlineData("PUSH #1926", null)]
+    [InlineData("PUSH #1926 FACE E", 90)]
+    public void Push_NodeDestination(string input, int? faceHeading)
+    {
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse(input);
+
+        PushbackCommand push = Assert.IsType<PushbackCommand>(cmd.Value);
+        Assert.Equal(1926, push.Destination?.NodeId);
+        Assert.Null(push.Taxiway);
+        Assert.Null(push.Destination?.Spot);
+        Assert.Null(push.Destination?.Parking);
+        Assert.Equal(faceHeading, push.MagneticHeading?.ToDisplayInt());
+    }
+
+    /// <summary>A <c>#</c> with no node id behind it, or with a non-numeric one, names no node.</summary>
+    [Theory]
+    [InlineData("PUSH #")]
+    [InlineData("PUSH #abc")]
+    public void Push_MalformedNodeDestination_Refused(string input)
+    {
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse(input);
+
+        Assert.False(cmd.IsSuccess, $"'{input}' parsed as {cmd.Value}");
     }
 
     [Fact]

@@ -182,7 +182,7 @@
       "id": "ground",
       "name": "Ground",
       "rows": [
-        { "verb": "PUSH", "aliases": [], "description": "Tug move: [twy | @gate | $spot] [<C / >C / FACE C / TAIL C], C∈N/NE/E/SE/S/SW/W/NW (a gate takes no facing). Bare `PUSH <twy>`: straight back onto a taxiway across the push, S-curve onto one alongside. Heading-only PUSH amends the facing during the stand push-off." },
+        { "verb": "PUSH", "aliases": [], "description": "Tug move: [twy | @gate | $spot | #node] [<C / >C / FACE C / TAIL C], C∈N/NE/E/SE/S/SW/W/NW (a gate takes no facing). Bare `PUSH <twy>`: straight back onto a taxiway across the push, S-curve onto one alongside. Heading-only PUSH amends the facing during the stand push-off." },
         { "verb": "PUSHM", "aliases": [], "description": "Tug move through 2+ points in order ($spot / @gate / #node) [FACE C / TAIL C]; pushes and pulls planned per leg, 5 s pause at each reversal; a leg onto a runway, holding position or un-named taxiway is refused" },
         { "verb": "TAXI", "aliases": [], "description": "Taxi via route (see mods below)" },
         { "verb": "TAXIAUTO", "aliases": [], "description": "Auto-route taxi to runway / `@parking` / `$spot`" },

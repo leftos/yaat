@@ -1760,21 +1760,21 @@ public static class CommandDescriber
     }
 
     /// <summary>
-    /// The canonical <c>PUSH</c> text: the destination in the form it was given — <c>$spot</c>, <c>@parking</c>
-    /// or a taxiway — then the facing. Every accepted form re-parses from this, which is what the replay action
-    /// router needs to re-derive the command's state from its text.
+    /// The canonical <c>PUSH</c> text: the destination in the form it was given — <c>$spot</c>, <c>@parking</c>,
+    /// <c>#node</c> or a taxiway — then the facing. Every accepted form re-parses from this, which is what the replay
+    /// action router needs to re-derive the command's state from its text.
     /// </summary>
     private static string FormatPushCanonical(PushbackCommand push)
     {
         string facing = FormatPushFacing(push);
-        if (push.DestinationParking is not null || push.DestinationSpot is not null)
+        return push switch
         {
-            string prefix = push.DestinationSpot is not null ? "$" : "@";
-            string? name = push.DestinationSpot ?? push.DestinationParking;
-            return $"PUSH {prefix}{name}{facing}";
-        }
-
-        return push.Taxiway is not null ? $"PUSH {push.Taxiway}{facing}" : $"PUSH{facing}";
+            { Destination.NodeId: { } nodeId } => $"PUSH #{nodeId}{facing}",
+            { Destination.Spot: { } spot } => $"PUSH ${spot}{facing}",
+            { Destination.Parking: { } parking } => $"PUSH @{parking}{facing}",
+            { Taxiway: { } taxiway } => $"PUSH {taxiway}{facing}",
+            _ => $"PUSH{facing}",
+        };
     }
 
     /// <summary>
@@ -1837,9 +1837,9 @@ public static class CommandDescriber
 
     private static string FormatPushNatural(PushbackCommand push)
     {
-        if (push.DestinationParking is not null || push.DestinationSpot is not null)
+        if (push.Destination is { } destination)
         {
-            string? name = push.DestinationSpot ?? push.DestinationParking;
+            string? name = destination.NodeId is { } nodeId ? $"node {nodeId}" : (destination.Spot ?? destination.Parking);
             string msg = $"Push to {name}";
             if (push.FacingTaxiway is not null)
             {

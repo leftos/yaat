@@ -334,7 +334,7 @@ public class GroundCommandHandlerTests
     {
         AircraftState ac = MakeGroundAircraft();
         // Phases empty (no AtParkingPhase)
-        var cmd = new PushbackCommand(null, null, null, null, null);
+        var cmd = new PushbackCommand(null, null, null, null);
 
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, null, null);
 
@@ -346,7 +346,7 @@ public class GroundCommandHandlerTests
     public void TryPushback_AtParking_NoArgs_Succeeds()
     {
         AircraftState ac = MakeAircraftAtParking();
-        var cmd = new PushbackCommand(null, null, null, null, null);
+        var cmd = new PushbackCommand(null, null, null, null);
 
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, null, null);
 
@@ -363,12 +363,116 @@ public class GroundCommandHandlerTests
             return;
         }
 
-        var cmd = new PushbackCommand(null, "Y", null, null, null);
+        var cmd = new PushbackCommand(null, "Y", null, null);
 
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
 
         Assert.True(result.Success, result.Message);
         Assert.Contains("onto Y", result.Message!);
+    }
+
+    /// <summary>
+    /// <c>PUSH #node</c> off SFO gate B12, to the node where taxiway Y meets the push-back line: accepted, and the tug
+    /// move it installs ends with the aircraft on that node, holding there.
+    /// </summary>
+    [Fact]
+    public void TryPushback_ToNode_InstallsTugMoveEndingAtTheNode()
+    {
+        if (ParkedOnSfoB12() is not (var ac, var layout))
+        {
+            return;
+        }
+
+        GroundNode target = layout.FindExitByTaxiway(ac.Position, "Y") ?? throw new InvalidOperationException("no Y node behind SFO B12");
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse($"PUSH #{target.Id}");
+        PushbackCommand cmd = Assert.IsType<PushbackCommand>(parsed.Value);
+
+        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
+
+        Assert.True(result.Success, result.Message);
+        Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
+        Assert.IsType<HoldingAfterPushbackPhase>(ac.Phases!.Phases[^1]);
+        PushbackPhase lastMove = ac.Phases.Phases.OfType<PushbackPhase>().Last();
+        double endToNodeFt = GeoMath.DistanceNm(lastMove.PlannedEnd, target.Position) * GeoMath.FeetPerNm;
+        Assert.True(endToNodeFt < 1.0, $"the tug move ends {endToNodeFt:F1} ft from node #{target.Id}");
+    }
+
+    /// <summary><c>PUSH #node</c> naming a node the layout does not carry is refused as <c>PUSHM</c> refuses it.</summary>
+    [Fact]
+    public void TryPushback_ToUnknownNode_RefusedAsPushmRefusesIt()
+    {
+        if (ParkedOnSfoB12() is not (var ac, var layout))
+        {
+            return;
+        }
+
+        var cmd = new PushbackCommand(null, null, null, PushDestination.AtNode(99999999));
+
+        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
+
+        Assert.False(result.Success, result.Message);
+        Assert.Equal("Cannot find node '#99999999'", result.Message);
+        Assert.IsType<AtParkingPhase>(ac.Phases?.CurrentPhase);
+    }
+
+    /// <summary><c>PUSH #node</c> naming a stand's node takes no facing, a heading or a facing taxiway alike.</summary>
+    [Theory]
+    [InlineData("FACE E")]
+    [InlineData("F1")]
+    public void TryPushback_ToStandNodeWithAFacing_RefusedWithTheStandFacingWording(string facing)
+    {
+        if (ParkedOnSfo("D2") is not (var ac, var layout))
+        {
+            return;
+        }
+
+        GroundNode d1 = layout.FindParkingByName("D1") ?? throw new InvalidOperationException("SFO gate D1 missing");
+        PushbackCommand cmd = Assert.IsType<PushbackCommand>(CommandParser.Parse($"PUSH #{d1.Id} {facing}").Value);
+
+        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
+
+        Assert.False(result.Success, result.Message);
+        Assert.Equal($"PUSH #{d1.Id} does not take a facing — the aircraft parks on the stand's own heading", result.Message);
+        Assert.IsType<AtParkingPhase>(ac.Phases?.CurrentPhase);
+    }
+
+    /// <summary><c>PUSH #node</c> naming a stand's node parks the aircraft on that stand.</summary>
+    [Fact]
+    public void TryPushback_ToStandNode_ParksOnTheStand()
+    {
+        if (ParkedOnSfo("D2") is not (var ac, var layout))
+        {
+            return;
+        }
+
+        GroundNode d1 = layout.FindParkingByName("D1") ?? throw new InvalidOperationException("SFO gate D1 missing");
+        PushbackCommand cmd = Assert.IsType<PushbackCommand>(CommandParser.Parse($"PUSH #{d1.Id}").Value);
+
+        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
+
+        Assert.True(result.Success, result.Message);
+        Assert.IsType<AtParkingPhase>(ac.Phases!.Phases[^1]);
+        Assert.Equal("D1", ac.Ground.ParkingSpot);
+    }
+
+    /// <summary><c>PUSH #node</c> naming a spot's node ends holding on the spot, the stand left behind.</summary>
+    [Fact]
+    public void TryPushback_ToSpotNode_HoldsOnTheSpot()
+    {
+        if (ParkedOnSfo("D2") is not (var ac, var layout))
+        {
+            return;
+        }
+
+        GroundNode spot = layout.FindSpotNodeByName("5A") ?? throw new InvalidOperationException("SFO spot 5A missing");
+        ac.Ground.ParkingSpot = "D2";
+        PushbackCommand cmd = Assert.IsType<PushbackCommand>(CommandParser.Parse($"PUSH #{spot.Id}").Value);
+
+        CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
+
+        Assert.True(result.Success, result.Message);
+        Assert.IsType<HoldingAfterPushbackPhase>(ac.Phases!.Phases[^1]);
+        Assert.Null(ac.Ground.ParkingSpot);
     }
 
     /// <summary>
@@ -387,7 +491,12 @@ public class GroundCommandHandlerTests
 
         ParseResult<ParsedCommand> parsed = CommandParser.Parse($"PUSH @B13 {parsedFacing}");
         Assert.False(parsed.IsSuccess, $"'PUSH @B13 {parsedFacing}' parsed as {parsed.Value}");
-        var cmd = new PushbackCommand(faceHeading is { } heading ? new MagneticHeading(heading) : null, null, facingTaxiway, "B13", null);
+        var cmd = new PushbackCommand(
+            faceHeading is { } heading ? new MagneticHeading(heading) : null,
+            null,
+            facingTaxiway,
+            PushDestination.AtParking("B13")
+        );
 
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
 
@@ -401,7 +510,7 @@ public class GroundCommandHandlerTests
     public void TryPushback_WithHeading_IncludesInMessage()
     {
         AircraftState ac = MakeAircraftAtParking();
-        var cmd = new PushbackCommand(new MagneticHeading(180), null, null, null, null);
+        var cmd = new PushbackCommand(new MagneticHeading(180), null, null, null);
 
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, null, null);
 
@@ -413,7 +522,10 @@ public class GroundCommandHandlerTests
     /// A B738 parked on SFO gate B12, nose on the stand heading (284° true). Taxiway Y runs behind the stand, its
     /// edge at the exit node lying along 028° / 208° true. Null when the SFO layout is missing.
     /// </summary>
-    private static (AircraftState Aircraft, AirportGroundLayout Layout)? ParkedOnSfoB12()
+    private static (AircraftState Aircraft, AirportGroundLayout Layout)? ParkedOnSfoB12() => ParkedOnSfo("B12");
+
+    /// <summary>A B738 parked on an SFO gate, nose on the stand heading. Null when the SFO layout is missing.</summary>
+    private static (AircraftState Aircraft, AirportGroundLayout Layout)? ParkedOnSfo(string gate)
     {
         AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
         if (layout is null)
@@ -421,10 +533,10 @@ public class GroundCommandHandlerTests
             return null;
         }
 
-        GroundNode stand = layout.FindParkingByName("B12") ?? throw new InvalidOperationException("the SFO layout has no gate B12");
+        GroundNode stand = layout.FindParkingByName(gate) ?? throw new InvalidOperationException($"the SFO layout has no gate {gate}");
         AircraftState ac = MakeAircraftAtParking();
         ac.Position = stand.Position;
-        ac.TrueHeading = stand.TrueHeading ?? throw new InvalidOperationException("SFO gate B12 has no heading");
+        ac.TrueHeading = stand.TrueHeading ?? throw new InvalidOperationException($"SFO gate {gate} has no heading");
         return (ac, layout);
     }
 
@@ -439,7 +551,7 @@ public class GroundCommandHandlerTests
             return;
         }
 
-        var cmd = new PushbackCommand(new MagneticHeading(360), "Y", null, null, null);
+        var cmd = new PushbackCommand(new MagneticHeading(360), "Y", null, null);
 
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
 
@@ -456,7 +568,7 @@ public class GroundCommandHandlerTests
             return;
         }
 
-        var cmd = new PushbackCommand(new MagneticHeading(180), "Y", null, null, null);
+        var cmd = new PushbackCommand(new MagneticHeading(180), "Y", null, null);
 
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
 
@@ -469,7 +581,7 @@ public class GroundCommandHandlerTests
     {
         // Without a taxiway, the cardinal is the absolute target facing (no edge snap).
         AircraftState ac = MakeAircraftAtParking();
-        var cmd = new PushbackCommand(new MagneticHeading(45), null, null, null, null);
+        var cmd = new PushbackCommand(new MagneticHeading(45), null, null, null);
 
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, null, null);
 

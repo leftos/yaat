@@ -2066,12 +2066,13 @@ public partial class GroundViewModel : ObservableObject
         return new TaxiRoute { Segments = segments, HoldShortPoints = holdShorts };
     }
 
-    // --- Push route mode (PUSHM) ---
+    // --- Push route mode (PUSH / PUSHM) ---
 
     /// <summary>
     /// Enters draw mode to build a tug move for <paramref name="aircraft"/>, anchored at its nearest ground
-    /// node. Every later click is one PUSHM target; unlike a taxi route the points are never graph-routed,
-    /// because a tug move is free space (see docs/ground/pushback.md).
+    /// node. Every later click is one push target — a single one sends as plain <c>PUSH</c>, two or more as
+    /// <c>PUSHM</c> — and unlike a taxi route the points are never graph-routed, because a tug move is free
+    /// space (see docs/ground/pushback.md).
     /// </summary>
     public void StartPushRoute(AircraftModel aircraft)
     {
@@ -2126,9 +2127,10 @@ public partial class GroundViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Ends push-draw mode and returns the PUSHM command for the targets clicked, or null when there is
-    /// nothing to send. A refused move returns null and <em>keeps</em> draw mode, so the controller can undo
-    /// the illegal leg (or press Esc) while the refusal is still on screen.
+    /// Ends push-draw mode and returns the command for the targets clicked — plain <c>PUSH</c> for one,
+    /// <c>PUSHM</c> for two or more — or null when there is nothing to send. A refused move returns null and
+    /// <em>keeps</em> draw mode, so the controller can undo the illegal leg (or press Esc) while the refusal is
+    /// still on screen.
     /// </summary>
     public string? FinishPushRoute()
     {
@@ -2144,34 +2146,34 @@ public partial class GroundViewModel : ObservableObject
             return null;
         }
 
-        // Sendability is its own gate, not a reading of the banner. A half-built route shows no refusal
-        // (one point is not an error) but is still not a command — without this, committing after a single
-        // click would send `PUSHM $A`, which the sim then refuses for needing two targets.
-        if (targets.Count < 2 || PushRouteRefusal is not null)
+        // Sendability is its own gate, not a reading of the banner. A refused move shows its refusal but is
+        // still not a command — without this, committing it would send the very plan the sim just refused.
+        if (PushRouteRefusal is not null)
         {
             return null;
         }
 
-        // The command carries exactly the clicked targets: the sim plans the moves from them, and the
+        // One clicked point is plain `PUSH`, which takes a single $spot, @gate or #node destination (`PUSHM` needs
+        // two or more). The command carries exactly the clicked targets: the sim plans the moves from them, and the
         // sigil is the only thing telling a spot apart from a gate of the same name.
-        string command = $"PUSHM {string.Join(" ", targets.Select(PushTargetToken))}";
+        string command = targets.Count == 1 ? $"PUSH {PushTargetToken(targets[0])}" : $"PUSHM {string.Join(" ", targets.Select(PushTargetToken))}";
         ClearDrawState();
         return command;
     }
 
     /// <summary>
     /// Re-plans the drawn tug move through <see cref="TugMovePlanner"/> — the same body the simulation runs,
-    /// on goals resolved from the very tokens the <c>PUSHM</c> will carry, so the preview and the executed
-    /// move cannot disagree about which moves push, which pull, or where the aircraft ends up.
+    /// on goals resolved from the very tokens the <c>PUSH</c>/<c>PUSHM</c> will carry, so the preview and the
+    /// executed move cannot disagree about which moves push, which pull, or where the aircraft ends up. One
+    /// target is a complete move in itself (that is the plan <c>PUSH $spot</c> runs), so it is previewed the
+    /// same way; only a route with no target clicked yet — one the controller has just started — has nothing
+    /// to plan.
     /// </summary>
     private void RefreshPushRoutePreview()
     {
         List<GroundNode> targets = CurrentPushTargets();
 
-        // A move needs two points, so one target standing is a half-built route, not an error. Picking
-        // "Push route…" seeds exactly one, and surfacing the planner's "needs at least two points" there
-        // would greet every controller with a red banner before they had done anything wrong.
-        if (_domainLayout is null || _drawAircraft is null || targets.Count < 2)
+        if (_domainLayout is null || _drawAircraft is null || targets.Count == 0)
         {
             PushRoutePreview = null;
             PushRouteRefusal = null;

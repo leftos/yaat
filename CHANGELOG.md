@@ -8,6 +8,7 @@
 - Settings and the session flyout take a distance beyond which departures from the primary airport are deleted automatically; blank keeps them.
 - Departures removed that way appear in the debrief as "Departed".
 - The terminal's filter box has a ✕ button that clears it.
+- `PUSH #<node>` pushes to any ground node by its id, as `PUSHM` already could.
 
 ### Changed
 - Right-clicking an airborne live-traffic aircraft offers the full command menu; picking a command assumes the aircraft first, as typing one does.
@@ -16,6 +17,8 @@
 - The terminal's filter box is wide enough to show a full airline callsign.
 
 ### Fixed
+- The Ground view's push route draws the planned tow from the first point clicked, and a single point sends as a plain `PUSH`.
+- `PUSH <taxiway> <facing taxiway>` no longer refuses for swinging across the facing taxiway where the aircraft lines up, as SFO `PUSH A F1` from D7 did.
 - The Ground view's push-route preview refuses a move that would swing into a parked aircraft, as sending it would, instead of showing it as fine.
 - `TAXI` to a spot or gate from a stand that first needs a turn onto a neighbouring lane ends at that spot or gate instead of holding short.
 - `SQ 1200` silences the radar's assigned-code mismatch flash as `SQV` does; squawking any other code, or a bare `SQ`, brings it back.

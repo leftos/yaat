@@ -490,13 +490,50 @@ public record LandCommand(string SpotName, bool NoDelete = false, bool IsTaxiway
 public record ClearedTakeoffPresentCommand(DepartureInstruction Departure, int? AssignedAltitude = null) : ParsedCommand;
 
 // Ground commands
-public record PushbackCommand(
-    MagneticHeading? MagneticHeading,
-    string? Taxiway,
-    string? FacingTaxiway,
-    string? DestinationParking,
-    string? DestinationSpot
-) : ParsedCommand;
+
+/// <summary>
+/// PUSH: a pushback off the stand, to at most one destination — a stand, helipad, ramp spot or graph node
+/// (<see cref="Destination"/>) or a taxiway (<see cref="Taxiway"/>) — with an optional facing: a magnetic heading or a
+/// taxiway to face toward.
+/// </summary>
+/// <param name="MagneticHeading">The facing to end on, magnetic, or null.</param>
+/// <param name="Taxiway">The taxiway to push onto, or null.</param>
+/// <param name="FacingTaxiway">The taxiway to end facing toward, or null.</param>
+/// <param name="Destination">The stand, spot or node to push to, or null.</param>
+public record PushbackCommand(MagneticHeading? MagneticHeading, string? Taxiway, string? FacingTaxiway, PushDestination? Destination) : ParsedCommand;
+
+/// <summary>
+/// Where a <c>PUSH</c> ends, exactly one of: a stand or helipad (<c>@A10</c>), a ramp spot (<c>$7A</c>) or a
+/// ground-graph node (<c>#1926</c>).
+/// </summary>
+public sealed record PushDestination
+{
+    private PushDestination() { }
+
+    /// <summary>The stand or helipad, upper-cased, or null.</summary>
+    public string? Parking { get; private init; }
+
+    /// <summary>The ramp spot, upper-cased, or null.</summary>
+    public string? Spot { get; private init; }
+
+    /// <summary>The ground-graph node id, or null.</summary>
+    public int? NodeId { get; private init; }
+
+    /// <summary>A stand or helipad destination.</summary>
+    /// <param name="name">The stand's name, upper-cased.</param>
+    /// <returns>The destination.</returns>
+    public static PushDestination AtParking(string name) => new() { Parking = name };
+
+    /// <summary>A ramp spot destination.</summary>
+    /// <param name="name">The spot's name, upper-cased.</param>
+    /// <returns>The destination.</returns>
+    public static PushDestination AtSpot(string name) => new() { Spot = name };
+
+    /// <summary>A ground-graph node destination.</summary>
+    /// <param name="nodeId">The node id.</param>
+    /// <returns>The destination.</returns>
+    public static PushDestination AtNode(int nodeId) => new() { NodeId = nodeId };
+}
 
 /// <summary>
 /// PUSHM: a tug move through two or more ramp points, with an optional final rest facing.

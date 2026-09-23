@@ -51,6 +51,13 @@ public sealed record TugGoal
     /// <summary>The taxiway a <see cref="TugGoalKind.TaxiwayLine"/> or <see cref="TugGoalKind.StraightBackTo"/> goal names.</summary>
     public string? TaxiwayName { get; init; }
 
+    /// <summary>
+    /// The taxiway a <see cref="TugGoalKind.TaxiwayLine"/> goal lines up facing toward (<c>PUSH A F1</c>), or null when
+    /// its facing came from a heading. Its junction pavement near the exit node is exempt from the movement-area check
+    /// (<see cref="TugPathCheck.FacingJunctionEdgeIndices"/>).
+    /// </summary>
+    public string? FacingTaxiwayName { get; init; }
+
     /// <summary>How a refusal names the goal: <c>spot 6B</c>, <c>D16</c>, <c>taxiway Y</c>, <c>the pushback</c>.</summary>
     public required string Label { get; init; }
 
@@ -370,7 +377,7 @@ public static class TugMovePlanner
         Math.Clamp(SpotPullForwardFactor * FuselageLengthFt(aircraftType), SpotPullForwardMinFt, SpotPullForwardMaxFt);
 
     /// <summary>The fuselage length, feet: the FAA record's, else the CWT-based fallback.</summary>
-    internal static double FuselageLengthFt(string aircraftType) =>
+    public static double FuselageLengthFt(string aircraftType) =>
         FaaAircraftDatabase.Get(aircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraftType);
 
     /// <summary>
@@ -420,7 +427,7 @@ public static class TugMovePlanner
 }
 
 /// <summary>How the planner reaches a resolved goal.</summary>
-internal enum TugGoalShape
+public enum TugGoalShape
 {
     /// <summary>Along the approach line through <see cref="ResolvedTugGoal.Stop"/> on <see cref="ResolvedTugGoal.FacingTrueDeg"/>.</summary>
     Faced,
@@ -442,7 +449,7 @@ internal enum TugGoalShape
 }
 
 /// <summary>A goal with its facing, stop point and refusal wording worked out.</summary>
-internal sealed record ResolvedTugGoal
+public sealed record ResolvedTugGoal
 {
     public required TugGoal Goal { get; init; }
 
@@ -465,14 +472,27 @@ internal sealed record ResolvedTugGoal
 
     /// <summary>Taxiway names the movement-area check lets the fuselage cross.</summary>
     public required IReadOnlySet<string> ExemptNames { get; init; }
+
+    /// <summary>
+    /// Edges (indices into the layout's <c>AllEdges</c>) the movement-area check lets the fuselage cross over the whole
+    /// tow: the facing taxiway's junction pavement for a taxiway-line goal with a facing taxiway, empty otherwise.
+    /// </summary>
+    public required IReadOnlySet<int> JunctionEdgeIndices { get; init; }
 }
 
 /// <summary>Turns a request's goal into a <see cref="ResolvedTugGoal"/>.</summary>
-internal static class TugGoalResolver
+public static class TugGoalResolver
 {
     private static readonly IReadOnlySet<string> NoNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-    internal static ResolvedTugGoal Resolve(AirportGroundLayout? layout, TugRequest request, int index)
+    private static readonly IReadOnlySet<int> NoEdges = new HashSet<int>();
+
+    /// <summary>Resolves the request's goal at <paramref name="index"/>: its shape, facing, stop point and exemptions.</summary>
+    /// <param name="layout">The airport's ground layout, or null when it has none.</param>
+    /// <param name="request">The tug move request.</param>
+    /// <param name="index">Which of the request's goals to resolve.</param>
+    /// <returns>The resolved goal.</returns>
+    public static ResolvedTugGoal Resolve(AirportGroundLayout? layout, TugRequest request, int index)
     {
         TugGoal goal = request.Goals[index];
         bool isLast = index == (request.Goals.Count - 1);
@@ -481,7 +501,7 @@ internal static class TugGoalResolver
         return goal.Kind switch
         {
             TugGoalKind.Spot or TugGoalKind.Stand or TugGoalKind.Node => ResolveNodeGoal(request.AircraftType, basis, facing),
-            TugGoalKind.TaxiwayLine or TugGoalKind.StraightBackTo => ResolveTaxiwayGoal(basis, facing),
+            TugGoalKind.TaxiwayLine or TugGoalKind.StraightBackTo => ResolveTaxiwayGoal(layout, request.AircraftType, basis, facing),
             TugGoalKind.Facing => basis with { Shape = TugGoalShape.Facing, FacingTrueDeg = facing!.Value },
             TugGoalKind.Clear => basis,
             _ => throw new ArgumentOutOfRangeException(nameof(request), goal.Kind, "Unknown tug goal kind"),
@@ -514,6 +534,7 @@ internal static class TugGoalResolver
             Name = name,
             Subject = subject,
             ExemptNames = NoNames,
+            JunctionEdgeIndices = NoEdges,
         };
     }
 
@@ -542,16 +563,24 @@ internal static class TugGoalResolver
         }
     }
 
-    /// <summary>A taxiway-line or straight-back goal: the line runs through the exit node, and the taxiway is exempt.</summary>
-    private static ResolvedTugGoal ResolveTaxiwayGoal(ResolvedTugGoal basis, double? facing)
+    /// <summary>
+    /// A taxiway-line or straight-back goal: the line runs through the exit node, and the taxiway is exempt. A
+    /// taxiway-line goal lined up facing another taxiway also exempts that taxiway's junction pavement by the exit node.
+    /// </summary>
+    private static ResolvedTugGoal ResolveTaxiwayGoal(AirportGroundLayout? layout, string aircraftType, ResolvedTugGoal basis, double? facing)
     {
         TugGoal goal = basis.Goal;
         ResolvedTugGoal onTaxiway = basis with { Stop = goal.Node!.Position, ExemptNames = Names(goal.TaxiwayName!) };
+        IReadOnlySet<int> junction =
+            (layout is not null) && (goal.FacingTaxiwayName is { } facingTaxiway)
+                ? TugPathCheck.FacingJunctionEdgeIndices(layout, aircraftType, goal.Node, goal.TaxiwayName!, facingTaxiway)
+                : NoEdges;
         return goal.Kind == TugGoalKind.TaxiwayLine
             ? onTaxiway with
             {
                 Shape = TugGoalShape.TaxiwayLine,
                 FacingTrueDeg = facing!.Value,
+                JunctionEdgeIndices = junction,
             }
             : onTaxiway with
             {
@@ -1365,7 +1394,8 @@ internal sealed class TugPlanBuilder
 
         (string? shapeReason, double? finalPullOvershootFt) =
             goal.Shape == TugGoalShape.Faced ? FacedDropReason(goal, candidate, offStand) : (null, null);
-        TugPathRefusal? path = _pathCheck?.Check(candidate.Traces, goal.ExemptNames, goal.Subject) ?? NeighbourRefusal(goal, candidate);
+        TugPathRefusal? path =
+            _pathCheck?.Check(candidate.Traces, goal.ExemptNames, goal.JunctionEdgeIndices, goal.Subject) ?? NeighbourRefusal(goal, candidate);
         return new TugVerdict(shapeReason, path, finalPullOvershootFt);
     }
 
