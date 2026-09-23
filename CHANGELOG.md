@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Added
+- **Scenario > Export Room as Scenario…** saves every aircraft in the room, live traffic included, as a new scenario file.
+- After an export, a review window lists aircraft that could not be captured faithfully, with the reason and a Copy button.
 - **Assume Live Traffic…** in the session flyout assumes every airborne live aircraft, or those within a radius, optionally VFR or IFR only.
 - Selecting several live aircraft in the Aircraft List offers **Assume selected live traffic** on right-click.
 - Settings and the session flyout take a distance beyond which departures from the primary airport are deleted automatically; blank keeps them.

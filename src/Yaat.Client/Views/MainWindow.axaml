@@ -81,6 +81,12 @@
             <MenuItem Header="(No recent scenarios)" IsEnabled="False" />
           </MenuItem>
           <MenuItem
+            Header="E_xport Room as Scenario..."
+            x:Name="ExportRoomAsScenarioMenuItem"
+            IsEnabled="{Binding CanExportRoomAsScenario}"
+            ToolTip.Tip="Save every aircraft in the room as a scenario file. Requires a mentor or instructor and at least one aircraft."
+          />
+          <MenuItem
             Header="Start Live _Session..."
             x:Name="StartLiveSessionMenuItem"
             IsEnabled="{Binding CanStartLiveSession}"

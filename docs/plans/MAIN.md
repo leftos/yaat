@@ -9,7 +9,6 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 ## Bug reports and feature requests
 
 - [ ] **SFO GC 28/01 bundle: 3 reports left** (#454, #461, #462): taxi-routing cluster (#454 reproduced, cause not yet found), ground-motion and push geometry, two features. Take the waves in order: [sfo-gc-28-01-bundle.md](./sfo-gc-28-01-bundle.md)
-- [ ] Live-session snapshot-as-scenario authoring (ZOA Discord 2026-08-31; user 2026-09-22: a server-side export of every aircraft — shadows and simulated — to a scenario JSON the client saves through a file dialog) — yaat-server [live-traffic-swim/09-live-sessions.md](../../../yaat-server/docs/plans/live-traffic-swim/09-live-sessions.md) §3
 
 ## Current programme
 
@@ -150,6 +149,7 @@ Shared files: `RunwaySafetyAdvisor.cs`, yaat-server `LiveTraffic/`, `docs/plans/
 - [ ] Live-traffic follow-ups from the 2026-08-31 aviation review: (a) gate `RunwaySafetyAdvisor.WarnIfTrafficOnFinal` / `WarnIfLiveTrafficOnRunway` on a coasting shadow (7110.65 §5-13-7); (b) re-verify `GroundAcceleration` against the coast semantics the receipt-recency fix introduced (the other two behaviours it un-deadened — shadow-vs-simulated conflict alerts, the assume coast note — got tests in that fix, `57a1b5b0`; `GroundAcceleration_IsUnknown_WithTooFewSamples_OrWhileCoasting` predates it); (c) surface per-track observation age to the instructor
 - [ ] Design the ASDE-X identity-override rule (override identity, never the track key) — yaat-server `live-traffic-swim/08-remaining-work.md` §5
 - [ ] Live-session filter follow-ups deferred by yaat-server `live-traffic-swim/10-live-session-filters.md` (re-added 2026-09-22; the pointer promised them here): (a) three-state rules on the shadow's datablock/assume path; (b) CA gated to the facility volume (`ConflictAlertDetector.IsPairEligible` has no volume gate); (c) SFDPS flight-rules enum audit
+- [ ] Scenario-export follow-ups from the 2026-09-23 review (`ScenarioExporter.cs`): (a) an aircraft lined up at an intersection reloads at the full-length threshold (the loader's `OnRunway` start has no intersection); (b) a `CM` with an at-or-above / at-or-below modifier exports as a plain `CM`; (c) no test covers the "filed route, not trimmed" flag; (d) a shadow holding in position on a runway is flagged, not exported `OnRunway` (needs a runway-surface occupancy lookup)
 
 ### Wave 10 — Docs and repo hygiene
 

@@ -46,6 +46,78 @@ public partial class MainViewModel
     }
 
     /// <summary>
+    /// Export Room as Scenario is offered to the users who may load one (mentor/instructor in a room), once the room has
+    /// an aircraft to export.
+    /// </summary>
+    public bool CanExportRoomAsScenario => CanLoadScenario && (Aircraft.Count > 0);
+
+    private void WireScenarioExportAvailability()
+    {
+        PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(CanLoadScenario))
+            {
+                OnPropertyChanged(nameof(CanExportRoomAsScenario));
+            }
+        };
+        Aircraft.CollectionChanged += (_, _) => OnPropertyChanged(nameof(CanExportRoomAsScenario));
+    }
+
+    /// <summary>
+    /// Asks the server for the room's aircraft as scenario JSON, lets the user choose where to save it, and writes it.
+    /// Returns the aircraft the author still has to give presets or delete — empty when there are none, or when the export
+    /// was refused, cancelled or failed (each of which is reported in the terminal).
+    /// </summary>
+    public async Task<IReadOnlyList<ScenarioExportFlagDto>> ExportRoomAsScenarioAsync()
+    {
+        ScenarioExportResultDto result;
+        try
+        {
+            result = await _connection.ExportRoomAsScenarioAsync();
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Export room as scenario failed");
+            AddWarningEntry($"Export failed: {ex.Message}");
+            return [];
+        }
+
+        if ((result.DeniedReason is not null) || (result.Json is null))
+        {
+            AddWarningEntry(result.DeniedReason ?? "Export failed: the server returned no scenario");
+            return [];
+        }
+
+        string name = string.IsNullOrWhiteSpace(result.Name) ? "room snapshot" : result.Name;
+        string? path = await _filePicker.SaveFileAsync(
+            new SaveFileOptions(
+                Title: "Export Room as Scenario",
+                SuggestedFileName: $"{SanitizeFileName(name)}.json",
+                Filters: [new FilePickerFilter("JSON", ["*.json"])],
+                DefaultExtension: "json"
+            )
+        );
+        if (path is null)
+        {
+            return [];
+        }
+
+        try
+        {
+            await File.WriteAllTextAsync(path, result.Json);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _log.LogError(ex, "Writing exported scenario to {Path} failed", path);
+            AddWarningEntry($"Export failed: could not write {path}: {ex.Message}");
+            return [];
+        }
+
+        AddSystemEntry($"Exported {result.AircraftCount} aircraft to {path} ({result.Flags.Count} need review). Weather is not included.");
+        return result.Flags;
+    }
+
+    /// <summary>
     /// Loads a scenario from pre-fetched JSON, auto-selecting the hardest difficulty.
     /// Used by --scenario CLI argument to skip interactive dialogs.
     /// </summary>

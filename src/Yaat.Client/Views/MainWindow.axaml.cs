@@ -119,6 +119,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         MenuItem? loadItem = this.FindControl<MenuItem>("LoadScenarioMenuItem");
         loadItem?.Click += OnLoadScenarioClick;
 
+        MenuItem? exportItem = this.FindControl<MenuItem>("ExportRoomAsScenarioMenuItem");
+        exportItem?.Click += OnExportRoomAsScenarioClick;
+
         MenuItem? startLiveItem = this.FindControl<MenuItem>("StartLiveSessionMenuItem");
         startLiveItem?.Click += OnStartLiveSessionClick;
 
@@ -2878,6 +2881,32 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         catch (Exception ex)
         {
             vm.StatusText = $"Session report error: {ex.Message}";
+        }
+    }
+
+    private async void OnExportRoomAsScenarioClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        try
+        {
+            IReadOnlyList<ScenarioExportFlagDto> flags = await vm.ExportRoomAsScenarioAsync();
+            if (flags.Count == 0)
+            {
+                return;
+            }
+
+            var window = new ScenarioExportReviewWindow(flags);
+            new WindowGeometryHelper(window, vm.Preferences, "ScenarioExportReview", 480, 360).Restore();
+            window.Show(this);
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Export room as scenario failed");
+            vm.StatusText = $"Export error: {ex.Message}";
         }
     }
 

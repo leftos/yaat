@@ -104,6 +104,7 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `GetActiveRoomsAsync()` | `GetActiveRooms` | `GetActiveRooms()` |
 | `FindRoomForMyCidAsync()` | `FindRoomForMyCid` | `FindRoomForMyCid()` — CID from token claims |
 | `LoadScenarioAsync(json, …rates)` | `LoadScenario` | `LoadScenario(...)` |
+| `ExportRoomAsScenarioAsync()` | `ExportRoomAsScenario` | `ExportRoomAsScenario()` → `ScenarioExportResultDto(Json, Name, AircraftCount, Flags, DeniedReason)`; mentor/instructor-gated (throws), then `DeniedReason` "Not in a room" / "No scenario is loaded" / "The room has no aircraft to export" with `Json` null. `Flags` lists each aircraft needing review (callsign + reason); the scenario itself is built by `ScenarioExporter` in `Yaat.Sim` |
 | `GetScenarioJsonByIdAsync(id)` | `GetScenarioJsonById` | `GetScenarioJsonById(id)` — gated by the scenario's ARTCC (caller's permitted set), then caller rating |
 | `GetScenariosAsync()` | `GetScenarios` | `GetScenarios()` — filtered by caller rating |
 | `UnloadScenarioAircraftAsync()` | `UnloadScenarioAircraft` | `UnloadScenarioAircraft()` `:449` |
@@ -192,8 +193,8 @@ single-room filter (`GetAdminFilter`); an admin with no filter set resolves to n
 
 ### Mentor/instructor gating throws, it doesn't return a failure DTO
 
-Seven methods call `RequireMentorOrInstructor()` (`TrainingHub.cs:97`) — `CreateRoom`, `LoadScenario`,
-`UnloadScenarioAircraft`, `ConfirmUnloadScenario`, `KickMember`, `GetRpoLobbyClients`, `PullRpo`. Unlike the
+Eight methods call `RequireMentorOrInstructor()` (`TrainingHub.cs:97`) — `CreateRoom`, `LoadScenario`,
+`UnloadScenarioAircraft`, `ConfirmUnloadScenario`, `KickMember`, `GetRpoLobbyClients`, `PullRpo`, `ExportRoomAsScenario`. Unlike the
 "Not in a room" sentinel above, the guard **throws a `HubException`** ("This action requires a mentor or
 instructor.") *before* any room lookup, so the client sees a thrown exception rather than a `Success == false`
 DTO. `HubException` is the one exception type SignalR relays verbatim regardless of `EnableDetailedErrors`.

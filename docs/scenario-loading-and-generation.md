@@ -660,6 +660,17 @@ are *not* all `CFIX` and the first one is a `CFIX`. This is the one place preset
 Because presets go through the live dispatcher, they obey the same dry-run-validate / dimension-clearing / phase-gate rules as
 typed commands — a malformed preset is rejected and logged (`[Preset] Unparseable`), not silently dropped.
 
+## Export: the loader run backwards (`ScenarioExporter`)
+
+`ScenarioExporter.Export(aircraft, context, groundData, shadowFlightPlan)` (`src/Yaat.Sim/Scenarios/ScenarioExporter.cs`) turns a room's live aircraft back into `ScenarioAircraft` records, for the hub's `ExportRoomAsScenario` (`docs/training-hub-contract.md`). Every choice is made so that `ScenarioLoader` reloads the aircraft where it was, and anything the loader cannot reproduce is exported as a `Coordinates` start and **flagged** (the `Reason*` constants) for the instructor instead of being guessed.
+
+- **Parking** when stopped (< 1 kt) on a stand node: within `AtNodeToleranceFt` for a simulated aircraft, 75 ft for a shadow (the feed reports the antenna, not the stop line). Parked at its own destination is flagged "arrived".
+- **OnRunway** for a stationary aircraft in `LinedUpAndWaitingPhase`.
+- **OnFinal** by approach phase for a simulated aircraft; for a shadow by geometry (≤ 15 NM, track within 15° of the runway course, cross-track ≤ min(1.0, 0.2 + d·tan 5°) NM, within ±1,000 ft of `GlideSlopeGeometry`'s glidepath, climbing no faster than 300 fpm). Under 0.5 NM from the threshold it is flagged instead, because `AircraftInitializer.InitializeOnFinal` only honours a positive distance and would respawn the aircraft 5 NM out.
+- **Coordinates** otherwise. Headings are written magnetic (the loader converts back with the same `MagneticModelDateUtc`); speed is **indicated** airspeed, since the loader writes `Speed` into `IndicatedAirspeed` — a shadow's IAS and heading come from `LiveTrafficKinematics.WriteAirVector`, never its ground speed and track. An IFR aircraft on its route keeps it (a shadow's filed route cut to the fixes ahead) and gains presets for its assigned altitude (`CM`/`DM`), speed (`SPD`, with `+`/`-`) and `DVIA`/`CVIA`; a via mode suppresses the `CM`/`DM`, which would cancel it on reload.
+
+Weather is not exported.
+
 ## Server orchestration and the rewind-reload twin path
 
 There are two server entry points that build a scenario, and they share one load core:

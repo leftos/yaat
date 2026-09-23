@@ -1460,6 +1460,22 @@ Under the **Scenario** menu:
 
 Recordings are self-contained archives that include the scenario definition, RNG seed, weather state, periodic state snapshots, and all user actions with timestamps. They can be shared between users for review or training.
 
+### Export Room as Scenario
+
+**Scenario > Export Room as Scenario...** (mentors and instructors) saves the room as it is right now as a new ATCTrainer-format scenario file, so a live-traffic session or an interesting moment can be replayed later as its own scenario. It works in any room with a scenario loaded, live-traffic sessions included. Weather is not exported.
+
+Every aircraft becomes a starting condition:
+
+- **Parked at a stand** → a parking start on that stand.
+- **Lined up and waiting on a runway** → a runway start on that runway.
+- **On final to its destination** → an on-final start at the same distance out. A simulated aircraft counts by its approach phase; a live-traffic aircraft counts when it is within 15 NM, tracking within 15° of the runway course, close to the extended centerline, within about 1,000 ft of the glidepath and not climbing.
+- **IFR on its route** → a coordinates start with the rest of its route (a live-traffic aircraft's filed route is cut to the fixes still ahead), plus presets that keep its assigned altitude (`CM`/`DM`), speed (`SPD`) and descend-via / climb-via (`DVIA`/`CVIA`).
+- **Everything else** → a coordinates start at its current position, altitude, heading and indicated airspeed, flagged for review.
+
+Live-traffic aircraft are exported with the flight plan the live feed filed for them.
+
+After you pick where to save, the **Exported Scenario — Needs Review** window lists every flagged aircraft with the reason, and **Copy** puts the list on the clipboard. The reasons are: holding short, taxiing / not at a stand, arrived (parked at its own destination), airborne VFR, vectored / off route, in a procedure / holding, no flight plan, no filed route, filed route not trimmed, on final for a runway that is not its destination, aligned with final but off the glidepath, and over the threshold / landing. Edit those aircraft in the scenario file (or add presets) before using it for training. The terminal reports `Exported <n> aircraft to <path> (<k> need review). Weather is not included.`
+
 ### ASDE-X / SAID drawn geometry
 
 Areas and text a controller draws on CRC's ASDE-X or SAAB SAID surface display — restricted areas, closed areas, labels, and the numbered SETs they can be toggled with — are **kept by the server**. They survive a scenario reload, a server restart, and carry into every later room, so geometry like SFO's 28L/28R final-approach centerlines only has to be drawn once.

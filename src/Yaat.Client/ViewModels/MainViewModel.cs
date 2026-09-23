@@ -1517,6 +1517,7 @@ public partial class MainViewModel : ObservableObject
     public MainViewModel(IFilePickerService filePicker)
     {
         _filePicker = filePicker;
+        WireScenarioExportAvailability();
         _favoriteStore = new FavoriteStore(FavoriteStore.DefaultRootDir);
         FavoriteLegacyMigration.Run(_preferences, _favoriteStore);
         _isSpeechEnabled = _preferences.SpeechEnabled;

@@ -116,3 +116,9 @@ _Avoid_: ramp cut (a ramp cut is a free-space shortcut between lanes; a line-up 
 **Wingtip-clearance floor**:
 The least distance from a taxiway hold-short holder's nose to the centreline of the taxiway it holds short of: the half-span of the widest aircraft the airport can take, judged by its widest runway, plus 25 ft (`HoldShortAnnotator.WingtipClearanceFloorFt`, docs/ground/hold-short-placement.md).
 _Avoid_: setback (the setback is where the aircraft's centre stops; the floor is a minimum the nose must keep)
+
+## Live traffic
+
+**Shadow**:
+An aircraft spawned from a live real-world feed (SWIM/TAIS) that follows the feed rather than the simulation until someone assumes it (`AircraftState.IsShadow`, docs/live-traffic.md).
+_Avoid_: live aircraft (ambiguous with a simulated aircraft in a live session), ghost

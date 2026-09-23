@@ -393,6 +393,16 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     }
 
     /// <summary>
+    /// Exports every aircraft in the room as scenario JSON (mentor/instructor only — the hub throws otherwise). A non-null
+    /// DeniedReason means there was nothing to export and no JSON is returned.
+    /// </summary>
+    public async Task<ScenarioExportResultDto> ExportRoomAsScenarioAsync()
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<ScenarioExportResultDto>("ExportRoomAsScenario");
+    }
+
+    /// <summary>
     /// Returns the scenarios the caller's verified VATSIM rating can load for the room's ARTCC, plus a
     /// count of scenarios hidden by the rating gate. The picker uses the count to surface "N scenarios
     /// hidden — requires a higher rating" inline.
@@ -1355,6 +1365,17 @@ public sealed record ScenarioCatalogResponseDto(ScenarioSummaryDto[] Visible, in
 /// the client surfaces directly.
 /// </summary>
 public sealed record ScenarioJsonResultDto(string? Json, string? AccessDeniedReason);
+
+/// <summary>
+/// Wire shape for ServerConnection.ExportRoomAsScenarioAsync. Mirrors the server's ScenarioExportResultDto: the room's
+/// aircraft as scenario JSON, the scenario's name and aircraft count, and the aircraft that still need preset commands or
+/// deletion. Json is null exactly when DeniedReason carries a message the client shows directly (not in a room, no
+/// scenario, no aircraft).
+/// </summary>
+public sealed record ScenarioExportResultDto(string? Json, string? Name, int AircraftCount, List<ScenarioExportFlagDto> Flags, string? DeniedReason);
+
+/// <summary>One exported aircraft that needs the scenario author's attention, and why.</summary>
+public sealed record ScenarioExportFlagDto(string Callsign, string Reason);
 
 public record PositionDisplayConfigDto(List<int?> MapGroupMapIds, List<string> MapGroupTcpCodes, List<string> UnderlyingAirports, string TcpCode);
 
