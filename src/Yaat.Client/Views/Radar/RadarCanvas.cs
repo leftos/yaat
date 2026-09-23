@@ -130,6 +130,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         IReadOnlyList<WeatherDisplayInfo>?
     >(nameof(WeatherInfo));
 
+    public static readonly StyledProperty<string?> WeatherNoteProperty = AvaloniaProperty.Register<RadarCanvas, string?>(nameof(WeatherNote));
+
     public static readonly StyledProperty<IReadOnlyList<ShownPathEntry>?> ShownPathsProperty = AvaloniaProperty.Register<
         RadarCanvas,
         IReadOnlyList<ShownPathEntry>?
@@ -386,6 +388,12 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(WeatherInfoProperty);
         set => SetValue(WeatherInfoProperty, value);
+    }
+
+    public string? WeatherNote
+    {
+        get => GetValue(WeatherNoteProperty);
+        set => SetValue(WeatherNoteProperty, value);
     }
 
     public IReadOnlyList<ShownPathEntry>? ShownPaths
@@ -958,6 +966,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         IReadOnlySet<string> HighlightedCallsigns,
         bool ShowTopDown,
         IReadOnlyList<WeatherDisplayInfo>? WeatherInfo,
+        string? WeatherNote,
         IReadOnlyList<ShownPathEntry>? ShownPaths,
         IReadOnlyList<ShownShapeEntry>? ShownShapes,
         int HistoryCount,
@@ -1136,6 +1145,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             new HashSet<string>(State.HighlightedCallsigns),
             ShowTopDown,
             WeatherInfo,
+            WeatherNote,
             ShownPaths,
             ShownShapes,
             HistoryCount,
@@ -1206,6 +1216,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             s.HighlightedCallsigns,
             s.ShowTopDown,
             s.WeatherInfo,
+            s.WeatherNote,
             s.ShownPaths,
             s.ShownShapes,
             s.HistoryCount,

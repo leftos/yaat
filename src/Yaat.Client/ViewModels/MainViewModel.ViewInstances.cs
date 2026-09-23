@@ -75,9 +75,21 @@ public partial class MainViewModel
         vm.ShownAirportChanged += () =>
         {
             OnPropertyChanged(nameof(GroundShownAirportId));
-            // The layout usually lands after the weather (it is fetched async), so re-pick this view's
-            // station whenever the airport it shows changes.
-            vm.WeatherInfo = PickGroundWeather(_allWeatherInfo, vm.Layout?.AirportId);
+            // A profile counts as active by either sign the app tracks — its JSON and its name (a server
+            // broadcast carries both, a local load only the JSON) — so the defaults below stand in for it only
+            // when there is no profile at all.
+            if (HasActiveWeather || ActiveWeatherName is not null)
+            {
+                // The layout usually lands after the weather (it is fetched async), so re-pick this view's
+                // station whenever the airport it shows changes.
+                vm.WeatherInfo = PickGroundWeather(_allWeatherInfo, vm.Layout?.AirportId);
+                vm.WeatherNote = GroundWeatherNote(_allWeatherInfo, vm.Layout?.AirportId);
+            }
+            else
+            {
+                // No profile active: the synthetic defaults have to cover the airport this view now shows.
+                ApplyDefaultWeatherIfNoWeather();
+            }
         };
         vm.SetAircraftLookup(cs => Aircraft.FirstOrDefault(a => a.Callsign == cs));
         vm.SetAircraftProvider(() => Aircraft);
@@ -350,6 +362,7 @@ public partial class MainViewModel
         }
 
         vm.WeatherInfo = FilterWeatherForPosition(_allWeatherInfo, vm.WeatherAirports);
+        vm.WeatherNote = RadarWeatherNote(_allWeatherInfo, vm.WeatherAirports);
         _isSyncingSelection = true;
         vm.SelectedAircraft = SelectedAircraft;
         _isSyncingSelection = false;
@@ -382,8 +395,8 @@ public partial class MainViewModel
 
     /// <summary>
     /// Catches a newly-created Ground View up on the measuring tool, the navigation database, the active
-    /// scenario's settings key, its own base airport's layout, that layout's weather and the app-wide
-    /// selected aircraft.
+    /// scenario's settings key, its own base airport's layout and weather, and the app-wide selected
+    /// aircraft.
     /// </summary>
     private void SeedExtraGround(GroundViewInstance instance)
     {
@@ -396,7 +409,11 @@ public partial class MainViewModel
 
         vm.SetScenarioId(_lastScenarioId);
         SeedGroundAirport(instance);
-        vm.WeatherInfo = Ground.WeatherInfo;
+        // Its own airport's report, never the docked view's: the layout usually lands after this seeding, so
+        // the readout stays empty (and ShownAirportChanged recomputes it) until then rather than showing
+        // another airport's weather.
+        vm.WeatherInfo = PickGroundWeather(_allWeatherInfo, vm.Layout?.AirportId);
+        vm.WeatherNote = GroundWeatherNote(_allWeatherInfo, vm.Layout?.AirportId);
         _isSyncingSelection = true;
         vm.SelectedAircraft = SelectedAircraft;
         _isSyncingSelection = false;

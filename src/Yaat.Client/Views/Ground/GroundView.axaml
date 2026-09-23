@@ -166,6 +166,7 @@
         AirportElevation="{Binding AirportElevation}"
         Aircraft="{Binding $parent[Window].((vm:MainViewModel)DataContext).Aircraft}"
         WeatherInfo="{Binding WeatherInfo}"
+        WeatherNote="{Binding WeatherNote}"
         ShowRunwayLabels="{Binding ShowRunwayLabels}"
         ShowTaxiwayLabels="{Binding ShowTaxiwayLabels}"
         ShowHoldShort="{Binding ShowHoldShort}"

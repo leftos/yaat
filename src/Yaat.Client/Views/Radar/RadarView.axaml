@@ -572,6 +572,7 @@
         DrawnWaypoints="{Binding DrawnWaypoints}"
         WaypointConditions="{Binding WaypointConditionsSnapshot}"
         WeatherInfo="{Binding WeatherInfo}"
+        WeatherNote="{Binding WeatherNote}"
         ShownPaths="{Binding ShownPaths}"
         ShownShapes="{Binding ShownShapes}"
         HistoryCount="{Binding HistoryCount}"

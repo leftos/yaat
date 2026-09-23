@@ -803,6 +803,10 @@ public partial class MainViewModel
             radar.ClearVideoMaps();
         }
 
+        // Clearing the maps drops each position's airport filter, so the weather readout has to be re-derived
+        // from it: without this the last position's "No METAR for …" note outlives the filter that justified it.
+        UpdateRadarWeatherDisplay();
+
         // Strips and PDCs are pushed state that nothing retracts once the session they belong to is gone, so
         // every open view drops its content here — the docked tabs, the split panes and the popped-out windows
         // alike, which hold the same VM instances (MainWindow.axaml.cs pops a window over the entry's Vm rather

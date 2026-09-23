@@ -371,6 +371,7 @@ public sealed class RadarRenderer : IDisposable
         IReadOnlySet<string>? highlightedCallsigns = null,
         bool showTopDown = false,
         IReadOnlyList<WeatherDisplayInfo>? weatherInfo = null,
+        string? weatherNote = null,
         IReadOnlyList<ShownPathEntry>? shownPaths = null,
         IReadOnlyList<ShownShapeEntry>? shownShapes = null,
         int historyCount = 0,
@@ -456,7 +457,12 @@ public sealed class RadarRenderer : IDisposable
         // Weather overlay (top-left)
         if (weatherInfo is { Count: > 0 })
         {
-            DrawWeatherOverlay(canvas, weatherInfo);
+            DrawWeatherLines(canvas, weatherInfo.Select(station => station.ToDisplayString()));
+        }
+        else if (weatherNote is not null)
+        {
+            // The missing-METAR note sits exactly where the station lines would have been.
+            DrawWeatherLines(canvas, [weatherNote]);
         }
 
         // Ctrl+hover MVA tooltip (follows the cursor).
@@ -653,7 +659,17 @@ public sealed class RadarRenderer : IDisposable
         fillPaint.Dispose();
     }
 
-    private static void DrawWeatherOverlay(SKCanvas canvas, IReadOnlyList<WeatherDisplayInfo> stations)
+    private static void DrawWeatherOverlay(SKCanvas canvas, IReadOnlyList<WeatherDisplayInfo> stations) =>
+        DrawWeatherLines(canvas, stations.Select(station => station.ToDisplayString()));
+
+    /// <summary>Drawn in the overlay's place when no station matches the position.</summary>
+    private static void DrawWeatherNote(SKCanvas canvas, string note) => DrawWeatherLines(canvas, [note]);
+
+    /// <summary>
+    /// The weather readout (or the note standing in for it), one line per report: STARS green, monospace 14,
+    /// first line at (10, 20), 18 px apart.
+    /// </summary>
+    private static void DrawWeatherLines(SKCanvas canvas, IEnumerable<string> lines)
     {
         using var paint = new SKPaint
         {
@@ -664,9 +680,9 @@ public sealed class RadarRenderer : IDisposable
 
         float y = 20;
         const float lineHeight = 18;
-        foreach (WeatherDisplayInfo station in stations)
+        foreach (string line in lines)
         {
-            canvas.DrawText(station.ToDisplayString(), 10, y, SKTextAlign.Left, font, paint);
+            canvas.DrawText(line, 10, y, SKTextAlign.Left, font, paint);
             y += lineHeight;
         }
     }

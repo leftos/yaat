@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Services;
 using Yaat.Sim;
+using Yaat.Sim.Data;
 
 namespace Yaat.Client.ViewModels;
 
@@ -377,11 +378,11 @@ public partial class MainViewModel
                 continue;
             }
 
-            // Strip K prefix for US ICAO stations (KOAK → OAK)
-            string displayId = parsed.StationId;
-            if (displayId.Length == 4 && displayId.StartsWith('K'))
+            // Key the station by the FAA id the layouts, airport pickers and position configs carry: a
+            // 4-letter ICAO loses its K or P prefix (KOAK → OAK, PHNL → HNL).
+            if (AirportAirlines.NormalizeAirportId(parsed.StationId) is not { } displayId)
             {
-                displayId = displayId[1..];
+                continue;
             }
 
             list.Add(
@@ -401,28 +402,66 @@ public partial class MainViewModel
         return list.Count > 0 ? list : null;
     }
 
+    /// <summary>
+    /// The report for the airport a Ground View depicts, or null when the loaded weather carries no station
+    /// for it (or the view's airport is not known yet). Never another airport's report: the view then shows
+    /// <see cref="GroundWeatherNote"/> in place of its weather readout. Both ids are normalized, so a
+    /// P-prefixed METAR (PHNL) matches the layout's FAA id (HNL).
+    /// </summary>
     private static WeatherDisplayInfo? PickGroundWeather(IReadOnlyList<WeatherDisplayInfo>? allInfo, string? airportId)
     {
-        if (allInfo is null || airportId is null)
+        string? normalized = AirportAirlines.NormalizeAirportId(airportId);
+        if (allInfo is null || normalized is null)
         {
-            return allInfo?.Count > 0 ? allInfo[0] : null;
+            return null;
         }
 
         foreach (WeatherDisplayInfo info in allInfo)
         {
-            if (string.Equals(info.StationId, airportId, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(AirportAirlines.NormalizeAirportId(info.StationId), normalized, StringComparison.OrdinalIgnoreCase))
             {
                 return info;
             }
         }
 
-        // Fall back to first station if no match
-        return allInfo.Count > 0 ? allInfo[0] : null;
+        return null;
     }
 
     /// <summary>
-    /// Filters weather display info to only stations matching the position's
-    /// underlying airports. Returns all stations if no position filter is set.
+    /// The note a Ground View shows instead of a weather readout when the loaded weather carries no station
+    /// for the airport it depicts. Null when there is no weather to be missing, when the view's airport is not
+    /// known, or when its station is present.
+    /// </summary>
+    private static string? GroundWeatherNote(IReadOnlyList<WeatherDisplayInfo>? allInfo, string? airportId)
+    {
+        if (allInfo is not { Count: > 0 } || string.IsNullOrWhiteSpace(airportId))
+        {
+            return null;
+        }
+
+        return PickGroundWeather(allInfo, airportId) is null ? $"No METAR for {airportId}" : null;
+    }
+
+    /// <summary>
+    /// The note a Radar View shows instead of a weather readout when the loaded weather carries no station
+    /// for any of the position's underlying airports. Null when there is no weather to be missing, when no
+    /// position filter is set, or when a station matched.
+    /// </summary>
+    private static string? RadarWeatherNote(IReadOnlyList<WeatherDisplayInfo>? allInfo, List<string> weatherAirports)
+    {
+        if (allInfo is not { Count: > 0 } || weatherAirports.Count == 0)
+        {
+            return null;
+        }
+
+        return FilterWeatherForPosition(allInfo, weatherAirports) is { Count: > 0 } ? null : $"No METAR for {string.Join(" ", weatherAirports)}";
+    }
+
+    /// <summary>
+    /// Filters weather display info to only stations matching the position's underlying airports. Returns all
+    /// stations if no position filter is set, and none when the filter matches nothing (the view then shows
+    /// <see cref="RadarWeatherNote"/> in place of its weather readout). Both sides are normalized, so a
+    /// P-prefixed METAR (PHNL) matches the position's FAA id (HNL).
     /// </summary>
     private static IReadOnlyList<WeatherDisplayInfo>? FilterWeatherForPosition(
         IReadOnlyList<WeatherDisplayInfo>? allInfo,
@@ -442,24 +481,29 @@ public partial class MainViewModel
         var filtered = new List<WeatherDisplayInfo>();
         foreach (WeatherDisplayInfo info in allInfo)
         {
-            if (info.StationId is not null && weatherAirports.Any(a => string.Equals(a, info.StationId, StringComparison.OrdinalIgnoreCase)))
+            string? stationId = AirportAirlines.NormalizeAirportId(info.StationId);
+            if (
+                stationId is not null
+                && weatherAirports.Any(a => string.Equals(AirportAirlines.NormalizeAirportId(a), stationId, StringComparison.OrdinalIgnoreCase))
+            )
             {
                 filtered.Add(info);
             }
         }
 
-        return filtered.Count > 0 ? filtered : allInfo;
+        return filtered;
     }
 
     /// <summary>
     /// Re-applies weather filtering when the active position changes.
-    /// Called from <see cref="OnPositionDisplayChanged"/>.
+    /// Called from <see cref="OnPositionDisplayChanged"/>, and after a scenario unload drops the filter.
     /// </summary>
-    private void UpdateRadarWeatherDisplay()
+    internal void UpdateRadarWeatherDisplay()
     {
         foreach (RadarViewModel radar in AllRadarViews)
         {
             radar.WeatherInfo = FilterWeatherForPosition(_allWeatherInfo, radar.WeatherAirports);
+            radar.WeatherNote = RadarWeatherNote(_allWeatherInfo, radar.WeatherAirports);
         }
     }
 
@@ -473,11 +517,13 @@ public partial class MainViewModel
         foreach (RadarViewModel radar in AllRadarViews)
         {
             radar.WeatherInfo = FilterWeatherForPosition(allInfo, radar.WeatherAirports);
+            radar.WeatherNote = RadarWeatherNote(allInfo, radar.WeatherAirports);
         }
 
         foreach (GroundViewModel ground in AllGroundViews)
         {
             ground.WeatherInfo = PickGroundWeather(allInfo, ground.Layout?.AirportId);
+            ground.WeatherNote = GroundWeatherNote(allInfo, ground.Layout?.AirportId);
         }
     }
 
@@ -511,6 +557,7 @@ public partial class MainViewModel
     private List<string> CollectScenarioAirportIcaos()
     {
         var result = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         void Add(string? id)
         {
@@ -521,7 +568,9 @@ public partial class MainViewModel
 
             string upper = id.Trim().ToUpperInvariant();
             string icao = upper.Length == 3 ? "K" + upper : upper;
-            if (!result.Contains(icao))
+            // The same airport arrives in either form (a position's "HNL", a scenario's "PHNL"): key the
+            // dedupe on the normalized id so one airport gets one default report, not two.
+            if (seen.Add(AirportAirlines.NormalizeAirportId(icao) ?? icao))
             {
                 result.Add(icao);
             }
@@ -533,6 +582,14 @@ public partial class MainViewModel
         }
 
         Add(ActiveScenarioPrimaryAirportId);
+
+        // Every Ground View's own airport as well: with no profile loaded each view's overlay shows the
+        // synthetic fair-weather report for the airport it depicts, which exists only if it is listed here.
+        foreach (GroundViewModel ground in AllGroundViews)
+        {
+            Add(ground.Layout?.AirportId);
+        }
+
         return result;
     }
 }

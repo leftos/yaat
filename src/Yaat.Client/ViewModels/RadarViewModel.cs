@@ -158,6 +158,10 @@ public partial class RadarViewModel(
     [ObservableProperty]
     private IReadOnlyList<WeatherDisplayInfo>? _weatherInfo;
 
+    /// <summary>Shown in place of the weather readout when the loaded weather has no METAR for this position's airports.</summary>
+    [ObservableProperty]
+    private string? _weatherNote;
+
     private readonly Dictionary<BriteTarget, int> _brightnessValues = new()
     {
         [BriteTarget.Dcb] = 100,

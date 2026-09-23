@@ -96,6 +96,10 @@ public partial class GroundViewModel : ObservableObject
     [ObservableProperty]
     private WeatherDisplayInfo? _weatherInfo;
 
+    /// <summary>Shown in place of the weather readout when the loaded weather has no METAR for this view's airport.</summary>
+    [ObservableProperty]
+    private string? _weatherNote;
+
     [ObservableProperty]
     private TaxiRoute? _hoverTaxiRoute;
 

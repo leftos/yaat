@@ -89,6 +89,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         nameof(WeatherInfo)
     );
 
+    public static readonly StyledProperty<string?> WeatherNoteProperty = AvaloniaProperty.Register<GroundCanvas, string?>(nameof(WeatherNote));
+
     public static readonly StyledProperty<bool> ShowRunwayLabelsProperty = AvaloniaProperty.Register<GroundCanvas, bool>(
         nameof(ShowRunwayLabels),
         defaultValue: true
@@ -365,6 +367,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(WeatherInfoProperty);
         set => SetValue(WeatherInfoProperty, value);
+    }
+
+    public string? WeatherNote
+    {
+        get => GetValue(WeatherNoteProperty);
+        set => SetValue(WeatherNoteProperty, value);
     }
 
     public bool ShowRunwayLabels
@@ -737,6 +745,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         IReadOnlyDictionary<string, SKPoint> DeconflictOffsets,
         bool ShowDebugInfo,
         WeatherDisplayInfo? WeatherInfo,
+        string? WeatherNote,
         bool ShowRunwayLabels,
         bool ShowTaxiwayLabels,
         GroundFilterMode ShowHoldShort,
@@ -831,6 +840,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             deconflictOffsets,
             ShowDebugInfo,
             WeatherInfo,
+            WeatherNote,
             ShowRunwayLabels,
             ShowTaxiwayLabels,
             ShowHoldShort,
@@ -878,6 +888,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             s.DeconflictOffsets,
             s.ShowDebugInfo,
             s.WeatherInfo,
+            s.WeatherNote,
             s.ShowRunwayLabels,
             s.ShowTaxiwayLabels,
             s.ShowHoldShort,

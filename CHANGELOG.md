@@ -24,7 +24,9 @@
 - Two rooms using the same callsign no longer disturb each other's CRC displays.
 - Aircraft on slightly converging parallel taxiways slow for each other while there is still room to stop, instead of passing too close.
 - `WARPG` works on arrivals that have landed, instead of refusing with "No airport layout loaded for this aircraft".
-- The Ground View shows the wind and altimeter of the airport it depicts after live weather loads, instead of the first station in the list.
+- The Ground View shows the weather of the airport it depicts, or "No METAR for SFO" when there is none, instead of the first station in the list.
+- The Radar View shows "No METAR for …" when its position's airports have no METAR, instead of listing every station.
+- Weather readouts match Alaska, Hawaii and Pacific airports such as HNL to their METARs.
 - `TAXI` works for an aircraft holding beside a spot marker not joined to any taxiway, such as SFO spot 30, instead of failing every route.
 - `PUSH <taxiway> TAIL <direction>` or `FACE <direction>` at the end of a taxiway faces the way asked, instead of the opposite way.
 - An aircraft giving way to traffic merging onto its route ahead falls in behind once that traffic is on its last taxiway into the merge.

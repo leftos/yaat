@@ -620,6 +620,7 @@ public sealed class GroundRenderer : IDisposable
         IReadOnlyDictionary<string, SKPoint>? deconflictOffsets,
         bool showDebugInfo,
         WeatherDisplayInfo? weatherInfo,
+        string? weatherNote,
         bool showRunwayLabels,
         bool showTaxiwayLabels,
         GroundFilterMode showHoldShort,
@@ -720,7 +721,12 @@ public sealed class GroundRenderer : IDisposable
 
         if (weatherInfo is not null)
         {
-            DrawWeatherOverlay(canvas, weatherInfo);
+            DrawWeatherLines(canvas, [weatherInfo.ToDisplayString()]);
+        }
+        else if (weatherNote is not null)
+        {
+            // The missing-METAR note sits exactly where the readout would have been.
+            DrawWeatherLines(canvas, [weatherNote]);
         }
     }
 
@@ -860,12 +866,24 @@ public sealed class GroundRenderer : IDisposable
         }
     }
 
-    private static void DrawWeatherOverlay(SKCanvas canvas, WeatherDisplayInfo info)
+    private static void DrawWeatherOverlay(SKCanvas canvas, WeatherDisplayInfo info) => DrawWeatherLines(canvas, [info.ToDisplayString()]);
+
+    /// <summary>Drawn in the overlay's place when the airport has no METAR.</summary>
+    private static void DrawWeatherNote(SKCanvas canvas, string note) => DrawWeatherLines(canvas, [note]);
+
+    /// <summary>The weather readout (or the note standing in for it): light gray, monospace 14, at (10, 20).</summary>
+    private static void DrawWeatherLines(SKCanvas canvas, IEnumerable<string> lines)
     {
         using var paint = new SKPaint { Color = new SKColor(0xCC, 0xCC, 0xCC), IsAntialias = true }; // light gray
         using SKFont font = PlatformHelper.MonospaceFont(14);
 
-        canvas.DrawText(info.ToDisplayString(), 10, 20, SKTextAlign.Left, font, paint);
+        float y = 20;
+        const float lineHeight = 18;
+        foreach (string line in lines)
+        {
+            canvas.DrawText(line, 10, y, SKTextAlign.Left, font, paint);
+            y += lineHeight;
+        }
     }
 
     private void DrawDebugOverlay(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout)

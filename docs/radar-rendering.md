@@ -149,7 +149,7 @@ performs the fit once the viewport has pixel dimensions (`Viewport.PixelWidth >=
 7. **Heading-mode preview** — the live elastic vector when EuroScope heading mode is active; above aircraft, below the
    drawn route (`:352-359`, `Flyouts.HeadingPreviewRenderer.Render`).
 8. **Drawn route overlay** — the in-progress draw-route waypoints + rubber-band line (`:362-369`).
-9. **Weather overlay** — METAR text block, top-left (`:372-375`).
+9. **Weather overlay** — METAR text block, top-left (`:372-375`). When the position's weather airports have no METAR in the loaded weather, the block is replaced by the `WeatherNote` line (`No METAR for SFO OAK`), never every station; both go through `DrawWeatherLines`. Stations match on the FAA id (`AirportAirlines.NormalizeAirportId` strips a 4-letter id's leading K or P).
 10. **Range/bearing lines** — the distance measuring tool, drawn *after* `Render` returns, from
     `RadarCanvas.RenderFromSnapshot` via `RadarRenderer.DrawRangeBearingLines` → the shared
     `Views/Map/RangeBearingRenderer`. Last so a measurement stays legible over targets and datablocks. The snapshot

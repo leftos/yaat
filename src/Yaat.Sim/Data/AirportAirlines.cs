@@ -41,7 +41,13 @@ public static class AirportAirlines
         return _data.Value.ByAirport.TryGetValue(normalized, out airlines);
     }
 
-    internal static string? NormalizeAirportId(string? airportId)
+    /// <summary>
+    /// The FAA id this lookup keys an airport by: trimmed, upper-cased, and stripped of the leading K or P of
+    /// a 4-letter ICAO id (<c>"KSFO"</c> and <c>"SFO"</c> are the same airport, so are <c>"PHNL"</c> and
+    /// <c>"HNL"</c>). Returns null for a null or whitespace id. Callers that must compare two airport ids
+    /// compare their normalized forms rather than stripping a prefix themselves.
+    /// </summary>
+    public static string? NormalizeAirportId(string? airportId)
     {
         if (string.IsNullOrWhiteSpace(airportId))
         {
