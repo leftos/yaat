@@ -12,6 +12,7 @@
 - Holding Ctrl in the Ground View labels the nearest ground node with its `#id`, type and name.
 
 ### Changed
+- Taxiway connectors between two taxiways, or with a runway hold bar, count as movement area; lanes serving gates count as ramp.
 - Right-clicking an airborne live-traffic aircraft offers the full command menu; picking a command assumes the aircraft first, as typing one does.
 - The radar's Ctrl MVA tooltip appears and clears as Ctrl is pressed or released, without moving the pointer.
 - `NODEL` also keeps a departure from being deleted by the departure distance setting.
@@ -26,7 +27,7 @@
 - `TAXI` a bare taxiway with no destination, from a taxiway it crosses, now turns onto it and continues along it instead of stopping at the junction.
 - `TAXI` to a spot from the ramp lines the aircraft up on the spot facing out of the ramp, turning onto the spot's lane just short of it.
 - The Ground view's push route draws the planned tow from the first point clicked, and a single point sends as a plain `PUSH`.
-- `PUSH <taxiway> <facing taxiway>` no longer refuses for swinging across the facing taxiway where the aircraft lines up, as SFO `PUSH A F1` from D7 did.
+- A push onto a taxiway may sweep across the connectors meeting it, as SFO `PUSH A F1` from D7 does; it refuses only for a runway or for swinging far past the taxiway.
 - An aircraft holding short of a taxiway stops far enough back to clear the wingtips of traffic crossing on it, instead of blocking it.
 - The Ground view's push-route preview refuses a move that would swing into a parked aircraft, as sending it would, instead of showing it as fine.
 - `TAXI` to a spot or gate from a stand that first needs a turn onto a neighbouring lane ends at that spot or gate instead of holding short.

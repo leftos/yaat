@@ -1136,18 +1136,10 @@ public static class RampLaneReposition
     }
 
     /// <summary>
-    /// A ramp taxilane: its name is either several letters (<c>TE</c>, <c>TC</c>) or a letter followed by digits and
-    /// an optional trailing letter group (<c>M3</c>, <c>M4</c>, and SFO's alley sub-lanes <c>T5A</c>, <c>T6B</c>), it
-    /// is not a runway, it carries no runway holding position (a lane with a hold-short
-    /// bar is a movement-area runway connector — OAK <c>W3</c>, SFO <c>A1</c>, <c>GL</c> — whatever its name), and it
-    /// or a sibling lane touches RAMP pavement. The family test matters: SFO's M4 has no gate drawn on it, so it
-    /// touches RAMP only through M3 / M5. Never a bare-letter taxiway or a node reference.
+    /// A non-movement ramp taxilane. Defers to the layout's <see cref="MovementAreaClassification"/>, which holds the
+    /// rules and the airport sidecar's overrides; the tug planner reads the same verdict.
     /// </summary>
-    public static bool IsRampTaxilane(AirportGroundLayout layout, string name) =>
-        HasTaxilaneNameForm(name)
-        && !layout.TryGetRunwayCenterlineName(name, out _)
-        && !HasRunwayHoldShort(layout, name)
-        && (TouchesRamp(layout, name) || layout.AllTaxiwayNames.Any(other => AreSiblingLanes(name, other) && TouchesRamp(layout, other)));
+    public static bool IsRampTaxilane(AirportGroundLayout layout, string name) => MovementAreaClassification.For(layout).IsRampTaxilane(name);
 
     /// <summary>Two distinct ramp-taxilane names on one ramp: same leading letter (<c>TE</c> / <c>TC</c>, <c>M3</c> / <c>M5</c>).</summary>
     public static bool AreSiblingLanes(string a, string b) => SameLaneFamily(a, b) && !string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
@@ -1197,12 +1189,6 @@ public static class RampLaneReposition
 
         return (letters >= 2) || (digits > 0);
     }
-
-    private static bool TouchesRamp(AirportGroundLayout layout, string name) =>
-        layout.GetNodesOnTaxiway(name).Any(node => node.Edges.Any(e => EdgeNames(e).Any(n => n.Equals("RAMP", StringComparison.OrdinalIgnoreCase))));
-
-    private static bool HasRunwayHoldShort(AirportGroundLayout layout, string name) =>
-        layout.GetNodesOnTaxiway(name).Any(node => node.Type == GroundNodeType.RunwayHoldShort);
 
     /// <summary>The lane itself plus every ramp taxilane sharing its leading letter — the pavement one ramp is made of.</summary>
     private static HashSet<string> LaneFamily(AirportGroundLayout layout, string lane)

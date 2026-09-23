@@ -114,6 +114,7 @@ public class RampLaneRepositionTests
     [InlineData("W6", false)]
     [InlineData("W7", false)]
     [InlineData("B1", true)]
+    [InlineData("B2", true)]
     public void IsRampTaxilane_Oak(string name, bool expected)
     {
         AirportGroundLayout? layout = OakLayout();
@@ -498,7 +499,9 @@ public class RampLaneRepositionTests
     /// Two parallel north–south lanes 150 ft apart (M3 at lon 0, M9 at lon +150 ft) that meet only at taxiway K
     /// across their southern ends, with stand H 250 ft east of M9 and abreast of the lanes' northern ends (the same
     /// 250 ft lead-out the sibling layout uses, long enough that its fillet stays clear of the gate). The lanes run
-    /// 50 ft past K so the connector crosses them rather than touching their endpoints.
+    /// 50 ft past K so the connector crosses them rather than touching their endpoints. Stand G sits 250 ft due north
+    /// of M3's northern end so a gate hangs off M3 too, which makes it a ramp taxilane; its lead-in continues M3's line,
+    /// so it adds no turn and leaves both the route start and the measured ratio as they were.
     /// </summary>
     private static string MiniLoopRampGeoJson(double laneLengthFt)
     {
@@ -516,6 +519,8 @@ public class RampLaneRepositionTests
                 """;
         return $$"""
             { "type": "FeatureCollection", "features": [
+              { "type": "Feature", "properties": { "type": "parking", "name": "G", "heading": 360 },
+                "geometry": { "type": "Point", "coordinates": [{{Lon(0)}}, {{Lat(250)}}] } },
               { "type": "Feature", "properties": { "type": "parking", "name": "H", "heading": 90 },
                 "geometry": { "type": "Point", "coordinates": [{{Lon(400)}}, {{Lat(0)}}] } },
               {{Lane("M3", 0)}},

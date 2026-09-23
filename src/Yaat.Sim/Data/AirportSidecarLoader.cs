@@ -89,8 +89,38 @@ public static class AirportSidecarLoader
                 BlockedTurns = ParseBlockedTurns(file, filePath, result),
                 Adw = ParseAdw(file, filePath, result),
                 ExitDirections = ParseExitDirections(file, filePath, result),
+                MovementAreaTaxiways = ParsePavementClassNames(file.MovementAreaTaxiways, "movementAreaTaxiways", filePath, result),
+                NonMovementTaxilanes = ParsePavementClassNames(file.NonMovementTaxilanes, "nonMovementTaxilanes", filePath, result),
             }
         );
+    }
+
+    /// <summary>Trimmed, upper-cased, de-duplicated names from one pavement-class list; a blank name is warned and skipped.</summary>
+    private static List<string> ParsePavementClassNames(
+        List<PavementClassEntry> entries,
+        string section,
+        string filePath,
+        AirportSidecarLoadResult result
+    )
+    {
+        var names = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i < entries.Count; i++)
+        {
+            if (string.IsNullOrWhiteSpace(entries[i].Name))
+            {
+                result.Warnings.Add($"{filePath}: {section}[{i}] missing name, skipping");
+                continue;
+            }
+
+            string name = entries[i].Name.Trim().ToUpperInvariant();
+            if (seen.Add(name))
+            {
+                names.Add(name);
+            }
+        }
+
+        return names;
     }
 
     private static List<ExitDirectionOverride> ParseExitDirections(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)

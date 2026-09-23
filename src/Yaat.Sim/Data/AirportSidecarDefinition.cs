@@ -21,6 +21,23 @@ public sealed class AvoidTaxiwayEntry
 }
 
 /// <summary>
+/// One taxiway whose movement-area status an ARTCC pins at a given airport, as an entry of the unified per-airport
+/// sidecar's <c>movementAreaTaxiways</c> or <c>nonMovementTaxilanes</c> list (<see cref="AirportSidecarFile"/>). The
+/// layout carries no movement-area boundary, so the status is otherwise inferred
+/// (<see cref="Yaat.Sim.Data.Airport.MovementAreaClassification"/>); an entry overrides that inference.
+/// </summary>
+public sealed class PavementClassEntry
+{
+    /// <summary>Taxiway name, e.g. <c>"B1"</c>. Matched case-insensitively against edge taxiway names.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    /// <summary>Optional human-readable rationale (airport diagram, SOP reference). Informational only.</summary>
+    [JsonPropertyName("notes")]
+    public string? Notes { get; set; }
+}
+
+/// <summary>
 /// One implicitly-allowed named connector taxiway. A connector taxiway (e.g. <c>"LF"</c>) is normally
 /// a letter-only taxiway that the controller must name explicitly. This entry authorizes it implicitly,
 /// but only contextually — when the controller's cleared sequence places the two <see cref="Between"/>
@@ -144,6 +161,12 @@ internal sealed class AirportSidecarFile
 
     [JsonPropertyName("exitDirections")]
     public List<ExitDirectionEntry> ExitDirections { get; set; } = [];
+
+    [JsonPropertyName("movementAreaTaxiways")]
+    public List<PavementClassEntry> MovementAreaTaxiways { get; set; } = [];
+
+    [JsonPropertyName("nonMovementTaxilanes")]
+    public List<PavementClassEntry> NonMovementTaxilanes { get; set; } = [];
 }
 
 /// <summary>
@@ -159,4 +182,10 @@ public sealed record AirportSidecar(string AirportId)
     public IReadOnlyList<BlockedTurn> BlockedTurns { get; init; } = [];
     public IReadOnlyList<AdwWindow> Adw { get; init; } = [];
     public IReadOnlyList<ExitDirectionOverride> ExitDirections { get; init; } = [];
+
+    /// <summary>Upper-cased taxiway names forced to movement area, overriding the inferred classification.</summary>
+    public IReadOnlyList<string> MovementAreaTaxiways { get; init; } = [];
+
+    /// <summary>Upper-cased taxiway names forced to non-movement ramp taxilanes, overriding the inferred classification.</summary>
+    public IReadOnlyList<string> NonMovementTaxilanes { get; init; } = [];
 }

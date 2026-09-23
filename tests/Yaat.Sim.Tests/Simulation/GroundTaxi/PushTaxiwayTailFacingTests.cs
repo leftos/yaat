@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Xunit;
 using Yaat.Sim.Commands;
@@ -26,7 +27,6 @@ public partial class PushTaxiwayTailFacingTests
     [Theory]
     [InlineData("PUSH Y TAIL S", 0.0)]
     [InlineData("PUSH Y FACE N", 0.0)]
-    [InlineData("PUSH Y FACE S", 180.0)]
     public void PushOntoY_FromC8_FacesTheWayTheHintSays(string command, double hintMagneticDeg)
     {
         AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
@@ -35,6 +35,49 @@ public partial class PushTaxiwayTailFacingTests
             return;
         }
 
+        CommandResult result = PushFromC8(layout, command);
+
+        Assert.True(result.Success, $"{command} failed: {result.Message}");
+        Match match = FaceHeading().Match(result.Message ?? "");
+        Assert.True(match.Success, $"no facing in the readback: {result.Message}");
+        double facingTrue = double.Parse(match.Groups[1].Value);
+        double hintTrue = MagneticDeclination.MagneticToTrue(hintMagneticDeg, layout.FindParkingByName("C8")!.Position);
+        double offDeg = GeoMath.AbsBearingDifference(facingTrue, hintTrue);
+        Assert.True(offDeg < 90.0, $"{command} faces {facingTrue:000}, {offDeg:F0}° from the hint ({hintTrue:F0} true)");
+    }
+
+    /// <summary>
+    /// <c>PUSH Y FACE S</c> off C8 has to turn the nose from 339° to south onto Y's line past its north end. LayoutInspector
+    /// probe (<c>--airport SFO --distance 962 481</c>): "Distance #962 → #481: 249.3 ft (0.0410 nm) straight-line, bearing
+    /// 192.2°" — gate C8 (#962, hdg 339) to Y's north end at Y/BC (#481). The best line capture swings the B739's centre
+    /// past Y's centreline by more than half its 117 ft span, so the push is refused for overshooting Y.
+    /// </summary>
+    [Fact]
+    public void PushOntoY_FromC8_FaceSouth_RefusedForOvershootingY()
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
+        if (layout is null)
+        {
+            return;
+        }
+
+        CommandResult result = PushFromC8(layout, "PUSH Y FACE S");
+
+        Assert.False(result.Success, $"PUSH Y FACE S off C8 was accepted: {result.Message}");
+        const string Prefix = "Unable, the move to taxiway Y would take the aircraft ";
+        string message = result.Message ?? "";
+        Assert.StartsWith(Prefix, message, StringComparison.Ordinal);
+        Assert.EndsWith(" ft past taxiway Y", message, StringComparison.Ordinal);
+        double overshootFt = double.Parse(
+            message[Prefix.Length..message.IndexOf(" ft past", StringComparison.Ordinal)],
+            CultureInfo.InvariantCulture
+        );
+        double halfSpanFt = TugPathCheck.MaxTaxiwayOvershootFt("B739");
+        Assert.True(overshootFt > halfSpanFt, $"the premise: the {overshootFt} ft overshoot is over the B739's {halfSpanFt:F1} ft half-span");
+    }
+
+    private static CommandResult PushFromC8(AirportGroundLayout layout, string command)
+    {
         GroundNode c8 = layout.FindParkingByName("C8") ?? throw new InvalidOperationException("SFO gate C8 missing");
         var ac = new AircraftState
         {
@@ -57,15 +100,6 @@ public partial class PushTaxiwayTailFacingTests
         Assert.True(parsed.IsSuccess, parsed.Reason);
         var compound = new CompoundCommand([new ParsedBlock(null, [parsed.Value!])]);
         DispatchContext ctx = TestDispatch.Context(new Random(42), validateDctFixes: false, groundLayout: layout);
-
-        CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, ctx);
-
-        Assert.True(result.Success, $"{command} failed: {result.Message}");
-        Match match = FaceHeading().Match(result.Message ?? "");
-        Assert.True(match.Success, $"no facing in the readback: {result.Message}");
-        double facingTrue = double.Parse(match.Groups[1].Value);
-        double hintTrue = MagneticDeclination.MagneticToTrue(hintMagneticDeg, ac.Position);
-        double offDeg = GeoMath.AbsBearingDifference(facingTrue, hintTrue);
-        Assert.True(offDeg < 90.0, $"{command} faces {facingTrue:000}, {offDeg:F0}° from the hint ({hintTrue:F0} true)");
+        return CommandDispatcher.DispatchCompound(compound, ac, ctx);
     }
 }

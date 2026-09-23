@@ -515,11 +515,12 @@ public class TugMovePlannerTests
     }
 
     /// <summary>
-    /// A bare <c>PUSH B</c> off B12: the push crosses taxiway Y, which is exempt as the taxiway behind the stand, and
-    /// then taxiway A, which the push was not sent to and is not behind the stand — refused.
+    /// A bare <c>PUSH B</c> off B12: the push crosses taxiways Y and A on the way. A push onto a taxiway is judged by how
+    /// far its centre goes past that taxiway, not by the taxiways it sweeps over (user decision 2026-09-23), and a
+    /// straight push stops with its centre on B — accepted.
     /// </summary>
     [Fact]
-    public void B12StraightBackToBravo_RefusedForTheSecondTaxiwayOnTheWay()
+    public void B12StraightBackToBravo_AcceptedAcrossYankeeAndAlpha_StopsOnBravo()
     {
         if (LoadSfo() is not { } layout)
         {
@@ -529,11 +530,40 @@ public class TugMovePlannerTests
         GroundNode stand = Parking(layout, "B12");
         GroundNode exit = layout.FindExitByTaxiway(stand.Position, "B") ?? throw new InvalidOperationException("no taxiway B exit near B12");
 
-        string refusal = Refusal(layout, StandStart(stand, TugGoal.StraightBackTo(exit, "B")));
+        TugPlan plan = PlanOrFail(layout, StandStart(stand, TugGoal.StraightBackTo(exit, "B")));
 
-        Assert.Matches(TaxiwayPavement, refusal);
-        Assert.DoesNotContain("taxiway Y", refusal, StringComparison.Ordinal);
+        AssertKinds(plan, PushbackLegKind.Push);
+        AssertEndsOnTaxiway(layout, plan, "B");
     }
+
+    /// <summary>
+    /// SFO taxiway F reaches a runway holding position about 100 ft from its junction with AF. A B738 standing on F 30 ft
+    /// past the bar, nose toward the runway, pushed straight back onto AF crosses the bar: still refused for the holding
+    /// position, whatever the overshoot rule says about AF.
+    /// </summary>
+    [Fact]
+    public void StraightBackOntoTaxiway_AcrossARunwayHoldingPosition_Refused()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        List<GroundNode> holds = [.. layout.Nodes.Values.Where(n => (n.Type == GroundNodeType.RunwayHoldShort) && HasStraightEdge(n, "F"))];
+        List<GroundNode> junctions = [.. layout.Nodes.Values.Where(n => HasStraightEdge(n, "F") && HasStraightEdge(n, "AF"))];
+        (GroundNode hold, GroundNode junction, double apartFt) = holds
+            .SelectMany(h => junctions.Select(j => (Hold: h, Junction: j, ApartFt: FeetBetween(h.Position, j.Position))))
+            .MinBy(p => p.ApartFt);
+        _output.WriteLine($"F's holding position #{hold.Id} lies {apartFt:F0} ft from the F/AF junction #{junction.Id}");
+        double towardRunwayDeg = GeoMath.BearingTo(junction.Position, hold.Position);
+        LatLon start = GeoMath.ProjectPoint(hold.Position, new TrueHeading(towardRunwayDeg), 30.0 / GeoMath.FeetPerNm);
+
+        string refusal = Refusal(layout, OffStand(new TugPose(start, towardRunwayDeg), TugGoal.StraightBackTo(junction, "AF")));
+
+        Assert.Equal("Unable, the move to taxiway AF reaches a runway holding position", refusal);
+    }
+
+    private static bool HasStraightEdge(GroundNode node, string taxiway) => node.Edges.OfType<GroundEdge>().Any(e => e.MatchesTaxiway(taxiway));
 
     /// <summary>
     /// A bare <c>PUSH M4</c> off gate B2 with issue #172's B737: M4 runs alongside the push about 87 ft to the side, so

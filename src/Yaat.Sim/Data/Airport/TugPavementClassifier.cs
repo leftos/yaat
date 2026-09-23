@@ -1,8 +1,9 @@
 namespace Yaat.Sim.Data.Airport;
 
 /// <summary>
-/// Classifies the pavement a tug move would cross, memoizing the movement-area verdict per taxiway name —
-/// <see cref="RampLaneReposition.IsRampTaxilane"/> walks the graph, and a move tests every edge on the field.
+/// Classifies the pavement a tug move would cross. The movement-area verdict per taxiway name is the layout's
+/// <see cref="MovementAreaClassification"/>, the one the ramp-lane cut reads, so the push planner and the taxi router
+/// agree; it is computed once per layout because a move tests every edge on the field.
 /// </summary>
 internal sealed class TugPavementClassifier
 {
@@ -16,11 +17,12 @@ internal sealed class TugPavementClassifier
     internal const double MovementAreaEndWindowFt = 25.0;
 
     private readonly AirportGroundLayout _layout;
-    private readonly Dictionary<string, bool> _movementAreaByName = new(StringComparer.OrdinalIgnoreCase);
+    private readonly MovementAreaClassification _movementArea;
 
     internal TugPavementClassifier(AirportGroundLayout layout)
     {
         _layout = layout;
+        _movementArea = MovementAreaClassification.For(layout);
     }
 
     /// <summary>The name of the runway the leg crosses, or null when it crosses none.</summary>
@@ -120,15 +122,5 @@ internal sealed class TugPavementClassifier
         return movementArea;
     }
 
-    private bool IsMovementArea(string name)
-    {
-        if (_movementAreaByName.TryGetValue(name, out bool cached))
-        {
-            return cached;
-        }
-
-        bool movementArea = !name.Equals("RAMP", StringComparison.OrdinalIgnoreCase) && !RampLaneReposition.IsRampTaxilane(_layout, name);
-        _movementAreaByName[name] = movementArea;
-        return movementArea;
-    }
+    private bool IsMovementArea(string name) => _movementArea.IsMovementArea(name);
 }

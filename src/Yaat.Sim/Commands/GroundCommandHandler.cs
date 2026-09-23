@@ -2184,7 +2184,7 @@ public static class GroundCommandHandler
 
         // The readback echoes the facing the aircraft will end on, which is the taxiway's own direction (true).
         int? echoedHeading = push.MagneticHeading is null ? null : FlightPhysics.BearingToDisplayInt(facingTrueDeg);
-        TugGoal goal = TugGoal.TaxiwayLine(exitNode, taxiway, facingTrueDeg) with { FacingTaxiwayName = push.FacingTaxiway };
+        var goal = TugGoal.TaxiwayLine(exitNode, taxiway, facingTrueDeg);
         return PushResolution.Of(new PushTarget(goal, null, TugTerminus.Holding, PushMessage(push, echoedHeading)));
     }
 

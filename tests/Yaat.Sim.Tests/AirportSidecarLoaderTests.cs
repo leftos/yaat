@@ -152,6 +152,43 @@ public class AirportSidecarLoaderTests
         }
     }
 
+    /// <summary>
+    /// The <c>movementAreaTaxiways</c> / <c>nonMovementTaxilanes</c> lists load trimmed, upper-cased and de-duplicated,
+    /// and a blank name is warned and skipped.
+    /// </summary>
+    [Fact]
+    public void LoadAll_PavementClassLists_TrimUpperCaseDedupeAndWarnOnBlank()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "sidecar-" + Guid.NewGuid());
+        string categoryDir = Path.Combine(tempDir, "ZTEST", "Airports");
+        Directory.CreateDirectory(categoryDir);
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(categoryDir, "sfo.json"),
+                """
+                {
+                  "airportId": "KSFO",
+                  "movementAreaTaxiways": [ { "name": " b1 " }, { "name": "B1" }, { "name": "t5a", "notes": "diagram" } ],
+                  "nonMovementTaxilanes": [ { "name": "m4" }, { "name": "  " } ]
+                }
+                """
+            );
+
+            AirportSidecarLoadResult result = AirportSidecarLoader.LoadAll(tempDir);
+
+            AirportSidecar airport = Assert.Single(result.Airports);
+            Assert.Equal(["B1", "T5A"], airport.MovementAreaTaxiways);
+            Assert.Equal(["M4"], airport.NonMovementTaxilanes);
+            string warning = Assert.Single(result.Warnings);
+            Assert.Contains("nonMovementTaxilanes[1] missing name", warning, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
     [Fact]
     public void LoadAll_SkipsRouteWithConflictingDestinations_WithWarning()
     {

@@ -23,6 +23,8 @@ public sealed class AirportSidecarCatalog
     private readonly Dictionary<string, List<BlockedTurn>> _blockedTurnsByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<AdwWindow>> _adwByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Dictionary<string, ExitSide>> _exitDirectionsByAirport = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, HashSet<string>> _movementAreaByAirport = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, HashSet<string>> _nonMovementByAirport = new(StringComparer.OrdinalIgnoreCase);
 
     public AirportSidecarCatalog(IEnumerable<AirportSidecar> airports)
     {
@@ -41,7 +43,48 @@ public sealed class AirportSidecarCatalog
             MergeBlockedTurns(key, airport.BlockedTurns);
             MergeAdw(key, airport.Adw);
             MergeExitDirections(key, airport.ExitDirections);
+            MergeNames(_movementAreaByAirport, key, airport.MovementAreaTaxiways);
+            MergeNames(_nonMovementByAirport, key, airport.NonMovementTaxilanes);
         }
+    }
+
+    private static void MergeNames(Dictionary<string, HashSet<string>> byAirport, string key, IReadOnlyList<string> names)
+    {
+        if (names.Count == 0)
+        {
+            return;
+        }
+
+        if (!byAirport.TryGetValue(key, out HashSet<string>? set))
+        {
+            set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            byAirport[key] = set;
+        }
+
+        set.UnionWith(names);
+    }
+
+    /// <summary>
+    /// Taxiway names the airport's sidecar forces to movement area. Never null — returns an empty set when the
+    /// airport lists none. Read by <see cref="Yaat.Sim.Data.Airport.MovementAreaClassification"/>, where it wins over
+    /// <see cref="GetNonMovementTaxilanes"/> for a name both list.
+    /// </summary>
+    public IReadOnlySet<string> GetMovementAreaTaxiways(string airportId) => NamesFor(_movementAreaByAirport, airportId);
+
+    /// <summary>
+    /// Taxiway names the airport's sidecar forces to non-movement ramp taxilanes. Never null — returns an empty set
+    /// when the airport lists none. Read by <see cref="Yaat.Sim.Data.Airport.MovementAreaClassification"/>.
+    /// </summary>
+    public IReadOnlySet<string> GetNonMovementTaxilanes(string airportId) => NamesFor(_nonMovementByAirport, airportId);
+
+    private static IReadOnlySet<string> NamesFor(Dictionary<string, HashSet<string>> byAirport, string airportId)
+    {
+        if (string.IsNullOrWhiteSpace(airportId))
+        {
+            return EmptyTaxiwaySet;
+        }
+
+        return byAirport.TryGetValue(NavigationDatabase.NormalizeAirport(airportId), out HashSet<string>? set) ? set : EmptyTaxiwaySet;
     }
 
     private void MergeExitDirections(string key, IReadOnlyList<ExitDirectionOverride> overrides)
