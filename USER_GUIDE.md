@@ -358,6 +358,7 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
 - **Rotate**: Shift + mouse wheel (1° per notch)
 - **Select aircraft**: click an aircraft triangle on the map
 - **Measure distance**: hold **Alt** and drag between two points or aircraft — see [Measuring distance and bearing](#measuring-distance-and-bearing)
+- **Node id**: hold **Ctrl** and move the pointer. The nearest ground node within about 40 px gets a ring and a label such as `#123 · Parking A7`. The `#123` part is the id that `PUSH #123` and `PUSHM` take
 
 **Tug.** While an aircraft is being pushed or towed, a small tractor is drawn on its towbar ahead of the nose. It swings with the nose-gear steering the way a real tug does — out to the aircraft's left as a push turns the nose right, straight during a reversal pause — so you can read which way a push is going before the aircraft itself has visibly turned. It disappears when the tug lets go, and is not drawn when the view is zoomed out too far to show it.
 

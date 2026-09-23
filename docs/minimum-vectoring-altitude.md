@@ -71,7 +71,9 @@ All client-side, reading `MvaDatabase.Default` + the aircraft snapshot — no se
   the empty-map menu showing the floor + sector at the clicked geo point.
 - **Ctrl+hover tooltip** (`RadarCanvas` → `RadarRenderer.DrawMvaHoverLabel`): holding Ctrl while moving
   the cursor draws a label with the MVA floor + sector under the cursor. Threaded through the render
-  snapshot (`MvaHover`) like `HoveredFixName`.
+  snapshot (`MvaHover`) like `HoveredFixName`. `OnKeyDown`/`OnKeyUp` also track Ctrl, so pressing or
+  releasing it shows or clears the label without moving the pointer. The Ground View's Ctrl node label
+  (`docs/ground-rendering.md`) works the same way.
 
 ## Not yet wired: automated evaluation
 

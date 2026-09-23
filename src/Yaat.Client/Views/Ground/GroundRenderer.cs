@@ -499,6 +499,18 @@ public sealed class GroundRenderer : IDisposable
         IsAntialias = true,
     };
 
+    private readonly SKPaint _ctrlNodeRingPaint = new()
+    {
+        Color = new SKColor(0, 255, 255),
+        StrokeWidth = 2,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+    };
+
+    private readonly SKPaint _ctrlNodeLabelBgPaint = new() { Color = new SKColor(0, 0, 0, 200), IsAntialias = true };
+
+    private readonly SKPaint _ctrlNodeLabelTextPaint = new() { Color = SKColors.White, IsAntialias = true };
+
     private readonly SKPaint _bgPaint = new() { Color = SKColor.Parse(GroundColorScheme.DefaultBackground), Style = SKPaintStyle.Fill };
 
     private readonly SKPaint _debugLabelPaint = new() { Color = new SKColor(255, 100, 255, 200), IsAntialias = true };
@@ -637,7 +649,8 @@ public sealed class GroundRenderer : IDisposable
         int videoMapOverlayBrightness,
         bool showYaatLayout,
         int yaatLayoutBrightness,
-        bool showAdwMarkings
+        bool showAdwMarkings,
+        (string Label, SKPoint NodePos)? ctrlNodeHover
     )
     {
         canvas.Clear(_backgroundColor);
@@ -728,6 +741,38 @@ public sealed class GroundRenderer : IDisposable
             // The missing-METAR note sits exactly where the readout would have been.
             DrawWeatherLines(canvas, [weatherNote]);
         }
+
+        if (ctrlNodeHover is { } hover)
+        {
+            DrawCtrlNodeHover(canvas, hover.Label, hover.NodePos, vp.PixelWidth);
+        }
+    }
+
+    /// <summary>
+    /// The Ctrl+hover node marker: a ring at the node and its label on a dark rounded background to the right, or to the left
+    /// when the label would run past the right edge of the view (<paramref name="viewWidth"/>, in the same pixels as the node).
+    /// </summary>
+    private void DrawCtrlNodeHover(SKCanvas canvas, string label, SKPoint nodePos, float viewWidth)
+    {
+        const float ringRadius = 6f;
+        const float padX = 5f;
+        const float padY = 3f;
+        const float gap = 12f;
+
+        canvas.DrawCircle(nodePos.X, nodePos.Y, ringRadius, _ctrlNodeRingPaint);
+
+        float textSize = _nodeLabelFont.Size;
+        float width = _nodeLabelFont.MeasureText(label);
+        float x = nodePos.X + gap;
+        if (x + width + padX > viewWidth)
+        {
+            x = nodePos.X - gap - width;
+        }
+
+        float baseline = nodePos.Y + (textSize / 2f) - 1f;
+        var background = new SKRect(x - padX, baseline - textSize - padY, x + width + padX, baseline + padY);
+        canvas.DrawRoundRect(background, 3, 3, _ctrlNodeLabelBgPaint);
+        canvas.DrawText(label, x, baseline, SKTextAlign.Left, _nodeLabelFont, _ctrlNodeLabelTextPaint);
     }
 
     private static void DrawBackgroundImage(SKCanvas canvas, MapViewport vp, TowerCabImage image, int brightness)
@@ -2711,6 +2756,9 @@ public sealed class GroundRenderer : IDisposable
         _aircraftPaint.Dispose();
         _shadowAircraftPaint.Dispose();
         _hoverPaint.Dispose();
+        _ctrlNodeRingPaint.Dispose();
+        _ctrlNodeLabelBgPaint.Dispose();
+        _ctrlNodeLabelTextPaint.Dispose();
         _dataBlockLeaderPaint.Dispose();
         _dataBlockTextPaint.Dispose();
         _dataBlockTextFont.Dispose();

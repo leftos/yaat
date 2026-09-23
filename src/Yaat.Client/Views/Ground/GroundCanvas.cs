@@ -298,8 +298,14 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     // release can tell a drag from a click.
     private RblEndpoint? _measureDragAnchor;
     private Point _measureDragStart;
-    private Point _measurePointerPos;
     private const double MeasureDragThresholdSq = 25.0;
+
+    /// <summary>The last pointer position over the canvas, updated on every move.</summary>
+    private Point _pointerPos;
+
+    // Ctrl+hover marks and labels the nearest ground node within this radius of the cursor.
+    private bool _ctrlHeldAtPointer;
+    private const float CtrlHoverNodeRadiusPx = 40f;
 
     // Right-button click-vs-drag tracking. A right press starts a pan immediately and only opens a
     // context menu on release if the pointer never moved past the threshold, so both gestures share
@@ -764,7 +770,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         int YaatLayoutBrightness,
         bool ShowAdwMarkings,
         IReadOnlyList<ResolvedRbl>? RangeBearingLines,
-        ResolvedRbl? PendingRangeBearingLine
+        ResolvedRbl? PendingRangeBearingLine,
+        (string Label, SKPoint NodePos)? CtrlNodeHover
     );
 
     protected override object? CreateRenderSnapshot()
@@ -813,7 +820,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
             if (measureAnchor is not null)
             {
-                (double Lat, double Lon) cursor = Viewport.ScreenToLatLon((float)_measurePointerPos.X, (float)_measurePointerPos.Y);
+                (double Lat, double Lon) cursor = Viewport.ScreenToLatLon((float)_pointerPos.X, (float)_pointerPos.Y);
                 pendingMeasurement = RangeBearingLineResolver.ResolvePending(
                     measureAnchor,
                     new LatLon(cursor.Lat, cursor.Lon),
@@ -822,6 +829,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
                 );
             }
         }
+
+        (string Label, SKPoint NodePos)? ctrlNodeHover = ResolveCtrlNodeHover();
 
         return new RenderSnapshot(
             Layout,
@@ -859,7 +868,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             YaatLayoutBrightness,
             ShowAdwMarkings,
             measurements,
-            pendingMeasurement
+            pendingMeasurement,
+            ctrlNodeHover
         );
     }
 
@@ -905,7 +915,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             s.VideoMapOverlayBrightness,
             s.ShowYaatLayout,
             s.YaatLayoutBrightness,
-            s.ShowAdwMarkings
+            s.ShowAdwMarkings,
+            s.CtrlNodeHover
         );
 
         // Drawn last so a measurement stays readable over aircraft symbols, datablocks, and the surface.
@@ -1011,7 +1022,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
         base.OnPointerMoved(e);
         Point hoverPos = e.GetPosition(this);
-        _measurePointerPos = hoverPos;
+        _pointerPos = hoverPos;
         UpdateHoveredNode(hoverPos);
         UpdateHoveredAircraft(hoverPos);
 
@@ -1023,6 +1034,52 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         {
             MarkDirty();
         }
+
+        // Ctrl+hover marks the nearest node. Repaint while held (so the marker follows the cursor)
+        // and on the frame Ctrl is released (so the marker clears).
+        bool ctrlHeld = (e.KeyModifiers & KeyModifiers.Control) != 0;
+        if (ctrlHeld || _ctrlHeldAtPointer)
+        {
+            MarkDirty();
+        }
+        _ctrlHeldAtPointer = ctrlHeld;
+    }
+
+    // Pressing or releasing Ctrl without moving the pointer shows or clears the node marker at once.
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (e.Key is Key.LeftCtrl or Key.RightCtrl)
+        {
+            SetCtrlHeldAtPointer(true);
+        }
+    }
+
+    protected override void OnKeyUp(KeyEventArgs e)
+    {
+        base.OnKeyUp(e);
+        if (e.Key is Key.LeftCtrl or Key.RightCtrl)
+        {
+            SetCtrlHeldAtPointer(false);
+        }
+    }
+
+    // Key events go to the focused element, so a Ctrl release after focus moves away never arrives here.
+    protected override void OnLostFocus(FocusChangedEventArgs e)
+    {
+        base.OnLostFocus(e);
+        SetCtrlHeldAtPointer(false);
+    }
+
+    private void SetCtrlHeldAtPointer(bool held)
+    {
+        if (held == _ctrlHeldAtPointer)
+        {
+            return;
+        }
+
+        _ctrlHeldAtPointer = held;
+        MarkDirty();
     }
 
     /// <summary>
@@ -1408,6 +1465,38 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
     /// <summary>The ground node closest to <paramref name="screenPos"/> regardless of distance, or null if no layout is loaded.</summary>
     public GroundNodeDto? FindNearestNode(Point screenPos) => FindNearestNode(screenPos, out _);
+
+    /// <summary>
+    /// The ground node of any type closest to <paramref name="screenPos"/> within <see cref="CtrlHoverNodeRadiusPx"/>,
+    /// or null when none is that close or no layout is loaded. Backs the Ctrl+hover node marker.
+    /// </summary>
+    public GroundNodeDto? FindCtrlHoverNode(Point screenPos)
+    {
+        GroundNodeDto? nearest = FindNearestNode(screenPos, out float dist);
+        return dist <= CtrlHoverNodeRadiusPx ? nearest : null;
+    }
+
+    /// <summary>
+    /// The Ctrl+hover node marker the next frame draws, as its label and the node's screen position; null when Ctrl is not
+    /// held over the canvas, the YAAT layout is hidden, or no node is within <see cref="CtrlHoverNodeRadiusPx"/> of the pointer.
+    /// </summary>
+    public (string Label, SKPoint NodePos)? ResolveCtrlNodeHover()
+    {
+        if (!_ctrlHeldAtPointer || !IsPointerOver || !ShowYaatLayout || FindCtrlHoverNode(_pointerPos) is not { } node)
+        {
+            return null;
+        }
+
+        (float nx, float ny) = Viewport.LatLonToScreen(node.Latitude, node.Longitude);
+        return (FormatCtrlNodeLabel(node), new SKPoint(nx, ny));
+    }
+
+    /// <summary>
+    /// The Ctrl+hover label for <paramref name="node"/>: <c>#&lt;id&gt; · &lt;Type&gt;</c>, plus <c> &lt;Name&gt;</c> when the node
+    /// is named. The leading <c>#&lt;id&gt;</c> is the node-reference token a TAXI clearance accepts.
+    /// </summary>
+    public static string FormatCtrlNodeLabel(GroundNodeDto node) =>
+        string.IsNullOrEmpty(node.Name) ? $"#{node.Id} · {node.Type}" : $"#{node.Id} · {node.Type} {node.Name}";
 
     private GroundNodeDto? FindNearestNode(Point screenPos, out float distance)
     {

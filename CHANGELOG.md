@@ -9,9 +9,11 @@
 - Departures removed that way appear in the debrief as "Departed".
 - The terminal's filter box has a ✕ button that clears it.
 - `PUSH #<node>` pushes to any ground node by its id, as `PUSHM` already could.
+- Holding Ctrl in the Ground View labels the nearest ground node with its `#id`, type and name.
 
 ### Changed
 - Right-clicking an airborne live-traffic aircraft offers the full command menu; picking a command assumes the aircraft first, as typing one does.
+- The radar's Ctrl MVA tooltip appears and clears as Ctrl is pressed or released, without moving the pointer.
 - `NODEL` also keeps a departure from being deleted by the departure distance setting.
 - Aircraft types missing from the aircraft database are sized by wake category for ground spacing, runway-exit stopping points and same-runway arrival spacing.
 - The terminal's filter box is wide enough to show a full airline callsign.

@@ -2033,6 +2033,12 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
+        // Pressing Ctrl without moving the pointer shows the MVA tooltip at once. Not handled: Ctrl is a modifier.
+        if (e.Key is Key.LeftCtrl or Key.RightCtrl)
+        {
+            SetCtrlHeldAtPointer(true);
+        }
+
         if (_renderer.HeadingPreview is not null && e.Key == Key.Escape)
         {
             ExitHeadingMode();
@@ -2087,6 +2093,33 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
 
         base.OnKeyDown(e);
+    }
+
+    protected override void OnKeyUp(KeyEventArgs e)
+    {
+        base.OnKeyUp(e);
+        if (e.Key is Key.LeftCtrl or Key.RightCtrl)
+        {
+            SetCtrlHeldAtPointer(false);
+        }
+    }
+
+    // Key events go to the focused element, so a Ctrl release after focus moves away never arrives here.
+    protected override void OnLostFocus(FocusChangedEventArgs e)
+    {
+        base.OnLostFocus(e);
+        SetCtrlHeldAtPointer(false);
+    }
+
+    private void SetCtrlHeldAtPointer(bool held)
+    {
+        if (held == _ctrlHeldAtPointer)
+        {
+            return;
+        }
+
+        _ctrlHeldAtPointer = held;
+        MarkDirty();
     }
 
     private void SyncCenterFromViewport()
