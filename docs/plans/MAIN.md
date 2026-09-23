@@ -8,7 +8,7 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 ## Bug reports and feature requests
 
-- [ ] **SFO GC 28/01 bundle: 9 reports left** (#454–#462): taxi-routing cluster (#454 reproduced, cause not yet found), ground-motion and push geometry, two features. Take the waves in order: [sfo-gc-28-01-bundle.md](./sfo-gc-28-01-bundle.md)
+- [ ] **SFO GC 28/01 bundle: 6 reports left** (#454, #455, #457, #459, #461, #462): taxi-routing cluster (#454 reproduced, cause not yet found), ground-motion and push geometry, two features. Take the waves in order: [sfo-gc-28-01-bundle.md](./sfo-gc-28-01-bundle.md)
 - [ ] Live-session snapshot-as-scenario authoring (ZOA Discord 2026-08-31; user 2026-09-22: a server-side export of every aircraft — shadows and simulated — to a scenario JSON the client saves through a file dialog) — yaat-server [live-traffic-swim/09-live-sessions.md](../../../yaat-server/docs/plans/live-traffic-swim/09-live-sessions.md) §3
 
 ## Current programme
