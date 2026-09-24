@@ -92,6 +92,10 @@ The reconstruction runs under `room.IsBroadcastSuppressed = true` for the whole 
 
 `CrcClientState.HandleSubscribe` calls `BuildInitialData(topic, _roomEngine)` so newly-subscribed clients see the current snapshot of that topic, not just future deltas. **If you forget to extend the initial-data builder when adding a field, mid-session subscribers won't see it until the next change.** This is the biggest footgun — see "Adding fields" below.
 
+The build reads room state the tick thread writes, so it always runs under the room gate: a bound client's `Subscribe` arrives through `HandleInvocation`, which dispatches every invocation inside `room.GuardAsync`, and a lobby client's replay when it binds (`TryBindToRoom` → `SendInitialDataForSubscriptionsAsync`) takes the gate once per topic around the surface temp-data seed and the build, then sends outside it. The gate is not re-entrant, so `TryBindToRoom` must never be called from inside `GuardAsync`, and `HandleSubscribe` must never take it. A client unbound or rebound while its replay waits for the gate replays nothing more (pins: `CrcBindTickGateTests`).
+
+A track's surface visibility sets (`AircraftCrcState.VisibleAsdexAirports` / `VisibleSaidAirports`) are immutable and replaced by reference on every `Evaluate*` write, so a disconnect raised off the tick thread (`BroadcastDisconnectAsync` via `GetVisibleSurfaceFacilities`) reads a whole set, never one mid-update — the same pattern as the ASDE-X alert set.
+
 ## DTO mapping — `DtoConverter.cs`
 
 Pure transformations from internal state to wire DTOs:

@@ -34,6 +34,7 @@
 - `JAPP` and `CVA` restate a standing in-trail speed reduction with the clearance, as `CAPP` and `PTAC` already do.
 
 ### Fixed
+- A CRC client joining a running session no longer risks a server error from reading state the simulation is updating.
 - Loading a recording clears the previous run's flight strips and PDCs from every client's screen.
 - A rewind no longer brings back a deleted live-traffic aircraft.
 - A CRC position picked while a recording plays back is kept after a later rewind.
