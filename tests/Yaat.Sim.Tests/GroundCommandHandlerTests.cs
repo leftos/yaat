@@ -406,7 +406,7 @@ public class GroundCommandHandlerTests
             return;
         }
 
-        var cmd = new PushbackCommand(null, null, null, PushDestination.AtNode(99999999));
+        var cmd = new PushbackCommand(null, null, null, PushDestination.AtNode(99999999, null));
 
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
 
@@ -495,7 +495,7 @@ public class GroundCommandHandlerTests
             faceHeading is { } heading ? new MagneticHeading(heading) : null,
             null,
             facingTaxiway,
-            PushDestination.AtParking("B13")
+            PushDestination.AtParking("B13", null)
         );
 
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);

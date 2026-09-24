@@ -247,6 +247,125 @@ public class PushPerFormReadbackTests(ITestOutputHelper output)
         Assert.Equal("Push to spot 6B via spot 6A, face east", moved.Readback);
     }
 
+    /// <summary>
+    /// The forced-leg and marked-point forms, read back from the command in both of the pilot's forms (terminal text and
+    /// spoken): the verb names a forced motion, a <c>PUSHM</c> with any suffix or marked point reads leg by leg, a
+    /// marked point is never read by its coordinates.
+    /// </summary>
+    [Theory]
+    [InlineData("PUSH $7A/PULL", "pull forward to spot 7A", "pull forward to spot seven alpha")]
+    [InlineData("PUSH $7A/PUSH", "push back to spot 7A", "push back to spot seven alpha")]
+    [InlineData("PUSH $7A/PULL FACE E", "pull forward to spot 7A, face east", "pull forward to spot seven alpha, face east")]
+    [InlineData(
+        "PUSHM @F8 $7A/PULL FACE E",
+        "push to gate F8, then pull forward to spot 7A, face east",
+        "push to gate foxtrot eight, then pull forward to spot seven alpha, face east"
+    )]
+    [InlineData("PUSHM $6A $6B", "push to spot 6B via spot 6A", "push to spot six bravo via spot six alpha")]
+    [InlineData("PUSH ~37.61523/-122.38604/045", "push to the marked point, face northeast", "push to the marked point, face northeast")]
+    [InlineData(
+        "PUSH ~37.61523/-122.38604/045/PULL",
+        "pull forward to the marked point, face northeast",
+        "pull forward to the marked point, face northeast"
+    )]
+    [InlineData("PUSH ~37.61523/-122.38604", "push to the marked point, hold", "push to the marked point, hold")]
+    [InlineData(
+        "PUSHM ~37.61523/-122.38604/360 ~37.6155/-122.3862 FACE E",
+        "push to marked point 1, face north, then push to marked point 2, face east",
+        "push to marked point one, face north, then push to marked point two, face east"
+    )]
+    public void ForcedAndMarkedForms_ReadBackFromTheCommand(string command, string terminal, string spoken)
+    {
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(command);
+        Assert.True(parsed.IsSuccess, parsed.Reason);
+        PushWords words = parsed.Value switch
+        {
+            PushbackCommand push => PushReadbackPhrases.FromCommand(push),
+            PushbackMultiCommand move => PushReadbackPhrases.FromCommand(move),
+            _ => throw new InvalidOperationException($"'{command}' is not a push"),
+        };
+        output.WriteLine($"{command} → \"{words.Terminal}\" / \"{words.Tts}\"");
+
+        Assert.Equal(terminal, words.Terminal);
+        Assert.Equal(spoken, words.Tts);
+    }
+
+    /// <summary>F8 → 7A forced <c>/PULL</c> through the handler: the RPO's readback and the pilot's say "pull forward".</summary>
+    [Fact]
+    public void PushToSpotForcedPull_ReadsPullForward_ThePilotToo()
+    {
+        if (Push("F8", Narrowbody, "PUSH $7A/PULL") is not { } pushed)
+        {
+            return;
+        }
+
+        Assert.StartsWith("Pull forward to spot 7A", pushed.Readback);
+        Assert.Equal("pull forward to spot 7A", pushed.Spoken.Terminal);
+        Assert.StartsWith("pull forward to spot seven alpha, ", pushed.Spoken.Tts);
+    }
+
+    /// <summary>A marked point on taxiway A, typed off D15: the handler refuses it naming the taxiway.</summary>
+    [Fact]
+    public void PushToMarkedPointOnATaxiway_RefusedNamingTheTaxiway()
+    {
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        {
+            return;
+        }
+
+        GroundNode d15 = ground.Layout.FindParkingByName("D15") ?? throw new InvalidOperationException("SFO gate D15 missing");
+        GroundEdge alpha = ground
+            .Layout.AllEdges.OfType<GroundEdge>()
+            .Where(e =>
+                e.MatchesTaxiway("A") && !e.IsRunwayCenterline && (GeoMath.DistanceNm(e.Nodes[0].Position, d15.Position) * GeoMath.FeetPerNm < 1500.0)
+            )
+            .MaxBy(e => GeoMath.DistanceNm(e.Nodes[0].Position, e.Nodes[1].Position))!;
+        double lat = (alpha.Nodes[0].Position.Lat + alpha.Nodes[1].Position.Lat) / 2.0;
+        double lon = (alpha.Nodes[0].Position.Lon + alpha.Nodes[1].Position.Lon) / 2.0;
+        AircraftState aircraft = SfoGroundHarness.SpawnParked(ground, "UAL462", Narrowbody, "D15");
+
+        CommandResult result = ground.Engine.SendCommand(
+            aircraft.Callsign,
+            string.Create(System.Globalization.CultureInfo.InvariantCulture, $"PUSH ~{lat:F6}/{lon:F6}")
+        );
+
+        Assert.False(result.Success, result.Message);
+        Assert.Equal("Unable, the marked point is on taxiway A", result.Message);
+    }
+
+    /// <summary>
+    /// A typed <c>PUSHM @F8 ~lat/lon/facing/PULL</c> from gate F7 travels the engine's command path whole — the comma
+    /// splitter never sees a comma in it — and reaches the tug-move planner as a stand and a marked point forced to a
+    /// pull: the planner's refusal names leg 2 and the pull, which it could only do with both legs and the suffix intact.
+    /// The point is spot 7A's stop, facing 7A's nose-out heading. <c>MarkedPointPushTests</c> proves an accepted one.
+    /// </summary>
+    [Fact]
+    public void TypedPushmToAMarkedPoint_ReachesThePlannerThroughTheEngine_WhichRefusesItsForcedPull()
+    {
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        {
+            return;
+        }
+
+        GroundNode spot = ground.Layout.FindSpotNodeByName("7A") ?? throw new InvalidOperationException("SFO spot 7A missing");
+        Assert.True(ground.Layout.TryGetSpotOutboundHeading(spot, out double outbound));
+        LatLon stop = TugMovePlanner.SpotStopGeometry(spot, outbound, Narrowbody).Stop;
+        var facing = new MagneticHeading(MagneticDeclination.TrueToMagnetic(outbound, stop));
+        string command = string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"PUSHM @F8 ~{stop.Lat:F6}/{stop.Lon:F6}/{facing.ToDisplayString()}/PULL"
+        );
+        PushbackMultiCommand parsed = Assert.IsType<PushbackMultiCommand>(CommandParser.Parse(command).Value);
+        Assert.Equal(command, CommandDescriber.DescribeCommand(parsed));
+        AircraftState aircraft = SfoGroundHarness.SpawnParked(ground, "UAL462", Narrowbody, "F7");
+
+        CommandResult result = ground.Engine.SendCommand(aircraft.Callsign, command);
+        output.WriteLine($"{command} → {result.Success}: {result.Message}");
+
+        Assert.DoesNotContain("parse", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("Unable, leg 2: the marked point cannot be reached by a pull", result.Message);
+    }
+
     [Fact]
     public void BarePush_PilotSaysPushStraightBack_WithoutTheNoseNote()
     {

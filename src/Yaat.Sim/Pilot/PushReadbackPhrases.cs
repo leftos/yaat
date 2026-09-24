@@ -1,5 +1,6 @@
 using System.Globalization;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Sim.Pilot;
 
@@ -74,30 +75,88 @@ internal static class PushReadbackPhrases
     internal static PushWords OntoTaxiway(PushbackCommand push, string taxiway) =>
         PushWords.Plain("push onto ") + PushWords.Taxiway(taxiway) + Facing(push);
 
+    /// <summary>
+    /// The verb a leg is read with: <c>push to </c> when the planner chooses the motion, <c>push back to </c> on a leg forced
+    /// to <c>/PUSH</c>, <c>pull forward to </c> on one forced to <c>/PULL</c>.
+    /// </summary>
+    internal static PushWords Verb(PushbackLegKind? forced) =>
+        PushWords.Plain(
+            forced switch
+            {
+                PushbackLegKind.Push => "push back to ",
+                PushbackLegKind.Pull => "pull forward to ",
+                _ => "push to ",
+            }
+        );
+
     /// <summary><c>PUSH @B13</c>: <c>push to gate B13, park on the stand</c>, the stand named by <paramref name="stand"/>.</summary>
-    internal static PushWords ToStand(PushWords stand) => PushWords.Plain("push to ") + stand + PushWords.Plain(", park on the stand");
+    internal static PushWords ToStand(PushWords stand, PushbackLegKind? forced) => Verb(forced) + stand + PushWords.Plain(", park on the stand");
 
     /// <summary><c>PUSH #node</c> resolving to a stand: <c>push to gate B13, park</c>.</summary>
-    internal static PushWords ToStandNode(PushWords stand) => PushWords.Plain("push to ") + stand + PushWords.Plain(", park");
+    internal static PushWords ToStandNode(PushWords stand, PushbackLegKind? forced) => Verb(forced) + stand + PushWords.Plain(", park");
 
-    /// <summary><c>PUSH $7A</c> with the push's facing: <c>push to spot 7A</c>, <c>push to spot 7A, tail west</c>.</summary>
-    internal static PushWords ToSpot(PushbackCommand push, string spot) => PushWords.Plain("push to ") + PushWords.Named("spot", spot) + Facing(push);
+    /// <summary>
+    /// <c>PUSH $7A</c> with the push's facing: <c>push to spot 7A</c>, <c>push to spot 7A, tail west</c>,
+    /// <c>pull forward to spot 7A, face east</c>.
+    /// </summary>
+    internal static PushWords ToSpot(PushbackCommand push, string spot) =>
+        Verb(push.Destination?.ForcedKind) + PushWords.Named("spot", spot) + Facing(push);
 
     /// <summary><c>PUSH #1926</c> to a plain node: <c>push to node 1926, hold</c>, the push's facing before the hold.</summary>
     internal static PushWords ToNode(PushbackCommand push, int nodeId) =>
-        PushWords.Plain("push to ")
+        Verb(push.Destination?.ForcedKind)
         + PushWords.Named("node", nodeId.ToString(CultureInfo.InvariantCulture))
         + Facing(push)
         + PushWords.Plain(", hold");
 
     /// <summary>
-    /// <c>PUSHM</c>: <c>push to spot 6B via spot 6A, spot 6</c> — the last point, then every point on the way — with the
-    /// final facing appended.
+    /// <c>PUSH ~lat/lon[/facing]</c>: <c>push to the marked point, face northeast</c> with the point's facing or the push's
+    /// <c>FACE</c>/<c>TAIL</c>, else <c>push to the marked point, hold</c>. The coordinates are never read.
     /// </summary>
-    /// <param name="points">Every point in the order the tug reaches it; at least two.</param>
-    /// <param name="finalFacing">The final facing, or null.</param>
-    /// <param name="isTail">Whether the facing was named by the tail.</param>
-    internal static PushWords Multi(IReadOnlyList<PushWords> points, MagneticHeading? finalFacing, bool isTail)
+    internal static PushWords ToMarkedPoint(PushbackCommand push)
+    {
+        PushWords to = Verb(push.Destination?.ForcedKind) + MarkedPoint(null);
+        if (push.Destination?.FreePose?.Facing is { } facing)
+        {
+            return to + Orientation(facing, false);
+        }
+
+        return push.MagneticHeading is { } heading ? to + Orientation(heading, push.IsTail) : to + PushWords.Plain(", hold");
+    }
+
+    /// <summary>
+    /// A marked point by its place among a <c>PUSHM</c>'s: <c>the marked point</c> alone, <c>marked point 2</c> /
+    /// "marked point two" among several.
+    /// </summary>
+    internal static PushWords MarkedPoint(int? number) =>
+        number is { } n ? PushWords.Named("marked point", n.ToString(CultureInfo.InvariantCulture)) : PushWords.Plain("the marked point");
+
+    /// <summary>How a refusal names a marked point: <c>the marked point</c>, or <c>marked point 2</c> among several.</summary>
+    internal static string MarkedPointLabel(int? number) => MarkedPoint(number).Terminal;
+
+    /// <summary>
+    /// A <c>PUSHM</c> leg's marked-point number: its place among the command's marked points when there are two or more,
+    /// null when it is the only one.
+    /// </summary>
+    /// <param name="legs">The command's targets.</param>
+    /// <param name="index">The leg, a marked point.</param>
+    internal static int? MarkedPointNumber(IReadOnlyList<PushDestination> legs, int index) =>
+        legs.Count(l => l.FreePose is not null) > 1 ? legs.Take(index + 1).Count(l => l.FreePose is not null) : null;
+
+    /// <summary>
+    /// <c>PUSHM</c>. With no leg forced and no marked point: <c>push to spot 6B via spot 6A, spot 6</c> — the last point,
+    /// then every point on the way. Otherwise leg by leg in order, each with its verb and a marked point's own facing:
+    /// <c>push to gate F8, then pull forward to spot 7A</c>. The final facing comes last either way.
+    /// </summary>
+    /// <param name="move">The command: its legs' forced kinds, marked points and final facing.</param>
+    /// <param name="points">Every point in the order the tug reaches it, named; one per leg.</param>
+    internal static PushWords Multi(PushbackMultiCommand move, IReadOnlyList<PushWords> points)
+    {
+        PushWords words = move.Legs.Any(l => (l.ForcedKind is not null) || (l.FreePose is not null)) ? LegByLeg(move, points) : Via(points);
+        return move.FinalFacing is { } facing ? words + Orientation(facing, move.IsTail) : words;
+    }
+
+    private static PushWords Via(IReadOnlyList<PushWords> points)
     {
         PushWords words = PushWords.Plain("push to ") + points[^1] + PushWords.Plain(" via ");
         for (int i = 0; i < points.Count - 1; i++)
@@ -105,7 +164,20 @@ internal static class PushReadbackPhrases
             words += (i == 0 ? PushWords.None : PushWords.Plain(", ")) + points[i];
         }
 
-        return finalFacing is { } facing ? words + Orientation(facing, isTail) : words;
+        return words;
+    }
+
+    private static PushWords LegByLeg(PushbackMultiCommand move, IReadOnlyList<PushWords> points)
+    {
+        PushWords words = PushWords.None;
+        for (int i = 0; i < points.Count; i++)
+        {
+            PushDestination leg = move.Legs[i];
+            PushWords facing = leg.FreePose?.Facing is { } own ? Orientation(own, false) : PushWords.None;
+            words += (i == 0 ? PushWords.None : PushWords.Plain(", then ")) + Verb(leg.ForcedKind) + points[i] + facing;
+        }
+
+        return words;
     }
 
     /// <summary>A mid-push facing amendment: <c>push amended, tail west</c>.</summary>
@@ -125,7 +197,12 @@ internal static class PushReadbackPhrases
                 return ToNode(push, nodeId);
             }
 
-            return destination.Spot is { } spot ? ToSpot(push, spot) : ToStand(PushWords.Named("gate", destination.Parking!));
+            if (destination.FreePose is not null)
+            {
+                return ToMarkedPoint(push);
+            }
+
+            return destination.Spot is { } spot ? ToSpot(push, spot) : ToStand(PushWords.Named("gate", destination.Parking!), destination.ForcedKind);
         }
 
         if (push.Taxiway is { } taxiway)
@@ -136,15 +213,18 @@ internal static class PushReadbackPhrases
         return push.MagneticHeading is { } heading ? Back(heading, push.IsTail) : StraightBack();
     }
 
-    /// <summary>A <c>PUSHM</c> read back from its parsed targets: <c>$6A</c> a spot, <c>@D15</c> a gate, <c>#1926</c> a node.</summary>
-    internal static PushWords FromCommand(PushbackMultiCommand move) => Multi([.. move.Targets.Select(TargetWords)], move.FinalFacing, move.IsTail);
+    /// <summary>
+    /// A <c>PUSHM</c> read back from its parsed targets: <c>$6A</c> a spot, <c>@D15</c> a gate, <c>#1926</c> a node,
+    /// <c>~lat/lon</c> a marked point.
+    /// </summary>
+    internal static PushWords FromCommand(PushbackMultiCommand move) => Multi(move, [.. move.Legs.Select((leg, i) => TargetWords(move.Legs, i))]);
 
-    private static PushWords TargetWords(string target) =>
-        target[0] switch
+    private static PushWords TargetWords(IReadOnlyList<PushDestination> legs, int index) =>
+        legs[index] switch
         {
-            '$' => PushWords.Named("spot", target[1..]),
-            '@' => PushWords.Named("gate", target[1..]),
-            '#' => PushWords.Named("node", target[1..]),
-            _ => PushWords.Plain(target),
+            { Spot: { } spot } => PushWords.Named("spot", spot),
+            { Parking: { } parking } => PushWords.Named("gate", parking),
+            { NodeId: { } nodeId } => PushWords.Named("node", nodeId.ToString(CultureInfo.InvariantCulture)),
+            _ => MarkedPoint(MarkedPointNumber(legs, index)),
         };
 }

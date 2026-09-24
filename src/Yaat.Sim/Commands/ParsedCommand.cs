@@ -511,8 +511,10 @@ public record PushbackCommand(MagneticHeading? MagneticHeading, string? Taxiway,
 }
 
 /// <summary>
-/// Where a <c>PUSH</c> ends, exactly one of: a stand or helipad (<c>@A10</c>), a ramp spot (<c>$7A</c>) or a
-/// ground-graph node (<c>#1926</c>).
+/// Where a <c>PUSH</c> ends, or one point a <c>PUSHM</c> passes, exactly one of: a stand or helipad (<c>@A10</c>), a
+/// ramp spot (<c>$7A</c>), a ground-graph node (<c>#1926</c>) or a marked point anywhere on the ramp
+/// (<c>~37.615230/-122.386040/270</c>), with the tug motion forced on the leg that ends there when the target carries a
+/// <c>/PUSH</c> or <c>/PULL</c> suffix.
 /// </summary>
 public sealed record PushDestination
 {
@@ -527,33 +529,97 @@ public sealed record PushDestination
     /// <summary>The ground-graph node id, or null.</summary>
     public int? NodeId { get; private init; }
 
+    /// <summary>The marked point, or null.</summary>
+    public PushFreePose? FreePose { get; private init; }
+
+    /// <summary>
+    /// The tug motion the leg ending here must use (<c>/PUSH</c> tail-first, <c>/PULL</c> nose-first), or null to let the
+    /// planner choose.
+    /// </summary>
+    public PushbackLegKind? ForcedKind { get; private init; }
+
     /// <summary>A stand or helipad destination.</summary>
     /// <param name="name">The stand's name, upper-cased.</param>
+    /// <param name="forcedKind">The tug motion the leg must use, or null.</param>
     /// <returns>The destination.</returns>
-    public static PushDestination AtParking(string name) => new() { Parking = name };
+    public static PushDestination AtParking(string name, PushbackLegKind? forcedKind) => new() { Parking = name, ForcedKind = forcedKind };
 
     /// <summary>A ramp spot destination.</summary>
     /// <param name="name">The spot's name, upper-cased.</param>
+    /// <param name="forcedKind">The tug motion the leg must use, or null.</param>
     /// <returns>The destination.</returns>
-    public static PushDestination AtSpot(string name) => new() { Spot = name };
+    public static PushDestination AtSpot(string name, PushbackLegKind? forcedKind) => new() { Spot = name, ForcedKind = forcedKind };
 
     /// <summary>A ground-graph node destination.</summary>
     /// <param name="nodeId">The node id.</param>
+    /// <param name="forcedKind">The tug motion the leg must use, or null.</param>
     /// <returns>The destination.</returns>
-    public static PushDestination AtNode(int nodeId) => new() { NodeId = nodeId };
+    public static PushDestination AtNode(int nodeId, PushbackLegKind? forcedKind) => new() { NodeId = nodeId, ForcedKind = forcedKind };
+
+    /// <summary>A marked point on the ramp.</summary>
+    /// <param name="pose">The point, with its facing when it has one.</param>
+    /// <param name="forcedKind">The tug motion the leg must use, or null.</param>
+    /// <returns>The destination.</returns>
+    public static PushDestination AtFreePose(PushFreePose pose, PushbackLegKind? forcedKind) => new() { FreePose = pose, ForcedKind = forcedKind };
+
+    /// <summary>
+    /// The target as the grammar writes it, without the suffix: <c>@F8</c>, <c>$7A</c>, <c>#1926</c>,
+    /// <c>~37.615230/-122.386040/270</c>. The sigil is what separates spot <c>$7</c> from gate <c>@7</c>.
+    /// </summary>
+    public string Token =>
+        this switch
+        {
+            { Parking: { } parking } => $"@{parking}",
+            { Spot: { } spot } => $"${spot}",
+            { NodeId: { } nodeId } => $"#{nodeId.ToString(System.Globalization.CultureInfo.InvariantCulture)}",
+            { FreePose: { } pose } => pose.Token,
+            _ => throw new InvalidOperationException("A push destination names a stand, a spot, a node or a marked point"),
+        };
+
+    /// <summary>The target in canonical text, suffix included: <c>$7A/PULL</c>, <c>@F8</c>.</summary>
+    public string CanonicalToken =>
+        ForcedKind switch
+        {
+            PushbackLegKind.Push => $"{Token}/PUSH",
+            PushbackLegKind.Pull => $"{Token}/PULL",
+            _ => Token,
+        };
+}
+
+/// <summary>
+/// A marked point: a free position on the ramp, with the magnetic facing to end on when the controller gave one. The
+/// parser rounds the position to the six decimals the canonical text carries, so a command and its canonical text are
+/// the same command.
+/// </summary>
+/// <param name="Latitude">Decimal degrees, six decimals.</param>
+/// <param name="Longitude">Decimal degrees, six decimals.</param>
+/// <param name="Facing">The facing to end on, magnetic, or null.</param>
+public sealed record PushFreePose(double Latitude, double Longitude, MagneticHeading? Facing)
+{
+    /// <summary>The point as the grammar writes it: <c>~37.615230/-122.386040</c>, with <c>/270</c> when it has a facing.</summary>
+    public string Token
+    {
+        get
+        {
+            System.Globalization.CultureInfo invariant = System.Globalization.CultureInfo.InvariantCulture;
+            string position = $"~{Latitude.ToString("F6", invariant)}/{Longitude.ToString("F6", invariant)}";
+            return Facing is { } facing ? $"{position}/{facing.ToDisplayString()}" : position;
+        }
+    }
 }
 
 /// <summary>
 /// PUSHM: a tug move through two or more ramp points, with an optional final rest facing.
-/// <para><see cref="Targets"/> keeps each token exactly as the controller typed it, sigil included
-/// (<c>$6A</c>, <c>@D15</c>, <c>#1926</c>) — the sigil is the only thing that separates a spot from a gate of
-/// the same name, so stripping it here would resolve <c>$7</c> to gate 7. Names are upper-cased; a
-/// <c>#id</c> is kept verbatim.</para>
+/// <para><see cref="Legs"/> keeps each target with the kind of place it names — a spot, a stand, a node or a marked
+/// point — so spot <c>$7</c> is never resolved as gate <c>@7</c>, and with the tug motion its leg is forced to.</para>
 /// </summary>
-/// <param name="Targets">The points to reach, in order, sigils included. Two or more.</param>
+/// <param name="Legs">The points to reach, in order. Two or more.</param>
 /// <param name="FinalFacing">The facing to leave the aircraft in at the last target, or null to derive one.</param>
-public record PushbackMultiCommand(IReadOnlyList<string> Targets, MagneticHeading? FinalFacing) : ParsedCommand
+public record PushbackMultiCommand(IReadOnlyList<PushDestination> Legs, MagneticHeading? FinalFacing) : ParsedCommand
 {
+    /// <summary>The targets in canonical text, in order, sigils and suffixes included (<c>$6A</c>, <c>@D15</c>, <c>$7A/PULL</c>).</summary>
+    public IReadOnlyList<string> Targets => [.. Legs.Select(leg => leg.CanonicalToken)];
+
     /// <summary>
     /// The controller named the final facing by the tail (<c>TAIL W</c>, <c>&lt;W</c>): <see cref="FinalFacing"/> is then
     /// the reciprocal of the cardinal typed, and the readback and canonical text word the cardinal typed.

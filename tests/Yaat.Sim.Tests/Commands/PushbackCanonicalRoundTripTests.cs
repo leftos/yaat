@@ -42,6 +42,14 @@ public class PushbackCanonicalRoundTripTests(ITestOutputHelper output)
     [InlineData("PUSH #1926 FACE E", "PUSH #1926 FACE E")]
     [InlineData("PUSH #1926 TAIL W", "PUSH #1926 TAIL W")]
     [InlineData("PUSH #1926 F1", "PUSH #1926 F1")]
+    [InlineData("PUSH $7A/PULL", "PUSH $7A/PULL")]
+    [InlineData("PUSH $7A/push FACE E", "PUSH $7A/PUSH FACE E")]
+    [InlineData("PUSH @F8/PULL", "PUSH @F8/PULL")]
+    [InlineData("PUSH #1926/PUSH TAIL W", "PUSH #1926/PUSH TAIL W")]
+    [InlineData("PUSH ~37.61523/-122.38604", "PUSH ~37.615230/-122.386040")]
+    [InlineData("PUSH ~37.61523/-122.38604/90", "PUSH ~37.615230/-122.386040/090")]
+    [InlineData("PUSH ~37.61523/-122.38604/360/PULL", "PUSH ~37.615230/-122.386040/360/PULL")]
+    [InlineData("PUSH ~37.6152349/-122.3860449 <W", "PUSH ~37.615235/-122.386045 TAIL W")]
     public void EveryAcceptedForm_CanonicalReParsesToTheSameCommand(string input, string expectedCanonical)
     {
         PushbackCommand first = Parse(input);
@@ -52,6 +60,30 @@ public class PushbackCanonicalRoundTripTests(ITestOutputHelper output)
 
         PushbackCommand second = Parse(canonical);
         Assert.Equal(first, second);
+        Assert.Equal(canonical, CommandDescriber.DescribeCommand(second));
+    }
+
+    /// <summary>
+    /// A <c>PUSHM</c> carrying leg-kind suffixes and marked points: typed text and drawn text are the same text, so the
+    /// canonical form re-parses to the same legs.
+    /// </summary>
+    [Theory]
+    [InlineData("PUSHM @F8 $7A/PULL", "PUSHM @F8 $7A/PULL")]
+    [InlineData("PUSHM $6A/push $6B/pull FACE N", "PUSHM $6A/PUSH $6B/PULL FACE N")]
+    [InlineData("PUSHM ~37.61523/-122.38604/1 ~37.6155/-122.3862/PUSH TAIL S", "PUSHM ~37.615230/-122.386040/001 ~37.615500/-122.386200/PUSH TAIL S")]
+    [InlineData("PUSHM #1926/PULL @D15", "PUSHM #1926/PULL @D15")]
+    public void EveryForcedOrMarkedPushm_CanonicalReParsesToTheSameLegs(string input, string expectedCanonical)
+    {
+        PushbackMultiCommand first = Assert.IsType<PushbackMultiCommand>(CommandParser.Parse(input).Value);
+        string canonical = CommandDescriber.DescribeCommand(first);
+        output.WriteLine($"{input} → {canonical}   ({CommandDescriber.DescribeNatural(first)})");
+
+        Assert.Equal(expectedCanonical, canonical);
+
+        PushbackMultiCommand second = Assert.IsType<PushbackMultiCommand>(CommandParser.Parse(canonical).Value);
+        Assert.Equal(first.Legs, second.Legs);
+        Assert.Equal(first.FinalFacing, second.FinalFacing);
+        Assert.Equal(first.IsTail, second.IsTail);
         Assert.Equal(canonical, CommandDescriber.DescribeCommand(second));
     }
 

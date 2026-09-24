@@ -29,6 +29,12 @@ public enum TugGoalKind
 
     /// <summary>Push straight back the type's simple pushback distance.</summary>
     Clear,
+
+    /// <summary>
+    /// End on a marked point — a free position on the ramp, not a graph node — on a given facing or on whatever facing
+    /// the move leaves.
+    /// </summary>
+    FreePose,
 }
 
 /// <summary>One thing a tug move is asked to reach, in request order. Built only through the factories.</summary>
@@ -54,8 +60,20 @@ public sealed record TugGoal
     /// <summary>The facing taxiway a <c>PUSH &lt;taxiway&gt; &lt;facing taxiway&gt;</c> names; null for every other goal.</summary>
     public string? FacingTaxiwayName { get; init; }
 
-    /// <summary>How a refusal names the goal: <c>spot 6B</c>, <c>D16</c>, <c>taxiway Y</c>, <c>the pushback</c>.</summary>
+    /// <summary>How a refusal names the goal: <c>spot 6B</c>, <c>D16</c>, <c>taxiway Y</c>, <c>the pushback</c>, <c>the marked point</c>.</summary>
     public required string Label { get; init; }
+
+    /// <summary>
+    /// The tug motion every move of this goal's leg must use, bar the stand push-off (a <c>/PUSH</c> or <c>/PULL</c>
+    /// suffix), or null to let the planner choose. Set with <c>with</c> on a spot, stand, node or marked-point goal.
+    /// </summary>
+    public PushbackLegKind? ForcedKind { get; init; }
+
+    /// <summary>
+    /// A marked point's facing as the controller gave it, in words (<c>north</c>), for its refusal; null for every other
+    /// goal and a marked point given none.
+    /// </summary>
+    public string? FacingWord { get; init; }
 
     /// <summary>End on a painted ramp spot, nose-out.</summary>
     /// <param name="spot">The spot node.</param>
@@ -96,6 +114,26 @@ public sealed record TugGoal
             Point = node.Position,
             FacingTrueDeg = facingTrueDeg is { } facing ? new TrueHeading(facing).Degrees : null,
             Label = NodeName(node),
+        };
+
+    /// <summary>
+    /// End on a marked point (<c>~lat/lon[/facing]</c>): reached like a node goal — along the approach line through it
+    /// when it has a facing, straight for it when not — but with no graph edges, so no pavement is exempt for it.
+    /// </summary>
+    /// <param name="point">The point, minted with <see cref="VirtualNode.Create"/> so the same position is the same node.</param>
+    /// <param name="facingWord">The facing the controller gave, in words (<c>north</c>), or null.</param>
+    /// <param name="facingTrueDeg">The point's own facing, degrees true, or null.</param>
+    /// <param name="label">How readbacks and refusals name it: <c>the marked point</c>, or <c>marked point 2</c> among several.</param>
+    /// <returns>The goal.</returns>
+    public static TugGoal FreePose(GroundNode point, string? facingWord, double? facingTrueDeg, string label) =>
+        new()
+        {
+            Kind = TugGoalKind.FreePose,
+            Node = point,
+            Point = point.Position,
+            FacingTrueDeg = facingTrueDeg is { } facing ? new TrueHeading(facing).Degrees : null,
+            FacingWord = facingWord,
+            Label = label,
         };
 
     /// <summary>Push onto a taxiway centreline and stop once lined up (<c>PUSH &lt;taxiway&gt; &lt;facing&gt;</c>).</summary>
@@ -168,6 +206,14 @@ public sealed record TugAmendment(TugGoalKind GoalKind, int? NodeId, string? Tax
     /// <param name="standStart">The pose on the stand when the push began.</param>
     /// <returns>The amendment, or null.</returns>
     public static TugAmendment? For(TugGoal goal, TugPose standStart) =>
+        goal switch
+        {
+            // The amendment re-plans from the goal's kind and node alone, which would drop a forced leg kind.
+            { ForcedKind: not null } => null,
+            _ => ForGoalKind(goal, standStart),
+        };
+
+    private static TugAmendment? ForGoalKind(TugGoal goal, TugPose standStart) =>
         goal.Kind switch
         {
             TugGoalKind.Facing => new TugAmendment(goal.Kind, null, null, standStart),
@@ -576,6 +622,12 @@ public sealed record ResolvedTugGoal
     /// <summary>How a refusal names the move to the goal: <c>the move to spot 6A</c>, or <c>leg 2 to spot 6B</c>.</summary>
     public required string Subject { get; init; }
 
+    /// <summary>
+    /// How a refusal about reaching the goal itself names it: <c>spot 7A</c>, <c>the marked point</c>, or
+    /// <c>leg 2: spot 7A</c> in a multi-goal request.
+    /// </summary>
+    public required string ReachName { get; init; }
+
     /// <summary>The nose heading to end on, degrees true (faced, facing and taxiway-line goals).</summary>
     public double FacingTrueDeg { get; init; }
 
@@ -616,7 +668,7 @@ public static class TugGoalResolver
         ResolvedTugGoal basis = Basis(goal, index, request.Goals.Count);
         return goal.Kind switch
         {
-            TugGoalKind.Spot or TugGoalKind.Stand or TugGoalKind.Node => ResolveNodeGoal(request.AircraftType, basis, facing),
+            TugGoalKind.Spot or TugGoalKind.Stand or TugGoalKind.Node or TugGoalKind.FreePose => ResolveNodeGoal(request.AircraftType, basis, facing),
             TugGoalKind.TaxiwayLine or TugGoalKind.StraightBackTo => ResolveTaxiwayGoal(basis, facing),
             TugGoalKind.Facing => basis with { Shape = TugGoalShape.Facing, FacingTrueDeg = facing!.Value },
             TugGoalKind.Clear => basis,
@@ -649,6 +701,7 @@ public static class TugGoalResolver
             Shape = TugGoalShape.Clear,
             Name = name,
             Subject = subject,
+            ReachName = multi ? $"leg {index + 1}: {goal.Label}" : goal.Label,
             ExemptNames = NoNames,
         };
     }
@@ -1238,9 +1291,37 @@ internal sealed class TugPlanBuilder
             return true;
         }
 
+        // A marked point has no graph node to classify, so where it lies is checked directly: never on a runway, a
+        // runway holding position or a movement-area taxiway.
+        if (
+            (goal.Goal.Kind == TugGoalKind.FreePose)
+            && (goal.Goal.Point is { } marked)
+            && (_pathCheck?.MarkedPointRefusal(marked, goal.ReachName) is { } onPavement)
+        )
+        {
+            refusal = onPavement;
+            return true;
+        }
+
         refusal = string.Empty;
         return false;
     }
+
+    /// <summary>A forced leg kind no plan can fly: <c>Unable, spot 7A cannot be reached by a pull</c>.</summary>
+    private static string CannotBeReachedBy(ResolvedTugGoal goal, PushbackLegKind kind) =>
+        $"Unable, {goal.ReachName} cannot be reached by a {(kind == PushbackLegKind.Push ? "push" : "pull")}";
+
+    /// <summary>
+    /// Why a goal with no surviving candidate and no flown-path reason is refused: a forced leg kind no plan of that kind
+    /// can fly; a marked point's facing no plan can end on; else the goal's line cannot be captured from here.
+    /// </summary>
+    private static string NoPlanRefusal(ResolvedTugGoal goal) =>
+        goal.Goal switch
+        {
+            { ForcedKind: { } forced } => CannotBeReachedBy(goal, forced),
+            { Kind: TugGoalKind.FreePose, FacingWord: { } facing } => $"Unable, {goal.ReachName} cannot be reached facing {facing}",
+            _ => $"Unable, cannot line up on {goal.Name} from here",
+        };
 
     private bool TryBuildCandidates(ResolvedTugGoal goal, bool offStand, out List<TugCandidate> candidates, out string refusal)
     {
@@ -1283,7 +1364,7 @@ internal sealed class TugPlanBuilder
         TugPose from = NewCandidate("probe", pushOff).End;
         double facing = goal.FacingTrueDeg;
         double stopOffFacingDeg = TugMovePlanner.AbsDiffDeg(GeoMath.BearingTo(from.Position, goal.Stop), facing);
-        PushbackLegKind[] sides = SidesFor(stopOffFacingDeg);
+        PushbackLegKind[] sides = goal.Goal.ForcedKind is { } forced ? [forced] : SidesFor(stopOffFacingDeg);
         Log.LogDebug(
             "Tug {Subject}: stop {StopOffFacingDeg:F2}° off the facing; building candidates for the {Sides} side",
             goal.Subject,
@@ -1292,6 +1373,11 @@ internal sealed class TugPlanBuilder
         );
 
         var candidates = sides.Select(side => Direct(goal, pushOff, side)).ToList();
+        if (!OtherKindFirstCanKeepToForcedKind(goal, pushOff))
+        {
+            return candidates;
+        }
+
         candidates.AddRange(sides.Select(side => OtherKindFirst(goal, pushOff, side)));
         if (TugMovePlanner.AbsDiffDeg(from.NoseTrueDeg, facing) > ThreePointTurnMinRotationDeg)
         {
@@ -1300,6 +1386,19 @@ internal sealed class TugPlanBuilder
 
         return candidates;
     }
+
+    /// <summary>
+    /// Whether a T2 or T3 candidate — which opens with the kind opposite its side — could keep to the goal's forced leg
+    /// kind: always when none is forced; never on <c>/PUSH</c>, whose side is the push, so it opens with a pull; on
+    /// <c>/PULL</c> only off a stand, where the push it opens with joins the stand push-off run.
+    /// </summary>
+    private static bool OtherKindFirstCanKeepToForcedKind(ResolvedTugGoal goal, TugMove? pushOff) =>
+        goal.Goal.ForcedKind switch
+        {
+            null => true,
+            PushbackLegKind.Pull => pushOff is not null,
+            _ => false,
+        };
 
     /// <summary>
     /// Both sides a faced goal can be approached from, in the order their candidates are ranked on a tie: the side
@@ -1407,7 +1506,8 @@ internal sealed class TugPlanBuilder
     /// <summary>The push-side and pull-side straight-then-line candidates with a straight push of <paramref name="straightFt"/>.</summary>
     private IEnumerable<TugCandidate> StraightThenLine(ResolvedTugGoal goal, TugMove pushOff, double straightFt)
     {
-        foreach (PushbackLegKind side in new[] { PushbackLegKind.Push, PushbackLegKind.Pull })
+        PushbackLegKind[] sides = goal.Goal.ForcedKind is { } forced ? [forced] : [PushbackLegKind.Push, PushbackLegKind.Pull];
+        foreach (PushbackLegKind side in sides)
         {
             TugCandidate candidate = NewCandidate($"T0 straight {straightFt:F0} ft then line, {side} side", pushOff);
             candidate.Add(TugMove.Straight(PushbackLegKind.Push, straightFt));
@@ -1745,11 +1845,12 @@ internal sealed class TugPlanBuilder
 
     /// <summary>
     /// The side move onto the approach line; a spot push stops at the staging point and creeps forward onto the
-    /// stop. The final pull onto a spot is always a creep.
+    /// stop, except on a leg forced to <c>/PUSH</c>, whose push ends on the stop itself. The final pull onto a spot is
+    /// always a creep.
     /// </summary>
     private static void AddApproach(TugCandidate candidate, ResolvedTugGoal goal, PushbackLegKind side)
     {
-        bool staged = (side == PushbackLegKind.Push) && (goal.Staging is not null);
+        bool staged = (side == PushbackLegKind.Push) && (goal.Staging is not null) && (goal.Goal.ForcedKind != PushbackLegKind.Push);
         bool creepOntoSpot = (side == PushbackLegKind.Pull) && (goal.Goal.Kind == TugGoalKind.Spot);
         TugMove approach = LineMove(goal, side, staged ? goal.Staging : goal.Stop);
         candidate.Add(approach with { Creep = creepOntoSpot });
@@ -1770,10 +1871,23 @@ internal sealed class TugPlanBuilder
         TugCandidate candidate = NewCandidate("to node", pushOff);
         double offNoseDeg = TugMovePlanner.AbsDiffDeg(GeoMath.BearingTo(candidate.End.Position, goal.Stop), candidate.End.NoseTrueDeg);
         PushbackLegKind kind = offNoseDeg > AheadDeg ? PushbackLegKind.Push : PushbackLegKind.Pull;
+        if ((goal.Goal.ForcedKind is { } forced) && (forced != kind))
+        {
+            // A forced kind is a hard constraint: never substitute the kind the node's bearing calls for.
+            candidates = [];
+            refusal = CannotBeReachedBy(goal, forced);
+            return false;
+        }
+
         if ((pushOff is not null) && (kind == PushbackLegKind.Pull))
         {
             candidates = [];
-            refusal = $"Unable, {goal.Name} is ahead of the nose — the aircraft has to be pushed back off the stand first";
+            refusal = goal.Goal switch
+            {
+                { ForcedKind: { } forcedPull } => CannotBeReachedBy(goal, forcedPull),
+                { Kind: TugGoalKind.FreePose } => CannotBeReachedBy(goal, PushbackLegKind.Push),
+                _ => $"Unable, {goal.Name} is ahead of the nose — the aircraft has to be pushed back off the stand first",
+            };
             return false;
         }
 
@@ -2026,7 +2140,7 @@ internal sealed class TugPlanBuilder
 
         TugCandidate? best = tally.Best;
         survivors = tally.Survivors;
-        refusal = best is null ? (tally.PathRefusal?.Message ?? $"Unable, cannot line up on {goal.Name} from here") : string.Empty;
+        refusal = best is null ? (tally.PathRefusal?.Message ?? NoPlanRefusal(goal)) : string.Empty;
         if (best is not null)
         {
             Log.LogDebug(
@@ -2164,8 +2278,10 @@ internal sealed class TugPlanBuilder
 
         (string? shapeReason, double? finalPullOvershootFt) =
             goal.Shape == TugGoalShape.Faced ? FacedDropReason(goal, candidate, offStand) : (null, null);
+        string? markedPoint = goal.Goal.Kind == TugGoalKind.FreePose ? goal.ReachName : null;
         TugPathRefusal? path =
-            _pathCheck?.Check(candidate.Traces, goal.ExemptNames, goal.OvershootTaxiway, goal.Subject) ?? NeighbourRefusal(goal, candidate);
+            _pathCheck?.Check(candidate.Traces, goal.ExemptNames, goal.OvershootTaxiway, goal.Subject, markedPoint)
+            ?? NeighbourRefusal(goal, candidate);
         return new TugVerdict(shapeReason, path, finalPullOvershootFt);
     }
 
@@ -2278,6 +2394,11 @@ internal sealed class TugPlanBuilder
             return ("the move after the stand push-off is a pull", null);
         }
 
+        if (ForcedKindDropReason(goal, traces, offStand) is { } forcedReason)
+        {
+            return (forcedReason, null);
+        }
+
         if (TugRun.Follow(_run, traces).Wandered)
         {
             return ($"a same-kind run without a turn wandered more than {TugRun.MaxWanderDeg:0}°", null);
@@ -2299,6 +2420,27 @@ internal sealed class TugPlanBuilder
         return (StopOvershootFt(last, goal) is { } stopFt) && (stopFt > StopOvershootToleranceFt)
             ? (StopOvershootReason(last.Move.Kind, stopFt), linePull ? stopFt : null)
             : (OvershootDropReason(goal, [last]), null);
+    }
+
+    /// <summary>
+    /// The rule a forced leg kind adds: every move is of that kind, but for the push-off run a plan off a stand opens with
+    /// (its pushes up to the first move of another kind), which the stand requires whatever the leg is forced to. Null
+    /// when the goal forces no kind or the candidate keeps to it.
+    /// </summary>
+    private static string? ForcedKindDropReason(ResolvedTugGoal goal, IReadOnlyList<TugMoveTrace> traces, bool offStand)
+    {
+        if (goal.Goal.ForcedKind is not { } forced)
+        {
+            return null;
+        }
+
+        int afterPushOff = 0;
+        while (offStand && (afterPushOff < traces.Count) && (traces[afterPushOff].Move.Kind == PushbackLegKind.Push))
+        {
+            afterPushOff++;
+        }
+
+        return traces.Skip(afterPushOff).Any(t => t.Move.Kind != forced) ? $"a {Opposite(forced)} move on a leg forced to {forced}" : null;
     }
 
     /// <summary>

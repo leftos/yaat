@@ -491,6 +491,66 @@ public class TugMovePlannerTests
     }
 
     /// <summary>
+    /// A <c>PUSHM</c> leg forced to a kind no plan of that kind flies is refused naming the leg: D15 → 6A, then 6B forced
+    /// <c>/PULL</c> from 6A, abeam it.
+    /// </summary>
+    [Fact]
+    public void PushmLegForcedToAnUnflyableKind_RefusedNamingTheLeg()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        TugGoal sixB = TugGoal.Spot(Spot(layout, "6B")) with { ForcedKind = PushbackLegKind.Pull };
+
+        string refusal = Refusal(layout, StandStart(Parking(layout, "D15"), TugGoal.Spot(Spot(layout, "6A")), sixB));
+
+        Assert.Equal("Unable, leg 2: spot 6B cannot be reached by a pull", refusal);
+    }
+
+    /// <summary>
+    /// A marked point with a facing no plan can end on — where the aircraft stands, nose reversed — is refused naming
+    /// the facing as the controller gave it.
+    /// </summary>
+    [Fact]
+    public void MarkedPointFacingNoPlanEndsOn_RefusedNamingTheFacing()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode spot = Spot(layout, "6A");
+        Assert.True(layout.TryGetSpotOutboundHeading(spot, out double outbound));
+        LatLon stop = TugMovePlanner.SpotStopGeometry(spot, outbound, Narrowbody).Stop;
+        double reversed = new TrueHeading(outbound).ToReciprocal().Degrees;
+        var goal = TugGoal.FreePose(VirtualNode.Create(stop.Lat, stop.Lon), "north", reversed, "the marked point");
+
+        string refusal = Refusal(layout, OffStand(new TugPose(stop, outbound), goal));
+
+        Assert.Equal("Unable, the marked point cannot be reached facing north", refusal);
+    }
+
+    /// <summary>A marked point with no facing ahead of the nose off a stand cannot be reached by the push the stand needs.</summary>
+    [Fact]
+    public void UnfacedMarkedPointAheadOfTheNoseOffAStand_RefusedAsNotReachableByAPush()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode d15 = Parking(layout, "D15");
+        LatLon ahead = GeoMath.ProjectPoint(d15.Position, d15.TrueHeading!.Value, 100.0 / GeoMath.FeetPerNm);
+        var goal = TugGoal.FreePose(VirtualNode.Create(ahead.Lat, ahead.Lon), null, null, "the marked point");
+
+        string refusal = Refusal(layout, StandStart(d15, goal));
+
+        Assert.Equal("Unable, the marked point cannot be reached by a push", refusal);
+    }
+
+    /// <summary>
     /// Gate B12 to gate B13 (the <c>SfoPushbackTests</c> case): the push onto B13's lead-in line puts the tail on
     /// taxiway Y, 186 ft behind the B gates. Y is the taxiway straight behind the stand, so the push clearance
     /// covers it.

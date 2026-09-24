@@ -1247,7 +1247,7 @@ public class AirportE2ETests
         AircraftState ac = MakeGroundAircraft("SFO", a4.Position);
         ac.TrueHeading = new TrueHeading(a4.TrueHeading?.Degrees ?? 104);
 
-        var cmd = new PushbackCommand(null, null, null, PushDestination.AtParking("A9"));
+        var cmd = new PushbackCommand(null, null, null, PushDestination.AtParking("A9", null));
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
 
         Assert.True(result.Success, $"PUSH @A9 should succeed: {result.Message}");

@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Added
+- `PUSH` and `PUSHM` targets take `/PUSH` or `/PULL` to force how the tug moves the aircraft on that leg, e.g. `PUSH $7A/PULL`.
+- `PUSH ~37.61523/-122.38604/090` pushes to any ramp position given as latitude/longitude with an optional facing; the pilot reads it back as "the marked point".
 - **Scenario > Export Room as Scenario…** saves every aircraft in the room, live traffic included, as a new scenario file.
 - After an export, a review window lists aircraft that could not be captured faithfully, with the reason and a Copy button.
 - **Assume Live Traffic…** in the session flyout assumes every airborne live aircraft, or those within a radius, optionally VFR or IFR only.

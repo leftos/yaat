@@ -372,6 +372,7 @@ The restriction covers only codes YAAT chooses on its own. `SQ {code}` still mak
 |---------|---------|---------|-------------|
 | Pushback | `PUSH` | — | `PUSH A`, `PUSH @4A`, `PUSH $7A`, `PUSH #1926`, `PUSH Y FACE S` |
 | Tug move through points | `PUSHM $6A $6B` | — | `PUSHM @D5 #503 $5A FACE E` |
+| Forced push or pull; marked point | `PUSH $7A/PULL`, `PUSH ~lat/lon/hdg` | — | `PUSHM @F8 $7A/PULL`, `PUSH ~37.61523/-122.38604/090/PUSH` |
 | Taxi | `TAXI S T U` | — | `TAXI 28R` (only at the runway) |
 | Taxi auto-route | `TAXIAUTO 28R` | — | `TAXIAUTO @A12`, `TAXIAUTO $8` |
 | Hold position | `HOLD` | `HP` | — |
@@ -715,6 +716,8 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | `PUSH TE FACE E` | Push back onto TE's centreline lined up along whichever direction of TE is closest to east, and stop once lined up |
 | `PUSH TE TAIL W` | Same — `TAIL W` and `FACE E` resolve to the same alignment |
 | `PUSH TE T` | Push back onto taxiway TE with the nose toward its junction with taxiway T, in whichever direction along TE turns the nose least. Near the junction the push stops with the nose one turn radius short of it. Farther away, T only picks the direction: the push ends as soon as the aircraft is lined up on TE at its exit, and when the junction is more than 1,500 ft away the readback adds `(T is <n> ft away; facing only)`. A tow of more than 500 ft to reach TE is accepted with `(taxiway TE is <n> ft away; long push)`. Swinging across the pavement of T, or of any taxiway meeting TE, within one fuselage length of where the aircraft lines up is part of the move and not refused |
+| `PUSH $7A/PULL` / `PUSH @4A/PUSH` | Force how the tug moves the aircraft on that leg: `/PULL` tows it nose-first, `/PUSH` pushes it tail-first. Every move is that kind except the push-off from a stand, and a `/PUSH` onto a spot ends on the spot itself. Works on a `$spot`, `@gate`, `#node` or marked point, including each `PUSHM` point (`PUSHM @F8 $7A/PULL`). Refused with `Unable, spot 7A cannot be reached by a pull` when no plan of that kind fits; the pilot reads `pull forward to spot 7A` / `push back to spot 7A` |
+| `PUSH ~37.61523/-122.38604/090` | Push to a marked point: any ramp position as latitude/longitude (decimal degrees) with an optional magnetic facing; add `/PUSH` or `/PULL` last to force the motion (`~37.61523/-122.38604/090/PULL`). Refused on a runway, a holding position or a movement-area taxiway (`Unable, the marked point is on taxiway A`), and when the whole aircraft would not end clear of one. The pilot reads `push to the marked point, face east` (`…, hold` without a facing) |
 | `PUSH TE @B27` | Refused: a `@gate`, `$spot` or `#node` destination must be the first `PUSH` argument (`PUSH @B27`), never a later one |
 | `PUSH #1926` | Push to ground node 1926 (the ground view's node id): parks when the node is a gate or helipad (no facing then), holds on it when it is a spot, holds there otherwise. Takes the same optional facing as `$spot` (`PUSH #1926 FACE E`, `PUSH #1926 A1`) |
 | `PUSH @4A` | Push back to gate 4A and park there on the stand's own heading, the way a tug lines an aircraft up on a stand: pushed or pulled onto the stand's line from whichever side needs fewer reversals. A stand takes **no facing** — `PUSH @4A FACE NE` is refused. |
@@ -790,6 +793,8 @@ A `PUSH $spot` lines the aircraft up straight on the marking the way a tug posit
 | `PUSH @4A` | `Push to gate 4A, park on the stand` (`helipad` for a helipad) |
 | `PUSH $7A` | `Push to spot 7A (nose out toward A)` — the note names the taxiway the spot's lane joins and is dropped when a facing is given (`Push to spot 7A, tail west`) |
 | `PUSHM $6A $6B` | `Push to spot 6B via spot 6A`; more points are listed in order (`via spot 6A, spot 6`); a final facing appends `, face east` |
+| `PUSH $7A/PULL` / `PUSHM @F8 $7A/PULL` | `Pull forward to spot 7A` / `Push to gate F8, then pull forward to spot 7A, face east` — any forced or marked leg makes a `PUSHM` read leg by leg |
+| `PUSH ~37.61523/-122.38604/045` | `Push to the marked point, face northeast` (`marked point 1`, `2`… when a `PUSHM` has several) |
 | mid-push `FACE`/`TAIL` | `Push amended, tail west` |
 
 A `PUSH` queued behind a `WAIT`, a condition or an earlier block is read back when issued, before the tug plans it, so the plan-dependent parts are left out: a bare `PUSH` reads `Push straight back` and `PUSH A` reads `Push to taxiway A`.

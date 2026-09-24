@@ -113,6 +113,9 @@ Every candidate's samples are checked, about every 5 ft, in a flat frame about t
 - When the facing taxiway meets the goal taxiway at the exit node itself, the facing follows the facing taxiway's own first edge off that node; if it leaves within 5° of square, the push takes the goal-taxiway direction nearest the current nose (logged as a guess).
 - **Open apron is not checked.** The layout carries no pavement polygons, and real aprons have ungraphed stretches wider than any distance-from-the-graph test could allow (a 100 ft rule refused OAK `PUSH D` and SFO `PUSH @A9`).
 
+- **The tug on a pull.** On pull samples the fuselage used for the movement-area test extends 30 ft past the nose (the tug and towbar), for every pull, forced or planner-chosen; the pavement a move may arrive on is still judged from the aircraft's own end pose, so a pull that leaves its tug on a taxiway is refused.
+- **A marked point** (`~lat/lon`) has no arriving exemption: its whole end footprint — the fuselage-length by wingspan rectangle — must clear every movement-area edge, including one behind the stand, not only its reference point.
+
 A refusal names the leg and the pavement: `Unable, the move to spot 6A would put the aircraft on taxiway A`, `Unable, leg 2 to spot 6B reaches a runway holding position`, `Unable, … on runway 10L - 28R`.
 
 ## Flying one move — `PushbackPhase`
@@ -133,6 +136,14 @@ A refusal names the leg and the pavement: `Unable, the move to spot 6A would put
 ### Mid-push face amendment (issue #167)
 
 A heading-only `PUSH FACE C` / `PUSH TAIL C` during a tow is accepted only while the **stand push-off** of a single-goal `PUSH` is still running — before any turn has begun. The push-off carries a `TugAmendment` (the goal kind, its node and taxiway, and the stand start pose) for a `Facing`, `Spot` or `TaxiwayLine` goal; the same goal is re-planned on the new facing **from the stand start pose**, so the new plan's first move is the same push-off, which keeps running, and every move behind it is replaced. After that: `Unable, pushback turn in progress`. A push to a stand is never amended (`Unable, a pushback to a stand keeps the stand's heading`); `PUSHM` carries no amendment; any other `PUSH` during a tow is `Unable, only face/tail amendment accepted during pushback`.
+
+## Forced push or pull, and marked points (#462)
+
+A `$spot`, `@gate`, `#node` or marked-point target may carry `/PUSH` (tail-first) or `/PULL` (nose-first) to force the tug motion on the leg ending there. Every move on a forced leg is that kind, except the leading push run off a stand (the push-off is physically required): the planner builds only the forced side's candidates and drops any that reverse into the other kind after the push-off. A `/PUSH` onto a spot ends on the stop itself, never on a staging point plus a creep pull. Forcing either kind onto a stand is allowed. A forced leg that has no flyable plan is refused (`Unable, spot 7A cannot be reached by a pull`; `Unable, leg 2: …` in a `PUSHM`), never quietly flown the other way.
+
+A marked point, `~<lat>/<lon>[/<facing>][/PUSH|/PULL]` (decimal degrees, facing in magnetic degrees 001–360; canonical `~37.615230/-122.386040/090`), is a controller-placed ramp position. It resolves to a `VirtualNode` at those coordinates, which is deterministic, so replays resolve it the same way, as a faced goal (or an unfaced node goal without a facing) with no exempt pavement, so every refusal above applies. It is also refused outright when it lies on a runway (within the half-width of the centreline), within 25 ft of a hold-short node, or within 25 ft of a movement-area taxiway. The slash separator is deliberate: `,` is the command chaining separator and is split before `PUSH` parses. A forced or marked-point push carries no mid-push `FACE` amendment; one is refused with `Unable, a forced push or a push to a marked point keeps its plan — issue a new PUSH to change it`.
+
+The pilot reads a forced leg as `push back to …` / `pull forward to …`, a marked point as `the marked point` (`marked point 1`, `2`, … when there are several), and a `PUSHM` with any forced or marked leg leg by leg: `push to gate F8, then pull forward to spot 7A, face east`. The wording is an aviation judgement call (no FAA phraseology exists for tows), reviewed 2026-09-24.
 
 ## The command forms — `GroundCommandHandler`
 

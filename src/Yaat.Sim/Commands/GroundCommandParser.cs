@@ -1,3 +1,4 @@
+using System.Globalization;
 using Yaat.Sim.Data.Airport;
 using PR = Yaat.Sim.Commands.ParseResult<Yaat.Sim.Commands.ParsedCommand>;
 
@@ -17,16 +18,190 @@ internal static class GroundCommandParser
     internal static PR ParsePushback(string? arg)
     {
         PR parsed = ParsePushbackForm(arg);
-        if (
-            parsed.Value is PushbackCommand { Destination.Parking: { } stand } push
-            && ((push.MagneticHeading is not null) || (push.FacingTaxiway is not null))
-        )
+        if (parsed.Value is not PushbackCommand push)
+        {
+            return parsed;
+        }
+
+        if ((push.Destination?.Parking is { } stand) && ((push.MagneticHeading is not null) || (push.FacingTaxiway is not null)))
         {
             return PR.Fail(StandFacingRefusal($"PUSH @{stand}"));
         }
 
+        if (push.Destination?.FreePose is { } pose)
+        {
+            if (push.FacingTaxiway is not null)
+            {
+                return PR.Fail("a marked point takes its facing as ~<lat>/<lon>/<facing> or FACE/TAIL, not a facing taxiway");
+            }
+
+            if ((pose.Facing is not null) && (push.MagneticHeading is not null))
+            {
+                return PR.Fail(FacingGivenTwice);
+            }
+        }
+
         return parsed;
     }
+
+    private const string FacingGivenTwice = "facing given twice — the marked point already carries one";
+
+    /// <summary>
+    /// Reads one tug-move target token: a <c>$spot</c>, <c>@stand</c>, <c>#node</c> or <c>~lat/lon[/facing]</c> marked
+    /// point, with an optional <c>/PUSH</c> or <c>/PULL</c> suffix forcing the tug motion on the leg that ends there.
+    /// </summary>
+    /// <param name="token">The token as typed.</param>
+    /// <returns>
+    /// The destination; or the reason the token is malformed; or neither when the token carries no target sigil (a
+    /// taxiway, a facing), which the caller words for its own grammar.
+    /// </returns>
+    private static (PushDestination? Destination, string? Error) ParseTarget(string token)
+    {
+        // A marked point's fields are slash-separated, its leg kind the trailing alphabetic field.
+        if ((token.Length > 1) && (token[0] == '~'))
+        {
+            return ParseFreePose(token);
+        }
+
+        int slash = token.IndexOf('/');
+        string body = slash < 0 ? token : token[..slash];
+        (PushbackLegKind? forced, string? suffixError) = slash < 0 ? default : ParseTargetSuffix(token, body, token[(slash + 1)..]);
+        return suffixError is null ? (NamedTarget(body, forced), null) : (null, suffixError);
+    }
+
+    /// <summary>The leg kind a <c>$spot</c>, <c>@stand</c> or <c>#node</c> target's suffix names, or why it cannot carry one.</summary>
+    private static (PushbackLegKind? Kind, string? Error) ParseTargetSuffix(string token, string body, string suffix) =>
+        IsTargetSigil(body) ? ParseForcedKind(token, suffix) : (null, SuffixOnNonTarget(token));
+
+    /// <summary>The <c>$spot</c>, <c>@stand</c> or <c>#node</c> a suffix-free target names, or null when it names none.</summary>
+    private static PushDestination? NamedTarget(string body, PushbackLegKind? forced)
+    {
+        if (body.Length < 2)
+        {
+            return null;
+        }
+
+        string name = body[1..].ToUpperInvariant();
+        return body[0] switch
+        {
+            '$' => PushDestination.AtSpot(name, forced),
+            '@' => PushDestination.AtParking(name, forced),
+            '#' when NodeRefToken.IsNodeReference(body) => PushDestination.AtNode(NodeRefToken.ParseNodeId(body), forced),
+            _ => null,
+        };
+    }
+
+    private static bool IsTargetSigil(string body) => (body.Length > 0) && (body[0] is '$' or '@' or '#' or '~');
+
+    private static string SuffixOnNonTarget(string token) =>
+        $"'{token.ToUpperInvariant()}': only a $spot, @gate, #node or ~point takes /PUSH or /PULL";
+
+    /// <summary>The leg kind a target's suffix names, or why the suffix is not one.</summary>
+    private static (PushbackLegKind? Kind, string? Error) ParseForcedKind(string token, string suffix)
+    {
+        if (suffix.Length == 0)
+        {
+            return (null, $"'{token.ToUpperInvariant()}' needs PUSH or PULL after the slash — $7A/PULL");
+        }
+
+        if (suffix.Contains('/'))
+        {
+            return (null, $"'{token.ToUpperInvariant()}' carries more than one leg kind — one /PUSH or /PULL per target");
+        }
+
+        return suffix.ToUpperInvariant() switch
+        {
+            "PUSH" => (PushbackLegKind.Push, null),
+            "PULL" => (PushbackLegKind.Pull, null),
+            _ => (null, $"'/{suffix.ToUpperInvariant()}' is not a leg kind — use /PUSH or /PULL"),
+        };
+    }
+
+    /// <summary>
+    /// A marked point, <c>~lat/lon</c> or <c>~lat/lon/facing</c>, with an optional trailing <c>/PUSH</c> or <c>/PULL</c>.
+    /// The position is decimal degrees in invariant culture, finite and in range, rounded to the six decimals the canonical
+    /// text carries; the facing a magnetic heading 1–360 like every typed heading. Slashes, not commas: a comma chains
+    /// commands.
+    /// </summary>
+    private static (PushDestination? Destination, string? Error) ParseFreePose(string token)
+    {
+        (string[] fields, PushbackLegKind? forced, string? kindError) = StripFreePoseLegKind(token, token[1..].Split('/'));
+        if (kindError is not null)
+        {
+            return (null, kindError);
+        }
+
+        if (!TryParseLatLon(fields, out double lat, out double lon))
+        {
+            return (null, $"'{token}' is not a marked point — ~<lat>/<lon> or ~<lat>/<lon>/<facing>, e.g. ~37.61523/-122.38604/090");
+        }
+
+        if (LatLonRangeError(fields, lat, lon) is { } rangeError)
+        {
+            return (null, rangeError);
+        }
+
+        (MagneticHeading? facing, string? facingError) = fields.Length == 3 ? TryParseFacing(fields[2]) : default;
+        if (facingError is not null)
+        {
+            return (null, facingError);
+        }
+
+        var pose = new PushFreePose(Math.Round(lat, 6), Math.Round(lon, 6), facing);
+        return (PushDestination.AtFreePose(pose, forced), null);
+    }
+
+    /// <summary>
+    /// Splits a marked point's leg-kind suffix off its fields: the last field is the leg kind when it is empty or alphabetic
+    /// and the fields before it read as a position (<see cref="TryParseLatLon"/>). Otherwise the fields are returned whole,
+    /// so <c>~abc/def</c> is no marked point rather than a bad leg kind.
+    /// </summary>
+    private static (string[] Fields, PushbackLegKind? Kind, string? Error) StripFreePoseLegKind(string token, string[] fields)
+    {
+        string last = fields[^1];
+        bool kindShaped = (last.Length == 0) || last.All(char.IsLetter);
+        if (!kindShaped || !TryParseLatLon(fields[..^1], out _, out _))
+        {
+            return (fields, null, null);
+        }
+
+        (PushbackLegKind? kind, string? kindError) = ParseForcedKind(token, last);
+        string[] before = fields[..^1];
+        if ((kindError is null) && (before[^1].Length > 0) && before[^1].All(char.IsLetter))
+        {
+            kindError = $"'{token.ToUpperInvariant()}' carries more than one leg kind — one /PUSH or /PULL per target";
+        }
+
+        return (before, kind, kindError);
+    }
+
+    /// <summary>Whether the fields are a marked point's position and optional facing: two or three, the first two decimal degrees.</summary>
+    private static bool TryParseLatLon(string[] fields, out double lat, out double lon)
+    {
+        const NumberStyles DecimalDegrees = NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint;
+        lat = 0.0;
+        lon = 0.0;
+        return (fields.Length is 2 or 3)
+            && double.TryParse(fields[0], DecimalDegrees, CultureInfo.InvariantCulture, out lat)
+            && double.TryParse(fields[1], DecimalDegrees, CultureInfo.InvariantCulture, out lon);
+    }
+
+    /// <summary>Why a parsed position is no place on the earth — not finite, or out of range — or null.</summary>
+    private static string? LatLonRangeError(string[] fields, double lat, double lon)
+    {
+        if (!double.IsFinite(lat) || (Math.Abs(lat) > 90.0))
+        {
+            return $"latitude '{fields[0]}' is out of range (-90 to 90)";
+        }
+
+        return !double.IsFinite(lon) || (Math.Abs(lon) > 180.0) ? $"longitude '{fields[1]}' is out of range (-180 to 180)" : null;
+    }
+
+    /// <summary>A marked point's facing field as a magnetic heading 1–360, or why it is not one.</summary>
+    private static (MagneticHeading? Facing, string? Error) TryParseFacing(string field) =>
+        int.TryParse(field, NumberStyles.None, CultureInfo.InvariantCulture, out int degrees) && (degrees >= 1) && (degrees <= 360)
+            ? (new MagneticHeading(degrees), null)
+            : (null, $"marked-point facing '{field}' is not a heading 001-360");
 
     /// <summary>
     /// Why a stand destination with a facing is refused: the parser for <c>PUSH @stand</c>, and the handler for a hand-built
@@ -49,31 +224,27 @@ internal static class GroundCommandParser
             return PR.Ok(new PushbackCommand(null, null, null, null));
         }
 
-        // Strip optional leading @parking, $spot or #node token; remember which.
-        PushDestination? destination = null;
-        int idx = 0;
-        if (tokens[0].StartsWith('@') && tokens[0].Length > 1)
+        // Strip optional leading @parking, $spot, #node or ~point token, with its /PUSH or /PULL; remember which.
+        (PushDestination? destination, string? targetError) = ParseTarget(tokens[0]);
+        if (targetError is not null)
         {
-            destination = PushDestination.AtParking(tokens[0][1..].ToUpperInvariant());
-            idx = 1;
+            return PR.Fail(targetError);
         }
-        else if (tokens[0].StartsWith('$') && tokens[0].Length > 1)
-        {
-            destination = PushDestination.AtSpot(tokens[0][1..].ToUpperInvariant());
-            idx = 1;
-        }
-        else if (NodeRefToken.IsNodeReference(tokens[0]))
-        {
-            destination = PushDestination.AtNode(NodeRefToken.ParseNodeId(tokens[0]));
-            idx = 1;
-        }
+
+        int idx = destination is null ? 0 : 1;
 
         // Remaining tokens describe taxiway and/or orientation. A sigil with no name behind it names
         // nothing, and only the first token carries a destination sigil, so a later one would be misread
-        // as a facing taxiway (PUSH TE @B27) — refuse both rather than guess.
+        // as a facing taxiway (PUSH TE @B27) — refuse both rather than guess. A leg-kind suffix belongs to a
+        // destination, so none of these tokens may carry one.
         string[] rest = tokens[idx..];
         foreach (string token in rest)
         {
+            if (token == "~")
+            {
+                return PR.Fail("~ needs a point — PUSH ~37.61523/-122.38604/090");
+            }
+
             if (token == "@")
             {
                 return PR.Fail("@ needs a gate or helipad name — PUSH @A10");
@@ -94,11 +265,16 @@ internal static class GroundCommandParser
                 return PR.Fail($"'{token.ToUpperInvariant()}' is not a node id — PUSH #1926");
             }
 
-            if ((token.Length > 1) && (token.StartsWith('@') || token.StartsWith('$') || token.StartsWith('#')))
+            if ((token.Length > 1) && IsTargetSigil(token))
             {
                 return PR.Fail(
-                    $"'{token.ToUpperInvariant()}' must be the first PUSH argument — a @gate, $spot or #node comes before any taxiway or facing"
+                    $"'{token.ToUpperInvariant()}' must be the first PUSH argument — a @gate, $spot, #node or ~point comes before any taxiway or facing"
                 );
+            }
+
+            if (token.Contains('/'))
+            {
+                return PR.Fail(SuffixOnNonTarget(token));
             }
         }
 
@@ -189,7 +365,7 @@ internal static class GroundCommandParser
     internal static PR ParsePushbackMulti(string? arg)
     {
         string[] tokens = arg?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
-        var targets = new List<string>();
+        var legs = new List<PushDestination>();
         MagneticHeading? finalFacing = null;
         bool finalIsTail = false;
 
@@ -213,33 +389,35 @@ internal static class GroundCommandParser
                 break;
             }
 
-            if (!IsTargetToken(tokens[i]))
+            (PushDestination? leg, string? targetError) = ParseTarget(tokens[i]);
+            if (targetError is not null)
+            {
+                return PR.Fail(targetError);
+            }
+
+            if (leg is null)
             {
                 return PR.Fail(
-                    $"target '{tokens[i]}' needs a sigil — $ for a spot ($6A), @ for a gate or helipad (@D15), # for a graph node (#1926)"
+                    $"target '{tokens[i]}' needs a sigil — $ for a spot ($6A), @ for a gate or helipad (@D15), # for a graph node (#1926), "
+                        + "~ for a marked point (~37.61523/-122.38604/090)"
                 );
             }
 
-            targets.Add(NormalizeTargetToken(tokens[i]));
+            legs.Add(leg);
         }
 
-        if (targets.Count < 2)
+        if (legs.Count < 2)
         {
             return PR.Fail("needs at least two targets — use PUSH to move to a single one");
         }
 
-        return PR.Ok(new PushbackMultiCommand(targets, finalFacing) { IsTail = finalIsTail });
+        if ((finalFacing is not null) && (legs[^1].FreePose?.Facing is not null))
+        {
+            return PR.Fail(FacingGivenTwice);
+        }
+
+        return PR.Ok(new PushbackMultiCommand(legs, finalFacing) { IsTail = finalIsTail });
     }
-
-    /// <summary>Whether the token names a tug-move target: <c>$spot</c>, <c>@parking</c> or <c>#nodeId</c>.</summary>
-    private static bool IsTargetToken(string token) =>
-        token[0] == '#' ? NodeRefToken.IsNodeReference(token) : (((token[0] == '$') || (token[0] == '@')) && (token.Length > 1));
-
-    /// <summary>
-    /// A target token in canonical shape: the sigil kept (it is the only thing that separates spot <c>$7</c>
-    /// from gate <c>@7</c>) and the name upper-cased. A <c>#id</c> is already canonical.
-    /// </summary>
-    private static string NormalizeTargetToken(string token) => token[0] == '#' ? token : string.Concat(token[..1], token[1..].ToUpperInvariant());
 
     /// <summary>
     /// Reads an orientation (<c>&lt;C</c>, <c>&gt;C</c>, <c>FACE C</c>, <c>TAIL C</c>) starting at

@@ -138,6 +138,13 @@ public sealed class PushbackPhase : Phase
     public TugAmendment? Amendment { get; init; }
 
     /// <summary>
+    /// A move of a tow with a forced leg kind (<c>/PUSH</c>, <c>/PULL</c>) or a marked-point goal: a mid-push facing
+    /// change is refused, since re-planning it would drop what the controller forced. False on every other tow, and on
+    /// a move restored from a snapshot written before the field existed.
+    /// </summary>
+    public bool KeepsItsPlan { get; init; }
+
+    /// <summary>
     /// This move is the plan's last: its completion ends the tow, and <see cref="OnEnd"/> then records
     /// <see cref="EndTaxiway"/> as the taxiway the aircraft is on. False on every earlier move, and on a move restored
     /// from a snapshot written before the field existed, which leaves the aircraft's taxiway as it was.
@@ -903,6 +910,7 @@ public sealed class PushbackPhase : Phase
             ContinuesStandPushOff = ContinuesStandPushOff,
             IsLastMove = IsLastMove,
             EndTaxiway = EndTaxiway,
+            KeepsItsPlan = KeepsItsPlan,
             PlannedEndLatitude = PlannedEnd.Lat,
             PlannedEndLongitude = PlannedEnd.Lon,
             AmendmentGoalKind = Amendment?.GoalKind,
@@ -958,6 +966,7 @@ public sealed class PushbackPhase : Phase
             ContinuesStandPushOff = dto.ContinuesStandPushOff,
             IsLastMove = dto.IsLastMove,
             EndTaxiway = dto.EndTaxiway,
+            KeepsItsPlan = dto.KeepsItsPlan,
             Amendment = AmendmentFromSnapshot(dto),
             _progress = new TugMoveProgress(
                 new LatLon(dto.ProgressStartLatitude, dto.ProgressStartLongitude),

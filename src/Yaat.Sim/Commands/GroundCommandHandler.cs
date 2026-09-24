@@ -2828,7 +2828,8 @@ public static class GroundCommandHandler
             return refused;
         }
 
-        InstallTugMove(aircraft, groundLayout, plan, target.Terminus, atStand ? TugAmendment.For(target.Goal, start) : null);
+        TugAmendment? amendment = atStand ? TugAmendment.For(target.Goal, start) : null;
+        InstallTugMove(aircraft, groundLayout, plan, new TugTow(target.Terminus, amendment, KeepsItsPlan(target.Goal)));
         return PushAccepted(target.Readback(plan), plan);
     }
 
@@ -2865,6 +2866,19 @@ public static class GroundCommandHandler
             TugGoalKind.Spot => PushWords.Named("spot", TugGoalName(goal)),
             _ => PushWords.Named("node", goal.Node!.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)),
         };
+
+    /// <summary>
+    /// A marked point's goal: a node minted at the point (<see cref="VirtualNode.Create"/>, so the same position is the
+    /// same node), on the point's own facing or else <paramref name="otherFacing"/> (a <c>FACE</c>/<c>TAIL</c>, or a
+    /// <c>PUSHM</c>'s final facing), converted to true as every facing the controller names is.
+    /// </summary>
+    private static TugGoal MarkedPointGoal(AircraftState aircraft, PushFreePose pose, MagneticHeading? otherFacing, string label)
+    {
+        MagneticHeading? facing = pose.Facing ?? otherFacing;
+        double? facingTrueDeg = facing is { } magnetic ? MagneticDeclination.MagneticToTrue(magnetic.Degrees, aircraft.Position) : null;
+        string? facingWord = facing is { } named ? GroundCommandParser.CardinalWord(named) : null;
+        return TugGoal.FreePose(VirtualNode.Create(pose.Latitude, pose.Longitude), facingWord, pose.Facing is null ? null : facingTrueDeg, label);
+    }
 
     /// <summary>
     /// <c>Push to spot 7A</c> with the push's facing; with none, the RPO note names the taxiway the spot's nose-out facing
@@ -2971,6 +2985,11 @@ public static class GroundCommandHandler
         if (push.Destination?.NodeId is { } nodeId)
         {
             return ResolvePushToNode(aircraft, push, groundLayout, nodeId);
+        }
+
+        if (push.Destination?.FreePose is { } pose)
+        {
+            return ResolvePushToMarkedPoint(aircraft, push, groundLayout, pose);
         }
 
         if (push.Destination is { } destination)
@@ -3223,21 +3242,55 @@ public static class GroundCommandHandler
 
         return destination.Spot is { } spot
             ? ResolvePushToSpot(aircraft, push, groundLayout, spot)
-            : ResolvePushToStand(groundLayout, destination.Parking!);
+            : ResolvePushToStand(groundLayout, destination.Parking!, destination.ForcedKind);
+    }
+
+    /// <summary>
+    /// <c>PUSH ~lat/lon[/facing]</c>: a one-goal tug move to a marked point, held on at the end with the parking spot
+    /// untouched. Its facing is the point's own or the push's <c>FACE</c>/<c>TAIL</c>; the parser refuses both at once.
+    /// </summary>
+    private static PushResolution ResolvePushToMarkedPoint(
+        AircraftState aircraft,
+        PushbackCommand push,
+        AirportGroundLayout? groundLayout,
+        PushFreePose pose
+    )
+    {
+        if (groundLayout is null)
+        {
+            return PushResolution.Refused("No airport ground layout available");
+        }
+
+        TugGoal goal = MarkedPointGoal(aircraft, pose, push.MagneticHeading, PushReadbackPhrases.MarkedPointLabel(null)) with
+        {
+            ForcedKind = push.Destination!.ForcedKind,
+        };
+        double? pushFacingTrueDeg = push.MagneticHeading is { } heading
+            ? MagneticDeclination.MagneticToTrue(heading.Degrees, aircraft.Position)
+            : null;
+        Log.LogDebug(
+            "[Pushback] {Callsign}: to marked point {Point}, forced {Forced}",
+            aircraft.Callsign,
+            pose.Token,
+            goal.ForcedKind?.ToString() ?? "none"
+        );
+
+        var readback = new PushReadback(PushReadbackPhrases.ToMarkedPoint(push), null);
+        return PushResolution.Of(new PushTarget(goal, pushFacingTrueDeg, TugTerminus.Holding(null), _ => readback));
     }
 
     /// <summary>Whether the push names a facing: a heading or a taxiway to face toward.</summary>
     private static bool HasFacing(PushbackCommand push) => (push.MagneticHeading is not null) || (push.FacingTaxiway is not null);
 
-    private static PushResolution ResolvePushToStand(AirportGroundLayout groundLayout, string label)
+    private static PushResolution ResolvePushToStand(AirportGroundLayout groundLayout, string label, PushbackLegKind? forced)
     {
         if ((groundLayout.FindHelipadByName(label) ?? groundLayout.FindParkingByName(label)) is not { } node)
         {
             return PushResolution.Refused($"Cannot find parking '{label}'");
         }
 
-        var readback = new PushReadback(PushReadbackPhrases.ToStand(StandWords(node, label)), null);
-        return PushResolution.Of(new PushTarget(TugGoal.Stand(node), null, TugTerminus.AtStand(label), _ => readback));
+        var readback = new PushReadback(PushReadbackPhrases.ToStand(StandWords(node, label), forced), null);
+        return PushResolution.Of(new PushTarget(TugGoal.Stand(node) with { ForcedKind = forced }, null, TugTerminus.AtStand(label), _ => readback));
     }
 
     private static PushResolution ResolvePushToSpot(AircraftState aircraft, PushbackCommand push, AirportGroundLayout groundLayout, string label)
@@ -3256,7 +3309,8 @@ public static class GroundCommandHandler
         );
 
         PushReadback readback = SpotReadback(push, groundLayout, node, label);
-        return PushResolution.Of(new PushTarget(TugGoal.Spot(node), facingTrueDeg, TugTerminus.OnSpot, _ => readback));
+        TugGoal goal = TugGoal.Spot(node) with { ForcedKind = push.Destination!.ForcedKind };
+        return PushResolution.Of(new PushTarget(goal, facingTrueDeg, TugTerminus.OnSpot, _ => readback));
     }
 
     /// <summary>
@@ -3273,11 +3327,12 @@ public static class GroundCommandHandler
         }
 
         string token = $"#{nodeId}";
-        if (ResolveTugGoal(groundLayout, token) is not { } goal)
+        if (ResolveTugGoal(groundLayout, token) is not { } resolved)
         {
             return PushResolution.Refused($"Cannot find {DescribeTugTarget(token)}");
         }
 
+        TugGoal goal = resolved with { ForcedKind = push.Destination!.ForcedKind };
         string name = TugGoalName(goal);
         if ((goal.Kind == TugGoalKind.Stand) && HasFacing(push))
         {
@@ -3286,7 +3341,7 @@ public static class GroundCommandHandler
 
         if (goal.Kind == TugGoalKind.Stand)
         {
-            var standReadback = new PushReadback(PushReadbackPhrases.ToStandNode(GoalWords(goal)), null);
+            var standReadback = new PushReadback(PushReadbackPhrases.ToStandNode(GoalWords(goal), goal.ForcedKind), null);
             return PushResolution.Of(new PushTarget(goal, null, TugTerminus.AtStand(name), _ => standReadback));
         }
 
@@ -3338,7 +3393,8 @@ public static class GroundCommandHandler
     /// stand push-off of a single-goal <c>PUSH</c> is still running — before any turn has begun — and then the
     /// same goal is re-planned on the new facing from the stand the push started on. Its first move is the same
     /// push-off, which keeps running; every move queued behind it is replaced. A tug move that ends on a stand is
-    /// never amended: the aircraft parks on the stand's own heading.
+    /// never amended: the aircraft parks on the stand's own heading. Nor is a tow that keeps its plan
+    /// (<see cref="PushbackPhase.KeepsItsPlan"/>): the controller issues a new <c>PUSH</c> instead.
     /// </summary>
     private static CommandResult TryAmendPushback(
         AircraftState aircraft,
@@ -3359,6 +3415,11 @@ public static class GroundCommandHandler
         if ((current is PushbackPhase) && (aircraft.Phases.Phases[^1] is AtParkingPhase))
         {
             return new CommandResult(false, "Unable, a pushback to a stand keeps the stand's heading");
+        }
+
+        if (current is PushbackPhase { KeepsItsPlan: true })
+        {
+            return new CommandResult(false, "Unable, a forced push or a push to a marked point keeps its plan — issue a new PUSH to change it");
         }
 
         if ((current is not PushbackPhase pushOff) || !pushOff.CanAmend(aircraft))
@@ -3391,7 +3452,7 @@ public static class GroundCommandHandler
         }
 
         var terminus = TugTerminus.Holding(amended.Goal.TaxiwayName);
-        aircraft.Phases.ReplaceUpcoming(TugMovePhases(plan, true, terminus, null, 1));
+        aircraft.Phases.ReplaceUpcoming(TugMovePhases(plan, true, new TugTow(terminus, null, false), 1));
         MarkRunningPushOff(pushOff, plan, terminus.EndTaxiway);
         Log.LogDebug(
             "[Pushback] {Callsign}: face heading amended to {Heading:000} ({FacingTrue:F1} true), re-planned as {Moves}",
@@ -3482,15 +3543,9 @@ public static class GroundCommandHandler
             return new CommandResult(false, "A tug move requires the aircraft to be at parking, holding after a pushback, or already under tow");
         }
 
-        var goals = new List<TugGoal>(move.Targets.Count);
-        foreach (string token in move.Targets)
+        if (ResolveMultiGoals(aircraft, move, groundLayout, out string missing) is not { } goals)
         {
-            if (ResolveTugGoal(groundLayout, token) is not { } goal)
-            {
-                return new CommandResult(false, $"Cannot find {DescribeTugTarget(token)}");
-            }
-
-            goals.Add(goal);
+            return new CommandResult(false, missing);
         }
 
         if (goals.Count < 2)
@@ -3538,16 +3593,68 @@ public static class GroundCommandHandler
             return refused;
         }
 
-        InstallTugMove(aircraft, groundLayout, plan, terminus, null);
+        InstallTugMove(aircraft, groundLayout, plan, new TugTow(terminus, null, goals.Any(KeepsItsPlan)));
         return PushAccepted(PushMultiReadback(goals, move), plan);
     }
 
     /// <summary>
+    /// A <c>PUSHM</c>'s goals, one per leg in order, each carrying its leg's forced kind: a marked point minted where it
+    /// lies (the last on the command's final facing when it has none of its own), every other target found in the
+    /// layout. Null, with <paramref name="error"/> naming the target, when one is not found.
+    /// </summary>
+    private static List<TugGoal>? ResolveMultiGoals(
+        AircraftState aircraft,
+        PushbackMultiCommand move,
+        AirportGroundLayout groundLayout,
+        out string error
+    )
+    {
+        var goals = new List<TugGoal>(move.Legs.Count);
+        for (int i = 0; i < move.Legs.Count; i++)
+        {
+            PushDestination leg = move.Legs[i];
+            MagneticHeading? finalFacing = i == (move.Legs.Count - 1) ? move.FinalFacing : null;
+            TugGoal? goal = leg.FreePose is { } pose
+                ? MarkedPointGoal(
+                    aircraft,
+                    pose,
+                    finalFacing,
+                    PushReadbackPhrases.MarkedPointLabel(PushReadbackPhrases.MarkedPointNumber(move.Legs, i))
+                )
+                : ResolveTugGoal(groundLayout, leg.Token);
+            if (goal is null)
+            {
+                error = $"Cannot find {DescribeTugTarget(leg.Token)}";
+                return null;
+            }
+
+            goals.Add(goal with { ForcedKind = leg.ForcedKind });
+        }
+
+        error = string.Empty;
+        return goals;
+    }
+
+    /// <summary>
     /// A <c>PUSHM</c> reads back its last point and the points on the way, each named by kind, then the final facing
-    /// when it names one: <c>Push to spot 6B via spot 6A, node 1926, face east</c>. No park or hold word.
+    /// when it names one: <c>Push to spot 6B via spot 6A, node 1926, face east</c>; with a leg forced or a marked point,
+    /// leg by leg: <c>Push to gate F8, then pull forward to spot 7A, face east</c>. No park or hold word.
     /// </summary>
     private static PushReadback PushMultiReadback(IReadOnlyList<TugGoal> goals, PushbackMultiCommand move) =>
-        new(PushReadbackPhrases.Multi([.. goals.Select(GoalWords)], move.FinalFacing, move.IsTail), null);
+        new(
+            PushReadbackPhrases.Multi(
+                move,
+                [
+                    .. goals.Select(
+                        (goal, i) =>
+                            goal.Kind == TugGoalKind.FreePose
+                                ? PushReadbackPhrases.MarkedPoint(PushReadbackPhrases.MarkedPointNumber(move.Legs, i))
+                                : GoalWords(goal)
+                    ),
+                ]
+            ),
+            null
+        );
 
     /// <summary>
     /// The parked or held aircraft near the aircraft, as <see cref="TugMovePlanner"/> sees them — built by
@@ -3607,28 +3714,23 @@ public static class GroundCommandHandler
     /// <summary>
     /// Clears whatever the aircraft was doing and installs the planned moves, each as its own
     /// <see cref="PushbackPhase"/>, with the terminus's resting phase behind them. The first move is the stand
-    /// push-off when the aircraft was parked, and only that move carries <paramref name="amendment"/>. A move
-    /// ending on a stand parks the aircraft there; one ending on a ramp spot holds with no parking spot — the stand
-    /// it left is behind it; one ending anywhere else holds and leaves the parking spot as it was.
+    /// push-off when the aircraft was parked, and only that move carries the tow's amendment; every move carries
+    /// <see cref="TugTow.KeepsItsPlan"/>. A move ending on a stand parks the aircraft there; one ending on a ramp spot
+    /// holds with no parking spot — the stand it left is behind it; one ending anywhere else holds and leaves the
+    /// parking spot as it was.
     /// </summary>
     /// <param name="aircraft">The aircraft to move.</param>
     /// <param name="groundLayout">The airport's ground layout, or null.</param>
     /// <param name="plan">The planned move.</param>
-    /// <param name="terminus">What the move leaves the aircraft doing.</param>
-    /// <param name="amendment">The stand push-off's facing amendment, or null.</param>
-    private static void InstallTugMove(
-        AircraftState aircraft,
-        AirportGroundLayout? groundLayout,
-        TugPlan plan,
-        TugTerminus terminus,
-        TugAmendment? amendment
-    )
+    /// <param name="tow">What the move leaves the aircraft doing, and how a mid-push facing change is taken.</param>
+    private static void InstallTugMove(AircraftState aircraft, AirportGroundLayout? groundLayout, TugPlan plan, TugTow tow)
     {
+        TugTerminus terminus = tow.Terminus;
         bool atStand = aircraft.Phases?.CurrentPhase is AtParkingPhase;
         PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         aircraft.Phases!.Clear(ctx);
         aircraft.Phases = new PhaseList();
-        foreach (Phase phase in TugMovePhases(plan, atStand, terminus, amendment, 0))
+        foreach (Phase phase in TugMovePhases(plan, atStand, tow, 0))
         {
             aircraft.Phases.Add(phase);
         }
@@ -3670,8 +3772,21 @@ public static class GroundCommandHandler
     /// <see cref="TugTerminus.EndTaxiway"/>, which its completion records as the aircraft's taxiway. A terminus on a
     /// stand parks the aircraft behind the moves; any other holds it.</para>
     /// </summary>
-    private static IEnumerable<Phase> TugMovePhases(TugPlan plan, bool fromStand, TugTerminus terminus, TugAmendment? amendment, int firstMove)
+    /// <summary>
+    /// How an installed tow ends and how a mid-push facing change is taken: the terminus, the stand push-off's
+    /// amendment (null when the push is never amended), and whether the tow keeps its plan (<see cref="KeepsItsPlan"/>).
+    /// </summary>
+    private readonly record struct TugTow(TugTerminus Terminus, TugAmendment? Amendment, bool KeepsItsPlan);
+
+    /// <summary>
+    /// Whether a tow to <paramref name="goal"/> keeps its plan against a mid-push facing change: a leg forced to
+    /// <c>/PUSH</c> or <c>/PULL</c>, or a marked point, is what the controller asked for, and a re-plan would drop it.
+    /// </summary>
+    private static bool KeepsItsPlan(TugGoal goal) => (goal.ForcedKind is not null) || (goal.Kind == TugGoalKind.FreePose);
+
+    private static IEnumerable<Phase> TugMovePhases(TugPlan plan, bool fromStand, TugTow tow, int firstMove)
     {
+        (TugTerminus terminus, TugAmendment? amendment, bool keepsItsPlan) = tow;
         bool inFirstLeg = fromStand;
         for (int i = firstMove; i < plan.Moves.Count; i++)
         {
@@ -3692,6 +3807,7 @@ public static class GroundCommandHandler
                 ContinuesIntoNextMove = continues,
                 ContinuesStandPushOff = inFirstLeg && (i > 0),
                 Amendment = pushOff ? amendment : null,
+                KeepsItsPlan = keepsItsPlan,
                 IsLastMove = isLast,
                 EndTaxiway = isLast ? terminus.EndTaxiway : null,
             };

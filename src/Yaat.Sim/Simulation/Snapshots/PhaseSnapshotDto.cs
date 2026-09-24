@@ -494,6 +494,12 @@ public sealed class PushbackPhaseDto : PhaseDto
 
     /// <summary>The taxiway the tow's final goal names, or null; read only on the last move.</summary>
     public string? EndTaxiway { get; init; }
+
+    /// <summary>
+    /// The tow has a forced leg kind or a marked-point goal, so a mid-push facing change is refused. Absent on a snapshot
+    /// written before the field existed, which restores false — no such tow existed then.
+    /// </summary>
+    public bool KeepsItsPlan { get; init; }
     public double PlannedEndLatitude { get; init; }
     public double PlannedEndLongitude { get; init; }
 

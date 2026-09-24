@@ -1769,9 +1769,7 @@ public static class CommandDescriber
         string facing = FormatPushFacing(push);
         return push switch
         {
-            { Destination.NodeId: { } nodeId } => $"PUSH #{nodeId}{facing}",
-            { Destination.Spot: { } spot } => $"PUSH ${spot}{facing}",
-            { Destination.Parking: { } parking } => $"PUSH @{parking}{facing}",
+            { Destination: { } destination } => $"PUSH {destination.CanonicalToken}{facing}",
             { Taxiway: { } taxiway } => $"PUSH {taxiway}{facing}",
             _ => $"PUSH{facing}",
         };
@@ -1820,7 +1818,7 @@ public static class CommandDescriber
     /// </summary>
     private static string FormatPushMultiNatural(PushbackMultiCommand push)
     {
-        string legs = string.Join(", then ", push.Targets.Select(NaturalTargetName));
+        string legs = string.Join(", then ", push.Legs.Select(NaturalTargetName));
         string facing = push.FinalFacing is { } heading
             ? (push.IsTail ? NaturalTail(heading) : $", facing {GroundCommandParser.CardinalToken(heading)}")
             : "";
@@ -1830,20 +1828,24 @@ public static class CommandDescriber
     /// <summary>A facing named by the tail, as typed: <c>, tail W</c> for a nose facing east — never the nose's heading.</summary>
     private static string NaturalTail(MagneticHeading facing) => $", tail {GroundCommandParser.CardinalToken(facing.ToReciprocal())}";
 
-    /// <summary>A tug-move target token in words: <c>$6A</c> → spot 6A, <c>@D15</c> → parking D15, <c>#1926</c> → node 1926.</summary>
-    private static string NaturalTargetName(string target)
+    /// <summary>
+    /// A tug-move target in words: <c>$6A</c> → spot 6A, <c>@D15</c> → parking D15, <c>#1926</c> → node 1926,
+    /// <c>~37.615230/-122.386040</c> → marked point ~37.615230/-122.386040; a forced leg kind follows as <c>(pull)</c>.
+    /// </summary>
+    private static string NaturalTargetName(PushDestination target)
     {
-        if (target.Length < 2)
+        string name = target switch
         {
-            return target;
-        }
-
-        return target[0] switch
+            { Spot: { } spot } => $"spot {spot}",
+            { Parking: { } parking } => $"parking {parking}",
+            { NodeId: { } nodeId } => $"node {nodeId}",
+            _ => $"marked point {target.Token}",
+        };
+        return target.ForcedKind switch
         {
-            '$' => $"spot {target[1..]}",
-            '@' => $"parking {target[1..]}",
-            '#' => $"node {target[1..]}",
-            _ => target,
+            PushbackLegKind.Push => $"{name} (push)",
+            PushbackLegKind.Pull => $"{name} (pull)",
+            _ => name,
         };
     }
 
@@ -1851,8 +1853,16 @@ public static class CommandDescriber
     {
         if (push.Destination is { } destination)
         {
-            string? name = destination.NodeId is { } nodeId ? $"node {nodeId}" : (destination.Spot ?? destination.Parking);
-            string msg = $"Push to {name}";
+            string name =
+                destination.Spot
+                ?? destination.Parking
+                ?? (destination.NodeId is { } nodeId ? $"node {nodeId}" : $"marked point {destination.Token}");
+            string msg = destination.ForcedKind switch
+            {
+                PushbackLegKind.Push => $"Push back to {name}",
+                PushbackLegKind.Pull => $"Pull forward to {name}",
+                _ => $"Push to {name}",
+            };
             if (push.FacingTaxiway is not null)
             {
                 msg += $" facing {push.FacingTaxiway}";
