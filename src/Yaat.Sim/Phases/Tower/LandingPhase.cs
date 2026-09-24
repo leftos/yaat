@@ -779,89 +779,14 @@ public sealed class LandingPhase : Phase
             ResolveNextCandidate(ctx, plan);
         }
 
-        if (_candidateExit is not null)
+        if (HasMissedCandidateExit(ctx, plan))
         {
-            double distToBranchPoint = GeoMath.AlongTrackDistanceNm(
-                _candidateExit.BranchPointNode.Position,
-                ctx.Aircraft.Position,
-                plan.RunwayHeading
-            );
-
-            // Missed-exit conditions: past branch AND (too fast OR standard exit at branch)
-            double highSpeedTurnOff = CategoryPerformance.HighSpeedExitSpeed(ctx.Category);
-            bool tooFast = ctx.Aircraft.IndicatedAirspeed > _candidateExit.TurnOffSpeed + RolloutBraking.TurnOffSpeedToleranceKts;
-            bool standardExitAtBranch = _candidateExit.TurnOffSpeed < highSpeedTurnOff;
-
-            if ((distToBranchPoint <= 0) && (tooFast || standardExitAtBranch))
-            {
-                MarkExitUnable(ctx);
-                CurrentState = State.Unable;
-                return false;
-            }
+            MarkExitUnable(ctx);
+            CurrentState = State.Unable;
+            return false;
         }
 
-        // Speed planning: if we have a candidate exit ahead, compute the required
-        // decel to reach its turn-off speed by the branch point.
-        double targetSpeed = coastSpeed;
-        // Start at the rollout decel rate (2.5 kt/s jet, 1.5 kt/s piston). We
-        // always set an override rather than leaving it null — otherwise
-        // FlightPhysics would fall back to AircraftPerformance.DecelRate, which
-        // is the airborne rate, not the ground rollout rate. The exit-planner
-        // below raises this when the turn-off requires harder braking or lowers
-        // it when the exit is far enough away that the default would overshoot.
-        double decelRateOverride = plan.DefaultDecel;
-        if (_candidateExit is not null)
-        {
-            double distToBranch = GeoMath.AlongTrackDistanceNm(_candidateExit.BranchPointNode.Position, ctx.Aircraft.Position, plan.RunwayHeading);
-
-            if ((distToBranch > 0) && (ctx.Aircraft.IndicatedAirspeed > _candidateExit.TurnOffSpeed))
-            {
-                double requiredDecel = RolloutBraking.RequiredDecelKtsPerSec(ctx.Aircraft.GroundSpeed, _candidateExit.TurnOffSpeed, distToBranch);
-                double brakingLimit = BrakingLimit(ctx, plan);
-
-                if (requiredDecel <= brakingLimit)
-                {
-                    // Plan speed: down to the exit's turnoff speed if it is slower
-                    // than coast (e.g. 12-kt standard exits for a piston whose coast
-                    // is 25 kt). RunwayExitPhase still handles the final braking through
-                    // the turn, but letting LandingPhase drop below coast is what allows
-                    // a slow piston to actually take a 90° midfield exit — otherwise the
-                    // missed-exit check at distToBranch≤0 always fires for standard exits.
-                    targetSpeed = Math.Min(coastSpeed, _candidateExit.TurnOffSpeed);
-
-                    // Raise the decel rate if the direct turn-off requires firmer
-                    // braking than the default — can't make the exit otherwise.
-                    if (requiredDecel > decelRateOverride)
-                    {
-                        decelRateOverride = requiredDecel;
-                    }
-
-                    // Reserve distance for RunwayExitPhase to brake from coast to
-                    // turn-off speed. Aim to reach coast speed at (branch - buffer),
-                    // not at the branch itself.
-                    double brakingBufferNm = RolloutBraking.BrakingDistanceNm(coastSpeed, _candidateExit.TurnOffSpeed, plan.DefaultDecel);
-                    double effectiveDist = distToBranch - brakingBufferNm;
-
-                    // Gentle decel when the exit is far enough that normal braking
-                    // would reach coast speed too early. Lower the rate so the
-                    // aircraft stays fast longer and arrives at coast near the exit.
-                    if (effectiveDist > 0)
-                    {
-                        double requiredDecelToCoast = RolloutBraking.RequiredDecelKtsPerSec(ctx.Aircraft.GroundSpeed, coastSpeed, effectiveDist);
-                        if ((requiredDecelToCoast > 0) && (requiredDecelToCoast < decelRateOverride))
-                        {
-                            decelRateOverride = Math.Max(requiredDecelToCoast, MinSoftBrakingRateKtsPerSec);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Don't brake below coast speed — that's RunwayExitPhase's job.
-        if (ctx.Aircraft.IndicatedAirspeed <= targetSpeed)
-        {
-            targetSpeed = ctx.Aircraft.IndicatedAirspeed; // freeze at current
-        }
+        (double targetSpeed, double decelRateOverride) = PlanExitDeceleration(ctx, plan, coastSpeed);
 
         if (_hasLahso)
         {
@@ -874,22 +799,135 @@ public sealed class LandingPhase : Phase
         AircraftCategory cat = AircraftCategorization.Categorize(ctx.Aircraft.AircraftType);
         _canGoAround = ctx.Aircraft.IndicatedAirspeed >= CategoryPerformance.RejectedLandingMinSpeed(cat);
 
-        // Handoff gate — aircraft must be at or below coast speed. For standard
-        // exits (large turn angle) the branch must be at least 0.02 nm ahead to
-        // leave room for a proper turn arc; otherwise we block handoff and keep
-        // coasting until the next exit is resolved.
-        bool handoffBlocked = false;
-        if ((_candidateExit is not null) && (ctx.Aircraft.IndicatedAirspeed <= coastSpeed))
+        if (CanHandOff(ctx, plan, coastSpeed))
         {
-            double distToBranch = GeoMath.AlongTrackDistanceNm(_candidateExit.BranchPointNode.Position, ctx.Aircraft.Position, plan.RunwayHeading);
+            CurrentState = State.Handoff;
+            return TickHandoff(ctx);
+        }
 
-            double hsExitSpeed = CategoryPerformance.HighSpeedExitSpeed(ctx.Category);
-            bool isStandardExit = _candidateExit.TurnOffSpeed < hsExitSpeed;
-            if (isStandardExit && (distToBranch < 0.02))
+        return false;
+    }
+
+    /// <summary>
+    /// True when the rollout has passed the candidate exit's branch point without being able to take it: past the
+    /// branch and either still too fast for the turn-off or committed to a standard exit, which must be entered
+    /// before the branch.
+    /// </summary>
+    private bool HasMissedCandidateExit(PhaseContext ctx, LandingPlan plan)
+    {
+        if (_candidateExit is null)
+        {
+            return false;
+        }
+
+        double distToBranchPoint = GeoMath.AlongTrackDistanceNm(_candidateExit.BranchPointNode.Position, ctx.Aircraft.Position, plan.RunwayHeading);
+
+        // Missed-exit conditions: past branch AND (too fast OR standard exit at branch)
+        double highSpeedTurnOff = CategoryPerformance.HighSpeedExitSpeed(ctx.Category);
+        bool tooFast = ctx.Aircraft.IndicatedAirspeed > _candidateExit.TurnOffSpeed + RolloutBraking.TurnOffSpeedToleranceKts;
+        bool standardExitAtBranch = _candidateExit.TurnOffSpeed < highSpeedTurnOff;
+
+        return (distToBranchPoint <= 0) && (tooFast || standardExitAtBranch);
+    }
+
+    /// <summary>
+    /// The rollout's speed plan: the target speed and braking rate that bring the aircraft to the candidate exit's
+    /// turn-off speed by its branch point, or to coast speed when there is no candidate. Never plans above the
+    /// current speed: once IAS is at or below the planned target it holds IAS. Braking below coast is
+    /// <see cref="RunwayExitPhase"/>'s job.
+    /// </summary>
+    private (double TargetSpeed, double DecelRate) PlanExitDeceleration(PhaseContext ctx, LandingPlan plan, double coastSpeed)
+    {
+        double targetSpeed = coastSpeed;
+        // Start at the rollout decel rate (2.5 kt/s jet, 1.5 kt/s piston). We
+        // always set an override rather than leaving it null — otherwise
+        // FlightPhysics would fall back to AircraftPerformance.DecelRate, which
+        // is the airborne rate, not the ground rollout rate. The exit-planner
+        // below raises this when the turn-off requires harder braking or lowers
+        // it when the exit is far enough away that the default would overshoot.
+        double decelRateOverride = plan.DefaultDecel;
+        if (_candidateExit is not null)
+        {
+            (targetSpeed, decelRateOverride) = PlanCandidateExitDeceleration(ctx, plan, coastSpeed, _candidateExit);
+        }
+
+        // Don't brake below coast speed — that's RunwayExitPhase's job.
+        if (ctx.Aircraft.IndicatedAirspeed <= targetSpeed)
+        {
+            targetSpeed = ctx.Aircraft.IndicatedAirspeed; // freeze at current
+        }
+
+        return (targetSpeed, decelRateOverride);
+    }
+
+    /// <summary>
+    /// The part of <see cref="PlanExitDeceleration"/> that shapes the plan to <paramref name="candidate"/>: coast
+    /// speed at the default rollout rate unless the exit is still ahead, the aircraft is faster than its turn-off
+    /// speed, and the turn-off is within braking limits.
+    /// </summary>
+    private (double TargetSpeed, double DecelRate) PlanCandidateExitDeceleration(
+        PhaseContext ctx,
+        LandingPlan plan,
+        double coastSpeed,
+        ResolvedExitInfo candidate
+    )
+    {
+        double targetSpeed = coastSpeed;
+        double decelRateOverride = plan.DefaultDecel;
+        double distToBranch = GeoMath.AlongTrackDistanceNm(candidate.BranchPointNode.Position, ctx.Aircraft.Position, plan.RunwayHeading);
+
+        if ((distToBranch > 0) && (ctx.Aircraft.IndicatedAirspeed > candidate.TurnOffSpeed))
+        {
+            double requiredDecel = RolloutBraking.RequiredDecelKtsPerSec(ctx.Aircraft.GroundSpeed, candidate.TurnOffSpeed, distToBranch);
+            double brakingLimit = BrakingLimit(ctx, plan);
+
+            if (requiredDecel <= brakingLimit)
             {
-                handoffBlocked = true;
+                // Plan speed: down to the exit's turnoff speed if it is slower
+                // than coast (e.g. 12-kt standard exits for a piston whose coast
+                // is 25 kt). RunwayExitPhase still handles the final braking through
+                // the turn, but letting LandingPhase drop below coast is what allows
+                // a slow piston to actually take a 90° midfield exit — otherwise the
+                // missed-exit check at distToBranch≤0 always fires for standard exits.
+                targetSpeed = Math.Min(coastSpeed, candidate.TurnOffSpeed);
+
+                // Raise the decel rate if the direct turn-off requires firmer
+                // braking than the default — can't make the exit otherwise.
+                if (requiredDecel > decelRateOverride)
+                {
+                    decelRateOverride = requiredDecel;
+                }
+
+                // Reserve distance for RunwayExitPhase to brake from coast to
+                // turn-off speed. Aim to reach coast speed at (branch - buffer),
+                // not at the branch itself.
+                double brakingBufferNm = RolloutBraking.BrakingDistanceNm(coastSpeed, candidate.TurnOffSpeed, plan.DefaultDecel);
+                double effectiveDist = distToBranch - brakingBufferNm;
+
+                // Gentle decel when the exit is far enough that normal braking
+                // would reach coast speed too early. Lower the rate so the
+                // aircraft stays fast longer and arrives at coast near the exit.
+                if (effectiveDist > 0)
+                {
+                    double requiredDecelToCoast = RolloutBraking.RequiredDecelKtsPerSec(ctx.Aircraft.GroundSpeed, coastSpeed, effectiveDist);
+                    if ((requiredDecelToCoast > 0) && (requiredDecelToCoast < decelRateOverride))
+                    {
+                        decelRateOverride = Math.Max(requiredDecelToCoast, MinSoftBrakingRateKtsPerSec);
+                    }
+                }
             }
         }
+
+        return (targetSpeed, decelRateOverride);
+    }
+
+    /// <summary>
+    /// The rollout-to-exit hand-off gate: the aircraft is at or below coast speed, a standard exit's branch is not
+    /// too close to turn onto, and a LAHSO lander has a candidate <see cref="RunwayExitPhase"/> will honour.
+    /// </summary>
+    private bool CanHandOff(PhaseContext ctx, LandingPlan plan, double coastSpeed)
+    {
+        bool handoffBlocked = IsStandardExitBranchTooClose(ctx, plan, coastSpeed);
 
         // A LAHSO lander hands off only with a candidate RunwayExitPhase will actually honour: one the resolver has
         // restricted to a branch point before the hold-short point, that carries a real path, and whose hold-short
@@ -898,10 +936,22 @@ public sealed class LandingPhase : Phase
         // such a candidate the aircraft stays in rollout under the LAHSO ceiling and stops at the point.
         bool lahsoAllowsHandoff = !_hasLahso || ((_candidateExit is { Path.Count: >= 2 }) && !IsHoldShortOccupied(ctx, _candidateExit));
 
-        if (lahsoAllowsHandoff && !handoffBlocked && (ctx.Aircraft.IndicatedAirspeed <= coastSpeed))
+        return lahsoAllowsHandoff && !handoffBlocked && (ctx.Aircraft.IndicatedAirspeed <= coastSpeed);
+    }
+
+    /// <summary>
+    /// True when the candidate is a standard exit whose branch point is less than 0.02 nm ahead, too close for a
+    /// turn arc, so hand-off waits for the next exit.
+    /// </summary>
+    private bool IsStandardExitBranchTooClose(PhaseContext ctx, LandingPlan plan, double coastSpeed)
+    {
+        if ((_candidateExit is not null) && (ctx.Aircraft.IndicatedAirspeed <= coastSpeed))
         {
-            CurrentState = State.Handoff;
-            return TickHandoff(ctx);
+            double distToBranch = GeoMath.AlongTrackDistanceNm(_candidateExit.BranchPointNode.Position, ctx.Aircraft.Position, plan.RunwayHeading);
+
+            double hsExitSpeed = CategoryPerformance.HighSpeedExitSpeed(ctx.Category);
+            bool isStandardExit = _candidateExit.TurnOffSpeed < hsExitSpeed;
+            return isStandardExit && (distToBranch < 0.02);
         }
 
         return false;
