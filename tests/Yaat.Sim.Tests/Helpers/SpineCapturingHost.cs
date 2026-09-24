@@ -1,5 +1,6 @@
 using Yaat.Sim.Asdex;
 using Yaat.Sim.Commands;
+using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
@@ -90,8 +91,6 @@ public sealed class SpineCapturingHost(SimulationEngine engine) : ISimulationHos
 
     public void ApplyPreTickRecordedActions(int second) => _bare.ApplyPreTickRecordedActions(second);
 
-    public void LiveTrafficSync() => _bare.LiveTrafficSync();
-
     public void SurfaceCoastExpiry() => _bare.SurfaceCoastExpiry();
 
     public void RundownBroadcast() => _bare.RundownBroadcast();
@@ -131,6 +130,53 @@ public sealed class SpineCapturingHost(SimulationEngine engine) : ISimulationHos
     public void OnPilotTransmissions(List<PilotTransmission> transmissions) => _bare.OnPilotTransmissions(transmissions);
 
     public void OnApproachScores(List<ApproachScore> scores) => _bare.OnApproachScores(scores);
+
+    public ILiveTrafficFeedPort LiveTrafficFeed => _bare.LiveTrafficFeed;
+
+    /// <summary>Every shadow the live-traffic sync spawned, with the source of its first track, in order.</summary>
+    public List<(AircraftState Shadow, LiveTrafficSource Source)> LiveTrafficSpawns { get; } = [];
+
+    /// <summary>Every shadow the live-traffic sync removed, with the reason, in order.</summary>
+    public List<(AircraftState Shadow, LiveTrafficRemovalReason Reason)> LiveTrafficRemovals { get; } = [];
+
+    /// <summary>Every callsign the live-traffic sync reported as held by a simulated aircraft, in order.</summary>
+    public List<string> LiveTrafficCallsignsInUse { get; } = [];
+
+    /// <summary>Every filter sweep's count the live-traffic sync reported, in order.</summary>
+    public List<int> LiveTrafficFilteredOut { get; } = [];
+
+    public void OnLiveTrafficSpawned(AircraftState shadow, LiveTrafficSource source)
+    {
+        LiveTrafficSpawns.Add((shadow, source));
+        _bare.OnLiveTrafficSpawned(shadow, source);
+    }
+
+    public void OnLiveTrafficRemoved(AircraftState shadow, LiveTrafficRemovalReason reason)
+    {
+        LiveTrafficRemovals.Add((shadow, reason));
+        _bare.OnLiveTrafficRemoved(shadow, reason);
+    }
+
+    public void OnLiveTrafficCallsignInUse(string callsign)
+    {
+        LiveTrafficCallsignsInUse.Add(callsign);
+        _bare.OnLiveTrafficCallsignInUse(callsign);
+    }
+
+    public void OnLiveTrafficFilteredOut(int count)
+    {
+        LiveTrafficFilteredOut.Add(count);
+        _bare.OnLiveTrafficFilteredOut(count);
+    }
+
+    /// <summary>Every re-acquire count the live-traffic sync reported, in order.</summary>
+    public List<int> LiveTrafficReacquired { get; } = [];
+
+    public void OnLiveTrafficReacquired(int shadows)
+    {
+        LiveTrafficReacquired.Add(shadows);
+        _bare.OnLiveTrafficReacquired(shadows);
+    }
 
     // --- IActionHost ---
 

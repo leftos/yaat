@@ -1,5 +1,6 @@
 using Yaat.Sim.Asdex;
 using Yaat.Sim.Commands;
+using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Actions;
@@ -23,8 +24,6 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
     private readonly SimulationEngine _engine = engine;
 
     public void ApplyPreTickRecordedActions(int second) { }
-
-    public void LiveTrafficSync() { }
 
     public void SurfaceCoastExpiry() { }
 
@@ -55,6 +54,20 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     /// <summary>Nothing to mirror: the world already holds the profile.</summary>
     public void OnWeatherAdvanced(WeatherProfile profile) { }
+
+    /// <summary>No feed: every second of the live-traffic sync is inert.</summary>
+    public ILiveTrafficFeedPort LiveTrafficFeed => EmptyLiveTrafficFeedPort.Instance;
+
+    /// <summary>Unreachable through the empty feed; a caller driving the step with its own port gets nothing to tear down here.</summary>
+    public void OnLiveTrafficSpawned(AircraftState shadow, LiveTrafficSource source) { }
+
+    public void OnLiveTrafficRemoved(AircraftState shadow, LiveTrafficRemovalReason reason) { }
+
+    public void OnLiveTrafficCallsignInUse(string callsign) { }
+
+    public void OnLiveTrafficFilteredOut(int count) { }
+
+    public void OnLiveTrafficReacquired(int shadows) { }
 
     public void OnWarnings(List<(string Callsign, string Warning)> warnings)
     {

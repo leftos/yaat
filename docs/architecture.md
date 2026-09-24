@@ -682,6 +682,7 @@ LiveTraffic/LiveTrafficAssumer.cs    # ASSUME hand-off: shadow → simulated air
                                      # route rejoin (NextFixAhead), initial climb, VFR, runway/surface kinds. Never refused. Also run implicitly by
                                      # CommandDispatcher.DispatchCompound's shadow gate for any non-SAY command to a shadow (2026-09-08); stamps
                                      # AircraftState.AssumedFromLiveTraffic, the marker UNASSUME (ActionArms.Unassume) requires. See live-traffic.md.
+LiveTraffic/ILiveTrafficFeedPort.cs  # The feed port the host implements (BeginSecond → LiveTrafficFeedSecond, ShadowStatus, EndSecond) + LiveTrafficFeedTrack, LiveTrafficShadowStatus, EmptyLiveTrafficFeedPort (always inert; BareHost/ReplayHost)
 LiveTraffic/LiveTrafficKinematics.cs # CreateShadow / Apply(sample) / Resync(simNow) / Advance(dt): dead-reckons a shadow from its latest sample and writes the air vector (heading+IAS)
                                      # so the computed GroundSpeed equals the sampled GS under the room wind; coasts after two missed sweeps. See live-traffic.md.
 LiveTraffic/LiveTrafficFilter.cs     # Shared live-traffic filter model (rules VFR/IFR/both, flight-plan airport list, radius); canonical-string TryParse/Serialize/Describe; carried on SimScenarioState.LiveTrafficFilter
@@ -1404,7 +1405,7 @@ StepId.cs                      # One member per step, in spine order; the trace'
                                # track-automation steps emit so they reach the room the same second
 SpineStep.cs                   # One list entry: a sim step (engine body, gets only IHostConsumers) or a host step (gets only IHostSteps)
 IHostSteps.cs                  # The host's step view — every server-owned body as a named member, no defaults (a new member breaks every host); header lists the
-                               # step-4 debt (LiveTrafficSync). CoordinationTimers and TowerLists moved out 2026-09-07 (SimulationEngine.TickCoordinationTimers / TickTowerLists). The two strip auto-print passes (AutoArrivalStrips/
+                               # step-4 debt — none left: LiveTrafficSync became SimulationEngine.TickLiveTrafficSync over IHostConsumers.LiveTrafficFeed (04e). CoordinationTimers and TowerLists moved out 2026-09-07 (SimulationEngine.TickCoordinationTimers / TickTowerLists). The two strip auto-print passes (AutoArrivalStrips/
                                # AutoApproachDepartureStrips) and the four TDLS tick steps (AutoTdlsQueue/TdlsAutoWilco/TdlsExpiry/TdlsTrackRemoval) moved
                                # out — they're Sim steps now, engine bodies in SimulationEngine.Strips.cs / SimulationEngine.Tdls.cs. AsdexAlerts moved out
                                # 2026-09-20 (SimulationEngine.TickAsdexAlerts)

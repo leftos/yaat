@@ -17,6 +17,7 @@ using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Simulation.Replay;
 using Yaat.Sim.Simulation.Snapshots;
+using Yaat.Sim.Simulation.Spine;
 using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Simulation;
@@ -27,7 +28,7 @@ public sealed partial class SimulationEngine
     /// <summary>
     /// Applies a live-traffic sample to the named shadow, creating it from <paramref name="spawnState"/>
     /// when it does not exist yet, and records the action. Call from pre-physics of the current second
-    /// (the server sync does) so the recorded second matches the pre-tick replay placement. Returns
+    /// (<see cref="TickLiveTrafficSync"/> does) so the recorded second matches the pre-tick replay placement. Returns
     /// false when nothing changed: the sample is stale, the aircraft has been assumed, or it is unknown
     /// and no spawn state was given.
     /// </summary>
@@ -195,6 +196,183 @@ public sealed partial class SimulationEngine
         World.RemoveAircraft(callsign);
         TrackShadowBeacon(ac.Transponder.Code, 0);
         RecordAction(new RecordedLiveTrafficRemoval(Scenario?.ElapsedSeconds ?? 0, callsign, reason));
+        return true;
+    }
+
+    /// <summary>
+    /// Seconds of shadow silence before a track the feed still delivers — just outside the room's scope — is removed.
+    /// Much shorter than the silence backstop: the feed said where the aircraft is, and it is not here.
+    /// </summary>
+    public const double LiveTrafficOutOfScopeRemovalSeconds = 15;
+
+    /// <summary>
+    /// The pre-physics live-traffic sync, last in pre-physics so a sample placed at second <c>t</c> is recorded at
+    /// <c>t</c> and replays pre-tick at <c>t</c>. Asks <paramref name="port"/> what is in scope this second; clears every
+    /// shadow first when the port says so; spawns shadows for new tracks and feeds existing ones fresh samples; then
+    /// ages out the shadows the feed no longer supports. Every sample and removal goes through
+    /// <see cref="ApplyLiveTrafficSample"/> / <see cref="RemoveLiveTraffic"/>, so the recording is the one the replay
+    /// twins read; what the room does with a spawn, a removal, a collision or a filter sweep is the host's, told
+    /// through <paramref name="host"/>. A host with no feed supplies <see cref="EmptyLiveTrafficFeedPort"/>, whose
+    /// every second is inert.
+    /// </summary>
+    public void TickLiveTrafficSync(ILiveTrafficFeedPort port, IHostConsumers host)
+    {
+        if (Scenario is not { } scenario)
+        {
+            return;
+        }
+
+        LiveTrafficFeedSecond feed = port.BeginSecond();
+        if (feed.ClearShadows is { } clearReason)
+        {
+            ClearLiveTrafficShadows(clearReason, host);
+        }
+
+        if (!feed.Syncs)
+        {
+            return;
+        }
+
+        foreach (LiveTrafficFeedTrack track in feed.Tracks)
+        {
+            if (!track.MatchesFilter)
+            {
+                // The room's filter excludes it: never spawned, and an existing shadow is torn down below.
+                continue;
+            }
+
+            ApplyLiveTrafficTrack(track, host);
+        }
+
+        RemoveAbsentLiveTraffic(port, scenario.ElapsedSeconds, host);
+        port.EndSecond();
+    }
+
+    /// <summary>
+    /// Removes every shadow with <paramref name="reason"/>. A re-acquire after a gap that removed any tells the host how
+    /// many, so the instructor learns how far the picture moved.
+    /// </summary>
+    private void ClearLiveTrafficShadows(LiveTrafficRemovalReason reason, IHostConsumers host)
+    {
+        int removed = 0;
+        foreach (AircraftState ac in World.GetSnapshot())
+        {
+            if (ac.IsShadow && RemoveLiveTrafficShadow(ac, reason, host))
+            {
+                removed++;
+            }
+        }
+
+        if ((reason == LiveTrafficRemovalReason.Reanchored) && (removed > 0))
+        {
+            host.OnLiveTrafficReacquired(removed);
+        }
+    }
+
+    private void ApplyLiveTrafficTrack(LiveTrafficFeedTrack track, IHostConsumers host)
+    {
+        string callsign = track.Callsign;
+        AircraftState? existing = World.FindAircraft(callsign);
+        if (existing is not null && !existing.IsShadow)
+        {
+            // A simulated aircraft owns the callsign: the feed is ignored for it. An *assumed* one is not a collision
+            // — the controller took this very track, which any command on a shadow now does — so it is skipped in
+            // silence; warning would put a line on the terminal for every routine hand-off.
+            if (!existing.AssumedFromLiveTraffic)
+            {
+                host.OnLiveTrafficCallsignInUse(callsign);
+            }
+
+            return;
+        }
+
+        if (track.Suppressed)
+        {
+            return;
+        }
+
+        if (existing is not null)
+        {
+            ApplyLiveTrafficSample(callsign, track.Sample, null);
+            return;
+        }
+
+        if (ApplyLiveTrafficSample(callsign, track.Sample, track.SpawnState()))
+        {
+            host.OnLiveTrafficSpawned(World.FindAircraft(callsign)!, track.Sample.Source);
+        }
+    }
+
+    /// <summary>
+    /// Tiered teardown, explicit lifecycle first. A shadow whose feed row is ended was ended by the feed itself and is
+    /// removed promptly — a landed arrival must not dead-reckon down the runway for a silence window. One the feed has
+    /// filtered out goes at once, reported in one line. One the feed still delivers but outside the room's scope goes at
+    /// <see cref="LiveTrafficOutOfScopeRemovalSeconds"/>. Only then the silence backstop
+    /// (<see cref="LiveTrafficKinematics.RemovalAfterSeconds"/>) — SCDS publishes selectively, so silence alone is weak
+    /// evidence and the window is generous; a feed repeating the same view still lands here (repeats are never newer
+    /// than the applied sample, so they refresh nothing).
+    /// </summary>
+    private void RemoveAbsentLiveTraffic(ILiveTrafficFeedPort port, double elapsed, IHostConsumers host)
+    {
+        int filteredOut = 0;
+        foreach (AircraftState ac in World.GetSnapshot())
+        {
+            if (ac.LiveTraffic is not { } lt)
+            {
+                continue;
+            }
+
+            double silence = elapsed - lt.AppliedAtSimSeconds;
+            if (silence < 2)
+            {
+                continue;
+            }
+
+            if (AbsentShadowRemoval(port.ShadowStatus(ac.Callsign), silence, lt.Source) is not { } reason)
+            {
+                continue;
+            }
+
+            if (RemoveLiveTrafficShadow(ac, reason, host) && (reason == LiveTrafficRemovalReason.Filtered))
+            {
+                filteredOut++;
+            }
+        }
+
+        if (filteredOut > 0)
+        {
+            // One report, not one per callsign: a tightened filter can hide dozens at once, and the instructor
+            // (who may just have advised traffic on one of them) needs to know they left by filter, not by radar.
+            host.OnLiveTrafficFilteredOut(filteredOut);
+        }
+    }
+
+    /// <summary>The removal tier a silent shadow falls into this second; null while it stays.</summary>
+    private static LiveTrafficRemovalReason? AbsentShadowRemoval(LiveTrafficShadowStatus status, double silence, LiveTrafficSource source)
+    {
+        bool pastBackstop = silence > LiveTrafficKinematics.RemovalAfterSeconds(source);
+        return status switch
+        {
+            // Absence is not an ended track: a freshly opened DVR replay's private store starts empty, and the live
+            // store only forgets a row at reap — the silence backstop covers both long before that.
+            LiveTrafficShadowStatus.Absent => pastBackstop ? LiveTrafficRemovalReason.Dropped : null,
+            LiveTrafficShadowStatus.Ended => LiveTrafficRemovalReason.Dropped,
+            LiveTrafficShadowStatus.FilteredOut => LiveTrafficRemovalReason.Filtered,
+            _ when silence <= LiveTrafficOutOfScopeRemovalSeconds => null,
+            LiveTrafficShadowStatus.OutOfScope => LiveTrafficRemovalReason.OutOfScope,
+            _ => pastBackstop ? LiveTrafficRemovalReason.Stale : null,
+        };
+    }
+
+    /// <summary>Removes one shadow and, when it was one, hands its last state to the host for the room's teardown.</summary>
+    private bool RemoveLiveTrafficShadow(AircraftState ac, LiveTrafficRemovalReason reason, IHostConsumers host)
+    {
+        if (!RemoveLiveTraffic(ac.Callsign, reason))
+        {
+            return false;
+        }
+
+        host.OnLiveTrafficRemoved(ac, reason);
         return true;
     }
 

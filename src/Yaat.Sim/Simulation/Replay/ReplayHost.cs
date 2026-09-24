@@ -1,5 +1,6 @@
 using Yaat.Sim.Asdex;
 using Yaat.Sim.Commands;
+using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Actions;
@@ -52,8 +53,6 @@ internal sealed class ReplayHost : ISimulationHost
     /// <summary>Applies every action at or before <paramref name="second"/> the pre-tick pass did not, advancing the cursor past them.</summary>
     public void ApplyRecordedActionsThrough(int second) => _pump.ApplyThrough(second, _applier);
 
-    public void LiveTrafficSync() => _bare.LiveTrafficSync();
-
     public void SurfaceCoastExpiry() => _bare.SurfaceCoastExpiry();
 
     public void RundownBroadcast() => _bare.RundownBroadcast();
@@ -77,6 +76,19 @@ internal sealed class ReplayHost : ISimulationHost
     public void OnAutoDeleted(IReadOnlyList<AircraftState> removed) => _bare.OnAutoDeleted(removed);
 
     public void OnWeatherAdvanced(WeatherProfile profile) => _bare.OnWeatherAdvanced(profile);
+
+    /// <summary>The bare host's empty feed: a replay's shadows come from the recorded samples and removals alone.</summary>
+    public ILiveTrafficFeedPort LiveTrafficFeed => _bare.LiveTrafficFeed;
+
+    public void OnLiveTrafficSpawned(AircraftState shadow, LiveTrafficSource source) => _bare.OnLiveTrafficSpawned(shadow, source);
+
+    public void OnLiveTrafficRemoved(AircraftState shadow, LiveTrafficRemovalReason reason) => _bare.OnLiveTrafficRemoved(shadow, reason);
+
+    public void OnLiveTrafficCallsignInUse(string callsign) => _bare.OnLiveTrafficCallsignInUse(callsign);
+
+    public void OnLiveTrafficFilteredOut(int count) => _bare.OnLiveTrafficFilteredOut(count);
+
+    public void OnLiveTrafficReacquired(int shadows) => _bare.OnLiveTrafficReacquired(shadows);
 
     public void OnWarnings(List<(string Callsign, string Warning)> warnings) => _bare.OnWarnings(warnings);
 

@@ -1,3 +1,4 @@
+using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Training;
@@ -41,4 +42,35 @@ public interface IHostConsumers : IStateChangeConsumer
     /// each state still carries its last position for a surface-track coast or drop.
     /// </summary>
     void OnAutoDeleted(IReadOnlyList<AircraftState> removed);
+
+    /// <summary>
+    /// The live-traffic feed <see cref="SimulationEngine.TickLiveTrafficSync"/> reads — the one input this view carries
+    /// rather than receives. A host with no feed answers <see cref="EmptyLiveTrafficFeedPort.Instance"/>, so the step
+    /// asks the port and never which run it is in (ADR 0005).
+    /// </summary>
+    ILiveTrafficFeedPort LiveTrafficFeed { get; }
+
+    /// <summary>The live-traffic sync spawned <paramref name="shadow"/> (recorded, in the world) from a <paramref name="source"/> track.</summary>
+    void OnLiveTrafficSpawned(AircraftState shadow, LiveTrafficSource source);
+
+    /// <summary>
+    /// The live-traffic sync removed <paramref name="shadow"/> — already out of the world with the removal recorded;
+    /// the state is its last, for the room's per-callsign teardown.
+    /// </summary>
+    void OnLiveTrafficRemoved(AircraftState shadow, LiveTrafficRemovalReason reason);
+
+    /// <summary>
+    /// A feed track arrived under a callsign a (non-assumed) simulated aircraft holds; the feed is ignored for it. Called
+    /// every second it recurs.
+    /// </summary>
+    void OnLiveTrafficCallsignInUse(string callsign);
+
+    /// <summary>The room's live-traffic filter took <paramref name="count"/> shadows out this second (never called with zero).</summary>
+    void OnLiveTrafficFilteredOut(int count);
+
+    /// <summary>
+    /// The room rejoined the feed after a gap and the sync removed <paramref name="shadows"/> shadows to re-acquire them
+    /// this same second (never called with zero). The gap's length is wall-clock time, so the host's feed holds it.
+    /// </summary>
+    void OnLiveTrafficReacquired(int shadows);
 }

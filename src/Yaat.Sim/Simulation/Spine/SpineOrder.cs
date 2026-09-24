@@ -31,7 +31,7 @@ public static class SpineOrder
         SpineStep.Sim(StepId.DelayedHandoffs, static (engine, _) => engine.TickDelayedHandoffs()),
         // Last in pre-physics so a sample placed at this second is recorded at this second and replays pre-tick;
         // the sync is the pre-physics mutator of the aircraft set.
-        SpineStep.Host(StepId.LiveTrafficSync, static host => host.LiveTrafficSync()),
+        SpineStep.Sim(StepId.LiveTrafficSync, static (engine, host) => engine.TickLiveTrafficSync(host.LiveTrafficFeed, host)),
     ];
 
     public static readonly ImmutableArray<SpineStep> PostPhysics =

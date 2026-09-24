@@ -8,11 +8,9 @@ namespace Yaat.Sim.Simulation.Spine;
 /// criterion 2).
 ///
 /// <para>
-/// <b>Step-4 debt.</b> Members whose live body mutates snapshot state let the host decide whether a
-/// simulation-affecting step runs — the residue ADR 0001 forbids. One is left:
-/// <see cref="LiveTrafficSync"/>. ADR 0003 moves it into the engine, deleting the member here and turning its spine
-/// entry into a sim step; the interface shrinks as that work lands. The remaining members are broadcast and wire
-/// projection, which is the server's.
+/// No member mutates snapshot state: the recorded-action members re-apply what a live run recorded, and the rest are
+/// broadcast and wire projection, which is the server's. The last simulation-affecting body, the live-traffic sync,
+/// is the engine's <see cref="SimulationEngine.TickLiveTrafficSync"/> over the host's feed port.
 /// </para>
 /// </summary>
 public interface IHostSteps
@@ -25,11 +23,6 @@ public interface IHostSteps
     /// a bare or live run has none.
     /// </summary>
     void ApplyPreTickRecordedActions(int second);
-
-    // --- PrePhysics ---
-
-    /// <summary>Syncs live-traffic shadows from the feed (live: <c>ShadowTrafficSync.Sync</c>).</summary>
-    void LiveTrafficSync();
 
     // --- PostPhysics ---
 
