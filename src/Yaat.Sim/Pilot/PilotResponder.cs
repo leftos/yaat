@@ -96,20 +96,29 @@ public static class PilotResponder
     /// was dropped), the pilot reads back the effective route and names what it could not take first:
     /// "unable mike four, taxi via mike one, alpha …". A crew never reads back pavement it will not use, and
     /// the hearback check only works if the controller hears the substitution. Any other command, or a
-    /// null <paramref name="effectiveCommand"/>, reads back exactly as issued.
+    /// result with no <see cref="CommandResult.EffectiveCommand"/>, reads back exactly as issued.
+    /// <para>A handler-built readback (<see cref="CommandResult.PilotReadback"/>, every dispatched <c>PUSH</c> /
+    /// <c>PUSHM</c>) replaces the clause of the compound's first push, so the pilot says the goal the handler resolved;
+    /// any later push reads back from its parsed form (<see cref="PushReadbackPhrases.FromCommand(PushbackCommand)"/>).</para>
     /// </summary>
+    /// <param name="compound">The compound the controller issued.</param>
+    /// <param name="result">The dispatch's result: its effective command and its handler-built push readback.</param>
+    /// <param name="aircraft">The aircraft reading back.</param>
+    /// <param name="personality">The pilot's personality.</param>
+    /// <param name="activityLevel">How busy the frequency is.</param>
     public static PilotSpeechText? BuildReadbackAsApplied(
         CompoundCommand compound,
-        ParsedCommand? effectiveCommand,
+        CommandResult result,
         AircraftState aircraft,
         PilotPersonality personality,
         FrequencyActivityLevel activityLevel
     )
     {
+        PilotSpeechText? pilotReadback = result.PilotReadback;
         TaxiCommand? issuedTaxi = compound.Blocks.SelectMany(b => b.Commands).OfType<TaxiCommand>().FirstOrDefault();
-        if (effectiveCommand is not TaxiCommand effectiveTaxi || issuedTaxi is null)
+        if (result.EffectiveCommand is not TaxiCommand effectiveTaxi || issuedTaxi is null)
         {
-            return BuildReadback(compound, aircraft, personality, activityLevel);
+            return BuildReadback(compound, aircraft, personality, activityLevel, pilotReadback);
         }
 
         var asApplied = new CompoundCommand([
@@ -121,7 +130,7 @@ public static class PilotResponder
         {
             SourceText = compound.SourceText,
         };
-        PilotSpeechText? readback = BuildReadback(asApplied, aircraft, personality, activityLevel);
+        PilotSpeechText? readback = BuildReadback(asApplied, aircraft, personality, activityLevel, pilotReadback);
         if (readback is null)
         {
             return null;
@@ -148,6 +157,18 @@ public static class PilotResponder
         AircraftState aircraft,
         PilotPersonality personality,
         FrequencyActivityLevel activityLevel
+    ) => BuildReadback(compound, aircraft, personality, activityLevel, null);
+
+    /// <summary>
+    /// <see cref="BuildReadback(CompoundCommand, AircraftState, PilotPersonality, FrequencyActivityLevel)"/>, with the
+    /// push command's clause taken from <paramref name="pushReadback"/> when the handler built one.
+    /// </summary>
+    private static PilotSpeechText? BuildReadback(
+        CompoundCommand compound,
+        AircraftState aircraft,
+        PilotPersonality personality,
+        FrequencyActivityLevel activityLevel,
+        PilotSpeechText? pushReadback
     )
     {
         // Per-block clause lists are joined internally with ", " (parallel commands within
@@ -165,7 +186,17 @@ public static class PilotResponder
             string? ttsLead = FormatCondition(block.Condition);
             foreach (ParsedCommand cmd in block.Commands)
             {
-                PilotSpeechText? clause = VerbalizeForReadback(cmd, aircraft, personality, activityLevel);
+                PilotSpeechText? clause;
+                if ((pushReadback is not null) && (cmd is PushbackCommand or PushbackMultiCommand))
+                {
+                    // The handler's readback is the dispatched push's; a later push in the compound is its own.
+                    clause = pushReadback;
+                    pushReadback = null;
+                }
+                else
+                {
+                    clause = VerbalizeForReadback(cmd, aircraft, personality, activityLevel);
+                }
                 if (clause is null || string.IsNullOrEmpty(clause.Tts))
                 {
                     continue;
@@ -346,6 +377,8 @@ public static class PilotResponder
             ClearedOutOfMilitaryRouteCommand xmtr => BuildClearedOutOfMilitaryRouteClause(aircraft, xmtr),
             ClearedToConductRefuelingCommand car => BuildClearedToConductRefuelingClause(car),
             SayExitFixEstimateCommand => null,
+            PushbackCommand push => PushReadbackPhrases.FromCommand(push).ToSpeech(),
+            PushbackMultiCommand move => PushReadbackPhrases.FromCommand(move).ToSpeech(),
             _ => VerbalizeDual(cmd, personality, activityLevel),
         };
 

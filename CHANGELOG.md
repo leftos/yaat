@@ -18,6 +18,9 @@
 - `PUSH <taxiway> <facing>` ends lined up with the nose toward the facing taxiway, stopped short of the junction instead of on it.
 - Tugs keep a steady 5 kt through turns, so pushes finish sooner.
 - A push that will foul a taxiway, runs long to reach its taxiway, or faces a distant junction adds a note to the terminal.
+- Each `PUSH` and `PUSHM` form reads back what the tug will do ("Push back, tail west", "Push to spot 7A"), and the pilot says the same.
+- A `TAIL` facing stays `TAIL` in the command's text instead of turning into the opposite `FACE`.
+- After a push onto a taxiway, the next `TAXI` starts on that taxiway.
 - A TAXI whose named route does not reach its destination taxis as far as cleared and holds short of the missing taxiway, saying which one it needs.
 - The TAXI readback repeats the clearance as issued; ramp lanes the route adds are not read back, and other added taxiways are flagged.
 - A pilot holding short where an incomplete route ends asks for further taxi.

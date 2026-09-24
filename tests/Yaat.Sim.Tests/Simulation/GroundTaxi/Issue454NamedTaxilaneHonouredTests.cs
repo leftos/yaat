@@ -306,13 +306,7 @@ public class Issue454NamedTaxilaneHonouredTests(ITestOutputHelper output)
     private void AssertReadbackNames(CompoundCommand compound, CommandResult result, AircraftState aircraft, string[] named, string[] unnamed)
     {
         PilotSpeechText readback = Assert.IsType<PilotSpeechText>(
-            PilotResponder.BuildReadbackAsApplied(
-                compound,
-                result.EffectiveCommand,
-                aircraft,
-                PilotPersonality.Verbatim,
-                FrequencyActivityLevel.Moderate
-            )
+            PilotResponder.BuildReadbackAsApplied(compound, result, aircraft, PilotPersonality.Verbatim, FrequencyActivityLevel.Moderate)
         );
         output.WriteLine($"{aircraft.Callsign} terminal: {readback.TerminalForRpo}");
         output.WriteLine($"{aircraft.Callsign} tts: {readback.Tts}");

@@ -34,7 +34,16 @@ public record CommandResult(
     string? Advisory = null,
     bool NoDispatcherArm = false,
     ParsedCommand? EffectiveCommand = null
-);
+)
+{
+    /// <summary>
+    /// The pilot's readback of the command as the handler resolved it, when the handler builds one — every
+    /// <c>PUSH</c> / <c>PUSHM</c> form, whose readback names the goal the tug move reaches — in place of the one
+    /// verbalized from the command text (<see cref="Pilot.PilotResponder.BuildReadbackAsApplied"/>). The clause alone,
+    /// without the callsign; null when the readback comes from the command.
+    /// </summary>
+    public PilotSpeechText? PilotReadback { get; init; }
+}
 
 public static class CommandDispatcher
 {

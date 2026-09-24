@@ -1790,8 +1790,15 @@ public static class CommandDescriber
             return $" {push.FacingTaxiway}";
         }
 
-        return push.MagneticHeading is { } heading ? $" FACE {GroundCommandParser.CardinalToken(heading)}" : string.Empty;
+        return push.MagneticHeading is { } heading ? " " + FormatPushOrientation(heading, push.IsTail) : string.Empty;
     }
+
+    /// <summary>
+    /// A push facing as the controller typed it: <c>FACE &lt;cardinal&gt;</c>, or <c>TAIL &lt;cardinal&gt;</c> naming the
+    /// cardinal the tail points to (the reciprocal of the stored facing) when the facing was named by the tail.
+    /// </summary>
+    private static string FormatPushOrientation(MagneticHeading facing, bool isTail) =>
+        isTail ? $"TAIL {GroundCommandParser.CardinalToken(facing.ToReciprocal())}" : $"FACE {GroundCommandParser.CardinalToken(facing)}";
 
     /// <summary>
     /// The canonical <c>PUSHM</c> text: every target in order with its sigil intact, then the facing as the
@@ -1802,7 +1809,7 @@ public static class CommandDescriber
     private static string FormatPushMultiCanonical(PushbackMultiCommand push)
     {
         string body = string.Join(' ', push.Targets);
-        string facing = push.FinalFacing is { } heading ? $" FACE {GroundCommandParser.CardinalToken(heading)}" : "";
+        string facing = push.FinalFacing is { } heading ? " " + FormatPushOrientation(heading, push.IsTail) : "";
         return push.Targets.Count == 0 ? $"PUSHM{facing}" : $"PUSHM {body}{facing}";
     }
 
@@ -1814,9 +1821,14 @@ public static class CommandDescriber
     private static string FormatPushMultiNatural(PushbackMultiCommand push)
     {
         string legs = string.Join(", then ", push.Targets.Select(NaturalTargetName));
-        string facing = push.FinalFacing is { } heading ? $", facing {GroundCommandParser.CardinalToken(heading)}" : "";
+        string facing = push.FinalFacing is { } heading
+            ? (push.IsTail ? NaturalTail(heading) : $", facing {GroundCommandParser.CardinalToken(heading)}")
+            : "";
         return push.Targets.Count == 0 ? $"Tug move{facing}" : $"Tug move to {legs}{facing}";
     }
+
+    /// <summary>A facing named by the tail, as typed: <c>, tail W</c> for a nose facing east — never the nose's heading.</summary>
+    private static string NaturalTail(MagneticHeading facing) => $", tail {GroundCommandParser.CardinalToken(facing.ToReciprocal())}";
 
     /// <summary>A tug-move target token in words: <c>$6A</c> → spot 6A, <c>@D15</c> → parking D15, <c>#1926</c> → node 1926.</summary>
     private static string NaturalTargetName(string target)
@@ -1845,9 +1857,9 @@ public static class CommandDescriber
             {
                 msg += $" facing {push.FacingTaxiway}";
             }
-            else if (push.MagneticHeading is not null)
+            else if (push.MagneticHeading is { } destinationFacing)
             {
-                msg += $", heading {push.MagneticHeading.Value.Degrees:000}";
+                msg += push.IsTail ? NaturalTail(destinationFacing) : $", heading {destinationFacing.Degrees:000}";
             }
 
             return msg;
@@ -1859,9 +1871,9 @@ public static class CommandDescriber
             result += $" onto {push.Taxiway}";
         }
 
-        if (push.MagneticHeading is not null)
+        if (push.MagneticHeading is { } facing)
         {
-            result += $", face heading {push.MagneticHeading.Value.Degrees:000}";
+            result += push.IsTail ? NaturalTail(facing) : $", face heading {facing.Degrees:000}";
         }
 
         return result;

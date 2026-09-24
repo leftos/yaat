@@ -114,9 +114,9 @@ public class PushbackMultiParseTests(ITestOutputHelper output)
     [InlineData("PUSHM $6A $6B", "PUSHM $6A $6B")]
     [InlineData("PUSHM #1926 $5A", "PUSHM #1926 $5A")]
     [InlineData("PUSHM @D15 $6A FACE E", "PUSHM @D15 $6A FACE E")]
-    [InlineData("PUSHM $6A $6B TAIL W", "PUSHM $6A $6B FACE E")]
+    [InlineData("PUSHM $6A $6B TAIL W", "PUSHM $6A $6B TAIL W")]
     [InlineData("PUSHM $6A $6B >NE", "PUSHM $6A $6B FACE NE")]
-    [InlineData("PUSHM $6A $6B <N", "PUSHM $6A $6B FACE S")]
+    [InlineData("PUSHM $6A $6B <N", "PUSHM $6A $6B TAIL N")]
     [InlineData("pushm $6a $6b FACE N", "PUSHM $6A $6B FACE N")]
     public void Canonical_RoundTrips(string input, string expectedCanonical)
     {
@@ -129,6 +129,7 @@ public class PushbackMultiParseTests(ITestOutputHelper output)
         PushbackMultiCommand second = Parse(canonical);
         Assert.Equal(first.Targets, second.Targets);
         Assert.Equal(first.FinalFacing, second.FinalFacing);
+        Assert.Equal(first.IsTail, second.IsTail);
         Assert.Equal(canonical, CommandDescriber.DescribeCommand(second));
     }
 
@@ -136,6 +137,7 @@ public class PushbackMultiParseTests(ITestOutputHelper output)
     [InlineData("PUSHM $6A $6B", "Tug move to spot 6A, then spot 6B")]
     [InlineData("PUSHM #1926 $5A", "Tug move to node 1926, then spot 5A")]
     [InlineData("PUSHM @D15 $6A FACE E", "Tug move to parking D15, then spot 6A, facing E")]
+    [InlineData("PUSHM $6A $6B TAIL W", "Tug move to spot 6A, then spot 6B, tail W")]
     public void Natural_ListsTheLegsInOrderAndKeepsTheFacing(string input, string expectedNatural) =>
         Assert.Equal(expectedNatural, CommandDescriber.DescribeNatural(Parse(input)));
 

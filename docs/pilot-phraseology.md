@@ -154,7 +154,9 @@ separator hands a comma to the synthesiser mid-number.
 
 Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `RpoTerminal`.
 
-- **Readbacks** — `BuildReadback(compound, aircraft)` (rule-driven, the bulk of readbacks);
+- **Readbacks** — `BuildReadback(compound, aircraft)` (rule-driven, the bulk of readbacks); `BuildReadbackAsApplied` swaps in what the
+  handler applied — the effective `TAXI`, and a `PUSH`/`PUSHM`'s own sentence from `CommandResult.PilotReadback` (the RSP text less its RPO
+  notes; a queued push is verbalized from its parse in the same wording);
   `BuildUnable` (rejected command, gated by `CommandDefinition.ProducesPilotUnable` — see the authoring rule below);
   `BuildUnableAirspaceAltitude` (an assigned altitude that would enter un-cleared Class B/C — AIM §5-5-6.a.3
   makes advising ATC the pilot's obligation, and the line names the altitude they *can* hold).

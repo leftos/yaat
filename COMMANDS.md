@@ -776,6 +776,22 @@ A `PUSH $spot` lines the aircraft up straight on the marking the way a tug posit
 
 **Alley pushes keep clear of the taxiways.** A push to a `$spot`, `@gate` or `#node` (and every `PUSHM`) keeps the whole aircraft — nose, tail and wingtips — outside the object-free area of every movement-area taxiway it passes, with a 5 ft margin: the zone either side of a taxiway's centreline that traffic taxiing on it must find clear (AC 150/5300-13B, 0.7 × the design group's span + 10 ft: 44.5 / 65.5 / 93 / 129.5 / 160 / 193 ft for groups I–VI). The design group of each taxiway is estimated from the airport's widest runway and the spacing to the nearest parallel taxiway — SFO's taxiway A is group IV, so an alley push stays 134.5 ft from A's centreline. The taxiways the command names, the taxiway straight behind the gate, and one the aircraft already reaches into where it starts are not protected. When no path stays clear the push is still flown, on the path that reaches in least, and the readback says so: `(right wing will foul taxiway A, coordinate with ground)`. A `PUSH <taxiway>`, a bare `PUSH` and `PUSH FACE` are not held to this.
 
+**What the readback says.** Each form reads back what the tug will do, and the pilot says the same sentence (without the parenthesised notes):
+
+| Command | Readback |
+|---|---|
+| `PUSH` | `Push straight back (nose west)` — the end nose on the 8-point compass, RPO-only |
+| `PUSH FACE E` / `PUSH TAIL W` | `Push back, face east` / `Push back, tail west` — a `TAIL` is never turned into a face |
+| `PUSH A` | `Push straight back to taxiway A` when A runs across the push; `Push onto A, nose along A` when it runs alongside |
+| `PUSH A FACE E` / `PUSH A TAIL W` / `PUSH TE T` | `Push onto A, face east` / `Push onto A, tail west` / `Push onto TE, face taxiway T` |
+| `PUSH #1926` | `Push to node 1926, hold` (`…, face east, hold` with a facing); a gate's node reads `Push to gate 4A, park`, a spot's node as `PUSH $spot` |
+| `PUSH @4A` | `Push to gate 4A, park on the stand` (`helipad` for a helipad) |
+| `PUSH $7A` | `Push to spot 7A (nose out toward A)` — the note names the taxiway the spot's lane joins and is dropped when a facing is given (`Push to spot 7A, tail west`) |
+| `PUSHM $6A $6B` | `Push to spot 6B via spot 6A`; more points are listed in order (`via spot 6A, spot 6`); a final facing appends `, face east` |
+| mid-push `FACE`/`TAIL` | `Push amended, tail west` |
+
+A `PUSH` queued behind a `WAIT`, a condition or an earlier block is read back when issued, before the tug plans it, so the plan-dependent parts are left out: a bare `PUSH` reads `Push straight back` and `PUSH A` reads `Push to taxiway A`.
+
 **RPO notes on a push readback.** A `PUSH`, a mid-push `FACE`/`TAIL` amendment or a `PUSHM` can carry notes in parentheses at the end of its readback. They appear on the RPO terminal only; the pilot never says them.
 
 | Note | Meaning |

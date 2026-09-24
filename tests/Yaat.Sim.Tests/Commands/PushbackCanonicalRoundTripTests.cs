@@ -14,9 +14,10 @@ namespace Yaat.Sim.Tests.Commands;
 /// facing the controller asked for.</para>
 ///
 /// <para>The forms are the ones documented in <c>COMMANDS.md</c>'s ground-command table. Where input and
-/// canonical differ, the canonical is the same clearance in the one spelling the grammar prefers: a facing is
-/// always <c>FACE &lt;cardinal&gt;</c>, so <c>TAIL W</c>, <c>&gt;E</c> and <c>&lt;W</c> all come back as
-/// <c>FACE E</c>.</para>
+/// canonical differ, the canonical is the same clearance in the one spelling the grammar prefers: a facing named by
+/// the nose is <c>FACE &lt;cardinal&gt;</c> (<c>&gt;E</c> comes back as <c>FACE E</c>) and one named by the tail is
+/// <c>TAIL &lt;cardinal&gt;</c> with the cardinal typed (<c>&lt;W</c> comes back as <c>TAIL W</c>), so the readback
+/// can word the facing the way the controller gave it.</para>
 /// </summary>
 public class PushbackCanonicalRoundTripTests(ITestOutputHelper output)
 {
@@ -26,20 +27,20 @@ public class PushbackCanonicalRoundTripTests(ITestOutputHelper output)
     [Theory]
     [InlineData("PUSH", "PUSH")]
     [InlineData("PUSH FACE E", "PUSH FACE E")]
-    [InlineData("PUSH TAIL W", "PUSH FACE E")]
+    [InlineData("PUSH TAIL W", "PUSH TAIL W")]
     [InlineData("PUSH >NE", "PUSH FACE NE")]
-    [InlineData("PUSH <N", "PUSH FACE S")]
+    [InlineData("PUSH <N", "PUSH TAIL N")]
     [InlineData("PUSH A", "PUSH A")]
     [InlineData("PUSH A A1", "PUSH A A1")]
     [InlineData("PUSH A FACE E", "PUSH A FACE E")]
     [InlineData("PUSH TE T", "PUSH TE T")]
-    [InlineData("PUSH TE TAIL W", "PUSH TE FACE E")]
+    [InlineData("PUSH TE TAIL W", "PUSH TE TAIL W")]
     [InlineData("PUSH @4A", "PUSH @4A")]
     [InlineData("PUSH $7A", "PUSH $7A")]
-    [InlineData("PUSH $7A TAIL W", "PUSH $7A FACE E")]
+    [InlineData("PUSH $7A TAIL W", "PUSH $7A TAIL W")]
     [InlineData("PUSH #1926", "PUSH #1926")]
     [InlineData("PUSH #1926 FACE E", "PUSH #1926 FACE E")]
-    [InlineData("PUSH #1926 TAIL W", "PUSH #1926 FACE E")]
+    [InlineData("PUSH #1926 TAIL W", "PUSH #1926 TAIL W")]
     [InlineData("PUSH #1926 F1", "PUSH #1926 F1")]
     public void EveryAcceptedForm_CanonicalReParsesToTheSameCommand(string input, string expectedCanonical)
     {
@@ -76,6 +77,17 @@ public class PushbackCanonicalRoundTripTests(ITestOutputHelper output)
             }
         }
     }
+
+    /// <summary>
+    /// The natural description names the facing the way the controller gave it: a <c>TAIL</c> spelling keeps the tail's
+    /// cardinal, never the nose heading the tail name was converted to, so <c>PUSH TAIL W</c> is not described as a
+    /// push facing east.
+    /// </summary>
+    [Theory]
+    [InlineData("PUSH TAIL W", "Pushback, tail W")]
+    [InlineData("PUSH <N", "Pushback, tail N")]
+    public void Natural_NamesATailFacingByTheTail(string input, string expectedNatural) =>
+        Assert.Equal(expectedNatural, CommandDescriber.DescribeNatural(Parse(input)));
 
     /// <summary>
     /// A push to a stand parks on the stand's own heading, so none of the facing spellings — nor a facing taxiway —

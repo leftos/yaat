@@ -2560,8 +2560,32 @@ public sealed class AirportGroundLayout
     /// </summary>
     public bool TryGetSpotOutboundHeading(GroundNode spot, out double bearing)
     {
-        bearing = 0;
+        (double Bearing, string Taxiway)? outbound = FindSpotOutbound(spot);
+        bearing = outbound?.Bearing ?? 0;
+        return outbound is not null;
+    }
 
+    /// <summary>
+    /// The movement-area taxiway a ramp spot's outbound side leads to — the taxiway whose first reachable edge decides
+    /// <see cref="TryGetSpotOutboundHeading"/>: the nose-out spot faces toward it. Returns false, with an empty name, if
+    /// neither side of the spot reaches a movement area.
+    /// </summary>
+    /// <param name="spot">The spot node.</param>
+    /// <param name="taxiway">The taxiway's name, as its edge carries it.</param>
+    /// <returns>Whether the spot has an outbound side.</returns>
+    public bool TryGetSpotOutboundTaxiway(GroundNode spot, out string taxiway)
+    {
+        (double Bearing, string Taxiway)? outbound = FindSpotOutbound(spot);
+        taxiway = outbound?.Taxiway ?? string.Empty;
+        return outbound is not null;
+    }
+
+    /// <summary>
+    /// The outbound side of a ramp spot: the bearing to the sub-lane neighbour that reaches a movement-area taxiway in
+    /// the fewest hops, and that taxiway's name; null when neither side reaches one.
+    /// </summary>
+    private static (double Bearing, string Taxiway)? FindSpotOutbound(GroundNode spot)
+    {
         var subLaneNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (IGroundEdge edge in spot.Edges)
         {
@@ -2571,7 +2595,7 @@ public sealed class AirportGroundLayout
             }
         }
 
-        double? bestBearing = null;
+        (double Bearing, string Taxiway)? best = null;
         int bestHops = int.MaxValue;
         foreach (IGroundEdge edge in spot.Edges)
         {
@@ -2580,21 +2604,14 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            int hops = HopsToMovementArea(first.OtherNode(spot), spot, subLaneNames);
-            if (hops >= 0 && hops < bestHops)
+            if ((HopsToMovementArea(first.OtherNode(spot), spot, subLaneNames) is { } reached) && (reached.Hops < bestHops))
             {
-                bestHops = hops;
-                bestBearing = GeoMath.BearingTo(spot.Position, first.OtherNode(spot).Position);
+                bestHops = reached.Hops;
+                best = (GeoMath.BearingTo(spot.Position, first.OtherNode(spot).Position), reached.Taxiway);
             }
         }
 
-        if (bestBearing is null)
-        {
-            return false;
-        }
-
-        bearing = bestBearing.Value;
-        return true;
+        return best;
     }
 
     private const int SpotOutboundMaxHops = 8;
@@ -2602,9 +2619,10 @@ public sealed class AirportGroundLayout
     /// <summary>
     /// BFS from <paramref name="start"/> (never crossing back through <paramref name="blocked"/>, the spot)
     /// along non-runway edges; returns the hop count at which an edge naming a movement-area taxiway is
-    /// first seen (not a sub-lane name, not RAMP), or -1 if none within <see cref="SpotOutboundMaxHops"/>.
+    /// first seen (not a sub-lane name, not RAMP) with that taxiway's name, or null if none within
+    /// <see cref="SpotOutboundMaxHops"/>.
     /// </summary>
-    private static int HopsToMovementArea(GroundNode start, GroundNode blocked, HashSet<string> subLaneNames)
+    private static (int Hops, string Taxiway)? HopsToMovementArea(GroundNode start, GroundNode blocked, HashSet<string> subLaneNames)
     {
         var visited = new HashSet<int> { blocked.Id, start.Id };
         var frontier = new Queue<(GroundNode Node, int Depth)>();
@@ -2619,9 +2637,9 @@ public sealed class AirportGroundLayout
                 {
                     continue;
                 }
-                if (EdgeReachesMovementArea(edge, subLaneNames))
+                if (MovementAreaTaxiwayName(edge, subLaneNames) is { } taxiway)
                 {
-                    return depth;
+                    return (depth, taxiway);
                 }
                 if (depth + 1 > SpotOutboundMaxHops)
                 {
@@ -2635,18 +2653,18 @@ public sealed class AirportGroundLayout
             }
         }
 
-        return -1;
+        return null;
     }
 
     /// <summary>
-    /// True if the edge names a movement-area taxiway — a taxiway that is neither one of the spot's
-    /// sub-lane names, nor RAMP (nonmovement), nor a runway.
+    /// The movement-area taxiway the edge names — a taxiway that is neither one of the spot's sub-lane names, nor RAMP
+    /// (nonmovement), nor a runway — or null when it names none.
     /// </summary>
-    private static bool EdgeReachesMovementArea(IGroundEdge edge, HashSet<string> subLaneNames)
+    private static string? MovementAreaTaxiwayName(IGroundEdge edge, HashSet<string> subLaneNames)
     {
         if (edge.IsRunwayCenterline)
         {
-            return false;
+            return null;
         }
 
         string[] names = edge is GroundArc arc ? arc.TaxiwayNames : [((GroundEdge)edge).TaxiwayName];
@@ -2664,10 +2682,10 @@ public sealed class AirportGroundLayout
             {
                 continue;
             }
-            return true;
+            return name;
         }
 
-        return false;
+        return null;
     }
 
     /// <summary>

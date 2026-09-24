@@ -8,8 +8,8 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 
 /// <summary>
 /// What the tug planner could not avoid, or the RPO may not have meant, reaches the RPO as parentheticals on the push
-/// readback — the command's own response text — and never the pilot's spoken readback, which is verbalized from the
-/// command. SFO, a B738, no neighbours.
+/// readback — the command's own response text — and never the pilot's readback, which is the same sentence without
+/// them. SFO, a B738, no neighbours.
 /// </summary>
 public partial class PushReadbackNotesTests(ITestOutputHelper output)
 {
@@ -29,7 +29,7 @@ public partial class PushReadbackNotesTests(ITestOutputHelper output)
 
         Assert.Matches(LongPushNote(), pushed.Readback);
         Assert.Matches(FarFacingNote(), pushed.Readback);
-        Assert.StartsWith("Pushing back onto A facing F1 (", pushed.Readback);
+        Assert.StartsWith("Push onto A, face taxiway F1 (", pushed.Readback);
         AssertNotSpoken(pushed.Spoken, "long push", "facing only", "ft away");
     }
 
@@ -74,7 +74,7 @@ public partial class PushReadbackNotesTests(ITestOutputHelper output)
             return;
         }
 
-        Assert.Equal("Tug move to 5, 2 legs (right wing will foul taxiway A, coordinate with ground)", moved.Readback);
+        Assert.Equal("Push to spot 5 via spot 5A (right wing will foul taxiway A, coordinate with ground)", moved.Readback);
         AssertNotSpoken(moved.Spoken, "foul", "coordinate");
     }
 
@@ -90,7 +90,7 @@ public partial class PushReadbackNotesTests(ITestOutputHelper output)
             return;
         }
 
-        Assert.StartsWith("Pushback amended, face heading 360 (", amended.Readback);
+        Assert.StartsWith("Push amended, face north (", amended.Readback);
         Assert.Matches(LongPushNote(), amended.Readback);
         Assert.DoesNotMatch(FarFacingNote(), amended.Readback);
         AssertNotSpoken(amended.Spoken, "long push", "ft away");
@@ -118,7 +118,7 @@ public partial class PushReadbackNotesTests(ITestOutputHelper output)
         }
 
         AircraftState aircraft = SfoGroundHarness.SpawnParked(ground, "UAL462", AircraftType, gate);
-        string readback = "";
+        CommandResult? result = null;
         for (int i = 0; i < commands.Count; i++)
         {
             if (i > 0)
@@ -126,13 +126,19 @@ public partial class PushReadbackNotesTests(ITestOutputHelper output)
                 ground.Engine.TickOneSecond();
             }
 
-            CommandResult result = ground.Engine.SendCommand(aircraft.Callsign, commands[i]);
+            result = ground.Engine.SendCommand(aircraft.Callsign, commands[i]);
             Assert.True(result.Success, $"{commands[i]} off {gate} was refused: {result.Message}");
-            readback = Assert.IsType<string>(result.Message);
         }
 
+        string readback = Assert.IsType<string>(result!.Message);
         string last = commands[^1];
-        PilotSpeechText? spoken = PilotResponder.BuildReadback(CommandParser.ParseCompound(last).Value!, aircraft);
+        PilotSpeechText? spoken = PilotResponder.BuildReadbackAsApplied(
+            CommandParser.ParseCompound(last).Value!,
+            result!,
+            aircraft,
+            PilotPersonality.Verbatim,
+            FrequencyActivityLevel.Moderate
+        );
         output.WriteLine(
             $"{gate} {last}: readback \"{readback}\"; spoken \"{spoken?.Terminal}\" / \"{spoken?.Tts}\" / rpo \"{spoken?.TerminalForRpo}\""
         );

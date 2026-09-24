@@ -500,7 +500,15 @@ public record ClearedTakeoffPresentCommand(DepartureInstruction Departure, int? 
 /// <param name="Taxiway">The taxiway to push onto, or null.</param>
 /// <param name="FacingTaxiway">The taxiway to end facing toward, or null.</param>
 /// <param name="Destination">The stand, spot or node to push to, or null.</param>
-public record PushbackCommand(MagneticHeading? MagneticHeading, string? Taxiway, string? FacingTaxiway, PushDestination? Destination) : ParsedCommand;
+public record PushbackCommand(MagneticHeading? MagneticHeading, string? Taxiway, string? FacingTaxiway, PushDestination? Destination) : ParsedCommand
+{
+    /// <summary>
+    /// The controller named the facing by the tail (<c>TAIL W</c>, <c>&lt;W</c>): <see cref="MagneticHeading"/> is then the
+    /// reciprocal of the cardinal typed, and the readback and canonical text word the cardinal typed. False for a
+    /// <c>FACE</c> facing and for a push with no heading.
+    /// </summary>
+    public bool IsTail { get; init; }
+}
 
 /// <summary>
 /// Where a <c>PUSH</c> ends, exactly one of: a stand or helipad (<c>@A10</c>), a ramp spot (<c>$7A</c>) or a
@@ -544,7 +552,14 @@ public sealed record PushDestination
 /// </summary>
 /// <param name="Targets">The points to reach, in order, sigils included. Two or more.</param>
 /// <param name="FinalFacing">The facing to leave the aircraft in at the last target, or null to derive one.</param>
-public record PushbackMultiCommand(IReadOnlyList<string> Targets, MagneticHeading? FinalFacing) : ParsedCommand;
+public record PushbackMultiCommand(IReadOnlyList<string> Targets, MagneticHeading? FinalFacing) : ParsedCommand
+{
+    /// <summary>
+    /// The controller named the final facing by the tail (<c>TAIL W</c>, <c>&lt;W</c>): <see cref="FinalFacing"/> is then
+    /// the reciprocal of the cardinal typed, and the readback and canonical text word the cardinal typed.
+    /// </summary>
+    public bool IsTail { get; init; }
+}
 
 /// <summary>
 /// A taxi clearance via named taxiways. <see cref="PathTurnHints"/> carries an optional per-taxiway

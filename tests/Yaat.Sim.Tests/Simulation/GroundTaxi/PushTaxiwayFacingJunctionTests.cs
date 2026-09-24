@@ -32,7 +32,7 @@ public class PushTaxiwayFacingJunctionTests(ITestOutputHelper output)
         CommandResult faced = Push(layout, d7, "PUSH A F1");
 
         Assert.True(faced.Success, $"PUSH A F1 off D7 was refused: {faced.Message}");
-        Assert.Equal("Pushing back onto A facing F1", faced.Message);
+        Assert.Equal("Push onto A, face taxiway F1", faced.Message);
     }
 
     /// <summary>
@@ -321,7 +321,7 @@ public class PushTaxiwayFacingJunctionTests(ITestOutputHelper output)
         CommandResult result = ground.Engine.SendCommand(ac.Callsign, "PUSH A F1");
 
         Assert.True(result.Success, $"PUSH A F1 off {gate} was refused: {result.Message}");
-        Assert.StartsWith("Pushing back onto A facing F1", result.Message);
+        Assert.StartsWith("Push onto A, face taxiway F1", result.Message);
         SfoGroundHarness.TickUntil(ground.Engine, () => ac.Phases?.CurrentPhase is HoldingAfterPushbackPhase, 600, null);
         Assert.IsType<HoldingAfterPushbackPhase>(ac.Phases?.CurrentPhase);
         GroundNode exit =

@@ -21,25 +21,7 @@ Take the waves top to bottom. Wave 3 measures before it designs. Wave 4 is the f
 
 **How the push-planner rethink is designed (user 2026-09-23):** whenever it is unclear how a push should be designed, render the candidate options as LayoutInspector tick-playback HTML, one run per option (TickRecorder JSON → `--ticks --html`, with the involved taxiways highlighted and the key nodes annotated), and send them to the user for feedback before anything is built. The user picks or corrects the shape from the renders; no push geometry is decided from reasoning alone.
 
-- [ ] **Push part 2** (after the push-planner rethink, part 1, landed):
-  - (a) **Per-form `PUSH` readbacks** (table approved by the user 2026-09-23). Each readback says what the tug will do. The parentheticals marked RPO-only are terminal-only, never spoken:
-
-    | Command | Readback |
-    |---|---|
-    | bare `PUSH` | "Push straight back" + RPO-only "(nose west)", the heading reduced to the 8-point compass the `FACE` arguments use |
-    | `PUSH FACE E` | "Push back, face east" |
-    | `PUSH TAIL W` | "Push back, tail west" (never converted to face) |
-    | `PUSH A` (across) | "Push straight back to taxiway A" |
-    | `PUSH A` (along) | "Push onto A, nose along A" |
-    | `PUSH A FACE E` | "Push onto A, face east" |
-    | `PUSH TE T` | "Push onto TE, face taxiway T" |
-    | `PUSH #1926` | "Push to node 1926, hold"; onto a gate node "Push to gate 4A, park" |
-    | `PUSH @4A` | "Push to gate 4A, park on the stand" |
-    | `PUSH $7A` | "Push to spot 7A" + RPO-only "(nose out toward A)" |
-    | `PUSH $7A TAIL W` | "Push to spot 7A, tail west" |
-    | `PUSHM $6A $6B` | "Push to spot 6B via spot 6A"; with more points "via spot 6A, spot 6, taxiway K" |
-  - (b) **UAL2183**: after `PUSH T9` from F4, the next `TAXI T9 $9` drives T8 B5 T9, because F4's lead-out joins T8 — derive the taxiway the aircraft occupies after a push.
-  - (c) **SFO push demo video** (user 2026-09-23; after (a) and (b) land): drive a real YAAT session through the yaat-client-driver MCP server with the `video-capture` skill — an empty SFO scenario, `ADD` aircraft at gates, the worked `PUSH` cases — with the command overlaid on the ground view as a checklist/chapter list (an ffmpeg `drawtext`/`overlay` post-pass).
+- [ ] **SFO push demo video** (user 2026-09-23; the per-form push readbacks it shows off shipped): drive a real YAAT session through the yaat-client-driver MCP server with the `video-capture` skill — an empty SFO scenario, `ADD` aircraft at gates, the worked `PUSH` cases — with the command overlaid on the ground view as a checklist/chapter list (an ffmpeg `drawtext`/`overlay` post-pass). Run it with solo training's pilot TTS on so each push's spoken readback is in the video's audio (user 2026-09-23: a bit more of a showoff) — capture the audio with the video.
 
 ## Wave 4: features
 

@@ -731,7 +731,7 @@ public class PilotResponderTests
 
         PilotSpeechText? result = PilotResponder.BuildReadbackAsApplied(
             Compound(issued),
-            effective,
+            new CommandResult(true, EffectiveCommand: effective),
             ac,
             PilotPersonality.Verbatim,
             FrequencyActivityLevel.Moderate
@@ -754,13 +754,37 @@ public class PilotResponderTests
         PilotSpeechText? plain = PilotResponder.BuildReadback(compound, ac, PilotPersonality.Verbatim, FrequencyActivityLevel.Moderate);
         PilotSpeechText? asApplied = PilotResponder.BuildReadbackAsApplied(
             compound,
-            null,
+            new CommandResult(true),
             ac,
             PilotPersonality.Verbatim,
             FrequencyActivityLevel.Moderate
         );
 
         Assert.Equal(plain, asApplied);
+    }
+
+    /// <summary>
+    /// A compound of two pushes names each one: the handler's readback (<see cref="CommandResult.PilotReadback"/>, the
+    /// goal the dispatcher resolved) replaces the first push's clause only, and a later push reads back from its own
+    /// parsed form. Substituting it into every push clause would have the crew read the first goal twice.
+    /// </summary>
+    [Fact]
+    public void BuildReadbackAsApplied_CompoundOfTwoPushes_OnlyTheFirstTakesTheHandlerReadback()
+    {
+        AircraftState ac = MakeAircraft("AAL123");
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("PUSH FACE E; PUSH $7A");
+        Assert.True(parsed.IsSuccess, $"'PUSH FACE E; PUSH $7A' was refused: {parsed.Reason}");
+
+        PilotSpeechText? result = PilotResponder.BuildReadbackAsApplied(
+            parsed.Value!,
+            new CommandResult(true) { PilotReadback = new PilotSpeechText("push back, face east", "push back, face east") },
+            ac,
+            PilotPersonality.Verbatim,
+            FrequencyActivityLevel.Moderate
+        );
+
+        Assert.NotNull(result);
+        Assert.Equal("push back, face east, then push to spot 7A", result!.Terminal);
     }
 
     // --- A4-2: runway L/R/C suffix is never dropped from a taxi readback ---

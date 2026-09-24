@@ -293,6 +293,22 @@ public sealed record TugPlan(
 
     /// <summary><see cref="FacingJunctionFt"/> as the RPO's note gives it (<see cref="TugMovePlanner.NoteDistanceFt"/>); null with it.</summary>
     public double? FacingJunctionNoteFt => FacingJunctionFt is { } ft ? TugMovePlanner.NoteDistanceFt(ft) : null;
+
+    /// <summary>
+    /// For a bare <c>PUSH &lt;taxiway&gt;</c> (a <see cref="TugGoalKind.StraightBackTo"/> goal), which way the plan reaches
+    /// the taxiway: straight back across it, or onto a stretch running alongside the push. Null for every other push.
+    /// </summary>
+    public TugTaxiwayApproach? TaxiwayApproach { get; init; }
+}
+
+/// <summary>How a bare <c>PUSH &lt;taxiway&gt;</c> reaches the taxiway (<see cref="TugPlanBuilder.AcrossAngleDeg"/> splits the two).</summary>
+public enum TugTaxiwayApproach
+{
+    /// <summary>The push ray crosses the taxiway steeply: straight back until the aircraft reaches it.</summary>
+    Across,
+
+    /// <summary>The taxiway runs alongside the push behind the aircraft: onto its centreline with the nose along it.</summary>
+    Alongside,
 }
 
 /// <summary>
@@ -764,6 +780,9 @@ internal sealed class TugCandidate
     /// <summary>The junction with the facing taxiway a <c>PUSH &lt;taxiway&gt; &lt;facing taxiway&gt;</c> candidate points the nose toward.</summary>
     internal GroundNode? FacingJunction { get; set; }
 
+    /// <summary>How a bare <c>PUSH &lt;taxiway&gt;</c> candidate reaches its taxiway; null for every other candidate.</summary>
+    internal TugTaxiwayApproach? TaxiwayApproach { get; set; }
+
     internal IReadOnlyList<TugMoveTrace> Traces => _traces;
 
     internal int Reversals => _traces.Count(t => t.Move.DwellBefore);
@@ -924,6 +943,7 @@ internal sealed class TugPlanBuilder
     private readonly List<TugPlanWarning> _warnings = [];
     private GroundNode? _facingJunction;
     private string? _facingTaxiwayName;
+    private TugTaxiwayApproach? _taxiwayApproach;
     private TugTaxiwayClearance? _clearance;
 
     /// <summary>Each ranked candidate's <see cref="LeadInDepartureFt"/>; a candidate belongs to one goal, and its moves never change once judged.</summary>
@@ -946,7 +966,10 @@ internal sealed class TugPlanBuilder
             [.. _warnings],
             _facingJunction is { } junction ? GeoMath.DistanceNm(_end.Position, junction.Position) * GeoMath.FeetPerNm : null,
             _facingTaxiwayName
-        );
+        )
+        {
+            TaxiwayApproach = _taxiwayApproach,
+        };
 
     internal bool TryPlanGoal(int index, out string refusal)
     {
@@ -983,6 +1006,10 @@ internal sealed class TugPlanBuilder
         {
             _facingJunction = facingJunction;
             _facingTaxiwayName = goal.Goal.FacingTaxiwayName;
+        }
+        if (best.TaxiwayApproach is { } approach)
+        {
+            _taxiwayApproach = approach;
         }
         _end = best.End;
         _lastKind = best.LastKind;
@@ -1776,12 +1803,14 @@ internal sealed class TugPlanBuilder
         refusal = string.Empty;
         if (StraightBackCandidate(goal, pushTravelDeg, IsCentreline) is { } straight)
         {
+            straight.TaxiwayApproach = TugTaxiwayApproach.Across;
             candidates = [straight];
             return true;
         }
 
         if (AlongsideCandidate(goal, pushTravelDeg, standPushOff, IsCentreline) is { } alongside)
         {
+            alongside.TaxiwayApproach = TugTaxiwayApproach.Alongside;
             candidates = [alongside];
             return true;
         }

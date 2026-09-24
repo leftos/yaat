@@ -83,7 +83,7 @@ public class SequentialTransparentCompoundTests
         Assert.True(result.Success, result.Message);
         Assert.NotNull(result.Message);
         Assert.Contains(" ; then ", result.Message);
-        Assert.Contains("Pushing back", result.Message);
+        Assert.Contains("Push straight back", result.Message);
     }
 
     [Fact]

@@ -111,11 +111,11 @@ internal static class GroundCommandParser
         }
 
         // Helper to assemble the result with a taxiway and an optional magnetic facing heading.
-        static PushbackCommand Build(MagneticHeading? hdg, string? taxiway, string? facingTwy, PushDestination? dest) =>
-            new(hdg, taxiway, facingTwy, dest);
+        static PushbackCommand Build(MagneticHeading? hdg, bool isTail, string? taxiway, string? facingTwy, PushDestination? dest) =>
+            new(hdg, taxiway, facingTwy, dest) { IsTail = isTail };
 
         // First, try to read an orientation directly (no taxiway): PUSH <E, PUSH FACE E, PUSH $7A TAIL W.
-        (MagneticHeading? Hdg, int Consumed, string? Error) orient = TryOrientation(rest, 0);
+        (MagneticHeading? Hdg, bool IsTail, int Consumed, string? Error) orient = TryOrientation(rest, 0);
         if (orient.Error is not null)
         {
             return PR.Fail(orient.Error);
@@ -128,7 +128,7 @@ internal static class GroundCommandParser
                 return PR.Fail("unexpected tokens after PUSH orientation");
             }
 
-            return PR.Ok(Build(orient.Hdg, null, null, destination));
+            return PR.Ok(Build(orient.Hdg, orient.IsTail, null, null, destination));
         }
 
         // Otherwise the first remaining token is a taxiway (or a destination name).
@@ -144,11 +144,11 @@ internal static class GroundCommandParser
         {
             // PUSH TE / PUSH @A10 TE / PUSH $7A TE
             // For a destination (parking, spot or node), a trailing token is a facing taxiway; for plain PUSH it's the push-onto taxiway.
-            return hasDestination ? PR.Ok(Build(null, null, taxiway, destination)) : PR.Ok(Build(null, taxiway, null, destination));
+            return hasDestination ? PR.Ok(Build(null, false, null, taxiway, destination)) : PR.Ok(Build(null, false, taxiway, null, destination));
         }
 
         // Look for an orientation starting at rest[1].
-        (MagneticHeading? Hdg, int Consumed, string? Error) orient2 = TryOrientation(rest, 1);
+        (MagneticHeading? Hdg, bool IsTail, int Consumed, string? Error) orient2 = TryOrientation(rest, 1);
         if (orient2.Error is not null)
         {
             return PR.Fail(orient2.Error);
@@ -163,14 +163,16 @@ internal static class GroundCommandParser
 
             // PUSH TE <E / PUSH TE FACE E / PUSH $7A FACE E
             // For a destination, the taxiway slot is unused; orientation is absolute facing.
-            return hasDestination ? PR.Ok(Build(orient2.Hdg, null, null, destination)) : PR.Ok(Build(orient2.Hdg, taxiway, null, destination));
+            return hasDestination
+                ? PR.Ok(Build(orient2.Hdg, orient2.IsTail, null, null, destination))
+                : PR.Ok(Build(orient2.Hdg, orient2.IsTail, taxiway, null, destination));
         }
 
         if (rest.Length == 2 && !int.TryParse(rest[1], out _))
         {
             // PUSH TE T → onto TE facing toward T (kept form).
             string facingTwy = rest[1].ToUpperInvariant();
-            return PR.Ok(Build(null, taxiway, facingTwy, destination));
+            return PR.Ok(Build(null, false, taxiway, facingTwy, destination));
         }
 
         return PR.Fail("unrecognized PUSH arguments");
@@ -189,10 +191,11 @@ internal static class GroundCommandParser
         string[] tokens = arg?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
         var targets = new List<string>();
         MagneticHeading? finalFacing = null;
+        bool finalIsTail = false;
 
         for (int i = 0; i < tokens.Length; i++)
         {
-            (MagneticHeading? Hdg, int Consumed, string? Error) orient = TryOrientation(tokens, i);
+            (MagneticHeading? Hdg, bool IsTail, int Consumed, string? Error) orient = TryOrientation(tokens, i);
             if (orient.Error is not null)
             {
                 return PR.Fail(orient.Error);
@@ -206,6 +209,7 @@ internal static class GroundCommandParser
                 }
 
                 finalFacing = orient.Hdg;
+                finalIsTail = orient.IsTail;
                 break;
             }
 
@@ -224,7 +228,7 @@ internal static class GroundCommandParser
             return PR.Fail("needs at least two targets — use PUSH to move to a single one");
         }
 
-        return PR.Ok(new PushbackMultiCommand(targets, finalFacing));
+        return PR.Ok(new PushbackMultiCommand(targets, finalFacing) { IsTail = finalIsTail });
     }
 
     /// <summary>Whether the token names a tug-move target: <c>$spot</c>, <c>@parking</c> or <c>#nodeId</c>.</summary>
@@ -239,14 +243,15 @@ internal static class GroundCommandParser
 
     /// <summary>
     /// Reads an orientation (<c>&lt;C</c>, <c>&gt;C</c>, <c>FACE C</c>, <c>TAIL C</c>) starting at
-    /// <paramref name="start"/>. Returns the resolved magnetic facing, how many tokens it used, and a message
-    /// when the tokens looked like an orientation but did not parse as one.
+    /// <paramref name="start"/>. Returns the resolved magnetic facing, whether it was named by the tail (<c>TAIL</c>,
+    /// <c>&lt;</c>), how many tokens it used, and a message when the tokens looked like an orientation but did not parse
+    /// as one.
     /// </summary>
-    private static (MagneticHeading? Hdg, int Consumed, string? Error) TryOrientation(string[] tokens, int start)
+    private static (MagneticHeading? Hdg, bool IsTail, int Consumed, string? Error) TryOrientation(string[] tokens, int start)
     {
         if (start >= tokens.Length)
         {
-            return (null, 0, null);
+            return (null, false, 0, null);
         }
 
         string t = tokens[start];
@@ -258,7 +263,7 @@ internal static class GroundCommandParser
             int? card = ParseCardinal(t[1..]);
             if (card is null)
             {
-                return (null, 0, $"invalid cardinal '{t[1..]}' after '{t[0]}'");
+                return (null, false, 0, $"invalid cardinal '{t[1..]}' after '{t[0]}'");
             }
 
             int facing = tail ? (card.Value + 180) % 360 : card.Value;
@@ -267,7 +272,7 @@ internal static class GroundCommandParser
                 facing = 360;
             }
 
-            return (new MagneticHeading(facing), 1, null);
+            return (new MagneticHeading(facing), tail, 1, null);
         }
 
         // FACE C / TAIL C — two tokens.
@@ -277,13 +282,13 @@ internal static class GroundCommandParser
         {
             if (start + 1 >= tokens.Length)
             {
-                return (null, 0, $"{t.ToUpperInvariant()} requires a cardinal direction (N/NE/E/SE/S/SW/W/NW)");
+                return (null, false, 0, $"{t.ToUpperInvariant()} requires a cardinal direction (N/NE/E/SE/S/SW/W/NW)");
             }
 
             int? card = ParseCardinal(tokens[start + 1]);
             if (card is null)
             {
-                return (null, 0, $"invalid cardinal '{tokens[start + 1]}' after {t.ToUpperInvariant()}");
+                return (null, false, 0, $"invalid cardinal '{tokens[start + 1]}' after {t.ToUpperInvariant()}");
             }
 
             int facing = isTail ? (card.Value + 180) % 360 : card.Value;
@@ -292,14 +297,27 @@ internal static class GroundCommandParser
                 facing = 360;
             }
 
-            return (new MagneticHeading(facing), 2, null);
+            return (new MagneticHeading(facing), isTail, 2, null);
         }
 
-        return (null, 0, null);
+        return (null, false, 0, null);
     }
 
     /// <summary>The eight cardinal tokens the pushback grammar accepts, in 45° order from north.</summary>
     private static readonly string[] Cardinals = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+
+    /// <summary>The eight cardinals as words, in the order of <see cref="Cardinals"/>.</summary>
+    private static readonly string[] CardinalWords = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"];
+
+    /// <summary>
+    /// A heading as the 8-point compass word a push readback speaks (90 → <c>east</c>), on the same sector boundaries
+    /// as <see cref="CardinalToken"/>: a heading between two of the eight points goes to the nearest.
+    /// </summary>
+    /// <param name="heading">The magnetic heading.</param>
+    /// <returns>north, northeast, east, southeast, south, southwest, west or northwest.</returns>
+    internal static string CardinalWord(MagneticHeading heading) => CardinalWords[CardinalBucket(heading)];
+
+    private static int CardinalBucket(MagneticHeading heading) => (int)Math.Round((((heading.Degrees % 360.0) + 360.0) % 360.0) / 45.0) % 8;
 
     /// <summary>
     /// The cardinal token that renders a facing back into the command grammar (90 → <c>E</c>) — the inverse of
@@ -307,11 +325,7 @@ internal static class GroundCommandParser
     /// facing that is not one of the eight snaps to the nearest, the rule the ground view's own facing menu
     /// already applies when it composes a <c>PUSH FACE &lt;cardinal&gt;</c>.
     /// </summary>
-    internal static string CardinalToken(MagneticHeading heading)
-    {
-        int bucket = (int)Math.Round((((heading.Degrees % 360.0) + 360.0) % 360.0) / 45.0) % 8;
-        return Cardinals[bucket];
-    }
+    internal static string CardinalToken(MagneticHeading heading) => Cardinals[CardinalBucket(heading)];
 
     /// <summary>
     /// 8-point compass cardinal → magnetic heading degrees.

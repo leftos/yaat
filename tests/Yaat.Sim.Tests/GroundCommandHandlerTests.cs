@@ -351,7 +351,7 @@ public class GroundCommandHandlerTests
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, null, null);
 
         Assert.True(result.Success);
-        Assert.Contains("Pushing back", result.Message!);
+        Assert.StartsWith("Push straight back (nose ", result.Message!);
     }
 
     /// <summary>SFO gate B12 backs onto taxiway Y: a bare <c>PUSH Y</c> pushes straight back to it.</summary>
@@ -368,7 +368,7 @@ public class GroundCommandHandlerTests
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
 
         Assert.True(result.Success, result.Message);
-        Assert.Contains("onto Y", result.Message!);
+        Assert.Equal("Push straight back to taxiway Y", result.Message!);
     }
 
     /// <summary>
@@ -515,7 +515,7 @@ public class GroundCommandHandlerTests
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, null, null);
 
         Assert.True(result.Success);
-        Assert.Contains("180", result.Message!);
+        Assert.Equal("Push back, face south", result.Message);
     }
 
     /// <summary>
@@ -541,7 +541,8 @@ public class GroundCommandHandlerTests
     }
 
     /// <summary>
-    /// FACE N (013° true at SFO) snaps to Y's edge direction nearest it, 028° true, and the readback echoes that.
+    /// FACE N (013° true at SFO) snaps to Y's edge direction nearest it, 028° true: the installed tug move ends on it,
+    /// and the readback words the cardinal the controller named.
     /// </summary>
     [Fact]
     public void TryPushback_TaxiwayWithFaceN_SnapsNorthEdge()
@@ -556,7 +557,8 @@ public class GroundCommandHandlerTests
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
 
         Assert.True(result.Success, result.Message);
-        Assert.Contains("face heading 028", result.Message!);
+        Assert.Equal("Push onto Y, face north", result.Message);
+        AssertTugMoveEndsFacing(ac, 28.0);
     }
 
     /// <summary>FACE S (193° true at SFO) snaps to Y's other edge direction, 208° true.</summary>
@@ -573,7 +575,8 @@ public class GroundCommandHandlerTests
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
 
         Assert.True(result.Success, result.Message);
-        Assert.Contains("face heading 208", result.Message!);
+        Assert.Equal("Push onto Y, face south", result.Message);
+        AssertTugMoveEndsFacing(ac, 208.0);
     }
 
     [Fact]
@@ -586,7 +589,20 @@ public class GroundCommandHandlerTests
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, null, null);
 
         Assert.True(result.Success);
-        Assert.Contains("face heading 045", result.Message!);
+        Assert.Equal("Push back, face northeast", result.Message);
+        AssertTugMoveEndsFacing(ac, MagneticDeclination.MagneticToTrue(45.0, ac.Position));
+    }
+
+    /// <summary>
+    /// The nose heading the installed tug move ends on, flown from where the aircraft stands through every queued
+    /// <see cref="PushbackPhase"/>'s move, is within 2° of <paramref name="expectedTrueDeg"/>.
+    /// </summary>
+    private static void AssertTugMoveEndsFacing(AircraftState ac, double expectedTrueDeg)
+    {
+        List<TugMove> moves = [.. ac.Phases!.Phases.OfType<PushbackPhase>().Select(p => p.Move)];
+        TugPose end = TugKinematics.Simulate(new TugPose(ac.Position, ac.TrueHeading.Degrees), moves, ac.AircraftType, 1.0).End;
+        double offDeg = GeoMath.AbsBearingDifference(end.NoseTrueDeg, expectedTrueDeg);
+        Assert.True(offDeg < 2.0, $"the tug move ends facing {end.NoseTrueDeg:F1}° true, {offDeg:F1}° off {expectedTrueDeg:F1}°");
     }
 
     // -------------------------------------------------------------------------

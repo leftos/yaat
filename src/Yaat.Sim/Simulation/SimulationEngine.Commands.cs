@@ -194,7 +194,7 @@ public sealed partial class SimulationEngine
             FrequencyActivityLevel activityLevel = World.ActiveFrequency.GetActivityLevel(elapsedSeconds);
             PilotSpeechText? readback = Yaat.Sim.Pilot.PilotResponder.BuildReadbackAsApplied(
                 compound,
-                result.EffectiveCommand,
+                result,
                 aircraft,
                 PilotPersonality.Varied,
                 activityLevel

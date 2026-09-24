@@ -485,6 +485,15 @@ public sealed class PushbackPhaseDto : PhaseDto
     /// false — only the push-off itself then keeps its priority, through <see cref="StartsAtStand"/>.
     /// </summary>
     public bool ContinuesStandPushOff { get; init; }
+
+    /// <summary>
+    /// The move is the tow's last, whose completion records <see cref="EndTaxiway"/> as the aircraft's taxiway. Absent
+    /// on a snapshot written before the field existed, which restores false and leaves the taxiway as it was.
+    /// </summary>
+    public bool IsLastMove { get; init; }
+
+    /// <summary>The taxiway the tow's final goal names, or null; read only on the last move.</summary>
+    public string? EndTaxiway { get; init; }
     public double PlannedEndLatitude { get; init; }
     public double PlannedEndLongitude { get; init; }
 

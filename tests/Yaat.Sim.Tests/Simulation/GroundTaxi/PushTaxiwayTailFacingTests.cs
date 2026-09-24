@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.RegularExpressions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
@@ -14,15 +13,12 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// south. Y's exit node there is the taxiway's north end, whose only straight Y edge runs south; the facing must be
 /// the direction along Y's line nearest the hint, the line extended past the end included.
 /// </summary>
-public partial class PushTaxiwayTailFacingTests
+public class PushTaxiwayTailFacingTests
 {
     public PushTaxiwayTailFacingTests()
     {
         TestVnasData.EnsureInitialized();
     }
-
-    [GeneratedRegex(@"face heading (\d{3})")]
-    private static partial Regex FaceHeading();
 
     [Theory]
     [InlineData("PUSH Y TAIL S", 0.0)]
@@ -35,12 +31,11 @@ public partial class PushTaxiwayTailFacingTests
             return;
         }
 
-        CommandResult result = PushFromC8(layout, command);
+        (CommandResult result, AircraftState ac) = PushFromC8(layout, command);
 
         Assert.True(result.Success, $"{command} failed: {result.Message}");
-        Match match = FaceHeading().Match(result.Message ?? "");
-        Assert.True(match.Success, $"no facing in the readback: {result.Message}");
-        double facingTrue = double.Parse(match.Groups[1].Value);
+        List<TugMove> moves = [.. ac.Phases!.Phases.OfType<PushbackPhase>().Select(p => p.Move)];
+        double facingTrue = TugKinematics.Simulate(new TugPose(ac.Position, ac.TrueHeading.Degrees), moves, ac.AircraftType, 1.0).End.NoseTrueDeg;
         double hintTrue = MagneticDeclination.MagneticToTrue(hintMagneticDeg, layout.FindParkingByName("C8")!.Position);
         double offDeg = GeoMath.AbsBearingDifference(facingTrue, hintTrue);
         Assert.True(offDeg < 90.0, $"{command} faces {facingTrue:000}, {offDeg:F0}° from the hint ({hintTrue:F0} true)");
@@ -61,7 +56,7 @@ public partial class PushTaxiwayTailFacingTests
             return;
         }
 
-        CommandResult result = PushFromC8(layout, "PUSH Y FACE S");
+        (CommandResult result, _) = PushFromC8(layout, "PUSH Y FACE S");
 
         Assert.False(result.Success, $"PUSH Y FACE S off C8 was accepted: {result.Message}");
         const string Prefix = "Unable, the move to taxiway Y would take the aircraft ";
@@ -76,7 +71,7 @@ public partial class PushTaxiwayTailFacingTests
         Assert.True(overshootFt > halfSpanFt, $"the premise: the {overshootFt} ft overshoot is over the B739's {halfSpanFt:F1} ft half-span");
     }
 
-    private static CommandResult PushFromC8(AirportGroundLayout layout, string command)
+    private static (CommandResult Result, AircraftState Aircraft) PushFromC8(AirportGroundLayout layout, string command)
     {
         GroundNode c8 = layout.FindParkingByName("C8") ?? throw new InvalidOperationException("SFO gate C8 missing");
         var ac = new AircraftState
@@ -100,6 +95,6 @@ public partial class PushTaxiwayTailFacingTests
         Assert.True(parsed.IsSuccess, parsed.Reason);
         var compound = new CompoundCommand([new ParsedBlock(null, [parsed.Value!])]);
         DispatchContext ctx = TestDispatch.Context(new Random(42), validateDctFixes: false, groundLayout: layout);
-        return CommandDispatcher.DispatchCompound(compound, ac, ctx);
+        return (CommandDispatcher.DispatchCompound(compound, ac, ctx), ac);
     }
 }

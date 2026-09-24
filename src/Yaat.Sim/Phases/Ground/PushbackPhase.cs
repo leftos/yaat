@@ -137,6 +137,21 @@ public sealed class PushbackPhase : Phase
     /// </summary>
     public TugAmendment? Amendment { get; init; }
 
+    /// <summary>
+    /// This move is the plan's last: its completion ends the tow, and <see cref="OnEnd"/> then records
+    /// <see cref="EndTaxiway"/> as the taxiway the aircraft is on. False on every earlier move, and on a move restored
+    /// from a snapshot written before the field existed, which leaves the aircraft's taxiway as it was.
+    /// A mid-push facing amendment re-marks the running move when its re-plan leaves no other.
+    /// </summary>
+    public bool IsLastMove { get; set; }
+
+    /// <summary>
+    /// The taxiway the tow's final goal names — a <c>PUSH &lt;taxiway&gt;</c> ends on it — or null for a tow ending on a
+    /// stand, a spot, a node or wherever a bare push or a facing leaves it. Read only when <see cref="IsLastMove"/>
+    /// completes, so a following <c>TAXI</c> starts from the taxiway the push put the aircraft on.
+    /// </summary>
+    public string? EndTaxiway { get; set; }
+
     /// <summary>Push (tail-first) or pull (nose-first).</summary>
     public PushbackLegKind Kind => Move.Kind;
 
@@ -502,6 +517,10 @@ public sealed class PushbackPhase : Phase
         if (endStatus == PhaseStatus.Completed)
         {
             HandOver(ctx, PoseOf(ctx.Aircraft));
+            if (IsLastMove)
+            {
+                ctx.Aircraft.Ground.CurrentTaxiway = EndTaxiway;
+            }
         }
         else
         {
@@ -882,6 +901,8 @@ public sealed class PushbackPhase : Phase
             StartsAtStand = StartsAtStand,
             ContinuesIntoNextMove = ContinuesIntoNextMove,
             ContinuesStandPushOff = ContinuesStandPushOff,
+            IsLastMove = IsLastMove,
+            EndTaxiway = EndTaxiway,
             PlannedEndLatitude = PlannedEnd.Lat,
             PlannedEndLongitude = PlannedEnd.Lon,
             AmendmentGoalKind = Amendment?.GoalKind,
@@ -935,6 +956,8 @@ public sealed class PushbackPhase : Phase
             StartsAtStand = dto.StartsAtStand,
             ContinuesIntoNextMove = dto.ContinuesIntoNextMove,
             ContinuesStandPushOff = dto.ContinuesStandPushOff,
+            IsLastMove = dto.IsLastMove,
+            EndTaxiway = dto.EndTaxiway,
             Amendment = AmendmentFromSnapshot(dto),
             _progress = new TugMoveProgress(
                 new LatLon(dto.ProgressStartLatitude, dto.ProgressStartLongitude),
