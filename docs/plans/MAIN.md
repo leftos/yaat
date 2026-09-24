@@ -1,5 +1,5 @@
 # YAAT plans — index
-<!-- plan-doc-hygiene: 2026-09-23 f477dcac yaat-server@5866b019 -->
+<!-- plan-doc-hygiene: 2026-09-24 cd5ebd96 yaat-server@21d9ee5b -->
 <!-- triage-open-issues: 2026-09-21T06:31:25Z -->
 
 Entry point for `docs/plans/`. One line per item; the detail lives in the linked subplan. Finished items and finished plans are deleted, never left ticked (steer 2026-09-14) — git history is the record (a plan whose rationale or status table still has reference value is promoted into `docs/` instead). Issue-specific plans live in [`open-issues/`](./open-issues/) and are deleted once implemented.
@@ -18,7 +18,7 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 - [ ] **Controller AI v1** — on hold behind the tick work; [controller-ai/README.md](./controller-ai/README.md) (H0 / CA0 / CA1 / K1-lite shipped; the open follow-ups are listed there) and the v1 slice [controller-ai/12-milestone-v1-scope.md](./controller-ai/12-milestone-v1-scope.md). The per-frequency radio model ([controller-ai/11-radio-model.md](./controller-ai/11-radio-model.md)) ships first.
 - [ ] Pilot AI for solo training — [pilot-ai-self-training/README.md](./pilot-ai-self-training/README.md) (M10.x and Wave 1 shipped; next is Wave 2, M11.2 pilot-initiated requests)
-- [ ] Live traffic via SWIM (#150) — [open-issues/150-live-traffic-swim.md](./open-issues/150-live-traffic-swim.md) → yaat-server `docs/plans/live-traffic-swim/08-remaining-work.md`. **In internal testing** (2026-09-07): the FAA ADX / LADD access is granted and the feed is deployed to YAAT1 with the feature flag off; the flag flips when internal testing finishes
+- [ ] Live traffic via SWIM (#150) — [open-issues/150-live-traffic-swim.md](./open-issues/150-live-traffic-swim.md) → `yaat-server/docs/plans/live-traffic-swim/` (next: `08-remaining-work.md`). **In internal testing** (2026-09-07): the FAA ADX / LADD access is granted and the feed is deployed to YAAT1 with the feature flag off; the flag flips when internal testing finishes
 - [ ] **Typed command arguments** (steer 2026-09-07) — [typed-command-arguments.md](./typed-command-arguments.md): the registry names each argument's type instead of a prose hint, one small validator per type, arguments bind to record fields by type, and a slot that takes a runway or an altitude is two overloads resolved like a compiler resolves them — the token is tried against each viable overload's declared type (`RunwayArgument`: 1–2 digits + optional L/C/R; `AltitudeArgument`: 3+ digits) — with no combined type; a runway the airport lacks is rejected at dispatch. Step 1 (the pattern modifiers) shipped 2026-09-07; the audit of the remaining slots (step 2) is next
 
 ## Backlog — waves
