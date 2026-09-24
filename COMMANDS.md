@@ -200,6 +200,8 @@ Use `LV` (level at altitude) and `AT` (at fix) to trigger blocks on specific con
   | `AT @<parking>` | Fires when the aircraft reaches the named parking spot | `AT @TERM2 FCA` |
   | `AT <t1>/<t2>` | Fires at the node where two named taxiways meet (closest to the aircraft when issued) | `AT B/C SPD 5` |
 
+  The command goes in the same block as its condition: `AT SUNOL; DM 020` or `AT SUNOL, DM 020` is refused with `has no command before the ';' — did you mean 'AT SUNOL DM 020'?`, because the separator would leave the condition with nothing to trigger. An `AT` condition on its own at the very end of the input is still accepted.
+
   **Disambiguation order:** sigils win first (`$` spot, `@` parking, `/` intersection), then bare digits stay altitudes (so `AT 30` is still 3,000 ft — to target SFO spot `30` use `AT $30`), then bare names try airborne fixes (`AT SUNOL`) before falling back to a taxiway. If the resolved entity is not present in the airport layout, the block is rejected with a `AT ground entity not found` warning.
 
 - **GIVEWAY** / **BEHIND** — as a *condition prefix* (callsign followed by a command), gates that command until the named aircraft no longer conflicts (ground only):

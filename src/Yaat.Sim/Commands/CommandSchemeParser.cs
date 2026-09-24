@@ -65,20 +65,22 @@ public static class CommandSchemeParser
         }
 
         // Split by ';' for sequential blocks
-        string[] blockStrings = trimmed.Split(';');
+        var blocks = trimmed.Split(';').Select(b => b.Trim()).Where(b => b.Length > 0).ToList();
         var canonicalBlocks = new List<string>();
 
-        foreach (string blockStr in blockStrings)
+        for (int i = 0; i < blocks.Count; i++)
         {
-            string block = blockStr.Trim();
-            if (string.IsNullOrEmpty(block))
-            {
-                continue;
-            }
-
-            string? canonicalBlock = ParseBlockToCanonical(block, scheme, out failure);
+            string? canonicalBlock = ParseBlockToCanonical(blocks[i], scheme, out failure, out bool bareCondition);
             if (canonicalBlock is null)
             {
+                return null;
+            }
+
+            // A bare condition only stands as the last thing in the input. With a block after it the
+            // command was dropped — `AT SUNOL; DM 020` for `AT SUNOL DM 020`.
+            if (bareCondition && (i < blocks.Count - 1))
+            {
+                failure = EmptyConditionFailure(canonicalBlock, ';', blocks[i + 1]);
                 return null;
             }
 
@@ -252,6 +254,61 @@ public static class CommandSchemeParser
     };
 
     /// <summary>
+    /// The failure for a condition with no command of its own that is followed by another block or
+    /// command — <c>AT SUNOL; DM 020</c>, a typo of <c>AT SUNOL DM 020</c>. A bare condition only
+    /// stands as the last thing in the input. <paramref name="condition"/> is the condition's text and
+    /// <paramref name="next"/> the raw text of what follows the separator, both as typed.
+    /// </summary>
+    internal static ParseFailure EmptyConditionFailure(string condition, char separator, string next)
+    {
+        string normalized = string.Join(' ', condition.Split(' ', StringSplitOptions.RemoveEmptyEntries)).ToUpperInvariant();
+        string verb = normalized.Split(' ', 2)[0];
+        return new ParseFailure(verb, $"has no command before the '{separator}' — did you mean '{normalized} {next.Trim()}'?");
+    }
+
+    /// <summary>
+    /// The same failure as one line, for the server's verb-less failure reason: the client's pre-send
+    /// check and the server refuse with the same words.
+    /// </summary>
+    internal static string EmptyConditionMessage(string condition, char separator, string next)
+    {
+        ParseFailure failure = EmptyConditionFailure(condition, separator, next);
+        return $"{failure.Verb} {failure.Reason}";
+    }
+
+    /// <summary>
+    /// Splits an empty condition off a block that opens with a parallel separator, e.g. the
+    /// <c>DM 020</c> of <c>AT SUNOL, DM 020</c>. The head before the comma is parsed on its own: only
+    /// when it is a bare condition — the condition and no command — is the comma a sign of the dropped
+    /// command, and the returned failure suggests writing the command before the separator.
+    /// </summary>
+    private static bool TrySplitBareConditionBeforeComma(string block, CommandScheme scheme, out ParseFailure? failure)
+    {
+        failure = null;
+        int comma = block.IndexOf(',');
+        if (comma < 0)
+        {
+            return false;
+        }
+
+        string head = block[..comma].Trim();
+        string next = block[(comma + 1)..].Trim();
+        if ((head.Length == 0) || (next.Length == 0))
+        {
+            return false;
+        }
+
+        string? headCanonical = ParseBlockToCanonical(head, scheme, out _, out bool headIsBare);
+        if (!headIsBare)
+        {
+            return false;
+        }
+
+        failure = EmptyConditionFailure(headCanonical!, ',', next);
+        return true;
+    }
+
+    /// <summary>
     /// When the first canonical block is a CFIX command, inject AT {fixname} on subsequent
     /// blocks that don't already have a condition prefix (AT, LV, ATFN, ONHO, GIVEWAY, WAIT).
     /// Mutates <paramref name="canonicalBlocks"/> in place.
@@ -286,9 +343,16 @@ public static class CommandSchemeParser
         }
     }
 
-    private static string? ParseBlockToCanonical(string block, CommandScheme scheme, out ParseFailure? failure)
+    private static string? ParseBlockToCanonical(string block, CommandScheme scheme, out ParseFailure? failure, out bool bareCondition)
     {
         failure = null;
+        bareCondition = false;
+        if (TrySplitBareConditionBeforeComma(block, scheme, out ParseFailure? commaFailure))
+        {
+            failure = commaFailure;
+            return null;
+        }
+
         var parts = new List<string>();
         string remaining = block;
 
@@ -376,7 +440,7 @@ public static class CommandSchemeParser
             // then recursively parse the remainder as a separate block
             if (remainderUpper.StartsWith("AT ") || remainderUpper.StartsWith("LV ") || remainderUpper.StartsWith("ATFN "))
             {
-                string? innerCanonical = ParseBlockToCanonical(remaining, scheme, out failure);
+                string? innerCanonical = ParseBlockToCanonical(remaining, scheme, out failure, out _);
                 if (innerCanonical is null)
                 {
                     return null;
@@ -401,7 +465,7 @@ public static class CommandSchemeParser
 
             if (remainderUpper.StartsWith("AT ") || remainderUpper.StartsWith("LV ") || remainderUpper.StartsWith("ATFN "))
             {
-                string? innerCanonical = ParseBlockToCanonical(remaining, scheme, out failure);
+                string? innerCanonical = ParseBlockToCanonical(remaining, scheme, out failure, out _);
                 if (innerCanonical is null)
                 {
                     return null;
@@ -426,7 +490,7 @@ public static class CommandSchemeParser
 
             if (remainderUpper.StartsWith("AT ") || remainderUpper.StartsWith("LV ") || remainderUpper.StartsWith("ATFN "))
             {
-                string? innerCanonical = ParseBlockToCanonical(remaining, scheme, out failure);
+                string? innerCanonical = ParseBlockToCanonical(remaining, scheme, out failure, out _);
                 if (innerCanonical is null)
                 {
                     return null;
@@ -459,7 +523,7 @@ public static class CommandSchemeParser
             var tailCanonicals = new List<string>();
             foreach (string? subBlock in subBlocks.Skip(1))
             {
-                string? canonicalBlock = ParseBlockToCanonical(subBlock, scheme, out failure);
+                string? canonicalBlock = ParseBlockToCanonical(subBlock, scheme, out failure, out _);
                 if (canonicalBlock is null)
                 {
                     return null;
@@ -499,6 +563,7 @@ public static class CommandSchemeParser
         // Bare condition with no following command (e.g., "AT BRIXX")
         if (string.IsNullOrWhiteSpace(remaining) && parts.Count > 0)
         {
+            bareCondition = true;
             return string.Join(" ", parts);
         }
 

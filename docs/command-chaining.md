@@ -120,6 +120,13 @@ handler guard, wedge) the turn. The sequential `CTO; R270` is deliberate and all
 until airborne. `L270`/`R270`/`L360`/`R360` themselves refuse an aircraft on the ground
 (`PatternCommandHandler.TryMakeTurn`).
 
+Both parsers (`CommandSchemeParser.ParseCompound` on the client, `CommandParser.ParseCompound` on the server) also refuse
+a bare condition — an `AT` block with no command of its own — that has another block or command after it (`AT SUNOL; DM 020`,
+`AT SUNOL, DM 020`), with *"AT has no command before the ';' — did you mean 'AT SUNOL DM 020'?"*
+(`CommandSchemeParser.EmptyConditionFailure`, shared). Split at the separator, the condition would trigger nothing and the
+command would run as an ordinary block. A bare condition that ends the input (`AT BRIXX`, `CM 050; AT BRIXX`) stays
+accepted. `LV`, `ATFN`, `ONHS` and `OTG` never reach this case: each refuses a missing command in its own branch.
+
 ## Historical failure classes (what regressions look like)
 
 1. **Single-path fixes** (#294): `UpdateCommandQueue` has parallel scan paths (current-block,

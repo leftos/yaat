@@ -80,6 +80,14 @@ public static class CommandParser
                 return ParseResult<CompoundCommand>.Fail(_lastBlockFailure ?? $"failed to parse block: {blockTrimmed}");
             }
 
+            // A bare condition only stands as the last thing in the input. With a block after it the
+            // command was dropped — `AT SUNOL; DM 020` for `AT SUNOL DM 020`.
+            if (IsBareConditionBlock(parsed) && TryGetFollowingBlock(blockStrings, i, out string followingBlock))
+            {
+                debugLog?.WriteLine($"[ParseCompound] block[{i}] => bare condition before \"{followingBlock}\"");
+                return ParseResult<CompoundCommand>.Fail(CommandSchemeParser.EmptyConditionMessage(blockTrimmed, ';', followingBlock));
+            }
+
             blocks.AddRange(parsed);
         }
 
@@ -128,6 +136,70 @@ public static class CommandParser
 
     private static bool IsWaitLikeCommand(ParsedCommand cmd) => cmd is WaitCommand or WaitDistanceCommand;
 
+    /// <summary>
+    /// True when a parsed block is a condition and nothing else — <c>AT SUNOL</c> with no command.
+    /// </summary>
+    private static bool IsBareConditionBlock(List<ParsedBlock> parsed) =>
+        (parsed.Count == 1) && (parsed[0].Condition is not null) && (parsed[0].Commands.Count == 0);
+
+    /// <summary>
+    /// The first non-empty block after <paramref name="index"/>, for the "did you mean" suggestion.
+    /// </summary>
+    private static bool TryGetFollowingBlock(string[] blockStrings, int index, out string following)
+    {
+        for (int i = index + 1; i < blockStrings.Length; i++)
+        {
+            string trimmed = blockStrings[i].Trim();
+            if (trimmed.Length > 0)
+            {
+                following = trimmed;
+                return true;
+            }
+        }
+
+        following = "";
+        return false;
+    }
+
+    /// <summary>
+    /// Splits an empty condition off a block that opens with a parallel separator, e.g. the
+    /// <c>DM 020</c> of <c>AT SUNOL, DM 020</c>. The head before the comma is parsed on its own: only
+    /// when it is a bare condition — the condition and no command — is the comma a sign of the dropped
+    /// command, and the returned failure suggests writing the command before the separator.
+    /// </summary>
+    private static bool TrySplitBareConditionBeforeComma(string blockStr, string? aircraftRoute, TextWriter? debugLog, out string? failure)
+    {
+        failure = null;
+        int comma = blockStr.IndexOf(',');
+        if (comma < 0)
+        {
+            return false;
+        }
+
+        string head = blockStr[..comma].Trim();
+        string next = blockStr[(comma + 1)..].Trim();
+        if ((head.Length == 0) || (next.Length == 0))
+        {
+            return false;
+        }
+
+        string? savedFailure = _lastBlockFailure;
+        List<ParsedBlock>? headBlocks = ParseBlock(head, aircraftRoute, debugLog);
+        bool headIsBare = (headBlocks is not null) && IsBareConditionBlock(headBlocks);
+
+        // The probe must leave no trace: a head that fails to parse writes the thread-static failure
+        // reason that ParseCompound reports when the *full* block later fails for its own reason.
+        _lastBlockFailure = savedFailure;
+
+        if (!headIsBare)
+        {
+            return false;
+        }
+
+        failure = CommandSchemeParser.EmptyConditionMessage(head, ',', next);
+        return true;
+    }
+
     // Thread-local storage for propagating block/command failure reasons through ParseBlock
     [ThreadStatic]
     private static string? _lastBlockFailure;
@@ -137,6 +209,14 @@ public static class CommandParser
         if (string.IsNullOrWhiteSpace(blockStr))
         {
             _lastBlockFailure = "empty block";
+            return null;
+        }
+
+        // A condition immediately followed by a parallel separator has no command of its own —
+        // `AT SUNOL, DM 020` is the `;` typo in comma clothing.
+        if (TrySplitBareConditionBeforeComma(blockStr, aircraftRoute, debugLog, out string? commaFailure))
+        {
+            _lastBlockFailure = commaFailure;
             return null;
         }
 
