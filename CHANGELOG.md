@@ -72,6 +72,7 @@
 - An aircraft giving way to traffic merging onto its route ahead falls in behind once that traffic is on its last taxiway into the merge.
 - `AT SUNOL; DM 020` and `AT SUNOL, DM 020` are refused with a suggestion to write `AT SUNOL DM 020`, instead of queuing a condition with nothing to trigger.
 - `CLRWY` and runway crossings pull an aircraft type YAAT has no dimensions for fully clear of the holding position, sized by its wake category.
+- A command chained after a LAHSO landing takes effect when the aircraft stops short, instead of waiting for the next command.
 
 ## v0.13.4-beta [2026/09/21]
 

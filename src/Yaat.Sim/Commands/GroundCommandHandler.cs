@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands.Arguments;
@@ -2789,9 +2790,9 @@ public static class GroundCommandHandler
         Func<IReadOnlyList<AircraftState>>? listAircraft
     )
     {
-        if (aircraft.Phases?.CurrentPhase is PushbackPhase)
+        if (aircraft.Phases is { CurrentPhase: PushbackPhase } phases)
         {
-            return TryAmendPushback(aircraft, push, groundLayout, listAircraft);
+            return TryAmendPushback(aircraft, phases, push, groundLayout, listAircraft);
         }
 
         if (aircraft.Phases?.CurrentPhase is not (AtParkingPhase or HoldingAfterPushbackPhase))
@@ -3398,6 +3399,7 @@ public static class GroundCommandHandler
     /// </summary>
     private static CommandResult TryAmendPushback(
         AircraftState aircraft,
+        PhaseList phases,
         PushbackCommand push,
         AirportGroundLayout? groundLayout,
         Func<IReadOnlyList<AircraftState>>? listAircraft
@@ -3409,29 +3411,73 @@ public static class GroundCommandHandler
             return new CommandResult(false, "Unable, only face/tail amendment accepted during pushback");
         }
 
-        MagneticHeading heading = push.MagneticHeading!.Value;
-        var turnInProgress = new CommandResult(false, "Unable, pushback turn in progress");
-        Phase? current = aircraft.Phases!.CurrentPhase;
-        if ((current is PushbackPhase) && (aircraft.Phases.Phases[^1] is AtParkingPhase))
+        if (!TryGetAmendablePushOff(aircraft, phases, out PushbackPhase? pushOff, out CommandResult? rejection))
         {
-            return new CommandResult(false, "Unable, a pushback to a stand keeps the stand's heading");
+            return rejection;
+        }
+
+        return BuildAndInstallAmendedPush(aircraft, push, (phases, pushOff), groundLayout, listAircraft);
+    }
+
+    /// <summary>
+    /// Finds the running stand push-off a facing amendment can re-plan. The reasons it cannot, in the order they are
+    /// checked: a tug move ending on a stand keeps the stand's heading, a tow that keeps its plan is changed only by a
+    /// new <c>PUSH</c>, and anything but a stand push-off that can still be amended has its turn in progress.
+    /// </summary>
+    /// <returns>True with <paramref name="pushOff"/> set; false with <paramref name="rejection"/> set.</returns>
+    private static bool TryGetAmendablePushOff(
+        AircraftState aircraft,
+        PhaseList phases,
+        [NotNullWhen(true)] out PushbackPhase? pushOff,
+        [NotNullWhen(false)] out CommandResult? rejection
+    )
+    {
+        pushOff = null;
+        rejection = null;
+        Phase? current = phases.CurrentPhase;
+        if ((current is PushbackPhase) && (phases.Phases[^1] is AtParkingPhase))
+        {
+            rejection = new CommandResult(false, "Unable, a pushback to a stand keeps the stand's heading");
+            return false;
         }
 
         if (current is PushbackPhase { KeepsItsPlan: true })
         {
-            return new CommandResult(false, "Unable, a forced push or a push to a marked point keeps its plan — issue a new PUSH to change it");
+            rejection = new CommandResult(false, "Unable, a forced push or a push to a marked point keeps its plan — issue a new PUSH to change it");
+            return false;
         }
 
-        if ((current is not PushbackPhase pushOff) || !pushOff.CanAmend(aircraft))
+        if ((current is not PushbackPhase running) || !running.CanAmend(aircraft))
         {
-            return turnInProgress;
+            rejection = PushTurnInProgress();
+            return false;
         }
 
+        pushOff = running;
+        return true;
+    }
+
+    private static CommandResult PushTurnInProgress() => new(false, "Unable, pushback turn in progress");
+
+    /// <summary>
+    /// Re-plans the running stand push-off's goal on the amended facing and installs the re-plan behind the push-off,
+    /// which keeps running as the re-plan's first move.
+    /// </summary>
+    private static CommandResult BuildAndInstallAmendedPush(
+        AircraftState aircraft,
+        PushbackCommand push,
+        (PhaseList Phases, PushbackPhase PushOff) running,
+        AirportGroundLayout? groundLayout,
+        Func<IReadOnlyList<AircraftState>>? listAircraft
+    )
+    {
+        (PhaseList phases, PushbackPhase pushOff) = running;
+        MagneticHeading heading = push.MagneticHeading!.Value;
         TugAmendment amendment = pushOff.Amendment!;
         double facingTrueDeg = MagneticDeclination.MagneticToTrue(heading.Degrees, aircraft.Position);
         if (AmendedGoal(amendment, facingTrueDeg, groundLayout) is not { } amended)
         {
-            return turnInProgress;
+            return PushTurnInProgress();
         }
 
         // The re-plan starts with the same push-off that is running, so it carries on without a reversal.
@@ -3452,7 +3498,7 @@ public static class GroundCommandHandler
         }
 
         var terminus = TugTerminus.Holding(amended.Goal.TaxiwayName);
-        aircraft.Phases.ReplaceUpcoming(TugMovePhases(plan, true, new TugTow(terminus, null, false), 1));
+        phases.ReplaceUpcoming(TugMovePhases(plan, true, new TugTow(terminus, null, false), 1));
         MarkRunningPushOff(pushOff, plan, terminus.EndTaxiway);
         Log.LogDebug(
             "[Pushback] {Callsign}: face heading amended to {Heading:000} ({FacingTrue:F1} true), re-planned as {Moves}",
