@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -35,6 +37,7 @@ public class LiveTrafficSyncStepTests
                 ScenarioName = "Test",
                 RngSeed = 1,
                 OriginalScenarioJson = "{}",
+                LiveTrafficEnabled = true,
             },
         };
         foreach (AircraftState ac in aircraft)
@@ -71,7 +74,7 @@ public class LiveTrafficSyncStepTests
     /// <summary>Spawns <paramref name="callsign"/> at second 1 and clears the port, so later seconds start from one shadow.</summary>
     private static void SpawnAtSecondOne(SimulationEngine engine, FakeFeedPort port, SpineCapturingHost host, string callsign)
     {
-        port.Offer(callsign, Sample(1, Origin), matchesFilter: true, suppressed: false);
+        port.Offer(callsign, Sample(1, Origin), matchesFilter: true);
         SyncAt(engine, port, host, 1);
         Assert.True(engine.World.FindAircraft(callsign)!.IsShadow);
         port.Tracks.Clear();
@@ -83,7 +86,7 @@ public class LiveTrafficSyncStepTests
         SimulationEngine engine = BareEngine();
         var port = new FakeFeedPort();
         var host = new SpineCapturingHost(engine);
-        port.Offer("UAL1", Sample(1, Origin), matchesFilter: true, suppressed: false);
+        port.Offer("UAL1", Sample(1, Origin), matchesFilter: true);
 
         SyncAt(engine, port, host, 1);
 
@@ -108,7 +111,7 @@ public class LiveTrafficSyncStepTests
         SpawnAtSecondOne(engine, port, host, "UAL1");
 
         LatLon moved = GeoMath.ProjectPoint(Origin, new TrueHeading(90), 2);
-        port.Offer("UAL1", Sample(2, moved), matchesFilter: true, suppressed: false);
+        port.Offer("UAL1", Sample(2, moved), matchesFilter: true);
         SyncAt(engine, port, host, 2);
 
         AircraftState shadow = engine.World.FindAircraft("UAL1")!;
@@ -190,7 +193,7 @@ public class LiveTrafficSyncStepTests
         var host = new SpineCapturingHost(engine);
         SpawnAtSecondOne(engine, port, host, "UAL1");
 
-        port.Offer("DAL2", Sample(3, Origin), matchesFilter: false, suppressed: false);
+        port.Offer("DAL2", Sample(3, Origin), matchesFilter: false);
         port.Statuses["UAL1"] = LiveTrafficShadowStatus.FilteredOut;
         SyncAt(engine, port, host, 3);
 
@@ -207,7 +210,7 @@ public class LiveTrafficSyncStepTests
         SimulationEngine engine = BareEngine(Simulated("AAL100"));
         var port = new FakeFeedPort();
         var host = new SpineCapturingHost(engine);
-        port.Offer("AAL100", Sample(1, Origin), matchesFilter: true, suppressed: false);
+        port.Offer("AAL100", Sample(1, Origin), matchesFilter: true);
 
         SyncAt(engine, port, host, 1);
 
@@ -226,7 +229,7 @@ public class LiveTrafficSyncStepTests
         SimulationEngine engine = BareEngine(assumed);
         var port = new FakeFeedPort();
         var host = new SpineCapturingHost(engine);
-        port.Offer("AAL100", Sample(1, Origin), matchesFilter: true, suppressed: false);
+        port.Offer("AAL100", Sample(1, Origin), matchesFilter: true);
 
         SyncAt(engine, port, host, 1);
 
@@ -242,7 +245,8 @@ public class LiveTrafficSyncStepTests
         SimulationEngine engine = BareEngine();
         var port = new FakeFeedPort();
         var host = new SpineCapturingHost(engine);
-        port.Offer("UAL1", Sample(1, Origin), matchesFilter: true, suppressed: true);
+        engine.Scenario!.SuppressedLiveTraffic.Add("ual1");
+        port.Offer("UAL1", Sample(1, Origin), matchesFilter: true);
 
         SyncAt(engine, port, host, 1);
 
@@ -250,6 +254,65 @@ public class LiveTrafficSyncStepTests
         Assert.Empty(host.LiveTrafficSpawns);
         Assert.Equal(0, port.SpawnStatesBuilt);
         Assert.Empty(engine.Scenario!.ActionLog.OfType<RecordedLiveTrafficSample>());
+    }
+
+    [Fact]
+    public void ADisabledSecond_ClearsTheSuppressedSet()
+    {
+        SimulationEngine engine = BareEngine();
+        engine.Scenario!.LiveTrafficEnabled = false;
+        engine.Scenario!.SuppressedLiveTraffic.Add("UAL1");
+        var port = new FakeFeedPort { Syncs = false };
+        var host = new SpineCapturingHost(engine);
+
+        SyncAt(engine, port, host, 1);
+
+        Assert.Empty(engine.Scenario!.SuppressedLiveTraffic);
+    }
+
+    [Fact]
+    public void AnEnabledSecond_KeepsTheSuppressedSet()
+    {
+        SimulationEngine engine = BareEngine();
+        engine.Scenario!.SuppressedLiveTraffic.Add("UAL1");
+        var port = new FakeFeedPort();
+        var host = new SpineCapturingHost(engine);
+
+        SyncAt(engine, port, host, 1);
+
+        Assert.Equal(["UAL1"], engine.Scenario!.SuppressedLiveTraffic);
+    }
+
+    /// <summary>
+    /// <c>DEL</c> hides a shadow in the scenario's own state, so a snapshot carries it: restored into a fresh engine,
+    /// through the serializer a recording writes the snapshot with, the next feed second that offers the track spawns
+    /// nothing.
+    /// </summary>
+    [Fact]
+    public void Suppressed_RoundTripsThroughASnapshot()
+    {
+        SimulationEngine engine = BareEngine();
+        var port = new FakeFeedPort();
+        var host = new SpineCapturingHost(engine);
+        SpawnAtSecondOne(engine, port, host, "UAL1");
+        CommandResult deleted = engine.SendCommand("UAL1", "DEL");
+        Assert.True(deleted.Success, deleted.Message);
+        Assert.Null(engine.World.FindAircraft("UAL1"));
+
+        StateSnapshotDto snapshot = engine.CaptureSnapshot();
+        StateSnapshotDto reread = JsonSerializer.Deserialize<StateSnapshotDto>(JsonSerializer.Serialize(snapshot))!;
+        Assert.Equal(["UAL1"], reread.Scenario.SuppressedLiveTraffic);
+
+        SimulationEngine restored = BareEngine();
+        restored.RestoreFromSnapshot(reread);
+        var restoredPort = new FakeFeedPort();
+        var restoredHost = new SpineCapturingHost(restored);
+        restoredPort.Offer("UAL1", Sample(2, Origin), matchesFilter: true);
+        SyncAt(restored, restoredPort, restoredHost, 2);
+
+        Assert.Null(restored.World.FindAircraft("UAL1"));
+        Assert.Empty(restoredHost.LiveTrafficSpawns);
+        Assert.Equal(0, restoredPort.SpawnStatesBuilt);
     }
 
     [Fact]
@@ -261,7 +324,7 @@ public class LiveTrafficSyncStepTests
         SpawnAtSecondOne(engine, port, host, "UAL1");
 
         port.ClearShadows = LiveTrafficRemovalReason.Reanchored;
-        port.Offer("UAL1", Sample(2, Origin), matchesFilter: true, suppressed: false);
+        port.Offer("UAL1", Sample(2, Origin), matchesFilter: true);
         SyncAt(engine, port, host, 2);
 
         Assert.True(engine.World.FindAircraft("UAL1")!.IsShadow);
@@ -282,8 +345,8 @@ public class LiveTrafficSyncStepTests
         SimulationEngine engine = BareEngine();
         var port = new FakeFeedPort();
         var host = new SpineCapturingHost(engine);
-        port.Offer("UAL1", Sample(1, Origin), matchesFilter: true, suppressed: false);
-        port.Offer("DAL2", Sample(1, Origin), matchesFilter: true, suppressed: false);
+        port.Offer("UAL1", Sample(1, Origin), matchesFilter: true);
+        port.Offer("DAL2", Sample(1, Origin), matchesFilter: true);
         SyncAt(engine, port, host, 1);
         port.Tracks.Clear();
         int endedBefore = port.SecondsEnded;
@@ -308,7 +371,7 @@ public class LiveTrafficSyncStepTests
         SpawnAtSecondOne(engine, port, host, "UAL1");
 
         SyncAt(engine, port, host, 2);
-        port.Offer("UAL1", Sample(3, Origin), matchesFilter: true, suppressed: false);
+        port.Offer("UAL1", Sample(3, Origin), matchesFilter: true);
         SyncAt(engine, port, host, 3);
         port.Tracks.Clear();
         SyncAt(engine, port, host, 4);
@@ -340,8 +403,8 @@ public class LiveTrafficSyncStepTests
 
         public int SecondsEnded { get; private set; }
 
-        public void Offer(string callsign, LiveTrafficSample sample, bool matchesFilter, bool suppressed) =>
-            Tracks.Add(new LiveTrafficFeedTrack(callsign, sample, matchesFilter, suppressed, () => BuildSpawnState(callsign, sample)));
+        public void Offer(string callsign, LiveTrafficSample sample, bool matchesFilter) =>
+            Tracks.Add(new LiveTrafficFeedTrack(callsign, sample, matchesFilter, () => BuildSpawnState(callsign, sample)));
 
         public LiveTrafficFeedSecond BeginSecond()
         {

@@ -184,8 +184,6 @@ public sealed class SpineCapturingHost(SimulationEngine engine) : ISimulationHos
 
     public void OnAircraftDeleted(string callsign, AircraftState? lastState) => _bare.OnAircraftDeleted(callsign, lastState);
 
-    public void OnLiveTrafficHidden(string callsign) => _bare.OnLiveTrafficHidden(callsign);
-
     public void OnPositionSelected(string connectionId, TrackOwner owner, string tcpCode) => _bare.OnPositionSelected(connectionId, owner, tcpCode);
 
     public void OnGhostOverlayRemoved(string callsign) => _bare.OnGhostOverlayRemoved(callsign);

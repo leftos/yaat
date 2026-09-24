@@ -142,6 +142,10 @@ public sealed class ScenarioSnapshotDto
     // state then holds. Snapshotted because the per-tick diff against it is what decides which alerts a display is
     // told about — a restore that started from an empty set would re-announce every standing alert.
     public List<AsdexSafetyAlertDto>? ActiveAsdexAlerts { get; init; }
+
+    // The live-traffic callsigns the instructor hid with DEL, ordinal-sorted. Optional: null in snapshots that predate
+    // it and whenever nothing is hidden, which is also what the scenario state then holds.
+    public List<string>? SuppressedLiveTraffic { get; init; }
 }
 
 /// <summary>Snapshot of one standing <c>AsdexSafetyAlert</c>: the detector rebuilds an identical record from the

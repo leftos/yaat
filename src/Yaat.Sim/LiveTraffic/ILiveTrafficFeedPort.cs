@@ -49,17 +49,10 @@ public sealed record LiveTrafficFeedSecond(bool Syncs, LiveTrafficRemovalReason?
 
 /// <summary>
 /// A track the feed delivered in scope this second. <paramref name="Sample"/> is already on sim time.
-/// <paramref name="MatchesFilter"/> is the room's live-traffic filter's verdict on it; <paramref name="Suppressed"/>
-/// says the instructor hid the callsign with <c>DEL</c>. <paramref name="SpawnState"/> builds the shadow's initial state,
-/// and is called only for a track that spawns one.
+/// <paramref name="MatchesFilter"/> is the room's live-traffic filter's verdict on it. <paramref name="SpawnState"/> builds
+/// the shadow's initial state, and is called only for a track that spawns one.
 /// </summary>
-public sealed record LiveTrafficFeedTrack(
-    string Callsign,
-    LiveTrafficSample Sample,
-    bool MatchesFilter,
-    bool Suppressed,
-    Func<AircraftSnapshotDto> SpawnState
-);
+public sealed record LiveTrafficFeedTrack(string Callsign, LiveTrafficSample Sample, bool MatchesFilter, Func<AircraftSnapshotDto> SpawnState);
 
 /// <summary>Where an existing shadow stands in the feed, in the order the removal tiers read it.</summary>
 public enum LiveTrafficShadowStatus

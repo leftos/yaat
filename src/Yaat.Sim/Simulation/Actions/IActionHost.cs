@@ -53,9 +53,6 @@ public interface IActionHost : IStateChangeConsumer
     /// </summary>
     void OnAircraftDeleted(string callsign, AircraftState? lastState);
 
-    /// <summary>A <c>DEL</c> on a live-traffic shadow: the feed is to ignore the callsign from now on; the live run records the removal.</summary>
-    void OnLiveTrafficHidden(string callsign);
-
     /// <summary>A bare <c>AS</c> selected the connection's acting position; <paramref name="tcpCode"/> is the code as typed.</summary>
     void OnPositionSelected(string connectionId, TrackOwner owner, string tcpCode);
 

@@ -109,8 +109,8 @@ non-shadow it fails with "not live traffic".
 `UNASSUME` is the way back — its own `RecordedCommandKind.Unassume` row (`ActionArms.Unassume`, callsign-scoped) rather than
 the dispatcher's. It removes the aircraft exactly as `DEL` does (`SimulationEngine.DeleteAircraft(callsign, "UNASSUME")` —
 the completion detail is a required parameter so a debrief row says which verb removed it) but **without** the two things that
-would stop the feed re-supplying it: no `IActionHost.OnLiveTrafficHidden` (so the callsign never enters
-`RoomLiveTrafficState.Suppressed`) and no `RecordedLiveTrafficRemoval`. The next `ShadowTrafficSync.Sync` therefore re-spawns
+would stop the feed re-supplying it: the callsign never enters `SimScenarioState.SuppressedLiveTraffic`, and no
+`RecordedLiveTrafficRemoval` is written. The next `ShadowTrafficSync.Sync` therefore re-spawns
 the shadow **while the store still tracks the callsign** — the aircraft is released to the feed, not restored from it, and
 if the real flight has since landed or left scope the removal is simply a delete. The arm deliberately does not check the
 store first: that is the live host's, so a guard on it would make the verb succeed live and fail on replay; the message
@@ -240,19 +240,20 @@ state rides only on the creating sample. `RemoveLiveTraffic(callsign, reason)` r
 `RecordedLiveTrafficRemoval`. Both are no-ops for assumed aircraft, and neither records while replaying or in playback
 (same guard as `RecordGeneratedAircraftSpawn`).
 
-**A `Deleted` removal carries the suppression.** `SimulationEngine.ApplyRecordedLiveTrafficRemoval(record, host)` — the
-replay twin — takes the shadow out of the world and then, when `Reason == LiveTrafficRemovalReason.Deleted` (the reason
-only the `DEL` arm writes), calls `IActionHost.OnLiveTrafficHidden`, which puts the callsign back into
-`RoomLiveTrafficState.Suppressed`. The replayed `DEL` *text* cannot do it: the removal is recorded inside the arm's host
-call, ahead of the `RecordedCommand` that `ActionRouter.Finish` appends, so on replay the record applies first and the
-command then refuses at the aircraft-exists guard, never reaching the shadow branch that hides it. Without this a rewind
-past a `DEL` un-suppressed the callsign — the rewind's reload clears the set (`RoomLiveTrafficState.Reset`) — and the
-next `ShadowTrafficSync.Sync` re-spawned a shadow the instructor had deleted. `RoomEngine.HideLiveTraffic` is therefore
-reached on every run kind rather than live only: the `Suppressed.Add` is unconditional, and the world teardown behind it
-removes and records only while a shadow is still there, so a replayed record writes no second removal. `BareHost` and
-`ReplayHost` no-op the consumer — a Sim replay has no feed to suppress. A feed-sourced removal (`Stale`, `Dropped`,
-`OutOfScope`, `Disabled`, `Reanchored`) suppresses nothing: that shadow is meant to come back when the feed re-supplies
-it. Pins: `LiveTrafficRemovalSuppressionTests` (Sim, including the after-the-removal ordering), `LiveTrafficReplayServerTests` (the rewind). A reconstruction seeded from a snapshot skips every record at or before the snapshot's second (`RecordedActionPump.SeekTo`), so right after `host.SkipThrough(fromSecond)` `RecordingManager.ReconstructViaServerTick` re-raises the suppression for each skipped `Deleted` removal (`ElapsedSeconds <= fromSecond`, the `DEL`'s own second included), under the replay profile so no second removal is recorded. Only skipped records are re-raised: a rewind to before the `DEL` shows the shadow again until the removal replays. Still open: a planned-restart restore never carries the set — MAIN.md backlog.
+**The suppressed set is Sim scenario state.** `SimScenarioState.SuppressedLiveTraffic` (callsigns, case-insensitive) holds
+every shadow the instructor hid with `DEL`. Live, the `DEL` arm calls `SimulationEngine.HideLiveTraffic`: it adds the
+callsign, removes the shadow as `Deleted` (world, beacon, recorded removal) and drops any delayed-queue entry under it; the
+room teardown (hub delete, CRC disconnect, assignment) runs through the ordinary `IActionHost.OnAircraftDeleted` consumer.
+On replay the recorded removal applies first — it is recorded inside the arm, ahead of the `RecordedCommand` — and
+`ApplyRecordedLiveTrafficRemoval` does the same suppress-and-dequeue when `Reason == Deleted`, so the replayed `DEL` text
+refuses at the aircraft-exists guard. A feed-sourced removal (`Stale`, `Dropped`, `OutOfScope`, `Disabled`, `Reanchored`)
+suppresses nothing: that shadow is meant to come back when the feed re-supplies it. `TickLiveTrafficSync` skips a
+suppressed callsign, and on every second live traffic is off it clears the set, before asking the feed port anything — so
+the off/on toggle un-hides on every run kind alike. The set rides the snapshot as `ScenarioSnapshotDto.SuppressedLiveTraffic`
+(ordinal-sorted, null when empty; restore replaces it; no schema bump): a snapshot-seeded rewind and a planned-restart
+restore both start with the set as of their second, and a rewind landing after an off/on toggle shows the shadow again, as
+the live run did. Pins: `LiveTrafficRemovalSuppressionTests`, `LiveTrafficSyncStepTests` (round trip, the disabled-second
+clear), `LiveTrafficReplayServerTests` (rewinds, the toggle case), `SessionPersistenceTests.PreparedRestart_KeepsADeletedShadowHidden`.
 
 **Samples are pre-tick actions.** Live, samples land in pre-physics of second *t*; `SimulationEngine.IsPreTickAction`
 therefore lists `RecordedLiveTrafficSample` next to `RecordedAircraftSpawn`, and every Sim-side replay loop (`Replay`,
@@ -338,8 +339,8 @@ bundle's sim seconds back to the real-world feed window (see *Reproducing a repo
   view while it is still delivered (surface vs airborne must not flap on the ~1 s observation-ordering margin between
   products), else `Freshest`. Teardown mirrors auto-delete in order: `RemoveLiveTraffic`
   (world + recording) → assignments → delayed queue → change tracker → beacon `Release` → `AircraftDeleted` + CRC disconnect.
-  `DEL` on a shadow removes it as `Deleted` and adds it to `RoomLiveTrafficState.Suppressed` until live traffic is toggled
-  (a rewind past the `DEL` rebuilds the set from the removal record — see *Recording and replay*);
+  `DEL` on a shadow removes it as `Deleted` and adds it to `SimScenarioState.SuppressedLiveTraffic` until live traffic is
+  toggled (snapshotted, so rewinds and restarts keep it — see *Recording and replay*);
   turning the setting off removes every shadow as `Disabled` (assumed aircraft stay).
 - **Real-world ownership** — the feed's controlling position becomes the shadow's `TrackOwner`. The correlator reads TAIS `cps` gated by `ocr` (ownership change reason): a completed state makes cps the owner, but `ocr=pending` makes cps the **receiving** sector of an in-progress handoff (vatsim-server-rs parity — applying cps unconditionally jumps ownership at handoff-initiate); cps shape decides the kind (2-char digit+sector = a sector at the publishing TRACON, one letter = the overlying centre). SFDPS `controllingUnit`/`controllingSector` set the ERAM owner and the handoff element the pending one. All four ride on `LiveTrafficSample` (recorded → replays reproduce the datablocks) and `LiveTrafficOwnerResolver` (Yaat.Sim) resolves them against the scenario's ArtccConfig into a `TrackOwner` (real position callsign when a TCP/sector matches, synthetic with the right subset/sector otherwise) plus the `HandoffPeer`/`OnHandoff` pending display. **The feed yields silently**: `AircraftTrack.Owner`'s setter clears `OwnerFromLiveFeed` on any ordinary write, so a controller's TRACK takes the target and only a DROP (owner back to null) lets the feed re-apply; `SimulationEngine.TickAutoAccept` skips feed-owned tracks so real-world handoffs complete only when the feed says so. `RoomControllerCollector.Collect` fills the CRC OpenPositions topic and the client controller list with synthesized "Real World" positions (ARTCC root + student facility subtree, radar-capable only) during live sessions, so owned tracks point at positions that exist. Tests: `ShadowOwnershipTests`.
 - **Real-world scratchpads** — TAIS `scratchPad1`/`scratchPad2` ride `LiveTrack.ScratchPad1/2` →

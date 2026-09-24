@@ -38,7 +38,7 @@
 ### Fixed
 - A CRC client joining a running session no longer risks a server error from reading state the simulation is updating.
 - Loading a recording clears the previous run's flight strips and PDCs from every client's screen.
-- A rewind no longer brings back a deleted live-traffic aircraft.
+- A live-traffic aircraft deleted with `DEL` stays hidden after a rewind or a planned server restart, until live traffic is turned off and on.
 - A CRC position picked while a recording plays back is kept after a later rewind.
 - `BLANKD` with a rack number past the bay's racks says the rack is out of range.
 - `BLANKD` and `SEPD` pick the strip at its current position after strips are moved, added or deleted ahead of it.

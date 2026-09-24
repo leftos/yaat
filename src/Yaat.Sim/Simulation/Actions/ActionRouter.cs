@@ -84,7 +84,7 @@ public sealed class ActionRouter
                 }
                 return Applied;
             case RecordedLiveTrafficRemoval removal:
-                _engine.ApplyRecordedLiveTrafficRemoval(removal, host);
+                _engine.ApplyRecordedLiveTrafficRemoval(removal);
                 host.OnAircraftDeleted(removal.Callsign, lastState: null);
                 return Applied;
             case RecordedCommand command:

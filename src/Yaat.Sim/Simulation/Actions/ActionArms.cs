@@ -208,8 +208,9 @@ internal static class ActionArms
     }
 
     /// <summary>
-    /// <c>DEL</c>. A live-traffic shadow is hidden rather than deleted: its feed suppression is room state, so the host
-    /// is told and the live run records the <see cref="RecordedLiveTrafficRemoval"/> that removes it on replay.
+    /// <c>DEL</c>. A live-traffic shadow is hidden rather than deleted (<see cref="SimulationEngine.HideLiveTraffic"/>):
+    /// the feed stops spawning it, and the live run records the <see cref="RecordedLiveTrafficRemoval"/> that removes and
+    /// hides it on replay. The host tears the shadow down from the room like any other deleted aircraft.
     /// </summary>
     public static CommandResult Delete(ArmContext ctx)
     {
@@ -218,7 +219,8 @@ internal static class ActionArms
         AircraftState? existing = engine.World.FindAircraft(callsign);
         if (existing is { IsShadow: true })
         {
-            ctx.Host.OnLiveTrafficHidden(callsign);
+            engine.HideLiveTraffic(callsign);
+            ctx.Host.OnAircraftDeleted(callsign, existing);
             return new CommandResult(true, $"Hid live traffic {callsign}");
         }
 
@@ -235,8 +237,8 @@ internal static class ActionArms
 
     /// <summary>
     /// <c>UNASSUME</c>: an aircraft assumed from live traffic goes back to the feed. The same teardown as <c>DEL</c>
-    /// minus the two things that would stop the feed re-supplying it — no <c>OnLiveTrafficHidden</c> (the room's
-    /// suppression set) and no <see cref="RecordedLiveTrafficRemoval"/> — so the next
+    /// minus the two things that would stop the feed re-supplying it — no <see cref="SimScenarioState.SuppressedLiveTraffic"/> entry
+    /// and no <see cref="RecordedLiveTrafficRemoval"/> — so the next
     /// <c>ShadowTrafficSync.Sync</c> re-spawns the shadow <b>if the store still tracks the callsign</b>. Whether it
     /// does is deliberately not checked: the store is the live host's, so a guard on it would make the verb succeed
     /// live and fail on replay. The removal is therefore unconditional and the message says what was promised —

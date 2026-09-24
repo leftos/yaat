@@ -1360,7 +1360,7 @@ AutoScratchpadResolver.cs      # Pure: the STARS destination fallback shown in t
                                # Not truncated to the scratchpad limit — STARS clips only controller-entered text.
 SessionRecording.cs            # v1 (commands) + v2 (commands + snapshots) recording format; ArtccConfigJson optional bundle; StudentPositionState (from snapshot 0) for Sim-side replay restore; TerminalLog (broadcast terminal stream) for terminal-scrub repopulation
 RecordedAction.cs              # Polymorphic recorded actions: Command, Chat, AmendFlightPlan, RequestNewBeaconCode, WeatherChange, SettingChange, AircraftSpawn,
-                               # LiveTrafficSample (pre-tick, like AircraftSpawn — SimulationEngine.IsPreTickAction), LiveTrafficRemoval (a Deleted reason re-raises OnLiveTrafficHidden on replay),
+                               # LiveTrafficSample (pre-tick, like AircraftSpawn — SimulationEngine.IsPreTickAction), LiveTrafficRemoval (a Deleted reason re-adds the callsign to SimScenarioState.SuppressedLiveTraffic on replay),
                                # LiveTrafficStatus (feed health + wall clock per status broadcast; diagnostic only, replay ignores it),
                                # AttendanceChange (the full set of attended vNAS position ids — a recorded input the live host derives from its connections when it changes, not a controller action),
                                # the derived records a CRC handler writes for state it used to change without a trace (tick-path 3d-5b):
@@ -1452,8 +1452,8 @@ ActionArms.cs                  # The Sim bodies: Aviation (ParseCompound → Rea
                                # ReprintDepartureStripAfterAmendment (its id baked onto RecordedAmendFlightPlan.StripId, so a replay reprints under it instead
                                # of minting a second copy) + the filing identity as FlightPlan.CreatedByOwner; DA is create-only (DUP NEW ID) and a VFR filing (VP)
                                # over an existing IFR/OTP plan is DUP NEW ID, never converted — FP, the IFR/OTP spelling, amends anything; from a record only
-                               # the creator tag is applied — the amendment recorded beside it carries the plan), Delete (a shadow → OnLiveTrafficHidden),
-                               # Unassume (UNASSUME: an AssumedFromLiveTraffic aircraft leaves as DEL does, minus OnLiveTrafficHidden and the removal record, so the
+                               # the creator tag is applied — the amendment recorded beside it carries the plan), Delete (a shadow → SimulationEngine.HideLiveTraffic),
+                               # Unassume (UNASSUME: an AssumedFromLiveTraffic aircraft leaves as DEL does, minus the suppression and the removal record, so the
                                # next ShadowTrafficSync re-spawns the shadow), DeleteQueued, Note, SpawnNow/SpawnDelay, SetActivePosition (OnPositionSelected with the typed code), Track
                                # (TrackEngine.Dispatch; CAACK to TrackEngine.AcknowledgeConflictAlert; the tails on every run kind — TRACK applies the facility's
                                # scratchpad rules + RemoveCoordinationOnRadarAcquisition, INHCA drops the aircraft's active conflicts, ASDE-X TERM and a recorded CRC terminate → OnAsdexTrackTerminated / OnSaidTrackTerminated, a ghost's
@@ -1463,7 +1463,7 @@ ActionArms.cs                  # The Sim bodies: Aviation (ParseCompound → Rea
                                # Consolidate/Deconsolidate (SimulationEngine.Consolidate / Deconsolidate; OnConsolidationChanged),
                                # Coordination/GlobalCoordination (CoordinationCommandHandler.Handle / HandleGlobal over the engine — Sim arms since 2026-09-07)
 IActionHost.cs                 # The action-path view of a host, part of ISimulationHost and IStateChangeConsumer: no Apply* slot is left — every
-                               # recorded state change has an engine body — only the consumers a Sim arm or applier notifies (OnAircraftSpawned, OnAircraftDeleted(callsign, lastState), OnLiveTrafficHidden,
+                               # recorded state change has an engine body — only the consumers a Sim arm or applier notifies (OnAircraftSpawned, OnAircraftDeleted(callsign, lastState),
                                # OnPositionSelected(conn, owner, tcpCode), OnGhostOverlayRemoved, OnAsdexTrackTerminated, OnStripsChanged(StripChangeSet) /
                                # OnTdlsChanged(TdlsChangeSet) / OnCoordinationChanged() (IStateChangeConsumer, shared with IHostConsumers — the router drains all three after every routed
                                # action; strips, TDLS and coordination themselves crossed whole into Yaat.Sim, so this is only

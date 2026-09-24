@@ -128,6 +128,14 @@ public sealed class SimScenarioState
     public HashSet<string> HeldDepartureAirports { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
+    /// Live-traffic callsigns the instructor hid with <c>DEL</c>: the live-traffic sync spawns and refreshes no shadow
+    /// for them. Written by the <c>DEL</c> arm and by a replayed <see cref="RecordedLiveTrafficRemoval"/> the <c>DEL</c>
+    /// wrote; cleared by the sync on every second live traffic is off, so turning it off and on forgets every hidden
+    /// callsign. Snapshotted, so a rewind or a session restore lands on the set the live run held.
+    /// </summary>
+    public HashSet<string> SuppressedLiveTraffic { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Pending auto-spaced releases (one entry per departure when a field's whole held queue is
     /// released with an interval). Fired by <c>ProcessReleaseQueue</c> against <see cref="ElapsedSeconds"/>.
     /// </summary>
@@ -631,5 +639,6 @@ public sealed class SimScenarioState
                         }),
                     ]
                     : null,
+            SuppressedLiveTraffic = SuppressedLiveTraffic.Count > 0 ? [.. SuppressedLiveTraffic.Order(StringComparer.Ordinal)] : null,
         };
 }

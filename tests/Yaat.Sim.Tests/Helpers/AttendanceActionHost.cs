@@ -20,8 +20,6 @@ public sealed class AttendanceActionHost : IActionHost
 
     public List<string> DeletedCallsigns { get; } = [];
 
-    public List<string> HiddenLiveTraffic { get; } = [];
-
     public List<string> OverlaysRemoved { get; } = [];
 
     public List<(string ConnectionId, string Callsign, List<string> Lines)> ShownQueues { get; } = [];
@@ -31,18 +29,6 @@ public sealed class AttendanceActionHost : IActionHost
     public void OnAircraftSpawned(AircraftState aircraft) => SpawnedCallsigns.Add(aircraft.Callsign);
 
     public void OnAircraftDeleted(string callsign, AircraftState? lastState) => DeletedCallsigns.Add(callsign);
-
-    /// <summary>
-    /// Runs inside <see cref="OnLiveTrafficHidden"/>, before the callsign is recorded: a test that cares *when* the
-    /// consumer fires reads the world through this rather than after the applier has finished. Null unless a test sets it.
-    /// </summary>
-    public Action<string>? WhenLiveTrafficHidden { get; set; }
-
-    public void OnLiveTrafficHidden(string callsign)
-    {
-        WhenLiveTrafficHidden?.Invoke(callsign);
-        HiddenLiveTraffic.Add(callsign);
-    }
 
     public List<(string ConnectionId, TrackOwner Owner, string TcpCode)> SelectedPositions { get; } = [];
 

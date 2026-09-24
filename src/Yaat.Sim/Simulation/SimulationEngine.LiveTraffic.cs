@@ -184,6 +184,29 @@ public sealed partial class SimulationEngine
             ?.ForApproach(lt.LatchedRunwayDesignator);
     }
 
+    /// <summary>
+    /// <c>DEL</c> on a live-traffic shadow: removes the shadow with a recorded
+    /// <see cref="LiveTrafficRemovalReason.Deleted"/> removal — the record a replay hides it again from — then hides the
+    /// callsign from the feed and drops any queued spawn under it (<see cref="HideDeletedLiveTraffic"/>). What the room
+    /// does with the removal is the caller's to hand to its host.
+    /// </summary>
+    public void HideLiveTraffic(string callsign)
+    {
+        RemoveLiveTraffic(callsign, LiveTrafficRemovalReason.Deleted);
+        HideDeletedLiveTraffic(callsign);
+    }
+
+    /// <summary>
+    /// What a <c>DEL</c> on a shadow leaves behind, live and on replay alike: the callsign in
+    /// <see cref="SimScenarioState.SuppressedLiveTraffic"/>, and no queued spawn under it — so a replayed <c>DEL</c> text
+    /// always refuses at the aircraft-exists guard.
+    /// </summary>
+    private void HideDeletedLiveTraffic(string callsign)
+    {
+        Scenario?.SuppressedLiveTraffic.Add(callsign);
+        Scenario?.DelayedQueue.RemoveAll(e => e.Aircraft.State.Callsign.Equals(callsign, StringComparison.OrdinalIgnoreCase));
+    }
+
     /// <summary>Removes a shadow (never an assumed aircraft) and records the removal. Not a completion.</summary>
     public bool RemoveLiveTraffic(string callsign, LiveTrafficRemovalReason reason)
     {
@@ -213,13 +236,19 @@ public sealed partial class SimulationEngine
     /// <see cref="ApplyLiveTrafficSample"/> / <see cref="RemoveLiveTraffic"/>, so the recording is the one the replay
     /// twins read; what the room does with a spawn, a removal, a collision or a filter sweep is the host's, told
     /// through <paramref name="host"/>. A host with no feed supplies <see cref="EmptyLiveTrafficFeedPort"/>, whose
-    /// every second is inert.
+    /// every second is inert. Every second live traffic is off forgets the callsigns the instructor hid
+    /// (<see cref="SimScenarioState.SuppressedLiveTraffic"/>), on every run kind, so turning it off and on brings them back.
     /// </summary>
     public void TickLiveTrafficSync(ILiveTrafficFeedPort port, IHostConsumers host)
     {
         if (Scenario is not { } scenario)
         {
             return;
+        }
+
+        if (!scenario.LiveTrafficEnabled)
+        {
+            scenario.SuppressedLiveTraffic.Clear();
         }
 
         LiveTrafficFeedSecond feed = port.BeginSecond();
@@ -241,7 +270,7 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
-            ApplyLiveTrafficTrack(track, host);
+            ApplyLiveTrafficTrack(track, host, scenario);
         }
 
         RemoveAbsentLiveTraffic(port, scenario.ElapsedSeconds, host);
@@ -269,7 +298,7 @@ public sealed partial class SimulationEngine
         }
     }
 
-    private void ApplyLiveTrafficTrack(LiveTrafficFeedTrack track, IHostConsumers host)
+    private void ApplyLiveTrafficTrack(LiveTrafficFeedTrack track, IHostConsumers host, SimScenarioState scenario)
     {
         string callsign = track.Callsign;
         AircraftState? existing = World.FindAircraft(callsign);
@@ -286,7 +315,7 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        if (track.Suppressed)
+        if (scenario.SuppressedLiveTraffic.Contains(callsign))
         {
             return;
         }
@@ -422,14 +451,13 @@ public sealed partial class SimulationEngine
     /// <summary>
     /// Replay twin of <see cref="RemoveLiveTraffic"/> (no recording), reached from
     /// <see cref="ActionRouter.ApplyRecorded(RecordedAction, IActionHost)"/> — its only caller. A removal the
-    /// instructor's <c>DEL</c> produced (<see cref="LiveTrafficRemovalReason.Deleted"/>) also re-raises the host's feed
-    /// suppression through <see cref="IActionHost.OnLiveTrafficHidden"/>: the suppression is host state a reload clears,
-    /// and the replayed <c>DEL</c> text cannot re-raise it, because this record removes the shadow first and the command
-    /// then refuses at the aircraft-exists guard. The host is told after the world removal, so its own teardown finds
-    /// nothing left to remove or record. A removal the feed produced suppresses nothing — that shadow is meant to come
-    /// back when the feed re-supplies it.
+    /// instructor's <c>DEL</c> produced (<see cref="LiveTrafficRemovalReason.Deleted"/>) also hides the callsign again
+    /// (<see cref="SimScenarioState.SuppressedLiveTraffic"/>), whether or not the shadow was still there to remove: the replayed
+    /// <c>DEL</c> text cannot, because this record removes the shadow first and the command then refuses at the
+    /// aircraft-exists guard. A removal the feed produced hides nothing — that shadow is meant to come back when the feed
+    /// re-supplies it.
     /// </summary>
-    public void ApplyRecordedLiveTrafficRemoval(RecordedLiveTrafficRemoval recorded, IActionHost host)
+    public void ApplyRecordedLiveTrafficRemoval(RecordedLiveTrafficRemoval recorded)
     {
         AircraftState? ac = World.FindAircraft(recorded.Callsign);
         if (ac is { IsShadow: true })
@@ -440,7 +468,7 @@ public sealed partial class SimulationEngine
 
         if (recorded.Reason == LiveTrafficRemovalReason.Deleted)
         {
-            host.OnLiveTrafficHidden(recorded.Callsign);
+            HideDeletedLiveTraffic(recorded.Callsign);
         }
     }
 

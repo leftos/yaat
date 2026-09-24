@@ -329,6 +329,14 @@ public sealed partial class SimulationEngine
             }
 
             Scenario.ActiveAsdexAlerts = restoredAlerts.ToImmutable();
+
+            // Replace, never merge, for the hidden live traffic too: a snapshot that carries none restores an empty set,
+            // and the removals the log replays after it hide whatever the live run hid later.
+            Scenario.SuppressedLiveTraffic.Clear();
+            foreach (string callsign in scenarioDto.SuppressedLiveTraffic ?? [])
+            {
+                Scenario.SuppressedLiveTraffic.Add(callsign);
+            }
         }
 
         // Reset engine-level state, then restore from snapshot if available

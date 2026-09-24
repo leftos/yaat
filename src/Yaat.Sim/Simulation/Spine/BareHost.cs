@@ -119,8 +119,6 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     public void OnAircraftDeleted(string callsign, AircraftState? lastState) { }
 
-    public void OnLiveTrafficHidden(string callsign) { }
-
     public void OnPositionSelected(string connectionId, TrackOwner owner, string tcpCode) { }
 
     public void OnGhostOverlayRemoved(string callsign) { }
