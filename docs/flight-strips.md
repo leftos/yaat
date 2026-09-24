@@ -249,8 +249,13 @@ that addresses it resolves; a host that already holds the baked id (a snapshot r
 `BLANK` draws from the `NextBlankId` counter (deterministic) but bakes its id too, so a re-applied
 record over a snapshot that already holds the blank creates no second one. The amendment reprint bakes the
 id it printed under the same way (`RecordedCommand.StripId` for `FP`, `RecordedAmendFlightPlan.StripId`
-for a derived amendment). A deferred or preset `SCAN` / `HSC` is the one creator that still mints per run
-kind: the queue it fires from carries no record to bake onto (MAIN.md backlog). The oracle cannot script the Guid verbs:
+for a derived amendment). A deferred, preset or triggered `SCAN` / `HSC` / `SEP` fires from
+`AircraftState.PendingStripDispatches`, which carries no record to bake onto, so `SimulationEngine.TickStripDispatches`
+derives the id from state every run kind shares instead of drawing a Guid: `{prefix}{callsign}_{second}_{seq}`
+(`STRIP_SWA1234_12_0`, `HSTRIP_…`, `SEP_…`; `StripMutations.DeferredStripId`) — the elapsed second the dispatch fires in and a
+0-based count of the id-minting dispatches for that callsign in that drain. A typed id ends in a hex run with no underscore, so the
+two forms never collide. The id is passed as the baked id, so a dispatch that fires again over strips already holding it (a
+same-room rewind) prints nothing. Pin: `DeferredStripIdDeterminismTests`. The oracle cannot script the Guid verbs:
 its live leg is a second run compared against the first run's log, and two runs never draw the same
 Guid — `StripIdBakingTests` is their pin.
 
@@ -289,6 +294,11 @@ is a `List<string>` of strip ids. Today we only ever populate
 `Bays[bayId][rackKey] = [new List<string>()]` — one row per rack — and
 prepend new strips to row 0. If/when multi-row racks are supported by
 CRC, this layout already permits it.
+
+A record's `Rack` / `Index` always match where its id sits in that row: every row mutation — a move
+(`MoveStripToBayRack`), an append (`AppendStripToBay`) and a delete (`DeleteStrip`) — rewrites the records of
+the rows it touches. `BLANKD`'s no-rack pick and `SEPD`'s numeric position read them, so a stale index would
+pick the wrong strip.
 
 ### `StripBayConfig`
 

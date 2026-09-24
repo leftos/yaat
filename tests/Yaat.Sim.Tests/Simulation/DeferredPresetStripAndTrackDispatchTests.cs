@@ -140,7 +140,13 @@ public class DeferredPresetStripAndTrackDispatchTests
 
         // A strip filed into a bay, which is what the annotation guard requires; the preset then has something to
         // write on, so the drain's effect is visible on the record itself.
-        StripItemRecord? printed = StripMutations.RequestDepartureStripForAircraftIntoBay(engine.Strips, ac, engine.Scenario!, "SFO", "bay-1", 0);
+        StripItemRecord? printed = StripMutations.RequestDepartureStripForAircraftIntoBay(
+            engine.Strips,
+            ac,
+            engine.Scenario!,
+            new StripBaySlot("bay-1", 0),
+            new StripPrintTarget("SFO", false)
+        );
         Assert.NotNull(printed);
 
         var terminal = new List<TerminalEntry>();

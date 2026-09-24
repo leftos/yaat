@@ -158,11 +158,12 @@ internal static class StripCommandHandler
             }
 
             // Existence is guaranteed by the guard above; update the record's
-            // position in place (never synthesize). The TryGetValue guards only
-            // against a concurrent removal between the guard and this lock.
+            // facility in place (never synthesize) — MoveStripToBayRack writes
+            // the slot. The TryGetValue guards only against a concurrent
+            // removal between the guard and this lock.
             if (state.Items.TryGetValue(stripId, out StripItemRecord? existing))
             {
-                state.Items[stripId] = existing with { FacilityId = facilityId, BayId = bay.Id, Rack = rack, Index = index };
+                state.Items[stripId] = existing with { FacilityId = facilityId };
             }
         }
 
@@ -778,14 +779,6 @@ internal static class StripCommandHandler
 
         int resolvedDestIndex = destIndex ?? 0;
         StripMutations.MoveStripToBayRack(engine.Strips, matches[0].Id, destBay.Id, destRack, resolvedDestIndex);
-        FlightStripState strips = engine.Strips;
-        lock (strips.Gate)
-        {
-            if (strips.Items.TryGetValue(matches[0].Id, out StripItemRecord? existing))
-            {
-                strips.Items[matches[0].Id] = existing with { BayId = destBay.Id, Rack = destRack, Index = resolvedDestIndex };
-            }
-        }
 
         string dest = FormatResolvedSlot(destBay.Name, destRack, resolvedDestIndex, appended: destIndex is null);
         return new CommandResult(true, $"Half-strip '{lookupKey}' moved to {dest}");
@@ -1156,10 +1149,8 @@ internal static class StripCommandHandler
             }
             newLabel = string.Join(' ', newLabelTokens);
 
-            // Locate the separator at the given position by walking the bay
-            // rack array — StripItemRecord.Index is the position the strip was
-            // *created* at and goes stale the moment another strip inserts in
-            // front of it. The Bays dictionary is the source of truth.
+            // Locate the separator at the given position by walking the bay rack array, the source of truth for
+            // placement; each record's Rack/Index is the copy the row mutations keep in step with it.
             string? resolvedStripId = ResolveStripIdAt(engine.Strips, bay.Id, rack, index);
             if (resolvedStripId is null)
             {
@@ -1227,18 +1218,9 @@ internal static class StripCommandHandler
             return new CommandResult(false, $"Rack {cmd.DestRack + 1} out of range (bay {bayCfg.Name} has {bayCfg.NumberOfRacks} racks)");
         }
 
+        // The move keeps the record's BayId/Rack/Index naming the slot it landed in, so other lookups see no stale
+        // facility or position.
         StripMutations.MoveStripToBayRack(engine.Strips, cmd.StripId, bayCfg.Id, cmd.DestRack, cmd.DestIndex);
-        // Keep the StripItemRecord's BayId in sync so other lookups don't
-        // see a stale facility mismatch. Rack/Index on the record stay
-        // stale-by-design — the bay rack array remains the source of truth.
-        FlightStripState strips = engine.Strips;
-        lock (strips.Gate)
-        {
-            if (strips.Items.TryGetValue(cmd.StripId, out StripItemRecord? rec))
-            {
-                strips.Items[cmd.StripId] = rec with { BayId = bayCfg.Id, Rack = cmd.DestRack, Index = cmd.DestIndex };
-            }
-        }
 
         return new CommandResult(true, $"Separator moved to {FormatResolvedSlot(bayCfg.Name, cmd.DestRack, cmd.DestIndex, appended: false)}");
     }
@@ -1324,23 +1306,10 @@ internal static class StripCommandHandler
             return new CommandResult(false, "BLANKD requires a bay name or strip id");
         }
 
-        // Id form: a single BLANK_<n> token deletes that specific blank
-        // strip wherever it lives — printer queue or in a bay rack. Symmetric
-        // with SEPD/SEPE id forms so the printer-modal Delete button can
-        // remove a blank without needing a bay locator (printer-queue blanks
-        // have no bay).
-        if (
-            tokens.Count == 1
-            && tokens[0].StartsWith("BLANK_", StringComparison.Ordinal)
-            && engine.Strips.Items.TryGetValue(tokens[0], out StripItemRecord? byId)
-        )
+        CommandResult? byIdResult = TryDeleteBlankById(engine.Strips, tokens);
+        if (byIdResult is not null)
         {
-            if (byId.Type != StripMutations.BlankStripType)
-            {
-                return new CommandResult(false, $"Strip '{tokens[0]}' is not a blank");
-            }
-            StripMutations.DeleteStrip(engine.Strips, tokens[0]);
-            return new CommandResult(true, "Blank strip deleted");
+            return byIdResult;
         }
 
         IReadOnlyList<AccessibleBay> accessible = ResolveAccessibleBays(engine);
@@ -1359,6 +1328,15 @@ internal static class StripCommandHandler
         }
 
         (StripBayConfig? bay, string _, int rack, int? indexOrNull, int _) = resolved.Value;
+        // A rack past the bay's count is a typo, not an empty slot: without this the pick below searches a rack that
+        // cannot exist and answers "No blank strips in <bay>" — a message about the bay rather than the rack that was
+        // asked for. Same text the BLANK create answers the same input with. The bay-only form resolves rack 0, which
+        // every bay carries, so the guard never fires for it.
+        if (rack < 0 || rack >= bay.NumberOfRacks)
+        {
+            return new CommandResult(false, $"Rack {rack + 1} out of range (bay {bay.Name} has {bay.NumberOfRacks} racks)");
+        }
+
         // BLANKD bay vs bay/rack: a rack was typed iff the tokens carry two slashes or more. The mandatory
         // FACILITY/ qualifier accounts for exactly one of them, and the bay name may share that token
         // ("OAK/Ground" / "Sutro/1/1"), so a token count or a single slash cannot tell the two forms apart.
@@ -1367,17 +1345,57 @@ internal static class StripCommandHandler
         bool hasRackArg = slashCount >= 2;
         _ = indexOrNull;
 
-        // The item store is a ConcurrentDictionary and enumerates in no stable order, so the pick has to be
-        // total-ordered by hand: lowest rack, then lowest index, then ordinal id. A recording replays
-        // byte-for-byte only if the same blank is chosen every run.
+        StripItemRecord? target = PickBlank(engine.Strips, bay.Id, hasRackArg, rack);
+        if (target is null)
+        {
+            return new CommandResult(false, $"No blank strips in {bay.Name}");
+        }
+
+        StripMutations.DeleteStrip(engine.Strips, target.Id);
+        return new CommandResult(true, $"Blank strip deleted from {bay.Name}");
+    }
+
+    /// <summary>
+    /// The id form of <c>BLANKD</c>: a single <c>BLANK_&lt;n&gt;</c> token deletes that specific blank strip wherever it
+    /// lives — printer queue or bay rack. Symmetric with the SEPD/SEPE id forms so the printer-modal Delete button can
+    /// remove a blank without a bay locator (printer-queue blanks have no bay). Null when the tokens are not an id of an
+    /// existing strip, so the caller falls through to the bay form.
+    /// </summary>
+    private static CommandResult? TryDeleteBlankById(FlightStripState strips, IReadOnlyList<string> tokens)
+    {
+        if (
+            (tokens.Count != 1)
+            || !tokens[0].StartsWith("BLANK_", StringComparison.Ordinal)
+            || !strips.Items.TryGetValue(tokens[0], out StripItemRecord? byId)
+        )
+        {
+            return null;
+        }
+
+        if (byId.Type != StripMutations.BlankStripType)
+        {
+            return new CommandResult(false, $"Strip '{tokens[0]}' is not a blank");
+        }
+
+        StripMutations.DeleteStrip(strips, tokens[0]);
+        return new CommandResult(true, "Blank strip deleted");
+    }
+
+    /// <summary>
+    /// The blank a bay-form <c>BLANKD</c> deletes: the first blank in the bay (in the rack, when one was typed) by
+    /// <see cref="PrecedesBlank"/>. The item store is a ConcurrentDictionary and enumerates in no stable order, so the
+    /// pick has to be total-ordered by hand: a recording replays byte-for-byte only if the same blank is chosen every run.
+    /// </summary>
+    private static StripItemRecord? PickBlank(FlightStripState strips, string bayId, bool hasRackArg, int rack)
+    {
         StripItemRecord? target = null;
-        foreach (StripItemRecord item in engine.Strips.Items.Values)
+        foreach (StripItemRecord item in strips.Items.Values)
         {
             if (item.Type != StripMutations.BlankStripType)
             {
                 continue;
             }
-            if (!string.Equals(item.BayId, bay.Id, StringComparison.Ordinal))
+            if (!string.Equals(item.BayId, bayId, StringComparison.Ordinal))
             {
                 continue;
             }
@@ -1391,14 +1409,7 @@ internal static class StripCommandHandler
             }
         }
 
-        string? targetStripId = target?.Id;
-        if (targetStripId is null)
-        {
-            return new CommandResult(false, $"No blank strips in {bay.Name}");
-        }
-
-        StripMutations.DeleteStrip(engine.Strips, targetStripId);
-        return new CommandResult(true, $"Blank strip deleted from {bay.Name}");
+        return target;
     }
 
     /// <summary>

@@ -37,6 +37,9 @@
 - Loading a recording clears the previous run's flight strips and PDCs from every client's screen.
 - A rewind no longer brings back a deleted live-traffic aircraft.
 - A CRC position picked while a recording plays back is kept after a later rewind.
+- `BLANKD` with a rack number past the bay's racks says the rack is out of range.
+- `BLANKD` and `SEPD` pick the strip at its current position after strips are moved, added or deleted ahead of it.
+- A strip created by a preset or delayed `SCAN`, `HSC` or `SEP` keeps the same id after a rewind or in a bug report.
 - `PUSH $7A` and `PUSH $7B` from SFO gate F8 are no longer refused.
 - A taxi starting just short of a curved junction no longer fails with an internal error.
 - A taxi whose first turn aims past a hold-short now stops at the painted bar, not on the junction.

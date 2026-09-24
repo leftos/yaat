@@ -124,8 +124,7 @@ public static class StripRequests
                 plan.Aircraft,
                 plan.Scenario,
                 plan.EtaMinutes,
-                plan.FacilityId,
-                request.StripId
+                new StripPlacement(request.StripId, plan.FacilityId)
             );
             if (record is not null)
             {
@@ -138,9 +137,8 @@ public static class StripRequests
                 engine.Strips,
                 plan.Aircraft,
                 plan.Scenario,
-                plan.FacilityId,
-                plan.ShowDestination,
-                request.StripId
+                request.StripId,
+                new StripPrintTarget(plan.FacilityId, plan.ShowDestination)
             );
         }
 

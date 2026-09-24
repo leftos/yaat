@@ -4,6 +4,18 @@ using Yaat.Sim.Data.Vnas;
 namespace Yaat.Sim.Simulation.Strips;
 
 /// <summary>
+/// Where a departure strip a request prints belongs: the bay facility that owns it, and whether that facility packs the
+/// destination alongside the departure airport in field 8.
+/// </summary>
+public readonly record struct StripPrintTarget(string FacilityId, bool DisplayDestinationAirportIds);
+
+/// <summary>The bay and rack a strip placed straight into a bay lands in, at the end of that rack's row.</summary>
+public readonly record struct StripBaySlot(string BayId, int Rack);
+
+/// <summary>The id a strip prints under and the bay facility that owns it — both required.</summary>
+public readonly record struct StripPlacement(string StripId, string FacilityId);
+
+/// <summary>
 /// Stateless helpers shared between <see cref="StripCommandHandler"/>, the engine's auto-print hooks and the server's
 /// CRC→canonical translation layer. Every method takes the per-run
 /// <see cref="FlightStripState.Gate"/> lock so that multi-slice updates (Items + Bays +
@@ -21,6 +33,12 @@ public static class StripMutations
 
     /// <summary>The id prefix a departure-format strip is keyed by, ahead of the call sign and any duplicate-copy suffix.</summary>
     public const string DepartureStripIdPrefix = "STRIP_";
+
+    /// <summary>The id prefix a half-strip is keyed by.</summary>
+    public const string HalfStripIdPrefix = "HSTRIP_";
+
+    /// <summary>The id prefix a separator is keyed by.</summary>
+    public const string SeparatorIdPrefix = "SEP_";
     public const int HalfStripLeft = 6;
     public const int HalfStripRight = 7;
     public const int BlankStripType = 8;
@@ -69,14 +87,17 @@ public static class StripMutations
     /// bottom of the rack via a bottom-docking panel, so later arrivals stack
     /// upward — matching CRC bottom-up FIFO: strip #1 at bottom, strip #2
     /// above, strip #3 above that. Removes prior placement first so calling
-    /// this on an already-placed strip relocates it to the tail (top).
+    /// this on an already-placed strip relocates it to the tail (top). Like <see cref="MoveStripToBayRack"/>, it
+    /// rewrites the slot the appended record and every record in a row it left caches.
     /// </summary>
     public static void AppendStripToBay(FlightStripState state, string bayId, int rack, string stripId)
     {
         lock (state.Gate)
         {
-            RemoveFromAllBaysLocked(state, stripId);
+            List<(string BayId, int Rack)> vacated = RemoveFromAllBaysLocked(state, stripId);
             EnsureRack(state, bayId, rack).Add(stripId);
+            SyncPlacementRecords(state, bayId, rack);
+            SyncVacatedRows(state, vacated);
             state.Changes.MarkChanged(stripId);
             state.Changes.MarkFullState();
         }
@@ -87,6 +108,12 @@ public static class StripMutations
     /// the full state, the same order <see cref="AppendStripToBay"/> uses: the id so every viewer that has not seen
     /// the record — the receiving facility of a push or a scan — is sent it, and the full state for the rack layout no
     /// per-item message describes. Every relocating verb goes through here, so no caller marks the move itself.
+    /// <para>
+    /// The move rewrites the slot every affected record caches — the one that moved, the ones it shifted in the
+    /// destination row, and the ones it left behind in a row it came out of. A record's Rack and Index name where it
+    /// sits, and the picks that order candidates by them (a bay-wide <c>BLANKD</c>, <c>SEPD</c>'s 1-based fallback)
+    /// read the cached copies, so a stale one addresses the wrong strip.
+    /// </para>
     /// </summary>
     public static bool MoveStripToBayRack(FlightStripState state, string stripId, string destBayId, int destRack, int destIndex)
     {
@@ -97,12 +124,16 @@ public static class StripMutations
                 return false;
             }
 
-            RemoveFromAllBaysLocked(state, stripId);
+            List<(string BayId, int Rack)> vacated = RemoveFromAllBaysLocked(state, stripId);
             RemoveFromPrinterQueuesLocked(state, stripId);
 
             List<string> row = EnsureRack(state, destBayId, destRack);
             int clamped = destIndex < 0 ? 0 : (destIndex > row.Count ? row.Count : destIndex);
             row.Insert(clamped, stripId);
+
+            SyncPlacementRecords(state, destBayId, destRack);
+            SyncVacatedRows(state, vacated);
+
             state.Changes.MarkChanged(stripId);
             state.Changes.MarkFullState();
             return true;
@@ -144,7 +175,10 @@ public static class StripMutations
             _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Not a separator strip type"),
         };
 
-    /// <summary>Removes a strip from Items, every bay rack, and both printer queues.</summary>
+    /// <summary>
+    /// Removes a strip from Items, every bay rack, and both printer queues. The items behind it in a row it left each
+    /// move down a slot, and their records are rewritten to name the slot they now hold.
+    /// </summary>
     public static bool DeleteStrip(FlightStripState state, string stripId)
     {
         lock (state.Gate)
@@ -154,7 +188,8 @@ public static class StripMutations
                 return false;
             }
 
-            RemoveFromAllBaysLocked(state, stripId);
+            List<(string BayId, int Rack)> vacated = RemoveFromAllBaysLocked(state, stripId);
+            SyncVacatedRows(state, vacated);
             RemoveFromPrinterQueuesLocked(state, stripId);
             state.Changes.MarkFullState();
             return true;
@@ -305,7 +340,7 @@ public static class StripMutations
     /// docs/crc/vstrips.md Departure Strip Fields. Annotation boxes 10-18 are left empty for
     /// subsequent <c>AN</c> updates.
     /// </summary>
-    public static string[] BuildDepartureStripFields(AircraftState ac, SimScenarioState scenario, bool displayDestinationAirportIds = false)
+    public static string[] BuildDepartureStripFields(AircraftState ac, SimScenarioState scenario, bool displayDestinationAirportIds)
     {
         string[] fields = new string[DepartureFieldCount];
         for (int i = 0; i < DepartureFieldCount; i++)
@@ -343,8 +378,7 @@ public static class StripMutations
         FlightStripState state,
         AircraftState ac,
         SimScenarioState scenario,
-        string facilityId,
-        bool displayDestinationAirportIds = false
+        StripPrintTarget target
     )
     {
         lock (state.Gate)
@@ -356,8 +390,8 @@ public static class StripMutations
                 return existing;
             }
 
-            string[] fields = BuildDepartureStripFields(ac, scenario, displayDestinationAirportIds);
-            var record = new StripItemRecord(stripId, ac.Callsign, DepartureStripType, false, fields, facilityId, "", 0, 0);
+            string[] fields = BuildDepartureStripFields(ac, scenario, target.DisplayDestinationAirportIds);
+            var record = new StripItemRecord(stripId, ac.Callsign, DepartureStripType, false, fields, target.FacilityId, "", 0, 0);
 
             state.Items[stripId] = record;
             state.DeparturePrinterQueue.Add(stripId);
@@ -378,9 +412,8 @@ public static class StripMutations
         FlightStripState state,
         AircraftState ac,
         SimScenarioState scenario,
-        string facilityId,
-        bool displayDestinationAirportIds,
-        string stripId
+        string stripId,
+        StripPrintTarget target
     )
     {
         if (string.IsNullOrEmpty(ac.Callsign))
@@ -390,8 +423,8 @@ public static class StripMutations
 
         lock (state.Gate)
         {
-            string[] fields = BuildDepartureStripFields(ac, scenario, displayDestinationAirportIds);
-            var record = new StripItemRecord(stripId, ac.Callsign, DepartureStripType, false, fields, facilityId, "", 0, 0);
+            string[] fields = BuildDepartureStripFields(ac, scenario, target.DisplayDestinationAirportIds);
+            var record = new StripItemRecord(stripId, ac.Callsign, DepartureStripType, false, fields, target.FacilityId, "", 0, 0);
 
             state.Items[stripId] = record;
             state.DeparturePrinterQueue.Add(stripId);
@@ -480,10 +513,8 @@ public static class StripMutations
         FlightStripState state,
         AircraftState ac,
         SimScenarioState scenario,
-        string facilityId,
-        string bayId,
-        int rack,
-        bool displayDestinationAirportIds = false
+        StripBaySlot slot,
+        StripPrintTarget target
     )
     {
         if (string.IsNullOrEmpty(ac.Callsign))
@@ -500,10 +531,20 @@ public static class StripMutations
                 return existing;
             }
 
-            string[] fields = BuildDepartureStripFields(ac, scenario, displayDestinationAirportIds);
-            List<string> row = EnsureRack(state, bayId, rack);
+            string[] fields = BuildDepartureStripFields(ac, scenario, target.DisplayDestinationAirportIds);
+            List<string> row = EnsureRack(state, slot.BayId, slot.Rack);
             int index = row.Count;
-            var record = new StripItemRecord(stripId, ac.Callsign, DepartureStripType, false, fields, facilityId, bayId, rack, index);
+            var record = new StripItemRecord(
+                stripId,
+                ac.Callsign,
+                DepartureStripType,
+                false,
+                fields,
+                target.FacilityId,
+                slot.BayId,
+                slot.Rack,
+                index
+            );
 
             state.Items[stripId] = record;
             row.Add(stripId);
@@ -542,7 +583,7 @@ public static class StripMutations
     /// Aircraft-scoped arrival-strip creator. Idempotent — if an arrival strip (or
     /// departure strip, for an aircraft that was originally a departure but is now returning)
     /// already exists for this callsign, returns the existing record. Prints via the arrival
-    /// printer queue rather than the departure queue. <paramref name="stripId"/> comes from
+    /// printer queue rather than the departure queue. The placement's id comes from
     /// <see cref="MintStripId"/> so a recorded request prints under the id the live run used.
     /// </summary>
     public static StripItemRecord? RequestArrivalStripForAircraft(
@@ -550,8 +591,7 @@ public static class StripMutations
         AircraftState ac,
         SimScenarioState scenario,
         double etaMinutes,
-        string facilityId,
-        string stripId
+        StripPlacement placement
     )
     {
         if (string.IsNullOrEmpty(ac.Callsign))
@@ -559,6 +599,8 @@ public static class StripMutations
             return null;
         }
 
+        string stripId = placement.StripId;
+        string facilityId = placement.FacilityId;
         lock (state.Gate)
         {
             if (state.Items.TryGetValue(stripId, out StripItemRecord? existing))
@@ -587,7 +629,7 @@ public static class StripMutations
     /// always unique within the room. Older 32-char ids in legacy recordings
     /// keep working: parser/handler match by prefix + exact id, not length.
     /// </summary>
-    public static string NewHalfStripId(FlightStripState? state = null) => MintShortId("HSTRIP_", state);
+    public static string NewHalfStripId(FlightStripState? state = null) => MintShortId(HalfStripIdPrefix, state);
 
     /// <summary>
     /// The next blank id off the room's counter. The counter is snapshotted, so a run restored from a snapshot
@@ -605,7 +647,7 @@ public static class StripMutations
     }
 
     /// <summary>Same scheme as <see cref="NewHalfStripId"/> but with a <c>SEP_</c> prefix.</summary>
-    public static string NewSeparatorId(FlightStripState? state = null) => MintShortId("SEP_", state);
+    public static string NewSeparatorId(FlightStripState? state = null) => MintShortId(SeparatorIdPrefix, state);
 
     /// <summary>
     /// Same scheme again for the copy a <c>SCAN</c> puts in an external bay: <c>STRIP_{callsign}_{suffix}</c>. The
@@ -613,6 +655,29 @@ public static class StripMutations
     /// keeps them off the canonical <c>STRIP_{callsign}</c> record.
     /// </summary>
     public static string NewScanStripId(string callsign, FlightStripState state) => MintShortId($"STRIP_{callsign}_", state);
+
+    /// <summary>
+    /// The id prefix of the item a creating verb mints at dispatch — the copy a <c>SCAN</c> prints, a half-strip, a
+    /// separator — or null for a verb that mints nothing or draws its id deterministically (<c>BLANK</c>'s counter).
+    /// </summary>
+    public static string? MintedIdPrefix(ParsedCommand command) =>
+        command switch
+        {
+            StripScanCommand => DepartureStripIdPrefix,
+            HalfStripCreateCommand => HalfStripIdPrefix,
+            SeparatorCreateCommand => SeparatorIdPrefix,
+            _ => null,
+        };
+
+    /// <summary>
+    /// The id a preset or deferred creating verb creates its item under: <c>{prefix}{callsign}_{second}_{sequence}</c>,
+    /// from the aircraft whose queue fired it, the elapsed second it fired in and its place among that aircraft's
+    /// creating dispatches in that second. The queue carries no record to bake a drawn id onto, so the id is derived
+    /// from state every run kind shares, and a reconstruction lands on the id the live run used. A typed verb's id ends
+    /// in a hex run with no underscore in it, so a derived id — two underscore-separated numbers — never equals one.
+    /// </summary>
+    public static string DeferredStripId(string prefix, string callsign, long second, int sequence) =>
+        string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{prefix}{callsign}_{second}_{sequence}");
 
     private static string MintShortId(string prefix, FlightStripState? state)
     {
@@ -1092,17 +1157,72 @@ public static class StripMutations
         return rackRows[0];
     }
 
-    private static void RemoveFromAllBaysLocked(FlightStripState state, string stripId)
+    /// <summary>
+    /// Takes a strip id out of every bay row holding it and reports the rows it was actually removed from, so a
+    /// caller that closed a gap in them can rewrite the records behind it.
+    /// </summary>
+    private static List<(string BayId, int Rack)> RemoveFromAllBaysLocked(FlightStripState state, string stripId)
     {
-        foreach (Dictionary<string, List<string>[]> racks in state.Bays.Values)
+        var vacated = new List<(string BayId, int Rack)>();
+        foreach ((string bayId, Dictionary<string, List<string>[]> racks) in state.Bays)
         {
-            foreach (List<string>[] rackRows in racks.Values)
+            foreach ((string rackKey, List<string>[] rackRows) in racks)
             {
                 foreach (List<string> row in rackRows)
                 {
-                    row.Remove(stripId);
+                    if (row.Remove(stripId))
+                    {
+                        vacated.Add((bayId, int.Parse(rackKey, System.Globalization.CultureInfo.InvariantCulture)));
+                    }
                 }
             }
+        }
+
+        return vacated;
+    }
+
+    /// <summary>
+    /// Rewrites the slot every record in one rack row caches, so each names the position it actually holds. The row is
+    /// the source of truth for placement; the cached copy is what the position-ordered picks read, so an insert or a
+    /// removal that shifts the row has to move the copies with it. A record already naming its slot is left alone.
+    /// </summary>
+    private static void SyncPlacementRecords(FlightStripState state, string bayId, int rack)
+    {
+        if (!state.Bays.TryGetValue(bayId, out Dictionary<string, List<string>[]>? racks))
+        {
+            return;
+        }
+
+        string key = rack.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (!racks.TryGetValue(key, out List<string>[]? rackRows) || rackRows.Length == 0)
+        {
+            return;
+        }
+
+        // Only row 0 is resynced: every rack holds exactly one row, because EnsureRack creates the rack with one row and
+        // every placement goes through it, and a record's slot (bay, rack, index) has no row to name a second one by.
+        List<string> row = rackRows[0];
+        for (int index = 0; index < row.Count; index++)
+        {
+            if (!state.Items.TryGetValue(row[index], out StripItemRecord? record))
+            {
+                continue;
+            }
+            if (string.Equals(record.BayId, bayId, StringComparison.Ordinal) && (record.Rack == rack) && (record.Index == index))
+            {
+                continue;
+            }
+
+            state.Items[row[index]] = record with { BayId = bayId, Rack = rack, Index = index };
+        }
+    }
+
+    /// <summary>Rewrites the records of every row <see cref="RemoveFromAllBaysLocked"/> closed a gap in.</summary>
+    private static void SyncVacatedRows(FlightStripState state, List<(string BayId, int Rack)> vacated)
+    {
+        foreach ((string bayId, int rack) in vacated)
+        {
+            SyncPlacementRecords(state, bayId, rack);
         }
     }
 

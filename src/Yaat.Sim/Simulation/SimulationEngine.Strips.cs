@@ -88,7 +88,7 @@ public sealed partial class SimulationEngine
             }
 
             string stripId = StripMutations.MintStripId(Strips, ac.Callsign, isArrival: true);
-            StripMutations.RequestArrivalStripForAircraft(Strips, ac, scenario, etaMinutes, facilityId, stripId);
+            StripMutations.RequestArrivalStripForAircraft(Strips, ac, scenario, etaMinutes, new StripPlacement(stripId, facilityId));
         }
     }
 
@@ -151,10 +151,8 @@ public sealed partial class SimulationEngine
                 Strips,
                 ac,
                 scenario,
-                bay.Owner.Id,
-                bay.Bay.Id,
-                rack: 0,
-                displayDestinationAirportIds: showDest
+                new StripBaySlot(bay.Bay.Id, 0),
+                new StripPrintTarget(bay.Owner.Id, showDest)
             );
             if (record is not null)
             {
@@ -182,14 +180,35 @@ public sealed partial class SimulationEngine
     /// triggered AN / STRIP / SCAN / … that could not run when they were issued. A failure (e.g. no strip printed yet)
     /// surfaces as a terminal warning so it is not silently lost; success is silent, since the queue already emitted
     /// the <c>[Deferred] … → …</c> / <c>[Preset] …</c> echo when the command fired.
+    /// <para>
+    /// A verb that mints an id (<c>SCAN</c>, <c>HSC</c>, <c>SEP</c>) creates its item under
+    /// <see cref="StripMutations.DeferredStripId"/> — the callsign, this second and the verb's place among the
+    /// aircraft's minting dispatches in it, in drain order — passed as the baked id. The queue carries no record to
+    /// bake a drawn id onto, so every run kind derives the same one, and a dispatch re-fired over strips that already
+    /// hold it (a rewind that left them in place) creates nothing.
+    /// </para>
     /// </summary>
     internal void TickStripDispatches()
     {
-        foreach ((string? callsign, ParsedCommand? command) in World.DrainAllStripDispatches())
+        List<(string Callsign, ParsedCommand Command)> dispatches = World.DrainAllStripDispatches();
+        if (dispatches.Count == 0)
         {
-            // A deferred/preset/triggered SEP/HSC/SCAN/BLANK still mints per run kind: the queue carries no record to
-            // bake onto. Tracked in docs/plans/MAIN.md.
-            CommandResult result = StripCommandHandler.Handle(this, command, callsign, bakedStripId: null).Result;
+            return;
+        }
+
+        long second = (long)Math.Floor(RequireScenario().ElapsedSeconds);
+        var mintedThisSecond = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach ((string callsign, ParsedCommand command) in dispatches)
+        {
+            string? stripId = null;
+            if (StripMutations.MintedIdPrefix(command) is { } prefix)
+            {
+                int sequence = mintedThisSecond.GetValueOrDefault(callsign);
+                mintedThisSecond[callsign] = sequence + 1;
+                stripId = StripMutations.DeferredStripId(prefix, callsign, second, sequence);
+            }
+
+            CommandResult result = StripCommandHandler.Handle(this, command, callsign, stripId).Result;
             if (!result.Success)
             {
                 EmitTerminal("Warning", callsign, string.IsNullOrEmpty(result.Message) ? "strip command could not be applied" : result.Message);
@@ -272,10 +291,8 @@ public sealed partial class SimulationEngine
                     Strips,
                     ac,
                     scenario,
-                    groundBay.Owner.Id,
-                    groundBay.Bay.Id,
-                    rack: 0,
-                    displayDestinationAirportIds: showDest
+                    new StripBaySlot(groundBay.Bay.Id, 0),
+                    new StripPrintTarget(groundBay.Owner.Id, showDest)
                 );
                 destinationLabel = $"bay {groundBay.Bay.Name}";
             }
@@ -283,7 +300,7 @@ public sealed partial class SimulationEngine
 
         // Fallback (Ground/Center/unknown students, or Tower with no Ground bay):
         // the existing printer-queue path.
-        record ??= StripMutations.RequestDepartureStripForAircraft(Strips, ac, scenario, ownBay.Owner.Id, showDest);
+        record ??= StripMutations.RequestDepartureStripForAircraft(Strips, ac, scenario, new StripPrintTarget(ownBay.Owner.Id, showDest));
 
         _logger.LogInformation("Auto-printed departure strip {StripId} for {Callsign} to {Destination}", record.Id, ac.Callsign, destinationLabel);
     }
@@ -316,10 +333,8 @@ public sealed partial class SimulationEngine
             Strips,
             ac,
             scenario,
-            bay.Owner.Id,
-            bay.Bay.Id,
-            rack,
-            showDest
+            new StripBaySlot(bay.Bay.Id, rack),
+            new StripPrintTarget(bay.Owner.Id, showDest)
         );
         if (record is null)
         {
@@ -374,7 +389,13 @@ public sealed partial class SimulationEngine
 
         StripMutations.RemoveOutdatedDeparturePrinterStrips(Strips, callsign);
         string stripId = bakedStripId ?? StripMutations.MintStripId(Strips, callsign, isArrival: false);
-        StripItemRecord? printed = StripMutations.PrintDepartureStripForAircraft(Strips, ac, scenario, facilityId, showDest, stripId);
+        StripItemRecord? printed = StripMutations.PrintDepartureStripForAircraft(
+            Strips,
+            ac,
+            scenario,
+            stripId,
+            new StripPrintTarget(facilityId, showDest)
+        );
         return printed?.Id;
     }
 }

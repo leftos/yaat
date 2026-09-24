@@ -725,7 +725,7 @@ public class StripStepTests
         Assert.Equal(2, remaining.Count);
         Assert.DoesNotContain(remaining, i => i.Id == rack0First.ToRecord.StripId); // the lowest rack-and-index blank
         Assert.Contains(remaining, i => (i.Id == rack1First.ToRecord.StripId) && (i.Rack == 1) && (i.Index == 0));
-        Assert.Contains(remaining, i => (i.Rack == 0) && (i.Index == 1)); // the other wire-rack-1 blank
+        Assert.Contains(remaining, i => (i.Rack == 0) && (i.Index == 0)); // the other wire-rack-1 blank, slid into the freed slot
     }
 
     /// <summary>
@@ -748,5 +748,130 @@ public class StripStepTests
         Assert.False(deleted.Result.Success);
         Assert.Contains("No blank strips in Ground 1", deleted.Result.Message);
         Assert.Single(engine.Strips.Items.Values, i => i.Type == StripMutations.BlankStripType);
+    }
+
+    /// <summary>
+    /// A rack past the bay's count is the same typo whether the verb creates or deletes. <c>BLANKD</c> used to search
+    /// the impossible rack, find nothing and report the bay empty — a message about the bay, not the rack that was
+    /// asked for. It answers with the text the <c>BLANK</c> create answers with instead.
+    /// </summary>
+    [Fact]
+    public void BlankDelete_RackOutOfRange_ReportsRackOutOfRange()
+    {
+        if (Engine(DepartureAtOak, "OAK_TWR", "TWR") is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        ActionOutcome created = Issue(engine, host, "", "BLANK OAK/Ground 1/99");
+        ActionOutcome deleted = Issue(engine, host, "", "BLANKD OAK/Ground 1/99");
+
+        Assert.False(created.Result.Success);
+        Assert.Contains("out of range", created.Result.Message);
+        Assert.Equal(created.Result.Message, deleted.Result.Message);
+        Assert.Empty(engine.Strips.Items.Values);
+    }
+
+    /// <summary>
+    /// A blank is moved by the client's own drag idiom — a <c>BLANK</c> create at the target slot plus a
+    /// <c>BLANKD</c> of the source left behind; no verb relocates one in place — so the create's insert is what shifts
+    /// the blanks it lands in front of. <c>BLANKD</c> picks by the slot a blank's record caches, so a blank shifted
+    /// down the rack that still claims its old position makes the pick delete the wrong one. Here the dragged blank
+    /// lands at the bottom slot: the blank now first by position is the newcomer, and that is the one a bay-wide
+    /// <c>BLANKD</c> has to delete.
+    /// </summary>
+    [Fact]
+    public void BlankDelete_AfterMovingABlank_PicksByCurrentPosition()
+    {
+        if (Engine(DepartureAtOak, "OAK_TWR", "TWR") is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        Assert.True(Issue(engine, host, "", "BLANK OAK/Ground 1/1").Result.Success);
+        string bottomId = Assert.Single(engine.Strips.Items.Values).Id;
+        Assert.True(Issue(engine, host, "", "BLANK OAK/Ground 1/1").Result.Success);
+        string topId = Assert.Single(engine.Strips.Items.Values, i => !string.Equals(i.Id, bottomId, StringComparison.Ordinal)).Id;
+
+        ActionOutcome dragged = Issue(engine, host, "", "BLANK OAK/Ground 1/1/1");
+        Assert.True(dragged.Result.Success, dragged.Result.Message);
+        string movedId = Assert
+            .Single(
+                engine.Strips.Items.Values,
+                i => !string.Equals(i.Id, bottomId, StringComparison.Ordinal) && !string.Equals(i.Id, topId, StringComparison.Ordinal)
+            )
+            .Id;
+        Assert.True(Issue(engine, host, "", $"BLANKD {topId}").Result.Success);
+
+        ActionOutcome deleted = Issue(engine, host, "", "BLANKD OAK/Ground 1");
+
+        Assert.True(deleted.Result.Success, deleted.Result.Message);
+        Assert.DoesNotContain(engine.Strips.Items.Values, i => string.Equals(i.Id, movedId, StringComparison.Ordinal));
+        Assert.Contains(engine.Strips.Items.Values, i => string.Equals(i.Id, bottomId, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A half-strip is appended at the rack tail, behind whatever the rack already holds, so its record has to name
+    /// that tail slot — not the slot 0 it was built with before the append placed it. Every other item in the row
+    /// keeps naming its own slot too.
+    /// </summary>
+    [Fact]
+    public void HalfStripCreate_AppendedBehindBlanks_RecordsNameTheirRowSlots()
+    {
+        if (Engine(DepartureAtOak, "OAK_TWR", "TWR") is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        string bayId = Bay("OAK_TWR", "Ground 1").Bay.Id;
+        Assert.True(Issue(engine, host, "", "BLANK OAK/Ground 1/1").Result.Success);
+        Assert.True(Issue(engine, host, "", "BLANK OAK/Ground 1/1").Result.Success);
+
+        ActionOutcome half = Issue(engine, host, "", @"HSC OAK/Ground 1/1 a\b");
+
+        Assert.True(half.Result.Success, half.Result.Message);
+        string halfId = half.ToRecord!.StripId!;
+        List<string> row = engine.Strips.Bays[bayId]["0"][0];
+        Assert.Equal(2, row.IndexOf(halfId));
+        AssertRowRecordsNameTheirSlots(engine, bayId, rack: 0);
+    }
+
+    /// <summary>
+    /// Deleting an item closes the gap it leaves, so every item behind it moves down one slot, and each record has
+    /// to follow. <c>SEPD</c>'s numeric locator matches a separator by the slot its record names: a separator that
+    /// slid into slot 1 but still claims slot 2 is not found at the position the controller sees it at.
+    /// </summary>
+    [Fact]
+    public void Delete_AheadOfASeparator_SepdFindsItAtItsNewPosition()
+    {
+        if (Engine(DepartureAtOak, "OAK_TWR", "TWR") is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        ActionOutcome blank = Issue(engine, host, "", "BLANK OAK/Ground 1/1");
+        Assert.True(blank.Result.Success, blank.Result.Message);
+        ActionOutcome separator = Issue(engine, host, "", "SEP W OAK/Ground 1/1/2 Foo");
+        Assert.True(separator.Result.Success, separator.Result.Message);
+        Assert.True(Issue(engine, host, "", $"BLANKD {blank.ToRecord!.StripId}").Result.Success);
+
+        ActionOutcome deleted = Issue(engine, host, "", "SEPD OAK/Ground 1/1 1");
+
+        Assert.True(deleted.Result.Success, deleted.Result.Message);
+        Assert.DoesNotContain(engine.Strips.Items.Values, i => string.Equals(i.Id, separator.ToRecord!.StripId, StringComparison.Ordinal));
+    }
+
+    private static void AssertRowRecordsNameTheirSlots(SimulationEngine engine, string bayId, int rack)
+    {
+        List<string> row = engine.Strips.Bays[bayId][rack.ToString(System.Globalization.CultureInfo.InvariantCulture)][0];
+        for (int index = 0; index < row.Count; index++)
+        {
+            StripItemRecord record = engine.Strips.Items[row[index]];
+            Assert.Equal((bayId, rack, index), (record.BayId, record.Rack, record.Index));
+        }
     }
 }
