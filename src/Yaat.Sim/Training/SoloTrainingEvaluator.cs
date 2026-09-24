@@ -2105,7 +2105,7 @@ public sealed class SoloTrainingEvaluator
 
             // Two datums, because the separation rules use both. A takeoff roll and every runway
             // intersection are referenced to the pavement threshold — pre-threshold pavement is usable
-            // for takeoff in either direction (AIM 2-3-3.b.8.2), and PrecedingIntersectionFt is measured
+            // for takeoff in either direction (AIM 2-3-3.h.2), and PrecedingIntersectionFt is measured
             // from it. A landing is referenced to the landing threshold: "3,000 feet down the runway"
             // (7110.65 §3-10-3) counts from where the arrival was allowed to touch down, not from
             // pavement it may never land on.

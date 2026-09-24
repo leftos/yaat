@@ -308,6 +308,7 @@ public static class ApproachCommandHandler
 
         // Cancel existing speed restrictions per 7110.65 §5-7-1.d
         aircraft.Targets.TargetSpeed = null;
+        RestateStandingInTrailReduction(aircraft);
 
         FinalApproachCourseResult facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway, NavigationDatabase.Instance);
         TrueHeading finalCourse = facResult.Course;
@@ -626,6 +627,7 @@ public static class ApproachCommandHandler
 
         // Cancel speed restrictions per 7110.65 §5-7-1.d
         aircraft.Targets.TargetSpeed = null;
+        RestateStandingInTrailReduction(aircraft);
 
         // Clear assigned heading — approach takes over steering
         aircraft.Targets.AssignedMagneticHeading = null;

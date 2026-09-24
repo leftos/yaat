@@ -59,7 +59,7 @@ public class RunwayLengthTests
 
     /// <summary>
     /// A departure lining up at a displaced end has the whole pavement ahead of it — the pre-threshold
-    /// pavement is available for takeoff in either direction (AIM 2-3-3.b.8.2). Landing 12R at KSJC
+    /// pavement is available for takeoff in either direction (AIM 2-3-3.h.2). Landing 12R at KSJC
     /// declares 8,587 ft, so a line-up geometry working from that number would think 2,414 ft of the
     /// runway it is standing on does not exist.
     /// </summary>

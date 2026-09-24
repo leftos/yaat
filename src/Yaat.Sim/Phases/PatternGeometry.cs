@@ -260,7 +260,7 @@ public static class PatternGeometry
         // Departure end of runway. Deliberately the pavement end, not a displaced-threshold-derived
         // point: the crosswind turn is a *departure* geometry anchor (AIM 4-3-2, "beyond the departure
         // end"), and pre-threshold pavement is available for takeoff in either direction
-        // (AIM 2-3-3.b.8.2). Only the arrival side of the pattern moves with the displacement.
+        // (AIM 2-3-3.h.2). Only the arrival side of the pattern moves with the displacement.
         return ComputeCore(
             runway,
             runway.EndLatitude,

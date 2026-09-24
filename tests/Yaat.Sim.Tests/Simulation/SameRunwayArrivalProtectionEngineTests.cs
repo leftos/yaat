@@ -6,6 +6,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -1436,6 +1437,64 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// An arrival that has landed is no longer being spaced and has nothing to resume, so the release of a reduction
+    /// it is still carrying is silent rather than spoken (§5-7-1.a.3(e): a line terminating what nobody needs
+    /// terminated is an adjustment more than the minimum necessary).
+    /// </summary>
+    [Fact]
+    public void Release_AfterLanding_IsSilent()
+    {
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            return;
+        }
+
+        pair.Pass();
+        Report(pair, "engaged");
+        Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+
+        pair.Follower.IsOnGround = true;
+        pair.Pass();
+        Report(pair, "released after the follower landed");
+
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Empty(ReleaseLines(pair.Follower));
+    }
+
+    /// <summary>
+    /// Neither has one that has gone around: the approach is broken off and the pilot is climbing out on the missed.
+    /// <see cref="GoAroundPhase.OnStart"/> clears the speed floor and ceiling the approach was flying, so the ceiling
+    /// this pass stamped is no longer in <see cref="ControlTargets.SpeedCeiling"/> by the time the next pass runs, and
+    /// <c>ReleaseSameRunwayProtection</c> finds nothing of its own left to announce: it hands the stamp back without a
+    /// word. What this arm pins is that silence — a go-around still on the runway's own course and outside the
+    /// §5-7-1.b.4 window is released, and nothing is said to it.
+    /// </summary>
+    [Fact]
+    public void Release_AfterGoAround_IsSilent()
+    {
+        ArrivalPair? pair = ConflictingPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            return;
+        }
+
+        pair.Pass();
+        Report(pair, "engaged");
+        Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+
+        GoAroundHelper.InstallGoAroundPhases(CommandDispatcher.BuildMinimalContext(pair.Follower), new GoAroundPhase(), []);
+        Assert.IsType<GoAroundPhase>(pair.Follower.Phases!.CurrentPhase);
+        TurnFollowerOntoTheFinalCourse(pair);
+
+        pair.Pass();
+        Report(pair, "released after the follower went around");
+
+        Assert.Null(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+        Assert.Empty(ReleaseLines(pair.Follower));
+    }
+
+    /// <summary>
     /// A handoff of the track to the student defers the release entirely: §5-4-5.b bars the transferring controller
     /// from changing the aircraft's speed from the moment the handoff is initiated, and §5-4-6.c has the receiving
     /// controller comply with the restrictions it was issued under, so the reduction stands for the student to inherit
@@ -1578,6 +1637,65 @@ public class SameRunwayArrivalProtectionEngineTests(ITestOutputHelper output)
 
         Assert.Empty(RestatementLines(pair.Follower));
         Assert.Empty(SpacingLines(pair.Follower));
+    }
+
+    /// <summary>
+    /// <c>JAPP</c> clears the aircraft for the published approach just as <c>CAPP</c> does — join the course and fly
+    /// it to the runway — so §5-7-1.c binds it identically: the clearance cancels the assigned speed (§5-7-1.d) and a
+    /// reduction the pass is still holding has to be restated with it, or AIM 4-4-12.g has the pilot taking the
+    /// clearance as cancelling it. Same line, same figure.
+    /// </summary>
+    [Fact]
+    public void Japp_RestatesStandingInTrailReduction()
+    {
+        ArrivalPair? pair = ExpectedApproachPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            output.WriteLine("skipped: scenario, navdata, OAK layout or an approach to runway 30 is unavailable");
+            return;
+        }
+
+        pair.Pass();
+        Report(pair, "engaged before the JAPP");
+        Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+
+        CommandResult result = pair.Engine.SendCommand(pair.Follower.Callsign, $"JAPP {pair.Follower.Approach.Expected}");
+        Assert.True(result.Success, result.Message);
+
+        List<string> restated = RestatementLines(pair.Follower);
+        output.WriteLine($"restatement: {string.Join(" | ", restated)}");
+        string line = Assert.Single(restated);
+        Assert.Contains($"→ {pair.Follower.Callsign}: maintain {RestatedSpeedKts} knots", line, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <c>CVA</c> is an approach clearance as well — §7-4-3 clears the arrival to proceed visually to the runway —
+    /// and it carries the same §5-7-1.d cancellation, so the standing reduction is restated with it for the same
+    /// reason (§5-7-1.c, AIM 4-4-12.g).
+    /// </summary>
+    [Fact]
+    public void Cva_RestatesStandingInTrailReduction()
+    {
+        ArrivalPair? pair = ExpectedApproachPair(LeaderDistanceNm, FollowerDistanceNm);
+        if (pair is null)
+        {
+            output.WriteLine("skipped: scenario, navdata, OAK layout or an approach to runway 30 is unavailable");
+            return;
+        }
+
+        pair.Pass();
+        Report(pair, "engaged before the CVA");
+        Assert.NotNull(pair.Follower.Approach.SameRunwayProtectionCeilingKts);
+
+        // The §7-4-3.c acquisition gate the clearance is predicated on: the pilot has the field.
+        pair.Follower.Approach.HasReportedFieldInSight = true;
+        CommandResult result = pair.Engine.SendCommand(pair.Follower.Callsign, $"CVA {pair.Runway.Designator}");
+        Assert.True(result.Success, result.Message);
+
+        List<string> restated = RestatementLines(pair.Follower);
+        output.WriteLine($"restatement: {string.Join(" | ", restated)}");
+        string line = Assert.Single(restated);
+        Assert.Contains($"→ {pair.Follower.Callsign}: maintain {RestatedSpeedKts} knots", line, StringComparison.Ordinal);
     }
 
     /// <summary>KSJC 12R/30L is authored <c>"threshold": "1297 - 2537"</c>: landing 30L starts 2,537 ft downfield.</summary>

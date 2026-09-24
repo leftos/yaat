@@ -28,6 +28,7 @@
 - `NODEL` also keeps a departure from being deleted by the departure distance setting.
 - Aircraft types missing from the aircraft database are sized by wake category for ground spacing, runway-exit stopping points and same-runway arrival spacing.
 - The terminal's filter box is wide enough to show a full airline callsign.
+- `JAPP` and `CVA` restate a standing in-trail speed reduction with the clearance, as `CAPP` and `PTAC` already do.
 
 ### Fixed
 - `PUSH $7A` and `PUSH $7B` from SFO gate F8 are no longer refused.

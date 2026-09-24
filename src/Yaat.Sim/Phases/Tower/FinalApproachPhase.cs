@@ -470,7 +470,7 @@ public sealed class FinalApproachPhase : Phase
         }
 
         // Fly the approach to the landing threshold, not the pavement end: on a displaced end the
-        // glidepath has to reach the surface where landings may begin (AIM 2-3-3.b.8.2). Falls back to
+        // glidepath has to reach the surface where landings may begin (AIM 2-3-3.h.2). Falls back to
         // the pavement threshold when no airport map is loaded.
         LatLon threshold = LandingThreshold.Resolve(ctx.Runway, ctx.GroundLayout);
         _thresholdLat = threshold.Lat;

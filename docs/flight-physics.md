@@ -24,11 +24,11 @@ aircraft chases a small set of scalar targets, and "reaching" a target is detect
 ## `FlightPhysics.Update` — what runs
 
 The public entry is `FlightPhysics.Update(aircraft, deltaSeconds, aircraftLookup, weather, soloTrainingMode, rpoShowPilotSpeech)`
-(`src/Yaat.Sim/FlightPhysics.cs:39`; three thinner overloads at `:24`, `:29`, `:34` forward with defaults). In order, per call
-(`FlightPhysics.cs:93`):
+(`src/Yaat.Sim/FlightPhysics.cs`, `FlightPhysics.Update`; three thinner overloads forward with defaults). In order, per call
+(`FlightPhysics.cs`, `FlightPhysics.Update`):
 
 1. Magnetic-declination cache refresh (see [Magnetic declination caching](#magnetic-declination-caching)).
-2. Backward-compat IAS seed: an airborne aircraft with `IndicatedAirspeed <= 0` but `GroundSpeed > 0` copies GS into IAS (`FlightPhysics.cs:88`).
+2. Backward-compat IAS seed: an airborne aircraft with `IndicatedAirspeed <= 0` but `GroundSpeed > 0` copies GS into IAS (`FlightPhysics.cs`, `FlightPhysics.Update`).
 3. `UpdateNavigation` — sequence the next route waypoint, fire AT-fix triggers, compute the steering heading.
 4. `UpdateDescentPlanning` / `UpdateClimbPlanning` — step-altitude planners for route constraints.
 5. `UpdateSpeedPlanning` — proactive speed look-ahead for procedure speed restrictions.
@@ -50,9 +50,9 @@ The numbered "8/10-step" list in [tick-loop.md](tick-loop.md) is the canonical o
 `ControlTargets`; physics reads it and writes back to the kinematics fields.** Handlers and phases never move the aircraft directly (the
 `ApplyForce*`/`WARP` sim-control bypasses in the dispatcher are the documented exception — see [command-pipeline.md](command-pipeline.md)).
 
-`AircraftState.Targets` is **get-only** (`AircraftState.cs:117`) and restored in place via `ControlTargets.RestoreFrom(dto, ac.Targets)`
-(`ControlTargets.cs:126`) — you cannot reassign `ac.Targets` from a snapshot, and `NavigationRoute` (a get-only list) restores via
-`Clear()` + `Add` (`ControlTargets.cs:145`). See [aircraft-data-model.md](aircraft-data-model.md) for the get-only restore-in-place pattern.
+`AircraftState.Targets` is **get-only** (`AircraftState.cs`, `AircraftState.Targets`) and restored in place via `ControlTargets.RestoreFrom(dto, ac.Targets)`
+(`ControlTargets.cs`, `ControlTargets.RestoreFrom`) — you cannot reassign `ac.Targets` from a snapshot, and `NavigationRoute` (a get-only list) restores via
+`Clear()` + `Add` (`ControlTargets.cs`, `ControlTargets.RestoreFrom`). See [aircraft-data-model.md](aircraft-data-model.md) for the get-only restore-in-place pattern.
 
 ### Field table
 
@@ -82,20 +82,20 @@ The numbered "8/10-step" list in [tick-loop.md](tick-loop.md) is the canonical o
 This is the single most important `ControlTargets` distinction:
 
 - **`TargetX` is the transient physics goal.** `TargetAltitude` and `TargetSpeed` **self-null the moment the goal is reached** —
-  `UpdateAltitude` nulls `TargetAltitude` and `DesiredVerticalRate` and clears `IsExpediting` on the ±10 ft snap (`FlightPhysics.cs:820`);
-  `UpdateSpeed` nulls `TargetSpeed` on the ±2 kt snap (`ArriveAtGoal`, `FlightPhysics.cs:1223`). "My target vanished" is by design. A
+  `UpdateAltitude` nulls `TargetAltitude` and `DesiredVerticalRate` and clears `IsExpediting` on the ±10 ft snap (`FlightPhysics.cs`, `FlightPhysics.UpdateAltitude`);
+  `UpdateSpeed` nulls `TargetSpeed` on the ±2 kt snap (`FlightPhysics.cs`, `FlightPhysics.ArriveAtGoal`). "My target vanished" is by design. A
   `TargetSpeed` above the 14 CFR 91.117 limit is the exception: it stays standing at the cap until the uncapped speed is reached.
 - **`AssignedX` is persistent UI/autopilot state.** `AssignedAltitude`/`AssignedSpeed`/`AssignedMagneticHeading` persist past the snap so the
   controller still sees the last assigned value on the datablock and the autopilot can hold it.
 
 Heading is handled differently: `UpdateHeading` snaps `TrueHeading` to the goal and clears `PreferredTurnDirection` on the snap
-(`FlightPhysics.cs:774`), but it does **not** null `TargetTrueHeading` (the nav step owns that lifecycle, nulling it only on route exhaustion).
+(`FlightPhysics.cs`, `FlightPhysics.UpdateHeading`), but it does **not** null `TargetTrueHeading` (the nav step owns that lifecycle, nulling it only on route exhaustion).
 
 ## Airspeed frames: IAS / TAS / GroundSpeed / Mach
 
 This is the load-bearing model the rest of physics rests on. (This material previously lived only in an archived rationale plan; it now lives here.)
 
-- **`IndicatedAirspeed` (KIAS) is the single source of truth for airspeed** (`AircraftState.cs:106`). It is what ATC commands, what
+- **`IndicatedAirspeed` (KIAS) is the single source of truth for airspeed** (`AircraftState.cs`, `AircraftState.IndicatedAirspeed`). It is what ATC commands, what
   `TargetSpeed` targets, and the only stored airspeed value. Set it; everything else derives.
 - **ON THE GROUND the same field carries GROUNDSPEED (wheel speed)** — taxi speeds, rollout coast/exit speeds, and braking rates
   are all ground-frame quantities, the gear resists lateral wind (track = heading, no vector sum), and the ASI is only meaningful
@@ -113,68 +113,68 @@ This is the load-bearing model the rest of physics rests on. (This material prev
   (`TimeAtSpeed` places an aircraft on the ramp from the speed it is making; a live-traffic shadow's measured acceleration is a
   `GroundRollProfile.Constant`), so the predictors and the integrator never disagree. A jet reaches 145 kt in 31 s / ~3,560 ft
   (29 s / ~3,550 ft with the old constant 5 kt/s — the distance is unchanged, the first five seconds are what moved).
-- **TAS is computed, never stored.** `WindInterpolator.IasToTas(ias, altitudeFt)` (`WindInterpolator.cs:105`) converts IAS→TAS via ISA
+- **TAS is computed, never stored.** `WindInterpolator.IasToTas(ias, altitudeFt)` (`WindInterpolator.cs`, `WindInterpolator.IasToTas`) converts IAS→TAS via ISA
   compressible-flow relations (CAS→Mach→TAS). TAS rises with altitude even at constant IAS.
-- **`GroundSpeed` is DERIVED on every read — it has no setter** (`AircraftState.cs:85`). On the ground it returns `IndicatedAirspeed` directly.
+- **`GroundSpeed` is DERIVED on every read — it has no setter** (`AircraftState.cs`, `AircraftState.GroundSpeed`). On the ground it returns `IndicatedAirspeed` directly.
   Airborne it is `|TAS·(cos/sin heading) + WindComponents|`: TAS along `TrueHeading`, plus the cached wind vector, magnitude. You cannot "set
   ground speed," and `GS == IAS` is only true on the ground or in still air at sea level.
-- **`WindComponents` (N, E knots) is cached during `UpdatePosition`** (`FlightPhysics.cs:1041`) so `AircraftState.GroundSpeed` can derive
+- **`WindComponents` (N, E knots) is cached during `UpdatePosition`** (`FlightPhysics.cs`, `FlightPhysics.UpdatePosition`) so `AircraftState.GroundSpeed` can derive
   airborne GS without a `WeatherProfile` in hand. It is cached on the ground as well (feeding `HeadwindKts` for the frame flips); zero with no weather. Note: both `GroundSpeed`'s getter and `UpdatePosition`
   build the airborne GS vector by projecting TAS along the same `TrueHeading` basis and adding the wind vector — so the displayed GS magnitude
   matches the position step. (`UpdatePosition` then derives `TrueTrack` from `atan2` of that wind-summed vector, which is why track diverges from
   heading in wind.)
 - **Mach hold** recomputes equivalent IAS each tick: `UpdateSpeed` reads `TargetMach`, calls `WindInterpolator.MachToIas(mach, alt)`
-  (`WindInterpolator.cs:129`), and writes the result into `TargetSpeed` so a constant-Mach cruise descends in IAS as it climbs
-  (`FlightPhysics.cs:1078`). The Mach-derived IAS is still clamped to `RegulatorySpeedLimit` — 250 below 10,000 ft, 200 under a Class B shelf.
+  (`WindInterpolator.cs`, `WindInterpolator.MachToIas`), and writes the result into `TargetSpeed` so a constant-Mach cruise descends in IAS as it climbs
+  (`FlightPhysics.cs`, `FlightPhysics.UpdateSpeed`). The Mach-derived IAS is still clamped to `RegulatorySpeedLimit` — 250 below 10,000 ft, 200 under a Class B shelf.
 
-`WindInterpolator` also provides `TasToIas` (`:117`, the inverse — used for resolving cruise TAS to an IAS), `IasToMach` (`:142`),
-`ComputeWindCorrectionAngle` (`:184`), and `GetWindComponents` (`:86`). Wind layers are vector-interpolated by altitude
-(`GetWindAt`, `:34`) so the 0/360 boundary is handled correctly.
+`WindInterpolator` also provides `TasToIas` (the inverse — used for resolving cruise TAS to an IAS), `IasToMach`,
+`ComputeWindCorrectionAngle`, and `GetWindComponents`. Wind layers are vector-interpolated by altitude
+(`WindInterpolator.GetWindAt`) so the 0/360 boundary is handled correctly.
 
 ## Heading integration (`UpdateHeading`)
 
-`UpdateHeading(aircraft, cat, deltaSeconds)` (`FlightPhysics.cs:749`):
+`UpdateHeading(aircraft, cat, deltaSeconds)` (`FlightPhysics.cs`, `FlightPhysics.UpdateHeading`):
 
 1. If `TargetTrueHeading` is null → zero the bank angle and return.
-2. **Ground no-pivot guard**: if `IsOnGround && GroundSpeed < StationaryGroundSpeedKts` (0.1 kt, `:747`) → zero bank and return. A parked
+2. **Ground no-pivot guard**: if `IsOnGround && GroundSpeed < StationaryGroundSpeedKts` (0.1 kt) → zero bank and return. A parked
    aircraft cannot rotate on a stale target heading. Airborne helicopters at GS 0 (hover) are exempt because `IsOnGround` is false.
-3. `diff = NormalizeAngle(goal − current)` (shortest-path, `:773`). If `|diff| < HeadingSnapDeg` (0.5°, `:12`) → snap `TrueHeading` to the goal,
+3. `diff = NormalizeAngle(goal − current)` (shortest-path). If `|diff| < HeadingSnapDeg` (0.5°) → snap `TrueHeading` to the goal,
    **clear `PreferredTurnDirection`**, zero bank, return.
 4. Otherwise `turnRate = TurnRateOverride ?? AircraftPerformance.TurnRate(...)`, `maxTurn = turnRate × deltaSeconds`, direction from
-   `ResolveDirection(diff, PreferredTurnDirection)` (`:1720` — preferred direction overrides shortest path), `turnAmount = min(|diff|, maxTurn)`.
+   `ResolveDirection(diff, PreferredTurnDirection)` (preferred direction overrides shortest path), `turnAmount = min(|diff|, maxTurn)`.
 5. Bank angle: `BankAngle = atan(TAS_kts × turnRate × BankAngleCoeff) × 180/π`, signed by turn direction.
-   `BankAngleCoeff = π/180 × 1.6878 / 32.174 ≈ 0.0009146` (`:734`) — the kt→ft/s and ft/s²-gravity unit fold.
+   `BankAngleCoeff = π/180 × 1.6878 / 32.174 ≈ 0.0009146` — the kt→ft/s and ft/s²-gravity unit fold.
 
 ## Lateral navigation & turn anticipation (`UpdateNavigation`)
 
-`UpdateNavigation(aircraft, weather)` (`FlightPhysics.cs:107`) drives `TargetTrueHeading` toward the head of `NavigationRoute`:
+`UpdateNavigation(aircraft, weather)` (`FlightPhysics.cs`, `FlightPhysics.UpdateNavigation`) drives `TargetTrueHeading` toward the head of `NavigationRoute`:
 
-- **Sequencing threshold.** Fly-over and terminal waypoints sequence within `NavArrivalNm` (0.5 nm, `:15`). Fly-by waypoints with a following
+- **Sequencing threshold.** Fly-over and terminal waypoints sequence within `NavArrivalNm` (0.5 nm). Fly-by waypoints with a following
   leg use turn anticipation: `ComputeAnticipationDistanceNm(GS, turnRate, legBearing, nextLegBearing)` = `R·tan(θ/2)`, where `R = GS / turnRate`
-  (rad/s), capped at 5 nm, 0 for turns < 1° (`:546`). The sequencing threshold becomes `max(anticipation, NavArrivalNm)`.
+  (rad/s), capped at 5 nm, 0 for turns < 1°. The sequencing threshold becomes `max(anticipation, NavArrivalNm)`.
 - **Abeam sequencing.** Inside the anticipation zone, the waypoint is not popped on distance — it is popped when the along-track distance along
-  the *next* leg bearing goes non-negative (`GeoMath.AlongTrackDistanceNmRaw >= 0`, `:149`), i.e. the aircraft has passed abeam.
+  the *next* leg bearing goes non-negative (`GeoMath.AlongTrackDistanceNmRaw >= 0`), i.e. the aircraft has passed abeam.
 - **Arc-blended steering.** While in the anticipation zone but not yet sequencing, the steering heading is the tangent to the inscribed turn
-  circle (`ComputeArcBlendedHeading`, `:574`), not the straight bearing to the waypoint — so fly-by turns are smooth.
+  circle (`FlightPhysics.ComputeArcBlendedHeading`), not the straight bearing to the waypoint — so fly-by turns are smooth.
 - **Wind correction angle.** When airborne with weather, the final steering heading is `bearing + WCA` where
-  `WCA = WindInterpolator.ComputeWindCorrectionAngle(bearing, TAS, windFrom, windSpeed)` (`:230`) — the aircraft crabs so it tracks a straight
+  `WCA = WindInterpolator.ComputeWindCorrectionAngle(bearing, TAS, windFrom, windSpeed)` — the aircraft crabs so it tracks a straight
   ground path, not a downwind pursuit curve.
-- **Fix-constraint apply/revert.** On sequencing, `ApplyFixConstraints` (`:619`) applies the next fix's altitude/speed restriction (gated by
+- **Fix-constraint apply/revert.** On sequencing, `ApplyFixConstraints` applies the next fix's altitude/speed restriction (gated by
   SID-via / STAR-via mode), and `NavigationTarget.Revert*` fields restore the prior target/assigned alt+speed when sequencing past a constrained
-  fix. `FrdArrivalNm` (1.5 nm, `:16`) and `GroundArrivalNm` (0.05 nm, `:17`) are the FRD-point and ground-entity arrival thresholds used by the
+  fix. `FrdArrivalNm` (1.5 nm) and `GroundArrivalNm` (0.05 nm) are the FRD-point and ground-entity arrival thresholds used by the
   queue triggers, not by route sequencing.
 
-`PreferredTurnDirection` is **not** cleared in `UpdateNavigation` (`:234` comment) — only on heading snap or route exhaustion — so departure
+`PreferredTurnDirection` is **not** cleared in `UpdateNavigation` — only on heading snap or route exhaustion — so departure
 direction bias (`TRDCT`/`TLDCT`) survives until the initial turn completes.
 
 ## Vertical integration (`UpdateAltitude`) + step planners
 
-`UpdateAltitude(aircraft, cat, deltaSeconds)` (`FlightPhysics.cs:801`):
+`UpdateAltitude(aircraft, cat, deltaSeconds)` (`FlightPhysics.cs`, `FlightPhysics.UpdateAltitude`):
 
 - On the ground → `VerticalSpeed = 0`, return.
-- `goal = ResolveAltitudeGoal(aircraft)` (`:865`) clamps `TargetAltitude` between `AltitudeFloor` and `AltitudeCeiling`; if there is no
+- `goal = ResolveAltitudeGoal(aircraft)` clamps `TargetAltitude` between `AltitudeFloor` and `AltitudeCeiling`; if there is no
   `TargetAltitude` it synthesizes one only when the aircraft is below a floor or above a ceiling (with the snap deadband).
-- `|diff| < AltitudeSnapFt` (10 ft, `:13`) → snap `Altitude`, zero VS, **null `TargetAltitude` and `DesiredVerticalRate`, clear `IsExpediting`**.
+- `|diff| < AltitudeSnapFt` (10 ft) → snap `Altitude`, zero VS, **null `TargetAltitude` and `DesiredVerticalRate`, clear `IsExpediting`**.
 - Rate = `|DesiredVerticalRate ?? PlannedVerticalRate|` if either is set (a phase's rate wins) — flown **verbatim**: per 7110.65 §4-5-7 NOTE 4 a phase/planner-commanded rate is the
   restriction and expedite never scales it. Else `AircraftPerformance.ClimbRate`/`DescentRate(...)`, where `IsExpediting` applies
   `CategoryPerformance.ExpediteVerticalRate`: climb **×1.15**, descent **×2.0**, clamped to per-category caps (jet 4,000 / TP 2,500 /
@@ -189,26 +189,25 @@ direction bias (`TRDCT`/`TLDCT`) survives until the initial turn completes.
   and landing fly profile-rate segments below 1,000 ft AGL), and physics must never reinterpret them: an unguarded taper
   floated turboprop touchdowns several hundred feet long (`TouchdownPointTests`) and broke SID-window and `CAPP` phase tests.
 
-**Step climb/descent planners** run *before* the integrators (`UpdateClimbPlanning` `:352`, `UpdateDescentPlanning` `:246`). Each scans the route
-for the next altitude-constrained fix, resolves the constraint via `ResolveAltitudeRestriction` (`:691`), writes `TargetAltitude`, and computes
-the `PlannedVerticalRate` needed to hit it at the fix: `requiredFpm = altDelta / timeMinutes`, capped at **2× the standard category rate**
-(`:333`). Descent planning is suppressed under `SidViaMode`; climb planning under `StarViaMode` — the SID-via / STAR-via split decides which
+**Step climb/descent planners** run *before* the integrators (`UpdateClimbPlanning`, `UpdateDescentPlanning`). Each scans the route
+for the next altitude-constrained fix, resolves the constraint via `ResolveAltitudeRestriction`, writes `TargetAltitude`, and computes
+the `PlannedVerticalRate` needed to hit it at the fix: `requiredFpm = altDelta / timeMinutes`, capped at **2× the standard category rate**. Descent planning is suppressed under `SidViaMode`; climb planning under `StarViaMode` — the SID-via / STAR-via split decides which
 planner owns the route. Both also activate (outside via mode) whenever the route carries any explicit altitude restriction.
 
 ## Speed integration (`UpdateSpeed`) + look-ahead planning
 
-`UpdateSpeed(aircraft, cat, deltaSeconds)` (`FlightPhysics.cs:1074`) is a layered cascade. The layers run in this exact order; getting the order
+`UpdateSpeed(aircraft, cat, deltaSeconds)` (`FlightPhysics.cs`, `FlightPhysics.UpdateSpeed`) is a layered cascade. The layers run in this exact order; getting the order
 wrong silently lets one layer stomp or lose to another:
 
-Layers 1, 2 and 5 all clamp against the public `FlightPhysics.RegulatorySpeedLimit(aircraft)` (`:1051`), resolved once at the top of the
+Layers 1, 2 and 5 all clamp against the public `FlightPhysics.RegulatorySpeedLimit(aircraft)`, resolved once at the top of the
 method. It takes the aircraft alone and has four arms: `double.MaxValue` on the ground or at or above 10,000 ft; `double.MaxValue` for an
 aircraft whose `MilitaryRoute.SpeedLimitWaived` is set and which is **not** under a Class B shelf (the AP/1B waiver reaches 91.117(a) only);
 otherwise the cap — **200 kt** when `AirspaceDatabase.IsUnderClassBShelf` puts the aircraft laterally inside a Class B footprint but below its
 floor (91.117(c)), else **250 kt** (91.117(a)) — raised to `max(cap, AircraftPerformance.MinimumSafeSpeedKts)` for a type with
 `AircraftPerformance.IsSpeedLimitWaived` (91.117(d): a floor under the cap, never a removal of it).
 
-1. **Mach hold** — if `TargetMach` set and airborne, write `MachToIas(...)` into `TargetSpeed`, clamped to the regulatory limit (`:1078`).
-2. **Floor/ceiling/91.117 self-target** (`BoundsCorrectionTarget`, `:1184`) — if `TargetSpeed` is null, mint a target that corrects the bound
+1. **Mach hold** — if `TargetMach` set and airborne, write `MachToIas(...)` into `TargetSpeed`, clamped to the regulatory limit.
+2. **Floor/ceiling/91.117 self-target** (`FlightPhysics.BoundsCorrectionTarget`) — if `TargetSpeed` is null, mint a target that corrects the bound
    the aircraft is violating. Branch order is load-bearing: a `SpeedFloor` it is under, then a `SpeedCeiling` it is over, then 91.117 itself.
    The regulatory limit clamps the *effective* floor and ceiling, so a `SpeedFloor` above the cap never holds the aircraft up there. The
    regulatory arm is airborne-only: an aircraft with no target whose IAS exceeds the limit by more than `SpeedSnapKts` slows to it at the
@@ -216,21 +215,21 @@ floor (91.117(c)), else **250 kt** (91.117(a)) — raised to `max(cap, AircraftP
    Because the ceiling branch runs first, an aircraft over both lands on `min(cap, SpeedCeiling)`.
 3. **Auto altitude-band schedule** — if `TargetSpeed` is null, airborne, **not** `HasExplicitSpeedCommand`, `ActiveApproach` is null, the current
    phase does **not** have `ManagesSpeed == true`, and the aircraft is climbing/descending toward a target altitude → set `TargetSpeed` to
-   `AircraftPerformance.DefaultSpeed(...)`, honoring an active `SpeedCeiling` (`:1091`). This is the layer the approach/pattern phases suppress.
-4. **Ground `SpeedLimit` clamp** — `goal = min(goal, Ground.SpeedLimit)` when on the ground (`:1131`); this is the ground-conflict cap from
+   `AircraftPerformance.DefaultSpeed(...)`, honoring an active `SpeedCeiling`. This is the layer the approach/pattern phases suppress.
+4. **Ground `SpeedLimit` clamp** — `goal = min(goal, Ground.SpeedLimit)` when on the ground; this is the ground-conflict cap from
    [tick-loop.md](tick-loop.md)'s `GroundConflictDetector`.
-5. **14 CFR 91.117** — `goal = min(goal, regulatoryLimit)` (`:1138`): 250 below 10,000 ft, 200 under a Class B shelf. The layer first
+5. **14 CFR 91.117** — `goal = min(goal, regulatoryLimit)`: 250 below 10,000 ft, 200 under a Class B shelf. The layer first
    records `heldShortByRegulatoryLimit = goal > regulatoryLimit` — the cap holding the aircraft short of the speed it was told to fly — for
    layer 7.
 6. **`SpeedCeiling` continuous clamp** — `goal = min(goal, SpeedCeiling)` again, so even a non-procedural `TargetSpeed` (auto schedule,
-   pre-ceiling controller assignment) cannot escape the cap (`:1144`).
-7. **Snap + integrate** — `|diff| < snapWindow` → `ArriveAtGoal` (`:1223`) snaps IAS and **nulls `TargetSpeed` unless
+   pre-ceiling controller assignment) cannot escape the cap.
+7. **Snap + integrate** — `|diff| < snapWindow` → `ArriveAtGoal` snaps IAS and **nulls `TargetSpeed` unless
    `heldShortByRegulatoryLimit`**: a target above the regulatory limit stays standing at the cap, whichever clamp the aircraft actually
    settles on (a lower `SpeedCeiling` included), and is nulled only when the uncapped target is reached — so the aircraft takes its assigned
    or restored speed back up when the cap lifts (leaving the shelf, climbing through 10,000 ft; 220 → 250 → 280 as a ceiling and then the
    cap unwind). A target at or under the limit that a `SpeedCeiling` or the ground `SpeedLimit` stops retires on arrival. Only ATC ends a
    speed assignment (7110.65 §5-7-4), and a pilot must not fly an ATC speed that exceeds 91.117 (AIM 4-4-12.i; 200 kt beneath Class B,
-   AIM 4-4-12.j and 4-4-12.k NOTE). The window is `SpeedSnapKts` (2 kt, `:38`) airborne but
+   AIM 4-4-12.j and 4-4-12.k NOTE). The window is `SpeedSnapKts` (2 kt) airborne but
    `rate × deltaSeconds` on the ground, so a taxiing aircraft never snaps further than the one sub-tick it would have integrated anyway
    (2 kt is two whole seconds of taxi acceleration). Otherwise accelerate/decelerate at `SpeedChangeRate`: airborne
    `DesiredAccelRate ?? AircraftPerformance.AccelRate` / `DesiredDecelRate ?? AircraftPerformance.DecelRate`; on the ground
@@ -239,7 +238,7 @@ floor (91.117(c)), else **250 kt** (91.117(a)) — raised to `max(cap, AircraftP
    `DesiredDecelRate` is ignored when accelerating and `DesiredAccelRate` when decelerating. A tug move publishes both
    (`CategoryPerformance.TugAccelRate` 0.3 kt/s / `TugDecelRate` 1.0 kt/s), so nothing on a towbar starts or stops at the taxi rates.
 
-**Look-ahead planning** (`UpdateSpeedPlanning`, `:533`) runs before the integrator and pre-sets `TargetSpeed` so the aircraft *arrives* at a
+**Look-ahead planning** (`FlightPhysics.UpdateSpeedPlanning`) runs before the integrator and pre-sets `TargetSpeed` so the aircraft *arrives* at a
 procedure speed restriction at the constrained fix rather than reacting after it: it computes change-time vs time-to-fix and starts decel only
 when within 10% of the change time (accel starts immediately). It is fully suppressed when `HasExplicitSpeedCommand`, `SpeedRestrictionsDeleted`,
 or `TargetMach` is set.
@@ -251,7 +250,7 @@ target speeds are floored at the type's approach speed (`ClampFixSpeedToApproach
 140/110/75/70 default) so no procedure restriction can command an unflyable speed. Multi-`CFIX` presets compose into one sequential
 `;` compound (`SimulationEngine.DispatchPresetCommands`), so each subsequent `CFIX` becomes a deferred "at &lt;previous fix&gt;" queue block.
 
-**`AutoCancelSpeedAtFinal`** (`:1402`) runs right after `UpdateSpeed`: for an aircraft **inbound to land**
+**`AutoCancelSpeedAtFinal`** runs right after `UpdateSpeed`: for an aircraft **inbound to land**
 (`ApproachCommandHandler.IsInboundToLand`) and on final (`IsOnFinal` — pattern traffic flies its whole circuit inside 5 nm) at
 ≤ 5 nm from the assigned runway's **landing** threshold it releases the *explicit ATC* speed
 restriction (gated on `HasExplicitSpeedCommand`), per 7110.65 §5-7-1.b.4 — the controller can no longer adjust the speed, so
@@ -272,17 +271,17 @@ by `Targets.SpeedOverridesFinalGate`) is also exempt. The retained ceiling is cl
 climb-out (`GoAroundPhase`, `TouchAndGoPhase`, `StopAndGoPhase`, `LowApproachPhase` clear it in `OnStart`).
 
 The **AIM 5-4-1 NOTE 2 procedural-speed memory**: when the route is exhausted, `UpdateNavigation` publishes the last procedure speed
-(`Procedure.LastProcedureSpeedKts`) as a `SpeedCeiling` (`:192`) so the auto schedule cannot accelerate the aircraft above the last published
+(`Procedure.LastProcedureSpeedKts`) as a `SpeedCeiling` so the auto schedule cannot accelerate the aircraft above the last published
 speed — unless an explicit ATC speed is active.
 
 ## Position integration (`UpdatePosition`)
 
-`UpdatePosition(aircraft, deltaSeconds, weather)` (`FlightPhysics.cs:1009`) advances lat/lon with a flat-earth approximation
+`UpdatePosition(aircraft, deltaSeconds, weather)` (`FlightPhysics.cs`, `FlightPhysics.UpdatePosition`) advances lat/lon with a flat-earth approximation
 (`NmPerDegLat = 60`, longitude scaled by `cos(lat)`):
 
-- **Ground branch** (`:1014`): re-enforce `Ground.SpeedLimit` on IAS, move along `Ground.PushbackTrueHeading ?? TrueHeading` at
+- **Ground branch**: re-enforce `Ground.SpeedLimit` on IAS, move along `Ground.PushbackTrueHeading ?? TrueHeading` at
   `IAS / 3600` nm/s, and set `TrueTrack = TrueHeading` (track follows heading directly; GS = IAS on the ground).
-- **Airborne branch** (`:1034`): `TAS = IasToTas(IAS, alt)`; ground-speed vector = `TAS·(cos/sin heading) + wind`; **cache `WindComponents`**;
+- **Airborne branch**: `TAS = IasToTas(IAS, alt)`; ground-speed vector = `TAS·(cos/sin heading) + wind`; **cache `WindComponents`**;
   `TrueTrack = atan2(gsE, gsN)`; displace by the full GS vector. This is where wind makes track diverge from heading.
 
 ## Performance constants — the two-tier lookup
@@ -291,7 +290,7 @@ Production code **does not read `CategoryPerformance` directly** for profile-cov
 (`src/Yaat.Sim/AircraftPerformance.cs`):
 
 1. **Per-type profile** — `AircraftProfileDatabase.Get(aircraftType)` returns the `AircraftProfiles.json` profile, which carries
-   altitude-breakpoint values interpolated by `InterpolateByAltitude` (`AircraftPerformance.cs:44`) and may be adjusted by an
+   altitude-breakpoint values interpolated by `InterpolateByAltitude` (`AircraftPerformance.cs`, `AircraftPerformance.InterpolateByAltitude`) and may be adjusted by an
    `IProfileCorrectionAdapter` (default pass-through; an installable adapter, e.g. Eurocontrol, can correct climb/approach/pattern speeds and
    climb rates at runtime via `SetProfileCorrectionAdapter`). A committed **override layer**
    (`AircraftProfileOverrides.json`) merges authoritative per-type corrections on top — overridden fields bypass the correction adapter, and a
@@ -299,12 +298,12 @@ Production code **does not read `CategoryPerformance` directly** for profile-cov
 2. **Category fallback** — when no profile (and no override) exists for the type, `AircraftPerformance.*` falls back to the validated `CategoryPerformance` switch.
 
 So **editing the `CategoryPerformance` switch alone does not change behavior for a typed aircraft that has a profile.** Category determination is
-`AircraftCategorization.Categorize(aircraftType)` (`AircraftCategory.cs:34`): strips the `H/J/S` wake prefix (`AircraftState.StripTypePrefix`),
+`AircraftCategorization.Categorize(aircraftType)` (`AircraftCategory.cs`, `AircraftCategorization.Categorize`): strips the `H/J/S` wake prefix (`AircraftState.StripTypePrefix`),
 looks up the type, then tries `AircraftSiblingMap.TryResolve`, and finally **falls back to `AircraftCategory.Jet`** for unknown types.
 
 ### The validated category table (supersedes CLAUDE.md's 3-category summary)
 
-There are **four** categories — Jet, Turboprop, Piston, **Helicopter** (`AircraftCategory.cs:6`). All values are
+There are **four** categories — Jet, Turboprop, Piston, **Helicopter** (`AircraftCategory.cs`, `AircraftCategory`). All values are
 aviation-sim-expert-validated against the AIM / FAA 7110.65. Airborne kinematics constants from `CategoryPerformance`:
 
 | Constant (method) | Jet | Turboprop | Piston | Helicopter |
@@ -321,7 +320,7 @@ aviation-sim-expert-validated against the AIM / FAA 7110.65. Airborne kinematics
 | `GroundAccelIdleRate` (kt/s, at brake release) | 1.0 | 0.8 | 0.5 | 2.0 |
 | `GroundAccelSpoolSeconds` (s, idle → takeoff thrust) | 5 | 4 | 3 | 0 |
 
-`DefaultSpeed(cat, altitude)` (`AircraftCategory.cs:836`) — the auto-schedule speed by altitude band:
+`DefaultSpeed(cat, altitude)` (`AircraftCategory.cs`, `CategoryPerformance.DefaultSpeed`) — the auto-schedule speed by altitude band:
 
 | Category | Speed schedule (KIAS by altitude) |
 |---|---|
@@ -331,7 +330,7 @@ aviation-sim-expert-validated against the AIM / FAA 7110.65. Airborne kinematics
 | Helicopter | < 10k → 100 · ≥ 10k → 120 |
 
 Snap thresholds are constants on `FlightPhysics`: heading `HeadingSnapDeg = 0.5°`, altitude `AltitudeSnapFt = 10 ft`, speed
-`SpeedSnapKts = 2 kt` (`FlightPhysics.cs:12`).
+`SpeedSnapKts = 2 kt` (`FlightPhysics.cs`, `FlightPhysics.SpeedSnapKts`).
 
 `CategoryPerformance` carries many more constants used by the pattern, ground, and rollout subsystems — pattern geometry (`PatternSizeNm`,
 `CrosswindExtensionNm`, `BaseExtensionNm`, `PatternTurnRate`, `PatternDescentRate`, `MaxPatternDescentRate`, `MaxPatternDescentAngleDeg`, `DownwindSpeed`, `BaseSpeed`), holding (`MaxHoldingSpeed`),
@@ -340,17 +339,17 @@ pattern-geometry, ground, and landing docs; this doc owns the airborne kinematic
 
 ## The command-queue half (`UpdateCommandQueue`) — summary only
 
-`UpdateCommandQueue(aircraft, deltaSeconds, aircraftLookup)` (`FlightPhysics.cs:1062`) evaluates the `CommandQueue` after position integration.
+`UpdateCommandQueue(aircraft, deltaSeconds, aircraftLookup)` (`FlightPhysics.cs`, `FlightPhysics.UpdateCommandQueue`) evaluates the `CommandQueue` after position integration.
 Full depth is in [command-pipeline.md](command-pipeline.md) and [phases.md](phases.md); the physics-relevant facts:
 
 - **While a phase is active** (`Phases.CurrentPhase != null`), block *advancement* and untriggered-block *application* are skipped — phases own
-  `ControlTargets`. Only conditional triggers are still watched (`ApplyReadyConditionalBlocks`, `:1143`), so e.g. `SPD 210 UNTIL 10` can fire its
-  block mid-approach (`:1076`).
-- **Trigger types** (`IsTriggerMet`, `:1264`): `ReachAltitude`, `ReachFix`, `InterceptRadial`, `ReachFrdPoint`, `GiveWay`, `DistanceFinal`,
+  `ControlTargets`. Only conditional triggers are still watched (`FlightPhysics.ApplyReadyConditionalBlocks`), so e.g. `SPD 210 UNTIL 10` can fire its
+  block mid-approach.
+- **Trigger types** (`FlightPhysics.IsTriggerMet`): `ReachAltitude`, `ReachFix`, `InterceptRadial`, `ReachFrdPoint`, `GiveWay`, `DistanceFinal`,
   `OnHandoff`, `AtGroundEntity`, `EnteringHoldingAfterExit`, `AfterRunwayCrossing`, `AfterCycleTerminator` (`OTG`: latches on a
   touch-and-go / stop-and-go / low approach / go-around phase and fires once the aircraft has left it and is airborne; a full-stop landing marks it `TriggerMissed` and `DiscardMissedCycleTerminatorBlocks` drops it and its chain remainder (`DiscardChainRemainder`) with an "unable — landed full stop" warning at the next queue update; P/CG UNABLE, 7110.65 §3-8-2).
-- **The three `Notify*` hooks** are the *only* way a queued block fires while a phase owns control: `NotifyFixSequenced` (`:1513`, from route/
-  approach sequencing), `NotifyGroundEntityReached` (`:1555`, from `TaxiingPhase`), `NotifyPhaseAdvanced` (`:1629`, from `PhaseRunner`). Forget the
+- **The three `Notify*` hooks** are the *only* way a queued block fires while a phase owns control: `NotifyFixSequenced` (from route/
+  approach sequencing), `NotifyGroundEntityReached` (from `TaxiingPhase`), `NotifyPhaseAdvanced` (from `PhaseRunner`). Forget the
   hook and a sequential compound like `TAXI…;CTO` sits untouched until the next user dispatch.
 
 ## Magnetic declination caching
@@ -362,9 +361,9 @@ physics cost; declination changes slowly enough that sub-nm motion can reuse the
 itself memoizes results on a process-wide 0.02° grid (evaluated at cell centres, so the value never depends on evaluation order) — see
 [weather-and-wind.md](weather-and-wind.md#magnetic-declination-magneticdeclinationcs).
 
-If `Position` is non-finite or out of range (`|lat| > 90`, `|lon| > 180`), the WMM update is **skipped and logged** (`:72`) rather than throwing
+If `Position` is non-finite or out of range (`|lat| > 90`, `|lon| > 180`), the WMM update is **skipped and logged** (`FlightPhysics.RefreshDeclinationCache`) rather than throwing
 — a `Geo.Coordinate` ctor would otherwise crash the tick. The previously cached value is kept. `DeclinationCachePosition` is `[JsonIgnore]`
-(`AircraftState.cs:63`), so the first tick after a snapshot restore always runs the full WMM eval to re-warm the cache.
+(`AircraftState.cs`, `AircraftState.DeclinationCachePosition`), so the first tick after a snapshot restore always runs the full WMM eval to re-warm the cache.
 
 ## Footguns & gotchas
 

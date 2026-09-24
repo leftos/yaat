@@ -77,7 +77,7 @@ public sealed class RunwayInfo
     /// This is the only length the runway carries. The nav data's <c>landing_distance_available</c> is
     /// deliberately not stored: it is declared per end and can differ between them (KSJC 12L 8,831 ft
     /// vs 30R 7,597 ft, AIM 4-3-4.d.4), and every caller here wants the physical extent instead — a
-    /// takeoff run (pre-threshold pavement is usable in either direction, AIM 2-3-3.b.8.2), a departure
+    /// takeoff run (pre-threshold pavement is usable in either direction, AIM 2-3-3.h.2), a departure
     /// flight path projection, or "crossed the runway end" (7110.65 §3-9-6, §3-10-3). An arrival's
     /// usable distance comes from <c>LandingThreshold</c> instead, which starts at the displaced
     /// threshold.

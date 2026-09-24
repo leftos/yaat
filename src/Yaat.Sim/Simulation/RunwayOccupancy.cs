@@ -50,7 +50,7 @@ public sealed record RunwayUse(string Callsign, RunwayInfo Runway, RunwayUseKind
 /// before this classifier existed. Geometry alone decides only for aircraft with no phases at all.
 ///
 /// Datums follow the 7110.65: the <em>pavement</em> rectangle for surface kinds (the pavement behind a displaced
-/// threshold is usable for takeoff and rollout, AIM 2-3-3.b.8.2) and the <em>landing</em> threshold
+/// threshold is usable for takeoff and rollout, AIM 2-3-3.h.2) and the <em>landing</em> threshold
 /// (<see cref="LandingThreshold"/>) for <see cref="RunwayUseKind.ShortFinal"/> and the distance/time helpers (§3-10-3 is
 /// written from the landing threshold). AGL is measured from the aligned runway end's elevation, not the field's.
 /// </summary>

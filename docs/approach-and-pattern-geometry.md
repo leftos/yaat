@@ -1069,7 +1069,7 @@ Which command handler builds which phase (parsing/dispatch live in
 | Holding (HOLD) | `NavigationCommandHandler` (`:876`) | `HoldingPatternPhase` |
 
 **An approach clearance cancels the assigned speed and restates a standing in-trail reduction.** `TryClearedApproachCore`
-and `TryPtac` both null `Targets.TargetSpeed` (7110.65 §5-7-1.d) and then call `RestateStandingInTrailReduction`. When the
+(`CAPP`), `TryPtac` (`PTAC`), `TryJoinApproachCore` (`JAPP`) and `TryClearedVisualApproach` (`CVA`) all null `Targets.TargetSpeed` (7110.65 §5-7-1.d) and then call `RestateStandingInTrailReduction`. When the
 same-runway protection pass is holding the arrival to a reduction (`Approach.SameRunwayProtectionCeilingKts` set), the
 reduction outlives the clearance — the pass re-stamps its `SpeedCeiling` every tick — so the controller says it:
 `NCT → UAL123: maintain 180 knots (in-trail spacing, restated with the approach clearance)`

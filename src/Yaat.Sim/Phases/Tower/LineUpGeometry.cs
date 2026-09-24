@@ -219,7 +219,7 @@ public static class LineUpGeometry
         double alongFromThreshFt =
             GeoMath.AlongTrackDistanceNm(acLat, acLon, runway.ThresholdLatitude, runway.ThresholdLongitude, runway.TrueHeading) * GeoMath.FeetPerNm;
         // Pavement, not the landing distance available: the pavement behind a displaced threshold is
-        // usable for takeoff in either direction (AIM 2-3-3.b.8.2), so a departure lining up there has
+        // usable for takeoff in either direction (AIM 2-3-3.h.2), so a departure lining up there has
         // more runway ahead of it than an arrival would have had.
         double pavementFt = runway.PavementLengthFt;
         double remainingRunwayFt = pavementFt - alongFromThreshFt;

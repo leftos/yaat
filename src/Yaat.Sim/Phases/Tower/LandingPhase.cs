@@ -408,7 +408,7 @@ public sealed class LandingPhase : Phase
         RunwayInfo? rwy = ctx.Runway;
         // The plan's threshold is the flare/touchdown/LAHSO datum, so it is the *landing* threshold:
         // pavement behind a displaced threshold is not available for landing in this direction
-        // (AIM 2-3-3.b.8.2). Falls back to the pavement end when no airport map is loaded.
+        // (AIM 2-3-3.h.2). Falls back to the pavement end when no airport map is loaded.
         LatLon threshold = rwy is not null ? LandingThreshold.Resolve(rwy, ctx.GroundLayout) : ctx.Aircraft.Position;
         var geometry = new LandingGeometry(
             FieldElevation: ctx.FieldElevation,

@@ -12,7 +12,7 @@ namespace Yaat.Sim.Tests;
 /// maps, every <c>RunwayInfo.ThresholdLatitude</c> sits within ~5 ft of <c>Coordinates[0]</c>/<c>[^1]</c>,
 /// so a displaced end (KSJC 30L, 2,537 ft) has no landing datum without the ground layout.
 ///
-/// AIM 2-3-3.b.8.2: pavement before a displaced threshold is available for takeoff in either direction
+/// AIM 2-3-3.h.2: pavement before a displaced threshold is available for takeoff in either direction
 /// and for rollout from the opposite end, but not for landing in that direction.
 /// </summary>
 public class LandingThresholdTests

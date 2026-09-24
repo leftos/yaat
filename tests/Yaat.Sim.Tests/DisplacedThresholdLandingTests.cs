@@ -11,7 +11,7 @@ namespace Yaat.Sim.Tests;
 /// <summary>
 /// Issue #324. Approaches were flown to the pavement end, so on a runway with a displaced threshold the
 /// aircraft touched down short of the landing threshold — on pavement that is departures-only for that
-/// direction (AIM 2-3-3.b.8.2). KSJC 30L is the extreme case in the shipped test data: 2,537 ft of
+/// direction (AIM 2-3-3.h.2). KSJC 30L is the extreme case in the shipped test data: 2,537 ft of
 /// displacement, more than the whole touchdown float, so every landing rolled onto unlandable pavement.
 ///
 /// Drives the production path (<see cref="SimulationWorld.Tick"/> + <see cref="PhaseRunner.Tick"/> over
@@ -185,7 +185,7 @@ public class DisplacedThresholdLandingTests
     /// The arrival half of the pattern hangs off the landing threshold — the abeam point, and therefore
     /// the base turn, slide downfield with it. The departure half does not: AIM 4-3-2 anchors the
     /// crosswind turn beyond the *departure* end, and a takeoff may use the pre-threshold pavement in
-    /// either direction (AIM 2-3-3.b.8.2), so the departure end and crosswind turn stay put.
+    /// either direction (AIM 2-3-3.h.2), so the departure end and crosswind turn stay put.
     /// </summary>
     [Fact]
     public void PatternGeometry_DisplacedThreshold_MovesTheArrivalLegsOnly()

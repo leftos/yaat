@@ -25,15 +25,7 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 Findings and small items with no subplan and no report behind them, grouped (plan hygiene 2026-09-17) into waves a release can be built around: a wave's items share files and one review gate, so one implementer reads those files once. Take a wave top to bottom, or a whole wave as one release; the Singles share nothing and go one at a time.
 
-### Wave 1 — Same-runway arrival protection follow-ups
-
-Shared files: `SimulationEngine.Generators.cs`, `SameRunwayArrivalProtection.cs`. Gate: `aviation-sim-expert`.
-
-- [ ] No test pins that a same-runway protection release stays silent for an arrival that has landed or gone around (implementer observation 2026-09-19): only `MayAnnounceRelease`'s `IsOnGround` clause covers it — add `Release_AfterLanding_IsSilent` / `Release_AfterGoAround_IsSilent` to `SameRunwayArrivalProtectionEngineTests`
-- [ ] `JAPP` and `CVA` issue approach clearances and do not restate a standing in-trail reduction — only `CAPP` and `PTAC` call `RestateStandingInTrailReduction` (docs sweep 2026-09-19): get an aviation ruling on whether §5-7-1.c binds a join-approach and a visual approach clearance the same way, then restate or record why not
-- [ ] "AIM 2-3-3.b.8.2" is cited for displaced thresholds in about ten source and test comments (`SoloTrainingEvaluator`, `ConflictAlertDetector`, `RunwayInfo`, `PatternGeometry`, `LandingPhase`, `LineUpGeometry`, `FinalApproachPhase`, `RunwayOccupancy`, `DisplacedThresholdLandingTests`, `LandingThresholdTests`, `RunwayLengthTests`); the paragraph is AIM 2-3-3.h.2 (aviation review 2026-09-19) — sweep them, and the stale `:NNN` line references in `docs/flight-physics.md` while there
-
-### Wave 2 — Ground realism and braking
+### Wave 1 — Ground realism and braking
 
 Shared files: `AircraftCategory.cs`, `LandingPhase.cs`, `FollowingPhase.cs`, `TugMovePlanner.cs`, `TugKinematics.cs`, `GroundConflictDetector.cs`. Gate: `aviation-sim-expert` (one batch; the retunes depend on each other and desync recordings together).
 
@@ -65,7 +57,7 @@ Shared files: `AircraftCategory.cs`, `LandingPhase.cs`, `FollowingPhase.cs`, `Tu
   - (d) Warm push-plan cost is ~50 ms alone and ~110 ms under suite load, the fallback judging ~32 ms of it (implementer figures, not re-measured; `AlleyPushPlan_SecondPlanReusesLayoutWork_Under100ms` holds the 100 ms budget) — profile it.
 - [ ] Category-aware fillet floor (`NoseWheelTurnRadiusFt`: 25 ft jet / 18 turboprop / 15 piston / 10 helicopter — shipped in f1cdfedf, 2026-04-23, not by the 2026-09-15 review; #165's SFO J133 case was fixed by the single-pathfinder work) — the open half is re-validating the reroute rate with the PathfinderGrid/Nightly sweeps; also from that review: the intra-fillet no-surge rule in `ArcProfileLimitKts`, `SpeedProfile` sample count vs missed curvature minima, the <45° straight-cut corner speed gap (`CornerSpeedForAngle` 26 kt at 45° vs ~10 kt over the arc)
 
-### Wave 3 — Ground command grammar and dispatch
+### Wave 2 — Ground command grammar and dispatch
 
 Shared files: `CommandRegistry.cs`, `GroundCommandParser.cs`, `CommandDispatcher.cs`, `DepartureClearanceHandler.cs`, `GroundCommandHandler.cs`, `HoldingShortPhase.cs`, `docs/command-aliases/atctrainer-commands.json`. Gate: `csharp-reviewer`; `aviation-sim-expert` for the FOLLOWG and cancelled-takeoff rulings.
 
@@ -79,7 +71,7 @@ Shared files: `CommandRegistry.cs`, `GroundCommandParser.cs`, `CommandDispatcher
 
 - [ ] `GroundCommandHandler` leftovers from #455/#457 (2026-09-23): `TryTaxiCore` is still far over the 100-line limit after `ResolveFromBestStart` was lifted out; `ResolveStandardRoute`/`ResolveParkingRoute` take 7 positional parameters (the ≤5 limit; `occupiedTaxiway` added the 7th); the held-short leg's "reverses" rejection has no test, because a sweep of every SFO/OAK junction found no pose where it fires and the as-cleared fallback still resolves
 
-### Wave 4 — Ground routing, pathfinder and their docs
+### Wave 3 — Ground routing, pathfinder and their docs
 
 Shared files: `RouteCostFunction.cs`, `TaxiingPhase.cs`, `GroundNavigator.cs`, `GroundConflictDetector.cs`, `tests/…/TaxiBudgetDeriver.cs`, `docs/ground-layout-generation.md`, `TestData/sfo.geojson`. Gate: `csharp-reviewer`; the `layout-inspect` skill for every repro.
 
@@ -93,7 +85,7 @@ Shared files: `RouteCostFunction.cs`, `TaxiingPhase.cs`, `GroundNavigator.cs`, `
 - [ ] #454/#461 review findings not fixed (aviation + csharp review 2026-09-23): (a) the resolved-route roll-in (`RampLaneReposition.TryPlanResolvedRouteCut`) settles ~3° off the stand heading after a short route — the navigator rounds the approach-point corner; (b) `GeoJsonParser` turns a missing stand heading into 0°, so a stand without one would roll in from due south; (c) a failing TAXI to a stand costs a few hundred ms on the shared tick thread (SFO `TAXI F $16` 372 ms) — profile it; (d) at a runway bar the route-incomplete cut moved back to, the note names the missing taxiway while the pilot reports the runway; (e) `ImpliedRunwayEntryConnector` accepts any numbered variant, broader than 7110.65 §3-7-2.b NOTE's approach-end rule
 - [ ] `docs/ground-layout-generation.md`'s "Fillet Arc Generator" section documents the removed Legacy generator (Phase A–D), not the current `src/Yaat.Sim/Data/Airport/Fillet/` implementation that `docs/ground/fillet-generator.md` covers — rewrite or delete it (found 2026-09-15). Its Phase-D "collinear through-pair forces `preserveNode`" rule still describes real behaviour and needs a home in the current doc
 
-### Wave 5 — Replay, rewind and stuck-taxi repros
+### Wave 4 — Replay, rewind and stuck-taxi repros
 
 Shared files: `RecordingManager.cs`, `TrainingHub.cs` (yaat-server), `LineUpPhase.cs`, `tests/Yaat.Sim.Tests/ModuleInit.cs`, the named recordings. Gate: `csharp-reviewer`; the `bug-bundle` skill for every recording.
 
@@ -107,7 +99,7 @@ Shared files: `RecordingManager.cs`, `TrainingHub.cs` (yaat-server), `LineUpPhas
 - [ ] The `sfo-gc-arrival-goarounds` recording logs `No dispatcher arm for PushbackCommand (Pushback onto M4) on KLM606` / `(Pushback onto T7B) on SKW5707` → `[Preset] … could not apply`, `No dispatcher arm for TaxiCommand (Taxi via T7B to spot 7B)`, `Runway lookup failed for N346G: runway 'E' not found at SFO`, and `Procedure leg fix 'RW28R' (CF) not found in CIFP terminal waypoints` on every replay (2026-09-17). Decide whether each is a replay-fidelity gap (a recorded action the reconstruction cannot apply) or noise to silence; none is exercised by a test today.
 - [ ] **Suite-order flake: `AutoTrackRecordingTests.ASimSideReplayOfAFreshRecordingAutoTracksTheFloorCrossingBetweenSnapshots`** (yaat-server, seen once 2026-09-19 in `tools/test-all.ps1`; passed alone and on a full re-run): the trace showed the scenario's `CM 050` preset never applied — altitude flat at 60 ft, `vs=0`, no phase, for all 20 ticks — so the floor crossing never happened; suspect state shared between tests (a static the preset path reads) rather than timing. [`docs/test-harness.md`](../test-harness.md) "passes alone but flakes in the suite" is the method
 
-### Wave 6 — Command queue and dispatch architecture
+### Wave 5 — Command queue and dispatch architecture
 
 Shared files: `FlightPhysics.cs` (`UpdateCommandQueue`), `CommandDescriber.cs`, `CommandDispatcher.cs`, `DispatchContext.cs`, `SimulationEngine.Commands.cs`. Gate: `csharp-reviewer`; `docs/command-chaining.md` is the contract.
 
@@ -119,7 +111,7 @@ Shared files: `FlightPhysics.cs` (`UpdateCommandQueue`), `CommandDescriber.cs`, 
 - [ ] `DispatchContext` has 15 positional record parameters (csharp review 2026-09-08; the ≤5 cap): every new field touches six engine construction sites — move to init-only properties with object-initializer construction so the next field is a one-line change
 - [ ] Every flight-plan amendment now re-broadcasts the aircraft's vTDLS item (2026-09-08), including the high-frequency `CrcImpliedBareSlew` owner-slew beacon accept and empty amendments (the revision counter bumps on a no-op by design): decide whether the mark should skip amendments that changed no header field, or whether the per-item push is cheap enough to leave
 
-### Wave 7 — Strips, TDLS, air-taxi and hub
+### Wave 6 — Strips, TDLS, air-taxi and hub
 
 Shared files: `SimulationEngine.Strips.cs`, `StripMutations.cs`, `AirTaxiPhase.cs`, `CommandParser.cs`, `CrcClientState.Stars.cs` (yaat-server), `RpoJoinGateTests.cs` (yaat-server). Gate: `csharp-reviewer`; `aviation-sim-expert` for the ATXI runway rule.
 
@@ -136,7 +128,7 @@ Shared files: `SimulationEngine.Strips.cs`, `StripMutations.cs`, `AirTaxiPhase.c
 - [ ] `StripMutations.MoveStripToBayRack` (~91-110) inserts a moved strip into its new bay row without refreshing `StripItemRecord.Index`, so a moved blank's recorded index can disagree with its visual slot and `BLANKD`'s lowest-index pick follows the stale value (implementer observation 2026-09-22; deterministic, so no replay risk)
 - [ ] `BLANKD <facility>/<bay>/<rack>` with a rack past the bay's rack count answers "No blank strips in <bay>" instead of a rack-out-of-range message as `BLANK` gives (`HandleBlankDelete` never checks `bay.NumberOfRacks`; implementer observation 2026-09-22)
 
-### Wave 8 — Client UI cleanup
+### Wave 7 — Client UI cleanup
 
 - [ ] The Ground View's route overlay re-plans a spot line-up (#456) from the aircraft's nearest node on every refresh, so partway across the apron or early on the run-in it draws a different join or a leg back out, until the aircraft reaches the lane (user pick 2026-09-23: backlog). The ramp cuts have the same limitation mid-cut. Fix: carry the line-up's approach point and join in the aircraft update so `GroundViewModel.ResolveRemainingRoute` draws the server's remaining line-up instead of re-planning; red cases were `SpotLineUp_PartwayAlongTheRunIn_DrawsNoLegBackOut` at 0.15/0.3 and an apron-crossing case at 0.3/0.6 of the crossing (`GroundViewModelApproachLegOverlayTests`)
 
@@ -148,7 +140,7 @@ Shared files: `UserPreferences.cs`, `RadarDatablockLayout.cs`, `GroundViewModel.
 - [ ] `ScenarioBootstrap` takes 7 positional parameters (the ≤5 limit; #439 added `ElapsedSeconds`) — required-member object-initializer construction would make the next field a one-line change across its 15 test call sites
 - [ ] `DiscordRichPresenceService` never inspects the `SET_ACTIVITY` response, so a rejection for any reason other than field length (clamped to 128) is silent; and no log-capturing seam exists in `AppLog`, so "Discord is not running is logged once per absence" is untested (#439 review 2026-09-19)
 
-### Wave 9 — Live traffic
+### Wave 8 — Live traffic
 
 Shared files: `RunwaySafetyAdvisor.cs`, yaat-server `LiveTraffic/`, `docs/plans/live-traffic-swim/08-remaining-work.md`. Gate: `aviation-sim-expert`.
 
@@ -157,7 +149,7 @@ Shared files: `RunwaySafetyAdvisor.cs`, yaat-server `LiveTraffic/`, `docs/plans/
 - [ ] Live-session filter follow-ups deferred by yaat-server `live-traffic-swim/10-live-session-filters.md` (re-added 2026-09-22; the pointer promised them here): (a) three-state rules on the shadow's datablock/assume path; (b) CA gated to the facility volume (`ConflictAlertDetector.IsPairEligible` has no volume gate); (c) SFDPS flight-rules enum audit
 - [ ] Scenario-export follow-ups from the 2026-09-23 review (`ScenarioExporter.cs`): (a) an aircraft lined up at an intersection reloads at the full-length threshold (the loader's `OnRunway` start has no intersection); (b) a `CM` with an at-or-above / at-or-below modifier exports as a plain `CM`; (c) no test covers the "filed route, not trimmed" flag; (d) a shadow holding in position on a runway is flagged, not exported `OnRunway` (needs a runway-surface occupancy lookup)
 
-### Wave 10 — Docs and repo hygiene
+### Wave 9 — Docs and repo hygiene
 
 Shared files: root `*.md`, `docs/scenario-validation-known-failures.md`, solution-wide `dotnet format`. Gate: none.
 
