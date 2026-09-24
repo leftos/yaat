@@ -31,6 +31,9 @@
 - `JAPP` and `CVA` restate a standing in-trail speed reduction with the clearance, as `CAPP` and `PTAC` already do.
 
 ### Fixed
+- Loading a recording clears the previous run's flight strips and PDCs from every client's screen.
+- A rewind no longer brings back a deleted live-traffic aircraft.
+- A CRC position picked while a recording plays back is kept after a later rewind.
 - `PUSH $7A` and `PUSH $7B` from SFO gate F8 are no longer refused.
 - A taxi starting just short of a curved junction no longer fails with an internal error.
 - A taxi whose first turn aims past a hold-short now stops at the painted bar, not on the junction.

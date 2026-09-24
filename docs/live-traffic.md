@@ -252,7 +252,7 @@ reached on every run kind rather than live only: the `Suppressed.Add` is uncondi
 removes and records only while a shadow is still there, so a replayed record writes no second removal. `BareHost` and
 `ReplayHost` no-op the consumer — a Sim replay has no feed to suppress. A feed-sourced removal (`Stale`, `Dropped`,
 `OutOfScope`, `Disabled`, `Reanchored`) suppresses nothing: that shadow is meant to come back when the feed re-supplies
-it. Pins: `LiveTrafficRemovalSuppressionTests` (Sim, including the after-the-removal ordering), `LiveTrafficReplayServerTests` (the rewind). Still open: a reconstruction seeded from a snapshot taken *after* the `DEL` skips the record (`RecordedActionPump.SeekTo`) and a planned-restart restore never carries the set — MAIN.md backlog.
+it. Pins: `LiveTrafficRemovalSuppressionTests` (Sim, including the after-the-removal ordering), `LiveTrafficReplayServerTests` (the rewind). A reconstruction seeded from a snapshot skips every record at or before the snapshot's second (`RecordedActionPump.SeekTo`), so right after `host.SkipThrough(fromSecond)` `RecordingManager.ReconstructViaServerTick` re-raises the suppression for each skipped `Deleted` removal (`ElapsedSeconds <= fromSecond`, the `DEL`'s own second included), under the replay profile so no second removal is recorded. Only skipped records are re-raised: a rewind to before the `DEL` shows the shadow again until the removal replays. Still open: a planned-restart restore never carries the set — MAIN.md backlog.
 
 **Samples are pre-tick actions.** Live, samples land in pre-physics of second *t*; `SimulationEngine.IsPreTickAction`
 therefore lists `RecordedLiveTrafficSample` next to `RecordedAircraftSpawn`, and every Sim-side replay loop (`Replay`,
