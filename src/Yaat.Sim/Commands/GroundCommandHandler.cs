@@ -2868,18 +2868,41 @@ public static class GroundCommandHandler
             _ => PushWords.Named("node", goal.Node!.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)),
         };
 
+    /// <summary>A marked point's goal for the pushed aircraft, the facing converted to true at its position.</summary>
+    private static TugGoal MarkedPointGoal(AircraftState aircraft, PushFreePose pose, MagneticHeading? otherFacing, string label) =>
+        ResolveMarkedPointGoal(pose, otherFacing, aircraft.Position, label);
+
     /// <summary>
     /// A marked point's goal: a node minted at the point (<see cref="VirtualNode.Create"/>, so the same position is the
     /// same node), on the point's own facing or else <paramref name="otherFacing"/> (a <c>FACE</c>/<c>TAIL</c>, or a
     /// <c>PUSHM</c>'s final facing), converted to true as every facing the controller names is.
+    ///
+    /// <para>Public because the ground view's push-route preview resolves the marked points of the command it is about
+    /// to send through this same body, so the drawn path and the executed move convert the facing identically.</para>
     /// </summary>
-    private static TugGoal MarkedPointGoal(AircraftState aircraft, PushFreePose pose, MagneticHeading? otherFacing, string label)
+    /// <param name="pose">The marked point.</param>
+    /// <param name="otherFacing">The command's facing when the point carries none of its own, or null.</param>
+    /// <param name="declinationAt">Where the magnetic facing is converted to true: the pushed aircraft's position.</param>
+    /// <param name="label">How the readback names the point.</param>
+    /// <returns>The goal.</returns>
+    public static TugGoal ResolveMarkedPointGoal(PushFreePose pose, MagneticHeading? otherFacing, LatLon declinationAt, string label)
     {
         MagneticHeading? facing = pose.Facing ?? otherFacing;
-        double? facingTrueDeg = facing is { } magnetic ? MagneticDeclination.MagneticToTrue(magnetic.Degrees, aircraft.Position) : null;
+        double? facingTrueDeg = facing is { } magnetic ? MagneticDeclination.MagneticToTrue(magnetic.Degrees, declinationAt) : null;
         string? facingWord = facing is { } named ? GroundCommandParser.CardinalWord(named) : null;
         return TugGoal.FreePose(VirtualNode.Create(pose.Latitude, pose.Longitude), facingWord, pose.Facing is null ? null : facingTrueDeg, label);
     }
+
+    /// <summary>
+    /// How a refusal names the marked point at <paramref name="index"/> among a push's targets: <c>the marked point</c>
+    /// when it is the only one, <c>marked point 2</c> among several. Public so the ground view's push-route preview
+    /// labels its marked points as the executed command does, and so refuses them in the same words.
+    /// </summary>
+    /// <param name="legs">The push's targets, in order.</param>
+    /// <param name="index">The target, a marked point.</param>
+    /// <returns>The label.</returns>
+    public static string MarkedPointLabel(IReadOnlyList<PushDestination> legs, int index) =>
+        PushReadbackPhrases.MarkedPointLabel(PushReadbackPhrases.MarkedPointNumber(legs, index));
 
     /// <summary>
     /// <c>Push to spot 7A</c> with the push's facing; with none, the RPO note names the taxiway the spot's nose-out facing
@@ -3661,12 +3684,7 @@ public static class GroundCommandHandler
             PushDestination leg = move.Legs[i];
             MagneticHeading? finalFacing = i == (move.Legs.Count - 1) ? move.FinalFacing : null;
             TugGoal? goal = leg.FreePose is { } pose
-                ? MarkedPointGoal(
-                    aircraft,
-                    pose,
-                    finalFacing,
-                    PushReadbackPhrases.MarkedPointLabel(PushReadbackPhrases.MarkedPointNumber(move.Legs, i))
-                )
+                ? MarkedPointGoal(aircraft, pose, finalFacing, MarkedPointLabel(move.Legs, i))
                 : ResolveTugGoal(groundLayout, leg.Token);
             if (goal is null)
             {

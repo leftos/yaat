@@ -78,6 +78,11 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         nameof(PushRoutePreview)
     );
 
+    public static readonly StyledProperty<IReadOnlyList<PushWaypointMark>?> PushWaypointMarksProperty = AvaloniaProperty.Register<
+        GroundCanvas,
+        IReadOnlyList<PushWaypointMark>?
+    >(nameof(PushWaypointMarks));
+
     public static readonly StyledProperty<IReadOnlyList<ShownTaxiRouteEntry>?> ShownTaxiRoutesProperty = AvaloniaProperty.Register<
         GroundCanvas,
         IReadOnlyList<ShownTaxiRouteEntry>?
@@ -298,7 +303,20 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     // release can tell a drag from a click.
     private RblEndpoint? _measureDragAnchor;
     private Point _measureDragStart;
-    private const double MeasureDragThresholdSq = 25.0;
+
+    /// <summary>
+    /// How far, squared in pixels, a press must travel before its release is a drag rather than a click: the Alt+drag
+    /// measure and the Shift+drag marked-point facing both use it.
+    /// </summary>
+    private const double ClickDragThresholdSq = 25.0;
+
+    // Shift+click or Shift+drag while drawing a push route: where the press landed (the marked point) and the button
+    // that started it (the right button also finishes the route). Null when no such gesture is in progress.
+    private Point? _freePointPress;
+    private MouseButton _freePointButton;
+
+    /// <summary>How close to a push-route marker's centre, in pixels, a right-click lands on that marker.</summary>
+    private const float PushMarkerHitRadiusPx = 10f;
 
     /// <summary>The last pointer position over the canvas, updated on every move.</summary>
     private Point _pointerPos;
@@ -577,6 +595,16 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         set => SetValue(PushRoutePreviewProperty, value);
     }
 
+    /// <summary>
+    /// The push route's point markers, aligned with <see cref="DrawWaypoints"/> (positions, marked-point facings, forced
+    /// kinds), or null when no push route is being drawn — which is also how the canvas tells push-draw from taxi-draw.
+    /// </summary>
+    public IReadOnlyList<PushWaypointMark>? PushWaypointMarks
+    {
+        get => GetValue(PushWaypointMarksProperty);
+        set => SetValue(PushWaypointMarksProperty, value);
+    }
+
     public IReadOnlyList<ShownTaxiRouteEntry>? ShownTaxiRoutes
     {
         get => GetValue(ShownTaxiRoutesProperty);
@@ -647,6 +675,19 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// <summary>Fired when the hovered node changes during draw mode. Args: nodeId (null if no node).</summary>
     public event Action<int?>? DrawNodeHovered;
 
+    /// <summary>
+    /// Fired on a right-click while a push route is being drawn. Args: the indices of every point marker under the
+    /// pointer, and the node under it (null if none).
+    /// </summary>
+    public event Action<IReadOnlyList<int>, int?>? PushRouteRightClicked;
+
+    /// <summary>
+    /// Fired when a Shift+click or Shift+drag places a marked point while a push route is being drawn. Args: the point
+    /// (where the press landed, never snapped to a node), where a drag was released (null for a click, whose point
+    /// has no facing), and whether it was the right button, which also finishes the route.
+    /// </summary>
+    public event Action<LatLon, LatLon?, bool>? DrawFreePointPlaced;
+
     /// <summary>Fired when the measuring tool picks an endpoint — first click anchors, second completes.</summary>
     public event Action<RblEndpoint>? MeasurePointPicked;
 
@@ -684,6 +725,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             || change.Property == DrawHoverPreviewProperty
             || change.Property == DrawWaypointsProperty
             || change.Property == PushRoutePreviewProperty
+            || change.Property == PushWaypointMarksProperty
             || change.Property == ShownTaxiRoutesProperty
             || change.Property == ShowDebugInfoProperty
             || change.Property == ShowRunwayLabelsProperty
@@ -745,6 +787,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         TaxiRoute? DrawnRoutePreview,
         TaxiRoute? DrawHoverPreview,
         IReadOnlyList<int>? DrawWaypoints,
+        IReadOnlyList<PushWaypointMark>? PushWaypointMarks,
         TugPlan? PushRoutePreview,
         bool IsDrawingRoute,
         IReadOnlyDictionary<string, SKPoint> DataBlockOffsets,
@@ -843,6 +886,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             DrawnRoutePreview,
             DrawHoverPreview,
             DrawWaypoints,
+            PushWaypointMarks,
             PushRoutePreview,
             IsDrawingRoute,
             new Dictionary<string, SKPoint>(state.ManualOffsets),
@@ -893,6 +937,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             s.DrawnRoutePreview,
             s.DrawHoverPreview,
             s.DrawWaypoints,
+            s.PushWaypointMarks,
             s.PushRoutePreview,
             s.DataBlockOffsets,
             s.DeconflictOffsets,
@@ -1199,6 +1244,11 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return;
         }
 
+        if (TryBeginFreePointGesture(e, pos, props))
+        {
+            return;
+        }
+
         // Right button: record the press and let panning start, but decide nothing yet. Which of the two
         // gestures this is — a click that opens a menu, or a drag that pans — is only known on release,
         // once we can see whether the pointer moved. Firing a menu here would mean a right-drag that
@@ -1325,6 +1375,14 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
+        if ((_freePointPress is { } freePointPress) && (e.InitialPressMouseButton == _freePointButton))
+        {
+            _freePointPress = null;
+            PlaceFreePoint(freePointPress, e.GetPosition(this));
+            e.Handled = true;
+            return;
+        }
+
         // A right press that never became a drag is a click; a drag was a pan and owes no menu.
         if (e.InitialPressMouseButton == MouseButton.Right && _rightClick.Release() is { } rightClickPos)
         {
@@ -1338,7 +1396,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
             double mdx = measureReleasePos.X - _measureDragStart.X;
             double mdy = measureReleasePos.Y - _measureDragStart.Y;
-            if ((mdx * mdx) + (mdy * mdy) > MeasureDragThresholdSq)
+            if ((mdx * mdx) + (mdy * mdy) > ClickDragThresholdSq)
             {
                 MeasureDragCompleted?.Invoke(measureAnchor, MeasureEndpointAt(measureReleasePos));
             }
@@ -1393,6 +1451,14 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
         if (IsDrawingRoute)
         {
+            // A push route decides in the view model whether the click finishes the route or opens an earlier
+            // point's push/pull menu, so it gets the markers under the pointer as well as the node.
+            if (PushWaypointMarks is { } marks)
+            {
+                PushRouteRightClicked?.Invoke(PushMarkersAt(marks, screenPos), FindNodeAtPoint(screenPos)?.Id);
+                return true;
+            }
+
             // Right-click finishes the drawn route at the clicked node; anywhere else it does nothing,
             // so the gesture stays free for panning while the route is being laid out.
             GroundNodeDto? drawNode = FindNodeAtPoint(screenPos);
@@ -1454,6 +1520,73 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         }
 
         return false;
+    }
+
+    /// <summary>True while a push route is being drawn: its markers are only published in push-draw mode.</summary>
+    private bool IsDrawingPushRoute => IsDrawingRoute && (PushWaypointMarks is not null);
+
+    /// <summary>
+    /// Ends a Shift gesture: the marked point is where the press landed; a release past the click threshold also gives
+    /// it a facing toward the release.
+    /// </summary>
+    private void PlaceFreePoint(Point press, Point release)
+    {
+        (double lat, double lon) = Viewport.ScreenToLatLon((float)press.X, (float)press.Y);
+        double dx = release.X - press.X;
+        double dy = release.Y - press.Y;
+        LatLon? dragTo = null;
+        if (((dx * dx) + (dy * dy)) > ClickDragThresholdSq)
+        {
+            (double toLat, double toLon) = Viewport.ScreenToLatLon((float)release.X, (float)release.Y);
+            dragTo = new LatLon(toLat, toLon);
+        }
+
+        DrawFreePointPlaced?.Invoke(new LatLon(lat, lon), dragTo, _freePointButton == MouseButton.Right);
+    }
+
+    /// <summary>
+    /// Shift while drawing a push route places a marked point where the press lands, even over a node or a datablock,
+    /// and never pans: the release decides whether it was a click (no facing) or a drag (the facing). Not while
+    /// measuring, where a right-click cancels the measurement.
+    /// </summary>
+    /// <returns>True when the press started the gesture and is handled.</returns>
+    private bool TryBeginFreePointGesture(PointerPressedEventArgs e, Point pos, PointerPointProperties props)
+    {
+        bool shiftClick = e.KeyModifiers.HasFlag(KeyModifiers.Shift) && (props.IsLeftButtonPressed || props.IsRightButtonPressed);
+        if (!IsDrawingPushRoute || IsMeasuring || !shiftClick)
+        {
+            return false;
+        }
+
+        _freePointPress = pos;
+        _freePointButton = props.IsRightButtonPressed ? MouseButton.Right : MouseButton.Left;
+        e.Handled = true;
+        return true;
+    }
+
+    /// <summary>A lost capture ends a Shift gesture without placing anything, so a later release cannot finish a stale one.</summary>
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        _freePointPress = null;
+        base.OnPointerCaptureLost(e);
+    }
+
+    /// <summary>The indices of every push-route marker within <see cref="PushMarkerHitRadiusPx"/> of the pointer, in order.</summary>
+    private List<int> PushMarkersAt(IReadOnlyList<PushWaypointMark> marks, Point screenPos)
+    {
+        var hits = new List<int>();
+        for (int i = 0; i < marks.Count; i++)
+        {
+            (float x, float y) = Viewport.LatLonToScreen(marks[i].Position.Lat, marks[i].Position.Lon);
+            double dx = x - screenPos.X;
+            double dy = y - screenPos.Y;
+            if (((dx * dx) + (dy * dy)) <= (PushMarkerHitRadiusPx * PushMarkerHitRadiusPx))
+            {
+                hits.Add(i);
+            }
+        }
+
+        return hits;
     }
 
     public GroundNodeDto? FindNodeAtPoint(Point screenPos)

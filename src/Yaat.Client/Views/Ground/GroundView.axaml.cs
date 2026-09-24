@@ -57,6 +57,8 @@ public partial class GroundView : UserControl
         _canvas.DrawNodeClicked += OnDrawNodeClicked;
         _canvas.DrawNodeFinished += OnDrawNodeFinished;
         _canvas.DrawNodeHovered += OnDrawNodeHovered;
+        _canvas.PushRouteRightClicked += OnPushRouteRightClicked;
+        _canvas.DrawFreePointPlaced += OnDrawFreePointPlaced;
         _canvas.HoveredAircraftChanged += OnAircraftHovered;
         _canvas.MeasurePointPicked += OnMeasurePointPicked;
         _canvas.MeasureDragCompleted += OnMeasureDragCompleted;
@@ -97,6 +99,8 @@ public partial class GroundView : UserControl
             _canvas.DrawNodeClicked -= OnDrawNodeClicked;
             _canvas.DrawNodeFinished -= OnDrawNodeFinished;
             _canvas.DrawNodeHovered -= OnDrawNodeHovered;
+            _canvas.PushRouteRightClicked -= OnPushRouteRightClicked;
+            _canvas.DrawFreePointPlaced -= OnDrawFreePointPlaced;
             _canvas.HoveredAircraftChanged -= OnAircraftHovered;
             _canvas.MeasurePointPicked -= OnMeasurePointPicked;
             _canvas.MeasureDragCompleted -= OnMeasureDragCompleted;
@@ -1176,8 +1180,14 @@ public partial class GroundView : UserControl
     /// </summary>
     private void FinishPushRoute(GroundViewModel vm, int nodeId)
     {
-        string? callsign = vm.PushRouteCallsign;
         vm.AddPushWaypoint(nodeId);
+        SendPushRoute(vm);
+    }
+
+    /// <summary>Sends the drawn tug move as it stands; a refused move sends nothing and stays in draw mode.</summary>
+    private void SendPushRoute(GroundViewModel vm)
+    {
+        string? callsign = vm.PushRouteCallsign;
         string? command = vm.FinishPushRoute();
         if (command is null || callsign is null)
         {
@@ -1185,6 +1195,90 @@ public partial class GroundView : UserControl
         }
 
         _ = vm.SendRawCommandAsync(callsign, GetInitials(), command);
+    }
+
+    /// <summary>
+    /// A right-click on a push route being drawn: on a target's marker it opens that leg's push/pull menu (the last
+    /// target's with <c>Send route</c> first), and anywhere else the clicked node (if any) becomes the last target and
+    /// the route is sent.
+    /// </summary>
+    private void OnPushRouteRightClicked(IReadOnlyList<int> markerHits, int? nodeId)
+    {
+        if (DataContext is not GroundViewModel vm || vm.DrawKind != DrawRouteKind.Push)
+        {
+            return;
+        }
+
+        (PushRightClickTarget target, int? waypointIndex) = vm.ClassifyPushRightClick(markerHits);
+        switch (target)
+        {
+            case PushRightClickTarget.EarlierWaypoint when waypointIndex is { } index:
+                ShowPushLegKindMenu(vm, index, offerSend: false);
+                break;
+            case PushRightClickTarget.LastWaypoint when waypointIndex is { } index:
+                ShowPushLegKindMenu(vm, index, offerSend: true);
+                break;
+            case PushRightClickTarget.NewPoint when nodeId is { } id:
+                FinishPushRoute(vm, id);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// A Shift+click or Shift+drag placed a marked point: a drag gives it the facing toward where it was released, and
+    /// the right button also sends the route.
+    /// </summary>
+    private void OnDrawFreePointPlaced(LatLon point, LatLon? dragTo, bool finish)
+    {
+        if (DataContext is not GroundViewModel vm || vm.DrawKind != DrawRouteKind.Push)
+        {
+            return;
+        }
+
+        MagneticHeading? facing = dragTo is { } releasedAt ? GroundViewModel.FreePointFacing(point, releasedAt) : null;
+        vm.AddPushFreePoint(point.Lat, point.Lon, facing);
+        if (finish)
+        {
+            SendPushRoute(vm);
+        }
+    }
+
+    /// <summary>
+    /// The menu that forces the leg ending at a push-route point: <c>Push</c>, <c>Pull</c>, or back to the planner's own
+    /// choice, the current one checked. On the last point it opens with <c>Send route</c>, which sends the route as it
+    /// stands.
+    /// </summary>
+    private void ShowPushLegKindMenu(GroundViewModel vm, int waypointIndex, bool offerSend)
+    {
+        PushbackLegKind? current = vm.PushTargetForcedKind(waypointIndex);
+        var menu = new ContextMenu();
+        if (offerSend)
+        {
+            var send = new MenuItem { Header = "Send route" };
+            send.Click += (_, _) => SendPushRoute(vm);
+            menu.Items.Add(send);
+            menu.Items.Add(new Separator());
+        }
+
+        menu.Items.Add(new MenuItem { Header = $"Leg to point {waypointIndex + 1}", IsEnabled = false });
+        menu.Items.Add(new Separator());
+        menu.Items.Add(LegKindItem("Push", PushbackLegKind.Push));
+        menu.Items.Add(LegKindItem("Pull", PushbackLegKind.Pull));
+        menu.Items.Add(LegKindItem("Let the planner choose", null));
+        ShowContextMenu(menu);
+
+        MenuItem LegKindItem(string header, PushbackLegKind? kind)
+        {
+            var item = new MenuItem
+            {
+                Header = header,
+                ToggleType = MenuItemToggleType.Radio,
+                GroupName = "PushLegKind",
+                IsChecked = kind == current,
+            };
+            item.Click += (_, _) => vm.SetPushTargetForcedKind(waypointIndex, kind);
+            return item;
+        }
     }
 
     private void OnDrawNodeClicked(int nodeId)
@@ -1210,6 +1304,7 @@ public partial class GroundView : UserControl
             return;
         }
 
+        // Only reached for a push route when the view model publishes no markers (a node missing from the layout).
         if (vm.DrawKind == DrawRouteKind.Push)
         {
             FinishPushRoute(vm, nodeId);

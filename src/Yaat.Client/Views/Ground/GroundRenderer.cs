@@ -489,6 +489,18 @@ public sealed class GroundRenderer : IDisposable
 
     private readonly SKPaint _waypointTextPaint = new() { Color = SKColors.Black, IsAntialias = true };
 
+    // The colour is the forced motion's leg colour (push or pull), set before each label is drawn.
+    private readonly SKPaint _forcedLegLabelPaint = new() { IsAntialias = true };
+
+    private readonly SKPaint _facingTickPaint = new()
+    {
+        Color = WaypointMarkerColor,
+        StrokeWidth = 3,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+        StrokeCap = SKStrokeCap.Round,
+    };
+
     private readonly SKFont _waypointTextFont = PlatformHelper.MonospaceFontBold(10);
 
     private readonly SKPaint _hoverPaint = new()
@@ -627,6 +639,7 @@ public sealed class GroundRenderer : IDisposable
         TaxiRoute? drawnRoutePreview,
         TaxiRoute? drawHoverPreview,
         IReadOnlyList<int>? drawWaypoints,
+        IReadOnlyList<PushWaypointMark>? pushWaypointMarks,
         TugPlan? pushPlan,
         IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets,
         IReadOnlyDictionary<string, SKPoint>? deconflictOffsets,
@@ -704,7 +717,7 @@ public sealed class GroundRenderer : IDisposable
             DrawPreviewRoute(canvas, vp, layout, previewRoute);
             DrawShownTaxiRoutes(canvas, vp, layout, shownTaxiRoutes);
             DrawHoverRoute(canvas, vp, layout, hoverRoute);
-            DrawDrawnRoute(canvas, vp, layout, drawnRoutePreview, drawWaypoints);
+            DrawDrawnRoute(canvas, vp, layout, drawnRoutePreview, drawWaypoints, pushWaypointMarks);
             DrawDrawHoverPreview(canvas, vp, layout, drawHoverPreview);
             DrawPushLegs(canvas, vp, pushPlan, _pushLegPaint, _pullLegPaint, _reversalDotPaint);
             DrawNodes(canvas, vp, layout, hoveredNodeId, showDebugInfo, showHoldShort, showParking, showSpot);
@@ -1365,9 +1378,22 @@ public sealed class GroundRenderer : IDisposable
     private void DrawDrawHoverPreview(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, TaxiRoute? hoverRoute) =>
         DrawRoute(canvas, vp, layout, hoverRoute, _drawHoverPreviewPaint);
 
-    private void DrawDrawnRoute(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, TaxiRoute? drawnRoute, IReadOnlyList<int>? waypoints)
+    private void DrawDrawnRoute(
+        SKCanvas canvas,
+        MapViewport vp,
+        GroundLayoutDto layout,
+        TaxiRoute? drawnRoute,
+        IReadOnlyList<int>? waypoints,
+        IReadOnlyList<PushWaypointMark>? pushMarks
+    )
     {
         DrawRoute(canvas, vp, layout, drawnRoute, _drawnRoutePaint);
+
+        if (pushMarks is not null)
+        {
+            DrawPushWaypointMarkers(canvas, vp, pushMarks);
+            return;
+        }
 
         if (waypoints is null || waypoints.Count == 0 || layout.Nodes.Count == 0)
         {
@@ -1390,6 +1416,69 @@ public sealed class GroundRenderer : IDisposable
             canvas.DrawCircle(pos.X, pos.Y, 8f, _waypointMarkerPaint);
             canvas.DrawText($"{i + 1}", pos.X, pos.Y + _waypointTextFont.Size / 3f, SKTextAlign.Center, _waypointTextFont, _waypointTextPaint);
         }
+    }
+
+    /// <summary>
+    /// Draws a push route's numbered point markers where the points lie — a marked point is not a graph node, so the
+    /// marker's own position is used, never a node lookup. A marked point with a facing carries a short tick pointing
+    /// the way the nose will end up; a point whose leg is forced carries a <c>PUSH</c> or <c>PULL</c> label beside it
+    /// in that motion's leg colour. Unforced points carry no label.
+    /// </summary>
+    private void DrawPushWaypointMarkers(SKCanvas canvas, MapViewport vp, IReadOnlyList<PushWaypointMark> marks)
+    {
+        const float markerRadiusPx = 8f;
+        const float facingTickPx = 12f;
+        const float labelGapPx = 4f;
+        const float labelPadPx = 2f;
+
+        for (int i = 0; i < marks.Count; i++)
+        {
+            PushWaypointMark mark = marks[i];
+            (float x, float y) = vp.LatLonToScreen(mark.Position.Lat, mark.Position.Lon);
+
+            if (mark.FacingTrueDeg is { } facingDeg && ScreenDirection(vp, mark.Position, facingDeg, (x, y)) is { } dir)
+            {
+                canvas.DrawLine(
+                    x + (dir.X * markerRadiusPx),
+                    y + (dir.Y * markerRadiusPx),
+                    x + (dir.X * (markerRadiusPx + facingTickPx)),
+                    y + (dir.Y * (markerRadiusPx + facingTickPx)),
+                    _facingTickPaint
+                );
+            }
+
+            canvas.DrawCircle(x, y, markerRadiusPx, _waypointMarkerPaint);
+            float baseline = y + (_waypointTextFont.Size / 3f);
+            canvas.DrawText($"{i + 1}", x, baseline, SKTextAlign.Center, _waypointTextFont, _waypointTextPaint);
+
+            if (mark.ForcedKind is { } kind)
+            {
+                string label = kind == PushbackLegKind.Push ? "PUSH" : "PULL";
+                float left = x + markerRadiusPx + labelGapPx;
+                float width = _waypointTextFont.MeasureText(label);
+                float top = y - (_waypointTextFont.Size / 2f) - labelPadPx;
+                float bottom = y + (_waypointTextFont.Size / 2f) + labelPadPx;
+                canvas.DrawRect(SKRect.Create(left - labelPadPx, top, width + (2f * labelPadPx), bottom - top), _labelBgPaint);
+                _forcedLegLabelPaint.Color = kind == PushbackLegKind.Push ? PushLegColor : PullLegColor;
+                canvas.DrawText(label, left, baseline, SKTextAlign.Left, _waypointTextFont, _forcedLegLabelPaint);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The unit screen direction of a true bearing at a point, found by projecting a short way along it, so the
+    /// viewport's own rotation and scale apply. Null when the projection lands on the same pixel.
+    /// </summary>
+    private static (float X, float Y)? ScreenDirection(MapViewport vp, LatLon from, double trueDeg, (float X, float Y) fromScreen)
+    {
+        const double probeNm = 0.01;
+
+        LatLon ahead = GeoMath.ProjectPoint(from, new TrueHeading(trueDeg), probeNm);
+        (float ax, float ay) = vp.LatLonToScreen(ahead.Lat, ahead.Lon);
+        float dx = ax - fromScreen.X;
+        float dy = ay - fromScreen.Y;
+        float length = MathF.Sqrt((dx * dx) + (dy * dy));
+        return length < 1e-3f ? null : (dx / length, dy / length);
     }
 
     /// <summary>
@@ -2747,6 +2836,8 @@ public sealed class GroundRenderer : IDisposable
         _reversalDotPaint.Dispose();
         _waypointMarkerPaint.Dispose();
         _waypointTextPaint.Dispose();
+        _forcedLegLabelPaint.Dispose();
+        _facingTickPaint.Dispose();
         _waypointTextFont.Dispose();
         _nodePaint.Dispose();
         _holdShortBarPaint.Dispose();

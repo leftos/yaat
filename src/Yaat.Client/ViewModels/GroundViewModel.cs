@@ -39,6 +39,28 @@ public enum DrawRouteKind
     Push,
 }
 
+/// <summary>
+/// How the ground view draws one point of a push route being drawn, in the order of
+/// <see cref="GroundViewModel.DrawWaypoints"/> (index 0 is the aircraft's own node).
+/// </summary>
+/// <param name="Position">Where the marker sits: the node's position, or the marked point's.</param>
+/// <param name="FacingTrueDeg">A marked point's facing, degrees true, or null when it has none (and for every node).</param>
+/// <param name="ForcedKind">The tug motion the leg ending here is forced to, or null when the planner chooses.</param>
+public sealed record PushWaypointMark(LatLon Position, double? FacingTrueDeg, PushbackLegKind? ForcedKind);
+
+/// <summary>What a right-click lands on while a push route is being drawn.</summary>
+public enum PushRightClickTarget
+{
+    /// <summary>No target marker (or only the start's): the clicked node, if any, becomes the last target.</summary>
+    NewPoint,
+
+    /// <summary>The last target's marker: its leg's push/pull menu, opening with the item that sends the route.</summary>
+    LastWaypoint,
+
+    /// <summary>An earlier target's marker: the menu that forces its leg to a push or a pull.</summary>
+    EarlierWaypoint,
+}
+
 public partial class GroundViewModel : ObservableObject
 {
     private readonly ILogger _log = AppLog.CreateLogger<GroundViewModel>();
@@ -133,6 +155,13 @@ public partial class GroundViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     private string? _pushRouteRefusal;
+
+    /// <summary>
+    /// One marker per point of the push route being drawn, aligned with <see cref="DrawWaypoints"/>: where it sits
+    /// (marked points are not graph nodes), its facing, and its forced tug motion. Null outside push-draw mode.
+    /// </summary>
+    [ObservableProperty]
+    private IReadOnlyList<PushWaypointMark>? _pushWaypointMarks;
 
     [ObservableProperty]
     private double _airportCenterLat;
@@ -284,6 +313,13 @@ public partial class GroundViewModel : ObservableObject
     private AircraftModel? _drawAircraft;
     private DrawRouteKind _drawKind = DrawRouteKind.Taxi;
     private List<int> _drawWaypointIds = [];
+
+    /// <summary>The push route's marked points, by their index in <see cref="_drawWaypointIds"/>.</summary>
+    private readonly Dictionary<int, PushFreePose> _pushFreePoses = [];
+
+    /// <summary>The push route's forced tug motions, by the index in <see cref="_drawWaypointIds"/> of the leg's target.</summary>
+    private readonly Dictionary<int, PushbackLegKind> _pushForcedKinds = [];
+
     private List<TaxiRoute> _drawSubRoutes = [];
 
     /// <summary>Which route the active draw mode is building; <see cref="DrawRouteKind.Taxi"/> when idle.</summary>
@@ -1964,9 +2000,12 @@ public partial class GroundViewModel : ObservableObject
         _drawAircraft = aircraft;
         _drawKind = DrawRouteKind.Taxi;
         _drawWaypointIds = [startNode.Value];
+        _pushFreePoses.Clear();
+        _pushForcedKinds.Clear();
         _drawSubRoutes = [];
         DrawnRoutePreview = null;
         DrawWaypoints = [startNode.Value];
+        PushWaypointMarks = null;
         IsDrawingRoute = true;
     }
 
@@ -2095,11 +2134,14 @@ public partial class GroundViewModel : ObservableObject
         _drawAircraft = null;
         _drawKind = DrawRouteKind.Taxi;
         _drawWaypointIds = [];
+        _pushFreePoses.Clear();
+        _pushForcedKinds.Clear();
         _drawSubRoutes = [];
         IsDrawingRoute = false;
         DrawnRoutePreview = null;
         DrawHoverPreview = null;
         DrawWaypoints = null;
+        PushWaypointMarks = null;
         PushRoutePreview = null;
         PushRouteRefusal = null;
     }
@@ -2144,10 +2186,12 @@ public partial class GroundViewModel : ObservableObject
         _drawAircraft = aircraft;
         _drawKind = DrawRouteKind.Push;
         _drawWaypointIds = [startNode.Value];
+        _pushFreePoses.Clear();
+        _pushForcedKinds.Clear();
         _drawSubRoutes = [];
         DrawnRoutePreview = null;
         DrawHoverPreview = null;
-        DrawWaypoints = [startNode.Value];
+        PublishPushWaypoints();
         PushRoutePreview = null;
         PushRouteRefusal = null;
         IsDrawingRoute = true;
@@ -2167,12 +2211,115 @@ public partial class GroundViewModel : ObservableObject
         }
 
         _drawWaypointIds.Add(nodeId);
-        DrawWaypoints = [.. _drawWaypointIds];
+        PublishPushWaypoints();
         RefreshPushRoutePreview();
         return true;
     }
 
-    /// <summary>Drops the last PUSHM target and re-plans the preview.</summary>
+    /// <summary>
+    /// Adds a marked point — a free position on the ramp, not snapped to any node — as the next target and re-plans
+    /// the preview. The point is kept as the command will carry it (six decimals, a whole-degree facing), so the
+    /// preview plans the very point the sim will. False outside push-draw mode, or when it is the last target again.
+    /// </summary>
+    /// <param name="latitude">Where the point lies, decimal degrees.</param>
+    /// <param name="longitude">Where the point lies, decimal degrees.</param>
+    /// <param name="facing">The facing to end on, magnetic, or null to leave it to the planner.</param>
+    /// <returns>True when the point was added.</returns>
+    public bool AddPushFreePoint(double latitude, double longitude, MagneticHeading? facing)
+    {
+        if (_drawKind != DrawRouteKind.Push || _drawWaypointIds.Count == 0)
+        {
+            return false;
+        }
+
+        var pose = new PushFreePose(
+            Math.Round(latitude, 6),
+            Math.Round(longitude, 6),
+            facing is { } named ? new MagneticHeading(named.ToDisplayInt()) : null
+        );
+        int id = VirtualNode.Create(pose.Latitude, pose.Longitude).Id;
+        if (id == _drawWaypointIds[^1])
+        {
+            return false;
+        }
+
+        _drawWaypointIds.Add(id);
+        _pushFreePoses[_drawWaypointIds.Count - 1] = pose;
+        PublishPushWaypoints();
+        RefreshPushRoutePreview();
+        return true;
+    }
+
+    /// <summary>
+    /// The facing a Shift+drag gives a marked point: the true bearing from the point to where the drag was released,
+    /// converted to magnetic at the point and rounded to the whole degree the command carries.
+    /// </summary>
+    /// <param name="point">The marked point, where the drag started.</param>
+    /// <param name="toward">Where the drag was released.</param>
+    /// <returns>The magnetic facing.</returns>
+    public static MagneticHeading FreePointFacing(LatLon point, LatLon toward)
+    {
+        double trueDeg = GeoMath.BearingTo(point, toward);
+        return new MagneticHeading(Math.Round(MagneticDeclination.TrueToMagnetic(trueDeg, point)));
+    }
+
+    /// <summary>The tug motion the leg ending at a push-route point is forced to, or null when the planner chooses.</summary>
+    /// <param name="waypointIndex">The point's index in <see cref="DrawWaypoints"/>.</param>
+    /// <returns>The forced kind, or null.</returns>
+    public PushbackLegKind? PushTargetForcedKind(int waypointIndex) =>
+        _pushForcedKinds.TryGetValue(waypointIndex, out PushbackLegKind kind) ? kind : null;
+
+    /// <summary>
+    /// Forces the leg ending at a push-route point to a push or a pull (its target then carries <c>/PUSH</c> or
+    /// <c>/PULL</c>), or with null leaves it to the planner again, and re-plans the preview. Ignored for the start
+    /// (index 0) and for an index past the last point.
+    /// </summary>
+    /// <param name="waypointIndex">The point's index in <see cref="DrawWaypoints"/>.</param>
+    /// <param name="kind">The forced kind, or null.</param>
+    public void SetPushTargetForcedKind(int waypointIndex, PushbackLegKind? kind)
+    {
+        if (_drawKind != DrawRouteKind.Push || waypointIndex < 1 || waypointIndex >= _drawWaypointIds.Count)
+        {
+            return;
+        }
+
+        if (kind is { } forced)
+        {
+            _pushForcedKinds[waypointIndex] = forced;
+        }
+        else
+        {
+            _pushForcedKinds.Remove(waypointIndex);
+        }
+
+        PublishPushWaypoints();
+        RefreshPushRoutePreview();
+    }
+
+    /// <summary>
+    /// What a right-click on the push route lands on. Markers are drawn in order, so the topmost of those under the
+    /// pointer is the highest index; the start's marker (index 0) is not a target and counts as no marker.
+    /// </summary>
+    /// <param name="markerHits">The indices of every point marker under the pointer.</param>
+    /// <returns>The target, and the point's index when it is a marker.</returns>
+    public (PushRightClickTarget Target, int? WaypointIndex) ClassifyPushRightClick(IReadOnlyList<int> markerHits)
+    {
+        int last = _drawWaypointIds.Count - 1;
+        if (_drawKind != DrawRouteKind.Push)
+        {
+            return (PushRightClickTarget.NewPoint, null);
+        }
+
+        int? top = markerHits.Where(i => (i >= 1) && (i <= last)).Select(i => (int?)i).Max();
+        return top switch
+        {
+            null => (PushRightClickTarget.NewPoint, null),
+            { } index when index == last => (PushRightClickTarget.LastWaypoint, index),
+            { } index => (PushRightClickTarget.EarlierWaypoint, index),
+        };
+    }
+
+    /// <summary>Drops the last PUSHM target, with its marked point and forced kind, and re-plans the preview.</summary>
     public void UndoPushWaypoint()
     {
         if (_drawKind != DrawRouteKind.Push || _drawWaypointIds.Count <= 1)
@@ -2180,9 +2327,51 @@ public partial class GroundViewModel : ObservableObject
             return;
         }
 
-        _drawWaypointIds.RemoveAt(_drawWaypointIds.Count - 1);
-        DrawWaypoints = [.. _drawWaypointIds];
+        int last = _drawWaypointIds.Count - 1;
+        _drawWaypointIds.RemoveAt(last);
+        _pushFreePoses.Remove(last);
+        _pushForcedKinds.Remove(last);
+        PublishPushWaypoints();
         RefreshPushRoutePreview();
+    }
+
+    /// <summary>Publishes the push route's points to the canvas: their ids and the markers drawn for them.</summary>
+    private void PublishPushWaypoints()
+    {
+        DrawWaypoints = [.. _drawWaypointIds];
+        PushWaypointMarks = BuildPushWaypointMarks();
+    }
+
+    /// <summary>
+    /// One marker per push-route point, aligned with the waypoint list. A marked point's facing is converted to true at
+    /// the aircraft's position, as the sim converts it. Null when a node is missing from the layout, since a marker
+    /// list with a gap would misalign every index after it.
+    /// </summary>
+    private List<PushWaypointMark>? BuildPushWaypointMarks()
+    {
+        var marks = new List<PushWaypointMark>(_drawWaypointIds.Count);
+        for (int i = 0; i < _drawWaypointIds.Count; i++)
+        {
+            PushbackLegKind? forced = PushTargetForcedKind(i);
+            if (_pushFreePoses.TryGetValue(i, out PushFreePose? pose))
+            {
+                double? facingTrueDeg =
+                    (pose.Facing is { } facing) && (_drawAircraft is { } aircraft)
+                        ? MagneticDeclination.MagneticToTrue(facing.Degrees, aircraft.Position)
+                        : null;
+                marks.Add(new PushWaypointMark(new LatLon(pose.Latitude, pose.Longitude), facingTrueDeg, forced));
+            }
+            else if ((_domainLayout is not null) && _domainLayout.Nodes.TryGetValue(_drawWaypointIds[i], out GroundNode? node))
+            {
+                marks.Add(new PushWaypointMark(node.Position, null, forced));
+            }
+            else
+            {
+                return null;
+            }
+        }
+
+        return marks;
     }
 
     /// <summary>
@@ -2198,7 +2387,7 @@ public partial class GroundViewModel : ObservableObject
             return null;
         }
 
-        List<GroundNode> targets = CurrentPushTargets();
+        List<PushDestination> targets = CurrentPushTargets();
         if (targets.Count == 0)
         {
             CancelDrawRoute();
@@ -2212,10 +2401,11 @@ public partial class GroundViewModel : ObservableObject
             return null;
         }
 
-        // One clicked point is plain `PUSH`, which takes a single $spot, @gate or #node destination (`PUSHM` needs
-        // two or more). The command carries exactly the clicked targets: the sim plans the moves from them, and the
-        // sigil is the only thing telling a spot apart from a gate of the same name.
-        string command = targets.Count == 1 ? $"PUSH {PushTargetToken(targets[0])}" : $"PUSHM {string.Join(" ", targets.Select(PushTargetToken))}";
+        // One clicked point is plain `PUSH`, which takes a single $spot, @gate, #node or ~point destination (`PUSHM`
+        // needs two or more). The command carries exactly the drawn targets, each with its forced kind: the sim plans
+        // the moves from them, and the sigil is the only thing telling a spot apart from a gate of the same name.
+        string command =
+            targets.Count == 1 ? $"PUSH {targets[0].CanonicalToken}" : $"PUSHM {string.Join(" ", targets.Select(t => t.CanonicalToken))}";
         ClearDrawState();
         return command;
     }
@@ -2230,7 +2420,7 @@ public partial class GroundViewModel : ObservableObject
     /// </summary>
     private void RefreshPushRoutePreview()
     {
-        List<GroundNode> targets = CurrentPushTargets();
+        List<PushDestination> targets = CurrentPushTargets();
 
         if (_domainLayout is null || _drawAircraft is null || targets.Count == 0)
         {
@@ -2239,18 +2429,23 @@ public partial class GroundViewModel : ObservableObject
             return;
         }
 
+        // Each target resolves as the sim's PUSHM resolves its legs: a marked point minted where it lies (facing
+        // converted at the aircraft), every other target found in the layout, then the leg's forced kind applied.
         var goals = new List<TugGoal>(targets.Count);
-        foreach (GroundNode node in targets)
+        for (int i = 0; i < targets.Count; i++)
         {
-            string token = PushTargetToken(node);
-            if (GroundCommandHandler.ResolveTugGoal(_domainLayout, token) is not { } goal)
+            PushDestination target = targets[i];
+            TugGoal? goal = target.FreePose is { } pose
+                ? GroundCommandHandler.ResolveMarkedPointGoal(pose, null, _drawAircraft.Position, GroundCommandHandler.MarkedPointLabel(targets, i))
+                : GroundCommandHandler.ResolveTugGoal(_domainLayout, target.Token);
+            if (goal is null)
             {
                 PushRoutePreview = null;
-                PushRouteRefusal = $"Cannot find {token}";
+                PushRouteRefusal = $"Cannot find {target.Token}";
                 return;
             }
 
-            goals.Add(goal);
+            goals.Add(goal with { ForcedKind = target.ForcedKind });
         }
 
         // The neighbours are chosen by the same body the simulation plans the executed move with, from the aircraft
@@ -2316,10 +2511,13 @@ public partial class GroundViewModel : ObservableObject
             TargetSpeedKts = aircraft.TargetSpeedKts,
         };
 
-    /// <summary>The clicked target nodes, in order. Index 0 of the waypoint list is the aircraft's own node.</summary>
-    private List<GroundNode> CurrentPushTargets()
+    /// <summary>
+    /// The drawn targets as the command names them, in order, each with its forced kind: a marked point, or a clicked
+    /// node. Index 0 of the waypoint list is the aircraft's own node and is not a target.
+    /// </summary>
+    private List<PushDestination> CurrentPushTargets()
     {
-        var targets = new List<GroundNode>();
+        var targets = new List<PushDestination>();
         if (_domainLayout is null)
         {
             return targets;
@@ -2327,22 +2525,27 @@ public partial class GroundViewModel : ObservableObject
 
         for (int i = 1; i < _drawWaypointIds.Count; i++)
         {
-            if (_domainLayout.Nodes.TryGetValue(_drawWaypointIds[i], out GroundNode? node))
+            PushbackLegKind? forced = PushTargetForcedKind(i);
+            if (_pushFreePoses.TryGetValue(i, out PushFreePose? pose))
             {
-                targets.Add(node);
+                targets.Add(PushDestination.AtFreePose(pose, forced));
+            }
+            else if (_domainLayout.Nodes.TryGetValue(_drawWaypointIds[i], out GroundNode? node))
+            {
+                targets.Add(PushTargetFor(node, forced));
             }
         }
 
         return targets;
     }
 
-    /// <summary>How one clicked node is named in a PUSHM command: <c>$spot</c>, <c>@stand</c> or <c>#id</c>.</summary>
-    private static string PushTargetToken(GroundNode node) =>
+    /// <summary>How one clicked node is named in a push command: <c>$spot</c>, <c>@stand</c> or <c>#id</c>.</summary>
+    private static PushDestination PushTargetFor(GroundNode node, PushbackLegKind? forced) =>
         node switch
         {
-            { Type: GroundNodeType.Spot, Name: { Length: > 0 } spot } => $"${spot}",
-            { Type: GroundNodeType.Parking or GroundNodeType.Helipad, Name: { Length: > 0 } stand } => $"@{stand}",
-            _ => $"#{node.Id}",
+            { Type: GroundNodeType.Spot, Name: { Length: > 0 } spot } => PushDestination.AtSpot(spot, forced),
+            { Type: GroundNodeType.Parking or GroundNodeType.Helipad, Name: { Length: > 0 } stand } => PushDestination.AtParking(stand, forced),
+            _ => PushDestination.AtNode(node.Id, forced),
         };
 
     private static AirportGroundLayout ReconstructLayout(GroundLayoutDto dto)

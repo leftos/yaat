@@ -161,6 +161,7 @@
         RangeBearingLines="{Binding Measure.Lines}"
         MeasureAnchor="{Binding Measure.Anchor}"
         DrawWaypoints="{Binding DrawWaypoints}"
+        PushWaypointMarks="{Binding PushWaypointMarks}"
         AirportCenterLat="{Binding AirportCenterLat}"
         AirportCenterLon="{Binding AirportCenterLon}"
         AirportElevation="{Binding AirportElevation}"

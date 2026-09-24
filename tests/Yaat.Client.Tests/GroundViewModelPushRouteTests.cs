@@ -270,6 +270,274 @@ public class GroundViewModelPushRouteTests
         Assert.Equal("Unable, SKW3398 is up against SKW3400 — their outlines overlap; reposition one of them before towing", vm.PushRouteRefusal);
     }
 
+    // F8 → spot 7A → spot 7B with the 7A leg forced to a pull (the sim's ForcedPushLegPlannerTests fly F8 → 7A/PULL):
+    // the target carries the suffix, the next one does not, and the preview is the planner's plan for the forced goals.
+    [Fact]
+    public void ForcingAnEarlierLegToPull_SendsTheSuffix_AndThePreviewMatchesTheServerPlan()
+    {
+        if (LoadSfoLayout() is not { } layout)
+        {
+            return; // test data absent — skip
+        }
+
+        (GroundViewModel vm, AircraftModel ac) = StartSfoPushFromStand(layout, "F8");
+        GroundNode spot7A = SfoSpot(layout, "7A");
+        GroundNode spot7B = SfoSpot(layout, "7B");
+        Assert.True(vm.AddPushWaypoint(spot7A.Id));
+        Assert.True(vm.AddPushWaypoint(spot7B.Id));
+
+        vm.SetPushTargetForcedKind(1, PushbackLegKind.Pull);
+
+        Assert.Equal(PushbackLegKind.Pull, vm.PushTargetForcedKind(1));
+        Assert.Null(vm.PushTargetForcedKind(2));
+        Assert.Equal(PushbackLegKind.Pull, vm.PushWaypointMarks![1].ForcedKind);
+        Assert.Null(vm.PushRouteRefusal);
+        AssertSamePlan(
+            PlanForGoals(layout, ac, [TugGoal.Spot(spot7A) with { ForcedKind = PushbackLegKind.Pull }, TugGoal.Spot(spot7B)]),
+            vm.PushRoutePreview
+        );
+        Assert.Equal("PUSHM $7A/PULL $7B", vm.FinishPushRoute());
+    }
+
+    [Fact]
+    public void LetThePlannerChoose_ClearsTheSuffix()
+    {
+        if (LoadSfoLayout() is not { } layout)
+        {
+            return; // test data absent — skip
+        }
+
+        (GroundViewModel vm, AircraftModel ac) = StartSfoPushFromStand(layout, "F8");
+        GroundNode spot7A = SfoSpot(layout, "7A");
+        GroundNode spot7B = SfoSpot(layout, "7B");
+        Assert.True(vm.AddPushWaypoint(spot7A.Id));
+        Assert.True(vm.AddPushWaypoint(spot7B.Id));
+        vm.SetPushTargetForcedKind(1, PushbackLegKind.Pull);
+        Assert.Equal(PushbackLegKind.Pull, vm.PushTargetForcedKind(1));
+
+        vm.SetPushTargetForcedKind(1, null);
+
+        Assert.Null(vm.PushTargetForcedKind(1));
+        Assert.Null(vm.PushWaypointMarks![1].ForcedKind);
+        AssertSamePlan(PlanForGoals(layout, ac, [TugGoal.Spot(spot7A), TugGoal.Spot(spot7B)]), vm.PushRoutePreview);
+        Assert.Equal("PUSHM $7A $7B", vm.FinishPushRoute());
+    }
+
+    // A Shift+click on the ramp north of the aircraft: the point is a marked point, not the nearest node, and the
+    // preview plans the goal the sim mints for that very point.
+    [Fact]
+    public void AFreePoint_WithoutFacing_SendsItsMarkedPointToken()
+    {
+        GroundViewModel vm = MakeViewModel();
+        vm.SetLayoutForTesting(RampLayout());
+        AircraftModel ac = MakeAircraft();
+        var point = new LatLon(Lat0 + 0.0012, Lon0);
+
+        vm.StartPushRoute(ac);
+        Assert.True(vm.AddPushFreePoint(point.Lat, point.Lon, null));
+
+        PushWaypointMark mark = vm.PushWaypointMarks![1];
+        Assert.Equal(point.Lat, mark.Position.Lat, 9);
+        Assert.Equal(point.Lon, mark.Position.Lon, 9);
+        Assert.Null(mark.FacingTrueDeg);
+        Assert.Null(vm.PushRouteRefusal);
+        var pose = new PushFreePose(Math.Round(point.Lat, 6), Math.Round(point.Lon, 6), null);
+        TugGoal goal = GroundCommandHandler.ResolveMarkedPointGoal(pose, null, ac.Position, "the marked point");
+        AssertSamePlan(PlanForGoals(vm.DomainLayout!, ac, [goal]), vm.PushRoutePreview);
+        Assert.Equal($"PUSH {PositionToken(point)}", vm.FinishPushRoute());
+    }
+
+    // A Shift+drag due south from the point: the facing is the drag's true bearing converted to magnetic at the point
+    // and rounded to the whole degree the token carries.
+    [Fact]
+    public void AFreePoint_WithADragFacing_SendsTheMagneticFacing()
+    {
+        GroundViewModel vm = MakeViewModel();
+        vm.SetLayoutForTesting(RampLayout());
+        AircraftModel ac = MakeAircraft();
+        var point = new LatLon(Lat0 + 0.0012, Lon0);
+        const double dragTrueDeg = 180.0;
+        LatLon releasedAt = GeoMath.ProjectPoint(point, new TrueHeading(dragTrueDeg), 100.0 / GeoMath.FeetPerNm);
+        var expected = new MagneticHeading(Math.Round(MagneticDeclination.TrueToMagnetic(dragTrueDeg, point)));
+
+        MagneticHeading facing = GroundViewModel.FreePointFacing(point, releasedAt);
+
+        Assert.Equal(expected, facing);
+        vm.StartPushRoute(ac);
+        Assert.True(vm.AddPushFreePoint(point.Lat, point.Lon, facing));
+        Assert.Equal(MagneticDeclination.MagneticToTrue(facing.Degrees, ac.Position), vm.PushWaypointMarks![1].FacingTrueDeg!.Value, 9);
+        Assert.Null(vm.PushRouteRefusal);
+        var pose = new PushFreePose(Math.Round(point.Lat, 6), Math.Round(point.Lon, 6), facing);
+        TugGoal goal = GroundCommandHandler.ResolveMarkedPointGoal(pose, null, ac.Position, "the marked point");
+        AssertSamePlan(PlanForGoals(vm.DomainLayout!, ac, [goal]), vm.PushRoutePreview);
+        Assert.Equal($"PUSH {PositionToken(point)}/{expected.ToDisplayString()}", vm.FinishPushRoute());
+    }
+
+    // What the view model sends is read back by the sim's own parser as the very targets drawn: sigils, suffixes and
+    // the marked point's position and facing, and the text is already the command's canonical form. The route pushes
+    // north to spot A, pulls south, nose first, to a marked point ahead of where the aircraft started, then pushes
+    // north again to the intersection.
+    [Fact]
+    public void SentPushRoute_ParsesBackToTheSameTargets()
+    {
+        GroundViewModel vm = MakeViewModel();
+        vm.SetLayoutForTesting(RampLayout());
+        AircraftModel ac = MakeAircraft();
+        var point = new LatLon(Lat0 - 0.0005, Lon0);
+        MagneticHeading facing = GroundViewModel.FreePointFacing(point, GeoMath.ProjectPoint(point, new TrueHeading(180.0), 0.02));
+
+        vm.StartPushRoute(ac);
+        Assert.True(vm.AddPushWaypoint(2)); // Spot "A"
+        Assert.True(vm.AddPushFreePoint(point.Lat, point.Lon, facing));
+        Assert.True(vm.AddPushWaypoint(4)); // plain taxiway intersection, unnamed
+        vm.SetPushTargetForcedKind(1, PushbackLegKind.Push);
+        vm.SetPushTargetForcedKind(2, PushbackLegKind.Pull);
+        Assert.Null(vm.PushRouteRefusal);
+
+        string? sent = vm.FinishPushRoute();
+
+        Assert.NotNull(sent);
+        ParseResult<ParsedCommand> parsed = CommandParser.Parse(sent!);
+        Assert.True(parsed.IsSuccess, parsed.Reason);
+        PushbackMultiCommand move = Assert.IsType<PushbackMultiCommand>(parsed.Value);
+        Assert.Equal(sent, CommandDescriber.DescribeCommand(move));
+        Assert.Equal(3, move.Legs.Count);
+        Assert.Equal("A", move.Legs[0].Spot);
+        Assert.Equal(PushbackLegKind.Push, move.Legs[0].ForcedKind);
+        Assert.Equal(new PushFreePose(Math.Round(point.Lat, 6), Math.Round(point.Lon, 6), facing), move.Legs[1].FreePose);
+        Assert.Equal(PushbackLegKind.Pull, move.Legs[1].ForcedKind);
+        Assert.Equal(4, move.Legs[2].NodeId);
+        Assert.Null(move.Legs[2].ForcedKind);
+        Assert.Null(move.FinalFacing);
+    }
+
+    [Fact]
+    public void UndoingAForcedOrFreeTarget_DropsItsState()
+    {
+        GroundViewModel vm = MakeViewModel();
+        vm.SetLayoutForTesting(RampLayout());
+        AircraftModel ac = MakeAircraft();
+
+        vm.StartPushRoute(ac);
+        Assert.True(vm.AddPushWaypoint(2));
+        Assert.True(vm.AddPushWaypoint(3));
+        vm.SetPushTargetForcedKind(2, PushbackLegKind.Pull);
+        Assert.Equal(PushbackLegKind.Pull, vm.PushTargetForcedKind(2));
+
+        vm.UndoPushWaypoint();
+        Assert.True(vm.AddPushWaypoint(3));
+
+        Assert.Null(vm.PushTargetForcedKind(2));
+        Assert.Null(vm.PushWaypointMarks![2].ForcedKind);
+
+        Assert.True(vm.AddPushFreePoint(Lat0 + 0.0012, Lon0, new MagneticHeading(167)));
+        Assert.NotNull(vm.PushWaypointMarks![3].FacingTrueDeg);
+        vm.UndoPushWaypoint();
+        Assert.Equal(3, vm.PushWaypointMarks!.Count);
+        Assert.True(vm.AddPushWaypoint(4));
+
+        PushWaypointMark last = vm.PushWaypointMarks![3];
+        Assert.Null(last.FacingTrueDeg);
+        Assert.Equal(Lat0 + 0.0015, last.Position.Lat, 9);
+        Assert.Equal("PUSHM $A $B #4", vm.FinishPushRoute());
+    }
+
+    // Markers are drawn in order, so the topmost one under the pointer is the highest index hit. The last target's
+    // marker opens its leg menu with "Send route" first, an earlier one's the leg menu alone. The start (index 0) is
+    // not a target and opens nothing of its own.
+    [Fact]
+    public void RightClickOnTheLastWaypoint_OffersTheLegMenuWithSend_AndOnAnEarlierOne_WithoutIt()
+    {
+        GroundViewModel vm = MakeViewModel();
+        vm.SetLayoutForTesting(RampLayout());
+        AircraftModel ac = MakeAircraft();
+
+        vm.StartPushRoute(ac);
+        Assert.Equal((PushRightClickTarget.NewPoint, (int?)null), vm.ClassifyPushRightClick([0]));
+        Assert.True(vm.AddPushWaypoint(2));
+        Assert.True(vm.AddPushWaypoint(3));
+        Assert.True(vm.AddPushWaypoint(4));
+
+        Assert.Equal((PushRightClickTarget.LastWaypoint, (int?)3), vm.ClassifyPushRightClick([3]));
+        Assert.Equal((PushRightClickTarget.EarlierWaypoint, (int?)1), vm.ClassifyPushRightClick([1]));
+        Assert.Equal((PushRightClickTarget.EarlierWaypoint, (int?)2), vm.ClassifyPushRightClick([2]));
+        Assert.Equal((PushRightClickTarget.LastWaypoint, (int?)3), vm.ClassifyPushRightClick([1, 3]));
+        Assert.Equal((PushRightClickTarget.EarlierWaypoint, (int?)2), vm.ClassifyPushRightClick([0, 2]));
+        Assert.Equal((PushRightClickTarget.NewPoint, (int?)null), vm.ClassifyPushRightClick([0]));
+        Assert.Equal((PushRightClickTarget.NewPoint, (int?)null), vm.ClassifyPushRightClick([]));
+    }
+
+    // F8 → spot 7A alone with its leg forced to a pull (the sim's ForcedPushLegPlannerTests fly F8 → 7A/PULL): a
+    // single-target route forced from the last marker's menu sends plain PUSH with the suffix, and previews the forced plan.
+    [Fact]
+    public void ForcingTheLastLeg_SendsItsSuffix()
+    {
+        if (LoadSfoLayout() is not { } layout)
+        {
+            return; // test data absent — skip
+        }
+
+        (GroundViewModel vm, AircraftModel ac) = StartSfoPushFromStand(layout, "F8");
+        GroundNode spot7A = SfoSpot(layout, "7A");
+        Assert.True(vm.AddPushWaypoint(spot7A.Id));
+        Assert.Equal((PushRightClickTarget.LastWaypoint, (int?)1), vm.ClassifyPushRightClick([1]));
+
+        vm.SetPushTargetForcedKind(1, PushbackLegKind.Pull);
+
+        Assert.Null(vm.PushRouteRefusal);
+        AssertSamePlan(PlanForGoals(layout, ac, [TugGoal.Spot(spot7A) with { ForcedKind = PushbackLegKind.Pull }]), vm.PushRoutePreview);
+        Assert.Equal("PUSH $7A/PULL", vm.FinishPushRoute());
+    }
+
+    // The sim's refusal of a /PULL to an unfaced marked point 100 ft ahead of D15's nose (ForcedPushLegPlannerTests):
+    // the stand needs its push-off and no pull may follow it to an unfaced point. The preview refuses in the same words.
+    [Fact]
+    public void ForcedPullTheSimRefuses_IsRefusedByThePreviewInTheSameWords()
+    {
+        if (LoadSfoLayout() is not { } layout)
+        {
+            return; // test data absent — skip
+        }
+
+        (GroundViewModel vm, AircraftModel ac) = StartSfoPushFromStand(layout, "D15");
+        GroundNode d15 = layout.FindParkingByName("D15")!;
+        LatLon ahead = GeoMath.ProjectPoint(d15.Position, d15.TrueHeading!.Value, 100.0 / GeoMath.FeetPerNm);
+        Assert.True(vm.AddPushFreePoint(ahead.Lat, ahead.Lon, null));
+
+        vm.SetPushTargetForcedKind(1, PushbackLegKind.Pull);
+
+        var pose = new PushFreePose(Math.Round(ahead.Lat, 6), Math.Round(ahead.Lon, 6), null);
+        TugGoal goal = GroundCommandHandler.ResolveMarkedPointGoal(pose, null, ac.Position, "the marked point") with
+        {
+            ForcedKind = PushbackLegKind.Pull,
+        };
+        Assert.Null(TugMovePlanner.Plan(layout, RequestFor(ac, [goal]), out string simRefusal));
+        Assert.Equal("Unable, the marked point cannot be reached by a pull", simRefusal);
+        Assert.Null(vm.PushRoutePreview);
+        Assert.Equal(simRefusal, vm.PushRouteRefusal);
+        Assert.Null(vm.FinishPushRoute());
+    }
+
+    private static (GroundViewModel Vm, AircraftModel Aircraft) StartSfoPushFromStand(AirportGroundLayout layout, string standName)
+    {
+        GroundNode stand = layout.FindParkingByName(standName)!;
+        var ac = new AircraftModel
+        {
+            Callsign = "UAL462",
+            AircraftType = "B738",
+            Position = stand.Position,
+            Heading = stand.TrueHeading!.Value,
+            CurrentPhase = "At Parking",
+            ParkingSpot = standName,
+        };
+
+        GroundViewModel vm = MakeViewModel();
+        vm.SetDomainLayoutForTesting(layout);
+        vm.SetAircraftProvider(() => [ac]);
+        vm.StartPushRoute(ac);
+        return (vm, ac);
+    }
+
     private static GroundViewModel StartFiveAlleyPush(AirportGroundLayout layout, AircraftModel neighbour)
     {
         GroundNode stand = layout.FindParkingByName("D4")!;
@@ -337,7 +605,24 @@ public class GroundViewModelPushRouteTests
             goals.Add(GroundCommandHandler.ResolveTugGoal(layout, token)!);
         }
 
-        var request = new TugRequest
+        return PlanForGoals(layout, ac, goals);
+    }
+
+    // What the sim would plan for the same aircraft and goals, with no parked neighbours.
+    private static TugPlan? PlanForGoals(AirportGroundLayout layout, AircraftModel ac, List<TugGoal> goals)
+    {
+        TugPlan? plan = TugMovePlanner.Plan(layout, RequestFor(ac, goals), out string refusal);
+        Assert.Equal("", refusal);
+        Assert.NotNull(plan);
+        return plan;
+    }
+
+    // A marked point's position as the command writes it, rounded to the six decimals the parser keeps.
+    private static string PositionToken(LatLon point) =>
+        string.Create(System.Globalization.CultureInfo.InvariantCulture, $"~{Math.Round(point.Lat, 6):F6}/{Math.Round(point.Lon, 6):F6}");
+
+    private static TugRequest RequestFor(AircraftModel ac, List<TugGoal> goals) =>
+        new()
         {
             Start = new TugPose(ac.Position, ac.Heading.Degrees),
             StartsAtStand = ac.CurrentPhase == "At Parking",
@@ -347,12 +632,6 @@ public class GroundViewModelPushRouteTests
             FinalFacingTrueDeg = null,
             PreviousKind = null,
         };
-
-        TugPlan? plan = TugMovePlanner.Plan(layout, request, out string refusal);
-        Assert.Equal("", refusal);
-        Assert.NotNull(plan);
-        return plan;
-    }
 
     private static void AssertSamePlan(TugPlan? expected, TugPlan? actual)
     {

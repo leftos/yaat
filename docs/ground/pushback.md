@@ -145,6 +145,8 @@ A marked point, `~<lat>/<lon>[/<facing>][/PUSH|/PULL]` (decimal degrees, facing 
 
 The pilot reads a forced leg as `push back to …` / `pull forward to …`, a marked point as `the marked point` (`marked point 1`, `2`, … when there are several), and a `PUSHM` with any forced or marked leg leg by leg: `push to gate F8, then pull forward to spot 7A, face east`. The wording is an aviation judgement call (no FAA phraseology exists for tows), reviewed 2026-09-24.
 
+The Ground View's push-route draw mode writes both (`GroundViewModel`): Shift+click or Shift+drag places a marked point, and the right-click leg menu on a waypoint marker forces its leg. The preview resolves a marked point through the same `GroundCommandHandler.ResolveMarkedPointGoal` the command path calls and names it with `MarkedPointLabel`, so preview and execution plan and refuse alike.
+
 ## The command forms — `GroundCommandHandler`
 
 | Command | Goal | Terminus phase | `Ground.ParkingSpot` |
