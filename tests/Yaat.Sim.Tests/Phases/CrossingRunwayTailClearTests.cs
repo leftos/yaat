@@ -83,7 +83,7 @@ public class CrossingRunwayTailClearTests(ITestOutputHelper output)
     /// built and started exactly as <c>TaxiingPhase.BuildResumePhases</c> builds it (both bars cleared, the
     /// route left where the aircraft stands). Null when the SFO layout is unavailable.
     /// </summary>
-    private CrossingFixture? BuildFixture()
+    private CrossingFixture? BuildFixture(string aircraftType)
     {
         AirportGroundLayout? layout = LoadSfoLayout();
         if (layout is null)
@@ -118,7 +118,7 @@ public class CrossingRunwayTailClearTests(ITestOutputHelper output)
         var aircraft = new AircraftState
         {
             Callsign = "KLM605",
-            AircraftType = "B77W",
+            AircraftType = aircraftType,
             Position = entryNode.Position,
             TrueHeading = new TrueHeading(crossingBearing),
             Altitude = 13,
@@ -197,7 +197,7 @@ public class CrossingRunwayTailClearTests(ITestOutputHelper output)
     [Fact]
     public void TailClearance_EndsOnTheRoutesOwnContinuation_NotTheGraphsStraightOne()
     {
-        CrossingFixture? fixture = BuildFixture();
+        CrossingFixture? fixture = BuildFixture("B77W");
         if (fixture is null)
         {
             return;
@@ -225,6 +225,43 @@ public class CrossingRunwayTailClearTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// A type the FAA database does not carry takes its length from the CWT fallback, like the runway exit and
+    /// the landing roll do, so the tail-clearance leg ends ½ of that length past the exit bar — every part of
+    /// the aircraft past the holding position marking (AIM 2-3-5.a.1) — rather than ½ of a flat 60 ft.
+    /// </summary>
+    [Fact]
+    public void TailClearance_UnknownType_UsesCwtFallbackLength()
+    {
+        const string unknownType = "ZZZZ";
+        CrossingFixture? fixture = BuildFixture(unknownType);
+        if (fixture is null)
+        {
+            return;
+        }
+
+        Assert.Null(FaaAircraftDatabase.Get(unknownType));
+        Assert.Null(WakeTurbulenceData.GetCwt(unknownType));
+        double expectedHalfFt = HoldShortAnnotator.CwtFallbackLengthFt(unknownType) / 2.0;
+        Assert.NotEqual(30.0, expectedHalfFt);
+
+        TaxiRoute? slice = fixture.Phase.CrossingRoute;
+        Assert.NotNull(slice);
+        foreach (TaxiRouteSegment seg in slice.Segments)
+        {
+            output.WriteLine($"  slice {seg.FromNodeId} -> {seg.ToNodeId} on {seg.TaxiwayName} ({seg.Edge.DistanceNm * GeoMath.FeetPerNm:F0}ft)");
+        }
+
+        int exitSlot = slice.Segments.FindIndex(s => s.ToNodeId == fixture.ExitNodeId);
+        Assert.True(exitSlot >= 0, $"the crossing slice never reaches the exit bar {fixture.ExitNodeId}");
+        double pastExitFt = slice.Segments.Skip(exitSlot + 1).Sum(s => s.Edge.DistanceNm) * GeoMath.FeetPerNm;
+        output.WriteLine(
+            $"tail-clear leg is {pastExitFt:F1}ft of path past the exit bar; expected ½ of the CWT fallback length = {expectedHalfFt:F1}ft"
+        );
+
+        Assert.Equal(expectedHalfFt, pastExitFt, 0.5);
+    }
+
+    /// <summary>
     /// On completion the crossing hands the route back at the segment the aircraft is standing on, so the
     /// onward <see cref="TaxiingPhase"/> picks up where the crossing left it rather than on a segment
     /// already behind it.
@@ -232,7 +269,7 @@ public class CrossingRunwayTailClearTests(ITestOutputHelper output)
     [Fact]
     public void CrossingCompletion_LeavesTheRouteOnTheSegmentTheAircraftStandsOn()
     {
-        CrossingFixture? fixture = BuildFixture();
+        CrossingFixture? fixture = BuildFixture("B77W");
         if (fixture is null)
         {
             return;

@@ -64,6 +64,11 @@ public static class PhaseRunner
             bool wasLahso = current is LandingPhase { StoppedForLahso: true };
             if (wasLahso && phases.LahsoHoldShort is { } lahsoTarget)
             {
+                // The aircraft is stopped on the runway short of the hold-short point and holds there whatever the
+                // chain queued after the landing: end the phase AdvanceToNext just started and skip the rest, so the
+                // hold chain goes in exactly as it does when the landing was the last phase (a no-op then).
+                phases.Clear(ctx);
+
                 phases.Phases.Add(new RunwayHoldingPhase(lahsoTarget.CrossingRunwayId));
                 phases.Phases.Add(new RunwayExitPhase());
                 phases.Phases.Add(new HoldingAfterExitPhase());

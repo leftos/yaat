@@ -28,6 +28,9 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
 
     public override string Name => "Clearing Runway";
 
+    /// <summary>The one-segment clearance route (runway hold-short → ½ aircraft length past it). Null until built.</summary>
+    public TaxiRoute? ClearanceRoute => _route;
+
     public override void OnStart(PhaseContext ctx)
     {
         ctx.Aircraft.IsOnGround = true;
@@ -97,7 +100,8 @@ public sealed class ClearRunwayPhase(int runwayNodeId, int approachNodeId) : Pha
             return;
         }
 
-        double lengthFt = FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? 60.0;
+        double lengthFt =
+            FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(ctx.Aircraft.AircraftType);
         double halfLengthNm = (lengthFt / 2.0) / GeoMath.FeetPerNm;
 
         // The clearance target: ½ aircraft length past the runway hold-short, away from the runway —

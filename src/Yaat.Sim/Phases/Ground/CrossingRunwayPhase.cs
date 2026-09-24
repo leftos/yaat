@@ -141,8 +141,13 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
         return false;
     }
 
+    // Speed targets are owned by the next phase. The typical successor is
+    // TaxiingPhase (TaxiingPhase.cs BuildResumePhases) — zeroing IAS here
+    // would force a stop the aircraft has to re-accelerate from. If the
+    // route ends after the crossing, the inserted HoldingInPositionPhase
+    // / AtParkingPhase will brake to zero on its own.
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus) =>
-        Log.LogDebug("[Crossing] {Callsign}: OnEnd ({Status})", ctx.Aircraft.Callsign, endStatus); // Speed targets are owned by the next phase. The typical successor is// TaxiingPhase (TaxiingPhase.cs BuildResumePhases) — zeroing IAS here// would force a stop the aircraft has to re-accelerate from. If the// route ends after the crossing, the inserted HoldingInPositionPhase// / AtParkingPhase will brake to zero on its own.
+        Log.LogDebug("[Crossing] {Callsign}: OnEnd ({Status})", ctx.Aircraft.Callsign, endStatus);
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
@@ -288,7 +293,8 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     /// </summary>
     private static (int FullSegments, bool Partial) AppendTailClearance(PhaseContext ctx, TaxiRoute route, int exitIdx, List<TaxiRouteSegment> slice)
     {
-        double lengthFt = FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? 60.0;
+        double lengthFt =
+            FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(ctx.Aircraft.AircraftType);
         if (TailClearanceSuppressed(ctx, route, exitIdx, lengthFt))
         {
             return (0, false);
