@@ -61,29 +61,55 @@ segments() {
         tr '' '
 ' |
         sed -E 's/&&|\|\||;|\|/\n/g' |
-        sed -E 's/^[[:space:]]*//' |
-        sed -E 's/^(timeout[[:space:]]+[0-9]+[smhd]?|nice([[:space:]]+-n[[:space:]]*-?[0-9]+)?|command|exec)[[:space:]]+//' |
-        sed -E 's#^(bash[[:space:]]+)?([^[:space:]]*/)?gate\.sh[[:space:]]+[^[:space:]]+[[:space:]]+##' |
-        sed -E 's/^(timeout[[:space:]]+[0-9]+[smhd]?)[[:space:]]+//' |
-        sed -E 's/^([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)+//'
+        sed -E \
+            -e 's/^[[:space:]]*//' \
+            -e 's/^(timeout[[:space:]]+[0-9]+[smhd]?|nice([[:space:]]+-n[[:space:]]*-?[0-9]+)?|command|exec)[[:space:]]+//' \
+            -e 's#^(bash[[:space:]]+)?([^[:space:]]*/)?gate\.sh[[:space:]]+[^[:space:]]+[[:space:]]+##' \
+            -e 's/^(timeout[[:space:]]+[0-9]+[smhd]?)[[:space:]]+//' \
+            -e 's/^([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)+//'
 }
 
+# Computed once, and every rule below matches with bash's own `[[ =~ ]]`: this
+# runs before every Bash tool call, and each process spawn under Git Bash costs
+# from tens to hundreds of milliseconds (measured 2026-09-24: the version that
+# re-ran the pipeline per rule took 9-28 s a call on a loaded machine).
+mapfile -t SEGS < <(segments)
+
 # True when some segment *starts* with a match for the given extended regex.
-starts_with() { segments | grep -qE "^$1([[:space:]]|$)"; }
+starts_with() {
+    local re="^$1([[:space:]]|$)" s
+    for s in "${SEGS[@]}"; do
+        [[ $s =~ $re ]] && return 0
+    done
+    return 1
+}
 
 # True when one segment both starts with $1 and matches $2. A rule that joins a
 # command name to a flag must test both over the same segment: over the whole
 # line, `git commit -q` beside any dotnet call reads as `dotnet -q`.
-segment_has() { segments | grep -E "^$1([[:space:]]|$)" | grep -qE "$2"; }
+segment_has() {
+    local head="^$1([[:space:]]|$)" s
+    for s in "${SEGS[@]}"; do
+        [[ $s =~ $head && $s =~ $2 ]] && return 0
+    done
+    return 1
+}
 
 # True when the whole command line matches (for redirects, pipes, wrappers).
-line_has() { printf '%s' "$CMD" | grep -qE "$1"; }
+line_has() { [[ $CMD =~ $1 ]]; }
 
 if starts_with 'prek[[:space:]]+run[[:space:]]+.*(--all-files|-a)'; then
     deny 'Never `prek run --all-files`: it runs over the whole tree instead of the staged set, and its stash/reapply can drop unstaged work. Use bare `prek run`, or let the hook fire on `git commit`.'
 fi
 
-if segments | grep -E '^dotnet[[:space:]]+format([[:space:]]|$)' | grep -qvE '^dotnet[[:space:]]+format[[:space:]]+(style|analyzers|whitespace)([[:space:]]|$)'; then
+bare_dotnet_format() {
+    local any='^dotnet[[:space:]]+format([[:space:]]|$)' sub='^dotnet[[:space:]]+format[[:space:]]+(style|analyzers|whitespace)([[:space:]]|$)' s
+    for s in "${SEGS[@]}"; do
+        [[ $s =~ $any && ! $s =~ $sub ]] && return 0
+    done
+    return 1
+}
+if bare_dotnet_format; then
     deny 'Do NOT run bare `dotnet format` — its whitespace rules fight with CSharpier. Run `dotnet format style` or `dotnet format analyzers` separately, or just let prek run them.'
 fi
 
