@@ -211,6 +211,10 @@ A tug-moved aircraft (push or pull) against a **parked or held** neighbour is ju
 
 This replaces the half-wingspan lateral test for these pairs, which compared the room along a straight line against two half-spans and so held a straight push whose neighbour sat beside the tail (issue #222 at OAK gates 25/26) while being blind to a turn that swings the tail into a neighbour further along. Movers, shadows and the give-way-to-pushback arbitration are unchanged — see [conflict-and-visual-detection.md](../conflict-and-visual-detection.md).
 
+## Designing a push shape
+
+When it is unclear how a push should be shaped, render the candidate options as LayoutInspector tick-playback HTML, one run per option (TickRecorder JSON → `--ticks --html`, the involved taxiways highlighted and the key nodes annotated), and show them to the user before anything is built (user, 2026-09-23). The user picks or corrects the shape from the renders; no push geometry is decided from reasoning alone.
+
 ## Notes / footguns
 
 - **The `AtParkingPhase` precondition is reachable by warp.** `WARPG @<gate>` parks the aircraft, so an instructor can set a pushback up directly. A warp onto a spot or a taxiway node leaves it holding, and `PUSH` is still accepted there (`HoldingAfterPushbackPhase`) but plans without the stand push-off.

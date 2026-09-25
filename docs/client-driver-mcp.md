@@ -51,6 +51,14 @@ Element ids (`e1`, `e2`, …) come from `list_windows` / `find_elements` / `dump
 - The native file dialog is not under the client's UIA windows; drive it with `send_keys("<path>{ENTER}")` once it has focus.
 - A button that "does nothing" usually logged `Unhandled UI-thread exception (recovered)` — `tail_yaat_log` first.
 
+## Recording a demo
+
+Used for the #462 push demo (2026-09-25). Run yaat-server from source on `:5130`, `launch_yaat`, then File > Connect > "Local", Room > Create Room, and Scenario > Load Scenario > Local Files with an empty scenario for the airport. Spawn with the carrier named so the type and airline match (`ADD I L J @F8 CRJ7 *SKW`), and name the aircraft in every command (`SKW735 PUSH $7A`); a bare command goes nowhere without a selection. `set_text` on `CommandInput`, then a separate `send_keys {ENTER}`.
+
+- **Window and view.** Resize the main window without activating it (`SetWindowPos` with `SWP_NOZORDER | SWP_NOACTIVATE`) to a 1920×1080 client area. Zoom by posting `WM_MOUSEWHEEL` to the main window at a screen point, one message per notch; there is no pan tool, so pan by zooming out at one point and back in at another (out at the top and in at the bottom moves the content up). Keep one zoom for takes that will be composited.
+- **Capture.** The `video-capture` skill's `WgcCapture` records the window by handle plus the client process's own audio, which carries the solo pilot's TTS. Recording video and audio as two separate captures and muxing them afterwards avoids the end-of-run stall of one ffmpeg reading both pipes. Start the capture, wait ~3 s, then send the command; push durations are not reported, so size each capture from a first run (a CRJ7 push to an SFO alley spot takes 60–150 s at 1×).
+- **Edit.** Crop the ground view to 16:9, keep the command and readback at 1×, speed up the tow, caption the command with `drawtext`, and raise the voice (it records around −48 dB RMS). Several runs from the same start pose overlay cleanly with `blend=all_mode=lighten` on the dark ground view, each delayed a few seconds so the readbacks do not overlap.
+
 ## What CRC exposes
 
 CRC is a WPF app (`CRC.exe`); its display windows are titled `CRC : <n>` or `CRC : <n> : <header>`. Its scopes (STARS, Tower Cab, ASDE-X, SAID, ERAM) are one OpenGL surface inside the window: UIA reaches CRC's windows, menus and dialogs but **not** tracks or datablocks. Read a scope with `screenshot`, act on it with `click_point`. An elevated CRC blocks injected input; the input tools then fail with an explicit "SendInput was blocked" error rather than reporting a click that never happened. The CRC path has not been exercised against a live CRC yet.
