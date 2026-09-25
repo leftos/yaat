@@ -42,6 +42,22 @@ public class TugMovePlannerTests
     /// </summary>
     private const double OnceOnTheTaxiwayPathFt = 400.0;
 
+    /// <summary>How far a pinned move's path length may drift and still be the same move, feet.</summary>
+    private const double PinnedPathToleranceFt = 0.5;
+
+    /// <summary>
+    /// The most the nose may turn from the push-off's heading on F8 → 7A before the aircraft nears 7A's stop point, degrees
+    /// (<see cref="SwingBeforeStopDeg"/>); the old plan swung 179.8°.
+    /// </summary>
+    private const double F8MaxSwingDeg = 100.0;
+
+    /// <summary>
+    /// The deepest F8 → 7A may reach into a taxiway's object-free area, feet: the least any candidate reaches (19.4 ft into
+    /// A's object-free area plus the 5 ft planning margin, 14.4 ft into the area itself; the push-off alone puts the tail
+    /// 8.5 ft in), with half a foot to spare.
+    /// </summary>
+    private const double F8MaxPenetrationFt = 19.9;
+
     private static readonly Regex RunwayPavement = new(@"would put the aircraft on runway \S+", RegexOptions.CultureInvariant);
     private static readonly Regex TaxiwayPavement = new(@"would put the aircraft on taxiway \S+", RegexOptions.CultureInvariant);
 
@@ -121,6 +137,149 @@ public class TugMovePlannerTests
         double totalFt = plan.Moves.Sum(m => m.PathLengthFt);
         _output.WriteLine($"D15 → 6A: straight line {straightFt:F1} ft, flown {totalFt:F1} ft ({totalFt / straightFt:F2}×)");
         Assert.True(totalFt <= 2.0 * straightFt, $"flew {totalFt:F1} ft for a {straightFt:F1} ft move");
+    }
+
+    /// <summary>
+    /// D15 → 6A stays clear of every protected taxiway's object-free area, so the stepped candidates and the overswing
+    /// filter never come into it: the plan is the ranking's own, move for move (pinned from the planner before the
+    /// stepped template existed).
+    /// </summary>
+    [Fact]
+    public void D15ToSixA_ClearOfTheTaxiways_KeepsTheRankingsPlanMoveForMove()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        using var tap = new CapturingSimLogProvider(LogLevel.Debug, 1000);
+        using ILoggerFactory factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
+        SimLog.InitializeForTest(factory);
+
+        TugPlan plan = PlanFromD15(layout, "6A");
+
+        var planner = tap.Drain().Where(r => r.Category == "TugMovePlanner").Select(r => r.Message).ToList();
+        Assert.Contains(planner, m => m.Contains(": chose T", StringComparison.Ordinal));
+        Assert.DoesNotContain(planner, m => m.Contains("T4 stepped", StringComparison.Ordinal));
+
+        (PushbackLegKind Kind, TugMoveShape Shape, bool Dwell, bool Creep, double PathFt)[] expected =
+        [
+            (PushbackLegKind.Push, TugMoveShape.Straight, false, false, 65.0),
+            (PushbackLegKind.Push, TugMoveShape.Straight, false, false, 223.0),
+            (PushbackLegKind.Push, TugMoveShape.ViaLine, false, false, 88.0),
+            (PushbackLegKind.Pull, TugMoveShape.ViaLine, true, true, 447.0),
+        ];
+        Assert.Empty(plan.Warnings.OfType<TugFoulsTaxiwayWarning>());
+        Assert.Equal(expected.Length, plan.Moves.Count);
+        for (int i = 0; i < expected.Length; i++)
+        {
+            TugMoveTrace trace = plan.Moves[i];
+            Assert.Equal(
+                (expected[i].Kind, expected[i].Shape, expected[i].Dwell, expected[i].Creep),
+                (trace.Move.Kind, trace.Move.Shape, trace.Move.DwellBefore, trace.Move.Creep)
+            );
+            Assert.True(
+                Math.Abs(trace.PathLengthFt - expected[i].PathFt) <= PinnedPathToleranceFt,
+                $"move {i + 1} runs {trace.PathLengthFt:F1} ft, pinned at {expected[i].PathFt:F0} ft"
+            );
+        }
+    }
+
+    /// <summary>
+    /// F8 → 7A: every plan fouls taxiway A's object-free area (the push-off alone puts the tail in it), and the ranking's
+    /// own choice swings the nose about 180° toward another gate. The stepped template and the overswing filter keep the
+    /// nose within <see cref="F8MaxSwingDeg"/> of the push-off's heading until it nears 7A, for no deeper a penetration, on
+    /// one run of pushes ending in the creep pull onto 7A.
+    /// </summary>
+    [Fact]
+    public void F8ToSevenA_FoulingTaxiwayA_StepsOntoTheLaneWithoutOverswinging()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode sevenA = Spot(layout, "7A");
+        TugPlan plan = PlanOrFail(layout, StandStart(Parking(layout, "F8"), TugGoal.Spot(sevenA)));
+
+        double swingDeg = SwingBeforeStopDeg(layout, plan, sevenA);
+        double peakFt = plan.Warnings.OfType<TugFoulsTaxiwayWarning>().Select(w => w.PeakPenetrationFt).DefaultIfEmpty(0.0).Max();
+        _output.WriteLine(
+            $"F8 → 7A: nose swung at most {swingDeg:F1}° from the push-off's heading; {peakFt:F1} ft into a taxiway's object-free area "
+                + "plus the 5 ft planning margin"
+        );
+        Assert.True(swingDeg <= F8MaxSwingDeg, $"the nose swung {swingDeg:F1}° from the push-off's heading, past {F8MaxSwingDeg:F0}°");
+        Assert.True(
+            peakFt <= F8MaxPenetrationFt,
+            $"the plan reaches {peakFt:F1} ft into a taxiway's object-free area plus the 5 ft planning margin, past {F8MaxPenetrationFt:F1} ft"
+        );
+        Assert.Single(plan.Moves.Take(plan.Moves.Count - 1).Select(m => m.Move.Kind).Distinct());
+        Assert.True(plan.Moves[^1].Move is { Kind: PushbackLegKind.Pull, Creep: true }, "the last move is the creep pull onto 7A");
+    }
+
+    /// <summary>
+    /// When every candidate fouls, the ones reaching within the 5 ft planning margin of the shallowest are equally deep:
+    /// among them the one swinging the nose least wins, and a candidate deeper than the band loses however little it
+    /// swings.
+    /// </summary>
+    [Fact]
+    public void LeastFoulingOf_WithinTheClearanceMargin_TheLeastSwingWins()
+    {
+        var start = new TugPose(new LatLon(37.62, -122.386), 254.0);
+        TugFoulingCandidate Fouling(string template, double peakFt, double exposureFtFt, double swingDeg) =>
+            new(
+                new TugCandidate(template, Narrowbody, start, previousKind: null),
+                new TugTaxiwayFouling("A", TugFootprintPart.RightWing, peakFt, exposureFtFt),
+                new TugNoseSwing(swingDeg, 0.0)
+            );
+        List<TugFoulingCandidate> pool =
+        [
+            Fouling("shallowest, swings about", 19.30, 10.0, 179.0),
+            Fouling("within the margin, swings least of those", 19.35 + TugTaxiwayClearance.ClearanceMarginFt - 0.1, 50.0, 82.0),
+            Fouling("past the margin, swings least of all", 19.30 + TugTaxiwayClearance.ClearanceMarginFt + 0.1, 1.0, 10.0),
+        ];
+
+        List<TugFoulingCandidate> tiedSwings =
+        [
+            Fouling("swings least, more exposed", 19.30, 50.0, 84.0),
+            Fouling("swings within 5° of the least, less exposed", 20.60, 20.0, 88.0),
+            Fouling("swings past the tie, least exposed", 19.40, 1.0, 95.0),
+        ];
+
+        TugFoulingCandidate kept = TugPlanBuilder.LeastFoulingOf(pool);
+        TugFoulingCandidate keptOfTied = TugPlanBuilder.LeastFoulingOf(tiedSwings);
+
+        Assert.Equal("within the margin, swings least of those", kept.Candidate.Template);
+        Assert.Equal("swings within 5° of the least, less exposed", keptOfTied.Candidate.Template);
+    }
+
+    /// <summary>
+    /// The most the planned nose turns from its heading at the end of the push-off until the reference point first comes
+    /// within half a wingspan of the spot's stop point, degrees — the stretch <c>SfoF8PushHintE2ETests</c> bounds in flight.
+    /// The turn is accumulated sample to sample, so a swing past 180° reads as itself. The whole plan cannot be bounded
+    /// tighter than the lane's own rotation, which it ends on.
+    /// </summary>
+    private static double SwingBeforeStopDeg(AirportGroundLayout layout, TugPlan plan, GroundNode spot)
+    {
+        Assert.True(layout.TryGetSpotOutboundHeading(spot, out double outDeg));
+        LatLon stop = TugMovePlanner.SpotStopGeometry(spot, outDeg, Narrowbody).Stop;
+        double halfSpanFt = TugMovePlanner.WingspanFt(Narrowbody) / 2.0;
+        var previous = new TrueHeading(plan.Moves[0].End.NoseTrueDeg);
+        double runningDeg = 0.0;
+        double maxDeg = 0.0;
+        foreach (TugPose sample in plan.Moves.Skip(1).SelectMany(m => m.Samples))
+        {
+            var nose = new TrueHeading(sample.NoseTrueDeg);
+            runningDeg += previous.SignedAngleTo(nose);
+            previous = nose;
+            maxDeg = Math.Max(maxDeg, Math.Abs(runningDeg));
+            if (FeetBetween(sample.Position, stop) <= halfSpanFt)
+            {
+                break;
+            }
+        }
+
+        return maxDeg;
     }
 
     /// <summary>

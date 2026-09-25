@@ -145,6 +145,12 @@ _Avoid_: exit taxiway (an exit leaves a runway)
 The preferred shape of a push off a stand onto a spot: straight back along the stand's lead-in line, a pivot onto the spot's lane timed to land tangent on it, then the pull forward onto the mark (the planner's T0 candidate, docs/ground/pushback.md).
 _Avoid_: three-point turn (that turns the nose first, then reverses onto the line)
 
+**Stepped push**:
+The fallback push onto a spot's lane when no other shape keeps clear of a taxiway: the push-off, a short push straight, a push turn through part of the pivot, then the lane capture — turning a little at a time instead of swinging the aircraft round (the planner's T4 candidate, docs/ground/pushback.md).
+
+**Overswing**:
+A fouling push candidate whose nose swings more than the spot lane's own rotation + 10°, or more than 5° against the lane's turn; the alley clearance drops it while any other candidate remains (docs/ground/pushback.md).
+
 **Aimed line over a fillet**:
 The straight a taxi flies in place of a fillet's curve when a node-aimed entry-alignment arc rolls out pointing at the fillet's far node from off the curve: from where the aircraft stands straight to that node (`GroundNavigator.InstallAimedLineOverFillet`, docs/ground/navigator.md). It survives a snapshot (`GroundNavigatorDto.OnAimedLineOverFillet`).
 _Avoid_: lead-in (a lead-in is the along-tangent shortfall before a curve the aircraft is flying)

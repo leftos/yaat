@@ -19,6 +19,7 @@
 
 ### Changed
 - A push to a spot backs straight out before turning onto the spot's lane, and keeps clear of the neighbouring taxiway where it can.
+- Where no push shape keeps clear of the taxiway, the tug turns onto the lane in steps instead of swinging the aircraft round.
 - `PUSH <taxiway> <facing>` ends lined up with the nose toward the facing taxiway, stopped short of the junction instead of on it.
 - Tugs keep a steady 5 kt through turns, so pushes finish sooner.
 - A push that will foul a taxiway, runs long to reach its taxiway, or faces a distant junction adds a note to the terminal.
