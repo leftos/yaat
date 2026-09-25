@@ -1,9 +1,11 @@
+using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Soak;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
@@ -627,6 +629,199 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
             $"{pusherType} '{command}' off {gate} flew its outline {overlap?.DepthFt:F1} ft into {parked.Callsign} on {standName} "
                 + $"({overlap?.Part}) at t={overlap?.Second}s"
         );
+    }
+
+    // ─── Neighbouring stands in the planner ───
+    //
+    // With a B738 parked on F6, the planner searches past the straight push-off before refusing; with E1 occupied it may not
+    // swing the aircraft round to get past it; with both stands empty it prefers a plan whose outline stays out of their
+    // footprints (docs/ground/pushback.md, "Plan-time sweep" and "Alley clearance").
+
+    /// <summary>
+    /// How far under the planner's neighbour floor the flown outline may come, feet: the planner sweeps samples about 5 ft
+    /// apart and the flown path is sampled once a second (about 8 ft at 5 kt) and interpolated, so the two readings of
+    /// the same swing differ by up to about a foot.
+    /// </summary>
+    private const double NeighbourFloorToleranceFt = 1.0;
+
+    /// <summary>
+    /// How far past the lane's own rotation + 10° (or 5° against it) the flown nose may swing, degrees: the planner's
+    /// swing is summed over samples about 5 ft apart, the flown one over one-second samples, which can cut a peak short or
+    /// run past it by a fraction of a degree.
+    /// </summary>
+    private const double SwingToleranceDeg = 1.0;
+
+    /// <summary>
+    /// F5 → 7A, 7 and 7B with a B738 parked on F6. The straight push-off off F5 swings a wing within the planner's 24.5 ft
+    /// floor of the parked B738's outline whatever the pusher, so every template built on it is dropped; the planner then
+    /// searches longer and angled push-offs and the stepped shapes before it refuses. The CRJ7 pushes must be accepted,
+    /// flown without the outlines ever meeting, never under the floor, and come to rest on the spot. The B738 pushes are
+    /// refused as swinging into the parked aircraft, in exactly those words: no fallback shape the search tries may put
+    /// its own reason in the refusal.
+    /// </summary>
+    [Theory]
+    [InlineData("CRJ7", "7A", true)]
+    [InlineData("CRJ7", "7", true)]
+    [InlineData("CRJ7", "7B", true)]
+    [InlineData("B738", "7A", false)]
+    [InlineData("B738", "7", false)]
+    [InlineData("B738", "7B", false)]
+    public void PushWithFSixOccupied_IsFlownClearOfTheParkedAircraftOrRefused(string pusherType, string spotName, bool mustBeAccepted)
+    {
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        {
+            return;
+        }
+
+        AircraftState parked = SfoGroundHarness.SpawnParked(ground, ParkedCallsign, ParkedType, "F6");
+        AircraftState pusher = SfoGroundHarness.SpawnParked(ground, PusherCallsign, pusherType, "F5");
+        double floorFt = GroundOutlineSweep.FloorFt(GroundOutline.ClearanceBetween(pusher, false, parked));
+        string command = $"PUSH ${spotName}";
+        CommandResult result = ground.Engine.SendCommand(pusher.Callsign, command);
+        output.WriteLine($"F6-OCCUPIED {pusherType} '{command}' off F5: success={result.Success} \"{result.Message}\"");
+        if (!mustBeAccepted)
+        {
+            Assert.False(result.Success, $"{pusherType} '{command}' off F5 with F6 occupied was accepted");
+            Assert.Equal($"Unable, the move to spot {spotName} would swing into {ParkedCallsign}", result.Message);
+            return;
+        }
+
+        Assert.True(result.Success, $"{pusherType} '{command}' off F5 with F6 occupied was refused: {result.Message}");
+
+        MoveRun run = TickMove(ground, pusher);
+        Assert.True(run.CompletedSecond > 0, $"the move never finished within {MoveBudgetSeconds}s (phase={PhaseName(pusher)})");
+        StandSweepResult sweep = Assert.IsType<StandSweepResult>(
+            SweepRun(run, pusherType, parked.Position, parked.TrueHeading.Degrees, ParkedType, parked.Callsign)
+        );
+        output.WriteLine(
+            $"F6-OCCUPIED {pusherType} F5->{spotName}: accepted, {MoveShapeSummary(run)}, closest {sweep.ClosestFt:F1} ft to {ParkedCallsign} "
+                + $"(floor {floorFt:F1} ft), swing {WholeRunSwing(ground.Layout, run, spotName, pusherType)}"
+        );
+        Assert.True(sweep.DepthFt <= 0.0, $"the flown outline went {sweep.DepthFt:F1} ft into {ParkedCallsign} ({sweep.Part}) at t={sweep.Second}s");
+        Assert.True(
+            sweep.ClosestFt >= floorFt - NeighbourFloorToleranceFt,
+            $"the flown outline came {sweep.ClosestFt:F1} ft from {ParkedCallsign}, under the {floorFt:F1} ft floor"
+        );
+        AssertRestsOnSpot(ground.Layout, pusher, spotName, pusherType);
+        Assert.True(pusher.GroundSpeed <= AtRestSpeedKts, $"the aircraft was still moving at {pusher.GroundSpeed:F2} kt when the move ended");
+    }
+
+    /// <summary>
+    /// F5 → 7A with a B738 parked on E1. The plan the planner used to accept swung the nose 252–255° in a three-point
+    /// turn; a lane push may now swing the nose no further than the lane's own rotation + 10° and no more than 5° against
+    /// it. The push is accepted within that for both types and flown clear of the parked aircraft onto the spot.
+    /// </summary>
+    [Theory]
+    [InlineData("CRJ7")]
+    [InlineData("B738")]
+    public void PushWithEOneOccupied_IsAcceptedAndKeepsToTheLanesTurn(string pusherType)
+    {
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        {
+            return;
+        }
+
+        AircraftState parked = SfoGroundHarness.SpawnParked(ground, ParkedCallsign, ParkedType, "E1");
+        AircraftState pusher = SfoGroundHarness.SpawnParked(ground, PusherCallsign, pusherType, "F5");
+        const string command = "PUSH $7A";
+        CommandResult result = ground.Engine.SendCommand(pusher.Callsign, command);
+        output.WriteLine($"E1-OCCUPIED {pusherType} '{command}' off F5: success={result.Success} \"{result.Message}\"");
+        Assert.True(result.Success, $"{pusherType} '{command}' off F5 with E1 occupied was refused: {result.Message}");
+
+        MoveRun run = TickMove(ground, pusher);
+        Assert.True(run.CompletedSecond > 0, $"the move never finished within {MoveBudgetSeconds}s (phase={PhaseName(pusher)})");
+        (double laneTurnDeg, TugNoseSwing swing) = RunSwing(ground.Layout, run, "7A", pusherType);
+        output.WriteLine(
+            $"E1-OCCUPIED {pusherType} F5->7A: accepted, {MoveShapeSummary(run)}, lane turn {laneTurnDeg:F1}°, swing right {swing.RightDeg:F1}° "
+                + $"left {swing.LeftDeg:F1}°"
+        );
+        Assert.True(
+            swing.MaxDeg <= Math.Abs(laneTurnDeg) + TugPlanBuilder.OverswingMarginDeg + SwingToleranceDeg,
+            $"the nose swung {swing.MaxDeg:F1}° for a lane turn of {laneTurnDeg:F1}°"
+        );
+        Assert.True(
+            swing.AgainstDeg(laneTurnDeg) <= TugPlanBuilder.WrongWayToleranceDeg + SwingToleranceDeg,
+            $"the nose turned {swing.AgainstDeg(laneTurnDeg):F1}° against the lane's turn of {laneTurnDeg:F1}°"
+        );
+        StandSweepResult? overlap = SweepRun(run, pusherType, parked.Position, parked.TrueHeading.Degrees, ParkedType, parked.Callsign);
+        Assert.True((overlap is null) || (overlap.DepthFt <= 0.0), $"the flown outline went {overlap?.DepthFt:F1} ft into {ParkedCallsign}");
+        AssertRestsOnSpot(ground.Layout, pusher, "7A", pusherType);
+    }
+
+    /// <summary>
+    /// F5 → 7A, 7 and 7B with a B738 and every neighbouring stand empty. The flown outline stays out of F6's and E1's
+    /// footprints (a parked B738 on the stand's heading, the planner's own outline model), or the planner said why the
+    /// plan it kept enters that stand: the stand push-off every candidate starts with enters it, or every candidate that
+    /// stays out of it ranks below the plan kept.
+    /// </summary>
+    [Theory]
+    [InlineData("7A")]
+    [InlineData("7")]
+    [InlineData("7B")]
+    public void PushWithStandsEmpty_StaysOutOfFSixAndEOneOrSaysWhy(string spotName)
+    {
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        {
+            return;
+        }
+
+        AircraftState pusher = SfoGroundHarness.SpawnParked(ground, PusherCallsign, AircraftType, "F5");
+        using var tap = new CapturingSimLogProvider(LogLevel.Debug, PlannerLogCapacity);
+        using (ILoggerFactory factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap)))
+        {
+            SimLog.InitializeForTest(factory);
+            CommandResult result = ground.Engine.SendCommand(pusher.Callsign, $"PUSH ${spotName}");
+            Assert.True(result.Success, $"B738 'PUSH ${spotName}' off F5 was refused: {result.Message}");
+        }
+
+        List<string> reasons =
+        [
+            .. tap.Drain()
+                .Where(r => r.Category == "TugMovePlanner")
+                .Select(r => r.Message)
+                .Where(m => m.Contains("enters the footprint of empty stand", StringComparison.Ordinal)),
+        ];
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
+        MoveRun run = TickMove(ground, pusher);
+        Assert.True(run.CompletedSecond > 0, $"the move never finished within {MoveBudgetSeconds}s (phase={PhaseName(pusher)})");
+        foreach (string standName in new[] { "F6", "E1" })
+        {
+            GroundNode stand = ground.Layout.FindParkingByName(standName)!;
+            StandSweepResult? sweep = SweepRun(run, AircraftType, stand.Position, stand.TrueHeading!.Value.Degrees, AircraftType, standName);
+            if ((sweep is null) || (sweep.DepthFt <= 0.0))
+            {
+                output.WriteLine($"STANDS-EMPTY B738 F5->{spotName}: stays out of {standName} (closest {sweep?.ClosestFt:F1} ft)");
+                continue;
+            }
+
+            string? reason = reasons.FirstOrDefault(m => m.Contains($"enters the footprint of empty stand {standName}:", StringComparison.Ordinal));
+            output.WriteLine($"STANDS-EMPTY B738 F5->{spotName}: {sweep.Part} {sweep.DepthFt:F1} ft into {standName} at t={sweep.Second}s; {reason}");
+            Assert.True(
+                reason is not null,
+                $"the flown outline went {sweep.DepthFt:F1} ft into empty stand {standName} ({sweep.Part}) at t={sweep.Second}s, and the planner "
+                    + "gave no reason why no plan staying out of it won"
+            );
+        }
+    }
+
+    /// <summary>Planner log records captured for one plan: every candidate logs a line or two, and a plan builds a few hundred.</summary>
+    private const int PlannerLogCapacity = 20000;
+
+    /// <summary>
+    /// The lane's own turn from the stand heading to the spot's nose-out heading (signed, right positive) and how far the
+    /// flown nose swung each way from the stand heading over the whole run, accumulated second to second.
+    /// </summary>
+    private static (double LaneTurnDeg, TugNoseSwing Swing) RunSwing(AirportGroundLayout layout, MoveRun run, string spotName, string aircraftType)
+    {
+        double startDeg = run.Samples[0].NoseDeg;
+        double laneTurnDeg = new TrueHeading(startDeg).SignedAngleTo(new TrueHeading(SpotRest(layout, spotName, aircraftType).OutHeadingDeg));
+        return (laneTurnDeg, TugNoseSwing.From(startDeg, run.Samples.Select(s => s.NoseDeg)));
+    }
+
+    private static string WholeRunSwing(AirportGroundLayout layout, MoveRun run, string spotName, string aircraftType)
+    {
+        (double laneTurnDeg, TugNoseSwing swing) = RunSwing(layout, run, spotName, aircraftType);
+        return $"{swing.MaxDeg:F1}° for a lane turn of {laneTurnDeg:F1}°";
     }
 
     /// <summary>Every parking stand on the layout other than <paramref name="startGate"/>, measured against the flown outline.</summary>

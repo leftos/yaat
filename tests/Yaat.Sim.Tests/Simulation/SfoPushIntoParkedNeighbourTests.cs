@@ -15,8 +15,9 @@ namespace Yaat.Sim.Tests.Simulation;
 /// detector then dead-stopped the tow 110 ft into the manoeuvre and it sat at 0 kt in <see cref="PushbackPhase"/>
 /// from t=860 until the RPO gave up at t=993.
 ///
-/// A tug move must either complete to the spot or be refused naming the neighbour it cannot clear — never be
-/// accepted and then parked in the middle of the alley.
+/// A tug move must never be accepted and then parked in the middle of the alley. This one is accepted: the planner
+/// pushes further straight back before the turn onto the 5A lane, which keeps the neighbour's floor, turns the nose the
+/// lane's way no further than its own rotation + 10°, reverses once and completes onto the spot.
 /// </summary>
 [Collection("GroundConflictDebugSink")]
 public class SfoPushIntoParkedNeighbourTests(ITestOutputHelper output)
@@ -50,7 +51,7 @@ public class SfoPushIntoParkedNeighbourTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void PushToSpot5A_WithNeighbourAtD1_CompletesOrIsRefusedNamingIt()
+    public void PushToSpot5A_WithNeighbourAtD1_IsAcceptedAndFlownClearOntoTheSpot()
     {
         SessionRecording? recording = RecordingLoader.Load(RecordingPath);
         SimulationEngine? engine = BuildEngine();
@@ -94,14 +95,29 @@ public class SfoPushIntoParkedNeighbourTests(ITestOutputHelper output)
             };
             result = engine.SendCommand("SKW3396", "PUSH $5A");
             output.WriteLine($"PUSH $5A -> success={result.Success}, message={result.Message}");
+            Assert.True(result.Success, $"PUSH $5A off D2 with SKW3398 at D1 was refused: {result.Message}");
 
-            if (!result.Success)
-            {
-                Assert.Contains("SKW3398", result.Message, StringComparison.Ordinal);
-                return;
-            }
-
-            RunAndAssert(engine, spot5A, outlineLines);
+            int reversals = subject.Phases!.Phases.OfType<PushbackPhase>().Count(p => p.Move.DwellBefore);
+            double floorFt = GroundOutlineSweep.FloorFt(startClearanceFt);
+            Assert.True(layout.TryGetSpotOutboundHeading(spot5A, out double facingDeg), "spot 5A has no nose-out heading");
+            double laneTurnDeg = new TrueHeading(subject.TrueHeading.Degrees).SignedAngleTo(new TrueHeading(facingDeg));
+            FlownRun flown = RunAndAssert(engine, spot5A, neighbour, outlineLines);
+            var swing = TugNoseSwing.From(flown.NoseDegs[0], flown.NoseDegs);
+            output.WriteLine(
+                $"flown: {reversals} reversal(s), closest {flown.ClosestFt:F1} ft to SKW3398 (floor {floorFt:F1} ft), lane turn {laneTurnDeg:F1}°, "
+                    + $"swing right {swing.RightDeg:F1}° left {swing.LeftDeg:F1}°, done in {flown.Seconds}s"
+            );
+            Assert.Equal(1, reversals);
+            Assert.True(
+                flown.ClosestFt >= floorFt - FlownFloorToleranceFt,
+                $"the flown outline came {flown.ClosestFt:F1} ft from SKW3398, under the {floorFt:F1} ft floor"
+            );
+            Assert.True(
+                swing.MaxDeg <= laneTurnDeg + 10.0 + FlownSwingToleranceDeg,
+                $"the nose swung {swing.MaxDeg:F1}° for a lane turn of {laneTurnDeg:F1}°"
+            );
+            Assert.True(swing.LeftDeg <= 5.0 + FlownSwingToleranceDeg, $"the nose turned {swing.LeftDeg:F1}° left, against the lane's right turn");
+            Assert.True(flown.EndSpeedKts <= StandstillKts, $"the aircraft was still moving at {flown.EndSpeedKts:F2} kt when the move ended");
         }
         finally
         {
@@ -113,13 +129,31 @@ public class SfoPushIntoParkedNeighbourTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// How far under the planner's neighbour floor the flown outline may come, feet: the planner sweeps samples about 5 ft
+    /// apart and the flown path is sampled once a second, so the two readings of the same swing differ by up to about a foot.
+    /// </summary>
+    private const double FlownFloorToleranceFt = 1.0;
+
+    /// <summary>How far the flown nose swing, sampled once a second, may read past the planner's bounds, degrees.</summary>
+    private const double FlownSwingToleranceDeg = 1.0;
+
+    /// <summary>
+    /// What the flown push did: its closest outline approach to the neighbour, its nose each second, how long it took, its
+    /// end speed.
+    /// </summary>
+    private sealed record FlownRun(double ClosestFt, List<double> NoseDegs, int Seconds, double EndSpeedKts);
+
     /// <summary>Ticks the accepted push and asserts it neither stalls nor stops short of the spot.</summary>
-    private void RunAndAssert(SimulationEngine engine, GroundNode spot5A, List<string> outlineLines)
+    private FlownRun RunAndAssert(SimulationEngine engine, GroundNode spot5A, AircraftState neighbour, List<string> outlineLines)
     {
         int stalledSeconds = 0;
         int worstStallSeconds = 0;
         bool reachedSpot = false;
-        AircraftState? ac = null;
+        AircraftState ac = Assert.IsType<AircraftState>(engine.FindAircraft("SKW3396"));
+        var noseDegs = new List<double> { ac.TrueHeading.Degrees };
+        double closestFt = double.MaxValue;
+        int seconds = 0;
         output.WriteLine($"{"t", 4} {"gs", 6} {"distSpot", 9} {"push", 5} {"nose", 5} {"phase", -24}");
 
         // A push that has to turn the nose around before pulling onto the lane is a three-point turn of several
@@ -127,8 +161,11 @@ public class SfoPushIntoParkedNeighbourTests(ITestOutputHelper output)
         for (int tick = 1; tick <= 300; tick++)
         {
             engine.TickOneSecond();
-            ac = engine.FindAircraft("SKW3396");
-            Assert.NotNull(ac);
+            ac = Assert.IsType<AircraftState>(engine.FindAircraft("SKW3396"));
+            seconds = tick;
+            noseDegs.Add(ac.TrueHeading.Degrees);
+            bool pulling = ac.Phases?.CurrentPhase is PushbackPhase { Kind: PushbackLegKind.Pull };
+            closestFt = Math.Min(closestFt, GroundOutline.ClearanceBetween(ac, pulling, neighbour));
 
             bool stalled = (ac.Phases?.CurrentPhase is PushbackPhase) && (ac.GroundSpeed < StandstillKts);
             stalledSeconds = stalled ? stalledSeconds + 1 : 0;
@@ -150,7 +187,6 @@ public class SfoPushIntoParkedNeighbourTests(ITestOutputHelper output)
             }
         }
 
-        Assert.NotNull(ac);
         double finalFt = FeetBetween(ac.Position, spot5A.Position);
         output.WriteLine(
             $"worstStall={worstStallSeconds}s reachedSpot={reachedSpot} finalDistToSpot={finalFt:F0}ft outlineLines={outlineLines.Count}"
@@ -166,6 +202,7 @@ public class SfoPushIntoParkedNeighbourTests(ITestOutputHelper output)
             finalFt <= halfLenFt + 25.0,
             $"the push should end nose-at-spot 5A (centroid ~{halfLenFt:F0}ft back), but is {finalFt:F0}ft away"
         );
+        return new FlownRun(closestFt, noseDegs, seconds, ac.GroundSpeed);
     }
 
     private static double FeetBetween(LatLon a, LatLon b) => GeoMath.DistanceNm(a.Lat, a.Lon, b.Lat, b.Lon) * GeoMath.FeetPerNm;

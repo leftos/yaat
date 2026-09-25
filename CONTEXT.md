@@ -151,6 +151,21 @@ The fallback push onto a spot's lane when no other shape keeps clear of a taxiwa
 **Overswing**:
 A fouling push candidate whose nose swings more than the spot lane's own rotation + 10°, or more than 5° against the lane's turn; the alley clearance drops it while any other candidate remains (docs/ground/pushback.md).
 
+**Swing band**:
+The limit on how far a lane push may turn the nose: its running rotation stays within 100° past the turn to the final facing (the requested FACE/TAIL, else the lane's nose-out), or either way round for a requested facing more than 150° away; a candidate outside is dropped while another survives (docs/ground/pushback.md).
+
+**Angled push-off**:
+A push off a stand whose first move turns 15°, 30° or 45° with the tail away from a parked neighbour, tried when the straight push-off's shapes come too close to it (docs/ground/pushback.md).
+
+**Extended straight**:
+A straight-then-line push whose straight back is lengthened in 20 ft steps so the turn onto the lane happens clear of a parked neighbour, always turning the lane's way (docs/ground/pushback.md).
+
+**Multi-point path**:
+The last push shape tried past a parked neighbour: push straight past the lane, push turn toward it, pull forward, push adjust onto the lane, creep pull onto the mark (the planner's T5 candidate, docs/ground/pushback.md).
+
+**Empty-stand footprint**:
+The outline an aircraft of the pushing type would occupy parked on an empty neighbouring stand; push shapes that stay out of it rank first (docs/ground/pushback.md).
+
 **Aimed line over a fillet**:
 The straight a taxi flies in place of a fillet's curve when a node-aimed entry-alignment arc rolls out pointing at the fillet's far node from off the curve: from where the aircraft stands straight to that node (`GroundNavigator.InstallAimedLineOverFillet`, docs/ground/navigator.md). It survives a snapshot (`GroundNavigatorDto.OnAimedLineOverFillet`).
 _Avoid_: lead-in (a lead-in is the along-tangent shortfall before a curve the aircraft is flying)
