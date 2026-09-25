@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
+using Rect = System.Windows.Rect;
 
 namespace Yaat.ClientDriver.Mcp.Tools;
 
@@ -80,8 +81,10 @@ public sealed class InspectTools(ElementRegistry registry, ILogger<InspectTools>
 
     [McpServerTool]
     [Description(
-        "Brings an element's window to the foreground and returns a PNG of the element's own rectangle. This is the only way to read "
-            + "surfaces UI Automation cannot see into, such as CRC's radar scopes."
+        "Returns a PNG of an element's own rectangle. In virtual input mode (the default, see set_input_mode) the window renders itself "
+            + "into the image (PrintWindow), so it captures correctly even when covered and is never brought to the front. In real mode "
+            + "the window is brought to the foreground and copied off the screen, and the result says when it could not be. This is the "
+            + "only way to read surfaces UI Automation cannot see into, such as CRC's radar scopes."
     )]
     public IEnumerable<ContentBlock> Screenshot(
         [Description("Element id of the window (or any element) to capture.")] string windowElementId,
@@ -90,14 +93,15 @@ public sealed class InspectTools(ElementRegistry registry, ILogger<InspectTools>
     {
         AutomationElement element = registry.Resolve(windowElementId);
         CaptureResult capture = UiaQuery.Guarded(logger, "screenshot", windowElementId, () => CaptureElement(element, maxWidth));
-        string summary =
-            $"{capture.Path} — captured {capture.SourceWidth}x{capture.SourceHeight}, returned {capture.Width}x{capture.Height} ({capture.Png.Length} bytes)";
+        string captured = $"{capture.Path} — captured {capture.SourceWidth}x{capture.SourceHeight} from {capture.Source}";
+        string summary = $"{captured}, returned {capture.Width}x{capture.Height} ({capture.Png.Length} bytes)";
         return [new TextContentBlock { Text = summary }, ImageContentBlock.FromBytes(capture.Png, "image/png")];
     }
 
     [McpServerTool]
     [Description(
-        "Reads an element's current value — the text of a TextBox, the content of a document — to confirm what set_text or send_keys actually did."
+        "Reads an element's current value — the text of a TextBox, the content of a document — to confirm what set_text or "
+            + "send_keys actually did."
     )]
     public string GetValue([Description("Element id whose value to read.")] string elementId)
     {
@@ -129,12 +133,59 @@ public sealed class InspectTools(ElementRegistry registry, ILogger<InspectTools>
             throw new McpException($"The window '{window.Current.Name}' is minimised — restore it before taking a screenshot");
         }
 
-        if (!NativeInput.Foreground(handle))
+        string directory = Path.GetFullPath(ShotDirectory);
+        if (NativeInput.Mode == InputMode.Virtual)
         {
-            logger.LogDebug("SetForegroundWindow was refused for '{Window}'; capturing whatever is on screen at its rectangle", window.Current.Name);
+            return CaptureVirtually(element, handle, maxWidth, directory);
         }
 
-        Thread.Sleep(150);
-        return WindowCapture.Capture(element.Current.BoundingRectangle, maxWidth, Path.GetFullPath(ShotDirectory));
+        if (NativeInput.TryForeground(handle))
+        {
+            Thread.Sleep(150);
+            return WindowCapture.Capture(element.Current.BoundingRectangle, maxWidth, directory);
+        }
+
+        string reason = NativeInput.DescribeForeground();
+        logger.LogDebug("SetForegroundWindow was refused for '{Window}'; capturing whatever is on screen at its rectangle", window.Current.Name);
+        CaptureResult capture = WindowCapture.Capture(element.Current.BoundingRectangle, maxWidth, directory);
+        return capture with { Source = $"{capture.Source} — the window did not take the foreground ({reason}), so another window may cover it" };
+    }
+
+    /// <summary>
+    /// Captures without touching the foreground. A YAAT element is rendered by the window really showing it — the topmost window of
+    /// its process whose frame holds the whole element, so a menu item comes from its popup even though UI Automation files the
+    /// popup under the main window. Anything else (CRC) is copied off the screen, since PrintWindow on CRC's OpenGL scopes is unverified.
+    /// </summary>
+    private static CaptureResult CaptureVirtually(AutomationElement element, nint handle, int maxWidth, string directory)
+    {
+        Rect rect = element.Current.BoundingRectangle;
+        WindowCapture.EnsureArea(rect);
+        int processId = element.Current.ProcessId;
+        if (!NativeInput.IsClientProcess(processId))
+        {
+            CaptureResult copy = WindowCapture.Capture(rect, maxWidth, directory);
+            return copy with
+            {
+                Source =
+                    $"{copy.Source} — not a YAAT window, so it was copied off the screen without taking the foreground; "
+                    + "another window may cover it",
+            };
+        }
+
+        nint window = NativeInput.ProcessWindowCovering(rect, processId);
+        if (window != 0)
+        {
+            return WindowCapture.CaptureWindow(window, rect, maxWidth, directory);
+        }
+
+        if (handle == 0)
+        {
+            throw new McpException(
+                "UI Automation reports no window handle for this element's window, and no shown window of its process holds the element — "
+                    + "it is hidden or scrolled out of view"
+            );
+        }
+
+        return WindowCapture.CaptureWindow(handle, rect, maxWidth, directory);
     }
 }

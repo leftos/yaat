@@ -29,18 +29,25 @@ Windows only (`net10.0-windows`, `System.Windows.Automation`); `EnableWindowsTar
 | `find_elements(rootElementId, name, automationId, controlType)` | Descendants matching every criterion given (at least one is required), at most 50. |
 | `get_value(elementId)` | `ValuePattern` value of a text box. |
 | `screenshot(windowElementId, maxWidth)` | Foregrounds the window, captures its bounds, returns the PNG inline and saves it under `.tmp/client-driver/shots/`. |
+| `set_input_mode(mode)` | `virtual` (the default) or `real`, for the whole server; see **Input modes** below. |
 | `invoke(elementId)` | `InvokePattern` — buttons. |
-| `click(elementId, button, doubleClick)` / `click_point(x, y, …)` | A real mouse click (`SendInput`). `click_point` takes screen coordinates, for surfaces UIA cannot see into. |
-| `set_text(elementId, text)` / `send_keys(keys, focusElementId)` / `focus(elementId)` | Text entry: `ValuePattern` when the control supports it, SendKeys otherwise. `send_keys` takes SendKeys syntax (`{ENTER}`, `^a`, `%{F4}`). |
+| `click(elementId, button, doubleClick, modifiers)` / `click_point(x, y, …)` | A mouse click at the element's centre; `click_point` takes screen coordinates, for surfaces UIA cannot see into. `modifiers` (`shift`, `ctrl`, `shift+ctrl`) works in real mode only. |
+| `set_text(elementId, text)` / `send_keys(keys, focusElementId)` / `focus(elementId)` | Text entry. `send_keys` takes SendKeys syntax (`{ENTER}`, `^a`, `%{F4}`); virtual mode accepts only plain characters, braced literals such as `{+}`, and `{ENTER}` `{ESC}` `{TAB}` `{BACKSPACE}`/`{BS}` `{DEL}` `{HOME}` `{END}` the arrows and `{F1}`–`{F12}`. |
 | `tail_yaat_log(appDataDir, lines)` | Tail of `<appDataDir>/yaat-client.log`. |
 | `stop_process(pid)` | Closes, then kills, a client this server launched (matched by pid **and** start time) or any process named `Yaat.Client`. It never stops anything else — CRC included. |
+
+### Input modes
+
+- **`virtual` (default).** Clicks and keys are posted as window messages (`WM_MOUSEMOVE`, `WM_LBUTTONDOWN`…, `WM_KEYDOWN`/`WM_KEYUP`, `WM_CHAR`) straight to the YAAT window. The real mouse pointer never moves and the foreground window never changes, so the developer can keep working while an agent drives the client. It also works when an elevated window holds the foreground, which makes Windows refuse `SetCursorPos`/`SendInput`. Screenshots use `PrintWindow`, so a covered window captures correctly. It reaches YAAT windows only; CRC needs `real`. Avalonia reads Shift/Ctrl from the keyboard state rather than from the message, so a modified click or a `^`/`%`/`+` key is refused, not sent unmodified. `set_text` focuses with a posted click, then types (End, one Backspace per character, the text). A posted click never uses UIA `SetFocus` or `ValuePattern`, since both can take the foreground.
+- **`real`.** `SendInput` / SendKeys, as a user would: the cursor moves and the window is brought to the front, so a video shows the pointer. Typing refuses, rather than sending keys to whatever else is in front, when the target did not take the foreground.
+- Every input tool's result ends with `(virtual)` or `(real)`. The client drops input while navigation data loads, for ~10 s after launch in both modes; wait for the status bar's "Navigation data loaded".
 
 Element ids (`e1`, `e2`, …) come from `list_windows` / `find_elements` / `dump_tree` and live as long as the server process. A described element reads `e2 | ControlType.Edit |  | id=CommandInput | enabled=True | rect=(2008,984 996x25)`.
 
 ## What the YAAT client exposes
 
 - The main window's title is `YAAT`. Avalonia maps `x:Name` to the UIA AutomationId: `CommandInput` (the command box), `ConnectMenuItem`, `DisconnectMenuItem`. Menu items without an `x:Name` are found by Name (the header without its `_` accelerator).
-- **Menus need real clicks.** `ExpandCollapsePattern` is unsupported on Avalonia menus, and a menu's popup is a *separate top-level window* whose items do not exist until the menu is open: `click` the menu, `list_windows(pid)` again, then `find_elements` under the popup.
+- **Menus need clicks.** `ExpandCollapsePattern` is unsupported on Avalonia menus, and a menu's items do not exist until it is open: `click` the menu, then `find_elements` under the **main** window, where UI Automation files the popup and its items; `list_windows` never lists the popup. At the Win32 level the popup is its own owned `WS_EX_TOOLWINDOW` window, and in virtual mode a click on one of its items is posted to that window.
 - The native file dialog is not under the client's UIA windows; drive it with `send_keys("<path>{ENTER}")` once it has focus.
 - A button that "does nothing" usually logged `Unhandled UI-thread exception (recovered)` — `tail_yaat_log` first.
 
@@ -51,5 +58,5 @@ CRC is a WPF app (`CRC.exe`); its display windows are titled `CRC : <n>` or `CRC
 ## Scripts
 
 - `pwsh tools/Yaat.ClientDriver.Mcp/smoke.ps1` — protocol only: starts the server, checks every stdout line is JSON and every tool is listed. Opens no window.
-- `pwsh tools/Yaat.ClientDriver.Mcp/live-check.ps1` — launches a real client for ~15 s, takes the foreground once, sends no input. `-WithInput` additionally types into the command box and moves the real mouse to open two menus. If CRC is running it lists and captures its first display window.
+- `pwsh tools/Yaat.ClientDriver.Mcp/live-check.ps1` — launches a real client for ~15 s and sends no input. `-Background` drives it in virtual mode (opens and closes two menus, types into the command box, `set_text` round trip) and asserts the foreground window and the cursor never change; `-WithInput` does the same in real mode. If CRC is running it lists and captures its first display window.
 - `McpStdio.ps1` — the dot-sourced JSON-RPC-over-stdio plumbing both scripts share.

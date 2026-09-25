@@ -30,6 +30,7 @@ param(
         'click_point',
         'set_text',
         'send_keys',
+        'set_input_mode',
         'focus'
     )
 )
