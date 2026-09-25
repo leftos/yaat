@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.13.5-beta [2026/09/25]
+
+### Highlights
+- `PUSHF` and `PUSHMF` force a push YAAT would refuse; a refused `PUSH` ends with the `PUSHF` command to use.
+- Pushes to a spot back straight out and turn onto the lane in steps, or angle past a parked neighbour, instead of swinging round or refusing.
+- `PUSHM` tows through every point but the last without stopping, and drawn push routes can place marked points and force push or pull on each leg.
+- **Scenario > Export Room as Scenario…** saves every aircraft in the room, live traffic included, as a new scenario.
 
 ### Added
 
