@@ -20,6 +20,12 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// <para>Each run is sampled once per simulated second and recorded with <see cref="TickRecorder"/> into
 /// <c>.tmp/pushm/</c> so LayoutInspector can play the runs back side by side. Every node is resolved by name; a
 /// missing SFO layout silently skips.</para>
+///
+/// <para>Two more theories carry the neighbouring-stand investigation. <see cref="MeasureStandEncroachment_ReportsEveryStandTheFlownOutlineEnters"/>
+/// sweeps each flown outline against every parking stand's footprint — the planner's own <see cref="GroundOutline"/> cross — and
+/// reports the stands it enters, with the part of the outline that goes in deepest. <see cref="PushPastAnOccupiedStand_RefusesOrKeepsTheOutlinesApart"/>
+/// then parks a B738 on each such stand and asserts the push is either refused with a reason or flown with the two
+/// outlines never overlapping, recording each occupied run for playback beside its empty-stand twin.</para>
 /// </summary>
 public class SfoF8PushHintE2ETests(ITestOutputHelper output)
 {
@@ -447,4 +453,517 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
     private static double DistanceFt(LatLon from, LatLon to) => GeoMath.DistanceNm(from, to) * GeoMath.FeetPerNm;
 
     private static string PhaseName(AircraftState ac) => ac.Phases?.CurrentPhase?.Name ?? "null";
+
+    // ─── Stand encroachment measurement ───
+    //
+    // The footprint model is the planner's own: `GroundOutline`, the cross the neighbour sweep measures (docs/ground/pushback.md,
+    // "Parked neighbours"). A stand's footprint is that same outline for a parked aircraft of the measurement's type on the
+    // stand's own heading, and two outlines overlap when `GroundOutline.Clearance` is zero. The flown path is the per-second
+    // samples of the run, interpolated in position and nose heading at `FlownSubSamplesPerSecond` times that rate; at the 5 kt
+    // tow speed one second is about 8 ft, so an interpolated pose sits well inside a foot of the flown one.
+
+    /// <summary>Interpolated poses per recorded second when sweeping the flown outline.</summary>
+    private const int FlownSubSamplesPerSecond = 10;
+
+    /// <summary>Points sampled along each of an outline's three segments.</summary>
+    private const int OutlineSamplesPerSegment = 20;
+
+    /// <summary>How far outside a stand's outline the flown path may stay and still be measured against it, feet.</summary>
+    private const double StandMeasureWindowFt = 300.0;
+
+    /// <summary>Callsign of the aircraft being pushed in the occupied-stand cases.</summary>
+    private const string PusherCallsign = "UAL783";
+
+    /// <summary>Seconds ticked for a refused occupied-stand case, so its recording shows the two aircraft as they stand.</summary>
+    private const int RefusedSnapshotSeconds = 10;
+
+    /// <summary>Callsign and type of the aircraft parked on the neighbouring stand in the occupied-stand cases.</summary>
+    private const string ParkedCallsign = "SKW3398";
+    private const string ParkedType = "B738";
+
+    /// <summary>Points sampled along each outline segment when measuring its reach toward a taxiway centreline.</summary>
+    private const int TaxiwaySamplesPerSegment = 6;
+
+    /// <summary>How far outside the flown path's extent a taxiway edge is dropped before the reach is measured, feet.</summary>
+    private const double TaxiwayEdgeWindowFt = 400.0;
+
+    /// <summary>One flown pose, with whether the aircraft is being pulled (so the tug leads its nose).</summary>
+    private sealed record FlownPose(LatLon Position, double NoseDeg, bool TowedNoseFirst);
+
+    /// <summary>
+    /// One parked footprint measured against a flown path: how close the outlines came, and — where they overlapped —
+    /// the part of the flown outline that reached deepest and by how much (feet, into the footprint's hull).
+    /// </summary>
+    private sealed record StandSweepResult(string StandName, double ClosestFt, string? Part, double DepthFt, int Second);
+
+    /// <summary>
+    /// For every <c>PUSH $spot</c> case, every parking stand other than the gate pushed from whose footprint the flown
+    /// outline enters — the part that goes in and how deep. Report only, one <c>ENCROACH</c> line per stand.
+    /// </summary>
+    [Theory]
+    [InlineData("F8", "CRJ7", "7A")]
+    [InlineData("F8", "CRJ7", "7")]
+    [InlineData("F8", "CRJ7", "7B")]
+    [InlineData("F8", "B738", "7A")]
+    [InlineData("F8", "B738", "7")]
+    [InlineData("F8", "B738", "7B")]
+    [InlineData("F5", "CRJ7", "7A")]
+    [InlineData("F5", "CRJ7", "7")]
+    [InlineData("F5", "CRJ7", "7B")]
+    [InlineData("F5", "B738", "7A")]
+    [InlineData("F5", "B738", "7")]
+    [InlineData("F5", "B738", "7B")]
+    public void MeasureStandEncroachment_ReportsEveryStandTheFlownOutlineEnters(string gate, string aircraftType, string spotName)
+    {
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        {
+            return;
+        }
+
+        AircraftState ac = SfoGroundHarness.SpawnParked(ground, "UAL783", aircraftType, gate);
+        string command = $"PUSH ${spotName}";
+        CommandResult result = ground.Engine.SendCommand(ac.Callsign, command);
+        Assert.True(result.Success, $"{aircraftType} '{command}' off {gate} was refused: {result.Message}");
+
+        MoveRun run = TickMove(ground, ac);
+        Assert.True(run.CompletedSecond > 0, $"the move never finished within {MoveBudgetSeconds}s (phase={PhaseName(ac)})");
+
+        List<StandSweepResult> sweeps = SweepStands(ground.Layout, run, aircraftType, aircraftType, gate);
+        List<StandSweepResult> entered = [.. sweeps.Where(s => s.DepthFt > 0.0).OrderByDescending(s => s.DepthFt)];
+        if (entered.Count == 0)
+        {
+            StandSweepResult nearest = sweeps.MinBy(s => s.ClosestFt)!;
+            output.WriteLine(
+                $"ENCROACH {aircraftType} {gate}->{spotName}: none; nearest stand {nearest.StandName} {nearest.ClosestFt:F1} ft clear "
+                    + $"of the outline"
+            );
+            return;
+        }
+
+        foreach (StandSweepResult sweep in entered)
+        {
+            output.WriteLine(
+                $"ENCROACH {aircraftType} {gate}->{spotName}: stand {sweep.StandName} {sweep.Part} {sweep.DepthFt:F1} ft deep at "
+                    + $"t={sweep.Second}s (closest outline clearance {sweep.ClosestFt:F1} ft)"
+            );
+        }
+    }
+
+    /// <summary>
+    /// Step 2: with a B738 parked on the stand the empty-stand push swings its outline through, the same
+    /// <c>PUSH $spot</c> must either be refused with a reason or fly with the pushing aircraft's outline never
+    /// overlapping the parked aircraft's. The empty-stand run of the same case is flown and recorded beside it, and both
+    /// plans are reported (swing, clearance to taxiway A, moves, duration).
+    /// </summary>
+    [Theory]
+    [InlineData("F5", "CRJ7", "7A", "F6")]
+    [InlineData("F5", "B738", "7A", "F6")]
+    [InlineData("F5", "CRJ7", "7A", "E1")]
+    [InlineData("F5", "B738", "7A", "E1")]
+    [InlineData("F5", "CRJ7", "7", "F6")]
+    [InlineData("F5", "B738", "7", "F6")]
+    [InlineData("F5", "CRJ7", "7B", "F6")]
+    [InlineData("F5", "B738", "7B", "F6")]
+    public void PushPastAnOccupiedStand_RefusesOrKeepsTheOutlinesApart(string gate, string pusherType, string spotName, string standName)
+    {
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } empty)
+        {
+            return;
+        }
+
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } occupied)
+        {
+            return;
+        }
+
+        string command = $"PUSH ${spotName}";
+        AircraftState emptyPusher = SfoGroundHarness.SpawnParked(empty, PusherCallsign, pusherType, gate);
+        using IDisposable emptyRecording = TickRecorder.Attach(
+            empty.Engine,
+            RecordingPath($"EMPTY-{gate}-{pusherType}-{spotName}.json"),
+            emptyPusher.Callsign
+        );
+        CommandResult emptyResult = empty.Engine.SendCommand(emptyPusher.Callsign, command);
+        Assert.True(emptyResult.Success, $"{pusherType} '{command}' off {gate} with {standName} empty was refused: {emptyResult.Message}");
+        MoveRun emptyRun = TickMove(empty, emptyPusher);
+
+        AircraftState parked = SfoGroundHarness.SpawnParked(occupied, ParkedCallsign, ParkedType, standName);
+        AircraftState pusher = SfoGroundHarness.SpawnParked(occupied, PusherCallsign, pusherType, gate);
+        using IDisposable occupiedRecording = TickRecorder.Attach(
+            occupied.Engine,
+            RecordingPath($"OCCUPIED-{gate}-{pusherType}-{spotName}-{standName}.json"),
+            pusher.Callsign,
+            parked.Callsign
+        );
+        CommandResult result = occupied.Engine.SendCommand(pusher.Callsign, command);
+        output.WriteLine(
+            $"{pusherType} '{command}' off {gate} with {ParkedType} {parked.Callsign} on {standName}: success={result.Success} \"{result.Message}\""
+        );
+        if (!result.Success)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(result.Message), "the push was refused without a reason");
+            output.WriteLine($"REFUSED {pusherType} {gate}->{spotName} with {standName} occupied: \"{result.Message}\"");
+            for (int second = 1; second <= RefusedSnapshotSeconds; second++)
+            {
+                occupied.Engine.TickOneSecond();
+            }
+
+            return;
+        }
+
+        MoveRun run = TickMove(occupied, pusher);
+        double emptySwingDeg = SwingBeforeSpotDeg(empty.Layout, emptyRun, spotName, pusherType);
+        double swingDeg = SwingBeforeSpotDeg(occupied.Layout, run, spotName, pusherType);
+        double emptyClearanceFt = ClosestOutlineToTaxiwayFt(empty.Layout, emptyRun, pusherType, "A");
+        double clearanceFt = ClosestOutlineToTaxiwayFt(occupied.Layout, run, pusherType, "A");
+        output.WriteLine(
+            $"COMPARE {pusherType} {gate}->{spotName} with {standName} occupied: swing {emptySwingDeg:F1}°→{swingDeg:F1}°, outline-to-A "
+                + $"{emptyClearanceFt:F1}→{clearanceFt:F1} ft, empty plan {MoveShapeSummary(emptyRun)}, occupied plan {MoveShapeSummary(run)}"
+        );
+
+        StandSweepResult? overlap = SweepRun(run, pusherType, parked.Position, parked.TrueHeading.Degrees, ParkedType, parked.Callsign);
+        Assert.True(
+            (overlap is null) || (overlap.DepthFt <= 0.0),
+            $"{pusherType} '{command}' off {gate} flew its outline {overlap?.DepthFt:F1} ft into {parked.Callsign} on {standName} "
+                + $"({overlap?.Part}) at t={overlap?.Second}s"
+        );
+    }
+
+    /// <summary>Every parking stand on the layout other than <paramref name="startGate"/>, measured against the flown outline.</summary>
+    private static List<StandSweepResult> SweepStands(AirportGroundLayout layout, MoveRun run, string moverType, string standType, string startGate)
+    {
+        List<FlownPose> path = FlownPath(run);
+        var frame = new GroundOutlineFrame(path[0].Position);
+        var results = new List<StandSweepResult>();
+        foreach (GroundNode node in layout.Nodes.Values)
+        {
+            if ((node.Type != GroundNodeType.Parking) || string.Equals(node.Name, startGate, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            StandSweepResult? sweep = SweepPath(
+                path,
+                frame,
+                moverType,
+                node.Position,
+                (node.TrueHeading ?? new TrueHeading(0)).Degrees,
+                standType,
+                node.Name ?? $"#{node.Id}"
+            );
+            if (sweep is not null)
+            {
+                results.Add(sweep);
+            }
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// The flown path the pusher's outline is swept along: the run's per-second samples with their positions and nose
+    /// headings interpolated between them.
+    /// </summary>
+    private static List<FlownPose> FlownPath(MoveRun run)
+    {
+        var path = new List<FlownPose>();
+        for (int i = 0; i < run.Samples.Count; i++)
+        {
+            Sample sample = run.Samples[i];
+            bool towed = sample.Phase?.Kind == PushbackLegKind.Pull;
+            path.Add(new FlownPose(sample.Position, sample.NoseDeg, towed));
+            if (i + 1 >= run.Samples.Count)
+            {
+                continue;
+            }
+
+            Sample next = run.Samples[i + 1];
+            double turnDeg = new TrueHeading(sample.NoseDeg).SignedAngleTo(new TrueHeading(next.NoseDeg));
+            for (int step = 1; step < FlownSubSamplesPerSecond; step++)
+            {
+                double fraction = (double)step / FlownSubSamplesPerSecond;
+                var position = new LatLon(
+                    sample.Position.Lat + (fraction * (next.Position.Lat - sample.Position.Lat)),
+                    sample.Position.Lon + (fraction * (next.Position.Lon - sample.Position.Lon))
+                );
+                path.Add(new FlownPose(position, new TrueHeading(sample.NoseDeg + (fraction * turnDeg)).Degrees, towed));
+            }
+        }
+
+        return path;
+    }
+
+    /// <summary>
+    /// Sweeps one mover outline along a flown path against one parked outline, the mover carrying the tug's lead on
+    /// pull sub-samples as the planner's sweep does. Null when no pose comes within <see cref="StandMeasureWindowFt"/>
+    /// of the obstacle, where the outlines cannot meet.
+    /// </summary>
+    private static StandSweepResult? SweepPath(
+        IReadOnlyList<FlownPose> path,
+        GroundOutlineFrame frame,
+        string moverType,
+        LatLon obstaclePosition,
+        double obstacleNoseDeg,
+        string obstacleType,
+        string obstacleLabel
+    )
+    {
+        var obstacleSize = GroundOutlineSize.Of(obstacleType, towedNoseFirst: false);
+        OutlinePoint obstacleCentre = frame.ToLocal(obstaclePosition);
+        var obstacle = GroundOutline.At(obstacleCentre, obstacleNoseDeg, obstacleSize);
+        OutlinePoint[] hull = FootprintHull(obstacle);
+        var moverPushing = GroundOutlineSize.Of(moverType, towedNoseFirst: false);
+        var moverPulling = GroundOutlineSize.Of(moverType, towedNoseFirst: true);
+        double windowFt = StandMeasureWindowFt + moverPulling.ReachFt + obstacleSize.ReachFt;
+        double closestFt = double.MaxValue;
+        double depthFt = 0.0;
+        string? part = null;
+        int second = 0;
+        bool inWindow = false;
+        for (int index = 0; index < path.Count; index++)
+        {
+            FlownPose pose = path[index];
+            OutlinePoint reference = frame.ToLocal(pose.Position);
+            if (OutlinePoint.Distance(reference, obstacleCentre) > windowFt)
+            {
+                continue;
+            }
+
+            inWindow = true;
+            var mover = GroundOutline.At(reference, pose.NoseDeg, pose.TowedNoseFirst ? moverPulling : moverPushing);
+            closestFt = Math.Min(closestFt, GroundOutline.Clearance(mover, obstacle));
+            if (closestFt > 0.0)
+            {
+                continue;
+            }
+
+            (string Part, double Depth) deepest = DeepestPart(mover, reference, pose.NoseDeg, hull);
+            if (deepest.Depth > depthFt)
+            {
+                depthFt = deepest.Depth;
+                part = deepest.Part;
+                second = index / FlownSubSamplesPerSecond;
+            }
+        }
+
+        return inWindow ? new StandSweepResult(obstacleLabel, closestFt, part, depthFt, second) : null;
+    }
+
+    /// <summary>
+    /// The part of a moved outline that reaches deepest inside a parked footprint's hull, and how deep, feet. Each
+    /// segment is sampled finely enough that a chord across the hull cannot slip between two samples.
+    /// </summary>
+    private static (string Part, double Depth) DeepestPart(GroundOutline mover, OutlinePoint reference, double noseDeg, OutlinePoint[] hull)
+    {
+        (OutlineSegment Segment, string Name)[] segments = [(mover.Fuselage, "fuselage"), (mover.Wing, "wing"), (mover.Tailplane, "tail")];
+        double bestFt = 0.0;
+        string bestPart = "none";
+        foreach ((OutlineSegment segment, string name) in segments)
+        {
+            for (int step = 0; step <= OutlineSamplesPerSegment; step++)
+            {
+                OutlinePoint point = AlongSegment(segment, (double)step / OutlineSamplesPerSegment);
+                double depth = HullDepthFt(point, hull);
+                if (depth > bestFt)
+                {
+                    bestFt = depth;
+                    bestPart = name == "fuselage" ? FuselageEnd(point, reference, noseDeg) : name;
+                }
+            }
+        }
+
+        return (bestPart, bestFt);
+    }
+
+    /// <summary>The point <paramref name="t"/> of the way along a segment, feet from the frame origin.</summary>
+    private static OutlinePoint AlongSegment(OutlineSegment segment, double t) =>
+        new(segment.A.EastFt + (t * (segment.B.EastFt - segment.A.EastFt)), segment.A.NorthFt + (t * (segment.B.NorthFt - segment.A.NorthFt)));
+
+    /// <summary>Which end of the fuselage a point sits on: the nose ahead of the reference point, else the tail.</summary>
+    private static string FuselageEnd(OutlinePoint point, OutlinePoint reference, double noseDeg)
+    {
+        double noseRad = noseDeg * Math.PI / 180.0;
+        double forwardFt = ((point.EastFt - reference.EastFt) * Math.Sin(noseRad)) + ((point.NorthFt - reference.NorthFt) * Math.Cos(noseRad));
+        return forwardFt > 0.0 ? "nose" : "tail";
+    }
+
+    /// <summary>
+    /// How far inside a convex footprint hull a point lies, feet; zero when the point is on or outside the boundary.
+    /// Every edge is a supporting half-plane, so the inward distance is the least signed distance to one.
+    /// </summary>
+    private static double HullDepthFt(OutlinePoint point, IReadOnlyList<OutlinePoint> hull)
+    {
+        double leastLeftFt = double.MaxValue;
+        double leastRightFt = double.MaxValue;
+        for (int i = 0; i < hull.Count; i++)
+        {
+            OutlinePoint a = hull[i];
+            OutlinePoint b = hull[(i + 1) % hull.Count];
+            double edgeFt = OutlinePoint.Distance(a, b);
+            if (edgeFt <= 0.0)
+            {
+                continue;
+            }
+
+            double crossFt = Turn(a, b, point) / edgeFt;
+            leastLeftFt = Math.Min(leastLeftFt, crossFt);
+            leastRightFt = Math.Min(leastRightFt, -crossFt);
+        }
+
+        return Math.Max(0.0, Math.Max(leastLeftFt, leastRightFt));
+    }
+
+    /// <summary>
+    /// The convex hull of an outline's six endpoints — the closed footprint region the overlap depth is measured into.
+    /// The outline itself is three zero-width segments; the hull is the region those segments bound.
+    /// </summary>
+    private static OutlinePoint[] FootprintHull(GroundOutline outline)
+    {
+        List<OutlinePoint> sorted =
+        [
+            outline.Fuselage.A,
+            outline.Fuselage.B,
+            outline.Wing.A,
+            outline.Wing.B,
+            outline.Tailplane.A,
+            outline.Tailplane.B,
+        ];
+        sorted.Sort((a, b) => (a.EastFt != b.EastFt) ? a.EastFt.CompareTo(b.EastFt) : a.NorthFt.CompareTo(b.NorthFt));
+        var hull = new List<OutlinePoint>();
+        foreach (OutlinePoint point in sorted)
+        {
+            while ((hull.Count >= 2) && (Turn(hull[^2], hull[^1], point) <= 0.0))
+            {
+                hull.RemoveAt(hull.Count - 1);
+            }
+
+            hull.Add(point);
+        }
+
+        int lowerCount = hull.Count + 1;
+        for (int i = sorted.Count - 2; i >= 0; i--)
+        {
+            OutlinePoint point = sorted[i];
+            while ((hull.Count >= lowerCount) && (Turn(hull[^2], hull[^1], point) <= 0.0))
+            {
+                hull.RemoveAt(hull.Count - 1);
+            }
+
+            hull.Add(point);
+        }
+
+        hull.RemoveAt(hull.Count - 1);
+        return [.. hull];
+    }
+
+    /// <summary>Twice the signed area of the triangle a-b-c; positive when c lies left of a→b.</summary>
+    private static double Turn(OutlinePoint a, OutlinePoint b, OutlinePoint c) =>
+        ((b.EastFt - a.EastFt) * (c.NorthFt - a.NorthFt)) - ((b.NorthFt - a.NorthFt) * (c.EastFt - a.EastFt));
+
+    /// <summary><see cref="SweepRun"/> for one parked aircraft, its outline swept against the flown path.</summary>
+    private static StandSweepResult? SweepRun(
+        MoveRun run,
+        string moverType,
+        LatLon obstaclePosition,
+        double obstacleNoseDeg,
+        string obstacleType,
+        string obstacleLabel
+    )
+    {
+        List<FlownPose> path = FlownPath(run);
+        return SweepPath(path, new GroundOutlineFrame(path[0].Position), moverType, obstaclePosition, obstacleNoseDeg, obstacleType, obstacleLabel);
+    }
+
+    /// <summary>The moves the run flew, in shape and kind, with the reversal count and the duration.</summary>
+    private static string MoveShapeSummary(MoveRun run)
+    {
+        List<PushbackPhase> moves = [.. run.Samples.Select(s => s.Phase).OfType<PushbackPhase>().Distinct()];
+        string shapes = string.Join(
+            "+",
+            moves.Select(m => $"{m.Kind} {m.Move.Shape}{(m.Move.Creep ? "/creep" : "")}{(m.Move.DwellBefore ? "/dwell" : "")}")
+        );
+        string duration = run.CompletedSecond > 0 ? $"{run.CompletedSecond}s" : $"unfinished in {MoveBudgetSeconds}s";
+        return $"{moves.Count} moves [{shapes}] {moves.Count(m => m.Move.DwellBefore)} reversals {duration}";
+    }
+
+    /// <summary>
+    /// The closest the flown outline of <paramref name="moverType"/> came to any straight centreline edge of
+    /// <paramref name="taxiway"/>, feet. The planner's object-free clearance measures against the same straight
+    /// centrelines; this reads the flown path where that one reads the plan, so the two are comparable.
+    /// </summary>
+    private static double ClosestOutlineToTaxiwayFt(AirportGroundLayout layout, MoveRun run, string moverType, string taxiway)
+    {
+        List<FlownPose> path = FlownPath(run);
+        var frame = new GroundOutlineFrame(path[0].Position);
+        double minEastFt = double.MaxValue;
+        double maxEastFt = double.MinValue;
+        double minNorthFt = double.MaxValue;
+        double maxNorthFt = double.MinValue;
+        foreach (FlownPose pose in path)
+        {
+            OutlinePoint reference = frame.ToLocal(pose.Position);
+            minEastFt = Math.Min(minEastFt, reference.EastFt);
+            maxEastFt = Math.Max(maxEastFt, reference.EastFt);
+            minNorthFt = Math.Min(minNorthFt, reference.NorthFt);
+            maxNorthFt = Math.Max(maxNorthFt, reference.NorthFt);
+        }
+
+        List<(OutlinePoint A, OutlinePoint B)> edges = [];
+        foreach (GroundEdge edge in layout.Edges)
+        {
+            if (!edge.MatchesTaxiway(taxiway))
+            {
+                continue;
+            }
+
+            OutlinePoint a = frame.ToLocal(edge.Nodes[0].Position);
+            OutlinePoint b = frame.ToLocal(edge.Nodes[1].Position);
+            bool near =
+                (Math.Min(a.EastFt, b.EastFt) <= maxEastFt + TaxiwayEdgeWindowFt)
+                && (Math.Max(a.EastFt, b.EastFt) >= minEastFt - TaxiwayEdgeWindowFt)
+                && (Math.Min(a.NorthFt, b.NorthFt) <= maxNorthFt + TaxiwayEdgeWindowFt)
+                && (Math.Max(a.NorthFt, b.NorthFt) >= minNorthFt - TaxiwayEdgeWindowFt);
+            if (near)
+            {
+                edges.Add((a, b));
+            }
+        }
+
+        if (edges.Count == 0)
+        {
+            return double.PositiveInfinity;
+        }
+
+        double closestFt = double.MaxValue;
+        foreach (FlownPose pose in path)
+        {
+            var outline = GroundOutline.At(frame.ToLocal(pose.Position), pose.NoseDeg, GroundOutlineSize.Of(moverType, pose.TowedNoseFirst));
+            foreach (OutlineSegment segment in new[] { outline.Fuselage, outline.Wing, outline.Tailplane })
+            {
+                for (int step = 0; step <= TaxiwaySamplesPerSegment; step++)
+                {
+                    OutlinePoint point = AlongSegment(segment, (double)step / TaxiwaySamplesPerSegment);
+                    foreach ((OutlinePoint a, OutlinePoint b) in edges)
+                    {
+                        closestFt = Math.Min(closestFt, PointToSegmentFt(point, a, b));
+                    }
+                }
+            }
+        }
+
+        return closestFt;
+    }
+
+    /// <summary>The distance from a point to a segment, in the frame's flat feet.</summary>
+    private static double PointToSegmentFt(OutlinePoint point, OutlinePoint a, OutlinePoint b)
+    {
+        double alongEastFt = b.EastFt - a.EastFt;
+        double alongNorthFt = b.NorthFt - a.NorthFt;
+        double lengthSqFt = (alongEastFt * alongEastFt) + (alongNorthFt * alongNorthFt);
+        double t =
+            lengthSqFt <= 0.0
+                ? 0.0
+                : Math.Clamp((((point.EastFt - a.EastFt) * alongEastFt) + ((point.NorthFt - a.NorthFt) * alongNorthFt)) / lengthSqFt, 0.0, 1.0);
+        return OutlinePoint.Distance(point, new OutlinePoint(a.EastFt + (t * alongEastFt), a.NorthFt + (t * alongNorthFt)));
+    }
 }
