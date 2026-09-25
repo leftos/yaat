@@ -699,6 +699,7 @@ public static class CommandParser
         return (CommandRegistry.IsAliasFor(Taxi, token))
             || (CommandRegistry.IsAliasFor(AssignRunway, token))
             || (CommandRegistry.IsAliasFor(Pushback, token))
+            || (CommandRegistry.IsAliasFor(ForcedPushback, token))
             || (CommandRegistry.IsAliasFor(FollowGround, token));
     }
 
@@ -914,8 +915,10 @@ public static class CommandParser
             Land when arg is not null => ParseLand(arg),
             ClearedTakeoffPresent => DepartureCommandParser.ParseCtoppArg(arg),
             // Ground — HOLD is overloaded: bare = HoldPosition, with args = HoldingPattern
-            Pushback => GroundCommandParser.ParsePushback(arg),
-            PushbackMulti => GroundCommandParser.ParsePushbackMulti(arg),
+            Pushback => GroundCommandParser.ParsePushback(arg, forced: false),
+            PushbackMulti => GroundCommandParser.ParsePushbackMulti(arg, forced: false),
+            ForcedPushback => GroundCommandParser.ParsePushback(arg, forced: true),
+            ForcedPushbackMulti => GroundCommandParser.ParsePushbackMulti(arg, forced: true),
             Taxi => GroundCommandParser.ParseTaxi(arg),
             AssignRunway => GroundCommandParser.ParseRwyTaxi(arg),
             HoldPosition when arg is null => PR.Ok(new HoldPositionCommand()),

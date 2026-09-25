@@ -13,6 +13,9 @@ public sealed class AircraftGroundOpsDto
 
     /// <summary>A controller's explicit <c>NODEL</c>; optional — earlier snapshots restore false.</summary>
     public bool NoDeleteRequested { get; init; }
+
+    /// <summary>A forced tow (<c>PUSHF</c>/<c>PUSHMF</c>) under way ignores parked aircraft; optional — earlier snapshots restore false.</summary>
+    public bool ForcedTowIgnoresParked { get; init; }
     public required double ConflictBreakRemainingSeconds { get; init; }
     public double? SpeedLimit { get; init; }
 

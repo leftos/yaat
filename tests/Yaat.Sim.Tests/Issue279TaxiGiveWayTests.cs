@@ -57,6 +57,18 @@ public class Issue279TaxiGiveWayTests
         Assert.Equal("TAXI S; GIVEWAY N152SP TAXI C", result.CanonicalString);
     }
 
+    [Theory]
+    [InlineData("PUSH")]
+    [InlineData("PUSHF")]
+    public void ConditionForm_WithAPush_PromotedToSequentialBlock(string verb)
+    {
+        CompoundParseResult? result = CommandSchemeParser.ParseCompound($"TAXI S, GIVEWAY N152SP {verb} T9", Scheme, out ParseFailure? failure);
+
+        Assert.NotNull(result);
+        Assert.Null(failure);
+        Assert.Equal($"TAXI S; GIVEWAY N152SP {verb} T9", result.CanonicalString);
+    }
+
     [Fact]
     public void StandaloneGiveWay_ParsesUnchanged()
     {

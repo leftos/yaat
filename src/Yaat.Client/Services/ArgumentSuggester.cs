@@ -299,9 +299,9 @@ internal static class ArgumentSuggester
         return true;
     }
 
-    /// <summary>Whether the caret is on an argument after a <c>PUSH</c> whose first argument is an <c>@stand</c>.</summary>
+    /// <summary>Whether the caret is on an argument after a <c>PUSH</c> or <c>PUSHF</c> whose first argument is an <c>@stand</c>.</summary>
     private static bool IsAfterPushStand(CommandInputParseResult parsed) =>
-        (parsed.Definition!.Type == CanonicalCommandType.Pushback)
+        (parsed.Definition!.Type is CanonicalCommandType.Pushback or CanonicalCommandType.ForcedPushback)
         && (parsed.ParameterIndex >= 1)
         && (parsed.TypedArgs.Length > 0)
         && parsed.TypedArgs[0].StartsWith('@');

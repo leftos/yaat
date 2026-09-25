@@ -186,27 +186,29 @@ public class ArgumentSuggesterTaxiwayTests
         Assert.Contains(suggestions, s => s.InsertText == "PUSH @B27 ");
     }
 
-    [Fact]
-    public void Push_AfterAStand_OffersNoFacing()
+    [Theory]
+    [InlineData("PUSH")]
+    [InlineData("PUSHF")]
+    public void Push_AfterAStand_OffersNoFacing(string verb)
     {
-        // PUSH @stand parks on the stand's own heading; the parser refuses any facing after the stand. A spot
-        // still takes a facing taxiway.
+        // PUSH @stand (and its forced PUSHF) parks on the stand's own heading; the parser refuses any facing after
+        // the stand. A spot still takes a facing taxiway.
         ObservableCollection<SuggestionItem> afterStand = Suggest(
-            "PUSH @B27 ",
+            $"{verb} @B27 ",
             ["A", "TE"],
             spotNames: ["7A"],
             standNames: ["B27"],
             maxSuggestions: 20
         );
         ObservableCollection<SuggestionItem> afterStandPartial = Suggest(
-            "PUSH @B27 T",
+            $"{verb} @B27 T",
             ["A", "TE"],
             spotNames: ["7A"],
             standNames: ["B27"],
             maxSuggestions: 20
         );
         ObservableCollection<SuggestionItem> afterSpot = Suggest(
-            "PUSH $7A ",
+            $"{verb} $7A ",
             ["A", "TE"],
             spotNames: ["7A"],
             standNames: ["B27"],

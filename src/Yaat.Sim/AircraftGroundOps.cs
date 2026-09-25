@@ -83,6 +83,14 @@ public class AircraftGroundOps
     public bool NoDeleteRequested { get; set; }
 
     /// <summary>
+    /// The tow under way is a forced one (<c>PUSHF</c> / <c>PUSHMF</c>): <see cref="GroundConflictDetector"/> does not
+    /// brake it for parked or held aircraft, while moving traffic still stops it. Set when the forced tow is installed;
+    /// cleared when its last move completes or a command clears the tow (<c>PushbackPhase.OnEnd</c>), and by any new
+    /// tow that is not forced.
+    /// </summary>
+    public bool ForcedTowIgnoresParked { get; set; }
+
+    /// <summary>
     /// When true, the active TaxiingPhase raises its straight-line speed cap by
     /// <see cref="CategoryPerformance.TaxiExpediteMultiplier"/>. Cleared on the
     /// next HOLD/RES/HS command — pilots resume normal taxi after any of those.
@@ -291,6 +299,7 @@ public class AircraftGroundOps
             AutoDeleteExempt = AutoDeleteExempt,
             PendingAutoDelete = PendingAutoDelete,
             NoDeleteRequested = NoDeleteRequested,
+            ForcedTowIgnoresParked = ForcedTowIgnoresParked,
             ConflictBreakRemainingSeconds = ConflictBreakRemainingSeconds,
             SpeedLimit = SpeedLimit,
             AutoYieldTarget = AutoYieldTarget,
@@ -330,6 +339,7 @@ public class AircraftGroundOps
             AutoDeleteExempt = dto.AutoDeleteExempt,
             PendingAutoDelete = dto.PendingAutoDelete,
             NoDeleteRequested = dto.NoDeleteRequested,
+            ForcedTowIgnoresParked = dto.ForcedTowIgnoresParked,
             ConflictBreakRemainingSeconds = dto.ConflictBreakRemainingSeconds,
             SpeedLimit = dto.SpeedLimit,
             AutoYieldTarget = dto.AutoYieldTarget,

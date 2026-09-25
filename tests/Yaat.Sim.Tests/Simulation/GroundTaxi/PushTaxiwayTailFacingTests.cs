@@ -62,7 +62,7 @@ public class PushTaxiwayTailFacingTests
         const string Prefix = "Unable, the move to taxiway Y would take the aircraft ";
         string message = result.Message ?? "";
         Assert.StartsWith(Prefix, message, StringComparison.Ordinal);
-        Assert.EndsWith(" ft past taxiway Y", message, StringComparison.Ordinal);
+        Assert.EndsWith(" ft past taxiway Y. To force it: PUSHF Y FACE S", message, StringComparison.Ordinal);
         double overshootFt = double.Parse(
             message[Prefix.Length..message.IndexOf(" ft past", StringComparison.Ordinal)],
             CultureInfo.InvariantCulture

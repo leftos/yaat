@@ -283,6 +283,87 @@ public sealed record TugRequest
     /// under tow. A first planned move of the other kind is a reversal, so it dwells before it starts.
     /// </summary>
     public required PushbackLegKind? PreviousKind { get; init; }
+
+    /// <summary>
+    /// A forced tow (<c>PUSHF</c> / <c>PUSHMF</c>): the flown-path check keeps only its runway and holding-position rules,
+    /// the parked-neighbour sweep, the alley clearance, the swing band and the overswing filter are skipped, and the plan
+    /// names each rule its chosen candidate overrode (<see cref="TugPlan.ForcedOverrides"/>). The outright refusals and
+    /// the pass-through hints still hold.
+    /// </summary>
+    public required bool Forced { get; init; }
+}
+
+/// <summary>
+/// A rule a forced tow's plan broke that a plain one would have been refused or steered away for, as data; the RPO note
+/// is formatted from it.
+/// </summary>
+public abstract record TugForcedOverride;
+
+/// <summary>The tow crosses movement-area pavement of a taxiway it was not sent to.</summary>
+/// <param name="Taxiway">The taxiway.</param>
+public sealed record TugForcedEntersTaxiway(string Taxiway) : TugForcedOverride;
+
+/// <summary>A push onto a taxiway takes the aircraft's centre further past its centreline than the overshoot bound.</summary>
+/// <param name="Taxiway">The taxiway pushed onto.</param>
+public sealed record TugForcedOvershootsTaxiway(string Taxiway) : TugForcedOverride;
+
+/// <summary>The outline reaches into a taxiway's object-free area the alley clearance would have kept it out of.</summary>
+/// <param name="Taxiway">The taxiway.</param>
+/// <param name="Part">The part of the aircraft that reaches in deepest.</param>
+public sealed record TugForcedFoulsTaxiway(string Taxiway, TugFootprintPart Part) : TugForcedOverride;
+
+/// <summary>The tow passes a parked neighbour inside the clearance floor the neighbour sweep holds a plain tow to.</summary>
+/// <param name="Callsign">The neighbour's callsign.</param>
+/// <param name="ClosestFt">The closest the two outlines come, feet.</param>
+public sealed record TugForcedPassesNeighbour(string Callsign, double ClosestFt) : TugForcedOverride;
+
+/// <summary>A lane push swings the nose past the lane's own turn, which the overswing filter would have dropped.</summary>
+/// <param name="SwingDeg">The nose's largest running swing, degrees.</param>
+/// <param name="LaneTurnDeg">The lane's own turn from the push-off's heading, degrees, unsigned.</param>
+public sealed record TugForcedOverswings(double SwingDeg, double LaneTurnDeg) : TugForcedOverride;
+
+/// <summary>The tow had parked aircraft near it and will not stop for them.</summary>
+public sealed record TugForcedIgnoresParked : TugForcedOverride;
+
+/// <summary>
+/// How a forced tow's candidate passes the parked neighbours, the key a forced tow is ranked by first
+/// (<see cref="Shortlist{T}"/>).
+/// </summary>
+/// <param name="KeepsFloor">Every run of the candidate keeps every parked neighbour at the sweep floor a plain tow is held to.</param>
+/// <param name="ClosestFt">
+/// The closest the candidate's outline comes to any parked neighbour's over its whole path, feet; 0 when they overlap.
+/// </param>
+internal readonly record struct TugNeighbourClearance(bool KeepsFloor, double ClosestFt)
+{
+    /// <summary>
+    /// How much more room a forced candidate that breaks the floor must keep to the neighbours than another to rank
+    /// ahead of it, feet; judgement call: within it, the usual keys decide.
+    /// </summary>
+    internal const double DecidingMarginFt = 5.0;
+
+    /// <summary>
+    /// The forced tow's neighbour ranking step: the candidates the usual keys then choose among. Those that keep every
+    /// parked neighbour at the floor, when any does; else, when any passes with room, those within
+    /// <see cref="DecidingMarginFt"/> of the most room any keeps (a positive pass beats an overlap); else — every one
+    /// overlaps — all of them. Order-independent: the margin is measured from the best, never candidate to candidate.
+    /// </summary>
+    /// <typeparam name="T">The candidate type.</typeparam>
+    /// <param name="candidates">The candidates to rank.</param>
+    /// <param name="clearanceOf">How each candidate passes the neighbours.</param>
+    /// <returns>The shortlist, in the candidates' order; empty only when <paramref name="candidates"/> is.</returns>
+    internal static List<T> Shortlist<T>(IReadOnlyList<T> candidates, Func<T, TugNeighbourClearance> clearanceOf)
+    {
+        List<T> keepers = [.. candidates.Where(c => clearanceOf(c).KeepsFloor)];
+        if (keepers.Count > 0)
+        {
+            return keepers;
+        }
+
+        double mostRoomFt = candidates.Count == 0 ? 0.0 : candidates.Max(c => clearanceOf(c).ClosestFt);
+        return mostRoomFt <= 0.0
+            ? [.. candidates]
+            : [.. candidates.Where(c => (clearanceOf(c).ClosestFt > 0.0) && ((mostRoomFt - clearanceOf(c).ClosestFt) <= DecidingMarginFt))];
+    }
 }
 
 /// <summary>What kind of thing a <see cref="TugPlanWarning"/> tells the RPO.</summary>
@@ -349,6 +430,12 @@ public sealed record TugPlan(
     /// the taxiway: straight back across it, or onto a stretch running alongside the push. Null for every other push.
     /// </summary>
     public TugTaxiwayApproach? TaxiwayApproach { get; init; }
+
+    /// <summary>
+    /// For a forced tow (<see cref="TugRequest.Forced"/>), each rule the plan overrode, in the order found; empty for every
+    /// other plan and for a forced one that overrode nothing.
+    /// </summary>
+    public required IReadOnlyList<TugForcedOverride> ForcedOverrides { get; init; }
 }
 
 /// <summary>How a bare <c>PUSH &lt;taxiway&gt;</c> reaches the taxiway (<see cref="TugPlanBuilder.AcrossAngleDeg"/> splits the two).</summary>
@@ -852,6 +939,13 @@ internal sealed class TugCandidate
     /// </summary>
     internal bool WanderBoundedByOverswing { get; set; }
 
+    /// <summary>
+    /// A forced tow's geometric fallback (<c>TugPlanBuilder.ForcedFallbackCandidates</c>): judged without the run-wander
+    /// and pull-past-the-line shape rules, since it is what the tug flies when every template broke them; it must still
+    /// end on the stop with the facing.
+    /// </summary>
+    internal bool IsForcedFallback { get; init; }
+
     internal IReadOnlyList<TugMoveTrace> Traces => _traces;
 
     internal int Reversals => _traces.Count(t => t.Move.DwellBefore);
@@ -1299,6 +1393,14 @@ internal sealed class TugPlanBuilder
     private const double MaxExtendedStraightFt = 200.0;
 
     /// <summary>
+    /// How far back from the stop, in line-capture radii (<see cref="TugKinematics.RolloutMarginRadii"/> × the routine
+    /// radius), a forced tow's geometric fallback (<see cref="ForcedFallbackCandidates"/>) puts the point it tows to before
+    /// the move onto the line; judgement calls: two radii is the least one capture from square can need, the rest give it
+    /// room.
+    /// </summary>
+    private static readonly double[] ForcedFallbackRunInRadii = [2.0, 3.0, 4.0, 6.0];
+
+    /// <summary>
     /// How far past the lane's centreline a multi-point path (<see cref="MultiPointCandidates"/>) pushes its reference
     /// point before its push turn, feet; judgement calls (user, 2026-09-25).
     /// </summary>
@@ -1353,6 +1455,9 @@ internal sealed class TugPlanBuilder
     private PushbackLegKind? _lastKind;
     private TugRun? _run;
     private readonly List<TugPlanWarning> _warnings = [];
+
+    /// <summary>What a forced plan's kept candidates overrode, each once (<see cref="NoteForcedOverrides"/>).</summary>
+    private readonly List<TugForcedOverride> _overrides = [];
     private GroundNode? _facingJunction;
     private string? _facingTaxiwayName;
     private TugTaxiwayApproach? _taxiwayApproach;
@@ -1376,6 +1481,7 @@ internal sealed class TugPlanBuilder
     private readonly Dictionary<TugCandidate, TugTaxiwayFouling> _foulingByCandidate = [];
     private readonly Dictionary<TugCandidate, IReadOnlySet<string>> _standsByCandidate = [];
     private readonly Dictionary<TugCandidate, bool> _inSwingBandByCandidate = [];
+    private readonly Dictionary<TugCandidate, TugNeighbourClearance> _neighbourClearanceByCandidate = [];
 
     /// <summary>
     /// Each ranked candidate's <see cref="LeadInDepartureFt"/>; a candidate belongs to one goal, and its moves never change
@@ -1404,7 +1510,17 @@ internal sealed class TugPlanBuilder
         )
         {
             TaxiwayApproach = _taxiwayApproach,
+            ForcedOverrides = ForcedOverrides(),
         };
+
+    /// <summary>
+    /// The rules a forced plan overrode (<see cref="NoteForcedOverrides"/>), then — when the request had any parked
+    /// neighbour — that the tow will not stop for parked aircraft. Empty for a plan that is not forced.
+    /// </summary>
+    private List<TugForcedOverride> ForcedOverrides() =>
+        !_request.Forced ? []
+        : _request.ParkedNeighbours.Count > 0 ? [.. _overrides, new TugForcedIgnoresParked()]
+        : [.. _overrides];
 
     /// <summary>
     /// Plans the request: every goal but the last is a pass-through hint, refused when it carries a facing of its own (only
@@ -1492,7 +1608,8 @@ internal sealed class TugPlanBuilder
         }
 
         TugChoiceTally tally = Choose(goal, candidates, offStand);
-        TugCandidate? best = IsKeptOffTheMovementArea(goal) ? KeepOffTheMovementArea(goal, tally, offStand) : tally.Best;
+        TugCandidate? best =
+            (IsKeptOffTheMovementArea(goal) ? KeepOffTheMovementArea(goal, tally, offStand) : tally.Best) ?? ForcedFallback(goal, tally, offStand);
         if (best is null)
         {
             hintMissed = tally.HintDropped;
@@ -1507,8 +1624,277 @@ internal sealed class TugPlanBuilder
             NoteLongPush(goal, best);
         }
 
+        if (_request.Forced)
+        {
+            NoteForcedOverrides(goal, best, offStand);
+        }
+
         Commit(best, goal);
         return true;
+    }
+
+    /// <summary>
+    /// A forced tow's last resort when a faced goal kept no candidate, no candidate was refused by the flown-path check and
+    /// none was dropped for missing a hint: the best geometric fallback (<see cref="ForcedFallbackCandidates"/>), prepared
+    /// to be kept off the movement area when the goal is. Null for any other tow or goal, or when no fallback fits.
+    /// </summary>
+    private TugCandidate? ForcedFallback(ResolvedTugGoal goal, TugChoiceTally tally, bool offStand)
+    {
+        if (!_request.Forced || (goal.Shape != TugGoalShape.Faced) || (tally.PathRefusal is not null) || tally.HintDropped)
+        {
+            return null;
+        }
+
+        TugCandidate? best = Choose(goal, ForcedFallbackCandidates(goal, offStand), offStand).Best;
+        if ((best is not null) && IsKeptOffTheMovementArea(goal))
+        {
+            PrepareKeep(goal, offStand);
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// Judges a forced plan's kept candidate against the rules forcing skipped, and records each it breaks
+    /// (<see cref="AddOverride(List{TugForcedOverride}, TugForcedOverride)"/>): the flown-path check's taxiway rules
+    /// (<see cref="NoteForcedPathOverrides"/>), the alley clearance and the overswing filter
+    /// (<see cref="NoteForcedFouling"/>), and the parked-neighbour sweep (<see cref="NoteForcedNeighbours"/>).
+    /// </summary>
+    private void NoteForcedOverrides(ResolvedTugGoal goal, TugCandidate kept, bool offStand)
+    {
+        NoteForcedPathOverrides(goal, kept);
+        NoteForcedFouling(goal, kept, offStand);
+        NoteForcedNeighbours(kept);
+    }
+
+    /// <summary>
+    /// Every taxiway rule of the flown-path check the kept candidate breaks (<see cref="TugPathCheck.SkippedTaxiwayHits"/>):
+    /// each taxiway it enters, or the taxiway it is pushed onto and runs past.
+    /// </summary>
+    private void NoteForcedPathOverrides(ResolvedTugGoal goal, TugCandidate kept)
+    {
+        if (_pathCheck is null)
+        {
+            return;
+        }
+
+        string? markedPoint = goal.Goal.Kind == TugGoalKind.FreePose ? goal.Name : null;
+        foreach (
+            TugPathRefusal hit in _pathCheck.SkippedTaxiwayHits(kept.Traces, goal.ExemptNames, goal.OvershootTaxiway, (goal.Subject, markedPoint))
+        )
+        {
+            TugForcedOverride? forced = hit switch
+            {
+                { Severity: TugPathSeverity.MovementArea, Taxiway: { } entered } => new TugForcedEntersTaxiway(entered),
+                { Severity: TugPathSeverity.TaxiwayOvershoot, Taxiway: { } overshot } => new TugForcedOvershootsTaxiway(overshot),
+                _ => null,
+            };
+            if (forced is not null)
+            {
+                AddOverride(_overrides, forced);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The alley clearance, for a goal kept off the movement area: the taxiway the kept candidate's outline fouls, with
+    /// the part that reaches in deepest, and — for a lane goal — the overswing filter (<see cref="NoteForcedOverswing"/>).
+    /// </summary>
+    private void NoteForcedFouling(ResolvedTugGoal goal, TugCandidate kept, bool offStand)
+    {
+        if (!IsKeptOffTheMovementArea(goal) || (_clearance is null))
+        {
+            return;
+        }
+
+        TugTaxiwayFouling fouling = Fouling(kept);
+        if (fouling.Fouls && (fouling.Taxiway is { } fouled))
+        {
+            AddOverride(_overrides, new TugForcedFoulsTaxiway(fouled, fouling.Part));
+            NoteForcedOverswing(goal, new TugFoulingCandidate(kept, fouling, NoseSwing(kept, offStand)), offStand);
+        }
+    }
+
+    /// <summary>Every parked neighbour the kept candidate passes inside the sweep floor, with the closest the outlines come.</summary>
+    private void NoteForcedNeighbours(TugCandidate kept)
+    {
+        foreach (TugParkedNeighbour neighbour in _request.ParkedNeighbours)
+        {
+            if (NeighbourPass(kept.Traces, neighbour) is { KeepsFloor: false, ClosestFt: double closestFt })
+            {
+                AddOverride(_overrides, new TugForcedPassesNeighbour(neighbour.Callsign, closestFt));
+            }
+        }
+    }
+
+    /// <summary>
+    /// A forced tow's last resort for a faced goal none of whose templates fits: the simplest geometric tow the turn
+    /// radius allows — after the stand push-off, a tow straight for a point on the goal's approach line
+    /// <see cref="ForcedFallbackRunInRadii"/> line-capture radii back from the stop, on either side, then the side's move
+    /// onto the line (<see cref="AddApproach"/>). The tow to the point is a push off a stand (rule 1), else a push when the
+    /// point is behind the aircraft and a pull when it is ahead. Judged like any candidate, so it must still end on the
+    /// stop with the facing.
+    /// </summary>
+    private List<TugCandidate> ForcedFallbackCandidates(ResolvedTugGoal goal, bool offStand)
+    {
+        TugMove? pushOff = offStand ? _standPushOff : null;
+        double captureRadiusFt = TugKinematics.RolloutMarginRadii * TugKinematics.TurnRadiusFt(_request.AircraftType, tight: false);
+        var candidates = new List<TugCandidate>();
+        foreach (PushbackLegKind side in new[] { PushbackLegKind.Pull, PushbackLegKind.Push })
+        {
+            // The pull onto the stop comes from behind it along the facing, the push from ahead of it.
+            double runInDeg = side == PushbackLegKind.Pull ? goal.FacingTrueDeg + 180.0 : goal.FacingTrueDeg;
+            foreach (double radii in ForcedFallbackRunInRadii)
+            {
+                LatLon runIn = GeoMath.ProjectPoint(goal.Stop, new TrueHeading(runInDeg), radii * captureRadiusFt / GeoMath.FeetPerNm);
+                TugCandidate candidate = NewForcedFallback($"forced fallback, {side} side, run-in {radii:0} radii", pushOff);
+                bool behind = TugMovePlanner.AbsDiffDeg(GeoMath.BearingTo(candidate.End.Position, runIn), candidate.End.NoseTrueDeg) > AheadDeg;
+                candidate.Add(TugMove.ToPoint(offStand || behind ? PushbackLegKind.Push : PushbackLegKind.Pull, runIn));
+                AddApproach(candidate, goal, side);
+                candidates.Add(candidate);
+            }
+        }
+
+        return candidates;
+    }
+
+    private TugCandidate NewForcedFallback(string template, TugMove? pushOff)
+    {
+        var candidate = new TugCandidate(template, _request.AircraftType, _end, _lastKind) { IsForcedFallback = true };
+        if (pushOff is not null)
+        {
+            candidate.Add(pushOff);
+        }
+
+        return candidate;
+    }
+
+    /// <summary>A fouling lane candidate the overswing filter would have dropped: its swing and the lane's own turn.</summary>
+    private void NoteForcedOverswing(ResolvedTugGoal goal, TugFoulingCandidate fouling, bool offStand)
+    {
+        if (IsLaneGoal(goal, offStand) && !TurnsTheLanesWay(goal, fouling))
+        {
+            double laneTurnDeg = new TrueHeading(fouling.Candidate.Traces[0].End.NoseTrueDeg).AbsAngleTo(new TrueHeading(goal.FacingTrueDeg));
+            AddOverride(_overrides, new TugForcedOverswings(fouling.Swing.MaxDeg, laneTurnDeg));
+        }
+    }
+
+    /// <summary>
+    /// Records a rule a forced plan overrode, once: an override equal to one already held is dropped, and a parked
+    /// neighbour is noted once however many stretches of the tow pass it, at the closest any comes — so an overlap
+    /// (<c>0 ft</c>) outranks every pass. The plan is only a candidate here; the command logs the overrides of the plan
+    /// it installs.
+    /// </summary>
+    /// <param name="overrides">The overrides so far, in the order found; updated in place.</param>
+    /// <param name="forced">The override to record.</param>
+    internal static void AddOverride(List<TugForcedOverride> overrides, TugForcedOverride forced)
+    {
+        if (forced is TugForcedPassesNeighbour passes)
+        {
+            int held = overrides.FindIndex(o => o is TugForcedPassesNeighbour other && (other.Callsign == passes.Callsign));
+            if (held < 0)
+            {
+                overrides.Add(passes);
+            }
+            else if (passes.ClosestFt < ((TugForcedPassesNeighbour)overrides[held]).ClosestFt)
+            {
+                overrides[held] = passes;
+            }
+
+            return;
+        }
+
+        if (!overrides.Contains(forced))
+        {
+            overrides.Add(forced);
+        }
+    }
+
+    /// <summary>
+    /// Whether a goal's choice is ranked past its parked neighbours first (<see cref="BestPastNeighbours"/>): a forced tow
+    /// with any parked neighbour. Every other tow is ranked by the usual keys alone (<see cref="IsBetter"/>).
+    /// </summary>
+    private bool RanksPastNeighbours => _request.Forced && (_request.ParkedNeighbours.Count > 0);
+
+    /// <summary>
+    /// A forced tow's choice among <paramref name="candidates"/>: the neighbour ranking step
+    /// (<see cref="TugNeighbourClearance.Shortlist{T}"/>) first, then the usual keys (<see cref="IsBetter"/>) among the
+    /// shortlist. Null when there are no candidates.
+    /// </summary>
+    private TugCandidate? BestPastNeighbours(ResolvedTugGoal goal, bool offStand, IReadOnlyList<TugCandidate> candidates)
+    {
+        TugCandidate? best = null;
+        foreach (TugCandidate candidate in TugNeighbourClearance.Shortlist(candidates, NeighbourClearance))
+        {
+            best = IsBetter(goal, offStand, candidate, best) ? candidate : best;
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// Whether a candidate keeps every parked neighbour at the sweep floor, and the closest its outline comes to any of
+    /// them over its whole path, feet (<see cref="NeighbourPass"/>); measured once.
+    /// </summary>
+    private TugNeighbourClearance NeighbourClearance(TugCandidate candidate)
+    {
+        if (!_neighbourClearanceByCandidate.TryGetValue(candidate, out TugNeighbourClearance clearance))
+        {
+            List<TugNeighbourClearance> passes = [.. _request.ParkedNeighbours.Select(n => NeighbourPass(candidate.Traces, n))];
+            double closestFt = passes.Count == 0 ? double.MaxValue : passes.Min(p => p.ClosestFt);
+            clearance = new TugNeighbourClearance(passes.All(p => p.KeepsFloor), closestFt);
+            _neighbourClearanceByCandidate[candidate] = clearance;
+            Log.LogDebug(
+                "Tug forced candidate {Template}: {Keeps} the neighbour floor, closest {ClosestFt:F1} ft",
+                candidate.Template,
+                clearance.KeepsFloor ? "keeps" : "breaks",
+                clearance.ClosestFt
+            );
+        }
+
+        return clearance;
+    }
+
+    /// <summary>
+    /// How a candidate passes one parked neighbour: whether every run of it (<see cref="RunPathFrom"/>) keeps the sweep
+    /// floor a plain tow is held to (<see cref="GroundOutlineSweep"/>), and the closest its outline comes to the
+    /// neighbour's over its whole path, feet.
+    /// </summary>
+    private TugNeighbourClearance NeighbourPass(IReadOnlyList<TugMoveTrace> traces, TugParkedNeighbour neighbour)
+    {
+        var frame = new GroundOutlineFrame(_request.Start.Position);
+        var neighbourSize = GroundOutlineSize.Of(neighbour.AircraftType, towedNoseFirst: false);
+        var outline = GroundOutline.At(frame.ToLocal(neighbour.Position), neighbour.TrueHeadingDeg, neighbourSize);
+        bool fouls = false;
+        double closestFt = double.MaxValue;
+        for (int i = 0; i < traces.Count; i++)
+        {
+            var moverSize = GroundOutlineSize.Of(_request.AircraftType, towedNoseFirst: traces[i].Move.Kind == PushbackLegKind.Pull);
+            foreach (TugPose pose in traces[i].Samples)
+            {
+                closestFt = Math.Min(
+                    closestFt,
+                    GroundOutline.Clearance(GroundOutline.At(frame.ToLocal(pose.Position), pose.NoseTrueDeg, moverSize), outline)
+                );
+            }
+
+            List<(TugPose Pose, double AlongFt)> path = RunPathFrom(traces, i);
+            if (path.Count > 0)
+            {
+                GroundOutlineSweepResult swept = GroundOutlineSweep.Sweep(
+                    path,
+                    path[0].Pose,
+                    frame,
+                    moverSize,
+                    neighbour.Position,
+                    neighbour.TrueHeadingDeg,
+                    neighbourSize
+                );
+                fouls |= swept.Foul is not null;
+            }
+        }
+
+        return new TugNeighbourClearance(!fouls, closestFt);
     }
 
     /// <summary>Appends a kept candidate's moves to the plan, which then continues from where it ends.</summary>
@@ -1571,8 +1957,15 @@ internal sealed class TugPlanBuilder
         }
 
         PrepareKeep(goal, offStand);
+        if (ForcedPastANeighbour(goal, tally, offStand) is { } forced)
+        {
+            return forced;
+        }
+
         var pools = new TugLazyPools(KeepPools(goal, tally, offStand));
-        bool lane = IsLaneGoal(goal, offStand);
+
+        // A forced tow takes no swing band: every candidate is admitted, and IsClear passes them all.
+        bool lane = IsLaneGoal(goal, offStand) && !_request.Forced;
         TugCandidate? kept = Keep(goal, offStand, pools, c => !lane || InSwingBand(goal, c));
         if ((kept is null) && lane)
         {
@@ -1585,6 +1978,35 @@ internal sealed class TugPlanBuilder
             LogStandEntries(goal, kept, pools);
         }
 
+        return kept;
+    }
+
+    /// <summary>
+    /// A forced tow's keep when the ranking's own choice breaks a parked neighbour's floor: every pool a plain tow searches
+    /// past a parked neighbour (<see cref="KeepPools"/>, as though the neighbour had dropped a candidate, which it would
+    /// have) is searched, and the candidate kept is the best of all of them by the forced ranking
+    /// (<see cref="BestPastNeighbours"/>). Null — the keep then goes on as for any forced tow — when the tow is not
+    /// forced, has no parked neighbour, has no choice, or its choice keeps the floor.
+    /// </summary>
+    private TugCandidate? ForcedPastANeighbour(ResolvedTugGoal goal, TugChoiceTally tally, bool offStand)
+    {
+        if (!RanksPastNeighbours || (tally.Best is not { } chosen) || NeighbourClearance(chosen).KeepsFloor)
+        {
+            return null;
+        }
+
+        tally.NeighbourDropped = true;
+        var pools = new TugLazyPools(KeepPools(goal, tally, offStand));
+        TugCandidate kept = BestPastNeighbours(goal, offStand, pools.Everything()) ?? chosen;
+
+        Log.LogDebug(
+            "Tug {Subject}: forced past a parked neighbour, kept {Template} ({Moves}), closest {ClosestFt:F1} ft",
+            goal.Subject,
+            kept.Template,
+            kept.Describe(),
+            NeighbourClearance(kept).ClosestFt
+        );
+        LogStandEntries(goal, kept, pools);
         return kept;
     }
 
@@ -1718,9 +2140,17 @@ internal sealed class TugPlanBuilder
         );
     }
 
-    /// <summary>The candidate's flown outline stays outside every protected taxiway's object-free area; measured once.</summary>
+    /// <summary>
+    /// The candidate's flown outline stays outside every protected taxiway's object-free area; measured once. Every
+    /// candidate of a forced tow counts as clear, so the pools' own ranking picks it (<see cref="TugRequest.Forced"/>).
+    /// </summary>
     private bool IsClear(TugCandidate candidate)
     {
+        if (_request.Forced)
+        {
+            return true;
+        }
+
         if (_foulingByCandidate.TryGetValue(candidate, out TugTaxiwayFouling fouling))
         {
             return !fouling.Fouls;
@@ -3315,6 +3745,11 @@ internal sealed class TugPlanBuilder
             }
         }
 
+        if (RanksPastNeighbours)
+        {
+            tally.Best = BestPastNeighbours(goal, offStand, tally.Survivors);
+        }
+
         TugCandidate? best = tally.Best;
         if (best is not null)
         {
@@ -3409,6 +3844,11 @@ internal sealed class TugPlanBuilder
             return true;
         }
 
+        if (candidate.IsForcedFallback && best.IsForcedFallback)
+        {
+            return IsShorterTow(candidate, best);
+        }
+
         if (candidate.Reversals != best.Reversals)
         {
             return candidate.Reversals < best.Reversals;
@@ -3429,6 +3869,16 @@ internal sealed class TugPlanBuilder
 
         return candidate.PathLengthFt < best.PathLengthFt;
     }
+
+    /// <summary>
+    /// How forced fallback candidates rank against each other: the shorter tow, then the fewer reversals. The fallback
+    /// serves pushes real ramps never fly, so a lane's lead-in and the rotation keys that pick among real push shapes do
+    /// not apply; lengths within a foot count as equal.
+    /// </summary>
+    private static bool IsShorterTow(TugCandidate candidate, TugCandidate best) =>
+        Math.Abs(candidate.PathLengthFt - best.PathLengthFt) > 1.0
+            ? candidate.PathLengthFt < best.PathLengthFt
+            : candidate.Reversals < best.Reversals;
 
     /// <summary>
     /// How a dropped candidate's reason is logged: the shape rule it broke, with any flown-path hit after it, then the
@@ -3475,8 +3925,8 @@ internal sealed class TugPlanBuilder
 
         string? markedPoint = goal.Goal.Kind == TugGoalKind.FreePose ? goal.Name : null;
         TugPathRefusal? path =
-            _pathCheck?.Check(candidate.Traces, goal.ExemptNames, goal.OvershootTaxiway, goal.Subject, markedPoint)
-            ?? NeighbourRefusal(goal, candidate);
+            _pathCheck?.Check(candidate.Traces, goal.ExemptNames, goal.OvershootTaxiway, (goal.Subject, markedPoint), _request.Forced)
+            ?? (_request.Forced ? null : NeighbourRefusal(goal, candidate));
         return new TugVerdict(shapeReason, path, finalPullOvershootFt, null);
     }
 
@@ -3655,7 +4105,7 @@ internal sealed class TugPlanBuilder
                     swept.FloorFt,
                     foul.AlongFt
                 );
-                return new TugPathRefusal(TugPathSeverity.ParkedNeighbour, $"Unable, {goal.Subject} would swing into {neighbour.Describe()}");
+                return new TugPathRefusal(TugPathSeverity.ParkedNeighbour, $"Unable, {goal.Subject} would swing into {neighbour.Describe()}", null);
             }
         }
 
@@ -3704,14 +4154,14 @@ internal sealed class TugPlanBuilder
             return (forcedReason, null);
         }
 
-        if (!candidate.WanderBoundedByOverswing && TugRun.Follow(_run, traces).Wandered)
+        if (!candidate.WanderBoundedByOverswing && !candidate.IsForcedFallback && TugRun.Follow(_run, traces).Wandered)
         {
             return ($"a same-kind run without a turn wandered more than {TugRun.MaxWanderDeg:0}°", null);
         }
 
         TugMoveTrace last = traces[^1];
         bool linePull = (last.Move.Kind == PushbackLegKind.Pull) && (last.Move.Shape == TugMoveShape.ViaLine);
-        double pastDeg = (linePull && IsLaneGoal(goal, offStand)) ? PastLineDeg(last) : 0.0;
+        double pastDeg = (linePull && IsLaneGoal(goal, offStand) && !candidate.IsForcedFallback) ? PastLineDeg(last) : 0.0;
         if (pastDeg > MaxPullPastLineDeg)
         {
             return ($"the pull onto the line swung the nose {pastDeg:F1}° past the line's heading", null);

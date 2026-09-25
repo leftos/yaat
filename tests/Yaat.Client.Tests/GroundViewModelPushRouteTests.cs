@@ -630,6 +630,7 @@ public class GroundViewModelPushRouteTests
             ParkedNeighbours = [],
             FinalFacingTrueDeg = null,
             PreviousKind = null,
+            Forced = false,
         };
 
     private static void AssertSamePlan(TugPlan? expected, TugPlan? actual)

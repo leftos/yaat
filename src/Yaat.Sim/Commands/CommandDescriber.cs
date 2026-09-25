@@ -100,7 +100,9 @@ public static class CommandDescriber
             AirTaxiCommand => CanonicalCommandType.AirTaxi,
             LandCommand => CanonicalCommandType.Land,
             ClearedTakeoffPresentCommand => CanonicalCommandType.ClearedTakeoffPresent,
+            PushbackCommand { Forced: true } => CanonicalCommandType.ForcedPushback,
             PushbackCommand => CanonicalCommandType.Pushback,
+            PushbackMultiCommand { Forced: true } => CanonicalCommandType.ForcedPushbackMulti,
             PushbackMultiCommand => CanonicalCommandType.PushbackMulti,
             TaxiCommand => CanonicalCommandType.Taxi,
             TaxiAutoCommand => CanonicalCommandType.TaxiAuto,
@@ -1227,8 +1229,8 @@ public static class CommandDescriber
             AirTaxiCommand atxi => atxi.Destination is not null ? $"Air taxi to {atxi.Destination}" : "Air taxi",
             LandCommand land => land.IsTaxiway ? $"Land on taxiway {land.SpotName}" : $"Land at {land.SpotName}",
             ClearedTakeoffPresentCommand ctopp => DescribeCtoppNatural(ctopp),
-            PushbackCommand push => FormatPushNatural(push),
-            PushbackMultiCommand push => FormatPushMultiNatural(push),
+            PushbackCommand push => ForcedNatural(FormatPushNatural(push), push.Forced),
+            PushbackMultiCommand push => ForcedNatural(FormatPushMultiNatural(push), push.Forced),
             TaxiCommand taxi => FormatTaxiNatural(taxi),
             HoldPositionCommand => "Hold position",
             ResumeCommand resume => FormatResumeNatural(resume),
@@ -1767,11 +1769,12 @@ public static class CommandDescriber
     private static string FormatPushCanonical(PushbackCommand push)
     {
         string facing = FormatPushFacing(push);
+        string verb = push.Forced ? "PUSHF" : "PUSH";
         return push switch
         {
-            { Destination: { } destination } => $"PUSH {destination.CanonicalToken}{facing}",
-            { Taxiway: { } taxiway } => $"PUSH {taxiway}{facing}",
-            _ => $"PUSH{facing}",
+            { Destination: { } destination } => $"{verb} {destination.CanonicalToken}{facing}",
+            { Taxiway: { } taxiway } => $"{verb} {taxiway}{facing}",
+            _ => $"{verb}{facing}",
         };
     }
 
@@ -1808,7 +1811,8 @@ public static class CommandDescriber
     {
         string body = string.Join(' ', push.Targets);
         string facing = push.FinalFacing is { } heading ? " " + FormatPushOrientation(heading, push.IsTail) : "";
-        return push.Targets.Count == 0 ? $"PUSHM{facing}" : $"PUSHM {body}{facing}";
+        string verb = push.Forced ? "PUSHMF" : "PUSHM";
+        return push.Targets.Count == 0 ? $"{verb}{facing}" : $"{verb} {body}{facing}";
     }
 
     /// <summary>
@@ -1848,6 +1852,9 @@ public static class CommandDescriber
             _ => name,
         };
     }
+
+    /// <summary>A push's natural text, marked <c>(forced)</c> for <c>PUSHF</c> / <c>PUSHMF</c>.</summary>
+    private static string ForcedNatural(string natural, bool forced) => forced ? $"{natural} (forced)" : natural;
 
     private static string FormatPushNatural(PushbackCommand push)
     {

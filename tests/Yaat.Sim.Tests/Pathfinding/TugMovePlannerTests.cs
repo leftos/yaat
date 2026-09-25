@@ -1085,7 +1085,7 @@ public class TugMovePlannerTests
                 $"{path.Template} swings the nose {swing.MaxDeg:F1}° for a lane turn of {laneTurnDeg:F1}°"
             );
             Assert.True(swing.LeftDeg <= 5.0, $"{path.Template} turns the nose {swing.LeftDeg:F1}° against the lane's right turn");
-            AssertEndsOnSpot(layout, new TugPlan([.. moves], path.End, [], null, null), spot, FiveAlleyRegional);
+            AssertEndsOnSpot(layout, new TugPlan([.. moves], path.End, [], null, null) { ForcedOverrides = [] }, spot, FiveAlleyRegional);
         }
     }
 
@@ -1423,6 +1423,7 @@ public class TugMovePlannerTests
         TugRequest alone = OffStand(new TugPose(rest, outbound), MarkedPoint(rest, behind, 150.0, "the marked point")) with
         {
             PreviousKind = PushbackLegKind.Pull,
+            Forced = false,
         };
         TugPlan direct = PlanOrFail(layout, alone);
 
@@ -1716,6 +1717,7 @@ public class TugMovePlannerTests
             ParkedNeighbours = [],
             FinalFacingTrueDeg = null,
             PreviousKind = null,
+            Forced = false,
         };
 
     /// <summary>A narrowbody not on a stand and not under tow, sent to <paramref name="goal"/>.</summary>
@@ -1729,6 +1731,7 @@ public class TugMovePlannerTests
             ParkedNeighbours = [],
             FinalFacingTrueDeg = null,
             PreviousKind = null,
+            Forced = false,
         };
 
     private TugPlan PlanOrFail(AirportGroundLayout layout, TugRequest request)

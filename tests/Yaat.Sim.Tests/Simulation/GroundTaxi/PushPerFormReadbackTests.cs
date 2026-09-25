@@ -376,7 +376,7 @@ public class PushPerFormReadbackTests(ITestOutputHelper output)
         output.WriteLine($"{command} → {result.Success}: {result.Message}");
 
         Assert.DoesNotContain("parse", result.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal("Unable, the marked point cannot be reached by a pull", result.Message);
+        Assert.Equal($"Unable, the marked point cannot be reached by a pull. To force it: PUSHMF {command["PUSHM ".Length..]}", result.Message);
     }
 
     /// <summary>

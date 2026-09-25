@@ -238,7 +238,7 @@ public class PushCompletionTaxiwayTests(ITestOutputHelper output)
         var start = new TugPose(new LatLon(37.62, -122.38), 0.0);
         List<TugMove> moves = [.. Enumerable.Range(0, moveCount).Select(_ => TugMove.Straight(PushbackLegKind.Push, 80.0))];
         TugSimulation simulation = TugKinematics.Simulate(start, moves, AircraftType, 1.0);
-        return new TugPlan([.. simulation.Moves], simulation.End, [], null, null);
+        return new TugPlan([.. simulation.Moves], simulation.End, [], null, null) { ForcedOverrides = [] };
     }
 
     private AircraftState PushToCompletion(SfoGround ground, string callsign, string type, string gate, string command, int budgetSeconds)

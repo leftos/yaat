@@ -33,6 +33,25 @@ Auto-generated from `sfo.geojson` with manual verification. For use in E2E test 
 | 50-x (cargo) | Z | ~0.04nm |
 | SBE gates | SBE | ~0.03nm |
 
+### Real-world push and tow procedures
+
+Read this before choosing a push to test, scan or tune the planner on: a push the real ramp never flies is not a case worth building for (user, 2026-09-25).
+
+From the user (2026-09-24/25):
+- Aircraft larger than a B75x (CWT A–E) push only to the middle spot of a three-spot group (spot 7 of 7A/7/7B, likewise 6 and 5), because the outer spots put the wing over the neighbouring lane.
+- Stands D11, E13T/E13K, F10, C10 and C11 normally push back onto taxiway A, not to a spot.
+
+From the SFO airport diagram's notes (Navigraph chart, captured 2026-09-25; the right-hand column was cut off in the capture, so text marked … is incomplete; get the full notes before relying on a truncated rule):
+- **Spots:** 7A/7/7B sit in the F/E alley (off F5–F6 and E12), 6A/6/6B in the E/D alley (off E9–E11 and D12), 5A/5/5B in the D/C alley (off D5 and C9–C11), 4A at A15, 1–4 in the A/B alley, and 8–11 by B4/G.
+- **Alleyway between Boarding Areas D and E, departures:** contact Ground … for a tow clearance to the spot; … larger must push back on …; points 5 and 6 will accommodate …; taxilanes 5A/B and 6A/B are limited to B737/A321 or smaller.
+- **Alleyway between Boarding Areas … (arrivals):** contact the … for the appropriate blue numbered spot; departures contact … for a taxi/tow clearance to the spot.
+- **Terminal 1, Boarding Areas A/B taxi and tow:** three designated … for Gates A8 and A1 …; unless otherwise directed, push back with the tail … and be towed to the … A8 before engine start; aircraft with wingspans of 262 ft (80 m) or …; aircraft taxiing to or from Gates A… wider than 118 ft (36 m) shall use …
+- **Taxilanes M1 and M4:** restricted to wingspans … 214 ft (65 m); taxilane M… to wingspans under ….
+- **Gate notes:** Gates A6, A… are configured for simultaneous narrow-body use … (the centre lead-in for Gate A11), G11, G12; Gates G13 and G14 need … when an aircraft …; Gate D8V (widebody) …; Gate C9 accommodates …, C9V accommodates … in addition to ADG V.
+- All widebody aircraft must … at all times, except at G12T …, Gate G8 if the aircraft …
+- Obstructed vision: aircraft pulling into Gates … (limited airport … between Gates F20 and F…).
+- **Non-movement areas as depicted:** arrivals contact the ramp tower ….
+
 ## Summary
 - **Parking spots**: 239
 - **Spot nodes**: 33

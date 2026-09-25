@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Added
+
+- `PUSHF` and `PUSHMF` force a push YAAT would refuse or stall, skipping its taxiway and parked-aircraft checks; runways and holding positions still refuse.
+- A refused `PUSH` or `PUSHM` that forcing would get past ends with the `PUSHF` command to use.
 - `PUSH` and `PUSHM` targets take `/PUSH` or `/PULL` to force how the tug moves the aircraft on that leg, e.g. `PUSH $7A/PULL`.
 - `PUSH ~37.61523/-122.38604/090` pushes to any ramp position given as latitude/longitude with an optional facing; the pilot reads it back as "the marked point".
 - In the Ground View's push-route drawing, Shift+click places a marked point anywhere on the ramp, and Shift+drag sets its facing.

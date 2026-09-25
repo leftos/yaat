@@ -300,7 +300,7 @@ public class AirportE2ETests
 
         AircraftState ac = MakeGroundAircraft(position: parking.Position);
 
-        var push = new PushbackCommand(null, null, "D", null);
+        var push = new PushbackCommand(null, null, "D", null, false);
         CommandResult result = GroundCommandHandler.TryPushback(ac, push, layout, null);
 
         Assert.True(result.Success, $"Pushback should succeed: {result.Message}");
@@ -443,7 +443,7 @@ public class AirportE2ETests
         AircraftState ac = MakeGroundAircraft(position: parking.Position);
 
         // Step 1: Pushback facing D
-        var push = new PushbackCommand(null, null, "D", null);
+        var push = new PushbackCommand(null, null, "D", null, false);
         CommandResult pushResult = GroundCommandHandler.TryPushback(ac, push, layout, null);
         Assert.True(pushResult.Success, $"Pushback failed: {pushResult.Message}");
         Assert.IsType<PushbackPhase>(ac.Phases!.CurrentPhase);
@@ -1247,7 +1247,7 @@ public class AirportE2ETests
         AircraftState ac = MakeGroundAircraft("SFO", a4.Position);
         ac.TrueHeading = new TrueHeading(a4.TrueHeading?.Degrees ?? 104);
 
-        var cmd = new PushbackCommand(null, null, null, PushDestination.AtParking("A9", null));
+        var cmd = new PushbackCommand(null, null, null, PushDestination.AtParking("A9", null), false);
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
 
         Assert.True(result.Success, $"PUSH @A9 should succeed: {result.Message}");

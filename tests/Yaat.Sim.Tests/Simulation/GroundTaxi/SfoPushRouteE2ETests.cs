@@ -943,6 +943,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
             ParkedNeighbours = [],
             FinalFacingTrueDeg = null,
             PreviousKind = PushbackLegKind.Push,
+            Forced = false,
         };
         return TugMovePlanner.Plan(layout, request, out _)?.Moves[0].Move.Kind;
     }

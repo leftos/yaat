@@ -263,20 +263,7 @@ public static class TestVnasData
 
     public static void EnsureInitialized()
     {
-        if (!_initialized)
-        {
-            lock (_lock)
-            {
-                if (!_initialized)
-                {
-                    LoadAircraftSpecs();
-                    LoadAircraftCwt();
-                    LoadFaaAcd();
-                    LoadAircraftProfiles();
-                    _initialized = true;
-                }
-            }
-        }
+        EnsureAircraftDataInitialized();
 
         // Always re-set the NavigationDatabase singleton. Other tests (e.g. parser tests)
         // may have replaced it with a synthetic ForTesting() instance.
@@ -288,6 +275,28 @@ public static class TestVnasData
                 if (!FacilityOpsDatabase.IsInitialized)
                 {
                     FacilityOpsDatabase.Initialize(Path.Combine(AppContext.BaseDirectory, "Data", "FacilityOps"), navDb);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Loads the aircraft tables (categories, CWT, FAA ACD, performance profiles) once per process and leaves the
+    /// <see cref="NavigationDatabase"/> singleton alone, for harnesses that install their own navigation database.
+    /// </summary>
+    public static void EnsureAircraftDataInitialized()
+    {
+        if (!_initialized)
+        {
+            lock (_lock)
+            {
+                if (!_initialized)
+                {
+                    LoadAircraftSpecs();
+                    LoadAircraftCwt();
+                    LoadFaaAcd();
+                    LoadAircraftProfiles();
+                    _initialized = true;
                 }
             }
         }

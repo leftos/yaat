@@ -403,6 +403,7 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
             ParkedNeighbours = [],
             FinalFacingTrueDeg = null,
             PreviousKind = null,
+            Forced = false,
         };
 
     private static TugRequest OffStand(TugPose start, TugGoal goal) =>
@@ -415,6 +416,7 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
             ParkedNeighbours = [],
             FinalFacingTrueDeg = null,
             PreviousKind = null,
+            Forced = false,
         };
 
     private static AirportGroundLayout? LoadSfo() => new TestAirportGroundData().GetLayout("SFO");

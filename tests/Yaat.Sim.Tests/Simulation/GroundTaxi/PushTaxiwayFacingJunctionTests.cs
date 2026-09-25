@@ -201,6 +201,7 @@ public class PushTaxiwayFacingJunctionTests(ITestOutputHelper output)
             ParkedNeighbours = [],
             FinalFacingTrueDeg = null,
             PreviousKind = null,
+            Forced = false,
         };
 
         TugPlan? plan = TugMovePlanner.Plan(layout, request, out string refusal);

@@ -17,7 +17,10 @@ internal enum TugPathSeverity
 }
 
 /// <summary>A flown-path refusal and the rule it comes from.</summary>
-internal readonly record struct TugPathRefusal(TugPathSeverity Severity, string Message);
+/// <param name="Severity">The rule the refusal comes from.</param>
+/// <param name="Message">What the controller sees.</param>
+/// <param name="Taxiway">The taxiway a taxiway-overshoot or movement-area refusal names; null for every other rule.</param>
+internal readonly record struct TugPathRefusal(TugPathSeverity Severity, string Message, string? Taxiway);
 
 /// <summary>
 /// Checks a candidate's flown path, sample by sample, against the layout: the footprint (fuselage length ×
@@ -101,43 +104,91 @@ public sealed class TugPathCheck
     /// <param name="traces">The candidate's moves, flown.</param>
     /// <param name="exemptNames">Pavement the movement-area rule lets the fuselage cross.</param>
     /// <param name="goalTaxiway">The taxiway a push onto a taxiway is sent onto; null for every other goal.</param>
-    /// <param name="subject">How a refusal names the move.</param>
-    /// <param name="markedPoint">
-    /// How a refusal names the marked point the move ends on (<c>the marked point</c>), or null for every other goal. A
-    /// marked point has no pavement of its own to arrive on: its end footprint must clear every movement-area edge.
+    /// <param name="naming">
+    /// How a refusal names the move (<c>Subject</c>), and the marked point the move ends on (<c>MarkedPoint</c>, <c>the
+    /// marked point</c>) or null for every other goal. A marked point has no pavement of its own to arrive on: its end
+    /// footprint must clear every movement-area edge.
+    /// </param>
+    /// <param name="forced">
+    /// A forced tow (<c>PUSHF</c>): only the runway and holding-position rules apply; the taxiway overshoot and the
+    /// movement-area rule are skipped.
     /// </param>
     /// <returns>The refusal, or null.</returns>
     internal TugPathRefusal? Check(
         IReadOnlyList<TugMoveTrace> traces,
         IReadOnlySet<string> exemptNames,
         string? goalTaxiway,
-        string subject,
-        string? markedPoint
+        (string Subject, string? MarkedPoint) naming,
+        bool forced
     )
     {
-        var poses = traces
-            .SelectMany(
-                (t, move) =>
-                    t.Samples.Select(
-                        (p, sample) => new LocalPose(Local(p.Position), p.NoseTrueDeg * DegToRad, move, sample, t.Move.Kind == PushbackLegKind.Pull)
-                    )
-            )
-            .ToList();
+        (string subject, string? markedPoint) = naming;
+        List<LocalPose> poses = Poses(traces);
         if (poses.Count == 0)
         {
             return null;
         }
 
-        // The prefilter reaches as far as the footprint does.
-        Box box = Box.Around(poses).Padded((2.0 * _halfLengthFt) + (2.0 * _halfSpanFt));
-        return RunwayRefusal(poses, box, subject)
-            ?? HoldingPositionRefusal(poses, box, subject)
+        Box box = FootprintBox(poses);
+        TugPathRefusal? runwayOrHold = RunwayRefusal(poses, box, subject) ?? HoldingPositionRefusal(poses, box, subject);
+        if (forced)
+        {
+            return runwayOrHold;
+        }
+
+        return runwayOrHold
             ?? (
                 goalTaxiway is { } taxiway
                     ? TaxiwayOvershootRefusal(poses, box, exemptNames, taxiway, subject)
-                    : MovementAreaRefusal(poses, box, exemptNames, subject, markedPoint)
+                    : MovementAreaCrossings(poses, box, exemptNames, subject, markedPoint).Select(r => (TugPathRefusal?)r).FirstOrDefault()
             );
     }
+
+    /// <summary>
+    /// Every taxiway rule a forced tow skips that the path breaks, one per taxiway, in the order met: for a push onto
+    /// <paramref name="goalTaxiway"/>, the overshoot past it; for every other goal, each movement-area taxiway the fuselage
+    /// crosses (the rule <see cref="Check"/> refuses a plain tow for at its first crossing). The runway and holding-position
+    /// rules are not judged: a forced tow keeps them. Empty when the path breaks none.
+    /// </summary>
+    /// <param name="traces">The candidate's moves, flown.</param>
+    /// <param name="exemptNames">Pavement the movement-area rule lets the fuselage cross.</param>
+    /// <param name="goalTaxiway">The taxiway a push onto a taxiway is sent onto; null for every other goal.</param>
+    /// <param name="naming">How the move and its marked point are named, as for <see cref="Check"/>.</param>
+    /// <returns>The rules broken, each naming its taxiway.</returns>
+    internal List<TugPathRefusal> SkippedTaxiwayHits(
+        IReadOnlyList<TugMoveTrace> traces,
+        IReadOnlySet<string> exemptNames,
+        string? goalTaxiway,
+        (string Subject, string? MarkedPoint) naming
+    )
+    {
+        List<LocalPose> poses = Poses(traces);
+        if (poses.Count == 0)
+        {
+            return [];
+        }
+
+        Box box = FootprintBox(poses);
+        if (goalTaxiway is not { } taxiway)
+        {
+            return [.. MovementAreaCrossings(poses, box, exemptNames, naming.Subject, naming.MarkedPoint)];
+        }
+
+        return TaxiwayOvershootRefusal(poses, box, exemptNames, taxiway, naming.Subject) is { } overshoot ? [overshoot] : [];
+    }
+
+    private List<LocalPose> Poses(IReadOnlyList<TugMoveTrace> traces) =>
+        [
+            .. traces.SelectMany(
+                (t, move) =>
+                    t.Samples.Select(
+                        (p, sample) => new LocalPose(Local(p.Position), p.NoseTrueDeg * DegToRad, move, sample, t.Move.Kind == PushbackLegKind.Pull)
+                    )
+            ),
+        ];
+
+    /// <summary>The prefilter box around the poses, reaching as far as the footprint does.</summary>
+    private Box FootprintBox(List<LocalPose> poses) => Box.Around(poses).Padded((2.0 * _halfLengthFt) + (2.0 * _halfSpanFt));
 
     private static bool TouchesHoldShort(IGroundEdge edge) =>
         (edge.Nodes[0].Type == GroundNodeType.RunwayHoldShort) || (edge.Nodes[1].Type == GroundNodeType.RunwayHoldShort);
@@ -313,7 +364,7 @@ public sealed class TugPathCheck
             {
                 if (FootprintSides(pose).Any(side => SegmentDistanceFt(side.A, side.B, runway.A, runway.B) <= runway.HalfWidthFt))
                 {
-                    return new TugPathRefusal(TugPathSeverity.Runway, $"Unable, {subject} would put the aircraft on runway {runway.Name}");
+                    return new TugPathRefusal(TugPathSeverity.Runway, $"Unable, {subject} would put the aircraft on runway {runway.Name}", null);
                 }
             }
         }
@@ -330,7 +381,7 @@ public sealed class TugPathCheck
             {
                 if (holdEdges.Any(e => Crosses(side.A, side.B, e.A, e.B)))
                 {
-                    return new TugPathRefusal(TugPathSeverity.HoldingPosition, $"Unable, {subject} reaches a runway holding position");
+                    return new TugPathRefusal(TugPathSeverity.HoldingPosition, $"Unable, {subject} reaches a runway holding position", null);
                 }
             }
         }
@@ -339,16 +390,25 @@ public sealed class TugPathCheck
     }
 
     /// <summary>
-    /// The first sample whose fuselage crosses movement-area pavement it may not, as a refusal. Pavement the goal names
-    /// is exempt throughout, and the pavement at either end over its end run — except at a marked point, which arrives on
-    /// no pavement: its end footprint, wings included, must lie across no movement-area edge at all.
+    /// Each movement-area taxiway the fuselage crosses where it may not, as a refusal, once per taxiway, lazily and in
+    /// sample order: the first is the refusal of a plain tow. Pavement the goal names is exempt throughout, and the
+    /// pavement at either end over its end run — except at a marked point, which arrives on no pavement: its end
+    /// footprint, wings included, must lie across no movement-area edge at all, and the taxiway it lies across comes first.
     /// </summary>
-    private TugPathRefusal? MovementAreaRefusal(List<LocalPose> poses, Box box, IReadOnlySet<string> exemptNames, string subject, string? markedPoint)
+    private IEnumerable<TugPathRefusal> MovementAreaCrossings(
+        List<LocalPose> poses,
+        Box box,
+        IReadOnlySet<string> exemptNames,
+        string subject,
+        string? markedPoint
+    )
     {
+        var named = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if ((markedPoint is not null) && (FootprintOnMovementArea(poses[^1], MovementEdgesIn(box, NoExemptNames)) is { } under))
         {
             LogCrossing(subject, poses[^1], under);
-            return new TugPathRefusal(TugPathSeverity.MovementArea, $"Unable, {markedPoint} is on taxiway {under.Name}");
+            named.Add(under.Name);
+            yield return new TugPathRefusal(TugPathSeverity.MovementArea, $"Unable, {markedPoint} is on taxiway {under.Name}", under.Name);
         }
 
         List<MovementEdge> movementEdges = MovementEdgesIn(box, exemptNames);
@@ -365,17 +425,20 @@ public sealed class TugPathCheck
             for (int e = 0; e < movementEdges.Count; e++)
             {
                 MovementEdge edge = movementEdges[e];
-                if (runs.Exempts(sample, e) || !Crosses(nose, tail, edge.Segment.A, edge.Segment.B))
+                if (named.Contains(edge.Name) || runs.Exempts(sample, e) || !Crosses(nose, tail, edge.Segment.A, edge.Segment.B))
                 {
                     continue;
                 }
 
                 LogCrossing(subject, poses[sample], edge);
-                return new TugPathRefusal(TugPathSeverity.MovementArea, $"Unable, {subject} would put the aircraft on taxiway {edge.Name}");
+                named.Add(edge.Name);
+                yield return new TugPathRefusal(
+                    TugPathSeverity.MovementArea,
+                    $"Unable, {subject} would put the aircraft on taxiway {edge.Name}",
+                    edge.Name
+                );
             }
         }
-
-        return null;
     }
 
     /// <summary>The movement-area edges inside <paramref name="box"/> that carry none of <paramref name="exemptNames"/>.</summary>
@@ -433,7 +496,8 @@ public sealed class TugPathCheck
         return farthest.PastFt > boundFt
             ? new TugPathRefusal(
                 TugPathSeverity.TaxiwayOvershoot,
-                $"Unable, {subject} would take the aircraft {farthest.PastFt:F0} ft past taxiway {taxiway}"
+                $"Unable, {subject} would take the aircraft {farthest.PastFt:F0} ft past taxiway {taxiway}",
+                taxiway
             )
             : null;
     }

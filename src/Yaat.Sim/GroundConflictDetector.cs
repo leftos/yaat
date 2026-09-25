@@ -1241,6 +1241,14 @@ public static class GroundConflictDetector
         (mover.Phases?.CurrentPhase is PushbackPhase tugMove) && IsParkedOrHeld(obstacle) ? tugMove : null;
 
     /// <summary>
+    /// An aircraft a forced tow does not stop for: at a stand (<see cref="AtParkingPhase"/>) or resting after a push
+    /// (<see cref="HoldingAfterPushbackPhase"/>). The parked cases of <see cref="IsParkedOrHeld(AircraftState)"/> without the
+    /// held ones: an aircraft stopped on the pavement under a controller hold, or holding in position, is not parked.
+    /// </summary>
+    private static bool IsParkedAtStandOrAfterPush(AircraftState aircraft) =>
+        aircraft.Phases?.CurrentPhase is AtParkingPhase or HoldingAfterPushbackPhase;
+
+    /// <summary>
     /// The rest of the run the tug goes straight on into after the move it is flying: the moves of the
     /// <see cref="PushbackPhase"/>s queued behind the current one, up to but not including the first that dwells.
     ///
@@ -1332,6 +1340,14 @@ public static class GroundConflictDetector
         Action<string>? diagnosticLog
     )
     {
+        // A forced tow (PUSHF / PUSHMF) does not stop for an aircraft at a stand or resting after a push; one held or
+        // holding on the pavement still stops it here, and moving traffic still limits it elsewhere.
+        if (mover.Ground.ForcedTowIgnoresParked && IsParkedAtStandOrAfterPush(obstacle))
+        {
+            diagnosticLog?.Invoke($"    [Closing] {mover.Callsign}→{obstacle.Callsign}: forced tow, parked aircraft ignored");
+            return null;
+        }
+
         if (distFt > GetSeparation(obstacle, mover).TrailFt)
         {
             diagnosticLog?.Invoke($"    [Closing] {mover.Callsign}→{obstacle.Callsign}: tug move, {distFt:F0}ft beyond trail, no limit");

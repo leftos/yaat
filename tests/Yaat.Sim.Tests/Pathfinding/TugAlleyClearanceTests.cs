@@ -170,6 +170,7 @@ public class TugAlleyClearanceTests(ITestOutputHelper output)
             ParkedNeighbours = [],
             FinalFacingTrueDeg = null,
             PreviousKind = null,
+            Forced = false,
         };
 
     /// <summary>

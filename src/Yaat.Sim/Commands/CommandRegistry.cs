@@ -764,56 +764,76 @@ public static class CommandRegistry
             ),
         ];
 
+    /// <summary>
+    /// <c>PUSH</c> or its forced form <c>PUSHF</c>: the same forms and modifiers; the forced form's usage hints say so.
+    /// </summary>
+    private static CommandDefinition PushDefinition(CanonicalCommandType type, string name, string alias, string hintPrefix) =>
+        Cmd(
+            type,
+            name,
+            "Ground",
+            CommandDimension.Ground,
+            false,
+            [alias],
+            [
+                O(null, [], $"{hintPrefix}Pushback (auto heading)"),
+                O("Cardinal", [R("orientation", "<C/>C or FACE C/TAIL C, C∈N/NE/E/SE/S/SW/W/NW")], $"{hintPrefix}Pushback with cardinal facing"),
+                O("Onto", [R("taxiway", "taxiway/exit")], $"{hintPrefix}Pushback onto taxiway"),
+                O(
+                    "Onto+facing",
+                    [R("taxiway", "taxiway"), R("facing_taxiway", "taxiway")],
+                    $"{hintPrefix}Onto taxiway facing toward another taxiway"
+                ),
+                O(
+                    "Onto+cardinal",
+                    [R("taxiway", "taxiway"), R("orientation", "<C/>C or FACE C/TAIL C")],
+                    $"{hintPrefix}Onto taxiway with cardinal hint"
+                ),
+            ],
+            [
+                Mod("@", "parking", false) with
+                {
+                    LeadingTokenOnly = true,
+                },
+                Mod("$", "spot", false) with
+                {
+                    LeadingTokenOnly = true,
+                },
+                Mod("#", "node", false) with
+                {
+                    LeadingTokenOnly = true,
+                },
+            ]
+        );
+
+    /// <summary><c>PUSHM</c> or its forced form <c>PUSHMF</c>: the same forms and modifiers; the forced form's usage hints say so.</summary>
+    private static CommandDefinition PushMultiDefinition(CanonicalCommandType type, string name, string alias, string hintPrefix) =>
+        Cmd(
+            type,
+            name,
+            "Ground",
+            CommandDimension.Ground,
+            false,
+            [alias],
+            [
+                O(null, [Rep("target", "$spot/@parking/#node")], $"{hintPrefix}Tug move through two or more ramp points"),
+                O(
+                    "Facing",
+                    [Rep("target", "$spot/@parking/#node"), R("orientation", "<C/>C or FACE C/TAIL C, C∈N/NE/E/SE/S/SW/W/NW")],
+                    $"{hintPrefix}Tug move, left facing a cardinal at the last point"
+                ),
+            ],
+            // Every slot takes a sigil, so — unlike PUSH — none of these is LeadingTokenOnly: autocomplete
+            // must offer $/@/# on the second and later targets too.
+            [Mod("@", "parking", false), Mod("$", "spot", false), Mod("#", "node", false)]
+        );
+
     private static CommandDefinition[] GroundCommands() =>
         [
-            Cmd(
-                Pushback,
-                "Pushback",
-                "Ground",
-                CommandDimension.Ground,
-                false,
-                ["PUSH"],
-                [
-                    O(null, [], "Pushback (auto heading)"),
-                    O("Cardinal", [R("orientation", "<C/>C or FACE C/TAIL C, C∈N/NE/E/SE/S/SW/W/NW")], "Pushback with cardinal facing"),
-                    O("Onto", [R("taxiway", "taxiway/exit")], "Pushback onto taxiway"),
-                    O("Onto+facing", [R("taxiway", "taxiway"), R("facing_taxiway", "taxiway")], "Onto taxiway facing toward another taxiway"),
-                    O("Onto+cardinal", [R("taxiway", "taxiway"), R("orientation", "<C/>C or FACE C/TAIL C")], "Onto taxiway with cardinal hint"),
-                ],
-                [
-                    Mod("@", "parking", false) with
-                    {
-                        LeadingTokenOnly = true,
-                    },
-                    Mod("$", "spot", false) with
-                    {
-                        LeadingTokenOnly = true,
-                    },
-                    Mod("#", "node", false) with
-                    {
-                        LeadingTokenOnly = true,
-                    },
-                ]
-            ),
-            Cmd(
-                PushbackMulti,
-                "Tug Move",
-                "Ground",
-                CommandDimension.Ground,
-                false,
-                ["PUSHM"],
-                [
-                    O(null, [Rep("target", "$spot/@parking/#node")], "Tug move through two or more ramp points"),
-                    O(
-                        "Facing",
-                        [Rep("target", "$spot/@parking/#node"), R("orientation", "<C/>C or FACE C/TAIL C, C∈N/NE/E/SE/S/SW/W/NW")],
-                        "Tug move, left facing a cardinal at the last point"
-                    ),
-                ],
-                // Every slot takes a sigil, so — unlike PUSH — none of these is LeadingTokenOnly: autocomplete
-                // must offer $/@/# on the second and later targets too.
-                [Mod("@", "parking", false), Mod("$", "spot", false), Mod("#", "node", false)]
-            ),
+            PushDefinition(Pushback, "Pushback", "PUSH", ""),
+            PushMultiDefinition(PushbackMulti, "Tug Move", "PUSHM", ""),
+            PushDefinition(ForcedPushback, "Forced Pushback", "PUSHF", "Forced: "),
+            PushMultiDefinition(ForcedPushbackMulti, "Forced Tug Move", "PUSHMF", "Forced: "),
             Cmd(
                 Taxi,
                 "Taxi",

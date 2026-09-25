@@ -15,9 +15,12 @@ internal static class GroundCommandParser
     /// A stand destination takes no facing, neither an orientation nor a facing taxiway: the aircraft parks on the
     /// stand's own heading.
     /// </summary>
-    internal static PR ParsePushback(string? arg)
+    /// <param name="arg">The arguments after the verb, or null for a bare push.</param>
+    /// <param name="forced">The verb was <c>PUSHF</c>: the command carries <see cref="PushbackCommand.Forced"/>.</param>
+    /// <returns>The command, or why the arguments do not parse.</returns>
+    internal static PR ParsePushback(string? arg, bool forced)
     {
-        PR parsed = ParsePushbackForm(arg);
+        PR parsed = ParsePushbackForm(arg, forced);
         if (parsed.Value is not PushbackCommand push)
         {
             return parsed;
@@ -211,17 +214,17 @@ internal static class GroundCommandParser
     /// <returns>The refusal text.</returns>
     internal static string StandFacingRefusal(string subject) => $"{subject} does not take a facing — the aircraft parks on the stand's own heading";
 
-    private static PR ParsePushbackForm(string? arg)
+    private static PR ParsePushbackForm(string? arg, bool forced)
     {
         if (arg is null)
         {
-            return PR.Ok(new PushbackCommand(null, null, null, null));
+            return PR.Ok(new PushbackCommand(null, null, null, null, forced));
         }
 
         string[] tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
-            return PR.Ok(new PushbackCommand(null, null, null, null));
+            return PR.Ok(new PushbackCommand(null, null, null, null, forced));
         }
 
         // Strip optional leading @parking, $spot, #node or ~point token, with its /PUSH or /PULL; remember which.
@@ -283,12 +286,12 @@ internal static class GroundCommandParser
         // Bare PUSH or just @parking/$spot/#node — no taxiway, no orientation.
         if (rest.Length == 0)
         {
-            return PR.Ok(new PushbackCommand(null, null, null, destination));
+            return PR.Ok(new PushbackCommand(null, null, null, destination, forced));
         }
 
         // Helper to assemble the result with a taxiway and an optional magnetic facing heading.
-        static PushbackCommand Build(MagneticHeading? hdg, bool isTail, string? taxiway, string? facingTwy, PushDestination? dest) =>
-            new(hdg, taxiway, facingTwy, dest) { IsTail = isTail };
+        PushbackCommand Build(MagneticHeading? hdg, bool isTail, string? taxiway, string? facingTwy, PushDestination? dest) =>
+            new(hdg, taxiway, facingTwy, dest, forced) { IsTail = isTail };
 
         // First, try to read an orientation directly (no taxiway): PUSH <E, PUSH FACE E, PUSH $7A TAIL W.
         (MagneticHeading? Hdg, bool IsTail, int Consumed, string? Error) orient = TryOrientation(rest, 0);
@@ -362,7 +365,10 @@ internal static class GroundCommandParser
     /// 8-point cardinal grammar <c>PUSH</c> uses (<c>FACE C</c>, <c>TAIL C</c>, <c>&gt;C</c>, <c>&lt;C</c>).
     /// Examples: PUSHM $6A $6B, PUSHM #1926 $5A, PUSHM @D15 $6A FACE E.
     /// </summary>
-    internal static PR ParsePushbackMulti(string? arg)
+    /// <param name="arg">The arguments after the verb.</param>
+    /// <param name="forced">The verb was <c>PUSHMF</c>: the command carries <see cref="PushbackMultiCommand.Forced"/>.</param>
+    /// <returns>The command, or why the arguments do not parse.</returns>
+    internal static PR ParsePushbackMulti(string? arg, bool forced)
     {
         string[] tokens = arg?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
         var legs = new List<PushDestination>();
@@ -416,7 +422,7 @@ internal static class GroundCommandParser
             return PR.Fail(FacingGivenTwice);
         }
 
-        return PR.Ok(new PushbackMultiCommand(legs, finalFacing) { IsTail = finalIsTail });
+        return PR.Ok(new PushbackMultiCommand(legs, finalFacing, forced) { IsTail = finalIsTail });
     }
 
     /// <summary>

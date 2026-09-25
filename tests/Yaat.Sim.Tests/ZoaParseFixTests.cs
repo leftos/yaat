@@ -276,6 +276,19 @@ public class ZoaParseFixTests : IDisposable
     }
 
     [Fact]
+    public void ParseCompound_GW_WithForcedPush_AsCondition()
+    {
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("BEHIND UAL1744 PUSHF T9");
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value!.Blocks);
+        GiveWayCondition cond = Assert.IsType<GiveWayCondition>(result.Value!.Blocks[0].Condition);
+        Assert.Equal("UAL1744", cond.TargetCallsign);
+        PushbackCommand push = Assert.IsType<PushbackCommand>(Assert.Single(result.Value!.Blocks[0].Commands));
+        Assert.Equal("T9", push.Taxiway);
+        Assert.True(push.Forced);
+    }
+
+    [Fact]
     public void ParseCompound_GW_WithFollowG_AsCondition()
     {
         ParseResult<CompoundCommand> result = CommandParser.ParseCompound("BEHIND UAL1744 FOLLOWG SWA123");

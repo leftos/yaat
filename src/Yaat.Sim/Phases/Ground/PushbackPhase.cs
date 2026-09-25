@@ -535,6 +535,13 @@ public sealed class PushbackPhase : Phase
             ctx.Targets.TargetSpeed = 0;
         }
 
+        // A forced tow ignores parked aircraft until it ends: its last move completes, or anything else ends a move — a
+        // command clearing the tow, which a new tow's install sets the flag again behind.
+        if ((endStatus != PhaseStatus.Completed) || IsLastMove)
+        {
+            ctx.Aircraft.Ground.ForcedTowIgnoresParked = false;
+        }
+
         ctx.Aircraft.Ground.PushbackTrueHeading = null;
 
         // The tug lets go with the phase, except where the tow goes straight on into the next move: that move's start
@@ -593,10 +600,10 @@ public sealed class PushbackPhase : Phase
             CanonicalCommandType.Land => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.HoldPosition => CommandAcceptance.Allowed,
             CanonicalCommandType.Resume => CommandAcceptance.Allowed,
-            CanonicalCommandType.Pushback => CommandAcceptance.Allowed,
+            CanonicalCommandType.Pushback or CanonicalCommandType.ForcedPushback => CommandAcceptance.Allowed,
             // Redirecting an attached tug is ordinary: the new move replaces this leg and every leg still queued
             // behind it, the same way a taxi clearance mid-move takes the whole move with it.
-            CanonicalCommandType.PushbackMulti => CommandAcceptance.ClearsPhase,
+            CanonicalCommandType.PushbackMulti or CanonicalCommandType.ForcedPushbackMulti => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.Rejected("aircraft is being pushed back; only HOLD/RES are accepted until pushback completes"),
         };

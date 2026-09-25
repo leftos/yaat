@@ -151,6 +151,26 @@ The pilot reads a forced single `PUSH` as `push back to …` / `pull forward to 
 
 The Ground View's push-route draw mode writes both (`GroundViewModel`): Shift+click or Shift+drag places a marked point, and the right-click leg menu on a waypoint marker forces its leg. The preview resolves a marked point through the same `GroundCommandHandler.ResolveMarkedPointGoal` the command path calls and names it with `MarkedPointLabel`, so preview and execution plan and refuse alike.
 
+## Forced tug moves — `PUSHF` / `PUSHMF`
+
+`PUSHF` and `PUSHMF` (`CanonicalCommandType.ForcedPushback` / `.ForcedPushbackMulti`) are `PUSH` / `PUSHM` with `Forced = true` on the parsed command, the `TugRequest` and the flown tow. They exist so an RPO is never left with an aircraft stuck at a gate by a gap in YAAT's push rules (user, 2026-09-25). One handler serves both kinds of command, and the pilot readback is identical. (The `/PUSH` / `/PULL` suffix in the next section forces the tug's motion on a leg, which is a different thing.)
+
+**Skipped under forcing:**
+- The taxiway parts of `TugPathCheck`: movement-area pavement, the taxiway overshoot, and a marked point's end footprint on a taxiway.
+- The plan-time parked-neighbour sweep.
+- The alley clearance and the overswing filter: every candidate counts as clear and there is no swing band.
+- At fly time, the detector's braking for **parked** aircraft: those at a stand (`AtParkingPhase`, even under a `HOLD`) or resting after a push (`HoldingAfterPushbackPhase`). An aircraft held on the pavement (under a `HOLD`, or in `HoldingInPosition`) still stops the tow, like moving traffic. `AircraftGroundOps.ForcedTowIgnoresParked` is set by `InstallTugMove` and cleared in `PushbackPhase.OnEnd` when a move is cleared or the last move ends. It is snapshotted as an optional `AircraftGroundOpsDto` field (no schema bump). A mid-push `FACE` amendment carries the flag over from the tow it amends.
+
+**Kept:** the runway and runway-holding-position parts of `TugPathCheck` (AIM 4-3-18.a.5: a push carries no crossing clearance), the outright refusals, the overlap refusal, the `PUSHM` hint check, and the detector's handling of moving traffic and give-way arbitration (aviation consult 2026-09-25).
+
+**Ranking past a parked neighbour.** Candidates that keep every parked neighbour at or above the sweep floor rank as usual. When the first choice breaks the floor, the keep pools a plain push would search are all built, and the candidates are shortlisted by their minimum outline clearance to any parked neighbour over the whole plan. Every candidate within 5 ft of the best clearance ties, and the usual keys decide among them (user, 2026-09-25, from the SFO F5 → 7A renders with F6 occupied: a 2.4 ft, 636 ft plan was preferred over a 7.2 ft three-point turn).
+
+**Geometric fallback.** When no template survives even under forcing (a 672-plan B738 scan found 44 such stand-to-spot pairs, all "cannot line up", e.g. SFO D11 → 6A, pairs the real ramp never flies), `ForcedFallbackCandidates` tows, after the push-off, to a point on the spot's approach line 2, 3, 4 or 6 capture radii back from the stop, then onto the line from either side. It skips the run-wander and pull-past-line shape rules but must end on the stop with the facing. Fallback candidates rank by tow length (within 1 ft counts as equal), then by fewer reversals. SFO D11 `PUSHF $6A` flies push-off, `Push ToPoint`, `Pull ViaLine`, about 830 ft.
+
+**Notes** (RPO only, via `WithPushNotes`): each skipped rule the chosen plan actually broke, one of `(forced: tow enters taxiway X, coordinate with ground)`, `(forced: tow runs past taxiway X, coordinate with ground)`, `(forced: <part> fouls taxiway X, coordinate with ground)`, `(forced: passes N ft from <callsign>)` (the closest outline clearance, rounded down) or `(forced: overlaps <callsign>)` at ≤ 0, and `(forced: nose swings N°, lane needs M°)`. It also adds `(forced: will not stop for parked aircraft)` whenever there is a parked neighbour in range.
+
+**Suggestion on a plain refusal.** When the planner refuses a plain `PUSH`/`PUSHM`, the handler re-plans the same request forced. If that succeeds, the refusal ends with `. To force it: PUSHF <args>` (canonical text from `CommandDescriber`). Phase-state refusals and refusals forcing can't get past carry no suggestion.
+
 ## The command forms — `GroundCommandHandler`
 
 | Command | Goal | Terminus phase | `Ground.ParkingSpot` |

@@ -500,7 +500,12 @@ public record ClearedTakeoffPresentCommand(DepartureInstruction Departure, int? 
 /// <param name="Taxiway">The taxiway to push onto, or null.</param>
 /// <param name="FacingTaxiway">The taxiway to end facing toward, or null.</param>
 /// <param name="Destination">The stand, spot or node to push to, or null.</param>
-public record PushbackCommand(MagneticHeading? MagneticHeading, string? Taxiway, string? FacingTaxiway, PushDestination? Destination) : ParsedCommand
+/// <param name="Forced">
+/// <c>PUSHF</c>: the tow ignores the taxiway, alley-clearance, overswing and parked-neighbour rules (never the runway,
+/// holding-position, outright and start-overlap refusals), and the conflict detector does not stop it for parked aircraft.
+/// </param>
+public record PushbackCommand(MagneticHeading? MagneticHeading, string? Taxiway, string? FacingTaxiway, PushDestination? Destination, bool Forced)
+    : ParsedCommand
 {
     /// <summary>
     /// The controller named the facing by the tail (<c>TAIL W</c>, <c>&lt;W</c>): <see cref="MagneticHeading"/> is then the
@@ -615,7 +620,8 @@ public sealed record PushFreePose(double Latitude, double Longitude, MagneticHea
 /// </summary>
 /// <param name="Legs">The points to reach, in order. Two or more.</param>
 /// <param name="FinalFacing">The facing to leave the aircraft in at the last target, or null to derive one.</param>
-public record PushbackMultiCommand(IReadOnlyList<PushDestination> Legs, MagneticHeading? FinalFacing) : ParsedCommand
+/// <param name="Forced"><c>PUSHMF</c>: forced as <see cref="PushbackCommand.Forced"/> is; the pass-through hints still hold.</param>
+public record PushbackMultiCommand(IReadOnlyList<PushDestination> Legs, MagneticHeading? FinalFacing, bool Forced) : ParsedCommand
 {
     /// <summary>The targets in canonical text, in order, sigils and suffixes included (<c>$6A</c>, <c>@D15</c>, <c>$7A/PULL</c>).</summary>
     public IReadOnlyList<string> Targets => [.. Legs.Select(leg => leg.CanonicalToken)];

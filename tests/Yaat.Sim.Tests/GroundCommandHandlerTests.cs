@@ -334,7 +334,7 @@ public class GroundCommandHandlerTests
     {
         AircraftState ac = MakeGroundAircraft();
         // Phases empty (no AtParkingPhase)
-        var cmd = new PushbackCommand(null, null, null, null);
+        var cmd = new PushbackCommand(null, null, null, null, false);
 
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, null, null);
 
@@ -346,7 +346,7 @@ public class GroundCommandHandlerTests
     public void TryPushback_AtParking_NoArgs_Succeeds()
     {
         AircraftState ac = MakeAircraftAtParking();
-        var cmd = new PushbackCommand(null, null, null, null);
+        var cmd = new PushbackCommand(null, null, null, null, false);
 
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, null, null);
 
@@ -363,7 +363,7 @@ public class GroundCommandHandlerTests
             return;
         }
 
-        var cmd = new PushbackCommand(null, "Y", null, null);
+        var cmd = new PushbackCommand(null, "Y", null, null, false);
 
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
 
@@ -406,7 +406,7 @@ public class GroundCommandHandlerTests
             return;
         }
 
-        var cmd = new PushbackCommand(null, null, null, PushDestination.AtNode(99999999, null));
+        var cmd = new PushbackCommand(null, null, null, PushDestination.AtNode(99999999, null), false);
 
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
 
@@ -495,7 +495,8 @@ public class GroundCommandHandlerTests
             faceHeading is { } heading ? new MagneticHeading(heading) : null,
             null,
             facingTaxiway,
-            PushDestination.AtParking("B13", null)
+            PushDestination.AtParking("B13", null),
+            false
         );
 
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
@@ -510,7 +511,7 @@ public class GroundCommandHandlerTests
     public void TryPushback_WithHeading_IncludesInMessage()
     {
         AircraftState ac = MakeAircraftAtParking();
-        var cmd = new PushbackCommand(new MagneticHeading(180), null, null, null);
+        var cmd = new PushbackCommand(new MagneticHeading(180), null, null, null, false);
 
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, null, null);
 
@@ -552,7 +553,7 @@ public class GroundCommandHandlerTests
             return;
         }
 
-        var cmd = new PushbackCommand(new MagneticHeading(360), "Y", null, null);
+        var cmd = new PushbackCommand(new MagneticHeading(360), "Y", null, null, false);
 
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
 
@@ -570,7 +571,7 @@ public class GroundCommandHandlerTests
             return;
         }
 
-        var cmd = new PushbackCommand(new MagneticHeading(180), "Y", null, null);
+        var cmd = new PushbackCommand(new MagneticHeading(180), "Y", null, null, false);
 
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, layout, null);
 
@@ -584,7 +585,7 @@ public class GroundCommandHandlerTests
     {
         // Without a taxiway, the cardinal is the absolute target facing (no edge snap).
         AircraftState ac = MakeAircraftAtParking();
-        var cmd = new PushbackCommand(new MagneticHeading(45), null, null, null);
+        var cmd = new PushbackCommand(new MagneticHeading(45), null, null, null, false);
 
         CommandResult result = GroundCommandHandler.TryPushback(ac, cmd, null, null);
 

@@ -793,6 +793,106 @@ public class GroundConflictDetectorTests
     }
 
     [Fact]
+    public void ForcedTowTowardMovingTraffic_StillYields()
+    {
+        // A forced tow (PUSHF) ignores parked aircraft only: a taxiing aircraft in its path still stops it.
+        AircraftState a = MakeAircraft("A", new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 3, pushbackHeading: 180);
+        a.Phases = new PhaseList();
+        a.Phases.Add(StraightPushFrom(a));
+        a.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        a.Ground.ForcedTowIgnoresParked = true;
+
+        AircraftState b = MakeAircraft("B", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
+
+        GroundConflictDetector.ApplySpeedLimits([a, b], null);
+
+        Assert.Equal(0.0, a.Ground.SpeedLimit);
+    }
+
+    [Fact]
+    public void ForcedTowAgainstRunwayCrosser_StillYieldsAndShowsWhy()
+    {
+        // The give-way arbitration is unchanged for a forced tow: a runway crosser is never held for it.
+        AircraftState pusher = MakePusherFromStand(StandNorthOf(190), new LatLon(BaseLat + (1.9 * OffsetLatPer100Ft), BaseLon));
+        pusher.Ground.ForcedTowIgnoresParked = true;
+        AircraftState mover = MakeTaxiingE75L(new LatLon(BaseLat, BaseLon), heading: 0);
+        mover.Phases = new PhaseList();
+        mover.Phases.Add(new CrossingRunwayPhase(approachNodeId: 0, targetNodeId: 1, runwayId: "28L"));
+        mover.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+
+        GroundConflictDetector.ApplySpeedLimits([pusher, mover], null);
+
+        Assert.Null(mover.Ground.AutoYieldTarget);
+        Assert.Equal(0.0, pusher.Ground.SpeedLimit);
+        Assert.Equal("ARR", pusher.Ground.AutoYieldTarget);
+    }
+
+    [Fact]
+    public void ForcedTowTowardParkedNeighbor_TooClose_IsNotStopped()
+    {
+        // The same geometry PushingTowardParkedNeighbor_TooClose_StillStops pins at zero: a forced tow is not braked for
+        // a parked aircraft.
+        AircraftState a = MakeAircraft("A", new LatLon(BaseLat + 1.2 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 3, pushbackHeading: 180);
+        a.Phases = new PhaseList();
+        a.Phases.Add(StraightPushFrom(a));
+        a.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        a.Ground.ForcedTowIgnoresParked = true;
+
+        AircraftState b = MakeAircraft("B", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, phase: new AtParkingPhase());
+
+        GroundConflictDetector.ApplySpeedLimits([a, b], null);
+
+        Assert.Null(a.Ground.SpeedLimit);
+        Assert.Null(a.Ground.AutoYieldTarget);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ForcedTowTowardHeldAircraft_TooClose_StillStops(bool holdingInPosition)
+    {
+        // A forced tow does not stop for an aircraft at a stand or resting after a push, but one stopped on the pavement
+        // under a controller HOLD, or holding in position, is not parked: the geometry PushingTowardParkedNeighbor_TooClose_StillStops
+        // pins at zero still stops it.
+        AircraftState a = MakeAircraft("A", new LatLon(BaseLat + 1.2 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 3, pushbackHeading: 180);
+        a.Phases = new PhaseList();
+        a.Phases.Add(StraightPushFrom(a));
+        a.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        a.Ground.ForcedTowIgnoresParked = true;
+
+        AircraftState b = holdingInPosition
+            ? MakeAircraft("B", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, phase: new HoldingInPositionPhase())
+            : MakeAircraft("B", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0);
+        if (!holdingInPosition)
+        {
+            b.Ground.Hold = HoldDirective.HoldPosition;
+        }
+
+        GroundConflictDetector.ApplySpeedLimits([a, b], null);
+
+        Assert.Equal(0.0, a.Ground.SpeedLimit);
+    }
+
+    [Fact]
+    public void ForcedTowTowardAircraftAtAStandUnderHold_TooClose_IsNotStopped()
+    {
+        // An aircraft at a stand is parked whether or not a HOLD is on it: a forced tow is not braked for it.
+        AircraftState a = MakeAircraft("A", new LatLon(BaseLat + 1.2 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 3, pushbackHeading: 180);
+        a.Phases = new PhaseList();
+        a.Phases.Add(StraightPushFrom(a));
+        a.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+        a.Ground.ForcedTowIgnoresParked = true;
+
+        AircraftState b = MakeAircraft("B", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, phase: new AtParkingPhase());
+        b.Ground.Hold = HoldDirective.HoldPosition;
+
+        GroundConflictDetector.ApplySpeedLimits([a, b], null);
+
+        Assert.Null(a.Ground.SpeedLimit);
+        Assert.Null(a.Ground.AutoYieldTarget);
+    }
+
+    [Fact]
     public void PushingAwayFromOther_NoYield()
     {
         // A is pushing back south (pushbackHeading=180), B is north of A (not in pushback path)

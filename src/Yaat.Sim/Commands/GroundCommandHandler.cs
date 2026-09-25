@@ -2817,11 +2817,15 @@ public static class GroundCommandHandler
             ParkedNeighbours = ParkedNeighboursNear(aircraft, listAircraft),
             FinalFacingTrueDeg = target.FinalFacingTrueDeg,
             PreviousKind = null,
+            Forced = push.Forced,
         };
         TugPlan? plan = TugMovePlanner.Plan(groundLayout, request, out string refusal);
         if (plan is null)
         {
-            return new CommandResult(false, refusal);
+            return PlannerRefusal(
+                groundLayout,
+                new RefusedPush(aircraft.Callsign, request, refusal, push, p => OverlapRefusal(aircraft, p, listAircraft))
+            );
         }
 
         if (OverlapRefusal(aircraft, plan, listAircraft) is { } refused)
@@ -2830,8 +2834,72 @@ public static class GroundCommandHandler
         }
 
         TugAmendment? amendment = atStand ? TugAmendment.For(target.Goal, start) : null;
-        InstallTugMove(aircraft, groundLayout, plan, new TugTow(target.Terminus, amendment, KeepsItsPlan(target.Goal)));
+        InstallTugMove(aircraft, groundLayout, plan, new TugTow(target.Terminus, amendment, KeepsItsPlan(target.Goal), push.Forced));
         return PushAccepted(target.Readback(plan), plan);
+    }
+
+    /// <summary>
+    /// A push the planner refused. A plain <c>PUSH</c> / <c>PUSHM</c> that its forced form would get past — the same
+    /// request planned with <see cref="TugRequest.Forced"/>, and that plan passing the check the command makes before it
+    /// installs one (<see cref="RefusedPush.InstallRefusal"/>) — says so after the reason, with the command to send:
+    /// <c>Unable, the move to spot 6A would put the aircraft on taxiway A. To force it: PUSHF $6A</c>. A refusal forcing
+    /// cannot get past, and every refusal of a forced push, is returned as it stands.
+    /// </summary>
+    /// <param name="groundLayout">The layout the push was planned on.</param>
+    /// <param name="refused">The refused push.</param>
+    /// <returns>The refusal.</returns>
+    private static CommandResult PlannerRefusal(AirportGroundLayout? groundLayout, RefusedPush refused)
+    {
+        if (refused.Request.Forced || !ForcedFormWouldInstall(groundLayout, refused))
+        {
+            return new CommandResult(false, refused.Refusal);
+        }
+
+        ParsedCommand forced = refused.Command switch
+        {
+            PushbackCommand push => push with { Forced = true },
+            PushbackMultiCommand move => move with { Forced = true },
+            _ => throw new ArgumentException($"A {refused.Command.GetType().Name} is not a push", nameof(refused)),
+        };
+        string separator = refused.Refusal.EndsWith('.') ? " " : ". ";
+        return new CommandResult(false, $"{refused.Refusal}{separator}To force it: {CommandDescriber.DescribeCommand(forced)}");
+    }
+
+    /// <summary>
+    /// Whether the refused push's forced form would be installed: its plan exists and the command's install check passes
+    /// it. The plan is a probe for the suggestion, never installed; the log marks it as one.
+    /// </summary>
+    private static bool ForcedFormWouldInstall(AirportGroundLayout? groundLayout, RefusedPush refused)
+    {
+        Log.LogDebug("[TugMove] {Callsign}: suggestion probe: planning the forced form of the refused push, not to be installed", refused.Callsign);
+        TugPlan? plan = TugMovePlanner.Plan(groundLayout, refused.Request with { Forced = true }, out _);
+        return (plan is not null) && (refused.InstallRefusal(plan) is null);
+    }
+
+    /// <summary>A push the planner refused, with what deciding whether to suggest its forced form needs.</summary>
+    /// <param name="Callsign">The aircraft's callsign, for the log.</param>
+    /// <param name="Request">The refused request.</param>
+    /// <param name="Refusal">The planner's reason.</param>
+    /// <param name="Command">The command as issued; its forced form is what the suggestion names.</param>
+    /// <param name="InstallRefusal">
+    /// The check the command makes on a plan before installing it — the start overlap (<see cref="OverlapRefusal"/>) for a
+    /// new tow, none for an amendment — returning its refusal, or null when the plan may be installed.
+    /// </param>
+    private sealed record RefusedPush(
+        string Callsign,
+        TugRequest Request,
+        string Refusal,
+        ParsedCommand Command,
+        Func<TugPlan, CommandResult?> InstallRefusal
+    );
+
+    /// <summary>Logs each rule an installed forced tow's plan overrode (<see cref="TugPlan.ForcedOverrides"/>).</summary>
+    private static void LogForcedOverrides(AircraftState aircraft, TugPlan plan)
+    {
+        foreach (TugForcedOverride forced in plan.ForcedOverrides)
+        {
+            Log.LogDebug("[TugMove] {Callsign}: tug move forced past a rule: {Override}", aircraft.Callsign, forced);
+        }
     }
 
     /// <summary>
@@ -2935,8 +3003,23 @@ public static class GroundCommandHandler
             notes.Add($"({facingTaxiway} is {junctionFt:F0} ft away; facing only)");
         }
 
+        notes.AddRange(plan.ForcedOverrides.Select(ForcedNote));
         return notes.Count == 0 ? readback : readback + " " + string.Join(" ", notes);
     }
+
+    /// <summary>The RPO note for one rule a forced tow overrode (<see cref="TugPlan.ForcedOverrides"/>).</summary>
+    private static string ForcedNote(TugForcedOverride forced) =>
+        forced switch
+        {
+            TugForcedEntersTaxiway entered => $"(forced: tow enters taxiway {entered.Taxiway}, coordinate with ground)",
+            TugForcedOvershootsTaxiway overshot => $"(forced: tow runs past taxiway {overshot.Taxiway}, coordinate with ground)",
+            TugForcedFoulsTaxiway foul => $"(forced: {FootprintPartName(foul.Part)} fouls taxiway {foul.Taxiway}, coordinate with ground)",
+            TugForcedPassesNeighbour { ClosestFt: <= 0.0 } overlaps => $"(forced: overlaps {overlaps.Callsign})",
+            TugForcedPassesNeighbour passes => $"(forced: passes {Math.Floor(passes.ClosestFt):F0} ft from {passes.Callsign})",
+            TugForcedOverswings swing => $"(forced: nose swings {swing.SwingDeg:F0}°, lane needs {swing.LaneTurnDeg:F0}°)",
+            TugForcedIgnoresParked => "(forced: will not stop for parked aircraft)",
+            _ => throw new InvalidOperationException($"No push readback note for a {forced.GetType().Name}"),
+        };
 
     /// <summary>The RPO note for one <see cref="TugPlanWarning"/>.</summary>
     private static string PushNote(TugPlanWarning warning) =>
@@ -3513,16 +3596,20 @@ public static class GroundCommandHandler
             ParkedNeighbours = ParkedNeighboursNear(aircraft, listAircraft),
             FinalFacingTrueDeg = amended.FinalFacingTrueDeg,
             PreviousKind = LastTugMotionKind(pushOff),
+            Forced = push.Forced,
         };
         TugPlan? plan = TugMovePlanner.Plan(groundLayout, request, out string refusal);
         if (plan is null)
         {
-            return new CommandResult(false, refusal);
+            // An amendment is never checked for a start overlap (OverlapRefusal), so its forced form has none to fail.
+            return PlannerRefusal(groundLayout, new RefusedPush(aircraft.Callsign, request, refusal, push, _ => null));
         }
 
         var terminus = TugTerminus.Holding(amended.Goal.TaxiwayName);
-        phases.ReplaceUpcoming(TugMovePhases(plan, true, new TugTow(terminus, null, false), 1));
+        phases.ReplaceUpcoming(TugMovePhases(plan, true, new TugTow(terminus, null, false, push.Forced), 1));
         MarkRunningPushOff(pushOff, plan, terminus.EndTaxiway);
+        aircraft.Ground.ForcedTowIgnoresParked = push.Forced;
+        LogForcedOverrides(aircraft, plan);
         Log.LogDebug(
             "[Pushback] {Callsign}: face heading amended to {Heading:000} ({FacingTrue:F1} true), re-planned as {Moves}",
             aircraft.Callsign,
@@ -3642,11 +3729,15 @@ public static class GroundCommandHandler
             ParkedNeighbours = ParkedNeighboursNear(aircraft, listAircraft),
             FinalFacingTrueDeg = finalFacingTrueDeg,
             PreviousKind = LastTugMotionKind(aircraft.Phases.CurrentPhase as PushbackPhase),
+            Forced = move.Forced,
         };
         TugPlan? plan = TugMovePlanner.Plan(groundLayout, request, out string refusal);
         if (plan is null)
         {
-            return new CommandResult(false, refusal);
+            return PlannerRefusal(
+                groundLayout,
+                new RefusedPush(aircraft.Callsign, request, refusal, move, p => OverlapRefusal(aircraft, p, listAircraft))
+            );
         }
 
         TugGoal last = goals[^1];
@@ -3662,7 +3753,7 @@ public static class GroundCommandHandler
             return refused;
         }
 
-        InstallTugMove(aircraft, groundLayout, plan, new TugTow(terminus, null, goals.Any(KeepsItsPlan)));
+        InstallTugMove(aircraft, groundLayout, plan, new TugTow(terminus, null, goals.Any(KeepsItsPlan), move.Forced));
         return PushAccepted(PushMultiReadback(goals, move), plan);
     }
 
@@ -3800,6 +3891,10 @@ public static class GroundCommandHandler
         }
 
         aircraft.Phases.Start(ctx);
+
+        // Set behind the clear: ending the tow it replaces cleared it (PushbackPhase.OnEnd).
+        aircraft.Ground.ForcedTowIgnoresParked = tow.Forced;
+        LogForcedOverrides(aircraft, plan);
         switch (terminus.Kind)
         {
             case TugTerminusKind.Stand:
@@ -3838,9 +3933,11 @@ public static class GroundCommandHandler
     /// </summary>
     /// <summary>
     /// How an installed tow ends and how a mid-push facing change is taken: the terminus, the stand push-off's
-    /// amendment (null when the push is never amended), and whether the tow keeps its plan (<see cref="KeepsItsPlan"/>).
+    /// amendment (null when the push is never amended), whether the tow keeps its plan (<see cref="KeepsItsPlan"/>), and
+    /// whether it is a forced tow (<c>PUSHF</c> / <c>PUSHMF</c>), which the conflict detector does not stop for parked
+    /// aircraft (<see cref="AircraftGroundOps.ForcedTowIgnoresParked"/>).
     /// </summary>
-    private readonly record struct TugTow(TugTerminus Terminus, TugAmendment? Amendment, bool KeepsItsPlan);
+    private readonly record struct TugTow(TugTerminus Terminus, TugAmendment? Amendment, bool KeepsItsPlan, bool Forced);
 
     /// <summary>
     /// Whether a tow to <paramref name="goal"/> keeps its plan against a mid-push facing change: a leg forced to
@@ -3850,7 +3947,7 @@ public static class GroundCommandHandler
 
     private static IEnumerable<Phase> TugMovePhases(TugPlan plan, bool fromStand, TugTow tow, int firstMove)
     {
-        (TugTerminus terminus, TugAmendment? amendment, bool keepsItsPlan) = tow;
+        (TugTerminus terminus, TugAmendment? amendment, bool keepsItsPlan, _) = tow;
         bool inFirstLeg = fromStand;
         for (int i = firstMove; i < plan.Moves.Count; i++)
         {

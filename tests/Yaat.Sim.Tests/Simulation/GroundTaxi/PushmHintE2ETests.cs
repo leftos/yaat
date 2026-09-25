@@ -162,6 +162,7 @@ public class PushmHintE2ETests(ITestOutputHelper output)
             ParkedNeighbours = [],
             FinalFacingTrueDeg = null,
             PreviousKind = null,
+            Forced = false,
         };
         return TugMovePlanner.Plan(layout, request, out string refusal) ?? throw new InvalidOperationException($"the plan was refused: {refusal}");
     }

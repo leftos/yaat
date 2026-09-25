@@ -302,6 +302,7 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
             ParkedNeighbours = [],
             FinalFacingTrueDeg = null,
             PreviousKind = null,
+            Forced = false,
         };
         return TugMovePlanner.Plan(layout, request, out string refusal) ?? throw new InvalidOperationException($"PUSH ${spotName}: {refusal}");
     }
@@ -715,7 +716,7 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
         if (!mustBeAccepted)
         {
             Assert.False(result.Success, $"{pusherType} '{command}' off F5 with F6 occupied was accepted");
-            Assert.Equal($"Unable, the move to spot {spotName} would swing into {ParkedCallsign}", result.Message);
+            Assert.Equal($"Unable, the move to spot {spotName} would swing into {ParkedCallsign}. To force it: PUSHF ${spotName}", result.Message);
             return;
         }
 

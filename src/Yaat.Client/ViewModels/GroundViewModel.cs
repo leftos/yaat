@@ -2461,6 +2461,7 @@ public partial class GroundViewModel : ObservableObject
             ParkedNeighbours = TugParkedNeighbours.Build(subject, others),
             FinalFacingTrueDeg = null,
             PreviousKind = null,
+            Forced = false,
         };
 
         (PushRoutePreview, PushRouteRefusal) = PlanPushPreview(_domainLayout, request, subject, others);

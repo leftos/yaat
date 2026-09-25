@@ -1146,6 +1146,7 @@ public static class CommandSchemeParser
             CanonicalCommandType.Taxi,
             CanonicalCommandType.AssignRunway,
             CanonicalCommandType.Pushback,
+            CanonicalCommandType.ForcedPushback,
             CanonicalCommandType.FollowGround,
         }
             .SelectMany(CommandRegistry.AliasesFor)
