@@ -165,8 +165,7 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
 - **Position / pattern reports** — `BuildMidfieldDownwindReminder`, `BuildShortFinalReminder`,
   `BuildTurningLegReport`, `BuildMileFinalReport`, `BuildAtFixReport` (armed by `REPORT`).
 - **Tower / ground** — `BuildHoldingShortTaxi`, `BuildHoldingShortCrossing`, `BuildClearOfRunwayText`, `BuildTaxiInRequest` (the
-  arrival's call to ground after the exit — "clear of runway 28R at W, taxi to gate 29", AIM 4-3-21.c; "gate" for a numbered spot,
-  "parking" spelled out otherwise),
+  arrival's call to ground after the exit — "clear of runway 28R at W, taxi to gate 29", AIM 4-3-21.c; it and `BuildReadyToTaxi`'s "at gate F8" name the spot the same way: no noun for a name that reads as a word ("at kilo ramp", "taxi to signature"), "gate" for a gate name (`ArrivalParkingPicker.IsGateName`: F8, A13R, 29), "parking" otherwise, the terminal keeping the name as written and the TTS spelling it with `SpellDestinationName` — "gate foxtrot eight"),
   `BuildUnableToExit`, `BuildGoingAround`, `BuildApproachingMinimumsNoLandingClearance`.
 - **Visual acquisition** — `BuildTrafficInSight`, `BuildFieldInSight`, `BuildLostSightOfTraffic`,
   `BuildLostSightOfField`, `BuildLostSightOfTrafficFieldInSight` (traffic lost, field held — the §7-4-3.c.3

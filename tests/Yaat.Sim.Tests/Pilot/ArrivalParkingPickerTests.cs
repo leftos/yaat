@@ -43,7 +43,7 @@ public class ArrivalParkingPickerTests
         string? pick = ArrivalParkingPicker.Pick("SWA1234", OakLikeNames, NoneTaken, 0);
 
         Assert.NotNull(pick);
-        Assert.True(ArrivalParkingPicker.IsGateNumber(pick), pick);
+        Assert.True(ArrivalParkingPicker.IsGateName(pick), pick);
         Assert.Equal(["1", "10", "29", "8B"], ArrivalParkingPicker.Candidates("SWA1234", OakLikeNames));
     }
 
@@ -147,18 +147,145 @@ public class ArrivalParkingPickerTests
         string? pick = ArrivalParkingPicker.Pick(aircraft, layout, [], 0);
 
         Assert.NotNull(pick);
-        Assert.False(ArrivalParkingPicker.IsGateNumber(pick), pick);
+        Assert.False(ArrivalParkingPicker.IsGateName(pick), pick);
         Assert.NotNull(layout.FindParkingByName(pick));
+    }
+
+    [Fact]
+    public void Airline_WithDigitLedAndLetteredGates_PrefersTheDigitLedOnes()
+    {
+        string[] names = ["1", "29", "S5", "F8", "GA1"];
+
+        Assert.Equal(["1", "29"], ArrivalParkingPicker.Candidates("SWA1234", names));
+    }
+
+    [Fact]
+    public void Airline_WithOnlyLetteredGates_UsesThem()
+    {
+        string[] names = ["A1", "F8", "G101", "GA1", "CG1"];
+
+        Assert.Equal(["A1", "F8", "G101"], ArrivalParkingPicker.Candidates("SWA1234", names));
+    }
+
+    [Fact]
+    public void Airline_WithDigitLedGatesUnderHalfOfThePool_UsesEveryGate()
+    {
+        string[] names = ["1", "2", "A13R", "F8", "G101"];
+
+        Assert.Equal(["1", "2", "A13R", "F8", "G101"], ArrivalParkingPicker.Candidates("UAL123", names));
+    }
+
+    [Fact]
+    public void Airline_WithDigitLedGatesAtLeastHalfOfThePool_UsesTheDigitLedOnes()
+    {
+        string[] names = ["1", "29", "8B", "F8"];
+
+        Assert.Equal(["1", "29", "8B"], ArrivalParkingPicker.Candidates("UAL123", names));
+    }
+
+    [Fact]
+    public void GeneralAviation_LeavesEveryGateNameOutOfItsPool()
+    {
+        string[] names = ["GA1", "S5", "T1", "KILO RAMP", "29"];
+
+        Assert.Equal(["GA1", "KILO RAMP"], ArrivalParkingPicker.Candidates("N123AB", names));
+    }
+
+    [Fact]
+    public void SfoLayout_GivesAnAirlineAGateName()
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
+        Assert.NotNull(layout);
+        var aircraft = new AircraftState { Callsign = "UAL123", AircraftType = "B738" };
+
+        string? pick = ArrivalParkingPicker.Pick(aircraft, layout, [], 0);
+
+        Assert.NotNull(pick);
+        Assert.True(char.IsLetter(pick[0]), pick);
+        Assert.True(ArrivalParkingPicker.IsGateName(pick), pick);
+        Assert.NotNull(layout.FindParkingByName(pick));
+    }
+
+    [Fact]
+    public void OakLayout_GivesAnAirlineADigitLedGate()
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
+        Assert.NotNull(layout);
+        var aircraft = new AircraftState { Callsign = "SWA1234", AircraftType = "B738" };
+
+        string? pick = ArrivalParkingPicker.Pick(aircraft, layout, [], 0);
+
+        Assert.NotNull(pick);
+        Assert.True(char.IsDigit(pick[0]), pick);
+        Assert.NotNull(layout.FindParkingByName(pick));
+    }
+
+    [Fact]
+    public void MiaLayout_GivesAnAirlineALetterNamedGate()
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("MIA");
+        Assert.NotNull(layout);
+        var aircraft = new AircraftState { Callsign = "UAL123", AircraftType = "B738" };
+
+        string? pick = ArrivalParkingPicker.Pick(aircraft, layout, [], 0);
+
+        Assert.NotNull(pick);
+        Assert.True(char.IsLetter(pick[0]), pick);
+        Assert.NotNull(layout.FindParkingByName(pick));
+    }
+
+    [Fact]
+    public void FllLayout_GivesAnAirlineALetterNamedGate()
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("FLL");
+        Assert.NotNull(layout);
+        var aircraft = new AircraftState { Callsign = "UAL123", AircraftType = "B738" };
+
+        string? pick = ArrivalParkingPicker.Pick(aircraft, layout, [], 0);
+
+        Assert.NotNull(pick);
+        Assert.True(char.IsLetter(pick[0]), pick);
+        Assert.NotNull(layout.FindParkingByName(pick));
+    }
+
+    [Fact]
+    public void SmfLayout_GivesAnAirlineATerminalGate()
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SMF");
+        Assert.NotNull(layout);
+        var aircraft = new AircraftState { Callsign = "AAL123", AircraftType = "B738" };
+
+        string? pick = ArrivalParkingPicker.Pick(aircraft, layout, [], 0);
+
+        Assert.NotNull(pick);
+        Assert.Matches("^[AB]\\d", pick);
     }
 
     [Theory]
     [InlineData("29", true)]
     [InlineData("8B", true)]
     [InlineData("1", true)]
+    [InlineData("F8", true)]
+    [InlineData("A13R", true)]
+    [InlineData("G101", true)]
+    [InlineData("B22", true)]
+    [InlineData("S5A", true)]
+    [InlineData("T1", true)]
+    [InlineData("8081", false)]
     [InlineData("A", false)]
     [InlineData("GA13", false)]
+    [InlineData("GA1", false)]
+    [InlineData("CG1", false)]
+    [InlineData("UB1", false)]
     [InlineData("FDX1", false)]
+    [InlineData("CARGO1", false)]
     [InlineData("41-10", false)]
-    public void IsGateNumber_DigitsWithAtMostOneTrailingLetter(string name, bool expected) =>
-        Assert.Equal(expected, ArrivalParkingPicker.IsGateNumber(name));
+    [InlineData("2-1A", false)]
+    [InlineData("7AB", false)]
+    [InlineData("KILO RAMP", false)]
+    [InlineData("GATE B22", false)]
+    [InlineData("٢٩", false)]
+    [InlineData("", false)]
+    public void IsGateName_OptionalLetterThenUpToThreeDigitsThenOptionalLetter(string name, bool expected) =>
+        Assert.Equal(expected, ArrivalParkingPicker.IsGateName(name));
 }

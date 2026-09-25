@@ -542,11 +542,11 @@ public class PilotResponderTests
     [Fact]
     public void BuildReadyToTaxi_NoAtis_DropsInformationClause()
     {
-        AircraftState ac = MakeAircraft("N123AB", parkingSpot: "GATE B22");
+        AircraftState ac = MakeAircraft("N123AB", parkingSpot: "B22");
 
         PilotSpeechText result = PilotResponder.BuildReadyToTaxi(ac, "ground", atisLetter: null);
 
-        Assert.Equal("ground, november one two three alpha bravo at gate b22, ready to taxi.", result.Tts);
+        Assert.Equal("ground, november one two three alpha bravo at gate bravo two two, ready to taxi.", result.Tts);
         Assert.DoesNotContain("information", result.Tts);
     }
 
@@ -862,12 +862,68 @@ public class PilotResponderTests
     // --- BuildReadyToTaxi ---
 
     [Fact]
-    public void BuildReadyToTaxi_WithKnownParkingSpot_IncludesLowercaseSpot()
+    public void BuildReadyToTaxi_WithGateParkingSpot_NamesTheGate()
     {
-        AircraftState ac = MakeAircraft("N123AB", parkingSpot: "GATE B22");
+        AircraftState ac = MakeAircraft("N123AB", parkingSpot: "B22");
         PilotSpeechText result = PilotResponder.BuildReadyToTaxi(ac);
 
-        Assert.Equal("ground, november one two three alpha bravo at gate b22, with information Alpha, ready to taxi.", result.Tts);
+        Assert.Equal("ground, at gate B22, with information Alpha, ready to taxi.", result.Terminal);
+        Assert.Equal("ground, november one two three alpha bravo at gate bravo two two, with information Alpha, ready to taxi.", result.Tts);
+    }
+
+    [Fact]
+    public void BuildReadyToTaxi_WithLetteredGate_SpellsTheLetter()
+    {
+        AircraftState ac = MakeAircraft("N123AB", parkingSpot: "F8");
+
+        PilotSpeechText result = PilotResponder.BuildReadyToTaxi(ac, "ground", "A");
+
+        Assert.Contains("ground, at gate F8, with information Alpha", result.Terminal);
+        Assert.Contains("at gate foxtrot eight", result.Tts);
+    }
+
+    [Fact]
+    public void BuildReadyToTaxi_WithThreePartGate_SpellsEachDigit()
+    {
+        AircraftState ac = MakeAircraft("N123AB", parkingSpot: "G101");
+
+        PilotSpeechText result = PilotResponder.BuildReadyToTaxi(ac, "ground", "A");
+
+        Assert.Contains("ground, at gate G101, with information Alpha", result.Terminal);
+        Assert.Contains("at gate golf one zero one", result.Tts);
+    }
+
+    [Fact]
+    public void BuildReadyToTaxi_WithNonGateSpot_SaysParking()
+    {
+        AircraftState ac = MakeAircraft("N123AB", parkingSpot: "GA13");
+
+        PilotSpeechText result = PilotResponder.BuildReadyToTaxi(ac, "ground", "A");
+
+        Assert.Contains("ground, at parking GA13, with information Alpha", result.Terminal);
+        Assert.Contains("at parking golf alpha one three, with information Alpha", result.Tts);
+    }
+
+    [Fact]
+    public void BuildReadyToTaxi_WithWordName_TakesNoNoun()
+    {
+        AircraftState ac = MakeAircraft("N123AB", parkingSpot: "KILO RAMP");
+
+        PilotSpeechText result = PilotResponder.BuildReadyToTaxi(ac, "ground", "A");
+
+        Assert.Contains("ground, at KILO RAMP, with information Alpha", result.Terminal);
+        Assert.Contains("at kilo ramp, with information Alpha", result.Tts);
+    }
+
+    [Fact]
+    public void BuildReadyToTaxi_WithWordThenDigitName_TakesNoNoun()
+    {
+        AircraftState ac = MakeAircraft("N123AB", parkingSpot: "CARGO1");
+
+        PilotSpeechText result = PilotResponder.BuildReadyToTaxi(ac, "ground", "A");
+
+        Assert.Contains("ground, at CARGO1, with information Alpha", result.Terminal);
+        Assert.Contains("at cargo one, with information Alpha", result.Tts);
     }
 
     [Fact]
@@ -876,16 +932,18 @@ public class PilotResponderTests
         AircraftState ac = MakeAircraft("AAL123");
         PilotSpeechText result = PilotResponder.BuildReadyToTaxi(ac);
 
+        Assert.Contains("at the ramp", result.Terminal);
         Assert.Equal("ground, american one twenty three at the ramp, with information Alpha, ready to taxi.", result.Tts);
     }
 
     [Fact]
     public void BuildReadyToTaxi_WithRadioName_AddressesFacility()
     {
-        AircraftState ac = MakeAircraft("N123AB", parkingSpot: "GATE B22");
+        AircraftState ac = MakeAircraft("N123AB", parkingSpot: "B22");
         PilotSpeechText result = PilotResponder.BuildReadyToTaxi(ac, "Oakland Ground", "A");
 
-        Assert.Equal("Oakland Ground, november one two three alpha bravo at gate b22, with information Alpha, ready to taxi.", result.Tts);
+        Assert.Equal("Oakland Ground, at gate B22, with information Alpha, ready to taxi.", result.Terminal);
+        Assert.Equal("Oakland Ground, november one two three alpha bravo at gate bravo two two, with information Alpha, ready to taxi.", result.Tts);
     }
 
     // --- BuildHoldingShortReady ---

@@ -44,7 +44,7 @@ public class TaxiInCallTests
         PilotPendingRequest request = aircraft.PendingPilotRequest!;
         Assert.Equal("Oakland Ground", request.FacilityCallName);
         Assert.NotNull(request.ParkingName);
-        Assert.False(ArrivalParkingPicker.IsGateNumber(request.ParkingName), request.ParkingName);
+        Assert.False(ArrivalParkingPicker.IsGateName(request.ParkingName), request.ParkingName);
         Assert.StartsWith("Oakland Ground, clear of runway 28R at ", request.LastPilotLine);
         Assert.EndsWith($", taxi to parking {request.ParkingName}.", request.LastPilotLine);
         Assert.Contains("november one five two sierra papa, clear of runway two eight right at ", request.LastPilotLineTts);
@@ -183,6 +183,16 @@ public class TaxiInCallTests
         );
         Assert.Equal("ground, clear of the runway, taxi to parking SIG1.", ramp.Terminal);
         Assert.Contains("clear of the runway, taxi to parking sierra india golf one.", ramp.Tts);
+
+        PilotSpeechText word = PilotResponder.BuildTaxiInRequest(
+            new AircraftState { Callsign = "N152SP", AircraftType = "C172" },
+            "ground",
+            null,
+            null,
+            "SIGNATURE"
+        );
+        Assert.EndsWith("taxi to SIGNATURE.", word.Terminal);
+        Assert.EndsWith("taxi to signature.", word.Tts);
     }
 
     private static AircraftState LandAndExit(SimulationEngine engine)

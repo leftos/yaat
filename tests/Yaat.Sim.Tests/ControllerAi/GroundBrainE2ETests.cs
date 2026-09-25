@@ -164,11 +164,12 @@ public class GroundBrainE2ETests
 
         AircraftState parked = AiTestFixture.TickUntil(engine, AiTestFixture.Callsign, ac => ac.Phases?.CurrentPhase is AtParkingPhase, 1200);
 
-        RecordedCommand taxiIn = Assert.Single(
-            engine.Scenario!.ActionLog.OfType<RecordedCommand>(),
-            a => a.ConnectionId == AiConnectionId.Format(ground.PositionId)
-        );
-        Assert.StartsWith("TAXIAUTO @", taxiIn.Command);
+        // The brain's taxi-in order is the TAXIAUTO command. The arrival's parking is across 28L, so the brain also
+        // clears it across the runway — the only other order it issues for this aircraft.
+        string aiId = AiConnectionId.Format(ground.PositionId);
+        var aiCommands = engine.Scenario!.ActionLog.OfType<RecordedCommand>().Where(a => a.ConnectionId == aiId).ToList();
+        RecordedCommand taxiIn = Assert.Single(aiCommands, a => a.Command.StartsWith("TAXIAUTO @", StringComparison.Ordinal));
+        Assert.All(aiCommands.Where(a => a != taxiIn), a => Assert.StartsWith("CROSS ", a.Command));
         Assert.Equal(taxiIn.Command["TAXIAUTO @".Length..], parked.Ground.ParkingSpot);
         Assert.False(parked.PendingPilotRequest?.IsOpen ?? false);
         Assert.DoesNotContain(

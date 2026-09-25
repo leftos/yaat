@@ -1321,7 +1321,36 @@ public static class PhraseologyVerbalizer
         return string.Join(' ', runs);
     }
 
-    private static bool IsPronounceableWord(string letters) => letters.Length >= 4 && letters.Any(c => "AEIOUaeiou".Contains(c));
+    /// <summary>A letter run that reads as a word: four or more letters, at least one of them a vowel.</summary>
+    public static bool IsPronounceableWord(string letters) => (letters.Length >= 4) && letters.Any(c => "AEIOUaeiou".Contains(c));
+
+    /// <summary>True when any letter run of a name reads as a word ("KILO RAMP", "SIGNATURE", "CARGO1") — such a name
+    /// takes no gate/parking noun.</summary>
+    public static bool ContainsPronounceableWord(string name)
+    {
+        int i = 0;
+        while (i < name.Length)
+        {
+            if (!char.IsLetter(name[i]))
+            {
+                i++;
+                continue;
+            }
+
+            int start = i;
+            while ((i < name.Length) && char.IsLetter(name[i]))
+            {
+                i++;
+            }
+
+            if (IsPronounceableWord(name[start..i]))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>Approach name like "ILS28R" → "I L S two eight right". Letters via NATO; L/R/C as words.</summary>
     public static string SpellApproach(string approachId)

@@ -10,8 +10,13 @@ namespace Yaat.Sim.Pilot;
 /// Where an arriving pilot says it is going. Nothing in a scenario assigns an arrival a parking spot, so the pilot picks
 /// one itself — deterministically per callsign (an FNV-1a draw, replay-safe, no RNG state) — from the layout's parking
 /// nodes that fit the operator: the operator's own ramp when the layout names one (FDX*, JSX*, DHL*), a cargo apron or
-/// a numbered gate for an airline, a non-gate spot (FBO ramps, tie-down rows) for everyone else. Spots already parked
-/// on, being taxied to, or named in another pilot's open taxi-in request are skipped.
+/// a gate for an airline, a non-gate spot (FBO ramps, tie-down rows) for everyone else — general aviation avoids every
+/// gate name, so a layout whose airline hardstands match the gate shape keeps them out of the GA pool. A gate name is an
+/// optional leading upper-case letter, one to three digits, and an optional trailing upper-case letter ("29", "F8",
+/// "A13R", "G101"); an airline's pool is the digit-led gates when they are at least half of the layout's gates (OAK's
+/// 1-32, whose lettered names are hardstands) and every gate otherwise (FLL, SMF and MIA, where the digits are runway
+/// and terminal markers beside the real gates). Spots already parked on, being taxied to, or named in another pilot's
+/// open taxi-in request are skipped.
 /// </summary>
 public static class ArrivalParkingPicker
 {
@@ -121,7 +126,7 @@ public static class ArrivalParkingPicker
         if (operatorCode is null)
         {
             var general = names
-                .Where(n => !IsGateNumber(n) && !IsOperatorRamp(n) && !n.StartsWith(CargoApronPrefix, StringComparison.OrdinalIgnoreCase))
+                .Where(n => !IsGateName(n) && !IsOperatorRamp(n) && !n.StartsWith(CargoApronPrefix, StringComparison.OrdinalIgnoreCase))
                 .ToList();
             return general.Count > 0 ? general : names;
         }
@@ -142,14 +147,23 @@ public static class ArrivalParkingPicker
             }
         }
 
-        var gates = names.Where(IsGateNumber).ToList();
-        return gates.Count > 0 ? gates : names;
+        var gates = names.Where(IsGateName).ToList();
+        if (gates.Count > 0)
+        {
+            // The digit-led names are the pool only when they dominate the layout's gates: OAK's 1-32, where the lettered
+            // names are hardstands. A minority of digit-led names (FLL, SMF, MIA) means the digits are runway and
+            // terminal markers beside the real gates, so every gate name is the pool.
+            var digitLed = gates.Where(g => char.IsAsciiDigit(g[0])).ToList();
+            return (digitLed.Count * 2 >= gates.Count) ? digitLed : gates;
+        }
+
+        return names;
     }
 
     /// <summary>The three-letter ICAO operator of an airline-style callsign (letters then digits) the fleet data knows; null for a registration.</summary>
     private static string? OperatorCode(string callsign)
     {
-        if ((callsign.Length < 4) || !callsign[..3].All(char.IsAsciiLetterUpper) || !char.IsDigit(callsign[3]))
+        if ((callsign.Length < 4) || !callsign[..3].All(char.IsAsciiLetterUpper) || !char.IsAsciiDigit(callsign[3]))
         {
             return null;
         }
@@ -158,15 +172,38 @@ public static class ArrivalParkingPicker
         return AirlineFleets.TryGetAirline(code, out _) || RampAliases.ContainsKey(code) ? code : null;
     }
 
-    /// <summary>A numbered gate: digits with at most one trailing letter ("29", "8B").</summary>
-    public static bool IsGateNumber(string name)
+    /// <summary>A gate name: an optional upper-case letter, one to three digits, then an optional upper-case letter
+    /// ("29", "8B", "F8", "A13R", "G101").</summary>
+    public static bool IsGateName(string name)
     {
-        int digits = name.TakeWhile(char.IsDigit).Count();
-        return (digits > 0) && ((digits == name.Length) || ((digits == name.Length - 1) && char.IsAsciiLetterUpper(name[^1])));
+        int i = 0;
+        if ((i < name.Length) && char.IsAsciiLetterUpper(name[i]))
+        {
+            i++;
+        }
+
+        int digits = 0;
+        while ((i < name.Length) && char.IsAsciiDigit(name[i]))
+        {
+            digits++;
+            i++;
+        }
+
+        if ((digits < 1) || (digits > 3))
+        {
+            return false;
+        }
+
+        if ((i < name.Length) && char.IsAsciiLetterUpper(name[i]))
+        {
+            i++;
+        }
+
+        return i == name.Length;
     }
 
     private static bool IsRampOf(string name, string ramp) =>
-        (name.Length > ramp.Length) && name.StartsWith(ramp, StringComparison.OrdinalIgnoreCase) && char.IsDigit(name[ramp.Length]);
+        (name.Length > ramp.Length) && name.StartsWith(ramp, StringComparison.OrdinalIgnoreCase) && char.IsAsciiDigit(name[ramp.Length]);
 
     /// <summary>An operator's named ramp (FDX1, DHL2, JSX3): a known operator code followed by a digit.</summary>
     private static bool IsOperatorRamp(string name) =>

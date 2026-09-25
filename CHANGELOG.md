@@ -36,8 +36,11 @@
 - Aircraft types missing from the aircraft database are sized by wake category for ground spacing, runway-exit stopping points and same-runway arrival spacing.
 - The terminal's filter box is wide enough to show a full airline callsign.
 - `JAPP` and `CVA` restate a standing in-trail speed reduction with the clearance, as `CAPP` and `PTAC` already do.
+- Arriving airliners pick real terminal gates at airports whose gates carry a concourse letter, such as SFO, MIA and FLL.
+- Pilots name a ramp that is a word without a noun: "at kilo ramp", "taxi to Signature".
 
 ### Fixed
+- A pilot calling ready to taxi from a gate names it as written and says it phonetically: "at gate F8", spoken "gate foxtrot eight".
 - A CRC client joining a running session no longer risks a server error from reading state the simulation is updating.
 - Loading a recording clears the previous run's flight strips and PDCs from every client's screen.
 - A live-traffic aircraft deleted with `DEL` stays hidden after a rewind or a planned server restart, until live traffic is turned off and on.
