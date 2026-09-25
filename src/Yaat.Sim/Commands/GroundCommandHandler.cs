@@ -3701,8 +3701,8 @@ public static class GroundCommandHandler
 
     /// <summary>
     /// A <c>PUSHM</c> reads back its last point and the points on the way, each named by kind, then the final facing
-    /// when it names one: <c>Push to spot 6B via spot 6A, node 1926, face east</c>; with a leg forced or a marked point,
-    /// leg by leg: <c>Push to gate F8, then pull forward to spot 7A, face east</c>. No park or hold word.
+    /// when it names one: <c>Push to spot 6B via spot 6A and node 1926, face east</c>. A forced <c>/PUSH</c> or <c>/PULL</c>
+    /// is not read. No park or hold word.
     /// </summary>
     private static PushReadback PushMultiReadback(IReadOnlyList<TugGoal> goals, PushbackMultiCommand move) =>
         new(

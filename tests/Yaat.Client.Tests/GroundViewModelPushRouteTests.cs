@@ -374,9 +374,9 @@ public class GroundViewModelPushRouteTests
     }
 
     // What the view model sends is read back by the sim's own parser as the very targets drawn: sigils, suffixes and
-    // the marked point's position and facing, and the text is already the command's canonical form. The route pushes
-    // north to spot A, pulls south, nose first, to a marked point ahead of where the aircraft started, then pushes
-    // north again to the intersection.
+    // the marked point's position, and the text is already the command's canonical form. The route pushes north to
+    // spot A, pulls south, nose first, to a marked point ahead of where the aircraft started, then pushes north again to
+    // the intersection. The marked point is passed through, so it carries no facing: only the last point takes one.
     [Fact]
     public void SentPushRoute_ParsesBackToTheSameTargets()
     {
@@ -384,11 +384,10 @@ public class GroundViewModelPushRouteTests
         vm.SetLayoutForTesting(RampLayout());
         AircraftModel ac = MakeAircraft();
         var point = new LatLon(Lat0 - 0.0005, Lon0);
-        MagneticHeading facing = GroundViewModel.FreePointFacing(point, GeoMath.ProjectPoint(point, new TrueHeading(180.0), 0.02));
 
         vm.StartPushRoute(ac);
         Assert.True(vm.AddPushWaypoint(2)); // Spot "A"
-        Assert.True(vm.AddPushFreePoint(point.Lat, point.Lon, facing));
+        Assert.True(vm.AddPushFreePoint(point.Lat, point.Lon, null));
         Assert.True(vm.AddPushWaypoint(4)); // plain taxiway intersection, unnamed
         vm.SetPushTargetForcedKind(1, PushbackLegKind.Push);
         vm.SetPushTargetForcedKind(2, PushbackLegKind.Pull);
@@ -404,7 +403,7 @@ public class GroundViewModelPushRouteTests
         Assert.Equal(3, move.Legs.Count);
         Assert.Equal("A", move.Legs[0].Spot);
         Assert.Equal(PushbackLegKind.Push, move.Legs[0].ForcedKind);
-        Assert.Equal(new PushFreePose(Math.Round(point.Lat, 6), Math.Round(point.Lon, 6), facing), move.Legs[1].FreePose);
+        Assert.Equal(new PushFreePose(Math.Round(point.Lat, 6), Math.Round(point.Lon, 6), null), move.Legs[1].FreePose);
         Assert.Equal(PushbackLegKind.Pull, move.Legs[1].ForcedKind);
         Assert.Equal(4, move.Legs[2].NodeId);
         Assert.Null(move.Legs[2].ForcedKind);

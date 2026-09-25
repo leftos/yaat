@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Faa;
 
@@ -262,7 +263,10 @@ public sealed record TugRequest
     /// <summary>ICAO type designator; sets the turn radius and the footprint.</summary>
     public required string AircraftType { get; init; }
 
-    /// <summary>The goals, in order; at least one.</summary>
+    /// <summary>
+    /// The targets, in order; at least one. The last is the only arrival. Every one before it is a pass-through hint: the
+    /// reference point passes within half the wingspan of it, in order, and keeps moving (<see cref="TugPlanBuilder"/>).
+    /// </summary>
     public required IReadOnlyList<TugGoal> Goals { get; init; }
 
     /// <summary>
@@ -359,9 +363,12 @@ public enum TugTaxiwayApproach
 
 /// <summary>
 /// Plans a tug move — every <c>PUSH</c> form and <c>PUSHM</c> — as a chain of <see cref="TugMove"/>s flown by
-/// <see cref="TugKinematics"/>. Goals are planned greedily in order: each goal's candidate move lists are
-/// simulated from where the previous goal left the aircraft, the unflyable or unsafe ones are dropped, and the
-/// best survivor is kept. Pure geometry: it moves nothing and reads no aircraft state.
+/// <see cref="TugKinematics"/>. Only the last goal is an arrival: its candidate move lists are simulated from where the
+/// aircraft is, the unflyable or unsafe ones are dropped, and the best survivor is kept. Every goal before it is a
+/// pass-through hint: a candidate is kept only when its reference point passes within half the wingspan of each hint,
+/// in order, before the arrival's last reversal. When none does, the tow passes through the first hint on a move onto
+/// it (along its line when it has a facing, straight for it when not) and the arrival is planned on from there. Pure
+/// geometry: it moves nothing and reads no aircraft state.
 ///
 /// <para><b>Stand start.</b> Off a stand the plan opens with a straight push of half the fuselage length
 /// (<see cref="TugGoalKind.Clear"/> and <see cref="TugGoalKind.StraightBackTo"/> goals are straight pushes
@@ -481,16 +488,12 @@ public static class TugMovePlanner
         }
 
         var builder = new TugPlanBuilder(layout, request);
-        for (int i = 0; i < request.Goals.Count; i++)
+        if (!builder.TryPlan(out refusal))
         {
-            if (!builder.TryPlanGoal(i, out refusal))
-            {
-                Log.LogDebug("Tug move refused: {Refusal}", refusal);
-                return null;
-            }
+            Log.LogDebug("Tug move refused: {Refusal}", refusal);
+            return null;
         }
 
-        refusal = string.Empty;
         return builder.ToPlan();
     }
 
@@ -616,17 +619,16 @@ public sealed record ResolvedTugGoal
 
     public required TugGoalShape Shape { get; init; }
 
-    /// <summary>How a refusal names the goal on its own: <c>spot 6A</c>, or <c>leg 2 to spot 6B</c> in a multi-goal request.</summary>
+    /// <summary>How a refusal names the goal on its own, arrival or pass-through hint: <c>spot 6A</c>, <c>the marked point</c>.</summary>
     public required string Name { get; init; }
 
-    /// <summary>How a refusal names the move to the goal: <c>the move to spot 6A</c>, or <c>leg 2 to spot 6B</c>.</summary>
+    /// <summary>How a refusal names the move to the goal: <c>the move to spot 6A</c>; <c>the pushback</c> for an unplaced goal.</summary>
     public required string Subject { get; init; }
 
     /// <summary>
-    /// How a refusal about reaching the goal itself names it: <c>spot 7A</c>, <c>the marked point</c>, or
-    /// <c>leg 2: spot 7A</c> in a multi-goal request.
+    /// The goal is a pass-through hint (every <c>PUSHM</c> target but the last), which the tow passes rather than ends on.
     /// </summary>
-    public required string ReachName { get; init; }
+    public bool IsHint { get; init; }
 
     /// <summary>The nose heading to end on, degrees true (faced, facing and taxiway-line goals).</summary>
     public double FacingTrueDeg { get; init; }
@@ -636,6 +638,12 @@ public sealed record ResolvedTugGoal
 
     /// <summary>A faced spot's staging point, where a push onto its line stops before the creep forward.</summary>
     public LatLon? Staging { get; init; }
+
+    /// <summary>
+    /// The goal is a pass-through hint the tow is taken onto because no arrival passes it: reached as the goal would be,
+    /// but with no staging point and no creep onto its stop, since the tow carries on from it to the next target.
+    /// </summary>
+    public bool PassThrough { get; init; }
 
     /// <summary>
     /// Taxiway names the movement-area check lets the fuselage cross. A taxiway goal is judged by its overshoot instead
@@ -665,7 +673,7 @@ public static class TugGoalResolver
         TugGoal goal = request.Goals[index];
         bool isLast = index == (request.Goals.Count - 1);
         double? facing = FacingOf(layout, goal, isLast ? request.FinalFacingTrueDeg : null);
-        ResolvedTugGoal basis = Basis(goal, index, request.Goals.Count);
+        ResolvedTugGoal basis = Basis(goal, isHint: !isLast);
         return goal.Kind switch
         {
             TugGoalKind.Spot or TugGoalKind.Stand or TugGoalKind.Node or TugGoalKind.FreePose => ResolveNodeGoal(request.AircraftType, basis, facing),
@@ -689,19 +697,20 @@ public static class TugGoalResolver
             _ => goal.FacingTrueDeg,
         };
 
-    private static ResolvedTugGoal Basis(TugGoal goal, int index, int count)
+    /// <summary>
+    /// A goal's names, the same for the arrival and a pass-through hint: its label (<c>spot 5B</c>), and the move to it
+    /// (<c>the move to spot 5B</c>) as the subject of a flown-path refusal.
+    /// </summary>
+    private static ResolvedTugGoal Basis(TugGoal goal, bool isHint)
     {
-        bool multi = count > 1;
-        string name = multi ? $"leg {index + 1} to {goal.Label}" : goal.Label;
         bool unplaced = goal.Kind is TugGoalKind.Clear or TugGoalKind.Facing;
-        string subject = (multi || unplaced) ? name : $"the move to {goal.Label}";
         return new ResolvedTugGoal
         {
             Goal = goal,
             Shape = TugGoalShape.Clear,
-            Name = name,
-            Subject = subject,
-            ReachName = multi ? $"leg {index + 1}: {goal.Label}" : goal.Label,
+            Name = goal.Label,
+            Subject = unplaced ? goal.Label : $"the move to {goal.Label}",
+            IsHint = isHint,
             ExemptNames = NoNames,
         };
     }
@@ -880,12 +889,12 @@ internal sealed class TugCandidate
 internal readonly record struct TugTaxiwaySide(LatLon LinePoint, LatLon? Stop, double TravelDeg, bool ExitSide, bool BeyondStopDistance);
 
 /// <summary>
-/// How a candidate was judged: the shape rule it breaks, the flown-path rule it breaks, and — when the only shape
-/// rule it breaks is its final line pull running past the stop — how far past, feet.
+/// How a candidate was judged: the shape rule it breaks, the flown-path rule it breaks, — when the only shape rule it
+/// breaks is its final line pull running past the stop — how far past, feet, and the pass-through hint it misses.
 /// </summary>
-internal readonly record struct TugVerdict(string? ShapeDrop, TugPathRefusal? Path, double? FinalPullOvershootFt)
+internal readonly record struct TugVerdict(string? ShapeDrop, TugPathRefusal? Path, double? FinalPullOvershootFt, string? HintMiss)
 {
-    internal bool Dropped => (ShapeDrop is not null) || (Path is not null);
+    internal bool Dropped => (ShapeDrop is not null) || (Path is not null) || (HintMiss is not null);
 }
 
 /// <summary>A candidate that fouls a protected taxiway's object-free area: how deep, and how far its nose swings each way.</summary>
@@ -937,6 +946,12 @@ internal sealed class TugChoiceTally
     /// <summary>A candidate whose shape was sound was dropped for swinging into a parked or held neighbour.</summary>
     internal bool NeighbourDropped { get; set; }
 
+    /// <summary>
+    /// A candidate whose shape was sound was dropped only for missing a pass-through hint: its flown path is never checked
+    /// (<c>TugPlanBuilder.Judge</c>), since a candidate that misses a hint was never a way to fly the move.
+    /// </summary>
+    internal bool HintDropped { get; private set; }
+
     /// <summary>The choice among the goal's own templates is over: <see cref="PathRefusal"/> no longer changes.</summary>
     internal bool ChoiceClosed { get; private set; }
 
@@ -948,6 +963,12 @@ internal sealed class TugChoiceTally
     {
         if (verdict.ShapeDrop is not null)
         {
+            return;
+        }
+
+        if (verdict.HintMiss is not null)
+        {
+            HintDropped = true;
             return;
         }
 
@@ -1143,7 +1164,10 @@ internal sealed class TugEmptyStands
         );
 }
 
-/// <summary>Plans a request goal by goal, holding the plan so far.</summary>
+/// <summary>
+/// Plans a request — its last goal as the arrival, every goal before it as a pass-through hint (<see cref="TryPlan"/>) —
+/// holding the plan so far.
+/// </summary>
 internal sealed class TugPlanBuilder
 {
     private static readonly ILogger Log = SimLog.CreateLogger("TugMovePlanner");
@@ -1317,6 +1341,13 @@ internal sealed class TugPlanBuilder
 
     /// <summary>The names of the taxiway straight behind the stand the plan starts on, exempt for every goal; empty otherwise.</summary>
     private readonly IReadOnlySet<string> _standBehindNames;
+
+    /// <summary>
+    /// The pass-through hints (every goal but the last) the tow has still to pass, in order; a pass-through tow
+    /// (<see cref="TryPassFirstHint"/>) removes the one it passes.
+    /// </summary>
+    private readonly List<ResolvedTugGoal> _pendingHints = [];
+
     private readonly List<TugMoveTrace> _moves = [];
     private TugPose _end;
     private PushbackLegKind? _lastKind;
@@ -1375,15 +1406,86 @@ internal sealed class TugPlanBuilder
             TaxiwayApproach = _taxiwayApproach,
         };
 
-    internal bool TryPlanGoal(int index, out string refusal)
+    /// <summary>
+    /// Plans the request: every goal but the last is a pass-through hint, refused when it carries a facing of its own (only
+    /// the last point takes one) or outright as a goal would be, and the last is the arrival (<see cref="TryArrive"/>),
+    /// planned from the start with the context a first goal has.
+    /// </summary>
+    /// <param name="refusal">Why the move cannot be planned, or empty on success.</param>
+    /// <returns>True when the plan is complete.</returns>
+    internal bool TryPlan(out string refusal)
     {
-        ResolvedTugGoal goal = WithStandBehindExempt(TugGoalResolver.Resolve(_layout, _request, index));
-        if (IsRefusedOutright(goal, out refusal))
+        int arrival = _request.Goals.Count - 1;
+        LatLon from = _end.Position;
+        for (int i = 0; i < arrival; i++)
+        {
+            ResolvedTugGoal hint = TugGoalResolver.Resolve(_layout, _request, i);
+            if (hint.Goal.FacingTrueDeg is not null)
+            {
+                refusal = $"Unable, {hint.Name} is passed through; only the last point takes a facing";
+                return false;
+            }
+
+            if (IsRefusedOutright(hint, from, out refusal))
+            {
+                return false;
+            }
+
+            _pendingHints.Add(hint);
+            from = hint.Stop;
+        }
+
+        return TryArrive(arrival, _request.StartsAtStand, out refusal);
+    }
+
+    /// <summary>
+    /// Plans the arrival, whose candidates must pass every pending hint (<see cref="HintMissReason"/>). An arrival refused
+    /// outright, or one no candidate of which was dropped only for missing a hint, is refused as it stands. Otherwise the tow
+    /// passes through the first pending hint (<see cref="TryPassFirstHint"/>) and the arrival is planned on from there, hint
+    /// by hint, while its candidates still miss one; when it still fails, the first arrival's refusal is the move's.
+    /// </summary>
+    private bool TryArrive(int arrival, bool offStand, out string refusal)
+    {
+        ResolvedTugGoal goal = WithStandBehindExempt(TugGoalResolver.Resolve(_layout, _request, arrival));
+        LatLon from = (_pendingHints.Count > 0) ? _pendingHints[^1].Stop : _end.Position;
+        if (IsRefusedOutright(goal, from, out refusal))
         {
             return false;
         }
 
-        bool offStand = (index == 0) && _request.StartsAtStand;
+        if (TryPlanResolved(goal, offStand, out refusal, out bool hintMissed))
+        {
+            return true;
+        }
+
+        string arrivalRefusal = refusal;
+        while (hintMissed && (_pendingHints.Count > 0))
+        {
+            Log.LogDebug("Tug {Subject}: no arrival passes {Hint}; falling back to a pass-through tow", goal.Subject, _pendingHints[0].Goal.Label);
+            if (!TryPassFirstHint(offStand, out refusal))
+            {
+                return false;
+            }
+
+            offStand = false;
+            if (TryPlanResolved(goal, offStand, out _, out hintMissed))
+            {
+                refusal = string.Empty;
+                return true;
+            }
+        }
+
+        refusal = arrivalRefusal;
+        return false;
+    }
+
+    /// <summary>
+    /// Builds, judges and keeps a resolved goal's candidates from where the plan has got to, and commits the one kept;
+    /// false, with the refusal, when none is, and whether any candidate was dropped only for missing a pass-through hint.
+    /// </summary>
+    private bool TryPlanResolved(ResolvedTugGoal goal, bool offStand, out string refusal, out bool hintMissed)
+    {
+        hintMissed = false;
         if (!TryBuildCandidates(goal, offStand, out List<TugCandidate>? candidates, out refusal))
         {
             return false;
@@ -1393,6 +1495,7 @@ internal sealed class TugPlanBuilder
         TugCandidate? best = IsKeptOffTheMovementArea(goal) ? KeepOffTheMovementArea(goal, tally, offStand) : tally.Best;
         if (best is null)
         {
+            hintMissed = tally.HintDropped;
             refusal = Refusal(goal, tally);
             Log.LogDebug("Tug {Subject}: refused: {Refusal}", goal.Subject, refusal);
             return false;
@@ -1404,6 +1507,13 @@ internal sealed class TugPlanBuilder
             NoteLongPush(goal, best);
         }
 
+        Commit(best, goal);
+        return true;
+    }
+
+    /// <summary>Appends a kept candidate's moves to the plan, which then continues from where it ends.</summary>
+    private void Commit(TugCandidate best, ResolvedTugGoal goal)
+    {
         _moves.AddRange(best.Traces);
         if (best.FacingJunction is { } facingJunction)
         {
@@ -1417,7 +1527,6 @@ internal sealed class TugPlanBuilder
         _end = best.End;
         _lastKind = best.LastKind;
         _run = TugRun.Follow(_run, best.Traces).Open;
-        return true;
     }
 
     /// <summary>
@@ -1451,12 +1560,12 @@ internal sealed class TugPlanBuilder
     /// (<see cref="StaysOutOfEmptyStands"/>) between the reversal count and the path (<see cref="IsBetterClear"/>).</item>
     /// </list>
     /// Null when no pool holds a candidate — the goal is then refused (<see cref="Refusal"/>). A goal every template of
-    /// which was dropped is refused as it stands unless a parked neighbour dropped one, when the pools after the first
-    /// are searched too.
+    /// which was dropped is refused as it stands unless a parked neighbour dropped one or one missed a pass-through hint,
+    /// when the pools after the first are searched too.
     /// </summary>
     private TugCandidate? KeepOffTheMovementArea(ResolvedTugGoal goal, TugChoiceTally tally, bool offStand)
     {
-        if ((tally.Best is null) && !tally.NeighbourDropped)
+        if ((tally.Best is null) && !tally.NeighbourDropped && !tally.HintDropped)
         {
             return null;
         }
@@ -2095,9 +2204,14 @@ internal sealed class TugPlanBuilder
         return goal with { ExemptNames = names };
     }
 
-    private bool IsRefusedOutright(ResolvedTugGoal goal, out string refusal)
+    /// <summary>
+    /// A goal refused before any candidate is built: further than <see cref="TugMovePlanner.MaxGoalDistanceFt"/> from
+    /// <paramref name="from"/> (where the aircraft is, or the pass-through hint before it), on a runway holding position,
+    /// or a marked point on pavement a tow may not end on.
+    /// </summary>
+    private bool IsRefusedOutright(ResolvedTugGoal goal, LatLon from, out string refusal)
     {
-        double distanceFt = goal.Goal.Point is { } point ? GeoMath.DistanceNm(_end.Position, point) * GeoMath.FeetPerNm : 0.0;
+        double distanceFt = goal.Goal.Point is { } point ? GeoMath.DistanceNm(from, point) * GeoMath.FeetPerNm : 0.0;
         if (distanceFt > TugMovePlanner.MaxGoalDistanceFt)
         {
             // A UI sanity guard against a mis-click on the ground view, not an aviation rule.
@@ -2109,7 +2223,9 @@ internal sealed class TugPlanBuilder
         // position (AIM 4-3-18.a.5; AC 00-65A §11.13).
         if (goal.Goal.Node?.Type == GroundNodeType.RunwayHoldShort)
         {
-            refusal = $"Unable, {goal.Subject} reaches a runway holding position";
+            refusal = goal.IsHint
+                ? $"Unable, {goal.Name} is on a runway holding position"
+                : $"Unable, {goal.Subject} reaches a runway holding position";
             return true;
         }
 
@@ -2118,7 +2234,7 @@ internal sealed class TugPlanBuilder
         if (
             (goal.Goal.Kind == TugGoalKind.FreePose)
             && (goal.Goal.Point is { } marked)
-            && (_pathCheck?.MarkedPointRefusal(marked, goal.ReachName) is { } onPavement)
+            && (_pathCheck?.MarkedPointRefusal(marked, goal.Name) is { } onPavement)
         )
         {
             refusal = onPavement;
@@ -2131,7 +2247,7 @@ internal sealed class TugPlanBuilder
 
     /// <summary>A forced leg kind no plan can fly: <c>Unable, spot 7A cannot be reached by a pull</c>.</summary>
     private static string CannotBeReachedBy(ResolvedTugGoal goal, PushbackLegKind kind) =>
-        $"Unable, {goal.ReachName} cannot be reached by a {(kind == PushbackLegKind.Push ? "push" : "pull")}";
+        $"Unable, {goal.Name} cannot be reached by a {(kind == PushbackLegKind.Push ? "push" : "pull")}";
 
     /// <summary>
     /// Why a goal with no surviving candidate and no flown-path reason is refused: a forced leg kind no plan of that kind
@@ -2141,7 +2257,7 @@ internal sealed class TugPlanBuilder
         goal.Goal switch
         {
             { ForcedKind: { } forced } => CannotBeReachedBy(goal, forced),
-            { Kind: TugGoalKind.FreePose, FacingWord: { } facing } => $"Unable, {goal.ReachName} cannot be reached facing {facing}",
+            { Kind: TugGoalKind.FreePose, FacingWord: { } facing } => $"Unable, {goal.Name} cannot be reached facing {facing}",
             _ => $"Unable, cannot line up on {goal.Name} from here",
         };
 
@@ -2901,12 +3017,13 @@ internal sealed class TugPlanBuilder
     /// <summary>
     /// The side move onto the approach line; a spot push stops at the staging point and creeps forward onto the
     /// stop, except on a leg forced to <c>/PUSH</c>, whose push ends on the stop itself. The final pull onto a spot is
-    /// always a creep.
+    /// always a creep, except onto a pass-through hint (<see cref="ResolvedTugGoal.PassThrough"/>), which has no staging
+    /// point either.
     /// </summary>
     private static void AddApproach(TugCandidate candidate, ResolvedTugGoal goal, PushbackLegKind side)
     {
         bool staged = (side == PushbackLegKind.Push) && (goal.Staging is not null) && (goal.Goal.ForcedKind != PushbackLegKind.Push);
-        bool creepOntoSpot = (side == PushbackLegKind.Pull) && (goal.Goal.Kind == TugGoalKind.Spot);
+        bool creepOntoSpot = (side == PushbackLegKind.Pull) && (goal.Goal.Kind == TugGoalKind.Spot) && !goal.PassThrough;
         TugMove approach = LineMove(goal, side, staged ? goal.Staging : goal.Stop);
         candidate.Add(approach with { Creep = creepOntoSpot });
         if (!staged || !candidate.Flyable)
@@ -3225,7 +3342,7 @@ internal sealed class TugPlanBuilder
                 goal.Subject,
                 candidate.Template,
                 candidate.Describe(),
-                DropReason(verdict.ShapeDrop, verdict.Path)
+                DropReason(verdict)
             );
             tally.CountDrop(verdict);
             return;
@@ -3313,35 +3430,164 @@ internal sealed class TugPlanBuilder
         return candidate.PathLengthFt < best.PathLengthFt;
     }
 
-    /// <summary>How a dropped candidate's reason is logged: the shape rule it broke, with any flown-path hit after it.</summary>
-    private static string DropReason(string? shapeDrop, TugPathRefusal? path) =>
-        (shapeDrop, path) switch
+    /// <summary>
+    /// How a dropped candidate's reason is logged: the shape rule it broke, with any flown-path hit after it, then the
+    /// pass-through hint it missed.
+    /// </summary>
+    private static string DropReason(TugVerdict verdict)
+    {
+        string? shapeAndPath = (verdict.ShapeDrop, verdict.Path) switch
         {
             (null, { } hit) => hit.Message,
             ({ } shape, { } hit) => $"{shape} (its flown path: {hit.Message})",
-            _ => shapeDrop!,
+            _ => verdict.ShapeDrop,
         };
+        return (shapeAndPath, verdict.HintMiss) switch
+        {
+            ({ } reason, { } hint) => $"{reason}; {hint}",
+            (null, { } hint) => hint,
+            ({ } reason, null) => reason,
+            _ => throw new UnreachableException("a dropped candidate carries no reason"),
+        };
+    }
 
     /// <summary>
     /// Why a candidate is dropped: the shape rule it breaks (the travel budget, the stand push-off rule, the run
-    /// wander, the end tolerance or the overshoot), and the flown-path rule it breaks. Both null when it survives.
-    /// Every flyable candidate's path is checked, even one already dropped for its shape, so the log shows what it
-    /// would have crossed; only a shape-sound candidate's path hit can become the refusal.
+    /// wander, the end tolerance or the overshoot), the pass-through hint it misses (<see cref="HintMissReason"/>, a step
+    /// apart from the refusals), and the flown-path rule it breaks. All null when it survives. The hint step comes before
+    /// the flown path: a candidate that misses a hint was never a way to fly the move, so its path is not checked. Every
+    /// other flyable candidate's path is, even one already dropped for its shape, so the log shows what it would have
+    /// crossed; only a shape-sound candidate's path hit can become the refusal.
     /// </summary>
     private TugVerdict Judge(ResolvedTugGoal goal, TugCandidate candidate, bool offStand)
     {
         if (!candidate.Flyable)
         {
-            return new TugVerdict("a move ran past its travel budget", null, null);
+            return new TugVerdict("a move ran past its travel budget", null, null, null);
         }
 
         (string? shapeReason, double? finalPullOvershootFt) =
             goal.Shape == TugGoalShape.Faced ? FacedDropReason(goal, candidate, offStand) : (null, null);
-        string? markedPoint = goal.Goal.Kind == TugGoalKind.FreePose ? goal.ReachName : null;
+        if (HintMissReason(candidate.Traces) is { } hintMiss)
+        {
+            return new TugVerdict(shapeReason, null, finalPullOvershootFt, hintMiss);
+        }
+
+        string? markedPoint = goal.Goal.Kind == TugGoalKind.FreePose ? goal.Name : null;
         TugPathRefusal? path =
             _pathCheck?.Check(candidate.Traces, goal.ExemptNames, goal.OvershootTaxiway, goal.Subject, markedPoint)
             ?? NeighbourRefusal(goal, candidate);
-        return new TugVerdict(shapeReason, path, finalPullOvershootFt);
+        return new TugVerdict(shapeReason, path, finalPullOvershootFt, null);
+    }
+
+    /// <summary>
+    /// The hint step: why a candidate misses the pass-through hints, or null when it passes them all. A hint is passed at
+    /// the first sample, at or after the one that passed the hint before it, where the reference point lies within half
+    /// the wingspan of the hint's point (a spot's rest point, else the node or marked point) — during a move of the hint's
+    /// forced kind when it carries one (<c>$7A/PULL</c> is passed while pulling). Only the moves before the candidate's
+    /// last reversal count (<see cref="LastReversalIndex"/>) — the moves from it on are the final arrival — or every move
+    /// when it has none. The samples are walked once, in order, and never collected.
+    /// </summary>
+    /// <param name="traces">The candidate's moves.</param>
+    /// <returns>The miss, naming the hint and how close the reference point came, or null.</returns>
+    private string? HintMissReason(IReadOnlyList<TugMoveTrace> traces) =>
+        (_pendingHints.Count == 0) ? null : HintMiss(_pendingHints, traces, TugMovePlanner.WingspanFt(_request.AircraftType) / 2.0);
+
+    /// <summary>The hint step (<see cref="HintMissReason"/>) for the given hints, in order, and half-span.</summary>
+    /// <param name="hints">The pass-through hints, in order.</param>
+    /// <param name="traces">The candidate's moves.</param>
+    /// <param name="halfSpanFt">How close the reference point must come to each hint's point, feet.</param>
+    /// <returns>The miss, naming the hint and how close the reference point came, or null.</returns>
+    internal static string? HintMiss(IReadOnlyList<ResolvedTugGoal> hints, IReadOnlyList<TugMoveTrace> traces, double halfSpanFt)
+    {
+        int next = 0;
+        double closestFt = double.PositiveInfinity;
+        foreach ((LatLon position, PushbackLegKind kind) in traces.Take(LastReversalIndex(traces)).SelectMany(PassingSamples))
+        {
+            while ((next < hints.Count) && (EligibleFeet(hints[next], position, kind) is { } feet))
+            {
+                closestFt = Math.Min(closestFt, feet);
+                if (feet > halfSpanFt)
+                {
+                    break;
+                }
+
+                next++;
+                closestFt = double.PositiveInfinity;
+            }
+
+            if (next == hints.Count)
+            {
+                return null;
+            }
+        }
+
+        return (next == hints.Count) ? null : MissMessage(hints[next], closestFt, halfSpanFt);
+    }
+
+    /// <summary>A move's samples as the hint step walks them: where the reference point is, and the move's kind.</summary>
+    private static IEnumerable<(LatLon Position, PushbackLegKind Kind)> PassingSamples(TugMoveTrace trace) =>
+        trace.Samples.Select(s => (s.Position, trace.Move.Kind));
+
+    /// <summary>
+    /// The index of a candidate's last reversal, where its final arrival begins, or the move count when it has none. The
+    /// first move is never counted: its reversal is of a move before the candidate (the running move a mid-push
+    /// <c>PUSHM</c> redirects, or the last move of a pass-through tow).
+    /// </summary>
+    private static int LastReversalIndex(IReadOnlyList<TugMoveTrace> traces)
+    {
+        for (int i = traces.Count - 1; i >= 1; i--)
+        {
+            if (traces[i].Move.DwellBefore)
+            {
+                return i;
+            }
+        }
+
+        return traces.Count;
+    }
+
+    /// <summary>
+    /// How far a sample lies from a hint's point, feet, or null when the sample's move is not of the kind the hint is
+    /// forced to.
+    /// </summary>
+    private static double? EligibleFeet(ResolvedTugGoal hint, LatLon position, PushbackLegKind kind) =>
+        (hint.Goal.ForcedKind is { } forced) && (forced != kind) ? null : FeetBetween(position, hint.Stop);
+
+    /// <summary>
+    /// A hint miss as the drop log reads it: <c>it passes no closer than 145 ft to spot 5A before its final arrival (half
+    /// the span: 59 ft)</c>, with <c>while pulling</c> / <c>while pushing</c> after the hint when it is forced to a kind.
+    /// </summary>
+    private static string MissMessage(ResolvedTugGoal hint, double closestFt, double halfSpanFt)
+    {
+        string during = hint.Goal.ForcedKind switch
+        {
+            PushbackLegKind.Push => " while pushing",
+            PushbackLegKind.Pull => " while pulling",
+            _ => string.Empty,
+        };
+        string span = $"half the span: {halfSpanFt:F0} ft";
+        return $"it passes no closer than {closestFt:F0} ft to {hint.Goal.Label}{during} before its final arrival ({span})";
+    }
+
+    private static double FeetBetween(LatLon a, LatLon b) => GeoMath.DistanceNm(a, b) * GeoMath.FeetPerNm;
+
+    /// <summary>
+    /// The fallback when no arrival passes the first pending hint: a pass-through tow onto it, planned as that hint's own
+    /// goal (<see cref="ResolvedTugGoal.PassThrough"/>) with the context the tow has here — every template, off a stand
+    /// the stand push-off and the lane candidates, the alley clearance — except that it ends on the hint's point with no
+    /// staging point and no creep, and the arrival plans on from there, carrying straight on when it keeps the same kind.
+    /// The later hints are not asked of it. False, with the refusal, when the hint cannot be reached from here.
+    /// </summary>
+    private bool TryPassFirstHint(bool offStand, out string refusal)
+    {
+        ResolvedTugGoal hint = _pendingHints[0];
+        List<ResolvedTugGoal> later = [.. _pendingHints.Skip(1)];
+        _pendingHints.Clear();
+        ResolvedTugGoal pass = WithStandBehindExempt(hint) with { Staging = null, PassThrough = true };
+        bool passed = TryPlanResolved(pass, offStand, out refusal, out _);
+        _pendingHints.AddRange(passed ? later : [hint, .. later]);
+        return passed;
     }
 
     /// <summary>

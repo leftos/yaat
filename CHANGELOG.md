@@ -21,6 +21,7 @@
 - A push to a spot backs straight out before turning onto the spot's lane, and keeps clear of the neighbouring taxiway where it can.
 - Where no push shape keeps clear of the taxiway, the tug turns onto the lane in steps instead of swinging the aircraft round.
 - A push past a parked neighbour angles off the stand or pushes further back before turning, instead of refusing or swinging the aircraft round.
+- `PUSHM` passes through every point but the last without stopping, as one tow, instead of pushing to each point in turn.
 - Push shapes that stay out of an empty neighbouring stand are preferred.
 - `PUSH <taxiway> <facing>` ends lined up with the nose toward the facing taxiway, stopped short of the junction instead of on it.
 - Tugs keep a steady 5 kt through turns, so pushes finish sooner.

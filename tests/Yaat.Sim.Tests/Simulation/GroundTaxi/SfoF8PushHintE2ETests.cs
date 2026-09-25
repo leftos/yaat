@@ -170,9 +170,10 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
     /// heading at the end of the push-off before the aircraft reaches 7A's neighbourhood; (b) the tow never stops
     /// between the push-off and the final approach to 7B except at a planned reversal, and plans none at 7A when
     /// <c>PUSH $7A</c> reaches 7A without one; (c) the reference point passes within half a wingspan of 7A's rest point;
-    /// (d) it comes to rest on 7B as a <c>PUSH $7B</c> arrival does.
+    /// (d) it comes to rest on 7B as a <c>PUSH $7B</c> arrival does; (e) its plan is <c>PUSH $7B</c>'s from the same start —
+    /// the same moves of the same kinds and shapes, with the one reversal before the creep onto 7B.
     /// </summary>
-    [Fact(Skip = "PUSHM still treats 7A as a stop, not a pass-through hint; see docs/plans/MAIN.md")]
+    [Fact]
     public void PushmSevenASevenB_PassesSevenAAndComesToRestOnSevenB()
     {
         if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
@@ -184,6 +185,7 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
         using IDisposable recording = TickRecorder.Attach(ground.Engine, RecordingPath("f8-pushm-7a-7b.json"), ac.Callsign);
         LogGeometry(ground.Layout, ac);
         bool pushShapeReversesBeforeHint = PushShapeReversesBeforeHint(ground.Layout, ac);
+        TugPlan pushSevenB = PlanFromGate(ground.Layout, ac, EndSpot);
 
         const string command = $"PUSHM ${HintSpot} ${EndSpot}";
         CommandResult result = ground.Engine.SendCommand(ac.Callsign, command);
@@ -208,6 +210,7 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
         AssertRestsOnSpot(ground.Layout, ac, EndSpot);
         Assert.True(ac.GroundSpeed <= AtRestSpeedKts, $"the aircraft was still moving at {ac.GroundSpeed:F2} kt when the move ended");
         Assert.IsType<HoldingAfterPushbackPhase>(ac.Phases?.CurrentPhase);
+        AssertSameMovesAsPushToEndSpot(pushSevenB, plan);
     }
 
     /// <summary>
@@ -262,21 +265,51 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
         }
     }
 
-    /// <summary>Whether <c>PUSH $7A</c>'s plan off the gate reverses before its path first comes within half a wingspan of 7A.</summary>
-    private bool PushShapeReversesBeforeHint(AirportGroundLayout layout, AircraftState ac)
+    /// <summary>
+    /// The <c>PUSHM</c> installed exactly <c>PUSH $7B</c>'s moves — as many, each of the same kind and shape — and they
+    /// reverse once, into the creep onto 7B.
+    /// </summary>
+    private void AssertSameMovesAsPushToEndSpot(TugPlan pushToEndSpot, List<PushbackPhase> pushm)
+    {
+        static string Describe(IEnumerable<TugMove> moves) =>
+            string.Join(", ", moves.Select(m => $"{m.Kind} {m.Shape}{(m.DwellBefore ? " dwell" : "")}"));
+        List<TugMove> expected = [.. pushToEndSpot.Moves.Select(t => t.Move)];
+        List<TugMove> actual = [.. pushm.Select(p => p.Move)];
+        output.WriteLine($"PUSH ${EndSpot}: {Describe(expected)}");
+        output.WriteLine($"PUSHM ${HintSpot} ${EndSpot}: {Describe(actual)}");
+        Assert.Equal(expected.Count, actual.Count);
+        for (int i = 0; i < expected.Count; i++)
+        {
+            Assert.True(
+                (expected[i].Kind == actual[i].Kind) && (expected[i].Shape == actual[i].Shape),
+                $"move {i + 1}: PUSHM flies {actual[i].Kind} {actual[i].Shape} where PUSH ${EndSpot} flies {expected[i].Kind} {expected[i].Shape}"
+            );
+        }
+
+        Assert.Equal(1, actual.Count(m => m.DwellBefore));
+        Assert.True(actual[^1].DwellBefore && actual[^1].Creep, $"the one reversal is not the creep onto {EndSpot}: {Describe(actual)}");
+    }
+
+    /// <summary><c>PUSH $spot</c>'s plan off the gate, from where the aircraft is parked, with no neighbours.</summary>
+    private static TugPlan PlanFromGate(AirportGroundLayout layout, AircraftState ac, string spotName)
     {
         var request = new TugRequest
         {
             Start = new TugPose(ac.Position, ac.TrueHeading.Degrees),
             StartsAtStand = true,
             AircraftType = AircraftType,
-            Goals = [TugGoal.Spot(Spot(layout, HintSpot))],
+            Goals = [TugGoal.Spot(Spot(layout, spotName))],
             ParkedNeighbours = [],
             FinalFacingTrueDeg = null,
             PreviousKind = null,
         };
-        TugPlan plan =
-            TugMovePlanner.Plan(layout, request, out string refusal) ?? throw new InvalidOperationException($"PUSH ${HintSpot}: {refusal}");
+        return TugMovePlanner.Plan(layout, request, out string refusal) ?? throw new InvalidOperationException($"PUSH ${spotName}: {refusal}");
+    }
+
+    /// <summary>Whether <c>PUSH $7A</c>'s plan off the gate reverses before its path first comes within half a wingspan of 7A.</summary>
+    private bool PushShapeReversesBeforeHint(AirportGroundLayout layout, AircraftState ac)
+    {
+        TugPlan plan = PlanFromGate(layout, ac, HintSpot);
         LatLon hint = SpotRest(layout, HintSpot).Position;
         foreach (TugMoveTrace trace in plan.Moves)
         {

@@ -144,37 +144,31 @@ internal static class PushReadbackPhrases
         legs.Count(l => l.FreePose is not null) > 1 ? legs.Take(index + 1).Count(l => l.FreePose is not null) : null;
 
     /// <summary>
-    /// <c>PUSHM</c>. With no leg forced and no marked point: <c>push to spot 6B via spot 6A, spot 6</c> — the last point,
-    /// then every point on the way. Otherwise leg by leg in order, each with its verb and a marked point's own facing:
-    /// <c>push to gate F8, then pull forward to spot 7A</c>. The final facing comes last either way.
+    /// <c>PUSHM</c>: the last point, then the points the tow passes on the way: <c>push to spot 6B via spot 6A</c>,
+    /// <c>push to spot 6B via spot 6A and spot 6</c>, <c>push to spot 5B via spot 6A, spot 6 and spot 5A</c>. No target's
+    /// <c>/PUSH</c> or <c>/PULL</c> is read. The last point's own facing (a marked point's) or the final facing comes last.
     /// </summary>
-    /// <param name="move">The command: its legs' forced kinds, marked points and final facing.</param>
-    /// <param name="points">Every point in the order the tug reaches it, named; one per leg.</param>
+    /// <param name="move">The command: its last target's facing and its final facing.</param>
+    /// <param name="points">Every point in the order the tug passes it, named; one per target.</param>
     internal static PushWords Multi(PushbackMultiCommand move, IReadOnlyList<PushWords> points)
     {
-        PushWords words = move.Legs.Any(l => (l.ForcedKind is not null) || (l.FreePose is not null)) ? LegByLeg(move, points) : Via(points);
+        PushWords words = PushWords.Plain("push to ") + points[^1] + PushWords.Plain(" via ") + JoinedWithAnd([.. points.Take(points.Count - 1)]);
+        if (move.Legs[^1].FreePose?.Facing is { } own)
+        {
+            words += Orientation(own, false);
+        }
+
         return move.FinalFacing is { } facing ? words + Orientation(facing, move.IsTail) : words;
     }
 
-    private static PushWords Via(IReadOnlyList<PushWords> points)
-    {
-        PushWords words = PushWords.Plain("push to ") + points[^1] + PushWords.Plain(" via ");
-        for (int i = 0; i < points.Count - 1; i++)
-        {
-            words += (i == 0 ? PushWords.None : PushWords.Plain(", ")) + points[i];
-        }
-
-        return words;
-    }
-
-    private static PushWords LegByLeg(PushbackMultiCommand move, IReadOnlyList<PushWords> points)
+    /// <summary>A list read aloud: <c>spot 6A</c>, <c>spot 6A and spot 6</c>, <c>spot 6A, spot 6 and spot 5A</c>.</summary>
+    private static PushWords JoinedWithAnd(IReadOnlyList<PushWords> items)
     {
         PushWords words = PushWords.None;
-        for (int i = 0; i < points.Count; i++)
+        for (int i = 0; i < items.Count; i++)
         {
-            PushDestination leg = move.Legs[i];
-            PushWords facing = leg.FreePose?.Facing is { } own ? Orientation(own, false) : PushWords.None;
-            words += (i == 0 ? PushWords.None : PushWords.Plain(", then ")) + Verb(leg.ForcedKind) + points[i] + facing;
+            string separator = (i == 0) ? string.Empty : ((i == items.Count - 1) ? " and " : ", ");
+            words += PushWords.Plain(separator) + items[i];
         }
 
         return words;

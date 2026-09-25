@@ -242,12 +242,13 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
 
     /// <summary>
     /// The moves the planner chose are the moves that run: two straight pushes off the stand, a push onto the T6A
-    /// lane's line, a creep pull up onto 6A, a push onto the T6B lane's line, a creep pull up onto 6B. A push sets
-    /// <c>Ground.PushbackTrueHeading</c> — the heading <see cref="FlightPhysics"/> displaces along, tail-first — for
-    /// its whole run; a pull leaves it null, so the aircraft moves nose-first.
+    /// lane's line, a pull up onto 6A — no creep, since 6A is a pass-through hint and only the last target is arrived
+    /// at — a push onto the T6B lane's line, a creep pull up onto 6B. A push sets <c>Ground.PushbackTrueHeading</c> — the
+    /// heading <see cref="FlightPhysics"/> displaces along, tail-first — for its whole run; a pull leaves it null, so the
+    /// aircraft moves nose-first.
     /// </summary>
     [Fact]
-    public void PushmFromD15_PushesStraightThenOntoEachLineThenCreepsOntoEachSpot()
+    public void PushmFromD15_PushesStraightThenOntoEachLineThenCreepsOntoTheLastSpot()
     {
         if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
         {
@@ -267,7 +268,7 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
             (PushbackLegKind.Push, TugMoveShape.Straight, false),
             (PushbackLegKind.Push, TugMoveShape.Straight, false),
             (PushbackLegKind.Push, TugMoveShape.ViaLine, false),
-            (PushbackLegKind.Pull, TugMoveShape.ViaLine, true),
+            (PushbackLegKind.Pull, TugMoveShape.ViaLine, false),
             (PushbackLegKind.Push, TugMoveShape.ViaLine, false),
             (PushbackLegKind.Pull, TugMoveShape.ViaLine, true)
         );

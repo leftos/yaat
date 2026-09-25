@@ -26,6 +26,9 @@ public class TugMovePlannerTests
     private const double LegHandoverToleranceFt = 3.0;
     private const double AlongTaxiwayProbeFt = 1000.0;
 
+    /// <summary>How many log records a test's tap keeps: enough that a planning run's early lines are never evicted.</summary>
+    private const int TapCapacity = 200_000;
+
     /// <summary>The planner's same-kind wander limit, degrees: a push off a stand may pivot onto a spot's lane in one capture.</summary>
     private const double MaxSameKindWanderDeg = 150.0;
 
@@ -118,7 +121,13 @@ public class TugMovePlannerTests
             (PushbackLegKind.Push, TugMoveShape.ViaLine),
             (PushbackLegKind.Pull, TugMoveShape.ViaLine)
         );
-        Assert.True(plan.Moves[3].Move.Creep, "the pull onto 6A is the creep onto the first mark");
+        GroundNode sixA = Spot(layout, "6A");
+        Assert.True(layout.TryGetSpotOutboundHeading(sixA, out double sixAOutDeg));
+        LatLon sixAStop = TugMovePlanner.SpotStopGeometry(sixA, sixAOutDeg, Narrowbody).Stop;
+        double halfSpanFt = TugMovePlanner.WingspanFt(Narrowbody) / 2.0;
+        double passFt = plan.Moves[3].Samples.Min(s => FeetBetween(s.Position, sixAStop));
+        Assert.False(plan.Moves[3].Move.Creep, "the pull onto 6A creeps, though 6A is a pass-through hint and only 6B is arrived at");
+        Assert.True(passFt <= halfSpanFt, $"the pull onto 6A passes {passFt:F1} ft from its rest point, beyond half the span ({halfSpanFt:F1} ft)");
         Assert.True(plan.Moves[^1].Move.Creep, "the last pull onto 6B is the creep onto the mark");
         AssertEndsOnSpot(layout, plan, sixB);
     }
@@ -303,7 +312,7 @@ public class TugMovePlannerTests
         var legTwo = tap.Drain()
             .Where(r => r.Category == "TugMovePlanner")
             .Select(r => r.Message)
-            .Where(m => m.StartsWith("Tug leg 2 to spot 6B: ", StringComparison.Ordinal))
+            .Where(m => m.StartsWith("Tug the move to spot 6B: ", StringComparison.Ordinal))
             .ToList();
         legTwo.ForEach(_output.WriteLine);
         Assert.Contains(legTwo, m => m.EndsWith("building candidates for the Push and Pull side", StringComparison.Ordinal));
@@ -650,11 +659,12 @@ public class TugMovePlannerTests
     }
 
     /// <summary>
-    /// A <c>PUSHM</c> leg forced to a kind no plan of that kind flies is refused naming the leg: D15 → 6A, then 6B forced
-    /// <c>/PULL</c> from 6A, abeam it.
+    /// A <c>PUSHM</c> whose last target is forced to a kind no plan of that kind flies is refused naming the target: D15 via
+    /// 6A to 6B forced <c>/PULL</c>. No arrival off D15 passes 6A, and from 6A, abeam it, 6B is no pull either, so the first
+    /// arrival's refusal stands.
     /// </summary>
     [Fact]
-    public void PushmLegForcedToAnUnflyableKind_RefusedNamingTheLeg()
+    public void PushmLastTargetForcedToAnUnflyableKind_RefusedNamingTheTarget()
     {
         if (LoadSfo() is not { } layout)
         {
@@ -665,7 +675,7 @@ public class TugMovePlannerTests
 
         string refusal = Refusal(layout, StandStart(Parking(layout, "D15"), TugGoal.Spot(Spot(layout, "6A")), sixB));
 
-        Assert.Equal("Unable, leg 2: spot 6B cannot be reached by a pull", refusal);
+        Assert.Equal("Unable, spot 6B cannot be reached by a pull", refusal);
     }
 
     /// <summary>
@@ -1300,15 +1310,13 @@ public class TugMovePlannerTests
     }
 
     /// <summary>
-    /// The leaving exemption reaches a fuselage length of pavement, not the whole taxiway. The same first leg onto
-    /// taxiway A, and then a leg to the taxiway B node a thousand feet down the field: that runs down A at a shallow
-    /// angle, so the fuselage stays across A well past the chain it started on, and the leg is refused. Leg 2 is
-    /// asked for as a node goal because a node goal exempts the taxiway names its own edges carry — the B node
-    /// carries taxiway B, so taxiway A is judged, and a node goal has no shape rule to break ahead of the
-    /// flown-path check.
+    /// A <c>PUSHM</c> whose arrival is refused before any candidate is built is refused as it stands, with no pass-through
+    /// tow: D15 via the taxiway A node nearest the six-alley mouth to the taxiway B node a thousand feet down the field. The
+    /// B node lies ahead of D15's nose, and a node goal ahead of the nose off a stand is refused; no candidate was dropped
+    /// for missing the A node, so the tow is not taken onto it first.
     /// </summary>
     [Fact]
-    public void PushmAlongATaxiway_StillRefused()
+    public void PushmToANodeAheadOfTheNose_ViaATaxiwayNode_RefusedAsTheArrivalStands()
     {
         if (LoadSfo() is not { } layout)
         {
@@ -1329,9 +1337,337 @@ public class TugMovePlannerTests
             StandStart(Parking(layout, "D15"), TugGoal.AtNode(alpha, facingTrueDeg: null), TugGoal.AtNode(bravo, facingTrueDeg: null))
         );
 
-        Assert.Contains("leg 2", refusal, StringComparison.Ordinal);
-        Assert.Contains("taxiway A", refusal, StringComparison.Ordinal);
+        Assert.Equal($"Unable, node {bravo.Id} is ahead of the nose — the aircraft has to be pushed back off the stand first", refusal);
     }
+
+    /// <summary>
+    /// A <c>PUSHM</c> whose arrival is refused outright — spot 1 lies past the sanity guard from D5 — with a hint pending
+    /// that every candidate would pass (the end of the stand push-off) is refused as the arrival stands: the refusal names
+    /// spot 1 and no pass-through tow is tried.
+    /// </summary>
+    [Fact]
+    public void PushmArrivalPastTheSanityGuard_WithAHintPending_RefusedWithoutAPassThroughTow()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        using var tap = new CapturingSimLogProvider(LogLevel.Debug, TapCapacity);
+        using ILoggerFactory factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
+        SimLog.InitializeForTest(factory);
+        GroundNode d5 = Parking(layout, "D5");
+
+        string refusal = Refusal(layout, StandStart(d5, PushOffEndPoint(d5, Narrowbody), TugGoal.Spot(Spot(layout, "1"))));
+
+        Assert.StartsWith("Unable, spot 1 is ", refusal, StringComparison.Ordinal);
+        Assert.Contains("sanity guard", refusal, StringComparison.Ordinal);
+        Assert.Empty(FallbackLog(tap));
+    }
+
+    /// <summary>
+    /// A <c>PUSHM</c> whose arrival is refused for a neighbour — another E75L stands on spot 5A — with a hint every candidate
+    /// passes (the end of D2's stand push-off): no candidate misses the hint, so the neighbour's refusal stands and no
+    /// pass-through tow is tried.
+    /// </summary>
+    [Fact]
+    public void PushmArrivalRefusedForANeighbour_WithAHintEveryCandidatePasses_RefusedWithoutAPassThroughTow()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        using var tap = new CapturingSimLogProvider(LogLevel.Debug, TapCapacity);
+        using ILoggerFactory factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
+        SimLog.InitializeForTest(factory);
+        GroundNode spot = Spot(layout, "5A");
+        GroundNode d2 = Parking(layout, "D2");
+        var neighbour = new TugParkedNeighbour
+        {
+            Callsign = "SKW3400",
+            Position = spot.Position,
+            TrueHeadingDeg = 118.0,
+            AircraftType = FiveAlleyRegional,
+            StandName = null,
+        };
+        TugRequest request = StandStart(d2, FiveAlleyRegional, PushOffEndPoint(d2, FiveAlleyRegional), TugGoal.Spot(spot)) with
+        {
+            ParkedNeighbours = [neighbour],
+        };
+
+        string refusal = Refusal(layout, request);
+
+        Assert.StartsWith("Unable, the move to spot 5A ", refusal, StringComparison.Ordinal);
+        Assert.Contains("SKW3400", refusal, StringComparison.Ordinal);
+        Assert.Empty(FallbackLog(tap));
+    }
+
+    /// <summary>
+    /// A mid-push <c>PUSHM</c> whose first move reverses the running one (<see cref="TugRequest.PreviousKind"/> a pull): from
+    /// spot 7A's rest pose, a marked point 150 ft straight behind the tail with a hint halfway to it. The one push reverses
+    /// the running pull, not into a final arrival, so it passes the hint and flies as the move without the hint does.
+    /// </summary>
+    [Fact]
+    public void MidPushPushm_FirstMoveReversingTheRunningOne_PassesAHintOnItsPath()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode spot = Spot(layout, "7A");
+        Assert.True(layout.TryGetSpotOutboundHeading(spot, out double outbound));
+        LatLon rest = TugMovePlanner.SpotStopGeometry(spot, outbound, Narrowbody).Stop;
+        TrueHeading behind = new TrueHeading(outbound).ToReciprocal();
+        TugRequest alone = OffStand(new TugPose(rest, outbound), MarkedPoint(rest, behind, 150.0, "the marked point")) with
+        {
+            PreviousKind = PushbackLegKind.Pull,
+        };
+        TugPlan direct = PlanOrFail(layout, alone);
+
+        using var tap = new CapturingSimLogProvider(LogLevel.Debug, TapCapacity);
+        using ILoggerFactory factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
+        SimLog.InitializeForTest(factory);
+        TugPlan hinted = PlanOrFail(
+            layout,
+            alone with
+            {
+                Goals = [MarkedPoint(rest, behind, 75.0, "marked point 1"), MarkedPoint(rest, behind, 150.0, "marked point 2")],
+            }
+        );
+
+        Assert.True(hinted.Moves[0].Move.DwellBefore, "the first move does not reverse the running pull");
+        Assert.Equal([.. direct.Moves.Select(m => (m.Move.Kind, m.Move.Shape))], [.. hinted.Moves.Select(m => (m.Move.Kind, m.Move.Shape))]);
+        Assert.Empty(FallbackLog(tap));
+    }
+
+    /// <summary>
+    /// Two hints on <c>PUSH $7B</c>'s path off F8, given in the reverse of the order it passes them: no candidate passes the
+    /// later point first and then the earlier one, so the tow falls back to a pass-through tow onto the first hint.
+    /// </summary>
+    [Fact]
+    public void PushmHintsInReverseOrder_MissAndFallBackToAPassThroughTow()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode f8 = Parking(layout, "F8");
+        TugPlan direct = PlanOrFail(layout, StandStart(f8, TugGoal.Spot(Spot(layout, "7B"))));
+        List<LatLon> passing = [.. PassingPositions(direct.Moves)];
+        LatLon early = passing[passing.Count / 4];
+        LatLon late = passing[(passing.Count * 3) / 4];
+        _output.WriteLine($"early and late points {FeetBetween(early, late):F0} ft apart on PUSH $7B's path before its last reversal");
+        Assert.True(FeetBetween(early, late) > HalfSpanFt(), "the two points lie within half the span of each other");
+
+        using var tap = new CapturingSimLogProvider(LogLevel.Debug, TapCapacity);
+        using ILoggerFactory factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
+        SimLog.InitializeForTest(factory);
+        TugPlan? plan = TugMovePlanner.Plan(
+            layout,
+            StandStart(f8, MarkedPoint(late, "marked point 1"), MarkedPoint(early, "marked point 2"), TugGoal.Spot(Spot(layout, "7B"))),
+            out string refusal
+        );
+        _output.WriteLine($"plan {(plan is null ? "refused" : "accepted")}: '{refusal}'");
+
+        List<string> fallbacks = FallbackLog(tap);
+        fallbacks.ForEach(_output.WriteLine);
+        Assert.Contains(fallbacks, m => m.Contains("no arrival passes marked point 1", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// C9 <c>PUSHM $5A ~point $5B</c>, the point on the arrival <c>PUSHM $5A $5B</c> flies from 5A after its pass-through tow:
+    /// no candidate off C9 passes 5A, so the tow falls back onto 5A once, and the arrival from there passes the point.
+    /// </summary>
+    [Fact]
+    public void PushmFirstHintFallsBack_ArrivalStillPassesTheSecond()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode c9 = Parking(layout, "C9");
+        GroundNode fiveA = Spot(layout, "5A");
+        Assert.True(layout.TryGetSpotOutboundHeading(fiveA, out double fiveAOutDeg));
+        LatLon fiveARest = TugMovePlanner.SpotStopGeometry(fiveA, fiveAOutDeg, Narrowbody).Stop;
+        TugPlan viaFiveA = PlanOrFail(layout, StandStart(c9, TugGoal.Spot(fiveA), TugGoal.Spot(Spot(layout, "5B"))));
+        int towEnd = viaFiveA.Moves.ToList().FindIndex(m => FeetBetween(m.End.Position, fiveARest) <= LegHandoverToleranceFt);
+        Assert.True((towEnd >= 0) && (towEnd < (viaFiveA.Moves.Count - 1)), "PUSHM $5A $5B off C9 took no pass-through tow onto 5A");
+        IReadOnlyList<TugPose> arrivalFirst = viaFiveA.Moves[towEnd + 1].Samples;
+        LatLon point = arrivalFirst[arrivalFirst.Count / 2].Position;
+        _output.WriteLine($"the point is {FeetBetween(point, fiveARest):F0} ft from 5A's rest point, on the arrival's first move");
+
+        using var tap = new CapturingSimLogProvider(LogLevel.Debug, TapCapacity);
+        using ILoggerFactory factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(tap));
+        SimLog.InitializeForTest(factory);
+        TugPlan? plan = TugMovePlanner.Plan(
+            layout,
+            StandStart(c9, TugGoal.Spot(fiveA), MarkedPoint(point, "the marked point"), TugGoal.Spot(Spot(layout, "5B"))),
+            out string refusal
+        );
+        Assert.True(plan is not null, $"the plan was refused: {refusal}");
+
+        List<string> fallbacks = FallbackLog(tap);
+        fallbacks.ForEach(_output.WriteLine);
+        Assert.Single(fallbacks);
+        Assert.Contains("no arrival passes spot 5A", fallbacks[0], StringComparison.Ordinal);
+        double passFt = plan.Moves.SelectMany(m => m.Samples).Min(s => FeetBetween(s.Position, point));
+        Assert.True(passFt <= HalfSpanFt(), $"the plan passes {passFt:F1} ft from the marked point, beyond half the span");
+    }
+
+    /// <summary>
+    /// The hint step's bound on <c>PUSH $7B</c>'s path off F8: a hint half the span less a foot from the path is passed,
+    /// one half the span and a foot from it is missed.
+    /// </summary>
+    [Fact]
+    public void HintMiss_HalfTheSpanLessAFootPasses_AndAFootMoreMisses()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode f8 = Parking(layout, "F8");
+        TugPlan direct = PlanOrFail(layout, StandStart(f8, TugGoal.Spot(Spot(layout, "7B"))));
+        List<LatLon> passing = [.. PassingPositions(direct.Moves)];
+        double halfSpanFt = HalfSpanFt();
+        (LatLon inside, LatLon outside) = AbeamPoints(passing, passing.Count / 2, halfSpanFt);
+        double outsideFt = passing.Min(p => FeetBetween(p, outside));
+        _output.WriteLine(
+            $"half span {halfSpanFt:F2} ft; path to inside {passing.Min(p => FeetBetween(p, inside)):F2} ft, to outside {outsideFt:F2} ft"
+        );
+        Assert.True(outsideFt > halfSpanFt + 0.5, $"the outside point lies {outsideFt:F2} ft from the path, not a foot beyond half the span");
+
+        Assert.Null(TugPlanBuilder.HintMiss([ResolvedHint(layout, f8, MarkedPoint(inside, "the marked point"))], direct.Moves, halfSpanFt));
+        string? miss = TugPlanBuilder.HintMiss([ResolvedHint(layout, f8, MarkedPoint(outside, "the marked point"))], direct.Moves, halfSpanFt);
+        Assert.NotNull(miss);
+        Assert.Contains("it passes no closer than", miss, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A hint forced to a pull on <c>PUSH $7B</c>'s path off F8, where every move before the last reversal is a push: passed
+    /// while pushing only, so it is missed; the same hint forced to a push is passed.
+    /// </summary>
+    [Fact]
+    public void HintMiss_ForcedPullHintPassedOnlyWhilePushing_Misses()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode f8 = Parking(layout, "F8");
+        TugPlan direct = PlanOrFail(layout, StandStart(f8, TugGoal.Spot(Spot(layout, "7B"))));
+        int lastReversal = LastReversal(direct.Moves);
+        Assert.All(direct.Moves.Take(lastReversal), m => Assert.Equal(PushbackLegKind.Push, m.Move.Kind));
+        List<LatLon> passing = [.. PassingPositions(direct.Moves)];
+        TugGoal onThePath = MarkedPoint(passing[passing.Count / 2], "the marked point");
+
+        string? pulling = TugPlanBuilder.HintMiss(
+            [ResolvedHint(layout, f8, onThePath with { ForcedKind = PushbackLegKind.Pull })],
+            direct.Moves,
+            HalfSpanFt()
+        );
+        string? pushing = TugPlanBuilder.HintMiss(
+            [ResolvedHint(layout, f8, onThePath with { ForcedKind = PushbackLegKind.Push })],
+            direct.Moves,
+            HalfSpanFt()
+        );
+
+        _output.WriteLine($"forced pull: {pulling}");
+        Assert.NotNull(pulling);
+        Assert.Contains("the marked point while pulling", pulling, StringComparison.Ordinal);
+        Assert.Null(pushing);
+    }
+
+    /// <summary>
+    /// A hint on <c>PUSH @B13</c>'s path off B12 that the path reaches only after its last reversal — the pull into B13, the
+    /// final arrival — is missed. (F8 → 7B's final pull retraces its push, so no point on it lies clear of the path before.)
+    /// </summary>
+    [Fact]
+    public void HintMiss_HintReachedOnlyAfterTheLastReversal_Misses()
+    {
+        if (LoadSfo() is not { } layout)
+        {
+            return;
+        }
+
+        GroundNode b12 = Parking(layout, "B12");
+        TugPlan direct = PlanOrFail(layout, StandStart(b12, TugGoal.Stand(Parking(layout, "B13"))));
+        List<LatLon> passing = [.. PassingPositions(direct.Moves)];
+        LatLon afterReversal = direct
+            .Moves.Skip(LastReversal(direct.Moves))
+            .SelectMany(m => m.Samples)
+            .Select(s => s.Position)
+            .MaxBy(p => passing.Min(q => FeetBetween(p, q)));
+        double beforeFt = passing.Min(p => FeetBetween(p, afterReversal));
+        _output.WriteLine($"the point on the final arrival lies {beforeFt:F1} ft from the path before the last reversal");
+        Assert.True(beforeFt > HalfSpanFt(), "every point on the final arrival lies within half the span of the path before it");
+
+        string? miss = TugPlanBuilder.HintMiss(
+            [ResolvedHint(layout, b12, MarkedPoint(afterReversal, "the marked point"))],
+            direct.Moves,
+            HalfSpanFt()
+        );
+
+        Assert.NotNull(miss);
+        Assert.Contains("before its final arrival", miss, StringComparison.Ordinal);
+    }
+
+    /// <summary>A marked point where a stand's push-off ends: half the fuselage straight back from the stand.</summary>
+    private static TugGoal PushOffEndPoint(GroundNode stand, string aircraftType) =>
+        MarkedPoint(stand.Position, stand.TrueHeading!.Value.ToReciprocal(), TugMovePlanner.FuselageLengthFt(aircraftType) / 2.0, "the marked point");
+
+    private static TugGoal MarkedPoint(LatLon from, TrueHeading bearing, double distanceFt, string label) =>
+        MarkedPoint(GeoMath.ProjectPoint(from, bearing, distanceFt / GeoMath.FeetPerNm), label);
+
+    private static TugGoal MarkedPoint(LatLon point, string label) => TugGoal.FreePose(VirtualNode.Create(point.Lat, point.Lon), null, null, label);
+
+    /// <summary>A pass-through hint as the planner resolves it: the first of two goals off <paramref name="stand"/>.</summary>
+    private static ResolvedTugGoal ResolvedHint(AirportGroundLayout layout, GroundNode stand, TugGoal hint) =>
+        TugGoalResolver.Resolve(layout, StandStart(stand, hint, TugGoal.Clear()), 0);
+
+    /// <summary>The index of a plan's last reversal after its first move, or the move count when it has none.</summary>
+    private static int LastReversal(IReadOnlyList<TugMoveTrace> moves)
+    {
+        int last = moves.ToList().FindLastIndex(m => m.Move.DwellBefore);
+        return last >= 1 ? last : moves.Count;
+    }
+
+    /// <summary>Where the reference point is in every move before the plan's last reversal.</summary>
+    private static IEnumerable<LatLon> PassingPositions(IReadOnlyList<TugMoveTrace> moves) =>
+        moves.Take(LastReversal(moves)).SelectMany(m => m.Samples).Select(s => s.Position);
+
+    /// <summary>
+    /// Two points abeam the path at sample <paramref name="index"/>, on the side the path stays furthest from: half the
+    /// span less a foot and half the span and a foot from it.
+    /// </summary>
+    private static (LatLon Inside, LatLon Outside) AbeamPoints(List<LatLon> path, int index, double halfSpanFt)
+    {
+        LatLon at = path[index];
+        var travel = new TrueHeading(GeoMath.BearingTo(path[index - 1], path[index + 1]));
+        TrueHeading side = new[] { travel.Degrees + 90.0, travel.Degrees - 90.0 }
+            .Select(deg => new TrueHeading(deg))
+            .MaxBy(h => path.Min(p => FeetBetween(p, GeoMath.ProjectPoint(at, h, (halfSpanFt + 1.0) / GeoMath.FeetPerNm))));
+        return (
+            GeoMath.ProjectPoint(at, side, (halfSpanFt - 1.0) / GeoMath.FeetPerNm),
+            GeoMath.ProjectPoint(at, side, (halfSpanFt + 1.0) / GeoMath.FeetPerNm)
+        );
+    }
+
+    private static double HalfSpanFt() => TugMovePlanner.WingspanFt(Narrowbody) / 2.0;
+
+    /// <summary>The planner's pass-through fallback log lines.</summary>
+    private static List<string> FallbackLog(CapturingSimLogProvider tap) =>
+        [
+            .. tap.Drain()
+                .Where(r => r.Category == "TugMovePlanner")
+                .Select(r => r.Message)
+                .Where(m => m.Contains("falling back to a pass-through tow", StringComparison.Ordinal)),
+        ];
 
     /// <summary>The node nearest <paramref name="near"/> on one of the taxiway's straight movement-area edges.</summary>
     private static GroundNode NearestMovementAreaNode(AirportGroundLayout layout, string taxiway, LatLon near) =>

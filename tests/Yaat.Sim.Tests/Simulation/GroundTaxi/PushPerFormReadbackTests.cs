@@ -233,7 +233,7 @@ public class PushPerFormReadbackTests(ITestOutputHelper output)
             return;
         }
 
-        Assert.Equal("Push to spot 6B via spot 6A, spot 6", moved.Readback);
+        Assert.Equal("Push to spot 6B via spot 6A and spot 6", moved.Readback);
     }
 
     [Fact]
@@ -249,18 +249,25 @@ public class PushPerFormReadbackTests(ITestOutputHelper output)
 
     /// <summary>
     /// The forced-leg and marked-point forms, read back from the command in both of the pilot's forms (terminal text and
-    /// spoken): the verb names a forced motion, a <c>PUSHM</c> with any suffix or marked point reads leg by leg, a
-    /// marked point is never read by its coordinates.
+    /// spoken): the verb names a forced motion on a <c>PUSH</c>; a <c>PUSHM</c> reads its last point via the others, joined
+    /// with "and", and never a target's <c>/PUSH</c> or <c>/PULL</c>; a marked point is never read by its coordinates.
     /// </summary>
     [Theory]
     [InlineData("PUSH $7A/PULL", "pull forward to spot 7A", "pull forward to spot seven alpha")]
     [InlineData("PUSH $7A/PUSH", "push back to spot 7A", "push back to spot seven alpha")]
     [InlineData("PUSH $7A/PULL FACE E", "pull forward to spot 7A, face east", "pull forward to spot seven alpha, face east")]
     [InlineData(
-        "PUSHM @F8 $7A/PULL FACE E",
-        "push to gate F8, then pull forward to spot 7A, face east",
-        "push to gate foxtrot eight, then pull forward to spot seven alpha, face east"
+        "PUSHM @F8 $7A/PULL $7B FACE E",
+        "push to spot 7B via gate F8 and spot 7A, face east",
+        "push to spot seven bravo via gate foxtrot eight and spot seven alpha, face east"
     )]
+    [InlineData(
+        "PUSHM $6A $6 $5A $5B",
+        "push to spot 5B via spot 6A, spot 6 and spot 5A",
+        "push to spot five bravo via spot six alpha, spot six and spot five alpha"
+    )]
+    [InlineData("PUSHM $6A/PUSH $6B/PULL", "push to spot 6B via spot 6A", "push to spot six bravo via spot six alpha")]
+    [InlineData("PUSHM ~37.61523/-122.38604 $7B", "push to spot 7B via the marked point", "push to spot seven bravo via the marked point")]
     [InlineData("PUSHM $6A $6B", "push to spot 6B via spot 6A", "push to spot six bravo via spot six alpha")]
     [InlineData("PUSH ~37.61523/-122.38604/045", "push to the marked point, face northeast", "push to the marked point, face northeast")]
     [InlineData(
@@ -270,9 +277,14 @@ public class PushPerFormReadbackTests(ITestOutputHelper output)
     )]
     [InlineData("PUSH ~37.61523/-122.38604", "push to the marked point, hold", "push to the marked point, hold")]
     [InlineData(
-        "PUSHM ~37.61523/-122.38604/360 ~37.6155/-122.3862 FACE E",
-        "push to marked point 1, face north, then push to marked point 2, face east",
-        "push to marked point one, face north, then push to marked point two, face east"
+        "PUSHM ~37.61523/-122.38604 ~37.6155/-122.3862 FACE E",
+        "push to marked point 2 via marked point 1, face east",
+        "push to marked point two via marked point one, face east"
+    )]
+    [InlineData(
+        "PUSHM $6A ~37.6155/-122.3862/360",
+        "push to the marked point via spot 6A, face north",
+        "push to the marked point via spot six alpha, face north"
     )]
     public void ForcedAndMarkedForms_ReadBackFromTheCommand(string command, string terminal, string spoken)
     {
@@ -336,7 +348,8 @@ public class PushPerFormReadbackTests(ITestOutputHelper output)
     /// <summary>
     /// A typed <c>PUSHM @F8 ~lat/lon/facing/PULL</c> from gate F7 travels the engine's command path whole — the comma
     /// splitter never sees a comma in it — and reaches the tug-move planner as a stand and a marked point forced to a
-    /// pull: the planner's refusal names leg 2 and the pull, which it could only do with both legs and the suffix intact.
+    /// pull: the planner's refusal names the marked point and the pull, which it could only do with both targets and the
+    /// suffix intact.
     /// The point is spot 7A's stop, facing 7A's nose-out heading. <c>MarkedPointPushTests</c> proves an accepted one.
     /// </summary>
     [Fact]
@@ -363,7 +376,32 @@ public class PushPerFormReadbackTests(ITestOutputHelper output)
         output.WriteLine($"{command} → {result.Success}: {result.Message}");
 
         Assert.DoesNotContain("parse", result.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal("Unable, leg 2: the marked point cannot be reached by a pull", result.Message);
+        Assert.Equal("Unable, the marked point cannot be reached by a pull", result.Message);
+    }
+
+    /// <summary>
+    /// A typed <c>PUSHM ~lat/lon/090 $7B</c> from gate F8, the marked point on spot 7A's rest point: the tow passes a point
+    /// before the last without stopping there, so only the last point takes a facing, and the move is refused.
+    /// </summary>
+    [Fact]
+    public void TypedPushmWithAFacingOnAPassedPoint_Refused()
+    {
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        {
+            return;
+        }
+
+        GroundNode spot = ground.Layout.FindSpotNodeByName("7A") ?? throw new InvalidOperationException("SFO spot 7A missing");
+        Assert.True(ground.Layout.TryGetSpotOutboundHeading(spot, out double outbound));
+        LatLon rest = TugMovePlanner.SpotStopGeometry(spot, outbound, Narrowbody).Stop;
+        string command = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"PUSHM ~{rest.Lat:F6}/{rest.Lon:F6}/090 $7B");
+        AircraftState aircraft = SfoGroundHarness.SpawnParked(ground, "UAL462", Narrowbody, "F8");
+
+        CommandResult result = ground.Engine.SendCommand(aircraft.Callsign, command);
+        output.WriteLine($"{command} → {result.Success}: {result.Message}");
+
+        Assert.False(result.Success, result.Message);
+        Assert.Equal("Unable, the marked point is passed through; only the last point takes a facing", result.Message);
     }
 
     [Fact]
