@@ -1861,6 +1861,8 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(IsInRoom));
         OnPropertyChanged(nameof(WindowTitle));
         LoadLiveWeatherCommand.NotifyCanExecuteChanged();
+        ResetPilotVoiceWarningSession();
+        RefreshPilotVoiceWarning();
     }
 
     partial void OnActiveRoomNameChanged(string? value)
@@ -1872,6 +1874,7 @@ public partial class MainViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(HasScenario));
         OnPropertyChanged(nameof(WindowTitle));
+        RefreshPilotVoiceWarning();
         RefreshDisplayFavorites();
         ReloadCommandHistoryForScenario(value);
         RefreshMetarOrdering();
@@ -2800,6 +2803,11 @@ public partial class MainViewModel : ObservableObject
         }
         if (parsed.Type == CanonicalCommandType.Unpause)
         {
+            if (IsPaused && !await ConfirmResumeAsync())
+            {
+                return;
+            }
+
             await _connection.SendCommandAsync("", "UNPAUSE", _preferences.UserInitials);
             AddHistory("", "UNPAUSE");
             CommandText = "";
@@ -3151,6 +3159,11 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
+            if (IsPaused && !await ConfirmResumeAsync())
+            {
+                return;
+            }
+
             string cmd = IsPaused ? "UNPAUSE" : "PAUSE";
             await _connection.SendCommandAsync("", cmd, _preferences.UserInitials);
         }
@@ -3707,6 +3720,7 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowSessionSoloParkingInitialCallupRate));
         OnPropertyChanged(nameof(ShowSessionSoloArrivalGeneratorRate));
         OnPropertyChanged(nameof(ShowSessionSoloGoAroundProbability));
+        RefreshPilotVoiceWarning();
         if (!_isApplyingSessionSettings)
         {
             _ = _connection.SetSoloTrainingModeAsync(value);

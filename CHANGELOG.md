@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- A red banner warns when a solo training session has no pilot voice set up, with a button to its settings.
+- The first unpause of a solo session without pilot voice asks you to set it up or start anyway.
+
 ## v0.13.5-beta [2026/09/25]
 
 ### Highlights

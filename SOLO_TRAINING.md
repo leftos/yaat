@@ -109,7 +109,7 @@ The setup steps belong to whoever holds the mentor role or instructor rating. If
 
 **Student:**
 
-1. Optional: open **Settings > Speech** and enable Solo pilot voice. If TTS is off, pilot transmissions still appear in the terminal.
+1. Open **Settings > Speech**, enable Solo pilot voice and download the Piper voice pack. Pilots in solo training talk through text-to-speech, so without it you will not hear readbacks or requests. While pilot voice is not set up, a red banner says so, and the first time you unpause a session YAAT asks you to set it up (**Voice settings**) or **Start anyway**.
 2. Work the traffic from the command bar and watch both command feedback and pilot transmissions in the terminal.
 3. Open **Scenario > Session Report** during or after the run to review score, active issues, coaching notes, and runway/approach outcomes.
 

@@ -245,6 +245,8 @@ Two scenario knobs control pilot-AI cadence (persisted via `RecordedSettingChang
 
 The pipeline is silent and harmless if Piper isn't installed — `IsAvailable` returns false and `Enqueue` no-ops. The terminal SAY lines still render either way.
 
+- **Missing-voice warning.** Solo students only enter commands and are meant to hear pilots, so `MainViewModel.PilotVoiceWarning.cs` flags a solo session (in a room, scenario loaded, `SessionSoloTrainingMode`) whose pilot voice is off or unavailable (`!(PilotVoiceEnabled && IsAvailable)`): a persistent banner, plus a once-per-session modal on the first student resume (`ConfirmResumeAsync`, gating `TogglePauseAsync`, typed `UNPAUSE` and `TogglePlayback`). The session flag resets on a scenario load (`ApplyScenarioResult`, `OnScenarioLoaded`), a recording load (`ApplyRecordingResult`) and a room change, not on a reconnect's `ApplyRoomState`.
+
 ## Pitfalls
 
 - **Don't push solo-mode pilot speech to `PendingNotifications`.** Use `QueueSoloPilotTransmission` / `QueueSoloPilotReadback`. Pre-queue paths bypass airtime serialization and can step on awaited readbacks.

@@ -104,6 +104,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             ConfirmTakeControlAsync(
                 "Issuing a command stops the replay and discards the rest of the playback timeline, switching to live control. This can't be undone."
             );
+        vm.PilotVoiceWarningPrompt = ShowPilotVoiceWarningAsync;
+        vm.PilotVoiceSettingsRequested += OnPilotVoiceSettingsRequested;
 
         _windowProfileService = new WindowProfileService(vm.Preferences);
 
@@ -3043,7 +3045,12 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         await box.ShowWindowDialogAsync(this);
     }
 
-    private async void OnSettingsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private async void OnSettingsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e) =>
+        await ShowSettingsDialogAsync(openOnSpeechTab: false);
+
+    private async void OnPilotVoiceSettingsRequested() => await ShowSettingsDialogAsync(openOnSpeechTab: true);
+
+    private async Task ShowSettingsDialogAsync(bool openOnSpeechTab)
     {
         if (DataContext is not MainViewModel vm)
         {
@@ -3072,6 +3079,11 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         vm.IsSettingsPreviewActive = true;
 
         var dialog = new SettingsWindow(vm.Preferences, vm.AudioCapture, vm.SpeechSampleStore);
+        if (openOnSpeechTab)
+        {
+            dialog.SelectSpeechTab();
+        }
+
         var settingsVm = dialog.DataContext as SettingsViewModel;
 
         // Subscribe to live preview
@@ -3133,6 +3145,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
 
         vm.IsSettingsPreviewActive = false;
+
+        // Pilot voice may have been switched on or its voice pack installed.
+        vm.RefreshPilotVoiceWarning();
 
         return;
 
@@ -3419,6 +3434,69 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         await dialog.ShowDialog(this);
         return confirmed;
+    }
+
+    /// <summary>
+    /// Asks a solo-training student whose pilot voice is off whether to resume anyway. Wired into
+    /// <see cref="MainViewModel.PilotVoiceWarningPrompt"/>. Closing the window or Esc counts as Cancel.
+    /// </summary>
+    private const string PilotVoiceOffMessage =
+        "Pilots in solo training talk only through text-to-speech, and pilot voice is not set up. You will not hear readbacks or requests.";
+
+    private async Task<PilotVoiceWarningChoice> ShowPilotVoiceWarningAsync()
+    {
+        var dialog = new Window
+        {
+            Title = "Pilot voice is off",
+            Width = 460,
+            SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false,
+            ShowInTaskbar = false,
+        };
+
+        var settingsButton = new Button { Content = "Voice settings", HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center };
+        var startButton = new Button { Content = "Start anyway", HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center };
+        var cancelButton = new Button
+        {
+            Content = "Cancel",
+            Width = 80,
+            HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+            IsCancel = true,
+        };
+
+        PilotVoiceWarningChoice choice = PilotVoiceWarningChoice.Cancel;
+        settingsButton.Click += (_, _) =>
+        {
+            choice = PilotVoiceWarningChoice.OpenVoiceSettings;
+            dialog.Close();
+        };
+        startButton.Click += (_, _) =>
+        {
+            choice = PilotVoiceWarningChoice.StartAnyway;
+            dialog.Close();
+        };
+        cancelButton.Click += (_, _) => dialog.Close();
+
+        dialog.Content = new StackPanel
+        {
+            Margin = new Avalonia.Thickness(20),
+            Spacing = 16,
+            Children =
+            {
+                new TextBlock { Text = PilotVoiceOffMessage, TextWrapping = Avalonia.Media.TextWrapping.Wrap },
+                new StackPanel
+                {
+                    Orientation = Avalonia.Layout.Orientation.Horizontal,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                    Spacing = 8,
+                    Children = { settingsButton, startButton, cancelButton },
+                },
+            },
+        };
+
+        await dialog.ShowDialog(this);
+        return choice;
     }
 
     /// <summary>

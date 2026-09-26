@@ -33,6 +33,11 @@ public partial class MainViewModel
     {
         try
         {
+            if (IsPaused && !await ConfirmResumeAsync())
+            {
+                return;
+            }
+
             string cmd = IsPaused ? "UNPAUSE" : "PAUSE";
             await _connection.SendCommandAsync("", cmd, _preferences.UserInitials);
         }
@@ -646,6 +651,7 @@ public partial class MainViewModel
 
     internal void ApplyRecordingResult(RewindResultDto result)
     {
+        ResetPilotVoiceWarningSession();
         ActiveScenarioId = result.ScenarioId;
         ActiveScenarioName = result.ScenarioName;
         ActiveScenarioPrimaryAirportId = NormalizeFavoriteAirportId(result.PrimaryAirportId);

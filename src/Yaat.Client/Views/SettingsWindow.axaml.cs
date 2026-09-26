@@ -104,6 +104,9 @@ public partial class SettingsWindow : Window
         }
     }
 
+    /// <summary>Opens the window on the Speech tab, which holds the pilot voice (TTS) options.</summary>
+    public void SelectSpeechTab() => SettingsTabs.SelectedItem = SpeechTab;
+
     private void OnSaveClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (DataContext is SettingsViewModel vm)

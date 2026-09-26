@@ -169,6 +169,36 @@
       <!-- Server-restart banner (top, amber/green; visible only during planned restart) -->
       <views:RestartNotificationView DockPanel.Dock="Top" />
 
+      <!-- Solo training without pilot voice (top, red; visible while the room runs a solo scenario and TTS is off) -->
+      <Border
+        DockPanel.Dock="Top"
+        Background="#8B1A1A"
+        BorderBrush="#E05252"
+        BorderThickness="0,0,0,1"
+        Padding="12,6"
+        IsVisible="{Binding NoPilotVoiceInSolo}"
+      >
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <TextBlock Grid.Column="0" Text="⚠" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="#FFD6D6" />
+          <TextBlock
+            Grid.Column="1"
+            Text="Pilot voice is not set up. You will not hear pilots in this solo session."
+            FontSize="13"
+            FontWeight="SemiBold"
+            VerticalAlignment="Center"
+            Foreground="#FFF0F0"
+            TextWrapping="Wrap"
+          />
+          <Button
+            Grid.Column="2"
+            Content="Voice settings"
+            Margin="12,0,0,0"
+            VerticalAlignment="Center"
+            Command="{Binding OpenPilotVoiceSettingsCommand}"
+          />
+        </Grid>
+      </Border>
+
       <!-- Timeline bar -->
       <Border DockPanel.Dock="Top" BorderBrush="#3F3F46" BorderThickness="0,0,0,1" Padding="8,3" IsVisible="{Binding IsTimelineAvailable}">
         <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,8,*,8,Auto,Auto,Auto,Auto,Auto">

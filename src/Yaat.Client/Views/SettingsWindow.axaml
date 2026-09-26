@@ -38,7 +38,7 @@
     </DockPanel>
 
     <!-- Tab content -->
-    <TabControl>
+    <TabControl x:Name="SettingsTabs">
       <!-- Identity tab -->
       <TabItem Header="Identity">
         <ScrollViewer>
@@ -1206,7 +1206,7 @@
       </TabItem>
 
       <!-- Speech tab -->
-      <TabItem Header="Speech">
+      <TabItem Header="Speech" x:Name="SpeechTab">
         <ScrollViewer>
           <StackPanel Margin="12" Spacing="12">
             <Expander IsExpanded="{Binding SpeechEnabled, Mode=OneWay}">

@@ -531,6 +531,7 @@ public partial class MainViewModel
 
     private void ApplyScenarioResult(LoadScenarioResultDto result)
     {
+        ResetPilotVoiceWarningSession();
         SetStudentPositionType(result.StudentPositionType);
         _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);
         foreach (RadarViewModel radar in AllRadarViews)
@@ -569,11 +570,12 @@ public partial class MainViewModel
         _ = SendAutoArrivalSpacingOnOccupiedRunway();
     }
 
-    private void OnScenarioLoaded(ScenarioLoadedDto dto)
+    internal void OnScenarioLoaded(ScenarioLoadedDto dto)
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             _log.LogInformation("Scenario loaded by another client: '{Name}' ({Id})", dto.ScenarioName, dto.ScenarioId);
+            ResetPilotVoiceWarningSession();
 
             SetStudentPositionType(dto.StudentPositionType);
             _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);

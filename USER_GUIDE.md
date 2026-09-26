@@ -2014,6 +2014,8 @@ Two collapsible sections, each toggled by its header checkbox. Speech recognitio
 | **Radio effect** | Applies a radio-style filter to the pilot voice. | On |
 | **Piper voice pack** | Download / delete the local voice pack (shared across app upgrades). | — |
 
+In a solo training session with pilot voice off or unavailable (no voice pack, no output device), a red banner at the top of the main window says pilots will not be heard, with a **Voice settings** button that opens this tab. The first time you unpause such a session (Pause button, typed `UNPAUSE` or the timeline play button), a **Pilot voice is off** dialog offers **Voice settings**, **Start anyway** or **Cancel**; after **Start anyway** it does not return until the next scenario or recording load, or until you join or leave a room. A reconnect does not bring it back.
+
 #### Advanced
 
 **Keybinds** — click a button, then press the key or combo to rebind:
