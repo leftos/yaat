@@ -232,7 +232,7 @@ public class OakTaxiJcSpinTests(ITestOutputHelper output)
 
             // Signed along the aircraft's own heading: positive means the bar is still ahead of it.
             double alongFt = GeoMath.AlongTrackDistanceNm(hsNode.Position, ac.Position, ac.TrueHeading) * GeoMath.FeetPerNm;
-            double lengthFt = FaaAircraftDatabase.Get(ac.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(ac.AircraftType);
+            double lengthFt = AircraftLength.ResolveFt(ac.AircraftType);
             double standoffFt = lengthFt / 2.0;
 
             output.WriteLine(

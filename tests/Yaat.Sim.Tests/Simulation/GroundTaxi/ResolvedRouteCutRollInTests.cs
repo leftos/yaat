@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Tests.Helpers;
 
@@ -52,7 +53,7 @@ public class ResolvedRouteCutRollInTests(ITestOutputHelper output)
             $"the roll-in runs {rollIn.Edge.ArrivalBearing:F1}°, not on the {standHeading:F1}° stand heading"
         );
         double rollInFt = rollIn.Edge.DistanceNm * GeoMath.FeetPerNm;
-        Assert.InRange(rollInFt, TugMovePlanner.FuselageLengthFt("E75L") - 1.0, TugMovePlanner.FuselageLengthFt("E75L") + 1.0);
+        Assert.InRange(rollInFt, AircraftLength.ResolveFt("E75L") - 1.0, AircraftLength.ResolveFt("E75L") + 1.0);
         Assert.True(route.TotalDistanceFt < 1000.0, $"the cut route is {route.TotalDistanceFt:F0} ft; the graph's long way round is 1,612 ft");
 
         int parkedAt = SfoGroundHarness.TickUntil(ground.Engine, () => aircraft.Phases?.CurrentPhase is AtParkingPhase, 400, null);

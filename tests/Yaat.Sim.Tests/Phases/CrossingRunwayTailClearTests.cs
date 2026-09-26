@@ -241,7 +241,7 @@ public class CrossingRunwayTailClearTests(ITestOutputHelper output)
 
         Assert.Null(FaaAircraftDatabase.Get(unknownType));
         Assert.Null(WakeTurbulenceData.GetCwt(unknownType));
-        double expectedHalfFt = HoldShortAnnotator.CwtFallbackLengthFt(unknownType) / 2.0;
+        double expectedHalfFt = AircraftLength.CwtFallbackLengthFt(unknownType) / 2.0;
         Assert.NotEqual(30.0, expectedHalfFt);
 
         TaxiRoute? slice = fixture.Phase.CrossingRoute;

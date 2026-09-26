@@ -156,7 +156,7 @@ public static class RampLaneReposition
     /// it, however short the aircraft. Not a published figure: 100 ft is a fuselage length for the regional jets and
     /// turboprops that use SFO's spot lanes, and a run shorter than one of those is short for anything. It floors
     /// the run and is not a length for an unknown type — that comes from
-    /// <see cref="HoldShortAnnotator.CwtFallbackLengthFt"/>, which reads the type's wake category.
+    /// <see cref="Faa.AircraftLength.CwtFallbackLengthFt"/>, which reads the type's wake category.
     /// </summary>
     private const double MinimumAlignmentRunFt = 100.0;
 

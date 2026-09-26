@@ -1313,18 +1313,13 @@ public sealed class LandingPhase : Phase
         ctx.OccupiedHoldShortNodes?.Contains(candidate.HoldShortNode.Id) ?? false;
 
     /// <summary>
-    /// How far the aircraft's nose leads <c>AircraftState.Position</c>, which is the centroid: half the FAA
-    /// aircraft-characteristics length, or for a type that database does not carry
-    /// <see cref="HoldShortAnnotator.CwtFallbackLengthFt"/> — the same source and fallback
-    /// <see cref="Ground.RunwayExitPhase"/> uses for its tail-clearance offset. Resolved once and cached — the type does
-    /// not change mid-landing.
+    /// How far the aircraft's nose leads <c>AircraftState.Position</c>, which is the centroid: half the
+    /// <see cref="AircraftLength.ResolveFt"/> length — the same resolver <see cref="Ground.RunwayExitPhase"/> uses for its
+    /// tail-clearance offset. Resolved once and cached — the type does not change mid-landing.
     /// </summary>
     private double NoseOffsetNm(PhaseContext ctx)
     {
-        _noseOffsetNm ??=
-            (FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(ctx.Aircraft.AircraftType))
-            / 2.0
-            / GeoMath.FeetPerNm;
+        _noseOffsetNm ??= AircraftLength.ResolveFt(ctx.Aircraft.AircraftType) / 2.0 / GeoMath.FeetPerNm;
         return _noseOffsetNm.Value;
     }
 

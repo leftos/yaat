@@ -1,4 +1,5 @@
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 
 namespace Yaat.Sim;
 
@@ -58,7 +59,7 @@ internal readonly record struct GroundOutlineSize(double LengthFt, double Wingsp
     /// <param name="towedNoseFirst">The aircraft is on a pull, so the tug and towbar lead its nose.</param>
     /// <returns>The outline size.</returns>
     public static GroundOutlineSize Of(string aircraftType, bool towedNoseFirst) =>
-        new(TugMovePlanner.FuselageLengthFt(aircraftType), TugMovePlanner.WingspanFt(aircraftType), towedNoseFirst ? GroundOutline.TugLeadFt : 0.0);
+        new(AircraftLength.ResolveFt(aircraftType), TugMovePlanner.WingspanFt(aircraftType), towedNoseFirst ? GroundOutline.TugLeadFt : 0.0);
 
     /// <summary>
     /// The farthest any part of the outline lies from the reference point, feet: the nose (with the tug), a wingtip, or a

@@ -645,8 +645,7 @@ public static class GroundConflictDetector
         // rule does not oscillate).
         if (winner.IndicatedAirspeed > ConvergenceMinWinnerSpeedKts)
         {
-            double winnerLengthFt =
-                FaaAircraftDatabase.Get(winner.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(winner.AircraftType);
+            double winnerLengthFt = AircraftLength.ResolveFt(winner.AircraftType);
             double winnerClearSec = (winnerDistFt + winnerLengthFt) / (winner.IndicatedAirspeed * FtPerNm / 3600.0);
             double yielderSpeedKts = Math.Max(yielder.IndicatedAirspeed, ConvergenceNominalTaxiSpeedKts);
             double yielderArriveSec = yielderDistFt / (yielderSpeedKts * FtPerNm / 3600.0);
@@ -1172,9 +1171,7 @@ public static class GroundConflictDetector
         }
 
         int start = Math.Max(route.CurrentSegmentIndex, 0);
-        double boundFt =
-            (distFt * RouteClearanceBoundFactor)
-            + (FaaAircraftDatabase.Get(obstacle.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(obstacle.AircraftType));
+        double boundFt = (distFt * RouteClearanceBoundFactor) + AircraftLength.ResolveFt(obstacle.AircraftType);
         double? closestFt = null;
         double walkedFt = 0;
         for (int i = start; (i < route.Segments.Count) && (walkedFt < boundFt); i++)
@@ -1763,9 +1760,8 @@ public static class GroundConflictDetector
 
     private static (double StopFt, double TrailFt) GetSeparation(AircraftState leader, AircraftState trailer)
     {
-        double leaderLength = FaaAircraftDatabase.Get(leader.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(leader.AircraftType);
-        double trailerLength =
-            FaaAircraftDatabase.Get(trailer.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(trailer.AircraftType);
+        double leaderLength = AircraftLength.ResolveFt(leader.AircraftType);
+        double trailerLength = AircraftLength.ResolveFt(trailer.AircraftType);
         double stopDist = Math.Max(DefaultStopDistanceFt, ((leaderLength + trailerLength) / 2) + StopBufferFt);
         double trailDist = Math.Max(DefaultTrailDistanceFt, stopDist + 100.0);
         return (stopDist, trailDist);

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Data.Faa;
 
 namespace Yaat.Sim.Data.Airport;
 
@@ -76,7 +77,7 @@ public sealed class TugPathCheck
         _pavement = new TugPavementClassifier(layout);
         _origin = planStart;
         _eastFtPerDeg = 60.0 * GeoMath.FeetPerNm * Math.Cos(planStart.Lat * DegToRad);
-        _halfLengthFt = TugMovePlanner.FuselageLengthFt(aircraftType) / 2.0;
+        _halfLengthFt = AircraftLength.ResolveFt(aircraftType) / 2.0;
         _halfSpanFt = TugMovePlanner.WingspanFt(aircraftType) / 2.0;
         _maxOvershootFt = MaxTaxiwayOvershootFt(aircraftType);
         _runways = [.. layout.Runways.SelectMany(RunwaySegments)];

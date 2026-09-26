@@ -210,7 +210,7 @@ public class SameRunwayArrivalProtectionTests
 
         double tailFt = SameRunwayArrivalProtection.TailClearanceNm("A225") * GeoMath.FeetPerNm;
 
-        Assert.Equal(HoldShortAnnotator.CwtFallbackLengthFt("A225") / 2.0, tailFt, 6);
+        Assert.Equal(AircraftLength.CwtFallbackLengthFt("A225") / 2.0, tailFt, 6);
     }
 
     [Fact]

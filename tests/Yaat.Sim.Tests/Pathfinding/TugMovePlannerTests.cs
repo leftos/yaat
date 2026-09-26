@@ -1620,7 +1620,7 @@ public class TugMovePlannerTests
 
     /// <summary>A marked point where a stand's push-off ends: half the fuselage straight back from the stand.</summary>
     private static TugGoal PushOffEndPoint(GroundNode stand, string aircraftType) =>
-        MarkedPoint(stand.Position, stand.TrueHeading!.Value.ToReciprocal(), TugMovePlanner.FuselageLengthFt(aircraftType) / 2.0, "the marked point");
+        MarkedPoint(stand.Position, stand.TrueHeading!.Value.ToReciprocal(), AircraftLength.ResolveFt(aircraftType) / 2.0, "the marked point");
 
     private static TugGoal MarkedPoint(LatLon from, TrueHeading bearing, double distanceFt, string label) =>
         MarkedPoint(GeoMath.ProjectPoint(from, bearing, distanceFt / GeoMath.FeetPerNm), label);

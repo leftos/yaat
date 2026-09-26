@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Pathfinding;
@@ -251,7 +252,7 @@ public class ForcedPushLegPlannerTests(ITestOutputHelper output)
         LatLon onAlpha = NearestPointOn(alpha, spot.Position);
         double awayFromAlphaDeg = GeoMath.BearingTo(onAlpha, spot.Position);
         double towardAlphaDeg = new TrueHeading(awayFromAlphaDeg).ToReciprocal().Degrees;
-        double leadReachFt = (TugMovePlanner.FuselageLengthFt(Narrowbody) / 2.0) + GroundOutline.TugLeadFt;
+        double leadReachFt = (AircraftLength.ResolveFt(Narrowbody) / 2.0) + GroundOutline.TugLeadFt;
 
         TugRequest PullTo(double fromAlphaFt)
         {

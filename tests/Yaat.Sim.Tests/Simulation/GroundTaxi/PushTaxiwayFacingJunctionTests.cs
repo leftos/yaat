@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Tests.Helpers;
@@ -265,11 +266,7 @@ public class PushTaxiwayFacingJunctionTests(ITestOutputHelper output)
     /// <summary>How far ahead of the aircraft's nose tip the node lies along the nose heading, feet.</summary>
     private static double NoseTipShortOfFt(AircraftState ac, GroundNode node)
     {
-        LatLon noseTip = GeoMath.ProjectPoint(
-            ac.Position,
-            ac.TrueHeading,
-            TugMovePlanner.FuselageLengthFt(ac.AircraftType) / 2.0 / GeoMath.FeetPerNm
-        );
+        LatLon noseTip = GeoMath.ProjectPoint(ac.Position, ac.TrueHeading, AircraftLength.ResolveFt(ac.AircraftType) / 2.0 / GeoMath.FeetPerNm);
         return GeoMath.AlongTrackDistanceNm(node.Position, noseTip, ac.TrueHeading) * GeoMath.FeetPerNm;
     }
 

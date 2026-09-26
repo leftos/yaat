@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
@@ -476,7 +477,7 @@ public class RampLaneRepositionTests
         );
         _output.WriteLine("route: " + string.Join(" ", route.Segments.Select(s => $"{s.FromNodeId}-{s.ToNodeId}({s.TaxiwayName})")));
 
-        RampLaneDestinationCutPlan? cut = RampLaneReposition.TryPlanResolvedRouteCut(layout, route, stand, TugMovePlanner.FuselageLengthFt("B738"));
+        RampLaneDestinationCutPlan? cut = RampLaneReposition.TryPlanResolvedRouteCut(layout, route, stand, AircraftLength.ResolveFt("B738"));
         if (!expectCut)
         {
             Assert.Null(cut);

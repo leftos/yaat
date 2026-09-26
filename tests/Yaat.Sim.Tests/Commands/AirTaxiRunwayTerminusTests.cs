@@ -110,8 +110,7 @@ public class AirTaxiRunwayTerminusTests(ITestOutputHelper output)
         Assert.NotNull(holding.HoldShort.Latitude);
         Assert.NotNull(holding.HoldShort.Longitude);
         var stop = new LatLon(holding.HoldShort.Latitude!.Value, holding.HoldShort.Longitude!.Value);
-        double halfLengthFt =
-            (FaaAircraftDatabase.Get(heli.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(heli.AircraftType)) / 2.0;
+        double halfLengthFt = AircraftLength.ResolveFt(heli.AircraftType) / 2.0;
         double setbackFt = FeetBetween(stop, expectedBar.Position);
         output.WriteLine(
             $"setback={setbackFt:F1} ft (half length {halfLengthFt:F1} ft); "

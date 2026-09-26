@@ -458,7 +458,7 @@ public class GroundConflictDetectorTests
 
         (AirportGroundLayout? layout, GroundNode _, GroundNode _, GroundNode _) = BuildSimpleLayout();
         GroundEdge edge01 = layout.Edges[0];
-        double stopRingFt = ((HoldShortAnnotator.CwtFallbackLengthFt("A225") + LengthFt("B738")) / 2) + GroundConflictDetector.StopBufferFt;
+        double stopRingFt = ((AircraftLength.CwtFallbackLengthFt("A225") + LengthFt("B738")) / 2) + GroundConflictDetector.StopBufferFt;
         double gapFt = stopRingFt - 20.0;
 
         AircraftState trailer = MakeAircraft(

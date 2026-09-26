@@ -596,7 +596,7 @@ public static class TugMovePlanner
     /// <returns>The stop and staging points.</returns>
     public static (LatLon Stop, LatLon Staging) SpotStopGeometry(GroundNode spot, double facingTrueDeg, string aircraftType)
     {
-        double halfLenNm = (FuselageLengthFt(aircraftType) / 2.0) / GeoMath.FeetPerNm;
+        double halfLenNm = (AircraftLength.ResolveFt(aircraftType) / 2.0) / GeoMath.FeetPerNm;
         double pullFwdNm = SpotPullForwardFt(aircraftType) / GeoMath.FeetPerNm;
 
         TrueHeading intoRamp = new TrueHeading(facingTrueDeg).ToReciprocal();
@@ -605,11 +605,7 @@ public static class TugMovePlanner
 
     /// <summary>How far behind a spot's stop point its staging point lies, feet: clamp(0.75 × fuselage length, 40, 100).</summary>
     internal static double SpotPullForwardFt(string aircraftType) =>
-        Math.Clamp(SpotPullForwardFactor * FuselageLengthFt(aircraftType), SpotPullForwardMinFt, SpotPullForwardMaxFt);
-
-    /// <summary>The fuselage length, feet: the FAA record's, else the CWT-based fallback.</summary>
-    public static double FuselageLengthFt(string aircraftType) =>
-        FaaAircraftDatabase.Get(aircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraftType);
+        Math.Clamp(SpotPullForwardFactor * AircraftLength.ResolveFt(aircraftType), SpotPullForwardMinFt, SpotPullForwardMaxFt);
 
     /// <summary>
     /// The wingspan, feet: the FAA record's, else by category — Jet 118 ft, Turboprop 90 ft, Piston 36 ft,
@@ -1493,7 +1489,7 @@ internal sealed class TugPlanBuilder
     {
         _layout = layout;
         _request = request;
-        _standPushOff = TugMove.Straight(PushbackLegKind.Push, TugMovePlanner.FuselageLengthFt(request.AircraftType) / 2.0);
+        _standPushOff = TugMove.Straight(PushbackLegKind.Push, AircraftLength.ResolveFt(request.AircraftType) / 2.0);
         _end = request.Start;
         _lastKind = request.PreviousKind;
         _pathCheck = layout is null ? null : new TugPathCheck(layout, request.AircraftType, request.Start.Position);
@@ -2451,7 +2447,7 @@ internal sealed class TugPlanBuilder
     /// </summary>
     private IEnumerable<TugMove> OtherPushOffs()
     {
-        double standardFt = TugMovePlanner.FuselageLengthFt(_request.AircraftType) / 2.0;
+        double standardFt = AircraftLength.ResolveFt(_request.AircraftType) / 2.0;
         foreach (double straightFt in PushOffsPastNeighboursFt().Where(ft => ft > standardFt + TugMovePlanner.StepFt).Distinct().Order())
         {
             yield return TugMove.Straight(PushbackLegKind.Push, straightFt);
@@ -2476,7 +2472,7 @@ internal sealed class TugPlanBuilder
         var frame = new GroundOutlineFrame(_end.Position);
         double travelRad = _end.TravelTrueDeg(PushbackLegKind.Push) * Math.PI / 180.0;
         double AlongFt(OutlinePoint p) => (p.EastFt * Math.Sin(travelRad)) + (p.NorthFt * Math.Cos(travelRad));
-        double halfLengthFt = TugMovePlanner.FuselageLengthFt(_request.AircraftType) / 2.0;
+        double halfLengthFt = AircraftLength.ResolveFt(_request.AircraftType) / 2.0;
         foreach (TugParkedNeighbour neighbour in _request.ParkedNeighbours)
         {
             var outline = GroundOutline.At(
@@ -2693,9 +2689,7 @@ internal sealed class TugPlanBuilder
 
     private bool TryBuildCandidates(ResolvedTugGoal goal, bool offStand, out List<TugCandidate> candidates, out string refusal)
     {
-        TugMove? standPushOff = offStand
-            ? TugMove.Straight(PushbackLegKind.Push, TugMovePlanner.FuselageLengthFt(_request.AircraftType) / 2.0)
-            : null;
+        TugMove? standPushOff = offStand ? TugMove.Straight(PushbackLegKind.Push, AircraftLength.ResolveFt(_request.AircraftType) / 2.0) : null;
         bool straightBack = goal.Shape is TugGoalShape.Clear or TugGoalShape.StraightBack;
         TugMove? pushOff = straightBack ? null : standPushOff;
         refusal = string.Empty;
@@ -3201,7 +3195,7 @@ internal sealed class TugPlanBuilder
     {
         TugPose start = _request.Start;
         var lead = new TrueHeading(start.NoseTrueDeg);
-        double halfNm = TugMovePlanner.FuselageLengthFt(_request.AircraftType) / 2.0 / GeoMath.FeetPerNm;
+        double halfNm = AircraftLength.ResolveFt(_request.AircraftType) / 2.0 / GeoMath.FeetPerNm;
         double radiusFt = TugKinematics.TurnRadiusFt(_request.AircraftType, tight: false);
         double maxFt = 0.0;
         foreach (TugPose pose in candidate.Traces.SelectMany(t => t.Samples))
@@ -3269,8 +3263,7 @@ internal sealed class TugPlanBuilder
             return null;
         }
 
-        double backFt =
-            TugKinematics.TurnRadiusFt(_request.AircraftType, tight: false) + (TugMovePlanner.FuselageLengthFt(_request.AircraftType) / 2.0);
+        double backFt = TugKinematics.TurnRadiusFt(_request.AircraftType, tight: false) + (AircraftLength.ResolveFt(_request.AircraftType) / 2.0);
         List<TugTaxiwaySide> sides = ReachableSides(taxiway, junction, exit, backFt);
         Log.LogDebug(
             "Tug {Subject}: {Taxiway}/{Facing} junction node {Node}; {Count} direction(s), {Stop}",

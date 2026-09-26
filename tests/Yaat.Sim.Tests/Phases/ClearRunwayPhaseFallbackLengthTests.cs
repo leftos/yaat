@@ -37,7 +37,7 @@ public class ClearRunwayPhaseFallbackLengthTests(ITestOutputHelper output)
 
         Assert.Null(FaaAircraftDatabase.Get(UnknownType));
         Assert.Null(WakeTurbulenceData.GetCwt(UnknownType));
-        double expectedHalfFt = HoldShortAnnotator.CwtFallbackLengthFt(UnknownType) / 2.0;
+        double expectedHalfFt = AircraftLength.CwtFallbackLengthFt(UnknownType) / 2.0;
         Assert.NotEqual(30.0, expectedHalfFt);
 
         Assert.True(layout.Nodes.TryGetValue(MWestHoldShortNodeId, out GroundNode? westNode), $"SFO layout has no node {MWestHoldShortNodeId}");

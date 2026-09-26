@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Pathfinding;
@@ -190,7 +191,7 @@ public class TugAlleyClearanceTests(ITestOutputHelper output)
         centreline.AddRange(
             layout.Arcs.Where(a => (a.TaxiwayNames.Length == 1) && a.MatchesTaxiway(taxiway)).Select(a => (a.Nodes[0].Position, a.Nodes[1].Position))
         );
-        double halfLengthNm = TugMovePlanner.FuselageLengthFt(aircraftType) / 2.0 / GeoMath.FeetPerNm;
+        double halfLengthNm = AircraftLength.ResolveFt(aircraftType) / 2.0 / GeoMath.FeetPerNm;
         double halfSpanNm = TugMovePlanner.WingspanFt(aircraftType) / 2.0 / GeoMath.FeetPerNm;
         double best = double.PositiveInfinity;
         foreach (TugPose pose in plan.Moves.SelectMany(m => m.Samples))

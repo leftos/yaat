@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
@@ -462,7 +463,7 @@ public partial class ForcedPushTests(ITestOutputHelper output)
         double restFt = DistanceFt(pusher.Position, spot.Position);
         output.WriteLine($"towed {towedFt:F0} ft, rests {restFt:F1} ft from spot 6A's mark, heading {pusher.TrueHeading.Degrees:F1}");
         Assert.IsType<HoldingAfterPushbackPhase>(pusher.Phases?.CurrentPhase);
-        Assert.InRange(restFt, 0.0, TugMovePlanner.FuselageLengthFt(Narrowbody));
+        Assert.InRange(restFt, 0.0, AircraftLength.ResolveFt(Narrowbody));
 
         // The fallback ranks by tow length first: the 828 ft pull-side tow (Push Straight 65, Push ToPoint 572, Pull
         // ViaLine 191, planned lengths measured 2026-09-25), not the longer tow whose lead-in departs 6A's line least.

@@ -1557,7 +1557,7 @@ public partial class GroundViewModel : ObservableObject
         // The server replaces a route that reaches the stand only the long way round (SFO $5A: down T5, out to Alpha,
         // back up T5A) with a drive across the apron that rolls in on the stand heading, so the overlay has to make the
         // same substitution or it draws a detour the aircraft is not flying.
-        double aircraftLengthFt = FaaAircraftDatabase.Get(ac.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(ac.AircraftType);
+        double aircraftLengthFt = AircraftLength.ResolveFt(ac.AircraftType);
         RampLaneDestinationCutPlan? improved =
             (route is not null) && (destination is not null)
                 ? RampLaneReposition.TryPlanResolvedRouteCut(_domainLayout, route, destination, aircraftLengthFt)
@@ -1622,7 +1622,7 @@ public partial class GroundViewModel : ObservableObject
                 Destination = destination,
                 Options = options,
                 Category = category,
-                AircraftLengthFt = FaaAircraftDatabase.Get(ac.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(ac.AircraftType),
+                AircraftLengthFt = AircraftLength.ResolveFt(ac.AircraftType),
             }
         );
         return cut is not null ? cut.Route : WithApproachLeg(route, ac.Position, ac.Heading);
@@ -1666,7 +1666,7 @@ public partial class GroundViewModel : ObservableObject
             Route = route,
             Spot = destination,
             Category = category,
-            AircraftLengthFt = FaaAircraftDatabase.Get(ac.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(ac.AircraftType),
+            AircraftLengthFt = AircraftLength.ResolveFt(ac.AircraftType),
             ClearedTaxiways = clearedTaxiways,
             OtherGroundAircraft = [.. all.Where(other => !other.IsDelayed && other.IsOnGround).Select(TugCandidateOf)],
         };

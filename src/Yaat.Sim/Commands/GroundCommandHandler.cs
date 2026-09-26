@@ -283,8 +283,7 @@ public static class GroundCommandHandler
         // and taxis the clearance as issued — from a gate or mid-lane. Only for sibling numbered lanes over
         // open apron; see RampLaneReposition.
         GroundNode? destinationNode = FindTaxiDestinationNode(groundLayout, taxi);
-        double aircraftLengthFt =
-            FaaAircraftDatabase.Get(aircraft.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraft.AircraftType);
+        double aircraftLengthFt = AircraftLength.ResolveFt(aircraft.AircraftType);
         if (route is null && failure is not null && !AirportGroundLayout.HasRunwayCenterlineEdge(startNode))
         {
             RampLaneRepositionPlan? plan = RampLaneReposition.TryPlan(
@@ -4366,8 +4365,7 @@ public static class GroundCommandHandler
             return;
         }
 
-        double aircraftLengthFt =
-            FaaAircraftDatabase.Get(aircraft.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraft.AircraftType);
+        double aircraftLengthFt = AircraftLength.ResolveFt(aircraft.AircraftType);
         HoldShortAnnotator.ComputeHoldShortPositions(layout, route, aircraftLengthFt);
     }
 
@@ -5244,7 +5242,7 @@ public static class GroundCommandHandler
             return resolved;
         }
 
-        double lengthFt = FaaAircraftDatabase.Get(aircraft.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraft.AircraftType);
+        double lengthFt = AircraftLength.ResolveFt(aircraft.AircraftType);
         double setbackNm = Math.Min((lengthFt / 2.0) / GeoMath.FeetPerNm, GeoMath.DistanceNm(bar.Position, away.Position));
         var heading = new TrueHeading(GeoMath.BearingTo(bar.Position, away.Position));
         return resolved with { Target = GeoMath.ProjectPoint(bar.Position, heading, setbackNm) };

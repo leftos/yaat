@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
@@ -197,7 +198,7 @@ public class Issue454NamedTaxilaneHonouredTests(ITestOutputHelper output)
         }
 
         GroundNode d1 = Assert.IsType<GroundNode>(ground.Layout.FindParkingByName("D1"));
-        double fuselageFt = TugMovePlanner.FuselageLengthFt("E75L");
+        double fuselageFt = AircraftLength.ResolveFt("E75L");
         RampLaneDestinationCutPlan? plan = RampLaneReposition.TryPlanDestinationCut(
             ground.Layout,
             new RampLaneDestinationCutRequest

@@ -309,8 +309,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     /// </summary>
     private static (int FullSegments, bool Partial) AppendTailClearance(PhaseContext ctx, TaxiRoute route, int exitIdx, List<TaxiRouteSegment> slice)
     {
-        double lengthFt =
-            FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(ctx.Aircraft.AircraftType);
+        double lengthFt = AircraftLength.ResolveFt(ctx.Aircraft.AircraftType);
         if (TailClearanceSuppressed(ctx, route, exitIdx, lengthFt))
         {
             return (0, false);
