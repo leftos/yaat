@@ -386,24 +386,55 @@ public static class CategoryPerformance
     }
 
     /// <summary>
-    /// Ground braking deceleration during rollout (kts/sec). Models normal commercial operations
-    /// (autobrake 2 + moderate reverse thrust) on a long runway — not emergency maximum braking.
+    /// Routine ground braking deceleration during a landing rollout (kts/sec): the rate
+    /// <c>LandingPhase</c> plans and brakes at when no exit constraint asks for more. Models normal
+    /// operations on a dry runway (a medium autobrake setting plus moderate reverse thrust) — not
+    /// maximum braking. Judgement calls (aviation review 2026-09-24); no FAA figure exists.
     /// Helicopter: 0 (no rollout).
     /// </summary>
-    public static double RolloutDecelRate(AircraftCategory cat)
-    {
-        // Piston: 2.5 kts/s ≈ 0.13 g. Matches routine C172/PA28 braking on a dry runway
-        // (AIM 4-3-21, POH short-field max ≈ 0.25 g). ComfortableBrakingMultiplier×this
-        // becomes the ceiling used by LandingPhase exit planning.
-        return cat switch
+    public static double RolloutDecelRate(AircraftCategory cat) =>
+        cat switch
         {
-            AircraftCategory.Jet => 2.5,
-            AircraftCategory.Turboprop => 2.0,
-            AircraftCategory.Piston => 2.5,
+            AircraftCategory.Jet => 3.6, // ≈0.19 g, midpoint of 737NG autobrake 2–3, dry
+            AircraftCategory.Turboprop => 3.0, // ≈0.16 g, beta/reverse plus moderate braking
+            AircraftCategory.Piston => 2.5, // ≈0.13 g, routine C172/PA28 braking (POH short-field max ≈0.25 g)
             AircraftCategory.Helicopter => 0,
-            _ => 2.5,
+            _ => 3.6,
         };
-    }
+
+    /// <summary>
+    /// Comfortable braking deceleration (kts/sec): the most a pilot brakes to make a high-speed exit when
+    /// selecting one uninstructed (standard exits qualify only at <see cref="RolloutDecelRate"/>). Sits above
+    /// <see cref="RolloutDecelRate"/>, below the firm <see cref="Phases.RolloutBraking.FirmBrakingRateKtsPerSec"/>
+    /// for every fixed-wing category, and at or below
+    /// <see cref="ExpediteExitDecelRate"/>. Judgement calls (aviation review 2026-09-24); no FAA figure
+    /// exists. Helicopter: 0 (no rollout).
+    /// </summary>
+    public static double ComfortableExitDecelRate(AircraftCategory cat) =>
+        cat switch
+        {
+            AircraftCategory.Jet => 4.5, // ≈0.23 g
+            AircraftCategory.Turboprop => 3.75, // ≈0.19 g
+            AircraftCategory.Piston => 3.75, // ≈0.19 g
+            AircraftCategory.Helicopter => 0,
+            _ => 4.5,
+        };
+
+    /// <summary>
+    /// Speed bleed (kts/sec) on the ground during a touch-and-go: <c>TouchAndGoPhase</c> subtracts this
+    /// times the rollout duration from touchdown speed to set the brief rollout's speed target. No wheel
+    /// braking on a touch-and-go — the bleed is drag and idle thrust only. Judgement calls (aviation
+    /// review 2026-09-24); no FAA figure exists. Helicopter: 0 (no rollout).
+    /// </summary>
+    public static double TouchAndGoDecelRate(AircraftCategory cat) =>
+        cat switch
+        {
+            AircraftCategory.Jet => 1.0,
+            AircraftCategory.Turboprop => 1.5,
+            AircraftCategory.Piston => 1.5,
+            AircraftCategory.Helicopter => 0,
+            _ => 1.0,
+        };
 
     /// <summary>
     /// Traffic pattern altitude above field (feet AGL). AIM 4-3-3.a: propeller-driven 1,000

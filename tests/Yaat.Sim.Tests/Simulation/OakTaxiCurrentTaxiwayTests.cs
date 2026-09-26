@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -12,12 +13,12 @@ namespace Yaat.Sim.Tests.Simulation;
 /// E2E: a TAXI command must infer the taxiway the aircraft is already on rather than
 /// requiring the controller to name it or warning about it.
 ///
-/// Recording: S2-OAK-5 (ZOA, OAK). Two aircraft reproduce the same root cause:
-///   * JSX170 (arrival) exited 28R onto taxiway W5 and is in HoldingAfterExitPhase.
+/// Two aircraft reproduce the same root cause (both first seen in S2-OAK-5, ZOA/OAK):
+///   * JSX170 (arrival) exited onto taxiway W5 and is in HoldingAfterExitPhase (now a synthetic landing on OAK 30).
 ///     `TAXI W` must succeed — today it fails "Cannot taxi via W … unreachable" because
 ///     the pathfinder bridges from W5 (capped at 3 hops) instead of starting on W5.
 ///     The user's workaround was the redundant `TAXI W5 W`.
-///   * N157LE (departure) is holding short on taxiway C. `TAXI E RWY 28R` must read
+///   * N157LE (departure, replayed from the recording) is holding short on taxiway C. `TAXI E RWY 28R` must read
 ///     back cleanly — today it returns
 ///     "Taxi via C C - E E RWY 28R [Taxiing via C — not in the route issued]":
 ///     a spurious unauthorized-taxiway warning for the taxiway it is already on, and a
@@ -43,19 +44,29 @@ public class OakTaxiCurrentTaxiwayTests(ITestOutputHelper output)
         return new SimulationEngine(groundData);
     }
 
+    /// <summary>
+    /// Synthetic stand-in for the JSX170 half of the recording, whose default exit is no longer W5 (so the
+    /// recorded later commands no longer apply to it): an arrival that has exited OAK 30 onto W5 and is holding
+    /// after the exit must accept <c>TAXI W</c>, starting on W5 rather than bridging from it.
+    /// </summary>
     [Fact]
-    public void Jsx170_TaxiW_FromW5_Succeeds()
+    public void ArrivalHoldingOnW5_TaxiW_Succeeds()
     {
-        SessionRecording? recording = LoadRecording();
-        SimulationEngine? engine = BuildEngine();
-        if (recording is null || engine is null)
+        SimLogBuilder.CreateForTest(output).EnableCategory("GroundCommandHandler", LogLevel.Debug).InitializeSimLog();
+        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("OAK", "30", "E75L", "JSX170");
+        if (spawned is null)
         {
             return;
         }
 
-        engine.Replay(recording, 1043);
-        AircraftState? aircraft = engine.FindAircraft("JSX170");
-        Assert.NotNull(aircraft);
+        (SimulationEngine engine, AircraftState aircraft, RunwayInfo _) = spawned;
+        CommandResult exit = engine.SendCommand("JSX170", "EXIT W5");
+        Assert.True(exit.Success, $"EXIT W5 failed: {exit.Message}");
+
+        for (int t = 0; (t < 300) && (aircraft.Phases?.CurrentPhase is not HoldingAfterExitPhase); t++)
+        {
+            engine.TickOneSecond();
+        }
 
         // Precondition: aircraft exited onto W5 and is holding after exit.
         Assert.IsType<HoldingAfterExitPhase>(aircraft.Phases?.CurrentPhase);

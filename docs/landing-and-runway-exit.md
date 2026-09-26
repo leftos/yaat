@@ -116,7 +116,7 @@ LandingPhase's job is to decelerate the aircraft to the speed needed for the com
 
 ### Default exits (no explicit preference)
 
-The pilot picks the first comfortable forward exit (AIM 4-3-21.1 "exit at the first available taxiway"). "Comfortable" means achievable at 1.5x the default rollout decel rate — not the first exit that requires maximum effort. Back-exits (>100°) are deferred during the centerline walk: `FindExitFromCenterline` keeps looking for a forward exit and only returns a back-exit if nothing forward is found within the walk range.
+The pilot picks the first comfortable forward exit (AIM 4-3-21.1 "exit at the first available taxiway"). "Comfortable" depends on the exit's class (aviation re-ruling 2026-09-25, every category): a **high-speed** exit (turn-off speed at or above `HighSpeedExitSpeed`, angle ≤ 46°) qualifies if it needs at most `CategoryPerformance.ComfortableExitDecelRate` (jet 4.5 / turboprop 3.75 / piston 3.75 kt/s, ≈ autobrake 3); a **standard** 60–90° exit only if it needs at most the routine `RolloutDecelRate` (jet 3.6 / turboprop 3.0 / piston 2.5) — a crew rolls past a 90° exit it cannot make at routine braking for the next high-speed one (SFO 19L: H, not F1). When no exit qualifies, the landing searches once more at the firm rate (5.0 kt/s) and takes the earliest exit it can make that way (a CRJ9 on OAK 28R exits at C1 instead of stopping on the runway); only when even that fails does `RunwayExitPhase`'s "no exit found… braking to stop" path run. The committed exit carries the rate that selected it (`ResolvedExitInfo.SelectionDecelRate`, snapshotted); the rollout brakes for it at most that rate + `LandingPhase.CommittedExitDecelToleranceKtsPerSec` (0.25) and gives the exit up past that. Fallback-chosen, instructed and restored-without-a-rate exits are capped at min(firm 5.0, the category's expedite rate); `EXP` keeps max effort (pinned by `UninstructedExitSelectionTests`). Instructed exits (`ER`/`EL`/`EXIT`) use the firm rate and `EXP` the expedite rate. Not the first exit that requires maximum effort. Back-exits (>100°) are deferred during the centerline walk: `FindExitFromCenterline` keeps looking for a forward exit and only returns a back-exit if nothing forward is found within the walk range.
 
 - Target the smaller of `coastSpeed` and the exit's `turnOffSpeed` — a 12-kt standard exit needs the aircraft at 12 kt at the branch, not at 25 kt coast
 - Subtract a braking buffer: the distance RunwayExitPhase needs to brake from coast speed to the exit's turn-off speed (using the default decel rate)
@@ -266,7 +266,9 @@ When an aircraft vacates **between two parallel runways** — e.g. lands OAK 28L
 | Constant | Jet | Turboprop | Piston | Helicopter |
 |----------|-----|-----------|--------|------------|
 | Coast speed (kts) | 40 | 35 | 25 | 15 |
-| Default rollout decel (kts/s) | 2.5 | 2.0 | 2.5 | 0 |
+| Default rollout decel (kts/s) | 3.6 | 3.0 | 2.5 | 0 |
+| Comfortable exit decel (kts/s) | 4.5 | 3.75 | 3.75 | 0 |
+| Touch-and-go rollout decel (kts/s) | 1.0 | 1.5 | 1.5 | 0 |
 | High-speed exit turn-off (kts) | 30 | 25 | 18 | 15 |
 | Standard exit turn-off (kts) | 15 | 15 | 12 | 10 |
 | Ground turn rate ceiling (deg/s) | 12 | 16 | 20 | 30 |
@@ -278,7 +280,7 @@ When an aircraft vacates **between two parallel runways** — e.g. lands OAK 28L
 |----------|-------|---------|
 | Firm braking limit | 5.0 kts/s | Max decel for explicit exit commands |
 | Expedite braking rate | jet 7.5 / TP 6.0 / piston 5.0 / helo 4.0 kts/s | Max-effort decel for `EXP` ("without delay") exits |
-| Comfortable multiplier | 1.5x | Default exit: 1.5x rollout decel |
+| Uninstructed exit limit | by exit class | High-speed exit: `ComfortableExitDecelRate`; standard exit: `RolloutDecelRate`; none qualifies: firm-rate fallback |
 | Min soft braking | 0.5 kts/s | Floor for gentle decel on far exits |
 | Turn-off tolerance | 3.0 kts | Discrete-tick overshoot margin |
 | High-speed exit threshold | 45° | Exits ≤45° use high-speed turn-off |

@@ -13,8 +13,9 @@ namespace Yaat.Sim.Tests.Simulation;
 /// past G and H and only exits at J (a high-speed 39° exit with 18 kt turnoff).
 ///
 /// Root cause (verified by diagnostic): two stacked issues:
-///  1. RolloutDecelRate(Piston)=1.5 kts/s → ComfortableBrakingMultiplier×Default=2.25 kts/s
-///     comfort ceiling is below routine real-world C172 braking (~3 kts/s ≈ 0.15 g).
+///  1. The piston rollout rate was then 1.5 kts/s, and the comfort ceiling built from it (1.5× = 2.25 kts/s)
+///     sat below routine real-world C172 braking (~3 kts/s ≈ 0.15 g). Today RolloutDecelRate(Piston) is
+///     2.5 kts/s and ComfortableExitDecelRate(Piston) is 3.75 kts/s.
 ///  2. LandingPhase.TickRollout clamps targetSpeed at RolloutCoastSpeed (25 kt for piston),
 ///     so even when a 12-kt standard exit is comfortably reachable, the phase won't plan
 ///     for it — and the missed-exit check at distToBranch≤0 fires for every standard exit

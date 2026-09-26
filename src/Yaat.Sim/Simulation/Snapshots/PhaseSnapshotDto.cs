@@ -991,6 +991,9 @@ public sealed class LandingPhaseDto : PhaseDto
     public string? CandidateExitTaxiway { get; init; }
     public double CandidateExitTurnOffSpeed { get; init; }
     public List<int>? CandidateExitPathNodeIds { get; init; }
+
+    /// <summary>The braking rate that selected the candidate exit; null on snapshots written before it round-tripped.</summary>
+    public double? CandidateExitSelectionDecelRate { get; init; }
     public int? ActivePreferenceSide { get; init; }
     public string? ActivePreferenceTaxiway { get; init; }
     public int? OriginalPreferenceSide { get; init; }

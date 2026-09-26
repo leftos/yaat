@@ -92,7 +92,7 @@ public sealed class TouchAndGoPhase : Phase, IGroundRollClock
         // Decelerate briefly
         double minSpeed =
             AircraftPerformance.TouchdownSpeed(ctx.AircraftType, ctx.Category)
-            - CategoryPerformance.RolloutDecelRate(ctx.Category) * _rolloutDuration;
+            - CategoryPerformance.TouchAndGoDecelRate(ctx.Category) * _rolloutDuration;
         ctx.Targets.TargetSpeed = Math.Max(minSpeed, 40);
 
         // Drop any approach speed floor/ceiling (including the 5nm-final gate ceiling) so

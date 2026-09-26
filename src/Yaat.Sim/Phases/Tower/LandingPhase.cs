@@ -42,8 +42,14 @@ public sealed class LandingPhase : Phase
 
     private const double CenterlineGainDegPerNm = 150.0;
     private const double MaxCenterlineCorrectionDeg = 10.0;
-    private const double ComfortableBrakingMultiplier = 1.5;
     private const double MinSoftBrakingRateKtsPerSec = 0.5;
+
+    /// <summary>
+    /// Margin (kts/sec) over the rate that selected the committed exit that the rollout may still brake at to make it.
+    /// Absorbs the creep in the required rate between discrete ticks, so a committed exit is not abandoned over a
+    /// sliver of a knot per second.
+    /// </summary>
+    public const double CommittedExitDecelToleranceKtsPerSec = 0.25;
 
     /// <summary>
     /// Tick margin (nm ≈ 50 ft) held back from a LAHSO hold-short point, on top of the aircraft's nose offset.
@@ -200,6 +206,7 @@ public sealed class LandingPhase : Phase
             CandidateExitTaxiway = _candidateExit?.TaxiwayName,
             CandidateExitTurnOffSpeed = _candidateExit?.TurnOffSpeed ?? 0,
             CandidateExitPathNodeIds = _candidateExit?.Path.Select(n => n.Id).ToList(),
+            CandidateExitSelectionDecelRate = _candidateExit?.SelectionDecelRate,
             ActivePreferenceSide = (int?)_activePreference?.Side,
             ActivePreferenceTaxiway = _activePreference?.Taxiway,
             OriginalPreferenceSide = (int?)_originalPreference?.Side,
@@ -221,6 +228,99 @@ public sealed class LandingPhase : Phase
             DefaultDecel = _plan?.DefaultDecel,
             TouchdownAgl = _plan?.TouchdownAgl,
         };
+    }
+
+    /// <summary>
+    /// True when <paramref name="path"/> starts at <paramref name="branch"/>, ends at <paramref name="holdShort"/>, and
+    /// every consecutive pair of nodes shares an edge — the shape <see cref="RunwayExitPhase"/> builds its route from.
+    /// </summary>
+    private static bool IsDrivableExitPath(List<GroundNode> path, GroundNode branch, GroundNode holdShort)
+    {
+        if ((path.Count == 0) || (path[0].Id != branch.Id) || (path[^1].Id != holdShort.Id))
+        {
+            return false;
+        }
+
+        for (int i = 0; i < path.Count - 1; i++)
+        {
+            int nextId = path[i + 1].Id;
+            if (!path[i].Edges.Any(edge => edge.OtherNodeId(path[i].Id) == nextId))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// The candidate exit <paramref name="dto"/> carried, rebuilt on <paramref name="layout"/>. Null when the snapshot
+    /// carried none, names a branch point or hold-short the layout lacks, or carries a path that is not a drivable
+    /// chain on this layout.
+    /// </summary>
+    private static ResolvedExitInfo? RestoreCandidateExit(LandingPhaseDto dto, AirportGroundLayout layout)
+    {
+        if (
+            (dto.CandidateExitTaxiway is not { } taxiway)
+            || (dto.CandidateExitHoldShortId is not { } holdShortId)
+            || (dto.CandidateExitBranchPointId is not { } branchPointId)
+            || !layout.Nodes.TryGetValue(holdShortId, out GroundNode? holdShortNode)
+            || !layout.Nodes.TryGetValue(branchPointId, out GroundNode? branchPointNode)
+        )
+        {
+            return null;
+        }
+
+        List<int>? pathIds = dto.CandidateExitPathNodeIds;
+        List<GroundNode> path = ResolvePathNodes(pathIds, layout);
+
+        // Node ids are assigned when the layout is built, so a snapshot recorded against an older build of the
+        // airport can name nodes that now sit elsewhere. A path that no longer runs edge by edge from the branch
+        // point to the hold-short is not an exit on this layout; leave the candidate empty and the next rollout
+        // tick re-resolves it from the aircraft's position. A snapshot that carried no path ids keeps the
+        // candidate with an empty path, as before.
+        if ((pathIds is { Count: > 0 }) && !IsDrivableExitPath(path, branchPointNode, holdShortNode))
+        {
+            Log.LogWarning(
+                "[Landing] restored candidate exit {Taxiway} dropped: path [{Path}] is not a connected chain "
+                    + "from branch {Branch} to hold-short {HoldShort} on this layout",
+                taxiway,
+                string.Join("→", pathIds),
+                branchPointNode.Id,
+                holdShortNode.Id
+            );
+            return null;
+        }
+
+        return new ResolvedExitInfo
+        {
+            HoldShortNode = holdShortNode,
+            BranchPointNode = branchPointNode,
+            TaxiwayName = taxiway,
+            TurnOffSpeed = dto.CandidateExitTurnOffSpeed,
+            Path = path,
+            SelectionDecelRate = dto.CandidateExitSelectionDecelRate,
+        };
+    }
+
+    /// <summary>The nodes of <paramref name="nodeIds"/> that exist on <paramref name="layout"/>, in order.</summary>
+    private static List<GroundNode> ResolvePathNodes(List<int>? nodeIds, AirportGroundLayout layout)
+    {
+        List<GroundNode> path = [];
+        if (nodeIds is null)
+        {
+            return path;
+        }
+
+        foreach (int nodeId in nodeIds)
+        {
+            if (layout.Nodes.TryGetValue(nodeId, out GroundNode? pathNode))
+            {
+                path.Add(pathNode);
+            }
+        }
+
+        return path;
     }
 
     public static LandingPhase FromSnapshot(LandingPhaseDto dto, AirportGroundLayout? groundLayout)
@@ -263,34 +363,9 @@ public sealed class LandingPhase : Phase
                 Taxiway = dto.OriginalPreferenceTaxiway,
             };
         }
-        if (
-            groundLayout is not null
-            && dto.CandidateExitHoldShortId.HasValue
-            && dto.CandidateExitBranchPointId.HasValue
-            && dto.CandidateExitTaxiway is not null
-            && groundLayout.Nodes.TryGetValue(dto.CandidateExitHoldShortId.Value, out GroundNode? holdShortNode)
-            && groundLayout.Nodes.TryGetValue(dto.CandidateExitBranchPointId.Value, out GroundNode? branchPointNode)
-        )
+        if (groundLayout is not null)
         {
-            List<GroundNode> path = [];
-            if (dto.CandidateExitPathNodeIds is not null)
-            {
-                foreach (int nodeId in dto.CandidateExitPathNodeIds)
-                {
-                    if (groundLayout.Nodes.TryGetValue(nodeId, out GroundNode? pathNode))
-                    {
-                        path.Add(pathNode);
-                    }
-                }
-            }
-            phase._candidateExit = new ResolvedExitInfo
-            {
-                HoldShortNode = holdShortNode,
-                BranchPointNode = branchPointNode,
-                TaxiwayName = dto.CandidateExitTaxiway,
-                TurnOffSpeed = dto.CandidateExitTurnOffSpeed,
-                Path = path,
-            };
+            phase._candidateExit = RestoreCandidateExit(dto, groundLayout);
         }
 
         // A snapshot that carries the constants restores the plan verbatim: Vref keeps the gust additive the
@@ -839,7 +914,7 @@ public sealed class LandingPhase : Phase
     private (double TargetSpeed, double DecelRate) PlanExitDeceleration(PhaseContext ctx, LandingPlan plan, double coastSpeed)
     {
         double targetSpeed = coastSpeed;
-        // Start at the rollout decel rate (2.5 kt/s jet, 1.5 kt/s piston). We
+        // Start at the plan's routine rollout rate (CategoryPerformance.RolloutDecelRate). We
         // always set an override rather than leaving it null — otherwise
         // FlightPhysics would fall back to AircraftPerformance.DecelRate, which
         // is the airborne rate, not the ground rollout rate. The exit-planner
@@ -879,7 +954,7 @@ public sealed class LandingPhase : Phase
         if ((distToBranch > 0) && (ctx.Aircraft.IndicatedAirspeed > candidate.TurnOffSpeed))
         {
             double requiredDecel = RolloutBraking.RequiredDecelKtsPerSec(ctx.Aircraft.GroundSpeed, candidate.TurnOffSpeed, distToBranch);
-            double brakingLimit = BrakingLimit(ctx, plan);
+            double brakingLimit = CommittedExitBrakingLimit(ctx, candidate);
 
             if (requiredDecel <= brakingLimit)
             {
@@ -1282,57 +1357,17 @@ public sealed class LandingPhase : Phase
         }
 
         string? rwyDesignator = ctx.Aircraft.Phases?.AssignedRunway?.Designator;
-        if (rwyDesignator is not null)
+        if ((rwyDesignator is not null) && (FindGraphCandidate(ctx, plan, rwyDesignator) is { } resolved))
         {
-            ExitPreference? searchPref = _activePreference;
-
-            // Try inferred side first for taxiway-only preferences
-            if ((_activePreference is { Taxiway: not null, Side: null }) && (_inferredSide is not null))
-            {
-                searchPref = new ExitPreference { Taxiway = _activePreference.Taxiway, Side = _inferredSide.Value };
-            }
-
-            // Effective side preference (explicit beats inferred). Used to decide
-            // whether to defer an off-side candidate while looking forward for an
-            // on-side option further down the runway.
-            ExitSide? sidePref = _activePreference?.Side ?? _inferredSide;
-
-            // Pass occupancy info to the planner only for default selection (no
-            // explicit taxiway). When the controller named a specific exit, the
-            // pilot brakes for it regardless and RunwayExitPhase deals with any
-            // late-breaking occupancy at handoff. For default selection, the
-            // planner can do better by routing around known-occupied exits.
-            HashSet<int>? excludeHoldShortNodes = (_activePreference?.Taxiway is null) ? ctx.OccupiedHoldShortNodes : null;
-
-            // Skip exits whose required braking exceeds the comfort limit from
-            // the current position (via Skip verdict, which excludes the entire
-            // taxiway from the rest of this call). Without this, the planner
-            // would return the first forward exit unconditionally — typically a
-            // 90° standard exit too close to brake to its turn-off speed
-            // comfortably. Skipping uncomfortable candidates lets the planner
-            // commit to a reachable downstream exit (e.g. a high-speed at ~45°)
-            // and brake decisively for it.
-            double comfortLimit = BrakingLimit(ctx, plan);
-
-            ResolvedExitInfo? found = TryFindCandidate(ctx, plan, rwyDesignator, searchPref, sidePref, excludeHoldShortNodes, comfortLimit);
-
-            // Fall back to taxiway-only if inferred-side found nothing
-            if ((found is null) && (searchPref != _activePreference))
-            {
-                found = TryFindCandidate(ctx, plan, rwyDesignator, _activePreference, sidePref, excludeHoldShortNodes, comfortLimit);
-            }
-
-            if (found is { } resolved)
-            {
-                _candidateExit = resolved;
-                Log.LogDebug(
-                    "[Landing] {Callsign}: candidate exit {Taxiway}, turnOffSpeed={Speed:F0}kts",
-                    ctx.Aircraft.Callsign,
-                    resolved.TaxiwayName,
-                    resolved.TurnOffSpeed
-                );
-                return;
-            }
+            _candidateExit = resolved;
+            Log.LogDebug(
+                "[Landing] {Callsign}: candidate exit {Taxiway}, turnOffSpeed={Speed:F0}kts, selected at {Rate:F2}kt/s",
+                ctx.Aircraft.Callsign,
+                resolved.TaxiwayName,
+                resolved.TurnOffSpeed,
+                resolved.SelectionDecelRate
+            );
+            return;
         }
 
         // Fallback: straight-line search (airports without hold-short data)
@@ -1369,13 +1404,68 @@ public sealed class LandingPhase : Phase
             TurnOffSpeed = fallbackTurnOffSpeed,
             Path = [result.Value.Node],
             BranchPointNode = result.Value.Node,
+            SelectionDecelRate = null,
         };
     }
 
     /// <summary>
-    /// Run the side-preferred lookahead search with a comfort-braking filter.
-    /// Returns null when no candidate (on-side or off-side fallback) is reachable
-    /// from the current state.
+    /// Search the ground graph for the next exit ahead on <paramref name="rwyDesignator"/> that the aircraft can brake
+    /// for under its current exit preference, falling back to the firm-braking search when default selection finds
+    /// none. Returns null when no exit is reachable.
+    /// </summary>
+    private ResolvedExitInfo? FindGraphCandidate(PhaseContext ctx, LandingPlan plan, string rwyDesignator)
+    {
+        ExitPreference? searchPref = _activePreference;
+
+        // Try inferred side first for taxiway-only preferences
+        if ((_activePreference is { Taxiway: not null, Side: null }) && (_inferredSide is not null))
+        {
+            searchPref = new ExitPreference { Taxiway = _activePreference.Taxiway, Side = _inferredSide.Value };
+        }
+
+        // Effective side preference (explicit beats inferred). Used to decide
+        // whether to defer an off-side candidate while looking forward for an
+        // on-side option further down the runway.
+        ExitSide? sidePref = _activePreference?.Side ?? _inferredSide;
+
+        // Pass occupancy info to the planner only for default selection (no
+        // explicit taxiway). When the controller named a specific exit, the
+        // pilot brakes for it regardless and RunwayExitPhase deals with any
+        // late-breaking occupancy at handoff. For default selection, the
+        // planner can do better by routing around known-occupied exits.
+        HashSet<int>? excludeHoldShortNodes = (_activePreference?.Taxiway is null) ? ctx.OccupiedHoldShortNodes : null;
+
+        double selectionLimit(double turnOffSpeed) => BrakingLimit(ctx, turnOffSpeed);
+        ResolvedExitInfo? found = TryFindCandidate(ctx, plan, rwyDesignator, searchPref, sidePref, excludeHoldShortNodes, selectionLimit);
+
+        // Fall back to taxiway-only if inferred-side found nothing
+        if ((found is null) && (searchPref != _activePreference))
+        {
+            found = TryFindCandidate(ctx, plan, rwyDesignator, _activePreference, sidePref, excludeHoldShortNodes, selectionLimit);
+        }
+
+        // A crew that cannot make any exit at its default-selection rates takes the next one it can make braking
+        // firmly rather than rolling to the runway end and stopping on it. Instructed and expedited exits already
+        // search at the firm or max-effort rate.
+        bool defaultSelection = !_exitResolutionEnabled && !ctx.Aircraft.Ground.IsExpeditingExit;
+        if ((found is null) && defaultSelection)
+        {
+            double firmCap = FirmBrakingCap(ctx.Category);
+            found = TryFindCandidate(ctx, plan, rwyDesignator, _activePreference, sidePref, excludeHoldShortNodes, _ => firmCap);
+        }
+
+        return found;
+    }
+
+    /// <summary>
+    /// Run the side-preferred lookahead search with a braking-reachability filter: a candidate whose turn-off speed
+    /// needs more than <paramref name="brakingLimitForTurnOffSpeed"/> gives for that turn-off speed, from the current
+    /// position, is skipped (the Skip verdict excludes the entire taxiway from the rest of this call). Without the
+    /// filter the planner would return the first forward exit unconditionally — typically a 90° standard exit too
+    /// close to brake for — so skipping unreachable candidates lets it commit to a reachable downstream exit (e.g. a
+    /// high-speed at ~30°) and brake for that. The chosen exit carries the limit that admitted it as its
+    /// <see cref="ResolvedExitInfo.SelectionDecelRate"/>. Returns null when no candidate (on-side or off-side
+    /// fallback) is reachable from the current state.
     /// </summary>
     private ResolvedExitInfo? TryFindCandidate(
         PhaseContext ctx,
@@ -1384,7 +1474,7 @@ public sealed class LandingPhase : Phase
         ExitPreference? searchPref,
         ExitSide? sidePref,
         HashSet<int>? excludeHoldShortNodes,
-        double comfortLimit
+        Func<double, double> brakingLimitForTurnOffSpeed
     )
     {
         if (ctx.GroundLayout is null)
@@ -1430,19 +1520,22 @@ public sealed class LandingPhase : Phase
                 }
 
                 bool alreadySlowEnough = ctx.Aircraft.IndicatedAirspeed <= turnOffSpeed + RolloutBraking.TurnOffSpeedToleranceKts;
-                bool comfortablyReachable =
+                double brakingLimit = brakingLimitForTurnOffSpeed(turnOffSpeed);
+                bool reachable =
                     alreadySlowEnough
-                    || (RolloutBraking.RequiredDecelKtsPerSec(ctx.Aircraft.GroundSpeed, turnOffSpeed, distToBranch) <= comfortLimit);
+                    || (RolloutBraking.RequiredDecelKtsPerSec(ctx.Aircraft.GroundSpeed, turnOffSpeed, distToBranch) <= brakingLimit);
 
-                if (!comfortablyReachable)
+                if (!reachable)
                 {
                     Log.LogDebug(
-                        "[Landing] {Callsign}: skipping exit {Taxiway} (angle={Angle:F0}, turnOff={Speed:F0}kts, dist={Dist:F3}nm) — required decel exceeds comfort limit at gs={Gs:F1}kts",
+                        "[Landing] {Callsign}: skipping exit {Taxiway} (angle={Angle:F0}, turnOff={Speed:F0}kts, dist={Dist:F3}nm) — "
+                            + "required decel exceeds the {Limit:F2}kt/s limit at gs={Gs:F1}kts",
                         ctx.Aircraft.Callsign,
                         candidate.Taxiway,
                         candidate.ExitAngle,
                         turnOffSpeed,
                         distToBranch,
+                        brakingLimit,
                         ctx.Aircraft.GroundSpeed
                     );
                     return AirportGroundLayout.CandidateVerdict.Skip;
@@ -1466,24 +1559,58 @@ public sealed class LandingPhase : Phase
             TurnOffSpeed = turnOff,
             Path = found.Value.Path,
             BranchPointNode = branch,
+            SelectionDecelRate = brakingLimitForTurnOffSpeed(turnOff),
         };
     }
 
     /// <summary>
-    /// Max deceleration the pilot will use, both as the exit-reachability filter
-    /// (which exits qualify) and the actual braking rate to make a chosen exit.
-    /// Expedited exits (<c>EXP</c>) brake at the max-effort rate so the earliest
-    /// reachable exit qualifies; otherwise firm braking for explicit exits and
-    /// comfortable braking for default selection.
+    /// Most the rollout brakes to make the committed <paramref name="candidate"/>: the max-effort rate under
+    /// <c>EXP</c>; otherwise the rate that selected it plus <see cref="CommittedExitDecelToleranceKtsPerSec"/>, never
+    /// above <see cref="FirmBrakingCap"/>. An exit the firm-braking fallback chose, and one restored without its
+    /// selection rate, get the firm cap. Past this ceiling the rollout gives the exit up rather than brake harder
+    /// than the crew accepted when choosing it.
     /// </summary>
-    private double BrakingLimit(PhaseContext ctx, LandingPlan plan)
+    private static double CommittedExitBrakingLimit(PhaseContext ctx, ResolvedExitInfo candidate)
     {
         if (ctx.Aircraft.Ground.IsExpeditingExit)
         {
             return CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
         }
 
-        return _exitResolutionEnabled ? RolloutBraking.FirmBrakingRateKtsPerSec : plan.DefaultDecel * ComfortableBrakingMultiplier;
+        double firmCap = FirmBrakingCap(ctx.Category);
+        return candidate.SelectionDecelRate is { } selectionRate ? Math.Min(selectionRate + CommittedExitDecelToleranceKtsPerSec, firmCap) : firmCap;
+    }
+
+    /// <summary>
+    /// The firm braking rate, capped at the category's max-effort <see cref="CategoryPerformance.ExpediteExitDecelRate"/>
+    /// so the firm-braking fallback never brakes harder than an expedited exit would.
+    /// </summary>
+    private static double FirmBrakingCap(AircraftCategory category) =>
+        Math.Min(RolloutBraking.FirmBrakingRateKtsPerSec, CategoryPerformance.ExpediteExitDecelRate(category));
+
+    /// <summary>
+    /// Max deceleration the pilot will accept to select an exit with <paramref name="turnOffSpeed"/> — the
+    /// exit-reachability filter (which exits qualify). Expedited exits (<c>EXP</c>) brake at the max-effort rate so
+    /// the earliest reachable exit qualifies; an instructed exit (<c>ER</c>/<c>EL</c>/<c>EXIT</c>) at the firm rate.
+    /// Default selection depends on the exit's class (aviation ruling 2026-09-25): a pilot brakes a little harder to
+    /// make a high-speed exit (turn-off speed at or above <see cref="CategoryPerformance.HighSpeedExitSpeed"/>) than a
+    /// standard one, so a high-speed exit qualifies at the comfortable-exit rate and a standard exit only at the
+    /// routine rollout rate.
+    /// </summary>
+    private double BrakingLimit(PhaseContext ctx, double turnOffSpeed)
+    {
+        if (ctx.Aircraft.Ground.IsExpeditingExit)
+        {
+            return CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
+        }
+
+        if (_exitResolutionEnabled)
+        {
+            return RolloutBraking.FirmBrakingRateKtsPerSec;
+        }
+
+        bool highSpeedExit = turnOffSpeed >= CategoryPerformance.HighSpeedExitSpeed(ctx.Category);
+        return highSpeedExit ? CategoryPerformance.ComfortableExitDecelRate(ctx.Category) : CategoryPerformance.RolloutDecelRate(ctx.Category);
     }
 
     /// <summary>

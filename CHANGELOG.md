@@ -8,9 +8,17 @@
 - The first unpause of a solo session without pilot voice asks you to set it up or start anyway.
 - In solo training, VFR pilots ask for a Class B clearance about two minutes before the boundary and repeat the request if unanswered.
 
+### Changed
+
+- Landing jets and turboprops brake harder on the rollout and take an earlier high-speed exit when no exit is assigned.
+- With no exit assigned, landing aircraft pass a 90° exit they cannot make at normal braking and take the next high-speed exit.
+- Touch-and-go aircraft slow less on the runway before accelerating again.
+
 ### Fixed
 
 - In solo training, VFR aircraft vectored toward Class B no longer turn back at the boundary; the vector clears them in and they read back "cleared into the bravo".
+- A landing aircraft that can reach no exit at normal braking brakes firmly for the next one instead of stopping on the runway.
+- Rewinding to a point saved against an older airport layout no longer sends a landing aircraft down a broken exit path.
 
 ## v0.13.5-beta [2026/09/25]
 

@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -11,15 +12,14 @@ namespace Yaat.Sim.Tests.Simulation;
 ///
 /// 1. Parser: the EXP modifier on EL/ER/EXIT (combinable with NODEL, any order),
 ///    and that the latent "ER W5 NODEL" taxiway-parsing bug is fixed.
-/// 2. E2E: feature request from S2-OAK-5 (seb bundle). QXE6184 lands OAK 28R
-///    (Landing active t=790, recorded ER W5 at t=827, vacates ~t=850). With EXP,
-///    the pilot clears the runway sooner — takes the earliest reachable exit and
-///    brakes harder (max-effort 7.5 kts/s vs firm 5.0) to make it.
+/// 2. E2E: feature request from S2-OAK-5 (seb bundle). With EXP the pilot clears
+///    the runway sooner — takes the earliest reachable exit and brakes harder
+///    (max-effort 7.5 kts/s vs firm 5.0) to make it. Measured on an A320 landing
+///    SFO 19L, whose default choice is the high-speed H: the standard exits before
+///    it are out of reach at the routine and firm rates but not at max effort.
 /// </summary>
 public class ExpediteRunwayExitTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/b55a82ade9d9.zip";
-
     // -------------------- Parser --------------------
 
     [Fact]
@@ -92,114 +92,111 @@ public class ExpediteRunwayExitTests(ITestOutputHelper output)
 
     // -------------------- E2E --------------------
 
-    private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
+    private const string Callsign = "TST320";
 
-    private SimulationEngine? BuildEngine()
-    {
-        TestVnasData.EnsureInitialized();
-        if (TestVnasData.NavigationDb is null)
-        {
-            return null;
-        }
-
-        SimLogBuilder.CreateForTest(output).InitializeSimLog();
-        return new SimulationEngine(new TestAirportGroundData());
-    }
-
-    private sealed record RolloutResult(string? ExitTaxiway, int VacateSecond, double VacateAlongTrackNm, double MaxDecelKtsPerSec);
+    private sealed record RolloutResult(
+        string? ExitTaxiway,
+        int VacateSecond,
+        double VacateAlongTrackNm,
+        double MaxDecelKtsPerSec,
+        string? PeakPhase
+    );
 
     /// <summary>
-    /// Replays QXE6184 to short final (t=800 — before the recorded SWA1822 LUAW at t=801 and
-    /// ER W5 at t=827), ticks physics only until the early rollout (no recorded actions, so
-    /// neither fires and both runs use default exit selection), optionally issues a command
-    /// (e.g. "EXP"), then keeps ticking. Measures the
-    /// along-runway distance and sim-second at which the aircraft vacates, plus
-    /// the peak deceleration observed during rollout.
+    /// Spawns an A320 on a 1 nm final to SFO 19L (real navdata and ground layout), clears it to land with no exit
+    /// instruction, ticks to three seconds past touchdown, optionally issues <paramref name="command"/> (e.g. "EXP"),
+    /// then keeps ticking. Measures the along-runway distance and the second (from that point) at which it vacates,
+    /// plus the peak one-second deceleration and the phase that flew it.
     /// </summary>
-    private RolloutResult? RunRollout(SimulationEngine engine, SessionRecording recording, string? command)
+    private RolloutResult? RunRollout(string? command)
     {
-        const int Start = 800;
-        engine.Replay(recording, Start);
-
-        AircraftState? ac = engine.FindAircraft("QXE6184");
-        if (ac is null)
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
+        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("SFO", "19L", "A320", Callsign);
+        if (spawned is null)
         {
             return null;
         }
 
-        // Early rollout, a few seconds past touchdown — the same point the recorded ER W5 was issued from.
-        const double RolloutStartIas = 108;
-        for (int t = 0; (t < 60) && !((ac.IsOnGround) && (ac.IndicatedAirspeed <= RolloutStartIas)); t++)
+        (SimulationEngine engine, AircraftState ac, RunwayInfo runway) = spawned;
+
+        for (int t = 0; (t < 60) && !ac.IsOnGround; t++)
         {
             engine.TickOneSecond();
-            ac = engine.FindAircraft("QXE6184");
-            Assert.NotNull(ac);
         }
 
-        Assert.True(ac.IsOnGround && (ac.IndicatedAirspeed <= RolloutStartIas), "QXE6184 should be rolling out within 60 s of the replay start");
+        Assert.True(ac.IsOnGround, $"{Callsign} should touch down within 60 s of the spawn");
+        double touchdownIas = ac.IndicatedAirspeed;
+
+        // A few seconds into the rollout F1 needs more than the firm 5.0 kt/s but less than the A320's 7.5 kt/s
+        // max-effort rate, so only an expedited exit can still make it.
+        const int CommandDelaySeconds = 3;
+        for (int t = 0; t < CommandDelaySeconds; t++)
+        {
+            engine.TickOneSecond();
+        }
+
+        Assert.True(
+            ac.IsOnGround && (ac.IndicatedAirspeed < touchdownIas),
+            $"{Callsign} should be rolling out {CommandDelaySeconds} s after touchdown: "
+                + $"IAS {ac.IndicatedAirspeed:F1} kt, touchdown {touchdownIas:F1} kt"
+        );
 
         if (command is not null)
         {
-            CommandResult result = engine.SendCommand("QXE6184", command);
+            CommandResult result = engine.SendCommand(Callsign, command);
             Assert.True(result.Success, $"SendCommand('{command}') failed: {result.Message}");
         }
 
         LatLon startPos = ac.Position;
-        TrueHeading runwayHeading = ac.TrueHeading;
+        TrueHeading runwayHeading = runway.TrueHeading;
         double prevGs = ac.GroundSpeed;
         double maxDecel = 0;
+        string? peakPhase = null;
 
         for (int t = 1; t <= 120; t++)
         {
             engine.TickOneSecond();
-            ac = engine.FindAircraft("QXE6184");
-            if (ac is null)
-            {
-                break;
-            }
 
             double decel = prevGs - ac.GroundSpeed;
             if (decel > maxDecel)
             {
                 maxDecel = decel;
+                peakPhase = $"{ac.Phases?.CurrentPhase?.Name} t+{t}s gs={ac.GroundSpeed:F1}";
             }
             prevGs = ac.GroundSpeed;
 
             if (ac.Ground.CurrentTaxiway is not null)
             {
                 double alongTrack = GeoMath.AlongTrackDistanceNm(ac.Position, startPos, runwayHeading);
-                return new RolloutResult(ac.Ground.CurrentTaxiway, t, alongTrack, maxDecel);
+                return new RolloutResult(ac.Ground.CurrentTaxiway, t, alongTrack, maxDecel, peakPhase);
             }
         }
 
-        return new RolloutResult(ac?.Ground.CurrentTaxiway, -1, double.NaN, maxDecel);
+        return new RolloutResult(ac.Ground.CurrentTaxiway, -1, double.NaN, maxDecel, peakPhase);
     }
 
     /// <summary>
-    /// Standalone EXP on a just-landed aircraft: takes an earlier exit (W4 vs the
-    /// default W5), clears the runway sooner and at a shorter along-runway
-    /// distance, and brakes harder (peak decel above the firm 5.0 kts/s).
+    /// Standalone EXP on a just-landed aircraft: takes an earlier exit (the standard
+    /// F1 vs the default high-speed H), clears the runway sooner and at a shorter
+    /// along-runway distance, and brakes harder (peak decel above the firm 5.0 kts/s).
     /// </summary>
     [Fact]
     public void StandaloneExp_ClearsRunwaySoonerThanDefault()
     {
-        SessionRecording? recording = LoadRecording();
-        SimulationEngine? engine = BuildEngine();
-        if (recording is null || engine is null)
+        RolloutResult? baseline = RunRollout(command: null);
+        RolloutResult? expedited = RunRollout(command: "EXP");
+        if ((baseline is null) || (expedited is null))
         {
             return;
         }
-
-        RolloutResult? baseline = RunRollout(engine, recording, command: null);
-        RolloutResult? expedited = RunRollout(BuildEngine()!, recording, command: "EXP");
-        Assert.NotNull(baseline);
-        Assert.NotNull(expedited);
 
         output.WriteLine($"baseline : {baseline}");
         output.WriteLine($"expedited: {expedited}");
 
         Assert.True(baseline.VacateSecond > 0, "baseline never vacated");
         Assert.True(expedited.VacateSecond > 0, "expedited never vacated");
+        Assert.Equal("H", baseline.ExitTaxiway);
+        Assert.Equal("F1", expedited.ExitTaxiway);
 
         // Earlier exit ⇒ shorter runway occupancy (sooner and shorter distance).
         Assert.True(
@@ -223,23 +220,20 @@ public class ExpediteRunwayExitTests(ITestOutputHelper output)
     [Fact]
     public void ErExp_TakesEarlierExitThanPlainEr()
     {
-        SessionRecording? recording = LoadRecording();
-        SimulationEngine? engine = BuildEngine();
-        if (recording is null || engine is null)
+        RolloutResult? plain = RunRollout(command: "ER");
+        RolloutResult? expedited = RunRollout(command: "ER EXP");
+        if ((plain is null) || (expedited is null))
         {
             return;
         }
-
-        RolloutResult? plain = RunRollout(engine, recording, command: "ER");
-        RolloutResult? expedited = RunRollout(BuildEngine()!, recording, command: "ER EXP");
-        Assert.NotNull(plain);
-        Assert.NotNull(expedited);
 
         output.WriteLine($"ER     : {plain}");
         output.WriteLine($"ER EXP : {expedited}");
 
         Assert.True(plain.VacateSecond > 0, "ER never vacated");
         Assert.True(expedited.VacateSecond > 0, "ER EXP never vacated");
+        Assert.Equal("H", plain.ExitTaxiway);
+        Assert.Equal("F1", expedited.ExitTaxiway);
         Assert.True(
             expedited.VacateAlongTrackNm < plain.VacateAlongTrackNm,
             $"ER EXP vacated at {expedited.VacateAlongTrackNm:F3} nm, ER at {plain.VacateAlongTrackNm:F3} nm"
