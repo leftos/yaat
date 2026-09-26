@@ -267,7 +267,7 @@ public class SfoM2MultiTurnTaxiTests(ITestOutputHelper output)
 /// <summary>
 /// Serialized variant of <see cref="SfoM2MultiTurnTaxiTests"/>. The M2→A 118° corner has only ~22 ft of
 /// straight M2 between the B-crossing (J159) and the A-crossing (J92) — shorter than the tangent length
-/// needed to round at the nose-wheel radius. The entry-alignment slow-turn must still exit on the A
+/// needed to round at the main-gear turn radius. The entry-alignment slow-turn must still exit on the A
 /// centerline so pure-pursuit doesn't limit-cycle (orbit the corner for ~45 s). Asserts the M2 → A → A1
 /// taxi completes within the 120 s budget. Runs in the parallelization-disabled "Acceptance" collection.
 /// </summary>

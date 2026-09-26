@@ -488,7 +488,7 @@ public class RouteCostFunctionTests
     {
         // A 90° corner: tangent cut a → junction centre b → tangent cut c (two 100 ft straights), or the
         // fillet arc a → c the generator painted between the same two cuts. Under Fastest the pivot must
-        // never be cheaper — the navigator rounds a square corner at the nose-wheel radius near walking
+        // never be cheaper — the navigator rounds a square corner at the main-gear turn radius near walking
         // pace, while the arc is flown at its cornering speed (S2-OAK-2, the OAK U/W corner).
         const double legFt = 100.0;
         GroundNode a = MakeNode(0, 37.700, -122.200);

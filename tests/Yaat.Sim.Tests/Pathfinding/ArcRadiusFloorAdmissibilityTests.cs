@@ -9,7 +9,7 @@ namespace Yaat.Sim.Tests.Pathfinding;
 /// pavement to route over: OAK's RWY 15/33 → D fillet at the F junction has a 6 ft minimum radius, and once
 /// fillets were priced honestly the explicit route "F 33 D" resolved through it instead of the 33 ft of
 /// runway centerline between the two junctions. Such arcs are inadmissible for every category; the route
-/// goes through the junction nodes instead, which the navigator rounds at the nose-wheel radius.
+/// goes through the junction nodes instead, which the navigator rounds at the main-gear turn radius.
 /// </summary>
 public class ArcRadiusFloorAdmissibilityTests
 {
@@ -48,7 +48,7 @@ public class ArcRadiusFloorAdmissibilityTests
     [InlineData(AircraftCategory.Turboprop)]
     [InlineData(AircraftCategory.Piston)]
     [InlineData(AircraftCategory.Helicopter)]
-    public void Arc_TighterThanAnyNoseWheelRadius_IsInadmissibleForEveryCategory(AircraftCategory category)
+    public void Arc_TighterThanAnyMainGearTurnRadius_IsInadmissibleForEveryCategory(AircraftCategory category)
     {
         (GroundArc? arc, GroundNode? from, GroundNode? to) = ArcWithMinRadius(6.0);
 
@@ -66,9 +66,9 @@ public class ArcRadiusFloorAdmissibilityTests
     }
 
     [Fact]
-    public void Floor_IsTheSmallestCategoryNoseWheelRadius()
+    public void Floor_IsTheSmallestCategoryMainGearTurnRadius()
     {
-        double smallest = Enum.GetValues<AircraftCategory>().Min(CategoryPerformance.NoseWheelTurnRadiusFt);
+        double smallest = Enum.GetValues<AircraftCategory>().Min(CategoryPerformance.MainGearTurnRadiusFt);
 
         Assert.Equal(smallest, GeometricAdmissibility.MinSteerableArcRadiusFt);
     }

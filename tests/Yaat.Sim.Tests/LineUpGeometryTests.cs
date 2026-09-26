@@ -145,9 +145,9 @@ public class LineUpGeometryTests(ITestOutputHelper output)
     [Fact]
     public void ComputeWastePivotFt_Jet_IsSmallConservativeBound()
     {
-        // Jet nose-wheel radius is 25 ft → waste-pivot bound should be on the
+        // Jet main-gear turn radius is 25 ft → waste-pivot bound should be on the
         // order of tens of feet, much less than any reasonable runway.
-        double waste = LineUpGeometry.ComputeWastePivotFt(noseWheelRadiusFt: 25.0);
+        double waste = LineUpGeometry.ComputeWastePivotFt(mainGearRadiusFt: 25.0);
         Assert.InRange(waste, 10.0, 200.0);
     }
 
@@ -281,7 +281,7 @@ public class LineUpGeometryTests(ITestOutputHelper output)
     {
         // Aircraft 200 ft left of centerline, heading pointing further left
         // (rwyHdg - 45°) — diverging from centerline, so no aligned straight
-        // intercept. With 200 ft of cross-track (≫ nose-wheel radius) the pivot
+        // intercept. With 200 ft of cross-track (≫ main-gear turn radius) the pivot
         // recovers: turn to perpendicular-toward-centerline, cross, turn onto
         // runway heading. (Pre-#193 this faulted; the convergence gate is now
         // scoped to the aligned path only.)
@@ -318,7 +318,7 @@ public class LineUpGeometryTests(ITestOutputHelper output)
     public void Compute_ReversedHeadingOnCenterline_KindIsFault()
     {
         // Genuine collapse: aircraft essentially ON the centerline (≈8 ft cross,
-        // below the 25 ft jet nose-wheel radius) but pointing nearly the
+        // below the 25 ft jet main-gear turn radius) but pointing nearly the
         // reciprocal. There is no room for the pivot's perpendicular cross-and-
         // turn, so the geometry faults and the user must recover (TAXI / CANCEL).
         RunwayInfo rwy = MakeSfo01RLikeRunway();

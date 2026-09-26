@@ -59,14 +59,14 @@ public static class GeometricAdmissibility
     public const int PruningBearingBucketDeg = 1;
 
     /// <summary>
-    /// Tightest fillet radius (ft) any aircraft can steer: the smallest category nose-wheel turn radius
-    /// (<see cref="CategoryPerformance.NoseWheelTurnRadiusFt"/>). A <see cref="GroundArc"/> whose
+    /// Tightest fillet radius (ft) any aircraft can steer: the smallest category main-gear turn radius
+    /// (<see cref="CategoryPerformance.MainGearTurnRadiusFt"/>). A <see cref="GroundArc"/> whose
     /// <see cref="GroundArc.MinRadiusOfCurvatureFt"/> is below it is fillet-generator noise at a cramped
     /// junction (OAK RWY 15/33 → D at the F junction: 6 ft), not pavement anything can track, and is
     /// inadmissible for every category — the route goes through the junction nodes instead, which the
-    /// navigator rounds at the nose-wheel radius.
+    /// navigator rounds at the main-gear turn radius.
     /// </summary>
-    public static readonly double MinSteerableArcRadiusFt = Enum.GetValues<AircraftCategory>().Min(CategoryPerformance.NoseWheelTurnRadiusFt);
+    public static readonly double MinSteerableArcRadiusFt = Enum.GetValues<AircraftCategory>().Min(CategoryPerformance.MainGearTurnRadiusFt);
 
     /// <summary>
     /// Closed-set key for state-aware A* pruning: node id, arrival-bearing bucket (see

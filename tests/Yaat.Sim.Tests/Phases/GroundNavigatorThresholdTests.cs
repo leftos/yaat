@@ -26,7 +26,7 @@ public class GroundNavigatorThresholdTests
             cornerTurnDeg: 90.0,
             edgeLengthNm: 1e-6,
             category: AircraftCategory.Jet,
-            roundingRadiusFt: CategoryPerformance.NoseWheelTurnRadiusFt(AircraftCategory.Jet),
+            roundingRadiusFt: CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet),
             isLastSegment: false,
             isStopTarget: false,
             shortEdge: true,
@@ -48,7 +48,7 @@ public class GroundNavigatorThresholdTests
             cornerTurnDeg: 90.0,
             edgeLengthNm: 0.05,
             category: AircraftCategory.Jet,
-            roundingRadiusFt: CategoryPerformance.NoseWheelTurnRadiusFt(AircraftCategory.Jet),
+            roundingRadiusFt: CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet),
             isLastSegment: false,
             isStopTarget: false,
             shortEdge: false,
@@ -58,7 +58,7 @@ public class GroundNavigatorThresholdTests
         );
 
         Assert.True(roundingActive);
-        double rFt = CategoryPerformance.NoseWheelTurnRadiusFt(AircraftCategory.Jet);
+        double rFt = CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet);
         double expectedNm = (rFt * Math.Tan(45.0 * Math.PI / 180.0)) / GeoMath.FeetPerNm;
         Assert.Equal(expectedNm, threshold, precision: 6);
     }
@@ -75,9 +75,9 @@ public class GroundNavigatorThresholdTests
     [Fact]
     public void AdaptiveCornerRadius_AmpleLegs_StaysComfortable()
     {
-        // A 90° turn with 100 ft legs has ample room — no tightening, comfortable nose-wheel radius.
+        // A 90° turn with 100 ft legs has ample room — no tightening, comfortable main-gear turn radius.
         double r = GroundNavigator.AdaptiveCornerRadiusFt(AircraftCategory.Jet, deflectionDeg: 90.0, incomingRunFt: 100.0, outgoingRunFt: 100.0);
-        Assert.Equal(CategoryPerformance.NoseWheelTurnRadiusFt(AircraftCategory.Jet), r, precision: 3);
+        Assert.Equal(CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet), r, precision: 3);
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public class GroundNavigatorThresholdTests
             cornerTurnDeg: 20.0,
             edgeLengthNm: 0.05,
             category: AircraftCategory.Jet,
-            roundingRadiusFt: CategoryPerformance.NoseWheelTurnRadiusFt(AircraftCategory.Jet),
+            roundingRadiusFt: CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet),
             isLastSegment: false,
             isStopTarget: false,
             shortEdge: false,

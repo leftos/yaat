@@ -245,7 +245,7 @@ public class GroundNavigatorTests(ITestOutputHelper output)
         _out.WriteLine($"Misaligned-entry: maxTickHeadingDelta={maxTickDelta:F2}° per 0.25s tick, finalHdg={aircraft.TrueHeading.Degrees:F1}°");
 
         // Per-tick heading change must stay below an upper bound that catches
-        // the snap. SlowTurnSpeedKts (3 kt) on jet NoseWheel (25 ft) gives an
+        // the snap. SlowTurnSpeedKts (3 kt) on the jet main-gear radius (25 ft) gives an
         // arc rate of ~12°/s = ~3°/tick at dt=0.25s. The pre-bug snap was
         // ~180° in one tick. A 30°/tick threshold catches the snap with
         // margin and is well above any possible legitimate slow-turn step.
@@ -561,9 +561,9 @@ public class GroundNavigatorTests(ITestOutputHelper output)
                 + $"exitHdg={turn.ExitTangentBearingDeg:F1}°; node {StartNodeId} is {abeamFt:F1} ft abeam, {alongFt:F1} ft along"
         );
 
-        // aim=node: the point aim turns at the comfortable nose-wheel radius, the bearing-aimed fallback at the
+        // aim=node: the point aim turns at the comfortable main-gear turn radius, the bearing-aimed fallback at the
         // adaptive radius, which this pose tightens to the 15 ft floor — so the radius identifies which fired.
-        Assert.Equal(CategoryPerformance.NoseWheelTurnRadiusFt(AircraftCategory.Jet), turn.RadiusFt, 3);
+        Assert.Equal(CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet), turn.RadiusFt, 3);
         Assert.True(alongFt > 0, $"node {StartNodeId} must lie ahead of the arc's roll-out point; it is {alongFt:F1} ft along");
         Assert.True(
             Math.Abs(abeamFt) <= 0.5,

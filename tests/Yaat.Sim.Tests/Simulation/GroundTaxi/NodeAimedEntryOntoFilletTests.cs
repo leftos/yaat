@@ -50,7 +50,7 @@ public sealed class NodeAimedEntryOntoFilletTests(ITestOutputHelper output)
             return;
         }
 
-        double diameterFt = 2.0 * CategoryPerformance.NoseWheelTurnRadiusFt(AircraftCategorization.Categorize(AircraftType));
+        double diameterFt = 2.0 * CategoryPerformance.MainGearTurnRadiusFt(AircraftCategorization.Categorize(AircraftType));
         double toRampEndFt = GeoMath.DistanceNm(fc.Pose, fc.RampEnd.Position) * GeoMath.FeetPerNm;
         double toFarEndFt = GeoMath.DistanceNm(fc.Pose, fc.FarEnd.Position) * GeoMath.FeetPerNm;
         Assert.True(

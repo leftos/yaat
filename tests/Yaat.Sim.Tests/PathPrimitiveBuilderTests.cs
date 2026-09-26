@@ -342,7 +342,7 @@ public class PathPrimitiveBuilderTests
     [Fact]
     public void SlowTurn_TightRadiusIsSmallerThanLineUpTurnRadius()
     {
-        // Regression guard: NoseWheelTurnRadiusFt must be substantially
+        // Regression guard: MainGearTurnRadiusFt must be substantially
         // tighter than LineUpTurnRadiusFt for every category. The SlowTurn
         // primitive is the one callers reach for when they need a footprint
         // smaller than a normal lineup arc.
@@ -350,16 +350,16 @@ public class PathPrimitiveBuilderTests
             AircraftCategory cat in new[] { AircraftCategory.Jet, AircraftCategory.Turboprop, AircraftCategory.Piston, AircraftCategory.Helicopter }
         )
         {
-            double nose = CategoryPerformance.NoseWheelTurnRadiusFt(cat);
+            double mainGear = CategoryPerformance.MainGearTurnRadiusFt(cat);
             double lineup = CategoryPerformance.LineUpTurnRadiusFt(cat);
-            // Piston nose-wheel radius is 15 ft (widened so slow-turns don't yaw past the 20 °/s ceiling)
+            // Piston main-gear turn radius is 15 ft (widened so slow-turns don't yaw past the 20 °/s ceiling)
             // vs a 25 ft lineup radius — exactly 0.6; the guard allows up to 0.65 so it stays a clear
             // "substantially tighter" check without pinning the piston pair to the boundary.
             Assert.True(
-                nose < lineup * 0.65,
-                $"{cat}: nose-wheel radius ({nose} ft) should be substantially tighter than lineup radius ({lineup} ft)"
+                mainGear < lineup * 0.65,
+                $"{cat}: main-gear turn radius ({mainGear} ft) should be substantially tighter than lineup radius ({lineup} ft)"
             );
-            Assert.True(nose > 0, $"{cat}: nose-wheel radius must be positive");
+            Assert.True(mainGear > 0, $"{cat}: main-gear turn radius must be positive");
         }
     }
 
@@ -387,8 +387,8 @@ public class PathPrimitiveBuilderTests
 
     private const double StartNodeLon = -122.21752272724868;
 
-    /// <summary>Comfortable jet nose-wheel radius — the radius the navigator aims a free-space leg with.</summary>
-    private static readonly double JetNoseWheelRadiusFt = CategoryPerformance.NoseWheelTurnRadiusFt(AircraftCategory.Jet);
+    /// <summary>Comfortable jet main-gear turn radius — the radius the navigator aims a free-space leg with.</summary>
+    private static readonly double JetMainGearRadiusFt = CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet);
 
     /// <summary>The point the arc rolls out at: the centre projected at the final centre-bearing by the radius.</summary>
     private static LatLon ExitPoint(PathPrimitiveSlowTurn turn)
@@ -416,7 +416,7 @@ public class PathPrimitiveBuilderTests
             fromLat: PushedLat,
             fromLon: PushedLon,
             fromHdgDeg: PushedHeadingDeg,
-            radiusFt: JetNoseWheelRadiusFt,
+            radiusFt: JetMainGearRadiusFt,
             targetLat: StartNodeLat,
             targetLon: StartNodeLon,
             maxSpeedKts: CategoryPerformance.SlowTurnSpeedKts,
@@ -448,7 +448,7 @@ public class PathPrimitiveBuilderTests
             fromLat: PushedLat,
             fromLon: PushedLon,
             fromHdgDeg: PushedHeadingDeg,
-            radiusFt: JetNoseWheelRadiusFt,
+            radiusFt: JetMainGearRadiusFt,
             targetLat: inside.Lat,
             targetLon: inside.Lon,
             maxSpeedKts: CategoryPerformance.SlowTurnSpeedKts,
@@ -473,7 +473,7 @@ public class PathPrimitiveBuilderTests
             fromLat: PushedLat,
             fromLon: PushedLon,
             fromHdgDeg: PushedHeadingDeg,
-            radiusFt: JetNoseWheelRadiusFt,
+            radiusFt: JetMainGearRadiusFt,
             targetLat: target.Lat,
             targetLon: target.Lon,
             maxSpeedKts: CategoryPerformance.SlowTurnSpeedKts,

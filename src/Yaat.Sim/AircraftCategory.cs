@@ -877,7 +877,7 @@ public static class CategoryPerformance
     /// <summary>
     /// Maximum ground yaw rate while taxiing (deg/sec) — the gear/tiller-limited ceiling, reached only
     /// once the aircraft is rolling faster than the low crossover speed (~3 kt) where v/R at the tight
-    /// nose-wheel radius meets it. Below that, achievable yaw is v/R-limited (see
+    /// main-gear turn radius meets it. Below that, achievable yaw is v/R-limited (see
     /// <see cref="GroundYawRateAtSpeed"/>): nose-wheel steering sets path curvature 1/R, so heading
     /// change per unit distance is fixed and heading change per unit time is ω = v/R — an aircraft
     /// creeping at walking pace cannot slew its nose at the full rate. Values reflect real ground
@@ -888,7 +888,7 @@ public static class CategoryPerformance
     ///
     /// Governing invariant: every traced arc radius R ≥ <see cref="SlowTurnSpeedKts"/> / this rate,
     /// so the ceiling is actually reachable at creep speed without the slow-turn floor re-inflating
-    /// the yaw past it (see <see cref="NoseWheelTurnRadiusFt"/>).
+    /// the yaw past it (see <see cref="MainGearTurnRadiusFt"/>).
     /// </summary>
     public static double GroundTurnRate(AircraftCategory cat)
     {
@@ -904,7 +904,7 @@ public static class CategoryPerformance
 
     /// <summary>
     /// Ground yaw rate (deg/sec) achievable at groundspeed <paramref name="groundSpeedKts"/>: ω = v/R
-    /// at the tightest steerable (nose-wheel) radius <see cref="NoseWheelTurnRadiusFt"/>, capped at the
+    /// at the tightest steerable (main-gear) radius <see cref="MainGearTurnRadiusFt"/>, capped at the
     /// gear-limited <see cref="GroundTurnRate"/> ceiling. The aircraft can steer to its minimum radius,
     /// so it reaches the ceiling at a low speed (~3 kt) and keeps full corner / pure-pursuit re-acquire
     /// authority above that; only below it does the rate fall off (a near-stationary aircraft cannot
@@ -923,7 +923,7 @@ public static class CategoryPerformance
         }
 
         double vFtPerSec = groundSpeedKts * GeoMath.FeetPerNm / 3600.0;
-        double yawRateDegPerSec = (vFtPerSec / NoseWheelTurnRadiusFt(cat)) * (180.0 / Math.PI);
+        double yawRateDegPerSec = (vFtPerSec / MainGearTurnRadiusFt(cat)) * (180.0 / Math.PI);
         return Math.Min(ceiling, yawRateDegPerSec);
     }
 
@@ -954,10 +954,11 @@ public static class CategoryPerformance
     }
 
     /// <summary>
-    /// Minimum ground-turn radius (ft) achievable at full nose-wheel deflection
-    /// at very low forward speed. Derived from approximate aircraft wheelbase
-    /// and max nose-wheel deflection angle (typical jets: 54 ft wheelbase × 65°
-    /// deflection ≈ 25 ft; narrower for smaller categories). Used by the
+    /// Main-gear turn radius (ft): the radius of the arc the main-gear axle midpoint follows at the
+    /// category's comfortable steering radius, not full lock — turn center to main gear, <c>wheelbase / tan δ</c>.
+    /// Jet 25 ft ≈ 65° nose-wheel deflection on a B737-800 (wheelbase ~51 ft); the nose wheel itself tracks a
+    /// wider arc — the nose wheel's own path radius, <c>wheelbase / sin δ</c>, ≈ 60 ft for a 737. Narrower for
+    /// smaller categories. Used by the
     /// <see cref="PathPrimitiveKind.SlowTurn"/> primitive for tight programmatic
     /// maneuvers (lineup pivots). Roughly ⅓ of <see cref="LineUpTurnRadiusFt"/>.
     ///
@@ -966,7 +967,7 @@ public static class CategoryPerformance
     /// (piston 15 ft = 3 kt / 20 °/s; a light single swings a realistic ~15 ft arc out of a spot
     /// rather than full-lock pivoting on the nose wheel).
     /// </summary>
-    public static double NoseWheelTurnRadiusFt(AircraftCategory cat)
+    public static double MainGearTurnRadiusFt(AircraftCategory cat)
     {
         return cat switch
         {
@@ -979,9 +980,10 @@ public static class CategoryPerformance
     }
 
     /// <summary>
-    /// Tightest defensible nose-gear turn radius (ft) for a deliberate, brake-assisted, walking-pace pivot
-    /// at a geometrically tight junction — below the comfortable <see cref="NoseWheelTurnRadiusFt"/> but at or
-    /// above the inner-main-gear radius (tighter would pivot on a near-locked inner main gear). A jet floors at
+    /// Tightest defensible main-gear turn radius (ft): the turn center radius — measured out to the inner
+    /// main gear — of a deliberate, brake-assisted, walking-pace pivot at a geometrically tight junction,
+    /// below the comfortable <see cref="MainGearTurnRadiusFt"/> but at or above the inner-main-gear radius
+    /// (tighter would pivot on a near-locked inner main gear). A jet floors at
     /// ~15 ft (≈ B737-800 inner-main-gear radius); smaller categories scale down. Used to clamp the adaptive
     /// corner-rounding radius when the available approach straight is shorter than the comfortable tangent
     /// length (aviation-reviewed: Boeing FCTM tight-turn technique / judgmental oversteer, AC 150/5300-13B).
@@ -1003,8 +1005,8 @@ public static class CategoryPerformance
     /// track a turn of <paramref name="radiusFt"/> — i.e. <c>v = ω·r</c>. Above this the required yaw
     /// rate exceeds the nose-wheel steering rate and the nose can no longer follow the arc. Floored at
     /// <see cref="SlowTurnSpeedKts"/> for degenerate-small radii. Used to set the playback speed of
-    /// nose-wheel-radius corner-rounding / entry-alignment arcs: rounding a sharp corner at the
-    /// nose-wheel minimum radius settles a jet near ~5 kt — a realistic sharp-taxiway-turn / spot-exit
+    /// main-gear-turn-radius corner-rounding / entry-alignment arcs: rounding a sharp corner at the
+    /// main-gear turn radius settles a jet near ~5 kt — a realistic sharp-taxiway-turn / spot-exit
     /// speed (Boeing FCTM, AC 120-74), not the 3 kt low-visibility (SMGCS) creep the flat floor implied.
     /// </summary>
     public static double TurnRateLimitedSpeedKts(AircraftCategory cat, double radiusFt)

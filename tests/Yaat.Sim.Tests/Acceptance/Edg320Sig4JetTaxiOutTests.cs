@@ -14,7 +14,7 @@ namespace Yaat.Sim.Tests.Acceptance;
 /// spin bundle, where SIG4 hosts a jet). A B738 taxiing out of SIG4 (node 641,
 /// parked heading ~110°) to 28R must make a ~109° turn leaving the spot and a ~86°
 /// turn onto taxiway D. The navigator rounds each corner at
-/// the nose-wheel radius but — before the tangent-corner-rounding fix — finished each
+/// the main-gear turn radius but — before the tangent-corner-rounding fix — finished each
 /// arc displaced off the outgoing centerline, then re-acquired it with pure-pursuit
 /// while accelerating, overshooting ~40° per corner and wobbling ~400° cumulative.
 ///

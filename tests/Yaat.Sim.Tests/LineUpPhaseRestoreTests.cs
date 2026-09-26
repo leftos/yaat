@@ -21,7 +21,7 @@ namespace Yaat.Sim.Tests;
 ///
 /// <para>
 /// The rebuild has to hold at <em>every</em> second of the maneuver, not just the taxiway end of it: a restore
-/// taken in the back half of the turn sits within a nose-wheel radius of the centerline, where the taxiway graph
+/// taken in the back half of the turn sits within a main-gear turn radius of the centerline, where the taxiway graph
 /// has nothing to route and <see cref="LineUpGeometry.Compute"/> declines to plan. The theories below restore one
 /// snapshot per second of the whole line-up and require each one to finish it.
 /// </para>
@@ -277,7 +277,7 @@ public class LineUpPhaseRestoreTests(ITestOutputHelper output)
 
     /// <summary>
     /// A rolling CTO restored at any second of the line-up still reaches <see cref="TakeoffPhase"/>. The back-half
-    /// offsets are the ones that bite: the aircraft is inside a nose-wheel radius of the centerline, where the
+    /// offsets are the ones that bite: the aircraft is inside a main-gear turn radius of the centerline, where the
     /// taxiway graph cannot route and the synthetic geometry declines to plan.
     /// </summary>
     [Theory]

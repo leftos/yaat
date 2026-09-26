@@ -198,20 +198,20 @@ public static class LineUpGeometry
         double dHdgDeg = acHdgDeg - rwyHdgDeg;
         double sinDHdg = Math.Sin(dHdgDeg * Math.PI / 180.0);
 
-        double noseWheelRadiusFt = CategoryPerformance.NoseWheelTurnRadiusFt(category);
+        double mainGearRadiusFt = CategoryPerformance.MainGearTurnRadiusFt(category);
 
         // Minimum cross-track for either path to fit: the pivot needs at
         // least one radius of cross-track so PivotTurn2 can end ON the
         // centerline. Less than that and the geometry collapses regardless
         // of which path we pick.
-        if (crossFt < noseWheelRadiusFt)
+        if (crossFt < mainGearRadiusFt)
         {
             return Fault(
                 category,
                 rwyHdgDeg,
                 dthetaDeg,
                 arcSpeedKts,
-                $"|crossTrack|={crossFt:F1}ft < nose-wheel radius {noseWheelRadiusFt:F1}ft (pivot geometry collapses)"
+                $"|crossTrack|={crossFt:F1}ft < main-gear turn radius {mainGearRadiusFt:F1}ft (pivot geometry collapses)"
             );
         }
 
@@ -263,7 +263,7 @@ public static class LineUpGeometry
                 mustPivotByRadius,
                 mustPivotByWaste
             );
-            return BuildPivotPlan(runway, acLat, acLon, acHeading, category, dthetaDeg, arcSpeedKts, signedCrossNm, noseWheelRadiusFt);
+            return BuildPivotPlan(runway, acLat, acLon, acHeading, category, dthetaDeg, arcSpeedKts, signedCrossNm, mainGearRadiusFt);
         }
 
         Log.LogDebug(
@@ -314,7 +314,7 @@ public static class LineUpGeometry
     /// bound the pivot path at ≤ 2r. The perpendicular straight contributes
     /// zero along-runway by construction.
     /// </summary>
-    public static double ComputeWastePivotFt(double noseWheelRadiusFt) => 2.0 * noseWheelRadiusFt;
+    public static double ComputeWastePivotFt(double mainGearRadiusFt) => 2.0 * mainGearRadiusFt;
 
     /// <summary>
     /// Target speed through the aligned-path arc — the arc alone — chosen so that the
@@ -529,7 +529,7 @@ public static class LineUpGeometry
         double dthetaDeg,
         double arcSpeedKts,
         double signedCrossNm,
-        double noseWheelRadiusFt
+        double mainGearRadiusFt
     )
     {
         double rwyHdgDeg = runway.TrueHeading.Degrees;
@@ -541,11 +541,11 @@ public static class LineUpGeometry
         bool aircraftOnLeft = signedCrossNm < 0;
         double perpTowardDeg = ((rwyHdgDeg + (aircraftOnLeft ? 90.0 : -90.0)) + 360.0) % 360.0;
 
-        // Pivot turns run at the gear-limited speed for the nose-wheel radius
+        // Pivot turns run at the gear-limited speed for the main-gear turn radius
         // (≈5 kt for a jet) — a realistic sharp-turn taxi speed — not the bare
         // SlowTurnSpeedKts creep floor (which TurnRateLimitedSpeedKts clamps to
         // for tighter-geared categories anyway).
-        double pivotTurnSpeedKts = CategoryPerformance.TurnRateLimitedSpeedKts(category, noseWheelRadiusFt);
+        double pivotTurnSpeedKts = CategoryPerformance.TurnRateLimitedSpeedKts(category, mainGearRadiusFt);
 
         // First turn: aircraft heading → perpendicular-toward-centerline.
         PathPrimitiveSlowTurn pivotTurn1 = PathPrimitiveBuilder.SlowTurn(
@@ -553,7 +553,7 @@ public static class LineUpGeometry
             fromLon: acLon,
             fromHdgDeg: acHdgDeg,
             toHdgDeg: perpTowardDeg,
-            radiusFt: noseWheelRadiusFt,
+            radiusFt: mainGearRadiusFt,
             maxSpeedKts: pivotTurnSpeedKts,
             toNodeId: -1
         );
@@ -570,9 +570,9 @@ public static class LineUpGeometry
             runway.TrueHeading
         );
 
-        // PivotTurn2 entry must be noseWheelRadius ft off-centerline on the
+        // PivotTurn2 entry must be mainGearRadius ft off-centerline on the
         // same side as the aircraft, so its 90° arc ends ON centerline.
-        double entry2SignedCrossFtTarget = aircraftOnLeft ? -noseWheelRadiusFt : +noseWheelRadiusFt;
+        double entry2SignedCrossFtTarget = aircraftOnLeft ? -mainGearRadiusFt : +mainGearRadiusFt;
         double exit1SignedCrossFt = exit1SignedCrossNm * GeoMath.FeetPerNm;
 
         // Straight segment goes from Turn1 exit along perpToward until the
@@ -603,7 +603,7 @@ public static class LineUpGeometry
             fromLon: turn2EntryLon,
             fromHdgDeg: perpTowardDeg,
             toHdgDeg: rwyHdgDeg,
-            radiusFt: noseWheelRadiusFt,
+            radiusFt: mainGearRadiusFt,
             maxSpeedKts: pivotTurnSpeedKts,
             toNodeId: -2
         );

@@ -892,7 +892,7 @@ public static class RampLaneReposition
             return null;
         }
 
-        double turnRadiusFt = CategoryPerformance.NoseWheelTurnRadiusFt(request.Category);
+        double turnRadiusFt = CategoryPerformance.MainGearTurnRadiusFt(request.Category);
         double minimumRunFt = turnRadiusFt + (request.AircraftLengthFt / 2.0) + (LineUpStraightFuselages * request.AircraftLengthFt);
         List<LineUpJoin> joins = FindLineUpJoins(layout, request, ends, minimumRunFt);
         var planning = new LineUpPlanning(layout, request, family, halfSpanFt, LineUpApproachRadii * turnRadiusFt);

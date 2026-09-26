@@ -263,7 +263,7 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
     public void SmallOffset_ReacquiresWithoutHeadingHunt()
     {
         // A rounded corner or a fillet playback leaves the aircraft a few feet off the outgoing
-        // centerline at low speed. With a look-ahead shorter than the aircraft's own nose-wheel turn
+        // centerline at low speed. With a look-ahead shorter than the aircraft's own main-gear turn
         // radius, pure pursuit turns a 4 ft offset into a ~20° steer command and the nose hunts across
         // the line (S2-OAK-2: SWA2600 leaving the OAK U/W corner). The re-acquisition must be a gentle,
         // one-sided slide back onto the line.

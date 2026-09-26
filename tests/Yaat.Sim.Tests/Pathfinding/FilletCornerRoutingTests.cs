@@ -8,7 +8,7 @@ namespace Yaat.Sim.Tests.Pathfinding;
 /// <summary>
 /// A corner is turned over the fillet arc the generator painted there, never square through the junction
 /// centre node. S2-OAK-2 bundle, SWA2600 <c>TAXI TE U W W1 30</c>: the U→W turn resolved as 694→17→691, so
-/// the navigator rounded it at the nose-wheel radius at 3 kt and re-acquired W with a visible swing instead
+/// the navigator rounded it at the main-gear turn radius at 3 kt and re-acquired W with a visible swing instead
 /// of flying the 75 ft fillet 694→691 at its arc speed. The reverse-arc cost was the cause: half of all
 /// corner traversals run against an arc's stored node order, and that penalty made the square pivot cheaper.
 /// </summary>

@@ -116,7 +116,7 @@ public static class PathPrimitiveBuilder
     /// <param name="fromLat">Entry-point latitude (degrees).</param>
     /// <param name="fromLon">Entry-point longitude (degrees).</param>
     /// <param name="fromHdgDeg">Tangent heading at entry (degrees true, 0–360).</param>
-    /// <param name="radiusFt">Turn radius in feet. Typically <see cref="CategoryPerformance.NoseWheelTurnRadiusFt"/>.</param>
+    /// <param name="radiusFt">Turn radius in feet. Typically <see cref="CategoryPerformance.MainGearTurnRadiusFt"/>.</param>
     /// <param name="targetLat">Latitude of the point the exit tangent must run through.</param>
     /// <param name="targetLon">Longitude of the point the exit tangent must run through.</param>
     /// <param name="maxSpeedKts">Target-speed cap in knots.</param>
@@ -179,7 +179,7 @@ public static class PathPrimitiveBuilder
     /// <param name="fromLat">Entry-point latitude (degrees).</param>
     /// <param name="fromLon">Entry-point longitude (degrees).</param>
     /// <param name="fromHdgDeg">Tangent heading at entry (degrees true, 0–360).</param>
-    /// <param name="radiusFt">Turn radius in feet. Typically <see cref="CategoryPerformance.NoseWheelTurnRadiusFt"/>.</param>
+    /// <param name="radiusFt">Turn radius in feet. Typically <see cref="CategoryPerformance.MainGearTurnRadiusFt"/>.</param>
     /// <param name="targetLat">Latitude of the point the exit tangent must run through.</param>
     /// <param name="targetLon">Longitude of the point the exit tangent must run through.</param>
     /// <param name="maxSpeedKts">Target-speed cap in knots.</param>
@@ -216,7 +216,7 @@ public static class PathPrimitiveBuilder
     /// <summary>
     /// The most a point-aimed alignment arc (<see cref="SlowTurnToPoint"/>) may sweep. A reversal on open apron
     /// legitimately over-rotates past a half turn to line up on the point — the tangent to a node 100 ft behind
-    /// the tail wants ~196° at a jet's nose-wheel radius — so the cap is not 180°; it keeps headroom under the
+    /// the tail wants ~196° at a jet's main-gear turn radius — so the cap is not 180°; it keeps headroom under the
     /// navigator's 360° orbit invariant, which would otherwise see a legitimate aim as a pure-pursuit orbit.
     /// </summary>
     public const double MaxAimSweepDeg = 270.0;
@@ -273,7 +273,7 @@ public static class PathPrimitiveBuilder
     /// <param name="fromLon">Entry-point longitude (degrees).</param>
     /// <param name="fromHdgDeg">Tangent heading at entry (degrees true, 0–360).</param>
     /// <param name="toHdgDeg">Tangent heading at exit (degrees true, 0–360).</param>
-    /// <param name="radiusFt">Turn radius in feet. Typically <see cref="CategoryPerformance.NoseWheelTurnRadiusFt"/>.</param>
+    /// <param name="radiusFt">Turn radius in feet. Typically <see cref="CategoryPerformance.MainGearTurnRadiusFt"/>.</param>
     /// <param name="maxSpeedKts">Target-speed cap in knots. Typically <see cref="CategoryPerformance.SlowTurnSpeedKts"/>.</param>
     /// <param name="toNodeId">Synthetic end-of-primitive node id for arrival detection.</param>
     public static PathPrimitiveSlowTurn SlowTurn(
@@ -306,7 +306,7 @@ public static class PathPrimitiveBuilder
     /// <param name="fromLon">Entry-point longitude (degrees).</param>
     /// <param name="fromHdgDeg">Tangent heading at entry (degrees true, 0–360).</param>
     /// <param name="toHdgDeg">Tangent heading at exit (degrees true, 0–360).</param>
-    /// <param name="radiusFt">Turn radius in feet. Typically <see cref="CategoryPerformance.NoseWheelTurnRadiusFt"/>.</param>
+    /// <param name="radiusFt">Turn radius in feet. Typically <see cref="CategoryPerformance.MainGearTurnRadiusFt"/>.</param>
     /// <param name="maxSpeedKts">Target-speed cap in knots. Typically <see cref="CategoryPerformance.SlowTurnSpeedKts"/>.</param>
     /// <param name="toNodeId">Synthetic end-of-primitive node id for arrival detection.</param>
     /// <param name="rightTurn">True to sweep clockwise from entry to exit heading, false to sweep counter-clockwise.</param>

@@ -968,7 +968,7 @@ public sealed class LineUpPhase : Phase
     /// aircraft on the runway indefinitely, which is what a restored line-up used to do:
     ///
     /// <list type="bullet">
-    ///   <item>inside a nose-wheel radius of the centerline and aligned within
+    ///   <item>inside a main-gear turn radius of the centerline and aligned within
     ///         <see cref="LineUpGeometry.AlignedMaxTurnDeg"/>: the line-up is flown — complete, handing the
     ///         aircraft to <see cref="TakeoffPhase"/> under a rolling clearance or to the
     ///         <see cref="LinedUpAndWaitingPhase"/> that follows a LUAW;</item>
@@ -997,7 +997,7 @@ public sealed class LineUpPhase : Phase
             ) * GeoMath.FeetPerNm;
         double headingOffDeg = Math.Abs(rwy.TrueHeading.SignedAngleTo(ctx.Aircraft.TrueHeading));
 
-        if (crossFt <= CategoryPerformance.NoseWheelTurnRadiusFt(ctx.Category))
+        if (crossFt <= CategoryPerformance.MainGearTurnRadiusFt(ctx.Category))
         {
             if (headingOffDeg < LineUpGeometry.AlignedMaxTurnDeg)
             {
@@ -1011,7 +1011,7 @@ public sealed class LineUpPhase : Phase
                 return true;
             }
 
-            ResumeOnAlignedRollout(ctx, rwy, crossFt, headingOffDeg, "inside the nose-wheel radius");
+            ResumeOnAlignedRollout(ctx, rwy, crossFt, headingOffDeg, "inside the main-gear turn radius");
             return false;
         }
 

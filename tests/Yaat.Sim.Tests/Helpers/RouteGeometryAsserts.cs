@@ -10,7 +10,7 @@ namespace Yaat.Sim.Tests.Helpers;
 /// cost preference. A route that walks tangent-cut → junction centre → tangent-cut over two straight edges
 /// where the fillet generator already joined those two cuts with a <see cref="GroundArc"/> is a square
 /// pivot at a painted corner. For a bend sharper than <see cref="GroundNavigator.EntryAlignmentThresholdDeg"/>
-/// the navigator rounds that pivot at the nose-wheel radius near walking pace instead of playing the
+/// the navigator rounds that pivot at the main-gear turn radius near walking pace instead of playing the
 /// fillet, and re-acquires the outgoing centerline with a visible swing (the OAK U/W corner in the S2-OAK-2
 /// bundle); the arc is admissible whenever the pivot is — its end tangents are the two straights' bearings —
 /// so there is no legitimate reason to prefer the pivot (a facility-blocked turn forbids the pivot triple and

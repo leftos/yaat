@@ -59,12 +59,12 @@ public record NavTickDiag(
 ///
 /// <para>
 /// The fillet generator emits a single arc per real taxiway corner, so the navigator follows clean arcs
-/// with no chord-chain compensations. But corners <em>tighter</em> than the nose-wheel radius — ramp/apron
+/// with no chord-chain compensations. But corners <em>tighter</em> than the main-gear turn radius — ramp/apron
 /// bends the fillet generator cannot widen, which stay sharp vertices between short straight segments —
 /// still cannot be tracked by pure-pursuit at any allowed speed (the orbit radius v/ω exceeds the segment
 /// scale). Those are rounded by the entry-alignment slow-turn, which fires for <em>any</em> corner past
 /// <see cref="EntryAlignmentThresholdDeg"/> — a misaligned parking-out start or a tight mid-route ramp bend
-/// — tracing a nose-wheel-radius arc at walking pace. This is geometric corner-rounding.
+/// — tracing a main-gear-turn-radius arc at walking pace. This is geometric corner-rounding.
 /// </para>
 ///
 /// <para>
@@ -104,7 +104,7 @@ public sealed class GroundNavigator
 
     /// <summary>
     /// Floor (ft) on the distance of travel over which an arc-entry offset is bled off — about twice a jet's
-    /// nose-wheel turn radius, short enough that a small residual cross-track is gone well before a fillet's
+    /// main-gear turn radius, short enough that a small residual cross-track is gone well before a fillet's
     /// tight part. A larger offset stretches the blend past this floor instead of bleeding off faster, so the
     /// sideways rate stays taxi-plausible whatever the offset is (see <see cref="MaxBlendTrackDeg"/>).
     /// </summary>
@@ -152,15 +152,15 @@ public sealed class GroundNavigator
     private const int BezierResumeArcLengthSteps = 32;
 
     /// <summary>
-    /// Pure-pursuit look-ahead distance floor in feet on straight segments: the category's nose-wheel
-    /// turn radius (<see cref="CategoryPerformance.NoseWheelTurnRadiusFt"/>). Pure pursuit commands the
+    /// Pure-pursuit look-ahead distance floor in feet on straight segments: the category's main-gear
+    /// turn radius (<see cref="CategoryPerformance.MainGearTurnRadiusFt"/>). Pure pursuit commands the
     /// curvature 2·sin α / L toward the look-ahead point; a look-ahead shorter than the gear's own
     /// minimum radius asks for more curvature than the nose wheel can deliver, so a few feet of offset
     /// left by a corner became a ~20° steer and the nose hunted across the line (S2-OAK-2, SWA2600 off
     /// the OAK U/W corner). The floor also keeps the look-ahead point from collapsing onto the
     /// aircraft's foot-of-perpendicular when nearly stationary, which would leave steering undefined.
     /// </summary>
-    private static double LookAheadFloorFt(AircraftCategory category) => CategoryPerformance.NoseWheelTurnRadiusFt(category);
+    private static double LookAheadFloorFt(AircraftCategory category) => CategoryPerformance.MainGearTurnRadiusFt(category);
 
     /// <summary>
     /// Pure-pursuit look-ahead distance cap in feet on straight segments.
@@ -459,14 +459,14 @@ public sealed class GroundNavigator
 
     /// <summary>
     /// Rounding radius (ft) for the corner at the END of the current segment — adaptive: tightened from the
-    /// comfortable nose-wheel radius toward the tight-turn floor when the approach/departure legs are shorter
+    /// comfortable main-gear turn radius toward the tight-turn floor when the approach/departure legs are shorter
     /// than the comfortable tangent length (two close junctions), so the corner-rounding arc still exits on
     /// the outgoing centerline instead of finishing wide and forcing a pure-pursuit re-acquisition. Set in
     /// <see cref="BuildSpeedConstraints"/>; read by <see cref="TickStraight"/>'s arrival threshold. The
     /// entry-alignment arc computes its own radius from the route directly (restore-safe), using the same
     /// <see cref="AdaptiveCornerRadiusFt"/> rule.
     /// </summary>
-    private double _cornerRoundingRadiusFt = CategoryPerformance.NoseWheelTurnRadiusFt(AircraftCategory.Jet);
+    private double _cornerRoundingRadiusFt = CategoryPerformance.MainGearTurnRadiusFt(AircraftCategory.Jet);
 
     /// <summary>
     /// Speed constraints from future segments, each as a tuple of:
@@ -484,7 +484,7 @@ public sealed class GroundNavigator
     /// would write the arc tangent into <c>TrueHeading</c> directly, snapping
     /// a stationary aircraft (e.g. just after pushback) to the route start
     /// direction. The slow-turn lets the aircraft taxi forward at the
-    /// turn-rate-limited speed for the nose-wheel radius
+    /// turn-rate-limited speed for the main-gear turn radius
     /// (<see cref="CategoryPerformance.TurnRateLimitedSpeedKts"/>, ~5 kt for a jet) while
     /// gradually rotating through a real arc geometry — no in-place pivot, no snap.
     ///
@@ -495,7 +495,7 @@ public sealed class GroundNavigator
     /// chase it, producing an orbit. The same divergence happens mid-route
     /// when the synthesised slow-turn at a sharp corner fails to engage —
     /// either because the post-corner segment is too short for the clamped
-    /// nose-wheel-min radius (OAK GA15 corner #472: 95° turn, availIn 8.4 ft,
+    /// main-gear-min radius (OAK GA15 corner #472: 95° turn, availIn 8.4 ft,
     /// availOut 55 ft), or because the aircraft drifted off the planned
     /// tangent line by more than the strict-geometry tolerance. Entry-
     /// alignment is the safety net: any segment with a starting heading
@@ -508,7 +508,7 @@ public sealed class GroundNavigator
     /// </summary>
     /// <remarks>
     /// Public because the pathfinder's Fastest cost prices a straight-to-straight bend the way this
-    /// navigator flies it: sharper than this and the corner is a nose-wheel-radius slow-turn.
+    /// navigator flies it: sharper than this and the corner is a main-gear-turn-radius slow-turn.
     /// </remarks>
     public const double EntryAlignmentThresholdDeg = 45.0;
 
@@ -647,12 +647,12 @@ public sealed class GroundNavigator
         // Corner rounding: when the aircraft heading is significantly off the segment's first tangent,
         // build a slow-turn from its current pose to the segment's start direction and stash the real
         // segment primitive for swap-in when the slow-turn completes. The aircraft taxis forward through
-        // the arc at the turn-rate-limited speed for the nose-wheel radius (TurnRateLimitedSpeedKts —
-        // v = ω·r, ~5 kt for a jet), rounding the corner at the nose-wheel radius instead of snapping to
+        // the arc at the turn-rate-limited speed for the main-gear turn radius (TurnRateLimitedSpeedKts —
+        // v = ω·r, ~5 kt for a jet), rounding the corner at the main-gear turn radius instead of snapping to
         // the tangent.
         //
         // Fires for any corner sharper than EntryAlignmentThresholdDeg regardless of segment length. A bend
-        // tighter than the nose-wheel radius — common in ramp clusters the fillet generator cannot widen —
+        // tighter than the main-gear turn radius — common in ramp clusters the fillet generator cannot widen —
         // cannot be tracked by pure-pursuit at any allowed speed: the orbit radius v/ω exceeds the
         // short-segment scale even at the SlowTurnSpeedKts floor, so the aircraft would circle the corner
         // node forever. It MUST be rounded. The speed planner (see CornerSpeed / BuildSpeedConstraints) has
@@ -799,7 +799,7 @@ public sealed class GroundNavigator
     /// from-node, so an arc that merely ends on the leg's BEARING rolls out up to a diameter abeam the line to
     /// the leg's node and leaves pure pursuit to re-acquire from there. That arc is solved instead to exit on
     /// the line through the node (<see cref="PathPrimitiveBuilder.SlowTurnToPoint"/>) at the comfortable
-    /// nose-wheel radius — there is no shorter outgoing leg for the adaptive fit to protect. When no such
+    /// main-gear turn radius — there is no shorter outgoing leg for the adaptive fit to protect. When no such
     /// tangent exists (the point sits inside the turning circle, or reaching it needs more than
     /// <see cref="PathPrimitiveBuilder.MaxAimSweepDeg"/>),
     /// the bearing aim below is the fallback.
@@ -824,7 +824,7 @@ public sealed class GroundNavigator
     {
         if (_segmentFromIsVirtual)
         {
-            double freeSpaceRadiusFt = CategoryPerformance.NoseWheelTurnRadiusFt(ctx.Category);
+            double freeSpaceRadiusFt = CategoryPerformance.MainGearTurnRadiusFt(ctx.Category);
             if (FindAimNode(route, ctx, 2.0 * freeSpaceRadiusFt) is { } aimNode)
             {
                 PathPrimitiveSlowTurn? aimed = PathPrimitiveBuilder.SlowTurnToPoint(
@@ -851,7 +851,7 @@ public sealed class GroundNavigator
 
         // Adaptive rounding radius: tighten toward the tight-turn floor when the incoming leg (the
         // segment the aircraft is turning off) or the outgoing leg (this segment) is shorter than the
-        // comfortable nose-wheel tangent length, so the arc still exits on this segment's centerline
+        // comfortable main-gear tangent length, so the arc still exits on this segment's centerline
         // rather than finishing wide and forcing a pure-pursuit re-acquisition (the SfoM2 M2→A spin:
         // B and A crossings only ~22 ft apart). Computed from the route here (restore-safe).
         double incomingRunFt =
@@ -900,7 +900,7 @@ public sealed class GroundNavigator
             toHdgDeg: seg.Edge.DepartureBearing,
             radiusFt: roundingRadiusFt,
             // Round at the fastest speed the gear-limited turn rate can track this radius (v = ω·r),
-            // not a flat 3 kt creep — a jet rounds a sharp corner at its 25 ft nose-wheel radius near
+            // not a flat 3 kt creep — a jet rounds a sharp corner at its 25 ft main-gear radius near
             // ~5 kt (aviation-reviewed). Floored at SlowTurnSpeedKts for degenerate radii.
             maxSpeedKts: CategoryPerformance.TurnRateLimitedSpeedKts(ctx.Category, roundingRadiusFt),
             toNodeId: seg.FromNodeId,
@@ -1459,14 +1459,14 @@ public sealed class GroundNavigator
     /// <summary>
     /// Corner-rounding radius (ft) for a turn of <paramref name="deflectionDeg"/> whose approach and
     /// departure legs are <paramref name="incomingRunFt"/> / <paramref name="outgoingRunFt"/> long.
-    /// Tightens from the comfortable nose-wheel radius toward the tight-turn floor when the shorter leg
+    /// Tightens from the comfortable main-gear turn radius toward the tight-turn floor when the shorter leg
     /// can't contain the comfortable tangent length (the radius whose tangent T = r·tan(δ/2) fits the
     /// shorter leg), so the rounding arc exits on the outgoing centerline rather than finishing wide.
     /// Returns the comfortable radius for a near-straight turn. Pure.
     /// </summary>
     internal static double AdaptiveCornerRadiusFt(AircraftCategory category, double deflectionDeg, double incomingRunFt, double outgoingRunFt)
     {
-        double comfortable = CategoryPerformance.NoseWheelTurnRadiusFt(category);
+        double comfortable = CategoryPerformance.MainGearTurnRadiusFt(category);
         double halfTan = Math.Tan(deflectionDeg * 0.5 * Math.PI / 180.0);
         if (halfTan <= 1e-6)
         {
@@ -1503,7 +1503,7 @@ public sealed class GroundNavigator
     )
     {
         double halfTan = Math.Tan(cornerTurnDeg * 0.5 * Math.PI / 180.0);
-        double comfortableTangentNm = CategoryPerformance.NoseWheelTurnRadiusFt(category) * halfTan / GeoMath.FeetPerNm;
+        double comfortableTangentNm = CategoryPerformance.MainGearTurnRadiusFt(category) * halfTan / GeoMath.FeetPerNm;
         bool tightLeg = edgeLengthNm < comfortableTangentNm;
         double maxRoundingNm = tightLeg ? edgeLengthNm : 0.45 * edgeLengthNm;
         roundingActive = !isLastSegment && !isStopTarget && cornerTurnDeg > EntryAlignmentThresholdDeg && maxRoundingNm > FinalNodeArrivalThresholdNm;
@@ -1561,9 +1561,9 @@ public sealed class GroundNavigator
 
         // Tangent corner-rounding: when a SHARP turn onto the next (straight)
         // segment is coming up, arrive at the tangent point T = r·tan(δ/2)
-        // before the vertex (r = nose-wheel radius, δ = corner deflection)
+        // before the vertex (r = main-gear radius, δ = corner deflection)
         // instead of at the vertex. The next segment's entry-alignment slow-turn
-        // then anchors at that tangent point, so its nose-wheel-radius arc is
+        // then anchors at that tangent point, so its main-gear-turn-radius arc is
         // tangent to BOTH legs and exits ON the outgoing centerline (aligned, no
         // lateral offset) — eliminating the pure-pursuit re-acquisition that
         // otherwise overshoots ~40° per corner. This is judgmental oversteer /
@@ -2239,12 +2239,12 @@ public sealed class GroundNavigator
             double turn = SingleCornerTurnAngle(route, dir < 0 ? next : i);
             if (turn > ConnectorCornerThresholdDeg)
             {
-                // A sharp corner (over the entry-alignment threshold) is rounded by a nose-wheel-radius
+                // A sharp corner (over the entry-alignment threshold) is rounded by a main-gear-turn-radius
                 // slow-turn at ~TurnRateLimitedSpeedKts (~5 kt for a jet), well below the angle-only comfort
                 // cap; a gentler one is taken at the angle comfort speed. Use the actual traversal speed so
                 // the whole connector holds one steady low speed rather than surging between the turns.
                 return turn > EntryAlignmentThresholdDeg
-                    ? CategoryPerformance.TurnRateLimitedSpeedKts(ctx.Category, CategoryPerformance.NoseWheelTurnRadiusFt(ctx.Category))
+                    ? CategoryPerformance.TurnRateLimitedSpeedKts(ctx.Category, CategoryPerformance.MainGearTurnRadiusFt(ctx.Category))
                     : CategoryPerformance.CornerSpeedForAngle(ctx.Category, turn);
             }
 
@@ -2275,7 +2275,7 @@ public sealed class GroundNavigator
 
         bool isLastSegment = route.CurrentSegmentIndex + 1 >= route.Segments.Count;
 
-        _cornerRoundingRadiusFt = CategoryPerformance.NoseWheelTurnRadiusFt(ctx.Category);
+        _cornerRoundingRadiusFt = CategoryPerformance.MainGearTurnRadiusFt(ctx.Category);
 
         // A corner arc must never be flown faster than its local cornering speed anywhere along it — the
         // braking curve only treats it as a future approach limit, so hold the current arc to its own profile.

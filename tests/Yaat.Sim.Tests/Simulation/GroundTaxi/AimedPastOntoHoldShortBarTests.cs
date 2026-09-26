@@ -55,7 +55,7 @@ public sealed class AimedPastOntoHoldShortBarTests(ITestOutputHelper output)
         LatLon pose = GeoMath.ProjectPoint(lead.Position, new TrueHeading(awayDeg + StandOffBearingRelDeg), StandOffFt / GeoMath.FeetPerNm);
         AircraftState aircraft = SpawnHolding(ground, pose, new TrueHeading(awayDeg + HeadingRelDeg));
 
-        double diameterFt = 2.0 * CategoryPerformance.NoseWheelTurnRadiusFt(AircraftCategorization.Categorize(AircraftType));
+        double diameterFt = 2.0 * CategoryPerformance.MainGearTurnRadiusFt(AircraftCategorization.Categorize(AircraftType));
         double toLeadFt = FeetBetween(pose, lead.Position);
         Assert.True(toLeadFt < diameterFt, $"lead node {lead.Id} is {toLeadFt:F1} ft away; the aim only walks past a node inside {diameterFt:F0} ft");
 

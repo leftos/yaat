@@ -122,7 +122,7 @@ public static class RouteCostFunction
         }
 
         // Fastest time-cost (seconds): the edge at its own speed ceiling plus what the corner into it costs
-        // — the speed dip down to the cornering speed and back, and the sweep of a nose-wheel-radius pivot.
+        // — the speed dip down to the cornering speed and back, and the sweep of a main-gear-turn-radius pivot.
         // Added on top of the nm distance component; this mixes units into the scalar by design — see the
         // class summary; the term dominates, so the nm heuristic stays admissible but weak for Fastest.
         if (ctx.Preference == RoutePreference.Fastest)
@@ -245,7 +245,7 @@ public static class RouteCostFunction
     /// the curve, so the dip is real and only its location is approximated; the arc's sweep is already in
     /// <see cref="TraversalTimeSeconds"/>. A bend between two straights: the dip to the corner speed,
     /// and — when the bend is sharper than <see cref="GroundNavigator.EntryAlignmentThresholdDeg"/>, so the
-    /// navigator rounds it with a nose-wheel-radius slow-turn — that pivot's v/R-coupled sweep, which takes
+    /// navigator rounds it with a main-gear-turn-radius slow-turn — that pivot's v/R-coupled sweep, which takes
     /// turn/ω regardless of geometry. Without this term a square pivot through a junction centre priced
     /// as two free straights beat the painted fillet under Fastest.
     /// </summary>
@@ -264,7 +264,7 @@ public static class RouteCostFunction
 
         bool slowTurn = turnDeg > GroundNavigator.EntryAlignmentThresholdDeg;
         double cornerKts = slowTurn
-            ? CategoryPerformance.TurnRateLimitedSpeedKts(category, CategoryPerformance.NoseWheelTurnRadiusFt(category))
+            ? CategoryPerformance.TurnRateLimitedSpeedKts(category, CategoryPerformance.MainGearTurnRadiusFt(category))
             : CategoryPerformance.CornerSpeedForAngle(category, turnDeg);
         double sweepSeconds = slowTurn ? turnDeg / CategoryPerformance.GroundTurnRate(category) : 0.0;
         return sweepSeconds + SpeedDipSeconds(category, taxiKts, cornerKts);
