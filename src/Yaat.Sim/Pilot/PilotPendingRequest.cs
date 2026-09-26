@@ -36,6 +36,10 @@ public sealed record PilotRequestContext(
 
     public static PilotRequestContext Runway(string? runwayId, string? facilityCallName) => new(runwayId, facilityCallName, null, null, null, null);
 
+    /// <summary>A request to enter controlled airspace: the airspace's class, its identifier and its reference position.</summary>
+    public static PilotRequestContext Airspace(AirspaceClass airspaceClass, string airspaceIdent, LatLon referencePosition) =>
+        new(null, null, airspaceClass, airspaceIdent, referencePosition, null);
+
     /// <summary>An arrival's taxi-in request: the parking the pilot asked to taxi to.</summary>
     public static PilotRequestContext TaxiIn(string? facilityCallName, string parkingName) =>
         new(null, facilityCallName, null, null, null, parkingName);

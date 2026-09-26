@@ -167,28 +167,12 @@ public static class PilotRequestTracker
                 or JoinFinalApproachCourseCommand => PilotPendingRequestResponseState.Satisfied,
                 _ => PilotPendingRequestResponseState.None,
             },
+            // A frequency change answers the request too (the next controller takes it up), but it is not a clearance:
+            // the implied-clearance set is the one ImplicitBravoClearance grants on.
             PilotPendingRequestKind.AirspaceEntry => command switch
             {
-                ClearedBravoAirspaceCommand
-                or ContactCommand
-                or FrequencyChangeApprovedCommand
-                or ClearedApproachCommand
-                or ClearedApproachStraightInCommand
-                or ClearedVisualApproachCommand
-                or PositionTurnAltitudeClearanceCommand
-                or DirectToCommand
-                or ForceDirectToCommand
-                or TurnLeftDirectToCommand
-                or TurnRightDirectToCommand
-                or EnterLeftDownwindCommand
-                or EnterRightDownwindCommand
-                or EnterLeftCrosswindCommand
-                or EnterRightCrosswindCommand
-                or EnterLeftBaseCommand
-                or EnterRightBaseCommand
-                or EnterFinalCommand
-                or MakeLeftTrafficCommand
-                or MakeRightTrafficCommand => PilotPendingRequestResponseState.Satisfied,
+                ClearedBravoAirspaceCommand or ContactCommand or FrequencyChangeApprovedCommand => PilotPendingRequestResponseState.Satisfied,
+                _ when ImplicitBravoClearance.IsImpliedClearanceCommand(command) => PilotPendingRequestResponseState.Satisfied,
                 _ => PilotPendingRequestResponseState.None,
             },
             _ => PilotPendingRequestResponseState.None,

@@ -183,8 +183,9 @@ public class AiAnsweredCallupE2ETests
             PreserveConditionals: false,
             IsScenarioScripted: true
         );
+        BravoClearanceWait? bravoWait = ImplicitBravoClearance.CaptureWait(ac);
         CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, aiCtx);
-        engine.ApplyPostDispatch(ac, compound, result, DispatchOrigin.ControllerAi);
+        engine.ApplyPostDispatch(ac, compound, result, DispatchOrigin.ControllerAi, bravoWait);
 
         Assert.True(result.Success, result.Message);
         Assert.False(ac.PendingPilotRequest!.IsOpen);

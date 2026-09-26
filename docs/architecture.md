@@ -980,6 +980,7 @@ Pilot/FrequencyActivityMeter.cs # Rolling 60-second pilot-transmission counter; 
 Pilot/FrequencyState.cs        # Sim-level active-frequency queue. Serializes solo pilot SAY/audio transmissions and gives awaited command readbacks priority over proactive calls.
 Pilot/PilotTransmission.cs     # Record: Callsign, Text, SpeechText, SourceKind, Kind. Transient typed side queue for solo-training SAY/audio broadcasts.
 Pilot/PilotPendingRequest.cs   # Snapshot-serialized pending pilot request model for solo-training follow-up reminders.
+Pilot/ImplicitBravoClearance.cs # Solo only: decides whether a heading/DCT/pattern entry/approach clearance implies a Class B clearance (waiting pilot, 120/300 s level ray, airport inside a Bravo); CaptureWait runs before dispatch (ActionArms.Aviation), TryGrant in ApplyPostDispatch sets IsClearedIntoBravo and the readback clause. See docs/airspace-database.md.
 Pilot/PilotRequestTracker.cs   # Records pilot-originated requests, applies controller responses (TAXI/TAXIAUTO/PUSH… satisfy a Taxi request), and schedules normal/standby follow-up reminders.
 Pilot/TaxiInRequest.cs         # The arrival's call to ground after the runway exit (AIM 4-3-21.c): "clear of runway 28R at W, taxi to gate 29" from the post-exit idle phases, recorded as a Taxi request with the pilot's parking
 Pilot/ArrivalParkingPicker.cs  # The parking an arriving pilot asks for: operator's own ramp / cargo apron / numbered gate / non-gate spot by callsign, free spots only, an FNV-1a draw (replay-safe)

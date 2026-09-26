@@ -1,5 +1,6 @@
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Pilot;
 
 namespace Yaat.Sim.Simulation.Actions;
 
@@ -45,6 +46,8 @@ internal static class ActionArms
             ? null
             : ReactionDelayPolicy.Decide(scenario, engine.World, aircraft, compound, ctx.Input.Baked?.ReactionDelaySeconds);
 
+        // Before the dispatch: a pattern entry or approach clearance replaces the boundary hold this reads.
+        BravoClearanceWait? bravoWait = ImplicitBravoClearance.CaptureWait(aircraft);
         CommandResult result;
         if (delay is double seconds)
         {
@@ -85,7 +88,7 @@ internal static class ActionArms
             }
         }
 
-        engine.ApplyPostDispatch(aircraft, compound, result, origin);
+        engine.ApplyPostDispatch(aircraft, compound, result, origin, bravoWait);
         return result;
     }
 

@@ -41,7 +41,7 @@ internal static class PatternCommandHandler
     // Falls back through assigned runway → filed destination → spawn-time airport
     // context. The last fallback covers VFR cold-call aircraft that have neither
     // a flight plan filed nor a runway assignment yet.
-    private static string ResolveAirportContext(AircraftState aircraft)
+    internal static string ResolveAirportContext(AircraftState aircraft)
     {
         string? assigned = aircraft.Phases?.AssignedRunway?.AirportId;
         if (!string.IsNullOrEmpty(assigned))

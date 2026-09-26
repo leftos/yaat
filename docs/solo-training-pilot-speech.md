@@ -205,7 +205,7 @@ public record CommandResult(bool Success, string? Message = null, CanonicalComma
 
 `AircraftState.PendingPilotRequest` (snapshot-serialized — schema v5) tracks one open pilot request per aircraft. `PilotRequestTracker`:
 
-- `RecordRequest(kind, nowSeconds, line, context)` — fired by the originating site (e.g. `AtParkingPhase`'s ready-to-taxi, `FinalApproachPhase`'s arrival check-in, `AirspaceBoundaryHoldPhase`'s self-hold). Takes the builder's `PilotSpeechText` and stores both forms (`LastPilotLine` / `LastPilotLineTts`).
+- `RecordRequest(kind, nowSeconds, line, context)` — fired by the originating site (e.g. `AtParkingPhase`'s ready-to-taxi, `FinalApproachPhase`'s arrival check-in, `PilotProactive.TryRequestBravoClearance`'s Class B request — see [airspace-database.md](airspace-database.md) "Solo Class B request and implicit clearance"). Takes the builder's `PilotSpeechText` and stores both forms (`LastPilotLine` / `LastPilotLineTts`).
 - `ApplyControllerResponse(compound, nowSeconds)` — maps command type to `Satisfied` / `Denied` / `Superseded` / `Standby` per request kind. Reached from `SimulationEngine.ApplyPostDispatch` on the user-issued path, from `ApplyRecordedCommand` on replay, from `RecordingManager.ApplyRecordedCommand` on snapshot reconstruction, and directly from `AutoIssueTakeoffClearance` / `ProcessTimedPresets` for clearances the automated tower or the scenario script issues.
 - `TryQueueFollowUp(nowSeconds)` — called from `PilotProactive.TickPendingRequests` each tick. Re-queues both stored forms (`LastPilotLine` + `LastPilotLineTts`) via the `PilotSpeechText` overload after 120 s normally, 90 s after `STBY`/`ROGER` (`AcknowledgePilotContactCommand`). The shorter STBY/ROGER delay reflects that a bare acknowledgment isn't substantive direction — a pilot expecting a clearance won't sit silent for several minutes after only "roger". `Taxi` and `Takeoff` are surface-only kinds: an airborne aircraft closes them as `Superseded` instead of following up, so no one re-announces "holding short … ready for departure" from 3000 ft.
 
@@ -213,7 +213,7 @@ Five request kinds: `Taxi`, `Takeoff`, `Landing`, `Approach`, `AirspaceEntry`. E
 
 ## `ApplyPostDispatch` — one hook, two hosts
 
-`ApplyPostDispatch(aircraft, compound, result, DispatchOrigin origin)` takes who issued the command
+`ApplyPostDispatch(aircraft, compound, result, DispatchOrigin origin, BravoClearanceWait? bravoWait)` also takes the solo Class B wait state (`ImplicitBravoClearance.CaptureWait`), which `ActionArms.Aviation` captures **before** dispatching because the dispatch can replace the phase list the wait is read from. It takes who issued the command
 (`Commands/DispatchOrigin.cs`; hosts derive it from the connection id — `AiConnectionId.Format(positionId)` =
 `"AI:{positionId}"` — so recorded AI commands replay with the same origin). The pilot-voice side (request resolution,
 frequency-gate release, read-back, "unable") runs whenever `PilotContacts.AnyAnswering`; two-way-comms registration

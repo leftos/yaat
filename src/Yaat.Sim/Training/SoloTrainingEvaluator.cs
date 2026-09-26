@@ -989,7 +989,12 @@ public sealed class SoloTrainingEvaluator
             ? aircraft.Approach.LastReportedTrafficCallsign.Trim().ToUpperInvariant()
         : null;
 
-    private static IEnumerable<ParsedCommand> EnumerateImmediatelyAppliedCommands(CompoundCommand command)
+    /// <summary>
+    /// The commands of <paramref name="command"/> that take effect at issue time: the first block when it has no
+    /// condition, or every block of an unconditioned compound made only of phase-transparent commands. A conditioned
+    /// block, and a later <c>;</c> block that waits on the one before it, apply later (docs/command-chaining.md).
+    /// </summary>
+    internal static IEnumerable<ParsedCommand> EnumerateImmediatelyAppliedCommands(CompoundCommand command)
     {
         if (IsUnconditionedTransparentCompound(command))
         {

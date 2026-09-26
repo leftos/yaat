@@ -1692,6 +1692,45 @@ public static class PilotResponder
         );
     }
 
+    /// <summary>The words of a "through" Class B request, which a later implied clearance reads back as "cleared through".</summary>
+    public const string BravoThroughRequest = "request clearance through the bravo";
+
+    private static string BravoPreposition(BravoClearanceWording wording) => wording == BravoClearanceWording.Into ? "into" : "through";
+
+    /// <summary>
+    /// A VFR pilot's call for a Class B clearance before reaching the boundary: a VFR aircraft needs one to enter Class B
+    /// (7110.65 §7-9-2.a). "Into" when the flight plan's destination is inside that Class B, "through" when the aircraft
+    /// only crosses it. Output: <c>"request clearance through the bravo."</c> /
+    /// <c>"november one two three alpha bravo, request clearance through the bravo."</c>
+    /// </summary>
+    public static PilotSpeechText BuildBravoClearanceRequest(AircraftState aircraft, BravoClearanceWording wording)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string request = wording == BravoClearanceWording.Into ? "request clearance into the bravo" : BravoThroughRequest;
+        return new PilotSpeechText($"{request}.", NormalizeForTts($"{spoken}, {request}."));
+    }
+
+    /// <summary>
+    /// A readback of an instruction the pilot took as its Class B clearance, saying so: the terminal form gains
+    /// <c>", cleared into the bravo"</c> (or <c>"through"</c>) at the end (<c>"fly heading 090, cleared into the bravo"</c>),
+    /// the spoken form gains it ahead of the closing callsign (<c>"fly heading zero nine zero, cleared into the bravo,
+    /// november …"</c>), or at the end when the readback does not close with the callsign.
+    /// </summary>
+    public static PilotSpeechText WithBravoClearance(AircraftState aircraft, PilotSpeechText readback, BravoClearanceWording wording)
+    {
+        string clause = $", cleared {BravoPreposition(wording)} the bravo";
+        string callsignTail = NormalizeForTts($", {SpokenOwnCallsign(aircraft)}.");
+        string tts = readback.Tts.EndsWith(callsignTail, StringComparison.Ordinal)
+            ? readback.Tts[..^callsignTail.Length] + clause + callsignTail
+            : readback.Tts.TrimEnd('.') + clause + ".";
+        return readback with
+        {
+            Terminal = readback.Terminal + clause,
+            Tts = tts,
+            RpoTerminal = readback.RpoTerminal is null ? null : readback.RpoTerminal + clause,
+        };
+    }
+
     public static PilotSpeechText BuildUnableToExit(AircraftState aircraft, string taxiway)
     {
         string spoken = SpokenOwnCallsign(aircraft);

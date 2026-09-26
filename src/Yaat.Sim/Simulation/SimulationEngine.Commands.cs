@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
@@ -151,8 +152,18 @@ public sealed partial class SimulationEngine
     /// <see cref="DispatchOrigin.Human"/> dispatch registers controller contact and is evaluator-scored;
     /// an AI-controller dispatch still resolves the pilot's pending request, releases the frequency gate,
     /// and gets the read-back / "unable" whenever anyone answers pilots (<c>PilotContacts.AnyAnswering</c>).
+    ///
+    /// <paramref name="bravoWait"/> is the Class B the pilot was waiting on before the dispatch
+    /// (<see cref="ImplicitBravoClearance.CaptureWait"/>), taken before the dispatch because a pattern entry or approach
+    /// clearance replaces the boundary hold it reads.
     /// </summary>
-    public void ApplyPostDispatch(AircraftState aircraft, CompoundCommand compound, CommandResult result, DispatchOrigin origin)
+    public void ApplyPostDispatch(
+        AircraftState aircraft,
+        CompoundCommand compound,
+        CommandResult result,
+        DispatchOrigin origin,
+        BravoClearanceWait? bravoWait
+    )
     {
         bool soloTrainingMode = Scenario?.SoloTrainingMode ?? false;
         // The pilot-voice side (request resolution, frequency gates, read-backs, "unable") runs whenever someone answers
@@ -161,9 +172,14 @@ public sealed partial class SimulationEngine
         bool answering = Scenario?.PilotContacts.AnyAnswering ?? false;
         bool human = origin == DispatchOrigin.Human;
         double elapsedSeconds = Scenario?.ElapsedSeconds ?? 0;
+        BravoClearanceWording? bravoGrant = null;
 
         if (result.Success)
         {
+            bravoGrant = Scenario is { } scenario
+                ? ImplicitBravoClearance.TryGrant(aircraft, compound, bravoWait, scenario, AirspaceDatabase.Default, LookupAirportPosition)
+                : null;
+
             if (human)
             {
                 Pilot.PilotInitialContactEligibility.RegisterControllerContact(aircraft, Scenario, compound);
@@ -201,6 +217,11 @@ public sealed partial class SimulationEngine
             );
             if (readback is not null)
             {
+                if (bravoGrant is { } wording)
+                {
+                    readback = PilotResponder.WithBravoClearance(aircraft, readback, wording);
+                }
+
                 World.ExpectPilotReadback(aircraft.Callsign, elapsedSeconds);
                 Yaat.Sim.Pilot.PilotResponder.QueueSoloPilotTransmission(
                     aircraft,

@@ -46,7 +46,77 @@ public sealed class AirspaceDatabase(IReadOnlyList<AirspaceVolume> volumes)
         return false;
     }
 
-    public AirspaceBoundaryCrossing? FindFirstProjectedEntry(AircraftState aircraft, double lookaheadSeconds)
+    /// <summary>
+    /// A Class B volume that a level track from <paramref name="from"/> along <paramref name="track"/> at
+    /// <paramref name="groundSpeedKts"/> enters within <paramref name="lookaheadSeconds"/>, or null. Volumes the start
+    /// point already lies in are skipped, and so are volumes whose altitude band does not hold
+    /// <paramref name="altitudeFtMsl"/>: a level track under a shelf never enters it. <paramref name="identFilter"/>,
+    /// when given, keeps only the volumes of that Class B (<see cref="AirspaceVolume.Ident"/>).
+    /// </summary>
+    public AirspaceVolume? FindLevelTrackClassBEntry(
+        LatLon from,
+        double altitudeFtMsl,
+        TrueHeading track,
+        double groundSpeedKts,
+        double lookaheadSeconds,
+        string? identFilter
+    )
+    {
+        double distanceNm = Math.Max(groundSpeedKts, 0.0) * lookaheadSeconds / 3600.0;
+        if (distanceNm <= 0)
+        {
+            return null;
+        }
+
+        LatLon to = GeoMath.ProjectPoint(from, track, distanceNm);
+        foreach (AirspaceVolume volume in _bravoVolumes)
+        {
+            if ((identFilter is not null) && !string.Equals(volume.Ident, identFilter, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (volume.Contains(from, altitudeFtMsl))
+            {
+                continue;
+            }
+
+            if (volume.Contains(to, altitudeFtMsl) || volume.Crosses(from, to, altitudeFtMsl, out _))
+            {
+                return volume;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The Class B volumes that hold <paramref name="position"/> at <paramref name="elevationFtMsl"/> — for an airport,
+    /// the Class B surface areas it sits in, which an aircraft must enter to land there. An airport beneath a shelf is
+    /// in none of them.
+    /// </summary>
+    public IEnumerable<AirspaceVolume> FindClassBContaining(LatLon position, double elevationFtMsl) =>
+        _bravoVolumes.Where(v => v.Contains(position, elevationFtMsl));
+
+    public AirspaceBoundaryCrossing? FindFirstProjectedEntry(AircraftState aircraft, double lookaheadSeconds) =>
+        FindFirstProjectedEntry(aircraft, lookaheadSeconds, Volumes);
+
+    /// <summary>
+    /// <see cref="FindFirstProjectedEntry(AircraftState, double)"/> over the volumes of one class only, so an earlier
+    /// entry into another class does not hide it.
+    /// </summary>
+    public AirspaceBoundaryCrossing? FindFirstProjectedEntry(AircraftState aircraft, double lookaheadSeconds, AirspaceClass onlyClass) =>
+        FindFirstProjectedEntry(
+            aircraft,
+            lookaheadSeconds,
+            onlyClass == AirspaceClass.Bravo ? _bravoVolumes : [.. Volumes.Where(v => v.Class == onlyClass)]
+        );
+
+    private static AirspaceBoundaryCrossing? FindFirstProjectedEntry(
+        AircraftState aircraft,
+        double lookaheadSeconds,
+        IReadOnlyList<AirspaceVolume> volumes
+    )
     {
         if (lookaheadSeconds <= 0)
         {
@@ -58,7 +128,7 @@ public sealed class AirspaceDatabase(IReadOnlyList<AirspaceVolume> volumes)
         double projectedAltitude = ProjectAltitude(aircraft, lookaheadSeconds);
         double lookaheadNm = GeoMath.DistanceNm(from, to);
         AirspaceBoundaryCrossing? best = null;
-        foreach (AirspaceVolume volume in Volumes)
+        foreach (AirspaceVolume volume in volumes)
         {
             if (volume.Contains(from, aircraft.Altitude))
             {

@@ -277,6 +277,10 @@ public static class PilotProactive
             return;
         }
 
+        // The request looks further ahead than the hold, so any Bravo entry the hold is about to act on was already
+        // seen here: the request goes out first, or with the hold on the same tick.
+        TryRequestBravoClearance(aircraft, scenario, airspace, airportLookup);
+
         AirspaceBoundaryCrossing? crossing = airspace.FindFirstProjectedEntry(aircraft, lookaheadSeconds: 60);
         if (crossing is null || EntryGateSatisfied(aircraft, crossing.Volume.Class))
         {
@@ -284,7 +288,7 @@ public static class PilotProactive
         }
 
         AirspaceVolume volume = crossing.Volume;
-        LatLon reference = airportLookup(volume.Ident) ?? airportLookup(volume.IcaoId) ?? crossing.Intersection;
+        LatLon reference = ResolveReference(crossing, airportLookup);
 
         // Already laterally inside the footprint means the entry can only be vertical, and no turn avoids
         // a shelf that is directly overhead — level off beneath it and stay on course instead.
@@ -312,6 +316,67 @@ public static class PilotProactive
         var phases = new PhaseList();
         phases.Add(phase);
         aircraft.Phases = phases;
+    }
+
+    /// <summary>
+    /// The pilot is free to call the student for a Class B clearance: not cleared yet, in contact with the student and
+    /// not sent to another frequency, nothing queued to say, and no other request open.
+    /// </summary>
+    private static bool CanRequestBravoClearance(AircraftState aircraft) =>
+        !aircraft.IsClearedIntoBravo
+        && aircraft.HasMadeInitialContact
+        && !aircraft.HasLeftStudentFrequency
+        && (aircraft.PendingPilotTransmissions.Count == 0)
+        && (aircraft.PendingPilotRequest is not { IsOpen: true });
+
+    private static LatLon ResolveReference(AirspaceBoundaryCrossing crossing, Func<string, LatLon?> airportLookup) =>
+        airportLookup(crossing.Volume.Ident) ?? airportLookup(crossing.Volume.IcaoId) ?? crossing.Intersection;
+
+    /// <summary>
+    /// The pilot calls for a Class B clearance ahead of the boundary (7110.65 §7-9-2.a; AIM 3-2-3) when the track
+    /// enters Class B through its side within <see cref="ImplicitBravoClearance.EntryLookaheadSeconds"/>, and records it
+    /// as an open airspace-entry request, which the tracker repeats until the controller answers. Like the arrival
+    /// approach request, it waits until the pilot is in contact with the student, the frequency queue is clear, and no
+    /// other request is open. A pilot the student has sent to another frequency (<c>CT</c>/<c>FCA</c>) no longer calls
+    /// the student. A climb into a shelf from beneath it draws no call: the pilot levels off under the shelf by choice
+    /// and says nothing (issue #154).
+    /// </summary>
+    private static void TryRequestBravoClearance(
+        AircraftState aircraft,
+        SimScenarioState scenario,
+        AirspaceDatabase airspace,
+        Func<string, LatLon?> airportLookup
+    )
+    {
+        if (!CanRequestBravoClearance(aircraft))
+        {
+            return;
+        }
+
+        AirspaceBoundaryCrossing? crossing = airspace.FindFirstProjectedEntry(
+            aircraft,
+            ImplicitBravoClearance.EntryLookaheadSeconds,
+            AirspaceClass.Bravo
+        );
+        if ((crossing is null) || crossing.Volume.ContainsLateral(aircraft.Position))
+        {
+            return;
+        }
+
+        AirspaceVolume volume = crossing.Volume;
+        string ident = string.IsNullOrWhiteSpace(volume.Ident) ? volume.IcaoId : volume.Ident;
+        PilotSpeechText line = PilotResponder.BuildBravoClearanceRequest(
+            aircraft,
+            ImplicitBravoClearance.WordingFor(aircraft, volume.Ident, airspace, airportLookup)
+        );
+        PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
+        PilotRequestTracker.RecordRequest(
+            aircraft,
+            PilotPendingRequestKind.AirspaceEntry,
+            scenario.ElapsedSeconds,
+            line,
+            PilotRequestContext.Airspace(AirspaceClass.Bravo, ident, ResolveReference(crossing, airportLookup))
+        );
     }
 
     /// <summary>

@@ -241,13 +241,20 @@ boolean gate flags on `AircraftState`:
 
 | Class | Gate condition | Backing field(s) |
 |---|---|---|
-| `Bravo` | explicit Class B clearance issued | `IsClearedIntoBravo` |
+| `Bravo` | explicit Class B clearance issued, or (solo) an implicit one — see below | `IsClearedIntoBravo` |
 | `Charlie` | two-way comms established | `HasMadeInitialContact && HasControllerAcknowledgedInitialContact` |
 | _other_ | `true` (no gate) | — |
 
 These flags live on `AircraftState` (`IsClearedIntoBravo` at `AircraftState.cs:219`,
 `HasControllerAcknowledgedInitialContact` at `:169`, `HasMadeInitialContact` at `:162`) and are
 snapshot-serialized so replays preserve gate state.
+
+### Solo Class B request and implicit clearance
+
+Solo training only (RPO and Class C unchanged), `src/Yaat.Sim/Pilot/ImplicitBravoClearance.cs` + `PilotProactive.TryRequestBravoClearance`:
+
+- **Request.** When the first **lateral** Class B entry within 120 s (`FindFirstProjectedEntry` filtered to Bravo, so an earlier Charlie/Delta entry does not hide it) is into a volume the aircraft is not cleared into, the pilot calls `request clearance into the bravo.` (destination inside that Class B at the surface) or `…through the bravo.`, recorded as a `PilotPendingRequestKind.AirspaceEntry` request that `PilotRequestTracker` repeats every 120 s (90 s after STBY/ROGER). Gated on initial contact, not having been sent off frequency (`HasLeftStudentFrequency`), an empty transmission queue and no other open request. A climb into a shelf from below stays silent (issue #154).
+- **Implicit clearance (user decision 2026-09-25).** In solo a heading/turn, DCT, pattern entry, MLT/MRT or approach clearance is a Bravo clearance (7110.65 §7-9-2 NOTE 1 says otherwise for real ops; deliberate sim convenience) when: the pilot is waiting (open Bravo request or active Bravo hold, captured before dispatch in `ActionArms.Aviation`) and — for a heading/DCT — its level ray enters the waited-on Bravo within 300 s (pattern/approach grant unconditionally while waiting); or, not waiting, a heading/DCT ray enters an uncleared Bravo within 120 s; or a pattern entry/approach clearance is for an airport inside a Bravo. Only the immediately applied part of a compound grants (`AT …` and later `;` blocks do not). The readback gains `, cleared into the bravo` (`, cleared through the bravo` when the open request asked to go through). With `IsClearedIntoBravo` set, the boundary hold's gate is satisfied, so a vector no longer ends the orbit only for the next second to re-arm it.
 
 `HasControllerAcknowledgedInitialContact` is set whenever the student issues a successful command
 (`RoomEngine.SendCommandAsync`, mirrored in `SimulationEngine.SendCommand`). `HasMadeInitialContact` is

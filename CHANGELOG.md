@@ -6,6 +6,11 @@
 
 - A red banner warns when a solo training session has no pilot voice set up, with a button to its settings.
 - The first unpause of a solo session without pilot voice asks you to set it up or start anyway.
+- In solo training, VFR pilots ask for a Class B clearance about two minutes before the boundary and repeat the request if unanswered.
+
+### Fixed
+
+- In solo training, VFR aircraft vectored toward Class B no longer turn back at the boundary; the vector clears them in and they read back "cleared into the bravo".
 
 ## v0.13.5-beta [2026/09/25]
 

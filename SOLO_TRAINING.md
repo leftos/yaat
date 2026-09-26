@@ -256,7 +256,7 @@ The full syntax and behavior details live in [Command Reference: Solo Training C
 
 Solo Training keeps several aviation-facing safeguards active:
 
-- VFR aircraft hold outside Class B airspace until cleared with `CLBRV`.
+- VFR aircraft ask for a Class B clearance about two minutes before the boundary and repeat the request if unanswered; they hold outside until cleared with `CLBRV`, or until you vector them (heading, direct, pattern entry, approach clearance) into the Bravo, which counts as the clearance and is read back as "cleared into the bravo".
 - VFR aircraft hold outside Class C airspace until two-way communications are established.
 - Aircraft on a published approach warn near DA/MDA if no landing clearance exists, then go around at minimums if still uncleared.
 - Aircraft on approaches without published minimums keep the legacy short-final warning and 200 ft AGL no-clearance go-around.

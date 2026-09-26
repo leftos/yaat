@@ -77,7 +77,7 @@ Most commands work the same in Solo Training and RPO mode. The differences below
 | Field advisory | `RFIS <clock> <miles>` | Bare `RFIS` and `RFISF` are RPO conveniences | The structured form gives the pilot field-position information, records visual-approach field proof, and runs the normal field-acquisition flow. |
 | Safety alert | `SAFAL <clock> <miles> [L\|R] [C\|D]` | Same syntax | Resolves a target by clock position and whole-mile distance. It proves a safety alert for that recipient-target pair, but does not set traffic in sight or satisfy `FOLLOW`. |
 | Wake advisory | `CWT`, `CTO ... CWT`, or `CLAND [NODEL] CWT` | Same syntax | Records caution-wake-turbulence proof. Bare `CWT` proves only when the Session Report sees exactly one current wake-advisory context for that aircraft. |
-| VFR Class B entry | `CLBRV`, `CBRV`, or `BRAVO` | Same syntax | In Solo Training, this satisfies the VFR Class B entry gate. |
+| VFR Class B entry | `CLBRV`, `CBRV`, or `BRAVO` | Same syntax | In Solo Training, this satisfies the VFR Class B entry gate; a vector, direct, pattern entry or approach clearance into the Bravo does too. |
 | Class C contact without a maneuver | `STBY`, `STANDBY`, `ROGER`, or `RGR` | Same syntax | In Solo Training, this can establish two-way communications for Class C when targeted at that aircraft. It does not satisfy a separate pending pilot request. |
 | Visual follow | Structured `RTIS` first, then `FOLLOW` or `CVA ... FOLLOW` | RPO mode can use forced traffic-in-sight shortcuts | The aircraft must have reported the traffic in sight before visual follow behavior can start. |
 
@@ -1462,7 +1462,7 @@ Changing your active position also updates the radar display:
 | `CT 121.9` | Tell pilot to contact a position by frequency in MHz (±5 kHz tolerance covers 25 kHz and 8.33 kHz spacing) |
 | `CT 3O` | Tell pilot to contact a position by TCP code; first match wins on ambiguity, prefer callsign or frequency forms when multiple positions share a TCP |
 | `FCA` | Frequency change approved — VFR dismissal when there is no next controller (FAA 7110.65 §7-6-11) |
-| `CLBRV` / `CBRV` / `BRAVO` | Cleared through/to enter/out of Bravo airspace. In solo training, satisfies the VFR Class B entry gate (FAA 7110.65 §7-9-2). |
+| `CLBRV` / `CBRV` / `BRAVO` | Cleared through/to enter/out of Bravo airspace. In solo training, satisfies the VFR Class B entry gate (FAA 7110.65 §7-9-2); a heading, direct, pattern entry or approach clearance into the Bravo also counts as the clearance there, and the pilot reads back "cleared into the bravo". |
 | `STBY` / `STANDBY` / `ROGER` / `RGR` | Acknowledge pilot contact without issuing a maneuver. In solo training, satisfies the VFR Class C two-way-comms gate when targeted at that aircraft (AIM 3-2-4; FAA 7110.65 §7-8-4). |
 | `GHOST N12345 28R` | Create ghost track off 28R (auto-stagger, scenario airport) |
 | `GHOST N12345 KOAK 28R` | Create ghost track off 28R at KOAK |
