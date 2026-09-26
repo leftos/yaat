@@ -160,6 +160,7 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
   `BuildUnable` (rejected command, gated by `CommandDefinition.ProducesPilotUnable` — see the authoring rule below);
   `BuildUnableAirspaceAltitude` (an assigned altitude that would enter un-cleared Class B/C — AIM §5-5-6.a.3
   makes advising ATC the pilot's obligation, and the line names the altitude they *can* hold);
+  `BuildArmedFollowClause` (a `FOLLOWG` armed at a runway bar reads back `follow the traffic, hold short of runway 1R`: the follow form never names the leader, and the hold-short is read back per AIM 4-3-18a.9(c)).
   `WithBravoClearance` (solo: appends `, cleared into/through the bravo` to a readback that implies a Class B clearance — see airspace-database.md).
 - **Airspace requests** — `BuildBravoClearanceRequest` (`request clearance into/through the bravo.`; into when the destination sits in that Class B at the surface — the controller's CLEARED THROUGH / TO ENTER split, 7110.65 §7-9-2.a; AIM §3-2-3.d.2).
 - **Initial contact / check-in** — `BuildAirborneCheckIn` → `BuildIfrAirborne` / `BuildVfrAirborne`;

@@ -379,8 +379,31 @@ public static class PilotResponder
             SayExitFixEstimateCommand => null,
             PushbackCommand push => PushReadbackPhrases.FromCommand(push).ToSpeech(),
             PushbackMultiCommand move => PushReadbackPhrases.FromCommand(move).ToSpeech(),
+            FollowGroundCommand follow when GroundCommandHandler.RunwayHoldWithArmedFollow(aircraft) is { } armedHold => BuildArmedFollowClause(
+                follow,
+                armedHold.RunwayEndFacing(aircraft)
+            ),
             _ => VerbalizeDual(cmd, personality, activityLevel),
         };
+
+    /// <summary>
+    /// A FOLLOWG taken at a runway bar arms the follow and leaves the aircraft holding short, so the readback states
+    /// the hold-short with it — "follow the traffic, hold short of runway one right": "ATC is required to obtain a
+    /// readback from the pilot of all runway hold short instructions" (AIM 4-3-18), and the crew says the follow
+    /// does not take it across. The leader is "the traffic" in the spoken and solo forms, like every follow call;
+    /// its callsign is the RPO diagnostic.
+    /// </summary>
+    private static PilotSpeechText BuildArmedFollowClause(FollowGroundCommand follow, string runway)
+    {
+        string terminalHoldShort = $"hold short of runway {PhraseologyVerbalizer.CompactRunway(runway)}";
+        return new PilotSpeechText(
+            $"follow the traffic, {terminalHoldShort}",
+            $"follow the traffic, hold short of runway {PhraseologyVerbalizer.SpellRunway(runway)}"
+        )
+        {
+            RpoTerminal = $"follow {follow.TargetCallsign}, {terminalHoldShort}",
+        };
+    }
 
     /// <summary>
     /// True when the bar this <c>HS</c> armed is one the aircraft cannot make. The command handler flags it at

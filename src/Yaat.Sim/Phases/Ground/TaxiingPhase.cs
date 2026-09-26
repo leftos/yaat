@@ -1059,6 +1059,31 @@ public sealed class TaxiingPhase : Phase
     }
 
     /// <summary>
+    /// The <see cref="CrossingRunwayPhase"/> for releasing a hold whose onward phases have been replaced by an
+    /// armed follow (<c>FOLLOWG</c> at a runway bar), built from the route exactly as <see cref="BuildResumePhases"/>
+    /// builds it when the hold is taken — but with no onward <see cref="TaxiingPhase"/> or terminal phase, because
+    /// the follow, not the route, takes the aircraft on from the far side. Null when the bar is not a runway
+    /// crossing, or when the route does not resume from <paramref name="holdShort"/> (its cursor segment starts
+    /// elsewhere — a follower stopped at a bar its route never passes), so the caller finds a crossing another way.
+    /// The route cursor is left where the hold put it; the crossing phase writes it when it completes.
+    /// </summary>
+    internal static CrossingRunwayPhase? BuildCrossingFromRouteBar(TaxiRoute route, HoldShortPoint holdShort, AirportGroundLayout? layout)
+    {
+        if (
+            !NeedsRunwayCrossing(holdShort, layout)
+            || (route.CurrentSegment is not { } resumeSegment)
+            || (resumeSegment.FromNodeId != holdShort.NodeId)
+        )
+        {
+            return null;
+        }
+
+        return FindRunwayCrossingExitNode(route, holdShort, layout, requireSameRunwayExit: false) is { } exitNodeId
+            ? new CrossingRunwayPhase(holdShort.NodeId, exitNodeId, holdShort.TargetName)
+            : null;
+    }
+
+    /// <summary>
     /// Whether crossing <paramref name="holdShort"/> means driving over a runway, so the aircraft needs
     /// a <see cref="CrossingRunwayPhase"/> rather than a plain segment advance. A hold-short sitting on
     /// a runway bar qualifies whether it is an implicit <see cref="HoldShortReason.RunwayCrossing"/> or an

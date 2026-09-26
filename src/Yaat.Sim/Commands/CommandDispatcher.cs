@@ -2481,6 +2481,14 @@ public static class CommandDispatcher
             case HoldAtFixHoverCommand hfixH:
                 return PatternCommandHandler.TryHoldAtFix(aircraft, hfixH.FixName, hfixH.Lat, hfixH.Lon, null);
 
+            // RES with a follow armed behind a runway hold would start the follow at the bar, which stops at that
+            // same bar again: only a RES that is a crossing clearance for the held runway releases it, putting the
+            // crossing in front of the follow. The departure bar keeps HoldingShortPhase's own refusal (LUAW/CTO).
+            case ResumeCommand armedResume
+                when GroundCommandHandler.RunwayHoldWithArmedFollow(aircraft)
+                    is { HoldShort.Reason: not HoldShortReason.DestinationRunway } armedHold:
+                return GroundCommandHandler.TryResumeAcrossArmedHold(aircraft, groundLayout, armedResume, armedHold);
+
             // A helicopter air-taxiing or relocating is held with HPP (hover present position),
             // which routes through the hold-command cases above into a VfrHold hover; to continue
             // the relocation the controller re-issues ATXI/LAND @spot. The ground HOLD/RES verbs

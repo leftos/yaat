@@ -4,6 +4,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 using Yaat.Sim.Tests.Simulation.GroundTaxi;
 
@@ -49,7 +50,13 @@ public class FollowingPhaseHoldShortTests(ITestOutputHelper output)
         }
 
         RunwayInfo runway1R = SfoGroundHarness.Runway("1R");
-        AircraftState aircraft = PlaceFollower(ground, onRunway.Position, GeoMath.BearingTo(onRunway.Position, bar.Position), "28L");
+        AircraftState aircraft = PlaceFollower(
+            ground,
+            onRunway.Position,
+            GeoMath.BearingTo(onRunway.Position, bar.Position),
+            "28L",
+            new FollowingPhase(Leader)
+        );
 
         Assert.True(
             RunwayOccupancy.IsOnPavement(aircraft, runway1R),
@@ -70,16 +77,16 @@ public class FollowingPhaseHoldShortTests(ITestOutputHelper output)
     /// </summary>
     [Fact]
     public void Follower_AtTheBarOfItsOwnDestinationRunway_HoldsAsDestinationRunway() =>
-        AssertHoldReasonApproachingThe1RBar(destinationRunway: "1R", expected: HoldShortReason.DestinationRunway);
+        AssertHoldReasonApproachingThe1RBar(destinationRunway: "1R", new FollowingPhase(Leader), expected: HoldShortReason.DestinationRunway);
 
     /// <summary>
     /// A bar protecting any other runway is a crossing, whatever the follower is ultimately departing from.
     /// </summary>
     [Fact]
     public void Follower_AtTheBarOfAnotherRunway_HoldsAsRunwayCrossing() =>
-        AssertHoldReasonApproachingThe1RBar(destinationRunway: "28L", expected: HoldShortReason.RunwayCrossing);
+        AssertHoldReasonApproachingThe1RBar(destinationRunway: "28L", new FollowingPhase(Leader), expected: HoldShortReason.RunwayCrossing);
 
-    private void AssertHoldReasonApproachingThe1RBar(string destinationRunway, HoldShortReason expected)
+    private void AssertHoldReasonApproachingThe1RBar(string destinationRunway, FollowingPhase phase, HoldShortReason? expected)
     {
         if (Build() is not { } ground)
         {
@@ -99,7 +106,7 @@ public class FollowingPhaseHoldShortTests(ITestOutputHelper output)
         GroundNode bar = bars[0];
         TrueHeading awayFromRunway = TaxiCoverageRunner.TaxiwayDepartureHeading(bar);
         LatLon position = GeoMath.ProjectPoint(bar.Position, awayFromRunway, ApproachFt / FeetPerNm);
-        AircraftState aircraft = PlaceFollower(ground, position, GeoMath.BearingTo(position, bar.Position), destinationRunway);
+        AircraftState aircraft = PlaceFollower(ground, position, GeoMath.BearingTo(position, bar.Position), destinationRunway, phase);
 
         if (RunwayOccupancy.IsOnPavement(aircraft, SfoGroundHarness.Runway("1R")))
         {
@@ -109,10 +116,60 @@ public class FollowingPhaseHoldShortTests(ITestOutputHelper output)
 
         Tick(aircraft, layout);
 
+        if (expected is null)
+        {
+            Assert.DoesNotContain(aircraft.Phases!.Phases, p => p is HoldingShortPhase);
+            return;
+        }
+
         HoldingShortPhase hold = Assert.Single(aircraft.Phases!.Phases.OfType<HoldingShortPhase>());
         output.WriteLine($"held at node {hold.HoldShort.NodeId} target={hold.HoldShort.TargetName} reason={hold.HoldShort.Reason}");
         Assert.Equal(expected, hold.HoldShort.Reason);
     }
+
+    /// <summary>
+    /// A crossing clearance that names the follower's own departure runway does not carry it through its departure
+    /// bar: that runway is left by LUAW or CTO, so the follow still holds there as the destination.
+    /// </summary>
+    [Fact]
+    public void CrossingClearanceNamingItsOwnDestinationRunway_StillHoldsAtTheDepartureBar() =>
+        AssertHoldReasonApproachingThe1RBar(
+            destinationRunway: "1R",
+            new FollowingPhase(Leader) { CrossingClearedRunways = [RunwayIdentifier.Parse("1R")] },
+            expected: HoldShortReason.DestinationRunway
+        );
+
+    /// <summary>A live crossing clearance for 1R carries the follower through a 1R bar without stopping.</summary>
+    [Fact]
+    public void UnspentCrossingClearance_PassesTheClearedRunwaysBar() =>
+        AssertHoldReasonApproachingThe1RBar(destinationRunway: "28L", ClearedForOneRight(hasBeenOnIt: false), expected: null);
+
+    /// <summary>
+    /// The clearance is used once. A follower that has been on 1R under it and is now clear of 1R has spent it, so
+    /// a 1R bar met later in the follow stops it again. SFO has no follow geometry that meets a second bar of the
+    /// same runway after crossing it, so the "has been on it" flag is set through the snapshot the phase restores from.
+    /// </summary>
+    [Fact]
+    public void SpentCrossingClearance_HoldsAtALaterBarOfThatRunway() =>
+        AssertHoldReasonApproachingThe1RBar(
+            destinationRunway: "28L",
+            ClearedForOneRight(hasBeenOnIt: true),
+            expected: HoldShortReason.RunwayCrossing
+        );
+
+    private static FollowingPhase ClearedForOneRight(bool hasBeenOnIt) =>
+        FollowingPhase.FromSnapshot(
+            new FollowingPhaseDto
+            {
+                Status = (int)PhaseStatus.Pending,
+                ElapsedSeconds = 0,
+                Requirements = [],
+                TargetCallsign = Leader,
+                TimeSinceLastLog = 0,
+                CrossingClearedRunways = ["1R"],
+                HasBeenOnClearedRunway = hasBeenOnIt,
+            }
+        );
 
     private SfoGround? Build()
     {
@@ -129,7 +186,13 @@ public class FollowingPhaseHoldShortTests(ITestOutputHelper output)
     /// A follower rolling toward a bar, carrying a taxi route that ends at <paramref name="destinationRunway"/>.
     /// Not added to the world: these tests drive the phase directly, so nothing else may move it.
     /// </summary>
-    private static AircraftState PlaceFollower(SfoGround ground, LatLon position, double headingDegrees, string destinationRunway)
+    private static AircraftState PlaceFollower(
+        SfoGround ground,
+        LatLon position,
+        double headingDegrees,
+        string destinationRunway,
+        FollowingPhase phase
+    )
     {
         var aircraft = new AircraftState
         {
@@ -157,7 +220,7 @@ public class FollowingPhaseHoldShortTests(ITestOutputHelper output)
             ],
         };
         aircraft.Phases = new PhaseList();
-        aircraft.Phases.Add(new FollowingPhase(Leader));
+        aircraft.Phases.Add(phase);
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, ground.Layout));
         return aircraft;
     }

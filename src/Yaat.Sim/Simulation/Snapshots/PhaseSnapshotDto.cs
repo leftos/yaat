@@ -356,6 +356,13 @@ public sealed class CrossingRunwayPhaseDto : PhaseDto
     /// reason as <see cref="Navigator"/>. Defaults to 0 for legacy snapshots.
     /// </summary>
     public int CrossingRouteSegmentIndex { get; init; }
+
+    /// <summary>
+    /// The crossing path the phase was handed (<c>CrossingRunwayPhase.OverOwnPath</c>) instead of slicing the
+    /// aircraft's assigned taxi route — the crossing that releases a follow armed at a runway bar. Null for the
+    /// ordinary crossing, and in snapshots written before the field existed.
+    /// </summary>
+    public TaxiRouteDto? OwnPath { get; init; }
 }
 
 /// <summary>
@@ -441,6 +448,18 @@ public sealed class FollowingPhaseDto : PhaseDto
 {
     public required string TargetCallsign { get; init; }
     public required double TimeSinceLastLog { get; init; }
+
+    /// <summary>
+    /// Runways the crossing clearance that started this follow cleared (<c>FollowingPhase.CrossingClearedRunways</c>).
+    /// Empty for a follow no crossing clearance started, and in snapshots written before the field existed.
+    /// </summary>
+    public List<string> CrossingClearedRunways { get; init; } = [];
+
+    /// <summary>
+    /// Whether the follower has been on the pavement of one of <see cref="CrossingClearedRunways"/> — the clearance is
+    /// spent once it is clear of them again. False in snapshots written before the field existed.
+    /// </summary>
+    public bool HasBeenOnClearedRunway { get; init; }
 }
 
 /// <summary>

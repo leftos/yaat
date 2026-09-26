@@ -9,7 +9,7 @@ namespace Yaat.Sim.Phases.Ground;
 /// <summary>
 /// Aircraft crosses a runway at normal taxi speed (runway-crossing speed kept only
 /// as a no-stop floor) by following the taxi line via a <see cref="GroundNavigator"/>
-/// over the crossing slice of the aircraft's <see cref="TaxiRoute"/>. Each tick steers
+/// over the crossing slice of its source route (own path, else AssignedTaxiRoute). Each tick steers
 /// via the navigator (which respects arcs, fillets and intermediate runway-centerline
 /// nodes that the painted line traverses, and slows for any curve via its arc-speed
 /// cap), then completes ½ aircraft length past the exit-side hold-short, following
@@ -34,16 +34,20 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     private readonly int _targetNodeId = targetNodeId;
     private readonly string? _runwayId = runwayId;
 
+    // A crossing path handed to the phase instead of read from the aircraft's AssignedTaxiRoute (see OverOwnPath).
+    // Null for the ordinary crossing, which slices the aircraft's own route.
+    private TaxiRoute? _ownPath;
+
     // Built lazily in OnStart (or first OnTick after snapshot restore) by
-    // slicing the aircraft's AssignedTaxiRoute between approach and target.
+    // slicing the source route (the own path, else AssignedTaxiRoute) between approach and target.
     private TaxiRoute? _crossingRoute;
     private GroundNavigator? _navigator;
     private bool _initialized;
     private double _timeSinceLastLog;
 
-    // Where the slice sits in the aircraft's own route, so the crossing can hand the route back at the
-    // segment the aircraft is standing on. All three are recomputed by TryBuildCrossingRoute from the
-    // restored route, so none of them is snapshotted (see FromSnapshot).
+    // Where the slice sits in the source route (own path, else AssignedTaxiRoute), so the crossing can hand the
+    // route back at the segment the aircraft is standing on. All three are recomputed by TryBuildCrossingRoute
+    // from the restored source route, so none of them is snapshotted (see FromSnapshot).
     private int _exitRouteIndex = -1;
     private int _tailClearFullSegments;
     private bool _tailClearPartial;
@@ -54,6 +58,18 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
 
     /// <summary>The crossing slice the navigator is playing back (entry bar → exit bar → tail-clearance). Null until built.</summary>
     internal TaxiRoute? CrossingRoute => _crossingRoute;
+
+    /// <summary>
+    /// A crossing that drives <paramref name="path"/> — a route from the entry-side bar across the runway to the
+    /// exit-side one — rather than the aircraft's assigned taxi route, which it leaves untouched: neither read, nor
+    /// replaced, nor its cursor moved. For a crossing whose onward movement is not the taxi route (a follow armed
+    /// at the bar), where the route must keep describing the clearance the aircraft taxis under.
+    /// </summary>
+    public static CrossingRunwayPhase OverOwnPath(int approachNodeId, int targetNodeId, string? runwayId, TaxiRoute path) =>
+        new(approachNodeId, targetNodeId, runwayId) { _ownPath = path };
+
+    /// <summary>The route the crossing slices: the path it was handed, else the aircraft's assigned taxi route.</summary>
+    private TaxiRoute? SourceRoute(PhaseContext ctx) => _ownPath ?? ctx.Aircraft.Ground.AssignedTaxiRoute;
 
     public override void OnStart(PhaseContext ctx)
     {
@@ -93,7 +109,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             // Degenerate fallback: no route slice available. Stop where we are
             // so the next phase can take over (or be inserted) without driving
             // the aircraft anywhere by guesswork. Should only happen if the
-            // phase is constructed in a test without an AssignedTaxiRoute.
+            // phase is constructed in a test without a source route (own path, else AssignedTaxiRoute).
             ctx.Targets.TargetSpeed = 0;
             HandRouteBack(ctx);
             return true;
@@ -161,7 +177,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     }
 
     /// <summary>
-    /// Slice <see cref="AircraftGroundState.AssignedTaxiRoute"/> between the
+    /// Slice the source route (own path, else <see cref="AircraftGroundState.AssignedTaxiRoute"/>) between the
     /// entry- and exit-side hold-short nodes, extend it ½ aircraft length past
     /// the exit along the route's own onward segments for tail clearance, and
     /// hand the result to a new <see cref="GroundNavigator"/>. Idempotent —
@@ -174,7 +190,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             return;
         }
 
-        TaxiRoute? route = ctx.Aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = SourceRoute(ctx);
         if (route is null || route.Segments.Count == 0)
         {
             return;
@@ -229,7 +245,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     }
 
     /// <summary>
-    /// The crossing slice and where it sits in the aircraft's own route: the segments from the entry-side
+    /// The crossing slice and where it sits in the source route (own path, else AssignedTaxiRoute): the segments from the entry-side
     /// hold-short through the exit-side one plus the tail-clearance extension, the route index of the exit
     /// segment, how many onward route segments the tail-clearance consumed whole, and whether it ends on a
     /// partial (virtual) cut inside the next one.
@@ -377,6 +393,12 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
     /// </summary>
     private void HandRouteBack(PhaseContext ctx)
     {
+        // A crossing over its own path has no route of the aircraft's to hand back.
+        if (_ownPath is not null)
+        {
+            return;
+        }
+
         TaxiRoute? route = ctx.Aircraft.Ground.AssignedTaxiRoute;
         if (route is null)
         {
@@ -421,7 +443,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             return;
         }
 
-        TaxiRoute? route = ctx.Aircraft.Ground.AssignedTaxiRoute;
+        TaxiRoute? route = SourceRoute(ctx);
         if (route is null)
         {
             return;
@@ -483,19 +505,21 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             TimeSinceLastLog = _timeSinceLastLog,
             Navigator = _navigator?.ToSnapshot(),
             CrossingRouteSegmentIndex = _crossingRoute?.CurrentSegmentIndex ?? 0,
+            OwnPath = _ownPath?.ToSnapshot(),
         };
 
-    public static CrossingRunwayPhase FromSnapshot(CrossingRunwayPhaseDto dto)
+    public static CrossingRunwayPhase FromSnapshot(CrossingRunwayPhaseDto dto, AirportGroundLayout? groundLayout)
     {
         var phase = new CrossingRunwayPhase(dto.ApproachNodeId, dto.TargetNodeId, dto.CrossingRunwayId)
         {
             _timeSinceLastLog = dto.TimeSinceLastLog,
+            _ownPath = dto.OwnPath is { } ownPath ? TaxiRoute.FromSnapshot(ownPath, groundLayout) : null,
             Status = (PhaseStatus)dto.Status,
             ElapsedSeconds = dto.ElapsedSeconds,
         };
         phase.RestoreRequirements(dto.Requirements);
         // Leave _initialized=false so the first OnTick rebuilds the
-        // navigator + route slice from the restored AssignedTaxiRoute.
+        // navigator + route slice from the restored source route (own path, else AssignedTaxiRoute).
         // dto.Navigator / dto.CrossingRouteSegmentIndex are forward-compat
         // placeholders; the rebuilt slice is canonical because the route
         // (and the airport layout) are what FromSnapshot can actually

@@ -449,24 +449,24 @@ public class PhaseAcceptanceAuditTests
     }
 
     /// <summary>
-    /// FOLLOWG is refused at any bar protecting a runway — an explicit <c>HS 1R</c>, a crossing, or the
-    /// departure bar. Following a leader is not a crossing clearance: the aircraft would trail its leader
-    /// onto the runway with nothing having authorised it.
+    /// FOLLOWG at any bar protecting a runway — an explicit <c>HS 1R</c>, a crossing, or the departure bar — is
+    /// armed, not refused and not phase-clearing. The hold stays — following a leader is not a crossing clearance, and
+    /// 7110.65 §3-7-2d issues the crossing clearance in addition to the follow — so the phase must not be cleared; the
+    /// handler queues the follow behind it.
     /// </summary>
     [Theory]
     [InlineData("1R", HoldShortReason.ExplicitHoldShort)]
     [InlineData("01R/19L", HoldShortReason.RunwayCrossing)]
     [InlineData("28L", HoldShortReason.DestinationRunway)]
-    public void HoldingShortPhase_RunwayBar_RejectsFollowGround(string targetName, HoldShortReason reason)
+    public void HoldingShortPhase_RunwayBar_ArmsFollowGround(string targetName, HoldShortReason reason)
     {
         HoldingShortPhase phase = HoldingShortAt(targetName, reason);
 
-        CommandAcceptance acceptance = phase.CanAcceptCommand(CanonicalCommandType.FollowGround);
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.FollowGround));
 
-        Assert.True(acceptance.IsRejected, $"FOLLOWG must not apply while holding short of runway {targetName}");
-        Assert.Contains("CROSS", acceptance.Reason);
-
-        // The refusal points at the way across that does exist, rather than leaving the controller guessing.
-        Assert.Contains("issue CROSS <rwy>; FOLLOWG <leader>", acceptance.Reason);
+        // The catch-all names what a runway bar offers: FOLLOWG among them, RES not.
+        CommandAcceptance refusal = phase.CanAcceptCommand(CanonicalCommandType.ClimbMaintain);
+        Assert.Contains("CROSS/LUAW/CTO/HSC, FOLLOWG", refusal.Reason);
+        Assert.DoesNotContain("RES", refusal.Reason);
     }
 }

@@ -187,7 +187,7 @@ public class RouteIncompleteHoldTests(ITestOutputHelper output)
 
         HoldingShortPhase hold = TickToHoldAtRouteEnd(ground, aircraft, endNode);
         Assert.Equal(HoldShortReason.RunwayCrossing, hold.HoldShort.Reason);
-        Assert.True(hold.CanAcceptCommand(CanonicalCommandType.FollowGround).IsRejected, "a runway bar refuses FOLLOWG: it protects the runway");
+        Assert.True(hold.CanAcceptCommand(CanonicalCommandType.FollowGround).IsAllowed, "a runway bar arms FOLLOWG behind the hold");
 
         var runway = RunwayIdentifier.Parse(Assert.IsType<string>(endHold.TargetName));
         GroundNode bar = ground.Layout.Nodes.Values.First(n =>

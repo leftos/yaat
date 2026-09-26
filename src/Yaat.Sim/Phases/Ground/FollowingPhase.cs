@@ -37,6 +37,23 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
 
     public string TargetCallsign => _targetCallsign;
 
+    private IReadOnlyList<RunwayIdentifier> _crossingClearedRunways = [];
+    private bool _hasBeenOnClearedRunway;
+
+    /// <summary>
+    /// Runways the crossing clearance that started this follow cleared — <c>FOLLOWG X; CROSS 1L 1R</c> releasing a
+    /// follow armed at the 1L bar clears both, one clearance for the pair (7110.65 §3-7-2c). The follow does not stop
+    /// at a bar protecting any of them (<see cref="CheckRunwayHoldShort"/>), except the follower's own departure bar.
+    /// The clearance is used once: the first tick the aircraft is clear of every cleared runway's pavement after
+    /// having been on one, it expires (<see cref="ExpireUsedCrossingClearance"/>). Empty for a follow no crossing
+    /// started.
+    /// </summary>
+    public IReadOnlyList<RunwayIdentifier> CrossingClearedRunways
+    {
+        get => _crossingClearedRunways;
+        init => _crossingClearedRunways = value;
+    }
+
     public override string Name => $"Following {_targetCallsign}";
 
     public override void OnStart(PhaseContext ctx)
@@ -53,6 +70,7 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             return false;
         }
 
+        ExpireUsedCrossingClearance(ctx);
         if (CheckRunwayHoldShort(ctx))
         {
             return true;
@@ -142,6 +160,8 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
             Requirements = SnapshotRequirements(),
             TargetCallsign = _targetCallsign,
             TimeSinceLastLog = _timeSinceLastLog,
+            CrossingClearedRunways = [.. _crossingClearedRunways.Select(static r => r.ToString())],
+            HasBeenOnClearedRunway = _hasBeenOnClearedRunway,
         };
 
     public static FollowingPhase FromSnapshot(FollowingPhaseDto dto)
@@ -149,6 +169,8 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
         var phase = new FollowingPhase(dto.TargetCallsign)
         {
             _timeSinceLastLog = dto.TimeSinceLastLog,
+            CrossingClearedRunways = [.. dto.CrossingClearedRunways.Select(RunwayIdentifier.Parse)],
+            _hasBeenOnClearedRunway = dto.HasBeenOnClearedRunway,
             Status = (PhaseStatus)dto.Status,
             ElapsedSeconds = dto.ElapsedSeconds,
         };
@@ -175,7 +197,14 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
                 continue;
             }
 
-            HoldShortReason reason = BarIsOwnDestination(ctx, node) ? HoldShortReason.DestinationRunway : HoldShortReason.RunwayCrossing;
+            // A crossing clearance never covers the follower's own departure bar: that runway is left by LUAW/CTO.
+            bool ownDestination = BarIsOwnDestination(ctx, node);
+            if (!ownDestination && IsClearedToCross(node))
+            {
+                continue;
+            }
+
+            HoldShortReason reason = ownDestination ? HoldShortReason.DestinationRunway : HoldShortReason.RunwayCrossing;
             Log.LogDebug(
                 "[Follow] {Callsign}: hold short triggered at runway node {NodeId} ({Runway}), reason={Reason}",
                 ctx.Aircraft.Callsign,
@@ -242,6 +271,42 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
 
         return false;
     }
+
+    /// <summary>Whether the bar protects a runway the crossing clearance that started this follow already cleared.</summary>
+    private bool IsClearedToCross(GroundNode node) =>
+        (node.RunwayId is { } barRunway) && _crossingClearedRunways.Any(cleared => barRunway.Overlaps(cleared));
+
+    /// <summary>
+    /// Spend the crossing clearance once it has been used: note when the aircraft is on the pavement of a cleared
+    /// runway, and drop the clearance the first tick after that it is clear of all of them, so a bar of the same
+    /// runway met later in the follow stops the aircraft again.
+    /// </summary>
+    private void ExpireUsedCrossingClearance(PhaseContext ctx)
+    {
+        if ((_crossingClearedRunways.Count == 0) || ctx.GroundLayout is null)
+        {
+            return;
+        }
+
+        bool onClearedRunway = RunwayOccupancy
+            .AirportRunways(ctx.GroundLayout.AirportId)
+            .Any(runway => _crossingClearedRunways.Any(cleared => runway.Id.Overlaps(cleared)) && RunwayOccupancy.IsOnPavement(ctx.Aircraft, runway));
+        if (onClearedRunway)
+        {
+            _hasBeenOnClearedRunway = true;
+            return;
+        }
+
+        if (_hasBeenOnClearedRunway)
+        {
+            Log.LogDebug("[Follow] {Callsign}: clear of the runways its crossing clearance covered; clearance spent", ctx.Aircraft.Callsign);
+            _crossingClearedRunways = [];
+            _hasBeenOnClearedRunway = false;
+        }
+    }
+
+    /// <summary>Whether the crossing clearance has been used on a cleared runway and not yet spent (snapshotted).</summary>
+    public bool HasBeenOnClearedRunway => _hasBeenOnClearedRunway;
 
     /// <summary>
     /// Whether this bar is the one the follower's own taxi clearance ends at. FOLLOWG does not erase the route

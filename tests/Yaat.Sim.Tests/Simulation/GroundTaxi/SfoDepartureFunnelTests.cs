@@ -192,6 +192,55 @@ public class SfoDepartureFunnelTests(ITestOutputHelper output)
     }
 
     // ---------------------------------------------------------------------------------------------
+    // Fact E — "follow, cross" issued at the 1R bar.
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// FUN4, staged short of 1R on F1, is handed to FUN3 at the bar in one transmission — <c>FOLLOWG FUN3; CROSS 1R</c>,
+    /// the follow plus crossing clearance of 7110.65 §3-7-2d. The FOLLOWG arms behind the hold and the CROSS
+    /// releases it, so FUN4 crosses 1R along F1 and comes off the far side following FUN3, never stopping at a 1R bar
+    /// again and never touching 28L.
+    /// </summary>
+    [Fact]
+    public void Fun4_FollowGThenCross_CrossesOneRightAndFollowsFun3()
+    {
+        if (StageAll() is not { } funnel)
+        {
+            return;
+        }
+
+        AssertStaged(funnel, WaitForStaged(funnel));
+
+        CommandResult res = funnel.Ground.Engine.SendCommand("FUN3", "RES");
+        Assert.True(res.Success, res.Message);
+        CommandResult followCross = funnel.Ground.Engine.SendCommand("FUN4", "FOLLOWG FUN3; CROSS 1R");
+        output.WriteLine($"FUN4 <- 'FOLLOWG FUN3; CROSS 1R' => success={followCross.Success} msg={followCross.Message}");
+        Assert.True(followCross.Success, $"'FOLLOWG FUN3; CROSS 1R' at the 1R bar was rejected: {followCross.Message}");
+
+        bool crossing = false;
+        bool wasOn1R = false;
+        int following = RunUntil(
+            funnel,
+            _ => (funnel.Fun4.Phases?.CurrentPhase is FollowingPhase) && wasOn1R && !RunwayOccupancy.IsOnPavement(funnel.Fun4, funnel.Runway1R),
+            ReleaseBudgetSeconds,
+            second =>
+            {
+                crossing |= funnel.Fun4.Phases?.CurrentPhase is CrossingRunwayPhase;
+                wasOn1R |= RunwayOccupancy.IsOnPavement(funnel.Fun4, funnel.Runway1R);
+                if (crossing && HoldsShortOf(funnel.Fun4, "1R"))
+                {
+                    Assert.Fail($"t={second}s: FUN4 stopped at a 1R bar again after the CROSS: {DescribeAll(funnel)}");
+                }
+            }
+        );
+
+        Assert.True(following > 0, $"FUN4 never came off 1R following FUN3 within {ReleaseBudgetSeconds}s: {DescribeAll(funnel)}");
+        Assert.True(crossing, "FUN4 reached FollowingPhase without crossing 1R in a CrossingRunwayPhase");
+        Assert.Equal("FUN3", Assert.IsType<FollowingPhase>(funnel.Fun4.Phases?.CurrentPhase).TargetCallsign);
+        Assert.Null(funnel.Entered28L);
+    }
+
+    // ---------------------------------------------------------------------------------------------
     // Staging
     // ---------------------------------------------------------------------------------------------
 

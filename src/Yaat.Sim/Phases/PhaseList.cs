@@ -436,7 +436,7 @@ public sealed class PhaseList
         dto switch
         {
             HoldingShortPhaseDto d => HoldingShortPhase.FromSnapshot(d),
-            CrossingRunwayPhaseDto d => CrossingRunwayPhase.FromSnapshot(d),
+            CrossingRunwayPhaseDto d => CrossingRunwayPhase.FromSnapshot(d, groundLayout),
             ClearRunwayPhaseDto d => ClearRunwayPhase.FromSnapshot(d),
             AirTaxiPhaseDto d => AirTaxiPhase.FromSnapshot(d),
             HoldingInPositionPhaseDto d => HoldingInPositionPhase.FromSnapshot(d),

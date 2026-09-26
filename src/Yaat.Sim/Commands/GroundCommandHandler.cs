@@ -4458,7 +4458,7 @@ public static class GroundCommandHandler
 
         if (currentHoldMatch is not null)
         {
-            CommandResult continuation = TryPrepareCompletedRouteCrossing(aircraft, holdPhase!);
+            CommandResult continuation = PrepareOnwardAfterCrossingRelease(aircraft, holdPhase!, cross.RunwayIds);
             if (!continuation.Success)
             {
                 return continuation;
@@ -4488,7 +4488,7 @@ public static class GroundCommandHandler
                 );
             }
 
-            CommandResult continuation = TryPrepareCompletedRouteCrossing(aircraft, holdPhase);
+            CommandResult continuation = PrepareOnwardAfterCrossingRelease(aircraft, holdPhase, [target]);
             if (!continuation.Success)
             {
                 return continuation;
@@ -4548,8 +4548,24 @@ public static class GroundCommandHandler
     /// </summary>
     internal static bool HasArrivedAtHoldShort(AircraftState aircraft) => aircraft.Ground.AssignedTaxiRoute is null or { IsComplete: true };
 
-    private static CommandResult TryPrepareCompletedRouteCrossing(AircraftState aircraft, HoldingShortPhase holdPhase)
+    /// <summary>
+    /// Prepare what follows the hold a crossing clearance is about to release: a follow armed behind it gets a
+    /// crossing in front of it, and a completed route gets a synthetic crossing to the far side. Anything else —
+    /// a route still in progress — already queues its own crossing. <paramref name="clearedRunways"/> are the
+    /// runways the clearance names (the held runway included), which a released follow keeps crossing without
+    /// stopping.
+    /// </summary>
+    private static CommandResult PrepareOnwardAfterCrossingRelease(
+        AircraftState aircraft,
+        HoldingShortPhase holdPhase,
+        IReadOnlyList<string> clearedRunways
+    )
     {
+        if ((aircraft.Phases is { } followPhases) && (ArmedFollowBehindHold(followPhases) is { } armedFollow))
+        {
+            return TryPrepareCrossingIntoArmedFollow(aircraft, holdPhase, followPhases, armedFollow, clearedRunways);
+        }
+
         if (aircraft.Ground.AssignedTaxiRoute is { IsComplete: false })
         {
             return CommandDispatcher.Ok("");
@@ -4565,16 +4581,9 @@ public static class GroundCommandHandler
             return CommandDispatcher.Ok("");
         }
 
-        AirportGroundLayout? layout = aircraft.Ground.Layout;
-        if (layout is null)
+        if (FindCrossingFromBar(aircraft, holdPhase, runwayId) is not { } crossing)
         {
-            return new CommandResult(false, "No airport ground layout available");
-        }
-
-        CompletedRouteCrossing? crossing = FindCompletedRouteCrossing(aircraft, layout, holdPhase.HoldShort.NodeId, runwayId);
-        if (crossing is null)
-        {
-            return new CommandResult(false, $"No crossing route found for {holdPhase.HoldShort.TargetName ?? "runway"}");
+            return NoCrossingRoute(holdPhase);
         }
 
         // Mark the synthetic crossing route complete up front: CrossingRunwayPhase.HandRouteBack re-asserts
@@ -4586,6 +4595,84 @@ public static class GroundCommandHandler
             new CrossingRunwayPhase(holdPhase.HoldShort.NodeId, crossing.ExitNodeId, runwayId.ToString()),
             new HoldingInPositionPhase(),
         ]);
+        return CommandDispatcher.Ok("");
+    }
+
+    /// <summary>
+    /// A crossing route across <paramref name="runwayId"/> from the held bar to its far-side bar, found on the layout
+    /// rather than taken from the taxi route. Null when there is no layout or no such route.
+    /// </summary>
+    private static CompletedRouteCrossing? FindCrossingFromBar(AircraftState aircraft, HoldingShortPhase holdPhase, RunwayIdentifier runwayId) =>
+        aircraft.Ground.Layout is { } layout ? FindCompletedRouteCrossing(aircraft, layout, holdPhase.HoldShort.NodeId, runwayId) : null;
+
+    private static CommandResult NoCrossingRoute(HoldingShortPhase holdPhase) =>
+        new(false, $"No crossing route found for {holdPhase.HoldShort.TargetName ?? "runway"}");
+
+    /// <summary>
+    /// The follow queued immediately behind the current hold, if any: the one a FOLLOWG armed at the bar
+    /// (<see cref="ArmFollowBehindRunwayHold"/>), or the resume follow <c>FollowingPhase.CheckRunwayHoldShort</c>
+    /// leaves when a follower stops at a bar. Either way the aircraft is to keep following once it is across.
+    /// </summary>
+    private static FollowingPhase? ArmedFollowBehindHold(PhaseList phases)
+    {
+        int next = phases.CurrentIndex + 1;
+        return next < phases.Phases.Count ? phases.Phases[next] as FollowingPhase : null;
+    }
+
+    /// <summary>
+    /// CROSS releasing a hold with a follow armed behind it: put the crossing in front of the follow, so the
+    /// aircraft tracks the painted line across and clear of the runway before it starts following — a follow
+    /// started at the bar would stop at that same bar again, since <see cref="FollowingPhase"/> holds short of
+    /// any runway bar immediately ahead of it. The crossing comes from the taxi route when the route resumes
+    /// from this bar (<see cref="TaxiingPhase.BuildCrossingFromRouteBar"/>); otherwise — a completed route, no
+    /// route, or a follower stopped at a bar its route's cursor has moved past — a crossing path is found across
+    /// the runway from the bar and handed to the crossing (<see cref="CrossingRunwayPhase.OverOwnPath"/>).
+    ///
+    /// <para>The taxi route is never replaced here. <see cref="FollowingPhase"/> reads its destination hold-short
+    /// to file the follower's departure bar as <see cref="HoldShortReason.DestinationRunway"/>, and
+    /// <see cref="RunwayDepartureQueue"/> reads it to queue the aircraft; a synthetic crossing route in its place
+    /// would file the departure bar as a crossing, which RES would then release onto the departure runway.</para>
+    ///
+    /// <para>The follow that starts once across records <paramref name="clearedRunways"/>, so a clearance naming
+    /// several runways (<c>CROSS 1L 1R</c>) takes the follower across all of them. A bar that protects no runway
+    /// needs no crossing and leaves the follow to start from the bar.</para>
+    /// </summary>
+    private static CommandResult TryPrepareCrossingIntoArmedFollow(
+        AircraftState aircraft,
+        HoldingShortPhase holdPhase,
+        PhaseList phases,
+        FollowingPhase armedFollow,
+        IReadOnlyList<string> clearedRunways
+    )
+    {
+        if (!IsRunwayHoldShort(aircraft, holdPhase.HoldShort, out RunwayIdentifier runwayId))
+        {
+            return CommandDispatcher.Ok("");
+        }
+
+        CrossingRunwayPhase? crossing =
+            (aircraft.Ground.AssignedTaxiRoute is { IsComplete: false } route)
+                ? TaxiingPhase.BuildCrossingFromRouteBar(route, holdPhase.HoldShort, aircraft.Ground.Layout)
+                : null;
+        if (crossing is null)
+        {
+            if (FindCrossingFromBar(aircraft, holdPhase, runwayId) is not { } found)
+            {
+                return NoCrossingRoute(holdPhase);
+            }
+
+            crossing = CrossingRunwayPhase.OverOwnPath(holdPhase.HoldShort.NodeId, found.ExitNodeId, runwayId.ToString(), found.Route);
+        }
+
+        var follow = new FollowingPhase(armedFollow.TargetCallsign)
+        {
+            // A CROSS list may name taxiways too (CROSS 1L B); only the runways bind the follow's hold-short check.
+            CrossingClearedRunways =
+            [
+                .. clearedRunways.Where(static r => (r.Length > 0) && char.IsAsciiDigit(r[0])).Select(static r => RunwayIdentifier.Parse(r)),
+            ],
+        };
+        phases.ReplaceUpcoming([crossing, follow]);
         return CommandDispatcher.Ok("");
     }
 
@@ -4766,7 +4853,7 @@ public static class GroundCommandHandler
                 );
             }
 
-            CommandResult continuation = TryPrepareCompletedRouteCrossing(aircraft, holdPhase);
+            CommandResult continuation = PrepareOnwardAfterCrossingRelease(aircraft, holdPhase, [holdPhase.HoldShort.TargetName ?? ""]);
             if (!continuation.Success)
             {
                 return continuation;
@@ -4910,6 +4997,11 @@ public static class GroundCommandHandler
             return new CommandResult(false, reason);
         }
 
+        if ((acceptance.IsAllowed) && (currentPhase is HoldingShortPhase runwayHold))
+        {
+            return ArmFollowBehindRunwayHold(aircraft, runwayHold, follow.TargetCallsign);
+        }
+
         // Replace phases with FollowingPhase. Clear() marks the active phase as Skipped
         // and advances CurrentIndex past the end, but does not remove the phase entries —
         // truncate the list before adding so Start() lands on the new FollowingPhase at index 0.
@@ -4924,6 +5016,81 @@ public static class GroundCommandHandler
 
         return CommandDispatcher.Ok($"Follow {follow.TargetCallsign}");
     }
+
+    /// <summary>
+    /// FOLLOWG at a runway holding position: the follow is armed rather than started. A follow is not a crossing
+    /// clearance — 7110.65 §3-7-2d pairs "follow (traffic)" with a separate "cross (runway)" when the aircraft must
+    /// cross to follow — so the hold stays current and <c>Ground.Hold</c> is left alone, and the aircraft does not
+    /// move until a crossing (or takeoff) clearance releases the bar; every phase queued after the hold is replaced
+    /// by the <see cref="FollowingPhase"/>. The taxi route stays assigned — the departure queue and
+    /// <c>FollowingPhase</c>'s own destination-bar check read it, and the crossing CROSS builds in front of the
+    /// follow is sliced from it where it can be (<see cref="TryPrepareCrossingIntoArmedFollow"/>).
+    ///
+    /// <para>Refused at the departure bar while the taxi to it is still in progress: CROSS is refused there (the
+    /// runway is the departure runway, left by LUAW or CTO), so a follow armed behind it could never be released.
+    /// Once the route has completed at the bar CROSS takes the aircraft across, and the follow arms.</para>
+    /// </summary>
+    private static CommandResult ArmFollowBehindRunwayHold(AircraftState aircraft, HoldingShortPhase hold, string leader)
+    {
+        if ((hold.HoldShort.Reason == HoldShortReason.DestinationRunway) && !HasArrivedAtHoldShort(aircraft))
+        {
+            return new CommandResult(false, $"holding short of departure runway {hold.RunwayEndFacing(aircraft)}; issue LUAW or CTO");
+        }
+
+        aircraft.Phases!.ReplaceUpcoming([new FollowingPhase(leader)]);
+
+        string target = hold.RunwayEndFacing(aircraft);
+        Log.LogDebug("[Follow] {Callsign}: follow {Leader} armed behind the hold short of {Target}", aircraft.Callsign, leader, target);
+        return CommandDispatcher.Ok($"Follow {leader}, hold short of {target}");
+    }
+
+    /// <summary>
+    /// RES at a runway bar with a follow armed behind it. A RES that names the held runway among its crossings
+    /// (<c>RES CROSS 1R</c>) is a crossing clearance, and releases the hold the way CROSS does — the crossing goes
+    /// in front of the follow; any other runways it names are pre-cleared on the route and its hold-shorts armed.
+    /// A bare RES, or one that does not name the held runway, is refused: starting the follow at the bar would
+    /// stop it at that same bar again.
+    /// </summary>
+    public static CommandResult TryResumeAcrossArmedHold(
+        AircraftState aircraft,
+        AirportGroundLayout? layout,
+        ResumeCommand resume,
+        HoldingShortPhase hold
+    )
+    {
+        string? heldRunway = resume.CrossRunways.FirstOrDefault(r => HoldShortAnnotator.TargetMatches(hold.HoldShort.TargetName, r));
+        if (heldRunway is null)
+        {
+            string runway = hold.RunwayEndFacing(aircraft);
+            return new CommandResult(false, $"unable, holding short of {runway} — issue CROSS {runway}");
+        }
+
+        List<string> upcoming = [.. resume.CrossRunways.Where(r => !string.Equals(r, heldRunway, StringComparison.OrdinalIgnoreCase))];
+        CommandResult applied = TryApplyRouteCrossingsAndHoldShorts(aircraft, layout, upcoming, resume.HoldShorts);
+        if (!applied.Success)
+        {
+            return applied;
+        }
+
+        CommandResult onward = PrepareOnwardAfterCrossingRelease(aircraft, hold, resume.CrossRunways);
+        if (!onward.Success)
+        {
+            return onward;
+        }
+
+        hold.SatisfyClearance(ClearanceType.RunwayCrossing);
+        return CommandDispatcher.Ok(CommandDescriber.DescribeNatural(resume));
+    }
+
+    /// <summary>
+    /// The follow armed behind a runway hold, if the aircraft has one: the hold is current, protects a runway, and a
+    /// <see cref="FollowingPhase"/> is queued right behind it — armed by FOLLOWG at the bar, or the resume follow a
+    /// follower leaves when it stops at a bar. Null otherwise.
+    /// </summary>
+    public static HoldingShortPhase? RunwayHoldWithArmedFollow(AircraftState aircraft) =>
+        (aircraft.Phases is { CurrentPhase: HoldingShortPhase { ProtectsARunway: true } hold } phases) && (ArmedFollowBehindHold(phases) is not null)
+            ? hold
+            : null;
 
     internal static CommandResult TryGiveWay(AircraftState aircraft, string targetCallsign)
     {
