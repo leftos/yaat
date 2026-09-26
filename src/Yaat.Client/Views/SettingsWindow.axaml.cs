@@ -194,6 +194,8 @@ public partial class SettingsWindow : Window
             {
                 // No conflicts — import all directly
                 vm.ImportMacros(new MacroImportResult { NewMacros = newMacros, Conflicts = [] });
+                vm.MacroImportNote = "";
+                vm.MacroImportIsError = false;
                 return;
             }
 
@@ -202,11 +204,15 @@ public partial class SettingsWindow : Window
             if (result is not null)
             {
                 vm.ImportMacros(result);
+                vm.MacroImportNote = "";
+                vm.MacroImportIsError = false;
             }
         }
-        catch (JsonException)
+        catch (Exception ex) when ((ex is JsonException) || (ex is IOException))
         {
-            // Invalid file format — silently ignore
+            Log.LogWarning(ex, "Could not import macros from {Path}", path);
+            vm.MacroImportNote = "Could not read that file as a macro file.";
+            vm.MacroImportIsError = true;
         }
     }
 

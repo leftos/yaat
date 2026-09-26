@@ -18,6 +18,17 @@ namespace Yaat.Client.Views.Radar;
 internal readonly record struct DatablockOverlays(bool ShowConflictAlerts, AircraftModel? ConflictPeer, bool ShowAtpa, AircraftModel? AtpaLead);
 
 /// <summary>
+/// Where and how a full datablock draws — its text origin, the style it measures in, and the
+/// no-landing-clearance warning preference — bundled so <see cref="RadarDatablockLayout.Compute"/>
+/// takes one positional argument for them.
+/// </summary>
+/// <param name="BlockX">Text origin X, in canvas coordinates.</param>
+/// <param name="BlockY">Text origin Y — the first line's baseline.</param>
+/// <param name="Style">Style the block measures its lines in.</param>
+/// <param name="ShowNoLandingClearance">Whether the NoLndgClnc warning may draw.</param>
+internal readonly record struct DatablockPlacement(float BlockX, float BlockY, TextStyle Style, bool ShowNoLandingClearance);
+
+/// <summary>
 /// Layout result for the radar full datablock. Pure: shared by renderer (draw) and
 /// hit-test paths so geometry can be computed once.
 /// </summary>
@@ -166,15 +177,7 @@ internal readonly struct RadarDatablockLayout
         ReserveConflictSlot = reserveConflictSlot;
     }
 
-    public static RadarDatablockLayout Compute(
-        AircraftModel ac,
-        float blockX,
-        float blockY,
-        TextStyle style,
-        bool showNoLandingClearance,
-        DatablockOverlays overlays,
-        string callsignMarker
-    )
+    public static RadarDatablockLayout Compute(AircraftModel ac, DatablockPlacement placement, DatablockOverlays overlays, string callsignMarker)
     {
         bool isVfr = ac.FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase);
         string line1 = (isVfr ? $"{ac.Callsign}*" : ac.Callsign) + callsignMarker;
@@ -217,7 +220,7 @@ internal readonly struct RadarDatablockLayout
         // No-landing-clearance warning flashes in sync with the handoff indicator (500 ms cycle).
         // Belt-and-suspenders on auto-CTL — the sim already gates the warning on !AutoClearedToLand,
         // but if the toggle flips mid-session before the next state push, the flash stays off.
-        bool noLndgClncActive = showNoLandingClearance && ac.NoLandingClearanceWarningActive && !ac.IsAutoClearedToLand;
+        bool noLndgClncActive = placement.ShowNoLandingClearance && ac.NoLandingClearanceWarningActive && !ac.IsAutoClearedToLand;
         bool noLndgClncFlashOn = noLndgClncActive && (Environment.TickCount64 / 500 % 2 == 0);
         string line5 = noLndgClncFlashOn ? NoLandingClearanceText : "";
 
@@ -237,18 +240,18 @@ internal readonly struct RadarDatablockLayout
         bool conflictFlashOn = conflictActive && (Environment.TickCount64 / 500 % 2 == 0);
         string conflictLine = conflictFlashOn ? conflictStable : "";
 
-        float w1 = style.Measure(line1);
-        float w2 = style.Measure(line2);
-        float wSquawk = squawkLine.Length > 0 ? style.Measure(squawkLine) : 0f;
-        float w3 = reserveOwnerSlot ? style.Measure(line3Stable) : 0f;
-        float w4 = line4.Length > 0 ? style.Measure(line4) : 0f;
+        float w1 = placement.Style.Measure(line1);
+        float w2 = placement.Style.Measure(line2);
+        float wSquawk = squawkLine.Length > 0 ? placement.Style.Measure(squawkLine) : 0f;
+        float w3 = reserveOwnerSlot ? placement.Style.Measure(line3Stable) : 0f;
+        float w4 = line4.Length > 0 ? placement.Style.Measure(line4) : 0f;
         // Reserve width for the warning line whenever it's active so the rect width doesn't pulse.
-        float w5 = noLndgClncActive ? style.Measure(NoLandingClearanceText) : 0f;
-        float w6 = line6.Length > 0 ? style.Measure(line6) : 0f;
+        float w5 = noLndgClncActive ? placement.Style.Measure(NoLandingClearanceText) : 0f;
+        float w6 = line6.Length > 0 ? placement.Style.Measure(line6) : 0f;
         // Reserve width for the conflict field whenever it's active so the rect doesn't pulse.
-        float wConflict = conflictActive ? style.Measure(conflictStable) : 0f;
+        float wConflict = conflictActive ? placement.Style.Measure(conflictStable) : 0f;
         // The ATPA line never flashes, so its drawn text is also its reserved width.
-        float wAtpa = atpaLine.Length > 0 ? style.Measure(atpaLine) : 0f;
+        float wAtpa = atpaLine.Length > 0 ? placement.Style.Measure(atpaLine) : 0f;
         float textW = MathF.Max(MathF.Max(MathF.Max(w1, w2), MathF.Max(w3, w4)), MathF.Max(MathF.Max(w5, w6), MathF.Max(wSquawk, wConflict)));
         textW = MathF.Max(textW, wAtpa);
 
@@ -285,13 +288,18 @@ internal readonly struct RadarDatablockLayout
             lineCount++;
         }
 
-        float lineH = style.LineHeight;
-        var rect = new SKRect(blockX - Pad, blockY - style.Size - Pad, blockX + textW + Pad, blockY + (lineCount - 1) * lineH + Pad);
+        float lineH = placement.Style.LineHeight;
+        var rect = new SKRect(
+            placement.BlockX - Pad,
+            placement.BlockY - placement.Style.Size - Pad,
+            placement.BlockX + textW + Pad,
+            placement.BlockY + (lineCount - 1) * lineH + Pad
+        );
 
         return new RadarDatablockLayout(
             rect,
-            blockX,
-            blockY,
+            placement.BlockX,
+            placement.BlockY,
             lineH,
             line1,
             line2,

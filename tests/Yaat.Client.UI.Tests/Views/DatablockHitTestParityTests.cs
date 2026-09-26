@@ -49,10 +49,7 @@ public class DatablockHitTestParityTests
         RadarDatablockLayout
             .Compute(
                 ac,
-                0,
-                0,
-                DrawStyleAt(size),
-                canvas.FlashNoLandingClearance,
+                new DatablockPlacement(0, 0, DrawStyleAt(size), canvas.FlashNoLandingClearance),
                 new DatablockOverlays(canvas.ShowConflictAlerts, ConflictPeer: null, canvas.ShowAtpa, atpaLead),
                 callsignMarker: ""
             )

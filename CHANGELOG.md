@@ -22,6 +22,8 @@
 - In solo training, VFR aircraft vectored toward Class B no longer turn back at the boundary; the vector clears them in and they read back "cleared into the bravo".
 - A landing aircraft that can reach no exit at normal braking brakes firmly for the next one instead of stopping on the runway.
 - Rewinding to a point saved against an older airport layout no longer sends a landing aircraft down a broken exit path.
+- Copying view settings with pop-outs now also pops out or docks the Controllers and METAR windows.
+- Importing a macro file that cannot be read shows an error beside the Import button instead of doing nothing.
 
 ## v0.13.5-beta [2026/09/25]
 

@@ -127,6 +127,12 @@ public partial class SettingsViewModel : ObservableObject
     private bool _verbImportIsError;
 
     [ObservableProperty]
+    private string _macroImportNote = "";
+
+    [ObservableProperty]
+    private bool _macroImportIsError;
+
+    [ObservableProperty]
     private bool _isAdminMode;
 
     [ObservableProperty]

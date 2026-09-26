@@ -41,15 +41,7 @@ public class RadarDatablockLayoutTests
         ac.TransponderMode = "C";
         TextStyle style = CreateStyle();
 
-        var layout = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         Assert.Equal("", layout.Line4);
     }
@@ -61,15 +53,7 @@ public class RadarDatablockLayoutTests
         ac.TransponderMode = "Standby";
         TextStyle style = CreateStyle();
 
-        var layout = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         Assert.Equal("ModeC", layout.Line4);
     }
@@ -81,26 +65,10 @@ public class RadarDatablockLayoutTests
         TextStyle style = CreateStyle();
 
         ac.TransponderMode = "C";
-        var charlie = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var charlie = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         ac.TransponderMode = "Standby";
-        var standby = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var standby = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         float delta = standby.Rect.Bottom - charlie.Rect.Bottom;
         Assert.Equal(charlie.LineHeight, delta, precision: 3);
@@ -114,26 +82,10 @@ public class RadarDatablockLayoutTests
         TextStyle style = CreateStyle();
 
         ac.TransponderMode = "C";
-        var withLine3Only = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var withLine3Only = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         ac.TransponderMode = "Standby";
-        var withBoth = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var withBoth = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         Assert.NotEqual("", withLine3Only.Line3);
         Assert.Equal("", withLine3Only.Line4);
@@ -158,15 +110,7 @@ public class RadarDatablockLayoutTests
         ac.CwtCode = "L";
         TextStyle style = CreateStyle();
 
-        var layout = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         Assert.Contains("C182", layout.Line2);
     }
@@ -180,15 +124,7 @@ public class RadarDatablockLayoutTests
         ac.CwtCode = "L";
         TextStyle style = CreateStyle();
 
-        var layout = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         Assert.Contains("PA28", layout.Line2);
         Assert.DoesNotContain("C182", layout.Line2);
@@ -205,15 +141,7 @@ public class RadarDatablockLayoutTests
         ac.CwtCode = "L";
         TextStyle style = CreateStyle();
 
-        var layout = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         Assert.NotEqual(-1, layout.TypeTokenStart);
         Assert.Equal("L/B744", layout.Line2.Substring(layout.TypeTokenStart, layout.TypeTokenLength));
@@ -228,15 +156,7 @@ public class RadarDatablockLayoutTests
         ac.CwtCode = "";
         TextStyle style = CreateStyle();
 
-        var layout = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         Assert.Equal(-1, layout.TypeTokenStart);
         Assert.Equal(0, layout.TypeTokenLength);
@@ -249,15 +169,7 @@ public class RadarDatablockLayoutTests
         ac.NoLandingClearanceWarningActive = false;
         TextStyle style = CreateStyle();
 
-        var layout = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: true,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, true), overlays: None, callsignMarker: "");
 
         Assert.Equal("", layout.Line5);
     }
@@ -269,15 +181,7 @@ public class RadarDatablockLayoutTests
         ac.NoLandingClearanceWarningActive = true;
         TextStyle style = CreateStyle();
 
-        var layout = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         Assert.Equal("", layout.Line5);
     }
@@ -294,15 +198,7 @@ public class RadarDatablockLayoutTests
         // catch the on-phase too.
         for (int i = 0; i < 5; i++)
         {
-            var layout = RadarDatablockLayout.Compute(
-                ac,
-                blockX: 100,
-                blockY: 100,
-                style,
-                showNoLandingClearance: true,
-                overlays: None,
-                callsignMarker: ""
-            );
+            var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, true), overlays: None, callsignMarker: "");
             Assert.Equal("", layout.Line5);
             // Sleep ~120 ms so the next iteration likely lands in the opposite half of the
             // 500 ms flash cycle — confirms the gate suppresses both halves.
@@ -323,15 +219,7 @@ public class RadarDatablockLayoutTests
         // ~120 ms intervals over ~1.4 s is enough to hit both halves at least once.
         for (int i = 0; i < 12 && (!seenOn || !seenOff); i++)
         {
-            var layout = RadarDatablockLayout.Compute(
-                ac,
-                blockX: 100,
-                blockY: 100,
-                style,
-                showNoLandingClearance: true,
-                overlays: None,
-                callsignMarker: ""
-            );
+            var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, true), overlays: None, callsignMarker: "");
             if (layout.Line5 == "NoLndgClnc")
             {
                 seenOn = true;
@@ -354,29 +242,13 @@ public class RadarDatablockLayoutTests
         TextStyle style = CreateStyle();
 
         ac.NoLandingClearanceWarningActive = false;
-        var baseline = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: true,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var baseline = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, true), overlays: None, callsignMarker: "");
 
         ac.NoLandingClearanceWarningActive = true;
         var warningHeights = new HashSet<float>();
         for (int i = 0; i < 10; i++)
         {
-            var layout = RadarDatablockLayout.Compute(
-                ac,
-                blockX: 100,
-                blockY: 100,
-                style,
-                showNoLandingClearance: true,
-                overlays: None,
-                callsignMarker: ""
-            );
+            var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, true), overlays: None, callsignMarker: "");
             warningHeights.Add(layout.Rect.Height);
             Thread.Sleep(120);
         }
@@ -421,10 +293,7 @@ public class RadarDatablockLayoutTests
         {
             var layout = RadarDatablockLayout.Compute(
                 ac,
-                blockX: 100,
-                blockY: 100,
-                style,
-                showNoLandingClearance: false,
+                new DatablockPlacement(100, 100, style, false),
                 overlays: new DatablockOverlays(true, peer, false, null),
                 callsignMarker: ""
             );
@@ -544,10 +413,7 @@ public class RadarDatablockLayoutTests
 
         var baseline = RadarDatablockLayout.Compute(
             ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
+            new DatablockPlacement(100, 100, style, false),
             overlays: new DatablockOverlays(true, peer, false, null),
             callsignMarker: ""
         );
@@ -559,10 +425,7 @@ public class RadarDatablockLayoutTests
         {
             var layout = RadarDatablockLayout.Compute(
                 ac,
-                blockX: 100,
-                blockY: 100,
-                style,
-                showNoLandingClearance: false,
+                new DatablockPlacement(100, 100, style, false),
                 overlays: new DatablockOverlays(true, peer, false, null),
                 callsignMarker: ""
             );
@@ -589,10 +452,7 @@ public class RadarDatablockLayoutTests
 
         var layout = RadarDatablockLayout.Compute(
             ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
+            new DatablockPlacement(100, 100, style, false),
             overlays: new DatablockOverlays(false, CreateConflictPeer(), false, null),
             callsignMarker: ""
         );
@@ -664,15 +524,7 @@ public class RadarDatablockLayoutTests
         ac.AutoScratchpad1 = "OAK";
         TextStyle style = CreateStyle();
 
-        var layout = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         Assert.Equal("2S .OAK", layout.Line3);
     }
@@ -686,15 +538,7 @@ public class RadarDatablockLayoutTests
         ac.AutoScratchpad1 = "OAK";
         TextStyle style = CreateStyle();
 
-        var layout = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         Assert.Equal("2S .ABC", layout.Line3);
     }
@@ -705,15 +549,7 @@ public class RadarDatablockLayoutTests
         AircraftModel ac = CreateModel();
         ac.OwnerSectorCode = "2S";
 
-        var layout = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            CreateStyle(),
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, CreateStyle(), false), overlays: None, callsignMarker: "");
 
         Assert.Equal("2S", layout.Line3);
         Assert.DoesNotContain(".", layout.Line3, StringComparison.Ordinal);
@@ -758,15 +594,7 @@ public class RadarDatablockLayoutTests
         ac.PointoutToTcpCode = "3E";
         TextStyle style = CreateStyle();
 
-        var layout = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         Assert.Equal("2S 3E* .ABC +XY", layout.Line3);
     }
@@ -778,15 +606,7 @@ public class RadarDatablockLayoutTests
         ac.OwnerSectorCode = "2S";
         TextStyle style = CreateStyle();
 
-        var layout = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         Assert.Equal("2S", layout.Line3);
     }
@@ -797,15 +617,7 @@ public class RadarDatablockLayoutTests
         AircraftModel ac = CreateModel();
         TextStyle style = CreateStyle();
 
-        var layout = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         Assert.Equal("", layout.Line6);
     }
@@ -816,26 +628,10 @@ public class RadarDatablockLayoutTests
         AircraftModel ac = CreateModel();
         TextStyle style = CreateStyle();
 
-        var baseline = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var baseline = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         ac.Note = "Watch wake";
-        var withNote = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var withNote = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         Assert.Equal("Watch wake", withNote.Line6);
         Assert.Equal(baseline.LineCount + 1, withNote.LineCount);
@@ -850,7 +646,7 @@ public class RadarDatablockLayoutTests
     {
         AircraftModel ac = CreateModel();
         TextStyle style = CreateStyle();
-        SKRect rectAtOrigin = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
+        SKRect rectAtOrigin = RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, style, false), overlays: None, callsignMarker: "").Rect;
         var manual = new SKPoint(5, 5);
 
         SKPoint result = RadarDatablockLayout.ResolveBlockOffset(
@@ -871,7 +667,7 @@ public class RadarDatablockLayoutTests
         AircraftModel ac = CreateModel();
         ac.StudentLeaderDirection = 8; // North, non-default
         TextStyle style = CreateStyle();
-        SKRect rectAtOrigin = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
+        SKRect rectAtOrigin = RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, style, false), overlays: None, callsignMarker: "").Rect;
         var deconflict = new SKPoint(99, 99);
 
         SKPoint result = RadarDatablockLayout.ResolveBlockOffset(ac, syncLeader: true, hasManual: false, default, rectAtOrigin, deconflict);
@@ -884,7 +680,7 @@ public class RadarDatablockLayoutTests
     {
         AircraftModel ac = CreateModel();
         TextStyle style = CreateStyle();
-        SKRect rectAtOrigin = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
+        SKRect rectAtOrigin = RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, style, false), overlays: None, callsignMarker: "").Rect;
         var deconflict = new SKPoint(99, 99);
 
         SKPoint result = RadarDatablockLayout.ResolveBlockOffset(ac, syncLeader: false, hasManual: false, default, rectAtOrigin, deconflict);
@@ -898,7 +694,7 @@ public class RadarDatablockLayoutTests
         AircraftModel ac = CreateModel();
         ac.StudentLeaderDirection = 8; // North
         TextStyle style = CreateStyle();
-        SKRect rectAtOrigin = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
+        SKRect rectAtOrigin = RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, style, false), overlays: None, callsignMarker: "").Rect;
 
         SKPoint leaderResult = RadarDatablockLayout.ResolveBlockOffset(
             ac,
@@ -917,7 +713,7 @@ public class RadarDatablockLayoutTests
     {
         AircraftModel ac = CreateModel();
         TextStyle style = CreateStyle();
-        SKRect rectAtOrigin = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
+        SKRect rectAtOrigin = RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, style, false), overlays: None, callsignMarker: "").Rect;
 
         SKPoint result = RadarDatablockLayout.ResolveBlockOffset(
             ac,
@@ -942,8 +738,8 @@ public class RadarDatablockLayoutTests
         AircraftModel ac = CreateModel();
         TextStyle style = CreateStyle();
 
-        SKRect atOrigin = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
-        SKRect atOffset = RadarDatablockLayout.Compute(ac, 137, -52, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
+        SKRect atOrigin = RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, style, false), overlays: None, callsignMarker: "").Rect;
+        SKRect atOffset = RadarDatablockLayout.Compute(ac, new DatablockPlacement(137, -52, style, false), overlays: None, callsignMarker: "").Rect;
 
         Assert.Equal(atOrigin.Left + 137, atOffset.Left, precision: 3);
         Assert.Equal(atOrigin.Top - 52, atOffset.Top, precision: 3);
@@ -961,7 +757,7 @@ public class RadarDatablockLayoutTests
         TextStyle style = CreateStyle();
 
         // ReserveOwnerSlot is computed from the stable (handoff-always) line, so it is flash-independent.
-        var layout = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "");
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, style, false), overlays: None, callsignMarker: "");
 
         Assert.True(layout.ReserveOwnerSlot);
         Assert.Equal(3, layout.LineCount); // callsign, alt+spd, reserved owner/handoff slot
@@ -976,12 +772,12 @@ public class RadarDatablockLayoutTests
         ac.Scratchpad1 = "RESET";
         TextStyle style = CreateStyle();
 
-        var first = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "");
+        var first = RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, style, false), overlays: None, callsignMarker: "");
         // Sample across at least one full 500 ms flash cycle — the reserved slot keeps width + count constant.
         for (int i = 0; i < 10; i++)
         {
             Thread.Sleep(120);
-            var sample = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "");
+            var sample = RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, style, false), overlays: None, callsignMarker: "");
             Assert.Equal(first.Rect.Width, sample.Rect.Width, precision: 3);
             Assert.Equal(first.LineCount, sample.LineCount);
         }
@@ -998,15 +794,7 @@ public class RadarDatablockLayoutTests
         ac.AssignedBeaconCode = 301;
         TextStyle style = CreateStyle();
 
-        var layout = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         // Reported code solid on the left, assigned code (which the renderer dim-pulses) on the right.
         Assert.Equal("1200 0301", layout.SquawkLine);
@@ -1020,15 +808,7 @@ public class RadarDatablockLayoutTests
         ac.AssignedBeaconCode = 301;
         TextStyle style = CreateStyle();
 
-        var layout = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         Assert.Equal("", layout.SquawkLine);
     }
@@ -1042,15 +822,7 @@ public class RadarDatablockLayoutTests
         ac.AssignedBeaconCode = 0;
         TextStyle style = CreateStyle();
 
-        var layout = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         Assert.Equal("", layout.SquawkLine);
     }
@@ -1066,15 +838,7 @@ public class RadarDatablockLayoutTests
         ac.AssignedBeaconCode = 301;
         TextStyle style = CreateStyle();
 
-        var layout = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         Assert.Equal("", layout.SquawkLine);
     }
@@ -1091,15 +855,7 @@ public class RadarDatablockLayoutTests
         ac.AssignedBeaconCode = 301;
         TextStyle style = CreateStyle();
 
-        var layout = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         Assert.Equal("", layout.SquawkLine);
     }
@@ -1114,15 +870,7 @@ public class RadarDatablockLayoutTests
         ac.AssignedBeaconCode = 4321;
         TextStyle style = CreateStyle();
 
-        var layout = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         Assert.Equal("1200 4321", layout.SquawkLine);
     }
@@ -1139,15 +887,7 @@ public class RadarDatablockLayoutTests
         ac.CommandedSquawkVfr = true;
         TextStyle style = CreateStyle();
 
-        var layout = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         Assert.Equal("", layout.SquawkLine);
     }
@@ -1164,15 +904,7 @@ public class RadarDatablockLayoutTests
         ac.CommandedSquawkVfr = false;
         TextStyle style = CreateStyle();
 
-        var layout = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         Assert.Equal("1200 0301", layout.SquawkLine);
     }
@@ -1185,26 +917,10 @@ public class RadarDatablockLayoutTests
 
         ac.BeaconCode = 301;
         ac.AssignedBeaconCode = 301;
-        var matched = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var matched = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         ac.BeaconCode = 1200;
-        var mismatched = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var mismatched = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
 
         Assert.Equal(matched.LineCount + 1, mismatched.LineCount);
         float delta = mismatched.Rect.Bottom - matched.Rect.Bottom;
@@ -1219,8 +935,8 @@ public class RadarDatablockLayoutTests
         ac.AssignedBeaconCode = 301;
         TextStyle style = CreateStyle();
 
-        SKRect atOrigin = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
-        SKRect atOffset = RadarDatablockLayout.Compute(ac, 137, -52, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect;
+        SKRect atOrigin = RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, style, false), overlays: None, callsignMarker: "").Rect;
+        SKRect atOffset = RadarDatablockLayout.Compute(ac, new DatablockPlacement(137, -52, style, false), overlays: None, callsignMarker: "").Rect;
 
         Assert.Equal(atOrigin.Left + 137, atOffset.Left, precision: 3);
         Assert.Equal(atOrigin.Top - 52, atOffset.Top, precision: 3);
@@ -1238,11 +954,11 @@ public class RadarDatablockLayoutTests
         ac.AssignedBeaconCode = 301;
         TextStyle style = CreateStyle();
 
-        var first = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "");
+        var first = RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, style, false), overlays: None, callsignMarker: "");
         for (int i = 0; i < 10; i++)
         {
             Thread.Sleep(120);
-            var sample = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "");
+            var sample = RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, style, false), overlays: None, callsignMarker: "");
             Assert.Equal(first.Rect.Width, sample.Rect.Width, precision: 3);
             Assert.Equal(first.LineCount, sample.LineCount);
             Assert.Equal("1200 0301", sample.SquawkLine);
@@ -1255,7 +971,7 @@ public class RadarDatablockLayoutTests
         AircraftModel ac = CreateModel();
         TextStyle style = CreateStyle();
 
-        var layout = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "");
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, style, false), overlays: None, callsignMarker: "");
 
         Assert.Equal("230 25 D/B738", layout.Line2);
         Assert.False(layout.IdentActive);
@@ -1269,7 +985,7 @@ public class RadarDatablockLayoutTests
         ac.IsIdenting = true;
         TextStyle style = CreateStyle();
 
-        var layout = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "");
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, style, false), overlays: None, callsignMarker: "");
 
         Assert.Equal("230 25 D/B738 ID", layout.Line2);
         Assert.True(layout.IdentActive);
@@ -1284,11 +1000,11 @@ public class RadarDatablockLayoutTests
         ac.IsIdenting = true;
         TextStyle style = CreateStyle();
 
-        var first = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "");
+        var first = RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, style, false), overlays: None, callsignMarker: "");
         for (int i = 0; i < 10; i++)
         {
             Thread.Sleep(120);
-            var sample = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "");
+            var sample = RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, style, false), overlays: None, callsignMarker: "");
             Assert.Equal("230 25 D/B738 ID", sample.Line2);
             Assert.Equal(first.Rect.Width, sample.Rect.Width, precision: 3);
             Assert.Equal(first.LineCount, sample.LineCount);
@@ -1302,10 +1018,10 @@ public class RadarDatablockLayoutTests
         AircraftModel ac = CreateModel();
         TextStyle style = CreateStyle();
 
-        float idle = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect.Width;
+        float idle = RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, style, false), overlays: None, callsignMarker: "").Rect.Width;
 
         ac.IsIdenting = true;
-        float identing = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "").Rect.Width;
+        float identing = RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, style, false), overlays: None, callsignMarker: "").Rect.Width;
 
         Assert.True(identing > idle, "the reserved ident token must widen the block");
     }
@@ -1322,7 +1038,7 @@ public class RadarDatablockLayoutTests
         ac.IsIdenting = true;
         TextStyle style = CreateStyle();
 
-        var layout = RadarDatablockLayout.Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: None, callsignMarker: "");
+        var layout = RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, style, false), overlays: None, callsignMarker: "");
 
         Assert.Equal("230 25 ID", layout.Line2);
     }
@@ -1423,10 +1139,7 @@ public class RadarDatablockLayoutTests
 
         var layout = RadarDatablockLayout.Compute(
             ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
+            new DatablockPlacement(100, 100, style, false),
             overlays: new DatablockOverlays(false, null, true, CreateAtpaLead()),
             callsignMarker: ""
         );
@@ -1443,10 +1156,7 @@ public class RadarDatablockLayoutTests
 
         var layout = RadarDatablockLayout.Compute(
             ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
+            new DatablockPlacement(100, 100, style, false),
             overlays: new DatablockOverlays(false, null, false, CreateAtpaLead()),
             callsignMarker: ""
         );
@@ -1464,10 +1174,7 @@ public class RadarDatablockLayoutTests
 
         var layout = RadarDatablockLayout.Compute(
             ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
+            new DatablockPlacement(100, 100, style, false),
             overlays: new DatablockOverlays(false, null, true, null),
             callsignMarker: ""
         );
@@ -1481,21 +1188,10 @@ public class RadarDatablockLayoutTests
         AircraftModel ac = CreateAtpaTrailer();
         TextStyle style = CreateStyle();
 
-        var without = RadarDatablockLayout.Compute(
-            ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
-            overlays: None,
-            callsignMarker: ""
-        );
+        var without = RadarDatablockLayout.Compute(ac, new DatablockPlacement(100, 100, style, false), overlays: None, callsignMarker: "");
         var with = RadarDatablockLayout.Compute(
             ac,
-            blockX: 100,
-            blockY: 100,
-            style,
-            showNoLandingClearance: false,
+            new DatablockPlacement(100, 100, style, false),
             overlays: new DatablockOverlays(false, null, true, CreateAtpaLead()),
             callsignMarker: ""
         );
@@ -1516,10 +1212,7 @@ public class RadarDatablockLayoutTests
 
         var first = RadarDatablockLayout.Compute(
             ac,
-            0,
-            0,
-            style,
-            showNoLandingClearance: false,
+            new DatablockPlacement(0, 0, style, false),
             overlays: new DatablockOverlays(false, null, true, lead),
             callsignMarker: ""
         );
@@ -1528,10 +1221,7 @@ public class RadarDatablockLayoutTests
             Thread.Sleep(120);
             var sample = RadarDatablockLayout.Compute(
                 ac,
-                0,
-                0,
-                style,
-                showNoLandingClearance: false,
+                new DatablockPlacement(0, 0, style, false),
                 overlays: new DatablockOverlays(false, null, true, lead),
                 callsignMarker: ""
             );
@@ -1549,10 +1239,10 @@ public class RadarDatablockLayoutTests
         TextStyle style = CreateStyle();
 
         SKRect atOrigin = RadarDatablockLayout
-            .Compute(ac, 0, 0, style, showNoLandingClearance: false, overlays: new DatablockOverlays(false, null, true, lead), callsignMarker: "")
+            .Compute(ac, new DatablockPlacement(0, 0, style, false), overlays: new DatablockOverlays(false, null, true, lead), callsignMarker: "")
             .Rect;
         SKRect atOffset = RadarDatablockLayout
-            .Compute(ac, 137, -52, style, showNoLandingClearance: false, overlays: new DatablockOverlays(false, null, true, lead), callsignMarker: "")
+            .Compute(ac, new DatablockPlacement(137, -52, style, false), overlays: new DatablockOverlays(false, null, true, lead), callsignMarker: "")
             .Rect;
 
         Assert.Equal(atOrigin.Left + 137, atOffset.Left, precision: 3);

@@ -2270,6 +2270,21 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
     }
 
+    /// <summary>
+    /// Flips the six pop-out view toggles a profile captures. The MainViewModel property-changed
+    /// handlers create or destroy the matching pop-out windows, so every apply path must route
+    /// through here or a profile silently leaves some of them open or closed.
+    /// </summary>
+    private static void ApplyPopoutFlags(MainViewModel vm, SavedWindowProfile profile)
+    {
+        vm.IsTerminalPoppedOut = profile.IsTerminalPoppedOut;
+        vm.IsDataGridPoppedOut = profile.IsDataGridPoppedOut;
+        vm.IsGroundViewPoppedOut = profile.IsGroundViewPoppedOut;
+        vm.IsRadarViewPoppedOut = profile.IsRadarViewPoppedOut;
+        vm.IsControllersPoppedOut = profile.IsControllersPoppedOut;
+        vm.IsMetarPoppedOut = profile.IsMetarPoppedOut;
+    }
+
     private async System.Threading.Tasks.Task ApplyWindowProfileByNameAsync(MainViewModel vm, string name)
     {
         SavedWindowProfile? profile = vm.Preferences.GetWindowProfile(name);
@@ -2305,12 +2320,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             // MainViewModel + OnViewModelPropertyChanged here will create or
             // destroy the corresponding pop-out windows. New windows read the
             // freshly-staged geometry preferences on construction.
-            vm.IsTerminalPoppedOut = profile.IsTerminalPoppedOut;
-            vm.IsDataGridPoppedOut = profile.IsDataGridPoppedOut;
-            vm.IsGroundViewPoppedOut = profile.IsGroundViewPoppedOut;
-            vm.IsRadarViewPoppedOut = profile.IsRadarViewPoppedOut;
-            vm.IsControllersPoppedOut = profile.IsControllersPoppedOut;
-            vm.IsMetarPoppedOut = profile.IsMetarPoppedOut;
+            ApplyPopoutFlags(vm, profile);
             ApplyFavoritesProfileState(vm, profile);
             // Open/close the extra Radar/Ground windows the profile captured before the geometry push
             // below, so each new window's helper is already in the ActiveHelpers registry by then.
@@ -2564,10 +2574,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         {
             if (includePopouts)
             {
-                vm.IsTerminalPoppedOut = profile.IsTerminalPoppedOut;
-                vm.IsDataGridPoppedOut = profile.IsDataGridPoppedOut;
-                vm.IsGroundViewPoppedOut = profile.IsGroundViewPoppedOut;
-                vm.IsRadarViewPoppedOut = profile.IsRadarViewPoppedOut;
+                ApplyPopoutFlags(vm, profile);
                 ApplyFavoritesProfileState(vm, profile);
                 vm.ReconcileExtraViews(profile.ExtraRadarViews, profile.ExtraGroundViews);
             }

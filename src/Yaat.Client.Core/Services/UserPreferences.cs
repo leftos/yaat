@@ -2026,8 +2026,7 @@ public sealed class UserPreferences
                 continue;
             }
 
-            // Read aliases: prefer Aliases list, fall back to legacy Verb field
-            List<string>? aliases = sp.Aliases is { Count: > 0 } ? sp.Aliases : (!string.IsNullOrWhiteSpace(sp.Verb) ? [sp.Verb] : null);
+            List<string>? aliases = sp.Aliases is { Count: > 0 } ? sp.Aliases : null;
 
             if (aliases is null)
             {
@@ -2327,7 +2326,6 @@ public sealed class UserPreferences
     private sealed class SavedPattern
     {
         public List<string>? Aliases { get; set; }
-        public string? Verb { get; set; }
     }
 }
 

@@ -1760,7 +1760,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         // matches the drawn block — no hand-mirrored line-string re-derivation.
         string marker = MarkStudentLimitedDatablocks ? RadarDatablockLayout.StudentLevelMarker(ac.StudentDatablockLevel) : "";
         var overlays = new DatablockOverlays(ShowConflictAlerts, ResolveConflictPeer(ac), ShowAtpa, ResolveAtpaLead(ac));
-        return RadarDatablockLayout.Compute(ac, 0, 0, HitTestStyle, FlashNoLandingClearance, overlays, marker).Rect;
+        return RadarDatablockLayout.Compute(ac, new DatablockPlacement(0, 0, HitTestStyle, FlashNoLandingClearance), overlays, marker).Rect;
     }
 
     /// <summary>
