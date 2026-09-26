@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
@@ -14,9 +15,37 @@ using Yaat.Sim.Pilot;
 namespace Yaat.Sim.Commands;
 
 /// <summary>
+/// What a <c>PUSH $spot</c> or <c>PUSH @stand</c> destination resolves to: the tug goal with the destination's forced
+/// kind applied and the explicit facing to end on, or the refusal the command is answered with.
+/// Exactly one of <see cref="Goal"/> and <see cref="Refusal"/> is set: build one with <see cref="Resolved"/> or
+/// <see cref="Refused"/>.
+/// </summary>
+public sealed record StandOrSpotGoal
+{
+    private StandOrSpotGoal() { }
+
+    /// <summary>The goal, or null when the destination is refused.</summary>
+    public TugGoal? Goal { get; private init; }
+
+    /// <summary>The facing the push names, degrees true, or null to leave the goal's own facing (and when refused).</summary>
+    public double? FinalFacingTrueDeg { get; private init; }
+
+    /// <summary>Why the destination is refused, or null when it resolved.</summary>
+    public string? Refusal { get; private init; }
+
+    /// <summary>A destination resolved to its goal and the facing the push names.</summary>
+    public static StandOrSpotGoal Resolved(TugGoal goal, double? finalFacingTrueDeg) =>
+        new() { Goal = goal, FinalFacingTrueDeg = finalFacingTrueDeg };
+
+    /// <summary>A destination the command is refused for, with the words it is answered with.</summary>
+    public static StandOrSpotGoal Refused(string reason) => new() { Refusal = reason };
+}
+
+/// <summary>
 /// Handles the ground commands — taxi, pushback and tug moves, hold short, crossings. Public only so the client's
-/// ground-view push-route preview can resolve its target tokens through <see cref="ResolveTugGoal"/>, the same body
-/// the commands themselves use; every other member stays internal to the simulation.
+/// ground-view push-route preview can resolve its targets through <see cref="ResolveTugGoal"/> and
+/// <see cref="ResolveStandOrSpotGoal"/>, the same bodies the commands themselves use; every other member stays
+/// internal to the simulation.
 /// </summary>
 public static class GroundCommandHandler
 {
@@ -3336,19 +3365,96 @@ public static class GroundCommandHandler
         AirportGroundLayout? groundLayout
     )
     {
-        if ((destination.Parking is { } stand) && HasFacing(push))
+        StandOrSpotGoal resolved = ResolveStandOrSpotGoal(aircraft.Position, push.MagneticHeading, push.FacingTaxiway, destination, groundLayout);
+        if (resolved.Goal is not { } goal)
         {
-            return PushResolution.Refused(GroundCommandParser.StandFacingRefusal($"PUSH @{stand}"));
+            return PushResolution.Refused(resolved.Refusal!);
+        }
+
+        return (destination, groundLayout) switch
+        {
+            ({ Spot: { } spot }, { } layout) => ResolvePushToSpot(aircraft, push, layout, spot, (goal, resolved.FinalFacingTrueDeg)),
+            ({ Parking: { } stand }, _) => ResolvePushToStand(stand, goal),
+            _ => throw new UnreachableException($"PUSH {destination.Token} resolved to a goal without a spot and a layout, or a stand"),
+        };
+    }
+
+    /// <summary>
+    /// Resolves a <c>PUSH $spot</c> or <c>PUSH @stand</c> destination to its tug goal — the destination's forced kind
+    /// applied — and the facing the push names, or to the refusal the command is answered with: a stand takes no
+    /// facing, and a spot or stand the layout does not carry is not found.
+    ///
+    /// <para>Public because the ground view's push-route preview resolves a single clicked spot or stand through this
+    /// same body, so the preview and the executed <c>PUSH</c> share one resolver and cannot drift apart. The draw mode
+    /// gives a clicked spot or stand no facing, so the preview uses only its goal and refusals today.</para>
+    /// </summary>
+    /// <param name="position">Where the aircraft is; a magnetic facing is converted to true here.</param>
+    /// <param name="facing">The facing the push names, magnetic, or null.</param>
+    /// <param name="facingTaxiway">The taxiway the push ends facing toward, or null.</param>
+    /// <param name="destination">The destination: a spot or a stand.</param>
+    /// <param name="groundLayout">The airport's ground layout, or null when none is loaded.</param>
+    /// <returns>The goal and its facing, or the refusal.</returns>
+    /// <exception cref="ArgumentException">The destination is neither a spot nor a stand.</exception>
+    public static StandOrSpotGoal ResolveStandOrSpotGoal(
+        LatLon position,
+        MagneticHeading? facing,
+        string? facingTaxiway,
+        PushDestination destination,
+        AirportGroundLayout? groundLayout
+    )
+    {
+        if (destination is { Spot: null, Parking: null })
+        {
+            throw NotASpotOrStand(destination);
+        }
+
+        if ((destination.Parking is { } stand) && ((facing is not null) || (facingTaxiway is not null)))
+        {
+            return StandOrSpotGoal.Refused(GroundCommandParser.StandFacingRefusal($"PUSH @{stand}"));
         }
 
         if (groundLayout is null)
         {
-            return PushResolution.Refused("No airport ground layout available");
+            return StandOrSpotGoal.Refused("No airport ground layout available");
         }
 
-        return destination.Spot is { } spot
-            ? ResolvePushToSpot(aircraft, push, groundLayout, spot)
-            : ResolvePushToStand(groundLayout, destination.Parking!, destination.ForcedKind);
+        return destination switch
+        {
+            { Spot: not null } => ResolveSpotGoal(position, facing, facingTaxiway, groundLayout, destination),
+            { Parking: { } parking } => ResolveStandGoal(groundLayout, parking, destination.ForcedKind),
+            _ => throw NotASpotOrStand(destination),
+        };
+    }
+
+    private static ArgumentException NotASpotOrStand(PushDestination destination) =>
+        new($"PUSH destination {destination.Token} is neither a spot nor a stand", nameof(destination));
+
+    private static StandOrSpotGoal ResolveSpotGoal(
+        LatLon position,
+        MagneticHeading? facing,
+        string? facingTaxiway,
+        AirportGroundLayout groundLayout,
+        PushDestination destination
+    )
+    {
+        string label = destination.Spot!;
+        if (groundLayout.FindSpotNodeByName(label) is not { } node)
+        {
+            return StandOrSpotGoal.Refused($"Cannot find spot '{label}'");
+        }
+
+        double? facingTrueDeg = ExplicitSpotFacingTrueDeg(position, facing, facingTaxiway, node, groundLayout);
+        return StandOrSpotGoal.Resolved(TugGoal.Spot(node) with { ForcedKind = destination.ForcedKind }, facingTrueDeg);
+    }
+
+    private static StandOrSpotGoal ResolveStandGoal(AirportGroundLayout groundLayout, string label, PushbackLegKind? forced)
+    {
+        if ((groundLayout.FindHelipadByName(label) ?? groundLayout.FindParkingByName(label)) is not { } node)
+        {
+            return StandOrSpotGoal.Refused($"Cannot find parking '{label}'");
+        }
+
+        return StandOrSpotGoal.Resolved(TugGoal.Stand(node) with { ForcedKind = forced }, null);
     }
 
     /// <summary>
@@ -3388,35 +3494,29 @@ public static class GroundCommandHandler
     /// <summary>Whether the push names a facing: a heading or a taxiway to face toward.</summary>
     private static bool HasFacing(PushbackCommand push) => (push.MagneticHeading is not null) || (push.FacingTaxiway is not null);
 
-    private static PushResolution ResolvePushToStand(AirportGroundLayout groundLayout, string label, PushbackLegKind? forced)
+    private static PushResolution ResolvePushToStand(string label, TugGoal goal)
     {
-        if ((groundLayout.FindHelipadByName(label) ?? groundLayout.FindParkingByName(label)) is not { } node)
-        {
-            return PushResolution.Refused($"Cannot find parking '{label}'");
-        }
-
-        var readback = new PushReadback(PushReadbackPhrases.ToStand(StandWords(node, label), forced), null);
-        return PushResolution.Of(new PushTarget(TugGoal.Stand(node) with { ForcedKind = forced }, null, TugTerminus.AtStand(label), _ => readback));
+        var readback = new PushReadback(PushReadbackPhrases.ToStand(StandWords(goal.Node!, label), goal.ForcedKind), null);
+        return PushResolution.Of(new PushTarget(goal, null, TugTerminus.AtStand(label), _ => readback));
     }
 
-    private static PushResolution ResolvePushToSpot(AircraftState aircraft, PushbackCommand push, AirportGroundLayout groundLayout, string label)
+    private static PushResolution ResolvePushToSpot(
+        AircraftState aircraft,
+        PushbackCommand push,
+        AirportGroundLayout groundLayout,
+        string label,
+        (TugGoal Goal, double? FinalFacingTrueDeg) resolved
+    )
     {
-        if (groundLayout.FindSpotNodeByName(label) is not { } node)
-        {
-            return PushResolution.Refused($"Cannot find spot '{label}'");
-        }
-
-        double? facingTrueDeg = ExplicitSpotFacingTrueDeg(aircraft, push, node, groundLayout);
         Log.LogDebug(
             "[Pushback] {Callsign}: to spot {Label}, explicit facing {Facing}",
             aircraft.Callsign,
             label,
-            facingTrueDeg?.ToString("F1") ?? "none"
+            resolved.FinalFacingTrueDeg?.ToString("F1") ?? "none"
         );
 
-        PushReadback readback = SpotReadback(push, groundLayout, node, label);
-        TugGoal goal = TugGoal.Spot(node) with { ForcedKind = push.Destination!.ForcedKind };
-        return PushResolution.Of(new PushTarget(goal, facingTrueDeg, TugTerminus.OnSpot, _ => readback));
+        PushReadback readback = SpotReadback(push, groundLayout, resolved.Goal.Node!, label);
+        return PushResolution.Of(new PushTarget(resolved.Goal, resolved.FinalFacingTrueDeg, TugTerminus.OnSpot, _ => readback));
     }
 
     /// <summary>
@@ -3451,7 +3551,7 @@ public static class GroundCommandHandler
             return PushResolution.Of(new PushTarget(goal, null, TugTerminus.AtStand(name), _ => standReadback));
         }
 
-        double? facingTrueDeg = ExplicitSpotFacingTrueDeg(aircraft, push, goal.Node!, groundLayout);
+        double? facingTrueDeg = ExplicitSpotFacingTrueDeg(aircraft.Position, push.MagneticHeading, push.FacingTaxiway, goal.Node!, groundLayout);
         Log.LogDebug(
             "[Pushback] {Callsign}: to node #{NodeId} ({Kind}), explicit facing {Facing}",
             aircraft.Callsign,
@@ -3474,21 +3574,22 @@ public static class GroundCommandHandler
     /// command names none, or its facing taxiway is not nearby — the spot's own nose-out facing then applies.
     /// </summary>
     private static double? ExplicitSpotFacingTrueDeg(
-        AircraftState aircraft,
-        PushbackCommand push,
+        LatLon position,
+        MagneticHeading? facing,
+        string? facingTaxiway,
         GroundNode destNode,
         AirportGroundLayout groundLayout
     )
     {
-        if (push.MagneticHeading is { } heading)
+        if (facing is { } heading)
         {
-            return MagneticDeclination.MagneticToTrue(heading.Degrees, aircraft.Position);
+            return MagneticDeclination.MagneticToTrue(heading.Degrees, position);
         }
 
-        if ((push.FacingTaxiway is not null) && (groundLayout.FindExitByTaxiway(destNode.Position, push.FacingTaxiway) is { } facingNode))
+        if ((facingTaxiway is not null) && (groundLayout.FindExitByTaxiway(destNode.Position, facingTaxiway) is { } facingNode))
         {
             double bearingToFacing = GeoMath.BearingTo(destNode.Position, facingNode.Position);
-            return groundLayout.GetEdgeBearingForTaxiway(destNode, push.FacingTaxiway, bearingToFacing) ?? bearingToFacing;
+            return groundLayout.GetEdgeBearingForTaxiway(destNode, facingTaxiway, bearingToFacing) ?? bearingToFacing;
         }
 
         return null;

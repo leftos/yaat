@@ -119,6 +119,23 @@ public class GroundViewModelPushRouteTests
         Assert.Equal(ac.Heading.Degrees, first.NoseTrueDeg, 9);
     }
 
+    // One clicked spot is plain `PUSH $A`, which the preview resolves through the server's own PUSH $spot resolver
+    // (ResolveStandOrSpotGoal) so the two cannot drift apart. No draw gesture gives a one-target spot a facing, so the
+    // plan equals the plain goal's; this guards the shared path, not a facing.
+    [Fact]
+    public void SingleSpotTarget_PreviewsThroughTheServerResolver()
+    {
+        GroundViewModel vm = MakeViewModel();
+        vm.SetLayoutForTesting(RampLayout());
+        AircraftModel ac = MakeAircraft();
+
+        vm.StartPushRoute(ac);
+        Assert.True(vm.AddPushWaypoint(2)); // Spot "A"
+
+        Assert.Null(vm.PushRouteRefusal);
+        AssertSamePlan(PlanFor(vm, ac, 2), vm.PushRoutePreview);
+    }
+
     [Fact]
     public void OneTarget_FinishSendsPlainPush()
     {
@@ -410,6 +427,45 @@ public class GroundViewModelPushRouteTests
         Assert.Null(move.FinalFacing);
     }
 
+    // A faced marked point that stops being the last target loses its facing: only the last point takes one, so
+    // appending a node after it previews the move instead of the sim's refusal, and the sent command carries no facing
+    // on the earlier point.
+    [Fact]
+    public void AddingAWaypointAfterAFacedFreePoint_DropsTheEarlierFacing()
+    {
+        GroundViewModel vm = MakeViewModel();
+        vm.SetLayoutForTesting(RampLayout());
+        AircraftModel ac = MakeAircraft();
+        var point = new LatLon(Lat0 + 0.0008, Lon0);
+
+        vm.StartPushRoute(ac);
+        Assert.True(vm.AddPushFreePoint(point.Lat, point.Lon, new MagneticHeading(167)));
+        Assert.NotNull(vm.PushWaypointMarks![1].FacingTrueDeg);
+        Assert.True(vm.AddPushWaypoint(4)); // plain taxiway intersection, unnamed
+
+        Assert.Null(vm.PushRouteRefusal);
+        Assert.Null(vm.PushWaypointMarks![1].FacingTrueDeg);
+        Assert.Equal($"PUSHM {PositionToken(point)} #4", vm.FinishPushRoute());
+    }
+
+    [Fact]
+    public void AddingAFreePointAfterAFacedFreePoint_DropsTheEarlierFacing()
+    {
+        GroundViewModel vm = MakeViewModel();
+        vm.SetLayoutForTesting(RampLayout());
+        AircraftModel ac = MakeAircraft();
+        var first = new LatLon(Lat0 + 0.0008, Lon0);
+        var second = new LatLon(Lat0 + 0.0015, Lon0);
+
+        vm.StartPushRoute(ac);
+        Assert.True(vm.AddPushFreePoint(first.Lat, first.Lon, new MagneticHeading(167)));
+        Assert.True(vm.AddPushFreePoint(second.Lat, second.Lon, null));
+
+        Assert.Null(vm.PushRouteRefusal);
+        Assert.Null(vm.PushWaypointMarks![1].FacingTrueDeg);
+        Assert.Equal($"PUSHM {PositionToken(first)} {PositionToken(second)}", vm.FinishPushRoute());
+    }
+
     [Fact]
     public void UndoingAForcedOrFreeTarget_DropsItsState()
     {
@@ -464,6 +520,115 @@ public class GroundViewModelPushRouteTests
         Assert.Equal((PushRightClickTarget.EarlierWaypoint, (int?)2), vm.ClassifyPushRightClick([0, 2]));
         Assert.Equal((PushRightClickTarget.NewPoint, (int?)null), vm.ClassifyPushRightClick([0]));
         Assert.Equal((PushRightClickTarget.NewPoint, (int?)null), vm.ClassifyPushRightClick([]));
+    }
+
+    // A left-drag on a faced marked point's marker moves the point to where it was released (six decimals, as the command
+    // carries it) and keeps its facing; the waypoint and the marker follow it, and the preview re-plans the moved point.
+    [Fact]
+    public void MovingAMarkedPoint_KeepsItsFacingAndReplans()
+    {
+        GroundViewModel vm = MakeViewModel();
+        vm.SetLayoutForTesting(RampLayout());
+        AircraftModel ac = MakeAircraft();
+        var facing = new MagneticHeading(167);
+        var to = new LatLon(Lat0 + 0.00123456789, Lon0 + 0.0001);
+
+        vm.StartPushRoute(ac);
+        Assert.True(vm.AddPushFreePoint(Lat0 + 0.0012, Lon0, facing));
+        double facingTrueDeg = vm.PushWaypointMarks![1].FacingTrueDeg!.Value;
+
+        vm.MovePushTarget(1, to);
+
+        var pose = new PushFreePose(Math.Round(to.Lat, 6), Math.Round(to.Lon, 6), facing);
+        Assert.Equal(VirtualNode.Create(pose.Latitude, pose.Longitude).Id, vm.DrawWaypoints![1]);
+        PushWaypointMark mark = vm.PushWaypointMarks![1];
+        Assert.Equal(pose.Latitude, mark.Position.Lat, 9);
+        Assert.Equal(pose.Longitude, mark.Position.Lon, 9);
+        Assert.Equal(facingTrueDeg, mark.FacingTrueDeg!.Value, 9);
+        Assert.Null(vm.PushRouteRefusal);
+        TugGoal goal = GroundCommandHandler.ResolveMarkedPointGoal(pose, null, ac.Position, "the marked point");
+        AssertSamePlan(PlanForGoals(vm.DomainLayout!, ac, [goal]), vm.PushRoutePreview);
+        Assert.Equal($"PUSH {PositionToken(to)}/{facing.ToDisplayString()}", vm.FinishPushRoute());
+    }
+
+    // A node target dragged off its node snaps to the node nearest the release, and keeps the tug motion forced on its leg.
+    [Fact]
+    public void MovingANodeTarget_SnapsToTheNearestNode()
+    {
+        GroundViewModel vm = MakeViewModel();
+        vm.SetLayoutForTesting(RampLayout());
+        AircraftModel ac = MakeAircraft();
+
+        vm.StartPushRoute(ac);
+        Assert.True(vm.AddPushWaypoint(2)); // Spot "A"
+        Assert.True(vm.AddPushWaypoint(4)); // plain taxiway intersection
+        vm.SetPushTargetForcedKind(1, PushbackLegKind.Push);
+
+        vm.MovePushTarget(1, new LatLon(Lat0 + 0.0009, Lon0 + 0.00005)); // nearest spot "B", node 3
+
+        Assert.Equal([1, 3, 4], vm.DrawWaypoints);
+        PushWaypointMark mark = vm.PushWaypointMarks![1];
+        Assert.Equal(Lat0 + 0.0010, mark.Position.Lat, 9);
+        Assert.Equal(Lon0, mark.Position.Lon, 9);
+        Assert.Equal(PushbackLegKind.Push, mark.ForcedKind);
+        Assert.Null(vm.PushRouteRefusal);
+        AirportGroundLayout layout = vm.DomainLayout!;
+        TugGoal spotB = GroundCommandHandler.ResolveTugGoal(layout, PushDestination.AtSpot("B", null).Token)! with
+        {
+            ForcedKind = PushbackLegKind.Push,
+        };
+        TugGoal node4 = GroundCommandHandler.ResolveTugGoal(layout, PushDestination.AtNode(4, null).Token)!;
+        AssertSamePlan(PlanForGoals(layout, ac, [spotB, node4]), vm.PushRoutePreview);
+        Assert.Equal("PUSHM $B/PUSH #4", vm.FinishPushRoute());
+    }
+
+    // A move that would make a target the same point as the one before or after it is ignored: nothing is re-published or
+    // re-planned.
+    [Fact]
+    public void MovingATargetOntoItsNeighbour_IsIgnored()
+    {
+        GroundViewModel vm = MakeViewModel();
+        vm.SetLayoutForTesting(RampLayout());
+        AircraftModel ac = MakeAircraft();
+
+        vm.StartPushRoute(ac);
+        Assert.True(vm.AddPushWaypoint(2));
+        Assert.True(vm.AddPushWaypoint(4));
+        IReadOnlyList<PushWaypointMark> marks = vm.PushWaypointMarks!;
+        TugPlan? preview = vm.PushRoutePreview;
+
+        vm.MovePushTarget(1, new LatLon(Lat0 + 0.00148, Lon0)); // onto node 4, the next target
+        vm.MovePushTarget(1, new LatLon(Lat0 + 0.00002, Lon0)); // onto node 1, the start before it
+        vm.MovePushTarget(2, new LatLon(Lat0 + 0.00052, Lon0)); // onto node 2, the target before it
+
+        Assert.Equal([1, 2, 4], vm.DrawWaypoints);
+        Assert.Same(marks, vm.PushWaypointMarks);
+        Assert.Same(preview, vm.PushRoutePreview);
+        AssertSamePlan(PlanFor(vm, ac, 2, 4), vm.PushRoutePreview);
+    }
+
+    // The start (index 0) is the aircraft's own position and never moves; an index past the last point moves nothing.
+    [Fact]
+    public void MovingTheStart_IsIgnored()
+    {
+        GroundViewModel vm = MakeViewModel();
+        vm.SetLayoutForTesting(RampLayout());
+        AircraftModel ac = MakeAircraft();
+
+        vm.StartPushRoute(ac);
+        Assert.True(vm.AddPushWaypoint(2));
+        Assert.True(vm.AddPushWaypoint(3));
+        IReadOnlyList<PushWaypointMark> marks = vm.PushWaypointMarks!;
+        TugPlan? preview = vm.PushRoutePreview;
+
+        vm.MovePushTarget(0, new LatLon(Lat0 + 0.0015, Lon0));
+        vm.MovePushTarget(3, new LatLon(Lat0 + 0.0015, Lon0));
+        vm.MovePushTarget(-1, new LatLon(Lat0 + 0.0015, Lon0));
+
+        Assert.Equal([1, 2, 3], vm.DrawWaypoints);
+        Assert.Same(marks, vm.PushWaypointMarks);
+        Assert.Same(preview, vm.PushRoutePreview);
+        AssertSamePlan(PlanFor(vm, ac, 2, 3), vm.PushRoutePreview);
     }
 
     // F8 → spot 7A alone with its leg forced to a pull (the sim's ForcedPushLegPlannerTests fly F8 → 7A/PULL): a
@@ -588,29 +753,37 @@ public class GroundViewModelPushRouteTests
 
     // What the sim would plan for the same aircraft and the same clicked nodes, through the very tokens the
     // PUSHM will carry — the preview has no planning of its own to get right.
+    // A single $spot or @stand is plain `PUSH`, which the server resolves through ResolveStandOrSpotGoal.
     private static TugPlan? PlanFor(GroundViewModel vm, AircraftModel ac, params int[] nodeIds)
     {
         AirportGroundLayout layout = vm.DomainLayout!;
-        var goals = new List<TugGoal>();
-        foreach (int id in nodeIds)
+        List<PushDestination> targets = [.. nodeIds.Select(id => TargetFor(layout.Nodes[id]))];
+        if ((targets.Count == 1) && ((targets[0].Spot is not null) || (targets[0].Parking is not null)))
         {
-            GroundNode node = layout.Nodes[id];
-            string token = node switch
-            {
-                { Type: GroundNodeType.Spot, Name: { Length: > 0 } spot } => $"${spot}",
-                { Type: GroundNodeType.Parking or GroundNodeType.Helipad, Name: { Length: > 0 } stand } => $"@{stand}",
-                _ => $"#{node.Id}",
-            };
-            goals.Add(GroundCommandHandler.ResolveTugGoal(layout, token)!);
+            StandOrSpotGoal single = GroundCommandHandler.ResolveStandOrSpotGoal(ac.Position, null, null, targets[0], layout);
+            Assert.Null(single.Refusal);
+            return PlanForRequest(layout, RequestFor(ac, [single.Goal!]) with { FinalFacingTrueDeg = single.FinalFacingTrueDeg });
         }
 
-        return PlanForGoals(layout, ac, goals);
+        return PlanForGoals(layout, ac, [.. targets.Select(t => GroundCommandHandler.ResolveTugGoal(layout, t.Token)!)]);
     }
 
+    // How a clicked node is named in the command: its spot or stand name with the sigil, else its node id.
+    private static PushDestination TargetFor(GroundNode node) =>
+        node switch
+        {
+            { Type: GroundNodeType.Spot, Name: { Length: > 0 } spot } => PushDestination.AtSpot(spot, null),
+            { Type: GroundNodeType.Parking or GroundNodeType.Helipad, Name: { Length: > 0 } stand } => PushDestination.AtParking(stand, null),
+            _ => PushDestination.AtNode(node.Id, null),
+        };
+
     // What the sim would plan for the same aircraft and goals, with no parked neighbours.
-    private static TugPlan? PlanForGoals(AirportGroundLayout layout, AircraftModel ac, List<TugGoal> goals)
+    private static TugPlan? PlanForGoals(AirportGroundLayout layout, AircraftModel ac, List<TugGoal> goals) =>
+        PlanForRequest(layout, RequestFor(ac, goals));
+
+    private static TugPlan? PlanForRequest(AirportGroundLayout layout, TugRequest request)
     {
-        TugPlan? plan = TugMovePlanner.Plan(layout, RequestFor(ac, goals), out string refusal);
+        TugPlan? plan = TugMovePlanner.Plan(layout, request, out string refusal);
         Assert.Equal("", refusal);
         Assert.NotNull(plan);
         return plan;

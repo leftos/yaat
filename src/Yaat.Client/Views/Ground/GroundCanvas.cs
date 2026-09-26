@@ -311,11 +311,19 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     private const double ClickDragThresholdSq = 25.0;
 
     // Shift+click or Shift+drag while drawing a push route: where the press landed (the marked point) and the button
-    // that started it (the right button also finishes the route). Null when no such gesture is in progress.
+    // that started it (the right button also finishes the route). Null when no such gesture is in progress. The cursor is
+    // where the pointer is now; past the click threshold the pending point is drawn with a facing arrow toward it.
     private Point? _freePointPress;
     private MouseButton _freePointButton;
+    private Point _freePointCursor;
 
-    /// <summary>How close to a push-route marker's centre, in pixels, a right-click lands on that marker.</summary>
+    // A left-drag on a push-route target's marker: the target's index (null when no such drag is in progress), where the
+    // press landed, and where the pointer is now. Past the click threshold the marker is drawn at the cursor.
+    private int? _markerDragIndex;
+    private Point _markerDragStart;
+    private Point _markerDragCursor;
+
+    /// <summary>How close to a push-route marker's centre, in pixels, a click or a drag's press lands on that marker.</summary>
     private const float PushMarkerHitRadiusPx = 10f;
 
     /// <summary>The last pointer position over the canvas, updated on every move.</summary>
@@ -613,6 +621,18 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
     public int? HoveredNodeId => _hoveredNodeId;
 
+    /// <summary>
+    /// The pending Shift+drag marked point the last frame drew, with the cursor its facing arrow points toward; null when
+    /// that frame drew none (no Shift gesture, or one still within the click threshold of its press).
+    /// </summary>
+    public PendingPushPoint? DrawnPendingPushPoint { get; private set; }
+
+    /// <summary>
+    /// The push-route markers the last frame drew: <see cref="PushWaypointMarks"/> itself, or a copy with a marker being
+    /// dragged past the click threshold drawn at the cursor. Null when that frame drew none.
+    /// </summary>
+    public IReadOnlyList<PushWaypointMark>? DrawnPushWaypointMarks { get; private set; }
+
     /// <summary>Surfaces the datablock for the given callsign to the top of the Z-order.</summary>
     public void SurfaceDataBlock(string callsign)
     {
@@ -688,6 +708,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// </summary>
     public event Action<LatLon, LatLon?, bool>? DrawFreePointPlaced;
 
+    /// <summary>
+    /// Fired when a left-drag on a push-route target's marker is released past the click threshold. Args: the target's
+    /// index in <see cref="DrawWaypoints"/> (never 0, the start), and where the drag was released.
+    /// </summary>
+    public event Action<int, LatLon>? PushMarkerDragged;
+
     /// <summary>Fired when the measuring tool picks an endpoint — first click anchors, second completes.</summary>
     public event Action<RblEndpoint>? MeasurePointPicked;
 
@@ -715,6 +741,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             TryInitialView();
             InvalidateVisual();
         }
+        else if (change.Property == PushWaypointMarksProperty)
+        {
+            // Republished markers (a target added or undone) may no longer carry the dragged index, so the drag ends here.
+            _markerDragIndex = null;
+            MarkDirty();
+        }
         else if (
             change.Property == DataBlockStateProperty
             || change.Property == AircraftProperty
@@ -725,7 +757,6 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             || change.Property == DrawHoverPreviewProperty
             || change.Property == DrawWaypointsProperty
             || change.Property == PushRoutePreviewProperty
-            || change.Property == PushWaypointMarksProperty
             || change.Property == ShownTaxiRoutesProperty
             || change.Property == ShowDebugInfoProperty
             || change.Property == ShowRunwayLabelsProperty
@@ -772,6 +803,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         else if (change.Property == IsDrawingRouteProperty)
         {
             Cursor = IsDrawingRoute ? new Cursor(StandardCursorType.Cross) : Cursor.Default;
+            if (!IsDrawingRoute)
+            {
+                _freePointPress = null;
+                _markerDragIndex = null;
+            }
+
             MarkDirty();
         }
     }
@@ -814,7 +851,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         bool ShowAdwMarkings,
         IReadOnlyList<ResolvedRbl>? RangeBearingLines,
         ResolvedRbl? PendingRangeBearingLine,
-        (string Label, SKPoint NodePos)? CtrlNodeHover
+        (string Label, SKPoint NodePos)? CtrlNodeHover,
+        PendingPushPoint? PendingPushPoint
     );
 
     protected override object? CreateRenderSnapshot()
@@ -874,6 +912,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         }
 
         (string Label, SKPoint NodePos)? ctrlNodeHover = ResolveCtrlNodeHover();
+        DrawnPendingPushPoint = ResolvePendingPushPoint();
+        DrawnPushWaypointMarks = PushWaypointMarksToDraw();
 
         return new RenderSnapshot(
             Layout,
@@ -886,7 +926,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             DrawnRoutePreview,
             DrawHoverPreview,
             DrawWaypoints,
-            PushWaypointMarks,
+            DrawnPushWaypointMarks,
             PushRoutePreview,
             IsDrawingRoute,
             new Dictionary<string, SKPoint>(state.ManualOffsets),
@@ -913,8 +953,57 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             ShowAdwMarkings,
             measurements,
             pendingMeasurement,
-            ctrlNodeHover
+            ctrlNodeHover,
+            DrawnPendingPushPoint
         );
+    }
+
+    /// <summary>
+    /// The marked point a Shift gesture is placing, once the pointer has moved past the click threshold from the press
+    /// (the same threshold that gives the placed point its facing on release); null otherwise.
+    /// </summary>
+    private PendingPushPoint? ResolvePendingPushPoint()
+    {
+        if ((_freePointPress is not { } press) || !IsDrawingPushRoute || !IsPastClickThreshold(press, _freePointCursor))
+        {
+            return null;
+        }
+
+        (double lat, double lon) = Viewport.ScreenToLatLon((float)press.X, (float)press.Y);
+        (double cursorLat, double cursorLon) = Viewport.ScreenToLatLon((float)_freePointCursor.X, (float)_freePointCursor.Y);
+        int number = (PushWaypointMarks?.Count ?? 0) + 1;
+        return new PendingPushPoint(new LatLon(lat, lon), new LatLon(cursorLat, cursorLon), number);
+    }
+
+    /// <summary>
+    /// The push-route markers as the next frame draws them: the published ones, with a marker being dragged past the click
+    /// threshold drawn at the cursor instead.
+    /// </summary>
+    private IReadOnlyList<PushWaypointMark>? PushWaypointMarksToDraw()
+    {
+        IReadOnlyList<PushWaypointMark>? marks = PushWaypointMarks;
+        if (
+            (marks is null)
+            || (_markerDragIndex is not { } index)
+            || (index >= marks.Count)
+            || !IsPastClickThreshold(_markerDragStart, _markerDragCursor)
+        )
+        {
+            return marks;
+        }
+
+        (double lat, double lon) = Viewport.ScreenToLatLon((float)_markerDragCursor.X, (float)_markerDragCursor.Y);
+        List<PushWaypointMark> dragged = [.. marks];
+        dragged[index] = marks[index] with { Position = new LatLon(lat, lon) };
+        return dragged;
+    }
+
+    /// <summary>True when <paramref name="to"/> is farther than the click threshold from <paramref name="from"/>: a drag, not a click.</summary>
+    private static bool IsPastClickThreshold(Point from, Point to)
+    {
+        double dx = to.X - from.X;
+        double dy = to.Y - from.Y;
+        return ((dx * dx) + (dy * dy)) > ClickDragThresholdSq;
     }
 
     protected override void RenderFromSnapshot(SKCanvas canvas, MapViewport viewport, object? snapshot)
@@ -963,6 +1052,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             s.ShowAdwMarkings,
             s.CtrlNodeHover
         );
+
+        _renderer.DrawPendingPushPoint(canvas, viewport, s.PendingPushPoint);
 
         // Drawn last so a measurement stays readable over aircraft symbols, datablocks, and the surface.
         _renderer.DrawRangeBearingLines(canvas, viewport, s.RangeBearingLines, s.PendingRangeBearingLine);
@@ -1080,6 +1171,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             MarkDirty();
         }
 
+        TrackPushDrawDrags(hoverPos);
+
         // Ctrl+hover marks the nearest node. Repaint while held (so the marker follows the cursor)
         // and on the frame Ctrl is released (so the marker clears).
         bool ctrlHeld = (e.KeyModifiers & KeyModifiers.Control) != 0;
@@ -1088,6 +1181,34 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             MarkDirty();
         }
         _ctrlHeldAtPointer = ctrlHeld;
+    }
+
+    /// <summary>
+    /// Keeps a Shift+drag's pending point and facing arrow, or a dragged push marker, on the cursor, and clears them when
+    /// the pointer comes back within the click threshold of the press.
+    /// </summary>
+    private void TrackPushDrawDrags(Point pointerPos)
+    {
+        if (_freePointPress is { } freePointPress)
+        {
+            TrackDragCursor(freePointPress, ref _freePointCursor, pointerPos);
+        }
+
+        if (_markerDragIndex is not null)
+        {
+            TrackDragCursor(_markerDragStart, ref _markerDragCursor, pointerPos);
+        }
+    }
+
+    /// <summary>Moves a drag's cursor, repainting while the drag is past the click threshold and on the move that brings it back within.</summary>
+    private void TrackDragCursor(Point start, ref Point cursor, Point pointerPos)
+    {
+        bool wasShown = IsPastClickThreshold(start, cursor);
+        cursor = pointerPos;
+        if (wasShown || IsPastClickThreshold(start, pointerPos))
+        {
+            MarkDirty();
+        }
     }
 
     // Pressing or releasing Ctrl without moving the pointer shows or clears the node marker at once.
@@ -1244,7 +1365,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return;
         }
 
-        if (TryBeginFreePointGesture(e, pos, props))
+        if (TryBeginPushDrawGesture(e, pos, props))
         {
             return;
         }
@@ -1375,11 +1496,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
-        if ((_freePointPress is { } freePointPress) && (e.InitialPressMouseButton == _freePointButton))
+        if (TryEndPushDrawGesture(e))
         {
-            _freePointPress = null;
-            PlaceFreePoint(freePointPress, e.GetPosition(this));
-            e.Handled = true;
             return;
         }
 
@@ -1526,16 +1644,72 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     private bool IsDrawingPushRoute => IsDrawingRoute && (PushWaypointMarks is not null);
 
     /// <summary>
+    /// Starts a drag of the push-route target marker under the pointer. The start (index 0) is not a target, and of
+    /// several markers under the pointer the topmost — the highest index, drawn last — is the one dragged.
+    /// </summary>
+    /// <returns>True when a marker drag started.</returns>
+    private bool TryBeginPushMarkerDrag(Point pos)
+    {
+        if (PushWaypointMarks is not { } marks)
+        {
+            return false;
+        }
+
+        int top = PushMarkersAt(marks, pos).DefaultIfEmpty(0).Max();
+        if (top < 1)
+        {
+            return false;
+        }
+
+        _markerDragIndex = top;
+        _markerDragStart = pos;
+        _markerDragCursor = pos;
+        return true;
+    }
+
+    /// <summary>
+    /// Ends a Shift gesture or a push marker drag on the release of the button that started it: the gesture places its
+    /// marked point, and a drag released past the click threshold moves its target there (a click on a marker changes
+    /// nothing).
+    /// </summary>
+    /// <returns>True when the release ended one and is handled.</returns>
+    private bool TryEndPushDrawGesture(PointerReleasedEventArgs e)
+    {
+        Point release = e.GetPosition(this);
+        if ((_freePointPress is { } freePointPress) && (e.InitialPressMouseButton == _freePointButton))
+        {
+            _freePointPress = null;
+            MarkDirty();
+            PlaceFreePoint(freePointPress, release);
+        }
+        else if ((_markerDragIndex is { } index) && (e.InitialPressMouseButton == MouseButton.Left))
+        {
+            _markerDragIndex = null;
+            MarkDirty();
+            if (IsPastClickThreshold(_markerDragStart, release))
+            {
+                (double lat, double lon) = Viewport.ScreenToLatLon((float)release.X, (float)release.Y);
+                PushMarkerDragged?.Invoke(index, new LatLon(lat, lon));
+            }
+        }
+        else
+        {
+            return false;
+        }
+
+        e.Handled = true;
+        return true;
+    }
+
+    /// <summary>
     /// Ends a Shift gesture: the marked point is where the press landed; a release past the click threshold also gives
     /// it a facing toward the release.
     /// </summary>
     private void PlaceFreePoint(Point press, Point release)
     {
         (double lat, double lon) = Viewport.ScreenToLatLon((float)press.X, (float)press.Y);
-        double dx = release.X - press.X;
-        double dy = release.Y - press.Y;
         LatLon? dragTo = null;
-        if (((dx * dx) + (dy * dy)) > ClickDragThresholdSq)
+        if (IsPastClickThreshold(press, release))
         {
             (double toLat, double toLon) = Viewport.ScreenToLatLon((float)release.X, (float)release.Y);
             dragTo = new LatLon(toLat, toLon);
@@ -1545,29 +1719,60 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     }
 
     /// <summary>
-    /// Shift while drawing a push route places a marked point where the press lands, even over a node or a datablock,
-    /// and never pans: the release decides whether it was a click (no facing) or a drag (the facing). Not while
+    /// The press gestures of push-route drawing, which win over whatever lies under the pointer, datablocks included, and
+    /// never pan: Shift places a marked point, and a left press on a target's marker drags that marker. Not while
     /// measuring, where a right-click cancels the measurement.
     /// </summary>
-    /// <returns>True when the press started the gesture and is handled.</returns>
-    private bool TryBeginFreePointGesture(PointerPressedEventArgs e, Point pos, PointerPointProperties props)
+    /// <returns>True when the press started a gesture and is handled.</returns>
+    private bool TryBeginPushDrawGesture(PointerPressedEventArgs e, Point pos, PointerPointProperties props)
     {
-        bool shiftClick = e.KeyModifiers.HasFlag(KeyModifiers.Shift) && (props.IsLeftButtonPressed || props.IsRightButtonPressed);
-        if (!IsDrawingPushRoute || IsMeasuring || !shiftClick)
+        if (!IsDrawingPushRoute || IsMeasuring)
+        {
+            return false;
+        }
+
+        bool started = e.KeyModifiers.HasFlag(KeyModifiers.Shift)
+            ? TryBeginFreePointGesture(pos, props)
+            : (props.IsLeftButtonPressed && TryBeginPushMarkerDrag(pos));
+        if (started)
+        {
+            e.Handled = true;
+        }
+
+        return started;
+    }
+
+    /// <summary>
+    /// Shift+left or Shift+right places a marked point where the press lands, even over a node or a datablock: the
+    /// release decides whether it was a click (no facing) or a drag (the facing).
+    /// </summary>
+    /// <returns>True when the press started the gesture.</returns>
+    private bool TryBeginFreePointGesture(Point pos, PointerPointProperties props)
+    {
+        if (!props.IsLeftButtonPressed && !props.IsRightButtonPressed)
         {
             return false;
         }
 
         _freePointPress = pos;
+        _freePointCursor = pos;
         _freePointButton = props.IsRightButtonPressed ? MouseButton.Right : MouseButton.Left;
-        e.Handled = true;
         return true;
     }
 
-    /// <summary>A lost capture ends a Shift gesture without placing anything, so a later release cannot finish a stale one.</summary>
+    /// <summary>
+    /// A lost capture ends a Shift gesture or a push marker drag without placing or moving anything, so a later release
+    /// cannot finish a stale one.
+    /// </summary>
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
     {
-        _freePointPress = null;
+        if ((_freePointPress is not null) || (_markerDragIndex is not null))
+        {
+            _freePointPress = null;
+            _markerDragIndex = null;
+            MarkDirty();
+        }
+
         base.OnPointerCaptureLost(e);
     }
 

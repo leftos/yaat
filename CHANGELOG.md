@@ -16,6 +16,8 @@
 - Light single-engine aircraft slow to 5 knots for sharp taxi turns and reversals instead of taking them at 10.
 - Aircraft types missing from the FAA database get lengths closer to their wake category's real aircraft for ground spacing and runway exits.
 - `FOLLOWG` to an aircraft holding short of a runway is accepted: it stays held until `CROSS`, then crosses and follows.
+- A Shift+drag in a drawn push route shows the new point and its facing arrow while you drag.
+- Dragging a drawn push route point's marker moves that point; spots, gates and nodes snap to the nearest node.
 
 ### Fixed
 
@@ -24,6 +26,7 @@
 - Rewinding to a point saved against an older airport layout no longer sends a landing aircraft down a broken exit path.
 - Copying view settings with pop-outs now also pops out or docks the Controllers and METAR windows.
 - Importing a macro file that cannot be read shows an error beside the Import button instead of doing nothing.
+- In a drawn push route, adding a point after a Shift+dragged one drops the earlier point's facing instead of refusing the route.
 
 ## v0.13.5-beta [2026/09/25]
 

@@ -59,6 +59,7 @@ public partial class GroundView : UserControl
         _canvas.DrawNodeHovered += OnDrawNodeHovered;
         _canvas.PushRouteRightClicked += OnPushRouteRightClicked;
         _canvas.DrawFreePointPlaced += OnDrawFreePointPlaced;
+        _canvas.PushMarkerDragged += OnPushMarkerDragged;
         _canvas.HoveredAircraftChanged += OnAircraftHovered;
         _canvas.MeasurePointPicked += OnMeasurePointPicked;
         _canvas.MeasureDragCompleted += OnMeasureDragCompleted;
@@ -101,6 +102,7 @@ public partial class GroundView : UserControl
             _canvas.DrawNodeHovered -= OnDrawNodeHovered;
             _canvas.PushRouteRightClicked -= OnPushRouteRightClicked;
             _canvas.DrawFreePointPlaced -= OnDrawFreePointPlaced;
+            _canvas.PushMarkerDragged -= OnPushMarkerDragged;
             _canvas.HoveredAircraftChanged -= OnAircraftHovered;
             _canvas.MeasurePointPicked -= OnMeasurePointPicked;
             _canvas.MeasureDragCompleted -= OnMeasureDragCompleted;
@@ -1204,7 +1206,7 @@ public partial class GroundView : UserControl
     /// </summary>
     private void OnPushRouteRightClicked(IReadOnlyList<int> markerHits, int? nodeId)
     {
-        if (DataContext is not GroundViewModel vm || vm.DrawKind != DrawRouteKind.Push)
+        if ((DataContext is not GroundViewModel vm) || (vm.DrawKind != DrawRouteKind.Push))
         {
             return;
         }
@@ -1230,7 +1232,7 @@ public partial class GroundView : UserControl
     /// </summary>
     private void OnDrawFreePointPlaced(LatLon point, LatLon? dragTo, bool finish)
     {
-        if (DataContext is not GroundViewModel vm || vm.DrawKind != DrawRouteKind.Push)
+        if ((DataContext is not GroundViewModel vm) || (vm.DrawKind != DrawRouteKind.Push))
         {
             return;
         }
@@ -1241,6 +1243,20 @@ public partial class GroundView : UserControl
         {
             SendPushRoute(vm);
         }
+    }
+
+    /// <summary>
+    /// A left-drag moved a push-route target's marker: a marked point moves to where it was released, and a node target
+    /// snaps to the node nearest there.
+    /// </summary>
+    private void OnPushMarkerDragged(int waypointIndex, LatLon to)
+    {
+        if ((DataContext is not GroundViewModel vm) || (vm.DrawKind != DrawRouteKind.Push))
+        {
+            return;
+        }
+
+        vm.MovePushTarget(waypointIndex, to);
     }
 
     /// <summary>

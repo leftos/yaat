@@ -149,6 +149,15 @@ internal readonly struct DataBlockLayout
 }
 
 /// <summary>
+/// A push-route marked point a Shift+drag is placing, before its release: the point where the press landed, the cursor
+/// its facing points toward, and the number its marker will carry.
+/// </summary>
+/// <param name="Point">Where the press landed, which is where the marked point goes.</param>
+/// <param name="Cursor">Where the pointer is now; the release there gives the point its facing toward it.</param>
+/// <param name="Number">The marker's number, one past the last point already drawn.</param>
+public readonly record struct PendingPushPoint(LatLon Point, LatLon Cursor, int Number);
+
+/// <summary>
 /// Stateless SkiaSharp renderer for the airport ground layout.
 /// All SKPaint objects are pre-allocated and reused.
 /// Labels are collected during geometry passes and drawn last with overlap culling.
@@ -1426,7 +1435,6 @@ public sealed class GroundRenderer : IDisposable
     /// </summary>
     private void DrawPushWaypointMarkers(SKCanvas canvas, MapViewport vp, IReadOnlyList<PushWaypointMark> marks)
     {
-        const float markerRadiusPx = 8f;
         const float facingTickPx = 12f;
         const float labelGapPx = 4f;
         const float labelPadPx = 2f;
@@ -1439,22 +1447,20 @@ public sealed class GroundRenderer : IDisposable
             if (mark.FacingTrueDeg is { } facingDeg && ScreenDirection(vp, mark.Position, facingDeg, (x, y)) is { } dir)
             {
                 canvas.DrawLine(
-                    x + (dir.X * markerRadiusPx),
-                    y + (dir.Y * markerRadiusPx),
-                    x + (dir.X * (markerRadiusPx + facingTickPx)),
-                    y + (dir.Y * (markerRadiusPx + facingTickPx)),
+                    x + (dir.X * PushMarkerRadiusPx),
+                    y + (dir.Y * PushMarkerRadiusPx),
+                    x + (dir.X * (PushMarkerRadiusPx + facingTickPx)),
+                    y + (dir.Y * (PushMarkerRadiusPx + facingTickPx)),
                     _facingTickPaint
                 );
             }
 
-            canvas.DrawCircle(x, y, markerRadiusPx, _waypointMarkerPaint);
-            float baseline = y + (_waypointTextFont.Size / 3f);
-            canvas.DrawText($"{i + 1}", x, baseline, SKTextAlign.Center, _waypointTextFont, _waypointTextPaint);
+            float baseline = DrawPushMarker(canvas, x, y, i + 1);
 
             if (mark.ForcedKind is { } kind)
             {
                 string label = kind == PushbackLegKind.Push ? "PUSH" : "PULL";
-                float left = x + markerRadiusPx + labelGapPx;
+                float left = x + PushMarkerRadiusPx + labelGapPx;
                 float width = _waypointTextFont.MeasureText(label);
                 float top = y - (_waypointTextFont.Size / 2f) - labelPadPx;
                 float bottom = y + (_waypointTextFont.Size / 2f) + labelPadPx;
@@ -1463,6 +1469,45 @@ public sealed class GroundRenderer : IDisposable
                 canvas.DrawText(label, left, baseline, SKTextAlign.Left, _waypointTextFont, _forcedLegLabelPaint);
             }
         }
+    }
+
+    /// <summary>The radius, in pixels, of a push-route point's numbered marker.</summary>
+    private const float PushMarkerRadiusPx = 8f;
+
+    /// <summary>Draws one push-route point's numbered marker centred on the screen point.</summary>
+    /// <returns>The baseline its number was drawn on, for a label drawn beside it.</returns>
+    private float DrawPushMarker(SKCanvas canvas, float x, float y, int number)
+    {
+        canvas.DrawCircle(x, y, PushMarkerRadiusPx, _waypointMarkerPaint);
+        float baseline = y + (_waypointTextFont.Size / 3f);
+        canvas.DrawText($"{number}", x, baseline, SKTextAlign.Center, _waypointTextFont, _waypointTextPaint);
+        return baseline;
+    }
+
+    /// <summary>
+    /// Draws the marked point a Shift+drag is placing, before its release: the numbered marker where the press landed,
+    /// as a placed marked point's, and a facing arrow from the marker to the cursor — the facing the release will give it.
+    /// </summary>
+    public void DrawPendingPushPoint(SKCanvas canvas, MapViewport vp, PendingPushPoint? pending)
+    {
+        if (pending is not { } p)
+        {
+            return;
+        }
+
+        (float x, float y) = vp.LatLonToScreen(p.Point.Lat, p.Point.Lon);
+        (float cx, float cy) = vp.LatLonToScreen(p.Cursor.Lat, p.Cursor.Lon);
+        float dx = cx - x;
+        float dy = cy - y;
+        float length = MathF.Sqrt((dx * dx) + (dy * dy));
+        if (length > PushMarkerRadiusPx)
+        {
+            (float X, float Y) from = (x + (dx / length * PushMarkerRadiusPx), y + (dy / length * PushMarkerRadiusPx));
+            canvas.DrawLine(from.X, from.Y, cx, cy, _facingTickPaint);
+            DrawLegArrowHead(canvas, from, (cx, cy), _facingTickPaint);
+        }
+
+        DrawPushMarker(canvas, x, y, p.Number);
     }
 
     /// <summary>

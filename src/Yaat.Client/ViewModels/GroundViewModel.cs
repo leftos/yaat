@@ -2210,10 +2210,24 @@ public partial class GroundViewModel : ObservableObject
             return false;
         }
 
+        DropLastTargetFacing();
         _drawWaypointIds.Add(nodeId);
         PublishPushWaypoints();
         RefreshPushRoutePreview();
         return true;
+    }
+
+    /// <summary>
+    /// Clears the facing of the current last target when it is a marked point, before another target is appended
+    /// after it: only the last point of a <c>PUSHM</c> takes a facing. Undoing the appended target does not restore it.
+    /// </summary>
+    private void DropLastTargetFacing()
+    {
+        int last = _drawWaypointIds.Count - 1;
+        if (_pushFreePoses.TryGetValue(last, out PushFreePose? pose) && (pose.Facing is not null))
+        {
+            _pushFreePoses[last] = pose with { Facing = null };
+        }
     }
 
     /// <summary>
@@ -2243,6 +2257,7 @@ public partial class GroundViewModel : ObservableObject
             return false;
         }
 
+        DropLastTargetFacing();
         _drawWaypointIds.Add(id);
         _pushFreePoses[_drawWaypointIds.Count - 1] = pose;
         PublishPushWaypoints();
@@ -2317,6 +2332,62 @@ public partial class GroundViewModel : ObservableObject
             { } index when index == last => (PushRightClickTarget.LastWaypoint, index),
             { } index => (PushRightClickTarget.EarlierWaypoint, index),
         };
+    }
+
+    /// <summary>
+    /// Moves a push-route target to where its marker was dragged and re-plans the preview. A marked point moves to
+    /// <paramref name="to"/>, kept as the command will carry it (six decimals), with its facing; a node target (a spot, a
+    /// stand or a plain node) snaps to the layout node nearest <paramref name="to"/>. Either keeps its forced kind.
+    /// Ignored outside push-draw mode, for the start (index 0), for an index past the last point, and when the move leaves
+    /// the target where it was or makes it the same point as the one before or after it.
+    /// </summary>
+    /// <param name="waypointIndex">The target's index in <see cref="DrawWaypoints"/>.</param>
+    /// <param name="to">Where the marker was released.</param>
+    public void MovePushTarget(int waypointIndex, LatLon to)
+    {
+        if ((_drawKind != DrawRouteKind.Push) || (waypointIndex < 1) || (waypointIndex >= _drawWaypointIds.Count))
+        {
+            return;
+        }
+
+        if ((MovedPushTarget(waypointIndex, to) is not { } moved) || !IsAcceptedPushTargetMove(waypointIndex, moved.Id))
+        {
+            return;
+        }
+
+        _drawWaypointIds[waypointIndex] = moved.Id;
+        if (moved.Pose is not null)
+        {
+            _pushFreePoses[waypointIndex] = moved.Pose;
+        }
+
+        PublishPushWaypoints();
+        RefreshPushRoutePreview();
+    }
+
+    /// <summary>
+    /// Where a dragged target lands: a marked point at <paramref name="to"/> with its facing, or a node target at the
+    /// layout node nearest <paramref name="to"/>, of any kind. Null when a node target has no layout to snap to.
+    /// </summary>
+    private (int Id, PushFreePose? Pose)? MovedPushTarget(int waypointIndex, LatLon to)
+    {
+        if (_pushFreePoses.TryGetValue(waypointIndex, out PushFreePose? pose))
+        {
+            PushFreePose moved = pose with { Latitude = Math.Round(to.Lat, 6), Longitude = Math.Round(to.Lon, 6) };
+            return (VirtualNode.Create(moved.Latitude, moved.Longitude).Id, moved);
+        }
+
+        GroundNode? nearest = _domainLayout?.Nodes.Values.MinBy(node => GeoMath.DistanceNm(to, node.Position));
+        return nearest is null ? null : (nearest.Id, null);
+    }
+
+    /// <summary>
+    /// False when the moved target would be the point it already is, or the same point as the one before it or after it.
+    /// </summary>
+    private bool IsAcceptedPushTargetMove(int waypointIndex, int movedId)
+    {
+        bool sameAsNext = (waypointIndex + 1 < _drawWaypointIds.Count) && (_drawWaypointIds[waypointIndex + 1] == movedId);
+        return (movedId != _drawWaypointIds[waypointIndex]) && (movedId != _drawWaypointIds[waypointIndex - 1]) && !sameAsNext;
     }
 
     /// <summary>Drops the last PUSHM target, with its marked point and forced kind, and re-plans the preview.</summary>
@@ -2429,23 +2500,12 @@ public partial class GroundViewModel : ObservableObject
             return;
         }
 
-        // Each target resolves as the sim's PUSHM resolves its legs: a marked point minted where it lies (facing
-        // converted at the aircraft), every other target found in the layout, then the leg's forced kind applied.
-        var goals = new List<TugGoal>(targets.Count);
-        for (int i = 0; i < targets.Count; i++)
+        (List<TugGoal>? goals, double? finalFacingTrueDeg, string? goalRefusal) = ResolvePushPreviewGoals(_domainLayout, _drawAircraft, targets);
+        if (goals is null)
         {
-            PushDestination target = targets[i];
-            TugGoal? goal = target.FreePose is { } pose
-                ? GroundCommandHandler.ResolveMarkedPointGoal(pose, null, _drawAircraft.Position, GroundCommandHandler.MarkedPointLabel(targets, i))
-                : GroundCommandHandler.ResolveTugGoal(_domainLayout, target.Token);
-            if (goal is null)
-            {
-                PushRoutePreview = null;
-                PushRouteRefusal = $"Cannot find {target.Token}";
-                return;
-            }
-
-            goals.Add(goal with { ForcedKind = target.ForcedKind });
+            PushRoutePreview = null;
+            PushRouteRefusal = goalRefusal;
+            return;
         }
 
         // The neighbours are chosen by the same body the simulation plans the executed move with, from the aircraft
@@ -2459,12 +2519,51 @@ public partial class GroundViewModel : ObservableObject
             AircraftType = _drawAircraft.AircraftType,
             Goals = goals,
             ParkedNeighbours = TugParkedNeighbours.Build(subject, others),
-            FinalFacingTrueDeg = null,
+            FinalFacingTrueDeg = finalFacingTrueDeg,
             PreviousKind = null,
             Forced = false,
         };
 
         (PushRoutePreview, PushRouteRefusal) = PlanPushPreview(_domainLayout, request, subject, others);
+    }
+
+    /// <summary>
+    /// The goals the drawn targets resolve to. A single spot or stand is sent as plain <c>PUSH $spot</c> /
+    /// <c>PUSH @stand</c>, so it resolves through the server's own resolver for those forms: the preview and the server
+    /// share one body and cannot drift apart, refusal wording included (the draw gestures give such a target no facing,
+    /// so none is previewed). Otherwise each target resolves as the sim's
+    /// <c>PUSHM</c> resolves its legs: a marked point minted where it lies (facing converted at the aircraft), every
+    /// other target found in the layout, then the leg's forced kind applied.
+    /// </summary>
+    /// <returns>The goals and the facing to end on, or no goals and the refusal.</returns>
+    private static (List<TugGoal>? Goals, double? FinalFacingTrueDeg, string? Refusal) ResolvePushPreviewGoals(
+        AirportGroundLayout layout,
+        AircraftModel aircraft,
+        List<PushDestination> targets
+    )
+    {
+        if ((targets.Count == 1) && ((targets[0].Spot is not null) || (targets[0].Parking is not null)))
+        {
+            StandOrSpotGoal single = GroundCommandHandler.ResolveStandOrSpotGoal(aircraft.Position, null, null, targets[0], layout);
+            return single.Goal is { } singleGoal ? ([singleGoal], single.FinalFacingTrueDeg, null) : (null, null, single.Refusal);
+        }
+
+        var goals = new List<TugGoal>(targets.Count);
+        for (int i = 0; i < targets.Count; i++)
+        {
+            PushDestination target = targets[i];
+            TugGoal? goal = target.FreePose is { } pose
+                ? GroundCommandHandler.ResolveMarkedPointGoal(pose, null, aircraft.Position, GroundCommandHandler.MarkedPointLabel(targets, i))
+                : GroundCommandHandler.ResolveTugGoal(layout, target.Token);
+            if (goal is null)
+            {
+                return (null, null, $"Cannot find {target.Token}");
+            }
+
+            goals.Add(goal with { ForcedKind = target.ForcedKind });
+        }
+
+        return (goals, null, null);
     }
 
     /// <summary>
