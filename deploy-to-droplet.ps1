@@ -142,7 +142,7 @@ $yaatUser = "yaat"
 $serverPath = $cfg.ServerPath
 $serverUrl = $cfg.ServerUrl
 $remoteEnvFile = $cfg.RemoteEnvFile
-$logFile = "/tmp/yaat-deploy-$Target-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
+$logFile = Join-Path ([IO.Path]::GetTempPath()) "yaat-deploy-$Target-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
 $followLogs = -not $NoLogs
 
 # Realistic end-to-end downtime users should expect, surfaced in the Discord status messages.
