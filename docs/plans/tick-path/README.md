@@ -17,6 +17,8 @@ The design was re-derived clean-room this session; the decisions are ADRs [0001]
 
 ## Rules every step follows
 
+- **The server is a thin layer (steer 2026-09-25, user):** it holds as little state and logic as possible, beyond relaying between the Sim and its clients (YAAT and CRC). When a relocation has to choose between keeping state or a decision on the server and moving it into the Sim, move it; the server keeps only wire projection, per-subscriber fan-out and connection bookkeeping.
+
 - **Predict, then re-baseline.** Every sub-commit names the baseline entries it will retire *before* running `YAAT_ORACLE_REBASELINE=1`; an unpredicted `Removed` or `Added` stops the work until it is attributed. **The trap this sequencing exists for:** a live-side regression makes a divergence *disappear*, which the oracle reports under `Removed` — and `TickOracleBaseline.Describe` prints "divergence path(s) GONE — if that was the intent, re-baseline to bank it". A regression presents as a congratulation with a suggested fix. 3c commits must be baseline-neutral in `Added` **and** `Removed`; re-baselining is not an available response there
 - **Corpus triage** (ADR 0004): an over-broad assertion → fix the test; a genuine desync → delete the recording; an unexpected cause → stop.
 - **Green cross-repo before every commit** (`pwsh tools/test-all.ps1`), TDD red-first, and the per-step log records predicted-vs-got so a later reader can check the attribution.
