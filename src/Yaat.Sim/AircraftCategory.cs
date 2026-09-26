@@ -1042,7 +1042,7 @@ public static class CategoryPerformance
         {
             AircraftCategory.Jet => 8,
             AircraftCategory.Turboprop => 8,
-            AircraftCategory.Piston => 10,
+            AircraftCategory.Piston => 5,
             AircraftCategory.Helicopter => 5,
             _ => 8,
         };
