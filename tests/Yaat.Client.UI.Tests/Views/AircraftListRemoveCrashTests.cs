@@ -53,7 +53,18 @@ public class AircraftListRemoveCrashTests
     private static (Window window, MainViewModel vm, DataGrid grid) HostGrid(IEnumerable<AircraftDto> aircraft)
     {
         var vm = new MainViewModel(new FakeFilePickerService());
-        vm.ApplyScenarioBootstrap(new ScenarioBootstrap("scenario-237", "Remove Crash", "OAK", null, null, [.. aircraft], ElapsedSeconds: 0));
+        vm.ApplyScenarioBootstrap(
+            new ScenarioBootstrap
+            {
+                ScenarioId = "scenario-237",
+                ScenarioName = "Remove Crash",
+                PrimaryAirportId = "OAK",
+                PositionDisplayConfig = null,
+                FlightStripsConfig = null,
+                Aircraft = [.. aircraft],
+                ElapsedSeconds = 0,
+            }
+        );
 
         var view = new DataGridView { DataContext = vm };
         var window = new Window
@@ -91,15 +102,16 @@ public class AircraftListRemoveCrashTests
     {
         var vm = new MainViewModel(new FakeFilePickerService());
         vm.ApplyScenarioBootstrap(
-            new ScenarioBootstrap(
-                "scenario-237-reentrant",
-                "Reentrant",
-                "OAK",
-                null,
-                null,
-                [MakeAircraft("AAA1"), MakeAircraft("BBB1"), MakeAircraft("CCC1")],
-                ElapsedSeconds: 0
-            )
+            new ScenarioBootstrap
+            {
+                ScenarioId = "scenario-237-reentrant",
+                ScenarioName = "Reentrant",
+                PrimaryAirportId = "OAK",
+                PositionDisplayConfig = null,
+                FlightStripsConfig = null,
+                Aircraft = [MakeAircraft("AAA1"), MakeAircraft("BBB1"), MakeAircraft("CCC1")],
+                ElapsedSeconds = 0,
+            }
         );
 
         // Currency sits on the last row, exactly as the grid places it when that row is selected.

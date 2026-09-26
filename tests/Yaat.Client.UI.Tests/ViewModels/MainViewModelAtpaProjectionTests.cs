@@ -46,7 +46,16 @@ public class MainViewModelAtpaProjectionTests
     {
         MainViewModel vm = NewVm();
         vm.ApplyScenarioBootstrap(
-            new ScenarioBootstrap("scenario-atpa", "ATPA Test", "OAK", null, null, [.. callsigns.Select(MakeAircraft)], ElapsedSeconds: 0)
+            new ScenarioBootstrap
+            {
+                ScenarioId = "scenario-atpa",
+                ScenarioName = "ATPA Test",
+                PrimaryAirportId = "OAK",
+                PositionDisplayConfig = null,
+                FlightStripsConfig = null,
+                Aircraft = [.. callsigns.Select(MakeAircraft)],
+                ElapsedSeconds = 0,
+            }
         );
         return vm;
     }

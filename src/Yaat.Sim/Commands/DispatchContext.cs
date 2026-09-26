@@ -11,7 +11,7 @@ namespace Yaat.Sim.Commands;
 /// that need the scenario's ground layout, weather, aircraft lookup, RNG, or
 /// dispatch flags.
 ///
-/// All fields are positional and required — tests and production must construct
+/// Every property is required — tests and production must construct
 /// a context explicitly rather than relying on defaults, so that future context
 /// additions break at the compiler instead of silently passing null.
 ///
@@ -55,24 +55,38 @@ namespace Yaat.Sim.Commands;
 /// estimate) reads the same clock on a replay as it did live. Callers outside a scenario pass
 /// <see cref="Simulation.SimScenarioState.ProcessDayUtc"/>.</para>
 /// </summary>
-public sealed record DispatchContext(
-    AirportGroundLayout? GroundLayout,
-    Random Rng,
-    WeatherProfile? Weather,
-    Func<string, AircraftState?>? FindAircraft,
-    Func<IReadOnlyList<AircraftState>>? ListAircraft,
-    bool ValidateDctFixes,
-    bool AutoCrossRunway,
-    bool SoloTrainingMode,
-    bool RpoShowPilotSpeech,
-    Action<TerminalEntry>? TerminalEmitter,
-    ArtccConfigRoot? ArtccConfig,
-    double ScenarioElapsedSeconds,
-    DateTime SessionStartUtc,
-    bool PreserveConditionals,
-    bool IsScenarioScripted
-)
+public sealed record DispatchContext
 {
+    public required AirportGroundLayout? GroundLayout { get; init; }
+
+    public required Random Rng { get; init; }
+
+    public required WeatherProfile? Weather { get; init; }
+
+    public required Func<string, AircraftState?>? FindAircraft { get; init; }
+
+    public required Func<IReadOnlyList<AircraftState>>? ListAircraft { get; init; }
+
+    public required bool ValidateDctFixes { get; init; }
+
+    public required bool AutoCrossRunway { get; init; }
+
+    public required bool SoloTrainingMode { get; init; }
+
+    public required bool RpoShowPilotSpeech { get; init; }
+
+    public required Action<TerminalEntry>? TerminalEmitter { get; init; }
+
+    public required ArtccConfigRoot? ArtccConfig { get; init; }
+
+    public required double ScenarioElapsedSeconds { get; init; }
+
+    public required DateTime SessionStartUtc { get; init; }
+
+    public required bool PreserveConditionals { get; init; }
+
+    public required bool IsScenarioScripted { get; init; }
+
     /// <summary>
     /// The session clock at this dispatch: the record's mirror of <see cref="Simulation.SimScenarioState.SimTimeUtc"/>,
     /// for the verbs whose answer carries a time of day.

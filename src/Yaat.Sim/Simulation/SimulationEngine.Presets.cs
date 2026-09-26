@@ -133,26 +133,27 @@ public sealed partial class SimulationEngine
         }
 
         AirportGroundLayout? groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
-        var ctx = new DispatchContext(
-            groundLayout,
-            World.Rng,
-            World.Weather,
-            FindAircraft,
-            () => World.GetSnapshot(),
-            Scenario!.ValidateDctFixes,
-            Scenario!.AutoCrossRunway,
-            Scenario!.SoloTrainingMode,
-            Scenario!.RpoShowPilotSpeech,
-            AddTerminalEntry,
-            Scenario!.ArtccConfig,
-            Scenario!.ElapsedSeconds,
-            Scenario!.SessionStartUtc,
-            PreserveConditionals: false,
+        var ctx = new DispatchContext
+        {
+            GroundLayout = groundLayout,
+            Rng = World.Rng,
+            Weather = World.Weather,
+            FindAircraft = FindAircraft,
+            ListAircraft = () => World.GetSnapshot(),
+            ValidateDctFixes = Scenario!.ValidateDctFixes,
+            AutoCrossRunway = Scenario!.AutoCrossRunway,
+            SoloTrainingMode = Scenario!.SoloTrainingMode,
+            RpoShowPilotSpeech = Scenario!.RpoShowPilotSpeech,
+            TerminalEmitter = AddTerminalEntry,
+            ArtccConfig = Scenario!.ArtccConfig,
+            ScenarioElapsedSeconds = Scenario!.ElapsedSeconds,
+            SessionStartUtc = Scenario!.SessionStartUtc,
+            PreserveConditionals = false,
             // The takeoff clearance is issued by the automated tower, not by the student (who only
             // lifted the hold-for-release). It is not the student establishing two-way comms, so it
             // must not mark initial contact — the departure still checks in after takeoff.
-            IsScenarioScripted: true
-        );
+            IsScenarioScripted = true,
+        };
         CommandDispatcher.DispatchCompound(parsed.Value!, aircraft, ctx);
         // The pilot's "ready for departure" call is answered even though the automated tower issued the
         // clearance — without this the request stays open and the pilot re-announces it every 120 s from
@@ -210,23 +211,24 @@ public sealed partial class SimulationEngine
             }
 
             AirportGroundLayout? groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
-            var presetCtx = new DispatchContext(
-                groundLayout,
-                World.Rng,
-                World.Weather,
-                FindAircraft,
-                () => World.GetSnapshot(),
-                scenario.ValidateDctFixes,
-                scenario.AutoCrossRunway,
-                scenario.SoloTrainingMode,
-                scenario.RpoShowPilotSpeech,
-                AddTerminalEntry,
-                scenario.ArtccConfig,
-                scenario.ElapsedSeconds,
-                scenario.SessionStartUtc,
-                PreserveConditionals: false,
-                IsScenarioScripted: true
-            );
+            var presetCtx = new DispatchContext
+            {
+                GroundLayout = groundLayout,
+                Rng = World.Rng,
+                Weather = World.Weather,
+                FindAircraft = FindAircraft,
+                ListAircraft = () => World.GetSnapshot(),
+                ValidateDctFixes = scenario.ValidateDctFixes,
+                AutoCrossRunway = scenario.AutoCrossRunway,
+                SoloTrainingMode = scenario.SoloTrainingMode,
+                RpoShowPilotSpeech = scenario.RpoShowPilotSpeech,
+                TerminalEmitter = AddTerminalEntry,
+                ArtccConfig = scenario.ArtccConfig,
+                ScenarioElapsedSeconds = scenario.ElapsedSeconds,
+                SessionStartUtc = scenario.SessionStartUtc,
+                PreserveConditionals = false,
+                IsScenarioScripted = true,
+            };
             TaxiRoute? routeBeforeTimed = aircraft.Ground.AssignedTaxiRoute;
             CommandResult timedOutcome = CommandDispatcher.DispatchCompound(compound, aircraft, presetCtx);
             // A scripted clearance still answers whatever the pilot last asked for, so the pending
@@ -331,23 +333,24 @@ public sealed partial class SimulationEngine
         }
 
         AirportGroundLayout? groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
-        var singlePresetCtx = new DispatchContext(
-            groundLayout,
-            World.Rng,
-            World.Weather,
-            FindAircraft,
-            () => World.GetSnapshot(),
-            Scenario!.ValidateDctFixes,
-            Scenario!.AutoCrossRunway,
-            Scenario!.SoloTrainingMode,
-            Scenario!.RpoShowPilotSpeech,
-            AddTerminalEntry,
-            Scenario!.ArtccConfig,
-            Scenario!.ElapsedSeconds,
-            Scenario!.SessionStartUtc,
-            PreserveConditionals: false,
-            IsScenarioScripted: true
-        );
+        var singlePresetCtx = new DispatchContext
+        {
+            GroundLayout = groundLayout,
+            Rng = World.Rng,
+            Weather = World.Weather,
+            FindAircraft = FindAircraft,
+            ListAircraft = () => World.GetSnapshot(),
+            ValidateDctFixes = Scenario!.ValidateDctFixes,
+            AutoCrossRunway = Scenario!.AutoCrossRunway,
+            SoloTrainingMode = Scenario!.SoloTrainingMode,
+            RpoShowPilotSpeech = Scenario!.RpoShowPilotSpeech,
+            TerminalEmitter = AddTerminalEntry,
+            ArtccConfig = Scenario!.ArtccConfig,
+            ScenarioElapsedSeconds = Scenario!.ElapsedSeconds,
+            SessionStartUtc = Scenario!.SessionStartUtc,
+            PreserveConditionals = false,
+            IsScenarioScripted = true,
+        };
         TaxiRoute? routeBefore = aircraft.Ground.AssignedTaxiRoute;
         CommandResult presetOutcome = CommandDispatcher.DispatchCompound(compound, aircraft, singlePresetCtx);
 

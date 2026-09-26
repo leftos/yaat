@@ -330,7 +330,18 @@ public class MainViewModelViewInstancesTests
 
             // The docked view's layout is still the old scenario's while the bootstrap runs (the new one
             // arrives from the server later), so the mirror decision must follow the bootstrap's airport.
-            vm.ApplyScenarioBootstrap(new ScenarioBootstrap("scenario-sfo", "SFO scenario", "KSFO", null, null, [], ElapsedSeconds: 0));
+            vm.ApplyScenarioBootstrap(
+                new ScenarioBootstrap
+                {
+                    ScenarioId = "scenario-sfo",
+                    ScenarioName = "SFO scenario",
+                    PrimaryAirportId = "KSFO",
+                    PositionDisplayConfig = null,
+                    FlightStripsConfig = null,
+                    Aircraft = [],
+                    ElapsedSeconds = 0,
+                }
+            );
 
             Assert.False(onOak.Vm.IsMirroring);
             Assert.True(onSfo.Vm.IsMirroring);
@@ -349,7 +360,18 @@ public class MainViewModelViewInstancesTests
         try
         {
             vm.MarkNavDbReady();
-            vm.ApplyScenarioBootstrap(new ScenarioBootstrap("scenario-oak", "OAK scenario", "KOAK", null, null, [], ElapsedSeconds: 0));
+            vm.ApplyScenarioBootstrap(
+                new ScenarioBootstrap
+                {
+                    ScenarioId = "scenario-oak",
+                    ScenarioName = "OAK scenario",
+                    PrimaryAirportId = "KOAK",
+                    PositionDisplayConfig = null,
+                    FlightStripsConfig = null,
+                    Aircraft = [],
+                    ElapsedSeconds = 0,
+                }
+            );
             GroundViewInstance mirroring = vm.OpenExtraGroundView("OAK");
             GroundViewInstance own = vm.OpenExtraGroundView("SFO");
             Assert.True(mirroring.Vm.IsMirroring);

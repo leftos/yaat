@@ -61,7 +61,18 @@ public class MainViewModelRecordingBootstrapParityTests
         List<AircraftDto> aircraft = [MakeAircraft("SWA101"), MakeAircraft("UAL202")];
 
         MainViewModel viaBootstrap = NewVm();
-        viaBootstrap.ApplyScenarioBootstrap(new ScenarioBootstrap(ScenarioId, ScenarioName, AirportId, null, null, aircraft, ElapsedSeconds: 0));
+        viaBootstrap.ApplyScenarioBootstrap(
+            new ScenarioBootstrap
+            {
+                ScenarioId = ScenarioId,
+                ScenarioName = ScenarioName,
+                PrimaryAirportId = AirportId,
+                PositionDisplayConfig = null,
+                FlightStripsConfig = null,
+                Aircraft = aircraft,
+                ElapsedSeconds = 0,
+            }
+        );
 
         MainViewModel viaRecording = NewVm();
         viaRecording.ApplyRecordingResult(

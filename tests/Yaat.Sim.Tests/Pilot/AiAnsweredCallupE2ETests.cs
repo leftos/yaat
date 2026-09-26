@@ -166,23 +166,24 @@ public class AiAnsweredCallupE2ETests
         AircraftState ac = engine.World.GetSnapshot()[0];
         CompoundCommand compound = CommandParser.ParseCompound("TAXIAUTO 28R", ac.FlightPlan.Route).Value!;
 
-        var aiCtx = new DispatchContext(
-            ac.Ground.Layout ?? engine.ResolveGroundLayout(ac),
-            engine.World.Rng,
-            engine.World.Weather,
-            engine.FindAircraft,
-            () => engine.World.GetSnapshot(),
-            engine.Scenario!.ValidateDctFixes,
-            engine.Scenario.AutoCrossRunway,
-            engine.Scenario.SoloTrainingMode,
-            engine.Scenario.RpoShowPilotSpeech,
-            engine.EmitTerminalEntry,
-            engine.Scenario.ArtccConfig,
-            engine.Scenario.ElapsedSeconds,
-            engine.Scenario.SessionStartUtc,
-            PreserveConditionals: false,
-            IsScenarioScripted: true
-        );
+        var aiCtx = new DispatchContext
+        {
+            GroundLayout = ac.Ground.Layout ?? engine.ResolveGroundLayout(ac),
+            Rng = engine.World.Rng,
+            Weather = engine.World.Weather,
+            FindAircraft = engine.FindAircraft,
+            ListAircraft = () => engine.World.GetSnapshot(),
+            ValidateDctFixes = engine.Scenario!.ValidateDctFixes,
+            AutoCrossRunway = engine.Scenario.AutoCrossRunway,
+            SoloTrainingMode = engine.Scenario.SoloTrainingMode,
+            RpoShowPilotSpeech = engine.Scenario.RpoShowPilotSpeech,
+            TerminalEmitter = engine.EmitTerminalEntry,
+            ArtccConfig = engine.Scenario.ArtccConfig,
+            ScenarioElapsedSeconds = engine.Scenario.ElapsedSeconds,
+            SessionStartUtc = engine.Scenario.SessionStartUtc,
+            PreserveConditionals = false,
+            IsScenarioScripted = true,
+        };
         BravoClearanceWait? bravoWait = ImplicitBravoClearance.CaptureWait(ac);
         CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, aiCtx);
         engine.ApplyPostDispatch(ac, compound, result, DispatchOrigin.ControllerAi, bravoWait);

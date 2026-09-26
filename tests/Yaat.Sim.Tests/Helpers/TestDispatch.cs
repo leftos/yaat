@@ -31,21 +31,22 @@ internal static class TestDispatch
         bool preserveConditionals = false,
         bool isScenarioScripted = false
     ) =>
-        new(
-            groundLayout,
-            rng,
-            weather,
-            findAircraft,
-            listAircraft,
-            validateDctFixes,
-            autoCrossRunway,
-            soloTrainingMode,
-            rpoShowPilotSpeech,
-            terminalEmitter,
-            artccConfig,
-            scenarioElapsedSeconds,
-            sessionStartUtc ?? SimScenarioState.ProcessDayUtc,
-            preserveConditionals,
-            isScenarioScripted
-        );
+        new()
+        {
+            GroundLayout = groundLayout,
+            Rng = rng,
+            Weather = weather,
+            FindAircraft = findAircraft,
+            ListAircraft = listAircraft,
+            ValidateDctFixes = validateDctFixes,
+            AutoCrossRunway = autoCrossRunway,
+            SoloTrainingMode = soloTrainingMode,
+            RpoShowPilotSpeech = rpoShowPilotSpeech,
+            TerminalEmitter = terminalEmitter,
+            ArtccConfig = artccConfig,
+            ScenarioElapsedSeconds = scenarioElapsedSeconds,
+            SessionStartUtc = sessionStartUtc ?? SimScenarioState.ProcessDayUtc,
+            PreserveConditionals = preserveConditionals,
+            IsScenarioScripted = isScenarioScripted,
+        };
 }

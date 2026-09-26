@@ -540,15 +540,16 @@ public partial class MainViewModel
         }
 
         ApplyScenarioBootstrap(
-            new ScenarioBootstrap(
-                result.ScenarioId,
-                result.Name,
-                result.PrimaryAirportId,
-                result.PositionDisplayConfig,
-                result.FlightStripsConfig,
-                result.AllAircraft,
-                ElapsedSeconds: 0
-            )
+            new ScenarioBootstrap
+            {
+                ScenarioId = result.ScenarioId,
+                ScenarioName = result.Name,
+                PrimaryAirportId = result.PrimaryAirportId,
+                PositionDisplayConfig = result.PositionDisplayConfig,
+                FlightStripsConfig = result.FlightStripsConfig,
+                Aircraft = result.AllAircraft,
+                ElapsedSeconds = 0,
+            }
         );
         StashScenarioGeneratorsAndPositions(result.AircraftGenerators, result.VfrArrivalGenerators, result.OverflightGenerators, result.Positions);
         IsLiveSession = result.IsLiveSession;
@@ -585,15 +586,16 @@ public partial class MainViewModel
             }
 
             ApplyScenarioBootstrap(
-                new ScenarioBootstrap(
-                    dto.ScenarioId,
-                    dto.ScenarioName,
-                    dto.PrimaryAirportId,
-                    dto.PositionDisplayConfig,
-                    dto.FlightStripsConfig,
-                    dto.AllAircraft,
-                    ElapsedSeconds: 0
-                )
+                new ScenarioBootstrap
+                {
+                    ScenarioId = dto.ScenarioId,
+                    ScenarioName = dto.ScenarioName,
+                    PrimaryAirportId = dto.PrimaryAirportId,
+                    PositionDisplayConfig = dto.PositionDisplayConfig,
+                    FlightStripsConfig = dto.FlightStripsConfig,
+                    Aircraft = dto.AllAircraft,
+                    ElapsedSeconds = 0,
+                }
             );
             StashScenarioGeneratorsAndPositions(dto.AircraftGenerators, dto.VfrArrivalGenerators, dto.OverflightGenerators, dto.Positions);
             IsLiveSession = dto.IsLiveSession;

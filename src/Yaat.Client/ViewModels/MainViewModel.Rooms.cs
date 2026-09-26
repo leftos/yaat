@@ -815,15 +815,16 @@ public partial class MainViewModel
         if (state.ScenarioId is not null)
         {
             ApplyScenarioBootstrap(
-                new ScenarioBootstrap(
-                    state.ScenarioId,
-                    state.ScenarioName,
-                    state.PrimaryAirportId,
-                    state.PositionDisplayConfig,
-                    state.FlightStripsConfig,
-                    state.AllAircraft,
-                    state.ElapsedSeconds
-                )
+                new ScenarioBootstrap
+                {
+                    ScenarioId = state.ScenarioId,
+                    ScenarioName = state.ScenarioName,
+                    PrimaryAirportId = state.PrimaryAirportId,
+                    PositionDisplayConfig = state.PositionDisplayConfig,
+                    FlightStripsConfig = state.FlightStripsConfig,
+                    Aircraft = state.AllAircraft,
+                    ElapsedSeconds = state.ElapsedSeconds,
+                }
             );
             IsLiveSession = state.IsLiveSession;
             ApplySimState(state.IsPaused, (int)state.SimRate, state.ElapsedSeconds, state.IsPlayback, state.TapeEnd);

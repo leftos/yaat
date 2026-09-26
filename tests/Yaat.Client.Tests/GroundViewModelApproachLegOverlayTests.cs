@@ -108,23 +108,24 @@ public class GroundViewModelApproachLegOverlayTests
             }
         );
         aircraft.Ground.Layout = layout;
-        var ctx = new DispatchContext(
-            layout,
-            new Random(1),
-            null,
-            null,
-            () => [aircraft],
-            false,
-            false,
-            false,
-            false,
-            null,
-            null,
-            0,
-            DateTime.UnixEpoch,
-            false,
-            false
-        );
+        var ctx = new DispatchContext
+        {
+            GroundLayout = layout,
+            Rng = new Random(1),
+            Weather = null,
+            FindAircraft = null,
+            ListAircraft = () => [aircraft],
+            ValidateDctFixes = false,
+            AutoCrossRunway = false,
+            SoloTrainingMode = false,
+            RpoShowPilotSpeech = false,
+            TerminalEmitter = null,
+            ArtccConfig = null,
+            ScenarioElapsedSeconds = 0,
+            SessionStartUtc = DateTime.UnixEpoch,
+            PreserveConditionals = false,
+            IsScenarioScripted = false,
+        };
         CommandResult result = CommandDispatcher.Dispatch(new TaxiCommand(["T7A"], [], DestinationSpot: "7A"), aircraft, ctx);
         Assert.True(result.Success, result.Message);
         return aircraft.Ground.AssignedTaxiRoute ?? throw new InvalidOperationException("the TAXI left no route");

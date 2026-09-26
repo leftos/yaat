@@ -121,23 +121,24 @@ public sealed partial class SimulationEngine
                 }
 
                 AirportGroundLayout? groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
-                var deferredCtx = new DispatchContext(
-                    groundLayout,
-                    World.Rng,
-                    World.Weather,
-                    FindAircraft,
-                    () => World.GetSnapshot(),
-                    Scenario?.ValidateDctFixes ?? true,
-                    Scenario?.AutoCrossRunway ?? false,
-                    Scenario?.SoloTrainingMode ?? false,
-                    Scenario?.RpoShowPilotSpeech ?? false,
-                    AddTerminalEntry,
-                    Scenario?.ArtccConfig,
-                    Scenario?.ElapsedSeconds ?? 0,
-                    Scenario?.SessionStartUtc ?? SimScenarioState.ProcessDayUtc,
-                    PreserveConditionals: true,
-                    IsScenarioScripted: d.IsScenarioScripted
-                );
+                var deferredCtx = new DispatchContext
+                {
+                    GroundLayout = groundLayout,
+                    Rng = World.Rng,
+                    Weather = World.Weather,
+                    FindAircraft = FindAircraft,
+                    ListAircraft = () => World.GetSnapshot(),
+                    ValidateDctFixes = Scenario?.ValidateDctFixes ?? true,
+                    AutoCrossRunway = Scenario?.AutoCrossRunway ?? false,
+                    SoloTrainingMode = Scenario?.SoloTrainingMode ?? false,
+                    RpoShowPilotSpeech = Scenario?.RpoShowPilotSpeech ?? false,
+                    TerminalEmitter = AddTerminalEntry,
+                    ArtccConfig = Scenario?.ArtccConfig,
+                    ScenarioElapsedSeconds = Scenario?.ElapsedSeconds ?? 0,
+                    SessionStartUtc = Scenario?.SessionStartUtc ?? SimScenarioState.ProcessDayUtc,
+                    PreserveConditionals = true,
+                    IsScenarioScripted = d.IsScenarioScripted,
+                };
                 CommandResult deferredResult = CommandDispatcher.DispatchCompound(d.Payload, aircraft, deferredCtx);
                 if (!deferredResult.Success)
                 {

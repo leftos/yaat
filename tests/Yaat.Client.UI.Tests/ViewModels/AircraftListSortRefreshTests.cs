@@ -69,12 +69,14 @@ public class AircraftListSortRefreshTests
         // Active aircraft plus delayed placeholders so the "only active" filter actually shrinks
         // the view relative to the source collection — that size gap is what triggers the bug.
         vm.ApplyScenarioBootstrap(
-            new ScenarioBootstrap(
-                "scenario-1",
-                "Sort Test",
-                "OAK",
-                null,
-                null,
+            new ScenarioBootstrap
+            {
+                ScenarioId = "scenario-1",
+                ScenarioName = "Sort Test",
+                PrimaryAirportId = "OAK",
+                PositionDisplayConfig = null,
+                FlightStripsConfig = null,
+                Aircraft =
                 [
                     MakeAircraft("BBB1"),
                     MakeAircraft("DDD1"),
@@ -82,8 +84,8 @@ public class AircraftListSortRefreshTests
                     MakeAircraft("DEL1", "Delayed (60s)"),
                     MakeAircraft("DEL2", "Delayed (90s)"),
                 ],
-                ElapsedSeconds: 0
-            )
+                ElapsedSeconds = 0,
+            }
         );
 
         vm.ShowOnlyActiveAircraft = true;
@@ -106,12 +108,14 @@ public class AircraftListSortRefreshTests
         MainViewModel vm = NewVm();
 
         vm.ApplyScenarioBootstrap(
-            new ScenarioBootstrap(
-                "scenario-3",
-                "Sort Test",
-                "OAK",
-                null,
-                null,
+            new ScenarioBootstrap
+            {
+                ScenarioId = "scenario-3",
+                ScenarioName = "Sort Test",
+                PrimaryAirportId = "OAK",
+                PositionDisplayConfig = null,
+                FlightStripsConfig = null,
+                Aircraft =
                 [
                     MakeAircraft("Q1", destination: "AAA"),
                     MakeAircraft("Q2", destination: "CCC"),
@@ -119,8 +123,8 @@ public class AircraftListSortRefreshTests
                     MakeAircraft("DEL1", "Delayed (60s)", "ZZZ"),
                     MakeAircraft("DEL2", "Delayed (90s)", "ZZZ"),
                 ],
-                ElapsedSeconds: 0
-            )
+                ElapsedSeconds = 0,
+            }
         );
 
         vm.ShowOnlyActiveAircraft = true;
@@ -144,15 +148,16 @@ public class AircraftListSortRefreshTests
         MainViewModel vm = NewVm();
 
         vm.ApplyScenarioBootstrap(
-            new ScenarioBootstrap(
-                "scenario-2",
-                "Sort Test",
-                "OAK",
-                null,
-                null,
-                [MakeAircraft("BBB1"), MakeAircraft("DDD1"), MakeAircraft("FFF1"), MakeAircraft("CCC1", "Delayed (60s)")],
-                ElapsedSeconds: 0
-            )
+            new ScenarioBootstrap
+            {
+                ScenarioId = "scenario-2",
+                ScenarioName = "Sort Test",
+                PrimaryAirportId = "OAK",
+                PositionDisplayConfig = null,
+                FlightStripsConfig = null,
+                Aircraft = [MakeAircraft("BBB1"), MakeAircraft("DDD1"), MakeAircraft("FFF1"), MakeAircraft("CCC1", "Delayed (60s)")],
+                ElapsedSeconds = 0,
+            }
         );
 
         vm.ShowOnlyActiveAircraft = true;
