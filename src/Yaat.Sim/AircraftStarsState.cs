@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using Yaat.Sim.Asdex;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim;
@@ -33,6 +35,16 @@ public class AircraftStarsState
     public string? SaidFixOverride { get; set; }
     public bool SaidSuspended { get; set; }
     public bool SaidTerminated { get; set; }
+
+    /// <summary>
+    /// ASDE-X airports whose surface display this track shows on (<see cref="SurfaceMembership"/>), written once a
+    /// second by the surface-membership step. Replaced wholesale, never mutated in place.
+    /// </summary>
+    public ImmutableSortedSet<string> VisibleAsdexAirports { get; set; } = SurfaceMembership.Empty;
+
+    /// <summary>SAAB SAID airports whose surface display this track shows on; same contract as <see cref="VisibleAsdexAirports"/>.</summary>
+    public ImmutableSortedSet<string> VisibleSaidAirports { get; set; } = SurfaceMembership.Empty;
+
     public int? TemporaryAltitude { get; set; }
     public int? PilotReportedAltitude { get; set; }
     public bool IsAnnotated { get; set; }
@@ -84,6 +96,8 @@ public class AircraftStarsState
             SaidFixOverride = SaidFixOverride,
             SaidSuspended = SaidSuspended,
             SaidTerminated = SaidTerminated,
+            VisibleAsdexAirports = VisibleAsdexAirports.Count > 0 ? [.. VisibleAsdexAirports] : null,
+            VisibleSaidAirports = VisibleSaidAirports.Count > 0 ? [.. VisibleSaidAirports] : null,
             TemporaryAltitude = TemporaryAltitude,
             PilotReportedAltitude = PilotReportedAltitude,
             IsAnnotated = IsAnnotated,
@@ -126,6 +140,8 @@ public class AircraftStarsState
             SaidFixOverride = dto.SaidFixOverride,
             SaidSuspended = dto.SaidSuspended,
             SaidTerminated = dto.SaidTerminated,
+            VisibleAsdexAirports = SurfaceMembership.FromIds(dto.VisibleAsdexAirports),
+            VisibleSaidAirports = SurfaceMembership.FromIds(dto.VisibleSaidAirports),
             TemporaryAltitude = dto.TemporaryAltitude,
             PilotReportedAltitude = dto.PilotReportedAltitude,
             IsAnnotated = dto.IsAnnotated,

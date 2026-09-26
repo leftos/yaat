@@ -31,6 +31,7 @@ public enum StepId
     VisualDetection,
     ConflictAlerts,
     EramConflictAlerts,
+    SurfaceMembership,
     AsdexAlerts,
     SoloTrainingEvaluation,
     PilotProactive,

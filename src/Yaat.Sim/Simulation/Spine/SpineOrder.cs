@@ -55,6 +55,9 @@ public static class SpineOrder
         // than pinned; only a broadcasting host does anything with the returned diff.
         SpineStep.Sim(StepId.ConflictAlerts, static (engine, host) => host.OnConflictAlerts(engine.TickConflictAlerts())),
         SpineStep.Sim(StepId.EramConflictAlerts, static (engine, host) => host.OnEramConflictAlerts(engine.TickEramConflictAlerts())),
+        // Which ASDE-X / SAID surface displays each track shows on. Runs on every path because the hysteresis makes
+        // the membership depend on the previous second's, so a replay that skipped it would disagree with the live room.
+        SpineStep.Sim(StepId.SurfaceMembership, static (engine, _) => engine.TickSurfaceMembership()),
         // The detector runs on every path, like the other two: an alert set a snapshot restore repopulated is
         // re-examined rather than pinned, and only a broadcasting host does anything with the returned diff.
         SpineStep.Sim(StepId.AsdexAlerts, static (engine, host) => engine.TickAsdexAlerts(host)),

@@ -39,6 +39,7 @@ public class SpineTraceTests
         new(StepId.VisualDetection, 0),
         new(StepId.ConflictAlerts, 0),
         new(StepId.EramConflictAlerts, 0),
+        new(StepId.SurfaceMembership, 0),
         new(StepId.AsdexAlerts, 0),
         new(StepId.SoloTrainingEvaluation, 0),
         new(StepId.PilotProactive, 0),

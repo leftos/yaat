@@ -56,6 +56,7 @@ PostPhysics    SpineOrder.PostPhysics — the live server's 32-step order
                ├─ sim TickTowerLists                                  the P-list dwell entries (snapshotted since 2026-09-07); a change marks the same coordination flag
                ├─ sim DrainTerminalEntries → host.OnTerminalEntries     the track-automation lines, the same second they were emitted
                ├─ sim TickVisualDetection, TickConflictAlerts → host, TickEramConflictAlerts → host
+               ├─ sim TickSurfaceMembership                          ASDE-X / SAID hysteresis membership per aircraft (`AircraftStarsState.VisibleAsdexAirports` / `VisibleSaidAirports`, snapshotted), from the scenario's ARTCC config; an airport no longer configured drops out
                ├─ sim TickAsdexAlerts → host                          the ASDE-X Safety Logic detector over the scenario's standing alert set; hands over only the diff (new alerts, cleared ids), and only when something changed
                ├─ sim TickSoloTrainingEvaluation → host                empty outside solo mode
                ├─ sim TickPilotProactive                              after the detectors, before the drains
@@ -151,7 +152,7 @@ After PostPhysics, `BroadcastTrainingUpdates` runs **once per sim-second**:
 3. `CrcBroadcastService.BroadcastUpdates` evaluates each subscribed CRC topic and emits MessagePack updates/deletes. See [crc-display-state.md](crc-display-state.md).
 4. Drained warnings / notifications / pilot readbacks become terminal entries.
 
-CRC visibility transitions (entering STARS coverage, ASDEX airport entry/exit, coast phase) are evaluated by `CrcVisibilityTracker` inside the broadcast pass — not in physics.
+CRC visibility transitions (entering STARS coverage, ASDEX airport entry/exit, coast phase) are evaluated by `CrcVisibilityTracker` inside the broadcast pass — not in physics. ASDE-X / SAID membership is also computed by the Sim step `TickSurfaceMembership` on every run kind; until the server reads it (disconnect-coast step D in `docs/plans/tick-path/04-relocation.md`), the tracker's own copy still decides what CRC displays.
 
 ## Recording capture
 

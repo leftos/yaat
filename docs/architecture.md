@@ -665,6 +665,10 @@ Asdex/AsdexSafetyLogicDetector.cs  # Static ASDE-X Safety Logic detection: close
 Asdex/AsdexSafetyLogicConfig.cs    # AsdexSafetyLogicConfig (Runways, RunwayConfigurationId, InhibitedArrivalAlertPositionIds) + AsdexRunwayConfig (Id, AreaPoints as LatLon,
                                     # IsClosed): the safety-logic configuration a CRC surface display pushes, Sim-native. Scenario state
                                     # (SimScenarioState.AsdexSafetyLogicConfig); ToSnapshot / FromSnapshot map it to ScenarioSnapshotDto's AsdexSafetyLogicConfigDto.
+Asdex/SurfaceMembership.cs         # ASDE-X / SAID hysteresis membership, pure: EvaluateAsdex / EvaluateSaid (enter at range + ceiling, leave at ceiling
+                                    # + 600 ft; SAID ceiling = field elevation + 2,500 ft; a pure phantom is a member of nothing; ids no longer configured drop
+                                    # out). SurfaceAirports.Resolve(config, navDb) builds the airport sets (SAID ceilings precomputed), cached by
+                                    # SimulationEngine.TickSurfaceMembership, which writes AircraftStarsState.VisibleAsdexAirports / VisibleSaidAirports.
                                     # yaat-server's DtoConverter projects it to and from the CRC wire DTO
 Training/SameRunwaySeparation.cs   # SrsCategory + 7110.65 §3-9-6/§3-10-3 landmark distances and the satisfied-predicates (crossed end / airborne /
                                    # landed-and-past-landmark) + landing/departure-family occupant tests, shared by the evaluator and OccupiedRunwayGoAround

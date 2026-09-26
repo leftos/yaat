@@ -26,6 +26,13 @@ public sealed class AircraftStarsStateDto
     public string? SaidFixOverride { get; init; }
     public bool SaidSuspended { get; init; }
     public bool SaidTerminated { get; init; }
+
+    /// <summary>ASDE-X surface-display membership, ordinal-ordered; null when none (and on snapshots written before the field existed).</summary>
+    public List<string>? VisibleAsdexAirports { get; init; }
+
+    /// <summary>SAAB SAID surface-display membership, ordinal-ordered; null when none (and on snapshots written before the field existed).</summary>
+    public List<string>? VisibleSaidAirports { get; init; }
+
     public int? TemporaryAltitude { get; init; }
     public int? PilotReportedAltitude { get; init; }
     public required bool IsAnnotated { get; init; }

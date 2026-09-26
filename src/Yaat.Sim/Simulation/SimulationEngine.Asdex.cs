@@ -4,6 +4,7 @@ using Yaat.Sim.Asdex;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Simulation.Spine;
 
@@ -111,6 +112,55 @@ public sealed partial class SimulationEngine
         }
 
         scenario.AsdexSafetyLogicConfig = change.Config;
+    }
+
+    // The surface airports resolved for this config and navigation-data instance; rebuilt when either is replaced.
+    private ArtccConfigRoot? _surfaceAirportsConfig;
+    private NavigationDatabase? _surfaceAirportsNavDb;
+    private SurfaceAirports _surfaceAirports = SurfaceAirports.None;
+
+    /// <summary>
+    /// The post-physics surface-membership pass: each aircraft's ASDE-X and SAAB SAID display membership moves one
+    /// second on (<see cref="SurfaceMembership"/>). Runs on every run kind — the hysteresis makes this second's
+    /// membership depend on last second's, and the membership is snapshotted per-aircraft state. A membership only ever
+    /// names airports the current ARTCC config declares, so with no config (or no navigation data) every membership
+    /// clears to empty.
+    /// </summary>
+    public void TickSurfaceMembership()
+    {
+        if (Scenario is not { } scenario)
+        {
+            return;
+        }
+
+        SurfaceAirports airports = ResolveSurfaceAirports(scenario.ArtccConfig, NavigationDatabase.InstanceOrNull);
+        foreach (AircraftState ac in World.GetSnapshot())
+        {
+            AircraftStarsState stars = ac.Stars;
+            stars.VisibleAsdexAirports = SurfaceMembership.EvaluateAsdex(ac, stars.VisibleAsdexAirports, airports);
+            stars.VisibleSaidAirports = SurfaceMembership.EvaluateSaid(ac, stars.VisibleSaidAirports, airports);
+        }
+    }
+
+    /// <summary>
+    /// The facility-tree walk behind the airport lists looks up a fix per facility and a field elevation per SAID
+    /// airport, so the result is kept until the config or the navigation data is replaced.
+    /// </summary>
+    private SurfaceAirports ResolveSurfaceAirports(ArtccConfigRoot? config, NavigationDatabase? navDb)
+    {
+        if ((config is null) || (navDb is null))
+        {
+            return SurfaceAirports.None;
+        }
+
+        if (!ReferenceEquals(_surfaceAirportsConfig, config) || !ReferenceEquals(_surfaceAirportsNavDb, navDb))
+        {
+            _surfaceAirports = SurfaceAirports.Resolve(config, navDb);
+            _surfaceAirportsConfig = config;
+            _surfaceAirportsNavDb = navDb;
+        }
+
+        return _surfaceAirports;
     }
 
     /// <summary>Airports farther than this from a configured runway footprint are not its owner.</summary>
