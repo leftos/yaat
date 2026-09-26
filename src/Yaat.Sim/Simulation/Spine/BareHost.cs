@@ -4,6 +4,7 @@ using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Actions;
+using Yaat.Sim.Simulation.Coast;
 using Yaat.Sim.Simulation.Strips;
 using Yaat.Sim.Simulation.Tdls;
 using Yaat.Sim.Training;
@@ -147,6 +148,12 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     /// <summary>Discarded: a bare engine has no surface display to alert. The standing set is engine state.</summary>
     public void OnAsdexAlertsChanged(IReadOnlyList<AsdexSafetyAlert> newAlerts, IReadOnlyList<string> clearedAlertIds) { }
+
+    /// <summary>Discarded: a bare engine has no display coasting a track. The coasts are engine state.</summary>
+    public void OnDisconnectCoastExpired(IReadOnlyList<ExpiredDisconnectCoastFacet> expired) { }
+
+    /// <summary>Discarded: a bare engine has no display coasting a track. The coasts are engine state.</summary>
+    public void OnDisconnectCoastsCleared(IReadOnlyList<string> callsigns) { }
 
     public void OnTimersChanged() { }
 

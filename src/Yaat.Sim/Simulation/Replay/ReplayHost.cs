@@ -4,6 +4,7 @@ using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Actions;
+using Yaat.Sim.Simulation.Coast;
 using Yaat.Sim.Simulation.Spine;
 using Yaat.Sim.Simulation.Strips;
 using Yaat.Sim.Simulation.Tdls;
@@ -130,6 +131,10 @@ internal sealed class ReplayHost : ISimulationHost
 
     public void OnAsdexAlertsChanged(IReadOnlyList<AsdexSafetyAlert> newAlerts, IReadOnlyList<string> clearedAlertIds) =>
         _bare.OnAsdexAlertsChanged(newAlerts, clearedAlertIds);
+
+    public void OnDisconnectCoastExpired(IReadOnlyList<ExpiredDisconnectCoastFacet> expired) => _bare.OnDisconnectCoastExpired(expired);
+
+    public void OnDisconnectCoastsCleared(IReadOnlyList<string> callsigns) => _bare.OnDisconnectCoastsCleared(callsigns);
 
     public void OnTimersChanged() => _bare.OnTimersChanged();
 

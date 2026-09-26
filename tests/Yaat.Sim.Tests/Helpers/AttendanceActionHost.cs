@@ -1,6 +1,7 @@
 using Yaat.Sim.Asdex;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Simulation.Actions;
+using Yaat.Sim.Simulation.Coast;
 using Yaat.Sim.Simulation.Strips;
 using Yaat.Sim.Simulation.Tdls;
 
@@ -84,6 +85,16 @@ public sealed class AttendanceActionHost : IActionHost
 
     public void OnAsdexAlertsChanged(IReadOnlyList<AsdexSafetyAlert> newAlerts, IReadOnlyList<string> clearedAlertIds) =>
         AsdexAlertChanges.Add((newAlerts, clearedAlertIds));
+
+    /// <summary>Every batch of disconnect-coast facets a drain handed over as expired, in order.</summary>
+    public List<IReadOnlyList<ExpiredDisconnectCoastFacet>> DisconnectCoastExpiries { get; } = [];
+
+    public void OnDisconnectCoastExpired(IReadOnlyList<ExpiredDisconnectCoastFacet> expired) => DisconnectCoastExpiries.Add(expired);
+
+    /// <summary>Every batch of callsigns whose disconnect coast a spawn cleared, as a drain handed them over, in order.</summary>
+    public List<IReadOnlyList<string>> DisconnectCoastClears { get; } = [];
+
+    public void OnDisconnectCoastsCleared(IReadOnlyList<string> callsigns) => DisconnectCoastClears.Add(callsigns);
 
     public void OnTimersChanged() { }
 

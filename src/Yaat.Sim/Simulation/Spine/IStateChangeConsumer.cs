@@ -1,4 +1,5 @@
 using Yaat.Sim.Asdex;
+using Yaat.Sim.Simulation.Coast;
 using Yaat.Sim.Simulation.Strips;
 using Yaat.Sim.Simulation.Tdls;
 
@@ -67,4 +68,17 @@ public interface IStateChangeConsumer
     /// standing set when it lands: a display learns it from its next initial-data build and from later diffs.
     /// </summary>
     void OnAsdexAlertsChanged(IReadOnlyList<AsdexSafetyAlert> newAlerts, IReadOnlyList<string> clearedAlertIds);
+
+    /// <summary>
+    /// The disconnect-coast facets the post-physics expiry step retired this second, ordered by callsign then facet
+    /// order. Never called empty. The facets are already gone from <see cref="SimScenarioState.DisconnectCoasts"/>.
+    /// </summary>
+    void OnDisconnectCoastExpired(IReadOnlyList<ExpiredDisconnectCoastFacet> expired);
+
+    /// <summary>
+    /// The callsigns whose disconnect coast a spawn under the same callsign cleared since the last drain, in the order
+    /// they were cleared. Never called empty. The entries are already gone from
+    /// <see cref="SimScenarioState.DisconnectCoasts"/>.
+    /// </summary>
+    void OnDisconnectCoastsCleared(IReadOnlyList<string> callsigns);
 }

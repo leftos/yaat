@@ -264,6 +264,11 @@ public sealed partial class SimulationEngine
         }
 
         Scenario?.DelayedQueue.RemoveAll(e => e.Aircraft.State.Callsign.Equals(callsign, StringComparison.OrdinalIgnoreCase));
+        if (ac is not null)
+        {
+            RegisterDisconnectCoast(ac);
+        }
+
         World.RemoveAircraft(callsign);
     }
 }

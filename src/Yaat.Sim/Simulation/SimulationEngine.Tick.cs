@@ -793,6 +793,7 @@ public sealed partial class SimulationEngine
                 ac.CompletionReason = CompletionReason.Departed;
             }
 
+            RegisterDisconnectCoast(ac);
             World.RemoveAircraft(ac.Callsign);
             _logger.LogInformation(
                 "Auto-deleted {Callsign} (mode={Mode}) in scenario '{Name}' at t={T}s",

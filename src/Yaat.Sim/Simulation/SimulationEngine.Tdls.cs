@@ -254,6 +254,8 @@ public sealed partial class SimulationEngine
             return;
         }
 
+        ClearDisconnectCoast(scenario, ac.Callsign);
+
         if (!IsDepartureAircraft(ac, scenario))
         {
             return;
@@ -329,7 +331,8 @@ public sealed partial class SimulationEngine
     /// <summary>
     /// Hands the host what the engine's bodies have touched since the last drain — the strip change set first, so an
     /// item the same drain's TDLS half references is already there, then the TDLS one, then the coordination flag,
-    /// then the bookmark one, then the clock's, then the ERAM CRR groups'. Called by the action router after every
+    /// then the bookmark one, then the clock's, then the ERAM CRR groups', then the callsigns whose disconnect coast a
+    /// spawn cleared. Called by the action router after every
     /// routed action and by the post-physics spine step for what the tick steps produced; a host that broadcasts turns
     /// it into messages, a bare or replaying one drops it.
     /// </summary>
@@ -368,5 +371,7 @@ public sealed partial class SimulationEngine
             EramCrrGroupsChanged = false;
             host.OnEramCrrGroupsChanged();
         }
+
+        DrainDisconnectCoastClearsInto(host);
     }
 }

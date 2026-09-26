@@ -51,6 +51,7 @@ public enum StepId
     StateChanges,
     AutoDelete,
     SurfaceCoastExpiry,
+    DisconnectCoastExpiry,
     RundownBroadcast,
     LiveTrafficStatusBroadcast,
     TimersBroadcast,

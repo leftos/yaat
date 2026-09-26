@@ -216,6 +216,7 @@ public sealed partial class SimulationEngine
             return false;
         }
 
+        RegisterDisconnectCoast(ac);
         World.RemoveAircraft(callsign);
         TrackShadowBeacon(ac.Transponder.Code, 0);
         RecordAction(new RecordedLiveTrafficRemoval(Scenario?.ElapsedSeconds ?? 0, callsign, reason));
@@ -462,6 +463,7 @@ public sealed partial class SimulationEngine
         AircraftState? ac = World.FindAircraft(recorded.Callsign);
         if (ac is { IsShadow: true })
         {
+            RegisterDisconnectCoast(ac);
             World.RemoveAircraft(recorded.Callsign);
             TrackShadowBeacon(ac.Transponder.Code, 0);
         }
@@ -472,9 +474,18 @@ public sealed partial class SimulationEngine
         }
     }
 
+    /// <summary>
+    /// Puts a shadow in the world, live and on replay alike. A live shadow spawn never reaches
+    /// <see cref="AfterAircraftSpawned"/>, so the disconnect-coast clear a re-supplied callsign owes happens here.
+    /// </summary>
     private AircraftState SpawnShadow(AircraftSnapshotDto spawnState)
     {
         var state = AircraftState.FromSnapshot(spawnState, null);
+        if (Scenario is { } scenario)
+        {
+            ClearDisconnectCoast(scenario, state.Callsign);
+        }
+
         World.AddAircraft(state);
         return state;
     }

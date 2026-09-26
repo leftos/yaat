@@ -1331,6 +1331,13 @@ SimulationEngine.Asdex.cs      # The recorded CRC ASDE-X / SAID display mutation
                                # AsdexSafetyLogicDetector.Detect, and ApplyAsdexDetection folds the findings into Scenario.ActiveAsdexAlerts and hands the
                                # host only the diff (IStateChangeConsumer.OnAsdexAlertsChanged: new alerts, cleared ids; never both empty). No config
                                # standing clears the set. A tick that moves nothing leaves the set's reference alone
+SimulationEngine.DisconnectCoast.cs # The disconnect-coast lifecycle as Sim state (Scenario.DisconnectCoasts, callsign → AircraftDisconnectCoast): RegisterDisconnectCoast
+                               # (called by DeleteAircraft, RemoveLiveTraffic, its replay twin ApplyRecordedLiveTrafficRemoval and TickAutoDelete before
+                               # World.RemoveAircraft) builds the facets — ERAM when
+                               # DisconnectCoastRules.IsVisibleOnEram and not frozen (24 s), one ASDE-X / SAID facet per AircraftStarsState membership (45 s, IsDrop at
+                               # the destination) — and replaces any standing entry; TickDisconnectCoastExpiry (post-physics Sim step after the host's
+                               # SurfaceCoastExpiry) expires facets on sim time and hands the host OnDisconnectCoastExpired; AfterAircraftSpawned (and SpawnShadow,
+                               # for a live-feed shadow) clears a re-spawned callsign's entry, drained as OnDisconnectCoastsCleared. The server's coast stores still drive every CRC display
 SimulationEngine.Eram.cs       # The ERAM CRR-group definitions (crossed from yaat-server 2026-09-08): CrrGroups (label → EramCrrGroup, case-insensitive) and
                                # ApplyCrrGroup(RecordedEramCrrGroup) — create/replace/recolor, null latitude = delete — marking the dirty flag DrainStateChangesInto
                                # hands the host as OnEramCrrGroupsChanged (the room re-pushes the whole EramCrrGroups topic; a delete is still the CRC handler's
@@ -1579,6 +1586,14 @@ TdlsPlaceholder.cs             # The one predicate for the FE's "no value" entry
 # Simulation/Eram/ — ERAM CRR-group core types, engine-owned (SimulationEngine.Eram.cs owns the dictionary + dirty flag)
 EramCrrGroup.cs                # EramCrrGroup(Label, EramCrrColor Color, Latitude, Longitude) + the EramCrrColor enum mirroring the wire CrrColor (parity pinned on
                                # both sides); the wire EramCrrGroupDto stays server-side behind DtoConverter.ToEramCrrGroupDto
+
+# Simulation/Coast/ — the disconnect-coast types (SimulationEngine.DisconnectCoast.cs owns the lifecycle)
+DisconnectCoastScope.cs        # Eram / Asdex / Said
+DisconnectCoastFacet.cs        # DisconnectCoastFacet(Scope, FacilityId — null for ERAM, IsDrop, DeadlineSimSeconds)
+AircraftDisconnectCoast.cs     # AircraftDisconnectCoast(Anchor, AnchorTrackDeg, AnchorGroundSpeed, CoastStartSimSeconds, Facets): the last pose a coast dead-reckons from
+ExpiredDisconnectCoastFacet.cs # (Callsign, Facet) — one entry of an OnDisconnectCoastExpired payload
+DisconnectCoastRules.cs        # IsVisibleOnEram (ERAM coverage: field elevation + EramCoverageFloorAglFt 1,500 ft; frozen / unsupported ghost visible, on-ground not) and
+                               # IsDestinationFacility; yaat-server's CrcVisibilityTracker.IsVisibleOnEram / CrcBroadcastService.IsDestinationFacility wrap them
 
 # Simulation/Coordination/ — STARS coordination-verb command logic, engine-owned (SimulationEngine.Coordination.cs owns the timer/init/dirty-flag half)
 CoordinationCommandHandler.cs  # Static dispatch for the aircraft-scoped verbs (RD/RDH/RDR/RDACK/RDDEL/RDPOS/RDTXT, via Handle) and the position-scoped

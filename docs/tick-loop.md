@@ -67,6 +67,7 @@ PostPhysics    SpineOrder.PostPhysics — the live server's 32-step order
                ├─ sim drain strip + TDLS changes → host              what this second's steps touched, before AutoDelete so an item's aircraft still resolves
                ├─ sim TickAutoDelete → host                          removes on every run kind; the host tears down room state and broadcasts
                ├─ host SurfaceCoastExpiry
+               ├─ sim TickDisconnectCoastExpiry → host               expires Scenario.DisconnectCoasts facets on sim time (ERAM 24 s, ASDE-X / SAID 45 s); until disconnect-coast step D the server's stores above still drive CRC
                └─ host RundownBroadcast, LiveTrafficStatusBroadcast, TimersBroadcast
 EndOfSecond    SpineOrder.EndOfSecond
                ├─ sim SamplePositionHistory                          every 5 s, 10 deep — the history trails

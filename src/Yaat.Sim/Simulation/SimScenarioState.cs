@@ -4,6 +4,7 @@ using Yaat.Sim.Asdex;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
+using Yaat.Sim.Simulation.Coast;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Simulation;
@@ -469,6 +470,31 @@ public sealed class SimScenarioState
     {
         get => _activeAsdexAlerts;
         set => _activeAsdexAlerts = value;
+    }
+
+    /// <summary>Sim seconds an ERAM track coasts after its aircraft leaves the world (~2 missed ARSR-4 sweeps at ~12 s).</summary>
+    public const double EramDisconnectCoastSeconds = 24;
+
+    /// <summary>Sim seconds an ASDE-X or SAAB SAID track coasts after its aircraft leaves the world.</summary>
+    public const double SurfaceDisconnectCoastSeconds = 45;
+
+    private volatile ImmutableSortedDictionary<string, AircraftDisconnectCoast> _disconnectCoasts = ImmutableSortedDictionary.Create<
+        string,
+        AircraftDisconnectCoast
+    >(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The tracks still coasting after their aircraft left the world, keyed by callsign. Registered by every Sim
+    /// removal body (<see cref="SimulationEngine.RegisterDisconnectCoast"/>), retired facet by facet on sim time by
+    /// <see cref="SimulationEngine.TickDisconnectCoastExpiry"/>, and cleared when a spawn reuses the callsign.
+    /// Ordinal-sorted so every iteration is in the same order on every run. Same gate invariant as
+    /// <see cref="ActiveAsdexAlerts"/>: written only on the tick thread, every write replaces the whole collection, and
+    /// a reader on another thread takes the reference once.
+    /// </summary>
+    public ImmutableSortedDictionary<string, AircraftDisconnectCoast> DisconnectCoasts
+    {
+        get => _disconnectCoasts;
+        set => _disconnectCoasts = value;
     }
 
     public ScenarioSnapshotDto ToSnapshot() =>

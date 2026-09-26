@@ -92,6 +92,9 @@ public static class SpineOrder
         // an aircraft the live session auto-deleted drifted until the next snapshot restore snapped it back.
         SpineStep.Sim(StepId.AutoDelete, static (engine, host) => host.OnAutoDeleted(engine.TickAutoDelete())),
         SpineStep.Host(StepId.SurfaceCoastExpiry, static host => host.SurfaceCoastExpiry()),
+        // After AutoDelete, so a track removed this second has its coast registered; a facet whose deadline this second
+        // reaches expires here on every run kind, since the coasts are scenario state.
+        SpineStep.Sim(StepId.DisconnectCoastExpiry, static (engine, host) => engine.TickDisconnectCoastExpiry(host)),
         SpineStep.Host(StepId.RundownBroadcast, static host => host.RundownBroadcast()),
         SpineStep.Host(StepId.LiveTrafficStatusBroadcast, static host => host.LiveTrafficStatusBroadcast()),
         SpineStep.Host(StepId.TimersBroadcast, static host => host.TimersBroadcast()),
