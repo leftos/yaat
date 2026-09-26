@@ -14,6 +14,7 @@
 - With no exit assigned, landing aircraft pass a 90° exit they cannot make at normal braking and take the next high-speed exit.
 - Touch-and-go aircraft slow less on the runway before accelerating again.
 - Light single-engine aircraft slow to 5 knots for sharp taxi turns and reversals instead of taking them at 10.
+- Aircraft types missing from the FAA database get lengths closer to their wake category's real aircraft for ground spacing and runway exits.
 - `FOLLOWG` to an aircraft holding short of a runway is accepted: it stays held until `CROSS`, then crosses and follows.
 
 ### Fixed

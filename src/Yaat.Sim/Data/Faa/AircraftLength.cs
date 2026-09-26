@@ -13,15 +13,15 @@ public static class AircraftLength
         string? cwt = WakeTurbulenceData.GetCwt(aircraftType ?? "");
         return cwt switch
         {
-            "A" => 250.0, // Super (A388)
-            "B" => 220.0, // Upper Heavy (B744, B77W)
-            "C" => 200.0, // Lower Heavy (B763, A332, B788)
-            "D" => 155.0, // B757
-            "E" => 130.0, // Large Low (DC85, IL76)
-            "F" => 110.0, // Upper Medium (B738, A320)
-            "G" => 80.0, // Lower Medium (CRJ7, E170)
-            "H" => 60.0, // Upper Small (C208, PC12)
-            "I" => 40.0, // Small (C172, PA28)
+            "A" => 240.0, // Super (A388, A225)
+            "B" => 220.0, // Upper Heavy (B744, B77W, B788)
+            "C" => 185.0, // Lower Heavy (B763, A306, MD11)
+            "D" => 185.0, // Non-Pairwise Heavy (IL76, DC85, A124)
+            "E" => 155.0, // B757 (B752, B753)
+            "F" => 125.0, // Upper Large (B738, A320)
+            "G" => 100.0, // Lower Large (CRJ7, E170)
+            "H" => 60.0, // Upper Small (B350, B190, BE40)
+            "I" => 30.0, // Lower Small (C172, C208, PC12)
             _ => 80.0, // Unknown — assume medium
         };
     }
