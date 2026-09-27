@@ -174,7 +174,7 @@ variants:
     descriptor: CODE/QUALIFIER MOD
     format: QB (60*) 04 03e 02
     multiple_flids: false
-    handler: not implemented
+    handler: QB.CodeQualifierMod
     fields:
       - field: Position
         rule: |

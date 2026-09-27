@@ -4,6 +4,10 @@ variants:
     descriptor: PO
     format: QP 16 (16) (16) (16) 02 | QP 64 (16) 02
     multiple_flids: true
+    note: |
+      The <facility><sector> form of Field 16 (ZLA15) is a yaat addition for pointing out to another centre. Its sector
+      is range-checked like a sector number (01 - 128, else SECTOR FORMAT), but its facility is not checked. The caller's
+      own facility spelled out (ZOA44) is checked as a sector number, adaptation included.
     handler: QP.PointOut
     fields:
       - field: Position

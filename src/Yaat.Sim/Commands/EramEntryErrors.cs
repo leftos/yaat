@@ -23,6 +23,8 @@ public static class EramEntryErrors
     public const string NotYourControl = "YaatNotYourControl";
     public const string NonAdaptedSector = "MsgNon-AdaptedSector";
     public const string HandoffToOwner = "YaatHandoffToOwner";
+    public const string PoExists = "YaatPoExists";
+    public const string PoNotFound = "YaatPoNotFound";
 
     /// <summary>Every id above, for the conformance test that holds them to <c>error-responses.yaml</c>.</summary>
     public static IReadOnlyList<string> All { get; } =
@@ -42,5 +44,7 @@ public static class EramEntryErrors
         NotYourControl,
         NonAdaptedSector,
         HandoffToOwner,
+        PoExists,
+        PoNotFound,
     ];
 }

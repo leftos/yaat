@@ -600,6 +600,132 @@ public class EramEntryEngineTests
         Assert.Null(ac.Track.HandoffPeer);
     }
 
+    [Fact]
+    public void Pointout_AddsOnePointoutPerReceivingSector()
+    {
+        AircraftState ac = Aircraft();
+
+        CommandResult result = Apply(ac, "PO ZOA 44 ZOA 45 ZOA 46", null);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(2, ac.Eram.Pointouts.Count);
+        Assert.All(ac.Eram.Pointouts, p => Assert.Equal(("ZOA", "44", "ZOA"), (p.OriginatingFacility, p.OriginatingSector, p.ReceivingFacility)));
+        Assert.Equal(["45", "46"], ac.Eram.Pointouts.Select(p => p.ReceivingSector));
+        Assert.All(ac.Eram.Pointouts, p => Assert.False(p.IsAcknowledged));
+    }
+
+    [Fact]
+    public void Pointout_ToASectorAlreadyPointedOutTo_IsRefusedAndAddsNothing()
+    {
+        AircraftState ac = Aircraft();
+        Assert.True(Apply(ac, "PO ZOA 44 ZOA 45", null).Success);
+
+        CommandResult result = Apply(ac, "PO ZOA 44 ZOA 46 ZOA 45", null);
+
+        Assert.False(result.Success);
+        Assert.Equal(EramEntryErrors.PoExists, result.Message);
+        Assert.Single(ac.Eram.Pointouts);
+    }
+
+    [Theory]
+    [InlineData("PO", EramEntryErrors.MessageTooShort)]
+    [InlineData("PO ZOA 44", EramEntryErrors.MessageTooShort)]
+    [InlineData("PO ZOA 44 ZOA", EramEntryErrors.MessageTooShort)]
+    [InlineData("PO ZOA 44 ZOA 45 ZOA", "MsgCofieFormat ZOA")]
+    [InlineData("PO ZOA 44 ZOA 45 ZLA 45", EramEntryErrors.PoExists)]
+    public void Pointout_Malformed_IsRefusedAndAddsNothing(string entry, string message)
+    {
+        AircraftState ac = Aircraft();
+
+        CommandResult result = Apply(ac, entry, null);
+
+        Assert.Equal(message, result.Message);
+        Assert.Empty(ac.Eram.Pointouts);
+    }
+
+    [Fact]
+    public void PointoutAck_AcknowledgesTheNamedPointoutOnly()
+    {
+        AircraftState ac = Aircraft();
+        Assert.True(Apply(ac, "PO ZOA 44 ZOA 45 ZOA 46", null).Success);
+
+        CommandResult result = Apply(ac, "POACK ZOA 44 ZOA 46", null);
+
+        Assert.True(result.Success, result.Message);
+        Assert.False(ac.Eram.Pointouts[0].IsAcknowledged);
+        Assert.True(ac.Eram.Pointouts[1].IsAcknowledged);
+    }
+
+    [Fact]
+    public void PointoutClear_ClearsBothSidesOfTheNamedPointout()
+    {
+        AircraftState ac = Aircraft();
+        Assert.True(Apply(ac, "PO ZOA 44 ZOA 45", null).Success);
+
+        CommandResult result = Apply(ac, "POCLEAR ZOA 44 ZOA 45", null);
+
+        Assert.True(result.Success, result.Message);
+        Assert.True(ac.Eram.Pointouts[0].IsRSideCleared);
+        Assert.True(ac.Eram.Pointouts[0].IsDSideCleared);
+    }
+
+    [Theory]
+    [InlineData("POACK ZOA 44 ZOA 46", EramEntryErrors.PoNotFound)]
+    [InlineData("POACK ZOA 44 ZLA 45", EramEntryErrors.PoNotFound)]
+    [InlineData("POCLEAR ZOA 45 ZOA 44", EramEntryErrors.PoNotFound)]
+    [InlineData("POACK ZOA 44 ZOA", EramEntryErrors.MessageTooShort)]
+    [InlineData("POCLEAR ZOA 44 ZOA 45 X", EramEntryErrors.MessageTooLong)]
+    public void PointoutAckOrClear_OfNoSuchPointout_IsRefusedAndChangesNothing(string entry, string error)
+    {
+        AircraftState ac = Aircraft();
+        Assert.True(Apply(ac, "PO ZOA 44 ZOA 45", null).Success);
+
+        CommandResult result = Apply(ac, entry, null);
+
+        Assert.Equal(error, result.Message);
+        EramPointoutState pointout = Assert.Single(ac.Eram.Pointouts);
+        Assert.False(pointout.IsAcknowledged || pointout.IsRSideCleared || pointout.IsDSideCleared);
+    }
+
+    [Theory]
+    [InlineData("DRI J", 1)]
+    [InlineData("DRI t", 2)]
+    public void Dri_SetsTheNamedHalo(string entry, int halo)
+    {
+        AircraftState ac = Aircraft();
+
+        CommandResult result = Apply(ac, entry, null);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(halo, ac.Eram.DriHaloType);
+    }
+
+    [Fact]
+    public void BareDri_RemovesTheHalo()
+    {
+        AircraftState ac = Aircraft();
+        ac.Eram.DriHaloType = 2;
+
+        CommandResult result = Apply(ac, "DRI", null);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Null(ac.Eram.DriHaloType);
+    }
+
+    [Theory]
+    [InlineData("DRI X", "MsgCofieFormat X")]
+    [InlineData("DRI J T", EramEntryErrors.MessageTooLong)]
+    public void Dri_Malformed_IsRefusedAndKeepsTheHalo(string entry, string message)
+    {
+        AircraftState ac = Aircraft();
+        ac.Eram.DriHaloType = 1;
+
+        CommandResult result = Apply(ac, entry, null);
+
+        Assert.Equal(message, result.Message);
+        Assert.Equal(1, ac.Eram.DriHaloType);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("QZ 350")]

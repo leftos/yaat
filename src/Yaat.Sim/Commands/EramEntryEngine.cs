@@ -25,6 +25,15 @@ namespace Yaat.Sim.Commands;
 /// </para>
 ///
 /// <para>
+/// Point outs and DRIs: <c>PO {fromFacility} {fromSector} {toFacility} {toSector} [{toFacility} {toSector}]…</c> (QP Point
+/// Out, one point out per receiving sector); <c>POACK {fromFacility} {fromSector} {toFacility} {toSector}</c> (the
+/// receiver acknowledges that point out); <c>POCLEAR {fromFacility} {fromSector} {toFacility} {toSector}</c> (the
+/// initiator removes it); <c>DRI [J|T]</c> (QP DRI: sets the standard or reduced-separation halo; a bare <c>DRI</c>
+/// removes it). The live handler decides who may acknowledge or clear and whether a DRI entry sets or removes the halo,
+/// and records the outcome, so a replay applies it without the acting position.
+/// </para>
+///
+/// <para>
 /// A refused entry's message is an <see cref="EramEntryErrors"/> id, optionally followed by a space and the contents of
 /// the field in error; success messages are free text.
 /// </para>
@@ -52,6 +61,10 @@ public static class EramEntryEngine
             "VCI" => ApplyVci(ac, args),
             "LEADER" => ApplyLeader(ac, args),
             "HANDOFF" => ApplyHandoff(ac, args, ctx),
+            "PO" => ApplyPointout(ac, args),
+            "POACK" => ApplyPointoutChange(ac, args, p => p.IsAcknowledged = true, "POACK"),
+            "POCLEAR" => ApplyPointoutChange(ac, args, ClearPointout, "POCLEAR"),
+            "DRI" => ApplyDri(ac, args),
             _ => Refused(EramEntryErrors.InvalidMessageType),
         };
     }
@@ -197,6 +210,134 @@ public static class EramEntryEngine
         ac.Eram.LeaderLength = length ?? ac.Eram.LeaderLength;
         return new CommandResult(true, $"LEADER {string.Join(' ', args)} {ac.Callsign}");
     }
+
+    /// <summary>
+    /// QP Point Out (QP.yaml): adds a point out from the named sector to each receiving sector. A point out is keyed on
+    /// its originating facility and sector and its receiving sector, the key CRC's point-out id carries; when any
+    /// receiver already has one from this sector, nothing is added. <see cref="AircraftEramState.Pointouts"/> is read by
+    /// the broadcast path, so every touch locks it.
+    /// </summary>
+    private static CommandResult ApplyPointout(AircraftState ac, List<string> args)
+    {
+        if (args.Count < 4)
+        {
+            return Refused(EramEntryErrors.MessageTooShort);
+        }
+        if ((args.Count % 2) != 0)
+        {
+            return Refused(EramEntryErrors.CofieFormat, args[^1]);
+        }
+
+        string fromFacility = args[0];
+        string fromSector = args[1];
+        var receivers = new List<(string Facility, string Sector)>();
+        for (int i = 2; i < args.Count; i += 2)
+        {
+            // The point-out key (and CRC's id) carries the receiving sector without its facility, so one entry naming a
+            // sector twice would mint two point outs with one id.
+            if (receivers.Any(r => string.Equals(r.Sector, args[i + 1], StringComparison.Ordinal)))
+            {
+                return Refused(EramEntryErrors.PoExists);
+            }
+            receivers.Add((args[i], args[i + 1]));
+        }
+
+        List<EramPointoutState> pointouts = ac.Eram.Pointouts;
+        lock (pointouts)
+        {
+            if (receivers.Any(r => pointouts.Any(p => IsPointoutKey(p, fromFacility, fromSector, r.Sector))))
+            {
+                return Refused(EramEntryErrors.PoExists);
+            }
+
+            foreach ((string facility, string sector) in receivers)
+            {
+                pointouts.Add(
+                    new EramPointoutState
+                    {
+                        OriginatingFacility = fromFacility,
+                        OriginatingSector = fromSector,
+                        ReceivingFacility = facility,
+                        ReceivingSector = sector,
+                    }
+                );
+            }
+        }
+
+        return new CommandResult(true, $"PO {string.Join(' ', args)} {ac.Callsign}");
+    }
+
+    /// <summary>
+    /// Acknowledges (<c>POACK</c>) or removes (<c>POCLEAR</c>) the point out the four fields name: originating facility
+    /// and sector, receiving facility and sector.
+    /// </summary>
+    private static CommandResult ApplyPointoutChange(AircraftState ac, List<string> args, Action<EramPointoutState> change, string form)
+    {
+        if (args.Count != 4)
+        {
+            return Refused(args.Count < 4 ? EramEntryErrors.MessageTooShort : EramEntryErrors.MessageTooLong);
+        }
+
+        List<EramPointoutState> pointouts = ac.Eram.Pointouts;
+        lock (pointouts)
+        {
+            EramPointoutState? match = pointouts.FirstOrDefault(p =>
+                IsPointoutKey(p, args[0], args[1], args[3]) && string.Equals(p.ReceivingFacility, args[2], StringComparison.Ordinal)
+            );
+            if (match is null)
+            {
+                return Refused(EramEntryErrors.PoNotFound);
+            }
+
+            change(match);
+        }
+
+        return new CommandResult(true, $"{form} {string.Join(' ', args)} {ac.Callsign}");
+    }
+
+    private static void ClearPointout(EramPointoutState pointout)
+    {
+        pointout.IsRSideCleared = true;
+        pointout.IsDSideCleared = true;
+    }
+
+    private static bool IsPointoutKey(EramPointoutState p, string fromFacility, string fromSector, string toSector) =>
+        string.Equals(p.OriginatingFacility, fromFacility, StringComparison.Ordinal)
+        && string.Equals(p.OriginatingSector, fromSector, StringComparison.Ordinal)
+        && string.Equals(p.ReceivingSector, toSector, StringComparison.Ordinal);
+
+    /// <summary>
+    /// QP DRI (QP.yaml): <c>J</c> sets the standard halo and <c>T</c> the reduced-separation halo, stored as CRC's
+    /// <c>HaloType</c> ordinal (1 and 2) in <see cref="AircraftEramState.DriHaloType"/>; a bare <c>DRI</c> removes it.
+    /// </summary>
+    private static CommandResult ApplyDri(AircraftState ac, List<string> args)
+    {
+        if (args.Count > 1)
+        {
+            return Refused(EramEntryErrors.MessageTooLong);
+        }
+
+        int? halo = null;
+        if (args.Count == 1)
+        {
+            halo = args[0].ToUpperInvariant() switch
+            {
+                "J" => StandardHalo,
+                "T" => ReducedSeparationHalo,
+                _ => null,
+            };
+            if (halo is null)
+            {
+                return Refused(EramEntryErrors.CofieFormat, args[0]);
+            }
+        }
+
+        ac.Eram.DriHaloType = halo;
+        return new CommandResult(true, halo is null ? $"DRI off {ac.Callsign}" : $"DRI {args[0].ToUpperInvariant()} {ac.Callsign}");
+    }
+
+    private const int StandardHalo = 1;
+    private const int ReducedSeparationHalo = 2;
 
     private static CommandResult Refused(string errorId) => new(false, errorId);
 
