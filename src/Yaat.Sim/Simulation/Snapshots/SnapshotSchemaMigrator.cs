@@ -22,7 +22,7 @@ public sealed class SnapshotSchemaException(int snapshotVersion, int requiredVer
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 29;
+    public const int CurrentSchemaVersion = 30;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -178,6 +178,10 @@ public static class SnapshotSchemaMigrator
         //   CoastStartSeconds, CoastAltitude, CoastSpeed, CoastTrueCourse, CoastRoute). No data transformation — the
         //   fields are optional and older snapshots default to not coasting, which is what every track written before the
         //   coast existed was.
+        // V29→V30: AircraftHoldAnnotationDto.Efc became nullable, null meaning no EFC, so an ERAM EFC of 0000 can be
+        //   stored. Before V30 the field was a plain int whose 0 meant no EFC, so a V29-or-older snapshot's 0 is rewritten
+        //   to null here. The same DTO rides RecordedHoldAnnotationChange in the action log, which Migrate never walks;
+        //   RecordingSchemaUpgrader rewrites those Efc 0s to null when the recording's snapshots predate V30.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (AircraftSnapshotDto ac in snapshot.Aircraft)
@@ -187,6 +191,17 @@ public static class SnapshotSchemaMigrator
                 if (ac.FlightPlan is { AircraftType: null or "" })
                 {
                     ac.FlightPlan.AircraftType = ac.AircraftType;
+                }
+            }
+        }
+
+        if (snapshot.SchemaVersion < 30)
+        {
+            foreach (AircraftSnapshotDto ac in snapshot.Aircraft)
+            {
+                if (ac.HoldAnnotation is { Efc: 0 } hold)
+                {
+                    hold.Efc = null;
                 }
             }
         }

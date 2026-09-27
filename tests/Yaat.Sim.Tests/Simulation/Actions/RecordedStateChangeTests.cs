@@ -142,10 +142,10 @@ public class RecordedStateChangeTests
 
         Assert.True(engine.Actions.ApplyRecorded(new RecordedHoldAnnotationChange(1, ac.Callsign, null)).Success);
         Assert.Null(ac.HoldAnnotation.Fix);
-        Assert.Equal(0, ac.HoldAnnotation.Direction);
+        Assert.Null(ac.HoldAnnotation.Direction);
         Assert.Null(ac.HoldAnnotation.LegLength);
         Assert.False(ac.HoldAnnotation.LegLengthInNm);
-        Assert.Equal(0, ac.HoldAnnotation.Efc);
+        Assert.Null(ac.HoldAnnotation.Efc);
     }
 
     [Fact]

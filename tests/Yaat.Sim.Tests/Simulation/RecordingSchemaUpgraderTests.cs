@@ -187,6 +187,88 @@ public class RecordingSchemaUpgraderTests
     }
 
     [Fact]
+    public void Upgrade_V4ArchiveBelowV30_RewritesRecordedHoldEfcZeroToNull()
+    {
+        // Before V30 a hold's Efc of 0 meant "no EFC"; the recorded hold changes must say so as null,
+        // exactly as the V30 snapshot migration does, or replaying the actions shows EFC 0000.
+        byte[] input = BuildArchive(EmptySnapshotAt(29), HoldChanges());
+
+        RecordingUpgradeResult result = RecordingSchemaUpgrader.Upgrade(input);
+
+        Assert.True(result.Changed);
+        using var archive = RecordingArchive.Open(new MemoryStream(result.Output));
+        Assert.Equal([null, 1234], RecordedEfcs(archive.ReadActions()));
+        Assert.Equal("N1", Assert.IsType<RecordedHoldAnnotationChange>(archive.ReadActions()[0]).Callsign);
+    }
+
+    [Fact]
+    public void Upgrade_NonZipSessionRecordingBelowV30_RewritesRecordedHoldEfcZeroToNull()
+    {
+        SessionRecording recording = RecordingWith(EmptySnapshotAt(29));
+        recording.Actions.AddRange(HoldChanges());
+        byte[] input = RecordingCompression.Compress(JsonSerializer.SerializeToUtf8Bytes(recording, RecordingJsonOptions.Default));
+
+        RecordingUpgradeResult result = RecordingSchemaUpgrader.Upgrade(input);
+
+        Assert.True(result.Changed);
+        SessionRecording? upgraded = JsonSerializer.Deserialize<SessionRecording>(
+            RecordingCompression.Decompress(result.Output),
+            RecordingJsonOptions.Default
+        );
+        Assert.Equal([null, 1234], RecordedEfcs(upgraded!.Actions));
+    }
+
+    [Fact]
+    public void Upgrade_V4ArchiveAtV30_KeepsRecordedHoldEfcZero()
+    {
+        // From V30 on, Efc 0 is a real EFC of 0000 and must survive the upgrade.
+        byte[] input = BuildArchive(EmptySnapshotAt(30), HoldChanges());
+
+        RecordingUpgradeResult result = RecordingSchemaUpgrader.Upgrade(input);
+
+        Assert.False(result.Changed);
+        using var archive = RecordingArchive.Open(new MemoryStream(result.Output));
+        Assert.Equal([0, 1234], RecordedEfcs(archive.ReadActions()));
+    }
+
+    private static StateSnapshotDto EmptySnapshotAt(int schemaVersion) =>
+        new()
+        {
+            SchemaVersion = schemaVersion,
+            ElapsedSeconds = 5,
+            Rng = new RngState(1, 2, 3, 4),
+            Aircraft = [],
+            Scenario = MinimalScenario(5),
+        };
+
+    private static List<RecordedAction> HoldChanges() =>
+        [
+            new RecordedHoldAnnotationChange(
+                1,
+                "N1",
+                new AircraftHoldAnnotationDto
+                {
+                    Fix = "SUNOL",
+                    LegLengthInNm = false,
+                    Efc = 0,
+                }
+            ),
+            new RecordedHoldAnnotationChange(
+                2,
+                "N2",
+                new AircraftHoldAnnotationDto
+                {
+                    Fix = "SUNOL",
+                    LegLengthInNm = false,
+                    Efc = 1234,
+                }
+            ),
+        ];
+
+    private static List<int?> RecordedEfcs(IEnumerable<RecordedAction> actions) =>
+        [.. actions.Cast<RecordedHoldAnnotationChange>().Select(c => c.HoldAnnotation!.Efc)];
+
+    [Fact]
     public void Upgrade_V1RecordingWithoutSnapshots_ReportsNeedsResimulation()
     {
         var v1 = new SessionRecording

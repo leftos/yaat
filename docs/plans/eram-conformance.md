@@ -1,6 +1,6 @@
 # ERAM command conformance against the ERAM EDSM SRS
 
-**Status (2026-09-27):** Waves 0–3 and their follow-ups are done: the reference in `docs/eram/`, the file split, the ACCEPT/descriptor feedback with table errors, flight-ID validation and the conformance test, and per-field checks for every verb we answer (W3-1…W3-6, with handoff ownership and the display entries recorded for replay). Next: Wave 4.
+**Status (2026-09-27):** Waves 0–4 are done: the reference in `docs/eram/`, the file split, ACCEPT/descriptor feedback with table errors, flight-ID validation and the conformance test, per-field checks for every verb we answer, and the Wave 4 commands (LD, LE, QX `/R` and FP, CO, the full AM field set, QT coast, HM/QH hold). Next: Wave 5.
 
 ## Context
 
@@ -161,8 +161,7 @@ Tests: one `EramConformance<Verb>Tests` class per verb through the `Harness/Eram
 
 ## Wave 4: first new commands
 
-- **HM / QH hold.** Records a hold annotation by reusing `RecordedHoldAnnotationChange` (`CrcClientState.FlightPlan.cs:404`); it is data only. CRC's ERAM has no hold view, so the hold shows in the QF readout and on STARS. Needs an aviation-sim-expert review of the hold fields (direction, turns, leg, EFC).
-- **Docs:** `docs/crc-display-state.md`, `docs/crc-protocol-support.md`, and `CHANGELOG.md` bullets through the changelog skill.
+All Wave 4 items have landed; the rulings below are the record of how each was decided.
 
 **Wave 4 rulings (user 2026-09-27; the SRS is silent on each, so they are yaat rulings noted in the YAML):** LD and LE measure along the remaining route (`RemainingRouteFixes`) and fall back to LC's straight-line distance when the fix is not on it; LD answers a bare Zulu `HHMM`, LE answers LC's `<gs>KT <±delta>`, both against the wall clock like LC. `QX /R` is the same state change as `QX` (drop), answered with the SURRENDER CONTROL descriptor. `QX FP` removes the strip the way `STRIPD` does and ACCEPTs as a no-op when there is none.
 
@@ -172,7 +171,7 @@ Tests: one `EramConformance<Verb>Tests` class per verb through the `Harness/Eram
 - **HM / QH hold**: a fix-only entry leaves direction, turns and leg blank (§5-13-9a.4, §4-6-4e: no defaults the controller did not issue). A radial in field 310 is accepted and rounded to the nearest of the 8 points (the radial, not its reciprocal; ties go clockwise) on the wire, with the raw radial kept in `AircraftHoldAnnotation`. FRD / lat-long locations are stored as the typed string. EFC-only, `/*` and `C` forms read-modify-write the stored annotation. Ownership follows `RejectIfNotEditable` with `/OK`.
 - **QT coast (CT)** is Sim state like the QH freeze (`AircraftEramState` fields through an `EramEntryEngine` form, snapshot schema bump). The coasted track moves (§5-13-8a FLAT): from the entered location on the entered heading, else along the filed route, at the entered speed, else the filed TAS; no wind. It ends only on a plain QT (start track) or QX; no timer, no auto re-pair. A coasted track is exempt from STCA like a frozen one (§5-13-7); the unpaired real target is handled as any unpaired target.
 
-## Wave 5: backlog (subplan only; not built in this pass)
+## Wave 5: remaining commands (next; the ERAM-only steer covers it, user 2026-09-27)
 
 - QT convert point-out.
 - The full meaning of QP request/suppress data block.

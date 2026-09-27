@@ -8,6 +8,7 @@
 - ERAM `QX /R` surrenders control of a track and `QX FP` removes its flight strip; `QX` rejects an unknown action instead of dropping the track.
 - ERAM `CO` suppresses a pair's conflict alert until that alert ends, and a second `CO` restores it.
 - ERAM `QT … CT` coasts a track at the entered speed and altitude, on the entered heading or along its route, until `QT` or `QX`.
+- ERAM `HM` and `QH` record a hold (fix, direction, turns, leg and EFC), shown in `QF` and the flight plan CRC displays.
 
 ### Changed
 

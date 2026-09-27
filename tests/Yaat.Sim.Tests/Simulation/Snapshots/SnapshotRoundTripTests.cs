@@ -153,6 +153,60 @@ public class SnapshotRoundTripTests
     }
 
     [Fact]
+    public void HoldAnnotation_RawRadialAndBlankInstructions_RoundTripThroughJson()
+    {
+        var withRadial = new AircraftHoldAnnotation
+        {
+            Fix = "OAK090010",
+            Direction = 4,
+            Turns = 1,
+            LegLength = 10,
+            LegLengthInNm = true,
+            Efc = 1230,
+            Radial = 93,
+        };
+        var fixOnly = new AircraftHoldAnnotation { Fix = "SUNOL" };
+
+        AircraftHoldAnnotation restoredRadial = RoundTripThroughJson(withRadial);
+        AircraftHoldAnnotation restoredFixOnly = RoundTripThroughJson(fixOnly);
+
+        Assert.Equal(93, restoredRadial.Radial);
+        Assert.Equal(4, restoredRadial.Direction);
+        Assert.Equal(1, restoredRadial.Turns);
+        Assert.Equal("SUNOL", restoredFixOnly.Fix);
+        Assert.Null(restoredFixOnly.Direction);
+        Assert.Null(restoredFixOnly.Turns);
+        Assert.Null(restoredFixOnly.Radial);
+    }
+
+    [Theory]
+    [InlineData(29, 0, null)] // before V30 an Efc of 0 meant no EFC
+    [InlineData(29, 1230, 1230)]
+    [InlineData(30, 0, 0)] // from V30 on, 0 is an EFC of 0000
+    public void HoldAnnotation_Efc_MigratesAZeroFromBeforeV30ToNoEfc(int schemaVersion, int storedEfc, int? expectedEfc)
+    {
+        string json =
+            "{ \"SchemaVersion\": "
+            + schemaVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            + ", \"ElapsedSeconds\": 10, \"Rng\": { \"S0\": 1, \"S1\": 2, \"S2\": 3, \"S3\": 4 },"
+            + " \"Aircraft\": [ { \"Callsign\": \"AAL1\", \"AircraftType\": \"B738\", \"HoldAnnotation\": { \"Fix\": \"OAK\", \"Efc\": "
+            + storedEfc.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            + ", \"LegLengthInNm\": false } } ],"
+            + " \"Scenario\": { \"ScenarioId\": \"t\", \"ScenarioName\": \"T\", \"RngSeed\": 1, \"ElapsedSeconds\": 10, \"SimRate\": 1 } }";
+        StateSnapshotDto snapshot = JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!;
+
+        SnapshotSchemaMigrator.Migrate(snapshot);
+
+        Assert.Equal(expectedEfc, AircraftHoldAnnotation.FromSnapshot(Assert.Single(snapshot.Aircraft).HoldAnnotation).Efc);
+    }
+
+    private static AircraftHoldAnnotation RoundTripThroughJson(AircraftHoldAnnotation annotation)
+    {
+        string json = JsonSerializer.Serialize(annotation.ToSnapshot(), RecordingJsonOptions.Default);
+        return AircraftHoldAnnotation.FromSnapshot(JsonSerializer.Deserialize<AircraftHoldAnnotationDto>(json, RecordingJsonOptions.Default)!);
+    }
+
+    [Fact]
     public void ControlTargets_DesiredRates_RoundTrip()
     {
         var targets = new ControlTargets

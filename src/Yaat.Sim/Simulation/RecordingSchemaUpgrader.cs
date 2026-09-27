@@ -39,6 +39,7 @@ public static class RecordingSchemaUpgrader
     private const string ActionsEntry = "actions.json.br";
     private const string ArtccConfigEntry = "artcc-config.json.br";
     private const string ScenarioEntry = "scenario.json.br";
+    private const int NullableEfcSchemaVersion = 30;
     private static readonly string[] LegacyInlineEntries =
     [
         "recording.yaat-recording.br",
@@ -67,7 +68,9 @@ public static class RecordingSchemaUpgrader
             return RecordingUpgradeResult.NeedsResim(input);
         }
 
+        bool actionsPredateNullableEfc = recording.Snapshots![0].State.SchemaVersion < NullableEfcSchemaVersion;
         bool changed = MigrateSnapshots(recording.Snapshots!);
+        changed |= RewriteRecordedHoldEfcs(recording.Actions, actionsPredateNullableEfc);
         changed |= RewriteRecordedCanonicals(
             recording.Actions,
             ResolveBays(recording.ArtccConfigJson, recording.StudentPositionState?.Position?.Callsign, recording.ScenarioJson)
@@ -164,6 +167,33 @@ public static class RecordingSchemaUpgrader
         return changed;
     }
 
+    /// <summary>
+    /// Before snapshot schema <see cref="NullableEfcSchemaVersion"/> a hold's <c>Efc</c> was a plain int
+    /// whose 0 meant no EFC; from it on, null means no EFC and 0 is an EFC of 0000. A recording's actions
+    /// are written with its snapshots, so they predate that schema exactly when its snapshots do, and
+    /// then each recorded hold's Efc 0 becomes null, as <see cref="SnapshotSchemaMigrator"/> does for
+    /// the snapshots. Gated on the pre-upgrade schema, so a second upgrade leaves a real 0000 alone.
+    /// </summary>
+    private static bool RewriteRecordedHoldEfcs(List<RecordedAction> actions, bool actionsPredateNullableEfc)
+    {
+        if (!actionsPredateNullableEfc)
+        {
+            return false;
+        }
+
+        bool changed = false;
+        foreach (RecordedAction action in actions)
+        {
+            if (action is RecordedHoldAnnotationChange { HoldAnnotation: { Efc: 0 } hold })
+            {
+                hold.Efc = null;
+                changed = true;
+            }
+        }
+
+        return changed;
+    }
+
     // --- zip containers ---
 
     private static RecordingUpgradeResult UpgradeZip(byte[] input)
@@ -224,7 +254,9 @@ public static class RecordingSchemaUpgrader
         using var source = new MemoryStream(archiveBytes, writable: false);
         using var sourceZip = new ZipArchive(source, ZipArchiveMode.Read);
 
-        IReadOnlyList<AccessibleBay> bays = ResolveArchiveBays(sourceZip);
+        StateSnapshotDto? firstSnapshot = ReadFirstArchiveSnapshot(sourceZip);
+        IReadOnlyList<AccessibleBay> bays = ResolveArchiveBays(sourceZip, firstSnapshot);
+        bool actionsPredateNullableEfc = (firstSnapshot is not null) && (firstSnapshot.SchemaVersion < NullableEfcSchemaVersion);
 
         bool changed = false;
         using var output = new MemoryStream();
@@ -240,7 +272,7 @@ public static class RecordingSchemaUpgrader
                 }
                 else if (entry.FullName == ActionsEntry)
                 {
-                    content = MigrateActionsEntry(content, bays, out bool entryChanged);
+                    content = MigrateActionsEntry(content, bays, actionsPredateNullableEfc, out bool entryChanged);
                     changed |= entryChanged;
                 }
 
@@ -260,40 +292,51 @@ public static class RecordingSchemaUpgrader
     /// server resolves it at load). Empty when either is absent, which skips bay
     /// qualification (the retired-verb rewrite still runs).
     /// </summary>
-    private static IReadOnlyList<AccessibleBay> ResolveArchiveBays(ZipArchive zip)
+    private static IReadOnlyList<AccessibleBay> ResolveArchiveBays(ZipArchive zip, StateSnapshotDto? firstSnapshot)
     {
         ZipArchiveEntry? configEntry = zip.GetEntry(ArtccConfigEntry);
-        if (configEntry is null)
+        if ((configEntry is null) || (firstSnapshot is null))
         {
             return [];
         }
 
-        ZipArchiveEntry? snapshotEntry = zip
-            .Entries.Where(e => IsSnapshotEntry(e.FullName))
-            .OrderBy(e => e.FullName, StringComparer.Ordinal)
-            .FirstOrDefault();
-        if (snapshotEntry is null)
-        {
-            return [];
-        }
-
-        string snapshotJson = DecompressBrotli(ReadEntryBytes(snapshotEntry));
-        StateSnapshotDto? snapshot = JsonSerializer.Deserialize<StateSnapshotDto>(snapshotJson, RecordingJsonOptions.Default);
-        string? positionCallsign = snapshot?.Scenario.StudentPosition?.Callsign;
+        string? positionCallsign = firstSnapshot.Scenario.StudentPosition?.Callsign;
         ZipArchiveEntry? scenarioEntry = zip.GetEntry(ScenarioEntry);
         string? scenarioJson = scenarioEntry is null ? null : DecompressBrotli(ReadEntryBytes(scenarioEntry));
 
         return ResolveBays(DecompressBrotli(ReadEntryBytes(configEntry)), positionCallsign, scenarioJson);
     }
 
-    private static byte[] MigrateActionsEntry(byte[] brotliContent, IReadOnlyList<AccessibleBay> bays, out bool changed)
+    /// <summary>The archive's first snapshot as written, before any migration; null when it has none.</summary>
+    private static StateSnapshotDto? ReadFirstArchiveSnapshot(ZipArchive zip)
+    {
+        ZipArchiveEntry? snapshotEntry = zip
+            .Entries.Where(e => IsSnapshotEntry(e.FullName))
+            .OrderBy(e => e.FullName, StringComparer.Ordinal)
+            .FirstOrDefault();
+        if (snapshotEntry is null)
+        {
+            return null;
+        }
+
+        string snapshotJson = DecompressBrotli(ReadEntryBytes(snapshotEntry));
+        return JsonSerializer.Deserialize<StateSnapshotDto>(snapshotJson, RecordingJsonOptions.Default);
+    }
+
+    private static byte[] MigrateActionsEntry(
+        byte[] brotliContent,
+        IReadOnlyList<AccessibleBay> bays,
+        bool actionsPredateNullableEfc,
+        out bool changed
+    )
     {
         string json = DecompressBrotli(brotliContent);
         List<RecordedAction> actions =
             JsonSerializer.Deserialize<List<RecordedAction>>(json, RecordingJsonOptions.Default)
             ?? throw new InvalidOperationException("Failed to deserialize actions entry.");
 
-        changed = RewriteRecordedCanonicals(actions, bays);
+        changed = RewriteRecordedHoldEfcs(actions, actionsPredateNullableEfc);
+        changed |= RewriteRecordedCanonicals(actions, bays);
         return changed ? RecordingCompression.Compress(JsonSerializer.SerializeToUtf8Bytes(actions, RecordingJsonOptions.Default)) : brotliContent;
     }
 

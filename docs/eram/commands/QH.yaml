@@ -4,7 +4,14 @@ variants:
     descriptor: HOLD
     format: QH (60*) 21 310 02 | QH (60*) 21 02 | QH (60*) 310 02
     multiple_flids: true
-    handler: not implemented
+    handler: QH.Hold
+    note: >-
+      The same hold as HM (see HM.yaml's note for the field 21 / 310 rulings, 7110.65 §5-13-9 and §4-6-4e): the Sim stores a
+      fix-only hold's instructions blank while CRC receives Northwest and right turns, and an EFC of 0000 reaches CRC as 0,
+      the same as no EFC, because its DTO has no unset value. An entry with
+      no field 36 F and no clicked location is this variant; F or a clicked location is Commanded Frozen. Field 60 /OK lifts
+      the ownership check for a track another ERAM sector of this centre owns. yaat takes one flight per entry (a picked
+      track or a typed flight ID); the multi-flight list is not implemented.
     fields:
       - field: Position
         rule: |

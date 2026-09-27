@@ -117,7 +117,7 @@ public class EramCoastSnapshotTests
 
         SnapshotSchemaMigrator.Migrate(snapshot);
 
-        Assert.Equal(29, snapshot.SchemaVersion);
+        Assert.Equal(SnapshotSchemaMigrator.CurrentSchemaVersion, snapshot.SchemaVersion);
         var eram = AircraftEramState.FromSnapshot(Assert.Single(snapshot.Aircraft).Eram);
         Assert.False(eram.IsCoastTrack);
         Assert.Empty(eram.CoastRoute);

@@ -4,7 +4,20 @@ variants:
     descriptor: HOLD
     format: HM 02* 21 310 | HM 02* 21 | HM 02* 310 | HM 02 21 310 | HM 02 21 | HM 02 310
     multiple_flids: false
-    handler: not implemented
+    handler: HM.Hold
+    note: >-
+      yaat stores the hold as the flight's hold annotation (display data only, no flight behaviour; 7110.65 §5-13-9), recorded
+      so a replay rebuilds it, and the QF readout appends it as HOLD <fix> [<dir>/<LT|RT>/<leg>] [EFC hhmm]. A location or P
+      in field 21 is a new hold that carries only what field 310 gives: a fix-only entry leaves direction, turns and leg blank
+      (§5-13-9a.4, §4-6-4e: no defaults the controller did not issue). CRC's hold DTO has no unset value, so while the Sim
+      stores them blank, CRC receives Northwest and right turns (the standard pattern, AIM 5-3-8j.1(a)) and no leg length.
+      An EFC of 0000 is stored and read out as EFC 0000, but CRC's EFC is a plain int, so it receives 0 for both 0000 and
+      no EFC. A field 310 radial is kept as entered and shown to CRC as the nearest of the 8 compass points to the radial
+      itself (not its reciprocal). An FRD or
+      lat/long location is stored as typed; P stores the aircraft's position at entry as ddmmN/dddmmW. An EFC time alone, /*
+      and field 310 alone change only that part of the stored hold (MESSAGE TOO SHORT when none is stored); * clears the
+      instructions; C clears the hold (INVALID COMBINATION with a field 310). Only the track's owner may enter it
+      (NOT YOUR CONTROL); the field 02 /OK suffix is a D/A-position option, so an R-position HM never overrides.
     fields:
       - field: 02 Flight Identification
         rule: |
