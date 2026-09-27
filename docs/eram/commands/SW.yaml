@@ -1,0 +1,6 @@
+id: SW
+variants:
+  - title: Significant Weather
+    descriptor: SIGNIFICANT WEATHER
+    handler: not implemented
+    fields: []

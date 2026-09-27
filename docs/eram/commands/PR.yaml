@@ -1,0 +1,6 @@
+id: PR
+variants:
+  - title: Progress Report
+    descriptor: PROGRESS
+    handler: not implemented
+    fields: []

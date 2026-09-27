@@ -1,0 +1,12 @@
+id: RA
+variants:
+  - title: Route Activation Status
+    descriptor: ROUTE STATUS
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []
+  - title: Request APR Status
+    descriptor: APR VISIBILITY STATUS
+    handler: not implemented
+    na: ARTS interface; no ARTS on VATSIM.
+    fields: []

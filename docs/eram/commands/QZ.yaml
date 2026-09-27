@@ -1,0 +1,87 @@
+id: QZ
+variants:
+  - title: Assigned Altitude
+    descriptor: ASSIGNED ALT
+    format: QZ (60*) 08 02
+    multiple_flids: true
+    handler: QZ.AssignedAltitude
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 60 Logic Check Override
+        rule: |
+          Must be "/OK".
+        error: MsgCofieFormat
+      - field: 08 Assigned Altitude
+        rule: |
+          Must be one of: ddd, OTP, OTP/ddd, VFR, VFR/ddd, or dddBddd.
+        error: MsgALTFormat
+      - field: 08 Assigned Altitude
+        rule: |
+          When blocked, second altitude must be greater than the first altitude.
+        error: MsgInvalidBlockedAltitude
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID Laa(a)(a)(a)(a) or Ld; b. CID ddd or daa (a must not equal "I" or "O");
+          c. Beacon Code dddd (all digits octal); d. Trackball Pick or Trackball Enter.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          A trackball selection must capture a Track Position Symbol (Paired Flight), Tear-Off Flight Entry or
+          View Flight Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication
+      - field: 08 Assigned Altitude + 16 Output Routing
+        rule: |
+          Field 08 and Field 16 may not both be present in the same multiple-action QZ command (an assigned altitude
+          action is rejected if entered in the same command as an initiate handoff action).
+        error: MsgCan'tHandoffAndAmendFP
+  - title: Assigned Altitude Uplink
+    descriptor: ASSIGNED ALTITUDE UPLINK
+    handler: not implemented
+    na: CPDLC datalink; VATSIM ERAM has no datalink.
+    fields: []
+  - title: Accept Handoff
+    descriptor: ACCEPT HANDOFF
+    format: QZ (60) 02
+    multiple_flids: false
+    handler: not implemented
+    fields: []
+  - title: Initiate Handoff
+    descriptor: INITIATE HANDOFF
+    format: QZ (60) 16 02
+    multiple_flids: true
+    handler: not implemented
+    fields: []
+  - title: Data Block Offset
+    descriptor: OFFSET DATA BLK
+    format: QZ 59 02
+    multiple_flids: true
+    handler: not implemented
+    fields: []
+  - title: Forced Data Block Situation Display
+    descriptor: FORCED DATA BLK
+    format: QZ 02
+    multiple_flids: false
+    handler: not implemented
+    fields: []
+  - title: Toggle On-Frequency
+    descriptor: TOGGLE ON-FREQUENCY
+    format: QZ 64 02
+    multiple_flids: false
+    handler: not implemented
+    fields: []

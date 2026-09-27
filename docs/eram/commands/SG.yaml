@@ -1,0 +1,7 @@
+id: SG
+variants:
+  - title: Group Suppression
+    descriptor: SUPP GROUP
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []

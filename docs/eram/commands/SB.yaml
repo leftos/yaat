@@ -1,0 +1,7 @@
+id: SB
+variants:
+  - title: MCI Beacon Code Inhibit Message
+    descriptor: INHIBIT MCI CODE
+    handler: not implemented
+    na: ARTS interface; no ARTS on VATSIM.
+    fields: []

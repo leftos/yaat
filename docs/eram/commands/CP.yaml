@@ -1,0 +1,7 @@
+id: CP
+variants:
+  - title: Change Parameter
+    descriptor: CHANGE PARAMETER
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []

@@ -1,0 +1,7 @@
+id: UH
+variants:
+  - title: Uplink Held TOC
+    descriptor: UPLINK HELD TOC
+    handler: not implemented
+    na: CPDLC datalink; VATSIM ERAM has no datalink.
+    fields: []

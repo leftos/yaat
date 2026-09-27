@@ -1,0 +1,14 @@
+id: RD
+variants:
+  - title: Display ARTS III Control Figures
+    descriptor: DISPLAY ARTS
+    handler: not implemented
+    na: ARTS interface; no ARTS on VATSIM.
+    fields: []
+  - title: Route Display Toggle
+    source: yaat
+    descriptor: ROUTE DISPLAY
+    handler: RD.RouteDisplay
+    note: |
+      yaat-only. Toggles the route line for every track, or for one track when a FLID is given.
+    fields: []

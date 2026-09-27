@@ -1,0 +1,84 @@
+id: QF
+variants:
+  - title: Flight Plan Readout Request
+    descriptor: READOUT
+    format: QF (16) 02 | QF (12) ... (12) 02 | QF (42) 02 | QF 42 02
+    multiple_flids: true
+    handler: QF.Readout
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID Laa(a)(a)(a)(a) or Ld; b. CID ddd or daa (a must not equal "I" or "O");
+          c. Beacon Code dddd (all digits octal); d. External Beacon Code /Edddd (E is the letter "E", all digits
+          octal); e. Trackball Pick or Trackball Enter.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          When selecting the flight using the trackball, the selection must capture a Track Position Symbol
+          (Paired Flight), a FDB or Paired LDB where the field picked is a Callsign, Tear-Off Flight Entry or
+          View Flight Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight. (Only applies when Field 42 does
+          not equal "*".)
+        error: MsgFLIDDuplication
+      - field: 42 Flight Plan Readout Data Selection + 16 Output Routing
+        rule: |
+          If there is only one single-character entered field between Field 01 and Field 02, that field must be
+          "1", "2", "A", "I", "C", "F", "D", "R", or "*".
+        error: MsgCofieFormat
+      - field: 42 Flight Plan Readout Data Selection
+        rule: |
+          Must be "1", "2", "A", "I", "C", "F", "D", or "*".
+        error: MsgInvalidSelection
+      - field: 02 Flight Identification + 42 Flight Plan Readout Data Selection
+        rule: |
+          If Field 42 is "*", Field 02 must be in the Aircraft ID format, Laa(a)(a)(a)(a) or Ld.
+        error: MsgFlidFormat
+      - field: 16 Output Routing
+        rule: |
+          Must be "R".
+        error: MsgIncorrectRouting
+      - field: 16 Output Routing + 42 Flight Plan Readout Data Selection + 12 Field Reference
+        rule: |
+          If Field 16 is present, then neither Field 42 nor Field 12 can be present in the same command.
+        error: MsgInvalidCombination
+      - field: 42 Flight Plan Readout Data Selection + 12 Field Reference
+        rule: |
+          Field 42 and Field 12 must not both be present in the same command.
+        error: MsgInvalidCombination
+      - field: 12 Field Reference
+        rule: |
+          Must be one of (valid sets per the Flight Data Fields Table in Appendix C for the QF command):
+          a. Field Reference Number dd, including the optionally adapted Field 918 Indicators
+          <adp_AdaptedICAO918Indicators> (in this command the number must be 2 digits, unlike other commands);
+          b. Field Abbreviation LLL;
+          c. ICAO Field 918 Indicator L(L)(L)(L)/ (the Field 918a abbreviations followed by "/", including the
+          optionally adapted Field 918 acronyms <adp_AdaptedICAO918Indicators> followed by "/").
+        error: MsgInvalidReference
+      - field: 12 Field Reference
+        rule: |
+          If there are multiple occurrences of Field 12 in one command, the Field Reference Number or equivalent
+          Field Abbreviation must not be repeated in another instance of Field 12.
+        error: MsgCofieDuplicateFieldReference
+      - field: 12 Field Reference
+        rule: |
+          When one instance of Field 12 contains OTH or 30, any other instances of Field 12 in the same command
+          must not reference an ICAO Field 918 Indicator, either by Field Reference Number or by Field
+          Abbreviation (list in the Flight Data Fields Table in Appendix C, including the optionally adapted
+          Field 918 Indicators <adp_AdaptedICAO918Indicators>).
+        error: MsgInvalidReference

@@ -1,0 +1,7 @@
+id: AB
+variants:
+  - title: Active Border
+    descriptor: ACTIVE BORDER
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []

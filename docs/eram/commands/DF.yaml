@@ -1,0 +1,7 @@
+id: DF
+variants:
+  - title: Disable Frequency
+    descriptor: DISABLE FREQUENCY
+    handler: not implemented
+    na: Radio frequency control; voice is handled outside YAAT.
+    fields: []

@@ -1,0 +1,49 @@
+id: LE
+variants:
+  - title: Route of Flight Fix/Time/Speed Adjustment Readout
+    descriptor: RTE FIX/SPD ADJ
+    format: LE 68 02
+    multiple_flids: false
+    handler: not implemented
+    fields:
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID - Laa(a)(a)(a)(a) or Ld; b. CID - ddd or daa (a must not be "I" or "O");
+          c. Beacon Code - dddd (all digits octal); d. Trackball Pick or Trackball Enter.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          When selecting the flight by trackball, the selection must capture a Track Position Symbol
+          (Paired Flight), Tear-Off Flight Entry or View Flight Entry for a valid flight ID.
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication
+      - field: 68 Fix or Fix Radial Distance with Intended Arrival Time
+        rule: |
+          Must be one of: a. Fix or Airport with intended arrival time - aa(a)(a)(a)/dddd;
+          b. Fix (or Airport) Radial Distance with intended arrival time - aa(a)(a)(a)ddd1ddd2/dddd.
+        error: MsgCofieFormat
+      - field: 68 Fix or Fix Radial Distance with Intended Arrival Time
+        rule: |
+          When a Fix Radial Distance, the radial ddd1 must be between 001-360 and the distance ddd2
+          must be between 001-999.
+        error: MsgCofieFormat
+      - field: 68 Fix or Fix Radial Distance with Intended Arrival Time
+        rule: |
+          The first two digits (hours) of the Intended Arrival Time must not exceed 23 and the last two
+          digits (minutes) must not exceed 59.
+        error: MsgInvalidTime
+      - field: 68 Fix or Fix Radial Distance with Intended Arrival Time
+        rule: |
+          The Intended Arrival Time must be at least 3 minutes in the future and less than 8 hours in the future.
+        error: MsgInvalidTime

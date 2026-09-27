@@ -1,0 +1,57 @@
+id: QA
+variants:
+  - title: Automatic Handoff
+    descriptor: AUTO HANDOFF
+    format: QA 02 | QA (36) 14 (14) (14) (14) (14)
+    multiple_flids: true
+    handler: not implemented
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position. Checked on the active channel.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 02 Flight Identification + 14 Sector Identifier
+        rule: |
+          Must contain either a Field 02 or Field 14.
+        error: MsgCofieFormat
+      - field: 36 Action Indicator
+        rule: |
+          Must be "/S", which indicates that Field 14 is present. (Optional; distinguishes a 3-digit sector number
+          ddd in Field 14 from a CID ddd in Field 02. Field 14 may be present even if Field 36 is not.)
+        error: MsgInvalidActionType
+      - field: 14 Sector Identifier
+        rule: |
+          Must be one of: a. Sector Number (d)dd, in the range 01 - 128; b. Center Identifier L;
+          c. ARTS III Identifier LLL.
+        error: MsgCofieFormat
+      - field: 14 Sector Identifier
+        rule: |
+          When in sector number format, must be an adapted sector in AERO. Checked on the active channel.
+        error: MsgNon-AdaptedSector
+      - field: 14 Sector Identifier
+        rule: |
+          When in sector number format, must have an adapted R-Position. Checked on the active channel.
+        error: MsgR-PositionNotConfigured
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID Laa(a)(a)(a)(a) or Ld; b. CID ddd or daa (a must not equal "I" or "O");
+          c. Beacon Code dddd (all digits octal); d. Trackball Pick or Trackball Enter.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          When selecting the flight using the trackball, the selection must capture a Track Position Symbol
+          (Paired Flight), Tear-Off Flight Entry or View Flight Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication

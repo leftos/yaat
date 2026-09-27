@@ -1,0 +1,6 @@
+id: NR
+variants:
+  - title: NOTAM Request
+    descriptor: NOTAM REQ
+    handler: not implemented
+    fields: []

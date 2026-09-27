@@ -1,0 +1,6 @@
+id: SR
+variants:
+  - title: Strip Request
+    descriptor: STRIP REQUEST
+    handler: crc-local
+    fields: []

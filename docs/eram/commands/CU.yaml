@@ -1,0 +1,7 @@
+id: CU
+variants:
+  - title: Console User Status
+    descriptor: CONSOLE USER
+    handler: not implemented
+    na: "Position sign-in, security and preference sets belong to CRC."
+    fields: []

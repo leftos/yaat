@@ -1,0 +1,6 @@
+id: SM
+variants:
+  - title: R-position Message Text
+    descriptor: SECTOR MESSAGE
+    handler: not implemented
+    fields: []

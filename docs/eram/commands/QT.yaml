@@ -1,0 +1,365 @@
+id: QT
+variants:
+  - title: Coast Track
+    descriptor: COAST TRACK
+    format: QT (05) (08) (56) 64 (65) (68) 02
+    multiple_flids: false
+    handler: not implemented
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 05 Speed
+        rule: |
+          True air speed (knots) in the format S(d)(d)dd, the four digits not to exceed 3700. Stored without the S prefix.
+        error: MsgSPDFormat
+      - field: 08 Assigned Altitude
+        rule: |
+          Must be one of: ddd, OTP, OTP/ddd, VFR, VFR/ddd, or dddBddd.
+        error: MsgALTFormat
+      - field: 08 Assigned Altitude
+        rule: |
+          When blocked, second altitude must be greater than the first altitude.
+        error: MsgInvalidBlockedAltitude
+      - field: 56 Heading
+        rule: |
+          Must be in the format dd, not to exceed 36.
+        error: MsgCofieFormat
+      - field: 64 Action Type
+        rule: |
+          Must be "CT".
+        error: MsgInvalidActionType
+      - field: 64 Action Type
+        rule: |
+          CT cannot be entered with "/E(dddd)" (Field 160) or with the "P" option (Field 74).
+        error: MsgCofieInvalidCombination
+      - field: 65 Trackball Coordinates
+        rule: |
+          Must be created by a trackball entry from the R-Position.
+        error: MsgCofieFormat
+      - field: 65 Trackball Coordinates
+        rule: |
+          Trackball capture does not contain a situation display point.
+        error: MsgNoSituationDisplayPointCapture
+      - field: 68 Fix, Fix Radial Distance, or Lat/Long
+        rule: |
+          Must be one of: a. Fix or Airport Name //aa(a)(a)(a); b. Fix (or Airport) Radial Distance
+          //aa(a)(a)(a)ddd1ddd2; c. Lat/Long //dddd(L1)/(d)dddd(L2).
+        error: MsgCofieFormat
+      - field: 68 Fix, Fix Radial Distance, or Lat/Long
+        rule: |
+          When a Fix Radial Distance, the radial ddd1 must be 001-360 and the distance ddd2 must be 001-999.
+        error: MsgCofieFormat
+      - field: 68 Fix, Fix Radial Distance, or Lat/Long
+        rule: |
+          When a Lat/Long, latitude must not exceed 90 and longitude must not exceed 180; minutes must not exceed 59.
+          L1 may be N or S; L2 may be E or W. At 90 degrees latitude or 180 degrees longitude the minutes must be 0.
+          N latitude and W longitude are implied when omitted; S latitude and E longitude must be entered if applicable.
+          If the optional L1 or L2 is used, both must be used.
+        error: MsgCofieFormat
+      - field: 65 Trackball Coordinates + 68 Fix, Fix Radial Distance, or Lat/Long
+        rule: |
+          Must not contain both a Field 65 and a Field 68.
+        error: MsgDuplicatedAction
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID Laa(a)(a)(a)(a) or Ld; b. CID ddd or daa (a must not equal "I" or "O");
+          c. Beacon Code dddd (all digits octal); d. Trackball Pick or Trackball Enter.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          When selecting the flight using the trackball, the selection must capture a Track Position Symbol (Paired Flight),
+          Tear-Off Flight Entry or View Flight Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication
+  - title: Track
+    descriptor: TRACK
+    format: QT (60) (65) (68) (05) (08) (56) (74) (160) 02 | QT 64 02
+    multiple_flids: false
+    handler: QT.Track
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 64 Action Type
+        rule: |
+          Must be "*".
+        error: MsgInvalidActionType
+      - field: 60 Logic Check Override
+        rule: |
+          Must be "/OK".
+        error: MsgCofieFormat
+      - field: 65 Trackball Coordinates
+        rule: |
+          Must be created by a trackball entry from the R-Position.
+        error: MsgCofieFormat
+      - field: 65 Trackball Coordinates
+        rule: |
+          Trackball capture does not contain a situation display point.
+        error: MsgNoSituationDisplayPointCapture
+      - field: 68 Fix, Fix Radial Distance, or Lat/Long
+        rule: |
+          Must be one of: a. Fix or Airport Name //aa(a)(a)(a); b. Fix (or Airport) Radial Distance
+          //aa(a)(a)(a)ddd1ddd2; c. Lat/Long //dddd(L1)/(d)dddd(L2).
+        error: MsgCofieFormat
+      - field: 68 Fix, Fix Radial Distance, or Lat/Long
+        rule: |
+          When a Fix Radial Distance, the radial ddd1 must be 001-360 and the distance ddd2 must be 001-999.
+        error: MsgCofieFormat
+      - field: 68 Fix, Fix Radial Distance, or Lat/Long
+        rule: |
+          When a Lat/Long, latitude must not exceed 90 and longitude must not exceed 180; minutes must not exceed 59.
+          L1 may be N or S; L2 may be E or W. At 90 degrees latitude or 180 degrees longitude the minutes must be 0.
+          N latitude and W longitude are implied when omitted; S latitude and E longitude must be entered if applicable.
+          If the optional L1 or L2 is used, both must be used.
+        error: MsgCofieFormat
+      - field: 65 Trackball Coordinates + 68 Fix, Fix Radial Distance, or Lat/Long
+        rule: |
+          Must not contain both a Field 65 and a Field 68.
+        error: MsgDuplicatedAction
+      - field: 05 Speed
+        rule: |
+          True air speed (knots) in the format S(d)(d)dd, the four digits not to exceed 3700. Stored without the S prefix.
+        error: MsgSPDFormat
+      - field: 08 Assigned Altitude
+        rule: |
+          Must be one of: ddd, OTP, OTP/ddd, VFR, VFR/ddd, or dddBddd.
+        error: MsgALTFormat
+      - field: 08 Assigned Altitude
+        rule: |
+          When blocked, second altitude must be greater than the first altitude.
+        error: MsgInvalidBlockedAltitude
+      - field: 56 Heading
+        rule: |
+          Must be in the format dd, not to exceed 36.
+        error: MsgCofieFormat
+      - field: 74 Primary Class Track Indicator
+        rule: |
+          Must be "P".
+        error: MsgCofieFormat
+      - field: 74 Primary Class Track Indicator + 160 External Beacon Code
+        rule: |
+          Field 74 cannot be entered with Field 64. Field 160 cannot be entered with Field 64.
+        error: MsgCofieInvalidCombination
+      - field: 160 External Beacon Code
+        rule: |
+          Must be in the format /E(dddd), where E is the letter "E" and all digits octal.
+        error: MsgCofieFormat
+        na: External /E beacon identifiers do not exist on VATSIM.
+      - field: 160 External Beacon Code
+        rule: |
+          When the optional beacon code is present, it must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgNonDiscreteCodeInvalid
+        na: External /E beacon identifiers do not exist on VATSIM.
+      - field: 160 External Beacon Code + 65 Trackball Coordinates + 68 Fix, Fix Radial Distance, or Lat/Long
+        rule: |
+          If Field 160 is present, either Field 65 or Field 68 must also be present.
+        error: MsgRequiresFixOrTrkbl
+        na: External /E beacon identifiers do not exist on VATSIM.
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID Laa(a)(a)(a)(a) or Ld; b. CID ddd or daa (a must not equal "I" or "O");
+          c. Beacon Code dddd (all digits octal); d. Trackball Pick or Trackball Enter.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification + 64 Action Type
+        rule: |
+          If Field 64 is present, Field 02 must be in the CID format, ddd or daa.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification + 160 External Beacon Code
+        rule: |
+          If Field 160 is present, Field 02 must not contain a beacon code.
+        error: MsgBeaconNotAValidFLID
+        na: External /E beacon identifiers do not exist on VATSIM.
+      - field: 02 Flight Identification
+        rule: |
+          When selecting the flight using the trackball, the selection must capture a Track Position Symbol (Paired Flight),
+          Tear-Off Flight Entry or View Flight Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight Identification must be found when Field 02 is: a. CID ddd or daa (a must not equal "I" or "O");
+          b. Beacon Code dddd (all digits octal); c. Trackball Pick or Trackball Enter. When Field 02 is an Aircraft ID
+          and the flight is not found, this error does not apply; the specified Aircraft ID is used for the QT Track command.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication
+  - title: Convert Point Out Track
+    descriptor: CONVERT PO TRACK
+    format: QT (05) (08) (56) (60) 64 (65) (68) (74) 02
+    multiple_flids: false
+    handler: not implemented
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 05 Speed
+        rule: |
+          True air speed (knots) in the format S(d)(d)dd, the four digits not to exceed 3700. Stored without the S prefix.
+        error: MsgSPDFormat
+      - field: 08 Assigned Altitude
+        rule: |
+          Must be one of: ddd, OTP, OTP/ddd, VFR, VFR/ddd, or dddBddd.
+        error: MsgALTFormat
+      - field: 08 Assigned Altitude
+        rule: |
+          When blocked, second altitude must be greater than the first altitude.
+        error: MsgInvalidBlockedAltitude
+      - field: 56 Heading
+        rule: |
+          Must be in the format dd, not to exceed 36.
+        error: MsgCofieFormat
+      - field: 60 Logic Check Override
+        rule: |
+          Must be "/OK".
+        error: MsgCofieFormat
+      - field: 64 Action Type
+        rule: |
+          Must be "C".
+        error: MsgInvalidActionType
+      - field: 64 Action Type
+        rule: |
+          C cannot be entered with "/E(dddd)" (Field 160).
+        error: MsgCofieInvalidCombination
+      - field: 65 Trackball Coordinates
+        rule: |
+          Must be created by a trackball entry from the R-Position.
+        error: MsgCofieFormat
+      - field: 65 Trackball Coordinates
+        rule: |
+          Trackball capture does not contain a situation display point.
+        error: MsgNoSituationDisplayPointCapture
+      - field: 68 Fix, Fix Radial Distance, or Lat/Long
+        rule: |
+          Must be one of: a. Fix or Airport Name aa(a)(a)(a); b. Fix (or Airport) Radial Distance
+          aa(a)(a)(a)ddd1ddd2; c. Lat/Long dddd(L1)/(d)dddd(L2).
+        error: MsgCofieFormat
+      - field: 68 Fix, Fix Radial Distance, or Lat/Long
+        rule: |
+          When a Fix Radial Distance, the radial ddd1 must be 001-360 and the distance ddd2 must be 001-999.
+        error: MsgCofieFormat
+      - field: 68 Fix, Fix Radial Distance, or Lat/Long
+        rule: |
+          When a Lat/Long, latitude must not exceed 90 and longitude must not exceed 180; minutes must not exceed 59.
+          L1 may be N or S; L2 may be E or W. At 90 degrees latitude or 180 degrees longitude the minutes must be 0.
+          N latitude and W longitude are implied when omitted; S latitude and E longitude must be entered if applicable.
+          If the optional L1 or L2 is used, both must be used.
+        error: MsgCofieFormat
+      - field: 65 Trackball Coordinates + 68 Fix, Fix Radial Distance, or Lat/Long
+        rule: |
+          Must not contain both a Field 65 and a Field 68.
+        error: MsgDuplicatedAction
+      - field: 74 Primary Class Track Indicator
+        rule: |
+          Must be "P".
+        error: MsgCofieFormat
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID Laa(a)(a)(a)(a) or Ld; b. CID ddd or daa (a must not equal "I" or "O");
+          c. Beacon Code dddd (all digits octal); d. Trackball Pick or Trackball Enter.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          When selecting the flight using the trackball, the selection must capture a Track Position Symbol (Paired Flight),
+          Tear-Off Flight Entry or View Flight Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication
+  - title: Distance Based Pairing
+    descriptor: TRACK DISTANCE
+    format: QT (60) 65 (05) (08) (56) 64 02
+    multiple_flids: false
+    handler: not implemented
+    fields:
+      - field: 60 Logic Check Override
+        rule: |
+          Must be "/OK".
+        error: MsgCofieFormat
+      - field: 65 Trackball Coordinates
+        rule: |
+          Trackball capture does not contain a situation display point.
+        error: MsgNoSituationDisplayPointCapture
+      - field: 05 Speed
+        rule: |
+          True air speed (knots) in the format S(d)(d)dd, the four digits not to exceed 3700. Stored without the S prefix.
+        error: MsgSPDFormat
+      - field: 08 Assigned Altitude
+        rule: |
+          Must be one of: ddd, OTP, OTP/ddd, VFR, VFR/ddd, or dddBddd.
+        error: MsgALTFormat
+      - field: 08 Assigned Altitude
+        rule: |
+          When blocked, second altitude must be greater than the first altitude.
+        error: MsgInvalidBlockedAltitude
+      - field: 56 Heading
+        rule: |
+          Must be in the format dd, not to exceed 36.
+        error: MsgCofieFormat
+      - field: 64 Distance Rule Indicator
+        rule: |
+          Must be "D".
+        error: MsgInvalidActionType
+      - field: 64 Distance Rule Indicator
+        rule: |
+          D cannot be entered with "/E(dddd)" (Field 160), with the "P" option (Field 74), or with a Field 68.
+        error: MsgCofieInvalidCombination
+      - field: 64 Distance Rule Indicator + 65 Trackball Coordinates
+        rule: |
+          With Field 64 (D) in the command, Field 65 must be present.
+        error: MsgRequiresTrkbl
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID Laa(a)(a)(a)(a) or Ld; b. CID ddd or daa (a must not equal "I" or "O");
+          c. Beacon Code dddd (all digits octal); d. Trackball Pick or Trackball Enter.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          When selecting the flight using the trackball, the selection must capture a Track Position Symbol (Paired Flight),
+          Tear-Off Flight Entry or View Flight Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight Identification must be found when Field 02 is: a. CID ddd or daa (a must not equal "I" or "O");
+          b. Beacon Code dddd (all digits octal); c. Trackball Pick or Trackball Enter. When Field 02 is an Aircraft ID
+          and the flight is not found, this error does not apply; the specified Aircraft ID is used for the QT Track command.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication

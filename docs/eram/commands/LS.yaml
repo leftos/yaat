@@ -1,0 +1,6 @@
+id: LS
+variants:
+  - title: Longitudinal Scale
+    descriptor: LONG SCALE
+    handler: not implemented
+    fields: []

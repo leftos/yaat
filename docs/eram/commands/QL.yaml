@@ -1,0 +1,16 @@
+id: QL
+variants:
+  - title: Quick Look
+    descriptor: QUICK LOOK
+    format: QL (214) (214) (214) (214) (214)
+    multiple_flids: null
+    handler: QL.QuickLook
+    fields:
+      - field: 214 Sector Identification
+        rule: |
+          Must be in the format (d)dd, and in the range of 01 - 128.
+        error: MsgFieldInErrorEnterValidFieldInformation
+      - field: 214 Sector Identification
+        rule: |
+          A maximum of 5 Field 214s is permitted.
+        error: MsgMessageTooLong

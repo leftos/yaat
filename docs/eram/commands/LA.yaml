@@ -1,0 +1,43 @@
+id: LA
+variants:
+  - title: Range/Bearing Readout
+    descriptor: RANGE/BEARING
+    format: LA 65 (65) (40) (13)
+    multiple_flids: null
+    handler: LA.RangeBearing
+    fields:
+      - field: 65 Trackball Coordinates
+        rule: |
+          Must be created by a trackball entry.
+        error: MsgCofieFormat
+      - field: 65 Trackball Coordinates
+        rule: |
+          Trackball capture does not contain a situation display point. The capture may optionally
+          capture a Flight ID, used only when the capture is a Track Position Symbol (Paired Flight),
+          Paired Beacon Target Symbol, or Paired Primary Target Symbol.
+        error: MsgNoSituationDisplayPointCapture
+      - field: 40 Control Figures
+        rule: |
+          Must be in the format (L)(/dd(d)(d)), where L is a True Bearing Indicator that must be "T",
+          and /dd(d)(d) is an Input Speed.
+        error: MsgCofieFormat
+      - field: 40 Control Figures
+        rule: |
+          When it includes an Input Speed, the speed must not be less than 55 knots or more than 9999 knots.
+        error: MsgInvalidSpeed
+      - field: 13 Radar Site Identifier
+        rule: |
+          Must be in the format LLL.
+        error: MsgCofieFormat
+      - field: Message
+        rule: |
+          Must not contain both an optional Field 65 and a Field 13.
+        error: MsgMessageTooLong
+      - field: Message
+        rule: |
+          Must contain either an optional Field 65 or a Field 13.
+        error: MsgMessageTooShort
+      - field: Message
+        rule: |
+          Must not contain a Field 40 without an optional Field 65.
+        error: MsgMessageTooShort

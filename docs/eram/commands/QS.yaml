@@ -1,0 +1,71 @@
+id: QS
+variants:
+  - title: "FDB Heading, Speed and Free Form Text"
+    descriptor: FDB DATA
+    format: QS (60) 155 02 | QS (60) 64 02 | QS 02
+    multiple_flids: true
+    handler: QS.FdbData
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 60 Logic Check Override
+        rule: |
+          Must be "/OK".
+        error: MsgCofieFormat
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID Laa(a)(a)(a)(a) or Ld; b. CID ddd or daa (a must not equal "I" or "O");
+          c. Beacon Code dddd (all digits octal); d. Trackball Pick or Trackball Enter.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          When selecting the flight using the trackball, the selection must capture a Track Position Symbol (Paired Flight),
+          Tear-Off Flight Entry or View Flight Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication
+      - field: 64 Action Type + 155 FDB Fourth Line Heading, Speed, and Free Form Text
+        rule: |
+          Must not contain both a Field 64 and a Field 155.
+        error: MsgCofieFormat
+      - field: 64 Action Type
+        rule: |
+          When entered, must be one of: "*/", "/*", or "*".
+        error: MsgCofieFormat
+      - field: 155 FDB Fourth Line Heading, Speed, and Free Form Text
+        rule: |
+          When heading, must be in the format a(a)(a)(a).
+        error: MsgInvalidHeadingFormat
+      - field: 155 FDB Fourth Line Heading, Speed, and Free Form Text
+        rule: |
+          When speed, must be one of: /ddd, /ddd+, /ddd-, /+d(d), /-d(d), /Sddd, /dd, /dd+, /dd-, /Mdd, /Mdd+, /Mdd-,
+          /M.dd, /.dd, /.dd+, /.dd-, "/PS", "/+", "/-", /✓ddd(↓ddd), /✓Mdd(↓ddd).
+        error: MsgInvalidSpeedFormat
+      - field: 155 FDB Fourth Line Heading, Speed, and Free Form Text
+        rule: |
+          When free form text, must be preceded by a clear weather symbol (○) and contain 1-8 non-special characters,
+          with no leading or embedded spaces.
+        error: MsgInvalidTextFormat
+      - field: 155 FDB Fourth Line Heading, Speed, and Free Form Text
+        rule: |
+          When heading and speed, must be in the format a(a)(a)(a){any of the speed formats above except /✓ddd(↓ddd)
+          or /✓Mdd(↓ddd)}.
+        error: MsgCofieFormat
+  - title: Speed Uplink
+    descriptor: SPEED UPLINK
+    handler: not implemented
+    na: CPDLC datalink; VATSIM ERAM has no datalink.
+    fields: []

@@ -1,0 +1,22 @@
+id: UM
+variants:
+  - title: Advisory Message Save
+    descriptor: ADVISORY MESSAGE
+    handler: not implemented
+    na: CPDLC datalink; VATSIM ERAM has no datalink.
+    fields: []
+  - title: Advisory Message Uplink
+    descriptor: ADVISORY MESSAGE
+    handler: not implemented
+    na: CPDLC datalink; VATSIM ERAM has no datalink.
+    fields: []
+  - title: Advisory Message Delete
+    descriptor: ADVISORY MESSAGE
+    handler: not implemented
+    na: CPDLC datalink; VATSIM ERAM has no datalink.
+    fields: []
+  - title: Freehand Freetext Message
+    descriptor: FREEHAND FREETEXT MESSAGE
+    handler: not implemented
+    na: CPDLC datalink; VATSIM ERAM has no datalink.
+    fields: []

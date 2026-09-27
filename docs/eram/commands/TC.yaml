@@ -1,0 +1,7 @@
+id: TC
+variants:
+  - title: Traffic Count Adjustment
+    descriptor: TRAFFIC COUNT
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []

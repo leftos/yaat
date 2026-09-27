@@ -1,0 +1,6 @@
+id: UR
+variants:
+  - title: Upper Wind Request
+    descriptor: UPPER WIND REQ
+    handler: not implemented
+    fields: []

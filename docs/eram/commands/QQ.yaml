@@ -1,0 +1,56 @@
+id: QQ
+variants:
+  - title: Interim Altitude
+    descriptor: INTERIM ALT
+    format: QQ (513) 76 02 | QQ (513) (36) 02
+    multiple_flids: true
+    handler: QQ.InterimAltitude
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID - Laa(a)(a)(a)(a) or Ld; b. CID - ddd or daa (a must not equal "I" or "O");
+          c. Beacon Code - dddd (all digits octal); d. Trackball Pick or Trackball Enter.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          A trackball selection must capture a Track Position Symbol (Paired Flight), Tear-Off Flight Entry
+          or a View Flight Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication
+      - field: 76 Interim Altitude Data
+        rule: |
+          Must be one of: a. Interim Altitude - ddd; b. Local Interim Altitude - "L"ddd;
+          c. Procedure Altitude - "P"ddd; d. Interim Altitude and indication to update the controller
+          reported altitude - "R"ddd; where ddd >0.
+        error: MsgALTFormat
+      - field: 36 Local Interim Altitude Deletion Indicator
+        rule: |
+          Must be "L". If "L" is present, the local interim altitude is deleted; if Field 36 is absent,
+          the interim or procedure altitude is deleted (whichever is present).
+        error: MsgCofieIllegalAction
+      - field: 513 Alternate Logic Check Override
+        rule: |
+          Must be in the format /xx, containing the site adaptable characters <adp_QQ_eligibility_override_text>.
+          Valid characters include A-Z and "/".
+        error: MsgCofieFormat
+  - title: Interim Altitude Uplink
+    descriptor: INTERIM ALTITUDE UPLINK
+    handler: not implemented
+    na: CPDLC datalink; VATSIM ERAM has no datalink.
+    fields: []

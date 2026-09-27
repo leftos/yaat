@@ -1,0 +1,7 @@
+id: CA
+variants:
+  - title: Conflict Alert/MCI On-Off
+    descriptor: MCI CA SETTING
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []

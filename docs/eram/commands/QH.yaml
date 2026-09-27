@@ -1,0 +1,157 @@
+id: QH
+variants:
+  - title: Hold
+    descriptor: HOLD
+    format: QH (60*) 21 310 02 | QH (60*) 21 02 | QH (60*) 310 02
+    multiple_flids: true
+    handler: not implemented
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 60 Logic Check Override
+        rule: |
+          Must be "/OK".
+        error: MsgCofieFormat
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID Laa(a)(a)(a)(a) or Ld; b. CID ddd or daa (a must not equal "I" or "O");
+          c. Beacon Code dddd (all digits octal); d. Trackball Pick or Trackball Enter.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          When selecting the flight using the trackball, the selection must capture a Track Position Symbol
+          (Paired Flight), Tear-Off Flight Entry or View Flight Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication
+      - field: 21 Hold Data
+        rule: |
+          Must be one of:
+          a. Fix or Airport Name with optional EFC time - aa(a)(a)(a)(/dddd)
+          b. Fix (or Airport) Radial Distance with optional EFC time - aa(a)(a)(a)ddd1ddd2(/dddd)
+          c. Lat/Long with optional EFC time - dddd(L1)/(d)dddd(L2)(/dddd)
+          d. Fix or Airport Name with optional EFC Time Deletion Indicator - aa(a)(a)(a)(/*)
+          e. Fix (or Airport) Radial Distance with optional EFC Time Deletion Indicator - aa(a)(a)(a)ddd1ddd2(/*)
+          f. Lat/Long with optional EFC Time Deletion Indicator - dddd(L1)/(d)dddd(L2)(/*)
+          g. Present Position Indicator with optional EFC time - P(/dddd)
+          h. Present Position Indicator with optional EFC Time Deletion Indicator - P(/*)
+          i. EFC Time Deletion Indicator - /*
+          j. EFC Time - dddd
+          k. Cancel hold indicator - "C".
+          Note: when this field contains 4 digits, it is interpreted as a time, not a 4-character fix.
+        error: MsgCofieFormat
+      - field: 21 Hold Data
+        rule: |
+          When a Fix Radial Distance, the radial ddd1 must be between 001-360, and the distance ddd2 must be
+          between 001-999.
+        error: MsgCofieFormat
+      - field: 21 Hold Data
+        rule: |
+          When a Lat/Long, latitude must not exceed 90 and longitude must not exceed 180; minutes must not
+          exceed 59. L1 may be N or S; L2 may be E or W. At 90 degrees latitude or 180 degrees longitude the
+          minutes must be 0. N latitude and W longitude are implied when omitted; S latitude and E longitude
+          must be entered if applicable. If the optional L1 or L2 is used, both must be used.
+        error: MsgCofieFormat
+      - field: 21 Hold Data
+        rule: |
+          When in time format, or when an optional time is included, first two digits (hours) must not exceed
+          23 and last two digits (minutes) must not exceed 59.
+        error: MsgInvalidTime
+      - field: 310 Holding Instructions
+        rule: |
+          Must be one of:
+          a. Cardinal Direction - (L)L/LL/(a)(a)aaa, where (L)L is "NW", "N", "NE", "E", "SE", "S", "SW", or "W";
+          LL is "LT" or "RT"; and (a)aaa is "STD", (d)dNM, or dMIN.
+          b. Inbound radial in degrees - ddd/LL/(a)(a)aaa, where ddd is in the range 001-360; LL is "LT" or "RT";
+          and (a)aaa is (d)dNM, or dMIN.
+          c. Delete Holding Instructions - must be *.
+          For "NM", (d)d must be in the range 1 to 99; for "MIN", d must be in the range 1 to 9.
+        error: MsgCofieFormat
+  - title: Hold Uplink
+    descriptor: HOLD UPLINK
+    handler: not implemented
+    na: CPDLC datalink; VATSIM ERAM has no datalink.
+    fields: []
+  - title: Commanded Frozen
+    descriptor: COMMANDED FROZEN
+    format: QH (60) 36 (65) (68) 02
+    multiple_flids: false
+    handler: QH.CommandedFrozen
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 60 Logic Check Override
+        rule: |
+          Must be "/OK".
+        error: MsgCofieFormat
+      - field: 36 Action Indicator
+        rule: |
+          Must be "F".
+        error: MsgCofieIllegalAction
+      - field: 65 Trackball Coordinates
+        rule: |
+          Must be created by a trackball entry from the R-Position.
+        error: MsgCofieFormat
+      - field: 65 Trackball Coordinates
+        rule: |
+          Trackball capture does not contain a situation display point.
+        error: MsgNoSituationDisplayPointCapture
+      - field: 68 Fix, Fix Radial Distance, or Lat/Long
+        rule: |
+          Must be one of: a. Fix or Airport Name aa(a)(a)(a); b. Fix (or Airport) Radial Distance
+          aa(a)(a)(a)ddd1ddd2; c. Lat/Long dddd(L1)/(d)dddd(L2).
+        error: MsgCofieFormat
+      - field: 68 Fix, Fix Radial Distance, or Lat/Long
+        rule: |
+          When a Fix Radial Distance, the radial ddd1 must be between 001-360, and the distance ddd2 must be
+          between 001-999.
+        error: MsgCofieFormat
+      - field: 68 Fix, Fix Radial Distance, or Lat/Long
+        rule: |
+          When a Lat/Long, latitude must not exceed 90 and longitude must not exceed 180; minutes must not
+          exceed 59. L1 may be N or S; L2 may be E or W. At 90 degrees latitude or 180 degrees longitude the
+          minutes must be 0. N latitude and W longitude are implied when omitted; S latitude and E longitude
+          must be entered if applicable. If the optional L1 or L2 is used, both must be used.
+        error: MsgCofieFormat
+      - field: 65 Trackball Coordinates + 68 Fix, Fix Radial Distance, or Lat/Long
+        rule: |
+          Must not contain both a Field 65 and a Field 68.
+        error: MsgDuplicatedAction
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID Laa(a)(a)(a)(a) or Ld; b. CID ddd or daa (a must not equal "I" or "O");
+          c. Beacon Code dddd (all digits octal); d. Trackball Pick or Trackball Enter.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          When selecting the flight using the trackball, the selection must capture a Track Position Symbol
+          (Paired Flight), Tear-Off Flight Entry or View Flight Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication

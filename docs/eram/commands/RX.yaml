@@ -1,0 +1,7 @@
+id: RX
+variants:
+  - title: ARTS III to NAS Cancellation
+    descriptor: NAS CANCELLATION
+    handler: not implemented
+    na: ARTS interface; no ARTS on VATSIM.
+    fields: []

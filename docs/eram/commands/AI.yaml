@@ -1,0 +1,6 @@
+id: AI
+variants:
+  - title: Emergency Airport Display
+    descriptor: EMERGENCY AIRPT
+    handler: not implemented
+    fields: []

@@ -52,7 +52,7 @@ Authoritative interface definitions: `..\vatsim-vnas\messaging\` (sibling repo)
 
 ### ERAM Commands
 
-- [x] `ProcessEramMessage(ProcessEramMessageDto)` — QN (leader/VCI), QF (FP readout), QL (quick look), RD (route display), QU (projected route), QT (track init/drop), QZ (interim alt), QQ (assigned / local-interim / procedure alt), QS (scratchpad), QP (pointout initiate / accept), QR (aliased to RD). Unknown verbs return `FORMAT`.
+- [x] `ProcessEramMessage(ProcessEramMessageDto)` — QN and implied commands (handoff initiate/accept, data-block offset and leader, FDB/LDB toggle, VCI), QF (FP readout), QL (quick look), RD (route display), QU (route display / direct-to amendment), QT (start track), QX (drop track), QZ (assigned alt), QQ (interim / local-interim / procedure alt), QR (reported alt), QS (FDB heading, speed and free text), QH F (freeze), QP (point-out initiate / accept / minimise, DRI), QB (beacon code, equipment, voice type), AM, VP, DM, LA, LB, LC, LF. Unknown verbs return `FORMAT`. The spec-derived command reference these are held to is [`eram/`](./eram/README.md).
 - [x] `SetEramSectorConfiguration(EramSectorConfigurationDto)` — per-sector storage + broadcast
 - [x] `ToggleEramDwellLock(aircraftId)` — toggles `AircraftState.IsDwellLocked`
 - [x] `ClearEramPointout(aircraftId, pointoutId)` — ownership-checked (receiving sector only) clear of both R-side and D-side flags on the matching `EramPointoutState`
@@ -267,7 +267,7 @@ Authoritative interface definitions: `..\vatsim-vnas\messaging\` (sibling repo)
 
 ### Bucket E — ERAM expansion (partial)
 
-- [x] Mutation verbs: QT, QZ, QQ, QS (QR aliased to RD)
+- [x] Mutation verbs: QT, QZ, QQ, QR, QS
 - [x] QP (pointout initiate/accept) — wired via `DispatchQp`; initiate form creates a new `EramPointoutState`, accept form flips `IsAcknowledged`
 - [x] `ClearEramPointout` — real handler in `CrcClientState.cs` (receiver-sector ownership check + flip both cleared flags)
 - [ ] `ReceiveEramCrrGroups` / `DeleteEramCrrGroups` + `SetEramCrrGroupColor` + `ClearOrDeleteEramCrrGroup`

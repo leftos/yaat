@@ -175,3 +175,21 @@ _Avoid_: lead-in (a lead-in is the along-tangent shortfall before a curve the ai
 **Shadow**:
 An aircraft spawned from a live real-world feed (SWIM/TAIS) that follows the feed rather than the simulation until someone assumes it (`AircraftState.IsShadow`, docs/live-traffic.md).
 _Avoid_: live aircraft (ambiguous with a simulated aircraft in a live session), ghost
+
+## ERAM commands
+
+**Message type descriptor**:
+The short name of an ERAM command variant that CRC shows under `ACCEPT` when the command succeeds, e.g. `INTERIM ALT` for `QQ` (docs/eram/README.md).
+_Avoid_: readback, echo
+
+**FLID**:
+Flight identification: the field of an ERAM command that names the aircraft, as a callsign, a computer ID (CID), a beacon code, or a click on the track.
+
+**Implied command**:
+An ERAM entry typed without a command ID, such as `<FLID>` alone to accept a handoff or `<sector> <FLID>` to start one; spelled out, it is `QN` (or `QZ`).
+
+**Cofie**:
+"Contents of field in error": the text of the field an ERAM error is about, placed in front of the error, as in `AB12 FORMAT`.
+
+**`/OK`**:
+The ERAM logic-check override: added to a command, it lets the command act on a track the sector doesn't own, or past a check it would otherwise fail.

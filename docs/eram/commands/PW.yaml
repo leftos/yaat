@@ -1,0 +1,7 @@
+id: PW
+variants:
+  - title: Simple Password Change
+    descriptor: PASSWORD CHANGE
+    handler: not implemented
+    na: "Position sign-in, security and preference sets belong to CRC."
+    fields: []

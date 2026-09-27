@@ -1,0 +1,7 @@
+id: IS
+variants:
+  - title: Inhibit Transmission
+    descriptor: INHIBIT TRANSMISSION
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []

@@ -1,0 +1,69 @@
+id: LF
+variants:
+  - title: Continuous Range Readout
+    descriptor: CONT RANGE
+    format: LF [65 or 68] (223) | LF [65 or 68] (223) 02(/02)(/02)(/02) | LF 223 (/)02(/02)(/02)(/02)
+    multiple_flids: false
+    note: |
+      Field 223 (the group label) is optional when Field 68 is only a fix or airport name; that name then
+      becomes the label. A single field after Field 68 is read as either Field 223 or Field 02.
+    handler: LF.ContRange
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID - Laa(a)(a)(a)(a) or Ld; b. CID - ddd or daa (a must not be "I" or "O");
+          c. Trackball Pick or Trackball Enter.
+          Keyboard-entered occurrences of Field 02 are separated by "/" (like Multiple Flight ID format), but the
+          command is not split into multiple commands; it is one LF command with up to four Flight IDs.
+          Trackball-entered occurrences are separated by spaces.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          When selecting the flight by trackball, the selection must capture a Track Position Symbol
+          (Paired Flight), Tear-Off Flight Entry or View Flight Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be duplicated in the command.
+        error: MsgDuplication
+      - field: 65 Trackball Coordinates
+        rule: |
+          Must be created by a trackball entry.
+        error: MsgCofieFormat
+      - field: 65 Trackball Coordinates
+        rule: |
+          Trackball capture does not contain a situation display point.
+        error: MsgNoSituationDisplayPointCapture
+      - field: 68 Fix, Fix Radial Distance, or Lat/Long
+        rule: |
+          Must be one of: a. Fix or Airport Name - //aa(a)(a)(a); b. Fix (or Airport) Radial Distance -
+          //aa(a)(a)(a)ddd1ddd2; c. Lat/Long - //dddd(L1)/(d)dddd(L2).
+        error: MsgCofieFormat
+      - field: 68 Fix, Fix Radial Distance, or Lat/Long
+        rule: |
+          If a Fix Radial Distance, the radial ddd1 must be between 001-360 and the distance ddd2 must be between 001-999.
+        error: MsgCofieFormat
+      - field: 68 Fix, Fix Radial Distance, or Lat/Long
+        rule: |
+          If a Lat/Long: latitude must not exceed 90 and longitude must not exceed 180; minutes must not exceed 59.
+          L1 may be N or S; L2 may be E or W. If latitude degrees are 90 the minutes must be 0; if longitude
+          degrees are 180 the minutes must be 0. N latitude and W longitude are implied when omitted; S latitude
+          and E longitude must be entered if applicable. If the optional L1 or L2 is used, both must be used.
+        error: MsgCofieFormat
+      - field: 223 Situation Display Location Group Label
+        rule: |
+          Must be in the format a(a)(a)(a)(a).
+        error: MsgFieldInErrorEnterValidFieldInformation

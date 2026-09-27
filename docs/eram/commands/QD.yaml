@@ -1,0 +1,36 @@
+id: QD
+variants:
+  - title: Altimeter Request (CRD Message Type)
+    descriptor: ALTIMETER REQ
+    format: QD 13 (13) (13) (13) (13) (13)
+    multiple_flids: null
+    handler: crc-local
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 13 Reporting Station Identifier
+        rule: |
+          Must be in the format aa(a)(a)(a).
+        error: MsgCofieFormat
+  - title: Modify Altitude Limits
+    descriptor: MODIFY ALT LIMITS
+    format: QD 08
+    multiple_flids: null
+    handler: crc-local
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 08 Assigned Altitude
+        rule: |
+          Must be in blocked altitude format (d)ddB(d)dd.
+        error: MsgCofieFormat
+      - field: 08 Assigned Altitude
+        rule: |
+          Second altitude must be greater than the first altitude.
+        error: MsgInvalidBlockedAltitude

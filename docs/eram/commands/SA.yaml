@@ -1,0 +1,16 @@
+id: SA
+variants:
+  - title: See-All
+    descriptor: SEE ALL
+    handler: not implemented
+    fields: []
+  - title: Switch Activity
+    descriptor: SWITCH ACTIVITY
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []
+  - title: Set APR
+    descriptor: SET APR
+    handler: not implemented
+    na: ARTS interface; no ARTS on VATSIM.
+    fields: []

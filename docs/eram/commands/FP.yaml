@@ -1,0 +1,6 @@
+id: FP
+variants:
+  - title: Flight Plan Message
+    descriptor: FLIGHT PLAN
+    handler: not implemented
+    fields: []

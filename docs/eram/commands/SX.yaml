@@ -1,0 +1,7 @@
+id: SX
+variants:
+  - title: Steal CPDLC Eligibility
+    descriptor: STEAL CPDLC ELIGIBILITY
+    handler: not implemented
+    na: CPDLC datalink; VATSIM ERAM has no datalink.
+    fields: []

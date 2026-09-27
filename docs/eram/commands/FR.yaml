@@ -1,0 +1,6 @@
+id: FR
+variants:
+  - title: Flight Plan Readout Request
+    descriptor: READOUT
+    handler: not implemented
+    fields: []

@@ -1,0 +1,60 @@
+id: CO
+variants:
+  - title: Suppress/Request Conflict Alert Pair
+    descriptor: CA SUPP
+    format: CO 02/02
+    multiple_flids: false
+    handler: not implemented
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID - Laa(a)(a)(a)(a) or Ld; b. CID - ddd or daa (where a must not
+          equal "I" or "O"); c. Beacon Code - dddd (all digits octal); d. Trackball Pick or Trackball Enter;
+          e. MCI identification (MID) - dLd (where L must be "A", "C", "E", "F", "H" or "J").
+          From the keyboard the two occurrences of Field 02 must be separated by a "/". Unlike Multiple
+          Flight ID format, the command is not split into multiple commands; it is one CO command with two
+          Flight IDs. By trackball, the occurrences of Field 02 are separated by spaces.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          When selecting the flight by trackball, the selection must capture a Track Position Symbol
+          (Paired Flight), Track Position Symbol (Unpaired Flight), Tear-Off Flight Entry or a View Flight
+          Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication
+  - title: E-MSAW Indefinite Suppression Message
+    descriptor: SUPP E-MSAW INDEF
+    handler: not implemented
+    na: E-MSAW; YAAT has no MSAW model.
+    fields: []
+  - title: E-MSAW Specific Suppression Message
+    descriptor: SUPP E-MSAW SPEC
+    handler: not implemented
+    na: E-MSAW; YAAT has no MSAW model.
+    fields: []
+  - title: E-MSAW VFR Processing Message
+    descriptor: PROC VFR E-MSAW
+    handler: not implemented
+    na: E-MSAW; YAAT has no MSAW model.
+    fields: []
+  - title: E-MSAW VFR Readout Message
+    descriptor: VFR E-MSAW LIST
+    handler: not implemented
+    na: E-MSAW; YAAT has no MSAW model.
+    fields: []

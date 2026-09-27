@@ -1,0 +1,7 @@
+id: IC
+variants:
+  - title: Instrument Approach Count
+    descriptor: INSTRU APPRO COUNT
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []

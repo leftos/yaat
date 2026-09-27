@@ -1,0 +1,6 @@
+id: CF
+variants:
+  - title: Callsign Alert
+    descriptor: CALLSIGN ALERT
+    handler: not implemented
+    fields: []

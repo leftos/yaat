@@ -1,0 +1,367 @@
+id: AM
+variants:
+  - title: Amendment
+    descriptor: AMENDMENT
+    format: "AM 02* (12 17)...(12 17) 12 (17) | AM 02* =12 | AM 02*"
+    multiple_flids: false
+    handler: AM.Amendment
+    fields:
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. aircraft ID with optional departure point: Laa(a)(a)(a)(a)(/aa(a)(a)(a)) or Ld(/aa(a)(a)(a)) or
+          Laa(a)(a)(a)(a)(/aa(a)(a)(a)ddd1ddd2) or Ld(/aa(a)(a)(a)ddd1ddd2) or Laa(a)(a)(a)(a)(/dddd(L1)/(d)dddd(L2)) or
+          Ld(/dddd(L1)/(d)dddd(L2)); b. CID ddd or daa (a is not "I" or "O"); c. beacon code dddd (all digits octal);
+          d. trackball pick or trackball enter. Field 02 may be suffixed with the logic check override (/OK) when the
+          source is an R, D, or A position.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          When selecting the flight by trackball, the selection must capture a Track Position Symbol (paired flight),
+          Tear-Off Flight Entry or View Flight Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be discrete (last two digits not 00).
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication
+      - field: 12 Field Reference
+        rule: |
+          Must be one of: a. Field Reference Number (d)d valid for Field 12 in AM per the Flight Data Fields Table
+          (including the optionally adapted Field 918 Indicators <adp_AdaptedICAO918Indicators>); b. Field Abbreviation
+          LLL valid for Field 12 in AM; c. ICAO Field 918 Indicator L(L)(L)(L)/ (Field 918a abbreviations followed by "/",
+          including adapted Field 918 acronyms followed by "/"). (A preceding N/A row only points to the Flight Data
+          Fields Table for the valid Field 12 values.)
+        error: MsgInvalidReference
+      - field: 12 Field Reference
+        rule: |
+          When entered at an R, D, or A position, Field 12 must not contain any adapted ICAO field inhibited from
+          amendment <adp_AMInhibitList>, whether or not a paired Field 17 is present.
+        error: MsgInvalidFromSource
+      - field: 12 Field Reference + 17 Amendment Data
+        rule: |
+          When Field 12 is OTH (30) and the command is entered at an R, D, or A position, Field 17 must not contain any
+          adapted ICAO field inhibited from amendment <adp_AMInhibitList>.
+        error: MsgInvalidFromSource
+      - field: 12 Field Reference
+        rule: |
+          Must not be duplicated.
+        error: MsgCofieDuplicateFieldReference
+      - field: 12 Field Reference
+        rule: |
+          When a Field 12 is AID (or 02), there must not be other Field 12s.
+        error: MsgInvalidAmendment
+      - field: 12 Field Reference
+        rule: |
+          When a Field 12 is TYP (or 03), no other Field 12 may be SAI (22), NUM (21), ACT (23), EQP (24), WAK (27),
+          or SRV (25).
+        error: MsgInvalidWithField03
+      - field: 12 Field Reference
+        rule: |
+          When a Field 12 is BCN (or 04), no other Field 12 may be EBC (or 94).
+        error: MsgMultipleBeaconAMIllegal
+      - field: 12 Field Reference
+        rule: |
+          When a Field 12 is ALT (or 08) or RAL (or 09), no other Field 12 may be FLR (or 26).
+        error: MsgInvalidWithField0809
+      - field: 12 Field Reference
+        rule: |
+          When a Field 12 is EDT, the command must have been entered at an AT Specialist position.
+        error: MsgIllegalSource
+      - field: 12 Field Reference
+        rule: |
+          When a Field 12 is EDT, there must not be other Field 12s.
+        error: MsgInvalidAmendment
+      - field: 12 Field Reference
+        rule: |
+          When a Field 12 is RNV (or 93), no other Field 12 may be RNP (or 95).
+        error: MsgInvalidCombination
+      - field: 12 Field Reference + 17 Amendment Data
+        rule: |
+          Field 12 without a paired Field 17 deletes the referenced data. Permitted only if Field 12 is the last field in
+          the command and: a. for non-ICAO fields (02-11), Field 12 is one of BCN (04), RMK (11), SAI (22), or EBC (94);
+          b. Field 12 is not EDT; c. for ICAO fields, elements or Field 918 Indicators (reference numbers 21 up to the last
+          adapted Field 918 Indicator <adp_AdaptedICAO918Indicators>), any except FLR (26), WAK (27), EQP (24), SRV (25),
+          ACT (23), OTH (30).
+        error: MsgNoAmendmentDataEntered
+      - field: 12 Field Reference + 17 Amendment Data
+        rule: |
+          Field 17 of only a minus sign deletes the referenced data. Permitted only if: a. for non-ICAO fields, Field 12 is
+          one of BCN (04), RMK (11), SAI (22), or EBC (94); b. for ICAO fields, elements or Field 918 Indicators (reference
+          numbers 21 up to the last adapted Field 918 Indicator <adp_AdaptedICAO918Indicators>), any except FLR (26),
+          WAK (27), EQP (24), SRV (25), ACT (23), OTH (30).
+        error: MsgIllegalFieldDeletion
+      - field: 12 Field Reference + 17 Amendment Data
+        rule: |
+          When Field 12 is OTH (30) or a valid Field 918 Indicator reference, and Field 17 contains a minus sign "-" with
+          additional text, the Field 918 Indicator must be adapted as eligible for multiple occurrences
+          <adp_ICAO918MultipleInstancesEligibilityList>.
+        error: MsgMinusSignNotValid
+      - field: 12 Field Reference + 17 Amendment Data
+        rule: |
+          When Field 12 is RMK or 11 prefixed by "=", no fields other than 01 and 02 may be present (readout of the
+          interfacility remarks for editing).
+        error: MsgInvalidReference
+      - field: 12 Field Reference + 17 Amendment Data
+        rule: |
+          When Field 12 is EQP or 24 prefixed by "=", no fields other than 01 and 02 may be present (readout of element a
+          of the ICAO Airborne Equipment Qualifier data for editing).
+        error: MsgInvalidReference
+      - field: 17 Amendment Data
+        rule: |
+          When corresponding Field 12 is AID or 02, must not be "M".
+        error: MsgInvalidAmendment
+      - field: 17 Amendment Data
+        rule: |
+          When corresponding Field 12 is AID or 02, must be Laa(a)(a)(a)(a) or Ld.
+        error: MsgFlidFormat
+      - field: 17 Amendment Data
+        rule: |
+          When corresponding Field 12 is BCN or 04, or EBC or 94, must be dddd, all digits octal.
+        error: MsgBeaconCodeFormat
+      - field: 17 Amendment Data
+        rule: |
+          When corresponding Field 12 is SPD or 05, must be one of: a. Mach speed Lddd; b. true air speed (knots) (d)(d)dd;
+          c. classified speed "SC".
+        error: MsgSPDFormat
+      - field: 17 Amendment Data
+        rule: |
+          When Field 12 is SPD or 05 and Field 17 is Mach format, L must be "M" and ddd must not exceed 500.
+        error: MsgSPDFormat
+      - field: 17 Amendment Data
+        rule: |
+          When Field 12 is SPD or 05 and Field 17 is true air speed format, the four digits must not exceed 3700.
+        error: MsgSPDFormat
+      - field: 17 Amendment Data
+        rule: |
+          When corresponding Field 12 is FIX or 06, must be one of: a. fix or airport name aa(a)(a)(a); b. fix (or airport)
+          radial distance aa(a)(a)(a)ddd1ddd2; c. lat/long dddd(L1)/(d)dddd(L2).
+        error: MsgFIXFormat
+      - field: 17 Amendment Data
+        rule: |
+          When Field 12 is FIX or 06 and Field 17 is a fix radial distance, radial ddd1 must be 001-360 and distance ddd2
+          must be 001-999.
+        error: MsgFIXFormat
+      - field: 17 Amendment Data
+        rule: |
+          When Field 12 is FIX or 06 and Field 17 is a lat/long: latitude <= 90, longitude <= 180, minutes <= 59; L1 is N
+          or S, L2 is E or W; at 90 degrees latitude or 180 degrees longitude the minutes must be 0; N and W are implied
+          when omitted, S and E must be entered; if L1 or L2 is used, both must be used.
+        error: MsgFIXFormat
+      - field: 17 Amendment Data
+        rule: |
+          When corresponding Field 12 is TIM or 07, must be Ldddd or LXXdd.
+        error: MsgTIMFormat
+      - field: 17 Amendment Data
+        rule: |
+          When corresponding Field 12 is TIM or 07, L must be "D", "E", or "P".
+        error: MsgTIMFormat
+      - field: 17 Amendment Data
+        rule: |
+          When Field 12 is TIM or 07 and Field 17 is Ldddd, hours (first two digits) <= 23 and minutes (last two) <= 59.
+        error: MsgTIMFormat
+      - field: 17 Amendment Data
+        rule: |
+          When corresponding Field 12 is ALT or 08, must be one of: (d)dd, OTP, OTP/(d)dd, VFR, VFR/(d)dd, ABV/(d)dd,
+          (d)ddB(d)dd, or (d)dd/Fix/(d)dd, where Fix (or Airport) is aa(a)(a)(a) or aa(a)(a)(a)ddd1ddd2 or
+          dddd(L1)/(d)dddd(L2).
+        error: MsgALTFormat
+      - field: 17 Amendment Data
+        rule: |
+          When corresponding Field 12 is EDT, must be dddd with hours (first two digits) <= 23 and minutes (last two) <= 59.
+        error: MsgTIMFormat
+        na: EDT is valid only from an AT Specialist position, which VATSIM does not have.
+      - field: 17 Amendment Data for 08 Assigned Altitude
+        rule: |
+          In format (d)dd/Fix/(d)dd with a fix name aa(a)(a)(a), a 4-character fix name must include at least one letter.
+        error: MsgALTFormat
+      - field: 17 Amendment Data for 08 Assigned Altitude
+        rule: |
+          In format (d)dd/Fix/(d)dd with a fix radial distance aa(a)(a)(a)ddd1ddd2, radial ddd1 must be 001-360 and
+          distance ddd2 must be 001-999.
+        error: MsgALTFormat
+      - field: 17 Amendment Data for 08 Assigned Altitude
+        rule: |
+          In format (d)dd/Fix/(d)dd with a lat/long dddd(L1)/(d)dddd(L2): latitude <= 90, longitude <= 180, minutes <= 59;
+          L1 is N or S, L2 is E or W; at 90 degrees latitude or 180 degrees longitude the minutes must be 0; N and W are
+          implied when omitted, S and E must be entered; if L1 or L2 is used, both must be used.
+        error: MsgALTFormat
+      - field: 17 Amendment Data
+        rule: |
+          When Field 12 is ALT or 08 and Field 17 is blocked format, the second altitude must be greater than the first.
+        error: MsgInvalidBlockedAltitude
+      - field: 17 Amendment Data
+        rule: |
+          When corresponding Field 12 is RAL or 09, must be one of: (d)dd, OTP, OTP/(d)dd, VFR, VFR/(d)dd, ABV/(d)dd, or
+          (d)ddB(d)dd.
+        error: MsgRALFormat
+      - field: 17 Amendment Data
+        rule: |
+          When Field 12 is RAL or 09 and Field 17 is blocked format, the second altitude must be greater than the first.
+        error: MsgInvalidBlockedAltitude
+      - field: 17 Amendment Data
+        rule: |
+          When corresponding Field 12 is RTE or 10, must be at least 2 characters.
+        error: MsgRTEFormat
+      - field: 12 Field Reference
+        rule: |
+          When a Field 12 is RTE (or 10) and the field is a single route element suffixed by a down arrow, it is a stereo
+          tag and must be La(a)(a)(a)(a)(a)(a) followed by a down arrow.
+        error: MsgRTEFormat
+      - field: 17 Amendment Data
+        rule: |
+          When corresponding Field 12 is RMK or 11, must begin with a clear weather symbol (interfacility) or an overcast
+          symbol (intrafacility). The symbol alone deletes that remarks element. When both are present, the intracenter
+          (overcast) remarks must come first. If optional fields (12 17) follow, Field 17 must end with "*" followed by a
+          space. The symbols and trailing asterisk are removed before storing.
+        error: MsgRMKFormat
+      - field: 17 Amendment Data
+        rule: |
+          When corresponding Field 12 is SAI or 22, must be "H".
+        error: MsgSAIFormat
+      - field: 17 Amendment Data
+        rule: |
+          When corresponding Field 12 is FLR or 26, must be "I", "V", "Y", or "Z".
+        error: MsgFLRFormat
+      - field: 17 Amendment Data
+        rule: |
+          When corresponding Field 12 is FLT or 28, must be "S", "N", "G", "M", or "X".
+        error: MsgFLTFormat
+      - field: 17 Amendment Data
+        rule: |
+          When corresponding Field 12 is NUM or 21, must be d(d).
+        error: MsgNumFormat
+      - field: 17 Amendment Data
+        rule: |
+          When corresponding Field 12 is ACT or 23, must be La(a)(a).
+        error: MsgACTFormat
+      - field: 17 Amendment Data
+        rule: |
+          When corresponding Field 12 is WAK or 27, must be "H", "L", or "M".
+        error: MsgWAKFormat
+      - field: 17 Amendment Data
+        rule: |
+          When corresponding Field 12 is EQP or 24: if the ICAO data format is Present, 1-25 letters; if Indeterminate or
+          New, 1-64 alphanumeric characters. Further EQP validation is by AERO (B-level).
+        error: MsgEQPFormat
+      - field: 17 Amendment Data
+        rule: |
+          When corresponding Field 12 is SRV or 25: if the ICAO data format is Present, L(L); if Indeterminate or New, one or
+          more alphanumeric descriptors, up to 20 characters. Further SRV validation is by AERO (B-level).
+        error: MsgSRVFormat
+      - field: 17 Amendment Data
+        rule: |
+          When corresponding Field 12 is ALA or 29, must be 2-25 characters.
+        error: MsgALAFormat
+      - field: 17 Amendment Data
+        rule: |
+          When Field 12 is OTH (30): a. must not be just 0; b. must contain one or more Field 918 Indicators valid in
+          Field 17 of AM (L(L)(L)(L)/, including adapted acronyms), one at the start, each optionally followed with no space
+          by its data; each indicator is preceded by a space unless it is the first inside "++"-enclosed data; invalid
+          indicators do not reject the command; c. must not contain RACE/, RMK/, or IRMK/; d. an indicator followed by "/"
+          with no data, or by "-", deletes that data; when more than one indicator has no data, the whole Field 17 must
+          be enclosed in double plus signs.
+        error: MsgOTHFormat
+      - field: 17 Amendment Data
+        rule: |
+          When Field 12 is OTH (30), only one instance of each indicator, unless adapted for multiple instances
+          <adp_ICAO918MultipleInstancesEligibilityList> or unrecognized (unrecognized duplicates do not reject).
+        error: MsgOTHDuplicateIndicator
+      - field: 17 Amendment Data
+        rule: |
+          For multiple instances of an indicator adapted for them <adp_ICAO918MultipleInstancesEligibilityList>, "-"
+          separates instances: a. with Field 12 OTH or 30, Field 17 starts with the indicator name then its data; b. with
+          Field 12 a Field 918 Indicator, Field 17 starts with the first instance's data. The data cannot start with "-".
+          Embedded blanks are permitted only if the whole Field 17 is enclosed in double plus signs.
+        error: MsgOTHIndicatorDataFormat
+      - field: 17 Amendment Data
+        rule: |
+          When Field 12 is OTH or 30, Field 17 must be enclosed in double plus signs when it has embedded blanks, and each
+          valid Field 918 Indicator except the first must be preceded by a space.
+        error: MsgCofieFormat
+      - field: 17 Amendment Data
+        rule: |
+          When Field 12 is RNV (or 93) or RNP (or 95), must have 1 to 6 Route Phase Designators (at least one), each
+          followed by an accuracy number n: (Dn)(En)(An)(Gn)(Ln)(Sn); n is (d)d(.d(d)).
+        error: MsgOTHIndicatorDataFormat
+      - field: 17 Amendment Data
+        rule: |
+          For STS/ (Field 12 STS/ or 36, or OTH (30) with STS/ in Field 17): if the ICAO format is Present or Indeterminate,
+          free text, no check; if New, each STS/ instance must contain one or more of "ALTRV", "ATFMX", "FFR", "FLTCK",
+          "HAZMAT", "HEAD", "HOSP", "HUM", "MARSA", "MEDEVAC", "NONRVSM", "SAR", "STATE", tokens separated by spaces or "-";
+          embedded blanks only if the whole Field 17 is enclosed in double plus signs.
+        error: MsgOTHIndicatorDataFormat
+      - field: 17 Amendment Data
+        rule: |
+          For CODE/ (Field 12 CODE/ or 46, or OTH (30) with CODE/ in Field 17): the CODE/ data must be aaaaaa, all
+          hexadecimal (0-9, A-F).
+        error: MsgInvalidAircraftAddress
+      - field: 17 Amendment Data
+        rule: |
+          For PER/ (Field 12 PER/ or 38, or OTH (30) with PER/ in Field 17): if the ICAO format is Present or Indeterminate,
+          free text, no check; if New, the PER/ data must be L, one of "A", "B", "C", "D", "E", or "H".
+        error: MsgOTHIndicatorDataFormat
+  - title: Amendment Altitude Uplink
+    descriptor: AMENDMENT ALTITUDE UPLINK
+    handler: not implemented
+    na: CPDLC datalink; VATSIM ERAM has no datalink.
+    fields: []
+amendable_fields:
+  - { number: "02", abbr: AID, name: Flight Identification, format: "Laa(a)(a)(a)(a) or Ld; not \"M\"", deletable: false, notes: "Must be the only Field 12" }
+  - { number: "03", abbr: TYP, name: Aircraft Data, format: "((d)(d)L/)La(a)(a)(/L) or ((d)d/)La(a)(a)(/L)", deletable: false, notes: "Format from the Field 03 definition; no AM Field 17 check. Excludes SAI/NUM/ACT/EQP/WAK/SRV in the same command" }
+  - { number: "22", abbr: SAI, name: Special Aircraft Indicator, format: "H", deletable: true, notes: "Field 03 element a" }
+  - { number: "04", abbr: BCN, name: Beacon Code, format: "dddd (octal)", deletable: true, notes: "Excludes EBC in the same command" }
+  - { number: "05", abbr: SPD, name: Speed, format: "Lddd (L = M, ddd <= 500) | (d)(d)dd (<= 3700) | SC", deletable: false }
+  - { number: "06", abbr: FIX, name: Coordination Fix, format: "aa(a)(a)(a) | aa(a)(a)(a)ddd1ddd2 | dddd(L1)/(d)dddd(L2)", deletable: false }
+  - { number: "07", abbr: TIM, name: Coordination Time, format: "Ldddd | LXXdd (L = D, E or P)", deletable: false }
+  - { number: "08", abbr: ALT, name: Assigned Altitude, format: "(d)dd | OTP | OTP/(d)dd | VFR | VFR/(d)dd | ABV/(d)dd | (d)ddB(d)dd | (d)dd/Fix/(d)dd", deletable: false, notes: "Excludes FLR in the same command" }
+  - { number: "09", abbr: RAL, name: Requested Altitude, format: "(d)dd | OTP | OTP/(d)dd | VFR | VFR/(d)dd | ABV/(d)dd | (d)ddB(d)dd", deletable: false, notes: "Excludes FLR in the same command" }
+  - { number: "10", abbr: RTE, name: Route Data, format: "At least 2 characters; single element + down arrow = stereo tag La(a)(a)(a)(a)(a)(a)", deletable: false }
+  - { number: "11", abbr: RMK, name: Remarks/General Information, format: "Begins with clear weather (inter) or overcast (intra) symbol; ends \"* \" if more 12/17 follow", deletable: true, notes: "=RMK / =11 alone reads out interfacility remarks for editing" }
+  - { number: "94", abbr: EBC, name: External Beacon Code, format: "dddd (octal)", deletable: true, notes: "Table Field Number n/a" }
+  - { number: null, abbr: EDT, name: Estimated Departure Clearance Time, format: "dddd (HHMM)", deletable: false, notes: "Valid from AT Spec only; must be the only Field 12" }
+  - { number: "26", abbr: FLR, name: Flight Rules, format: "I | V | Y | Z", deletable: false, notes: "ICAO 908a" }
+  - { number: "28", abbr: FLT, name: Type of Flight, format: "S | N | G | M | X", deletable: true, notes: "ICAO 908b" }
+  - { number: "21", abbr: NUM, name: Number of Aircraft, format: "d(d)", deletable: true, notes: "ICAO 909a" }
+  - { number: "23", abbr: ACT, name: Type of Aircraft, format: "La(a)(a)", deletable: false, notes: "ICAO 909b" }
+  - { number: "27", abbr: WAK, name: Wake Turbulence Category, format: "H | L | M", deletable: false, notes: "ICAO 909c" }
+  - { number: "24", abbr: EQP, name: "Radio Communication, Navigation and Approach Aid Equipment", format: "Present: 1-25 letters; Indeterminate/New: 1-64 alphanumerics", deletable: false, notes: "ICAO 910a; =EQP / =24 alone reads out element a for editing" }
+  - { number: "25", abbr: SRV, name: Surveillance Equipment, format: "Present: L(L); Indeterminate/New: alphanumeric descriptors, max 20 characters", deletable: false, notes: "ICAO 910b" }
+  - { number: "29", abbr: ALA, name: Alternate Aerodromes, format: "2-25 characters", deletable: true, notes: "ICAO 916c" }
+  - { number: "30", abbr: OTH, name: Other Information, format: "One or more IND/data indicators, space-separated; ++...++ when blanks; no RACE/, RMK/, IRMK/", deletable: false, notes: "ICAO 918a" }
+  - { number: "36", abbr: STS/, name: Reason for Special Handling, format: "Present/Indeterminate: free text; New: ALTRV, ATFMX, FFR, FLTCK, HAZMAT, HEAD, HOSP, HUM, MARSA, MEDEVAC, NONRVSM, SAR, STATE", deletable: true, notes: "918 indicator; also valid in Field 17 (OTH)" }
+  - { number: "57", abbr: PBN/, name: Performance Based Navigation, format: "Free text (no AM format check)", deletable: true, notes: "918 indicator; also valid in Field 17 (OTH)" }
+  - { number: "41", abbr: NAV/, name: Navigation Equipment Significant Data, format: "Free text (no AM format check)", deletable: true, notes: "918 indicator; also valid in Field 17 (OTH)" }
+  - { number: "39", abbr: COM/, name: Communications Equipment Significant Data, format: "Free text (no AM format check)", deletable: true, notes: "918 indicator; in AM Field 12, ADS-B qualifiers may not be included in COM/; in Field 17 they may be (FP only)" }
+  - { number: "40", abbr: DAT/, name: Data Link Capability Data, format: "Free text (no AM format check)", deletable: true, notes: "918 indicator; also valid in Field 17 (OTH)" }
+  - { number: "47", abbr: SUR/, name: Surveillance Applications or Capabilities not Specified in 910b, format: "Free text (no AM format check)", deletable: true, notes: "918 indicator; in AM Field 12, ADS-B qualifiers may not be included in SUR/; in Field 17 they may be (FP only)" }
+  - { number: "42", abbr: DEP/, name: Departure Aerodrome or the ATS Unit for Supplementary Flight Plan Data, format: "Free text (no AM format check)", deletable: true, notes: "918 indicator; also valid in Field 17 (OTH)" }
+  - { number: "43", abbr: DEST/, name: Destination Aerodrome, format: "Free text (no AM format check)", deletable: true, notes: "918 indicator; also valid in Field 17 (OTH)" }
+  - { number: "50", abbr: DOF/, name: Date of Flight Departure, format: "Free text (no AM format check)", deletable: true, notes: "918 indicator; also valid in Field 17 (OTH)" }
+  - { number: "33", abbr: REG/, name: Aircraft Registration Markings, format: "Free text (no AM format check)", deletable: true, notes: "918 indicator; also valid in Field 17 (OTH)" }
+  - { number: "31", abbr: EET/, name: Significant Points or FIR Boundary Designators and Accumulated Estimated Elapsed Times, format: "Free text (no AM format check)", deletable: true, notes: "918 indicator; also valid in Field 17 (OTH)" }
+  - { number: "34", abbr: SEL/, name: SELCAL Code, format: "Free text (no AM format check)", deletable: true, notes: "918 indicator; also valid in Field 17 (OTH)" }
+  - { number: "37", abbr: TYP/, name: Type(s) of Aircraft, format: "Free text (no AM format check)", deletable: true, notes: "918 indicator; also valid in Field 17 (OTH)" }
+  - { number: "46", abbr: CODE/, name: Aircraft Address, format: "aaaaaa (hexadecimal 0-9, A-F)", deletable: true, notes: "918 indicator; also valid in Field 17 (OTH)" }
+  - { number: "48", abbr: DLE/, name: Enroute Delay or Holding, format: "Free text (no AM format check)", deletable: true, notes: "918 indicator; also valid in Field 17 (OTH)" }
+  - { number: "35", abbr: OPR/, name: Name of the Operator, format: "Free text (no AM format check)", deletable: true, notes: "918 indicator; also valid in Field 17 (OTH)" }
+  - { number: "52", abbr: ORGN/, name: "Originator's 8 Letter AFTN Address or Other Contact Details", format: "Free text (no AM format check)", deletable: true, notes: "918 indicator; also valid in Field 17 (OTH)" }
+  - { number: "38", abbr: PER/, name: Aircraft Performance Data, format: "Present/Indeterminate: free text; New: L, one of A, B, C, D, E, H", deletable: true, notes: "918 indicator; also valid in Field 17 (OTH)" }
+  - { number: "44", abbr: ALTN/, name: Destination Alternate Aerodrome(s), format: "Free text (no AM format check)", deletable: true, notes: "918 indicator; also valid in Field 17 (OTH)" }
+  - { number: "45", abbr: RALT/, name: En Route Alternate Aerodrome(s), format: "Free text (no AM format check)", deletable: true, notes: "918 indicator; also valid in Field 17 (OTH)" }
+  - { number: "49", abbr: TALT/, name: Take-off Alternate Aerodrome, format: "Free text (no AM format check)", deletable: true, notes: "918 indicator; also valid in Field 17 (OTH)" }
+  - { number: "32", abbr: RIF/, name: Route Details to Revised Destination, format: "Free text (no AM format check)", deletable: true, notes: "918 indicator; also valid in Field 17 (OTH)" }
+  - { number: "dd", abbr: "L(L)(L)(L)/", name: Optionally Adapted Field 918 Indicator, format: "Free text (no AM format check)", deletable: true, notes: "First through last (max 25) adapted indicators <adp_AdaptedICAO918Indicators>; reference numbers adapted" }
+  - { number: null, abbr: RFP/, name: Replacement Flight Plan Procedures, format: "Free text (no AM format check)", deletable: true, notes: "Recommended adapted 918 indicator (<AdaptedCustomFields>); reference number adapted" }
+  - { number: null, abbr: RVR/, name: Runway Visual Range Indicator, format: "Free text (no AM format check)", deletable: true, notes: "Recommended adapted 918 indicator (<AdaptedCustomFields>); reference number adapted" }
+  - { number: null, abbr: IFP/, name: Error Indicator, format: "Free text (no AM format check)", deletable: true, notes: "Recommended adapted 918 indicator (<AdaptedCustomFields>); reference number adapted" }
+  - { number: null, abbr: SRC/, name: Source, format: "Free text (no AM format check)", deletable: true, notes: "Recommended adapted 918 indicator (<AdaptedCustomFields>); reference number adapted" }
+  - { number: "92", abbr: ADB, name: ADS-B Equipment Qualifiers, format: "Free text (no AM format check)", deletable: true, notes: "Sub-element of COM/ (Present format) or SUR/ (New format); AM takes it as its own field, FP only inside COM/ or SUR/" }
+  - { number: "93", abbr: RNV, name: Area Navigation, format: "(Dn)(En)(An)(Gn)(Ln)(Sn), 1-6 designators, n = (d)d(.d(d))", deletable: true, notes: "PBN sub-element of NAV/; excludes RNP in the same command" }
+  - { number: "95", abbr: RNP, name: Required Navigation Performance, format: "(Dn)(En)(An)(Gn)(Ln)(Sn), 1-6 designators, n = (d)d(.d(d))", deletable: true, notes: "PBN sub-element of NAV/" }

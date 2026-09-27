@@ -1,0 +1,7 @@
+id: BU
+variants:
+  - title: Beacon Utilization Report Request
+    descriptor: CODE UTILIZATION REPORT
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []

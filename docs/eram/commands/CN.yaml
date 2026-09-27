@@ -1,0 +1,7 @@
+id: CN
+variants:
+  - title: Flight Plan and Track Counts Request
+    descriptor: FP TRK COUNTS
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []

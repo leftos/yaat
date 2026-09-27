@@ -1,0 +1,6 @@
+id: DQ
+variants:
+  - title: Discrete Code Request
+    descriptor: DIS CODE REQ
+    handler: not implemented
+    fields: []

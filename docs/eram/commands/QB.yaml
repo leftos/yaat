@@ -1,0 +1,228 @@
+id: QB
+variants:
+  - title: Code Modification
+    descriptor: CODE MOD
+    format: QB (60*) 04 02
+    multiple_flids: false
+    handler: QB.CodeMod
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 60 Logic Check Override
+        rule: |
+          Must be "/OK".
+        error: MsgCofieFormat
+      - field: 04 Beacon Code
+        rule: |
+          Must be in the format dddd, where all digits are octal.
+        error: MsgBeaconCodeFormat
+      - field: 02 Flight Identification
+        rule: |
+          Must not enter a beacon code for flight identification.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID Laa(a)(a)(a)(a) or Ld; b. CID ddd or daa (a must not equal "I" or "O");
+          c. Trackball Pick or Trackball Enter.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          When selecting the flight using the trackball, the selection must capture a Track Position Symbol
+          (Paired Flight), Tear-Off Flight Entry or View Flight Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication
+  - title: Discrete Code Request
+    descriptor: DIS CODE REQ
+    format: QB (60*) 02
+    multiple_flids: true
+    handler: QB.DisCodeReq
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 60 Logic Check Override
+        rule: |
+          Must be "/OK".
+        error: MsgCofieFormat
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID Laa(a)(a)(a)(a) or Ld; b. CID ddd or daa (a must not equal "I" or "O");
+          c. Trackball Pick or Trackball Enter.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          When selecting the flight using the trackball, the selection must capture a Track Position Symbol
+          (Paired Flight), Tear-Off Flight Entry or View Flight Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification + 60 Logic Check Override
+        rule: |
+          If Field 60 is present, Field 02 must resolve to a system plan. If Field 60 is not present and Field 02
+          does not contain an Aircraft ID, Field 02 must resolve to a system plan. If Field 60 is not present and
+          Field 02 contains an Aircraft ID, Field 02 does not have to resolve to a system plan. (See "Flight ID
+          Processing for the Discrete Code Request Command (DQ or QB)" in the EDSM SRS.)
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication
+  - title: Equipment Qualifier Modification
+    descriptor: QUALIFIER MOD
+    format: QB (60*) 03e 02
+    multiple_flids: true
+    handler: QB.QualifierMod
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 60 Logic Check Override
+        rule: |
+          Must be "/OK".
+        error: MsgCofieFormat
+      - field: 03e Airborne Equipment Qualifier
+        rule: |
+          Must be in the format a, where a is a letter, or the number "0".
+        error: MsgCofieFormat
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID Laa(a)(a)(a)(a) or Ld; b. CID ddd or daa (a must not equal "I" or "O");
+          c. Trackball Pick or Trackball Enter.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          When selecting the flight using the trackball, the selection must capture a Track Position Symbol
+          (Paired Flight), Tear-Off Flight Entry or View Flight Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication
+  - title: Code Delete
+    descriptor: BC LIST UPDATE
+    format: QB (64) 04 (04) ... (04)
+    multiple_flids: null
+    handler: crc-local
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 64 Action Type
+        rule: |
+          Must be "DE".
+        error: MsgInvalidActionType
+      - field: 64 Action Type
+        rule: |
+          If more than one Field 64 is present in a multiple action format of the command, the same action type
+          must not be repeated.
+        error: MsgDuplicatedAction
+      - field: 04 Beacon Code
+        rule: |
+          Must be in the format dddd, where all digits are octal.
+        error: MsgBeaconCodeFormat
+      - field: 04 Beacon Code
+        rule: |
+          A maximum of 9 Field 04s is permitted.
+        error: MsgMessageTooLong
+  - title: Code Insert
+    descriptor: BC LIST UPDATE
+    format: QB (64) 04 (04) ... (04)
+    multiple_flids: null
+    handler: crc-local
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 64 Action Type
+        rule: |
+          Must be "IN".
+        error: MsgInvalidActionType
+      - field: 64 Action Type
+        rule: |
+          If more than one Field 64 is present in a multiple action format of the command, the same action type
+          must not be repeated.
+        error: MsgDuplicatedAction
+      - field: 04 Beacon Code
+        rule: |
+          Must be in the format dddd, where all digits are octal.
+        error: MsgBeaconCodeFormat
+      - field: 04 Beacon Code
+        rule: |
+          A maximum of 9 Field 04s is permitted.
+        error: MsgMessageTooLong
+  - title: Code and Equipment Qualifier Modification
+    descriptor: CODE/QUALIFIER MOD
+    format: QB (60*) 04 03e 02
+    multiple_flids: false
+    handler: not implemented
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 60 Logic Check Override
+        rule: |
+          Must be "/OK".
+        error: MsgCofieFormat
+      - field: 04 Beacon Code
+        rule: |
+          Must be in the format dddd, where all digits are octal.
+        error: MsgBeaconCodeFormat
+      - field: 03e Airborne Equipment Qualifier
+        rule: |
+          Must be in the format a, where a is a letter, or the number "0".
+        error: MsgCofieFormat
+      - field: 03e Airborne Equipment Qualifier + 04 Beacon Code
+        rule: |
+          If Field 03e contains the number "0", Field 04 must not be present in the same command.
+        error: MsgInvalidCombination
+      - field: 02 Flight Identification
+        rule: |
+          Must not enter a beacon code for flight identification.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID Laa(a)(a)(a)(a) or Ld; b. CID ddd or daa (a must not equal "I" or "O");
+          c. Trackball Pick or Trackball Enter.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          When selecting the flight using the trackball, the selection must capture a Track Position Symbol
+          (Paired Flight), Tear-Off Flight Entry or View Flight Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication
+  - title: Voice Type Modification
+    source: yaat
+    descriptor: VOICE TYPE MOD
+    handler: QB.VoiceType
+    note: |
+      VATSIM-only. /v, /r or /t sets the voice capability shown in the data block.
+    fields: []

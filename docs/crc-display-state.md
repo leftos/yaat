@@ -28,7 +28,7 @@ CRC clients connect over a separate WebSocket (not the YAAT SignalR hub). YAAT's
 
 (`yaat-server: src/Yaat.Server/Hubs/CrcClientState*.cs`)
 
-Split across many partial classes (`CrcClientState.cs`, `CrcClientState.Session.cs`, `CrcClientState.Stars.cs`, `CrcClientState.Eram.cs`, `CrcClientState.Asdex.cs`, `CrcClientState.FlightPlan.cs`, `CrcClientState.Strips.cs`, `CrcClientState.Messaging.cs`, `CrcClientState.Secondary.cs`, `CrcClientState.Info.cs`).
+Split across many partial classes (`CrcClientState.cs`, `CrcClientState.Session.cs`, `CrcClientState.Stars.cs`, `CrcClientState.Eram*.cs`, `CrcClientState.Asdex.cs`, `CrcClientState.FlightPlan.cs`, `CrcClientState.Strips.cs`, `CrcClientState.Messaging.cs`, `CrcClientState.Secondary.cs`, `CrcClientState.Info.cs`).
 
 Per-connection fields:
 

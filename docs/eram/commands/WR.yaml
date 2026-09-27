@@ -1,0 +1,30 @@
+id: WR
+variants:
+  - title: Weather Request
+    descriptor: WEATHER STAT REQ
+    format: WR 13 (13) (13) | WR 36 13 (13) (13) | WR 13 (13) (13) 16 | WR (13) (13) (13)
+    multiple_flids: null
+    handler: crc-local
+    fields:
+      - field: Position
+        rule: |
+          When entered at the A-Position, the channel must not be in Pending mode.
+        error: MsgNoFSPPrintingInPendingMode
+        na: A-Position / FSP printing channel; CRC always enters commands from the R-Position.
+      - field: 36 Response Area Output Indicator
+        rule: |
+          Must be "R".
+        error: MsgCofieFormat
+      - field: 13 Reporting Station Identifier
+        rule: |
+          Must be in the format aa(a)(a)(a).
+        error: MsgNonAdaptedStation
+      - field: 13 Reporting Station Identifier
+        rule: |
+          A maximum of three Field 13s is permitted when entered from the A, D, or AT Specialist Positions.
+        error: MsgMessageTooLong
+        na: Applies only at A, D, or AT Specialist positions; CRC always enters commands from the R-Position.
+      - field: 16 Output Routing
+        rule: |
+          Must be "P".
+        error: MsgIncorrectRouting

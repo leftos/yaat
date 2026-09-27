@@ -1,0 +1,7 @@
+id: SE
+variants:
+  - title: Interfacility Point Out Sector Eligibility
+    descriptor: PO SECTOR ELIGIBILITY
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []

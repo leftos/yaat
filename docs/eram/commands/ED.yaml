@@ -1,0 +1,17 @@
+id: ED
+variants:
+  - title: Terminate CPDLC Session Local
+    descriptor: END CPDLC SESSION
+    handler: not implemented
+    na: CPDLC datalink; VATSIM ERAM has no datalink.
+    fields: []
+  - title: Terminate CPDLC Session National
+    descriptor: END CPDLC SESSION
+    handler: not implemented
+    na: CPDLC datalink; VATSIM ERAM has no datalink.
+    fields: []
+  - title: Terminate CPDLC Session National with Override
+    descriptor: END CPDLC SESSION
+    handler: not implemented
+    na: CPDLC datalink; VATSIM ERAM has no datalink.
+    fields: []

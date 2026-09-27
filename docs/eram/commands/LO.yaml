@@ -1,0 +1,7 @@
+id: LO
+variants:
+  - title: Log Out
+    descriptor: LOG OUT
+    handler: not implemented
+    na: "Position sign-in, security and preference sets belong to CRC."
+    fields: []

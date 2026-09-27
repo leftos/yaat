@@ -1,0 +1,7 @@
+id: ER
+variants:
+  - title: E-MSAW Status Request Message
+    descriptor: E-MSAW STATUS
+    handler: not implemented
+    na: E-MSAW; YAAT has no MSAW model.
+    fields: []

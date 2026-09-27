@@ -1,0 +1,7 @@
+id: EC
+variants:
+  - title: E-MSAW Control Message
+    descriptor: CTRL E-MSAW
+    handler: not implemented
+    na: E-MSAW; YAAT has no MSAW model.
+    fields: []

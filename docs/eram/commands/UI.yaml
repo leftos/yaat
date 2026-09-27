@@ -1,0 +1,7 @@
+id: UI
+variants:
+  - title: Invoking a User Preference Set
+    descriptor: INVOKE UPS
+    handler: not implemented
+    na: "Position sign-in, security and preference sets belong to CRC."
+    fields: []

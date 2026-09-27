@@ -1,0 +1,7 @@
+id: FQ
+variants:
+  - title: Frequency Readout
+    descriptor: FREQUENCY READOUT
+    handler: not implemented
+    na: Radio frequency control; voice is handled outside YAAT.
+    fields: []

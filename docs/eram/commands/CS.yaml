@@ -1,0 +1,7 @@
+id: CS
+variants:
+  - title: Resector
+    descriptor: RESECTOR
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []

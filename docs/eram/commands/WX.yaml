@@ -1,0 +1,6 @@
+id: WX
+variants:
+  - title: Weather Data
+    descriptor: WEATHER DATA
+    handler: not implemented
+    fields: []

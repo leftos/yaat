@@ -103,6 +103,7 @@ Project-reference direction: `Yaat.Client` → `Yaat.Client.Core` → `Yaat.Clie
 
 - `docs/atctrainer-scenario-examples/` — Real ATCTrainer scenario JSONs (reference for scenario format)
 - `docs/crc/` — CRC controller manual (STARS, Tower Cab, vStrips)
+- [`docs/eram/`](docs/eram/README.md) — ERAM command reference extracted from the FAA ERAM EDSM SRS: per-command formats, field checks, descriptors and our error texts, as YAML that yaat-server's `EramReferenceConformanceTests` enforces. Read it before touching `CrcClientState.Eram*.cs`
 - `docs/vnas-artcc-config-examples/` — Real ARTCC config JSONs (facility hierarchy, positions, coordination channels)
 - `..\crc-decompiled\CRC\` (sibling of the yaat repo root) — private git repo of the ILSpy-decompiled CRC (2.15 baseline + 2.17; re-decompile + commit on each CRC update). Key: `Vatsim.Nas.Crc.Ui.Displays.Stars.Elements/DisplayElementTracks.cs`, `…Stars.Consolidation/ConsolidationManager.cs`, `…Stars.Tracks/Track.cs`, `TrackOwnerExtensions.cs`
 - On each CRC update, also regenerate the CRC wire-contract snapshot in yaat-server: `dotnet run --project tools/CrcWireDump` (reads the installed CRC's `Vatsim.Nas.Messaging.dll`/`Vatsim.Nas.Common.dll` metadata into `docs/crc-wire/messaging-contract.json`; `CrcWireContractTests` diffs every `Yaat.Server.Dtos` MessagePack layout against it). The end-to-end procedure — changelog source, decompiler pin, what to diff — is the `crc-update-check` skill (reference: yaat-server `docs/crc-update.md`).

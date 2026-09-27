@@ -1,0 +1,7 @@
+id: UA
+variants:
+  - title: Altimeter Uplink
+    descriptor: ALTIMETER UPLINK
+    handler: not implemented
+    na: CPDLC datalink; VATSIM ERAM has no datalink.
+    fields: []

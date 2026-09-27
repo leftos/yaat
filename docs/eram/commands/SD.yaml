@@ -1,0 +1,7 @@
+id: SD
+variants:
+  - title: Start CPDLC Session
+    descriptor: START CPDLC SESSION
+    handler: not implemented
+    na: CPDLC datalink; VATSIM ERAM has no datalink.
+    fields: []

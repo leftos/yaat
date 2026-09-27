@@ -1,0 +1,98 @@
+id: DM
+variants:
+  - title: Departure
+    descriptor: DEPARTURE
+    format: DM 02* (26) (07) (08) | DM 02 (26) (07) (08) | DM 02
+    multiple_flids: true
+    handler: DM.Departure
+    fields:
+      - field: 02 Flight Identification
+        rule: |
+          When entered at an A-Position, Field 02 must not contain multiple Flight IDs.
+        error: MsgTooManyFlightIDs
+        na: A-Position rule; CRC always enters commands from the R-Position.
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be "M".
+        error: MsgAIDMissing
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID - Laa(a)(a)(a)(a) or Ld; b. CID - ddd or daa (where a must not
+          equal "I" or "O"); c. Beacon Code - dddd (all digits octal); d. Trackball Pick or Trackball Enter.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          When selecting the flight by trackball, the selection must capture a Track Position Symbol
+          (Paired Flight), Tear-Off Flight Entry or a View Flight Entry for a valid flight ID
+          (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication
+      - field: 26 Departure Point
+        rule: |
+          Must be in the format aa(a)(a)(a) or aa(a)(a)(a)ddd1ddd2 or dddd(L1)/(d)dddd(L2).
+        error: MsgCofieFormat
+      - field: 02 Flight Identification + 26 Departure Point
+        rule: |
+          Either Field 02 or Field 26 may be suffixed with an asterisk (*) or an overcast weather symbol (⊕),
+          and/or an override indicator (/OK). If /OK is suffixed, the asterisk or overcast symbol must come
+          first (*/OK or ⊕/OK). If Field 26 is present the optional suffix must be applied to it; otherwise
+          to Field 02. The /OK suffix is only valid from an R, D, or A Position; the asterisk and overcast
+          weather symbol suffixes are valid from any entry position.
+        error: MsgCofieFormat
+      - field: 02 Flight Identification
+        rule: |
+          If Field 02 is in multiple Flight ID format, the optional Fields 26, 07, and 08 may not be present.
+        error: MsgMultipleFLIDsNotAllowed
+      - field: 07 Departure Time
+        rule: |
+          Must be in the format dddd or LLdd.
+        error: MsgTIMFormat
+      - field: 07 Departure Time
+        rule: |
+          When in the format dddd, first two digits (hours) must not exceed 23 and last two digits
+          (minutes) must not exceed 59.
+        error: MsgTIMFormat
+      - field: 07 Departure Time
+        rule: |
+          When in the format LLdd, LL must be the letters "XX" and the two digits (minutes) must not
+          exceed 99. This signifies a time relative to the current time.
+        error: MsgTIMFormat
+      - field: 08 Assigned Altitude
+        rule: |
+          Must be one of: (d)dd, OTP, OTP/(d)dd, VFR, VFR/(d)dd, ABV/(d)dd, (d)ddB(d)dd, or (d)dd/Fix/(d)dd
+          where Fix (or Airport) must be in the format aa(a)(a)(a) or aa(a)(a)(a)ddd1ddd2 or
+          dddd(L1)/(d)dddd(L2).
+        error: MsgALTFormat
+      - field: 08 Assigned Altitude
+        rule: |
+          When (d)dd/Fix/(d)dd contains a Fix (or Airport) in the Fix Name format aa(a)(a)(a), a 4 character
+          fix name must include at least one letter.
+        error: MsgALTFormat
+      - field: 08 Assigned Altitude
+        rule: |
+          When (d)dd/Fix/(d)dd contains a Fix in the Fix Radial Distance format aa(a)(a)(a)ddd1ddd2, the
+          radial ddd1 must be between 001-360, and the distance ddd2 must be between 001-999.
+        error: MsgALTFormat
+      - field: 08 Assigned Altitude
+        rule: |
+          When (d)dd/Fix/(d)dd contains a Fix in the Lat/Long format dddd(L1)/(d)dddd(L2): latitude must not
+          exceed 90, longitude must not exceed 180, minutes must not exceed 59. L1 may be N or S; L2 may be
+          E or W. At 90 degrees latitude or 180 degrees longitude the minutes must be 0. N latitude and
+          W longitude are implied when omitted; S latitude and E longitude must be entered if applicable.
+          If the optional L1 or L2 is used, both must be used.
+        error: MsgALTFormat
+      - field: 08 Assigned Altitude
+        rule: |
+          When blocked, second altitude must be greater than the first altitude.
+        error: MsgInvalidBlockedAltitude

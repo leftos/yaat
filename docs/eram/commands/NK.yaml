@@ -1,0 +1,7 @@
+id: NK
+variants:
+  - title: Display / Delete TMU FDBs
+    descriptor: DISP/DEL TMU FDB
+    handler: not implemented
+    na: Traffic flow management; YAAT has no TMU model.
+    fields: []

@@ -1,0 +1,7 @@
+id: RC
+variants:
+  - title: Sector Airspace Assignment Request
+    descriptor: SECTOR ASSIGN REQ
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []

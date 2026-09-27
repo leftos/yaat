@@ -1,0 +1,7 @@
+id: SS
+variants:
+  - title: Sector Summary
+    descriptor: SECTOR SUMMARY
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []

@@ -8,7 +8,7 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 ## Bug reports and feature requests
 
-None open.
+- [ ] **ERAM command conformance** (a controller's request, 2026-09-26) — [eram-conformance.md](./eram-conformance.md): a YAML command reference extracted from the ERAM EDSM SRS, a conformance test, ACCEPT/descriptor feedback and field validation for our ERAM verbs, then CO, the full AM field set, HM/QH hold, QX `/R` and FP, and LD/LE. Waves 0–1 done; next: Wave 2 (the feedback convention and the conformance test).
 
 ## Current programme
 

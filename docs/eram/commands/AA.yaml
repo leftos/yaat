@@ -1,0 +1,7 @@
+id: AA
+variants:
+  - title: ARTS Assignment
+    descriptor: ARTS ASSIGNMENT
+    handler: not implemented
+    na: ARTS interface; no ARTS on VATSIM.
+    fields: []

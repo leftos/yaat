@@ -1,0 +1,7 @@
+id: PA
+variants:
+  - title: PAV Activate/Deactivate Request
+    descriptor: POSTING AREA
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []

@@ -1,0 +1,7 @@
+id: DD
+variants:
+  - title: Departure Delay
+    descriptor: DEPARTURE DELAY
+    handler: not implemented
+    na: Traffic flow management; YAAT has no TMU model.
+    fields: []

@@ -1,0 +1,140 @@
+id: QP
+variants:
+  - title: Point Out
+    descriptor: PO
+    format: QP 16 (16) (16) (16) 02 | QP 64 (16) 02
+    multiple_flids: true
+    handler: QP.PointOut
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+          This error check must be performed on the active channel.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 64 Action Type
+        rule: |
+          Must be "A".
+        error: MsgUnidentifiedAction
+      - field: 16 Output Routing
+        rule: |
+          Must be one of: a. Sector Number - (d)dd, in the range of 01 - 128;
+          b. Center Identifier and Sector Number within that center - L(d)dd, where (d)dd is in the range of 01 - 128.
+        error: MsgSectorFormat
+      - field: 16 Output Routing
+        rule: |
+          When in sector number format, must be an adapted sector in AERO. Performed on the active channel.
+        error: MsgNon-AdaptedSector
+      - field: 16 Output Routing
+        rule: |
+          Output routing must not be duplicated in the same command.
+        error: MsgDuplicateSector
+      - field: 16 Output Routing + 64 Action Type
+        rule: |
+          When Field 64 is present, only one Field 16 can be entered.
+        error: MsgMessageTooLong
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID - Laa(a)(a)(a)(a) or Ld; b. CID - ddd or daa (a must not equal "I" or "O");
+          c. Beacon Code - dddd (all digits octal); d. Trackball Pick or Trackball Enter.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          A trackball selection must capture a Track Position Symbol (Paired Flight), Tear-Off Flight Entry
+          or a View Flight Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication
+  - title: Request/Suppress Data Block
+    descriptor: REQ/SUPP DB
+    format: QP 02
+    multiple_flids: true
+    handler: QP.ReqSuppDb
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID - Laa(a)(a)(a)(a) or Ld; b. CID - ddd or daa (a must not equal "I" or "O");
+          c. Beacon Code - dddd (all digits octal); d. Trackball Pick or Trackball Enter.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          A trackball selection must capture a Track Position Symbol (Paired Flight), Paired Beacon Target Symbol,
+          Paired Primary Target Symbol, Tear-Off Flight Entry or a View Flight Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication
+  - title: Distance Reference Indicator (Halo) Request/Delete
+    descriptor: REQ/DELETE DRI
+    format: QP 64 (306) 02
+    multiple_flids: true
+    handler: QP.Dri
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 64 Action Type
+        rule: |
+          Must be "J" or "T".
+        error: MsgUnidentifiedAction
+      - field: 306 Reduced DRI Indication
+        rule: |
+          Must be in the format d, and must be 3.
+        error: MsgCofieFormat
+      - field: 64 Action Type + 306 Reduced DRI Indication
+        rule: |
+          Field 306 may only be present if Field 64 is "J".
+        error: MsgInvalidCombination
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID - Laa(a)(a)(a)(a) or Ld; b. CID - ddd or daa (a must not equal "I" or "O");
+          c. Beacon Code - dddd (all digits octal); d. Trackball Pick or Trackball Enter.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          A trackball selection must capture a Track Position Symbol (Paired Flight), Tear-Off Flight Entry
+          or a View Flight Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication
+  - title: Suppress/Unsuppress Display of Meter List Entry Message
+    descriptor: SUPP MRP LIST ENTRY
+    handler: not implemented
+    na: Traffic flow management; YAAT has no TMU model.
+    fields: []

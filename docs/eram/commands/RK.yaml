@@ -1,0 +1,6 @@
+id: RK
+variants:
+  - title: Conflict Alert Status Request
+    descriptor: REQ CA STATUS
+    handler: not implemented
+    fields: []

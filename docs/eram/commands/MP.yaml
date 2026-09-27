@@ -1,0 +1,6 @@
+id: MP
+variants:
+  - title: Mission Flight Plan
+    descriptor: MISSION FP
+    handler: not implemented
+    fields: []

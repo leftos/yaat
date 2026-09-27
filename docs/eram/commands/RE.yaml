@@ -1,0 +1,7 @@
+id: RE
+variants:
+  - title: Release CPDLC Eligibility
+    descriptor: RELEASE CPDLC ELIGIBILITY
+    handler: not implemented
+    na: CPDLC datalink; VATSIM ERAM has no datalink.
+    fields: []

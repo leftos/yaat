@@ -1,0 +1,127 @@
+id: QU
+variants:
+  - title: Track Reroute
+    descriptor: REROUTE
+    format: QU (60*) (65) (65) … (68) (68) … (70) 02
+    multiple_flids: false
+    handler: QU.Reroute
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 60 Logic Check Override
+        rule: |
+          Must be "/OK".
+        error: MsgCofieFormat
+      - field: 65 Trackball Coordinates
+        rule: |
+          Must be created by a trackball entry from the R-Position.
+        error: MsgCofieFormat
+      - field: 65 Trackball Coordinates
+        rule: |
+          Trackball capture does not contain a situation display point.
+        error: MsgNoSituationDisplayPointCapture
+      - field: 68 Fix, Fix Radial Distance, or Lat/Long
+        rule: |
+          Must be one of: a. Fix or Airport Name aa(a)(a)(a); b. Fix (or Airport) Radial Distance
+          aa(a)(a)(a)ddd1ddd2; c. Lat/Long dddd(L1)/(d)dddd(L2).
+        error: MsgCofieFormat
+      - field: 68 Fix, Fix Radial Distance, or Lat/Long
+        rule: |
+          When a Fix Radial Distance, the radial ddd1 must be 001-360 and the distance ddd2 must be 001-999.
+        error: MsgCofieFormat
+      - field: 68 Fix, Fix Radial Distance, or Lat/Long
+        rule: |
+          When a Lat/Long, latitude must not exceed 90 and longitude must not exceed 180; minutes must not exceed 59.
+          L1 may be N or S; L2 may be E or W. At 90 degrees latitude or 180 degrees longitude the minutes must be 0.
+          N latitude and W longitude are implied when omitted; S latitude and E longitude must be entered if applicable.
+          If the optional L1 or L2 is used, both must be used.
+        error: MsgCofieFormat
+      - field: 65 Trackball Coordinates + 68 Fix, Fix Radial Distance, or Lat/Long
+        rule: |
+          Field 65 and 68 entries can be intermixed. At least one Field 65 or 68 must be entered.
+        error: MsgMessageTooShort
+      - field: 65 Trackball Coordinates + 68 Fix, Fix Radial Distance, or Lat/Long
+        rule: |
+          The number of Field 65 and 68 entries present is limited to 17 fields total.
+        error: MsgMessageTooLong
+      - field: 70 Destination Indicator
+        rule: |
+          Must be "↓" or "*" or "¨".
+        error: MsgCofieFormat
+      - field: 70 Destination Indicator
+        rule: |
+          Must follow the last fix / airport (Field 65 or 68) and precede the flight ID (Field 02).
+        error: MsgCofieFormat
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID Laa(a)(a)(a)(a) or Ld; b. CID ddd or daa (a must not equal "I" or "O");
+          c. Beacon Code dddd (all digits octal); d. Trackball Pick or Trackball Enter.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          When selecting the flight using the trackball, the selection must capture a Track Position Symbol (Paired Flight),
+          Tear-Off Flight Entry or View Flight Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication
+  - title: Track Reroute Uplink
+    descriptor: REROUTE UPLINK
+    handler: not implemented
+    na: CPDLC datalink; VATSIM ERAM has no datalink.
+    fields: []
+  - title: Route Display
+    descriptor: ROUTE DISPLAY
+    format: QU (49) (02)
+    multiple_flids: true
+    handler: QU.RouteDisplay
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 49 Route Display Time
+        rule: |
+          Must be in the format (d)d or /M.
+        error: MsgCofieFormat
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID Laa(a)(a)(a)(a) or Ld; b. CID ddd or daa (a must not equal "I" or "O");
+          c. Beacon Code dddd (all digits octal); d. Trackball Pick or Trackball Enter (except when entering multiple Flight IDs).
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          When selecting the flight using the trackball, the selection must capture a Track Position Symbol (Paired Flight),
+          Tear-Off Flight Entry or View Flight Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication
+      - field: 02 Flight Identification
+        rule: |
+          If Field 02 is in multiple Flight ID format, it must be typed rather than given by a series of trackball picks.
+          This error only occurs when Field 49 is present along with multiple picks; without Field 49, multiple picks make
+          the command a QU Track Reroute instead of a QU Route Display.
+        error: MsgMultiplePicksInvalidForCmd

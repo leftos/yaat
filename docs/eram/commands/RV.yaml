@@ -1,0 +1,7 @@
+id: RV
+variants:
+  - title: Revert Frequencies
+    descriptor: REVERT FREQUENCIES
+    handler: not implemented
+    na: Radio frequency control; voice is handled outside YAAT.
+    fields: []

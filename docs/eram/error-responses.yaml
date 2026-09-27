@@ -1,0 +1,115 @@
+# The literal text yaat-server sends in CRC's feedback area for each ERAM error.
+# The spec names each error by ID only; see README.md for how the text was chosen.
+#   source: crc     CRC shows this exact text for its own locally handled commands
+#           spec    the spec gives this text literally
+#           coined  our wording, in CRC's style
+#   {cofie} is replaced by the contents of the field in error.
+
+errors:
+  # Message-level
+  - { id: MsgInvalidMessageType, text: INVALID MESSAGE TYPE, source: coined }
+  - { id: MsgIllegalSource, text: ILLEGAL SOURCE, source: coined }
+  - { id: MsgMessageTypeMessageFailed, text: MESSAGE FAILED, source: coined }
+  - { id: MsgMessageTooShort, text: MESSAGE TOO SHORT, source: crc }
+  - { id: MsgMessageTooLong, text: MESSAGE TOO LONG, source: crc }
+  - { id: MsgR-PositionNotConfigured, text: NO R-POSITION, source: coined }
+  - { id: MsgNoFSPPrintingInPendingMode, text: PENDING MODE, source: coined }
+
+  # Flight identification
+  - { id: MsgFlidFormat, text: FLID FORMAT, source: coined }
+  - { id: MsgNoTBFlightID, text: INVALID PICK, source: coined }
+  - { id: MsgIllegalFlightID, text: ILLEGAL FLID, source: coined }
+  - { id: MsgFLIDNotStored, text: FLID NOT STORED, source: coined }
+  - { id: MsgFLIDDuplication, text: DUPLICATE FLID, source: coined }
+  - { id: MsgBeaconNotAValidFLID, text: BCN NOT VALID FLID, source: coined }
+  - { id: MsgMultipleFLIDsNotAllowed, text: MULTIPLE FLIDS INVALID, source: coined }
+  - { id: MsgTooManyFlightIDs, text: TOO MANY FLIDS, source: coined }
+  - { id: MsgAIDMissing, text: AID MISSING, source: coined }
+
+  # Generic field errors
+  - { id: MsgCofieFormat, text: "{cofie} FORMAT", source: crc }
+  - { id: MsgCofieIllegalAction, text: "{cofie} ILLEGAL ACTION", source: coined }
+  - { id: MsgCofieInvalidCombination, text: "{cofie} INVALID COMBINATION", source: coined }
+  - { id: MsgCofieDuplicateFieldReference, text: "{cofie} DUPLICATE FIELD REF", source: coined }
+  - { id: MsgFieldInErrorEnterValidFieldInformation, text: "{cofie} FORMAT", source: coined }
+  - { id: MsgInvalidActionType, text: INVALID ACTION, source: coined }
+  - { id: MsgUnidentifiedAction, text: UNIDENTIFIED ACTION, source: coined }
+  - { id: MsgInvalidCombination, text: INVALID COMBINATION, source: coined }
+  - { id: MsgDuplicatedAction, text: DUPLICATED ACTION, source: coined }
+  - { id: MsgDuplication, text: DUPLICATION, source: coined }
+  - { id: MsgInvalidReference, text: INVALID FIELD REF, source: coined }
+  - { id: MsgInvalidFromSource, text: INVALID FROM SOURCE, source: coined }
+  - { id: MsgInvalidSelection, text: INVALID SELECTION, source: coined }
+  - { id: MsgIncorrectRouting, text: INCORRECT ROUTING, source: coined }
+
+  # Location and trackball
+  - { id: MsgNoSituationDisplayPointCapture, text: NO LOCATION PICKED, source: coined }
+  - { id: MsgMultiplePicksInvalidForCmd, text: MULTIPLE PICKS INVALID, source: coined }
+  - { id: MsgRequiresTrkbl, text: REQUIRES TRACKBALL, source: coined }
+  - { id: MsgRequiresFixOrTrkbl, text: REQUIRES FIX OR TRACKBALL, source: coined }
+
+  # Sectors and adaptation
+  - { id: MsgSectorFormat, text: SECTOR FORMAT, source: coined }
+  - { id: MsgNon-AdaptedSector, text: SECTOR NOT ADAPTED, source: coined }
+  - { id: MsgDuplicateSector, text: DUPLICATE SECTOR, source: coined }
+  - { id: MsgNonAdaptedStation, text: STATION NOT ADAPTED, source: coined }
+
+  # Altitude, speed, heading, time, text
+  - { id: MsgALTFormat, text: ALT FORMAT, source: coined }
+  - { id: MsgInvalidBlockedAltitude, text: INVALID BLOCKED ALT, source: coined }
+  - { id: MsgSPDFormat, text: SPD FORMAT, source: coined }
+  - { id: MsgInvalidSpeed, text: INVALID SPEED, source: coined }
+  - { id: MsgInvalidSpeedFormat, text: SPEED FORMAT, source: coined }
+  - { id: MsgInvalidHeadingFormat, text: HEADING FORMAT, source: coined }
+  - { id: MsgInvalidTextFormat, text: TEXT FORMAT, source: coined }
+  - { id: MsgTIMFormat, text: TIME FORMAT, source: coined }
+  - { id: MsgInvalidTime, text: INVALID TIME, source: coined }
+  - { id: MsgInvalidDirection, text: INVALID DIRECTION, source: coined }
+  - { id: MsgInvalidLength, text: INVALID LENGTH, source: crc }
+
+  # Beacon codes
+  - { id: MsgBeaconCodeFormat, text: BCN CODE FORMAT, source: crc }
+  - { id: MsgNonDiscreteCodeInvalid, text: NON-DISCRETE CODE INVALID, source: coined }
+  - { id: MsgMultipleBeaconAMIllegal, text: MULTIPLE BCN AM ILLEGAL, source: coined }
+
+  # Flight plan amendment (AM, VP)
+  - { id: MsgInvalidAmendment, text: INVALID AMENDMENT, source: coined }
+  - { id: MsgNoAmendmentDataEntered, text: NO AMENDMENT DATA, source: coined }
+  - { id: MsgIllegalFieldDeletion, text: ILLEGAL FIELD DELETION, source: coined }
+  - { id: MsgMinusSignNotValid, text: MINUS SIGN NOT VALID, source: coined }
+  - { id: MsgInvalidWithField03, text: INVALID WITH TYPE, source: coined }
+  - { id: MsgInvalidWithField0809, text: INVALID WITH ALT, source: coined }
+  - { id: MsgCan'tHandoffAndAmendFP, text: CANNOT HANDOFF AND AMEND, source: coined }
+  - { id: MsgInvalidAircraftAddress, text: INVALID AIRCRAFT ADDRESS, source: coined }
+  - { id: MsgACTFormat, text: ACT FORMAT, source: coined }
+  - { id: MsgALAFormat, text: ALA FORMAT, source: coined }
+  - { id: MsgEQPFormat, text: EQP FORMAT, source: coined }
+  - { id: MsgFIXFormat, text: FIX FORMAT, source: coined }
+  - { id: MsgFLRFormat, text: FLR FORMAT, source: coined }
+  - { id: MsgFLTFormat, text: FLT FORMAT, source: coined }
+  - { id: MsgNumFormat, text: NUM FORMAT, source: coined }
+  - { id: MsgOTHFormat, text: OTH FORMAT, source: coined }
+  - { id: MsgOTHIndicatorDataFormat, text: OTH FORMAT, source: coined }
+  - { id: MsgOTHDuplicateIndicator, text: OTH DUPLICATE INDICATOR, source: coined }
+  - { id: MsgRALFormat, text: RAL FORMAT, source: coined }
+  - { id: MsgRMKFormat, text: RMK FORMAT, source: coined }
+  - { id: MsgRTEFormat, text: RTE FORMAT, source: coined }
+  - { id: MsgSAIFormat, text: SAI FORMAT, source: coined }
+  - { id: MsgSRVFormat, text: SRV FORMAT, source: coined }
+  - { id: MsgTYPFormat, text: TYP FORMAT, source: coined }
+  - { id: MsgWAKFormat, text: WAK FORMAT, source: coined }
+
+  # yaat-only: semantic checks the spec leaves to other books, or that come from VATSIM
+  - { id: YaatSessionNotActive, text: SESSION NOT ACTIVE, source: crc }
+  - { id: YaatNoFlightPlan, text: NO FLIGHT PLAN, source: crc }
+  - { id: YaatNotAdapted, text: NOT ADAPTED, source: crc }
+  - { id: YaatNotYourControl, text: NOT YOUR CONTROL, source: spec }
+  - { id: YaatAlreadyTracked, text: ALREADY TRACKED, source: coined }
+  - { id: YaatPoExists, text: PO EXISTS, source: coined }
+  - { id: YaatNotReceiver, text: NOT RECEIVER, source: coined }
+  - { id: YaatPoNotFound, text: PO NOT FOUND, source: coined }
+  - { id: YaatDupNewId, text: DUP NEW ID, source: coined }
+  - { id: YaatNoFdb, text: NO FDB, source: coined }
+  - { id: YaatTimePassed, text: TIME PASSED, source: coined }
+  - { id: YaatFixNotAdapted, text: "{cofie} NOT ADAPTED", source: coined }
+  - { id: YaatInternal, text: MESSAGE FAILED, source: coined }

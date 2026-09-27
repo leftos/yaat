@@ -1,0 +1,7 @@
+id: VS
+variants:
+  - title: Aircraft Alert Volume State
+    descriptor: VOLUME STATE
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []

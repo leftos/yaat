@@ -1,0 +1,7 @@
+id: FE
+variants:
+  - title: Center External Advance Flow Control
+    descriptor: EXT FLOW CTRL
+    handler: not implemented
+    na: Traffic flow management; YAAT has no TMU model.
+    fields: []

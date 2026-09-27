@@ -1,0 +1,17 @@
+id: UU
+variants:
+  - title: D-Position Keyboard Command (Legacy View Manipulation)
+    descriptor: D POS KEYBD
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []
+  - title: Toggle View Display Eligibility at D-Position (UU) Command
+    descriptor: D POS KEYBD
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []
+  - title: Message History View Query Actions at D-Position (UU) Command
+    descriptor: D POS KEYBD
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []

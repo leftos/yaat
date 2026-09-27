@@ -1,0 +1,7 @@
+id: CR
+variants:
+  - title: Change Restriction Status
+    descriptor: CHANGE RESTRICTION STATUS
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []

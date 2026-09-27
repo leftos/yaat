@@ -1,0 +1,7 @@
+id: MW
+variants:
+  - title: Manual Swap Request
+    descriptor: MANUAL SWAP REQ
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []

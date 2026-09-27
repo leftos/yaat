@@ -1,0 +1,242 @@
+id: QN
+variants:
+  - title: Accept Handoff
+    descriptor: ACCEPT HANDOFF
+    format: (QN) (60) 02 | QZ (60) 02
+    multiple_flids: false
+    handler: QN.AcceptHandoff
+    fields:
+      - field: 01 Message Type
+        rule: |
+          May be implied in the QN version; required when a route amendment correction (response to an ambiguous
+          element error or a route readout request), a fix element clarification (response to an ambiguous fix
+          error), or a verification message is currently displayed at the position of entry, or in the QZ version.
+        error: MsgInvalidMessageType
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 60 Logic Check Override
+        rule: |
+          Must be "/OK".
+        error: MsgCofieFormat
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID - Laa(a)(a)(a)(a) or Ld; b. CID - ddd or daa (a must not equal "I" or "O");
+          c. Beacon Code - dddd (all digits octal); d. Trackball Pick or Trackball Enter.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          A trackball selection must capture a Track Position Symbol (Paired Flight), Tear-Off Flight Entry
+          or a View Flight Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication
+  - title: Initiate Handoff
+    descriptor: INITIATE HANDOFF
+    format: (QN) (60) 16 02 | QZ (60) 16 02
+    multiple_flids: true
+    handler: QN.InitiateHandoff
+    fields:
+      - field: 01 Message Type
+        rule: |
+          May be implied in the QN version; required when a route amendment correction (response to an ambiguous
+          element error or a route readout request), a fix element clarification (response to an ambiguous fix
+          error), or a verification message is currently displayed at the position of entry, or in the QZ version.
+        error: MsgInvalidMessageType
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+          This error check must be performed on the active channel.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 60 Logic Check Override
+        rule: |
+          Must be "/OK".
+        error: MsgCofieFormat
+      - field: 16 Output Routing
+        rule: |
+          Must be one of:
+          a. Sector number - (d)dd, in the range of 01 - 128 if Field 01 is QN, or 01-99 if Field 01 is QZ
+             (if Field 01 is QZ, a field with 3 digits is assumed to be a Field 08 Assigned Altitude);
+          b. Center identifier and sector number within that center, L((d)dd), where (d)dd is in the range
+             of 00 - 128; a null sector number of 00 or 000 is legal, signifying an undirected handoff to
+             the facility represented by L;
+          c. ARTS Identifier and position within that ARTS, LLL(dL), L(dL), or LLx (where x is also a letter).
+        error: MsgCofieFormat
+      - field: 16 Output Routing
+        rule: |
+          When in sector number format, must be an adapted sector in AERO. Performed on the active channel.
+        error: MsgNon-AdaptedSector
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID - Laa(a)(a)(a)(a) or Ld; b. CID - ddd or daa (a must not equal "I" or "O");
+          c. Beacon Code - dddd (all digits octal); d. Trackball Pick or Trackball Enter.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          A trackball selection must capture a Track Position Symbol (Paired Flight), Tear-Off Flight Entry
+          or a View Flight Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication
+  - title: Data Block Offset (None Message Type)
+    descriptor: OFFSET DATA BLK
+    format: (QN) 59 02 | QZ 59 02
+    multiple_flids: true
+    handler: QN.OffsetDataBlock
+    fields:
+      - field: 01 Message Type
+        rule: |
+          May be implied in the QN version; required when a route amendment correction (response to an ambiguous
+          element error or a route readout request), a fix element clarification (response to an ambiguous fix
+          error), or a verification message is currently displayed at the position of entry, or in the QZ version.
+        error: MsgInvalidMessageType
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 59 Offset Direction/Leader Length
+        rule: |
+          Must be one of: a. Direction - d; b. Leader length - /d; c. Direction and leader length - d/d.
+        error: MsgCofieFormat
+      - field: 59 Offset Direction/Leader Length
+        rule: |
+          When a direction is present, must be between 1-9.
+        error: MsgInvalidDirection
+      - field: 59 Offset Direction/Leader Length
+        rule: |
+          When a leader length is present, must be 0, 1, 2, 3, or 5.
+        error: MsgInvalidLength
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID - Laa(a)(a)(a)(a) or Ld; b. CID - ddd or daa (a must not equal "I" or "O");
+          c. Beacon Code - dddd (all digits octal); d. Trackball Pick or Trackball Enter;
+          e. MCI Identification (MID) - dLd (where L must be "A", "C", "E", "F", "H" or "J").
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          A trackball selection must capture a Track Position Symbol (Paired Flight), Track Position Symbol
+          (Unpaired Flight), Paired Beacon Target Symbol, Unpaired Beacon Target Symbol with a Track ID,
+          Tear-Off Flight Entry or a View Flight Entry (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication
+      - field: 02 Flight Identification
+        rule: |
+          When referencing a Conflict Data Block, must be either a trackball enter or a Mode C Intruder
+          Identification (MID).
+        error: MsgIllegalFlightID
+  - title: Forced Data Block Situation Display (None Message Type)
+    descriptor: FORCED DATA BLK
+    format: (QN) 02 | QZ 02
+    multiple_flids: false
+    handler: QN.ForcedDataBlock
+    fields:
+      - field: 01 Message Type
+        rule: |
+          May be implied in the QN version; required when a route amendment correction (response to an ambiguous
+          element error or a route readout request), a fix element clarification (response to an ambiguous fix
+          error), or a verification message is currently displayed at the position of entry, or in the QZ version.
+        error: MsgInvalidMessageType
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID - Laa(a)(a)(a)(a) or Ld; b. CID - ddd or daa (a must not equal "I" or "O");
+          c. Beacon Code - dddd (all digits octal); d. Trackball Pick or Trackball Enter.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          A trackball selection must capture a Track Position Symbol (Paired Flight), Paired Beacon Target Symbol,
+          Paired Primary Target Symbol, Tear-Off Flight Entry or a View Flight Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication
+  - title: Toggle On-Frequency (None Message Type)
+    descriptor: TOGGLE ON-FREQUENCY
+    format: (QN) 64 02 | QZ 64 02
+    multiple_flids: false
+    handler: QN.ToggleOnFrequency
+    fields:
+      - field: 01 Message Type
+        rule: |
+          It can be implied in the QN version of the command.
+        error: MsgInvalidMessageType
+      - field: 64 Action Type
+        rule: |
+          Must be "//".
+        error: MsgInvalidActionType
+      - field: 64 Action Type
+        rule: |
+          The toggle communication action must not be combined with any other QN (or QZ) action: when a
+          Field 64 = "//" is present, if any of Fields 08, 16, 59, 60, or another 64 are also present, the
+          command is rejected.
+        error: MsgInvalidCombination
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID - Laa(a)(a)(a)(a) or Ld; b. CID - ddd or daa (a must not equal "I" or "O");
+          c. Beacon Code - dddd (all digits octal); d. Trackball Pick or Trackball Enter.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          A trackball selection must capture a Track Position Symbol (Paired Flight), Tear-Off Flight Entry
+          or a View Flight Entry for a valid flight ID (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication

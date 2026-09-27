@@ -1,0 +1,7 @@
+id: UC
+variants:
+  - title: Uplink Crossing Restriction
+    descriptor: UPLINK CROSSING RESTRICTION
+    handler: not implemented
+    na: CPDLC datalink; VATSIM ERAM has no datalink.
+    fields: []

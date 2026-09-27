@@ -1,0 +1,7 @@
+id: TR
+variants:
+  - title: Test Message
+    descriptor: TEST MESSAGE
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []

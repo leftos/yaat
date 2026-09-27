@@ -1,0 +1,7 @@
+id: UF
+variants:
+  - title: Uplink Frequency
+    descriptor: UPLINK FREQUENCY
+    handler: not implemented
+    na: CPDLC datalink; VATSIM ERAM has no datalink.
+    fields: []

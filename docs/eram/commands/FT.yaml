@@ -1,0 +1,7 @@
+id: FT
+variants:
+  - title: Terminal Advance Flow Control
+    descriptor: TERMINAL FLOW CTRL
+    handler: not implemented
+    na: Traffic flow management; YAAT has no TMU model.
+    fields: []

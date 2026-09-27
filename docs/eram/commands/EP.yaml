@@ -1,0 +1,7 @@
+id: EP
+variants:
+  - title: Examine Parameter
+    descriptor: EXAMINE PARAMETER
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []

@@ -1,0 +1,7 @@
+id: FA
+variants:
+  - title: FAD Flow
+    descriptor: FAD FLOW
+    handler: not implemented
+    na: Traffic flow management; YAAT has no TMU model.
+    fields: []

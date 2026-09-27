@@ -1,0 +1,24 @@
+id: MR
+variants:
+  - title: Map Request
+    descriptor: MAP REQUEST
+    format: MR 16 66
+    multiple_flids: null
+    handler: crc-local
+    fields:
+      - field: 16 Output Routing
+        rule: |
+          Must be in sector number format (d)dd, and in the range of 01 - 128.
+        error: MsgCofieFormat
+      - field: 16 Output Routing
+        rule: |
+          Must be an adapted sector in SMGT.
+        error: MsgNon-AdaptedSector
+      - field: 16 Output Routing
+        rule: |
+          Must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+      - field: 66 Map Identification
+        rule: |
+          Must be in the format La(a)(a)(a)(a)(a)(a).
+        error: MsgCofieFormat

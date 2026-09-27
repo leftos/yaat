@@ -426,7 +426,7 @@ Two consumers:
 
 This covers every deduction site at once: the map right-click menu (FRD header, Copy FRD, Pin marker, Direct to, Warp), the
 draw-route cursor label and drawn-waypoint names, `PilotSayBuilder` position reports, and yaat-server's ERAM QU/RD
-present-position anchors (`CrcClientState.Eram.cs`).
+present-position anchors (`CrcClientState.Eram.Route.cs`).
 
 ### Custom fixes
 

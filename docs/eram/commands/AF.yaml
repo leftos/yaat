@@ -1,0 +1,7 @@
+id: AF
+variants:
+  - title: Assign Frequency
+    descriptor: ASSIGN FREQUENCY
+    handler: not implemented
+    na: Radio frequency control; voice is handled outside YAAT.
+    fields: []

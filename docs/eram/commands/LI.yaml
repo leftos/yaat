@@ -1,0 +1,7 @@
+id: LI
+variants:
+  - title: Log In
+    descriptor: LOG IN
+    handler: not implemented
+    na: "Position sign-in, security and preference sets belong to CRC."
+    fields: []

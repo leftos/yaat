@@ -1,0 +1,32 @@
+id: LB
+variants:
+  - title: Range/Bearing/Fix Readout
+    descriptor: RANGE/BEARING/FIX
+    format: LB 68 65
+    multiple_flids: null
+    handler: LB.RangeBearingFix
+    fields:
+      - field: 68 Fix or Fix Radial Distance
+        rule: |
+          Must be one of: a. Fix or Airport with optional speed - aa(a)(a)(a)(/dd(d)(d));
+          b. Fix (or Airport) Radial Distance with optional speed - aa(a)(a)(a)ddd1ddd2(/dd(d)(d)).
+        error: MsgCofieFormat
+      - field: 68 Fix or Fix Radial Distance
+        rule: |
+          When a Fix Radial Distance, the radial ddd1 must be between 001-360 and the distance ddd2
+          must be between 001-999.
+        error: MsgCofieFormat
+      - field: 68 Fix or Fix Radial Distance
+        rule: |
+          When the optional speed is present, the speed must be not less than 55 knots or more than 9999 knots.
+        error: MsgInvalidSpeed
+      - field: 65 Trackball Coordinates
+        rule: |
+          Must be created by a trackball entry.
+        error: MsgCofieFormat
+      - field: 65 Trackball Coordinates
+        rule: |
+          Trackball capture does not contain a situation display point. The capture may also optionally
+          capture a Flight ID, used only when the capture is a Track Position Symbol (Paired Flight),
+          Paired Beacon Target Symbol, or Paired Primary Target Symbol.
+        error: MsgNoSituationDisplayPointCapture

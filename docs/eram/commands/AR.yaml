@@ -1,0 +1,17 @@
+id: AR
+variants:
+  - title: Altimeter Request
+    descriptor: ALTIMETER REQ
+    format: AR 13 (13) … (13) | AR (13) … (13) | AR 13 (13) (13) (13)
+    multiple_flids: null
+    handler: crc-local
+    fields:
+      - field: Position
+        rule: |
+          When entered at the A-Position, the channel must not be in Pending mode.
+        error: MsgNoFSPPrintingInPendingMode
+        na: A-Position / FSP printing channel; CRC always enters commands from the R-Position.
+      - field: 13 Reporting Station Identifier
+        rule: |
+          Must be in the format aa(a)(a)(a).
+        error: MsgCofieFormat

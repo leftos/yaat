@@ -1,0 +1,7 @@
+id: PO
+variants:
+  - title: Interfacility Point Out Eligibility Request
+    descriptor: POINT OUT ELIGIBILITY
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []

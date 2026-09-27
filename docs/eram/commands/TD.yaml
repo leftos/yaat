@@ -1,0 +1,7 @@
+id: TD
+variants:
+  - title: Test Device
+    descriptor: TEST DEVICE
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []

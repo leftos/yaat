@@ -1,0 +1,6 @@
+id: GI
+variants:
+  - title: General Information
+    descriptor: GEN INFO
+    handler: not implemented
+    fields: []

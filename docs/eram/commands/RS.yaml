@@ -1,0 +1,6 @@
+id: RS
+variants:
+  - title: Remove Strip
+    descriptor: REMOVE STRIP
+    handler: not implemented
+    fields: []

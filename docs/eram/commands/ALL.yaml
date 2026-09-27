@@ -1,0 +1,32 @@
+id: ALL
+variants:
+  - title: All Commands
+    descriptor: null
+    format: null
+    multiple_flids: null
+    handler: not implemented
+    fields:
+      - field: 01 Message Type
+        rule: |
+          Must be identifiable as a valid type, with the exception of the "implied" QN command.
+        error: MsgInvalidMessageType
+      - field: 01 Message Type
+        rule: |
+          Must have been received from an entry source which permits entry of this message type.
+        error: MsgIllegalSource
+      - field: 01 Message Type
+        rule: |
+          Reject all commands with a message type other than Log In (LI) if security is enabled at the
+          position of entry and no user is logged in at the position.
+        error: MsgMessageTypeMessageFailed
+        na: ERAM position security / log-in does not exist on VATSIM; the CRC user is always signed in.
+      - field: 01 Message Type
+        rule: |
+          Reject command if the number of fields present is less than the number of required fields
+          for this message type.
+        error: MsgMessageTooShort
+      - field: 01 Message Type
+        rule: |
+          Reject command if the number of fields present is greater than the number of required and
+          optional fields for this message type.
+        error: MsgMessageTooLong

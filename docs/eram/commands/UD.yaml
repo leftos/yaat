@@ -1,0 +1,7 @@
+id: UD
+variants:
+  - title: Delete a User Preference Set
+    descriptor: DELETE UPS
+    handler: not implemented
+    na: "Position sign-in, security and preference sets belong to CRC."
+    fields: []

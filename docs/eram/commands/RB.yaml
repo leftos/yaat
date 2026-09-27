@@ -1,0 +1,7 @@
+id: RB
+variants:
+  - title: Restore Arts III Base
+    descriptor: RESTORE ARTS
+    handler: not implemented
+    na: ARTS interface; no ARTS on VATSIM.
+    fields: []

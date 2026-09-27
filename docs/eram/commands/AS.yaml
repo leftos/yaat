@@ -1,0 +1,6 @@
+id: AS
+variants:
+  - title: Altimeter Setting
+    descriptor: ALTIMETER SETTING
+    handler: not implemented
+    fields: []

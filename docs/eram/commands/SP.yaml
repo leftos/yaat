@@ -1,0 +1,6 @@
+id: SP
+variants:
+  - title: Stereo Flight Plan Message
+    descriptor: STEREO FLIGHT PLAN
+    handler: not implemented
+    fields: []

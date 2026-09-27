@@ -1,0 +1,7 @@
+id: VC
+variants:
+  - title: Aircraft Alert Volume Configuration
+    descriptor: VOLUME CONFIGURATION
+    handler: not implemented
+    na: System adaptation or maintenance; not controller training.
+    fields: []

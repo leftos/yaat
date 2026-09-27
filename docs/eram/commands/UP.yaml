@@ -1,0 +1,7 @@
+id: UP
+variants:
+  - title: User Profile
+    descriptor: USER PROFILE
+    handler: not implemented
+    na: "Position sign-in, security and preference sets belong to CRC."
+    fields: []
