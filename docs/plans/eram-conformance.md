@@ -128,7 +128,7 @@ Fix these gaps, each test first:
 - **Pick kinds for the location-taking verbs.** QT, QH, LF, LC, LA, LB, QU and RD take a clicked location as a separate field, so Wave 2 left their flight-ID pick-kind check off. Add it together with each verb's location field.
 - **`DispatchQu` complexity.** It is over the 100-line / complexity-8 limit; split it into per-form helpers while adding QU's field checks.
 - **QZ prefix.** `QZ` is also the alternative prefix for implied commands, so `QZ 44 <FLID>` is a handoff. Two digits mean a sector; three mean an altitude. Today `DispatchEramMessage` (:89) always treats it as an altitude.
-- **QN:** reject a direction outside 1–9 and a leader length outside 0–3.
+- **QN:** reject a direction outside 1–9 and a leader length other than 0, 1, 2, 3 or 5 (QN.yaml field 59; `TryParsePositioningLeader` accepts only 0–3 today). A bad handoff sector answers `{cofie} FORMAT` under QN (field 16), not QP's `SECTOR FORMAT`, and `L00`/`L000` (undirected handoff to a facility) is legal.
 - **QS:** free text is 1–8 characters with no spaces (Sim `EramEntryEngine.FreeTextMaxLength` is 40 today). Add action/data combination errors and the full speed grammar.
 - **QT:** add the location operand and `QT D` target pairing; CRC sends it on Ctrl+Shift+click (`InputManager.cs:309`), and today we ignore the `D`.
 - **QH F:** use the clicked location, which is dropped today.
