@@ -153,6 +153,8 @@ Close the replay gap: point-out create and acknowledge (:2478-2499, :2574), DRI 
 
 **Handoff review rulings (user 2026-09-26):** the STARS redirect exemption does not apply to ERAM (a pending recipient gets NOT YOUR CONTROL and must accept, then re-initiate, or use `/OK`); `/OK` forces a handoff only on a track an ERAM sector of the same ARTCC owns (CRC `docs/crc/eram.md`: overrides never reach an external ARTCC's flights); a bare STARS TCP (`2B`) is not a handoff sector — spec only, `2B FORMAT` — while `Q2B`-style codes still work.
 
+**QR and self-handoff rulings (aviation consult 2026-09-26; the sources are silent, so these are yaat rulings, noted in the YAML):** QR is limited to the controlling sector through `RejectIfNotEditable`, `/OK` overriding within the same ARTCC, because the CERA is the owner's own verification record (`docs/crc/eram.md` :48, :624); `QR 000` clears the CERA (QR.yaml field 54); QR's field 54 is exactly `ddd` (ALT FORMAT) and one flight only. A handoff whose resolved target is the track's owner is refused with a coined `YaatHandoffToOwner` = `SECTOR IS OWNER` (it also covers a forced handoff that resolves to the owner).
+
 **Wave 3 follow-ups found while building (2026-09-26):**
 - A handoff to the track's own owner is accepted (pre-existing in `TrackEngine.ApplyHandoff`; aviation review 2026-09-26): refuse it for the ERAM entry form.
 - `TrackEngine.ApplyHandoff`'s plain path does not clear `HandoffRedirectedBy`, so a STARS display can keep an old redirect after a later handoff (pre-existing).
