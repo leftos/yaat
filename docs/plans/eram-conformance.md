@@ -162,7 +162,6 @@ Tests: one `EramConformance<Verb>Tests` class per verb through the `Harness/Eram
 ## Wave 4: first new commands
 
 - **HM / QH hold.** Records a hold annotation by reusing `RecordedHoldAnnotationChange` (`CrcClientState.FlightPlan.cs:404`); it is data only. CRC's ERAM has no hold view, so the hold shows in the QF readout and on STARS. Needs an aviation-sim-expert review of the hold fields (direction, turns, leg, EFC).
-- **QT coast (CT)** (moved from Wave 5, user 2026-09-27): QT's field 05/08/56/68 form coasts the track at the entered speed, altitude, heading and location (`EramCoastStore` exists); today it validates and accepts with no effect. Needs an aviation-sim-expert review.
 - **Docs:** `docs/crc-display-state.md`, `docs/crc-protocol-support.md`, and `CHANGELOG.md` bullets through the changelog skill.
 
 **Wave 4 rulings (user 2026-09-27; the SRS is silent on each, so they are yaat rulings noted in the YAML):** LD and LE measure along the remaining route (`RemainingRouteFixes`) and fall back to LC's straight-line distance when the fix is not on it; LD answers a bare Zulu `HHMM`, LE answers LC's `<gs>KT <±delta>`, both against the wall clock like LC. `QX /R` is the same state change as `QX` (drop), answered with the SURRENDER CONTROL descriptor. `QX FP` removes the strip the way `STRIPD` does and ACCEPTs as a no-op when there is none.

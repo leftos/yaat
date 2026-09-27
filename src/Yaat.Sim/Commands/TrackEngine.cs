@@ -168,6 +168,8 @@ public static partial class TrackEngine
         // A dropped Track has no owner, so any pending accepted indicator (Oxxx/Kxxx) is meaningless and
         // would render against a null owner — clear it.
         ClearRecentHandoffAccepted(ac);
+        // A QT coast ends with the track it coasts (QX Drop Track).
+        ac.Eram.EndCoast();
         // Consume the FP-creator auto-track entitlement so the next tick's
         // TickFlightPlanCreatorAutoTrack doesn't immediately re-acquire when
         // the pilot is still squawking the assigned code. Without this, manual

@@ -10,7 +10,7 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 **Steer (user 2026-09-26): ERAM conformance only until it is done** — no other item (programme, wave or single) starts before every ERAM wave has landed.
 
-- [ ] **ERAM command conformance** (a controller's request, 2026-09-26) — [eram-conformance.md](./eram-conformance.md): a YAML command reference extracted from the ERAM EDSM SRS, a conformance test, ACCEPT/descriptor feedback and field validation for our ERAM verbs, then CO, the full AM field set, and HM/QH hold. Waves 0–3 and their follow-ups done (2026-09-27); next: the rest of Wave 4 (HM/QH hold, QT coast).
+- [ ] **ERAM command conformance** (a controller's request, 2026-09-26) — [eram-conformance.md](./eram-conformance.md): a YAML command reference extracted from the ERAM EDSM SRS, a conformance test, ACCEPT/descriptor feedback and field validation for our ERAM verbs, then CO, the full AM field set, and HM/QH hold. Waves 0–3 and their follow-ups done (2026-09-27); next: the rest of Wave 4 (HM/QH hold).
 
 ## Current programme
 

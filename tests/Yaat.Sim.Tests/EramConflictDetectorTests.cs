@@ -264,4 +264,18 @@ public class EramConflictDetectorTests
         Assert.Equal("ESTCA_AAL100_UAL200", EramConflictDetector.MakeConflictId("UAL200", "AAL100"));
         Assert.Equal("ESTCA_AAL100_UAL200", EramConflictDetector.MakeConflictId("AAL100", "UAL200"));
     }
+
+    [Fact]
+    public void QtCoastedTrack_IsNotUsedForStca()
+    {
+        // The pair that ConvergingPair_FarApartNow_DetectedByFourMinuteProbe detects, with one track QT-coasted: a
+        // coast track is unpaired from its target and dead-reckoned, so it is not used for separation (§5-13-7).
+        AircraftState a = MakeAircraft("AAL100", BaseLat, BaseLon, Fl350, heading: 90, cruiseAltitude: Fl350);
+        AircraftState b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(25.0), Fl350, heading: 270, cruiseAltitude: Fl350);
+        Assert.True(Detected(a, b));
+
+        a.Eram.IsCoastTrack = true;
+
+        Assert.False(Detected(a, b));
+    }
 }

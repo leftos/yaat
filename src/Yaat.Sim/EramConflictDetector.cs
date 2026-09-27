@@ -42,11 +42,11 @@ public static class EramConflictDetector
         var eligible = new List<AircraftState>(aircraft.Count);
         foreach (AircraftState ac in aircraft)
         {
-            // A QH-frozen track is unpaired from the target and holds a static position, so it must not be
-            // used in separation/conflict prediction (7110.65 §5-13-7). A coasting track (below the ERAM
-            // coverage floor) is likewise excluded implicitly — it has descended out of en-route conflict
-            // altitudes, so it never pairs at the STCA geometry.
-            if (ConflictAlertDetector.IsEligible(ac) && !ac.Eram.IsFrozen)
+            // A QH-frozen track is unpaired from the target and holds a static position, and a QT-coasted track is
+            // unpaired and dead-reckoned, so neither may be used in separation/conflict prediction (7110.65 §5-13-7).
+            // A coverage-coasting track (below the ERAM coverage floor) is excluded implicitly — it has descended out
+            // of en-route conflict altitudes, so it never pairs at the STCA geometry.
+            if (ConflictAlertDetector.IsEligible(ac) && !ac.Eram.IsFrozen && !ac.Eram.IsCoastTrack)
             {
                 eligible.Add(ac);
             }

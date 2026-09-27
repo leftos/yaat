@@ -860,4 +860,227 @@ public class EramEntryEngineTests
     [InlineData("QZ 350")]
     [InlineData("HELLO")]
     public void UnknownEntry_IsRefused(string entry) => Assert.False(Apply(Aircraft(), entry, Sector44).Success);
+
+    // ─── COAST (QT Coast Track) ──────────────────────────────────────────
+
+    private static readonly LatLon CoastAnchor = new(37.5, -122.0);
+
+    [Fact]
+    public void Coast_WithAHeading_TakesTheTrack_AndDeadReckonsFromTheAnchor()
+    {
+        AircraftState ac = Aircraft();
+
+        CommandResult result = Apply(ac, "COAST T100 @37.5,-122 S360 A150 H90", Sector44);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Same(Sector44, ac.Track.Owner);
+        Assert.True(ac.Eram.IsCoastTrack);
+        Assert.Equal(150, ac.Eram.CoastAltitude);
+        Assert.Equal(360, ac.Eram.CoastSpeed);
+        Assert.Empty(ac.Eram.CoastRoute);
+        Assert.Equal(CoastAnchor, ac.Eram.CoastPositionAt(100));
+
+        // 360 kt for 60 s is 6 nm on the entered heading, a magnetic heading flown as its true course.
+        double trueCourse = MagneticDeclination.MagneticToTrue(90, CoastAnchor.Lat, CoastAnchor.Lon);
+        LatLon expected = GeoMath.ProjectPoint(CoastAnchor, new TrueHeading(trueCourse), 6.0);
+        Assert.True(GeoMath.DistanceNm(expected, ac.Eram.CoastPositionAt(160)!.Value) < 0.01);
+    }
+
+    [Fact]
+    public void Coast_WithoutValues_AnchorsAtTheTarget_AtItsAltitude_AndTheFiledTas()
+    {
+        AircraftState ac = Aircraft();
+        ac.FlightPlan.CruiseSpeed = 450;
+
+        Assert.True(Apply(ac, "COAST T0", Sector44).Success);
+
+        Assert.Equal(ac.Position.Lat, ac.Eram.CoastLat);
+        Assert.Equal(ac.Position.Lon, ac.Eram.CoastLon);
+        Assert.Equal(112, ac.Eram.CoastAltitude);
+        Assert.Equal(450, ac.Eram.CoastSpeed);
+    }
+
+    [Fact]
+    public void Coast_WithoutAHeading_FliesTheRoute_ThenHoldsTheLastLegsCourse()
+    {
+        AircraftState ac = Aircraft();
+        var anchor = new LatLon(37.7, -122.3);
+        var first = new LatLon(37.7, -122.2);
+        var turn = new LatLon(37.7, -122.0);
+        var end = new LatLon(38.0, -122.0);
+
+        // The anchor is short of the route's first fix, on the line of the first leg: the track flies to it.
+        Assert.True(Apply(ac, "COAST T0 @37.7,-122.3 S600 R37.7,-122.2 R37.7,-122.0 R38.0,-122.0", Sector44).Success);
+        Assert.Equal([first, turn, end], ac.Eram.CoastRoute);
+
+        // 600 kt for 60 s is 10 nm: about 4.7 nm to the first fix, the rest east along the next leg.
+        double beyondFirst = 10.0 - GeoMath.DistanceNm(anchor, first);
+        LatLon expected = GeoMath.ProjectPoint(first, new TrueHeading(GeoMath.BearingTo(first, turn)), beyondFirst);
+        Assert.True(GeoMath.DistanceNm(expected, ac.Eram.CoastPositionAt(60)!.Value) < 0.01);
+
+        // Past the last fix the track holds the last leg's course.
+        LatLon later = ac.Eram.CoastPositionAt(600)!.Value;
+        Assert.True(later.Lat > end.Lat);
+        Assert.Equal(end.Lon, later.Lon, 2);
+    }
+
+    [Fact]
+    public void Coast_FromALocationPastTheNextFix_JoinsTheRouteAtTheLegItIsOn()
+    {
+        AircraftState ac = Aircraft();
+        ac.Position = new LatLon(37.7, -122.2);
+
+        Assert.True(Apply(ac, "COAST T0 @37.8,-122.0 S600 R37.7,-122.0 R38.0,-122.0", Sector44).Success);
+
+        Assert.Equal([new LatLon(38.0, -122.0)], ac.Eram.CoastRoute);
+    }
+
+    [Fact]
+    public void Coast_OnAFrozenTrack_StartsFromTheFrozenSpot_AndUnfreezes()
+    {
+        AircraftState ac = Aircraft();
+        Assert.True(Apply(ac, "FREEZE 37.25 -121.75", null).Success);
+        ac.Altitude = 20_000;
+
+        Assert.True(Apply(ac, "COAST T0", Sector44).Success);
+
+        Assert.False(ac.Eram.IsFrozen);
+        Assert.Null(ac.Eram.FrozenLat);
+        Assert.Equal(37.25, ac.Eram.CoastLat);
+        Assert.Equal(-121.75, ac.Eram.CoastLon);
+        Assert.Equal(112, ac.Eram.CoastAltitude);
+    }
+
+    [Theory]
+    [InlineData("FREEZE 37.25 -121.75", null)]
+    [InlineData("TRACK", "ZOA_44_CTR")]
+    public void Coast_EndsOnAFreezeOrATrackStart(string entry, string? identityCallsign)
+    {
+        AircraftState ac = Aircraft();
+        Assert.True(Apply(ac, "COAST T0 S300", Sector44).Success);
+
+        Assert.True(Apply(ac, entry, identityCallsign is null ? null : Sector44).Success);
+
+        Assert.False(ac.Eram.IsCoastTrack);
+        Assert.Null(ac.Eram.CoastLat);
+        Assert.Null(ac.Eram.CoastPositionAt(60));
+    }
+
+    [Fact]
+    public void Coast_EndsOnADrop()
+    {
+        AircraftState ac = Aircraft();
+        Assert.True(Apply(ac, "COAST T0 S300", Sector44).Success);
+
+        Assert.True(TrackEngine.HandleDrop(ac).Success);
+
+        Assert.False(ac.Eram.IsCoastTrack);
+        Assert.Null(ac.Track.Owner);
+    }
+
+    [Theory]
+    [InlineData("COAST T0", EramEntryErrors.AlreadyTracked)]
+    [InlineData("COAST /OK T0", EramEntryErrors.CofieFormat + " /OK")] // the Coast Track format has no field 60
+    public void Coast_OnAnotherSectorsTrack_IsRefused(string entry, string message)
+    {
+        AircraftState ac = Aircraft();
+        ac.Track.Owner = Sector45;
+
+        CommandResult result = Apply(ac, entry, Sector44);
+
+        Assert.False(result.Success);
+        Assert.Equal(message, result.Message);
+        Assert.False(ac.Eram.IsCoastTrack);
+        Assert.Same(Sector45, ac.Track.Owner);
+    }
+
+    [Fact]
+    public void Coast_FromPastAFixBehind_DoesNotTurnBack()
+    {
+        // A vectored aircraft's remaining route starts at the fix nearest it, which it has already passed.
+        AircraftState ac = Aircraft();
+        var behind = new LatLon(37.7, -122.0);
+        var next = new LatLon(38.0, -122.0);
+        var after = new LatLon(38.3, -122.0);
+
+        Assert.True(Apply(ac, "COAST T0 @37.75,-122.0 S600 R37.7,-122.0 R38.0,-122.0 R38.3,-122.0", Sector44).Success);
+
+        Assert.Equal([next, after], ac.Eram.CoastRoute);
+        Assert.True(ac.Eram.CoastPositionAt(30)!.Value.Lat > 37.75);
+        Assert.NotEqual(behind, ac.Eram.CoastRoute[0]);
+    }
+
+    [Fact]
+    public void Coast_FromPastTheFinalFix_HoldsTheLastLegsCourse()
+    {
+        AircraftState ac = Aircraft();
+        ac.TrueTrack = new TrueHeading(270);
+
+        Assert.True(Apply(ac, "COAST T0 @38.1,-122.0 S600 R37.7,-122.0 R38.0,-122.0", Sector44).Success);
+
+        Assert.Empty(ac.Eram.CoastRoute);
+        double lastLeg = GeoMath.BearingTo(new LatLon(37.7, -122.0), new LatLon(38.0, -122.0));
+        Assert.Equal(lastLeg, ac.Eram.CoastTrueCourse!.Value, 6);
+        Assert.True(ac.Eram.CoastPositionAt(60)!.Value.Lat > 38.1);
+    }
+
+    [Fact]
+    public void Coast_WithALoneFixBehind_HoldsTheTrack()
+    {
+        AircraftState ac = Aircraft();
+        ac.TrueTrack = new TrueHeading(0);
+
+        Assert.True(Apply(ac, "COAST T0 @37.8,-122.0 S600 R37.7,-122.0", Sector44).Success);
+
+        Assert.Empty(ac.Eram.CoastRoute);
+        Assert.Equal(0, ac.Eram.CoastTrueCourse!.Value, 6);
+    }
+
+    [Fact]
+    public void Recoast_WithNoHeadingOrRoute_KeepsTheCoastsCourse()
+    {
+        AircraftState ac = Aircraft();
+        ac.TrueTrack = new TrueHeading(0);
+        Assert.True(Apply(ac, "COAST T0 @37.5,-122 S360 H90", Sector44).Success);
+        double coastCourse = ac.Eram.CoastTrueCourse!.Value;
+
+        Assert.True(Apply(ac, "COAST T60 S300", Sector44).Success);
+
+        Assert.Equal(coastCourse, ac.Eram.CoastTrueCourse!.Value, 6);
+        Assert.Equal(300, ac.Eram.CoastSpeed);
+        LatLon sixNmOut = GeoMath.ProjectPoint(new LatLon(37.5, -122), new TrueHeading(coastCourse), 6.0);
+        Assert.True(GeoMath.DistanceNm(sixNmOut, new LatLon(ac.Eram.CoastLat!.Value, ac.Eram.CoastLon!.Value)) < 0.01);
+    }
+
+    [Theory]
+    [InlineData("COAST", EramEntryErrors.MessageTooShort)]
+    [InlineData("COAST S300", EramEntryErrors.MessageTooShort)]
+    [InlineData("COAST T0 S3x0", EramEntryErrors.CofieFormat + " S3x0")]
+    [InlineData("COAST T0 @north", EramEntryErrors.CofieFormat + " @north")]
+    [InlineData("COAST T0 R91,0", EramEntryErrors.CofieFormat + " R91,0")]
+    [InlineData("COAST T0 X1", EramEntryErrors.CofieFormat + " X1")]
+    [InlineData("COAST TInfinity", EramEntryErrors.CofieFormat + " TInfinity")]
+    [InlineData("COAST TNaN", EramEntryErrors.CofieFormat + " TNaN")]
+    [InlineData("COAST T-1", EramEntryErrors.CofieFormat + " T-1")]
+    [InlineData("COAST T0 H361", EramEntryErrors.CofieFormat + " H361")]
+    public void Coast_Malformed_IsRefused(string entry, string message)
+    {
+        AircraftState ac = Aircraft();
+
+        CommandResult result = Apply(ac, entry, Sector44);
+
+        Assert.False(result.Success);
+        Assert.Equal(message, result.Message);
+        Assert.False(ac.Eram.IsCoastTrack);
+        Assert.Null(ac.Track.Owner);
+    }
+
+    [Fact]
+    public void Coast_WithoutAnIdentity_IsRefused()
+    {
+        AircraftState ac = Aircraft();
+
+        Assert.Equal(EramEntryErrors.SessionNotActive, Apply(ac, "COAST T0", null).Message);
+        Assert.False(ac.Eram.IsCoastTrack);
+    }
 }

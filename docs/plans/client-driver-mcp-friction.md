@@ -20,3 +20,14 @@ Friction met while driving YAAT or CRC through `tools/Yaat.ClientDriver.Mcp` ([d
     - virtual (posted-message) input for WPF/CRC windows, where CRC accepts it;
     - otherwise, a visible "agent is typing" cue (e.g. a result line or a toast);
     - a read-back after every `set_text`, so a race is caught instead of submitted.
+
+## Session 2026-09-27: ERAM coast/freeze check (CRC 2.18.2, ZOA_ERAM profile created through CRC's own dialogs)
+
+Recurrences: #7 (no CRC launcher; `Start-Process` on `%LOCALAPPDATA%\CRC\Application\CRC.exe`), #1 (also for YAAT: `list_windows` missed its Connect to Server and Load Scenario windows, so File > Connect looked like a no-op until `tail_yaat_log` showed the window), #3 (CRC combo popups closed between calls; `{F4}` + `dump_tree` + `{DOWN n}`, off by one when nothing starts selected).
+
+13. **`screenshot` of YAAT's main window in virtual mode leaves out its open dialogs.** The Connect dialog was open but absent from the capture. Wanted: composite owned windows in, or list them in the result.
+14. **A YAAT combo item scrolled out of its popup can't be clicked.** `click(e105)` (ZOA in Create Room's ARTCC combo, rect y=1245) failed in virtual mode with "no shown window of its process is under its centre"; a real-mode `click_point` there did not select it either. Workaround: real mode `{DOWN 18}{ENTER}` with the index from item rects. Wanted: `select_item(combo, text)` for Avalonia combos too.
+15. **`click` reports a rectangle other than the one it clicked.** `click(e101)` said "clicked at (2743,882)" while printing the element rect as `(2828,870 …) enabled=False`, apparently read after the click. Report the rect actually clicked.
+16. **`send_keys` to CRC's ERAM scope succeeds without reaching the MCA.** `send_keys("QT UAL790{ENTER}", focusElementId=e58)` returned success; nothing reached the MCA or the server, because window focus does not reach the scope's embedded WinForms input. The first `click_point` on the MCA picked it up (moved it) rather than focusing it; the next click dropped it and only then did typing work. Wanted: a way to focus the scope's input control, and a warning when keys land somewhere other than the intended target.
+17. **No wait primitive.** A timed check (screenshot, wait ~30 s, screenshot) needed background timers because the harness blocks foreground `sleep`. Wanted: `wait(seconds)` or wait-until-changed in the MCP (see also the plan's `wait_until` item).
+18. **An open popup can't be screenshotted.** Real-mode screenshots bring the window forward, which closes an open combo popup; only UIA can read it.

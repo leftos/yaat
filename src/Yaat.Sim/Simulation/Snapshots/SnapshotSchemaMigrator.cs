@@ -22,7 +22,7 @@ public sealed class SnapshotSchemaException(int snapshotVersion, int requiredVer
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 28;
+    public const int CurrentSchemaVersion = 29;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -174,6 +174,10 @@ public static class SnapshotSchemaMigrator
         //   instead of releasing it and issuing it again a tick later. No data transformation — the field is optional and
         //   older snapshots default to 0, which reads as "the drop-out starts now": a restore taken in the middle of one
         //   holds the reduction for the full hysteresis again rather than releasing it early.
+        // V28→V29: Added the QT Coast Track fields to AircraftEramStateDto (IsCoastTrack, CoastLat/CoastLon,
+        //   CoastStartSeconds, CoastAltitude, CoastSpeed, CoastTrueCourse, CoastRoute). No data transformation — the
+        //   fields are optional and older snapshots default to not coasting, which is what every track written before the
+        //   coast existed was.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (AircraftSnapshotDto ac in snapshot.Aircraft)

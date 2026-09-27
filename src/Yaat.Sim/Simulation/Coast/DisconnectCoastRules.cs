@@ -16,12 +16,12 @@ public static class DisconnectCoastRules
     public const double EramCoverageFloorAglFt = 1500;
 
     /// <summary>
-    /// Stateless ERAM visibility: a QH-frozen or unsupported track is always present; a vehicle or a track on the
+    /// Stateless ERAM visibility: a QH-frozen, QT-coasted or unsupported track is always present; a vehicle or a track on the
     /// ground never is; otherwise the track shows at or above field elevation + <see cref="EramCoverageFloorAglFt"/>.
     /// </summary>
     public static bool IsVisibleOnEram(AircraftState ac, NavigationDatabase navDb)
     {
-        if (ac.Ghost.IsUnsupported || ac.Eram.IsFrozen)
+        if (ac.Ghost.IsUnsupported || ac.Eram.IsFrozen || ac.Eram.IsCoastTrack)
         {
             return true;
         }

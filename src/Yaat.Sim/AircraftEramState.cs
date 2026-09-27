@@ -118,6 +118,95 @@ public class AircraftEramState
     public int? FrozenAltitude { get; set; }
 
     /// <summary>
+    /// QT Coast Track (docs/eram/commands/QT.yaml, action <c>CT</c>; 7110.65 §5-13-8a flat track): the track is unpaired
+    /// from the target and moves on its own from <see cref="CoastLat"/>/<see cref="CoastLon"/> at <see cref="CoastSpeed"/>,
+    /// along <see cref="CoastRoute"/> and then on its last leg's course, or on <see cref="CoastTrueCourse"/> when the route
+    /// is empty. Its position is <see cref="CoastPositionAt"/>, a function of the stored anchor and the sim time, so a
+    /// replay or a restore shows the same track. It is exempt from STCA (§5-13-7) and from every auto-removal path, and
+    /// ends only on a track start (QT) or a drop (QX). Coast and freeze exclude each other.
+    /// </summary>
+    public bool IsCoastTrack { get; set; }
+
+    /// <summary>The coast anchor: where the coasted track was at <see cref="CoastStartSeconds"/>. Null unless coasting.</summary>
+    public double? CoastLat { get; set; }
+    public double? CoastLon { get; set; }
+
+    /// <summary>Sim-elapsed seconds at which the coast was entered, the time of the anchor.</summary>
+    public double? CoastStartSeconds { get; set; }
+
+    /// <summary>The coasted track's displayed altitude in hundreds of feet.</summary>
+    public int? CoastAltitude { get; set; }
+
+    /// <summary>The coasted track's speed in knots (true airspeed, no wind).</summary>
+    public int? CoastSpeed { get; set; }
+
+    /// <summary>The course in degrees true the track holds once <see cref="CoastRoute"/> is empty or flown out.</summary>
+    public double? CoastTrueCourse { get; set; }
+
+    /// <summary>The fixes the coasted track flies through from the anchor, in order. Empty when a heading was entered.</summary>
+    public List<LatLon> CoastRoute { get; set; } = [];
+
+    /// <summary>
+    /// The coasted track's position at <paramref name="nowSeconds"/>: <see cref="CoastSpeed"/> times the time since
+    /// <see cref="CoastStartSeconds"/>, flown from the anchor through <see cref="CoastRoute"/> and then on the last leg's
+    /// course (or <see cref="CoastTrueCourse"/> with no route). A time before the anchor's shows the anchor. Null unless
+    /// coasting.
+    /// </summary>
+    public LatLon? CoastPositionAt(double nowSeconds) => CoastStateAt(nowSeconds)?.Position;
+
+    /// <summary>The coasted track's course in degrees true at <paramref name="nowSeconds"/>. Null unless coasting.</summary>
+    public double? CoastCourseAt(double nowSeconds) => CoastStateAt(nowSeconds)?.Course;
+
+    private (LatLon Position, double Course)? CoastStateAt(double nowSeconds)
+    {
+        if (!IsCoastTrack || (CoastLat is not { } lat) || (CoastLon is not { } lon) || (CoastStartSeconds is not { } start))
+        {
+            return null;
+        }
+
+        double distanceNm = (CoastSpeed ?? 0) * Math.Max(0, nowSeconds - start) / 3600.0;
+        return FlyCoast(new LatLon(lat, lon), distanceNm);
+    }
+
+    // Flies distanceNm from the anchor through CoastRoute, then on the last leg's course (CoastTrueCourse with no route).
+    private (LatLon Position, double Course) FlyCoast(LatLon from, double distanceNm)
+    {
+        double course = CoastTrueCourse ?? 0;
+        foreach (LatLon fix in CoastRoute)
+        {
+            double legNm = GeoMath.DistanceNm(from, fix);
+            if (legNm <= 0)
+            {
+                continue;
+            }
+
+            course = GeoMath.BearingTo(from, fix);
+            if (legNm >= distanceNm)
+            {
+                return (GeoMath.ProjectPoint(from, new TrueHeading(course), distanceNm), course);
+            }
+
+            distanceNm -= legNm;
+            from = fix;
+        }
+
+        return (GeoMath.ProjectPoint(from, new TrueHeading(course), distanceNm), course);
+    }
+
+    /// <summary>Ends a QT coast: the track pairs with its target again.</summary>
+    public void EndCoast()
+    {
+        IsCoastTrack = false;
+        CoastLat = null;
+        CoastLon = null;
+        CoastStartSeconds = null;
+        CoastAltitude = null;
+        CoastSpeed = null;
+        CoastTrueCourse = null;
+        CoastRoute = [];
+    }
+
+    /// <summary>
     /// The sector that owned the Track immediately before a handoff was accepted (or the Track was
     /// force-taken). While the accept window is open the previous owner's FDB shows the Field-E accepted
     /// indicator <c>Oxxx</c>/<c>Kxxx</c>/<c>OUNK</c> (docs/crc/eram.md §Data Blocks; CRC
@@ -154,6 +243,14 @@ public class AircraftEramState
             FrozenLat = FrozenLat,
             FrozenLon = FrozenLon,
             FrozenAltitude = FrozenAltitude,
+            IsCoastTrack = IsCoastTrack,
+            CoastLat = CoastLat,
+            CoastLon = CoastLon,
+            CoastStartSeconds = CoastStartSeconds,
+            CoastAltitude = CoastAltitude,
+            CoastSpeed = CoastSpeed,
+            CoastTrueCourse = CoastTrueCourse,
+            CoastRoute = CoastRoute.Count > 0 ? [.. CoastRoute] : null,
             RecentHandoffPreviousOwner = RecentHandoffPreviousOwner?.ToSnapshot(),
             RecentHandoffWasForced = RecentHandoffWasForced,
             RecentHandoffAcceptedAtSeconds = RecentHandoffAcceptedAtSeconds,
@@ -206,6 +303,14 @@ public class AircraftEramState
             FrozenLat = dto.FrozenLat,
             FrozenLon = dto.FrozenLon,
             FrozenAltitude = dto.FrozenAltitude,
+            IsCoastTrack = dto.IsCoastTrack,
+            CoastLat = dto.CoastLat,
+            CoastLon = dto.CoastLon,
+            CoastStartSeconds = dto.CoastStartSeconds,
+            CoastAltitude = dto.CoastAltitude,
+            CoastSpeed = dto.CoastSpeed,
+            CoastTrueCourse = dto.CoastTrueCourse,
+            CoastRoute = dto.CoastRoute is not null ? [.. dto.CoastRoute] : [],
             RecentHandoffPreviousOwner = dto.RecentHandoffPreviousOwner is null ? null : TrackOwner.FromSnapshot(dto.RecentHandoffPreviousOwner),
             RecentHandoffWasForced = dto.RecentHandoffWasForced,
             RecentHandoffAcceptedAtSeconds = dto.RecentHandoffAcceptedAtSeconds,

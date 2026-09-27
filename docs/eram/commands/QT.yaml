@@ -4,7 +4,8 @@ variants:
     descriptor: COAST TRACK
     format: QT (05) (08) (56) 64 (65) (68) 02
     multiple_flids: false
-    handler: not implemented
+    handler: QT.CoastTrack
+    note: "yaat rulings (user and aviation review 2026-09-27; 7110.65 §5-13-7, §5-13-8a): CT takes the track as QT.Track does but never another sector's track (the format has no field 60, so /OK with CT is CT INVALID COMBINATION), and coasts it: the track is unpaired from the target, which stays on the scope while in coverage, and moves from the entered location (65 or 68), else from where the track shows, on the entered heading (56, magnetic), else along the remaining route (it joins the route leg nearest the location at that leg's end fix, never turning back to a fix it is past; past the last fix it holds the last leg's course), at the entered speed (05), else the filed true airspeed, with no wind. It shows the entered altitude (08), else the data block's; showing a block's upper altitude, and the data block's altitude for OTP or VFR with none, is a yaat convention with no FAA text. The coast has no timer and no automatic re-pair: only a plain QT (start track) or QX ends it. Coast and freeze exclude each other, and a coast track is exempt from STCA and from every auto-removal path. A repeated value field: the last one wins."
     fields:
       - field: Position
         rule: |

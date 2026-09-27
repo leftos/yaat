@@ -10,7 +10,8 @@ namespace Yaat.Sim.Commands;
 ///
 /// <para>
 /// Grammar: <c>TRACK [/OK]</c> (QT — the unforced form refuses another sector's track); <c>FREEZE {lat} {lon}</c>
-/// (QH F — the altitude is snapshotted from the aircraft at apply time); <c>QQ</c>, <c>QQ L</c>, <c>QQ [R|L|P]{alt}</c>
+/// (QH F — the altitude is snapshotted from the aircraft at apply time); <c>COAST T{seconds} [@{lat},{lon}]
+/// [S{knots}] [A{alt}] [H{degrees}] [R{lat},{lon}]…</c> (QT CT — see <see cref="ApplyCoast"/>); <c>QQ</c>, <c>QQ L</c>, <c>QQ [R|L|P]{alt}</c>
 /// (interim / local / procedure altitude tiers, in hundreds of feet); <c>QR {alt}</c> (controller-entered altitude);
 /// <c>QS *</c>, <c>QS */</c>, <c>QS /*</c>, <c>QS /{speed}</c>, <c>QS {heading}</c>, <c>QS `{text}</c> (the FDB line-4
 /// HSF fields, stored in the canonical forms CRC's menus re-parse); <c>LF [{label}]</c> (CRR group membership; a bare
@@ -67,6 +68,7 @@ public static class EramEntryEngine
         {
             "TRACK" => ApplyTrack(ac, args, identity),
             "FREEZE" => ApplyFreeze(ac, args),
+            "COAST" => ApplyCoast(ac, args, identity),
             "QQ" => ApplyQq(ac, args),
             "QR" => ApplyQr(ac, args),
             "QS" => ApplyQs(ac, args),
@@ -471,12 +473,233 @@ public static class EramEntryEngine
             return Refused(EramEntryErrors.AlreadyTracked);
         }
 
+        StartTrack(ac, identity);
+        Unfreeze(ac);
+        ac.Eram.EndCoast();
+        return new CommandResult(true, $"QT {ac.Callsign}");
+    }
+
+    private static void StartTrack(AircraftState ac, TrackOwner identity)
+    {
         ac.Track.Owner = identity;
         ac.Track.HandoffPeer = null;
         ac.Track.HandoffInitiatedAt = null;
         ac.Track.HandoffRedirectedBy = null;
+    }
+
+    /// <summary>The fields of a <c>COAST</c> entry, keyed by their one-letter prefix; <c>R</c> fixes in order.</summary>
+    private sealed class CoastArgs
+    {
+        public Dictionary<char, string> Values { get; } = [];
+
+        public List<LatLon> Route { get; } = [];
+    }
+
+    /// <summary>A coast as it starts: the anchor and its sim time, altitude (hundreds of feet), speed, course and route.</summary>
+    private readonly record struct CoastStart(LatLon Anchor, double Seconds, int Altitude, int Speed, double TrueCourse, List<LatLon> Route);
+
+    /// <summary>
+    /// QT Coast Track (docs/eram/commands/QT.yaml, action <c>CT</c>; 7110.65 §5-13-8a flat track): takes the track the way
+    /// <c>TRACK</c> does, but never another sector's track (the Coast Track format has no field 60), then unpairs it from
+    /// the target and moves it on its own until a track start or a drop. <c>T</c> is the sim time of the entry, the time
+    /// of the anchor. What the entry leaves out is taken from the track at apply time: the anchor is its displayed
+    /// position (the frozen spot, the coasted position, or the target's), the altitude the data block's, the speed the
+    /// filed true airspeed (the ground speed when none is filed). With <c>H</c>, a magnetic heading, the track holds that
+    /// heading and flies no route; without it, it flies the <c>R</c> fixes as <see cref="JoinRoute"/> joins them. Coasting
+    /// unfreezes a frozen track.
+    /// </summary>
+    private static CommandResult ApplyCoast(AircraftState ac, List<string> args, TrackOwner? identity)
+    {
+        if (identity is null)
+        {
+            return Refused(EramEntryErrors.SessionNotActive);
+        }
+
+        var coast = new CoastArgs();
+        if (ReadCoastArgs(args, coast) is { } badToken)
+        {
+            return Refused(EramEntryErrors.CofieFormat, badToken);
+        }
+        if (!coast.Values.TryGetValue('T', out string? secondsText))
+        {
+            return Refused(EramEntryErrors.MessageTooShort);
+        }
+        if ((ac.Track.Owner is not null) && !ac.Track.Owner.MatchesPosition(identity))
+        {
+            return Refused(EramEntryErrors.AlreadyTracked);
+        }
+
+        CoastStart start = ResolveCoastStart(ac, coast, double.Parse(secondsText, NumberStyles.Float, CultureInfo.InvariantCulture));
+        StartTrack(ac, identity);
         Unfreeze(ac);
-        return new CommandResult(true, $"QT {ac.Callsign}");
+        WriteCoast(ac.Eram, start);
+        return new CommandResult(true, $"CST {ac.Callsign}");
+    }
+
+    // What the entry leaves out comes from the track as it shows at the entry's time.
+    private static CoastStart ResolveCoastStart(AircraftState ac, CoastArgs coast, double seconds)
+    {
+        LatLon anchor = coast.Values.TryGetValue('@', out string? at) ? ParseCoastLatLon(at)!.Value : DisplayedPosition(ac, seconds);
+        int altitude = CoastInt(coast, 'A') ?? DisplayedAltitude(ac);
+        int speed = CoastInt(coast, 'S') ?? FiledTrueAirspeed(ac);
+        if (CoastInt(coast, 'H') is { } heading)
+        {
+            double trueCourse = MagneticDeclination.MagneticToTrue(heading, anchor.Lat, anchor.Lon);
+            return new CoastStart(anchor, seconds, altitude, speed, trueCourse, []);
+        }
+
+        // A re-coast keeps the coast's own course; otherwise the target's track.
+        double currentCourse = ac.Eram.CoastCourseAt(seconds) ?? ac.TrueTrack.Degrees;
+        (List<LatLon> route, double course) = JoinRoute(anchor, currentCourse, coast.Route);
+        return new CoastStart(anchor, seconds, altitude, speed, course, route);
+    }
+
+    private static void WriteCoast(AircraftEramState eram, CoastStart start)
+    {
+        eram.IsCoastTrack = true;
+        eram.CoastLat = start.Anchor.Lat;
+        eram.CoastLon = start.Anchor.Lon;
+        eram.CoastStartSeconds = start.Seconds;
+        eram.CoastAltitude = start.Altitude;
+        eram.CoastSpeed = start.Speed;
+        eram.CoastTrueCourse = start.TrueCourse;
+        eram.CoastRoute = start.Route;
+    }
+
+    // Returns the first token that is not a COAST field, or null when every token reads.
+    private static string? ReadCoastArgs(List<string> args, CoastArgs coast)
+    {
+        foreach (string arg in args)
+        {
+            if ((arg.Length < 2) || !IsCoastValue(arg[0], arg[1..]))
+            {
+                return arg;
+            }
+            if (arg[0] == 'R')
+            {
+                coast.Route.Add(ParseCoastLatLon(arg[1..])!.Value);
+                continue;
+            }
+            coast.Values[arg[0]] = arg[1..];
+        }
+        return null;
+    }
+
+    private static bool IsCoastValue(char prefix, string value) =>
+        prefix switch
+        {
+            'T' => double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double t) && double.IsFinite(t) && (t >= 0),
+            '@' or 'R' => ParseCoastLatLon(value) is not null,
+            'H' => int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out int heading) && (heading <= 360),
+            'S' or 'A' => int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out _),
+            _ => false,
+        };
+
+    private static LatLon? ParseCoastLatLon(string value)
+    {
+        string[] parts = value.Split(',');
+        if (
+            (parts.Length != 2)
+            || !double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out double lat)
+            || !double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double lon)
+        )
+        {
+            return null;
+        }
+        return (Math.Abs(lat) <= 90) && (Math.Abs(lon) <= 180) ? new LatLon(lat, lon) : null;
+    }
+
+    private static int? CoastInt(CoastArgs coast, char prefix) =>
+        coast.Values.TryGetValue(prefix, out string? text) ? int.Parse(text, CultureInfo.InvariantCulture) : null;
+
+    // Where the track shows now: the frozen spot, the coasted position, or the target.
+    private static LatLon DisplayedPosition(AircraftState ac, double nowSeconds)
+    {
+        if (ac.Eram.IsFrozen && (ac.Eram.FrozenLat is { } lat) && (ac.Eram.FrozenLon is { } lon))
+        {
+            return new LatLon(lat, lon);
+        }
+        return ac.Eram.CoastPositionAt(nowSeconds) ?? ac.Position;
+    }
+
+    // The altitude the data block shows now, in hundreds of feet.
+    private static int DisplayedAltitude(AircraftState ac)
+    {
+        if (ac.Eram.IsFrozen && (ac.Eram.FrozenAltitude is { } frozen))
+        {
+            return frozen;
+        }
+        return (ac.Eram.IsCoastTrack && (ac.Eram.CoastAltitude is { } coasted)) ? coasted : (int)(ac.Altitude / 100);
+    }
+
+    private static int FiledTrueAirspeed(AircraftState ac) =>
+        ac.FlightPlan.CruiseSpeed > 0 ? ac.FlightPlan.CruiseSpeed : (int)Math.Round(ac.GroundSpeed);
+
+    /// <summary>
+    /// The route the coasted track flies from <paramref name="anchor"/>, and the course it holds after it. The track joins
+    /// the route leg nearest the anchor (ties go to the later leg) and flies to that leg's end fix; an anchor before the
+    /// leg's start goes to its start fix, and an anchor at or past its end goes to the fix after it, or, past the last
+    /// fix, flies no route and holds the last leg's course. A lone fix is flown to only when it lies ahead on
+    /// <paramref name="course"/>. <paramref name="course"/> is held when there is no route to fly.
+    /// </summary>
+    private static (List<LatLon> Route, double Course) JoinRoute(LatLon anchor, double course, List<LatLon> fixes)
+    {
+        if (fixes.Count < 2)
+        {
+            bool ahead = (fixes.Count == 1) && (Math.Abs(NormalizeSigned(GeoMath.BearingTo(anchor, fixes[0]) - course)) <= 90);
+            return (ahead ? [fixes[0]] : [], course);
+        }
+
+        int leg = NearestLeg(anchor, fixes);
+        LatLon from = fixes[leg - 1];
+        LatLon to = fixes[leg];
+        double legCourse = GeoMath.BearingTo(from, to);
+        double along = GeoMath.AlongTrackDistanceNm(anchor.Lat, anchor.Lon, from.Lat, from.Lon, new TrueHeading(legCourse));
+        if (along < 0)
+        {
+            return ([.. fixes.Skip(leg - 1)], course);
+        }
+        if (along < GeoMath.DistanceNm(from, to))
+        {
+            return ([.. fixes.Skip(leg)], course);
+        }
+        return (leg + 1) < fixes.Count ? ([.. fixes.Skip(leg + 1)], course) : ([], legCourse);
+    }
+
+    // The index of the end fix of the leg nearest the point; ties go to the later leg.
+    private static int NearestLeg(LatLon point, List<LatLon> fixes)
+    {
+        int leg = 1;
+        double best = double.MaxValue;
+        for (int i = 1; i < fixes.Count; i++)
+        {
+            double d = DistanceToLegNm(point, fixes[i - 1], fixes[i]);
+            if (d <= best)
+            {
+                best = d;
+                leg = i;
+            }
+        }
+        return leg;
+    }
+
+    private static double NormalizeSigned(double degrees) => ((((degrees + 180) % 360) + 360) % 360) - 180;
+
+    private static double DistanceToLegNm(LatLon point, LatLon from, LatLon to)
+    {
+        double legNm = GeoMath.DistanceNm(from, to);
+        if (legNm <= 0)
+        {
+            return GeoMath.DistanceNm(point, from);
+        }
+
+        var course = new TrueHeading(GeoMath.BearingTo(from, to));
+        double along = GeoMath.AlongTrackDistanceNm(point.Lat, point.Lon, from.Lat, from.Lon, course);
+        if (along <= 0)
+        {
+            return GeoMath.DistanceNm(point, from);
+        }
+        return along >= legNm ? GeoMath.DistanceNm(point, to) : Math.Abs(GeoMath.SignedCrossTrackDistanceNm(point, from, course));
     }
 
     private static void Unfreeze(AircraftState ac)
@@ -512,6 +735,7 @@ public static class EramEntryEngine
         ac.Eram.FrozenLat = lat;
         ac.Eram.FrozenLon = lon;
         ac.Eram.FrozenAltitude = (int)(ac.Altitude / 100);
+        ac.Eram.EndCoast();
         return new CommandResult(true, $"FRZN {ac.Callsign}");
     }
 

@@ -47,7 +47,7 @@ public sealed partial class SimulationEngine
     private static ImmutableArray<DisconnectCoastFacet> BuildDisconnectCoastFacets(AircraftState ac, double nowSimSeconds)
     {
         ImmutableArray<DisconnectCoastFacet>.Builder facets = ImmutableArray.CreateBuilder<DisconnectCoastFacet>();
-        if (DisconnectCoastRules.IsVisibleOnEram(ac, NavigationDatabase.Instance) && !ac.Eram.IsFrozen)
+        if (DisconnectCoastRules.IsVisibleOnEram(ac, NavigationDatabase.Instance) && !ac.Eram.IsFrozen && !ac.Eram.IsCoastTrack)
         {
             facets.Add(new DisconnectCoastFacet(DisconnectCoastScope.Eram, null, false, nowSimSeconds + SimScenarioState.EramDisconnectCoastSeconds));
         }

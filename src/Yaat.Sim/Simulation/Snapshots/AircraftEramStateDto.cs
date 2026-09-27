@@ -36,6 +36,17 @@ public sealed class AircraftEramStateDto
     public double? FrozenLon { get; init; }
     public int? FrozenAltitude { get; init; }
 
+    // QT Coast Track: the anchor and its sim time, the displayed altitude (hundreds of feet), the speed (knots), the
+    // course held after the route (degrees true) and the route fixes flown from the anchor. Null/false = not coasting.
+    public bool IsCoastTrack { get; init; }
+    public double? CoastLat { get; init; }
+    public double? CoastLon { get; init; }
+    public double? CoastStartSeconds { get; init; }
+    public int? CoastAltitude { get; init; }
+    public int? CoastSpeed { get; init; }
+    public double? CoastTrueCourse { get; init; }
+    public List<LatLon>? CoastRoute { get; init; }
+
     // Transient Field-E accepted indicator (Oxxx/Kxxx): the sector that owned the Track before the accept,
     // whether it was force-taken, and the sim-elapsed accept time. Broadcast enforces the 30 s window.
     public TrackOwnerDto? RecentHandoffPreviousOwner { get; init; }
