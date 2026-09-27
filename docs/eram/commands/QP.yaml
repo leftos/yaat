@@ -97,6 +97,10 @@ variants:
     format: QP 64 (306) 02
     multiple_flids: true
     handler: QP.Dri
+    note: |
+      yaat reads field 306 ("Reduced DRI Indication", only 3) as the reduced-separation DRI: QP J 3 toggles the 3 NM
+      halo, the same as CRC's QP T (docs/crc/eram.md, Distance Reference Indicators); a bare QP J toggles the standard
+      5 NM halo. Field 64 other than J or T is read as a point-out sector, so UNIDENTIFIED ACTION is never answered.
     fields:
       - field: Position
         rule: |

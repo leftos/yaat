@@ -30,7 +30,15 @@ namespace Yaat.Sim.Commands;
 /// receiver acknowledges that point out); <c>POCLEAR {fromFacility} {fromSector} {toFacility} {toSector}</c> (the
 /// initiator removes it); <c>DRI [J|T]</c> (QP DRI: sets the standard or reduced-separation halo; a bare <c>DRI</c>
 /// removes it). The live handler decides who may acknowledge or clear and whether a DRI entry sets or removes the halo,
-/// and records the outcome, so a replay applies it without the acting position.
+/// and records the outcome, so a replay applies it without the acting position. A <c>PO</c> also removes its initiating
+/// sector and every receiving sector from <see cref="AircraftEramState.PointoutMinimizedSectors"/>, so the fresh point
+/// out's FDB reappears for both parties.
+/// </para>
+///
+/// <para>
+/// Data-block format per sector: <c>MIN {facility} {sector}</c> (QP minimize: the sector's point-out FDB goes back to an
+/// LDB; adding a sector already listed changes nothing); <c>FDB {facility} {sector}</c> (the bare-FLID LDB↔FDB cycle:
+/// toggles the sector in <see cref="AircraftEramState.FdbOpenSectors"/>).
 /// </para>
 ///
 /// <para>
@@ -65,6 +73,8 @@ public static class EramEntryEngine
             "POACK" => ApplyPointoutChange(ac, args, p => p.IsAcknowledged = true, "POACK"),
             "POCLEAR" => ApplyPointoutChange(ac, args, ClearPointout, "POCLEAR"),
             "DRI" => ApplyDri(ac, args),
+            "MIN" => ApplyMinimize(ac, args),
+            "FDB" => ApplyFdbToggle(ac, args),
             _ => Refused(EramEntryErrors.InvalidMessageType),
         };
     }
@@ -264,8 +274,75 @@ public static class EramEntryEngine
             }
         }
 
+        // A fresh point out re-forces the FDB for both parties: drop any earlier minimize so the indicator reappears.
+        List<EramSectorKey> minimized = ac.Eram.PointoutMinimizedSectors;
+        lock (minimized)
+        {
+            minimized.RemoveAll(m => m.Is(fromFacility, fromSector) || receivers.Any(r => m.Is(r.Facility, r.Sector)));
+        }
+
         return new CommandResult(true, $"PO {string.Join(' ', args)} {ac.Callsign}");
     }
+
+    /// <summary>
+    /// QP minimize (QP.yaml, <c>QP &lt;FLID&gt;</c>): adds the named sector to
+    /// <see cref="AircraftEramState.PointoutMinimizedSectors"/>, so its point-out FDB shows as an LDB. A sector already
+    /// listed stays listed once.
+    /// </summary>
+    private static CommandResult ApplyMinimize(AircraftState ac, List<string> args)
+    {
+        if (RefuseMalformedSector(args) is { } malformed)
+        {
+            return malformed;
+        }
+
+        var key = new EramSectorKey(args[0], args[1]);
+        List<EramSectorKey> minimized = ac.Eram.PointoutMinimizedSectors;
+        lock (minimized)
+        {
+            if (!minimized.Contains(key))
+            {
+                minimized.Add(key);
+            }
+        }
+
+        return new CommandResult(true, $"MIN {args[0]} {args[1]} {ac.Callsign}");
+    }
+
+    /// <summary>
+    /// The bare-FLID implied command's LDB↔FDB cycle: toggles the named sector in
+    /// <see cref="AircraftEramState.FdbOpenSectors"/>.
+    /// </summary>
+    private static CommandResult ApplyFdbToggle(AircraftState ac, List<string> args)
+    {
+        if (RefuseMalformedSector(args) is { } malformed)
+        {
+            return malformed;
+        }
+
+        var key = new EramSectorKey(args[0], args[1]);
+        List<EramSectorKey> open = ac.Eram.FdbOpenSectors;
+        bool nowOpen;
+        lock (open)
+        {
+            nowOpen = !open.Remove(key);
+            if (nowOpen)
+            {
+                open.Add(key);
+            }
+        }
+
+        return new CommandResult(true, $"FDB {args[0]} {args[1]} {(nowOpen ? "on" : "off")} {ac.Callsign}");
+    }
+
+    /// <summary>The <c>{facility} {sector}</c> shape <c>MIN</c> and <c>FDB</c> take.</summary>
+    private static CommandResult? RefuseMalformedSector(List<string> args) =>
+        args.Count switch
+        {
+            < 2 => Refused(EramEntryErrors.MessageTooShort),
+            > 2 => Refused(EramEntryErrors.MessageTooLong),
+            _ => null,
+        };
 
     /// <summary>
     /// Acknowledges (<c>POACK</c>) or removes (<c>POCLEAR</c>) the point out the four fields name: originating facility

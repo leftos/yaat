@@ -3,8 +3,9 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim;
 
 /// <summary>
-/// ERAM-side per-track display state mirrored to CRC. Includes leader/dwell
-/// overrides, the ERAM-tier interim/procedure altitude pile, and pending pointouts.
+/// ERAM-side per-track display state mirrored to CRC. Includes leader/dwell overrides, the ERAM-tier interim/procedure
+/// altitude pile, pending pointouts, and the ERAM sectors that have minimized the point-out data block or cycled the data
+/// block to an FDB.
 /// </summary>
 public class AircraftEramState
 {
@@ -71,6 +72,35 @@ public class AircraftEramState
 
     /// <summary>Active ERAM pointouts.</summary>
     public List<EramPointoutState> Pointouts { get; set; } = [];
+
+    /// <summary>
+    /// ERAM sectors that have minimized this aircraft's point-out data block back to an LDB with <c>QP &lt;FLID&gt;</c>
+    /// (docs/crc/eram.md §Point Outs). A point out otherwise forces the block to an FDB so its yellow P / white A
+    /// indicator is visible; a sector listed here overrides that force. A fresh point out removes its initiating and
+    /// receiving sectors, so the indicator reappears. Read by the broadcast path, so every touch locks the list.
+    /// </summary>
+    public List<EramSectorKey> PointoutMinimizedSectors { get; set; } = [];
+
+    /// <summary>
+    /// ERAM sectors that have cycled this aircraft's data block to an FDB with the bare-<c>&lt;FLID&gt;</c> implied command
+    /// (docs/crc/eram.md §Changing Data Block Types); the same command again removes the sector. Read by the broadcast
+    /// path, so every touch locks the list.
+    /// </summary>
+    public List<EramSectorKey> FdbOpenSectors { get; set; } = [];
+
+    /// <summary>Whether the sector is in <see cref="PointoutMinimizedSectors"/>.</summary>
+    public bool IsPointoutMinimizedFor(string facility, string sector) => ContainsSector(PointoutMinimizedSectors, facility, sector);
+
+    /// <summary>Whether the sector is in <see cref="FdbOpenSectors"/>.</summary>
+    public bool IsFdbOpenFor(string facility, string sector) => ContainsSector(FdbOpenSectors, facility, sector);
+
+    private static bool ContainsSector(List<EramSectorKey> sectors, string facility, string sector)
+    {
+        lock (sectors)
+        {
+            return sectors.Any(s => s.Is(facility, sector));
+        }
+    }
 
     /// <summary>
     /// QH-frozen track (CRC ERAM QH display function, <c>docs/crc/eram.md</c> §Freezing a Track): the data
@@ -144,7 +174,17 @@ public class AircraftEramState
                         }),
                     ]
                     : null,
+            PointoutMinimizedSectors = SnapshotSectors(PointoutMinimizedSectors),
+            FdbOpenSectors = SnapshotSectors(FdbOpenSectors),
         };
+
+    private static List<EramSectorKeyDto>? SnapshotSectors(List<EramSectorKey> sectors)
+    {
+        lock (sectors)
+        {
+            return sectors.Count > 0 ? [.. sectors.Select(s => s.ToSnapshot())] : null;
+        }
+    }
 
     public static AircraftEramState FromSnapshot(AircraftEramStateDto dto) =>
         new()
@@ -185,5 +225,9 @@ public class AircraftEramState
                         IsDSideCleared = p.IsDSideCleared,
                     }),
                 ],
+            PointoutMinimizedSectors = dto.PointoutMinimizedSectors is null
+                ? []
+                : [.. dto.PointoutMinimizedSectors.Select(EramSectorKey.FromSnapshot)],
+            FdbOpenSectors = dto.FdbOpenSectors is null ? [] : [.. dto.FdbOpenSectors.Select(EramSectorKey.FromSnapshot)],
         };
 }

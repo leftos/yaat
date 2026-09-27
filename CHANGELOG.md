@@ -20,7 +20,8 @@
 - ERAM `QR` changes only the owning sector's reported altitude unless `/OK` is given, takes exactly three digits, and `QR 000` clears it.
 - ERAM `QS` free text takes 1–8 letters and digits, and `QN` rejects a leader direction outside 1–9 or a length other than 0, 1, 2, 3 or 5.
 - Amending an aircraft whose callsign is over 7 characters answers an error instead of reporting success and changing nothing.
-- Rewinding a session keeps ERAM on-frequency toggles, data-block leader changes, handoffs, point-outs and DRI halos.
+- Rewinding a session keeps ERAM on-frequency toggles, data-block leader changes, handoffs, point-outs, DRI halos, minimized point-outs and open full data blocks.
+- ERAM `QP J 3` toggles the reduced 3 NM halo, like `QP T`, and checks its reduced-DRI field.
 - ERAM `QP` points out to up to four sectors, rejecting bad, unadapted or repeated ones; `QB <code> <qualifier>` sets both at once.
 - ERAM `QP`, `QB`, `QF`, `VP` and `AM` check every field like the real system, and `AM` and `QB` accept `/OK`.
 - ERAM `QZ` with a two-digit sector hands the track off, `QZ /OK` amends another sector's altitude, and `QH F` freezes at a clicked location.

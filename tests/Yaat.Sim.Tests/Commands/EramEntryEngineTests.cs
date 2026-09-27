@@ -726,6 +726,84 @@ public class EramEntryEngineTests
         Assert.Equal(1, ac.Eram.DriHaloType);
     }
 
+    [Fact]
+    public void Min_AddsTheSector_Idempotently()
+    {
+        AircraftState ac = Aircraft();
+
+        CommandResult first = Apply(ac, "MIN ZOA 44", null);
+        CommandResult second = Apply(ac, "MIN ZOA 44", null);
+        CommandResult other = Apply(ac, "MIN ZOA 45", null);
+
+        Assert.True(first.Success, first.Message);
+        Assert.True(second.Success, second.Message);
+        Assert.True(other.Success, other.Message);
+        Assert.Equal([new EramSectorKey("ZOA", "44"), new EramSectorKey("ZOA", "45")], ac.Eram.PointoutMinimizedSectors);
+        Assert.True(ac.Eram.IsPointoutMinimizedFor("ZOA", "44"));
+        Assert.False(ac.Eram.IsPointoutMinimizedFor("ZLA", "44"));
+    }
+
+    [Fact]
+    public void Fdb_TogglesTheSector()
+    {
+        AircraftState ac = Aircraft();
+
+        Assert.True(Apply(ac, "FDB ZOA 44", null).Success);
+        Assert.True(Apply(ac, "FDB ZOA 45", null).Success);
+        Assert.Equal([new EramSectorKey("ZOA", "44"), new EramSectorKey("ZOA", "45")], ac.Eram.FdbOpenSectors);
+
+        Assert.True(Apply(ac, "FDB ZOA 44", null).Success);
+        Assert.Equal([new EramSectorKey("ZOA", "45")], ac.Eram.FdbOpenSectors);
+        Assert.False(ac.Eram.IsFdbOpenFor("ZOA", "44"));
+        Assert.True(ac.Eram.IsFdbOpenFor("ZOA", "45"));
+    }
+
+    [Theory]
+    [InlineData("MIN ZOA", EramEntryErrors.MessageTooShort)]
+    [InlineData("MIN ZOA 44 45", EramEntryErrors.MessageTooLong)]
+    [InlineData("FDB", EramEntryErrors.MessageTooShort)]
+    [InlineData("FDB ZOA 44 45", EramEntryErrors.MessageTooLong)]
+    public void MinOrFdb_Malformed_IsRefusedAndChangesNothing(string entry, string message)
+    {
+        AircraftState ac = Aircraft();
+
+        CommandResult result = Apply(ac, entry, null);
+
+        Assert.False(result.Success);
+        Assert.Equal(message, result.Message);
+        Assert.Empty(ac.Eram.PointoutMinimizedSectors);
+        Assert.Empty(ac.Eram.FdbOpenSectors);
+    }
+
+    [Fact]
+    public void Pointout_Refused_KeepsTheMinimize()
+    {
+        AircraftState ac = Aircraft();
+        Assert.True(Apply(ac, "PO ZOA 44 ZOA 45", null).Success);
+        Assert.True(Apply(ac, "MIN ZOA 44", null).Success);
+        Assert.True(Apply(ac, "MIN ZOA 45", null).Success);
+
+        CommandResult result = Apply(ac, "PO ZOA 44 ZOA 45", null);
+
+        Assert.Equal(EramEntryErrors.PoExists, result.Message);
+        Assert.Equal([new EramSectorKey("ZOA", "44"), new EramSectorKey("ZOA", "45")], ac.Eram.PointoutMinimizedSectors);
+    }
+
+    [Fact]
+    public void Pointout_ClearsMinimizeForTheInitiatorAndEveryReceiver()
+    {
+        AircraftState ac = Aircraft();
+        foreach (string sector in new[] { "44", "45", "46", "47" })
+        {
+            Assert.True(Apply(ac, $"MIN ZOA {sector}", null).Success);
+        }
+
+        CommandResult result = Apply(ac, "PO ZOA 44 ZOA 45 ZOA 46", null);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal([new EramSectorKey("ZOA", "47")], ac.Eram.PointoutMinimizedSectors);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("QZ 350")]

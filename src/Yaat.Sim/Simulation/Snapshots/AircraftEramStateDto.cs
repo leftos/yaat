@@ -26,6 +26,10 @@ public sealed class AircraftEramStateDto
 
     public List<EramPointoutStateDto>? Pointouts { get; init; }
 
+    // ERAM sectors that minimized the point-out data block (QP <FLID>) / cycled it to an FDB (bare FLID). Null = none.
+    public List<EramSectorKeyDto>? PointoutMinimizedSectors { get; init; }
+    public List<EramSectorKeyDto>? FdbOpenSectors { get; init; }
+
     // QH-frozen track: parked at a fixed location, unpaired from the target, exempt from coast/auto-drop.
     public bool IsFrozen { get; init; }
     public double? FrozenLat { get; init; }
@@ -37,4 +41,10 @@ public sealed class AircraftEramStateDto
     public TrackOwnerDto? RecentHandoffPreviousOwner { get; init; }
     public bool RecentHandoffWasForced { get; init; }
     public double? RecentHandoffAcceptedAtSeconds { get; init; }
+}
+
+public sealed class EramSectorKeyDto
+{
+    public required string Facility { get; init; }
+    public required string Sector { get; init; }
 }
