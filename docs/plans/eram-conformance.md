@@ -151,7 +151,12 @@ Close the replay gap: point-out create and acknowledge (:2478-2499, :2574), DRI 
 
 **Wave 3 briefs:** W3-1 `EramFields.cs` (shared parsers; first). Then, in parallel: W3-2 Sim handoff ownership + amend outcome + QN bounds + QS + the VCI/leader replay gap (`TrackEngine`, `EramEntryEngine`, `.Implied`, `.Display`); W3-3 QT, QH F, QZ prefix, `/OK` on QZ/QR (`.Track`, `.Altitude`, `.Eram.cs`); W3-4 QU split + bounds, RD, LA/LB/LC, LF (`.Route`, `.Readouts`, `.Crr`). Last: W3-5 QP + point-out/DRI replay gap + QB/QF/VP + `/OK` on QB/AM (`.Pointout`, `.FlightData`, `EramEntryEngine`, after W3-2).
 
+**Handoff review rulings (user 2026-09-26):** the STARS redirect exemption does not apply to ERAM (a pending recipient gets NOT YOUR CONTROL and must accept, then re-initiate, or use `/OK`); `/OK` forces a handoff only on a track an ERAM sector of the same ARTCC owns (CRC `docs/crc/eram.md`: overrides never reach an external ARTCC's flights); a bare STARS TCP (`2B`) is not a handoff sector — spec only, `2B FORMAT` — while `Q2B`-style codes still work.
+
 **Wave 3 follow-ups found while building (2026-09-26):**
+- A handoff to the track's own owner is accepted (pre-existing in `TrackEngine.ApplyHandoff`; aviation review 2026-09-26): refuse it for the ERAM entry form.
+- `TrackEngine.ApplyHandoff`'s plain path does not clear `HandoffRedirectedBy`, so a STARS display can keep an old redirect after a later handoff (pre-existing).
+- An ERAM owner built by `LiveTrafficOwnerResolver` (~:146, `"{centre}_{sector}"`) never matches a configured position callsign, so it always answers NOT YOUR CONTROL; confirm that path cannot reach an ERAM handoff, or match ERAM owners on facility + sector.
 - `QZ /OK 44 <FLID>` validates the `/OK` but does not forward it to the handoff, because the QZ prefix calls `DispatchImpliedHandoffInitiate(sector, callsign, pickKind)`. Wire it once the ERAM handoff entry form (W3-2) has landed.
 - Under the QZ prefix only a two-digit sector is a handoff, so `QZ C44 <FLID>` answers ALT FORMAT. QN.yaml field 16 also lists `L((d)dd)`; decide whether the centre form applies under QZ.
 - QR has no ownership gate, so any sector can set another sector's CERA. Whether ERAM restricts QR to the controlling sector needs an aviation ruling.
