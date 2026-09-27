@@ -1978,13 +1978,16 @@ public sealed class UserPreferences
 
     private static void BackupFile()
     {
-        try
+        lock (FileLock)
         {
-            File.Copy(ConfigPath, ConfigPath + ".bak", overwrite: true);
-        }
-        catch (IOException ex)
-        {
-            Log.LogWarning(ex, "Could not back up preferences file");
+            try
+            {
+                File.Copy(ConfigPath, ConfigPath + ".bak", overwrite: true);
+            }
+            catch (IOException ex)
+            {
+                Log.LogWarning(ex, "Could not back up preferences file");
+            }
         }
     }
 
@@ -2000,12 +2003,8 @@ public sealed class UserPreferences
 
         lock (FileLock)
         {
-            // Atomic write: write to .tmp then move, so a crash mid-write
-            // can't corrupt the real file. The lock serializes against
-            // concurrent Save and Load calls from other instances.
-            string tmpPath = ConfigPath + ".tmp";
-            File.WriteAllText(tmpPath, json);
-            File.Move(tmpPath, ConfigPath, overwrite: true);
+            // The lock serializes against concurrent Save and Load calls from other instances.
+            AtomicFile.WriteAllText(ConfigPath, json);
         }
     }
 

@@ -642,9 +642,7 @@ public sealed class FavoriteStore
         string json = JsonSerializer.Serialize(entity, JsonOptions);
         lock (FileLock)
         {
-            string tmpPath = path + ".tmp";
-            File.WriteAllText(tmpPath, json);
-            File.Move(tmpPath, path, overwrite: true);
+            AtomicFile.WriteAllText(path, json);
             // A label/name change moves the entity to a new filename; drop the old file.
             if (
                 files.TryGetValue(id, out string? previous)

@@ -24,6 +24,7 @@
 - ERAM `QP` points out to up to four sectors, rejecting bad, unadapted or repeated ones; `QB <code> <qualifier>` sets both at once.
 - ERAM `QP`, `QB`, `QF`, `VP` and `AM` check every field like the real system, and `AM` and `QB` accept `/OK`.
 - ERAM `QZ` with a two-digit sector hands the track off, `QZ /OK` amends another sector's altitude, and `QH F` freezes at a clicked location.
+- Settings and favorites save reliably when changed in quick succession, instead of sometimes failing with "Access to the path is denied".
 
 ## v0.13.6-beta [2026/09/26]
 

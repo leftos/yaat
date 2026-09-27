@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Sim;
 
 namespace Yaat.Client.UI.Tests;
 
@@ -133,5 +134,33 @@ public class UserPreferencesCommandHistoryTests
         final.SetCommandHistory("TEST-race-final", [new CommandHistoryEntry("", "FINAL")]);
         var reread = new UserPreferences();
         Assert.Equal([new CommandHistoryEntry("", "FINAL")], reread.GetCommandHistory("TEST-race-final"));
+    }
+
+    // On Windows an antivirus scan of the file the previous save just wrote holds it open without delete sharing for a
+    // few milliseconds, and a replacing move onto it is denied meanwhile (measured: ~1 in 10 back-to-back saves under
+    // %LOCALAPPDATA%). A save during that window waits the holder out instead of throwing.
+    [Fact]
+    public async Task Save_WhileAnotherProcessBrieflyHoldsTheFile_Succeeds()
+    {
+        var prefs = new UserPreferences();
+        prefs.SetCommandHistory("TEST-held-seed", [new CommandHistoryEntry("", "SEED")]);
+        string path = YaatPaths.Combine("preferences.json");
+        CancellationToken ct = TestContext.Current.CancellationToken;
+
+        await using (var holder = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            var release = Task.Run(
+                async () =>
+                {
+                    await Task.Delay(100, ct);
+                    await holder.DisposeAsync();
+                },
+                ct
+            );
+            prefs.SetCommandHistory("TEST-held", [new CommandHistoryEntry("", "HELD")]);
+            await release;
+        }
+
+        Assert.Equal([new CommandHistoryEntry("", "HELD")], new UserPreferences().GetCommandHistory("TEST-held"));
     }
 }
