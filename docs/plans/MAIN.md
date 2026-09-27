@@ -1,5 +1,5 @@
 # YAAT plans — index
-<!-- plan-doc-hygiene: 2026-09-26 4585fe65 yaat-server@3b74c85f -->
+<!-- plan-doc-hygiene: 2026-09-27 5e360a5a yaat-server@fa8c8114 -->
 <!-- triage-open-issues: 2026-09-21T06:31:25Z -->
 
 Entry point for `docs/plans/`. One line per item; the detail lives in the linked subplan. Finished items and finished plans are deleted, never left ticked (steer 2026-09-14) — git history is the record (a plan whose rationale or status table still has reference value is promoted into `docs/` instead). Issue-specific plans live in [`open-issues/`](./open-issues/) and are deleted once implemented.
@@ -10,7 +10,7 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 **Steer (user 2026-09-26): ERAM conformance only until it is done** — no other item (programme, wave or single) starts before every ERAM wave has landed.
 
-- [ ] **ERAM command conformance** (a controller's request, 2026-09-26) — [eram-conformance.md](./eram-conformance.md): a YAML command reference extracted from the ERAM EDSM SRS, a conformance test, ACCEPT/descriptor feedback and field validation for our ERAM verbs, then CO, the full AM field set, HM/QH hold, QX `/R` and FP, and LD/LE. Waves 0–3 done (2026-09-26); next: the Wave 3 follow-ups in the subplan (the `/OK` same-ARTCC limit on QZ/QU/QQ, the live-traffic owner fallback, QP minimize and DRI fields, `QF *`), then Wave 4 (CO, the full AM field set, HM/QH hold, QX `/R` and FP, LD/LE).
+- [ ] **ERAM command conformance** (a controller's request, 2026-09-26) — [eram-conformance.md](./eram-conformance.md): a YAML command reference extracted from the ERAM EDSM SRS, a conformance test, ACCEPT/descriptor feedback and field validation for our ERAM verbs, then CO, the full AM field set, HM/QH hold, QX `/R` and FP, and LD/LE. Waves 0–3 done (2026-09-26); next: the seven Wave 3 follow-ups in the subplan (the `/OK` same-ARTCC limit on QZ/QU/QQ, the live-traffic owner fallback, QP minimize replay and DRI fields, `QB 0`, `QF *`, QT's accepted-but-unstored fields), then Wave 4 (CO, the full AM field set, HM/QH hold, QX `/R` and FP, LD/LE).
 
 ## Current programme
 
