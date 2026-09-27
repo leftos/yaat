@@ -156,7 +156,6 @@ Close the replay gap: point-out create and acknowledge (:2478-2499, :2574), DRI 
 **QR and self-handoff rulings (aviation consult 2026-09-26; the sources are silent, so these are yaat rulings, noted in the YAML):** QR is limited to the controlling sector through `RejectIfNotEditable`, `/OK` overriding within the same ARTCC, because the CERA is the owner's own verification record (`docs/crc/eram.md` :48, :624); `QR 000` clears the CERA (QR.yaml field 54); QR's field 54 is exactly `ddd` (ALT FORMAT) and one flight only. A handoff whose resolved target is the track's owner is refused with a coined `YaatHandoffToOwner` = `SECTOR IS OWNER` (it also covers a forced handoff that resolves to the owner).
 
 **Wave 3 follow-ups found while building (2026-09-26):**
-- `RejectIfNotEditable` does not apply the same-ARTCC limit to `/OK`, so a forced QZ, QU or QQ (`/TT`) edit still reaches an external ARTCC's or a STARS-owned track (QR and HANDOFF use `EramEntryEngine.IsOwnedByThisCentre`). Apply the same rule to every `/OK` edit (CRC `docs/crc/eram.md`:48).
 - `QB 0` on its own is a valid Qualifier Mod (QB.yaml) but answers `0 FORMAT`.
 - `QF *` should require an aircraft-ID flight ID (FLID FORMAT otherwise).
 - QT validates fields 05/08/56/68/74 and QH validates `/OK`, then accepts each without effect: our QT stores no speed, altitude, heading or location. QT with those fields is the Coast Track (CT) form, which moves into Wave 4 (user 2026-09-27); QH's `/OK` is covered by Wave 4's HM/QH hold.

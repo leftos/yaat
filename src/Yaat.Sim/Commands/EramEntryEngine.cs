@@ -141,7 +141,7 @@ public static class EramEntryEngine
     /// <summary>
     /// The override reaches only a track an ERAM sector of the acting centre owns: docs/crc/eram.md, "flights owned by
     /// external ARTCCs cannot be edited, even with a logic check override" — nor, then, one a STARS position owns.
-    /// yaat-server's QR ownership gate applies the same rule to its <c>/OK</c>.
+    /// yaat-server's ERAM edit ownership gate applies the same rule to every <c>/OK</c>.
     /// </summary>
     public static bool IsOwnedByThisCentre(AircraftState ac, TrackOwner identity) =>
         (ac.Track.Owner is { } owner)

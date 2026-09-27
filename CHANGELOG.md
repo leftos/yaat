@@ -24,6 +24,7 @@
 - ERAM `QP J 3` toggles the reduced 3 NM halo, like `QP T`, and checks its reduced-DRI field.
 - ERAM `QP` points out to up to four sectors, rejecting bad, unadapted or repeated ones; `QB <code> <qualifier>` sets both at once.
 - ERAM `QP`, `QB`, `QF`, `VP` and `AM` check every field like the real system, and `AM` and `QB` accept `/OK`.
+- An ERAM `/OK` override edits another sector's track only inside the same center; another center's or a STARS position's track answers NOT YOUR CONTROL.
 - ERAM `QZ` with a two-digit sector hands the track off, `QZ /OK` amends another sector's altitude, and `QH F` freezes at a clicked location.
 - Settings and favorites save reliably when changed in quick succession, instead of sometimes failing with "Access to the path is denied".
 
