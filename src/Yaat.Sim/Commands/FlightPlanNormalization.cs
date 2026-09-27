@@ -116,6 +116,7 @@ public static class FlightPlanNormalization
         (string? acType, string? equipSuffix) = SplitTypeAndSuffix(command.AircraftType);
         PlannedAltitude filedAltitude = FlightPlanAltitude.FromRulesAndFeet(command.FlightRules, command.CruiseAltitude);
         return new FlightPlanAmendment(
+            ClearBeaconCode: false,
             AircraftType: acType,
             EquipmentSuffix: equipSuffix,
             Departure: departure,
@@ -132,6 +133,7 @@ public static class FlightPlanNormalization
         (string? acType, string? equipSuffix) = SplitTypeAndSuffix(command.AircraftType);
         PlannedAltitude filedAltitude = FlightPlanAltitude.FromRulesAndFeet(command.FlightRules, command.CruiseAltitude);
         return new FlightPlanAmendment(
+            ClearBeaconCode: false,
             AircraftType: acType,
             EquipmentSuffix: equipSuffix,
             Altitude: filedAltitude,

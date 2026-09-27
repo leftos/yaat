@@ -43,6 +43,7 @@ public class AmendFlightPlanBeaconTests(ITestOutputHelper output)
         engine.AmendFlightPlan(
             "N342T",
             new FlightPlanAmendment(
+                ClearBeaconCode: false,
                 AircraftType: null,
                 EquipmentSuffix: null,
                 Departure: null,

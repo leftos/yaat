@@ -294,7 +294,8 @@ public sealed partial class SimulationEngine
         // owner of "filing establishes the plan + assigns a beacon" and of the /A default for
         // a new plan filed with a type but no equipment suffix; the typed DA/VP/NEW create
         // path reaches it through its own AmendFlightPlan call. On a plan already filed, a
-        // null suffix leaves the filed one alone.
+        // null suffix leaves the filed one alone. An amendment that deletes the beacon code
+        // (ERAM AM BCN deletion) leaves the plan with no code, so nothing is drawn for it.
         if (!wasFiled)
         {
             ac.FlightPlan.HasFlightPlan = true;
@@ -302,7 +303,7 @@ public sealed partial class SimulationEngine
             {
                 ac.FlightPlan.EquipmentSuffix = "A";
             }
-            if (ac.Transponder.AssignedCode == 0)
+            if ((ac.Transponder.AssignedCode == 0) && !amendment.ClearBeaconCode)
             {
                 // Attribute the filing draw to whatever the amendment carries: the ERAM VP path stamps
                 // its sector (7110.65 §5-2-7.a); instructor/STARS filing paths carry null.
@@ -343,6 +344,14 @@ public sealed partial class SimulationEngine
         {
             ac.FlightPlan.IcaoEquipmentCodes = amendment.IcaoEquipmentCodes;
         }
+        if (amendment.SpecialAircraftIndicator is not null)
+        {
+            ac.FlightPlan.HasSpecialAircraftIndicator = amendment.SpecialAircraftIndicator.Value;
+        }
+        if (amendment.NumberOfAircraft is not null)
+        {
+            ac.FlightPlan.NumberOfAircraft = amendment.NumberOfAircraft.Value == 0 ? null : amendment.NumberOfAircraft.Value;
+        }
         if (amendment.Departure is not null)
         {
             ac.FlightPlan.Departure = amendment.Departure;
@@ -368,6 +377,10 @@ public sealed partial class SimulationEngine
         if (amendment.Altitude is not null)
         {
             ac.FlightPlan.Altitude = amendment.Altitude;
+        }
+        if (amendment.RequestedAltitude is not null)
+        {
+            ac.FlightPlan.RequestedAltitude = amendment.RequestedAltitude;
         }
         if (amendment.FlightRules is not null)
         {
@@ -410,6 +423,12 @@ public sealed partial class SimulationEngine
             // squawk the new one (matching the auto-assign-on-filing branch in AmendFlightPlan). The
             // resulting beacon mismatch is shown on the data block until the pilot complies.
             ac.Transponder.AssignCode(amendment.BeaconCode.Value, amendment.BeaconAssignedByFacilityId, amendment.BeaconAssignedBySectorId);
+        }
+        if (amendment.ClearBeaconCode)
+        {
+            // Deleting the assigned code (ERAM AM BCN deletion) clears who assigned it too; the transmitted code is the
+            // pilot's, as above.
+            ac.Transponder.AssignCode(0, null, null);
         }
     }
 

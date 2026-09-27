@@ -27,6 +27,9 @@
 - ERAM `QS` free text takes 1–8 letters and digits, and `QN` rejects a leader direction outside 1–9 or a length other than 0, 1, 2, 3 or 5.
 - Amending an aircraft whose callsign is over 7 characters answers an error instead of reporting success and changing nothing.
 - Rewinding a session keeps ERAM on-frequency toggles, data-block leader changes, handoffs, point-outs, DRI halos, minimized point-outs and open full data blocks.
+- ERAM `AM` takes several field/value pairs in one entry and changes nothing when any of them is invalid.
+- ERAM `AM` amends the requested altitude (RAL), heavy indicator (SAI), number of aircraft (NUM) and ICAO equipment (EQP); `QF` shows RAL, SAI and NUM.
+- ERAM `AM` deletes the beacon code, remarks, SAI or NUM with `-`, or by leaving the last field's value off.
 - After a rewind, ERAM scopes drop the abandoned run's conflict alerts and show the ones active at the new time.
 - ERAM `QP J 3` toggles the reduced 3 NM halo, like `QP T`, and checks its reduced-DRI field.
 - ERAM `QP` points out to up to four sectors, rejecting bad, unadapted or repeated ones; `QB <code> <qualifier>` sets both at once.

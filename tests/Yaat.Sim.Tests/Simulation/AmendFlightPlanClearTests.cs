@@ -54,6 +54,7 @@ public class AmendFlightPlanClearTests(ITestOutputHelper output)
         engine.AmendFlightPlan(
             "N342T",
             new FlightPlanAmendment(
+                ClearBeaconCode: false,
                 AircraftType: null,
                 EquipmentSuffix: null,
                 Departure: "",
@@ -86,6 +87,7 @@ public class AmendFlightPlanClearTests(ITestOutputHelper output)
         engine.AmendFlightPlan(
             "N342T",
             new FlightPlanAmendment(
+                ClearBeaconCode: false,
                 AircraftType: null,
                 EquipmentSuffix: null,
                 Departure: null,
@@ -116,6 +118,7 @@ public class AmendFlightPlanClearTests(ITestOutputHelper output)
         engine.AmendFlightPlan(
             "N342T",
             new FlightPlanAmendment(
+                ClearBeaconCode: false,
                 AircraftType: null,
                 EquipmentSuffix: null,
                 Departure: null,
@@ -146,6 +149,7 @@ public class AmendFlightPlanClearTests(ITestOutputHelper output)
         engine.AmendFlightPlan(
             "N342T",
             new FlightPlanAmendment(
+                ClearBeaconCode: false,
                 AircraftType: null,
                 EquipmentSuffix: null,
                 Departure: null,

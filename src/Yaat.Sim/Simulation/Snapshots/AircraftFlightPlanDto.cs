@@ -27,5 +27,14 @@ public sealed class AircraftFlightPlanDto
     public bool AltitudeIsVfrOnTop { get; init; }
     public bool AltitudeIsAbove { get; init; }
     public required int CruiseSpeed { get; init; }
+
+    /// <summary>ERAM requested altitude — see <see cref="AircraftFlightPlan.RequestedAltitude"/>. Null = none entered.</summary>
+    public PlannedAltitude? RequestedAltitude { get; init; }
+
+    /// <summary>ERAM special aircraft indicator <c>H</c> — see <see cref="AircraftFlightPlan.HasSpecialAircraftIndicator"/>.</summary>
+    public bool HasSpecialAircraftIndicator { get; init; }
+
+    /// <summary>ERAM number of aircraft — see <see cref="AircraftFlightPlan.NumberOfAircraft"/>. Null = none entered.</summary>
+    public int? NumberOfAircraft { get; init; }
     public TrackOwnerDto? CreatedByOwner { get; init; }
 }

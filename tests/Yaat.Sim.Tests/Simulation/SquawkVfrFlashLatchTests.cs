@@ -154,6 +154,7 @@ public class SquawkVfrFlashLatchTests(ITestOutputHelper output)
         engine.AmendFlightPlan(
             "N427MX",
             new FlightPlanAmendment(
+                ClearBeaconCode: false,
                 AircraftType: null,
                 EquipmentSuffix: null,
                 Departure: null,

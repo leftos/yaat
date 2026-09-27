@@ -70,6 +70,26 @@ public class AircraftFlightPlan
     public int CruiseSpeed { get; set; }
 
     /// <summary>
+    /// ERAM field 09, the requested altitude (the altitude the pilot asked for, distinct from the filed
+    /// <see cref="Altitude"/>), entered with <c>AM &lt;FLID&gt; RAL &lt;alt&gt;</c>. Null when never entered.
+    /// Display data only: nothing in the simulation reads it.
+    /// </summary>
+    public PlannedAltitude? RequestedAltitude { get; set; }
+
+    /// <summary>
+    /// ERAM field 22, the special aircraft indicator <c>H</c> (field 03 element a), entered with
+    /// <c>AM &lt;FLID&gt; SAI H</c>. Independent of any <c>H/</c> prefix on <see cref="AircraftType"/>.
+    /// Display data only.
+    /// </summary>
+    public bool HasSpecialAircraftIndicator { get; set; }
+
+    /// <summary>
+    /// ERAM field 21, the number of aircraft in the flight (ICAO 909a), entered with <c>AM &lt;FLID&gt; NUM &lt;n&gt;</c>.
+    /// Null when never entered. Display data only: a count here moves no aircraft.
+    /// </summary>
+    public int? NumberOfAircraft { get; set; }
+
+    /// <summary>
     /// TCP that originally created this flight plan via a CRC STARS command (DA / VP / implied
     /// forms). Populated by <c>RoomEngine.RecordAndDispatchFlightPlanAsync</c>; null for plans
     /// created any other way (scenario-spawned, scenario JSON, recordings predating this field).
@@ -97,6 +117,9 @@ public class AircraftFlightPlan
             AltitudeIsVfrOnTop = Altitude.IsVfrOnTop,
             AltitudeIsAbove = Altitude.IsAbove,
             CruiseSpeed = CruiseSpeed,
+            RequestedAltitude = RequestedAltitude,
+            HasSpecialAircraftIndicator = HasSpecialAircraftIndicator,
+            NumberOfAircraft = NumberOfAircraft,
             CreatedByOwner = CreatedByOwner?.ToSnapshot(),
         };
 
@@ -121,6 +144,9 @@ public class AircraftFlightPlan
                 dto.AltitudeIsAbove
             ),
             CruiseSpeed = dto.CruiseSpeed,
+            RequestedAltitude = dto.RequestedAltitude,
+            HasSpecialAircraftIndicator = dto.HasSpecialAircraftIndicator,
+            NumberOfAircraft = dto.NumberOfAircraft,
             CreatedByOwner = dto.CreatedByOwner is not null ? TrackOwner.FromSnapshot(dto.CreatedByOwner) : null,
         };
 }

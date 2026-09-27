@@ -43,7 +43,7 @@ public class AmendFlightPlanEquipmentSuffixTests(ITestOutputHelper output)
         SimulationEngine engine = BuildEngine();
         AircraftState ac = AddAircraft(engine, "UPS2941", filed: true, equipmentSuffix: "L");
 
-        engine.AmendFlightPlan("UPS2941", new FlightPlanAmendment(AircraftType: "B763", EquipmentSuffix: null));
+        engine.AmendFlightPlan("UPS2941", new FlightPlanAmendment(ClearBeaconCode: false, AircraftType: "B763", EquipmentSuffix: null));
 
         Assert.Equal("B763", ac.FlightPlan.AircraftType);
         Assert.Equal("L", ac.FlightPlan.EquipmentSuffix);
@@ -55,7 +55,7 @@ public class AmendFlightPlanEquipmentSuffixTests(ITestOutputHelper output)
         SimulationEngine engine = BuildEngine();
         AircraftState ac = AddAircraft(engine, "N513SJ", filed: false, equipmentSuffix: "");
 
-        engine.AmendFlightPlan("N513SJ", new FlightPlanAmendment(AircraftType: "C172", EquipmentSuffix: null));
+        engine.AmendFlightPlan("N513SJ", new FlightPlanAmendment(ClearBeaconCode: false, AircraftType: "C172", EquipmentSuffix: null));
 
         Assert.True(ac.FlightPlan.HasFlightPlan);
         Assert.Equal("C172", ac.FlightPlan.AircraftType);

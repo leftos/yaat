@@ -259,7 +259,16 @@ public sealed record RecordedAttendanceChange(double ElapsedSeconds, IReadOnlyLi
 public sealed record RecordedAutoTrackChange(double ElapsedSeconds, string PositionId, IReadOnlyList<string> Entries)
     : RecordedAction(ElapsedSeconds);
 
+/// <summary>
+/// A flight-plan edit applied by <see cref="SimulationEngine.AmendFlightPlan"/>. A null field is "not edited". A field
+/// that can be deleted carries its deletion as a value: <see cref="Remarks"/> <c>""</c>,
+/// <see cref="SpecialAircraftIndicator"/> <c>false</c> and <see cref="NumberOfAircraft"/> <c>0</c> (stored as none).
+/// <see cref="ClearBeaconCode"/> deletes the assigned beacon code (the ERAM <c>AM</c> BCN deletion): the code and who
+/// assigned it are cleared, and filing a plan with it draws no discrete code. It is required so that every caller
+/// states it; a <see cref="BeaconCode"/> of 0 is an assignment like any other, not a deletion.
+/// </summary>
 public record FlightPlanAmendment(
+    bool ClearBeaconCode,
     string? AircraftType = null,
     string? EquipmentSuffix = null,
     string? Departure = null,
@@ -274,5 +283,8 @@ public record FlightPlanAmendment(
     uint? BeaconCode = null,
     string? BeaconAssignedByFacilityId = null,
     string? BeaconAssignedBySectorId = null,
-    string? IcaoEquipmentCodes = null
+    string? IcaoEquipmentCodes = null,
+    PlannedAltitude? RequestedAltitude = null,
+    bool? SpecialAircraftIndicator = null,
+    int? NumberOfAircraft = null
 );

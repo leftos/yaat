@@ -346,7 +346,7 @@ public class Issue12ImplicitDestinationLayoutTests(ITestOutputHelper output)
         ac.Ground.Layout = oakLayout;
         engine.World.AddAircraft(ac);
 
-        engine.AmendFlightPlan("N248ZV", new FlightPlanAmendment(Destination: "KSMF", FlightRules: "VFR"));
+        engine.AmendFlightPlan("N248ZV", new FlightPlanAmendment(ClearBeaconCode: false, Destination: "KSMF", FlightRules: "VFR"));
 
         ac = engine.FindAircraft("N248ZV");
         Assert.NotNull(ac);

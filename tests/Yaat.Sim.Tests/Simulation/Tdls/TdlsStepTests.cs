@@ -557,7 +557,7 @@ public class TdlsStepTests
 
         TdlsItemRecord queued = Queued(engine);
 
-        engine.AmendFlightPlan(Callsign, new FlightPlanAmendment(Route: "SUNOL ALTAM"));
+        engine.AmendFlightPlan(Callsign, new FlightPlanAmendment(ClearBeaconCode: false, Route: "SUNOL ALTAM"));
 
         Assert.Equal("SUNOL ALTAM", Departure(engine).FlightPlan.Route);
         TdlsChangeSet changes = engine.Tdls.Changes.Drain();

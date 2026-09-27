@@ -148,7 +148,7 @@ internal static class ActionArms
         switch (ctx.Parsed)
         {
             case SetRemarksCommand remarks:
-                amendment = new FlightPlanAmendment(Remarks: remarks.Text);
+                amendment = new FlightPlanAmendment(ClearBeaconCode: false, Remarks: remarks.Text);
                 break;
             case CreateAbbreviatedFlightPlanCommand abbreviated:
                 if (aircraft.FlightPlan.HasFlightPlan)

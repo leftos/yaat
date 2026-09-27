@@ -323,12 +323,12 @@ amendable_fields:
   - { number: "08", abbr: ALT, name: Assigned Altitude, format: "(d)dd | OTP | OTP/(d)dd | VFR | VFR/(d)dd | ABV/(d)dd | (d)ddB(d)dd | (d)dd/Fix/(d)dd", deletable: false, notes: "Excludes FLR in the same command" }
   - { number: "09", abbr: RAL, name: Requested Altitude, format: "(d)dd | OTP | OTP/(d)dd | VFR | VFR/(d)dd | ABV/(d)dd | (d)ddB(d)dd", deletable: false, notes: "Excludes FLR in the same command" }
   - { number: "10", abbr: RTE, name: Route Data, format: "At least 2 characters; single element + down arrow = stereo tag La(a)(a)(a)(a)(a)(a)", deletable: false }
-  - { number: "11", abbr: RMK, name: Remarks/General Information, format: "Begins with clear weather (inter) or overcast (intra) symbol; ends \"* \" if more 12/17 follow", deletable: true, notes: "=RMK / =11 alone reads out interfacility remarks for editing" }
+  - { number: "11", abbr: RMK, name: Remarks/General Information, format: "Begins with clear weather (inter) or overcast (intra) symbol; ends \"* \" if more 12/17 follow", deletable: true, notes: "=RMK / =11 alone reads out interfacility remarks for editing. yaat: ++++ (empty wrapped remarks) clears the remarks" }
   - { number: "94", abbr: EBC, name: External Beacon Code, format: "dddd (octal)", deletable: true, notes: "Table Field Number n/a" }
   - { number: null, abbr: EDT, name: Estimated Departure Clearance Time, format: "dddd (HHMM)", deletable: false, notes: "Valid from AT Spec only; must be the only Field 12" }
   - { number: "26", abbr: FLR, name: Flight Rules, format: "I | V | Y | Z", deletable: false, notes: "ICAO 908a" }
   - { number: "28", abbr: FLT, name: Type of Flight, format: "S | N | G | M | X", deletable: true, notes: "ICAO 908b" }
-  - { number: "21", abbr: NUM, name: Number of Aircraft, format: "d(d)", deletable: true, notes: "ICAO 909a" }
+  - { number: "21", abbr: NUM, name: Number of Aircraft, format: "d(d)", deletable: true, notes: "ICAO 909a. yaat: 0 / 00 is refused (MsgNumFormat); the deletion is NUM -" }
   - { number: "23", abbr: ACT, name: Type of Aircraft, format: "La(a)(a)", deletable: false, notes: "ICAO 909b" }
   - { number: "27", abbr: WAK, name: Wake Turbulence Category, format: "H | L | M", deletable: false, notes: "ICAO 909c" }
   - { number: "24", abbr: EQP, name: "Radio Communication, Navigation and Approach Aid Equipment", format: "Present: 1-25 letters; Indeterminate/New: 1-64 alphanumerics", deletable: false, notes: "ICAO 910a; =EQP / =24 alone reads out element a for editing" }

@@ -62,7 +62,7 @@ public class TowerCabActualAircraftTypeTests(ITestOutputHelper output)
         SimulationEngine engine = NewEngine();
         SpawnAircraft(engine, "UAL238", actualType: "B738", filedType: "B738");
 
-        engine.AmendFlightPlan("UAL238", new FlightPlanAmendment(AircraftType: ""));
+        engine.AmendFlightPlan("UAL238", new FlightPlanAmendment(ClearBeaconCode: false, AircraftType: ""));
 
         AircraftState? ac = engine.FindAircraft("UAL238");
         Assert.NotNull(ac);
@@ -77,7 +77,7 @@ public class TowerCabActualAircraftTypeTests(ITestOutputHelper output)
         SimulationEngine engine = NewEngine();
         SpawnAircraft(engine, "UAL238", actualType: "B738", filedType: "B738");
 
-        engine.AmendFlightPlan("UAL238", new FlightPlanAmendment(AircraftType: "A320"));
+        engine.AmendFlightPlan("UAL238", new FlightPlanAmendment(ClearBeaconCode: false, AircraftType: "A320"));
 
         AircraftState? ac = engine.FindAircraft("UAL238");
         Assert.NotNull(ac);

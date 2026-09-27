@@ -594,7 +594,12 @@ public class StripStepTests
         var host = new AttendanceActionHost();
         engine.AfterAircraftSpawned(Departure(engine, Callsign));
         List<string> before = StripIds(engine);
-        var amendment = new RecordedAmendFlightPlan(1.0, "NOPE123", new FlightPlanAmendment(Remarks: "AMENDED"), "STRIP_NOPE123");
+        var amendment = new RecordedAmendFlightPlan(
+            1.0,
+            "NOPE123",
+            new FlightPlanAmendment(ClearBeaconCode: false, Remarks: "AMENDED"),
+            "STRIP_NOPE123"
+        );
 
         CommandResult result = engine.Actions.ApplyRecorded(amendment, host);
 

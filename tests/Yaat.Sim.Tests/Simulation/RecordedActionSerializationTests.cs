@@ -121,6 +121,7 @@ public class RecordedActionSerializationTests
                 24.0,
                 "SWA22",
                 new FlightPlanAmendment(
+                    ClearBeaconCode: false,
                     AircraftType: "B737",
                     EquipmentSuffix: "L",
                     Departure: "KOAK",
