@@ -4,7 +4,16 @@ variants:
     descriptor: CA SUPP
     format: CO 02/02
     multiple_flids: false
-    handler: not implemented
+    handler: CO.SuppressPair
+    note: |
+      yaat rulings (7110.65 §5-13-1c): CO suppresses one active ERAM conflict alert, and a second CO on the same pair
+      restores it. The suppression ends with that alert, so a new conflict between the same pair alerts again (§5-13-1c.1(a):
+      "between specific aircraft for a specific alert"). A suppressed alert is withheld from the conflict list and the data
+      blocks' conflict status because the entry acknowledges it and signifies that action has been or will be taken
+      (§5-13-1c.2). It is ERAM only and leaves the STARS CASUP list alone. There is
+      no ownership check and no /OK: under §5-13-1c.3 suppressing an alert for another position is a matter of
+      coordination, not a logic check. A pair with no active alert answers NO CONFLICT ALERT; the same aircraft twice
+      answers INVALID COMBINATION.
     fields:
       - field: Position
         rule: |

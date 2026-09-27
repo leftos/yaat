@@ -66,6 +66,12 @@ public sealed class EramActiveConflictDto
     public required string CallsignB { get; init; }
     public string? OwnerFacilityA { get; init; }
     public string? OwnerFacilityB { get; init; }
+
+    /// <summary>Whether a <c>CO</c> entry suppressed the alert. False on a snapshot written before the field existed.</summary>
+    public bool Suppressed { get; init; }
+
+    /// <summary>The suppression the last conflict-alert pass reported to the host. False on a snapshot written before the field existed.</summary>
+    public bool PublishedSuppressed { get; init; }
 }
 
 public sealed class BeaconCodePoolDto

@@ -113,4 +113,5 @@ errors:
   - { id: YaatFixNotAdapted, text: "{cofie} NOT ADAPTED", source: coined }
   - { id: YaatNoHandoff, text: NO HANDOFF, source: coined }
   - { id: YaatHandoffToOwner, text: SECTOR IS OWNER, source: coined }
+  - { id: YaatNoConflictAlert, text: NO CONFLICT ALERT, source: coined }
   - { id: YaatInternal, text: MESSAGE FAILED, source: coined }

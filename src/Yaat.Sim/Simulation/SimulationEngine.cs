@@ -54,10 +54,15 @@ public readonly record struct GeneratorSpawnRecord(
 public readonly record struct ConflictAlertChanges(List<ActiveConflict> New, List<string> Cleared);
 
 /// <summary>
-/// Result of <see cref="SimulationEngine.TickEramConflictAlerts"/>: the ERAM STCA pairs that opened
-/// (<see cref="New"/>) and closed (<see cref="Cleared"/> ids) this tick, for the host to broadcast.
+/// One ERAM conflict-alert pass's diff: the alerts that opened and the ids that closed, and the alerts a <c>CO</c> entry
+/// suppressed (by id) or restored since the last pass.
 /// </summary>
-public readonly record struct EramConflictAlertChanges(List<EramActiveConflict> New, List<string> Cleared);
+public readonly record struct EramConflictAlertChanges(
+    List<EramActiveConflict> New,
+    List<string> Cleared,
+    List<string> Suppressed,
+    List<EramActiveConflict> Restored
+);
 
 public sealed partial class SimulationEngine
 {

@@ -9,6 +9,13 @@ namespace Yaat.Sim;
 public sealed class EramConflictState
 {
     public Dictionary<string, EramActiveConflict> Conflicts { get; } = [];
+
+    /// <summary>
+    /// The active alert between <paramref name="callsignA"/> and <paramref name="callsignB"/>, in either order, or null
+    /// when there is none.
+    /// </summary>
+    public EramActiveConflict? FindPair(string callsignA, string callsignB) =>
+        Conflicts.GetValueOrDefault(EramConflictDetector.MakeConflictId(callsignA, callsignB));
 }
 
 /// <summary>
@@ -34,4 +41,18 @@ public sealed class EramActiveConflict
     /// an ordinary data block, not a CDB — 7110.65 §2-1-6). Refreshed each detection tick.
     /// </summary>
     public string? IntruderCallsign { get; set; }
+
+    /// <summary>
+    /// Set and cleared by the ERAM Conflict Suppress entry (<c>CO</c>, 7110.65 §5-13-1c.1): a suppressed alert is withheld
+    /// from CRC's conflict list and data-block conflict status. It belongs to this alert only: when the pair stops being
+    /// detected the alert is removed, so a later conflict between the same pair alerts again.
+    /// </summary>
+    public bool Suppressed { get; set; }
+
+    /// <summary>
+    /// The <see cref="Suppressed"/> value the last <see cref="Simulation.SimulationEngine.TickEramConflictAlerts"/> diff
+    /// reported. When the two differ, the next pass reports the alert suppressed or restored and brings this up to date,
+    /// so the host publishes a <c>CO</c> on every run kind, live or played back.
+    /// </summary>
+    public bool PublishedSuppressed { get; set; }
 }

@@ -42,6 +42,11 @@ namespace Yaat.Sim.Commands;
 /// </para>
 ///
 /// <para>
+/// Conflict alerts: <c>CO {otherCallsign}</c> (CO Conflict Suppress: toggles the suppression of the active ERAM conflict
+/// alert between this aircraft and the other, in <see cref="EramEntryContext.EramConflicts"/>).
+/// </para>
+///
+/// <para>
 /// A refused entry's message is an <see cref="EramEntryErrors"/> id, optionally followed by a space and the contents of
 /// the field in error; success messages are free text.
 /// </para>
@@ -75,6 +80,7 @@ public static class EramEntryEngine
             "DRI" => ApplyDri(ac, args),
             "MIN" => ApplyMinimize(ac, args),
             "FDB" => ApplyFdbToggle(ac, args),
+            "CO" => ApplyConflictSuppress(ac, args, ctx.EramConflicts),
             _ => Refused(EramEntryErrors.InvalidMessageType),
         };
     }
@@ -415,6 +421,33 @@ public static class EramEntryEngine
 
     private const int StandardHalo = 1;
     private const int ReducedSeparationHalo = 2;
+
+    /// <summary>
+    /// ERAM Conflict Suppress (CO.yaml, 7110.65 §5-13-1c.1): toggles <see cref="EramActiveConflict.Suppressed"/> on the
+    /// active alert between this aircraft and the one named, so a second entry restores it. The same aircraft twice is
+    /// <c>INVALID COMBINATION</c>; a pair with no active alert is refused <c>NO CONFLICT ALERT</c>.
+    /// </summary>
+    private static CommandResult ApplyConflictSuppress(AircraftState ac, List<string> args, EramConflictState conflicts)
+    {
+        if (args.Count != 1)
+        {
+            return Refused(args.Count < 1 ? EramEntryErrors.MessageTooShort : EramEntryErrors.MessageTooLong);
+        }
+
+        string other = args[0];
+        if (string.Equals(other, ac.Callsign, StringComparison.Ordinal))
+        {
+            return Refused(EramEntryErrors.InvalidCombination);
+        }
+
+        if (conflicts.FindPair(ac.Callsign, other) is not { } conflict)
+        {
+            return Refused(EramEntryErrors.NoConflictAlert);
+        }
+
+        conflict.Suppressed = !conflict.Suppressed;
+        return new CommandResult(true, $"CA {(conflict.Suppressed ? "suppressed" : "restored")} {ac.Callsign}/{other}");
+    }
 
     private static CommandResult Refused(string errorId) => new(false, errorId);
 

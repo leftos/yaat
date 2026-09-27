@@ -10,5 +10,13 @@ namespace Yaat.Sim.Commands;
 /// <para><see cref="Scenario"/> is null only when no scenario is loaded. <see cref="Redirect"/> is the consolidation
 /// redirect: a handoff to an unattended position lands on the attended position it is consolidated under. It is null
 /// when the run cannot answer attendance, and then the handoff goes to the named position itself.</para>
+///
+/// <para><see cref="EramConflicts"/> is the engine's ERAM conflict-alert set, which the <c>CO</c> entry suppresses and
+/// restores alerts in.</para>
 /// </summary>
-public sealed record EramEntryContext(TrackOwner? Identity, SimScenarioState? Scenario, ConsolidationRedirect? Redirect);
+public sealed record EramEntryContext(
+    TrackOwner? Identity,
+    SimScenarioState? Scenario,
+    ConsolidationRedirect? Redirect,
+    EramConflictState EramConflicts
+);

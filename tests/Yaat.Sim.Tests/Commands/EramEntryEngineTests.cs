@@ -19,7 +19,7 @@ public class EramEntryEngineTests
     private static readonly TrackOwner Boulder = TrackOwner.CreateStars("NCT_B", "NCT", 2, "B");
 
     private static CommandResult Apply(AircraftState ac, string entry, TrackOwner? identity) =>
-        EramEntryEngine.Apply(ac, entry, new EramEntryContext(identity, Scenario: null, Redirect: null));
+        EramEntryEngine.Apply(ac, entry, new EramEntryContext(identity, Scenario: null, Redirect: null, new EramConflictState()));
 
     /// <summary>A scenario whose one ATC position, Boulder, answers the TCP code <c>2B</c> a handoff names.</summary>
     private static EramEntryContext HandoffContext(TrackOwner identity) =>
@@ -42,7 +42,8 @@ public class EramEntryEngineTests
                     },
                 ],
             },
-            Redirect: null
+            Redirect: null,
+            new EramConflictState()
         );
 
     private static AircraftState Aircraft() =>
@@ -685,6 +686,56 @@ public class EramEntryEngineTests
         Assert.Equal(error, result.Message);
         EramPointoutState pointout = Assert.Single(ac.Eram.Pointouts);
         Assert.False(pointout.IsAcknowledged || pointout.IsRSideCleared || pointout.IsDSideCleared);
+    }
+
+    /// <summary>An ERAM conflict set holding one active alert between <c>UAL1</c> and <c>AAL2</c>.</summary>
+    private static EramConflictState OneAlert(out EramActiveConflict alert)
+    {
+        var conflicts = new EramConflictState();
+        alert = new EramActiveConflict
+        {
+            Id = "ESTCA_AAL2_UAL1",
+            CallsignA = "AAL2",
+            CallsignB = "UAL1",
+        };
+        conflicts.Conflicts[alert.Id] = alert;
+        return conflicts;
+    }
+
+    private static CommandResult ApplyCo(AircraftState ac, string entry, EramConflictState conflicts) =>
+        EramEntryEngine.Apply(ac, entry, new EramEntryContext(Sector44, Scenario: null, Redirect: null, conflicts));
+
+    [Fact]
+    public void Co_SuppressesTheAlert_AndASecondEntryRestoresIt()
+    {
+        AircraftState ac = Aircraft();
+        EramConflictState conflicts = OneAlert(out EramActiveConflict alert);
+
+        CommandResult suppressed = ApplyCo(ac, "CO AAL2", conflicts);
+
+        Assert.True(suppressed.Success, suppressed.Message);
+        Assert.True(alert.Suppressed);
+
+        CommandResult restored = ApplyCo(ac, "CO AAL2", conflicts);
+
+        Assert.True(restored.Success, restored.Message);
+        Assert.False(alert.Suppressed);
+    }
+
+    [Theory]
+    [InlineData("CO DAL3", EramEntryErrors.NoConflictAlert)]
+    [InlineData("CO UAL1", EramEntryErrors.InvalidCombination)]
+    [InlineData("CO", EramEntryErrors.MessageTooShort)]
+    [InlineData("CO AAL2 DAL3", EramEntryErrors.MessageTooLong)]
+    public void Co_Refused_LeavesTheAlertAlone(string entry, string error)
+    {
+        AircraftState ac = Aircraft();
+        EramConflictState conflicts = OneAlert(out EramActiveConflict alert);
+
+        CommandResult result = ApplyCo(ac, entry, conflicts);
+
+        Assert.Equal(error, result.Message);
+        Assert.False(alert.Suppressed);
     }
 
     [Theory]

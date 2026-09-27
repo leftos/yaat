@@ -6,6 +6,7 @@
 
 - ERAM `LD` reads out when an aircraft reaches a fix along its route, and `LE` the speed change to cross a fix at a time.
 - ERAM `QX /R` surrenders control of a track and `QX FP` removes its flight strip; `QX` rejects an unknown action instead of dropping the track.
+- ERAM `CO` suppresses a pair's conflict alert until that alert ends, and a second `CO` restores it.
 
 ### Changed
 
@@ -26,6 +27,7 @@
 - ERAM `QS` free text takes 1–8 letters and digits, and `QN` rejects a leader direction outside 1–9 or a length other than 0, 1, 2, 3 or 5.
 - Amending an aircraft whose callsign is over 7 characters answers an error instead of reporting success and changing nothing.
 - Rewinding a session keeps ERAM on-frequency toggles, data-block leader changes, handoffs, point-outs, DRI halos, minimized point-outs and open full data blocks.
+- After a rewind, ERAM scopes drop the abandoned run's conflict alerts and show the ones active at the new time.
 - ERAM `QP J 3` toggles the reduced 3 NM halo, like `QP T`, and checks its reduced-DRI field.
 - ERAM `QP` points out to up to four sectors, rejecting bad, unadapted or repeated ones; `QB <code> <qualifier>` sets both at once.
 - ERAM `QP`, `QB`, `QF`, `VP` and `AM` check every field like the real system, and `AM` and `QB` accept `/OK`.

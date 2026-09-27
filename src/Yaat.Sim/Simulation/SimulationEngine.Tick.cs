@@ -689,7 +689,40 @@ public sealed partial class SimulationEngine
             }
         }
 
-        return new EramConflictAlertChanges(newConflicts, clearedIds);
+        (List<string> suppressedIds, List<EramActiveConflict> restored) = TakeEramSuppressionChanges(conflicts);
+        return new EramConflictAlertChanges(newConflicts, clearedIds, suppressedIds, restored);
+    }
+
+    /// <summary>
+    /// The alerts whose <see cref="EramActiveConflict.Suppressed"/> flag a <c>CO</c> entry changed since the last pass,
+    /// split into the suppressed ids and the restored alerts; each is marked published. A new alert starts with both
+    /// flags false, so only an alert that already existed can appear here.
+    /// </summary>
+    private static (List<string> Suppressed, List<EramActiveConflict> Restored) TakeEramSuppressionChanges(
+        Dictionary<string, EramActiveConflict> conflicts
+    )
+    {
+        var suppressed = new List<string>();
+        var restored = new List<EramActiveConflict>();
+        foreach (EramActiveConflict conflict in conflicts.Values)
+        {
+            if (conflict.Suppressed == conflict.PublishedSuppressed)
+            {
+                continue;
+            }
+
+            conflict.PublishedSuppressed = conflict.Suppressed;
+            if (conflict.Suppressed)
+            {
+                suppressed.Add(conflict.Id);
+            }
+            else
+            {
+                restored.Add(conflict);
+            }
+        }
+
+        return (suppressed, restored);
     }
 
     /// <summary>

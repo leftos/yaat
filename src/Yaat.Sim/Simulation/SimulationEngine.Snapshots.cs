@@ -434,6 +434,8 @@ public sealed partial class SimulationEngine
                 CallsignB = c.CallsignB,
                 OwnerFacilityA = c.OwnerFacilityA,
                 OwnerFacilityB = c.OwnerFacilityB,
+                Suppressed = c.Suppressed,
+                PublishedSuppressed = c.PublishedSuppressed,
             })
             .ToList();
 
@@ -511,6 +513,8 @@ public sealed partial class SimulationEngine
                     CallsignB = c.CallsignB,
                     OwnerFacilityA = c.OwnerFacilityA,
                     OwnerFacilityB = c.OwnerFacilityB,
+                    Suppressed = c.Suppressed,
+                    PublishedSuppressed = c.PublishedSuppressed,
                 };
             }
         }

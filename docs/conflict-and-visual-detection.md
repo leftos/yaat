@@ -133,6 +133,8 @@ suppression on either aircraft (`Stars.CaSuppressedWith`) drops the pair; live-t
 pair with a simulated aircraft only when IFR, not coasting, and outside the approach corridors — see
 [live-traffic.md](live-traffic.md).
 
+**ERAM CO (per-alert suppression).** A CRC `CO <FLID>/<FLID>` toggles `EramActiveConflict.Suppressed` on the pair's active alert through a recorded ERAM entry (`CO <other>` in `EramEntryEngine`); CO on a pair with no active alert answers `NO CONFLICT ALERT`. The flag lives on the alert, so it dies when the alert clears and a new conflict between the same pair alerts again (7110.65 §5-13-1c.1(a)). It is ERAM-only: STARS `CASUP` and `CaSuppressedWith` are untouched. The detector still produces the pair; `TickEramConflictAlerts` reports each suppress/restore once in `EramConflictAlertChanges` (the `PublishedSuppressed` flag remembers what was last reported, snapshotted with `Suppressed`), and the broadcast deletes a suppressed alert from `EramShortTermConflicts` and drops its data blocks' `ConflictStatus` to `NoConflict` on live and playback alike. A rewind re-syncs the list (`RecordingManager.ResyncEramConflictsAsync`).
+
 The model differs from terminal CA on every axis:
 
 - **4-minute look-ahead** (vs 5 s). This is the defining feature: real ERAM flashes minutes before a loss, so a

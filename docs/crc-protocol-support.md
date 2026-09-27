@@ -52,7 +52,7 @@ Authoritative interface definitions: `..\vatsim-vnas\messaging\` (sibling repo)
 
 ### ERAM Commands
 
-- [x] `ProcessEramMessage(ProcessEramMessageDto)` — QN and implied commands (handoff initiate/accept, data-block offset and leader, FDB/LDB toggle, VCI), QF (FP readout), QL (quick look), RD (route display), QU (route display / direct-to amendment), QT (start track), QX (drop track, surrender control, remove strip), QZ (assigned alt), QQ (interim / local-interim / procedure alt), QR (reported alt), QS (FDB heading, speed and free text), QH F (freeze), QP (point-out initiate / accept / minimise, DRI), QB (beacon code, equipment, voice type), AM, VP, DM, LA, LB, LC, LD, LE, LF. Unknown verbs return `FORMAT`. The spec-derived command reference these are held to is [`eram/`](./eram/README.md).
+- [x] `ProcessEramMessage(ProcessEramMessageDto)` — QN and implied commands (handoff initiate/accept, data-block offset and leader, FDB/LDB toggle, VCI), QF (FP readout), QL (quick look), RD (route display), QU (route display / direct-to amendment), QT (start track), QX (drop track, surrender control, remove strip), QZ (assigned alt), QQ (interim / local-interim / procedure alt), QR (reported alt), QS (FDB heading, speed and free text), QH F (freeze), CO (suppress / restore a conflict-alert pair), QP (point-out initiate / accept / minimise, DRI), QB (beacon code, equipment, voice type), AM, VP, DM, LA, LB, LC, LD, LE, LF. Unknown verbs return `FORMAT`. The spec-derived command reference these are held to is [`eram/`](./eram/README.md).
 - [x] `SetEramSectorConfiguration(EramSectorConfigurationDto)` — per-sector storage + broadcast
 - [x] `ToggleEramDwellLock(aircraftId)` — toggles `AircraftState.IsDwellLocked`
 - [x] `ClearEramPointout(aircraftId, pointoutId)` — ownership-checked (receiving sector only) clear of both R-side and D-side flags on the matching `EramPointoutState`
@@ -165,8 +165,8 @@ Authoritative interface definitions: `..\vatsim-vnas\messaging\` (sibling repo)
 - [ ] `ReceiveEramCrrGroups(Topic, List<EramCrrGroupDto>)` — CRR creation path unresolved
 - [ ] `DeleteEramCrrGroups(Topic, List<string>)` — same
 - [x] `ReceiveEramSectorConfiguration(Topic, EramSectorConfigurationDto)` — event-driven after `SetEramSectorConfiguration`
-- [ ] `ReceiveEramShortTermConflicts(Topic, List<EramShortTermConflictDto>)` — needs en-route STCA detector (Bucket F)
-- [ ] `DeleteEramShortTermConflicts(Topic, List<string>)` — paired with detector
+- [x] `ReceiveEramShortTermConflicts(Topic, List<EramShortTermConflictDto>)` — `EramConflictDetector`, published by `TickProcessor.ProcessEramConflictAlerts`; a CO-suppressed alert is withheld
+- [x] `DeleteEramShortTermConflicts(Topic, List<string>)` — cleared, CO-suppressed, and rewind-resync ids
 
 ### ASDEX
 
@@ -280,7 +280,7 @@ Authoritative interface definitions: `..\vatsim-vnas\messaging\` (sibling repo)
 - [x] ASDE-X + SAID target history trails — `DtoConverter.BuildSurfaceHistory` from `AircraftState.PositionHistory` (newest-first, cap 5)
 - [x] Coasted/dropped surface tracks on disconnect — `SurfaceCoastStore`; 45 s coast/drop per `asdex.md` (individual removals only; bulk wipes hard-delete)
 - [x] SAID surface display vertical limit — 2,500 ft AGL field-relative (`CrcVisibilityTracker`)
-- [ ] ERAM short-term conflict detection + broadcast (clone STARS STCA once validated)
+- [x] ERAM short-term conflict detection + broadcast (`EramConflictDetector`; see [conflict-and-visual-detection.md](./conflict-and-visual-detection.md))
 - [ ] ERAM target history UDP stream (+ `DeleteEramTargetHistoryEntries`) — vNAS sends over UDP, not SignalR
 - [ ] `AsdexHoldBarDto` dynamic `Status` from safety logic (geometry sourced from ASDEX video maps) — sole remaining ASDE-X parity gap; needs hold-bar geometry synthesis + aviation review (the shipped safety-logic plan, `docs/plans/archive/asdex-safety-logic.md`, is in git history)
 - [ ] Remaining Bucket E items (QP pointouts, CRR lifecycle)
@@ -307,6 +307,6 @@ Authoritative interface definitions: `..\vatsim-vnas\messaging\` (sibling repo)
 
 **Client→Server:** 2 remaining stubs are ERAM CRR group-color + CRR delete, blocked on the unresolved CRR creation path (no creation hub method; requires a live CRC wire trace).
 
-**Server→Client broadcasts remaining (9):** ERAM CRR groups Receive/Delete (2), ERAM STCA Receive/Delete (2), ERAM target history UDP Delete (1), plus detector work to populate existing empty broadcasts — ASDEX safety-logic dynamic hold-bar status, ERAM STCA. ASDE-X Safety Logic alerts now ship (`ReceiveAsdexAlerts`/`DeleteAsdexAlerts`); the remaining items are upstream-blocked or, for hold-bar status, need geometry synthesis.
+**Server→Client broadcasts remaining:** ERAM CRR groups Receive/Delete (2), ERAM target history UDP Delete (1), plus detector work to populate the ASDEX safety-logic dynamic hold-bar status. ASDE-X Safety Logic alerts now ship (`ReceiveAsdexAlerts`/`DeleteAsdexAlerts`); the remaining items are upstream-blocked or, for hold-bar status, need geometry synthesis.
 
 **ProcessStarsCommand detail:** IC, TC, Handoff, Implied (9 sub-ops), MultiFunc (CON/DECON), Coordination (stub)
