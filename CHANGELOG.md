@@ -15,6 +15,10 @@
 - ERAM `QT`, `QH`, `QZ`, `QR`, `QU`, `LA`, `LB`, `LC` and `LF` check every field in the real system's order and answer its error, such as SPD FORMAT or DUPLICATED ACTION.
 - ERAM `LA`, `LB`, `LC` and `QU` accept typed latitude/longitude, and a picked track adds its ground speed to `LA` and `LB`.
 - ERAM `LC` rejects an arrival time less than 3 minutes or 8 hours or more ahead with INVALID TIME.
+- An ERAM handoff from a sector that doesn't own the track answers NOT YOUR CONTROL; `/OK` forces it for another sector of the same center.
+- ERAM `QS` free text takes 1–8 letters and digits, and `QN` rejects a leader direction outside 1–9 or a length other than 0, 1, 2, 3 or 5.
+- Amending an aircraft whose callsign is over 7 characters answers an error instead of reporting success and changing nothing.
+- Rewinding a session keeps ERAM on-frequency toggles, data-block leader changes and handoffs.
 - ERAM `QZ` with a two-digit sector hands the track off, `QZ /OK` amends another sector's altitude, and `QH F` freezes at a clicked location.
 
 ## v0.13.6-beta [2026/09/26]

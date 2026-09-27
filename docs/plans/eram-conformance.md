@@ -157,8 +157,6 @@ Close the replay gap: point-out create and acknowledge (:2478-2499, :2574), DRI 
 - A handoff to the track's own owner is accepted (pre-existing in `TrackEngine.ApplyHandoff`; aviation review 2026-09-26): refuse it for the ERAM entry form.
 - `TrackEngine.ApplyHandoff`'s plain path does not clear `HandoffRedirectedBy`, so a STARS display can keep an old redirect after a later handoff (pre-existing).
 - An ERAM owner built by `LiveTrafficOwnerResolver` (~:146, `"{centre}_{sector}"`) never matches a configured position callsign, so it always answers NOT YOUR CONTROL; confirm that path cannot reach an ERAM handoff, or match ERAM owners on facility + sector.
-- `QZ /OK 44 <FLID>` validates the `/OK` but does not forward it to the handoff, because the QZ prefix calls `DispatchImpliedHandoffInitiate(sector, callsign, pickKind)`. Wire it once the ERAM handoff entry form (W3-2) has landed.
-- Under the QZ prefix only a two-digit sector is a handoff, so `QZ C44 <FLID>` answers ALT FORMAT. QN.yaml field 16 also lists `L((d)dd)`; decide whether the centre form applies under QZ.
 - QR has no ownership gate, so any sector can set another sector's CERA. Whether ERAM restricts QR to the controlling sector needs an aviation ruling.
 - QR field 54: the Sim's `ApplyQr` refuses `000`, which QR.yaml says is legal (it clears the value), and the server doesn't check the field.
 - QT validates fields 05/08/56/68/74 and QH validates `/OK`, then accepts each without effect: our QT stores no speed, altitude, heading or location.
