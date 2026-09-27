@@ -12,6 +12,8 @@
 - A rejected ERAM command shows one specific error, such as FLID NOT STORED, NOT YOUR CONTROL or ALT FORMAT, instead of FORMAT.
 - ERAM checks typed flight IDs and track picks like the real system, rejecting bad formats, non-discrete codes, duplicate flights and the wrong kind of target.
 - ERAM `RD` by computer ID or lower-case callsign toggles the same route line as the callsign.
+- ERAM `QT`, `QH`, `QZ` and `QR` check every field in the real system's order and answer its error, such as SPD FORMAT or DUPLICATED ACTION.
+- ERAM `QZ` with a two-digit sector hands the track off, `QZ /OK` amends another sector's altitude, and `QH F` freezes at a clicked location.
 
 ## v0.13.6-beta [2026/09/26]
 
