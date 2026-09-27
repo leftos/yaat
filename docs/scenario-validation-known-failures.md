@@ -2,7 +2,7 @@
 
 Commands that fail parsing but are **not parser bugs** — genuine scenario typos, unsupported ATCTrainer features we won't implement, fixes or procedures missing from the current navdata, or free-text notes in command fields. These should remain as failures in validation reports.
 
-Last full run: 2026-09-26 — 1964 scenarios, 79890 presets, 284 failures (99.6% parse rate). 210 of the 284 are listed here; the other 74 are suspected parser gaps and are not catalogued.
+Last full run: 2026-09-26 — 1964 scenarios, 79890 presets, 284 failures (99.6% parse rate). 277 of the 284 are listed here; the other 7 are suspected parser gaps and are not catalogued.
 
 "Not in navdata" means the name resolves neither as a fix in the current vNAS NavData nor as an FRD; the fix was renamed, decommissioned or never published. "Route element in DCT" means a STAR, a STAR.runway or an airway inside a `DCT` fix list; `DCT` takes fixes only (use `JARR` / `JAWY`).
 
@@ -36,9 +36,10 @@ Last full run: 2026-09-26 — 1964 scenarios, 79890 presets, 284 failures (99.6%
 - `AT 3500 DCT W17` — `W17` not in navdata
 - `ONHO AT GIBBZ DCT KUKSE MATTC CUTZZ` — `MATTC` not in navdata (removed since the previous cycle)
 
-## ZDV (3 failures)
+## ZDV (69 failures)
 
 - `CFIX VCTRE 23000` / `CFIX ONNNN 23000` / `CFIX WRIPS 10000` — fix not in navdata
+- `CFIX <altitude>` with no fix, e.g. `CFIX  7000` (×66) — unsupported form: `CFIX` takes a fix, as in ATCTrainer (`CFIX {waypoint} {altitude} [speed]`)
 
 ## ZFW — PASS
 
@@ -130,8 +131,9 @@ Last full run: 2026-09-26 — 1964 scenarios, 79890 presets, 284 failures (99.6%
 - `AT OFKTD DCR PATRC` — typo (`DCR` instead of `DCT`)
 - `AT CUUGR DCT ROOD` — `ROOD` not in navdata
 
-## ZSE (7 failures)
+## ZSE (8 failures)
 
+- `CFIX <altitude>` with no fix — unsupported form (see ZDV)
 - `WAIT <n> CONSIDER CALLING FOR IFR OUT OF VUO` (×3) — free-text instructor notes
 - `WAIT 1 60 SAY ON THE GROUND VUO, REQ IFR TO SPB` — malformed WAIT + free-text
 - `DCT LMT HAWKZ8` / `DCT LKV HAWKZ8` / `DCT PDT CHINS5` — route element in DCT (STAR)
