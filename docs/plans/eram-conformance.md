@@ -156,11 +156,12 @@ Close the replay gap: point-out create and acknowledge (:2478-2499, :2574), DRI 
 **QR and self-handoff rulings (aviation consult 2026-09-26; the sources are silent, so these are yaat rulings, noted in the YAML):** QR is limited to the controlling sector through `RejectIfNotEditable`, `/OK` overriding within the same ARTCC, because the CERA is the owner's own verification record (`docs/crc/eram.md` :48, :624); `QR 000` clears the CERA (QR.yaml field 54); QR's field 54 is exactly `ddd` (ALT FORMAT) and one flight only. A handoff whose resolved target is the track's owner is refused with a coined `YaatHandoffToOwner` = `SECTOR IS OWNER` (it also covers a forced handoff that resolves to the owner).
 
 **Wave 3 follow-ups found while building (2026-09-26):**
-- A handoff to the track's own owner is accepted (pre-existing in `TrackEngine.ApplyHandoff`; aviation review 2026-09-26): refuse it for the ERAM entry form.
-- `TrackEngine.ApplyHandoff`'s plain path does not clear `HandoffRedirectedBy`, so a STARS display can keep an old redirect after a later handoff (pre-existing).
-- An ERAM owner built by `LiveTrafficOwnerResolver` (~:146, `"{centre}_{sector}"`) never matches a configured position callsign, so it always answers NOT YOUR CONTROL; confirm that path cannot reach an ERAM handoff, or match ERAM owners on facility + sector.
-- QR has no ownership gate, so any sector can set another sector's CERA. Whether ERAM restricts QR to the controlling sector needs an aviation ruling.
-- QR field 54: the Sim's `ApplyQr` refuses `000`, which QR.yaml says is legal (it clears the value), and the server doesn't check the field.
+- `RejectIfNotEditable` does not apply the same-ARTCC limit to `/OK`, so a forced QZ, QU or QQ (`/TT`) edit still reaches an external ARTCC's or a STARS-owned track (QR and HANDOFF use `EramEntryEngine.IsOwnedByThisCentre`). Apply the same rule to every `/OK` edit (CRC `docs/crc/eram.md`:48).
+- `LiveTrafficOwnerResolver` (~:140): for another centre's facility (e.g. ZLA in a ZOA room) `FindFacility` returns null and the resolver falls back to the own ARTCC node, so a ZLA sector 32 owner takes ZOA sector 32's callsign, and ERAM ownership (callsign-only `MatchesPosition`) then treats a ZOA 32 controller as its owner. It also neither recurses into child facilities nor compares sector ids by number, unlike `ArtccConfigResolver.FindEramPositionBySectorId`.
+- `QP <FLID>` (minimize) and the un-minimize after a new point-out write the room's `EramState.PointoutMinimized` directly, so a replay reproduces neither; it is room state, not `AircraftEramState`.
+- QP's DRI fields are unchecked: `J`/`T`, field 306 must be 3, and 306 only with `J`.
+- `QB 0` on its own is a valid Qualifier Mod (QB.yaml) but answers `0 FORMAT`.
+- `QF *` should require an aircraft-ID flight ID (FLID FORMAT otherwise).
 - QT validates fields 05/08/56/68/74 and QH validates `/OK`, then accepts each without effect: our QT stores no speed, altitude, heading or location.
 
 Tests: one `EramConformance<Verb>Tests` class per verb through the `Harness/EramWire.cs` harness. Each has an accept case asserting `["ACCEPT", descriptor, acid]` and one case per field check. Every new variant or error goes into the YAML first, which is the failing test.
