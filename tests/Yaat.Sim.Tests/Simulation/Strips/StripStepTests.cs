@@ -580,6 +580,30 @@ public class StripStepTests
     }
 
     /// <summary>
+    /// A recorded amendment whose aircraft is not in the world — its aircraft left before the replay reached it — is a
+    /// refused record: the router answers the amendment's failure and prints no strip for it.
+    /// </summary>
+    [Fact]
+    public void AmendmentReplay_ForAMissingCallsign_FailsAndReprintsNoStrip()
+    {
+        if (Engine(DepartureAtOak, "OAK_TWR", "TWR") is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        engine.AfterAircraftSpawned(Departure(engine, Callsign));
+        List<string> before = StripIds(engine);
+        var amendment = new RecordedAmendFlightPlan(1.0, "NOPE123", new FlightPlanAmendment(Remarks: "AMENDED"), "STRIP_NOPE123");
+
+        CommandResult result = engine.Actions.ApplyRecorded(amendment, host);
+
+        Assert.False(result.Success, result.Message);
+        Assert.Equal(before, StripIds(engine));
+        Assert.Empty(engine.Strips.DeparturePrinterQueue);
+    }
+
+    /// <summary>
     /// The arrival auto-print is gated on the owning facility's <c>enableArrivalStrips</c>: OAK ATCT has it off in the
     /// real ZOA configuration — real vStrips never auto-prints arrivals there — while NCT has it on. Same aircraft,
     /// same ETA, two student positions.

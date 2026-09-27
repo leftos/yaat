@@ -1,5 +1,7 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Scenarios;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Commands;
 
@@ -13,6 +15,35 @@ public class EramEntryEngineTests
 {
     private static readonly TrackOwner Sector44 = TrackOwner.CreateEram("ZOA_44_CTR", "ZOA", "44");
     private static readonly TrackOwner Sector45 = TrackOwner.CreateEram("ZOA_45_CTR", "ZOA", "45");
+
+    private static readonly TrackOwner Boulder = TrackOwner.CreateStars("NCT_B", "NCT", 2, "B");
+
+    private static CommandResult Apply(AircraftState ac, string entry, TrackOwner? identity) =>
+        EramEntryEngine.Apply(ac, entry, new EramEntryContext(identity, Scenario: null, Redirect: null));
+
+    /// <summary>A scenario whose one ATC position, Boulder, answers the TCP code <c>2B</c> a handoff names.</summary>
+    private static EramEntryContext HandoffContext(TrackOwner identity) =>
+        new(
+            identity,
+            new SimScenarioState
+            {
+                ScenarioId = "s",
+                ScenarioName = "s",
+                RngSeed = 0,
+                OriginalScenarioJson = "{}",
+                ElapsedSeconds = 30,
+                AtcPositions =
+                [
+                    new ResolvedAtcPosition
+                    {
+                        Source = new ScenarioAtc { Id = Boulder.Callsign },
+                        Owner = Boulder,
+                        Tcp = new Tcp(2, "B", "tcp-2b", null),
+                    },
+                ],
+            },
+            Redirect: null
+        );
 
     private static AircraftState Aircraft() =>
         new()
@@ -38,7 +69,7 @@ public class EramEntryEngineTests
         ac.Eram.FrozenLon = -122.0;
         ac.Eram.FrozenAltitude = 110;
 
-        CommandResult result = EramEntryEngine.Apply(ac, "TRACK", Sector44);
+        CommandResult result = Apply(ac, "TRACK", Sector44);
 
         Assert.True(result.Success, result.Message);
         Assert.Same(Sector44, ac.Track.Owner);
@@ -59,7 +90,7 @@ public class EramEntryEngineTests
         AircraftState ac = Aircraft();
         ac.Track.Owner = Sector45;
 
-        CommandResult result = EramEntryEngine.Apply(ac, entry, Sector44);
+        CommandResult result = Apply(ac, entry, Sector44);
 
         Assert.Equal(taken, result.Success);
         Assert.Same(taken ? Sector44 : Sector45, ac.Track.Owner);
@@ -74,7 +105,7 @@ public class EramEntryEngineTests
     {
         AircraftState ac = Aircraft();
 
-        CommandResult result = EramEntryEngine.Apply(ac, "TRACK", null);
+        CommandResult result = Apply(ac, "TRACK", null);
 
         Assert.False(result.Success);
         Assert.Equal(EramEntryErrors.SessionNotActive, result.Message);
@@ -86,7 +117,7 @@ public class EramEntryEngineTests
     {
         AircraftState ac = Aircraft();
 
-        CommandResult result = EramEntryEngine.Apply(ac, "FREEZE 37.25 -121.75", null);
+        CommandResult result = Apply(ac, "FREEZE 37.25 -121.75", null);
 
         Assert.True(result.Success, result.Message);
         Assert.True(ac.Eram.IsFrozen);
@@ -103,7 +134,7 @@ public class EramEntryEngineTests
     {
         AircraftState ac = Aircraft();
 
-        Assert.False(EramEntryEngine.Apply(ac, entry, null).Success);
+        Assert.False(Apply(ac, entry, null).Success);
         Assert.False(ac.Eram.IsFrozen);
     }
 
@@ -116,7 +147,7 @@ public class EramEntryEngineTests
     {
         AircraftState ac = Aircraft();
 
-        CommandResult result = EramEntryEngine.Apply(ac, entry, null);
+        CommandResult result = Apply(ac, entry, null);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(message, result.Message);
@@ -131,8 +162,8 @@ public class EramEntryEngineTests
     {
         AircraftState ac = Aircraft();
 
-        EramEntryEngine.Apply(ac, "QQ 110", null);
-        EramEntryEngine.Apply(ac, "QQ P070", null);
+        Apply(ac, "QQ 110", null);
+        Apply(ac, "QQ P070", null);
 
         Assert.Null(ac.Eram.InterimAltitude);
         Assert.Equal(70, ac.Eram.ProcedureAltitude);
@@ -146,12 +177,12 @@ public class EramEntryEngineTests
         ac.Eram.ProcedureAltitude = 70;
         ac.Eram.LocalInterimAltitude = 90;
 
-        Assert.True(EramEntryEngine.Apply(ac, "QQ", null).Success);
+        Assert.True(Apply(ac, "QQ", null).Success);
         Assert.Null(ac.Eram.InterimAltitude);
         Assert.Null(ac.Eram.ProcedureAltitude);
         Assert.Equal(90, ac.Eram.LocalInterimAltitude);
 
-        Assert.True(EramEntryEngine.Apply(ac, "QQ L", null).Success);
+        Assert.True(Apply(ac, "QQ L", null).Success);
         Assert.Null(ac.Eram.LocalInterimAltitude);
     }
 
@@ -160,7 +191,7 @@ public class EramEntryEngineTests
     {
         AircraftState ac = Aircraft();
 
-        CommandResult result = EramEntryEngine.Apply(ac, "QQ ABC", null);
+        CommandResult result = Apply(ac, "QQ ABC", null);
 
         Assert.False(result.Success);
         Assert.Equal(EramEntryErrors.AltFormat, result.Message);
@@ -171,7 +202,7 @@ public class EramEntryEngineTests
     {
         AircraftState ac = Aircraft();
 
-        CommandResult result = EramEntryEngine.Apply(ac, "QR 250", null);
+        CommandResult result = Apply(ac, "QR 250", null);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal("QR 250 UAL1", result.Message);
@@ -183,7 +214,7 @@ public class EramEntryEngineTests
     [InlineData("QR")]
     [InlineData("QR 0")]
     [InlineData("QR X")]
-    public void Qr_WithoutAPositiveAltitude_IsRefused(string entry) => Assert.False(EramEntryEngine.Apply(Aircraft(), entry, null).Success);
+    public void Qr_WithoutAPositiveAltitude_IsRefused(string entry) => Assert.False(Apply(Aircraft(), entry, null).Success);
 
     [Theory]
     [InlineData("QS 090", "H090")]
@@ -196,7 +227,7 @@ public class EramEntryEngineTests
     {
         AircraftState ac = Aircraft();
 
-        CommandResult result = EramEntryEngine.Apply(ac, entry, null);
+        CommandResult result = Apply(ac, entry, null);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(stored, ac.Eram.AssignedHeading);
@@ -212,7 +243,7 @@ public class EramEntryEngineTests
     {
         AircraftState ac = Aircraft();
 
-        CommandResult result = EramEntryEngine.Apply(ac, entry, null);
+        CommandResult result = Apply(ac, entry, null);
 
         Assert.False(result.Success);
         Assert.Equal(EramEntryErrors.HeadingFormat, result.Message);
@@ -229,7 +260,7 @@ public class EramEntryEngineTests
     {
         AircraftState ac = Aircraft();
 
-        CommandResult result = EramEntryEngine.Apply(ac, entry, null);
+        CommandResult result = Apply(ac, entry, null);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(stored, ac.Eram.AssignedSpeed);
@@ -245,24 +276,64 @@ public class EramEntryEngineTests
     {
         AircraftState ac = Aircraft();
 
-        Assert.False(EramEntryEngine.Apply(ac, entry, null).Success);
+        Assert.False(Apply(ac, entry, null).Success);
         Assert.Null(ac.Eram.AssignedSpeed);
     }
 
-    [Fact]
-    public void Qs_FreeText_IsUpperCased_AndCapped()
+    [Theory]
+    [InlineData("QS `expect", "EXPECT")]
+    [InlineData("QS `A", "A")]
+    [InlineData("QS `ils28r", "ILS28R")]
+    [InlineData("QS `ABCDEFGH", "ABCDEFGH")]
+    public void Qs_FreeText_OfOneToEightCharacters_IsStoredUpperCased(string entry, string stored)
     {
         AircraftState ac = Aircraft();
 
-        CommandResult result = EramEntryEngine.Apply(ac, "QS `expect ils 28r", null);
+        CommandResult result = Apply(ac, entry, null);
 
         Assert.True(result.Success, result.Message);
-        Assert.Equal("EXPECT ILS 28R", ac.Eram.FreeText);
-        Assert.Equal("QS EXPECT ILS 28R UAL1", result.Message);
+        Assert.Equal(stored, ac.Eram.FreeText);
+        Assert.Equal($"QS {stored} UAL1", result.Message);
+    }
 
-        string longText = new('X', EramEntryEngine.FreeTextMaxLength + 5);
-        Assert.True(EramEntryEngine.Apply(ac, $"QS `{longText}", null).Success);
-        Assert.Equal(EramEntryEngine.FreeTextMaxLength, ac.Eram.FreeText!.Length);
+    [Theory]
+    [InlineData("QS `ABCDEFGHI")] // nine characters
+    [InlineData("QS `EXPECT ILS")] // an embedded space
+    [InlineData("QS ` EXPECT")] // a leading space
+    [InlineData("QS `ILS28R/2")] // a special character
+    [InlineData("QS `*")] // a special character alone
+    public void Qs_FreeText_OutsideOneToEightNonSpecialCharacters_IsRefused_AndKeepsTheOldText(string entry)
+    {
+        AircraftState ac = Aircraft();
+        ac.Eram.FreeText = "KEEP";
+
+        CommandResult result = Apply(ac, entry, null);
+
+        Assert.False(result.Success);
+        Assert.Equal(EramEntryErrors.TextFormat, result.Message);
+        Assert.Equal("KEEP", ac.Eram.FreeText);
+    }
+
+    [Theory]
+    [InlineData("QS * 270", "270")]
+    [InlineData("QS */ /250", "/250")]
+    [InlineData("QS /* `NOTE", "`NOTE")]
+    [InlineData("QS 270 *", "*")]
+    [InlineData("QS /250 /*", "/*")]
+    public void Qs_ActionTypeWithHsfData_IsRefused_AndChangesNothing(string entry, string fieldInError)
+    {
+        AircraftState ac = Aircraft();
+        ac.Eram.AssignedHeading = "H090";
+        ac.Eram.AssignedSpeed = "300";
+        ac.Eram.FreeText = "KEEP";
+
+        CommandResult result = Apply(ac, entry, null);
+
+        Assert.False(result.Success);
+        Assert.Equal($"{EramEntryErrors.CofieFormat} {fieldInError}", result.Message);
+        Assert.Equal("H090", ac.Eram.AssignedHeading);
+        Assert.Equal("300", ac.Eram.AssignedSpeed);
+        Assert.Equal("KEEP", ac.Eram.FreeText);
     }
 
     [Fact]
@@ -270,7 +341,7 @@ public class EramEntryEngineTests
     {
         AircraftState ac = Aircraft();
 
-        CommandResult result = EramEntryEngine.Apply(ac, "QS `", null);
+        CommandResult result = Apply(ac, "QS `", null);
 
         Assert.False(result.Success);
         Assert.Equal(EramEntryErrors.TextFormat, result.Message);
@@ -287,7 +358,7 @@ public class EramEntryEngineTests
         ac.Eram.AssignedSpeed = "250";
         ac.Eram.FreeText = "TXT";
 
-        CommandResult result = EramEntryEngine.Apply(ac, entry, null);
+        CommandResult result = Apply(ac, entry, null);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(heading, ac.Eram.AssignedHeading);
@@ -300,16 +371,179 @@ public class EramEntryEngineTests
     {
         AircraftState ac = Aircraft();
 
-        Assert.True(EramEntryEngine.Apply(ac, "LF ABC", null).Success);
+        Assert.True(Apply(ac, "LF ABC", null).Success);
         Assert.Equal("ABC", ac.Eram.CrrGroupLabel);
 
-        Assert.True(EramEntryEngine.Apply(ac, "LF", null).Success);
+        Assert.True(Apply(ac, "LF", null).Success);
         Assert.Null(ac.Eram.CrrGroupLabel);
+    }
+
+    [Fact]
+    public void Vci_TogglesTheNamedSector_AndLeavesOtherSectorsAlone()
+    {
+        AircraftState ac = Aircraft();
+        ac.Eram.OnFrequencySectorIds.Add("45");
+
+        CommandResult on = Apply(ac, "VCI 44", null);
+
+        Assert.True(on.Success, on.Message);
+        Assert.Equal(["45", "44"], ac.Eram.OnFrequencySectorIds);
+
+        CommandResult off = Apply(ac, "VCI 44", null);
+
+        Assert.True(off.Success, off.Message);
+        Assert.Equal(["45"], ac.Eram.OnFrequencySectorIds);
+    }
+
+    [Theory]
+    [InlineData("VCI", EramEntryErrors.MessageTooShort)]
+    [InlineData("VCI 44 45", EramEntryErrors.MessageTooLong)]
+    public void Vci_WithoutExactlyOneSector_IsRefused(string entry, string error)
+    {
+        AircraftState ac = Aircraft();
+
+        CommandResult result = Apply(ac, entry, null);
+
+        Assert.False(result.Success);
+        Assert.Equal(error, result.Message);
+        Assert.Empty(ac.Eram.OnFrequencySectorIds);
+    }
+
+    [Theory]
+    [InlineData("LEADER D9", 9, 1)]
+    [InlineData("LEADER L3", 4, 3)]
+    [InlineData("LEADER D2 L0", 2, 0)]
+    [InlineData("leader l2 d7", 7, 2)]
+    [InlineData("LEADER L5", 4, 5)]
+    public void Leader_SetsTheNamedFields_AndKeepsTheRest(string entry, int direction, int length)
+    {
+        AircraftState ac = Aircraft();
+        ac.Eram.LeaderDirection = 4;
+        ac.Eram.LeaderLength = 1;
+
+        CommandResult result = Apply(ac, entry, null);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(direction, ac.Eram.LeaderDirection);
+        Assert.Equal(length, ac.Eram.LeaderLength);
+    }
+
+    [Theory]
+    [InlineData("LEADER", EramEntryErrors.MessageTooShort)]
+    [InlineData("LEADER D0", "MsgInvalidDirection")]
+    [InlineData("LEADER D10", "MsgInvalidDirection")]
+    [InlineData("LEADER L4", "MsgInvalidLength")]
+    [InlineData("LEADER D2 L9", "MsgInvalidLength")]
+    [InlineData("LEADER D-1", "MsgCofieFormat D-1")]
+    [InlineData("LEADER L+2", "MsgCofieFormat L+2")]
+    [InlineData("LEADER DX", "MsgCofieFormat DX")]
+    [InlineData("LEADER D3 X2", "MsgCofieFormat X2")]
+    public void Leader_Malformed_IsRefused_AndChangesNothing(string entry, string message)
+    {
+        AircraftState ac = Aircraft();
+        ac.Eram.LeaderDirection = 4;
+        ac.Eram.LeaderLength = 1;
+
+        CommandResult result = Apply(ac, entry, null);
+
+        Assert.False(result.Success);
+        Assert.Equal(message, result.Message);
+        Assert.Equal(4, ac.Eram.LeaderDirection);
+        Assert.Equal(1, ac.Eram.LeaderLength);
+    }
+
+    [Fact]
+    public void Handoff_ByANonOwner_IsRefusedNotYourControl_AndOffersNothing()
+    {
+        AircraftState ac = Aircraft();
+        ac.Track.Owner = Sector45;
+
+        CommandResult result = EramEntryEngine.Apply(ac, "HANDOFF 2B", HandoffContext(Sector44));
+
+        Assert.False(result.Success);
+        Assert.Equal(EramEntryErrors.NotYourControl, result.Message);
+        Assert.Same(Sector45, ac.Track.Owner);
+        Assert.Null(ac.Track.HandoffPeer);
+    }
+
+    [Fact]
+    public void Handoff_ByTheOwner_OffersTheTrack()
+    {
+        AircraftState ac = Aircraft();
+        ac.Track.Owner = Sector44;
+
+        CommandResult result = EramEntryEngine.Apply(ac, "HANDOFF 2B", HandoffContext(Sector44));
+
+        Assert.True(result.Success, result.Message);
+        Assert.Same(Sector44, ac.Track.Owner);
+        Assert.Same(Boulder, ac.Track.HandoffPeer);
+        Assert.Equal(30, ac.Track.HandoffInitiatedAt);
+    }
+
+    [Fact]
+    public void Handoff_ByANonOwnerWithOk_OffersTheTrackOnTheOwnersBehalf()
+    {
+        AircraftState ac = Aircraft();
+        ac.Track.Owner = Sector45;
+
+        CommandResult result = EramEntryEngine.Apply(ac, "HANDOFF 2B /ok", HandoffContext(Sector44));
+
+        Assert.True(result.Success, result.Message);
+        Assert.Same(Sector45, ac.Track.Owner);
+        Assert.Same(Boulder, ac.Track.HandoffPeer);
+    }
+
+    [Fact]
+    public void Handoff_ByThePendingRecipient_IsRefusedNotYourControl()
+    {
+        AircraftState ac = Aircraft();
+        ac.Track.Owner = Sector45;
+        ac.Track.HandoffPeer = Sector44;
+
+        CommandResult result = EramEntryEngine.Apply(ac, "HANDOFF 2B", HandoffContext(Sector44));
+
+        Assert.False(result.Success);
+        Assert.Equal(EramEntryErrors.NotYourControl, result.Message);
+        Assert.Same(Sector44, ac.Track.HandoffPeer);
+        Assert.Null(ac.Track.HandoffRedirectedBy);
+    }
+
+    [Theory]
+    [InlineData(false)] // another ARTCC's ERAM sector
+    [InlineData(true)] // a STARS position
+    public void Handoff_WithOk_OnATrackOwnedOutsideThisCentre_IsRefusedNotYourControl(bool starsOwner)
+    {
+        AircraftState ac = Aircraft();
+        TrackOwner owner = starsOwner ? TrackOwner.CreateStars("OAK_TWR", "NCT", 3, "O") : TrackOwner.CreateEram("LAX_32_CTR", "ZLA", "32");
+        ac.Track.Owner = owner;
+
+        CommandResult result = EramEntryEngine.Apply(ac, "HANDOFF 2B /OK", HandoffContext(Sector44));
+
+        Assert.False(result.Success);
+        Assert.Equal(EramEntryErrors.NotYourControl, result.Message);
+        Assert.Same(owner, ac.Track.Owner);
+        Assert.Null(ac.Track.HandoffPeer);
+    }
+
+    [Theory]
+    [InlineData("HANDOFF", EramEntryErrors.MessageTooShort)]
+    [InlineData("HANDOFF 2B /OK X", EramEntryErrors.MessageTooLong)]
+    [InlineData("HANDOFF 2B OK", "MsgCofieFormat OK")]
+    public void Handoff_Malformed_IsRefused(string entry, string message)
+    {
+        AircraftState ac = Aircraft();
+        ac.Track.Owner = Sector44;
+
+        CommandResult result = EramEntryEngine.Apply(ac, entry, HandoffContext(Sector44));
+
+        Assert.False(result.Success);
+        Assert.Equal(message, result.Message);
+        Assert.Null(ac.Track.HandoffPeer);
     }
 
     [Theory]
     [InlineData("")]
     [InlineData("QZ 350")]
     [InlineData("HELLO")]
-    public void UnknownEntry_IsRefused(string entry) => Assert.False(EramEntryEngine.Apply(Aircraft(), entry, Sector44).Success);
+    public void UnknownEntry_IsRefused(string entry) => Assert.False(Apply(Aircraft(), entry, Sector44).Success);
 }

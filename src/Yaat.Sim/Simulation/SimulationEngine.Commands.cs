@@ -251,18 +251,28 @@ public sealed partial class SimulationEngine
         PilotResponder.QueueSoloPilotTransmission(aircraft, transmission, PilotTransmissionKind.Readback, PilotResponder.SourceResponse);
     }
 
-    public void AmendFlightPlan(string callsign, FlightPlanAmendment amendment)
+    /// <summary>
+    /// How <see cref="AmendFlightPlan"/>'s refusal of an invalid callsign begins; yaat-server matches it to answer an ERAM
+    /// amendment with FLID FORMAT, so the wording and the match cannot drift apart.
+    /// </summary>
+    public const string InvalidCallsignRefusalPrefix = "Invalid callsign '";
+
+    /// <summary>
+    /// Applies a flight-plan amendment and reports the outcome: an aircraft whose callsign fails
+    /// <see cref="Callsign.IsValid"/>, or one that is not in the world, is left alone and the result says so.
+    /// </summary>
+    public CommandResult AmendFlightPlan(string callsign, FlightPlanAmendment amendment)
     {
         if (!Callsign.IsValid(callsign))
         {
             _logger.LogWarning("AmendFlightPlan rejected invalid callsign '{Callsign}'", callsign);
-            return;
+            return new CommandResult(false, $"{InvalidCallsignRefusalPrefix}{callsign}'");
         }
 
         AircraftState? ac = FindAircraft(callsign);
         if (ac is null)
         {
-            return;
+            return new CommandResult(false, $"Aircraft '{callsign}' not found");
         }
 
         bool wasFiled = ac.FlightPlan.HasFlightPlan;
@@ -310,6 +320,7 @@ public sealed partial class SimulationEngine
         ac.FlightPlan.RevisionNumber++;
 
         MarkTdlsItemsChanged(callsign);
+        return new CommandResult(true, $"Amended {callsign}");
     }
 
     /// <summary>

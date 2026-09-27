@@ -174,7 +174,11 @@ internal static class ActionArms
                 return ActionRefusals.HostOnly(ctx.Parsed!);
         }
 
-        engine.AmendFlightPlan(callsign, amendment);
+        CommandResult amended = engine.AmendFlightPlan(callsign, amendment);
+        if (!amended.Success)
+        {
+            return amended;
+        }
 
         // The reprint runs before the amendment record is appended so that record carries the id it printed under.
         // That record is the only replay path for this verb: a recorded FP returns at the ctx.IsRecorded guard above,

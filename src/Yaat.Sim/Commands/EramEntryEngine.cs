@@ -14,7 +14,9 @@ namespace Yaat.Sim.Commands;
 /// (interim / local / procedure altitude tiers, in hundreds of feet); <c>QR {alt}</c> (controller-entered altitude);
 /// <c>QS *</c>, <c>QS */</c>, <c>QS /*</c>, <c>QS /{speed}</c>, <c>QS {heading}</c>, <c>QS `{text}</c> (the FDB line-4
 /// HSF fields, stored in the canonical forms CRC's menus re-parse); <c>LF [{label}]</c> (CRR group membership; a bare
-/// <c>LF</c> clears it).
+/// <c>LF</c> clears it); <c>VCI {sector}</c> (toggles the sector's on-frequency indicator); <c>LEADER [D{1-9}] [L{n}]</c>
+/// (data-block offset direction and leader length); <c>HANDOFF {tcp} [/OK]</c> (QN Initiate Handoff — the unforced
+/// form refuses a track the acting position does not own; <c>/OK</c> reaches only another sector of the same centre).
 /// </para>
 ///
 /// <para>
@@ -24,10 +26,9 @@ namespace Yaat.Sim.Commands;
 /// </summary>
 public static class EramEntryEngine
 {
-    public const int FreeTextMaxLength = 40;
-
-    public static CommandResult Apply(AircraftState ac, string entry, TrackOwner? identity)
+    public static CommandResult Apply(AircraftState ac, string entry, EramEntryContext ctx)
     {
+        TrackOwner? identity = ctx.Identity;
         string[] tokens = entry.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
@@ -43,8 +44,128 @@ public static class EramEntryEngine
             "QR" => ApplyQr(ac, args),
             "QS" => ApplyQs(ac, args),
             "LF" => ApplyLf(ac, args),
+            "VCI" => ApplyVci(ac, args),
+            "LEADER" => ApplyLeader(ac, args),
+            "HANDOFF" => ApplyHandoff(ac, args, ctx),
             _ => Refused(EramEntryErrors.InvalidMessageType),
         };
+    }
+
+    /// <summary>
+    /// ERAM Initiate Handoff (QN.yaml): offers the track to the position the TCP code names, through
+    /// <see cref="TrackEngine.ApplyHandoff"/>. Only the track's owner may hand it off — the pending handoff's recipient
+    /// accepts it first, or overrides. The field 60 override <c>/OK</c> lifts the check, offering the track on its
+    /// owner's behalf, but only for a track another ERAM sector of the same centre owns.
+    /// </summary>
+    private static CommandResult ApplyHandoff(AircraftState ac, List<string> args, EramEntryContext ctx)
+    {
+        if ((ctx.Identity is not { } identity) || (ctx.Scenario is not { } scenario))
+        {
+            return Refused(EramEntryErrors.SessionNotActive);
+        }
+
+        if (args.Count is < 1 or > 2)
+        {
+            return Refused(args.Count < 1 ? EramEntryErrors.MessageTooShort : EramEntryErrors.MessageTooLong);
+        }
+
+        bool forced = args.Count == 2;
+        if (forced && !string.Equals(args[1], "/OK", StringComparison.OrdinalIgnoreCase))
+        {
+            return Refused(EramEntryErrors.CofieFormat, args[1]);
+        }
+
+        bool allowed = forced ? IsOwnedByThisCentre(ac, identity) : IsOwner(ac, identity);
+        if (!allowed)
+        {
+            return Refused(EramEntryErrors.NotYourControl);
+        }
+
+        return TrackEngine.ApplyHandoff(ac, scenario, identity, args[0], ctx.Redirect);
+    }
+
+    private static bool IsOwner(AircraftState ac, TrackOwner identity) => (ac.Track.Owner is not null) && ac.Track.Owner.MatchesPosition(identity);
+
+    /// <summary>
+    /// The override reaches only a track an ERAM sector of the acting centre owns: docs/crc/eram.md, "flights owned by
+    /// external ARTCCs cannot be edited, even with a logic check override" — nor, then, one a STARS position owns.
+    /// </summary>
+    private static bool IsOwnedByThisCentre(AircraftState ac, TrackOwner identity) =>
+        (ac.Track.Owner is { } owner)
+        && (owner.OwnerType == TrackOwnerType.Eram)
+        && string.Equals(owner.FacilityId, identity.FacilityId, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Toggles the on-frequency indicator (VCI) for one ERAM sector: CRC lights the glyph for a viewer whose sector is in
+    /// <see cref="AircraftEramState.OnFrequencySectorIds"/>, so the entry names the acting sector. The list is also read
+    /// by the broadcast path, so every touch locks it.
+    /// </summary>
+    private static CommandResult ApplyVci(AircraftState ac, List<string> args)
+    {
+        if (args.Count != 1)
+        {
+            return Refused(args.Count < 1 ? EramEntryErrors.MessageTooShort : EramEntryErrors.MessageTooLong);
+        }
+
+        string sectorId = args[0];
+        List<string> sectors = ac.Eram.OnFrequencySectorIds;
+        bool nowOn;
+        lock (sectors)
+        {
+            nowOn = !sectors.Remove(sectorId);
+            if (nowOn)
+            {
+                sectors.Add(sectorId);
+            }
+        }
+
+        return new CommandResult(true, $"VCI {sectorId} {(nowOn ? "on" : "off")} {ac.Callsign}");
+    }
+
+    /// <summary>
+    /// Data-block offset and leader length (QN.yaml field 59): <c>D{n}</c> is the <c>LeaderDirection</c> keypad value,
+    /// 1–9, and <c>L{n}</c> the leader length, 0, 1, 2, 3 or 5; either or both, and a field left out keeps its value.
+    /// Values are unsigned digits.
+    /// </summary>
+    private static CommandResult ApplyLeader(AircraftState ac, List<string> args)
+    {
+        if (args.Count == 0)
+        {
+            return Refused(EramEntryErrors.MessageTooShort);
+        }
+
+        int? direction = null;
+        int? length = null;
+        foreach (string token in args)
+        {
+            char field = char.ToUpperInvariant(token[0]);
+            if (!int.TryParse(token.AsSpan(1), NumberStyles.None, CultureInfo.InvariantCulture, out int value) || (field is not ('D' or 'L')))
+            {
+                return Refused(EramEntryErrors.CofieFormat, token);
+            }
+
+            if (field == 'D')
+            {
+                if (value is < 1 or > 9)
+                {
+                    return Refused(EramEntryErrors.InvalidDirection);
+                }
+
+                direction = value;
+            }
+            else if (value is 0 or 1 or 2 or 3 or 5)
+            {
+                length = value;
+            }
+            else
+            {
+                return Refused(EramEntryErrors.InvalidLength);
+            }
+        }
+
+        ac.Eram.LeaderDirection = direction ?? ac.Eram.LeaderDirection;
+        ac.Eram.LeaderLength = length ?? ac.Eram.LeaderLength;
+        return new CommandResult(true, $"LEADER {string.Join(' ', args)} {ac.Callsign}");
     }
 
     private static CommandResult Refused(string errorId) => new(false, errorId);
@@ -186,10 +307,13 @@ public static class EramEntryEngine
         return Refused(EramEntryErrors.AltFormat);
     }
 
+    private static bool IsQsActionType(string token) => token is "*" or "*/" or "/*";
+
     /// <summary>
-    /// The FDB line-4 HSF fields (docs/crc/eram.md §QS Command, Table 5): a manual controller annotation, not the
-    /// aircraft's assigned vector. Free text is the backtick form; Table 5 has no free-text-only delete (<c>QS *</c>
-    /// clears it), so an empty payload is a format error.
+    /// The FDB line-4 HSF fields (docs/crc/eram.md §QS Command, Table 5; docs/eram/commands/QS.yaml): a manual controller
+    /// annotation, not the aircraft's assigned vector. An entry carries either a field 64 action type (<c>*</c>,
+    /// <c>*/</c>, <c>/*</c>) or field 155 data, never both. Free text is the backtick form; Table 5 has no
+    /// free-text-only delete (<c>QS *</c> clears it), so an empty payload is a format error.
     /// </summary>
     private static CommandResult ApplyQs(AircraftState ac, List<string> args)
     {
@@ -199,31 +323,21 @@ public static class EramEntryEngine
         }
 
         string op = args[0];
-        switch (op)
+        bool opIsAction = IsQsActionType(op);
+        string? combined = args.Skip(1).FirstOrDefault(a => opIsAction || IsQsActionType(a));
+        if (combined is not null)
         {
-            case "*":
-                ac.Eram.AssignedHeading = null;
-                ac.Eram.AssignedSpeed = null;
-                ac.Eram.FreeText = null;
-                return new CommandResult(true, $"QS * {ac.Callsign}");
-            case "*/":
-                ac.Eram.AssignedHeading = null;
-                return new CommandResult(true, $"QS */ {ac.Callsign}");
-            case "/*":
-                ac.Eram.AssignedSpeed = null;
-                return new CommandResult(true, $"QS /* {ac.Callsign}");
+            return Refused(EramEntryErrors.CofieFormat, combined);
+        }
+
+        if (opIsAction)
+        {
+            return ApplyQsAction(ac, op);
         }
 
         if (op.StartsWith('`'))
         {
-            string text = string.Join(' ', args)[1..].Trim().ToUpperInvariant();
-            if (text.Length == 0)
-            {
-                return Refused(EramEntryErrors.TextFormat);
-            }
-
-            ac.Eram.FreeText = text.Length > FreeTextMaxLength ? text[..FreeTextMaxLength] : text;
-            return new CommandResult(true, $"QS {ac.Eram.FreeText} {ac.Callsign}");
+            return ApplyQsFreeText(ac, args);
         }
 
         if (op.StartsWith('/'))
@@ -246,6 +360,44 @@ public static class EramEntryEngine
 
         ac.Eram.AssignedHeading = heading;
         return new CommandResult(true, $"QS {heading} {ac.Callsign}");
+    }
+
+    /// <summary><c>*</c> deletes every HSF field, <c>*/</c> the heading, <c>/*</c> the speed.</summary>
+    private static CommandResult ApplyQsAction(AircraftState ac, string action)
+    {
+        if (action == "*")
+        {
+            ac.Eram.FreeText = null;
+        }
+
+        if (action is "*" or "*/")
+        {
+            ac.Eram.AssignedHeading = null;
+        }
+
+        if (action is "*" or "/*")
+        {
+            ac.Eram.AssignedSpeed = null;
+        }
+
+        return new CommandResult(true, $"QS {action} {ac.Callsign}");
+    }
+
+    /// <summary>
+    /// Free form text: 1–8 non-special characters — letters and digits — after the clear-weather symbol, with no leading
+    /// or embedded spaces (QS.yaml field 155, <c>MsgInvalidTextFormat</c>). The entry's tokens are split on spaces, so
+    /// text with a space arrives as more than one token, and a leading space as a bare backtick followed by the text.
+    /// </summary>
+    private static CommandResult ApplyQsFreeText(AircraftState ac, List<string> args)
+    {
+        string text = args[0][1..].ToUpperInvariant();
+        if ((args.Count > 1) || (text.Length is < 1 or > 8) || !text.All(c => char.IsAsciiLetterUpper(c) || char.IsAsciiDigit(c)))
+        {
+            return Refused(EramEntryErrors.TextFormat);
+        }
+
+        ac.Eram.FreeText = text;
+        return new CommandResult(true, $"QS {text} {ac.Callsign}");
     }
 
     /// <summary>

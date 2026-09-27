@@ -16,8 +16,11 @@ public static class EramEntryErrors
     public const string HeadingFormat = "MsgInvalidHeadingFormat";
     public const string SpeedFormat = "MsgInvalidSpeedFormat";
     public const string TextFormat = "MsgInvalidTextFormat";
+    public const string InvalidDirection = "MsgInvalidDirection";
+    public const string InvalidLength = "MsgInvalidLength";
     public const string SessionNotActive = "YaatSessionNotActive";
     public const string AlreadyTracked = "YaatAlreadyTracked";
+    public const string NotYourControl = "YaatNotYourControl";
 
     /// <summary>Every id above, for the conformance test that holds them to <c>error-responses.yaml</c>.</summary>
     public static IReadOnlyList<string> All { get; } =
@@ -30,7 +33,10 @@ public static class EramEntryErrors
         HeadingFormat,
         SpeedFormat,
         TextFormat,
+        InvalidDirection,
+        InvalidLength,
         SessionNotActive,
         AlreadyTracked,
+        NotYourControl,
     ];
 }

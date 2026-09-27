@@ -90,7 +90,15 @@ public sealed class ActionRouter
             case RecordedCommand command:
                 return Apply(command, host).Result;
             case RecordedAmendFlightPlan amend:
-                _engine.AmendFlightPlan(amend.Callsign, amend.Amendment);
+                // A live amendment that failed was never recorded, so a refusal here is a replay-fidelity break: warn,
+                // and print no strip for an amendment that did not land.
+                CommandResult amended = _engine.AmendFlightPlan(amend.Callsign, amend.Amendment);
+                if (!amended.Success)
+                {
+                    WarnOnRefusedRecord(amend, amended);
+                    return amended;
+                }
+
                 _engine.ReprintDepartureStripAfterAmendment(amend.Callsign, amend.StripId);
                 _engine.DrainStateChangesInto(host);
                 return Applied;
@@ -224,9 +232,13 @@ public sealed class ActionRouter
             return ActionRefusals.AircraftNotFound(entry.Callsign);
         }
 
+        SimScenarioState? scenario = _engine.Scenario;
         TrackOwner? identity =
-            (entry.IdentityCode is null) || (_engine.Scenario is null) ? null : TrackResolver.ResolveTcpToOwner(_engine.Scenario, entry.IdentityCode);
-        return EramEntryEngine.Apply(aircraft, entry.Entry, identity);
+            (entry.IdentityCode is null) || (scenario is null) ? null : TrackResolver.ResolveTcpToOwner(scenario, entry.IdentityCode);
+        ConsolidationRedirect? redirect = scenario is null
+            ? null
+            : new ConsolidationRedirect(scenario, _engine.ConsolidationState, _engine.Attendance.IsTcpAttended);
+        return EramEntryEngine.Apply(aircraft, entry.Entry, new EramEntryContext(identity, scenario, redirect));
     }
 
     private static readonly CommandResult Applied = new(true);

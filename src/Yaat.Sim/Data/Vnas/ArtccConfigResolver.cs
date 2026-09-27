@@ -197,7 +197,7 @@ public static class ArtccConfigResolver
     {
         foreach (PositionConfig pos in facility.Positions)
         {
-            if (pos.EramConfiguration is { } eram && eram.SectorId.Equals(sectorId, StringComparison.OrdinalIgnoreCase))
+            if ((pos.EramConfiguration is { } eram) && SectorIdsMatch(eram.SectorId, sectorId))
             {
                 return (facility.Id, pos);
             }
@@ -214,6 +214,16 @@ public static class ArtccConfigResolver
 
         return (null, null);
     }
+
+    /// <summary>
+    /// ERAM sector ids compare by number when both are unsigned digit strings, so a typed <c>044</c> finds the adapted
+    /// <c>44</c> (as yaat-server's field 16 adaptation check compares them); any other id compares as text.
+    /// </summary>
+    private static bool SectorIdsMatch(string configured, string requested) =>
+        int.TryParse(configured, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int configuredNumber)
+        && int.TryParse(requested, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int requestedNumber)
+            ? configuredNumber == requestedNumber
+            : configured.Equals(requested, StringComparison.OrdinalIgnoreCase);
 
     // --- TrackOwner resolution ---
 
@@ -267,7 +277,8 @@ public static class ArtccConfigResolver
             return null;
         }
 
-        return TrackOwner.CreateEram(pos.Callsign, facilityId, sectorId);
+        // The adapted id, not the typed one, so "C044" names the same owner as "C44".
+        return TrackOwner.CreateEram(pos.Callsign, facilityId, pos.EramConfiguration!.SectorId);
     }
 
     /// <summary>

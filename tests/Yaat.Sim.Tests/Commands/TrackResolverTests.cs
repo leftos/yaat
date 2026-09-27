@@ -50,6 +50,18 @@ public class TrackResolverTests
     private TrackOwner NctApproach() => _zoa!.ResolvePosition(_zoa!.FindPositionByCallsign("NCT_APP")!.Id)!;
 
     [Fact]
+    public void ResolveEramCode_SectorWithALeadingZero_ResolvesTheAdaptedSector()
+    {
+        Assert.SkipWhen(_zoa is null, "ZOA config not available");
+
+        TrackOwner? padded = _zoa!.ResolveEramCode("C044");
+
+        Assert.NotNull(padded);
+        Assert.Equal(_zoa!.ResolveEramCode("C44"), padded);
+        Assert.Equal("44", padded.SectorId);
+    }
+
+    [Fact]
     public void ResolveTcpToOwner_PositionCallsign_IsTheLastFallback()
     {
         Assert.SkipWhen(_zoa is null, "ZOA config not available");
