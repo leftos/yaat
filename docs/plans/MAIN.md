@@ -10,7 +10,7 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 **Steer (user 2026-09-26): ERAM conformance only until it is done** — no other item (programme, wave or single) starts before every ERAM wave has landed.
 
-- [ ] **ERAM command conformance** (a controller's request, 2026-09-26) — [eram-conformance.md](./eram-conformance.md): a YAML command reference extracted from the ERAM EDSM SRS, a conformance test, ACCEPT/descriptor feedback and field validation for our ERAM verbs, then CO, the full AM field set, HM/QH hold, QX `/R` and FP, and LD/LE. Waves 0–2 done; Wave 3 underway (per-field validation, handoff ownership, recording the display entries, the silent amend for callsigns over 7 characters — decisions and brief split in the subplan).
+- [ ] **ERAM command conformance** (a controller's request, 2026-09-26) — [eram-conformance.md](./eram-conformance.md): a YAML command reference extracted from the ERAM EDSM SRS, a conformance test, ACCEPT/descriptor feedback and field validation for our ERAM verbs, then CO, the full AM field set, HM/QH hold, QX `/R` and FP, and LD/LE. Waves 0–3 done (2026-09-26); next: the Wave 3 follow-ups in the subplan (the `/OK` same-ARTCC limit on QZ/QU/QQ, the live-traffic owner fallback, QP minimize and DRI fields, `QF *`), then Wave 4 (CO, the full AM field set, HM/QH hold, QX `/R` and FP, LD/LE).
 
 ## Current programme
 

@@ -827,7 +827,9 @@ Commands/EramEntryEngine.cs         # The one body for the ERAM keyboard entries
                                     # (the HSF fields in CRC's canonical forms — ParseHsfHeading / ParseHsfSpeed; free text 1–8 alphanumerics), LF [{label}]
                                     # (CRR membership; bare = clear), VCI {sector} (on-frequency toggle), LEADER [D{1-9}] [L{0,1,2,3,5}] (data-block offset),
                                     # HANDOFF {code} [/OK] (sector adapted, then owner only — /OK forces for another sector of the same ARTCC, never a STARS or
-                                    # external owner — and a target that already owns the track is refused; then TrackEngine.ApplyHandoff). Apply takes an EramEntryContext (identity, scenario, consolidation redirect).
+                                    # external owner — and a target that already owns the track is refused; then TrackEngine.ApplyHandoff), PO {fromFac}
+                                    # {fromSec} {toFac} {toSec}… / POACK / POCLEAR (point-outs; the hub decides who may acknowledge or clear, the Sim refuses
+                                    # a repeated or missing point-out), DRI [J|T] (halo; bare = clear). Apply takes an EramEntryContext (identity, scenario, consolidation redirect).
                                     # A refusal's CommandResult.Message is an EramEntryErrors id, optionally a space then the field in error; success messages
                                     # are free text. The live CRC handler keeps the wire parsing, FLID / scope / FDB validation and feedback and records the
                                     # entry through RoomEngine.ApplyAndRecord

@@ -1,6 +1,6 @@
 # ERAM command conformance against the ERAM EDSM SRS
 
-**Status (2026-09-26):** Waves 0–2 are done: the reference in `docs/eram/`, the file split, and the ACCEPT/descriptor feedback with table errors, flight-ID validation and the conformance test. Next is Wave 3.
+**Status (2026-09-26):** Waves 0–3 are done: the reference in `docs/eram/`, the file split, the ACCEPT/descriptor feedback with table errors, flight-ID validation and the conformance test, and per-field checks for every verb we answer (W3-1…W3-6, with handoff ownership and the display entries recorded for replay). Next: the Wave 3 follow-ups listed under Wave 3, then Wave 4.
 
 ## Context
 
