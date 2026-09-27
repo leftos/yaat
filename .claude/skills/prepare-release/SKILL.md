@@ -428,13 +428,7 @@ Once the user approves:
 
     Order matters: yaat-server first means yaat-server's own work is live before yaat's release CI fires. Pushing yaat second triggers yaat-server's `submodule-updated` CI dispatch (which bumps `extern/yaat` on yaat-server), so yaat-server's main already has the cycle's work when the bump arrives.
 
-    **9a. Watch every client release run — both paths, always.** The tag push starts three
-    workflows on the tagged commit: `Release` (Windows installer + the draft GitHub Release),
-    `Release (macOS)` (signed/notarized `.pkg` + `.app`, appended to that draft with
-    `gh release upload`), and `CI`. Confirming they *started* is not the step; a run that fails
-    after that goes unnoticed until a user reports it, and publishing the draft (step 9b or the
-    deploy) before `Release (macOS)` has uploaded ships a release with no macOS installer. This step
-    is complete only when every run on the tagged SHA reports `success`.
+    **9a. Watch every client release run — both paths, always.** The tag push starts three workflows on the tagged commit: `Release` (Windows installer + the draft GitHub Release), `Release (macOS)` (signed/notarized `.pkg` + `.app`, appended to that draft with `gh release upload`), and `CI`. Confirming they *started* is not the step; a run that fails after that goes unnoticed until a user reports it, and publishing the draft (step 9b or the deploy) before `Release (macOS)` has uploaded ships a release with no macOS installer. This step is complete only when every run on the tagged SHA reports `success`, or when the one failure is `CI`'s formatting or style step (item 3 below).
 
     Right after the tag push, list the runs and watch each one **in the background** (they take
     15-30 minutes; the image build in step 10 runs alongside):
@@ -456,18 +450,12 @@ Once the user approves:
        timeout, `smoke-intel`'s model download from Hugging Face, a runner lost mid-job — re-run
        the failed jobs: `gh run rerun <run-id> --repo leftos/yaat --failed`, then watch the re-run
        the same way. The `build` jobs stay green and are not repeated.
-    3. **Anything else** (compile error, packaging error, a missing secret) is a release defect:
-       report it with the error lines and stop. Do not publish the draft and do not deploy until
-       the user decides how to fix forward; a hidden draft is recoverable, a published release
-       with a broken or missing installer is not.
+    3. **A `CI` failure confined to `Formatting (CSharpier)` or `Style diagnostics`** (an info-level IDE rule in a test file, say) while `Release` and `Release (macOS)` are green is not a release defect: the installers are fine, so carry on to the publish (9b) or the deploy (12). Commit and push the fix only after the draft is published or the deploy prints `Deployment complete!` — the droplet re-resolves yaat main, and a commit past the tag fails the deploy's tag-equals-deployed-commit publish check.
+    4. **Anything else** (compile error, packaging error, a missing secret) is a release defect: report it with the error lines and stop. Do not publish the draft and do not deploy until the user decides how to fix forward; a hidden draft is recoverable, a published release with a broken or missing installer is not.
 
     Report each run's final conclusion to the user in the message that moves on to the next step.
 
-    **9b. CLIENT_ONLY publish (skip on SERVER_AFFECTING — the deploy publishes there).** The draft
-    release stays invisible until published, and on the client-only path no deploy will do it. Once
-    step 9a has every run green, confirm the draft holds all three installers —
-    `YaatClient-{version}-win-Setup.exe`, `YaatClient-{version}-osx-arm64-Setup.pkg` and
-    `YaatClient-{version}-osx-x64-Setup.pkg`:
+    **9b. CLIENT_ONLY publish (skip on SERVER_AFFECTING — the deploy publishes there).** The draft release stays invisible until published, and on the client-only path no deploy will do it. Once step 9a is complete, confirm the draft holds all three installers — `YaatClient-{version}-win-Setup.exe`, `YaatClient-{version}-osx-arm64-Setup.pkg` and `YaatClient-{version}-osx-x64-Setup.pkg`:
 
     ```bash
     gh release view v{version} --repo leftos/yaat --json assets --jq '.assets[].name | select(endswith("-Setup.exe") or endswith("-Setup.pkg"))'
@@ -491,7 +479,7 @@ Once the user approves:
     - **Deploy now** — ~2 minutes of downtime; active sessions are checkpointed and restored.
     - **Wait for rooms to clear, then deploy** — run `pwsh deploy-to-droplet.ps1 -WaitForEmptyRooms` **in the background** (it polls `GET /admin/status` every 60s and blocks until the server reports zero rooms, printing the active rooms each check; backgrounding keeps the agent responsive — you're re-invoked when it exits). When it exits cleanly, continue to step 12. *(The deploy still calls `prepare-restart` as a safety net for any room that appears between "cleared" and "deployed".)*
     - **Skip the deploy** — leave the live server on the previous build. **Warn explicitly** (SERVER_AFFECTING): the GitHub Release stays a hidden draft until a deploy publishes it or it's published manually.
-12. **Deploy — only once step 9a reports every client release run green.** The deploy publishes the draft release, so a still-running or failed `Release (macOS)` at this point ships a release without a macOS installer; if a watch is still pending, wait for it (rooms cleared in step 11 stay cleared for the extra minutes, and the deploy's `prepare-restart` covers any that appear). Run it through the gate wrapper, for the same reason as step 10 — a bare `tee` would report tee's status and a failed deploy would read as done:
+12. **Deploy — only once step 9a is complete.** The deploy publishes the draft release, so a still-running or failed `Release (macOS)` at this point ships a release without a macOS installer; if a watch is still pending, wait for it (rooms cleared in step 11 stay cleared for the extra minutes, and the deploy's `prepare-restart` covers any that appear). Run it through the gate wrapper, for the same reason as step 10 — a bare `tee` would report tee's status and a failed deploy would read as done:
 
     ```bash
     bash tools/gate.sh .tmp/deploy-droplet.log pwsh deploy-to-droplet.ps1 -SkipCiBuild -NoLogs
