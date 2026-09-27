@@ -61,7 +61,7 @@ Used for the #462 push demo (2026-09-25). Run yaat-server from source on `:5130`
 
 ## What CRC exposes
 
-CRC is a WPF app (`CRC.exe`); its display windows are titled `CRC : <n>` or `CRC : <n> : <header>`. Its scopes (STARS, Tower Cab, ASDE-X, SAID, ERAM) are one OpenGL surface inside the window: UIA reaches CRC's windows, menus and dialogs but **not** tracks or datablocks. Read a scope with `screenshot`, act on it with `click_point`. An elevated CRC blocks injected input; the input tools then fail with an explicit "SendInput was blocked" error rather than reporting a click that never happened. The CRC path has not been exercised against a live CRC yet.
+CRC is a WPF app (`CRC.exe`); its display windows are titled `CRC : <n>` or `CRC : <n> : <header>`. Its scopes (STARS, Tower Cab, ASDE-X, SAID, ERAM) are one OpenGL surface inside the window: UIA reaches CRC's windows, menus and dialogs but **not** tracks or datablocks. Read a scope with `screenshot`, act on it with `click_point`. An elevated CRC blocks injected input; the input tools then fail with an explicit "SendInput was blocked" error rather than reporting a click that never happened. CRC needs `set_input_mode real`, which shares the keyboard and mouse with whoever is at the desk. The first live session (profile setup, connect, a flight plan amendment) is written up in [`crc-first-session.md`](crc-first-session.md); the frictions it found are in [`plans/client-driver-mcp-friction.md`](plans/client-driver-mcp-friction.md).
 
 ## Scripts
 

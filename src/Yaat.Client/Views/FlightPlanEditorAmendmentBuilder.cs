@@ -11,6 +11,10 @@ namespace Yaat.Client.Views;
 /// and zero for the numeric Speed/Altitude pair. Matches CRC's
 /// <c>FlightPlanEditorViewModel.BuildFlightPlan</c> behaviour, where bound
 /// string properties are sent verbatim and <c>int.TryParse</c> falls back to 0.
+/// The equipment suffix is the exception: it is a separate field that a type change
+/// never resets, so a blank or whitespace suffix box maps to <c>null</c> (not edited).
+/// The /A default for a new plan filed without a suffix belongs to
+/// <c>SimulationEngine.AmendFlightPlan</c>.
 /// </summary>
 internal static class FlightPlanEditorAmendmentBuilder
 {
@@ -28,13 +32,7 @@ internal static class FlightPlanEditorAmendmentBuilder
     )
     {
         string typ = (typText ?? "").Trim().ToUpperInvariant();
-        string eq = (eqText ?? "").Trim().ToUpperInvariant();
-        // CRC compat: when the type is set but the equipment suffix is left blank, default to A.
-        if (!string.IsNullOrEmpty(typ) && string.IsNullOrEmpty(eq))
-        {
-            eq = "A";
-        }
-
+        string? eq = string.IsNullOrWhiteSpace(eqText) ? null : eqText.Trim().ToUpperInvariant();
         string icaoEq = (icaoEqText ?? "").Trim().ToUpperInvariant();
         string dep = (depText ?? "").Trim().ToUpperInvariant();
         string dest = (destText ?? "").Trim().ToUpperInvariant();

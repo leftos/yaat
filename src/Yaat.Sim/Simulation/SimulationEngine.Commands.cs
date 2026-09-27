@@ -281,11 +281,17 @@ public sealed partial class SimulationEngine
         // files the plan: establish it and issue a discrete beacon code (VFR draws from the
         // VFR bank, IFR from the IFR bank). Don't flip Transponder.Code — the pilot keeps
         // squawking their current code until the controller issues SQ. This is the single
-        // owner of "filing establishes the plan + assigns a beacon"; the typed DA/VP/NEW
-        // create path reaches it through its own AmendFlightPlan call.
+        // owner of "filing establishes the plan + assigns a beacon" and of the /A default for
+        // a new plan filed with a type but no equipment suffix; the typed DA/VP/NEW create
+        // path reaches it through its own AmendFlightPlan call. On a plan already filed, a
+        // null suffix leaves the filed one alone.
         if (!wasFiled)
         {
             ac.FlightPlan.HasFlightPlan = true;
+            if (!string.IsNullOrEmpty(ac.FlightPlan.AircraftType) && string.IsNullOrEmpty(ac.FlightPlan.EquipmentSuffix))
+            {
+                ac.FlightPlan.EquipmentSuffix = "A";
+            }
             if (ac.Transponder.AssignedCode == 0)
             {
                 // Attribute the filing draw to whatever the amendment carries: the ERAM VP path stamps

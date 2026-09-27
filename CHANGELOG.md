@@ -21,6 +21,7 @@
 
 ### Fixed
 
+- Amending a flight plan in CRC no longer blanks the aircraft type, and changing only the type keeps the equipment suffix.
 - In solo training, VFR aircraft vectored toward Class B no longer turn back at the boundary; the vector clears them in and they read back "cleared into the bravo".
 - A landing aircraft that can reach no exit at normal braking brakes firmly for the next one instead of stopping on the runway.
 - Rewinding to a point saved against an older airport layout no longer sends a landing aircraft down a broken exit path.

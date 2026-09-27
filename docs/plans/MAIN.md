@@ -8,7 +8,7 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 ## Bug reports and feature requests
 
-- [ ] **Conflict alerts on final inside 3 NM / 1,000 ft** (Discord, Michael B, 2026-09-25, SFO LC VFR transitions, no bundle): "a LOT of messages in the terminal for people on final". The CA inhibit cones on final should suppress these. Needs a bundle to tell whether the cones failed (`ConflictAlertDetector`; `docs/conflict-and-visual-detection.md`) or the messages came from another source. The reporter will save one next time.
+None open.
 
 ## Current programme
 
@@ -157,6 +157,8 @@ Shared files: root `*.md`, `docs/scenario-validation-known-failures.md`, solutio
 ### Singles
 
 Shared files: no shared files. Gate: per item.
+
+- [ ] **Client-driver MCP friction from the first live CRC session** (#463 validation, 2026-09-26) — [client-driver-mcp-friction.md](./client-driver-mcp-friction.md): 12 frictions, all in `tools/Yaat.ClientDriver.Mcp`. The main ones: owned windows missing from `list_windows`, no window-bounds tool, WPF combo items can't be picked, modals opened by an action go unreported, and real-mode input races the user's keyboard. Append new frictions there after each MCP session.
 
 - [ ] Solo Class B leftovers from the implicit-clearance fix (aviation review 2026-09-25; `docs/airspace-database.md` § Solo Class B request and implicit clearance): (a) `IsClearedIntoBravo` never resets and is not tied to one Class B, so a clearance through SFO counts for any later Bravo and survives leaving it (7110.65 §7-9-2.d / §7-9-3.b); (b) no "remain outside Bravo" / expect-clearance command (§7-9-2.a, §7-9-2.c) to deny or stand by a request and stop its repeats; (c) `BuildVfrAirborne`'s check-in says only "request transition" with no route/position and is not recorded as a pending request (AIM 3-2-3.d.2.c, 4-1-18.a.5.c); (d) `TickAirspaceBoundaryRespect` returns early while any phase runs, so a VFR aircraft in a pattern-entry or approach phase that crosses into Class B gets no boundary check — untested; (e) the repeat while orbiting could say "holding outside the bravo, request clearance…" instead of the same line
 

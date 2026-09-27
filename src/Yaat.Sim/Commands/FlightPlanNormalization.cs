@@ -11,10 +11,13 @@ namespace Yaat.Sim.Commands;
 public static class FlightPlanNormalization
 {
     /// <summary>
-    /// Splits an FAA equipment string like <c>"C172/G"</c> into its base type and suffix. When the controller types
-    /// only the type (e.g. <c>"SR22"</c>) the suffix defaults to <c>"A"</c> per FAA convention (no transponder /
-    /// Mode-A only). Returns <c>(null, null)</c> on null/empty input so callers can distinguish "no aircraft type
-    /// supplied" from "aircraft type with no suffix typed".
+    /// Splits an FAA equipment string like <c>"C172/G"</c> into its base type and suffix. A leading type prefix — a
+    /// wake category (<c>"H/A306/L"</c>) or a formation count (<c>"2/C130/G"</c>), as
+    /// <see cref="AircraftState.StripTypePrefix"/> recognizes them — is dropped before the split, so the type is never
+    /// read as <c>"H"</c>. A bare type (<c>"SR22"</c>, <c>"H/A306"</c>) returns a null suffix: the equipment suffix is a
+    /// separate field that a type alone never changes, and only <c>SimulationEngine.AmendFlightPlan</c> defaults it to
+    /// <c>"A"</c> when the amendment files a new plan. Null or empty input returns <c>(raw, null)</c> so callers can
+    /// tell "no aircraft type supplied" from "aircraft type with no suffix typed".
     /// </summary>
     public static (string? Type, string? Suffix) SplitTypeAndSuffix(string? raw)
     {
@@ -23,22 +26,31 @@ public static class FlightPlanNormalization
             return (raw, null);
         }
 
-        int slash = raw.IndexOf('/');
-        if (slash < 0)
+        string typeAndSuffix = raw;
+        int prefixSlash = raw.IndexOf('/');
+        if ((prefixSlash >= 0) && AircraftState.IsTypePrefix(raw[..prefixSlash]))
         {
-            return (raw, "A");
+            typeAndSuffix = raw[(prefixSlash + 1)..];
         }
 
-        return (raw[..slash], raw[(slash + 1)..]);
+        int slash = typeAndSuffix.IndexOf('/');
+        if (slash < 0)
+        {
+            return (typeAndSuffix, null);
+        }
+
+        return (typeAndSuffix[..slash], typeAndSuffix[(slash + 1)..]);
     }
 
     /// <summary>
     /// Resolves aircraft type and FAA equipment suffix for the structured CRC flight-plan path, where CRC sends two
     /// equipment-related fields: a combined <c>Equipment</c> string and the canonical <c>FaaEquipmentSuffix</c>. The
     /// combined string may be in ICAO display form (<c>"C182/L-DOV/C"</c> = type/wakeTurb-icaoEquip/surveillance)
-    /// when CRC's editor re-built it, in plain FAA form (<c>"C172/G"</c>) for legacy callers, or bare type-only
-    /// (<c>"C182"</c>) when CRC echoed its cached equipment. Aircraft type comes from the portion before the first
-    /// <c>/</c>; the suffix prefers the canonical field when present, falling back to the slash-split tail.
+    /// when CRC's editor re-built it, in plain FAA form (<c>"C172/G"</c>) for legacy callers, bare type-only
+    /// (<c>"C182"</c>), or the wake-prefixed form a scenario files (<c>"H/A306/L"</c>) when CRC echoed the equipment it
+    /// was sent. Aircraft type comes from <see cref="SplitTypeAndSuffix"/>, which drops a leading wake or formation
+    /// prefix; the suffix prefers the canonical field when present, falling back to the split tail, and is null (not
+    /// edited) when neither carries one.
     /// </summary>
     public static (string? Type, string? Suffix) ResolveTypeAndSuffix(string? equipment, string? faaEquipmentSuffix)
     {

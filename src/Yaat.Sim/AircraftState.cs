@@ -32,7 +32,11 @@ public class AircraftState
         return parts[0];
     }
 
-    private static bool IsTypePrefix(string segment) =>
+    /// <summary>
+    /// True when a leading '/'-separated segment of a filed type is a prefix rather than the type: a wake category
+    /// (<c>H</c>, <c>J</c>, <c>S</c>) or a one- or two-digit formation count.
+    /// </summary>
+    internal static bool IsTypePrefix(string segment) =>
         (segment is "H" or "J" or "S") || ((segment.Length is 1 or 2) && segment.All(char.IsAsciiDigit));
 
     /// <summary>

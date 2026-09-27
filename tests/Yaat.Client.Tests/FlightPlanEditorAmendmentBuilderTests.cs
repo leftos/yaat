@@ -76,7 +76,8 @@ public class FlightPlanEditorAmendmentBuilderTests
         );
 
         Assert.Equal("", amendment.AircraftType);
-        Assert.Equal("", amendment.EquipmentSuffix);
+        // The equipment suffix is the one field a blank box leaves unedited rather than clears.
+        Assert.Null(amendment.EquipmentSuffix);
         Assert.Equal("", amendment.Departure);
         Assert.Equal("", amendment.Destination);
         Assert.Equal("", amendment.Route);
@@ -147,10 +148,10 @@ public class FlightPlanEditorAmendmentBuilderTests
     }
 
     [Fact]
-    public void TypeSetWithoutEquipment_DefaultsToA()
+    public void TypeSetWithoutEquipment_LeavesEquipmentUnedited()
     {
-        // CRC compat: FlightPlanEditorViewModel sets EquipmentSuffix="A" when TypeCode is
-        // populated but EquipmentSuffix is blank (line 669-672 of the decompiled VM).
+        // The equipment suffix is a separate field: a blank box means "not edited", so amending
+        // the type never resets it. The Sim defaults it to /A only when the amend files a new plan.
         FlightPlanAmendment amendment = FlightPlanEditorAmendmentBuilder.Build(
             typText: "DA42",
             eqText: "",
@@ -164,11 +165,30 @@ public class FlightPlanEditorAmendmentBuilderTests
             strippedRemarksPrefix: ""
         );
 
-        Assert.Equal("A", amendment.EquipmentSuffix);
+        Assert.Null(amendment.EquipmentSuffix);
     }
 
     [Fact]
-    public void TypeBlankAndEquipmentBlank_LeavesEquipmentBlank()
+    public void EquipmentWhitespace_LeavesEquipmentUnedited()
+    {
+        FlightPlanAmendment amendment = FlightPlanEditorAmendmentBuilder.Build(
+            typText: "DA42",
+            eqText: "   ",
+            icaoEqText: "",
+            depText: "KOAK",
+            destText: "KOAK",
+            spdText: "250",
+            altText: "VFR/010",
+            rteText: "PATTERN",
+            rmkText: "",
+            strippedRemarksPrefix: ""
+        );
+
+        Assert.Null(amendment.EquipmentSuffix);
+    }
+
+    [Fact]
+    public void TypeBlankAndEquipmentBlank_LeavesEquipmentUnedited()
     {
         FlightPlanAmendment amendment = FlightPlanEditorAmendmentBuilder.Build(
             typText: "",
@@ -183,7 +203,7 @@ public class FlightPlanEditorAmendmentBuilderTests
             strippedRemarksPrefix: ""
         );
 
-        Assert.Equal("", amendment.EquipmentSuffix);
+        Assert.Null(amendment.EquipmentSuffix);
     }
 
     [Fact]
