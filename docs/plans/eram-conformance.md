@@ -162,7 +162,7 @@ Close the replay gap: point-out create and acknowledge (:2478-2499, :2574), DRI 
 - QP's DRI fields are unchecked: `J`/`T`, field 306 must be 3, and 306 only with `J`.
 - `QB 0` on its own is a valid Qualifier Mod (QB.yaml) but answers `0 FORMAT`.
 - `QF *` should require an aircraft-ID flight ID (FLID FORMAT otherwise).
-- QT validates fields 05/08/56/68/74 and QH validates `/OK`, then accepts each without effect: our QT stores no speed, altitude, heading or location.
+- QT validates fields 05/08/56/68/74 and QH validates `/OK`, then accepts each without effect: our QT stores no speed, altitude, heading or location. QT with those fields is the Coast Track (CT) form, which moves into Wave 4 (user 2026-09-27); QH's `/OK` is covered by Wave 4's HM/QH hold.
 
 Tests: one `EramConformance<Verb>Tests` class per verb through the `Harness/EramWire.cs` harness. Each has an accept case asserting `["ACCEPT", descriptor, acid]` and one case per field check. Every new variant or error goes into the YAML first, which is the failing test.
 
@@ -174,13 +174,14 @@ Tests: one `EramConformance<Verb>Tests` class per verb through the `Harness/Eram
   - Needs an aviation-sim-expert review.
 - **AM, full field set.** Several field/value pairs per entry. Add requested altitude (RAL), equipment (EQP → `IcaoEquipmentCodes`), SAI/NUM, deleting BCN and RMK by omission or `-`, and `FLID/OK`. Reject unknown and repeated field references.
 - **HM / QH hold.** Records a hold annotation by reusing `RecordedHoldAnnotationChange` (`CrcClientState.FlightPlan.cs:404`); it is data only. CRC's ERAM has no hold view, so the hold shows in the QF readout and on STARS. Needs an aviation-sim-expert review of the hold fields (direction, turns, leg, EFC).
+- **QT coast (CT)** (moved from Wave 5, user 2026-09-27): QT's field 05/08/56/68 form coasts the track at the entered speed, altitude, heading and location (`EramCoastStore` exists); today it validates and accepts with no effect. Needs an aviation-sim-expert review.
 - **QX `/R` (surrender control) and QX FP (remove strip).**
 - **LD / LE readouts.** Fix and time along the route, and the speed change to cross a fix at a time. They reuse `RemainingRouteFixes` (~:2738) and `ComputeLcSpeed`.
 - **Docs:** `docs/crc-display-state.md`, `docs/crc-protocol-support.md`, and `CHANGELOG.md` bullets through the changelog skill.
 
 ## Wave 5: backlog (subplan only; not built in this pass)
 
-- QT coast and QT convert point-out (`EramCoastStore` exists).
+- QT convert point-out.
 - The full meaning of QP request/suppress data block.
 - RF: validate and ACCEPT only.
 - QF field selection.
