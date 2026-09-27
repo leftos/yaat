@@ -214,7 +214,48 @@ public class EramEntryEngineTests
     [InlineData("QR")]
     [InlineData("QR 0")]
     [InlineData("QR X")]
-    public void Qr_WithoutAPositiveAltitude_IsRefused(string entry) => Assert.False(Apply(Aircraft(), entry, null).Success);
+    public void Qr_MissingOrMalformedAltitude_IsRefused(string entry) => Assert.False(Apply(Aircraft(), entry, null).Success);
+
+    [Theory]
+    [InlineData("QR 5")]
+    [InlineData("QR 1234")]
+    [InlineData("QR 12A")]
+    [InlineData("QR JUNK 120")]
+    [InlineData("QR 120 130")]
+    public void Qr_AnythingButOneThreeDigitField_IsAnAltFormatError(string entry)
+    {
+        AircraftState ac = Aircraft();
+        ac.Eram.ControllerEnteredAltitude = 90;
+
+        CommandResult result = Apply(ac, entry, null);
+
+        Assert.False(result.Success);
+        Assert.Equal(EramEntryErrors.AltFormat, result.Message);
+        Assert.Equal(90, ac.Eram.ControllerEnteredAltitude);
+    }
+
+    [Fact]
+    public void Qr_WithALeadingZero_SetsTheAltitude()
+    {
+        AircraftState ac = Aircraft();
+
+        CommandResult result = Apply(ac, "QR 050", null);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(50, ac.Eram.ControllerEnteredAltitude);
+    }
+
+    [Fact]
+    public void Qr_Zero_ClearsTheControllerEnteredAltitude()
+    {
+        AircraftState ac = Aircraft();
+        ac.Eram.ControllerEnteredAltitude = 250;
+
+        CommandResult result = Apply(ac, "QR 000", null);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Null(ac.Eram.ControllerEnteredAltitude);
+    }
 
     [Theory]
     [InlineData("QS 090", "H090")]
@@ -523,6 +564,24 @@ public class EramEntryEngineTests
         Assert.Equal(EramEntryErrors.NotYourControl, result.Message);
         Assert.Same(owner, ac.Track.Owner);
         Assert.Null(ac.Track.HandoffPeer);
+    }
+
+    [Fact]
+    public void Handoff_AfterARedirect_APlainReinitiateClearsTheRedirect()
+    {
+        AircraftState ac = Aircraft();
+        ac.Track.Owner = Sector45;
+        ac.Track.HandoffPeer = Sector44;
+        SimScenarioState scenario = HandoffContext(Sector44).Scenario!;
+        CommandResult redirected = TrackEngine.ApplyHandoff(ac, scenario, Sector44, "2B", redirect: null);
+        Assert.True(redirected.Success, redirected.Message);
+        Assert.Same(Sector44, ac.Track.HandoffRedirectedBy);
+
+        CommandResult reinitiated = TrackEngine.ApplyHandoff(ac, scenario, Sector45, "2B", redirect: null);
+
+        Assert.True(reinitiated.Success, reinitiated.Message);
+        Assert.Same(Boulder, ac.Track.HandoffPeer);
+        Assert.Null(ac.Track.HandoffRedirectedBy);
     }
 
     [Theory]

@@ -21,6 +21,8 @@ public static class EramEntryErrors
     public const string SessionNotActive = "YaatSessionNotActive";
     public const string AlreadyTracked = "YaatAlreadyTracked";
     public const string NotYourControl = "YaatNotYourControl";
+    public const string NonAdaptedSector = "MsgNon-AdaptedSector";
+    public const string HandoffToOwner = "YaatHandoffToOwner";
 
     /// <summary>Every id above, for the conformance test that holds them to <c>error-responses.yaml</c>.</summary>
     public static IReadOnlyList<string> All { get; } =
@@ -38,5 +40,7 @@ public static class EramEntryErrors
         SessionNotActive,
         AlreadyTracked,
         NotYourControl,
+        NonAdaptedSector,
+        HandoffToOwner,
     ];
 }

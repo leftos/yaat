@@ -717,6 +717,7 @@ public static partial class TrackEngine
             }
 
             ac.Track.HandoffPeer = studentPos;
+            ac.Track.HandoffRedirectedBy = null;
             ac.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
             return new CommandResult(true, $"Handoff {ac.Callsign} to {FormatOwner(studentPos)}");
         }
@@ -750,6 +751,7 @@ public static partial class TrackEngine
         }
 
         ac.Track.HandoffPeer = target;
+        ac.Track.HandoffRedirectedBy = null;
         ac.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
         Log.LogInformation(
             "[Handoff] {Callsign}: Owner={OwnerCallsign} (type={OwnerType}, fac={OwnerFac}, {OwnerSubset}{OwnerSector}) → "

@@ -5,6 +5,10 @@ variants:
     format: QR (60) (54) 02
     multiple_flids: false
     handler: QR.ReportedAltitude
+    note: |
+      yaat ruling (the sources are silent): only the controlling sector may set the reported altitude, since it is the
+      owner's own verification record; /OK overrides for another ERAM sector of the same ARTCC, never an external
+      ARTCC's or a STARS facility's track. An unowned track is editable. A flight-ID list answers MULTIPLE FLIDS INVALID.
     fields:
       - field: Position
         rule: |

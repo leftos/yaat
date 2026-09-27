@@ -112,4 +112,5 @@ errors:
   - { id: YaatNoFdb, text: NO FDB, source: coined }
   - { id: YaatFixNotAdapted, text: "{cofie} NOT ADAPTED", source: coined }
   - { id: YaatNoHandoff, text: NO HANDOFF, source: coined }
+  - { id: YaatHandoffToOwner, text: SECTOR IS OWNER, source: coined }
   - { id: YaatInternal, text: MESSAGE FAILED, source: coined }

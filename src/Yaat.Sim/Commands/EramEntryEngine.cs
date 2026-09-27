@@ -15,8 +15,13 @@ namespace Yaat.Sim.Commands;
 /// <c>QS *</c>, <c>QS */</c>, <c>QS /*</c>, <c>QS /{speed}</c>, <c>QS {heading}</c>, <c>QS `{text}</c> (the FDB line-4
 /// HSF fields, stored in the canonical forms CRC's menus re-parse); <c>LF [{label}]</c> (CRR group membership; a bare
 /// <c>LF</c> clears it); <c>VCI {sector}</c> (toggles the sector's on-frequency indicator); <c>LEADER [D{1-9}] [L{n}]</c>
-/// (data-block offset direction and leader length); <c>HANDOFF {tcp} [/OK]</c> (QN Initiate Handoff — the unforced
-/// form refuses a track the acting position does not own; <c>/OK</c> reaches only another sector of the same centre).
+/// (data-block offset direction and leader length).
+/// </para>
+///
+/// <para>
+/// <c>HANDOFF {tcp} [/OK]</c> is QN Initiate Handoff: a code that names no configured position is refused
+/// <c>SECTOR NOT ADAPTED</c>, the unforced form refuses a track the acting position does not own, <c>/OK</c> reaches only
+/// another sector of the same centre, and a code that resolves to the track's owner is refused <c>SECTOR IS OWNER</c>.
 /// </para>
 ///
 /// <para>
@@ -53,9 +58,11 @@ public static class EramEntryEngine
 
     /// <summary>
     /// ERAM Initiate Handoff (QN.yaml): offers the track to the position the TCP code names, through
-    /// <see cref="TrackEngine.ApplyHandoff"/>. Only the track's owner may hand it off — the pending handoff's recipient
-    /// accepts it first, or overrides. The field 60 override <c>/OK</c> lifts the check, offering the track on its
-    /// owner's behalf, but only for a track another ERAM sector of the same centre owns.
+    /// <see cref="TrackEngine.ApplyHandoff"/>. The code must name a configured position (QN.yaml field 16's adaptation
+    /// check, made before ownership: <c>SECTOR NOT ADAPTED</c>). Only the track's owner may hand it off —
+    /// the pending handoff's recipient accepts it first, or overrides. The field 60 override <c>/OK</c> lifts the check,
+    /// offering the track on its owner's behalf, but only for a track another ERAM sector of the same centre owns. A code
+    /// that resolves to the owner itself, forced or not, is refused <c>SECTOR IS OWNER</c> (a yaat ruling).
     /// </summary>
     private static CommandResult ApplyHandoff(AircraftState ac, List<string> args, EramEntryContext ctx)
     {
@@ -64,24 +71,46 @@ public static class EramEntryEngine
             return Refused(EramEntryErrors.SessionNotActive);
         }
 
+        if (RefuseMalformedHandoff(args) is { } malformed)
+        {
+            return malformed;
+        }
+
+        if (TrackResolver.ResolveTcpToOwner(scenario, args[0]) is not { } target)
+        {
+            return Refused(EramEntryErrors.NonAdaptedSector);
+        }
+
+        if (RefuseHandoffBy(ac, identity, target, forced: args.Count == 2) is { } refused)
+        {
+            return refused;
+        }
+
+        return TrackEngine.ApplyHandoff(ac, scenario, identity, args[0], ctx.Redirect);
+    }
+
+    /// <summary>The <c>HANDOFF {tcp} [/OK]</c> shape: one code, optionally followed by the field 60 override.</summary>
+    private static CommandResult? RefuseMalformedHandoff(List<string> args)
+    {
         if (args.Count is < 1 or > 2)
         {
             return Refused(args.Count < 1 ? EramEntryErrors.MessageTooShort : EramEntryErrors.MessageTooLong);
         }
 
         bool forced = args.Count == 2;
-        if (forced && !string.Equals(args[1], "/OK", StringComparison.OrdinalIgnoreCase))
-        {
-            return Refused(EramEntryErrors.CofieFormat, args[1]);
-        }
+        return (forced && !string.Equals(args[1], "/OK", StringComparison.OrdinalIgnoreCase)) ? Refused(EramEntryErrors.CofieFormat, args[1]) : null;
+    }
 
+    /// <summary>The ownership check (<c>/OK</c> reaching only this centre's ERAM sectors), then the handoff to the owner itself.</summary>
+    private static CommandResult? RefuseHandoffBy(AircraftState ac, TrackOwner identity, TrackOwner target, bool forced)
+    {
         bool allowed = forced ? IsOwnedByThisCentre(ac, identity) : IsOwner(ac, identity);
         if (!allowed)
         {
             return Refused(EramEntryErrors.NotYourControl);
         }
 
-        return TrackEngine.ApplyHandoff(ac, scenario, identity, args[0], ctx.Redirect);
+        return ((ac.Track.Owner is { } owner) && owner.MatchesPosition(target)) ? Refused(EramEntryErrors.HandoffToOwner) : null;
     }
 
     private static bool IsOwner(AircraftState ac, TrackOwner identity) => (ac.Track.Owner is not null) && ac.Track.Owner.MatchesPosition(identity);
@@ -89,8 +118,9 @@ public static class EramEntryEngine
     /// <summary>
     /// The override reaches only a track an ERAM sector of the acting centre owns: docs/crc/eram.md, "flights owned by
     /// external ARTCCs cannot be edited, even with a logic check override" — nor, then, one a STARS position owns.
+    /// yaat-server's QR ownership gate applies the same rule to its <c>/OK</c>.
     /// </summary>
-    private static bool IsOwnedByThisCentre(AircraftState ac, TrackOwner identity) =>
+    public static bool IsOwnedByThisCentre(AircraftState ac, TrackOwner identity) =>
         (ac.Track.Owner is { } owner)
         && (owner.OwnerType == TrackOwnerType.Eram)
         && string.Equals(owner.FacilityId, identity.FacilityId, StringComparison.OrdinalIgnoreCase);
@@ -287,7 +317,10 @@ public static class EramEntryEngine
         return Refused(EramEntryErrors.AltFormat);
     }
 
-    /// <summary>The controller-entered reported altitude alone (docs/crc/eram.md §QR), in hundreds of feet.</summary>
+    /// <summary>
+    /// The controller-entered reported altitude alone (docs/crc/eram.md §QR), in hundreds of feet. QR.yaml field 54 is
+    /// exactly one <c>ddd</c> field, and <c>000</c> clears the value; anything else is <c>ALT FORMAT</c>.
+    /// </summary>
     private static CommandResult ApplyQr(AircraftState ac, List<string> args)
     {
         if (args.Count == 0)
@@ -295,17 +328,24 @@ public static class EramEntryEngine
             return Refused(EramEntryErrors.MessageTooShort);
         }
 
-        foreach (string token in args)
+        if ((args.Count > 1) || !IsQrAltitudeField(args[0]))
         {
-            if (int.TryParse(token, out int altHundreds) && (altHundreds > 0))
-            {
-                ac.Eram.ControllerEnteredAltitude = altHundreds;
-                return new CommandResult(true, $"QR {altHundreds} {ac.Callsign}");
-            }
+            return Refused(EramEntryErrors.AltFormat);
         }
 
-        return Refused(EramEntryErrors.AltFormat);
+        int altHundreds = int.Parse(args[0], NumberStyles.None, CultureInfo.InvariantCulture);
+        if (altHundreds == 0)
+        {
+            ac.Eram.ControllerEnteredAltitude = null;
+            return new CommandResult(true, $"QR cleared {ac.Callsign}");
+        }
+
+        ac.Eram.ControllerEnteredAltitude = altHundreds;
+        return new CommandResult(true, $"QR {altHundreds} {ac.Callsign}");
     }
+
+    /// <summary>QR.yaml field 54, Reported Altitude: exactly three digits (<c>ddd</c>), where <c>000</c> clears it.</summary>
+    public static bool IsQrAltitudeField(string token) => (token.Length == 3) && token.All(char.IsAsciiDigit);
 
     private static bool IsQsActionType(string token) => token is "*" or "*/" or "/*";
 
