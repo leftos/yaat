@@ -20,7 +20,7 @@ Windows only (`net10.0-windows`, `System.Windows.Automation`); `EnableWindowsTar
 
 ## Rules for a driving session (user, 2026-09-27)
 
-- **One driver at a time.** No two agents drive YAAT.Client or CRC through this server at the same time, on one desktop. An orchestrator dispatches at most one driving agent at a time and waits for it to finish before starting the next; nothing in the server enforces this yet (the plan tracks a lock).
+- **One driver per application.** YAAT.Client and CRC are single-instance applications, so no two agents drive the same one at the same time. One agent may drive YAAT and CRC together. An orchestrator never dispatches a second agent that would drive an application another running agent is driving; nothing in the server enforces this yet (the plan tracks a lock).
 - **Close what you opened.** A CRC or YAAT client an agent started for a session (through `launch_yaat`, `Start-Process`, or anything else) is stopped by that agent when the session ends, along with any yaat-server it started. A CRC the user already had running is left alone.
 
 ## Tools
