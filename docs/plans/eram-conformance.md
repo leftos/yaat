@@ -142,6 +142,15 @@ Fix these gaps, each test first:
 
 Close the replay gap: point-out create and acknowledge (:2478-2499, :2574), DRI (:2518), VCI (:326-333) and leader/offset (:400-407, :484-505) write state directly today. Move them onto `RecordedEramEntry` with new `EramEntryEngine` forms, tested in `EramEntryEngineTests`.
 
+**Wave 3 decisions (user 2026-09-26):**
+- Handoff ownership lives in the Sim: `TrackEngine.ApplyHandoff` takes a required force flag; ERAM passes the parsed `/OK`, STARS `HO` passes false, so STARS handoffs of a track the sector does not own are refused too, and replay enforces the check.
+- QS free text follows the spec: 1–8 characters with no spaces, longer answers `INVALID TEXT FORMAT`; `EramEntryEngine.FreeTextMaxLength` (40) and its truncation go. Check the recording fixtures for a longer QS entry first.
+- An amendment to an aircraft whose callsign fails `Callsign.IsValid` (over 7 characters) reports failure instead of ACCEPT: `SimulationEngine.AmendFlightPlan` returns its outcome and `RoomEngine.AmendFlightPlan` passes it on.
+- Every Wave 3 check maps to an existing `EramError`; no new error entries are expected (explorer 2026-09-26). The replay-gap forms need no snapshot change: the fields already round-trip in `AircraftEramState`.
+- QB's rule "`0` with a code is invalid" belongs to the combined code-and-equipment variant, which Wave 3 implements.
+
+**Wave 3 briefs:** W3-1 `EramFields.cs` (shared parsers; first). Then, in parallel: W3-2 Sim handoff ownership + amend outcome + QN bounds + QS + the VCI/leader replay gap (`TrackEngine`, `EramEntryEngine`, `.Implied`, `.Display`); W3-3 QT, QH F, QZ prefix, `/OK` on QZ/QR (`.Track`, `.Altitude`, `.Eram.cs`); W3-4 QU split + bounds, RD, LA/LB/LC, LF (`.Route`, `.Readouts`, `.Crr`). Last: W3-5 QP + point-out/DRI replay gap + QB/QF/VP + `/OK` on QB/AM (`.Pointout`, `.FlightData`, `EramEntryEngine`, after W3-2).
+
 Tests: one `EramConformance<Verb>Tests` class per verb through the `Harness/EramWire.cs` harness. Each has an accept case asserting `["ACCEPT", descriptor, acid]` and one case per field check. Every new variant or error goes into the YAML first, which is the failing test.
 
 ## Wave 4: first new commands

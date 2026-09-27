@@ -10,7 +10,7 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 **Steer (user 2026-09-26): ERAM conformance only until it is done** — no other item (programme, wave or single) starts before every ERAM wave has landed.
 
-- [ ] **ERAM command conformance** (a controller's request, 2026-09-26) — [eram-conformance.md](./eram-conformance.md): a YAML command reference extracted from the ERAM EDSM SRS, a conformance test, ACCEPT/descriptor feedback and field validation for our ERAM verbs, then CO, the full AM field set, HM/QH hold, QX `/R` and FP, and LD/LE. Waves 0–2 done; next: Wave 3 (per-field validation, handoff ownership, recording the display entries).
+- [ ] **ERAM command conformance** (a controller's request, 2026-09-26) — [eram-conformance.md](./eram-conformance.md): a YAML command reference extracted from the ERAM EDSM SRS, a conformance test, ACCEPT/descriptor feedback and field validation for our ERAM verbs, then CO, the full AM field set, HM/QH hold, QX `/R` and FP, and LD/LE. Waves 0–2 done; Wave 3 underway (per-field validation, handoff ownership, recording the display entries, the silent amend for callsigns over 7 characters — decisions and brief split in the subplan).
 
 ## Current programme
 
@@ -160,7 +160,6 @@ Shared files: root `*.md`, `docs/scenario-validation-known-failures.md`, solutio
 
 Shared files: no shared files. Gate: per item.
 
-- [ ] **Flight-plan amendments silently ignored for callsigns over 7 characters** (found in the ERAM work, 2026-09-26): `SimulationEngine.AmendFlightPlan` (`src/Yaat.Sim/Simulation/SimulationEngine.Commands.cs:256`) logs a warning and returns when `Callsign.IsValid` (`^[A-Z0-9\-]{1,7}$`) fails, but `RoomEngine.AmendFlightPlan` still reports success, so ERAM QZ/AM/QB/VP/QU and the STARS equivalents answer ACCEPT and change nothing. Decide whether such callsigns are valid in a room at all; either reject them at spawn or let the amendment through, and make the result report failure honestly.
 - [ ] **CRC flight plans carry `WakeTurbulenceCode = "L"` for every aircraft** (#463 follow-up, 2026-09-26): `yaat-server/src/Yaat.Server/Simulation/DtoConverter.cs` ~:282 hardcodes it, heavies included. Start by reading every wake code CRC supports from the decompiled sources (`..\crc-decompiled\CRC\`: `FlightPlan`/`FlightPlanDto`, `FlightPlanEditorViewModel.BuildEquipmentField`, which reads `AircraftSpec.WakeTurbulenceCategory` and folds `"L/M"` to `"L"`, plus wherever CRC displays or parses the code). Then send the filed type's category from the aircraft spec data and add a DTO test per category.
 - [ ] `FlightPlanNormalization.SplitTypeAndSuffix("C172/")` returns an empty suffix, not null (#463 follow-up, 2026-09-26). So `AM TYP C172/`, or a CRC equipment string that ends in `/`, clears the filed suffix instead of leaving it alone. Decide empty-after-slash = not edited, and add a test.
 - [ ] **Client-driver MCP friction from the first live CRC session** (#463 validation, 2026-09-26) — [client-driver-mcp-friction.md](./client-driver-mcp-friction.md): 12 frictions, all in `tools/Yaat.ClientDriver.Mcp`. The main ones: owned windows missing from `list_windows`, no window-bounds tool, WPF combo items can't be picked, modals opened by an action go unreported, and real-mode input races the user's keyboard. Append new frictions there after each MCP session.
