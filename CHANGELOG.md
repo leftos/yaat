@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- ERAM `LD` reads out when an aircraft reaches a fix along its route, and `LE` the speed change to cross a fix at a time.
+
 ### Changed
 
 - A beacon code shared by two aircraft no longer addresses either of them in ERAM or STARS entries; use the callsign instead.

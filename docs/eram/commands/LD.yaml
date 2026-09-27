@@ -4,7 +4,11 @@ variants:
     descriptor: RTE FIX/TIME
     format: LD 68 02
     multiple_flids: false
-    handler: not implemented
+    handler: LD.RouteFixTime
+    note: |
+      yaat measures along the remaining route to the fix and answers the Zulu HHMM the aircraft reaches it at its current
+      ground speed, against the wall clock like LC. A fix not on the remaining route falls back to LC's straight-line
+      distance (a yaat ruling; the SRS is silent).
     fields:
       - field: 02 Flight Identification
         rule: |
