@@ -823,11 +823,11 @@ Commands/TrackEngine.Ghost.cs       # The STARS display-object bodies: CreateGho
                                     # broadcast layer uses). The ActionRouter arms call these on every run kind
 Commands/EramEntryEngine.cs         # The one body for the ERAM keyboard entries that write per-track ERAM state, applied from a RecordedEramEntry on every run kind:
                                     # TRACK [/OK] (owner guard unless forced; clears the handoff, unfreezes), FREEZE {lat} {lon} (altitude snapshotted at apply),
-                                    # QQ / QQ L / QQ [R|L|P]{alt} (interim tiers, hundreds of feet), QR {alt} (CERA), QS * | */ | /* | /{speed} | {heading} | `{text}
+                                    # QQ / QQ L / QQ [R|L|P]{alt} (interim tiers, hundreds of feet), QR {ddd} (CERA; 000 clears), QS * | */ | /* | /{speed} | {heading} | `{text}
                                     # (the HSF fields in CRC's canonical forms — ParseHsfHeading / ParseHsfSpeed; free text 1–8 alphanumerics), LF [{label}]
                                     # (CRR membership; bare = clear), VCI {sector} (on-frequency toggle), LEADER [D{1-9}] [L{0,1,2,3,5}] (data-block offset),
-                                    # HANDOFF {code} [/OK] (owner only; /OK forces for another sector of the same ARTCC, never a STARS or external owner; then
-                                    # TrackEngine.ApplyHandoff). Apply takes an EramEntryContext (identity, scenario, consolidation redirect).
+                                    # HANDOFF {code} [/OK] (sector adapted, then owner only — /OK forces for another sector of the same ARTCC, never a STARS or
+                                    # external owner — and a target that already owns the track is refused; then TrackEngine.ApplyHandoff). Apply takes an EramEntryContext (identity, scenario, consolidation redirect).
                                     # A refusal's CommandResult.Message is an EramEntryErrors id, optionally a space then the field in error; success messages
                                     # are free text. The live CRC handler keeps the wire parsing, FLID / scope / FDB validation and feedback and records the
                                     # entry through RoomEngine.ApplyAndRecord

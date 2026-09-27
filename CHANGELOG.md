@@ -16,6 +16,8 @@
 - ERAM `LA`, `LB`, `LC` and `QU` accept typed latitude/longitude, and a picked track adds its ground speed to `LA` and `LB`.
 - ERAM `LC` rejects an arrival time less than 3 minutes or 8 hours or more ahead with INVALID TIME.
 - An ERAM handoff from a sector that doesn't own the track answers NOT YOUR CONTROL; `/OK` forces it for another sector of the same center.
+- ERAM `QN <sector> <FLID>` initiates a handoff, and a handoff to the sector that already owns the track answers SECTOR IS OWNER.
+- ERAM `QR` changes only the owning sector's reported altitude unless `/OK` is given, takes exactly three digits, and `QR 000` clears it.
 - ERAM `QS` free text takes 1–8 letters and digits, and `QN` rejects a leader direction outside 1–9 or a length other than 0, 1, 2, 3 or 5.
 - Amending an aircraft whose callsign is over 7 characters answers an error instead of reporting success and changing nothing.
 - Rewinding a session keeps ERAM on-frequency toggles, data-block leader changes and handoffs.
