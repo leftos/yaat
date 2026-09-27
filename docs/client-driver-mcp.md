@@ -18,6 +18,11 @@ Windows only (`net10.0-windows`, `System.Windows.Automation`); `EnableWindowsTar
 - The server's working directory is the repo root, so the relative defaults below resolve there.
 - `launch_yaat` needs a built client: `dotnet build src/Yaat.Client`.
 
+## Rules for a driving session (user, 2026-09-27)
+
+- **One driver at a time.** No two agents drive YAAT.Client or CRC through this server at the same time, on one desktop. An orchestrator dispatches at most one driving agent at a time and waits for it to finish before starting the next; nothing in the server enforces this yet (the plan tracks a lock).
+- **Close what you opened.** A CRC or YAAT client an agent started for a session (through `launch_yaat`, `Start-Process`, or anything else) is stopped by that agent when the session ends, along with any yaat-server it started. A CRC the user already had running is left alone.
+
 ## Tools
 
 | Tool | What it does |
