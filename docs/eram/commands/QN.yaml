@@ -48,6 +48,11 @@ variants:
     format: (QN) (60) 16 02 | QZ (60) 16 02
     multiple_flids: true
     handler: QN.InitiateHandoff
+    note: |
+      yaat checks ownership: only the owning sector may initiate, and /OK forces it for another sector of the same ARTCC
+      (never an external ARTCC's or a STARS facility's track). yaat also takes /OK after the FLID. An undirected
+      facility handoff (L, L00, L000) answers NOT ADAPTED, and the ARTS forms answer FORMAT; ERAM-to-STARS codes such
+      as Q2B resolve to the TRACON position.
     fields:
       - field: 01 Message Type
         rule: |
