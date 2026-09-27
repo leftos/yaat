@@ -65,7 +65,7 @@ public class EramEntryEngineTests
         Assert.Same(taken ? Sector44 : Sector45, ac.Track.Owner);
         if (!taken)
         {
-            Assert.Equal("ALREADY TRACKED", result.Message);
+            Assert.Equal(EramEntryErrors.AlreadyTracked, result.Message);
         }
     }
 
@@ -77,7 +77,7 @@ public class EramEntryEngineTests
         CommandResult result = EramEntryEngine.Apply(ac, "TRACK", null);
 
         Assert.False(result.Success);
-        Assert.Equal("NOT ACTIVE", result.Message);
+        Assert.Equal(EramEntryErrors.SessionNotActive, result.Message);
         Assert.Null(ac.Track.Owner);
     }
 
@@ -163,7 +163,7 @@ public class EramEntryEngineTests
         CommandResult result = EramEntryEngine.Apply(ac, "QQ ABC", null);
 
         Assert.False(result.Success);
-        Assert.Equal("FORMAT", result.Message);
+        Assert.Equal(EramEntryErrors.AltFormat, result.Message);
     }
 
     [Fact]
@@ -215,7 +215,7 @@ public class EramEntryEngineTests
         CommandResult result = EramEntryEngine.Apply(ac, entry, null);
 
         Assert.False(result.Success);
-        Assert.Equal("FORMAT", result.Message);
+        Assert.Equal(EramEntryErrors.HeadingFormat, result.Message);
         Assert.Null(ac.Eram.AssignedHeading);
     }
 
@@ -273,7 +273,7 @@ public class EramEntryEngineTests
         CommandResult result = EramEntryEngine.Apply(ac, "QS `", null);
 
         Assert.False(result.Success);
-        Assert.Equal("FORMAT", result.Message);
+        Assert.Equal(EramEntryErrors.TextFormat, result.Message);
     }
 
     [Theory]

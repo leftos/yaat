@@ -16,19 +16,22 @@ namespace Yaat.Sim.Commands;
 /// HSF fields, stored in the canonical forms CRC's menus re-parse); <c>LF [{label}]</c> (CRR group membership; a bare
 /// <c>LF</c> clears it).
 /// </para>
+///
+/// <para>
+/// A refused entry's message is an <see cref="EramEntryErrors"/> id, optionally followed by a space and the contents of
+/// the field in error; success messages are free text.
+/// </para>
 /// </summary>
 public static class EramEntryEngine
 {
     public const int FreeTextMaxLength = 40;
-
-    private const string Format = "FORMAT";
 
     public static CommandResult Apply(AircraftState ac, string entry, TrackOwner? identity)
     {
         string[] tokens = entry.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
-            return new CommandResult(false, Format);
+            return Refused(EramEntryErrors.MessageTooShort);
         }
 
         List<string> args = [.. tokens[1..]];
@@ -40,9 +43,13 @@ public static class EramEntryEngine
             "QR" => ApplyQr(ac, args),
             "QS" => ApplyQs(ac, args),
             "LF" => ApplyLf(ac, args),
-            var verb => new CommandResult(false, $"Unknown ERAM entry '{verb}'"),
+            _ => Refused(EramEntryErrors.InvalidMessageType),
         };
     }
+
+    private static CommandResult Refused(string errorId) => new(false, errorId);
+
+    private static CommandResult Refused(string errorId, string cofie) => new(false, $"{errorId} {cofie}");
 
     /// <summary>
     /// Initiating control must not steal a track owned by another sector unless forced with <c>/OK</c> (the logic-check
@@ -53,13 +60,13 @@ public static class EramEntryEngine
     {
         if (identity is null)
         {
-            return new CommandResult(false, "NOT ACTIVE");
+            return Refused(EramEntryErrors.SessionNotActive);
         }
 
         bool force = args.Any(a => string.Equals(a, "/OK", StringComparison.OrdinalIgnoreCase));
         if (!force && (ac.Track.Owner is not null) && !ac.Track.Owner.MatchesPosition(identity))
         {
-            return new CommandResult(false, "ALREADY TRACKED");
+            return Refused(EramEntryErrors.AlreadyTracked);
         }
 
         ac.Track.Owner = identity;
@@ -84,13 +91,19 @@ public static class EramEntryEngine
     /// </summary>
     private static CommandResult ApplyFreeze(AircraftState ac, List<string> args)
     {
-        if (
-            (args.Count != 2)
-            || !double.TryParse(args[0], NumberStyles.Float, CultureInfo.InvariantCulture, out double lat)
-            || !double.TryParse(args[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double lon)
-        )
+        if (args.Count != 2)
         {
-            return new CommandResult(false, Format);
+            return Refused(args.Count < 2 ? EramEntryErrors.MessageTooShort : EramEntryErrors.MessageTooLong);
+        }
+
+        if (!double.TryParse(args[0], NumberStyles.Float, CultureInfo.InvariantCulture, out double lat))
+        {
+            return Refused(EramEntryErrors.CofieFormat, args[0]);
+        }
+
+        if (!double.TryParse(args[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double lon))
+        {
+            return Refused(EramEntryErrors.CofieFormat, args[1]);
         }
 
         ac.Eram.IsFrozen = true;
@@ -150,12 +163,17 @@ public static class EramEntryEngine
             }
         }
 
-        return new CommandResult(false, Format);
+        return Refused(EramEntryErrors.AltFormat);
     }
 
     /// <summary>The controller-entered reported altitude alone (docs/crc/eram.md §QR), in hundreds of feet.</summary>
     private static CommandResult ApplyQr(AircraftState ac, List<string> args)
     {
+        if (args.Count == 0)
+        {
+            return Refused(EramEntryErrors.MessageTooShort);
+        }
+
         foreach (string token in args)
         {
             if (int.TryParse(token, out int altHundreds) && (altHundreds > 0))
@@ -165,7 +183,7 @@ public static class EramEntryEngine
             }
         }
 
-        return new CommandResult(false, Format);
+        return Refused(EramEntryErrors.AltFormat);
     }
 
     /// <summary>
@@ -177,7 +195,7 @@ public static class EramEntryEngine
     {
         if (args.Count == 0)
         {
-            return new CommandResult(false, Format);
+            return Refused(EramEntryErrors.MessageTooShort);
         }
 
         string op = args[0];
@@ -201,7 +219,7 @@ public static class EramEntryEngine
             string text = string.Join(' ', args)[1..].Trim().ToUpperInvariant();
             if (text.Length == 0)
             {
-                return new CommandResult(false, Format);
+                return Refused(EramEntryErrors.TextFormat);
             }
 
             ac.Eram.FreeText = text.Length > FreeTextMaxLength ? text[..FreeTextMaxLength] : text;
@@ -213,7 +231,7 @@ public static class EramEntryEngine
             string? speed = ParseHsfSpeed(op[1..]);
             if (speed is null)
             {
-                return new CommandResult(false, Format);
+                return Refused(EramEntryErrors.SpeedFormat);
             }
 
             ac.Eram.AssignedSpeed = speed;
@@ -223,7 +241,7 @@ public static class EramEntryEngine
         string? heading = ParseHsfHeading(op);
         if (heading is null)
         {
-            return new CommandResult(false, Format);
+            return Refused(EramEntryErrors.HeadingFormat);
         }
 
         ac.Eram.AssignedHeading = heading;

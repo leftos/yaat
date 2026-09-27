@@ -112,4 +112,5 @@ errors:
   - { id: YaatNoFdb, text: NO FDB, source: coined }
   - { id: YaatTimePassed, text: TIME PASSED, source: coined }
   - { id: YaatFixNotAdapted, text: "{cofie} NOT ADAPTED", source: coined }
+  - { id: YaatNoHandoff, text: NO HANDOFF, source: coined }
   - { id: YaatInternal, text: MESSAGE FAILED, source: coined }

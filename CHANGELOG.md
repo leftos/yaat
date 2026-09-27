@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- A beacon code shared by two aircraft no longer addresses either of them in ERAM or STARS entries; use the callsign instead.
+
+### Fixed
+
+- CRC's ERAM view answers an accepted command with ACCEPT, the command's name and the aircraft, and keeps the Response Area for readouts.
+- A rejected ERAM command shows one specific error, such as FLID NOT STORED, NOT YOUR CONTROL or ALT FORMAT, instead of FORMAT.
+- ERAM checks typed flight IDs and track picks like the real system, rejecting bad formats, non-discrete codes, duplicate flights and the wrong kind of target.
+- ERAM `RD` by computer ID or lower-case callsign toggles the same route line as the callsign.
+
 ## v0.13.6-beta [2026/09/26]
 
 ### Highlights

@@ -240,3 +240,11 @@ variants:
         rule: |
           Flight identification must not be found for more than one flight.
         error: MsgFLIDDuplication
+  - title: Recall Handoff
+    source: yaat
+    descriptor: RECALL HANDOFF
+    handler: QN.RecallHandoff
+    note: |
+      yaat-only descriptor. Entering the FLID of a track whose handoff this sector initiated recalls the handoff;
+      the source folds this into the implied command without naming its own descriptor.
+    fields: []

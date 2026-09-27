@@ -1,6 +1,6 @@
 # ERAM command conformance against the ERAM EDSM SRS
 
-**Status (2026-09-26):** Wave 0 (the reference in `docs/eram/`) and Wave 1 (the file split, `EramResult`, `EramPickKind`) are done. Next is Wave 2.
+**Status (2026-09-26):** Waves 0–2 are done: the reference in `docs/eram/`, the file split, and the ACCEPT/descriptor feedback with table errors, flight-ID validation and the conformance test. Next is Wave 3.
 
 ## Context
 
@@ -124,6 +124,9 @@ Also, in the same commit:
 Add `Hubs/Eram/EramFields.cs`, a set of pure parsers that return `(value, EramError?)`. They cover altitude (wrapping `FlightPlanAltitude.Parse` and `TryParseBlockAltitude`), offset, `/OK`, location (fix, FRD, lat/long bounds), speed `S(d)(d)dd`, heading, HHMM, and sector `01–128` / `L(d)dd`.
 
 Fix these gaps, each test first:
+- **Handoff ownership.** An ERAM handoff initiate (`<sector> <FLID>`, and `QZ`/`QN` forms) never checks that the initiating sector owns the track: neither the server's implied handoff path nor the Sim's `TrackEngine.ApplyHandoff` does. Reject with `YaatNotYourControl` unless `/OK` is given.
+- **Pick kinds for the location-taking verbs.** QT, QH, LF, LC, LA, LB, QU and RD take a clicked location as a separate field, so Wave 2 left their flight-ID pick-kind check off. Add it together with each verb's location field.
+- **`DispatchQu` complexity.** It is over the 100-line / complexity-8 limit; split it into per-form helpers while adding QU's field checks.
 - **QZ prefix.** `QZ` is also the alternative prefix for implied commands, so `QZ 44 <FLID>` is a handoff. Two digits mean a sector; three mean an altitude. Today `DispatchEramMessage` (:89) always treats it as an altitude.
 - **QN:** reject a direction outside 1–9 and a leader length outside 0–3.
 - **QS:** free text is 1–8 characters with no spaces (Sim `EramEntryEngine.FreeTextMaxLength` is 40 today). Add action/data combination errors and the full speed grammar.
