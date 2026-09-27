@@ -57,7 +57,7 @@ Layout under `D:\yaat\docs\eram\`:
   - `RD` is yaat-only and is marked `source: yaat`.
 - **`error-responses.yaml`**: entries like `{ id: MsgFlidFormat, text: FLID FORMAT, source: coined }`.
   - `{cofie}` in a text stands for the contents of the field in error.
-  - Errors that exist only in yaat use a `Yaat` prefix: `YaatAlreadyTracked`, `YaatPoExists`, `YaatTimePassed`, `YaatDupNewId`, `YaatInternal`.
+  - Errors that exist only in yaat use a `Yaat` prefix: `YaatAlreadyTracked`, `YaatPoExists`, `YaatDupNewId`, `YaatInternal`.
   - Proposed texts include FLID FORMAT, INVALID PICK, ILLEGAL FLID, FLID NOT STORED, DUPLICATE FLID, NO FLIGHT PLAN, `{cofie} FORMAT`, ALT FORMAT, BCN CODE FORMAT, INVALID BLOCKED ALT, INVALID COMBINATION, INVALID DIRECTION, INVALID LENGTH, SECTOR FORMAT, NOT ADAPTED, NOT YOUR CONTROL (a spec literal that replaces our NOT YOUR TRACK), and SESSION NOT ACTIVE (CRC's own text, replacing NOT ACTIVE).
 
 Extraction (the scripts stay in the scratchpad, since the PDF text isn't in the repo):
