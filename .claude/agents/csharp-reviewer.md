@@ -70,3 +70,7 @@ work from memory of them, because this file used to carry a copy and it drifted.
 - Don't suggest adding XML doc comments unless the function is a non-trivial public API.
 - Don't suggest renaming unless the name is actively misleading.
 - Don't flag performance issues unless they're in a hot path (tick loop, per-frame rendering).
+
+## Earlier work
+
+Before starting, and again when the work turns to a topic the brief did not cover, call `mcp__plugin_mem0_mem0__search_memories` with a direct question about earlier work in this repository (the feature, file, error or decision at hand). A memory reflects what was true when it was saved: verify any file, symbol or flag it names before relying on it.
