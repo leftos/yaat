@@ -1,6 +1,6 @@
 # ERAM command conformance against the ERAM EDSM SRS
 
-**Status (2026-09-26):** Waves 0–3 are done: the reference in `docs/eram/`, the file split, the ACCEPT/descriptor feedback with table errors, flight-ID validation and the conformance test, and per-field checks for every verb we answer (W3-1…W3-6, with handoff ownership and the display entries recorded for replay). Next: the Wave 3 follow-ups listed under Wave 3, then Wave 4.
+**Status (2026-09-27):** Waves 0–3 and their follow-ups are done: the reference in `docs/eram/`, the file split, the ACCEPT/descriptor feedback with table errors, flight-ID validation and the conformance test, and per-field checks for every verb we answer (W3-1…W3-6, with handoff ownership and the display entries recorded for replay). Next: Wave 4.
 
 ## Context
 
@@ -155,10 +155,7 @@ Close the replay gap: point-out create and acknowledge (:2478-2499, :2574), DRI 
 
 **QR and self-handoff rulings (aviation consult 2026-09-26; the sources are silent, so these are yaat rulings, noted in the YAML):** QR is limited to the controlling sector through `RejectIfNotEditable`, `/OK` overriding within the same ARTCC, because the CERA is the owner's own verification record (`docs/crc/eram.md` :48, :624); `QR 000` clears the CERA (QR.yaml field 54); QR's field 54 is exactly `ddd` (ALT FORMAT) and one flight only. A handoff whose resolved target is the track's owner is refused with a coined `YaatHandoffToOwner` = `SECTOR IS OWNER` (it also covers a forced handoff that resolves to the owner).
 
-**Wave 3 follow-ups found while building (2026-09-26):**
-- `QB 0` on its own is a valid Qualifier Mod (QB.yaml) but answers `0 FORMAT`.
-- `QF *` should require an aircraft-ID flight ID (FLID FORMAT otherwise).
-- QT validates fields 05/08/56/68/74 and QH validates `/OK`, then accepts each without effect: our QT stores no speed, altitude, heading or location. QT with those fields is the Coast Track (CT) form, which moves into Wave 4 (user 2026-09-27); QH's `/OK` is covered by Wave 4's HM/QH hold.
+QT with fields 05/08/56/68/74 (Coast Track) and QH's `/OK` validate and then accept with no effect; they are built in Wave 4 (QT coast, HM/QH hold).
 
 Tests: one `EramConformance<Verb>Tests` class per verb through the `Harness/EramWire.cs` harness. Each has an accept case asserting `["ACCEPT", descriptor, acid]` and one case per field check. Every new variant or error goes into the YAML first, which is the failing test.
 
