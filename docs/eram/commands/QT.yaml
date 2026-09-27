@@ -302,6 +302,7 @@ variants:
     format: QT (60) 65 (05) (08) (56) 64 02
     multiple_flids: false
     handler: not implemented
+    note: CRC sends this on Ctrl+Shift+click. yaat checks its fields and answers it as QT.Track (TRACK), taking the track like a plain QT; a target pick of a different aircraft is refused.
     fields:
       - field: 60 Logic Check Override
         rule: |

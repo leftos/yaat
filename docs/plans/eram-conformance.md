@@ -151,6 +151,14 @@ Close the replay gap: point-out create and acknowledge (:2478-2499, :2574), DRI 
 
 **Wave 3 briefs:** W3-1 `EramFields.cs` (shared parsers; first). Then, in parallel: W3-2 Sim handoff ownership + amend outcome + QN bounds + QS + the VCI/leader replay gap (`TrackEngine`, `EramEntryEngine`, `.Implied`, `.Display`); W3-3 QT, QH F, QZ prefix, `/OK` on QZ/QR (`.Track`, `.Altitude`, `.Eram.cs`); W3-4 QU split + bounds, RD, LA/LB/LC, LF (`.Route`, `.Readouts`, `.Crr`). Last: W3-5 QP + point-out/DRI replay gap + QB/QF/VP + `/OK` on QB/AM (`.Pointout`, `.FlightData`, `EramEntryEngine`, after W3-2).
 
+**Wave 3 follow-ups found while building (2026-09-26):**
+- `QZ /OK 44 <FLID>` validates the `/OK` but does not forward it to the handoff, because the QZ prefix calls `DispatchImpliedHandoffInitiate(sector, callsign, pickKind)`. Wire it once the ERAM handoff entry form (W3-2) has landed.
+- Under the QZ prefix only a two-digit sector is a handoff, so `QZ C44 <FLID>` answers ALT FORMAT. QN.yaml field 16 also lists `L((d)dd)`; decide whether the centre form applies under QZ.
+- QR has no ownership gate, so any sector can set another sector's CERA. Whether ERAM restricts QR to the controlling sector needs an aviation ruling.
+- QR field 54: the Sim's `ApplyQr` refuses `000`, which QR.yaml says is legal (it clears the value), and the server doesn't check the field.
+- QT validates fields 05/08/56/68/74 and QH validates `/OK`, then accepts each without effect: our QT stores no speed, altitude, heading or location.
+- RD is yaat-only; its field 02 takes a track pick (FDB/CDB). Add that to RD.yaml with `source: yaat` when W3-4 lands.
+
 Tests: one `EramConformance<Verb>Tests` class per verb through the `Harness/EramWire.cs` harness. Each has an accept case asserting `["ACCEPT", descriptor, acid]` and one case per field check. Every new variant or error goes into the YAML first, which is the failing test.
 
 ## Wave 4: first new commands

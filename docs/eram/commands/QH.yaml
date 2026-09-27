@@ -90,6 +90,7 @@ variants:
     format: QH (60) 36 (65) (68) 02
     multiple_flids: false
     handler: QH.CommandedFrozen
+    note: yaat freezes a track only at a location, so an entry with neither 65 nor 68 answers MESSAGE TOO SHORT.
     fields:
       - field: Position
         rule: |
