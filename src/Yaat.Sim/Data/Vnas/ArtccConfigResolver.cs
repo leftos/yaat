@@ -191,9 +191,13 @@ public static class ArtccConfigResolver
     /// with the position. Used by ERAM-code resolution (e.g. "C44").
     /// </summary>
     public static (string? FacilityId, PositionConfig? Position) FindEramPositionBySectorId(this ArtccConfigRoot config, string sectorId) =>
-        FindEramPositionBySectorIdInFacility(config.Facility, sectorId);
+        config.Facility.FindEramPositionBySectorId(sectorId);
 
-    private static (string?, PositionConfig?) FindEramPositionBySectorIdInFacility(FacilityConfig facility, string sectorId)
+    /// <summary>
+    /// The same search as the <see cref="ArtccConfigRoot"/> overload, confined to <paramref name="facility"/> and
+    /// its child facilities.
+    /// </summary>
+    public static (string? FacilityId, PositionConfig? Position) FindEramPositionBySectorId(this FacilityConfig facility, string sectorId)
     {
         foreach (PositionConfig pos in facility.Positions)
         {
@@ -205,8 +209,8 @@ public static class ArtccConfigResolver
 
         foreach (FacilityConfig child in facility.ChildFacilities)
         {
-            (string?, PositionConfig?) result = FindEramPositionBySectorIdInFacility(child, sectorId);
-            if (result.Item2 is not null)
+            (string? FacilityId, PositionConfig? Position) result = child.FindEramPositionBySectorId(sectorId);
+            if (result.Position is not null)
             {
                 return result;
             }

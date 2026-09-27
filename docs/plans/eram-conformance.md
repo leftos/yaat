@@ -157,7 +157,6 @@ Close the replay gap: point-out create and acknowledge (:2478-2499, :2574), DRI 
 
 **Wave 3 follow-ups found while building (2026-09-26):**
 - `RejectIfNotEditable` does not apply the same-ARTCC limit to `/OK`, so a forced QZ, QU or QQ (`/TT`) edit still reaches an external ARTCC's or a STARS-owned track (QR and HANDOFF use `EramEntryEngine.IsOwnedByThisCentre`). Apply the same rule to every `/OK` edit (CRC `docs/crc/eram.md`:48).
-- `LiveTrafficOwnerResolver` (~:140): for another centre's facility (e.g. ZLA in a ZOA room) `FindFacility` returns null and the resolver falls back to the own ARTCC node, so a ZLA sector 32 owner takes ZOA sector 32's callsign, and ERAM ownership (callsign-only `MatchesPosition`) then treats a ZOA 32 controller as its owner. It also neither recurses into child facilities nor compares sector ids by number, unlike `ArtccConfigResolver.FindEramPositionBySectorId`.
 - `QP <FLID>` (minimize) and the un-minimize after a new point-out write the room's `EramState.PointoutMinimized` directly, so a replay reproduces neither; it is room state, not `AircraftEramState`.
 - QP's DRI fields are unchecked: `J`/`T`, field 306 must be 3, and 306 only with `J`.
 - `QB 0` on its own is a valid Qualifier Mod (QB.yaml) but answers `0 FORMAT`.
