@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.13.6-beta [2026/09/26]
+
+### Highlights
+- Solo training warns when pilot voice isn't set up, including at the first unpause.
+- In solo training, VFR pilots request a Class B clearance before the boundary, and a vector into Class B clears them in.
+- Landing jets and turboprops brake harder and take an earlier high-speed exit when none is assigned.
+- Amending a flight plan in CRC keeps the aircraft type and equipment suffix.
 
 ### Added
 
