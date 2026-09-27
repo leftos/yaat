@@ -11,4 +11,8 @@ variants:
     handler: RD.RouteDisplay
     note: |
       yaat-only. Toggles the route line for every track, or for one track when a FLID is given.
-    fields: []
+    fields:
+      - field: 02 Flight Identification
+        rule: |
+          Optional. When selecting the flight using the trackball, the selection must capture a FDB or LDB track.
+        error: MsgNoTBFlightID
