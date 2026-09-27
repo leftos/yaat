@@ -4,7 +4,10 @@ variants:
     descriptor: REMOVE STRIP
     format: QX (60*) 64 02
     multiple_flids: false
-    handler: not implemented
+    handler: QX.RemoveStrip
+    note: |
+      yaat removes the aircraft's flight strip the way the STRIPD command does, recorded for replay; with no strip to
+      remove it answers ACCEPT and changes nothing (a yaat ruling; the SRS is silent).
     fields:
       - field: Position
         rule: |
@@ -82,7 +85,10 @@ variants:
     descriptor: SURRENDER CONTROL
     format: QX (60) 64 02
     multiple_flids: false
-    handler: not implemented
+    handler: QX.SurrenderControl
+    note: |
+      yaat has no track object apart from its owner, so surrender control is the same state change as Drop Track Only
+      (the owner and any handoff are cleared); only the descriptor differs.
     fields:
       - field: Position
         rule: |

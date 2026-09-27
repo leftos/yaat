@@ -5,6 +5,7 @@
 ### Added
 
 - ERAM `LD` reads out when an aircraft reaches a fix along its route, and `LE` the speed change to cross a fix at a time.
+- ERAM `QX /R` surrenders control of a track and `QX FP` removes its flight strip; `QX` rejects an unknown action instead of dropping the track.
 
 ### Changed
 
