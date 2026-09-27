@@ -175,6 +175,8 @@ Tests: one `EramConformance<Verb>Tests` class per verb through the `Harness/Eram
 - **LD / LE readouts.** Fix and time along the route, and the speed change to cross a fix at a time. They reuse `RemainingRouteFixes` (~:2738) and `ComputeLcSpeed`.
 - **Docs:** `docs/crc-display-state.md`, `docs/crc-protocol-support.md`, and `CHANGELOG.md` bullets through the changelog skill.
 
+**Wave 4 rulings (user 2026-09-27; the SRS is silent on each, so they are yaat rulings noted in the YAML):** LD and LE measure along the remaining route (`RemainingRouteFixes`) and fall back to LC's straight-line distance when the fix is not on it; LD answers a bare Zulu `HHMM`, LE answers LC's `<gs>KT <±delta>`, both against the wall clock like LC. `QX /R` is the same state change as `QX` (drop), answered with the SURRENDER CONTROL descriptor. `QX FP` removes the strip the way `STRIPD` does and ACCEPTs as a no-op when there is none.
+
 ## Wave 5: backlog (subplan only; not built in this pass)
 
 - QT convert point-out.
