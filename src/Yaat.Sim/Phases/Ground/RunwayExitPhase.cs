@@ -422,6 +422,7 @@ public sealed class RunwayExitPhase : Phase
         // than returning an occupied exit that we'd have to skip post-hoc (which
         // would miss other exits from the same centerline node).
         HashSet<int>? occupied = ctx.OccupiedHoldShortNodes;
+        var refusedOffSide = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // Soft tiebreaker: when the preference has a taxiway but no side, try
         // with the inferred side first. If nothing found, fall through to the
@@ -429,7 +430,7 @@ public sealed class RunwayExitPhase : Phase
         if ((_lastResolvedPreference is { Taxiway: not null, Side: null }) && (_inferredSide is not null))
         {
             var tiebreakerPref = new ExitPreference { Taxiway = _lastResolvedPreference.Taxiway, Side = _inferredSide.Value };
-            if (TryRunSearchWithLookahead(ctx, tiebreakerPref, occupied, _inferredSide))
+            if (TryRunSearchWithLookahead(ctx, tiebreakerPref, occupied, _inferredSide, refusedOffSide))
             {
                 return;
             }
@@ -440,8 +441,9 @@ public sealed class RunwayExitPhase : Phase
         for (int attempt = 0; attempt < 3; attempt++)
         {
             ExitSide? sidePref = preference?.Side ?? _inferredSide;
-            if (TryRunSearchWithLookahead(ctx, preference, occupied, sidePref))
+            if (TryRunSearchWithLookahead(ctx, preference, occupied, sidePref, refusedOffSide))
             {
+                ReportNamedExitOnlyOffSide(ctx, refusedOffSide);
                 return;
             }
 
@@ -462,12 +464,46 @@ public sealed class RunwayExitPhase : Phase
     }
 
     /// <summary>
+    /// The controller named an exit taxiway and a side (<c>ER P</c>), the named taxiway was found only on the other side,
+    /// and the aircraft committed to another exit instead: the pilot says it cannot make the named one.
+    /// </summary>
+    private void ReportNamedExitOnlyOffSide(PhaseContext ctx, HashSet<string> refusedOffSide)
+    {
+        if (
+            (ctx.Aircraft.Phases?.RequestedExit is not { Taxiway: { } named, Side: not null })
+            || !refusedOffSide.Contains(named)
+            || string.Equals(_exitTaxiway, named, StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return;
+        }
+
+        Log.LogDebug("[Exit] {Callsign}: {Twy} is only off the instructed side, exiting at {Actual}", ctx.Aircraft.Callsign, named, _exitTaxiway);
+        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+            ctx.Aircraft,
+            ctx.SoloTrainingMode,
+            ctx.RpoShowPilotSpeech,
+            ctx.StudentPositionType,
+            Pilot.PilotResponder.BuildUnableToExit(ctx.Aircraft, named),
+            Pilot.PilotResponder.SoloPositionsTower
+        );
+    }
+
+    /// <summary>
     /// Walk centerlines forward looking for an exit that satisfies the side
     /// preference. Defers off-side candidates while searching for an on-side
-    /// option, falling back to the deferred off-side if none is found.
+    /// option, falling back to the deferred off-side if none is found — unless
+    /// the controller instructed the side, when an off-side candidate is never
+    /// taken and its taxiway is added to <paramref name="refusedOffSide"/>.
     /// Returns true on commit.
     /// </summary>
-    private bool TryRunSearchWithLookahead(PhaseContext ctx, ExitPreference? preference, HashSet<int>? occupied, ExitSide? sidePref)
+    private bool TryRunSearchWithLookahead(
+        PhaseContext ctx,
+        ExitPreference? preference,
+        HashSet<int>? occupied,
+        ExitSide? sidePref,
+        HashSet<string> refusedOffSide
+    )
     {
         if (ctx.GroundLayout is null || _runwayId is null)
         {
@@ -475,6 +511,7 @@ public sealed class RunwayExitPhase : Phase
         }
 
         bool isExplicit = (preference?.Taxiway is not null) || (preference?.Side is not null);
+        ExitSide? instructedSide = ctx.Aircraft.Phases?.RequestedExit?.Side;
 
         AirportGroundLayout.CenterlineExitResult? found = ctx.GroundLayout.FindOnSidePreferredExit(
             ctx.Aircraft.Position.Lat,
@@ -492,6 +529,14 @@ public sealed class RunwayExitPhase : Phase
                 {
                     return AirportGroundLayout.CandidateVerdict.Skip;
                 }
+
+                // The controller chose the side: the off side is never a fallback.
+                if ((instructedSide is { } side) && (candidate.Side != side))
+                {
+                    refusedOffSide.Add(candidate.Taxiway);
+                    return AirportGroundLayout.CandidateVerdict.Skip;
+                }
+
                 return AirportGroundLayout.CandidateVerdict.Accept;
             }
         );
@@ -831,8 +876,8 @@ public sealed class RunwayExitPhase : Phase
         };
         segments.Add(new TaxiRouteSegment { TaxiwayName = _exitTaxiway, Edge = approachEdge.Directed(virtualFromNode, branchNode) });
 
-        // Past the branch taxiway's own bar the path continues onto the joining taxiway (an exit whose bar sits inside the
-        // runway holding distance); those segments carry their own taxiway so the aircraft reads as on it.
+        // Past the branch taxiway's own bar, or where the path leaves the branch taxiway at its end, the path continues onto
+        // the joining taxiway; those segments carry their own taxiway so the aircraft reads as on it.
         bool pastBranchBar = false;
         for (int i = 0; i < _exitPath.Count - 1; i++)
         {
@@ -845,6 +890,7 @@ public sealed class RunwayExitPhase : Phase
                 return false;
             }
 
+            pastBranchBar |= !edge.MatchesTaxiway(_exitTaxiway);
             string label = pastBranchBar ? ContinuationTaxiwayName(edge, _exitTaxiway) : _exitTaxiway;
             segments.Add(new TaxiRouteSegment { TaxiwayName = label, Edge = edge.Directed(fromNode, toNode) });
             pastBranchBar |= toNode.Type == GroundNodeType.RunwayHoldShort;
@@ -985,8 +1031,9 @@ public sealed class RunwayExitPhase : Phase
 
         // Vacated between two parallels with a clear shot to the parallel runway's hold-short:
         // auto-pull-up there (and hold short pending an explicit CROSS) instead of stopping at
-        // the landing runway's exit hold-short.
-        if (TryStartParallelCrossing(ctx))
+        // the landing runway's exit hold-short. An aircraft stopped at a bar inside the landing
+        // runway's holding distance has not vacated it, so it holds there instead.
+        if (!IsStoppedInsideHoldingDistance(ctx) && TryStartParallelCrossing(ctx))
         {
             return true;
         }
@@ -1011,6 +1058,13 @@ public sealed class RunwayExitPhase : Phase
 
         return true;
     }
+
+    /// <summary>The exit ends at a bar inside the landing runway's holding distance (a named exit whose bar is short of it).</summary>
+    private bool IsStoppedInsideHoldingDistance(PhaseContext ctx) =>
+        (ctx.GroundLayout is { } layout)
+        && (_holdShortNode is not null)
+        && (_runwayId is not null)
+        && !layout.IsAtRunwayHoldingDistance(_holdShortNode, _runwayId);
 
     /// <summary>
     /// When the aircraft vacated between two parallel runways and the parallel runway's hold-short
@@ -1098,10 +1152,6 @@ public sealed class RunwayExitPhase : Phase
     }
 
     /// <summary>
-    /// Build directional taxi-route segments along the exit taxiway for a node path of real,
-    /// adjacency-connected graph nodes. Returns null if any consecutive pair lacks a connecting edge.
-    /// </summary>
-    /// <summary>
     /// The taxiway a continuation segment past the branch bar is on: a corner arc joining the exit taxiway to another is
     /// named for the other one.
     /// </summary>
@@ -1115,6 +1165,10 @@ public sealed class RunwayExitPhase : Phase
         return edge.TaxiwayName;
     }
 
+    /// <summary>
+    /// Build directional taxi-route segments along the exit taxiway for a node path of real,
+    /// adjacency-connected graph nodes. Returns null if any consecutive pair lacks a connecting edge.
+    /// </summary>
     private static List<TaxiRouteSegment>? BuildRouteSegments(List<GroundNode> path, string taxiwayName)
     {
         var segments = new List<TaxiRouteSegment>(path.Count - 1);

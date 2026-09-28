@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
@@ -13,11 +14,10 @@ namespace Yaat.Sim.Tests.Simulation;
 /// intersection (S2-OAK-5 report, 2026-09-27: "28R arrivals naturally exit at J and stop half on the runway, half on J").
 ///
 /// <para>P leaves 28R at 53° and dead-ends into J about 141 ft from the centerline, inside the 225 ft
-/// <c>holdShortDistance</c> the vNAS map authors for 28R/10L. The layout builder cannot fit a bar on P at that distance,
-/// so it places one 25 ft short of the junction (~121 ft), and the exit ends half a fuselage past it: nose on J, tail on
-/// the bar, the whole airframe inside the runway's holding distance. J's own 28R bar is east of the junction at ~218 ft.
-/// AIM 4-3-21.b: absent ATC instructions the pilot taxis beyond the runway holding position markings, even if that
-/// requires entering another taxiway.</para>
+/// <c>holdShortDistance</c> the vNAS map authors for 28R/10L. P has no 28R bar of its own: P and J share J's 28R
+/// marking, east of the junction at ~222 ft, so the P exit turns right onto J and ends at that bar. AIM 4-3-21.b: absent
+/// ATC instructions the pilot taxis beyond the runway holding position markings, even if that requires entering another
+/// taxiway. With J's bar occupied the P exit is unavailable.</para>
 /// </summary>
 public class Oak28rPExitHoldingPositionTests(ITestOutputHelper output)
 {
@@ -26,6 +26,8 @@ public class Oak28rPExitHoldingPositionTests(ITestOutputHelper output)
     /// <summary>The 28R centerline node P branches from, and the one H branches from (located by position, not id).</summary>
     private static readonly LatLon PBranch = new(37.729433, -122.219017);
     private static readonly LatLon HBranch = new(37.727932, -122.214378);
+
+    private static readonly ExitPreference PRight = new() { Taxiway = "P", Side = ExitSide.Right };
 
     [Theory]
     [InlineData("C25A")]
@@ -62,6 +64,7 @@ public class Oak28rPExitHoldingPositionTests(ITestOutputHelper output)
 
             Assert.Equal("P", exitTaxiway);
             Assert.NotNull(holding.HoldShortNodeId);
+            Assert.False(holding.StoppedInsideHoldingDistance);
             GroundNode bar = aircraft.Ground.Layout!.Nodes[holding.HoldShortNodeId.Value];
             Assert.Contains(bar.Edges, edge => edge.MatchesTaxiway("J"));
             Assert.DoesNotContain(bar.Edges, edge => edge.MatchesTaxiway("P"));
@@ -71,7 +74,8 @@ public class Oak28rPExitHoldingPositionTests(ITestOutputHelper output)
             double tailPastBarFt = GeoMath.AlongTrackDistanceNm(tail, bar.Position, aircraft.TrueHeading) * GeoMath.FeetPerNm;
             double tailFt = CrossTrackFt(runway, tail);
             output.WriteLine(
-                $"{aircraftType}: stopped at t+{t}s, tail {tailPastBarFt:F1} ft past bar #{bar.Id}; centroid {CrossTrackFt(runway, aircraft.Position):F0} ft "
+                $"{aircraftType}: stopped at t+{t}s, tail {tailPastBarFt:F1} ft past bar #{bar.Id}; "
+                    + $"centroid {CrossTrackFt(runway, aircraft.Position):F0} ft "
                     + $"and tail {tailFt:F0} ft from the 28R centerline; holding distance {holdingDistanceFt:F0} ft"
             );
             Assert.True(
@@ -98,12 +102,9 @@ public class Oak28rPExitHoldingPositionTests(ITestOutputHelper output)
         Assert.Fail($"{aircraftType} never finished its runway exit within 300 s");
     }
 
-    /// <summary>
-    /// With J's 28R bar occupied, the P exit ends where it did before the continuation existed: at P's own short bar,
-    /// on the same path up to it.
-    /// </summary>
+    /// <summary>The P exit ends at J's 28R bar and is still named P; with that bar occupied there is no P exit at all.</summary>
     [Fact]
-    public void PExit_WithJBarOccupied_EndsAtPsOwnBar()
+    public void PExit_EndsAtJsBar_AndIsUnavailableWhenItIsOccupied()
     {
         AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("OAK");
         if (layout is null)
@@ -113,31 +114,132 @@ public class Oak28rPExitHoldingPositionTests(ITestOutputHelper output)
 
         GroundNode? centerline = layout.FindNearestCenterlineNode(PBranch.Lat, PBranch.Lon, Runway28RHeading, "28R");
         Assert.NotNull(centerline);
-        var pref = new ExitPreference { Taxiway = "P", Side = ExitSide.Right };
 
-        (GroundNode Node, string Taxiway, List<GroundNode> Path, ExitSide Side)? continued = layout.FindAdjacentHoldShort(
+        (GroundNode Node, string Taxiway, List<GroundNode> Path, ExitSide Side)? exit = layout.FindAdjacentHoldShort(
             centerline,
             "28R",
             Runway28RHeading,
-            pref
+            PRight
         );
-        Assert.NotNull(continued);
-        GroundNode pBar = AirportGroundLayout.FirstHoldShortOnPath(continued.Value.Path, continued.Value.Node);
-        Assert.NotEqual(pBar.Id, continued.Value.Node.Id);
-        Assert.Contains(pBar.Edges, edge => edge.MatchesTaxiway("P"));
+        Assert.NotNull(exit);
+        Assert.Equal("P", exit.Value.Taxiway);
+        Assert.Contains(exit.Value.Node.Edges, edge => edge.MatchesTaxiway("J"));
+        Assert.Single(exit.Value.Path, n => n.Type == GroundNodeType.RunwayHoldShort);
 
         (GroundNode Node, string Taxiway, List<GroundNode> Path, ExitSide Side)? occupied = layout.FindAdjacentHoldShort(
             centerline,
             "28R",
             Runway28RHeading,
-            pref,
-            excludeHoldShortNodes: [continued.Value.Node.Id]
+            PRight,
+            excludeHoldShortNodes: [exit.Value.Node.Id]
         );
-        Assert.NotNull(occupied);
-        Assert.Equal(pBar.Id, occupied.Value.Node.Id);
-        Assert.Equal("P", occupied.Value.Taxiway);
-        List<int> expectedPath = [.. continued.Value.Path.TakeWhile(n => n.Id != pBar.Id).Select(n => n.Id), pBar.Id];
-        Assert.Equal(expectedPath, occupied.Value.Path.Select(n => n.Id));
+
+        // Only P's crossing to the south (left) side remains, the search's off-side fallback.
+        Assert.False(occupied is { Side: ExitSide.Right }, $"P still exits right, to #{occupied?.Node.Id}");
+        Assert.NotEqual(exit.Value.Node.Id, occupied?.Node.Id);
+    }
+
+    /// <summary>
+    /// With an aircraft holding at J's 28R bar, an uninstructed arrival does not take P (it would end at that bar) nor J
+    /// right (the same bar), and takes the next exit it can brake for on the ramp side instead: C1.
+    /// </summary>
+    [Fact]
+    public void UninstructedRollout_WithJsBarOccupied_TakesTheNextExit()
+    {
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
+        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("OAK", "28R", "C25A", "TST1");
+        if (spawned is null)
+        {
+            return;
+        }
+
+        (SimulationEngine engine, AircraftState aircraft, RunwayInfo _) = spawned;
+        AirportGroundLayout layout = aircraft.Ground.Layout!;
+        GroundNode? centerline = layout.FindNearestCenterlineNode(PBranch.Lat, PBranch.Lon, Runway28RHeading, "28R");
+        Assert.NotNull(centerline);
+        GroundNode jBar = layout.FindAdjacentHoldShort(centerline, "28R", Runway28RHeading, PRight)!.Value.Node;
+        engine.World.AddAircraft(HolderAt(jBar, layout));
+
+        string? exitTaxiway = null;
+        for (int t = 1; t <= 300; t++)
+        {
+            engine.TickOneSecond();
+            if (aircraft.Phases?.CurrentPhase is RunwayExitPhase)
+            {
+                exitTaxiway ??= aircraft.Ground.CurrentTaxiway;
+            }
+
+            if (aircraft.Phases?.CurrentPhase is HoldingAfterExitPhase holding)
+            {
+                output.WriteLine($"exited on {exitTaxiway} at t+{t}s, holding at bar #{holding.HoldShortNodeId}");
+                Assert.NotEqual(jBar.Id, holding.HoldShortNodeId);
+                Assert.Equal("C1", exitTaxiway);
+                return;
+            }
+        }
+
+        Assert.Fail("the arrival never finished its runway exit within 300 s");
+    }
+
+    /// <summary>
+    /// <c>ER P</c> with an aircraft holding at J's 28R bar: P's right-hand exit is gone. The controller named the side, so
+    /// the arrival never turns left onto P's crossing to the south; it takes the next exit ahead on the right and the
+    /// pilot says it cannot make P.
+    /// </summary>
+    [Fact]
+    public void InstructedRightP_WithJsBarOccupied_TakesTheNextRightExitAndSaysUnable()
+    {
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
+        ShortFinalArrival.Spawned? spawned = ShortFinalArrival.SpawnClearedToLand("OAK", "28R", "C25A", "TST1");
+        if (spawned is null)
+        {
+            return;
+        }
+
+        (SimulationEngine engine, AircraftState aircraft, RunwayInfo _) = spawned;
+        AirportGroundLayout layout = aircraft.Ground.Layout!;
+        GroundNode? centerline = layout.FindNearestCenterlineNode(PBranch.Lat, PBranch.Lon, Runway28RHeading, "28R");
+        Assert.NotNull(centerline);
+        GroundNode jBar = layout.FindAdjacentHoldShort(centerline, "28R", Runway28RHeading, PRight)!.Value.Node;
+        engine.World.AddAircraft(HolderAt(jBar, layout));
+        Assert.True(engine.SendCommand("TST1", "ER P").Success);
+
+        var unableCalls = new List<string>();
+        void Capture(string callsign, string line)
+        {
+            if ((callsign == aircraft.Callsign) && line.Contains("negative on the exit", StringComparison.OrdinalIgnoreCase))
+            {
+                unableCalls.Add(line);
+            }
+        }
+
+        engine.WarningEmitted += Capture;
+        engine.TerminalEntryEmitted += entry => Capture(entry.Callsign, entry.Message);
+        string? exitTaxiway = null;
+        for (int t = 1; t <= 300; t++)
+        {
+            engine.TickOneSecond();
+            if (aircraft.Phases?.CurrentPhase is RunwayExitPhase)
+            {
+                exitTaxiway ??= aircraft.Ground.CurrentTaxiway;
+            }
+
+            if (aircraft.Phases?.CurrentPhase is HoldingAfterExitPhase holding)
+            {
+                GroundNode bar = layout.Nodes[holding.HoldShortNodeId!.Value];
+                double barSideDeg = Runway28RHeading.SignedAngleTo(new TrueHeading(GeoMath.BearingTo(PBranch, bar.Position)));
+                output.WriteLine(
+                    $"exited on {exitTaxiway} at t+{t}s, holding at bar #{bar.Id} ({barSideDeg:F0}° off the runway heading); "
+                        + $"calls: {string.Join(" | ", unableCalls)}"
+                );
+                Assert.NotEqual("P", exitTaxiway);
+                Assert.True(barSideDeg > 0, $"held at #{bar.Id}, left of 28R");
+                Assert.Contains(unableCalls, line => line.Contains("negative on the exit at P", StringComparison.OrdinalIgnoreCase));
+                return;
+            }
+        }
+
+        Assert.Fail("the arrival never finished its runway exit within 300 s");
     }
 
     /// <summary>An ordinary exit whose bar is already at the holding distance (H, right side) is not continued.</summary>
@@ -164,6 +266,24 @@ public class Oak28rPExitHoldingPositionTests(ITestOutputHelper output)
         Assert.Equal(result.Value.Node.Id, result.Value.Path[^1].Id);
         Assert.Single(result.Value.Path, n => n.Type == GroundNodeType.RunwayHoldShort);
         Assert.Contains(result.Value.Node.Edges, edge => edge.MatchesTaxiway("H"));
+    }
+
+    /// <summary>An aircraft that exited 28R earlier and holds at <paramref name="bar"/>, which occupies it.</summary>
+    private static AircraftState HolderAt(GroundNode bar, AirportGroundLayout layout)
+    {
+        var holder = new AircraftState
+        {
+            Callsign = "HOLD1",
+            AircraftType = "C25A",
+            Position = bar.Position,
+            TrueHeading = new TrueHeading(60),
+            IsOnGround = true,
+            Phases = new PhaseList(),
+        };
+        holder.Ground.Layout = layout;
+        holder.Phases.Add(new HoldingAfterExitPhase("28R", "J", bar.Id));
+        holder.Phases.Start(CommandDispatcher.BuildMinimalContext(holder, layout));
+        return holder;
     }
 
     /// <summary>Distance from the runway's centerline in the layout's own frame, the one the hold-short placement uses.</summary>

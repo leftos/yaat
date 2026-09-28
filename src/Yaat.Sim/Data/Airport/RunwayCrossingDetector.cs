@@ -31,10 +31,18 @@ internal static class RunwayCrossingDetector
     /// <summary>Maximum hops the junction walker takes while searching for a segment that crosses the ideal hold-short distance.</summary>
     private const int HoldShortWalkMaxHops = 8;
 
-    /// <summary>Backoff distance (ft) from the farthest reachable node when the walker dead-ends before reaching the ideal hold-short distance.</summary>
+    /// <summary>
+    /// Backoff distance (ft) from the farthest reachable node when the walker dead-ends before reaching the ideal hold-short
+    /// distance.
+    /// </summary>
     private const double HoldShortFallbackBufferFt = 25.0;
 
-    internal static double DetectRunwayCrossings(
+    /// <summary>
+    /// Seats the runway's hold-short bars on every taxiway that crosses its edge and links its on-runway nodes. Returns
+    /// the runway width used and the bars the dead-end fallback placed short of the holding distance at a junction, for
+    /// <see cref="DropRedundantFallbackBars"/> once every runway's bars are in.
+    /// </summary>
+    internal static RunwayCrossingResult DetectRunwayCrossings(
         GeoJsonParser.RunwayFeature rwy,
         AirportGroundLayout layout,
         CoordinateIndex coordIndex,
@@ -71,6 +79,7 @@ internal static class RunwayCrossingDetector
         // Snapshot edges — we mutate during iteration
         var edgeSnapshot = new List<GroundEdge>(layout.Edges);
         var processed = new HashSet<(int, int)>();
+        var fallbackBars = new List<FallbackBar>();
 
         foreach (GroundEdge edge in edgeSnapshot)
         {
@@ -103,7 +112,10 @@ internal static class RunwayCrossingDetector
                 continue;
             }
 
-            ProcessBoundaryEdge(layout, edge, onNode, offNode, rect, coordIndex, ref nextNodeId);
+            if (ProcessBoundaryEdge(layout, edge, onNode, offNode, rect, coordIndex, ref nextNodeId) is { } fallbackBar)
+            {
+                fallbackBars.Add(fallbackBar);
+            }
         }
 
         // Connect on-runway nodes with centerline edges so that taxiways
@@ -111,7 +123,7 @@ internal static class RunwayCrossingDetector
         // 15/33 but have no GeoJSON edges between them).
         ConnectOnRunwayNodes(layout, rect, coordIndex, ref nextNodeId);
 
-        return widthFt;
+        return new RunwayCrossingResult(widthFt, fallbackBars);
     }
 
     internal static RunwayRectangle BuildRunwayRectangle(GeoJsonParser.RunwayFeature rwy, double widthFt, RunwayIdentifier combinedId)
@@ -163,7 +175,7 @@ internal static class RunwayCrossingDetector
 
     internal static bool IsOnRunway(LatLon position, in RunwayRectangle rect) => IsOnRunway(position.Lat, position.Lon, rect);
 
-    private static void ProcessBoundaryEdge(
+    private static FallbackBar? ProcessBoundaryEdge(
         AirportGroundLayout layout,
         GroundEdge edge,
         GroundNode onNode,
@@ -190,7 +202,7 @@ internal static class RunwayCrossingDetector
             offNode.RunwayId = rect.CombinedId;
 
             Log.LogDebug("Reused node {NodeId} as hold-short for {Runway} on {Taxiway}", offNode.Id, rect.CombinedId, edge.TaxiwayName);
-            return;
+            return null;
         }
 
         if (crossOff < rect.HoldShortNm)
@@ -199,8 +211,7 @@ internal static class RunwayCrossingDetector
             // along the same taxiway to find a segment that straddles the ideal
             // distance, then interpolate on that segment. Only activates for
             // wide runways where the ideal exceeds typical boundary-edge length.
-            FindHoldShortInsertionPoint(layout, coordIndex, onNode, offNode, edge, rect, ref nextNodeId);
-            return;
+            return FindHoldShortInsertionPoint(layout, coordIndex, onNode, offNode, edge, rect, ref nextNodeId);
         }
 
         // Interpolate a new HS node at the correct cross-track distance within
@@ -208,7 +219,7 @@ internal static class RunwayCrossingDetector
         double denom = crossOff - crossOn;
         if (Math.Abs(denom) < 1e-9)
         {
-            return;
+            return null;
         }
 
         double fraction = (rect.HoldShortNm - crossOn) / denom;
@@ -239,6 +250,7 @@ internal static class RunwayCrossingDetector
             hsLat,
             hsLon
         );
+        return null;
     }
 
     /// <summary>
@@ -574,7 +586,7 @@ internal static class RunwayCrossingDetector
     /// still inside the FAA hold-short band — common at wide CAT III runways
     /// where the ideal distance is 250-280 ft from centerline.
     /// </summary>
-    private static void FindHoldShortInsertionPoint(
+    private static FallbackBar? FindHoldShortInsertionPoint(
         AirportGroundLayout layout,
         CoordinateIndex coordIndex,
         GroundNode startOnNode,
@@ -600,7 +612,7 @@ internal static class RunwayCrossingDetector
             {
                 // lastEdge straddles the ideal band. Interpolate on it.
                 InterpolateAndInsert(layout, coordIndex, prevNode, currentNode, lastEdge, rect, ref nextNodeId);
-                return;
+                return null;
             }
 
             // Pick the next edge: same taxiway, non-RWY, not visited, prefer straight continuation.
@@ -658,8 +670,7 @@ internal static class RunwayCrossingDetector
             if (bestEdge is null || bestFar is null)
             {
                 // Dead end: no same-taxiway continuation.
-                DeadEndFallback(layout, coordIndex, prevNode, currentNode, lastEdge, rect, taxiwayName, ref nextNodeId);
-                return;
+                return DeadEndFallback(layout, coordIndex, new DeadEnd(prevNode, currentNode, lastEdge, taxiwayName), rect, ref nextNodeId);
             }
 
             prevNode = currentNode;
@@ -669,7 +680,7 @@ internal static class RunwayCrossingDetector
         }
 
         // Exhausted hop budget — fall back at the last reached node.
-        DeadEndFallback(layout, coordIndex, prevNode, currentNode, lastEdge, rect, taxiwayName, ref nextNodeId);
+        return DeadEndFallback(layout, coordIndex, new DeadEnd(prevNode, currentNode, lastEdge, taxiwayName), rect, ref nextNodeId);
     }
 
     /// <summary>
@@ -775,25 +786,26 @@ internal static class RunwayCrossingDetector
     /// Dead-end fallback: the walker couldn't reach the ideal hold-short distance.
     /// Prefer upgrading the farthest reached node (currentNode) in place. If that
     /// node is a junction, try upgrading prevNode. Only split and interpolate as a
-    /// last resort.
+    /// last resort. A bar placed short of the junction where the taxiway meets another
+    /// one is returned so <see cref="DropRedundantFallbackBars"/> can drop it when the
+    /// junction's other routes all reach a bar of the runway.
     /// </summary>
-    private static void DeadEndFallback(
+    private static FallbackBar? DeadEndFallback(
         AirportGroundLayout layout,
         CoordinateIndex coordIndex,
-        GroundNode prevNode,
-        GroundNode currentNode,
-        GroundEdge lastEdge,
+        DeadEnd deadEnd,
         in RunwayRectangle rect,
-        string taxiwayName,
         ref int nextNodeId
     )
     {
+        (GroundNode prevNode, GroundNode currentNode, GroundEdge lastEdge, string taxiwayName) = deadEnd;
         double idealFt = rect.HoldShortNm * GeoMath.FeetPerNm;
         double currentCrossFt =
             Math.Abs(GeoMath.SignedCrossTrackDistanceNm(currentNode.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading))
             * GeoMath.FeetPerNm;
 
-        // Best outcome: upgrade the farthest reached node (it's closest to ideal)
+        // Best outcome: upgrade the farthest reached node (it's closest to ideal). It serves this taxiway only, so no other
+        // taxiway joins there.
         if (TryUpgradeToHoldShort(currentNode, rect, layout))
         {
             Log.LogDebug(
@@ -804,13 +816,14 @@ internal static class RunwayCrossingDetector
                 idealFt,
                 currentCrossFt
             );
-            return;
+            return null;
         }
 
         // Second choice: upgrade prevNode if it's within reuse tolerance of ideal
         double prevCrossFt =
             Math.Abs(GeoMath.SignedCrossTrackDistanceNm(prevNode.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading))
             * GeoMath.FeetPerNm;
+        GroundNodeType prevType = prevNode.Type;
         if (Math.Abs(prevCrossFt - idealFt) <= HoldShortSnapFt && TryUpgradeToHoldShort(prevNode, rect, layout))
         {
             Log.LogDebug(
@@ -821,7 +834,7 @@ internal static class RunwayCrossingDetector
                 idealFt,
                 prevCrossFt
             );
-            return;
+            return (prevType == GroundNodeType.RunwayHoldShort) ? null : new FallbackBar(prevNode, currentNode, rect, prevType, Split: null);
         }
 
         // Last resort: interpolate 25 ft before the dead-end on the last edge.
@@ -838,7 +851,7 @@ internal static class RunwayCrossingDetector
                 rect.CombinedId,
                 edgeLengthFt
             );
-            return;
+            return null;
         }
 
         double backoffFraction = Math.Clamp(1.0 - (HoldShortFallbackBufferFt / edgeLengthFt), 0.01, 0.99);
@@ -857,6 +870,8 @@ internal static class RunwayCrossingDetector
         layout.Nodes[hsId] = hsNode;
         coordIndex.Add(hsLat, hsLon, hsId);
 
+        int lastEdgeIndex = layout.Edges.IndexOf(lastEdge);
+        GroundEdge? successor = (lastEdgeIndex + 1 < layout.Edges.Count) ? layout.Edges[lastEdgeIndex + 1] : null;
         SplitEdgeAtOneNode(layout, lastEdge, hsNode);
 
         Log.LogWarning(
@@ -866,6 +881,193 @@ internal static class RunwayCrossingDetector
             idealFt,
             currentCrossFt
         );
+        return new FallbackBar(hsNode, currentNode, rect, GroundNodeType.TaxiwayIntersection, new SplitEdgeRecord(lastEdge, successor));
+    }
+
+    /// <summary>
+    /// Drops each dead-end fallback bar whose junction needs no bar of its own: every route out of the junction, other
+    /// than back down the branch to the bar and onto the runway, reaches another bar of the runway within the holding
+    /// distance. OAK P ends at J, whose 28R bar is a few feet on. Runs once every runway's bars are placed, so the verdict
+    /// does not depend on the order runways and taxiways were processed in; a fallback bar never counts as the bar a
+    /// route reaches. A dropped bar reverts to the node it was, keeping every node id.
+    /// </summary>
+    internal static void DropRedundantFallbackBars(AirportGroundLayout layout, List<FallbackBar> fallbackBars)
+    {
+        if (fallbackBars.Count == 0)
+        {
+            return;
+        }
+
+        Dictionary<int, List<GroundEdge>> adjacency = BuildTaxiwayAdjacency(layout);
+        var fallbackIds = new HashSet<int>(fallbackBars.Select(fallback => fallback.Bar.Id));
+        foreach (FallbackBar fallback in fallbackBars)
+        {
+            if (!EveryRouteOutReachesBar(fallback, adjacency, fallbackIds))
+            {
+                Log.LogDebug(
+                    "Hold-short dead-end bar #{Bar} for {Runway} kept: a route out of junction #{Junction} passes the holding distance without a bar",
+                    fallback.Bar.Id,
+                    fallback.Rect.CombinedId,
+                    fallback.Junction.Id
+                );
+                continue;
+            }
+
+            RemoveFallbackBar(layout, fallback);
+            Log.LogDebug(
+                "Hold-short dead-end bar #{Bar} for {Runway} dropped: every route out of junction #{Junction} reaches a bar of the runway",
+                fallback.Bar.Id,
+                fallback.Rect.CombinedId,
+                fallback.Junction.Id
+            );
+        }
+    }
+
+    /// <summary>
+    /// Undoes a fallback bar: a node upgraded in place gets its type back; a node the fallback split into an edge is
+    /// removed and the edge restored whole, so the graph is the one no bar was placed on (the node's id stays unused).
+    /// When a later split took one of the halves, the node stays as a plain taxiway node instead.
+    /// </summary>
+    private static void RemoveFallbackBar(AirportGroundLayout layout, FallbackBar fallback)
+    {
+        GroundNode bar = fallback.Bar;
+        bar.Type = fallback.PreviousType;
+        bar.RunwayId = null;
+        if (fallback.Split is not { } split)
+        {
+            return;
+        }
+
+        List<GroundEdge> halves = [.. layout.Edges.Where(edge => edge.HasNode(bar.Id))];
+        bool halvesIntact =
+            (halves.Count == 2)
+            && halves.All(half => half.HasNode(split.Edge.Nodes[0].Id) || half.HasNode(split.Edge.Nodes[1].Id))
+            && (halves[0].OtherNodeId(bar.Id) != halves[1].OtherNodeId(bar.Id));
+        if (!halvesIntact)
+        {
+            return;
+        }
+
+        foreach (GroundEdge half in halves)
+        {
+            layout.Edges.Remove(half);
+        }
+
+        int successorIndex = (split.Successor is { } successor) ? layout.Edges.IndexOf(successor) : -1;
+        layout.Edges.Insert((successorIndex >= 0) ? successorIndex : layout.Edges.Count, split.Edge);
+        layout.Nodes.Remove(bar.Id);
+    }
+
+    /// <summary>Every node's non-centerline edges (node adjacency lists are not wired up until after crossing detection).</summary>
+    private static Dictionary<int, List<GroundEdge>> BuildTaxiwayAdjacency(AirportGroundLayout layout)
+    {
+        var adjacency = new Dictionary<int, List<GroundEdge>>();
+        foreach (GroundEdge edge in layout.Edges)
+        {
+            if (edge.IsRunwayCenterline)
+            {
+                continue;
+            }
+
+            foreach (GroundNode node in edge.Nodes)
+            {
+                if (!adjacency.TryGetValue(node.Id, out List<GroundEdge>? edges))
+                {
+                    edges = [];
+                    adjacency[node.Id] = edges;
+                }
+
+                edges.Add(edge);
+            }
+        }
+
+        return adjacency;
+    }
+
+    /// <summary>
+    /// Shortest-path walk out of the fallback's junction, not back to its bar: true when every route stops at a bar of
+    /// the runway (not another fallback bar), on the runway, or at a dead end before passing the holding distance or the
+    /// holding distance's worth of taxiing.
+    /// </summary>
+    private static bool EveryRouteOutReachesBar(FallbackBar fallback, Dictionary<int, List<GroundEdge>> adjacency, HashSet<int> fallbackIds)
+    {
+        var bestFt = new Dictionary<int, double> { [fallback.Junction.Id] = 0 };
+        var frontier = new PriorityQueue<GroundNode, double>();
+        frontier.Enqueue(fallback.Junction, 0);
+        while (frontier.TryDequeue(out GroundNode? node, out double distFt))
+        {
+            if (distFt > bestFt[node.Id])
+            {
+                continue;
+            }
+
+            RouteNode verdict = ClassifyRouteNode(fallback, node, distFt, fallbackIds);
+            if (verdict == RouteNode.Escapes)
+            {
+                return false;
+            }
+
+            if (verdict == RouteNode.Closed)
+            {
+                Log.LogDebug(
+                    "  route out of junction #{Junction} ends at #{Node} ({Type}) after {Dist:F0} ft",
+                    fallback.Junction.Id,
+                    node.Id,
+                    node.Type,
+                    distFt
+                );
+                continue;
+            }
+
+            foreach (GroundEdge edge in adjacency.GetValueOrDefault(node.Id, []))
+            {
+                GroundNode next = (edge.Nodes[0].Id == node.Id) ? edge.Nodes[1] : edge.Nodes[0];
+                double nextFt = distFt + (edge.DistanceNm * GeoMath.FeetPerNm);
+                bool backToBar = (node.Id == fallback.Junction.Id) && (next.Id == fallback.Bar.Id);
+                if (backToBar || (bestFt.TryGetValue(next.Id, out double knownFt) && (knownFt <= nextFt)))
+                {
+                    continue;
+                }
+
+                bestFt[next.Id] = nextFt;
+                frontier.Enqueue(next, nextFt);
+            }
+        }
+
+        return true;
+    }
+
+    private enum RouteNode
+    {
+        Open,
+        Closed,
+        Escapes,
+    }
+
+    private static RouteNode ClassifyRouteNode(FallbackBar fallback, GroundNode node, double distFt, HashSet<int> fallbackIds)
+    {
+        RunwayRectangle rect = fallback.Rect;
+        if ((node.Id != fallback.Junction.Id) && IsOnRunway(node.Position, rect))
+        {
+            return RouteNode.Closed;
+        }
+
+        // The budget binds before the bar: a bar farther along than the holding distance is not the junction's marking.
+        double holdingFt = rect.HoldShortNm * GeoMath.FeetPerNm;
+        if (distFt > holdingFt)
+        {
+            return RouteNode.Escapes;
+        }
+
+        bool isRunwayBar = (node.Type == GroundNodeType.RunwayHoldShort) && (node.RunwayId is { } id) && id.Equals(rect.CombinedId);
+        if (isRunwayBar && !fallbackIds.Contains(node.Id))
+        {
+            return RouteNode.Closed;
+        }
+
+        double crossFt =
+            Math.Abs(GeoMath.SignedCrossTrackDistanceNm(node.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading)) * GeoMath.FeetPerNm;
+        return (crossFt >= holdingFt - AirportGroundLayout.HoldingDistanceToleranceFt) ? RouteNode.Escapes : RouteNode.Open;
     }
 
     /// <summary>Normalizes a bearing delta in degrees to the range (-180, 180].</summary>
@@ -964,3 +1166,24 @@ internal readonly struct RunwayRectangle
     public required double HoldShortNm { get; init; }
     public required RunwayIdentifier CombinedId { get; init; }
 }
+
+/// <summary>What <see cref="RunwayCrossingDetector.DetectRunwayCrossings"/> found for one runway: its width and its junction fallback bars.</summary>
+internal readonly record struct RunwayCrossingResult(double WidthFt, List<FallbackBar> FallbackBars);
+
+/// <summary>
+/// A bar the dead-end fallback placed short of the holding distance on a taxiway that ends at a junction with another
+/// taxiway, and what the node was before, so the bar can be dropped.
+/// </summary>
+internal readonly record struct FallbackBar(
+    GroundNode Bar,
+    GroundNode Junction,
+    RunwayRectangle Rect,
+    GroundNodeType PreviousType,
+    SplitEdgeRecord? Split
+);
+
+/// <summary>Where the hold-short walker stopped short of the holding distance: the last two nodes, the edge between them and the taxiway.</summary>
+internal readonly record struct DeadEnd(GroundNode Prev, GroundNode Current, GroundEdge LastEdge, string Taxiway);
+
+/// <summary>An edge the fallback split for its bar, and the edge that followed it in the layout's edge list (the order later passes see).</summary>
+internal readonly record struct SplitEdgeRecord(GroundEdge Edge, GroundEdge? Successor);

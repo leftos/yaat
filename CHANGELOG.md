@@ -20,6 +20,7 @@
 - A bare id naming both an airport and a navaid, such as SAC or CCR, now means the navaid in routes, DCT and scenario positions; write KSAC.
 - A procedure turn flies its published courses, turns back through a true 180°, intercepts at up to 45°, then descends through the step-downs to the final approach fix.
 - VOR and NDB approach courses use the station's own magnetic variation, so KCCR's VOR 19R final is 189° true instead of 185°.
+- `EL` and `ER` never turn off on the other side: when the named exit is only there, the pilot says "negative on the exit" and takes the next exit on the instructed side.
 - ERAM `QT /OK` takes a track only if it is untracked, your own, or owned by another sector of your center; otherwise NOT YOUR CONTROL.
 - A position with the same callsign at a different facility no longer counts as the track's owner in STARS or ERAM.
 - A callsign listed under two facilities, such as OAK_TWR under NCT and O90, resolves to the one in your own facility for `AS`, `CT`, handoffs and point-outs.
@@ -32,6 +33,9 @@
 - Missed-approach holds and holds in lieu of a procedure turn are flown on their published inbound course instead of its reciprocal.
 - CRC's STARS conflict alerts stay correct after a rewind, restart or recording load, and a `CAINH` from YAAT or playback now clears them.
 - Arrivals leaving OAK 28R on P no longer stop half inside the runway's holding area; they turn onto J and hold past J's 28R marking.
+- Taxiways ending at another taxiway near a runway (OAK P, MIA T8, LAX A4, SEA D) no longer carry a hold-short line of their own; the joining taxiway's line serves both.
+- An exit onto COS B1 holds past runway 13/31 at the 17R/35L marking instead of stopping on runway 13.
+- An exit that stops inside a runway's holding area makes no "clear of the runway" call and still counts as occupying the runway.
 - CRC's ERAM view answers an accepted command with ACCEPT, the command's name and the aircraft, and keeps the Response Area for readouts.
 - A rejected ERAM command shows one specific error, such as FLID NOT STORED, NOT YOUR CONTROL or ALT FORMAT, instead of FORMAT.
 - ERAM checks typed flight IDs and track picks like the real system, rejecting bad formats, non-discrete codes, duplicate flights and the wrong kind of target.

@@ -659,7 +659,7 @@ public sealed class LayoutAnalyzer(AirportGroundLayout layout)
                     foreach (ExitSide side in sides)
                     {
                         var pref = new ExitPreference { Taxiway = twyName, Side = side };
-                        (GroundNode Node, string Taxiway, List<GroundNode> Path, ExitSide Side)? result = Layout.FindAdjacentHoldShort(
+                        (GroundNode Node, string Taxiway, List<GroundNode> Path, ExitSide Side)? result = Layout.FindAdjacentHoldShortForListing(
                             node,
                             designator,
                             rwyHeading,
@@ -677,7 +677,7 @@ public sealed class LayoutAnalyzer(AirportGroundLayout layout)
                         }
 
                         double? angle =
-                            AirportGroundLayout.ComputePathExitAngle(result.Value.Path, rwyHeading)
+                            AirportGroundLayout.ComputePathExitAngle(result.Value.Path, result.Value.Taxiway, rwyHeading)
                             ?? Layout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, rwyHeading);
                         double totalDist = GeoMath.DistanceNm(node.Position, result.Value.Node.Position);
                         bool isHighSpeed = (angle is not null) && (angle.Value <= 45.0);

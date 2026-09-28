@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Snapshots;
 
@@ -20,6 +21,13 @@ public sealed class HoldingAfterExitPhase : Phase
     private string? _runwayId;
     private string? _exitTaxiway;
     private int? _holdShortNodeId;
+    private bool _stoppedInsideHoldingDistance;
+
+    /// <summary>
+    /// The aircraft holds at a bar inside the runway's holding distance (an exit the controller named whose bar is short
+    /// of the standoff, with nothing beyond it), so it has not cleared the runway. Set once on start.
+    /// </summary>
+    public bool StoppedInsideHoldingDistance => _stoppedInsideHoldingDistance;
 
     /// <summary>
     /// The hold-short node this aircraft is occupying. Used by
@@ -54,12 +62,22 @@ public sealed class HoldingAfterExitPhase : Phase
         ctx.Targets.TargetAltitude = null;
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Aircraft.IsOnGround = true;
+        _stoppedInsideHoldingDistance = IsStopInsideHoldingDistance(ctx);
 
         // With no layout there was no exit to take: RunwayExitPhase rolled the aircraft to a stop on the
         // runway itself, so the pilot has nothing to report clear of.
         if ((_exitTaxiway is null) && (ctx.GroundLayout is null))
         {
             Log.LogDebug("[Exit] {Callsign}: no ground layout, holding on the runway — no clear-of-runway call", ctx.Aircraft.Callsign);
+        }
+        else if (_stoppedInsideHoldingDistance)
+        {
+            Log.LogDebug(
+                "[Exit] {Callsign}: holding at bar #{Bar} inside the {Runway} holding distance — no clear-of-runway call",
+                ctx.Aircraft.Callsign,
+                _holdShortNodeId,
+                _runwayId
+            );
         }
         else
         {
@@ -85,6 +103,16 @@ public sealed class HoldingAfterExitPhase : Phase
             ctx.Aircraft.Position.Lon,
             ctx.Aircraft.TrueHeading.Degrees
         );
+    }
+
+    private bool IsStopInsideHoldingDistance(PhaseContext ctx)
+    {
+        if ((ctx.GroundLayout is not { } layout) || (_holdShortNodeId is not { } barId) || (_runwayId is null))
+        {
+            return false;
+        }
+
+        return layout.Nodes.TryGetValue(barId, out GroundNode? bar) && !layout.IsAtRunwayHoldingDistance(bar, _runwayId);
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -117,6 +145,7 @@ public sealed class HoldingAfterExitPhase : Phase
             RunwayId = _runwayId,
             ExitTaxiway = _exitTaxiway,
             HoldShortNodeId = _holdShortNodeId,
+            StoppedInsideHoldingDistance = _stoppedInsideHoldingDistance,
         };
 
     public static HoldingAfterExitPhase FromSnapshot(HoldingAfterExitPhaseDto dto)
@@ -126,6 +155,7 @@ public sealed class HoldingAfterExitPhase : Phase
             _runwayId = dto.RunwayId,
             _exitTaxiway = dto.ExitTaxiway,
             _holdShortNodeId = dto.HoldShortNodeId,
+            _stoppedInsideHoldingDistance = dto.StoppedInsideHoldingDistance,
             Status = (PhaseStatus)dto.Status,
             ElapsedSeconds = dto.ElapsedSeconds,
         };

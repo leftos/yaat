@@ -1,6 +1,7 @@
 ﻿using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Testing;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
 
@@ -569,4 +570,209 @@ public class RunwayCrossingDetectorTests
         double hs30 = RunwayCrossingDetector.BuildRunwayRectangle(rwy30).HoldShortNm * FeetPerNm;
         Assert.Equal(250.0, hs30, precision: 0); // no authored value → width fallback
     }
+
+    // -------------------------------------------------------------------------
+    // Dead-end fallback at a junction with a taxiway that carries the runway's own bar
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// A branch taxiway that ends at another taxiway before the runway's holding distance gets no bar of its own when the
+    /// joining taxiway meets the same runway: the two share the joining taxiway's marking (OAK P and J share J's 28R
+    /// marking; MIA T8 joins S, which carries its own 12/30 bar).
+    /// </summary>
+    [Theory]
+    [InlineData("OAK", "28R", "P", "J")]
+    [InlineData("MIA", "12", "T8", "S")]
+    public void DetectRunwayCrossings_BranchEndingAtATaxiwayWithItsOwnBar_GetsNoBar(string airport, string runwayEnd, string branch, string joining)
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout(airport);
+        if (layout is null)
+        {
+            return;
+        }
+
+        List<GroundNode> bars = RunwayBars(layout, runwayEnd);
+        GroundRunway runway = layout.Runways.Single(r => RunwayIdentifier.Parse(r.Name).Contains(runwayEnd));
+        RunwayRectangle rect = RunwayCrossingDetector.BuildRunwayRectangle(runway);
+        double shortOfFt = (rect.HoldShortNm * FeetPerNm) - AirportGroundLayout.HoldingDistanceToleranceFt;
+
+        Assert.DoesNotContain(bars, bar => bar.Edges.Any(edge => edge.MatchesTaxiway(branch)) && (CrossTrackFt(rect, bar) < shortOfFt));
+        Assert.Contains(bars, bar => bar.Edges.Any(edge => edge.MatchesTaxiway(joining)) && (CrossTrackFt(rect, bar) >= shortOfFt));
+    }
+
+    /// <summary>
+    /// A branch taxiway that dead-ends with no joining taxiway meeting the runway keeps its fallback bar short of the
+    /// holding distance: COS B1 runs into runway 13/31, and its 17R/35L bar is the farthest point it can hold.
+    /// </summary>
+    [Fact]
+    public void DetectRunwayCrossings_Cos_B1_KeepsItsShortFallbackBar()
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("COS");
+        if (layout is null)
+        {
+            return;
+        }
+
+        GroundRunway runway = layout.Runways.Single(r => RunwayIdentifier.Parse(r.Name).Contains("17R"));
+        RunwayRectangle rect = RunwayCrossingDetector.BuildRunwayRectangle(runway);
+        double shortOfFt = (rect.HoldShortNm * FeetPerNm) - AirportGroundLayout.HoldingDistanceToleranceFt;
+        List<GroundNode> b1Bars = [.. RunwayBars(layout, "17R").Where(bar => bar.Edges.Any(edge => edge.MatchesTaxiway("B1")))];
+
+        Assert.Contains(b1Bars, bar => CrossTrackFt(rect, bar) < shortOfFt);
+    }
+
+    /// <summary>
+    /// A branch taxiway that ends at a junction keeps its fallback bar when a route out of the junction leaves the
+    /// runway's holding area without crossing another bar of the runway within the holding distance: ATL R3/R7/R11 end
+    /// at R, which runs along 09R/27L inside its holding distance (R7's N6 end reaches a bar only ~590 ft on); ATL C and
+    /// A4 end at A.
+    /// </summary>
+    [Theory]
+    [InlineData("ATL", "09R", "R3", 2)]
+    [InlineData("ATL", "09R", "R7", 2)]
+    [InlineData("ATL", "09R", "R11", 2)]
+    [InlineData("ATL", "08L", "C", 2)]
+    [InlineData("ATL", "08L", "A4", 1)]
+    public void DetectRunwayCrossings_BranchEndingWhereARouteLeavesTheHoldingArea_KeepsItsBar(
+        string airport,
+        string runwayEnd,
+        string branch,
+        int expectedBars
+    )
+    {
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout(airport);
+        if (layout is null)
+        {
+            return;
+        }
+
+        int branchBars = RunwayBars(layout, runwayEnd).Count(bar => bar.Edges.Any(edge => edge.MatchesTaxiway(branch)));
+
+        Assert.Equal(expectedBars, branchBars);
+    }
+
+    /// <summary>
+    /// Every route that reaches a runway from beyond its holding distance crosses a bar of that runway: a walk out from
+    /// the runway's pavement that stops at the runway's bars never gets past the holding distance, on any committed
+    /// layout. Beyond the runway ends (by more than the holding distance) the walk stops without a verdict, since the bars
+    /// there are seated by lateral distance only.
+    /// </summary>
+    [Fact]
+    public void EveryCommittedLayout_EveryRouteOntoARunwayFromBeyondItsHoldingDistance_CrossesABarOfThatRunway()
+    {
+        var violations = new List<string>();
+        foreach (string path in Directory.EnumerateFiles("TestData", "*.geojson").Order(StringComparer.Ordinal))
+        {
+            string airport = Path.GetFileNameWithoutExtension(path);
+            if (new TestAirportGroundData().GetLayout(airport) is not { } layout)
+            {
+                continue;
+            }
+
+            foreach (GroundRunway runway in layout.Runways)
+            {
+                IEnumerable<GroundNode> escapes = FindUnbarredEscapes(layout, runway);
+                violations.AddRange(escapes.Select(node => $"{airport} {runway.Name}: {DescribeTaxiways(node)}"));
+            }
+        }
+
+        violations.Sort(StringComparer.Ordinal);
+        List<string> known = [.. KnownUnbarredEscapes.Order(StringComparer.Ordinal)];
+        Assert.True(
+            known.SequenceEqual(violations),
+            "Unbarred routes onto a runway:" + Environment.NewLine + string.Join(Environment.NewLine, violations)
+        );
+    }
+
+    /// <summary>
+    /// The unbarred escapes the committed layouts already had before junction fallback bars could be dropped (no dropped
+    /// bar adds one). Each is a bar-placement gap of its own; the list only shrinks, and a fix that closes one removes it.
+    /// </summary>
+    private static readonly string[] KnownUnbarredEscapes =
+    [
+        "atl 9R - 27L: SJ/SJ - SJ2",
+        "atl 9R - 27L: T",
+        "atl 9R - 27L: R12",
+        "atl 9R - 27L: R6",
+        "atl 9R - 27L: R10",
+        "atl 8R - 26L: B4/E3",
+        "atl 8R - 26L: B2/E1",
+        "atl 8R - 26L: B2",
+        "atl 8L - 26R: V/V - H",
+        "atl 8L - 26R: A7/A7 - A",
+        "atl 8L - 26R: B",
+        "atl 8L - 26R: A",
+        "atl 8L - 26R: A5/A5 - A",
+        "atl 8L - 26R: B2/B - B2",
+        "atl 8L - 26R: A3/A3 - A",
+        "atl 8L - 26R: B",
+        "atl 8L - 26R: A",
+        "aus 18R - 36L: V",
+        "fll 10L - 28R: A1/A",
+        "fll 10L - 28R: B1/B",
+        "fll 10L - 28R: B12/B",
+        "fll 10L - 28R: A/A8",
+        "fll 10R - 28L: J",
+        "fll 10R - 28L: J12/J",
+        "fll 10R - 28L: J4",
+        "lax 6R - 24L: E6/E",
+        "mia 8R - 26L: N13/M/M11",
+        "mia 8R - 26L: M1L/M1L - Q1",
+        "mia 8R - 26L: N/Q/Q1/M1L",
+        "mia 8R - 26L: P/M1/M/PAD",
+        "mia 8R - 26L: M/PAD - M",
+        "mia 12 - 30: Q1/PAD - Q1",
+        "mia 9 - 27: V/U - V/V - U",
+    ];
+
+    private static string DescribeTaxiways(GroundNode node) =>
+        string.Join("/", node.Edges.Where(edge => !edge.IsRunwayCenterline).Select(edge => edge.TaxiwayName).Distinct());
+
+    /// <summary>The nodes beyond the runway's holding distance that a walk out from its pavement reaches without a bar.</summary>
+    private static List<GroundNode> FindUnbarredEscapes(AirportGroundLayout layout, GroundRunway runway)
+    {
+        RunwayRectangle rect = RunwayCrossingDetector.BuildRunwayRectangle(runway);
+        double holdingFt = rect.HoldShortNm * FeetPerNm;
+        double escapeFt = holdingFt + AirportGroundLayout.HoldingDistanceToleranceFt;
+        var start = layout.Nodes.Values.Where(node => RunwayCrossingDetector.IsOnRunway(node.Position, rect)).ToList();
+        var visited = new HashSet<int>(start.Select(node => node.Id));
+        var queue = new Queue<GroundNode>(start);
+        var escapes = new List<GroundNode>();
+        while (queue.TryDequeue(out GroundNode? node))
+        {
+            foreach (IGroundEdge edge in node.Edges.Where(edge => !edge.IsRunwayCenterline))
+            {
+                GroundNode next = edge.OtherNode(node);
+                if (!visited.Add(next.Id) || IsBarOf(next, rect) || IsBeyondRunwayEnds(rect, next, holdingFt))
+                {
+                    continue;
+                }
+
+                if (CrossTrackFt(rect, next) >= escapeFt)
+                {
+                    escapes.Add(next);
+                    continue;
+                }
+
+                queue.Enqueue(next);
+            }
+        }
+
+        return escapes;
+    }
+
+    private static bool IsBarOf(GroundNode node, in RunwayRectangle rect) =>
+        (node.Type == GroundNodeType.RunwayHoldShort) && (node.RunwayId is { } id) && id.Equals(rect.CombinedId);
+
+    private static bool IsBeyondRunwayEnds(in RunwayRectangle rect, GroundNode node, double holdingFt)
+    {
+        double alongFt = GeoMath.AlongTrackDistanceNm(node.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading) * FeetPerNm;
+        return (alongFt < -holdingFt) || (alongFt > (rect.LengthNm * FeetPerNm) + holdingFt);
+    }
+
+    private static double CrossTrackFt(in RunwayRectangle rect, GroundNode node) =>
+        Math.Abs(GeoMath.SignedCrossTrackDistanceNm(node.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading)) * FeetPerNm;
+
+    private static List<GroundNode> RunwayBars(AirportGroundLayout layout, string runwayEnd) =>
+        [.. layout.Nodes.Values.Where(n => (n.Type == GroundNodeType.RunwayHoldShort) && (n.RunwayId is { } id) && id.Contains(runwayEnd))];
 }

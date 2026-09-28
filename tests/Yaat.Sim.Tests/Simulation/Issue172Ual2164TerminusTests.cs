@@ -58,7 +58,7 @@ public class Issue172Ual2164TerminusTests(ITestOutputHelper output)
         // rule, which needs the recording's on-G premise. Then replay to just before TAXI G B
         // (t=2141) and issue it with the current pathfinder.
         engine.Replay(recording, 2090);
-        CommandResult pin = engine.SendCommand("UAL2164", "ER G");
+        CommandResult pin = engine.SendCommand("UAL2164", "EXIT G");
         Assert.True(pin.Success, pin.Message);
         for (int t = 2091; t <= 2140; t++)
         {

@@ -236,9 +236,12 @@ public static class GeoJsonParser
         RemoveOverlappingEdges(layout);
 
         // Step 5: Process runway LineStrings, detect taxiway-runway crossings
+        var fallbackBars = new List<FallbackBar>();
         foreach (RunwayFeature rwy in runways)
         {
-            double rwyWidthFt = RunwayCrossingDetector.DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, runwayAirportCode);
+            RunwayCrossingResult crossings = RunwayCrossingDetector.DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, runwayAirportCode);
+            double rwyWidthFt = crossings.WidthFt;
+            fallbackBars.AddRange(crossings.FallbackBars);
 
             layout.Runways.Add(
                 new GroundRunway
@@ -255,6 +258,9 @@ public static class GeoJsonParser
                 }
             );
         }
+
+        // Step 5b: with every runway's bars in place, drop the dead-end fallback bars a joining taxiway's bar makes redundant.
+        RunwayCrossingDetector.DropRedundantFallbackBars(layout, fallbackBars);
 
         // Step 6: Create parking nodes and connect to nearest taxiway
         var parkingNodes = new List<GroundNode>();

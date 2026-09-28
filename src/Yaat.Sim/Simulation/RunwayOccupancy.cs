@@ -199,6 +199,7 @@ public static class RunwayOccupancy
             LineUpPhase or LinedUpAndWaitingPhase or StopAndGoPhase or TouchAndGoPhase => RunwayUseKind.OnSurface,
             RejectedTakeoffPhase => RunwayUseKind.OnSurface,
             RunwayExitPhase { IsOnCenterline: true } => RunwayUseKind.OnSurface,
+            HoldingAfterExitPhase { StoppedInsideHoldingDistance: true } => RunwayUseKind.OnSurface,
             HoldingInPositionPhase when (runway is not null) && IsOnPavement(ac, runway) => RunwayUseKind.OnSurface,
             _ => null,
         };

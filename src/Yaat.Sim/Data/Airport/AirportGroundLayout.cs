@@ -1549,7 +1549,7 @@ public sealed class AirportGroundLayout
             if (result is not null)
             {
                 double? exitAngle =
-                    ComputePathExitAngle(result.Value.Path, runwayHeading)
+                    ComputePathExitAngle(result.Value.Path, result.Value.Taxiway, runwayHeading)
                     ?? ComputeExitAngle(result.Value.Node, result.Value.Taxiway, runwayHeading);
                 Log.LogDebug(
                     "[ExitCL] Found exit: twy={Twy} HS=#{HsId} angle={Angle:F0}° path=[{Path}]",
@@ -1584,6 +1584,8 @@ public sealed class AirportGroundLayout
     /// the taxiway name of its first non-RWY edge. Optionally filters by
     /// runway designator, exit side, or taxiway name preference.
     /// Returns the hold-short node, taxiway name, and path from centerline.
+    /// A preference naming a taxiway is the controller's instruction: a bar short of the holding distance with nothing
+    /// beyond it is an exit only then.
     /// </summary>
     public (GroundNode Node, string Taxiway, List<GroundNode> Path, ExitSide Side)? FindAdjacentHoldShort(
         GroundNode centerlineNode,
@@ -1592,55 +1594,60 @@ public sealed class AirportGroundLayout
         ExitPreference? preference,
         HashSet<int>? excludeHoldShortNodes = null,
         HashSet<string>? forbiddenTaxiways = null
-    )
+    ) =>
+        FindAdjacentHoldShort(
+            new ExitSearch
+            {
+                Centerline = centerlineNode,
+                RunwayDesignator = runwayDesignator,
+                RunwayHeading = runwayHeading,
+                Preference = preference,
+                ExcludeHoldShortNodes = excludeHoldShortNodes,
+                ForbiddenTaxiways = forbiddenTaxiways,
+                Instructed = preference?.Taxiway is not null,
+            }
+        );
+
+    /// <summary>
+    /// <see cref="FindAdjacentHoldShort(GroundNode, string?, TrueHeading, ExitPreference?, HashSet{int}?, HashSet{string}?)"/>
+    /// for listing a runway's exits taxiway by taxiway: the preference narrows the search but is nobody's instruction, so
+    /// a bar short of the holding distance with nothing beyond it is not listed.
+    /// </summary>
+    public (GroundNode Node, string Taxiway, List<GroundNode> Path, ExitSide Side)? FindAdjacentHoldShortForListing(
+        GroundNode centerlineNode,
+        string runwayDesignator,
+        TrueHeading runwayHeading,
+        ExitPreference preference
+    ) =>
+        FindAdjacentHoldShort(
+            new ExitSearch
+            {
+                Centerline = centerlineNode,
+                RunwayDesignator = runwayDesignator,
+                RunwayHeading = runwayHeading,
+                Preference = preference,
+                ExcludeHoldShortNodes = null,
+                ForbiddenTaxiways = null,
+                Instructed = false,
+            }
+        );
+
+    private (GroundNode Node, string Taxiway, List<GroundNode> Path, ExitSide Side)? FindAdjacentHoldShort(ExitSearch search)
     {
         const int maxDepth = 20;
+        GroundNode centerlineNode = search.Centerline;
+        ExitPreference? preference = search.Preference;
 
-        // Track two best candidates: on-side and off-side. Return on-side if any;
-        // fall back to off-side only when no on-side exit exists (e.g., C3 at SFO).
-        GroundNode? bestOnSide = null;
-        string? bestOnSideTaxiway = null;
-        List<GroundNode>? bestOnSidePath = null;
-        ExitSide bestOnSideSide = ExitSide.Right;
-        double bestOnSideScore = double.MaxValue;
-
-        GroundNode? bestOffSide = null;
-        string? bestOffSideTaxiway = null;
-        List<GroundNode>? bestOffSidePath = null;
-        ExitSide bestOffSideSide = ExitSide.Right;
-        double bestOffSideScore = double.MaxValue;
-
-        // Expand starting node to include all nodes reachable via short runway
-        // tangent-link edges. Fillets create separate tangent nodes for each arc
-        // pair at the same intersection — e.g., #1293 connects to the south arc
-        // while #1289 connects to the north arc. Both are part of the same
-        // crossing and the BFS must see arcs from all of them.
-        const double tangentLinkThresholdNm = 0.03;
-        var clusterNodes = new List<GroundNode> { centerlineNode };
         var visited = new HashSet<int> { centerlineNode.Id };
-        for (int ci = 0; ci < clusterNodes.Count; ci++)
-        {
-            foreach (IGroundEdge edge in clusterNodes[ci].Edges)
-            {
-                if (!edge.IsRunwayCenterline)
-                {
-                    continue;
-                }
-
-                GroundNode neighbor = edge.OtherNode(clusterNodes[ci]);
-                if (edge.DistanceNm <= tangentLinkThresholdNm && visited.Add(neighbor.Id))
-                {
-                    clusterNodes.Add(neighbor);
-                }
-            }
-        }
+        List<GroundNode> clusterNodes = ExpandCenterlineCluster(centerlineNode, visited);
 
         Log.LogDebug(
-            "[ExitBFS] Cluster from #{CL}: [{Nodes}] pref={PrefTwy}/{PrefSide}",
+            "[ExitBFS] Cluster from #{CL}: [{Nodes}] pref={PrefTwy}/{PrefSide} instructed={Instructed}",
             centerlineNode.Id,
             string.Join(",", clusterNodes.Select(n => n.Id)),
             preference?.Taxiway ?? "any",
-            preference?.Side?.ToString() ?? "any"
+            preference?.Side?.ToString() ?? "any",
+            search.Instructed
         );
 
         var queue = new Queue<(GroundNode Node, string Taxiway, List<GroundNode> Path, double TotalDist, int Depth)>();
@@ -1650,9 +1657,10 @@ public sealed class AirportGroundLayout
         // preserved by the fillet generator are shortcuts that skip the curve.
         // By seeding arcs first, they claim the visited set and straights to the
         // same node are skipped.
-        SeedEdgesFromCluster(clusterNodes, visited, queue, runwayHeading, preference, arcsOnly: true);
-        SeedEdgesFromCluster(clusterNodes, visited, queue, runwayHeading, preference, arcsOnly: false);
+        SeedEdgesFromCluster(clusterNodes, visited, queue, search.RunwayHeading, preference, arcsOnly: true);
+        SeedEdgesFromCluster(clusterNodes, visited, queue, search.RunwayHeading, preference, arcsOnly: false);
 
+        var best = new ExitBfsBest();
         while (queue.Count > 0)
         {
             (GroundNode? current, string? branchTwy, List<GroundNode>? path, double totalDist, int depth) = queue.Dequeue();
@@ -1665,95 +1673,21 @@ public sealed class AirportGroundLayout
                 current.Type
             );
 
-            if (current.Type == GroundNodeType.RunwayHoldShort)
+            if ((current.Type == GroundNodeType.RunwayHoldShort) && !IsOtherRunwayBarLeftBehind(search, current, path))
             {
-                if (runwayDesignator is not null && current.RunwayId is { } rwyId && !rwyId.Contains(runwayDesignator))
+                if (ResolveBarCandidate(search, new ExitCandidate(current, branchTwy, path, totalDist)) is { } barCandidate)
                 {
-                    Log.LogDebug("[ExitBFS] HS #{Id} rwy={Rwy}: skip (wrong runway)", current.Id, rwyId);
-                    continue;
+                    OfferExitCandidate(search, best, barCandidate);
                 }
 
-                // Skip hold-short nodes already occupied by another aircraft
-                if ((excludeHoldShortNodes is not null) && excludeHoldShortNodes.Contains(current.Id))
+                continue;
+            }
+
+            if (IsBranchDeadEnd(current, branchTwy, path))
+            {
+                if (HopToJoiningBar(search, new ExitCandidate(current, branchTwy, path, totalDist)) is { } hop)
                 {
-                    Log.LogDebug("[ExitBFS] HS #{Id}: skip (occupied)", current.Id);
-                    continue;
-                }
-
-                // Skip hold-shorts on a forbidden taxiway (per-end noTurnoff from airport file).
-                if ((forbiddenTaxiways is not null) && forbiddenTaxiways.Contains(branchTwy))
-                {
-                    Log.LogDebug("[ExitBFS] HS #{Id} twy={Twy}: skip (noTurnoff)", current.Id, branchTwy);
-                    continue;
-                }
-
-                // Determine the absolute side this hold-short lies on relative to the
-                // runway heading. Negative cross-track = Left, positive = Right.
-                double absBearing = GeoMath.BearingTo(centerlineNode.Position, current.Position);
-                double absRelative = runwayHeading.SignedAngleTo(new TrueHeading(absBearing));
-                ExitSide actualSide = absRelative < 0 ? ExitSide.Left : ExitSide.Right;
-
-                // Determine if this candidate is on the preferred side (inferred or explicit).
-                bool onRequestedSide = (preference?.Side is not { } side) || (actualSide == side);
-
-                double parkingBias = AverageNearestParkingDistanceNm(current, ParkingSampleCount) * ParkingProximityWeight;
-
-                // Penalize exits that go backward (>100° from runway heading).
-                // Without this, a short backward exit (e.g. E at 111° from node 230
-                // at SFO) can outscore a longer forward exit (T at 19°) due to
-                // distance alone, causing the caller to filter the result and miss
-                // the valid forward exit entirely.
-                double anglePenalty = 0;
-                double? exitAngle = ComputePathExitAngle(path, runwayHeading) ?? ComputeExitAngle(current, branchTwy, runwayHeading);
-                if ((exitAngle is not null) && (exitAngle.Value > 100) && (preference?.Taxiway is null))
-                {
-                    anglePenalty = 10.0;
-                }
-
-                // Bonus for high-speed exits (≤45°): these have higher turn-off speeds
-                // (30kts vs 15kts) and gentler turns, making them strongly preferred for
-                // default selection. The bonus ensures T (19°, 0.11nm) beats E (70°, 0.03nm)
-                // at the same centerline node.
-                double highSpeedBonus = 0;
-                if ((exitAngle is not null) && (exitAngle.Value <= 45.0) && (preference?.Taxiway is null))
-                {
-                    highSpeedBonus = HighSpeedExitBonus;
-                }
-
-                double score = totalDist + parkingBias + anglePenalty - highSpeedBonus;
-                bool isNewBest = onRequestedSide ? (score < bestOnSideScore) : (score < bestOffSideScore);
-                Log.LogDebug(
-                    "[ExitBFS] HS #{Id} twy={Twy} angle={ExAngle:F0}° side={Side}: score={Score:F4} "
-                        + "(dist={Dist:F4} parking={Park:F4} anglePen={AngPen:F2} hsBonus={Hs:F2}){Result}",
-                    current.Id,
-                    branchTwy,
-                    exitAngle ?? 0,
-                    onRequestedSide ? "ON" : "OFF",
-                    score,
-                    totalDist,
-                    parkingBias,
-                    anglePenalty,
-                    highSpeedBonus,
-                    isNewBest ? " [NEW BEST]" : ""
-                );
-                if (isNewBest)
-                {
-                    if (onRequestedSide)
-                    {
-                        bestOnSideScore = score;
-                        bestOnSide = current;
-                        bestOnSideTaxiway = branchTwy;
-                        bestOnSidePath = path;
-                        bestOnSideSide = actualSide;
-                    }
-                    else
-                    {
-                        bestOffSideScore = score;
-                        bestOffSide = current;
-                        bestOffSideTaxiway = branchTwy;
-                        bestOffSidePath = path;
-                        bestOffSideSide = actualSide;
-                    }
+                    OfferExitCandidate(search, best, hop);
                 }
 
                 continue;
@@ -1764,74 +1698,327 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            foreach (IGroundEdge edge in current.Edges)
-            {
-                if (edge.IsRunwayCenterline)
-                {
-                    continue;
-                }
-
-                if (!edge.MatchesTaxiway(branchTwy))
-                {
-                    Log.LogDebug(
-                        "[ExitBFS]   skip walk #{From}→#{To}: twy {Twy} != {Branch}",
-                        current.Id,
-                        edge.OtherNode(current).Id,
-                        edge.TaxiwayName,
-                        branchTwy
-                    );
-                    continue;
-                }
-
-                GroundNode next = edge.OtherNode(current);
-                if (!visited.Add(next.Id))
-                {
-                    Log.LogDebug("[ExitBFS]   skip walk #{From}→#{To}: already visited", current.Id, next.Id);
-                    continue;
-                }
-
-                var nextPath = new List<GroundNode>(path) { next };
-                queue.Enqueue((next, branchTwy, nextPath, totalDist + edge.DistanceNm, depth + 1));
-                Log.LogDebug(
-                    "[ExitBFS]   walk #{From}→#{To} via {Twy} depth={Depth} type={Type}",
-                    current.Id,
-                    next.Id,
-                    branchTwy,
-                    depth + 1,
-                    next.Type
-                );
-            }
+            EnqueueBranchSteps(queue, visited, (current, branchTwy, path, totalDist, depth));
         }
 
-        // Prefer on-side; fall back to off-side (for single-sided taxiways like C3).
-        GroundNode? best = bestOnSide ?? bestOffSide;
-        string? bestTaxiway = bestOnSideTaxiway ?? bestOffSideTaxiway;
-        List<GroundNode>? bestPath = bestOnSidePath ?? bestOffSidePath;
-        ExitSide bestSide = bestOnSide is not null ? bestOnSideSide : bestOffSideSide;
-
-        if (best is null || bestTaxiway is null || bestPath is null)
+        if (best.Chosen is not { } exit)
         {
             Log.LogDebug("[ExitBFS] RESULT: no exit for centerline #{Id} pref={Pref}", centerlineNode.Id, preference?.Taxiway ?? "any");
             return null;
         }
 
-        (best, bestPath) = ContinueToRunwayHoldingPosition(best, bestPath, runwayDesignator, excludeHoldShortNodes, forbiddenTaxiways);
-
         Log.LogDebug(
             "[ExitBFS] RESULT: centerline #{CL} → HS #{HS} via {Twy} onSide={OnSide} actualSide={Side} path=[{Path}]",
             centerlineNode.Id,
-            best.Id,
-            bestTaxiway,
-            bestOnSide is not null,
-            bestSide,
-            string.Join("→", bestPath.Select(n => n.Id))
+            exit.Bar.Id,
+            exit.Taxiway,
+            best.OnSide is not null,
+            best.ChosenSide,
+            string.Join("→", exit.Path.Select(n => n.Id))
         );
-        return (best, bestTaxiway, bestPath, bestSide);
+        return (exit.Bar, exit.Taxiway, exit.Path, best.ChosenSide);
+    }
+
+    /// <summary>
+    /// The starting node plus every node reachable from it over short runway tangent-link edges, each added to
+    /// <paramref name="visited"/>. Fillets create separate tangent nodes for each arc pair at the same intersection —
+    /// e.g., #1293 connects to the south arc while #1289 connects to the north arc. Both are part of the same crossing and
+    /// the BFS must see arcs from all of them.
+    /// </summary>
+    private static List<GroundNode> ExpandCenterlineCluster(GroundNode centerlineNode, HashSet<int> visited)
+    {
+        const double tangentLinkThresholdNm = 0.03;
+        var clusterNodes = new List<GroundNode> { centerlineNode };
+        for (int ci = 0; ci < clusterNodes.Count; ci++)
+        {
+            foreach (IGroundEdge edge in clusterNodes[ci].Edges)
+            {
+                if (!edge.IsRunwayCenterline)
+                {
+                    continue;
+                }
+
+                GroundNode neighbor = edge.OtherNode(clusterNodes[ci]);
+                if ((edge.DistanceNm <= tangentLinkThresholdNm) && visited.Add(neighbor.Id))
+                {
+                    clusterNodes.Add(neighbor);
+                }
+            }
+        }
+
+        return clusterNodes;
+    }
+
+    /// <summary>The fixed inputs of one <see cref="FindAdjacentHoldShort"/> search.</summary>
+    private sealed record ExitSearch
+    {
+        public required GroundNode Centerline { get; init; }
+        public required string? RunwayDesignator { get; init; }
+        public required TrueHeading RunwayHeading { get; init; }
+        public required ExitPreference? Preference { get; init; }
+        public required HashSet<int>? ExcludeHoldShortNodes { get; init; }
+        public required HashSet<string>? ForbiddenTaxiways { get; init; }
+
+        /// <summary>
+        /// The controller named this exit. Set by the public entry points; a search listing a runway's exits is never
+        /// instructed, whatever taxiway its preference names.
+        /// </summary>
+        public required bool Instructed { get; init; }
+    }
+
+    /// <summary>A bar the exit search can end at, with the branch taxiway that names the exit and the path to the bar.</summary>
+    private readonly record struct ExitCandidate(GroundNode Bar, string Taxiway, List<GroundNode> Path, double TotalDistNm);
+
+    /// <summary>
+    /// The two best candidates of an exit search: on the requested side and off it. The on-side one wins; the off-side one
+    /// is the fallback when no on-side exit exists (e.g., C3 at SFO).
+    /// </summary>
+    private sealed class ExitBfsBest
+    {
+        public ExitCandidate? OnSide { get; private set; }
+        public ExitSide OnSideSide { get; private set; } = ExitSide.Right;
+        public ExitCandidate? OffSide { get; private set; }
+        public ExitSide OffSideSide { get; private set; } = ExitSide.Right;
+        private double _onSideScore = double.MaxValue;
+        private double _offSideScore = double.MaxValue;
+
+        /// <summary>The on-side candidate, else the off-side fallback (for single-sided taxiways like C3).</summary>
+        public ExitCandidate? Chosen => OnSide ?? OffSide;
+
+        /// <summary>The side <see cref="Chosen"/> lies on.</summary>
+        public ExitSide ChosenSide => (OnSide is not null) ? OnSideSide : OffSideSide;
+
+        public bool IsNewBest(bool onRequestedSide, double score) => onRequestedSide ? (score < _onSideScore) : (score < _offSideScore);
+
+        public void Take(ExitCandidate candidate, ExitSide side, bool onRequestedSide, double score)
+        {
+            if (onRequestedSide)
+            {
+                OnSide = candidate;
+                OnSideSide = side;
+                _onSideScore = score;
+            }
+            else
+            {
+                OffSide = candidate;
+                OffSideSide = side;
+                _offSideScore = score;
+            }
+        }
+    }
+
+    /// <summary>Queues the unvisited next steps along the branch taxiway from a BFS node.</summary>
+    private static void EnqueueBranchSteps(
+        Queue<(GroundNode Node, string Taxiway, List<GroundNode> Path, double TotalDist, int Depth)> queue,
+        HashSet<int> visited,
+        (GroundNode Node, string Taxiway, List<GroundNode> Path, double TotalDist, int Depth) at
+    )
+    {
+        foreach (IGroundEdge edge in at.Node.Edges)
+        {
+            if (edge.IsRunwayCenterline)
+            {
+                continue;
+            }
+
+            if (!edge.MatchesTaxiway(at.Taxiway))
+            {
+                Log.LogDebug(
+                    "[ExitBFS]   skip walk #{From}→#{To}: twy {Twy} != {Branch}",
+                    at.Node.Id,
+                    edge.OtherNode(at.Node).Id,
+                    edge.TaxiwayName,
+                    at.Taxiway
+                );
+                continue;
+            }
+
+            GroundNode next = edge.OtherNode(at.Node);
+            if (!visited.Add(next.Id))
+            {
+                Log.LogDebug("[ExitBFS]   skip walk #{From}→#{To}: already visited", at.Node.Id, next.Id);
+                continue;
+            }
+
+            var nextPath = new List<GroundNode>(at.Path) { next };
+            queue.Enqueue((next, at.Taxiway, nextPath, at.TotalDist + edge.DistanceNm, at.Depth + 1));
+            Log.LogDebug(
+                "[ExitBFS]   walk #{From}→#{To} via {Twy} depth={Depth} type={Type}",
+                at.Node.Id,
+                next.Id,
+                at.Taxiway,
+                at.Depth + 1,
+                next.Type
+            );
+        }
+    }
+
+    /// <summary>
+    /// Scores a candidate and keeps it when it beats the best one on its side. The score is the path length plus a
+    /// parking-proximity bias, a penalty for exits that go backward (more than 100° from the runway heading) and a bonus
+    /// for high-speed exits (45° or less).
+    /// </summary>
+    private void OfferExitCandidate(ExitSearch search, ExitBfsBest best, ExitCandidate candidate)
+    {
+        if (IsOnAnotherRunway(search, candidate.Bar))
+        {
+            Log.LogDebug("[ExitBFS] HS #{Id} twy={Twy}: skip (on another runway)", candidate.Bar.Id, candidate.Taxiway);
+            return;
+        }
+
+        // Negative relative bearing = Left, positive = Right.
+        double absBearing = GeoMath.BearingTo(search.Centerline.Position, candidate.Bar.Position);
+        double absRelative = search.RunwayHeading.SignedAngleTo(new TrueHeading(absBearing));
+        ExitSide actualSide = (absRelative < 0) ? ExitSide.Left : ExitSide.Right;
+        bool onRequestedSide = (search.Preference?.Side is not { } side) || (actualSide == side);
+
+        double parkingBias = AverageNearestParkingDistanceNm(candidate.Bar, ParkingSampleCount) * ParkingProximityWeight;
+        ExitAngleScore angle = ScoreExitAngle(search, candidate);
+        double score = candidate.TotalDistNm + parkingBias + angle.Penalty - angle.Bonus;
+        bool isNewBest = best.IsNewBest(onRequestedSide, score);
+        Log.LogDebug(
+            "[ExitBFS] HS #{Id} twy={Twy} angle={ExAngle:F0}° side={Side}: score={Score:F4} "
+                + "(dist={Dist:F4} parking={Park:F4} anglePen={AngPen:F2} hsBonus={Hs:F2}){Result}",
+            candidate.Bar.Id,
+            candidate.Taxiway,
+            angle.Angle ?? 0,
+            onRequestedSide ? "ON" : "OFF",
+            score,
+            candidate.TotalDistNm,
+            parkingBias,
+            angle.Penalty,
+            angle.Bonus,
+            isNewBest ? " [NEW BEST]" : ""
+        );
+        if (isNewBest)
+        {
+            best.Take(candidate, actualSide, onRequestedSide, score);
+        }
+    }
+
+    /// <summary>An exit's angle from the runway heading, with the score penalty and bonus it earns.</summary>
+    private readonly record struct ExitAngleScore(double? Angle, double Penalty, double Bonus);
+
+    /// <summary>
+    /// Without the backward penalty (more than 100°) a short backward exit (E at 111° from node 230 at SFO) can outscore a
+    /// longer forward exit (T at 19°) on distance alone. The high-speed bonus (45° or less) reflects the higher turn-off
+    /// speed (30 kt vs 15 kt): T (19°, 0.11 nm) beats E (70°, 0.03 nm) at the same centerline node. A named exit earns
+    /// neither.
+    /// </summary>
+    private ExitAngleScore ScoreExitAngle(ExitSearch search, ExitCandidate candidate)
+    {
+        double? exitAngle =
+            ComputePathExitAngle(candidate.Path, candidate.Taxiway, search.RunwayHeading)
+            ?? ComputeExitAngle(candidate.Bar, candidate.Taxiway, search.RunwayHeading);
+        if ((exitAngle is not { } angle) || (search.Preference?.Taxiway is not null))
+        {
+            return new ExitAngleScore(exitAngle, 0, 0);
+        }
+
+        double penalty = (angle > 100) ? 10.0 : 0;
+        double bonus = (angle <= 45.0) ? HighSpeedExitBonus : 0;
+        return new ExitAngleScore(exitAngle, penalty, bonus);
+    }
+
+    /// <summary>
+    /// Another runway's bar the branch reaches moving away from that runway (the step onto the bar ends farther from its
+    /// centerline than it started): the branch has just left that runway's holding area, so the search carries on through
+    /// the bar to the landing runway's own bar beyond it. COS B1 passes runway 13/31's bar on its way to the 17R/35L bar.
+    /// </summary>
+    private bool IsOtherRunwayBarLeftBehind(ExitSearch search, GroundNode bar, List<GroundNode> path)
+    {
+        if ((search.RunwayDesignator is not { } designator) || (bar.RunwayId is not { } rwyId) || rwyId.Contains(designator) || (path.Count < 2))
+        {
+            return false;
+        }
+
+        if (FindRunway(rwyId.End1) is not { } otherRunway)
+        {
+            return false;
+        }
+
+        RunwayRectangle rect = RunwayCrossingDetector.BuildRunwayRectangle(otherRunway);
+        double fromFt = DistanceFromCenterlineSegmentFt(rect, path[^2].Position);
+        double barFt = DistanceFromCenterlineSegmentFt(rect, bar.Position);
+        bool leftBehind = barFt > fromFt;
+        Log.LogDebug(
+            "[ExitBFS] HS #{Id} rwy={Rwy}: {From:F0} → {Bar:F0} ft from its centerline, {Verdict}",
+            bar.Id,
+            rwyId,
+            fromFt,
+            barFt,
+            leftBehind ? "moving away, passing through" : "moving toward it"
+        );
+        return leftBehind;
+    }
+
+    /// <summary>Distance from a runway's centerline segment: cross-track beside the runway, to the nearer end beyond it.</summary>
+    private static double DistanceFromCenterlineSegmentFt(in RunwayRectangle rect, LatLon position)
+    {
+        var start = new LatLon(rect.RefLat, rect.RefLon);
+        double alongNm = GeoMath.AlongTrackDistanceNm(position, start, rect.TrueHeading);
+        if (alongNm < 0)
+        {
+            return GeoMath.DistanceNm(position, start) * GeoMath.FeetPerNm;
+        }
+
+        if (alongNm > rect.LengthNm)
+        {
+            return GeoMath.DistanceNm(position, GeoMath.ProjectPoint(start, rect.TrueHeading, rect.LengthNm)) * GeoMath.FeetPerNm;
+        }
+
+        return Math.Abs(GeoMath.SignedCrossTrackDistanceNm(position, start, rect.TrueHeading)) * GeoMath.FeetPerNm;
+    }
+
+    /// <summary>
+    /// Whether an exit ending at <paramref name="bar"/> would stop on another runway: the bar lies on another runway's
+    /// centerline or pavement. AIM 4-3-21.a: an aircraft never exits onto another runway without ATC authorization.
+    /// </summary>
+    private bool IsOnAnotherRunway(ExitSearch search, GroundNode bar)
+    {
+        if (bar.Edges.Any(edge => edge.IsRunwayCenterline))
+        {
+            return true;
+        }
+
+        return Runways.Any(runway =>
+            ((search.RunwayDesignator is null) || !runway.Id.Contains(search.RunwayDesignator))
+            && RunwayCrossingDetector.IsOnRunway(bar.Position, RunwayCrossingDetector.BuildRunwayRectangle(runway))
+        );
+    }
+
+    /// <summary>
+    /// A bar the BFS reached: rejected when it belongs to another runway, is occupied, or sits on a forbidden taxiway;
+    /// otherwise resolved by <see cref="ResolveShortBar"/>.
+    /// </summary>
+    private ExitCandidate? ResolveBarCandidate(ExitSearch search, ExitCandidate candidate)
+    {
+        GroundNode bar = candidate.Bar;
+        if ((search.RunwayDesignator is { } designator) && (bar.RunwayId is { } rwyId) && !rwyId.Contains(designator))
+        {
+            Log.LogDebug("[ExitBFS] HS #{Id} rwy={Rwy}: skip (wrong runway)", bar.Id, rwyId);
+            return null;
+        }
+
+        if ((search.ExcludeHoldShortNodes is not null) && search.ExcludeHoldShortNodes.Contains(bar.Id))
+        {
+            Log.LogDebug("[ExitBFS] HS #{Id}: skip (occupied)", bar.Id);
+            return null;
+        }
+
+        // Per-end noTurnoff from the airport file.
+        if ((search.ForbiddenTaxiways is not null) && search.ForbiddenTaxiways.Contains(candidate.Taxiway))
+        {
+            Log.LogDebug("[ExitBFS] HS #{Id} twy={Twy}: skip (noTurnoff)", bar.Id, candidate.Taxiway);
+            return null;
+        }
+
+        return ResolveShortBar(search, candidate);
     }
 
     /// <summary>
     /// How far short of a runway's holding distance a hold-short bar may sit and still count as at it; also how far beyond
-    /// that distance the continuation past a short bar may reach.
+    /// that distance the continuation from a branch end may reach.
     /// </summary>
     public const double HoldingDistanceToleranceFt = 5.0;
 
@@ -1839,67 +2026,151 @@ public sealed class AirportGroundLayout
     private const double MinOutwardProgressFt = 1.0;
 
     /// <summary>
-    /// When the chosen exit bar sits inside the runway's holding distance (a dead-end fallback bar on a branch taxiway
-    /// that ends at another taxiway before the standoff), continues from it onto the joining taxiway, always moving away
-    /// from the centerline, to the same runway's bar at the holding distance. AIM 4-3-21.b: absent instructions the pilot
-    /// taxis beyond the runway holding position markings, even if that requires entering another taxiway. Returns the
-    /// inputs unchanged when the bar is already at the holding distance or no such bar is reachable.
+    /// A bar at the runway's holding distance is the candidate as it is. A bar inside it (a dead-end fallback bar with no
+    /// bar of the runway beyond it; ATL keeps several) is an exit only when the controller named its taxiway: an
+    /// uninstructed exit never stops inside the holding distance.
     /// </summary>
-    private (GroundNode HoldShort, List<GroundNode> Path) ContinueToRunwayHoldingPosition(
-        GroundNode holdShort,
-        List<GroundNode> path,
-        string? runwayDesignator,
-        HashSet<int>? excludeHoldShortNodes,
-        HashSet<string>? forbiddenTaxiways
-    )
+    private ExitCandidate? ResolveShortBar(ExitSearch search, ExitCandidate candidate)
     {
-        string? designator = runwayDesignator ?? holdShort.RunwayId?.End1;
+        if ((SearchRunway(search, candidate.Bar) is not { } runway) || IsAtHoldingDistance(runway.Rect, candidate.Bar))
+        {
+            return candidate;
+        }
+
+        Log.LogDebug(
+            "[ExitBFS] HS #{HS} {Rwy}: {Bar:F0} ft from centerline, inside the {Holding:F0} ft holding distance; {Verdict}",
+            candidate.Bar.Id,
+            runway.Designator,
+            CrossTrackFromCenterlineFt(runway.Rect, candidate.Bar),
+            runway.Rect.HoldShortNm * GeoMath.FeetPerNm,
+            search.Instructed ? "named exit, stops here" : "not an uninstructed exit"
+        );
+        return search.Instructed ? candidate : null;
+    }
+
+    /// <summary>
+    /// A branch taxiway that ends inside the runway's holding distance at a junction without a bar of its own (its bar
+    /// was dropped because the joining taxiway carries the runway's bar) turns onto the joining taxiway, always moving
+    /// away from the centerline, and ends at that bar (AIM 4-3-21.b: absent instructions the pilot taxis beyond the runway
+    /// holding position markings, even if that requires entering another taxiway). The exit keeps the branch's name. Null
+    /// when the bar is occupied or out of reach.
+    /// </summary>
+    private ExitCandidate? HopToJoiningBar(ExitSearch search, ExitCandidate deadEnd)
+    {
+        if ((search.ForbiddenTaxiways is not null) && search.ForbiddenTaxiways.Contains(deadEnd.Taxiway))
+        {
+            return null;
+        }
+
+        if ((SearchRunway(search, deadEnd.Bar) is not { } runway) || IsAtHoldingDistance(runway.Rect, deadEnd.Bar))
+        {
+            return null;
+        }
+
+        OutwardWalk walk = BuildOutwardWalk(runway, search);
+        if (WalkOutwardToHoldShort(deadEnd.Bar, walk) is not { } continuation)
+        {
+            Log.LogDebug(
+                "[ExitBFS] {Twy} ends at #{Node} {Ft:F0} ft from the {Rwy} centerline; no free bar at the holding distance beyond it",
+                deadEnd.Taxiway,
+                deadEnd.Bar.Id,
+                CrossTrackFromCenterlineFt(walk.Rect, deadEnd.Bar),
+                walk.Designator
+            );
+            return null;
+        }
+
+        GroundNode target = continuation.Steps[^1];
+        Log.LogDebug(
+            "[ExitBFS] {Twy} ends at #{From} {FromFt:F0} ft from the {Rwy} centerline; continuing to HS #{Target} at {TargetFt:F0} ft via [{Steps}]",
+            deadEnd.Taxiway,
+            deadEnd.Bar.Id,
+            CrossTrackFromCenterlineFt(walk.Rect, deadEnd.Bar),
+            walk.Designator,
+            target.Id,
+            CrossTrackFromCenterlineFt(walk.Rect, target),
+            string.Join("→", continuation.Steps.Select(n => n.Id))
+        );
+        return new ExitCandidate(
+            target,
+            deadEnd.Taxiway,
+            [.. deadEnd.Path, .. continuation.Steps],
+            deadEnd.TotalDistNm + (continuation.LengthFt / GeoMath.FeetPerNm)
+        );
+    }
+
+    /// <summary>
+    /// The branch taxiway ends at <paramref name="node"/>: the BFS arrived on one of the branch's own edges (not a corner arc
+    /// onto another taxiway), no other edge of the branch leaves it, and another taxiway does.
+    /// </summary>
+    private static bool IsBranchDeadEnd(GroundNode node, string branchTwy, List<GroundNode> path)
+    {
+        if (path.Count < 2)
+        {
+            return false;
+        }
+
+        int fromId = path[^2].Id;
+        bool arrivedOnBranch = node.Edges.Any(e =>
+            (e.OtherNode(node).Id == fromId) && e.MatchesTaxiway(branchTwy) && (e is not GroundArc { TaxiwayNames.Length: > 1 })
+        );
+        if (!arrivedOnBranch)
+        {
+            return false;
+        }
+
+        bool branchContinues = node.Edges.Any(e => !e.IsRunwayCenterline && (e.OtherNode(node).Id != fromId) && e.MatchesTaxiway(branchTwy));
+        return !branchContinues && node.Edges.Any(e => !e.IsRunwayCenterline && !e.MatchesTaxiway(branchTwy));
+    }
+
+    /// <summary>A runway the exit search measures against: its designator and rectangle.</summary>
+    private readonly record struct SearchedRunway(string Designator, RunwayRectangle Rect);
+
+    /// <summary>
+    /// The runway the search measures <paramref name="node"/> against: the search's runway, else the one the node is a
+    /// bar of. Null when neither names a runway in the layout.
+    /// </summary>
+    private SearchedRunway? SearchRunway(ExitSearch search, GroundNode node)
+    {
+        string? designator = search.RunwayDesignator ?? node.RunwayId?.End1;
         if ((designator is null) || (FindRunway(designator) is not { } runway))
         {
-            return (holdShort, path);
+            return null;
         }
 
-        RunwayRectangle rect = RunwayCrossingDetector.BuildRunwayRectangle(runway);
-        double holdingFt = rect.HoldShortNm * GeoMath.FeetPerNm;
-        double barFt = CrossTrackFromCenterlineFt(rect, holdShort);
-        if (barFt >= holdingFt - HoldingDistanceToleranceFt)
-        {
-            return (holdShort, path);
-        }
+        return new SearchedRunway(designator, RunwayCrossingDetector.BuildRunwayRectangle(runway));
+    }
 
+    /// <summary>The outward walk to <paramref name="runway"/>'s bar at the holding distance, bounded by the search's exclusions.</summary>
+    private OutwardWalk BuildOutwardWalk(SearchedRunway runway, ExitSearch search)
+    {
         IReadOnlySet<(int From, int To)> forbiddenMoves = NavigationDatabase.InstanceOrNull is null
             ? new HashSet<(int From, int To)>()
             : OneWayResolver.GetForbiddenMoves(this);
-        var walk = new OutwardWalk(rect, designator, holdingFt, excludeHoldShortNodes, forbiddenTaxiways, forbiddenMoves);
-        List<GroundNode>? continuation = WalkOutwardToHoldShort(holdShort, walk);
-        if (continuation is null)
-        {
-            Log.LogDebug(
-                "[ExitBFS] HS #{HS} {Rwy}: {Bar:F0} ft from centerline, inside the {Holding:F0} ft holding distance; no bar beyond it reachable",
-                holdShort.Id,
-                designator,
-                barFt,
-                holdingFt
-            );
-            return (holdShort, path);
-        }
-
-        GroundNode target = continuation[^1];
-        Log.LogDebug(
-            "[ExitBFS] HS #{HS} {Rwy}: {Bar:F0} ft from centerline, inside the {Holding:F0} ft holding distance; continuing to HS #{Target} "
-                + "at {TargetFt:F0} ft via [{Steps}]",
-            holdShort.Id,
-            designator,
-            barFt,
-            holdingFt,
-            target.Id,
-            CrossTrackFromCenterlineFt(rect, target),
-            string.Join("→", continuation.Select(n => n.Id))
+        return new OutwardWalk(
+            runway.Rect,
+            runway.Designator,
+            runway.Rect.HoldShortNm * GeoMath.FeetPerNm,
+            search.ExcludeHoldShortNodes,
+            search.ForbiddenTaxiways,
+            forbiddenMoves
         );
-        return (target, [.. path, .. continuation]);
     }
 
-    /// <summary>What bounds the continuation from a short exit bar: the runway, its holding distance and the exclusions.</summary>
+    /// <summary>
+    /// Whether <paramref name="bar"/> sits at the holding distance of <paramref name="runwayDesignator"/> (within
+    /// <see cref="HoldingDistanceToleranceFt"/>). True when the runway is unknown, since there is nothing to measure.
+    /// </summary>
+    public bool IsAtRunwayHoldingDistance(GroundNode bar, string runwayDesignator) =>
+        (FindRunway(runwayDesignator) is not { } runway) || IsAtHoldingDistance(RunwayCrossingDetector.BuildRunwayRectangle(runway), bar);
+
+    private static bool IsAtHoldingDistance(in RunwayRectangle rect, GroundNode node) =>
+        CrossTrackFromCenterlineFt(rect, node) >= (rect.HoldShortNm * GeoMath.FeetPerNm) - HoldingDistanceToleranceFt;
+
+    /// <summary>The nodes a continuation adds after its start, ending at the bar, and its length.</summary>
+    private readonly record struct OutwardContinuation(List<GroundNode> Steps, double LengthFt);
+
+    /// <summary>What bounds the continuation from a branch end: the runway, its holding distance and the exclusions.</summary>
     private readonly record struct OutwardWalk(
         RunwayRectangle Rect,
         string Designator,
@@ -1912,9 +2183,10 @@ public sealed class AirportGroundLayout
     /// <summary>
     /// Shortest-path search from <paramref name="start"/> over outward steps (<see cref="TryOutwardStep"/>), no longer in
     /// total than the holding distance, to a free bar of the runway at the holding distance; equal lengths go to the lower
-    /// node id. Returns the nodes after <paramref name="start"/>, ending at that bar, or null when none is within reach.
+    /// node id. Returns the nodes after <paramref name="start"/>, ending at that bar, with their length, or null when none
+    /// is within reach.
     /// </summary>
-    private static List<GroundNode>? WalkOutwardToHoldShort(GroundNode start, OutwardWalk walk)
+    private static OutwardContinuation? WalkOutwardToHoldShort(GroundNode start, OutwardWalk walk)
     {
         var bestFt = new Dictionary<int, double> { [start.Id] = 0 };
         var previous = new Dictionary<int, GroundNode>();
@@ -1930,7 +2202,7 @@ public sealed class AirportGroundLayout
 
             if (targets.Contains(node.Id))
             {
-                return TracePath(start, node, previous);
+                return new OutwardContinuation(TracePath(start, node, previous), priority.DistFt);
             }
 
             double crossFt = CrossTrackFromCenterlineFt(walk.Rect, node);
@@ -2035,13 +2307,6 @@ public sealed class AirportGroundLayout
 
         return (crossFt >= walk.HoldingFt - HoldingDistanceToleranceFt) ? OutwardStep.Target : OutwardStep.PassThrough;
     }
-
-    /// <summary>
-    /// The branch taxiway's own bar on an exit path: the first hold-short after the centerline node, which differs from
-    /// the path's end only when <see cref="ContinueToRunwayHoldingPosition"/> continued past a short bar.
-    /// </summary>
-    public static GroundNode FirstHoldShortOnPath(IReadOnlyList<GroundNode> path, GroundNode fallback) =>
-        path.Skip(1).FirstOrDefault(n => n.Type == GroundNodeType.RunwayHoldShort) ?? fallback;
 
     private static double CrossTrackFromCenterlineFt(in RunwayRectangle rect, GroundNode node) =>
         Math.Abs(GeoMath.SignedCrossTrackDistanceNm(node.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading)) * GeoMath.FeetPerNm;
@@ -2988,17 +3253,21 @@ public sealed class AirportGroundLayout
     /// doubling back through a reverse corner scores as the back-exit it is (~140°), not as the
     /// shallow angle of the taxiway's other direction. Null when the path has fewer than two nodes.
     /// </summary>
-    public static double? ComputePathExitAngle(IReadOnlyList<GroundNode> path, TrueHeading runwayHeading)
+    public static double? ComputePathExitAngle(IReadOnlyList<GroundNode> path, string exitTaxiway, TrueHeading runwayHeading)
     {
         if (path.Count < 2)
         {
             return null;
         }
 
-        // The exit is the branch taxiway up to its first bar; a path continued past a short bar onto a joining taxiway
-        // (ContinueToRunwayHoldingPosition) keeps the branch's angle, not the joining taxiway's.
+        // The exit is the branch taxiway up to its first bar or to where the path leaves it; a path continued onto a
+        // joining taxiway from the branch's end keeps the branch's angle, not the joining taxiway's.
         int endIndex = 1;
-        while ((endIndex < path.Count - 1) && (path[endIndex].Type != GroundNodeType.RunwayHoldShort))
+        while (
+            (endIndex < path.Count - 1)
+            && (path[endIndex].Type != GroundNodeType.RunwayHoldShort)
+            && StepMatchesTaxiway(path[endIndex], path[endIndex + 1], exitTaxiway)
+        )
         {
             endIndex++;
         }
@@ -3014,6 +3283,9 @@ public sealed class AirportGroundLayout
         double bearing = edge is GroundArc arc ? arc.TangentBearingAt(to, from) : GeoMath.BearingTo(from.Position, to.Position);
         return runwayHeading.AbsAngleTo(new TrueHeading(bearing));
     }
+
+    private static bool StepMatchesTaxiway(GroundNode from, GroundNode to, string taxiway) =>
+        from.Edges.Any(e => (e.OtherNode(from).Id == to.Id) && e.MatchesTaxiway(taxiway));
 
     /// <summary>
     /// Compute the angle between the runway heading and the exit taxiway at the given node.
@@ -3145,7 +3417,7 @@ public sealed class AirportGroundLayout
     private List<(int HoldShortId, ExitSide Side, bool IsHighSpeed)> EnumerateExitsBothSides(string designator, TrueHeading rwyHeading)
     {
         var exits = new List<(int HoldShortId, ExitSide Side, bool IsHighSpeed)>();
-        var seen = new HashSet<int>();
+        var seen = new HashSet<(string Taxiway, int HoldShortId)>();
 
         foreach (GroundNode node in Nodes.Values)
         {
@@ -3172,7 +3444,7 @@ public sealed class AirportGroundLayout
                 foreach (ExitSide side in sides)
                 {
                     var pref = new ExitPreference { Taxiway = edge.TaxiwayName, Side = side };
-                    (GroundNode Node, string Taxiway, List<GroundNode> Path, ExitSide Side)? result = FindAdjacentHoldShort(
+                    (GroundNode Node, string Taxiway, List<GroundNode> Path, ExitSide Side)? result = FindAdjacentHoldShortForListing(
                         node,
                         designator,
                         rwyHeading,
@@ -3190,15 +3462,16 @@ public sealed class AirportGroundLayout
                         continue;
                     }
 
-                    // Dedupe on the branch's own bar: two exits continued past short bars onto one joining taxiway can end
-                    // at the same bar and are still two exits.
-                    if (!seen.Add(FirstHoldShortOnPath(result.Value.Path, result.Value.Node).Id))
+                    // Dedupe on the exit taxiway and its bar: a branch continued onto a joining taxiway ends at that
+                    // taxiway's bar and is still its own exit.
+                    if (!seen.Add((result.Value.Taxiway, result.Value.Node.Id)))
                     {
                         continue;
                     }
 
                     double? angle =
-                        ComputePathExitAngle(result.Value.Path, rwyHeading) ?? ComputeExitAngle(result.Value.Node, result.Value.Taxiway, rwyHeading);
+                        ComputePathExitAngle(result.Value.Path, result.Value.Taxiway, rwyHeading)
+                        ?? ComputeExitAngle(result.Value.Node, result.Value.Taxiway, rwyHeading);
                     bool isHighSpeed = (angle is not null) && (angle.Value <= 45.0);
                     exits.Add((result.Value.Node.Id, side, isHighSpeed));
                 }

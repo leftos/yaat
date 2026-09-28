@@ -396,6 +396,7 @@ public sealed class HoldingAfterExitPhaseDto : PhaseDto
     public string? RunwayId { get; init; }
     public string? ExitTaxiway { get; init; }
     public int? HoldShortNodeId { get; init; }
+    public bool StoppedInsideHoldingDistance { get; init; }
 }
 
 public sealed class AtParkingPhaseDto : PhaseDto;
