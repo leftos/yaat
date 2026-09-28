@@ -209,6 +209,8 @@ See [flight-strips.md](flight-strips.md) for the full strip architecture.
 
 ## Adding fields to display state — the contract
 
+A field can differ by **viewer type**, not only by facility or sector: the FlightPlans topic is built per connection (`CrcBroadcastService.BuildClientPayloads` and `BuildInitialData` rebuild from `FlightPlanAircraft` for each subscriber), and `DtoConverter.ToFlightPlan(ac, time, isEramViewer)` gives an ERAM position (`CrcClientState.ActingEramSector` with a sector) the altitude in effect (`EramAltitudeFeet`, the second half of a passed fix-qualified altitude) in `ParsedAltitude.Altitude`, and every other position the first altitude. CRC's STARS reads that field for its `R{alt}` requested-altitude fallback and the DF readout; ERAM Field B falls back to it after the interim, local interim and procedure altitudes. The `Altitude` text (`170/SJC/110`) is the same for every viewer. Per connection is the finest split: CRC keeps one flight-plan repository per session, so a CRC instance with both a STARS and an ERAM display gets the altitude of the position it is acting as, and a switch between an ERAM and a non-ERAM position resends the whole topic (`HandleChangeActivePosition`). Both variants are built once per tick (`FlightPlansEram` / `FlightPlansOther`), so every viewer sees the same snapshot.
+
 When you add a field that should appear on a CRC client, you must touch **all** of these:
 
 1. **DTO** — add the field to the appropriate `*Dto` record with the next free `[Key(N)]`.
