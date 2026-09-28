@@ -200,6 +200,27 @@ An ERAM entry typed without a command ID, such as `<FLID>` alone to accept a han
 **`/OK`**:
 The ERAM logic-check override: added to a command, it lets the command act on a track the sector doesn't own, or past a check it would otherwise fail.
 
+## Radar display
+
+**YAAT Scope**:
+The planned instructor radar view that mixes STARS and ERAM presentation (docs/plans/yaat-scope/README.md); it replaces today's Radar view once it reaches parity.
+_Avoid_: scope alone (the router's **Scope** is a different thing)
+
+**Profile**:
+A YAAT Scope display file (STARS, ERAM or Mixed) that sets the datablock template, the altitude notation, the zoom bands and the toolbar; a pref set is the same shape with one user's values.
+
+**Zoom band**:
+A range interval in a profile (e.g. up to 30 NM, 30–120 NM, beyond) that sets defaults such as other controllers' block level, vector length and history count; a manual change pins the value until AUTO.
+
+**Dwell**:
+ERAM's hover emphasis on a data block; in YAAT Scope, hovering expands the block in place, and clicking the callsign locks it open.
+
+**Pilot lens**:
+YAAT Scope overlays drawn from simulation truth rather than from what the controller's system shows: the aircraft's intended path, queued pilot commands, actual check-in state. Off by default.
+
+**Scope entry**:
+Data a controller types into their display's automation (ERAM `QQ`, a STARS scratchpad): it changes what the displays show and never moves the aircraft, unlike a pilot command.
+
 ## Tooling
 
 **Gate**:

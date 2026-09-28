@@ -208,6 +208,7 @@ Shared files: no shared files. Gate: per item.
 
 Subplans without a schedule:
 
+- [ ] **YAAT Scope** — [yaat-scope/README.md](./yaat-scope/README.md): a new instructor radar view mixing STARS and ERAM presentation (ERAM altitude notation, STARS ownership colors, semantic zoom, field menus that split scope entries from pilot commands). It is built beside today's Radar view, which is deleted at parity. Designed with the user 2026-09-28; decisions settled; 7 steps, not started
 - [ ] Standalone airport GeoJSON editor — [airport-editor.md](./airport-editor.md) (51 open; not started)
 - [ ] Phraseology coverage — [phraseology-coverage-backlog.md](./phraseology-coverage-backlog.md) + [phraseology-implementation.md](./phraseology-implementation.md) (the handoff doc for the rule backlog; the backlog's inline `PhraseologyRules.cs:<line>` citations have drifted — `CrossFix` is cited at 128-131 and lives at 172-179 — cite rule names when next touched)
 - [ ] BEHIND grammar extensions — [behind-grammar-extensions.md](./behind-grammar-extensions.md) (18 open; deferred by decision)
@@ -226,5 +227,6 @@ None open. (#150's FAA ADX / LADD access was granted and is deployed to YAAT1 �
 | [tick-path/](./tick-path/README.md) | The tick-path unification programme — one file per step, predicted-vs-got per sub-commit |
 | [controller-ai/](./controller-ai/README.md) | Controller AI + soak harness — subdesigns 01–12, the milestone table, the open follow-ups |
 | [pilot-ai-self-training/](./pilot-ai-self-training/README.md) | Pilot AI for solo training — the milestone table plus the M11–M12 stubs (shipped M10.x subplans are deleted) |
+| [yaat-scope/](./yaat-scope/README.md) | The YAAT Scope radar design: the decisions, architecture and build order, with a link to the design canvas |
 | [open-issues/](./open-issues/) | Plans for open GitHub issues (#150) |
 | the loose `*.md` files | Feature subplans and backlogs that are still open — every one is linked above |
