@@ -27,10 +27,12 @@ Why this exists:
 
 The command runs in a Windows job object of its own, and every process it starts, and every process those start, is
 created in that job. The job is the command's tree: the watchdog measures it and a kill terminates it whole, so a
-process whose parent has already exited is still watched and still killed. The gate assigns the command to the job
-straight after starting it, a gap measured 2026-09-27 at under 4 ms against the 800 ms dotnet took to start its first
-child; a process the command started inside that gap would be outside the job. The job does not kill its processes
-when the gate ends: the compiler server a build starts is created inside the job (measured 2026-09-27: VBCSCompiler
+process whose parent has already exited is still watched and still killed. The gate creates the command suspended,
+assigns it to the job and only then lets it run, so nothing the command starts can run outside the job. It creates the
+command with the desktop app policy that keeps every process the command and its descendants create inside the
+desktop app runtime: without it, every child of a packaged app, such as the pwsh the Microsoft Store installs, is
+created outside the job however the job is set (measured 2026-09-27), and neither watched nor killed. The job does
+not kill its processes when the gate ends: the compiler server a build starts is created inside the job (measured 2026-09-27: VBCSCompiler
 was in the job and died with it when the job was set to kill on close), and a normal exit leaves it running to serve
 the builds after this one. A process the command leaves running is therefore killed only when the watchdog kills the
 run. The job lets a process that asks to break away do so, since without that its start fails; one that breaks away is
@@ -39,9 +41,10 @@ gate's command too.
 
 The watchdog samples the job every few seconds and kills it for the first of three reasons, each with its own line in
 the log and on standard error:
- - `gate: STALLED`: nothing happened for -StallSeconds. Nothing is the log and <log>.err not growing, no process in the
-   job gaining CPU time, no new process appearing in it, and no build server (below) started since the command was
-   gaining CPU time. A stalled run has hung: read the log for where it stopped.
+ - `gate: STALLED`: nothing happened for -StallSeconds. Nothing is the log and <log>.err not growing, the job gaining
+   no CPU time (its accounting, which counts the jobs nested in it and the processes that have exited), no new process
+   appearing in it, and no build server (below) started since the command was gaining CPU time. A stalled run has
+   hung: read the log for where it stopped.
  - `gate: TIMED OUT`: the ceiling ran out on the load-adjusted clock. That clock advances by the share of the machine
    the command could have had: each sample adds its wall time times the share of logical processors not busy with
    other work (never less than 5%), so on an idle machine it is wall time and on a machine that other sessions keep
@@ -50,9 +53,8 @@ the log and on standard error:
  - `gate: BACKSTOP`: five times the ceiling passed in plain wall time, whatever the load. The line gives the share of
    the machine that was free on average; a low one means the machine was busy rather than the command wrong, so run it
    once more alone before reading anything into it.
-A kill adds `gate: terminated the job's <n> processes` to the log. A command that ends before the gate can put it in
-its job adds `gate: the command ended before it was put in its job; its own status stands`. A command that exits on its own between the sample
-that found a reason and the kill keeps its own status. The passed line gives the wall time, the load-adjusted time and
+A kill adds `gate: terminated the job's <n> processes` to the log, n being the processes the job held at the kill. A
+command that exits on its own between the sample that found a reason and the kill keeps its own status. The passed line gives the wall time, the load-adjusted time and
 the ceiling side by side, so a ceiling that is getting tight shows before it bites. When a sample throws, the gate says
 `gate: sampler failed: <message>; watching by wall time only` once and takes no more samples: the stall and the
 ceiling can no longer be told, and only the backstop, which needs nothing but a clock, still kills the run. A failure
@@ -68,9 +70,9 @@ GATE_SLOT_HELD=1, so a gate it runs in turn (a gate inside a gate) does not wait
 variable yourself to run a gate outside the slots. GATE_SAMPLE_SECONDS sets the sampling interval, 5 s when unset.
 GATE_TEST_SAMPLER_FAIL=1 is for the self-test only: it makes every sample throw, to prove the path above.
 
-The command runs at below-normal priority, so the machine stays usable while it does: the gate lowers itself just
-before starting it, the command and everything it starts inherit that class, and the gate then takes its own class
-back. A build server already running from an earlier build (VBCSCompiler, or an MSBuild node that dotnet leaves
+The command runs at below-normal priority, so the machine stays usable while it does: the gate creates it in that
+class, or in the gate's own when the gate already runs at below-normal or idle, and everything it starts inherits the
+class. A build server already running from an earlier build (VBCSCompiler, or an MSBuild node that dotnet leaves
 running) is not started by the command and does not inherit it, so the watchdog lowers any it finds above below-normal,
 once each; one it cannot lower is named once in the log and does not fail the gate. A build server outside the job
 started after the command was counts as progress, because a build hands its compiling to it; one that was already
@@ -86,10 +88,12 @@ server, VBCSCompiler, stays shared, because a build without it ran three to five
 rules above. Like the priority, both variables are set only for the command: the gate takes the caller's values back
 once it has started.
 
-The command's standard output goes to -Log and its standard error to <log>.err, because Start-Process refuses to
-redirect both to one file; once the process has ended the .err file is appended to the log and removed, so one file
-holds everything, the output first and the errors after it, then the gate's own lines. The command runs in the
-caller's working directory, and a relative -Log is read from it too.
+The command's standard output goes to -Log and its standard error to <log>.err, and its standard input is NUL; it
+inherits those three handles and no other of the gate's, and it shares the gate's console, so Ctrl+C reaches it. Once
+the process has ended the .err file is appended to the log and removed, so one file holds everything, the output first
+and the errors after it, then the gate's own lines. The command runs in the caller's working directory, its PowerShell
+location when it runs the gate in its own session, and a relative -Log is read from it too. A .cmd or .bat command runs
+through cmd.exe /d /s /c.
 
 The options are read by hand out of $args rather than declared in a param block: a declared block sends this script's
 own arguments through PowerShell's parameter binder, which reads the bare -- of
@@ -156,6 +160,7 @@ $nativeSource = @'
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Text;
 
 public static class __GATE_NATIVE__
 {
@@ -163,6 +168,103 @@ public static class __GATE_NATIVE__
     {
         public int Id;
         public string Name;
+    }
+
+    // The command's process, as started by StartSuspended: its id, a wait on its end and its exit code, read through the
+    // handle CreateProcessW returned.
+    public sealed class Command : IDisposable
+    {
+        public int Id;
+        internal IntPtr Process;
+        internal IntPtr Thread;
+
+        public bool WaitForExit(int milliseconds)
+        {
+            uint result = WaitForSingleObject(Process, (uint)milliseconds);
+            if (result == WaitObject0)
+            {
+                return true;
+            }
+            if (result == WaitTimeout)
+            {
+                return false;
+            }
+            throw Failure("WaitForSingleObject", Marshal.GetLastWin32Error());
+        }
+
+        public bool HasExited
+        {
+            get { return WaitForExit(0); }
+        }
+
+        public int ExitCode
+        {
+            get
+            {
+                uint code;
+                if (!GetExitCodeProcess(Process, out code))
+                {
+                    throw Failure("GetExitCodeProcess", Marshal.GetLastWin32Error());
+                }
+                return unchecked((int)code);
+            }
+        }
+
+        public void Dispose()
+        {
+            Release(Thread);
+            Thread = IntPtr.Zero;
+            Release(Process);
+            Process = IntPtr.Zero;
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct StartupInfo
+    {
+        public int cb;
+        public string lpReserved;
+        public string lpDesktop;
+        public string lpTitle;
+        public int dwX, dwY, dwXSize, dwYSize, dwXCountChars, dwYCountChars, dwFillAttribute, dwFlags;
+        public short wShowWindow, cbReserved2;
+        public IntPtr lpReserved2, hStdInput, hStdOutput, hStdError;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct StartupInfoEx
+    {
+        public StartupInfo StartupInfo;
+        public IntPtr AttributeList;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ProcessInformation
+    {
+        public IntPtr hProcess, hThread;
+        public int dwProcessId, dwThreadId;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SecurityAttributes
+    {
+        public int Length;
+        public IntPtr SecurityDescriptor;
+        public bool InheritHandle;
+    }
+
+    // JOBOBJECT_BASIC_ACCOUNTING_INFORMATION (winnt.h).
+    [StructLayout(LayoutKind.Sequential)]
+    private struct BasicAccountingInformation
+    {
+        public long TotalUserTime;
+        public long TotalKernelTime;
+        public long ThisPeriodTotalUserTime;
+        public long ThisPeriodTotalKernelTime;
+        public uint TotalPageFaultCount;
+        public uint TotalProcesses;
+        public uint ActiveProcesses;
+        public uint TotalTerminatedProcesses;
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
@@ -228,10 +330,28 @@ public static class __GATE_NATIVE__
     private const uint SnapProcess = 0x2;
     private const uint QueryLimitedInformation = 0x1000;
     private const int ProcessCommandLineInformation = 60;
+    private const int JobObjectBasicAccountingInformation = 1;
     private const int JobObjectBasicProcessIdList = 3;
     private const int JobObjectExtendedLimitInformation = 9;
     private const uint JobObjectLimitBreakawayOk = 0x800;
     private const int ErrorMoreData = 234;
+    private const uint CreateSuspended = 0x00000004;
+    private const uint CreateUnicodeEnvironment = 0x00000400;
+    private const uint BelowNormalPriorityClass = 0x00004000;
+    private const uint ExtendedStartupInfoPresent = 0x00080000;
+    private const int StartfUseStdHandles = 0x00000100;
+    private const uint GenericRead = 0x80000000;
+    private const uint GenericWrite = 0x40000000;
+    private const uint ShareAll = 0x7;
+    private const uint CreateAlways = 2;
+    private const uint OpenExisting = 3;
+    private const uint FileAttributeNormal = 0x80;
+    private const int AttributeHandleList = 0x00020002;
+    private const int AttributeDesktopAppPolicy = 0x00020012;
+    private const int DesktopAppBreakawayDisableProcessTree = 0x2;
+    private const uint WaitObject0 = 0;
+    private const uint WaitTimeout = 0x102;
+    private const uint ResumeFailed = 0xFFFFFFFF;
     private static readonly IntPtr InvalidHandle = new IntPtr(-1);
 
     [DllImport("kernel32.dll", SetLastError = true)]
@@ -270,8 +390,160 @@ public static class __GATE_NATIVE__
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool QueryInformationJobObject(IntPtr job, int infoClass, IntPtr info, int length, out int returned);
 
+    [DllImport("kernel32.dll", SetLastError = true, EntryPoint = "QueryInformationJobObject")]
+    private static extern bool QueryAccounting(IntPtr job, int infoClass, ref BasicAccountingInformation info, int length, out int returned);
+
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool TerminateJobObject(IntPtr job, uint exitCode);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern IntPtr CreateFileW(string path, uint access, uint share, ref SecurityAttributes attributes,
+        uint disposition, uint flags, IntPtr template);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool InitializeProcThreadAttributeList(IntPtr list, int count, int flags, ref IntPtr size);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool UpdateProcThreadAttribute(IntPtr list, uint flags, IntPtr attribute, IntPtr value, IntPtr size,
+        IntPtr previousValue, IntPtr returnSize);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern void DeleteProcThreadAttributeList(IntPtr list);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool CreateProcessW(string application, StringBuilder commandLine, IntPtr processAttributes,
+        IntPtr threadAttributes, bool inheritHandles, uint creationFlags, IntPtr environment, string currentDirectory,
+        ref StartupInfoEx startupInfo, out ProcessInformation processInformation);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern uint ResumeThread(IntPtr thread);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool TerminateProcess(IntPtr process, uint exitCode);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern uint WaitForSingleObject(IntPtr handle, uint milliseconds);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetExitCodeProcess(IntPtr process, out uint exitCode);
+
+    private static System.ComponentModel.Win32Exception Failure(string operation, int error)
+    {
+        string reason = new System.ComponentModel.Win32Exception(error).Message;
+        return new System.ComponentModel.Win32Exception(error, operation + " failed with Win32 error " + error + ": " + reason);
+    }
+
+    private static void Check(bool succeeded, string operation)
+    {
+        if (!succeeded)
+        {
+            throw Failure(operation, Marshal.GetLastWin32Error());
+        }
+    }
+
+    // A handle the command inherits, to a file every process may read, write and delete while it is open, so the gate
+    // can read the log's size and tail while the command writes it.
+    private static IntPtr OpenInheritable(string path, uint access, uint disposition)
+    {
+        var attributes = new SecurityAttributes();
+        attributes.Length = Marshal.SizeOf(typeof(SecurityAttributes));
+        attributes.InheritHandle = true;
+        IntPtr handle = CreateFileW(path, access, ShareAll, ref attributes, disposition, FileAttributeNormal, IntPtr.Zero);
+        Check(handle != InvalidHandle, "CreateFileW(" + path + ")");
+        return handle;
+    }
+
+    // Creates the command suspended, in the given directory and with this process's environment and console, its standard
+    // input from NUL, its output to output and its errors to error. It inherits those three handles and no other
+    // (PROC_THREAD_ATTRIBUTE_HANDLE_LIST), and the desktop app policy keeps every process it and its descendants create
+    // inside the desktop app runtime, so the children of a packaged app such as the Store's pwsh do not leave the job
+    // the process is put in (PROC_THREAD_ATTRIBUTE_DESKTOP_APP_POLICY). Without belowNormal the process takes its
+    // priority class from this one.
+    public static Command StartSuspended(string commandLine, string directory, string output, string error, bool belowNormal)
+    {
+        IntPtr input = IntPtr.Zero, stdout = IntPtr.Zero, stderr = IntPtr.Zero;
+        IntPtr handles = IntPtr.Zero, policy = IntPtr.Zero, list = IntPtr.Zero;
+        bool listReady = false;
+        try
+        {
+            input = OpenInheritable("NUL", GenericRead, OpenExisting);
+            stdout = OpenInheritable(output, GenericWrite, CreateAlways);
+            stderr = OpenInheritable(error, GenericWrite, CreateAlways);
+            handles = Marshal.AllocHGlobal(3 * IntPtr.Size);
+            Marshal.WriteIntPtr(handles, 0, input);
+            Marshal.WriteIntPtr(handles, IntPtr.Size, stdout);
+            Marshal.WriteIntPtr(handles, 2 * IntPtr.Size, stderr);
+            policy = Marshal.AllocHGlobal(sizeof(int));
+            Marshal.WriteInt32(policy, DesktopAppBreakawayDisableProcessTree);
+            IntPtr size = IntPtr.Zero;
+            InitializeProcThreadAttributeList(IntPtr.Zero, 2, 0, ref size);
+            list = Marshal.AllocHGlobal(size);
+            Check(InitializeProcThreadAttributeList(list, 2, 0, ref size), "InitializeProcThreadAttributeList");
+            listReady = true;
+            Check(UpdateProcThreadAttribute(list, 0, (IntPtr)AttributeHandleList, handles, (IntPtr)(3 * IntPtr.Size),
+                IntPtr.Zero, IntPtr.Zero), "UpdateProcThreadAttribute(HANDLE_LIST)");
+            Check(UpdateProcThreadAttribute(list, 0, (IntPtr)AttributeDesktopAppPolicy, policy, (IntPtr)sizeof(int),
+                IntPtr.Zero, IntPtr.Zero), "UpdateProcThreadAttribute(DESKTOP_APP_POLICY)");
+            var startup = new StartupInfoEx();
+            startup.StartupInfo.cb = Marshal.SizeOf(typeof(StartupInfoEx));
+            startup.StartupInfo.dwFlags = StartfUseStdHandles;
+            startup.StartupInfo.hStdInput = input;
+            startup.StartupInfo.hStdOutput = stdout;
+            startup.StartupInfo.hStdError = stderr;
+            startup.AttributeList = list;
+            uint flags = CreateSuspended | CreateUnicodeEnvironment | ExtendedStartupInfoPresent;
+            if (belowNormal)
+            {
+                flags |= BelowNormalPriorityClass;
+            }
+            ProcessInformation created;
+            Check(CreateProcessW(null, new StringBuilder(commandLine), IntPtr.Zero, IntPtr.Zero, true, flags, IntPtr.Zero,
+                directory, ref startup, out created), "CreateProcessW(" + commandLine + ")");
+            return new Command { Id = created.dwProcessId, Process = created.hProcess, Thread = created.hThread };
+        }
+        finally
+        {
+            if (listReady)
+            {
+                DeleteProcThreadAttributeList(list);
+            }
+            Marshal.FreeHGlobal(list);
+            Marshal.FreeHGlobal(handles);
+            Marshal.FreeHGlobal(policy);
+            Release(input);
+            Release(stdout);
+            Release(stderr);
+        }
+    }
+
+    // Puts the suspended command in the job, then lets it run, so nothing it starts can run outside the job. A command
+    // that cannot be put in the job or resumed is terminated before the error is thrown.
+    public static void AssignAndResume(IntPtr job, Command command)
+    {
+        if (!AssignProcessToJobObject(job, command.Process))
+        {
+            int error = Marshal.GetLastWin32Error();
+            TerminateProcess(command.Process, 1);
+            throw Failure("AssignProcessToJobObject", error);
+        }
+        if (ResumeThread(command.Thread) == ResumeFailed)
+        {
+            int error = Marshal.GetLastWin32Error();
+            TerminateProcess(command.Process, 1);
+            throw Failure("ResumeThread", error);
+        }
+    }
+
+    // The job's accounting, nested jobs included: the kernel plus user time of every process it has held, those that
+    // have exited included, in 100 ns units, and how many processes are in it now.
+    public static long[] JobAccounting(IntPtr job)
+    {
+        var info = new BasicAccountingInformation();
+        int returned;
+        Check(QueryAccounting(job, JobObjectBasicAccountingInformation, ref info, Marshal.SizeOf(typeof(BasicAccountingInformation)),
+            out returned), "QueryInformationJobObject(JobObjectBasicAccountingInformation)");
+        return new long[] { info.TotalUserTime + info.TotalKernelTime, info.ActiveProcesses };
+    }
 
     // The machine's idle, kernel (idle included) and user time, in 100 ns units.
     public static long[] SystemTimes()
@@ -393,14 +665,6 @@ public static class __GATE_NATIVE__
         return job;
     }
 
-    public static void Assign(IntPtr job, IntPtr process)
-    {
-        if (!AssignProcessToJobObject(job, process))
-        {
-            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
-        }
-    }
-
     // Every process in the job and in the jobs nested inside it. The list's header is two counts, the processes the job
     // holds and the ids the buffer holds; the buffer grows until the second reaches the first.
     public static int[] JobProcessIds(IntPtr job)
@@ -474,8 +738,7 @@ function Write-Gate {
     [Console]::Error.WriteLine($Line)
 }
 
-# Start-Process joins -ArgumentList with spaces and quotes nothing itself (Start-Process, Example 7:
-# https://learn.microsoft.com/powershell/module/microsoft.powershell.management/start-process), so each argument is
+# CreateProcess takes one command line, which the command splits back into its arguments, so each argument is
 # written here the way the Windows command-line rules read it back into one argv entry (Parsing C command-line
 # arguments: https://learn.microsoft.com/cpp/c-language/parsing-c-command-line-arguments). An argument that is empty or
 # holds whitespace or a quote - a test filter, a path under Program Files, a -Command script - is wrapped in quotes; a
@@ -494,7 +757,7 @@ function Format-Argument {
 # On Windows a bare command name is resolved to the first file on PATH that Windows can start (an extension PATHEXT
 # lists). An extensionless script earlier on PATH - the bash shims a Claude Code plugin puts in front of `uv` and
 # `python` for the Bash tool, which a pwsh started from Bash inherits - is otherwise what the name resolves to, and
-# Start-Process cannot run it. A name with an extension or a directory is taken as written.
+# CreateProcess cannot run it. A name with an extension or a directory is taken as written.
 function Resolve-Runnable {
     param([string]$Name)
     if ([System.IO.Path]::GetExtension($Name) -or [System.IO.Path]::GetDirectoryName($Name)) {
@@ -651,66 +914,60 @@ function Exit-Slot {
     }
 }
 
-# Starts the command below normal priority and with the slot marked held; both are inherited when the process is
-# created, so the gate takes its own priority and environment back straight after, which matters to a caller that ran
-# it in its own session with &.
+# The command as one command line, each word written by Format-Argument. The program is Resolve-Runnable's file, one
+# given with a directory read against the caller's location, and a .cmd or .bat runs through cmd.exe /d /s /c, the way
+# CreateProcess's documentation says to run a batch file.
+function Get-CommandLine {
+    param([object[]]$Command)
+    $file = Resolve-Runnable ([string]$Command[0])
+    if ([System.IO.Path]::GetDirectoryName($file)) {
+        $file = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($file)
+    }
+    $words = @($file) + @($Command | Select-Object -Skip 1 | ForEach-Object { [string]$_ })
+    $line = @($words | ForEach-Object { Format-Argument $_ }) -join ' '
+    if ([System.IO.Path]::GetExtension($file) -in '.cmd', '.bat') {
+        $shell = $env:ComSpec ?? (Join-Path $env:SystemRoot 'System32\cmd.exe')
+        return "$(Format-Argument $shell) /d /s /c `"$line`""
+    }
+    return $line
+}
+
+# Starts the command suspended in the caller's location, below normal priority when the gate runs above it, and with
+# the slot marked held; puts it in the job and only then lets it run, so every process it starts is created inside the
+# job. The environment is inherited when the process is created, so the gate takes its own back straight after, which
+# matters to a caller that ran it in its own session with &.
 function Start-Command {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Starts the command this gate was asked to run; there is nothing for a caller to confirm.')]
-    param([object[]]$Command, [string]$Log, [string]$ErrLog)
-    $start = @{
-        FilePath               = Resolve-Runnable ([string]$Command[0])
-        NoNewWindow            = $true
-        PassThru               = $true
-        RedirectStandardOutput = $Log
-        RedirectStandardError  = $ErrLog
-    }
-    if ($Command.Count -gt 1) {
-        $start['ArgumentList'] = @($Command | Select-Object -Skip 1 | ForEach-Object { Format-Argument ([string]$_) })
-    }
-    $self = Get-Process -Id $PID
-    $priority = $self.PriorityClass
+    param([object[]]$Command, [IntPtr]$Job, [string]$Log, [string]$ErrLog)
+    $line = Get-CommandLine $Command
+    $directory = $ExecutionContext.SessionState.Path.CurrentFileSystemLocation.ProviderPath
+    $belowNormal = $aboveBelowNormal -contains [string](Get-Process -Id $PID).PriorityClass
     $saved = @{}
     foreach ($name in $commandEnvironment.Keys) { $saved[$name] = [Environment]::GetEnvironmentVariable($name) }
     try {
         foreach ($name in $commandEnvironment.Keys) { [Environment]::SetEnvironmentVariable($name, $commandEnvironment[$name]) }
-        if ($aboveBelowNormal -contains [string]$priority) { $self.PriorityClass = 'BelowNormal' }
-        return Start-Process @start
+        $started = $script:Native::StartSuspended($line, $directory, $Log, $ErrLog, $belowNormal)
     }
     finally {
         # PowerShell hands a .NET string parameter '' for $null, which would leave an unset variable set and empty;
         # NullString passes a real null, which removes it.
         foreach ($name in $saved.Keys) { [Environment]::SetEnvironmentVariable($name, ($saved[$name] ?? [NullString]::Value)) }
-        $self.PriorityClass = $priority
     }
-}
-
-# Puts the command in the job straight after its start. Start-Process cannot start a process suspended, so a process
-# the command starts before this call returns is created outside the job and is neither watched nor killed with it.
-# The gap is small next to a child's start-up: measured 2026-09-27 at a median of 0.05 ms and at most 4 ms from
-# Start-Process returning to the assignment, where dotnet took 800 ms to start its first child.
-# A command that ended before the assignment cannot be put in a job, and has nothing left to watch or kill, so its own
-# status stands.
-function Add-CommandToJob {
-    param([System.Diagnostics.Process]$Process, [IntPtr]$Job, [System.Collections.Generic.List[string]]$Notes)
     try {
-        $script:Native::Assign($Job, $Process.Handle)
+        $script:Native::AssignAndResume($Job, $started)
     }
     catch {
-        $failure = $_.Exception.GetBaseException()
-        if ($failure -isnot [System.ComponentModel.Win32Exception]) { throw }
-        if ($Process.HasExited) {
-            $Notes.Add('gate: the command ended before it was put in its job; its own status stands')
-            return
-        }
-        throw "the command could not be put in a job: $($failure.Message)"
+        $started.Dispose()
+        throw
     }
+    return $started
 }
 
 function New-Watch {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Returns a new object; it changes no state outside this gate.')]
-    param([System.Diagnostics.Process]$Process, [IntPtr]$Job, [hashtable]$Options, [long]$Since,
+    param($Process, [IntPtr]$Job, [hashtable]$Options, [long]$Since,
         [System.Collections.Generic.List[string]]$Notes)
     $sample = if ($env:GATE_SAMPLE_SECONDS) { [double]::Parse($env:GATE_SAMPLE_SECONDS, [cultureinfo]::InvariantCulture) } else { 5.0 }
     return [pscustomobject]@{
@@ -730,7 +987,8 @@ function New-Watch {
         SamplerFailed = $false
         Size          = 0L
         SystemTimes   = $script:Native::SystemTimes()
-        TreeCpu       = @{}
+        JobCpu        = $script:Native::JobAccounting($Job)[0]
+        TreeIds       = @{}
         ServerCpu     = @{}
         CommandLines  = @{}
         Lowered       = @{}
@@ -739,17 +997,26 @@ function New-Watch {
 }
 
 # The command's tree: every process in its job, each created at or after the gate started the command, so a process
-# that took over a pid between the job's list and the lookup is not adopted. Returns pid -> CPU time.
+# that took over a pid between the job's list and the lookup is not adopted. Returns a set of pids; the tree's CPU time
+# comes from the job's accounting instead, which also counts the processes that have exited.
 function Get-Tree {
     param($Watch)
-    $cpu = @{}
+    $ids = @{}
     foreach ($id in $script:Native::JobProcessIds($Watch.Job)) {
         $created = 0L
         $used = 0L
         # A process that exited since the list was taken cannot be opened; that is expected on every sample.
-        if ($script:Native::TryGetTimes($id, [ref]$created, [ref]$used) -and $created -ge $Watch.Since) { $cpu[$id] = $used }
+        if ($script:Native::TryGetTimes($id, [ref]$created, [ref]$used) -and $created -ge $Watch.Since) { $ids[$id] = $true }
     }
-    return $cpu
+    return $ids
+}
+
+function Test-NewProcess {
+    param([hashtable]$Before, [hashtable]$After)
+    foreach ($id in $After.Keys) {
+        if (-not $Before.ContainsKey($id)) { return $true }
+    }
+    return $false
 }
 
 function Test-BuildServerLine {
@@ -867,18 +1134,21 @@ function Update-Watch {
     $interval = [math]::Max(0.001, $now - $Watch.LastAt)
     $times = $script:Native::SystemTimes()
     $entries = $script:Native::Snapshot()
+    $jobCpu = $script:Native::JobAccounting($Watch.Job)[0]
     $tree = Get-Tree $Watch
     $servers = Get-BuildServer -Watch $Watch -Entries $entries -Tree $tree
-    $treeMove = Measure-Cpu -Before $Watch.TreeCpu -After $tree
+    $treeGained = $jobCpu - $Watch.JobCpu
+    $appeared = Test-NewProcess -Before $Watch.TreeIds -After $tree
     $serverMove = Measure-Cpu -Before $Watch.ServerCpu -After $servers
     $grew = Test-LogGrew $Watch
-    if ($grew -or $treeMove.Rose -or $treeMove.Appeared -or $serverMove.Rose) { $Watch.LastProgress = $now }
-    $free = Get-FreeShare -Watch $Watch -Times $times -TreeGained $treeMove.Gained -Interval $interval
+    if ($grew -or $treeGained -gt 0 -or $appeared -or $serverMove.Rose) { $Watch.LastProgress = $now }
+    $free = Get-FreeShare -Watch $Watch -Times $times -TreeGained $treeGained -Interval $interval
     $Watch.Adjusted += $interval * $free
     $Watch.LastFree = $free
     $Watch.LastAt = $now
     $Watch.SystemTimes = $times
-    $Watch.TreeCpu = $tree
+    $Watch.JobCpu = $jobCpu
+    $Watch.TreeIds = $tree
     $Watch.ServerCpu = $servers
 }
 
@@ -935,7 +1205,7 @@ function Stop-Command {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Kills the job of the command this gate started; there is no state of the caller''s to confirm.')]
     param($Watch)
-    $count = @($script:Native::JobProcessIds($Watch.Job)).Count
+    $count = $script:Native::JobAccounting($Watch.Job)[1]
     $script:Native::TerminateJob($Watch.Job, 124)
     $Watch.Notes.Add("gate: terminated the job's $count processes")
     if (-not $Watch.Process.WaitForExit(5000)) {
@@ -963,8 +1233,8 @@ function Watch-Command {
     return $null
 }
 
-# Two files while the process runs, because Start-Process refuses one for both; one file to read afterwards, with the
-# gate's own lines at its end.
+# Two files while the process runs, so the output reads first and the errors after it; one file to read afterwards,
+# with the gate's own lines at its end.
 function Complete-Log {
     param([string]$Log, [string[]]$Notes)
     $errLog = "$Log.err"
@@ -1008,25 +1278,14 @@ function Write-Verdict {
 function Stop-AfterFailure {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Kills the command this gate started after the gate failed; there is nothing to confirm.')]
-    param([System.Diagnostics.Process]$Process, [IntPtr]$Job, [string]$Log, [System.Management.Automation.ErrorRecord]$Failure,
-        [string[]]$Notes)
+    param($Process, [IntPtr]$Job, [string]$Log, [System.Management.Automation.ErrorRecord]$Failure, [string[]]$Notes)
     $lines = @($Notes) + @("gate: the gate failed while running the command: $($Failure.Exception.Message)")
     try {
         $script:Native::TerminateJob($Job, 124)
+        if (-not $Process.WaitForExit(5000)) { $lines += 'gate: the command was still running 5 s after its job was terminated' }
     }
     catch {
         $lines += "gate: and could not terminate the command's job: $($_.Exception.Message)"
-    }
-    # A command the job never took, when the assignment itself failed, is killed with its tree on its own.
-    try {
-        if (-not $Process.HasExited) { $Process.Kill($true) }
-        $null = $Process.WaitForExit(5000)
-    }
-    catch {
-        # One that exited between the check and the kill is already gone, which is what the kill was for.
-        if ($_.Exception.GetBaseException() -isnot [System.InvalidOperationException]) {
-            $lines += "gate: and could not kill the command's tree: $($_.Exception.Message)"
-        }
     }
     try {
         Complete-Log -Log $Log -Notes $lines
@@ -1039,8 +1298,7 @@ function Stop-AfterFailure {
 
 # Watches the command already in its job to its end or its kill; returns the gate's exit status.
 function Complete-Watched {
-    param([System.Diagnostics.Process]$Process, [IntPtr]$Job, [hashtable]$Options, [long]$Since,
-        [System.Collections.Generic.List[string]]$Notes)
+    param($Process, [IntPtr]$Job, [hashtable]$Options, [long]$Since, [System.Collections.Generic.List[string]]$Notes)
     $watch = New-Watch -Process $Process -Job $Job -Options $Options -Since $Since -Notes $Notes
     $kill = Watch-Command -Watch $watch -Spoken ($Options['Spoken'])
     $notes = @($watch.Notes)
@@ -1067,12 +1325,12 @@ function Invoke-Watched {
     $gathered = [System.Collections.Generic.List[string]]::new()
     foreach ($note in $Notes) { $gathered.Add($note) }
     $completed = $false
+    $process = $null
     $job = $script:Native::CreateJob()
     try {
         $since = [DateTime]::UtcNow.ToFileTimeUtc()
-        $process = Start-Command -Command $Command -Log $log -ErrLog "$log.err"
+        $process = Start-Command -Command $Command -Job $job -Log $log -ErrLog "$log.err"
         try {
-            Add-CommandToJob -Process $process -Job $job -Notes $gathered
             $status = Complete-Watched -Process $process -Job $job -Options $Options -Since $since -Notes $gathered
             $completed = $true
             return $status
@@ -1087,6 +1345,7 @@ function Invoke-Watched {
             # A stop is already in progress and there is nowhere to report a failed terminate to.
             try { $script:Native::TerminateJob($job, 124) } catch { }
         }
+        if ($process) { $process.Dispose() }
         $script:Native::Release($job)
     }
 }

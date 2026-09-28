@@ -131,12 +131,20 @@ function Test-Alive {
     return $Id -gt 0 -and [bool](Get-Process -Id $Id -ErrorAction SilentlyContinue)
 }
 
-# The share of the machine free that a case's log gives last, or -1 when it gives none.
+# The share of the machine free that a case's log gives last, or -1 when it gives none. A kill line gives it outright; a
+# passed line, such as an inner gate's in the log of the gate around it, gives it as the load-adjusted time over the wall
+# time.
 function Get-LogFreeShare {
     param([string]$Case)
-    $found = [regex]::Matches((Get-LogText $Case), 'machine free (\d+)% on average')
-    if ($found.Count -eq 0) { return -1 }
-    return [int]$found[$found.Count - 1].Groups[1].Value
+    $text = Get-LogText $Case
+    $found = [regex]::Matches($text, 'machine free (\d+)% on average')
+    if ($found.Count -gt 0) { return [int]$found[$found.Count - 1].Groups[1].Value }
+    $passed = [regex]::Matches($text, 'gate: passed in (\d+) s \(load-adjusted (\d+) s')
+    if ($passed.Count -eq 0) { return -1 }
+    $last = $passed[$passed.Count - 1]
+    $wall = [int]$last.Groups[1].Value
+    if ($wall -le 0) { return -1 }
+    return [int][math]::Round(100 * [int]$last.Groups[2].Value / $wall)
 }
 
 # A case whose verdict rests on timing: one that failed while its log says the machine was under 30% free is reported
@@ -229,7 +237,7 @@ function Test-Orphan {
     Stop-Leftover $result.Grandchild
     $why = Get-RunProblem -Case 'orphan-progress' -Run $result.Run -Expected 0
     if (-not $why -and $result.Grandchild -eq 0) { $why = 'the grandchild never wrote its pid' }
-    Write-Result 'a grandchild whose parent exited still counts as progress' $why
+    Write-TimedResult -Case 'a grandchild whose parent exited still counts as progress' -LogCase 'orphan-progress' -Why $why
 
     $result = Invoke-OrphanRun -Case 'orphan-kill' -Timeout 3 -Stall 30 -Sleep 30
     $alive = Test-Alive $result.Grandchild
@@ -238,6 +246,132 @@ function Test-Orphan {
     if (-not $why -and $result.Grandchild -eq 0) { $why = 'the grandchild never wrote its pid before the kill' }
     elseif (-not $why -and $alive) { $why = "the grandchild $($result.Grandchild) outlived the kill" }
     Write-Result 'a kill reaches a grandchild whose parent exited' $why
+}
+
+# A silent, CPU-busy pwsh that writes its pid to the file given and ends on its own after the seconds given, so a leak
+# does not outlive the self-test by much.
+function Write-BusyScript {
+    $busy = "$dir/busy.ps1"
+    Set-Content -Path $busy -Value @(
+        'param([int]$Seconds, [string]$PidFile)', 'if ($PidFile) { Set-Content -Path $PidFile -Value $PID }',
+        '$end = (Get-Date).AddSeconds($Seconds); while ((Get-Date) -lt $end) { }')
+    return $busy
+}
+
+# The command is a pwsh, which with the Store's pwsh is a packaged app, and it waits without a word on a busy child from
+# outside its package: cmd.exe spinning through an endless loop, which the pwsh stops itself after the seconds given.
+# Windows can put such a child outside the job unless the gate's desktop app policy keeps it in, so the child must count
+# as progress and must die with a kill.
+function Invoke-PackagedRun {
+    param([string]$Case, [int]$Timeout, [int]$Stall, [int]$BusySeconds)
+    $pidFile = "$dir/$Case.pid"
+    Remove-Item $pidFile -ErrorAction SilentlyContinue
+    $script = "`$child = Start-Process -FilePath cmd.exe -ArgumentList '/d /c `"for /l %i in (0,0,1) do @rem`"' -NoNewWindow -PassThru; " +
+        "Set-Content -Path '$pidFile' -Value `$child.Id; if (-not `$child.WaitForExit($($BusySeconds * 1000))) { `$child.Kill() }"
+    $arguments = @('-Log', "$dir/$Case.log", '-TimeoutSeconds', "$Timeout", '-StallSeconds', "$Stall", '--',
+        'pwsh', '-NoProfile', '-c', $script)
+    $run = Invoke-Gate -Case $Case -Arguments $arguments
+    return [pscustomobject]@{ Run = $run; Child = (Read-Pid $pidFile) }
+}
+
+function Test-PackagedChild {
+    $result = Invoke-PackagedRun -Case 'packaged-progress' -Timeout 60 -Stall 3 -BusySeconds 8
+    Stop-Leftover $result.Child
+    $why = Get-RunProblem -Case 'packaged-progress' -Run $result.Run -Expected 0
+    if (-not $why -and $result.Child -eq 0) { $why = 'the child never wrote its pid' }
+    Write-TimedResult -Case 'a child of a packaged pwsh stays in the job' -LogCase 'packaged-progress' -Why $why
+
+    $result = Invoke-PackagedRun -Case 'packaged-kill' -Timeout 3 -Stall 30 -BusySeconds 60
+    $clock = [System.Diagnostics.Stopwatch]::StartNew()
+    while ((Test-Alive $result.Child) -and $clock.Elapsed.TotalSeconds -lt 5) { Start-Sleep -Milliseconds 200 }
+    $alive = Test-Alive $result.Child
+    Stop-Leftover $result.Child
+    $why = Get-RunProblem -Case 'packaged-kill' -Run $result.Run -Expected 124 -Holds "gate: terminated the job's \d+ processes"
+    if (-not $why -and $result.Child -eq 0) { $why = 'the child never wrote its pid before the kill' }
+    elseif (-not $why -and $alive) { $why = "the child $($result.Child) outlived the kill" }
+    Write-Result 'a kill reaches the child of a packaged pwsh' $why
+}
+
+# The command puts a silent busy child in a job of its own, nested in the gate's: the child's CPU time must count as
+# progress. The child is started suspended, assigned and then resumed, so it never runs outside the nested job.
+function Test-NestedJob {
+    $source = "$dir/nested-job.cs"
+    Set-Content -Path $source -Value @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Text;
+
+public static class NestedJobRunner
+{
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    struct StartupInfo
+    {
+        public int cb;
+        public string lpReserved, lpDesktop, lpTitle;
+        public int dwX, dwY, dwXSize, dwYSize, dwXCountChars, dwYCountChars, dwFillAttribute, dwFlags;
+        public short wShowWindow, cbReserved2;
+        public IntPtr lpReserved2, hStdInput, hStdOutput, hStdError;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct ProcessInformation
+    {
+        public IntPtr hProcess, hThread;
+        public int dwProcessId, dwThreadId;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    static extern IntPtr CreateJobObjectW(IntPtr attributes, string name);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    static extern bool CreateProcessW(string application, StringBuilder commandLine, IntPtr processAttributes,
+        IntPtr threadAttributes, bool inheritHandles, uint creationFlags, IntPtr environment, string currentDirectory,
+        ref StartupInfo startupInfo, out ProcessInformation processInformation);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern uint ResumeThread(IntPtr thread);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern uint WaitForSingleObject(IntPtr handle, uint milliseconds);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern bool CloseHandle(IntPtr handle);
+
+    public static void Run(string commandLine)
+    {
+        IntPtr job = CreateJobObjectW(IntPtr.Zero, null);
+        if (job == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
+        var startup = new StartupInfo();
+        startup.cb = Marshal.SizeOf(typeof(StartupInfo));
+        ProcessInformation child;
+        if (!CreateProcessW(null, new StringBuilder(commandLine), IntPtr.Zero, IntPtr.Zero, false, 0x4, IntPtr.Zero, null,
+            ref startup, out child)) throw new Win32Exception(Marshal.GetLastWin32Error());
+        if (!AssignProcessToJobObject(job, child.hProcess)) throw new Win32Exception(Marshal.GetLastWin32Error());
+        ResumeThread(child.hThread);
+        WaitForSingleObject(child.hProcess, 0xFFFFFFFF);
+        CloseHandle(child.hThread);
+        CloseHandle(child.hProcess);
+        CloseHandle(job);
+    }
+}
+'@
+    $busy = Write-BusyScript
+    $script = "Add-Type -Path '$source'; [NestedJobRunner]::Run('pwsh -NoProfile -File $busy 8')"
+    $run = Test-Run -Case 'nested-job' -Timeout 60 -Stall 3 -Script $script -Expected 0
+    Write-TimedResult -Case 'a process in a nested job counts as progress' -LogCase 'nested-job' -Why $run.Why
+}
+
+# The command's CPU comes only from short-lived children: for about 8 s it runs one busy cmd.exe of about a second after
+# another and waits on each without a word. A child that exited between two samples must still count.
+function Test-ShortLivedChild {
+    $script = '$end = (Get-Date).AddSeconds(8); while ((Get-Date) -lt $end) { ' +
+        'Start-Process -FilePath cmd.exe -ArgumentList ''/d /c "for /l %i in (1,1,2000000) do @rem"'' -NoNewWindow -Wait }'
+    $run = Test-Run -Case 'short-children' -Timeout 60 -Stall 3 -Script $script -Expected 0
+    Write-TimedResult -Case 'CPU of children that have exited counts as progress' -LogCase 'short-children' -Why $run.Why
 }
 
 # On a machine other sessions keep busy, the load-adjusted clock runs slow enough that the wall-time backstop can come
@@ -446,11 +580,10 @@ function Test-NestedKill {
     $why = Get-RunProblem -Case 'nest-kill' -Run $run -Expected 124 -Holds 'gate: (STALLED|TIMED OUT|BACKSTOP)'
     if (-not $why -and $sleeperId -eq 0) { $why = 'the sleeper never wrote its pid' }
     elseif (-not $why -and $alive) { $why = "the sleeper $sleeperId outlived the outer gate's kill" }
-    Write-Result 'an outer gate''s kill reaches the command of a gate inside it' $why
+    Write-TimedResult -Case 'an outer gate''s kill reaches the command of a gate inside it' -LogCase 'nest-kill' -Why $why
 }
 
-# A command that exits at once can be gone before the gate puts it in its job; its own status must stand, ten runs
-# over, with no failure of the gate's.
+# A command that exits the moment it is resumed keeps its own status, ten runs over, with no failure of the gate's.
 function Test-QuickExit {
     $failures = @()
     foreach ($index in 1..10) {
@@ -514,6 +647,9 @@ try {
     Test-OutputProgress
     Test-CpuProgress
     Test-Orphan
+    Test-PackagedChild
+    Test-NestedJob
+    Test-ShortLivedChild
     Test-Ceiling
     Test-SamplerFailure
     Test-Status
