@@ -94,7 +94,9 @@ costs every gate about a second of CPU. The first gate of a version compiles it 
 moves it into place; a gate that loses that race to another deletes its own copy, so no gate loads a half-written file.
 A gate that cannot write the folder or load the file compiles the class in memory as before, says
 `gate: native cache unusable (<reason>); compiled in memory` once, and runs on. A new version of the source has a new
-hash and so a new file; the old files stay until deleted by hand.
+hash and so a new file; the gate that writes it deletes every other GateNative_*.dll in the folder, and any own copy a
+gate left there over an hour ago. That is best effort: a dll a running gate has loaded is locked, stays, and goes with
+the next new version, and a file that cannot be deleted costs the gate nothing and gets no line.
 
 The command runs at below-normal priority, so the machine stays usable while it does: the gate creates it in that
 class, or in the gate's own when the gate already runs at below-normal or idle, and everything it starts inherits the
@@ -985,16 +987,36 @@ function Import-CachedNativeType {
     if (-not (Test-Path -LiteralPath $path)) {
         New-Item -ItemType Directory -Force $folder | Out-Null
         $own = Join-Path $folder "$TypeName.$PID.$([guid]::NewGuid().ToString('N')).tmp"
+        $wrote = $false
         try {
             Add-Type -TypeDefinition $nativeSource.Replace('__GATE_NATIVE__', $TypeName) -OutputAssembly $own
-            try { [System.IO.File]::Move($own, $path) }
+            try {
+                [System.IO.File]::Move($own, $path)
+                $wrote = $true
+            }
             catch [System.IO.IOException] { if (-not (Test-Path -LiteralPath $path)) { throw } }
         }
         finally {
             Remove-Item -LiteralPath $own -ErrorAction SilentlyContinue
         }
+        if ($wrote) { Remove-StaleNative -Folder $folder -Keep "$TypeName.dll" }
     }
     if (-not ($TypeName -as [type])) { Add-Type -Path $path }
+}
+
+# After a gate put a new version in the cache: every other version's dll, and every own copy a gate left behind over an
+# hour ago, is deleted. A dll a running gate has loaded is locked and stays for a later gate to delete; any file that
+# cannot be deleted is left without a word.
+function Remove-StaleNative {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Deletes only the gate''s own cache files, documented above; there is nothing for a caller to confirm.')]
+    param([string]$Folder, [string]$Keep)
+    $cutoff = [DateTime]::UtcNow.AddHours(-1)
+    foreach ($file in @(Get-ChildItem -LiteralPath $Folder -File -Filter 'GateNative_*' -ErrorAction SilentlyContinue)) {
+        $oldVersion = $file.Name -like '*.dll' -and $file.Name -ne $Keep
+        $leftOver = $file.Name -like '*.tmp' -and $file.LastWriteTimeUtc -lt $cutoff
+        if ($oldVersion -or $leftOver) { Remove-Item -LiteralPath $file.FullName -ErrorAction SilentlyContinue }
+    }
 }
 
 # The native class for this version of the source, loaded or compiled on first use in a session. A cache that cannot be

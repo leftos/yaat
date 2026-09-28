@@ -711,12 +711,15 @@ function Test-SlotPool {
     Test-OtherPoolHeld -Kind 'light' -Other $slotZero['heavy']
 }
 
-# Two gates with the native cache redirected to an empty folder: the first compiles the class into it, leaving one dll
-# and no file of its own, and the second loads that dll without writing it again or falling back to memory.
+# Two gates with the native cache redirected to a folder holding only an older version's dll: the first compiles the
+# class into it and prunes the older dll, leaving one dll and no file of its own, and the second loads that dll without
+# writing it again or falling back to memory.
 function Test-NativeCache {
     $cache = Join-Path $root "$dir/native-cache"
     New-Item -ItemType Directory -Force $cache | Out-Null
     Get-ChildItem -LiteralPath $cache -File | Remove-Item
+    $fake = 'GateNative_00000000.dll'
+    Set-Content -LiteralPath (Join-Path $cache $fake) -Value 'an older version'
     $env:GATE_TEST_NATIVE_CACHE = $cache
     try {
         $first = Invoke-Gate -Arguments @('-Log', "$dir/native-cache-1.log", '-TimeoutSeconds', '30', '-Slot', 'light', '--', 'cmd', '/c', 'exit 0')
@@ -727,8 +730,8 @@ function Test-NativeCache {
         $env:GATE_TEST_NATIVE_CACHE = $null
     }
     $why = Get-RunProblem -Case 'native-cache-1' -Run $first -Expected 0
-    if (-not $why -and ($files.Count -ne 1 -or $files[0].Name -notmatch '^GateNative_[0-9A-F]{8}\.dll$')) {
-        $why = "the cache holds $(@($files | ForEach-Object Name) -join ', '), expected one GateNative_<hash>.dll"
+    if (-not $why -and ($files.Count -ne 1 -or $files[0].Name -notmatch '^GateNative_[0-9A-F]{8}\.dll$' -or $files[0].Name -eq $fake)) {
+        $why = "the cache holds $(@($files | ForEach-Object Name) -join ', '), expected one GateNative_<hash>.dll and $fake gone"
     }
     if (-not $why) { $why = Get-RunProblem -Case 'native-cache-2' -Run $second -Expected 0 }
     if (-not $why -and "$($first.Err)$($second.Err)" -match 'native cache unusable') { $why = "a gate fell back: $($first.Err)$($second.Err)" }
