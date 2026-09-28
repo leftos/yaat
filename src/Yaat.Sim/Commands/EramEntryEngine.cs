@@ -50,11 +50,16 @@ namespace Yaat.Sim.Commands;
 /// </para>
 ///
 /// <para>
+/// Holds: <c>HM {field 21} [{field 310}]</c> and <c>QH {field 21} [{field 310}]</c> (HM Hold and QH's Hold variant: the
+/// hold data and holding instructions as typed, upper-cased; see <see cref="ApplyHold"/>).
+/// </para>
+///
+/// <para>
 /// A refused entry's message is an <see cref="EramEntryErrors"/> id, optionally followed by a space and the contents of
 /// the field in error; success messages are free text.
 /// </para>
 /// </summary>
-public static class EramEntryEngine
+public static partial class EramEntryEngine
 {
     public static CommandResult Apply(AircraftState ac, string entry, EramEntryContext ctx)
     {
@@ -86,6 +91,8 @@ public static class EramEntryEngine
             "MIN" => ApplyMinimize(ac, args),
             "FDB" => ApplyFdbToggle(ac, args),
             "CO" => ApplyConflictSuppress(ac, args, ctx.EramConflicts),
+            "HM" => ApplyHold(ac, args, "HM"),
+            "QH" => ApplyHold(ac, args, "QH"),
             _ => Refused(EramEntryErrors.InvalidMessageType),
         };
     }

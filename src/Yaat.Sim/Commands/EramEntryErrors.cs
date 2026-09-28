@@ -27,6 +27,7 @@ public static class EramEntryErrors
     public const string PoNotFound = "YaatPoNotFound";
     public const string InvalidCombination = "MsgInvalidCombination";
     public const string NoConflictAlert = "YaatNoConflictAlert";
+    public const string InvalidTime = "MsgInvalidTime";
 
     /// <summary>Every id above, for the conformance test that holds them to <c>error-responses.yaml</c>.</summary>
     public static IReadOnlyList<string> All { get; } =
@@ -50,5 +51,6 @@ public static class EramEntryErrors
         PoNotFound,
         InvalidCombination,
         NoConflictAlert,
+        InvalidTime,
     ];
 }

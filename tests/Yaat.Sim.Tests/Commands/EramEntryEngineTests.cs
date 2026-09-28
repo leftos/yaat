@@ -1265,4 +1265,222 @@ public class EramEntryEngineTests
         Assert.Equal(EramEntryErrors.SessionNotActive, Apply(ac, "COAST T0", null).Message);
         Assert.False(ac.Eram.IsCoastTrack);
     }
+
+    // CRC's CompassDirection / TurnDirection ordinals, as AircraftHoldAnnotation stores them.
+    private const int North = 1;
+    private const int Northeast = 2;
+    private const int East = 4;
+    private const int South = 6;
+    private const int LeftTurns = 0;
+    private const int RightTurns = 1;
+
+    private static AircraftState AircraftHoldingAtOak()
+    {
+        AircraftState ac = Aircraft();
+        ac.HoldAnnotation = new AircraftHoldAnnotation
+        {
+            Fix = "OAK",
+            Direction = North,
+            Turns = LeftTurns,
+            LegLength = 5,
+            LegLengthInNm = true,
+            Efc = 1230,
+        };
+        return ac;
+    }
+
+    [Fact]
+    public void Hm_NewHoldAtAFix_StoresTheFixEfcAndInstructions()
+    {
+        AircraftState ac = Aircraft();
+
+        CommandResult result = Apply(ac, "HM OAK/1230 NE/LT/10NM", Sector44);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("OAK", ac.HoldAnnotation.Fix);
+        Assert.Equal(1230, ac.HoldAnnotation.Efc);
+        Assert.Equal(Northeast, ac.HoldAnnotation.Direction);
+        Assert.Equal(LeftTurns, ac.HoldAnnotation.Turns);
+        Assert.Equal(10, ac.HoldAnnotation.LegLength);
+        Assert.True(ac.HoldAnnotation.LegLengthInNm);
+        Assert.Null(ac.HoldAnnotation.Radial);
+    }
+
+    [Fact]
+    public void Hm_NewHoldAtAFix_ReplacesTheStoredHoldAndLeavesUngivenInstructionsBlank()
+    {
+        AircraftState ac = AircraftHoldingAtOak();
+
+        Assert.True(Apply(ac, "HM SFO", Sector44).Success);
+
+        Assert.Equal("SFO", ac.HoldAnnotation.Fix);
+        Assert.Null(ac.HoldAnnotation.Direction);
+        Assert.Null(ac.HoldAnnotation.Turns);
+        Assert.Null(ac.HoldAnnotation.LegLength);
+        Assert.Null(ac.HoldAnnotation.Efc);
+    }
+
+    [Fact]
+    public void Hm_PresentPosition_StoresTheAircraftPositionAsAnEramLatLong()
+    {
+        AircraftState ac = Aircraft();
+
+        Assert.True(Apply(ac, "HM P/0915", Sector44).Success);
+
+        Assert.Equal("3742N/12212W", ac.HoldAnnotation.Fix);
+        Assert.Equal(915, ac.HoldAnnotation.Efc);
+        Assert.Null(ac.HoldAnnotation.Direction);
+    }
+
+    [Fact]
+    public void Hm_LatLongWithoutAnEfc_IsTheWholeLocation()
+    {
+        AircraftState ac = Aircraft();
+
+        Assert.True(Apply(ac, "HM 3730/12200", Sector44).Success);
+
+        Assert.Equal("3730/12200", ac.HoldAnnotation.Fix);
+        Assert.Null(ac.HoldAnnotation.Efc);
+    }
+
+    [Fact]
+    public void Hm_FourDigitHeadBeforeFourDigits_IsALatLongWithoutAnEfc()
+    {
+        AircraftState ac = Aircraft();
+
+        Assert.True(Apply(ac, "HM 3730/1230", Sector44).Success);
+
+        Assert.Equal("3730/1230", ac.HoldAnnotation.Fix);
+        Assert.Null(ac.HoldAnnotation.Efc);
+    }
+
+    [Fact]
+    public void Hm_EfcOnly_MergesIntoTheStoredHold()
+    {
+        AircraftState ac = AircraftHoldingAtOak();
+
+        Assert.True(Apply(ac, "HM 1300", Sector44).Success);
+
+        Assert.Equal("OAK", ac.HoldAnnotation.Fix);
+        Assert.Equal(1300, ac.HoldAnnotation.Efc);
+        Assert.Equal(North, ac.HoldAnnotation.Direction);
+        Assert.Equal(5, ac.HoldAnnotation.LegLength);
+    }
+
+    [Fact]
+    public void Hm_DeleteEfc_KeepsTheRestOfTheStoredHold()
+    {
+        AircraftState ac = AircraftHoldingAtOak();
+
+        Assert.True(Apply(ac, "HM /*", Sector44).Success);
+
+        Assert.Equal("OAK", ac.HoldAnnotation.Fix);
+        Assert.Null(ac.HoldAnnotation.Efc);
+        Assert.Equal(North, ac.HoldAnnotation.Direction);
+    }
+
+    [Fact]
+    public void Hm_HoldingInstructionsAlone_ReplaceTheStoredInstructions()
+    {
+        AircraftState ac = AircraftHoldingAtOak();
+
+        Assert.True(Apply(ac, "HM 093/RT/2MIN", Sector44).Success);
+
+        Assert.Equal("OAK", ac.HoldAnnotation.Fix);
+        Assert.Equal(1230, ac.HoldAnnotation.Efc);
+        Assert.Equal(93, ac.HoldAnnotation.Radial);
+        Assert.Equal(East, ac.HoldAnnotation.Direction);
+        Assert.Equal(RightTurns, ac.HoldAnnotation.Turns);
+        Assert.Equal(2, ac.HoldAnnotation.LegLength);
+        Assert.False(ac.HoldAnnotation.LegLengthInNm);
+    }
+
+    [Fact]
+    public void Hm_StandardLeg_StoresNoLegLength()
+    {
+        AircraftState ac = AircraftHoldingAtOak();
+
+        Assert.True(Apply(ac, "HM S/RT/STD", Sector44).Success);
+
+        Assert.Equal(South, ac.HoldAnnotation.Direction);
+        Assert.Null(ac.HoldAnnotation.LegLength);
+        Assert.False(ac.HoldAnnotation.LegLengthInNm);
+    }
+
+    [Fact]
+    public void Qh_HoldAmend_ReplacesTheHoldWithTheNewFixAndInstructions()
+    {
+        AircraftState ac = AircraftHoldingAtOak();
+
+        CommandResult result = Apply(ac, "QH SFO/0915 S/RT/STD", Sector44);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("SFO", ac.HoldAnnotation.Fix);
+        Assert.Equal(915, ac.HoldAnnotation.Efc);
+        Assert.Equal(South, ac.HoldAnnotation.Direction);
+        Assert.Equal(RightTurns, ac.HoldAnnotation.Turns);
+        Assert.Null(ac.HoldAnnotation.LegLength);
+    }
+
+    [Fact]
+    public void Qh_EfcOnly_MergesIntoTheStoredHold()
+    {
+        AircraftState ac = AircraftHoldingAtOak();
+
+        Assert.True(Apply(ac, "QH 0100", Sector44).Success);
+
+        Assert.Equal("OAK", ac.HoldAnnotation.Fix);
+        Assert.Equal(100, ac.HoldAnnotation.Efc);
+        Assert.Equal(LeftTurns, ac.HoldAnnotation.Turns);
+    }
+
+    [Theory]
+    [InlineData("HM C")]
+    [InlineData("QH C")]
+    public void HoldCancel_ClearsTheStoredHold(string entry)
+    {
+        AircraftState ac = AircraftHoldingAtOak();
+
+        Assert.True(Apply(ac, entry, Sector44).Success);
+
+        Assert.Null(ac.HoldAnnotation.Fix);
+        Assert.Null(ac.HoldAnnotation.Efc);
+        Assert.Null(ac.HoldAnnotation.Direction);
+    }
+
+    [Theory]
+    [InlineData("HM 1300")]
+    [InlineData("HM /*")]
+    [InlineData("QH N/LT/STD")]
+    public void HoldChange_WithNoStoredHold_IsTooShort(string entry)
+    {
+        AircraftState ac = Aircraft();
+
+        CommandResult result = Apply(ac, entry, Sector44);
+
+        Assert.False(result.Success);
+        Assert.Equal(EramEntryErrors.MessageTooShort, result.Message);
+        Assert.Null(ac.HoldAnnotation.Fix);
+    }
+
+    [Theory]
+    [InlineData("HM", EramEntryErrors.MessageTooShort)]
+    [InlineData("HM OAK N/LT/STD X", EramEntryErrors.MessageTooLong)]
+    [InlineData("HM C N/LT/STD", EramEntryErrors.InvalidCombination)]
+    [InlineData("HM OAK/2599", EramEntryErrors.InvalidTime)]
+    [InlineData("HM 2460", EramEntryErrors.InvalidTime)]
+    [InlineData("HM N/LT/XX", EramEntryErrors.CofieFormat + " N/LT/XX")]
+    [InlineData("HM 045/LT/STD", EramEntryErrors.CofieFormat + " 045/LT/STD")]
+    [InlineData("QH N/LT/10MIN", EramEntryErrors.CofieFormat + " N/LT/10MIN")]
+    public void Hold_Malformed_IsRefused(string entry, string message)
+    {
+        AircraftState ac = AircraftHoldingAtOak();
+
+        CommandResult result = Apply(ac, entry, Sector44);
+
+        Assert.False(result.Success);
+        Assert.Equal(message, result.Message);
+        Assert.Equal("OAK", ac.HoldAnnotation.Fix);
+        Assert.Equal(1230, ac.HoldAnnotation.Efc);
+    }
 }
