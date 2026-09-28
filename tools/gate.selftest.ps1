@@ -554,13 +554,15 @@ function Test-Slot {
     Write-Result 'one slot runs two gates one after the other' $why
 }
 
+# The inner command sleeps 5 s so the inner gate's passed line, in the outer gate's log, gives a load figure the timed
+# result can read.
 function Test-Nesting {
     $inner = @('pwsh', '-NoProfile', '-File', $gate, '-Log', "$dir/nest-inner.log", '-TimeoutSeconds', '20', '--',
-        'pwsh', '-NoProfile', '-c', 'exit 0')
+        'pwsh', '-NoProfile', '-c', 'Start-Sleep 5; exit 0')
     $run = Invoke-Gate -Case 'nest' -Arguments (@('-Log', "$dir/nest.log", '-TimeoutSeconds', '20', '--') + $inner)
     $why = Get-RunProblem -Case 'nest' -Run $run -Expected 0
-    if (-not $why -and $run.Seconds -ge 20) { $why = "took $([math]::Round($run.Seconds)) s, expected under 20 s" }
-    Write-Result 'a gate inside a gate does not wait on its parent''s slot' $why
+    if (-not $why -and $run.Seconds -ge 25) { $why = "took $([math]::Round($run.Seconds)) s, expected under 25 s" }
+    Write-TimedResult -Case 'a gate inside a gate does not wait on its parent''s slot' -LogCase 'nest' -Why $why
 }
 
 # An outer gate whose command is an inner gate whose command sleeps without a word: the outer's kill must reach the
@@ -623,6 +625,88 @@ function Test-StopJob {
     Write-Result 'a gate stopped with Stop-Job takes its command with it' $why
 }
 
+# Writes the scripts of the -StopTree case: the launcher runs a gate whose command is A; A writes its pid, runs B and
+# sleeps 60 s; B starts a silent busy cmd.exe, C, writes C's pid and exits, so C's parent is gone.
+function Write-StopTreeScript {
+    $launcher = "$dir/stoptree-launcher.ps1"
+    $a = "$dir/stoptree-a.ps1"
+    $b = "$dir/stoptree-b.ps1"
+    Set-Content -Path $launcher -Value @(
+        'param($Gate, $Log, $A, $B, $APidFile, $CPidFile)',
+        '& pwsh -NoProfile -File $Gate -Log $Log -TimeoutSeconds 120 -StallSeconds 120 -- pwsh -NoProfile -File $A $B $APidFile $CPidFile')
+    Set-Content -Path $a -Value @(
+        'param($B, $APidFile, $CPidFile)', 'Set-Content -Path $APidFile -Value $PID',
+        'pwsh -NoProfile -File $B $CPidFile', 'Start-Sleep 60')
+    Set-Content -Path $b -Value @(
+        'param($CPidFile)',
+        '$c = Start-Process -FilePath cmd.exe -ArgumentList ''/d /c "for /l %i in (0,0,1) do @rem"'' -NoNewWindow -PassThru',
+        'Set-Content -Path $CPidFile -Value $c.Id')
+    return [pscustomobject]@{ Launcher = $launcher; A = $a; B = $b }
+}
+
+# Runs gate.ps1 -StopTree on the pid in a job bounded at 30 s; returns its status and what it printed.
+function Invoke-StopTree {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseUsingScopeModifierInNewRunspaces', '',
+        Justification = 'The job reads its values from its own param block and -ArgumentList, which $using: cannot be combined with.')]
+    param([int]$Id)
+    $job = Start-Job -WorkingDirectory $root -ScriptBlock {
+        param($gate, $id)
+        $text = & pwsh -NoProfile -File $gate -StopTree $id 2>&1 | Out-String
+        [pscustomobject]@{ Status = $LASTEXITCODE; Text = $text }
+    } -ArgumentList $gate, $Id
+    $finished = [bool](Wait-Job -Job $job -Timeout 30)
+    $result = if ($finished) { Receive-Job -Job $job } else { [pscustomobject]@{ Status = -1; Text = 'did not return in 30 s' } }
+    Remove-Job -Job $job -Force
+    return $result
+}
+
+function Wait-Gone {
+    param([int[]]$Ids, [double]$Seconds)
+    $clock = [System.Diagnostics.Stopwatch]::StartNew()
+    while (@($Ids | Where-Object { Test-Alive $_ }).Count -gt 0 -and $clock.Elapsed.TotalSeconds -lt $Seconds) {
+        Start-Sleep -Milliseconds 200
+    }
+    return @($Ids | Where-Object { Test-Alive $_ })
+}
+
+# -StopTree on the process that ran a gate reaches C, whose parent B has exited, through the gate's job, and A and the
+# launcher through the tree.
+function Test-StopTree {
+    $scripts = Write-StopTreeScript
+    $aPidFile = "$dir/stoptree-a.pid"
+    $cPidFile = "$dir/stoptree-c.pid"
+    Remove-Item $aPidFile, $cPidFile -ErrorAction SilentlyContinue
+    $words = @('-NoProfile', '-File', $scripts.Launcher, $gate, "$dir/stoptree.log", $scripts.A, $scripts.B, $aPidFile, $cPidFile)
+    $line = @($words | ForEach-Object { "`"$_`"" }) -join ' '
+    $launcher = Start-Process -FilePath pwsh -ArgumentList $line -WorkingDirectory $root -WindowStyle Hidden -PassThru
+    $cId = 0
+    $aId = 0
+    try {
+        $clock = [System.Diagnostics.Stopwatch]::StartNew()
+        while ((Read-Pid $cPidFile) -eq 0 -and -not $launcher.HasExited -and $clock.Elapsed.TotalSeconds -lt 60) {
+            Start-Sleep -Milliseconds 200
+        }
+        $cId = Read-Pid $cPidFile
+        $aId = Read-Pid $aPidFile
+        $why = if ($cId -eq 0) { "C never wrote its pid; see $dir/stoptree.log" }
+        if (-not $why) {
+            $stop = Invoke-StopTree $launcher.Id
+            $left = @(Wait-Gone -Ids @($cId, $aId, $launcher.Id) -Seconds 5)
+            if ($stop.Status -ne 0) { $why = "-StopTree exited $($stop.Status): $($stop.Text)" }
+            elseif ($left.Count -gt 0) { $why = "still alive 5 s after the stop: $($left -join ', ') (C $cId, A $aId, launcher $($launcher.Id))" }
+            elseif ($stop.Text -notmatch "gate: stopped [1-9]\d* gate job\(s\) and \d+ process\(es\) under $($launcher.Id)") {
+                $why = "-StopTree printed no stopped line naming a gate job: $($stop.Text)"
+            }
+        }
+    }
+    finally {
+        Stop-Leftover (Read-Pid $cPidFile)
+        Stop-Leftover $aId
+        if (-not $launcher.HasExited) { $launcher.Kill($true) }
+    }
+    Write-Result '-StopTree stops a process whose parent has exited' $why
+}
+
 # Run in this session after a class named GateNative, as an older version of the gate defined it, is loaded here.
 function Test-OldNativeType {
     if (-not ('GateNative' -as [type])) {
@@ -661,6 +745,7 @@ try {
     Test-NestedKill
     Test-QuickExit
     Test-StopJob
+    Test-StopTree
     Test-OldNativeType
     $env:GATE_SLOT_HELD = $null
     $env:GATE_SLOTS = '1'

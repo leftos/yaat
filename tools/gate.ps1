@@ -9,6 +9,7 @@ The canonical copy is ~/.claude/tools/gate/gate.ps1: change it there and run syn
 gate.selftest.ps1 into every repo that carries them.
 
 Usage: pwsh tools/gate.ps1 -Log <path> -TimeoutSeconds <n> [-StallSeconds <n>] [-Tail <n>] [-NoMarkers] -- <command> [args...]
+       pwsh tools/gate.ps1 -StopTree <pid>
 
 The log, the ceiling and the command are all required and none has a default: a gate run without a ceiling is the one
 that holds its caller for an hour, and a caller that forgot one is told so, with the usage, and the script exits 2
@@ -38,6 +39,13 @@ the builds after this one. A process the command leaves running is therefore kil
 run. The job lets a process that asks to break away do so, since without that its start fails; one that breaks away is
 outside the tree. A gate inside a gate nests one job inside the other, so the outer gate's kill reaches the inner
 gate's command too.
+
+The job is named Local\gate-job-<the gate's own pid>, so a caller that must stop a gate from outside finds its job from
+the gate's pid: `pwsh tools/gate.ps1 -StopTree <pid>` takes one snapshot of the processes under <pid>, <pid> included,
+terminates the job of every gate among them, then terminates every process of the snapshot still running, deepest
+first. A job holds what a parent chain loses: a process whose parent has already exited is missed by anything that
+follows parent pids, such as `taskkill /T`, and only the gate's job still holds it. The name lives only while the gate
+holds the job, so a gate already gone leaves nothing to find by it.
 
 The watchdog samples the job every few seconds and kills it for the first of three reasons, each with its own line in
 the log and on standard error:
@@ -123,8 +131,16 @@ How many of the log's last lines are printed. Defaults to 20.
 A switch: the log is not scanned for failure markers, so the command's own exit status is the verdict. For a command
 whose output can quote a failure that is not its own, such as a tool whose output quotes another program's error lines.
 
+.PARAMETER StopTree
+Used alone, as the only option: the pid of a process whose tree is stopped, gates' jobs first (see above). A pid that is
+not a live process is a usage error.
+
 .OUTPUTS
-On a failure, the log's failure marker lines with their line numbers (none with -NoMarkers); then the log's last -Tail
+With -StopTree: `gate: stopped <n> gate job(s) and <m> process(es) under <pid>` on standard output, m counting the
+processes still running once the jobs were terminated, and exit 0; a job or process that could not be stopped is named on
+standard error with `gate: could not stop: ` and the exit status is 1.
+
+Otherwise: on a failure, the log's failure marker lines with their line numbers (none with -NoMarkers); then the log's last -Tail
 lines, then one verdict line: `gate: passed in <w> s (load-adjusted <a> s, ceiling <n> s). Full output: <log>` on
 standard output, or `gate: FAILED (status <n>). Full output: <log>` on standard error. The exit status is the command's
 own, 1 for a zero exit whose log reports a failure (never with -NoMarkers), 124 for any watchdog kill, and 2 for a usage
@@ -142,7 +158,10 @@ $ErrorActionPreference = 'Stop'
 # One regex for every line that means a gate failed even when the runner exited 0, plus this wrapper's own kill lines so
 # that a gate wrapping a gate reports the inner one's kill.
 $markers = '^Build FAILED\.|error CS\d+|: error |Test run summary: Failed!|^\s*failed: [1-9]|gate: (TIMED OUT|STALLED|BACKSTOP)'
-$usage = 'usage: pwsh tools/gate.ps1 -Log <path> -TimeoutSeconds <n> [-StallSeconds <n>] [-Tail <n>] [-NoMarkers] -- <command> [args...]'
+$usage = @(
+    'usage: pwsh tools/gate.ps1 -Log <path> -TimeoutSeconds <n> [-StallSeconds <n>] [-Tail <n>] [-NoMarkers] -- <command> [args...]'
+    '       pwsh tools/gate.ps1 -StopTree <pid>'
+)
 $requiredLine = 'all three of -Log, -TimeoutSeconds and the command are required.'
 $aboveBelowNormal = @('Normal', 'AboveNormal', 'High', 'RealTime')
 # What the command is started with: the slot marked held for any gate it runs in turn, and MSBuild made to start worker
@@ -168,7 +187,23 @@ public static class __GATE_NATIVE__
     public sealed class Entry
     {
         public int Id;
+        public int ParentId;
         public string Name;
+    }
+
+    // What StopTree did: the gate jobs it terminated, the processes it terminated itself, and each stop that failed.
+    public sealed class StopResult
+    {
+        public int Jobs;
+        public int Processes;
+        public List<string> Failures = new List<string>();
+    }
+
+    private sealed class TreeNode
+    {
+        public int Id;
+        public int Depth;
+        public long Created;
     }
 
     // The command's process, as started by StartSuspended: its id, a wait on its end and its exit code, read through the
@@ -329,7 +364,16 @@ public static class __GATE_NATIVE__
     }
 
     private const uint SnapProcess = 0x2;
+    private const uint ProcessTerminate = 0x1;
     private const uint QueryLimitedInformation = 0x1000;
+    private const uint Synchronize = 0x100000;
+    private const uint JobObjectQuery = 0x4;
+    private const uint JobObjectTerminate = 0x8;
+    private const int ErrorFileNotFound = 2;
+    private const int ErrorInvalidParameter = 87;
+    private const int ErrorAlreadyExists = 183;
+    private const uint StopExitCode = 124;
+    private const int JobEndMilliseconds = 2000;
     private const int ProcessCommandLineInformation = 60;
     private const int JobObjectBasicAccountingInformation = 1;
     private const int JobObjectBasicProcessIdList = 3;
@@ -381,6 +425,9 @@ public static class __GATE_NATIVE__
 
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern IntPtr CreateJobObjectW(IntPtr attributes, string name);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern IntPtr OpenJobObjectW(uint access, bool inherit, string name);
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool SetInformationJobObject(IntPtr job, int infoClass, ref ExtendedLimitInformation info, int length);
@@ -572,7 +619,7 @@ public static class __GATE_NATIVE__
             bool more = Process32FirstW(snapshot, ref entry);
             while (more)
             {
-                entries.Add(new Entry { Id = (int)entry.ProcessId, Name = entry.ExeFile });
+                entries.Add(new Entry { Id = (int)entry.ProcessId, ParentId = (int)entry.ParentProcessId, Name = entry.ExeFile });
                 more = Process32NextW(snapshot, ref entry);
             }
         }
@@ -647,13 +694,19 @@ public static class __GATE_NATIVE__
         }
     }
 
-    // A new unnamed job whose processes may break away when they ask to, and are not killed when its handle closes.
-    public static IntPtr CreateJob()
+    // A new job under the given name whose processes may break away when they ask to, and are not killed when its handle
+    // closes. The name is how StopTree finds the job from the gate's pid, so a name another job already holds is an error.
+    public static IntPtr CreateJob(string name)
     {
-        IntPtr job = CreateJobObjectW(IntPtr.Zero, null);
+        IntPtr job = CreateJobObjectW(IntPtr.Zero, name);
         if (job == IntPtr.Zero)
         {
-            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+            throw Failure("CreateJobObjectW(" + name + ")", Marshal.GetLastWin32Error());
+        }
+        if (Marshal.GetLastWin32Error() == ErrorAlreadyExists)
+        {
+            CloseHandle(job);
+            throw new System.ComponentModel.Win32Exception(ErrorAlreadyExists, "CreateJobObjectW(" + name + ") found a job of that name already");
         }
         var info = new ExtendedLimitInformation();
         info.BasicLimitInformation.LimitFlags = JobObjectLimitBreakawayOk;
@@ -703,6 +756,174 @@ public static class __GATE_NATIVE__
                 Marshal.FreeHGlobal(buffer);
             }
         }
+    }
+
+    // The processes under root in one snapshot, root included, each with its depth and creation time; null when root is
+    // not in the snapshot, and root alone when its creation time cannot be read. A process counts as a child only when it
+    // was created at or after its parent, so a process that took over a dead parent's pid adopts none of that parent's
+    // children; one whose creation time cannot be read is left out with everything under it.
+    private static List<TreeNode> ProcessTree(int root)
+    {
+        var children = new Dictionary<int, List<int>>();
+        bool found = false;
+        foreach (Entry entry in Snapshot())
+        {
+            found |= entry.Id == root;
+            if (entry.Id == entry.ParentId)
+            {
+                continue;
+            }
+            List<int> list;
+            if (!children.TryGetValue(entry.ParentId, out list))
+            {
+                list = new List<int>();
+                children[entry.ParentId] = list;
+            }
+            list.Add(entry.Id);
+        }
+        if (!found)
+        {
+            return null;
+        }
+        long created, cpu;
+        TryGetTimes(root, out created, out cpu);
+        var tree = new List<TreeNode> { new TreeNode { Id = root, Depth = 0, Created = created } };
+        if (created == 0)
+        {
+            return tree;
+        }
+        var seen = new HashSet<int> { root };
+        for (int i = 0; i < tree.Count; i++)
+        {
+            TreeNode parent = tree[i];
+            List<int> list;
+            if (!children.TryGetValue(parent.Id, out list))
+            {
+                continue;
+            }
+            foreach (int id in list)
+            {
+                long childCreated;
+                if (!seen.Contains(id) && TryGetTimes(id, out childCreated, out cpu) && childCreated >= parent.Created)
+                {
+                    seen.Add(id);
+                    tree.Add(new TreeNode { Id = id, Depth = parent.Depth + 1, Created = childCreated });
+                }
+            }
+        }
+        return tree;
+    }
+
+    // Terminates the job a gate with this pid created, when there is one, and adds the processes it held to members.
+    private static void StopGateJob(int id, StopResult result, HashSet<int> members)
+    {
+        string name = "Local\\gate-job-" + id;
+        IntPtr job = OpenJobObjectW(JobObjectQuery | JobObjectTerminate, false, name);
+        if (job == IntPtr.Zero)
+        {
+            int error = Marshal.GetLastWin32Error();
+            if (error != ErrorFileNotFound)
+            {
+                result.Failures.Add(Failure("OpenJobObjectW(" + name + ")", error).Message);
+            }
+            return;
+        }
+        try
+        {
+            try
+            {
+                foreach (int member in JobProcessIds(job))
+                {
+                    members.Add(member);
+                }
+            }
+            catch (System.ComponentModel.Win32Exception listing)
+            {
+                result.Failures.Add("listing the processes of " + name + " failed: " + listing.Message);
+            }
+            if (TerminateJobObject(job, StopExitCode))
+            {
+                result.Jobs++;
+            }
+            else
+            {
+                result.Failures.Add(Failure("TerminateJobObject(" + name + ")", Marshal.GetLastWin32Error()).Message);
+            }
+        }
+        finally
+        {
+            CloseHandle(job);
+        }
+    }
+
+    // Terminates one process of the tree unless it has ended, or its pid now belongs to a process created after the
+    // snapshot. A process a terminated job held is given up to waitMs to end first, since a job's termination is
+    // asynchronous, so only a process this pass had to stop itself is counted.
+    private static void StopProcess(TreeNode node, int waitMs, StopResult result)
+    {
+        IntPtr process = OpenProcess(ProcessTerminate | QueryLimitedInformation | Synchronize, false, node.Id);
+        if (process == IntPtr.Zero)
+        {
+            int error = Marshal.GetLastWin32Error();
+            if (error != ErrorInvalidParameter)
+            {
+                result.Failures.Add(Failure("OpenProcess(" + node.Id + ")", error).Message);
+            }
+            return;
+        }
+        try
+        {
+            long created, exit, kernel, user;
+            bool same = GetProcessTimes(process, out created, out exit, out kernel, out user) && created == node.Created;
+            if (!same || WaitForSingleObject(process, (uint)waitMs) == WaitObject0)
+            {
+                return;
+            }
+            if (TerminateProcess(process, StopExitCode))
+            {
+                result.Processes++;
+                return;
+            }
+            int error = Marshal.GetLastWin32Error();
+            if (WaitForSingleObject(process, 1000) != WaitObject0)
+            {
+                result.Failures.Add(Failure("TerminateProcess(" + node.Id + ")", error).Message);
+            }
+        }
+        finally
+        {
+            CloseHandle(process);
+        }
+    }
+
+    // Stops every gate under root and every process of the tree: first the job of each process in the tree that is a
+    // gate (Local\gate-job-<pid>), which ends the processes whose parent chain is already broken, then each process of
+    // the tree still running, deepest first, except self. Null when root is not a live process.
+    public static StopResult StopTree(int root, int self)
+    {
+        List<TreeNode> tree = ProcessTree(root);
+        if (tree == null)
+        {
+            return null;
+        }
+        var result = new StopResult();
+        var members = new HashSet<int>();
+        foreach (TreeNode node in tree)
+        {
+            StopGateJob(node.Id, result, members);
+        }
+        tree.Sort((a, b) => b.Depth.CompareTo(a.Depth));
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        foreach (TreeNode node in tree)
+        {
+            if (node.Id == self)
+            {
+                continue;
+            }
+            int wait = members.Contains(node.Id) ? Math.Max(0, JobEndMilliseconds - (int)clock.ElapsedMilliseconds) : 0;
+            StopProcess(node, wait, result);
+        }
+        return result;
     }
 
     public static void TerminateJob(IntPtr job, uint exitCode)
@@ -1327,7 +1548,7 @@ function Invoke-Watched {
     foreach ($note in $Notes) { $gathered.Add($note) }
     $completed = $false
     $process = $null
-    $job = $script:Native::CreateJob()
+    $job = $script:Native::CreateJob("Local\gate-job-$PID")
     try {
         $since = [DateTime]::UtcNow.ToFileTimeUtc()
         $process = Start-Command -Command $Command -Job $job -Log $log -ErrLog "$log.err"
@@ -1351,13 +1572,42 @@ function Invoke-Watched {
     }
 }
 
+function Write-Usage {
+    foreach ($line in $usage) { Write-Gate $line }
+}
+
+# -StopTree <pid>, the whole of the words: stops the gates under the process and then its tree; returns the exit status.
+function Invoke-StopTree {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Stops the tree its caller named, which is what the caller asked for; there is nothing to confirm.')]
+    param([object[]]$Words)
+    $value = if ($Words.Count -ge 2) { [string]$Words[1] } else { '' }
+    $problem = if ($Words.Count -ne 2) { 'gate: -StopTree takes one process id and nothing else' }
+    elseif (-not (Test-WholeNumber $value)) { "gate: -StopTree needs a process id, got '$value'" }
+    if (-not $problem) {
+        $script:Native = Get-NativeType
+        $result = $script:Native::StopTree([int]$value, $PID)
+        if ($null -eq $result) { $problem = "gate: -StopTree: no live process has the id $value" }
+    }
+    if ($problem) {
+        Write-Gate $problem
+        Write-Usage
+        return 2
+    }
+    foreach ($failure in $result.Failures) { Write-Gate "gate: could not stop: $failure" }
+    [Console]::Out.WriteLine("gate: stopped $($result.Jobs) gate job(s) and $($result.Processes) process(es) under $value")
+    if ($result.Failures.Count -gt 0) { return 1 }
+    return 0
+}
+
 function Invoke-Main {
     param([object[]]$Words)
+    if ($Words.Count -gt 0 -and [string]$Words[0] -eq '-StopTree') { return Invoke-StopTree $Words }
     $parsed = Read-Argument $Words
     $problems = if ($parsed) { Get-InputProblem -Options $parsed.Options -Command $parsed.Command } else { @() }
     if (-not $parsed -or $problems.Count -gt 0) {
         foreach ($problem in $problems) { Write-Gate $problem }
-        Write-Gate $usage
+        Write-Usage
         Write-Gate $requiredLine
         return 2
     }
