@@ -5,6 +5,7 @@ variants:
     format: QF (16) 02 | QF (12) ... (12) 02 | QF (42) 02 | QF 42 02
     multiple_flids: true
     handler: QF.Readout
+    note: YAAT reads out one flight per entry, not the several multiple_flids allows (yaat ruling).
     fields:
       - field: Position
         rule: |

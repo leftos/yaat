@@ -4,7 +4,12 @@ variants:
     descriptor: AUTO HANDOFF
     format: QA 02 | QA (36) 14 (14) (14) (14) (14)
     multiple_flids: true
-    handler: not implemented
+    handler: QA.AutoHandoff
+    note: >-
+      Sets the host's auto-handoff inhibit (MONF/AERO); YAAT has no automatic handoff and CRC has no AHI indicator or
+      view — validate and accept only (yaat ruling). Yaat rulings: a single flight-ID-shaped token without /S is field 02,
+      and /S forces field 14; an entry with neither field (QA, QA /S) answers MESSAGE TOO SHORT, as MsgCofieFormat has no
+      field to name; YAAT takes one flight per entry, not the several multiple_flids allows.
     fields:
       - field: Position
         rule: |
@@ -33,6 +38,7 @@ variants:
         rule: |
           When in sector number format, must have an adapted R-Position. Checked on the active channel.
         error: MsgR-PositionNotConfigured
+        na: YAAT adapts a sector only through its position, so an adapted sector always has its R-Position.
       - field: 02 Flight Identification
         rule: |
           Must be one of: a. Aircraft ID Laa(a)(a)(a)(a) or Ld; b. CID ddd or daa (a must not equal "I" or "O");

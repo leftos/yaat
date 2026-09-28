@@ -4,7 +4,8 @@ variants:
     descriptor: QUICK VECTOR
     format: QV (05) (56) 02 | QV
     multiple_flids: false
-    handler: not implemented
+    handler: QV.QuickVector
+    note: Console-local user-requested velocity vector (EDSM (L)); changes no host state and CRC has no DTO to draw it — validate and accept only (yaat ruling)
     fields:
       - field: Position
         rule: |

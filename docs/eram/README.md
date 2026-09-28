@@ -10,7 +10,7 @@ The reference is extracted from the FAA's ERAM En Route Display System Managemen
 - the command format and routing table;
 - the flight data fields table used by `AM`.
 
-The document itself is not in the repo. The extraction scripts are not either, since they run over its text. [`../plans/eram-conformance.md`](../plans/eram-conformance.md) says how the extraction was done.
+The document itself is not in the repo, and neither are the extraction scripts, since they run over its text. A controller on VATSIM shared it; the maintainer keeps it as `ERAM_EDSM_SRS_210.04_V1B2_SDR-088All_Commands.pdf`. To work from its text, run `pdftotext -layout <pdf> eram.txt` and split the result on form feeds (`\f`) into one file per page, reading it as latin-1. Page-file index = printed page number + 15. The validation table (C.8) runs from printed page 624 to 846, the field definitions (C.1) from 401 to 527, the command routing table (C.2) from 528 to 568, and the flight data fields table (C.9) from 847 to 864. Code and tests cite these files, never the source's page numbers.
 
 ## Files
 
@@ -48,6 +48,21 @@ Other variant keys:
 - **`source: yaat`**: the variant is ours, not the source's (RD route-display toggle, the QB voice type). Its descriptor is coined, and `note` says what it does.
 
 Only the in-scope variants carry `format` and filled `fields`: the commands yaat handles now or has planned. Out-of-scope variants keep just title, descriptor, `handler` and `na`.
+
+### Amendable fields
+
+`AM.yaml` also carries `amendable_fields`, the source's flight data fields table: the fields `AM` amends and `QF` names by field reference (field 12). One row per field:
+
+```yaml
+amendable_fields:
+  - { number: "06", abbr: FIX, name: Coordination Fix, format: "aa(a)(a)(a) | ...", deletable: false, notes: "...", na: "YAAT keeps no coordination fix" }
+```
+
+- **`number`**: the field reference number, or null when the source gives none.
+- **`abbr`**: the field abbreviation.
+- **`name`**, **`format`**, **`deletable`**: the source's name, value format, and whether a minus sign deletes the field.
+- **`notes`** (optional): the source's remarks on the field, and yaat's where they start `yaat:`.
+- **`na`** (optional): YAAT stores nothing for this field, and why. `AM` and `QF` answer a reference to it with `INVALID FIELD REF`. The rows without `na` are the fields YAAT models.
 
 ### Format notation
 

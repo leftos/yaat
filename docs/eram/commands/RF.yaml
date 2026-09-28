@@ -4,7 +4,8 @@ variants:
     descriptor: PLAN TRANSFER
     format: RF 02* 13 | RF 02 13
     multiple_flids: false
-    handler: not implemented
+    handler: RF.PlanTransfer
+    note: validate and accept only; YAAT has no inter-facility flight-plan transfer (yaat ruling)
     fields:
       - field: 02 Flight Identification
         rule: |

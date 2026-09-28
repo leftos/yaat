@@ -10,6 +10,8 @@
 - ERAM `QT … CT` coasts a track at the entered speed and altitude, on the entered heading or along its route, until `QT` or `QX`.
 - ERAM `HM` and `QH` record a hold (fix, direction, turns, leg and EFC), shown in `QF` and the flight plan CRC displays.
 - ERAM `QT … C` lets the sector a track was pointed out to take the track, clearing that point-out; `/OK` takes it without one.
+- ERAM `QF` reads out only the flight plan fields named before the flight ID, such as `QF ALT BCN AAL123`.
+- ERAM `RF`, `QA` and `QV` check their fields and answer ACCEPT; `RF` is no longer taken for a handoff to a sector named RF.
 
 ### Changed
 
