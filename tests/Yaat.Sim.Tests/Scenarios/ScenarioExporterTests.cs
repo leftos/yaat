@@ -228,6 +228,39 @@ public class ScenarioExporterTests
         Assert.Equal(new ScenarioExportFlag("DAL45", ScenarioExporter.ReasonFixQualifiedAltitude), Assert.Single(result.Flags));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MachOrClassifiedSpeed_ExportsNoSpeed_FlaggedAsLost(bool classified)
+    {
+        AircraftState enRoute = LoadSingle(AirborneJson("DAL45", "IFR", "SUNOL ECA"));
+        if (classified)
+        {
+            enRoute.FlightPlan.SetClassifiedSpeed();
+        }
+        else
+        {
+            enRoute.FlightPlan.SetMach(78);
+        }
+
+        ScenarioExportResult result = Export(enRoute);
+
+        Assert.Equal(0, Assert.Single(result.Scenario.Aircraft).FlightPlan!.CruiseSpeed);
+        Assert.Equal(new ScenarioExportFlag("DAL45", ScenarioExporter.ReasonMachOrClassifiedSpeed), Assert.Single(result.Flags));
+    }
+
+    [Fact]
+    public void BothRemarksParts_ExportAsTheComposedRemarks()
+    {
+        AircraftState enRoute = LoadSingle(AirborneJson("DAL45", "IFR", "SUNOL ECA"));
+        enRoute.FlightPlan.IntrafacilityRemarks = "LOCAL";
+        enRoute.FlightPlan.InterfacilityRemarks = "CHARTS";
+
+        ScenarioExportResult result = Export(enRoute);
+
+        Assert.Equal("LOCAL CHARTS", Assert.Single(result.Scenario.Aircraft).FlightPlan!.Remarks);
+    }
+
     [Fact]
     public void FixQualifiedAltitude_OnAFlaggedAircraft_AddsItsOwnFlag()
     {

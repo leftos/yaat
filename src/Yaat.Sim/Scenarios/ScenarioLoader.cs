@@ -247,7 +247,7 @@ public static class ScenarioLoader
                 Departure = ac.FlightPlan?.Departure ?? "",
                 Destination = ac.FlightPlan?.Destination ?? "",
                 Route = ac.FlightPlan?.Route ?? "",
-                Remarks = ac.FlightPlan?.Remarks ?? "",
+                InterfacilityRemarks = ac.FlightPlan?.Remarks ?? "",
                 EquipmentSuffix = equipmentSuffix,
                 HasFlightPlan = hasFiledFp,
             },

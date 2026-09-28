@@ -266,6 +266,10 @@ public sealed record RecordedAutoTrackChange(double ElapsedSeconds, string Posit
 /// <see cref="ClearBeaconCode"/> deletes the assigned beacon code (the ERAM <c>AM</c> BCN deletion): the code and who
 /// assigned it are cleared, and filing a plan with it draws no discrete code. It is required so that every caller
 /// states it; a <see cref="BeaconCode"/> of 0 is an assignment like any other, not a deletion.
+/// <see cref="CruiseSpeed"/> is a true airspeed, whose 0 keeps a filed Mach or classified speed
+/// (<see cref="AircraftFlightPlan.SetTrueAirspeed"/>). <see cref="Remarks"/> is the whole composed remarks string
+/// (<see cref="AircraftFlightPlan.ReplaceRemarks"/>); <see cref="InterfacilityRemarks"/> and
+/// <see cref="IntrafacilityRemarks"/> amend one part each, <c>""</c> clearing it.
 /// </summary>
 public record FlightPlanAmendment(
     bool ClearBeaconCode,
@@ -287,4 +291,17 @@ public record FlightPlanAmendment(
     PlannedAltitude? RequestedAltitude = null,
     bool? SpecialAircraftIndicator = null,
     int? NumberOfAircraft = null
-);
+)
+{
+    /// <summary>A filed Mach number in hundredths (ERAM <c>AM</c> SPD <c>M078</c>). Null = not edited.</summary>
+    public int? CruiseMach { get; init; }
+
+    /// <summary>Files a classified speed (ERAM <c>AM</c> SPD <c>SC</c>). False = not edited.</summary>
+    public bool ClassifiedSpeed { get; init; }
+
+    /// <summary>The interfacility remarks (ERAM <c>AM</c> RMK after the clear-weather symbol). Null = not edited.</summary>
+    public string? InterfacilityRemarks { get; init; }
+
+    /// <summary>The intrafacility remarks (ERAM <c>AM</c> RMK after the overcast symbol). Null = not edited.</summary>
+    public string? IntrafacilityRemarks { get; init; }
+}

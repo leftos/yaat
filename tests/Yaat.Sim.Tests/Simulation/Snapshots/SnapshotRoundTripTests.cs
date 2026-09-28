@@ -372,7 +372,7 @@ public class SnapshotRoundTripTests
                         Departure = "KOAK",
                         Destination = "KLAX",
                         Route = "",
-                        Remarks = "",
+                        InterfacilityRemarks = "",
                         EquipmentSuffix = "L",
                         FlightRules = "IFR",
                         AltitudeCruiseFeet = 35000,

@@ -31,7 +31,38 @@ public class AircraftFlightPlan
     public string Departure { get; set; } = "";
     public string Destination { get; set; } = "";
     public string Route { get; set; } = "";
-    public string Remarks { get; set; } = "";
+
+    /// <summary>
+    /// ERAM field 11's interfacility remarks (entered after the clear-weather symbol): the remarks a filed plan, a scenario
+    /// and CRC's flight-plan editor carry, and where the VATSIM voice marker (<c>/v/</c>, <c>/r/</c>, <c>/t/</c>) is written.
+    /// </summary>
+    public string InterfacilityRemarks { get; set; } = "";
+
+    /// <summary>ERAM field 11's intrafacility remarks (entered after the overcast symbol), kept within the facility.</summary>
+    public string IntrafacilityRemarks { get; set; } = "";
+
+    /// <summary>
+    /// The remarks as one string, the form CRC, strips, TDLS and the voice-type parse read: the intrafacility remarks, then
+    /// the interfacility remarks, joined by one space when both are non-empty.
+    /// </summary>
+    public string Remarks =>
+        (IntrafacilityRemarks.Length > 0) && (InterfacilityRemarks.Length > 0)
+            ? $"{IntrafacilityRemarks} {InterfacilityRemarks}"
+            : IntrafacilityRemarks + InterfacilityRemarks;
+
+    /// <summary>
+    /// Replaces the remarks with one composed string, as CRC's flight-plan editor sends them back: the same string as
+    /// <see cref="Remarks"/> changes nothing; any other becomes the interfacility remarks and clears the intrafacility ones.
+    /// </summary>
+    public void ReplaceRemarks(string remarks)
+    {
+        if (remarks == Remarks)
+        {
+            return;
+        }
+        InterfacilityRemarks = remarks;
+        IntrafacilityRemarks = "";
+    }
 
     /// <summary>
     /// Monotonically increasing count of flight-plan amendments applied to this
@@ -118,9 +149,51 @@ public class AircraftFlightPlan
     /// Filed cruise speed, parsed from the flight plan and round-tripped through DTOs/snapshots,
     /// but NOT consumed by physics. Controllers don't act on filed cruise speed in real ops, so
     /// the simulation drives target speed off <see cref="AircraftPerformance.DefaultSpeed"/>
-    /// (profile-derived) instead. Kept as a flight plan field for display/scenario fidelity.
+    /// (profile-derived) instead. Kept as a flight plan field for display/scenario fidelity. A true airspeed in knots;
+    /// 0 when none is filed, and always 0 while a <see cref="CruiseMach"/> or a classified speed is filed. Amendments go
+    /// through <see cref="SetTrueAirspeed"/>, <see cref="SetMach"/> and <see cref="SetClassifiedSpeed"/>.
     /// </summary>
     public int CruiseSpeed { get; set; }
+
+    /// <summary>
+    /// ERAM field 05 as a Mach number in hundredths (<c>M078</c> is 78), entered with <c>AM &lt;FLID&gt; SPD M078</c>.
+    /// Null when the filed speed is not a Mach number.
+    /// </summary>
+    public int? CruiseMach { get; private set; }
+
+    /// <summary>ERAM field 05 as a classified speed (<c>SC</c>). The filed speed is withheld, so <see cref="CruiseSpeed"/> is 0.</summary>
+    public bool IsSpeedClassified { get; private set; }
+
+    /// <summary>
+    /// Files a true airspeed, clearing a Mach or classified speed. A 0 while a Mach or classified speed is filed changes
+    /// nothing: CRC's flight-plan editor shows such a plan's speed empty and sends 0 back on every amend.
+    /// </summary>
+    public void SetTrueAirspeed(int knots)
+    {
+        if ((knots == 0) && ((CruiseMach is not null) || IsSpeedClassified))
+        {
+            return;
+        }
+        CruiseSpeed = knots;
+        CruiseMach = null;
+        IsSpeedClassified = false;
+    }
+
+    /// <summary>Files a Mach number in hundredths, clearing a true airspeed or classified speed.</summary>
+    public void SetMach(int hundredths)
+    {
+        CruiseMach = hundredths;
+        CruiseSpeed = 0;
+        IsSpeedClassified = false;
+    }
+
+    /// <summary>Files a classified speed, clearing a true airspeed or Mach number.</summary>
+    public void SetClassifiedSpeed()
+    {
+        IsSpeedClassified = true;
+        CruiseSpeed = 0;
+        CruiseMach = null;
+    }
 
     /// <summary>
     /// ERAM field 09, the requested altitude (the altitude the pilot asked for, distinct from the filed
@@ -159,7 +232,8 @@ public class AircraftFlightPlan
             Departure = Departure,
             Destination = Destination,
             Route = Route,
-            Remarks = Remarks,
+            InterfacilityRemarks = InterfacilityRemarks,
+            IntrafacilityRemarks = IntrafacilityRemarks,
             RevisionNumber = RevisionNumber,
             EquipmentSuffix = EquipmentSuffix,
             IcaoEquipmentCodes = IcaoEquipmentCodes,
@@ -173,6 +247,8 @@ public class AircraftFlightPlan
             AltitudeAfterFixFeet = Altitude.AfterFixFeet,
             AltitudeFixPassed = AltitudeFixPassed,
             CruiseSpeed = CruiseSpeed,
+            CruiseMach = CruiseMach,
+            IsSpeedClassified = IsSpeedClassified,
             RequestedAltitude = RequestedAltitude,
             HasSpecialAircraftIndicator = HasSpecialAircraftIndicator,
             NumberOfAircraft = NumberOfAircraft,
@@ -187,7 +263,8 @@ public class AircraftFlightPlan
             Departure = dto.Departure,
             Destination = dto.Destination,
             Route = dto.Route,
-            Remarks = dto.Remarks,
+            InterfacilityRemarks = dto.InterfacilityRemarks,
+            IntrafacilityRemarks = dto.IntrafacilityRemarks,
             RevisionNumber = dto.RevisionNumber,
             EquipmentSuffix = dto.EquipmentSuffix,
             IcaoEquipmentCodes = dto.IcaoEquipmentCodes,
@@ -206,6 +283,8 @@ public class AircraftFlightPlan
             // After Altitude, whose setter clears the latch.
             AltitudeFixPassed = dto.AltitudeFixPassed,
             CruiseSpeed = dto.CruiseSpeed,
+            CruiseMach = dto.CruiseMach,
+            IsSpeedClassified = dto.IsSpeedClassified,
             RequestedAltitude = dto.RequestedAltitude,
             HasSpecialAircraftIndicator = dto.HasSpecialAircraftIndicator,
             NumberOfAircraft = dto.NumberOfAircraft,

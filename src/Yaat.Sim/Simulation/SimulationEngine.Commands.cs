@@ -375,10 +375,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     private static void ApplyClearanceFields(AircraftState ac, FlightPlanAmendment amendment)
     {
-        if (amendment.CruiseSpeed is not null)
-        {
-            ac.FlightPlan.CruiseSpeed = amendment.CruiseSpeed.Value;
-        }
+        ApplySpeedFields(ac.FlightPlan, amendment);
         if (amendment.Altitude is not null)
         {
             ac.FlightPlan.Altitude = amendment.Altitude;
@@ -397,11 +394,50 @@ public sealed partial class SimulationEngine
             DepartureClearanceHandler.RefreshStoredDepartureClearance(ac);
             DepartureClearanceHandler.RefreshPendingInitialClimbPhases(ac);
         }
+        ApplyRemarksFields(ac, amendment);
+    }
+
+    /// <summary>
+    /// The filed speed: a true airspeed (whose 0 keeps a filed Mach or classified speed), a Mach number or a classified
+    /// speed, each clearing the others (<see cref="AircraftFlightPlan.SetTrueAirspeed"/>).
+    /// </summary>
+    private static void ApplySpeedFields(AircraftFlightPlan plan, FlightPlanAmendment amendment)
+    {
+        if (amendment.CruiseSpeed is { } knots)
+        {
+            plan.SetTrueAirspeed(knots);
+        }
+        if (amendment.CruiseMach is { } mach)
+        {
+            plan.SetMach(mach);
+        }
+        if (amendment.ClassifiedSpeed)
+        {
+            plan.SetClassifiedSpeed();
+        }
+    }
+
+    /// <summary>
+    /// The remarks: the whole composed string (<see cref="AircraftFlightPlan.ReplaceRemarks"/>), then either part on its own.
+    /// Remarks are canonical for voice type: a /v//r//t/ marker (or its absence = full voice) in the composed remarks drives
+    /// the CRC voice-type field. A VATSIM operational convention, not an FAA flight-plan field.
+    /// </summary>
+    private static void ApplyRemarksFields(AircraftState ac, FlightPlanAmendment amendment)
+    {
         if (amendment.Remarks is not null)
         {
-            ac.FlightPlan.Remarks = amendment.Remarks;
-            // Remarks are canonical for voice type: a /v//r//t/ marker (or its absence = full voice) drives
-            // the CRC voice-type field. A VATSIM operational convention, not an FAA flight-plan field.
+            ac.FlightPlan.ReplaceRemarks(amendment.Remarks);
+        }
+        if (amendment.InterfacilityRemarks is not null)
+        {
+            ac.FlightPlan.InterfacilityRemarks = amendment.InterfacilityRemarks;
+        }
+        if (amendment.IntrafacilityRemarks is not null)
+        {
+            ac.FlightPlan.IntrafacilityRemarks = amendment.IntrafacilityRemarks;
+        }
+        if ((amendment.Remarks ?? amendment.InterfacilityRemarks ?? amendment.IntrafacilityRemarks) is not null)
+        {
             ac.Voice.Type = FlightPlanVoice.ParseVoiceType(ac.FlightPlan.Remarks);
         }
     }

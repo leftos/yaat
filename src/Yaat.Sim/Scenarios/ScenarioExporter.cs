@@ -87,6 +87,7 @@ public static class ScenarioExporter
     public const string ReasonOffGlidepath = "aligned with final but off the glidepath";
     public const string ReasonOverThreshold = "over the threshold / landing";
     public const string ReasonFixQualifiedAltitude = "altitude after a fix not exported";
+    public const string ReasonMachOrClassifiedSpeed = "Mach or classified speed not exported";
 
     private static readonly JsonSerializerOptions SerializeOptions = new() { WriteIndented = true };
 
@@ -113,11 +114,7 @@ public static class ScenarioExporter
                 flags.Add(new ScenarioExportFlag(state.Callsign, reason));
             }
 
-            // A scenario flight plan holds one cruise altitude, so a fix-qualified one (170/SJC/110) exports its first.
-            if (!state.IsShadow && state.FlightPlan.HasFlightPlan && state.FlightPlan.Altitude.IsFixQualified)
-            {
-                flags.Add(new ScenarioExportFlag(state.Callsign, ReasonFixQualifiedAltitude));
-            }
+            flags.AddRange(FlightPlanLossFlags(state));
         }
 
         string airport = context.PrimaryAirportId ?? "";
@@ -131,6 +128,26 @@ public static class ScenarioExporter
             Aircraft = exported,
         };
         return new ScenarioExportResult(scenario, flags);
+    }
+
+    /// <summary>
+    /// The flight-plan data a scenario cannot hold: a scenario flight plan has one cruise altitude, so a fix-qualified one
+    /// (170/SJC/110) exports its first, and a true-airspeed cruise speed, so a Mach or classified speed exports as 0.
+    /// </summary>
+    private static IEnumerable<ScenarioExportFlag> FlightPlanLossFlags(AircraftState state)
+    {
+        if (state.IsShadow || !state.FlightPlan.HasFlightPlan)
+        {
+            yield break;
+        }
+        if (state.FlightPlan.Altitude.IsFixQualified)
+        {
+            yield return new ScenarioExportFlag(state.Callsign, ReasonFixQualifiedAltitude);
+        }
+        if ((state.FlightPlan.CruiseMach is not null) || state.FlightPlan.IsSpeedClassified)
+        {
+            yield return new ScenarioExportFlag(state.Callsign, ReasonMachOrClassifiedSpeed);
+        }
     }
 
     /// <summary>Serializes an exported scenario the way <see cref="ScenarioLoader"/> reads it (the model's own property names).</summary>

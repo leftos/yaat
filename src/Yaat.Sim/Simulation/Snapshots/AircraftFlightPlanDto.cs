@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Yaat.Sim.Simulation.Snapshots;
 
 public sealed class AircraftFlightPlanDto
@@ -14,7 +16,16 @@ public sealed class AircraftFlightPlanDto
     public required string Departure { get; init; }
     public required string Destination { get; init; }
     public required string Route { get; init; }
-    public required string Remarks { get; init; }
+
+    /// <summary>
+    /// The interfacility remarks — see <see cref="AircraftFlightPlan.InterfacilityRemarks"/>. Keyed <c>Remarks</c>, the key a
+    /// snapshot written before the remarks split used for the whole remarks, which load here.
+    /// </summary>
+    [JsonPropertyName("Remarks")]
+    public required string InterfacilityRemarks { get; init; }
+
+    /// <summary>The intrafacility remarks — see <see cref="AircraftFlightPlan.IntrafacilityRemarks"/>.</summary>
+    public string IntrafacilityRemarks { get; init; } = "";
     public int RevisionNumber { get; init; }
     public required string EquipmentSuffix { get; init; }
     public string IcaoEquipmentCodes { get; init; } = "";
@@ -36,6 +47,12 @@ public sealed class AircraftFlightPlanDto
     /// <summary>Whether the aircraft has passed <see cref="AltitudeFix"/> — see <see cref="AircraftFlightPlan.AltitudeFixPassed"/>.</summary>
     public bool AltitudeFixPassed { get; init; }
     public required int CruiseSpeed { get; init; }
+
+    /// <summary>Filed Mach in hundredths — see <see cref="AircraftFlightPlan.CruiseMach"/>. Null = none.</summary>
+    public int? CruiseMach { get; init; }
+
+    /// <summary>Classified speed (<c>SC</c>) — see <see cref="AircraftFlightPlan.IsSpeedClassified"/>.</summary>
+    public bool IsSpeedClassified { get; init; }
 
     /// <summary>ERAM requested altitude — see <see cref="AircraftFlightPlan.RequestedAltitude"/>. Null = none entered.</summary>
     public PlannedAltitude? RequestedAltitude { get; init; }
