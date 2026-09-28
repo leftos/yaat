@@ -219,8 +219,8 @@ Paused until we know they earn their keep: M12.7 (achievements), M11.7 (PIREPs),
 After M10.1 + M10.1.1 + M10.2 (text-only with NL ATC):
 
 ```bash
-dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/build.log
-timeout 30 dotnet test --filter "PilotResponder|SoloTraining" 2>&1 | tee .tmp/test.log
+pwsh tools/gate.ps1 -Log .tmp/build.log -TimeoutSeconds 300 -Slot heavy -- dotnet build -p:TreatWarningsAsErrors=true
+pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -- dotnet test -- --filter-class "*PilotResponder*" --filter-class "*SoloTraining*"
 ```
 
 Manual:

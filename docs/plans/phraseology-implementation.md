@@ -26,10 +26,10 @@ For every stage you ship, follow this loop **in order**. The CLAUDE.md project r
 1. **Pick a stage** (see "Stages" below). Read every backlog entry in that stage. Note the FAA citations.
 2. **Validate FAA citations**. For each phrasing, open the cited section in `.claude/reference/faa/7110.65/` or `.claude/reference/faa/aim/` and confirm the exact wording. If a phrasing in the backlog disagrees with the FAA text, **trust the FAA text** — the audit agents made occasional small wording errors.
 3. **Write the failing test FIRST**. New tests go in `tests/Yaat.Sim.Tests/Speech/PhraseologyMapperTests.cs` (or a sibling file). Use existing test patterns — `MapText("…").Should().Be("CANONICAL …")`. Use `TestVnasData.EnsureInitialized()` in the constructor if the test class touches navdata-dependent canonicals (CrossFix needs fix resolution, etc.).
-4. **Run the test, confirm it fails for the right reason.** Don't skip this. `timeout 30 dotnet test --filter "FullyQualifiedName~Phraseology" 2>&1 | tee .tmp/test.log`
+4. **Run the test, confirm it fails for the right reason.** Don't skip this. `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -- dotnet test -- --filter-method "*Phraseology*"`
 5. **Add the rule(s)** to the matching `*Rules()` method in `PhraseologyRules.cs`. Pick the category that aligns with `CommandRegistry` (TowerRules, AltitudeSpeedRules, ApproachRules, GroundRules, PatternRules, etc.). Match existing style: literal tokens lowercased, captures in `{name}`, optional words with `?`.
 6. **Run the test again. Confirm it passes.**
-7. **Run the verbalizer regression suite.** `timeout 30 dotnet test --filter "FullyQualifiedName~Verbalizer" 2>&1 | tee .tmp/test.log`. If you added a rule that introduces a shorter pattern for an already-verbalized canonical, the verbalizer's `PickPreferredRule` may swing and break a pilot-readback test. If something breaks, **do NOT change the test to match the new output** — instead, reorder your new rule below the previously-preferred one (file order matters as a tiebreaker — see `PhraseologyRules.cs:35-51`) or use `SttOnly: true` so the verbalizer skips it.
+7. **Run the verbalizer regression suite.** `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -- dotnet test -- --filter-method "*Verbalizer*"`. If you added a rule that introduces a shorter pattern for an already-verbalized canonical, the verbalizer's `PickPreferredRule` may swing and break a pilot-readback test. If something breaks, **do NOT change the test to match the new output** — instead, reorder your new rule below the previously-preferred one (file order matters as a tiebreaker — see `PhraseologyRules.cs:35-51`) or use `SttOnly: true` so the verbalizer skips it.
 8. **Run the full suite cross-repo.** `pwsh tools/test-all.ps1` — required when you've touched anything in `Yaat.Sim`. Yaat-server has its own tests that link the same Sim assembly.
 9. **Update the backlog.** Move each shipped entry from MissingRule to Covered. Set `Notes: PhraseologyRules.cs:<line>`. Decrement the chapter's MissingRule count and increment Covered in the chapter's `**Ch X totals:**` line. Update the audit-wide table at the bottom.
 10. **Update `CHANGELOG.md`.** One bullet per stage under `## Unreleased`, user-visible language. Example: `add: STT recognizes "cross (fix) at (altitude)" / "at or above" / "at or below" phraseology (FAA 7110.65 §4-5)`. The shipped backlog entries are the substantiation; don't paraphrase dev-speak.
@@ -222,9 +222,9 @@ Each is a product decision: does YAAT model this surface? Write a short proposal
 ## Verification
 
 Before each commit:
-1. `dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/build.log` — zero warnings
-2. `timeout 30 dotnet test --filter "FullyQualifiedName~Speech" 2>&1 | tee .tmp/test.log` — speech-specific tests pass
-3. `pwsh tools/test-all.ps1 2>&1 | tee .tmp/test.log` — cross-repo full suite passes
+1. `pwsh tools/gate.ps1 -Log .tmp/build.log -TimeoutSeconds 300 -Slot heavy -- dotnet build -p:TreatWarningsAsErrors=true` — zero warnings
+2. `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -- dotnet test -- --filter-method "*Speech*"` — speech-specific tests pass
+3. `pwsh tools/gate.ps1 -Log .tmp/test-all.log -TimeoutSeconds 900 -Slot heavy -- pwsh tools/test-all.ps1` — cross-repo full suite passes
 4. `prek run` — pre-commit hooks pass (will run automatically on `git commit` too)
 
 Then commit. Don't push without the user asking.
