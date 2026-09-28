@@ -23,7 +23,7 @@ dropped when the method is re-derived from a paragraph.
       window is the assertion. Every costly loop in this suite has been audited
       and found to be a window invariant. Shortening one silently deletes
       coverage while the test still passes.
-- [ ] **Wins come from per-test CPU, not parallelism.** Measured 2026-09-04:
+- [ ] **Wins come from per-test CPU, not parallelism.** Measured:
       811 s of test-work over 16 workers has a floor of 50.7 s and the suite runs
       in 57.2 s — **~89% scheduling efficiency**. `tools/analyze-test-schedule.py`
       LPT-packs a TRX under both a per-class and a per-test scheduler and finds
@@ -32,7 +32,7 @@ dropped when the method is re-derived from a paragraph.
       re-derive the conclusion from CPU/wall (next bullet).
 - [ ] **CPU/wall is not core utilisation, and not scheduling efficiency.** It
       measures how CPU-bound the tests are. It fell from 14.8× to 8.6× of 16
-      cores over 2026-08/09 while the schedule stayed just as full, because the
+      cores while the schedule stayed just as full, because the
       optimisations removed CPU work (−64%) faster than wall time (−38%).
       Reading that drop as "41% of the machine is idle" nearly reversed a
       recommendation. To ask whether the *scheduler* is leaving capacity on the
@@ -42,7 +42,7 @@ dropped when the method is re-derived from a paragraph.
       the deciding cost depends on the suite's dimensions (class, method and
       parameter-row counts) rather than on what the tests do — compile time under
       a source generator, runner startup — generate a throwaway project of the
-      same shape in both frameworks and measure that. Measured 2026-09-04:
+      same shape in both frameworks and measure that. Measured:
       incremental rebuild 2.1 s vs 7.2 s, gap growing linearly with class count,
       which killed the migration in an hour instead of after 840 files. Compare
       deltas, not absolutes; the stand-in is faithful in shape, not in size.

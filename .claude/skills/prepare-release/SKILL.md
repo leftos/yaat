@@ -77,7 +77,7 @@ Run `git tag --sort=-v:refname | head -5` to find existing release tags.
 ## Step 3: Ask for new version
 Suggest the next version based on the current one. Ask the user what the new version should be, unless the invocation already names the bump.
 
-**The user's bump vocabulary (steer 2026-09-11).** The words map to the three numbers of `major.minor.revision`:
+**The user's bump vocabulary.** The words map to the three numbers of `major.minor.revision`:
 
 | The user says | Bump | Example from `0.12.29-beta` |
 |---|---|---|

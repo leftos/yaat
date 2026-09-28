@@ -35,9 +35,9 @@ Auto-generated from `sfo.geojson` with manual verification. For use in E2E test 
 
 ### Real-world push and tow procedures
 
-Read this before choosing a push to test, scan or tune the planner on: a push the real ramp never flies is not a case worth building for (user, 2026-09-25).
+Read this before choosing a push to test, scan or tune the planner on: a push the real ramp never flies is not a case worth building for.
 
-From the user (2026-09-24/25):
+From the user:
 - Aircraft larger than a B75x (CWT A–E) push only to the middle spot of a three-spot group (spot 7 of 7A/7/7B, likewise 6 and 5), because the outer spots put the wing over the neighbouring lane.
 - Stands D11, E13T/E13K, F10, C10 and C11 normally push back onto taxiway A, not to a spot.
 

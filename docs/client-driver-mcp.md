@@ -18,7 +18,7 @@ Windows only (`net10.0-windows`, `System.Windows.Automation`); `EnableWindowsTar
 - The server's working directory is the repo root, so the relative defaults below resolve there.
 - `launch_yaat` needs a built client: `dotnet build src/Yaat.Client`.
 
-## Rules for a driving session (user, 2026-09-27)
+## Rules for a driving session
 
 - **One driver per application.** YAAT.Client and CRC are single-instance applications, so no two agents drive the same one at the same time. One agent may drive YAAT and CRC together. An orchestrator never dispatches a second agent that would drive an application another running agent is driving; nothing in the server enforces this yet (the plan tracks a lock).
 - **Close what you opened.** A CRC or YAAT client an agent started for a session (through `launch_yaat`, `Start-Process`, or anything else) is stopped by that agent when the session ends, along with any yaat-server it started. A CRC the user already had running is left alone.
@@ -58,7 +58,7 @@ Element ids (`e1`, `e2`, …) come from `list_windows` / `find_elements` / `dump
 
 ## Recording a demo
 
-Used for the #462 push demo (2026-09-25). Run yaat-server from source on `:5130`, `launch_yaat`, then File > Connect > "Local", Room > Create Room, and Scenario > Load Scenario > Local Files with an empty scenario for the airport. Spawn with the carrier named so the type and airline match (`ADD I L J @F8 CRJ7 *SKW`), and name the aircraft in every command (`SKW735 PUSH $7A`); a bare command goes nowhere without a selection. `set_text` on `CommandInput`, then a separate `send_keys {ENTER}`.
+Used for the #462 push demo. Run yaat-server from source on `:5130`, `launch_yaat`, then File > Connect > "Local", Room > Create Room, and Scenario > Load Scenario > Local Files with an empty scenario for the airport. Spawn with the carrier named so the type and airline match (`ADD I L J @F8 CRJ7 *SKW`), and name the aircraft in every command (`SKW735 PUSH $7A`); a bare command goes nowhere without a selection. `set_text` on `CommandInput`, then a separate `send_keys {ENTER}`.
 
 - **Window and view.** Resize the main window without activating it (`SetWindowPos` with `SWP_NOZORDER | SWP_NOACTIVATE`) to a 1920×1080 client area. Zoom by posting `WM_MOUSEWHEEL` to the main window at a screen point, one message per notch; there is no pan tool, so pan by zooming out at one point and back in at another (out at the top and in at the bottom moves the content up). Keep one zoom for takes that will be composited.
 - **Capture.** The `video-capture` skill's `WgcCapture` records the window by handle plus the client process's own audio, which carries the solo pilot's TTS. Recording video and audio as two separate captures and muxing them afterwards avoids the end-of-run stall of one ffmpeg reading both pipes. Start the capture, wait ~3 s, then send the command; push durations are not reported, so size each capture from a first run (a CRJ7 push to an SFO alley spot takes 60–150 s at 1×).

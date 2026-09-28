@@ -136,8 +136,8 @@ accepted. `LV`, `ATFN`, `ONHS` and `OTG` never reach this case: each refuses a m
    the client mirror updated in lockstep — bugs otherwise reproduce only on the typed path. Shared
    predicates (`CompoundPolicy`) remove the drift by construction.
 3. **Dimension-table drift** (#296/#336/#422): `GetCommandDimension` and `GetQueuedCommandDimension`
-   answer two different questions and drifted apart for ~50 verbs. **Closed by construction as of
-   2026-09-08**: the queued side is now declared per verb as `CommandDefinition.QueuedDimension`, a
+   answer two different questions and drifted apart for ~50 verbs. **Closed by construction**:
+   the queued side is declared per verb as `CommandDefinition.QueuedDimension`, a
    `required` property, so the compiler rejects a new command that does not state one. The fired side
    (`GetCommandDimension`) is still a predicate-driven switch; `QueuedDimension_IsNeverBroaderThanFiredDimension`
    in `QueuedCommandDimensionTests` pins the invariant that binds them.

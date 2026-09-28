@@ -691,7 +691,7 @@ LiveTraffic/LiveTrafficSample.cs     # LiveTrafficSample (sim-time observation: 
 LiveTraffic/AircraftLiveTraffic.cs   # Shadow satellite: last sample fields, SecondsSinceSample (dead-reckoning clock), AppliedAtSimSeconds + DeliverySilenceSeconds (freshness clock — coast/removal), IsCoasting, ExternalId
 LiveTraffic/LiveTrafficAssumer.cs    # ASSUME hand-off: shadow → simulated aircraft in place; feed clearances first, then level/climb/descent, hold, final/visual,
                                      # route rejoin (NextFixAhead), initial climb, VFR, runway/surface kinds. Never refused. Also run implicitly by
-                                     # CommandDispatcher.DispatchCompound's shadow gate for any non-SAY command to a shadow (2026-09-08); stamps
+                                     # CommandDispatcher.DispatchCompound's shadow gate for any non-SAY command to a shadow; stamps
                                      # AircraftState.AssumedFromLiveTraffic, the marker UNASSUME (ActionArms.Unassume) requires. See live-traffic.md.
 LiveTraffic/ILiveTrafficFeedPort.cs  # The feed port the host implements (BeginSecond → LiveTrafficFeedSecond, ShadowStatus, EndSecond) + LiveTrafficFeedTrack, LiveTrafficShadowStatus, EmptyLiveTrafficFeedPort (always inert; BareHost/ReplayHost)
 LiveTraffic/LiveTrafficKinematics.cs # CreateShadow / Apply(sample) / Resync(simNow) / Advance(dt): dead-reckons a shadow from its latest sample and writes the air vector (heading+IAS)
@@ -1325,16 +1325,16 @@ SimulationEngine.Tdls.cs       # The vTDLS spine steps (TickAutoTdlsQueue, TickT
                                # DrainStateChangesInto (hands the host what FlightStripState.Changes and TdlsState.Changes accumulated since the last drain,
                                # strips first, then the coordination, bookmark and session-clock dirty flags as OnCoordinationChanged / OnBookmarksChanged / OnSimStateChanged). Decides from engine state alone (the session clock, the ARTCC's TDLS configuration, the world), so every run
                                # kind builds the same DCL/PDC lists.
-SimulationEngine.Bookmarks.cs  # The bookmark bodies (crossed from yaat-server 2026-09-08): AddBookmark(timeSeconds, name, initials) / RenameBookmark / DeleteBookmark /
+SimulationEngine.Bookmarks.cs  # The bookmark bodies: AddBookmark(timeSeconds, name, initials) / RenameBookmark / DeleteBookmark /
                                # DeleteAllBookmarks over SimScenarioState.Bookmarks + NextBookmarkId (MaxBookmarks 500, the id in the result Message), each marking the
                                # bookmark dirty flag that DrainStateChangesInto hands the host as OnBookmarksChanged. Bookmarks stay out of the snapshot on purpose (a
                                # rewind carries them over) and BM is RecordingPolicy.Never. The server's RoomEngine.AddBookmark/RenameBookmark/DeleteBookmark wrappers
                                # (the desktop client's bookmark RPCs, explicit timeSeconds) call these then drain, so a paused room still broadcasts
-SimulationEngine.Transport.cs  # The session-clock bodies (crossed from yaat-server 2026-09-08): Pause() / Resume() / SetSimRate(int) over SimScenarioState.IsPaused /
+SimulationEngine.Transport.cs  # The session-clock bodies: Pause() / Resume() / SetSimRate(int) over SimScenarioState.IsPaused /
                                # SimRate (clamped 1..16; refused while LiveTrafficEnabled; (false, "No active scenario") without one), each marking the sim-state dirty flag
                                # (OnSimStateChanged → the host's BroadcastSimState). The unattended-pause and rewind paths still write IsPaused directly and broadcast
                                # themselves. PAUSE/UNPAUSE/SIMRATE stay RecordingPolicy.Never — a rewind must never pause itself
-SimulationEngine.Asdex.cs      # The recorded CRC ASDE-X / SAID display mutations (crossed from yaat-server 2026-09-08): ApplyAsdexMutation /
+SimulationEngine.Asdex.cs      # The recorded CRC ASDE-X / SAID display mutations: ApplyAsdexMutation /
                                # ApplySaidMutation (tag / terminate / suspend / inhibit / edit onto AircraftStarsState through TrackEngine.SetAsdexField +
                                # the SetSaidField / HandleSaidVerb twins; a Terminate tells the host once — OnAsdexTrackTerminated / OnSaidTrackTerminated —
                                # so the room's one-shot delete marker fires) and EnableAllAsdexAlerts (ASDXALERTS, a per-aircraft sweep, a Sim arm). A CRC
@@ -1353,12 +1353,12 @@ SimulationEngine.DisconnectCoast.cs # The disconnect-coast lifecycle as Sim stat
                                # the destination) — and replaces any standing entry; TickDisconnectCoastExpiry (post-physics Sim step after the host's
                                # SurfaceCoastExpiry) expires facets on sim time and hands the host OnDisconnectCoastExpired; AfterAircraftSpawned (and SpawnShadow,
                                # for a live-feed shadow) clears a re-spawned callsign's entry, drained as OnDisconnectCoastsCleared. The server's coast stores still drive every CRC display
-SimulationEngine.Eram.cs       # The ERAM CRR-group definitions (crossed from yaat-server 2026-09-08): CrrGroups (label → EramCrrGroup, case-insensitive) and
+SimulationEngine.Eram.cs       # The ERAM CRR-group definitions: CrrGroups (label → EramCrrGroup, case-insensitive) and
                                # ApplyCrrGroup(RecordedEramCrrGroup) — create/replace/recolor, null latitude = delete — marking the dirty flag DrainStateChangesInto
                                # hands the host as OnEramCrrGroupsChanged (the room re-pushes the whole EramCrrGroups topic; a delete is still the CRC handler's
                                # own additive-topic removal). Applied from ActionRouter.ApplyStateRecordCore on every run kind, so a Sim replay has the groups;
                                # snapshotted as ServerSnapshotDto.CrrGroups; cleared by ReplayDriver's t=0 block
-SimulationEngine.Coordination.cs # The coordination bodies (crossed from yaat-server 2026-09-07): TickCoordinationTimers (post-physics: an acknowledged release voids
+SimulationEngine.Coordination.cs # The coordination bodies: TickCoordinationTimers (post-physics: an acknowledged release voids
                                # CoordinationAckExpirySeconds after the ack, flags DepartureExpirationWarning at CoordinationExpiryWarningSeconds remaining, a
                                # recalled item reverts to Unsent after CoordinationRecallLingerSeconds — SimScenarioState constants), RemoveCoordinationOnRadarAcquisition
                                # (the Track arm's tail: a TRACK voids the aircraft's items), InitializeCoordinationChannelsFromArtcc (Scenario.CoordinationChannels
@@ -1437,10 +1437,10 @@ StepId.cs                      # One member per step, in spine order; the trace'
                                # track-automation steps emit so they reach the room the same second
 SpineStep.cs                   # One list entry: a sim step (engine body, gets only IHostConsumers) or a host step (gets only IHostSteps)
 IHostSteps.cs                  # The host's step view — every server-owned body as a named member, no defaults (a new member breaks every host); header lists the
-                               # step-4 debt — none left: LiveTrafficSync became SimulationEngine.TickLiveTrafficSync over IHostConsumers.LiveTrafficFeed (04e). CoordinationTimers and TowerLists moved out 2026-09-07 (SimulationEngine.TickCoordinationTimers / TickTowerLists). The two strip auto-print passes (AutoArrivalStrips/
+                               # step-4 debt — none left: LiveTrafficSync became SimulationEngine.TickLiveTrafficSync over IHostConsumers.LiveTrafficFeed (04e). CoordinationTimers and TowerLists moved out (SimulationEngine.TickCoordinationTimers / TickTowerLists). The two strip auto-print passes (AutoArrivalStrips/
                                # AutoApproachDepartureStrips) and the four TDLS tick steps (AutoTdlsQueue/TdlsAutoWilco/TdlsExpiry/TdlsTrackRemoval) moved
                                # out — they're Sim steps now, engine bodies in SimulationEngine.Strips.cs / SimulationEngine.Tdls.cs. AsdexAlerts moved out
-                               # 2026-09-20 (SimulationEngine.TickAsdexAlerts)
+                               # (SimulationEngine.TickAsdexAlerts)
 IHostConsumers.cs              # The host's consumer view — OnPrePhysics / OnTerminalEntries / OnConflictAlerts / the drains / OnStripsChanged / OnTdlsChanged / OnCoordinationChanged
                                # (IStateChangeConsumer, shared with IActionHost) for what the strip, TDLS and coordination mutations touched
 IStateChangeConsumer.cs        # Where a drained StripChangeSet / TdlsChangeSet and the coordination dirty flag (OnCoordinationChanged, payload-less) go. Declared on its own because both halves of a host reach it: the action
@@ -1493,7 +1493,7 @@ ActionArms.cs                  # The Sim bodies: Aviation (ParseCompound → Rea
                                # TrackEngine.DispatchGlobal), GhostTrack (a created phantom is handed to OnAircraftSpawned), Reposition, SquawkAll, HFR/HFROFF/REL (baked jitter else ReleaseJitterRng), Cfr (baked clock else now),
                                # Timer, TaxiAll, AddAircraft (SimulationEngine.AddAircraft; bakes the spawned aircraft onto a fresh record),
                                # Consolidate/Deconsolidate (SimulationEngine.Consolidate / Deconsolidate; OnConsolidationChanged),
-                               # Coordination/GlobalCoordination (CoordinationCommandHandler.Handle / HandleGlobal over the engine — Sim arms since 2026-09-07)
+                               # Coordination/GlobalCoordination (CoordinationCommandHandler.Handle / HandleGlobal over the engine — Sim arms)
 IActionHost.cs                 # The action-path view of a host, part of ISimulationHost and IStateChangeConsumer: no Apply* slot is left — every
                                # recorded state change has an engine body — only the consumers a Sim arm or applier notifies (OnAircraftSpawned, OnAircraftDeleted(callsign, lastState),
                                # OnPositionSelected(conn, owner, tcpCode), OnGhostOverlayRemoved, OnAsdexTrackTerminated, OnStripsChanged(StripChangeSet) /
@@ -1619,11 +1619,10 @@ CoordinationCommandHandler.cs  # Static dispatch for the aircraft-scoped verbs (
 
 # Simulation/Bookmarks/ — timeline-bookmark verb logic, engine-owned (SimulationEngine.Bookmarks.cs owns the bodies + dirty flag)
 BookmarkCommandHandler.cs      # Static dispatch of BM ADD / RENAME / DELETE / DEL ALL (HandleAdd/HandleRename/HandleDelete/HandleDeleteAll) onto the engine bodies;
-                               # ADD stamps the scenario's ElapsedSeconds. Sim arm since 2026-09-08 (was the IActionHost.ApplyBookmark slot)
+                               # ADD stamps the scenario's ElapsedSeconds. Sim arm
 
 # Simulation/Transport/ — session-clock verb logic, engine-owned (SimulationEngine.Transport.cs owns the bodies + dirty flag)
-TransportCommandHandler.cs     # Static dispatch of PAUSE / UNPAUSE / SIMRATE onto SimulationEngine.Pause/Resume/SetSimRate. Sim arm since 2026-09-08 (was the
-                               # IActionHost.ApplyTransport slot)
+TransportCommandHandler.cs     # Static dispatch of PAUSE / UNPAUSE / SIMRATE onto SimulationEngine.Pause/Resume/SetSimRate. Sim arm
 
 # Simulation/Oracle/ — state-equivalence between run kinds (docs/tick-loop.md, ADR 0004). Driver: yaat-server TickOracleTests.
 SnapshotTreeDiff.cs            # Parallel JsonNode walk over two StateSnapshotDto captures -> one SnapshotDivergence per differing leaf, at the JSON-pointer path.
@@ -1648,7 +1647,7 @@ ScenarioSnapshotDto.cs         # SimScenarioState DTO: queues, generators, setti
                                # ActiveAsdexAlerts (List<AsdexSafetyAlertDto>, ordinal-sorted by id; null-absent, no schema bump — a restore replaces, so null restores as an empty set)
 ServerSnapshotDto.cs           # Server-side state: consolidation overrides, conflict alerts, beacon code pool, position selections, attended CRC
                                # positions, the flight strips (Strips) + vTDLS session (Tdls), the tower-list dwell entries (TowerLists, schema 23) and the
-                               # ERAM CRR group definitions (CrrGroups, 2026-09-08; membership rides each aircraft's ERAM state) — all null-absent in a
+                               # ERAM CRR group definitions (CrrGroups; membership rides each aircraft's ERAM state) — all null-absent in a
                                # pre-feature snapshot, which restores empty
 FlightStripSnapshotDto.cs      # Every strip, the bay/rack layout, both printer queues and the blank-id counter
 FlightStripSnapshotMapper.cs   # FlightStripState ⇄ FlightStripSnapshotDto. Restore replaces, never merges — the snapshot is the whole strip state

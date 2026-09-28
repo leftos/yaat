@@ -130,7 +130,7 @@ A non-empty staged diff is a formatting fix the hooks applied: commit it onto
 `pr-<PR>` (`chore: apply pre-commit formatting to <file>`) before going on. A
 hook that *fails* (`dotnet format style`, the build) is a real defect in the
 PR — fix it as you would your own code. This ranged form was verified against
-the #444 file on 2026-09-21: it reformatted and staged the fix; a bare
+the #444 file: it reformatted and staged the fix; a bare
 `prek run` on the same branch passed vacuously.
 
 Then add the changelog commit with the `changelog-and-commit` skill, and push
@@ -211,8 +211,8 @@ repo — #333 ↔ #334, whose pinned `base.sha` sits 273 commits behind `main`.
 
 The mutating ones (`gh pr ready`, `git fetch origin pull/N/head:…`,
 `git rebase`, `git push --force-with-lease`, `gh pr merge --merge
---delete-branch`) ran from this file for the first time on #428 (2026-09-10,
-from a session worktree), all cleanly, including the CHANGELOG conflict
+--delete-branch`) have run from this file on #428 (from a session worktree),
+all cleanly, including the CHANGELOG conflict
 resolution above. `gh pr close` has still not been run from here; its shape comes
 from the session that closed a superseded draft. Read the flags before running
 one, and prefer the `--check`/`--dry-run` form first where the command has one.

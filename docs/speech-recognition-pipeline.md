@@ -98,8 +98,8 @@ depend on LM-Kit and PortAudio native libraries.
   fine-tune** (ggml conversion by borisdiakur, MIT; loaded via the HF
   resolve URL in `LmKitModelCatalog.RecommendedWhisperId` — the engine's
   URI path downloads it into LM-Kit's cache on first use, ~1.5 GB).
-  Chosen over `whisper-large-turbo3` by the `--eval` corpus A/B
-  (2026-07-30): mean WER 8.3% vs 18.1% on real mic captures (29/30 vs
+  Chosen over `whisper-large-turbo3` by the `--eval` corpus A/B:
+  mean WER 8.3% vs 18.1% on real mic captures (29/30 vs
   15/30 on the synthetic controller corpus), warm STT ~230 ms vs
   ~370 ms on an RTX 4090, and it natively resolves ATC-cadence mishears
   ("descendant maintain", "to 7-0") the generic model needed the
@@ -133,7 +133,7 @@ depend on LM-Kit and PortAudio native libraries.
   sacrificial (common English Whisper knows unbiased); the number/digit
   and NATO blocks sit at the end where they survive. A test pins the
   ordering (`Default_NumberVocabularyComesAfterRuleLiterals`).
-- **Re-validated against the ATC-fine-tune default (2026-07-30)** via
+- **Re-validated against the ATC-fine-tune default** via
   `--eval --prompt none`: with the prompt, 30/30 synthetic + 2/2 real
   canonical-exact; without it, 29/30 — the miss hallucinated an extra
   `DCT LAS` clause, the dangerous failure mode. Keep the prompt. Noted
@@ -468,7 +468,7 @@ at startup with `WhisperBiasingPrompt.Default` to match production.
   session folder (`audio.wav` + `session.json`) into the corpus, run
   `--eval` once (it writes an unreviewed `expected.json` stub from the
   session), review the labels, and delete the `"unreviewed"` flag.
-  Both real-audio regressions fixed on 2026-07-30 ("descendant
+  Two real-audio regressions ("descendant
   maintain" → wrong-direction CM, "heading to 7-0" → dropped FH clause)
   were found by exactly this loop.
 - Tests that exercise navigation fixes rely on

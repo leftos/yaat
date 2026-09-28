@@ -48,7 +48,7 @@ Read the scope's actual content (`git diff --cached -- <paths>` for pre-staged, 
 
 ## Step 2b: Reconcile the main plan
 
-List the unchecked items in `docs/plans/MAIN.md` (`rg -n "^\s*- \[ \]" docs/plans/MAIN.md`, plus the subplans it links for the work in scope). Every item this diff resolves, or that a prior commit of this session resolved and that outlived its fix, is **deleted**, never ticked: MAIN.md keeps no `[x]` items (steer 2026-09-14), git history is the record. A multi-part item has the shipped part trimmed from its text and is deleted when the last part lands; a tracking item broader than the diff stays open with the landed part recorded. The plan file joins the commit scope, and the announcement names the outcome (`Plan: 2 items closed — <item>, <item>` or `Plan: nothing to reconcile`); a silent pass reads as a skipped step.
+List the unchecked items in `docs/plans/MAIN.md` (`rg -n "^\s*- \[ \]" docs/plans/MAIN.md`, plus the subplans it links for the work in scope). Every item this diff resolves, or that a prior commit of this session resolved and that outlived its fix, is **deleted**, never ticked: MAIN.md keeps no `[x]` items, git history is the record. A multi-part item has the shipped part trimmed from its text and is deleted when the last part lands; a tracking item broader than the diff stays open with the landed part recorded. The plan file joins the commit scope, and the announcement names the outcome (`Plan: 2 items closed — <item>, <item>` or `Plan: nothing to reconcile`); a silent pass reads as a skipped step.
 
 ## Step 3: Mode, fresh or iterate
 
@@ -59,7 +59,7 @@ In iterate mode the new bullets coexist with the existing ones under four rules:
 - A genuinely new topic gets its own bullet.
 - Work that extends or supersedes a bullet already in the section modifies that bullet to describe the current end state; no second bullet.
 - Work that reverts something already bulleted drops that bullet.
-- A fix to something first added or changed in this same unreleased section is never a `### Fixed` bullet: nothing is fixed for a reader who never saw it broken (user, 2026-09-20). Fold what the fix makes true into the bullet that introduced the thing, if that bullet does not already imply it, and write nothing under Fixed. `### Fixed` is for behaviour that shipped broken in a tagged release; the test for each would-be Fixed bullet is `git tag --contains <the commit that introduced the behaviour>`, and no tag means fold or drop.
+- A fix to something first added or changed in this same unreleased section is never a `### Fixed` bullet: nothing is fixed for a reader who never saw it broken. Fold what the fix makes true into the bullet that introduced the thing, if that bullet does not already imply it, and write nothing under Fixed. `### Fixed` is for behaviour that shipped broken in a tagged release; the test for each would-be Fixed bullet is `git tag --contains <the commit that introduced the behaviour>`, and no tag means fold or drop.
 
 **Consolidate the section, not just your own bullets.** A section drafted a commit at a time drifts into two bullets about one feature's successive states, or a Fixed bullet under a feature the same section adds. Touching the section means folding those in the same edit and naming the fold in the announcement, so the section always reads as the difference between the last release and now, never as the history of getting there.
 
@@ -71,7 +71,7 @@ One sentence per bullet, at most 25 words, stating what works now (`CTOC` after 
 - The audience is instructors and students: no framework names (Velopack, Avalonia, SignalR, MessagePack), no class, method, property or file names, no exception types or subsystem names. Command names and UI vocabulary stay (`CTOC`, the "Update Now" button, the command bar, Help → About).
 - Match the file's existing voice (imperative or noun phrase) and its sub-headings (`### Added`, `### Fixed`, `### Changed`), inventing neither.
 - No SHAs, author names, issue numbers or superlatives unless the file already carries them.
-- One bullet per distinct user-visible change, never one per bug or per batch (user, 2026-09-10: "don't bundle disparate changes in the same bullet, even if they came from the same bug"): a change a reader could miss inside another bullet, or revert on its own, is its own bullet.
+- One bullet per distinct user-visible change, never one per bug or per batch, even when disparate changes came from the same bug: a change a reader could miss inside another bullet, or revert on its own, is its own bullet.
 
 ## Step 5: Announce, then continue in the same turn
 

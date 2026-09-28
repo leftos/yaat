@@ -22,7 +22,7 @@ Each `{roomId}.checkpoint.zip` contains:
 | `actions.json.br` | Full `ActionLog` (rewind/export) |
 | `terminal-log.json.br` | `TerminalLog` (omitted when empty) |
 | `bookmarks.json` | Shared timeline bookmarks, in the same `RecordingBookmarks` payload a recording export writes (omitted when the room has none). Ids are restored verbatim; the id counter is not archived, so the restore resumes it one past the highest restored id |
-| `snapshot-final.json.br` | Live `StateSnapshotDto` at save time — including the strips and the vTDLS session (`ServerSnapshotDto.Strips` / `.Tdls`, since 2026-09-07) and the ASDE-X safety-logic configuration and standing alerts (`ScenarioSnapshotDto.AsdexSafetyLogicConfig` / `.ActiveAsdexAlerts`) |
+| `snapshot-final.json.br` | Live `StateSnapshotDto` at save time — including the strips and the vTDLS session (`ServerSnapshotDto.Strips` / `.Tdls`) and the ASDE-X safety-logic configuration and standing alerts (`ScenarioSnapshotDto.AsdexSafetyLogicConfig` / `.ActiveAsdexAlerts`) |
 | `room-state.json.br` | ASDEX / SAID surface temp data, presets and seeded-facility markers, ERAM prefs, line numbers, assignments by CID (`RoomStateSnapshotDto`; strips, TDLS, the ASDE-X safety-logic configuration and the standing ASDE-X alerts are in the Sim snapshot instead) |
 | `weather.json` / `artcc-config.json.br` | Optional bundled weather and ARTCC config |
 

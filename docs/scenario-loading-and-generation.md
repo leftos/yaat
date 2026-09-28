@@ -420,8 +420,8 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
     a final/landing/low-approach phase, or tracking within 45° of the landing course toward the landing threshold) or is inbound to land
     on this runway whatever its track (`IsInboundToLand` plus its assigned or active-approach runway — a wide intercept or a
     base leg inside the band). A departure turned out along the extended centreline, or climbing out with its departure
-    runway assigned, is not an arrival: before this rule, an outbound VFR departure turned `FH 110` down OAK 30's final
-    pushed the S2-OAK-P stream to 28–48 NM (2026-09-17). `D` is capped at `MaxDistance`: if no room exists within the cap
+    runway assigned, is not an arrival: without this rule, an outbound VFR departure turned `FH 110` down OAK 30's final
+    pushes the S2-OAK-P stream to 28–48 NM. `D` is capped at `MaxDistance`: if no room exists within the cap
     the spawn **waits** (defers via `SpawnRetryBackoffSeconds`) rather than exceeding it. An empty corridor has no
     `rearmost`, so the arrival spawns exactly at `InitialDistance` — the cold start needs no special case.
   - **Spawn clear of non-arrival traffic** (`IsArrivalSpawnClearOfTraffic`): the spawn point and altitude at `D`
@@ -432,7 +432,7 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
     debug line names the blocker). Those corridor arrivals sit at least the binding gap (≥ 3 NM) ahead along the course, so
     checking them could only hold the spawn through floating-point error. Everything else is checked, including a hold near
     the FAF, an arrival joining from outside the 2 NM band, and another runway's stream (parallel finals ~2–3 NM apart may get
-    a small stagger — acceptable; aviation review 2026-09-17). 3 NM / 1,000 ft is the strictest IFR standard (§5-5-4.a,
+    a small stagger — acceptable per aviation review). 3 NM / 1,000 ft is the strictest IFR standard (§5-5-4.a,
     §4-5-1.a), so a student never inherits a spawn-made bust in any airspace class. The check is a snapshot, with no
     look-ahead for a converging aircraft. The category for the altitude comes from `AircraftGenerator.CategoryFor(engine)`,
     because the type is not drawn until the spawn.
@@ -474,8 +474,8 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
     `vMin = min(leaderGS, leaderVref × min(1, leaderGS/leaderIAS))`, so the follower may fly
     `vMin × (followerDist − target) / max(leaderDist, 0.1)` in ground speed, converted to IAS with its own IAS/GS ratio. With
     Vref as the lower bound, gap ≥ target holds throughout the leader's remaining run.
-  - The result is the larger of the two terms, clamped to `[followerVref, followerScheduledSpeed]`. Before the allowance, the
-    +20 kt cap pinned a follower 26 NM behind a leader on 2 NM final to 164 kt (S2-OAK-P, 2026-09-17).
+  - The result is the larger of the two terms, clamped to `[followerVref, followerScheduledSpeed]`. Without the allowance, the
+    +20 kt cap would pin a follower 26 NM behind a leader on 2 NM final to 164 kt (S2-OAK-P).
 
   **One threshold datum per runway.** Every distance and every "on final" verdict in this pass and in
   `ApplySameRunwayArrivalProtection` is measured from the runway's **landing** threshold
@@ -548,8 +548,8 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
   `ControlTargets.SpeedCommandIsControllerIssued`, distinguished from a scenario preset via `DispatchContext.IsScenarioScripted`,
   because a preset `AT <fix> SPD <n>` is scenario scripting rather than a controller taking authority. Floors at the §5-7-3.c
   figures (turbojet 210/170, recip+turboprop 200/150, helicopter 60), **not** at Vref, while the simulated *approach* controller
-  owns the aircraft — Vref asserts a configuration the aircraft does not have that far out. Two extensions (user steer 2026-09-17,
-  the S1-SFO-2 bundle again: WJA1508 delivered 67 s behind an E75L that needed 80 s):
+  owns the aircraft — Vref asserts a configuration the aircraft does not have that far out. Two extensions (from
+  the S1-SFO-2 bundle: WJA1508 delivered 67 s behind an E75L that needed 80 s):
   - **Pre-clearance engagement.** Stream membership resolves the runway from `Phases.AssignedRunway`, else from
     `Approach.Expected` / `Procedure.DestinationRunway` via `ApproachCommandHandler.ResolveApproach` (`ResolveArrivalRunway`,
     memoized per airport+hint). An airborne aircraft with no phase of its own, established on that runway's final course
@@ -575,7 +575,7 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
     attributed to the scenario's tower position for that airport (`Scenario.AtcPositions` classified `TWR`), else the AI
     local-control contact, else `TWR` (`ResolveTowerLabel`); it names no figure, so the 5-kt rounding applies to the approach
     line only.
-  - **Who may adjust where** (user-prescribed, 2026-09-17). The simulated *approach* controller issues a new adjustment only
+  - **Who may adjust where.** The simulated *approach* controller issues a new adjustment only
     outside `TowerSpeedAuthorityNm` and only while nobody else owns the speed — `HasOtherSpeedAuthority`: a controller-issued
     speed, deleted restrictions, or the student owning the track. The student taking the track (a tower student's accepted
     handoff) does not release the speed: `HandOverSameRunwayProtection` clears the pass's ownership fields and leaves
@@ -614,9 +614,9 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
     TWR value — and the session flyout greys the toggle (`MainViewModel.SessionAutoArrivalSpacingApplies`) for an APP or CTR
     student. v0.13.1 shipped TWR on and saved it to every preferences file, so `UserPreferences.MigratePreferences` resets it
     to off once for a file with no `preferencesVersion` (v0 → v1); later user choices are kept.
-  Speed is still its only actuator; a real TRACON would vector first (§5-7-1.a.1). Aviation-reviewed 2026-09-16 against
-  §3-10-3, §3-10-6, §5-5-4, §5-7-1, §5-7-3; the 10 NM tower hand-off and the FAS instruction were prescribed by the user (a
-  controller) on 2026-09-17.
+  Speed is still its only actuator; a real TRACON would vector first (§5-7-1.a.1). Aviation-reviewed against
+  §3-10-3, §3-10-6, §5-5-4, §5-7-1, §5-7-3; the 10 NM tower hand-off and the FAS instruction are a working
+  controller's practice.
 - **`ProcessTriggers`** (`:1994`) — fires `ScheduledTrigger`s whose `FireAtSeconds` elapsed via `ExecuteGlobalCommand`, which
   only handles the global squawk commands (`SQALL`/`SNALL`/`SSALL`).
 - **`ProcessTimedPresets`** (`:1931`) — fires `ScheduledPreset`s whose `FireAtSeconds` elapsed: parses the command with
@@ -723,10 +723,10 @@ The division of labour:
   `SimScenarioState` (same setting names and value formats as the setters, so `ApplySettingChange` applies them unchanged;
   `MetarReissuanceEnabled` is excluded because it travels on the weather record and the manifest). Only the live load records —
   a rewind or restart replays the log it already holds, so `PopulateRoom` must not. Why it matters: `RoomEngine.CreateTempReplayEngine`
-  builds a brand-new `TrainingRoom` for the export's snapshot regeneration, so before this every exported bundle's snapshots
-  were generated under default settings — the S2-OAK-4 bundle of 2026-09-06 spoke "going around, traffic on the runway" at
+  builds a brand-new `TrainingRoom` for the export's snapshot regeneration, so without it an exported bundle's snapshots
+  are generated under default settings — the S2-OAK-4 bundle spoke "going around, traffic on the runway" at
   t=1100 in its terminal log while its own snapshots had `AutoGoAroundOnOccupiedRunway: false` and went around at t≈1108
-  from the no-clearance gate. Pinned by `SeededSessionSettingsRecordingTests`. Bundles exported before 2026-09-08 cannot be
+  from the no-clearance gate. Pinned by `SeededSessionSettingsRecordingTests`. A bundle exported without the t=0 record cannot be
   repaired; a hand-injected t=0 record in `actions.json.br` plus a snapshot regeneration is the only route.
 - **`ApplyTo` must run before `DispatchPresetCommands`, not just somewhere in the reload.** A preset `TAXI` resolves its
   route — and runs `TaxiRouteAutoCross.Apply` against `AutoCrossRunway` — inside `PopulateRoomForRewind` itself, so seeding

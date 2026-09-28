@@ -2,13 +2,13 @@
 <!-- plan-doc-hygiene: 2026-09-27 11b7efc1 yaat-server@c4407f0e -->
 <!-- triage-open-issues: 2026-09-21T06:31:25Z -->
 
-Entry point for `docs/plans/`. One line per item; the detail lives in the linked subplan. Finished items and finished plans are deleted, never left ticked (steer 2026-09-14) — git history is the record (a plan whose rationale or status table still has reference value is promoted into `docs/` instead). Issue-specific plans live in [`open-issues/`](./open-issues/) and are deleted once implemented.
+Entry point for `docs/plans/`. One line per item; the detail lives in the linked subplan. Finished items and finished plans are deleted, never left ticked — git history is the record (a plan whose rationale or status table still has reference value is promoted into `docs/` instead). Issue-specific plans live in [`open-issues/`](./open-issues/) and are deleted once implemented.
 
-**Order of work (steer 2026-09-07):** bug reports and feature requests — usually open GitHub issues — come first and ship in hotfix releases. The programmes below them run in the background and release with a non-hotfix. A fresh agent starts at **Bug reports and feature requests**, then the **Current programme**; **Backlog** is unscheduled findings with no report behind them. Folding the open tracker into this file is the `triage-open-issues` skill.
+**Order of work:** bug reports and feature requests — usually open GitHub issues — come first and ship in hotfix releases. The programmes below them run in the background and release with a non-hotfix. A fresh agent starts at **Bug reports and feature requests**, then the **Current programme**; **Backlog** is unscheduled findings with no report behind them. Folding the open tracker into this file is the `triage-open-issues` skill.
 
 ## Bug reports and feature requests
 
-**Steer (user 2026-09-26): ERAM first.** ERAM conformance landed 2026-09-28 (Waves 0–5; the reference and its rulings live in [`docs/eram/`](../eram/README.md)). The ERAM follow-up singles under **Singles** (TrackOwner facility veto, AM leftovers, `RemainingRouteFixes`, the hold rules into Yaat.Sim, `QT /OK`, `IsRecipientSuppressed`, the CO/STCA leftovers, `CASUP` per alert) count as ERAM work (user 2026-09-27) and come before other items.
+**ERAM first.** ERAM conformance landed 2026-09-28 (Waves 0–5; the reference and its rulings live in [`docs/eram/`](../eram/README.md)). The ERAM follow-up singles under **Singles** (TrackOwner facility veto, AM leftovers, `RemainingRouteFixes`, the hold rules into Yaat.Sim, `QT /OK`, `IsRecipientSuppressed`, the CO/STCA leftovers, `CASUP` per alert) count as ERAM work (user 2026-09-27) and come before other items.
 
 **In flight — land this first (paused 2026-09-27; the worktree pair holds uncommitted, green work):**
 
@@ -31,7 +31,7 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 ## Backlog — waves
 
-Findings and small items with no subplan and no report behind them, grouped (plan hygiene 2026-09-17) into waves a release can be built around: a wave's items share files and one review gate, so one implementer reads those files once. Take a wave top to bottom, or a whole wave as one release; the Singles share nothing and go one at a time.
+Findings and small items with no subplan and no report behind them, grouped into waves a release can be built around: a wave's items share files and one review gate, so one implementer reads those files once. Take a wave top to bottom, or a whole wave as one release; the Singles share nothing and go one at a time.
 
 ### Wave 1 — Ground realism and braking
 

@@ -222,7 +222,7 @@ restarting controller's connection, so they get new ids and every later rewind o
 (`ServerSnapshotDto.Strips`, `FlightStripSnapshotMapper`), and a rewind or bundle reconstruction
 rebuilds it from the recorded strip requests plus the engine's auto-print bodies, after which the room
 re-pushes the result to its clients (`RecordingManager.ResyncEngineStateAsync`). The mutation bodies are
-the engine's too (since 2026-09-07): `StripMutations`, `StripCommandHandler` (static, over the engine) and
+the engine's too: `StripMutations`, `StripCommandHandler` (static, over the engine) and
 `StripRequests` in `src/Yaat.Sim/Simulation/Strips/`, the auto-print steps as
 `SimulationEngine.TickAutoArrivalStrips` / `TickAutoApproachDepartureStrips`, the deferred dispatch as
 `TickStripDispatches`, the spawn hook as `AfterAircraftSpawned` and the amendment reprint as

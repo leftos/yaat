@@ -93,9 +93,9 @@ status flips on the issuer's vTDLS tab
   on manual `TDLSW` or on Dump/expiry.
 - **`Changes`** — the broadcast seam (`TdlsChangeTracker`): every mutation records
   the ids it touched, the items it removed and whether a full state is owed. Not
-  snapshotted; the host drains it (below). `SimulationEngine.AmendFlightPlan` marks the aircraft's items too
-  (2026-09-08): the item DTO carries no flight-plan copy — `DtoConverter.BuildTdlsFlightPlanInfo` reads the live
-  `AircraftState` at broadcast time — so an amendment only needed the dirty mark the strip reprint already had.
+  snapshotted; the host drains it (below). `SimulationEngine.AmendFlightPlan` marks the aircraft's items too:
+  the item DTO carries no flight-plan copy — `DtoConverter.BuildTdlsFlightPlanInfo` reads the live
+  `AircraftState` at broadcast time — so an amendment needs only the dirty mark the strip reprint already has.
 
 `TdlsItemRecord` (mirrors `TdlsItemDto` on the wire):
 
@@ -193,7 +193,7 @@ and `TdlsItemRecord` is the simulation's model: `Status` is the Sim enum `TdlsIt
 `SentPayload` the Sim record `TdlsClearance` (the nine canonical `TDLSS` fields). The CRC wire
 types `TdlsStatus` and `ClearanceDto` stay in yaat-server, pinned by `CrcWireContractTests`;
 `DtoConverter.ToTdlsItem` / `ToClearanceDto` project onto them. The mutation bodies are the
-engine's too (since 2026-09-07): `TdlsMutations` and `TdlsCommandHandler` in
+engine's too: `TdlsMutations` and `TdlsCommandHandler` in
 `src/Yaat.Sim/Simulation/Tdls/`, and the auto-queue / auto-WILCO / expiry / track-removal tick steps as
 `SimulationEngine.TickAutoTdlsQueue` / `TickTdlsAutoWilco` / `TickTdlsExpiry` / `TickTdlsTrackRemoval`
 (`SimulationEngine.Tdls.cs`, `SpineStep.Sim` entries in `SpineOrder.PostPhysics`). The router's `Tdls`
@@ -330,7 +330,7 @@ exactly match real-world PDC structure:
   DEPARTURE" wording
 - **Aircraft type** — `TdlsFlightPlanInfoDto.AircraftType` is the bare type (`AircraftFlightPlan.BaseAircraftType`);
   the client appends `EquipmentSuffix` once (`TypeAndEquipment`), the same split vStrips uses — a scenario that files
-  `B77W/L` inside the type field showed `B77W/L/L` before 2026-09-08
+  `B77W/L` inside the type field shows `B77W/L`, never `B77W/L/L`
 - **SID + Transition** — published procedure id (e.g. `OAKLAND4.ALTAM`)
 - **Climbout / Climb Via** — "ON COURSE" or "FLY RUNWAY HEADING" etc.;
   separate "CLIMB VIA SID" instruction when applicable
@@ -410,7 +410,7 @@ facilities controllers use most. `ResolveDefaultSidId` / `ResolveDefaultTransiti
 same rule; whether a config sets them is per-facility (SFO both, BOS SID only, OAK neither).
 
 `TdlsFlightPlanEditorViewModel.MatchSidFromFiledRoute` pre-selects the SID and transition from the filed route's first
-two tokens. The transition matches on its `FirstRoutePoint` first and falls back to its `Name` (2026-09-08): both are
+two tokens. The transition matches on its `FirstRoutePoint` first and falls back to its `Name`: both are
 FE-authored pass-throughs of `tdlsConfiguration.opConfigs[].sids[].transitions[]`, and ZOA's SFO config sets
 `firstRoutePoint` on TRUKN2's ORRCA transition but not SNTNA2's, though both are named `ORRCA`. The no-transition
 placeholder (`- - - -`) never matches. `TdlsFlightPlanEditorViewModelTests` pins the fallback. An amendment pushed into an
@@ -422,8 +422,8 @@ populates the remaining fields with default values defined by the Facility Engin
 the new transition defines a default for is overwritten (`ApplyTransitionDefaults`, run from the change hooks — a manual pick
 or the amended-route re-seed), and a field it defines none for keeps its value. Construction is the one back-fill site
 (`BackFillTransitionDefaults`): the seed there is a saved Pending clearance, which outranks the defaults, so only blanks are
-filled. Read-only editors apply nothing either way. Before 2026-09-08 the change hooks also back-filled only blanks, so a SID
-change kept the previous SID's departure frequency and altitude.
+filled. Read-only editors apply nothing either way. Were the change hooks to back-fill only blanks, a SID
+change would keep the previous SID's departure frequency and altitude.
 
 The active config is **shared room state**, not a per-controller preference: it decides what a
 PDC contains, so `TdlsState.ActiveOpConfigIds` holds it engine-side, `TdlsStateDto.ActiveOpConfigs`

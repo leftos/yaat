@@ -76,7 +76,7 @@ resolve still yields nothing, it **throws** and the assembly fails to load: see 
 
 Why the offline default: resolving with downloads enabled fetches the vNAS *config* over HTTPS
 first, costing ~240 ms of TLS handshake on **every** test process (~10% of the fixed cost of a
-filtered run, measured 2026-09-04), and makes the suite depend on VATSIM being reachable.
+filtered run), and makes the suite depend on VATSIM being reachable.
 `NavDataPathResolverTests.TestProcess_ResolvesNavData_WithoutContactingVnas` asserts
 `NavDataPathResolver.ConfigFetchCount` stays zero, so this cannot silently regress.
 

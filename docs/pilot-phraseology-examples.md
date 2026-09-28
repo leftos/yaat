@@ -196,21 +196,21 @@ Example: Left heading 200, thanks, N696CL.
 Example: Alright, we'll turn left heading 200, N696CL, thanks.
 ```
 
-### Drop leading 1 in frequencies when radio is busy *(2026-01-25)*
+### Drop leading 1 in frequencies when radio is busy
 
 When the radio is busy, pilots are much more likely to drop the leading 1 in frequency
 readbacks AND switch to grouped-digit speech: `"twenty-two seventy-five"` instead of
 `"one two two point seven five"`. Requires per-frequency activity tracking; defer until we
 have meaningful frequency state.
 
-### FAA: drop trailing 5 in `.XX5` *(2026-01-25)*
+### FAA: drop trailing 5 in `.XX5`
 
 FAA controller training (per 8.33 kHz spacing): the trailing `.XX5`/`.XX0` digit can be
 dropped because there's never both `.XX0` and `.XX5` sharing the first 5 digits. Phrased as
 "only the first two decimal digits". **Likely don't implement — would confuse users.** Note
 here so future readers know the rule exists but is intentionally elided.
 
-### Shortened GA callsigns — FAA *(2026-01-25)*
+### Shortened GA callsigns — FAA
 
 After initial contact, FAA domestic GA callsigns (e.g. `N835LC`, but **NOT** foreign GA like
 `CLDTS`) can be shortened to `N` + last 3 chars: `"N5LC"`. Also `[type] [last-3]`:
@@ -222,7 +222,7 @@ After initial contact, FAA domestic GA callsigns (e.g. `N835LC`, but **NOT** for
 
 Foreign GA callsigns are NEVER shortened by FAA controllers in spoken transmissions.
 
-### Shortened GA callsigns — ICAO *(2026-01-25)*
+### Shortened GA callsigns — ICAO
 
 After initial contact, ICAO callsigns shorten to first letter + last two letters:
 `"D-IACG"` → `"Delta Charlie Golf"`. Requires the same initial-contact state plus a

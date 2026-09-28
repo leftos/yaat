@@ -1,6 +1,6 @@
 # vTDLS emulation (Pre-Departure Clearance) — design record
 
-> Design rationale kept for reference (moved out of `docs/plans/` 2026-09-07 by decision): the shipped behaviour is documented in [`../vtdls.md`](../vtdls.md); the unbuilt remainder of the PDC flow has no scheduled work and is picked up only through a specific bug report or feature request.
+> Design rationale kept for reference: the shipped behaviour is documented in [`../vtdls.md`](../vtdls.md); the unbuilt remainder of the PDC flow has no scheduled work and is picked up only through a specific bug report or feature request.
 
 ## Context
 
@@ -25,7 +25,7 @@ We want the same shape for vTDLS so the controller-facing experience matches wha
 - **Naming**: User-facing string is "vTDLS" (lowercase v, uppercase TDLS). Code uses `VTdls` (mirrors `VStrips`): `Yaat.Client.Tdls`, `Yaat.VTdls.Web`, route `/vtdls/`, wwwroot `wwwroot/vtdls/`, viewmodels `VTdlsViewModel` / `VTdlsDockEntryViewModel`.
 - **Multi-facility**: YAAT Client gets a vTDLS tab with multi-instance support per facility, identical to Strips — collection-driven dock entries, per-facility geometry key `"VTdlsView:{facilityId}"`. Plus a parent-facility *consolidated* selector that aggregates unstaffed child TDLS facilities into one view (upstream behavior).
 
-## RPO observability (added 2026-05-26)
+## RPO observability
 
 For instructor (RPO) usage:
 - **All TDLS items are visible to every room member.** The vTDLS tab/window shows Pending (DCL) AND Sent (PDC) items by default — no role-based filtering. RPOs can review what a student has already issued without scrubbing logs.
