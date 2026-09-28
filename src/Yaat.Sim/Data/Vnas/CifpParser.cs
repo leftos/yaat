@@ -1125,18 +1125,16 @@ public static class CifpParser
     /// NavData fixes. The published navaid name (e.g. "WOODSIDE" for OSI) sits at
     /// columns 93-123 of the primary record per ARINC 424 field 5.71.
     /// </summary>
-    public static IReadOnlyDictionary<string, (double Lat, double Lon, string Name, string Type)> ParseNavaids(string cifpFilePath)
+    public static IReadOnlyDictionary<string, CifpNavaid> ParseNavaids(string cifpFilePath)
     {
-        var navaids = new Dictionary<string, (double Lat, double Lon, string Name, string Type)>(StringComparer.OrdinalIgnoreCase);
+        var navaids = new Dictionary<string, CifpNavaid>(StringComparer.OrdinalIgnoreCase);
 
         foreach (string line in File.ReadLines(cifpFilePath))
         {
-            if (line.Length < 50)
-            {
-                continue;
-            }
-
-            if (!line.StartsWith("SUSAD", StringComparison.Ordinal))
+            // Section D (VHF "SUSAD " and NDB "SUSADB") and terminal NDBs (section PN, "SUSAPN"), which share the
+            // enroute NDB record layout.
+            bool isTerminalNdb = line.StartsWith("SUSAPN", StringComparison.Ordinal);
+            if ((line.Length < 50) || !(isTerminalNdb || line.StartsWith("SUSAD", StringComparison.Ordinal)))
             {
                 continue;
             }
@@ -1148,34 +1146,9 @@ public static class CifpParser
                 continue;
             }
 
-            // Scan for N/S latitude marker — navaids have coordinates in the VOR/DME position area
-            int latStart = -1;
-            int scanEnd = Math.Min(50, line.Length);
-            for (int i = 28; i < scanEnd; i++)
+            if (ParseNavaidRecord(line, isNdb: isTerminalNdb || (line[5] == 'B')) is { } navaid)
             {
-                if (line[i] is 'N' or 'S')
-                {
-                    latStart = i;
-                    break;
-                }
-            }
-
-            if (latStart < 0 || line.Length < latStart + 19)
-            {
-                continue;
-            }
-
-            double? lat = ParseArinc424Latitude(line.AsSpan(latStart, 9));
-            double? lon = ParseArinc424Longitude(line.AsSpan(latStart + 9, 10));
-
-            if (lat is not null && lon is not null)
-            {
-                string name = line.Length >= 123 ? line[93..123].Trim() : "";
-                // Navaid class (ARINC 424 field 5.35) lives at fixed columns 27–32; sub_code at
-                // column 5 ('B' = NDB section DB). Used to spell the facility type in pilot speech.
-                ReadOnlySpan<char> navClass = line.Length >= 32 ? line.AsSpan(27, 5) : default;
-                string type = ClassifyNavaid(line[5], navClass);
-                navaids[ident] = (lat.Value, lon.Value, name, type);
+                navaids[ident] = navaid;
             }
         }
 
@@ -1184,15 +1157,50 @@ public static class CifpParser
         return navaids;
     }
 
+    private static CifpNavaid? ParseNavaidRecord(string line, bool isNdb)
+    {
+        // Scan for N/S latitude marker — navaids have coordinates in the VOR/DME position area
+        int latStart = -1;
+        int scanEnd = Math.Min(50, line.Length);
+        for (int i = 28; i < scanEnd; i++)
+        {
+            if (line[i] is 'N' or 'S')
+            {
+                latStart = i;
+                break;
+            }
+        }
+
+        if (latStart < 0 || line.Length < latStart + 19)
+        {
+            return null;
+        }
+
+        double? lat = ParseArinc424Latitude(line.AsSpan(latStart, 9));
+        double? lon = ParseArinc424Longitude(line.AsSpan(latStart + 9, 10));
+        if (lat is null || lon is null)
+        {
+            return null;
+        }
+
+        string name = line.Length >= 123 ? line[93..123].Trim() : "";
+        // Navaid class (ARINC 424 field 5.35) lives at fixed columns 27–32. Used to spell the facility type in pilot speech.
+        ReadOnlySpan<char> navClass = line.Length >= 32 ? line.AsSpan(27, 5) : default;
+        string type = ClassifyNavaid(isNdb, navClass);
+        // Station declination (VHF field 5.66) / NDB magnetic variation (field 5.39) at columns 75-79.
+        double? stationDeclination = line.Length >= 79 ? ParseArinc424MagneticVariation(line.AsSpan(74, 5)) : null;
+        return new CifpNavaid(lat.Value, lon.Value, name, type, stationDeclination);
+    }
+
     /// <summary>
     /// Classifies a CIFP navaid into a spoken facility type ("VOR", "VORTAC", "TACAN", "DME", "NDB").
-    /// Section DB (sub_code 'B') is an NDB. For VHF navaids the ARINC 424 class field encodes the
+    /// Section DB (sub_code 'B') and section PN are NDBs. For VHF navaids the ARINC 424 class field encodes the
     /// VOR presence in char 0 ('V') and the colocated ranging facility in char 1 — 'T'/'M' (TACAN)
     /// yields VORTAC, 'D'/'P' (DME) a plain VOR/DME spoken simply as "VOR".
     /// </summary>
-    private static string ClassifyNavaid(char subCode, ReadOnlySpan<char> navClass)
+    private static string ClassifyNavaid(bool isNdb, ReadOnlySpan<char> navClass)
     {
-        if (subCode == 'B')
+        if (isNdb)
         {
             return "NDB";
         }
@@ -1251,8 +1259,9 @@ public static class CifpParser
 
     /// <summary>
     /// Parses an ARINC 424 magnetic-variation field: a hemisphere char (E/W, or T for a true-oriented
-    /// airport) followed by four digits giving degrees to a tenth — e.g. <c>"E0030"</c> = +3.0°,
-    /// <c>"W0110"</c> = -11.0°. East is positive (true = magnetic + variation). Null on a malformed field.
+    /// airport, G for a grid-oriented VHF station) followed by four digits giving degrees to a tenth — e.g.
+    /// <c>"E0030"</c> = +3.0°, <c>"W0110"</c> = -11.0°. East is positive (true = magnetic + variation); T and G read
+    /// as 0, as cifparse's field 5.66 does. Null on a malformed field.
     /// </summary>
     internal static double? ParseArinc424MagneticVariation(ReadOnlySpan<char> field)
     {
@@ -1266,7 +1275,7 @@ public static class CifpParser
         {
             'E' => magnitude,
             'W' => -magnitude,
-            'T' => 0.0,
+            'T' or 'G' => 0.0,
             _ => null,
         };
     }

@@ -1222,7 +1222,7 @@ BeaconCodePool.cs              # Discrete-code allocator. AssignNextCode(isVfr) 
                                # NextCandidate/BankCursors + RestoreCursors round-trip the draw cursors through snapshots.
 CifpDataService.cs             # FAA CIFP zip download/extract per AIRAC cycle
 CifpAirportIndex.cs            # Once-per-file byte-range index of each airport's SUSAP records (list of ranges — some airports are split); the airport-scoped CifpParser entry points read through it instead of streaming the whole file
-CifpParser.cs                  # ARINC 424 parser: approaches (subsection F), SIDs (D), STARs (E), airport magnetic variation (A), airport runways (G: ParseRunwayThresholdElevations -> per-END landing threshold elevation, the glidepath datum NavData has no per-end value for); FAF fixes, terminal waypoints
+CifpParser.cs                  # ARINC 424 parser: approaches (subsection F), SIDs (D), STARs (E), airport magnetic variation (A), navaids with their station declination (D, PN: ParseNavaids -> CifpNavaid), airport runways (G: ParseRunwayThresholdElevations -> per-END landing threshold elevation, the glidepath datum NavData has no per-end value for); FAF fixes, terminal waypoints
                                # Approach runway extracted via RunwayIdentifier.FromApproachId (shared with InterceptCoursePhase.GetRunwayHeading)
                                # ParseTerminalWaypoints: per-airport section-C waypoints for RF center fix + leg fix resolution
 CifpModels.cs                  # CIFP data models: CifpApproachProcedure, CifpSidProcedure, CifpStarProcedure, CifpLeg, CifpTransition

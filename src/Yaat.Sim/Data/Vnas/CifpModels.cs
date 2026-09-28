@@ -102,6 +102,13 @@ public enum CifpPathTerminator
     Other,
 }
 
+/// <summary>
+/// A VOR/DME/NDB navaid primary record (ARINC 424 section D). <paramref name="StationDeclination"/> is the
+/// station declination (VHF, field 5.66) or the magnetic variation at the NDB (field 5.39), in east-positive
+/// degrees; null when the record carries none. A course referenced to the navaid is charted against it.
+/// </summary>
+public sealed record CifpNavaid(double Lat, double Lon, string Name, string Type, double? StationDeclination);
+
 public sealed record CifpLeg(
     string FixIdentifier,
     CifpPathTerminator PathTerminator,

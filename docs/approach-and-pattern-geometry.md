@@ -690,6 +690,8 @@ entry (Direct / Teardrop / Parallel) from `theta = (aircraftHeading − inboundC
 Inbound`, then loops. It **never self-completes** unless `MaxCircuits` is set (1 for hold-in-lieu of procedure
 turn); most RPO commands exit via `ClearsPhase`, while CM/DM/Speed/Mach are allowed without leaving the hold.
 
+A CIFP hold leg's (HA/HF/HM) course field is the **inbound** holding course. The hold-in-lieu (`BuildHoldInLieuPhase`) and the missed-approach hold (`ExtractMissedApproachHold`) convert it to true with the published-course declination above, taking the navaid of the preceding leg that ends at the same fix when the hold leg names none: KCCR S19R's `HM REJOY 223.6` → 240.6°T (CCR E017), KACV R01's `HF SEGVE 012.7` → 030°T (no navaid, KACV E017), KMOD I28R's `HF ZELAT 288.1` → 304°T (IMOD, KMOD E016). `InboundCourse` is an int, rounded.
+
 - **Leg timing** is minute-based (`IsMinuteBased`, `LegLength × 60 s`) or distance-based
   (`dist ≥ LegLength`) (`HoldingPatternPhase.cs:155`).
 - **Triple-drift outbound wind correction** (`ComputeOutboundHeading`, `HoldingPatternPhase.cs:339`): per AIM
@@ -709,9 +711,12 @@ turn); most RPO commands exit via `ClearsPhase`, while CM/DM/Speed/Mach are allo
 anchored at a published fix, built from a CIFP PI leg in `ApproachCommandHandler`. **Six-state** machine
 (`PtState`): `NavigateToFix → Outbound → TurnToPtOutbound → PtOutbound → TurnToInbound → InterceptInbound`.
 
+- **Inbound course** (`ApproachCommandHandler.ResolveProcedureTurnInboundCourse`): the course of the leg into the PT fix — first a course leg after the PI leg in its own transition (KACK S24: `CF ACK 239.6`), then the common legs, FAF-role first (KCCR S19R: `CF CCR 190.6`) — never the final approach course. The final course is the fallback only when no such leg carries a course (debug-logged).
+- **Magnetic to true**: every published course (PT inbound, the PI leg's PT heading, hold legs, the final approach course in `FinalApproachCourseExtractor`) converts with `NavigationDatabase.GetPublishedCourseDeclination(navaid, airport, fix)`: the recommended navaid's station declination (CIFP navaid records, sections D and PN, cols 75–79), then the airport's variation of record, then the modelled declination — never the aircraft's live `Declination` (AIM 1-1-17b.5(j)). KCCR S19R via COLLI: CCR E017 → inbound 207.6°T, PT heading 072.6°T, final 188.7°T. A localizer is not in the navaid table, so a localizer-referenced course takes the airport's variation, which matches the localizer record at KMOD and KCCR.
 - **45°-offset leg**: after crossing the fix the aircraft flies the radial outbound (`InboundCourse + 180°`), then
   turns to the published `PtOutboundCourseDeg` (the 45° leg) once established and clear of the fix
-  (`MinOutboundSeparationNm = 1.0`).
+  (`MinOutboundSeparationNm = 1.0`). A PI leg with no course falls back to 45° off the outbound course, away from the turn back (warning logged).
+- **Turn back**: a true 180° to `PtOutboundCourseDeg + 180°`, complete within 5°, which is a 45° intercept of the inbound course from the maneuvering side.
 - **Distance cap with reserve** (`ProcedureTurnPhase.cs:144`/198): the 180° turn back to inbound begins when
   `distFromFix ≥ MaxOutboundDistanceNm − TurnRadiusReserveNm`, where `TurnRadiusReserveNm = 2.0`. Turning back
   early by the reserve keeps the **180° turn radius itself** inside protected airspace (AIM 5-4-9.a.3). The cap is
@@ -719,9 +724,8 @@ anchored at a published fix, built from a CIFP PI leg in `ApproachCommandHandler
 - **200 KIAS clamp** (`ClampPtSpeed`, `ProcedureTurnPhase.cs:293`): `MaxPtIasKts = 200` is applied via
   `ControlTargets.SpeedCeiling` for the whole phase (AIM 5-4-9.a.3).
 - **Inbound intercept** (`TickInterceptInbound`): the aircraft steers onto the inbound course line through the fix with `CourseLineSteering.HeadingToward` (`src/Yaat.Sim/Phases/CourseLineSteering.cs`) — the course corrected 25° per nm of cross-track error, capped at a 45° cut — so it converges on the line from either side instead of homing on the fix.
-- **Lateral-intercept gate** (`TickInterceptInbound`, `ProcedureTurnPhase.cs:253`): the phase does not hand off
-  until the aircraft is both heading-aligned *and* within `InterceptLateralToleranceNm = 1.0` cross-track of the
-  inbound course — heading-only would pass a 5°-aligned aircraft with a 2 nm cross-track error to FinalApproach.
+- **Established gate** (`TickInterceptInbound`): the phase hands off once the aircraft is heading-aligned *and* either within 5° of the inbound course as seen from the fix (a VOR's half-scale deflection) or within 0.3 nm cross-track of it — the 0.3 nm keeps the gate from shrinking to nothing near the fix.
+- **After the turn** the approach fixes are the procedure's common legs (`BuildApproachFixes`), each with its own restriction and role, not the transition's copy of the anchor: KCCR S19R flies HUKVI (≥1,500) and the FAF CCR (≥1,100) instead of the COLLI transition's CCR at ≥4,000. `ApproachNavigationPhase` receives the turn's `InboundJoin` (`PostTurnJoin`, snapshotted) and skips the leading fixes that lie farther before the anchor, along the inbound course, than the aircraft (FAWNE when the turn hands off inside it). When the common legs lack the PT fix (KCHS D21) the anchor is not added back.
 - The minimum altitude (`MinAltitudeFt`, from the PI leg's `AtOrAbove`) is held throughout, and the PT outbound
   leg continues until both the timer (`DefaultPtOutboundSeconds = 60`) expires *and* the altitude is met.
 

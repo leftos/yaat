@@ -122,9 +122,56 @@ public class IssueSwa5131PtKccrS19RTests(ITestOutputHelper output)
         Assert.Equal(2600, pt.MinAltitudeFt);
         Assert.Equal(TurnDirection.Left, pt.OneEightyTurnDirection);
 
-        // Inbound course (FAC) ≈ 191° magnetic ≈ 178° true at this declination. Extractor stores true.
-        // Allow ±15° to absorb declination + extractor variance across navdata revisions.
-        Assert.InRange(pt.InboundCourseDeg, 170.0, 200.0);
+        // Inbound course is the CF CCR 190.6° magnetic leg into the PT fix, converted with the CCR VOR's
+        // station declination (E017): 207.6° true. Not the final approach course, not the live declination.
+        Assert.InRange(pt.InboundCourseDeg, 206.6, 208.6);
+    }
+
+    /// <summary>
+    /// JAPP from south of CCR with CCR in the route engages the PT (COLLI transition). After the turn, approach
+    /// navigation flies the common route with its own step-downs and roles (FAWNE ≥2500, HUKVI ≥1500, CCR the FAF
+    /// ≥1100), joined on the PT's inbound course, not the COLLI transition's CCR crossing at ≥4000.
+    /// </summary>
+    [Fact]
+    public void Japp_S19R_FromSouth_AfterProcedureTurnFliesCommonRouteStepDowns()
+    {
+        NavigationDatabase navDb = Assert.IsType<NavigationDatabase>(GetNavDb());
+        Assert.NotNull(navDb.GetApproach("KCCR", "S19R"));
+        (double ccrLat, double ccrLon) = CcrPosition(navDb);
+        AircraftState aircraft = MakeB738(lat: 37.88, lon: -122.28, trueHeading: 41.0);
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "CCR", Position = new LatLon(ccrLat, ccrLon) });
+
+        CommandResult result = ApproachCommandHandler.TryJoinApproach("S19R", "KCCR", force: false, straightIn: false, aircraft);
+
+        Assert.True(result.Success, result.Message);
+        Assert.NotNull(aircraft.Phases);
+        ProcedureTurnPhase pt = Assert.Single(aircraft.Phases.Phases.OfType<ProcedureTurnPhase>());
+        ApproachNavigationPhase nav = Assert.Single(aircraft.Phases.Phases.OfType<ApproachNavigationPhase>());
+        output.WriteLine($"Post-PT fixes: [{string.Join(", ", nav.Fixes.Select(f => $"{f.Name}/{f.Role}/{f.Altitude?.Altitude1Ft}"))}]");
+
+        Assert.Equal(["FAWNE", "HUKVI", "CCR"], nav.Fixes.Select(f => f.Name));
+        Assert.Equal(1500, nav.Fixes[1].Altitude?.Altitude1Ft);
+        Assert.Equal(CifpFixRole.FAF, nav.Fixes[2].Role);
+        Assert.Equal(1100, nav.Fixes[2].Altitude?.Altitude1Ft);
+        Assert.Equal(pt.InboundJoin, nav.PostTurnJoin);
+    }
+
+    /// <summary>
+    /// KCCR S19R missed approach: HM REJOY 223.6°M is the published inbound holding course. The hold leg names no
+    /// navaid, so it takes the CF leg into REJOY's (CCR, station declination E017): 240.6°T, the reciprocal of the
+    /// 043.6°M (060.6°T) course flown to REJOY.
+    /// </summary>
+    [Fact]
+    public void MissedApproachHold_S19R_InboundCourseIsPublishedHoldCourseWithCcrStationDeclination()
+    {
+        NavigationDatabase navDb = Assert.IsType<NavigationDatabase>(GetNavDb());
+        NavigationDatabase.SetInstance(navDb);
+        CifpApproachProcedure procedure = Assert.IsType<CifpApproachProcedure>(navDb.GetApproach("KCCR", "S19R"));
+
+        MissedApproachHold hold = Assert.IsType<MissedApproachHold>(ApproachCommandHandler.ExtractMissedApproachHold(procedure));
+
+        Assert.Equal("REJOY", hold.FixName);
+        Assert.InRange(hold.InboundCourse, 240.1, 241.1);
     }
 
     [Fact]

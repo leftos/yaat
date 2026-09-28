@@ -43,6 +43,20 @@ public class FinalApproachCourseExtractorTests
     // ───────────────────────────────────────────────────────────────────────
 
     [Fact]
+    public void Extract_KccrS19R_VorFinal_ConvertsWithStationDeclination()
+    {
+        // CF RW19R 171.7°M referenced to the CCR VOR, whose station declination is E017 (the KCCR airport record says
+        // E013): the facility's variation of record applies (AIM 1-1-17b.5(j)(1)), so 188.7°T.
+        (NavigationDatabase NavDb, CifpApproachProcedure Procedure, RunwayInfo Runway)? loaded = Load("CCR", "S19R", "19R");
+        Assert.NotNull(loaded);
+        (NavigationDatabase? navDb, CifpApproachProcedure? procedure, RunwayInfo? runway) = loaded.Value;
+
+        FinalApproachCourseResult result = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
+
+        Assert.InRange(result.Course.Degrees, 188.6, 188.8);
+    }
+
+    [Fact]
     public void Extract_KccrS19R_VorOffset_ReturnsOffsetCourse()
     {
         // KCCR VOR Rwy 19R: published final approach course is 171.7° magnetic via the CCR VOR.

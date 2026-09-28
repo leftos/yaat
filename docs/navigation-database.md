@@ -260,6 +260,8 @@ scans each CIFP file **once per process** (keyed by path + length + mtime) into 
 then seeks straight to them. Most airports are one contiguous block; ~180 in the FAA file are split in two, so an airport maps to a
 list of ranges. The whole-file parsers (`Parse`, `ParseRunwayThresholdElevations`, `ParseNavaids`) still stream the file.
 
+`ParseNavaids` reads the VHF/NDB records of section D and the terminal NDBs of section PN into `CifpNavaid` (position, name, type and the station declination from columns 75–79, `G`/`T` read as 0); the first record for an ident wins. `NavigationDatabase.GetStationDeclination(navaidId)` returns it (east positive), and `GetPublishedCourseDeclination(navaid, airport, fix)` is the one declination every published approach course converts with: station declination, then the airport's variation of record, then the modelled declination.
+
 ## Route expansion (`RouteExpander`)
 
 `RouteExpander.Expand(route, navDb, includeAllTransitionsOnMismatch = true)` (`RouteExpander.cs:31`) splits the route on spaces and

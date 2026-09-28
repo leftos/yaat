@@ -23,19 +23,44 @@ public sealed class ApproachNavigationPhase : Phase
     /// <summary>Ordered fix sequence to fly (name, lat, lon, altitude, speed).</summary>
     public required IReadOnlyList<ApproachFix> Fixes { get; init; }
 
+    /// <summary>
+    /// Set when a procedure turn precedes this phase: the inbound course line it leaves the aircraft on. The
+    /// phase then starts at the first fix still ahead of the aircraft on that line, skipping the leading fixes
+    /// the turn already took it past (AIM 5-4-9: once established inbound, descend via the remaining step-downs).
+    /// Null for every other approach navigation, which starts at the first fix.
+    /// </summary>
+    public ProcedureTurnInbound? PostTurnJoin { get; init; }
+
     public override string Name => "ApproachNav";
 
     public override void OnStart(PhaseContext ctx)
     {
-        _currentFixIndex = 0;
-        NavigateToCurrentFix(ctx);
+        _currentFixIndex = PostTurnJoin is { } join ? FirstFixAheadOnInbound(ctx.Aircraft.Position, join) : 0;
+        if (_currentFixIndex < Fixes.Count)
+        {
+            NavigateToCurrentFix(ctx);
+        }
 
         Log.LogDebug(
-            "[ApproachNav] {Callsign}: started, {Count} fixes [{Names}]",
+            "[ApproachNav] {Callsign}: started at fix {Index}, {Count} fixes [{Names}]",
             ctx.Aircraft.Callsign,
+            _currentFixIndex,
             Fixes.Count,
             string.Join(" → ", Fixes.Select(f => f.Name))
         );
+    }
+
+    /// <summary>The index of the first fix no farther from the inbound anchor, along the inbound course, than the aircraft.</summary>
+    private int FirstFixAheadOnInbound(LatLon aircraftPosition, ProcedureTurnInbound join)
+    {
+        double aircraftToAnchorNm = join.DistanceToAnchorNm(aircraftPosition);
+        int index = 0;
+        while ((index < Fixes.Count) && (join.DistanceToAnchorNm(new LatLon(Fixes[index].Latitude, Fixes[index].Longitude)) > aircraftToAnchorNm))
+        {
+            index++;
+        }
+
+        return index;
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -249,13 +274,21 @@ public sealed class ApproachNavigationPhase : Phase
             Requirements = Requirements.Count > 0 ? [.. Requirements.Select(r => r.ToSnapshot())] : null,
             Fixes = [.. Fixes.Select(f => f.ToSnapshot())],
             CurrentFixIndex = _currentFixIndex,
+            PostTurnAnchorLat = PostTurnJoin?.Anchor.Lat,
+            PostTurnAnchorLon = PostTurnJoin?.Anchor.Lon,
+            PostTurnInboundCourseDeg = PostTurnJoin?.InboundCourse.Degrees,
         };
 
     public static ApproachNavigationPhase FromSnapshot(ApproachNavigationPhaseDto dto)
     {
+        ProcedureTurnInbound? postTurnJoin =
+            (dto.PostTurnAnchorLat is { } lat) && (dto.PostTurnAnchorLon is { } lon) && (dto.PostTurnInboundCourseDeg is { } course)
+                ? new ProcedureTurnInbound(new LatLon(lat, lon), new TrueHeading(course))
+                : null;
         var phase = new ApproachNavigationPhase
         {
             Fixes = [.. dto.Fixes.Select(ApproachFix.FromSnapshot)],
+            PostTurnJoin = postTurnJoin,
             Status = (PhaseStatus)dto.Status,
             ElapsedSeconds = dto.ElapsedSeconds,
             _currentFixIndex = dto.CurrentFixIndex,
@@ -264,6 +297,16 @@ public sealed class ApproachNavigationPhase : Phase
     }
 
     protected override List<ClearanceRequirement> CreateRequirements() => [];
+}
+
+/// <summary>
+/// The inbound course line a procedure turn re-establishes the aircraft on: through <paramref name="Anchor"/> (the
+/// PT fix) on <paramref name="InboundCourse"/>.
+/// </summary>
+public sealed record ProcedureTurnInbound(LatLon Anchor, TrueHeading InboundCourse)
+{
+    /// <summary>How far <paramref name="point"/> lies before the anchor along the inbound course (negative past it).</summary>
+    public double DistanceToAnchorNm(LatLon point) => -GeoMath.AlongTrackDistanceNm(point, Anchor, InboundCourse);
 }
 
 /// <summary>

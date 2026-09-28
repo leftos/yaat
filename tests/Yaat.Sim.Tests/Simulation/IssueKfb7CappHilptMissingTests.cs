@@ -203,11 +203,13 @@ public class IssueKfb7CappHilptMissingTests(ITestOutputHelper output)
             Assert.Equal(1, holdPhase.MaxCircuits);
             Assert.Equal(TurnDirection.Left, holdPhase.Direction);
 
-            // Inbound course must use the same convention as JAPP's existing HILPT block:
-            // (HoldInLieuLeg.OutboundCourse + 180) % 360, falling back to the FAC.
+            // A hold leg's course field is the published inbound holding course (HF ZELAT 288.1° magnetic, the
+            // localizer course). Its reference IMOD is a localizer, not a CIFP navaid record, so it converts with
+            // KMOD's magnetic variation of record (E016): 304° true.
             CifpApproachProcedure procedure = ApproachCommandHandler.ResolveApproach("I28R", "MOD", aircraft).Procedure!;
             CifpLeg holdLeg = procedure.HoldInLieuLeg!;
-            int expectedInboundCourse = holdLeg.OutboundCourse.HasValue ? (int)((holdLeg.OutboundCourse.Value + 180) % 360) : holdPhase.InboundCourse;
+            double kmodVariation = TestVnasData.NavigationDb!.GetAirportMagneticVariation("KMOD")!.Value;
+            int expectedInboundCourse = (int)Math.Round(new MagneticHeading(holdLeg.OutboundCourse!.Value).ToTrue(kmodVariation).Degrees) % 360;
             Assert.Equal(expectedInboundCourse, holdPhase.InboundCourse);
         }
     }

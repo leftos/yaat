@@ -1345,7 +1345,7 @@ public class ProcedureLoadingTests
         NavigationDatabase navDb = TestVnasData.NavigationDb!;
         using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
         Assert.NotNull(navDb.GetSid("KOAK", "NIMI5"));
-        (double Lat, double Lon, string Name, string Type) vortac = CifpParser.ParseNavaids(TestVnasData.GetCifpPath()!)["SAC"];
+        CifpNavaid vortac = CifpParser.ParseNavaids(TestVnasData.GetCifpPath()!)["SAC"];
 
         NavigationTarget sac = ResolveNimi5Target(route, destination, "SAC");
 

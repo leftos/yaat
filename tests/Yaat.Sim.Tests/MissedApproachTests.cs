@@ -445,7 +445,9 @@ public class MissedApproachTests
         Assert.Equal("MHOLD", hold.FixName);
         Assert.Equal(37.03, hold.FixLat);
         Assert.Equal(-122.10, hold.FixLon);
-        Assert.Equal(280, hold.InboundCourse); // (100 + 180) % 360
+        // The HM course field (100°M) is the inbound course; with no navaid and no airport record it converts with
+        // the modelled declination at the hold fix.
+        Assert.Equal((int)Math.Round(100.0 + MagneticDeclination.GetDeclination(37.03, -122.10)) % 360, hold.InboundCourse);
         Assert.True(hold.IsMinuteBased);
         Assert.Equal(TurnDirection.Right, hold.Direction);
     }

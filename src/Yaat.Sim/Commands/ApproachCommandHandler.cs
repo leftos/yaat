@@ -242,16 +242,16 @@ public static class ApproachCommandHandler
             aircraft.Targets.AssignedAltitude = cxAlt;
         }
 
-        // Procedure turn: insert PT phase BEFORE approach navigation, and trim approach fixes
-        // through the PT anchor (post-PT, the aircraft is established inbound at/near the
-        // anchor — typically the FAF — so only post-anchor fixes remain to navigate).
+        // Procedure turn: insert PT phase BEFORE approach navigation. The PT flies the aircraft to its fix and
+        // back inbound, so approach navigation then flies the common route (each fix with its own step-down and
+        // role), from the first fix still ahead of the aircraft on the inbound course.
         ProcedureTurnPhase? cappProcedureTurn = null;
         if (needsProcedureTurn && procedure.ProcedureTurnLeg is { } cappPiLeg)
         {
-            cappProcedureTurn = BuildProcedureTurnPhase(cappPiLeg, aircraft, finalCourse);
+            cappProcedureTurn = BuildProcedureTurnPhase(cappPiLeg, procedure, approachRunway.AirportId, finalCourse);
             if (cappProcedureTurn is not null)
             {
-                approachFixes = TrimFixesPastProcedureTurnAnchor(approachFixes, cappProcedureTurn.FixName);
+                approachFixes = BuildApproachFixes(procedure);
                 aircraft.Phases.Add(cappProcedureTurn);
             }
         }
@@ -259,7 +259,7 @@ public static class ApproachCommandHandler
         // Build phase sequence
         if (approachFixes.Count > 0)
         {
-            aircraft.Phases.Add(new ApproachNavigationPhase { Fixes = approachFixes });
+            aircraft.Phases.Add(new ApproachNavigationPhase { Fixes = approachFixes, PostTurnJoin = cappProcedureTurn?.InboundJoin });
         }
 
         // Hold-in-lieu of procedure turn: when the chosen transition includes a hold leg
@@ -271,7 +271,8 @@ public static class ApproachCommandHandler
         // exclusive on real procedures).
         if (cappProcedureTurn is null && transitionHasHilpt && procedure.HoldInLieuLeg is { } cappHoldLeg)
         {
-            HoldingPatternPhase? holdPhase = BuildHoldInLieuPhase(cappHoldLeg, approachFixes, finalCourse);
+            string? holdNavaid = HoldInLieuNavaid(procedure, cappHoldLeg);
+            HoldingPatternPhase? holdPhase = BuildHoldInLieuPhase(cappHoldLeg, holdNavaid, approachFixes, approachRunway.AirportId, finalCourse);
             if (holdPhase is not null)
             {
                 aircraft.Phases.Add(holdPhase);
@@ -370,14 +371,15 @@ public static class ApproachCommandHandler
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
         aircraft.Procedure.DestinationRunway = approachRunway.Designator;
 
-        // Insert procedure turn (PI) if needed — trim approach fixes through the PT anchor.
+        // Insert procedure turn (PI) if needed — approach navigation then flies the common route from the first
+        // fix still ahead on the inbound course (as for CAPP above).
         ProcedureTurnPhase? jappProcedureTurn = null;
         if (jappNeedsProcedureTurn && procedure.ProcedureTurnLeg is { } japPiLeg)
         {
-            jappProcedureTurn = BuildProcedureTurnPhase(japPiLeg, aircraft, finalCourse);
+            jappProcedureTurn = BuildProcedureTurnPhase(japPiLeg, procedure, approachRunway.AirportId, finalCourse);
             if (jappProcedureTurn is not null)
             {
-                trimmedFixes = TrimFixesPastProcedureTurnAnchor(trimmedFixes, jappProcedureTurn.FixName);
+                trimmedFixes = BuildApproachFixes(procedure);
                 aircraft.Phases.Add(jappProcedureTurn);
             }
         }
@@ -385,7 +387,8 @@ public static class ApproachCommandHandler
         // Insert hold-in-lieu if needed (skipped when a PT is already engaged)
         if (jappProcedureTurn is null && needsHold && procedure.HoldInLieuLeg is { } holdLeg)
         {
-            HoldingPatternPhase? holdPhase = BuildHoldInLieuPhase(holdLeg, trimmedFixes, finalCourse);
+            string? holdNavaid = HoldInLieuNavaid(procedure, holdLeg);
+            HoldingPatternPhase? holdPhase = BuildHoldInLieuPhase(holdLeg, holdNavaid, trimmedFixes, approachRunway.AirportId, finalCourse);
             if (holdPhase is not null)
             {
                 aircraft.Phases.Add(holdPhase);
@@ -394,7 +397,7 @@ public static class ApproachCommandHandler
 
         if (trimmedFixes.Count > 0)
         {
-            aircraft.Phases.Add(new ApproachNavigationPhase { Fixes = trimmedFixes });
+            aircraft.Phases.Add(new ApproachNavigationPhase { Fixes = trimmedFixes, PostTurnJoin = jappProcedureTurn?.InboundJoin });
         }
 
         aircraft.Phases.Add(new FinalApproachPhase());
@@ -1300,7 +1303,15 @@ public static class ApproachCommandHandler
                 continue;
             }
 
-            int inboundCourse = leg.OutboundCourse.HasValue ? (int)((leg.OutboundCourse.Value + 180) % 360) : 0;
+            // The hold leg's course field is the published inbound holding course (magnetic), not an outbound one.
+            int inboundCourse = 0;
+            if (leg.OutboundCourse is { } holdMagDeg)
+            {
+                string? navaid = HoldLegNavaid(procedure.MissedApproachLegs, i);
+                double declination = navDb.GetPublishedCourseDeclination(navaid, procedure.Airport, new LatLon(pos.Value.Lat, pos.Value.Lon));
+                inboundCourse = RoundToWholeDegree(new MagneticHeading(holdMagDeg).ToTrue(declination));
+            }
+
             double legLength = leg.LegDistanceNm ?? 1.0;
             bool isMinuteBased = leg.LegDistanceNm is null;
             TurnDirection direction = leg.TurnDirection == 'L' ? TurnDirection.Left : TurnDirection.Right;
@@ -1525,7 +1536,13 @@ public static class ApproachCommandHandler
     /// trimmed past it). Used by both CAPP (when transition contains HF/HM/HA) and JAPP
     /// (when procedure.HasHoldInLieu and not straight-in).
     /// </summary>
-    private static HoldingPatternPhase? BuildHoldInLieuPhase(CifpLeg holdLeg, IReadOnlyList<ApproachFix> approachFixes, TrueHeading finalCourse)
+    private static HoldingPatternPhase? BuildHoldInLieuPhase(
+        CifpLeg holdLeg,
+        string? holdNavaidId,
+        IReadOnlyList<ApproachFix> approachFixes,
+        string airportId,
+        TrueHeading finalCourse
+    )
     {
         ApproachFix? holdFix = approachFixes.FirstOrDefault(f => f.Name.Equals(holdLeg.FixIdentifier, StringComparison.OrdinalIgnoreCase));
         if (holdFix is null)
@@ -1533,7 +1550,15 @@ public static class ApproachCommandHandler
             return null;
         }
 
-        int inboundCourse = holdLeg.OutboundCourse.HasValue ? (int)((holdLeg.OutboundCourse.Value + 180) % 360) : (int)finalCourse.Degrees;
+        // A hold leg's (HA/HF/HM) course field is the published inbound holding course, in magnetic degrees
+        // referenced to the hold's navaid (or the airport's variation of record for an RNAV hold).
+        var holdFixPosition = new LatLon(holdFix.Latitude, holdFix.Longitude);
+        TrueHeading inboundTrue = holdLeg.OutboundCourse is { } holdMagDeg
+            ? new MagneticHeading(holdMagDeg).ToTrue(
+                NavigationDatabase.Instance.GetPublishedCourseDeclination(holdNavaidId, airportId, holdFixPosition)
+            )
+            : finalCourse;
+        int inboundCourse = RoundToWholeDegree(inboundTrue);
 
         return new HoldingPatternPhase
         {
@@ -1550,10 +1575,19 @@ public static class ApproachCommandHandler
 
     /// <summary>
     /// Build a <see cref="ProcedureTurnPhase"/> from the procedure's PI leg. The PT anchor
-    /// fix must already be loadable from the navdata (CCR for KCCR S19R). The CIFP outbound
-    /// course is published as magnetic; convert to true using the aircraft's local declination.
+    /// fix must already be loadable from the navdata (CCR for KCCR S19R). The inbound course is the
+    /// course of the leg into the PT fix (for KCCR S19R the CF CCR FAF leg, not the final approach
+    /// course past it). Both it and the PT heading are published magnetic and convert to true with the
+    /// declination of their own reference (<see cref="NavigationDatabase.GetPublishedCourseDeclination"/>).
+    /// A PI leg without a course flies the standard 45° heading off the outbound course, on the side
+    /// the 180° turn back is made away from.
     /// </summary>
-    private static ProcedureTurnPhase? BuildProcedureTurnPhase(CifpLeg piLeg, AircraftState aircraft, TrueHeading finalCourse)
+    internal static ProcedureTurnPhase? BuildProcedureTurnPhase(
+        CifpLeg piLeg,
+        CifpApproachProcedure procedure,
+        string airportId,
+        TrueHeading finalCourse
+    )
     {
         NavigationDatabase navDb = NavigationDatabase.Instance;
         (double Lat, double Lon)? pos = piLeg.ResolveFixPosition(navDb);
@@ -1562,8 +1596,28 @@ public static class ApproachCommandHandler
             return null;
         }
 
-        double publishedPtMagDeg = piLeg.OutboundCourse ?? finalCourse.ToMagnetic(aircraft.Declination).Degrees;
-        TrueHeading ptOutboundTrue = new MagneticHeading(publishedPtMagDeg).ToTrue(aircraft.Declination);
+        var fixPosition = new LatLon(pos.Value.Lat, pos.Value.Lon);
+        TurnDirection turnBack = piLeg.TurnDirection == 'L' ? TurnDirection.Left : TurnDirection.Right;
+        IReadOnlyList<CifpLeg> legsIntoFix = ProcedureTurnInboundCandidates(procedure, piLeg);
+        TrueHeading inboundTrue = ResolveProcedureTurnInboundCourse(piLeg, legsIntoFix, airportId, fixPosition, finalCourse);
+        TrueHeading ptOutboundTrue;
+        if (piLeg.OutboundCourse is { } ptMagDeg)
+        {
+            ptOutboundTrue = new MagneticHeading(ptMagDeg).ToTrue(
+                navDb.GetPublishedCourseDeclination(piLeg.RecommendedNavaidId, airportId, fixPosition)
+            );
+        }
+        else
+        {
+            // A left turn back means the 45° leg was flown to the right of the outbound course, and the reverse.
+            ptOutboundTrue = new TrueHeading(inboundTrue.Degrees + 180.0 + (turnBack == TurnDirection.Left ? 45.0 : -45.0));
+            Log.LogWarning(
+                "[ProcedureTurn] {ApproachId}: PI leg at {Fix} carries no course, flying {Hdg:000}T (45° off the outbound course)",
+                procedure.ApproachId,
+                piLeg.FixIdentifier,
+                ptOutboundTrue.Degrees
+            );
+        }
 
         int minAlt = piLeg.Altitude is { } restriction ? restriction.Altitude1Ft : 0;
 
@@ -1572,39 +1626,108 @@ public static class ApproachCommandHandler
             FixName = piLeg.FixIdentifier,
             FixLat = pos.Value.Lat,
             FixLon = pos.Value.Lon,
-            InboundCourseDeg = finalCourse.Degrees,
+            InboundCourseDeg = inboundTrue.Degrees,
             PtOutboundCourseDeg = ptOutboundTrue.Degrees,
             MaxOutboundDistanceNm = piLeg.LegDistanceNm ?? 10.0,
-            OneEightyTurnDirection = piLeg.TurnDirection == 'L' ? TurnDirection.Left : TurnDirection.Right,
+            OneEightyTurnDirection = turnBack,
             MinAltitudeFt = minAlt,
         };
     }
 
     /// <summary>
-    /// When a <see cref="ProcedureTurnPhase"/> is being inserted ahead of the approach navigation,
-    /// trim approach fixes through the LAST occurrence of the PT anchor fix. Anything before/at
-    /// the anchor is consumed by the PT (it ends established inbound at/near the anchor); only
-    /// post-PT fixes remain for <see cref="ApproachNavigationPhase"/>.
+    /// The legs that can publish a procedure turn's inbound course, best first: the legs after the PI leg in its
+    /// own transition that end at the PT fix with a course (KACK S24: PI ACK then CF ACK 239.6), then the common
+    /// legs that do (KCCR S19R: CF CCR 190.6, the FAF leg), the FAF leg first.
     /// </summary>
-    private static List<ApproachFix> TrimFixesPastProcedureTurnAnchor(List<ApproachFix> fixes, string anchorName)
+    private static List<CifpLeg> ProcedureTurnInboundCandidates(CifpApproachProcedure procedure, CifpLeg piLeg)
     {
-        int lastIdx = -1;
-        for (int i = fixes.Count - 1; i >= 0; i--)
+        bool EndsAtFixWithCourse(CifpLeg leg) =>
+            leg.FixIdentifier.Equals(piLeg.FixIdentifier, StringComparison.OrdinalIgnoreCase) && (leg.OutboundCourse is not null);
+
+        var candidates = new List<CifpLeg>();
+        foreach (CifpTransition transition in procedure.Transitions.Values)
         {
-            if (fixes[i].Name.Equals(anchorName, StringComparison.OrdinalIgnoreCase))
+            int piIndex = transition.Legs.ToList().FindIndex(l => (l.PathTerminator == CifpPathTerminator.PI) && EndsAtFixName(l, piLeg));
+            if (piIndex >= 0)
             {
-                lastIdx = i;
+                candidates.AddRange(transition.Legs.Skip(piIndex + 1).Where(EndsAtFixWithCourse));
                 break;
             }
         }
 
-        if (lastIdx < 0)
+        List<CifpLeg> commonIntoFix = [.. procedure.CommonLegs.Where(EndsAtFixWithCourse)];
+        candidates.AddRange(commonIntoFix.Where(l => l.FixRole == CifpFixRole.FAF));
+        candidates.AddRange(commonIntoFix.Where(l => l.FixRole != CifpFixRole.FAF));
+        return candidates;
+    }
+
+    private static bool EndsAtFixName(CifpLeg leg, CifpLeg other) =>
+        leg.FixIdentifier.Equals(other.FixIdentifier, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The true inbound course of a procedure turn: the published course of the first of
+    /// <paramref name="legsIntoFix"/>, converted with its reference's declination. Falls back to the final
+    /// approach course when there is none.
+    /// </summary>
+    private static TrueHeading ResolveProcedureTurnInboundCourse(
+        CifpLeg piLeg,
+        IReadOnlyList<CifpLeg> legsIntoFix,
+        string airportId,
+        LatLon fixPosition,
+        TrueHeading finalCourse
+    )
+    {
+        CifpLeg? inboundLeg = legsIntoFix.Count > 0 ? legsIntoFix[0] : null;
+        if (inboundLeg?.OutboundCourse is not { } inboundMagDeg)
         {
-            return fixes;
+            Log.LogDebug("[ProcedureTurn] no leg into {Fix} carries a course, using the final approach course", piLeg.FixIdentifier);
+            return finalCourse;
         }
 
-        return fixes.GetRange(lastIdx + 1, fixes.Count - lastIdx - 1);
+        double declination = NavigationDatabase.Instance.GetPublishedCourseDeclination(inboundLeg.RecommendedNavaidId, airportId, fixPosition);
+        return new MagneticHeading(inboundMagDeg).ToTrue(declination);
     }
+
+    /// <summary>
+    /// The navaid a hold leg's course is referenced to: its own recommended navaid, else that of the nearest
+    /// preceding leg ending at the same fix (KCCR S19R missed approach: HM REJOY names none, the CF CCR leg into
+    /// REJOY names CCR). Null for an RNAV hold, which then converts with the airport's variation of record.
+    /// </summary>
+    private static string? HoldLegNavaid(IReadOnlyList<CifpLeg> legs, int holdIndex)
+    {
+        CifpLeg holdLeg = legs[holdIndex];
+        if (!string.IsNullOrWhiteSpace(holdLeg.RecommendedNavaidId))
+        {
+            return holdLeg.RecommendedNavaidId;
+        }
+
+        for (int i = holdIndex - 1; i >= 0; i--)
+        {
+            if (EndsAtFixName(legs[i], holdLeg))
+            {
+                return string.IsNullOrWhiteSpace(legs[i].RecommendedNavaidId) ? null : legs[i].RecommendedNavaidId;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The hold-in-lieu leg's navaid (<see cref="HoldLegNavaid"/>), from whichever leg list carries the leg.</summary>
+    private static string? HoldInLieuNavaid(CifpApproachProcedure procedure, CifpLeg holdLeg)
+    {
+        foreach (IReadOnlyList<CifpLeg> legs in procedure.Transitions.Values.Select(t => t.Legs).Append(procedure.CommonLegs))
+        {
+            int holdIndex = legs.ToList().IndexOf(holdLeg);
+            if (holdIndex >= 0)
+            {
+                return HoldLegNavaid(legs, holdIndex);
+            }
+        }
+
+        return string.IsNullOrWhiteSpace(holdLeg.RecommendedNavaidId) ? null : holdLeg.RecommendedNavaidId;
+    }
+
+    private static int RoundToWholeDegree(TrueHeading heading) => (int)Math.Round(heading.Degrees) % 360;
 
     private static List<ApproachFix> BuildApproachFixesWithTransition(CifpTransition transition, CifpApproachProcedure procedure)
     {

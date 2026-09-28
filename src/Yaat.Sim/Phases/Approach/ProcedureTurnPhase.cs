@@ -12,9 +12,9 @@ namespace Yaat.Sim.Phases.Approach;
 ///   2. Outbound         — after crossing fix, fly outbound radial (FAC + 180°).
 ///   3. TurnToPtOutbound — turn to the published 45°-offset PT heading.
 ///   4. PtOutbound       — fly the 45° leg until distance / time / altitude gate met.
-///   5. TurnToInbound    — 180° turn in OneEightyTurnDirection back toward FAC.
-///   6. InterceptInbound — steer onto the FAC line through the fix (≤45° cut, <see cref="CourseLineSteering"/>);
-///                         complete when established on FAC.
+///   5. TurnToInbound    — 180° turn in OneEightyTurnDirection onto the reciprocal of the PT heading.
+///   6. InterceptInbound — steer onto the inbound course line through the fix (≤45° cut, <see cref="CourseLineSteering"/>);
+///                         complete when established on it.
 ///
 /// Constructed from a CIFP PI leg in <see cref="ApproachCommandHandler"/>.
 /// </summary>
@@ -35,15 +35,16 @@ public sealed class ProcedureTurnPhase : Phase
     // turn radius itself stays inside protected airspace.
     private const double TurnRadiusReserveNm = 2.0;
 
-    // Aircraft must be within this lateral distance of the inbound course before
-    // handing off to FinalApproachPhase.
-    private const double InterceptLateralToleranceNm = 1.0;
+    // Established inbound: within this angular deviation of the inbound course as seen from the fix,
+    // or within this cross-track distance of it (the angular band collapses close to the fix).
+    private const double InterceptAngularToleranceDeg = 5.0;
+    private const double InterceptLateralToleranceNm = 0.3;
 
     public required string FixName { get; init; }
     public required double FixLat { get; init; }
     public required double FixLon { get; init; }
 
-    /// <summary>Final approach course (true degrees, inbound to fix). Aircraft re-establishes here at end.</summary>
+    /// <summary>Course of the leg inbound to the fix (true degrees). Aircraft re-establishes here at end.</summary>
     public required double InboundCourseDeg { get; init; }
 
     /// <summary>Published 45°-offset PT outbound heading (true degrees) — the heading flown on the 45° leg.</summary>
@@ -57,6 +58,9 @@ public sealed class ProcedureTurnPhase : Phase
 
     /// <summary>Minimum altitude during the PT (typically the AtOrAbove constraint on the PI leg).</summary>
     public required int MinAltitudeFt { get; init; }
+
+    /// <summary>The inbound course line this procedure turn leaves the aircraft established on.</summary>
+    public ProcedureTurnInbound InboundJoin => new(new LatLon(FixLat, FixLon), new TrueHeading(InboundCourseDeg));
 
     private PtState _state = PtState.NavigateToFix;
     private double _ptOutboundTimerSeconds;
@@ -218,17 +222,20 @@ public sealed class ProcedureTurnPhase : Phase
         BeginTurnToInbound(ctx, distFromFix, "PT outbound timer expired");
     }
 
+    /// <summary>The heading the 180° turn rolls out on: the reciprocal of the PT heading, 45° off the inbound course.</summary>
+    private TrueHeading TurnBackHeading => new(PtOutboundCourseDeg + 180.0);
+
     private void BeginTurnToInbound(PhaseContext ctx, double distFromFix, string reason)
     {
-        ctx.Targets.TargetTrueHeading = new TrueHeading(InboundCourseDeg);
+        ctx.Targets.TargetTrueHeading = TurnBackHeading;
         ctx.Targets.PreferredTurnDirection = OneEightyTurnDirection;
         _state = PtState.TurnToInbound;
 
         Log.LogDebug(
-            "[ProcedureTurn] {Callsign}: starting 180° {Dir} turn back to inbound {Crs:000}T ({Reason}, dist={Dist:F1}nm, alt={Alt:F0})",
+            "[ProcedureTurn] {Callsign}: starting 180° {Dir} turn to {Hdg:000}T ({Reason}, dist={Dist:F1}nm, alt={Alt:F0})",
             ctx.Aircraft.Callsign,
             OneEightyTurnDirection,
-            InboundCourseDeg,
+            TurnBackHeading.Degrees,
             reason,
             distFromFix,
             ctx.Aircraft.Altitude
@@ -240,7 +247,7 @@ public sealed class ProcedureTurnPhase : Phase
         EnsureMinimumAltitudeTarget(ctx);
         ClampPtSpeed(ctx);
 
-        if (!ctx.Aircraft.TrueHeading.IsCloseTo(new TrueHeading(InboundCourseDeg), HeadingToleranceDeg + 5))
+        if (!ctx.Aircraft.TrueHeading.IsCloseTo(TurnBackHeading, HeadingToleranceDeg))
         {
             return;
         }
@@ -267,18 +274,25 @@ public sealed class ProcedureTurnPhase : Phase
             return false;
         }
 
-        // Lateral intercept gate: don't hand off to FinalApproach until the aircraft is
-        // also laterally on the FAC. Heading-only would let a 5° heading match with a
-        // 2 nm cross-track error pass FinalApproach an off-course aircraft.
-        double crossTrackNm = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, new LatLon(FixLat, FixLon), inboundCourse));
-        if (crossTrackNm > InterceptLateralToleranceNm)
+        // Lateral intercept gate: don't hand off until the aircraft is also laterally on the inbound
+        // course — within a few degrees of it as seen from the fix, or within a few tenths of a mile
+        // of it. Heading-only would pass an aircraft flying parallel to the course, off it.
+        var fix = new LatLon(FixLat, FixLon);
+        double crossTrackNm = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, fix, inboundCourse));
+        double angularDeviationDeg = new TrueHeading(GeoMath.BearingTo(fix, ctx.Aircraft.Position)).AbsAngleTo(inboundCourse.ToReciprocal());
+        if ((angularDeviationDeg > InterceptAngularToleranceDeg) && (crossTrackNm > InterceptLateralToleranceNm))
         {
             return false;
         }
 
         // Hand off to the next phase (ApproachNavigation / FinalApproach) — clear our nav.
         ctx.Targets.NavigationRoute.Clear();
-        Log.LogDebug("[ProcedureTurn] {Callsign}: established inbound (xtrack={XT:F2}nm), exiting", ctx.Aircraft.Callsign, crossTrackNm);
+        Log.LogDebug(
+            "[ProcedureTurn] {Callsign}: established inbound (xtrack={XT:F2}nm, deviation={Dev:F1}°), exiting",
+            ctx.Aircraft.Callsign,
+            crossTrackNm,
+            angularDeviationDeg
+        );
         return true;
     }
 
@@ -369,7 +383,8 @@ public sealed class ProcedureTurnPhase : Phase
         return phase;
     }
 
-    private enum PtState
+    /// <summary>The stage of the procedure turn being flown (snapshot field <c>State</c>).</summary>
+    public enum PtState
     {
         NavigateToFix,
         Outbound,

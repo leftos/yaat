@@ -17,7 +17,7 @@ public class NavigationDatabaseAirportNavaidCollisionTests
     private const double KsacLat = 38.51286;
     private const double KsacLon = -121.49330;
 
-    private static readonly Lazy<IReadOnlyDictionary<string, (double Lat, double Lon, string Name, string Type)>> CifpNavaids = new(() =>
+    private static readonly Lazy<IReadOnlyDictionary<string, CifpNavaid>> CifpNavaids = new(() =>
         CifpParser.ParseNavaids(TestVnasData.GetCifpPath()!)
     );
 
@@ -31,7 +31,7 @@ public class NavigationDatabaseAirportNavaidCollisionTests
     [Fact]
     public void GetFixPosition_BareSac_IsTheSacramentoVortac()
     {
-        (double Lat, double Lon, string Name, string Type) vortac = CifpNavaids.Value["SAC"];
+        CifpNavaid vortac = CifpNavaids.Value["SAC"];
 
         (double Lat, double Lon)? pos = NavDb.GetFixPosition("SAC");
 
@@ -63,7 +63,7 @@ public class NavigationDatabaseAirportNavaidCollisionTests
     [Fact]
     public void GetAirportPosition_Sac_IsFarFromTheVortac()
     {
-        (double Lat, double Lon, string Name, string Type) vortac = CifpNavaids.Value["SAC"];
+        CifpNavaid vortac = CifpNavaids.Value["SAC"];
 
         (double Lat, double Lon)? pos = NavDb.GetAirportPosition("SAC");
 
@@ -75,7 +75,7 @@ public class NavigationDatabaseAirportNavaidCollisionTests
     [Fact]
     public void GetFixPosition_BareOak_IsTheOaklandVor()
     {
-        (double Lat, double Lon, string Name, string Type) vor = CifpNavaids.Value["OAK"];
+        CifpNavaid vor = CifpNavaids.Value["OAK"];
 
         (double Lat, double Lon)? pos = NavDb.GetFixPosition("OAK");
 
@@ -139,7 +139,7 @@ public class NavigationDatabaseAirportNavaidCollisionTests
     [Fact]
     public void ResolveDepartureRoute_KccrCcrSac_FirstTargetIsTheConcordVor()
     {
-        (double Lat, double Lon, string Name, string Type) vor = CifpNavaids.Value["CCR"];
+        CifpNavaid vor = CifpNavaids.Value["CCR"];
         using IDisposable _ = NavigationDatabase.ScopedOverride(NavDb);
         var aircraft = new AircraftState
         {
@@ -196,7 +196,7 @@ public class NavigationDatabaseAirportNavaidCollisionTests
     [InlineData("TNV")]
     public void GetFixPosition_FaaOnlyAirportIdSharedWithANavaid_IsTheNavaid(string id)
     {
-        (double Lat, double Lon, string Name, string Type) navaid = CifpNavaids.Value[id];
+        CifpNavaid navaid = CifpNavaids.Value[id];
 
         (double Lat, double Lon)? pos = NavDb.GetFixPosition(id);
 

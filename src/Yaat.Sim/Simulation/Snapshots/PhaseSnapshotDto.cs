@@ -1237,6 +1237,12 @@ public sealed class ApproachNavigationPhaseDto : PhaseDto
 {
     public required List<ApproachFixDto> Fixes { get; init; }
     public required int CurrentFixIndex { get; init; }
+
+    /// <summary>The procedure-turn inbound line the phase joins after a PT (all three set, or none). Optional
+    /// (defaults null) so recordings made before the fields deserialize cleanly.</summary>
+    public double? PostTurnAnchorLat { get; init; }
+    public double? PostTurnAnchorLon { get; init; }
+    public double? PostTurnInboundCourseDeg { get; init; }
 }
 
 public sealed class InterceptCoursePhaseDto : PhaseDto

@@ -22,6 +22,7 @@ public sealed class NavigationDatabase
     private readonly Dictionary<string, string> _airportNames = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _navaidNames = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _navaidTypes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, double> _navaidDeclinations = new(StringComparer.OrdinalIgnoreCase);
 
     // Spatial bucket of airports (1° × 1° grid; ~60nm bucket size). Used by
     // FindNearestAirportElevation for terrain-aware AGL lookups when the aircraft
@@ -2623,9 +2624,9 @@ public sealed class NavigationDatabase
             return;
         }
 
-        IReadOnlyDictionary<string, (double Lat, double Lon, string Name, string Type)> navaids = CifpParser.ParseNavaids(cifpFilePath);
+        IReadOnlyDictionary<string, CifpNavaid> navaids = CifpParser.ParseNavaids(cifpFilePath);
         var faaOnlyAirportIds = new List<string>();
-        foreach ((string? ident, (double Lat, double Lon, string Name, string Type) info) in navaids)
+        foreach ((string? ident, CifpNavaid info) in navaids)
         {
             // A bare FAA airport id (SAC, OAK, HEY) that also names a CIFP navaid resolves to the navaid: a route
             // token means the navaid, and airport callers use GetAirportPosition. The ICAO id (KSAC) keeps the
@@ -2654,6 +2655,10 @@ public sealed class NavigationDatabase
             {
                 _navaidTypes.TryAdd(ident, info.Type);
             }
+            if (info.StationDeclination is { } stationDeclination)
+            {
+                _navaidDeclinations.TryAdd(ident, stationDeclination);
+            }
         }
 
         // After every navaid is in, so a navaid named like a K-prefixed id is seen whatever the navaid order.
@@ -2677,6 +2682,45 @@ public sealed class NavigationDatabase
     /// defaulting every navaid to "VOR".
     /// </summary>
     public string? GetNavaidType(string code) => _navaidTypes.TryGetValue(code, out string? type) ? type : null;
+
+    /// <summary>
+    /// Returns the navaid's station declination (east-positive degrees, the same sign as
+    /// <see cref="MagneticDeclination"/>) from its CIFP record, or <c>null</c> when the navaid is unknown or its
+    /// record carries none. A course referenced to a VOR is charted against this value (AIM 1-1-17), not the
+    /// live magnetic field.
+    /// </summary>
+    public double? GetStationDeclination(string navaidId) => _navaidDeclinations.TryGetValue(navaidId, out double declination) ? declination : null;
+
+    /// <summary>
+    /// The declination a published procedure course was charted against (east-positive degrees). In order: the
+    /// station declination of the navaid the course is referenced to (AIM 1-1-17b.5(j)(1): the facility's variation
+    /// of record); the airport's magnetic variation of record; the modelled declination at the navaid; the modelled
+    /// declination at <paramref name="fixPosition"/>. The aircraft's live declination is never used: it would bend a
+    /// published course as the aircraft moves.
+    /// </summary>
+    /// <param name="navaidId">The course's recommended navaid, or null/blank for a course with none (RNAV).</param>
+    /// <param name="airportId">The procedure's airport (ICAO or FAA id).</param>
+    /// <param name="fixPosition">Where the course is flown, for the last-resort modelled declination.</param>
+    public double GetPublishedCourseDeclination(string? navaidId, string airportId, LatLon fixPosition)
+    {
+        string? navaid = string.IsNullOrWhiteSpace(navaidId) ? null : navaidId;
+        if ((navaid is not null) && (GetStationDeclination(navaid) is { } stationDeclination))
+        {
+            return stationDeclination;
+        }
+
+        if (GetAirportMagneticVariation(airportId) is { } airportVariation)
+        {
+            return airportVariation;
+        }
+
+        if ((navaid is not null) && (GetFixPosition(navaid) is { } navaidPosition))
+        {
+            return MagneticDeclination.GetDeclination(navaidPosition.Lat, navaidPosition.Lon);
+        }
+
+        return MagneticDeclination.GetDeclination(fixPosition);
+    }
 
     /// <summary>
     /// Canonicalizes an airport identifier by uppercasing and stripping the CONUS

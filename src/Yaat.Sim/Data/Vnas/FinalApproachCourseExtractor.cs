@@ -47,20 +47,22 @@ public static class FinalApproachCourseExtractor
     /// </returns>
     public static FinalApproachCourseResult Extract(CifpApproachProcedure procedure, RunwayInfo runway, NavigationDatabase navDb)
     {
-        // Convert published magnetic courses with the airport's CIFP variation of record (the
-        // declination the procedure was charted against), not the live WMM declination. The two drift
-        // apart across AIRAC epochs, and that drift is what pushes an aligned localizer off the runway
-        // centerline (issue #187). Fall back to WMM only when the CIFP airport record is unavailable.
-        double declination =
-            navDb.GetAirportMagneticVariation(runway.AirportId)
-            ?? MagneticDeclination.GetDeclination(runway.ThresholdLatitude, runway.ThresholdLongitude);
-
         (CifpLeg? mapLeg, int mapIndex) = FindMapLeg(procedure.CommonLegs);
         if (mapLeg is null)
         {
             Log.LogDebug("[FacExtract] {ApproachId}: no MAP leg found in CommonLegs, falling back to runway heading", procedure.ApproachId);
             return new FinalApproachCourseResult(runway.TrueHeading, AnchorLat: null, AnchorLon: null);
         }
+
+        // Convert the published magnetic course with the declination it was charted against, not the live WMM
+        // declination: a VOR/NDB/TACAN-referenced final uses the facility's variation of record, a localizer or
+        // RNAV final the airport's CIFP variation of record. The live field drifts across AIRAC epochs, and that
+        // drift is what pushes an aligned localizer off the runway centerline (issue #187).
+        double declination = navDb.GetPublishedCourseDeclination(
+            mapLeg.RecommendedNavaidId,
+            runway.AirportId,
+            new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude)
+        );
 
         TrueHeading? course = mapLeg.PathTerminator switch
         {
