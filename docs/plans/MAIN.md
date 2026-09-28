@@ -10,6 +10,7 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 **Steer (user 2026-09-26): ERAM conformance only until it is done** — no other item (programme, wave or single) starts before every ERAM wave has landed.
 
+- [ ] **OAK 28R arrivals exiting at J stop half on the runway, half on J** (user bug report 2026-09-27, ahead of everything incl. the ERAM steer; bundle `C:\Users\lefto\Downloads\S2-OAK-5 (2) _ Practical Exam Preparation_Advanced Concepts.yaat-bug-report-bundle.zip`): the natural (uninstructed) exit at J ends with the aircraft not clear of the runway
 - [ ] **ERAM command conformance** (a controller's request, 2026-09-26) — [eram-conformance.md](./eram-conformance.md): a YAML command reference extracted from the ERAM EDSM SRS, a conformance test, ACCEPT/descriptor feedback and field validation for our ERAM verbs, then CO, the full AM field set, and HM/QH hold. Waves 0–4 done (2026-09-27); next: Wave 5 (QT convert point-out, QP request/suppress data block, RF validate-and-accept, QF field selection, DM for proposed plans, QA/QV). The ERAM-only steer covers Wave 5 too (user 2026-09-27): build it next, all of it. The ERAM follow-up singles (TrackOwner facility veto, AM leftovers, `RemainingRouteFixes`, the hold rules into Yaat.Sim, the CO/STCA leftovers) count as ERAM work and fill implementer slots Wave 5 cannot use (user 2026-09-27).
 
 ## Current programme
