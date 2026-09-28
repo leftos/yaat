@@ -1,6 +1,6 @@
 # ERAM command conformance against the ERAM EDSM SRS
 
-**Status (2026-09-27):** Waves 0–4 are done: the reference in `docs/eram/`, the file split, ACCEPT/descriptor feedback with table errors, flight-ID validation and the conformance test, per-field checks for every verb we answer, and the Wave 4 commands (LD, LE, QX `/R` and FP, CO, the full AM field set, QT coast, HM/QH hold). Next: Wave 5.
+**Status (2026-09-27):** Waves 0–4 are done: the reference in `docs/eram/`, the file split, ACCEPT/descriptor feedback with table errors, flight-ID validation and the conformance test, per-field checks for every verb we answer, and the Wave 4 commands (LD, LE, QX `/R` and FP, CO, AM for the ten fields YAAT models, QT coast, HM/QH hold). Next: Wave 5.
 
 ## Context
 
@@ -174,11 +174,16 @@ All Wave 4 items have landed; the rulings below are the record of how each was d
 ## Wave 5: remaining commands (next; the ERAM-only steer covers it, user 2026-09-27)
 
 - QT convert point-out.
-- The full meaning of QP request/suppress data block.
-- RF: validate and ACCEPT only.
-- QF field selection.
-- DM for proposed plans, once yaat models them.
-- QA auto handoff and QV quick vector (low value).
+- RF: validate and ACCEPT only (today `RF` falls to the implied path and is misread as a handoff to a sector named "RF").
+- QF field selection (field 12).
+- QA auto handoff and QV quick vector.
+
+Settled without work (explorer 2026-09-27): QP request/suppress data block is already built (`QP.ReqSuppDb` → the Sim `MIN` entry; one-directional, as `docs/crc/eram.md` :862 describes). DM for proposed plans needs nothing: YAAT has no proposed-plan object (`FlightPlanStatus.Proposed` is derived from "on the ground, never airborne"), and `DM.Departure` already resolves the FLID and ACCEPTs. `EramPointoutState.IsRecipientSuppressed` is set nowhere and read by nothing in CRC's UI, a dead field.
+
+**Wave 5 rulings (user 2026-09-27):**
+- **QT `C` (convert point-out)**: the entering sector must be the receiver of a pending ERAM point-out on the track (else `YaatPoNotFound`); one recorded Sim entry then takes the track for it and removes that point-out, as STARS `**` does (`TrackEngine.HandleConvertPointout`). `/OK` (field 60) overrides the receiver check.
+- **QF field 12** answers for the ten fields YAAT models (TYP, BCN, SPD, ALT, RAL, RTE, RMK, NUM, SAI, EQP); the `amendable_fields` rows in `AM.yaml` that YAAT stores nothing for are marked `na`. Wave 4's AM work built those ten, not "the full AM field set".
+- **QA / QV**: an ERAM entry changes what the scopes show, never the aircraft (user: a controller does not fly the aircraft through ERAM). What each displays is being read from the SRS before they are built.
 
 ## Verification
 
