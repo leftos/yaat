@@ -888,6 +888,7 @@ Phases/PhaseContext.cs         # Readonly tick context; includes Weather, TowerP
 Phases/TowerCabPhases.cs       # Phase families inside local control's jurisdiction: IsArrivalSide (final, landing, pattern, go-around, tower maneuvers on final) — the airborne check-in guard; departures deliberately excluded
 Phases/PhaseStatus.cs          # Enum: phase lifecycle status
 Phases/CommandAcceptance.cs    # Enum: Allowed, Rejected, ClearsPhase
+Phases/CourseLineSteering.cs   # Heading onto a course line through a fix: the course corrected by cross-track error, capped at a 45° cut; used by the procedure turn's inbound intercept and DepartureProcedurePhase's course legs
 Phases/ClearanceRequirement.cs # Clearance requirement definitions
 Phases/IGroundRollClock.cs      # A phase flying a takeoff roll along the GroundRollProfile spool ramp reports how far into it the roll is (RollClockSeconds); predictors (same-runway separation, rejected takeoff, preceding departure) place the aircraft where the roll has it instead of inferring from speed
 Phases/ExitPreference.cs       # ExitSide enum, ExitPreference class, ResolvedExitInfo (branch point + path + turn-off speed), ExitRetargetVerdict

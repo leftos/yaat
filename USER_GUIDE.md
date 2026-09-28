@@ -1283,6 +1283,10 @@ The second turn waits for the heading-to-270 part, not necessarily for the climb
 
 If you find the punctuation hard to read, you can use `AND` in place of `,` and `THEN` in place of `;` (both case-insensitive). `FH 270 AND CM 050 THEN FH 180` means exactly the same thing as `FH 270, CM 050; FH 180`. The aliases are skipped inside `SAY` / `SAYF` literal text, so a message like `SAYF READING YOU LOUD AND CLEAR` is transmitted verbatim.
 
+#### Airport or navaid?
+
+When an identifier names both an airport and a navaid, the bare id is the navaid: `DCT CCR` flies to the CONCORD VOR, and `DCT KCCR` flies to Buchanan Field. The same goes for scenario spawn positions and routes written with a bare id, so write the ICAO form (`KSAC`, `KOAK`) when you mean the airport.
+
 #### Use `LV` and `AT` for triggers
 
 `LV <altitude> <command>` starts a block when the aircraft reaches an altitude. Altitudes use the same format as `CM` and `DM`: `050` means 5,000 ft, `5000` means 5,000 ft, and AGL forms such as `KOAK+010` are accepted.

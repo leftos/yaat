@@ -1333,6 +1333,37 @@ public class ProcedureLoadingTests
         Assert.True(sacIdx >= 1, $"Expected intermediate V6 fixes before SAC, got: [{string.Join(", ", names)}]");
     }
 
+    [Theory]
+    [InlineData("NIMI5 OAK V6 SAC", "KRNO")]
+    [InlineData("NIMI5 OAK V6 SAC ECA", "KMOD")]
+    [InlineData("NIMI5 OAK V6 SAC", "KSAC")]
+    public void TryResolveSidFromCifp_Nimi5_OakV6Sac_BareRouteSacIsTheVortacWhateverTheDestination(string route, string destination)
+    {
+        // SAC names both the SACRAMENTO VORTAC and Sacramento Executive (FAA id SAC, ICAO KSAC), 4.97 nm apart.
+        // A bare route token is the navaid whatever the destination: V6 ends at the VORTAC even when the flight
+        // is bound for Sacramento Executive itself.
+        NavigationDatabase navDb = TestVnasData.NavigationDb!;
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
+        Assert.NotNull(navDb.GetSid("KOAK", "NIMI5"));
+        (double Lat, double Lon, string Name, string Type) vortac = CifpParser.ParseNavaids(TestVnasData.GetCifpPath()!)["SAC"];
+
+        NavigationTarget sac = ResolveNimi5Target(route, destination, "SAC");
+
+        double offNm = GeoMath.DistanceNm(sac.Position.Lat, sac.Position.Lon, vortac.Lat, vortac.Lon);
+        Assert.True(offNm < 0.1, $"SAC target is {offNm:F2} nm from the SACRAMENTO VORTAC ({sac.Position.Lat:F5},{sac.Position.Lon:F5})");
+    }
+
+    private static NavigationTarget ResolveNimi5Target(string route, string destination, string targetName)
+    {
+        AircraftState aircraft = CreateIfrAircraft(route, departure: "KOAK", destination: destination);
+        aircraft.Phases = new PhaseList { AssignedRunway = MakeOakRunway("28R") };
+
+        DepartureRouteResult? result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
+
+        Assert.NotNull(result);
+        return Assert.Single(result.Targets, t => t.Name == targetName);
+    }
+
     [Fact]
     public void TryResolveSidFromCifp_Cndel5_OakV6Sac_ExpandsAirwayFixes()
     {

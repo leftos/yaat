@@ -948,7 +948,7 @@ public static class ArtccConfigResolver
             return (0, 0);
         }
 
-        (double Lat, double Lon)? pos = fixes.GetFixPosition(facility.Id);
+        (double Lat, double Lon)? pos = fixes.GetAirportPosition(facility.Id);
         return pos is not null ? (pos.Value.Lat, pos.Value.Lon) : (0, 0);
     }
 

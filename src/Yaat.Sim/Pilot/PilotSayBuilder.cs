@@ -152,7 +152,8 @@ public static class PilotSayBuilder
         try
         {
             NavigationDatabase navDb = NavigationDatabase.Instance;
-            List<(string Name, double Lat, double Lon)> candidates = BuildPositionCandidates(aircraft, navDb);
+            var airportAnchors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            List<(string Name, double Lat, double Lon)> candidates = BuildPositionCandidates(aircraft, navDb, airportAnchors);
 
             string? primary = candidates.Count > 0 ? FrdResolver.ToFrd(aircraft.Position.Lat, aircraft.Position.Lon, candidates) : null;
 
@@ -173,11 +174,11 @@ public static class PilotSayBuilder
                     [(fallback.Value.Id, fallback.Value.Lat, fallback.Value.Lon)],
                     SizeableAirportMaxRangeNm
                 );
-                return fallbackFrd is null ? "Unable to determine position" : FormatFrd(fallbackFrd, navDb);
+                return fallbackFrd is null ? "Unable to determine position" : FormatFrd(fallbackFrd, navDb, anchorIsAirport: true);
             }
 
-            string primaryText = FormatFrd(primary, navDb);
             string? primaryName = FrdResolver.ParseFrd(primary)?.Fix;
+            string primaryText = FormatFrd(primary, navDb, anchorIsAirport: (primaryName is not null) && airportAnchors.Contains(primaryName));
             // Anchors that have a published friendly name (VORs, airports) already place
             // themselves for the reader. Only unnamed intersections need an extra airport
             // context line for someone who doesn't recognize the 5-letter waypoint.
@@ -202,7 +203,7 @@ public static class PilotSayBuilder
                 [(nearbyAirport.Value.Id, nearbyAirport.Value.Lat, nearbyAirport.Value.Lon)],
                 SizeableAirportMaxRangeNm
             );
-            return airportFrd is null ? primaryText : $"{primaryText}, {FormatFrd(airportFrd, navDb)}";
+            return airportFrd is null ? primaryText : $"{primaryText}, {FormatFrd(airportFrd, navDb, anchorIsAirport: true)}";
         }
         catch (InvalidOperationException)
         {
@@ -210,43 +211,74 @@ public static class PilotSayBuilder
         }
     }
 
-    private static List<(string Name, double Lat, double Lon)> BuildPositionCandidates(AircraftState aircraft, NavigationDatabase navDb)
+    /// <summary>
+    /// The anchors a position report may measure from: the filed departure and destination airports, the filed
+    /// route's fixes and the active navigation targets. Airports and route fixes are deduplicated separately, since a
+    /// bare id such as "SAC" names both Sacramento Executive and the SACRAMENTO VORTAC; each airport is keyed by its
+    /// airport id (<see cref="AirportAnchorId"/>) and returned in <paramref name="airportAnchors"/>.
+    /// </summary>
+    private static List<(string Name, double Lat, double Lon)> BuildPositionCandidates(
+        AircraftState aircraft,
+        NavigationDatabase navDb,
+        HashSet<string> airportAnchors
+    )
     {
         var candidates = new List<(string Name, double Lat, double Lon)>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenFixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        void Add(string? name)
+        void AddAirport(string? id)
         {
-            if (string.IsNullOrWhiteSpace(name) || !seen.Add(name))
+            if (string.IsNullOrWhiteSpace(id) || (navDb.GetAirportPosition(id) is not { } pos))
             {
                 return;
             }
-            (double Lat, double Lon)? pos = navDb.GetFixPosition(name);
-            if (pos is not null)
+            string anchor = AirportAnchorId(id, navDb);
+            if (airportAnchors.Add(anchor))
             {
-                candidates.Add((name, pos.Value.Lat, pos.Value.Lon));
+                candidates.Add((anchor, pos.Lat, pos.Lon));
             }
         }
 
+        void AddFix(string name, (double Lat, double Lon)? pos)
+        {
+            if (string.IsNullOrWhiteSpace(name) || (pos is null) || !seenFixes.Add(name))
+            {
+                return;
+            }
+            candidates.Add((name, pos.Value.Lat, pos.Value.Lon));
+        }
+
         AircraftFlightPlan fp = aircraft.FlightPlan;
-        Add(fp.Departure);
-        Add(fp.Destination);
+        AddAirport(fp.Departure);
+        AddAirport(fp.Destination);
         foreach (string fix in navDb.ExpandRoute(fp.Route))
         {
-            Add(fix);
+            AddFix(fix, navDb.GetFixPosition(fix));
         }
         foreach (NavigationTarget nav in aircraft.Targets.NavigationRoute)
         {
-            if (seen.Add(nav.Name))
-            {
-                candidates.Add((nav.Name, nav.Position.Lat, nav.Position.Lon));
-            }
+            AddFix(nav.Name, (nav.Position.Lat, nav.Position.Lon));
         }
 
         return candidates;
     }
 
-    private static string FormatFrd(string frd, NavigationDatabase navDb)
+    /// <summary>
+    /// The id a filed airport anchors a position report under: its canonical airport id ("SAC" becomes "KSAC"), or the
+    /// K-prefixed form of an FAA-only id a navaid also carries ("HEY" becomes "KHEY"), so the anchor never shares its
+    /// name with a route fix.
+    /// </summary>
+    private static string AirportAnchorId(string id, NavigationDatabase navDb)
+    {
+        string anchor = navDb.TryResolveAirport(id, out string canonical) ? canonical : id.Trim().ToUpperInvariant();
+        if ((navDb.GetNavaidName(anchor) is not null) && navDb.TryResolveAirport("K" + anchor, out _))
+        {
+            return "K" + anchor;
+        }
+        return anchor;
+    }
+
+    private static string FormatFrd(string frd, NavigationDatabase navDb, bool anchorIsAirport)
     {
         (string Fix, int? Radial, int? Distance)? parsed = FrdResolver.ParseFrd(frd);
         if (parsed is null)
@@ -255,7 +287,7 @@ public static class PilotSayBuilder
         }
 
         (string? fixName, int? radial, int? distance) = parsed.Value;
-        string label = AnchorLabel(fixName, navDb);
+        string label = AnchorLabel(fixName, navDb, anchorIsAirport);
         if (radial is null || distance is null || distance == 0)
         {
             return $"Over {label}";
@@ -273,9 +305,16 @@ public static class PilotSayBuilder
     ///   "OAK - Oakland VOR"        (CIFP section D navaid)
     ///   "KOAK - Oakland Airport"   (NavData airport)
     ///   "GROAN intersection"       (named RNAV waypoint, no published friendly name)
+    /// An anchor known to be an airport (a filed departure or destination, a nearby sizeable airport) takes the
+    /// airport's name first, since it was measured from the airport.
     /// </summary>
-    private static string AnchorLabel(string code, NavigationDatabase navDb)
+    private static string AnchorLabel(string code, NavigationDatabase navDb, bool isAirport)
     {
+        if (isAirport && (navDb.GetAirportName(code) is { } knownAirportName) && !string.IsNullOrWhiteSpace(knownAirportName))
+        {
+            return $"{code} - {FriendlyAirportName(knownAirportName)}";
+        }
+
         string? navaidName = navDb.GetNavaidName(code);
         if (!string.IsNullOrWhiteSpace(navaidName))
         {

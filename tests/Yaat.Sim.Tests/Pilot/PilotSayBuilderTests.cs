@@ -133,6 +133,48 @@ public class PilotSayBuilderTests
     }
 
     [Fact]
+    public void BuildPosition_RouteSacWithBareSacDestination_NamesAndMeasuresTheVortac()
+    {
+        // SAC is both the SACRAMENTO VORTAC and Sacramento Executive's FAA id, 4.97 nm apart. A destination filed as
+        // bare "SAC" means the airport; the route's SAC token is the VORTAC, and each anchor is named and measured
+        // from its own position.
+        TestVnasData.EnsureInitialized();
+        NavigationDatabase navDb = TestVnasData.NavigationDb!;
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
+
+        var vortac = new LatLon(navDb.GetFixPosition("SAC")!.Value.Lat, navDb.GetFixPosition("SAC")!.Value.Lon);
+        var airport = new LatLon(navDb.GetAirportPosition("SAC")!.Value.Lat, navDb.GetAirportPosition("SAC")!.Value.Lon);
+        // 2 nm past the VORTAC on the far side from the airport, so the VORTAC is the nearest anchor.
+        LatLon here = GeoMath.ProjectPoint(vortac, new TrueHeading(GeoMath.BearingTo(airport, vortac)), 2.0);
+        AircraftState ac = MakeAircraftAt(here.Lat, here.Lon);
+        ac.FlightPlan.Departure = "KOAK";
+        ac.FlightPlan.Destination = "SAC";
+        ac.FlightPlan.Route = "SAC";
+
+        string result = PilotSayBuilder.BuildPosition(ac);
+
+        Assert.StartsWith("2 miles ", result);
+        Assert.Contains("of SAC - Sacramento VORTAC", result);
+    }
+
+    [Fact]
+    public void BuildPosition_BareSacDestination_NamesTheAirportNotTheVortac()
+    {
+        TestVnasData.EnsureInitialized();
+        NavigationDatabase navDb = TestVnasData.NavigationDb!;
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
+
+        (double Lat, double Lon) airport = navDb.GetAirportPosition("SAC")!.Value;
+        AircraftState ac = MakeAircraftAt(airport.Lat, airport.Lon);
+        ac.FlightPlan.Departure = "KOAK";
+        ac.FlightPlan.Destination = "SAC";
+
+        string result = PilotSayBuilder.BuildPosition(ac);
+
+        Assert.Equal("Over KSAC - Sacramento Airport", result);
+    }
+
+    [Fact]
     public void BuildPosition_NoFlightPlan_FallsBackToSizeableAirport()
     {
         TestVnasData.EnsureInitialized();

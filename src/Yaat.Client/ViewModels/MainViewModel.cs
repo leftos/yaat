@@ -1742,7 +1742,7 @@ public partial class MainViewModel : ObservableObject
             // not be resolved then. Each one resolves its own airport, never the scenario's.
             foreach (RadarViewInstance instance in ExtraRadarViews)
             {
-                if (ResolveAirportPosition(instance.AirportId) is { } position)
+                if (NavigationDatabase.Instance.GetAirportPosition(instance.AirportId) is { } position)
                 {
                     instance.Vm.SetPrimaryAirportPosition(position.Lat, position.Lon);
                 }
@@ -3218,7 +3218,7 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        (double Lat, double Lon)? pos = _commandInput.NavDbReady ? NavigationDatabase.Instance.GetFixPosition(airportId) : null;
+        (double Lat, double Lon)? pos = _commandInput.NavDbReady ? NavigationDatabase.Instance.GetAirportPosition(airportId) : null;
         if (pos.HasValue)
         {
             // Primary only: an extra Radar View is centred on the airport it was opened with, not on the

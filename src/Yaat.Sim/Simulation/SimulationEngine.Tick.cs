@@ -286,7 +286,7 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
-            (double Lat, double Lon)? aptPos = NavigationDatabase.Instance.GetFixPosition(airport);
+            (double Lat, double Lon)? aptPos = NavigationDatabase.Instance.GetAirportPosition(airport);
             if (aptPos is null)
             {
                 continue;
@@ -870,7 +870,7 @@ public sealed partial class SimulationEngine
             return false;
         }
 
-        if (string.IsNullOrEmpty(primaryAirportId) || NavigationDatabase.Instance.GetFixPosition(primaryAirportId) is not { } airport)
+        if (string.IsNullOrEmpty(primaryAirportId) || NavigationDatabase.Instance.GetAirportPosition(primaryAirportId) is not { } airport)
         {
             return false;
         }
@@ -890,7 +890,7 @@ public sealed partial class SimulationEngine
             return false;
         }
 
-        if (string.IsNullOrEmpty(primaryAirportId) || NavigationDatabase.Instance.GetFixPosition(primaryAirportId) is not { } airport)
+        if (string.IsNullOrEmpty(primaryAirportId) || NavigationDatabase.Instance.GetAirportPosition(primaryAirportId) is not { } airport)
         {
             return false;
         }
@@ -984,7 +984,7 @@ public sealed partial class SimulationEngine
 
     private static LatLon? LookupAirportPosition(string airportId)
     {
-        (double Lat, double Lon)? pos = NavigationDatabase.Instance.GetFixPosition(airportId);
+        (double Lat, double Lon)? pos = NavigationDatabase.Instance.GetAirportPosition(airportId);
         return pos.HasValue ? new LatLon(pos.Value.Lat, pos.Value.Lon) : null;
     }
 

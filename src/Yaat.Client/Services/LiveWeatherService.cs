@@ -382,7 +382,7 @@ public sealed class LiveWeatherService
 
         if (primaryAirport is not null)
         {
-            (double Lat, double Lon)? pos = NavigationDatabase.Instance.GetFixPosition(primaryAirport);
+            (double Lat, double Lon)? pos = NavigationDatabase.Instance.GetAirportPosition(primaryAirport);
             if (pos is not null)
             {
                 return new LatLon(pos.Value.Lat, pos.Value.Lon);

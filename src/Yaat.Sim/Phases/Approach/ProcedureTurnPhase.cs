@@ -13,7 +13,8 @@ namespace Yaat.Sim.Phases.Approach;
 ///   3. TurnToPtOutbound — turn to the published 45°-offset PT heading.
 ///   4. PtOutbound       — fly the 45° leg until distance / time / altitude gate met.
 ///   5. TurnToInbound    — 180° turn in OneEightyTurnDirection back toward FAC.
-///   6. InterceptInbound — fly heading toward fix; complete when established on FAC.
+///   6. InterceptInbound — steer onto the FAC line through the fix (≤45° cut, <see cref="CourseLineSteering"/>);
+///                         complete when established on FAC.
 ///
 /// Constructed from a CIFP PI leg in <see cref="ApproachCommandHandler"/>.
 /// </summary>
@@ -255,7 +256,12 @@ public sealed class ProcedureTurnPhase : Phase
         EnsureMinimumAltitudeTarget(ctx);
         ClampPtSpeed(ctx);
 
-        bool onCourse = ctx.Aircraft.TrueHeading.IsCloseTo(new TrueHeading(InboundCourseDeg), InterceptToleranceDeg + 10);
+        // Steer onto the inbound course line through the fix, not merely onto its heading: an aircraft that
+        // finishes the 180° turn offset from the course would otherwise fly parallel to it indefinitely.
+        var inboundCourse = new TrueHeading(InboundCourseDeg);
+        ctx.Targets.TargetTrueHeading = CourseLineSteering.HeadingToward(ctx.Aircraft.Position, new LatLon(FixLat, FixLon), inboundCourse);
+
+        bool onCourse = ctx.Aircraft.TrueHeading.IsCloseTo(inboundCourse, InterceptToleranceDeg + 10);
         if (!onCourse)
         {
             return false;
@@ -264,9 +270,7 @@ public sealed class ProcedureTurnPhase : Phase
         // Lateral intercept gate: don't hand off to FinalApproach until the aircraft is
         // also laterally on the FAC. Heading-only would let a 5° heading match with a
         // 2 nm cross-track error pass FinalApproach an off-course aircraft.
-        double crossTrackNm = Math.Abs(
-            GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, new LatLon(FixLat, FixLon), new TrueHeading(InboundCourseDeg))
-        );
+        double crossTrackNm = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, new LatLon(FixLat, FixLon), inboundCourse));
         if (crossTrackNm > InterceptLateralToleranceNm)
         {
             return false;

@@ -1839,7 +1839,7 @@ public sealed partial class SimulationEngine
             return null;
         }
 
-        (double Lat, double Lon)? airportPos = NavigationDatabase.Instance.GetFixPosition(airportId);
+        (double Lat, double Lon)? airportPos = NavigationDatabase.Instance.GetAirportPosition(airportId);
         if (airportPos is null)
         {
             _logger.LogWarning("VFR arrival generator '{Id}': primary airport '{Airport}' not in navdata", config.Id, airportId);
@@ -1943,7 +1943,7 @@ public sealed partial class SimulationEngine
             return null;
         }
 
-        (double Lat, double Lon)? airportPos = NavigationDatabase.Instance.GetFixPosition(airportId);
+        (double Lat, double Lon)? airportPos = NavigationDatabase.Instance.GetAirportPosition(airportId);
         if (airportPos is null)
         {
             _logger.LogWarning("Overflight generator '{Id}': primary airport '{Airport}' not in navdata", config.Id, airportId);

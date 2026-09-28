@@ -907,7 +907,7 @@ internal static class DepartureClearanceHandler
 
             case OnCourseDeparture when aircraft.FlightPlan.Destination is not null:
             {
-                (double Lat, double Lon)? pos = navDb.GetFixPosition(aircraft.FlightPlan.Destination);
+                (double Lat, double Lon)? pos = navDb.GetAirportPosition(aircraft.FlightPlan.Destination);
                 if (pos is null)
                 {
                     return null;
@@ -960,11 +960,13 @@ internal static class DepartureClearanceHandler
         IReadOnlyList<string> expanded = navDb.ExpandRouteForNavigation(aircraft.FlightPlan.Route, aircraft.FlightPlan.Departure);
         var targets = new List<NavigationTarget>();
 
-        (double Lat, double Lon)? airportPos = aircraft.FlightPlan.Departure is not null ? navDb.GetFixPosition(aircraft.FlightPlan.Departure) : null;
+        (double Lat, double Lon)? airportPos = aircraft.FlightPlan.Departure is not null
+            ? navDb.GetAirportPosition(aircraft.FlightPlan.Departure)
+            : null;
 
         foreach (string name in expanded)
         {
-            (double Lat, double Lon)? pos = navDb.GetFixPosition(name);
+            (double Lat, double Lon)? pos = navDb.ResolveFixOrFrd(name);
             if (pos is null)
             {
                 continue;
@@ -1293,7 +1295,7 @@ internal static class DepartureClearanceHandler
         bool atLeadingBoundary = true;
         for (int i = fixStart; i < expandedFixes.Count; i++)
         {
-            (double Lat, double Lon)? pos = navDb.GetFixPosition(expandedFixes[i]);
+            (double Lat, double Lon)? pos = navDb.ResolveFixOrFrd(expandedFixes[i]);
             if (pos is null)
             {
                 continue;
@@ -1320,7 +1322,7 @@ internal static class DepartureClearanceHandler
         }
 
         NavigationDatabase navDb = NavigationDatabase.Instance;
-        (double Lat, double Lon)? airportPos = navDb.GetFixPosition(departure);
+        (double Lat, double Lon)? airportPos = navDb.GetAirportPosition(departure);
         if (airportPos is not null)
         {
             while (targets.Count > 0)
@@ -1347,7 +1349,7 @@ internal static class DepartureClearanceHandler
             return false;
         }
 
-        (double Lat, double Lon)? airportPos = navDb.GetFixPosition(departure);
+        (double Lat, double Lon)? airportPos = navDb.GetAirportPosition(departure);
         (double Lat, double Lon)? fixPos = navDb.GetFixPosition(fixName);
         if (airportPos is null || fixPos is null)
         {

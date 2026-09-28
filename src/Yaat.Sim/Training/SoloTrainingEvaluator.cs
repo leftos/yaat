@@ -893,7 +893,7 @@ public sealed class SoloTrainingEvaluator
         )
         {
             string airportId = group.Key;
-            (double Lat, double Lon)? airport = navDb.GetFixPosition(airportId) ?? navDb.GetFixPosition("K" + airportId);
+            (double Lat, double Lon)? airport = navDb.GetAirportPosition(airportId);
             if (airport is null)
             {
                 continue;

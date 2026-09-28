@@ -235,10 +235,10 @@ public class WeatherProfile
     private static (string AirportId, LatLon Position)? ResolveStationAirport(string stationId)
     {
         NavigationDatabase navDb = NavigationDatabase.Instance;
-        (double Lat, double Lon)? pos = navDb.GetFixPosition(stationId);
+        (double Lat, double Lon)? pos = navDb.GetAirportPosition(stationId);
         if (pos is null && stationId.Length == 4 && (stationId[0] is 'K' or 'k'))
         {
-            pos = navDb.GetFixPosition(stationId[1..]);
+            pos = navDb.GetAirportPosition(stationId[1..]);
         }
         if (pos is null)
         {

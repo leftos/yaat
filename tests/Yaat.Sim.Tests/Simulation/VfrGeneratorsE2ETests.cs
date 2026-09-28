@@ -83,7 +83,7 @@ public class VfrGeneratorsE2ETests(ITestOutputHelper output)
         return engine;
     }
 
-    private static (double Lat, double Lon) Airport() => Yaat.Sim.Data.NavigationDatabase.Instance.GetFixPosition("OAK")!.Value;
+    private static (double Lat, double Lon) Airport() => Yaat.Sim.Data.NavigationDatabase.Instance.GetAirportPosition("OAK")!.Value;
 
     [Fact]
     public void VfrArrivalGenerator_SpawnsInsideItsConfiguredRanges()

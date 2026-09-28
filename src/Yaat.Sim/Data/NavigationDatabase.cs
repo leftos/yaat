@@ -59,6 +59,11 @@ public sealed class NavigationDatabase
     // behavior CRC's display path uses. Built from navData.Airports during BuildIndex.
     private readonly Dictionary<string, string> _airportFaaIds = new(StringComparer.OrdinalIgnoreCase);
 
+    // Airport reference points keyed by canonical id (the _airportCanonical value), kept apart from
+    // _navDb because a CIFP navaid takes a bare FAA id there (SAC is the SACRAMENTO VORTAC, not
+    // Sacramento Executive). GetAirportPosition resolves FAA and ICAO ids to this map.
+    private readonly Dictionary<string, (double Lat, double Lon)> _airportPositions = new(StringComparer.OrdinalIgnoreCase);
+
     // CIFP per-airport caches (parsed on first access from the CIFP file)
     private readonly ConcurrentDictionary<string, IReadOnlyList<CifpSidProcedure>> _sidCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, IReadOnlyList<CifpStarProcedure>> _starCache = new(StringComparer.OrdinalIgnoreCase);
@@ -355,6 +360,7 @@ public sealed class NavigationDatabase
                     continue;
                 }
                 db._navDb[code] = pos;
+                db._airportPositions[code] = pos;
                 double elev = elevations is not null && elevations.TryGetValue(code, out double e) ? e : 0;
                 db.AddAirportToSpatialIndex(code, pos.Lat, pos.Lon, elev);
             }
@@ -493,6 +499,32 @@ public sealed class NavigationDatabase
         // an expanded route flies and draws while ~7,000 synthetic names stay out of autocomplete
         // and out of FRD anchoring. A real fix of the same name always wins, since _navDb is first.
         return _militaryRoutePoints.TryGetValue(name, out (double Lat, double Lon) militaryPos) ? militaryPos : null;
+    }
+
+    /// <summary>
+    /// Returns an airport's reference point for an FAA ("SAC") or ICAO ("KSAC") identifier.
+    /// <para>
+    /// Use this wherever the identifier means an airport. <see cref="GetFixPosition"/> answers a route
+    /// token, and a bare FAA id that also names a CIFP navaid resolves there to the navaid: "SAC" is the
+    /// SACRAMENTO VORTAC, 4.97 nm from Sacramento Executive.
+    /// </para>
+    /// </summary>
+    /// <param name="id">The airport identifier, FAA or ICAO form, case-insensitive.</param>
+    /// <returns>The airport reference point, or null when the identifier names no known airport.</returns>
+    public (double Lat, double Lon)? GetAirportPosition(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return null;
+        }
+
+        string key = id.Trim();
+        if (_airportCanonical.TryGetValue(key, out string? canonical) && _airportPositions.TryGetValue(canonical, out (double Lat, double Lon) pos))
+        {
+            return pos;
+        }
+
+        return _airportPositions.TryGetValue(key, out (double Lat, double Lon) direct) ? direct : null;
     }
 
     /// <summary>
@@ -854,7 +886,7 @@ public sealed class NavigationDatabase
             return false;
         }
 
-        (double Lat, double Lon)? airportPos = GetFixPosition(departureAirport);
+        (double Lat, double Lon)? airportPos = GetAirportPosition(departureAirport);
         if (airportPos is null)
         {
             return false;
@@ -1041,9 +1073,11 @@ public sealed class NavigationDatabase
         // Strip leading fixes within 1nm of departure airport
         if (departureAirport is not null)
         {
-            (double Lat, double Lon)? airportPos = GetFixPosition(departureAirport);
+            (double Lat, double Lon)? airportPos = GetAirportPosition(departureAirport);
             if (airportPos is not null)
             {
+                // A bare token is the fix or navaid, never the airport: only the ICAO form ("KCCR") resolves to
+                // the field and is stripped here, while a bare "CCR" is the CONCORD VOR, 3.4 nm out.
                 while (expanded.Count > 0)
                 {
                     (double Lat, double Lon)? fixPos = GetFixPosition(expanded[0]);
@@ -1654,6 +1688,7 @@ public sealed class NavigationDatabase
             if (!string.IsNullOrEmpty(canonical))
             {
                 AddAirportToSpatialIndex(canonical, loc.Lat, loc.Lon, airport.Elevation);
+                _airportPositions.TryAdd(canonical, pos);
                 if (!string.IsNullOrEmpty(airport.FaaId))
                 {
                     _airportCanonical.TryAdd(airport.FaaId, canonical);
@@ -2537,6 +2572,46 @@ public sealed class NavigationDatabase
         return airportElevationFt;
     }
 
+    private bool IsNonCanonicalAirportId(string ident) =>
+        _airportCanonical.TryGetValue(ident, out string? canonical) && !string.Equals(canonical, ident, StringComparison.OrdinalIgnoreCase);
+
+    // A three-character canonical airport id is a US-style id published without an ICAO form. NavData carries some
+    // of these in the FAA field (HEY) and some in the ICAO field with no FAA id (TNV); a four-character canonical id
+    // is a real ICAO id and keeps the airport.
+    private bool IsFaaOnlyAirportId(string ident) =>
+        (ident.Length == 3)
+        && _airportCanonical.TryGetValue(ident, out string? canonical)
+        && string.Equals(canonical, ident, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Indexes "K" + <paramref name="faaId"/> as an id of an airport published with only its FAA id, whose bare id
+    /// now resolves to a same-named navaid. Skipped when the K-prefixed key already names an airport or a fix.
+    /// </summary>
+    private void AddKPrefixedAirportId(string faaId)
+    {
+        string kId = "K" + faaId;
+        if (_navDb.ContainsKey(kId) || _airportCanonical.ContainsKey(kId) || !_airportPositions.TryGetValue(faaId, out (double Lat, double Lon) pos))
+        {
+            return;
+        }
+
+        _navDb[kId] = pos;
+        _airportCanonical[kId] = faaId;
+        if (_airportFaaIds.TryGetValue(faaId, out string? publishedFaaId))
+        {
+            _airportFaaIds[kId] = publishedFaaId;
+        }
+        if (_elevations.TryGetValue(faaId, out double elevation))
+        {
+            _elevations[kId] = elevation;
+        }
+
+        if (_airportNames.TryGetValue(faaId, out string? name))
+        {
+            _airportNames[kId] = name;
+        }
+    }
+
     /// <summary>
     /// Supplements the fix database with VOR/DME/NDB navaids from CIFP.
     /// </summary>
@@ -2549,9 +2624,28 @@ public sealed class NavigationDatabase
         }
 
         IReadOnlyDictionary<string, (double Lat, double Lon, string Name, string Type)> navaids = CifpParser.ParseNavaids(cifpFilePath);
+        var faaOnlyAirportIds = new List<string>();
         foreach ((string? ident, (double Lat, double Lon, string Name, string Type) info) in navaids)
         {
-            _navDb.TryAdd(ident, (info.Lat, info.Lon));
+            // A bare FAA airport id (SAC, OAK, HEY) that also names a CIFP navaid resolves to the navaid: a route
+            // token means the navaid, and airport callers use GetAirportPosition. The ICAO id (KSAC) keeps the
+            // airport; an airport published with only its FAA id gains a K-prefixed id ("KHEY") so a command can
+            // still name it. NavData fixes never displace an airport, since that set carries far-away foreign
+            // fixes sharing US airport ids.
+            if (IsNonCanonicalAirportId(ident))
+            {
+                _navDb[ident] = (info.Lat, info.Lon);
+            }
+            else if (IsFaaOnlyAirportId(ident))
+            {
+                _navDb[ident] = (info.Lat, info.Lon);
+                faaOnlyAirportIds.Add(ident);
+            }
+            else
+            {
+                _navDb.TryAdd(ident, (info.Lat, info.Lon));
+            }
+
             if (!string.IsNullOrEmpty(info.Name))
             {
                 _navaidNames.TryAdd(ident, info.Name);
@@ -2560,6 +2654,12 @@ public sealed class NavigationDatabase
             {
                 _navaidTypes.TryAdd(ident, info.Type);
             }
+        }
+
+        // After every navaid is in, so a navaid named like a K-prefixed id is seen whatever the navaid order.
+        foreach (string faaId in faaOnlyAirportIds)
+        {
+            AddKPrefixedAirportId(faaId);
         }
     }
 

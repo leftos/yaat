@@ -191,9 +191,7 @@ public partial class MainViewModel
     /// is still loading — it is not yet in a position to say.
     /// </summary>
     public bool IsKnownAirport(string airportId) =>
-        !_commandInput.NavDbReady
-        || NavigationDatabase.Instance.TryResolveAirport(airportId, out _)
-        || (ResolveAirportPosition(airportId) is not null);
+        !_commandInput.NavDbReady || (NavigationDatabase.Instance.GetAirportPosition(airportId) is not null);
 
     /// <summary>
     /// Canonicalizes an airport id to the published FAA form ("KOAK" and "oak" both become "OAK") — the
@@ -210,21 +208,6 @@ public partial class MainViewModel
         }
 
         return trimmed;
-    }
-
-    /// <summary>
-    /// The airport's position from the navigation database, looked up by the id as given and, failing
-    /// that, by its canonical ICAO form — the FAA id an instance carries is not always a fix name.
-    /// </summary>
-    private static (double Lat, double Lon)? ResolveAirportPosition(string airportId)
-    {
-        NavigationDatabase navDb = NavigationDatabase.Instance;
-        if (navDb.GetFixPosition(airportId) is { } direct)
-        {
-            return direct;
-        }
-
-        return navDb.TryResolveAirport(airportId, out string? canonicalId) ? navDb.GetFixPosition(canonicalId) : null;
     }
 
     /// <summary>Drops an extra Radar View instance. A no-op when it was already removed.</summary>
@@ -379,7 +362,7 @@ public partial class MainViewModel
     {
         RadarViewModel vm = instance.Vm;
         vm.SetPrimaryAirportId(instance.AirportId);
-        if (_commandInput.NavDbReady && (ResolveAirportPosition(instance.AirportId) is { } position))
+        if (_commandInput.NavDbReady && (NavigationDatabase.Instance.GetAirportPosition(instance.AirportId) is { } position))
         {
             vm.SetPrimaryAirportPosition(position.Lat, position.Lon);
         }

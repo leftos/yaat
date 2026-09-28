@@ -228,7 +228,7 @@ public sealed class TowerListTracker
                         StarsListConfig listConfig = pLists[pListIndex];
                         pListIndex++;
 
-                        (double Lat, double Lon)? pos = NavigationDatabase.Instance.GetFixPosition(towerListConfig.AirportId);
+                        (double Lat, double Lon)? pos = NavigationDatabase.Instance.GetAirportPosition(towerListConfig.AirportId);
                         if (pos is null)
                         {
                             continue;

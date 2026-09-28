@@ -369,7 +369,7 @@ public static class AircraftGenerator
             return (null, "Bearing position requires a primary airport in the scenario");
         }
 
-        (double Lat, double Lon)? airportPos = NavigationDatabase.Instance.GetFixPosition(primaryAirportId);
+        (double Lat, double Lon)? airportPos = NavigationDatabase.Instance.GetAirportPosition(primaryAirportId);
         if (airportPos is null)
         {
             return (null, $"Could not find primary airport '{primaryAirportId}' in navdata");
@@ -426,7 +426,7 @@ public static class AircraftGenerator
         TrueHeading trueHeading = new(0);
         if (!string.IsNullOrEmpty(primaryAirportId))
         {
-            (double Lat, double Lon)? airportPos = navDb.GetFixPosition(primaryAirportId);
+            (double Lat, double Lon)? airportPos = navDb.GetAirportPosition(primaryAirportId);
             if (airportPos is not null)
             {
                 trueHeading = new TrueHeading(ComputeBearing(resolved.Value.Lat, resolved.Value.Lon, airportPos.Value.Lat, airportPos.Value.Lon));
@@ -640,7 +640,7 @@ public static class AircraftGenerator
         else
         {
             // 3) Unconstrained STAR — estimate from the flying distance to the destination airport.
-            (double Lat, double Lon)? airportPos = NavigationDatabase.Instance.GetFixPosition(airport);
+            (double Lat, double Lon)? airportPos = NavigationDatabase.Instance.GetAirportPosition(airport);
             double distNm =
                 airportPos is not null && route.Count > 0
                     ? GeoMath.DistanceNm(route[0].Position, new LatLon(airportPos.Value.Lat, airportPos.Value.Lon))
@@ -663,7 +663,7 @@ public static class AircraftGenerator
             }
         }
 
-        (double Lat, double Lon)? airportPos = navDb.GetFixPosition(airport);
+        (double Lat, double Lon)? airportPos = navDb.GetAirportPosition(airport);
         if (airportPos is not null)
         {
             return new TrueHeading(ComputeBearing(spawnPos.Lat, spawnPos.Lon, airportPos.Value.Lat, airportPos.Value.Lon));

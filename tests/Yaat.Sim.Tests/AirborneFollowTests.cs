@@ -1017,8 +1017,8 @@ public class AirborneFollowTests : IDisposable
         // to the ownship's POSITION, so the KTEST station must have a resolvable
         // position in the (scoped, synthetic) nav database for its METAR to apply.
         using IDisposable _ = NavigationDatabase.ScopedOverride(
-            TestNavDbFactory.Make(
-                fixes: new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase) { ["KTEST"] = (37.0, -122.0) },
+            NavigationDatabase.ForTesting(
+                airportPositions: new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase) { ["KTEST"] = (37.0, -122.0) },
                 runways: [DefaultRunway()]
             )
         );
@@ -1062,8 +1062,8 @@ public class AirborneFollowTests : IDisposable
         const string LeadCallsign = "LEAD";
 
         using IDisposable _ = NavigationDatabase.ScopedOverride(
-            TestNavDbFactory.Make(
-                fixes: new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase) { ["KTEST"] = (37.0, -122.0) },
+            NavigationDatabase.ForTesting(
+                airportPositions: new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase) { ["KTEST"] = (37.0, -122.0) },
                 runways: [DefaultRunway()]
             )
         );
@@ -1118,8 +1118,8 @@ public class AirborneFollowTests : IDisposable
         const string LeadCallsign = "LEAD";
 
         using IDisposable _ = NavigationDatabase.ScopedOverride(
-            TestNavDbFactory.Make(
-                fixes: new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase) { ["KTEST"] = (37.0, -122.0) },
+            NavigationDatabase.ForTesting(
+                airportPositions: new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase) { ["KTEST"] = (37.0, -122.0) },
                 runways: [DefaultRunway()]
             )
         );
@@ -1175,8 +1175,8 @@ public class AirborneFollowTests : IDisposable
         const string LeadCallsign = "LEAD";
 
         using IDisposable _ = NavigationDatabase.ScopedOverride(
-            TestNavDbFactory.Make(
-                fixes: new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase) { ["KTEST"] = (37.0, -122.0) },
+            NavigationDatabase.ForTesting(
+                airportPositions: new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase) { ["KTEST"] = (37.0, -122.0) },
                 runways: [DefaultRunway()]
             )
         );

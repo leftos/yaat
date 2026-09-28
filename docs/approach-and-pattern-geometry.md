@@ -718,6 +718,7 @@ anchored at a published fix, built from a CIFP PI leg in `ApproachCommandHandler
   checked on both the radial-outbound and PT-outbound legs.
 - **200 KIAS clamp** (`ClampPtSpeed`, `ProcedureTurnPhase.cs:293`): `MaxPtIasKts = 200` is applied via
   `ControlTargets.SpeedCeiling` for the whole phase (AIM 5-4-9.a.3).
+- **Inbound intercept** (`TickInterceptInbound`): the aircraft steers onto the inbound course line through the fix with `CourseLineSteering.HeadingToward` (`src/Yaat.Sim/Phases/CourseLineSteering.cs`) — the course corrected 25° per nm of cross-track error, capped at a 45° cut — so it converges on the line from either side instead of homing on the fix.
 - **Lateral-intercept gate** (`TickInterceptInbound`, `ProcedureTurnPhase.cs:253`): the phase does not hand off
   until the aircraft is both heading-aligned *and* within `InterceptLateralToleranceNm = 1.0` cross-track of the
   inbound course — heading-only would pass a 5°-aligned aircraft with a 2 nm cross-track error to FinalApproach.

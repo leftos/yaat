@@ -1248,6 +1248,8 @@ DCT SUNOL
 DCT SUNOL CEDES MYCOB
 ```
 
+An identifier that names both an airport and a navaid means the navaid: `DCT CCR` flies to the CONCORD VOR, `DCT KCCR` to Buchanan Field. Use the ICAO form (`KSAC`, `KOAK`) for the airport.
+
 Fixes can also be specified as [FRD](#fix-radial-distance-frd) strings in the format `{fix}{radial:3}{distance:3}`:
 
 ```

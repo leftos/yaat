@@ -46,7 +46,7 @@ public class MetarInterpolatorTests
     public void GetWeather_SingleNearbyStation_ReturnsItsData()
     {
         var fixes = NavigationDatabase.ForTesting(
-            fixes: new Dictionary<string, (double Lat, double Lon)> { ["LAX"] = (33.9425, -118.408), ["KLAX"] = (33.9425, -118.408) }
+            airportPositions: new Dictionary<string, (double Lat, double Lon)> { ["LAX"] = (33.9425, -118.408), ["KLAX"] = (33.9425, -118.408) }
         );
 
         using IDisposable _ = NavigationDatabase.ScopedOverride(fixes);
@@ -65,7 +65,7 @@ public class MetarInterpolatorTests
         // Station A at (37.7, -122.0) ≈ 10nm east, ceiling 5000, vis 10
         // Station B at (37.5, -122.2) ≈ 12nm south, ceiling 2000, vis 3
         var fixes = NavigationDatabase.ForTesting(
-            fixes: new Dictionary<string, (double Lat, double Lon)>
+            airportPositions: new Dictionary<string, (double Lat, double Lon)>
             {
                 ["TSTA"] = (37.7, -122.2), // target airport
                 ["KSTA"] = (37.7, -122.0), // station A
@@ -92,7 +92,7 @@ public class MetarInterpolatorTests
     {
         // Airport on west coast, station on east coast — way beyond 50nm
         var fixes = NavigationDatabase.ForTesting(
-            fixes: new Dictionary<string, (double Lat, double Lon)>
+            airportPositions: new Dictionary<string, (double Lat, double Lon)>
             {
                 ["TSTA"] = (37.7, -122.2),
                 ["KJFK"] = (40.6, -73.8),

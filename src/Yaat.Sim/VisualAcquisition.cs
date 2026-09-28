@@ -83,7 +83,7 @@ public static class VisualAcquisition
         }
 
         NavigationDatabase navDb = NavigationDatabase.Instance;
-        (double Lat, double Lon)? aptPos = navDb.GetFixPosition(destination);
+        (double Lat, double Lon)? aptPos = navDb.GetAirportPosition(destination);
         double? aptElevation = navDb.GetAirportElevation(destination);
         if (aptPos is null || aptElevation is null)
         {

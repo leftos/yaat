@@ -30,7 +30,7 @@ public static class MetarInterpolator
         NavigationDatabase navDb = NavigationDatabase.Instance;
 
         // Resolve airport position
-        (double Lat, double Lon)? airportPos = navDb.GetFixPosition(airportId);
+        (double Lat, double Lon)? airportPos = navDb.GetAirportPosition(airportId);
         if (airportPos is null)
         {
             return null;
@@ -51,10 +51,10 @@ public static class MetarInterpolator
             }
 
             // Resolve station position (strip K prefix for FAA lookup)
-            (double Lat, double Lon)? stationPos = navDb.GetFixPosition(parsed.StationId);
+            (double Lat, double Lon)? stationPos = navDb.GetAirportPosition(parsed.StationId);
             if (stationPos is null && parsed.StationId.Length == 4 && parsed.StationId[0] == 'K')
             {
-                stationPos = navDb.GetFixPosition(parsed.StationId[1..]);
+                stationPos = navDb.GetAirportPosition(parsed.StationId[1..]);
             }
 
             if (stationPos is null)

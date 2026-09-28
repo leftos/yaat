@@ -153,6 +153,15 @@ fallback — it does a single direct lookup and returns `null` on a key miss, wh
 The CIFP loaders go the other way: `LoadSids`/`LoadStars`/`LoadApproaches` (`:1733`+) take a normalized (FAA-form) code and
 prepend `K` when it is ≤3 chars, because the CIFP file is keyed by ICAO id.
 
+### A bare id shared by an airport and a navaid is the navaid
+
+About 450 airport FAA ids are also CIFP navaid ids (`SAC`, `OAK`, `CCR`, `LKV`). `GetFixPosition` resolves such a bare id to the **navaid**, including for an airport whose only id is its FAA id (`AZN`, `HEY`, `HGT`, `TNV`); for those, the index build adds `K<id>` as the airport's name when that key is otherwise free (user ruling 2026-09-28), so `DCT KHEY` reaches Hanchey and `DCT HEY` the HANCHEY navaid. So `DCT CCR` flies to the CONCORD VOR and `DCT KCCR` to Buchanan Field; scenario spawns and paths written with a bare colliding id sit on the navaid (LKV is 20.5 nm from its field, SAC 4.97 nm).
+
+A caller that means the airport never uses `GetFixPosition`:
+
+- **`GetAirportPosition(id)`** takes the FAA or ICAO form and returns the airport reference point. Weather and METAR interpolation, the tower list, visual acquisition, the generators, auto-delete, the live-traffic scope and the SWIM slicer use it.
+- **Route tokens are always fixes** (user ruling 2026-09-28). A US flight plan's route field never names its own airports: `NIMI6 OAK V6 SAC` to KSAC ends at the SACRAMENTO VORTAC, with "direct the field" implied after it, and a first token `CCR` from KCCR is the CONCORD VOR. Only the explicit ICAO form (`KCCR`) in a route is the airport. Route callers resolve every token with `GetFixPosition` / `ResolveFixOrFrd`. A bare id that names no navaid still resolves to the airport (`PAO`, `MRY`).
+
 ## Procedure-version resolution
 
 Published procedures carry a version digit (`BDEGA4`, `CNDEL5`) that increments each AIRAC cycle. A scenario filed against an
@@ -356,9 +365,7 @@ Two things went wrong for a **fixed-path** RNAV SID (one with a real lateral bod
 
 **The general rule** (`TryResolveSidFromCifp` + `AppendPostSidEnrouteFixes`): the first fix after the
 departure procedure is dropped when it is the departure airport's own reference — a **real navaid within
-1 nm of the field** (`IsFixColocatedWithDeparture`: OAK for KOAK) or **an identifier that doesn't resolve to
-a navaid** (MRY for KMRY, dropped by the `GetFixPosition is null` skip). A real navaid that is *not*
-co-located (SAC for KSAC, ~well outside 1 nm) is a genuine routing fix and is kept. Two mechanisms cooperate:
+1 nm of the field** (`IsFixColocatedWithDeparture`: OAK for KOAK), or **an identifier that resolves to the field itself** (MRY for KMRY: the pinned CIFP has no MRY navaid, so bare `MRY` is the airport, 0 nm away), or one that resolves to nothing (dropped by the `GetFixPosition is null` skip). A real navaid that is *not* co-located (the SACRAMENTO VORTAC, 4.97 nm from KSAC) is a genuine routing fix and is kept. Two mechanisms cooperate:
 
 - **Transition matching** skips a leading co-located token so `HUSSH2 OAK SYRAH` matches the SYRAH
   transition and produces `HUSSH → NIITE → REBAS → TAMMM → SYRAH` (the published legs, with REBAS ≥ 8000).

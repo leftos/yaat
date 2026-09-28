@@ -19,8 +19,6 @@ public sealed class DepartureProcedurePhase : Phase
     private static readonly ILogger Log = SimLog.CreateLogger("DepartureProcedurePhase");
 
     private const double FixArrivalNm = 0.5;
-    private const double MaxInterceptDeg = 45.0;
-    private const double CrossTrackGainDegPerNm = 25.0;
     private const double HeadingEstablishedDeg = 10.0;
     private const double MaxInterceptSeconds = 180.0;
 
@@ -322,12 +320,8 @@ public sealed class DepartureProcedurePhase : Phase
     }
 
     /// <summary>Proportional cross-track steering onto a course line through an anchor (intrinsic wind correction).</summary>
-    private void SteerCourseLine(PhaseContext ctx, LatLon anchor, TrueHeading courseTrue)
-    {
-        double signed = GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, anchor, courseTrue);
-        double correction = Math.Clamp(signed * CrossTrackGainDegPerNm, -MaxInterceptDeg, MaxInterceptDeg);
-        ctx.Targets.TargetTrueHeading = new TrueHeading(courseTrue.Degrees - correction);
-    }
+    private static void SteerCourseLine(PhaseContext ctx, LatLon anchor, TrueHeading courseTrue) =>
+        ctx.Targets.TargetTrueHeading = CourseLineSteering.HeadingToward(ctx.Aircraft.Position, anchor, courseTrue);
 
     private bool Finish(PhaseContext ctx)
     {

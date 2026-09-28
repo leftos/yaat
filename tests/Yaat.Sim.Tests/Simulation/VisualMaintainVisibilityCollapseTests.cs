@@ -205,7 +205,7 @@ public class VisualMaintainVisibilityCollapseTests(ITestOutputHelper output)
         }
 
         NavigationDatabase navDb = NavigationDatabase.Instance;
-        (double Lat, double Lon)? arp = navDb.GetFixPosition("DEN");
+        (double Lat, double Lon)? arp = navDb.GetAirportPosition("DEN");
         Assert.NotNull(arp);
         double? aptElev = navDb.GetAirportElevation("DEN");
         Assert.NotNull(aptElev);

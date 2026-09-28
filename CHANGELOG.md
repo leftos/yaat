@@ -15,6 +15,8 @@
 
 ### Changed
 
+- A bare id naming both an airport and a navaid, such as SAC or CCR, now means the navaid in routes, DCT and scenario positions; write KSAC.
+- A procedure turn intercepts its inbound course at up to 45° instead of homing on the fix.
 - A frozen ERAM track leaves the aircraft's radar target on the scope, where the aircraft really is.
 - A beacon code shared by two aircraft no longer addresses either of them in ERAM or STARS entries; use the callsign instead.
 

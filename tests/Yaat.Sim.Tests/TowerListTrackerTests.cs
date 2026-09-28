@@ -78,7 +78,7 @@ public class TowerListTrackerTests
         // real navigation database every other class reads.
         using (
             NavigationDatabase.ScopedOverride(
-                NavigationDatabase.ForTesting(fixes: new Dictionary<string, (double Lat, double Lon)> { ["OAK"] = (aptLat, aptLon) })
+                NavigationDatabase.ForTesting(airportPositions: new Dictionary<string, (double Lat, double Lon)> { ["OAK"] = (aptLat, aptLon) })
             )
         )
         {
@@ -174,7 +174,7 @@ public class TowerListTrackerTests
         using (
             NavigationDatabase.ScopedOverride(
                 NavigationDatabase.ForTesting(
-                    fixes: new Dictionary<string, (double Lat, double Lon)> { ["OAK"] = (oakLat, oakLon), ["FAT"] = (fatLat, fatLon) }
+                    airportPositions: new Dictionary<string, (double Lat, double Lon)> { ["OAK"] = (oakLat, oakLon), ["FAT"] = (fatLat, fatLon) }
                 )
             )
         )

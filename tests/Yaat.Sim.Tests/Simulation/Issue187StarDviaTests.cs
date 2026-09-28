@@ -127,7 +127,7 @@ public class Issue187StarDviaTests(ITestOutputHelper output)
         }
 
         NavigationDatabase navDb = TestVnasData.NavigationDb!;
-        (double Lat, double Lon)? iah = navDb.GetFixPosition("IAH") ?? navDb.GetFixPosition("KIAH");
+        (double Lat, double Lon)? iah = navDb.GetAirportPosition("KIAH");
         Assert.NotNull(iah);
         var dest = new LatLon(iah.Value.Lat, iah.Value.Lon);
 

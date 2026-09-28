@@ -1409,7 +1409,7 @@ internal static class NavigationCommandHandler
         }
 
         NavigationDatabase navDb = NavigationDatabase.Instance;
-        if (navDb.GetFixPosition(destination) is null || navDb.GetAirportElevation(destination) is null)
+        if (navDb.GetAirportPosition(destination) is null || navDb.GetAirportElevation(destination) is null)
         {
             return new CommandResult(false, $"Unable, {destination} not in nav database");
         }
