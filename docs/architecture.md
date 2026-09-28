@@ -576,6 +576,7 @@ ClientVersions.cs              # Compares client version strings for the server'
                                # Sent on CreateRoom/JoinRoom; stored in RoomMember.Kind; DisplaySuffix appends e.g.
                                # " (Flight Strips)" / " (vTDLS)" to terminal-broadcast verbs ("joined the room (vTDLS)").
 SimLog.cs                      # Static logger factory for Yaat.Sim; Initialize(ILoggerFactory) at startup
+Diagnostics/ThreadCpuTime.cs   # Static: the calling thread's CPU time (GetThreadTimes / clock_gettime(CLOCK_THREAD_CPUTIME_ID)); timing-budget tests measure with it, not Stopwatch (docs/test-harness.md)
 SerializableRandom.cs          # Xoshiro256** PRNG with serializable state (RngState record); drop-in Random replacement
 SimulationWorld.cs             # Thread-safe aircraft collection; GetSnapshot, Tick, DrainWarnings
                                # WeatherProfile? Weather — passed to FlightPhysics.Update() each tick

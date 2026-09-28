@@ -429,6 +429,10 @@ Always run suites under a wall clock: `timeout 30 dotnet test ...`. A YAAT sim s
 gated behind the `Nightly`/`PathfinderGrid` traits and excluded by default). Treat a timeout as a hung-test failure to diagnose, not a
 budget to raise.
 
+## Timing budgets measure thread CPU time
+
+A timing budget on synchronous, single-thread work measures the thread's CPU time with `Yaat.Sim.Diagnostics.ThreadCpuTime` (`Current()` deltas or `Measure(Action)`), not `Stopwatch`, so the test does not fail when unrelated load slows the machine down (the machine usually runs several agents at once). The failure message says "ms of thread CPU time". The test projects run server GC, whose collections run on their own threads and are not charged to the test thread, so a budget adds the `GC.GetTotalPauseDuration()` delta over the measured span to the thread CPU figure. On Windows the clock advances only at the scheduler tick (about 15.6 ms), so a budget under about 50 ms means nothing there. Work that hops threads (`await`, `Parallel`, `Task.Run`, native worker threads) cannot be measured this way: keep wall time for it, and for anything that really is about wall time (UI-thread blocking, debounce and settle windows, hang guards). Never substitute process CPU time, which counts the other tests running in parallel.
+
 **Loop budgets: event-bounded vs budget-bounded.** Most recording-replay tests are *event-bounded* — they tick until "reaches phase X" /
 "exits `LineUpPhase`" / "segment > N" and `break`; the `for (t <= 600)` bound is a failure timeout, not a cost. Trimming it saves nothing
 on a green run and only risks hiding a bug that surfaces later. A *budget-bounded* loop asserts every iteration with no early exit

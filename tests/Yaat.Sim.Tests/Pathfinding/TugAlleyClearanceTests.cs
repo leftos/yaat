@@ -1,8 +1,8 @@
-using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
+using Yaat.Sim.Diagnostics;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Pathfinding;
@@ -266,16 +266,25 @@ public class TugAlleyClearanceTimingTests(ITestOutputHelper output)
         GroundNode spot = layout.FindSpotNodeByName("7A") ?? throw new InvalidOperationException("no spot 7A");
         TugRequest request = TugAlleyClearanceTests.StandStart(stand, TugAlleyClearanceTests.Regional, TugGoal.Spot(spot));
 
-        var watch = Stopwatch.StartNew();
+        TimeSpan coldStart = ThreadCpuTime.Current();
         TugPlan? cold = TugMovePlanner.Plan(layout, request, out string coldRefusal);
-        double coldMs = watch.Elapsed.TotalMilliseconds;
-        watch.Restart();
+        TimeSpan warmStart = ThreadCpuTime.Current();
+        TimeSpan warmGcStart = GC.GetTotalPauseDuration();
         TugPlan? warm = TugMovePlanner.Plan(layout, request, out string warmRefusal);
-        double warmMs = watch.Elapsed.TotalMilliseconds;
+        double warmCpuMs = (ThreadCpuTime.Current() - warmStart).TotalMilliseconds;
+        double warmGcMs = (GC.GetTotalPauseDuration() - warmGcStart).TotalMilliseconds;
+        double warmMs = warmCpuMs + warmGcMs;
+        double coldMs = (warmStart - coldStart).TotalMilliseconds;
 
-        output.WriteLine($"F8 → 7A ({TugAlleyClearanceTests.Regional}) planned in {coldMs:F1} ms cold, {warmMs:F1} ms warm");
+        output.WriteLine(
+            $"F8 → 7A ({TugAlleyClearanceTests.Regional}) planned in {coldMs:F1} ms cold, {warmCpuMs:F1} ms warm of thread CPU time "
+                + $"+ {warmGcMs:F1} ms GC pause = {warmMs:F1} ms (budget {WarmPlanBudgetMs:F0} ms)"
+        );
         Assert.True(cold is not null, $"the cold plan was refused: {coldRefusal}");
         Assert.True(warm is not null, $"the warm plan was refused: {warmRefusal}");
-        Assert.True(warmMs < WarmPlanBudgetMs, $"the warm plan took {warmMs:F1} ms (cold {coldMs:F1} ms)");
+        Assert.True(
+            warmMs < WarmPlanBudgetMs,
+            $"the warm plan took {warmCpuMs:F1} ms of thread CPU time + {warmGcMs:F1} ms GC pause = {warmMs:F1} ms (cold {coldMs:F1} ms)"
+        );
     }
 }
