@@ -257,7 +257,7 @@ When invoking aviation-sim-expert, always include:
 - **Cross-repo issues**: GitHub issues tracked on **yaat** repo. In yaat-server commits use full URL `Closes https://github.com/leftos/yaat/issues/N`, never bare `Closes #N`.
 - **Cross-repo completeness**: Features spanning both repos must be implemented together — no half-done features.
 - **Issue plans**: Write plans to `docs/plans/open-issues/`. Delete plan file after implementing. Folding the open tracker into the plans is the `triage-open-issues` skill.
-- **Plans**: [`docs/plans/MAIN.md`](docs/plans/MAIN.md) is the index — Current focus, Next up, Backlog, Blockers, one line per item with the detail in a subplan. The active programme is the tick-path unification ([`docs/plans/tick-path/README.md`](docs/plans/tick-path/README.md)); controller AI ([`docs/plans/controller-ai/README.md`](docs/plans/controller-ai/README.md)) follows it. Finished plans are deleted — git history is the archive.
+- **Plans**: [`docs/plans/MAIN.md`](docs/plans/MAIN.md) is the index — Current focus, Next up, Backlog, Blockers, one line per item with the detail in a subplan. The active programme is the tick-path unification ([`docs/plans/tick-path/README.md`](docs/plans/tick-path/README.md)); YAAT Scope ([`docs/plans/yaat-scope/README.md`](docs/plans/yaat-scope/README.md)) follows it, then controller AI ([`docs/plans/controller-ai/README.md`](docs/plans/controller-ai/README.md)). Finished plans are deleted — git history is the archive.
 
 ### Misc
 
