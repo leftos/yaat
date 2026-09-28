@@ -54,8 +54,9 @@ the log and on standard error:
    the machine that was free on average; a low one means the machine was busy rather than the command wrong, so run it
    once more alone before reading anything into it.
 A kill adds `gate: terminated the job's <n> processes` to the log, n being the processes the job held at the kill. A
-command that exits on its own between the sample that found a reason and the kill keeps its own status. The passed line gives the wall time, the load-adjusted time and
-the ceiling side by side, so a ceiling that is getting tight shows before it bites. When a sample throws, the gate says
+command that exits on its own between the sample that found a reason and the kill keeps its own status. The passed
+line gives the wall time, the load-adjusted time and the ceiling side by side, so a ceiling that is getting tight
+shows before it bites. When a sample throws, the gate says
 `gate: sampler failed: <message>; watching by wall time only` once and takes no more samples: the stall and the
 ceiling can no longer be told, and only the backstop, which needs nothing but a clock, still kills the run. A failure
 anywhere else after the command has started terminates the job, adds the error to the log and ends the gate with it.
