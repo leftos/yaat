@@ -221,6 +221,13 @@ YAAT Scope overlays drawn from simulation truth rather than from what the contro
 **Scope entry**:
 Data a controller types into their display's automation (ERAM `QQ`, a STARS scratchpad): it changes what the displays show and never moves the aircraft, unlike a pilot command.
 
+**Situation**:
+A named bucket of aircraft phases and state (Taxiing, Holding short, Final, IFR arrival…) that picks an aircraft menu's quick commands.
+_Avoid_: phase (one situation spans several phases)
+
+**Quick commands**:
+The short, user-editable list of commands an aircraft's right-click menu shows first for its current situation; the rest sit under All Commands.
+
 ## Tooling
 
 **Gate**:

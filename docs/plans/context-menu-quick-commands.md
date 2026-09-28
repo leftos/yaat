@@ -1,0 +1,74 @@
+# Context-menu quick commands
+
+The aircraft right-click menus on the radar, ground and aircraft-list views offer nearly every command at once. This plan replaces that with a short flat list of **quick commands** chosen by the aircraft's **situation**, with the full tree one level down under **All Commands**, and lets the user edit each situation's list persistently. Both terms are in [`CONTEXT.md`](../../CONTEXT.md).
+
+## Where it stands
+
+- Radar: `RadarView.ContextMenus.cs` `OnAircraftRightClicked` (~L64). `ContextMenuProfileService.GetProfile(phase, isOnGround)` picks primary groups by phase, but every non-hidden group still shows as a secondary group, and Track, Data Block, Squawk, Ask pilot, Coordination, Display, Sim Control and RPO are always appended.
+- Ground: `GroundView.axaml.cs` `OnAircraftRightClicked` (~L493), a separate builder with inline `phase == "Taxiing"` checks (`AddSimulatedAircraftItems` ~L658).
+- Aircraft list: `DataGridView.ContextMenu.cs`, a third builder.
+- Shared today: `AircraftCommandApplicability` predicates, `FavoritesContextMenu`, `LiveTrafficMenuItems`, `MainViewModel.BuildRpoMenuItems`.
+- The phase reaches the client as the string `AircraftDto.CurrentPhase` (the phase's `Name`); some names are dynamic (`Holding Short {target}`, `Following {cs}`). `IsGroundPhase` / `IsHoldingPhase` list names that match no phase class (`HPP-L`, `HPP-R`, `HPP`, `HoldingAtFix`, `ProceedToFix`, `Pushback to Spot`); verify before relying on them.
+
+## Decisions (user 2026-09-28)
+
+- **Granularity: situations, not raw phases.** About 20 named situations, each mapping a set of phases plus DTO flags.
+- **Flight rules are a runtime filter, not separate lists.** Each situation has one list; every entry carries *Both* / *IFR only* / *VFR only*, defaulted from the catalog item and overridable per entry in the editor, evaluated against `FlightRules` when the menu opens.
+- **An entry is a catalog item or custom text.** Catalog items are stable IDs for today's menu items and submenus (keeping the pickers, smart runway defaults and applicability predicates); custom text is a command template with the same substitution as Favorites.
+- **Inapplicable entries are hidden**, not disabled. An issued clearance hides itself and shows its cancel entry instead.
+- **Top level:** header, `Command…`, the quick commands, then Track ▸, Data Block ▸, Squawk ▸, Display ▸, Favorites ▸, All Commands ▸, then Delete and the RPO items. Ask pilot, Coordination and Sim Control move under All Commands.
+- **One shared builder** for radar, ground and the aircraft list, and one quick-command config shared by all three. It is view-agnostic so YAAT Scope ([yaat-scope/README.md](./yaat-scope/README.md)) reuses it for its aircraft menu; like YAAT Scope's field actions, every entry resolves to command text sent through `SendCommandAsync`.
+- **Storage: global per user, exportable.** Only the situations the user changed are stored in `preferences.json`, so improved defaults reach users who haven't customised. Import/export to a file like `*.yaat-verbs.json`.
+- **Editor:** a Quick Commands tab in Settings: situation list on the left, the ordered entry list on the right (add from catalog, add custom text, reorder, flight-rules filter per entry), with **Reset this situation** and **Reset all**.
+
+## Default situations
+
+Reviewed by `aviation-sim-expert` against 7110.65 / AIM (2026-09-28). Order is most frequent first. `▸` is a submenu or picker, `…` prompts for input.
+
+| # | Situation | Matches | Default quick commands |
+|---|---|---|---|
+| 1 | At parking | AtParking | Push back ▸, Taxi preset ▸, Draw taxi route…, Push back to…, Check release window |
+| 2 | Pushing back | Pushback | Hold position, Push route…, Follow… |
+| 3 | Holding on ground | HoldingInPosition / AfterExit / AfterPushback | Resume taxi, Draw taxi route…, Follow…, Give way…, Cross runway (when holding short of a runway) |
+| 4 | Taxiing | Taxiing, ground Following | Hold position, Hold short of…, Cross runway (next hold-short is a runway), Follow…, Give way…, Break conflict, Cleared for takeoff ▸ (only nearing the departure runway's hold line) |
+| 5 | Holding short | `Holding Short *` | Departure runway: Cleared for takeoff ▸, Line up and wait, Resume taxi. Any other runway: Cross runway, Resume taxi |
+| 6 | Lined up | LineUp, LinedUpAndWaiting | Cleared for takeoff ▸, Cancel takeoff clearance (once cleared), Exit left/right, Draw taxi route… |
+| 7 | Departing | Takeoff (airborne), InitialClimb, DepartureProcedure | Fly heading ▸, Maintain ▸, Climb via SID (IFR, SID assigned), Direct to…, Speed ▸ |
+| 8a | IFR enroute / climbing | airborne IFR, no special phase, not inbound | Fly heading ▸, Maintain ▸, Direct to…, Speed ▸, Hold ▸, Cross fix |
+| 8b | IFR arrival | airborne IFR inbound to destination, not on an approach | Descend via STAR (IFR), Maintain ▸, Speed ▸, Fly heading ▸, Direct to…, Expect approach…, Hold ▸ |
+| 8c | VFR flight following | airborne VFR, not in or near the pattern | Report traffic in sight, Fly heading ▸, Maintain ▸, Direct to…, Expect approach… |
+| 9 | Approach | ApproachNavigation, InterceptCourse, ProcedureTurn | Cleared approach ▸ (hidden once cleared), Maintain ▸, Speed ▸ (hidden inside FAF / 5 NM), Report field in sight, Cleared visual ▸ (IFR, after field in sight), Cleared to land |
+| 10 | Holding | HoldingPattern, VfrHold | Exit hold, Cleared approach ▸, Direct to…, Maintain ▸, Expect further clearance time |
+| 11 | Pattern | pattern phases | Cleared to land, Option / Touch-and-go (after CTL for IFR), Follow… / sequence, Extend, Make short approach, 360 L/R, Turn base, Go around |
+| 12 | Final | FinalApproach | Cleared to land (hidden once cleared), Go around, Cancel landing clearance, Reduce to final approach speed |
+| 13 | Rollout / exit | Landing, RunwayExit, ClearRunway | Exit left/right (once decelerating), Cross runway, Hold short of…, Draw taxi route… |
+| 14 | Go-around | GoAround | Fly heading ▸, Maintain ▸, Cleared approach ▸ (once it has an altitude to maintain until established), Enter downwind ▸ (VFR) |
+| 15 | Live traffic | `IsLiveTraffic` | Assume control, Assume and track |
+| 16 | VFR arrival, inbound | airborne VFR inbound to destination, not yet in the pattern | Enter L/R downwind ▸, Enter base ▸, Straight-in, Report N-mile / at fix, Cleared to land, Follow… |
+| 17 | VFR departure, leaving the pattern | airborne VFR departing, not staying in the pattern | Fly heading ▸ / on course, Maintain ▸, Report at fix, Make L/R closed traffic |
+
+Review notes that drive predicates:
+
+- Final (12) offers no exit instruction: 7110.65 §3-10-9 note says exit instructions should not normally be issued before or immediately after touchdown. Rollout (13) shows exits only once decelerating.
+- A visual approach clearance follows the pilot's report of the airport or runway in sight (§7-4-3.a).
+- An approach clearance goes to an aircraft established on a published segment or given an altitude to maintain until established (§4-8-1).
+- Runway crossing needs an explicit clearance (§3-7-2); a hold-short of a runway the aircraft only crosses offers no takeoff or LUAW.
+- LUAW's predicate covers the §3-9-4 restrictions (e.g. intersection LUAW at night).
+- Speed adjustments stop inside the FAF or 5 NM from the runway, whichever is closer (§5-7-1).
+- Initiate handoff is not a quick command: the top-level Track ▸ covers it.
+- Sim-only actions (Break conflict, Check release window) come after the instructions a controller would give.
+
+## Open questions
+
+- Several predicates need data the client may not have: nearing the departure runway's hold line (4), whether the hold-short runway is the departure runway (5), inbound vs enroute (8a/8b, 16/17), inside FAF / 5 NM (9), decelerating on rollout (13), field in sight reported (9). Each needs either a derivation from existing DTO fields or a new field (per `training-hub-contract.md`).
+- Whether situation classification lives in `Yaat.Client.Core` (string-matching `CurrentPhase`) or the server sends a situation value, making phase renames a compile error rather than a silent miss.
+
+## Steps
+
+- [ ] 1. Verify the phase-name inventory against `Yaat.Sim/Phases/*` `Name` properties and fix the stale names in `AircraftCommandApplicability`; write the situation classifier with a test per situation over real phase names
+- [ ] 2. Build the menu-item catalog (stable IDs, label, default flight-rules tag, applicability predicate, builder) in `Yaat.Client.Core`, and move the radar, ground and aircraft-list builders onto it; All Commands reproduces today's full tree
+- [ ] 3. Quick-command resolution: situation → stored or default entry list → flight-rules and applicability filter → menu items; replace `ContextMenuProfileService`
+- [ ] 4. Persistence in `UserPreferences` (overrides only) plus import/export
+- [ ] 5. Settings → Quick Commands tab with per-situation and global reset
+- [ ] 6. Add the missing predicates and DTO fields from the open questions; `aviation-sim-expert` review of the final predicates
+- [ ] 7. `USER_GUIDE.md`, `docs/radar-rendering.md` / `docs/ground-rendering.md` menu sections, `docs/architecture.md`
