@@ -26,6 +26,15 @@ public sealed class AircraftFlightPlanDto
     public bool AltitudeIsVfr { get; init; }
     public bool AltitudeIsVfrOnTop { get; init; }
     public bool AltitudeIsAbove { get; init; }
+
+    /// <summary>The fix of a fix-qualified altitude, as typed — see <see cref="PlannedAltitude.AltitudeFix"/>. Null = not fix-qualified.</summary>
+    public string? AltitudeFix { get; init; }
+
+    /// <summary>The altitude after <see cref="AltitudeFix"/> in feet — see <see cref="PlannedAltitude.AfterFixFeet"/>.</summary>
+    public int? AltitudeAfterFixFeet { get; init; }
+
+    /// <summary>Whether the aircraft has passed <see cref="AltitudeFix"/> — see <see cref="AircraftFlightPlan.AltitudeFixPassed"/>.</summary>
+    public bool AltitudeFixPassed { get; init; }
     public required int CruiseSpeed { get; init; }
 
     /// <summary>ERAM requested altitude — see <see cref="AircraftFlightPlan.RequestedAltitude"/>. Null = none entered.</summary>

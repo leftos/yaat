@@ -33,6 +33,30 @@ public sealed record PlannedAltitude(int? CruiseFeet, int? BlockFloorFeet, bool 
     /// <summary>Above a given altitude (e.g. "A050").</summary>
     public static PlannedAltitude Above(int feet) => new(feet, null, false, false, true);
 
+    /// <summary>
+    /// ERAM field 08's fix-qualified form <c>(d)dd/Fix/(d)dd</c> (SRS p.411, p.633-634): the fix after which
+    /// <see cref="AfterFixFeet"/> replaces <see cref="CruiseFeet"/>, as typed (a fix name, an FRD or a lat/long). Null for
+    /// every other form. Data only: the record of a 7110.65 §4-5-7 "maintain until … then" clearance, never flown.
+    /// </summary>
+    public string? AltitudeFix { get; init; }
+
+    /// <summary>The altitude in feet that holds after <see cref="AltitudeFix"/>; non-null iff <see cref="AltitudeFix"/> is.</summary>
+    public int? AfterFixFeet { get; init; }
+
+    /// <summary>
+    /// The fix-qualified altitude <c>(d)dd/Fix/(d)dd</c>: <paramref name="feet"/> until <paramref name="fix"/> (as typed),
+    /// <paramref name="afterFixFeet"/> after it.
+    /// </summary>
+    public static PlannedAltitude UntilFix(int feet, string fix, int afterFixFeet) =>
+        Ifr(feet) with
+        {
+            AltitudeFix = fix,
+            AfterFixFeet = afterFixFeet,
+        };
+
+    /// <summary>True when this is the fix-qualified form (<see cref="AltitudeFix"/> set).</summary>
+    public bool IsFixQualified => AltitudeFix is not null;
+
     /// <summary>True when this is a block altitude (<see cref="BlockFloorFeet"/> set).</summary>
     public bool IsBlock => BlockFloorFeet is not null;
 

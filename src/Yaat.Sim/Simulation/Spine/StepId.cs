@@ -21,6 +21,7 @@ public enum StepId
     // PostPhysics, in the live server's order
     LiveTrafficRunwayUse,
     Transponders,
+    AltitudeFixPassage,
     AutoAccept,
     PointoutTimeout,
     FlightPlanCreatorAutoTrack,

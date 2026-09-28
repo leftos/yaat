@@ -217,6 +217,36 @@ public class ScenarioExporterTests
     }
 
     [Fact]
+    public void FixQualifiedAltitude_ExportsTheFirstAltitude_FlaggedAsLost()
+    {
+        AircraftState enRoute = LoadSingle(AirborneJson("DAL45", "IFR", "SUNOL ECA"));
+        enRoute.FlightPlan.Altitude = PlannedAltitude.UntilFix(17000, "SJC", 11000);
+
+        ScenarioExportResult result = Export(enRoute);
+
+        Assert.Equal(17000, Assert.Single(result.Scenario.Aircraft).FlightPlan!.CruiseAltitude);
+        Assert.Equal(new ScenarioExportFlag("DAL45", ScenarioExporter.ReasonFixQualifiedAltitude), Assert.Single(result.Flags));
+    }
+
+    [Fact]
+    public void FixQualifiedAltitude_OnAFlaggedAircraft_AddsItsOwnFlag()
+    {
+        AircraftState vectored = LoadSingle(AirborneJson("DAL45", "IFR", "SUNOL ECA"));
+        vectored.Targets.AssignedMagneticHeading = new MagneticHeading(270);
+        vectored.FlightPlan.Altitude = PlannedAltitude.UntilFix(17000, "SJC", 11000);
+
+        ScenarioExportResult result = Export(vectored);
+
+        Assert.Equal(
+            [
+                new ScenarioExportFlag("DAL45", ScenarioExporter.ReasonOffRoute),
+                new ScenarioExportFlag("DAL45", ScenarioExporter.ReasonFixQualifiedAltitude),
+            ],
+            result.Flags
+        );
+    }
+
+    [Fact]
     public void VectoredIfrAircraft_ExportsCoordinates_FlaggedOffRoute()
     {
         AircraftState vectored = LoadSingle(AirborneJson("DAL45", "IFR", "SUNOL ECA"));

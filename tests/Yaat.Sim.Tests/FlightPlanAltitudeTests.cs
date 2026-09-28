@@ -145,4 +145,36 @@ public class FlightPlanAltitudeTests
         Assert.NotNull(parsed);
         Assert.Equal(altitude, parsed.Value.Altitude);
     }
+
+    public static TheoryData<PlannedAltitude, string> FixQualifiedCases =>
+        new()
+        {
+            { PlannedAltitude.UntilFix(17000, "SJC", 11000), "170/SJC/110" },
+            { PlannedAltitude.UntilFix(9000, "SJC090020", 6000), "090/SJC090020/060" },
+            { PlannedAltitude.UntilFix(17000, "3730N/12200W", 11000), "170/3730N/12200W/110" },
+        };
+
+    [Theory]
+    [MemberData(nameof(FixQualifiedCases))]
+    public void FixQualified_FormatsAsFirstFixSecond_AndParsesBack(PlannedAltitude altitude, string text)
+    {
+        Assert.Equal(text, FlightPlanAltitude.Format(altitude));
+
+        (string Rules, PlannedAltitude Altitude)? parsed = FlightPlanAltitude.Parse(text);
+        Assert.NotNull(parsed);
+        Assert.Equal("IFR", parsed.Value.Rules);
+        Assert.Equal(altitude, parsed.Value.Altitude);
+    }
+
+    [Fact]
+    public void FixQualified_ParsesTheTwoDigitForm() =>
+        Assert.Equal(PlannedAltitude.UntilFix(9000, "SJC", 6000), FlightPlanAltitude.Parse("90/SJC/60")?.Altitude);
+
+    [Theory]
+    [InlineData("170//110")]
+    [InlineData("170/SJC/")]
+    [InlineData("/SJC/110")]
+    [InlineData("170/SJC/000")]
+    [InlineData("170/SJ C/110")]
+    public void FixQualified_Malformed_ReturnsNull(string text) => Assert.Null(FlightPlanAltitude.Parse(text));
 }

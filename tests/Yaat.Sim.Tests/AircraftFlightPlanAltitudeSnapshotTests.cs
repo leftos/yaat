@@ -1,5 +1,8 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Tests;
 
@@ -19,7 +22,48 @@ public class AircraftFlightPlanAltitudeSnapshotTests
             PlannedAltitude.Vfr(null),
             PlannedAltitude.Otp(12000),
             PlannedAltitude.Otp(null),
+            PlannedAltitude.UntilFix(17000, "SJC", 11000),
+            PlannedAltitude.UntilFix(17000, "3730N/12200W", 11000),
         ];
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FixQualifiedAltitude_AndItsPassedLatch_SurviveSnapshotRoundTrip(bool passed)
+    {
+        var fp = new AircraftFlightPlan
+        {
+            HasFlightPlan = true,
+            FlightRules = "IFR",
+            Altitude = PlannedAltitude.UntilFix(17000, "SJC", 11000),
+            AltitudeFixPassed = passed,
+        };
+
+        var restored = AircraftFlightPlan.FromSnapshot(fp.ToSnapshot());
+
+        Assert.Equal(PlannedAltitude.UntilFix(17000, "SJC", 11000), restored.Altitude);
+        Assert.Equal(passed, restored.AltitudeFixPassed);
+    }
+
+    [Fact]
+    public void ASnapshotWithoutTheFixFields_RestoresAPlainAltitude_Unlatched()
+    {
+        var fp = new AircraftFlightPlan
+        {
+            HasFlightPlan = true,
+            FlightRules = "IFR",
+            Altitude = PlannedAltitude.Ifr(24000),
+        };
+        JsonObject json = JsonSerializer.SerializeToNode(fp.ToSnapshot())!.AsObject();
+        json.Remove(nameof(AircraftFlightPlanDto.AltitudeFix));
+        json.Remove(nameof(AircraftFlightPlanDto.AltitudeAfterFixFeet));
+        json.Remove(nameof(AircraftFlightPlanDto.AltitudeFixPassed));
+
+        var restored = AircraftFlightPlan.FromSnapshot(json.Deserialize<AircraftFlightPlanDto>()!);
+
+        Assert.Equal(PlannedAltitude.Ifr(24000), restored.Altitude);
+        Assert.False(restored.AltitudeFixPassed);
+    }
 
     [Theory]
     [MemberData(nameof(Cases))]

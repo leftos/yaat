@@ -1,3 +1,4 @@
+using Yaat.Sim.Data;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim;
@@ -57,9 +58,61 @@ public class AircraftFlightPlan
     /// Filed altitude — the notation axis of the plan (single / block / VFR / OTP / above), in feet.
     /// Distinct from <see cref="FlightRules"/> (the IFR/VFR rules axis) and from
     /// <see cref="ControlTargets.AssignedAltitude"/> (the current ATC clearance). Defaults to
-    /// <see cref="PlannedAltitude.None"/> (no filed altitude).
+    /// <see cref="PlannedAltitude.None"/> (no filed altitude). Setting a different altitude, by any path, clears
+    /// <see cref="AltitudeFixPassed"/> and the resolved fix position.
     /// </summary>
-    public PlannedAltitude Altitude { get; set; } = PlannedAltitude.None;
+    public PlannedAltitude Altitude
+    {
+        get => _altitude;
+        set
+        {
+            if (value == _altitude)
+            {
+                return;
+            }
+            _altitude = value;
+            AltitudeFixPassed = false;
+            _altitudeFixResolved = false;
+            _altitudeFixPosition = null;
+        }
+    }
+
+    private PlannedAltitude _altitude = PlannedAltitude.None;
+
+    /// <summary>
+    /// Whether the aircraft has passed the fix of a fix-qualified <see cref="Altitude"/> (<c>170/SJC/110</c>), so that the
+    /// altitude after it holds. Latched by <c>SimulationEngine.TickAltitudeFixPassage</c>; cleared when the altitude is
+    /// replaced. Display data only: only the ERAM data block and QF read it (<see cref="EramAltitudeFeet"/>).
+    /// </summary>
+    public bool AltitudeFixPassed { get; set; }
+
+    private bool _altitudeFixResolved;
+    private LatLon? _altitudeFixPosition;
+
+    /// <summary>
+    /// The altitude in feet the ERAM data block (Field B) and QF show: the altitude after the fix once
+    /// <see cref="AltitudeFixPassed"/> is set, otherwise <see cref="PlannedAltitude.CruiseFeet"/>. Every other reader of the
+    /// flight-plan altitude reads <see cref="PlannedAltitude.CruiseFeet"/>.
+    /// </summary>
+    public int? EramAltitudeFeet => AltitudeFixPassed && (Altitude.AfterFixFeet is { } afterFix) ? afterFix : Altitude.CruiseFeet;
+
+    /// <summary>
+    /// The position of the fix of a fix-qualified <see cref="Altitude"/>, resolved through <see cref="EramFixResolver"/> on
+    /// first use and kept until the altitude is replaced. Null when the altitude is not fix-qualified or the fix does not resolve.
+    /// </summary>
+    public LatLon? AltitudeFixPosition(NavigationDatabase navDb)
+    {
+        if (Altitude.AltitudeFix is not { } fix)
+        {
+            return null;
+        }
+        if (!_altitudeFixResolved)
+        {
+            _altitudeFixPosition = EramFixResolver.Resolve(fix, navDb);
+            _altitudeFixResolved = true;
+        }
+        return _altitudeFixPosition;
+    }
 
     /// <summary>
     /// Filed cruise speed, parsed from the flight plan and round-tripped through DTOs/snapshots,
@@ -116,6 +169,9 @@ public class AircraftFlightPlan
             AltitudeIsVfr = Altitude.IsVfr,
             AltitudeIsVfrOnTop = Altitude.IsVfrOnTop,
             AltitudeIsAbove = Altitude.IsAbove,
+            AltitudeFix = Altitude.AltitudeFix,
+            AltitudeAfterFixFeet = Altitude.AfterFixFeet,
+            AltitudeFixPassed = AltitudeFixPassed,
             CruiseSpeed = CruiseSpeed,
             RequestedAltitude = RequestedAltitude,
             HasSpecialAircraftIndicator = HasSpecialAircraftIndicator,
@@ -142,7 +198,13 @@ public class AircraftFlightPlan
                 dto.AltitudeIsVfr,
                 dto.AltitudeIsVfrOnTop,
                 dto.AltitudeIsAbove
-            ),
+            )
+            {
+                AltitudeFix = dto.AltitudeFix,
+                AfterFixFeet = dto.AltitudeAfterFixFeet,
+            },
+            // After Altitude, whose setter clears the latch.
+            AltitudeFixPassed = dto.AltitudeFixPassed,
             CruiseSpeed = dto.CruiseSpeed,
             RequestedAltitude = dto.RequestedAltitude,
             HasSpecialAircraftIndicator = dto.HasSpecialAircraftIndicator,

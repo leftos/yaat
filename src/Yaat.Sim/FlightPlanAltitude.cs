@@ -9,7 +9,8 @@ namespace Yaat.Sim;
 /// ERAM <c>QZ</c> keyboard command (see <c>CrcClientState.Eram.DispatchQz</c>), not by typing in
 /// the FPE, so it is <em>rendered</em> by <see cref="Format"/> but not accepted by <see cref="Parse"/>.
 /// The above (<c>A</c>-prefix) form exists on the wire (<see cref="PlannedAltitude.IsAbove"/>) but
-/// has no input path yet.
+/// has no input path yet. The fix-qualified <c>NNN/Fix/NNN</c> form (ERAM <c>AM ALT</c>) is both rendered and accepted, so it
+/// survives a CRC flight-plan amend, which resends the altitude text.
 /// </summary>
 public static class FlightPlanAltitude
 {
@@ -43,8 +44,33 @@ public static class FlightPlanAltitude
         {
             return ("IFR", PlannedAltitude.Ifr(alt * 100));
         }
-        return null;
+        return ParseFixQualified(text) is { } fixQualified ? ("IFR", fixQualified) : null;
     }
+
+    /// <summary>
+    /// The fix-qualified form <c>NNN/Fix/NNN</c> ERAM's <c>AM ALT</c> writes: the first altitude until the fix, the second
+    /// after it. The fix runs from the first slash to the last (a lat/long fix holds a slash of its own) and is taken as
+    /// written, letters, digits and that slash only; yaat-server checks its ERAM form before it reaches the flight plan.
+    /// </summary>
+    private static PlannedAltitude? ParseFixQualified(string text)
+    {
+        int firstSlash = text.IndexOf('/', StringComparison.Ordinal);
+        int lastSlash = text.LastIndexOf('/');
+        if ((firstSlash < 0) || (lastSlash == firstSlash))
+        {
+            return null;
+        }
+
+        string fix = text[(firstSlash + 1)..lastSlash];
+        bool fixWellFormed =
+            (fix.Length > 0) && !fix.StartsWith('/') && !fix.EndsWith('/') && fix.All(c => char.IsAsciiLetterOrDigit(c) || (c == '/'));
+        int? feet = PositiveHundreds(text[..firstSlash]);
+        int? afterFixFeet = PositiveHundreds(text[(lastSlash + 1)..]);
+        return fixWellFormed && (feet is { } first) && (afterFixFeet is { } after) ? PlannedAltitude.UntilFix(first, fix, after) : null;
+    }
+
+    private static int? PositiveHundreds(string text) =>
+        (text.Length > 0) && text.All(char.IsAsciiDigit) && int.TryParse(text, out int hundreds) && (hundreds > 0) ? hundreds * 100 : null;
 
     /// <summary>
     /// Builds a <see cref="PlannedAltitude"/> from a flight-rules label ("IFR"/"VFR"/"OTP") and an
@@ -78,6 +104,11 @@ public static class FlightPlanAltitude
         }
 
         string altStr = altitude.CruiseFeet is { } feet and > 0 ? (feet / 100).ToString("D3") : "";
+
+        if (altitude is { AltitudeFix: { } fix, AfterFixFeet: { } afterFixFeet })
+        {
+            return $"{altStr}/{fix}/{afterFixFeet / 100:D3}";
+        }
 
         if (altitude.IsAbove)
         {

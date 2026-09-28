@@ -86,6 +86,7 @@ public static class ScenarioExporter
     public const string ReasonRouteNotTrimmed = "filed route, not trimmed";
     public const string ReasonOffGlidepath = "aligned with final but off the glidepath";
     public const string ReasonOverThreshold = "over the threshold / landing";
+    public const string ReasonFixQualifiedAltitude = "altitude after a fix not exported";
 
     private static readonly JsonSerializerOptions SerializeOptions = new() { WriteIndented = true };
 
@@ -110,6 +111,12 @@ public static class ScenarioExporter
             if (reason is not null)
             {
                 flags.Add(new ScenarioExportFlag(state.Callsign, reason));
+            }
+
+            // A scenario flight plan holds one cruise altitude, so a fix-qualified one (170/SJC/110) exports its first.
+            if (!state.IsShadow && state.FlightPlan.HasFlightPlan && state.FlightPlan.Altitude.IsFixQualified)
+            {
+                flags.Add(new ScenarioExportFlag(state.Callsign, ReasonFixQualifiedAltitude));
             }
         }
 
