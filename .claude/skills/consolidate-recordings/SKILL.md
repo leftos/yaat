@@ -18,7 +18,7 @@ change is invisible to users.
 ## Step 1: Dry-run preview
 
 ```bash
-bash tools/gate.sh .tmp/consolidate-dry.log dotnet run --project tools/Yaat.RecordingConsolidator -- tests/Yaat.Sim.Tests/TestData --dry-run
+bash tools/gate.sh .tmp/consolidate-dry.log 600 dotnet run --project tools/Yaat.RecordingConsolidator -- tests/Yaat.Sim.Tests/TestData --dry-run
 ```
 
 If the summary reports `0 duplicate group(s)`, stop here — there is nothing to
@@ -27,7 +27,7 @@ do. Tell the user no duplicates were found and exit.
 ## Step 2: Live run
 
 ```bash
-bash tools/gate.sh .tmp/consolidate-live.log dotnet run --project tools/Yaat.RecordingConsolidator -- tests/Yaat.Sim.Tests/TestData
+bash tools/gate.sh .tmp/consolidate-live.log 600 dotnet run --project tools/Yaat.RecordingConsolidator -- tests/Yaat.Sim.Tests/TestData
 ```
 
 The tool deletes duplicate `.zip`s, renames the keeper to `<hash12>.zip`, and
@@ -37,8 +37,8 @@ files across the repo (excluding `bin/`, `obj/`, and `.git/`).
 ## Step 3: Verify the rewrite compiled and tests still pass
 
 ```bash
-bash tools/gate.sh .tmp/consolidate-build.log dotnet build -p:TreatWarningsAsErrors=true
-bash tools/gate.sh .tmp/consolidate-test.log dotnet test tests/Yaat.Sim.Tests
+bash tools/gate.sh .tmp/consolidate-build.log 300 dotnet build -p:TreatWarningsAsErrors=true
+bash tools/gate.sh .tmp/consolidate-test.log 120 dotnet test tests/Yaat.Sim.Tests
 ```
 
 This is a full-project run of roughly 300 replay E2E tests. It legitimately

@@ -199,3 +199,20 @@ An ERAM entry typed without a command ID, such as `<FLID>` alone to accept a han
 
 **`/OK`**:
 The ERAM logic-check override: added to a command, it lets the command act on a track the sector doesn't own, or past a check it would otherwise fail.
+
+## Tooling
+
+**Gate**:
+`tools/gate.sh` (a shim over `tools/gate.ps1`, identical with opening-hand's copy): runs one build or test command with its whole output in a log under `.tmp/`, the tail on screen and the command's own exit status, and kills it (exit 124) when it stalls, passes its ceiling on the load-adjusted clock, or reaches the backstop.
+
+**Stall**:
+A gate run whose log has not grown and whose processes (with any MSBuild or compiler server started during the run) have used no CPU for 120 s (`GATE_STALL`); the gate kills it as hung (`gate: STALLED`).
+
+**Load-adjusted clock**:
+The clock a gate's ceiling (the seconds argument of `tools/gate.sh <log> <seconds> <command...>`) counts on: every few seconds it advances by the share of the machine other work left free, so it keeps wall time on an idle machine and slows while other agents load it.
+
+**Backstop**:
+The gate's last-resort kill at five times the ceiling in wall time (`gate: BACKSTOP`); with a low "machine free" figure the machine was busy, and the run is re-run once alone.
+
+**Slot**:
+One of the `(logical processors - 1) / 4` places machine-wide a gate must hold to run (`GATE_SLOTS` overrides the count); a gate inside another gate uses its parent's.

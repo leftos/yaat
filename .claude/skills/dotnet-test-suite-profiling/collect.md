@@ -76,7 +76,7 @@ dotnet-trace collect --profile gc-verbose -o .tmp/prof/gc.nettrace \
   -- "$(git rev-parse --show-toplevel)/tests/Yaat.Sim.Tests/bin/Release/net10.0/Yaat.Sim.Tests.exe" \
      --filter-class "*.<ClassName>"
 
-tools/gate.sh .tmp/prof/alloc.log dotnet run .claude/skills/dotnet-test-suite-profiling/scripts/alloc_ticks.cs \
+tools/gate.sh .tmp/prof/alloc.log 600 dotnet run .claude/skills/dotnet-test-suite-profiling/scripts/alloc_ticks.cs \
   -- .tmp/prof/gc.nettrace --top 25
 ```
 

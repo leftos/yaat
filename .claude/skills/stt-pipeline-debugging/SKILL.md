@@ -95,7 +95,7 @@ public void Probe()
     throw new Xunit.Sdk.XunitException($"canonical={result?.CanonicalCommand} matched=[{string.Join(';', trace.MatchedRulePatterns)}] reason={trace.FailureReason}");
 }
 ```
-Run with `bash tools/gate.sh .tmp/stt-probe.log dotnet test tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj -- --filter-method "*Probe*"`, then read the log.
+Run with `bash tools/gate.sh .tmp/stt-probe.log 30 dotnet test tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj -- --filter-method "*Probe*"`, then read the log.
 
 **Remove the probe by inverting the edit that added it** — apply the reverse replacement with the same mechanism. Never `git checkout -- <file>` / `git restore <file>` to clean up a probe: it reverts the file to HEAD and silently wipes every other uncommitted change in it. A checkout is permitted only after `git diff <file>` shows nothing worth keeping.
 
@@ -103,7 +103,7 @@ For callsign-extract investigation only, use `SpeechRecognitionService.ExtractAn
 
 For end-to-end Whisper + rule + LLM on an actual audio file, use the existing tool:
 ```bash
-bash tools/gate.sh .tmp/sandbox.log dotnet run --project tools/Yaat.SpeechSandbox -- --pipeline .tmp/stt-bundle/samples/*/audio.wav
+bash tools/gate.sh .tmp/sandbox.log 600 dotnet run --project tools/Yaat.SpeechSandbox -- --pipeline .tmp/stt-bundle/samples/*/audio.wav
 ```
 
 ### Step 2 — identify which stage dropped the ball
@@ -149,17 +149,17 @@ Don't add rules in `PhraseologyRules.cs` without a failing test first.
 
 5. **Check the verbalizer didn't regress**:
    ```bash
-   bash tools/gate.sh .tmp/stt-verbalizer.log dotnet test tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj -- --filter-method "*Verbalizer*" "*PhraseologyMapperTrace*"
+   bash tools/gate.sh .tmp/stt-verbalizer.log 30 dotnet test tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj -- --filter-method "*Verbalizer*" "*PhraseologyMapperTrace*"
    ```
 
 6. **Full speech suite**:
    ```bash
-   bash tools/gate.sh .tmp/stt-speech.log dotnet test tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj -- --filter-method "*Speech*" "*Callsign*" "*Verbalizer*"
+   bash tools/gate.sh .tmp/stt-speech.log 30 dotnet test tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj -- --filter-method "*Speech*" "*Callsign*" "*Verbalizer*"
    ```
 
 7. **Cross-repo sanity** before committing:
    ```bash
-   bash tools/gate.sh .tmp/stt-test-all.log pwsh tools/test-all.ps1
+   bash tools/gate.sh .tmp/stt-test-all.log 900 pwsh tools/test-all.ps1
    ```
 
    If more than one test is red, classify every failure before editing any of

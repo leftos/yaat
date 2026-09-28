@@ -64,7 +64,7 @@ segments() {
         sed -E \
             -e 's/^[[:space:]]*//' \
             -e 's/^(timeout[[:space:]]+[0-9]+[smhd]?|nice([[:space:]]+-n[[:space:]]*-?[0-9]+)?|command|exec)[[:space:]]+//' \
-            -e 's#^(bash[[:space:]]+)?([^[:space:]]*/)?gate\.sh[[:space:]]+[^[:space:]]+[[:space:]]+##' \
+            -e 's#^(bash[[:space:]]+)?([^[:space:]]*/)?gate\.sh[[:space:]]+[^[:space:]]+[[:space:]]+([0-9]+[[:space:]]+)?##' \
             -e 's/^(timeout[[:space:]]+[0-9]+[smhd]?)[[:space:]]+//' \
             -e 's/^([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)+//'
 }
@@ -126,11 +126,18 @@ captured() {
     line_has '(^|[[:space:]/])gate\.sh[[:space:]]' || line_has '>>?[[:space:]]*["'"'"']?[^[:space:]"'"'"']*\.tmp/[^[:space:]"'"'"']*\.log'
 }
 if starts_with 'dotnet[[:space:]]+(test|build|run)' && ! captured; then
-    deny 'dotnet test/build/run must write its full output to a .tmp/<name>.log and print only the tail: `tools/gate.sh .tmp/<name>.log <command...>` (from yaat-server: `../yaat/tools/gate.sh`), or `<command> > .tmp/<name>.log 2>&1; rc=$?; tail -n 20 .tmp/<name>.log; (exit $rc)`. `| tee` prints the whole log into context and hides the exit status. For more of the output, read the log file — never re-run the command.'
+    deny 'dotnet test/build/run must write its full output to a .tmp/<name>.log and print only the tail: `tools/gate.sh .tmp/<name>.log <seconds> <command...>` (from yaat-server: `../yaat/tools/gate.sh`), or `<command> > .tmp/<name>.log 2>&1; rc=$?; tail -n 20 .tmp/<name>.log; (exit $rc)`. `| tee` prints the whole log into context and hides the exit status. For more of the output, read the log file — never re-run the command.'
 fi
 
-if starts_with 'dotnet[[:space:]]+test' && ! line_has '(^|[[:space:]])timeout[[:space:]]+[0-9]'; then
-    deny 'dotnet test must be wrapped in a timeout to catch soft hangs — `timeout 30` for a filtered run (--filter ...), `timeout 120` for the full suite.'
+# A ceiling is the gate's second argument, gate.ps1's -TimeoutSeconds, or a
+# coreutils `timeout <n>` on the line.
+has_ceiling() {
+    line_has '(^|[[:space:]/])gate\.sh[[:space:]]+[^[:space:]]+[[:space:]]+[0-9]+[[:space:]]' ||
+        line_has 'gate\.ps1[[:space:]].*-TimeoutSeconds[[:space:]]+[0-9]' ||
+        line_has '(^|[[:space:]])timeout[[:space:]]+[0-9]'
+}
+if starts_with 'dotnet[[:space:]]+test' && ! has_ceiling; then
+    deny 'dotnet test must run under a ceiling to catch soft hangs: `tools/gate.sh .tmp/test.log 30 dotnet test ...` for a filtered run (--filter-class ...), `tools/gate.sh .tmp/test.log 120 dotnet test` for the full suite (from yaat-server: `../yaat/tools/gate.sh`). The gate kills a hung run and exits 124.'
 fi
 
 exit 0

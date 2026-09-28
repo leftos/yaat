@@ -160,8 +160,8 @@ the status of its last stage and would read a failed build as green:
 
 ```bash
 YAAT="$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd)" && cd "$YAAT"
-tools/gate.sh .tmp/build.log dotnet build -p:TreatWarningsAsErrors=true
-tools/gate.sh .tmp/test-all.log pwsh tools/test-all.ps1
+tools/gate.sh .tmp/build.log 300 dotnet build -p:TreatWarningsAsErrors=true
+tools/gate.sh .tmp/test-all.log 900 pwsh tools/test-all.ps1
 ```
 
 `test-all.ps1` is the right gate here rather than a bare `dotnet test`: a bot fix

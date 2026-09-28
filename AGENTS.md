@@ -57,8 +57,8 @@ Both repos live under `/agent/repos/` as siblings:
 Both repos use `.slnx` solution format and target `net10.0`. The `wasm-tools` workload is required for the `Yaat.VStrips.Web` project — run `dotnet workload restore` from the yaat repo root if the workload is missing.
 
 Standard build/test commands from `CLAUDE.md` apply. Key commands:
-- `dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/build.log`
-- `timeout 120 dotnet test 2>&1 | tee .tmp/test.log`
+- `tools/gate.sh .tmp/build.log 300 dotnet build -p:TreatWarningsAsErrors=true`
+- `tools/gate.sh .tmp/test.log 120 dotnet test`
 - `pwsh tools/test-all.ps1` for cross-repo verification
 
 ### Running the server

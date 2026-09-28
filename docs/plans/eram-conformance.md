@@ -81,7 +81,7 @@ Also, in the same commit:
 - Add `Hubs/Eram/EramResult.cs`: a record struct with `Deconstruct`, so existing tuple-deconstructing tests compile unchanged. `BuildEramMessageResponse` (:2923) takes it.
 - `EramMessageElement` gains an `EramPickKind`, taken from the pick slot in `ParseProcessEramMessageArgs` (~:2838), so the flight-ID validator can reject the wrong kind of pick.
 - Log the exception in the empty `catch` in `TryReadLocation` (~:2884).
-- Verify: `tools/gate.sh .tmp/w1.log timeout 120 dotnet test` shows every existing test green unchanged; the build has zero warnings.
+- Verify: `tools/gate.sh .tmp/w1.log 120 dotnet test` shows every existing test green unchanged; the build has zero warnings.
 
 ## Wave 2: feedback convention, flight IDs, conformance test
 
@@ -187,7 +187,7 @@ Settled without work (explorer 2026-09-27): QP request/suppress data block is al
 ## Verification
 
 - **Wave 0:** the fidelity script passes; the reviewer agent's sample shows no discrepancies.
-- **Each code wave:** red-then-green filtered tests; `tools/gate.sh .tmp/build.log dotnet build -p:TreatWarningsAsErrors=true` with zero warnings; `pwsh D:\yaat\tools\test-all.ps1` whenever Yaat.Sim changes.
+- **Each code wave:** red-then-green filtered tests; `tools/gate.sh .tmp/build.log 300 dotnet build -p:TreatWarningsAsErrors=true` with zero warnings; `pwsh D:\yaat\tools\test-all.ps1` whenever Yaat.Sim changes.
 - **End to end, per wave:**
   - Run yaat-server from source (port 5130) with a CRC ERAM session.
   - Drive the MCA with the yaat-client-driver MCP (`list_windows`, `click_point`, `send_keys`, `screenshot`).

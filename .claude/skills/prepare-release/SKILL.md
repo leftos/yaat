@@ -56,7 +56,7 @@ builds and tests yaat + yaat-server in Release configuration; failures here
 would ship to users:
 
 ```bash
-bash tools/gate.sh .tmp/test-all-prerelease.log pwsh tools/test-all.ps1
+bash tools/gate.sh .tmp/test-all-prerelease.log 900 pwsh tools/test-all.ps1
 ```
 
 **Do not append `| tail` or `| grep`.** A teed pipeline reports its last
@@ -471,7 +471,7 @@ Once the user approves:
 10. **If an image build was chosen:** run it **in the background**, through the gate wrapper so a failed build cannot read as green:
 
     ```bash
-    bash tools/gate.sh .tmp/deploy-image-build.log pwsh deploy-to-droplet.ps1 -BuildImageOnly
+    bash tools/gate.sh .tmp/deploy-image-build.log 1800 pwsh deploy-to-droplet.ps1 -BuildImageOnly
     ```
 
     **Do not pipe it through a bare `tee`.** A teed pipeline reports the last stage's status, so the background task's "exit code 0" would be `tee`'s, not the script's — the failure this step exists to catch is exactly the one a bare tee hides, and a green-looking failed build feeds a stale image straight into step 12. If the wrapper is unavailable, read the log and confirm the workflow's own success line before continuing; never treat the reported exit status as the verdict. It dispatches yaat-server's `docker-image.yml`, watches the ~20-minute CI build, and exits without touching the droplet — the live server keeps serving throughout, so no room check is needed yet. (`docker-image.yml` advances `extern/yaat` to origin/main at build time, so dispatching immediately after the push is safe.) **Do not land further commits on yaat main until the deploy finishes** — the image bakes in whatever main holds, and the deploy only auto-publishes the draft release when the deployed client commit *is* the tagged commit. If the build fails, surface it and stop — do not deploy a stale image.
@@ -482,7 +482,7 @@ Once the user approves:
 12. **Deploy — only once step 9a is complete.** The deploy publishes the draft release, so a still-running or failed `Release (macOS)` at this point ships a release without a macOS installer; if a watch is still pending, wait for it (rooms cleared in step 11 stay cleared for the extra minutes, and the deploy's `prepare-restart` covers any that appear). Run it through the gate wrapper, for the same reason as step 10 — a bare `tee` would report tee's status and a failed deploy would read as done:
 
     ```bash
-    bash tools/gate.sh .tmp/deploy-droplet.log pwsh deploy-to-droplet.ps1 -SkipCiBuild -NoLogs
+    bash tools/gate.sh .tmp/deploy-droplet.log 1800 pwsh deploy-to-droplet.ps1 -SkipCiBuild -NoLogs
     ```
 
     `-SkipCiBuild` deploys the image step 10 already built instead of building again; always pass `-NoLogs` — without it the script tails server logs indefinitely and blocks the agent until timeout. The script calls `POST /admin/prepare-restart` first (needs `ADMIN_PASSWORD` in yaat `.env`, matching the droplet) so active training sessions survive the deploy. Use `-SkipSessionSave` only for emergency deploys. Wait for the `Deployment complete!` banner before declaring the release done.
