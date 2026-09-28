@@ -264,7 +264,7 @@ NRE in unrelated parallel tests after disposal. Never call `SimLog.Initialize` f
 captured:
 
 ```bash
-timeout 30 dotnet run --project tests/Yaat.Sim.Tests -c Release -- --filter-method "*<TestName>*" --show-live-output on 2>&1 | tee .tmp/test.log
+tools/gate.sh .tmp/test.log 30 dotnet run --project tests/Yaat.Sim.Tests -c Release -- --filter-method "*<TestName>*" --show-live-output on
 ```
 
 See [logging.md](logging.md) for the full `SimLog`/`AppLog` model and the `DeferredLogger` resolution order.
