@@ -688,6 +688,157 @@ public class EramEntryEngineTests
         Assert.False(pointout.IsAcknowledged || pointout.IsRSideCleared || pointout.IsDSideCleared);
     }
 
+    [Fact]
+    public void PointoutConvert_TakesTheTrackForTheReceiver_AndRemovesOnlyThatPointout()
+    {
+        AircraftState ac = Aircraft();
+        ac.Track.Owner = Sector44;
+        ac.Track.HandoffPeer = Boulder;
+        ac.Eram.IsFrozen = true;
+        Assert.True(Apply(ac, "PO ZOA 44 ZOA 45 ZOA 46", null).Success);
+
+        CommandResult result = EramEntryEngine.Apply(ac, "POCONVERT ZOA 44 ZOA 45", HandoffContext(Sector45));
+
+        Assert.True(result.Success, result.Message);
+        Assert.Same(Sector45, ac.Track.Owner);
+        Assert.Null(ac.Track.HandoffPeer);
+        Assert.True(ac.Track.HandoffAccepted);
+        Assert.False(ac.Eram.IsFrozen);
+        Assert.Same(Sector44, ac.Eram.RecentHandoffPreviousOwner);
+        Assert.False(ac.Eram.RecentHandoffWasForced);
+        EramPointoutState kept = Assert.Single(ac.Eram.Pointouts);
+        Assert.Equal("46", kept.ReceivingSector);
+    }
+
+    [Theory]
+    [InlineData("POCONVERT ZOA 44 ZOA 46")]
+    [InlineData("POCONVERT ZOA 45 ZOA 44")]
+    [InlineData("POCONVERT ZOA 44 ZLA 45")]
+    public void PointoutConvert_OfNoSuchPointout_IsRefusedPoNotFound_AndChangesNothing(string entry)
+    {
+        AircraftState ac = Aircraft();
+        ac.Track.Owner = Sector44;
+        Assert.True(Apply(ac, "PO ZOA 44 ZOA 45", null).Success);
+
+        CommandResult result = EramEntryEngine.Apply(ac, entry, HandoffContext(Sector45));
+
+        Assert.False(result.Success);
+        Assert.Equal(EramEntryErrors.PoNotFound, result.Message);
+        Assert.Same(Sector44, ac.Track.Owner);
+        Assert.Single(ac.Eram.Pointouts);
+    }
+
+    [Fact]
+    public void PointoutConvert_OfAPointoutClearedOnTheRSide_IsRefusedPoNotFound()
+    {
+        AircraftState ac = Aircraft();
+        ac.Track.Owner = Sector44;
+        Assert.True(Apply(ac, "PO ZOA 44 ZOA 45", null).Success);
+        ac.Eram.Pointouts[0].IsRSideCleared = true;
+
+        CommandResult result = EramEntryEngine.Apply(ac, "POCONVERT ZOA 44 ZOA 45", HandoffContext(Sector45));
+
+        Assert.Equal(EramEntryErrors.PoNotFound, result.Message);
+        Assert.Same(Sector44, ac.Track.Owner);
+        Assert.Single(ac.Eram.Pointouts);
+    }
+
+    [Fact]
+    public void PointoutConvert_OfATrackTheReceiverAlreadyOwns_MarksNoPreviousOwner()
+    {
+        AircraftState ac = Aircraft();
+        ac.Track.Owner = Sector45;
+        Assert.True(Apply(ac, "PO ZOA 44 ZOA 45", null).Success);
+
+        CommandResult result = EramEntryEngine.Apply(ac, "POCONVERT ZOA 44 ZOA 45", HandoffContext(Sector45));
+
+        Assert.True(result.Success, result.Message);
+        Assert.Same(Sector45, ac.Track.Owner);
+        Assert.Null(ac.Eram.RecentHandoffPreviousOwner);
+        Assert.Null(ac.Eram.RecentHandoffAcceptedAtSeconds);
+        Assert.Empty(ac.Eram.Pointouts);
+    }
+
+    [Fact]
+    public void PointoutConvert_OfACoastedTrack_EndsTheCoast()
+    {
+        AircraftState ac = Aircraft();
+        ac.Track.Owner = Sector44;
+        ac.Eram.IsCoastTrack = true;
+        ac.Eram.CoastStartSeconds = 10;
+        Assert.True(Apply(ac, "PO ZOA 44 ZOA 45", null).Success);
+
+        CommandResult result = EramEntryEngine.Apply(ac, "POCONVERT ZOA 44 ZOA 45", HandoffContext(Sector45));
+
+        Assert.True(result.Success, result.Message);
+        Assert.False(ac.Eram.IsCoastTrack);
+        Assert.Null(ac.Eram.CoastStartSeconds);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void PointoutConvert_WithOkAndNoPointout_TakesTheTrack(bool owned)
+    {
+        AircraftState ac = Aircraft();
+        ac.Track.Owner = owned ? Sector44 : null;
+
+        CommandResult result = EramEntryEngine.Apply(ac, "POCONVERT /ok", HandoffContext(Sector45));
+
+        Assert.True(result.Success, result.Message);
+        Assert.Same(Sector45, ac.Track.Owner);
+        Assert.True(ac.Track.HandoffAccepted);
+        Assert.Equal(owned, ac.Eram.RecentHandoffWasForced);
+        Assert.Empty(ac.Eram.Pointouts);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void PointoutConvert_WithOk_OnATrackOwnedOutsideThisCentre_IsRefusedNotYourControl(bool starsOwner)
+    {
+        AircraftState ac = Aircraft();
+        TrackOwner owner = starsOwner ? Boulder : TrackOwner.CreateEram("LAX_10_CTR", "ZLA", "10");
+        ac.Track.Owner = owner;
+
+        CommandResult result = EramEntryEngine.Apply(ac, "POCONVERT /OK", HandoffContext(Sector45));
+
+        Assert.False(result.Success);
+        Assert.Equal(EramEntryErrors.NotYourControl, result.Message);
+        Assert.Same(owner, ac.Track.Owner);
+    }
+
+    [Theory]
+    [InlineData("POCONVERT", EramEntryErrors.MessageTooShort)]
+    [InlineData("POCONVERT ZOA 44 ZOA", EramEntryErrors.MessageTooShort)]
+    [InlineData("POCONVERT ZOA 44 ZOA 45 X", EramEntryErrors.MessageTooLong)]
+    [InlineData("POCONVERT OK", "MsgCofieFormat OK")]
+    public void PointoutConvert_Malformed_IsRefusedAndChangesNothing(string entry, string message)
+    {
+        AircraftState ac = Aircraft();
+        ac.Track.Owner = Sector44;
+        Assert.True(Apply(ac, "PO ZOA 44 ZOA 45", null).Success);
+
+        CommandResult result = EramEntryEngine.Apply(ac, entry, HandoffContext(Sector45));
+
+        Assert.Equal(message, result.Message);
+        Assert.Same(Sector44, ac.Track.Owner);
+        Assert.Single(ac.Eram.Pointouts);
+    }
+
+    [Fact]
+    public void PointoutConvert_WithoutASession_IsRefused()
+    {
+        AircraftState ac = Aircraft();
+        Assert.True(Apply(ac, "PO ZOA 44 ZOA 45", null).Success);
+
+        CommandResult result = Apply(ac, "POCONVERT ZOA 44 ZOA 45", Sector45);
+
+        Assert.Equal(EramEntryErrors.SessionNotActive, result.Message);
+        Assert.Null(ac.Track.Owner);
+        Assert.Single(ac.Eram.Pointouts);
+    }
+
     /// <summary>An ERAM conflict set holding one active alert between <c>UAL1</c> and <c>AAL2</c>.</summary>
     private static EramConflictState OneAlert(out EramActiveConflict alert)
     {

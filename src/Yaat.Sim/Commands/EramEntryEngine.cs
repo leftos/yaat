@@ -29,10 +29,12 @@ namespace Yaat.Sim.Commands;
 /// Point outs and DRIs: <c>PO {fromFacility} {fromSector} {toFacility} {toSector} [{toFacility} {toSector}]…</c> (QP Point
 /// Out, one point out per receiving sector); <c>POACK {fromFacility} {fromSector} {toFacility} {toSector}</c> (the
 /// receiver acknowledges that point out); <c>POCLEAR {fromFacility} {fromSector} {toFacility} {toSector}</c> (the
-/// initiator removes it); <c>DRI [J|T]</c> (QP DRI: sets the standard or reduced-separation halo; a bare <c>DRI</c>
-/// removes it). The live handler decides who may acknowledge or clear and whether a DRI entry sets or removes the halo,
-/// and records the outcome, so a replay applies it without the acting position. A <c>PO</c> also removes its initiating
-/// sector and every receiving sector from <see cref="AircraftEramState.PointoutMinimizedSectors"/>, so the fresh point
+/// initiator removes it); <c>POCONVERT {fromFacility} {fromSector} {toFacility} {toSector}</c> or <c>POCONVERT /OK</c>
+/// (QT C, Convert Point Out Track: see <see cref="ApplyPointoutConvert"/>);
+/// <c>DRI [J|T]</c> (QP DRI: sets the standard or reduced-separation halo; a bare <c>DRI</c> removes it).
+/// The live handler decides who may acknowledge or clear and whether a DRI entry sets or removes the halo, and records
+/// the outcome, so a replay applies it without the acting position. A <c>PO</c> also removes its initiating sector and
+/// every receiving sector from <see cref="AircraftEramState.PointoutMinimizedSectors"/>, so the fresh point
 /// out's FDB reappears for both parties.
 /// </para>
 ///
@@ -79,6 +81,7 @@ public static class EramEntryEngine
             "PO" => ApplyPointout(ac, args),
             "POACK" => ApplyPointoutChange(ac, args, p => p.IsAcknowledged = true, "POACK"),
             "POCLEAR" => ApplyPointoutChange(ac, args, ClearPointout, "POCLEAR"),
+            "POCONVERT" => ApplyPointoutConvert(ac, args, ctx),
             "DRI" => ApplyDri(ac, args),
             "MIN" => ApplyMinimize(ac, args),
             "FDB" => ApplyFdbToggle(ac, args),
@@ -378,6 +381,88 @@ public static class EramEntryEngine
         }
 
         return new CommandResult(true, $"{form} {string.Join(' ', args)} {ac.Callsign}");
+    }
+
+    /// <summary>
+    /// QT Convert Point Out Track (QT.yaml, action <c>C</c>): the acting position takes the track and the point out the
+    /// four fields name is removed, as STARS <c>**</c> converts a point out (<see cref="TrackEngine.HandleConvertPointout"/>):
+    /// the in-progress handoff ends, the handoff counts as accepted and the previous owner keeps its accepted indicator.
+    /// The live handler picks the point out whose receiver is the acting sector and records its key. <c>/OK</c> in place
+    /// of the key is the field 60 override with no point out to the acting sector: the track is taken, nothing is removed,
+    /// and it reaches only an untracked track or one an ERAM sector of the acting centre owns. Like every QT track start,
+    /// converting unfreezes the track and ends a coast.
+    /// </summary>
+    private static CommandResult ApplyPointoutConvert(AircraftState ac, List<string> args, EramEntryContext ctx)
+    {
+        if ((ctx.Identity is not { } identity) || (ctx.Scenario is not { } scenario))
+        {
+            return Refused(EramEntryErrors.SessionNotActive);
+        }
+
+        if (RefuseMalformedPointoutConvert(args) is { } malformed)
+        {
+            return malformed;
+        }
+
+        bool forced = args.Count == 1;
+        if (forced ? RefuseForcedConvert(ac, identity) : !TryRemovePointout(ac, args))
+        {
+            return Refused(forced ? EramEntryErrors.NotYourControl : EramEntryErrors.PoNotFound);
+        }
+
+        TrackOwner? previousOwner = ac.Track.Owner;
+        StartTrack(ac, identity);
+        ac.Track.HandoffAccepted = true;
+        Unfreeze(ac);
+        ac.Eram.EndCoast();
+
+        // Converting a track the acting sector already owns hands nothing over: no previous owner to mark.
+        if ((previousOwner is not null) && !previousOwner.MatchesPosition(identity))
+        {
+            TrackEngine.MarkPreviousOwnerRetained(ac, previousOwner, scenario);
+            TrackEngine.MarkRecentHandoffAccepted(ac, previousOwner, wasForced: forced, scenario);
+        }
+        return new CommandResult(true, $"POCONVERT {string.Join(' ', args)} {ac.Callsign}");
+    }
+
+    /// <summary>The field 60 override reaches an untracked track or one an ERAM sector of the acting centre owns.</summary>
+    private static bool RefuseForcedConvert(AircraftState ac, TrackOwner identity) =>
+        (ac.Track.Owner is not null) && !IsOwnedByThisCentre(ac, identity);
+
+    /// <summary>Removes the point out the four <c>POCONVERT</c> fields name, if it is pending (not cleared on the R side).</summary>
+    private static bool TryRemovePointout(AircraftState ac, List<string> args)
+    {
+        List<EramPointoutState> pointouts = ac.Eram.Pointouts;
+        lock (pointouts)
+        {
+            int index = pointouts.FindIndex(p =>
+                IsPointoutKey(p, args[0], args[1], args[3])
+                && string.Equals(p.ReceivingFacility, args[2], StringComparison.Ordinal)
+                && !p.IsRSideCleared
+            );
+            if (index < 0)
+            {
+                return false;
+            }
+            pointouts.RemoveAt(index);
+            return true;
+        }
+    }
+
+    /// <summary>The <c>POCONVERT</c> shape: the four point-out key fields, or the field 60 override alone.</summary>
+    private static CommandResult? RefuseMalformedPointoutConvert(List<string> args)
+    {
+        if (args.Count == 1)
+        {
+            return string.Equals(args[0], "/OK", StringComparison.OrdinalIgnoreCase) ? null : Refused(EramEntryErrors.CofieFormat, args[0]);
+        }
+
+        return args.Count switch
+        {
+            < 4 => Refused(EramEntryErrors.MessageTooShort),
+            > 4 => Refused(EramEntryErrors.MessageTooLong),
+            _ => null,
+        };
     }
 
     private static void ClearPointout(EramPointoutState pointout)

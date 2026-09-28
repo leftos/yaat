@@ -209,7 +209,8 @@ variants:
     descriptor: CONVERT PO TRACK
     format: QT (05) (08) (56) (60) 64 (65) (68) (74) 02
     multiple_flids: false
-    handler: not implemented
+    handler: QT.ConvertPointout
+    note: "yaat ruling (user 2026-09-27; SRS silent): the entering sector must be the receiver of a pending ERAM point out on the track (one not yet cleared), else PO NOT FOUND (YaatPoNotFound). The track then becomes the entering sector's and that one point out is removed, the way STARS converts a point out: any handoff in progress ends and the previous owner sees the handoff as accepted; the track is unfrozen and a coast ends, as on any QT track start. Field 60 /OK overrides the receiver check: with no point out to the entering sector the track is taken and nothing is removed, and the override reaches only an untracked track or one an ERAM sector of the same ARTCC owns (else NOT YOUR CONTROL, the handoff /OK ruling). Fields 05, 08, 56, 65, 68 and 74 are checked and have no further effect."
     fields:
       - field: Position
         rule: |
