@@ -12,7 +12,7 @@ namespace Yaat.Sim;
 /// <param name="BlockFloorFeet">Block floor; non-null iff this is a block altitude.</param>
 /// <param name="IsVfr">VFR notation (e.g. "VFR" / "VFR/065").</param>
 /// <param name="IsVfrOnTop">VFR-on-top notation (e.g. "OTP" / "OTP/065").</param>
-/// <param name="IsAbove">Above notation (e.g. "A050"); wire parity only — no input path yet.</param>
+/// <param name="IsAbove">Above notation (e.g. "A050"), entered with ERAM <c>AM ALT ABV/050</c>.</param>
 public sealed record PlannedAltitude(int? CruiseFeet, int? BlockFloorFeet, bool IsVfr, bool IsVfrOnTop, bool IsAbove)
 {
     /// <summary>No filed altitude (IFR with nothing filed).</summary>

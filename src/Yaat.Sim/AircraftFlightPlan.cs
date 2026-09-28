@@ -46,17 +46,18 @@ public class AircraftFlightPlan
     /// the interfacility remarks, joined by one space when both are non-empty.
     /// </summary>
     public string Remarks =>
-        (IntrafacilityRemarks.Length > 0) && (InterfacilityRemarks.Length > 0)
+        ((IntrafacilityRemarks.Length > 0) && (InterfacilityRemarks.Length > 0))
             ? $"{IntrafacilityRemarks} {InterfacilityRemarks}"
             : IntrafacilityRemarks + InterfacilityRemarks;
 
     /// <summary>
     /// Replaces the remarks with one composed string, as CRC's flight-plan editor sends them back: the same string as
-    /// <see cref="Remarks"/> changes nothing; any other becomes the interfacility remarks and clears the intrafacility ones.
+    /// <see cref="Remarks"/>, compared trimmed, changes nothing; any other becomes the interfacility remarks and clears the
+    /// intrafacility ones.
     /// </summary>
     public void ReplaceRemarks(string remarks)
     {
-        if (remarks == Remarks)
+        if (remarks.Trim() == Remarks.Trim())
         {
             return;
         }
@@ -90,7 +91,7 @@ public class AircraftFlightPlan
     /// Distinct from <see cref="FlightRules"/> (the IFR/VFR rules axis) and from
     /// <see cref="ControlTargets.AssignedAltitude"/> (the current ATC clearance). Defaults to
     /// <see cref="PlannedAltitude.None"/> (no filed altitude). Setting a different altitude, by any path, clears
-    /// <see cref="AltitudeFixPassed"/> and the resolved fix position.
+    /// <see cref="AltitudeFixApproached"/>, <see cref="AltitudeFixPassed"/> and the resolved fix position.
     /// </summary>
     public PlannedAltitude Altitude
     {
@@ -102,6 +103,7 @@ public class AircraftFlightPlan
                 return;
             }
             _altitude = value;
+            AltitudeFixApproached = false;
             AltitudeFixPassed = false;
             _altitudeFixResolved = false;
             _altitudeFixPosition = null;
@@ -111,9 +113,17 @@ public class AircraftFlightPlan
     private PlannedAltitude _altitude = PlannedAltitude.None;
 
     /// <summary>
+    /// Whether the aircraft, airborne, has been within 10 nm of the fix of a fix-qualified <see cref="Altitude"/> with the fix
+    /// no more than 90° off its track, closing on it. Set by <c>SimulationEngine.TickAltitudeFixPassage</c>, which latches
+    /// <see cref="AltitudeFixPassed"/> only after it; cleared when the altitude is replaced.
+    /// </summary>
+    public bool AltitudeFixApproached { get; set; }
+
+    /// <summary>
     /// Whether the aircraft has passed the fix of a fix-qualified <see cref="Altitude"/> (<c>170/SJC/110</c>), so that the
-    /// altitude after it holds. Latched by <c>SimulationEngine.TickAltitudeFixPassage</c>; cleared when the altitude is
-    /// replaced. Display data only: only the ERAM data block and QF read it (<see cref="EramAltitudeFeet"/>).
+    /// altitude after it holds: having approached it (<see cref="AltitudeFixApproached"/>), the fix went more than 90° off
+    /// its track. Latched by <c>SimulationEngine.TickAltitudeFixPassage</c>; cleared when the altitude is replaced. Display
+    /// data only: only the ERAM data block and QF read it (<see cref="EramAltitudeFeet"/>).
     /// </summary>
     public bool AltitudeFixPassed { get; set; }
 
@@ -125,7 +135,7 @@ public class AircraftFlightPlan
     /// <see cref="AltitudeFixPassed"/> is set, otherwise <see cref="PlannedAltitude.CruiseFeet"/>. Every other reader of the
     /// flight-plan altitude reads <see cref="PlannedAltitude.CruiseFeet"/>.
     /// </summary>
-    public int? EramAltitudeFeet => AltitudeFixPassed && (Altitude.AfterFixFeet is { } afterFix) ? afterFix : Altitude.CruiseFeet;
+    public int? EramAltitudeFeet => (AltitudeFixPassed && (Altitude.AfterFixFeet is { } afterFix)) ? afterFix : Altitude.CruiseFeet;
 
     /// <summary>
     /// The position of the fix of a fix-qualified <see cref="Altitude"/>, resolved through <see cref="EramFixResolver"/> on
@@ -153,7 +163,13 @@ public class AircraftFlightPlan
     /// 0 when none is filed, and always 0 while a <see cref="CruiseMach"/> or a classified speed is filed. Amendments go
     /// through <see cref="SetTrueAirspeed"/>, <see cref="SetMach"/> and <see cref="SetClassifiedSpeed"/>.
     /// </summary>
-    public int CruiseSpeed { get; set; }
+    public int CruiseSpeed
+    {
+        get => _cruiseSpeed;
+        init => _cruiseSpeed = value;
+    }
+
+    private int _cruiseSpeed;
 
     /// <summary>
     /// ERAM field 05 as a Mach number in hundredths (<c>M078</c> is 78), entered with <c>AM &lt;FLID&gt; SPD M078</c>.
@@ -166,7 +182,8 @@ public class AircraftFlightPlan
 
     /// <summary>
     /// Files a true airspeed, clearing a Mach or classified speed. A 0 while a Mach or classified speed is filed changes
-    /// nothing: CRC's flight-plan editor shows such a plan's speed empty and sends 0 back on every amend.
+    /// nothing: YAAT's flight-plan editor shows such a plan's speed empty and sends 0 back on every amend (CRC's editor
+    /// sends 0 too, which yaat-server maps to no speed edit before it gets here).
     /// </summary>
     public void SetTrueAirspeed(int knots)
     {
@@ -174,7 +191,7 @@ public class AircraftFlightPlan
         {
             return;
         }
-        CruiseSpeed = knots;
+        _cruiseSpeed = knots;
         CruiseMach = null;
         IsSpeedClassified = false;
     }
@@ -183,7 +200,7 @@ public class AircraftFlightPlan
     public void SetMach(int hundredths)
     {
         CruiseMach = hundredths;
-        CruiseSpeed = 0;
+        _cruiseSpeed = 0;
         IsSpeedClassified = false;
     }
 
@@ -191,7 +208,7 @@ public class AircraftFlightPlan
     public void SetClassifiedSpeed()
     {
         IsSpeedClassified = true;
-        CruiseSpeed = 0;
+        _cruiseSpeed = 0;
         CruiseMach = null;
     }
 
@@ -245,6 +262,7 @@ public class AircraftFlightPlan
             AltitudeIsAbove = Altitude.IsAbove,
             AltitudeFix = Altitude.AltitudeFix,
             AltitudeAfterFixFeet = Altitude.AfterFixFeet,
+            AltitudeFixApproached = AltitudeFixApproached,
             AltitudeFixPassed = AltitudeFixPassed,
             CruiseSpeed = CruiseSpeed,
             CruiseMach = CruiseMach,
@@ -280,7 +298,8 @@ public class AircraftFlightPlan
                 AltitudeFix = dto.AltitudeFix,
                 AfterFixFeet = dto.AltitudeAfterFixFeet,
             },
-            // After Altitude, whose setter clears the latch.
+            // After Altitude, whose setter clears both flags.
+            AltitudeFixApproached = dto.AltitudeFixApproached,
             AltitudeFixPassed = dto.AltitudeFixPassed,
             CruiseSpeed = dto.CruiseSpeed,
             CruiseMach = dto.CruiseMach,

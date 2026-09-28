@@ -153,7 +153,7 @@ public class AmendFlightPlanSpeedAndRemarksTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void EachRemarksPart_AmendsOnlyItself_AndTheVoiceTypeReadsTheComposedRemarks()
+    public void EachRemarksPart_AmendsOnlyItself_AndTheVoiceTypeReadsTheInterfacilityRemarks()
     {
         AircraftState ac = Aircraft();
         ac.FlightPlan.IntrafacilityRemarks = "LOCAL";
@@ -169,6 +169,35 @@ public class AmendFlightPlanSpeedAndRemarksTests(ITestOutputHelper output)
         engine.AmendFlightPlan(Callsign, NoEdit with { IntrafacilityRemarks = "" });
 
         Assert.Equal("/t/ NEW", ac.FlightPlan.Remarks);
+    }
+
+    [Fact]
+    public void AVoiceMarkerInTheIntrafacilityPart_DoesNotBlockAVoiceChange()
+    {
+        AircraftState ac = Aircraft();
+        SimulationEngine engine = BuildEngine(ac);
+        engine.AmendFlightPlan(Callsign, NoEdit with { IntrafacilityRemarks = "/t/" });
+        Assert.Equal(FlightPlanVoice.Full, ac.Voice.Type);
+
+        engine.AmendFlightPlan(Callsign, NoEdit with { InterfacilityRemarks = FlightPlanVoice.ApplyVoiceMarker("", FlightPlanVoice.ReceiveOnly) });
+        Assert.Equal(FlightPlanVoice.ReceiveOnly, ac.Voice.Type);
+
+        engine.AmendFlightPlan(Callsign, NoEdit with { InterfacilityRemarks = FlightPlanVoice.ApplyVoiceMarker("/r/", FlightPlanVoice.Full) });
+        Assert.Equal(FlightPlanVoice.Full, ac.Voice.Type);
+    }
+
+    [Fact]
+    public void TheComposedRemarks_SentBackUnchangedButForSpaces_KeepBothParts()
+    {
+        AircraftState ac = Aircraft();
+        ac.FlightPlan.IntrafacilityRemarks = "LOCAL";
+        ac.FlightPlan.InterfacilityRemarks = "CHARTS";
+        SimulationEngine engine = BuildEngine(ac);
+
+        engine.AmendFlightPlan(Callsign, new FlightPlanAmendment(ClearBeaconCode: false, Remarks: " LOCAL CHARTS "));
+
+        Assert.Equal("LOCAL", ac.FlightPlan.IntrafacilityRemarks);
+        Assert.Equal("CHARTS", ac.FlightPlan.InterfacilityRemarks);
     }
 
     [Fact]

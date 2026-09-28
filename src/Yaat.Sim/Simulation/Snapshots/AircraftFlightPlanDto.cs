@@ -44,6 +44,9 @@ public sealed class AircraftFlightPlanDto
     /// <summary>The altitude after <see cref="AltitudeFix"/> in feet — see <see cref="PlannedAltitude.AfterFixFeet"/>.</summary>
     public int? AltitudeAfterFixFeet { get; init; }
 
+    /// <summary>Whether the aircraft has closed on <see cref="AltitudeFix"/> — see <see cref="AircraftFlightPlan.AltitudeFixApproached"/>.</summary>
+    public bool AltitudeFixApproached { get; init; }
+
     /// <summary>Whether the aircraft has passed <see cref="AltitudeFix"/> — see <see cref="AircraftFlightPlan.AltitudeFixPassed"/>.</summary>
     public bool AltitudeFixPassed { get; init; }
     public required int CruiseSpeed { get; init; }

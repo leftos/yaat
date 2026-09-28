@@ -267,7 +267,8 @@ public sealed record RecordedAutoTrackChange(double ElapsedSeconds, string Posit
 /// assigned it are cleared, and filing a plan with it draws no discrete code. It is required so that every caller
 /// states it; a <see cref="BeaconCode"/> of 0 is an assignment like any other, not a deletion.
 /// <see cref="CruiseSpeed"/> is a true airspeed, whose 0 keeps a filed Mach or classified speed
-/// (<see cref="AircraftFlightPlan.SetTrueAirspeed"/>). <see cref="Remarks"/> is the whole composed remarks string
+/// (<see cref="AircraftFlightPlan.SetTrueAirspeed"/>): YAAT's flight-plan editor sends 0 for a plan whose speed it shows
+/// empty, while yaat-server turns CRC's 0 into no speed edit. <see cref="Remarks"/> is the whole composed remarks string
 /// (<see cref="AircraftFlightPlan.ReplaceRemarks"/>); <see cref="InterfacilityRemarks"/> and
 /// <see cref="IntrafacilityRemarks"/> amend one part each, <c>""</c> clearing it.
 /// </summary>

@@ -254,15 +254,17 @@ public sealed partial class SimulationEngine
         }
     }
 
-    /// <summary>The distance within which a fix more than 90° off track counts as passed (<see cref="TickAltitudeFixPassage"/>).</summary>
+    /// <summary>The distance within which an aircraft closes on and passes an altitude fix (<see cref="TickAltitudeFixPassage"/>).</summary>
     public const double AltitudeFixPassageRadiusNm = 10.0;
 
     /// <summary>
-    /// Latches <see cref="AircraftFlightPlan.AltitudeFixPassed"/> for each aircraft whose flight-plan altitude is
-    /// fix-qualified (<c>170/SJC/110</c>, ERAM <c>AM ALT</c>) once it has passed the fix: the fix is within
-    /// <see cref="AltitudeFixPassageRadiusNm"/> and more than 90° off the aircraft's track. A fix that does not resolve never
-    /// latches. Data only — the ERAM data block and QF then show the altitude after the fix; nothing the pilot flies
-    /// changes. A spine step (<see cref="Spine.StepId.AltitudeFixPassage"/>), so it runs on every run kind.
+    /// Latches <see cref="AircraftFlightPlan.AltitudeFixPassed"/> for each airborne aircraft whose flight-plan altitude is
+    /// fix-qualified (<c>170/SJC/110</c>, ERAM <c>AM ALT</c>) once it has passed the fix abeam after closing on it: first the
+    /// fix is within <see cref="AltitudeFixPassageRadiusNm"/> and no more than 90° off the aircraft's track
+    /// (<see cref="AircraftFlightPlan.AltitudeFixApproached"/>), then more than 90° off it. A fix already behind when the
+    /// altitude is entered, an aircraft on the ground and a fix that does not resolve never latch. Data only — the ERAM data
+    /// block and QF then show the altitude after the fix; nothing the pilot flies changes. A spine step
+    /// (<see cref="Spine.StepId.AltitudeFixPassage"/>), so it runs on every run kind.
     /// </summary>
     public void TickAltitudeFixPassage()
     {
@@ -274,23 +276,40 @@ public sealed partial class SimulationEngine
         foreach (AircraftState ac in World.GetSnapshot())
         {
             AircraftFlightPlan plan = ac.FlightPlan;
-            if (plan.AltitudeFixPassed || (plan.AltitudeFixPosition(NavigationDatabase.Instance) is not { } fix))
+            if (ac.IsOnGround || plan.AltitudeFixPassed || (plan.AltitudeFixPosition(NavigationDatabase.Instance) is not { } fix))
             {
                 continue;
             }
-
-            bool fixBehind = ac.TrueTrack.AbsAngleTo(new TrueHeading(GeoMath.BearingTo(ac.Position, fix))) > 90.0;
-            if (fixBehind && (GeoMath.DistanceNm(ac.Position, fix) <= AltitudeFixPassageRadiusNm))
-            {
-                plan.AltitudeFixPassed = true;
-                _logger.LogDebug(
-                    "{Callsign} passed altitude fix {Fix}; ERAM altitude now {Feet} ft",
-                    ac.Callsign,
-                    plan.Altitude.AltitudeFix,
-                    plan.EramAltitudeFeet
-                );
-            }
+            AdvanceAltitudeFixPassage(ac, fix);
         }
+    }
+
+    private void AdvanceAltitudeFixPassage(AircraftState ac, LatLon fix)
+    {
+        AircraftFlightPlan plan = ac.FlightPlan;
+        if (GeoMath.DistanceNm(ac.Position, fix) > AltitudeFixPassageRadiusNm)
+        {
+            return;
+        }
+
+        bool fixBehind = ac.TrueTrack.AbsAngleTo(new TrueHeading(GeoMath.BearingTo(ac.Position, fix))) > 90.0;
+        if (!fixBehind)
+        {
+            plan.AltitudeFixApproached = true;
+            return;
+        }
+        if (!plan.AltitudeFixApproached)
+        {
+            return;
+        }
+
+        plan.AltitudeFixPassed = true;
+        _logger.LogDebug(
+            "{Callsign} passed altitude fix {Fix}; ERAM altitude now {Feet} ft",
+            ac.Callsign,
+            plan.Altitude.AltitudeFix,
+            plan.EramAltitudeFeet
+        );
     }
 
     /// <summary>

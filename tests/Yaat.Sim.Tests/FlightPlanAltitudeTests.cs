@@ -100,7 +100,6 @@ public class FlightPlanAltitudeTests
     [InlineData("garbage")]
     [InlineData("FL240")]
     [InlineData("B080/120")]
-    [InlineData("A100")]
     [InlineData("VFR/abc")]
     public void Parse_Unsupported_ReturnsNull(string input) => Assert.Null(FlightPlanAltitude.Parse(input));
 
@@ -176,5 +175,32 @@ public class FlightPlanAltitudeTests
     [InlineData("/SJC/110")]
     [InlineData("170/SJC/000")]
     [InlineData("170/SJ C/110")]
+    [InlineData("170/1234/110")] // a four-character fix name must hold a letter
+    [InlineData("170/SJC090000/110")] // distance 001-999
+    [InlineData("170/SJC361020/110")] // radial 001-360
+    [InlineData("170/A/B/C/110")] // not a lat/long
+    [InlineData("170/9100N/12200W/110")] // latitude <= 90
+    [InlineData("1700/SJC/110")] // an altitude is (d)dd
+    [InlineData("99999999999/SJC/110")] // no overflow
+    [InlineData("170/SJC/١١٠")] // ASCII digits only
     public void FixQualified_Malformed_ReturnsNull(string text) => Assert.Null(FlightPlanAltitude.Parse(text));
+
+    [Theory]
+    [InlineData("A170", 17000)]
+    [InlineData("a050", 5000)]
+    public void Above_ParsesTheFormFormatWrites(string text, int feet)
+    {
+        (string Rules, PlannedAltitude Altitude)? parsed = FlightPlanAltitude.Parse(text);
+
+        Assert.Equal(("IFR", PlannedAltitude.Above(feet)), parsed);
+        Assert.Equal(text.ToUpperInvariant(), FlightPlanAltitude.Format(parsed!.Value.Altitude));
+    }
+
+    [Theory]
+    [InlineData("A")]
+    [InlineData("A0")]
+    [InlineData("A000")]
+    [InlineData("A1700")]
+    [InlineData("ABV/170")]
+    public void Above_Malformed_ReturnsNull(string text) => Assert.Null(FlightPlanAltitude.Parse(text));
 }

@@ -81,6 +81,69 @@ public static class EramFixResolver
         return new LatLon(signedLat, signedLon);
     }
 
+    /// <summary>
+    /// True when <paramref name="upper"/> is the Fix of field 08's <c>(d)dd/Fix/(d)dd</c> (AM.yaml field 17 for 08): a fix
+    /// name <c>aa(a)(a)(a)</c> of which a four-character one holds a letter, a fix radial distance
+    /// <c>aa(a)(a)(a)ddd1ddd2</c>, or a lat/long <see cref="ParseLatLong"/> accepts. A check of form only: a well-formed fix
+    /// the navigation data does not know passes.
+    /// </summary>
+    /// <param name="upper">The fix, upper case.</param>
+    public static bool IsAltitudeFixForm(string upper)
+    {
+        if (upper.Contains('/'))
+        {
+            return ParseLatLong(upper) is not null;
+        }
+        if (IsFixName(upper))
+        {
+            return (upper.Length != 4) || upper.Any(char.IsAsciiLetter);
+        }
+        return IsFrdForm(upper);
+    }
+
+    /// <summary>True when <paramref name="text"/> is a fix name <c>aa(a)(a)(a)</c>: two to five ASCII letters or digits.</summary>
+    public static bool IsFixName(ReadOnlySpan<char> text)
+    {
+        if (text.Length is < 2 or > MaxFixNameLength)
+        {
+            return false;
+        }
+        foreach (char c in text)
+        {
+            if (!char.IsAsciiLetterOrDigit(c))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /// <summary>True when <paramref name="upper"/> is a fix radial distance <c>aa(a)(a)(a)ddd1ddd2</c>, radial 001–360 and distance 001–999.</summary>
+    public static bool IsFrdForm(string upper)
+    {
+        if ((upper.Length < 8) || !IsFixName(upper.AsSpan(0, upper.Length - 6)) || upper.AsSpan(upper.Length - 6).ContainsAnyExceptInRange('0', '9'))
+        {
+            return false;
+        }
+
+        int radial = int.Parse(upper.AsSpan(upper.Length - 6, 3), NumberStyles.None, CultureInfo.InvariantCulture);
+        int distance = int.Parse(upper.AsSpan(upper.Length - 3, 3), NumberStyles.None, CultureInfo.InvariantCulture);
+        return (radial is >= 1 and <= 360) && (distance is >= 1 and <= 999);
+    }
+
+    /// <summary>An ERAM altitude <c>(d)dd</c> in hundreds of feet, 1–999: two or three ASCII digits, not zero.</summary>
+    /// <param name="text">The altitude as typed.</param>
+    /// <returns>The altitude in feet, or null for any other form or zero.</returns>
+    public static int? ParseAltitudeHundreds(string text)
+    {
+        if ((text.Length is not (2 or 3)) || text.AsSpan().ContainsAnyExceptInRange('0', '9'))
+        {
+            return null;
+        }
+        int hundreds = int.Parse(text, NumberStyles.None, CultureInfo.InvariantCulture);
+        return (hundreds > 0) ? hundreds * 100 : null;
+    }
+
     private static (string Digits, char? Hemisphere) SplitHemisphere(string part, char first, char second) =>
         (part.Length > 0) && ((part[^1] == first) || (part[^1] == second)) ? (part[..^1], part[^1]) : (part, null);
 

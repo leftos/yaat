@@ -48,8 +48,9 @@ Physics ×4     sim TickPhysics(0.25)                                 (fixed cod
                    ├─ [IsShadow] LiveTrafficKinematics.Advance + airborne latch, then continue (no PreTick, no physics — live-traffic.md)
                    ├─ PreTick → PhaseRunner.Tick   (per aircraft)
                    └─ FlightPhysics.Update         (per aircraft, 8 steps)
-PostPhysics    SpineOrder.PostPhysics — the live server's 32-step order
+PostPhysics    SpineOrder.PostPhysics — the live server's 33-step order
                ├─ sim TickLiveTrafficRunwayUse, TickTransponders
+               ├─ sim TickAltitudeFixPassage                          an ERAM fix-qualified altitude (170/SJC/110) latches to its second altitude once the aircraft has closed within 10 nm of the fix (≤90° off track) and then has it >90° off; data only (Field B, QF), never flown
                ├─ sim TickAutoAccept, TickPointoutTimeout                a pending handoff to an unattended position auto-accepts after AutoAcceptDelay; a pending point-out to one is withdrawn after PointoutNoActionSeconds (Attendance)
                ├─ sim TickFlightPlanCreatorAutoTrack, TickDeferredAutoTrack  an untracked aircraft squawking its assigned code → the FP creator; one crossing the display floor → the autoTrackAirportIds position
                ├─ sim TickCoordinationTimers                           an acknowledged release warns at CoordinationExpiryWarningSeconds remaining and voids at CoordinationAckExpirySeconds; a recalled item reverts to Unsent after CoordinationRecallLingerSeconds (the sender keeps it with its text; CRC hides an Unsent item from every receiver)

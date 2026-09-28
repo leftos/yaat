@@ -228,7 +228,8 @@ public partial class FlightPlanEditorWindow : Window
             altText: AltBox.Text,
             rteText: RteBox.Text,
             rmkText: RmkBox.Text,
-            strippedRemarksPrefix: _strippedRemarksPrefix
+            strippedRemarksPrefix: _strippedRemarksPrefix,
+            originalRemarks: _aircraft.Remarks
         );
 
         _onAmend(_aircraft.Callsign, amendment);

@@ -29,7 +29,8 @@ public class FlightPlanEditorAmendmentBuilderTests
             altText: "VFR/010",
             rteText: "PATTERN",
             rmkText: "",
-            strippedRemarksPrefix: "+/V/"
+            strippedRemarksPrefix: "+/V/",
+            originalRemarks: "OLD REMARKS"
         );
 
         Assert.Equal("", amendment.Departure);
@@ -52,7 +53,8 @@ public class FlightPlanEditorAmendmentBuilderTests
             altText: "VFR/010",
             rteText: "PATTERN",
             rmkText: "",
-            strippedRemarksPrefix: ""
+            strippedRemarksPrefix: "",
+            originalRemarks: "OLD REMARKS"
         );
 
         Assert.Equal("", amendment.Departure);
@@ -72,7 +74,8 @@ public class FlightPlanEditorAmendmentBuilderTests
             altText: "",
             rteText: "",
             rmkText: "",
-            strippedRemarksPrefix: ""
+            strippedRemarksPrefix: "",
+            originalRemarks: "OLD REMARKS"
         );
 
         Assert.Equal("", amendment.AircraftType);
@@ -101,7 +104,8 @@ public class FlightPlanEditorAmendmentBuilderTests
             altText: "VFR/010",
             rteText: "PATTERN",
             rmkText: "",
-            strippedRemarksPrefix: ""
+            strippedRemarksPrefix: "",
+            originalRemarks: "OLD REMARKS"
         );
 
         Assert.Equal(0, amendment.CruiseSpeed);
@@ -121,7 +125,8 @@ public class FlightPlanEditorAmendmentBuilderTests
             altText: "VFR/010",
             rteText: "PATTERN",
             rmkText: "",
-            strippedRemarksPrefix: ""
+            strippedRemarksPrefix: "",
+            originalRemarks: "OLD REMARKS"
         );
 
         Assert.Equal(0, amendment.CruiseSpeed);
@@ -140,7 +145,8 @@ public class FlightPlanEditorAmendmentBuilderTests
             altText: "VFR/010",
             rteText: "",
             rmkText: "",
-            strippedRemarksPrefix: ""
+            strippedRemarksPrefix: "",
+            originalRemarks: "OLD REMARKS"
         );
 
         Assert.Equal("", amendment.Route);
@@ -162,7 +168,8 @@ public class FlightPlanEditorAmendmentBuilderTests
             altText: "VFR/010",
             rteText: "PATTERN",
             rmkText: "",
-            strippedRemarksPrefix: ""
+            strippedRemarksPrefix: "",
+            originalRemarks: "OLD REMARKS"
         );
 
         Assert.Null(amendment.EquipmentSuffix);
@@ -181,7 +188,8 @@ public class FlightPlanEditorAmendmentBuilderTests
             altText: "VFR/010",
             rteText: "PATTERN",
             rmkText: "",
-            strippedRemarksPrefix: ""
+            strippedRemarksPrefix: "",
+            originalRemarks: "OLD REMARKS"
         );
 
         Assert.Null(amendment.EquipmentSuffix);
@@ -200,7 +208,8 @@ public class FlightPlanEditorAmendmentBuilderTests
             altText: "VFR/010",
             rteText: "PATTERN",
             rmkText: "",
-            strippedRemarksPrefix: ""
+            strippedRemarksPrefix: "",
+            originalRemarks: "OLD REMARKS"
         );
 
         Assert.Null(amendment.EquipmentSuffix);
@@ -221,7 +230,8 @@ public class FlightPlanEditorAmendmentBuilderTests
             altText: "VFR/010",
             rteText: "PATTERN",
             rmkText: "",
-            strippedRemarksPrefix: "+/V/"
+            strippedRemarksPrefix: "+/V/",
+            originalRemarks: "OLD REMARKS"
         );
 
         Assert.Equal("+/V/RMK/", amendment.Remarks);
@@ -240,7 +250,8 @@ public class FlightPlanEditorAmendmentBuilderTests
             altText: " VFR/010 ",
             rteText: " pattern ",
             rmkText: " notes ",
-            strippedRemarksPrefix: ""
+            strippedRemarksPrefix: "",
+            originalRemarks: "OLD REMARKS"
         );
 
         Assert.Equal("DA42", amendment.AircraftType);
@@ -265,7 +276,8 @@ public class FlightPlanEditorAmendmentBuilderTests
             altText: "350",
             rteText: "",
             rmkText: "",
-            strippedRemarksPrefix: ""
+            strippedRemarksPrefix: "",
+            originalRemarks: "OLD REMARKS"
         );
 
         Assert.Equal("SDE2E3FGHIJ5M1RWXY", amendment.IcaoEquipmentCodes);
@@ -280,7 +292,8 @@ public class FlightPlanEditorAmendmentBuilderTests
             altText: "350",
             rteText: "",
             rmkText: "",
-            strippedRemarksPrefix: ""
+            strippedRemarksPrefix: "",
+            originalRemarks: "OLD REMARKS"
         );
 
         Assert.Equal("", cleared.IcaoEquipmentCodes);

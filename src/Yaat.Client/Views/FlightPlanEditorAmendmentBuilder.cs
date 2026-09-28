@@ -28,7 +28,8 @@ internal static class FlightPlanEditorAmendmentBuilder
         string? altText,
         string? rteText,
         string? rmkText,
-        string strippedRemarksPrefix
+        string strippedRemarksPrefix,
+        string originalRemarks
     )
     {
         string typ = (typText ?? "").Trim().ToUpperInvariant();
@@ -54,6 +55,10 @@ internal static class FlightPlanEditorAmendmentBuilder
         string rmk = (rmkText ?? "").Trim();
         string rebuiltRemarks = string.IsNullOrEmpty(strippedRemarksPrefix) ? rmk : strippedRemarksPrefix + "RMK/" + rmk;
 
+        // Remarks the user left as they were go out as null (not edited), so the server keeps the intrafacility and
+        // interfacility parts it composed them from rather than folding both into the interfacility part.
+        string? remarks = (rebuiltRemarks.Trim() == originalRemarks.Trim()) ? null : rebuiltRemarks;
+
         return new FlightPlanAmendment(
             AircraftType: typ,
             EquipmentSuffix: eq,
@@ -64,7 +69,7 @@ internal static class FlightPlanEditorAmendmentBuilder
             Altitude: altitude,
             FlightRules: flightRules,
             Route: rte,
-            Remarks: rebuiltRemarks,
+            Remarks: remarks,
             Scratchpad1: null,
             Scratchpad2: null,
             BeaconCode: null

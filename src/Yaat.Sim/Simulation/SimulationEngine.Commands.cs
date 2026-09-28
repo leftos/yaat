@@ -419,8 +419,9 @@ public sealed partial class SimulationEngine
 
     /// <summary>
     /// The remarks: the whole composed string (<see cref="AircraftFlightPlan.ReplaceRemarks"/>), then either part on its own.
-    /// Remarks are canonical for voice type: a /v//r//t/ marker (or its absence = full voice) in the composed remarks drives
-    /// the CRC voice-type field. A VATSIM operational convention, not an FAA flight-plan field.
+    /// Remarks are canonical for voice type: a /v//r//t/ marker (or its absence = full voice) in the interfacility remarks,
+    /// where every voice writer puts it, drives the CRC voice-type field; a marker typed into the intrafacility remarks is
+    /// free text. A VATSIM operational convention, not an FAA flight-plan field.
     /// </summary>
     private static void ApplyRemarksFields(AircraftState ac, FlightPlanAmendment amendment)
     {
@@ -438,7 +439,7 @@ public sealed partial class SimulationEngine
         }
         if ((amendment.Remarks ?? amendment.InterfacilityRemarks ?? amendment.IntrafacilityRemarks) is not null)
         {
-            ac.Voice.Type = FlightPlanVoice.ParseVoiceType(ac.FlightPlan.Remarks);
+            ac.Voice.Type = FlightPlanVoice.ParseVoiceType(ac.FlightPlan.InterfacilityRemarks);
         }
     }
 

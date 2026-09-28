@@ -537,6 +537,16 @@ public partial class AircraftModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(CruiseAltitudeDisplay))]
     private bool _isAbove;
 
+    /// <summary>The fix of a fix-qualified filed altitude (<c>170/SJC/110</c>), as typed; null for every other form.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CruiseAltitudeDisplay))]
+    private string? _altitudeFix;
+
+    /// <summary>The altitude in feet after <see cref="AltitudeFix"/>; null for every other form.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CruiseAltitudeDisplay))]
+    private int? _altitudeAfterFixFeet;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CruiseDisplay))]
     [NotifyPropertyChangedFor(nameof(FlightPlanDisplay))]
@@ -726,6 +736,10 @@ public partial class AircraftModel : ObservableObject
             if (BlockFloorAltitude is { } floor)
             {
                 return PlannedAltitude.Block(floor, CruiseAltitude);
+            }
+            if ((AltitudeFix is { } fix) && (AltitudeAfterFixFeet is { } afterFixFeet))
+            {
+                return PlannedAltitude.UntilFix(CruiseAltitude, fix, afterFixFeet);
             }
             int? alt = CruiseAltitude > 0 ? CruiseAltitude : (int?)null;
             if (IsAbove)
@@ -1121,6 +1135,8 @@ public partial class AircraftModel : ObservableObject
             BlockFloorAltitude = dto.BlockFloorAltitude,
             IsVfrOnTop = dto.IsVfrOnTop,
             IsAbove = dto.IsAbove,
+            AltitudeFix = dto.AltitudeFix,
+            AltitudeAfterFixFeet = dto.AltitudeAfterFixFeet,
             CruiseSpeed = dto.CruiseSpeed,
             TaxiRoute = dto.TaxiRoute,
             HasActiveTaxiRoute = dto.HasActiveTaxiRoute,
@@ -1240,6 +1256,8 @@ public partial class AircraftModel : ObservableObject
         BlockFloorAltitude = dto.BlockFloorAltitude;
         IsVfrOnTop = dto.IsVfrOnTop;
         IsAbove = dto.IsAbove;
+        AltitudeFix = dto.AltitudeFix;
+        AltitudeAfterFixFeet = dto.AltitudeAfterFixFeet;
         CruiseSpeed = dto.CruiseSpeed;
         TaxiRoute = dto.TaxiRoute;
         HasActiveTaxiRoute = dto.HasActiveTaxiRoute;

@@ -1238,6 +1238,11 @@ public record AircraftDto(
     int? BlockFloorAltitude = null,
     bool IsVfrOnTop = false,
     bool IsAbove = false,
+    // The fix of a fix-qualified altitude (ERAM AM ALT 170/SJC/110), as typed, and the altitude in feet after it; both null
+    // for every other form. Kept name-for-name in sync with the server's AircraftStateDto so the Flight Plan Editor shows
+    // and resends the fix-qualified altitude unchanged.
+    string? AltitudeFix = null,
+    int? AltitudeAfterFixFeet = null,
     // Controller-assigned beacon code (server Transponder.AssignedCode) — the flight-plan squawk the
     // strip and the Flight Plan Editor's BCN box display. Distinct from BeaconCode above, which is the
     // reported/squawked code (Transponder.Code) and stays 0000 until the pilot squawks the assignment.

@@ -22,7 +22,7 @@ public sealed class SnapshotSchemaException(int snapshotVersion, int requiredVer
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 30;
+    public const int CurrentSchemaVersion = 31;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -182,6 +182,9 @@ public static class SnapshotSchemaMigrator
         //   stored. Before V30 the field was a plain int whose 0 meant no EFC, so a V29-or-older snapshot's 0 is rewritten
         //   to null here. The same DTO rides RecordedHoldAnnotationChange in the action log, which Migrate never walks;
         //   RecordingSchemaUpgrader rewrites those Efc 0s to null when the recording's snapshots predate V30.
+        // V30→V31: flight plan gains AltitudeFix / AltitudeAfterFixFeet / AltitudeFixPassed / AltitudeFixApproached,
+        //   IntrafacilityRemarks, CruiseMach, IsSpeedClassified; the Remarks key now holds the interfacility remarks; no data
+        //   transformation.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (AircraftSnapshotDto ac in snapshot.Aircraft)

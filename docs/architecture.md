@@ -542,10 +542,16 @@ Callsign.cs                    # Static IsValid(string?): regex ^[A-Z0-9\-]{1,7}
 PlannedAltitude.cs             # Value type for the filed flight-plan altitude (notation axis): single / block / VFR /
                                # VFR-on-top / above, in feet. Mirrors vNAS common/ParsedAltitude minus RawValue. Distinct from
                                # ControlTargets.AssignedAltitude (current ATC clearance) and FlightRules (IFR/VFR rules axis).
+                               # UntilFix(feet, fix, afterFixFeet) builds ERAM's fix-qualified form (AltitudeFix / AfterFixFeet,
+                               # init-only; data only — AircraftFlightPlan's latch picks the altitude in effect for Field B and QF).
 FlightPlanAltitude.cs          # Parser + formatter for the CRC altitude grammar used in FP forms and STARS DA/VP:
                                # `VFR` (rules-only), `VFR/045` / `OTP/120` (rules + altitude), `045` (IFR + altitude), blank.
                                # Parse → (Rules, PlannedAltitude); Format(PlannedAltitude) → text (incl. block NNNBNNN). OTP is
                                # VFR rules + VFR-on-top notation. FromRulesAndFeet builds a PlannedAltitude from rules + a plain int.
+                               # Also `A170` (above) and `170/SJC/110` (fix-qualified; ParseFixQualified is the one grammar ERAM
+                               # AM ALT uses too, through Data/EramFixResolver).
+Data/EramFixResolver.cs        # ERAM fix forms shared by the Sim and the server: fix name, FRD and lat/long checks (IsFixName,
+                               # IsFrdForm, ParseLatLong, IsAltitudeFixForm) and Resolve(fix) → position for the altitude-fix latch.
 FlightPlanVoice.cs             # Couples FP remarks ↔ voice type (AircraftVoice.Type: 1=Full/2=ReceiveOnly/3=TextOnly). Remarks are
                                # canonical: ParseVoiceType reads a /v//r//t/ marker (full implied when absent), ApplyVoiceMarker writes it.
                                # A VATSIM convention (no FAA field). Driven by ERAM QB /v|/r|/t and the SetVoiceType hub; derived on amend + load.

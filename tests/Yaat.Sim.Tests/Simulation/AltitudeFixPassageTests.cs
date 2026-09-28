@@ -7,8 +7,9 @@ namespace Yaat.Sim.Tests.Simulation;
 
 /// <summary>
 /// <see cref="SimulationEngine.TickAltitudeFixPassage"/> latches <see cref="AircraftFlightPlan.AltitudeFixPassed"/> for a
-/// fix-qualified altitude (<c>170/SJC/110</c>) once the fix is more than 90° off the aircraft's track while the aircraft is
-/// within 10 nm of it, never for a fix the navigation data does not know, and the latch clears when the altitude is replaced.
+/// fix-qualified altitude (<c>170/SJC/110</c>) once the aircraft, having closed on the fix within 10 nm, has it more than
+/// 90° off its track; never for a fix already behind when entered, an aircraft on the ground or a fix the navigation data
+/// does not know; and the latch clears when the altitude is replaced.
 /// </summary>
 public class AltitudeFixPassageTests
 {
@@ -95,18 +96,19 @@ public class AltitudeFixPassageTests
     public void ReplacingTheAltitude_ClearsTheLatch()
     {
         (SimulationEngine engine, AircraftState ac) = Build("SJC");
-        FlyEastAt(engine, ac, 0, [1]);
+        FlyEastAt(engine, ac, 0, [-1, 1]);
         Assert.True(ac.FlightPlan.AltitudeFixPassed);
 
         engine.AmendFlightPlan(Callsign, new FlightPlanAmendment(false, Altitude: PlannedAltitude.UntilFix(17000, "SJC", 9000)));
 
         Assert.False(ac.FlightPlan.AltitudeFixPassed);
+        Assert.False(ac.FlightPlan.AltitudeFixApproached);
         Assert.Equal(17000, ac.FlightPlan.EramAltitudeFeet);
 
-        // Still east of SJC with the fix behind: the new altitude latches on the next second.
+        // Still east of SJC with the fix behind: the new altitude never closed on it, so it does not latch.
         engine.TickAltitudeFixPassage();
-        Assert.True(ac.FlightPlan.AltitudeFixPassed);
-        Assert.Equal(9000, ac.FlightPlan.EramAltitudeFeet);
+        Assert.False(ac.FlightPlan.AltitudeFixPassed);
+        Assert.Equal(17000, ac.FlightPlan.EramAltitudeFeet);
 
         engine.AmendFlightPlan(Callsign, new FlightPlanAmendment(false, Altitude: PlannedAltitude.Ifr(15000)));
         Assert.False(ac.FlightPlan.AltitudeFixPassed);
@@ -117,14 +119,84 @@ public class AltitudeFixPassageTests
     public void ALatch_HoldsWhenTheAircraftTurnsBack()
     {
         (SimulationEngine engine, AircraftState ac) = Build("SJC");
-        FlyEastAt(engine, ac, 0, [1]);
+        FlyEastAt(engine, ac, 0, [-1, 1]);
 
         Place(engine, ac, GeoMath.ProjectPoint(Sjc, East, 1), West);
 
         Assert.True(ac.FlightPlan.AltitudeFixPassed);
     }
 
-    /// <summary>Places the aircraft <paramref name="northOffsetNm"/> north of SJC at each east offset in turn, tracking east, and runs the step.</summary>
+    [Fact]
+    public void AFixAlreadyBehindWhenEntered_NeverLatches()
+    {
+        // A departure given 170/SJC/110 after it has passed SJC: the fix is behind from the first second.
+        (SimulationEngine engine, AircraftState ac) = Build("SJC");
+
+        FlyEastAt(engine, ac, 0, [0.5, 1, 2, 5, 9]);
+
+        Assert.False(ac.FlightPlan.AltitudeFixApproached);
+        Assert.False(ac.FlightPlan.AltitudeFixPassed);
+        Assert.Equal(17000, ac.FlightPlan.EramAltitudeFeet);
+    }
+
+    [Fact]
+    public void AnAircraftOnTheGround_NeverLatches()
+    {
+        (SimulationEngine engine, AircraftState ac) = Build("SJC");
+        ac.IsOnGround = true;
+
+        FlyEastAt(engine, ac, 0, [-5, -1, 1, 5]);
+
+        Assert.False(ac.FlightPlan.AltitudeFixApproached);
+        Assert.False(ac.FlightPlan.AltitudeFixPassed);
+    }
+
+    [Fact]
+    public void ApproachingThenPassing_Latches()
+    {
+        (SimulationEngine engine, AircraftState ac) = Build("SJC");
+
+        FlyEastAt(engine, ac, 0, [-3]);
+        Assert.True(ac.FlightPlan.AltitudeFixApproached);
+        Assert.False(ac.FlightPlan.AltitudeFixPassed);
+
+        FlyEastAt(engine, ac, 0, [3]);
+        Assert.True(ac.FlightPlan.AltitudeFixPassed);
+        Assert.Equal(11000, ac.FlightPlan.EramAltitudeFeet);
+    }
+
+    [Fact]
+    public void ALatLongFix_LatchesWhenPassed()
+    {
+        (SimulationEngine engine, AircraftState ac) = Build("3730N/12200W");
+        var fix = new LatLon(37.5, -122.0);
+
+        Place(engine, ac, GeoMath.ProjectPoint(fix, West, 2), East);
+        Assert.False(ac.FlightPlan.AltitudeFixPassed);
+
+        Place(engine, ac, GeoMath.ProjectPoint(fix, East, 2), East);
+        Assert.True(ac.FlightPlan.AltitudeFixPassed);
+        Assert.Equal(11000, ac.FlightPlan.EramAltitudeFeet);
+    }
+
+    [Fact]
+    public void AnEqualFixQualifiedReAmend_KeepsTheLatch()
+    {
+        (SimulationEngine engine, AircraftState ac) = Build("SJC");
+        FlyEastAt(engine, ac, 0, [-1, 1]);
+        Assert.True(ac.FlightPlan.AltitudeFixPassed);
+
+        engine.AmendFlightPlan(Callsign, new FlightPlanAmendment(false, Altitude: PlannedAltitude.UntilFix(17000, "SJC", 11000)));
+
+        Assert.True(ac.FlightPlan.AltitudeFixApproached);
+        Assert.True(ac.FlightPlan.AltitudeFixPassed);
+        Assert.Equal(11000, ac.FlightPlan.EramAltitudeFeet);
+    }
+
+    /// <summary>
+    /// Places the aircraft <paramref name="northOffsetNm"/> north of SJC at each east offset in turn, tracking east, and runs
+    /// the step.
+    /// </summary>
     private static void FlyEastAt(SimulationEngine engine, AircraftState ac, double northOffsetNm, double[] eastOffsetsNm)
     {
         LatLon track = GeoMath.ProjectPoint(Sjc, North, northOffsetNm);

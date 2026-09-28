@@ -1,3 +1,5 @@
+using Yaat.Sim.Data;
+
 namespace Yaat.Sim;
 
 /// <summary>
@@ -8,9 +10,9 @@ namespace Yaat.Sim;
 /// expressed in hundreds of feet" note. The block (<c>NNNBNNN</c>) form is producible via the
 /// ERAM <c>QZ</c> keyboard command (see <c>CrcClientState.Eram.DispatchQz</c>), not by typing in
 /// the FPE, so it is <em>rendered</em> by <see cref="Format"/> but not accepted by <see cref="Parse"/>.
-/// The above (<c>A</c>-prefix) form exists on the wire (<see cref="PlannedAltitude.IsAbove"/>) but
-/// has no input path yet. The fix-qualified <c>NNN/Fix/NNN</c> form (ERAM <c>AM ALT</c>) is both rendered and accepted, so it
-/// survives a CRC flight-plan amend, which resends the altitude text.
+/// The above form (ERAM <c>AM ALT ABV/170</c>, <see cref="PlannedAltitude.IsAbove"/>) and the fix-qualified
+/// <c>NNN/Fix/NNN</c> form (ERAM <c>AM ALT 170/SJC/110</c>) are both rendered and accepted, the above form as the
+/// <c>A170</c> <see cref="Format"/> writes, so both survive a flight-plan editor amend, which resends the altitude text.
 /// </summary>
 public static class FlightPlanAltitude
 {
@@ -19,7 +21,7 @@ public static class FlightPlanAltitude
     /// <see cref="PlannedAltitude"/> notation (feet). VFR-on-top is an IFR flight (AIM 4-4-8), so
     /// OTP maps to IFR rules with a VFR-on-top notation; only plain VFR maps to VFR rules.
     /// Empty input is treated as VFR with no altitude (matches YAAT's FPE convention). Returns
-    /// null when the text doesn't match any of the four documented single/VFR/OTP forms.
+    /// null when the text matches none of the single, VFR, OTP, above (<c>A170</c>) and fix-qualified forms.
     /// </summary>
     public static (string Rules, PlannedAltitude Altitude)? Parse(string text)
     {
@@ -44,33 +46,37 @@ public static class FlightPlanAltitude
         {
             return ("IFR", PlannedAltitude.Ifr(alt * 100));
         }
-        return ParseFixQualified(text) is { } fixQualified ? ("IFR", fixQualified) : null;
+        PlannedAltitude? other = ParseAbove(text) ?? ParseFixQualified(text);
+        return (other is { } altitude) ? ("IFR", altitude) : null;
     }
 
     /// <summary>
-    /// The fix-qualified form <c>NNN/Fix/NNN</c> ERAM's <c>AM ALT</c> writes: the first altitude until the fix, the second
-    /// after it. The fix runs from the first slash to the last (a lat/long fix holds a slash of its own) and is taken as
-    /// written, letters, digits and that slash only; yaat-server checks its ERAM form before it reaches the flight plan.
+    /// ERAM field 08's fix-qualified form <c>(d)dd/Fix/(d)dd</c> (AM.yaml field 17 for 08), the one grammar both this parse
+    /// and ERAM's <c>AM ALT</c> use: each altitude 1–999 hundreds of feet (<see cref="EramFixResolver.ParseAltitudeHundreds"/>),
+    /// and the Fix, which runs from the first slash to the last since a lat/long holds a slash of its own, a form
+    /// <see cref="EramFixResolver.IsAltitudeFixForm"/> accepts.
     /// </summary>
-    private static PlannedAltitude? ParseFixQualified(string text)
+    /// <param name="upper">The altitude text, upper case.</param>
+    /// <returns>The altitude, or null for any other form.</returns>
+    public static PlannedAltitude? ParseFixQualified(string upper)
     {
-        int firstSlash = text.IndexOf('/', StringComparison.Ordinal);
-        int lastSlash = text.LastIndexOf('/');
+        int firstSlash = upper.IndexOf('/', StringComparison.Ordinal);
+        int lastSlash = upper.LastIndexOf('/');
         if ((firstSlash < 0) || (lastSlash == firstSlash))
         {
             return null;
         }
 
-        string fix = text[(firstSlash + 1)..lastSlash];
-        bool fixWellFormed =
-            (fix.Length > 0) && !fix.StartsWith('/') && !fix.EndsWith('/') && fix.All(c => char.IsAsciiLetterOrDigit(c) || (c == '/'));
-        int? feet = PositiveHundreds(text[..firstSlash]);
-        int? afterFixFeet = PositiveHundreds(text[(lastSlash + 1)..]);
-        return fixWellFormed && (feet is { } first) && (afterFixFeet is { } after) ? PlannedAltitude.UntilFix(first, fix, after) : null;
+        string fix = upper[(firstSlash + 1)..lastSlash];
+        int? feet = EramFixResolver.ParseAltitudeHundreds(upper[..firstSlash]);
+        int? afterFixFeet = EramFixResolver.ParseAltitudeHundreds(upper[(lastSlash + 1)..]);
+        bool wellFormed = (feet is not null) && (afterFixFeet is not null) && EramFixResolver.IsAltitudeFixForm(fix);
+        return wellFormed ? PlannedAltitude.UntilFix(feet!.Value, fix, afterFixFeet!.Value) : null;
     }
 
-    private static int? PositiveHundreds(string text) =>
-        (text.Length > 0) && text.All(char.IsAsciiDigit) && int.TryParse(text, out int hundreds) && (hundreds > 0) ? hundreds * 100 : null;
+    // The above form Format writes (A170): an A and an altitude of 1-999 hundreds of feet.
+    private static PlannedAltitude? ParseAbove(string upper) =>
+        (upper.StartsWith('A') && (EramFixResolver.ParseAltitudeHundreds(upper[1..]) is { } feet)) ? PlannedAltitude.Above(feet) : null;
 
     /// <summary>
     /// Builds a <see cref="PlannedAltitude"/> from a flight-rules label ("IFR"/"VFR"/"OTP") and an

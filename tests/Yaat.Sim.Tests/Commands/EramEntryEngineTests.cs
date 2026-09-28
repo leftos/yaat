@@ -1072,7 +1072,7 @@ public class EramEntryEngineTests
     public void Coast_WithoutValues_AnchorsAtTheTarget_AtItsAltitude_AndTheFiledTas()
     {
         AircraftState ac = Aircraft();
-        ac.FlightPlan.CruiseSpeed = 450;
+        ac.FlightPlan.SetTrueAirspeed(450);
 
         Assert.True(Apply(ac, "COAST T0", Sector44).Success);
 

@@ -221,12 +221,13 @@ public class RecordingSchemaUpgraderTests
     [Fact]
     public void Upgrade_V4ArchiveAtV30_KeepsRecordedHoldEfcZero()
     {
-        // From V30 on, Efc 0 is a real EFC of 0000 and must survive the upgrade.
+        // From V30 on, Efc 0 is a real EFC of 0000 and must survive the upgrade, which lifts the V30 snapshot to the
+        // current schema.
         byte[] input = BuildArchive(EmptySnapshotAt(30), HoldChanges());
 
         RecordingUpgradeResult result = RecordingSchemaUpgrader.Upgrade(input);
 
-        Assert.False(result.Changed);
+        Assert.True(result.Changed);
         using var archive = RecordingArchive.Open(new MemoryStream(result.Output));
         Assert.Equal([0, 1234], RecordedEfcs(archive.ReadActions()));
     }
