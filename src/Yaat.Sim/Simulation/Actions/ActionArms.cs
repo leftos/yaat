@@ -382,17 +382,6 @@ internal static class ActionArms
                 ScratchpadRuleEngine.Apply(aircraft, scenario.ArtccConfig?.GetStarsConfigForFacility(scenario.StudentPosition?.FacilityId ?? ""));
                 engine.RemoveCoordinationOnRadarAcquisition(aircraft.Callsign);
                 break;
-            case InhibitConflictAlertCommand when aircraft.Stars.IsCaInhibited:
-                var inhibited = engine
-                    .ConflictAlerts.Conflicts.Values.Where(c => (c.CallsignA == aircraft.Callsign) || (c.CallsignB == aircraft.Callsign))
-                    .Select(c => c.Id)
-                    .ToList();
-                foreach (string? id in inhibited)
-                {
-                    engine.ConflictAlerts.Conflicts.Remove(id);
-                }
-
-                break;
             case CruiseCommand:
                 // The filed altitude is a vTDLS header field, and this verb rewrites it without going through
                 // AmendFlightPlan — so the PDC is marked here instead.

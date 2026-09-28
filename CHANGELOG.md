@@ -19,9 +19,11 @@
 - A procedure turn intercepts its inbound course at up to 45° instead of homing on the fix.
 - A frozen ERAM track leaves the aircraft's radar target on the scope, where the aircraft really is.
 - A beacon code shared by two aircraft no longer addresses either of them in ERAM or STARS entries; use the callsign instead.
+- STARS `CASUP` suppresses the pair's current conflict alert until it ends, and no longer silences ERAM's alert; use `CO` there.
 
 ### Fixed
 
+- CRC's STARS conflict alerts stay correct after a rewind, restart or recording load, and a `CAINH` from YAAT or playback now clears them.
 - Arrivals leaving OAK 28R on P no longer stop half inside the runway's holding area; they turn onto J and hold past J's 28R marking.
 - CRC's ERAM view answers an accepted command with ACCEPT, the command's name and the aircraft, and keeps the Response Area for readouts.
 - A rejected ERAM command shows one specific error, such as FLID NOT STORED, NOT YOUR CONTROL or ALT FORMAT, instead of FORMAT.

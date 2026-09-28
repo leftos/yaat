@@ -11,6 +11,9 @@ public sealed class ServerSnapshotDto
 {
     public Dictionary<string, ConsolidationOverrideDto>? ConsolidationOverrides { get; init; }
     public List<ActiveConflictDto>? ActiveConflicts { get; init; }
+
+    /// <summary>Latched <c>CASUP</c> suppressions (<c>ConflictAlertState.LatchedSuppressions</c>); null when none.</summary>
+    public List<LatchedConflictSuppressionDto>? LatchedConflictSuppressions { get; init; }
     public List<EramActiveConflictDto>? EramConflicts { get; init; }
     public BeaconCodePoolDto? BeaconCodePool { get; init; }
 
@@ -57,6 +60,19 @@ public sealed class ActiveConflictDto
     public required string CallsignA { get; init; }
     public required string CallsignB { get; init; }
     public required bool IsAcknowledged { get; init; }
+
+    /// <summary>Whether a <c>CASUP</c> suppressed the alert. False on a snapshot written before the field existed.</summary>
+    public bool Suppressed { get; init; }
+
+    /// <summary>The suppression the last conflict-alert pass reported to the host. False on a snapshot written before the field existed.</summary>
+    public bool PublishedSuppressed { get; init; }
+}
+
+public sealed class LatchedConflictSuppressionDto
+{
+    public required string Id { get; init; }
+    public required string CallsignA { get; init; }
+    public required string CallsignB { get; init; }
 }
 
 public sealed class EramActiveConflictDto
@@ -66,6 +82,9 @@ public sealed class EramActiveConflictDto
     public required string CallsignB { get; init; }
     public string? OwnerFacilityA { get; init; }
     public string? OwnerFacilityB { get; init; }
+
+    /// <summary>The Mode-C intruder side of a controlled-vs-uncontrolled alert. Null on a snapshot written before the field existed.</summary>
+    public string? IntruderCallsign { get; init; }
 
     /// <summary>Whether a <c>CO</c> entry suppressed the alert. False on a snapshot written before the field existed.</summary>
     public bool Suppressed { get; init; }

@@ -38,8 +38,6 @@ public sealed class AircraftStarsStateDto
     public required bool IsAnnotated { get; init; }
     public required bool IsCaInhibited { get; init; }
 
-    /// <summary>CASUP pair suppressions; null when none (and on snapshots written before the field existed).</summary>
-    public List<string>? CaSuppressedWith { get; init; }
     public required bool IsModeCInhibited { get; init; }
     public required bool IsMsawInhibited { get; init; }
     public required bool IsDuplicateBeaconInhibited { get; init; }

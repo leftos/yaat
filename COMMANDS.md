@@ -568,7 +568,7 @@ preference: it applies to the commands *you* issue, and other controllers in the
 | Clear forced quicklook | `FQLCLR 1M` | — | Forced TCP's slew acknowledge |
 | Ack conflict alert | `CAACK` | — | — |
 | Inhibit conflict alert | `CAINH` | `CAI` | — |
-| Suppress conflict alert pair | `CASUP UAL123` | — | — |
+| Suppress conflict alert pair | `CASUP UAL123` | — | STARS only; toggles the pair's active alert |
 | Inhibit duplicate-beacon indication | `DBINH` | — | STARS owner slew on a DB-flagged track |
 | Contact next controller | `CT OAK_TWR` / `CT 121.9` / `CT 3O` / `CT` | `CONT` | — |
 | Frequency change approved | `FCA` | — | — |
@@ -1456,7 +1456,7 @@ Changing your active position also updates the radar display:
 | `FQLCLR 1M` | Clear TCP 1M's forced-quicklook entry (what a forced TCP's own slew does) |
 | `CAACK` | Acknowledge conflict alerts for this aircraft |
 | `CAINH` / `CAI` | Toggle conflict alert inhibit on/off |
-| `CASUP UAL123` | Toggle conflict-alert suppression between this aircraft and UAL123 only (either side of the pair suffices). Meant for live traffic whose separation the sim cannot see — visual, dependent approaches, MARSA |
+| `CASUP UAL123` | Toggle the suppression of the active STARS conflict alert between this aircraft and UAL123 (either side of the pair suffices); a second CASUP restores it. Refused when the pair has no active STARS alert. The suppression ends with that alert, so a later conflict alerts again. Suppressing acknowledges the alert. ERAM STCA is not affected (use ERAM `CO`). Meant for an alert whose separation the sim cannot see (visual separation, dependent approaches). For aircraft routinely operating without standard separation (MARSA, formation), use `CAINH`. |
 | `DBINH` | Inhibit the flashing duplicate-beacon indication on the owner's data block (what the owner's slew does in STARS) |
 | `CT` | Tell pilot to contact the next controller — auto-resolves to the just-accepted handoff target |
 | `CT OAK_TWR` / `CT CONT OAK_TWR` | Tell pilot to contact a specific position by callsign (use to disambiguate when two positions share a STARS scope, e.g. OAK_TWR vs OAK_GND on 3O) |

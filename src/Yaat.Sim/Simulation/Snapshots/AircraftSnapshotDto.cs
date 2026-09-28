@@ -209,7 +209,6 @@ public sealed class EramPointoutStateDto
     public required string ReceivingFacility { get; init; }
     public required string ReceivingSector { get; init; }
     public required bool IsAcknowledged { get; init; }
-    public required bool IsRecipientSuppressed { get; init; }
     public required bool IsRSideCleared { get; init; }
     public required bool IsDSideCleared { get; init; }
 }

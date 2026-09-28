@@ -271,7 +271,7 @@ stale accepted pointout on the true→false slew flip.
 ### ERAM pointouts — `AircraftEramState.Pointouts`
 
 ERAM uses a **list** of `EramPointoutState` (`EramPointoutState.cs:9`) on `AircraftEramState.Pointouts`, each with originating /
-receiving facility+sector strings and four lifecycle bits: `IsAcknowledged`, `IsRecipientSuppressed`, `IsRSideCleared`,
+receiving facility+sector strings and three lifecycle bits: `IsAcknowledged`, `IsRSideCleared`,
 `IsDSideCleared` (R-side = radar controller, D-side = data controller). `EramPointoutState` mirrors vatsim-server-rs
 `radar_state::PointoutState`. They map to the `EramDataBlocks` topic as `EramPointout` items in `DtoConverter.ToEramDataBlock`
 (`DtoConverter.cs:365`); the wire id is synthesized as `PO_{callsign}_{origFac}_{origSector}_{recvSector}`.

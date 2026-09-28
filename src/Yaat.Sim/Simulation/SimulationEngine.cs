@@ -49,9 +49,15 @@ public readonly record struct GeneratorSpawnRecord(
 
 /// <summary>
 /// Result of <see cref="SimulationEngine.TickConflictAlerts"/>: the terminal Conflict Alert pairs that
-/// opened (<see cref="New"/>) and closed (<see cref="Cleared"/> ids) this tick, for the host to broadcast.
+/// opened (<see cref="New"/>) and closed (<see cref="Cleared"/> ids) this tick, and the alerts a <c>CASUP</c> suppressed
+/// (by id) or restored since the last pass, for the host to broadcast.
 /// </summary>
-public readonly record struct ConflictAlertChanges(List<ActiveConflict> New, List<string> Cleared);
+public readonly record struct ConflictAlertChanges(
+    List<ActiveConflict> New,
+    List<string> Cleared,
+    List<string> Suppressed,
+    List<ActiveConflict> Restored
+);
 
 /// <summary>
 /// One ERAM conflict-alert pass's diff: the alerts that opened and the ids that closed, and the alerts a <c>CO</c> entry

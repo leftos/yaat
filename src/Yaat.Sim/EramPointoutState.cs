@@ -14,7 +14,6 @@ public sealed class EramPointoutState
     public string ReceivingSector { get; set; } = "";
 
     public bool IsAcknowledged { get; set; }
-    public bool IsRecipientSuppressed { get; set; }
     public bool IsRSideCleared { get; set; }
     public bool IsDSideCleared { get; set; }
 }

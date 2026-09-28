@@ -19,7 +19,7 @@ Taken in issue #150, then revised by an adversarial review (yaat-server `docs/pl
 - **An assumed aircraft flies its flight plan**, rejoining the route from its last sample; a VFR-coded shadow assumes into a VFR state, never an IFR heading hold.
 - **Shadows are first-class runway users** (review decision A1): they occupy runways and feed the runway advisories, ground conflict and the evaluator — no "visible but inert" middle ground, where a trainee would be rewarded for clearing a departure under a real one-mile final (§3-9-4, §3-10-3). The review recommended excluding traffic around the room's airports for v1; the owner chose the bigger option.
 - **No warp with live traffic**: real traffic cannot be accelerated, so `WARP` above 1× is refused while live traffic is on, and live traffic cannot be enabled while warped.
-- **Conflict alerts are gated**, never shadow↔shadow (real pairs are separated by things the sim cannot see), shadow↔simulated only for an IFR shadow off the approach corridors, with per-pair `CASUP` (*Shadows as runway and ground participants* below).
+- **Conflict alerts are gated**, never shadow↔shadow (real pairs are separated by things the sim cannot see), shadow↔simulated only for an IFR shadow off the approach corridors, with per-alert STARS `CASUP` (*Shadows as runway and ground participants* below).
 
 ## Files
 
@@ -214,9 +214,7 @@ Nothing is transmitted at assume. The `CommandResult` message summarises the see
   offsets would manufacture continuous alerts); shadow↔simulated only when the shadow is IFR (filed, not VFR), not
   coasting, its observation is at most `ShadowCaMaxSampleAgeSeconds` (30 s) old — past that the dead-reckoned position
   error rivals the separation standard, which sidelines ERAM shadows (SFDPS delivers ≈ 35–70 s behind) — and not inside
-  an internal-airport approach corridor. `CASUP <other>` (a track command, so it works on a
-  shadow) toggles suppression for one pair from either side; stored in `Stars.CaSuppressedWith` (serialized, replayed as
-  an ordinary recorded track command). Tests: `LiveTrafficConflictAlertTests`.
+  an internal-airport approach corridor. `CASUP <other>` (a track command, so it works on a shadow) toggles the suppression of the pair's active STARS alert from either side (`ActiveConflict.Suppressed`, replayed as an ordinary recorded track command); it no longer silences ERAM STCA for the pair, which is `CO`'s job. Tests: `LiveTrafficConflictAlertTests`.
 - **Roll start** (`RunwayOccupancy.IsRolling`): a surface shadow aligned on the pavement is `Departing` past 35 kt, or past
   20 kt while accelerating ≥ 2.5 kt/s over the last 4 s of feed samples (`LiveTrafficKinematics.GroundAcceleration`, a
   least-squares slope of the reported ground speeds — positions are too noisy; `History` now carries `GroundSpeedKts`).

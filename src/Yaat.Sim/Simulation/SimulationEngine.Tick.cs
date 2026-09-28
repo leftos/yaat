@@ -559,21 +559,7 @@ public sealed partial class SimulationEngine
         {
             if (!conflicts.ContainsKey(pair.Id))
             {
-                var conflict = new ActiveConflict
-                {
-                    Id = pair.Id,
-                    CallsignA = pair.CallsignA,
-                    CallsignB = pair.CallsignB,
-                };
-                conflicts[pair.Id] = conflict;
-                newConflicts.Add(conflict);
-
-                _logger.LogWarning(
-                    "Conflict alert detected: {CallsignA} <-> {CallsignB} at t={T}s",
-                    pair.CallsignA,
-                    pair.CallsignB,
-                    Scenario?.ElapsedSeconds ?? 0
-                );
+                OpenConflictAlert(pair, conflicts, newConflicts);
             }
         }
 
@@ -585,6 +571,10 @@ public sealed partial class SimulationEngine
                 ActiveConflict cleared = conflicts[id];
                 conflicts.Remove(id);
                 clearedIds.Add(id);
+                if (cleared.Suppressed)
+                {
+                    ConflictAlerts.LatchedSuppressions[id] = new LatchedConflictSuppression(cleared.CallsignA, cleared.CallsignB);
+                }
 
                 _logger.LogInformation(
                     "Conflict alert cleared: {CallsignA} <-> {CallsignB} at t={T}s",
@@ -595,7 +585,92 @@ public sealed partial class SimulationEngine
             }
         }
 
-        return new ConflictAlertChanges(newConflicts, clearedIds);
+        ExpireSuppressionLatches(snapshot, corridors);
+        (List<string> suppressedIds, List<ActiveConflict> restored) = TakeConflictSuppressionChanges(conflicts);
+        return new ConflictAlertChanges(newConflicts, clearedIds, suppressedIds, restored);
+    }
+
+    /// <summary>
+    /// Opens the alert for a newly detected pair. A pair whose <c>CASUP</c> suppression is latched from an earlier alert in
+    /// the same encounter re-uses it: the alert opens suppressed, acknowledged and already published as such, so the host
+    /// hears nothing; any other pair opens as a new alert.
+    /// </summary>
+    private void OpenConflictAlert(
+        ConflictAlertDetector.ConflictPair pair,
+        Dictionary<string, ActiveConflict> conflicts,
+        List<ActiveConflict> newConflicts
+    )
+    {
+        bool latched = ConflictAlerts.LatchedSuppressions.Remove(pair.Id);
+        var conflict = new ActiveConflict
+        {
+            Id = pair.Id,
+            CallsignA = pair.CallsignA,
+            CallsignB = pair.CallsignB,
+            IsAcknowledged = latched,
+            Suppressed = latched,
+            PublishedSuppressed = latched,
+        };
+        conflicts[pair.Id] = conflict;
+        if (latched)
+        {
+            _logger.LogDebug("Conflict alert re-detected under a latched CASUP: {CallsignA} <-> {CallsignB}", pair.CallsignA, pair.CallsignB);
+            return;
+        }
+
+        newConflicts.Add(conflict);
+        _logger.LogWarning(
+            "Conflict alert detected: {CallsignA} <-> {CallsignB} at t={T}s",
+            pair.CallsignA,
+            pair.CallsignB,
+            Scenario?.ElapsedSeconds ?? 0
+        );
+    }
+
+    /// <summary>Drops each latched <c>CASUP</c> suppression whose pair left the hysteresis box or stopped being eligible.</summary>
+    private void ExpireSuppressionLatches(List<AircraftState> snapshot, IReadOnlyList<RunwayCorridor> corridors)
+    {
+        foreach ((string id, LatchedConflictSuppression latch) in ConflictAlerts.LatchedSuppressions.ToList())
+        {
+            AircraftState? a = snapshot.Find(ac => ac.Callsign == latch.CallsignA);
+            AircraftState? b = snapshot.Find(ac => ac.Callsign == latch.CallsignB);
+            if ((a is null) || (b is null) || !ConflictAlertDetector.IsSuppressionLatchHeld(a, b, corridors))
+            {
+                ConflictAlerts.LatchedSuppressions.Remove(id);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The alerts whose <see cref="ActiveConflict.Suppressed"/> flag a <c>CASUP</c> changed since the last pass, split into
+    /// the suppressed ids and the restored alerts; each is marked published. A new alert starts with both flags false, so
+    /// only an alert that already existed can appear here.
+    /// </summary>
+    private static (List<string> Suppressed, List<ActiveConflict> Restored) TakeConflictSuppressionChanges(
+        Dictionary<string, ActiveConflict> conflicts
+    )
+    {
+        var suppressed = new List<string>();
+        var restored = new List<ActiveConflict>();
+        foreach (ActiveConflict conflict in conflicts.Values)
+        {
+            if (conflict.Suppressed == conflict.PublishedSuppressed)
+            {
+                continue;
+            }
+
+            conflict.PublishedSuppressed = conflict.Suppressed;
+            if (conflict.Suppressed)
+            {
+                suppressed.Add(conflict.Id);
+            }
+            else
+            {
+                restored.Add(conflict);
+            }
+        }
+
+        return (suppressed, restored);
     }
 
     /// <summary>

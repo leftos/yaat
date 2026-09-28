@@ -660,7 +660,7 @@ GiveWayConstants.cs            # Auto-release tuning for direct GIVEWAY holds (F
                                # also releases on GroundConflictDetector.TargetReachesMergeFirst
                                # (target on its last taxiway into the merge, nearer it, same way out).
 ConflictAlertDetector.cs       # Static STARS CA detection: 3nm/1000ft thresholds, 5s extrapolation, hysteresis, approach suppression;
-                               # IsPairEligible = CASUP pair suppression + live-traffic shadow policy (shared with the ERAM detector)
+                               # IsPairEligible = live-traffic shadow policy (shared with the ERAM detector); CASUP suppresses an active alert in ConflictAlertState, not here
 EramConflictDetector.cs        # Static ERAM (en-route) STCA detection: 5nm lateral (3nm at/below FL230) + 1000ft vertical, 4-min extrapolation, uses assigned/interim data-block altitudes, scoped per ERAM facility
 EramConflictState.cs           # Per-facility ERAM conflict-alert state (active STCA pairs) driving the Center data-block flash
 Asdex/AsdexSafetyLogicDetector.cs  # Static ASDE-X Safety Logic detection: closed-runway, occupied-runway, taxi-onto-active-runway, taxiway-landing incursions → CRC surface alerts;

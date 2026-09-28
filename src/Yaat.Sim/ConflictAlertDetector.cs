@@ -125,18 +125,13 @@ public static class ConflictAlertDetector
     }
 
     /// <summary>
-    /// Pair policy on top of <see cref="IsEligible"/>, shared with <see cref="EramConflictDetector"/>. A <c>CASUP</c>
-    /// suppression on either side wins. Live-traffic shadows: never shadow↔shadow (real pairs are separated by things the
-    /// sim cannot see — visual, dependent approaches, MARSA — and inter-source offsets would manufacture continuous
-    /// alerts); shadow↔simulated only when the shadow is IFR, not coasting, and not inside an approach corridor.
+    /// Pair policy on top of <see cref="IsEligible"/>, shared with <see cref="EramConflictDetector"/>. Live-traffic
+    /// shadows: never shadow↔shadow (real pairs are separated by things the sim cannot see — visual, dependent approaches,
+    /// MARSA — and inter-source offsets would manufacture continuous alerts); shadow↔simulated only when the shadow is IFR,
+    /// not coasting, and not inside an approach corridor.
     /// </summary>
     public static bool IsPairEligible(AircraftState a, AircraftState b, IReadOnlyList<RunwayCorridor> corridors)
     {
-        if (IsSuppressedWith(a, b.Callsign) || IsSuppressedWith(b, a.Callsign))
-        {
-            return false;
-        }
-
         if (a.IsShadow && b.IsShadow)
         {
             return false;
@@ -167,9 +162,6 @@ public static class ConflictAlertDetector
     /// the 3 nm standard) without letting the en-route horizon through.
     /// </summary>
     public const double ShadowCaMaxSampleAgeSeconds = 30;
-
-    private static bool IsSuppressedWith(AircraftState ac, string other) =>
-        ac.Stars.CaSuppressedWith.Exists(c => string.Equals(c, other, StringComparison.OrdinalIgnoreCase));
 
     private static List<AircraftState> FilterEligible(List<AircraftState> aircraft)
     {
@@ -282,6 +274,17 @@ public static class ConflictAlertDetector
         double ceiling = glideSlopeAltitude + ApproachZoneCeilingAboveGsFt;
         return (ac.Altitude >= corridor.FieldElevationFt) && (ac.Altitude <= ceiling);
     }
+
+    /// <summary>
+    /// Whether a latched <c>CASUP</c> suppression still holds: both tracks and the pair are still eligible, and the pair is
+    /// still inside the hysteresis box an active alert holds in (3.3 nm / 1,100 ft).
+    /// </summary>
+    public static bool IsSuppressionLatchHeld(AircraftState a, AircraftState b, IReadOnlyList<RunwayCorridor> corridors) =>
+        IsEligible(a)
+        && IsEligible(b)
+        && IsPairEligible(a, b, corridors)
+        && (GeoMath.DistanceNm(a.Position, b.Position) < HysteresisHorizontalNm)
+        && (Math.Abs(a.Altitude - b.Altitude) < HysteresisVerticalFt);
 
     internal static string MakeConflictId(string callsignA, string callsignB)
     {

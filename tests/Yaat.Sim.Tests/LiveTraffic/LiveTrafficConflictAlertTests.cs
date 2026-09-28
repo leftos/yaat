@@ -8,7 +8,7 @@ namespace Yaat.Sim.Tests.LiveTraffic;
 
 /// <summary>
 /// Conflict-alert policy for live-traffic shadows: never shadow↔shadow; shadow↔simulated only when the shadow is
-/// IFR, not coasting, and not in an approach corridor; <c>CASUP</c> suppresses one pair from either side.
+/// IFR, not coasting, and not in an approach corridor; <c>CASUP</c> toggles the pair's active STARS alert from either side.
 /// </summary>
 public class LiveTrafficConflictAlertTests
 {
@@ -101,31 +101,26 @@ public class LiveTrafficConflictAlertTests
             RngSeed = 1,
             OriginalScenarioJson = "{}",
         };
+        ConflictAlertDetector.ConflictPair pair = Assert.Single(Detect(shadow, sim));
+        var alerts = new ConflictAlertState();
+        alerts.Conflicts[pair.Id] = new ActiveConflict
+        {
+            Id = pair.Id,
+            CallsignA = pair.CallsignA,
+            CallsignB = pair.CallsignB,
+        };
+        var context = new TrackDispatchContext(Identity: null, scenario, Redirect: null, alerts);
 
         ParseResult<ParsedCommand> parsed = CommandParser.Parse("CASUP LIVE1");
         Assert.True(parsed.IsSuccess, parsed.Reason);
-        CommandResult? result = TrackEngine.Dispatch(
-            parsed.Value!,
-            sim,
-            new TrackDispatchContext(Identity: null, scenario, Redirect: null, new ConflictAlertState())
-        );
+        CommandResult? result = TrackEngine.Dispatch(parsed.Value!, sim, context);
         Assert.True(result!.Success, result.Message);
-        Assert.Empty(Detect(shadow, sim));
-        Assert.Empty(EramConflictDetector.Detect([shadow, sim], new HashSet<string>()));
+        Assert.True(alerts.Conflicts[pair.Id].Suppressed);
+        Assert.Single(EramConflictDetector.Detect([shadow, sim], new HashSet<string>()));
 
-        var restored = AircraftState.FromSnapshot(sim.ToSnapshot(), null);
-        Assert.Equal(["LIVE1"], restored.Stars.CaSuppressedWith);
-
-        TrackEngine.Dispatch(parsed.Value!, sim, new TrackDispatchContext(Identity: null, scenario, Redirect: null, new ConflictAlertState()));
-        Assert.Empty(sim.Stars.CaSuppressedWith);
-        Assert.Single(Detect(shadow, sim));
-
-        TrackEngine.Dispatch(
-            new SuppressConflictAlertCommand("SIM1"),
-            shadow,
-            new TrackDispatchContext(Identity: null, scenario, Redirect: null, new ConflictAlertState())
-        );
-        Assert.Empty(Detect(shadow, sim));
+        CommandResult? fromTheShadow = TrackEngine.Dispatch(new SuppressConflictAlertCommand("SIM1"), shadow, context);
+        Assert.True(fromTheShadow!.Success, fromTheShadow.Message);
+        Assert.False(alerts.Conflicts[pair.Id].Suppressed);
     }
 
     [Fact]

@@ -209,7 +209,7 @@ public class FlightPlanAndQueryArmTests
     }
 
     [Fact]
-    public void Inhca_DropsTheAircraftsActiveConflicts()
+    public void Inhca_LeavesTheAircraftsConflictsForTheNextPassToClear()
     {
         if (Engine() is not { } engine)
         {
@@ -233,6 +233,9 @@ public class FlightPlanAndQueryArmTests
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
         Assert.True(engine.FindAircraft(AiTestFixture.Callsign)!.Stars.IsCaInhibited);
-        Assert.Equal(["b"], engine.ConflictAlerts.Conflicts.Keys.Order());
+        // The arm leaves the alert set alone; the next pass skips the inhibited track and reports its pair cleared.
+        Assert.Equal(["a", "b"], engine.ConflictAlerts.Conflicts.Keys.Order());
+        Assert.Contains("a", engine.TickConflictAlerts().Cleared);
+        Assert.DoesNotContain("a", engine.ConflictAlerts.Conflicts.Keys);
     }
 }

@@ -633,11 +633,13 @@ public static partial class TrackEngine
     }
 
     /// <summary>
-    /// Per-pair conflict-alert suppression (the instructor's answer to a real aircraft the sim cannot see the
-    /// separation for — visual, dependent approaches, MARSA). Stored on the aircraft that received the command;
-    /// the detectors check both sides of a pair.
+    /// <c>CASUP</c>: toggles the suppression of the pair's active STARS conflict alert. Meant for an alert whose separation
+    /// the sim cannot see (visual separation, dependent approaches). For aircraft routinely operating without standard
+    /// separation (MARSA, formation), use <c>CAINH</c> (7110.65 §5-14-6c.2). Suppressing acknowledges the alert (§5-14-6c.3).
+    /// The suppression belongs to that alert and its encounter (<see cref="ConflictAlertState.LatchedSuppressions"/>);
+    /// ERAM STCA is not affected. With no active alert for the pair the entry is refused.
     /// </summary>
-    public static CommandResult HandleSuppressConflictAlert(AircraftState ac, string otherCallsign)
+    public static CommandResult HandleSuppressConflictAlert(AircraftState ac, string otherCallsign, ConflictAlertState conflicts)
     {
         string other = otherCallsign.ToUpperInvariant();
         if (string.Equals(other, ac.Callsign, StringComparison.OrdinalIgnoreCase))
@@ -645,15 +647,22 @@ public static partial class TrackEngine
             return new CommandResult(false, "CASUP needs another aircraft's callsign");
         }
 
-        bool removed = ac.Stars.CaSuppressedWith.RemoveAll(c => string.Equals(c, other, StringComparison.OrdinalIgnoreCase)) > 0;
-        if (!removed)
+        if (conflicts.FindPair(ac.Callsign, other) is not { } conflict)
         {
-            ac.Stars.CaSuppressedWith.Add(other);
+            return new CommandResult(false, $"No active STARS conflict alert between {ac.Callsign} and {other}");
+        }
+
+        conflict.Suppressed = !conflict.Suppressed;
+        if (conflict.Suppressed)
+        {
+            conflict.IsAcknowledged = true;
         }
 
         return new CommandResult(
             true,
-            removed ? $"Conflict alert restored between {ac.Callsign} and {other}" : $"Conflict alert suppressed between {ac.Callsign} and {other}"
+            conflict.Suppressed
+                ? $"Conflict alert suppressed between {ac.Callsign} and {other}"
+                : $"Conflict alert restored between {ac.Callsign} and {other}"
         );
     }
 
@@ -975,7 +984,7 @@ public static partial class TrackEngine
             CruiseCommand cr => HandleCruise(ac, cr.AltitudeHundreds),
             OnHandoffCommand => HandleOnHandoff(ac),
             InhibitConflictAlertCommand => HandleInhibitConflictAlert(ac),
-            SuppressConflictAlertCommand sup => HandleSuppressConflictAlert(ac, sup.OtherCallsign),
+            SuppressConflictAlertCommand sup => HandleSuppressConflictAlert(ac, sup.OtherCallsign, conflicts),
             InhibitDuplicateBeaconCommand => HandleInhibitDuplicateBeacon(ac),
             AcknowledgeConflictAlertCommand => AcknowledgeConflictAlert(ac, conflicts),
             _ => null,

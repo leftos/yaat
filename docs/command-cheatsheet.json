@@ -241,7 +241,7 @@
         { "verb": "OTG", "aliases": [], "description": "Condition prefix: on the go — after the next touch-and-go / low approach / go-around (e.g. `OTG MLT 28L`)" },
         { "verb": "CAACK", "aliases": [], "description": "Acknowledge conflict alert" },
         { "verb": "CAINH", "aliases": ["cai"], "description": "Inhibit conflict alert" },
-        { "verb": "CASUP UAL123", "aliases": [], "description": "Toggle conflict-alert suppression for this pair only (live traffic on a visual, MARSA)" },
+        { "verb": "CASUP UAL123", "aliases": [], "description": "Toggle suppression of this pair's active STARS conflict alert until it ends (live traffic on a visual, MARSA)" },
         { "verb": "DBINH", "aliases": [], "description": "Inhibit duplicate-beacon indication" },
         { "verb": "CT", "aliases": ["cont"], "description": "Contact next controller [callsign|freq|tcp]" },
         { "verb": "FCA", "aliases": [], "description": "Frequency change approved" },

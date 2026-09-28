@@ -401,6 +401,22 @@ public sealed partial class SimulationEngine
         }
     }
 
+    /// <summary>The latched <c>CASUP</c> suppressions ordered by id, so two passes capture the same bytes; null when none.</summary>
+    private List<LatchedConflictSuppressionDto>? CaptureConflictSuppressionLatches() =>
+        ConflictAlerts.LatchedSuppressions.Count == 0
+            ? null
+            :
+            [
+                .. ConflictAlerts
+                    .LatchedSuppressions.OrderBy(kv => kv.Key, StringComparer.Ordinal)
+                    .Select(kv => new LatchedConflictSuppressionDto
+                    {
+                        Id = kv.Key,
+                        CallsignA = kv.Value.CallsignA,
+                        CallsignB = kv.Value.CallsignB,
+                    }),
+            ];
+
     private ServerSnapshotDto CaptureServerSnapshot(List<AircraftState> aircraft)
     {
         var consolidation = ConsolidationState
@@ -414,6 +430,8 @@ public sealed partial class SimulationEngine
                 CallsignA = c.CallsignA,
                 CallsignB = c.CallsignB,
                 IsAcknowledged = c.IsAcknowledged,
+                Suppressed = c.Suppressed,
+                PublishedSuppressed = c.PublishedSuppressed,
             })
             .ToList();
 
@@ -434,6 +452,7 @@ public sealed partial class SimulationEngine
                 CallsignB = c.CallsignB,
                 OwnerFacilityA = c.OwnerFacilityA,
                 OwnerFacilityB = c.OwnerFacilityB,
+                IntruderCallsign = c.IntruderCallsign,
                 Suppressed = c.Suppressed,
                 PublishedSuppressed = c.PublishedSuppressed,
             })
@@ -461,6 +480,7 @@ public sealed partial class SimulationEngine
         {
             ConsolidationOverrides = consolidation,
             ActiveConflicts = conflicts,
+            LatchedConflictSuppressions = CaptureConflictSuppressionLatches(),
             EramConflicts = eramConflicts,
             BeaconCodePool = new BeaconCodePoolDto
             {
@@ -498,8 +518,16 @@ public sealed partial class SimulationEngine
                     CallsignA = c.CallsignA,
                     CallsignB = c.CallsignB,
                     IsAcknowledged = c.IsAcknowledged,
+                    Suppressed = c.Suppressed,
+                    PublishedSuppressed = c.PublishedSuppressed,
                 };
             }
+        }
+
+        ConflictAlerts.LatchedSuppressions.Clear();
+        foreach (LatchedConflictSuppressionDto latch in server.LatchedConflictSuppressions ?? [])
+        {
+            ConflictAlerts.LatchedSuppressions[latch.Id] = new LatchedConflictSuppression(latch.CallsignA, latch.CallsignB);
         }
 
         if (server.EramConflicts is not null)
@@ -513,6 +541,7 @@ public sealed partial class SimulationEngine
                     CallsignB = c.CallsignB,
                     OwnerFacilityA = c.OwnerFacilityA,
                     OwnerFacilityB = c.OwnerFacilityB,
+                    IntruderCallsign = c.IntruderCallsign,
                     Suppressed = c.Suppressed,
                     PublishedSuppressed = c.PublishedSuppressed,
                 };
