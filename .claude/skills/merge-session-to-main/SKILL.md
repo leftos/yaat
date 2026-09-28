@@ -204,9 +204,9 @@ Whichever path was taken, once **both** repos are landed run the explicit end ga
 
 ```bash
 prek run                                                      # both repos
-bash "$target_yaat/tools/gate.sh" .tmp/gate-build.log 300 \
+pwsh "$target_yaat/tools/gate.ps1" -Log .tmp/gate-build.log -TimeoutSeconds 300 -Slot heavy -- \
      dotnet build -p:TreatWarningsAsErrors=true                # both repos
-bash "$target_yaat/tools/gate.sh" .tmp/gate-test-all.log 900 \
+pwsh "$target_yaat/tools/gate.ps1" -Log .tmp/gate-test-all.log -TimeoutSeconds 900 -Slot heavy -- \
      pwsh tools/test-all.ps1                                  # in $target_yaat — builds and tests both
 ```
 

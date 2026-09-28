@@ -23,7 +23,7 @@ The non-negotiable rules, each detailed below:
 1. **Real data, never synthetic.** Initialize with `TestVnasData.EnsureInitialized()`; never hand-roll stub fixes/profiles.
 2. **Call `EnsureInitialized()` in the test class *constructor*** if any test reads a data-backed static singleton (race protection).
 3. **Silently skip on missing data** — return early, no `Assert.Skip`, no throw — so a fresh/offline checkout keeps CI green. **Exception: NavData and CIFP are hard preconditions.** `ModuleInit` throws if it cannot resolve `NavData.dat` or the CIFP, because most of this suite asserts against real navdata and procedures, and a run without them reports green having proved nothing. Ground layouts, recordings, ARTCC configs and the rest still skip silently.
-4. **Run suites under a 30 s ceiling** (`tools/gate.sh .tmp/test.log 30 dotnet test`) so soft hangs surface as failures.
+4. **Run suites under a 30 s ceiling** (`pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -- dotnet test`) so soft hangs surface as failures.
 5. **Runner options go after `--`** (Microsoft.Testing.Platform): `dotnet test -- --filter-method "*Name*"`; see [Running tests](#running-tests).
 6. **For full-suite confidence run `pwsh tools/test-all.ps1`**, not bare `dotnet test` — only that builds the sibling yaat-server.
 
@@ -264,7 +264,7 @@ NRE in unrelated parallel tests after disposal. Never call `SimLog.Initialize` f
 captured:
 
 ```bash
-tools/gate.sh .tmp/test.log 30 dotnet run --project tests/Yaat.Sim.Tests -c Release -- --filter-method "*<TestName>*" --show-live-output on
+pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -- dotnet run --project tests/Yaat.Sim.Tests -c Release -- --filter-method "*<TestName>*" --show-live-output on
 ```
 
 See [logging.md](logging.md) for the full `SimLog`/`AppLog` model and the `DeferredLogger` resolution order.
@@ -424,7 +424,7 @@ drops explicitly tagged tests). Pass `pwsh tools/test-all.ps1 -Full` to include 
 
 ## The 30-second timeout discipline
 
-Always run suites under a ceiling: `tools/gate.sh .tmp/test.log 30 dotnet test ...`. The gate counts the 30 s on a load-adjusted clock (wall time on an idle machine, slower while other agents load it; `CLAUDE.md` "Build after edits"), so a YAAT sim suite that passes it is almost always **stuck**, not merely slow: a broken graph topology or an infinite pathfinder loop, not a heavy computation (the heavy grid sweeps are gated behind the `Nightly`/`PathfinderGrid` traits and excluded by default). Treat a `STALLED` or `TIMED OUT` kill as a hung-test failure to diagnose, not a budget to raise; a `BACKSTOP` kill with a low "machine free" figure was a busy machine, so re-run it once alone.
+Always run suites under a ceiling: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -- dotnet test ...`. The gate counts the 30 s on a load-adjusted clock (wall time on an idle machine, slower while other agents load it; `CLAUDE.md` "Build after edits"), so a YAAT sim suite that passes it is almost always **stuck**, not merely slow: a broken graph topology or an infinite pathfinder loop, not a heavy computation (the heavy grid sweeps are gated behind the `Nightly`/`PathfinderGrid` traits and excluded by default). Treat a `STALLED` or `TIMED OUT` kill as a hung-test failure to diagnose, not a budget to raise; a `BACKSTOP` kill with a low "machine free" figure was a busy machine, so re-run it once alone.
 
 ## Timing budgets measure thread CPU time
 
@@ -477,7 +477,7 @@ public sealed class MyTaxiExitTests
 }
 ```
 
-Run it: `tools/gate.sh .tmp/test.log 30 dotnet test -- --filter-method "*MyTaxiExitTests*"`. Before declaring a change done, verify the cross-repo build with `pwsh tools/test-all.ps1`.
+Run it: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -- dotnet test -- --filter-method "*MyTaxiExitTests*"`. Before declaring a change done, verify the cross-repo build with `pwsh tools/test-all.ps1`.
 
 ## Footguns and pitfalls
 
@@ -503,7 +503,7 @@ Run it: `tools/gate.sh .tmp/test.log 30 dotnet test -- --filter-method "*MyTaxiE
 - **CIFP decompression uses a per-process sentinel-file dance.** A `yaat-test-FAACIFP18-<pid>` file held open without `FileShare.Delete`
   blocks a concurrent process's sweep from deleting a live file on Windows; `SweepStaleCifpTempFiles` reaps leaks across five legacy name
   patterns. **Don't add another `DecompressGzip` helper — route through `TestVnasData`.**
-- **Run under a 30 s ceiling** (`tools/gate.sh .tmp/test.log 30 dotnet test`). A suite that the gate kills as `STALLED` or `TIMED OUT` is usually stuck on broken graph topology or an infinite pathfinder loop, not slow.
+- **Run under a 30 s ceiling** (`pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -- dotnet test`). A suite that the gate kills as `STALLED` or `TIMED OUT` is usually stuck on broken graph topology or an infinite pathfinder loop, not slow.
 - **Use `pwsh tools/test-all.ps1`, not bare `dotnet test`, for full-suite confidence.** Bare `dotnet test` from yaat never builds the
   sibling yaat-server, so a `Yaat.Sim` signature change that breaks the server passes locally and fails in CI. The heavy
   `Nightly`/`PathfinderGrid` categories are excluded by default; pass `-Full` for the complete set.

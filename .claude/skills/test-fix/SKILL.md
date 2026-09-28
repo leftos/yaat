@@ -91,7 +91,7 @@ committing it:
 ## Step 3: Confirm the test fails (RED)
 
 ```bash
-tools/gate.sh .tmp/test-red.log 30 dotnet test <test-project> -- --filter-method "*<TestName>*"
+pwsh tools/gate.ps1 -Log .tmp/test-red.log -TimeoutSeconds 30 -Slot heavy -- dotnet test <test-project> -- --filter-method "*<TestName>*"
 ```
 
 - The log must show a **non-zero test count**. A filter matching nothing reports
@@ -121,7 +121,7 @@ untouched context.
 ## Step 5: Confirm the test passes (GREEN)
 
 ```bash
-tools/gate.sh .tmp/test-green.log 30 dotnet test <test-project> -- --filter-method "*<TestName>*"
+pwsh tools/gate.ps1 -Log .tmp/test-green.log -TimeoutSeconds 30 -Slot heavy -- dotnet test <test-project> -- --filter-method "*<TestName>*"
 ```
 
 If the test still fails, the fix is incomplete — iterate on Step 4. If it fails
@@ -172,7 +172,7 @@ summary line saying "the class needs an instrument" is a deferral, not a finding
 ## Step 6: Run broader tests for regressions
 
 ```bash
-tools/gate.sh .tmp/test-suite.log 120 dotnet test <test-project>
+pwsh tools/gate.ps1 -Log .tmp/test-suite.log -TimeoutSeconds 120 -Slot heavy -- dotnet test <test-project>
 ```
 
 Use `timeout 120` if you wrap this yourself — this is a full-project run, not a
@@ -194,7 +194,7 @@ it.
 ## Step 7: Build with warnings as errors
 
 ```bash
-tools/gate.sh .tmp/build.log 300 dotnet build -p:TreatWarningsAsErrors=true
+pwsh tools/gate.ps1 -Log .tmp/build.log -TimeoutSeconds 300 -Slot heavy -- dotnet build -p:TreatWarningsAsErrors=true
 ```
 
 ## Step 8: Cross-repo gate (when the diff touches Yaat.Sim's public surface)
@@ -203,7 +203,7 @@ If the change touched a type, signature or DTO in `src/Yaat.Sim`, a bare
 `dotnet test` in yaat cannot see that it broke the sibling yaat-server repo:
 
 ```bash
-tools/gate.sh .tmp/test-all.log 900 pwsh tools/test-all.ps1
+pwsh tools/gate.ps1 -Log .tmp/test-all.log -TimeoutSeconds 900 -Slot heavy -- pwsh tools/test-all.ps1
 ```
 
 ## Step 9: Aviation review (when behaviour changed)
@@ -223,8 +223,6 @@ phraseology is being invented.
   fix attempt.
 - **No synthetic test data** — use `TestVnasData.EnsureInitialized()` with real
   NavData/CIFP.
-- **Gate commands go through `tools/gate.sh`.** A teed pipeline reports the
-  status of its last stage, so `dotnet build | tee | tail` exits 0 on a failed
-  build. Never end a gate command with `tail` or `grep`.
+- **Gate commands go through `pwsh tools/gate.ps1 ... -Slot heavy -- <command>`.** A teed pipeline reports the status of its last stage, so `dotnet build | tee | tail` exits 0 on a failed build. Never end a gate command with `tail` or `grep`.
 - Enable SimLog in tests when you need debug output:
   `SimLogBuilder.CreateForTest(output).EnableCategory("ClassName", LogLevel.Debug).InitializeSimLog()`.

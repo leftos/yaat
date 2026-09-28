@@ -64,7 +64,7 @@ segments() {
         sed -E \
             -e 's/^[[:space:]]*//' \
             -e 's/^(timeout[[:space:]]+[0-9]+[smhd]?|nice([[:space:]]+-n[[:space:]]*-?[0-9]+)?|command|exec)[[:space:]]+//' \
-            -e 's#^(bash[[:space:]]+)?([^[:space:]]*/)?gate\.sh[[:space:]]+[^[:space:]]+[[:space:]]+([0-9]+[[:space:]]+)?##' \
+            -e 's#^(pwsh([[:space:]]+-[^[:space:]]+)*[[:space:]]+)?[^[:space:]]*gate\.ps1[[:space:]]+(([^-[:space:]][^[:space:]]*|-[^-[:space:]][^[:space:]]*)[[:space:]]+)*--[[:space:]]+##' \
             -e 's/^(timeout[[:space:]]+[0-9]+[smhd]?)[[:space:]]+//' \
             -e 's/^([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)+//'
 }
@@ -123,21 +123,20 @@ fi
 # re-running. `| tee` prints the whole log and reports tee's status, so it is
 # denied even though it captures.
 captured() {
-    line_has '(^|[[:space:]/])gate\.sh[[:space:]]' || line_has '>>?[[:space:]]*["'"'"']?[^[:space:]"'"'"']*\.tmp/[^[:space:]"'"'"']*\.log'
+    line_has '(^|[[:space:]/])gate\.ps1[[:space:]]' || line_has '>>?[[:space:]]*["'"'"']?[^[:space:]"'"'"']*\.tmp/[^[:space:]"'"'"']*\.log'
 }
 if starts_with 'dotnet[[:space:]]+(test|build|run)' && ! captured; then
-    deny 'dotnet test/build/run must write its full output to a .tmp/<name>.log and print only the tail: `tools/gate.sh .tmp/<name>.log <seconds> <command...>` (from yaat-server: `../yaat/tools/gate.sh`), or `<command> > .tmp/<name>.log 2>&1; rc=$?; tail -n 20 .tmp/<name>.log; (exit $rc)`. `| tee` prints the whole log into context and hides the exit status. For more of the output, read the log file — never re-run the command.'
+    deny 'dotnet test/build/run must write its full output to a .tmp/<name>.log and print only the tail: `pwsh tools/gate.ps1 -Log .tmp/<name>.log -TimeoutSeconds <seconds> -Slot heavy -- <command...>` (from yaat-server: `pwsh ../yaat/tools/gate.ps1`), or `<command> > .tmp/<name>.log 2>&1; rc=$?; tail -n 20 .tmp/<name>.log; (exit $rc)`. `| tee` prints the whole log into context and hides the exit status. For more of the output, read the log file — never re-run the command.'
 fi
 
-# A ceiling is the gate's second argument, gate.ps1's -TimeoutSeconds, or a
-# coreutils `timeout <n>` on the line.
+# A ceiling is gate.ps1's -TimeoutSeconds, or a coreutils `timeout <n>` on the
+# line.
 has_ceiling() {
-    line_has '(^|[[:space:]/])gate\.sh[[:space:]]+[^[:space:]]+[[:space:]]+[0-9]+[[:space:]]' ||
-        line_has 'gate\.ps1[[:space:]].*-TimeoutSeconds[[:space:]]+[0-9]' ||
+    line_has 'gate\.ps1[[:space:]].*-TimeoutSeconds[[:space:]]+[0-9]' ||
         line_has '(^|[[:space:]])timeout[[:space:]]+[0-9]'
 }
 if starts_with 'dotnet[[:space:]]+test' && ! has_ceiling; then
-    deny 'dotnet test must run under a ceiling to catch soft hangs: `tools/gate.sh .tmp/test.log 30 dotnet test ...` for a filtered run (--filter-class ...), `tools/gate.sh .tmp/test.log 120 dotnet test` for the full suite (from yaat-server: `../yaat/tools/gate.sh`). The gate kills a hung run and exits 124.'
+    deny 'dotnet test must run under a ceiling to catch soft hangs: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -- dotnet test ...` for a filtered run (--filter-class ...), `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 120 -Slot heavy -- dotnet test` for the full suite (from yaat-server: `pwsh ../yaat/tools/gate.ps1`). The gate kills a hung run and exits 124.'
 fi
 
 exit 0

@@ -154,14 +154,12 @@ trap (Trap 6).
 
 ## Step 7: Gate it
 
-The bot's tests are its own claim, not your verification. Run the repo gate in
-the primary checkout — and use `tools/gate.sh`, because a teed pipeline reports
-the status of its last stage and would read a failed build as green:
+The bot's tests are its own claim, not your verification. Run the repo gate in the primary checkout — and use `tools/gate.ps1`, because a teed pipeline reports the status of its last stage and would read a failed build as green:
 
 ```bash
 YAAT="$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd)" && cd "$YAAT"
-tools/gate.sh .tmp/build.log 300 dotnet build -p:TreatWarningsAsErrors=true
-tools/gate.sh .tmp/test-all.log 900 pwsh tools/test-all.ps1
+pwsh tools/gate.ps1 -Log .tmp/build.log -TimeoutSeconds 300 -Slot heavy -- dotnet build -p:TreatWarningsAsErrors=true
+pwsh tools/gate.ps1 -Log .tmp/test-all.log -TimeoutSeconds 900 -Slot heavy -- pwsh tools/test-all.ps1
 ```
 
 `test-all.ps1` is the right gate here rather than a bare `dotnet test`: a bot fix
@@ -228,5 +226,5 @@ one, and prefer the `--check`/`--dry-run` form first where the command has one.
 - [ ] Rebase happened before the changelog bullet was added.
 - [ ] `prek run --from-ref main --to-ref HEAD` ran on the rebased branch; any
       staged formatting fix was committed onto `pr-<PR>`.
-- [ ] `tools/gate.sh` build + `test-all.ps1` both green.
+- [ ] `tools/gate.ps1` build + `test-all.ps1` both green.
 - [ ] Merged with `--merge`. Not `--rebase`, not `--squash`.

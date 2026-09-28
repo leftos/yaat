@@ -86,13 +86,13 @@ A cherry-pick that merges textually clean can still fail to compile on `main`: `
 Decide the gate from what Phase 2 actually did, in `$yaat_main`:
 
 - **Fast-forward only, both repos** → skip. `main` didn't advance past the base, so the worktree's build already covered this tree.
-- **Any real cherry-pick** → run in the target checkout, through `tools/gate.sh`. This gate is not optional and "the prek hook passed" does not satisfy it: git's sequencer commits clean picks **without** running pre-commit hooks (only a conflicted pick finished via `--continue` runs them), so most landed commits were never built by a hook at all. The wrapper exists because a bare `| tee` makes the gate a pipeline and the shell reports the last stage's status — `| tee | grep` returns grep's exit code, not the build's — so it propagates the command's own status and additionally fails on `Build FAILED` / `error CS` in the log. Never append `| tail` or `| grep` to it; read the `Build succeeded` / `Build FAILED` line of the log, not just the test summary:
+- **Any real cherry-pick** → run in the target checkout, through `pwsh tools/gate.ps1 ... -Slot heavy`. This gate is not optional and "the prek hook passed" does not satisfy it: git's sequencer commits clean picks **without** running pre-commit hooks (only a conflicted pick finished via `--continue` runs them), so most landed commits were never built by a hook at all. The wrapper exists because a bare `| tee` makes the gate a pipeline and the shell reports the last stage's status — `| tee | grep` returns grep's exit code, not the build's — so it propagates the command's own status and additionally fails on `Build FAILED` / `error CS` in the log. Never append `| tail` or `| grep` to it; read the `Build succeeded` / `Build FAILED` line of the log, not just the test summary:
   ```bash
-  cd "$yaat_main" && bash tools/gate.sh .tmp/ship-build.log 300 dotnet build -p:TreatWarningsAsErrors=true
+  cd "$yaat_main" && pwsh tools/gate.ps1 -Log .tmp/ship-build.log -TimeoutSeconds 300 -Slot heavy -- dotnet build -p:TreatWarningsAsErrors=true
   ```
 - **Cherry-pick touching a `Yaat.Sim` type or method signature** → also run the cross-repo suite:
   ```bash
-  cd "$yaat_main" && bash tools/gate.sh .tmp/ship-test-all.log 900 pwsh tools/test-all.ps1
+  cd "$yaat_main" && pwsh tools/gate.ps1 -Log .tmp/ship-test-all.log -TimeoutSeconds 900 -Slot heavy -- pwsh tools/test-all.ps1
   ```
 
 If the gate fails, **do not push**. Fix forward with a new commit on `main` (never `--amend`), re-run the gate, then continue. If the fix isn't obvious, stop and surface the log — `main` is local-only at this point, so it's recoverable.
@@ -249,8 +249,8 @@ git -C "$server_main" status -sb | head -1   # "## HEAD (no branch)" -> halt
 # Phase 2 — Skill: merge-session-to-main  (on main already → skip; cross-repo sig change → land yaat-server FIRST)
 
 # Phase 3 — gate, only if a real cherry-pick happened (never append | tail or | grep)
-cd "$yaat_main" && bash tools/gate.sh .tmp/ship-build.log 300 dotnet build -p:TreatWarningsAsErrors=true
-cd "$yaat_main" && bash tools/gate.sh .tmp/ship-test-all.log 900 pwsh tools/test-all.ps1   # if a Yaat.Sim signature changed
+cd "$yaat_main" && pwsh tools/gate.ps1 -Log .tmp/ship-build.log -TimeoutSeconds 300 -Slot heavy -- dotnet build -p:TreatWarningsAsErrors=true
+cd "$yaat_main" && pwsh tools/gate.ps1 -Log .tmp/ship-test-all.log -TimeoutSeconds 900 -Slot heavy -- pwsh tools/test-all.ps1   # if a Yaat.Sim signature changed
 
 # Phase 4 — push, yaat first, no --force / no --tags
 git -C "$yaat_main"   push origin main

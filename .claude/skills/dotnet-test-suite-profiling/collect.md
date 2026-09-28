@@ -76,13 +76,11 @@ dotnet-trace collect --profile gc-verbose -o .tmp/prof/gc.nettrace \
   -- "$(git rev-parse --show-toplevel)/tests/Yaat.Sim.Tests/bin/Release/net10.0/Yaat.Sim.Tests.exe" \
      --filter-class "*.<ClassName>"
 
-tools/gate.sh .tmp/prof/alloc.log 600 dotnet run .claude/skills/dotnet-test-suite-profiling/scripts/alloc_ticks.cs \
+pwsh tools/gate.ps1 -Log .tmp/prof/alloc.log -TimeoutSeconds 600 -Slot heavy -- dotnet run .claude/skills/dotnet-test-suite-profiling/scripts/alloc_ticks.cs \
   -- .tmp/prof/gc.nettrace --top 25
 ```
 
-(`dotnet run` goes through `tools/gate.sh` because CLAUDE.md requires every
-dotnet invocation to be teed to `.tmp/`, and a bare `… | tee` would report the
-pipeline's status instead of the command's.)
+(`dotnet run` goes through `tools/gate.ps1` because CLAUDE.md requires every dotnet invocation to write its output to a log under `.tmp/`, and a bare `… | tee` would report the pipeline's status instead of the command's.)
 
 `alloc_ticks.cs` is a .NET 10 file-based app (its `#:package` line pulls
 TraceEvent on first run; no project file, no `bin/` in the repo). It reads

@@ -1,19 +1,19 @@
 #requires -Version 7
 <#
 .SYNOPSIS
-Runs one gate command with three things always given, the log, the ceiling and the command: the whole output to the
-log, the last lines on the screen, the command's own exit status, and 124 when the watchdog killed it.
+Runs one gate command with four things always given, the log, the ceiling, the slot kind and the command: the whole
+output to the log, the last lines on the screen, the command's own exit status, and 124 when the watchdog killed it.
 
 .DESCRIPTION
 The canonical copy is ~/.claude/tools/gate/gate.ps1: change it there and run sync-gate.ps1, which copies it and
 gate.selftest.ps1 into every repo that carries them.
 
-Usage: pwsh tools/gate.ps1 -Log <path> -TimeoutSeconds <n> [-StallSeconds <n>] [-Tail <n>] [-NoMarkers] -- <command> [args...]
+Usage: pwsh tools/gate.ps1 -Log <path> -TimeoutSeconds <n> -Slot heavy|light [-StallSeconds <n>] [-Tail <n>] [-NoMarkers] -- <command> [args...]
        pwsh tools/gate.ps1 -StopTree <pid>
 
-The log, the ceiling and the command are all required and none has a default: a gate run without a ceiling is the one
-that holds its caller for an hour, and a caller that forgot one is told so, with the usage, and the script exits 2
-before anything runs. Each missing or unreadable input is named on a line of its own. The gate runs on Windows only.
+The log, the ceiling, the slot kind and the command are all required and none has a default: a gate run without a
+ceiling is the one that holds its caller for an hour, and a caller that forgot one is told so, with the usage, and the
+script exits 2 before anything runs. Each missing or unreadable input is named on a line of its own. The gate runs on Windows only.
 
 Why this exists:
  - Every line a command prints lands in an agent's context and is re-read on every later turn, so a build or a test run
@@ -69,15 +69,32 @@ shows before it bites. When a sample throws, the gate says
 ceiling can no longer be told, and only the backstop, which needs nothing but a clock, still kills the run. A failure
 anywhere else after the command has started terminates the job, adds the error to the log and ends the gate with it.
 
-At most a few gates run at once across the machine, one to a slot. A slot is one of the named mutexes
-Local\gate-slot-0 to Local\gate-slot-<n-1>, n being $env:GATE_SLOTS or, unset, a quarter of the logical processors
-after one is left for the user (at least one): a gate is taken to keep about four threads busy through its own
-parallelism. A gate that finds every slot held says `gate: waiting for a slot` once and tries again every 2 s, and its
-clocks start once it holds one. Mutexes rather than a counting semaphore because a killed gate abandons its mutex, which
-the next gate then takes, saying so, where a semaphore's count would be lost for good. The command is started with
-GATE_SLOT_HELD=1, so a gate it runs in turn (a gate inside a gate) does not wait on the slot its parent holds; set that
-variable yourself to run a gate outside the slots. GATE_SAMPLE_SECONDS sets the sampling interval, 5 s when unset.
+At most a few gates run at once across the machine, one to a slot, and a slot is heavy or light, as -Slot says. The
+heavy slots are the named mutexes Local\gate-slot-0 to Local\gate-slot-<n-1>, n being $env:GATE_HEAVY_SLOTS or, unset,
+a quarter of the logical processors after one is left for the user (at least one): a heavy gate is taken to keep about
+four threads busy through its own parallelism. The light slots are Local\gate-light-slot-0 to
+Local\gate-light-slot-<m-1>, m being $env:GATE_LIGHT_SLOTS or, unset, half the logical processors after one is left for
+the user (at least one): a light gate is taken to keep one or two threads busy. The two pools are independent: a gate
+takes one slot of its own kind and never waits on the other kind, so a serial test run does not queue behind builds,
+nor builds behind it. The heavy slots bear the names a copy of the gate without -Slot takes, so such a copy shares the
+heavy pool. A gate that finds every slot of its kind held says `gate: waiting for a heavy slot` (or a light one) once
+and tries again every 2 s, and its clocks start once it holds one. Mutexes rather than a counting semaphore because a
+killed gate abandons its mutex, which the next gate then takes, saying so, where a semaphore's count would be lost for
+good. The command is started with GATE_SLOT_HELD=1, so a gate it runs in turn (a gate inside a gate) takes no slot of
+either kind and does not wait on the one its parent holds, though it still needs -Slot; set that variable yourself to
+run a gate outside the slots. GATE_SAMPLE_SECONDS sets the sampling interval, 5 s when unset.
 GATE_TEST_SAMPLER_FAIL=1 is for the self-test only: it makes every sample throw, to prove the path above.
+GATE_TEST_SLOT_PREFIX is for the self-test only: up to 32 letters, digits and dashes put in front of both pools' mutex
+names (Local\<prefix>gate-slot-<i>, Local\<prefix>gate-light-slot-<i>), so its slot cases use slots no other session
+holds. GATE_TEST_NATIVE_CACHE is for the self-test only: the folder used in place of the native cache below.
+
+The gate's native calls are C# compiled with Add-Type into a class named after a hash of their source. The compiled
+assembly is cached per user as $env:LOCALAPPDATA\gate\GateNative_<hash>.dll and loaded from there, since compiling it
+costs every gate about a second of CPU. The first gate of a version compiles it to a file of its own in that folder and
+moves it into place; a gate that loses that race to another deletes its own copy, so no gate loads a half-written file.
+A gate that cannot write the folder or load the file compiles the class in memory as before, says
+`gate: native cache unusable (<reason>); compiled in memory` once, and runs on. A new version of the source has a new
+hash and so a new file; the old files stay until deleted by hand.
 
 The command runs at below-normal priority, so the machine stays usable while it does: the gate creates it in that
 class, or in the gate's own when the gate already runs at below-normal or idle, and everything it starts inherits the
@@ -106,7 +123,7 @@ through cmd.exe /d /s /c.
 
 The options are read by hand out of $args rather than declared in a param block: a declared block sends this script's
 own arguments through PowerShell's parameter binder, which reads the bare -- of
-`pwsh tools/gate.ps1 -Log x -TimeoutSeconds 5 -- dotnet test -c Release` as a parameter name and stops with "the
+`pwsh tools/gate.ps1 -Log x -TimeoutSeconds 5 -Slot heavy -- dotnet test -c Release` as a parameter name and stops with "the
 parameter name '' is ambiguous" (PowerShell 7.5, 2026-09-14). A script with no param block is handed every word
 untouched, separator and all, which is what lets the command keep its own -c. A caller in a session of its own
 (`& tools/gate.ps1 ... -- dotnet build`) has the separator eaten by the parser before the script ever sees it, so the
@@ -120,6 +137,12 @@ Required. Where the whole output is written, its directory created when missing,
 .PARAMETER TimeoutSeconds
 Required, a whole number above 0. The ceiling on the load-adjusted clock, and a fifth of the wall-time backstop. A
 ceiling is a few times what the command takes on an idle machine today.
+
+.PARAMETER Slot
+Required, heavy or light: the pool of slots the gate waits on (see above). heavy for a command that keeps many threads
+busy, such as a build or a parallel test run; light for one that keeps one or two busy, such as a serial test run or
+one headless engine run. When unsure, heavy: a light gate whose command keeps many threads busy takes cores the heavy
+slots count on, where a heavy gate whose command keeps one busy only waits longer than it had to.
 
 .PARAMETER StallSeconds
 How long the command may go without output, CPU time or a new process before it is killed as stalled. Defaults to 120.
@@ -159,10 +182,17 @@ $ErrorActionPreference = 'Stop'
 # that a gate wrapping a gate reports the inner one's kill.
 $markers = '^Build FAILED\.|error CS\d+|: error |Test run summary: Failed!|^\s*failed: [1-9]|gate: (TIMED OUT|STALLED|BACKSTOP)'
 $usage = @(
-    'usage: pwsh tools/gate.ps1 -Log <path> -TimeoutSeconds <n> [-StallSeconds <n>] [-Tail <n>] [-NoMarkers] -- <command> [args...]'
+    'usage: pwsh tools/gate.ps1 -Log <path> -TimeoutSeconds <n> -Slot heavy|light [-StallSeconds <n>] [-Tail <n>] [-NoMarkers] ' +
+    '-- <command> [args...]'
     '       pwsh tools/gate.ps1 -StopTree <pid>'
 )
-$requiredLine = 'all three of -Log, -TimeoutSeconds and the command are required.'
+$requiredLine = 'all four of -Log, -TimeoutSeconds, -Slot and the command are required.'
+# The two pools of slots: the mutex names' prefix, the variable that sets the count, and the threads a gate of the kind
+# is taken to keep busy, which divide the logical processors left after one for the user into the default count.
+$slotPools = [ordered]@{
+    heavy = @{ Prefix = 'gate-slot-'; Variable = 'GATE_HEAVY_SLOTS'; Threads = 4 }
+    light = @{ Prefix = 'gate-light-slot-'; Variable = 'GATE_LIGHT_SLOTS'; Threads = 2 }
+}
 $aboveBelowNormal = @('Normal', 'AboveNormal', 'High', 'RealTime')
 # What the command is started with: the slot marked held for any gate it runs in turn, and MSBuild made to start worker
 # nodes of its own rather than hand the build to reused nodes or the MSBuild server outside the job.
@@ -172,7 +202,8 @@ $commandEnvironment = [ordered]@{
     DOTNET_CLI_USE_MSBUILD_SERVER = '0'
 }
 
-# The sampler's and the job's native calls, compiled once per session. Nothing here goes through WMI: a CIM query can
+# The sampler's and the job's native calls, compiled once per version into the per-user cache (Get-NativeType) and
+# loaded from it by every gate after. Nothing here goes through WMI: a CIM query can
 # block for seconds or for good, and a watchdog whose sampler can hang is worse than none. The class is named after a
 # hash of this source (Get-NativeType), so a session that ran another version of this gate, whose class of the same
 # name lacks a member this one calls, compiles this version beside it instead of calling the old one.
@@ -944,16 +975,46 @@ public static class __GATE_NATIVE__
 }
 '@
 
-# The native class for this version of the source, compiled on first use in a session.
+# Loads the class from the cache, compiling it into the cache first when the file is not there. The compile goes to a
+# file of this gate's own and is then moved into place; a move that finds the file there already lost a race to another
+# gate, whose copy is as good, and the own copy is deleted either way.
+function Import-CachedNativeType {
+    param([string]$TypeName)
+    $folder = if ($env:GATE_TEST_NATIVE_CACHE) { $env:GATE_TEST_NATIVE_CACHE } else { Join-Path $env:LOCALAPPDATA 'gate' }
+    $path = Join-Path $folder "$TypeName.dll"
+    if (-not (Test-Path -LiteralPath $path)) {
+        New-Item -ItemType Directory -Force $folder | Out-Null
+        $own = Join-Path $folder "$TypeName.$PID.$([guid]::NewGuid().ToString('N')).tmp"
+        try {
+            Add-Type -TypeDefinition $nativeSource.Replace('__GATE_NATIVE__', $TypeName) -OutputAssembly $own
+            try { [System.IO.File]::Move($own, $path) }
+            catch [System.IO.IOException] { if (-not (Test-Path -LiteralPath $path)) { throw } }
+        }
+        finally {
+            Remove-Item -LiteralPath $own -ErrorAction SilentlyContinue
+        }
+    }
+    if (-not ($TypeName -as [type])) { Add-Type -Path $path }
+}
+
+# The native class for this version of the source, loaded or compiled on first use in a session. A cache that cannot be
+# used costs the gate the compile, never the run.
 function Get-NativeType {
     $bytes = [System.Text.Encoding]::UTF8.GetBytes($nativeSource)
     $hash = [Convert]::ToHexString([System.Security.Cryptography.SHA1]::HashData($bytes)).Substring(0, 8)
     $typeName = 'GateNative_' + $hash
+    if ($typeName -as [type]) { return $typeName -as [type] }
+    try {
+        Import-CachedNativeType -TypeName $typeName
+    }
+    catch {
+        Write-Gate "gate: native cache unusable ($($_.Exception.Message)); compiled in memory"
+    }
     if (-not ($typeName -as [type])) { Add-Type -TypeDefinition $nativeSource.Replace('__GATE_NATIVE__', $typeName) }
     return $typeName -as [type]
 }
 
-# The wrapper's own commentary goes to standard error, as gate.sh writes it, so a caller reading the command's output
+# The wrapper's own commentary goes to standard error, so a caller reading the command's output
 # from the screen is not handed the gate's lines in the middle of it.
 function Write-Gate {
     param([string]$Line)
@@ -1018,7 +1079,7 @@ function Read-Option {
 # read.
 function Read-Argument {
     param([object[]]$Words)
-    $options = @{ Log = ''; TimeoutSeconds = ''; StallSeconds = '120'; Tail = '20'; NoMarkers = $false }
+    $options = @{ Log = ''; TimeoutSeconds = ''; Slot = ''; StallSeconds = '120'; Tail = '20'; NoMarkers = $false }
     $read = 0
     while ($read -lt $Words.Count) {
         $word = [string]$Words[$read]
@@ -1061,6 +1122,8 @@ function Get-InputProblem {
     if (-not $Options['TimeoutSeconds']) {
         $problems.Add('gate: missing -TimeoutSeconds <n>: every gate needs a ceiling in seconds (a whole number above 0); there is no default')
     }
+    $slotProblem = Get-SlotProblem $Options['Slot']
+    if ($slotProblem) { $problems.Add($slotProblem) }
     if ($Command.Count -lt 1) {
         $problems.Add('gate: missing the command: put it after --, e.g. -- dotnet test')
     }
@@ -1074,18 +1137,38 @@ function Get-InputProblem {
     return , $problems
 }
 
+# The line for a -Slot that is missing or neither kind, or $null for heavy or light in any case.
+function Get-SlotProblem {
+    param([string]$Value)
+    if (-not $Value) {
+        return 'gate: missing -Slot heavy|light: heavy for a command that keeps many threads busy (a build, a parallel test run), ' +
+        'light for one that keeps one or two busy (a serial test run, one headless engine run)'
+    }
+    if ($Value -notin $slotPools.Keys) { return "gate: -Slot must be heavy or light, got '$Value'" }
+    return $null
+}
+
 function Get-EnvironmentProblem {
-    if ($env:GATE_SLOTS -and -not (Test-WholeNumber $env:GATE_SLOTS)) {
-        "gate: GATE_SLOTS must be a whole number above 0, got '$env:GATE_SLOTS'"
+    foreach ($pool in $slotPools.Values) {
+        $value = [Environment]::GetEnvironmentVariable($pool.Variable)
+        if ($value -and -not (Test-WholeNumber $value)) {
+            "gate: $($pool.Variable) must be a whole number above 0, got '$value'"
+        }
     }
     if ($env:GATE_SAMPLE_SECONDS -and -not (Test-Duration $env:GATE_SAMPLE_SECONDS)) {
         "gate: GATE_SAMPLE_SECONDS must be a number of seconds above 0, got '$env:GATE_SAMPLE_SECONDS'"
     }
+    if ($env:GATE_TEST_SLOT_PREFIX -and $env:GATE_TEST_SLOT_PREFIX -cnotmatch '^[A-Za-z0-9-]{1,32}$') {
+        "gate: GATE_TEST_SLOT_PREFIX must be up to 32 letters, digits and dashes, got '$env:GATE_TEST_SLOT_PREFIX'"
+    }
 }
 
 function Get-SlotCount {
-    if ($env:GATE_SLOTS) { return [int]$env:GATE_SLOTS }
-    return [math]::Max(1, [math]::Floor(([Environment]::ProcessorCount - 1) / 4))
+    param([string]$Kind)
+    $pool = $slotPools[$Kind]
+    $set = [Environment]::GetEnvironmentVariable($pool.Variable)
+    if ($set) { return [int]$set }
+    return [math]::Max(1, [math]::Floor(([Environment]::ProcessorCount - 1) / $pool.Threads))
 }
 
 # True when this thread now owns the mutex. A gate killed while holding a slot abandons its mutex, and the wait that
@@ -1104,14 +1187,17 @@ function Request-Mutex {
     }
 }
 
-# Holds one of the machine's slots, waiting for one when all are held; returns the mutex and the lines for the log.
+# Holds one of the machine's slots of the kind given, waiting for one when all of that kind are held; returns the mutex
+# and the lines for the log.
 function Enter-Slot {
-    param([int]$Count)
+    param([string]$Kind)
+    $count = Get-SlotCount $Kind
+    $prefix = "Local\$($env:GATE_TEST_SLOT_PREFIX)$($slotPools[$Kind].Prefix)"
     $notes = [System.Collections.Generic.List[string]]::new()
     $waiting = $false
     while ($true) {
-        for ($slot = 0; $slot -lt $Count; $slot++) {
-            $name = "Local\gate-slot-$slot"
+        for ($slot = 0; $slot -lt $count; $slot++) {
+            $name = "$prefix$slot"
             $mutex = [System.Threading.Mutex]::new($false, $name)
             if (Request-Mutex -Mutex $mutex -Name $name -Notes $notes) {
                 return [pscustomobject]@{ Mutex = $mutex; Notes = $notes }
@@ -1120,7 +1206,7 @@ function Enter-Slot {
         }
         if (-not $waiting) {
             $waiting = $true
-            $line = "gate: waiting for a slot ($Count busy)"
+            $line = "gate: waiting for a $Kind slot ($count busy)"
             Write-Gate $line
             $notes.Add($line)
         }
@@ -1612,6 +1698,7 @@ function Invoke-Main {
         return 2
     }
     $options = $parsed.Options
+    $options['Slot'] = $options['Slot'].ToLowerInvariant()
     # Read against the caller's location once, before anything uses it: a caller in its own session that moved with
     # Set-Location has a location that .NET's own current directory, which a FileInfo reads from, does not follow.
     $options['Log'] = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($options['Log'])
@@ -1626,7 +1713,7 @@ function Invoke-Main {
     $notes = @()
     $slot = $null
     if ($env:GATE_SLOT_HELD -ne '1') {
-        $slot = Enter-Slot -Count (Get-SlotCount)
+        $slot = Enter-Slot -Kind $options['Slot']
         $notes = @($slot.Notes)
     }
     try {
