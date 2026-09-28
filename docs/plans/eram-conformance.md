@@ -183,7 +183,7 @@ Settled without work (explorer 2026-09-27): QP request/suppress data block is al
 **Wave 5 rulings (user 2026-09-27):**
 - **QT `C` (convert point-out)**: the entering sector must be the receiver of a pending ERAM point-out on the track (else `YaatPoNotFound`); one recorded Sim entry then takes the track for it and removes that point-out, as STARS `**` does (`TrackEngine.HandleConvertPointout`). `/OK` (field 60) overrides the receiver check.
 - **QF field 12** answers for the ten fields YAAT models (TYP, BCN, SPD, ALT, RAL, RTE, RMK, NUM, SAI, EQP); the `amendable_fields` rows in `AM.yaml` that YAAT stores nothing for are marked `na`. Wave 4's AM work built those ten, not "the full AM field set".
-- **QA / QV**: an ERAM entry changes what the scopes show, never the aircraft (user: a controller does not fly the aircraft through ERAM). What each displays is being read from the SRS before they are built.
+- **QA / QV**: an ERAM entry changes what the scopes show, never the aircraft (user: a controller does not fly the aircraft through ERAM). Read from the SRS (2026-09-27): QA sets or edits the host's **auto-handoff inhibit** for a flight (MONF) or for receiving sectors/facilities (AERO), shown as an FDB indicator and an AUTO HO INHIB view; QV draws a console-local **user-requested velocity vector** for the entered heading and speed (EDSM (L), never sent to the host, other sectors never see it). YAAT has no automatic handoff and CRC's wire has no slot for either (`EramTrackDto`, `EramDataBlockDto`), so both validate their fields and ACCEPT with no effect, each YAML carrying a note that says why.
 
 ## Verification
 
