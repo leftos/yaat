@@ -34,7 +34,7 @@ Only record ticks matching a condition with `Filter = ac => ac.IsOnGround`.
 ## 2. Animate
 
 ```bash
-timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- tests/Yaat.Sim.Tests/TestData/oak.geojson     --ticks .tmp/my-test-ticks.json --html .tmp/my-test.html 2>&1 | tee .tmp/li-html.log
+pwsh tools/gate.ps1 -Log .tmp/li-html.log -TimeoutSeconds 30 -Slot heavy -- dotnet run --project tools/Yaat.LayoutInspector -- tests/Yaat.Sim.Tests/TestData/oak.geojson --ticks .tmp/my-test-ticks.json --html .tmp/my-test.html
 ```
 
 Open the HTML: it renders the layout (runways, taxiways, hold-short nodes) with an animation player over the
@@ -49,7 +49,7 @@ To compare runs of the same case (today vs a prototype, before vs after a change
 The same recording feeds the text analyses:
 
 ```bash
-timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- tests/Yaat.Sim.Tests/TestData/sfo.geojson     --ticks .tmp/my-test-ticks.json --tick-table --tick-ref SFO/28L --tick-hold-shorts K,D,Q 2>&1 | tee .tmp/li-ticks.log
+pwsh tools/gate.ps1 -Log .tmp/li-ticks.log -TimeoutSeconds 30 -Slot heavy -- dotnet run --project tools/Yaat.LayoutInspector -- tests/Yaat.Sim.Tests/TestData/sfo.geojson --ticks .tmp/my-test-ticks.json --tick-table --tick-ref SFO/28L --tick-hold-shorts K,D,Q
 ```
 
 `--tick-table` prints one row per tick (position, groundspeed, phase, the navigator's `NavTickDiag` speed caps,
