@@ -2112,7 +2112,7 @@ public static class PilotResponder
             return null;
         }
 
-        string? radioName = scenario.ArtccConfig?.FindPositionByCallsign(callsign)?.RadioName;
+        string? radioName = scenario.ArtccConfig?.FindPositionByCallsign(callsign, facilityHint: null)?.RadioName;
         return string.IsNullOrWhiteSpace(radioName) ? null : radioName.Trim();
     }
 

@@ -81,7 +81,7 @@ public sealed partial class SimulationEngine
     /// </summary>
     private (int Transferred, int Redirected) TransferTracksForConsolidation(SimScenarioState scenario, Tcp sendingTcp, string receivingTcpCode)
     {
-        TrackOwner? receivingOwner = TrackResolver.ResolveTcpToOwner(scenario, receivingTcpCode);
+        TrackOwner? receivingOwner = TrackResolver.ResolveTcpToOwner(scenario, receivingTcpCode, facilityHint: null);
         if (receivingOwner is null)
         {
             return (0, 0);

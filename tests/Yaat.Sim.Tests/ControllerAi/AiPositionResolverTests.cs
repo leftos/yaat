@@ -79,7 +79,7 @@ public class AiPositionResolverTests
             return;
         }
 
-        PositionConfig delivery = _zoa.FindPositionByCallsign("OAK_DEL")!;
+        PositionConfig delivery = _zoa.FindPositionByCallsign("OAK_DEL", facilityHint: null)!;
         var overrides = new Dictionary<string, ControlRole>(StringComparer.Ordinal) { [delivery.Id] = ControlRole.Ground };
 
         IReadOnlyList<AiPositionConfig> catalog = AiPositionResolver.Catalog(_zoa, "OAK", overrides);
@@ -97,8 +97,8 @@ public class AiPositionResolverTests
             return;
         }
 
-        string tower = _zoa.FindPositionByCallsign("OAK_TWR")!.Id;
-        string ground = _zoa.FindPositionByCallsign("OAK_GND")!.Id;
+        string tower = _zoa.FindPositionByCallsign("OAK_TWR", facilityHint: null)!.Id;
+        string ground = _zoa.FindPositionByCallsign("OAK_GND", facilityHint: null)!.Id;
         var config = new ControllerAiConfig
         {
             Seed = 1,

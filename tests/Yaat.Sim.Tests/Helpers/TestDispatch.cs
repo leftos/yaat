@@ -48,5 +48,6 @@ internal static class TestDispatch
             SessionStartUtc = sessionStartUtc ?? SimScenarioState.ProcessDayUtc,
             PreserveConditionals = preserveConditionals,
             IsScenarioScripted = isScenarioScripted,
+            FacilityHint = null,
         };
 }

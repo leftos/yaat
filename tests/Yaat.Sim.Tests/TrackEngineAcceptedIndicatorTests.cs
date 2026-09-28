@@ -98,7 +98,7 @@ public class TrackEngineAcceptedIndicatorTests
             AtcPositions = [Atc(stealTarget, subset: 2, sectorId: "36")],
         };
 
-        CommandResult result = TrackEngine.ApplyForceHandoff(ac, scenario, tcpCode: "236");
+        CommandResult result = TrackEngine.ApplyForceHandoff(ac, scenario, tcpCode: "236", facilityHint: null);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(stealTarget, ac.Track.Owner);

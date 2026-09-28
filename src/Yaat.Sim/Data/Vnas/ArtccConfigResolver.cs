@@ -50,18 +50,33 @@ public static class ArtccConfigResolver
     }
 
     /// <summary>
-    /// Looks up a position by its CRC-style callsign (e.g. "FAT_F_APP", "OAK_TWR")
-    /// across the facility tree. Returns the first match in load order, or null
-    /// if no position has that callsign.
+    /// Looks up a position by its CRC-style callsign (e.g. "FAT_F_APP", "OAK_TWR") across the facility tree. A config can
+    /// list one callsign under two facilities (ZOA lists OAK_TWR under both NCT and O90), and those are different
+    /// positions: the first whose owner (<see cref="ResolvePosition"/>) carries <paramref name="facilityHint"/> wins,
+    /// else — and always for a null hint — the first match in load order. Null when no position has that callsign.
     /// </summary>
-    public static PositionConfig? FindPositionByCallsign(this ArtccConfigRoot config, string callsign)
+    public static PositionConfig? FindPositionByCallsign(this ArtccConfigRoot config, string callsign, string? facilityHint)
     {
         if (string.IsNullOrEmpty(callsign))
         {
             return null;
         }
 
-        return FindPositionByCallsignRec(config.Facility, callsign);
+        if (facilityHint is null)
+        {
+            return FindPositionByCallsignRec(config.Facility, callsign);
+        }
+
+        List<PositionConfig> candidates = config.FindPositionsByCallsign(callsign);
+        foreach (PositionConfig candidate in candidates)
+        {
+            if (string.Equals(config.ResolvePosition(candidate.Id)?.FacilityId, facilityHint, StringComparison.OrdinalIgnoreCase))
+            {
+                return candidate;
+            }
+        }
+
+        return candidates.FirstOrDefault();
     }
 
     /// <summary>

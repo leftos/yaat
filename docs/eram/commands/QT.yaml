@@ -91,6 +91,9 @@ variants:
     format: QT (60) (65) (68) (05) (08) (56) (74) (160) 02 | QT 64 02
     multiple_flids: false
     handler: QT.Track
+    note: >-
+      yaat: /OK takes only an untracked track, the entering position's own, or one an ERAM sector of the same ARTCC owns
+      (else NOT YOUR CONTROL, the handoff /OK ruling).
     fields:
       - field: Position
         rule: |

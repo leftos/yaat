@@ -78,6 +78,43 @@ public class TrackFamilyArmTests
     }
 
     [Fact]
+    public void AcceptAll_DoesNotAccept_AHandoffToTheSameCallsignOfAnotherFacility()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
+        TrackOwner otherFacility = Student with { FacilityId = "ZLA" };
+        ac.Track.Owner = Nct4U;
+        ac.Track.HandoffPeer = otherFacility;
+
+        ActionOutcome outcome = engine.Actions.Apply(Recorded("", "ACCEPTALL"));
+
+        Assert.Equal("Accepted 0 handoff(s)", outcome.Result.Message);
+        Assert.Same(Nct4U, ac.Track.Owner);
+        Assert.Same(otherFacility, ac.Track.HandoffPeer);
+    }
+
+    [Fact]
+    public void HandoffAll_DoesNotOffer_TheTracksOfTheSameCallsignOfAnotherFacility()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
+        ac.Track.Owner = Student with { FacilityId = "ZLA" };
+
+        ActionOutcome outcome = engine.Actions.Apply(Recorded("", "HOALL 4U"));
+
+        Assert.Equal("Initiated handoff for 0 aircraft to 4U", outcome.Result.Message);
+        Assert.Null(ac.Track.HandoffPeer);
+    }
+
+    [Fact]
     public void HandoffAll_Replay_OffersEveryOwnedTrackToTheTcp()
     {
         if (Engine() is not { } engine)

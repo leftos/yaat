@@ -37,7 +37,7 @@ public class PilotContactRosterTests
             return;
         }
 
-        TrackOwner tower = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("OAK_TWR")!.Id)!;
+        TrackOwner tower = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("OAK_TWR", facilityHint: null)!.Id)!;
         var roster = PilotContactRoster.Build(true, tower, "TWR", [], _zoa);
 
         PilotAnsweringPosition? answering = roster.ResolveFor(OakAircraft(), "TWR", "OAK", Eligibility(tower, "TWR"), true);
@@ -56,7 +56,7 @@ public class PilotContactRosterTests
             return;
         }
 
-        TrackOwner tower = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("OAK_TWR")!.Id)!;
+        TrackOwner tower = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("OAK_TWR", facilityHint: null)!.Id)!;
         var roster = PilotContactRoster.Build(true, tower, "TWR", [TestAiPositions.OakGround(_zoa)], _zoa);
 
         PilotAnsweringPosition? ground = roster.ResolveFor(OakAircraft(), "GND", "OAK", Eligibility(tower, "TWR"), true);
@@ -75,7 +75,7 @@ public class PilotContactRosterTests
             return;
         }
 
-        TrackOwner ground = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("OAK_GND")!.Id)!;
+        TrackOwner ground = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("OAK_GND", facilityHint: null)!.Id)!;
         var roster = PilotContactRoster.Build(true, ground, "GND", [TestAiPositions.OakTower(_zoa)], _zoa);
 
         // The student ground takes the ground call ahead of the AI tower's combined-cab fallback.
@@ -129,7 +129,7 @@ public class PilotContactRosterTests
         }
 
         AiPositionConfig aiTower = TestAiPositions.OakTower(_zoa);
-        TrackOwner approach = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("NCT_APP")!.Id)!;
+        TrackOwner approach = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("NCT_APP", facilityHint: null)!.Id)!;
         var roster = PilotContactRoster.Build(false, null, null, [aiTower], _zoa);
         InitialContactEligibilityContext eligibility = Eligibility(null, null);
         AircraftState owned = OakAircraft();
@@ -200,8 +200,8 @@ public class PilotContactRosterTests
             return;
         }
 
-        TrackOwner tower = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("OAK_TWR")!.Id)!;
-        TrackOwner approach = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("NCT_APP")!.Id)!;
+        TrackOwner tower = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("OAK_TWR", facilityHint: null)!.Id)!;
+        TrackOwner approach = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("NCT_APP", facilityHint: null)!.Id)!;
         var roster = PilotContactRoster.Build(true, tower, "TWR", [], _zoa);
         AircraftState owned = OakAircraft();
         owned.Track.Owner = approach;

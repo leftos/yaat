@@ -84,6 +84,26 @@ public class ContactCommandHandlerTests
         Assert.StartsWith("NorCal Approach on one two five point three five,", transmission.SpeechText);
     }
 
+    /// <summary>
+    /// ZOA lists OAK_TWR under NCT and O90 with the same frequency and radio name, so the pick shows only in the
+    /// position: <c>CT OAK_TWR</c> from an O90 identity names O90's twin, from NCT (or with no hint) NCT's.
+    /// </summary>
+    [Theory]
+    [InlineData("O90", "O90")]
+    [InlineData("NCT", "NCT")]
+    [InlineData(null, "NCT")]
+    public void Contact_TwinCallsign_ResolvesTheTwinInTheIssuingFacility(string? facilityHint, string expectedFacility)
+    {
+        ArtccConfigRoot? config = TestArtccConfig.LoadZoa();
+        Assert.SkipWhen(config is null, "ZOA config not available");
+
+        ContactCommandHandler.ResolvedTarget resolution = ContactCommandHandler.ResolveExplicitTarget("OAK_TWR", config, facilityHint);
+
+        ContactCommandHandler.ResolvedTarget.Found found = Assert.IsType<ContactCommandHandler.ResolvedTarget.Found>(resolution);
+        Assert.Equal("OAK_TWR", found.Position.Callsign);
+        Assert.Equal(expectedFacility, config!.ResolvePosition(found.Position.Id)?.FacilityId);
+    }
+
     // --- Explicit target: frequency ---
 
     [Fact]
@@ -95,7 +115,7 @@ public class ContactCommandHandlerTests
             return;
         }
 
-        PositionConfig? oakTwr = config.FindPositionByCallsign("OAK_TWR");
+        PositionConfig? oakTwr = config.FindPositionByCallsign("OAK_TWR", facilityHint: null);
         Assert.NotNull(oakTwr);
         double freqMhz = oakTwr.Frequency / 1_000_000.0;
 
@@ -389,7 +409,7 @@ public class ContactCommandHandlerTests
             return;
         }
 
-        PositionConfig? oakTwr = config.FindPositionByCallsign("OAK_TWR");
+        PositionConfig? oakTwr = config.FindPositionByCallsign("OAK_TWR", facilityHint: null);
         Assert.NotNull(oakTwr);
         double freqMhz = oakTwr.Frequency / 1_000_000.0;
         string expectedSpoken = PhraseologyVerbalizer.FrequencyToWords(freqMhz);
@@ -479,7 +499,7 @@ public class ContactCommandHandlerTests
             return;
         }
 
-        PositionConfig? oakTwr = config.FindPositionByCallsign("OAK_TWR");
+        PositionConfig? oakTwr = config.FindPositionByCallsign("OAK_TWR", facilityHint: null);
         Assert.NotNull(oakTwr);
         double freqMhz = oakTwr.Frequency / 1_000_000.0;
         string expectedSpoken = PhraseologyVerbalizer.FrequencyToWords(freqMhz);

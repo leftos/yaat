@@ -147,7 +147,7 @@ public static partial class TrackEngine
     {
         if (tcpCode is not null)
         {
-            TrackOwner? owner = TrackResolver.ResolveTcpToOwner(scenario, tcpCode);
+            TrackOwner? owner = TrackResolver.ResolveTcpToOwner(scenario, tcpCode, fallbackIdentity?.FacilityId);
             return owner is null ? new CommandResult(false, $"Unknown position: {tcpCode}") : HandleTrack(ac, owner);
         }
 
@@ -733,7 +733,7 @@ public static partial class TrackEngine
             return new CommandResult(true, $"Handoff {ac.Callsign} to {FormatOwner(studentPos)}");
         }
 
-        TrackOwner? target = TrackResolver.ResolveTcpToOwner(scenario, tcpCode);
+        TrackOwner? target = TrackResolver.ResolveTcpToOwner(scenario, tcpCode, identity?.FacilityId);
         if (target is null)
         {
             return new CommandResult(false, $"Unknown position: {tcpCode}");
@@ -786,9 +786,9 @@ public static partial class TrackEngine
     /// Mirrors yaat-server's <c>TrackCommandHandler.HandleForceHandoff</c>: transfer
     /// ownership to the target TCP without the standard ownership check.
     /// </summary>
-    public static CommandResult ApplyForceHandoff(AircraftState ac, SimScenarioState scenario, string tcpCode)
+    public static CommandResult ApplyForceHandoff(AircraftState ac, SimScenarioState scenario, string tcpCode, string? facilityHint)
     {
-        TrackOwner? target = TrackResolver.ResolveTcpToOwner(scenario, tcpCode);
+        TrackOwner? target = TrackResolver.ResolveTcpToOwner(scenario, tcpCode, facilityHint);
         if (target is null)
         {
             return new CommandResult(false, $"Unknown position: {tcpCode}");
@@ -811,7 +811,13 @@ public static partial class TrackEngine
     /// position acts under the parent's identity, so a point-out left on the literal child TCP could never be
     /// acknowledged and would stick pending.
     /// </summary>
-    public static CommandResult ApplyPointOut(AircraftState ac, SimScenarioState scenario, string tcpCode, ConsolidationRedirect? redirect)
+    public static CommandResult ApplyPointOut(
+        AircraftState ac,
+        SimScenarioState scenario,
+        string tcpCode,
+        ConsolidationRedirect? redirect,
+        string? facilityHint
+    )
     {
         if (ac.Track.Owner is null)
         {
@@ -830,7 +836,7 @@ public static partial class TrackEngine
             return new CommandResult(false, "Cannot determine sender TCP");
         }
 
-        TrackOwner? targetOwner = TrackResolver.ResolveTcpToOwner(scenario, tcpCode);
+        TrackOwner? targetOwner = TrackResolver.ResolveTcpToOwner(scenario, tcpCode, facilityHint);
         if ((targetOwner is not null) && (redirect?.TryRedirect(targetOwner) is { } redirectOwner))
         {
             Tcp? redirectedTcp = TrackResolver.FindTcpForOwner(redirectOwner, scenario);
@@ -869,7 +875,7 @@ public static partial class TrackEngine
     }
 
     /// <summary>Resolves the pointout recipient to a TrackOwner, then converts (see above).</summary>
-    public static CommandResult ApplyConvertPointout(AircraftState ac, SimScenarioState scenario)
+    public static CommandResult ApplyConvertPointout(AircraftState ac, SimScenarioState scenario, string? facilityHint)
     {
         if (ac.Track.Pointout is null || ac.Track.Pointout.IsRejected)
         {
@@ -877,7 +883,7 @@ public static partial class TrackEngine
         }
 
         Tcp recipient = ac.Track.Pointout.Recipient;
-        TrackOwner? newOwner = TrackResolver.ResolveTcpToOwner(scenario, $"{recipient.Subset}{recipient.SectorId}");
+        TrackOwner? newOwner = TrackResolver.ResolveTcpToOwner(scenario, $"{recipient.Subset}{recipient.SectorId}", facilityHint);
         if (newOwner is null)
         {
             return new CommandResult(false, $"Cannot resolve pointout recipient {recipient.Subset}{recipient.SectorId}");
@@ -961,15 +967,15 @@ public static partial class TrackEngine
             TrackAircraftCommand t => HandleTrack(ac, t.TcpCode, identity, scenario),
             DropTrackCommand => HandleDrop(ac),
             InitiateHandoffCommand ho => ApplyHandoff(ac, scenario, identity, ho.TcpCode, redirect),
-            ForceHandoffCommand hof => ApplyForceHandoff(ac, scenario, hof.TcpCode),
+            ForceHandoffCommand hof => ApplyForceHandoff(ac, scenario, hof.TcpCode, identity?.FacilityId),
             AcceptHandoffCommand => HandleAccept(ac, scenario),
             CancelHandoffCommand => HandleCancel(ac),
-            PointOutCommand po when po.TcpCode is not null => ApplyPointOut(ac, scenario, po.TcpCode, redirect),
+            PointOutCommand po when po.TcpCode is not null => ApplyPointOut(ac, scenario, po.TcpCode, redirect, identity?.FacilityId),
             PointOutCommand => HandlePointOutNoArgs(ac, identity!),
             AcknowledgeCommand => HandleAcknowledge(ac),
             RejectPointoutCommand => HandleRejectPointout(ac),
             RetractPointoutCommand => HandleRetractPointout(ac),
-            ConvertPointoutCommand => ApplyConvertPointout(ac, scenario),
+            ConvertPointoutCommand => ApplyConvertPointout(ac, scenario, identity?.FacilityId),
             ForceQuicklookCommand fql => ApplyForceQuicklook(ac, scenario, fql.TcpCodes),
             ForceQuicklookClearCommand fqlc => ApplyForceQuicklookClear(ac, scenario, fqlc.TcpCode),
             PilotReportedAltitudeCommand pra => HandlePilotReportedAltitude(ac, pra.AltitudeHundreds),
@@ -1009,7 +1015,7 @@ public static partial class TrackEngine
             int count = 0;
             foreach (AircraftState ac in snapshot)
             {
-                if ((ac.Track.HandoffPeer is not null) && (ac.Track.HandoffPeer.Callsign == identity.Callsign))
+                if ((ac.Track.HandoffPeer is not null) && ac.Track.HandoffPeer.MatchesPosition(identity))
                 {
                     TrackOwner? previousOwner = ac.Track.Owner;
                     ac.Track.Owner = ac.Track.HandoffPeer;
@@ -1028,7 +1034,7 @@ public static partial class TrackEngine
 
         if (cmd is InitiateHandoffAllCommand hoAll)
         {
-            TrackOwner? target = TrackResolver.ResolveTcpToOwner(scenario, hoAll.TcpCode);
+            TrackOwner? target = TrackResolver.ResolveTcpToOwner(scenario, hoAll.TcpCode, identity.FacilityId);
             if (target is null)
             {
                 return new CommandResult(false, $"Unknown position: {hoAll.TcpCode}");
@@ -1037,7 +1043,7 @@ public static partial class TrackEngine
             int count = 0;
             foreach (AircraftState ac in snapshot)
             {
-                if ((ac.Track.Owner is not null) && (ac.Track.Owner.Callsign == identity.Callsign) && (ac.Track.HandoffPeer is null))
+                if ((ac.Track.Owner is not null) && ac.Track.Owner.MatchesPosition(identity) && (ac.Track.HandoffPeer is null))
                 {
                     ac.Track.HandoffPeer = target;
                     ac.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;

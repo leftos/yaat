@@ -244,7 +244,7 @@ public sealed class PilotContactRoster
             return null;
         }
 
-        string? radioName = artccConfig?.FindPositionByCallsign(callsign)?.RadioName;
+        string? radioName = artccConfig?.FindPositionByCallsign(callsign, facilityHint: null)?.RadioName;
         return string.IsNullOrWhiteSpace(radioName) ? null : radioName.Trim();
     }
 }

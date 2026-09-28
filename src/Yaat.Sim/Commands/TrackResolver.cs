@@ -47,8 +47,10 @@ public static class TrackResolver
     /// (<c>`31H</c>), and finally ERAM→STARS prefixed codes (<c>Q2B</c>), which name their receiving facility and so
     /// resolve without a student facility. A code no table knows is tried as a position callsign (<c>OAK_GND</c>) — the
     /// form a CRC position outside the student facility, or one sharing its TCP with another position, is selected by.
+    /// A callsign listed under two facilities names the twin in <paramref name="facilityHint"/> (the entering
+    /// controller's facility), else the first in the config; the hint plays no part in any other step.
     /// </summary>
-    public static TrackOwner? ResolveTcpToOwner(SimScenarioState scenario, string tcpCode)
+    public static TrackOwner? ResolveTcpToOwner(SimScenarioState scenario, string tcpCode, string? facilityHint)
     {
         if (
             scenario.StudentPosition is not null
@@ -86,20 +88,21 @@ public static class TrackResolver
             }
         }
 
-        return artccConfig.ResolveEramToStarsHandoffCode(tcpCode) ?? ResolvePositionName(artccConfig, tcpCode);
+        return artccConfig.ResolveEramToStarsHandoffCode(tcpCode) ?? ResolvePositionName(artccConfig, tcpCode, facilityHint);
     }
 
     /// <summary>
-    /// The position named by a callsign (<c>OAK_GND</c>) or, where a config carries several positions of one callsign
-    /// on different TCPs, by <c>{callsign}@{code}</c> (<c>NCT_APP@1M</c>) with the code <see cref="AsPrefixCode"/> gives
-    /// the position. Null when no position matches.
+    /// The position named by a callsign (<c>OAK_GND</c>, the twin in <paramref name="facilityHint"/> when the callsign is
+    /// listed under several facilities) or, where a config carries several positions of one callsign, by
+    /// <c>{callsign}@{code}</c> (<c>NCT_APP@1M</c>, <c>OAK_TWR@1O</c>) with the code <see cref="AsPrefixCode"/> gives the
+    /// position, which needs no hint. Null when no position matches.
     /// </summary>
-    private static TrackOwner? ResolvePositionName(ArtccConfigRoot artccConfig, string name)
+    private static TrackOwner? ResolvePositionName(ArtccConfigRoot artccConfig, string name, string? facilityHint)
     {
         int at = name.IndexOf('@');
         if (at < 0)
         {
-            PositionConfig? position = artccConfig.FindPositionByCallsign(name);
+            PositionConfig? position = artccConfig.FindPositionByCallsign(name, facilityHint);
             return position is null ? null : artccConfig.ResolvePosition(position.Id);
         }
 
@@ -167,20 +170,21 @@ public static class TrackResolver
     }
 
     /// <summary>
-    /// Returns the TCP corresponding to a given owner by searching the scenario's
-    /// ATC positions, then falling back to the student TCP if the callsign matches.
+    /// Returns the TCP corresponding to a given owner by searching the scenario's ATC positions, then falling back to
+    /// the student TCP, each compared by <see cref="TrackOwner.MatchesPosition"/> (a same-callsign position in another
+    /// facility is someone else).
     /// </summary>
     public static Tcp? FindTcpForOwner(TrackOwner owner, SimScenarioState scenario)
     {
         foreach (ResolvedAtcPosition atc in scenario.AtcPositions)
         {
-            if (atc.Owner.Callsign == owner.Callsign)
+            if (atc.Owner.MatchesPosition(owner))
             {
                 return atc.Tcp;
             }
         }
 
-        if (scenario.StudentPosition is not null && scenario.StudentTcp is not null && owner.Callsign == scenario.StudentPosition.Callsign)
+        if (scenario.StudentPosition is not null && scenario.StudentTcp is not null && owner.MatchesPosition(scenario.StudentPosition))
         {
             return scenario.StudentTcp;
         }
@@ -197,14 +201,22 @@ public static class TrackResolver
     /// connection id names and cannot select another, while the map is shared with replay and keyed only by
     /// connection id — so a recorded active-position selection carrying an AI connection id would otherwise
     /// displace the live AI's identity.
+    ///
+    /// An AS override naming a callsign listed under two facilities picks the twin in the facility of the identity the
+    /// connection would have without the override.
     /// </summary>
     public static TrackOwner? ResolveIdentity(SimScenarioState scenario, PositionSelections selections, string connectionId, string? asOverrideTcp)
     {
-        if (asOverrideTcp is not null)
-        {
-            return ResolveTcpToOwner(scenario, asOverrideTcp);
-        }
+        TrackOwner? own = ResolveOwnIdentity(scenario, selections, connectionId);
+        return asOverrideTcp is null ? own : ResolveTcpToOwner(scenario, asOverrideTcp, own?.FacilityId);
+    }
 
+    /// <summary>
+    /// The identity a connection acts as without an AS override: an AI connection's own position, else its selected
+    /// position, else the student. The facility hint for a position the connection names by callsign.
+    /// </summary>
+    public static TrackOwner? ResolveOwnIdentity(SimScenarioState scenario, PositionSelections selections, string connectionId)
+    {
         if (AiConnectionId.TryParse(connectionId, out string? positionId) && scenario.ArtccConfig?.ResolvePosition(positionId) is { } aiPosition)
         {
             return aiPosition;

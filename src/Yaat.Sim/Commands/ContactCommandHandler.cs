@@ -32,7 +32,7 @@ public static class ContactCommandHandler
 
         if (cmd.Target is { Length: > 0 } target)
         {
-            ResolvedTarget resolution = ResolveExplicitTarget(target, ctx.ArtccConfig);
+            ResolvedTarget resolution = ResolveExplicitTarget(target, ctx.ArtccConfig, ctx.FacilityHint);
             switch (resolution)
             {
                 case ResolvedTarget.NotFound:
@@ -58,7 +58,7 @@ public static class ContactCommandHandler
             {
                 return new CommandResult(false, "no handoff target — issue HOO first or specify position");
             }
-            PositionConfig? pos = ctx.ArtccConfig?.FindPositionByCallsign(owner.Callsign);
+            PositionConfig? pos = ctx.ArtccConfig?.FindPositionByCallsign(owner.Callsign, owner.FacilityId);
             facilityName = pos is not null ? ResolveFacilityName(pos) : FacilityShortname.From(owner.Callsign);
             frequencyMhz = pos is not null ? pos.Frequency / 1_000_000.0 : null;
             handoffDetail = owner.Callsign;
@@ -137,7 +137,7 @@ public static class ContactCommandHandler
         return new Pilot.PilotSpeechText($"{facilityName}, so long.", $"{facilityName}, {spoken}, so long.");
     }
 
-    private abstract record ResolvedTarget
+    public abstract record ResolvedTarget
     {
         public sealed record Found(PositionConfig Position) : ResolvedTarget;
 
@@ -146,7 +146,7 @@ public static class ContactCommandHandler
         public sealed record NotFound : ResolvedTarget;
     }
 
-    private static ResolvedTarget ResolveExplicitTarget(string target, ArtccConfigRoot? config)
+    public static ResolvedTarget ResolveExplicitTarget(string target, ArtccConfigRoot? config, string? facilityHint)
     {
         if (config is null)
         {
@@ -162,7 +162,7 @@ public static class ContactCommandHandler
 
         if (trimmed.Contains('_'))
         {
-            PositionConfig? byCallsign = config.FindPositionByCallsign(trimmed.ToUpperInvariant());
+            PositionConfig? byCallsign = config.FindPositionByCallsign(trimmed.ToUpperInvariant(), facilityHint);
             return byCallsign is null ? new ResolvedTarget.NotFound() : new ResolvedTarget.Found(byCallsign);
         }
 

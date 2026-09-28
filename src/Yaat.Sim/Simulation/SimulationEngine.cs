@@ -134,7 +134,11 @@ public sealed partial class SimulationEngine
             return new CommandResult(false, "No scenario loaded");
         }
 
-        TrackOwner? owner = TrackResolver.ResolveTcpToOwner(scenario, tcpCode);
+        TrackOwner? owner = TrackResolver.ResolveTcpToOwner(
+            scenario,
+            tcpCode,
+            TrackResolver.ResolveOwnIdentity(scenario, PositionSelections, connectionId)?.FacilityId
+        );
         if (owner is null)
         {
             return new CommandResult(false, $"Unknown position: {tcpCode}");

@@ -110,7 +110,7 @@ public static class EramEntryEngine
             return malformed;
         }
 
-        if (TrackResolver.ResolveTcpToOwner(scenario, args[0]) is not { } target)
+        if (TrackResolver.ResolveTcpToOwner(scenario, args[0], identity.FacilityId) is not { } target)
         {
             return Refused(EramEntryErrors.NonAdaptedSector);
         }
@@ -542,8 +542,10 @@ public static class EramEntryEngine
 
     /// <summary>
     /// Initiating control must not steal a track owned by another sector unless forced with <c>/OK</c> (the logic-check
-    /// override, docs/crc/eram.md §MCA, §Handoffs). Taking control terminates any in-progress handoff on the track,
-    /// and re-starting track on a frozen track unfreezes it (7110.65 §5-2-15 "track start from frozen status").
+    /// override, docs/crc/eram.md §MCA, §Handoffs), and the override reaches only a track another ERAM sector of this
+    /// centre owns (<see cref="IsOwnedByThisCentre"/>, the handoff's rule). Taking control terminates any in-progress
+    /// handoff on the track, and re-starting track on a frozen track unfreezes it (7110.65 §5-2-15 "track start from
+    /// frozen status").
     /// </summary>
     private static CommandResult ApplyTrack(AircraftState ac, List<string> args, TrackOwner? identity)
     {
@@ -556,6 +558,11 @@ public static class EramEntryEngine
         if (!force && (ac.Track.Owner is not null) && !ac.Track.Owner.MatchesPosition(identity))
         {
             return Refused(EramEntryErrors.AlreadyTracked);
+        }
+
+        if (force && (ac.Track.Owner is not null) && !ac.Track.Owner.MatchesPosition(identity) && !IsOwnedByThisCentre(ac, identity))
+        {
+            return Refused(EramEntryErrors.NotYourControl);
         }
 
         StartTrack(ac, identity);

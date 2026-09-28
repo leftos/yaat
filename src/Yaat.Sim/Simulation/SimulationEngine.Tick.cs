@@ -147,6 +147,7 @@ public sealed partial class SimulationEngine
                     SessionStartUtc = Scenario?.SessionStartUtc ?? SimScenarioState.ProcessDayUtc,
                     PreserveConditionals = true,
                     IsScenarioScripted = false,
+                    FacilityHint = Scenario?.StudentPosition?.FacilityId,
                 };
 
                 if (!CommandDispatcher.RehydrateRestoredBlock(block, aircraft, ctx))

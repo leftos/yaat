@@ -47,4 +47,29 @@ public class AiStaffingTests
         Assert.True(staffing.IsHumanHeld(tower.Identity));
         Assert.True(staffing.IsHumanHeld(ground.Identity));
     }
+
+    [Fact]
+    public void HeadlessStaffing_StudentOnO90sOakTower_LeavesNctsOakTowerToTheAi()
+    {
+        Assert.SkipWhen(_zoa is null, "ZOA config not available");
+        AiPositionConfig nctTower = TestAiPositions.OakTower(_zoa!);
+        PositionConfig o90Position = _zoa!.FindPositionsByCallsign("OAK_TWR").First(p => _zoa.ResolvePosition(p.Id)!.FacilityId == "O90");
+        AiPositionConfig o90Tower = nctTower with
+        {
+            Identity = _zoa.ResolvePosition(o90Position.Id)!,
+            PositionId = o90Position.Id,
+            FacilityId = "O90",
+        };
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        SimScenarioState scenario = engine.Scenario!;
+        scenario.SoloTrainingMode = true;
+        scenario.StudentPosition = o90Tower.Identity;
+        scenario.StudentPositionType = "TWR";
+        var staffing = new HeadlessAiStaffing([nctTower, o90Tower], scenario);
+
+        Assert.Equal("NCT", nctTower.Identity.FacilityId);
+        Assert.True(staffing.IsHumanHeld(o90Tower));
+        Assert.False(staffing.IsHumanHeld(nctTower));
+        Assert.Equal([nctTower.PositionId], staffing.ActivePositions.Select(p => p.PositionId));
+    }
 }

@@ -51,6 +51,45 @@ public class TrackOwnerTests
 
         Assert.False(owner.IsNasPosition);
     }
+
+    [Fact]
+    public void MatchesPosition_SameCallsignDifferentFacility_IsVetoed()
+    {
+        var nct = TrackOwner.CreateStars("OAK_TWR", "NCT", 3, "O");
+        var zla = TrackOwner.CreateStars("OAK_TWR", "ZLA", 3, "O");
+
+        Assert.False(nct.MatchesPosition(zla));
+        Assert.False(zla.MatchesPosition(nct));
+    }
+
+    [Fact]
+    public void MatchesPosition_SameCallsign_OneSideWithNoFacility_StillMatches()
+    {
+        var nonNas = TrackOwner.CreateNonNas("OAK_TWR");
+        var stars = TrackOwner.CreateStars("OAK_TWR", "NCT", 3, "O");
+
+        Assert.True(nonNas.MatchesPosition(stars));
+        Assert.True(stars.MatchesPosition(nonNas));
+    }
+
+    [Fact]
+    public void MatchesPosition_SameCallsign_FacilityDifferingOnlyInCase_StillMatches()
+    {
+        var upper = TrackOwner.CreateEram("OAK_36_CTR", "ZOA", "36");
+        var lower = TrackOwner.CreateEram("OAK_36_CTR", "zoa", "36");
+
+        Assert.True(upper.MatchesPosition(lower));
+        Assert.True(lower.MatchesPosition(upper));
+    }
+
+    [Fact]
+    public void MatchesPosition_SameCallsignSameFacility_StillMatches()
+    {
+        var tower = TrackOwner.CreateStars("OAK_TWR", "NCT", 3, "O");
+        var sameTowerOtherTcp = TrackOwner.CreateStars("OAK_TWR", "NCT", 3, "T");
+
+        Assert.True(tower.MatchesPosition(sameTowerOtherTcp));
+    }
 }
 
 public class TcpTests

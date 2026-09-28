@@ -642,7 +642,7 @@ public sealed partial class SimulationEngine
         }
 
         return scenario.StudentPosition is { } student
-            && TrackResolver.ResolveTcpToOwner(scenario, recipient.ToString()) is { } recipientOwner
+            && TrackResolver.ResolveTcpToOwner(scenario, recipient.ToString(), facilityHint: null) is { } recipientOwner
             && recipientOwner.MatchesPosition(student);
     }
 

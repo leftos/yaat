@@ -98,7 +98,7 @@ public class AiAnsweredCallupE2ETests
         SimScenarioState scenario = engine.Scenario!;
         scenario.ArtccConfig = _zoa;
         scenario.SoloTrainingMode = true;
-        scenario.StudentPosition = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("NCT_APP")!.Id)!;
+        scenario.StudentPosition = _zoa.ResolvePosition(_zoa.FindPositionByCallsign("NCT_APP", facilityHint: null)!.Id)!;
         scenario.StudentPositionType = "APP";
         AiPositionConfig aiTower = TestAiPositions.OakTower(_zoa);
         scenario.SetAiStaffedPositions([aiTower]);
@@ -183,6 +183,7 @@ public class AiAnsweredCallupE2ETests
             SessionStartUtc = engine.Scenario.SessionStartUtc,
             PreserveConditionals = false,
             IsScenarioScripted = true,
+            FacilityHint = null,
         };
         BravoClearanceWait? bravoWait = ImplicitBravoClearance.CaptureWait(ac);
         CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, aiCtx);

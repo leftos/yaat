@@ -153,6 +153,7 @@ public sealed partial class SimulationEngine
             // lifted the hold-for-release). It is not the student establishing two-way comms, so it
             // must not mark initial contact — the departure still checks in after takeoff.
             IsScenarioScripted = true,
+            FacilityHint = Scenario?.StudentPosition?.FacilityId,
         };
         CommandDispatcher.DispatchCompound(parsed.Value!, aircraft, ctx);
         // The pilot's "ready for departure" call is answered even though the automated tower issued the
@@ -228,6 +229,7 @@ public sealed partial class SimulationEngine
                 SessionStartUtc = scenario.SessionStartUtc,
                 PreserveConditionals = false,
                 IsScenarioScripted = true,
+                FacilityHint = Scenario?.StudentPosition?.FacilityId,
             };
             TaxiRoute? routeBeforeTimed = aircraft.Ground.AssignedTaxiRoute;
             CommandResult timedOutcome = CommandDispatcher.DispatchCompound(compound, aircraft, presetCtx);
@@ -350,6 +352,7 @@ public sealed partial class SimulationEngine
             SessionStartUtc = Scenario!.SessionStartUtc,
             PreserveConditionals = false,
             IsScenarioScripted = true,
+            FacilityHint = Scenario?.StudentPosition?.FacilityId,
         };
         TaxiRoute? routeBefore = aircraft.Ground.AssignedTaxiRoute;
         CommandResult presetOutcome = CommandDispatcher.DispatchCompound(compound, aircraft, singlePresetCtx);

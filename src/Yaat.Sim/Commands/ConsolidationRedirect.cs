@@ -36,6 +36,6 @@ public sealed class ConsolidationRedirect(SimScenarioState scenario, Consolidati
             return null;
         }
 
-        return TrackResolver.ResolveTcpToOwner(scenario, $"{ownerTcp.Subset}{ownerTcp.SectorId}");
+        return TrackResolver.ResolveTcpToOwner(scenario, $"{ownerTcp.Subset}{ownerTcp.SectorId}", facilityHint: null);
     }
 }

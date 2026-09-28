@@ -120,7 +120,7 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        PositionConfig? posConfig = config.FindPositionByCallsign(positionCallsign);
+        PositionConfig? posConfig = config.FindPositionByCallsign(positionCallsign, facilityHint: null);
         string? posName = posConfig?.Name;
         if (string.IsNullOrEmpty(posName))
         {

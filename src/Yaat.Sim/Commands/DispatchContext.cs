@@ -88,6 +88,12 @@ public sealed record DispatchContext
     public required bool IsScenarioScripted { get; init; }
 
     /// <summary>
+    /// The facility a callsign naming positions in several facilities (<c>CT OAK_TWR</c>, listed under NCT and O90)
+    /// resolves in: the issuing identity's, else the student's; null picks the first in the config.
+    /// </summary>
+    public required string? FacilityHint { get; init; }
+
+    /// <summary>
     /// The session clock at this dispatch: the record's mirror of <see cref="Simulation.SimScenarioState.SimTimeUtc"/>,
     /// for the verbs whose answer carries a time of day.
     /// </summary>

@@ -139,12 +139,13 @@ public static class LiveTrafficOwnerResolver
             || ((facility.Length == 3) && (facility[0] == 'Z'));
         if (eram)
         {
-            string centre = facility ?? scenario.ArtccId ?? "";
-            PositionConfig? position = FindEramPosition(scenario, centre, sector);
-            // A matched position lends its own sector id (the feed's "032" becomes the adapted "32"), so SectorId-keyed
-            // lookups agree with the callsign; only a synthetic owner keeps the feed's value.
+            string? centre = facility ?? scenario.ArtccId;
+            (string? nodeId, PositionConfig? position) = FindEramPosition(scenario, centre, sector);
+            // A matched position lends its facility node's id and its own sector id (the feed's "zoa"/"032" become the
+            // configured "ZOA"/"32"), so the owner is the one the position itself resolves to; only a synthetic owner
+            // keeps the feed's values.
             return (position?.EramConfiguration is { } matched)
-                ? new TrackOwner(position.Callsign, centre, null, matched.SectorId, TrackOwnerType.Eram)
+                ? new TrackOwner(position.Callsign, nodeId, null, matched.SectorId, TrackOwnerType.Eram)
                 : new TrackOwner($"{centre}_{sector}", centre, null, sector, TrackOwnerType.Eram);
         }
 
@@ -161,27 +162,34 @@ public static class LiveTrafficOwnerResolver
         );
         // A TCP's position can live below the STARS facility itself (a tower position holds its TRACON's TCP).
         PositionConfig? starsPosition = (tcp is null) ? null : FindPositionByTcp(starsNode!, tcp.Id);
-        return new TrackOwner(starsPosition?.Callsign ?? $"{facility}_{sector}", facility, subset, sectorId, TrackOwnerType.Stars);
+        // The configured node's id and TCP's sector id, not the feed's spelling ("nct"/"3o" become "NCT"/"O").
+        return new TrackOwner(
+            starsPosition?.Callsign ?? $"{facility}_{sector}",
+            starsNode?.Id ?? facility,
+            subset,
+            tcp?.SectorId ?? sectorId,
+            TrackOwnerType.Stars
+        );
     }
 
     /// <summary>
     /// The room's own centre searches the whole ARTCC tree; another centre searches only a facility node carrying its
     /// id, never the room's own positions, so a foreign sector that shares a number with one of ours stays synthetic.
     /// </summary>
-    private static PositionConfig? FindEramPosition(SimScenarioState scenario, string centre, string sector)
+    private static (string? FacilityId, PositionConfig? Position) FindEramPosition(SimScenarioState scenario, string? centre, string sector)
     {
         if (scenario.ArtccConfig is not { } config)
         {
-            return null;
+            return (null, null);
         }
 
-        if (string.Equals(centre, scenario.ArtccId, StringComparison.OrdinalIgnoreCase) || (centre.Length == 0))
+        if ((centre is null) || string.Equals(centre, scenario.ArtccId, StringComparison.OrdinalIgnoreCase))
         {
-            return config.FindEramPositionBySectorId(sector).Position;
+            return config.FindEramPositionBySectorId(sector);
         }
 
         FacilityConfig? foreignNode = FindFacility(config.Facility, centre);
-        return foreignNode?.FindEramPositionBySectorId(sector).Position;
+        return (foreignNode is null) ? (null, null) : foreignNode.FindEramPositionBySectorId(sector);
     }
 
     private static PositionConfig? FindPositionByTcp(FacilityConfig node, string tcpId)

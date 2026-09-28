@@ -234,7 +234,9 @@ public sealed class ActionRouter
 
         SimScenarioState? scenario = _engine.Scenario;
         TrackOwner? identity =
-            (entry.IdentityCode is null) || (scenario is null) ? null : TrackResolver.ResolveTcpToOwner(scenario, entry.IdentityCode);
+            (entry.IdentityCode is null) || (scenario is null)
+                ? null
+                : TrackResolver.ResolveTcpToOwner(scenario, entry.IdentityCode, facilityHint: null);
         ConsolidationRedirect? redirect = scenario is null
             ? null
             : new ConsolidationRedirect(scenario, _engine.ConsolidationState, _engine.Attendance.IsTcpAttended);

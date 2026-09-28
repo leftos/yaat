@@ -17,6 +17,9 @@
 
 - A bare id naming both an airport and a navaid, such as SAC or CCR, now means the navaid in routes, DCT and scenario positions; write KSAC.
 - A procedure turn intercepts its inbound course at up to 45° instead of homing on the fix.
+- ERAM `QT /OK` takes a track only if it is untracked, your own, or owned by another sector of your center; otherwise NOT YOUR CONTROL.
+- A position with the same callsign at a different facility no longer counts as the track's owner in STARS or ERAM.
+- A callsign listed under two facilities, such as OAK_TWR under NCT and O90, resolves to the one in your own facility for `AS`, `CT`, handoffs and point-outs.
 - A frozen ERAM track leaves the aircraft's radar target on the scope, where the aircraft really is.
 - A beacon code shared by two aircraft no longer addresses either of them in ERAM or STARS entries; use the callsign instead.
 - STARS `CASUP` suppresses the pair's current conflict alert until it ends, and no longer silences ERAM's alert; use `CO` there.

@@ -56,7 +56,10 @@ public sealed class HeadlessAiStaffing(IReadOnlyList<AiPositionConfig> configure
                 .ThenBy(p => p.PositionId, StringComparer.Ordinal),
         ];
 
-    /// <summary>Compare by callsign, not by TCP: tower-cab positions share a TCP (OAK_GND / OAK_TWR / OAK_DEL are all 3O).</summary>
+    /// <summary>
+    /// Compare by callsign and facility, not by TCP: tower-cab positions share a TCP (OAK_GND / OAK_TWR / OAK_DEL are all
+    /// 3O), and one callsign listed under two facilities (NCT's and O90's OAK_TWR) is two positions.
+    /// </summary>
     private static bool IsStudentPosition(AiPositionConfig position, SimScenarioState scenario) =>
-        scenario.SoloTrainingMode && string.Equals(position.Callsign, scenario.StudentPosition?.Callsign, StringComparison.OrdinalIgnoreCase);
+        scenario.SoloTrainingMode && (scenario.StudentPosition is { } student) && position.Identity.IsSamePositionByCallsign(student);
 }

@@ -156,8 +156,8 @@ public class ControllerAiServiceTests
             return;
         }
 
-        string delivery = _zoa.FindPositionByCallsign("OAK_DEL")!.Id;
-        string ground = _zoa.FindPositionByCallsign("OAK_GND")!.Id;
+        string delivery = _zoa.FindPositionByCallsign("OAK_DEL", facilityHint: null)!.Id;
+        string ground = _zoa.FindPositionByCallsign("OAK_GND", facilityHint: null)!.Id;
         var engine = new SimulationEngine(new TestAirportGroundData());
         engine.LoadScenario(AiTestFixture.ParkedAtOak, 7, MagneticDeclination.EvaluationDateUtc);
         SimScenarioState scenario = engine.Scenario!;

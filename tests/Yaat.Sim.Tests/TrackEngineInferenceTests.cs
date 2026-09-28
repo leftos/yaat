@@ -160,6 +160,23 @@ public class TrackEngineInferenceTests
     }
 
     [Fact]
+    public void HandleTrack_FrozenTrackOwnedBySameCallsignOfAnotherFacility_RejectedAndStaysFrozen()
+    {
+        AircraftState ac = Aircraft();
+        var owner = TrackOwner.CreateEram("ZOA_36", "ZLA", "36");
+        ac.Track.Owner = owner;
+        ac.Eram.IsFrozen = true;
+        ac.Eram.FrozenLat = 37.6;
+        var identity = TrackOwner.CreateEram("ZOA_36", "ZOA", "36");
+
+        CommandResult result = TrackEngine.HandleTrack(ac, identity);
+
+        Assert.False(result.Success);
+        Assert.True(ac.Eram.IsFrozen);
+        Assert.Equal(owner, ac.Track.Owner);
+    }
+
+    [Fact]
     public void HandleTrack_FrozenTrackOwnedByOther_RejectedAndStaysFrozen()
     {
         AircraftState ac = Aircraft();

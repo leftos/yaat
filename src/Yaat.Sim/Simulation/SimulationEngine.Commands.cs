@@ -72,7 +72,7 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>The dispatch context for a controller-issued command against <paramref name="aircraft"/> on this engine.</summary>
-    internal DispatchContext BuildDispatchContext(AircraftState aircraft, bool isScenarioScripted)
+    internal DispatchContext BuildDispatchContext(AircraftState aircraft, bool isScenarioScripted, string? facilityHint)
     {
         AirportGroundLayout? groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
         return new DispatchContext
@@ -92,6 +92,7 @@ public sealed partial class SimulationEngine
             SessionStartUtc = Scenario?.SessionStartUtc ?? SimScenarioState.ProcessDayUtc,
             PreserveConditionals = false,
             IsScenarioScripted = isScenarioScripted,
+            FacilityHint = facilityHint ?? Scenario?.StudentPosition?.FacilityId,
         };
     }
 
@@ -119,7 +120,11 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
-            CommandResult result = CommandDispatcher.Dispatch(taxi, aircraft, BuildDispatchContext(aircraft, isScenarioScripted: false));
+            CommandResult result = CommandDispatcher.Dispatch(
+                taxi,
+                aircraft,
+                BuildDispatchContext(aircraft, isScenarioScripted: false, facilityHint: null)
+            );
             if (result.Success)
             {
                 taxied++;

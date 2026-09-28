@@ -65,7 +65,7 @@ internal static class ActionArms
             result = CommandDispatcher.DispatchCompound(
                 compound,
                 aircraft,
-                engine.BuildDispatchContext(aircraft, origin == DispatchOrigin.ControllerAi)
+                engine.BuildDispatchContext(aircraft, origin == DispatchOrigin.ControllerAi, ctx.Identity?.FacilityId)
             );
         }
 

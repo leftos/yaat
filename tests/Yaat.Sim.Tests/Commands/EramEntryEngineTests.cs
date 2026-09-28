@@ -101,6 +101,37 @@ public class EramEntryEngineTests
         }
     }
 
+    [Theory]
+    [InlineData(false)] // another ARTCC's ERAM sector
+    [InlineData(true)] // a STARS position
+    public void Track_WithOk_OnATrackOwnedOutsideThisCentre_IsRefusedNotYourControl(bool starsOwner)
+    {
+        AircraftState ac = Aircraft();
+        TrackOwner owner = starsOwner ? TrackOwner.CreateStars("OAK_TWR", "NCT", 3, "O") : TrackOwner.CreateEram("LAX_32_CTR", "ZLA", "32");
+        ac.Track.Owner = owner;
+
+        CommandResult result = Apply(ac, "TRACK /OK", Sector44);
+
+        Assert.False(result.Success);
+        Assert.Equal(EramEntryErrors.NotYourControl, result.Message);
+        Assert.Same(owner, ac.Track.Owner);
+    }
+
+    [Theory]
+    [InlineData(false)] // an ERAM sector
+    [InlineData(true)] // a STARS position, which the override's same-centre rule alone would refuse
+    public void Track_WithOk_ByTheOwningPosition_Succeeds(bool starsOwner)
+    {
+        AircraftState ac = Aircraft();
+        TrackOwner owner = starsOwner ? TrackOwner.CreateStars("OAK_TWR", "NCT", 3, "O") : Sector44;
+        ac.Track.Owner = owner;
+
+        CommandResult result = Apply(ac, "TRACK /OK", owner);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Same(owner, ac.Track.Owner);
+    }
+
     [Fact]
     public void Track_WithoutAnIdentity_IsRefused()
     {

@@ -30,7 +30,7 @@ public static class TestAiPositions
     public static AiPositionConfig TowerCab(ArtccConfigRoot config, string callsign, ControlRole role, string airportId)
     {
         PositionConfig position =
-            config.FindPositionByCallsign(callsign) ?? throw new InvalidOperationException($"{callsign} not in the ZOA fixture");
+            config.FindPositionByCallsign(callsign, facilityHint: null) ?? throw new InvalidOperationException($"{callsign} not in the ZOA fixture");
         TrackOwner identity =
             config.ResolvePosition(position.Id) ?? throw new InvalidOperationException($"{callsign} did not resolve to a TrackOwner");
         FacilityConfig facility =

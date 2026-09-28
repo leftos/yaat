@@ -54,6 +54,17 @@ public sealed class PilotInitialContactEligibilityTests
     }
 
     [Fact]
+    public void CanInitiate_TowerStudent_BlocksSameCallsignOwnerOfAnotherFacility()
+    {
+        AircraftState aircraft = MakeAircraft();
+        aircraft.Track.Owner = StudentTower with { FacilityId = "ZLA" };
+
+        bool allowed = PilotInitialContactEligibility.CanInitiateWithStudent(aircraft, Context(StudentTower, "TWR"));
+
+        Assert.False(allowed);
+    }
+
+    [Fact]
     public void CanInitiate_TowerStudent_AllowsConfiguredApproachToTowerTransferWithoutTrackHandoff()
     {
         AircraftState aircraft = MakeAircraft(destination: "KSFO");
