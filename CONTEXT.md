@@ -170,6 +170,12 @@ The outline an aircraft of the pushing type would occupy parked on an empty neig
 The straight a taxi flies in place of a fillet's curve when a node-aimed entry-alignment arc rolls out pointing at the fillet's far node from off the curve: from where the aircraft stands straight to that node (`GroundNavigator.InstallAimedLineOverFillet`, docs/ground/navigator.md). It survives a snapshot (`GroundNavigatorDto.OnAimedLineOverFillet`).
 _Avoid_: lead-in (a lead-in is the along-tangent shortfall before a curve the aircraft is flying)
 
+**Holding distance**:
+How far from a runway's centerline its holding position markings sit: the map's `holdShortDistance`, else the width-based default (`RunwayCrossingDetector.HoldShortDistanceForWidth`). An aircraft is clear of the runway only with its tail past a bar at this distance.
+
+**Continuation past a short bar**:
+An uninstructed runway exit whose own bar is a dead-end fallback inside the holding distance carries on to the same runway's bar on the joining taxiway, e.g. OAK P → J's 28R bar (docs/landing-and-runway-exit.md).
+
 ## Live traffic
 
 **Shadow**:

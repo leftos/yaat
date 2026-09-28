@@ -831,6 +831,9 @@ public sealed class RunwayExitPhase : Phase
         };
         segments.Add(new TaxiRouteSegment { TaxiwayName = _exitTaxiway, Edge = approachEdge.Directed(virtualFromNode, branchNode) });
 
+        // Past the branch taxiway's own bar the path continues onto the joining taxiway (an exit whose bar sits inside the
+        // runway holding distance); those segments carry their own taxiway so the aircraft reads as on it.
+        bool pastBranchBar = false;
         for (int i = 0; i < _exitPath.Count - 1; i++)
         {
             GroundNode fromNode = _exitPath[i];
@@ -842,7 +845,9 @@ public sealed class RunwayExitPhase : Phase
                 return false;
             }
 
-            segments.Add(new TaxiRouteSegment { TaxiwayName = _exitTaxiway, Edge = edge.Directed(fromNode, toNode) });
+            string label = pastBranchBar ? ContinuationTaxiwayName(edge, _exitTaxiway) : _exitTaxiway;
+            segments.Add(new TaxiRouteSegment { TaxiwayName = label, Edge = edge.Directed(fromNode, toNode) });
+            pastBranchBar |= toNode.Type == GroundNodeType.RunwayHoldShort;
         }
 
         // Append a virtual segment past the hold-short node so the aircraft's tail
@@ -867,7 +872,7 @@ public sealed class RunwayExitPhase : Phase
             );
         }
 
-        segments.Add(VirtualNode.CreateSegment(holdShortNode, virtualTarget, _exitTaxiway));
+        segments.Add(VirtualNode.CreateSegment(holdShortNode, virtualTarget, segments[^1].TaxiwayName));
 
         // Never resume onto the past-the-end index: that reads as "route complete" and would end the phase without
         // CompleteExit's cleanup. An aircraft that really is at the last node completes on the coming tick anyway.
@@ -1030,6 +1035,9 @@ public sealed class RunwayExitPhase : Phase
             return false;
         }
 
+        // The taxiway the aircraft holds on: the exit taxiway, or the joining taxiway when the exit continued past a
+        // short bar. The pull-up to a parallel runway walks forward on it.
+        string holdTaxiway = _exitRoute?.Segments[^1].TaxiwayName ?? _exitTaxiway;
         GroundNode comeFromNode = _exitPath[^2];
         (
             GroundNode NearHoldShort,
@@ -1037,7 +1045,7 @@ public sealed class RunwayExitPhase : Phase
             string ParallelRunwayId,
             List<GroundNode> PullUpPath,
             List<GroundNode> CrossingPath
-        )? crossing = ctx.GroundLayout.FindParallelRunwayCrossing(_holdShortNode, comeFromNode, _exitTaxiway, _runwayId);
+        )? crossing = ctx.GroundLayout.FindParallelRunwayCrossing(_holdShortNode, comeFromNode, holdTaxiway, _runwayId);
         if (crossing is not { } xing)
         {
             return false;
@@ -1047,7 +1055,7 @@ public sealed class RunwayExitPhase : Phase
         var fullPath = new List<GroundNode>(xing.PullUpPath);
         fullPath.AddRange(xing.CrossingPath.Skip(1));
 
-        List<TaxiRouteSegment>? segments = BuildRouteSegments(fullPath);
+        List<TaxiRouteSegment>? segments = BuildRouteSegments(fullPath, holdTaxiway);
         if (segments is null)
         {
             Log.LogWarning("[Exit] {Callsign}: could not build parallel-crossing route, holding after exit instead", ctx.Aircraft.Callsign);
@@ -1062,7 +1070,7 @@ public sealed class RunwayExitPhase : Phase
         HoldShortAnnotator.ComputeHoldShortPositions(ctx.GroundLayout, route, lengthFt);
 
         ctx.Aircraft.Ground.AssignedTaxiRoute = route;
-        ctx.Aircraft.Ground.CurrentTaxiway = _exitTaxiway;
+        ctx.Aircraft.Ground.CurrentTaxiway = holdTaxiway;
 
         // Pilot reports clear of the landing runway as it pulls up toward the parallel.
         PilotSpeechText clearText = Pilot.PilotResponder.BuildClearOfRunwayText(ctx.Aircraft, _runwayId, _exitTaxiway);
@@ -1093,7 +1101,21 @@ public sealed class RunwayExitPhase : Phase
     /// Build directional taxi-route segments along the exit taxiway for a node path of real,
     /// adjacency-connected graph nodes. Returns null if any consecutive pair lacks a connecting edge.
     /// </summary>
-    private List<TaxiRouteSegment>? BuildRouteSegments(List<GroundNode> path)
+    /// <summary>
+    /// The taxiway a continuation segment past the branch bar is on: a corner arc joining the exit taxiway to another is
+    /// named for the other one.
+    /// </summary>
+    private static string ContinuationTaxiwayName(IGroundEdge edge, string exitTaxiway)
+    {
+        if (edge is GroundArc { TaxiwayNames.Length: > 1 } arc)
+        {
+            return arc.TaxiwayNames.FirstOrDefault(name => !string.Equals(name, exitTaxiway, StringComparison.OrdinalIgnoreCase)) ?? edge.TaxiwayName;
+        }
+
+        return edge.TaxiwayName;
+    }
+
+    private static List<TaxiRouteSegment>? BuildRouteSegments(List<GroundNode> path, string taxiwayName)
     {
         var segments = new List<TaxiRouteSegment>(path.Count - 1);
         for (int i = 0; i < path.Count - 1; i++)
@@ -1104,7 +1126,7 @@ public sealed class RunwayExitPhase : Phase
                 return null;
             }
 
-            segments.Add(new TaxiRouteSegment { TaxiwayName = _exitTaxiway!, Edge = edge.Directed(path[i], path[i + 1]) });
+            segments.Add(new TaxiRouteSegment { TaxiwayName = taxiwayName, Edge = edge.Directed(path[i], path[i + 1]) });
         }
 
         return segments;

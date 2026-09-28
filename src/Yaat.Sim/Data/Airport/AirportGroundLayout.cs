@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Data.Airport;
@@ -1814,6 +1815,8 @@ public sealed class AirportGroundLayout
             return null;
         }
 
+        (best, bestPath) = ContinueToRunwayHoldingPosition(best, bestPath, runwayDesignator, excludeHoldShortNodes, forbiddenTaxiways);
+
         Log.LogDebug(
             "[ExitBFS] RESULT: centerline #{CL} → HS #{HS} via {Twy} onSide={OnSide} actualSide={Side} path=[{Path}]",
             centerlineNode.Id,
@@ -1825,6 +1828,223 @@ public sealed class AirportGroundLayout
         );
         return (best, bestTaxiway, bestPath, bestSide);
     }
+
+    /// <summary>
+    /// How far short of a runway's holding distance a hold-short bar may sit and still count as at it; also how far beyond
+    /// that distance the continuation past a short bar may reach.
+    /// </summary>
+    public const double HoldingDistanceToleranceFt = 5.0;
+
+    /// <summary>Least outward progress, away from the runway centerline, each continuation step must make.</summary>
+    private const double MinOutwardProgressFt = 1.0;
+
+    /// <summary>
+    /// When the chosen exit bar sits inside the runway's holding distance (a dead-end fallback bar on a branch taxiway
+    /// that ends at another taxiway before the standoff), continues from it onto the joining taxiway, always moving away
+    /// from the centerline, to the same runway's bar at the holding distance. AIM 4-3-21.b: absent instructions the pilot
+    /// taxis beyond the runway holding position markings, even if that requires entering another taxiway. Returns the
+    /// inputs unchanged when the bar is already at the holding distance or no such bar is reachable.
+    /// </summary>
+    private (GroundNode HoldShort, List<GroundNode> Path) ContinueToRunwayHoldingPosition(
+        GroundNode holdShort,
+        List<GroundNode> path,
+        string? runwayDesignator,
+        HashSet<int>? excludeHoldShortNodes,
+        HashSet<string>? forbiddenTaxiways
+    )
+    {
+        string? designator = runwayDesignator ?? holdShort.RunwayId?.End1;
+        if ((designator is null) || (FindRunway(designator) is not { } runway))
+        {
+            return (holdShort, path);
+        }
+
+        RunwayRectangle rect = RunwayCrossingDetector.BuildRunwayRectangle(runway);
+        double holdingFt = rect.HoldShortNm * GeoMath.FeetPerNm;
+        double barFt = CrossTrackFromCenterlineFt(rect, holdShort);
+        if (barFt >= holdingFt - HoldingDistanceToleranceFt)
+        {
+            return (holdShort, path);
+        }
+
+        IReadOnlySet<(int From, int To)> forbiddenMoves = NavigationDatabase.InstanceOrNull is null
+            ? new HashSet<(int From, int To)>()
+            : OneWayResolver.GetForbiddenMoves(this);
+        var walk = new OutwardWalk(rect, designator, holdingFt, excludeHoldShortNodes, forbiddenTaxiways, forbiddenMoves);
+        List<GroundNode>? continuation = WalkOutwardToHoldShort(holdShort, walk);
+        if (continuation is null)
+        {
+            Log.LogDebug(
+                "[ExitBFS] HS #{HS} {Rwy}: {Bar:F0} ft from centerline, inside the {Holding:F0} ft holding distance; no bar beyond it reachable",
+                holdShort.Id,
+                designator,
+                barFt,
+                holdingFt
+            );
+            return (holdShort, path);
+        }
+
+        GroundNode target = continuation[^1];
+        Log.LogDebug(
+            "[ExitBFS] HS #{HS} {Rwy}: {Bar:F0} ft from centerline, inside the {Holding:F0} ft holding distance; continuing to HS #{Target} "
+                + "at {TargetFt:F0} ft via [{Steps}]",
+            holdShort.Id,
+            designator,
+            barFt,
+            holdingFt,
+            target.Id,
+            CrossTrackFromCenterlineFt(rect, target),
+            string.Join("→", continuation.Select(n => n.Id))
+        );
+        return (target, [.. path, .. continuation]);
+    }
+
+    /// <summary>What bounds the continuation from a short exit bar: the runway, its holding distance and the exclusions.</summary>
+    private readonly record struct OutwardWalk(
+        RunwayRectangle Rect,
+        string Designator,
+        double HoldingFt,
+        HashSet<int>? ExcludeHoldShortNodes,
+        HashSet<string>? ForbiddenTaxiways,
+        IReadOnlySet<(int From, int To)> ForbiddenMoves
+    );
+
+    /// <summary>
+    /// Shortest-path search from <paramref name="start"/> over outward steps (<see cref="TryOutwardStep"/>), no longer in
+    /// total than the holding distance, to a free bar of the runway at the holding distance; equal lengths go to the lower
+    /// node id. Returns the nodes after <paramref name="start"/>, ending at that bar, or null when none is within reach.
+    /// </summary>
+    private static List<GroundNode>? WalkOutwardToHoldShort(GroundNode start, OutwardWalk walk)
+    {
+        var bestFt = new Dictionary<int, double> { [start.Id] = 0 };
+        var previous = new Dictionary<int, GroundNode>();
+        var targets = new HashSet<int>();
+        var queue = new PriorityQueue<GroundNode, (double DistFt, int NodeId)>();
+        queue.Enqueue(start, (0, start.Id));
+        while (queue.TryDequeue(out GroundNode? node, out (double DistFt, int NodeId) priority))
+        {
+            if (priority.DistFt > bestFt[node.Id])
+            {
+                continue;
+            }
+
+            if (targets.Contains(node.Id))
+            {
+                return TracePath(start, node, previous);
+            }
+
+            double crossFt = CrossTrackFromCenterlineFt(walk.Rect, node);
+            foreach (IGroundEdge edge in node.Edges)
+            {
+                if (!TryOutwardStep(node, edge, crossFt, walk, out GroundNode next, out bool isTarget))
+                {
+                    continue;
+                }
+
+                double distFt = priority.DistFt + (edge.DistanceNm * GeoMath.FeetPerNm);
+                if ((distFt > walk.HoldingFt) || (bestFt.TryGetValue(next.Id, out double knownFt) && (knownFt <= distFt)))
+                {
+                    continue;
+                }
+
+                bestFt[next.Id] = distFt;
+                previous[next.Id] = node;
+                if (isTarget)
+                {
+                    targets.Add(next.Id);
+                }
+
+                queue.Enqueue(next, (distFt, next.Id));
+            }
+        }
+
+        return null;
+    }
+
+    private static List<GroundNode> TracePath(GroundNode start, GroundNode end, Dictionary<int, GroundNode> previous)
+    {
+        var steps = new List<GroundNode>();
+        for (GroundNode node = end; node.Id != start.Id; node = previous[node.Id])
+        {
+            steps.Add(node);
+        }
+
+        steps.Reverse();
+        return steps;
+    }
+
+    /// <summary>
+    /// One continuation step: off the centerline, not forbidden, at least <see cref="MinOutwardProgressFt"/> farther from
+    /// the centerline and no more than <see cref="HoldingDistanceToleranceFt"/> beyond the holding distance, and not onto
+    /// another runway's bar or an occupied bar. <paramref name="isTarget"/> is set when the step reaches the bar sought.
+    /// </summary>
+    private static bool TryOutwardStep(GroundNode node, IGroundEdge edge, double crossFt, OutwardWalk walk, out GroundNode next, out bool isTarget)
+    {
+        next = edge.OtherNode(node);
+        isTarget = false;
+        if (IsForbiddenOutwardEdge(node, next, edge, walk))
+        {
+            return false;
+        }
+
+        double nextFt = CrossTrackFromCenterlineFt(walk.Rect, next);
+        if ((nextFt < crossFt + MinOutwardProgressFt) || (nextFt > walk.HoldingFt + HoldingDistanceToleranceFt))
+        {
+            return false;
+        }
+
+        OutwardStep step = ClassifyOutwardStep(next, nextFt, walk);
+        isTarget = step == OutwardStep.Target;
+        return step != OutwardStep.Blocked;
+    }
+
+    private static bool IsForbiddenOutwardEdge(GroundNode node, GroundNode next, IGroundEdge edge, OutwardWalk walk)
+    {
+        if (edge.IsRunwayCenterline || walk.ForbiddenMoves.Contains((node.Id, next.Id)))
+        {
+            return true;
+        }
+
+        return (walk.ForbiddenTaxiways is not null) && walk.ForbiddenTaxiways.Any(edge.MatchesTaxiway);
+    }
+
+    private enum OutwardStep
+    {
+        PassThrough,
+        Blocked,
+        Target,
+    }
+
+    /// <summary>
+    /// A non-bar node or a short bar of the same runway is passed through; the same runway's free bar at the holding
+    /// distance is the target; another runway's bar or an occupied bar ends the branch.
+    /// </summary>
+    private static OutwardStep ClassifyOutwardStep(GroundNode node, double crossFt, OutwardWalk walk)
+    {
+        if (node.Type != GroundNodeType.RunwayHoldShort)
+        {
+            return OutwardStep.PassThrough;
+        }
+
+        bool sameRunway = (node.RunwayId is { } rwyId) && rwyId.Contains(walk.Designator);
+        bool excluded = (walk.ExcludeHoldShortNodes is not null) && walk.ExcludeHoldShortNodes.Contains(node.Id);
+        if ((!sameRunway) || excluded)
+        {
+            return OutwardStep.Blocked;
+        }
+
+        return (crossFt >= walk.HoldingFt - HoldingDistanceToleranceFt) ? OutwardStep.Target : OutwardStep.PassThrough;
+    }
+
+    /// <summary>
+    /// The branch taxiway's own bar on an exit path: the first hold-short after the centerline node, which differs from
+    /// the path's end only when <see cref="ContinueToRunwayHoldingPosition"/> continued past a short bar.
+    /// </summary>
+    public static GroundNode FirstHoldShortOnPath(IReadOnlyList<GroundNode> path, GroundNode fallback) =>
+        path.Skip(1).FirstOrDefault(n => n.Type == GroundNodeType.RunwayHoldShort) ?? fallback;
+
+    private static double CrossTrackFromCenterlineFt(in RunwayRectangle rect, GroundNode node) =>
+        Math.Abs(GeoMath.SignedCrossTrackDistanceNm(node.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading)) * GeoMath.FeetPerNm;
 
     /// <summary>
     /// From a landing-runway exit hold-short, find an adjacent parallel runway to cross after
@@ -2775,8 +2995,16 @@ public sealed class AirportGroundLayout
             return null;
         }
 
-        GroundNode from = path[^2];
-        GroundNode to = path[^1];
+        // The exit is the branch taxiway up to its first bar; a path continued past a short bar onto a joining taxiway
+        // (ContinueToRunwayHoldingPosition) keeps the branch's angle, not the joining taxiway's.
+        int endIndex = 1;
+        while ((endIndex < path.Count - 1) && (path[endIndex].Type != GroundNodeType.RunwayHoldShort))
+        {
+            endIndex++;
+        }
+
+        GroundNode from = path[endIndex - 1];
+        GroundNode to = path[endIndex];
         // Prefer the arc when both a preserved straight shortcut and a corner arc join the same node
         // pair — the arc's arrival tangent is the real traversal direction; the chord would understate
         // a reverse corner's sweep.
@@ -2962,7 +3190,9 @@ public sealed class AirportGroundLayout
                         continue;
                     }
 
-                    if (!seen.Add(result.Value.Node.Id))
+                    // Dedupe on the branch's own bar: two exits continued past short bars onto one joining taxiway can end
+                    // at the same bar and are still two exits.
+                    if (!seen.Add(FirstHoldShortOnPath(result.Value.Path, result.Value.Node).Id))
                     {
                         continue;
                     }

@@ -164,9 +164,7 @@ A `HoldShortReason.RouteIncomplete` point ends a route that could not reach its 
   `RouteReachesTaxiway`, which recognise the crossed taxiway via node-incidence, not just a labelled
   segment). Emergent multi-aircraft timing also shifts with any node-position change — recording-replay
   tests that depend on tight timing can desync.
-- **Short taxiways land short.** A taxiway that terminates or merges before reaching the standoff hits
-  `DeadEndFallback` and seats the bar at the farthest reachable point (logged as a warning). This is
-  correct — the aircraft physically cannot hold further out — not a placement bug.
+- **Short taxiways land short.** A taxiway that terminates or merges before reaching the standoff hits `DeadEndFallback` and seats the bar at the farthest reachable point (logged as a warning). For an aircraft holding short inbound that bar is the farthest it can hold; for a runway exit it is not where the aircraft is clear. An uninstructed exit whose bar sits inside the holding distance continues past it to the same runway's bar on the joining taxiway (`AirportGroundLayout.FindAdjacentHoldShort`; see `docs/landing-and-runway-exit.md`, "Exits whose bar sits inside the holding distance"). At OAK the fallback bar on P (#511) has no marking at all: P and J share J's 28R marking (user, 2026-09-27), and dropping such bars is an open plan item.
 - **`holdShortDistance` is from centerline, not from the runway edge.** Do not add half-width.
 
 ## Verify

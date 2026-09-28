@@ -18,6 +18,7 @@
 
 ### Fixed
 
+- Arrivals leaving OAK 28R on P no longer stop half inside the runway's holding area; they turn onto J and hold past J's 28R marking.
 - CRC's ERAM view answers an accepted command with ACCEPT, the command's name and the aircraft, and keeps the Response Area for readouts.
 - A rejected ERAM command shows one specific error, such as FLID NOT STORED, NOT YOUR CONTROL or ALT FORMAT, instead of FORMAT.
 - ERAM checks typed flight IDs and track picks like the real system, rejecting bad formats, non-discrete codes, duplicate flights and the wrong kind of target.
