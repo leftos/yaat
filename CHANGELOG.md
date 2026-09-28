@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.14.0-beta [2026/09/28]
+
+### Highlights
+- CRC's ERAM answers entries like the real system: an ACCEPT readout, or a specific error such as NOT YOUR CONTROL instead of FORMAT.
+- New ERAM entries: `LD`/`LE`, `QX /R` and `QX FP`, `CO`, `QT … CT` coasting, `HM`/`QH` holds, and fix-qualified `AM ALT`.
+- Procedure turns fly their published courses and step down to the final approach fix.
+- Aircraft exiting OAK 28R onto P, or onto COS B1, hold at the right runway marking instead of stopping inside the holding area.
 
 ### Added
 
@@ -14,6 +20,9 @@
 - ERAM `RF`, `QA` and `QV` check their fields and answer ACCEPT; `RF` is no longer taken for a handoff to a sector named RF.
 - ERAM `AM ALT` takes `ABV/170` and `170/SJC/110`, whose second altitude Field B and `QF` show once the aircraft passes the fix; pilots never fly it.
 - ERAM `AM SPD` takes a Mach (`M078`) or `SC`, and `AM RMK` edits the interfacility and intrafacility remarks separately.
+- ERAM `AM` takes several field/value pairs in one entry and changes nothing when any of them is invalid.
+- ERAM `AM` amends the requested altitude (RAL), heavy indicator (SAI), number of aircraft (NUM) and ICAO equipment (EQP); `QF` shows RAL, SAI and NUM.
+- ERAM `AM` deletes the beacon code, remarks, SAI or NUM with `-`, or by leaving the last field's value off.
 
 ### Changed
 
@@ -51,9 +60,6 @@
 - Rewinding a session keeps ERAM on-frequency toggles, data-block leader changes, handoffs, point-outs, DRI halos, minimized point-outs and open full data blocks.
 - ERAM `AM ALT` answers INVALID BLOCKED ALT for a block whose top is not above its floor.
 - A voice-type change from CRC's toggle now survives a rewind.
-- ERAM `AM` takes several field/value pairs in one entry and changes nothing when any of them is invalid.
-- ERAM `AM` amends the requested altitude (RAL), heavy indicator (SAI), number of aircraft (NUM) and ICAO equipment (EQP); `QF` shows RAL, SAI and NUM.
-- ERAM `AM` deletes the beacon code, remarks, SAI or NUM with `-`, or by leaving the last field's value off.
 - After a rewind, ERAM scopes drop the abandoned run's conflict alerts and show the ones active at the new time.
 - ERAM `QP J 3` toggles the reduced 3 NM halo, like `QP T`, and checks its reduced-DRI field.
 - ERAM `QP` points out to up to four sectors, rejecting bad, unadapted or repeated ones; `QB <code> <qualifier>` sets both at once.
