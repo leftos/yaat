@@ -1,4 +1,5 @@
 using System.Globalization;
+using Yaat.Sim.Data;
 
 namespace Yaat.Sim.Commands;
 
@@ -8,8 +9,9 @@ namespace Yaat.Sim.Commands;
 /// §5-13-9; no flight behaviour). A new hold (a location or <c>P</c> in field 21) carries only the instructions field 310
 /// gives: a fix-only hold leaves direction, turns and leg blank (§4-6-4e). The EFC-only, <c>/*</c> and field-310-only
 /// forms read-modify-write the stored hold; <c>C</c> clears it. The live handler checks the entry with
-/// <see cref="ParseHoldFields"/> and <see cref="RefuseHoldEntry"/> before recording it, looking each location up in its
-/// navigation data; <see cref="Apply"/> trusts the recorded location, so a replay does not depend on the navigation data.
+/// <see cref="ParseHoldFields(IReadOnlyList{string}, NavigationDatabase, out EramHoldEntry)"/> and <see cref="RefuseHoldEntry"/>
+/// before recording it, looking each location up in its navigation data; <see cref="Apply"/> reads the recorded entry with
+/// <see cref="ParseRecordedHoldFields"/>, which trusts the location, so a replay does not depend on the navigation data.
 /// </summary>
 public static partial class EramEntryEngine
 {
@@ -43,21 +45,37 @@ public static partial class EramEntryEngine
     private static readonly string[] ClockwisePoints = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 
     /// <summary>
-    /// Fields 21 and 310 of an HM or QH hold entry, in entry order: one field is 310 when it has 310's shape
-    /// (<see cref="IsHoldingInstructionsToken"/>) and 21 otherwise; two are 21 then 310. Cancelling a hold while giving it
-    /// instructions is an invalid combination.
+    /// Fields 21 and 310 of an HM or QH hold entry as the live handler checks them, in entry order: one field is 310 when
+    /// it has 310's shape (<see cref="IsHoldingInstructionsToken"/>) and 21 otherwise; two are 21 then 310. A field 21
+    /// location (a fix, fix radial distance or lat/long, never <c>P</c>) must resolve through
+    /// <see cref="EramFixResolver.ParseLocation"/>. Cancelling a hold while giving it instructions is an invalid combination.
     /// </summary>
     /// <param name="fields">The typed fields, without the verb, the flight ID and the field 60 override.</param>
-    /// <param name="isLocation">
-    /// Whether a field 21 location (a fix, fix radial distance or lat/long, never <c>P</c>) is a valid location: the live
-    /// handler looks it up in its navigation data; a replay of a recorded entry, already checked, answers true.
-    /// </param>
+    /// <param name="navDb">The navigation data each field 21 location is looked up in.</param>
     /// <param name="entry">The parsed entry when the fields are valid; the default otherwise.</param>
     /// <returns>
     /// Null when the fields are valid; otherwise the refusal: too short, too long, <c>COFIE FORMAT</c> naming the field, an
     /// invalid EFC time.
     /// </returns>
-    public static CommandResult? ParseHoldFields(IReadOnlyList<string> fields, Func<string, bool> isLocation, out EramHoldEntry entry)
+    public static CommandResult? ParseHoldFields(IReadOnlyList<string> fields, NavigationDatabase navDb, out EramHoldEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(navDb);
+        return ParseHoldFields(fields, location => EramFixResolver.ParseLocation(location, navDb) is not null, out entry);
+    }
+
+    /// <summary>
+    /// Fields 21 and 310 of a recorded HM or QH hold entry, read as
+    /// <see cref="ParseHoldFields(IReadOnlyList{string}, NavigationDatabase, out EramHoldEntry)"/>
+    /// reads them but trusting every field 21 location: the live handler checked it before recording, so a replay does
+    /// not depend on the navigation data.
+    /// </summary>
+    /// <param name="fields">The recorded fields, without the verb and the flight ID.</param>
+    /// <param name="entry">The parsed entry when the fields are valid; the default otherwise.</param>
+    /// <returns>Null when the fields are valid; otherwise the refusal the live check would give for a malformed shape.</returns>
+    public static CommandResult? ParseRecordedHoldFields(IReadOnlyList<string> fields, out EramHoldEntry entry) =>
+        ParseHoldFields(fields, _ => true, out entry);
+
+    private static CommandResult? ParseHoldFields(IReadOnlyList<string> fields, Func<string, bool> isLocation, out EramHoldEntry entry)
     {
         entry = default;
         if (fields.Count == 0)
@@ -131,7 +149,7 @@ public static partial class EramEntryEngine
     /// <summary>An HM or QH hold entry, checked and recorded by the live handler (see the class remarks).</summary>
     private static CommandResult ApplyHold(AircraftState ac, List<string> args, string verb)
     {
-        if (ParseHoldFields(args, _ => true, out EramHoldEntry entry) is { } refusal)
+        if (ParseRecordedHoldFields(args, out EramHoldEntry entry) is { } refusal)
         {
             return refusal;
         }

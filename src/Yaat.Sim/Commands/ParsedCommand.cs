@@ -1206,7 +1206,15 @@ public record ShowQueuedCommand : ParsedCommand;
 // Flight plan amendment commands
 public record ChangeDestinationCommand(string Airport) : ParsedCommand;
 
-public record CreateFlightPlanCommand(string FlightRules, string AircraftType, int CruiseAltitude, string Route) : ParsedCommand;
+/// <summary><c>FP</c> / <c>VP</c>: files a flight plan.</summary>
+/// <param name="FlightRules"><c>IFR</c>, <c>VFR</c> or <c>OTP</c> (VFR-on-top, an IFR flight).</param>
+/// <param name="AircraftType">The type, with an optional <c>/suffix</c>.</param>
+/// <param name="Altitude">
+/// The filed altitude whole, fix-qualified and above forms included. The rules and the altitude come from one parse, so a
+/// <c>VFR</c> command carries a <see cref="PlannedAltitude.Vfr"/> altitude and the canonical <c>VP</c> text writes only its feet.
+/// </param>
+/// <param name="Route">Departure, en-route elements and destination, space separated.</param>
+public record CreateFlightPlanCommand(string FlightRules, string AircraftType, PlannedAltitude Altitude, string Route) : ParsedCommand;
 
 public record CreateAbbreviatedFlightPlanCommand(
     uint? BeaconCode,

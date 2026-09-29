@@ -106,6 +106,11 @@ internal static class ParsedCommandDummyFactory
             return CrossFixAltitudeType.At;
         }
 
+        if (paramType == typeof(PlannedAltitude))
+        {
+            return PlannedAltitude.Ifr(10000);
+        }
+
         if (paramType.IsGenericType && paramType.GetGenericTypeDefinition() == typeof(List<>))
         {
             return Activator.CreateInstance(paramType);

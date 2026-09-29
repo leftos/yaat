@@ -3138,26 +3138,53 @@ public static class CommandParser
         }
 
         string aircraftType = parts[0].ToUpperInvariant();
-
-        // An IFR plan's altitude may carry the VFR-on-top notation (OTP/NNN, hundreds) — an IFR flight with the OTP
-        // altitude; the parsed command's rules become "OTP" so the notation survives to the filed altitude.
-        string altitudeText = parts[1].ToUpperInvariant();
-        if ((flightRules == "IFR") && altitudeText.StartsWith("OTP/", StringComparison.Ordinal))
-        {
-            flightRules = "OTP";
-            altitudeText = altitudeText[4..];
-        }
-
-        if (!int.TryParse(altitudeText, out int altRaw))
+        if (ParseCreateFlightPlanAltitude(parts[1].ToUpperInvariant(), flightRules) is not { } parsed)
         {
             return PR.Fail($"invalid altitude '{parts[1]}'");
         }
 
-        // IFR altitude in hundreds (≤999 → multiply by 100), VFR is absolute
-        int cruiseAltitude = flightRules != "VFR" && altRaw <= 999 ? altRaw * 100 : altRaw;
-
         string route = string.Join(" ", parts.Skip(2).Select(p => p.ToUpperInvariant()));
-        return PR.Ok(new CreateFlightPlanCommand(flightRules, aircraftType, cruiseAltitude, route));
+        return PR.Ok(new CreateFlightPlanCommand(parsed.Rules, aircraftType, parsed.Altitude, route));
+    }
+
+    /// <summary>
+    /// The altitude of a typed <c>FP</c> / <c>VP</c>. A VFR plan's altitude is a number of feet. An IFR plan's is a number
+    /// in hundreds (above 999, feet), <c>OTP/NNN</c> the same way, or one of the other IFR forms
+    /// <see cref="FlightPlanAltitude.Parse"/> accepts (<c>OTP</c>, <c>A170</c>, <c>170/SJC/110</c>). VFR-on-top files
+    /// under the rules <c>OTP</c> so the notation survives to the filed altitude.
+    /// </summary>
+    /// <returns>The rules and the altitude, or null for a malformed altitude.</returns>
+    private static (string Rules, PlannedAltitude Altitude)? ParseCreateFlightPlanAltitude(string altitudeText, string flightRules)
+    {
+        if (flightRules == "VFR")
+        {
+            return int.TryParse(altitudeText, out int vfrFeet) ? ("VFR", FlightPlanAltitude.FromRulesAndFeet("VFR", vfrFeet)) : null;
+        }
+
+        if (ParseHundredsAltitude(altitudeText) is { } hundreds)
+        {
+            return hundreds;
+        }
+
+        return FlightPlanAltitude.Parse(altitudeText) is ("IFR", { } altitude) ? (altitude.IsVfrOnTop ? "OTP" : "IFR", altitude) : null;
+    }
+
+    /// <summary>
+    /// An IFR plan's numeric altitude, <c>NNN</c> or <c>OTP/NNN</c>: hundreds of feet up to 999, feet above that. The
+    /// <c>OTP/</c> prefix files under the rules <c>OTP</c>.
+    /// </summary>
+    /// <returns>The rules and the altitude, or null when the text (after any <c>OTP/</c>) is not a number.</returns>
+    private static (string Rules, PlannedAltitude Altitude)? ParseHundredsAltitude(string text)
+    {
+        bool otp = text.StartsWith("OTP/", StringComparison.Ordinal);
+        if (!int.TryParse(otp ? text[4..] : text, out int raw))
+        {
+            return null;
+        }
+
+        string rules = otp ? "OTP" : "IFR";
+        int feet = raw <= 999 ? raw * 100 : raw;
+        return (rules, FlightPlanAltitude.FromRulesAndFeet(rules, feet));
     }
 
     /// <summary>

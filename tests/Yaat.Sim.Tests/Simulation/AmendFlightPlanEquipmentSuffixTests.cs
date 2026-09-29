@@ -68,7 +68,9 @@ public class AmendFlightPlanEquipmentSuffixTests(ITestOutputHelper output)
         SimulationEngine engine = BuildEngine();
         AircraftState ac = AddAircraft(engine, "UPS2941", filed: true, equipmentSuffix: "L");
 
-        FlightPlanAmendment amendment = FlightPlanNormalization.FromCreateCommand(new CreateFlightPlanCommand("IFR", "B763", 35000, "KOAK KSFO"));
+        FlightPlanAmendment amendment = FlightPlanNormalization.FromCreateCommand(
+            new CreateFlightPlanCommand("IFR", "B763", PlannedAltitude.Ifr(35000), "KOAK KSFO")
+        );
         engine.AmendFlightPlan("UPS2941", amendment);
 
         Assert.Equal("B763", ac.FlightPlan.AircraftType);

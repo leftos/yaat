@@ -4,10 +4,10 @@ using Microsoft.Extensions.Logging;
 namespace Yaat.Sim.Data;
 
 /// <summary>
-/// Resolves an ERAM fix field to a position: a fix name <c>aa(a)(a)(a)</c>, a fix radial distance
-/// <c>aa(a)(a)(a)ddd1ddd2</c>, or a latitude/longitude <c>dddd(L1)/(d)dddd(L2)</c> (the forms of AM.yaml field 06 and of
-/// the Fix in field 08's <c>(d)dd/Fix/(d)dd</c>). The format checks ERAM answers with an error stay in yaat-server; this
-/// only turns a checked field into a position.
+/// Resolves ERAM fix fields to positions: a fix name <c>aa(a)(a)(a)</c>, a fix radial distance
+/// <c>aa(a)(a)(a)ddd1ddd2</c>, or a latitude/longitude <c>dddd(L1)/(d)dddd(L2)</c>. It owns the format checks for a field
+/// 68 location (<see cref="ParseLocation"/>) and for the Fix of field 08's <c>(d)dd/Fix/(d)dd</c>
+/// (<see cref="IsAltitudeFixForm"/>); yaat-server only maps a null or false result to its ERAM error.
 /// </summary>
 public static class EramFixResolver
 {
@@ -18,6 +18,7 @@ public static class EramFixResolver
     /// <summary>
     /// The position of <paramref name="fix"/>: a lat/long when it holds a <c>/</c>, a fix looked up in
     /// <paramref name="navDb"/> for a name of up to five characters, otherwise an FRD through <see cref="FrdResolver"/>.
+    /// It expects a field <see cref="IsAltitudeFixForm"/> already checked; unchecked input goes through <see cref="ParseLocation"/>.
     /// </summary>
     /// <param name="fix">The fix field, upper case.</param>
     /// <param name="navDb">The navigation data fixes are looked up in.</param>
@@ -43,6 +44,30 @@ public static class EramFixResolver
             Log.LogDebug("ERAM fix {Fix} does not resolve to a position", fix);
         }
         return position;
+    }
+
+    /// <summary>
+    /// Parses an ERAM location (field 68 in its unprefixed form, <c>docs/eram/commands/QH.yaml</c> and <c>QU.yaml</c>): a
+    /// fix or airport <c>aa(a)(a)(a)</c> the navigation data knows; a fix radial distance <c>aa(a)(a)(a)ddd1ddd2</c> with
+    /// the radial 001–360 and the distance 001–999; or a lat/long <see cref="ParseLatLong"/> accepts.
+    /// </summary>
+    /// <param name="token">The location as typed, any case.</param>
+    /// <param name="navDb">The navigation data the fix is looked up in.</param>
+    /// <returns>The position, or null for a malformed, out-of-bounds or unknown location.</returns>
+    public static LatLon? ParseLocation(string token, NavigationDatabase navDb)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(token);
+        ArgumentNullException.ThrowIfNull(navDb);
+        string upper = token.ToUpperInvariant();
+        if (upper.Contains('/'))
+        {
+            return ParseLatLong(upper);
+        }
+        if (IsFixName(upper))
+        {
+            return navDb.GetFixPosition(upper) is { } fix ? new LatLon(fix.Lat, fix.Lon) : null;
+        }
+        return IsFrdForm(upper) ? FrdResolver.Resolve(upper, navDb) : null;
     }
 
     /// <summary>

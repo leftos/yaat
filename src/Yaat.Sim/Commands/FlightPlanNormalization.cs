@@ -114,7 +114,7 @@ public static class FlightPlanNormalization
     {
         (string? departure, string? destination, string? middleRoute) = SplitRoute(command.Route);
         (string? acType, string? equipSuffix) = SplitTypeAndSuffix(command.AircraftType);
-        PlannedAltitude filedAltitude = FlightPlanAltitude.FromRulesAndFeet(command.FlightRules, command.CruiseAltitude);
+        PlannedAltitude filedAltitude = command.Altitude;
         return new FlightPlanAmendment(
             ClearBeaconCode: false,
             AircraftType: acType,

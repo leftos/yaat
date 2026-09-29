@@ -1315,7 +1315,8 @@ public static class CommandDescriber
             CancelAutoDeleteCommand => "Cancel auto-delete",
             ShowQueuedCommand => "Show queued commands",
             ChangeDestinationCommand cmd => $"Change destination to {cmd.Airport}",
-            CreateFlightPlanCommand cmd => $"Create {cmd.FlightRules} flight plan: {cmd.AircraftType}, {cmd.CruiseAltitude:N0} ft, {cmd.Route}",
+            CreateFlightPlanCommand cmd =>
+                $"Create {cmd.FlightRules} flight plan: {cmd.AircraftType}, {DescribeCreateFlightPlanAltitude(cmd.Altitude)}, {cmd.Route}",
             CreateAbbreviatedFlightPlanCommand cmd => DescribeDaNatural(cmd),
             SetRemarksCommand cmd => $"Set remarks: {cmd.Text}",
             NoteCommand cmd => cmd.Text.Length > 0 ? $"Set note: {cmd.Text}" : "Clear note",
@@ -2933,16 +2934,26 @@ public static class CommandDescriber
     private static string VerticalWord(SafetyAlertVertical vertical) => vertical == SafetyAlertVertical.Climb ? "climb" : "descend";
 
     /// <summary>
-    /// The create-FP text carries its rules so it round-trips through the parser: <c>VP</c> with an absolute altitude
-    /// for a VFR plan, <c>FP</c> with hundreds for IFR, and <c>FP … OTP/NNN</c> for VFR-on-top (an IFR flight with the
-    /// OTP altitude notation).
+    /// The create-FP text carries its rules and its whole altitude so it round-trips through the parser: <c>VP</c> with
+    /// an absolute altitude for a VFR plan, <c>FP</c> with the altitude as <see cref="FlightPlanAltitude.Format"/> writes it
+    /// otherwise (<c>170</c>, <c>OTP/170</c>, <c>A170</c>, <c>170/SJC/110</c>), and <c>000</c> for no altitude.
     /// </summary>
-    private static string FormatCreateFlightPlanCanonical(CreateFlightPlanCommand cmd) =>
-        cmd.FlightRules.ToUpperInvariant() switch
+    private static string FormatCreateFlightPlanCanonical(CreateFlightPlanCommand cmd)
+    {
+        if (cmd.FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase))
         {
-            "VFR" => $"VP {cmd.AircraftType} {cmd.CruiseAltitude} {cmd.Route}",
-            "OTP" => $"FP {cmd.AircraftType} OTP/{cmd.CruiseAltitude / 100:D3} {cmd.Route}",
-            _ => $"FP {cmd.AircraftType} {cmd.CruiseAltitude / 100:D3} {cmd.Route}",
+            return $"VP {cmd.AircraftType} {cmd.Altitude.CruiseFeet ?? 0} {cmd.Route}";
+        }
+        string altitude = FlightPlanAltitude.Format(cmd.Altitude);
+        return $"FP {cmd.AircraftType} {(altitude.Length == 0 ? "000" : altitude)} {cmd.Route}";
+    }
+
+    private static string DescribeCreateFlightPlanAltitude(PlannedAltitude altitude) =>
+        altitude switch
+        {
+            { AltitudeFix: { } fix, AfterFixFeet: { } afterFixFeet } => $"{altitude.CruiseFeet ?? 0:N0} ft until {fix}, then {afterFixFeet:N0} ft",
+            { IsAbove: true } => $"above {altitude.CruiseFeet ?? 0:N0} ft",
+            _ => $"{altitude.CruiseFeet ?? 0:N0} ft",
         };
 
     private static string FormatDaCanonical(CreateAbbreviatedFlightPlanCommand cmd)
