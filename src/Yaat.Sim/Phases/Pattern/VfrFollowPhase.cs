@@ -66,6 +66,12 @@ public sealed class VfrFollowPhase(string targetCallsign) : Phase
     public string TargetCallsign { get; private set; } = targetCallsign;
 
     /// <summary>
+    /// The circuit the follower left when FOLLOW moved it off a pattern leg into this pursuit, or null
+    /// when the pursuit did not start from a pattern leg.
+    /// </summary>
+    public FollowPatternReturn? PatternReturn { get; init; }
+
+    /// <summary>
     /// The runway the followed traffic is landing on, captured while the lead is
     /// airborne on a straight-in final/landing. Lets the follower be sequenced onto
     /// that runway's final even after the lead has touched down, instead of cancelling
@@ -755,3 +761,9 @@ public sealed class VfrFollowPhase(string targetCallsign) : Phase
         return phase;
     }
 }
+
+/// <summary>
+/// The pattern a follower flew before FOLLOW sent it into free pursuit of a lead with no runway: the runway,
+/// the circuit direction and the pattern altitude (feet MSL) it re-enters when the follow ends.
+/// </summary>
+public sealed record FollowPatternReturn(RunwayInfo Runway, PatternDirection Direction, double PatternAltitudeFt);

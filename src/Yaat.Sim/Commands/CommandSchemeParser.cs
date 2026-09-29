@@ -1395,7 +1395,7 @@ public static class CommandSchemeParser
     /// <summary>
     /// Expands "WAIT N cmd" and "DELAY N cmd" patterns into "WAIT N; cmd".
     /// Handles chaining: "WAIT 5 WAIT 10 FH 270" → "WAIT 5; WAIT 10; FH 270".
-    /// Also normalizes standalone DELAY N to WAIT N.
+    /// Also normalizes standalone DELAY N to WAIT N, and rewrites "WAIT 1NM" / "DELAY 1.5NM" to "WAITD 1" / "WAITD 1.5".
     /// </summary>
     public static string ExpandWait(string input)
     {
@@ -1415,6 +1415,8 @@ public static class CommandSchemeParser
 
         return string.Join("; ", result);
     }
+
+    private static readonly Regex WaitNauticalMilesArgument = new(@"^(\d+(?:\.\d+)?)NM$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static void ExpandWaitBlock(string block, List<string> result)
     {
@@ -1441,6 +1443,19 @@ public static class CommandSchemeParser
         if (tokens.Length < 2)
         {
             result.Add(block);
+            return;
+        }
+
+        // WAIT 1NM ... → WAITD 1; ... (distance delay written with an NM suffix)
+        Match nauticalMiles = WaitNauticalMilesArgument.Match(tokens[1]);
+        if (nauticalMiles.Success)
+        {
+            result.Add($"WAITD {nauticalMiles.Groups[1].Value}");
+            if (tokens.Length > 2)
+            {
+                ExpandWaitBlock(string.Join(" ", tokens[2..]), result);
+            }
+
             return;
         }
 

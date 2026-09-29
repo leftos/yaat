@@ -232,6 +232,7 @@ Use `WAIT` and `WAITD` to delay the next command in a `;` sequence by time or di
 |---------|--------|
 | `WAIT 30` | Wait 30 seconds before executing the next block |
 | `WAITD 4` | Fly 4 nautical miles before executing the next block |
+| `WAIT 1NM` / `DELAY 1.5NM` | Same as `WAITD 1` / `WAITD 1.5`: a number with an `NM` suffix (any case, decimals allowed) is a distance |
 
 These commands occupy their own block in a compound sequence and do not change the aircraft's heading, altitude, or speed. They simply delay progression to the next block.
 
@@ -691,7 +692,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | Release departure | `REL SJC` | `CTOA` | `REL N123` releases a specific aircraft; `REL SJC 2` releases the field's queue 2 min apart (global) |
 | Call for release | `CFR 1830` | — | Marks the selected departure released with a −2/+1 min CFR window; alerts the instructor if it departs outside it. `CFR` = immediate release; `CFR OFF` clears; `CFR CHECK` prints the window status |
 | Wait (seconds) | `WAIT 30` | — | — |
-| Wait (distance) | `WAITD 4` | — | — |
+| Wait (distance) | `WAITD 4` | — | `WAIT 4NM` and `DELAY 4NM` mean `WAITD 4` |
 | Timer | `TIMER 5:00 text` | `TMR` | Countdown reminder; on expiry posts a green SAY (`text`, or `timer expired`). Global, or prefix a callsign. `TIMER CANCEL <id\|ALL>` cancels |
 | Bookmark | `BM Go-around 28R` | `BOOKMARK` | Marks the current timeline position (global). `BM LIST`, `BM REN <id> <name>`, `BM DEL <id\|ALL>`, `BM GO <id>`, `BM NEXT`, `BM PREV` |
 | Add aircraft | `ADD IFR H J ...` | — | — |

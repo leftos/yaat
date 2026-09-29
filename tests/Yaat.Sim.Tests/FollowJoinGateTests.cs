@@ -395,24 +395,15 @@ public class FollowJoinGateTests
     // (AIM §4-3-3 FIG 4-3-3 note 7). Priority: lead's circuit → runway natural side →
     // follower's side → left.
 
-    private static AircraftState MakeLeadOnFinal(RunwayInfo rwy, PatternDirection? trafficDirection)
-    {
-        AircraftState lead = MakeVfr(Leader, OffFinal(rwy, 2.0, 0), rwy.TrueHeading, altitude: 650, ias: 75);
-        lead.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = trafficDirection };
-        lead.Phases.Add(new FinalApproachPhase());
-        return lead;
-    }
-
     [Fact]
     public void ChooseFollowJoinDirection_LeadCircuitDirection_WinsOverFollowerSide()
     {
         RunwayInfo rwy = Runway28R();
-        AircraftState lead = MakeLeadOnFinal(rwy, PatternDirection.Right);
         // Follower on the LEFT (south) side — the lead's right circuit still wins; the
         // follower crosses midfield per AIM §4-3-3.1.b rather than flying an opposing circuit.
         AircraftState follower = MakeVfr(Follower, OffFinal(rwy, 1.0, -1.0), new TrueHeading(100), 1000, 90);
 
-        Assert.Equal(PatternDirection.Right, CommandDispatcher.ChooseFollowJoinDirection(follower, lead, rwy));
+        Assert.Equal(PatternDirection.Right, CommandDispatcher.ChooseFollowJoinDirection(follower, PatternDirection.Right, rwy));
     }
 
     [Fact]
@@ -425,10 +416,9 @@ public class FollowJoinGateTests
         {
             return;
         }
-        AircraftState lead = MakeLeadOnFinal(rwy, trafficDirection: null);
         AircraftState follower = MakeVfr(Follower, OffFinal(rwy, 1.0, -1.0), new TrueHeading(112), 1000, 90);
 
-        Assert.Equal(PatternDirection.Right, CommandDispatcher.ChooseFollowJoinDirection(follower, lead, rwy));
+        Assert.Equal(PatternDirection.Right, CommandDispatcher.ChooseFollowJoinDirection(follower, null, rwy));
     }
 
     [Fact]
@@ -438,11 +428,56 @@ public class FollowJoinGateTests
         // so the follower's own side decides. 280° runway: right-hand side is +90° (north).
         RunwayInfo rwy = Runway28R();
         using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
-        AircraftState lead = MakeLeadOnFinal(rwy, trafficDirection: null);
         AircraftState north = MakeVfr(Follower, OffFinal(rwy, 1.0, 1.0), new TrueHeading(100), 1000, 90);
         AircraftState south = MakeVfr(Follower, OffFinal(rwy, 1.0, -1.0), new TrueHeading(100), 1000, 90);
 
-        Assert.Equal(PatternDirection.Right, CommandDispatcher.ChooseFollowJoinDirection(north, lead, rwy));
-        Assert.Equal(PatternDirection.Left, CommandDispatcher.ChooseFollowJoinDirection(south, lead, rwy));
+        Assert.Equal(PatternDirection.Right, CommandDispatcher.ChooseFollowJoinDirection(north, null, rwy));
+        Assert.Equal(PatternDirection.Left, CommandDispatcher.ChooseFollowJoinDirection(south, null, rwy));
+    }
+
+    // ─── Lead ahead of the follower's track (FOLLOW from base onto a runwayless lead) ───
+
+    /// <summary>Follower tracking 190° (a right base to 28R); lead 1 nm away on the given relative bearing.</summary>
+    private static (AircraftState Follower, AircraftState Lead) AheadPair(double relativeBearingDeg)
+    {
+        var origin = new LatLon(37.70, -122.15);
+        var track = new TrueHeading(190);
+        AircraftState follower = MakeVfr(Follower, origin, track, 1000, 90);
+        AircraftState lead = MakeVfr(Leader, GeoMath.ProjectPoint(origin, track + relativeBearingDeg, 1.0), new TrueHeading(280), 1000, 90);
+        return (follower, lead);
+    }
+
+    [Theory]
+    [InlineData(0.0)]
+    [InlineData(59.0)]
+    [InlineData(-59.0)]
+    public void IsLeadAheadOfTrack_WithinSixtyDegrees_IsAhead(double relativeBearingDeg)
+    {
+        (AircraftState follower, AircraftState lead) = AheadPair(relativeBearingDeg);
+
+        Assert.True(AirborneFollowHelper.IsLeadAheadOfTrack(follower, lead));
+    }
+
+    [Theory]
+    [InlineData(61.0)]
+    [InlineData(-61.0)]
+    [InlineData(90.0)]
+    [InlineData(180.0)]
+    public void IsLeadAheadOfTrack_BeyondSixtyDegrees_IsNotAhead(double relativeBearingDeg)
+    {
+        (AircraftState follower, AircraftState lead) = AheadPair(relativeBearingDeg);
+
+        Assert.False(AirborneFollowHelper.IsLeadAheadOfTrack(follower, lead));
+    }
+
+    [Fact]
+    public void IsLeadAheadOfTrack_UsesTrackNotHeading()
+    {
+        // Crabbing 20° into the wind: heading 170°, track 190°. A lead 65° left of the track is only
+        // 45° left of the nose, and must still count as not ahead: the track is what closes on it.
+        (AircraftState follower, AircraftState lead) = AheadPair(-65.0);
+        follower.TrueHeading = new TrueHeading(170);
+
+        Assert.False(AirborneFollowHelper.IsLeadAheadOfTrack(follower, lead));
     }
 }

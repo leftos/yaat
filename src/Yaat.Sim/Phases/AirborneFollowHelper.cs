@@ -141,6 +141,20 @@ public static class AirborneFollowHelper
     /// </summary>
     public const double MaxFollowExtensionNm = 4.0;
 
+    /// <summary>Half-width (deg) of the cone about the follower's track inside which a lead counts as ahead.</summary>
+    public const double LeadAheadOfTrackMaxDeg = 60.0;
+
+    /// <summary>
+    /// True when the bearing from <paramref name="follower"/> to <paramref name="lead"/> lies within
+    /// <see cref="LeadAheadOfTrackMaxDeg"/> of the follower's ground track (bounds inclusive). The track, not
+    /// the heading, is what closes on the lead, so a crab does not change the answer.
+    /// </summary>
+    public static bool IsLeadAheadOfTrack(AircraftState follower, AircraftState lead)
+    {
+        var bearingToLead = new TrueHeading(GeoMath.BearingTo(follower.Position, lead.Position));
+        return follower.TrueTrack.AbsAngleTo(bearingToLead) <= LeadAheadOfTrackMaxDeg;
+    }
+
     /// <summary>
     /// Per-tick lifecycle watchdog for any aircraft with
     /// <see cref="AircraftApproachState.FollowingCallsign"/> set. Cancels follow

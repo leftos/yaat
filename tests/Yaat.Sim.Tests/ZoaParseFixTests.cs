@@ -1,3 +1,4 @@
+using System.Globalization;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -87,6 +88,59 @@ public class ZoaParseFixTests : IDisposable
     [InlineData("FH 270")]
     [InlineData("CM 5000; SPD 250")]
     public void ExpandWait_LeavesNonWaitInputUnchanged(string input) => Assert.Equal(input, CommandSchemeParser.ExpandWait(input));
+
+    [Theory]
+    [InlineData("WAIT 1NM ERB 28R", "WAITD 1; ERB 28R")]
+    [InlineData("DELAY 1.5nm FH 270", "WAITD 1.5; FH 270")]
+    [InlineData("wait 2Nm", "WAITD 2")]
+    [InlineData("WAIT 5 WAIT 1NM FH 270", "WAIT 5; WAITD 1; FH 270")]
+    [InlineData("WAIT 1 NM ERB 28R", "WAITD 1; ERB 28R")]
+    [InlineData("DELAY 2 nm", "WAITD 2")]
+    [InlineData("WAIT .5NM", "WAITD 0.5")]
+    [InlineData("WAIT .5 NM FH 270", "WAITD 0.5; FH 270")]
+    public void ExpandWait_NauticalMileArgument_RewritesToWaitDistance(string input, string expected) =>
+        Assert.Equal(expected, CommandSchemeParser.ExpandWait(input));
+
+    [Theory]
+    [InlineData("WAIT 30", "WAIT 30")]
+    [InlineData("WAIT BRIXX", "AT BRIXX")]
+    [InlineData("WAIT 1.5NMX", "AT 1.5NMX")]
+    [InlineData("WAIT NM", "AT NM")]
+    public void ExpandWait_NonNauticalMileArgument_KeepsExistingRewrite(string input, string expected) =>
+        Assert.Equal(expected, CommandSchemeParser.ExpandWait(input));
+
+    [Fact]
+    public void ParseCompound_WaitNmThenErb_ReturnsWaitDistanceThenRightBase()
+    {
+        ParseResult<CompoundCommand> result = CommandParser.ParseCompound("WAIT 1NM ERB 28R");
+
+        Assert.True(result.IsSuccess, result.Reason);
+        Assert.Equal(2, result.Value!.Blocks.Count);
+        WaitDistanceCommand wait = Assert.IsType<WaitDistanceCommand>(result.Value!.Blocks[0].Commands[0]);
+        Assert.Equal(1.0, wait.DistanceNm);
+        EnterRightBaseCommand erb = Assert.IsType<EnterRightBaseCommand>(result.Value!.Blocks[1].Commands[0]);
+        Assert.Equal("28R", erb.RunwayId);
+    }
+
+    [Fact]
+    public void ParseCompound_WaitDistanceDecimal_UnderCommaDecimalCulture_ParsesInvariant()
+    {
+        CultureInfo previous = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("de-DE");
+
+            ParseResult<CompoundCommand> result = CommandParser.ParseCompound("WAIT 1.5NM FH 270");
+
+            Assert.True(result.IsSuccess, result.Reason);
+            WaitDistanceCommand wait = Assert.IsType<WaitDistanceCommand>(result.Value!.Blocks[0].Commands[0]);
+            Assert.Equal(1.5, wait.DistanceNm);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previous;
+        }
+    }
 
     [Fact]
     public void ParseCompound_WaitThenHeading_ReturnsTwoBlocks()

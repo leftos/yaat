@@ -2327,6 +2327,33 @@ internal static class PatternCommandHandler
     public static bool HasQueuedPatternEntry(AircraftState aircraft) => FindQueuedPatternEntry(aircraft) is not null;
 
     /// <summary>
+    /// The runway (normalized designator) and circuit direction of the first unfired pattern entry in the
+    /// command queue — <c>ERB 28R</c> behind <c>DCT VPCBT</c> gives ("28R", Right); <c>EF 28R</c> gives
+    /// ("28R", null). Null when nothing is queued, or when the queued entry names no runway (a bare ERB),
+    /// since then the runway is not known until the entry fires. Recovers the commands of a block restored
+    /// from a snapshot by re-parsing its source text.
+    /// </summary>
+    public static (string RunwayId, PatternDirection? Direction)? QueuedPatternEntry(AircraftState aircraft)
+    {
+        ParsedCommand? entry = FindQueuedPatternEntry(aircraft);
+        if ((entry is null) || (PatternEntryRunwayOf(entry) is not { } rawRunwayId))
+        {
+            return null;
+        }
+
+        return (RunwayIdentifier.NormalizeDesignator(rawRunwayId), PatternEntryDirectionOf(entry));
+    }
+
+    /// <summary>The circuit direction a pattern-entry command names: Right for ERx, Left for ELx, null for EF or a non-entry.</summary>
+    private static PatternDirection? PatternEntryDirectionOf(ParsedCommand command) =>
+        command switch
+        {
+            EnterLeftDownwindCommand or EnterLeftCrosswindCommand or EnterLeftBaseCommand => PatternDirection.Left,
+            EnterRightDownwindCommand or EnterRightCrosswindCommand or EnterRightBaseCommand => PatternDirection.Right,
+            _ => null,
+        };
+
+    /// <summary>
     /// Layer-2 pre-arm for a landing/option clearance (CLAND/TG/SG/LA/COPT) whose approach does not exist
     /// yet because the pattern entry that would build it is still queued — e.g. CLAND while <c>ERD 28R</c>
     /// sits behind <c>DCT VPCOL</c>.

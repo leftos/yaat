@@ -3736,6 +3736,20 @@ public static class CommandDispatcher
                 or DownwindPhase
                 or BasePhase
                 or FinalApproachPhase;
+
+        // A lead with no current runway (free flight, perhaps with a pattern entry queued behind a DCT)
+        // gives the in-place retarget below nothing to sequence against — the follower would keep its own
+        // leg and the follow would change nothing. Route it through the pattern-leg table instead.
+        if (
+            followerOnPatternLeg
+            && (leadAircraft is { IsOnGround: false } runwaylessLead)
+            && (runwaylessLead.Phases?.AssignedRunway is null)
+            && (aircraft.Phases?.AssignedRunway is { } followerRunway)
+        )
+        {
+            return TryFollowFromPatternLeg(aircraft, runwaylessLead, target, followerRunway, ctx);
+        }
+
         bool crossRunway = followerOnPatternLeg && IsLeadOnDifferentRunway(aircraft, leadAircraft);
 
         // A cross-runway re-sequence needs room to maneuver. From Base or FinalApproach the
@@ -3797,7 +3811,7 @@ public static class CommandDispatcher
             bool leadOnFinal = establishedLead.Phases.CurrentPhase is FinalApproachPhase or LandingPhase;
             if (!(leadOnFinal && CanJoinLeadFinalDirectly(aircraft, leadRunway)))
             {
-                PatternDirection joinDirection = ChooseFollowJoinDirection(aircraft, establishedLead, leadRunway);
+                PatternDirection joinDirection = ChooseFollowJoinDirection(aircraft, establishedLead.Phases.TrafficDirection, leadRunway);
                 CommandResult entryResult = PatternCommandHandler.TryEnterPattern(
                     aircraft,
                     joinDirection,
@@ -3831,20 +3845,161 @@ public static class CommandDispatcher
             return Ok($"Follow {target}");
         }
 
-        // Otherwise install a fresh VfrFollowPhase, replacing any existing phases.
-        // Build a new PhaseList (mirrors ApproachCommandHandler.TryClearedVisualApproach)
-        // so we don't inherit stale phase indices from the old list.
-        if (aircraft.Phases is { } existing)
+        InstallVfrFollowPhase(aircraft, target, patternReturn: null);
+        return Ok($"Follow {target}");
+    }
+
+    /// <summary>
+    /// FOLLOW from a pattern leg when the lead has no current runway:
+    /// <list type="bullet">
+    /// <item>lead queued to enter the pattern for a different runway — from base or final, refuse (the
+    /// same low, close-in re-sequence the cross-runway refusal covers); from any other leg, build a
+    /// pattern entry to the queued runway, as the cross-runway re-sequence does;</item>
+    /// <item>otherwise (nothing queued, or an entry for the follower's own runway) — trail the lead in free
+    /// pursuit with a pattern return to the follower's circuit; from final, refuse (nothing to trail onto
+    /// that close in); from base, only when the lead is ahead within ±60° of the follower's track.</item>
+    /// </list>
+    /// </summary>
+    private static CommandResult TryFollowFromPatternLeg(
+        AircraftState aircraft,
+        AircraftState lead,
+        string target,
+        RunwayInfo followerRunway,
+        DispatchContext ctx
+    )
+    {
+        Phase? current = aircraft.Phases?.CurrentPhase;
+        string ownRunwayId = RunwayIdentifier.NormalizeDesignator(followerRunway.Designator);
+
+        if (
+            (PatternCommandHandler.QueuedPatternEntry(lead) is { } queued)
+            && !string.Equals(queued.RunwayId, ownRunwayId, StringComparison.OrdinalIgnoreCase)
+        )
         {
-            PhaseContext clearCtx = BuildMinimalContext(aircraft, groundLayout: null);
-            existing.Clear(clearCtx);
+            if (current is BasePhase or FinalApproachPhase)
+            {
+                return new CommandResult(
+                    false,
+                    $"Unable, established for runway {followerRunway.Designator} — vector or go around to follow {target}"
+                );
+            }
+
+            return FollowOntoQueuedRunway(aircraft, target, queued.RunwayId, lead.Phases?.TrafficDirection ?? queued.Direction, ctx);
         }
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.Phases.Add(new VfrFollowPhase(target));
-        PhaseContext startCtx = BuildMinimalContext(aircraft, groundLayout: null);
-        aircraft.Phases.Start(startCtx);
+
+        if (current is FinalApproachPhase)
+        {
+            return new CommandResult(false, $"Unable, on final for runway {followerRunway.Designator} — vector or go around to follow {target}");
+        }
+
+        if ((current is BasePhase) && !AirborneFollowHelper.IsLeadAheadOfTrack(aircraft, lead))
+        {
+            return new CommandResult(false, $"Unable, {target} not ahead of base for runway {followerRunway.Designator} — vector to follow {target}");
+        }
+
+        InstallVfrFollowPhase(aircraft, target, BuildFollowPatternReturn(aircraft, followerRunway, ctx.GroundLayout));
+        return Ok($"Follow {target}");
+    }
+
+    /// <summary>
+    /// Re-sequence a follower onto the runway its runwayless lead is queued to enter: a downwind entry to that
+    /// runway on the lead's circuit side, falling back to the side the queued entry names (ERx right, ELx left),
+    /// then <see cref="ChooseFollowJoinDirection(AircraftState, PatternDirection?, RunwayInfo)"/>'s defaults.
+    /// </summary>
+    private static CommandResult FollowOntoQueuedRunway(
+        AircraftState aircraft,
+        string target,
+        string queuedRunwayId,
+        PatternDirection? leadDirection,
+        DispatchContext ctx
+    )
+    {
+        string airportId = aircraft.Phases!.AssignedRunway!.AirportId;
+        RunwayInfo? queuedRunway = NavigationDatabase.Instance.GetRunway(airportId, queuedRunwayId);
+        if (queuedRunway is null)
+        {
+            return new CommandResult(false, $"Runway {RunwayIdentifier.ToDisplayDesignator(queuedRunwayId)} not found at {airportId}");
+        }
+
+        PatternDirection joinDirection = ChooseFollowJoinDirection(aircraft, leadDirection, queuedRunway);
+        CommandResult entryResult = PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            joinDirection,
+            PatternEntryLeg.Downwind,
+            runwayId: queuedRunway.Designator,
+            finalDistanceNm: null,
+            groundLayout: ctx.GroundLayout
+        );
+        if (!entryResult.Success)
+        {
+            return entryResult;
+        }
+
         aircraft.Approach.FollowingCallsign = target;
         return Ok($"Follow {target}");
+    }
+
+    /// <summary>
+    /// The circuit a follower leaves when FOLLOW sends it into pursuit from a pattern leg: its runway, and the
+    /// direction and pattern altitude of the circuit it was flying (read from that circuit's waypoints, or
+    /// resolved as the circuit builder would when no leg carries them).
+    /// </summary>
+    private static FollowPatternReturn BuildFollowPatternReturn(AircraftState aircraft, RunwayInfo runway, AirportGroundLayout? groundLayout)
+    {
+        PatternWaypoints? waypoints = aircraft.Phases?.Phases.Select(PatternWaypointsOf).FirstOrDefault(w => w is not null);
+        if (waypoints is not null)
+        {
+            return new FollowPatternReturn(runway, waypoints.Direction, waypoints.PatternAltitude);
+        }
+
+        PatternDirection direction =
+            aircraft.Phases?.TrafficDirection
+            ?? aircraft.Pattern.TrafficDirection
+            ?? GoAroundHelper.InferDefaultPatternDirection(runway)
+            ?? PatternDirection.Left;
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        (double? _, double? altitudeOverrideFt) = PatternGeometry.ResolveAuthoredOverrides(
+            runway,
+            (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
+            category,
+            commandSizeNm: null,
+            aircraft.Pattern.AltitudeOverrideFt
+        );
+        double patternAltitudeFt = altitudeOverrideFt ?? (runway.AirportElevationFt + CategoryPerformance.PatternAltitudeAgl(category));
+        return new FollowPatternReturn(runway, direction, patternAltitudeFt);
+    }
+
+    private static PatternWaypoints? PatternWaypointsOf(Phase phase) =>
+        phase switch
+        {
+            UpwindPhase p => p.Waypoints,
+            CrosswindPhase p => p.Waypoints,
+            DownwindPhase p => p.Waypoints,
+            BasePhase p => p.Waypoints,
+            MidfieldCrossingPhase p => p.Waypoints,
+            TeardropReentryPhase p => p.Waypoints,
+            _ => null,
+        };
+
+    /// <summary>
+    /// Replace the follower's phases with a fresh <see cref="VfrFollowPhase"/> pursuing <paramref name="target"/>.
+    /// A new PhaseList (mirrors ApproachCommandHandler.TryClearedVisualApproach) so no stale phase index is
+    /// inherited; the standing landing-family clearance and its runway are carried onto it, so a follower
+    /// cleared before FOLLOW keeps its clearance through the pursuit.
+    /// </summary>
+    internal static void InstallVfrFollowPhase(AircraftState aircraft, string target, FollowPatternReturn? patternReturn)
+    {
+        ClearanceType? standingClearance = aircraft.Phases?.LandingClearance;
+        string? standingClearedRunwayId = aircraft.Phases?.ClearedRunwayId;
+        if (aircraft.Phases is { } existing)
+        {
+            existing.Clear(BuildMinimalContext(aircraft, groundLayout: null));
+        }
+
+        aircraft.Phases = new PhaseList { LandingClearance = standingClearance, ClearedRunwayId = standingClearedRunwayId };
+        aircraft.Phases.Phases.Add(new VfrFollowPhase(target) { PatternReturn = patternReturn });
+        aircraft.Phases.Start(BuildMinimalContext(aircraft, groundLayout: null));
+        aircraft.Approach.FollowingCallsign = target;
     }
 
     /// <summary>
@@ -3930,8 +4085,8 @@ public static class CommandDispatcher
     private const double FollowJoinSideEpsilonNm = 0.25;
 
     /// <summary>
-    /// Pattern side for a follow-driven pattern join: the lead's own circuit direction
-    /// first, then the runway's natural direction (parallel-runway inference — 28R with
+    /// Pattern side for a follow-driven pattern join: <paramref name="leadDirection"/> (the lead's
+    /// circuit, already resolved by the caller; null when it flies none) first, then the runway's natural direction (parallel-runway inference — 28R with
     /// 28L present flies right traffic), then the side the follower happens to occupy,
     /// then the FAA default Left (AIM §4-3-3). The runway's established circuit must win:
     /// joining on whatever side the follower momentarily occupies can build an opposing
@@ -3942,11 +4097,11 @@ public static class CommandDispatcher
     /// <see cref="PatternCommandHandler.TryEnterPattern"/>'s wrong-side path — crossing
     /// the field at TPA is the maneuver the AIM prescribes for exactly this geometry.
     /// </summary>
-    internal static PatternDirection ChooseFollowJoinDirection(AircraftState follower, AircraftState lead, RunwayInfo runway)
+    internal static PatternDirection ChooseFollowJoinDirection(AircraftState follower, PatternDirection? leadDirection, RunwayInfo runway)
     {
-        if (lead.Phases?.TrafficDirection is { } leadDirection)
+        if (leadDirection is { } direction)
         {
-            return leadDirection;
+            return direction;
         }
         if (GoAroundHelper.InferDefaultPatternDirection(runway) is { } naturalDirection)
         {
