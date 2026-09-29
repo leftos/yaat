@@ -372,6 +372,12 @@ public sealed partial class SimulationEngine
             host.OnEramCrrGroupsChanged();
         }
 
+        if (EramConflictSettingsChanged)
+        {
+            EramConflictSettingsChanged = false;
+            host.OnEramConflictSettingsChanged();
+        }
+
         DrainDisconnectCoastClearsInto(host);
     }
 }

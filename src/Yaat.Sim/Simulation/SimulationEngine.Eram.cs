@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Simulation.Eram;
 
 namespace Yaat.Sim.Simulation;
@@ -63,5 +64,53 @@ public sealed partial class SimulationEngine
         EramCrrColor color = Enum.TryParse<EramCrrColor>(group.Color, ignoreCase: true, out EramCrrColor parsed) ? parsed : EramCrrColor.White;
         CrrGroups[label] = new EramCrrGroup(label, color, lat, lon);
         MarkEramCrrGroupsChanged();
+    }
+
+    /// <summary>
+    /// The room's per-facility ERAM conflict-alert settings (the <c>CA</c> entry). Engine state on every run kind,
+    /// snapshotted beside the CRR groups and reset with them. Detection never reads it — <see cref="EramConflicts"/> and
+    /// what the AI controllers see stay whole — so it only decides what a host shows each sector.
+    /// </summary>
+    public EramRoomSettings EramRoomSettings { get; } = new();
+
+    /// <summary>
+    /// True when <see cref="ApplyEramRoomEntry"/> has applied an entry since the last drain. Payload-less: a host
+    /// re-evaluates what each sector is shown from <see cref="EramRoomSettings"/> itself.
+    /// </summary>
+    internal bool EramConflictSettingsChanged { get; private set; }
+
+    /// <summary>Marks the settings dirty; the next drain hands the host one <c>OnEramConflictSettingsChanged</c>.</summary>
+    internal void MarkEramConflictSettingsChanged() => EramConflictSettingsChanged = true;
+
+    /// <summary>
+    /// Takes the flag and clears it, for a path that mutates the engine outside both the action router's drain and
+    /// the post-physics one — the same escape the CRR-group flag has.
+    /// </summary>
+    internal bool DrainEramConflictSettingsChanged()
+    {
+        bool changed = EramConflictSettingsChanged;
+        EramConflictSettingsChanged = false;
+        return changed;
+    }
+
+    /// <summary>
+    /// Applies one recorded conflict-alert settings entry. An entry outside the four recorded shapes is a recording bug
+    /// rather than user input: it is logged, changes nothing and returns false.
+    /// </summary>
+    public bool ApplyEramRoomEntry(RecordedEramRoomEntry entry)
+    {
+        if (!EramRoomSettings.TryApply(entry.FacilityId, entry.Entry))
+        {
+            _logger.LogWarning(
+                "Ignoring malformed ERAM room entry {Entry} for facility {Facility} at {Elapsed}s",
+                entry.Entry,
+                entry.FacilityId,
+                entry.ElapsedSeconds
+            );
+            return false;
+        }
+
+        MarkEramConflictSettingsChanged();
+        return true;
     }
 }

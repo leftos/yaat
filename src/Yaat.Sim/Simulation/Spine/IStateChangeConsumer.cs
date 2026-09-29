@@ -61,6 +61,13 @@ public interface IStateChangeConsumer
     void OnEramCrrGroupsChanged();
 
     /// <summary>
+    /// The ERAM conflict-alert settings changed — a <c>CA</c> entry turned a function or a sector display on or off.
+    /// Payload-less: the host re-evaluates what each sector is shown from <c>SimulationEngine.EramRoomSettings</c>.
+    /// Same suppression rule as <see cref="OnStripsChanged"/>.
+    /// </summary>
+    void OnEramConflictSettingsChanged();
+
+    /// <summary>
     /// The ASDE-X Safety Logic alerts the post-physics detector pass raised and cleared this second. The diff rather
     /// than the whole set, because CRC's alert topic is additive with an explicit delete: the new alerts go out as
     /// <c>ReceiveAsdexAlerts</c> and the cleared ids as <c>DeleteAsdexAlerts</c>. Never called with both sides empty.

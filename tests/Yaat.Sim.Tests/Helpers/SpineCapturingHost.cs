@@ -74,6 +74,15 @@ public sealed class SpineCapturingHost(ISimulationHost inner) : ISimulationHost
         _inner.OnEramCrrGroupsChanged();
     }
 
+    /// <summary>How many times a drain — the router's or the spine's — reported the ERAM conflict-alert settings changed.</summary>
+    public int EramConflictSettingsChangeCount { get; private set; }
+
+    public void OnEramConflictSettingsChanged()
+    {
+        EramConflictSettingsChangeCount++;
+        _inner.OnEramConflictSettingsChanged();
+    }
+
     /// <summary>Every ASDE-X Safety Logic diff the post-physics detector step handed over, in order.</summary>
     public List<(IReadOnlyList<AsdexSafetyAlert> NewAlerts, IReadOnlyList<string> ClearedAlertIds)> AsdexAlertChanges { get; } = [];
 

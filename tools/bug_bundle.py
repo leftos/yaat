@@ -1283,6 +1283,7 @@ _ACTION_TAGS = {
     "HoldAnnotationChange": "HOLD",
     "EramEntry": "ERAM",
     "EramCrrGroup": "CRR",
+    "EramRoomEntry": "ERAMRM",
     "StripRequest": "STRIP",
     "AsdexSafetyLogicChange": "ASDXSL",
     "AttendanceChange": "ATTEND",

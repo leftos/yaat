@@ -342,6 +342,7 @@ public sealed partial class SimulationEngine
         // Reset engine-level state, then restore from snapshot if available
         ConsolidationState.Clear();
         ConflictAlerts.Conflicts.Clear();
+        EramConflicts.Conflicts.Clear();
         EramConflicts.ClearRemovedWithAircraft();
         SoloTrainingEvaluator.Reset();
         BeaconCodePool.Clear();
@@ -384,6 +385,9 @@ public sealed partial class SimulationEngine
         {
             CrrGroups[group.Label] = new EramCrrGroup(group.Label, group.Color, group.Latitude, group.Longitude);
         }
+
+        // The conflict-alert settings are likewise wholly the snapshot's: a missing section restores the defaults.
+        EramRoomSettings.Replace((snapshot.Server?.EramConflictSettings ?? []).Select(RestoreEramConflictSettings));
 
         if (snapshot.Server is not null)
         {
@@ -495,7 +499,37 @@ public sealed partial class SimulationEngine
             Tdls = TdlsSnapshotMapper.Capture(Tdls),
             TowerLists = TowerListSnapshotMapper.Capture(TowerListTracker),
             CrrGroups = crrGroups,
+            EramConflictSettings = CaptureEramConflictSettings(),
         };
+    }
+
+    /// <summary>
+    /// The facilities holding a non-default conflict-alert setting, ordered by facility id and each sector list ordinally,
+    /// so two passes capture the same bytes; null when every facility is at the defaults.
+    /// </summary>
+    private List<EramConflictSettingsSnapshotDto>? CaptureEramConflictSettings() =>
+        EramRoomSettings.Facilities.Count == 0
+            ? null
+            :
+            [
+                .. EramRoomSettings
+                    .Facilities.Values.OrderBy(f => f.FacilityId, StringComparer.Ordinal)
+                    .Select(f => new EramConflictSettingsSnapshotDto
+                    {
+                        FacilityId = f.FacilityId,
+                        CaFunctionOn = f.CaFunctionOn,
+                        MciFunctionOn = f.MciFunctionOn,
+                        CaDisplayOffSectors = [.. f.CaDisplayOffSectors.Order(StringComparer.Ordinal)],
+                        MciDisplayOffSectors = [.. f.MciDisplayOffSectors.Order(StringComparer.Ordinal)],
+                    }),
+            ];
+
+    private static EramFacilityConflictSettings RestoreEramConflictSettings(EramConflictSettingsSnapshotDto dto)
+    {
+        var settings = new EramFacilityConflictSettings(dto.FacilityId) { CaFunctionOn = dto.CaFunctionOn, MciFunctionOn = dto.MciFunctionOn };
+        settings.CaDisplayOffSectors.UnionWith(dto.CaDisplayOffSectors);
+        settings.MciDisplayOffSectors.UnionWith(dto.MciDisplayOffSectors);
+        return settings;
     }
 
     private void RestoreServerSnapshot(ServerSnapshotDto server)

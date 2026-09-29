@@ -222,6 +222,7 @@ public class RecordedActionSerializationTests
             ),
             new RecordedEramEntry(100.0, "AAL100", "QR 350", "07"),
             new RecordedEramCrrGroup(105.0, "ALPHA", "Green", 37.7213, -122.2208),
+            new RecordedEramRoomEntry(107.0, "ZOA", "CA MCI DISPLAY 44 45 OFF"),
             new RecordedStripRequest(110.0, "AAL100", "OAK", "STRIP_11"),
             new RecordedAsdexSafetyLogicChange(
                 115.0,

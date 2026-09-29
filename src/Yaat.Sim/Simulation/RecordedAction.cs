@@ -23,6 +23,7 @@ namespace Yaat.Sim.Simulation;
 [JsonDerivedType(typeof(RecordedHoldAnnotationChange), "HoldAnnotationChange")]
 [JsonDerivedType(typeof(RecordedEramEntry), "EramEntry")]
 [JsonDerivedType(typeof(RecordedEramCrrGroup), "EramCrrGroup")]
+[JsonDerivedType(typeof(RecordedEramRoomEntry), "EramRoomEntry")]
 [JsonDerivedType(typeof(RecordedStripRequest), "StripRequest")]
 [JsonDerivedType(typeof(RecordedAsdexSafetyLogicChange), "AsdexSafetyLogicChange")]
 [JsonDerivedType(typeof(RecordedAttendanceChange), "AttendanceChange")]
@@ -218,6 +219,15 @@ public sealed record RecordedEramEntry(double ElapsedSeconds, string Callsign, s
 /// </summary>
 public sealed record RecordedEramCrrGroup(double ElapsedSeconds, string Label, string? Color, double? Lat, double? Lon)
     : RecordedAction(ElapsedSeconds);
+
+/// <summary>
+/// An ERAM entry that wrote the room's per-facility conflict-alert settings (<c>SimulationEngine.EramRoomSettings</c>),
+/// in one of four absolute shapes — never a toggle: <c>CA {CA|MCI} FUNCTION {ON|OFF}</c> or
+/// <c>CA {CA|MCI} DISPLAY {sector}[ {sector}…] {ON|OFF}</c>, with explicit adapted sector ids (the recorder expands
+/// <c>ALL</c>, so replay never consults adaptation). <c>SimulationEngine.ApplyEramRoomEntry</c> applies it on every
+/// run kind.
+/// </summary>
+public sealed record RecordedEramRoomEntry(double ElapsedSeconds, string FacilityId, string Entry) : RecordedAction(ElapsedSeconds);
 
 /// <summary>
 /// A controller asking for a flight strip to be printed for an aircraft: the training-hub

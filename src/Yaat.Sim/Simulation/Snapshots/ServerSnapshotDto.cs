@@ -5,7 +5,7 @@ namespace Yaat.Sim.Simulation.Snapshots;
 /// <summary>
 /// Engine-level state outside the aircraft list and the scenario: consolidation overrides, conflict alerts, the
 /// beacon code pool, the per-connection position selections, the attended CRC positions, the flight strips
-/// and vTDLS session, the tower lists' dwell entries and the ERAM CRR groups.
+/// and vTDLS session, the tower lists' dwell entries, the ERAM CRR groups and the ERAM conflict-alert settings.
 /// </summary>
 public sealed class ServerSnapshotDto
 {
@@ -37,6 +37,23 @@ public sealed class ServerSnapshotDto
     /// Absent when the session holds none, which is also what a pre-feature snapshot looks like (restores empty).
     /// </summary>
     public List<EramCrrGroupSnapshotDto>? CrrGroups { get; init; }
+
+    /// <summary>
+    /// The ERAM conflict-alert settings of every facility that holds a non-default one, in facility order so two passes
+    /// of the same run capture the same bytes. Absent when every facility is at the defaults, which is also what a
+    /// pre-feature snapshot looks like (restores the defaults).
+    /// </summary>
+    public List<EramConflictSettingsSnapshotDto>? EramConflictSettings { get; init; }
+}
+
+/// <summary>One facility's ERAM conflict-alert settings; the sector lists are in ordinal order.</summary>
+public sealed class EramConflictSettingsSnapshotDto
+{
+    public required string FacilityId { get; init; }
+    public required bool CaFunctionOn { get; init; }
+    public required bool MciFunctionOn { get; init; }
+    public required List<string> CaDisplayOffSectors { get; init; }
+    public required List<string> MciDisplayOffSectors { get; init; }
 }
 
 /// <summary>One CRR group: its label, colour and location. Membership is the aircraft's, so none of it is here.</summary>

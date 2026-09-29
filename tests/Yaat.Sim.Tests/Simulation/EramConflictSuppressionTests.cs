@@ -172,6 +172,23 @@ public class EramConflictSuppressionTests
         Assert.Empty(engine.EramConflicts.TakeRemovedWith("UAL200"));
     }
 
+    /// <summary>
+    /// A restore replaces the alert set whole: an alert raised after the snapshot was taken is not in it, so it must not
+    /// survive the restore on top of the snapshot's (empty) set.
+    /// </summary>
+    [Fact]
+    public void SnapshotRestore_DropsAnAlertAbsentFromTheSnapshot()
+    {
+        SimulationEngine engine = Load();
+        StateSnapshotDto snapshot = engine.CaptureSnapshot();
+        engine.TickEramConflictAlerts();
+        Assert.NotEmpty(engine.EramConflicts.Conflicts);
+
+        engine.RestoreFromSnapshot(snapshot);
+
+        Assert.Empty(engine.EramConflicts.Conflicts);
+    }
+
     [Fact]
     public void ModeCIntruderInsideMinimaAtFirstDetection_Alerts()
     {

@@ -24,7 +24,7 @@ namespace Yaat.Sim.Simulation.Actions;
 /// <see cref="IStateChangeConsumer.OnStripsChanged"/>, <see cref="IStateChangeConsumer.OnTdlsChanged"/>,
 /// <see cref="IStateChangeConsumer.OnCoordinationChanged"/>, <see cref="IStateChangeConsumer.OnBookmarksChanged"/>,
 /// <see cref="IStateChangeConsumer.OnSimStateChanged"/>,
-/// <see cref="IStateChangeConsumer.OnEramCrrGroupsChanged"/> and — for the surface displays, whose per-aircraft
+/// <see cref="IStateChangeConsumer.OnEramCrrGroupsChanged"/>, <see cref="IStateChangeConsumer.OnEramConflictSettingsChanged"/> and — for the surface displays, whose per-aircraft
 /// fields the room's change tracker already fingerprints — <see cref="OnAsdexTrackTerminated"/> /
 /// <see cref="OnSaidTrackTerminated"/>; the broadcast is all the host still owes. The host answers no
 /// questions, because CRC attendance, the last one it was asked, is now engine state every run kind carries

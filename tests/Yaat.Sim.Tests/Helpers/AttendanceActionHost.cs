@@ -80,6 +80,11 @@ public sealed class AttendanceActionHost : IActionHost
 
     public void OnEramCrrGroupsChanged() => EramCrrGroupChanges++;
 
+    /// <summary>How many times a drain reported the ERAM conflict-alert settings changed.</summary>
+    public int EramConflictSettingsChanges { get; private set; }
+
+    public void OnEramConflictSettingsChanged() => EramConflictSettingsChanges++;
+
     /// <summary>Every ASDE-X Safety Logic diff a drain handed over, in order.</summary>
     public List<(IReadOnlyList<AsdexSafetyAlert> NewAlerts, IReadOnlyList<string> ClearedAlertIds)> AsdexAlertChanges { get; } = [];
 

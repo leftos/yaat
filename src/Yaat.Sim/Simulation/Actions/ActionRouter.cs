@@ -59,7 +59,7 @@ public sealed class ActionRouter
     /// <summary>
     /// Applies one recorded action: a command through <see cref="Apply(RecordedCommand, IActionHost)"/>, a derived
     /// record (spawn, live-traffic sample or removal, flight-plan amendment, beacon recycle, weather, setting,
-    /// generators, STARS shared state, clearance, hold annotation, ERAM entry, ERAM CRR group, ASDE-X or SAID
+    /// generators, STARS shared state, clearance, hold annotation, ERAM entry, ERAM CRR group, ERAM room entry, ASDE-X or SAID
     /// mutation, ASDE-X safety-logic push, strip request, CRC attendance, a <c>.AUTOTRACK</c> roster change) through
     /// its Sim applier with the host told what changed. A chat line and a diagnostic record apply
     /// nothing. A derived record the live room applied whose apply refuses here — its aircraft is gone, an ERAM entry's
@@ -131,7 +131,7 @@ public sealed class ActionRouter
 
     /// <summary>
     /// A derived record produced now rather than read back from the log — a CRC handler's shared-state, clearance,
-    /// hold-annotation, ERAM, CRR-group, strip-request, ASDE-X / SAID, safety-logic or <c>.AUTOTRACK</c> write, or the live
+    /// hold-annotation, ERAM, CRR-group, ERAM room, strip-request, ASDE-X / SAID, safety-logic or <c>.AUTOTRACK</c> write, or the live
     /// host's derived CRC attendance. Applied through the same body a replay uses and appended to the action log only when it applied, so
     /// the log never carries a write the room refused; a refusal here is the live verdict, not a fidelity break, and is
     /// not warned about.
@@ -180,6 +180,10 @@ public sealed class ActionRouter
             case RecordedEramCrrGroup group:
                 _engine.ApplyCrrGroup(group);
                 return Applied;
+            case RecordedEramRoomEntry roomEntry:
+                return _engine.ApplyEramRoomEntry(roomEntry)
+                    ? Applied
+                    : new CommandResult(false, $"Malformed ERAM room entry '{roomEntry.Entry}' for {roomEntry.FacilityId}");
             case RecordedAsdexMutation asdex:
                 _engine.ApplyAsdexMutation(asdex, host);
                 return Applied;

@@ -186,6 +186,24 @@ public class RecordedStateChangeTests
     }
 
     [Fact]
+    public void ARoomEntryAppliesThroughTheRouterAndNotifiesTheHost()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        var entry = new RecordedEramRoomEntry(0, "ZOA", "CA CA DISPLAY 44 OFF");
+
+        CommandResult applied = engine.Actions.ApplyRecorded(entry, host);
+
+        Assert.True(applied.Success, applied.Message);
+        Assert.False(engine.EramRoomSettings.ShowsConflict("ZOA", "44", isMciPair: false));
+        Assert.Equal(1, host.EramConflictSettingsChanges);
+    }
+
+    [Fact]
     public void StripRequest_PrintsInTheEngine_UnderTheRecordedId()
     {
         if (Engine() is not { } engine)
