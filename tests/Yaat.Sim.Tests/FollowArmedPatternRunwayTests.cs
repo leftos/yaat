@@ -143,7 +143,7 @@ public class FollowArmedPatternRunwayTests
 
         AircraftState follower = MakeVfr(Follower, OffFinal(flown, 3.5, 0.6), new TrueHeading(112), altitude: 1200);
         follower.Approach.FollowingCallsign = Lead;
-        var phase = new VfrFollowPhase(Lead);
+        var phase = new VfrFollowPhase(Lead, patternReturn: null);
         follower.Phases = new PhaseList
         {
             AssignedRunway = flown,
@@ -211,7 +211,7 @@ public class FollowArmedPatternRunwayTests
         AircraftState follower = MakeVfr(Follower, abeam, waypoints.DownwindHeading, waypoints.PatternAltitude);
         follower.Approach.FollowingCallsign = Lead;
         follower.Pattern.TrafficDirection = direction;
-        var phase = new VfrFollowPhase(Lead);
+        var phase = new VfrFollowPhase(Lead, patternReturn: null);
         follower.Phases = new PhaseList
         {
             AssignedRunway = flownRunway,

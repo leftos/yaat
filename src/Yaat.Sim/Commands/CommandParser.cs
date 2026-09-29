@@ -2039,7 +2039,7 @@ public static class CommandParser
 
     private static PR ParseWaitDistance(string? arg)
     {
-        if (arg is null || !double.TryParse(arg, out double distNm) || distNm <= 0)
+        if ((arg is null) || !double.TryParse(arg, NumberStyles.Float, CultureInfo.InvariantCulture, out double distNm) || (distNm <= 0))
         {
             return PR.Fail($"invalid wait distance '{arg}'");
         }

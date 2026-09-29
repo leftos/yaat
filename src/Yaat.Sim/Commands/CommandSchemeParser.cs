@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Yaat.Sim.Data;
 
@@ -1416,7 +1417,42 @@ public static class CommandSchemeParser
         return string.Join("; ", result);
     }
 
-    private static readonly Regex WaitNauticalMilesArgument = new(@"^(\d+(?:\.\d+)?)NM$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    // ASCII digits only: \d also matches other scripts' digits (Arabic-Indic ١), which the invariant double.Parse below rejects.
+    private static readonly Regex WaitNauticalMilesArgument = new(
+        @"^([0-9]+(?:\.[0-9]+)?|\.[0-9]+)(NM)?$",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled
+    );
+
+    /// <summary>
+    /// Matches the distance argument of <c>WAIT 1NM</c>, <c>WAIT 1 NM</c>, <c>WAIT .5NM</c>: a decimal number with an
+    /// <c>NM</c> suffix, attached or as the next token (any case). Returns the distance written invariantly
+    /// (<c>.5</c> → <c>0.5</c>) and the number of tokens it spans, or null when the argument is not a distance.
+    /// </summary>
+    private static (string DistanceNm, int TokenCount)? MatchWaitNauticalMiles(string[] tokens)
+    {
+        Match match = WaitNauticalMilesArgument.Match(tokens[1]);
+        if (!match.Success)
+        {
+            return null;
+        }
+
+        int tokenCount;
+        if (match.Groups[2].Success)
+        {
+            tokenCount = 1;
+        }
+        else if ((tokens.Length > 2) && tokens[2].Equals("NM", StringComparison.OrdinalIgnoreCase))
+        {
+            tokenCount = 2;
+        }
+        else
+        {
+            return null;
+        }
+
+        double distanceNm = double.Parse(match.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture);
+        return (distanceNm.ToString(CultureInfo.InvariantCulture), tokenCount);
+    }
 
     private static void ExpandWaitBlock(string block, List<string> result)
     {
@@ -1446,14 +1482,14 @@ public static class CommandSchemeParser
             return;
         }
 
-        // WAIT 1NM ... → WAITD 1; ... (distance delay written with an NM suffix)
-        Match nauticalMiles = WaitNauticalMilesArgument.Match(tokens[1]);
-        if (nauticalMiles.Success)
+        // WAIT 1NM ... / WAIT 1 NM ... → WAITD 1; ... (distance delay written with an NM suffix)
+        if (MatchWaitNauticalMiles(tokens) is { } nauticalMiles)
         {
-            result.Add($"WAITD {nauticalMiles.Groups[1].Value}");
-            if (tokens.Length > 2)
+            result.Add($"WAITD {nauticalMiles.DistanceNm}");
+            int restStart = 1 + nauticalMiles.TokenCount;
+            if (tokens.Length > restStart)
             {
-                ExpandWaitBlock(string.Join(" ", tokens[2..]), result);
+                ExpandWaitBlock(string.Join(" ", tokens[restStart..]), result);
             }
 
             return;

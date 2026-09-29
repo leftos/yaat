@@ -106,6 +106,8 @@ public class ZoaParseFixTests : IDisposable
     [InlineData("WAIT BRIXX", "AT BRIXX")]
     [InlineData("WAIT 1.5NMX", "AT 1.5NMX")]
     [InlineData("WAIT NM", "AT NM")]
+    // A non-ASCII digit is not a distance: it must not reach the invariant number parse (which would throw).
+    [InlineData("WAIT ١NM", "AT ١NM")]
     public void ExpandWait_NonNauticalMileArgument_KeepsExistingRewrite(string input, string expected) =>
         Assert.Equal(expected, CommandSchemeParser.ExpandWait(input));
 

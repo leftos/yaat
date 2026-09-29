@@ -1255,13 +1255,8 @@ public static class AirborneFollowHelper
         bool tooClose = behindNm < desiredNm - TrailRegimeDeadbandNm;
         if (tooClose && (speedSaturated || widen.Active))
         {
-            if (!widen.Active)
-            {
-                widen.Active = true;
-                // Widen toward the side the follower already sits on so the excursion lengthens its
-                // path without crossing the lead's track. Default right when essentially on track.
-                widen.Side = crossNm >= 0 ? 1 : -1;
-            }
+            widen.Side = ChooseWidenSide(widen, crossNm);
+            widen.Active = true;
             return new TrueHeading(refTrack.Degrees + (widen.Side * TrailWidenOffsetDeg));
         }
 
@@ -1270,6 +1265,34 @@ public static class AirborneFollowHelper
         widen.Active = false;
         double capture = Math.Clamp(-crossNm * TrailCrossCaptureGainDegPerNm, -TrailMaxCrossCaptureDeg, TrailMaxCrossCaptureDeg);
         return new TrueHeading(refTrack.Degrees + capture);
+    }
+
+    /// <summary>
+    /// The side of a widen excursion, latched when it starts: an excursion already under way keeps its side;
+    /// a new one takes the caller-imposed <see cref="FollowWidenState.PreferredSide"/> (a pattern-return pursuit
+    /// close in), otherwise the side the follower already sits on, so the excursion lengthens its path without
+    /// crossing the lead's track (right when essentially on track).
+    /// </summary>
+    private static int ChooseWidenSide(FollowWidenState widen, double crossNm)
+    {
+        if (widen.Active)
+        {
+            return widen.Side;
+        }
+
+        return widen.PreferredSide ?? (crossNm >= 0 ? 1 : -1);
+    }
+
+    /// <summary>
+    /// The widen side (+1 right of <paramref name="leadTrack"/>, -1 left) whose excursion moves the follower
+    /// toward <paramref name="runway"/>'s pattern side for <paramref name="direction"/> traffic — right of the
+    /// landing direction for right traffic, left for left traffic, which is the side away from the parallel.
+    /// </summary>
+    public static int PatternSideWidenSide(TrueHeading leadTrack, RunwayInfo runway, PatternDirection direction)
+    {
+        TrueHeading patternSide = direction == PatternDirection.Right ? runway.TrueHeading + 90.0 : runway.TrueHeading - 90.0;
+        TrueHeading rightOfLeadTrack = leadTrack + 90.0;
+        return rightOfLeadTrack.AbsAngleTo(patternSide) <= 90.0 ? 1 : -1;
     }
 }
 
@@ -1285,4 +1308,11 @@ public sealed class FollowWidenState
 
     /// <summary>Excursion side: +1 = widen right of the lead's track, -1 = widen left.</summary>
     public int Side { get; set; }
+
+    /// <summary>
+    /// A side the caller requires for a new excursion (+1/-1), overriding the follower's own offset side; an
+    /// excursion already under way keeps the side it latched. Null
+    /// to let the excursion choose. Set every tick by the caller, so it is not serialized.
+    /// </summary>
+    public int? PreferredSide { get; set; }
 }

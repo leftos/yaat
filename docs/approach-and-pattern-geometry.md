@@ -933,12 +933,11 @@ effectively number two on the approach. The corridor test is **position-only**: 
 (the follower may be mid-turn when the FOLLOW arrives). Same-runway pattern-leg FOLLOW keeps the cheap in-place
 retarget, as before.
 
-**...but not from base or final.** The re-sequence is refused when the follower is already on `BasePhase` or
-`FinalApproachPhase` ("Unable, established for runway {rwy} — vector or go around"). From there the follower is low
-and close in, and swinging it onto a closely-spaced parallel would fly a low crossing of its original runway's final
-approach course (AIM §4-3-3 FIG 4-3-3 note 7 — do not penetrate the parallel's final; §4-3-5 — no unexpected pattern
-maneuvers). The controller re-sequences explicitly (`ELB`/`ERB`), vectors, or sends it around. Re-sequencing from
-upwind / crosswind / downwind / pattern-entry is allowed.
+**...but not from base or final.** The re-sequence is refused when the follower is already on `BasePhase` or `FinalApproachPhase` ("Unable, on {base|final} for runway {rwy}, request vectors to follow {T}"). From there the follower is low and close in, and swinging it onto a closely-spaced parallel would fly a low crossing of its original runway's final approach course (AIM §4-3-3 FIG 4-3-3 note 7 — do not penetrate the parallel's final; §4-3-5 — no unexpected pattern maneuvers). The controller re-sequences explicitly (`ELB`/`ERB`), vectors, or sends it around. Re-sequencing from upwind / crosswind / downwind / pattern-entry is allowed.
+
+**A lead with no runway, from a pattern leg** (`TryRouteRunwaylessLead`, `TryFollowFromPatternLeg`). A follower on a pattern leg with an assigned runway refuses a lead on the ground ("Unable, {T} is on the ground") unless the lead is rolling out on the follower's own runway, and a lead whose runway or filed destination is another airport ("Unable, {T} is inbound to {APT}, request vectors"; `LeadBoundElsewhereRefusal`, airports compared with `AirportIdsMatch`, so HWD 28R is not OAK 28R). From final it refuses ("Unable, on final for runway {rwy}, request vectors to follow {T}"); from base it refuses a lead that is not ahead within ±60° of track ("Unable, on base for runway {rwy}, {T} is not ahead of us, request vectors"). Otherwise it pursues the lead with a `FollowPatternReturn` (its own runway, circuit side and pattern altitude): a lead queued for another runway takes the side the queued entry names, then the lead's circuit.
+
+**FOLLOW from an approach** (`InterceptCoursePhase`, `ApproachNavigationPhase` accept it). `ClearPhaseChainKeepingClearance` releases the turn overrides and re-arms the assigned altitude like `ClearPhaseChain`, but keeps `LandingClearance` and `ClearedRunwayId` (7110.65 §3-10-5 ties a landing clearance to a runway, and a follow does not void it); the RPO sees "{cs} {summary} cancelled by FOLLOW, landing clearance kept".
 
 FOLLOW during a **wrong-side entry** (`MidfieldCrossingPhase` / `TeardropReentryPhase`) is additive for the same
 runway: both phases accept `Follow`, run `CheckLeadLifecycle` + the free-flight spacing speed loop each tick
@@ -947,9 +946,7 @@ crossing to free-pursue instead would discard the wrong-side entry (#352).
 
 ### `VfrFollowPhase` — free pursuit + auto-join
 
-`VfrFollowPhase` (`src/Yaat.Sim/Phases/Pattern/VfrFollowPhase.cs`, built by `CommandDispatcher` for FOLLOW) keeps a
-trail behind the lead — steering relative to the lead's **ground track**, not its instantaneous position — and matches
-the lead's speed with free-flight spacing, leaving altitude untouched.
+`VfrFollowPhase` (`src/Yaat.Sim/Phases/Pattern/VfrFollowPhase.cs`, built by `CommandDispatcher` for FOLLOW) keeps a trail behind the lead — steering relative to the lead's **ground track**, not its instantaneous position — and matches the lead's speed with free-flight spacing. Altitude is untouched unless the pursuit carries a `FollowPatternReturn` (it started from a pattern leg): then `OnStart` targets pattern altitude, or the lower of the present and pattern altitude when it started from base, and drops the base leg's glideslope descent (AIM §4-3-3). When such a pursuit ends (lead lost or despawned, landed with no captured runway, spacing lost), `ReturnToPattern` re-enters a downwind to the follower's own runway on its own side ("{cs} follow ended, re-entering {right|left} traffic runway {rwy}"), and within 5 NM of that threshold a new widen excursion turns toward the pattern side. `PatternReturn` (with `FromBase`) is snapshotted in `VfrFollowPhaseDto`, null for older snapshots.
 
 **Lateral trail-keeping — `AirborneFollowHelper.ComputeFreePursuitHeading`.** Each free-pursuit tick (after the speed
 loop) the heading comes from a three-regime law keyed on `behindNm` (along-track gap behind the lead, from

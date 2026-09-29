@@ -261,6 +261,9 @@ public sealed class ApproachNavigationPhase : Phase
             CanonicalCommandType.ExitLeft => CommandAcceptance.Allowed,
             CanonicalCommandType.ExitRight => CommandAcceptance.Allowed,
             CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
+            // FOLLOW replaces the phase list itself and carries the landing clearance onto the pursuit;
+            // clearing the phase first would drop that clearance.
+            CanonicalCommandType.Follow => CommandAcceptance.Allowed,
             // Everything else (heading, direct-to, etc.) takes the aircraft off the approach
             _ => CommandAcceptance.ClearsPhase,
         };

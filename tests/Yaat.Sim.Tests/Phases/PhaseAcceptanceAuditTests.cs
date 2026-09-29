@@ -129,7 +129,7 @@ public class PhaseAcceptanceAuditTests
     [MemberData(nameof(AdditiveAirborneFamily))]
     public void VfrFollowPhase_AdditiveCommands_Allowed(CanonicalCommandType cmd)
     {
-        var phase = new VfrFollowPhase("LEAD123");
+        var phase = new VfrFollowPhase("LEAD123", patternReturn: null);
         Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(cmd));
     }
 
@@ -139,14 +139,14 @@ public class PhaseAcceptanceAuditTests
     [InlineData(CanonicalCommandType.DirectTo)]
     public void VfrFollowPhase_HeadingNavCommands_ClearPhase(CanonicalCommandType cmd)
     {
-        var phase = new VfrFollowPhase("LEAD123");
+        var phase = new VfrFollowPhase("LEAD123", patternReturn: null);
         Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(cmd));
     }
 
     [Fact]
     public void VfrFollowPhase_FollowStillAllowed()
     {
-        var phase = new VfrFollowPhase("LEAD123");
+        var phase = new VfrFollowPhase("LEAD123", patternReturn: null);
         Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.Follow));
     }
 
@@ -282,6 +282,14 @@ public class PhaseAcceptanceAuditTests
     [InlineData(CanonicalCommandType.DirectTo)]
     public void InterceptCoursePhase_LateralCommands_ClearPhase(CanonicalCommandType cmd) =>
         Assert.Equal(CommandAcceptance.ClearsPhase, NewInterceptCourse().CanAcceptCommand(cmd));
+
+    [Fact]
+    public void InterceptCoursePhase_Follow_Allowed() =>
+        Assert.Equal(CommandAcceptance.Allowed, NewInterceptCourse().CanAcceptCommand(CanonicalCommandType.Follow));
+
+    [Fact]
+    public void ApproachNavigationPhase_Follow_Allowed() =>
+        Assert.Equal(CommandAcceptance.Allowed, NewApproachNav().CanAcceptCommand(CanonicalCommandType.Follow));
 
     [Theory]
     [MemberData(nameof(AdditiveAirborneFamily))]

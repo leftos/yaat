@@ -232,7 +232,7 @@ Use `WAIT` and `WAITD` to delay the next command in a `;` sequence by time or di
 |---------|--------|
 | `WAIT 30` | Wait 30 seconds before executing the next block |
 | `WAITD 4` | Fly 4 nautical miles before executing the next block |
-| `WAIT 1NM` / `DELAY 1.5NM` | Same as `WAITD 1` / `WAITD 1.5`: a number with an `NM` suffix (any case, decimals allowed) is a distance |
+| `WAIT 1NM` / `DELAY 1.5NM` | Same as `WAITD 1` / `WAITD 1.5`: a number with an `NM` suffix, attached or after a space (`WAIT 1 NM`, `WAIT .5NM`; any case, decimals allowed), is a distance |
 
 These commands occupy their own block in a compound sequence and do not change the aircraft's heading, altitude, or speed. They simply delay progression to the next block.
 

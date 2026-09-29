@@ -90,7 +90,7 @@ public class S2Oak4FollowSpamTests(ITestOutputHelper output)
         // 0.3 nm at this latitude ≈ 0.005 deg lon to the east of the lead.
         // Follower sits behind (east) and tracks the same direction.
         AircraftState follower = MakePiston(Follower, "P28A", 37.7250, -122.2240, heading: 280, ias: 75);
-        follower.Phases!.Add(new VfrFollowPhase(Leader));
+        follower.Phases!.Add(new VfrFollowPhase(Leader, patternReturn: null));
 
         var byCallsign = new Dictionary<string, AircraftState> { [lead.Callsign] = lead, [follower.Callsign] = follower };
         AircraftState? lookup(string cs) => byCallsign.TryGetValue(cs, out AircraftState? ac) ? ac : null;

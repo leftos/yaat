@@ -175,7 +175,7 @@ public class ClandRunwayTests
         // The armed clearance carries "8R"; the follower joins the canonical "08R" pattern.
         // ApplyArmedLandingClearance must recognize these as the same end and apply the
         // clearance instead of deferring and awaiting an explicit re-clearance.
-        var phase = new VfrFollowPhase("N314GT");
+        var phase = new VfrFollowPhase("N314GT", patternReturn: null);
         AircraftState ac = MakeFollower();
         RunwayInfo runway = TestRunwayFactory.Make(designator: "8R", airportId: "KMIA", heading: 87);
 
@@ -190,7 +190,7 @@ public class ClandRunwayTests
     {
         // Direction-sensitivity guard: armed for the opposite end (26L) but joining 08R —
         // the clearance must NOT be applied.
-        var phase = new VfrFollowPhase("N314GT");
+        var phase = new VfrFollowPhase("N314GT", patternReturn: null);
         AircraftState ac = MakeFollower();
         RunwayInfo runway = TestRunwayFactory.Make(designator: "8R", airportId: "KMIA", heading: 87);
 
@@ -234,7 +234,7 @@ public class ClandRunwayTests
             // Pursuing its lead: no runway/approach assigned yet (AssignedRunway null).
             Phases = new PhaseList(),
         };
-        ac.Phases.Add(new VfrFollowPhase("N314GT"));
+        ac.Phases.Add(new VfrFollowPhase("N314GT", patternReturn: null));
         return ac;
     }
 }

@@ -112,7 +112,7 @@ public class FollowJoinGateTests
 
         AircraftState follower = MakeVfr(Follower, OffFinal(rwy, followerAlongNm, followerCrossNm), new TrueHeading(followerTrackDeg), 1000, ias: 90);
         follower.Approach.FollowingCallsign = Leader;
-        var phase = new VfrFollowPhase(Leader);
+        var phase = new VfrFollowPhase(Leader, patternReturn: null);
         follower.Phases = new PhaseList();
         follower.Phases.Add(phase);
 

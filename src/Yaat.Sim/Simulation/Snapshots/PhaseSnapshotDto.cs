@@ -1197,6 +1197,22 @@ public sealed class VfrFollowPhaseDto : PhaseDto
 
     /// <summary>Free-pursuit widen excursion side: +1 right of the lead's track, -1 left.</summary>
     public int WidenSide { get; init; }
+
+    /// <summary>The circuit a pursuit started from a pattern leg returns to; null for any other pursuit and in older snapshots.</summary>
+    public FollowPatternReturnDto? PatternReturn { get; init; }
+}
+
+public sealed class FollowPatternReturnDto
+{
+    public required RunwayInfoDto Runway { get; init; }
+
+    /// <summary>0=Left, 1=Right (matches PatternDirection).</summary>
+    public required int Direction { get; init; }
+
+    public required double PatternAltitudeFt { get; init; }
+
+    /// <summary>The pursuit started from the base leg; null (read as false) in older snapshots.</summary>
+    public bool? FromBase { get; init; }
 }
 
 // --- Approach phases ---

@@ -341,7 +341,7 @@ public class VfrFollowPhaseTests : IDisposable
             onGround: false
         );
 
-        var phase = new VfrFollowPhase("LEAD");
+        var phase = new VfrFollowPhase("LEAD", patternReturn: null);
         follower.Phases!.Add(phase);
         PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
         follower.Phases.Start(ctx);
@@ -367,7 +367,7 @@ public class VfrFollowPhaseTests : IDisposable
         AircraftState lead = MakeVfrAircraft("LEAD", lat: 37.0 + (2.0 / 60.0), lon: -122.0);
         lead.Altitude = 3500;
 
-        var phase = new VfrFollowPhase("LEAD");
+        var phase = new VfrFollowPhase("LEAD", patternReturn: null);
         follower.Phases!.Add(phase);
         PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
         follower.Phases.Start(ctx);
@@ -388,7 +388,7 @@ public class VfrFollowPhaseTests : IDisposable
         AircraftState lead = MakeVfrAircraft("LEAD", lat: 37.0, lon: -122.0 + (2.0 / 54.0));
         lead.IndicatedAirspeed = 80;
 
-        var phase = new VfrFollowPhase("LEAD");
+        var phase = new VfrFollowPhase("LEAD", patternReturn: null);
         follower.Phases!.Add(phase);
         PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
         follower.Phases.Start(ctx);
@@ -407,7 +407,7 @@ public class VfrFollowPhaseTests : IDisposable
         AircraftState follower = MakeVfrAircraft("FOLL");
         follower.Approach.FollowingCallsign = "LEAD";
 
-        var phase = new VfrFollowPhase("LEAD");
+        var phase = new VfrFollowPhase("LEAD", patternReturn: null);
         follower.Phases!.Add(phase);
         PhaseContext ctx = Ctx(follower, lookup: _ => null);
         follower.Phases.Start(ctx);
@@ -426,7 +426,7 @@ public class VfrFollowPhaseTests : IDisposable
         follower.Approach.FollowingCallsign = "LEAD";
         AircraftState lead = MakeVfrAircraft("LEAD", "C172", lat: 37.0, lon: -122.0, heading: 280, altitude: 0, ias: 0, onGround: true);
 
-        var phase = new VfrFollowPhase("LEAD");
+        var phase = new VfrFollowPhase("LEAD", patternReturn: null);
         follower.Phases!.Add(phase);
         PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
         follower.Phases.Start(ctx);
@@ -476,7 +476,7 @@ public class VfrFollowPhaseTests : IDisposable
         );
         follower.Approach.FollowingCallsign = "LEAD";
 
-        var phase = new VfrFollowPhase("LEAD");
+        var phase = new VfrFollowPhase("LEAD", patternReturn: null);
         follower.Phases!.Add(phase);
         PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
         follower.Phases.Start(ctx);
@@ -509,7 +509,7 @@ public class VfrFollowPhaseTests : IDisposable
         );
         follower.Approach.FollowingCallsign = "LEAD";
 
-        var phase = new VfrFollowPhase("LEAD");
+        var phase = new VfrFollowPhase("LEAD", patternReturn: null);
         follower.Phases!.Add(phase);
         PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
         follower.Phases.Start(ctx);
@@ -543,7 +543,7 @@ public class VfrFollowPhaseTests : IDisposable
         );
         follower.Approach.FollowingCallsign = "LEAD";
 
-        var phase = new VfrFollowPhase("LEAD");
+        var phase = new VfrFollowPhase("LEAD", patternReturn: null);
         follower.Phases!.Add(phase);
         PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
         follower.Phases.Start(ctx);
@@ -576,7 +576,7 @@ public class VfrFollowPhaseTests : IDisposable
         );
         follower.Approach.FollowingCallsign = "LEAD";
 
-        var phase = new VfrFollowPhase("LEAD");
+        var phase = new VfrFollowPhase("LEAD", patternReturn: null);
         follower.Phases!.Add(phase);
         PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
         follower.Phases.Start(ctx);
@@ -626,7 +626,7 @@ public class VfrFollowPhaseTests : IDisposable
         PhaseContext leadCtx = CommandDispatcher.BuildMinimalContext(lead);
         lead.Phases.Start(leadCtx);
 
-        var phase = new VfrFollowPhase("LEAD");
+        var phase = new VfrFollowPhase("LEAD", patternReturn: null);
         follower.Phases!.Add(phase);
         follower.Phases.AssignedRunway = null; // follower hasn't been assigned yet
         PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
@@ -666,7 +666,7 @@ public class VfrFollowPhaseTests : IDisposable
         PhaseContext leadCtx = CommandDispatcher.BuildMinimalContext(lead);
         lead.Phases.Start(leadCtx);
 
-        var phase = new VfrFollowPhase("LEAD");
+        var phase = new VfrFollowPhase("LEAD", patternReturn: null);
         follower.Phases!.Add(phase);
         PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
         follower.Phases.Start(ctx);
@@ -715,7 +715,7 @@ public class VfrFollowPhaseTests : IDisposable
         PhaseContext leadCtx = CommandDispatcher.BuildMinimalContext(lead);
         lead.Phases.Start(leadCtx);
 
-        var phase = new VfrFollowPhase("LEAD");
+        var phase = new VfrFollowPhase("LEAD", patternReturn: null);
         follower.Phases!.Add(phase);
         PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
         follower.Phases.Start(ctx);
@@ -741,7 +741,7 @@ public class VfrFollowPhaseTests : IDisposable
         follower.Approach.FollowingCallsign = "LEAD";
         AircraftState lead = MakeVfrAircraft("LEAD", lat: 37.0, lon: -121.9);
 
-        var phase = new VfrFollowPhase("LEAD");
+        var phase = new VfrFollowPhase("LEAD", patternReturn: null);
         follower.Phases!.Add(phase);
         PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null, dt: 10.0);
         follower.Phases.Start(ctx);
@@ -764,7 +764,7 @@ public class VfrFollowPhaseTests : IDisposable
     [Fact]
     public void VfrFollowPhase_AcceptsFollowCommand_ForRetarget()
     {
-        var phase = new VfrFollowPhase("LEAD");
+        var phase = new VfrFollowPhase("LEAD", patternReturn: null);
         Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.Follow));
     }
 
@@ -775,7 +775,7 @@ public class VfrFollowPhaseTests : IDisposable
         // so the controller can take over with "direct commands". The user said
         // "basic vectoring should be able to be followed using the core controls"
         // — i.e. issuing a vector cancels the follow.
-        var phase = new VfrFollowPhase("LEAD");
+        var phase = new VfrFollowPhase("LEAD", patternReturn: null);
         // Any vector command not in the explicit allow-list should clear the phase.
         Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.FlyHeading));
     }
@@ -845,7 +845,7 @@ public class VfrFollowPhaseTests : IDisposable
         lead.Phases.AdvanceToNext(leadCtx);
         Assert.IsType<FinalApproachPhase>(lead.Phases.CurrentPhase);
 
-        var phase = new VfrFollowPhase("LEAD");
+        var phase = new VfrFollowPhase("LEAD", patternReturn: null);
         follower.Phases!.Add(phase);
         PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
         follower.Phases.Start(ctx);
@@ -912,7 +912,7 @@ public class VfrFollowPhaseTests : IDisposable
             onGround: true
         );
 
-        var phase = new VfrFollowPhase("LEAD");
+        var phase = new VfrFollowPhase("LEAD", patternReturn: null);
         follower.Phases!.Add(phase);
         PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
         follower.Phases.Start(ctx);

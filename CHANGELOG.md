@@ -9,6 +9,10 @@
 
 ### Fixed
 
+- FOLLOW from a pattern leg trails a lead that has no runway yet, climbs to pattern altitude, and rejoins its own pattern when the follow ends.
+- FOLLOW is refused, with the pilot's reason, from base or final, behind a lead on the ground, or behind a lead bound for another airport.
+- FOLLOW from an approach keeps the landing clearance.
+- `WAIT 2NM`, `WAIT 2 NM` and `WAIT .5NM` wait a distance, like `WAITD`.
 - ERAM shows `X`/`XXX` for an aircraft whose transponder is in standby, and a stopped target shows no `000` ground speed.
 - ERAM emergency and special-code text (EMRG, RDOF, HIJK) blinks for 30 seconds instead of for as long as the code is squawked.
 - ERAM `DM` takes a departure point, time and altitude and the `*` and `/OK` suffixes, marks the flight plan active, and `QF` shows the departure.

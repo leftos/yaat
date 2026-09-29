@@ -13,6 +13,9 @@ namespace Yaat.Sim.Phases.Pattern;
 /// distance-based spacing correction. Altitude is left unchanged — real pilots
 /// told "follow traffic" maintain their current/assigned altitude (often staying
 /// visually above the lead), and the pattern phases take over altitude on join.
+/// The exception is a pursuit that FOLLOW started from a pattern leg
+/// (<see cref="PatternReturn"/>): it levels at the lower of its present altitude and
+/// its circuit's pattern altitude, and when the follow ends it re-enters that circuit.
 ///
 /// When the lead is in a pattern phase and the follower is within
 /// <see cref="JoinRangeNm"/> of the lead's downwind abeam point, within
@@ -22,7 +25,7 @@ namespace Yaat.Sim.Phases.Pattern;
 /// copying the lead's runway, direction, and altitude — after which the existing
 /// <see cref="AirborneFollowHelper"/> machinery in the pattern phases takes over.
 /// </summary>
-public sealed class VfrFollowPhase(string targetCallsign) : Phase
+public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? patternReturn) : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("VfrFollowPhase");
 
@@ -60,6 +63,12 @@ public sealed class VfrFollowPhase(string targetCallsign) : Phase
     /// <summary>Speed margin above the approach-speed floor within which the spacing speed loop counts as saturated (kt).</summary>
     private const double SpeedSaturationEpsilonKts = 0.5;
 
+    /// <summary>
+    /// Distance from the return runway's threshold within which a pattern-return pursuit's widen excursion is
+    /// held to the pattern side, so it never swings toward the parallel's final close in.
+    /// </summary>
+    public const double PatternSideWidenClampNm = 5.0;
+
     /// <summary>Hysteresis state for the free-pursuit shallow widen excursion (lateral spacing tool).</summary>
     private readonly FollowWidenState _widen = new();
 
@@ -69,7 +78,7 @@ public sealed class VfrFollowPhase(string targetCallsign) : Phase
     /// The circuit the follower left when FOLLOW moved it off a pattern leg into this pursuit, or null
     /// when the pursuit did not start from a pattern leg.
     /// </summary>
-    public FollowPatternReturn? PatternReturn { get; init; }
+    public FollowPatternReturn? PatternReturn { get; } = patternReturn;
 
     /// <summary>
     /// The runway the followed traffic is landing on, captured while the lead is
@@ -90,6 +99,19 @@ public sealed class VfrFollowPhase(string targetCallsign) : Phase
         ctx.Targets.NavigationRoute.Clear();
         ctx.Targets.PreferredTurnDirection = null;
         _widen.Active = false;
+
+        // A pursuit that left a pattern leg flies its circuit's pattern altitude, set once here (a later CM
+        // overrides it; AIM 4-3-3): a follower below it, on upwind, keeps climbing to it. From base the target is
+        // the lower of present and pattern altitude — never a climb there, and never the glideslope descent the
+        // base leg was flying.
+        if (PatternReturn is { } patternReturn)
+        {
+            ctx.Targets.TargetAltitude = patternReturn.FromBase
+                ? Math.Min(ctx.Aircraft.Altitude, patternReturn.PatternAltitudeFt)
+                : patternReturn.PatternAltitudeFt;
+            ctx.Targets.DesiredVerticalRate = null;
+        }
+
         Log.LogDebug("[VfrFollow] {Callsign}: following {Target}", ctx.Aircraft.Callsign, TargetCallsign);
     }
 
@@ -136,6 +158,7 @@ public sealed class VfrFollowPhase(string targetCallsign) : Phase
         // phase has nothing left to do.
         if (AirborneFollowHelper.CheckLeadLifecycle(ctx))
         {
+            ReturnToPattern(ctx);
             return true;
         }
 
@@ -175,6 +198,7 @@ public sealed class VfrFollowPhase(string targetCallsign) : Phase
             // Helper has already added a one-shot "unable to maintain separation"
             // warning and cleared Approach.FollowingCallsign. End the phase so the
             // helper isn't re-entered every tick (which would re-spam the warning).
+            ReturnToPattern(ctx);
             return true;
         }
         ctx.Targets.TargetSpeed = adjusted;
@@ -185,9 +209,85 @@ public sealed class VfrFollowPhase(string targetCallsign) : Phase
         // lead's instantaneous position. AIM 5-5-12.a.1 / 4-3-5.
         double desiredNm = AirborneFollowHelper.FreeFlightDistanceForLeader(AircraftCategorization.Categorize(lead.AircraftType));
         bool speedSaturated = adjusted.Value <= minSpeed + SpeedSaturationEpsilonKts;
+        _widen.PreferredSide = PatternSideWidenClamp(ctx.Aircraft.Position, lead.TrueTrack, PatternReturn);
         ctx.Targets.TargetTrueHeading = AirborneFollowHelper.ComputeFreePursuitHeading(ctx.Aircraft, lead, desiredNm, speedSaturated, _widen);
 
         return false;
+    }
+
+    /// <summary>
+    /// The widen side a pattern-return pursuit is held to: the pattern side of the return runway
+    /// (<see cref="AirborneFollowHelper.PatternSideWidenSide"/>) while the follower is within
+    /// <see cref="PatternSideWidenClampNm"/> of its threshold, otherwise null (the widen picks its own side).
+    /// </summary>
+    public static int? PatternSideWidenClamp(LatLon followerPosition, TrueHeading leadTrack, FollowPatternReturn? patternReturn)
+    {
+        if (patternReturn is null)
+        {
+            return null;
+        }
+
+        RunwayInfo runway = patternReturn.Runway;
+        double thresholdDistNm = GeoMath.DistanceNm(followerPosition, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude));
+        return thresholdDistNm <= PatternSideWidenClampNm
+            ? AirborneFollowHelper.PatternSideWidenSide(leadTrack, runway, patternReturn.Direction)
+            : null;
+    }
+
+    /// <summary>
+    /// When a pursuit that left a pattern leg ends (lead lost or despawned, lead landed with no captured runway,
+    /// spacing unmaintainable), re-enter the circuit it left: a pattern entry to the return runway on the same
+    /// side, with an RPO note. The follow state itself was already cleared by the caller.
+    /// </summary>
+    private void ReturnToPattern(PhaseContext ctx)
+    {
+        if (PatternReturn is not { } patternReturn)
+        {
+            return;
+        }
+
+        AircraftState aircraft = ctx.Aircraft;
+        string runwayDisplay = RunwayIdentifier.ToDisplayDesignator(patternReturn.Runway.Designator);
+        string side = patternReturn.Direction == PatternDirection.Right ? "right" : "left";
+
+        // Assign the return runway itself rather than naming it: a designator would be resolved at the
+        // follower's airport context, which need not be the airport the circuit belongs to.
+        // This phase is ticking, so the list it runs from is present.
+        PhaseList phases = aircraft.Phases!;
+        RunwayInfo? previousRunway = phases.AssignedRunway;
+        phases.AssignedRunway = patternReturn.Runway;
+        CommandResult entry = Commands.PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            patternReturn.Direction,
+            PatternEntryLeg.Downwind,
+            runwayId: null,
+            finalDistanceNm: null,
+            groundLayout: ctx.GroundLayout
+        );
+        if (!entry.Success)
+        {
+            phases.AssignedRunway = previousRunway;
+            Log.LogWarning(
+                "[VfrFollow] {Callsign}: follow of {Lead} ended but re-entering runway {Rwy} failed: {Reason}",
+                aircraft.Callsign,
+                TargetCallsign,
+                runwayDisplay,
+                entry.Message
+            );
+            aircraft.PendingWarnings.Add(
+                $"{aircraft.Callsign} follow ended, unable to re-enter the pattern for runway {runwayDisplay}: {entry.Message}"
+            );
+            return;
+        }
+
+        Log.LogDebug(
+            "[VfrFollow] {Callsign}: follow of {Lead} ended, re-entering {Side} traffic runway {Rwy}",
+            aircraft.Callsign,
+            TargetCallsign,
+            side,
+            runwayDisplay
+        );
+        aircraft.PendingWarnings.Add($"{aircraft.Callsign} follow ended, re-entering {side} traffic runway {runwayDisplay}");
     }
 
     /// <summary>
@@ -746,11 +846,28 @@ public sealed class VfrFollowPhase(string targetCallsign) : Phase
             LeadLandingRunway = _leadLandingRunway?.ToSnapshot(),
             WidenActive = _widen.Active,
             WidenSide = _widen.Side,
+            PatternReturn = PatternReturn is { } patternReturn
+                ? new FollowPatternReturnDto
+                {
+                    Runway = patternReturn.Runway.ToSnapshot(),
+                    Direction = (int)patternReturn.Direction,
+                    PatternAltitudeFt = patternReturn.PatternAltitudeFt,
+                    FromBase = patternReturn.FromBase,
+                }
+                : null,
         };
 
     public static VfrFollowPhase FromSnapshot(VfrFollowPhaseDto dto)
     {
-        var phase = new VfrFollowPhase(dto.TargetCallsign) { Status = (PhaseStatus)dto.Status, ElapsedSeconds = dto.ElapsedSeconds };
+        FollowPatternReturn? patternReturn = dto.PatternReturn is { } returnDto
+            ? new FollowPatternReturn(
+                RunwayInfo.FromSnapshot(returnDto.Runway),
+                (PatternDirection)returnDto.Direction,
+                returnDto.PatternAltitudeFt,
+                returnDto.FromBase ?? false
+            )
+            : null;
+        var phase = new VfrFollowPhase(dto.TargetCallsign, patternReturn) { Status = (PhaseStatus)dto.Status, ElapsedSeconds = dto.ElapsedSeconds };
         phase.RestoreRequirements(dto.Requirements);
         if (dto.LeadLandingRunway is not null)
         {
@@ -766,4 +883,6 @@ public sealed class VfrFollowPhase(string targetCallsign) : Phase
 /// The pattern a follower flew before FOLLOW sent it into free pursuit of a lead with no runway: the runway,
 /// the circuit direction and the pattern altitude (feet MSL) it re-enters when the follow ends.
 /// </summary>
-public sealed record FollowPatternReturn(RunwayInfo Runway, PatternDirection Direction, double PatternAltitudeFt);
+/// <see cref="FromBase"/> is true when the pursuit started from the base leg, which caps its altitude at the
+/// present altitude rather than climbing back to pattern altitude.
+public sealed record FollowPatternReturn(RunwayInfo Runway, PatternDirection Direction, double PatternAltitudeFt, bool FromBase);

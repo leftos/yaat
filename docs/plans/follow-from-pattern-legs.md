@@ -1,6 +1,6 @@
 # FOLLOW sequencing from pattern legs + `WAIT <n>NM`
 
-Status: design settled and aviation-reviewed. Nothing is implemented; the replay fixture is committed. Execute the briefs in the order below through the `plan-execution` skill.
+Status: A (routing), C (pattern return) and D (`WAIT <n>NM`) have shipped, aviation- and code-reviewed; B (`TryJoinLeadBase`) and E (spacing on base) are next, in that order. Shipped differently from the text below: pattern altitude is flown from every leg but base (base keeps the lower of present and pattern altitude); any lead on the ground not rolling out on the follower's runway is refused; the other-airport refusal needs the lead's runway or filed destination; FOLLOW from `InterceptCoursePhase`/`ApproachNavigationPhase` keeps the landing clearance.
 
 ## Context
 
