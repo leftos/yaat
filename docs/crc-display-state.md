@@ -142,7 +142,7 @@ Facility config drives two of those splits, so `EramTargets` is recomputed per s
 - **`BlinkSpc` is the six-code vNAS special-purpose set** {1276 ADIZ, 7400 lost link, 7500, 7600, 7700, 7777 AFIO}
   (`DtoConverter.IsSpc`), not just 7500/7600/7700.
 
-Wire encoding is MessagePack with `[Key(N)]`-attributed records; payloads are written via `MessagePackWriter` and pushed through SignalR `Receive*` invocations.
+Wire encoding is MessagePack with `[Key(N)]`-attributed records; payloads are written via `MessagePackWriter` and pushed through SignalR `Receive*` invocations. A client that opens the socket with the SignalR JSON protocol (the vEDST web client) gets the same traffic translated at the socket edge: `CrcJsonTranscoder` turns its JSON invocations into the MessagePack invocations the handlers read and the outbound MessagePack frames into camelCase JSON, for a fixed list of methods and callbacks (anything else is refused inbound and dropped outbound). Every JSON frame is a WebSocket Text message; MessagePack traffic is unchanged. Both protocols reassemble a message until its end, cap it at 1 MiB (close 1009), serialize every send through one lock, and answer an invocation whose handler throws with an error completion. `Unsubscribe` completes with a nil ack.
 
 ## WebSocket lifecycle — `CrcWebSocketHandler.cs`
 
