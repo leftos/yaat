@@ -59,7 +59,7 @@ The **target** is always `$target_server`. When `server_dir` resolves to the tar
 For each potentially involved repo, in this order:
 
 1. **Source yaat working tree must be clean** (`git -C "$source_yaat" status --porcelain` empty). Halt and list dirty paths if not.
-2. **Target yaat (`$target_yaat`) must exist, be on `main`, and not have an in-progress operation** (no `.git/CHERRY_PICK_HEAD`, `.git/MERGE_HEAD`, `.git/rebase-merge`, `.git/rebase-apply`). Halt with what's in progress if so.
+2. **Target yaat (`$target_yaat`) must exist, be on the landing branch (`main` unless the source branch records `landOn`, Step 2), and not have an in-progress operation** (no `.git/CHERRY_PICK_HEAD`, `.git/MERGE_HEAD`, `.git/rebase-merge`, `.git/rebase-apply`). Halt with what's in progress if so.
 3. **yaat-server side** (source `$server_dir`, target `$target_server`): if any local-only commits exist relative to `main`, apply the same checks to the source working tree and the target. If working tree is dirty but the dirty files are the same files Claude already edited in this session (i.e. uncommitted session work), surface them — they need to be committed first via `/changelog-and-commit` or similar. Don't proceed past dirty trees.
 
 Untracked files in the target (like a stray `.rustling-tulip/` in the main checkout) are fine — they're not in the working tree's modification set.
@@ -74,17 +74,20 @@ git -C "$target" grep <FieldName> main -- <file>                    # plumbing a
 git -C "$source" cherry main "$source_head" "$base"                 # '-' = patch already on main, '+' = new
 ```
 
-`git cherry` marks a commit `+` even when main already has it, if only the `CHANGELOG.md` hunk offsets moved. Don't trust the sigil alone: confirm with a subject match against `main`'s log, then diff the code portion only (`git show <sha> --format="" -- ':!CHANGELOG.md'` for both) — identical code plus identical bullet text means already landed, skip it. When only some commits are new, cherry-pick those by SHA rather than the whole `base..head` range.
+(`main` above is the landing branch, `$land_on` in Step 2; `$base` is Step 2's.) `git cherry` marks a commit `+` even when main already has it, if only the `CHANGELOG.md` hunk offsets moved. Don't trust the sigil alone: confirm with a subject match against `main`'s log, then diff the code portion only (`git show <sha> --format="" -- ':!CHANGELOG.md'` for both) — identical code plus identical bullet text means already landed, skip it. When only some commits are new, cherry-pick those by SHA rather than the whole `base..head` range.
 
 ## Step 2: Compute the cherry-pick range per repo
 
 For each source/target pair. The default order is yaat first, then yaat-server — **unless the session changed a `Yaat.Sim` signature that yaat-server calls**, in which case see *Cross-repo API changes* under Step 4 before running anything.
 
 ```bash
-target_main=$(git -C "$target" rev-parse main)
+land_on=$(git -C "$source" config "branch.$source_branch.landOn" || echo main)   # set when the worktree was cut
+target_main=$(git -C "$target" rev-parse "$land_on")
 source_head=$(git -C "$source" rev-parse "$source_branch")
-base=$(git -C "$target" merge-base "$target_main" "$source_head")
+base=$(git -C "$source" config "branch.$source_branch.base" || git -C "$target" merge-base "$target_main" "$source_head")
 ```
+
+`branch.<name>.base` (the sha the branch was cut from, any ref: a stacked item's dependency branch, a session branch, a tag) and `branch.<name>.landOn` (the branch it lands on) are recorded per repo when `nextup` cuts the worktree (its §3, **Base and target**). With them, only `$base..$source_head` is this branch's work, so a stacked branch carries none of its dependency's commits even after they landed under other SHAs. Absent, the range is the merge-base with `main`. Read `main` as `$land_on` everywhere below; a `$land_on` checked out in another worktree (`git worktree list`) is the target checkout for this repo instead of the main checkout. A stacked branch whose base has not landed on `$land_on` yet halts: land the base first.
 
 - If `source_head == target_main` → already landed, skip this repo.
 - If `base == target_main` → fast-forward possible. Use `merge --ff-only`.
@@ -274,14 +277,16 @@ server_dir="$(dirname "$source_yaat")/yaat-server"
 [ -e "$server_dir/.git" ] && [ "$(git -C "$server_dir" branch --show-current)" = "$source_branch" ] || server_dir="$target_server"
 server_branch=$(git -C "$server_dir" branch --show-current)
 
-# Compute & execute for yaat
-base=$(git -C "$target_yaat" merge-base main "$source_branch")
+# Compute & execute for yaat (recorded base/landOn first, merge-base with main as the fallback)
+land_on=$(git -C "$source_yaat" config "branch.$source_branch.landOn" || echo main)
+base=$(git -C "$source_yaat" config "branch.$source_branch.base" || git -C "$target_yaat" merge-base "$land_on" "$source_branch")
 git -C "$source_yaat" log --oneline "$base..$source_branch"           # plan
-git -C "$target_yaat" cherry-pick "$base..$source_branch"             # execute
+git -C "$target_yaat" cherry-pick "$base..$source_branch"             # execute (target checked out on $land_on)
 
 # Compute & execute for yaat-server (only if its current branch has divergent commits)
-if [ -n "$(git -C "$target_server" log --oneline "main..$server_branch" 2>/dev/null)" ]; then
-    base_s=$(git -C "$target_server" merge-base main "$server_branch")
+land_on_s=$(git -C "$server_dir" config "branch.$server_branch.landOn" || echo main)
+base_s=$(git -C "$server_dir" config "branch.$server_branch.base" || git -C "$target_server" merge-base "$land_on_s" "$server_branch")
+if [ -n "$(git -C "$target_server" log --oneline "$base_s..$server_branch" 2>/dev/null)" ]; then
     git -C "$target_server" cherry-pick "$base_s..$server_branch"
 fi
 

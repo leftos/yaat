@@ -101,6 +101,8 @@ If the gate fails, **do not push**. Fix forward with a new commit on `main` (nev
 
 ## Phase 4: Push
 
+`main` below is the branch Phase 2 landed on: the source branch's `branch.<name>.landOn` when it records one (`merge-session-to-main` Step 2), else `main`. A landing branch with no `origin/<branch>` (a local session branch that a stacked item landed onto) is not pushed: `Phase 4: skipped (<branch> is local; it ships with its own branch)`, and Phase 5 waits for that ship.
+
 Announce, then push in the same turn:
 
 ```
