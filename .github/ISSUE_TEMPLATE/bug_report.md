@@ -22,7 +22,9 @@ What you expected to happen.
 What actually happened.
 
 **Bug report bundle**
-Use **Scenario → Save Bug Report Bundle** to generate a `.zip` containing the session recording, client log, and server log in one file. Attach it here — this is the single most helpful thing you can include.
+The easiest path is **Scenario → File Bug Report...**: it saves a bundle to `%LOCALAPPDATA%/yaat/bug-reports/`, opens this issue prefilled in your browser, and shows the bundle so you can drag it in. Without a room running (or without a recording) the bundle holds just the client log.
+
+You can also use **Scenario → Save Bug Report Bundle** and attach the `.zip` yourself. It contains the session recording, client log, and server log in one file — the single most helpful thing you can include.
 
 **Screenshots**
 If applicable, add screenshots to help illustrate the problem.

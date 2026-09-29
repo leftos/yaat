@@ -1031,18 +1031,59 @@ public sealed class UserPreferences
 
     public bool SpeechSampleCaptureEnabled => _data.SpeechSampleCaptureEnabled;
     public int SpeechSampleCacheMaxMb => _data.SpeechSampleCacheMaxMb;
+    public bool SpeechTelemetryEnabled => _data.SpeechTelemetryEnabled;
+    public bool SpeechTelemetryPromptShown => _data.SpeechTelemetryPromptShown;
 
     /// <summary>
     /// Persists the opt-in speech-sample capture toggle and its on-disk size cap (in MB). When
     /// capture is on, the speech pipeline writes every push-to-talk recording + pipeline trace
     /// under <c>%LOCALAPPDATA%/yaat/speech-samples/</c>; <see cref="SpeechSampleCacheMaxMb"/>
-    /// bounds total disk use via FIFO eviction. Nothing is uploaded automatically — users export
-    /// individual samples from the Speech Debug window and attach them to GitHub issues by hand.
+    /// bounds total disk use via FIFO eviction. Samples are uploaded automatically only while
+    /// <see cref="SpeechTelemetryEnabled"/> is on; otherwise users export individual samples from
+    /// the Speech Debug window and attach them to GitHub issues by hand. Capture cannot be turned
+    /// off while telemetry is on — this setter keeps <see cref="SpeechSampleCaptureEnabled"/> true
+    /// in that case, since telemetry has nothing to upload without local capture.
     /// </summary>
     public void SetSpeechSampleSettings(bool enabled, int maxMb)
     {
-        _data.SpeechSampleCaptureEnabled = enabled;
+        _data.SpeechSampleCaptureEnabled = enabled || _data.SpeechTelemetryEnabled;
         _data.SpeechSampleCacheMaxMb = Math.Max(1, maxMb);
+        Save();
+    }
+
+    /// <summary>
+    /// Persists the opt-in speech-telemetry toggle. Enabling it also forces local sample capture
+    /// on (telemetry uploads what capture writes). Idempotent: a call that doesn't change the
+    /// stored value is a no-op.
+    /// </summary>
+    public void SetSpeechTelemetryEnabled(bool enabled)
+    {
+        if (_data.SpeechTelemetryEnabled == enabled)
+        {
+            return;
+        }
+
+        _data.SpeechTelemetryEnabled = enabled;
+        if (enabled)
+        {
+            _data.SpeechSampleCaptureEnabled = true;
+        }
+
+        Save();
+    }
+
+    /// <summary>
+    /// Persists whether the speech-telemetry consent dialog has been shown. Idempotent: a call that
+    /// doesn't change the stored value is a no-op.
+    /// </summary>
+    public void SetSpeechTelemetryPromptShown(bool shown)
+    {
+        if (_data.SpeechTelemetryPromptShown == shown)
+        {
+            return;
+        }
+
+        _data.SpeechTelemetryPromptShown = shown;
         Save();
     }
 
@@ -1933,6 +1974,8 @@ public sealed class UserPreferences
             ScenarioCommandHistory = GetFieldOr<Dictionary<string, List<CommandHistoryEntry>>>(obj, "scenarioCommandHistory", []),
             SoloGoAroundProbabilityPercent = GetFieldOr(obj, "soloGoAroundProbabilityPercent", 0),
             SoloGoAroundProbabilityByScenario = GetFieldOr<Dictionary<string, int>>(obj, "soloGoAroundProbabilityByScenario", []),
+            SpeechTelemetryEnabled = GetFieldOr(obj, "speechTelemetryEnabled", false),
+            SpeechTelemetryPromptShown = GetFieldOr(obj, "speechTelemetryPromptShown", false),
         };
 
         return ApplyDefaultServers(result);
@@ -1946,7 +1989,10 @@ public sealed class UserPreferences
     /// Only the hosted server is a default; anyone running a server locally adds their
     /// own entry via the Connect dialog's "Add" button.
     /// </summary>
-    public static IReadOnlyList<SavedServer> DefaultServers { get; } = [new SavedServer("YAAT1", "https://yaat1.leftos.dev")];
+    public static IReadOnlyList<SavedServer> DefaultServers { get; } = [new SavedServer("YAAT1", OfficialServerUrl)];
+
+    /// <summary>The hosted YAAT server: the default connection, and the only server speech telemetry is sent to.</summary>
+    public const string OfficialServerUrl = "https://yaat1.leftos.dev";
 
     private static SavedPrefs ApplyDefaultServers(SavedPrefs prefs)
     {
@@ -2064,7 +2110,7 @@ public sealed class UserPreferences
     {
         public SavedCommandScheme? CommandScheme { get; set; }
         public List<SavedServer> SavedServers { get; set; } = [];
-        public string LastUsedServerUrl { get; set; } = "https://yaat1.leftos.dev";
+        public string LastUsedServerUrl { get; set; } = OfficialServerUrl;
         public string UserInitials { get; set; } = "";
         public string ArtccId { get; set; } = "";
         public bool IsAdminMode { get; set; }
@@ -2303,9 +2349,17 @@ public sealed class UserPreferences
         // Opt-in speech-sample capture. When true, every push-to-talk session is persisted as
         // {audio.wav + session.json} under %LOCALAPPDATA%/yaat/speech-samples/, FIFO-evicted to
         // stay within SpeechSampleCacheMaxMb. Users review and export samples from the Speech
-        // Debug window; nothing is uploaded automatically.
+        // Debug window, and — when SpeechTelemetryEnabled is also on — the sample is marked for
+        // automatic upload to the connected server instead of being exported by hand.
         public bool SpeechSampleCaptureEnabled { get; set; }
         public int SpeechSampleCacheMaxMb { get; set; } = 50;
+
+        // Opt-in speech telemetry. When true, samples captured locally are queued for upload to
+        // the connected yaat-server, which implies capture (SpeechSampleCaptureEnabled is forced
+        // on). SpeechTelemetryPromptShown records that the consent dialog has been shown once so
+        // it isn't re-raised on every launch.
+        public bool SpeechTelemetryEnabled { get; set; }
+        public bool SpeechTelemetryPromptShown { get; set; }
         public string PttKey { get; set; } = "RightCtrl";
         public string AudioInputDevice { get; set; } = "";
         public string AudioOutputDevice { get; set; } = "";

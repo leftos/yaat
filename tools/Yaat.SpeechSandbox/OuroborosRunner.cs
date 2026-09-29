@@ -436,18 +436,25 @@ internal static class OuroborosRunner
 
     private static string MdEscape(string s) => s.Replace("|", "\\|", StringComparison.Ordinal);
 
-    private static string FindRepoRoot()
+    private static string FindRepoRoot() => TryFindRepoRoot() ?? AppContext.BaseDirectory;
+
+    /// <summary>
+    /// Walks up from the executable directory to the first folder holding <c>.git</c> — a directory
+    /// in a main checkout, a file in a git worktree. Null when the build output is outside any repo.
+    /// </summary>
+    internal static string? TryFindRepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null)
         {
-            if (Directory.Exists(Path.Combine(dir.FullName, ".git")))
+            string gitPath = Path.Combine(dir.FullName, ".git");
+            if (Directory.Exists(gitPath) || File.Exists(gitPath))
             {
                 return dir.FullName;
             }
             dir = dir.Parent;
         }
-        return AppContext.BaseDirectory;
+        return null;
     }
 
     private enum CaseVerdict

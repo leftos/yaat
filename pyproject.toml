@@ -59,3 +59,8 @@ max-complexity = 8
 "tools/refresh-airlines.py" = ["PLR2004"]
 "tools/stash-procedure.py" = ["C901", "PLR0911", "PLR0912", "PLR0915", "PLR2004"]
 "tools/visualize_airport.py" = ["C901"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

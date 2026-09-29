@@ -75,8 +75,8 @@ public sealed class SpeechSampleStoreTests : IDisposable
     [Fact]
     public void Add_Persists_Audio_And_Session_Json()
     {
-        var store = new SpeechSampleStore(MakePrefs(50), _root);
-        string? id = store.Add(MakeSession(DateTime.UtcNow), MakeAudio(0.5));
+        var store = new SpeechSampleStore(MakePrefs(50), _root, a => a());
+        string? id = store.Add(MakeSession(DateTime.UtcNow), MakeAudio(0.5), queueForUpload: false);
         Assert.NotNull(id);
         Assert.Single(store.Entries);
 
@@ -93,8 +93,8 @@ public sealed class SpeechSampleStoreTests : IDisposable
     [Fact]
     public void Add_Rejects_Empty_Audio_Buffer()
     {
-        var store = new SpeechSampleStore(MakePrefs(50), _root);
-        string? id = store.Add(MakeSession(DateTime.UtcNow), audioSamples: []);
+        var store = new SpeechSampleStore(MakePrefs(50), _root, a => a());
+        string? id = store.Add(MakeSession(DateTime.UtcNow), audioSamples: [], queueForUpload: false);
         Assert.Null(id);
         Assert.Empty(store.Entries);
     }
@@ -105,11 +105,11 @@ public sealed class SpeechSampleStoreTests : IDisposable
         // 1 MB cap is the floor we can hit reliably with short WAVs. Each 5-second WAV at 16 kHz
         // mono int16 is ~160 KB → headroom for ~6 entries before eviction kicks in. We add 10 with
         // monotonically increasing timestamps and expect the oldest to be evicted first.
-        var store = new SpeechSampleStore(MakePrefs(capMb: 1), _root);
+        var store = new SpeechSampleStore(MakePrefs(capMb: 1), _root, a => a());
         var baseTime = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         for (int i = 0; i < 10; i++)
         {
-            store.Add(MakeSession(baseTime.AddSeconds(i)), MakeAudio(5));
+            store.Add(MakeSession(baseTime.AddSeconds(i)), MakeAudio(5), queueForUpload: false);
         }
 
         Assert.True(store.Entries.Count < 10, "Some entries should have been evicted under the 1 MB cap.");
@@ -124,9 +124,9 @@ public sealed class SpeechSampleStoreTests : IDisposable
     [Fact]
     public void Delete_Removes_Single_Entry_And_Folder()
     {
-        var store = new SpeechSampleStore(MakePrefs(50), _root);
-        string? id1 = store.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)), MakeAudio(0.5));
-        string? id2 = store.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 1, DateTimeKind.Utc)), MakeAudio(0.5));
+        var store = new SpeechSampleStore(MakePrefs(50), _root, a => a());
+        string? id1 = store.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)), MakeAudio(0.5), queueForUpload: false);
+        string? id2 = store.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 1, DateTimeKind.Utc)), MakeAudio(0.5), queueForUpload: false);
         Assert.Equal(2, store.Entries.Count);
 
         store.Delete(id1!);
@@ -138,10 +138,10 @@ public sealed class SpeechSampleStoreTests : IDisposable
     [Fact]
     public void DeleteAll_Removes_Every_Entry()
     {
-        var store = new SpeechSampleStore(MakePrefs(50), _root);
+        var store = new SpeechSampleStore(MakePrefs(50), _root, a => a());
         for (int i = 0; i < 3; i++)
         {
-            store.Add(MakeSession(DateTime.UtcNow.AddSeconds(i)), MakeAudio(0.2));
+            store.Add(MakeSession(DateTime.UtcNow.AddSeconds(i)), MakeAudio(0.2), queueForUpload: false);
         }
         Assert.Equal(3, store.Entries.Count);
         store.DeleteAll();
@@ -157,11 +157,11 @@ public sealed class SpeechSampleStoreTests : IDisposable
     public void Rescan_Repopulates_From_Disk()
     {
         UserPreferences prefs = MakePrefs(50);
-        var first = new SpeechSampleStore(prefs, _root);
-        first.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)), MakeAudio(0.3));
-        first.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 1, DateTimeKind.Utc)), MakeAudio(0.3));
+        var first = new SpeechSampleStore(prefs, _root, a => a());
+        first.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)), MakeAudio(0.3), queueForUpload: false);
+        first.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 1, DateTimeKind.Utc)), MakeAudio(0.3), queueForUpload: false);
 
-        var second = new SpeechSampleStore(prefs, _root);
+        var second = new SpeechSampleStore(prefs, _root, a => a());
         Assert.Equal(2, second.Entries.Count);
         // Newest first.
         Assert.Equal(new DateTime(2026, 1, 1, 0, 0, 1, DateTimeKind.Utc), second.Entries[0].Session.TimestampUtc);
@@ -170,8 +170,8 @@ public sealed class SpeechSampleStoreTests : IDisposable
     [Fact]
     public void ExportBundle_Single_Sample_Produces_Zip_With_Subfolder_Layout()
     {
-        var store = new SpeechSampleStore(MakePrefs(50), _root);
-        string? id = store.Add(MakeSession(DateTime.UtcNow), MakeAudio(0.5));
+        var store = new SpeechSampleStore(MakePrefs(50), _root, a => a());
+        string? id = store.Add(MakeSession(DateTime.UtcNow), MakeAudio(0.5), queueForUpload: false);
         Assert.NotNull(id);
 
         string zipPath = Path.Combine(_root, "export.zip");
@@ -214,10 +214,14 @@ public sealed class SpeechSampleStoreTests : IDisposable
     [Fact]
     public void ExportBundle_Multiple_Samples_Contains_All_Subfolders()
     {
-        var store = new SpeechSampleStore(MakePrefs(50), _root);
-        string id1 = store.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)), MakeAudio(0.3))!;
-        string id2 = store.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 1, DateTimeKind.Utc), canonical: null), MakeAudio(0.3))!;
-        string id3 = store.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 2, DateTimeKind.Utc)), MakeAudio(0.3))!;
+        var store = new SpeechSampleStore(MakePrefs(50), _root, a => a());
+        string id1 = store.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)), MakeAudio(0.3), queueForUpload: false)!;
+        string id2 = store.Add(
+            MakeSession(new DateTime(2026, 1, 1, 0, 0, 1, DateTimeKind.Utc), canonical: null),
+            MakeAudio(0.3),
+            queueForUpload: false
+        )!;
+        string id3 = store.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 2, DateTimeKind.Utc)), MakeAudio(0.3), queueForUpload: false)!;
 
         string zipPath = Path.Combine(_root, "bundle.zip");
         // Pick two of three; the third must not appear in the zip.
@@ -239,10 +243,133 @@ public sealed class SpeechSampleStoreTests : IDisposable
     [Fact]
     public void ExportBundle_Skips_Unknown_Ids_Without_Writing_File()
     {
-        var store = new SpeechSampleStore(MakePrefs(50), _root);
+        var store = new SpeechSampleStore(MakePrefs(50), _root, a => a());
         string zipPath = Path.Combine(_root, "noop.zip");
         int written = store.ExportBundle(["does-not-exist", "also-missing"], zipPath);
         Assert.Equal(0, written);
         Assert.False(File.Exists(zipPath));
+    }
+
+    [Fact]
+    public void Add_QueueForUpload_Writes_Marker_And_Lists_Pending()
+    {
+        var store = new SpeechSampleStore(MakePrefs(50), _root, a => a());
+        string? queued = store.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)), MakeAudio(0.3), queueForUpload: true);
+        string? local = store.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 1, DateTimeKind.Utc)), MakeAudio(0.3), queueForUpload: false);
+
+        Assert.NotNull(queued);
+        Assert.NotNull(local);
+        Assert.True(File.Exists(Path.Combine(_root, queued!, "upload-pending")), "queued sample should carry the marker");
+        Assert.False(File.Exists(Path.Combine(_root, local!, "upload-pending")), "local-only sample must not carry the marker");
+        Assert.Equal([queued], store.PendingUploadIds());
+    }
+
+    [Fact]
+    public void PendingUploadIds_Orders_Oldest_First()
+    {
+        var store = new SpeechSampleStore(MakePrefs(50), _root, a => a());
+        string newest = store.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 2, DateTimeKind.Utc)), MakeAudio(0.2), queueForUpload: true)!;
+        string oldest = store.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)), MakeAudio(0.2), queueForUpload: true)!;
+
+        Assert.Equal([oldest, newest], store.PendingUploadIds());
+    }
+
+    [Fact]
+    public void MarkUploaded_And_ClearPendingUploads_Drain_The_Queue()
+    {
+        var store = new SpeechSampleStore(MakePrefs(50), _root, a => a());
+        string id1 = store.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)), MakeAudio(0.2), queueForUpload: true)!;
+        string id2 = store.Add(MakeSession(new DateTime(2026, 1, 1, 0, 0, 1, DateTimeKind.Utc)), MakeAudio(0.2), queueForUpload: true)!;
+
+        store.MarkUploaded(id1);
+        Assert.Equal([id2], store.PendingUploadIds());
+        Assert.True(File.Exists(Path.Combine(_root, id2, "audio.wav")), "marking uploaded must keep the sample on disk");
+
+        // Unknown ids are a no-op rather than an error.
+        store.MarkUploaded("does-not-exist");
+        Assert.Equal([id2], store.PendingUploadIds());
+
+        store.ClearPendingUploads();
+        Assert.Empty(store.PendingUploadIds());
+        Assert.True(File.Exists(Path.Combine(_root, id1, "audio.wav")), "clearing markers must keep the samples on disk");
+    }
+
+    [Fact]
+    public void WriteBundle_Writes_Zip_To_Stream_And_Leaves_It_Open()
+    {
+        var store = new SpeechSampleStore(MakePrefs(50), _root, a => a());
+        string id = store.Add(MakeSession(DateTime.UtcNow), MakeAudio(0.5), queueForUpload: true)!;
+
+        using var stream = new MemoryStream();
+        Assert.Equal(1, store.WriteBundle([id], stream));
+        Assert.True(stream.CanWrite, "WriteBundle must leave the destination stream open");
+
+        stream.Position = 0;
+        using var zip = new ZipArchive(stream, ZipArchiveMode.Read);
+        var names = zip.Entries.Select(e => e.FullName).ToHashSet();
+        Assert.Contains("manifest.json", names);
+        Assert.Contains($"samples/{id}/audio.wav", names);
+        Assert.Contains($"samples/{id}/session.json", names);
+    }
+
+    [Fact]
+    public async Task Concurrent_Adds_While_The_Uploader_Reads_Stay_Consistent()
+    {
+        var store = new SpeechSampleStore(MakePrefs(50), _root, a => a());
+        var added = new System.Collections.Concurrent.ConcurrentBag<string>();
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        CancellationToken ct = stop.Token;
+        DateTime baseTs = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        Task[] adders =
+        [
+            .. Enumerable
+                .Range(0, 4)
+                .Select(worker =>
+                    Task.Run(
+                        () =>
+                        {
+                            for (int i = 0; !ct.IsCancellationRequested && (i < 150); i++)
+                            {
+                                string? id = store.Add(MakeSession(baseTs.AddSeconds((worker * 1000) + i)), MakeAudio(0.05), queueForUpload: true);
+                                Assert.NotNull(id);
+                                added.Add(id);
+                            }
+                        },
+                        TestContext.Current.CancellationToken
+                    )
+                ),
+        ];
+
+        var reader = Task.Run(
+            () =>
+            {
+                while (!ct.IsCancellationRequested)
+                {
+                    foreach (string id in store.PendingUploadIds().Take(3))
+                    {
+                        using var buffer = new MemoryStream();
+                        Assert.Equal(1, store.WriteBundle([id], buffer));
+                        Assert.True(store.IsPendingUpload(id));
+                        store.MarkUploaded(id);
+                        Assert.False(store.IsPendingUpload(id));
+                    }
+
+                    Assert.True(store.TotalBytes >= 0);
+                }
+            },
+            TestContext.Current.CancellationToken
+        );
+
+        await Task.WhenAll([.. adders, reader]);
+
+        HashSet<string> expected = [.. added];
+        HashSet<string> loaded = [.. store.Entries.Select(e => e.Id)];
+        Assert.Equal(expected, loaded);
+        Assert.Equal(expected.Count, store.Entries.Count);
+        Assert.Equal(store.Entries.Sum(e => e.TotalBytes), store.TotalBytes);
+        var rescanned = new SpeechSampleStore(MakePrefs(50), _root, a => a());
+        HashSet<string> reloaded = [.. rescanned.Entries.Select(e => e.Id)];
+        Assert.Equal(expected, reloaded);
     }
 }

@@ -72,5 +72,8 @@ claude-ws.ps1
 tools/make-oak-northfield-scenario.py
 uv.lock
 
+# uv's project environment (pytest for tools/tests)
+.venv/
+
 # Wrangler local cache (created by wrangler deploy/dev)
 .wrangler/

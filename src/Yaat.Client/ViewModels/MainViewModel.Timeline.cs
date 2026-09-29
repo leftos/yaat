@@ -205,22 +205,9 @@ public partial class MainViewModel
             return;
         }
 
-        IsExportingRecording = true;
-        ExportingStatusText = "Preparing bug report bundle...";
-        IsExportIndeterminate = true;
-        ExportProgress = 0;
-        _connection.ExportRecordingProgress += OnExportRecordingProgress;
         try
         {
-            if (!IsPaused)
-            {
-                await _connection.SendCommandAsync("", "PAUSE", _preferences.UserInitials);
-            }
-
-            byte[]? compressedBytes = await _connection.ExportRecordingAsync(BuildInfo.Version, BuildInfo.BuildKind);
-            _connection.ExportRecordingProgress -= OnExportRecordingProgress;
-            IsExportingRecording = false;
-
+            byte[]? compressedBytes = await FetchRecordingForBundleAsync();
             if (compressedBytes is null)
             {
                 StatusText = "No recording available";
@@ -241,16 +228,70 @@ public partial class MainViewModel
                 return;
             }
 
-            byte[] recordingBytes = compressedBytes;
-            if (Bookmarks.Count > 0 && RecordingCompression.IsZipArchive(compressedBytes))
+            await WriteBugReportBundleAsync(path, compressedBytes);
+
+            StatusText = "Bug report bundle saved";
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Save bug report bundle failed");
+            StatusText = $"Save bug report bundle error: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Pauses the room, exports the session recording and shows export progress while it runs. Returns
+    /// null when the server has no recording to give (or another export is already in flight). Shared by
+    /// Save Bug Report Bundle and File Bug Report; the caller decides what to do with the bytes.
+    /// </summary>
+    private async Task<byte[]?> FetchRecordingForBundleAsync()
+    {
+        if (IsExportingRecording)
+        {
+            return null;
+        }
+
+        IsExportingRecording = true;
+        ExportingStatusText = "Preparing bug report bundle...";
+        IsExportIndeterminate = true;
+        ExportProgress = 0;
+        _connection.ExportRecordingProgress += OnExportRecordingProgress;
+        try
+        {
+            if (!IsPaused)
             {
-                recordingBytes = RecordingArchive.WriteBookmarks(compressedBytes, SnapshotBookmarks());
+                await _connection.SendCommandAsync("", "PAUSE", _preferences.UserInitials);
             }
 
-            await using FileStream stream = File.Create(path);
-            using var archive = new ZipArchive(stream, ZipArchiveMode.Create);
+            byte[]? compressedBytes = await _connection.ExportRecordingAsync(BuildInfo.Version, BuildInfo.BuildKind);
+            return compressedBytes;
+        }
+        finally
+        {
+            _connection.ExportRecordingProgress -= OnExportRecordingProgress;
+            IsExportingRecording = false;
+        }
+    }
 
-            using var recordingStream = new MemoryStream(recordingBytes);
+    /// <summary>
+    /// Writes the bug report bundle at <paramref name="path"/>: the recording's own entries (with the
+    /// timeline bookmarks folded in) and the client log, plus the server log when there is a recording
+    /// to go with it. With no recording the client log is the whole bundle.
+    /// </summary>
+    private async Task WriteBugReportBundleAsync(string path, byte[]? recordingBytes)
+    {
+        await using FileStream stream = File.Create(path);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Create);
+
+        if (recordingBytes is not null)
+        {
+            byte[] bytes = recordingBytes;
+            if (Bookmarks.Count > 0 && RecordingCompression.IsZipArchive(bytes))
+            {
+                bytes = RecordingArchive.WriteBookmarks(bytes, SnapshotBookmarks());
+            }
+
+            using var recordingStream = new MemoryStream(bytes);
             using var recordingZip = new ZipArchive(recordingStream, ZipArchiveMode.Read);
             foreach (ZipArchiveEntry sourceEntry in recordingZip.Entries)
             {
@@ -259,9 +300,12 @@ public partial class MainViewModel
                 await using Stream destStream = destEntry.Open();
                 await sourceStream.CopyToAsync(destStream);
             }
+        }
 
-            AddFileToArchive(archive, AppLog.LogPath, "yaat-client.log");
+        AddFileToArchive(archive, AppLog.LogPath, "yaat-client.log");
 
+        if (recordingBytes is not null)
+        {
             try
             {
                 string? serverLog = await _connection.GetSessionServerLogAsync();
@@ -274,18 +318,6 @@ public partial class MainViewModel
             {
                 _log.LogWarning(ex, "Could not retrieve session server log");
             }
-
-            StatusText = "Bug report bundle saved";
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "Save bug report bundle failed");
-            StatusText = $"Save bug report bundle error: {ex.Message}";
-        }
-        finally
-        {
-            _connection.ExportRecordingProgress -= OnExportRecordingProgress;
-            IsExportingRecording = false;
         }
     }
 

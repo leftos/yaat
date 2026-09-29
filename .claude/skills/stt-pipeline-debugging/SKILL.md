@@ -66,6 +66,10 @@ cat .tmp/stt-bundle/samples/*/session.json | head -200
 ```
 The session JSON has the full trace — read it before doing anything else. Don't re-derive what's already captured.
 
+**Telemetry samples from other users** (a review session): `python tools/speech_telemetry.py pull`, then `summary` lists the misses. Each case dir under `.tmp/speech-telemetry/cases/` holds the same `session.json` as a bundle. Promote a confirmed rule gap with `promote <case>`, never by copying audio into the repo; the full review flow is in `docs/speech-recognition-pipeline.md` → "Reviewing telemetry".
+
+**No specific sample, just "make STT better"**: run `--atc-ouroboros` in `tools/Yaat.SpeechSandbox` and start from its worst families and its gap list (see "Tuning loop" in the same doc).
+
 **Raw or paraphrased transcript** (no bundle): the user typed it directly, e.g. `"N123AB, make straight-in runway 28R, runway 28R cleared to land"`. You need:
 - The transcript verbatim (preserve case and punctuation in case it matters)
 - Active callsigns the pipeline would see (ask the user OR assume just the callsign in the transcript)

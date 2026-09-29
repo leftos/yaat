@@ -265,3 +265,9 @@ One of the `(logical processors - 1) / 4` slots (`GATE_HEAVY_SLOTS` overrides th
 
 **Light slot**:
 One of the `(logical processors - 1) / 2` slots (`GATE_LIGHT_SLOTS` overrides the count) for a gate whose command keeps one or two threads busy: a `dotnet test --no-build` filtered to one class, a small script.
+
+**Ouroboros**:
+A synthetic round trip through the speech pipeline: a known canonical command is rendered to speech with Piper, fed through Whisper, the rule mapper and the LLM fallback, and the recovered canonical is compared with the one it started from. `--ouroboros` speaks pilot readbacks; `--atc-ouroboros` speaks controller transmissions across every phraseology rule family and diffs each family's pass rate against a committed baseline (`tools/Yaat.SpeechSandbox`, docs/speech-recognition-pipeline.md).
+
+**Speech telemetry**:
+Push-to-talk samples (audio, per-stage transcripts, scenario context) that opted-in users' clients upload to the official yaat-server, which stores them for developers to pull with `tools/speech_telemetry.py` (docs/speech-recognition-pipeline.md).

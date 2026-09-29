@@ -92,6 +92,8 @@ public partial class MainViewModel
             }
 
             _connectedServerUrl = url;
+            // Now that a server URL and a valid token exist, drain anything captured while offline.
+            _ = UploadSpeechTelemetryAsync();
             IsConnected = true;
             IsConnecting = false;
             AddSystemEntry($"Connected to {url}");

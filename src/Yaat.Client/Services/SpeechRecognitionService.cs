@@ -711,7 +711,7 @@ public sealed class SpeechRecognitionService(
         // in-memory entry with the on-disk WAV for playback / export.
         if (trace is not null && _sampleStore is not null && _preferences.SpeechSampleCaptureEnabled && audioSamples.Length > 0)
         {
-            string? sampleId = _sampleStore.Add(session, audioSamples);
+            string? sampleId = _sampleStore.Add(session, audioSamples, queueForUpload: _preferences.SpeechTelemetryEnabled);
             if (sampleId is not null)
             {
                 session = session with { SampleId = sampleId };

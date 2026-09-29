@@ -28,6 +28,9 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Yaat.Client\Yaat.Client.csproj" />
     <ProjectReference Include="..\..\src\Yaat.Client.Core\Yaat.Client.Core.csproj" />
+    <!-- Speech sandbox tool: its synthetic-corpus templates, eval stubbing and ATC-ouroboros
+         aggregation/baseline-diff logic are unit-tested without audio or models. -->
+    <ProjectReference Include="..\..\tools\Yaat.SpeechSandbox\Yaat.SpeechSandbox.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -47,5 +50,9 @@
     <None Include="..\..\docs\vnas-artcc-config-examples\zoa.json" Link="TestData\zoa.json" CopyToOutputDirectory="PreserveNewest" />
     <!-- A user's real favorites-library export attached to GitHub issue #437 (import "does nothing"). -->
     <None Include="TestData\favorites\*.zip" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Text-only speech regression corpus promoted from opted-in user telemetry by
+         tools/speech_telemetry.py promote. Audio, CIDs and session files never reach it, so the
+         whole corpus travels with the repo and is read at test time. -->
+    <None Include="TestData\speech-transcripts\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

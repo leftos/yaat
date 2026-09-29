@@ -120,6 +120,7 @@
           <Separator />
           <MenuItem Header="Load Reco_rding..." Command="{Binding LoadRecordingCommand}" IsEnabled="{Binding IsInRoom}" />
           <MenuItem Header="Save _Recording..." Command="{Binding SaveRecordingCommand}" IsEnabled="{Binding IsInRoom}" />
+          <MenuItem Header="_File Bug Report..." Command="{Binding FileBugReportCommand}" />
           <MenuItem Header="Save _Bug Report Bundle..." Command="{Binding SaveBugReportBundleCommand}" IsEnabled="{Binding IsInRoom}" />
         </MenuItem>
         <MenuItem Header="_Tools">

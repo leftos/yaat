@@ -82,6 +82,8 @@ public static class Program
                     return EvalRunner.RunAsync(args[1..]).GetAwaiter().GetResult();
                 case "--synth-corpus":
                     return SynthCorpusGenerator.RunAsync(args[1..]).GetAwaiter().GetResult();
+                case "--atc-ouroboros":
+                    return AtcOuroborosRunner.RunAsync(args[1..]).GetAwaiter().GetResult();
             }
         }
 

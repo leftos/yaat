@@ -1,0 +1,27 @@
+<Window
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  x:Class="Yaat.Client.Views.SpeechTelemetryOptInDialog"
+  Title="Help improve speech recognition"
+  Width="460"
+  CanResize="False"
+  SizeToContent="Height"
+  WindowStartupLocation="CenterOwner"
+  ShowInTaskbar="False"
+>
+  <StackPanel Margin="16" Spacing="12">
+    <TextBlock
+      TextWrapping="Wrap"
+      Text="Would you like YAAT to automatically send your push-to-talk recordings to the YAAT developers? They are used only to improve speech recognition."
+    />
+    <TextBlock
+      TextWrapping="Wrap"
+      Text="Each recording is sent to the official YAAT server (yaat1.leftos.dev) with the transcript at each recognition stage and the scenario context (callsigns, fixes, runways), tagged with your VATSIM CID. Recordings made while you're connected to another server are sent the next time you connect to the official one. A copy is also kept on this computer."
+    />
+    <TextBlock TextWrapping="Wrap" Text="You can change this at any time in Settings → Speech." />
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button x:Name="ShareButton" Content="Share recordings" Width="140" IsDefault="True" />
+      <Button x:Name="DeclineButton" Content="No thanks" Width="100" IsCancel="True" />
+    </StackPanel>
+  </StackPanel>
+</Window>

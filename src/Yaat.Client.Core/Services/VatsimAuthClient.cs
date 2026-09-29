@@ -25,20 +25,22 @@ public sealed record VatsimIdentity(string Cid, string Name, string Rating, stri
 public sealed class VatsimAuthClient
 {
     private readonly ILogger _log = AppLog.CreateLogger<VatsimAuthClient>();
-    private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(20) };
+    private readonly HttpClient _http;
     private readonly Lock _gate = new();
     private readonly Dictionary<string, StoredSession> _sessions;
+    private readonly Dictionary<string, Task<StoredSession?>> _refreshes = new(StringComparer.OrdinalIgnoreCase);
     private readonly string _sessionFilePath = YaatPaths.Combine("auth-sessions.json");
 
     public VatsimAuthClient()
+        : this(new HttpClient { Timeout = TimeSpan.FromSeconds(20) }) { }
+
+    /// <summary>Sends every server call through <paramref name="http"/>; tests pass one over a stub handler.</summary>
+    public VatsimAuthClient(HttpClient http)
     {
+        _http = http;
         _sessions = LoadSessions();
     }
 
-    /// <summary>
-    /// Ensures a valid session for the server, running the VATSIM login (or dev token issuance) if
-    /// needed. Returns the resolved identity, or null if login failed or was cancelled.
-    /// </summary>
     /// <summary>
     /// Signs in to <paramref name="serverUrl"/>, reusing a stored session when its refresh token still works.
     /// <paramref name="devArtcc"/> only matters for a server with VATSIM auth disabled: the dev token issuer
@@ -50,7 +52,7 @@ public sealed class VatsimAuthClient
         string key = NormalizeServer(serverUrl);
 
         // Reuse a stored session if its refresh token still mints an access token.
-        if (TryGetSession(key, out StoredSession? existing) && await RefreshAsync(key, existing.RefreshToken, ct) is { } refreshed)
+        if (TryGetSession(key, out _) && await RefreshSharedAsync(key, ct) is { } refreshed)
         {
             return ToIdentity(refreshed);
         }
@@ -83,8 +85,64 @@ public sealed class VatsimAuthClient
             return session.AccessToken;
         }
 
-        StoredSession? refreshed = await RefreshAsync(key, session.RefreshToken, CancellationToken.None);
+        StoredSession? refreshed = await RefreshSharedAsync(key, CancellationToken.None);
         return refreshed?.AccessToken;
+    }
+
+    // The server rotates the refresh token on every refresh and revokes the one just used, so concurrent
+    // callers for one server share a single refresh: a second would present a revoked token and get null.
+    // The shared call runs uncancelled (the HttpClient timeout bounds it); each caller's token only
+    // abandons its own wait.
+    private async Task<StoredSession?> RefreshSharedAsync(string key, CancellationToken ct)
+    {
+        Task<StoredSession?>? inFlight;
+        TaskCompletionSource<StoredSession?>? owned = null;
+        string refreshToken = "";
+        lock (_gate)
+        {
+            if (!_refreshes.TryGetValue(key, out inFlight))
+            {
+                if (!_sessions.TryGetValue(key, out StoredSession? session))
+                {
+                    return null;
+                }
+
+                refreshToken = session.RefreshToken;
+                owned = new TaskCompletionSource<StoredSession?>(TaskCreationOptions.RunContinuationsAsynchronously);
+                inFlight = owned.Task;
+                _refreshes[key] = inFlight;
+            }
+        }
+
+        if (owned is not null)
+        {
+            _ = RunSharedRefreshAsync(key, refreshToken, owned);
+        }
+
+        return await inFlight.WaitAsync(ct);
+    }
+
+    private async Task RunSharedRefreshAsync(string key, string refreshToken, TaskCompletionSource<StoredSession?> completion)
+    {
+        try
+        {
+            completion.SetResult(await RefreshAsync(key, refreshToken, CancellationToken.None));
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Token refresh failed unexpectedly for {Server}", key);
+            completion.SetResult(null);
+        }
+        finally
+        {
+            lock (_gate)
+            {
+                if (_refreshes.TryGetValue(key, out Task<StoredSession?>? current) && ReferenceEquals(current, completion.Task))
+                {
+                    _refreshes.Remove(key);
+                }
+            }
+        }
     }
 
     public VatsimIdentity? GetIdentity(string serverUrl) =>

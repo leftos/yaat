@@ -1,0 +1,1386 @@
+{
+  "seed": 20260928,
+  "cases": 200,
+  "trials": 3,
+  "sttModel": "https://huggingface.co/borisdiakur/whisper-finetuned-for-ATC-ggml/resolve/main/whisper-medium-v3-finetuned-for-ATC-ggml.bin",
+  "llmModel": "gemma4:e4b",
+  "families": [
+    {
+      "family": "TrafficAdvisoryRules",
+      "cases": 7,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 5,
+      "passRate": 0.2857142857142857,
+      "meanWer": 0.14612768184196753
+    },
+    {
+      "family": "HoldRules",
+      "cases": 6,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 4,
+      "passRate": 0.3333333333333333,
+      "meanWer": 0.2317460317460317
+    },
+    {
+      "family": "PtacRules",
+      "cases": 6,
+      "pass": 3,
+      "flaky": 0,
+      "fail": 3,
+      "passRate": 0.5,
+      "meanWer": 0.18412698412698414
+    },
+    {
+      "family": "HelicopterRules",
+      "cases": 5,
+      "pass": 3,
+      "flaky": 0,
+      "fail": 2,
+      "passRate": 0.6,
+      "meanWer": 0.24603174603174605
+    },
+    {
+      "family": "BroadcastRules",
+      "cases": 8,
+      "pass": 5,
+      "flaky": 0,
+      "fail": 3,
+      "passRate": 0.625,
+      "meanWer": 0.5354166666666667
+    },
+    {
+      "family": "PatternRules",
+      "cases": 15,
+      "pass": 10,
+      "flaky": 0,
+      "fail": 5,
+      "passRate": 0.6666666666666666,
+      "meanWer": 0.26455026455026454
+    },
+    {
+      "family": "GroundRules",
+      "cases": 33,
+      "pass": 24,
+      "flaky": 0,
+      "fail": 9,
+      "passRate": 0.7272727272727273,
+      "meanWer": 0.08400168229889592
+    },
+    {
+      "family": "NavigationRules",
+      "cases": 16,
+      "pass": 12,
+      "flaky": 0,
+      "fail": 4,
+      "passRate": 0.75,
+      "meanWer": 0.22493235930735928
+    },
+    {
+      "family": "TransponderRules",
+      "cases": 9,
+      "pass": 7,
+      "flaky": 0,
+      "fail": 2,
+      "passRate": 0.7777777777777778,
+      "meanWer": 0.8685185185185186
+    },
+    {
+      "family": "AltitudeSpeedRules",
+      "cases": 27,
+      "pass": 22,
+      "flaky": 0,
+      "fail": 5,
+      "passRate": 0.8148148148148148,
+      "meanWer": 0.2736331569664903
+    },
+    {
+      "family": "ApproachRules",
+      "cases": 17,
+      "pass": 14,
+      "flaky": 0,
+      "fail": 3,
+      "passRate": 0.8235294117647058,
+      "meanWer": 0.08391690009337067
+    },
+    {
+      "family": "Compound",
+      "cases": 15,
+      "pass": 14,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.9333333333333333,
+      "meanWer": 0.08372442372442372
+    },
+    {
+      "family": "TowerRules",
+      "cases": 25,
+      "pass": 24,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.96,
+      "meanWer": 0.08038095238095239
+    },
+    {
+      "family": "HeadingRules",
+      "cases": 11,
+      "pass": 11,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.048484848484848485
+    }
+  ],
+  "templates": [
+    {
+      "template": "atxi",
+      "family": "HelicopterRules",
+      "cases": 1,
+      "pass": 0,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0,
+      "meanWer": 0.8333333333333334
+    },
+    {
+      "template": "cfix-spd",
+      "family": "NavigationRules",
+      "cases": 1,
+      "pass": 0,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0,
+      "meanWer": 0.2727272727272727
+    },
+    {
+      "template": "circle",
+      "family": "PatternRules",
+      "cases": 2,
+      "pass": 0,
+      "flaky": 0,
+      "fail": 2,
+      "passRate": 0,
+      "meanWer": 0.8
+    },
+    {
+      "template": "cvia",
+      "family": "AltitudeSpeedRules",
+      "cases": 1,
+      "pass": 0,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0,
+      "meanWer": 0.4
+    },
+    {
+      "template": "eapp-ils",
+      "family": "ApproachRules",
+      "cases": 1,
+      "pass": 0,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0,
+      "meanWer": 0.14285714285714285
+    },
+    {
+      "template": "eld",
+      "family": "PatternRules",
+      "cases": 2,
+      "pass": 0,
+      "flaky": 0,
+      "fail": 2,
+      "passRate": 0,
+      "meanWer": 0.3571428571428571
+    },
+    {
+      "template": "hfixl",
+      "family": "HoldRules",
+      "cases": 2,
+      "pass": 0,
+      "flaky": 0,
+      "fail": 2,
+      "passRate": 0,
+      "meanWer": 0.30952380952380953
+    },
+    {
+      "template": "hfixr",
+      "family": "HoldRules",
+      "cases": 1,
+      "pass": 0,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0,
+      "meanWer": 0.42857142857142855
+    },
+    {
+      "template": "hs-twy-at",
+      "family": "GroundRules",
+      "cases": 1,
+      "pass": 0,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0,
+      "meanWer": 0.1111111111111111
+    },
+    {
+      "template": "ident",
+      "family": "TransponderRules",
+      "cases": 2,
+      "pass": 0,
+      "flaky": 0,
+      "fail": 2,
+      "passRate": 0,
+      "meanWer": 0.20833333333333331
+    },
+    {
+      "template": "ptac-fh-rnav",
+      "family": "PtacRules",
+      "cases": 2,
+      "pass": 0,
+      "flaky": 0,
+      "fail": 2,
+      "passRate": 0,
+      "meanWer": 0.2857142857142857
+    },
+    {
+      "template": "push-onto",
+      "family": "GroundRules",
+      "cases": 1,
+      "pass": 0,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0,
+      "meanWer": 0.3333333333333333
+    },
+    {
+      "template": "rtis-dw",
+      "family": "TrafficAdvisoryRules",
+      "cases": 2,
+      "pass": 0,
+      "flaky": 0,
+      "fail": 2,
+      "passRate": 0,
+      "meanWer": 0.23214285714285715
+    },
+    {
+      "template": "rtis-left",
+      "family": "TrafficAdvisoryRules",
+      "cases": 1,
+      "pass": 0,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0,
+      "meanWer": 0.2
+    },
+    {
+      "template": "salt",
+      "family": "BroadcastRules",
+      "cases": 1,
+      "pass": 0,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0,
+      "meanWer": 0.8
+    },
+    {
+      "template": "sspd",
+      "family": "BroadcastRules",
+      "cases": 2,
+      "pass": 0,
+      "flaky": 0,
+      "fail": 2,
+      "passRate": 0,
+      "meanWer": 1.2916666666666667
+    },
+    {
+      "template": "taxi-gate",
+      "family": "GroundRules",
+      "cases": 2,
+      "pass": 0,
+      "flaky": 0,
+      "fail": 2,
+      "passRate": 0,
+      "meanWer": 0.12179487179487179
+    },
+    {
+      "template": "taxi-parking",
+      "family": "GroundRules",
+      "cases": 1,
+      "pass": 0,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0,
+      "meanWer": 0.16666666666666666
+    },
+    {
+      "template": "taxi-parking-cross",
+      "family": "GroundRules",
+      "cases": 1,
+      "pass": 0,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0,
+      "meanWer": 0.11764705882352941
+    },
+    {
+      "template": "taxi-parking-hs",
+      "family": "GroundRules",
+      "cases": 2,
+      "pass": 0,
+      "flaky": 0,
+      "fail": 2,
+      "passRate": 0,
+      "meanWer": 0.0804093567251462
+    },
+    {
+      "template": "atxi-rwy",
+      "family": "HelicopterRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.05555555555555555
+    },
+    {
+      "template": "capp",
+      "family": "ApproachRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.16666666666666666
+    },
+    {
+      "template": "cfix",
+      "family": "NavigationRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.20833333333333331
+    },
+    {
+      "template": "cfix-above",
+      "family": "NavigationRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.1875
+    },
+    {
+      "template": "cvia-alt",
+      "family": "AltitudeSpeedRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.1625
+    },
+    {
+      "template": "dm-spd",
+      "family": "Compound",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.1
+    },
+    {
+      "template": "exp-climb",
+      "family": "AltitudeSpeedRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.5
+    },
+    {
+      "template": "hfix",
+      "family": "HoldRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.17142857142857143
+    },
+    {
+      "template": "japp",
+      "family": "ApproachRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.11805555555555555
+    },
+    {
+      "template": "la",
+      "family": "TowerRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.41666666666666663
+    },
+    {
+      "template": "ptac-tl-ils",
+      "family": "PtacRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.13333333333333333
+    },
+    {
+      "template": "rtis-final",
+      "family": "TrafficAdvisoryRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.11025641025641025
+    },
+    {
+      "template": "rtis-nr",
+      "family": "TrafficAdvisoryRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.06904761904761905
+    },
+    {
+      "template": "sa",
+      "family": "PatternRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.1
+    },
+    {
+      "template": "spd-maintain",
+      "family": "AltitudeSpeedRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.8
+    },
+    {
+      "template": "spd-until",
+      "family": "AltitudeSpeedRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.13392857142857142
+    },
+    {
+      "template": "taxi-via",
+      "family": "GroundRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.16666666666666666
+    },
+    {
+      "template": "tldct",
+      "family": "NavigationRules",
+      "cases": 2,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 1,
+      "passRate": 0.5,
+      "meanWer": 0.25
+    },
+    {
+      "template": "adct",
+      "family": "NavigationRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.14583333333333331
+    },
+    {
+      "template": "capp-ils",
+      "family": "ApproachRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "capp-loc",
+      "family": "ApproachRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "capp-rnav",
+      "family": "ApproachRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.2857142857142857
+    },
+    {
+      "template": "cland",
+      "family": "TowerRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "cland-icao",
+      "family": "TowerRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "cm",
+      "family": "AltitudeSpeedRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.16666666666666666
+    },
+    {
+      "template": "cm-fl",
+      "family": "AltitudeSpeedRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "copt",
+      "family": "TowerRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.16666666666666666
+    },
+    {
+      "template": "cross",
+      "family": "GroundRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "cross-hs",
+      "family": "Compound",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.05
+    },
+    {
+      "template": "cto",
+      "family": "TowerRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.07142857142857142
+    },
+    {
+      "template": "cto-icao",
+      "family": "TowerRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "ctoc",
+      "family": "TowerRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "ctopp",
+      "family": "HelicopterRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.14285714285714285
+    },
+    {
+      "template": "cwt",
+      "family": "TowerRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.2
+    },
+    {
+      "template": "dct",
+      "family": "NavigationRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.30000000000000004
+    },
+    {
+      "template": "dct-dm",
+      "family": "Compound",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.09545454545454546
+    },
+    {
+      "template": "dct-fly",
+      "family": "NavigationRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.25
+    },
+    {
+      "template": "depart",
+      "family": "NavigationRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.25
+    },
+    {
+      "template": "dm",
+      "family": "AltitudeSpeedRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "dm-fl",
+      "family": "AltitudeSpeedRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "dsr",
+      "family": "AltitudeSpeedRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.8
+    },
+    {
+      "template": "eapp-vis",
+      "family": "ApproachRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.07142857142857142
+    },
+    {
+      "template": "ef",
+      "family": "PatternRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.1111111111111111
+    },
+    {
+      "template": "el",
+      "family": "GroundRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "er",
+      "family": "GroundRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "erb",
+      "family": "PatternRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.14285714285714285
+    },
+    {
+      "template": "erd",
+      "family": "PatternRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "ext",
+      "family": "PatternRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "fh",
+      "family": "HeadingRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "fh-cm-spd",
+      "family": "Compound",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.07692307692307693
+    },
+    {
+      "template": "fph",
+      "family": "HeadingRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.1
+    },
+    {
+      "template": "ga",
+      "family": "TowerRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.25
+    },
+    {
+      "template": "ga-hdg",
+      "family": "TowerRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "ga-mrt",
+      "family": "TowerRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "hdg",
+      "family": "HeadingRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "hold",
+      "family": "GroundRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.25
+    },
+    {
+      "template": "hppr",
+      "family": "HoldRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "hs-rwy",
+      "family": "GroundRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "lahso",
+      "family": "TowerRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "luaw",
+      "family": "TowerRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "mlt",
+      "family": "PatternRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.1
+    },
+    {
+      "template": "mnt-alt",
+      "family": "AltitudeSpeedRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.5
+    },
+    {
+      "template": "mrt",
+      "family": "PatternRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.125
+    },
+    {
+      "template": "ptac-tr-ils",
+      "family": "PtacRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.13333333333333333
+    },
+    {
+      "template": "push",
+      "family": "GroundRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "push-face",
+      "family": "GroundRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.16666666666666666
+    },
+    {
+      "template": "rell",
+      "family": "HeadingRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "relr",
+      "family": "HeadingRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "res",
+      "family": "GroundRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "rfas",
+      "family": "AltitudeSpeedRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.21428571428571427
+    },
+    {
+      "template": "rfis",
+      "family": "ApproachRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "rns",
+      "family": "AltitudeSpeedRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.2
+    },
+    {
+      "template": "rtis",
+      "family": "ApproachRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "rwy-taxi-via",
+      "family": "GroundRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "seapp",
+      "family": "BroadcastRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "sg",
+      "family": "TowerRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "shdg",
+      "family": "BroadcastRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.2
+    },
+    {
+      "template": "spd-increase",
+      "family": "AltitudeSpeedRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.3333333333333333
+    },
+    {
+      "template": "spd-knots",
+      "family": "AltitudeSpeedRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "spd-reduce",
+      "family": "AltitudeSpeedRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.16666666666666666
+    },
+    {
+      "template": "spos",
+      "family": "BroadcastRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.25
+    },
+    {
+      "template": "sq",
+      "family": "TransponderRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "sq-cm",
+      "family": "Compound",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.05555555555555555
+    },
+    {
+      "template": "sqnorm",
+      "family": "TransponderRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 2.875
+    },
+    {
+      "template": "sqsby",
+      "family": "TransponderRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.575
+    },
+    {
+      "template": "sqvfr",
+      "family": "TransponderRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.5
+    },
+    {
+      "template": "taxi-cross",
+      "family": "GroundRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.1111111111111111
+    },
+    {
+      "template": "taxi-cross-hs",
+      "family": "GroundRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "taxi-hs",
+      "family": "GroundRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "taxi-rwy",
+      "family": "GroundRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "taxi-spot",
+      "family": "GroundRules",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.25
+    },
+    {
+      "template": "tb",
+      "family": "PatternRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.75
+    },
+    {
+      "template": "tg",
+      "family": "TowerRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "tl",
+      "family": "HeadingRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.3333333333333333
+    },
+    {
+      "template": "tl-cm",
+      "family": "Compound",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.15000000000000002
+    },
+    {
+      "template": "tl-dm-spd",
+      "family": "Compound",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "tr",
+      "family": "HeadingRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0
+    },
+    {
+      "template": "tr-dm",
+      "family": "Compound",
+      "cases": 2,
+      "pass": 2,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.1
+    },
+    {
+      "template": "trdct",
+      "family": "NavigationRules",
+      "cases": 1,
+      "pass": 1,
+      "flaky": 0,
+      "fail": 0,
+      "passRate": 1,
+      "meanWer": 0.14285714285714285
+    }
+  ],
+  "totals": {
+    "cases": 200,
+    "pass": 153,
+    "flaky": 0,
+    "fail": 47,
+    "passRate": 0.765,
+    "meanWer": 0.19900461934865965
+  },
+  "gaps": [
+    {
+      "template": "clbrv",
+      "transcript": "november nine two two five lima cleared into bravo airspace",
+      "expectedCanonical": "CLBRV",
+      "gotCanonical": "CMTR B",
+      "failureReason": "canonical mismatch"
+    },
+    {
+      "template": "cva",
+      "transcript": "november nine two two five lima cleared visual approach runway one zero left",
+      "expectedCanonical": "CVA 10L",
+      "gotCanonical": "cleared visual approach runway 10L",
+      "failureReason": "canonical mismatch"
+    },
+    {
+      "template": "follow",
+      "transcript": "delta five twelve follow american twenty two thirty one",
+      "expectedCanonical": "FOLLOW AAL2231",
+      "gotCanonical": "follow american 2231",
+      "failureReason": "canonical mismatch"
+    },
+    {
+      "template": "l360",
+      "transcript": "united two thirty four make left three sixty",
+      "expectedCanonical": "L360",
+      "gotCanonical": "make left 360",
+      "failureReason": "canonical mismatch"
+    },
+    {
+      "template": "r270",
+      "transcript": "united two thirty four make right two seventy",
+      "expectedCanonical": "R270",
+      "gotCanonical": "make right 270",
+      "failureReason": "canonical mismatch"
+    },
+    {
+      "template": "giveway",
+      "transcript": "november three four six golf give way to american twenty two thirty one",
+      "expectedCanonical": "GIVEWAY AAL2231",
+      "gotCanonical": "give way to american 2231",
+      "failureReason": "canonical mismatch"
+    },
+    {
+      "template": "followg",
+      "transcript": "november three four six golf follow american twenty two thirty one on ground",
+      "expectedCanonical": "FOLLOWG AAL2231",
+      "gotCanonical": "FOLLOW american",
+      "failureReason": "canonical mismatch"
+    }
+  ]
+}

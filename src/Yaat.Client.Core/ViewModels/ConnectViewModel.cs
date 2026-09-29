@@ -180,7 +180,7 @@ public partial class ConnectViewModel : ObservableObject
 
     private bool CanMoveDown() => SelectedServer is not null && Servers.IndexOf(SelectedServer) < Servers.Count - 1;
 
-    private void SaveServers() => _saveAction(Servers, SelectedServer?.Url ?? Servers.FirstOrDefault()?.Url ?? "https://yaat1.leftos.dev");
+    private void SaveServers() => _saveAction(Servers, SelectedServer?.Url ?? Servers.FirstOrDefault()?.Url ?? UserPreferences.OfficialServerUrl);
 
     [RelayCommand(CanExecute = nameof(CanConnect))]
     private async Task ConnectAsync()

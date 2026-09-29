@@ -98,6 +98,12 @@ public partial class SettingsViewModel : ObservableObject
     private readonly SpeechSampleStore? _speechSampleStore;
 
     /// <summary>
+    /// The telemetry opt-in as it was when the window opened, so Save only touches the store (clearing
+    /// anything queued) when the user actually changed it.
+    /// </summary>
+    private readonly bool _loadedSpeechTelemetryEnabled;
+
+    /// <summary>
     /// Fired when any visual/display property changes (colors, brightness, tints, font size).
     /// Subscribers can apply the changes live for preview.
     /// </summary>
@@ -503,6 +509,9 @@ public partial class SettingsViewModel : ObservableObject
     private bool _speechSampleCaptureEnabled;
 
     [ObservableProperty]
+    private bool _speechTelemetryEnabled;
+
+    [ObservableProperty]
     private int _speechSampleCacheMaxMb = 50;
 
     [ObservableProperty]
@@ -743,6 +752,8 @@ public partial class SettingsViewModel : ObservableObject
         _autoFocusInputAfterSpeech = _preferences.AutoFocusInputAfterSpeech;
         _speechSampleCaptureEnabled = _preferences.SpeechSampleCaptureEnabled;
         _speechSampleCacheMaxMb = _preferences.SpeechSampleCacheMaxMb;
+        _speechTelemetryEnabled = _preferences.SpeechTelemetryEnabled;
+        _loadedSpeechTelemetryEnabled = _preferences.SpeechTelemetryEnabled;
 
         _pttKeyName = _preferences.PttKey;
         _pttKeyDisplay = KeyComboToDisplay(_pttKeyName);
@@ -864,6 +875,15 @@ public partial class SettingsViewModel : ObservableObject
         }
     }
 
+    partial void OnSpeechTelemetryEnabledChanged(bool value)
+    {
+        // Telemetry has nothing to upload without local capture, so ticking its box ticks the other one.
+        if (value)
+        {
+            SpeechSampleCaptureEnabled = true;
+        }
+    }
+
     [RelayCommand]
     private void Save()
     {
@@ -917,6 +937,18 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetAlwaysOnTopKey(_alwaysOnTopKeyName);
         _preferences.SetQuickBookmarkKey(_quickBookmarkKeyName);
         _preferences.SetSpeechSettings(SpeechEnabled, WhisperModelSize, LlmModelPath, LlmGpuLayers, _pttKeyName, AutoFocusInputAfterSpeech);
+        // Before the sample settings: enabling telemetry there forces capture on, and writing capture
+        // first would briefly store it off.
+        if (SpeechTelemetryEnabled != _loadedSpeechTelemetryEnabled)
+        {
+            _preferences.SetSpeechTelemetryEnabled(SpeechTelemetryEnabled);
+            _preferences.SetSpeechTelemetryPromptShown(true);
+            if (!SpeechTelemetryEnabled)
+            {
+                // Anything still queued would go out on the next connect, which the user just declined.
+                _speechSampleStore?.ClearPendingUploads();
+            }
+        }
         _preferences.SetSpeechSampleSettings(SpeechSampleCaptureEnabled, SpeechSampleCacheMaxMb);
         _preferences.SetAudioSettings(AudioInputDevice, AudioOutputDevice);
         _preferences.SetRaiseWindowsTogether(RaiseWindowsTogether);

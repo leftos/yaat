@@ -1,23 +1,36 @@
 using System.Globalization;
 using System.Text.Json;
 using Yaat.Client.Services;
-using Yaat.Sim.Speech;
 
 namespace Yaat.SpeechSandbox;
 
+/// <summary>Inputs of one synthetic-corpus generation run.</summary>
+/// <param name="OutDir">Directory the case subdirectories are written into.</param>
+/// <param name="Cases">Number of cases to plan.</param>
+/// <param name="Seed">Seed for template sampling, slot values and voices.</param>
+/// <param name="VoiceDir">Piper voice-pack directory.</param>
+internal sealed record SynthCorpusOptions(string OutDir, int Cases, int Seed, string VoiceDir);
+
+/// <summary>One case directory the generator wrote.</summary>
+internal sealed record WrittenCase(string CaseDir, string TemplateKey);
+
+/// <summary>What a generation run produced: the written cases and every gap found.</summary>
+internal sealed record SynthCorpusResult(IReadOnlyList<WrittenCase> Written, IReadOnlyList<TemplateGap> Gaps);
+
 /// <summary>
 /// Grows the speech eval corpus with synthetic <b>controller-phraseology</b> cases:
-/// renders instruction templates with sampled slot values, verifies the label through the real
-/// text-mapping pipeline, synthesizes the utterance with Piper across varied speakers and speeds,
-/// and writes ready-to-score <c>--eval</c> case directories (<c>audio.wav</c> +
-/// <c>expected.json</c> with <c>"synthetic": true</c>).
+/// renders instruction templates (<see cref="SynthTemplates"/>) with sampled slot values, verifies
+/// the label through the real text-mapping pipeline, synthesizes the utterance with Piper across
+/// varied speakers and speeds, and writes ready-to-score <c>--eval</c> case directories
+/// (<c>audio.wav</c> + <c>expected.json</c> with <c>"synthetic": true</c> and the template key).
 ///
 /// Complements <see cref="OuroborosRunner"/>, which speaks <i>pilot readbacks</i>
 /// (PilotResponder output) — this generator speaks what the <i>controller</i> says, which is the
 /// production STT input. Labels are provably correct by construction: a case is only written when
 /// <c>SpeechRecognitionService.MapTranscriptAsync</c> (rule mapper only, no LLM) maps the exact
-/// rendered transcript to the exact expected canonical and callsign. A template that fails that
-/// check aborts the run — fix the template, don't ship a mislabeled case.
+/// rendered transcript to the exact expected canonical and callsign. A template or render that
+/// fails that check is a gap: it is printed as a warning and left out of the corpus, never written
+/// with a wrong label.
 ///
 /// Run with <c>--synth-corpus &lt;out-dir&gt; [--cases N] [--seed S] [--voice &lt;dir&gt;]</c>.
 /// Deterministic for a given seed. Generated corpora are reproducible and are NOT meant to be
@@ -27,40 +40,6 @@ namespace Yaat.SpeechSandbox;
 /// </summary>
 internal static class SynthCorpusGenerator
 {
-    private sealed record Template(string Key, string SpokenPattern, string CanonicalPattern);
-
-    // Controller-phraseology templates. Slots: {hdg} {alt} {spd} {rwy} {sq} {fix}. Spoken side
-    // is rendered with ATC word forms; canonical side with digit forms. Every rendered pair is
-    // verified through the rule mapper before any audio is synthesized.
-    private static readonly Template[] Templates =
-    [
-        new("tl", "turn left heading {hdg}", "TL {hdg}"),
-        new("tr", "turn right heading {hdg}", "TR {hdg}"),
-        new("fh", "fly heading {hdg}", "FH {hdg}"),
-        new("cm", "climb and maintain {alt}", "CM {alt}"),
-        new("dm", "descend and maintain {alt}", "DM {alt}"),
-        new("spd", "reduce speed to {spd}", "SPD {spd}"),
-        new("cto", "runway {rwy} cleared for takeoff", "CTO"),
-        new("cland", "runway {rwy} cleared to land", "CLAND"),
-        new("luaw", "runway {rwy} line up and wait", "LUAW"),
-        new("sq", "squawk {sq}", "SQ {sq}"),
-        new("ga", "go around", "GA"),
-        new("dct", "proceed direct {fix}", "DCT {fix}"),
-        new("dm-spd", "descend and maintain {alt} reduce speed to {spd}", "DM {alt}, SPD {spd}"),
-        new("tr-dm", "turn right heading {hdg} descend and maintain {alt}", "TR {hdg}, DM {alt}"),
-        new("tl-cm", "turn left heading {hdg} climb and maintain {alt}", "TL {hdg}, CM {alt}"),
-    ];
-
-    private static readonly string[] CallsignPool = ["UAL234", "SWA1943", "DAL512", "AAL2231", "ASA331", "N346G", "N9225L", "N514RM"];
-    private static readonly string[] RunwayPool = ["28R", "28L", "30", "10R", "09", "27C", "33"];
-    private static readonly string[] FixPool = ["CEPIN", "SUNOL", "ALTAM"];
-    private static readonly string[] DigitWords = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "niner"];
-
-    // LibriTTS-R medium is multi-speaker; a spread of ids + speeds approximates voice variety.
-    // Faster speeds mimic rapid-fire controller delivery.
-    private static readonly int[] SpeakerPool = [50, 92, 147, 246, 421, 588, 700, 810];
-    private static readonly float[] SpeedPool = [0.9f, 1.0f, 1.1f, 1.2f];
-
     private const int LeadingSilenceMs = 400;
     private const int TrailingSilenceMs = 400;
 
@@ -102,163 +81,67 @@ internal static class SynthCorpusGenerator
             return 2;
         }
 
-        // Real navdata: PhraseologyMapper validates emitted canonicals through CommandParser,
-        // whose fix resolution (e.g. the DCT template) requires NavigationDatabase. Loads
-        // NavData.dat + CIFP the same way the test suite does (with bundled offline fallbacks).
-        Yaat.Sim.Testing.TestVnasData.EnsureInitialized();
-
-        Directory.CreateDirectory(outDir);
-        using var piper = new PiperSynthesizer(voiceDir);
-        var rng = new Random(seed);
-        var ruleMapper = new PhraseologyCommandMapper();
-        int written = 0;
-
-        for (int i = 0; i < cases; i++)
-        {
-            Template template = Templates[i % Templates.Length];
-            string callsign = CallsignPool[rng.Next(CallsignPool.Length)];
-            (string? spokenBody, string? canonical, string? fix) = RenderTemplate(template, rng);
-            string spokenCallsign = CallsignParser.IcaoToSpoken(callsign);
-            string transcript = $"{spokenCallsign} {spokenBody}";
-            List<string> activeCallsigns = BuildActiveCallsigns(callsign, rng);
-            List<string> programmedFixes = fix is null ? [] : [fix];
-
-            // Label verification: the exact transcript must map to the exact canonical +
-            // callsign through the production text pipeline (rule mapper only — deterministic,
-            // no models needed). A mismatch means the template or slot rendering is wrong;
-            // abort loudly rather than emit a mislabeled case.
-            var ctx = new SpeechContext(activeCallsigns, programmedFixes, WhisperBiasingPrompt.Default);
-            TranscriptMapResult mapped = await SpeechRecognitionService
-                .MapTranscriptAsync(transcript, ctx, ruleMapper, llmMapper: null, callsignResolver: null, CancellationToken.None)
-                .ConfigureAwait(false);
-            if (
-                !string.Equals(mapped.Canonical, canonical, StringComparison.OrdinalIgnoreCase)
-                || !string.Equals(mapped.Callsign, callsign, StringComparison.OrdinalIgnoreCase)
-            )
-            {
-                Console.Error.WriteLine($"FATAL: template '{template.Key}' failed label verification.");
-                Console.Error.WriteLine($"  transcript: \"{transcript}\"");
-                Console.Error.WriteLine($"  expected:   {callsign} {canonical}");
-                Console.Error.WriteLine($"  mapped:     {mapped.Callsign ?? "(none)"} {mapped.Canonical ?? "(null)"}");
-                return 3;
-            }
-
-            int speaker = SpeakerPool[rng.Next(SpeakerPool.Length)];
-            float speed = SpeedPool[rng.Next(SpeedPool.Length)];
-            PiperSynthesizer.SynthResult synth = piper.Synthesize(transcript, speaker, speed);
-            float[] resampled = PiperSynthesizer.Resample(synth.Samples, synth.SampleRate, AudioCaptureService.SampleRate);
-            float[] samples = PiperSynthesizer.PadWithSilence(resampled, AudioCaptureService.SampleRate, LeadingSilenceMs, TrailingSilenceMs);
-
-            string caseDir = Path.Combine(outDir, $"synth-{seed}-{i:D3}-{template.Key}");
-            Directory.CreateDirectory(caseDir);
-            MemoryStream wavStream = WavHeader.WritePcm16(samples, AudioCaptureService.SampleRate);
-            await File.WriteAllBytesAsync(Path.Combine(caseDir, "audio.wav"), wavStream.ToArray()).ConfigureAwait(false);
-
-            var expected = new Dictionary<string, object?>
-            {
-                ["synthetic"] = true,
-                ["canonical"] = canonical,
-                ["transcript"] = transcript,
-                ["callsign"] = callsign,
-                ["activeCallsigns"] = activeCallsigns,
-                ["programmedFixes"] = programmedFixes,
-                ["voice"] = $"piper speaker {speaker} speed {speed.ToString("F1", CultureInfo.InvariantCulture)}",
-            };
-            await File.WriteAllTextAsync(
-                    Path.Combine(caseDir, "expected.json"),
-                    JsonSerializer.Serialize(expected, new JsonSerializerOptions { WriteIndented = true })
-                )
-                .ConfigureAwait(false);
-            written++;
-        }
-
-        Console.WriteLine($"Wrote {written} synthetic cases to {Path.GetFullPath(outDir)} (seed {seed}).");
+        SynthCorpusResult result = await GenerateAsync(new SynthCorpusOptions(outDir, cases, seed, voiceDir)).ConfigureAwait(false);
+        Console.WriteLine(
+            $"Wrote {result.Written.Count} synthetic cases to {Path.GetFullPath(outDir)} (seed {seed}, {result.Gaps.Count} gaps left out)."
+        );
         Console.WriteLine($"Score them with: --eval {outDir} [--trials N]");
         return 0;
     }
 
-    /// <summary>Renders a template's spoken + canonical sides with one set of sampled slot values.</summary>
-    private static (string Spoken, string Canonical, string? Fix) RenderTemplate(Template template, Random rng)
+    /// <summary>
+    /// Plans and verifies the cases (<see cref="SynthTemplates.PlanAsync"/>), then synthesizes and
+    /// writes every verified one. Each gap is printed as a <c>GAP …</c> warning line.
+    /// </summary>
+    public static async Task<SynthCorpusResult> GenerateAsync(SynthCorpusOptions options)
     {
-        string spoken = template.SpokenPattern;
-        string canonical = template.CanonicalPattern;
-        string? fix = null;
-
-        if (spoken.Contains("{hdg}", StringComparison.Ordinal))
+        SynthPlan plan = await SynthTemplates.PlanAsync(SynthTemplates.All, options.Cases, options.Seed).ConfigureAwait(false);
+        foreach (TemplateGap gap in plan.Gaps)
         {
-            int hdg = (rng.Next(1, 37) * 10) % 360;
-            hdg = hdg == 0 ? 360 : hdg;
-            string digits = hdg.ToString("D3");
-            spoken = spoken.Replace("{hdg}", SpeakDigits(digits), StringComparison.Ordinal);
-            canonical = canonical.Replace("{hdg}", digits, StringComparison.Ordinal);
-        }
-        if (spoken.Contains("{alt}", StringComparison.Ordinal))
-        {
-            int thousands = rng.Next(2, 17);
-            int alt = thousands * 1000;
-            string spokenAlt =
-                thousands <= 9 ? $"{DigitWords[thousands]} thousand" : $"{SpeakDigits(thousands.ToString(CultureInfo.InvariantCulture))} thousand";
-            spoken = spoken.Replace("{alt}", spokenAlt, StringComparison.Ordinal);
-            canonical = canonical.Replace("{alt}", alt.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
-        }
-        if (spoken.Contains("{spd}", StringComparison.Ordinal))
-        {
-            int spd = rng.Next(15, 26) * 10;
-            spoken = spoken.Replace("{spd}", SpeakDigits(spd.ToString(CultureInfo.InvariantCulture)), StringComparison.Ordinal);
-            canonical = canonical.Replace("{spd}", spd.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
-        }
-        if (spoken.Contains("{rwy}", StringComparison.Ordinal))
-        {
-            string rwy = RunwayPool[rng.Next(RunwayPool.Length)];
-            spoken = spoken.Replace("{rwy}", SpeakRunway(rwy), StringComparison.Ordinal);
-            canonical = canonical.Replace("{rwy}", rwy, StringComparison.Ordinal);
-        }
-        if (spoken.Contains("{sq}", StringComparison.Ordinal))
-        {
-            string code = string.Concat(Enumerable.Range(0, 4).Select(_ => rng.Next(0, 8).ToString(CultureInfo.InvariantCulture)));
-            spoken = spoken.Replace("{sq}", SpeakDigits(code), StringComparison.Ordinal);
-            canonical = canonical.Replace("{sq}", code, StringComparison.Ordinal);
-        }
-        if (spoken.Contains("{fix}", StringComparison.Ordinal))
-        {
-            fix = FixPool[rng.Next(FixPool.Length)];
-            spoken = spoken.Replace("{fix}", fix.ToLowerInvariant(), StringComparison.Ordinal);
-            canonical = canonical.Replace("{fix}", fix, StringComparison.Ordinal);
+            Console.WriteLine(gap.Describe());
         }
 
-        return (spoken, canonical, fix);
+        Directory.CreateDirectory(options.OutDir);
+        using var piper = new PiperSynthesizer(options.VoiceDir);
+        var written = new List<WrittenCase>();
+        foreach (RenderedCase rendered in plan.Cases)
+        {
+            written.Add(await WriteCaseAsync(piper, rendered, options).ConfigureAwait(false));
+        }
+        return new SynthCorpusResult(written, plan.Gaps);
     }
 
-    private static string SpeakDigits(string digits) => string.Join(' ', digits.Select(c => DigitWords[c - '0']));
-
-    /// <summary>"28R" → "two eight right"; bare numbers speak digit-by-digit ("30" → "three zero").</summary>
-    private static string SpeakRunway(string runway)
+    private static async Task<WrittenCase> WriteCaseAsync(PiperSynthesizer piper, RenderedCase rendered, SynthCorpusOptions options)
     {
-        string digits = new([.. runway.TakeWhile(char.IsDigit)]);
-        string suffix = runway[digits.Length..] switch
+        EvalExpectation e = rendered.Expectation;
+        PiperSynthesizer.SynthResult synth = piper.Synthesize(e.Transcript!, rendered.Speaker, rendered.Speed);
+        float[] resampled = PiperSynthesizer.Resample(synth.Samples, synth.SampleRate, AudioCaptureService.SampleRate);
+        float[] samples = PiperSynthesizer.PadWithSilence(resampled, AudioCaptureService.SampleRate, LeadingSilenceMs, TrailingSilenceMs);
+
+        string caseDir = Path.Combine(options.OutDir, $"synth-{options.Seed}-{rendered.Index:D3}-{rendered.Template.Key}");
+        Directory.CreateDirectory(caseDir);
+        MemoryStream wavStream = WavHeader.WritePcm16(samples, AudioCaptureService.SampleRate);
+        await File.WriteAllBytesAsync(Path.Combine(caseDir, "audio.wav"), wavStream.ToArray()).ConfigureAwait(false);
+
+        var expected = new Dictionary<string, object?>
         {
-            "L" => " left",
-            "R" => " right",
-            "C" => " center",
-            _ => "",
+            ["synthetic"] = true,
+            ["template"] = rendered.Template.Key,
+            ["canonical"] = e.Canonical,
+            ["transcript"] = e.Transcript,
+            ["callsign"] = e.Callsign,
+            ["activeCallsigns"] = e.ActiveCallsigns,
+            ["programmedFixes"] = e.ProgrammedFixes,
+            ["availableRunways"] = e.AvailableRunways,
+            ["taxiwayNames"] = e.TaxiwayNames,
+            ["destinationNames"] = e.DestinationNames,
+            ["voice"] = $"piper speaker {rendered.Speaker} speed {rendered.Speed.ToString("F1", CultureInfo.InvariantCulture)}",
         };
-        // Zero-padded designators are spoken without the leading zero ("09" → "niner").
-        string spokenDigits = digits.TrimStart('0');
-        spokenDigits = spokenDigits.Length == 0 ? "0" : spokenDigits;
-        return SpeakDigits(spokenDigits) + suffix;
-    }
-
-    private static List<string> BuildActiveCallsigns(string callsign, Random rng)
-    {
-        var list = new List<string> { callsign };
-        while (list.Count < 3)
-        {
-            string decoy = CallsignPool[rng.Next(CallsignPool.Length)];
-            if (!list.Contains(decoy))
-            {
-                list.Add(decoy);
-            }
-        }
-        return list;
+        await File.WriteAllTextAsync(
+                Path.Combine(caseDir, "expected.json"),
+                JsonSerializer.Serialize(expected, new JsonSerializerOptions { WriteIndented = true })
+            )
+            .ConfigureAwait(false);
+        return new WrittenCase(caseDir, rendered.Template.Key);
     }
 }

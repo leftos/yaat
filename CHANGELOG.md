@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Added
+
+- Turning on speech recognition offers to send your push-to-talk recordings to the YAAT developers; change it anytime in Settings → Speech.
+- Scenario → File Bug Report... asks what went wrong, opens a prefilled GitHub issue, and shows the bug report bundle to drag in.
+
 ### Fixed
 
 - ERAM `QS` takes every speed form, such as `/78`, `/.78`, `/M.78`, `/+50` and `/PS`, shows knots as `S250`, and takes heading and speed together.

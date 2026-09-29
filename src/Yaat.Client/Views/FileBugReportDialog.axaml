@@ -1,0 +1,41 @@
+<Window
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  x:Class="Yaat.Client.Views.FileBugReportDialog"
+  Title="File Bug Report"
+  Width="520"
+  CanResize="False"
+  SizeToContent="Height"
+  WindowStartupLocation="CenterOwner"
+  ShowInTaskbar="False"
+>
+  <StackPanel Margin="16" Spacing="12">
+    <StackPanel Spacing="4">
+      <TextBlock Text="Title" />
+      <TextBox x:Name="TitleTextBox" PlaceholderText="A one-line summary" MaxLength="200" />
+    </StackPanel>
+    <StackPanel Spacing="4">
+      <TextBlock Text="What happened?" />
+      <TextBox
+        x:Name="WhatHappenedTextBox"
+        AcceptsReturn="True"
+        TextWrapping="Wrap"
+        Height="110"
+        PlaceholderText="What went wrong, and what were you doing at the time?"
+      />
+    </StackPanel>
+    <StackPanel Spacing="4">
+      <TextBlock Text="What did you expect to happen?" />
+      <TextBox x:Name="ExpectedTextBox" AcceptsReturn="True" TextWrapping="Wrap" Height="80" />
+    </StackPanel>
+    <StackPanel Spacing="4">
+      <TextBlock Text="Callsign(s) involved (optional)" />
+      <TextBox x:Name="CallsignsTextBox" PlaceholderText="e.g. UAL123 SWA456" />
+    </StackPanel>
+    <TextBlock x:Name="NoteText" FontSize="11" Foreground="#FF808080" TextWrapping="Wrap" />
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button x:Name="OkButton" Content="Open GitHub Issue" Width="150" IsDefault="True" />
+      <Button x:Name="CancelButton" Content="Cancel" Width="80" IsCancel="True" />
+    </StackPanel>
+  </StackPanel>
+</Window>

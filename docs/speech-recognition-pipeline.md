@@ -416,6 +416,41 @@ depend on LM-Kit and PortAudio native libraries.
   listing recent PTT sessions with transcript, canonical command,
   elapsed times, and outcome. Updated via `SessionRecorded`.
 
+### Speech telemetry (opt-in upload)
+
+Sample capture (`SpeechSampleStore`, `%LOCALAPPDATA%/yaat/speech-samples/<id>/audio.wav + session.json`) is local by default. Speech telemetry adds an automatic upload on top of it.
+
+- **Opt-in.** `MainViewModel.OfferSpeechTelemetryIfDueAsync` shows `SpeechTelemetryOptInDialog` once. It runs the first time STT turns on, from any entry point (`OnIsSpeechEnabledChanged`), and at window open for users who had STT on before the prompt existed. It is gated by `UserPreferences.SpeechTelemetryPromptShown`. The Settings → Speech checkbox changes the choice later, and saving it also marks the prompt shown.
+- **Telemetry implies capture.** `UserPreferences.SetSpeechTelemetryEnabled(true)` forces `SpeechSampleCaptureEnabled` on, and `SetSpeechSampleSettings` cannot turn capture off while telemetry is on.
+- **Queue.** `RecordSession` calls `SpeechSampleStore.Add(..., queueForUpload: SpeechTelemetryEnabled)`, which drops an `upload-pending` marker in the sample folder.
+  - Only samples captured while telemetry is on are ever sent.
+  - Turning telemetry off calls `ClearPendingUploads()`.
+  - FIFO eviction can drop a sample before it is sent.
+- **Upload.** `SpeechTelemetryUploader.UploadPendingAsync` runs off the UI thread after every `SessionRecorded` and after connecting to a server.
+  - It uploads only to the official server (`UserPreferences.OfficialServerUrl`). Samples captured while connected elsewhere stay pending until the next official connect.
+  - Each iteration re-checks the preference and the sample's marker, so opting out stops a pass already running. It POSTs each pending sample, oldest first, as a single-sample export bundle (`SpeechSampleStore.WriteBundle`, the `.yaat-speech-sample.zip` format) to `{server}/telemetry/speech` with the VATSIM-session Bearer token.
+  - 2xx clears the marker.
+  - 400 or 413 also clears it, since that sample can never succeed.
+  - Any other failure stops the run and leaves the rest pending for the next trigger. That includes 429, the server's per-CID daily cap.
+- **Server.** yaat-server's `SpeechTelemetryEndpoints` requires the training-hub policy and caps the body at 5 MB.
+  - It caps each CID at 300 samples / 150 MB per UTC day, answering 429 beyond that.
+  - It rejects anything that isn't a zip whose `manifest.json` lists well-formed sample ids with their audio and session entries.
+  - It writes atomically, storing the upload at `<TelemetryPath>/speech/<yyyy-MM-dd>/<cid>-<HHmmss>-<guid>.zip`, on the Docker volume `yaat-telemetry`. Developers pull the uploads with the admin routes `GET /admin/telemetry/speech[?since=]` and `GET /admin/telemetry/speech/{date}/{file}` (header `X-Yaat-Admin-Password`), through `tools/speech_telemetry.py`.
+
+#### Reviewing telemetry
+
+`tools/speech_telemetry.py` keeps everything under `.tmp/speech-telemetry/`. The admin password comes from the environment only (`YAAT_ADMIN_PASSWORD`), and `--server` defaults to `https://yaat1.leftos.dev`.
+
+1. `python tools/speech_telemetry.py pull` downloads new bundles into `raw/<date>/` and unpacks each sample into `cases/<cid>-<sampleId>/` (`audio.wav`, `session.json`, `meta.json`).
+2. `summary` prints the samples not yet reviewed, misses first: NoMappingFound, EmptyTranscript, Error, Cancelled, LLM fallback, then accepted. `--all` includes reviewed ones and `--json` gives machine output.
+3. `eval [--trials N] [case…]` runs the sandbox `--eval` over those cases through the gate. The first run writes an unreviewed `expected.json` stub into each case. Fix the labels, remove `"unreviewed"`, and run `eval` again to score them.
+4. `promote <case> [--name <slug>]` turns a labelled miss into a text-only regression entry in `tests/Yaat.Client.Tests/TestData/speech-transcripts/telemetry-regressions.json`: the raw transcript, the canonical and the scenario context.
+   - It never copies audio, a CID or the session, because real users' recordings are not published.
+   - `TelemetryTranscriptRegressionTests` then fails until the rule mapper handles the transcript, so the fix goes through `test-fix`.
+5. `reviewed --all-shown` marks everything `summary` just showed, so the next session starts from the new samples.
+
+Promotion exercises normalisation and the rule mapper, not Whisper. A miss caused by the audio (a wrong transcript) is fixed through the biasing prompt or the model choice, and checked with `eval` on the local case.
+
 ## Speech Sandbox Tool
 
 `tools/Yaat.SpeechSandbox/Program.cs` is a CLI + Avalonia GUI for
@@ -433,7 +468,16 @@ client. All flags run via
 | `--yaat-catalog` | Dump the filtered Whisper + LLM catalogs as they appear in the Settings picker. |
 | `--ouroboros <corpus.json> [--out-dir <dir>] [--trials N]` | Synthetic round-trip harness: canonical → pilot readback → Piper TTS → full STT pipeline → compare. PASS/FLAKY/FAIL verdicts; markdown report + per-case WAVs. |
 | `--eval <corpus-dir> [--out-dir <dir>] [--trials N] [--whisper <src>] [--parakeet <dir>] [--prompt default\|none]` | Real-audio eval harness: scores the full production pipeline (Whisper → callsign extraction → rule → LLM) against labeled captured recordings. Reports canonical exact-match verdicts, STT word-error-rate, per-trial STT latency, and per-case transcripts; real and synthetic cases are tallied separately in the summary; honors `LMKIT_TEST_MODEL`. `--whisper` A/Bs an alternative Whisper source (curated ID / ggml path / URL); `--parakeet` swaps the STT stage for a sherpa-onnx NeMo transducer export via `SherpaSttEngine`. See `EvalRunner.cs` for the corpus layout. |
-| `--synth-corpus <out-dir> [--cases N] [--seed S] [--voice <dir>]` | Generates labeled synthetic **controller-phraseology** eval cases: renders instruction templates with sampled slots, verifies each label through the real text-mapping pipeline before any audio is made, Piper-synthesizes with varied speakers/speeds, and writes `--eval`-ready case dirs marked `"synthetic": true`. Deterministic per seed; generate into `.tmp/`, don't commit the output. |
+| `--synth-corpus <out-dir> [--cases N] [--seed S] [--voice <dir>]` | Generates labeled synthetic **controller-phraseology** eval cases from the templates in `SynthTemplates.cs` (every rule family). Each label is verified through the real text-mapping pipeline before any audio is made; templates that don't verify are left out and printed as `GAP` lines. Cases are Piper-synthesized with varied speakers/speeds and written as `--eval`-ready case dirs marked `"synthetic": true`. Deterministic per seed; generate into `.tmp/`, don't commit the output. |
+| `--atc-ouroboros [--cases N] [--seed S] [--trials N] [--out-dir D] [--baseline <json>] [--update-baseline] [--voice <dir>]` | Controller-voice round trip: `--synth-corpus` then `--eval` in one run. It writes `results.json` (per rule family, per template, and the gaps) and `report.md`, then compares with `tools/Yaat.SpeechSandbox/Corpus/atc-ouroboros-baseline.json`. Defaults: 200 cases, seed 20260928, 3 trials, out dir `.tmp/atc-ouroboros-<stamp>/`. Exit 3 means a regression: a rule family's pass rate dropped by more than one case, the totals dropped, or a template that verified in the baseline is now a gap. Per-template rows are information only. |
+
+**Tuning loop.** For STT work with no specific sample in hand, start from `--atc-ouroboros`:
+
+1. Run it and read `report.md`, worst family first, plus its gap list (templates the rule mapper can't map; `AtcOuroborosTests.KnownGaps` names them, and `docs/plans/stt-rule-gaps.md` tracks them).
+2. Fix a FAIL or FLAKY family, or a gap, through `test-fix`, with a failing `PhraseologyMapperTests` row first. A fixed gap fails `AtcOuroborosTests` until its `KnownGaps` entry is removed.
+3. Rerun. If it exits 0 and a family went up, run `--update-baseline` and commit the baseline with the fix. An exit 3 names the family that regressed.
+
+Keep the seed fixed when comparing against the baseline: a new seed draws different slot values, so its differences are sampling noise, not a change in the pipeline. Synthetic audio measures the phonetic surface only; real samples from speech telemetry (see "Reviewing telemetry" above) stay authoritative for model decisions.
 
 No flag → Avalonia GUI for interactive probing. The GUI exposes inputs
 for active callsigns, programmed fixes, **available runways** (per-

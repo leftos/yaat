@@ -71,6 +71,10 @@ ERAM comes before everything else, the other bug reports included (user 2026-09-
 
 Findings and small items with no subplan and no report behind them, grouped into waves a release can be built around: a wave's items share files and one review gate, so one implementer reads those files once. Take a wave top to bottom, or a whole wave as one release; the Singles share nothing and go one at a time.
 
+### STT tuning
+
+- [ ] **STT tuning list from the controller-voice ouroboros** — [stt-rule-gaps.md](./stt-rule-gaps.md): baseline 76.5 % (153/200); 7 unmappable templates (two produce wrong commands: "cleared into bravo airspace" → CMTR B, "follow X on ground" → FOLLOW <first word>) and 11 failure clusters (traffic-advisory aircraft types, taxi to gate/parking, hold direction, misheard fixes, dropped second clauses, PTAC, IDENT, …). Shared file `PhraseologyRules.cs`; `test-fix` + aviation review, rerun `--atc-ouroboros` per fix; not started
+
 ### Wave 1 — Ground realism and braking
 
 Shared files: `AircraftCategory.cs`, `LandingPhase.cs`, `FollowingPhase.cs`, `TugMovePlanner.cs`, `TugKinematics.cs`, `GroundConflictDetector.cs`. Gate: `aviation-sim-expert` (one batch; the retunes depend on each other and desync recordings together).

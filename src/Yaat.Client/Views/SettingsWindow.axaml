@@ -1433,12 +1433,26 @@
 
                 <TextBlock Text="Help improve speech recognition" FontWeight="SemiBold" />
                 <StackPanel Spacing="6">
-                  <CheckBox Content="Save my push-to-talk samples locally for review" IsChecked="{Binding SpeechSampleCaptureEnabled}" />
+                  <CheckBox
+                    Content="Automatically send my push-to-talk recordings to the YAAT developers"
+                    IsChecked="{Binding SpeechTelemetryEnabled}"
+                  />
                   <TextBlock
                     TextWrapping="Wrap"
                     Foreground="{DynamicResource SubtleTextBrush}"
                     FontSize="11"
-                    Text="When on, every PTT recording + pipeline trace is saved locally. Nothing is uploaded automatically — review samples in the Speech Debug window and export the ones you want the devs to see, then attach them to a GitHub issue."
+                    Text="Each recording, its transcripts and the scenario context are sent to the official YAAT server, tagged with your VATSIM CID. Requires saving samples locally."
+                  />
+                  <CheckBox
+                    Content="Save my push-to-talk samples locally for review"
+                    IsChecked="{Binding SpeechSampleCaptureEnabled}"
+                    IsEnabled="{Binding !SpeechTelemetryEnabled}"
+                  />
+                  <TextBlock
+                    TextWrapping="Wrap"
+                    Foreground="{DynamicResource SubtleTextBrush}"
+                    FontSize="11"
+                    Text="When on, every PTT recording + pipeline trace is saved locally. Review samples in the Speech Debug window and export the ones you want the devs to see, then attach them to a GitHub issue."
                   />
                   <TextBlock
                     TextWrapping="Wrap"

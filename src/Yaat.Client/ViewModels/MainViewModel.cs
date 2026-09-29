@@ -54,6 +54,7 @@ public partial class MainViewModel : ObservableObject
     private readonly PhraseologyCommandMapper _ruleMapper = new();
     private readonly SpeechRecognitionService _speechService;
     private readonly SpeechSampleStore _speechSampleStore;
+    private readonly SpeechTelemetryUploader _speechTelemetryUploader;
 
     public UserPreferences Preferences => _preferences;
     public CommandInputController CommandInput => _commandInput;
@@ -1503,6 +1504,13 @@ public partial class MainViewModel : ObservableObject
         {
             _ = Task.Run(() => _speechService.PrewarmAsync(CancellationToken.None));
         }
+
+        if (value)
+        {
+            // The first enable of speech-to-text raises the one-time telemetry offer. Safe during field
+            // init: with no prompt delegate assigned yet the offer returns without touching prefs.
+            _ = OfferSpeechTelemetryIfDueAsync();
+        }
     }
 
     /// <summary>Re-reads the speech-enabled flag from prefs. Called from the Settings save path
@@ -1532,7 +1540,12 @@ public partial class MainViewModel : ObservableObject
         _llmService = new LocalLlmService(new PreferencesLlmRuntimeConfig(_preferences));
         _llmMapper = new LocalLlmCommandMapper(_llmService);
         _llmCallsignResolver = new LocalLlmCallsignResolver(_llmService);
-        _speechSampleStore = new SpeechSampleStore(_preferences);
+        _speechSampleStore = new SpeechSampleStore(_preferences, a => Dispatcher.UIThread.Post(a));
+        _speechTelemetryUploader = new SpeechTelemetryUploader(
+            new HttpClient { Timeout = TimeSpan.FromSeconds(30) },
+            _speechSampleStore,
+            _preferences
+        );
         _speechService = new SpeechRecognitionService(
             _preferences,
             _audioCapture,
@@ -1546,6 +1559,7 @@ public partial class MainViewModel : ObservableObject
         );
         _speechService.StatusChanged += HandleSpeechServiceStatusChange;
         _speechService.CommandReady += HandleSpeechServiceCommandReady;
+        _speechService.SessionRecorded += session => _ = UploadSpeechTelemetryAsync();
 
         // Fire-and-forget prewarm so the first PTT press after startup doesn't stall on
         // multi-second Whisper/LLM model load. Guard on SpeechEnabled — disabled users pay

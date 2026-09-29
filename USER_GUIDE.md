@@ -1479,6 +1479,16 @@ Under the **Scenario** menu:
 
 Recordings are self-contained archives that include the scenario definition, RNG seed, weather state, periodic state snapshots, and all user actions with timestamps. They can be shared between users for review or training.
 
+### Filing a Bug Report
+
+**Scenario → File Bug Report...** is the quickest way to report a problem. It asks for a title, what happened, what you expected, and the callsigns involved, then:
+
+1. saves a bug report bundle to `%LOCALAPPDATA%\yaat\bug-reports\`. In a room the bundle holds the session recording, your bookmarks, the client log and the server log; outside a room it holds the client log only;
+2. opens a new GitHub issue in your browser with your answers and your YAAT version, OS and scenario already filled in;
+3. opens the folder with the bundle selected. Drag the bundle into the issue before you submit it, since GitHub can't attach it for you.
+
+**Scenario → Save Bug Report Bundle...** saves the same room bundle to a location you choose, without opening an issue.
+
 ### Export Room as Scenario
 
 **Scenario > Export Room as Scenario...** (mentors and instructors) saves the room as it is right now as a new ATCTrainer-format scenario file, so a live-traffic session or an interesting moment can be replayed later as its own scenario. It works in any room with a scenario loaded, live-traffic sessions included. Weather is not exported.
@@ -2121,7 +2131,9 @@ To exempt a specific aircraft, append `NODEL` to `CLAND`, `TAXI`, `EL`, `ER`, or
 
 If push-to-talk recognition is misbehaving for you, opt-in capture saves the audio plus a per-stage trace locally so you can review what happened — and, when you find a bad one, send it to the devs as a small bundle.
 
-**Enable capture.** In **Settings → Speech**, tick **"Save my push-to-talk samples locally for review"** and pick a retention cap (10–500 MB; oldest samples drop when full). Nothing leaves your machine until you explicitly export — see below. Use **Open samples folder** to browse the on-disk store, or **Delete all saved samples** to wipe everything.
+**Share recordings automatically.** The first time you turn speech recognition on, YAAT asks whether to send your push-to-talk recordings to the YAAT developers to improve recognition. If you agree, each recording is sent to the official YAAT server (yaat1.leftos.dev) after you release the push-to-talk key. It goes with the transcript at each recognition stage and the scenario context (callsigns, fixes, runways), and is tagged with your VATSIM CID. Recordings made while you're offline or connected to another server are sent the next time you connect to the official one. Sharing keeps local capture (below) on, since recordings are sent from the local store. Change it at any time with **"Automatically send my push-to-talk recordings to the YAAT developers"** in **Settings → Speech**. Turning it off stops sending and drops anything not yet sent.
+
+**Enable capture.** In **Settings → Speech**, tick **"Save my push-to-talk samples locally for review"** and pick a retention cap (10–500 MB; oldest samples drop when full). Unless automatic sharing is on, nothing leaves your machine until you explicitly export, as described below. Use **Open samples folder** to browse the on-disk store, or **Delete all saved samples** to wipe everything.
 
 **Speech Debug window.** Click the mic-status indicator (top-right of the main window) and pick **"Show speech recognition debugging…"**. The window shows recent push-to-talk sessions as a flowchart — mic → Whisper → callsign extract → rule mapper → LLM fallback → final command — with playback for any session whose audio is still on disk. Sessions appear here even with capture off (in-memory trace only); audio playback and export require capture on.
 

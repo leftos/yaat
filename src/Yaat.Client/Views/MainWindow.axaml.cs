@@ -106,6 +106,17 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             );
         vm.PilotVoiceWarningPrompt = ShowPilotVoiceWarningAsync;
         vm.PilotVoiceSettingsRequested += OnPilotVoiceSettingsRequested;
+        vm.SpeechTelemetryPrompt = ShowSpeechTelemetryOptInAsync;
+        vm.BugReportPrompt = ShowFileBugReportDialogAsync;
+
+        // A user who already had speech-to-text on before the offer existed gets it once when the window
+        // opens. Posted rather than raised from the Opened handler itself, so the modal appears over a
+        // laid-out window instead of during the show.
+        Opened += (_, _) =>
+            Avalonia.Threading.Dispatcher.UIThread.Post(
+                () => _ = vm.OfferSpeechTelemetryIfDueAsync(),
+                Avalonia.Threading.DispatcherPriority.Background
+            );
 
         _windowProfileService = new WindowProfileService(vm.Preferences);
 
@@ -3504,6 +3515,29 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         await dialog.ShowDialog(this);
         return choice;
+    }
+
+    /// <summary>
+    /// Offers the one-time speech-telemetry opt-in. Wired into <see cref="MainViewModel.SpeechTelemetryPrompt"/>;
+    /// closing the window or Esc counts as "No thanks".
+    /// </summary>
+    private async Task<bool> ShowSpeechTelemetryOptInAsync()
+    {
+        var dialog = new SpeechTelemetryOptInDialog();
+        await dialog.ShowDialog(this);
+        return dialog.Accepted;
+    }
+
+    /// <summary>
+    /// Collects the bug report's title, description, expectation and callsigns. Wired into
+    /// <see cref="MainViewModel.BugReportPrompt"/>; <paramref name="attachesRecording"/> is the
+    /// view-model's in-room state, which decides what the dialog's note promises.
+    /// </summary>
+    private async Task<BugReportForm?> ShowFileBugReportDialogAsync(bool attachesRecording)
+    {
+        var dialog = new FileBugReportDialog(attachesRecording);
+        await dialog.ShowDialog(this);
+        return dialog.Result;
     }
 
     /// <summary>

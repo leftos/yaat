@@ -14,14 +14,17 @@ namespace Yaat.Client.Services;
 /// Disk-backed ring of push-to-talk speech samples. Used by the opt-in "help improve speech
 /// recognition" pipeline: every session whose audio + trace was captured lands here, the Speech
 /// Debug window binds <see cref="Entries"/> for review/playback, and users export individual
-/// samples as portable .yaat-speech-sample.zip files to attach to GitHub issues. Nothing is
-/// uploaded automatically — this is local-only storage with a user-configurable MB cap.
+/// samples as portable .yaat-speech-sample.zip files to attach to GitHub issues. Storage is
+/// local-only unless speech telemetry is on: each sample captured while it is gets an empty
+/// upload-pending marker, and <see cref="SpeechTelemetryUploader"/> ships the marked samples to
+/// the connected server and clears their markers.
 ///
 /// Layout under <c>%LOCALAPPDATA%/yaat/speech-samples/</c>:
 /// <code>
 ///   {yyyyMMdd-HHmmss}-{shortGuid}/
-///     audio.wav      — 16 kHz mono 16-bit PCM (matches what Whisper consumes)
-///     session.json   — serialized SpeechSession including its full SpeechSessionTrace
+///     audio.wav        — 16 kHz mono 16-bit PCM (matches what Whisper consumes)
+///     session.json     — serialized SpeechSession including its full SpeechSessionTrace
+///     upload-pending   — empty marker; present while the sample awaits telemetry upload
 /// </code>
 /// Eviction is FIFO by folder modification time, applied after every <see cref="Add"/> until
 /// total bytes ≤ <see cref="UserPreferences.SpeechSampleCacheMaxMb"/>. The capture toggle gates
@@ -33,6 +36,7 @@ public sealed class SpeechSampleStore
     private static readonly ILogger Log = AppLog.CreateLogger<SpeechSampleStore>();
     private const string AudioFileName = "audio.wav";
     private const string SessionFileName = "session.json";
+    private const string UploadPendingMarkerName = "upload-pending";
     private const int BundleSchemaVersionMulti = 2;
 
     private static readonly JsonSerializerOptions JsonOpts = new()
@@ -44,15 +48,27 @@ public sealed class SpeechSampleStore
     };
 
     private readonly UserPreferences _preferences;
-    private readonly Lock _ioLock = new();
+    private readonly Action<Action> _uiDispatch;
 
-    public SpeechSampleStore(UserPreferences preferences)
-        : this(preferences, YaatPaths.Combine("speech-samples")) { }
+    // Guards _entries and the on-disk sample folders. The speech pipeline adds from a thread-pool
+    // thread while the telemetry uploader reads from another, so _entries (newest first) is the
+    // source of truth and Entries is only its UI-thread mirror.
+    private readonly Lock _ioLock = new();
+    private readonly List<SpeechSampleEntry> _entries = [];
+
+    /// <param name="preferences">Supplies the MB cap.</param>
+    /// <param name="uiDispatch">Runs an <see cref="Entries"/> update on the thread that owns the binding.</param>
+    public SpeechSampleStore(UserPreferences preferences, Action<Action> uiDispatch)
+        : this(preferences, YaatPaths.Combine("speech-samples"), uiDispatch) { }
 
     /// <summary>Test-friendly ctor: override the on-disk root so tests can write into a temp folder.</summary>
-    public SpeechSampleStore(UserPreferences preferences, string rootDirectory)
+    /// <param name="preferences">Supplies the MB cap.</param>
+    /// <param name="rootDirectory">Folder holding one sub-folder per sample.</param>
+    /// <param name="uiDispatch">Runs an <see cref="Entries"/> update on the thread that owns the binding.</param>
+    public SpeechSampleStore(UserPreferences preferences, string rootDirectory, Action<Action> uiDispatch)
     {
         _preferences = preferences;
+        _uiDispatch = uiDispatch;
         Entries = [];
         RootDirectory = rootDirectory;
         Rescan();
@@ -61,11 +77,24 @@ public sealed class SpeechSampleStore
     /// <summary>Absolute path of the on-disk sample directory.</summary>
     public string RootDirectory { get; }
 
-    /// <summary>Loaded sample entries, newest first. Mutated only on the UI thread once bound.</summary>
+    /// <summary>
+    /// Loaded sample entries, newest first, for UI binding. Every change reaches it through the
+    /// constructor's <c>uiDispatch</c>, in the order the store made it, so it may trail the store by
+    /// the dispatcher's queue; the store's own reads never use it.
+    /// </summary>
     public ObservableCollection<SpeechSampleEntry> Entries { get; }
 
     /// <summary>Sum of <see cref="SpeechSampleEntry.TotalBytes"/> for every loaded entry.</summary>
-    public long TotalBytes => Entries.Sum(e => e.TotalBytes);
+    public long TotalBytes
+    {
+        get
+        {
+            lock (_ioLock)
+            {
+                return _entries.Sum(e => e.TotalBytes);
+            }
+        }
+    }
 
     /// <summary>Convenience accessor for the configured MB cap.</summary>
     public int MaxBytes => Math.Max(1, _preferences.SpeechSampleCacheMaxMb) * 1024 * 1024;
@@ -74,13 +103,15 @@ public sealed class SpeechSampleStore
     /// Persists a single push-to-talk session: writes the WAV + session JSON, then FIFO-evicts
     /// older entries until <see cref="TotalBytes"/> ≤ <see cref="MaxBytes"/>. Returns the new
     /// sample's id (folder name) so callers can correlate it with the in-memory
-    /// <see cref="SpeechSession.SampleId"/>.
+    /// <see cref="SpeechSession.SampleId"/>. When <paramref name="queueForUpload"/> is true the
+    /// sample also gets an empty upload-pending marker, which is what lets
+    /// <see cref="SpeechTelemetryUploader"/> find it later.
     ///
     /// Caller is responsible for gating on <see cref="UserPreferences.SpeechSampleCaptureEnabled"/>
     /// — the store itself doesn't refuse writes when capture is off so tests can populate fixtures
     /// without flipping the toggle.
     /// </summary>
-    public string? Add(SpeechSession session, float[] audioSamples)
+    public string? Add(SpeechSession session, float[] audioSamples, bool queueForUpload)
     {
         if (audioSamples.Length == 0)
         {
@@ -102,17 +133,23 @@ public sealed class SpeechSampleStore
 
                 SpeechSession sessionWithId = session with { SampleId = id };
                 File.WriteAllText(Path.Combine(folder, SessionFileName), JsonSerializer.Serialize(sessionWithId, JsonOpts));
-            }
 
-            SpeechSampleEntry? entry = LoadEntry(folder);
-            if (entry is null)
-            {
-                return null;
-            }
+                if (queueForUpload)
+                {
+                    File.WriteAllBytes(Path.Combine(folder, UploadPendingMarkerName), []);
+                }
 
-            Entries.Insert(0, entry);
-            EvictUntilUnderCap();
-            return id;
+                SpeechSampleEntry? entry = LoadEntry(folder);
+                if (entry is null)
+                {
+                    return null;
+                }
+
+                _entries.Insert(0, entry);
+                _uiDispatch(() => Entries.Insert(0, entry));
+                EvictUntilUnderCapLocked();
+                return id;
+            }
         }
         catch (Exception ex)
         {
@@ -135,24 +172,86 @@ public sealed class SpeechSampleStore
     /// <summary>Removes one persisted sample by id. No-op when the id isn't loaded.</summary>
     public void Delete(string id)
     {
-        SpeechSampleEntry? entry = Entries.FirstOrDefault(e => string.Equals(e.Id, id, StringComparison.Ordinal));
-        if (entry is null)
+        lock (_ioLock)
         {
-            return;
-        }
+            SpeechSampleEntry? entry = FindLocked(id);
+            if (entry is null)
+            {
+                return;
+            }
 
-        Entries.Remove(entry);
-        TryDeleteFolder(entry.Folder);
+            _entries.Remove(entry);
+            _uiDispatch(() => Entries.Remove(entry));
+            TryDeleteFolder(entry.Folder);
+        }
     }
 
     /// <summary>Removes every persisted sample. Used by the Settings "Delete all saved samples" action.</summary>
     public void DeleteAll()
     {
-        foreach (SpeechSampleEntry? entry in Entries.ToList())
+        lock (_ioLock)
         {
-            TryDeleteFolder(entry.Folder);
+            foreach (SpeechSampleEntry entry in _entries)
+            {
+                TryDeleteFolder(entry.Folder);
+            }
+
+            _entries.Clear();
+            _uiDispatch(() => Entries.Clear());
         }
-        Entries.Clear();
+    }
+
+    /// <summary>
+    /// Ids of loaded samples still awaiting telemetry upload (those carrying an upload-pending
+    /// marker), oldest first, so an uploader drains the queue in capture order.
+    /// </summary>
+    public IReadOnlyList<string> PendingUploadIds()
+    {
+        lock (_ioLock)
+        {
+            return [.. _entries.Where(e => File.Exists(MarkerPath(e.Folder))).OrderBy(e => e.Session.TimestampUtc).Select(e => e.Id)];
+        }
+    }
+
+    /// <summary>True while the sample is loaded and still carries its upload-pending marker.</summary>
+    public bool IsPendingUpload(string id)
+    {
+        lock (_ioLock)
+        {
+            SpeechSampleEntry? entry = FindLocked(id);
+            return (entry is not null) && File.Exists(MarkerPath(entry.Folder));
+        }
+    }
+
+    /// <summary>
+    /// Clears one sample's upload-pending marker, marking it as uploaded. No-op when the id isn't
+    /// loaded or already has no marker; an IO failure is logged, never thrown, since the next
+    /// upload pass would simply retry the sample.
+    /// </summary>
+    public void MarkUploaded(string id)
+    {
+        lock (_ioLock)
+        {
+            SpeechSampleEntry? entry = FindLocked(id);
+            if (entry is null)
+            {
+                return;
+            }
+
+            TryDeleteMarker(entry.Folder);
+        }
+    }
+
+    /// <summary>Clears every loaded sample's upload-pending marker. Used when telemetry is turned off.</summary>
+    public void ClearPendingUploads()
+    {
+        lock (_ioLock)
+        {
+            foreach (SpeechSampleEntry entry in _entries)
+            {
+                TryDeleteMarker(entry.Folder);
+            }
+        }
     }
 
     /// <summary>
@@ -169,11 +268,7 @@ public sealed class SpeechSampleStore
     /// </summary>
     public int ExportBundle(IReadOnlyCollection<string> ids, string destinationZipPath)
     {
-        var entries = ids.Select(id => Entries.FirstOrDefault(e => string.Equals(e.Id, id, StringComparison.Ordinal)))
-            .Where(e => e is not null)
-            .Cast<SpeechSampleEntry>()
-            .ToList();
-        if (entries.Count == 0)
+        if (ResolveEntries(ids).Count == 0)
         {
             return 0;
         }
@@ -186,81 +281,106 @@ public sealed class SpeechSampleStore
             }
 
             using FileStream fs = File.Create(destinationZipPath);
-            using var zip = new ZipArchive(fs, ZipArchiveMode.Create);
-
-            var manifest = new SpeechSampleBundleManifest(
-                SchemaVersion: BundleSchemaVersionMulti,
-                YaatVersion: Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "unknown",
-                ExportedUtc: DateTime.UtcNow,
-                Samples:
-                [
-                    .. entries.Select(e => new SpeechSampleBundleEntry(
-                        Id: e.Id,
-                        CapturedUtc: e.Session.TimestampUtc,
-                        Outcome: e.Session.Outcome.ToString(),
-                        UsedLlmFallback: e.Session.UsedLlmFallback,
-                        CanonicalCommand: e.Session.CanonicalCommand
-                    )),
-                ]
-            );
-            WriteEntry(zip, "manifest.json", JsonSerializer.SerializeToUtf8Bytes(manifest, JsonOpts));
-
-            foreach (SpeechSampleEntry? entry in entries)
-            {
-                WriteEntry(zip, $"samples/{entry.Id}/{AudioFileName}", File.ReadAllBytes(entry.AudioPath));
-                WriteEntry(zip, $"samples/{entry.Id}/{SessionFileName}", File.ReadAllBytes(Path.Combine(entry.Folder, SessionFileName)));
-            }
-
-            return entries.Count;
+            return WriteBundle(ids, fs);
         }
         catch (Exception ex)
         {
-            Log.LogWarning(ex, "Failed to export speech sample bundle ({Count} ids) to {Path}", entries.Count, destinationZipPath);
+            Log.LogWarning(ex, "Failed to export speech sample bundle ({Count} ids) to {Path}", ids.Count, destinationZipPath);
             return 0;
         }
     }
 
-    /// <summary>Re-scans <see cref="RootDirectory"/> and rebuilds <see cref="Entries"/>. Idempotent.</summary>
+    /// <summary>
+    /// Writes the same bundle layout as <see cref="ExportBundle"/> to an arbitrary stream and
+    /// returns the number of samples written (zero when no id is currently loaded). The stream is
+    /// left open for the caller; IO failures propagate, so <see cref="ExportBundle"/> can log
+    /// them while the telemetry uploader sees them as a failed upload.
+    /// </summary>
+    public int WriteBundle(IReadOnlyCollection<string> ids, Stream destination)
+    {
+        List<SpeechSampleEntry> entries = ResolveEntries(ids);
+        if (entries.Count == 0)
+        {
+            return 0;
+        }
+
+        using var zip = new ZipArchive(destination, ZipArchiveMode.Create, leaveOpen: true);
+
+        var manifest = new SpeechSampleBundleManifest(
+            SchemaVersion: BundleSchemaVersionMulti,
+            YaatVersion: Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "unknown",
+            ExportedUtc: DateTime.UtcNow,
+            Samples:
+            [
+                .. entries.Select(e => new SpeechSampleBundleEntry(
+                    Id: e.Id,
+                    CapturedUtc: e.Session.TimestampUtc,
+                    Outcome: e.Session.Outcome.ToString(),
+                    UsedLlmFallback: e.Session.UsedLlmFallback,
+                    CanonicalCommand: e.Session.CanonicalCommand
+                )),
+            ]
+        );
+        WriteEntry(zip, "manifest.json", JsonSerializer.SerializeToUtf8Bytes(manifest, JsonOpts));
+
+        foreach (SpeechSampleEntry entry in entries)
+        {
+            WriteEntry(zip, $"samples/{entry.Id}/{AudioFileName}", File.ReadAllBytes(entry.AudioPath));
+            WriteEntry(zip, $"samples/{entry.Id}/{SessionFileName}", File.ReadAllBytes(Path.Combine(entry.Folder, SessionFileName)));
+        }
+
+        return entries.Count;
+    }
+
+    /// <summary>Re-scans <see cref="RootDirectory"/> and rebuilds the loaded entries. Idempotent.</summary>
     public void Rescan()
     {
-        Entries.Clear();
-        if (!Directory.Exists(RootDirectory))
+        lock (_ioLock)
         {
-            return;
-        }
-
-        var loaded = new List<SpeechSampleEntry>();
-        foreach (string folder in Directory.EnumerateDirectories(RootDirectory))
-        {
-            SpeechSampleEntry? entry = LoadEntry(folder);
-            if (entry is not null)
+            var loaded = new List<SpeechSampleEntry>();
+            if (Directory.Exists(RootDirectory))
             {
-                loaded.Add(entry);
+                foreach (string folder in Directory.EnumerateDirectories(RootDirectory))
+                {
+                    SpeechSampleEntry? entry = LoadEntry(folder);
+                    if (entry is not null)
+                    {
+                        loaded.Add(entry);
+                    }
+                }
             }
-        }
 
-        foreach (SpeechSampleEntry? entry in loaded.OrderByDescending(e => e.Session.TimestampUtc))
-        {
-            Entries.Add(entry);
+            _entries.Clear();
+            _entries.AddRange(loaded.OrderByDescending(e => e.Session.TimestampUtc));
+            List<SpeechSampleEntry> snapshot = [.. _entries];
+            _uiDispatch(() =>
+            {
+                Entries.Clear();
+                foreach (SpeechSampleEntry entry in snapshot)
+                {
+                    Entries.Add(entry);
+                }
+            });
         }
     }
 
-    private void EvictUntilUnderCap()
+    // Caller holds _ioLock. Evicts oldest-first: _entries is newest-first, so walk from the end.
+    private void EvictUntilUnderCapLocked()
     {
         int max = MaxBytes;
-        if (TotalBytes <= max)
+        long total = _entries.Sum(e => e.TotalBytes);
+        for (int i = _entries.Count - 1; (i >= 0) && (total > max); i--)
         {
-            return;
-        }
-
-        // Evict oldest-first (Entries is newest-first, so walk from the end).
-        for (int i = Entries.Count - 1; i >= 0 && TotalBytes > max; i--)
-        {
-            SpeechSampleEntry entry = Entries[i];
-            Entries.RemoveAt(i);
+            SpeechSampleEntry entry = _entries[i];
+            _entries.RemoveAt(i);
+            total -= entry.TotalBytes;
+            _uiDispatch(() => Entries.Remove(entry));
             TryDeleteFolder(entry.Folder);
         }
     }
+
+    // Caller holds _ioLock.
+    private SpeechSampleEntry? FindLocked(string id) => _entries.FirstOrDefault(e => string.Equals(e.Id, id, StringComparison.Ordinal));
 
     private static SpeechSampleEntry? LoadEntry(string folder)
     {
@@ -289,6 +409,33 @@ public sealed class SpeechSampleStore
         {
             Log.LogWarning(ex, "Skipping unreadable speech sample folder {Folder}", folder);
             return null;
+        }
+    }
+
+    private static string MarkerPath(string folder) => Path.Combine(folder, UploadPendingMarkerName);
+
+    private static void TryDeleteMarker(string folder)
+    {
+        try
+        {
+            string marker = MarkerPath(folder);
+            if (File.Exists(marker))
+            {
+                File.Delete(marker);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning(ex, "Failed to clear speech upload marker in {Folder}", folder);
+        }
+    }
+
+    // A snapshot taken under the lock; the caller reads the sample files outside it.
+    private List<SpeechSampleEntry> ResolveEntries(IReadOnlyCollection<string> ids)
+    {
+        lock (_ioLock)
+        {
+            return [.. ids.Select(FindLocked).OfType<SpeechSampleEntry>()];
         }
     }
 
