@@ -1127,7 +1127,7 @@ Data/ApproachGateDatabase.cs   # Static: FAF->pavement-threshold distances from 
 Data/VideoMapMetadata.cs       # Video map metadata model
 Data/VideoMapData.cs           # Video map data structures (lines, labels, filters)
 Data/VideoMapParser.cs         # GeoJSON → VideoMapData
-Data/HttpFileCache.cs          # Shared vNAS download→disk cache: AlwaysRefetch (/api, no HEAD/Last-Modified) vs HeadLastModified (/Files) freshness, optional disk-TTL skip, network-failure fallback. Used by AirportLayoutDownloader, ArtccAirportResolver, ArtccConfigService (server), VideoMapService, GroundViewModel tower-cab.
+Data/HttpFileCache.cs          # Shared vNAS download→disk cache: AlwaysRefetch (/api, no HEAD/Last-Modified) vs HeadLastModified (/Files) freshness, optional disk-TTL skip, network-failure fallback (reported as `HttpCacheResult.RefreshFailed`). Used by AirportLayoutDownloader, ArtccAirportResolver, ArtccConfigService (server), VideoMapService, GroundViewModel tower-cab.
 
 # Data/Airport/
 IAirportGroundData.cs          # Interface: GetLayout(airportId) + GetSourceGeoJson(airportId)
@@ -1258,6 +1258,7 @@ CrossingRestrictionLabel.cs    # Formats a CifpAltitudeRestriction/CifpSpeedRest
 
 # Scenarios/
 ScenarioLoader.cs              # JSON → ScenarioLoadResult; resolves starting conditions, nav routes, beacon codes
+ScenarioResourceManifest.cs    # Scenario JSON → the ARTCC, neighbour ARTCCs and airports a load will fetch (shares the loader's airport chains); for the server's prefetch
 ScenarioExporter.cs            # The loader run backwards: a room's live aircraft (simulated + live-traffic shadows) → Scenario JSON, for the server's
                                # ExportRoomAsScenario. Each aircraft becomes Parking/OnRunway/OnFinal/Coordinates by the same rules the loader restarts
                                # them under; anything it cannot reproduce exports as Coordinates and is flagged (ScenarioExportFlag) instead of guessed.

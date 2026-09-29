@@ -176,6 +176,133 @@ public class HttpFileCacheTests
         );
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RefreshFailed_IsSet_WhenNetworkFailureOrTimeoutServesDiskCopy(bool timeout)
+    {
+        string cachePath = NewCacheFile();
+        await WithCache(
+            cachePath,
+            async () =>
+            {
+                bool fail = false;
+                var handler = new FakeHandler
+                {
+                    Responder = _ =>
+                    {
+                        if (!fail)
+                        {
+                            return Ok("cached");
+                        }
+
+                        if (timeout)
+                        {
+                            throw new TaskCanceledException("timed out");
+                        }
+
+                        throw new HttpRequestException("offline");
+                    },
+                };
+                using var http = new HttpClient(handler);
+
+                Assert.False((await Fetch(http, cachePath, HttpCacheFreshness.AlwaysRefetch)).RefreshFailed);
+
+                fail = true;
+                HttpCacheResult result = await Fetch(http, cachePath, HttpCacheFreshness.AlwaysRefetch);
+                Assert.Equal("cached", result.Content);
+                Assert.True(result.RefreshFailed);
+                Assert.False(result.NotFound);
+            }
+        );
+    }
+
+    [Fact]
+    public async Task RefreshFailed_IsSet_WhenNetworkFailureFindsNothingCached()
+    {
+        string cachePath = NewCacheFile();
+        await WithCache(
+            cachePath,
+            async () =>
+            {
+                var handler = new FakeHandler { Responder = _ => throw new HttpRequestException("offline") };
+                using var http = new HttpClient(handler);
+
+                HttpCacheResult result = await Fetch(http, cachePath, HttpCacheFreshness.AlwaysRefetch);
+                Assert.Null(result.Content);
+                Assert.True(result.RefreshFailed);
+                Assert.False(result.NotFound);
+            }
+        );
+    }
+
+    [Fact]
+    public async Task RefreshFailed_IsNotSet_On404()
+    {
+        string cachePath = NewCacheFile();
+        await WithCache(
+            cachePath,
+            async () =>
+            {
+                bool notFound = false;
+                var handler = new FakeHandler { Responder = _ => notFound ? new HttpResponseMessage(HttpStatusCode.NotFound) : Ok("cached") };
+                using var http = new HttpClient(handler);
+
+                await Fetch(http, cachePath, HttpCacheFreshness.AlwaysRefetch);
+                notFound = true;
+                HttpCacheResult result = await Fetch(http, cachePath, HttpCacheFreshness.AlwaysRefetch);
+
+                Assert.True(result.NotFound);
+                Assert.False(result.RefreshFailed);
+            }
+        );
+    }
+
+    [Fact]
+    public async Task RefreshFailed_IsNotSet_OnFreshGet()
+    {
+        string cachePath = NewCacheFile();
+        await WithCache(
+            cachePath,
+            async () =>
+            {
+                var handler = new FakeHandler { Responder = _ => Ok("fresh") };
+                using var http = new HttpClient(handler);
+
+                HttpCacheResult result = await Fetch(http, cachePath, HttpCacheFreshness.AlwaysRefetch);
+
+                Assert.Equal("fresh", result.Content);
+                Assert.False(result.RefreshFailed);
+                Assert.Equal(1, handler.GetCount);
+            }
+        );
+    }
+
+    [Fact]
+    public async Task RefreshFailed_IsNotSet_OnDiskTtlHit()
+    {
+        string cachePath = NewCacheFile();
+        await WithCache(
+            cachePath,
+            async () =>
+            {
+                bool fail = false;
+                var handler = new FakeHandler { Responder = _ => fail ? throw new HttpRequestException("offline") : Ok("body") };
+                using var http = new HttpClient(handler);
+                var ttl = TimeSpan.FromHours(6);
+
+                await Fetch(http, cachePath, HttpCacheFreshness.AlwaysRefetch, ttl);
+                // Inside the TTL window the network is never consulted, so an offline origin is not a failed refresh.
+                fail = true;
+                HttpCacheResult result = await Fetch(http, cachePath, HttpCacheFreshness.AlwaysRefetch, ttl);
+
+                Assert.Equal("body", result.Content);
+                Assert.False(result.RefreshFailed);
+                Assert.Equal(1, handler.GetCount);
+            }
+        );
+    }
+
     [Fact]
     public async Task HeadLastModified_ServesCache_WhenServerNotNewer()
     {

@@ -33,8 +33,11 @@ public enum HttpCacheFreshness
 /// served text (from the refresh or the on-disk fallback), or null when nothing is available.
 /// <see cref="NotFound"/> is true when the origin answered this refresh with HTTP 404 — the one
 /// signal callers can safely negative-cache; a network failure or timeout never sets it.
+/// <see cref="RefreshFailed"/> is true when the refresh failed on the network or timed out, so any
+/// <see cref="Content"/> is the on-disk copy and may be stale (null when nothing was cached); it is
+/// false on a 404, a completed GET or HEAD check, and a disk-TTL hit.
 /// </summary>
-public readonly record struct HttpCacheResult(string? Content, bool NotFound);
+public readonly record struct HttpCacheResult(string? Content, bool NotFound, bool RefreshFailed);
 
 /// <summary>
 /// Downloads a text resource to a disk cache and serves it, sharing the freshness/refresh/fallback
@@ -55,7 +58,8 @@ public static class HttpFileCache
     ///
     /// When <paramref name="diskTtl"/> is set and the cached file is younger than it, the network is
     /// skipped entirely. Otherwise <paramref name="freshness"/> decides whether to re-download. A
-    /// network failure or timeout is logged and the existing on-disk copy is served; an HTTP 404
+    /// network failure or timeout is logged, the existing on-disk copy is served and
+    /// <see cref="HttpCacheResult.RefreshFailed"/> is set; an HTTP 404
     /// leaves the cache untouched and is reported via <see cref="HttpCacheResult.NotFound"/> (GET
     /// freshness only — the HEAD path treats a failed probe as "keep the cache").
     /// </summary>
@@ -77,10 +81,11 @@ public static class HttpFileCache
 
         if ((diskTtl is { } ttl) && File.Exists(cachePath) && (DateTime.UtcNow - File.GetLastWriteTimeUtc(cachePath) < ttl))
         {
-            return new HttpCacheResult(await File.ReadAllTextAsync(cachePath, cancellationToken), NotFound: false);
+            return new HttpCacheResult(await File.ReadAllTextAsync(cachePath, cancellationToken), NotFound: false, RefreshFailed: false);
         }
 
         bool notFound = false;
+        bool refreshFailed = false;
         try
         {
             if (freshness == HttpCacheFreshness.HeadLastModified)
@@ -95,14 +100,16 @@ public static class HttpFileCache
         catch (HttpRequestException ex)
         {
             log.LogWarning(ex, "Failed to refresh cached file from {Url}; using cached copy if present", url);
+            refreshFailed = true;
         }
         catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
             log.LogWarning(ex, "Timed out refreshing cached file from {Url}; using cached copy if present", url);
+            refreshFailed = true;
         }
 
         string? content = File.Exists(cachePath) ? await File.ReadAllTextAsync(cachePath, cancellationToken) : null;
-        return new HttpCacheResult(content, notFound);
+        return new HttpCacheResult(content, notFound, refreshFailed);
     }
 
     /// <summary>

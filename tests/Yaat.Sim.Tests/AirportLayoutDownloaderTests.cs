@@ -1,5 +1,6 @@
 using System.Net;
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Sim.Tests;
@@ -136,6 +137,62 @@ public class AirportLayoutDownloaderTests
             Assert.Null(await dl.GetGeoJsonAsync("OGD", TestContext.Current.CancellationToken));
             Assert.Null(await dl.GetGeoJsonAsync("OGD", TestContext.Current.CancellationToken));
 
+            Assert.Equal(1, handler.GetCount);
+        }
+        finally
+        {
+            if (Directory.Exists(cacheDir))
+            {
+                Directory.Delete(cacheDir, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task FetchGeoJson_NetworkFailure_ServesSeededCopy_AndReportsRefreshFailed()
+    {
+        string cacheDir = NewCacheDir();
+        var handler = new FakeHandler { Responder = _ => throw new HttpRequestException("offline") };
+
+        try
+        {
+            using var dl = new AirportLayoutDownloader(new HttpClient(handler), cacheDir);
+            Directory.CreateDirectory(cacheDir);
+            await File.WriteAllTextAsync(dl.GetCachePath("KSFO"), "seeded-body", TestContext.Current.CancellationToken);
+
+            HttpCacheResult result = await dl.FetchGeoJsonAsync("KSFO", TestContext.Current.CancellationToken);
+
+            Assert.Equal("seeded-body", result.Content);
+            Assert.True(result.RefreshFailed);
+            Assert.False(result.NotFound);
+        }
+        finally
+        {
+            if (Directory.Exists(cacheDir))
+            {
+                Directory.Delete(cacheDir, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task FetchGeoJson_404_ThenNegativeCacheHit_ReportsNotFound_WithoutASecondRequest()
+    {
+        string cacheDir = NewCacheDir();
+        var handler = new FakeHandler { Responder = _ => new HttpResponseMessage(HttpStatusCode.NotFound) };
+
+        try
+        {
+            using var dl = new AirportLayoutDownloader(new HttpClient(handler), cacheDir);
+
+            HttpCacheResult first = await dl.FetchGeoJsonAsync("OGD", TestContext.Current.CancellationToken);
+            HttpCacheResult second = await dl.FetchGeoJsonAsync("OGD", TestContext.Current.CancellationToken);
+
+            Assert.True(first.NotFound);
+            Assert.False(first.RefreshFailed);
+            Assert.Null(second.Content);
+            Assert.True(second.NotFound);
+            Assert.False(second.RefreshFailed);
             Assert.Equal(1, handler.GetCount);
         }
         finally

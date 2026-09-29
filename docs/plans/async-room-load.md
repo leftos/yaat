@@ -37,7 +37,7 @@ Defaults taken without asking:
 - Clean up the orphan room when `CreateRoom` throws or `JoinRoom` returns null.
 - Move the client's pre-send scenario parsing off the UI thread.
 
-Next: brief 1 of the brief split below (the rulings are at its end).
+Briefs 1 and 2 shipped: `HttpCacheResult.RefreshFailed` (set after any network failure or timeout, also when nothing is cached, so null content plus `RefreshFailed` is "unreachable"), `AirportLayoutDownloader.FetchGeoJsonAsync` (returns `HttpCacheResult`), and `ScenarioResourceManifest` (`docs/scenario-loading-and-generation.md` § The resource manifest). Next: brief 3. Open for brief 4: the manifest does not record per airport whether it needs a full ground map (the map-warning ruling's primary / `Parking` / ground-coordinates test), so brief 4 adds that to the manifest or derives it itself.
 
 ## Prefetch design
 

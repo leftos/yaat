@@ -15,8 +15,8 @@ namespace Yaat.Sim.Data.Airport;
 /// AirportGroundDataService uses 30 minutes), so the GET recurs per TTL cycle, not once per run —
 /// which is why confirmed 404s are negative-cached here for <see cref="NotFoundTtl"/>.
 ///
-/// Use <see cref="GetGeoJsonAsync"/> for the raw text or <see cref="GetLayoutAsync"/>
-/// for a parsed <see cref="AirportGroundLayout"/>.
+/// Use <see cref="GetGeoJsonAsync"/> for the raw text, <see cref="FetchGeoJsonAsync"/> for the text with
+/// the fetch outcome, or <see cref="GetLayoutAsync"/> for a parsed <see cref="AirportGroundLayout"/>.
 /// </summary>
 public sealed class AirportLayoutDownloader : IDisposable
 {
@@ -66,6 +66,18 @@ public sealed class AirportLayoutDownloader : IDisposable
     /// </summary>
     public async Task<string?> GetGeoJsonAsync(string airportId, CancellationToken cancellationToken = default)
     {
+        HttpCacheResult result = await FetchGeoJsonAsync(airportId, cancellationToken);
+        return result.Content;
+    }
+
+    /// <summary>
+    /// Fetches the GeoJSON for <paramref name="airportId"/> as <see cref="GetGeoJsonAsync"/> does and reports how it
+    /// went: <see cref="HttpCacheResult.NotFound"/> when vNAS has no map (a fresh 404, or one still inside the
+    /// negative-cache window), <see cref="HttpCacheResult.RefreshFailed"/> when vNAS could not be reached and the
+    /// content, if any, is the on-disk copy.
+    /// </summary>
+    public async Task<HttpCacheResult> FetchGeoJsonAsync(string airportId, CancellationToken cancellationToken)
+    {
         string faaCode = ToFaaCode(airportId);
 
         if (_notFoundAtUtc.TryGetValue(faaCode, out DateTime notFoundAt))
@@ -73,7 +85,7 @@ public sealed class AirportLayoutDownloader : IDisposable
             if (DateTime.UtcNow - notFoundAt < NotFoundTtl)
             {
                 Log.LogDebug("Airport {AirportId} known to have no vNAS map (404 negative cache); skipping fetch", faaCode);
-                return null;
+                return new HttpCacheResult(Content: null, NotFound: true, RefreshFailed: false);
             }
 
             _notFoundAtUtc.TryRemove(faaCode, out _);
@@ -101,7 +113,7 @@ public sealed class AirportLayoutDownloader : IDisposable
             _notFoundAtUtc.TryRemove(faaCode, out _);
         }
 
-        return result.Content;
+        return result;
     }
 
     /// <summary>

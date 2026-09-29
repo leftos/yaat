@@ -69,7 +69,8 @@ public static class ScenarioLoader
 {
     private static readonly ILogger Log = SimLog.CreateLogger("ScenarioLoader");
 
-    private static readonly JsonSerializerOptions JsonOptions = new()
+    /// <summary>The deserializer options every reader of a scenario JSON shares, so they all accept the same input.</summary>
+    internal static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
         ReadCommentHandling = JsonCommentHandling.Skip,
@@ -325,6 +326,56 @@ public static class ScenarioLoader
 
     private static string NormalizeAirportCode(string code) => (code.StartsWith('K') && code.Length == 4) ? code[1..] : code;
 
+    /// <summary>
+    /// Every airport whose ground layout <see cref="Load"/> can ask <see cref="IAirportGroundData"/> for while
+    /// loading <paramref name="ac"/>, by its starting-condition type. <see cref="ScenarioResourceManifest"/> reads the
+    /// same list, so a scenario's prefetched layouts cannot drift from the ones the loader reads. Entries may be null
+    /// or empty.
+    /// </summary>
+    internal static IEnumerable<string?> LayoutAirportIds(ScenarioAircraft ac, string? primaryAirportId)
+    {
+        switch (ac.StartingConditions.Type)
+        {
+            case "Coordinates":
+            case "FixOrFrd":
+                yield return GroundSpawnAirportId(ac, primaryAirportId);
+                yield return ArrivalAirportId(ac);
+                break;
+
+            case "OnRunway":
+                yield return RunwaySpawnAirportId(ac);
+                break;
+
+            case "OnFinal":
+                yield return ArrivalAirportId(ac);
+                break;
+
+            case "Parking":
+                yield return ParkingAirportId(ac, primaryAirportId);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// The field under a <c>Coordinates</c> / <c>FixOrFrd</c> spawn: <c>airportId</c> first (the way the OnRunway/OnFinal
+    /// paths and FieldElevationResolver resolve it), then the filed departure/destination, then the scenario's primary
+    /// airport, which is what <see cref="CreateBaseState"/> assigns the aircraft anyway. A cold-call ground spawn usually
+    /// has no flight plan, and an unresolved field (elevation 0) would fail the ground gate at any high-elevation airport
+    /// and spawn it airborne.
+    /// </summary>
+    private static string? GroundSpawnAirportId(ScenarioAircraft ac, string? primaryAirportId) =>
+        ac.AirportId ?? ac.FlightPlan?.Departure ?? ac.FlightPlan?.Destination ?? primaryAirportId;
+
+    /// <summary>The airport an <c>OnRunway</c> or <c>OnFinal</c> spawn's runway is looked up at.</summary>
+    private static string RunwaySpawnAirportId(ScenarioAircraft ac) => ac.AirportId ?? ac.FlightPlan?.Departure ?? "";
+
+    /// <summary>The airport a <c>Parking</c> spawn is placed at.</summary>
+    private static string ParkingAirportId(ScenarioAircraft ac, string? primaryAirportId) =>
+        ac.AirportId ?? primaryAirportId ?? ac.FlightPlan?.Departure ?? "";
+
+    /// <summary>The airport an airborne spawn lands at, whose layout it carries from spawn.</summary>
+    private static string? ArrivalAirportId(ScenarioAircraft ac) => ac.FlightPlan?.Destination;
+
     private static LoadedAircraft? LoadAircraft(
         ScenarioAircraft ac,
         List<string> warnings,
@@ -342,12 +393,7 @@ public static class ScenarioLoader
             speed;
 
         NavigationDatabase navDb = NavigationDatabase.Instance;
-        // The field under a Coordinates/FixOrFrd spawn: airportId first (the way the OnRunway/OnFinal
-        // paths and FieldElevationResolver resolve it), then the filed departure/destination, then the
-        // scenario's primary airport, which is what CreateBaseState assigns the aircraft anyway. A
-        // cold-call ground spawn usually has no flight plan, and an unresolved field (elevation 0)
-        // would fail the ground gate at any high-elevation airport and spawn it airborne.
-        string? groundAirportId = ac.AirportId ?? ac.FlightPlan?.Departure ?? ac.FlightPlan?.Destination ?? primaryAirportId;
+        string? groundAirportId = GroundSpawnAirportId(ac, primaryAirportId);
         double fieldElevation = !string.IsNullOrEmpty(groundAirportId) ? navDb.GetAirportElevation(groundAirportId) ?? 0 : 0;
 
         switch (cond.Type)
@@ -437,7 +483,7 @@ public static class ScenarioLoader
         {
             // An airborne spawn lands at its destination: carry that layout from spawn, as the OnFinal path does,
             // so the aircraft is not left without one once it is on the ground (issue #448).
-            string? destId = ac.FlightPlan?.Destination;
+            string? destId = ArrivalAirportId(ac);
             state.Ground.Layout = !string.IsNullOrEmpty(destId) ? groundData?.GetLayout(destId) : null;
         }
 
@@ -505,7 +551,7 @@ public static class ScenarioLoader
     )
     {
         string? runwayId = ac.StartingConditions.Runway;
-        string airportId = ac.AirportId ?? ac.FlightPlan?.Departure ?? "";
+        string airportId = RunwaySpawnAirportId(ac);
 
         if (string.IsNullOrEmpty(runwayId) || string.IsNullOrEmpty(airportId))
         {
@@ -552,7 +598,7 @@ public static class ScenarioLoader
     )
     {
         string? runwayId = ac.StartingConditions.Runway;
-        string airportId = ac.AirportId ?? ac.FlightPlan?.Departure ?? "";
+        string airportId = RunwaySpawnAirportId(ac);
 
         if (string.IsNullOrEmpty(runwayId) || string.IsNullOrEmpty(airportId))
         {
@@ -588,7 +634,7 @@ public static class ScenarioLoader
         state.Phases = init.Phases;
 
         // Arriving aircraft: use destination airport layout for runway exit after landing
-        string? destId = ac.FlightPlan?.Destination;
+        string? destId = ArrivalAirportId(ac);
         state.Ground.Layout = !string.IsNullOrEmpty(destId) ? groundData?.GetLayout(destId) : null;
 
         return new LoadedAircraft
@@ -610,7 +656,7 @@ public static class ScenarioLoader
     )
     {
         StartingConditions cond = ac.StartingConditions;
-        string airportId = ac.AirportId ?? primaryAirportId ?? ac.FlightPlan?.Departure ?? "";
+        string airportId = ParkingAirportId(ac, primaryAirportId);
 
         if (string.IsNullOrEmpty(airportId))
         {

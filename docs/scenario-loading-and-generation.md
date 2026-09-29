@@ -161,6 +161,10 @@ to the world and `DispatchPresetCommands` runs synchronously; delayed aircraft a
 `ScenarioId` stamped and are reported in the manifest. `SimulationEngine.LoadScenario`
 (`SimulationEngine.cs:378`) is the standalone (test/replay) equivalent.
 
+### The resource manifest
+
+`ScenarioResourceManifest.FromJson(json)` (`src/Yaat.Sim/Scenarios/ScenarioResourceManifest.cs`) lists, without loading anything, what a scenario will fetch: `ArtccId`, the roster's `NeighbourArtccIds` (own ARTCC excluded), and the FAA-coded `AirportIds` the loader will ask `IAirportGroundData.GetLayout` for, primary airport first. It names the primary airport, each aircraft's `airportId`, departure and destination, the starting-condition airport chains (shared with the loader through `ScenarioLoader.LayoutAirportIds`, so the two cannot drift), a VFR arrival generator's `directTo` when it is an airport, and the airport a preset command carries once parsed with `CommandParser.ParseCompound` (`DEST`/`APT`, the approach clearances, join, straight-in, expect and visual approach, a military-route exit to an airport); a preset that fails to parse names nothing, so free text such as `SAY REQUEST VFR ON TOP` is never an airport. Unreadable JSON, including explicit `null` lists or fields, comes back as `ReadError` rather than an exception. `ScenarioResourceManifestTests.Corpus_LoaderAsksForNoAirportOutsideTheManifest` is the drift guard: it loads every scenario in `docs/atctrainer-scenario-examples/` and the test-data scenarios through a recording `IAirportGroundData` and fails on any airport the manifest did not name. The server's prefetch ([`plans/async-room-load.md`](plans/async-room-load.md)) reads it.
+
 ## The five spawn-condition types and phase-list seeding
 
 `LoadAircraft` (`ScenarioLoader.cs:199`) switches on `StartingConditions.Type`:
