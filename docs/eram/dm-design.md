@@ -1,6 +1,6 @@
 # ERAM `DM` (Departure message): design
 
-How YAAT handles `DM`'s fields 26, 07 and 08 and the `/OK` and `*` suffixes, and why. It follows the ruling in [eram-srs-findings.md](../plans/eram-srs-findings.md) ("`DM`: implement every field"). The field checks and error IDs are in [`docs/eram/commands/DM.yaml`](../eram/commands/DM.yaml); the error texts are in [`error-responses.yaml`](../eram/error-responses.yaml).
+How YAAT handles `DM`'s fields 26, 07 and 08 and the `/OK` and `*` suffixes, and why. It follows the ruling in [rulings.md](./rulings.md#rulings) ("`DM`: implement every field"). The field checks and error IDs are in [`docs/eram/commands/DM.yaml`](../eram/commands/DM.yaml); the error texts are in [`error-responses.yaml`](../eram/error-responses.yaml).
 
 ## Sources
 

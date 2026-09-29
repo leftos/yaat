@@ -15,6 +15,7 @@ The document itself is not in the repo, and neither are the extraction scripts, 
 ## Files
 
 - **`commands/<ID>.yaml`**: one file per command ID. Every ID in the source table has a file, including the ones yaat will never handle, so that "no file" never means "not looked at".
+- **`rulings.md`**: the decisions YAAT's ERAM emulation follows where the SRS, CRC and `vatsim-server-rs` leave a choice, what `vatsim-server-rs` does, the C.7 dynamic parameters YAAT models, and what a full read of the SRS appendices found consistent.
 - **`dm-design.md`**: how YAAT models `DM`'s coordination fix, time and altitude, with its sources and the guesses the SRS leaves open.
 - **`error-responses.yaml`**: every error ID used by an in-scope command, with the literal text yaat-server sends for it.
 

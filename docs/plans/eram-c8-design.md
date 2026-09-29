@@ -1,6 +1,6 @@
 # ERAM C.8 commands — design passes
 
-Design for the twelve ERAM commands the SRS C.8 table lists that YAAT does not handle yet: flight-plan tools `FR`, `FP`, `DQ`, `RM`, `SP`; conflict alert `CA`, `RK`; messages and strips `SM`, `RS`; weather `SW`, `UR`, `WX`. The ruling that puts all twelve in scope, and drops `CA.yaml`'s `na`, is in [eram-srs-findings.md](./eram-srs-findings.md#rulings-user-2026-09-28). Each decision below is a best guess grounded in a named source; the points the sources leave open are listed at the end as questions for ERAM controllers, each with the guess the design goes with.
+Design for the twelve ERAM commands the SRS C.8 table lists that YAAT does not handle yet: flight-plan tools `FR`, `FP`, `DQ`, `RM`, `SP`; conflict alert `CA`, `RK`; messages and strips `SM`, `RS`; weather `SW`, `UR`, `WX`. The ruling that puts all twelve in scope, and drops `CA.yaml`'s `na`, is in [docs/eram/rulings.md](../eram/rulings.md#rulings). Each decision below is a best guess grounded in a named source; the points the sources leave open are listed at the end as questions for ERAM controllers, each with the guess the design goes with.
 
 ## Sources and conventions
 
@@ -30,7 +30,7 @@ Every other text below is quoted from the table as it stands.
 
 | Brief | Commands | Owning files | Why together | Order |
 |---|---|---|---|---|
-| C1 D-side and flight-plan tools | `DQ`, `FR`, `RS`, `RM` | Srv `CrcClientState.Eram.FlightData.cs`, `CrcClientState.Eram.Track.cs`, `Eram/EramVariants.cs`; the four YAMLs | each reuses an R-side handler (`QB`, `QF`, `QX FP`) or the FLID resolver alone; no new state | first; after B5 lands the FLID rules (the brief grouping in eram-srs-findings.md) |
+| C1 D-side and flight-plan tools | `DQ`, `FR`, `RS`, `RM` | Srv `CrcClientState.Eram.FlightData.cs`, `CrcClientState.Eram.Track.cs`, `Eram/EramVariants.cs`; the four YAMLs | each reuses an R-side handler (`QB`, `QF`, `QX FP`) or the FLID resolver alone; no new state | first |
 | C2 room ERAM state and conflict-alert settings | `CA`, `RK` | Sim `Simulation/RecordedAction.cs`, new `Simulation/Eram/EramRoomState.cs`, `SimulationEngine.Eram.cs`, `Simulation/Actions/ActionRouter.cs`, `Snapshots/ServerSnapshotDto.cs`; Srv new `CrcClientState.Eram.ConflictSettings.cs`, `CrcBroadcastService.cs` | builds the `RecordedEramRoomEntry` that C3 and C4 reuse | second; after B4 (the conflict pass) |
 | C3 messages | `SM`, `SW` | Srv new `CrcClientState.Eram.Messages.cs`; Sim `EramRoomState.cs` (sector messages) | both push text to ERAM sessions as a private message | after C2 |
 | C4 weather | `UR`, `WX` | Srv new `CrcClientState.Eram.Weather.cs`; Sim `EramRoomState.cs` (entered reports); Srv weather broadcast (`WeatherChangedDto` composer) | both read or write the room's weather | after C2 |

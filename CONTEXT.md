@@ -204,7 +204,7 @@ An ERAM entry typed without a command ID, such as `<FLID>` alone to accept a han
 The ERAM logic-check override: added to a command, it lets the command act on a track the sector doesn't own, or past a check it would otherwise fail.
 
 **SRS**:
-The FAA's ERAM EDSM software requirements specification (Vol 1 Book 2, the appendices) that `docs/eram/` and `docs/plans/eram-srs-findings.md` cite by section and printed page; the maintainer keeps the PDF outside the repo.
+The FAA's ERAM EDSM software requirements specification (Vol 1 Book 2, the appendices) that `docs/eram/` (its [rulings.md](docs/eram/rulings.md) above all) cites by section and printed page; the maintainer keeps the PDF outside the repo.
 
 **FDB / LDB**:
 Full data block / limited data block: the two ERAM data block formats a sector sees for a track. An LDB is paired (the track has a flight plan) or unpaired.
