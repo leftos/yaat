@@ -35,7 +35,7 @@ Rulings after the review of A (user 2026-09-28):
 - **A lead on the ground is refused**: "Unable, {target} is on the ground".
 - **A lead bound for another airport is refused**: "Unable, {target} is inbound to {airport}, request vectors". Queued-entry runways are compared with the airport, not the designator alone (OAK and HWD both have 28L/28R).
 - **Refusal texts** are spoken in solo training, so they follow `docs/pilot-phraseology.md` (reason, then request; no interior dash): "Unable, on final for runway {rwy}, request vectors to follow {target}"; "Unable, on base for runway {rwy}, {target} is not ahead of us, request vectors"; "Unable, on {leg} for runway {rwy}, request vectors to follow {target}" (lead queued for another runway, also the older cross-runway refusal).
-- **Where the "lead ahead" gate applies** (base only today) waits on a permutation study of every lead × follower state the user asked for; its result may add a step.
+- **Where the "lead ahead" gate applies** (base only today) waits on a permutation study of every lead × follower state the user asked for; its result may add a step. The study is drafted once E lands (user 2026-09-29).
 - Step C makes `VfrFollowPhase.PatternReturn` a required constructor parameter (today an init property) together with its DTO field.
 
 Rulings during B (user 2026-09-29, from an `aviation-sim-expert` consult; the recorded case holds the follower 0.86–0.91 nm behind at its speed floor, so no gap gate below the lead's base could be met by speed alone):
