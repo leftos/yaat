@@ -30,6 +30,7 @@ public class SpineTraceTests
         new(StepId.LiveTrafficRunwayUse, 0),
         new(StepId.Transponders, 0),
         new(StepId.AltitudeFixPassage, 0),
+        new(StepId.EramVerticalConformance, 0),
         new(StepId.AutoAccept, 0),
         new(StepId.PointoutTimeout, 0),
         new(StepId.FlightPlanCreatorAutoTrack, 0),

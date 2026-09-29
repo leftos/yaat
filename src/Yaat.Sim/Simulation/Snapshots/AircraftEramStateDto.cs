@@ -52,6 +52,18 @@ public sealed class AircraftEramStateDto
     public TrackOwnerDto? RecentHandoffPreviousOwner { get; init; }
     public bool RecentHandoffWasForced { get; init; }
     public double? RecentHandoffAcceptedAtSeconds { get; init; }
+
+    // Vertical-conformance latch and the assignment it was latched against. False/null (older data) re-evaluates on the
+    // next tick, as a new aircraft does.
+    public bool ReachedAssignedAltitude { get; init; }
+    public EramConformanceKeyDto? ConformanceKey { get; init; }
+}
+
+public sealed class EramConformanceKeyDto
+{
+    public int? AssignedFeet { get; init; }
+    public int? BlockFloorFeet { get; init; }
+    public bool IsAbove { get; init; }
 }
 
 public sealed class EramSectorKeyDto

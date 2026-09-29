@@ -223,6 +223,17 @@ public class AircraftEramState
     /// <summary>Sim-elapsed seconds at which the handoff was accepted; the accepted indicator expires 30 s later.</summary>
     public double? RecentHandoffAcceptedAtSeconds { get; set; }
 
+    /// <summary>
+    /// The ERAM vertical-conformance latch CRC's data block reads as <c>ReachedAssignedAltitude</c>: set once the measured
+    /// altitude is inside the conformance band of <see cref="ConformanceKey"/>, and cleared only when that assignment changes.
+    /// Outside the band, false shows the climb/descent arrow and true shows <c>-</c> (low) or <c>+</c> (high). True with no
+    /// assigned altitude. Maintained by <c>SimulationEngine.TickEramVerticalConformance</c>.
+    /// </summary>
+    public bool ReachedAssignedAltitude { get; set; }
+
+    /// <summary>The assignment <see cref="ReachedAssignedAltitude"/> was latched against. Null = never evaluated.</summary>
+    public EramConformanceKey? ConformanceKey { get; set; }
+
     public AircraftEramStateDto ToSnapshot() =>
         new()
         {
@@ -254,6 +265,8 @@ public class AircraftEramState
             RecentHandoffPreviousOwner = RecentHandoffPreviousOwner?.ToSnapshot(),
             RecentHandoffWasForced = RecentHandoffWasForced,
             RecentHandoffAcceptedAtSeconds = RecentHandoffAcceptedAtSeconds,
+            ReachedAssignedAltitude = ReachedAssignedAltitude,
+            ConformanceKey = ConformanceKey?.ToSnapshot(),
             Pointouts =
                 Pointouts.Count > 0
                     ?
@@ -313,6 +326,8 @@ public class AircraftEramState
             RecentHandoffPreviousOwner = dto.RecentHandoffPreviousOwner is null ? null : TrackOwner.FromSnapshot(dto.RecentHandoffPreviousOwner),
             RecentHandoffWasForced = dto.RecentHandoffWasForced,
             RecentHandoffAcceptedAtSeconds = dto.RecentHandoffAcceptedAtSeconds,
+            ReachedAssignedAltitude = dto.ReachedAssignedAltitude,
+            ConformanceKey = dto.ConformanceKey is null ? null : EramConformanceKey.FromSnapshot(dto.ConformanceKey),
             Pointouts = dto.Pointouts is null
                 ? []
                 :
@@ -333,4 +348,51 @@ public class AircraftEramState
                 : [.. dto.PointoutMinimizedSectors.Select(EramSectorKey.FromSnapshot)],
             FdbOpenSectors = dto.FdbOpenSectors is null ? [] : [.. dto.FdbOpenSectors.Select(EramSectorKey.FromSnapshot)],
         };
+}
+
+/// <summary>
+/// The flight-plan assignment the ERAM vertical-conformance latch is held against: the altitude in effect
+/// (<see cref="AircraftFlightPlan.EramAltitudeFeet"/>, the block ceiling for a block), the block floor, and the ABV flag, all
+/// in feet. A different key clears the latch; an equal one keeps it.
+/// </summary>
+/// <param name="AssignedFeet">The assigned altitude (block ceiling); null or not positive = no assigned altitude.</param>
+/// <param name="BlockFloorFeet">The block floor; non-null only for a block altitude.</param>
+/// <param name="IsAbove">ABV: the band has no upper bound.</param>
+public readonly record struct EramConformanceKey(int? AssignedFeet, int? BlockFloorFeet, bool IsAbove)
+{
+    /// <summary>The conformance tolerance either side of the assigned altitude (or block), in feet.</summary>
+    public const int ToleranceFeet = 200;
+
+    /// <summary>The key of the plan's current assignment.</summary>
+    public static EramConformanceKey Of(AircraftFlightPlan plan) => new(plan.EramAltitudeFeet, plan.Altitude.BlockFloorFeet, plan.Altitude.IsAbove);
+
+    /// <summary>
+    /// Whether <paramref name="altitudeFeet"/> is inside the band: the assigned altitude ± 200 ft, the block from its floor
+    /// − 200 ft to its ceiling + 200 ft, or anything from the assigned altitude − 200 ft up for ABV. Always true with no
+    /// assigned altitude.
+    /// </summary>
+    public bool Contains(double altitudeFeet)
+    {
+        if ((AssignedFeet is not { } assigned) || (assigned <= 0))
+        {
+            return true;
+        }
+
+        int floor = (BlockFloorFeet ?? assigned) - ToleranceFeet;
+        if (altitudeFeet < floor)
+        {
+            return false;
+        }
+        return IsAbove || (altitudeFeet <= (assigned + ToleranceFeet));
+    }
+
+    public EramConformanceKeyDto ToSnapshot() =>
+        new()
+        {
+            AssignedFeet = AssignedFeet,
+            BlockFloorFeet = BlockFloorFeet,
+            IsAbove = IsAbove,
+        };
+
+    public static EramConformanceKey FromSnapshot(EramConformanceKeyDto dto) => new(dto.AssignedFeet, dto.BlockFloorFeet, dto.IsAbove);
 }

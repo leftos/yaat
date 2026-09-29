@@ -22,6 +22,7 @@ public enum StepId
     LiveTrafficRunwayUse,
     Transponders,
     AltitudeFixPassage,
+    EramVerticalConformance,
     AutoAccept,
     PointoutTimeout,
     FlightPlanCreatorAutoTrack,

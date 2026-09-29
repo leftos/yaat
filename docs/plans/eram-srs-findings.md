@@ -63,7 +63,6 @@ It mirrors the FAA SWIM feed and changes nothing in the NAS, so most controller-
 | B5 DM | Srv `CrcClientState.Eram.FlightData.cs` (`DispatchDm`), `CrcClientState.Eram.cs` (`TrailingFlidVerbs`) | fields 26/07/08, `/OK` and `*` | after [eram-dm-design.md](./eram-dm-design.md) is ruled |
 | B6 QL and LA/LB | Srv `CrcClientState.Eram.Display.cs`, `CrcClientState.Eram.Readouts.cs`; Sim `Data/Vnas/ArtccConfig.cs` (`AsrId`) | QL field 214 + number matching, LA field 13, LA/LB SRS text | concurrent with B2 |
 | B1 entry engine and QQ | Sim `Commands/EramEntryEngine.cs`, `Commands/TrackEngine.cs`; Srv `CrcClientState.Eram.cs`, `CrcClientState.Eram.Altitude.cs` | `QT /OK` `K`, retract `O`, QQ 76/36/513 + the cap of 15 (`EramFlid.MaxFlidListLength`, `MESSAGE TOO LONG`, as QB/QU), QS C.1 charset | any time |
-| B3 latch | Sim `AircraftEramState.cs`, `Snapshots/AircraftEramStateDto.cs`, `SimulationEngine.Eram.cs`, `Spine/SpineOrder.cs`, `StepId`; Srv `DtoConverter.cs` (one line) | vertical-conformance latch | any time |
 | B7 per-sector state | Srv `DtoConverter.cs`, `CrcClientState.Eram.cs`; Sim `AircraftEramState.cs` + snapshot DTO, `EramEntryEngine.cs` (`DWELL`) | per-sector leader/DRI/dwell + dwell recording | after B1 and B3 |
 | B8 #464 sweep | Srv `CrcBroadcastService.cs`, `AircraftChangeTracker.cs`, `DtoConverter.cs` (history) | 12 s staggered sweep, ERAM history; the SPC blink edge (`CrcBroadcastService` ORs `DtoChangeFlags.EramTarget`) is a state change and stays outside the sweep | any time |
 
@@ -165,11 +164,6 @@ The C.7 table (Table 31, p.605–623) has no track update rate, data-block caden
 - **SRS**: §H.1 (p.953–954): "Immediate alerts are not reported for IFR/MCI pairs."
 - **YAAT now**: `EramConflictDetector.cs:77-90` has one test for all alerts, and the Mode-C-intruder path in `SimulationEngine.Tick.cs` alerts even when the pair is already inside minima.
 
-### Vertical conformance (`ReachedAssignedAltitude`) is stateless
-- **Severity**: unverified · **Owner**: yaat-server
-- **SRS**: §E.2 vertical conformance (p.874–875), B4 cases 1b1–1b4 (p.881–882): the result is event-evaluated and latched, and "too low" (`-`) or "too high" (`+`) means outside conformance and not moving toward it.
-- **YAAT now**: `DtoConverter.cs:1056-1058` sends `|measured − assigned| ≤ 200 ft`, recomputed every tick against one altitude. A level aircraft 1,000 ft low shows a climb arrow instead of `-`, and a block altitude compares against one end only.
-
 ### Dwell lock, leader offset and DRI halo are per aircraft, not per sector, and the dwell lock is not recorded
 - **Severity**: gap (matters only when two ERAM CRC sessions share a room) · **Owner**: yaat-server + Yaat.Sim · unverified
 - **SRS**: §A.40 (p.210) and §A.41 (p.211), plus the A.1 Table 3 rows 562, 681 and 758 (pp.69, 80, 87), which treat emphasis and leader lines as R-position display state.
@@ -184,7 +178,6 @@ The C.7 table (Table 31, p.605–623) has no track update rate, data-block caden
 - Field B/C/B4 inputs. CRC builds the strings; its own shortfalls (the missing `F` B4, the unreasonable-Mode-C `X`) are CRC-local.
 - Frozen, then coast, then normal symbol order (E.4). NONE for a standby aircraft with an assigned code. Field E sector formatting (built by CRC from `Owner`/`HandoffPeer`/`RecentHandoffPeer`).
 - CRC has no Departure, Inbound, Hold, Conflict Alert, AHI, MRP or FEL view, no hold track symbol, and no CPDLC/TOC/PID indicators, so YAAT has nothing to send for B.13/B.20/B.21 and the related A.1 rows. The range data block shows the CRR distance only. CRC's 7 ERAM hub methods are all handled by the server.
-- The vertical-conformance latch (see the `ReachedAssignedAltitude` candidate) is defined in Book 1, not in this volume.
 - Appendix F UTM/alert messages, Appendix G sign-in and Appendix I composition qualifiers: not applicable on VATSIM (FDIO/ARTS coordination, sign-in, CPDLC).
 
 ## Coverage

@@ -185,6 +185,10 @@ public static class SnapshotSchemaMigrator
         // V30→V31: flight plan gains AltitudeFix / AltitudeAfterFixFeet / AltitudeFixPassed / AltitudeFixApproached,
         //   IntrafacilityRemarks, CruiseMach, IsSpeedClassified; the Remarks key now holds the interfacility remarks; no data
         //   transformation.
+        // V31: Added the ERAM vertical-conformance latch to AircraftEramStateDto (ReachedAssignedAltitude, ConformanceKey).
+        //   No data transformation: both are optional, and an older snapshot's false/null reads as never evaluated, so the
+        //   next tick stores the current assignment and re-evaluates the latch, as for a new aircraft. No bump — the fields
+        //   are optional with a clean default and there is nothing to transform.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (AircraftSnapshotDto ac in snapshot.Aircraft)

@@ -1359,6 +1359,9 @@ SimulationEngine.Transport.cs  # The session-clock bodies: Pause() / Resume() / 
                                # SimRate (clamped 1..16; refused while LiveTrafficEnabled; (false, "No active scenario") without one), each marking the sim-state dirty flag
                                # (OnSimStateChanged → the host's BroadcastSimState). The unattended-pause and rewind paths still write IsPaused directly and broadcast
                                # themselves. PAUSE/UNPAUSE/SIMRATE stay RecordingPolicy.Never — a rewind must never pause itself
+SimulationEngine.EramConformance.cs  # TickEramVerticalConformance (spine step EramVerticalConformance, after AltitudeFixPassage): latches
+                               # AircraftEramState.ReachedAssignedAltitude inside the assigned band (±200 ft; block floor−200..ceiling+200; ABV ≥ −200),
+                               # clears it when EramConformanceKey (EramAltitudeFeet, block floor, ABV) changes; skipped while QT-coasted, frozen or no Mode C
 SimulationEngine.Asdex.cs      # The recorded CRC ASDE-X / SAID display mutations: ApplyAsdexMutation /
                                # ApplySaidMutation (tag / terminate / suspend / inhibit / edit onto AircraftStarsState through TrackEngine.SetAsdexField +
                                # the SetSaidField / HandleSaidVerb twins; a Terminate tells the host once — OnAsdexTrackTerminated / OnSaidTrackTerminated —

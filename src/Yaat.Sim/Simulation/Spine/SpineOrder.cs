@@ -41,6 +41,8 @@ public static class SpineOrder
         // After physics has moved the aircraft this second, so the ERAM altitude a fix-qualified plan shows follows the
         // position the broadcast carries.
         SpineStep.Sim(StepId.AltitudeFixPassage, static (engine, _) => engine.TickAltitudeFixPassage()),
+        // After the fix passage, so an after-fix altitude taking over resets the vertical-conformance latch the same second.
+        SpineStep.Sim(StepId.EramVerticalConformance, static (engine, _) => engine.TickEramVerticalConformance()),
         SpineStep.Sim(StepId.AutoAccept, static (engine, _) => engine.TickAutoAccept()),
         SpineStep.Sim(StepId.PointoutTimeout, static (engine, _) => engine.TickPointoutTimeout()),
         // FP-creator autotrack runs before the airport-based deferred autotrack so a controller who explicitly
