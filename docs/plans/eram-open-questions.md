@@ -23,6 +23,12 @@ The full design is [eram-dm-design.md](./eram-dm-design.md).
 9. **Who may DM.** Which positions can DM a proposed departure without `/OK`, and what error shows without it? *Our guess:* anyone while no sector controls the flight; otherwise only the controlling sector, answered NOT YOUR CONTROL.
 10. **Time window.** Does ERAM refuse a DM time in the future, or too far in the past? *Our guess:* no window check.
 
+## Readouts
+
+11. **`LA` time line.** Is flying time rounded to the nearest minute, and does a whole hour print `1 HR` or `1 HR 0 MIN`? *Our guess:* nearest minute, `1 HR`.
+12. **`LA` to a radar site.** The SRS example adds a line like `2116 ACP` after the range and bearing. What is that number? *Our guess:* unknown, so we omit the line.
+13. **`LB` direction.** Is the `LB` bearing measured from the track to the fix? *Our guess:* yes, as `FROM TB TO FIX` reads.
+
 ## Commands YAAT is adding (`RK`, `UR`, `SM`, `CA`, `FP`, `RM`)
 
 The full design is [eram-c8-design.md](./eram-c8-design.md).
@@ -33,9 +39,3 @@ The full design is [eram-c8-design.md](./eram-c8-design.md).
 17. **`CA 55 OFF`.** Does it only stop sector 55's own display showing conflict alerts, or also stop alerts on tracks sector 55 owns from showing elsewhere? *Our guess:* only sector 55's own display.
 18. **`FP` for an existing flight.** What does ERAM answer to an FP for an aircraft ID that already has an active plan in your centre? *Our guess:* refused as a duplicate; you amend with AM instead.
 19. **`RM` feedback.** After `RM <ACID>` on a route that converts cleanly, do you see anything beyond ACCEPT? *Our guess:* ACCEPT only.
-
-## Readouts
-
-11. **`LA` time line.** Is flying time rounded to the nearest minute, and does a whole hour print `1 HR` or `1 HR 0 MIN`? *Our guess:* nearest minute, `1 HR`.
-12. **`LA` to a radar site.** The SRS example adds a line like `2116 ACP` after the range and bearing. What is that number? *Our guess:* unknown, so we omit the line.
-13. **`LB` direction.** Is the `LB` bearing measured from the track to the fix? *Our guess:* yes, as `FROM TB TO FIX` reads.
