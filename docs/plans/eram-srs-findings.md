@@ -62,7 +62,7 @@ It mirrors the FAA SWIM feed and changes nothing in the NAS, so most controller-
 | B7 per-sector state | Srv `DtoConverter.cs`, `CrcClientState.Eram.cs`; Sim `AircraftEramState.cs` + snapshot DTO, `EramEntryEngine.cs` (`DWELL`) | per-sector leader/DRI/dwell + dwell recording | any time |
 | B8 #464 sweep | Srv `CrcBroadcastService.cs`, `AircraftChangeTracker.cs`, `DtoConverter.cs` (history) | 12 s staggered sweep, ERAM history; the SPC blink edge (`CrcBroadcastService` ORs `DtoChangeFlags.EramTarget`) is a state change and stays outside the sweep | any time |
 
-B2 and most of B5 landed; the QF leftovers are under [QF beacon fallbacks](#qf-beacon-fallbacks-and-the-empty-altitude).
+B2 and B5 landed. `QF`'s empty assigned altitude prints `-`, as its `ALT` field readout does (the SRS gives no text). Its Requested, Last Facility Assigned and Next Facility Assigned beacon fallbacks (App. D.1 Table 34) are not modelled: YAAT has no requested-code state (`RequestNewBeaconCode` assigns at once) and a handoff never changes the code, so each would print the assigned code anyway.
 
 ## Filed issues
 
@@ -70,12 +70,6 @@ B2 and most of B5 landed; the QF leftovers are under [QF beacon fallbacks](#qf-b
 - **Not in this volume.** The C.7 dynamic parameter table has no track update rate, and no other appendix states one. The rate is an ERAM surveillance and display rule from Book 1 or the CRC manual. Check `docs/crc/eram.md` and CRC's decompiled display refresh logic, then decide from the reporter's word plus CRC's behaviour.
 
 ## Command validation candidates
-
-### QF beacon fallbacks and the empty altitude
-- **Severity**: gap (small) · **Owner**: yaat-server
-- **SRS**: App. D.1 Table 34 (p.866–867): the beacon column holds the Assigned code, else the Requested code, else the Last Facility Assigned code after an outbound handoff.
-- **YAAT now**: `CrcClientState.Eram.FlightData.BeaconReadout` prints `Transponder.AssignedCode` or `----`; the full readout prints the present altitude when no assigned altitude is set, where the field-referenced ALT readout prints `-`.
-- **Fix sketch**: add the two beacon fallbacks; decide the empty assigned-altitude text.
 
 ### C.7 dynamic parameters YAAT models
 The C.7 table (Table 31, p.605–623) has no track update rate, data-block cadence, conflict lookahead, or handoff or point-out timer, so it cannot answer #464 or #465.

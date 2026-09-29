@@ -27,7 +27,7 @@
 - ERAM draws an uncorrelated target as a Mode C intruder only inside that band; below it a 1200 code draws as a VFR target.
 - ERAM flight IDs follow the SRS format: a two-character ID is a letter and a digit, Mode C intruder IDs are reserved, and 15 is the most per entry.
 - ERAM `QB` and `LF` refuse a beacon code as the flight ID, and `QB` changes a qualifier or voice type for several flights at once.
-- ERAM `QF` shows the assigned beacon code, the CID and the controlling sector, and reads the ERAM assigned altitude.
+- ERAM `QF` shows the assigned beacon code, the CID and the controlling sector, and reads the ERAM assigned altitude, or `-` when the flight plan has none.
 - ERAM `QS` takes every speed form, such as `/78`, `/.78`, `/M.78`, `/+50` and `/PS`, shows knots as `S250`, and takes heading and speed together.
 - After an ERAM handoff is accepted, the handing-off sector keeps its full data block until it toggles it, and `<FLID>` toggles STARS-owned tracks too.
 - A scenario's auto-track cleared altitude shows as the ERAM assigned altitude, so the data block shows Mode C instead of a stuck `#` reported altitude.
