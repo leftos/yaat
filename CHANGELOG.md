@@ -9,6 +9,12 @@
 
 ### Fixed
 
+- ERAM shows `X`/`XXX` for an aircraft whose transponder is in standby, and a stopped target shows no `000` ground speed.
+- ERAM emergency and special-code text (EMRG, RDOF, HIJK) blinks for 30 seconds instead of for as long as the code is squawked.
+- ERAM draws a 1200 code as a VFR target at any altitude, and a STARS temporary altitude no longer shows as the ERAM interim altitude.
+- ERAM flight IDs follow the SRS format: a two-character ID is a letter and a digit, Mode C intruder IDs are reserved, and 15 is the most per entry.
+- ERAM `QB` and `LF` refuse a beacon code as the flight ID, and `QB` changes a qualifier or voice type for several flights at once.
+- ERAM `QF` shows the assigned beacon code, the CID and the controlling sector, and reads the ERAM assigned altitude.
 - ERAM `QS` takes every speed form, such as `/78`, `/.78`, `/M.78`, `/+50` and `/PS`, shows knots as `S250`, and takes heading and speed together.
 - After an ERAM handoff is accepted, the handing-off sector keeps its full data block until it toggles it, and `<FLID>` toggles STARS-owned tracks too.
 - A scenario's auto-track cleared altitude shows as the ERAM assigned altitude, so the data block shows Mode C instead of a stuck `#` reported altitude.

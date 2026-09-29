@@ -126,7 +126,9 @@ transponder plus the subscribing facility's ERAM config. Precedence:
 3. **Correlated** = `HasFlightPlan && code != 1200`. 1200 is the non-discrete universal VFR code and never correlates
    (AIM §4-1-20); a filed aircraft squawking 1200 falls through to the uncorrelated branch. Correlated →
    `ReducedSeparation` inside single-sensor ASR coverage, else `CorrelatedBeacon`.
-4. **Uncorrelated** → `Mci` at/above the conflict-alert floor; below it `Vfr` for 1200, else `UncorrelatedBeacon`.
+4. **Uncorrelated** → `Vfr` for 1200 at any altitude (never an MCI, a departure from CRC's manual, which draws the 1200 symbol only below the floor); otherwise `Mci` at/above the conflict-alert floor, else `UncorrelatedBeacon`.
+
+Other target and track fields that follow ERAM rather than the raw state: a standby aircraft's ERAM **track** `Altitude` is null too while the track is `Normal` (a frozen or coasting track keeps its snapshot), so CRC draws `X`/`XXX`; the target's `GroundSpeed` is null at 0 kt (Field E shows speed only when it is nonzero); and `BlinkSpc` blinks for `CrcBroadcastService.EramSpcBlinkSeconds` (30 s) after a special code first appears, from the sim-side `AircraftTransponder.SpcStartedAt` latch (stamped by the `Transponders` spine step, cleared on any code change, snapshotted), with `AircraftChangeTracker.UpdateEramSpcBlinkState` re-sending a stationary target when the blink ends. ERAM Field B's interim altitude is `Eram.InterimAltitude` only; a STARS temporary altitude never falls into it.
 
 Facility config drives two of those splits, so `EramTargets` is recomputed per subscribing facility at send time
 (`CrcBroadcastService.ResolveEramTargetConfig` → `ArtccConfigService.GetEramFacilityConfig`, over the raw

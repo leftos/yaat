@@ -31,7 +31,12 @@ The work order is the **ERAM — #1 priority** list in [MAIN.md](./MAIN.md); thi
 - **SPC blink**: a named 30 s constant after the code first appears (latched like `IdentStartedAt`), in the target fingerprint so a stationary aircraft re-sends.
 - **`QL` limit of 5**: per entry; the toggled set may grow past 5 over several entries.
 - **`QB` multiple FLIDs**: apply per flight for the equipment-qualifier and voice variants; refuse code assignment with `MULTIPLE FLIDS NOT ALLOWED`.
-- **`DM`**: implement every field — 26 (coordination fix), 07 (time), 08 (altitude) and the `/OK` and `*` suffixes. Fields 26 and 07 need a design pass (what a coordination fix and a departure time change in the sim) before a brief.
+- **`DM`**: implement every field — 26 (coordination fix), 07 (time), 08 (altitude) and the `/OK` and `*` suffixes. Fields 26 and 07 need a design pass (what a coordination fix and a departure time change in the sim) before a brief; the draft is [eram-dm-design.md](./eram-dm-design.md).
+- **`QB` code to several FLIDs**: refused with the SRS text the YAML carries for `MsgMultipleFLIDsNotAllowed`, `MULTIPLE FLIDS INVALID` (landed with B5).
+- **B3 latch** (grounded in CRC `BaseDataBlockRenderObject.GetVerticalConformance`): evaluated at once when the assignment is first seen; no assigned altitude counts as reached; a block sets within floor − 200 to ceiling + 200 and an ABV altitude from altitude − 200 up (CRC's bounds); measured on the aircraft's own altitude, not evaluated while the track is coasted or frozen or Mode C is absent; a change is keyed on the value (a same-value reassignment is no change) and the key is snapshotted; a new `StepId.EramVerticalConformance` after `AltitudeFixPassage`; no schema bump.
+- **B1**: the retract `O` shows the initiator's own sector (CRC's `FdbRenderObject.GetFieldESectorId` prints the owner's sector, never the peer's, so the recipient cannot be shown; see [eram-open-questions.md](./eram-open-questions.md)). `QT /OK` marks `K` only when the entry has a scenario. QQ field 76 is exactly `[L|P|R]ddd` > 0, one per entry, else `ALT FORMAT`; a letters-only token other than `L` is `<token> ILLEGAL ACTION`; a token starting with `/` is field 513, valid as `/` plus two of A–Z or `/`, else `<token> FORMAT`. QS field 60 and QS multiple FLIDs are a separate item.
+- **B6** (SRS §F.5 Tables 76–77, `QL.yaml`): QL checks every token's format (`(d)dd`, 1–128, or `ALL`) before the count, counts raw tokens (at most 5 per entry), checks no adaptation, and stores the sector by number (`044` → `44`), matched by number. LA/LB print one item per line joined with `\n`: `RANGE * <d.d> NM`, `BEARING * <ddd> DEG MAG` (`DEG TRUE` with `T/`, and always TRUE for a radar site), then `FROM 1ST TB ENTRY` (LA), `RADAR SITE <id>` (LA field 13) or `FROM TB TO FIX <name>` (LB; no name for a picked fix), then with a speed `AT <kt> KNOTS [<h> HR ]<m> MIN`, minutes rounded to the nearest, `<h> HR` alone on a whole hour. LB's bearing runs from the track to the fix, as the text says. A three-letter operand that matches an ASR site's `AsrId` is the site, ahead of a fix of the same name; the SRS's `2116 ACP` line has no data source and is omitted. Distances use the invariant culture.
+- **B4 conflict pass**: the 5 s pass is gated on `(int)Scenario.ElapsedSeconds % 5 == 0` (global phase, no new state), with suppression changes still reported every second. An IFR/MCI pair first detected already inside minima (present positions: 5/3 NM lateral and under 1,000 ft) never alerts while it stays inside; an alert already up is kept. The MCI floor is the owning facility's `ConflictAlertFloor`, else 12,500 ft, inclusive, with a 99,500 ft ceiling, and the **MCI symbol uses the same floor** (one helper feeds both). A 1200 code never alerts, flight plan or not. STARS CA is untouched.
 
 Verified against the code 2026-09-28 (explorer pass): coast marking the previous owner `K` is **not a bug** — `ApplyCoast` refuses a track owned by another position, so it never has a previous owner. Ground speed 0 matters for the ERAM target only (Field E reads `target.GroundSpeed`; the track's speed drives only the vector). The `AM.yaml` 918 claim is wrong as worded — SWIM and scenario remarks carry REG/, PBN/, DOF/ as unparsed text in `AircraftFlightPlan.Remarks` — but nothing parses them; reword the `na` reason.
 
@@ -54,14 +59,15 @@ It mirrors the FAA SWIM feed and changes nothing in the NAS, so most controller-
 
 | Brief | Source files | Covers | Order |
 |---|---|---|---|
-| B2 data-block DTO | Srv `Simulation/DtoConverter.cs`, `Simulation/AircraftChangeTracker.cs`; Sim `AircraftTransponder.cs`, `Simulation/Snapshots/AircraftTransponderDto.cs` | standby altitude, target GS 0 → null, SPC blink, interim fallback dropped, 1200 never MCI symbol | first |
-| B4 conflict pass | Sim `EramConflictDetector.cs`, `Simulation/SimulationEngine.Tick.cs` | 5 s cadence (clock-derived, suppression changes still every second), no immediate IFR/MCI alert, floor/ceiling, 1200 not an intruder | concurrent with B2 |
-| B5 FLID and flight-data verbs | Srv `Hubs/Eram/EramFlid.cs`, new `Hubs/CrcClientState.Eram.Flid.cs`, `CrcClientState.Eram.FlightData.cs`, `CrcClientState.Eram.Crr.cs`, `CrcClientState.Eram.Route.cs` | FLID `Ld`/`dLd`/cap 15, QB/LF beacon FLID refused, QB multiple FLIDs, QF beacon/CID/sector and assigned-altitude field, DM (after its design pass) | concurrent with B2 |
+| B4 conflict pass | Sim `EramConflictDetector.cs`, `Simulation/SimulationEngine.Tick.cs`, `AircraftTransponder.cs` (`IsVfrCode`); Srv `DtoConverter.cs` (`ComputeEramSymbolType` floor) | 5 s cadence (clock-derived, suppression changes still every second), no immediate IFR/MCI alert, floor/ceiling, 1200 not an intruder | any time |
+| B5 DM | Srv `CrcClientState.Eram.FlightData.cs` (`DispatchDm`), `CrcClientState.Eram.cs` (`TrailingFlidVerbs`) | fields 26/07/08, `/OK` and `*` | after [eram-dm-design.md](./eram-dm-design.md) is ruled |
 | B6 QL and LA/LB | Srv `CrcClientState.Eram.Display.cs`, `CrcClientState.Eram.Readouts.cs`; Sim `Data/Vnas/ArtccConfig.cs` (`AsrId`) | QL field 214 + number matching, LA field 13, LA/LB SRS text | concurrent with B2 |
-| B1 entry engine and QQ | Sim `Commands/EramEntryEngine.cs`, `Commands/TrackEngine.cs`; Srv `CrcClientState.Eram.cs`, `CrcClientState.Eram.Altitude.cs` | `QT /OK` `K`, retract `O`, QQ 76/36/513 + cap, QS C.1 charset | after B5 (FLID cap constant) |
-| B3 latch | Sim `AircraftEramState.cs`, `Snapshots/AircraftEramStateDto.cs`, `SimulationEngine.Eram.cs`, `Spine/SpineOrder.cs`, `StepId`; Srv `DtoConverter.cs` (one line) | vertical-conformance latch | after B2 |
+| B1 entry engine and QQ | Sim `Commands/EramEntryEngine.cs`, `Commands/TrackEngine.cs`; Srv `CrcClientState.Eram.cs`, `CrcClientState.Eram.Altitude.cs` | `QT /OK` `K`, retract `O`, QQ 76/36/513 + the cap of 15 (`EramFlid.MaxFlidListLength`, `MESSAGE TOO LONG`, as QB/QU), QS C.1 charset | any time |
+| B3 latch | Sim `AircraftEramState.cs`, `Snapshots/AircraftEramStateDto.cs`, `SimulationEngine.Eram.cs`, `Spine/SpineOrder.cs`, `StepId`; Srv `DtoConverter.cs` (one line) | vertical-conformance latch | any time |
 | B7 per-sector state | Srv `DtoConverter.cs`, `CrcClientState.Eram.cs`; Sim `AircraftEramState.cs` + snapshot DTO, `EramEntryEngine.cs` (`DWELL`) | per-sector leader/DRI/dwell + dwell recording | after B1 and B3 |
-| B8 #464 sweep | Srv `CrcBroadcastService.cs`, `AircraftChangeTracker.cs`, `DtoConverter.cs` (history) | 12 s staggered sweep, ERAM history | after B2 |
+| B8 #464 sweep | Srv `CrcBroadcastService.cs`, `AircraftChangeTracker.cs`, `DtoConverter.cs` (history) | 12 s staggered sweep, ERAM history; the SPC blink edge (`CrcBroadcastService` ORs `DtoChangeFlags.EramTarget`) is a state change and stays outside the sweep | any time |
+
+B2 and most of B5 landed; the QF leftovers are under [QF beacon fallbacks](#qf-beacon-fallbacks-and-the-empty-altitude).
 
 ## Filed issues
 
@@ -87,18 +93,6 @@ It mirrors the FAA SWIM feed and changes nothing in the NAS, so most controller-
 - **YAAT now**: `CrcClientState.Eram.Display.DispatchQl` (:258-295) toggles any upper-cased token into a set, so `QL BANANA`, `QL 999` and seven sectors are all accepted. `DtoConverter.cs:918` matches with `quickLookSectors.Contains(sectorId)`, a string compare, while every other sector match compares by number (`EramFields.cs:516-531`). `QL 044` against sector `44` therefore silently does nothing. `ALL` is a YAAT addition. QL has no conformance test.
 - **Fix sketch**: validate each token as `(d)dd` in 1–128, or `ALL`, with at most 5. Normalise each token to the adapted sector id by number before storing it.
 
-### A beacon code is accepted as the FLID where the SRS forbids it (QB, LF)
-- **Severity**: bug (small) · **Owner**: yaat-server · unverified
-- **SRS**: §C.8 QB Code Modification (p.727) and Code/Qualifier Modification (p.732): "Must not enter a beacon code for flight identification" (MsgIllegalFlightID). The other QB variants (p.728–729) and LF (p.711) list only ACID, CID or pick (MsgFlidFormat).
-- **YAAT now**: the shared `ResolveEramFlid` (`CrcClientState.Eram.cs:470-499`, `EramFlid.cs:20-30`) accepts a beacon code for every verb, so `QB 1301 1234` changes the code of the aircraft squawking 1234.
-- **Fix sketch**: add a per-verb flag that disallows a beacon code.
-
-### QB multiple-FLID variants reject `AAL1/DAL2` with a misleading error
-- **Severity**: gap (small) · **Owner**: yaat-server · unverified
-- **SRS**: §C.8 QB Discrete Code Request and Equipment Qualifier Modification (p.728–729) allow the multiple-FLID form, and `QB.yaml` records `multiple_flids: true` without a one-flight ruling.
-- **YAAT now**: `CrcClientState.Eram.cs:79-88` never claims a slash token as the FLID, so the entry answers MESSAGE TOO SHORT.
-- **Fix sketch**: apply the change per flight, or record a ruling and return a clearer error.
-
 ### DM ignores fields 26/07/08 and the `/OK` and `*` suffixes
 - **Severity**: gap (low priority; CRC docs show only `DM <ACID>`) · **Owner**: yaat-server · unverified
 - **SRS**: §C.8 DM (p.664–666). DM takes an optional field 26 (fix), 07 (time) and 08 (altitude), and a `/OK` or `*` suffix on field 02 or 26.
@@ -108,19 +102,11 @@ It mirrors the FAA SWIM feed and changes nothing in the NAS, so most controller-
   - `DM AAL123*` answers FLID FORMAT.
 - **Fix sketch**: parse the fields and suffixes, or mark them `na` in `DM.yaml` ("YAAT plans are born active").
 
-### QF readout shows the live squawk in the assigned-beacon column
-- **Severity**: gap · **Owner**: yaat-server · unverified
-- **SRS**: App. D.1 Table 34 (p.866–867). The column holds the Assigned Beacon Code, or the Requested code when none is assigned, or the Last Facility Assigned code after an outbound handoff. D.1 also puts the CID and the controlling sector (`UNK` when unknown) in the FLID column.
-- **YAAT now**: `CrcClientState.Eram.FlightData.BeaconReadout` (:145) prints `ac.Transponder.Code`, so a wrong squawk, standby or 1200 reads out as if assigned. `AircraftTransponder.AssignedCode` already exists. The "cid-shortcut" mentioned in the comment at :132 is never printed.
-- **Fix sketch**: print `AssignedCode`, and add the CID and controlling sector.
-
-### FLID format checks are looser than §C.1 field 02
-- **Severity**: bug (trivial) · **Owner**: yaat-server · unverified
-- **SRS**: §C.1 field 02 (p.402–406) sets three rules:
-  - An aircraft ID is `Laa(a)(a)(a)(a)` or `Ld`, so a two-character ID must be a letter then a digit.
-  - A `dLd` CID may not use A, C, E, F, H or J, which are reserved for Mode C Intruder IDs.
-  - "Up to 15 Flight IDs may be specified in a single command entry."
-- **YAAT now**: `EramFlid.cs:44-58` accepts `AB`, `IsCid` (:60-73) accepts `1A2`, and no multiple-FLID list is capped (`Altitude.cs:145-153`, `Route.cs:313`, `Conflict.cs:76`).
+### QF beacon fallbacks and the empty altitude
+- **Severity**: gap (small) · **Owner**: yaat-server
+- **SRS**: App. D.1 Table 34 (p.866–867): the beacon column holds the Assigned code, else the Requested code, else the Last Facility Assigned code after an outbound handoff.
+- **YAAT now**: `CrcClientState.Eram.FlightData.BeaconReadout` prints `Transponder.AssignedCode` or `----`; the full readout prints the present altitude when no assigned altitude is set, where the field-referenced ALT readout prints `-`.
+- **Fix sketch**: add the two beacon fallbacks; decide the empty assigned-altitude text.
 
 ### QS free-text character set and the knots floor
 - **Severity**: unverified (the SRS contradicts itself on the character set) · **Owner**: Yaat.Sim
@@ -147,29 +133,11 @@ The C.7 table (Table 31, p.605–623) has no track update rate, data-block caden
 
 ## New candidates
 
-### Standby transponder still reports an altitude
-- **Severity**: bug · **Owner**: yaat-server · unverified
-- **SRS**: §E.2 p.873, together with the B/C rules p.871–882. Mode C is the reported altitude only "if Mode C altitude for display valid"; otherwise there is no reported altitude. B4 shows `X` with Field C `XXX` when Mode C is disestablished, and `N` when it was never established.
-- **YAAT now**: `DtoConverter.ToEramTrack` (:1057-1069) always sends `Altitude = motion.Altitude`. `ToEramTarget` already nulls it for Standby. CRC reads `track.Altitude` (`BaseDataBlockRenderObject.cs:127`), so it never shows `X`/`XXX` for a standby aircraft.
-- **Fix sketch**: send a null track `Altitude` when Mode C is not reporting. A frozen or coasted track keeps its snapshot.
-
 ### Taking a track (`QT /OK`, coast) gives the previous owner no `K-dd`
 - **Severity**: gap · **Owner**: Yaat.Sim · unverified
 - **SRS**: §E.3 Table 40 (p.887–888), the Field E `K-(d)dd` columns for "h/o acc (cntrl) ≠ init or rcv (assume cntrl)" and "≠ prev cntrl".
 - **YAAT now**: `EramEntryEngine.ApplyTrack` (:557-579) and `ApplyCoast` (:632) call `StartTrack` but never `TrackEngine.MarkRecentHandoffAccepted(..., wasForced: true)`. `K` is set only on the POCONVERT path (:430) and on `ApplyForceHandoff` (`TrackEngine.cs:803`).
 - **Fix sketch**: capture the previous owner before `StartTrack`. If it differs from the actor, mark the handoff as recently accepted and forced.
-
-### Field E ground speed shows `000` for a stopped target
-- **Severity**: bug (small) · **Owner**: yaat-server · unverified
-- **SRS**: §E.3 Table 55 (p.909): ground speed is shown when "velocity data is available and is nonzero".
-- **YAAT now**: `DtoConverter.cs:384` sends `GroundSpeed = (int)ac.GroundSpeed`, including 0. CRC prints `{gs:D3}` whenever the value is present.
-- **Fix sketch**: send null when the value is ≤ 0.
-
-### Special-code (SPC) blink never times out
-- **Severity**: gap · **Owner**: yaat-server · unverified
-- **SRS**: §E.3 Table 54 (p.904–905): EMRG, RDOF, HIJK and the adapted SPC text blink "for adp_NonControllingAttentionBlinkingInterval".
-- **YAAT now**: `DtoConverter.cs:388` sets `BlinkSpc = IsSpc(code)` for as long as the code is squawked.
-- **Fix sketch**: blink for a limited interval after the code first appears. The interval value is not in this volume.
 
 ### Handoff retract gives the initiator no `O-dd`
 - **Severity**: gap (low) · **Owner**: Yaat.Sim · unverified
@@ -202,10 +170,6 @@ The C.7 table (Table 31, p.605–623) has no track update rate, data-block caden
 - **SRS**: §E.2 vertical conformance (p.874–875), B4 cases 1b1–1b4 (p.881–882): the result is event-evaluated and latched, and "too low" (`-`) or "too high" (`+`) means outside conformance and not moving toward it.
 - **YAAT now**: `DtoConverter.cs:1056-1058` sends `|measured − assigned| ≤ 200 ft`, recomputed every tick against one altitude. A level aircraft 1,000 ft low shows a climb arrow instead of `-`, and a block altitude compares against one end only.
 
-### STARS temporary altitude leaks into ERAM Field B as an interim altitude
-- **Severity**: unverified (may be intentional) · **Owner**: yaat-server
-- **YAAT now**: `DtoConverter.cs:1102` sends `InterimAltitude = ac.Eram.InterimAltitude ?? ac.Stars.TemporaryAltitude`. SRS Field B uses `FLTS:InterimAltitude` only.
-
 ### Dwell lock, leader offset and DRI halo are per aircraft, not per sector, and the dwell lock is not recorded
 - **Severity**: gap (matters only when two ERAM CRC sessions share a room) · **Owner**: yaat-server + Yaat.Sim · unverified
 - **SRS**: §A.40 (p.210) and §A.41 (p.211), plus the A.1 Table 3 rows 562, 681 and 758 (pp.69, 80, 87), which treat emphasis and leader lines as R-position display state.
@@ -213,11 +177,6 @@ The C.7 table (Table 31, p.605–623) has no track update rate, data-block caden
   - yaat-server `DtoConverter.cs:876-885` sends a single per-aircraft `LeaderDirection`, `LeaderLength`, `DriHaloType` and `IsDwellLocked` to every sector (its comment: "single-ERAM-sector training").
   - `CrcClientState.Eram.cs:191` toggles `IsDwellLocked` directly, with no sector key and no `ApplyAndRecord`, so a replay loses it. VCI, FDB-open and point-out minimize are per sector and recorded.
 - **Fix sketch**: key these by (facility, sector) the way `OnFrequencySectorIds` is keyed, and record the dwell-lock toggle as a `RecordedEramEntry`. The missing recording is a determinism bug even for a single sector.
-
-### A 1200 code above the conflict-alert floor is drawn as an MCI
-- **Severity**: unverified · **Owner**: yaat-server
-- **SRS**: A.1 Table 3 rows 9–11 (p.16) define separate MCI, 1200-beacon (V) and "Unpaired MCI Alert Ineligible" symbols. The eligibility rule itself is in Book 1.
-- **YAAT now**: `DtoConverter.cs:426-432` returns MCI for any uncorrelated beacon target at or above the floor, following `docs/crc/eram.md:358`.
 
 ## Checked and consistent
 
