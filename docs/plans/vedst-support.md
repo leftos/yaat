@@ -67,8 +67,17 @@ Built on System.Text.Json with camelCase names, a `JsonStringEnumConverter` that
 ### 6. vNAS-shaped auth and config (`src/Yaat.Server/Auth/VnasCompatEndpoints.cs`, new)
 - `GET /vnas/configuration` returns `{artccBoundariesUrl, artccAoisUrl, environments:[{name:"YAAT", apiBaseUrl:"<base>/vnas", clientHubUrl:"<base>/hubs/client", isSweatbox:false}]}`. The two URLs are copied from the live vNAS config at `https://configuration.vnas.vatsim.net/`, fetched and cached. The vEDST source (`authSlice.ts`, `App.tsx`) reads nothing else.
 - `GET /vnas/artccs/{id}` and `GET /vnas/airports/{id}` pass through to `https://data-api.vnas.vatsim.net/api/...` and keep the upstream status, so a 404 means "no info" as vEDST expects. vEDST reads `facility.neighboringFacilityIds` and `eramConfiguration.nasId` from these. If an existing ARTCC-config fetch helper can be reused, use it.
+- **OAuth redirect bounce `GET /vnas/login?code`.** VATSIM Connect will not register a `localhost` redirect URI, so vEDST's redirect goes through yaat-server.
+  - vEDST builds `redirect_uri` as `${VITE_DOMAIN}/login`, and `DOMAIN` is used nowhere else (`constants.ts`, `Login.tsx`). With `VITE_DOMAIN=https://yaat1.leftos.dev/vnas`, VATSIM sends the browser to `https://yaat1.leftos.dev/vnas/login?code=…`, an https URI on YAAT's own domain.
+  - This endpoint redirects to the configured `Yaat:Vnas:LoginReturnUrl` (e.g. `http://localhost:3000/login`), carrying `code` through unchanged.
+  - vEDST's `/login` page then reads `code` and calls `/vnas/auth/login` with `redirectUrl` = the yaat URI, which is exactly the `redirect_uri` VATSIM needs for the exchange.
+  - vEDST sends no `state`, so the return target is a single configured value, never taken from the request. That keeps the endpoint from being an open redirect.
 - `GET /vnas/auth/login?code&redirectUrl&clientId`:
-  - Check `clientId` against `Yaat:Vatsim:ClientId`, and `redirectUrl` against a new allowlist `Yaat:Vatsim:ExternalRedirectUris`.
+  - vEDST logs in through its own VATSIM Connect client, **separate from YAAT's own** (`Yaat:Vatsim`). On yaat1 that is client 1974, "yaat1 vedst", whose redirect is `/vnas/login`.
+    - New options: `Yaat:Vnas:ClientId`, `Yaat:Vnas:ClientSecret` and `Yaat:Vnas:LoginReturnUrl`.
+    - Check `clientId` against `Yaat:Vnas:ClientId`, and `redirectUrl` against `<base>/vnas/login`.
+    - The exchange uses the vnas client's id and secret. `VatsimAuthService.ExchangeCodeAsync` therefore takes the client credentials as well as the redirect URI, or a second configured instance is used; decide which in implementation.
+    - The endpoints return 500 "not configured" when the `Yaat:Vnas` options are empty.
   - Exchange the code. `VatsimAuthService.ExchangeCodeAsync` gains required `redirectUri` and nullable `codeVerifier` parameters, and the existing callers pass their own values.
   - Apply VATUSA.
   - Return `{nasToken: access, vatsimToken: refresh}` as YAAT-signed tokens. vEDST keeps only `vatsimToken` and decodes its `exp`; the YAAT refresh JWT has one.
@@ -77,8 +86,13 @@ Built on System.Text.Json with camelCase names, a `JsonStringEnumConverter` that
 - `GET /vnas/auth/refresh?vatsimToken` validates the refresh token with the revocation check and returns a fresh access token as **plain text**, which vEDST reads with `r.text()`. It does not rotate, following the reasoning in `IssueAccessFromCookieAsync`.
 - **CORS.** Add a named policy from `Yaat:Cors:AllowedOrigins`, set to `http://localhost:3000` in dev config. List the exact origins (no wildcard) and allow credentials, because `/auth/login` is fetched with `credentials: "include"`. Apply it to the `/vnas/*` endpoints only. The hub is a WebSocket, so CORS does not apply to it.
 - **Manual steps.**
-  - You: register `http://localhost:3000/login` as a redirect on YAAT's VATSIM Connect app, and add it to `ExternalRedirectUris`.
-  - Jonah: set `VITE_VNAS_CONFIG_URL=<yaat>/vnas/configuration`, `VITE_VATSIM_CLIENT_ID=<YAAT's client id>` and `VITE_DOMAIN=http://localhost:3000`.
+  - Done: VATSIM Connect client 1974 ("yaat1 vedst") exists, with redirect `https://yaat1.leftos.dev/vnas/login`.
+  - Ships with the endpoint:
+    - `docker-compose.yml` maps `Yaat__Vnas__ClientId=${VNAS_VATSIM_CLIENT_ID:-}`, `Yaat__Vnas__ClientSecret=${VNAS_VATSIM_CLIENT_SECRET:-}` and `Yaat__Vnas__LoginReturnUrl=${VNAS_LOGIN_RETURN_URL:-}`, and `.env.example` gains all three.
+    - `.env.yaat1` gets `VNAS_VATSIM_CLIENT_ID=1974` and `VNAS_LOGIN_RETURN_URL=http://localhost:3000/login`.
+    - The user adds the secret, `VNAS_VATSIM_CLIENT_SECRET=…`, by hand; an agent never reads it.
+    - Then `deploy-secrets.ps1 -Target yaat1 -DryRun`, then the real run with the user's OK.
+  - Jonah: set `VITE_VNAS_CONFIG_URL=https://yaat1.leftos.dev/vnas/configuration`, `VITE_VATSIM_CLIENT_ID=1974` and `VITE_DOMAIN=https://yaat1.leftos.dev/vnas`. No vEDST code changes.
 
 ### 7. Tests (`tests/Yaat.Server.Tests`, TDD per step)
 - `CrcJsonTranscoderTests`:
