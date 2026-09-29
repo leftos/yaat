@@ -618,6 +618,8 @@ CommandQueue.cs                # CommandBlock (trigger + closure + TrackedComman
 AircraftCategory.cs            # Enum + AircraftCategorization (static Init from AircraftSpecs.json)
                                # CategoryPerformance: fallback aviation constants (taxi, pattern geometry, flare, etc.)
                                # CornerSpeedForAngle: piecewise taxi speed curve (0-30° max, 30-90° corner, 90-150° tight corner)
+Situation/AircraftSituation.cs # The aircraft's situation for context-menu quick commands (append-only numeric enum, sent on AircraftUpdated)
+Situation/SituationClassifier.cs # AircraftState → AircraftSituation: live traffic, then phase type (a turn takes the phase it resumes), then flight rules and the inbound/departing predicates
 AircraftStatusDescriber.cs     # Pure AircraftState→text projection for the Aircraft List "Info" column.
                                # Describe(AircraftState) / Describe(AircraftStatusView); server computes once
                                # per broadcast → AircraftDto.SmartStatus (client just displays it), TickRecorder

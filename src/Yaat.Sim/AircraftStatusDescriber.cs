@@ -271,7 +271,7 @@ public static class AircraftStatusDescriber
         string text = i.CurrentPhase switch
         {
             "At Parking" => string.IsNullOrEmpty(i.ParkingSpot) ? "at parking" : $"at parking {i.ParkingSpot}",
-            "Pushback" or "Pushback to Spot" => "pushing back",
+            "Pushback" => "pushing back",
             "Holding After Pushback" or "Holding In Position" => "holding position",
             "Holding After Exit" => FormatHoldingAfterExitStatus(i),
             "Taxiing" => FormatTaxiStatus(i),

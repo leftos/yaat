@@ -7,6 +7,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
+using Yaat.Sim.Situation;
 
 namespace Yaat.Client.Models;
 
@@ -1016,6 +1017,9 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     private AircraftStatusSeverity _smartStatusSeverity = AircraftStatusSeverity.Normal;
 
+    [ObservableProperty]
+    private AircraftSituation _situation = AircraftSituation.Unknown;
+
     // Live CFR release-window badge shown as a prefix in the Aircraft List Info column.
     [ObservableProperty]
     private string _cfrBadge = "";
@@ -1241,6 +1245,7 @@ public partial class AircraftModel : ObservableObject
         model.DistanceFromFix = computeDistance?.Invoke(model);
         model.SmartStatus = dto.SmartStatus;
         model.SmartStatusSeverity = dto.SmartStatusSeverity;
+        model.Situation = dto.Situation;
         return model;
     }
 
@@ -1361,6 +1366,7 @@ public partial class AircraftModel : ObservableObject
         DistanceFromFix = computeDistance?.Invoke(this);
         SmartStatus = dto.SmartStatus;
         SmartStatusSeverity = dto.SmartStatusSeverity;
+        Situation = dto.Situation;
     }
 
     internal static (int Order, int Seconds) ParseStatusSortKey(string status)

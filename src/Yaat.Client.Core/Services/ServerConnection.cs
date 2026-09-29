@@ -12,6 +12,16 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
 {
     private readonly ILogger _log = AppLog.CreateLogger<ServerConnection>();
 
+    /// <summary>Puts the hub's source-generated JSON contexts (Core, Strips, Tdls) at the head of the payload resolver chain.</summary>
+    /// <param name="payloadOptions">The SignalR JSON protocol's payload serializer options.</param>
+    internal static void UseHubJsonContexts(System.Text.Json.JsonSerializerOptions payloadOptions)
+    {
+        IList<IJsonTypeInfoResolver> chain = payloadOptions.TypeInfoResolverChain;
+        chain.Insert(0, YaatHubJsonContext.Default);
+        chain.Insert(1, YaatStripsHubJsonContext.Default);
+        chain.Insert(2, YaatTdlsHubJsonContext.Default);
+    }
+
     private HubConnection? _connection;
     private PeriodicTimer? _heartbeatTimer;
     private CancellationTokenSource? _heartbeatCts;
@@ -164,10 +174,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
                 // chain stops at the matching source-gen entry for any DTO
                 // we registered, sidestepping the reflection-disabled-by-
                 // default failure that blew up JoinRoom.
-                IList<IJsonTypeInfoResolver> chain = options.PayloadSerializerOptions.TypeInfoResolverChain;
-                chain.Insert(0, YaatHubJsonContext.Default);
-                chain.Insert(1, YaatStripsHubJsonContext.Default);
-                chain.Insert(2, YaatTdlsHubJsonContext.Default);
+                UseHubJsonContexts(options.PayloadSerializerOptions);
             })
             .Build();
 
@@ -1194,6 +1201,9 @@ public record AircraftDto(
     // drives the column colour.
     string SmartStatus = "",
     Yaat.Sim.AircraftStatusSeverity SmartStatusSeverity = Yaat.Sim.AircraftStatusSeverity.Normal,
+    // What the controller is most likely to do next with the aircraft, classified server-side by
+    // Yaat.Sim.Situation.SituationClassifier and sent as a number.
+    Yaat.Sim.Situation.AircraftSituation Situation = Yaat.Sim.Situation.AircraftSituation.Unknown,
     // Airport id of the ground layout this aircraft is on (server AircraftGroundOps.LayoutAirportId,
     // scenario primary airport as fallback). Null when airborne / unknown. Lets the radar surface a
     // ground aircraft's speech bubble when no ground view is currently showing that airport.

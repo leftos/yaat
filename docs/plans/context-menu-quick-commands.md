@@ -8,7 +8,7 @@ The aircraft right-click menus on the radar, ground and aircraft-list views offe
 - Ground: `GroundView.axaml.cs` `OnAircraftRightClicked` (~L493), a separate builder with inline `phase == "Taxiing"` checks (`AddSimulatedAircraftItems` ~L658).
 - Aircraft list: `DataGridView.ContextMenu.cs`, a third builder.
 - Shared today: `AircraftCommandApplicability` predicates, `FavoritesContextMenu`, `LiveTrafficMenuItems`, `MainViewModel.BuildRpoMenuItems`.
-- The phase reaches the client as the string `AircraftDto.CurrentPhase` (the phase's `Name`); some names are dynamic (`Holding Short {target}`, `Following {cs}`). `IsGroundPhase` / `IsHoldingPhase` list names that match no phase class (`HPP-L`, `HPP-R`, `HPP`, `HoldingAtFix`, `ProceedToFix`, `Pushback to Spot`); verify before relying on them.
+- The phase reaches the client as the string `AircraftDto.CurrentPhase` (the phase's `Name`); some names are dynamic (`Holding Short {target}`, `Following {cs}`). The server also sends `AircraftDto.Situation` (step 1, shipped): `SituationClassifier` in `src/Yaat.Sim/Situation/`, described in `docs/training-hub-contract.md`; the menus do not read it yet.
 
 ## Decisions (user 2026-09-28)
 
@@ -76,10 +76,9 @@ Review notes that drive predicates:
 
 ## Steps
 
-- [ ] 1. Verify the phase-name inventory against `Yaat.Sim/Phases/*` `Name` properties and fix the stale names in `AircraftCommandApplicability`; write the situation classifier with a test per situation over real phase names
 - [ ] 2. Build the menu-item catalog (stable IDs, label, default flight-rules tag, applicability predicate, builder) in `Yaat.Client.Core`, and move the radar, ground and aircraft-list builders onto it; All Commands reproduces today's full tree
 - [ ] 3. Quick-command resolution: situation → stored or default entry list → flight-rules and applicability filter → menu items; replace `ContextMenuProfileService`
 - [ ] 4. Persistence in `UserPreferences` (overrides only) plus import/export
 - [ ] 5. Settings → Quick Commands tab with per-situation and global reset
-- [ ] 6. Add the missing predicates and DTO fields from the open questions; `aviation-sim-expert` review of the final predicates
+- [ ] 6. Add the missing predicates and DTO fields from the open questions, the two inbound time clauses (liftoff time), hysteresis at the 20 NM / 40 NM / 60° boundaries (today the situation can flip tick to tick near them), and for a standalone turn the classifier's "first mapped phase after the turn" should stop at an unrelated queued phase; `aviation-sim-expert` review of the final predicates and of step 1's phase mappings (in `SituationClassifierTests`' explicit map)
 - [ ] 7. `USER_GUIDE.md`, `docs/radar-rendering.md` / `docs/ground-rendering.md` menu sections, `docs/architecture.md`

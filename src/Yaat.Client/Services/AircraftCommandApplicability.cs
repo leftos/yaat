@@ -87,7 +87,6 @@ public static class AircraftCommandApplicability
         return phase
                 is "At Parking"
                     or "Pushback"
-                    or "Pushback to Spot"
                     or "Holding After Pushback"
                     or "Taxiing"
                     or "Holding In Position"
@@ -305,7 +304,7 @@ public static class AircraftCommandApplicability
         }
 
         string phase = ac.CurrentPhase ?? "";
-        return phase is "Pushback" or "Pushback to Spot" or "Taxiing" || phase.StartsWith("Following", StringComparison.Ordinal);
+        return phase is "Pushback" or "Taxiing" || phase.StartsWith("Following", StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -346,14 +345,7 @@ public static class AircraftCommandApplicability
         }
 
         string phase = ac.CurrentPhase ?? "";
-        return phase
-                is "At Parking"
-                    or "Pushback"
-                    or "Pushback to Spot"
-                    or "Taxiing"
-                    or "Holding After Exit"
-                    or "Holding After Pushback"
-                    or "Holding In Position"
+        return phase is "At Parking" or "Pushback" or "Taxiing" or "Holding After Exit" or "Holding After Pushback" or "Holding In Position"
             || phase.StartsWith("Holding Short", StringComparison.Ordinal)
             || phase.StartsWith("Following", StringComparison.Ordinal);
     }

@@ -452,6 +452,7 @@ extend the resolver to depend on a new input, fingerprint that input too.
 
 - `GroundSpeed` is a computed property (airborne: a function of IAS, wind, altitude, and heading; on the ground: IAS) and is
   fingerprinted, so `IndicatedAirspeed`, `Mach`, `WindDirection`, and `WindSpeed` co-vary with it — none needs its own field.
+- `Situation` (`Yaat.Sim.Situation.AircraftSituation`, a number on the wire, `Unknown = 0`, members append-only) is `SituationClassifier.Classify(ac)`: the aircraft's situation for the context-menu quick commands, from its phase type (a 360/270 or S-turns takes the phase it resumes), live-traffic flag, flight rules and inbound predicates. Several of its inputs (track against the destination bearing, distance) are not fingerprinted, so the situation itself is (`TrainingDtoFingerprint.Situation`): a change of situation alone rebroadcasts the aircraft. The client carries it as `AircraftModel.Situation`.
 - `SmartStatus` / `SmartStatusSeverity` derive entirely from fingerprinted `AircraftState` inputs (`AircraftStatusView.FromState`
   → `AircraftStatusDescriber.Describe`); the only non-`ac` inputs (`IsDelayed`, `IsAutoClearedToLand`) are broadcast parameters
   `CaptureTrainingDto` cannot see, and they only matter for moving aircraft. No signature threading is needed.

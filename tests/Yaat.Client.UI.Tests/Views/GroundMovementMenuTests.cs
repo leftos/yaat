@@ -280,7 +280,6 @@ public class GroundMovementMenuTests
 
     [Theory]
     [InlineData("Pushback")]
-    [InlineData("Pushback to Spot")]
     [InlineData("Taxiing")]
     [InlineData("Following SWA200")]
     public void CanHoldPosition_AcceptsMovingGroundPhases(string phase) =>

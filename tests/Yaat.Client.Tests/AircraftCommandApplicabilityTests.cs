@@ -302,7 +302,6 @@ public class AircraftCommandApplicabilityTests
     [Theory]
     [InlineData("At Parking", true, true)]
     [InlineData("Pushback", true, true)]
-    [InlineData("Pushback to Spot", true, true)]
     [InlineData("Taxiing", true, true)]
     [InlineData("Holding After Exit", true, true)]
     [InlineData("Holding After Pushback", true, true)]
