@@ -126,6 +126,98 @@ public class TrackEngineAcceptedIndicatorTests
     }
 
     [Fact]
+    public void HandleDrop_AfterAccept_ClearsTheFdbOpenSectors()
+    {
+        AircraftState ac = Aircraft();
+        ac.Track.Owner = Eram("ZOA_40", "40");
+        ac.Track.HandoffPeer = Eram("ZOA_36", "36");
+        TrackEngine.HandleAccept(ac, Scenario(elapsedSeconds: 10));
+        Assert.Equal([new EramSectorKey("ZOA", "40")], ac.Eram.FdbOpenSectors);
+
+        CommandResult result = TrackEngine.HandleDrop(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Empty(ac.Eram.FdbOpenSectors);
+    }
+
+    [Fact]
+    public void HandleAccept_EramToEram_KeepsFdbOpenForPreviousOwner()
+    {
+        AircraftState ac = Aircraft();
+        ac.Track.Owner = Eram("ZOA_40", "40");
+        ac.Track.HandoffPeer = Eram("ZOA_36", "36");
+
+        CommandResult result = TrackEngine.HandleAccept(ac, Scenario(elapsedSeconds: 10));
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal([new EramSectorKey("ZOA", "40")], ac.Eram.FdbOpenSectors);
+    }
+
+    [Fact]
+    public void HandleAccept_EramToStars_KeepsFdbOpenForPreviousOwner()
+    {
+        AircraftState ac = Aircraft();
+        ac.Track.Owner = Eram("ZOA_14", "14");
+        ac.Track.HandoffPeer = TrackOwner.CreateStars("OAK_B_APP", "NCT", 2, "B");
+
+        CommandResult result = TrackEngine.HandleAccept(ac, Scenario(elapsedSeconds: 10));
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal([new EramSectorKey("ZOA", "14")], ac.Eram.FdbOpenSectors);
+    }
+
+    [Fact]
+    public void MarkRecentHandoffAccepted_Forced_KeepsFdbOpenForPreviousOwner()
+    {
+        AircraftState ac = Aircraft();
+
+        TrackEngine.MarkRecentHandoffAccepted(ac, Eram("ZOA_40", "40"), wasForced: true, Scenario(elapsedSeconds: 5));
+
+        Assert.Equal([new EramSectorKey("ZOA", "40")], ac.Eram.FdbOpenSectors);
+    }
+
+    [Fact]
+    public void HandleAccept_StarsPreviousOwner_OpensNoFdb()
+    {
+        AircraftState ac = Aircraft();
+        ac.Track.Owner = TrackOwner.CreateStars("OAK_B_APP", "NCT", 2, "B");
+        ac.Track.HandoffPeer = Eram("ZOA_40", "40");
+
+        CommandResult result = TrackEngine.HandleAccept(ac, Scenario(elapsedSeconds: 10));
+
+        Assert.True(result.Success, result.Message);
+        Assert.Empty(ac.Eram.FdbOpenSectors);
+    }
+
+    [Fact]
+    public void MarkRecentHandoffAccepted_Twice_DoesNotDuplicateFdbOpenSector()
+    {
+        AircraftState ac = Aircraft();
+        TrackOwner previousOwner = Eram("ZOA_40", "40");
+
+        TrackEngine.MarkRecentHandoffAccepted(ac, previousOwner, wasForced: false, Scenario(elapsedSeconds: 5));
+        TrackEngine.MarkRecentHandoffAccepted(ac, previousOwner, wasForced: false, Scenario(elapsedSeconds: 50));
+
+        Assert.Equal([new EramSectorKey("ZOA", "40")], ac.Eram.FdbOpenSectors);
+    }
+
+    [Fact]
+    public void FdbToggle_AfterAccept_ClosesThePreviousOwnersFdb()
+    {
+        AircraftState ac = Aircraft();
+        TrackOwner previousOwner = Eram("ZOA_40", "40");
+        ac.Track.Owner = previousOwner;
+        ac.Track.HandoffPeer = Eram("ZOA_36", "36");
+        Assert.True(TrackEngine.HandleAccept(ac, Scenario(elapsedSeconds: 10)).Success);
+
+        var context = new EramEntryContext(previousOwner, Scenario: null, Redirect: null, new EramConflictState());
+        CommandResult toggled = EramEntryEngine.Apply(ac, "FDB ZOA 40", context);
+
+        Assert.True(toggled.Success, toggled.Message);
+        Assert.Empty(ac.Eram.FdbOpenSectors);
+    }
+
+    [Fact]
     public void AircraftEramState_AcceptedIndicator_RoundTripsThroughSnapshot()
     {
         var state = new AircraftEramState

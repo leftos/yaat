@@ -168,6 +168,12 @@ public static partial class TrackEngine
         // A dropped Track has no owner, so any pending accepted indicator (Oxxx/Kxxx) is meaningless and
         // would render against a null owner — clear it.
         ClearRecentHandoffAccepted(ac);
+        // The previous owners' kept-open FDBs end with the track, so a later re-track does not reopen them.
+        List<EramSectorKey> fdbOpen = ac.Eram.FdbOpenSectors;
+        lock (fdbOpen)
+        {
+            fdbOpen.Clear();
+        }
         // A QT coast ends with the track it coasts (QX Drop Track).
         ac.Eram.EndCoast();
         // Consume the FP-creator auto-track entitlement so the next tick's
@@ -224,8 +230,11 @@ public static partial class TrackEngine
     /// Records the ERAM Field-E accepted indicator on the previous owner: after a handoff is accepted
     /// (<paramref name="wasForced"/> = false → <c>Oxxx</c>) or the Track is force-taken
     /// (<paramref name="wasForced"/> = true → <c>Kxxx</c>), the previous owner's FDB shows the acceptor's
-    /// sector for a transient window (docs/crc/eram.md §Data Blocks). No-op when there was no previous
-    /// owner (nothing to confirm). The 30 s window is enforced by the CRC broadcast against
+    /// sector for a transient window (docs/crc/eram.md §Data Blocks). An ERAM previous owner also keeps
+    /// its full data block: its sector is added to <see cref="AircraftEramState.FdbOpenSectors"/>, so the
+    /// block stays an FDB until that sector cycles it back to an LDB with the bare-FLID implied command
+    /// (docs/crc/eram.md §Changing Data Block Types). No-op when there was no previous owner (nothing to
+    /// confirm). The 30 s indicator window is enforced by the CRC broadcast against
     /// <see cref="AircraftEramState.RecentHandoffAcceptedAtSeconds"/>; the ERAM-only rendering means STARS
     /// previous owners are simply never matched by an ERAM subscriber. Shared by the manual accept,
     /// accept-all, auto-accept, and force paths so they cannot drift.
@@ -240,6 +249,25 @@ public static partial class TrackEngine
         ac.Eram.RecentHandoffPreviousOwner = previousOwner;
         ac.Eram.RecentHandoffWasForced = wasForced;
         ac.Eram.RecentHandoffAcceptedAtSeconds = scenario.ElapsedSeconds;
+        KeepFdbOpenForPreviousOwner(ac, previousOwner);
+    }
+
+    private static void KeepFdbOpenForPreviousOwner(AircraftState ac, TrackOwner previousOwner)
+    {
+        if (previousOwner is not { OwnerType: TrackOwnerType.Eram, FacilityId: { } facility, SectorId: { } sector })
+        {
+            return;
+        }
+
+        var key = new EramSectorKey(facility, sector);
+        List<EramSectorKey> open = ac.Eram.FdbOpenSectors;
+        lock (open)
+        {
+            if (!open.Contains(key))
+            {
+                open.Add(key);
+            }
+        }
     }
 
     /// <summary>Clears the ERAM accepted indicator (see <see cref="MarkRecentHandoffAccepted"/>).</summary>

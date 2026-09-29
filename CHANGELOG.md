@@ -5,6 +5,7 @@
 ### Fixed
 
 - ERAM `QS` takes every speed form, such as `/78`, `/.78`, `/M.78`, `/+50` and `/PS`, shows knots as `S250`, and takes heading and speed together.
+- After an ERAM handoff is accepted, the handing-off sector keeps its full data block until it toggles it, and `<FLID>` toggles STARS-owned tracks too.
 
 ## v0.14.0-beta [2026/09/28]
 
