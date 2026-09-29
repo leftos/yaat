@@ -15,6 +15,7 @@ The document itself is not in the repo, and neither are the extraction scripts, 
 ## Files
 
 - **`commands/<ID>.yaml`**: one file per command ID. Every ID in the source table has a file, including the ones yaat will never handle, so that "no file" never means "not looked at".
+- **`dm-design.md`**: how YAAT models `DM`'s coordination fix, time and altitude, with its sources and the guesses the SRS leaves open.
 - **`error-responses.yaml`**: every error ID used by an in-scope command, with the literal text yaat-server sends for it.
 
 ## Command files

@@ -247,6 +247,13 @@ public class AircraftFlightPlan
     public int? NumberOfAircraft { get; set; }
 
     /// <summary>
+    /// The coordination fix and type-D coordination time an ERAM <c>DM</c> (Departure message) entered (SRS App. D.1: the
+    /// SystemPlan's Coordination Fix and Coordination Time). Null until a DM is entered; a DM makes a proposed plan active,
+    /// and filing a new plan clears it. Flight-data bookkeeping only: nothing in the simulation flies by it.
+    /// </summary>
+    public DepartureMessage? DepartureMessage { get; set; }
+
+    /// <summary>
     /// TCP that originally created this flight plan via a CRC STARS command (DA / VP / implied
     /// forms). Populated by <c>RoomEngine.RecordAndDispatchFlightPlanAsync</c>; null for plans
     /// created any other way (scenario-spawned, scenario JSON, recordings predating this field).
@@ -285,6 +292,7 @@ public class AircraftFlightPlan
             RequestedAltitude = RequestedAltitude,
             HasSpecialAircraftIndicator = HasSpecialAircraftIndicator,
             NumberOfAircraft = NumberOfAircraft,
+            DepartureMessage = DepartureMessage,
             CreatedByOwner = CreatedByOwner?.ToSnapshot(),
         };
 
@@ -323,6 +331,14 @@ public class AircraftFlightPlan
             RequestedAltitude = dto.RequestedAltitude,
             HasSpecialAircraftIndicator = dto.HasSpecialAircraftIndicator,
             NumberOfAircraft = dto.NumberOfAircraft,
+            DepartureMessage = dto.DepartureMessage,
             CreatedByOwner = dto.CreatedByOwner is not null ? TrackOwner.FromSnapshot(dto.CreatedByOwner) : null,
         };
 }
+
+/// <summary>
+/// An ERAM departure message's coordination data (SRS App. D.1–D.2): <paramref name="Fix"/> is the departure point as
+/// entered, upper-cased (the plan's departure airport when none was), and <paramref name="Time"/> the type-D coordination
+/// time, to the minute.
+/// </summary>
+public sealed record DepartureMessage(string Fix, TimeOnly Time);

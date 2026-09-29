@@ -31,7 +31,7 @@ The work order is the **ERAM — #1 priority** list in [MAIN.md](./MAIN.md); thi
 - **SPC blink**: a named 30 s constant after the code first appears (latched like `IdentStartedAt`), in the target fingerprint so a stationary aircraft re-sends.
 - **`QL` limit of 5**: per entry; the toggled set may grow past 5 over several entries.
 - **`QB` multiple FLIDs**: apply per flight for the equipment-qualifier and voice variants; refuse code assignment with `MULTIPLE FLIDS NOT ALLOWED`.
-- **`DM`**: implement every field — 26 (coordination fix), 07 (time), 08 (altitude) and the `/OK` and `*` suffixes. Fields 26 and 07 need a design pass (what a coordination fix and a departure time change in the sim) before a brief; the draft is [eram-dm-design.md](./eram-dm-design.md).
+- **`DM`**: implement every field — 26 (coordination fix), 07 (time), 08 (altitude) and the `/OK` and `*` suffixes. Fields 26 and 07 need a design pass (what a coordination fix and a departure time change in the sim) before a brief; the draft is [eram-dm-design.md](../eram/dm-design.md).
 - **`QB` code to several FLIDs**: refused with the SRS text the YAML carries for `MsgMultipleFLIDsNotAllowed`, `MULTIPLE FLIDS INVALID` (landed with B5).
 - **B3 latch** (grounded in CRC `BaseDataBlockRenderObject.GetVerticalConformance`): evaluated at once when the assignment is first seen; no assigned altitude counts as reached; a block sets within floor − 200 to ceiling + 200 and an ABV altitude from altitude − 200 up (CRC's bounds); measured on the aircraft's own altitude, not evaluated while the track is coasted or frozen or Mode C is absent; a change is keyed on the value (a same-value reassignment is no change) and the key is snapshotted; a new `StepId.EramVerticalConformance` after `AltitudeFixPassage`; no schema bump.
 - **B1**: the retract `O` shows the initiator's own sector (CRC's `FdbRenderObject.GetFieldESectorId` prints the owner's sector, never the peer's, so the recipient cannot be shown; see [eram-open-questions.md](./eram-open-questions.md)). `QT /OK` marks `K` only when the entry has a scenario. QQ field 76 is exactly `[L|P|R]ddd` > 0, one per entry, else `ALT FORMAT`; a letters-only token other than `L` is `<token> ILLEGAL ACTION`; a token starting with `/` is field 513, valid as `/` plus two of A–Z or `/`, else `<token> FORMAT`. QS field 60 and QS multiple FLIDs are a separate item.
@@ -59,7 +59,6 @@ It mirrors the FAA SWIM feed and changes nothing in the NAS, so most controller-
 
 | Brief | Source files | Covers | Order |
 |---|---|---|---|
-| B5 DM | Srv `CrcClientState.Eram.FlightData.cs` (`DispatchDm`), `CrcClientState.Eram.cs` (`TrailingFlidVerbs`) | fields 26/07/08, `/OK` and `*` | after [eram-dm-design.md](./eram-dm-design.md) is ruled |
 | B7 per-sector state | Srv `DtoConverter.cs`, `CrcClientState.Eram.cs`; Sim `AircraftEramState.cs` + snapshot DTO, `EramEntryEngine.cs` (`DWELL`) | per-sector leader/DRI/dwell + dwell recording | after B1 and B3 |
 | B8 #464 sweep | Srv `CrcBroadcastService.cs`, `AircraftChangeTracker.cs`, `DtoConverter.cs` (history) | 12 s staggered sweep, ERAM history; the SPC blink edge (`CrcBroadcastService` ORs `DtoChangeFlags.EramTarget`) is a state change and stays outside the sweep | any time |
 
@@ -71,15 +70,6 @@ B2 and most of B5 landed; the QF leftovers are under [QF beacon fallbacks](#qf-b
 - **Not in this volume.** The C.7 dynamic parameter table has no track update rate, and no other appendix states one. The rate is an ERAM surveillance and display rule from Book 1 or the CRC manual. Check `docs/crc/eram.md` and CRC's decompiled display refresh logic, then decide from the reporter's word plus CRC's behaviour.
 
 ## Command validation candidates
-
-### DM ignores fields 26/07/08 and the `/OK` and `*` suffixes
-- **Severity**: gap (low priority; CRC docs show only `DM <ACID>`) · **Owner**: yaat-server · unverified
-- **SRS**: §C.8 DM (p.664–666). DM takes an optional field 26 (fix), 07 (time) and 08 (altitude), and a `/OK` or `*` suffix on field 02 or 26.
-- **YAAT now**: `DispatchDm` (`FlightData.cs:934-942`) takes no arguments, and because `DM` is a trailing-FLID verb:
-  - `DM AAL123 250` treats `250` as a CID.
-  - `DM AAL123/OK` answers MESSAGE TOO SHORT.
-  - `DM AAL123*` answers FLID FORMAT.
-- **Fix sketch**: parse the fields and suffixes, or mark them `na` in `DM.yaml` ("YAAT plans are born active").
 
 ### QF beacon fallbacks and the empty altitude
 - **Severity**: gap (small) · **Owner**: yaat-server

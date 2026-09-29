@@ -1,10 +1,10 @@
 # ERAM `DM` (Departure message): design
 
-The design for the parts of `DM` that YAAT does not handle yet: fields 26, 07 and 08, and the `/OK` and `*` suffixes. It follows the ruling in [eram-srs-findings.md](eram-srs-findings.md) ("`DM`: implement every field"). The field checks and error IDs are in [`docs/eram/commands/DM.yaml`](../eram/commands/DM.yaml); the error texts are in [`error-responses.yaml`](../eram/error-responses.yaml).
+How YAAT handles `DM`'s fields 26, 07 and 08 and the `/OK` and `*` suffixes, and why. It follows the ruling in [eram-srs-findings.md](../plans/eram-srs-findings.md) ("`DM`: implement every field"). The field checks and error IDs are in [`docs/eram/commands/DM.yaml`](../eram/commands/DM.yaml); the error texts are in [`error-responses.yaml`](../eram/error-responses.yaml).
 
 ## Sources
 
-- **SRS** (`ERAM_EDSM_SRS_210.04_V1B2`, see [docs/eram/README.md](../eram/README.md)). C.8 DM (printed pp. 664–666) gives syntax only. C.1 (pp. 405–408, 446):
+- **SRS** (`ERAM_EDSM_SRS_210.04_V1B2`, see [README.md](README.md)). C.8 DM (printed pp. 664–666) gives syntax only. C.1 (pp. 405–408, 446):
   - Field 07 (Coordination Time) is a type letter plus `dddd` or `XXdd`; in a DM the letter "must be omitted, and is presumed to be D".
   - Field 26 (Departure Point): "Any legal fix … may be used".
   - `/OK` on field 02 or 26 "causes the eligibility checks to be bypassed".

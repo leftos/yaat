@@ -55,6 +55,10 @@ namespace Yaat.Sim.Commands;
 /// </para>
 ///
 /// <para>
+/// Departures: <c>DM {hhmm} [{fix}]</c> (DM Departure: the coordination time and fix; see <see cref="ApplyDepartureMessage"/>).
+/// </para>
+///
+/// <para>
 /// A refused entry's message is an <see cref="EramEntryErrors"/> id, optionally followed by a space and the contents of
 /// the field in error; success messages are free text.
 /// </para>
@@ -93,8 +97,31 @@ public static partial class EramEntryEngine
             "CO" => ApplyConflictSuppress(ac, args, ctx.EramConflicts),
             "HM" => ApplyHold(ac, args, "HM"),
             "QH" => ApplyHold(ac, args, "QH"),
+            "DM" => ApplyDepartureMessage(ac, args),
             _ => Refused(EramEntryErrors.InvalidMessageType),
         };
+    }
+
+    /// <summary>
+    /// DM Departure (DM.yaml): writes <see cref="AircraftFlightPlan.DepartureMessage"/> and nothing else. The live handler
+    /// resolves a relative or omitted time against the sim clock, and an omitted departure point to the plan's departure,
+    /// before it records, so the time here is absolute and a replay never reads the clock. The fix is optional only for a
+    /// plan with no departure airport.
+    /// </summary>
+    private static CommandResult ApplyDepartureMessage(AircraftState ac, List<string> args)
+    {
+        if (args.Count is < 1 or > 2)
+        {
+            return Refused(args.Count < 1 ? EramEntryErrors.MessageTooShort : EramEntryErrors.MessageTooLong);
+        }
+        if (!TimeOnly.TryParseExact(args[0], "HHmm", CultureInfo.InvariantCulture, DateTimeStyles.None, out TimeOnly time))
+        {
+            return Refused(EramEntryErrors.CofieFormat, args[0]);
+        }
+
+        string fix = args.Count == 2 ? args[1].ToUpperInvariant() : "";
+        ac.FlightPlan.DepartureMessage = new DepartureMessage(fix, time);
+        return new CommandResult(true, $"DM {string.Join(' ', args)} {ac.Callsign}");
     }
 
     /// <summary>

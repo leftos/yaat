@@ -15,7 +15,7 @@ YAAT (a VATSIM ATC trainer) emulates the ERAM display that CRC draws. Where the 
 
 ## Departure message (`DM`)
 
-The full design is [eram-dm-design.md](./eram-dm-design.md).
+The full design is [docs/eram/dm-design.md](../eram/dm-design.md).
 
 6. **Relative time.** In `DM AAL123 XX05`, is the time five minutes from now or five minutes ago? *Our guess:* from now.
 7. **DM on an active flight.** If a flight is already active (auto-departed, or airborne), does DM take it and replace the departure time and fix, or reject it, and with what message? *Our guess:* accepted, and it overwrites.

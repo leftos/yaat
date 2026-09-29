@@ -186,4 +186,62 @@ public class AmendFlightPlanEramFieldsTests(ITestOutputHelper output)
         Assert.True(ac.FlightPlan.HasFlightPlan);
         Assert.NotEqual(0u, ac.Transponder.AssignedCode);
     }
+
+    [Fact]
+    public void Snapshot_RoundTripsTheDepartureMessage()
+    {
+        AircraftState ac = Aircraft(hasFlightPlan: true, assignedCode: 4571);
+        ac.FlightPlan.DepartureMessage = new DepartureMessage("OAK", new TimeOnly(12, 30));
+
+        string json = JsonSerializer.Serialize(ac.ToSnapshot(), RecordingJsonOptions.Default);
+        AircraftSnapshotDto? dto = JsonSerializer.Deserialize<AircraftSnapshotDto>(json, RecordingJsonOptions.Default);
+        Assert.NotNull(dto);
+        var restored = AircraftState.FromSnapshot(dto, null);
+
+        Assert.Equal(new DepartureMessage("OAK", new TimeOnly(12, 30)), restored.FlightPlan.DepartureMessage);
+    }
+
+    [Fact]
+    public void Snapshot_WithoutTheDepartureMessage_RestoresNone()
+    {
+        AircraftState ac = Aircraft(hasFlightPlan: true, assignedCode: 4571);
+        ac.FlightPlan.DepartureMessage = new DepartureMessage("OAK", new TimeOnly(12, 30));
+
+        JsonObject snapshot = JsonSerializer.SerializeToNode(ac.ToSnapshot(), RecordingJsonOptions.Default)!.AsObject();
+        JsonObject flightPlan = snapshot[nameof(AircraftSnapshotDto.FlightPlan)]!.AsObject();
+        Assert.True(flightPlan.Remove(nameof(AircraftFlightPlanDto.DepartureMessage)));
+
+        AircraftSnapshotDto? dto = snapshot.Deserialize<AircraftSnapshotDto>(RecordingJsonOptions.Default);
+        Assert.NotNull(dto);
+        var restored = AircraftState.FromSnapshot(dto, null);
+
+        Assert.Null(restored.FlightPlan.DepartureMessage);
+    }
+
+    [Fact]
+    public void FilingANewPlan_ClearsTheDepartureMessage()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState ac = Aircraft(hasFlightPlan: false, assignedCode: 0);
+        ac.FlightPlan.DepartureMessage = new DepartureMessage("KSFO", new TimeOnly(12, 30));
+        engine.World.AddAircraft(ac);
+
+        engine.AmendFlightPlan(Callsign, new FlightPlanAmendment(ClearBeaconCode: false, Altitude: PlannedAltitude.Ifr(24000)));
+
+        Assert.True(ac.FlightPlan.HasFlightPlan);
+        Assert.Null(ac.FlightPlan.DepartureMessage);
+    }
+
+    [Fact]
+    public void AmendingAFiledPlan_KeepsTheDepartureMessage()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState ac = Aircraft(hasFlightPlan: true, assignedCode: 4571);
+        ac.FlightPlan.DepartureMessage = new DepartureMessage("KSFO", new TimeOnly(12, 30));
+        engine.World.AddAircraft(ac);
+
+        engine.AmendFlightPlan(Callsign, new FlightPlanAmendment(ClearBeaconCode: false, Altitude: PlannedAltitude.Ifr(24000)));
+
+        Assert.Equal(new DepartureMessage("KSFO", new TimeOnly(12, 30)), ac.FlightPlan.DepartureMessage);
+    }
 }

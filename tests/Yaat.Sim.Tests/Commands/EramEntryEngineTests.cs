@@ -1625,4 +1625,55 @@ public class EramEntryEngineTests
         Assert.Equal("OAK", ac.HoldAnnotation.Fix);
         Assert.Equal(1230, ac.HoldAnnotation.Efc);
     }
+
+    [Fact]
+    public void DepartureMessage_SetsTheCoordinationFixAndTime()
+    {
+        AircraftState ac = Aircraft();
+
+        CommandResult result = Apply(ac, "DM 1230 oak", Sector44);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(new DepartureMessage("OAK", new TimeOnly(12, 30)), ac.FlightPlan.DepartureMessage);
+    }
+
+    [Fact]
+    public void DepartureMessage_WithoutAFix_StoresAnEmptyFix()
+    {
+        AircraftState ac = Aircraft();
+
+        CommandResult result = Apply(ac, "DM 1230", Sector44);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("DM 1230 UAL1", result.Message);
+        Assert.Equal(new DepartureMessage("", new TimeOnly(12, 30)), ac.FlightPlan.DepartureMessage);
+    }
+
+    [Fact]
+    public void DepartureMessage_Again_OverwritesTheFirst()
+    {
+        AircraftState ac = Aircraft();
+        Assert.True(Apply(ac, "DM 1230 OAK", Sector44).Success);
+
+        CommandResult result = Apply(ac, "DM 0005 SAC", Sector44);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(new DepartureMessage("SAC", new TimeOnly(0, 5)), ac.FlightPlan.DepartureMessage);
+    }
+
+    [Theory]
+    [InlineData("DM", EramEntryErrors.MessageTooShort)]
+    [InlineData("DM 1230 OAK X", EramEntryErrors.MessageTooLong)]
+    [InlineData("DM 2460 OAK", EramEntryErrors.CofieFormat + " 2460")]
+    [InlineData("DM XX05 OAK", EramEntryErrors.CofieFormat + " XX05")]
+    public void DepartureMessage_Malformed_IsRefused(string entry, string message)
+    {
+        AircraftState ac = Aircraft();
+
+        CommandResult result = Apply(ac, entry, Sector44);
+
+        Assert.False(result.Success);
+        Assert.Equal(message, result.Message);
+        Assert.Null(ac.FlightPlan.DepartureMessage);
+    }
 }

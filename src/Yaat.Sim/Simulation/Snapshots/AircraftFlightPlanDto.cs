@@ -68,5 +68,8 @@ public sealed class AircraftFlightPlanDto
 
     /// <summary>ERAM number of aircraft — see <see cref="AircraftFlightPlan.NumberOfAircraft"/>. Null = none entered.</summary>
     public int? NumberOfAircraft { get; init; }
+
+    /// <summary>ERAM departure message — see <see cref="AircraftFlightPlan.DepartureMessage"/>. Null = none entered.</summary>
+    public DepartureMessage? DepartureMessage { get; init; }
     public TrackOwnerDto? CreatedByOwner { get; init; }
 }

@@ -304,6 +304,8 @@ public sealed partial class SimulationEngine
         if (!wasFiled)
         {
             ac.FlightPlan.HasFlightPlan = true;
+            // A new plan starts proposed: a DM entered while the flight had none belongs to no plan.
+            ac.FlightPlan.DepartureMessage = null;
             if (!string.IsNullOrEmpty(ac.FlightPlan.AircraftType) && string.IsNullOrEmpty(ac.FlightPlan.EquipmentSuffix))
             {
                 ac.FlightPlan.EquipmentSuffix = "A";
