@@ -8,11 +8,10 @@ Status per item: **unverified** = agent finding not yet re-checked against the c
 
 ## Next steps
 
-1. **Ready to fix (TDD)**: #467 (QS speed forms, heading-plus-speed, knots below 100) and #466 (auto-track cleared altitude → assigned altitude).
-2. **Investigate**:
-   - #468: resolving an interfacility handoff target from the vNAS facility config.
-   - #465: format after an accept and the toggle. Decide what replaces the 30 s window.
-   - #464: find a source for the 12 s rate (the CRC manual, CRC's decompiled display refresh, the reporter).
+The work order is the **ERAM — #1 priority** list in [MAIN.md](./MAIN.md); this file holds the detail.
+
+1. #465–#468 are fixed; their sections are gone (git history has them).
+2. **Investigate** #464: find a source for the 12 s rate (the CRC manual, CRC's decompiled display refresh, the reporter).
 3. **Verify** each `unverified` entry below against the code. Mark it verified, or drop it with the reason.
 4. **Rulings needed**:
    - Which C.8 commands with no `na` are in scope.
@@ -26,28 +25,7 @@ Status per item: **unverified** = agent finding not yet re-checked against the c
 ### #464 — ERAM update rate should be 12 s, not 1 s
 - **Not in this volume.** The C.7 dynamic parameter table has no track update rate, and no other appendix states one. The rate is an ERAM surveillance and display rule from Book 1 or the CRC manual. Check `docs/crc/eram.md` and CRC's decompiled display refresh logic, then decide from the reporter's word plus CRC's behaviour.
 
-### #465 — Data block drops to an LDB after the handoff is accepted and can't be toggled back
-- **SRS**: E.1/E.2 hold no rule on the previous owner's format after an accept. §E.3 Table 40 (p.884–888) ties the `O`/`K` Field E indicator to the adapted "Handoff Accept Interval" (`FLTS:HOAcceptTm`), with no value given.
-- **YAAT now**: yaat-server `DtoConverter.cs:923-930` keeps the previous owner's FDB only while the accept window is open. `CrcBroadcastService.cs:53` sets `EramRecentHandoffAcceptSeconds = 30`, a value borrowed from vatsim-server-rs `QU_AUTO_REMOVE_SECS`. After that the block becomes a paired LDB (`DtoConverter.cs:988`).
-- **Why it can't be toggled back**:
-  - `DtoConverter.cs:967-991` honours `fdbOpenCallsigns` only when `Track.Owner` is an ERAM sector (line 974), so a STARS-owned or unpaired track ignores the toggle.
-  - `EramEntryEngine.ApplyFdbToggle` (Yaat.Sim, :334-354) flips set membership blindly, without looking at the format currently shown. A click inside the 30 s window leaves the set in the wrong state for afterwards.
-- **Fix sketch**: after an accept, keep the block an FDB until the user changes it. The toggle should flip the format actually displayed, and it should work for any owner.
-
-### #466 — FDB shows a reported (`QR`) altitude instead of Mode C
-- **SRS**: §E.2 "Rules for Resolution of Reported Altitude" (p.873): "If there is a controller reported altitude … use controller reported altitude … suffix with a '#'. Else if flight is paired … use … Mode C". A controller-entered altitude therefore outranks Mode C. It is removed only by deletion (`QR 000`) or a new entry (p.874). CRC implements exactly this (`BaseDataBlockRenderObject.cs:121-132`).
-- **Root cause (verified from the bundle `C1-ZOA-08 (B) Pac South`)**: no `QR` was entered. The recording's 20 actions contain no QR or QQ R for AAL680. The scenario gives AAL680 `autoTrackConditions.clearedAltitude: "240"` and a preset `DM 240`. `SimulationEngine.TrackAutomation.cs:148-151` writes the cleared altitude into `Eram.ControllerEnteredAltitude`, the CERA that `QR` sets (client log: `[AutoTrack] ERAM datablock altitude set: 240`). The snapshot at t=180 shows `ControllerEnteredAltitude: 240` with the aircraft at 29,427 ft. Because a CERA outranks Mode C (SRS p.873, and CRC `GetReportedAltitude`), Field B/C shows `240#` for the rest of the session. The reporter is right about the symptom; the cause is that a *cleared* altitude is treated as a *reported* one.
-- **Decided (user)**: write the auto-track cleared altitude as the flight plan's assigned altitude, as `QZ` does, instead of as the CERA. The auto-track interim altitude keeps going to `Eram.InterimAltitude`. TDD with this bundle's AAL680 as the fixture.
-- **Background to the decision**: a cleared altitude is an assigned altitude. The ERAM home for it is the flight plan's assigned altitude, what `QZ` writes and CRC shows first in Field B, or the interim altitude (`QQ`). The CERA is not its home. With it as the assigned altitude, AAL680 would read `240↓294` (cleared FL240, descending, Mode C 294). This matches its `DM 240` preset. The existing comment's rule still holds either way: it is a scope write only and never changes what the pilot flies.
-- **Unexplained**: the screenshot's Field B `320` does not match the recording, which has cruise 34000 and no amendment. The screenshot was posted at 00:26, while the recording covers 00:14–00:17, so it may come from a later reload.
-- **Also relevant**: a `QQ` delete clears the interim altitude but leaves the CERA set by a `QQ R`. This matches SRS §C.8 QQ (p.758), which deletes only "the interim or procedure altitude".
-
-### #467 — QS rejects the Mach speed forms `/78`, `/78+`
-- **verified** · **Owner**: Yaat.Sim
-- **SRS**: §C.1 field 155 "FDB Fourth Line Heading, Speed and Free Form Text" (p.485–486). In knots: `/ddd`, `/ddd+`, `/ddd-`, `/+d(d)`, `/-d(d)`, `/Sddd`. In Mach: `/dd`, `/dd+`, `/dd-`, `/Mdd`, `/Mdd+`, `/Mdd-`, `/M.dd`, `/.dd`, `/.dd+`, `/.dd-`. Others: `/PS`, `/+`, `/-`. Examples given: `/82`, `/82+`, `/M81`, `/M.75`, `/.75-`, `/+50`, `/PS`. Uplink range (p.486): knots 070–380 in tens, Mach 61–99. `docs/eram/commands/QS.yaml` already lists every one of these forms.
-- **YAAT now**: `EramEntryEngine.ParseHsfSpeed` (:1053-1080) accepts only `ddd` (≥100) and `M` + 2–3 digits, each with an optional `±`. Its doc comment rejects two-digit values on purpose, reasoning that "CRC's Speed Menu reads a stored two-digit value as Mach", but per the SRS a two-digit value *is* Mach. It also rejects `/.dd`, `/M.dd`, `/+d(d)`, `/-d(d)`, `/PS`, `/+` and `/-`.
-- **Fix sketch**: accept every SRS form. Normalise the Mach forms (`dd`, `.dd`, `M.dd`, `Mdd`) to `Mdd` so CRC's Speed Menu reads them correctly. Store `/+d(d)`, `/-d(d)`, `/PS`, `/+` and `/-` as typed. Check what CRC's Field F and Speed Menu do with each stored form. Add an accept test for every example on p.485 (the conformance tests evidently cover only the reject path).
-- **Also**: the combined heading-and-speed form `QS 270/250 <FLID>` is valid per SRS §C.8 QS (p.762–763): "When heading and speed, must be in the format a(a)(a)(a){any of the speed formats above …}". `ApplyQs` (:946-976) passes the whole token to `ParseHsfHeading` and answers HEADING FORMAT. The fix is to split the token on the first `/` and apply both parts, or refuse both if either fails.
+## Command validation candidates
 
 ### QQ interim altitude (field 76) is barely validated
 - **Severity**: bug · **Owner**: Yaat.Sim (parse) + yaat-server (field 513) · unverified
@@ -123,10 +101,6 @@ The C.7 table (Table 31, p.605–623) has no track update rate, data-block caden
 - These commands have no `na` in `docs/eram/commands/` and read as undecided, not as out of scope, so each needs a product call: `FR`, `DQ`, `FP` (no fields extracted), `CA` (its `na` reason is doubtful given `EramConflictDetector`), `RS`, `RK`, `SM`, `RM`, `SP`, `SW`, `UR` and `WX`.
 - `AM.yaml` marks the 918 indicators (REG/, PBN/, DOF/ …) `na` with "no VATSIM flight plan carries it", but VATSIM ICAO remarks do carry them. Check whether the plan's remarks expose them.
 - C.8 describes no processing semantics: each command defers to "the B-level requirements", which are not in this volume.
-
-### #468 — Interfacility handoff code `L25` (ZLA sector 25) refused as "sector not adapted"
-- **Reporter**: "Won't allow a handoff to ZLA sector 25 with `L25` … but `Q2B` works even if it shows 2B in the controller list. It should be pulling from the data admin for the facility for the handoff codes."
-- **To investigate**: how yaat-server resolves an ERAM handoff target (field 14, `EramFields` `FindAdaptedSectorId`) against the vNAS ARTCC config's neighbouring-facility handoff IDs. SRS §C.1 field 14 defines the interfacility form. The same bundle (`C1-ZOA-08 … Pac South`) is attached.
 
 ## New candidates
 

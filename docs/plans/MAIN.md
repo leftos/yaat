@@ -4,11 +4,52 @@
 
 Entry point for `docs/plans/`. One line per item; the detail lives in the linked subplan. Finished items and finished plans are deleted, never left ticked — git history is the record (a plan whose rationale or status table still has reference value is promoted into `docs/` instead). Issue-specific plans live in [`open-issues/`](./open-issues/) and are deleted once implemented.
 
-**Order of work:** bug reports and feature requests — usually open GitHub issues — come first and ship in hotfix releases. The programmes below them run in the background and release with a non-hotfix. A fresh agent starts at **Bug reports and feature requests**, then the **Current programme**; **Backlog** is unscheduled findings with no report behind them. Folding the open tracker into this file is the `triage-open-issues` skill.
+**Order of work:** the **ERAM** list first, then bug reports and feature requests — usually open GitHub issues — come first and ship in hotfix releases. The programmes below them run in the background and release with a non-hotfix. A fresh agent starts at **Bug reports and feature requests**, then the **Current programme**; **Backlog** is unscheduled findings with no report behind them. Folding the open tracker into this file is the `triage-open-issues` skill.
+
+## ERAM — #1 priority
+
+ERAM comes before everything else, the other bug reports included (user 2026-09-28). The detail, SRS citations and file:line pointers for every item are in [eram-srs-findings.md](./eram-srs-findings.md). Items marked *unverified* there are re-checked against the code before they are fixed, and dropped if they don't hold. The ERAM follow-ups under **Singles** also count as ERAM work and come after this list.
+
+1. [ ] **#464** ERAM display update rate of 12 s (find the source and the mechanism first)
+2. [ ] **Data-block state**:
+   - The track altitude is null while the transponder is in Standby, so CRC shows `X`/`XXX`.
+   - `QT /OK` and coast mark the previous owner `K`.
+   - Ground speed 0 is sent as null.
+   - The SPC blink times out.
+   - A handoff retract leaves `O` on the initiator.
+   - The auto-track interim altitude does not fall back to the STARS temporary altitude.
+3. [ ] **Recording fidelity**: the dwell-lock toggle is recorded as a `RecordedEramEntry`.
+4. [ ] **Command validation**:
+   - `QQ` field 76/36/513.
+   - `QL` field 214 (format, range, a limit of 5, matching by number).
+   - No beacon-code FLID for `QB`/`LF`.
+   - FLID format (`Ld`, reserved `dLd`, a cap of 15 FLIDs).
+   - `QB` multiple FLIDs.
+   - `DM` fields and suffixes.
+   - Add conformance tests for `QL` and `QQ`.
+5. [ ] **Readouts**:
+   - `QF` shows the assigned beacon code, the CID and the controlling sector.
+   - `QF`'s assigned-altitude field (`AssignedAltitudeFieldReadout`, `CrcClientState.Eram.FlightData.cs` ~:203) reads `EramAltitudeFeet` only for fix-qualified altitudes. It shows the filed 340 where Field B shows #466's auto-track 240.
+   - `LA` field 13 (radar site).
+   - The `LA`/`LB` text format (needs a ruling).
+6. [ ] **Conflict alert**:
+    - A 5 s pass cadence.
+    - No immediate alert for an IFR/MCI pair.
+    - The APSB/APSC/INTC/INTF floors.
+    - Vertical-conformance latch (`ReachedAssignedAltitude`).
+    - 1200-code MCI eligibility.
+7. [ ] **Per-sector display state**: leader direction, the DRI halo and dwell keyed by sector (needs a ruling on whether it is worth doing)
+8. [ ] **Rulings, then fold the findings file**:
+    - Which C.8 commands with no `na` are in scope.
+    - The `QS` free-text character set.
+    - The `AM` 918 indicators.
+    - Then delete `eram-srs-findings.md`.
 
 ## Bug reports and feature requests
 
-**ERAM first.** ERAM conformance landed 2026-09-28 (Waves 0–5; the reference and its rulings live in [`docs/eram/`](../eram/README.md)). The ERAM follow-up singles under **Singles** count as ERAM work (user 2026-09-27) and come before other items.
+- [ ] `tools/test-all.ps1 -ServerDir <server worktree>` builds yaat-server against `D:/yaat`'s Yaat.Sim, not the calling worktree's: yaat-server's `Directory.Build.props` picks `..\yaat` unless `YaatSimProject` is passed, and the script cannot pass it. So a worktree's cross-repo gate tests the wrong code (found 2026-09-28; the ERAM fix round ran both suites by hand with `-p:YaatSimProject=<worktree>\src\Yaat.Sim\Yaat.Sim.csproj`). Pass the calling tree's Yaat.Sim to the server build and test steps
+
+- [ ] **Async room creation and scenario load with a detailed progress dialog** (user 2026-09-28): creating a room and loading a scenario should run as asynchronously as possible, and the client should show a progress dialog naming each step, e.g. ARTCC config fetch, neighbour-center configs (#468 adds these), navdata, layouts, spawning, so the user sees work happening rather than a frozen app. Not designed yet: map the steps and their current threading on both sides (client `ServerConnection` / `MainViewModel`, server room creation and `ScenarioLifecycleService`) first, then decide how progress reaches the client (a hub progress callback per step)
 
 - [ ] Review the gate changes made from outside this repo's agents, as preliminary picks so the gates kept running: `tools/gate.sh` was retired in favour of `pwsh tools/gate.ps1 -Log … -TimeoutSeconds … -Slot heavy|light -- …` everywhere (docs, skills, the Bash guard and its cases, yaat-server's CLAUDE.md), and every call site was given `-Slot heavy`. Check nothing still teaches the old form, check each kind against what the command really does (a filtered test run on `--no-build` could be light), and correct any that are wrong. The pool sizes (`GATE_HEAVY_SLOTS` / `GATE_LIGHT_SLOTS` defaults) belong to the machine-wide gate in `~/.claude/tools/gate/`, not to this repo.
 
@@ -163,9 +204,6 @@ Shared files: root `*.md`, `docs/scenario-validation-known-failures.md`, solutio
 ### Singles
 
 Shared files: no shared files. Gate: per item.
-
-- [ ] **ERAM SRS gap hunt** — candidate ERAM bugs from reading the whole EDSM SRS appendices (not just the command tables), plus issues #464–#468: [eram-srs-findings.md](./eram-srs-findings.md). Ready to fix: #467 (QS speed forms), #466 (auto-track cleared altitude → assigned altitude, decided)
-- [ ] **Triage the rest of eram-srs-findings.md into concrete tasks**: re-check every `unverified` entry against the code, mark it verified or drop it, get the rulings its `question`s need, then replace the raw findings with a fix list grouped by file (Yaat.Sim entry engine / yaat-server DtoConverter / yaat-server command dispatch). Still to investigate: #464 (source for the 12 s rate), #465, #468 — see the file's **Next steps**
 
 - [ ] **Fly direct to the destination after the last route fix** (user 2026-09-28): a US route field never names its own airports, so "last fix, then direct the field" is implied (`NIMI5 OAK V6 SAC` to KSAC ends at the SAC VORTAC), but `FlightPhysics.UpdateNavigation` (~:240-269) clears the target heading after the last fix on every route and the aircraft flies on straight; only `OnCourseDeparture` heads for the destination. Add the direct-to-destination leg. Ruled (aviation consult 2026-09-28; user: ship all of it): in `UpdateNavigation`'s route-exhausted branch keep the order — a pending approach clearance wins; an FM **or VM** last leg flies its heading (VM falls through to straight flight today); otherwise an IFR aircraft with a cleared destination goes direct to the airport at once (its clearance limit, 7110.65 §4-7-1.a, AIM 4-4-3.a), at its last assigned altitude (AIM 5-4-1.b), whatever the distance and even with an assigned runway or an expected visual; ~5 min out the solo pilot asks for further clearance, at 3 min it slows to holding speed (AIM 5-3-8.a.4), over the field it holds right turns inbound on its arrival course (1 min legs ≤ 14,000 ft, 1.5 above) and reports "holding over [airport], [altitude]" (AIM 5-3-8.a.3/a.6); a VFR aircraft goes direct and calls before a Class C/D boundary (AIM 3-2-5.a.3), no hold; no destination keeps today's straight flight. The destination comes from the pilot's own cleared copy, snapshotted at spawn or when an RPO command issues a route or clearance, never from the scope-editable flight plan (91.123; the scope-entries rule). A clearance limit short of the destination is not modelled until a command sets one (7110.65 §4-6-1). Explored map: `FlightPhysics.cs` ~:142-307, `DepartureClearanceHandler.cs` ~:908-919 (the `CTO OC` destination target; gate on `GetAirportPosition(dest) is { }`, `Destination` defaults to `""`), `NavigationCommandTests.DirectTo_MultipleWaypoints_NavigatesSequentially` stays as is, fixture `NIMI5 OAK V6 SAC` → KSAC
 
