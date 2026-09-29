@@ -184,6 +184,148 @@ public class WindInterpolatorTests
     }
 
     // -------------------------------------------------------------------------
+    // GetMeanWindAt
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void GetMeanWindAt_NullProfile_ReturnsZero()
+    {
+        WindAtAltitude result = WindInterpolator.GetMeanWindAt(null, 10_000);
+        Assert.Equal(0, result.DirectionDeg);
+        Assert.Equal(0, result.SpeedKts);
+    }
+
+    [Fact]
+    public void GetMeanWindAt_BetweenLayers_InterpolatesDirectionAndSpeed()
+    {
+        WeatherProfile profile = MakeProfile([
+            new WindLayer
+            {
+                Direction = 180,
+                Speed = 20,
+                Altitude = 0,
+            },
+            new WindLayer
+            {
+                Direction = 270,
+                Speed = 40,
+                Altitude = 10_000,
+            },
+        ]);
+        WindAtAltitude result = WindInterpolator.GetMeanWindAt(profile, 5_000);
+        Assert.Equal(225, result.DirectionDeg, precision: 6);
+        Assert.Equal(30, result.SpeedKts, precision: 6);
+    }
+
+    [Fact]
+    public void GetMeanWindAt_BelowLowestLayer_ClampsToLowest()
+    {
+        WeatherProfile profile = MakeProfile([
+            new WindLayer
+            {
+                Direction = 200,
+                Speed = 10,
+                Altitude = 3_000,
+            },
+            new WindLayer
+            {
+                Direction = 280,
+                Speed = 50,
+                Altitude = 30_000,
+            },
+        ]);
+        WindAtAltitude result = WindInterpolator.GetMeanWindAt(profile, 1_000);
+        Assert.Equal(200, result.DirectionDeg);
+        Assert.Equal(10, result.SpeedKts);
+    }
+
+    [Fact]
+    public void GetMeanWindAt_AboveHighestLayer_ClampsToHighest()
+    {
+        WeatherProfile profile = MakeProfile([
+            new WindLayer
+            {
+                Direction = 200,
+                Speed = 10,
+                Altitude = 3_000,
+            },
+            new WindLayer
+            {
+                Direction = 280,
+                Speed = 50,
+                Altitude = 30_000,
+            },
+        ]);
+        WindAtAltitude result = WindInterpolator.GetMeanWindAt(profile, 45_000);
+        Assert.Equal(280, result.DirectionDeg);
+        Assert.Equal(50, result.SpeedKts);
+    }
+
+    [Fact]
+    public void GetMeanWindAt_BetweenLayers_Handles360Boundary()
+    {
+        WeatherProfile profile = MakeProfile([
+            new WindLayer
+            {
+                Direction = 350,
+                Speed = 20,
+                Altitude = 0,
+            },
+            new WindLayer
+            {
+                Direction = 010,
+                Speed = 20,
+                Altitude = 10_000,
+            },
+        ]);
+        WindAtAltitude result = WindInterpolator.GetMeanWindAt(profile, 5_000);
+        double dir = result.DirectionDeg > 180 ? result.DirectionDeg - 360 : result.DirectionDeg;
+        Assert.True(Math.Abs(dir) < 1e-6, $"Expected direction 000°, got {result.DirectionDeg}°");
+        Assert.Equal(20, result.SpeedKts, precision: 6);
+    }
+
+    /// <summary>
+    /// Gusts, direction variability and VRB perturb <see cref="WindInterpolator.GetWindAt"/> over sim time; the mean wind
+    /// ignores them at every altitude.
+    /// </summary>
+    [Theory]
+    [InlineData(100)]
+    [InlineData(800)]
+    [InlineData(2_000)]
+    public void GetMeanWindAt_IgnoresWindVariation(double altitudeFt)
+    {
+        // Variation tapers to nothing by 3,000 ft above the surface (the lowest layer here), so every case sits below it:
+        // clamped under the lowest layer, between the layers, and clamped over the highest.
+        WeatherProfile profile = MakeProfile([
+            new WindLayer
+            {
+                Direction = 240,
+                Speed = 30,
+                Gusts = 45,
+                DirectionVariabilityDeg = 40,
+                Altitude = 200,
+            },
+            new WindLayer
+            {
+                Direction = 240,
+                Speed = 30,
+                Gusts = 50,
+                DirectionVariabilityDeg = 40,
+                Altitude = 1_500,
+            },
+        ]);
+        bool gustSeen = Enumerable
+            .Range(0, 120)
+            .Select(s => WindInterpolator.GetWindAt(profile, altitudeFt, s * 5, 0))
+            .Any(w => (Math.Abs(w.SpeedKts - 30) > 1) || (Math.Abs(w.DirectionDeg - 240) > 1));
+        Assert.True(gustSeen, "The profile should perturb GetWindAt, or the test proves nothing");
+
+        WindAtAltitude result = WindInterpolator.GetMeanWindAt(profile, altitudeFt);
+        Assert.Equal(240, result.DirectionDeg, precision: 6);
+        Assert.Equal(30, result.SpeedKts, precision: 6);
+    }
+
+    // -------------------------------------------------------------------------
     // GetWindComponents
     // -------------------------------------------------------------------------
 
