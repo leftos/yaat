@@ -44,6 +44,7 @@ ERAM comes before everything else, the other bug reports included (user 2026-09-
     - The `QS` free-text character set.
     - The `AM` 918 indicators.
     - Then delete `eram-srs-findings.md`.
+9. [ ] **vEDST support** — [vedst-support.md](./vedst-support.md): let the vEDST web client attach to a CRC session on yaat-server: JSON hub protocol transcoded at the socket edge, `GetSessions`/`JoinSession` joined sessions, direct `?access_token=` WebSocket auth, vNAS-shaped `/vnas` config and auth endpoints, CORS for vEDST's origin. Planned; not started
 
 ## Bug reports and feature requests
 

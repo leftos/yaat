@@ -65,6 +65,9 @@ projection is the server's; the concept is the simulation's.
 The interval during which a track that has gone away is still displayed before its delete is emitted.
 Measured in sim-seconds.
 
+**Joined session**:
+A second connection to the CRC hub (such as vEDST) that attaches to a session another client (CRC) started, via `JoinSession`. It sees that session's position, room and active state but holds no position of its own, so it never counts toward attendance.
+
 ## Controller actions
 
 **Action**:
