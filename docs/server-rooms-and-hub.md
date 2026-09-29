@@ -70,9 +70,9 @@ surfaces as a `TickBudgetMs` overrun. Nothing reachable from `TickPhysics` — p
 fallback — may block on the network. The layout path is built around that constraint:
 
 - `AirportLayoutDownloader` negative-caches a confirmed origin 404 for `NotFoundTtl` (6 h). `HttpFileCache.GetOrRefreshAsync`
-  returns `HttpCacheResult(Content, NotFound)`, and only a genuine 404 latches — a network failure or timeout retries.
-- `AirportGroundDataService` serves an expired entry (`CacheTtl`, 30 min) stale while a single background `Task.Run` refetches
-  and re-parses it; the tick thread never waits on the TTL refresh.
+  returns `HttpCacheResult(Content, NotFound, RefreshFailed)`, and only a genuine 404 latches — a network failure or timeout retries.
+- `AirportGroundDataService` serves an expired entry (`CacheTtl`, 30 min) stale while a background refetch re-parses it; the tick thread never waits on the TTL refresh. Every fetch of one airport — `PrefetchAsync`, a `GetLayout` miss, the TTL refresh — shares one in-flight task, re-checked under the lock, so an airport is never fetched twice at once. `PrefetchAsync` returns a `LayoutFetchOutcome` (`Loaded`, `LoadedFromStaleCopy` with the cached copy's last-changed time, `NoMap`, `Unreachable`, `Unparseable`); an `Unreachable` entry is retried by the next prefetch. A `GetLayout` miss still fetches blocking and logs a warning naming the airport and the thread ("was not prefetched" or "is still being prefetched").
+- `ArtccConfigService.EnsureLoadedAsync` shares one in-flight load per ARTCC (a second caller for a cold ARTCC waits for the config instead of returning before it exists) over a `ConcurrentDictionary`, and returns an `ArtccFetchOutcome` (`Loaded`, `LoadedFromStaleCopy` with `CachedCopyUtc`, `NotFound`, `Unreachable`, `Unparseable`, plus the neighbour centres left with no ERAM letter). A load that threw or ended `Unreachable` is retried by the next call; any other outcome is kept for `ConfigTtl`.
 - `ScenarioLifecycleService.WarmAircraftGroundLayouts` resolves every airport a loaded scenario references (departure,
   destination, spawn — delayed aircraft included) on the hub thread at load time.
 - `NavigationDatabase.GetSid/GetStar/GetApproach` do not walk the supplementary prior-cycle CIFP chain for an airport whose
