@@ -13,12 +13,40 @@ The work order is the **ERAM — #1 priority** list in [MAIN.md](./MAIN.md); thi
 1. #465–#468 are fixed; their sections are gone (git history has them).
 2. **Investigate** #464: find a source for the 12 s rate (the CRC manual, CRC's decompiled display refresh, the reporter).
 3. **Verify** each `unverified` entry below against the code. Mark it verified, or drop it with the reason.
-4. **Rulings needed**:
-   - Which C.8 commands with no `na` are in scope.
-   - The QS free-text character set (C.1 versus C.8).
-   - Whether the `LA`/`LB` text follows the SRS or CRC's own output.
-   - Whether per-sector display state is worth doing.
-5. **Turn this file into a fix list** grouped by owning file, add a MAIN.md line per group, then delete this file.
+4. **Rulings** — settled, see [Rulings](#rulings-user-2026-09-28) below.
+5. **Turn this file into a fix list** grouped by owning file, add a MAIN.md line per group, then delete this file. The brief grouping is under [Brief grouping](#brief-grouping-verified-2026-09-28).
+6. **Cross-check `vatsim-server-rs`** (user steer 2026-09-28): its ERAM emulation (`X:/dev/vatsim-server-rs`, `crates/server/src/clientstate/eram.rs`, `crates/radar_state/src/eram_state.rs`; pull first) may hold clues for every item here. Read it before briefing each group.
+
+## Rulings (user 2026-09-28)
+
+- **C.8 commands with no `na`**: all in scope — flight-plan tools (`FR`, `FP`, `DQ`, `RM`, `SP`), conflict alert (`CA`, `RK`; drop `CA.yaml`'s `na`), messages and strips (`SM`, `RS`), weather (`SW`, `UR`, `WX`). Each needs its own design pass before a brief.
+- **QS free text**: accept the §C.1 field 155 set — A–Z, 0–9 and `- + = * / _ . ,` (the arrows and the overcast symbol cannot be typed). The tokeniser must keep `/ddd` and `/Sddd` speeds apart from a `/` inside free text.
+- **`LA`/`LB` text**: match CRC, else the SRS. CRC prints nothing of its own (the decompiled client has no LA/LB text; the server fills the response area), so follow §F.5 Tables 76–77: `RANGE * 82.6 NM / BEARING * 248 DEG MAG / FROM 1ST TB ENTRY / AT 154 KNOTS 1 HR 35 MIN`. `EramRangeReadoutTests.FormatFlyingTime_IsMinutesSeconds` changes with it.
+- **Per-sector display state**: key leader direction, leader length, DRI halo and dwell lock by (facility, sector) now, like `OnFrequencySectorIds`, and record the dwell lock as a `RecordedEramEntry` carrying the sector key and an absolute value (`DWELL <facility> <sector> 1|0`, never a toggle, so a replay cannot desync on a missed entry).
+- **#464 update rate**: CRC draws every ERAM update it receives (`Eram.Tracks/TrackManager.cs` `ReceiveTrack` has no timer), so the 1 s rate is yaat-server's (`RoomTickLoopService` 1 s tick; `AircraftChangeTracker.EramTargetFingerprint` changes every second for a moving aircraft). Send the position part of the ERAM target and track on a 12 s sweep with a **per-aircraft stagger** (a stable callsign hash mod 12, sim-elapsed time, not wall clock); state changes (handoff, HSF, VCI, point-out, symbol, beacon) still go out on the next tick; a newly visible aircraft is sent at once. The **ERAM history trail follows the sweep**: one dot per 12 s update, from an ERAM-specific sample (today's 5 s `PositionHistory` stays for STARS and YAAT's radar). STARS is untouched. Keep `EramCoastSeconds` (24 s = 2 sweeps) consistent. Red test model: `tests/Yaat.Server.Tests/CrcAcceptedIndicatorTests.cs` (`RoomEngineTestHarness`, `RecordingWebSocket`), asserting ≤ 2 position `ReceiveEramTracks` in 12 broadcasts for a moving aircraft and a handoff sent on the next tick.
+- **MCI alert floor**: the ARTCC's `ConflictAlertFloor` when non-zero, else the SRS 12,500 ft; the 99,500 ft ceiling applies.
+- **1200 code**: never an MCI — excluded from the MCI symbol (it draws as VFR) and from conflict-alert intruder eligibility. This departs from `docs/crc/eram.md:358`.
+- **Vertical-conformance latch**: set when within ±200 ft of the assigned altitude (a block altitude uses its own floor and ceiling), cleared only when the assigned altitude changes. Latched in a Yaat.Sim post-physics step for replay determinism.
+- **Handoff retract**: show `O` plus the retracted recipient to the initiator (send the recipient as the recent-handoff peer).
+- **SPC blink**: a named 30 s constant after the code first appears (latched like `IdentStartedAt`), in the target fingerprint so a stationary aircraft re-sends.
+- **`QL` limit of 5**: per entry; the toggled set may grow past 5 over several entries.
+- **`QB` multiple FLIDs**: apply per flight for the equipment-qualifier and voice variants; refuse code assignment with `MULTIPLE FLIDS NOT ALLOWED`.
+- **`DM`**: implement every field — 26 (coordination fix), 07 (time), 08 (altitude) and the `/OK` and `*` suffixes. Fields 26 and 07 need a design pass (what a coordination fix and a departure time change in the sim) before a brief.
+
+Verified against the code 2026-09-28 (explorer pass): coast marking the previous owner `K` is **not a bug** — `ApplyCoast` refuses a track owned by another position, so it never has a previous owner. Ground speed 0 matters for the ERAM target only (Field E reads `target.GroundSpeed`; the track's speed drives only the vector). The `AM.yaml` 918 claim is wrong as worded — SWIM and scenario remarks carry REG/, PBN/, DOF/ as unparsed text in `AircraftFlightPlan.Remarks` — but nothing parses them; reword the `na` reason.
+
+## Brief grouping (verified 2026-09-28)
+
+| Brief | Source files | Covers | Order |
+|---|---|---|---|
+| B2 data-block DTO | Srv `Simulation/DtoConverter.cs`, `Simulation/AircraftChangeTracker.cs`; Sim `AircraftTransponder.cs`, `Simulation/Snapshots/AircraftTransponderDto.cs` | standby altitude, target GS 0 → null, SPC blink, interim fallback dropped, 1200 never MCI symbol | first |
+| B4 conflict pass | Sim `EramConflictDetector.cs`, `Simulation/SimulationEngine.Tick.cs` | 5 s cadence (clock-derived, suppression changes still every second), no immediate IFR/MCI alert, floor/ceiling, 1200 not an intruder | concurrent with B2 |
+| B5 FLID and flight-data verbs | Srv `Hubs/Eram/EramFlid.cs`, new `Hubs/CrcClientState.Eram.Flid.cs`, `CrcClientState.Eram.FlightData.cs`, `CrcClientState.Eram.Crr.cs`, `CrcClientState.Eram.Route.cs` | FLID `Ld`/`dLd`/cap 15, QB/LF beacon FLID refused, QB multiple FLIDs, QF beacon/CID/sector and assigned-altitude field, DM (after its design pass) | concurrent with B2 |
+| B6 QL and LA/LB | Srv `CrcClientState.Eram.Display.cs`, `CrcClientState.Eram.Readouts.cs`; Sim `Data/Vnas/ArtccConfig.cs` (`AsrId`) | QL field 214 + number matching, LA field 13, LA/LB SRS text | concurrent with B2 |
+| B1 entry engine and QQ | Sim `Commands/EramEntryEngine.cs`, `Commands/TrackEngine.cs`; Srv `CrcClientState.Eram.cs`, `CrcClientState.Eram.Altitude.cs` | `QT /OK` `K`, retract `O`, QQ 76/36/513 + cap, QS C.1 charset | after B5 (FLID cap constant) |
+| B3 latch | Sim `AircraftEramState.cs`, `Snapshots/AircraftEramStateDto.cs`, `SimulationEngine.Eram.cs`, `Spine/SpineOrder.cs`, `StepId`; Srv `DtoConverter.cs` (one line) | vertical-conformance latch | after B2 |
+| B7 per-sector state | Srv `DtoConverter.cs`, `CrcClientState.Eram.cs`; Sim `AircraftEramState.cs` + snapshot DTO, `EramEntryEngine.cs` (`DWELL`) | per-sector leader/DRI/dwell + dwell recording | after B1 and B3 |
+| B8 #464 sweep | Srv `CrcBroadcastService.cs`, `AircraftChangeTracker.cs`, `DtoConverter.cs` (history) | 12 s staggered sweep, ERAM history | after B2 |
 
 ## Filed issues
 

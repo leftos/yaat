@@ -10,45 +10,19 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 ERAM comes before everything else, the other bug reports included (user 2026-09-28). The detail, SRS citations and file:line pointers for every item are in [eram-srs-findings.md](./eram-srs-findings.md). Items marked *unverified* there are re-checked against the code before they are fixed, and dropped if they don't hold. The ERAM follow-ups under **Singles** also count as ERAM work and come after this list.
 
-1. [ ] **#464** ERAM display update rate of 12 s (find the source and the mechanism first)
-2. [ ] **Data-block state**:
-   - The track altitude is null while the transponder is in Standby, so CRC shows `X`/`XXX`.
-   - `QT /OK` and coast mark the previous owner `K`.
-   - Ground speed 0 is sent as null.
-   - The SPC blink times out.
-   - A handoff retract leaves `O` on the initiator.
-   - The auto-track interim altitude does not fall back to the STARS temporary altitude.
-3. [ ] **Recording fidelity**: the dwell-lock toggle is recorded as a `RecordedEramEntry`.
-4. [ ] **Command validation**:
-   - `QQ` field 76/36/513.
-   - `QL` field 214 (format, range, a limit of 5, matching by number).
-   - No beacon-code FLID for `QB`/`LF`.
-   - FLID format (`Ld`, reserved `dLd`, a cap of 15 FLIDs).
-   - `QB` multiple FLIDs.
-   - `DM` fields and suffixes.
-   - Add conformance tests for `QL` and `QQ`.
-5. [ ] **Readouts**:
-   - `QF` shows the assigned beacon code, the CID and the controlling sector.
-   - `QF`'s assigned-altitude field (`AssignedAltitudeFieldReadout`, `CrcClientState.Eram.FlightData.cs` ~:203) reads `EramAltitudeFeet` only for fix-qualified altitudes. It shows the filed 340 where Field B shows #466's auto-track 240.
-   - `LA` field 13 (radar site).
-   - The `LA`/`LB` text format (needs a ruling).
-6. [ ] **Conflict alert**:
-    - A 5 s pass cadence.
-    - No immediate alert for an IFR/MCI pair.
-    - The APSB/APSC/INTC/INTF floors.
-    - Vertical-conformance latch (`ReachedAssignedAltitude`).
-    - 1200-code MCI eligibility.
-7. [ ] **Per-sector display state**: leader direction, the DRI halo and dwell keyed by sector (needs a ruling on whether it is worth doing)
-8. [ ] **Rulings, then fold the findings file**:
-    - Which C.8 commands with no `na` are in scope.
-    - The `QS` free-text character set.
-    - The `AM` 918 indicators.
-    - Then delete `eram-srs-findings.md`.
+1. [ ] **#464** ERAM 12 s update: send the position part of the ERAM target and track on a 12 s sweep staggered per aircraft, with state changes still sent at once and the ERAM history trail one dot per sweep (brief B8, after B2; mechanism and ruling in the findings file)
+2. [ ] **Data-block state** (B2): the track altitude is null while the transponder is in Standby, so CRC shows `X`/`XXX`; target ground speed 0 is sent as null; the SPC blink stops after 30 s; the STARS temporary altitude no longer falls back into the ERAM interim altitude; a 1200 code is never drawn as an MCI. Then (B1) `QT /OK` marks the previous owner `K`, and a handoff retract shows `O` plus the recipient to the initiator
+3. [ ] **Vertical-conformance latch** (B3, after B2): set within ±200 ft of the assigned altitude (block limits for a block altitude), cleared when the assigned altitude changes
+4. [ ] **Command validation**: (B5) FLID format (`Ld`, reserved `dLd`, a cap of 15), no beacon-code FLID for `QB`/`LF`, `QB` multiple FLIDs per flight for the qualifier and voice variants and refused for code assignment, `DM` fields 26/07/08 and the `/OK` and `*` suffixes (26 and 07 need a design pass first); (B1) `QQ` fields 76/36/513 and the QS §C.1 character set; (B6) `QL` field 214 (format, range, 5 per entry, matching by number); conformance tests for `QL` and `QQ`
+5. [ ] **Readouts**: (B5) `QF` shows the assigned beacon code, the CID and the controlling sector, and its assigned-altitude field reads `EramAltitudeFeet` whenever an ERAM assigned altitude is set; (B6) `LA` field 13 (radar site, needs `AsrId` on `EramAsrSite`) and the `LA`/`LB` text in the SRS §F.5 format
+6. [ ] **Conflict alert** (B4): a 5 s pass cadence; no immediate alert for an IFR/MCI pair already inside minima; the MCI floor is the ARTCC's `ConflictAlertFloor` when non-zero, else 12,500 ft, with the 99,500 ft ceiling; a 1200 code is never an intruder
+7. [ ] **Per-sector display state** (B7, after B1 and B3): leader direction, leader length, DRI halo and dwell lock keyed by (facility, sector), and the dwell lock recorded as an absolute `RecordedEramEntry` with its sector
+8. [ ] **Unimplemented C.8 commands, all in scope**: flight-plan tools `FR`, `FP`, `DQ`, `RM`, `SP`; conflict alert `CA`, `RK` (drop `CA.yaml`'s `na`); `SM`, `RS`; weather `SW`, `UR`, `WX`. Each gets a design pass before its brief. Also reword `AM.yaml`'s 918 `na` reason (remarks carry REG/, PBN/, DOF/ as unparsed text). When items 1–7 have landed, delete `eram-srs-findings.md`
 9. [ ] **vEDST support** — [vedst-support.md](./vedst-support.md): let the vEDST web client attach to a CRC session on yaat-server: JSON hub protocol transcoded at the socket edge, `GetSessions`/`JoinSession` joined sessions, direct `?access_token=` WebSocket auth, vNAS-shaped `/vnas` config and auth endpoints, CORS for vEDST's origin. Planned; not started
 
 ## Bug reports and feature requests
 
-- [ ] **Async room creation and scenario load with a detailed progress dialog** (user 2026-09-28): creating a room and loading a scenario should run as asynchronously as possible, and the client should show a progress dialog naming each step, e.g. ARTCC config fetch, neighbour-center configs (#468 adds these), navdata, layouts, spawning, so the user sees work happening rather than a frozen app. Not designed yet: map the steps and their current threading on both sides (client `ServerConnection` / `MainViewModel`, server room creation and `ScenarioLifecycleService`) first, then decide how progress reaches the client (a hub progress callback per step)
+- [ ] **Async room creation and scenario load with a detailed progress dialog** (user 2026-09-28): creating a room and loading a scenario should run as asynchronously as possible, and the client should show a progress dialog naming each step, e.g. ARTCC config fetch, neighbour-center configs (#468 adds these), navdata, layouts, spawning, so the user sees work happening rather than a frozen app. Mapped; draft design and open decisions in [async-room-load.md](./async-room-load.md)
 
 - [ ] Review the gate changes made from outside this repo's agents, as preliminary picks so the gates kept running: `tools/gate.sh` was retired in favour of `pwsh tools/gate.ps1 -Log … -TimeoutSeconds … -Slot heavy|light -- …` everywhere (docs, skills, the Bash guard and its cases, yaat-server's CLAUDE.md), and every call site was given `-Slot heavy`. Check nothing still teaches the old form, check each kind against what the command really does (a filtered test run on `--no-build` could be light), and correct any that are wrong. The pool sizes (`GATE_HEAVY_SLOTS` / `GATE_LIGHT_SLOTS` defaults) belong to the machine-wide gate in `~/.claude/tools/gate/`, not to this repo.
 
