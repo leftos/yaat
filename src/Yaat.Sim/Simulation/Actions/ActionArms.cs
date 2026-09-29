@@ -414,7 +414,7 @@ internal static class ActionArms
             return;
         }
 
-        ctx.Engine.World.RemoveAircraft(aircraft.Callsign);
+        ctx.Engine.RemoveFromWorld(aircraft.Callsign);
         ctx.Host.OnAircraftDeleted(aircraft.Callsign, lastState: null);
     }
 

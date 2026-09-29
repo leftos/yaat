@@ -126,7 +126,7 @@ transponder plus the subscribing facility's ERAM config. Precedence:
 3. **Correlated** = `HasFlightPlan && code != 1200`. 1200 is the non-discrete universal VFR code and never correlates
    (AIM §4-1-20); a filed aircraft squawking 1200 falls through to the uncorrelated branch. Correlated →
    `ReducedSeparation` inside single-sensor ASR coverage, else `CorrelatedBeacon`.
-4. **Uncorrelated** → `Vfr` for 1200 at any altitude (never an MCI, a departure from CRC's manual, which draws the 1200 symbol only below the floor); otherwise `Mci` at/above the conflict-alert floor, else `UncorrelatedBeacon`.
+4. **Uncorrelated** → `Mci` inside the MCI band (`EramConflictDetector.IsMciAltitudeEligible`: the floor below to 99,500 ft, inclusive), 1200 included; outside it `Vfr` for 1200, else `UncorrelatedBeacon` (CRC manual Table 1).
 
 Other target and track fields that follow ERAM rather than the raw state: a standby aircraft's ERAM **track** `Altitude` is null too while the track is `Normal` (a frozen or coasting track keeps its snapshot), so CRC draws `X`/`XXX`; the target's `GroundSpeed` is null at 0 kt (Field E shows speed only when it is nonzero); and `BlinkSpc` blinks for `CrcBroadcastService.EramSpcBlinkSeconds` (30 s) after a special code first appears, from the sim-side `AircraftTransponder.SpcStartedAt` latch (stamped by the `Transponders` spine step, cleared on any code change, snapshotted), with `AircraftChangeTracker.UpdateEramSpcBlinkState` re-sending a stationary target when the blink ends. ERAM Field B's interim altitude is `Eram.InterimAltitude` only; a STARS temporary altitude never falls into it. The track's `ReachedAssignedAltitude` is the sim-side latch `AircraftEramState.ReachedAssignedAltitude` (spine step `EramVerticalConformance`, see `docs/tick-loop.md`), never recomputed in `DtoConverter`, so a level aircraft that has left its reached altitude shows `-` or `+` rather than an arrow.
 
@@ -138,8 +138,7 @@ Facility config drives two of those splits, so `EramTargets` is recomputed per s
   Range = 60 NM, Ceiling = 23,000 ft }`): within a site's range *and* at/below its ceiling (7110.65 §5-5-4). A center with no
   ASR sites never renders it. The ≤FL230 line in `eram.md` is the STCA 3/5 NM split — a different code path; do not reuse
   `EramConflictDetector`'s constant here.
-- **CA floor = `EramFacilityConfig.ConflictAlertFloor`** (default 0). A center shipping 0 makes every uncorrelated Mode-C
-  target `Mci`, so `Vfr` / `UncorrelatedBeacon` never appear there — authentic.
+- **MCI floor = `EramFacilityConfig.ConflictAlertFloor`**, and 12,500 ft (the SRS INTF default) when a center ships 0 (`EramConflictDetector.ResolveMciFloorFeet`); the ceiling is 99,500 ft (INTC). The same band gates the MCI symbol and ERAM MCI alerts.
 - **`BlinkSpc` is the six-code vNAS special-purpose set** {1276 ADIZ, 7400 lost link, 7500, 7600, 7700, 7777 AFIO}
   (`DtoConverter.IsSpc`), not just 7500/7600/7700.
 

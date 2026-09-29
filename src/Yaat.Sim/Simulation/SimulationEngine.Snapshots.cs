@@ -342,6 +342,7 @@ public sealed partial class SimulationEngine
         // Reset engine-level state, then restore from snapshot if available
         ConsolidationState.Clear();
         ConflictAlerts.Conflicts.Clear();
+        EramConflicts.ClearRemovedWithAircraft();
         SoloTrainingEvaluator.Reset();
         BeaconCodePool.Clear();
 

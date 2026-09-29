@@ -49,19 +49,197 @@ public class EramConflictSuppressionTests
         TestVnasData.EnsureInitialized();
     }
 
-    /// <summary>Both aircraft tracked by one ERAM sector, alongside each other at the same altitude: one active alert.</summary>
-    private static SimulationEngine LoadInConflict()
+    /// <summary>Both aircraft tracked by one ERAM sector, alongside each other at the same altitude, before any conflict pass.</summary>
+    private static SimulationEngine Load()
     {
         var engine = new SimulationEngine(new TestAirportGroundData());
         List<string> warnings = engine.LoadScenario(ScenarioJson, 42, SessionStart);
         Assert.DoesNotContain(warnings, w => w.Contains("error", StringComparison.OrdinalIgnoreCase));
         engine.FindAircraft("AAL100")!.Track.Owner = Sector44;
         engine.FindAircraft("UAL200")!.Track.Owner = Sector44;
+        return engine;
+    }
+
+    /// <summary>The <see cref="Load"/> pair after one conflict pass at t=0: one active alert.</summary>
+    private static SimulationEngine LoadInConflict()
+    {
+        SimulationEngine engine = Load();
 
         engine.TickEramConflictAlerts();
 
         Assert.NotNull(engine.EramConflicts.FindPair("AAL100", "UAL200"));
         return engine;
+    }
+
+    /// <summary>Turns UAL200 into a Mode-C intruder: untracked, no flight plan, a discrete beacon code.</summary>
+    private static AircraftState MakeModeCIntruder(SimulationEngine engine)
+    {
+        AircraftState ual = engine.FindAircraft("UAL200")!;
+        ual.Track.Owner = null;
+        ual.FlightPlan.HasFlightPlan = false;
+        ual.Transponder.Code = 4521;
+        return ual;
+    }
+
+    /// <summary>
+    /// Puts both aircraft at <paramref name="altitudeFeet"/> with UAL200 10 nm east of AAL100 and head-on to it: outside
+    /// minima now, and a conflict within the look-ahead.
+    /// </summary>
+    private static void PlaceHeadOn(SimulationEngine engine, double altitudeFeet)
+    {
+        AircraftState aal = engine.FindAircraft("AAL100")!;
+        AircraftState ual = engine.FindAircraft("UAL200")!;
+        aal.Altitude = altitudeFeet;
+        ual.Altitude = altitudeFeet;
+        double tenNmLon = 10.0 / (60.0 * Math.Cos(aal.Position.Lat * Math.PI / 180.0));
+        ual.Position = new LatLon(aal.Position.Lat, aal.Position.Lon + tenNmLon);
+        aal.TrueHeading = new TrueHeading(90);
+        aal.TrueTrack = new TrueHeading(90);
+        ual.TrueHeading = new TrueHeading(270);
+        ual.TrueTrack = new TrueHeading(270);
+    }
+
+    [Fact]
+    public void ConflictPass_RunsOnlyOnFiveSecondBoundaries()
+    {
+        SimulationEngine engine = Load();
+
+        engine.Scenario!.ElapsedSeconds = 3;
+        EramConflictAlertChanges offPass = engine.TickEramConflictAlerts();
+        Assert.Empty(offPass.New);
+        Assert.Null(engine.EramConflicts.FindPair("AAL100", "UAL200"));
+
+        engine.Scenario.ElapsedSeconds = 5;
+        EramConflictAlertChanges onPass = engine.TickEramConflictAlerts();
+        EramActiveConflict alert = Assert.Single(onPass.New);
+
+        // 50 nm apart: no longer a conflict, but only the next pass may clear it.
+        AircraftState ual = engine.FindAircraft("UAL200")!;
+        ual.Position = new LatLon(ual.Position.Lat + (50.0 / 60.0), ual.Position.Lon);
+
+        engine.Scenario.ElapsedSeconds = 6;
+        EramConflictAlertChanges offPassAfter = engine.TickEramConflictAlerts();
+        Assert.Empty(offPassAfter.Cleared);
+        Assert.NotNull(engine.EramConflicts.FindPair("AAL100", "UAL200"));
+
+        engine.Scenario.ElapsedSeconds = 10;
+        EramConflictAlertChanges nextPass = engine.TickEramConflictAlerts();
+        Assert.Equal([alert.Id], nextPass.Cleared);
+        Assert.Null(engine.EramConflicts.FindPair("AAL100", "UAL200"));
+    }
+
+    [Fact]
+    public void DeletingOneAircraftOfAnActivePair_OffPass_DropsTheAlertTheSameSecond()
+    {
+        SimulationEngine engine = LoadInConflict();
+        string id = engine.EramConflicts.FindPair("AAL100", "UAL200")!.Id;
+
+        engine.Scenario!.ElapsedSeconds = 3;
+        engine.DeleteAircraft("UAL200", "DEL");
+
+        Assert.Empty(engine.EramConflicts.Conflicts);
+        Assert.Equal([id], engine.EramConflicts.TakeRemovedWith("UAL200"));
+        Assert.Empty(engine.EramConflicts.TakeRemovedWith("UAL200"));
+        EramConflictAlertChanges changes = engine.TickEramConflictAlerts();
+        Assert.Empty(changes.New);
+        Assert.Empty(changes.Restored);
+    }
+
+    [Fact]
+    public void Suppression_IsReportedOffPass()
+    {
+        SimulationEngine engine = LoadInConflict();
+        EramActiveConflict alert = engine.EramConflicts.FindPair("AAL100", "UAL200")!;
+
+        engine.Scenario!.ElapsedSeconds = 3;
+        Assert.True(Suppress(engine).Success);
+        EramConflictAlertChanges changes = engine.TickEramConflictAlerts();
+
+        Assert.Equal([alert.Id], changes.Suppressed);
+        Assert.Empty(changes.New);
+        Assert.Empty(changes.Cleared);
+    }
+
+    [Fact]
+    public void SnapshotRestore_DropsTheIdsHeldForARemovedAircraft()
+    {
+        SimulationEngine engine = LoadInConflict();
+        StateSnapshotDto snapshot = engine.CaptureSnapshot();
+        engine.DeleteAircraft("UAL200", "DEL");
+
+        engine.RestoreFromSnapshot(snapshot);
+
+        Assert.Empty(engine.EramConflicts.TakeRemovedWith("UAL200"));
+    }
+
+    [Fact]
+    public void ModeCIntruderInsideMinimaAtFirstDetection_Alerts()
+    {
+        // Alongside, same altitude: already inside minima, an ordinary current alert (only immediate alerts are exempt).
+        SimulationEngine engine = Load();
+        MakeModeCIntruder(engine);
+
+        EramActiveConflict alert = Assert.Single(engine.TickEramConflictAlerts().New);
+
+        Assert.Equal("UAL200", alert.IntruderCallsign);
+    }
+
+    [Fact]
+    public void ModeCIntruderLeavingTheBand_ClearsTheActiveAlert()
+    {
+        SimulationEngine engine = Load();
+        MakeModeCIntruder(engine);
+        PlaceHeadOn(engine, 13000);
+        EramActiveConflict alert = Assert.Single(engine.TickEramConflictAlerts().New);
+
+        // Still converging, but now below the 12,500 ft default floor.
+        engine.FindAircraft("UAL200")!.Altitude = 12000;
+        engine.Scenario!.ElapsedSeconds = 5;
+        EramConflictAlertChanges changes = engine.TickEramConflictAlerts();
+
+        Assert.Equal([alert.Id], changes.Cleared);
+        Assert.Null(engine.EramConflicts.FindPair("AAL100", "UAL200"));
+    }
+
+    [Fact]
+    public void ModeCIntruderBelowDefaultFloor_DoesNotAlert()
+    {
+        SimulationEngine engine = Load();
+        MakeModeCIntruder(engine);
+        PlaceHeadOn(engine, 12000);
+
+        Assert.Empty(engine.TickEramConflictAlerts().New);
+        Assert.Null(engine.EramConflicts.FindPair("AAL100", "UAL200"));
+
+        // The same geometry above the 12,500 ft default floor alerts, so the floor is what dropped it.
+        PlaceHeadOn(engine, 13000);
+        engine.Scenario!.ElapsedSeconds = 5;
+        EramActiveConflict alert = Assert.Single(engine.TickEramConflictAlerts().New);
+        Assert.Equal("UAL200", alert.IntruderCallsign);
+    }
+
+    /// <summary>UAL200 untracked and squawking 1200 with its filed flight plan: 1200 never correlates, so it is a Mode-C intruder.</summary>
+    private static void MakeCode1200Intruder(SimulationEngine engine)
+    {
+        AircraftState ual = engine.FindAircraft("UAL200")!;
+        ual.Track.Owner = null;
+        ual.Transponder.Code = 1200;
+        Assert.True(ual.FlightPlan.HasFlightPlan);
+    }
+
+    [Fact]
+    public void Code1200Intruder_AlertsInsideTheMciBand_NotBelowTheFloor()
+    {
+        SimulationEngine inBand = Load();
+        MakeCode1200Intruder(inBand);
+        EramActiveConflict alert = Assert.Single(inBand.TickEramConflictAlerts().New);
+        Assert.Equal("UAL200", alert.IntruderCallsign);
+
+        SimulationEngine belowFloor = Load();
+        MakeCode1200Intruder(belowFloor);
+        PlaceHeadOn(belowFloor, 12000);
+        Assert.Empty(belowFloor.TickEramConflictAlerts().New);
+        Assert.Null(belowFloor.EramConflicts.FindPair("AAL100", "UAL200"));
     }
 
     private static CommandResult Suppress(SimulationEngine engine) =>

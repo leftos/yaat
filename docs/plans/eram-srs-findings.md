@@ -36,7 +36,7 @@ The work order is the **ERAM — #1 priority** list in [MAIN.md](./MAIN.md); thi
 - **B3 latch** (grounded in CRC `BaseDataBlockRenderObject.GetVerticalConformance`): evaluated at once when the assignment is first seen; no assigned altitude counts as reached; a block sets within floor − 200 to ceiling + 200 and an ABV altitude from altitude − 200 up (CRC's bounds); measured on the aircraft's own altitude, not evaluated while the track is coasted or frozen or Mode C is absent; a change is keyed on the value (a same-value reassignment is no change) and the key is snapshotted; a new `StepId.EramVerticalConformance` after `AltitudeFixPassage`; no schema bump.
 - **B1**: the retract `O` shows the initiator's own sector (CRC's `FdbRenderObject.GetFieldESectorId` prints the owner's sector, never the peer's, so the recipient cannot be shown; see [eram-open-questions.md](./eram-open-questions.md)). `QT /OK` marks `K` only when the entry has a scenario. QQ field 76 is exactly `[L|P|R]ddd` > 0, one per entry, else `ALT FORMAT`; a letters-only token other than `L` is `<token> ILLEGAL ACTION`; a token starting with `/` is field 513, valid as `/` plus two of A–Z or `/`, else `<token> FORMAT`. QS field 60 and QS multiple FLIDs are a separate item.
 - **B6** (SRS §F.5 Tables 76–77, `QL.yaml`): QL checks every token's format (`(d)dd`, 1–128, or `ALL`) before the count, counts raw tokens (at most 5 per entry), checks no adaptation, and stores the sector by number (`044` → `44`), matched by number. LA/LB print one item per line joined with `\n`: `RANGE * <d.d> NM`, `BEARING * <ddd> DEG MAG` (`DEG TRUE` with `T/`, and always TRUE for a radar site), then `FROM 1ST TB ENTRY` (LA), `RADAR SITE <id>` (LA field 13) or `FROM TB TO FIX <name>` (LB; no name for a picked fix), then with a speed `AT <kt> KNOTS [<h> HR ]<m> MIN`, minutes rounded to the nearest, `<h> HR` alone on a whole hour. LB's bearing runs from the track to the fix, as the text says. A three-letter operand that matches an ASR site's `AsrId` is the site, ahead of a fix of the same name; the SRS's `2116 ACP` line has no data source and is omitted. Distances use the invariant culture.
-- **B4 conflict pass**: the 5 s pass is gated on `(int)Scenario.ElapsedSeconds % 5 == 0` (global phase, no new state), with suppression changes still reported every second. An IFR/MCI pair first detected already inside minima (present positions: 5/3 NM lateral and under 1,000 ft) never alerts while it stays inside; an alert already up is kept. The MCI floor is the owning facility's `ConflictAlertFloor`, else 12,500 ft, inclusive, with a 99,500 ft ceiling, and the **MCI symbol uses the same floor** (one helper feeds both; outside the band an uncorrelated non-1200 target draws as `UncorrelatedBeacon`, per CRC's manual Table 1). The floor is the tracked side's ERAM owner facility's; a STARS-owned side takes the 12,500 ft default. A pair whose intruder leaves the band drops an active alert too. A 1200 code never alerts, flight plan or not. STARS CA is untouched.
+- **B4 conflict pass** (SRS H.1, CRC manual Table 1; the aviation review reversed the first reading): a 5 s pass on `(int)ElapsedSeconds % 5 == 0`, `CO` still reported the same second; a Mode-C intruder (untracked, and no flight plan or a 1200 code) alerts inside the MCI band, the owning ERAM facility's `ConflictAlertFloor` (12,500 ft when 0) to 99,500 ft, even when first seen inside minima (H.1 exempts IFR/MCI pairs only from *immediate* alerts); the MCI symbol uses the same band, and outside it a 1200 draws as VFR and anything else as an Uncorrelated Beacon.
 
 Verified against the code 2026-09-28 (explorer pass): coast marking the previous owner `K` is **not a bug** — `ApplyCoast` refuses a track owned by another position, so it never has a previous owner. Ground speed 0 matters for the ERAM target only (Field E reads `target.GroundSpeed`; the track's speed drives only the vector). The `AM.yaml` 918 claim is wrong as worded — SWIM and scenario remarks carry REG/, PBN/, DOF/ as unparsed text in `AircraftFlightPlan.Remarks` — but nothing parses them; reword the `na` reason.
 
@@ -59,7 +59,6 @@ It mirrors the FAA SWIM feed and changes nothing in the NAS, so most controller-
 
 | Brief | Source files | Covers | Order |
 |---|---|---|---|
-| B4 conflict pass | Sim `EramConflictDetector.cs`, `Simulation/SimulationEngine.Tick.cs`, `AircraftTransponder.cs` (`IsVfrCode`); Srv `DtoConverter.cs` (`ComputeEramSymbolType` floor) | 5 s cadence (clock-derived, suppression changes still every second), no immediate IFR/MCI alert, floor/ceiling, 1200 not an intruder | any time |
 | B5 DM | Srv `CrcClientState.Eram.FlightData.cs` (`DispatchDm`), `CrcClientState.Eram.cs` (`TrailingFlidVerbs`) | fields 26/07/08, `/OK` and `*` | after [eram-dm-design.md](./eram-dm-design.md) is ruled |
 | B6 QL and LA/LB | Srv `CrcClientState.Eram.Display.cs`, `CrcClientState.Eram.Readouts.cs`; Sim `Data/Vnas/ArtccConfig.cs` (`AsrId`) | QL field 214 + number matching, LA field 13, LA/LB SRS text | concurrent with B2 |
 | B7 per-sector state | Srv `DtoConverter.cs`, `CrcClientState.Eram.cs`; Sim `AircraftEramState.cs` + snapshot DTO, `EramEntryEngine.cs` (`DWELL`) | per-sector leader/DRI/dwell + dwell recording | after B1 and B3 |
@@ -103,8 +102,8 @@ The C.7 table (Table 31, p.605–623) has no track update rate, data-block caden
 | URDT Unspecified Route Display Time | 20 min | `Route.cs:400` 20 min | matches |
 | RDRI Route Display Request Interval | 30 s | `EramRouteLineSeconds = 30` (`Route.cs:72`) | matches in value (the SRS defines it as a request interval, not a lifetime) |
 | IPOD Interfacility Point Out Auto Drop | 15 min | no timer | not modelled |
-| APSB / APSC conflict-alert floor, MCI floor | 0 ft / 12,500 ft | no floor constant in `EramConflictDetector.cs` | unverified; check against the MCI path |
-| INTC / INTF intruder ceiling / floor | 99,500 / 12,500 ft | not checked | unverified |
+| APSB / APSC conflict-alert floor, MCI floor | 0 ft / 12,500 ft | `EramConflictDetector.ResolveMciFloorFeet` | matches |
+| INTC / INTF intruder ceiling / floor | 99,500 / 12,500 ft | `EramConflictDetector.MciCeilingFeet` / `DefaultMciFloorFeet` | matches |
 | CRDT / SRDT / PCRI code reassignment delays | 60 / 30 / 15 min | `BeaconCodePool.Release` frees a code immediately | low; the cursor rarely reuses a code |
 
 ### Smaller C.8 points
@@ -125,16 +124,6 @@ The C.7 table (Table 31, p.605–623) has no track update rate, data-block caden
 - **SRS**: Table 76 (p.934), the last row, "… / 2116 ACP / RADAR SITE QUU".
 - **YAAT now**: `DispatchLa` (`Readouts.cs:175-180`) accepts only two position operands, and a site ID resolves as a fix.
 - **Fix sketch**: resolve the ID against the ARTCC config's ASR sites (already read at `CrcBroadcastService.cs:2662`).
-
-### ERAM conflict pass runs every second, not every 5 s
-- **Severity**: unverified (the source is the CRC manual; the SRS gives no cadence) · **Owner**: Yaat.Sim
-- **Source**: `docs/crc/eram.md` (Conflict Alert Processing): "ERAM performs a conflict detection pass every 5 seconds".
-- **YAAT now**: `SimulationEngine.Tick.cs:737-742` runs the pass every sim-second.
-
-### Immediate alerts for IFR/Mode-C-intruder pairs
-- **Severity**: unverified (the table is garbled in the text extraction) · **Owner**: Yaat.Sim
-- **SRS**: §H.1 (p.953–954): "Immediate alerts are not reported for IFR/MCI pairs."
-- **YAAT now**: `EramConflictDetector.cs:77-90` has one test for all alerts, and the Mode-C-intruder path in `SimulationEngine.Tick.cs` alerts even when the pair is already inside minima.
 
 ### Dwell lock, leader offset and DRI halo are per aircraft, not per sector, and the dwell lock is not recorded
 - **Severity**: gap (matters only when two ERAM CRC sessions share a room) · **Owner**: yaat-server + Yaat.Sim · unverified

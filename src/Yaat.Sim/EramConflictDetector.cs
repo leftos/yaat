@@ -29,7 +29,23 @@ public static class EramConflictDetector
     private const double ClearLateralMarginNm = 0.3;
     private const double ClearVerticalFt = 1100.0;
 
+    /// <summary>The Mode-C-intruder alert floor when the ARTCC configures none (a configured floor of 0).</summary>
+    public const int DefaultMciFloorFeet = 12500;
+
+    /// <summary>The highest altitude at which an uncorrelated Mode-C target is a Mode-C intruder.</summary>
+    public const int MciCeilingFeet = 99500;
+
     public record ConflictPair(string CallsignA, string CallsignB, string Id);
+
+    /// <summary>The ARTCC's configured conflict-alert floor, or <see cref="DefaultMciFloorFeet"/> when it configures none (0).</summary>
+    public static int ResolveMciFloorFeet(int configuredFloorFeet) => configuredFloorFeet != 0 ? configuredFloorFeet : DefaultMciFloorFeet;
+
+    /// <summary>
+    /// Whether an uncorrelated Mode-C target at <paramref name="altitudeFeet"/> is a Mode-C intruder: at or above the
+    /// resolved floor (<see cref="ResolveMciFloorFeet"/>) and at or below <see cref="MciCeilingFeet"/>.
+    /// </summary>
+    public static bool IsMciAltitudeEligible(double altitudeFeet, int configuredFloorFeet) =>
+        (altitudeFeet >= ResolveMciFloorFeet(configuredFloorFeet)) && (altitudeFeet <= MciCeilingFeet);
 
     /// <summary>
     /// Detect ERAM STCA pairs. <paramref name="existingConflictIds"/> holds the ids currently latched (the

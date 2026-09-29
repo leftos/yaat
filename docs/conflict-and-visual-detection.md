@@ -126,7 +126,9 @@ The en-route (Center) Short-Term Conflict Alert. A **separate detector and confl
 above — same "two associated tracks losing separation" theme, but tuned to ERAM's model (docs/crc/eram.md §377-383)
 rather than STARS's. Shares the eligibility gate (`ConflictAlertDetector.IsEligible` — airborne, Mode C, not
 CA-inhibited, supported). Output is `SimulationEngine.EramConflicts` (`EramConflictState`, keyed by `ESTCA_{a}_{b}`),
-maintained by `TickProcessor.ProcessEramConflictAlerts` and published on the `EramShortTermConflicts` topic.
+maintained by `SimulationEngine.TickEramConflictAlerts` and published on the `EramShortTermConflicts` topic.
+
+**Cadence.** Detection, classification and clearing run once every `SimulationEngine.EramConflictPassSeconds` (5) of scenario time, on `(int)ElapsedSeconds % 5 == 0` (CRC manual: "a conflict detection pass every 5 seconds"); the clock is snapshotted, so a restore keeps the phase. A `CO` suppress or restore is still reported the same second. Removing an aircraft (delete, auto-delete, live-traffic removal, replay) goes through `SimulationEngine.RemoveFromWorld`, which drops its alerts at once on every run kind and holds their ids for the host's delete broadcast (`EramConflictState.TakeRemovedWith`).
 
 **Pair policy** (`ConflictAlertDetector.IsPairEligible`, used by both detectors after the per-aircraft gate): live-traffic shadows never pair with each other and pair with a simulated aircraft only when IFR, not coasting, and outside the approach corridors — see [live-traffic.md](live-traffic.md).
 
@@ -168,12 +170,11 @@ owning facility until the conflict re-forms; the FDB path (per-tick) is unaffect
 
 ### Controlled-vs-uncontrolled (Mode-C intruder → CDB)
 
-The detector pairs any two eligible targets regardless of tracking, so `ProcessEramConflictAlerts` classifies each
-pair by ownership/correlation to fill `EramActiveConflict.IntruderCallsign`:
+The detector pairs any two eligible targets regardless of tracking, so `TickEramConflictAlerts` (`ClassifyEramPair`) classifies each pair by ownership/correlation to fill `EramActiveConflict.IntruderCallsign`. A side is correlated when it has a filed flight plan and a code other than 1200, so an untracked 1200 is a Mode-C intruder like any uncorrelated beacon. An intruder alerts only inside the MCI band: the tracked side's ERAM facility `ConflictAlertFloor` (12,500 ft when 0) to 99,500 ft, inclusive; one that leaves the band clears at the next pass. An intruder already inside minima when first detected alerts like any current conflict (SRS H.1 exempts IFR/MCI pairs only from *immediate* alerts, which skip the altitude filter).
 
 - **Both untracked** (`Track.Owner == null` on both) → dropped: a conflict alert protects a *controlled* aircraft
   (7110.65 §2-1-6, §5-13-1) and the §377 gate has no owned target to attach to.
-- **One side untracked *and* uncorrelated** (no owner **and** `FlightPlan.HasFlightPlan == false`) → that side is the
+- **One side untracked *and* uncorrelated** (no owner, and no filed flight plan or a 1200 code) → that side is the
   **Mode-C intruder**. The tracked side's FDB status becomes `ControlledUncontrolled` (flashes) and the intruder's
   data-block `Format` becomes `Cdb` — a callsign-less `TFC`+beacon block (docs/crc/eram.md §844-852), *replacing* its
   limited data block rather than adding a second one.

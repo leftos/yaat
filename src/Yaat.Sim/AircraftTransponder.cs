@@ -35,6 +35,9 @@ public class AircraftTransponder
         }
     }
 
+    /// <summary>The non-discrete universal VFR code 1200 (AIM §4-1-20): it never correlates and never alerts as an intruder.</summary>
+    public bool IsVfrCode => Code == 1200;
+
     public bool IsIdenting { get; set; }
     public double? IdentStartedAt { get; set; }
 

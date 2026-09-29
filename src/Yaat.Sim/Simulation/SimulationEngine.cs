@@ -259,9 +259,10 @@ public sealed partial class SimulationEngine
     /// <summary>
     /// Takes an aircraft out of the world on a controller's or a host's decision: stamps
     /// <see cref="CompletionReason.Dropped"/> on a still-active one so <see cref="SimulationWorld.RemoveAircraft"/>
-    /// records a debrief row instead of a silent vanish, clears a still-queued delayed spawn, and removes it. Every
-    /// such path funnels here — the router's <c>DEL</c> and <c>UNASSUME</c> arms and the server's live-traffic seek —
-    /// so they cannot drift. Landed / HandedOff / Transited stamps are preserved.
+    /// records a debrief row instead of a silent vanish, clears a still-queued delayed spawn, and removes it through
+    /// <see cref="RemoveFromWorld"/>. Every controller or host removal funnels here — the router's <c>DEL</c> and
+    /// <c>UNASSUME</c> arms and the server's live-traffic seek — so they cannot drift; every engine removal, these and the
+    /// automatic ones, funnels through <see cref="RemoveFromWorld"/>. Landed / HandedOff / Transited stamps are preserved.
     /// </summary>
     /// <param name="completionDetail">
     /// What the debrief row says removed the aircraft: <c>DEL</c> for a delete, <c>UNASSUME</c> for one handed back to
@@ -284,6 +285,17 @@ public sealed partial class SimulationEngine
             RegisterDisconnectCoast(ac);
         }
 
+        RemoveFromWorld(callsign);
+    }
+
+    /// <summary>
+    /// Takes an aircraft out of the world together with the ERAM conflict alerts that involve it
+    /// (<see cref="EramConflictState.RemoveInvolving"/>), so an alert never outlives either of its aircraft on any run
+    /// kind. Every engine path that removes an aircraft funnels here.
+    /// </summary>
+    public void RemoveFromWorld(string callsign)
+    {
         World.RemoveAircraft(callsign);
+        EramConflicts.RemoveInvolving(callsign);
     }
 }

@@ -95,7 +95,7 @@ public sealed partial class SimulationEngine
                 derived.Callsign,
                 recorded.Callsign
             );
-            World.RemoveAircraft(derived.Callsign);
+            RemoveFromWorld(derived.Callsign);
             BeaconCodePool.Release(derived.Transponder.AssignedCode);
         }
 

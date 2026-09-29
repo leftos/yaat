@@ -217,7 +217,7 @@ public sealed partial class SimulationEngine
         }
 
         RegisterDisconnectCoast(ac);
-        World.RemoveAircraft(callsign);
+        RemoveFromWorld(callsign);
         TrackShadowBeacon(ac.Transponder.Code, 0);
         RecordAction(new RecordedLiveTrafficRemoval(Scenario?.ElapsedSeconds ?? 0, callsign, reason));
         return true;
@@ -464,7 +464,7 @@ public sealed partial class SimulationEngine
         if (ac is { IsShadow: true })
         {
             RegisterDisconnectCoast(ac);
-            World.RemoveAircraft(recorded.Callsign);
+            RemoveFromWorld(recorded.Callsign);
             TrackShadowBeacon(ac.Transponder.Code, 0);
         }
 

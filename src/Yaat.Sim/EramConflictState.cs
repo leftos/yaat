@@ -16,6 +16,54 @@ public sealed class EramConflictState
     /// </summary>
     public EramActiveConflict? FindPair(string callsignA, string callsignB) =>
         Conflicts.GetValueOrDefault(EramConflictDetector.MakeConflictId(callsignA, callsignB));
+
+    // Alert ids removed with an aircraft, keyed by its callsign, until the host's delete broadcast takes them.
+    private readonly Dictionary<string, List<string>> _removedWithAircraft = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Removes every alert involving <paramref name="callsign"/>, an aircraft that has just left the world, and holds
+    /// their ids for <see cref="TakeRemovedWith"/>. Runs on every run kind, so live, replay and playback drop the same
+    /// alerts in the same second.
+    /// </summary>
+    public void RemoveInvolving(string callsign)
+    {
+        var ids = Conflicts
+            .Values.Where(c =>
+                c.CallsignA.Equals(callsign, StringComparison.OrdinalIgnoreCase) || c.CallsignB.Equals(callsign, StringComparison.OrdinalIgnoreCase)
+            )
+            .Select(c => c.Id)
+            .ToList();
+        if (ids.Count == 0)
+        {
+            return;
+        }
+
+        foreach (string id in ids)
+        {
+            Conflicts.Remove(id);
+        }
+
+        if (_removedWithAircraft.TryGetValue(callsign, out List<string>? pending))
+        {
+            pending.AddRange(ids);
+        }
+        else
+        {
+            _removedWithAircraft[callsign] = ids;
+        }
+    }
+
+    /// <summary>
+    /// The ids <see cref="RemoveInvolving"/> removed with <paramref name="callsign"/> since the last call, handed to the
+    /// host once so it can delete them from its displays; empty when there are none.
+    /// </summary>
+    public List<string> TakeRemovedWith(string callsign) => _removedWithAircraft.Remove(callsign, out List<string>? ids) ? ids : [];
+
+    /// <summary>
+    /// Drops every id <see cref="RemoveInvolving"/> is holding, when the engine state is replaced (a snapshot restore, a
+    /// scenario unload), so an id from the discarded state never reaches a later broadcast.
+    /// </summary>
+    public void ClearRemovedWithAircraft() => _removedWithAircraft.Clear();
 }
 
 /// <summary>

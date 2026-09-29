@@ -278,4 +278,16 @@ public class EramConflictDetectorTests
 
         Assert.False(Detected(a, b));
     }
+
+    // ── Mode-C-intruder altitude band ────────────────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(12499, 0, false)]
+    [InlineData(12500, 0, true)]
+    [InlineData(17999, 18000, false)]
+    [InlineData(18000, 18000, true)]
+    [InlineData(99500, 0, true)]
+    [InlineData(99501, 0, false)]
+    public void IsMciAltitudeEligible_FloorAndCeilingInclusive(double altitudeFeet, int configuredFloorFeet, bool expected) =>
+        Assert.Equal(expected, EramConflictDetector.IsMciAltitudeEligible(altitudeFeet, configuredFloorFeet));
 }

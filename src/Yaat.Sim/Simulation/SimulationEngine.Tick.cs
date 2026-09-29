@@ -732,87 +732,154 @@ public sealed partial class SimulationEngine
         return (suppressed, restored);
     }
 
+    /// <summary>Seconds between ERAM conflict-alert passes; a pass runs when the scenario clock is a multiple of it.</summary>
+    public const int EramConflictPassSeconds = 5;
+
     /// <summary>
-    /// Per-second ERAM Short-Term Conflict Alert pass (docs/crc/eram.md §377-383) — the en-route sibling of
-    /// <see cref="TickConflictAlerts"/>. Runs <see cref="EramConflictDetector"/>, refreshes each pair's
-    /// owning ERAM facilities and Mode-C-intruder classification, updates the engine-owned
-    /// <see cref="EramConflicts"/> set, and returns the pairs that opened and closed this tick for the host
-    /// to consume. A spine step, like <see cref="TickConflictAlerts"/>.
+    /// ERAM Short-Term Conflict Alert pass (docs/crc/eram.md §377-383) — the en-route sibling of
+    /// <see cref="TickConflictAlerts"/>. Every <see cref="EramConflictPassSeconds"/> seconds of scenario time it runs
+    /// <see cref="EramConflictDetector"/>, classifies each pair (<see cref="ClassifyEramPair"/>), updates the
+    /// engine-owned <see cref="EramConflicts"/> set, and returns the pairs that opened and closed. Every second, pass or
+    /// not, it reports the <c>CO</c> suppressions and restores. A spine step, like <see cref="TickConflictAlerts"/>.
     /// </summary>
     public EramConflictAlertChanges TickEramConflictAlerts()
     {
-        List<AircraftState> snapshot = World.GetSnapshot();
         Dictionary<string, EramActiveConflict> conflicts = EramConflicts.Conflicts;
+        if (((int)(Scenario?.ElapsedSeconds ?? 0) % EramConflictPassSeconds) != 0)
+        {
+            (List<string> offPassSuppressed, List<EramActiveConflict> offPassRestored) = TakeEramSuppressionChanges(conflicts);
+            return new EramConflictAlertChanges([], [], offPassSuppressed, offPassRestored);
+        }
+
+        List<AircraftState> snapshot = World.GetSnapshot();
         var existingIds = new HashSet<string>(conflicts.Keys);
 
         List<EramConflictDetector.ConflictPair> detected = EramConflictDetector.Detect(snapshot, existingIds);
         var detectedIds = new HashSet<string>(detected.Select(c => c.Id));
-
-        var ownerFacility = new Dictionary<string, string?>(snapshot.Count);
-        var isTracked = new Dictionary<string, bool>(snapshot.Count);
-        var isCorrelated = new Dictionary<string, bool>(snapshot.Count);
-        foreach (AircraftState ac in snapshot)
-        {
-            ownerFacility[ac.Callsign] = ac.Track.Owner is { OwnerType: TrackOwnerType.Eram, FacilityId: { } facility } ? facility : null;
-            isTracked[ac.Callsign] = ac.Track.Owner is not null;
-            isCorrelated[ac.Callsign] = ac.FlightPlan.HasFlightPlan;
-        }
+        Dictionary<string, EramPairSide> sides = IndexEramPairSides(snapshot);
 
         var newConflicts = new List<EramActiveConflict>();
         foreach (EramConflictDetector.ConflictPair pair in detected)
         {
-            ownerFacility.TryGetValue(pair.CallsignA, out string? facilityA);
-            ownerFacility.TryGetValue(pair.CallsignB, out string? facilityB);
-            isTracked.TryGetValue(pair.CallsignA, out bool trackedA);
-            isTracked.TryGetValue(pair.CallsignB, out bool trackedB);
-            isCorrelated.TryGetValue(pair.CallsignA, out bool correlatedA);
-            isCorrelated.TryGetValue(pair.CallsignB, out bool correlatedB);
-
-            // A conflict alert protects a controlled aircraft (7110.65 §2-1-6, §5-13-1), and the §377 facility
-            // gate needs a target owned in some ERAM facility — so two untracked returns are not an alert.
-            if (!trackedA && !trackedB)
+            EramPairSide a = sides[pair.CallsignA];
+            EramPairSide b = sides[pair.CallsignB];
+            (bool keep, string? intruder) = ClassifyEramPair(pair, a, b);
+            if (!keep)
             {
                 detectedIds.Remove(pair.Id);
                 continue;
             }
 
-            // The Mode-C intruder (CDB, "TFC"+beacon — an uncorrelated presentation, eram.md §844-852) is a
-            // target that is BOTH untracked AND uncorrelated (no flight plan). A correlated-but-unowned target
-            // (a filed flight plan that no controller has tracked yet) is NOT an intruder — it flashes an
-            // ordinary data block as a normal conflict alert. At most one side is untracked here.
-            string? intruder =
-                (!trackedA && !correlatedA) ? pair.CallsignA
-                : (!trackedB && !correlatedB) ? pair.CallsignB
-                : null;
-
-            if (conflicts.TryGetValue(pair.Id, out EramActiveConflict? existing))
+            if (UpsertEramConflict(pair, a, b, intruder) is { } opened)
             {
-                existing.OwnerFacilityA = facilityA;
-                existing.OwnerFacilityB = facilityB;
-                existing.IntruderCallsign = intruder;
-                continue;
+                newConflicts.Add(opened);
             }
-
-            var conflict = new EramActiveConflict
-            {
-                Id = pair.Id,
-                CallsignA = pair.CallsignA,
-                CallsignB = pair.CallsignB,
-                OwnerFacilityA = facilityA,
-                OwnerFacilityB = facilityB,
-                IntruderCallsign = intruder,
-            };
-            conflicts[pair.Id] = conflict;
-            newConflicts.Add(conflict);
-
-            _logger.LogWarning(
-                "ERAM STCA detected: {CallsignA} <-> {CallsignB} at t={T}s",
-                pair.CallsignA,
-                pair.CallsignB,
-                Scenario?.ElapsedSeconds ?? 0
-            );
         }
 
+        List<string> clearedIds = ClearUndetectedEramConflicts(existingIds, detectedIds, conflicts);
+        (List<string> suppressedIds, List<EramActiveConflict> restored) = TakeEramSuppressionChanges(conflicts);
+        return new EramConflictAlertChanges(newConflicts, clearedIds, suppressedIds, restored);
+    }
+
+    /// <summary>One aircraft's side of an ERAM pair: its ERAM owner facility, whether it is tracked, and whether it is correlated.</summary>
+    private readonly record struct EramPairSide(AircraftState Aircraft, string? Facility, bool Tracked, bool Correlated);
+
+    /// <summary>
+    /// Indexes the snapshot by callsign for pair classification. Correlation is a filed flight plan with a discrete
+    /// beacon: the non-discrete VFR code 1200 never correlates (AIM §4-1-20), the same rule the ERAM target symbol uses.
+    /// </summary>
+    private static Dictionary<string, EramPairSide> IndexEramPairSides(List<AircraftState> snapshot)
+    {
+        var sides = new Dictionary<string, EramPairSide>(snapshot.Count);
+        foreach (AircraftState ac in snapshot)
+        {
+            string? facility = ac.Track.Owner is { OwnerType: TrackOwnerType.Eram, FacilityId: { } id } ? id : null;
+            bool correlated = ac.FlightPlan.HasFlightPlan && !ac.Transponder.IsVfrCode;
+            sides[ac.Callsign] = new EramPairSide(ac, facility, ac.Track.Owner is not null, correlated);
+        }
+
+        return sides;
+    }
+
+    /// <summary>
+    /// Whether a detected pair alerts, and its Mode-C intruder. Two untracked returns never alert: a conflict alert
+    /// protects a controlled aircraft (7110.65 §2-1-6, §5-13-1) and the §377 facility gate needs a target owned in some
+    /// ERAM facility. The Mode-C intruder (CDB, "TFC"+beacon, eram.md §844-852) is the side that is both untracked and
+    /// uncorrelated; a correlated-but-unowned target is not one and flashes an ordinary data block. A pair with an
+    /// intruder alerts only while the intruder is inside the MCI altitude band of the tracked side's facility
+    /// (<see cref="EramConflictDetector.IsMciAltitudeEligible"/>), so an intruder that leaves the band clears the alert.
+    /// </summary>
+    private (bool Keep, string? Intruder) ClassifyEramPair(EramConflictDetector.ConflictPair pair, EramPairSide a, EramPairSide b)
+    {
+        if (!a.Tracked && !b.Tracked)
+        {
+            return (false, null);
+        }
+
+        string? intruder = PickEramIntruder(pair, a, b);
+        if (intruder is null)
+        {
+            return (true, null);
+        }
+
+        (EramPairSide intruderSide, EramPairSide trackedSide) = intruder == pair.CallsignA ? (a, b) : (b, a);
+        int floorFeet = EramConflictAlertFloorFeet(trackedSide.Facility);
+        return (EramConflictDetector.IsMciAltitudeEligible(intruderSide.Aircraft.Altitude, floorFeet), intruder);
+    }
+
+    /// <summary>The callsign of the pair's side that is both untracked and uncorrelated, or null when neither is.</summary>
+    private static string? PickEramIntruder(EramConflictDetector.ConflictPair pair, EramPairSide a, EramPairSide b)
+    {
+        if (!a.Tracked && !a.Correlated)
+        {
+            return pair.CallsignA;
+        }
+
+        return (!b.Tracked && !b.Correlated) ? pair.CallsignB : null;
+    }
+
+    /// <summary>
+    /// Refreshes the owner facilities and intruder of the pair's active alert, or opens a new alert and returns it. Null
+    /// when the alert already existed.
+    /// </summary>
+    private EramActiveConflict? UpsertEramConflict(EramConflictDetector.ConflictPair pair, EramPairSide a, EramPairSide b, string? intruder)
+    {
+        Dictionary<string, EramActiveConflict> conflicts = EramConflicts.Conflicts;
+        if (conflicts.TryGetValue(pair.Id, out EramActiveConflict? existing))
+        {
+            existing.OwnerFacilityA = a.Facility;
+            existing.OwnerFacilityB = b.Facility;
+            existing.IntruderCallsign = intruder;
+            return null;
+        }
+
+        var conflict = new EramActiveConflict
+        {
+            Id = pair.Id,
+            CallsignA = pair.CallsignA,
+            CallsignB = pair.CallsignB,
+            OwnerFacilityA = a.Facility,
+            OwnerFacilityB = b.Facility,
+            IntruderCallsign = intruder,
+        };
+        conflicts[pair.Id] = conflict;
+
+        _logger.LogWarning(
+            "ERAM STCA detected: {CallsignA} <-> {CallsignB} at t={T}s",
+            pair.CallsignA,
+            pair.CallsignB,
+            Scenario?.ElapsedSeconds ?? 0
+        );
+        return conflict;
+    }
+
+    /// <summary>Removes every alert that was active before this pass and is no longer detected, and returns their ids.</summary>
+    private static List<string> ClearUndetectedEramConflicts(
+        HashSet<string> existingIds,
+        HashSet<string> detectedIds,
+        Dictionary<string, EramActiveConflict> conflicts
+    )
+    {
         var clearedIds = new List<string>();
         foreach (string id in existingIds)
         {
@@ -823,8 +890,18 @@ public sealed partial class SimulationEngine
             }
         }
 
-        (List<string> suppressedIds, List<EramActiveConflict> restored) = TakeEramSuppressionChanges(conflicts);
-        return new EramConflictAlertChanges(newConflicts, clearedIds, suppressedIds, restored);
+        return clearedIds;
+    }
+
+    /// <summary>The configured <c>ConflictAlertFloor</c> of an ERAM facility in the scenario's ARTCC config, or 0 when none is known.</summary>
+    private int EramConflictAlertFloorFeet(string? facilityId)
+    {
+        if ((facilityId is null) || (Scenario?.ArtccConfig is not { } config))
+        {
+            return 0;
+        }
+
+        return config.FindFacility(facilityId)?.EramConfiguration?.ConflictAlertFloor ?? 0;
     }
 
     /// <summary>
@@ -961,7 +1038,7 @@ public sealed partial class SimulationEngine
             }
 
             RegisterDisconnectCoast(ac);
-            World.RemoveAircraft(ac.Callsign);
+            RemoveFromWorld(ac.Callsign);
             _logger.LogInformation(
                 "Auto-deleted {Callsign} (mode={Mode}) in scenario '{Name}' at t={T}s",
                 ac.Callsign,
