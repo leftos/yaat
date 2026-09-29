@@ -10,6 +10,7 @@
 ### Fixed
 
 - A CRC message larger than 64 KB is no longer cut short, and CRC gets an answer when it unsubscribes or a command fails on the server.
+- The aircraft list and the Flight Plan Editor show a Mach or classified cruise speed (`M078`, `SC`) instead of nothing.
 - FOLLOW behind a lead that has no runway yet trails it nose-on, S-turns for spacing when too close, joins the lead's base where it began, and from a pattern leg climbs to pattern altitude and rejoins its own pattern if the lead is lost.
 - A follower that cannot build spacing extends its downwind, says it is unable to follow and asks for a base turn.
 - FOLLOW is refused, with the pilot's reason, from base or final, behind a lead on the ground, or behind a lead bound for another airport.

@@ -23,6 +23,7 @@
       <Setter Property="FontSize" Value="13" />
       <Setter Property="Background" Value="#0D0D0D" />
       <Setter Property="Foreground" Value="#00CCCC" />
+      <Setter Property="PlaceholderForeground" Value="#008B8B" />
       <Setter Property="BorderBrush" Value="#333333" />
       <Setter Property="Padding" Value="4,2" />
       <Setter Property="MinHeight" Value="26" />

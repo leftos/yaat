@@ -550,7 +550,46 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CruiseDisplay))]
     [NotifyPropertyChangedFor(nameof(FlightPlanDisplay))]
+    [NotifyPropertyChangedFor(nameof(FiledSpeedDisplay))]
+    [NotifyPropertyChangedFor(nameof(EditorSpeedText))]
     private int _cruiseSpeed;
+
+    /// <summary>The filed Mach number in hundredths (<c>M078</c> is 78); null when the filed speed is not a Mach number.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CruiseDisplay))]
+    [NotifyPropertyChangedFor(nameof(FlightPlanDisplay))]
+    [NotifyPropertyChangedFor(nameof(FiledSpeedDisplay))]
+    [NotifyPropertyChangedFor(nameof(EditorSpeedPlaceholder))]
+    private int? _cruiseMach;
+
+    /// <summary>Whether the filed speed is classified (<c>SC</c>).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CruiseDisplay))]
+    [NotifyPropertyChangedFor(nameof(FlightPlanDisplay))]
+    [NotifyPropertyChangedFor(nameof(FiledSpeedDisplay))]
+    [NotifyPropertyChangedFor(nameof(EditorSpeedPlaceholder))]
+    private bool _isSpeedClassified;
+
+    /// <summary>The filed cruise speed as ERAM writes it (<c>SC</c>, <c>M078</c>, the knots), empty when none is filed.</summary>
+    public string FiledSpeedDisplay => AircraftFlightPlan.FormatSpeedField(CruiseSpeed, CruiseMach, IsSpeedClassified);
+
+    private bool IsFiledSpeedMachOrClassified => (CruiseMach is not null) || IsSpeedClassified;
+
+    /// <summary>The flight-plan editor's SPD box text: the knots, or empty (a Mach or classified speed is not editable there).</summary>
+    public string EditorSpeedText => CruiseSpeed > 0 ? CruiseSpeed.ToString() : "";
+
+    /// <summary>The read-only Mach or classified speed the editor's SPD box shows while empty; null for a knots speed or none.</summary>
+    public string? EditorSpeedPlaceholder => IsFiledSpeedMachOrClassified ? FiledSpeedDisplay : null;
+
+    /// <summary>The filed speed with its unit for the flight-plan summaries: knots carry <paramref name="knotsSuffix"/>.</summary>
+    private string FiledSpeedWithUnit(string knotsSuffix)
+    {
+        if (IsFiledSpeedMachOrClassified)
+        {
+            return FiledSpeedDisplay;
+        }
+        return CruiseSpeed > 0 ? $"{FiledSpeedDisplay}{knotsSuffix}" : "";
+    }
 
     public bool HasPhases => !string.IsNullOrEmpty(PhaseSequence);
 
@@ -661,7 +700,8 @@ public partial class AircraftModel : ObservableObject
             if (CruiseAltitude > 0)
             {
                 string altStr = CruiseAltitude >= 18000 ? $"FL{CruiseAltitude / 100}" : $"{CruiseAltitude}";
-                parts.Add(CruiseSpeed > 0 ? $"{altStr}/{CruiseSpeed}kt" : altStr);
+                string speed = FiledSpeedWithUnit("kt");
+                parts.Add(speed.Length > 0 ? $"{altStr}/{speed}" : altStr);
             }
 
             if (!string.IsNullOrEmpty(ActiveSidId))
@@ -720,11 +760,8 @@ public partial class AircraftModel : ObservableObject
 
             string altStr = CruiseAltitude >= 18000 ? $"FL{CruiseAltitude / 100}" : $"{CruiseAltitude}";
 
-            if (CruiseSpeed > 0)
-            {
-                return $"{altStr} / {CruiseSpeed} kt";
-            }
-            return altStr;
+            string speed = FiledSpeedWithUnit(" kt");
+            return speed.Length > 0 ? $"{altStr} / {speed}" : altStr;
         }
     }
 
@@ -1138,6 +1175,8 @@ public partial class AircraftModel : ObservableObject
             AltitudeFix = dto.AltitudeFix,
             AltitudeAfterFixFeet = dto.AltitudeAfterFixFeet,
             CruiseSpeed = dto.CruiseSpeed,
+            CruiseMach = dto.CruiseMach,
+            IsSpeedClassified = dto.IsSpeedClassified,
             TaxiRoute = dto.TaxiRoute,
             HasActiveTaxiRoute = dto.HasActiveTaxiRoute,
             TaxiDestination = dto.TaxiDestination,
@@ -1259,6 +1298,8 @@ public partial class AircraftModel : ObservableObject
         AltitudeFix = dto.AltitudeFix;
         AltitudeAfterFixFeet = dto.AltitudeAfterFixFeet;
         CruiseSpeed = dto.CruiseSpeed;
+        CruiseMach = dto.CruiseMach;
+        IsSpeedClassified = dto.IsSpeedClassified;
         TaxiRoute = dto.TaxiRoute;
         HasActiveTaxiRoute = dto.HasActiveTaxiRoute;
         TaxiDestination = dto.TaxiDestination;

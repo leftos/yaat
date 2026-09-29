@@ -1122,6 +1122,9 @@ public record AircraftDto(
     string EquipmentSuffix = "",
     int CruiseAltitude = 0,
     int CruiseSpeed = 0,
+    // A filed Mach number in hundredths (M078 is 78) or a classified speed (SC); CruiseSpeed is 0 while either is filed.
+    int? CruiseMach = null,
+    bool IsSpeedClassified = false,
     string TaxiRoute = "",
     string ParkingSpot = "",
     string CurrentTaxiway = "",

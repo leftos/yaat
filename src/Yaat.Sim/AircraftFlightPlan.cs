@@ -227,6 +227,28 @@ public class AircraftFlightPlan
     }
 
     /// <summary>
+    /// Writes a filed cruise speed the way ERAM writes field 05 (AM SPD): <c>SC</c> for a classified speed (which wins over
+    /// a Mach number), <c>Mddd</c> for a Mach number in hundredths (<c>M078</c>), the true airspeed in knots, or an empty
+    /// string when none is filed.
+    /// </summary>
+    /// <param name="knots">The filed true airspeed in knots; 0 when none is filed.</param>
+    /// <param name="mach">The filed Mach number in hundredths, or null.</param>
+    /// <param name="classified">Whether the filed speed is classified.</param>
+    /// <returns><c>SC</c>, <c>Mddd</c>, the knots, or an empty string.</returns>
+    public static string FormatSpeedField(int knots, int? mach, bool classified)
+    {
+        if (classified)
+        {
+            return "SC";
+        }
+        if (mach is { } hundredths)
+        {
+            return $"M{hundredths:D3}";
+        }
+        return knots > 0 ? $"{knots}" : "";
+    }
+
+    /// <summary>
     /// ERAM field 09, the requested altitude (the altitude the pilot asked for, distinct from the filed
     /// <see cref="Altitude"/>), entered with <c>AM &lt;FLID&gt; RAL &lt;alt&gt;</c>. Null when never entered.
     /// Display data only: nothing in the simulation reads it.

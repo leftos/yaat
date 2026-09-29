@@ -132,6 +132,50 @@ public class FlightPlanEditorAmendmentBuilderTests
         Assert.Equal(0, amendment.CruiseSpeed);
     }
 
+    [Theory]
+    [InlineData(78, false)]
+    [InlineData(null, true)]
+    public void UntouchedSpeedBox_OverAMachOrClassifiedPlan_SendsZero_WhichKeepsTheFiledSpeed(int? cruiseMach, bool isSpeedClassified)
+    {
+        // The server's SetTrueAirspeed(0) leaves a filed Mach or classified speed as it is; any other knots value replaces it.
+        var model = new AircraftModel
+        {
+            CruiseAltitude = 35000,
+            CruiseMach = cruiseMach,
+            IsSpeedClassified = isSpeedClassified,
+        };
+
+        FlightPlanAmendment amendment = BuildWithSpeed(model.EditorSpeedText);
+
+        Assert.Equal(0, amendment.CruiseSpeed);
+    }
+
+    [Fact]
+    public void KnotsTypedOverAMachPlan_SendsTheKnots()
+    {
+        var model = new AircraftModel { CruiseAltitude = 35000, CruiseMach = 78 };
+        Assert.Equal("", model.EditorSpeedText);
+
+        FlightPlanAmendment amendment = BuildWithSpeed("450");
+
+        Assert.Equal(450, amendment.CruiseSpeed);
+    }
+
+    private static FlightPlanAmendment BuildWithSpeed(string spdText) =>
+        FlightPlanEditorAmendmentBuilder.Build(
+            typText: "B738",
+            eqText: "L",
+            icaoEqText: "",
+            depText: "KSFO",
+            destText: "KJFK",
+            spdText: spdText,
+            altText: "350",
+            rteText: "DCT",
+            rmkText: "",
+            strippedRemarksPrefix: "",
+            originalRemarks: ""
+        );
+
     [Fact]
     public void RouteBlank_SendsEmptyRoute()
     {

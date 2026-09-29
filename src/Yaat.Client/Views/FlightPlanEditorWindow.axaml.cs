@@ -85,7 +85,8 @@ public partial class FlightPlanEditorWindow : Window
         _origIcaoEq = aircraft.IcaoEquipmentCodes;
         _origDep = aircraft.Departure;
         _origDest = aircraft.Destination;
-        _origSpd = aircraft.CruiseSpeed > 0 ? aircraft.CruiseSpeed.ToString() : "";
+        _origSpd = aircraft.EditorSpeedText;
+        SpdBox.PlaceholderText = aircraft.EditorSpeedPlaceholder;
         _origAlt = aircraft.CruiseAltitudeDisplay;
         _origRte = aircraft.Route;
         _origRmk = SplitRemarks(aircraft.Remarks, out _strippedRemarksPrefix);
@@ -165,8 +166,11 @@ public partial class FlightPlanEditorWindow : Window
             case nameof(AircraftModel.Destination):
                 RefreshEditableField(DestBox, ref _origDest, _aircraft.Destination);
                 break;
-            case nameof(AircraftModel.CruiseSpeed):
-                RefreshEditableField(SpdBox, ref _origSpd, _aircraft.CruiseSpeed > 0 ? _aircraft.CruiseSpeed.ToString() : "");
+            case nameof(AircraftModel.EditorSpeedText):
+                RefreshEditableField(SpdBox, ref _origSpd, _aircraft.EditorSpeedText);
+                break;
+            case nameof(AircraftModel.EditorSpeedPlaceholder):
+                SpdBox.PlaceholderText = _aircraft.EditorSpeedPlaceholder;
                 break;
             case nameof(AircraftModel.CruiseAltitudeDisplay):
                 RefreshEditableField(AltBox, ref _origAlt, _aircraft.CruiseAltitudeDisplay);
