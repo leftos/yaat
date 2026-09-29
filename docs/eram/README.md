@@ -107,4 +107,4 @@ This matches CRC's own locally handled commands:
 
 - **Success:** CRC's feedback area shows `ACCEPT`, then the descriptor, then the object acted on (usually the aircraft ID).
 - **Failure:** one line, the error text.
-- **Response Area:** only for readouts (`QF`, `FR`, `LA`, `LB`, `LC`, `LD`, `LE`). A command that only changes something never writes there.
+- **Response Area:** only for readouts (`QF`, `FR`, `LA`, `LB`, `LC`, `LD`, `LE`, `RK`). A command that only changes something never writes there.

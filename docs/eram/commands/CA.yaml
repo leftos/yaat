@@ -1,7 +1,120 @@
 id: CA
 variants:
-  - title: Conflict Alert/MCI On-Off
+  - title: Conflict Alert/MCI On-Off — CA function
     descriptor: MCI CA SETTING
-    handler: not implemented
-    na: System adaptation or maintenance; not controller training.
-    fields: []
+    format: CA 36
+    multiple_flids: null
+    handler: CA.CaFunction
+    note: |
+      §C.2 lists no R-position source; YAAT accepts it from CRC, which stands in for the D-position and the AT Specialist.
+      The settings are the room's, per facility, and recorded (CA {CA|MCI} FUNCTION {ON|OFF}, CA {CA|MCI} DISPLAY
+      {sector}… {ON|OFF}); detection is untouched and the settings only filter what each sector's display is shown: the
+      EramShortTermConflicts topic and the data blocks' conflict status. A function off hides every alert of that kind in
+      the facility; a sector's display off hides them from that sector only. Yaat rulings: a bare CA answers MESSAGE TOO
+      SHORT; a sector named twice counts once; ALL records every adapted sector explicitly.
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 36 Action Indicator
+        rule: |
+          Must be "ON" or "OFF".
+        error: MsgCofieIllegalAction
+  - title: Conflict Alert/MCI On-Off — CA display
+    descriptor: MCI CA SETTING
+    format: CA 14 (14) (14) (14) (14) 36
+    multiple_flids: null
+    handler: CA.CaDisplay
+    note: |
+      §C.2 lists no R-position source; YAAT accepts it from CRC, which stands in for the D-position and the AT Specialist.
+      Recorded and applied as the CA function variant's note describes.
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 36 Action Indicator
+        rule: |
+          Must be "ON" or "OFF".
+        error: MsgCofieIllegalAction
+      - field: 14 Sector Identifier
+        rule: |
+          Must be a sector number (d)dd, in the range 01 - 128. "ALL" only with Field 16.
+        error: MsgCofieFormat
+      - field: 14 Sector Identifier
+        rule: |
+          A maximum of 5 Field 14s is permitted, and "ALL" must be the only Field 14.
+        error: MsgMessageTooLong
+      - field: 14 Sector Identifier
+        rule: |
+          Must be an adapted sector.
+        error: MsgNon-AdaptedSector
+      - field: 14 Sector Identifier
+        rule: |
+          Must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: YAAT adapts a sector only through its position, so an adapted sector always has its R-Position.
+  - title: Conflict Alert/MCI On-Off — MCI function
+    descriptor: MCI CA SETTING
+    format: CA 16 36
+    multiple_flids: null
+    handler: CA.MciFunction
+    note: |
+      §C.2 lists no R-position source; YAAT accepts it from CRC, which stands in for the D-position and the AT Specialist.
+      Recorded and applied as the CA function variant's note describes.
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 36 Action Indicator
+        rule: |
+          Must be "ON" or "OFF".
+        error: MsgCofieIllegalAction
+      - field: 16 MCI Indicator
+        rule: |
+          Must be "INT".
+        error: MsgCofieFormat
+  - title: Conflict Alert/MCI On-Off — MCI display
+    descriptor: MCI CA SETTING
+    format: CA 16 14 (14) (14) (14) (14) 36
+    multiple_flids: null
+    handler: CA.MciDisplay
+    note: |
+      §C.2 lists no R-position source; YAAT accepts it from CRC, which stands in for the D-position and the AT Specialist.
+      Recorded and applied as the CA function variant's note describes.
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 36 Action Indicator
+        rule: |
+          Must be "ON" or "OFF".
+        error: MsgCofieIllegalAction
+      - field: 16 MCI Indicator
+        rule: |
+          Must be "INT".
+        error: MsgCofieFormat
+      - field: 14 Sector Identifier
+        rule: |
+          Must be a sector number (d)dd, in the range 01 - 128, or "ALL".
+        error: MsgCofieFormat
+      - field: 14 Sector Identifier
+        rule: |
+          A maximum of 5 Field 14s is permitted, and "ALL" must be the only Field 14.
+        error: MsgMessageTooLong
+      - field: 14 Sector Identifier
+        rule: |
+          Must be an adapted sector.
+        error: MsgNon-AdaptedSector
+      - field: 14 Sector Identifier
+        rule: |
+          Must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: YAAT adapts a sector only through its position, so an adapted sector always has its R-Position.

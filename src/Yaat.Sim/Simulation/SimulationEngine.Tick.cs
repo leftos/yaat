@@ -748,7 +748,7 @@ public sealed partial class SimulationEngine
         if (((int)(Scenario?.ElapsedSeconds ?? 0) % EramConflictPassSeconds) != 0)
         {
             (List<string> offPassSuppressed, List<EramActiveConflict> offPassRestored) = TakeEramSuppressionChanges(conflicts);
-            return new EramConflictAlertChanges([], [], offPassSuppressed, offPassRestored);
+            return new EramConflictAlertChanges([], [], offPassSuppressed, offPassRestored, []);
         }
 
         List<AircraftState> snapshot = World.GetSnapshot();
@@ -759,6 +759,7 @@ public sealed partial class SimulationEngine
         Dictionary<string, EramPairSide> sides = IndexEramPairSides(snapshot);
 
         var newConflicts = new List<EramActiveConflict>();
+        var reclassified = new List<EramActiveConflict>();
         foreach (EramConflictDetector.ConflictPair pair in detected)
         {
             EramPairSide a = sides[pair.CallsignA];
@@ -770,15 +771,20 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
-            if (UpsertEramConflict(pair, a, b, intruder) is { } opened)
+            (EramActiveConflict conflict, EramUpsert upsert) = UpsertEramConflict(pair, a, b, intruder);
+            if (upsert == EramUpsert.Opened)
             {
-                newConflicts.Add(opened);
+                newConflicts.Add(conflict);
+            }
+            else if (upsert == EramUpsert.Reclassified)
+            {
+                reclassified.Add(conflict);
             }
         }
 
         List<string> clearedIds = ClearUndetectedEramConflicts(existingIds, detectedIds, conflicts);
         (List<string> suppressedIds, List<EramActiveConflict> restored) = TakeEramSuppressionChanges(conflicts);
-        return new EramConflictAlertChanges(newConflicts, clearedIds, suppressedIds, restored);
+        return new EramConflictAlertChanges(newConflicts, clearedIds, suppressedIds, restored, reclassified);
     }
 
     /// <summary>One aircraft's side of an ERAM pair: its ERAM owner facility, whether it is tracked, and whether it is correlated.</summary>
@@ -838,19 +844,38 @@ public sealed partial class SimulationEngine
         return (!b.Tracked && !b.Correlated) ? pair.CallsignB : null;
     }
 
+    /// <summary>What <see cref="UpsertEramConflict"/> did to the pair's alert.</summary>
+    private enum EramUpsert
+    {
+        /// <summary>A new alert opened.</summary>
+        Opened,
+
+        /// <summary>The standing alert was refreshed and is still the same kind (conventional or MCI).</summary>
+        Refreshed,
+
+        /// <summary>The standing alert was refreshed and its Mode C Intruder status flipped.</summary>
+        Reclassified,
+    }
+
     /// <summary>
-    /// Refreshes the owner facilities and intruder of the pair's active alert, or opens a new alert and returns it. Null
-    /// when the alert already existed.
+    /// Refreshes the owner facilities and intruder of the pair's active alert, or opens a new alert, and returns the alert
+    /// and which of the two happened — a refresh that gained or lost the intruder is <see cref="EramUpsert.Reclassified"/>.
     /// </summary>
-    private EramActiveConflict? UpsertEramConflict(EramConflictDetector.ConflictPair pair, EramPairSide a, EramPairSide b, string? intruder)
+    private (EramActiveConflict Conflict, EramUpsert Upsert) UpsertEramConflict(
+        EramConflictDetector.ConflictPair pair,
+        EramPairSide a,
+        EramPairSide b,
+        string? intruder
+    )
     {
         Dictionary<string, EramActiveConflict> conflicts = EramConflicts.Conflicts;
         if (conflicts.TryGetValue(pair.Id, out EramActiveConflict? existing))
         {
+            bool wasMci = existing.IntruderCallsign is not null;
             existing.OwnerFacilityA = a.Facility;
             existing.OwnerFacilityB = b.Facility;
             existing.IntruderCallsign = intruder;
-            return null;
+            return (existing, wasMci == (intruder is not null) ? EramUpsert.Refreshed : EramUpsert.Reclassified);
         }
 
         var conflict = new EramActiveConflict
@@ -870,7 +895,7 @@ public sealed partial class SimulationEngine
             pair.CallsignB,
             Scenario?.ElapsedSeconds ?? 0
         );
-        return conflict;
+        return (conflict, EramUpsert.Opened);
     }
 
     /// <summary>Removes every alert that was active before this pass and is no longer detected, and returns their ids.</summary>

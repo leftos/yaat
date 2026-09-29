@@ -1,6 +1,71 @@
 id: RK
 variants:
-  - title: Conflict Alert Status Request
+  - title: Conflict Alert Status Request — CA
     descriptor: REQ CA STATUS
-    handler: not implemented
-    fields: []
+    format: RK (14) (14) (14) (14) (14)
+    multiple_flids: null
+    handler: RK.CaStatus
+    note: |
+      §C.2 lists no R-position source; YAAT accepts it from CRC, which stands in for the D-position and the AT Specialist.
+      A Response Area readout of the facility's CA settings (the CA entry), one item per line: "CA FUNCTION ON|OFF", then
+      with no sector named "CA DISPLAY OFF" and every sector whose display is off, ascending by number, or "NONE"; with
+      sectors named, "44 CA ON|OFF" for each, in the order typed. The layout is coined (yaat ruling): the B-level Display
+      Conflict Alert Status Report is not in the SRS volume.
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 14 Sector Identifier
+        rule: |
+          Must be a sector number (d)dd, in the range 01 - 128.
+        error: MsgCofieFormat
+      - field: 14 Sector Identifier
+        rule: |
+          A maximum of 5 Field 14s is permitted.
+        error: MsgMessageTooLong
+      - field: 14 Sector Identifier
+        rule: |
+          Must be an adapted sector.
+        error: MsgNon-AdaptedSector
+      - field: 14 Sector Identifier
+        rule: |
+          Must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: YAAT adapts a sector only through its position, so an adapted sector always has its R-Position.
+  - title: Conflict Alert Status Request — MCI
+    descriptor: REQ CA STATUS
+    format: RK 16 (14) (14) (14) (14) (14)
+    multiple_flids: null
+    handler: RK.MciStatus
+    note: |
+      §C.2 lists no R-position source; YAAT accepts it from CRC, which stands in for the D-position and the AT Specialist.
+      The CA readout with "MCI" for "CA": "MCI FUNCTION ON|OFF", "MCI DISPLAY OFF …" or "44 MCI ON|OFF".
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 16 MCI Indicator
+        rule: |
+          Must be "INT".
+        error: MsgCofieFormat
+      - field: 14 Sector Identifier
+        rule: |
+          Must be a sector number (d)dd, in the range 01 - 128.
+        error: MsgCofieFormat
+      - field: 14 Sector Identifier
+        rule: |
+          A maximum of 5 Field 14s is permitted.
+        error: MsgMessageTooLong
+      - field: 14 Sector Identifier
+        rule: |
+          Must be an adapted sector.
+        error: MsgNon-AdaptedSector
+      - field: 14 Sector Identifier
+        rule: |
+          Must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: YAAT adapts a sector only through its position, so an adapted sector always has its R-Position.

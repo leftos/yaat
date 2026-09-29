@@ -60,14 +60,16 @@ public readonly record struct ConflictAlertChanges(
 );
 
 /// <summary>
-/// One ERAM conflict-alert pass's diff: the alerts that opened and the ids that closed, and the alerts a <c>CO</c> entry
-/// suppressed (by id) or restored since the last pass.
+/// One ERAM conflict-alert pass's diff: the alerts that opened and the ids that closed, the alerts a <c>CO</c> entry
+/// suppressed (by id) or restored since the last pass, and the standing alerts whose Mode C Intruder status flipped
+/// (a conventional pair became an MCI pair or back) — a host that filters by that status re-evaluates them.
 /// </summary>
 public readonly record struct EramConflictAlertChanges(
     List<EramActiveConflict> New,
     List<string> Cleared,
     List<string> Suppressed,
-    List<EramActiveConflict> Restored
+    List<EramActiveConflict> Restored,
+    List<EramActiveConflict> Reclassified
 );
 
 public sealed partial class SimulationEngine

@@ -113,6 +113,8 @@ public class EramRoomSettingsStepTests
     [InlineData("CA CA FUNCTION 44 OFF")]
     [InlineData("CA MCI DISPLAY OFF")]
     [InlineData("CA CA DISPLAY ALL  OFF")]
+    [InlineData("CA MCI DISPLAY ALL OFF")]
+    [InlineData("CA CA DISPLAY 44 ALL ON")]
     [InlineData("CA CA TOGGLE 44 OFF")]
     [InlineData("RK CA FUNCTION OFF")]
     [InlineData("ca ca function off")]
@@ -276,5 +278,59 @@ public class EramRoomSettingsStepTests
         Assert.True(settings.MciFunctionOn);
         Assert.Equal(["44"], settings.CaDisplayOffSectors);
         Assert.Empty(settings.MciDisplayOffSectors);
+    }
+
+    /// <summary>
+    /// The settings are written under the room gate but read outside it (the per-tick CRC broadcast, the fan-out payload
+    /// factories), so a reader racing the writer must never throw: four readers enumerate and query the settings while
+    /// this thread applies entries that add, change and drop facilities.
+    /// </summary>
+    [Fact]
+    public async Task ConcurrentReads_WhileAnotherThreadApplies_NeverThrow()
+    {
+        var settings = new EramRoomSettings();
+        string[] entries =
+        [
+            "CA CA DISPLAY 44 46 OFF",
+            "CA MCI FUNCTION OFF",
+            "CA CA DISPLAY 44 ON",
+            "CA MCI DISPLAY 12 OFF",
+            "CA MCI FUNCTION ON",
+            "CA CA DISPLAY 46 ON",
+            "CA MCI DISPLAY 12 ON",
+        ];
+        const int readerCount = 4;
+        using var started = new CountdownEvent(readerCount);
+        using var stop = new CancellationTokenSource();
+        Task[] readers = [.. Enumerable.Range(0, readerCount).Select(_ => Task.Run(() => ReadUntilStopped(settings, started, stop.Token)))];
+        started.Wait(TestContext.Current.CancellationToken);
+
+        for (int i = 0; i < 600; i++)
+        {
+            string facility = (i % 3) switch
+            {
+                0 => "ZOA",
+                1 => "ZLA",
+                _ => "ZSE",
+            };
+            Assert.True(settings.TryApply(facility, entries[i % entries.Length]));
+        }
+
+        await stop.CancelAsync();
+        await Task.WhenAll(readers);
+    }
+
+    private static void ReadUntilStopped(EramRoomSettings settings, CountdownEvent started, CancellationToken stop)
+    {
+        started.Signal();
+        while (!stop.IsCancellationRequested)
+        {
+            foreach (EramFacilityConflictSettings facility in settings.Facilities.Values)
+            {
+                int offSectors = facility.CaDisplayOffSectors.Count(id => id.Length > 0) + facility.MciDisplayOffSectors.Count(id => id.Length > 0);
+                Assert.True(offSectors >= 0);
+                Assert.True(settings.ShowsConflict(facility.FacilityId, "99", isMciPair: false) || !facility.CaFunctionOn);
+            }
+        }
     }
 }

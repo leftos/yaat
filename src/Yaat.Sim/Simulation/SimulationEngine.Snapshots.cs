@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -524,13 +525,14 @@ public sealed partial class SimulationEngine
                     }),
             ];
 
-    private static EramFacilityConflictSettings RestoreEramConflictSettings(EramConflictSettingsSnapshotDto dto)
-    {
-        var settings = new EramFacilityConflictSettings(dto.FacilityId) { CaFunctionOn = dto.CaFunctionOn, MciFunctionOn = dto.MciFunctionOn };
-        settings.CaDisplayOffSectors.UnionWith(dto.CaDisplayOffSectors);
-        settings.MciDisplayOffSectors.UnionWith(dto.MciDisplayOffSectors);
-        return settings;
-    }
+    private static EramFacilityConflictSettings RestoreEramConflictSettings(EramConflictSettingsSnapshotDto dto) =>
+        new(
+            dto.FacilityId,
+            dto.CaFunctionOn,
+            dto.MciFunctionOn,
+            dto.CaDisplayOffSectors.ToFrozenSet(StringComparer.Ordinal),
+            dto.MciDisplayOffSectors.ToFrozenSet(StringComparer.Ordinal)
+        );
 
     private void RestoreServerSnapshot(ServerSnapshotDto server)
     {
