@@ -20,6 +20,11 @@
 # yaat-server path with `-ServerDir`, or set `YAAT_SERVER_DIR` once for the shell.
 # `-YaatDir` has the same shape if you ever need to point at a non-default yaat
 # checkout (rarely needed since the script lives inside one).
+#
+# The yaat-server build and test steps are given this yaat checkout's Yaat.Sim
+# (`-p:YaatSimProject=...`). Without it, yaat-server's Directory.Build.props picks the
+# `..\yaat` beside the server checkout, so a worktree's run would test the server against
+# another tree's Yaat.Sim.
 
 param(
     [ValidateSet('Debug', 'Release')]
@@ -61,6 +66,8 @@ if (-not (Test-Path $ServerDir)) {
 
 $yaatDir = (Resolve-Path $YaatDir).Path
 $serverDir = (Resolve-Path $ServerDir).Path
+$yaatSimProject = Join-Path $yaatDir 'src\Yaat.Sim\Yaat.Sim.csproj'
+$serverSimArg = "`"-p:YaatSimProject=$yaatSimProject`""
 
 $failed = $false
 
@@ -172,12 +179,12 @@ if ($Full) {
 if (-not (Run-Step 'Build yaat' $yaatDir "dotnet build yaat.slnx -c $Config -p:TreatWarningsAsErrors=true")) {
     Stop-OnBuildFailure 'Build yaat'
 }
-if (-not (Run-Step 'Build yaat-server' $serverDir "dotnet build yaat-server.slnx -c $Config -p:TreatWarningsAsErrors=true")) {
+if (-not (Run-Step 'Build yaat-server' $serverDir "dotnet build yaat-server.slnx -c $Config -p:TreatWarningsAsErrors=true $serverSimArg")) {
     Stop-OnBuildFailure 'Build yaat-server'
 }
 Write-Host "`nRunning both test suites in parallel..." -ForegroundColor Cyan
 $yaatTests = Start-TestJob $yaatDir "dotnet test yaat.slnx -c $Config --no-build $testFilter"
-$serverTests = Start-TestJob $serverDir "dotnet test yaat-server.slnx -c $Config --no-build $testFilter"
+$serverTests = Start-TestJob $serverDir "dotnet test yaat-server.slnx -c $Config --no-build $serverSimArg $testFilter"
 
 $null = Wait-Job -Job $yaatTests, $serverTests
 

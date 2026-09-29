@@ -1329,6 +1329,19 @@
     "Solo": false
   },
   {
+    "File": "oak-follow-base-freeflight-lead-recording.yaat-bug-report-bundle.zip",
+    "Commands": 32,
+    "ByKind": {
+      "Compound": 14,
+      "SetActivePosition": 1,
+      "Strip": 17
+    },
+    "Unparsed": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
     "File": "oak-ga-spawn-turnaround-recording.yaat-bug-report-bundle.zip",
     "Commands": 0,
     "ByKind": {},
