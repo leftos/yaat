@@ -116,6 +116,25 @@ Built on System.Text.Json with camelCase names, a `JsonStringEnumConverter` that
 - yaat-server: a section on the JSON path, joined sessions and the `/vnas` endpoints in `docs/crc-display-state.md`, a replacement for line 144 ("Wire encoding is MessagePack"), and `docs/vatsim-auth.md`.
 - yaat: `docs/architecture.md`, the CHANGELOG line, a glossary entry for "joined session".
 
+## Decisions and corrections
+
+The exploration against the code and vEDST's source (`vFlightDataSystems/VATSIM_EDST_frontend`, main) settles these; where they differ from the steps above, they win.
+
+- **Build order, three independent tracks:** W1 auth primitives then `/vnas` endpoints and CORS (`Auth/*`, `YaatOptions.cs`, appsettings, compose, `ServerApp.cs` services and middleware); W2 the JSON transcoder then handshake and framing (`Protocol/*`, new `Dtos/*`, `CrcClientState.cs` RunAsync/SendAsync) — in progress; W3 direct-client hygiene and `GetSessions`, then `JoinSession`/fan-out (`Hubs/*` in a new `CrcClientState.Join.cs`, the client-list consumers in `Simulation/*` and `TrainingHub.cs`). Direct WebSocket auth follows W1 and precedes the join step (both edit `CrcWebSocketHandler.cs`).
+- **Joiner rights (user):** a whitelist enforced in `DispatchInvocationAsync` for every joined connection, MessagePack or JSON: `Subscribe`, `Unsubscribe`, `GetSessions`, `JoinSession`, `LeaveSession`, `GenerateFrd`, `AmendFlightPlan`, `SetHoldAnnotations`, `DeleteHoldAnnotations`, `SendPrivateMessage`, `ProcessEramMessage`. Start/End/Activate/Deactivate, `ChangeActive*`, `Secondary*` and `KillClient` are refused.
+- **`JoinSession` pushes only `HandleFsdConnectionStateChanged(true)` and `SetSessionActive`**, never `HandleSessionStarted`: vEDST's `HandleSessionStarted` handler calls `joinSession` again. A repeat join to the same primary is an idempotent ack.
+- **A waiting connection hears about a later session:** `StartSession` also pushes `HandleSessionStarted` to same-CID direct connections that have not joined. A direct connection with no room is allowed, and is kept out of the lobby list, `DevCrcAutoBind`, `HasBoundCrcClient`, `TrainingBroadcastService` and the `TrainingHub` client lists from connect time.
+- **Joiners act as their primary:** `ResolveIdentity`, `GetPositionCallsign`, `SendStarsReadoutAreaAsync` and `BuildOwnPositionPayload` read the primary's registry entry.
+- **`GenerateFrd` and aircraft-addressed private messages are implemented in this item (user):** `GenerateFrd` answers a fix/radial/distance from the navigation database (`FrdResolver`'s inverse), and `SendPrivateMessage(aircraftId, text)` reaches the aircraft's pilot, i.e. the RPO terminal line for that aircraft (the brief's design pass settles the exact surface).
+- **CORS (user):** a configured list, `Yaat:Vnas:AllowedOrigins` bound from a comma-separated `VNAS_ALLOWED_ORIGINS`, defaulting to `http://localhost:3000`; applied to `/vnas` and the CRC hub path.
+- **Config:** `Yaat:Vnas:ClientId`, `ClientSecret`, `LoginReturnUrl`, `PublicBaseUrl` (compose sets `https://${YAAT_DOMAIN}`; request-derived in development). `ExchangeCodeAsync` takes the client credentials, the redirect URI and the code verifier as required parameters (one shared `HttpClient`). The return target is the single configured `LoginReturnUrl`, validated at startup, never taken from the request. Endpoints are always mapped and answer 500 "not configured" when the keys are missing. `YaatTokenService` gains `ValidateAccessTokenAsync`.
+- **Invalid token:** HTTP 401 before `AcceptWebSocketAsync`, logged without the token; an unknown hub protocol gets `{"error":…}\x1e` and close 1002.
+- **Transcoder:** closed-world over the mapped DTO graphs, unmapped callbacks dropped with a once-per-target warning; new `JoinSessionDto`, `CreateOrAmendFlightPlanDto`, `ProcessEramMessageDto`, `EramMessageProcessingResultDto`; inbound enums accept numbers; every JSON frame is a Text message.
+- **Several primaries per CID:** `GetSessions` returns all, oldest connection first.
+- **Local end to end:** a development-only `/vnas/auth/dev-login`, gated like `/auth/dev`.
+- **CORS test:** a policy-builder unit test; no new test-host package.
+- The UDP history step is moot: vEDST subscribes only FlightPlans, EramTracks and OpenPositions, and the existing negotiate-token guard already skips a direct client.
+
 ## Verification
 - `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -- dotnet test ... --filter-class` for each new class, then `pwsh tools/test-all.ps1`.
 - End to end: run yaat-server locally (5130), connect CRC to a room with an ERAM position, then run vEDST from source (`npm run dev` at :3000) with its config URL pointed at `http://localhost:5130/vnas/configuration`. Log in, check that vEDST joins and shows flight plans and tracks, amend a flight plan, and confirm CRC shows the amendment.
