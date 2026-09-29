@@ -21,6 +21,7 @@
 - ERAM `QT /OK` taking another sector's track shows that sector `K`, and retracting a handoff shows you `O`.
 - ERAM `QQ` checks its fields like the real system: a three-digit interim altitude, `L` for a local interim, a two-character override, and at most 15 flight IDs.
 - ERAM `QS` free text accepts `- + = * / _ . ,` as well as letters and digits.
+- ERAM `QS` edits only your own tracks unless you add `/OK`, and applies the same entry to several flights, such as `QS /250 UAL123/AAL456`.
 - ERAM data blocks show `-` or `+` for an aircraft that drifts off an altitude it had reached, instead of a climb or descent arrow.
 - A STARS temporary altitude no longer shows as the ERAM interim altitude.
 - ERAM conflict alert runs every 5 seconds and alerts on a Mode C intruder, 1200 included, only between the conflict-alert floor (12,500 ft by default) and 99,500 ft.

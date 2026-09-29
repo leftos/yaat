@@ -8,6 +8,10 @@ variants:
       yaat stores a speed in the form CRC's Speed Menu composes: knots as Sddd, or ddd+ / ddd- with a modifier; every Mach
       form (dd, dd±, Mdd, Mdd±, M.dd, .dd, .dd±) as Mdd(+/-); +d(d), -d(d), PS, + and - as typed. CRC shows the stored
       string verbatim in Field F.
+      yaat ruling (the sources name no check for QS's /OK; docs/crc/eram.md says /OK bypasses track ownership): only the
+      controlling sector may enter HSF data; /OK overrides for another ERAM sector of the same ARTCC, never an external
+      ARTCC's or a STARS facility's track. An unowned track is editable, and a bare QS 02 (the display toggle) is never
+      gated. A slash-joined flight-ID list (at most 15) gets the same data, each flight gated before any is changed.
     handler: QS.FdbData
     fields:
       - field: Position
