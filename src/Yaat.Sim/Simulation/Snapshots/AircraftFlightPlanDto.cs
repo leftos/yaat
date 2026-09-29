@@ -49,6 +49,9 @@ public sealed class AircraftFlightPlanDto
 
     /// <summary>Whether the aircraft has passed <see cref="AltitudeFix"/> — see <see cref="AircraftFlightPlan.AltitudeFixPassed"/>.</summary>
     public bool AltitudeFixPassed { get; init; }
+
+    /// <summary>ERAM assigned altitude in feet — see <see cref="AircraftFlightPlan.EramAssignedAltitudeFeet"/>. Null = none.</summary>
+    public int? EramAssignedAltitudeFeet { get; init; }
     public required int CruiseSpeed { get; init; }
 
     /// <summary>Filed Mach in hundredths — see <see cref="AircraftFlightPlan.CruiseMach"/>. Null = none.</summary>

@@ -134,24 +134,24 @@ public sealed partial class SimulationEngine
 
         // Auto-track interim/cleared altitudes are inherited DATABLOCK-DISPLAY state -- they must never
         // change what the aircraft physically flies (no Targets.AssignedAltitude write here). They are
-        // wired to the ERAM datablock only: interim -> Eram.InterimAltitude, cleared ->
-        // Eram.ControllerEnteredAltitude (both hundreds of feet), which keeps the two values distinct in
-        // ERAM field B. The STARS datablock is deliberately NOT populated from these fields: whether and
-        // how non-ERAM (STARS) scenarios use interim/cleared altitudes is still being confirmed with
-        // VATUSA staff, so we leave Stars.TemporaryAltitude untouched until that guidance lands.
+        // wired to the ERAM datablock only: interim -> Eram.InterimAltitude (hundreds of feet), cleared ->
+        // FlightPlan.EramAssignedAltitudeFeet, the display-only ERAM assigned altitude in ERAM field B. The
+        // cleared altitude is not a controller-entered reported altitude (that would outrank Mode C), and the
+        // filed altitude stays as filed because departure logic climbs to it. The STARS datablock is deliberately
+        // NOT populated from these fields: whether and how non-ERAM (STARS) scenarios use interim/cleared altitudes
+        // is still being confirmed with VATUSA staff, so we leave Stars.TemporaryAltitude untouched until that
+        // guidance lands.
         int? interimHundreds = ResolveDatablockAltitudeHundreds(autoTrack.InterimAltitude);
         int? clearedHundreds = ResolveDatablockAltitudeHundreds(autoTrack.ClearedAltitude);
         if (interimHundreds is not null)
         {
             loaded.State.Eram.InterimAltitude = interimHundreds;
+            messages.Add($"[AutoTrack] ERAM interim altitude set: {interimHundreds}");
         }
-        if (clearedHundreds is not null)
+        if ((clearedHundreds is { } cleared) && (cleared > 0))
         {
-            loaded.State.Eram.ControllerEnteredAltitude = clearedHundreds;
-        }
-        if ((interimHundreds ?? clearedHundreds) is { } shown)
-        {
-            messages.Add($"[AutoTrack] ERAM datablock altitude set: {shown}");
+            loaded.State.FlightPlan.AssignEramAltitude(cleared * 100);
+            messages.Add($"[AutoTrack] ERAM assigned altitude set: {cleared}");
         }
     }
 

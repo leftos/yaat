@@ -90,7 +90,8 @@ public class AircraftFlightPlan
     /// Filed altitude — the notation axis of the plan (single / block / VFR / OTP / above), in feet.
     /// Distinct from <see cref="FlightRules"/> (the IFR/VFR rules axis) and from
     /// <see cref="ControlTargets.AssignedAltitude"/> (the current ATC clearance). Defaults to
-    /// <see cref="PlannedAltitude.None"/> (no filed altitude). Setting a different altitude, by any path, clears
+    /// <see cref="PlannedAltitude.None"/> (no filed altitude). Any assignment, even of the same altitude, clears
+    /// <see cref="EramAssignedAltitudeFeet"/>. Setting a different altitude, by any path, also clears
     /// <see cref="AltitudeFixApproached"/>, <see cref="AltitudeFixPassed"/> and the resolved fix position.
     /// </summary>
     public PlannedAltitude Altitude
@@ -98,6 +99,7 @@ public class AircraftFlightPlan
         get => _altitude;
         set
         {
+            EramAssignedAltitudeFeet = null;
             if (value == _altitude)
             {
                 return;
@@ -131,11 +133,23 @@ public class AircraftFlightPlan
     private LatLon? _altitudeFixPosition;
 
     /// <summary>
-    /// The altitude in feet the ERAM data block (Field B) and QF show: the altitude after the fix once
-    /// <see cref="AltitudeFixPassed"/> is set, otherwise <see cref="PlannedAltitude.CruiseFeet"/>. Every other reader of the
-    /// flight-plan altitude reads <see cref="PlannedAltitude.CruiseFeet"/>.
+    /// The altitude in feet ERAM shows as assigned when a scenario's auto-track conditions carry a cleared altitude;
+    /// display only, never flown. Set through <see cref="AssignEramAltitude"/>. Any assignment of <see cref="Altitude"/>,
+    /// even to the same value, clears it. Null = none.
     /// </summary>
-    public int? EramAltitudeFeet => (AltitudeFixPassed && (Altitude.AfterFixFeet is { } afterFix)) ? afterFix : Altitude.CruiseFeet;
+    public int? EramAssignedAltitudeFeet { get; private set; }
+
+    /// <summary>Sets <see cref="EramAssignedAltitudeFeet"/>, the display-only ERAM assigned altitude, in feet.</summary>
+    public void AssignEramAltitude(int feet) => EramAssignedAltitudeFeet = feet;
+
+    /// <summary>
+    /// The altitude in feet the ERAM data block (Field B) and QF show: <see cref="EramAssignedAltitudeFeet"/> when set,
+    /// otherwise the altitude after the fix once <see cref="AltitudeFixPassed"/> is set, otherwise
+    /// <see cref="PlannedAltitude.CruiseFeet"/>. Every other reader of the flight-plan altitude reads
+    /// <see cref="PlannedAltitude.CruiseFeet"/>.
+    /// </summary>
+    public int? EramAltitudeFeet =>
+        EramAssignedAltitudeFeet ?? ((AltitudeFixPassed && (Altitude.AfterFixFeet is { } afterFix)) ? afterFix : Altitude.CruiseFeet);
 
     /// <summary>
     /// The position of the fix of a fix-qualified <see cref="Altitude"/>, resolved through <see cref="EramFixResolver"/> on
@@ -264,6 +278,7 @@ public class AircraftFlightPlan
             AltitudeAfterFixFeet = Altitude.AfterFixFeet,
             AltitudeFixApproached = AltitudeFixApproached,
             AltitudeFixPassed = AltitudeFixPassed,
+            EramAssignedAltitudeFeet = EramAssignedAltitudeFeet,
             CruiseSpeed = CruiseSpeed,
             CruiseMach = CruiseMach,
             IsSpeedClassified = IsSpeedClassified,
@@ -298,9 +313,10 @@ public class AircraftFlightPlan
                 AltitudeFix = dto.AltitudeFix,
                 AfterFixFeet = dto.AltitudeAfterFixFeet,
             },
-            // After Altitude, whose setter clears both flags.
+            // After Altitude, whose setter clears both flags and the ERAM assigned altitude.
             AltitudeFixApproached = dto.AltitudeFixApproached,
             AltitudeFixPassed = dto.AltitudeFixPassed,
+            EramAssignedAltitudeFeet = dto.EramAssignedAltitudeFeet,
             CruiseSpeed = dto.CruiseSpeed,
             CruiseMach = dto.CruiseMach,
             IsSpeedClassified = dto.IsSpeedClassified,
