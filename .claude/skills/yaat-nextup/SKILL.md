@@ -14,6 +14,7 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 - Pre-loop hooks: none.
 - Finished-item convention: **delete the line**, never tick it; finished subplans are deleted (git history is the archive). Review findings the item does not fix become Backlog lines in the same commit.
 - Tracker: `gh issue list --repo leftos/yaat --state open --json number,title,createdAt`; fold unplanned issues in with `triage-open-issues`. Cross-repo: yaat-server commits cite `Closes https://github.com/leftos/yaat/issues/N`.
+- Pull requests: `gh pr list --repo leftos/yaat --state open --json number,title,author`, and the same with `--repo leftos/yaat-server`. An unplanned PR gets one line, its review and landing: a person's PR under **Bug reports and feature requests**, a bot's dependency bump at the foot of the Backlog, each naming the files, whether the checks pass and whether it merges cleanly.
 - Hotspots (3,000–4,000 lines each; two items touching one wait on each other): `PatternCommandHandler.cs`, `MainViewModel.cs`, `CommandParser.cs`, `CommandDispatcher.cs`, `MainWindow.axaml.cs`, `GroundCommandHandler.cs`.
 
 ## Agents and gates
