@@ -274,6 +274,21 @@ UPPER WINDS SFO
 
 **Size**: design (it touches the METAR broadcast path).
 
+### C4 rulings
+
+Grounded in the design above and the code as mapped; ERAM behaviour is decided, not asked.
+
+- **Landing**: on `feat/eram-weather` in both repos (user 2026-09-29), as two stacked briefs: C4a `UR`, then C4b `WX`.
+- **UR mean wind**: extract `WindInterpolator.GetMeanWindAt(WeatherProfile?, double altFt)` from `GetWindAt`'s inline N/E component interpolation (clamped outside the layer range, no `WindVariation`); `GetWindAt` calls it.
+- **UR levels**: no altitude field reads the FD levels 030–390; a 300 block reads the FD levels inside it inclusive; a 301 bound reads the FD levels at or above (`+`) or at or below (`-`) it; 302 reads exactly the altitudes typed.
+- **UR layout**: the design's form, `UPPER WINDS <name>` then `<alt hundreds, 3 digits> <true dir, 3 digits, to 10°>/<kt, 3 digits>` per line; `NO UPPER WIND DATA` with no layers.
+- **UR location**: a pick or typed fix/FRD/lat-long names the header and gives the declination; the header is the typed token, or for a pick the nearest airport's id. A bare `UR` uses the room's primary airport; with none it answers `NO LOCATION PICKED`.
+- **WX store**: keyed by station only (the METAR broadcast is room-wide), last entry wins; `FacilityId` stays on the record for shape parity. No snapshot schema bump (additive nullable list, as C2 and C3).
+- **WX expiry**: an entered report stands until the first of (a) the next :53 routine instant after its entry, in sim time (`SessionStartUtc + ElapsedSeconds`), which replay reproduces, and (b) in a live room, the station's issuer re-issuing it (`MetarIssuer` exposes the station's last-issued time; a SPECI counts). The typed HHMM stays in the text only.
+- **WX reach**: YAAT clients through `WeatherChangedDto` only; CRC reads METARs from vNAS. A station the room has no METAR for is appended to `Metars` and expires by (a).
+- **WX push**: a WX entry marks the reports changed and the tick drains it into one `WeatherChanged` broadcast, the way C2 drains conflict settings; the overlay lives in `BuildWeatherChangedDto`'s inputs, so both of its call sites apply it.
+- **Errors**: add `MsgFieldOmission` (`FIELD OMISSION`) and `MsgInvalidAltitude` (`INVALID ALT`), `source: coined`.
+
 ## C5 — Filing
 
 ### FP — Flight Plan Message
