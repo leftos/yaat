@@ -200,6 +200,21 @@ An ERAM entry typed without a command ID, such as `<FLID>` alone to accept a han
 **`/OK`**:
 The ERAM logic-check override: added to a command, it lets the command act on a track the sector doesn't own, or past a check it would otherwise fail.
 
+**SRS**:
+The FAA's ERAM EDSM software requirements specification (Vol 1 Book 2, the appendices) that `docs/eram/` and `docs/plans/eram-srs-findings.md` cite by section and printed page; the maintainer keeps the PDF outside the repo.
+
+**FDB / LDB**:
+Full data block / limited data block: the two ERAM data block formats a sector sees for a track. An LDB is paired (the track has a flight plan) or unpaired.
+
+**CERA**:
+Controller-entered reported altitude: an altitude the controller types (`QR`, or `QQ R`) as the aircraft's reported altitude. It outranks Mode C in Field B/C and shows with a `#` until deleted.
+
+**Field B / Field E**:
+Data block fields named by the SRS: Field B is the assigned or interim altitude with the vertical-status character, Field E the time-shared slot for handoff/point-out sector, ground speed, destination and special codes.
+
+**MCI**:
+Mode C intruder: an untracked target reporting Mode C altitude, drawn with its own symbol and eligible for conflict alerts against tracked IFR aircraft.
+
 ## Radar display
 
 **YAAT Scope**:
