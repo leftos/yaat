@@ -30,6 +30,14 @@ Mid-session the user also hit a `WAIT 1NM ERB 28R` problem. `CommandSchemeParser
    - Otherwise (the follower would roll out ahead of or level with the lead, or the widen is not enough): break off to pursuit with the pattern return, send a one-shot pilot transmission, and let `TryJoinLeadFinal` sequence the follower in trail.
 7. **`WAIT <n>NM` / `DELAY <n>NM`** (decimal allowed, any case) is treated as `WAITD <n>`: `WAIT 1NM ERB 28R` becomes `WAITD 1; ERB 28R`.
 
+Rulings after the review of A (user 2026-09-28):
+- **Decision 5's direction order is reversed**: the queued entry's side (ERx right, ELx left) comes first; the lead's phase `TrafficDirection` is used only for an entry that names no side (EF), then the runway default. A runwayless lead's phase direction can only be left over from an earlier circuit.
+- **A lead on the ground is refused**: "Unable, {target} is on the ground".
+- **A lead bound for another airport is refused**: "Unable, {target} is inbound to {airport}, request vectors". Queued-entry runways are compared with the airport, not the designator alone (OAK and HWD both have 28L/28R).
+- **Refusal texts** are spoken in solo training, so they follow `docs/pilot-phraseology.md` (reason, then request; no interior dash): "Unable, on final for runway {rwy}, request vectors to follow {target}"; "Unable, on base for runway {rwy}, {target} is not ahead of us, request vectors"; "Unable, on {leg} for runway {rwy}, request vectors to follow {target}" (lead queued for another runway, also the older cross-runway refusal).
+- **Where the "lead ahead" gate applies** (base only today) waits on a permutation study of every lead × follower state the user asked for; its result may add a step.
+- Step C makes `VfrFollowPhase.PatternReturn` a required constructor parameter (today an init property) together with its DTO field.
+
 Defaults taken without asking:
 - The base join enters at the lead's pattern altitude.
 - Elapsed-time ordering on the same leg is kept. A lead's resumed final after an S-turn restarts its elapsed time; see the follow-ups at the end.
@@ -48,7 +56,7 @@ Files: `PatternCommandHandler.cs`, `CommandDispatcher.cs`, `AirborneFollowHelper
 - Extract `TryFollowFromPatternLeg` and an `internal static InstallVfrFollowPhase(aircraft, target, FollowPatternReturn?)`. Together they carry the routing table from decisions 1, 4 and 5. The new branch only applies when the lead is found, the follower has an assigned runway, and the lead has no current runway. That keeps six existing retarget tests valid: `AirborneFollowTests.Follow_ClearsExtended*` and `VfrFollowPhaseTests.Follow_From*Phase_OnlySetsFollowingCallsign`.
 - Add a `ChooseFollowJoinDirection(follower, PatternDirection? leadDirection, runway)` overload, so the dispatcher no longer dereferences `lead.Phases!`.
 - Tests:
-  - `FollowFromBase_LeadNoCurrentRunwayQueuedSame_AheadInstallsPursuit`, in a new `tests/Yaat.Sim.Tests/Simulation/FollowRunwaylessLeadFromPatternTests.cs`. It replays the committed fixture `tests/Yaat.Sim.Tests/TestData/oak-follow-base-freeflight-lead-recording.yaat-bug-report-bundle.zip`, trimmed to 300 s, so the t=285 FOLLOW is not in it, to t≈284, then sends FOLLOW to N123AB. The same class also holds a same-runway guard: a follower on a pattern leg with a lead on the same runway's pattern keeps its phase instance and gets `FollowingCallsign` set.
+  - `FollowFromBase_LeadNoCurrentRunwayQueuedSame_AheadInstallsPursuit`, in a new `tests/Yaat.Sim.Tests/Simulation/FollowRunwaylessLeadFromPatternTests.cs`. It replays the committed fixture `tests/Yaat.Sim.Tests/TestData/oak-follow-base-freeflight-lead-recording.yaat-bug-report-bundle.zip` (357 s; it still holds the recorded FOLLOWs at t=285 and t=349, so the test stops at t≈284), then sends FOLLOW to N123AB. The same class also holds a same-runway guard: a follower on a pattern leg with a lead on the same runway's pattern keeps its phase instance and gets `FollowingCallsign` set.
   - `FollowFromBase_LeadQueuedOtherRunway_IsRefused`
   - `FollowFromBase_RunwaylessLeadBehind_IsRefused`
   - `FollowFromFinal_LeadNoCurrentRunway_IsRefused`
