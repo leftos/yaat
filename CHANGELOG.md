@@ -24,6 +24,7 @@
 - ERAM `QS` edits only your own tracks unless you add `/OK`, and applies the same entry to several flights, such as `QS /250 UAL123/AAL456`.
 - ERAM data blocks show `-` or `+` for an aircraft that drifts off an altitude it had reached, instead of a climb or descent arrow.
 - A STARS temporary altitude no longer shows as the ERAM interim altitude.
+- ERAM targets and tracks move every 12 seconds, staggered per aircraft, with a history dot per update; handoffs and other changes still show at once.
 - ERAM conflict alert runs every 5 seconds and alerts on a Mode C intruder, 1200 included, only between the conflict-alert floor (12,500 ft by default) and 99,500 ft.
 - ERAM draws an uncorrelated target as a Mode C intruder only inside that band; below it a 1200 code draws as a VFR target.
 - ERAM flight IDs follow the SRS format: a two-character ID is a letter and a digit, Mode C intruder IDs are reserved, and 15 is the most per entry.

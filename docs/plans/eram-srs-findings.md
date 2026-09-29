@@ -11,7 +11,6 @@ Status per item: **unverified** = agent finding not yet re-checked against the c
 The work order is the **ERAM — #1 priority** list in [MAIN.md](./MAIN.md); this file holds the detail.
 
 1. #465–#468 are fixed; their sections are gone (git history has them).
-2. **Investigate** #464: find a source for the 12 s rate (the CRC manual, CRC's decompiled display refresh, the reporter).
 3. **Verify** each `unverified` entry below against the code. Mark it verified, or drop it with the reason.
 4. **Rulings** — settled, see [Rulings](#rulings-user-2026-09-28) below.
 5. **Turn this file into a fix list** grouped by owning file, add a MAIN.md line per group, then delete this file. The brief grouping is under [Brief grouping](#brief-grouping-verified-2026-09-28).
@@ -23,7 +22,7 @@ The work order is the **ERAM — #1 priority** list in [MAIN.md](./MAIN.md); thi
 - **QS free text**: accept the §C.1 field 155 set — A–Z, 0–9 and `- + = * / _ . ,` (the arrows and the overcast symbol cannot be typed). The tokeniser must keep `/ddd` and `/Sddd` speeds apart from a `/` inside free text.
 - **`LA`/`LB` text**: match CRC, else the SRS. CRC prints nothing of its own (the decompiled client has no LA/LB text; the server fills the response area), so follow §F.5 Tables 76–77: `RANGE * 82.6 NM / BEARING * 248 DEG MAG / FROM 1ST TB ENTRY / AT 154 KNOTS 1 HR 35 MIN`. `EramRangeReadoutTests.FormatFlyingTime_IsMinutesSeconds` changes with it.
 - **Per-sector display state**: key leader direction, leader length, DRI halo and dwell lock by (facility, sector) now, like `OnFrequencySectorIds`, and record the dwell lock as a `RecordedEramEntry` carrying the sector key and an absolute value (`DWELL <facility> <sector> 1|0`, never a toggle, so a replay cannot desync on a missed entry).
-- **#464 update rate**: CRC draws every ERAM update it receives (`Eram.Tracks/TrackManager.cs` `ReceiveTrack` has no timer), so the 1 s rate is yaat-server's (`RoomTickLoopService` 1 s tick; `AircraftChangeTracker.EramTargetFingerprint` changes every second for a moving aircraft). Send the position part of the ERAM target and track on a 12 s sweep with a **per-aircraft stagger** (a stable callsign hash mod 12, sim-elapsed time, not wall clock); state changes (handoff, HSF, VCI, point-out, symbol, beacon) still go out on the next tick; a newly visible aircraft is sent at once. The **ERAM history trail follows the sweep**: one dot per 12 s update, from an ERAM-specific sample (today's 5 s `PositionHistory` stays for STARS and YAAT's radar). STARS is untouched. Keep `EramCoastSeconds` (24 s = 2 sweeps) consistent. Red test model: `tests/Yaat.Server.Tests/CrcAcceptedIndicatorTests.cs` (`RoomEngineTestHarness`, `RecordingWebSocket`), asserting ≤ 2 position `ReceiveEramTracks` in 12 broadcasts for a moving aircraft and a handoff sent on the next tick.
+- **#464 update rate** (shipped; mechanism in `docs/crc-display-state.md`): CRC draws every ERAM update it receives (`Eram.Tracks/TrackManager.cs` `ReceiveTrack` has no timer), so the 1 s rate is yaat-server's (`RoomTickLoopService` 1 s tick; `AircraftChangeTracker.EramTargetFingerprint` changes every second for a moving aircraft). Send the position part of the ERAM target and track on a 12 s sweep with a **per-aircraft stagger** (a stable callsign hash mod 12, sim-elapsed time, not wall clock); state changes (handoff, HSF, VCI, point-out, symbol, beacon) still go out on the next tick; a newly visible aircraft is sent at once. The **ERAM history trail follows the sweep**: one dot per 12 s update, from an ERAM-specific sample (today's 5 s `PositionHistory` stays for STARS and YAAT's radar). STARS is untouched. Keep `EramCoastSeconds` (24 s = 2 sweeps) consistent. Red test model: `tests/Yaat.Server.Tests/CrcAcceptedIndicatorTests.cs` (`RoomEngineTestHarness`, `RecordingWebSocket`), asserting ≤ 2 position `ReceiveEramTracks` in 12 broadcasts for a moving aircraft and a handoff sent on the next tick.
 - **MCI alert floor**: the ARTCC's `ConflictAlertFloor` when non-zero, else the SRS 12,500 ft; the 99,500 ft ceiling applies.
 - **1200 code**: never an MCI — excluded from the MCI symbol (it draws as VFR) and from conflict-alert intruder eligibility. This departs from `docs/crc/eram.md:358`.
 - **Vertical-conformance latch**: set when within ±200 ft of the assigned altitude (a block altitude uses its own floor and ceiling), cleared only when the assigned altitude changes. Latched in a Yaat.Sim post-physics step for replay determinism.
@@ -60,14 +59,8 @@ It mirrors the FAA SWIM feed and changes nothing in the NAS, so most controller-
 | Brief | Source files | Covers | Order |
 |---|---|---|---|
 | B7 per-sector state | Srv `DtoConverter.cs`, `CrcClientState.Eram.cs`; Sim `AircraftEramState.cs` + snapshot DTO, `EramEntryEngine.cs` (`DWELL`) | per-sector leader/DRI/dwell + dwell recording | any time |
-| B8 #464 sweep | Srv `CrcBroadcastService.cs`, `AircraftChangeTracker.cs`, `DtoConverter.cs` (history) | 12 s staggered sweep, ERAM history; the SPC blink edge (`CrcBroadcastService` ORs `DtoChangeFlags.EramTarget`) is a state change and stays outside the sweep | any time |
 
 B2 and B5 landed. `QF`'s empty assigned altitude prints `-`, as its `ALT` field readout does (the SRS gives no text). Its Requested, Last Facility Assigned and Next Facility Assigned beacon fallbacks (App. D.1 Table 34) are not modelled: YAAT has no requested-code state (`RequestNewBeaconCode` assigns at once) and a handoff never changes the code, so each would print the assigned code anyway.
-
-## Filed issues
-
-### #464 — ERAM update rate should be 12 s, not 1 s
-- **Not in this volume.** The C.7 dynamic parameter table has no track update rate, and no other appendix states one. The rate is an ERAM surveillance and display rule from Book 1 or the CRC manual. Check `docs/crc/eram.md` and CRC's decompiled display refresh logic, then decide from the reporter's word plus CRC's behaviour.
 
 ## Command validation candidates
 
