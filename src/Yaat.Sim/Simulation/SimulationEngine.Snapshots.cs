@@ -390,6 +390,9 @@ public sealed partial class SimulationEngine
         // The conflict-alert settings are likewise wholly the snapshot's: a missing section restores the defaults.
         EramRoomSettings.Replace((snapshot.Server?.EramConflictSettings ?? []).Select(RestoreEramConflictSettings));
 
+        // So are the sector messages: a missing section restores none.
+        EramSectorMessages.Replace((snapshot.Server?.EramSectorMessages ?? []).Select(m => new EramSectorMessage(m.FacilityId, m.SectorId, m.Text)));
+
         if (snapshot.Server is not null)
         {
             RestoreServerSnapshot(snapshot.Server);
@@ -501,8 +504,26 @@ public sealed partial class SimulationEngine
             TowerLists = TowerListSnapshotMapper.Capture(TowerListTracker),
             CrrGroups = crrGroups,
             EramConflictSettings = CaptureEramConflictSettings(),
+            EramSectorMessages = CaptureEramSectorMessages(),
         };
     }
+
+    /// <summary>The stored sector messages, ordered by facility then sector id; null when no sector holds one.</summary>
+    private List<EramSectorMessageSnapshotDto>? CaptureEramSectorMessages() =>
+        EramSectorMessages.Messages.Count == 0
+            ? null
+            :
+            [
+                .. EramSectorMessages
+                    .Messages.OrderBy(m => m.FacilityId, StringComparer.Ordinal)
+                    .ThenBy(m => m.SectorId, StringComparer.Ordinal)
+                    .Select(m => new EramSectorMessageSnapshotDto
+                    {
+                        FacilityId = m.FacilityId,
+                        SectorId = m.SectorId,
+                        Text = m.Text,
+                    }),
+            ];
 
     /// <summary>
     /// The facilities holding a non-default conflict-alert setting, ordered by facility id and each sector list ordinally,

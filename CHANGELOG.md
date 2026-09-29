@@ -5,6 +5,7 @@
 ### Added
 
 - ERAM `CA` turns conflict alert and MCI alerts on or off for the center or for chosen sectors, and `RK` reads the settings back.
+- ERAM `SM` sends a sector message that `SM` reads back and `SM DE` clears, and `SW` sends significant weather to the facility's sectors.
 - Turning on speech recognition offers to send your push-to-talk recordings to the YAAT developers; change it anytime in Settings → Speech.
 - Scenario → File Bug Report... asks what went wrong, opens a prefilled GitHub issue, and shows the bug report bundle to drag in.
 

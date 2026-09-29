@@ -99,6 +99,7 @@ internal sealed class ReplayDriver(SimulationEngine engine)
             _engine.TowerListTracker.ClearSession();
             _engine.CrrGroups.Clear();
             _engine.EramRoomSettings.Clear();
+            _engine.EramSectorMessages.Clear();
 
             // The coordination channels need no clear: Range runs InitializeFromArtcc first, which replaces every
             // channel whole — items, NextSequence and receivers — from the ARTCC, and a recording that carries no

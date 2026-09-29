@@ -94,12 +94,24 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
-    /// Applies one recorded conflict-alert settings entry. An entry outside the four recorded shapes is a recording bug
-    /// rather than user input: it is logged, changes nothing and returns false.
+    /// The room's ERAM sector messages (the <c>SM</c> entry), one per (facility, sector). Engine state on every run kind,
+    /// snapshotted and reset beside <see cref="EramRoomSettings"/>. Storing one notifies no host: the push to the addressed
+    /// sectors is the recorder's, and it is recorded as chat.
+    /// </summary>
+    public EramSectorMessages EramSectorMessages { get; } = new();
+
+    /// <summary>
+    /// Applies one recorded ERAM room entry, dispatched on its verb: <c>CA </c> to <see cref="EramRoomSettings"/> (which
+    /// tells the host), <c>SM </c> and <c>SMDE </c> to <see cref="EramSectorMessages"/>. An entry outside the recorded
+    /// shapes is a recording bug rather than user input: it is logged, changes nothing and returns false.
     /// </summary>
     public bool ApplyEramRoomEntry(RecordedEramRoomEntry entry)
     {
-        if (!EramRoomSettings.TryApply(entry.FacilityId, entry.Entry))
+        bool isConflictSetting = entry.Entry.StartsWith("CA ", StringComparison.Ordinal);
+        bool applied = isConflictSetting
+            ? EramRoomSettings.TryApply(entry.FacilityId, entry.Entry)
+            : EramSectorMessages.TryApply(entry.FacilityId, entry.Entry);
+        if (!applied)
         {
             _logger.LogWarning(
                 "Ignoring malformed ERAM room entry {Entry} for facility {Facility} at {Elapsed}s",
@@ -110,7 +122,11 @@ public sealed partial class SimulationEngine
             return false;
         }
 
-        MarkEramConflictSettingsChanged();
+        if (isConflictSetting)
+        {
+            MarkEramConflictSettingsChanged();
+        }
+
         return true;
     }
 }

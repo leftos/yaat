@@ -221,11 +221,12 @@ public sealed record RecordedEramCrrGroup(double ElapsedSeconds, string Label, s
     : RecordedAction(ElapsedSeconds);
 
 /// <summary>
-/// An ERAM entry that wrote the room's per-facility conflict-alert settings (<c>SimulationEngine.EramRoomSettings</c>),
-/// in one of four absolute shapes — never a toggle: <c>CA {CA|MCI} FUNCTION {ON|OFF}</c> or
-/// <c>CA {CA|MCI} DISPLAY {sector}[ {sector}…] {ON|OFF}</c>, with explicit adapted sector ids (the recorder expands
-/// <c>ALL</c>, so replay never consults adaptation). <c>SimulationEngine.ApplyEramRoomEntry</c> applies it on every
-/// run kind.
+/// An ERAM entry that wrote room-level ERAM state for one facility, in an absolute shape — never a toggle. The
+/// conflict-alert settings (<c>SimulationEngine.EramRoomSettings</c>): <c>CA {CA|MCI} FUNCTION {ON|OFF}</c> or
+/// <c>CA {CA|MCI} DISPLAY {sector}[ {sector}…] {ON|OFF}</c>. The sector messages
+/// (<c>SimulationEngine.EramSectorMessages</c>): <c>SM {sector} {text}</c> stores one sector's message and
+/// <c>SMDE {sector}</c> deletes it. Sector ids are explicit adapted ids (the recorder expands <c>ALL</c>, so replay never
+/// consults adaptation). <c>SimulationEngine.ApplyEramRoomEntry</c> applies it on every run kind.
 /// </summary>
 public sealed record RecordedEramRoomEntry(double ElapsedSeconds, string FacilityId, string Entry) : RecordedAction(ElapsedSeconds);
 

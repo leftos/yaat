@@ -44,6 +44,21 @@ public sealed class ServerSnapshotDto
     /// pre-feature snapshot looks like (restores the defaults).
     /// </summary>
     public List<EramConflictSettingsSnapshotDto>? EramConflictSettings { get; init; }
+
+    /// <summary>
+    /// The ERAM sector messages (the <c>SM</c> entry), in facility then sector order so two passes of the same run
+    /// capture the same bytes. Absent when no sector holds one, which is also what a pre-feature snapshot looks like
+    /// (restores none).
+    /// </summary>
+    public List<EramSectorMessageSnapshotDto>? EramSectorMessages { get; init; }
+}
+
+/// <summary>One sector's ERAM sector message: the facility and sector it was left for, and its text.</summary>
+public sealed class EramSectorMessageSnapshotDto
+{
+    public required string FacilityId { get; init; }
+    public required string SectorId { get; init; }
+    public required string Text { get; init; }
 }
 
 /// <summary>One facility's ERAM conflict-alert settings; the sector lists are in ordinal order.</summary>

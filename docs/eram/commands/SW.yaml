@@ -2,5 +2,15 @@ id: SW
 variants:
   - title: Significant Weather
     descriptor: SIGNIFICANT WEATHER
-    handler: not implemented
+    format: SW 500>>501>>…
+    multiple_flids: null
+    handler: SW.SignificantWeather
+    note: |
+      §C.2 lists no R-position source; YAAT accepts it from CRC, which stands in for the D-position and the AT Specialist.
+      A SIGMET, MIS, CWA/UCWA or CWSU report whose lines are separated by >> (§C.2 p.560-561). §C.8 p.821: "No
+      additional error checking performed by EDSM. All error checks will be done by EWDP", which is outside this volume,
+      so there are no field rows; a bare SW, or one of only >> separators, answers MESSAGE TOO SHORT. Nothing is stored. CRC has no SIGMET view, so the
+      report is pushed to every ERAM session of the sender's facility as private messages from "SIGWX", one per line in
+      order (CRC's chat does not break a message on a newline), and the push is recorded as chat with its lines joined by
+      " / ".
     fields: []

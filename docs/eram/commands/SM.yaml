@@ -1,6 +1,84 @@
 id: SM
 variants:
-  - title: R-position Message Text
+  - title: R-position Message Text — create
     descriptor: SECTOR MESSAGE
-    handler: not implemented
-    fields: []
+    format: SM 14 (14)… 11
+    multiple_flids: null
+    handler: SM.Create
+    note: |
+      §C.2 lists no R-position source; YAAT accepts it from CRC, which stands in for the D-position and the AT Specialist.
+      The message is the room's, one per (facility, sector), recorded as SM {sector} {text} for each addressed sector
+      (ALL records every adapted sector explicitly, the sender's included); a new message overwrites the sector's last.
+      CRC has no Sector Message Notification Area, so the text is also pushed as a private message from
+      "SECTOR {sender sector}" to every ERAM session on an addressed sector, and that push is recorded as chat. Field 11 is
+      free text, spaces included, from the clear-weather symbol to the end of the entry. Yaat rulings: a text with no
+      field 14 answers MESSAGE TOO SHORT; a sector named twice counts once.
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 14 Sector Identifier
+        rule: |
+          Must be a sector number (d)dd, in the range 01 - 128, or "ALL".
+        error: MsgCofieFormat
+      - field: 14 Sector Identifier
+        rule: |
+          A maximum of 48 Field 14s is permitted, and "ALL" must be the only Field 14.
+        error: MsgMessageTooLong
+      - field: 14 Sector Identifier
+        rule: |
+          Must be an adapted sector.
+        error: MsgNon-AdaptedSector
+      - field: 14 Sector Identifier
+        rule: |
+          Must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: YAAT adapts a sector only through its position, so an adapted sector always has its R-Position.
+      - field: 11 Remarks
+        rule: |
+          Must be the clear-weather symbol followed by at least one non-blank character.
+        error: MsgNoRemarks
+      - field: 11 Remarks
+        rule: |
+          A maximum of 32 characters, once trimmed.
+        error: MsgCofieFormat
+  - title: R-position Message Text — delete
+    descriptor: SECTOR MESSAGE
+    format: SM 64
+    multiple_flids: null
+    handler: SM.Delete
+    note: |
+      §C.2 lists no R-position source; YAAT accepts it from CRC, which stands in for the D-position and the AT Specialist.
+      Deletes the entering sector's message, which is the acknowledgement, and records SMDE {sector}; a sector holding no
+      message still accepts. A leading operand of letters only (other than ALL) is read as field 64.
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 64 Action
+        rule: |
+          Must be "DE".
+        error: MsgInvalidActionType
+      - field: 64 Action
+        rule: |
+          "DE" is not valid with Field 14 or Field 11.
+        error: MsgCofieInvalidCombination
+  - title: R-position Message Text — readout
+    descriptor: SECTOR MESSAGE
+    format: SM
+    multiple_flids: null
+    handler: SM.Readout
+    note: |
+      §C.2 lists no R-position source; YAAT accepts it from CRC, which stands in for the D-position and the AT Specialist.
+      A Response Area readout of the entering sector's message text (no symbol, sender or time), or "NO SECTOR MESSAGE"
+      when it holds none. The layout is coined (yaat ruling).
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
