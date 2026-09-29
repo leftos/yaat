@@ -60,7 +60,6 @@ It mirrors the FAA SWIM feed and changes nothing in the NAS, so most controller-
 | Brief | Source files | Covers | Order |
 |---|---|---|---|
 | B5 DM | Srv `CrcClientState.Eram.FlightData.cs` (`DispatchDm`), `CrcClientState.Eram.cs` (`TrailingFlidVerbs`) | fields 26/07/08, `/OK` and `*` | after [eram-dm-design.md](./eram-dm-design.md) is ruled |
-| B6 QL and LA/LB | Srv `CrcClientState.Eram.Display.cs`, `CrcClientState.Eram.Readouts.cs`; Sim `Data/Vnas/ArtccConfig.cs` (`AsrId`) | QL field 214 + number matching, LA field 13, LA/LB SRS text | concurrent with B2 |
 | B7 per-sector state | Srv `DtoConverter.cs`, `CrcClientState.Eram.cs`; Sim `AircraftEramState.cs` + snapshot DTO, `EramEntryEngine.cs` (`DWELL`) | per-sector leader/DRI/dwell + dwell recording | after B1 and B3 |
 | B8 #464 sweep | Srv `CrcBroadcastService.cs`, `AircraftChangeTracker.cs`, `DtoConverter.cs` (history) | 12 s staggered sweep, ERAM history; the SPC blink edge (`CrcBroadcastService` ORs `DtoChangeFlags.EramTarget`) is a state change and stays outside the sweep | any time |
 
@@ -72,12 +71,6 @@ B2 and most of B5 landed; the QF leftovers are under [QF beacon fallbacks](#qf-b
 - **Not in this volume.** The C.7 dynamic parameter table has no track update rate, and no other appendix states one. The rate is an ERAM surveillance and display rule from Book 1 or the CRC manual. Check `docs/crc/eram.md` and CRC's decompiled display refresh logic, then decide from the reporter's word plus CRC's behaviour.
 
 ## Command validation candidates
-
-### QL has no field 214 checks, and quick-look sector matching is by string
-- **Severity**: bug · **Owner**: yaat-server · unverified
-- **SRS**: §C.8 QL (p.744): "Field 214 … Must be in the format (d)dd, and in the range of 01 - 128", and "A maximum of 5 Field 214s is permitted" (MsgFieldInErrorEnterValidFieldInformation, MsgMessageTooLong).
-- **YAAT now**: `CrcClientState.Eram.Display.DispatchQl` (:258-295) toggles any upper-cased token into a set, so `QL BANANA`, `QL 999` and seven sectors are all accepted. `DtoConverter.cs:918` matches with `quickLookSectors.Contains(sectorId)`, a string compare, while every other sector match compares by number (`EramFields.cs:516-531`). `QL 044` against sector `44` therefore silently does nothing. `ALL` is a YAAT addition. QL has no conformance test.
-- **Fix sketch**: validate each token as `(d)dd` in 1–128, or `ALL`, with at most 5. Normalise each token to the adapted sector id by number before storing it.
 
 ### DM ignores fields 26/07/08 and the `/OK` and `*` suffixes
 - **Severity**: gap (low priority; CRC docs show only `DM <ACID>`) · **Owner**: yaat-server · unverified
@@ -113,17 +106,6 @@ The C.7 table (Table 31, p.605–623) has no track update rate, data-block caden
 - C.8 describes no processing semantics: each command defers to "the B-level requirements", which are not in this volume.
 
 ## New candidates
-
-### `LA` / `LB` readout text does not follow the SRS format
-- **Severity**: unverified (check against a real CRC capture first) · **Owner**: yaat-server
-- **SRS**: §F.5 Tables 76–77 (p.933–935): "RANGE * 82.6 NM / BEARING * 248 DEG MAG / FROM 1ST TB ENTRY / AT 154 KNOTS 1 HR 35 MIN".
-- **YAAT now**: `CrcClientState.Eram.Readouts.cs:231,235` prints `"{dist:F1}NM {brg} {kt}KT {mm:ss}"`, and `FormatFlyingTime` gives minutes:seconds (1 h 35 min prints as `95:00`). `EramRangeReadoutTests.FormatFlyingTime_IsMinutesSeconds` pins this.
-
-### `LA` field 13 (radar site) is not handled
-- **Severity**: gap · **Owner**: yaat-server · unverified
-- **SRS**: Table 76 (p.934), the last row, "… / 2116 ACP / RADAR SITE QUU".
-- **YAAT now**: `DispatchLa` (`Readouts.cs:175-180`) accepts only two position operands, and a site ID resolves as a fix.
-- **Fix sketch**: resolve the ID against the ARTCC config's ASR sites (already read at `CrcBroadcastService.cs:2662`).
 
 ### Dwell lock, leader offset and DRI halo are per aircraft, not per sector, and the dwell lock is not recorded
 - **Severity**: gap (matters only when two ERAM CRC sessions share a room) · **Owner**: yaat-server + Yaat.Sim · unverified

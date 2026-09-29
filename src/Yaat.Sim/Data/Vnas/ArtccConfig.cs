@@ -143,6 +143,10 @@ public class EramFacilityConfig
 /// </summary>
 public class EramAsrSite
 {
+    /// <summary>The site's three-letter radar identifier (vNAS <c>AsrSite.AsrId</c>), ERAM field 13.</summary>
+    [JsonPropertyName("asrId")]
+    public string AsrId { get; set; } = "";
+
     [JsonPropertyName("location")]
     public EramAsrLocation Location { get; set; } = new();
 

@@ -11,6 +11,8 @@
 
 - ERAM shows `X`/`XXX` for an aircraft whose transponder is in standby, and a stopped target shows no `000` ground speed.
 - ERAM emergency and special-code text (EMRG, RDOF, HIJK) blinks for 30 seconds instead of for as long as the code is squawked.
+- ERAM `QL` accepts only sector numbers 01–128 or `ALL`, at most five per entry, and matches `044` to sector 44.
+- ERAM `LA` and `LB` print range, bearing and flying time in the real system's format, and `LA` measures to a radar site.
 - ERAM `QT /OK` taking another sector's track shows that sector `K`, and retracting a handoff shows you `O`.
 - ERAM `QQ` checks its fields like the real system: a three-digit interim altitude, `L` for a local interim, a two-character override, and at most 15 flight IDs.
 - ERAM `QS` free text accepts `- + = * / _ . ,` as well as letters and digits.
