@@ -17,9 +17,39 @@ public class AircraftTransponder
 
     public string Mode { get; set; } = "C";
     public uint AssignedCode { get; set; }
-    public uint Code { get; set; }
+
+    /// <summary>
+    /// The squawked beacon code. A change of code clears <see cref="SpcStartedAt"/>, so the next <see cref="Tick"/>
+    /// restamps it when the new code is also special (7700 to 7600 restarts the SPC blink).
+    /// </summary>
+    public uint Code
+    {
+        get;
+        set
+        {
+            if (value != field)
+            {
+                SpcStartedAt = null;
+            }
+            field = value;
+        }
+    }
+
     public bool IsIdenting { get; set; }
     public double? IdentStartedAt { get; set; }
+
+    /// <summary>
+    /// Scenario time the current special-purpose code (<see cref="IsSpecialPurposeCode"/>) was first observed by
+    /// <see cref="Tick"/>, or null while a normal code is squawked. ERAM blinks the Field-E SPC label for a fixed interval
+    /// from this time.
+    /// </summary>
+    public double? SpcStartedAt { get; set; }
+
+    /// <summary>
+    /// A special-purpose beacon code (ADIZ 1276, UAS lost link 7400, hijack 7500, radio failure 7600, emergency 7700,
+    /// AFIO 7777) whose ERAM Field-E label blinks on the data block (vNAS <c>EramSpecialPurposeCode</c>).
+    /// </summary>
+    public static bool IsSpecialPurposeCode(uint code) => code is 1276 or 7400 or 7500 or 7600 or 7700 or 7777;
 
     /// <summary>
     /// Latched true the first tick the transponder is observed in an altitude-reporting mode; never
@@ -63,13 +93,23 @@ public class AircraftTransponder
     /// Per-tick transponder upkeep. Latches <see cref="HasReportedModeC"/> while the transponder is in an
     /// altitude-reporting mode, and advances the IDENT timer: stamps <see cref="IdentStartedAt"/> on the
     /// first tick the ident is observed, then clears the ident once <see cref="IdentDurationSeconds"/> has
-    /// elapsed. <paramref name="nowSeconds"/> is the scenario's current <c>ElapsedSeconds</c>.
+    /// elapsed. Stamps <see cref="SpcStartedAt"/> the first tick a special code is observed and clears it on a normal
+    /// code. <paramref name="nowSeconds"/> is the scenario's current <c>ElapsedSeconds</c>.
     /// </summary>
     public void Tick(double nowSeconds)
     {
         if (Mode.Equals("C", StringComparison.OrdinalIgnoreCase))
         {
             HasReportedModeC = true;
+        }
+
+        if (!IsSpecialPurposeCode(Code))
+        {
+            SpcStartedAt = null;
+        }
+        else if (!SpcStartedAt.HasValue)
+        {
+            SpcStartedAt = nowSeconds;
         }
 
         if (!IsIdenting)
@@ -96,12 +136,14 @@ public class AircraftTransponder
             Code = Code,
             IsIdenting = IsIdenting,
             IdentStartedAt = IdentStartedAt,
+            SpcStartedAt = SpcStartedAt,
             CommandedSquawkVfr = CommandedSquawkVfr,
             HasReportedModeC = HasReportedModeC,
             AssignedByFacilityId = AssignedByFacilityId,
             AssignedBySectorId = AssignedBySectorId,
         };
 
+    // Code is assigned before SpcStartedAt: the Code setter clears the stamp.
     public static AircraftTransponder FromSnapshot(AircraftTransponderDto dto) =>
         new()
         {
@@ -110,6 +152,7 @@ public class AircraftTransponder
             Code = dto.Code,
             IsIdenting = dto.IsIdenting,
             IdentStartedAt = dto.IdentStartedAt,
+            SpcStartedAt = dto.SpcStartedAt,
             CommandedSquawkVfr = dto.CommandedSquawkVfr,
             HasReportedModeC = dto.HasReportedModeC,
             AssignedByFacilityId = dto.AssignedByFacilityId,
