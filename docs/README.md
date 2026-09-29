@@ -30,7 +30,7 @@
 | Client (`MainViewModel`) | [`client-mainviewmodel.md`](./client-mainviewmodel.md) |
 | Radar / map rendering | [`radar-rendering.md`](./radar-rendering.md) |
 | Ground view rendering | [`ground-rendering.md`](./ground-rendering.md) |
-| Speech (STT) / pilot speech (TTS) | [`speech-recognition-pipeline.md`](./speech-recognition-pipeline.md), [`solo-training-pilot-speech.md`](./solo-training-pilot-speech.md) |
+| Speech (STT) / pilot speech (TTS) | [`speech-recognition-pipeline.md`](./speech-recognition-pipeline.md), [`solo-training-pilot-speech.md`](./solo-training-pilot-speech.md); measurements in [`research/`](./research/) (e.g. the controller-voice ouroboros baseline) |
 | Pilot phraseology (wording / AIM) | [`pilot-phraseology.md`](./pilot-phraseology.md) |
 | Driving the real client / CRC from an agent | [`client-driver-mcp.md`](./client-driver-mcp.md) |
 | Setting up CRC against a local server (profile, connect, FPE) | [`crc-first-session.md`](./crc-first-session.md) |

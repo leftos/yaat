@@ -1,6 +1,6 @@
 # STT tuning list
 
-Work found by the controller-voice ouroboros (`--atc-ouroboros`; see "Tuning loop" in `docs/speech-recognition-pipeline.md`).
+Work found by the controller-voice ouroboros (`--atc-ouroboros`; see "Tuning loop" in `docs/speech-recognition-pipeline.md`). Method, full results and limits: [`../research/2026-09-28-atc-ouroboros-baseline.md`](../research/2026-09-28-atc-ouroboros-baseline.md).
 
 **Baseline** (`tools/Yaat.SpeechSandbox/Corpus/atc-ouroboros-baseline.json`):
 - Run: seed 20260928, 200 cases × 3 trials. STT was the Whisper-medium ATC fine-tune (`borisdiakur/whisper-finetuned-for-ATC-ggml`); the LLM was `gemma4:e4b`.
