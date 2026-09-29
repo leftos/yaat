@@ -324,11 +324,31 @@ public class EramEntryEngineTests
     }
 
     [Theory]
-    [InlineData("QS /250", "250")]
-    [InlineData("QS /S250", "250")]
+    [InlineData("QS /250", "S250")]
+    [InlineData("QS /s250", "S250")]
+    [InlineData("QS /S250", "S250")]
+    [InlineData("QS /075", "S075")]
     [InlineData("QS /250+", "250+")]
+    [InlineData("QS /250-", "250-")]
+    [InlineData("QS /78", "M78")]
+    [InlineData("QS /78+", "M78+")]
+    [InlineData("QS /78-", "M78-")]
+    [InlineData("QS /M78", "M78")]
     [InlineData("QS /m82", "M82")]
-    [InlineData("QS /M100-", "M100-")]
+    [InlineData("QS /M78+", "M78+")]
+    [InlineData("QS /M78-", "M78-")]
+    [InlineData("QS /M.78", "M78")]
+    [InlineData("QS /.78", "M78")]
+    [InlineData("QS /.78+", "M78+")]
+    [InlineData("QS /.78-", "M78-")]
+    [InlineData("QS /+50", "+50")]
+    [InlineData("QS /+5", "+5")]
+    [InlineData("QS /-50", "-50")]
+    [InlineData("QS /-5", "-5")]
+    [InlineData("QS /PS", "PS")]
+    [InlineData("QS /ps", "PS")]
+    [InlineData("QS /+", "+")]
+    [InlineData("QS /-", "-")]
     public void Qs_Speed_StoresTheCanonicalForm(string entry, string stored)
     {
         AircraftState ac = Aircraft();
@@ -341,15 +361,70 @@ public class EramEntryEngineTests
     }
 
     [Theory]
-    [InlineData("QS /80")]
-    [InlineData("QS /099")]
-    [InlineData("QS /M8")]
     [InlineData("QS /")]
+    [InlineData("QS /000")]
+    [InlineData("QS /0")]
+    [InlineData("QS /5")]
+    [InlineData("QS /2500")]
+    [InlineData("QS /M8")]
+    [InlineData("QS /M100")]
+    [InlineData("QS /M100-")]
+    [InlineData("QS /M.7")]
+    [InlineData("QS /M.78+")]
+    [InlineData("QS /.7")]
+    [InlineData("QS /78.5")]
+    [InlineData("QS /S250+")]
+    [InlineData("QS /S78")]
+    [InlineData("QS /S")]
+    [InlineData("QS /M")]
+    [InlineData("QS /+500")]
+    [InlineData("QS /-500")]
+    [InlineData("QS /+5+")]
+    [InlineData("QS /PS+")]
+    [InlineData("QS /abc")]
+    [InlineData("QS /S+")]
     public void Qs_BadSpeed_IsRefused(string entry)
     {
         AircraftState ac = Aircraft();
 
-        Assert.False(Apply(ac, entry, null).Success);
+        CommandResult result = Apply(ac, entry, null);
+
+        Assert.False(result.Success);
+        Assert.Equal(EramEntryErrors.SpeedFormat, result.Message);
+        Assert.Null(ac.Eram.AssignedSpeed);
+    }
+
+    [Theory]
+    [InlineData("QS 270/250", "H270", "S250")]
+    [InlineData("QS 20L/M78", "20L", "M78")]
+    [InlineData("QS H090/.78+", "H090", "M78+")]
+    [InlineData("QS 270/PS", "H270", "PS")]
+    public void Qs_HeadingAndSpeed_StoresBoth(string entry, string heading, string speed)
+    {
+        AircraftState ac = Aircraft();
+
+        CommandResult result = Apply(ac, entry, null);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(heading, ac.Eram.AssignedHeading);
+        Assert.Equal(speed, ac.Eram.AssignedSpeed);
+        Assert.Equal($"QS {heading}/{speed} UAL1", result.Message);
+    }
+
+    [Theory]
+    [InlineData("QS 270/", "270/")]
+    [InlineData("QS 999/250", "999/250")]
+    [InlineData("QS 270/abc", "270/abc")]
+    [InlineData("QS 270/250/300", "270/250/300")]
+    public void Qs_BadHeadingAndSpeed_IsRefused_AndStoresNeither(string entry, string fieldInError)
+    {
+        AircraftState ac = Aircraft();
+
+        CommandResult result = Apply(ac, entry, null);
+
+        Assert.False(result.Success);
+        Assert.Equal($"{EramEntryErrors.CofieFormat} {fieldInError}", result.Message);
+        Assert.Null(ac.Eram.AssignedHeading);
         Assert.Null(ac.Eram.AssignedSpeed);
     }
 

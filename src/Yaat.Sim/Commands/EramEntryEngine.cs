@@ -954,6 +954,12 @@ public static partial class EramEntryEngine
             return ApplyQsFreeText(ac, args);
         }
 
+        int slash = op.IndexOf('/');
+        if (slash > 0)
+        {
+            return ApplyQsHeadingAndSpeed(ac, op, slash);
+        }
+
         if (op.StartsWith('/'))
         {
             string? speed = ParseHsfSpeed(op[1..]);
@@ -974,6 +980,24 @@ public static partial class EramEntryEngine
 
         ac.Eram.AssignedHeading = heading;
         return new CommandResult(true, $"QS {heading} {ac.Callsign}");
+    }
+
+    /// <summary>
+    /// Heading and speed in one token, <c>a(a)(a)(a)</c> followed by a speed form (QS.yaml field 155): both are stored
+    /// together, or, when either part fails, the whole token answers <c>MsgCofieFormat</c> and nothing changes.
+    /// </summary>
+    private static CommandResult ApplyQsHeadingAndSpeed(AircraftState ac, string token, int slash)
+    {
+        string? heading = ParseHsfHeading(token[..slash]);
+        string? speed = ParseHsfSpeed(token[(slash + 1)..]);
+        if ((heading is null) || (speed is null))
+        {
+            return Refused(EramEntryErrors.CofieFormat, token);
+        }
+
+        ac.Eram.AssignedHeading = heading;
+        ac.Eram.AssignedSpeed = speed;
+        return new CommandResult(true, $"QS {heading}/{speed} {ac.Callsign}");
     }
 
     /// <summary><c>*</c> deletes every HSF field, <c>*/</c> the heading, <c>/*</c> the speed.</summary>
@@ -1044,15 +1068,27 @@ public static partial class EramEntryEngine
     }
 
     /// <summary>
-    /// An HSF assigned speed in CRC's canonical stored form: knots IAS (7110.65 §5-7-1.g) as exactly three bare digits
-    /// — two-digit values are rejected because CRC's Speed Menu reads a stored two-digit value as Mach — or Mach as
-    /// <c>M</c> plus two or three digits in 0.01 increments (Center speed control at/above FL240), each with an optional
-    /// trailing <c>+</c> / <c>-</c> ("or greater" / "or less", 7110.65 §5-7-2.a.2). The Speed Menu's <c>S</c> prefix is
-    /// stripped on store. Null when the token is neither.
+    /// An HSF assigned speed (the text after the <c>/</c>, any case) in the stored form CRC prints verbatim in Field F.
+    /// SRS §C.1 field 155 (docs/eram/commands/QS.yaml) lists the forms: knots <c>ddd</c>, <c>ddd+</c>, <c>ddd-</c>,
+    /// <c>Sddd</c> and the increments <c>+d(d)</c> / <c>-d(d)</c>; Mach <c>dd</c>, <c>dd±</c>, <c>Mdd</c>, <c>Mdd±</c>,
+    /// <c>M.dd</c>, <c>.dd</c>, <c>.dd±</c>; and <c>PS</c>, <c>+</c>, <c>-</c>. A two-digit value is Mach. Knots are stored
+    /// as CRC's Speed Menu composes them (<c>ViewSpeedMenu</c>): <c>Sddd</c>, or <c>ddd+</c> / <c>ddd-</c> without the
+    /// <c>S</c> when a modifier is set; every Mach form is stored as <c>Mdd</c> with its modifier, which CRC's Mach regex
+    /// reads back as Mach; the rest are stored as typed. A zero value is not an assignment. Null for any other token.
     /// </summary>
     public static string? ParseHsfSpeed(string token)
     {
         string t = token.ToUpperInvariant();
+        if (IsHsfSpeedStoredAsTyped(t))
+        {
+            return t;
+        }
+
+        if (t.StartsWith("M.", StringComparison.Ordinal))
+        {
+            return ((t.Length == 4) && IsNonZeroDigits(t[2..])) ? "M" + t[2..] : null;
+        }
+
         string modifier = "";
         if ((t.Length > 0) && (t[^1] is '+' or '-'))
         {
@@ -1060,24 +1096,44 @@ public static partial class EramEntryEngine
             t = t[..^1];
         }
 
-        if (t.Length == 0)
-        {
-            return null;
-        }
-
-        if (t[0] == 'M')
-        {
-            string machDigits = t[1..];
-            return (machDigits.Length is 2 or 3) && machDigits.All(char.IsDigit) ? "M" + machDigits + modifier : null;
-        }
-
-        if (t[0] == 'S')
-        {
-            t = t[1..];
-        }
-
-        return (t.Length == 3) && t.All(char.IsDigit) && (int.Parse(t) >= 100) ? t + modifier : null;
+        return ParseHsfSpeedValue(t, bareKnotsGetS: modifier.Length == 0) is { } value ? value + modifier : null;
     }
+
+    /// <summary>
+    /// The value of a knots or Mach speed whose optional <c>+</c> / <c>-</c> modifier is already removed: <c>ddd</c> is
+    /// knots (<c>S</c>-prefixed when <paramref name="bareKnotsGetS"/> holds), <c>dd</c>, <c>Mdd</c> and <c>.dd</c> are Mach.
+    /// </summary>
+    private static string? ParseHsfSpeedValue(string value, bool bareKnotsGetS)
+    {
+        if ((value.Length == 3) && IsNonZeroDigits(value))
+        {
+            return bareKnotsGetS ? "S" + value : value;
+        }
+
+        string mach = (value.StartsWith('M') || value.StartsWith('.')) ? value[1..] : value;
+        return ((mach.Length == 2) && IsNonZeroDigits(mach)) ? "M" + mach : null;
+    }
+
+    /// <summary>
+    /// Whether an upper-cased HSF speed is one of the forms stored as typed: <c>PS</c>, <c>+</c>, <c>-</c>, the increments
+    /// <c>+d(d)</c> / <c>-d(d)</c>, and <c>Sddd</c>.
+    /// </summary>
+    private static bool IsHsfSpeedStoredAsTyped(string t)
+    {
+        if (t is "PS" or "+" or "-")
+        {
+            return true;
+        }
+
+        if ((t.Length is 2 or 3) && (t[0] is '+' or '-') && IsNonZeroDigits(t[1..]))
+        {
+            return true;
+        }
+
+        return (t.Length == 4) && (t[0] == 'S') && IsNonZeroDigits(t[1..]);
+    }
+
+    private static bool IsNonZeroDigits(string digits) => (digits.Length > 0) && digits.All(char.IsAsciiDigit) && digits.Any(c => c != '0');
 
     /// <summary>
     /// CRR group membership rides the aircraft's <c>CrrGroupLabel</c>; the group itself is the engine's

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- ERAM `QS` takes every speed form, such as `/78`, `/.78`, `/M.78`, `/+50` and `/PS`, shows knots as `S250`, and takes heading and speed together.
+
 ## v0.14.0-beta [2026/09/28]
 
 ### Highlights

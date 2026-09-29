@@ -4,6 +4,10 @@ variants:
     descriptor: FDB DATA
     format: QS (60) 155 02 | QS (60) 64 02 | QS 02
     multiple_flids: true
+    note: |
+      yaat stores a speed in the form CRC's Speed Menu composes: knots as Sddd, or ddd+ / ddd- with a modifier; every Mach
+      form (dd, dd±, Mdd, Mdd±, M.dd, .dd, .dd±) as Mdd(+/-); +d(d), -d(d), PS, + and - as typed. CRC shows the stored
+      string verbatim in Field F.
     handler: QS.FdbData
     fields:
       - field: Position
