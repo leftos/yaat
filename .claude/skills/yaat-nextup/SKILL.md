@@ -53,4 +53,5 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 ## Landing
 
 - Orchestrator writes docs, the changelog bullet and the MAIN.md line removal **in the worktree**, commits there, then `yaat-ship`: land `base..<slug>` onto the recorded `landOn` (`merge-session-to-main` Step 2), gate there when it was a real cherry-pick, push both repos, close the issue with an audit comment, then in each repo remove its half of the pair and its branch once landed, by the user-level `nextup` §4 step 6 check.
+- An item under a feature marker (`branch: feat/<name>`, user-level `nextup` §3 "Feature branches") lands the same way onto the feature pair (`../yaat.wt/feat-<name>/yaat` and `/yaat-server`), whose `landOn` is `feat/<name>`; `yaat-ship` then pushes both feature branches and watches their feature PRs without merging them. Its MAIN.md line stays on `main` with the note `landed on feat/<name>, ships with #N` in a separate `docs:` commit there, and leaves MAIN.md with the marker line when `yaat-ship` Phase 2F merges the feature PRs.
 - The main checkout hosts at most one implementer, and none while a gate runs there.

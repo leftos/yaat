@@ -49,11 +49,12 @@ there is not carried by a later `git push origin main`.
 `git checkout -B main <sha>` when `git merge-base --is-ancestor main HEAD`
 holds, and require `## main...origin/main` before continuing.
 
-Record three facts that drive which phases are no-ops:
+Record four facts that drive which phases are no-ops:
 
 - **In a worktree or in the main checkout (`$yaat_main`) itself?** If the toplevel is `$yaat_main` and the branch is `main`, Phase 2 has nothing to land — the commits are already on `main`.
 - **Cross-repo?** Does the yaat-server source (`$server_dir` — the paired sibling when one exists, else `$server_main`) have uncommitted work or local-only commits vs `main`? The target for landing and pushing is always `$server_main`.
 - **Anything uncommitted?** If both trees are clean, Phase 1 is a no-op.
+- **Feature PR?** The current branch is a `feat/<name>` branch with an open PR into `main` (`gh pr view feat/<name> --repo leftos/yaat --json number,state,baseRefName`, and the same with `--repo leftos/yaat-server` for the paired yaat-server branch): the **feature PR**, one per repo that carries the branch (user-level `nextup` §3 "Feature branches"). Phase 2 is then Phase 2F.
 
 Then collect issue candidates *now*, while the branch name and pre-landing commit list are still easy to read — see Phase 5. Doing it after the cherry-pick means digging through rewritten SHAs.
 
@@ -75,11 +76,24 @@ If a pre-commit hook fails: surface the output, fix forward, new commit. Never `
 
 Invoke the `merge-session-to-main` skill. It cherry-picks the session's commits from the worktree branch onto `main` in both checkouts and auto-resolves purely additive conflicts in `CHANGELOG.md`, `docs/plans/*.md` and `docs/architecture.md`.
 
-**Tolerance rule:** if Phase 0 established the session is already on `main` in `$yaat_main`, that skill halts by design. Say `Phase 2: skipped (session is on main already)` and continue to Phase 3.
+**Tolerance rule:** if Phase 0 established the session is already on `main` in `$yaat_main`, that skill halts by design. Say `Phase 2: skipped (session is on main already)` and continue to Phase 3. A feature PR runs Phase 2F in place of this phase.
 
 **Landing-order footgun (cross-repo signature changes).** When the session changed a `Yaat.Sim` signature that yaat-server calls, landing yaat first deadlocks: yaat's prek build hook compiles `yaat.slnx`, which includes the sibling yaat-server project *from disk*, and yaat-server's `main` still has the old call site. Land **yaat-server first** — `git merge --ff-only <branch>` creates no commit, so it runs no hooks at all — then resume the paused yaat cherry-pick, whose hook build now sees the updated call site. `/merge-session-to-main` documents yaat-first; that ordering is wrong for this case.
 
 Stop `/yaat-ship` if the cherry-pick pauses on a conflict outside the auto-resolvable additive shape (`CHANGELOG.md`, `docs/plans/*.md`, `docs/architecture.md`, additions on both sides only). Report the conflicted files and leave the cherry-pick paused for the user.
+
+## Phase 2F: Merge the feature PRs
+
+The session is on `feat/<name>` with a feature PR into `main` in yaat, in yaat-server, or in both. It lands through GitHub with `gh pr merge --rebase`, never through `merge-session-to-main`. Run the steps per repo, yaat-server first when the branch changed a `Yaat.Sim` signature yaat-server calls (the landing-order rule in Phase 2), else yaat first:
+
+1. Every `docs/plans/MAIN.md` line under the `branch: feat/<name>` marker, read from `main`, is ticked; an open one halts: `Phase 2F: halted (<n> lines under the marker still open)`.
+2. `git -C <repo> fetch origin`. When `git -C <repo> rev-list --count HEAD..origin/main` is above zero: no item worktree cut from the branch may be in flight (`git worktree list`, each worktree's `branch.<slug>.base` read against this branch), then `git -C <repo> rebase origin/main` and `git -C <repo> push --force-with-lease origin feat/<name>`. A conflict follows `merge-session-to-main`'s additive rule for `CHANGELOG.md`, `docs/plans/*.md` and `docs/architecture.md`, and stops `/yaat-ship` for any other file. This rebase and this push are the only history rewrite and force push `/yaat-ship` makes.
+3. `git -C <repo> push origin feat/<name>` when the branch is ahead of `origin`; `gh pr ready <n> --repo leftos/<repo>`; `gh pr checks <n> --repo leftos/<repo> --watch --fail-fast`. A red check is fixed forward on the branch, pushed and watched again.
+4. `gh pr merge <n> --repo leftos/<repo> --rebase --delete-branch`, then `git -C <repo main checkout> pull --ff-only`.
+5. Once both PRs have merged, tick the marker line in `docs/plans/MAIN.md` on yaat's `main`, commit it as `docs:`, and push it in Phase 4.
+6. Once `git -C <repo main checkout> cherry main feat/<name>` prints no `+` line, remove that repo's feature worktree and `git branch -D feat/<name>`.
+
+Phase 3 is then skipped (CI built each rebased branch), Phase 4 pushes only the step 5 commit, and Phase 5's candidates add each PR's `Closes` lines.
 
 ## Phase 3: Verify main before pushing
 
@@ -126,7 +140,9 @@ git -C "$yaat_main" push origin main
 git -C "$server_main" push origin main
 ```
 
-Plain `git push` only. **Never** `--force`, `--force-with-lease`, or `--tags`. Skip a repo with nothing ahead of `origin/main` and say so.
+Plain `git push` only. **Never** `--force`, `--force-with-lease`, or `--tags` (Phase 2F's catch-up push is its own step). Skip a repo with nothing ahead of `origin/main` and say so.
+
+**A landing branch that is a feature branch** (an item landed onto `feat/<name>`, which has an open feature PR): push it with `git -C <repo> push origin feat/<name>`, then watch its checks with `gh pr checks <n> --repo leftos/<repo> --watch`. The PR stays open: merging it is Phase 2F's, run from the feature branch.
 
 `origin/main` normally trails local `main` by a lot — the user commits locally across parallel worktrees and pushes occasionally. A push that carries dozens of unrelated commits is **expected**, not a red flag; report the count and move on. Tag pushes belong to `/prepare-release`, not here.
 
@@ -230,7 +246,8 @@ Name every phase that was skipped and why, so a skipped phase never reads as a f
 - **Do not ask for approval at any phase.** Invoking `/yaat-ship` is the go-ahead, push and issue-close included. Announcing ≠ gating.
 - **Run the tests the diff implicates, not the ones you remember editing.** A changed or removed user-visible string is a search key for its own regression tests: `rg -F "<changed literal>" tests/` and run every class that matches. They usually live in a different class from the one edited — a reworded citation inside an advisory string once shipped green and left `main` red on CI.
 - **Do not push before Phase 3's gate passes.** A cherry-pick onto a diverged `main` can break the build in ways the worktree's green suite never saw.
-- **Do not `--force` a rejected push.** Rebase is allowed in exactly one case — the incoming commits touch nothing but `extern/yaat` (CI's submodule bump). Classify first (Phase 4); if anything else landed on `origin/main`, halt and surface it.
+- **Do not `--force` a rejected push.** Rebase of `main` is allowed in exactly one case — the incoming commits touch nothing but `extern/yaat` (CI's submodule bump). Classify first (Phase 4); if anything else landed on `origin/main`, halt and surface it. The feature branch's catch-up rebase and `--force-with-lease` belong to Phase 2F step 2 alone.
+- **Merge a feature PR with `gh pr merge --rebase`, and only once every line under its marker is ticked.**
 - **Do not push tags.** `--tags` can suppress the Release workflow; tagging is `/prepare-release`'s job.
 - **Do not push yaat-server before yaat.** Its CI submodule bump would point at an unpushed yaat commit.
 - **Do not bump `extern/yaat` by hand** to "help" the submodule along. CI owns that pointer.

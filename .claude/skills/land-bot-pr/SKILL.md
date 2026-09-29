@@ -178,6 +178,10 @@ already on `main`.
 gh pr merge <PR> --repo leftos/yaat --merge --delete-branch
 ```
 
+This is the named exception to the feature PR's `gh pr merge --rebase`
+(`yaat-ship` Phase 2F): a bot PR keeps its stale pinned base, where a feature
+branch is rebased onto `origin/main` before it merges.
+
 `--merge` is safe: the parents are `main`'s tip and the PR head, the tree is
 correct, nothing is duplicated. `main` already carries merge commits, so one
 more is not out of place despite the mostly-linear history.

@@ -89,6 +89,8 @@ base=$(git -C "$source" config "branch.$source_branch.base" || git -C "$target" 
 
 `branch.<name>.base` (the sha the branch was cut from, any ref: a stacked item's dependency branch, a session branch, a tag) and `branch.<name>.landOn` (the branch it lands on) are recorded per repo when `nextup` cuts the worktree (its §3, **Base and target**). With them, only `$base..$source_head` is this branch's work, so a stacked branch carries none of its dependency's commits even after they landed under other SHAs. Absent, the range is the merge-base with `main`. Read `main` as `$land_on` everywhere below; a `$land_on` checked out in another worktree (`git worktree list`) is the target checkout for this repo instead of the main checkout. A stacked branch whose base has not landed on `$land_on` yet halts: land the base first.
 
+A `$land_on` of `feat/<name>` (an item under a feature marker) is landed onto like any other branch, in the feature worktree that has it out. A `feat/*` source branch is never landed onto `main` here: it reaches `main` through its feature PR, `yaat-ship` Phase 2F.
+
 - If `source_head == target_main` → already landed, skip this repo.
 - If `base == target_main` → fast-forward possible. Use `merge --ff-only`.
 - If `base == source_head` → target is ahead of source; nothing to land, skip.

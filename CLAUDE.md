@@ -252,7 +252,7 @@ When invoking aviation-sim-expert, always include:
 
 ### Git & Issues
 
-- **Commit directly to `main`**: This project overrides the global "never push to main / use branches + PRs" rule — the sole maintainer commits and pushes directly to `main` in both yaat and yaat-server. Don't create feature branches or open PRs unless explicitly asked. (Still ask before committing — auto-commit is never OK.)
+- **Commit directly to `main`, feature branches by marker**: the sole maintainer commits and pushes directly to `main` in both yaat and yaat-server. Work under a feature marker (`branch: feat/<name>` on a `docs/plans/MAIN.md` line) lives on `feat/<name>` in both repos with a feature PR into `main` each, by the user-level route (`nextup` §3 "Feature branches", `yaat-ship` Phase 2F). Branches and PRs outside a marker only when the user asks. (Still ask before committing — auto-commit is never OK.)
 - **Commits**: `fix:`/`feat:`/`add:`/`docs:`/`ref:`/`test:` etc. Imperative, ≤72 chars.
 - **Cross-repo issues**: GitHub issues tracked on **yaat** repo. In yaat-server commits use full URL `Closes https://github.com/leftos/yaat/issues/N`, never bare `Closes #N`.
 - **Cross-repo completeness**: Features spanning both repos must be implemented together — no half-done features.
