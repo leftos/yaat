@@ -59,7 +59,7 @@ It mirrors the FAA SWIM feed and changes nothing in the NAS, so most controller-
 
 | Brief | Source files | Covers | Order |
 |---|---|---|---|
-| B7 per-sector state | Srv `DtoConverter.cs`, `CrcClientState.Eram.cs`; Sim `AircraftEramState.cs` + snapshot DTO, `EramEntryEngine.cs` (`DWELL`) | per-sector leader/DRI/dwell + dwell recording | after B1 and B3 |
+| B7 per-sector state | Srv `DtoConverter.cs`, `CrcClientState.Eram.cs`; Sim `AircraftEramState.cs` + snapshot DTO, `EramEntryEngine.cs` (`DWELL`) | per-sector leader/DRI/dwell + dwell recording | any time |
 | B8 #464 sweep | Srv `CrcBroadcastService.cs`, `AircraftChangeTracker.cs`, `DtoConverter.cs` (history) | 12 s staggered sweep, ERAM history; the SPC blink edge (`CrcBroadcastService` ORs `DtoChangeFlags.EramTarget`) is a state change and stays outside the sweep | any time |
 
 B2 and most of B5 landed; the QF leftovers are under [QF beacon fallbacks](#qf-beacon-fallbacks-and-the-empty-altitude).

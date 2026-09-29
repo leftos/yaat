@@ -1,5 +1,5 @@
 # YAAT plans — index
-<!-- plan-doc-hygiene: 2026-09-28 3dd28c87 yaat-server@7aa13b05 -->
+<!-- plan-doc-hygiene: 2026-09-29 a7340006 yaat-server@55db406a -->
 <!-- triage-open-issues: 2026-09-21T06:31:25Z -->
 
 Entry point for `docs/plans/`. One line per item; the detail lives in the linked subplan. Finished items and finished plans are deleted, never left ticked — git history is the record (a plan whose rationale or status table still has reference value is promoted into `docs/` instead). Issue-specific plans live in [`open-issues/`](./open-issues/) and are deleted once implemented.
@@ -10,11 +10,11 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 ERAM comes before everything else, the other bug reports included (user 2026-09-28). The detail, SRS citations and file:line pointers for every item are in [eram-srs-findings.md](./eram-srs-findings.md). Items marked *unverified* there are re-checked against the code before they are fixed, and dropped if they don't hold. ERAM behaviour is decided from the SRS appendices, `vatsim-server-rs` and the CRC docs rather than asked (user 2026-09-28); what those sources leave open is in [eram-open-questions.md](./eram-open-questions.md), a page to share with ERAM controllers. The ERAM follow-ups under **Singles** also count as ERAM work and come after this list.
 
-1. [ ] **#464** ERAM 12 s update: send the position part of the ERAM target and track on a 12 s sweep staggered per aircraft, with state changes still sent at once and the ERAM history trail one dot per sweep (brief B8, after B2; mechanism and ruling in the findings file)
+1. [ ] **#464** ERAM 12 s update: send the position part of the ERAM target and track on a 12 s sweep staggered per aircraft, with state changes still sent at once and the ERAM history trail one dot per sweep (brief B8; mechanism and ruling in the findings file)
 4. [ ] **Command validation**: `QS` field 60 (`/OK`) and multiple FLIDs (`QS.yaml`; `QS /OK` answers SPEED FORMAT today)
 5. [ ] **Readouts**: `QF`'s requested and last-facility beacon fallbacks and its empty assigned-altitude text
-7. [ ] **Per-sector display state** (B7, after B1 and B3): leader direction, leader length, DRI halo and dwell lock keyed by (facility, sector), and the dwell lock recorded as an absolute `RecordedEramEntry` with its sector
-8. [ ] **Unimplemented C.8 commands, all in scope**: flight-plan tools `FR`, `FP`, `DQ`, `RM`, `SP`; conflict alert `CA`, `RK` (drop `CA.yaml`'s `na`); `SM`, `RS`; weather `SW`, `UR`, `WX`. Designed in [eram-c8-design.md](./eram-c8-design.md) as five briefs in build order: C1 `DQ`/`FR`/`RS`/`RM`, C2 `CA`/`RK` (after B4), C3 `SM`/`SW`, C4 `UR`/`WX`, C5 `FP`/`SP`. Also reword `AM.yaml`'s 918 `na` reason (remarks carry REG/, PBN/, DOF/ as unparsed text). When items 1–7 have landed, delete `eram-srs-findings.md`
+7. [ ] **Per-sector display state** (B7): leader direction, leader length, DRI halo and dwell lock keyed by (facility, sector), and the dwell lock recorded as an absolute `RecordedEramEntry` with its sector
+8. [ ] **Unimplemented C.8 commands, all in scope**: flight-plan tools `FR`, `FP`, `DQ`, `RM`, `SP`; conflict alert `CA`, `RK` (drop `CA.yaml`'s `na`); `SM`, `RS`; weather `SW`, `UR`, `WX`. Designed in [eram-c8-design.md](./eram-c8-design.md) as five briefs in build order: C1 `DQ`/`FR`/`RS`/`RM`, C2 `CA`/`RK`, C3 `SM`/`SW`, C4 `UR`/`WX`, C5 `FP`/`SP`. Also reword `AM.yaml`'s 918 `na` reason (remarks carry REG/, PBN/, DOF/ as unparsed text). When items 1–7 have landed, delete `eram-srs-findings.md`
 9. [ ] **vEDST support** — [vedst-support.md](./vedst-support.md): let the vEDST web client attach to a CRC session on yaat-server: JSON hub protocol transcoded at the socket edge, `GetSessions`/`JoinSession` joined sessions, direct `?access_token=` WebSocket auth, vNAS-shaped `/vnas` config and auth endpoints, CORS for vEDST's origin. Planned; not started
 
 ## Bug reports and feature requests
