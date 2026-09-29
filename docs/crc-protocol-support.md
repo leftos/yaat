@@ -54,7 +54,7 @@ Authoritative interface definitions: `..\vatsim-vnas\messaging\` (sibling repo)
 
 - [x] `ProcessEramMessage(ProcessEramMessageDto)` — QN and implied commands (handoff initiate/accept, data-block offset and leader, FDB/LDB toggle, VCI), QF (FP readout), QL (quick look), RD (route display), QU (route display / direct-to amendment), QT (start track, coast track), QX (drop track, surrender control, remove strip), QZ (assigned alt), QQ (interim / local-interim / procedure alt), QR (reported alt), QS (FDB heading, speed and free text), QH F (freeze), HM / QH (hold), CO (suppress / restore a conflict-alert pair), QP (point-out initiate / accept / minimise, DRI), QB (beacon code, equipment, voice type), AM, VP, DM, LA, LB, LC, LD, LE, LF. Unknown verbs return `FORMAT`. The spec-derived command reference these are held to is [`eram/`](./eram/README.md).
 - [x] `SetEramSectorConfiguration(EramSectorConfigurationDto)` — per-sector storage + broadcast
-- [x] `ToggleEramDwellLock(aircraftId)` — toggles `AircraftState.IsDwellLocked`
+- [x] `ToggleEramDwellLock(aircraftId)` — records an absolute `DWELL <facility> <sector> 1|0` for the calling sector (`AircraftEramState.SectorDisplays`)
 - [x] `ClearEramPointout(aircraftId, pointoutId)` — ownership-checked (receiving sector only) clear of both R-side and D-side flags on the matching `EramPointoutState`
 - [~] `ClearOrDeleteEramCrrGroup(groupLabel)` — nil-ack stub; creation path unresolved (no dedicated hub method; live CRC trace needed)
 - [~] `SetEramCrrGroupColor(groupLabel, CrrColor)` — nil-ack stub; blocked on creation path

@@ -235,8 +235,7 @@ classifier tests masked it by keying fixtures the buggy (reader) way. When testi
 
 ### ERAM — `AircraftEramState`
 
-`AircraftEramState` (`AircraftEramState.cs:9`) holds the ERAM-tier display overrides: `IsDwellLocked`, `IsVci`, `LeaderDirection`,
-`LeaderLength`, the interim/procedure/local-interim/controller-entered altitude pile, the active `Pointouts`, and
+`AircraftEramState` (`AircraftEramState.cs:9`) holds the ERAM-tier display overrides: `IsVci`, the per-sector `SectorDisplays` (leader direction and length, DRI halo and dwell lock for each (facility, sector), read through `DisplayFor`), the interim/procedure/local-interim/controller-entered altitude pile, the active `Pointouts`, and
 `ForcedPointoutsTo` (a `List<Tcp>`). It maps onto the `EramDataBlocks` topic via `DtoConverter.ToEramDataBlock`
 (`DtoConverter.cs:332`); `ForcedPointoutsTo` also rides the `StarsTrackDto` (`DtoConverter.cs:58`).
 

@@ -3,13 +3,41 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim;
 
 /// <summary>
-/// ERAM-side per-track display state mirrored to CRC. Includes leader/dwell overrides, the ERAM-tier interim/procedure
-/// altitude pile, pending pointouts, and the ERAM sectors that have minimized the point-out data block or cycled the data
-/// block to an FDB.
+/// ERAM-side per-track display state mirrored to CRC. Includes each sector's leader, DRI and dwell display state, the
+/// ERAM-tier interim/procedure altitude pile, pending pointouts, and the ERAM sectors that have minimized the point-out
+/// data block or cycled the data block to an FDB.
 /// </summary>
 public class AircraftEramState
 {
-    public bool IsDwellLocked { get; set; }
+    /// <summary>
+    /// Each ERAM sector's own display state for this track: leader direction and length, DRI halo and dwell lock
+    /// (SRS §A.40, §A.41: R-position display state). A sector with no entry sees CRC's defaults; an entry back at every
+    /// default is removed. Read by the broadcast path, so every touch locks the list.
+    /// </summary>
+    public List<EramSectorDisplay> SectorDisplays { get; set; } = [];
+
+    /// <summary>The sector's display state for this track, or the defaults when the sector has set none.</summary>
+    public EramSectorDisplay DisplayFor(string facility, string sector)
+    {
+        lock (SectorDisplays)
+        {
+            return SectorDisplays.FirstOrDefault(d => d.Sector.Is(facility, sector))
+                ?? EramSectorDisplay.Default(new EramSectorKey(facility, sector));
+        }
+    }
+
+    /// <summary>Replaces the sector's display state; a state back at every default removes the sector's entry.</summary>
+    public void SetDisplay(EramSectorDisplay display)
+    {
+        lock (SectorDisplays)
+        {
+            SectorDisplays.RemoveAll(d => d.Sector == display.Sector);
+            if (!display.IsDefault)
+            {
+                SectorDisplays.Add(display);
+            }
+        }
+    }
 
     /// <summary>
     /// Sector IDs that have marked this aircraft on-frequency — the ERAM VCI indicator, toggled per
@@ -19,12 +47,6 @@ public class AircraftEramState
     /// ERAM sector ID.
     /// </summary>
     public List<string> OnFrequencySectorIds { get; set; } = [];
-
-    /// <summary>Leader direction override (1=SW .. 9=NE per CRC enum; 5=Default). Null = sector default.</summary>
-    public int? LeaderDirection { get; set; }
-
-    /// <summary>Leader length override (0-3 per CRC's render switch; 5=use display default). Null = controller's display default.</summary>
-    public int? LeaderLength { get; set; }
 
     /// <summary>Interim altitude issued via ERAM QQ, in hundreds of feet (the unit CRC renders directly).</summary>
     public int? InterimAltitude { get; set; }
@@ -52,21 +74,12 @@ public class AircraftEramState
     public string? FreeText { get; set; }
 
     /// <summary>
-    /// Distance Reference Indicator (DRI / separation halo) toggled via <c>QP J</c> (standard, 5 NM) or
-    /// <c>QP T</c> (reduced separation, 3 NM) (docs/crc/eram.md §Distance Reference Indicators). Stored as
-    /// the CRC <c>HaloType</c> ordinal: 1 = Standard, 2 = ReducedSeparation; null = no halo. A manual display
-    /// annotation carried on the aircraft, so all sectors viewing the FDB see the same halo (adequate for
-    /// YAAT's single-ERAM-sector training; real ERAM DRIs are per-controller).
-    /// </summary>
-    public int? DriHaloType { get; set; }
-
-    /// <summary>
     /// Label of the Continuous Range Readout (CRR) group this aircraft belongs to, assigned via the
     /// <c>LF</c> command (docs/crc/eram.md §Continuous Range Readout View). Drives the FDB's
     /// <c>CrrGroup</c> field so CRC renders the aircraft's Range Data Block (nm to the group location) and
     /// lists it under the group in the CRR view. Null = not in a group. Each aircraft belongs to at most one
     /// group (CRC models it as a single FDB field), carried on the aircraft so every sector viewing the FDB
-    /// sees the same membership (adequate for YAAT's single-ERAM-sector training, mirroring <see cref="DriHaloType"/>).
+    /// sees the same membership.
     /// </summary>
     public string? CrrGroupLabel { get; set; }
 
@@ -237,10 +250,8 @@ public class AircraftEramState
     public AircraftEramStateDto ToSnapshot() =>
         new()
         {
-            IsDwellLocked = IsDwellLocked,
+            SectorDisplays = SnapshotDisplays(SectorDisplays),
             OnFrequencySectorIds = OnFrequencySectorIds.Count > 0 ? [.. OnFrequencySectorIds] : null,
-            LeaderDirection = LeaderDirection,
-            LeaderLength = LeaderLength,
             InterimAltitude = InterimAltitude,
             LocalInterimAltitude = LocalInterimAltitude,
             ProcedureAltitude = ProcedureAltitude,
@@ -248,7 +259,6 @@ public class AircraftEramState
             AssignedHeading = AssignedHeading,
             AssignedSpeed = AssignedSpeed,
             FreeText = FreeText,
-            DriHaloType = DriHaloType,
             CrrGroupLabel = CrrGroupLabel,
             IsFrozen = IsFrozen,
             FrozenLat = FrozenLat,
@@ -295,13 +305,19 @@ public class AircraftEramState
         }
     }
 
+    private static List<EramSectorDisplayDto>? SnapshotDisplays(List<EramSectorDisplay> displays)
+    {
+        lock (displays)
+        {
+            return displays.Count > 0 ? [.. displays.Select(d => d.ToSnapshot())] : null;
+        }
+    }
+
     public static AircraftEramState FromSnapshot(AircraftEramStateDto dto) =>
         new()
         {
-            IsDwellLocked = dto.IsDwellLocked,
+            SectorDisplays = dto.SectorDisplays is null ? [] : [.. dto.SectorDisplays.Select(EramSectorDisplay.FromSnapshot)],
             OnFrequencySectorIds = dto.OnFrequencySectorIds is not null ? [.. dto.OnFrequencySectorIds] : [],
-            LeaderDirection = dto.LeaderDirection,
-            LeaderLength = dto.LeaderLength,
             InterimAltitude = dto.InterimAltitude,
             LocalInterimAltitude = dto.LocalInterimAltitude,
             ProcedureAltitude = dto.ProcedureAltitude,
@@ -309,7 +325,6 @@ public class AircraftEramState
             AssignedHeading = dto.AssignedHeading,
             AssignedSpeed = dto.AssignedSpeed,
             FreeText = dto.FreeText,
-            DriHaloType = dto.DriHaloType,
             CrrGroupLabel = dto.CrrGroupLabel,
             IsFrozen = dto.IsFrozen,
             FrozenLat = dto.FrozenLat,
@@ -348,6 +363,40 @@ public class AircraftEramState
                 : [.. dto.PointoutMinimizedSectors.Select(EramSectorKey.FromSnapshot)],
             FdbOpenSectors = dto.FdbOpenSectors is null ? [] : [.. dto.FdbOpenSectors.Select(EramSectorKey.FromSnapshot)],
         };
+}
+
+/// <summary>
+/// One ERAM sector's display state for a track, keyed by <see cref="Sector"/>.
+/// </summary>
+/// <param name="Sector">The sector the state belongs to.</param>
+/// <param name="LeaderDirection">Data-block offset, CRC's <c>LeaderDirection</c> keypad value (1=SW .. 9=NE; 5=Default).
+/// Null = the sector's default.</param>
+/// <param name="LeaderLength">Leader length (0-3; 5 = the display's default). Null = the controller's display default.</param>
+/// <param name="DriHaloType">Distance Reference Indicator (separation halo) toggled with <c>QP J</c> (standard, 5 NM) or
+/// <c>QP T</c> (reduced separation, 3 NM), stored as CRC's <c>HaloType</c> ordinal: 1 = Standard, 2 = ReducedSeparation;
+/// null = no halo.</param>
+/// <param name="IsDwellLocked">The Field-A click dwell lock (<c>ToggleEramDwellLock</c>).</param>
+public sealed record EramSectorDisplay(EramSectorKey Sector, int? LeaderDirection, int? LeaderLength, int? DriHaloType, bool IsDwellLocked)
+{
+    /// <summary>A sector's state with nothing set: CRC's defaults.</summary>
+    public static EramSectorDisplay Default(EramSectorKey sector) => new(sector, null, null, null, false);
+
+    /// <summary>Whether every field is at CRC's default.</summary>
+    public bool IsDefault => (LeaderDirection is null) && (LeaderLength is null) && (DriHaloType is null) && !IsDwellLocked;
+
+    public EramSectorDisplayDto ToSnapshot() =>
+        new()
+        {
+            Facility = Sector.Facility,
+            Sector = Sector.Sector,
+            LeaderDirection = LeaderDirection,
+            LeaderLength = LeaderLength,
+            DriHaloType = DriHaloType,
+            IsDwellLocked = IsDwellLocked,
+        };
+
+    public static EramSectorDisplay FromSnapshot(EramSectorDisplayDto dto) =>
+        new(new EramSectorKey(dto.Facility, dto.Sector), dto.LeaderDirection, dto.LeaderLength, dto.DriHaloType, dto.IsDwellLocked);
 }
 
 /// <summary>

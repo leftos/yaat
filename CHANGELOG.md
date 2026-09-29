@@ -25,6 +25,7 @@
 - ERAM data blocks show `-` or `+` for an aircraft that drifts off an altitude it had reached, instead of a climb or descent arrow.
 - A STARS temporary altitude no longer shows as the ERAM interim altitude.
 - ERAM `DQ` requests a discrete beacon code, `FR` reads out a flight plan like `QF`, `RS` removes a flight strip, and `RM` is accepted.
+- ERAM leader direction and length, the DRI halo and the dwell lock belong to each sector, so two ERAM sectors in one room no longer share them; a dwell click is recorded and takes control of a room that is playing back.
 - ERAM targets and tracks move every 12 seconds, staggered per aircraft, with a history dot per update; handoffs and other changes still show at once.
 - ERAM conflict alert runs every 5 seconds and alerts on a Mode C intruder, 1200 included, only between the conflict-alert floor (12,500 ft by default) and 99,500 ft.
 - ERAM draws an uncorrelated target as a Mode C intruder only inside that band; below it a 1200 code draws as a VFR target.

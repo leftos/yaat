@@ -625,47 +625,62 @@ public class EramEntryEngineTests
     }
 
     [Theory]
-    [InlineData("LEADER D9", 9, 1)]
-    [InlineData("LEADER L3", 4, 3)]
-    [InlineData("LEADER D2 L0", 2, 0)]
-    [InlineData("leader l2 d7", 7, 2)]
-    [InlineData("LEADER L5", 4, 5)]
+    [InlineData("LEADER ZOA 44 D9", 9, 1)]
+    [InlineData("LEADER ZOA 44 L3", 4, 3)]
+    [InlineData("LEADER ZOA 44 D2 L0", 2, 0)]
+    [InlineData("leader ZOA 44 l2 d7", 7, 2)]
+    [InlineData("LEADER ZOA 44 L5", 4, 5)]
     public void Leader_SetsTheNamedFields_AndKeepsTheRest(string entry, int direction, int length)
     {
         AircraftState ac = Aircraft();
-        ac.Eram.LeaderDirection = 4;
-        ac.Eram.LeaderLength = 1;
+        SetLeader(ac, "44", 4, 1);
 
         CommandResult result = Apply(ac, entry, null);
 
         Assert.True(result.Success, result.Message);
-        Assert.Equal(direction, ac.Eram.LeaderDirection);
-        Assert.Equal(length, ac.Eram.LeaderLength);
+        Assert.Equal(direction, ac.Eram.DisplayFor("ZOA", "44").LeaderDirection);
+        Assert.Equal(length, ac.Eram.DisplayFor("ZOA", "44").LeaderLength);
+    }
+
+    [Fact]
+    public void Leader_LeavesAnotherSectorUnchanged()
+    {
+        AircraftState ac = Aircraft();
+        SetLeader(ac, "45", 4, 1);
+
+        CommandResult result = Apply(ac, "LEADER ZOA 44 D9 L3", null);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(4, ac.Eram.DisplayFor("ZOA", "45").LeaderDirection);
+        Assert.Equal(1, ac.Eram.DisplayFor("ZOA", "45").LeaderLength);
     }
 
     [Theory]
     [InlineData("LEADER", EramEntryErrors.MessageTooShort)]
-    [InlineData("LEADER D0", "MsgInvalidDirection")]
-    [InlineData("LEADER D10", "MsgInvalidDirection")]
-    [InlineData("LEADER L4", "MsgInvalidLength")]
-    [InlineData("LEADER D2 L9", "MsgInvalidLength")]
-    [InlineData("LEADER D-1", "MsgCofieFormat D-1")]
-    [InlineData("LEADER L+2", "MsgCofieFormat L+2")]
-    [InlineData("LEADER DX", "MsgCofieFormat DX")]
-    [InlineData("LEADER D3 X2", "MsgCofieFormat X2")]
+    [InlineData("LEADER ZOA 44", EramEntryErrors.MessageTooShort)]
+    [InlineData("LEADER ZOA 44 D0", "MsgInvalidDirection")]
+    [InlineData("LEADER ZOA 44 D10", "MsgInvalidDirection")]
+    [InlineData("LEADER ZOA 44 L4", "MsgInvalidLength")]
+    [InlineData("LEADER ZOA 44 D2 L9", "MsgInvalidLength")]
+    [InlineData("LEADER ZOA 44 D-1", "MsgCofieFormat D-1")]
+    [InlineData("LEADER ZOA 44 L+2", "MsgCofieFormat L+2")]
+    [InlineData("LEADER ZOA 44 DX", "MsgCofieFormat DX")]
+    [InlineData("LEADER ZOA 44 D3 X2", "MsgCofieFormat X2")]
     public void Leader_Malformed_IsRefused_AndChangesNothing(string entry, string message)
     {
         AircraftState ac = Aircraft();
-        ac.Eram.LeaderDirection = 4;
-        ac.Eram.LeaderLength = 1;
+        SetLeader(ac, "44", 4, 1);
 
         CommandResult result = Apply(ac, entry, null);
 
         Assert.False(result.Success);
         Assert.Equal(message, result.Message);
-        Assert.Equal(4, ac.Eram.LeaderDirection);
-        Assert.Equal(1, ac.Eram.LeaderLength);
+        Assert.Equal(4, ac.Eram.DisplayFor("ZOA", "44").LeaderDirection);
+        Assert.Equal(1, ac.Eram.DisplayFor("ZOA", "44").LeaderLength);
     }
+
+    private static void SetLeader(AircraftState ac, string sector, int direction, int length) =>
+        ac.Eram.SetDisplay(EramSectorDisplay.Default(new EramSectorKey("ZOA", sector)) with { LeaderDirection = direction, LeaderLength = length });
 
     [Fact]
     public void Handoff_ByANonOwner_IsRefusedNotYourControl_AndOffersNothing()
@@ -1063,43 +1078,49 @@ public class EramEntryEngineTests
     }
 
     [Theory]
-    [InlineData("DRI J", 1)]
-    [InlineData("DRI t", 2)]
-    public void Dri_SetsTheNamedHalo(string entry, int halo)
+    [InlineData("DRI ZOA 44 J", 1)]
+    [InlineData("DRI ZOA 44 t", 2)]
+    public void Dri_SetsTheNamedHalo_ForThatSectorOnly(string entry, int halo)
     {
         AircraftState ac = Aircraft();
 
         CommandResult result = Apply(ac, entry, null);
 
         Assert.True(result.Success, result.Message);
-        Assert.Equal(halo, ac.Eram.DriHaloType);
+        Assert.Equal(halo, ac.Eram.DisplayFor("ZOA", "44").DriHaloType);
+        Assert.Null(ac.Eram.DisplayFor("ZOA", "45").DriHaloType);
     }
 
     [Fact]
-    public void BareDri_RemovesTheHalo()
+    public void Dri_WithNoHaloLetter_RemovesTheHalo()
     {
         AircraftState ac = Aircraft();
-        ac.Eram.DriHaloType = 2;
+        SetHalo(ac, 2);
 
-        CommandResult result = Apply(ac, "DRI", null);
+        CommandResult result = Apply(ac, "DRI ZOA 44", null);
 
         Assert.True(result.Success, result.Message);
-        Assert.Null(ac.Eram.DriHaloType);
+        Assert.Null(ac.Eram.DisplayFor("ZOA", "44").DriHaloType);
+        Assert.Empty(ac.Eram.SectorDisplays);
     }
 
     [Theory]
-    [InlineData("DRI X", "MsgCofieFormat X")]
-    [InlineData("DRI J T", EramEntryErrors.MessageTooLong)]
+    [InlineData("DRI ZOA 44 X", "MsgCofieFormat X")]
+    [InlineData("DRI ZOA 44 J T", EramEntryErrors.MessageTooLong)]
+    [InlineData("DRI ZOA", EramEntryErrors.MessageTooShort)]
     public void Dri_Malformed_IsRefusedAndKeepsTheHalo(string entry, string message)
     {
         AircraftState ac = Aircraft();
-        ac.Eram.DriHaloType = 1;
+        SetHalo(ac, 1);
 
         CommandResult result = Apply(ac, entry, null);
 
         Assert.Equal(message, result.Message);
-        Assert.Equal(1, ac.Eram.DriHaloType);
+        Assert.Equal(1, ac.Eram.DisplayFor("ZOA", "44").DriHaloType);
     }
+
+    private static void SetHalo(AircraftState ac, int halo) =>
+        ac.Eram.SetDisplay(EramSectorDisplay.Default(new EramSectorKey("ZOA", "44")) with { DriHaloType = halo });
 
     [Fact]
     public void Min_AddsTheSector_Idempotently()

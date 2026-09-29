@@ -2,12 +2,11 @@ namespace Yaat.Sim.Simulation.Snapshots;
 
 public sealed class AircraftEramStateDto
 {
-    public required bool IsDwellLocked { get; init; }
+    // Each ERAM sector's leader, DRI halo and dwell lock for this track. Null/empty = every sector at CRC's defaults.
+    public List<EramSectorDisplayDto>? SectorDisplays { get; init; }
 
     // Sector IDs that marked this aircraft on-frequency (the ERAM VCI indicator). Null/empty = none.
     public List<string>? OnFrequencySectorIds { get; init; }
-    public int? LeaderDirection { get; init; }
-    public int? LeaderLength { get; init; }
     public int? InterimAltitude { get; init; }
     public int? LocalInterimAltitude { get; init; }
     public int? ProcedureAltitude { get; init; }
@@ -17,9 +16,6 @@ public sealed class AircraftEramStateDto
     public string? AssignedHeading { get; init; }
     public string? AssignedSpeed { get; init; }
     public string? FreeText { get; init; }
-
-    // DRI / separation halo toggled via QP J (Standard=1) / QP T (ReducedSeparation=2); null = no halo.
-    public int? DriHaloType { get; init; }
 
     // CRR group membership label (LF command); drives the FDB CrrGroup field + Range Data Block. Null = ungrouped.
     public string? CrrGroupLabel { get; init; }
@@ -70,4 +66,16 @@ public sealed class EramSectorKeyDto
 {
     public required string Facility { get; init; }
     public required string Sector { get; init; }
+}
+
+// One sector's display state for a track: leader direction and length, DRI halo (Standard=1, ReducedSeparation=2) and
+// dwell lock. Null/false = CRC's default.
+public sealed class EramSectorDisplayDto
+{
+    public required string Facility { get; init; }
+    public required string Sector { get; init; }
+    public int? LeaderDirection { get; init; }
+    public int? LeaderLength { get; init; }
+    public int? DriHaloType { get; init; }
+    public bool IsDwellLocked { get; init; }
 }

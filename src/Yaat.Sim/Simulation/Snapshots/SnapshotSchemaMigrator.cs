@@ -22,7 +22,7 @@ public sealed class SnapshotSchemaException(int snapshotVersion, int requiredVer
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 31;
+    public const int CurrentSchemaVersion = 32;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -189,6 +189,10 @@ public static class SnapshotSchemaMigrator
         //   No data transformation: both are optional, and an older snapshot's false/null reads as never evaluated, so the
         //   next tick stores the current assignment and re-evaluates the latch, as for a new aircraft. No bump — the fields
         //   are optional with a clean default and there is nothing to transform.
+        // V31→V32: the per-aircraft ERAM IsDwellLocked, LeaderDirection, LeaderLength and DriHaloType became per-sector
+        //   state (AircraftEramStateDto.SectorDisplays, keyed by facility and sector). No data transformation: the legacy
+        //   values name no sector, so they are skipped on read and every sector restores at CRC's defaults (no dwell lock,
+        //   the default leader, no halo). The step exists so the version names the reinterpretation.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (AircraftSnapshotDto ac in snapshot.Aircraft)

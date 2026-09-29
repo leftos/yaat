@@ -58,7 +58,7 @@ It mirrors the FAA SWIM feed and changes nothing in the NAS, so most controller-
 
 | Brief | Source files | Covers | Order |
 |---|---|---|---|
-| B7 per-sector state | Srv `DtoConverter.cs`, `CrcClientState.Eram.cs`; Sim `AircraftEramState.cs` + snapshot DTO, `EramEntryEngine.cs` (`DWELL`) | per-sector leader/DRI/dwell + dwell recording | any time |
+| B7 per-sector state (shipped) | Srv `DtoConverter.cs`, `CrcClientState.Eram.cs`; Sim `AircraftEramState.cs` + snapshot DTO, `EramEntryEngine.cs` (`DWELL`) | per-sector leader/DRI/dwell + dwell recording | any time |
 
 B2 and B5 landed. `QF`'s empty assigned altitude prints `-`, as its `ALT` field readout does (the SRS gives no text). Its Requested, Last Facility Assigned and Next Facility Assigned beacon fallbacks (App. D.1 Table 34) are not modelled: YAAT has no requested-code state (`RequestNewBeaconCode` assigns at once) and a handoff never changes the code, so each would print the assigned code anyway.
 
@@ -83,14 +83,6 @@ The C.7 table (Table 31, p.605–623) has no track update rate, data-block caden
 - C.8 describes no processing semantics: each command defers to "the B-level requirements", which are not in this volume.
 
 ## New candidates
-
-### Dwell lock, leader offset and DRI halo are per aircraft, not per sector, and the dwell lock is not recorded
-- **Severity**: gap (matters only when two ERAM CRC sessions share a room) · **Owner**: yaat-server + Yaat.Sim · unverified
-- **SRS**: §A.40 (p.210) and §A.41 (p.211), plus the A.1 Table 3 rows 562, 681 and 758 (pp.69, 80, 87), which treat emphasis and leader lines as R-position display state.
-- **YAAT now**:
-  - yaat-server `DtoConverter.cs:876-885` sends a single per-aircraft `LeaderDirection`, `LeaderLength`, `DriHaloType` and `IsDwellLocked` to every sector (its comment: "single-ERAM-sector training").
-  - `CrcClientState.Eram.cs:191` toggles `IsDwellLocked` directly, with no sector key and no `ApplyAndRecord`, so a replay loses it. VCI, FDB-open and point-out minimize are per sector and recorded.
-- **Fix sketch**: key these by (facility, sector) the way `OnFrequencySectorIds` is keyed, and record the dwell-lock toggle as a `RecordedEramEntry`. The missing recording is a determinism bug even for a single sector.
 
 ## Checked and consistent
 

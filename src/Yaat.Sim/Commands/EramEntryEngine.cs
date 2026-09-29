@@ -15,8 +15,15 @@ namespace Yaat.Sim.Commands;
 /// (interim / local / procedure altitude tiers, in hundreds of feet); <c>QR {alt}</c> (controller-entered altitude);
 /// <c>QS *</c>, <c>QS */</c>, <c>QS /*</c>, <c>QS /{speed}</c>, <c>QS {heading}</c>, <c>QS `{text}</c> (the FDB line-4
 /// HSF fields, stored in the canonical forms CRC's menus re-parse); <c>LF [{label}]</c> (CRR group membership; a bare
-/// <c>LF</c> clears it); <c>VCI {sector}</c> (toggles the sector's on-frequency indicator); <c>LEADER [D{1-9}] [L{n}]</c>
-/// (data-block offset direction and leader length).
+/// <c>LF</c> clears it); <c>VCI {sector}</c> (toggles the sector's on-frequency indicator).
+/// </para>
+///
+/// <para>
+/// Per-sector display state (<see cref="AircraftEramState.SectorDisplays"/>), each naming the sector it belongs to:
+/// <c>LEADER {facility} {sector} [D{1-9}] [L{n}]</c> (data-block offset direction and leader length);
+/// <c>DRI {facility} {sector} [J|T]</c> (QP DRI: sets the standard or reduced-separation halo; no halo letter removes it);
+/// <c>DWELL {facility} {sector} 1|0</c> (sets or clears the dwell lock: an absolute value, never a toggle, so a replay
+/// cannot desync on a missed entry).
 /// </para>
 ///
 /// <para>
@@ -30,8 +37,7 @@ namespace Yaat.Sim.Commands;
 /// Out, one point out per receiving sector); <c>POACK {fromFacility} {fromSector} {toFacility} {toSector}</c> (the
 /// receiver acknowledges that point out); <c>POCLEAR {fromFacility} {fromSector} {toFacility} {toSector}</c> (the
 /// initiator removes it); <c>POCONVERT {fromFacility} {fromSector} {toFacility} {toSector}</c> or <c>POCONVERT /OK</c>
-/// (QT C, Convert Point Out Track: see <see cref="ApplyPointoutConvert"/>);
-/// <c>DRI [J|T]</c> (QP DRI: sets the standard or reduced-separation halo; a bare <c>DRI</c> removes it).
+/// (QT C, Convert Point Out Track: see <see cref="ApplyPointoutConvert"/>).
 /// The live handler decides who may acknowledge or clear and whether a DRI entry sets or removes the halo, and records
 /// the outcome, so a replay applies it without the acting position. A <c>PO</c> also removes its initiating sector and
 /// every receiving sector from <see cref="AircraftEramState.PointoutMinimizedSectors"/>, so the fresh point
@@ -92,6 +98,7 @@ public static partial class EramEntryEngine
             "POCLEAR" => ApplyPointoutChange(ac, args, ClearPointout, "POCLEAR"),
             "POCONVERT" => ApplyPointoutConvert(ac, args, ctx),
             "DRI" => ApplyDri(ac, args),
+            "DWELL" => ApplyDwell(ac, args),
             "MIN" => ApplyMinimize(ac, args),
             "FDB" => ApplyFdbToggle(ac, args),
             "CO" => ApplyConflictSuppress(ac, args, ctx.EramConflicts),
@@ -221,20 +228,20 @@ public static partial class EramEntryEngine
     }
 
     /// <summary>
-    /// Data-block offset and leader length (QN.yaml field 59): <c>D{n}</c> is the <c>LeaderDirection</c> keypad value,
-    /// 1–9, and <c>L{n}</c> the leader length, 0, 1, 2, 3 or 5; either or both, and a field left out keeps its value.
-    /// Values are unsigned digits.
+    /// Data-block offset and leader length (QN.yaml field 59) for the named sector: <c>D{n}</c> is the
+    /// <c>LeaderDirection</c> keypad value, 1–9, and <c>L{n}</c> the leader length, 0, 1, 2, 3 or 5; either or both, and a
+    /// field left out keeps the sector's value. Values are unsigned digits.
     /// </summary>
     private static CommandResult ApplyLeader(AircraftState ac, List<string> args)
     {
-        if (args.Count == 0)
+        if (args.Count < 3)
         {
             return Refused(EramEntryErrors.MessageTooShort);
         }
 
         int? direction = null;
         int? length = null;
-        foreach (string token in args)
+        foreach (string token in args.Skip(2))
         {
             char field = char.ToUpperInvariant(token[0]);
             if (!int.TryParse(token.AsSpan(1), NumberStyles.None, CultureInfo.InvariantCulture, out int value) || (field is not ('D' or 'L')))
@@ -261,9 +268,14 @@ public static partial class EramEntryEngine
             }
         }
 
-        ac.Eram.LeaderDirection = direction ?? ac.Eram.LeaderDirection;
-        ac.Eram.LeaderLength = length ?? ac.Eram.LeaderLength;
+        SetLeader(ac.Eram, new EramSectorKey(args[0], args[1]), direction, length);
         return new CommandResult(true, $"LEADER {string.Join(' ', args)} {ac.Callsign}");
+    }
+
+    private static void SetLeader(AircraftEramState eram, EramSectorKey sector, int? direction, int? length)
+    {
+        EramSectorDisplay display = eram.DisplayFor(sector.Facility, sector.Sector);
+        eram.SetDisplay(display with { LeaderDirection = direction ?? display.LeaderDirection, LeaderLength = length ?? display.LeaderLength });
     }
 
     /// <summary>
@@ -511,20 +523,21 @@ public static partial class EramEntryEngine
         && string.Equals(p.ReceivingSector, toSector, StringComparison.Ordinal);
 
     /// <summary>
-    /// QP DRI (QP.yaml): <c>J</c> sets the standard halo and <c>T</c> the reduced-separation halo, stored as CRC's
-    /// <c>HaloType</c> ordinal (1 and 2) in <see cref="AircraftEramState.DriHaloType"/>; a bare <c>DRI</c> removes it.
+    /// QP DRI (QP.yaml) for the named sector: <c>J</c> sets the standard halo and <c>T</c> the reduced-separation halo,
+    /// stored as CRC's <c>HaloType</c> ordinal (1 and 2) in <see cref="EramSectorDisplay.DriHaloType"/>; no halo letter
+    /// removes it.
     /// </summary>
     private static CommandResult ApplyDri(AircraftState ac, List<string> args)
     {
-        if (args.Count > 1)
+        if (args.Count is < 2 or > 3)
         {
-            return Refused(EramEntryErrors.MessageTooLong);
+            return Refused(args.Count < 2 ? EramEntryErrors.MessageTooShort : EramEntryErrors.MessageTooLong);
         }
 
         int? halo = null;
-        if (args.Count == 1)
+        if (args.Count == 3)
         {
-            halo = args[0].ToUpperInvariant() switch
+            halo = args[2].ToUpperInvariant() switch
             {
                 "J" => StandardHalo,
                 "T" => ReducedSeparationHalo,
@@ -532,12 +545,34 @@ public static partial class EramEntryEngine
             };
             if (halo is null)
             {
-                return Refused(EramEntryErrors.CofieFormat, args[0]);
+                return Refused(EramEntryErrors.CofieFormat, args[2]);
             }
         }
 
-        ac.Eram.DriHaloType = halo;
-        return new CommandResult(true, halo is null ? $"DRI off {ac.Callsign}" : $"DRI {args[0].ToUpperInvariant()} {ac.Callsign}");
+        ac.Eram.SetDisplay(ac.Eram.DisplayFor(args[0], args[1]) with { DriHaloType = halo });
+        string sector = $"{args[0]} {args[1]}";
+        return new CommandResult(true, halo is null ? $"DRI {sector} off {ac.Callsign}" : $"DRI {sector} {args[2].ToUpperInvariant()} {ac.Callsign}");
+    }
+
+    /// <summary>
+    /// The dwell lock (CRC's Field-A click, <c>ToggleEramDwellLock</c>) for the named sector: <c>1</c> sets it and
+    /// <c>0</c> clears it. The live handler turns the click's toggle into the absolute value before it records, so a replay
+    /// reaches the same state whatever it replays onto.
+    /// </summary>
+    private static CommandResult ApplyDwell(AircraftState ac, List<string> args)
+    {
+        if (args.Count != 3)
+        {
+            return Refused(args.Count < 3 ? EramEntryErrors.MessageTooShort : EramEntryErrors.MessageTooLong);
+        }
+        if (args[2] is not ("1" or "0"))
+        {
+            return Refused(EramEntryErrors.CofieFormat, args[2]);
+        }
+
+        bool locked = args[2] == "1";
+        ac.Eram.SetDisplay(ac.Eram.DisplayFor(args[0], args[1]) with { IsDwellLocked = locked });
+        return new CommandResult(true, $"DWELL {args[0]} {args[1]} {(locked ? "on" : "off")} {ac.Callsign}");
     }
 
     private const int StandardHalo = 1;

@@ -122,6 +122,6 @@ public class EramCoastSnapshotTests
         Assert.False(eram.IsCoastTrack);
         Assert.Empty(eram.CoastRoute);
         Assert.Null(eram.CoastPositionAt(60));
-        Assert.Equal(2, eram.LeaderLength);
+        Assert.Empty(eram.SectorDisplays); // the legacy per-aircraft LeaderLength names no sector, so it is dropped
     }
 }
