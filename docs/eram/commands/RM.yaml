@@ -2,5 +2,42 @@ id: RM
 variants:
   - title: Request Route Conversion
     descriptor: ROUTE CONVERSION
-    handler: not implemented
-    fields: []
+    format: RM 02
+    multiple_flids: false
+    handler: RM.RouteConversion
+    note: |
+      §C.2 lists no R-position source; YAAT accepts it from CRC, which stands in for the D-position and the AT Specialist.
+      Validate and accept only; YAAT keeps no converted route apart from the navigation route the aircraft flies, built
+      when the plan is filed or amended, so there is nothing stale to convert again (yaat ruling).
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID with optional departure point - Laa(a)(a)(a)(a)(/fix), (/FRD) or
+          (/lat-long); b. CID - ddd or daa (where a must not equal "I" or "O"); c. Beacon Code - dddd (all digits
+          octal); d. Trackball Pick or Trackball Enter.
+          Field 02 may be suffixed with the logic check override (/OK). yaat also takes /OK as its own token, as RF
+          does.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          When selecting the flight by trackball, the selection must capture a Track Position Symbol
+          (Paired Flight), Tear-Off Flight Entry or a View Flight Entry for a valid flight ID
+          (R-Position only).
+        error: MsgNoTBFlightID
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication

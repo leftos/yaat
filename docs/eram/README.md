@@ -52,7 +52,7 @@ Only the in-scope variants carry `format` and filled `fields`: the commands yaat
 
 ### Amendable fields
 
-`AM.yaml` also carries `amendable_fields`, the source's flight data fields table: the fields `AM` amends and `QF` names by field reference (field 12). One row per field:
+`AM.yaml` also carries `amendable_fields`, the source's flight data fields table: the fields `AM` amends and `QF` and `FR` name by field reference (field 12). One row per field:
 
 ```yaml
 amendable_fields:
@@ -63,7 +63,7 @@ amendable_fields:
 - **`abbr`**: the field abbreviation.
 - **`name`**, **`format`**, **`deletable`**: the source's name, value format, and whether a minus sign deletes the field.
 - **`notes`** (optional): the source's remarks on the field, and yaat's where they start `yaat:`.
-- **`na`** (optional): YAAT stores nothing for this field, and why. `AM` and `QF` answer a reference to it with `INVALID FIELD REF`. The rows without `na` are the fields YAAT models.
+- **`na`** (optional): YAAT stores nothing for this field, and why. `AM`, `QF` and `FR` answer a reference to it with `INVALID FIELD REF`. The rows without `na` are the fields YAAT models.
 
 ### Format notation
 
@@ -106,4 +106,4 @@ This matches CRC's own locally handled commands:
 
 - **Success:** CRC's feedback area shows `ACCEPT`, then the descriptor, then the object acted on (usually the aircraft ID).
 - **Failure:** one line, the error text.
-- **Response Area:** only for readouts (`QF`, `LA`, `LB`, `LC`, `LD`, `LE`). A command that only changes something never writes there.
+- **Response Area:** only for readouts (`QF`, `FR`, `LA`, `LB`, `LC`, `LD`, `LE`). A command that only changes something never writes there.

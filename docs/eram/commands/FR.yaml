@@ -2,5 +2,73 @@ id: FR
 variants:
   - title: Flight Plan Readout Request
     descriptor: READOUT
-    handler: not implemented
-    fields: []
+    format: FR 02 (16) (12) ... (12) | FR 02 (42) (16) | FR 02 42 (16)
+    multiple_flids: false
+    handler: FR.Readout
+    note: |
+      §C.2 lists no R-position source; YAAT accepts it from CRC, which stands in for the D-position and the AT Specialist.
+      FR answers QF's readouts: FR <ACID> reads out exactly what QF <ACID> does. Field 16 "P" (print) writes the Response
+      Area, the only output CRC has. yaat also takes Field 02 last, in QF's order, when the first field is one character,
+      which no flight ID is; a lone "R" (QF's routing) is INCORRECT ROUTING (yaat rulings).
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID Laa(a)(a)(a)(a) or Ld; b. CID ddd or daa (a must not equal "I" or "O");
+          c. Beacon Code dddd (all digits octal); d. External Beacon Code /Edddd (E is the letter "E", all digits
+          octal). A trackball pick is not one of the forms.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight. (Only applies when Field 42 does
+          not equal "*".)
+        error: MsgFLIDDuplication
+      - field: 42 Flight Plan Readout Data Selection + 16 Output Routing
+        rule: |
+          If there is only one single-character entered field after Field 02, that field must be "1", "2", "A",
+          "I", "C", "F", "P", "D", or "*".
+        error: MsgCofieFormat
+      - field: 42 Flight Plan Readout Data Selection
+        rule: |
+          Must be "1", "2", "A", "I", "C", "D", "F", or "*".
+        error: MsgInvalidSelection
+      - field: 02 Flight Identification + 42 Flight Plan Readout Data Selection
+        rule: |
+          If Field 42 is "*", Field 02 must be in the Aircraft ID format, Laa(a)(a)(a)(a) or Ld.
+        error: MsgFlidFormat
+      - field: 16 Output Routing
+        rule: |
+          Must be "P".
+        error: MsgIncorrectRouting
+      - field: 16 Output Routing
+        rule: |
+          The print option is not available in pending mode.
+        error: MsgNoFSPPrintingInPendingMode
+        na: CRC has no printer channel; Field 16 "P" writes the Response Area.
+      - field: 42 Flight Plan Readout Data Selection + 12 Field Reference
+        rule: |
+          Field 42 and Field 12 must not both be present in the same command.
+        error: MsgInvalidCombination
+      - field: 12 Field Reference
+        rule: |
+          Must be one of (valid sets per the Flight Data Fields Table in Appendix C): a. Field Reference Number dd,
+          including the optionally adapted Field 918 Indicators <adp_AdaptedICAO918Indicators>; b. Field
+          Abbreviation LLL; c. ICAO Field 918 Indicator L(L)(L)(L)/.
+        error: MsgInvalidReference
+      - field: 12 Field Reference
+        rule: |
+          If there are multiple occurrences of Field 12 in one command, the Field Reference Number or equivalent
+          Field Abbreviation must not be repeated in another instance of Field 12.
+        error: MsgCofieDuplicateFieldReference

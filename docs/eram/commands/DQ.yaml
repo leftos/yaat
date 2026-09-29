@@ -2,5 +2,36 @@ id: DQ
 variants:
   - title: Discrete Code Request
     descriptor: DIS CODE REQ
-    handler: not implemented
-    fields: []
+    format: DQ (60) 02
+    multiple_flids: false
+    handler: DQ.DisCodeReq
+    note: |
+      §C.2 lists no R-position source; YAAT accepts it from CRC, which stands in for the D-position and the AT Specialist.
+      yaat draws the code the way QB's discrete code request does, attributed to the entering sector and recorded for replay.
+      YAAT cannot reserve a code for a flight it does not hold, so an aircraft ID that names no flight in the room is
+      FLID NOT STORED even without Field 60, where the source lets it go unresolved (a yaat ruling).
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 60 Logic Check Override
+        rule: |
+          Must be "/OK".
+        error: MsgCofieFormat
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID Laa(a)(a)(a)(a) or Ld; b. CID ddd or daa (a must not equal "I" or "O").
+        error: MsgFlidFormat
+      - field: 02 Flight Identification + 60 Logic Check Override
+        rule: |
+          If Field 60 is present, Field 02 must resolve to a system plan. If Field 60 is not present and Field 02
+          does not contain an Aircraft ID, Field 02 must resolve to a system plan. If Field 60 is not present and
+          Field 02 contains an Aircraft ID, Field 02 does not have to resolve to a system plan. (See "Flight ID
+          Processing for the Discrete Code Request Command (DQ or QB)" in the EDSM SRS.)
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication

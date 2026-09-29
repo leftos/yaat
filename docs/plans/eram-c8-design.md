@@ -48,7 +48,7 @@ The sections follow that order.
 
 **YAAT**: `CrcClientState.Eram.FlightData.cs` `RequestQbDiscreteCode` (:1293) draws a code through `RoomEngine.RequestNewBeaconCode`, which records `RecordedRequestNewBeaconCode` (`RoomEngine.cs:1080-1097`).
 
-**Behaviour**: a `"DQ"` arm reads field 60, resolves field 02 with the beacon form and picks refused (`ResolveEramFlidWithoutBeacon`, plus a pick → `FLID FORMAT`), then calls `RequestQbDiscreteCode` and answers `ACCEPT / DIS CODE REQ / <ACID>`. YAAT cannot reserve a code for a flight that is not in the room, so an ACID that names no aircraft is `FLID NOT STORED` even without `/OK`. The YAML notes this departure from the "does not have to resolve" rule. One flight per entry (§C.2 "Single").
+**Behaviour**: a `"DQ"` arm reads field 60, resolves field 02 as an ACID or CID only (a beacon code, a list or a pick → `FLID FORMAT`, matching the error list below), then calls `RequestDiscreteCode` and answers `ACCEPT / DIS CODE REQ / <ACID>`. YAAT cannot reserve a code for a flight that is not in the room, so an ACID that names no aircraft is `FLID NOT STORED` even without `/OK`. The YAML notes this departure from the "does not have to resolve" rule. One flight per entry (§C.2 "Single").
 
 **State**: changes state, recorded as `RecordedRequestNewBeaconCode`.
 

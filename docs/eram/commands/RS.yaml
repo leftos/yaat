@@ -2,5 +2,36 @@ id: RS
 variants:
   - title: Remove Strip
     descriptor: REMOVE STRIP
-    handler: not implemented
-    fields: []
+    format: RS 02
+    multiple_flids: false
+    handler: RS.RemoveStrip
+    note: |
+      §C.2 lists no R-position source; YAAT accepts it from CRC, which stands in for the D-position and the AT Specialist.
+      yaat removes the same strip QX FP does, the way the STRIPD command does, recorded for replay; with no strip to
+      remove it answers ACCEPT and changes nothing. A /OK suffix is cut before the flight is resolved: Remove Strip has
+      no ownership gate for it to lift. RS needs no active session, unlike QX FP, which shares QX's check for the
+      controller's identity that its track drop needs (yaat rulings).
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 02 Flight Identification
+        rule: |
+          Must be one of: a. Aircraft ID Laa(a)(a)(a)(a) or Ld; b. CID ddd or daa (a must not equal "I" or "O");
+          c. Beacon Code dddd (all digits octal). A trackball pick is not one of the forms. Field 02 may be
+          suffixed with the logic check override (/OK) when the source is a D or A Position.
+        error: MsgFlidFormat
+      - field: 02 Flight Identification
+        rule: |
+          When a beacon code, must be a discrete beacon code, i.e. last two digits must not be 00.
+        error: MsgIllegalFlightID
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must be found.
+        error: MsgFLIDNotStored
+      - field: 02 Flight Identification
+        rule: |
+          Flight identification must not be found for more than one flight.
+        error: MsgFLIDDuplication
