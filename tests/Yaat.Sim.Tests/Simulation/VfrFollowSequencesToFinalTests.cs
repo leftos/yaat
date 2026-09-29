@@ -149,13 +149,13 @@ public class VfrFollowSequencesToFinalTests(ITestOutputHelper output)
                 return;
             }
             engine.RestoreFromSnapshot(snapshot.State);
-            engine.ReplayRange((int)snapshot.ElapsedSeconds, 830, recording.Actions);
+            engine.ReplayRange((int)snapshot.ElapsedSeconds, 860, recording.Actions);
 
             AircraftState? follower = engine.FindAircraft(Follower);
             Assert.NotNull(follower);
             Assert.True(
                 follower.Phases?.CurrentPhase is FinalApproachPhase,
-                $"Precondition: follower should be on final at t=830, got {follower.Phases?.CurrentPhase?.GetType().Name ?? "(null)"}"
+                $"Precondition: follower should be on final at t=860, got {follower.Phases?.CurrentPhase?.GetType().Name ?? "(null)"}"
             );
             Assert.Equal("28R", follower.Phases?.AssignedRunway?.Designator);
 
@@ -240,12 +240,12 @@ public class VfrFollowSequencesToFinalTests(ITestOutputHelper output)
             Assert.Equal(ClearanceType.ClearedToLand, follower.Phases?.LandingClearance);
 
             // Sequence onto 28R final — the armed clearance carries onto the rebuilt chain.
-            engine.ReplayRange(760, 830, recording.Actions);
+            engine.ReplayRange(760, 860, recording.Actions);
             follower = engine.FindAircraft(Follower);
             Assert.NotNull(follower);
             Assert.True(
                 follower.Phases?.CurrentPhase is FinalApproachPhase or LandingPhase,
-                $"Follower should be on 28R final by t=830, got {follower.Phases?.CurrentPhase?.GetType().Name ?? "(null)"}"
+                $"Follower should be on 28R final by t=860, got {follower.Phases?.CurrentPhase?.GetType().Name ?? "(null)"}"
             );
             Assert.Equal("28R", follower.Phases?.AssignedRunway?.Designator);
             Assert.Equal(ClearanceType.ClearedToLand, follower.Phases?.LandingClearance);

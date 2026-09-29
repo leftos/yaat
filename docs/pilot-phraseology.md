@@ -184,9 +184,18 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
   so a pattern cannot carry the comma before an altitude clause. `MTRA` and `XMTR` have no choice
   either way: neither carries its designator, which lives in aircraft state.
 - **Follow / sequencing** (all `RpoTerminal`) — `BuildTargetLanded`,
-  `BuildUnableToMaintainSeparation`, `BuildSequenceTightTurningBase`, `BuildSTurnsForSpacing`.
-  A follower never reports "unable to catch up": a lead that outpaces it is increasing separation, and the only
-  self-generated break-off is loss of visual contact (`BuildLostSightOfTraffic`) — AIM §5-5-12.a.2 / §4-4-14 NOTE.
+  `BuildUnableToMaintainSeparation`, `BuildSequenceTightTurningBase`, `BuildSTurnsForSpacing` (also said, at most once
+  a minute, when a free-pursuit follower starts an S-turn excursion for spacing: "S-turning for spacing behind the
+  traffic", AIM §4-3-5), `BuildUnableToFollowExtendingDownwind` ("unable to follow the traffic, extending downwind,
+  request base turn": a follower that could not build spacing 2 nm past the lead's base turn, or nearing the final,
+  ends the follow and holds an extended downwind — AIM §5-5-12.a.2, it cannot keep its own separation).
+  A follower never reports "unable to catch up": a lead that outpaces it is increasing separation. Its self-generated
+  break-offs are loss of visual contact (`BuildLostSightOfTraffic`, AIM §5-5-12.a.2 / §4-4-14 NOTE) and the extension
+  limit above.
+  FOLLOW's refusals (`CommandDispatcher.FollowFromLegRefusal`, `TryRouteRunwaylessLead`, `LeadBoundElsewhereRefusal`)
+  follow the reason-then-request rule: "Unable, on {base|final} for runway {rwy}, request vectors to follow {T}";
+  "Unable, on base for runway {rwy}, {T} is not ahead of us, request vectors"; "Unable, {T} is on the ground";
+  "Unable, {T} is inbound to {APT}, request vectors". Grounding is in `docs/approach-and-pattern-geometry.md`.
 
 ## Number & identifier spelling
 

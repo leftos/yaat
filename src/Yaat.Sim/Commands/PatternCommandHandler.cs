@@ -3075,7 +3075,7 @@ internal static class PatternCommandHandler
     /// per P/CG OPTION APPROACH, and the sim flies the touch-and-go); stop-and-go and low approach each
     /// have their own terminal.
     /// </summary>
-    private static Phase OptionClearanceTerminal(ClearanceType clearance) =>
+    internal static Phase OptionClearanceTerminal(ClearanceType clearance) =>
         clearance switch
         {
             ClearanceType.ClearedTouchAndGo or ClearanceType.ClearedForOption => new TouchAndGoPhase(),

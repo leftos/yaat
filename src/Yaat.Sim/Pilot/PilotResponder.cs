@@ -1815,6 +1815,24 @@ public static class PilotResponder
     }
 
     /// <summary>
+    /// Pilot advisory when a follower that extended its leg past the traffic's base turn to build spacing has run out of room
+    /// (the extension limit, or the leg nearing the final) without the spacing: it gives up the follow, keeps extending and
+    /// asks for a base turn (AIM 5-5-12.a.2 — advise ATC when unable). Reason first, then the request. Spoken and solo
+    /// terminal forms say "the traffic"; the RPO terminal names the lead as a diagnostic.
+    /// </summary>
+    public static PilotSpeechText BuildUnableToFollowExtendingDownwind(AircraftState aircraft, string targetCallsign)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        return new PilotSpeechText(
+            "unable to follow the traffic, extending downwind, request base turn.",
+            $"{spoken}, unable to follow the traffic, extending downwind, request base turn."
+        )
+        {
+            RpoTerminal = $"unable to follow {targetCallsign}, extending downwind, request base turn.",
+        };
+    }
+
+    /// <summary>
     /// Pilot response to a commanded pattern size below the aircraft's turn-radius minimum
     /// (<see cref="Phases.PatternGeometry.MinFlyablePatternSizeNm"/>): the pattern is flown at
     /// that minimum instead, and the pilot says so rather than silently ignoring the instruction

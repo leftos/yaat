@@ -60,17 +60,59 @@ public static class AirborneFollowHelper
     private const double FreeFlightDistanceMediumNm = 2.0;
     private const double FreeFlightDistanceLargeNm = 3.5;
 
-    /// <summary>Half-width of the regime deadband around the desired trail distance (nm) for free-pursuit lateral steering and the final-leg spacing-S-turn trigger.</summary>
+    /// <summary>How far (nm) inside the desired trail distance a follower on final must be before it S-turns for spacing.</summary>
     internal const double TrailRegimeDeadbandNm = 0.3;
 
-    /// <summary>Cross-track capture gain when established/parallel: degrees of heading bias per nm of cross-track.</summary>
-    private const double TrailCrossCaptureGainDegPerNm = 30.0;
+    /// <summary>
+    /// How far past the desired trail distance (nm, along the lead's path) a spacing excursion keeps opening the gap
+    /// before it ends: it starts once the gap falls below the desired distance and stops at desired + this.
+    /// </summary>
+    public const double TrailGapHysteresisNm = 0.1;
 
-    /// <summary>Maximum cross-track capture bias off the lead's track when established (deg) — keeps the correction shallow (AIM 4-3-5).</summary>
-    private const double TrailMaxCrossCaptureDeg = 12.0;
+    /// <summary>Spacing excursion heading off the lead's track (deg): a shallow S-turn (AIM 4-3-5).</summary>
+    public const double TrailExcursionDeg = 30.0;
 
-    /// <summary>Heading offset off the lead's track for the shallow widen excursion when too close at the speed floor (deg).</summary>
-    private const double TrailWidenOffsetDeg = 18.0;
+    /// <summary>
+    /// Spacing excursion heading off the lead's track (deg) for a piston or helicopter follower whose gap is short of its goal
+    /// by more than <see cref="TrailWideExcursionShortfallNm"/>.
+    /// </summary>
+    public const double TrailWideExcursionDeg = 45.0;
+
+    /// <summary>
+    /// Shortfall (nm) below the excursion's goal beyond which a slow follower turns <see cref="TrailWideExcursionDeg"/> off the
+    /// track instead of <see cref="TrailExcursionDeg"/>.
+    /// </summary>
+    public const double TrailWideExcursionShortfallNm = 0.3;
+
+    /// <summary>Least lateral offset (nm) a spacing excursion may reach off the lead's path.</summary>
+    public const double TrailMinOffsetCapNm = 1.0;
+
+    /// <summary>
+    /// A spacing excursion may reach this many of the follower's turn radii off the lead's path, when that is more than
+    /// <see cref="TrailMinOffsetCapNm"/> (and, for a turboprop or jet, no more than <see cref="TrailFastOffsetCapNm"/>).
+    /// </summary>
+    public const double TrailOffsetCapTurnRadii = 3.0;
+
+    /// <summary>Largest lateral offset (nm) a turboprop or jet follower's spacing excursion reaches: a shallow S-turn, not a turn-out.</summary>
+    public const double TrailFastOffsetCapNm = 1.5;
+
+    /// <summary>
+    /// How far (nm) beyond the excursion's offset cap a parallel runway's extended centerline must lie for the excursion to
+    /// turn toward it; nearer, that side is closed to the excursion.
+    /// </summary>
+    public const double TrailParallelFinalMarginNm = 0.5;
+
+    /// <summary>
+    /// Largest difference (deg) between any stretch of the lead's path ahead of the follower and the lead's present track
+    /// for that path to count as one straight leg, on which the follower points its nose at the lead.
+    /// </summary>
+    public const double TrailStraightPathToleranceDeg = 15.0;
+
+    /// <summary>Seconds of the follower's ground speed it looks ahead along the lead's path while flying the lead's turns.</summary>
+    private const double TrailPathLookAheadSeconds = 8.0;
+
+    /// <summary>Shortest look-ahead (nm) along the lead's path while flying the lead's turns.</summary>
+    private const double TrailMinPathLookAheadNm = 0.15;
 
     /// <summary>
     /// Minimum lead ground speed (kt) for its ground track to be a reliable trail reference.
@@ -544,7 +586,7 @@ public static class AirborneFollowHelper
     /// Phase-context-free variant used by <see cref="VfrFollowPhase"/> during free
     /// pursuit (lead not in a pattern). Treats the lead's ground speed as the
     /// "normal" target so the follower tracks the lead's speed with distance-based
-    /// correction, using the wider free-flight desired distances.
+    /// correction toward <paramref name="desiredNm"/>.
     ///
     /// Returns the adjusted speed, or <c>null</c> when separation cannot be
     /// maintained — in that case the helper has already added a one-shot warning
@@ -552,31 +594,23 @@ public static class AirborneFollowHelper
     /// <see cref="AircraftState.Approach.FollowingCallsign"/>; the caller MUST
     /// end its follow phase or the warning will fire again next tick.
     /// </summary>
-    /// <param name="follower">Follower aircraft.</param>
+    /// <param name="ctx">The follower's phase context.</param>
     /// <param name="lead">Lead aircraft.</param>
     /// <param name="minSpeed">Absolute floor — never returns below this.</param>
+    /// <param name="desiredNm">Distance behind the lead the speed loop holds.</param>
     /// <param name="logger">Logger for warnings when separation cannot be maintained.</param>
-    public static double? AdjustedFreeFlightSpeed(
-        AircraftState follower,
-        AircraftState lead,
-        double minSpeed,
-        bool soloTrainingMode,
-        bool rpoShowPilotSpeech,
-        ILogger logger
-    )
+    public static double? AdjustedFreeFlightSpeed(PhaseContext ctx, AircraftState lead, double minSpeed, double desiredNm, ILogger logger)
     {
         double normalSpeed = Math.Max(lead.IndicatedAirspeed, minSpeed);
-        AircraftCategory leaderCategory = AircraftCategorization.Categorize(lead.AircraftType);
-        double desired = FreeFlightDistanceForLeader(leaderCategory);
         return ComputeAdjustedSpeedWithDesired(
-            follower,
+            ctx.Aircraft,
             lead,
             normalSpeed,
             minSpeed,
-            desired,
+            desiredNm,
             MaxSpeedAdjustKts,
-            soloTrainingMode,
-            rpoShowPilotSpeech,
+            ctx.SoloTrainingMode,
+            ctx.RpoShowPilotSpeech,
             logger
         );
     }
@@ -1202,117 +1236,557 @@ public static class AirborneFollowHelper
     }
 
     /// <summary>
-    /// Computes the free-pursuit target heading for a follower steering relative to the lead's
-    /// ground track (AIM 5-5-12.a.1 "maneuver as necessary to maintain in-trail separation" /
-    /// AIM 4-3-5 shallow S-turns). Three regimes keyed on the along-track gap behind the lead
-    /// versus <paramref name="desiredNm"/>:
+    /// Computes the free-pursuit target heading for a follower keeping trail behind its lead (AIM 5-5-12.a.1 "maneuver as
+    /// necessary to maintain in-trail separation"; AIM 4-4-14.b). The gap is measured along the lead's recorded
+    /// <paramref name="path"/>:
     /// <list type="bullet">
-    /// <item><description><b>Approaching</b> (gap &gt; desired): lag-pursue an anchor
-    /// <paramref name="desiredNm"/> behind the lead, curving the follower into trail.</description></item>
-    /// <item><description><b>Established</b> (gap ≈ desired): parallel the lead's track with a bounded
-    /// cross-track capture bias — the nose parallels the track instead of pointing at the lead.</description></item>
-    /// <item><description><b>Too close</b> (gap &lt; desired): parallel + capture and let the speed loop
-    /// open the gap; when <paramref name="speedSaturated"/>, perform a shallow widen excursion off the
-    /// lead's track (toward the follower's offset side) to bleed distance.</description></item>
+    /// <item><description><b>Spaced</b>: the nose points at the lead while the path from the follower to the lead is one
+    /// straight leg; through the lead's turns the follower flies the lead's ground track and turns where it turned, rather
+    /// than cutting the corner as pure pursuit would.</description></item>
+    /// <item><description><b>Too close</b> (gap below the desired distance): a shallow S-turn (AIM 4-3-5) off the lead's
+    /// track, <see cref="TrailExcursionDeg"/> (<see cref="TrailWideExcursionDeg"/> when well short), to the pattern's outside
+    /// when there is a pattern, until the gap reaches desired + <see cref="TrailGapHysteresisNm"/>. At the offset cap it
+    /// holds parallel; once the lead has turned base the reference is the leg
+    /// it flew into that turn, so the follower extends that leg instead of turning with the lead.</description></item>
     /// </list>
-    /// Degrades to pure pursuit (pointing at the lead) when the lead's ground speed is too low for a
-    /// reliable ground track. <paramref name="widen"/> carries the excursion hysteresis so the widen
-    /// doesn't chatter across ticks.
+    /// Degrades to pure pursuit when the lead's ground speed is too low for a reliable ground track. <paramref name="widen"/>
+    /// carries the excursion's hysteresis and side across ticks.
     /// </summary>
     public static TrueHeading ComputeFreePursuitHeading(
         AircraftState follower,
         AircraftState lead,
-        double desiredNm,
-        bool speedSaturated,
+        FreePursuitSpacing spacing,
+        LeadPathTrail path,
         FollowWidenState widen
     )
     {
         // Lead nearly stopped / just airborne: its ground track is unreliable. Point at the
-        // lead's current position (legacy pursuit behavior) until it is moving.
+        // lead's current position until it is moving.
         if (lead.GroundSpeed < TrailMinLeadGroundSpeedKt)
         {
             widen.Active = false;
             return new TrueHeading(GeoMath.BearingTo(follower.Position, lead.Position));
         }
 
-        TrueHeading refTrack = lead.TrueTrack;
+        LeadPathProjection projection = path.Project(follower.Position, lead.Position, lead.TrueTrack);
+        ExcursionReference reference = ExcursionReferenceFor(follower.Position, spacing, projection);
+        UpdateExcursion(follower, spacing, reference, projection.OffPathNm, widen);
+        return widen.Active
+            ? ExcursionSteer(spacing, reference, widen)
+            : ChainHeading(follower, lead, spacing.Excursion.OffsetCapNm, path, projection);
+    }
 
-        // Along-track gap behind the lead (positive => follower is behind) and signed cross-track
-        // (positive => follower is right of the lead's track).
-        double behindNm = -GeoMath.AlongTrackDistanceNm(follower.Position, lead.Position, refTrack);
-        double crossNm = GeoMath.SignedCrossTrackDistanceNm(follower.Position, lead.Position, refTrack);
+    /// <summary>
+    /// What an excursion steers against: the leg the lead flew into its base turn while the follower extends it (its gap then
+    /// the lead's path from its base start plus the extension), otherwise the lead's path at the follower (the gap along it).
+    /// </summary>
+    private static ExcursionReference ExcursionReferenceFor(LatLon position, FreePursuitSpacing spacing, LeadPathProjection projection) =>
+        spacing.ExtendedLeg is { } leg
+            ? new ExcursionReference(leg.Track, GeoMath.SignedCrossTrackDistanceNm(position, leg.StartPoint, leg.Track), leg.GapNm)
+            : new ExcursionReference(projection.Track, projection.CrossNm, projection.GapNm);
 
-        // Approaching: gap too large -> lag-pursue an anchor desiredNm behind the lead.
-        if (behindNm > desiredNm + TrailRegimeDeadbandNm)
+    /// <summary>
+    /// Starts a spacing excursion once the gap falls below the desired distance, latching its side against the same reference
+    /// track the excursion steers by (<see cref="ExcursionSide"/>), and ends it once the gap reaches desired +
+    /// <see cref="TrailGapHysteresisNm"/>. With no side open (a parallel final either way) no excursion starts: speed alone
+    /// builds the spacing.
+    /// </summary>
+    private static void UpdateExcursion(
+        AircraftState follower,
+        FreePursuitSpacing spacing,
+        ExcursionReference reference,
+        double offPathNm,
+        FollowWidenState widen
+    )
+    {
+        double goalNm = spacing.DesiredNm + TrailGapHysteresisNm;
+        if (!widen.Active && (reference.GapNm < spacing.DesiredNm))
+        {
+            if (ExcursionSide(follower.Position, spacing, reference) is not { } side)
+            {
+                return;
+            }
+
+            widen.Side = side;
+            widen.Active = true;
+            Log.LogDebug(
+                "[Follow] {Callsign}: spacing excursion {Side} of the lead's track, gap {Gap:F2} nm along its path, goal {Goal:F2} nm",
+                follower.Callsign,
+                widen.Side > 0 ? "right" : "left",
+                reference.GapNm,
+                goalNm
+            );
+        }
+        else if (widen.Active && (reference.GapNm >= goalNm))
         {
             widen.Active = false;
-            LatLon anchor = GeoMath.ProjectPoint(lead.Position, refTrack.ToReciprocal(), desiredNm);
-            return new TrueHeading(GeoMath.BearingTo(follower.Position, anchor));
+            Log.LogDebug(
+                "[Follow] {Callsign}: spacing excursion ended, gap {Gap:F2} nm along the lead's path, {Off:F2} nm off it",
+                follower.Callsign,
+                reference.GapNm,
+                offPathNm
+            );
         }
-
-        // Too close and slowing can't open the gap -> shallow widen excursion. The excursion is
-        // sticky (widen.Active) until the gap recovers into the deadband, so it doesn't chatter.
-        bool tooClose = behindNm < desiredNm - TrailRegimeDeadbandNm;
-        if (tooClose && (speedSaturated || widen.Active))
-        {
-            widen.Side = ChooseWidenSide(widen, crossNm);
-            widen.Active = true;
-            return new TrueHeading(refTrack.Degrees + (widen.Side * TrailWidenOffsetDeg));
-        }
-
-        // Established (or too close but still able to slow): parallel the lead's track with a
-        // bounded cross-track capture bias. Positive cross (right of track) -> bias left.
-        widen.Active = false;
-        double capture = Math.Clamp(-crossNm * TrailCrossCaptureGainDegPerNm, -TrailMaxCrossCaptureDeg, TrailMaxCrossCaptureDeg);
-        return new TrueHeading(refTrack.Degrees + capture);
     }
 
     /// <summary>
-    /// The side of a widen excursion, latched when it starts: an excursion already under way keeps its side;
-    /// a new one takes the caller-imposed <see cref="FollowWidenState.PreferredSide"/> (a pattern-return pursuit
-    /// close in), otherwise the side the follower already sits on, so the excursion lengthens its path without
-    /// crossing the lead's track (right when essentially on track).
+    /// The side (+1 right of the reference track, -1 left) a new excursion takes, or null when none may. With a circuit, the
+    /// pattern's outside (<see cref="CircuitExcursionSide"/>); without one, the side the follower already sits on, or the other
+    /// side when that one holds a parallel final. Any side whose excursion would come within the offset cap +
+    /// <see cref="TrailParallelFinalMarginNm"/> of a parallel runway's extended centerline is closed.
     /// </summary>
-    private static int ChooseWidenSide(FollowWidenState widen, double crossNm)
+    private static int? ExcursionSide(LatLon position, FreePursuitSpacing spacing, ExcursionReference reference)
     {
-        if (widen.Active)
+        int preferred = spacing.Circuit is { } circuit
+            ? CircuitExcursionSide(position, reference.Track, circuit, spacing.Excursion.OffsetCapNm)
+            : (reference.CrossNm >= 0 ? 1 : -1);
+        if (spacing.ParallelsOf is not { } runway)
         {
-            return widen.Side;
+            return preferred;
         }
 
-        return widen.PreferredSide ?? (crossNm >= 0 ? 1 : -1);
+        double reachNm = spacing.Excursion.OffsetCapNm + TrailParallelFinalMarginNm;
+        if (!Pattern.VfrFollowPhase.ExcursionMeetsParallelFinal(position, reference.Track, preferred, runway, reachNm))
+        {
+            return preferred;
+        }
+
+        bool otherSideOpen =
+            (spacing.Circuit is null) && !Pattern.VfrFollowPhase.ExcursionMeetsParallelFinal(position, reference.Track, -preferred, runway, reachNm);
+        return otherSideOpen ? -preferred : null;
     }
 
     /// <summary>
-    /// The widen side (+1 right of <paramref name="leadTrack"/>, -1 left) whose excursion moves the follower
-    /// toward <paramref name="runway"/>'s pattern side for <paramref name="direction"/> traffic — right of the
-    /// landing direction for right traffic, left for left traffic, which is the side away from the parallel.
+    /// The pattern's outside (<see cref="PatternOutsideWidenSide"/>), except for a follower on the non-pattern side of the
+    /// centerline within <paramref name="offsetCapNm"/> of it: that one turns away from the final rather than across it.
     /// </summary>
-    public static int PatternSideWidenSide(TrueHeading leadTrack, RunwayInfo runway, PatternDirection direction)
+    private static int CircuitExcursionSide(LatLon position, TrueHeading refTrack, FollowCircuit circuit, double offsetCapNm)
+    {
+        int side = PatternOutsideWidenSide(position, refTrack, circuit.Runway, circuit.Direction);
+        RunwayInfo runway = circuit.Runway;
+        double patternSign = circuit.Direction == PatternDirection.Right ? 1.0 : -1.0;
+        double patternSideNm =
+            patternSign
+            * GeoMath.SignedCrossTrackDistanceNm(position, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude), runway.TrueHeading);
+        if ((patternSideNm >= 0) || (-patternSideNm > offsetCapNm))
+        {
+            return side;
+        }
+
+        TrueHeading patternSide = runway.TrueHeading + (90.0 * patternSign);
+        double towardPatternSide = Math.Cos((refTrack + (90.0 * side)).AbsAngleTo(patternSide) * Math.PI / 180.0);
+        return towardPatternSide > OutsideSideTieCosine ? -side : side;
+    }
+
+    /// <summary>
+    /// The excursion heading: off the reference track (the lead's path at the follower, or the leg the lead flew into its
+    /// base turn) to the latched side, parallel once the follower's offset from that reference reaches the cap. A piston or
+    /// helicopter well short of its goal turns <see cref="TrailWideExcursionDeg"/>; otherwise <see cref="TrailExcursionDeg"/>.
+    /// </summary>
+    private static TrueHeading ExcursionSteer(FreePursuitSpacing spacing, ExcursionReference reference, FollowWidenState widen)
+    {
+        if ((widen.Side * reference.CrossNm) >= spacing.Excursion.OffsetCapNm)
+        {
+            return reference.Track;
+        }
+
+        double shortfallNm = spacing.DesiredNm + TrailGapHysteresisNm - reference.GapNm;
+        double offDeg = shortfallNm > TrailWideExcursionShortfallNm ? TrailWideExcursionDeg : TrailExcursionDeg;
+        return reference.Track + (widen.Side * Math.Min(offDeg, spacing.Excursion.MaxOffTrackDeg));
+    }
+
+    /// <summary>The track an excursion steers against, the follower's signed offset from it, and the gap it measures.</summary>
+    private readonly record struct ExcursionReference(TrueHeading Track, double CrossNm, double GapNm);
+
+    /// <summary>
+    /// Following in a chain: the nose on the lead while the lead's path from the follower is one straight leg (or the
+    /// follower is farther off that path than the excursion cap, where the path means nothing to it); otherwise a point
+    /// on the path a short way ahead, so the follower flies the lead's turns where the lead flew them.
+    /// </summary>
+    private static TrueHeading ChainHeading(
+        AircraftState follower,
+        AircraftState lead,
+        double offsetCapNm,
+        LeadPathTrail path,
+        LeadPathProjection projection
+    )
+    {
+        if ((projection.OffPathNm > offsetCapNm) || path.IsStraightToLead(projection, lead.Position, lead.TrueTrack, TrailStraightPathToleranceDeg))
+        {
+            return new TrueHeading(GeoMath.BearingTo(follower.Position, lead.Position));
+        }
+
+        // Look at least as far ahead as the follower is off the path, so the capture back onto it stays within 45°.
+        double lookAheadNm = Math.Max(
+            Math.Max(TrailMinPathLookAheadNm, follower.GroundSpeed * TrailPathLookAheadSeconds / 3600.0),
+            projection.OffPathNm
+        );
+        return new TrueHeading(GeoMath.BearingTo(follower.Position, path.PointAhead(projection, lead.Position, lookAheadNm)));
+    }
+
+    /// <summary>
+    /// The excursion side (+1 right of <paramref name="refTrack"/>, -1 left) that takes a follower at
+    /// <paramref name="position"/> to the outside of <paramref name="runway"/>'s <paramref name="direction"/> pattern: away
+    /// from the runway and, above all, toward the pattern side, so never toward the final or a parallel's final beyond it. On the
+    /// extended centerline that is the pattern side (right of the landing direction for right traffic); on a downwind or a
+    /// base it is away from the field.
+    /// </summary>
+    public static int PatternOutsideWidenSide(LatLon position, TrueHeading refTrack, RunwayInfo runway, PatternDirection direction)
     {
         TrueHeading patternSide = direction == PatternDirection.Right ? runway.TrueHeading + 90.0 : runway.TrueHeading - 90.0;
-        TrueHeading rightOfLeadTrack = leadTrack + 90.0;
-        return rightOfLeadTrack.AbsAngleTo(patternSide) <= 90.0 ? 1 : -1;
+        TrueHeading right = refTrack + 90.0;
+        double rightTowardPatternSide = Math.Cos(right.AbsAngleTo(patternSide) * Math.PI / 180.0);
+        if (Math.Abs(rightTowardPatternSide) > OutsideSideTieCosine)
+        {
+            return rightTowardPatternSide > 0 ? 1 : -1;
+        }
+
+        // Flying across the final's direction (a base, a base entry): both sides are level with the centerline, so the
+        // outside is the side away from the runway.
+        LatLon nearest = NearestOnRunway(position, runway);
+        var awayFromRunway = new TrueHeading(GeoMath.BearingTo(nearest, position));
+        return right.AbsAngleTo(awayFromRunway) <= 90.0 ? 1 : -1;
+    }
+
+    /// <summary>
+    /// Below this cosine (about 15° either side of level) an excursion side counts as neither toward the pattern side nor
+    /// toward the centerline, and <see cref="PatternOutsideWidenSide"/> picks the side away from the runway instead.
+    /// </summary>
+    public const double OutsideSideTieCosine = 0.26;
+
+    /// <summary>The point on <paramref name="runway"/>'s centerline, between its two ends, nearest <paramref name="position"/>.</summary>
+    private static LatLon NearestOnRunway(LatLon position, RunwayInfo runway)
+    {
+        var end1 = new LatLon(runway.Lat1, runway.Lon1);
+        var end2 = new LatLon(runway.Lat2, runway.Lon2);
+        double lengthNm = GeoMath.DistanceNm(end1, end2);
+        var along = new TrueHeading(GeoMath.BearingTo(end1, end2));
+        double alongNm = Math.Clamp(GeoMath.AlongTrackDistanceNm(position, end1, along), 0.0, lengthNm);
+        return GeoMath.ProjectPoint(end1, along, alongNm);
     }
 }
 
 /// <summary>
-/// Hysteresis state for the free-pursuit widen excursion (<see cref="AirborneFollowHelper.ComputeFreePursuitHeading"/>).
-/// Lives on the follow phase (and is serialized) so the shallow widen/S-turn does not chatter on/off
-/// across ticks while the follower bleeds distance behind a too-close lead.
+/// What a free pursuit steers to (<see cref="AirborneFollowHelper.ComputeFreePursuitHeading"/>): the desired gap behind the
+/// lead along its path, how far a spacing excursion may go, the circuit whose outside the excursion takes (null when there is
+/// no pattern), the leg the lead flew into its base turn while the follower is extending it past that turn (null
+/// otherwise), and the runway whose parallel finals the excursion keeps clear of (null when none is known).
+/// </summary>
+public sealed record FreePursuitSpacing(
+    double DesiredNm,
+    FollowExcursionLimits Excursion,
+    FollowCircuit? Circuit,
+    FollowExtendedLeg? ExtendedLeg,
+    RunwayInfo? ParallelsOf
+);
+
+/// <summary>How far off the lead's path (nm) a spacing excursion may reach, and the most it turns off the lead's track (deg).</summary>
+public sealed record FollowExcursionLimits(double OffsetCapNm, double MaxOffTrackDeg);
+
+/// <summary>A traffic pattern: the runway and the direction of its circuit.</summary>
+public sealed record FollowCircuit(RunwayInfo Runway, PatternDirection Direction);
+
+/// <summary>
+/// The leg a lead flew into its base turn, which the follower is extending past that turn: the point the lead's base began,
+/// the track it arrived on, and the follower's gap (nm): the lead's path from that point plus the follower's extension.
+/// </summary>
+public sealed record FollowExtendedLeg(LatLon StartPoint, TrueHeading Track, double GapNm);
+
+/// <summary>
+/// Hysteresis state for the free-pursuit spacing excursion (<see cref="AirborneFollowHelper.ComputeFreePursuitHeading"/>).
+/// Lives on the follow phase (and is serialized) so the S-turn does not chatter on/off across ticks.
 /// </summary>
 public sealed class FollowWidenState
 {
-    /// <summary>True while a widen excursion is in progress.</summary>
+    /// <summary>True while a spacing excursion is in progress.</summary>
     public bool Active { get; set; }
 
-    /// <summary>Excursion side: +1 = widen right of the lead's track, -1 = widen left.</summary>
+    /// <summary>Excursion side: +1 = right of the lead's track, -1 = left.</summary>
     public int Side { get; set; }
+}
+
+/// <summary>Where a follower sits against its lead's recorded path (<see cref="LeadPathTrail.Project"/>).</summary>
+/// <param name="Segment">Index of the path segment nearest the follower (the last segment ends at the lead).</param>
+/// <param name="AlongSegmentNm">How far along that segment the follower's foot lies (negative before the path's start).</param>
+/// <param name="GapNm">Distance along the path from the follower's foot to the lead (negative when past the lead).</param>
+/// <param name="CrossNm">Signed offset from the path, right of its direction positive.</param>
+/// <param name="OffPathNm">Distance from the path.</param>
+/// <param name="Track">The path's direction at the foot.</param>
+public readonly record struct LeadPathProjection(
+    int Segment,
+    double AlongSegmentNm,
+    double GapNm,
+    double CrossNm,
+    double OffPathNm,
+    TrueHeading Track
+);
+
+/// <summary>
+/// The lead's recent ground track as the follower saw it: a breadcrumb of the lead's positions, one every
+/// <see cref="SampleSpacingNm"/>, holding the last <see cref="MaxLengthNm"/> of path. The follower measures its gap along
+/// this path and flies the lead's turns from it. The lead's present position is always the path's last point.
+/// </summary>
+public sealed class LeadPathTrail
+{
+    /// <summary>Least distance (nm) the lead moves between breadcrumbs.</summary>
+    public const double SampleSpacingNm = 0.05;
+
+    /// <summary>Length of path (nm) the breadcrumb keeps behind the lead.</summary>
+    public const double MaxLengthNm = 4.0;
+
+    /// <summary>Segments shorter than this (nm) carry no direction and are skipped.</summary>
+    private const double MinSegmentNm = 1e-4;
+
+    /// <summary>Segments shorter than this (nm) are too short to judge the path's direction by.</summary>
+    private const double MinDirectionSegmentNm = 0.02;
+
+    private readonly List<LatLon> _points = [];
+
+    /// <summary>The recorded breadcrumbs, oldest first.</summary>
+    public IReadOnlyList<LatLon> Points => _points;
+
+    /// <summary>Record the lead's position when it has moved at least <see cref="SampleSpacingNm"/> from the last breadcrumb.</summary>
+    public void Record(LatLon leadPosition)
+    {
+        if ((_points.Count > 0) && (GeoMath.DistanceNm(_points[^1], leadPosition) < SampleSpacingNm))
+        {
+            return;
+        }
+
+        _points.Add(leadPosition);
+        TrimToMaxLength();
+    }
+
+    private void TrimToMaxLength()
+    {
+        double lengthNm = 0;
+        for (int i = _points.Count - 1; i > 0; i--)
+        {
+            lengthNm += GeoMath.DistanceNm(_points[i - 1], _points[i]);
+            if (lengthNm > MaxLengthNm)
+            {
+                _points.RemoveRange(0, i - 1);
+                return;
+            }
+        }
+    }
+
+    /// <summary>Forget the whole path (the follow now pursues another lead).</summary>
+    public void Clear() => _points.Clear();
 
     /// <summary>
-    /// A side the caller requires for a new excursion (+1/-1), overriding the follower's own offset side; an
-    /// excursion already under way keeps the side it latched. Null
-    /// to let the excursion choose. Set every tick by the caller, so it is not serialized.
+    /// How many vertices the path has: the breadcrumbs, then the lead's present position as a last vertex unless the last
+    /// breadcrumb already sits on it.
     /// </summary>
-    public int? PreferredSide { get; set; }
+    private int VertexCount(LatLon leadPosition) =>
+        (_points.Count == 0) || (GeoMath.DistanceNm(_points[^1], leadPosition) > MinSegmentNm) ? _points.Count + 1 : _points.Count;
+
+    /// <summary>Vertex <paramref name="index"/> of the path: a breadcrumb, or the lead's present position past the last one.</summary>
+    private LatLon Vertex(int index, LatLon leadPosition) => index < _points.Count ? _points[index] : leadPosition;
+
+    /// <summary>
+    /// Where <paramref name="position"/> sits against the path: its foot on the nearest segment, the gap along the path from
+    /// there to the lead, and its offset. With no breadcrumb yet, the lead's present <paramref name="leadTrack"/> through its
+    /// position stands in for the path.
+    /// </summary>
+    public LeadPathProjection Project(LatLon position, LatLon leadPosition, TrueHeading leadTrack)
+    {
+        int vertexCount = VertexCount(leadPosition);
+        if (vertexCount < 2)
+        {
+            double crossNm = GeoMath.SignedCrossTrackDistanceNm(position, leadPosition, leadTrack);
+            return new LeadPathProjection(
+                Segment: 0,
+                AlongSegmentNm: 0,
+                GapNm: -GeoMath.AlongTrackDistanceNm(position, leadPosition, leadTrack),
+                CrossNm: crossNm,
+                OffPathNm: Math.Abs(crossNm),
+                Track: leadTrack
+            );
+        }
+
+        LeadPathProjection best = default;
+        double bestOffNm = double.MaxValue;
+        for (int i = 0; i < vertexCount - 1; i++)
+        {
+            if (
+                (SegmentFoot(position, Vertex(i, leadPosition), Vertex(i + 1, leadPosition), i, vertexCount - 1) is { } foot)
+                && (foot.OffPathNm < bestOffNm)
+            )
+            {
+                best = foot;
+                bestOffNm = foot.OffPathNm;
+            }
+        }
+
+        double remainingNm = 0;
+        for (int i = best.Segment + 1; i < vertexCount - 1; i++)
+        {
+            remainingNm += GeoMath.DistanceNm(Vertex(i, leadPosition), Vertex(i + 1, leadPosition));
+        }
+        return best with { GapNm = best.GapNm + remainingNm };
+    }
+
+    /// <summary>
+    /// The foot of <paramref name="position"/> on segment <paramref name="index"/> (<paramref name="from"/> to
+    /// <paramref name="to"/>, one of <paramref name="segmentCount"/>), with the gap to that segment's end. The first segment
+    /// extends backward and the last forward, so a follower behind the path's start or past the lead still projects onto it.
+    /// Null for a segment too short to have a direction.
+    /// </summary>
+    private static LeadPathProjection? SegmentFoot(LatLon position, LatLon from, LatLon to, int index, int segmentCount)
+    {
+        double lengthNm = GeoMath.DistanceNm(from, to);
+        if (lengthNm < MinSegmentNm)
+        {
+            return null;
+        }
+
+        var track = new TrueHeading(GeoMath.BearingTo(from, to));
+        double alongNm = GeoMath.AlongTrackDistanceNm(position, from, track);
+        double crossNm = GeoMath.SignedCrossTrackDistanceNm(position, from, track);
+        double lowNm = index == 0 ? double.NegativeInfinity : 0.0;
+        double highNm = index == segmentCount - 1 ? double.PositiveInfinity : lengthNm;
+        double footNm = Math.Clamp(alongNm, lowNm, highNm);
+        double offNm = footNm == alongNm ? Math.Abs(crossNm) : GeoMath.DistanceNm(position, GeoMath.ProjectPoint(from, track, footNm));
+        return new LeadPathProjection(
+            Segment: index,
+            AlongSegmentNm: footNm,
+            GapNm: lengthNm - footNm,
+            CrossNm: crossNm,
+            OffPathNm: offNm,
+            Track: track
+        );
+    }
+
+    /// <summary>
+    /// True when every stretch of the path from the follower's foot to the lead runs within <paramref name="toleranceDeg"/>
+    /// of the lead's present <paramref name="leadTrack"/>: the lead is on one straight leg with no turn between them.
+    /// </summary>
+    public bool IsStraightToLead(LeadPathProjection projection, LatLon leadPosition, TrueHeading leadTrack, double toleranceDeg)
+    {
+        int vertexCount = VertexCount(leadPosition);
+        for (int i = Math.Max(projection.Segment, 0); i < vertexCount - 1; i++)
+        {
+            LatLon from = Vertex(i, leadPosition);
+            LatLon to = Vertex(i + 1, leadPosition);
+            if (GeoMath.DistanceNm(from, to) < MinDirectionSegmentNm)
+            {
+                continue;
+            }
+            if (new TrueHeading(GeoMath.BearingTo(from, to)).AbsAngleTo(leadTrack) > toleranceDeg)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /// <summary>The point <paramref name="aheadNm"/> along the path past the follower's foot, or the lead when the path ends first.</summary>
+    public LatLon PointAhead(LeadPathProjection projection, LatLon leadPosition, double aheadNm)
+    {
+        int vertexCount = VertexCount(leadPosition);
+        double remainingNm = aheadNm;
+        double fromNm = Math.Max(projection.AlongSegmentNm, 0.0);
+        for (int i = projection.Segment; i < vertexCount - 1; i++)
+        {
+            LatLon from = Vertex(i, leadPosition);
+            LatLon to = Vertex(i + 1, leadPosition);
+            double lengthNm = GeoMath.DistanceNm(from, to);
+            if (fromNm + remainingNm <= lengthNm)
+            {
+                return GeoMath.ProjectPoint(from, new TrueHeading(GeoMath.BearingTo(from, to)), fromNm + remainingNm);
+            }
+            remainingNm -= Math.Max(lengthNm - fromNm, 0.0);
+            fromNm = 0.0;
+        }
+        return leadPosition;
+    }
+
+    /// <summary>
+    /// Length of the path (nm) from the breadcrumb nearest <paramref name="point"/> to the lead at
+    /// <paramref name="leadPosition"/>; the straight distance when the path is empty.
+    /// </summary>
+    public double LengthFromNm(LatLon point, LatLon leadPosition)
+    {
+        int nearest = NearestIndex(point);
+        if (nearest < 0)
+        {
+            return GeoMath.DistanceNm(point, leadPosition);
+        }
+
+        int vertexCount = VertexCount(leadPosition);
+        double lengthNm = 0;
+        for (int i = nearest; i < vertexCount - 1; i++)
+        {
+            lengthNm += GeoMath.DistanceNm(Vertex(i, leadPosition), Vertex(i + 1, leadPosition));
+        }
+        return lengthNm;
+    }
+
+    /// <summary>Index of the breadcrumb nearest <paramref name="point"/>, or -1 when there is none.</summary>
+    private int NearestIndex(LatLon point)
+    {
+        int nearest = -1;
+        double nearestNm = double.MaxValue;
+        for (int i = 0; i < _points.Count; i++)
+        {
+            double distNm = GeoMath.DistanceNm(_points[i], point);
+            if (distNm < nearestNm)
+            {
+                nearest = i;
+                nearestNm = distNm;
+            }
+        }
+        return nearest;
+    }
+
+    /// <summary>
+    /// The track the lead flew into <paramref name="point"/>: the bearing to it from the breadcrumb about
+    /// <paramref name="backNm"/> of path before the breadcrumb nearest it. Null when the breadcrumb does not reach that far back.
+    /// </summary>
+    public TrueHeading? TrackInto(LatLon point, double backNm)
+    {
+        int nearest = NearestIndex(point);
+        double walkedNm = 0;
+        for (int i = nearest; i > 0; i--)
+        {
+            walkedNm += GeoMath.DistanceNm(_points[i - 1], _points[i]);
+            if (walkedNm >= backNm)
+            {
+                return new TrueHeading(GeoMath.BearingTo(_points[i - 1], point));
+            }
+        }
+        return null;
+    }
+
+    /// <summary>The breadcrumbs as a flat [lat, lon, lat, lon, …] array for a snapshot; null when empty.</summary>
+    public double[]? ToSnapshot()
+    {
+        if (_points.Count == 0)
+        {
+            return null;
+        }
+
+        double[] flat = new double[_points.Count * 2];
+        for (int i = 0; i < _points.Count; i++)
+        {
+            flat[2 * i] = _points[i].Lat;
+            flat[(2 * i) + 1] = _points[i].Lon;
+        }
+        return flat;
+    }
+
+    /// <summary>Restore the breadcrumbs from <see cref="ToSnapshot"/>'s flat array (null or empty leaves the path empty).</summary>
+    public void RestoreSnapshot(double[]? flat)
+    {
+        _points.Clear();
+        if (flat is null)
+        {
+            return;
+        }
+        for (int i = 0; i + 1 < flat.Length; i += 2)
+        {
+            _points.Add(new LatLon(flat[i], flat[i + 1]));
+        }
+    }
 }

@@ -3690,29 +3690,9 @@ public static class CommandDispatcher
             return new CommandResult(false, "FOLLOW requires the aircraft to be airborne");
         }
 
-        // Forced FOLLOW (FOLLOWF): the RPO folds the RTISF into the follow clearance so
-        // traffic-in-sight need not be reported first. RPO-only, like RTISF — a solo student
-        // must acquire the traffic with RTIS before following.
-        if (follow.Force)
+        if (follow.Force && (ApplyForcedFollow(aircraft, follow, ctx) is { } forcedRefusal))
         {
-            if (ctx.SoloTrainingMode)
-            {
-                return new CommandResult(false, "FOLLOWF is RPO-only; use RTIS/RTISF in solo training");
-            }
-            aircraft.Approach.HasReportedTrafficInSight = true;
-            if (!string.IsNullOrWhiteSpace(follow.TargetCallsign))
-            {
-                aircraft.Approach.LastReportedTrafficCallsign = follow.TargetCallsign.ToUpperInvariant();
-            }
-            else if (aircraft.PendingObservations.OfType<TrafficAcquisitionObservation>().FirstOrDefault() is { } pending)
-            {
-                // Bare FOLLOWF folds in a still-pending RTIS: the traffic the RPO called out but the
-                // pilot hasn't visually acquired yet lives only in PendingObservations
-                // (LastReportedTrafficCallsign isn't set until acquisition succeeds). FOLLOWF
-                // supersedes that look-for-traffic, so consume and clear the observation.
-                aircraft.Approach.LastReportedTrafficCallsign = pending.TargetCallsign.ToUpperInvariant();
-                aircraft.PendingObservations.RemoveAll(o => o is TrafficAcquisitionObservation);
-            }
+            return forcedRefusal;
         }
 
         // RTIS gate: a pilot cannot follow traffic they haven't visually acquired.
@@ -3732,25 +3712,63 @@ public static class CommandDispatcher
         }
 
         AircraftState? leadAircraft = ctx.FindAircraft?.Invoke(target);
+        return SuperLeadRefusal(leadAircraft, target) ?? RouteFollow(aircraft, leadAircraft, target, ctx);
+    }
 
-        // Visual separation — and therefore FOLLOW — is not authorized behind a super
-        // (7110.65 §7-2-1; AIM §5-5-11.2.5). Reject when the lead resolves to a super.
-        if (
-            leadAircraft is { } lead
-            && WakeTurbulenceData.WakeClassForType(lead.AircraftType, AircraftCategorization.Categorize(lead.AircraftType))
-                == WakeTurbulenceData.WakeClass.Super
-        )
+    /// <summary>
+    /// Forced FOLLOW (FOLLOWF): the RPO folds the RTISF into the follow clearance so traffic-in-sight need not be
+    /// reported first. RPO-only, like RTISF — a solo student must acquire the traffic with RTIS before following.
+    /// Returns the refusal, or null once the traffic-in-sight state has been set.
+    /// </summary>
+    private static CommandResult? ApplyForcedFollow(AircraftState aircraft, FollowCommand follow, DispatchContext ctx)
+    {
+        if (ctx.SoloTrainingMode)
         {
-            return new CommandResult(false, $"Unable, visual separation not authorized behind super {target}");
+            return new CommandResult(false, "FOLLOWF is RPO-only; use RTIS/RTISF in solo training");
         }
+        aircraft.Approach.HasReportedTrafficInSight = true;
+        if (!string.IsNullOrWhiteSpace(follow.TargetCallsign))
+        {
+            aircraft.Approach.LastReportedTrafficCallsign = follow.TargetCallsign.ToUpperInvariant();
+        }
+        else if (aircraft.PendingObservations.OfType<TrafficAcquisitionObservation>().FirstOrDefault() is { } pending)
+        {
+            // Bare FOLLOWF folds in a still-pending RTIS: the traffic the RPO called out but the
+            // pilot hasn't visually acquired yet lives only in PendingObservations
+            // (LastReportedTrafficCallsign isn't set until acquisition succeeds). FOLLOWF
+            // supersedes that look-for-traffic, so consume and clear the observation.
+            aircraft.Approach.LastReportedTrafficCallsign = pending.TargetCallsign.ToUpperInvariant();
+            aircraft.PendingObservations.RemoveAll(o => o is TrafficAcquisitionObservation);
+        }
+        return null;
+    }
 
+    /// <summary>
+    /// Visual separation — and therefore FOLLOW — is not authorized behind a super (7110.65 §7-2-1;
+    /// AIM §5-5-11.2.5). The refusal when the lead resolves to a super, otherwise null.
+    /// </summary>
+    private static CommandResult? SuperLeadRefusal(AircraftState? lead, string target)
+    {
+        bool isSuper =
+            (lead is not null)
+            && (
+                WakeTurbulenceData.WakeClassForType(lead.AircraftType, AircraftCategorization.Categorize(lead.AircraftType))
+                == WakeTurbulenceData.WakeClass.Super
+            );
+        return isSuper ? new CommandResult(false, $"Unable, visual separation not authorized behind super {target}") : null;
+    }
+
+    /// <summary>
+    /// Route an accepted FOLLOW by where the follower is and what the lead is doing: the runwayless-lead guards,
+    /// the cross-runway refusal from base or final, the same-runway retarget on a pattern leg, and otherwise the
+    /// install (<see cref="InstallFollow"/>).
+    /// </summary>
+    private static CommandResult RouteFollow(AircraftState aircraft, AircraftState? leadAircraft, string target, DispatchContext ctx)
+    {
         // If the follower is already in a pattern phase to the SAME runway the lead is using,
         // just update the target — AirborneFollowHelper handles spacing on every pattern leg.
         // Rebuilding through VfrFollowPhase here would route the follower back through
-        // PatternEntry for the same runway it's already flying — wasteful and confusing. Also
-        // clear any prior EXT (extended leg) on Upwind/Crosswind/Downwind: FOLLOW supersedes
-        // the controller's hold-and-call-the-next-leg instruction since the pilot now has
-        // explicit traffic to sequence behind.
+        // PatternEntry for the same runway it's already flying — wasteful and confusing.
         //
         // When the lead is landing a DIFFERENT runway, in-trail sequencing against the
         // follower's own pattern is meaningless — fall through to the VfrFollowPhase install
@@ -3780,80 +3798,63 @@ public static class CommandDispatcher
 
         if (followerOnPatternLeg && !crossRunway)
         {
-            switch (current)
-            {
-                case UpwindPhase uw when uw.IsExtended:
-                    uw.IsExtended = false;
-                    break;
-                case CrosswindPhase cw when cw.IsExtended:
-                    cw.IsExtended = false;
-                    break;
-                case DownwindPhase dw when dw.IsExtended:
-                    dw.IsExtended = false;
-                    break;
-            }
-            aircraft.Approach.FollowingCallsign = target;
-            return Ok($"Follow {target}");
+            return RetargetFollowOnPatternLeg(aircraft, current, target);
         }
 
-        // Pattern-aware install (issue #352): when the lead is established toward a known
-        // runway (entry, pattern leg, final, landing), FOLLOW is a runway-sequencing
-        // instruction — the correct maneuver is to fly that runway's pattern behind the
-        // lead (continue the downwind, extend, turn base behind), which free pursuit cannot
-        // express: ComputeFreePursuitHeading immediately parallels the lead's track, and
-        // from a downwind-shaped geometry that is an about-face onto a parallel offset
-        // track. Build the pattern entry to the lead's runway instead — on the runway's
-        // established circuit side (ChooseFollowJoinDirection), with the published
-        // midfield-crossing entry when the follower is on the wrong side — and let the
-        // Downwind/AirborneFollowHelper sequencing holds do the spacing. Free pursuit
-        // remains for genuinely free-flight leads (no runway to sequence onto).
+        return InstallFollow(aircraft, leadAircraft, current, target, ctx);
+    }
+
+    /// <summary>
+    /// Same-runway FOLLOW on a pattern leg: set the target in place and clear any prior EXT (extended leg) on
+    /// Upwind/Crosswind/Downwind — FOLLOW supersedes the controller's hold-and-call-the-next-leg instruction
+    /// since the pilot now has explicit traffic to sequence behind.
+    /// </summary>
+    private static CommandResult RetargetFollowOnPatternLeg(AircraftState aircraft, Phase? current, string target)
+    {
+        switch (current)
+        {
+            case UpwindPhase uw when uw.IsExtended:
+                uw.IsExtended = false;
+                break;
+            case CrosswindPhase cw when cw.IsExtended:
+                cw.IsExtended = false;
+                break;
+            case DownwindPhase dw when dw.IsExtended:
+                dw.IsExtended = false;
+                break;
+        }
+        aircraft.Approach.FollowingCallsign = target;
+        return Ok($"Follow {target}");
+    }
+
+    /// <summary>
+    /// Install the follow for a follower not retargeted in place: the pattern entry behind a lead established
+    /// toward a runway (<see cref="TryFollowIntoLeadPattern"/>), otherwise free pursuit — retargeting a
+    /// <see cref="VfrFollowPhase"/> already flying, or installing a fresh one.
+    /// </summary>
+    private static CommandResult InstallFollow(
+        AircraftState aircraft,
+        AircraftState? leadAircraft,
+        Phase? current,
+        string target,
+        DispatchContext ctx
+    )
+    {
         // From an approach (FOLLOW is Allowed there so the landing clearance survives), the approach is torn down
         // first, as a phase-clearing command would, keeping only that clearance.
-        // For a lead landing a DIFFERENT runway this models an implied runway change:
-        // 7110.65 §3-8-1's codified phraseology for traffic on another runway is a
-        // traffic advisory ("TRAFFIC ... LANDING RUNWAY (number)"), not FOLLOW — the
-        // re-sequence is a deliberate trainer affordance (the controller's intent is the
-        // lead's runway), kept per maintainer decision.
         if (current is InterceptCoursePhase or ApproachNavigationPhase)
         {
             ClearPhaseChainKeepingClearance(aircraft, "FOLLOW");
             current = null;
         }
 
-        if (leadAircraft is { IsOnGround: false } establishedLead && IsEstablishedTowardRunway(establishedLead))
+        if (
+            (leadAircraft is { IsOnGround: false } establishedLead)
+            && IsEstablishedTowardRunway(establishedLead)
+            && (TryFollowIntoLeadPattern(aircraft, establishedLead, target, ctx) is { } joined)
+        )
         {
-            RunwayInfo leadRunway = establishedLead.Phases!.AssignedRunway!;
-
-            // Exception: the lead is on final and the follower is already positioned to join
-            // that final directly — inbound at a workable angle, near the approach course,
-            // with no parallel runway's final in between. There the in-trail join
-            // (VfrFollowPhase → TryJoinLeadFinal) is the right shape; a full downwind
-            // circuit would loop an aircraft that is effectively number two on the approach.
-            bool leadOnFinal = establishedLead.Phases.CurrentPhase is FinalApproachPhase or LandingPhase;
-            if (!(leadOnFinal && CanJoinLeadFinalDirectly(aircraft, leadRunway)))
-            {
-                PatternDirection joinDirection = ChooseFollowJoinDirection(aircraft, establishedLead.Phases.TrafficDirection, leadRunway);
-                CommandResult entryResult = PatternCommandHandler.TryEnterPattern(
-                    aircraft,
-                    joinDirection,
-                    PatternEntryLeg.Downwind,
-                    runwayId: leadRunway.Designator,
-                    finalDistanceNm: null,
-                    groundLayout: ctx.GroundLayout
-                );
-                if (entryResult.Success)
-                {
-                    aircraft.Approach.FollowingCallsign = target;
-                    return Ok($"Follow {target}");
-                }
-                // The entry could not be built (no airport context / runway lookup failure) —
-                // fall through to the free-pursuit install rather than dropping the follow.
-                // Invariant this relies on: with (Downwind, finalDistanceNm: null) every
-                // TryEnterPattern reject path returns BEFORE mutating the phase chain, so
-                // `current` (captured above) is still valid below. The reject paths that DO
-                // leave AssignedRunway repointed without a rebuilt chain are all gated on
-                // Final/Base entries, which this call site never requests.
-            }
+            return joined;
         }
 
         // If the follower is already in VfrFollowPhase, retarget in place. Reached only for
@@ -3868,6 +3869,66 @@ public static class CommandDispatcher
 
         InstallVfrFollowPhase(aircraft, target, patternReturn: null);
         return Ok($"Follow {target}");
+    }
+
+    /// <summary>
+    /// Pattern-aware install (issue #352): when the lead is established toward a known
+    /// runway (entry, pattern leg, final, landing), FOLLOW is a runway-sequencing
+    /// instruction — the correct maneuver is to fly that runway's pattern behind the
+    /// lead (continue the downwind, extend, turn base behind), which free pursuit cannot
+    /// express: ComputeFreePursuitHeading immediately parallels the lead's track, and
+    /// from a downwind-shaped geometry that is an about-face onto a parallel offset
+    /// track. Build the pattern entry to the lead's runway instead — on the runway's
+    /// established circuit side (ChooseFollowJoinDirection), with the published
+    /// midfield-crossing entry when the follower is on the wrong side — and let the
+    /// Downwind/AirborneFollowHelper sequencing holds do the spacing. Free pursuit
+    /// remains for genuinely free-flight leads (no runway to sequence onto).
+    /// For a lead landing a DIFFERENT runway this models an implied runway change:
+    /// 7110.65 §3-8-1's codified phraseology for traffic on another runway is a
+    /// traffic advisory ("TRAFFIC ... LANDING RUNWAY (number)"), not FOLLOW — the
+    /// re-sequence is a deliberate trainer affordance (the controller's intent is the
+    /// lead's runway), kept per maintainer decision.
+    /// Null when the follower should pursue instead: it can join the lead's final directly, or the entry could
+    /// not be built.
+    /// </summary>
+    private static CommandResult? TryFollowIntoLeadPattern(AircraftState aircraft, AircraftState establishedLead, string target, DispatchContext ctx)
+    {
+        RunwayInfo leadRunway = establishedLead.Phases!.AssignedRunway!;
+
+        // Exception: the lead is on final and the follower is already positioned to join
+        // that final directly — inbound at a workable angle, near the approach course,
+        // with no parallel runway's final in between. There the in-trail join
+        // (VfrFollowPhase → TryJoinLeadFinal) is the right shape; a full downwind
+        // circuit would loop an aircraft that is effectively number two on the approach.
+        bool leadOnFinal = establishedLead.Phases.CurrentPhase is FinalApproachPhase or LandingPhase;
+        if (leadOnFinal && CanJoinLeadFinalDirectly(aircraft, leadRunway))
+        {
+            return null;
+        }
+
+        PatternDirection joinDirection = ChooseFollowJoinDirection(aircraft, establishedLead.Phases.TrafficDirection, leadRunway);
+        CommandResult entryResult = PatternCommandHandler.TryEnterPattern(
+            aircraft,
+            joinDirection,
+            PatternEntryLeg.Downwind,
+            runwayId: leadRunway.Designator,
+            finalDistanceNm: null,
+            groundLayout: ctx.GroundLayout
+        );
+        if (entryResult.Success)
+        {
+            aircraft.Approach.FollowingCallsign = target;
+            return Ok($"Follow {target}");
+        }
+
+        // The entry could not be built (no airport context / runway lookup failure) —
+        // fall through to the free-pursuit install rather than dropping the follow.
+        // Invariant this relies on: with (Downwind, finalDistanceNm: null) every
+        // TryEnterPattern reject path returns BEFORE mutating the phase chain, so
+        // the caller's `current` is still valid. The reject paths that DO
+        // leave AssignedRunway repointed without a rebuilt chain are all gated on
+        // Final/Base entries, which this call site never requests.
+        return null;
     }
 
     /// <summary>

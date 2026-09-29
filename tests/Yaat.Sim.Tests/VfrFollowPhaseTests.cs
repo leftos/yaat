@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
@@ -6,6 +7,8 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
@@ -383,9 +386,19 @@ public class VfrFollowPhaseTests : IDisposable
         // Lead is slow (80 kts); follower behind with good spacing (2nm for a piston
         // desired distance of 1nm → too far, speed correction should *raise* speed
         // above lead's 80 kts toward the normal follow window).
-        AircraftState follower = MakeVfrAircraft("FOLL", lat: 37.0, lon: -122.0);
+        // Both eastbound, the lead ~2 nm ahead on the follower's track.
+        AircraftState follower = MakeVfrAircraft("FOLL", "C172", lat: 37.0, lon: -122.0, heading: 90, altitude: 2500, ias: 90, onGround: false);
         follower.Approach.FollowingCallsign = "LEAD";
-        AircraftState lead = MakeVfrAircraft("LEAD", lat: 37.0, lon: -122.0 + (2.0 / 54.0));
+        AircraftState lead = MakeVfrAircraft(
+            "LEAD",
+            "C172",
+            lat: 37.0,
+            lon: -122.0 + (2.0 / 54.0),
+            heading: 90,
+            altitude: 2500,
+            ias: 90,
+            onGround: false
+        );
         lead.IndicatedAirspeed = 80;
 
         var phase = new VfrFollowPhase("LEAD", patternReturn: null);
@@ -456,45 +469,96 @@ public class VfrFollowPhaseTests : IDisposable
         return lead;
     }
 
-    [Fact]
-    public void VfrFollowPhase_FreeFlight_Established_FliesParallelToLeadTrack_NotAtLead()
+    /// <summary>Record <paramref name="points"/> (oldest first) as the lead's position history, the path a new follow phase seeds from.</summary>
+    private static void SeedLeadHistory(AircraftState lead, IEnumerable<LatLon> points)
     {
-        // Follower established at the desired trail distance but offset 1.5 nm to the side.
-        // Pure pursuit would aim its nose at the lead (~045°); the trail-keeping law flies
-        // parallel to the lead's 090° track with only a bounded cross-track capture bias.
-        AircraftState lead = MakeLead(37.0, -122.0, trackDeg: 90, ias: 90);
-        LatLon followerPos = PlaceTrailing(lead.Position, lead.TrueTrack, behindNm: 1.5, rightNm: 1.5);
-        AircraftState follower = MakeVfrAircraft(
-            "FOLL",
-            "C172",
-            lat: followerPos.Lat,
-            lon: followerPos.Lon,
-            heading: 90,
-            altitude: 2500,
-            ias: 90,
-            onGround: false
-        );
-        follower.Approach.FollowingCallsign = "LEAD";
+        foreach (LatLon point in points)
+        {
+            lead.PositionHistory.Add((point.Lat, point.Lon));
+        }
+    }
 
+    /// <summary>A <paramref name="type"/> follower at <paramref name="position"/> on <paramref name="headingDeg"/> in a fresh follow of
+    /// <paramref name="lead"/>, ticked once; returns the follower.</summary>
+    private static AircraftState TickNewFollower(AircraftState lead, string type, LatLon position, double headingDeg, double ias)
+    {
+        AircraftState follower = MakeVfrAircraft("FOLL", type, position.Lat, position.Lon, headingDeg, altitude: 2500, ias: ias, onGround: false);
+        follower.Approach.FollowingCallsign = "LEAD";
         var phase = new VfrFollowPhase("LEAD", patternReturn: null);
         follower.Phases!.Add(phase);
         PhaseContext ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
         follower.Phases.Start(ctx);
-
         phase.OnTick(ctx);
-
-        double hdg = follower.Targets.TargetTrueHeading!.Value.Degrees;
-        // Parallel-to-track with bounded capture (turning left toward the track), NOT the
-        // ~045° pure-pursuit bearing straight at the lead.
-        Assert.InRange(hdg, 73, 82);
+        return follower;
     }
 
     [Fact]
-    public void VfrFollowPhase_FreeFlight_TooClose_NotSaturated_ParallelsAndSlows()
+    public void VfrFollowPhase_FreeFlight_Spaced_PointsNoseAtLeadOnStraightLeg()
     {
-        // Too close (1.0 nm < 1.5 nm desired) but the lead is fast, so the speed loop has
-        // room to open the gap: the follower parallels the track + captures (does NOT widen),
-        // and reduces speed below the lead's.
+        // Spaced (1.7 nm behind along the lead's straight recorded path, 0.5 nm off it): the follower follows in a chain,
+        // its nose on the lead (AIM 5-5-12.a.1 "maneuver as necessary to maintain in-trail separation"; AIM 4-4-14.b).
+        AircraftState lead = MakeLead(37.0, -122.0, trackDeg: 90, ias: 90);
+        SeedLeadHistory(lead, Enumerable.Range(1, 12).Reverse().Select(i => GeoMath.ProjectPoint(lead.Position, new TrueHeading(270), i * 0.2)));
+        LatLon followerPos = PlaceTrailing(lead.Position, lead.TrueTrack, behindNm: 1.7, rightNm: 0.5);
+
+        AircraftState follower = TickNewFollower(lead, "C172", followerPos, headingDeg: 90, ias: 90);
+
+        TrueHeading hdg = follower.Targets.TargetTrueHeading!.Value;
+        var bearingToLead = new TrueHeading(GeoMath.BearingTo(follower.Position, lead.Position));
+        Assert.True(hdg.AbsAngleTo(bearingToLead) < 1.0, $"heading {hdg.Degrees:F1}, bearing to the lead {bearingToLead.Degrees:F1}");
+    }
+
+    [Fact]
+    public void VfrFollowPhase_FreeFlight_Spaced_FliesTheLeadsTurnRatherThanPointingAtIt()
+    {
+        // The lead flew north, turned east 0.5 nm back and is now eastbound; the follower is on its northbound leg, 1.7 nm
+        // behind along the path. It flies the path to the lead's turn point, not the corner-cutting bearing to the lead.
+        AircraftState lead = MakeLead(37.0, -122.0, trackDeg: 90, ias: 90);
+        LatLon corner = GeoMath.ProjectPoint(lead.Position, new TrueHeading(270), 0.5);
+        IEnumerable<LatLon> northbound = Enumerable.Range(1, 10).Reverse().Select(i => GeoMath.ProjectPoint(corner, new TrueHeading(180), i * 0.2));
+        IEnumerable<LatLon> eastbound = Enumerable.Range(0, 3).Select(i => GeoMath.ProjectPoint(corner, new TrueHeading(90), i * 0.2));
+        SeedLeadHistory(lead, northbound.Concat(eastbound));
+        LatLon followerPos = GeoMath.ProjectPoint(corner, new TrueHeading(180), 1.2);
+
+        AircraftState follower = TickNewFollower(lead, "C172", followerPos, headingDeg: 0, ias: 90);
+
+        TrueHeading hdg = follower.Targets.TargetTrueHeading!.Value;
+        var bearingToLead = new TrueHeading(GeoMath.BearingTo(follower.Position, lead.Position));
+        Assert.True(hdg.AbsAngleTo(bearingToLead) > 10.0, $"heading {hdg.Degrees:F1} points at the lead ({bearingToLead.Degrees:F1})");
+        Assert.True(hdg.AbsAngleTo(new TrueHeading(0)) < 5.0, $"heading {hdg.Degrees:F1} leaves the lead's northbound leg");
+    }
+
+    [Fact]
+    public void VfrFollowPhase_FreeFlight_FasterFollowerTooClose_STurnsThirtyDegreesWithinOneAndAHalfMiles()
+    {
+        // A turboprop 0.6 nm short of its goal S-turns only 30° (a piston would turn 45°).
+        AircraftState lead = MakeLead(37.0, -122.0, trackDeg: 90, ias: 110);
+        AircraftState shortFollower = TickNewFollower(
+            lead,
+            "PC12",
+            PlaceTrailing(lead.Position, lead.TrueTrack, behindNm: 1.0, rightNm: 0.5),
+            headingDeg: 90,
+            ias: 140
+        );
+        Assert.InRange(shortFollower.Targets.TargetTrueHeading!.Value.Degrees, 119, 121);
+
+        // At 160 kt three turn radii is about 2.5 nm; the offset stops at 1.5 nm, so 1.6 nm off it holds parallel.
+        AircraftState wideFollower = TickNewFollower(
+            lead,
+            "PC12",
+            PlaceTrailing(lead.Position, lead.TrueTrack, behindNm: 0.5, rightNm: 1.6),
+            headingDeg: 90,
+            ias: 160
+        );
+        Assert.InRange(wideFollower.Targets.TargetTrueHeading!.Value.Degrees, 89, 91);
+    }
+
+    [Fact]
+    public void VfrFollowPhase_FreeFlight_TooClose_STurnsWideAndSlows()
+    {
+        // Too close (1.0 nm behind, 0.6 nm short of the 1.6 nm goal: desired 1.5 + 0.1) with the
+        // speed loop not at its floor: the S-turn starts at once, 45° off the track (short by more
+        // than 0.3 nm) to the follower's own side, and the follower slows at the same time.
         AircraftState lead = MakeLead(37.0, -122.0, trackDeg: 90, ias: 110);
         LatLon followerPos = PlaceTrailing(lead.Position, lead.TrueTrack, behindNm: 1.0, rightNm: 0.5);
         AircraftState follower = MakeVfrAircraft(
@@ -517,20 +581,17 @@ public class VfrFollowPhaseTests : IDisposable
         phase.OnTick(ctx);
 
         double hdg = follower.Targets.TargetTrueHeading!.Value.Degrees;
-        // Parallel + capture (left toward track), not a widen excursion to the right.
-        Assert.InRange(hdg, 73, 82);
-        Assert.NotNull(follower.Targets.TargetSpeed);
-        Assert.True(follower.Targets.TargetSpeed < 110, $"Expected speed reduced below lead 110, got {follower.Targets.TargetSpeed}");
+        Assert.InRange(hdg, 134, 136);
+        Assert.Equal(AircraftPerformance.ApproachSpeed("C172", AircraftCategory.Piston), follower.Targets.TargetSpeed);
     }
 
     [Fact]
-    public void VfrFollowPhase_FreeFlight_TooClose_Saturated_WidensToOpenDistance()
+    public void VfrFollowPhase_FreeFlight_SlightlyTooClose_STurnsThirtyDegrees()
     {
-        // Too close AND the speed loop is saturated at the approach-speed floor (slow lead),
-        // so slowing can't open the gap. The follower performs a shallow widen — a lateral
-        // excursion off the lead's track toward its offset side — to bleed distance (AIM 4-3-5).
+        // Short of the 1.6 nm goal by 0.2 nm (1.4 nm behind, under the 1.5 nm desired distance): a
+        // shallow S-turn 30° off the lead's track toward the follower's offset side (AIM 4-3-5).
         AircraftState lead = MakeLead(37.0, -122.0, trackDeg: 90, ias: 55);
-        LatLon followerPos = PlaceTrailing(lead.Position, lead.TrueTrack, behindNm: 1.0, rightNm: 0.5);
+        LatLon followerPos = PlaceTrailing(lead.Position, lead.TrueTrack, behindNm: 1.4, rightNm: 0.5);
         AircraftState follower = MakeVfrAircraft(
             "FOLL",
             "C172",
@@ -551,9 +612,8 @@ public class VfrFollowPhaseTests : IDisposable
         phase.OnTick(ctx);
 
         double hdg = follower.Targets.TargetTrueHeading!.Value.Degrees;
-        // Widen to the right (the follower's offset side) — heading swings well right of the
-        // 090° track, away from both "parallel" and "pointed at the lead".
-        Assert.InRange(hdg, 100, 118);
+        // S-turn to the right (the follower's offset side), away from both "parallel" and "pointed at the lead".
+        Assert.InRange(hdg, 119, 121);
     }
 
     [Fact]
@@ -921,6 +981,56 @@ public class VfrFollowPhaseTests : IDisposable
 
         // OnTick clears FollowingCallsign when lead is on ground.
         Assert.Null(follower.Approach.FollowingCallsign);
+    }
+
+    // ---------------------------------------------------------------------
+    // BasePhase start point (the point a follower joins the lead's base at)
+    // ---------------------------------------------------------------------
+
+    [Fact]
+    public void BasePhase_StartPoint_RecordedAndSurvivesSnapshot()
+    {
+        RunwayInfo runway = DefaultRunway();
+        PatternWaypoints waypoints = PatternGeometry.Compute(
+            runway,
+            AircraftCategory.Piston,
+            "",
+            0,
+            PatternDirection.Left,
+            sizeOverrideNm: null,
+            altitudeOverrideFt: null,
+            airportRunways: [runway],
+            authoredRunway: null
+        );
+        AircraftState ac = MakeVfrAircraft("BASE", "C172", waypoints.BaseTurnLat, waypoints.BaseTurnLon, 190, 1000, 90, onGround: false);
+        var basePhase = new BasePhase { Waypoints = waypoints };
+        Assert.Null(basePhase.StartPoint);
+        ac.Phases = new PhaseList { AssignedRunway = runway, TrafficDirection = PatternDirection.Left };
+        ac.Phases.Add(basePhase);
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        LatLon startedAt = ac.Position;
+
+        // The point stays where the leg began while the aircraft flies on down the base.
+        ac.Position = GeoMath.ProjectPoint(startedAt, waypoints.BaseHeading, 0.5);
+        Assert.Equal(startedAt, basePhase.StartPoint);
+
+        string json = JsonSerializer.Serialize<PhaseDto>(basePhase.ToSnapshot(), RecordingJsonOptions.Default);
+        BasePhaseDto dto = Assert.IsType<BasePhaseDto>(JsonSerializer.Deserialize<PhaseDto>(json, RecordingJsonOptions.Default));
+        LatLon restored = Assert.IsType<LatLon>(BasePhase.FromSnapshot(dto).StartPoint);
+        Assert.Equal(startedAt.Lat, restored.Lat, 9);
+        Assert.Equal(startedAt.Lon, restored.Lon, 9);
+
+        // A snapshot written before the point was recorded restores without one.
+        var older = new BasePhaseDto
+        {
+            Status = dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
+            Waypoints = dto.Waypoints,
+            ThresholdLat = dto.ThresholdLat,
+            ThresholdLon = dto.ThresholdLon,
+            FinalHeadingDeg = dto.FinalHeadingDeg,
+        };
+        Assert.Null(BasePhase.FromSnapshot(older).StartPoint);
     }
 
     // ---------------------------------------------------------------------

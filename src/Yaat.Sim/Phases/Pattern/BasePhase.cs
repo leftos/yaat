@@ -75,11 +75,20 @@ public sealed class BasePhase : Phase
     /// </summary>
     public PatternLateralOffsetState? LateralOffset { get; set; }
 
+    /// <summary>
+    /// Where the aircraft was when this base leg began: the point a follower joining this aircraft's base flies to
+    /// (<see cref="VfrFollowPhase"/>). Null before the leg starts, and for a leg restored from a snapshot written
+    /// before the point was recorded.
+    /// </summary>
+    public LatLon? StartPoint { get; private set; }
+
     public override string Name => "Base";
     public override bool ManagesSpeed => true;
 
     public override void OnStart(PhaseContext ctx)
     {
+        StartPoint = ctx.Aircraft.Position;
+
         if (Waypoints is null)
         {
             return;
@@ -302,6 +311,8 @@ public sealed class BasePhase : Phase
             LateralOffsetTargetNm = LateralOffset?.TargetNm,
             LateralOffsetDirection = LateralOffset is not null ? (int)LateralOffset.Direction : null,
             LateralOffsetAcquired = LateralOffset?.Acquired ?? false,
+            StartLat = StartPoint?.Lat,
+            StartLon = StartPoint?.Lon,
         };
 
     public static BasePhase FromSnapshot(BasePhaseDto dto)
@@ -323,6 +334,7 @@ public sealed class BasePhase : Phase
             _thresholdLat = dto.ThresholdLat,
             _thresholdLon = dto.ThresholdLon,
             _finalHeading = new TrueHeading(dto.FinalHeadingDeg),
+            StartPoint = (dto.StartLat is { } startLat) && (dto.StartLon is { } startLon) ? new LatLon(startLat, startLon) : null,
         };
         return phase;
     }

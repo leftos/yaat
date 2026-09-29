@@ -1092,6 +1092,13 @@ public sealed class BasePhaseDto : PhaseDto
     public double? LateralOffsetTargetNm { get; init; }
     public int? LateralOffsetDirection { get; init; }
     public bool LateralOffsetAcquired { get; init; }
+
+    /// <summary>Where the base leg began (<see cref="Phases.Pattern.BasePhase.StartPoint"/>); null for a snapshot
+    /// written before it was recorded, and a follower joining this base then uses the aircraft's present position.</summary>
+    public double? StartLat { get; init; }
+
+    /// <inheritdoc cref="StartLat"/>
+    public double? StartLon { get; init; }
 }
 
 public sealed class CrosswindPhaseDto : PhaseDto
@@ -1200,6 +1207,32 @@ public sealed class VfrFollowPhaseDto : PhaseDto
 
     /// <summary>The circuit a pursuit started from a pattern leg returns to; null for any other pursuit and in older snapshots.</summary>
     public FollowPatternReturnDto? PatternReturn { get; init; }
+
+    /// <summary>
+    /// The lead's recorded path the follower measures its gap along, as flat [lat, lon, lat, lon, …] pairs, oldest first;
+    /// null when empty and in older snapshots (the path then rebuilds from the lead's next positions).
+    /// </summary>
+    public double[]? LeadPath { get; init; }
+
+    /// <summary>The lead's base the follower remembered, to extend past and join; null when none and in older snapshots.</summary>
+    public FollowLeadBaseDto? LeadBase { get; init; }
+
+    /// <summary>Seconds until the follower may call "S-turning for spacing" again; 0 in older snapshots.</summary>
+    public double STurnCallCooldownSeconds { get; init; }
+}
+
+/// <summary>
+/// A follow lead's base as the follower remembered it: runway, circuit, start point, final-turn distance and the track into
+/// the start point.
+/// </summary>
+public sealed class FollowLeadBaseDto
+{
+    public required RunwayInfoDto Runway { get; init; }
+    public required PatternWaypointsDto Waypoints { get; init; }
+    public required double StartLat { get; init; }
+    public required double StartLon { get; init; }
+    public double? FinalDistanceNm { get; init; }
+    public required double LegTrackDeg { get; init; }
 }
 
 public sealed class FollowPatternReturnDto

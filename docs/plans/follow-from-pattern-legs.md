@@ -1,6 +1,6 @@
 # FOLLOW sequencing from pattern legs + `WAIT <n>NM`
 
-Status: A (routing), C (pattern return) and D (`WAIT <n>NM`) have shipped, aviation- and code-reviewed; B (`TryJoinLeadBase`) and E (spacing on base) are next, in that order. Shipped differently from the text below: pattern altitude is flown from every leg but base (base keeps the lower of present and pattern altitude); any lead on the ground not rolling out on the follower's runway is refused; the other-airport refusal needs the lead's runway or filed destination; FOLLOW from `InterceptCoursePhase`/`ApproachNavigationPhase` keeps the landing clearance.
+Status: A (routing), B (`TryJoinLeadBase`, with the free-pursuit spacing rework in "Rulings during B"), C (pattern return) and D (`WAIT <n>NM`) have shipped, aviation- and code-reviewed; E (spacing on base) is next. Shipped differently from the text below: pattern altitude is flown from every leg but base (base keeps the lower of present and pattern altitude); any lead on the ground not rolling out on the follower's runway is refused; the other-airport refusal needs the lead's runway or filed destination; FOLLOW from `InterceptCoursePhase`/`ApproachNavigationPhase` keeps the landing clearance.
 
 ## Context
 
@@ -38,7 +38,15 @@ Rulings after the review of A (user 2026-09-28):
 - **Where the "lead ahead" gate applies** (base only today) waits on a permutation study of every lead × follower state the user asked for; its result may add a step.
 - Step C makes `VfrFollowPhase.PatternReturn` a required constructor parameter (today an init property) together with its DTO field.
 
+Rulings during B (user 2026-09-29, from an `aviation-sim-expert` consult; the recorded case holds the follower 0.86–0.91 nm behind at its speed floor, so no gap gate below the lead's base could be met by speed alone):
+- **The base join waits for pattern spacing** (`AirborneFollowHelper.DesiredDistanceForLeader`, 1.0 nm behind a piston). Its base track is judged against the lead's base line (within 0.3 nm), not the start point, because a pattern-entry waypoint completes 0.5 nm out (`FlightPhysics.NavArrivalNm`).
+- **A too-close pursuit builds spacing laterally**: user steer, "free fly in a way where they create lateral trailing spacing until they can point their nose directly at the lead and follow in a chain". It starts as soon as the along-path gap is short by more than ~0.1 nm (not waiting for the speed floor) and slows at the same time. It is a shallow S-turn (AIM 4-3-5): 30° off the lead's track, 45° when short by more than 0.3 nm, always to the pattern's outside, never toward the final or a parallel final. The offset is capped at max(1.0 nm, 3 turn radii); no 360 and no 90° turn-out.
+- **No room**: at the cap without the gap, hold it parallel at the speed floor and extend past the lead's base turn point, turning base only once the gap is met. At the extension limit (2 nm past the lead's base start), or nearing the final, the follower keeps flying the extended leg and calls "unable to follow the traffic, extending downwind, request base turn" (AIM 5-5-12.a.2), then waits for the controller, as the speed-cancel path does; it never re-enters by a downwind entry, which would reverse it against the downwind flow (AIM 4-3-5; user 2026-09-29 after the aviation review).
+- **Gap target**: one target, the join's 1.0 nm plus ~0.1 nm hysteresis, measured along the lead's recorded path; 1.5 nm stays for a lead not in the pattern.
+- **Chain once spaced**: nose on the lead while the lead is on a straight leg; through the lead's turns, fly its ground track and turn where it turned (pure pursuit cuts the corner and loses up to ~0.3 nm). This replaces the parallel-trail steady state; AIM 5-5-12.a.1 says in-trail.
+
 Defaults taken without asking:
+- The extension limit is 2 nm past the lead's base start point, measured along the extended leg.
 - The base join enters at the lead's pattern altitude.
 - Elapsed-time ordering on the same leg is kept. A lead's resumed final after an S-turn restarts its elapsed time; see the follow-ups at the end.
 - Phraseology of the new refusals and transmissions goes to the aviation review.

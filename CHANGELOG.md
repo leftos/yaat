@@ -9,7 +9,8 @@
 
 ### Fixed
 
-- FOLLOW from a pattern leg trails a lead that has no runway yet, climbs to pattern altitude, and rejoins its own pattern when the follow ends.
+- FOLLOW behind a lead that has no runway yet trails it nose-on, S-turns for spacing when too close, joins the lead's base where it began, and from a pattern leg climbs to pattern altitude and rejoins its own pattern if the lead is lost.
+- A follower that cannot build spacing extends its downwind, says it is unable to follow and asks for a base turn.
 - FOLLOW is refused, with the pilot's reason, from base or final, behind a lead on the ground, or behind a lead bound for another airport.
 - FOLLOW from an approach keeps the landing clearance.
 - `WAIT 2NM`, `WAIT 2 NM` and `WAIT .5NM` wait a distance, like `WAITD`.
