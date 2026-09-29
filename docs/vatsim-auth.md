@@ -192,6 +192,8 @@ set `RequireVatsimAuth=true` + the `Vatsim:*` config.
 
 vEDST (the web ERAM client) signs in against yaat-server as if it were vNAS. `Auth/VnasCompatEndpoints.cs` serves `/vnas/configuration` (one environment whose API and hub URLs point back at this server), passes `/vnas/artccs/{id}` and `/vnas/airports/{id}` through to the vNAS data API as JSON, and runs vEDST's login: VATSIM Connect redirects to `/vnas/login?code` (VATSIM will not register a localhost redirect), which sends the browser on to the configured `LoginReturnUrl` with the code and nothing else; vEDST then calls `/vnas/auth/login`, which checks the client id and redirect, exchanges the code with the vEDST VATSIM client (no PKCE), applies VATUSA, and answers YAAT tokens as `{nasToken, vatsimToken}`. `/vnas/auth/refresh?vatsimToken` answers a fresh access token as plain text without rotating the refresh token. `/vnas/auth/dev-login` exists only in Development with `RequireVatsimAuth` off.
 
+vEDST opens the CRC hub socket directly (`skipNegotiation`), so it carries no negotiate `?id=`; it presents its access token as `?access_token=`, which `CrcWebSocketHandler` validates the way the training hub validates a bearer token (a refresh token is refused). The connection takes that token's CID and no room of its own; a missing or invalid token gets HTTP 401 before the upgrade, and the token is never logged.
+
 Accepted risks, set by vEDST's protocol:
 
 - **Login codes are bearer secrets.** vEDST sends neither PKCE nor `state`, so whoever reads a code (browser history, a log, a referrer) can redeem it at `/vnas/auth/login`, and a crafted `/vnas/login?code=` link can sign a victim in as someone else. Closing this needs a vEDST change; the server keeps the flow vEDST expects.
