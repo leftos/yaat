@@ -50,10 +50,13 @@ variants:
     handler: QN.InitiateHandoff
     note: |
       yaat checks ownership: only the owning sector may initiate, and /OK forces it for another sector of the same ARTCC
-      (never an external ARTCC's or a STARS facility's track). yaat also takes /OK after the FLID. An undirected
-      facility handoff (L, L00, L000) answers NOT ADAPTED, and the ARTS forms answer FORMAT; ERAM-to-STARS codes such
-      as Q2B resolve to the TRACON position. A bare N, E, S or W after QN is read as a compass data-block offset, not
-      as a single-letter facility handoff.
+      (never an external ARTCC's or a STARS facility's track). yaat also takes /OK after the FLID. A neighbouring
+      center's letter L is that center's own nasId from its vNAS config (ZLA's is L), read for each center in the room
+      ARTCC's neighboringFacilityIds: L25 hands off to ZLA sector 25, unchecked against ZLA's sectors, and L00 or L000 is
+      the undirected handoff to ZLA. A letter no neighbouring center carries answers SECTOR NOT ADAPTED; C, the own
+      center's nasId and a neighbouring STARS facility's letter keep their own meanings. A bare L, or C00, answers NOT
+      ADAPTED, and the ARTS forms answer FORMAT; ERAM-to-STARS codes such as Q2B resolve to the TRACON position. A bare
+      N, E, S or W after QN is read as a compass data-block offset, not as a single-letter facility handoff.
     fields:
       - field: 01 Message Type
         rule: |

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi;
@@ -260,6 +261,30 @@ public class TrackResolverTests
         Assert.Equal(expected, TrackResolver.ResolveTcpToOwner(scenario, "Q2B", facilityHint: null));
         Assert.Null(TrackResolver.ResolveTcpToOwner(scenario, "2B", facilityHint: null));
         Assert.Null(TrackResolver.ResolveTcpToOwner(scenario, "ZZZZ", facilityHint: null));
+    }
+
+    [Fact]
+    public void ResolveTcpToOwner_NeighbourCenterCode_ResolvesAfterTheOwnCentreAndStarsCodes()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        // A copy: the shared ZOA snapshot is not mutated.
+        ArtccConfigRoot zoa = JsonSerializer.Deserialize<ArtccConfigRoot>(JsonSerializer.Serialize(_zoa))!;
+        zoa.NeighborCenterNasIds["ZLA"] = "L";
+        SimScenarioState scenario = Scenario(NctApproach(), null, zoa);
+
+        Assert.Equal(TrackOwner.CreateEram("ZLA_25_CTR", "ZLA", "25"), TrackResolver.ResolveTcpToOwner(scenario, "L25", facilityHint: null));
+        Assert.Equal(TrackOwner.CreateEram("ZLA_00_CTR", "ZLA", "00"), TrackResolver.ResolveTcpToOwner(scenario, "L00", facilityHint: null));
+        Assert.Null(TrackResolver.ResolveTcpToOwner(scenario, "L129", facilityHint: null));
+        Assert.Null(TrackResolver.ResolveTcpToOwner(scenario, "X25", facilityHint: null));
+        Assert.Equal(zoa.ResolveEramToStarsHandoffCode("Q2B"), TrackResolver.ResolveTcpToOwner(scenario, "Q2B", facilityHint: null));
+        Assert.Equal("NCT", TrackResolver.ResolveTcpToOwner(scenario, "Q2B", facilityHint: null)?.FacilityId);
+        TrackOwner? ownCentre = TrackResolver.ResolveTcpToOwner(scenario, "C44", facilityHint: null);
+        Assert.Equal(zoa.ResolveEramCode("C44"), ownCentre);
+        Assert.Equal("ZOA", ownCentre?.FacilityId);
     }
 
     [Fact]

@@ -16,6 +16,16 @@ public class ArtccConfigRoot
 
     [JsonPropertyName("videoMaps")]
     public List<VideoMapConfig> VideoMaps { get; set; } = [];
+
+    /// <summary>
+    /// The ERAM letter of each neighbouring center, keyed by ARTCC id (ZLA → "L"): the letter a controller types ahead
+    /// of a sector number to hand a track to that center (<c>L25</c>). Not part of the vNAS config: each center's letter
+    /// is its own <see cref="EramFacilityConfig.NasId"/>, so the server reads it from the neighbours named in
+    /// <see cref="FacilityConfig.NeighboringFacilityIds"/> when it loads this config. Serialized with the config, so a
+    /// recording or bug bundle replays the same handoff codes.
+    /// </summary>
+    [JsonPropertyName("neighborCenterNasIds")]
+    public Dictionary<string, string> NeighborCenterNasIds { get; set; } = [];
 }
 
 public class FacilityConfig
@@ -55,6 +65,10 @@ public class FacilityConfig
 
     [JsonPropertyName("tdlsConfiguration")]
     public TdlsConfig? TdlsConfiguration { get; set; }
+
+    /// <summary>The ids of the facilities adjoining this one (ZOA: BFL, JCF, SBA, ZLA, ZLC, ZSE); centers among them.</summary>
+    [JsonPropertyName("neighboringFacilityIds")]
+    public List<string> NeighboringFacilityIds { get; set; } = [];
 }
 
 public class PositionConfig
@@ -99,6 +113,10 @@ public class EramPositionConfig
 /// </summary>
 public class EramFacilityConfig
 {
+    /// <summary>The center's one-letter ERAM identifier (ZOA "O", ZLA "L"), which another center types ahead of a sector number.</summary>
+    [JsonPropertyName("nasId")]
+    public string? NasId { get; set; }
+
     [JsonPropertyName("neighboringStarsConfigurations")]
     public List<NeighboringStarsConfig> NeighboringStarsConfigurations { get; set; } = [];
 

@@ -44,6 +44,10 @@ public readonly record struct HttpCacheResult(string? Content, bool NotFound);
 /// </summary>
 public static class HttpFileCache
 {
+    private const int MaxMoveAttempts = 8;
+
+    private const int MoveRetryStepMs = 25;
+
     /// <summary>
     /// Ensures <paramref name="cachePath"/> holds a reasonably fresh copy of <paramref name="url"/>
     /// and returns its text, or a null <see cref="HttpCacheResult.Content"/> when the resource is
@@ -136,7 +140,7 @@ public static class HttpFileCache
             return false;
         }
 
-        await File.WriteAllTextAsync(cachePath, body, cancellationToken);
+        await WriteAtomicallyAsync(cachePath, body, log, cancellationToken);
         log.LogDebug("Refreshed cached file from {Url}", url);
         return false;
     }
@@ -169,7 +173,7 @@ public static class HttpFileCache
         using HttpResponseMessage getResp = await http.GetAsync(url, cancellationToken);
         getResp.EnsureSuccessStatusCode();
         string body = await getResp.Content.ReadAsStringAsync(cancellationToken);
-        await File.WriteAllTextAsync(cachePath, body, cancellationToken);
+        await WriteAtomicallyAsync(cachePath, body, log, cancellationToken);
 
         if (getResp.Content.Headers.LastModified?.UtcDateTime is { } stamp)
         {
@@ -177,5 +181,41 @@ public static class HttpFileCache
         }
 
         log.LogDebug("Downloaded cached file from {Url}", url);
+    }
+
+    /// <summary>
+    /// Replaces <paramref name="cachePath"/> with <paramref name="body"/> so a concurrent reader sees the old copy or the
+    /// new one, never a half-written file: the body goes to a uniquely named temporary sibling that then replaces the
+    /// target. The replacing move is denied while another reader or an antivirus scan holds the target open without
+    /// delete sharing, so it is retried with a growing wait (about 0.7 s in all) before the last failure is thrown; the
+    /// temporary file is removed when the move never lands.
+    /// </summary>
+    private static async Task WriteAtomicallyAsync(string cachePath, string body, ILogger log, CancellationToken cancellationToken)
+    {
+        string tmpPath = $"{cachePath}.{Guid.NewGuid():N}.tmp";
+        await File.WriteAllTextAsync(tmpPath, body, cancellationToken);
+        try
+        {
+            for (int attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    File.Move(tmpPath, cachePath, overwrite: true);
+                    return;
+                }
+                catch (Exception ex) when ((ex is UnauthorizedAccessException or IOException) && (attempt < MaxMoveAttempts))
+                {
+                    log.LogDebug(ex, "Replacing {Path} failed on attempt {Attempt}; retrying", cachePath, attempt);
+                    await Task.Delay(MoveRetryStepMs * attempt, cancellationToken);
+                }
+            }
+        }
+        finally
+        {
+            if (File.Exists(tmpPath))
+            {
+                File.Delete(tmpPath);
+            }
+        }
     }
 }

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 
@@ -16,6 +17,9 @@ namespace Yaat.Sim.Data.Vnas;
 /// </summary>
 public static class ArtccConfigResolver
 {
+    // EDSM SRS §C.1 field 16: an ERAM sector number does not exceed 128.
+    private const int MaxEramSectorNumber = 128;
+
     // --- Position lookup ---
 
     /// <summary>
@@ -405,6 +409,61 @@ public static class ArtccConfigResolver
         string? facilityId = FindNeighboringStarsFacility(config.Facility, prefix);
         return facilityId is null ? null : config.ResolveTcpCode(facilityId, tcpCode);
     }
+
+    /// <summary>
+    /// Resolves the center-and-sector form of ERAM field 16, <c>L((d)dd)</c> (EDSM SRS §C.1 field 16), to a sector of a
+    /// neighbouring center: the letter is that center's <c>nasId</c> from <see cref="ArtccConfigRoot.NeighborCenterNasIds"/>
+    /// (ZLA → "L", so <c>L25</c> is ZLA sector 25) and the number, two or three digits, is at most 128. The sector is
+    /// not checked (another center's sectors are not adapted here) and is named by its number in at least two digits, so
+    /// <c>L025</c> is <c>L25</c> as <c>C044</c> is <c>C44</c>; <c>00</c>/<c>000</c> is the undirected handoff to that
+    /// center, sector <c>00</c>. A letter that already means something else here resolves to nothing: the
+    /// own-centre <c>C</c>, this center's own <c>nasId</c>, and a neighbouring STARS facility's prefix
+    /// (<see cref="ResolveEramToStarsHandoffCode"/>). The owner's callsign, <c>ZLA_25_CTR</c>, is made up from the
+    /// center and sector, since the neighbour's positions are not in this config.
+    /// </summary>
+    public static TrackOwner? ResolveEramToNeighborCenterHandoffCode(this ArtccConfigRoot config, string code)
+    {
+        if ((code.Length is < 3 or > 4) || !char.IsAsciiLetter(code[0]))
+        {
+            return null;
+        }
+
+        string digits = code[1..];
+        if (!digits.All(char.IsAsciiDigit))
+        {
+            return null;
+        }
+
+        int number = int.Parse(digits, CultureInfo.InvariantCulture);
+        if (number > MaxEramSectorNumber)
+        {
+            return null;
+        }
+
+        string sector = number.ToString("00", CultureInfo.InvariantCulture);
+
+        string letter = code[..1];
+        if (IsReservedEramLetter(config, letter))
+        {
+            return null;
+        }
+
+        foreach ((string artccId, string nasId) in config.NeighborCenterNasIds)
+        {
+            if (letter.Equals(nasId, StringComparison.OrdinalIgnoreCase))
+            {
+                return TrackOwner.CreateEram($"{artccId}_{sector}_CTR", artccId, sector);
+            }
+        }
+
+        return null;
+    }
+
+    // A letter the own center already gives a meaning: the own-centre "C", its own nasId, or a neighbouring STARS prefix.
+    private static bool IsReservedEramLetter(ArtccConfigRoot config, string letter) =>
+        letter.Equals("C", StringComparison.OrdinalIgnoreCase)
+        || letter.Equals(config.Facility.EramConfiguration?.NasId, StringComparison.OrdinalIgnoreCase)
+        || (FindNeighboringStarsFacility(config.Facility, letter) is not null);
 
     /// <summary>
     /// Finds the neighboring STARS facility whose ERAM handoff prefix (<c>singleCharacterStarsId</c>, or

@@ -44,9 +44,10 @@ public static class TrackResolver
     /// the student position; multiple positions can share a TCP, e.g. OAK_TWR and OAK_GND both use 3O), then the
     /// scenario's ATC positions, then — when the scenario carries an ARTCC config — the student facility's TCP
     /// table, ERAM codes (<c>C44</c>), STARS interfacility handoff codes entered from the student facility
-    /// (<c>`31H</c>), and finally ERAM→STARS prefixed codes (<c>Q2B</c>), which name their receiving facility and so
-    /// resolve without a student facility. A code no table knows is tried as a position callsign (<c>OAK_GND</c>) — the
-    /// form a CRC position outside the student facility, or one sharing its TCP with another position, is selected by.
+    /// (<c>`31H</c>), then ERAM→STARS prefixed codes (<c>Q2B</c>) and a neighbouring center's sector (<c>L25</c>, ZLA
+    /// sector 25), which name their receiving facility and so resolve without a student facility. A code no table knows
+    /// is tried as a position callsign (<c>OAK_GND</c>) — the form a CRC position outside the student facility, or one
+    /// sharing its TCP with another position, is selected by.
     /// A callsign listed under two facilities names the twin in <paramref name="facilityHint"/> (the entering
     /// controller's facility), else the first in the config; the hint plays no part in any other step.
     /// </summary>
@@ -88,7 +89,9 @@ public static class TrackResolver
             }
         }
 
-        return artccConfig.ResolveEramToStarsHandoffCode(tcpCode) ?? ResolvePositionName(artccConfig, tcpCode, facilityHint);
+        return artccConfig.ResolveEramToStarsHandoffCode(tcpCode)
+            ?? artccConfig.ResolveEramToNeighborCenterHandoffCode(tcpCode)
+            ?? ResolvePositionName(artccConfig, tcpCode, facilityHint);
     }
 
     /// <summary>
