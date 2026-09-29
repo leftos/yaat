@@ -176,6 +176,7 @@ decomposition for direction; the **spatial** axis does not interpolate direction
 - Below the lowest layer or above the highest → **clamped** to the nearest layer (no extrapolation).
 - Between layers: linear `t`, then **direction is decomposed into unit N/E components and lerped**, so the `350°↔010°` wraparound is handled correctly (`WindInterpolator.cs:63-72`). Speed lerps linearly.
 - `DirectionDeg` inherits the layer convention: **wind FROM, MAGNETIC** (the layers are magnetic).
+- `GetMeanWindAt(profile, altitudeFt)` is the same interpolation with no `WindVariation` (gusts and direction swing) applied; the two share the private `Bracket`/`InterpolateMean` helpers. ERAM `UR` reads it and converts the direction to true at the requested location.
 
 ### (b) Spatial, across stations — `MetarInterpolator.GetWeatherForAirport`
 

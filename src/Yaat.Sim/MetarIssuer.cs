@@ -300,7 +300,8 @@ public sealed class MetarIssuer
         );
     }
 
-    private static int RoundToTen(double degrees)
+    /// <summary>A direction rounded to the nearest 10° and normalized to 010–360: north reports as 360, never 000.</summary>
+    public static int RoundToTen(double degrees)
     {
         int rounded = (int)Math.Round(degrees / 10.0, MidpointRounding.AwayFromZero) * 10;
         rounded = ((rounded % 360) + 360) % 360;

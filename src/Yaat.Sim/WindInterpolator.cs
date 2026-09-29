@@ -62,30 +62,8 @@ public static class WindInterpolator
             return PerturbLayer(layers[^1], heightAglFt, simTimeSeconds, phaseSeconds);
         }
 
-        int upper = 1;
-        while (upper < layers.Count && layers[upper].Altitude < altitudeFt)
-        {
-            upper++;
-        }
-
-        WindLayer low = layers[upper - 1];
-        WindLayer high = layers[upper];
-        double t = (altitudeFt - low.Altitude) / (high.Altitude - low.Altitude);
-
-        // Decompose wind FROM direction into unit N/E components, then lerp.
-        // This correctly handles the 0/360 wraparound (e.g., 350° and 010° → 000°).
-        double lowRad = low.Direction * DegToRad;
-        double highRad = high.Direction * DegToRad;
-
-        double interpN = Math.Cos(lowRad) + t * (Math.Cos(highRad) - Math.Cos(lowRad));
-        double interpE = Math.Sin(lowRad) + t * (Math.Sin(highRad) - Math.Sin(lowRad));
-        double interpSpeed = low.Speed + t * (high.Speed - low.Speed);
-
-        double direction = Math.Atan2(interpE, interpN) * RadToDeg;
-        if (direction < 0)
-        {
-            direction += 360.0;
-        }
+        (WindLayer low, WindLayer high, double t) = Bracket(layers, altitudeFt);
+        WindAtAltitude mean = InterpolateMean(low, high, t);
 
         // Variability amplitudes interpolate between the bracketing layers with the same
         // scheme as the mean vector, so a layer boundary never produces a turbulence
@@ -108,10 +86,78 @@ public static class WindInterpolator
         bool variable = t < 0.5 ? (low.Variable ?? false) : (high.Variable ?? false);
 
         return WindVariation.Compute(
-            new WindPerturbationInputs(direction, interpSpeed, gustExcess, halfSpread, variable, heightAglFt),
+            new WindPerturbationInputs(mean.DirectionDeg, mean.SpeedKts, gustExcess, halfSpread, variable, heightAglFt),
             simTimeSeconds,
             phaseSeconds
         );
+    }
+
+    /// <summary>
+    /// Returns the mean wind at the given altitude: interpolated between the bracketing layers exactly as
+    /// <see cref="GetWindAt"/> does, without the <see cref="WindVariation"/> perturbation. Direction is magnetic, as the
+    /// layers are. Null profile or empty layers returns zero wind; altitudes outside the layer range clamp to the nearest
+    /// layer.
+    /// </summary>
+    public static WindAtAltitude GetMeanWindAt(WeatherProfile? profile, double altitudeFt)
+    {
+        if (profile is null || profile.WindLayers.Count == 0)
+        {
+            return new WindAtAltitude(0, 0);
+        }
+
+        List<WindLayer> layers = profile.WindLayers;
+        if (altitudeFt <= layers[0].Altitude)
+        {
+            return new WindAtAltitude(layers[0].Direction, layers[0].Speed);
+        }
+
+        if (altitudeFt >= layers[^1].Altitude)
+        {
+            return new WindAtAltitude(layers[^1].Direction, layers[^1].Speed);
+        }
+
+        (WindLayer low, WindLayer high, double t) = Bracket(layers, altitudeFt);
+        return InterpolateMean(low, high, t);
+    }
+
+    /// <summary>
+    /// The two layers bracketing <paramref name="altitudeFt"/>, which lies strictly inside the layer range, and the
+    /// fraction of the way from the lower to the upper.
+    /// </summary>
+    private static (WindLayer Low, WindLayer High, double T) Bracket(List<WindLayer> layers, double altitudeFt)
+    {
+        int upper = 1;
+        while (upper < layers.Count && layers[upper].Altitude < altitudeFt)
+        {
+            upper++;
+        }
+
+        WindLayer low = layers[upper - 1];
+        WindLayer high = layers[upper];
+        return (low, high, (altitudeFt - low.Altitude) / (high.Altitude - low.Altitude));
+    }
+
+    /// <summary>
+    /// The mean wind a fraction <paramref name="t"/> of the way from <paramref name="low"/> to <paramref name="high"/>:
+    /// the wind FROM directions decompose into unit N/E components before the lerp, which handles the 0/360 wraparound
+    /// (350° and 010° → 000°); the speed lerps linearly.
+    /// </summary>
+    private static WindAtAltitude InterpolateMean(WindLayer low, WindLayer high, double t)
+    {
+        double lowRad = low.Direction * DegToRad;
+        double highRad = high.Direction * DegToRad;
+
+        double interpN = Math.Cos(lowRad) + t * (Math.Cos(highRad) - Math.Cos(lowRad));
+        double interpE = Math.Sin(lowRad) + t * (Math.Sin(highRad) - Math.Sin(lowRad));
+        double interpSpeed = low.Speed + t * (high.Speed - low.Speed);
+
+        double direction = Math.Atan2(interpE, interpN) * RadToDeg;
+        if (direction < 0)
+        {
+            direction += 360.0;
+        }
+
+        return new WindAtAltitude(direction, interpSpeed);
     }
 
     private static WindAtAltitude PerturbLayer(WindLayer layer, double heightAglFt, double simTimeSeconds, double phaseSeconds)

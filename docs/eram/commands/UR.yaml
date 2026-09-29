@@ -2,5 +2,59 @@ id: UR
 variants:
   - title: Upper Wind Request
     descriptor: UPPER WIND REQ
-    handler: not implemented
-    fields: []
+    format: UR (300 | 301 | 302 (302) (302) (302) (302)) (65 | 68)
+    multiple_flids: null
+    handler: UR.UpperWinds
+    note: |
+      §C.2 p.565 makes UR valid from specially adapted R-positions; YAAT accepts it from every R-position. A Response Area
+      readout of the room's mean wind (the wind layers without gusts or variability), converted to true at the location
+      and rounded to 10°, in whole knots: "UPPER WINDS <name>", then one "<alt> <dir>/<kt>" line per level, each three
+      digits ("300 270/045"; a calm level reads 000/000). With no altitude field it reads the FAA FD levels 030, 060, 090,
+      120, 180, 240, 300, 340 and 390; with 300 the FD levels inside the block, inclusive; with 301 the FD levels at or
+      above (+) or at or below (-) the bound; with 302 the altitudes typed, in the order typed. The location is the typed
+      field 68 (named as typed), a field 65 pick (named for the nearest airport within 100 NM, else its lat/long), or with
+      neither the room's primary airport. A room with no wind layers reads "NO UPPER WIND DATA". Nothing is recorded. The
+      layout is coined (yaat ruling): the B-level Upper Winds Request is not in the SRS volume.
+    fields:
+      - field: Position
+        rule: |
+          When entered at the A-Position, the channel must not be in Pending mode.
+        error: MsgNoFSPPrintingInPendingMode
+        na: A-Position / FSP printing channel; CRC always enters commands from the R-Position.
+      - field: 300 Block Altitude
+        rule: |
+          Must be in the format (d)d0B(d)d0, each altitude in the range 010 - 590.
+        error: MsgInvalidAltitude
+      - field: 300 Block Altitude
+        rule: |
+          The second altitude must be higher than the first.
+        error: MsgInvalidBlockedAltitude
+      - field: 301 Altitude Bound
+        rule: |
+          Must be in the format (d)d0+ or (d)d0-, the altitude in the range 010 - 590.
+        error: MsgInvalidAltitude
+      - field: 302 Altitude
+        rule: |
+          Must be in the format (d)d0, in the range 010 - 590.
+        error: MsgInvalidAltitude
+      - field: 302 Altitude
+        rule: |
+          A maximum of 5 Field 302s is permitted.
+        error: MsgMessageTooLong
+      - field: 300 / 301 / 302
+        rule: |
+          Fields 300, 301 and 302 are mutually exclusive; at most one Field 300 or Field 301.
+        error: MsgMessageTooLong
+      - field: 65 Trackball Point
+        rule: |
+          Must be a situation display point.
+        error: MsgNoSituationDisplayPointCapture
+      - field: 65 / 68
+        rule: |
+          Fields 65 and 68 are mutually exclusive; at most one of either.
+        error: MsgMessageTooLong
+      - field: 68 Location
+        rule: |
+          Must be a fix aa(a)(a)(a), a fix radial distance aa(a)(a)(a)ddd1ddd2 or a lat/long dddd(L1)/(d)dddd(L2), with the
+          usual range checks.
+        error: MsgCofieFormat
