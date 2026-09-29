@@ -11,6 +11,9 @@
 
 - ERAM shows `X`/`XXX` for an aircraft whose transponder is in standby, and a stopped target shows no `000` ground speed.
 - ERAM emergency and special-code text (EMRG, RDOF, HIJK) blinks for 30 seconds instead of for as long as the code is squawked.
+- ERAM `QT /OK` taking another sector's track shows that sector `K`, and retracting a handoff shows you `O`.
+- ERAM `QQ` checks its fields like the real system: a three-digit interim altitude, `L` for a local interim, a two-character override, and at most 15 flight IDs.
+- ERAM `QS` free text accepts `- + = * / _ . ,` as well as letters and digits.
 - ERAM data blocks show `-` or `+` for an aircraft that drifts off an altitude it had reached, instead of a climb or descent arrow.
 - ERAM draws a 1200 code as a VFR target at any altitude, and a STARS temporary altitude no longer shows as the ERAM interim altitude.
 - ERAM flight IDs follow the SRS format: a two-character ID is a letter and a digit, Mode C intruder IDs are reserved, and 15 is the most per entry.

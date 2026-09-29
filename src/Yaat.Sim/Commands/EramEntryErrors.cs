@@ -12,6 +12,7 @@ public static class EramEntryErrors
     public const string MessageTooShort = "MsgMessageTooShort";
     public const string MessageTooLong = "MsgMessageTooLong";
     public const string CofieFormat = "MsgCofieFormat";
+    public const string CofieIllegalAction = "MsgCofieIllegalAction";
     public const string AltFormat = "MsgALTFormat";
     public const string HeadingFormat = "MsgInvalidHeadingFormat";
     public const string SpeedFormat = "MsgInvalidSpeedFormat";
@@ -36,6 +37,7 @@ public static class EramEntryErrors
         MessageTooShort,
         MessageTooLong,
         CofieFormat,
+        CofieIllegalAction,
         AltFormat,
         HeadingFormat,
         SpeedFormat,

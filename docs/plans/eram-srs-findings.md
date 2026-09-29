@@ -62,7 +62,6 @@ It mirrors the FAA SWIM feed and changes nothing in the NAS, so most controller-
 | B4 conflict pass | Sim `EramConflictDetector.cs`, `Simulation/SimulationEngine.Tick.cs`, `AircraftTransponder.cs` (`IsVfrCode`); Srv `DtoConverter.cs` (`ComputeEramSymbolType` floor) | 5 s cadence (clock-derived, suppression changes still every second), no immediate IFR/MCI alert, floor/ceiling, 1200 not an intruder | any time |
 | B5 DM | Srv `CrcClientState.Eram.FlightData.cs` (`DispatchDm`), `CrcClientState.Eram.cs` (`TrailingFlidVerbs`) | fields 26/07/08, `/OK` and `*` | after [eram-dm-design.md](./eram-dm-design.md) is ruled |
 | B6 QL and LA/LB | Srv `CrcClientState.Eram.Display.cs`, `CrcClientState.Eram.Readouts.cs`; Sim `Data/Vnas/ArtccConfig.cs` (`AsrId`) | QL field 214 + number matching, LA field 13, LA/LB SRS text | concurrent with B2 |
-| B1 entry engine and QQ | Sim `Commands/EramEntryEngine.cs`, `Commands/TrackEngine.cs`; Srv `CrcClientState.Eram.cs`, `CrcClientState.Eram.Altitude.cs` | `QT /OK` `K`, retract `O`, QQ 76/36/513 + the cap of 15 (`EramFlid.MaxFlidListLength`, `MESSAGE TOO LONG`, as QB/QU), QS C.1 charset | any time |
 | B7 per-sector state | Srv `DtoConverter.cs`, `CrcClientState.Eram.cs`; Sim `AircraftEramState.cs` + snapshot DTO, `EramEntryEngine.cs` (`DWELL`) | per-sector leader/DRI/dwell + dwell recording | after B1 and B3 |
 | B8 #464 sweep | Srv `CrcBroadcastService.cs`, `AircraftChangeTracker.cs`, `DtoConverter.cs` (history) | 12 s staggered sweep, ERAM history; the SPC blink edge (`CrcBroadcastService` ORs `DtoChangeFlags.EramTarget`) is a state change and stays outside the sweep | any time |
 
@@ -74,17 +73,6 @@ B2 and most of B5 landed; the QF leftovers are under [QF beacon fallbacks](#qf-b
 - **Not in this volume.** The C.7 dynamic parameter table has no track update rate, and no other appendix states one. The rate is an ERAM surveillance and display rule from Book 1 or the CRC manual. Check `docs/crc/eram.md` and CRC's decompiled display refresh logic, then decide from the reporter's word plus CRC's behaviour.
 
 ## Command validation candidates
-
-### QQ interim altitude (field 76) is barely validated
-- **Severity**: bug · **Owner**: Yaat.Sim (parse) + yaat-server (field 513) · unverified
-- **SRS**: §C.8 QQ (p.758). Field 76 must be `ddd`, `Lddd`, `Pddd` or `Rddd` with ddd > 0 (MsgALTFormat). Field 36 must be `L` (MsgCofieIllegalAction). Field 513 is `/xx` (A–Z, `/`). A QQ with no field 36 deletes "the interim or procedure altitude … (whichever is present)", and says nothing about the CERA. YAAT's delete already matches this, which closes the #466 side-question.
-- **YAAT now**: `EramEntryEngine.ApplyQq` (:846-892) uses `int.TryParse` per token and the first parsable token wins. As a result:
-  - `QQ 000`, `QQ 5`, `QQ -5` and `QQ 12345` are all stored.
-  - In `QQ 110 ABC`, the `ABC` is ignored, and in `QQ X 110` the `X` is skipped.
-  - A bad field 36 never produces a refusal.
-  - On the server side, `CrcClientState.Eram.Altitude.DispatchQq` (:116-191) splits any slash token other than `/TT` or `///` as a FLID list, so a field 513 answers a FLID error.
-  - QQ has no conformance test.
-- **Fix sketch**: parse field 76 as exactly `[L|P|R]ddd` with ddd > 0, one per entry. Refuse a field 36 other than `L`. Add `EramConformanceQqTests`.
 
 ### QL has no field 214 checks, and quick-look sector matching is by string
 - **Severity**: bug · **Owner**: yaat-server · unverified
@@ -107,11 +95,6 @@ B2 and most of B5 landed; the QF leftovers are under [QF beacon fallbacks](#qf-b
 - **YAAT now**: `CrcClientState.Eram.FlightData.BeaconReadout` prints `Transponder.AssignedCode` or `----`; the full readout prints the present altitude when no assigned altitude is set, where the field-referenced ALT readout prints `-`.
 - **Fix sketch**: add the two beacon fallbacks; decide the empty assigned-altitude text.
 
-### QS free-text character set and the knots floor
-- **Severity**: unverified (the SRS contradicts itself on the character set) · **Owner**: Yaat.Sim
-- **Character set**: §C.1 field 155 (p.486) allows A–Z, 0–9 and `- + = * / _ . ,`, plus the up and down arrows and the overcast symbol. C.8, as recorded in `QS.yaml`, says "1-8 non-special characters". `EramEntryEngine.cs:1008` accepts A–Z and 0–9 only.
-- **Knots floor**: `/ddd` and `/Sddd` have no lower bound; the 070–380 range applies to the uplink only (p.486). `EramEntryEngine.cs:1076` rejects anything below 100, so `/075` is refused. This fix belongs with #467.
-
 ### C.7 dynamic parameters YAAT models
 The C.7 table (Table 31, p.605–623) has no track update rate, data-block cadence, conflict lookahead, or handoff or point-out timer, so it cannot answer #464 or #465.
 
@@ -131,17 +114,6 @@ The C.7 table (Table 31, p.605–623) has no track update rate, data-block caden
 - C.8 describes no processing semantics: each command defers to "the B-level requirements", which are not in this volume.
 
 ## New candidates
-
-### Taking a track (`QT /OK`, coast) gives the previous owner no `K-dd`
-- **Severity**: gap · **Owner**: Yaat.Sim · unverified
-- **SRS**: §E.3 Table 40 (p.887–888), the Field E `K-(d)dd` columns for "h/o acc (cntrl) ≠ init or rcv (assume cntrl)" and "≠ prev cntrl".
-- **YAAT now**: `EramEntryEngine.ApplyTrack` (:557-579) and `ApplyCoast` (:632) call `StartTrack` but never `TrackEngine.MarkRecentHandoffAccepted(..., wasForced: true)`. `K` is set only on the POCONVERT path (:430) and on `ApplyForceHandoff` (`TrackEngine.cs:803`).
-- **Fix sketch**: capture the previous owner before `StartTrack`. If it differs from the actor, mark the handoff as recently accepted and forced.
-
-### Handoff retract gives the initiator no `O-dd`
-- **Severity**: gap (low) · **Owner**: Yaat.Sim · unverified
-- **SRS**: §E.3 Table 40 (p.888), "h/o acc (cntrl) = init (retract)".
-- **YAAT now**: `TrackEngine.HandleCancel` (:254-263) clears the peer and timers but sets no recent-accept state.
 
 ### `LA` / `LB` readout text does not follow the SRS format
 - **Severity**: unverified (check against a real CRC capture first) · **Owner**: yaat-server

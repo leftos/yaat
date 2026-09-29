@@ -175,6 +175,8 @@ public class EramEntryEngineTests
     [InlineData("QQ R110", 110, null, null, 110, "QQ R110 UAL1")]
     [InlineData("QQ L090", null, 90, null, null, "QQ L90 UAL1")]
     [InlineData("QQ P070", null, null, 70, null, "QQ P70 UAL1")]
+    [InlineData("QQ L110", null, 110, null, null, "QQ L110 UAL1")]
+    [InlineData("QQ P110", null, null, 110, null, "QQ P110 UAL1")]
     public void Qq_SetsTheAltitudeTier(string entry, int? interim, int? local, int? procedure, int? cera, string message)
     {
         AircraftState ac = Aircraft();
@@ -218,15 +220,75 @@ public class EramEntryEngineTests
         Assert.Null(ac.Eram.LocalInterimAltitude);
     }
 
-    [Fact]
-    public void Qq_WithNoNumericToken_IsRefused()
+    [Theory]
+    [InlineData("QQ l110", null, 110, null)]
+    [InlineData("QQ r110", 110, null, 110)]
+    [InlineData("QQ p110", null, null, null)]
+    public void Qq_LowerCasePrefix_IsField76(string entry, int? interim, int? local, int? cera)
     {
         AircraftState ac = Aircraft();
 
-        CommandResult result = Apply(ac, "QQ ABC", null);
+        CommandResult result = Apply(ac, entry, null);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(interim, ac.Eram.InterimAltitude);
+        Assert.Equal(local, ac.Eram.LocalInterimAltitude);
+        Assert.Equal(cera, ac.Eram.ControllerEnteredAltitude);
+    }
+
+    [Theory]
+    [InlineData("ABC")]
+    [InlineData("X")]
+    public void Qq_LettersOtherThanL_AreAnIllegalAction(string token)
+    {
+        AircraftState ac = Aircraft();
+        ac.Eram.LocalInterimAltitude = 90;
+
+        CommandResult result = Apply(ac, $"QQ {token}", null);
+
+        Assert.False(result.Success);
+        Assert.Equal($"{EramEntryErrors.CofieIllegalAction} {token}", result.Message);
+        Assert.Equal(90, ac.Eram.LocalInterimAltitude);
+    }
+
+    [Theory]
+    [InlineData("QQ 000")]
+    [InlineData("QQ L000")]
+    [InlineData("QQ 5")]
+    [InlineData("QQ 12")]
+    [InlineData("QQ 1100")]
+    [InlineData("QQ -5")]
+    [InlineData("QQ 11A")]
+    [InlineData("QQ R11")]
+    [InlineData("QQ 110 120")]
+    [InlineData("QQ L110 P070")]
+    public void Qq_AnythingButOneAltitudeField_IsAnAltFormatError(string entry)
+    {
+        AircraftState ac = Aircraft();
+        ac.Eram.InterimAltitude = 90;
+
+        CommandResult result = Apply(ac, entry, null);
 
         Assert.False(result.Success);
         Assert.Equal(EramEntryErrors.AltFormat, result.Message);
+        Assert.Equal(90, ac.Eram.InterimAltitude);
+        Assert.Null(ac.Eram.LocalInterimAltitude);
+        Assert.Null(ac.Eram.ProcedureAltitude);
+    }
+
+    [Theory]
+    [InlineData("QQ L 110")]
+    [InlineData("QQ L L")]
+    public void Qq_DeletionIndicatorWithAnotherField_IsTooLong(string entry)
+    {
+        AircraftState ac = Aircraft();
+        ac.Eram.LocalInterimAltitude = 90;
+
+        CommandResult result = Apply(ac, entry, null);
+
+        Assert.False(result.Success);
+        Assert.Equal(EramEntryErrors.MessageTooLong, result.Message);
+        Assert.Equal(90, ac.Eram.LocalInterimAltitude);
     }
 
     [Fact]
@@ -433,6 +495,10 @@ public class EramEntryEngineTests
     [InlineData("QS `A", "A")]
     [InlineData("QS `ils28r", "ILS28R")]
     [InlineData("QS `ABCDEFGH", "ABCDEFGH")]
+    [InlineData("QS `ILS28R/2", "ILS28R/2")]
+    [InlineData("QS `a-b+c=d", "A-B+C=D")]
+    [InlineData("QS `*/_.,", "*/_.,")]
+    [InlineData("QS `*", "*")]
     public void Qs_FreeText_OfOneToEightCharacters_IsStoredUpperCased(string entry, string stored)
     {
         AircraftState ac = Aircraft();
@@ -448,9 +514,10 @@ public class EramEntryEngineTests
     [InlineData("QS `ABCDEFGHI")] // nine characters
     [InlineData("QS `EXPECT ILS")] // an embedded space
     [InlineData("QS ` EXPECT")] // a leading space
-    [InlineData("QS `ILS28R/2")] // a special character
-    [InlineData("QS `*")] // a special character alone
-    public void Qs_FreeText_OutsideOneToEightNonSpecialCharacters_IsRefused_AndKeepsTheOldText(string entry)
+    [InlineData("QS `ILS28R!")] // a character outside the field 155 set
+    [InlineData("QS `!")] // such a character alone
+    [InlineData("QS `A#B")]
+    public void Qs_FreeText_OutsideOneToEightField155Characters_IsRefused_AndKeepsTheOldText(string entry)
     {
         AircraftState ac = Aircraft();
         ac.Eram.FreeText = "KEEP";

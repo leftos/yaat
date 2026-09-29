@@ -54,6 +54,47 @@ public class TrackEngineAcceptedIndicatorTests
     }
 
     [Fact]
+    public void Retract_MarksTheInitiatorAsRecentPreviousOwner()
+    {
+        // The owner retracts its own outbound handoff: CRC shows O plus the owner's own sector on the initiator's FDB.
+        AircraftState ac = Aircraft();
+        TrackOwner initiator = Eram("ZOA_40", "40");
+        ac.Track.Owner = initiator;
+        ac.Track.HandoffPeer = Eram("ZOA_36", "36");
+
+        CommandResult result = TrackEngine.HandleCancel(ac, Scenario(elapsedSeconds: 42));
+
+        Assert.True(result.Success, result.Message);
+        Assert.Null(ac.Track.HandoffPeer);
+        Assert.Same(initiator, ac.Track.Owner);
+        Assert.Equal(initiator, ac.Eram.RecentHandoffPreviousOwner);
+        Assert.False(ac.Eram.RecentHandoffWasForced);
+        Assert.Equal(42, ac.Eram.RecentHandoffAcceptedAtSeconds);
+    }
+
+    [Fact]
+    public void StarsCancel_LeavesAnExistingEramIndicatorAlone()
+    {
+        // Sector 40 retracted a handoff (its O is up), then a STARS position took the track and retracted its own
+        // handoff inside the 30 s window: the STARS retract has no ERAM indicator to raise and leaves sector 40's alone.
+        AircraftState ac = Aircraft();
+        TrackOwner eramInitiator = Eram("ZOA_40", "40");
+        ac.Track.Owner = eramInitiator;
+        ac.Track.HandoffPeer = Eram("ZOA_36", "36");
+        Assert.True(TrackEngine.HandleCancel(ac, Scenario(elapsedSeconds: 10)).Success);
+
+        ac.Track.Owner = TrackOwner.CreateStars("NCT_B", "NCT", 2, "B");
+        ac.Track.HandoffPeer = TrackOwner.CreateStars("NCT_C", "NCT", 2, "C");
+        CommandResult result = TrackEngine.HandleCancel(ac, Scenario(elapsedSeconds: 25));
+
+        Assert.True(result.Success, result.Message);
+        Assert.Null(ac.Track.HandoffPeer);
+        Assert.Equal(eramInitiator, ac.Eram.RecentHandoffPreviousOwner);
+        Assert.False(ac.Eram.RecentHandoffWasForced);
+        Assert.Equal(10, ac.Eram.RecentHandoffAcceptedAtSeconds);
+    }
+
+    [Fact]
     public void MarkRecentHandoffAccepted_Forced_SetsForcedFlag()
     {
         AircraftState ac = Aircraft();

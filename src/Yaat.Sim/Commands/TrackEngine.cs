@@ -227,10 +227,10 @@ public static partial class TrackEngine
     }
 
     /// <summary>
-    /// Records the ERAM Field-E accepted indicator on the previous owner: after a handoff is accepted
-    /// (<paramref name="wasForced"/> = false → <c>Oxxx</c>) or the Track is force-taken
-    /// (<paramref name="wasForced"/> = true → <c>Kxxx</c>), the previous owner's FDB shows the acceptor's
-    /// sector for a transient window (docs/crc/eram.md §Data Blocks). An ERAM previous owner also keeps
+    /// Records the ERAM Field-E accepted indicator on the previous owner: after a handoff is accepted or the owner
+    /// retracts its own handoff (<paramref name="wasForced"/> = false → <c>Oxxx</c>), or the Track is force-taken by a
+    /// handoff override or a <c>QT /OK</c> take (<paramref name="wasForced"/> = true → <c>Kxxx</c>), the previous
+    /// owner's FDB shows the current owner's sector for a transient window (docs/crc/eram.md §Data Blocks). An ERAM previous owner also keeps
     /// its full data block: its sector is added to <see cref="AircraftEramState.FdbOpenSectors"/>, so the
     /// block stays an FDB until that sector cycles it back to an LDB with the bare-FLID implied command
     /// (docs/crc/eram.md §Changing Data Block Types). No-op when there was no previous owner (nothing to
@@ -278,7 +278,12 @@ public static partial class TrackEngine
         ac.Eram.RecentHandoffAcceptedAtSeconds = null;
     }
 
-    public static CommandResult HandleCancel(AircraftState ac)
+    /// <summary>
+    /// Retracts the owner's outbound handoff. An ERAM initiator is recorded as the recent-handoff previous owner, so its
+    /// FDB shows the <c>O</c> indicator with its own sector: CRC prints the owner's sector in Field E, never the peer's.
+    /// A STARS owner's retract leaves the ERAM indicator as it is.
+    /// </summary>
+    public static CommandResult HandleCancel(AircraftState ac, SimScenarioState scenario)
     {
         if (ac.Track.Owner is null || ac.Track.HandoffPeer is null)
         {
@@ -288,6 +293,10 @@ public static partial class TrackEngine
         ac.Track.HandoffPeer = null;
         ac.Track.HandoffInitiatedAt = null;
         ac.Track.HandoffRedirectedBy = null;
+        if (ac.Track.Owner.OwnerType == TrackOwnerType.Eram)
+        {
+            MarkRecentHandoffAccepted(ac, ac.Track.Owner, wasForced: false, scenario);
+        }
         return new CommandResult(true, $"Cancelled handoff for {ac.Callsign}");
     }
 
@@ -997,7 +1006,7 @@ public static partial class TrackEngine
             InitiateHandoffCommand ho => ApplyHandoff(ac, scenario, identity, ho.TcpCode, redirect),
             ForceHandoffCommand hof => ApplyForceHandoff(ac, scenario, hof.TcpCode, identity?.FacilityId),
             AcceptHandoffCommand => HandleAccept(ac, scenario),
-            CancelHandoffCommand => HandleCancel(ac),
+            CancelHandoffCommand => HandleCancel(ac, scenario),
             PointOutCommand po when po.TcpCode is not null => ApplyPointOut(ac, scenario, po.TcpCode, redirect, identity?.FacilityId),
             PointOutCommand => HandlePointOutNoArgs(ac, identity!),
             AcknowledgeCommand => HandleAcknowledge(ac),

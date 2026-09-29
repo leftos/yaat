@@ -73,7 +73,7 @@ public static partial class EramEntryEngine
         List<string> args = [.. tokens[1..]];
         return tokens[0].ToUpperInvariant() switch
         {
-            "TRACK" => ApplyTrack(ac, args, identity),
+            "TRACK" => ApplyTrack(ac, args, ctx),
             "FREEZE" => ApplyFreeze(ac, args),
             "COAST" => ApplyCoast(ac, args, identity),
             "QQ" => ApplyQq(ac, args),
@@ -552,22 +552,25 @@ public static partial class EramEntryEngine
     /// override, docs/crc/eram.md §MCA, §Handoffs), and the override reaches only a track another ERAM sector of this
     /// centre owns (<see cref="IsOwnedByThisCentre"/>, the handoff's rule). Taking control terminates any in-progress
     /// handoff on the track, and re-starting track on a frozen track unfreezes it (7110.65 §5-2-15 "track start from
-    /// frozen status").
+    /// frozen status"). Taking another sector's track marks that sector the forced previous owner (its FDB shows
+    /// <c>K</c>), when the entry runs with a scenario.
     /// </summary>
-    private static CommandResult ApplyTrack(AircraftState ac, List<string> args, TrackOwner? identity)
+    private static CommandResult ApplyTrack(AircraftState ac, List<string> args, EramEntryContext ctx)
     {
-        if (identity is null)
+        if (ctx.Identity is not { } identity)
         {
             return Refused(EramEntryErrors.SessionNotActive);
         }
 
         bool force = args.Any(a => string.Equals(a, "/OK", StringComparison.OrdinalIgnoreCase));
-        if (!force && (ac.Track.Owner is not null) && !ac.Track.Owner.MatchesPosition(identity))
+        TrackOwner? previousOwner = ac.Track.Owner;
+        bool takesAnother = (previousOwner is not null) && !previousOwner.MatchesPosition(identity);
+        if (takesAnother && !force)
         {
             return Refused(EramEntryErrors.AlreadyTracked);
         }
 
-        if (force && (ac.Track.Owner is not null) && !ac.Track.Owner.MatchesPosition(identity) && !IsOwnedByThisCentre(ac, identity))
+        if (takesAnother && !IsOwnedByThisCentre(ac, identity))
         {
             return Refused(EramEntryErrors.NotYourControl);
         }
@@ -575,6 +578,10 @@ public static partial class EramEntryEngine
         StartTrack(ac, identity);
         Unfreeze(ac);
         ac.Eram.EndCoast();
+        if (takesAnother && (ctx.Scenario is { } scenario))
+        {
+            TrackEngine.MarkRecentHandoffAccepted(ac, previousOwner, wasForced: true, scenario);
+        }
         return new CommandResult(true, $"QT {ac.Callsign}");
     }
 
@@ -845,6 +852,11 @@ public static partial class EramEntryEngine
     /// </summary>
     private static CommandResult ApplyQq(AircraftState ac, List<string> args)
     {
+        if (RefuseQqFields(args) is { } refused)
+        {
+            return refused;
+        }
+
         if (args.Count == 0)
         {
             ac.Eram.InterimAltitude = null;
@@ -852,43 +864,65 @@ public static partial class EramEntryEngine
             return new CommandResult(true, $"QQ cleared {ac.Callsign}");
         }
 
-        if ((args.Count == 1) && string.Equals(args[0], "L", StringComparison.OrdinalIgnoreCase))
+        string token = args[0].ToUpperInvariant();
+        if (token == "L")
         {
             ac.Eram.LocalInterimAltitude = null;
             return new CommandResult(true, $"QQ L cleared {ac.Callsign}");
         }
 
-        foreach (string token in args)
+        char prefix = token[0];
+        int altHundreds = int.Parse(char.IsAsciiDigit(prefix) ? token : token[1..], NumberStyles.None, CultureInfo.InvariantCulture);
+        switch (prefix)
         {
-            char prefix = char.ToUpperInvariant(token[0]);
-            string rest = prefix is 'R' or 'L' or 'P' ? token[1..] : token;
-            if (!int.TryParse(rest, out int altHundreds))
+            case 'R':
+                ac.Eram.InterimAltitude = altHundreds;
+                ac.Eram.ControllerEnteredAltitude = altHundreds;
+                ac.Eram.ProcedureAltitude = null;
+                return new CommandResult(true, $"QQ R{altHundreds} {ac.Callsign}");
+            case 'L':
+                ac.Eram.LocalInterimAltitude = altHundreds;
+                return new CommandResult(true, $"QQ L{altHundreds} {ac.Callsign}");
+            case 'P':
+                ac.Eram.ProcedureAltitude = altHundreds;
+                ac.Eram.InterimAltitude = null;
+                return new CommandResult(true, $"QQ P{altHundreds} {ac.Callsign}");
+            default:
+                ac.Eram.InterimAltitude = altHundreds;
+                ac.Eram.ProcedureAltitude = null;
+                return new CommandResult(true, $"QQ {altHundreds} {ac.Callsign}");
+        }
+    }
+
+    /// <summary>
+    /// The refusal for QQ's fields 76 and 36 (docs/eram/commands/QQ.yaml), or null when they are well formed; the
+    /// tokens exclude field 513 and the flight IDs. A letters-only token is field 36, which must be <c>L</c>
+    /// (<c>ILLEGAL ACTION</c> otherwise); any other token must be field 76, <c>[L|P|R]ddd</c> with ddd above zero, and
+    /// one entry carries at most one (<c>ALT FORMAT</c> otherwise). Field 36 with any other field is too long.
+    /// </summary>
+    public static CommandResult? RefuseQqFields(IReadOnlyList<string> fields)
+    {
+        foreach (string field in fields)
+        {
+            if (IsQqAltitudeField(field) || string.Equals(field, "L", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
-
-            switch (prefix)
-            {
-                case 'R':
-                    ac.Eram.InterimAltitude = altHundreds;
-                    ac.Eram.ControllerEnteredAltitude = altHundreds;
-                    ac.Eram.ProcedureAltitude = null;
-                    return new CommandResult(true, $"QQ R{altHundreds} {ac.Callsign}");
-                case 'L':
-                    ac.Eram.LocalInterimAltitude = altHundreds;
-                    return new CommandResult(true, $"QQ L{altHundreds} {ac.Callsign}");
-                case 'P':
-                    ac.Eram.ProcedureAltitude = altHundreds;
-                    ac.Eram.InterimAltitude = null;
-                    return new CommandResult(true, $"QQ P{altHundreds} {ac.Callsign}");
-                default:
-                    ac.Eram.InterimAltitude = altHundreds;
-                    ac.Eram.ProcedureAltitude = null;
-                    return new CommandResult(true, $"QQ {altHundreds} {ac.Callsign}");
-            }
+            return field.All(char.IsAsciiLetter) ? Refused(EramEntryErrors.CofieIllegalAction, field) : Refused(EramEntryErrors.AltFormat);
         }
 
-        return Refused(EramEntryErrors.AltFormat);
+        if (fields.Count(IsQqAltitudeField) > 1)
+        {
+            return Refused(EramEntryErrors.AltFormat);
+        }
+        return fields.Count > 1 ? Refused(EramEntryErrors.MessageTooLong) : null;
+    }
+
+    /// <summary>QQ.yaml field 76: <c>ddd</c>, <c>Lddd</c>, <c>Pddd</c> or <c>Rddd</c>, where ddd is above zero.</summary>
+    private static bool IsQqAltitudeField(string token)
+    {
+        string digits = ((token.Length > 0) && (char.ToUpperInvariant(token[0]) is 'L' or 'P' or 'R')) ? token[1..] : token;
+        return (digits.Length == 3) && digits.All(char.IsAsciiDigit) && (digits != "000");
     }
 
     /// <summary>
@@ -1022,14 +1056,15 @@ public static partial class EramEntryEngine
     }
 
     /// <summary>
-    /// Free form text: 1–8 non-special characters — letters and digits — after the clear-weather symbol, with no leading
-    /// or embedded spaces (QS.yaml field 155, <c>MsgInvalidTextFormat</c>). The entry's tokens are split on spaces, so
-    /// text with a space arrives as more than one token, and a leading space as a bare backtick followed by the text.
+    /// Free form text: 1–8 field 155 characters — letters, digits and <c>- + = * / _ . ,</c> (the SRS §C.1 field 155
+    /// set) — after the clear-weather symbol, with no leading or embedded spaces (QS.yaml field 155,
+    /// <c>MsgInvalidTextFormat</c>). The entry's tokens are split on spaces, so text with a space arrives as more than one
+    /// token, and a leading space as a bare backtick followed by the text.
     /// </summary>
     private static CommandResult ApplyQsFreeText(AircraftState ac, List<string> args)
     {
         string text = args[0][1..].ToUpperInvariant();
-        if ((args.Count > 1) || (text.Length is < 1 or > 8) || !text.All(c => char.IsAsciiLetterUpper(c) || char.IsAsciiDigit(c)))
+        if ((args.Count > 1) || (text.Length is < 1 or > 8) || !text.All(IsQsFreeTextCharacter))
         {
             return Refused(EramEntryErrors.TextFormat);
         }
@@ -1037,6 +1072,9 @@ public static partial class EramEntryEngine
         ac.Eram.FreeText = text;
         return new CommandResult(true, $"QS {text} {ac.Callsign}");
     }
+
+    private static bool IsQsFreeTextCharacter(char c) =>
+        char.IsAsciiLetterUpper(c) || char.IsAsciiDigit(c) || (c is '-' or '+' or '=' or '*' or '/' or '_' or '.' or ',');
 
     /// <summary>
     /// An HSF assigned heading in CRC's canonical stored form — the format the Heading Menu composes AND re-parses on
