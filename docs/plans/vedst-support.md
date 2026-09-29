@@ -21,7 +21,7 @@ All code is in yaat-server (`D:\yaat-server`). yaat gets only docs and plan edit
 
 ## Steps
 
-Steps 2–8 are not started. The vEDST source referred to below is `github.com/vFlightDataSystems/VATSIM_EDST_frontend` (`src/contexts/HubContext.tsx`, `src/api/vNasDataApi.ts`, `src/login/Login.tsx`, `src/redux/slices/authSlice.ts`).
+Steps 2–8 are not started. The vEDST source referred to below is `github.com/vFlightDataSystems/VATSIM_EDST_frontend`, cloned as the sibling `..\vedst` (`src/contexts/HubContext.tsx`, `src/api/vNasDataApi.ts`, `src/login/Login.tsx`, `src/redux/slices/authSlice.ts`).
 
 ### 2. Direct WebSocket auth
 In `CrcWebSocketHandler.Handle`, when there is no `?id=` negotiate token but there is an `?access_token=`, validate it with `YaatTokenService` (access tokens only, matching the `OnTokenValidated` check in `ServerApp.cs:124`). Take the CID from the validated `sub`, then resolve the room with `GetRoomForCid` as today. An invalid token closes the socket with a policy-violation status and a log line. The existing negotiate path is unchanged, so CRC keeps working.
