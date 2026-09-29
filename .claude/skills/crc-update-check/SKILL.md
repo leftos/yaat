@@ -9,7 +9,7 @@ Answers "does yaat / yaat-server need to change for CRC x.y.z?" with evidence, a
 two artefacts that keep the next check cheap: the wire-contract snapshot and the decompiled
 reference tree. Reference behind every step: `yaat-server/docs/crc-update.md`.
 
-Run from the yaat-server repo root unless a step says otherwise. Tee every tool run into `.tmp/`.
+Run from the yaat-server repo root unless a step says otherwise. Run every `dotnet` command through `../yaat/tools/gate.ps1`, which keeps the full output in a `.tmp/` log.
 
 ## Step 1: Measure the gap
 
@@ -53,13 +53,13 @@ pwsh -NoProfile -Command 'Get-ChildItem "$env:LOCALAPPDATA\CRC\Application\*.dll
 ## Step 4: Wire snapshot
 
 ```bash
-dotnet run --project tools/CrcWireDump 2>&1 | tee .tmp/crcwiredump.log
+pwsh ../yaat/tools/gate.ps1 -Log .tmp/crcwiredump.log -TimeoutSeconds 120 -Slot heavy -- dotnet run --project tools/CrcWireDump
 git diff --stat docs/crc-wire/
 ```
 
 Empty diff → `git checkout -- docs/crc-wire/messaging-contract.json` (the tool writes CRLF; the
 flagged file is a line-ending no-op). Non-empty → run
-`timeout 30 dotnet test -- --filter-class "*CrcWireContractTests" 2>&1 | tee .tmp/test.log`;
+`pwsh ../yaat/tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -- dotnet test -- --filter-class "*CrcWireContractTests"`;
 the failure names the `Yaat.Server.Dtos` type to fix. Commit snapshot + fix together.
 
 ## Step 5: Decompile into the reference repo and diff

@@ -5,7 +5,7 @@
 // Depends on per-test failure blocks at .tmp/triage-blocks/<Method>.log. If those are
 // missing, regenerate them: flip TaxiPathfinderRouter._current -> TaxiPathfinderV2 and
 // TestAirportGroundData() default -> FilletMode.V2, run
-//   dotnet test tests/Yaat.Sim.Tests/... --filter "Category!=Nightly" --logger "console;verbosity=detailed" | tee .tmp/triage-v2v2-detail.log
+//   pwsh tools/gate.ps1 -Log .tmp/triage-v2v2-detail.log -TimeoutSeconds 120 -Slot heavy -- dotnet test tests/Yaat.Sim.Tests/... -- --filter-not-trait "Category=Nightly"
 // revert both flips, then split the failure-summary blocks (one file per "Failed <FQN>" block,
 // 18KB cap) into .tmp/triage-blocks/. See docs/plans/pathfinderv2/default-flip-triage.md.
 export const meta = {

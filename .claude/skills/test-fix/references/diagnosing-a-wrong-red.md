@@ -18,8 +18,7 @@ Worked examples: [`docs/e2e-tdd-issue-debugging.md`](../../../../docs/e2e-tdd-is
 failures. To watch a run live, use the process form:
 
 ```bash
-dotnet run --project tests/Yaat.Sim.Tests -c Release -- \
-  --filter-method "*<TestName>*" --show-live-output on 2>&1 | tee .tmp/test-live.log
+pwsh tools/gate.ps1 -Log .tmp/test-live.log -TimeoutSeconds 120 -Slot heavy -- dotnet run --project tests/Yaat.Sim.Tests -c Release -- --filter-method "*<TestName>*" --show-live-output on
 ```
 
 For Yaat.Sim logging inside a test, `SimLog` falls back to `NullLoggerFactory`

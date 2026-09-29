@@ -21,38 +21,38 @@ In every command below `<geojson>` is either a positional path (e.g. `tests/Yaat
 
 **Find all exits from a runway:**
 ```bash
-timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --exits <RWY> --json 2>&1 | tee .tmp/li-exits.log
+pwsh tools/gate.ps1 -Log .tmp/li-exits.log -TimeoutSeconds 120 -Slot heavy -- dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --exits <RWY> --json
 ```
 
 **Trace a multi-hop exit path from a node through a taxiway:**
 ```bash
-timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --bfs <NodeID> <Taxiway> --json 2>&1 | tee .tmp/li-bfs.log
+pwsh tools/gate.ps1 -Log .tmp/li-bfs.log -TimeoutSeconds 120 -Slot heavy -- dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --bfs <NodeID> <Taxiway> --json
 ```
 
 **Resolve a full pathfinder route (preferred for taxi-bug investigation — matches what `GroundCommandHandler.TryTaxi` does at runtime):**
 ```bash
-timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --pathfinder <NodeID> T1 T2 T3 --pf-dest-rwy 28R 2>&1 | tee .tmp/li-pf.log
+pwsh tools/gate.ps1 -Log .tmp/li-pf.log -TimeoutSeconds 120 -Slot heavy -- dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --pathfinder <NodeID> T1 T2 T3 --pf-dest-rwy 28R
 ```
 
 **Inspect a specific node's connectivity:**
 ```bash
-timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --node <NodeID> --json 2>&1 | tee .tmp/li-node.log
+pwsh tools/gate.ps1 -Log .tmp/li-node.log -TimeoutSeconds 120 -Slot heavy -- dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --node <NodeID> --json
 ```
 
 **Inspect multiple nodes in one invocation (`--node` is repeatable):**
 ```bash
-timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --node 619 --node 621 --node 1220 --node 1222 --node 1224 2>&1 | tee .tmp/li-cluster.log
+pwsh tools/gate.ps1 -Log .tmp/li-cluster.log -TimeoutSeconds 120 -Slot heavy -- dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --node 619 --node 621 --node 1220 --node 1222 --node 1224
 ```
 
 **Inspect a node and everything within N graph hops (`--node-depth`):**
 ```bash
-timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --node 621 --node-depth 1 2>&1 | tee .tmp/li-621-d1.log
+pwsh tools/gate.ps1 -Log .tmp/li-621-d1.log -TimeoutSeconds 120 -Slot heavy -- dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --node 621 --node-depth 1
 # Useful for dumping a fillet cluster without listing every member id by hand.
 ```
 
 **Diagnose junction corners — fan/turn angle of every edge pair + the bridging taxiway (`--node-angles`):**
 ```bash
-timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --fillet-mode none --node 349 --node-angles 2>&1 | tee .tmp/li-angles.log
+pwsh tools/gate.ps1 -Log .tmp/li-angles.log -TimeoutSeconds 120 -Slot heavy -- dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --fillet-mode none --node 349 --node-angles
 # Per pair: fan=included angle (0=parallel, 180=straight-through), turn=deflection (180-fan; high=sharp/un-filletable),
 # and the shortest alternate path avoiding the node — "bridge via [G]" means another taxiway already joins the pair,
 # so a direct corner-chord between them is redundant. Pairs sorted tightest-turn-first. Run on --fillet-mode none for
@@ -61,22 +61,22 @@ timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --fillet
 
 **Show all nodes on a taxiway:**
 ```bash
-timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --taxiway <T> --json 2>&1 | tee .tmp/li-twy.log
+pwsh tools/gate.ps1 -Log .tmp/li-twy.log -TimeoutSeconds 120 -Slot heavy -- dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --taxiway <T> --json
 ```
 
 **Inspect runway centerline and hold-short nodes:**
 ```bash
-timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --runway <RWY> --json 2>&1 | tee .tmp/li-rwy.log
+pwsh tools/gate.ps1 -Log .tmp/li-rwy.log -TimeoutSeconds 120 -Slot heavy -- dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --runway <RWY> --json
 ```
 
 **Dump entire airport to JSON for grepping:**
 ```bash
-timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --dump 2>&1 | tee .tmp/li-dump.json
+pwsh tools/gate.ps1 -Log .tmp/li-dump.json -TimeoutSeconds 120 -Slot heavy -- dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --dump
 ```
 
 **Generate interactive HTML visualization:**
 ```bash
-timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --html .tmp/airport.html 2>&1 | tee .tmp/li-html.log
+pwsh tools/gate.ps1 -Log .tmp/li-html.log -TimeoutSeconds 120 -Slot heavy -- dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --html .tmp/airport.html
 ```
 
 ### Flags Reference

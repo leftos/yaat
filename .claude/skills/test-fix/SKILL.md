@@ -175,8 +175,7 @@ summary line saying "the class needs an instrument" is a deferral, not a finding
 pwsh tools/gate.ps1 -Log .tmp/test-suite.log -TimeoutSeconds 120 -Slot heavy -- dotnet test <test-project>
 ```
 
-Use `timeout 120` if you wrap this yourself — this is a full-project run, not a
-targeted one, and CLAUDE.md's `timeout 30` applies only to filtered runs. A kill
+The ceiling is `-TimeoutSeconds 120` because this is a full-project run, not a targeted one; the 30 in CLAUDE.md applies only to filtered runs. A kill
 at 120 s means a genuine hang (broken graph topology, an infinite pathfinder
 loop), not a slow suite.
 

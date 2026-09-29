@@ -79,5 +79,5 @@ strings name the SOP paragraph that fired, so a soak finding traces to the line.
   (VATSIM training artifacts, "For Simulation Use Only") — `sourceDocument` + the `zoa-reference-cli` `sop` catalog
   re-locate them.
 - Enums over free text wherever a brain branches; no speculative fields.
-- Run `dotnet test tests/Yaat.Sim.Tests -- --filter-class "*.Knowledge.*"` — `FacilityOpsTests` and
+- Run `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -- dotnet test tests/Yaat.Sim.Tests -- --filter-class "*.Knowledge.*"` — `FacilityOpsTests` and
   `OakRunwayKnowledgeTests` pin the OAK transcription (4-2 selection, 4-2.c coupling, 3-4 assignment, the gate).

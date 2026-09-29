@@ -76,7 +76,7 @@ The run took about 5 minutes. STT averaged about 294 ms per trial; clean transmi
 ## Reproduce
 
 ```
-dotnet run --project tools/Yaat.SpeechSandbox -c Release -- --atc-ouroboros --out-dir .tmp/atc-baseline
+pwsh tools/gate.ps1 -Log .tmp/atc-ouroboros.log -TimeoutSeconds 1800 -Slot heavy -- dotnet run --project tools/Yaat.SpeechSandbox -c Release -- --atc-ouroboros --out-dir .tmp/atc-baseline
 ```
 
 Run it from the repo root, through `tools/gate.ps1`, with the Piper voice pack in `%LOCALAPPDATA%\yaat\voices\` and the Whisper and LLM models configured in the client's Settings → Speech. It exits 0 against the committed baseline when nothing regressed.

@@ -38,8 +38,7 @@ Then rename or symlink to `test-model.gguf`.
 With the file in place:
 
 ```bash
-dotnet test tests/Yaat.Client.Tests/Yaat.Client.Tests.csproj \
-    --filter "FullyQualifiedName~LocalLlmPipelineIntegration"
+pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -- dotnet test tests/Yaat.Client.Tests/Yaat.Client.Tests.csproj -- --filter-method "*LocalLlmPipelineIntegration*"
 ```
 
 On a machine with CUDA available, inference runs on GPU automatically via `LlmCudaFixture` which calls `NativeLibraryConfig.All.WithCuda(true).WithAutoFallback(true)` before any weights load. On a CPU-only machine, the same tests run via CPU fallback — just slower.

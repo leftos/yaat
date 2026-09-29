@@ -19,11 +19,11 @@ Do not move or fork those sources casually. When a Claude-only feature has no Co
 - Tooling or scripts may load environment variables from those files into the process environment when needed for local commands, as long as secret values are not displayed in tool output, included in prompts, written to logs, committed, or otherwise surfaced to the agent/user conversation.
 - Prefer loading only the specific variables needed for the task. Verify secret presence with boolean checks only; never echo or print secret values.
 - Do not perform unsafe deletes or resets. Never use `git reset --hard` or broad checkout/revert commands unless explicitly requested.
-- Tee all `dotnet build`, `dotnet test`, and `dotnet run` output into `.tmp/`.
-- Wrap `dotnet test` with a timeout to catch hangs.
+- Run every `dotnet build`, `dotnet test`, and `dotnet run` through the gate: `pwsh tools/gate.ps1 -Log .tmp/<name>.log -TimeoutSeconds <n> -Slot heavy -- <command...>`. It keeps the full output in the log and prints only the tail; never pipe to `tee`.
+- The gate's `-TimeoutSeconds` catches hangs: 30 for a filtered `dotnet test`, 120 for an unfiltered one, 300 for a build. Never add a `timeout` wrapper of your own.
 - Do not run bare `dotnet format`; use the configured hooks or project-approved formatting commands from `CLAUDE.md`.
 - Never pass `-q`, `-v q`, `--nologo`, or extra quieting flags to `dotnet format`.
-- Build after edits with warnings as errors: `dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/build.log`.
+- Build after edits with warnings as errors: `pwsh tools/gate.ps1 -Log .tmp/build.log -TimeoutSeconds 300 -Slot heavy -- dotnet build -p:TreatWarningsAsErrors=true`.
 - For broad verification, prefer `pwsh tools/test-all.ps1` because it covers both YAAT and `yaat-server`.
 - Keep `docs/architecture.md` current before commits.
 
@@ -65,7 +65,7 @@ Standard build/test commands from `CLAUDE.md` apply. Key commands:
 
 ```bash
 cd /agent/repos/yaat-server
-dotnet run --project src/Yaat.Server 2>&1 | tee .tmp/server-run.log
+pwsh ../yaat/tools/gate.ps1 -Log .tmp/server-run.log -TimeoutSeconds 3600 -StallSeconds 3600 -Slot heavy -- dotnet run --project src/Yaat.Server
 ```
 
 The dev profile (`launchSettings.json`) binds to **port 5130** (`http://localhost:5130`), not port 5000 (which is the production/Docker default). The client's auto-connect default is `http://localhost:5000`, so when connecting the client, use `http://localhost:5130`.

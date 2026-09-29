@@ -42,8 +42,7 @@ pwsh tools/gate.ps1 -Log .tmp/consolidate-test.log -TimeoutSeconds 120 -Slot hea
 ```
 
 This is a full-project run of roughly 300 replay E2E tests. It legitimately
-takes minutes — if you wrap it in a `timeout`, use `timeout 120`, not the
-`timeout 30` CLAUDE.md specifies for *filtered* runs. A kill at 120 s means a
+takes minutes, so the gate's ceiling is `-TimeoutSeconds 120`, not the 30 CLAUDE.md specifies for *filtered* runs. A kill at 120 s means a
 genuine hang, not a slow suite.
 
 If a test fails because it references a renamed file the tool missed, fix the

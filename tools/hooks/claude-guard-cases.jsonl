@@ -27,7 +27,7 @@
 {"expect":"allow","cmd":"pwsh tools/gate.ps1 -Log .tmp/name.log -TimeoutSeconds 300 -Slot heavy -- dotnet build"}
 {"expect":"allow","cmd":"pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -- dotnet test tests/Yaat.Sim.Tests -- --filter-class \"*Pathfinding*\""}
 {"expect":"allow","cmd":"pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 120 -Slot heavy -- dotnet test"}
-{"expect":"allow","cmd":"pwsh -NoProfile -File tools/gate.ps1 -Log .tmp/t.log -TimeoutSeconds 30 -Slot heavy -- dotnet test"}
+{"expect":"allow","cmd":"pwsh -NoProfile -File tools/gate.ps1 -Log .tmp/t.log -TimeoutSeconds 120 -Slot heavy -- dotnet test"}
 {"expect":"allow","cmd":"timeout 30 dotnet test -- --filter-class \"*X\" > .tmp/test.log 2>&1; rc=$?; tail -n 20 .tmp/test.log; (exit $rc)"}
 {"expect":"allow","cmd":"dotnet build -p:TreatWarningsAsErrors=true > .tmp/build.log 2>&1; rc=$?; tail -n 20 .tmp/build.log; (exit $rc)"}
 {"expect":"allow","cmd":"timeout 30 dotnet test -- --filter-class \"*X\" > \"$WT/.tmp/implementer-test.log\" 2>&1; rc=$?; tail -n 15 \"$WT/.tmp/implementer-test.log\"; (exit $rc)"}
