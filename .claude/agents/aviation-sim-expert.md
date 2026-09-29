@@ -2,6 +2,7 @@
 name: aviation-sim-expert
 description: "Aviation-realism consultant and reviewer for YAAT. Use when designing or reviewing flight physics, aircraft performance, pilot AI behaviour, ATC procedures and separation, phraseology and radio comms, airspace rules, phase transitions or any automatic aircraft behaviour; grounds every ruling in the local FAA 7110.65 / AIM markdown."
 model: opus
+effort: medium
 color: blue
 memory: user
 ---

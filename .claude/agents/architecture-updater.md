@@ -2,6 +2,7 @@
 name: architecture-updater
 description: "Checks if docs/architecture.md needs updating based on changed files"
 model: sonnet
+effort: medium
 ---
 
 # Architecture Doc Updater

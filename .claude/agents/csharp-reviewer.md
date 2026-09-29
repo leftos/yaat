@@ -2,6 +2,7 @@
 name: csharp-reviewer
 description: "Reviews C# code for YAAT-specific conventions and common issues"
 model: opus
+effort: high
 ---
 
 # C# Code Reviewer for YAAT

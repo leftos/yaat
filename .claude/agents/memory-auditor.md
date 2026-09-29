@@ -3,6 +3,7 @@ name: memory-auditor
 description: "Read-only auditor for one slice of the auto-memory store. Dispatched by the memory-store-audit skill, one agent per disjoint file slice; returns KEEP/TRIM/DELETE/MERGE verdict rows and writes nothing."
 tools: Read, Glob, Grep, SendMessage, mcp__plugin_mem0_mem0__search_memories
 model: sonnet
+effort: medium
 ---
 
 # Memory Slice Auditor
