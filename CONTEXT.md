@@ -185,6 +185,9 @@ An uninstructed runway exit whose own bar is a dead-end fallback inside the hold
 An aircraft spawned from a live real-world feed (SWIM/TAIS) that follows the feed rather than the simulation until someone assumes it (`AircraftState.IsShadow`, docs/live-traffic.md).
 _Avoid_: live aircraft (ambiguous with a simulated aircraft in a live session), ghost
 
+**Joined session**:
+A direct CRC-hub connection (vEDST, no negotiate id) that has called `JoinSession` on a same-CID CRC session, its **primary**: it reads the primary's room, position and ERAM sector, registers no position of its own, and may call only an allowlist of hub methods (docs/crc-display-state.md).
+
 ## ERAM commands
 
 **Message type descriptor**:
