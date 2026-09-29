@@ -179,6 +179,21 @@ How far from a runway's centerline its holding position markings sit: the map's 
 **Continuation past a short bar**:
 An uninstructed runway exit whose own bar is a dead-end fallback inside the holding distance carries on to the same runway's bar on the joining taxiway, e.g. OAK P → J's 28R bar (docs/landing-and-runway-exit.md).
 
+## Airborne following
+
+**Free pursuit**:
+A VFR follower trailing its lead along the lead's recorded ground path in `VfrFollowPhase`, rather than flying a pattern leg (docs/approach-and-pattern-geometry.md).
+
+**Excursion (S-turn)**:
+A pursuing follower's shallow turn 30° or 45° off the lead's track, to the pattern's outside, to lengthen a gap that is short; capped at an offset from the lead's track (docs/approach-and-pattern-geometry.md).
+
+**Base widen**:
+A follower on base flying 30° off its base heading away from the field, down to 1.5 turn radii from the extended centerline, to roll out farther behind its lead (`BaseFollowSpacing`, docs/approach-and-pattern-geometry.md).
+_Avoid_: excursion (that is the pursuit's S-turn)
+
+**Turn-out**:
+A follower level with or ahead of its lead turning to the downwind heading with one call, holding an offset band, and turning base behind the lead once it has passed (`VfrFollowPhase`, docs/approach-and-pattern-geometry.md).
+
 ## Live traffic
 
 **Shadow**:

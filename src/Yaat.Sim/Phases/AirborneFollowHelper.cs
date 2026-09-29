@@ -40,7 +40,7 @@ public static class AirborneFollowHelper
     /// Floor (kt) on the lead's ground speed used when projecting its threshold ETA, so a lead
     /// caught mid-flare or in a momentary slow sample cannot project an infinite ETA.
     /// </summary>
-    private const double MinProjectionSpeedKts = 40.0;
+    internal const double MinProjectionSpeedKts = 40.0;
 
     // Runway occupancy time — threshold crossing to clear of the runway — by lead category. The
     // publications give no per-category figure: the only runway-occupancy number in 7110.65 is
@@ -830,8 +830,7 @@ public static class AirborneFollowHelper
         double followerNmPerSec = Math.Max(follower.GroundSpeed, AircraftPerformance.ApproachSpeed(follower.AircraftType, ctx.Category)) / 3600.0;
         double remainingFollowerNm = RemainingPatternPathNm(follower, wp) - PatternCornerCutNm(followerNmPerSec, ctx.Category, corners: 2);
         double remainingLeadNm = RemainingPatternPathNm(lead, wp);
-        double leadApproachKts = AircraftPerformance.ApproachSpeed(lead.AircraftType, leadCategory);
-        double leadNmPerSec = Math.Max(Math.Min(lead.GroundSpeed, leadApproachKts), MinProjectionSpeedKts) / 3600.0;
+        double leadNmPerSec = ProjectedLeadSpeedKts(lead, leadCategory) / 3600.0;
         double followerEtaSec = remainingFollowerNm / followerNmPerSec;
         double leadEtaSec = remainingLeadNm / leadNmPerSec;
         double clearanceSec = RunwayClearanceSeconds(leadCategory);
@@ -874,6 +873,17 @@ public static class AirborneFollowHelper
         }
 
         return hold;
+    }
+
+    /// <summary>
+    /// The speed (kt) a lead's progress to the threshold is projected at: the slower of its present ground speed and its
+    /// approach speed, so a decelerating lead's touchdown is never earlier than projected, floored at
+    /// <see cref="MinProjectionSpeedKts"/> so a lead caught mid-flare or in a slow sample cannot project an infinite ETA.
+    /// </summary>
+    internal static double ProjectedLeadSpeedKts(AircraftState lead, AircraftCategory leadCategory)
+    {
+        double leadApproachKts = AircraftPerformance.ApproachSpeed(lead.AircraftType, leadCategory);
+        return Math.Max(Math.Min(lead.GroundSpeed, leadApproachKts), MinProjectionSpeedKts);
     }
 
     /// <summary>
@@ -1117,21 +1127,12 @@ public static class AirborneFollowHelper
             return false;
         }
 
-        // Structural overtake: the follower's slowest sustainable approach speed still
-        // outruns the lead. Anything within the margin is recoverable by slowing down,
-        // so leave it to the speed adjustment / S-turn rather than going around. Compare
-        // IAS to IAS — both fly the same final into the same wind, so the airspeed
-        // difference is the wind-independent measure of "can I slow to the lead's speed";
-        // the actual ground-frame closure is handled separately by IsClosing below.
-        // The lead's instantaneous IAS includes the wind additive (it flies the same
-        // weather), so the follower's floor must carry the gust part too or the comparison
-        // is biased permissive by exactly the additive.
-        double followerVref =
-            AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category) + AircraftPerformance.GustApproachAdditive(ctx.Weather);
-        if (followerVref <= lead.IndicatedAirspeed + StructuralOvertakeMarginKts)
+        if (!IsStructuralOvertake(ctx, lead))
         {
             return false;
         }
+
+        double followerVref = FollowerVrefKts(ctx);
 
         double gap = GeoMath.DistanceNm(ctx.Aircraft.Position, lead.Position);
         if (gap >= FollowBreakOffGapNm)
@@ -1159,6 +1160,20 @@ public static class AirborneFollowHelper
         );
         return true;
     }
+
+    /// <summary>
+    /// True when the follower's slowest sustainable approach speed still outruns the lead by more than
+    /// <see cref="StructuralOvertakeMarginKts"/>: slowing down cannot keep it behind. Anything within the margin is recoverable
+    /// by the speed adjustment or an S-turn. IAS is compared to IAS: both fly the same final into the same wind, so the airspeed
+    /// difference is the wind-independent measure of "can I slow to the lead's speed" (the ground-frame closure is a separate
+    /// check). The lead's instantaneous IAS includes the wind additive (it flies the same weather), so the follower's floor
+    /// carries the gust part too, or the comparison is biased permissive by exactly the additive.
+    /// </summary>
+    internal static bool IsStructuralOvertake(PhaseContext ctx, AircraftState lead) =>
+        FollowerVrefKts(ctx) > lead.IndicatedAirspeed + StructuralOvertakeMarginKts;
+
+    private static double FollowerVrefKts(PhaseContext ctx) =>
+        AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category) + AircraftPerformance.GustApproachAdditive(ctx.Weather);
 
     /// <summary>
     /// True when the straight-line range between two aircraft is decreasing this tick.
@@ -1197,6 +1212,67 @@ public static class AirborneFollowHelper
             AircraftCategory.Helicopter => DesiredDistanceSmallNm,
             _ => DesiredDistanceMediumNm,
         };
+    }
+
+    /// <summary>
+    /// Farthest (nm) off a runway's extended centerline a lead may be and still count as on its final
+    /// (<see cref="IsOnFinalByGeometry"/>).
+    /// </summary>
+    public const double OnFinalMaxCrossTrackNm = 0.5;
+
+    /// <summary>Largest angle (deg) between a lead's track and a runway's heading for the lead to count as on its final.</summary>
+    public const double OnFinalMaxTrackOffDeg = 30.0;
+
+    /// <summary>True when <paramref name="a"/> and <paramref name="b"/> are the same runway end at the same airport.</summary>
+    internal static bool IsSameRunway(RunwayInfo a, RunwayInfo b) =>
+        Data.NavigationDatabase.AirportIdsMatch(a.AirportId, b.AirportId)
+        && string.Equals(a.Designator, b.Designator, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// How far (nm) <paramref name="position"/> is out along <paramref name="runway"/>'s extended centerline from its threshold
+    /// (negative past it).
+    /// </summary>
+    internal static double AlongFinalNm(LatLon position, RunwayInfo runway) =>
+        GeoMath.AlongTrackDistanceNm(position, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude), runway.TrueHeading.ToReciprocal());
+
+    /// <summary>
+    /// The lead's remaining path (nm) to <paramref name="runway"/>'s threshold: its pattern path on base
+    /// (<see cref="RemainingPatternPathNm"/>), else its distance out along the final (never below zero).
+    /// </summary>
+    internal static double LeadRemainingPathNm(AircraftState lead, RunwayInfo runway) =>
+        lead.Phases?.CurrentPhase is BasePhase { Waypoints: { } waypoints }
+            ? RemainingPatternPathNm(lead, waypoints)
+            : Math.Max(0.0, AlongFinalNm(lead.Position, runway));
+
+    /// <summary>
+    /// True when <paramref name="lead"/> is on <paramref name="runway"/>'s final by geometry, whatever phase flies it (a
+    /// pattern final, an instrument approach's fix sequence, a course intercept): airborne, landing that runway, on the approach
+    /// side of its threshold, within <see cref="OnFinalMaxCrossTrackNm"/> of the extended centerline and tracking within
+    /// <see cref="OnFinalMaxTrackOffDeg"/> of the runway heading. A lead going around is leaving the final, wherever it is.
+    /// </summary>
+    internal static bool IsOnFinalByGeometry(AircraftState lead, RunwayInfo runway)
+    {
+        if (lead.IsOnGround || (lead.Phases is not { AssignedRunway: { } leadRunway } phases) || (phases.CurrentPhase is GoAroundPhase))
+        {
+            return false;
+        }
+
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        return IsSameRunway(leadRunway, runway)
+            && (AlongFinalNm(lead.Position, runway) > 0.0)
+            && (Math.Abs(GeoMath.SignedCrossTrackDistanceNm(lead.Position, threshold, runway.TrueHeading)) <= OnFinalMaxCrossTrackNm)
+            && (lead.TrueTrack.AbsAngleTo(runway.TrueHeading) <= OnFinalMaxTrackOffDeg);
+    }
+
+    /// <summary>
+    /// Spacing behind a lead in the pattern: the pattern spacing (<see cref="DesiredDistanceForLeader"/>), or the on-approach
+    /// wake-turbulence minimum behind a heavier lead when that is more.
+    /// </summary>
+    internal static double PatternSpacingNm(PhaseContext ctx, AircraftState lead)
+    {
+        AircraftCategory leadCategory = AircraftCategorization.Categorize(lead.AircraftType);
+        double wakeNm = WakeTurbulenceData.OnApproachWakeSeparationNm(lead.AircraftType, leadCategory, ctx.AircraftType, ctx.Category);
+        return Math.Max(DesiredDistanceForLeader(leadCategory), wakeNm);
     }
 
     /// <summary>

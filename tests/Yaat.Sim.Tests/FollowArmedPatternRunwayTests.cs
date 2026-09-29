@@ -135,8 +135,8 @@ public class FollowArmedPatternRunwayTests
             return;
         }
 
-        // Free (north) side of 28R and tracking away from the final course, so the airborne
-        // final-join gates never fire and the lead-landed sequence is the only capture path.
+        // Free (north) side of 28R but tracking away from the final course: the landed-lead sequence
+        // refuses the 180° intercept, the follow ends and the follower re-enters the 28R circuit.
         AircraftState lead = MakeVfr(Lead, OffFinal(flown, 0.8, 0), flown.TrueHeading, altitude: 300);
         lead.Phases = new PhaseList { AssignedRunway = flown, PatternRunway = flown };
         lead.Phases.Add(new FinalApproachPhase());
@@ -162,7 +162,56 @@ public class FollowArmedPatternRunwayTests
         lead.IsOnGround = true;
         phase.OnTick(ctx);
 
-        Assert.IsType<PatternEntryPhase>(follower.Phases.CurrentPhase);
+        PatternEntryPhase entry = Assert.IsType<PatternEntryPhase>(follower.Phases.CurrentPhase);
+        Assert.NotEqual(PatternEntryKind.Final, entry.Kind);
+        Assert.Null(follower.Approach.FollowingCallsign);
+        Assert.Contains(
+            follower.PendingWarnings,
+            w => w.Contains("follow ended, re-entering right traffic runway 28R", StringComparison.OrdinalIgnoreCase)
+        );
+        Assert.Equal("28R", follower.Phases.AssignedRunway?.Designator);
+        Assert.Equal("28L", follower.Phases.PatternRunway?.Designator);
+        Assert.Contains(follower.PendingWarnings, w => w.Contains("28L stays armed", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// A follow that ends on its own (here the lead is lost) re-enters the circuit it left through
+    /// <c>TryEnterPattern</c>, which builds a fresh list; the armed pattern runway survives the re-entry.
+    /// </summary>
+    [Fact]
+    public void ReturnToPattern_KeepsAnArmedPatternRunway()
+    {
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        RunwayInfo? flown = navDb?.GetRunway("KOAK", "28R");
+        RunwayInfo? armed = navDb?.GetRunway("KOAK", "28L");
+        if (navDb is null || flown is null || armed is null)
+        {
+            return;
+        }
+
+        AircraftState follower = MakeVfr(Follower, OffFinal(flown, 3.5, 1.0), flown.TrueHeading, altitude: 1200);
+        follower.Approach.FollowingCallsign = Lead;
+        var patternReturn = new FollowPatternReturn(flown, PatternDirection.Right, flown.AirportElevationFt + 1000, FromBase: false);
+        var phase = new VfrFollowPhase(Lead, patternReturn);
+        follower.Phases = new PhaseList
+        {
+            AssignedRunway = flown,
+            PatternRunway = armed,
+            TrafficDirection = PatternDirection.Right,
+        };
+        follower.Phases.Add(phase);
+
+        PhaseContext ctx = Ctx(follower, flown, _ => null);
+        follower.Phases.Start(ctx);
+
+        Assert.True(phase.OnTick(ctx));
+
+        Assert.IsNotType<VfrFollowPhase>(follower.Phases.CurrentPhase);
+        Assert.Null(follower.Approach.FollowingCallsign);
+        Assert.Contains(
+            follower.PendingWarnings,
+            w => w.Contains("follow ended, re-entering right traffic runway 28R", StringComparison.OrdinalIgnoreCase)
+        );
         Assert.Equal("28R", follower.Phases.AssignedRunway?.Designator);
         Assert.Equal("28L", follower.Phases.PatternRunway?.Designator);
         Assert.Contains(follower.PendingWarnings, w => w.Contains("28L stays armed", StringComparison.OrdinalIgnoreCase));

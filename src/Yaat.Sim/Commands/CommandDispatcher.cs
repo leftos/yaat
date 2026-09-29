@@ -3978,7 +3978,7 @@ public static class CommandDispatcher
             return new CommandResult(false, $"Unable, on base for runway {followerRunway.Designator}, {target} is not ahead of us, request vectors");
         }
 
-        InstallVfrFollowPhase(aircraft, target, BuildFollowPatternReturn(aircraft, followerRunway, ctx.GroundLayout));
+        InstallVfrFollowPhase(aircraft, target, VfrFollowPhase.BuildFollowPatternReturn(aircraft, followerRunway, ctx.GroundLayout));
         return Ok($"Follow {target}");
     }
 
@@ -4038,10 +4038,7 @@ public static class CommandDispatcher
     private static bool IsRollingOutOnRunway(AircraftState lead, RunwayInfo runway) =>
         (lead.Phases?.CurrentPhase is LandingPhase or TouchAndGoPhase or StopAndGoPhase)
         && (lead.Phases.AssignedRunway is { } leadRunway)
-        && IsSameRunway(leadRunway, runway);
-
-    private static bool IsSameRunway(RunwayInfo a, RunwayInfo b) =>
-        NavigationDatabase.AirportIdsMatch(a.AirportId, b.AirportId) && string.Equals(a.Designator, b.Designator, StringComparison.OrdinalIgnoreCase);
+        && AirborneFollowHelper.IsSameRunway(leadRunway, runway);
 
     /// <summary>
     /// The refusal for a lead flying at another airport than the follower's runway: its runway's airport, or with
@@ -4107,55 +4104,12 @@ public static class CommandDispatcher
     }
 
     /// <summary>
-    /// The circuit a follower leaves when FOLLOW sends it into pursuit from a pattern leg: its runway, and the
-    /// direction and pattern altitude of the circuit it was flying (read from that circuit's waypoints, or
-    /// resolved as the circuit builder would when no leg carries them).
-    /// </summary>
-    private static FollowPatternReturn BuildFollowPatternReturn(AircraftState aircraft, RunwayInfo runway, AirportGroundLayout? groundLayout)
-    {
-        bool fromBase = aircraft.Phases?.CurrentPhase is BasePhase;
-        PatternWaypoints? waypoints = aircraft.Phases?.Phases.Select(PatternWaypointsOf).FirstOrDefault(w => w is not null);
-        if (waypoints is not null)
-        {
-            return new FollowPatternReturn(runway, waypoints.Direction, waypoints.PatternAltitude, fromBase);
-        }
-
-        PatternDirection direction =
-            aircraft.Phases?.TrafficDirection
-            ?? aircraft.Pattern.TrafficDirection
-            ?? GoAroundHelper.InferDefaultPatternDirection(runway)
-            ?? PatternDirection.Left;
-        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
-        (double? _, double? altitudeOverrideFt) = PatternGeometry.ResolveAuthoredOverrides(
-            runway,
-            (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
-            category,
-            commandSizeNm: null,
-            aircraft.Pattern.AltitudeOverrideFt
-        );
-        double patternAltitudeFt = altitudeOverrideFt ?? (runway.AirportElevationFt + CategoryPerformance.PatternAltitudeAgl(category));
-        return new FollowPatternReturn(runway, direction, patternAltitudeFt, fromBase);
-    }
-
-    private static PatternWaypoints? PatternWaypointsOf(Phase phase) =>
-        phase switch
-        {
-            UpwindPhase p => p.Waypoints,
-            CrosswindPhase p => p.Waypoints,
-            DownwindPhase p => p.Waypoints,
-            BasePhase p => p.Waypoints,
-            MidfieldCrossingPhase p => p.Waypoints,
-            TeardropReentryPhase p => p.Waypoints,
-            _ => null,
-        };
-
-    /// <summary>
     /// Replace the follower's phases with a fresh <see cref="VfrFollowPhase"/> pursuing <paramref name="target"/>.
     /// A new PhaseList (mirrors ApproachCommandHandler.TryClearedVisualApproach) so no stale phase index is
     /// inherited; the standing landing-family clearance and its runway are carried onto it, so a follower
-    /// cleared before FOLLOW keeps its clearance through the pursuit.
+    /// cleared before FOLLOW keeps its clearance through the pursuit. Returns the installed phase.
     /// </summary>
-    internal static void InstallVfrFollowPhase(AircraftState aircraft, string target, FollowPatternReturn? patternReturn)
+    internal static VfrFollowPhase InstallVfrFollowPhase(AircraftState aircraft, string target, FollowPatternReturn? patternReturn)
     {
         ClearanceType? standingClearance = aircraft.Phases?.LandingClearance;
         string? standingClearedRunwayId = aircraft.Phases?.ClearedRunwayId;
@@ -4164,10 +4118,12 @@ public static class CommandDispatcher
             existing.Clear(BuildMinimalContext(aircraft, groundLayout: null));
         }
 
+        var pursuit = new VfrFollowPhase(target, patternReturn);
         aircraft.Phases = new PhaseList { LandingClearance = standingClearance, ClearedRunwayId = standingClearedRunwayId };
-        aircraft.Phases.Phases.Add(new VfrFollowPhase(target, patternReturn));
+        aircraft.Phases.Phases.Add(pursuit);
         aircraft.Phases.Start(BuildMinimalContext(aircraft, groundLayout: null));
         aircraft.Approach.FollowingCallsign = target;
+        return pursuit;
     }
 
     /// <summary>
@@ -4189,7 +4145,7 @@ public static class CommandDispatcher
         }
 
         // The airport counts too: HWD 28R is not OAK 28R.
-        return !IsSameRunway(followerRunway, leadRunway);
+        return !AirborneFollowHelper.IsSameRunway(followerRunway, leadRunway);
     }
 
     /// <summary>

@@ -82,6 +82,12 @@ public sealed class BasePhase : Phase
     /// </summary>
     public LatLon? StartPoint { get; private set; }
 
+    /// <summary>
+    /// True while a follower is flying <see cref="BaseFollowSpacing.WidenOffBaseDeg"/> off its base heading, away from the
+    /// field, to build spacing behind its lead (<see cref="BaseFollowSpacing"/>).
+    /// </summary>
+    public bool FollowWidenActive { get; private set; }
+
     public override string Name => "Base";
     public override bool ManagesSpeed => true;
 
@@ -119,6 +125,36 @@ public sealed class BasePhase : Phase
         }
         ctx.Targets.NavigationRoute.Clear();
 
+        // Circuit entry (downwind→base) carries no explicit FinalDistanceNm; derive it from
+        // the aircraft's own along-track distance from the threshold along the final course.
+        // At a normal circuit's base turn that equals the base extension; after an extended
+        // downwind (TB well past the base-turn point) it reads how far out the aircraft
+        // actually is, so the rollout aim doesn't assume the nominal geometry.
+        PlanDescent(ctx, Waypoints, FinalDistanceNm);
+
+        // Slow to base speed
+        // A controller speed assignment outranks the leg baseline (7110.65 §5-7-4).
+        if (!ctx.Targets.HasExplicitSpeedCommand)
+        {
+            ctx.Targets.TargetSpeed = AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category);
+        }
+
+        Log.LogDebug(
+            "[Base] {Callsign}: started, hdg={Hdg:F0}, alt={Alt:F0}ft",
+            ctx.Aircraft.Callsign,
+            Waypoints.BaseHeading.Degrees,
+            ctx.Aircraft.Altitude
+        );
+    }
+
+    /// <summary>
+    /// Plans the base's descent from where the aircraft is: to the 3° glidepath altitude at its rollout, spread over the base
+    /// ahead. The rollout is one turn radius beyond <paramref name="finalDistanceNm"/> out, or beyond the aircraft's present
+    /// distance out along the final when that is null (floored at one turn radius, so a degenerate position can't shrink the
+    /// aim inside the turn itself).
+    /// </summary>
+    private void PlanDescent(PhaseContext ctx, PatternWaypoints waypoints, double? finalDistanceNm)
+    {
         // Begin descent. Default rate; if the base→final geometry calls for a
         // steeper descent (SA-shortened final), compute one. The 90° base→final
         // turn translates the aircraft one turn-radius further along the
@@ -127,20 +163,13 @@ public sealed class BasePhase : Phase
         double thresholdElev = ctx.Runway?.ElevationFt ?? ctx.FieldElevation;
         double plannedSpeedKt = PlannedSpeedKt(ctx.Aircraft, ctx.Category);
         double turnRadiusNm = TurnRadiusNm(plannedSpeedKt, ctx.Category);
-
-        // Circuit entry (downwind→base) carries no explicit FinalDistanceNm; derive it from
-        // the aircraft's own along-track distance from the threshold along the final course.
-        // At a normal circuit's base turn that equals the base extension; after an extended
-        // downwind (TB well past the base-turn point) it reads how far out the aircraft
-        // actually is, so the rollout aim doesn't assume the nominal geometry. Floored at one
-        // turn radius so a degenerate position can't shrink the aim inside the turn itself.
         double finalDist =
-            FinalDistanceNm
+            finalDistanceNm
             ?? Math.Max(
                 GeoMath.AlongTrackDistanceNm(
                     ctx.Aircraft.Position,
-                    new LatLon(Waypoints.ThresholdLat, Waypoints.ThresholdLon),
-                    Waypoints.FinalHeading.ToReciprocal()
+                    new LatLon(waypoints.ThresholdLat, waypoints.ThresholdLon),
+                    waypoints.FinalHeading.ToReciprocal()
                 ),
                 turnRadiusNm
             );
@@ -172,20 +201,6 @@ public sealed class BasePhase : Phase
 
         ctx.Targets.DesiredVerticalRate = -descentRate;
         ctx.Targets.TargetAltitude = targetAlt;
-
-        // Slow to base speed
-        // A controller speed assignment outranks the leg baseline (7110.65 §5-7-4).
-        if (!ctx.Targets.HasExplicitSpeedCommand)
-        {
-            ctx.Targets.TargetSpeed = AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category);
-        }
-
-        Log.LogDebug(
-            "[Base] {Callsign}: started, hdg={Hdg:F0}, alt={Alt:F0}ft",
-            ctx.Aircraft.Callsign,
-            Waypoints.BaseHeading.Degrees,
-            ctx.Aircraft.Altitude
-        );
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -207,14 +222,7 @@ public sealed class BasePhase : Phase
         // doesn't immediately try to chase the same lead again.
         if (AirborneFollowHelper.ShouldBreakOffFollowForSpacing(ctx))
         {
-            string lead = ctx.Aircraft.Approach.FollowingCallsign!;
-            Log.LogDebug(
-                "[Base] {Callsign}: breaking off follow on {Lead}, going around (unable to maintain separation)",
-                ctx.Aircraft.Callsign,
-                lead
-            );
-            AirborneFollowHelper.ClearFollowState(ctx.Aircraft);
-            GoAroundHelper.Trigger(ctx, "unable to maintain separation");
+            GoAroundForSpacing(ctx);
             return false;
         }
 
@@ -229,6 +237,13 @@ public sealed class BasePhase : Phase
                 new LatLon(Waypoints.BaseTurnLat, Waypoints.BaseTurnLon),
                 LateralOffset
             );
+        }
+
+        // Spacing behind a lead on final, or on base ahead: keep the base, widen it away from the field, or break off to
+        // pursuit. After the structural-overtake go-around above, which keeps precedence. A break-off replaces the phase list.
+        if (ApplyFollowSpacing(ctx))
+        {
+            return false;
         }
 
         // Follow speed adjustment — pass the phase baseline, never the previous
@@ -273,6 +288,103 @@ public sealed class BasePhase : Phase
         return complete;
     }
 
+    /// <summary>
+    /// Ends the follow and goes around: the follower cannot keep its spacing behind the lead and the base leg leaves no room
+    /// to recover (AIM 4-3-3 NOTE 1). The follow is cleared first so the go-around's pattern re-entry doesn't immediately
+    /// chase the same lead again.
+    /// </summary>
+    private static void GoAroundForSpacing(PhaseContext ctx)
+    {
+        Log.LogDebug(
+            "[Base] {Callsign}: breaking off follow on {Lead}, going around (unable to maintain separation)",
+            ctx.Aircraft.Callsign,
+            ctx.Aircraft.Approach.FollowingCallsign
+        );
+        AirborneFollowHelper.ClearFollowState(ctx.Aircraft);
+        GoAroundHelper.Trigger(ctx, "unable to maintain separation");
+    }
+
+    /// <summary>
+    /// Applies <see cref="BaseFollowSpacing"/>: a widen holds the present altitude and flies its heading until it ends, then
+    /// the base heading again with the descent planned anew; a break-off installs the pursuit; a late break-off goes around.
+    /// True when the follower broke off or went around and this phase is no longer on its phase list.
+    /// </summary>
+    private bool ApplyFollowSpacing(PhaseContext ctx)
+    {
+        if (Waypoints is null)
+        {
+            return false;
+        }
+
+        BaseFollowSpacingDecision decision = BaseFollowSpacing.Evaluate(ctx, Waypoints, FollowWidenActive);
+        switch (decision.Action)
+        {
+            case BaseFollowSpacingAction.BreakOff:
+                BreakOffForSpacing(ctx);
+                return true;
+            case BaseFollowSpacingAction.GoAround:
+                GoAroundForSpacing(ctx);
+                return true;
+            case BaseFollowSpacingAction.Widen:
+                StartFollowWiden(ctx);
+                ctx.Targets.TargetTrueHeading = decision.WidenHeading;
+                return false;
+            default:
+                EndFollowWiden(ctx, Waypoints);
+                return false;
+        }
+    }
+
+    /// <summary>A widen holds the altitude it starts at: the glidepath it was descending to belongs to the shorter final.</summary>
+    private void StartFollowWiden(PhaseContext ctx)
+    {
+        if (FollowWidenActive)
+        {
+            return;
+        }
+
+        FollowWidenActive = true;
+        ctx.Targets.TargetAltitude = ctx.Aircraft.Altitude;
+        ctx.Targets.DesiredVerticalRate = null;
+    }
+
+    /// <summary>
+    /// Ends a widen: the base heading again, and the descent planned from where the follower is, as the leg's start plans it
+    /// (<see cref="PlanDescent"/>), to the glidepath at its now longer final.
+    /// </summary>
+    private void EndFollowWiden(PhaseContext ctx, PatternWaypoints waypoints)
+    {
+        if (!FollowWidenActive)
+        {
+            return;
+        }
+
+        FollowWidenActive = false;
+        // With an OFL/OFR dogleg the dogleg has already set this tick's heading.
+        if (LateralOffset is null)
+        {
+            ctx.Targets.TargetTrueHeading = waypoints.BaseHeading;
+        }
+
+        PlanDescent(ctx, waypoints, finalDistanceNm: null);
+    }
+
+    /// <summary>
+    /// Breaks off the base to pursue the lead, with the pattern return to this circuit (<see cref="VfrFollowPhase"/>), which
+    /// starts by turning out to the downwind heading and makes the one call for it
+    /// (<see cref="VfrFollowPhase.RequestTurnOut"/>). The standing landing clearance carries over.
+    /// </summary>
+    private static void BreakOffForSpacing(PhaseContext ctx)
+    {
+        AircraftState aircraft = ctx.Aircraft;
+        // BaseFollowSpacing breaks off only with a found lead landing this aircraft's assigned runway.
+        string lead = aircraft.Approach.FollowingCallsign!;
+        RunwayInfo runway = aircraft.Phases!.AssignedRunway!;
+        FollowPatternReturn patternReturn = VfrFollowPhase.BuildFollowPatternReturn(aircraft, runway, ctx.GroundLayout);
+        Log.LogDebug("[Base] {Callsign}: breaking off the base to turn out behind {Lead} for spacing", aircraft.Callsign, lead);
+        CommandDispatcher.InstallVfrFollowPhase(aircraft, lead, patternReturn).RequestTurnOut();
+    }
+
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
         // Speed and altitude adjustments are additive — they retarget without
@@ -313,6 +425,7 @@ public sealed class BasePhase : Phase
             LateralOffsetAcquired = LateralOffset?.Acquired ?? false,
             StartLat = StartPoint?.Lat,
             StartLon = StartPoint?.Lon,
+            FollowWidenActive = FollowWidenActive,
         };
 
     public static BasePhase FromSnapshot(BasePhaseDto dto)
@@ -335,6 +448,7 @@ public sealed class BasePhase : Phase
             _thresholdLon = dto.ThresholdLon,
             _finalHeading = new TrueHeading(dto.FinalHeadingDeg),
             StartPoint = (dto.StartLat is { } startLat) && (dto.StartLon is { } startLon) ? new LatLon(startLat, startLon) : null,
+            FollowWidenActive = dto.FollowWidenActive ?? false,
         };
         return phase;
     }

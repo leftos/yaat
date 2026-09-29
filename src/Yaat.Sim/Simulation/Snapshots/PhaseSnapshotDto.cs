@@ -1099,6 +1099,10 @@ public sealed class BasePhaseDto : PhaseDto
 
     /// <inheritdoc cref="StartLat"/>
     public double? StartLon { get; init; }
+
+    /// <summary>Whether the follower was widening its base for spacing (<see cref="Phases.Pattern.BasePhase.FollowWidenActive"/>);
+    /// null for a snapshot written before the widen existed, restored as not widening.</summary>
+    public bool? FollowWidenActive { get; init; }
 }
 
 public sealed class CrosswindPhaseDto : PhaseDto
@@ -1219,6 +1223,31 @@ public sealed class VfrFollowPhaseDto : PhaseDto
 
     /// <summary>Seconds until the follower may call "S-turning for spacing" again; 0 in older snapshots.</summary>
     public double STurnCallCooldownSeconds { get; init; }
+
+    /// <summary>The turn-out to the downwind heading under way; null when none and in older snapshots.</summary>
+    public FollowTurnOutDto? TurnOut { get; init; }
+
+    /// <summary>A base break-off asked the pursuit to start with a turn-out; null (read as false) in older snapshots.</summary>
+    public bool? TurnOutRequested { get; init; }
+
+    /// <summary>The gap (nm) at the start of the parallel-hold stall window; null when no window is open and in older snapshots.</summary>
+    public double? StallWindowStartGapNm { get; init; }
+
+    /// <summary>Seconds the parallel-hold stall window has been open; null when none and in older snapshots.</summary>
+    public double? StallWindowSeconds { get; init; }
+}
+
+/// <summary>A follower's turn-out to the downwind heading: the runway and circuit it rejoins, and where the turn began.</summary>
+public sealed class FollowTurnOutDto
+{
+    public required RunwayInfoDto Runway { get; init; }
+
+    /// <summary>0=Left, 1=Right (matches PatternDirection).</summary>
+    public required int Direction { get; init; }
+
+    public required double PatternAltitudeFt { get; init; }
+    public required double StartLat { get; init; }
+    public required double StartLon { get; init; }
 }
 
 /// <summary>

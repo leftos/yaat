@@ -245,8 +245,8 @@ public class FollowJoinGateTests
         double followerCrossNm
     )
     {
-        // Track 180° off the final course so the airborne TryJoinLeadFinal never fires and
-        // the lead-landed shortcut is the only capture path under test.
+        // Track 180° off the final course: the airborne TryJoinLeadFinal never fires, and once the lead is down the landed-lead
+        // gates refuse the final join (an intercept far past 30°), so the follow ends into a pattern re-entry for 28R.
         (AircraftState? follower, VfrFollowPhase? phase, PhaseContext? ctx) = SetupFinalJoin(
             rwy,
             leadDistNm: 0.8,
@@ -262,7 +262,7 @@ public class FollowJoinGateTests
     }
 
     [Fact]
-    public void LeadLandedShortcut_FromFarSideOfParallel_EndsFollowInsteadOfCapturing()
+    public void LeadLandedShortcut_FromFarSideOfParallel_ReentersByMidfieldCrossing()
     {
         NavigationDatabase? navDb = TestVnasData.NavigationDb;
         RunwayInfo? rwy = navDb?.GetRunway("KOAK", "28R");
@@ -271,16 +271,24 @@ public class FollowJoinGateTests
             return;
         }
         (AircraftState? follower, VfrFollowPhase? phase, PhaseContext? ctx, AircraftState _) = SetupLeadLandedShortcut(rwy, followerCrossNm: -0.6);
+        follower.Phases!.LandingClearance = ClearanceType.ClearedToLand;
+        follower.Phases.ClearedRunwayId = "28R";
 
         bool done = phase.OnTick(ctx);
 
+        // Beyond 28L from 28R's right-traffic circuit: the landed-lead gates refuse the capture, the follow ends and the
+        // follower re-enters 28R's pattern by crossing midfield (AIM 4-3-3) rather than joining the final directly.
         Assert.True(done, "The phase should end (lead on the ground) once the shortcut refuses the capture.");
-        Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
         Assert.Null(follower.Approach.FollowingCallsign);
+        Assert.IsType<MidfieldCrossingPhase>(follower.Phases!.CurrentPhase);
+        Assert.Equal("28R", follower.Phases.AssignedRunway?.Designator);
+        Assert.DoesNotContain(follower.Phases.Phases, p => p is PatternEntryPhase { Kind: PatternEntryKind.Final });
+        Assert.Equal(ClearanceType.ClearedToLand, follower.Phases.LandingClearance);
+        Assert.Equal("28R", follower.Phases.ClearedRunwayId);
     }
 
     [Fact]
-    public void LeadLandedShortcut_FromFreeSide_StillSequencesOntoRunwayFinal()
+    public void LeadLandedShortcut_FromFreeSide_ReentersThePatternFor28R()
     {
         NavigationDatabase? navDb = TestVnasData.NavigationDb;
         RunwayInfo? rwy = navDb?.GetRunway("KOAK", "28R");
@@ -292,9 +300,13 @@ public class FollowJoinGateTests
 
         bool done = phase.OnTick(ctx);
 
+        // On 28R's free side but tracking away from the final: the follow ends into a pattern entry for the landed runway, never
+        // a direct join of its final.
         Assert.True(done);
+        Assert.Null(follower.Approach.FollowingCallsign);
         Assert.IsType<PatternEntryPhase>(follower.Phases!.CurrentPhase);
         Assert.Equal("28R", follower.Phases.AssignedRunway?.Designator);
+        Assert.DoesNotContain(follower.Phases.Phases, p => p is PatternEntryPhase { Kind: PatternEntryKind.Final });
     }
 
     // ─── Present-position downwind join predicate (issue #352 / D1) ───

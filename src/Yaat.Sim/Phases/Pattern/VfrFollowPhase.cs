@@ -29,6 +29,11 @@ namespace Yaat.Sim.Phases.Pattern;
 /// (PatternEntryPhase → DownwindPhase → BasePhase → FinalApproachPhase → LandingPhase)
 /// copying the lead's runway, direction, and altitude — after which the existing
 /// <see cref="AirborneFollowHelper"/> machinery in the pattern phases takes over.
+///
+/// A follower level with or ahead of a lead on base or final, stuck alongside it at the excursion's offset cap, or breaking
+/// off its own base for spacing turns out to the downwind heading with one call, holds an offset band from the final, and
+/// turns base behind the lead once it has passed abeam and the base-now path leaves the pattern spacing
+/// (<see cref="TryStartTurnOut"/>).
 /// </summary>
 public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? patternReturn) : Phase
 {
@@ -73,6 +78,36 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
 
     /// <summary>Least time (s) between two "S-turning for spacing" calls from one follow (AIM 4-3-5).</summary>
     public const double STurnCallIntervalSeconds = 60.0;
+
+    /// <summary>Farthest (nm) from the runway's threshold a follower may be and still turn out behind a lead on base or final.</summary>
+    public const double TurnOutRangeNm = 5.0;
+
+    /// <summary>Width (nm) of a turned-out follower's offset band from the final centerline, above its floor (the excursion's offset cap).</summary>
+    public const double TurnOutBandWidthNm = 1.0;
+
+    /// <summary>Angle (deg) off the downwind heading a turned-out follower flies to regain its offset band.</summary>
+    public const double TurnOutCorrectionDeg = 30.0;
+
+    /// <summary>How far (nm) past the pattern spacing the base-now path must leave the follower behind the lead before it turns base.</summary>
+    public const double TurnOutExitMarginNm = 0.1;
+
+    /// <summary>How far (nm, along the final) past its turn-out point a follower flies the downwind heading waiting for the lead.</summary>
+    public const double TurnOutMaxExtensionNm = 2.0;
+
+    /// <summary>Farthest (nm, along the final from the threshold) a follower flies the downwind heading waiting for the lead.</summary>
+    public const double TurnOutMaxAlongFinalNm = 6.0;
+
+    /// <summary>How far (nm) short of its gap a follower alongside the lead at the offset cap must be for its hold to count as stalled.</summary>
+    public const double StallShortfallNm = 0.1;
+
+    /// <summary>Least growth (nm) of the gap over <see cref="StallWindowSeconds"/> for a hold alongside the lead not to count as stalled.</summary>
+    public const double StallMinGrowthNm = 0.05;
+
+    /// <summary>How long (s) a hold alongside the lead at the offset cap is watched before it is judged stalled or not.</summary>
+    public const double StallWindowSeconds = 20.0;
+
+    /// <summary>How far (nm) inside the offset cap a follower still counts as at the cap.</summary>
+    private const double StallCapToleranceNm = 0.05;
 
     /// <summary>
     /// Farther than this (nm) off the lead's path, the follower flies no faster than the lead: the straight-line distance
@@ -125,6 +160,15 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     /// <summary>Seconds until another "S-turning for spacing" call may be made (<see cref="STurnCallIntervalSeconds"/>).</summary>
     private double _sTurnCallCooldownSeconds;
 
+    /// <summary>The turn-out to the downwind heading under way (<see cref="TryStartTurnOut"/>), or null.</summary>
+    private FollowTurnOut? _turnOut;
+
+    /// <summary>A base break-off asked this pursuit to start with a turn-out (<see cref="RequestTurnOut"/>).</summary>
+    private bool _turnOutRequested;
+
+    /// <summary>The open parallel-hold stall window (<see cref="ParallelHoldStalled"/>), or null.</summary>
+    private ParallelHoldWindow? _parallelHold;
+
     public string TargetCallsign { get; private set; } = targetCallsign;
 
     /// <summary>
@@ -162,7 +206,20 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         _widen.Side = 0;
         _leadLandingRunway = null;
         _extensionLogged = false;
+        _turnOut = null;
+        _turnOutRequested = false;
+        _parallelHold = null;
     }
+
+    /// <summary>True while the follower is turned out to the downwind heading behind its lead (<see cref="TryStartTurnOut"/>).</summary>
+    public bool TurningOut => _turnOut is not null;
+
+    /// <summary>
+    /// Starts this pursuit with a turn-out on its first tick, when the lead is on base or final to a runway and the follower
+    /// on its pattern side in range (<see cref="TurnOutCircuitFor"/>): a base follower breaking off for spacing
+    /// (<see cref="BaseFollowSpacing"/>) is level with or ahead of the lead by the break-off's own projection.
+    /// </summary>
+    internal void RequestTurnOut() => _turnOutRequested = true;
 
     public override void OnStart(PhaseContext ctx)
     {
@@ -190,6 +247,11 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         AircraftState? lead = ctx.AircraftLookup?.Invoke(TargetCallsign);
         RememberLeadLandingRunway(lead);
 
+        if (_turnOut is { } turnOut)
+        {
+            return TickTurnOut(ctx, lead, turnOut);
+        }
+
         if (TrySequenceBehindLandedLead(ctx, lead))
         {
             return true;
@@ -202,24 +264,30 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         // phase has nothing left to do.
         if (AirborneFollowHelper.CheckLeadLifecycle(ctx))
         {
+            ReturnToPattern(ctx, LifecycleReturn(ctx, lead));
+            return true;
+        }
+
+        // CheckLeadLifecycle ends the follow when the lead is not found, so a null here ends it the same way.
+        lead = ctx.AircraftLookup?.Invoke(TargetCallsign);
+        if (lead is null)
+        {
+            AirborneFollowHelper.ClearFollowState(ctx.Aircraft);
             ReturnToPattern(ctx, PatternReturn);
             return true;
         }
 
-        // CheckLeadLifecycle already verified the lead exists.
-        lead = ctx.AircraftLookup!.Invoke(TargetCallsign)!;
-        // A new follow (or a new lead) seeds the path from the lead's position history, so a follower told to follow mid-leg
-        // measures its gap along the path the lead has just flown rather than a straight line.
-        if (_leadPath.Points.Count == 0)
-        {
-            foreach ((double lat, double lon) in lead.PositionHistory)
-            {
-                _leadPath.Record(new LatLon(lat, lon));
-            }
-        }
+        SeedLeadPath(lead);
         _leadPath.Record(lead.Position);
         RememberLeadBase(ctx.Aircraft, lead);
         double gapNm = GeoMath.DistanceNm(ctx.Aircraft.Position, lead.Position);
+
+        // A base break-off that asked for a turn-out takes it before any join: joining the lead's circuit from here would
+        // put the follower back on the base it just broke off.
+        if (_turnOutRequested && TryStartTurnOut(ctx, lead, stalledHold: false))
+        {
+            return false;
+        }
 
         // If the lead is flying its base, join that base at the point it began; otherwise, if the
         // lead is in a pattern, see if we're close enough to join; if it is on a straight-in
@@ -231,8 +299,50 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             return true;
         }
 
+        // Level with or ahead of a lead on base or final (or asked to by a base break-off): turn out to the downwind heading.
+        if (TryStartTurnOut(ctx, lead, stalledHold: false))
+        {
+            return false;
+        }
+
         return TickFreePursuit(ctx, lead);
     }
+
+    /// <summary>
+    /// A new follow (or a new lead) seeds the path from the lead's position history, so a follower told to follow mid-leg
+    /// measures its gap along the path the lead has just flown rather than a straight line.
+    /// </summary>
+    private void SeedLeadPath(AircraftState lead)
+    {
+        if (_leadPath.Points.Count > 0)
+        {
+            return;
+        }
+
+        foreach ((double lat, double lon) in lead.PositionHistory)
+        {
+            _leadPath.Record(new LatLon(lat, lon));
+        }
+    }
+
+    /// <summary>
+    /// The circuit a follow ended by <see cref="AirborneFollowHelper.CheckLeadLifecycle"/> re-enters: the landed lead's
+    /// runway when the lead is down and its runway is known (the follower could not be sequenced onto that final,
+    /// <see cref="TrySequenceBehindLandedLead"/>), otherwise the pattern return.
+    /// </summary>
+    private FollowPatternReturn? LifecycleReturn(PhaseContext ctx, AircraftState? lead) =>
+        ((lead is { IsOnGround: true }) && (_leadLandingRunway is { } landedRunway)) ? ReturnFor(ctx, landedRunway) : PatternReturn;
+
+    /// <summary>
+    /// The pattern return for <paramref name="runway"/>: this pursuit's own when it names that runway
+    /// (<see cref="OwnReturnFor"/>), else resolved as FOLLOW would.
+    /// </summary>
+    private FollowPatternReturn ReturnFor(PhaseContext ctx, RunwayInfo runway) =>
+        OwnReturnFor(runway) ?? BuildFollowPatternReturn(ctx.Aircraft, runway, ctx.GroundLayout);
+
+    /// <summary>This pursuit's own pattern return when it names <paramref name="runway"/>; otherwise null.</summary>
+    private FollowPatternReturn? OwnReturnFor(RunwayInfo runway) =>
+        ((PatternReturn is { } patternReturn) && AirborneFollowHelper.IsSameRunway(patternReturn.Runway, runway)) ? patternReturn : null;
 
     /// <summary>
     /// Remember the lead's landing runway while it is established on a straight-in
@@ -242,9 +352,9 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     private void RememberLeadLandingRunway(AircraftState? lead)
     {
         if (
-            lead is { IsOnGround: false }
-            && lead.Phases?.CurrentPhase is FinalApproachPhase or LandingPhase
-            && lead.Phases.AssignedRunway is { } leadRunway
+            (lead is { IsOnGround: false })
+            && (lead.Phases?.CurrentPhase is FinalApproachPhase or LandingPhase)
+            && (lead.Phases.AssignedRunway is { } leadRunway)
         )
         {
             _leadLandingRunway = leadRunway;
@@ -256,25 +366,49 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     /// know its runway, follow it onto that runway's final to await a landing
     /// clearance — rather than cancelling the follow and free-flying level over the
     /// field. Runs before CheckLeadLifecycle, which would otherwise cancel here.
-    /// Same parallel-final gate as TryJoinLeadFinal: this shortcut skips the in-trail
-    /// and intercept gates by design (the lead is down, so spacing is moot), but
-    /// capturing the runway from the far side of a close parallel would still cross
-    /// that parallel's final approach course (AIM §4-3-3 FIG 4-3-3 note 7). When the
-    /// gate refuses, fall through to CheckLeadLifecycle, which ends the follow
-    /// (lead on the ground) and leaves the re-sequence to the controller.
+    /// The final join's geometry gates apply (<see cref="CanSequenceOntoLandedFinal"/>), all but the in-trail gate (the lead
+    /// is down, so spacing is moot): never from beyond the threshold, never at a steep or wide intercept, never across a
+    /// parallel's final (AIM §4-3-3 FIG 4-3-3 note 7). When a gate refuses, fall through to CheckLeadLifecycle, which ends
+    /// the follow (lead on the ground); the follower then re-enters the pattern for the landed runway
+    /// (<see cref="LifecycleReturn"/>).
     /// </summary>
     private bool TrySequenceBehindLandedLead(PhaseContext ctx, AircraftState? lead)
     {
-        if (
-            lead is { IsOnGround: true }
-            && _leadLandingRunway is { } landedRunway
-            && !JoinCapturePathCrossesParallelFinal(ctx.Aircraft.Position, landedRunway)
-        )
+        if ((lead is not { IsOnGround: true }) || (_leadLandingRunway is not { } landedRunway))
         {
-            SequenceOntoFinal(ctx, landedRunway);
-            return true;
+            return false;
         }
-        return false;
+
+        if (!CanSequenceOntoLandedFinal(ctx.Aircraft, landedRunway))
+        {
+            Log.LogDebug(
+                "[VfrFollow] {Callsign}: {Lead} landed, but no sane join of the {Rwy} final from here; re-entering the pattern",
+                ctx.Aircraft.Callsign,
+                TargetCallsign,
+                landedRunway.Designator
+            );
+            return false;
+        }
+
+        SequenceOntoFinal(ctx, landedRunway);
+        return true;
+    }
+
+    /// <summary>
+    /// The final join's geometry gates without its in-trail gate: the follower is on the approach side of
+    /// <paramref name="runway"/>'s threshold at least <see cref="MinFinalJoinDistNm"/> out, within
+    /// <see cref="MaxFinalJoinCrossTrackNm"/> of the extended centerline, tracking within
+    /// <see cref="MaxFinalJoinInterceptDeg"/> of the final course, and its capture path crosses no parallel runway's final.
+    /// </summary>
+    internal static bool CanSequenceOntoLandedFinal(AircraftState follower, RunwayInfo runway)
+    {
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        double alongNm = AirborneFollowHelper.AlongFinalNm(follower.Position, runway);
+        double crossTrackNm = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(follower.Position, threshold, runway.TrueHeading));
+        return (alongNm >= MinFinalJoinDistNm)
+            && (crossTrackNm <= MaxFinalJoinCrossTrackNm)
+            && (follower.TrueTrack.AbsAngleTo(runway.TrueHeading) <= MaxFinalJoinInterceptDeg)
+            && !JoinCapturePathCrossesParallelFinal(follower.Position, runway);
     }
 
     /// <summary>
@@ -310,9 +444,66 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
 
         bool wasWidening = _widen.Active;
         ctx.Targets.TargetTrueHeading = AirborneFollowHelper.ComputeFreePursuitHeading(ctx.Aircraft, lead, spacing, _leadPath, _widen);
+        if (ParallelHoldStalled(ctx, lead, spacing) && TryStartTurnOut(ctx, lead, stalledHold: true))
+        {
+            return false;
+        }
+
         AnnounceNewExcursion(ctx, wasWidening);
         ctx.Targets.TargetSpeed = PursuitSpeed(ctx.Aircraft, lead, spacing, minSpeed, adjusted.Value);
         return false;
+    }
+
+    /// <summary>
+    /// True when the excursion has held the follower alongside the lead at its offset cap, more than
+    /// <see cref="StallShortfallNm"/> short of the gap, and the gap has grown by less than <see cref="StallMinGrowthNm"/> over
+    /// the last <see cref="StallWindowSeconds"/>: at the same speed the follower cannot fall behind (the measured parallel hold).
+    /// </summary>
+    private bool ParallelHoldStalled(PhaseContext ctx, AircraftState lead, FreePursuitSpacing spacing)
+    {
+        LeadPathProjection projection = _leadPath.Project(ctx.Aircraft.Position, lead.Position, lead.TrueTrack);
+        bool holding =
+            _widen.Active
+            && (spacing.ExtendedLeg is null)
+            && (projection.OffPathNm >= (spacing.Excursion.OffsetCapNm - StallCapToleranceNm))
+            && ((spacing.DesiredNm - projection.GapNm) > StallShortfallNm);
+        _parallelHold = AdvanceParallelHoldWindow(_parallelHold, holding, projection.GapNm, ctx.DeltaSeconds, out bool stalled);
+        return stalled;
+    }
+
+    /// <summary>
+    /// Advances the parallel-hold window: closed (null) while the follower is not <paramref name="holding"/>, opened at the
+    /// present gap when the hold begins, and after <see cref="StallWindowSeconds"/> judged and reopened at the present gap.
+    /// <paramref name="stalled"/> is true on the tick the window closes with the gap grown by less than
+    /// <see cref="StallMinGrowthNm"/>.
+    /// </summary>
+    internal static ParallelHoldWindow? AdvanceParallelHoldWindow(
+        ParallelHoldWindow? window,
+        bool holding,
+        double gapNm,
+        double deltaSeconds,
+        out bool stalled
+    )
+    {
+        stalled = false;
+        if (!holding)
+        {
+            return null;
+        }
+
+        if (window is not { } open)
+        {
+            return new ParallelHoldWindow(gapNm, 0.0);
+        }
+
+        double seconds = open.Seconds + deltaSeconds;
+        if (seconds < StallWindowSeconds)
+        {
+            return open with { Seconds = seconds };
+        }
+
+        stalled = gapNm - open.StartGapNm < StallMinGrowthNm;
+        return new ParallelHoldWindow(gapNm, 0.0);
     }
 
     /// <summary>
@@ -377,7 +568,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     }
 
     /// <summary>
-    /// The gap the pursuit keeps: pattern spacing (<see cref="PatternSpacingNm"/>) behind a lead in the pattern or bound for
+    /// The gap the pursuit keeps: pattern spacing (<see cref="AirborneFollowHelper.PatternSpacingNm"/>) behind a lead in the pattern or bound for
     /// it, the in-trail spacing the final join needs behind a lead on a straight-in final (<see cref="RequiredFinalInTrailNm"/>),
     /// the wider free-flight spacing behind any other.
     /// </summary>
@@ -385,7 +576,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     {
         if ((leadBase is not null) || (LeadCircuit(lead) is not null) || Commands.PatternCommandHandler.HasQueuedPatternEntry(lead))
         {
-            return PatternSpacingNm(ctx, lead);
+            return AirborneFollowHelper.PatternSpacingNm(ctx, lead);
         }
 
         bool leadOnStraightInFinal =
@@ -393,17 +584,6 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         return leadOnStraightInFinal
             ? RequiredFinalInTrailNm(ctx, lead)
             : AirborneFollowHelper.FreeFlightDistanceForLeader(AircraftCategorization.Categorize(lead.AircraftType));
-    }
-
-    /// <summary>
-    /// Spacing behind a lead in the pattern: the pattern spacing (<see cref="AirborneFollowHelper.DesiredDistanceForLeader"/>),
-    /// or the on-approach wake-turbulence minimum behind a heavier lead when that is more.
-    /// </summary>
-    private static double PatternSpacingNm(PhaseContext ctx, AircraftState lead)
-    {
-        AircraftCategory leadCategory = AircraftCategorization.Categorize(lead.AircraftType);
-        double wakeNm = WakeTurbulenceData.OnApproachWakeSeparationNm(lead.AircraftType, leadCategory, ctx.AircraftType, ctx.Category);
-        return Math.Max(AirborneFollowHelper.DesiredDistanceForLeader(leadCategory), wakeNm);
     }
 
     /// <summary>The circuit whose outside an excursion takes: the lead's, the base it flew, or the follower's own pattern return.</summary>
@@ -471,7 +651,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
 
     /// <summary>The remembered lead base while the lead is still airborne on that base, its final or its landing; otherwise null.</summary>
     private LeadBaseJoin? ActiveLeadBase(AircraftState lead) =>
-        (_leadBase is { } join) && !lead.IsOnGround && (lead.Phases?.CurrentPhase is BasePhase or FinalApproachPhase or LandingPhase) ? join : null;
+        ((_leadBase is { } join) && !lead.IsOnGround && (lead.Phases?.CurrentPhase is BasePhase or FinalApproachPhase or LandingPhase)) ? join : null;
 
     /// <summary>
     /// How far (nm) the follower is past the lead's base start point along the leg the lead flew into it, when it is within
@@ -551,18 +731,35 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     /// </summary>
     private void EndFollowExtendingDownwind(PhaseContext ctx, LeadBaseJoin join)
     {
-        RunwayInfo runway = join.Runway;
+        InstallExtendedDownwind(ctx, join.Runway, join.Waypoints.Direction, BaseJoinAltitudeFt(ctx, join));
+        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+            ctx.Aircraft,
+            ctx.SoloTrainingMode,
+            ctx.RpoShowPilotSpeech,
+            ctx.StudentPositionType,
+            Pilot.PilotResponder.BuildUnableToFollowExtendingDownwind(ctx.Aircraft, TargetCallsign),
+            Pilot.PilotResponder.SoloPositionsTowerApproach
+        );
+    }
+
+    /// <summary>
+    /// Ends the follow into an extended downwind of <paramref name="runway"/>'s <paramref name="direction"/> circuit at
+    /// <paramref name="altitudeFt"/>, from where the follower is: the downwind heading, parallel to the final and never
+    /// converging on it, until the controller turns it base (TB) or re-sequences it.
+    /// </summary>
+    private void InstallExtendedDownwind(PhaseContext ctx, RunwayInfo runway, PatternDirection direction, double altitudeFt)
+    {
         List<Phase> circuit = PatternBuilder.BuildCircuit(
             runway,
             ctx.Category,
             ctx.Aircraft.AircraftType,
             ctx.Aircraft.WindSpeedKts,
-            join.Waypoints.Direction,
+            direction,
             PatternEntryLeg.Downwind,
             touchAndGo: false,
             finalDistanceNm: null,
             patternSizeNm: null,
-            altitudeOverrideFt: BaseJoinAltitudeFt(ctx, join),
+            altitudeOverrideFt: altitudeFt,
             airportRunways: NavigationDatabase.Instance.GetRunways(runway.AirportId),
             authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(runway.Designator)
         );
@@ -573,16 +770,60 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         }
 
         ((DownwindPhase)circuit[downwindIndex]).IsExtended = true;
-        InstallJoinedCircuit(ctx, runway, join.Waypoints.Direction, circuit[downwindIndex..], keepFollowing: false);
-        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
-            ctx.Aircraft,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
-            Pilot.PilotResponder.BuildUnableToFollowExtendingDownwind(ctx.Aircraft, TargetCallsign),
-            Pilot.PilotResponder.SoloPositionsTowerApproach
-        );
+        InstallJoinedCircuit(ctx, runway, direction, circuit[downwindIndex..], keepFollowing: false);
     }
+
+    /// <summary>
+    /// The circuit a follower leaves when it goes into pursuit from a pattern leg (a FOLLOW, or a base follower breaking off
+    /// for spacing): its runway, and the direction and pattern altitude of the circuit it was flying (read from that
+    /// circuit's waypoints, or resolved as the circuit builder would when no leg carries them).
+    /// </summary>
+    internal static FollowPatternReturn BuildFollowPatternReturn(AircraftState aircraft, RunwayInfo runway, AirportGroundLayout? groundLayout)
+    {
+        bool fromBase = aircraft.Phases?.CurrentPhase is BasePhase;
+        PatternWaypoints? waypoints = aircraft.Phases?.Phases.Select(PatternWaypointsOf).FirstOrDefault(w => w is not null);
+        if (waypoints is not null)
+        {
+            return new FollowPatternReturn(runway, waypoints.Direction, waypoints.PatternAltitude, fromBase);
+        }
+
+        PatternDirection direction =
+            aircraft.Phases?.TrafficDirection
+            ?? aircraft.Pattern.TrafficDirection
+            ?? GoAroundHelper.InferDefaultPatternDirection(runway)
+            ?? PatternDirection.Left;
+        return new FollowPatternReturn(runway, direction, ResolvePatternAltitudeFt(aircraft, runway, groundLayout), fromBase);
+    }
+
+    /// <summary>
+    /// The pattern altitude (feet MSL) of <paramref name="aircraft"/>'s circuit to <paramref name="runway"/>, resolved as the
+    /// circuit builder would: an authored or commanded override (<see cref="PatternGeometry.ResolveAuthoredOverrides"/>, with
+    /// the aircraft's own <c>Pattern.AltitudeOverrideFt</c>), else its category's pattern altitude above the field.
+    /// </summary>
+    internal static double ResolvePatternAltitudeFt(AircraftState aircraft, RunwayInfo runway, AirportGroundLayout? groundLayout)
+    {
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        (double? _, double? altitudeOverrideFt) = PatternGeometry.ResolveAuthoredOverrides(
+            runway,
+            (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
+            category,
+            commandSizeNm: null,
+            aircraft.Pattern.AltitudeOverrideFt
+        );
+        return altitudeOverrideFt ?? (runway.AirportElevationFt + CategoryPerformance.PatternAltitudeAgl(category));
+    }
+
+    private static PatternWaypoints? PatternWaypointsOf(Phase phase) =>
+        phase switch
+        {
+            UpwindPhase p => p.Waypoints,
+            CrosswindPhase p => p.Waypoints,
+            DownwindPhase p => p.Waypoints,
+            BasePhase p => p.Waypoints,
+            MidfieldCrossingPhase p => p.Waypoints,
+            TeardropReentryPhase p => p.Waypoints,
+            _ => null,
+        };
 
     /// <summary>
     /// When a pursuit that left a pattern leg ends (lead lost or despawned, lead landed with no captured runway,
@@ -606,11 +847,12 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         // This phase is ticking, so the list it runs from is present.
         PhaseList phases = aircraft.Phases!;
         RunwayInfo? previousRunway = phases.AssignedRunway;
+        var armedBefore = ArmedPatternState.Of(phases);
         phases.AssignedRunway = patternReturn.Runway;
         CommandResult entry = Commands.PatternCommandHandler.TryEnterPattern(
             aircraft,
             patternReturn.Direction,
-            PatternEntryLeg.Downwind,
+            ReturnEntryLeg(aircraft, patternReturn.Runway),
             runwayId: null,
             finalDistanceNm: null,
             groundLayout: ctx.GroundLayout
@@ -639,6 +881,39 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             runwayDisplay
         );
         aircraft.PendingWarnings.Add($"{aircraft.Callsign} follow ended, re-entering {side} traffic runway {runwayDisplay}");
+        KeepArmedPatternRunway(aircraft, armedBefore, patternReturn);
+    }
+
+    /// <summary>
+    /// <see cref="Commands.PatternCommandHandler.TryEnterPattern"/> builds a new list without a
+    /// <see cref="PhaseList.PatternRunway"/>, so a pattern runway armed before the follow (<c>COPT MLT 28L</c> on the 28R
+    /// circuit) would be dropped by the re-entry. Carry it over as a join does (<see cref="CarryArmedPatternRunway"/>),
+    /// unless the entry itself armed one (a pre-issued clearance's pattern modifier).
+    /// </summary>
+    private static void KeepArmedPatternRunway(AircraftState aircraft, ArmedPatternState armedBefore, FollowPatternReturn patternReturn)
+    {
+        if (aircraft.Phases is not { PatternRunway: null } rebuilt)
+        {
+            return;
+        }
+
+        RunwayInfo patternRunway = CarryArmedPatternRunway(aircraft, armedBefore, patternReturn.Runway, patternReturn.Direction);
+        if (!AirborneFollowHelper.IsSameRunway(patternRunway, patternReturn.Runway))
+        {
+            rebuilt.PatternRunway = patternRunway;
+        }
+    }
+
+    /// <summary>
+    /// The leg a follow's pattern return enters by: the upwind for a follower already past <paramref name="runway"/>'s
+    /// threshold and flying the runway's way (it continues upwind, crosswind and downwind, AIM 4-3-3, never turning back onto
+    /// the final), otherwise the downwind.
+    /// </summary>
+    private static PatternEntryLeg ReturnEntryLeg(AircraftState aircraft, RunwayInfo runway)
+    {
+        double alongNm = AirborneFollowHelper.AlongFinalNm(aircraft.Position, runway);
+        bool pastThresholdOutbound = (alongNm < 0.0) && (aircraft.TrueHeading.AbsAngleTo(runway.TrueHeading) < 90.0);
+        return pastThresholdOutbound ? PatternEntryLeg.Upwind : PatternEntryLeg.Downwind;
     }
 
     /// <summary>
@@ -736,7 +1011,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             new LatLon(leadWaypoints.ThresholdLat, leadWaypoints.ThresholdLon),
             leadWaypoints.DownwindHeading
         );
-        if (trackToDownwindDelta <= 30.0 && aircraftAlongTrack >= abeamAlongTrack)
+        if ((trackToDownwindDelta <= 30.0) && (aircraftAlongTrack >= abeamAlongTrack))
         {
             return null;
         }
@@ -779,7 +1054,10 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             return TryJoinExtendedBase(ctx, lead, join, extensionNm);
         }
 
-        if ((lead.Phases?.CurrentPhase is not BasePhase) || !CanJoinLeadBase(ctx.Aircraft, join, gapToLeadNm, PatternSpacingNm(ctx, lead)))
+        if (
+            (lead.Phases?.CurrentPhase is not BasePhase)
+            || !CanJoinLeadBase(ctx.Aircraft, join, gapToLeadNm, AirborneFollowHelper.PatternSpacingNm(ctx, lead))
+        )
         {
             return false;
         }
@@ -838,13 +1116,13 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
 
         double ownPatternFt = join.Runway.AirportElevationFt + CategoryPerformance.PatternAltitudeAgl(ctx.Category);
         double altitudeFt = Math.Min(join.Waypoints.PatternAltitude, ownPatternFt);
-        return (PatternReturn is { FromBase: true }) && (ctx.Targets.TargetAltitude is { } targetFt) ? Math.Min(altitudeFt, targetFt) : altitudeFt;
+        return ((PatternReturn is { FromBase: true }) && (ctx.Targets.TargetAltitude is { } targetFt)) ? Math.Min(altitudeFt, targetFt) : altitudeFt;
     }
 
     /// <summary>
     /// A follower that extended the leg the lead flew into its base turn, to build spacing, turns base where it is once the
     /// spacing is built: no excursion under way and the gap (the lead's path from its base start plus the follower's
-    /// <paramref name="extensionNm"/>) at least the pattern spacing (<see cref="PatternSpacingNm"/>). It turns on the pattern
+    /// <paramref name="extensionNm"/>) at least the pattern spacing (<see cref="AirborneFollowHelper.PatternSpacingNm"/>). It turns on the pattern
     /// side, without crossing a parallel's final to reach the lead's final: the base, final and landing on the lead's runway,
     /// at <see cref="BaseJoinAltitudeFt"/>, the base's final-turn distance read from where the follower turns.
     /// </summary>
@@ -857,7 +1135,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         double pathGapNm = _leadPath.LengthFromNm(join.StartPoint, lead.Position) + extensionNm;
         if (
             _widen.Active
-            || (pathGapNm < PatternSpacingNm(ctx, lead))
+            || (pathGapNm < AirborneFollowHelper.PatternSpacingNm(ctx, lead))
             || !IsOnPatternSide(ctx.Aircraft, runway, join.Waypoints.Direction)
             || CapturePathCrossesParallelFinal(ctx.Aircraft.Position, finalAbeam, runway)
         )
@@ -895,7 +1173,8 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     /// <summary>
     /// The gates on joining the lead's base: the follower is on the pattern side of the lead's runway, its path to the
     /// base start point crosses no parallel runway's final, it is at least <paramref name="desiredGapNm"/> (the pattern
-    /// spacing, <see cref="PatternSpacingNm"/>) from the lead, and the join geometry is sane (<see cref="IsBaseJoinGeometrySane"/>).
+    /// spacing, <see cref="AirborneFollowHelper.PatternSpacingNm"/>) from the lead, and the join geometry is sane
+    /// (<see cref="IsBaseJoinGeometrySane"/>).
     /// </summary>
     private static bool CanJoinLeadBase(AircraftState follower, LeadBaseJoin join, double gapToLeadNm, double desiredGapNm)
     {
@@ -1193,7 +1472,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         PhaseList phases = ctx.Aircraft.Phases ?? new PhaseList();
         ClearanceType? armedClearance = phases.LandingClearance;
         string? armedClearedRunwayId = phases.ClearedRunwayId;
-        RunwayInfo patternRunway = CarryArmedPatternRunway(ctx.Aircraft, phases, runway, direction);
+        RunwayInfo patternRunway = CarryArmedPatternRunway(ctx.Aircraft, ArmedPatternState.Of(phases), runway, direction);
         phases.Clear(ctx);
         ctx.Aircraft.Phases = new PhaseList
         {
@@ -1226,11 +1505,16 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     /// controller to expect (AIM 4-3-5 — an unexpected maneuver in the pattern). When the transition
     /// also crosses the field, the midfield notice comes on top.
     /// </summary>
-    private static RunwayInfo CarryArmedPatternRunway(AircraftState aircraft, PhaseList previous, RunwayInfo joinRunway, PatternDirection direction)
+    private static RunwayInfo CarryArmedPatternRunway(
+        AircraftState aircraft,
+        ArmedPatternState previous,
+        RunwayInfo joinRunway,
+        PatternDirection direction
+    )
     {
         if (
             (previous.PatternRunway is not { } armed)
-            || (previous.AssignedRunway is not { } flown)
+            || (previous.FlownRunway is not { } flown)
             || string.Equals(armed.Designator, flown.Designator, StringComparison.OrdinalIgnoreCase)
             || string.Equals(armed.Designator, joinRunway.Designator, StringComparison.OrdinalIgnoreCase)
             // A pattern runway at another airport is not this circuit's business — the follower is
@@ -1427,6 +1711,459 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         return direction == PatternDirection.Left ? crossTrack <= 0 : crossTrack >= 0;
     }
 
+    // ─── Turn-out to the downwind heading ───
+
+    /// <summary>
+    /// Starts a turn-out to the downwind heading when the lead is on base or final to a runway and the follower is on that
+    /// runway's pattern side within <see cref="TurnOutRangeNm"/> of its threshold (<see cref="TurnOutCircuitFor"/>), and the
+    /// follower is level with or ahead of the lead (its shortest path to the threshold, <see cref="ShortestPathToThresholdNm"/>,
+    /// no longer than the lead's remaining path), its hold alongside the lead has stalled (<paramref name="stalledHold"/>), or
+    /// a base break-off asked for it (<see cref="RequestTurnOut"/>). The follower cannot fall behind a same-speed lead, and
+    /// continuing to the final ahead of it would be cutting in (AIM 4-3-4).
+    /// </summary>
+    private bool TryStartTurnOut(PhaseContext ctx, AircraftState lead, bool stalledHold)
+    {
+        bool requested = _turnOutRequested;
+        _turnOutRequested = false;
+        if (TurnOutCircuitFor(ctx, lead, requested) is not { } circuit)
+        {
+            if (requested)
+            {
+                Log.LogDebug(
+                    "[VfrFollow] {Callsign}: no turn-out, {Lead} is no longer on base or final in range",
+                    ctx.Aircraft.Callsign,
+                    TargetCallsign
+                );
+            }
+
+            return false;
+        }
+
+        string? reason =
+            requested ? "base break-off"
+            : stalledHold ? "stalled alongside at the offset cap"
+            : IsLevelOrAhead(ctx, lead, circuit) ? "level with or ahead"
+            : null;
+        if (reason is null)
+        {
+            return false;
+        }
+
+        StartTurnOut(ctx, circuit, reason);
+        return true;
+    }
+
+    /// <summary>
+    /// The circuit a turn-out rejoins: the runway the lead is flying its base or final to while it is airborne on either (on the
+    /// final in <see cref="FinalApproachPhase"/> or by geometry, <see cref="AirborneFollowHelper.IsOnFinalByGeometry"/>), in
+    /// <see cref="TurnOutDirection"/> traffic, at its pattern altitude; null when the lead is on neither, or the follower is not
+    /// on that circuit's pattern side, or (unless a base break-off <paramref name="requested"/> the turn-out) not within
+    /// <see cref="TurnOutRangeNm"/> of the threshold.
+    /// </summary>
+    private FollowPatternReturn? TurnOutCircuitFor(PhaseContext ctx, AircraftState lead, bool requested)
+    {
+        if (lead.IsOnGround || (lead.Phases is not { AssignedRunway: { } runway } leadPhases) || !IsOnBaseOrFinalLeg(lead, runway))
+        {
+            return null;
+        }
+
+        FollowPatternReturn circuit = OwnReturnFor(runway) ?? NewTurnOutCircuit(ctx, runway, leadPhases);
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        bool inRange = requested || (GeoMath.DistanceNm(ctx.Aircraft.Position, threshold) <= TurnOutRangeNm);
+        return (inRange && IsOnPatternSide(ctx.Aircraft, runway, circuit.Direction)) ? circuit with { FromBase = false } : null;
+    }
+
+    /// <summary>
+    /// A turn-out circuit to <paramref name="runway"/> this pursuit did not come from: in <see cref="TurnOutDirection"/> traffic,
+    /// at the follower's pattern altitude for it (<see cref="ResolvePatternAltitudeFt"/>).
+    /// </summary>
+    private static FollowPatternReturn NewTurnOutCircuit(PhaseContext ctx, RunwayInfo runway, PhaseList leadPhases) =>
+        new(runway, TurnOutDirection(runway, leadPhases), ResolvePatternAltitudeFt(ctx.Aircraft, runway, ctx.GroundLayout), FromBase: false);
+
+    /// <summary>
+    /// True when <paramref name="lead"/> flies its base, or its final (in <see cref="FinalApproachPhase"/> or by geometry), to
+    /// <paramref name="runway"/>, its own assigned runway.
+    /// </summary>
+    private static bool IsOnBaseOrFinalLeg(AircraftState lead, RunwayInfo runway) =>
+        (lead.Phases?.CurrentPhase is BasePhase or FinalApproachPhase) || AirborneFollowHelper.IsOnFinalByGeometry(lead, runway);
+
+    /// <summary>The traffic direction of a turn-out circuit this pursuit did not come from: the lead's, else the runway's default.</summary>
+    private static PatternDirection TurnOutDirection(RunwayInfo runway, PhaseList leadPhases) =>
+        leadPhases.TrafficDirection ?? GoAroundHelper.InferDefaultPatternDirection(runway) ?? PatternDirection.Left;
+
+    /// <summary>
+    /// True when the follower's shortest path to <paramref name="circuit"/>'s threshold is no longer than the lead's remaining
+    /// path (<see cref="AirborneFollowHelper.LeadRemainingPathNm"/>).
+    /// </summary>
+    private static bool IsLevelOrAhead(PhaseContext ctx, AircraftState lead, FollowPatternReturn circuit)
+    {
+        FinalFramePosition frame = FinalFrameOf(ctx.Aircraft.Position, ctx.Aircraft.TrueHeading, circuit.Runway, circuit.Direction);
+        double followerPathNm = ShortestPathToThresholdNm(frame, BasePhase.TurnRadiusNm(ctx.Aircraft.GroundSpeed, ctx.Category));
+        return followerPathNm <= AirborneFollowHelper.LeadRemainingPathNm(lead, circuit.Runway);
+    }
+
+    /// <summary>
+    /// Begins the turn-out: level at the circuit's pattern altitude, climbing back to it from a base descent (an assigned
+    /// altitude stands), the spacing excursion dropped, the turn toward the downwind heading, and the one call.
+    /// </summary>
+    private void StartTurnOut(PhaseContext ctx, FollowPatternReturn circuit, string reason)
+    {
+        var turnOut = new FollowTurnOut(circuit, ctx.Aircraft.Position);
+        _turnOut = turnOut;
+        _widen.Active = false;
+        _widen.Side = 0;
+        _parallelHold = null;
+        if (ctx.Targets.AssignedAltitude is null)
+        {
+            ctx.Targets.TargetAltitude = circuit.PatternAltitudeFt;
+            ctx.Targets.DesiredVerticalRate = null;
+        }
+
+        Log.LogDebug(
+            "[VfrFollow] {Callsign}: turning out to the {Rwy} downwind heading behind {Lead} ({Reason})",
+            ctx.Aircraft.Callsign,
+            circuit.Runway.Designator,
+            TargetCallsign,
+            reason
+        );
+        SteerTurnOut(ctx, turnOut);
+        ctx.Targets.TargetSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
+        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+            ctx.Aircraft,
+            ctx.SoloTrainingMode,
+            ctx.RpoShowPilotSpeech,
+            ctx.StudentPositionType,
+            Pilot.PilotResponder.BuildTurningDownwindForSpacing(ctx.Aircraft, TargetCallsign),
+            Pilot.PilotResponder.SoloPositionsTowerApproach
+        );
+    }
+
+    /// <summary>
+    /// One tick of the turn-out. A lead that lands, goes around or leaves the final ends the follow: the follower is already on a
+    /// pattern-side downwind, so it re-enters the circuit as a downwind with its clearance, and says nothing. A lead lost from
+    /// sight ends it the same way, with the loss handled as any follow's.
+    /// </summary>
+    private bool TickTurnOut(PhaseContext ctx, AircraftState? lead, FollowTurnOut turnOut)
+    {
+        if ((lead is not null) && !IsOnBaseOrFinalTo(lead, turnOut.Circuit.Runway))
+        {
+            Log.LogDebug(
+                "[VfrFollow] {Callsign}: {Lead} is no longer on base or final to {Rwy}, ending the turn-out",
+                ctx.Aircraft.Callsign,
+                TargetCallsign,
+                turnOut.Circuit.Runway.Designator
+            );
+            AirborneFollowHelper.ClearFollowState(ctx.Aircraft);
+            ReturnToPattern(ctx, turnOut.Circuit);
+            return true;
+        }
+
+        if (AirborneFollowHelper.CheckLeadLifecycle(ctx))
+        {
+            ReturnToPattern(ctx, turnOut.Circuit);
+            return true;
+        }
+
+        // CheckLeadLifecycle ends the follow when the lead is not found, so a null here ends it the same way.
+        if (lead is null)
+        {
+            AirborneFollowHelper.ClearFollowState(ctx.Aircraft);
+            ReturnToPattern(ctx, turnOut.Circuit);
+            return true;
+        }
+
+        return TickTurnOutLeg(ctx, lead, turnOut);
+    }
+
+    /// <summary>
+    /// True while <paramref name="lead"/> is airborne on its base, its final (<see cref="IsOnBaseOrFinalLeg"/>) or its landing to
+    /// <paramref name="runway"/>.
+    /// </summary>
+    private static bool IsOnBaseOrFinalTo(AircraftState lead, RunwayInfo runway) =>
+        !lead.IsOnGround
+        && (lead.Phases?.AssignedRunway is { } leadRunway)
+        && AirborneFollowHelper.IsSameRunway(leadRunway, runway)
+        && ((lead.Phases.CurrentPhase is LandingPhase) || IsOnBaseOrFinalLeg(lead, runway));
+
+    /// <summary>
+    /// Flies the turned-out downwind: turns base behind the lead once the reversal is done, the exit holds
+    /// (<see cref="ShouldExitTurnOut"/>, judged by the base projection, <see cref="BaseFollowSpacing.ProjectedBaseGapNm"/>, so
+    /// the base it installs keeps) and the base crosses no parallel runway's final; past the distance limit
+    /// (<see cref="TurnOutPastLimit"/>) holds the heading for the controller; otherwise keeps the offset band at the speed floor.
+    /// </summary>
+    private bool TickTurnOutLeg(PhaseContext ctx, AircraftState lead, FollowTurnOut turnOut)
+    {
+        RunwayInfo runway = turnOut.Circuit.Runway;
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        FinalFramePosition frame = FinalFrameOf(ctx.Aircraft.Position, ctx.Aircraft.TrueHeading, runway, turnOut.Circuit.Direction);
+        bool reversed = ctx.Aircraft.TrueHeading.AbsAngleTo(runway.TrueHeading.ToReciprocal()) <= TurnOutCorrectionDeg;
+        bool leadPassedAbeam = AirborneFollowHelper.AlongFinalNm(lead.Position, runway) < frame.AlongNm;
+        if (
+            reversed
+            && ShouldExitTurnOut(
+                leadPassedAbeam,
+                BaseFollowSpacing.ProjectedBaseGapNm(ctx, lead, runway),
+                AirborneFollowHelper.PatternSpacingNm(ctx, lead)
+            )
+            && !CapturePathCrossesParallelFinal(
+                ctx.Aircraft.Position,
+                GeoMath.ProjectPoint(threshold, runway.TrueHeading.ToReciprocal(), frame.AlongNm),
+                runway
+            )
+        )
+        {
+            TurnBaseBehindLead(ctx, turnOut, frame);
+            return true;
+        }
+
+        double startAlongNm = AirborneFollowHelper.AlongFinalNm(turnOut.StartPoint, runway);
+        if (TurnOutPastLimit(frame.AlongNm, startAlongNm))
+        {
+            HoldForBaseTurn(ctx, turnOut, frame);
+            return true;
+        }
+
+        SteerTurnOut(ctx, turnOut);
+        ctx.Targets.TargetSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
+        return false;
+    }
+
+    /// <summary>
+    /// Ends the turn-out with a base turn in the pattern direction from where the follower is: the base, final and landing on
+    /// the circuit's runway, the base's final-turn distance the follower's present distance out, at the level it held, still
+    /// following, with its clearance carried.
+    /// </summary>
+    private void TurnBaseBehindLead(PhaseContext ctx, FollowTurnOut turnOut, FinalFramePosition frame)
+    {
+        FollowPatternReturn circuit = turnOut.Circuit;
+        List<Phase> legs = PatternBuilder.BuildCircuit(
+            circuit.Runway,
+            ctx.Category,
+            ctx.Aircraft.AircraftType,
+            ctx.Aircraft.WindSpeedKts,
+            circuit.Direction,
+            PatternEntryLeg.Base,
+            touchAndGo: false,
+            finalDistanceNm: frame.AlongNm,
+            patternSizeNm: null,
+            altitudeOverrideFt: circuit.PatternAltitudeFt,
+            airportRunways: NavigationDatabase.Instance.GetRunways(circuit.Runway.AirportId),
+            authoredRunway: (ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout)?.FindRunway(circuit.Runway.Designator)
+        );
+        Log.LogDebug(
+            "[VfrFollow] {Callsign}: {Lead} has passed, turning base to {Rwy} {Along:F2} nm out",
+            ctx.Aircraft.Callsign,
+            TargetCallsign,
+            circuit.Runway.Designator,
+            frame.AlongNm
+        );
+        InstallJoinedCircuit(ctx, circuit.Runway, circuit.Direction, legs, keepFollowing: true);
+    }
+
+    /// <summary>
+    /// The turn-out ran out of room before the lead passed and left space behind it: the follow ends into an extended downwind
+    /// from where the follower is, holding the heading for the controller's base turn (B's no-room rule), with an RPO note and
+    /// no second call.
+    /// </summary>
+    private void HoldForBaseTurn(PhaseContext ctx, FollowTurnOut turnOut, FinalFramePosition frame)
+    {
+        Log.LogDebug(
+            "[VfrFollow] {Callsign}: no room to turn base behind {Lead}, {Along:F2} nm out; holding the downwind heading",
+            ctx.Aircraft.Callsign,
+            TargetCallsign,
+            frame.AlongNm
+        );
+        ctx.Aircraft.PendingWarnings.Add(
+            $"{ctx.Aircraft.Callsign} turned out behind {TargetCallsign} with no room to turn base behind it, holding the downwind heading, awaiting a base turn"
+        );
+        InstallExtendedDownwind(ctx, turnOut.Circuit.Runway, turnOut.Circuit.Direction, turnOut.Circuit.PatternAltitudeFt);
+    }
+
+    /// <summary>
+    /// Steers the turn-out. Until the heading is within <see cref="TurnOutCorrectionDeg"/> of the downwind heading, the reversal
+    /// turn toward it, the way that first moves away from the final (<see cref="ReversalTurn"/>). Then the downwind heading,
+    /// corrected <see cref="TurnOutCorrectionDeg"/> outward below the offset band's floor (the excursion's offset cap,
+    /// <see cref="ExcursionLimitsFor"/>) or inward above its ceiling (<see cref="TurnOutOffsetCorrection"/>), unless the
+    /// correction would carry the follower toward a parallel runway's final.
+    /// </summary>
+    private static void SteerTurnOut(PhaseContext ctx, FollowTurnOut turnOut)
+    {
+        RunwayInfo runway = turnOut.Circuit.Runway;
+        PatternDirection direction = turnOut.Circuit.Direction;
+        TrueHeading downwind = runway.TrueHeading.ToReciprocal();
+        FinalFramePosition frame = FinalFrameOf(ctx.Aircraft.Position, ctx.Aircraft.TrueHeading, runway, direction);
+        if (ctx.Aircraft.TrueHeading.AbsAngleTo(downwind) > TurnOutCorrectionDeg)
+        {
+            ctx.Targets.TargetTrueHeading = downwind;
+            ctx.Targets.PreferredTurnDirection = ReversalTurn(frame.HeadingDeg, direction);
+            return;
+        }
+
+        ctx.Targets.PreferredTurnDirection = null;
+        double floorNm = ExcursionLimitsFor(ctx).OffsetCapNm;
+        int correction = TurnOutOffsetCorrection(frame.PatternSideNm, floorNm, floorNm + TurnOutBandWidthNm);
+        if ((correction != 0) && CorrectionMeetsParallelFinal(ctx.Aircraft.Position, runway, direction, correction, frame.PatternSideNm, floorNm))
+        {
+            correction = 0;
+        }
+
+        ctx.Targets.TargetTrueHeading = TurnOutHeading(downwind, direction, correction);
+    }
+
+    /// <summary>
+    /// True when an offset correction (+1 outward, -1 inward) would carry the follower toward a parallel runway's extended
+    /// centerline within its distance to the band edge plus <see cref="AirborneFollowHelper.TrailParallelFinalMarginNm"/>.
+    /// </summary>
+    internal static bool CorrectionMeetsParallelFinal(
+        LatLon position,
+        RunwayInfo runway,
+        PatternDirection direction,
+        int correction,
+        double patternSideNm,
+        double floorNm
+    )
+    {
+        int sign = direction == PatternDirection.Right ? 1 : -1;
+        // Outward from the downwind heading is to its left in right traffic, to its right in left traffic.
+        int side = -sign * correction;
+        double toBandEdgeNm = correction > 0 ? floorNm - patternSideNm : patternSideNm - (floorNm + TurnOutBandWidthNm);
+        double reachNm = toBandEdgeNm + AirborneFollowHelper.TrailParallelFinalMarginNm;
+        return ExcursionMeetsParallelFinal(position, runway.TrueHeading.ToReciprocal(), side, runway, reachNm);
+    }
+
+    /// <summary>
+    /// The turn toward the downwind heading that first moves the follower away from the final centerline: against the pattern
+    /// direction from a heading on the base side of the downwind heading (from base, the 90° turn back), with it otherwise
+    /// (from a heading parallel to the final, the 180° turn outward).
+    /// </summary>
+    internal static TurnDirection ReversalTurn(double headingDeg, PatternDirection direction)
+    {
+        bool againstPattern = headingDeg < 0.0;
+        bool right = (direction == PatternDirection.Right) != againstPattern;
+        return right ? TurnDirection.Right : TurnDirection.Left;
+    }
+
+    /// <summary>
+    /// The offset correction for a follower <paramref name="patternSideNm"/> from the final centerline: +1 (outward) below
+    /// <paramref name="floorNm"/>, -1 (inward) above <paramref name="ceilingNm"/>, 0 within the band.
+    /// </summary>
+    internal static int TurnOutOffsetCorrection(double patternSideNm, double floorNm, double ceilingNm)
+    {
+        if (patternSideNm < floorNm)
+        {
+            return 1;
+        }
+
+        return patternSideNm > ceilingNm ? -1 : 0;
+    }
+
+    /// <summary>The downwind heading turned <see cref="TurnOutCorrectionDeg"/> outward (+1), inward (-1) or not at all (0).</summary>
+    internal static TrueHeading TurnOutHeading(TrueHeading downwind, PatternDirection direction, int correction)
+    {
+        int sign = direction == PatternDirection.Right ? 1 : -1;
+        return downwind + (-sign * correction * TurnOutCorrectionDeg);
+    }
+
+    /// <summary>
+    /// The turn-out's exit: the lead has passed abeam and the gap a base turned now would roll out with
+    /// (<see cref="BaseFollowSpacing.ProjectedBaseGapNm"/>) is at least the pattern spacing <paramref name="requiredNm"/> plus
+    /// <see cref="TurnOutExitMarginNm"/>.
+    /// </summary>
+    internal static bool ShouldExitTurnOut(bool leadPassedAbeam, double exitGapNm, double requiredNm) =>
+        leadPassedAbeam && (exitGapNm >= (requiredNm + TurnOutExitMarginNm));
+
+    /// <summary>
+    /// True when the turned-out follower is <see cref="TurnOutMaxExtensionNm"/> along the final past its turn-out point, or
+    /// <see cref="TurnOutMaxAlongFinalNm"/> out from the threshold.
+    /// </summary>
+    internal static bool TurnOutPastLimit(double alongNm, double startAlongNm) =>
+        (alongNm - startAlongNm >= TurnOutMaxExtensionNm) || (alongNm >= TurnOutMaxAlongFinalNm);
+
+    /// <summary>
+    /// <paramref name="position"/> and <paramref name="heading"/> in <paramref name="runway"/>'s final frame for a
+    /// <paramref name="direction"/> circuit.
+    /// </summary>
+    internal static FinalFramePosition FinalFrameOf(LatLon position, TrueHeading heading, RunwayInfo runway, PatternDirection direction)
+    {
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        double sign = direction == PatternDirection.Right ? 1.0 : -1.0;
+        double alongNm = AirborneFollowHelper.AlongFinalNm(position, runway);
+        double patternSideNm = sign * GeoMath.SignedCrossTrackDistanceNm(position, threshold, runway.TrueHeading);
+        // Compass bearings grow clockwise; the frame's heading grows toward the pattern side, which is clockwise of the
+        // downwind heading in left traffic and counter-clockwise of it in right traffic.
+        double offDownwindDeg = ((((runway.TrueHeading.ToReciprocal().Degrees - heading.Degrees) % 360.0) + 540.0) % 360.0) - 180.0;
+        double headingDeg = sign * offDownwindDeg;
+        return new FinalFramePosition(alongNm, patternSideNm, headingDeg <= -180.0 ? headingDeg + 360.0 : headingDeg);
+    }
+
+    /// <summary>
+    /// The follower's shortest path (nm) to the threshold, turning to the final in the pattern direction at
+    /// <paramref name="turnRadiusNm"/>:
+    /// <list type="bullet">
+    /// <item><description>from a heading between the base heading and the heading straight away from the centerline, the turn
+    /// in the pattern direction onto the base heading, the base to the final-turn point and the quarter-circle final turn
+    /// (from the downwind heading, the base-now path);</description></item>
+    /// <item><description>from a heading between the base heading and the final heading, the straight leg to the final-turn
+    /// point on its own intercept, the turn onto the final and the final; an intercept at or past the threshold, straight
+    /// there;</description></item>
+    /// <item><description>from a heading in toward the threshold and away from or parallel to the centerline, straight
+    /// there.</description></item>
+    /// </list>
+    /// </summary>
+    internal static double ShortestPathToThresholdNm(FinalFramePosition frame, double turnRadiusNm)
+    {
+        double x = frame.AlongNm;
+        double y = frame.PatternSideNm;
+        double r = turnRadiusNm;
+        if (frame.HeadingDeg is >= -90.0 and <= 90.0)
+        {
+            double headingRad = frame.HeadingDeg * Math.PI / 180.0;
+            double turnRad = headingRad + (Math.PI / 2.0);
+            // The turn onto the base heading ends at the circle's point abeam its centre, one radius outward along the final.
+            double endX = x + (r * (1.0 + Math.Sin(headingRad)));
+            double endY = y - (r * Math.Cos(headingRad));
+            return (r * turnRad) + BaseAndFinalNm(endX, endY, r);
+        }
+
+        return frame.HeadingDeg < -90.0 ? InterceptPathNm(x, y, frame.HeadingDeg, r) : Math.Sqrt((x * x) + (y * y));
+    }
+
+    /// <summary>
+    /// A base flown from (<paramref name="x"/>, <paramref name="y"/>) to the final-turn point, the quarter-circle turn and the
+    /// final.
+    /// </summary>
+    private static double BaseAndFinalNm(double x, double y, double r) => Math.Max(0.0, y - r) + (Math.PI / 2.0 * r) + Math.Max(0.0, x - r);
+
+    /// <summary>
+    /// A leg flown on <paramref name="headingDeg"/> (between the base heading and the final heading) to the turn onto the final,
+    /// the turn and the final; straight to the threshold when the leg meets the centerline at or past it.
+    /// </summary>
+    private static double InterceptPathNm(double x, double y, double headingDeg, double r)
+    {
+        double interceptRad = (headingDeg + 180.0) * Math.PI / 180.0;
+        double interceptAlongNm = x - (y / Math.Tan(interceptRad));
+        if (interceptAlongNm <= 0.0)
+        {
+            return Math.Sqrt((x * x) + (y * y));
+        }
+
+        double legNm = y / Math.Sin(interceptRad);
+        double turnLeadNm = r * Math.Tan(interceptRad / 2.0);
+        return Math.Max(0.0, legNm - turnLeadNm) + (r * interceptRad) + Math.Max(0.0, interceptAlongNm - turnLeadNm);
+    }
+
+    /// <summary>A turn-out under way: the circuit it rejoins (runway, direction, and the altitude it levels at) and where it began.</summary>
+    private sealed record FollowTurnOut(FollowPatternReturn Circuit, LatLon StartPoint);
+
+    /// <summary>
+    /// The pattern-runway arming a phase list carried before a follow rebuilt it: the armed <see cref="PhaseList.PatternRunway"/>,
+    /// the runway being flown (<see cref="PhaseList.AssignedRunway"/>) and the clearance the arming rode on.
+    /// </summary>
+    private readonly record struct ArmedPatternState(RunwayInfo? PatternRunway, RunwayInfo? FlownRunway, ClearanceType? LandingClearance)
+    {
+        internal static ArmedPatternState Of(PhaseList phases) => new(phases.PatternRunway, phases.AssignedRunway, phases.LandingClearance);
+    }
+
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
         // Altitude/speed adjustments don't cancel the follow — controllers
@@ -1467,6 +2204,19 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
                 }
                 : null,
             LeadPath = _leadPath.ToSnapshot(),
+            TurnOut = _turnOut is { } turnOut
+                ? new FollowTurnOutDto
+                {
+                    Runway = turnOut.Circuit.Runway.ToSnapshot(),
+                    Direction = (int)turnOut.Circuit.Direction,
+                    PatternAltitudeFt = turnOut.Circuit.PatternAltitudeFt,
+                    StartLat = turnOut.StartPoint.Lat,
+                    StartLon = turnOut.StartPoint.Lon,
+                }
+                : null,
+            TurnOutRequested = _turnOutRequested ? true : null,
+            StallWindowStartGapNm = _parallelHold?.StartGapNm,
+            StallWindowSeconds = _parallelHold?.Seconds,
             LeadBase = _leadBase is { } leadBase
                 ? new FollowLeadBaseDto
                 {
@@ -1479,6 +2229,27 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
                 }
                 : null,
         };
+
+    /// <summary>Restores the turn-out, its request and the parallel-hold window; each is absent in older snapshots.</summary>
+    private void RestoreTurnOutState(VfrFollowPhaseDto dto)
+    {
+        _turnOut = dto.TurnOut is { } turnOut
+            ? new FollowTurnOut(
+                new FollowPatternReturn(
+                    RunwayInfo.FromSnapshot(turnOut.Runway),
+                    (PatternDirection)turnOut.Direction,
+                    turnOut.PatternAltitudeFt,
+                    false
+                ),
+                new LatLon(turnOut.StartLat, turnOut.StartLon)
+            )
+            : null;
+        _turnOutRequested = dto.TurnOutRequested ?? false;
+        _parallelHold =
+            (dto.StallWindowStartGapNm is { } startGapNm) && (dto.StallWindowSeconds is { } seconds)
+                ? new ParallelHoldWindow(startGapNm, seconds)
+                : null;
+    }
 
     public static VfrFollowPhase FromSnapshot(VfrFollowPhaseDto dto)
     {
@@ -1500,6 +2271,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         phase._widen.Side = dto.WidenSide;
         phase._sTurnCallCooldownSeconds = dto.STurnCallCooldownSeconds;
         phase._leadPath.RestoreSnapshot(dto.LeadPath);
+        phase.RestoreTurnOutState(dto);
         if (dto.LeadBase is { } leadBase)
         {
             phase._leadBase = new LeadBaseJoin(
@@ -1521,3 +2293,15 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
 /// <see cref="FromBase"/> is true when the pursuit started from the base leg, which caps its altitude at the
 /// present altitude rather than climbing back to pattern altitude.
 public sealed record FollowPatternReturn(RunwayInfo Runway, PatternDirection Direction, double PatternAltitudeFt, bool FromBase);
+
+/// <summary>A position and heading in a runway's final frame, for the turn-out geometry (<see cref="VfrFollowPhase.FinalFrameOf"/>).</summary>
+/// <param name="AlongNm">Distance out along the extended centerline from the threshold (negative past it).</param>
+/// <param name="PatternSideNm">Distance from the extended centerline toward the circuit's pattern side (negative on the far side).</param>
+/// <param name="HeadingDeg">
+/// Heading off the downwind heading, positive toward the pattern side, in (-180, 180]: 0 the downwind heading, -90 the base
+/// heading, 180 the final heading.
+/// </param>
+internal readonly record struct FinalFramePosition(double AlongNm, double PatternSideNm, double HeadingDeg);
+
+/// <summary>An open parallel-hold stall window (<see cref="VfrFollowPhase.AdvanceParallelHoldWindow"/>): the gap it opened at and its age.</summary>
+internal readonly record struct ParallelHoldWindow(double StartGapNm, double Seconds);

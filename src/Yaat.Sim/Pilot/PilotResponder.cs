@@ -1884,6 +1884,26 @@ public static class PilotResponder
     }
 
     /// <summary>
+    /// Pilot advisory when a follower finds itself level with or ahead of the traffic it is following on base or final (or
+    /// stuck alongside it, unable to fall behind): it turns out to the downwind heading to let the traffic pass and asks for a
+    /// base turn behind it (AIM 4-3-5 — pilots maneuvering for spacing advise the controller; AIM 4-3-4 — no cutting in on
+    /// final). The maneuver first, then the request; the traffic may still be ahead of the follower when it turns out, so the
+    /// call says only that the follower will be behind it. Spoken and solo terminal forms say "the traffic"; the RPO terminal
+    /// names the lead as a diagnostic.
+    /// </summary>
+    public static PilotSpeechText BuildTurningDownwindForSpacing(AircraftState aircraft, string targetCallsign)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        return new PilotSpeechText(
+            "turning downwind for spacing behind the traffic, request base turn.",
+            $"{spoken}, turning downwind for spacing behind the traffic, request base turn."
+        )
+        {
+            RpoTerminal = $"turning downwind for spacing behind {targetCallsign}, request base turn.",
+        };
+    }
+
+    /// <summary>
     /// Pilot airborne-spawn check-in fired by <see cref="PilotProactive.TickAirborneCheckIn"/>
     /// the first tick an aircraft is observed airborne in solo-training mode and has not
     /// yet spoken to ATC. Branches on <see cref="SimScenarioState.StudentPositionType"/>
