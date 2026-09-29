@@ -25,12 +25,16 @@ Status: draft. The map below is from a read-only exploration of both repos (2026
 - A client overlay listing the stages with a tick, a warning or a cross per stage, built from the export overlay.
 - The hub contract change goes into `docs/training-hub-contract.md`; the client handler into `docs/client-mainviewmodel.md`.
 
-## Open decisions
+## Decisions (user 2026-09-28)
 
-1. Overlay (non-modal, the export pattern) or a modal dialog.
-2. Whether steps can fail visibly: show a skipped or failed step (a missing ARTCC config or layout) and leave the dialog open until dismissed, rather than a green finish.
-3. Move the layout and ARTCC fetches ahead of the tick gate (pre-parse the airport list, prefetch, then take the gate for the CPU-only populate), so a reload never stalls other rooms.
-4. Fetch the roster's ARTCC configs concurrently (`Task.WhenAll`, as the neighbour letters already are); measure cold-cache time per step first.
-5. Cancel: none, or a cancel that needs a cleanup path and a second parallel invocation per client.
-6. Clean up the orphan room when `CreateRoom` throws or `JoinRoom` returns null (independent of the dialog).
-7. Move the client's pre-send scenario parsing off the UI thread.
+1. **Overlay**, not a modal dialog: the export overlay, extended to list the stages. A second load while one runs is refused.
+2. **Failed steps show and the overlay stays open** until dismissed: a skipped or failed step (a missing ARTCC config or layout) shows a warning with its reason, never a green finish.
+3. **Prefetch ahead of the tick gate**: pre-parse the scenario's airport and ARTCC list, fetch outside `GuardAsync`, then take the gate for the CPU-only populate, so a reload never stalls other rooms. A load or unload that slips in between prefetch and populate is guarded.
+4. **No cancel.**
+
+Defaults taken without asking:
+- Fetch the roster's ARTCC configs concurrently (`Task.WhenAll`, as the neighbour letters already are), once cold-cache time per step is measured.
+- Clean up the orphan room when `CreateRoom` throws or `JoinRoom` returns null.
+- Move the client's pre-send scenario parsing off the UI thread.
+
+Next: a design pass for the prefetch (how `ScenarioLoader.Load` takes prefetched layouts instead of calling `GetLayout`, and what that does to determinism and the Yaat.Sim contract), then briefs.
