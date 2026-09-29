@@ -146,6 +146,11 @@ client** with its own callback. Config (secrets via env / `appsettings.Local.jso
 | `Yaat:Vatsim:ClientId` / `ClientSecret` | This server's VATSIM Connect client (`ClientSecret` blank for a public/PKCE client) |
 | `Yaat:Vatsim:CallbackUrl` | This server's registered redirect — in Docker, derived as `https://<YAAT_DOMAIN>/auth/vatsim/callback` |
 | `Yaat:Vatusa:Enabled` / `ApiKey` | VATUSA mentor lookup (disable for non-US; ApiKey optional) |
+| `Yaat:Vnas:ClientId` / `ClientSecret` | The server's second VATSIM Connect client, for vEDST (env `VNAS_VATSIM_CLIENT_ID` / `VNAS_VATSIM_CLIENT_SECRET`); only `/vnas/login` and `/vnas/auth/login` need it |
+| `Yaat:Vnas:LoginReturnUrl` | Where `/vnas/login` sends the browser with the code (vEDST's `/login` page, e.g. `http://localhost:3000/login`); absolute http(s), validated at startup |
+| `Yaat:Vnas:PublicBaseUrl` | The server's public origin for the `/vnas/configuration` URLs and the expected vEDST redirect; compose sets `https://<YAAT_DOMAIN>`, blank derives it from the request |
+| `Yaat:Vnas:AllowedOrigins` | Exact browser origins allowed by the `vnas` CORS policy (env `VNAS_ALLOWED_ORIGINS`, comma-separated); blank is `http://localhost:3000` in Development and nothing in Production; must include `LoginReturnUrl`'s origin |
+| `Yaat:Vnas:RefreshTokenLifetimeHours` | Lifetime of a vEDST refresh token (default 24) |
 | `Yaat:Auth:RequireVatsimAuth` | `true` (default, fail-secure). `false` enables `/auth/dev` for local dev |
 | `Yaat:Auth:JwtSigningKey` | HS256 key (≥32 bytes). Required in Production; a fixed dev key is used if blank in Development |
 | `Yaat:ArtccGrantsPath` | Operator ARTCC grants file (visiting mentors); blank → the committed `Data/artcc-grants.json` in the image |
@@ -182,6 +187,15 @@ mode the server exposes `/auth/dev`, and the desktop `VatsimAuthClient` (and the
 host) mint a dev session (rating `I1`) without any VATSIM round-trip. **Under dev auth the ARTCC gate is off**: nobody logged in with VATSIM, so `CreateRoom` and `GetScenarioJsonById` accept any ARTCC (the hub checks `RequireVatsimAuth` before `ArtccAccessPolicy`, which itself stays fail-secure). Why the gate would bite: `VatsimAuthClient` passes `?artcc=` to `/auth/dev` only when it mints a session, a stored dev session is refreshed rather than re-minted for the refresh token's lifetime, and VATUSA 404s for CID 0000001, so a dev token minted without the ARTCC stays ARTCC-less forever. `GetMyPermittedArtccs` is untouched, so the Create Room ARTCC picker stays hidden for an ARTCC-less dev token and the client falls back to its preferred ARTCC (MAIN.md backlog). To test the real flow locally,
 register an `http://localhost:5000/auth/vatsim/callback` redirect on a dedicated dev VATSIM client and
 set `RequireVatsimAuth=true` + the `Vatsim:*` config.
+
+## vEDST sign-in (`/vnas`)
+
+vEDST (the web ERAM client) signs in against yaat-server as if it were vNAS. `Auth/VnasCompatEndpoints.cs` serves `/vnas/configuration` (one environment whose API and hub URLs point back at this server), passes `/vnas/artccs/{id}` and `/vnas/airports/{id}` through to the vNAS data API as JSON, and runs vEDST's login: VATSIM Connect redirects to `/vnas/login?code` (VATSIM will not register a localhost redirect), which sends the browser on to the configured `LoginReturnUrl` with the code and nothing else; vEDST then calls `/vnas/auth/login`, which checks the client id and redirect, exchanges the code with the vEDST VATSIM client (no PKCE), applies VATUSA, and answers YAAT tokens as `{nasToken, vatsimToken}`. `/vnas/auth/refresh?vatsimToken` answers a fresh access token as plain text without rotating the refresh token. `/vnas/auth/dev-login` exists only in Development with `RequireVatsimAuth` off.
+
+Accepted risks, set by vEDST's protocol:
+
+- **Login codes are bearer secrets.** vEDST sends neither PKCE nor `state`, so whoever reads a code (browser history, a log, a referrer) can redeem it at `/vnas/auth/login`, and a crafted `/vnas/login?code=` link can sign a victim in as someone else. Closing this needs a vEDST change; the server keeps the flow vEDST expects.
+- **The refresh token travels in a query string** (`?vatsimToken=`), and vEDST never rotates or revokes it. vEDST refresh tokens therefore live 24 hours, not 30 days. Keep `Microsoft.AspNetCore` logging at Warning or above (the server warns at startup otherwise), and use the commented filter in `Caddyfile.example` if Caddy access logs are turned on; it deletes `vatsimToken` and `code` from logged URLs.
 
 ## Key files
 
