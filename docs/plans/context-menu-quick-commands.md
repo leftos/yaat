@@ -61,7 +61,7 @@ Review notes that drive predicates:
 ## Open questions
 
 - Several predicates need data the client may not have: nearing the departure runway's hold line (4), whether the hold-short runway is the departure runway (5), inbound vs enroute (8a/8b, 16/17), inside FAF / 5 NM (9), decelerating on rollout (13), field in sight reported (9). Each needs either a derivation from existing DTO fields or a new field (per `training-hub-contract.md`).
-- Whether situation classification lives in `Yaat.Client.Core` (string-matching `CurrentPhase`) or the server sends a situation value, making phase renames a compile error rather than a silent miss.
+- Decided (user 2026-09-29): the server classifies. Yaat.Sim computes the situation from the phase object and aircraft state, and `AircraftUpdated` carries it as a `Situation` enum field, so a phase rename is a compile error and the predicates that need server data live beside the classifier. Step 1's classifier is therefore a Yaat.Sim class, and the field follows `docs/training-hub-contract.md`.
 
 ## Steps
 
