@@ -1,6 +1,6 @@
 # Async scenario load with a step-by-step progress display
 
-Status: mapped, decided, prefetch designed. The open questions at the end of the prefetch design go to the user; the briefs follow their answers.
+Status: mapped, decided, prefetch designed and ruled; ready for briefs 1–6 in the brief split.
 
 ## What happens today
 
@@ -37,7 +37,7 @@ Defaults taken without asking:
 - Clean up the orphan room when `CreateRoom` throws or `JoinRoom` returns null.
 - Move the client's pre-send scenario parsing off the UI thread.
 
-Next: answers to the open questions at the end of the prefetch design below, then the briefs in its brief split.
+Next: brief 1 of the brief split below (the rulings are at its end).
 
 ## Prefetch design
 
@@ -210,31 +210,16 @@ Steps 1–2 are Yaat.Sim and gate with `pwsh tools/test-all.ps1`; the rest are s
 1. **Fetch outcomes in Yaat.Sim**: `HttpCacheResult.RefreshFailed`, `AirportLayoutDownloader.FetchGeoJsonAsync`, tests. Files: `src/Yaat.Sim/Data/HttpFileCache.cs`, `src/Yaat.Sim/Data/Airport/AirportLayoutDownloader.cs`, their tests.
 2. **Scenario resource manifest**: `ScenarioResourceManifest`, the loader's airport-chain rules shared with it, the corpus coverage test. Files: `src/Yaat.Sim/Scenarios/ScenarioResourceManifest.cs` (new), `src/Yaat.Sim/Scenarios/ScenarioLoader.cs`, tests.
 3. **Server fetch services**: `AirportGroundDataService.PrefetchAsync` with single-flight and the miss warning; `ArtccConfigService.EnsureLoadedAsync` outcome, single-flight, `ConcurrentDictionary`, neighbour-letter misses (the cold-ARTCC race test first). Files: `Data/AirportGroundDataService.cs`, `Data/ArtccConfigService.cs`, tests.
-4. **Prepare / commit and progress on the server**: the split, the load flag and refusals, `LoadScenarioGuardedAsync`, the hub changes for `LoadScenario` / `StartLiveSession` / the refused lifecycle methods / the retirement sweep, the progress reporter and DTOs, `LoadScenarioResult.Steps`, the step duration logs and the cold/warm measurement. Files: `Simulation/ScenarioLifecycleService.cs`, `Simulation/RoomEngine.cs`, `Simulation/TrainingRoom.cs`, `Hubs/TrainingHub.cs`, `Dtos/TrainingDtos.cs`, tests. If the brief runs long, 4a is the split and the flag with no progress, 4b the progress.
+4. **Prepare / commit and progress on the server**: the split, the load flag and refusals, `LoadScenarioGuardedAsync`, the hub changes for `LoadScenario` / `StartLiveSession` / the refused lifecycle methods / the retirement sweep, the progress reporter and DTOs, `LoadScenarioResult.Steps`, the step duration logs and the cold/warm measurement. Files: `Simulation/ScenarioLifecycleService.cs`, `Simulation/RoomEngine.cs`, `Simulation/TrainingRoom.cs`, `Hubs/TrainingHub.cs`, `Dtos/TrainingDtos.cs`, tests. It also pins the loaded layouts and ARTCC configs on `TrainingRoom` for the reload paths and makes ARTCC configs stale-while-revalidate. If the brief runs long, 4a is the split and the flag with no progress, 4b the progress.
 5. **Client overlay**: the DTOs, the `On` handler and the `YaatHubJsonContext` registration; a load-overlay state on `MainViewModel` fed by the event and by the result's `Steps`; the export overlay in `MainWindow.axaml` extended to the step list; the pre-send parse in `SendScenarioToServer`'s callers moved off the UI thread; the live-session path. Files: `src/Yaat.Client.Core/Services/ServerConnection.cs`, `src/Yaat.Client.Core/Services/YaatHubJsonContext.cs`, `src/Yaat.Client/ViewModels/MainViewModel.Scenario.cs`, `src/Yaat.Client/ViewModels/MainViewModel.LiveSession.cs`, `src/Yaat.Client/Views/MainWindow.axaml`, tests.
 6. **Orphan room cleanup** (the decided default): remove the room when `CreateRoom` throws after `TrainingRoomManager.CreateRoom` registered it, or when the client's `JoinRoom` returns null. Files: `Hubs/TrainingHub.cs`, `src/Yaat.Client/ViewModels/MainViewModel.Rooms.cs`, tests.
 7. **Docs and landing** (orchestrator): `docs/training-hub-contract.md`, `docs/server-rooms-and-hub.md` (the threading gotcha gains the load path), `docs/scenario-loading-and-generation.md` (server orchestration), `docs/client-mainviewmodel.md`, `docs/architecture.md`, `USER_GUIDE.md`, the changelog, and the MAIN.md line narrowed.
 
-### Open questions
+### Rulings
 
-1. **How the loader reads the prefetched layouts.**
-   - *Warm the shared cache* (recommended): prefetch fills `AirportGroundDataService._cache`; `ScenarioLoader.Load` keeps calling `GetLayout`, which hits; a miss still fetches, blocking, and logs a warning. No Yaat.Sim contract change. Worst case: an airport the manifest missed is fetched inside the commit, stalling every room for one fetch, and shows only in the log.
-   - *A frozen per-load view*: prefetch returns an `IAirportGroundData` over exactly the fetched layouts, passed to `ScenarioLoader.Load` (which already takes one) and to the commit; a miss returns null and becomes a step problem. Worst case: a manifest gap defers an aircraft that today would have loaded, until the manifest is fixed.
-   - *Make `IAirportGroundData` async*: every Sim caller awaits. Worst case: the tick path's layout lookups turn async across Yaat.Sim, a large change for no gain the other two lack.
-2. **Who sees the progress.**
-   - *The loader only, plus a room notice* (recommended): the steps go to the caller; the room gets a terminal line `{initials} is loading '{scenario name}'…` and `RoomStateDto` gains `LoadingBy`, so a joiner sees a load is running. Worst case: the other members see the old traffic with a one-line notice for as long as the fetches take.
-   - *The whole room*: the snapshots go to the room group and to admins, and `RoomStateDto` carries the current table for a joiner. Worst case: every member's overlay opens for a load someone else started, and each must dismiss its warnings.
-   - *The loader only, nothing else*: as the draft shape said. Worst case: an RPO sees traffic vanish and reappear with no warning at all.
-3. **Which missing layouts turn `layouts` amber.**
-   - *Where something starts on the ground, plus the primary* (recommended): a missing map is a warning for the primary airport and any airport with a `Parking`, `OnRunway` or ground-coordinates spawn; a destination-, preset- or generator-only airport without a map is listed in `Detail` (`no map: SQL, HAF`) and stays green. Worst case: an arrival to a mapless secondary field later rolls out with no taxi, and the load said so only in grey text.
-   - *Every manifest airport*: any missing map is a warning. Worst case: most scenarios name a few small fields with no vNAS map, so the overlay stays open on every load and the warning stops being read.
-4. **Airports first named at runtime (the rest of the MAIN.md line).**
-   - *Keep the blocking miss, logged* (recommended): the miss warning from open question 1 names each one; the MAIN.md line is narrowed to this case and revisited with the tick-performance test. Worst case: a typed `ADD` or `DEST` to a cold airport stalls every room for up to the 30 s layout timeout, once per airport per server.
-   - *A non-blocking miss*: `GetLayout` returns null on a miss and fetches in the background; the per-sub-tick `Ground.Layout ?? ResolveGroundLayout` fallback self-heals. Worst case: the layout appears at a network-dependent tick, so the live run and its reconstruction can differ for that aircraft (a replay has the layout from the first tick).
-5. **The other reload paths** (restart, rewind, recording load, session restore, all through `ReloadForRewindAsync` under the gate).
-   - *Stale-while-revalidate ARTCC configs, prepare for recording load* (recommended): a held ARTCC config is served while a background task refreshes it past the 30-minute TTL, as layouts already are, so a warm restart or rewind never waits on vNAS; `LoadRecording`, the one cold path (an imported recording's ARTCC and airports), runs the prepare before its gate, without the overlay. Worst case: a config edited on vNAS reaches a room one reload later than today.
-   - *All reload paths get prepare and the overlay*. Worst case: a restart or rewind, near-instant today on a warm cache, opens and closes an overlay every time.
-   - *Leave them*: Worst case: a restart more than 30 minutes after the load re-downloads the ARTCC config inside the gate, stalling every room for up to 15 s per config.
-6. **Pinning the loaded resources for rewinds.**
-   - *Leave it* (recommended): the server's rewind re-reads its live caches, as today, and an exported recording carries its own copies. Worst case: a vNAS edit between a load and a rewind makes that rewind differ from the live run (different beacon banks or a moved parking spot), and nothing reports it.
-   - *Pin per room*: the commit stores the layouts and ARTCC configs it used on `TrainingRoom`, and the reload paths read those. Worst case: a room open for hours keeps flying a map or config vNAS has corrected until the scenario is loaded again.
+- **Layout read**: prefetch warms the shared cache (`AirportGroundDataService._cache`); `ScenarioLoader.Load` keeps calling `GetLayout`, and a miss still fetches, blocking, with a logged warning naming the airport.
+- **Progress**: the loader gets the step overlay; the room gets a terminal line `{initials} is loading '{scenario name}'…` and `RoomStateDto` gains `LoadingBy`, so a joiner sees a load is running.
+- **Map warning**: a missing map turns `layouts` amber for the primary airport and for any airport with a `Parking` or ground-coordinates spawn. An `OnRunway` spawn never needs a full ground map (the runways come from navdata), and TRACON and Center scenarios commonly depart from fields with no vNAS map, so it stays green; mapless airports that raise no warning are listed in `Detail` (`no map: SQL, HAF`).
+- **Runtime misses**: an airport first named mid-session keeps the blocking fetch, logged by name; the MAIN.md secondary-airport line is narrowed to this case and revisited with the tick-performance test.
+- **Other reload paths**: ARTCC configs are served stale-while-revalidate (a held config is used while a background refresh runs past the 30-minute TTL, as layouts already are), so a warm restart, rewind or session restore never waits on vNAS; `LoadRecording`, the one cold path (an imported recording's ARTCC and airports), runs the prepare half before its gate, without the overlay.
+- **Pinning**: the commit stores the airport layouts and ARTCC configs the load used on `TrainingRoom`, and every reload path (restart, rewind, session restore) reads those rather than the live caches, so a rewind reproduces the live run; a vNAS correction reaches the room at its next scenario load.
