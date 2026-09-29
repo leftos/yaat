@@ -7,7 +7,7 @@ description: "Use in the yaat / yaat-server repos whenever the user says \"chang
 
 Invoking this skill is the approval: it drafts the bullets for the work in the working tree right now, writes the file, stages by name and commits, announcing each step and asking nothing. That overrides the global "never auto-commit" rule; the invocation phrase is the go-ahead. Older committed work missing from the changelog is `/update-changelog`'s job, never this skill's, so `git log <baseline>..HEAD` is never a source of bullets.
 
-This is the yaat-specific variant of the user-level `changelog-and-commit` skill, under its own name because a personal skill shadows a same-named project skill; `ship` invokes this one. It carries the generic flow plus the two-repo rules below, and is kept in step with the generic skill's decisions. Worked shapes for bullets, announcements and commit messages are in the generic skill's `reference.md` under `~/.claude/skills/changelog-and-commit/`.
+This is the yaat-specific variant of the user-level `changelog-and-commit` skill, under its own name because a personal skill shadows a same-named project skill; `yaat-ship` invokes this one. It carries the generic flow plus the two-repo rules below, and is kept in step with the generic skill's decisions. Worked shapes for bullets, announcements and commit messages are in the generic skill's `reference.md` under `~/.claude/skills/changelog-and-commit/`.
 
 ## YAAT-specific: one CHANGELOG, two repos
 
