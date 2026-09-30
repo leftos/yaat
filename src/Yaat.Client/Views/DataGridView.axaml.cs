@@ -169,10 +169,65 @@ public partial class DataGridView : UserControl
             return;
         }
 
-        string callsign = ac.Callsign;
-        string initials = vm.Preferences.UserInitials;
-        var menu = new ContextMenu();
+        List<AircraftModel> selection = [.. grid.SelectedItems.OfType<AircraftModel>()];
+        grid.ContextMenu = BuildAircraftMenu(vm, grid, ac, selection, vm.Preferences.UserInitials);
+    }
 
+    /// <summary>
+    /// The whole aircraft-list context menu a right-click shows, built without assigning it: the header, the
+    /// favorites block, the phase-aware command groups and the multi-selection RPO items, for
+    /// <paramref name="ac"/> with <paramref name="selection"/> supplying the selected callsigns and shadows.
+    /// <paramref name="flyoutTarget"/> is the control the command and note flyouts anchor to.
+    /// </summary>
+    internal static ContextMenu BuildAircraftMenu(
+        MainViewModel vm,
+        Control flyoutTarget,
+        AircraftModel ac,
+        IReadOnlyList<AircraftModel> selection,
+        string initials
+    )
+    {
+        var menu = new ContextMenu();
+        AddAircraftMenuHeader(menu, vm, flyoutTarget, ac, initials);
+
+        string callsign = ac.Callsign;
+        if (ac.IsDelayed)
+        {
+            AddDelayedSpawnItems(menu, vm, callsign, initials);
+            return menu;
+        }
+
+        AddCommandGroups(menu, ac, vm, callsign, initials);
+
+        var deleteItem = new MenuItem { Header = "Delete" };
+        deleteItem.Click += async (_, _) => await vm.Connection.SendCommandAsync(callsign, "DEL", initials);
+        menu.Items.Add(deleteItem);
+
+        // RPO control
+        List<string> selectedCallsigns = [.. selection.Select(a => a.Callsign)];
+        if (selectedCallsigns.Count == 0)
+        {
+            selectedCallsigns = [callsign];
+        }
+
+        List<string> selectedShadows = [.. selection.Where(AircraftCommandApplicability.CanAssume).Select(a => a.Callsign)];
+        if (selectedShadows.Count >= 2)
+        {
+            menu.Items.Add(new Separator());
+            var assumeSelectedItem = new MenuItem { Header = $"Assume selected live traffic ({selectedShadows.Count})" };
+            assumeSelectedItem.Click += async (_, _) => await vm.AssumeSelectedLiveTrafficAsync(selectedShadows);
+            menu.Items.Add(assumeSelectedItem);
+        }
+
+        vm.BuildRpoMenuItems(menu, selectedCallsigns);
+
+        return menu;
+    }
+
+    /// <summary>The bold callsign header, the free-text Command… and Note… and the favorites block.</summary>
+    private static void AddAircraftMenuHeader(ContextMenu menu, MainViewModel vm, Control flyoutTarget, AircraftModel ac, string initials)
+    {
+        string callsign = ac.Callsign;
         menu.Items.Add(
             new MenuItem
             {
@@ -185,52 +240,17 @@ public partial class DataGridView : UserControl
 
         var commandItem = new MenuItem { Header = "Command…" };
         // Free-text: the RPO types arbitrary canonical, so it goes through the VFR gate like typed input.
-        commandItem.Click += (_, _) => CommandFlyout.Open(grid, callsign, cmd => vm.SendGatedCommandForViewAsync(ac, callsign, cmd, initials));
+        commandItem.Click += (_, _) =>
+            CommandFlyout.Open(flyoutTarget, callsign, cmd => vm.SendGatedCommandForViewAsync(ac, callsign, cmd, initials));
         menu.Items.Add(commandItem);
 
         var noteItem = new MenuItem { Header = "Note…" };
-        noteItem.Click += (_, _) => NoteFlyout.Open(grid, callsign, ac.Note, cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials));
+        noteItem.Click += (_, _) => NoteFlyout.Open(flyoutTarget, callsign, ac.Note, cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials));
         menu.Items.Add(noteItem);
         menu.Items.Add(new Separator());
 
         menu.Items.Add(FavoritesContextMenu.Build(vm, ac, callsign, initials));
         menu.Items.Add(new Separator());
-
-        if (ac.IsDelayed)
-        {
-            AddDelayedSpawnItems(menu, vm, callsign, initials);
-            grid.ContextMenu = menu;
-            return;
-        }
-
-        AddCommandGroups(menu, ac, vm, callsign, initials);
-
-        var deleteItem = new MenuItem { Header = "Delete" };
-        deleteItem.Click += async (_, _) => await vm.Connection.SendCommandAsync(callsign, "DEL", initials);
-        menu.Items.Add(deleteItem);
-
-        // RPO control
-        var selectedCallsigns = grid.SelectedItems.OfType<AircraftModel>().Select(a => a.Callsign).ToList();
-        if (selectedCallsigns.Count == 0)
-        {
-            selectedCallsigns = [callsign];
-        }
-
-        List<string> selectedShadows =
-        [
-            .. grid.SelectedItems.OfType<AircraftModel>().Where(AircraftCommandApplicability.CanAssume).Select(a => a.Callsign),
-        ];
-        if (selectedShadows.Count >= 2)
-        {
-            menu.Items.Add(new Separator());
-            var assumeSelectedItem = new MenuItem { Header = $"Assume selected live traffic ({selectedShadows.Count})" };
-            assumeSelectedItem.Click += async (_, _) => await vm.AssumeSelectedLiveTrafficAsync(selectedShadows);
-            menu.Items.Add(assumeSelectedItem);
-        }
-
-        vm.BuildRpoMenuItems(menu, selectedCallsigns);
-
-        grid.ContextMenu = menu;
     }
 
     /// <summary>

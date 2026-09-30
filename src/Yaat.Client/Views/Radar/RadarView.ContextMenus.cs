@@ -81,9 +81,12 @@ public partial class RadarView
             vm.SelectedAircraft = ac;
         }
 
-        string initials = GetInitials();
-        var menu = new ContextMenu();
+        ShowContextMenu(BuildAircraftContextMenu(vm, ac, prevSelected, callsign, GetInitials()));
+    }
 
+    /// <summary>The bold callsign header, route and hold status, the release items, the free-text Command… and the favorites block.</summary>
+    private void AddAircraftMenuHeader(ContextMenu menu, RadarViewModel vm, AircraftModel? ac, string callsign, string initials)
+    {
         string typeText = ac is not null ? $"{callsign} - {ac.DisplayAircraftType}" : callsign;
         menu.Items.Add(
             new MenuItem
@@ -139,6 +142,17 @@ public partial class RadarView
 
         menu.Items.Add(FavoritesContextMenu.Build(FindMainViewModel(), ac, callsign, initials));
         menu.Items.Add(new Separator());
+    }
+
+    /// <summary>
+    /// The whole aircraft context menu a right-click shows, built without opening it: everything the handler
+    /// resolved first (<paramref name="ac"/>, the selected aircraft <paramref name="prevSelected"/> that
+    /// relative actions target, the callsign and the initials). Touches no canvas, popup or pointer state.
+    /// </summary>
+    internal ContextMenu BuildAircraftContextMenu(RadarViewModel vm, AircraftModel? ac, AircraftModel? prevSelected, string callsign, string initials)
+    {
+        var menu = new ContextMenu();
+        AddAircraftMenuHeader(menu, vm, ac, callsign, initials);
 
         if (ac is { IsLiveTraffic: true })
         {
@@ -151,23 +165,26 @@ public partial class RadarView
             }
             else
             {
-                // A surface shadow is never assumable: its menu is read-only, the display groups and a Delete.
-                menu.Items.Add(BuildTrackSubmenu(vm, callsign, initials));
-                menu.Items.Add(BuildDataBlockSubmenu(vm, callsign, initials));
-                menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
-                menu.Items.Add(BuildDisplaySubmenu(vm, callsign));
-                menu.Items.Add(new Separator());
-                menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(callsign, initials)));
-                FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
-                ShowContextMenu(menu);
-                return;
+                AddSurfaceShadowItems(menu, vm, callsign, initials);
+                return menu;
             }
         }
 
         AddRelativeTrafficItems(menu, vm, prevSelected, callsign, initials);
         AddAircraftCommandGroups(menu, vm, ac, callsign, initials);
+        return menu;
+    }
 
-        ShowContextMenu(menu);
+    /// <summary>A surface live-traffic shadow is never assumable: its menu is read-only — the display groups and a Delete.</summary>
+    private void AddSurfaceShadowItems(ContextMenu menu, RadarViewModel vm, string callsign, string initials)
+    {
+        menu.Items.Add(BuildTrackSubmenu(vm, callsign, initials));
+        menu.Items.Add(BuildDataBlockSubmenu(vm, callsign, initials));
+        menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
+        menu.Items.Add(BuildDisplaySubmenu(vm, callsign));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(callsign, initials)));
+        FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
     }
 
     /// <summary>
@@ -1601,7 +1618,7 @@ public partial class RadarView
 
     private MenuItem CreateInputMenuItem(string header, string placeholder, Func<string, Task> action)
     {
-        var item = new MenuItem { Header = header };
+        var item = new MenuItem { Header = header, Tag = new MenuPickerDescriptor(MenuPickerDescriptor.Input, []) };
         item.Click += (_, _) =>
         {
             Dispatcher.UIThread.Post(() => ShowInputPopup(placeholder, action));
@@ -1616,7 +1633,12 @@ public partial class RadarView
         IReadOnlyList<object>? priorityItems = null
     )
     {
-        var item = new MenuItem { Header = header };
+        var item = new MenuItem
+        {
+            Header = header,
+            // The popup lists the priority items until the controller types; the rest of the candidates filter in as they do.
+            Tag = new MenuPickerDescriptor(MenuPickerDescriptor.FilteredList, ListPickerTexts(priorityItems ?? [])),
+        };
         item.Click += (_, _) =>
         {
             Dispatcher.UIThread.Post(() => ShowFilteredListPopup(sortedNames, action, priorityItems));
@@ -1632,21 +1654,28 @@ public partial class RadarView
         Func<int, string>? formatLabel = null
     )
     {
-        var item = new MenuItem { Header = header };
+        IReadOnlyList<object> popupItems = items;
+        if (formatLabel is not null)
+        {
+            var labeled = new List<object>(items.Count);
+            foreach (object i in items)
+            {
+                labeled.Add(new LabeledValue(formatLabel((int)i), (int)i));
+            }
+
+            popupItems = labeled;
+        }
+
+        var item = new MenuItem { Header = header, Tag = new MenuPickerDescriptor(MenuPickerDescriptor.List, ListPickerTexts(popupItems)) };
+        bool isLabeled = formatLabel is not null;
         item.Click += (_, _) =>
         {
             Dispatcher.UIThread.Post(() =>
             {
-                if (formatLabel is not null)
+                if (isLabeled)
                 {
-                    var labeled = new List<object>(items.Count);
-                    foreach (object i in items)
-                    {
-                        labeled.Add(new LabeledValue(formatLabel((int)i), (int)i));
-                    }
-
                     ShowListPopup(
-                        labeled,
+                        popupItems,
                         null,
                         val =>
                         {
@@ -1657,10 +1686,22 @@ public partial class RadarView
                 }
                 else
                 {
-                    ShowListPopup(items, selectedValue, action);
+                    ShowListPopup(popupItems, selectedValue, action);
                 }
             });
         };
         return item;
+    }
+
+    /// <summary>The display texts of a popup's values, as the popup itself shows them.</summary>
+    private static List<string> ListPickerTexts(IReadOnlyList<object> values)
+    {
+        var texts = new List<string>(values.Count);
+        foreach (object value in values)
+        {
+            texts.Add(value.ToString() ?? "");
+        }
+
+        return texts;
     }
 }

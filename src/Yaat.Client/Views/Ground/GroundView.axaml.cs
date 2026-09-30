@@ -510,8 +510,17 @@ public partial class GroundView : UserControl
             vm.SelectedAircraft = ac;
         }
 
-        string initials = GetInitials();
-        var target = new GroundMenuTarget(ac, prevSelected, callsign, initials);
+        ShowContextMenu(BuildAircraftContextMenu(vm, new GroundMenuTarget(ac, prevSelected, callsign, GetInitials())));
+    }
+
+    /// <summary>
+    /// The whole aircraft context menu a right-click shows, built without opening it: the header, the favorites
+    /// block, the phase-aware ground command groups and the display items, for the aircraft
+    /// <paramref name="target"/> resolves. Touches no canvas, popup or pointer state.
+    /// </summary>
+    internal ContextMenu BuildAircraftContextMenu(GroundViewModel vm, GroundMenuTarget target)
+    {
+        (AircraftModel? ac, AircraftModel? _, string callsign, string initials) = target;
         var menu = new ContextMenu();
 
         AddAircraftHeaderItems(menu, vm, target);
@@ -543,7 +552,7 @@ public partial class GroundView : UserControl
         // RPO control
         FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
 
-        ShowContextMenu(menu);
+        return menu;
     }
 
     /// <summary>The bold callsign header plus the free-text Command…, Note… and measurement items every aircraft gets.</summary>
