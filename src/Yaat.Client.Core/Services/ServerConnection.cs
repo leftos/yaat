@@ -328,6 +328,16 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         return await _connection!.InvokeAsync<string>("CreateRoom", initials, artccId, kind);
     }
 
+    /// <summary>
+    /// Closes a room this caller created but could not join. The server refuses (throws) unless the caller is the room's
+    /// creator and no other connection is a member.
+    /// </summary>
+    public async Task CloseRoomAsync(string roomId)
+    {
+        EnsureConnected();
+        await _connection!.InvokeAsync("CloseRoom", roomId);
+    }
+
     public async Task<RoomStateDto?> JoinRoomAsync(string roomId, string initials, string artccId, string kind)
     {
         EnsureConnected();

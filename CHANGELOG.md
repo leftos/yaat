@@ -29,6 +29,7 @@
 
 ### Fixed
 
+- A room whose creation or first join fails is closed at once instead of lingering in the room list.
 - An ERAM track that loses radar coverage starts coasting from where CRC last drew it, instead of jumping ahead up to 12 seconds.
 - An ERAM `QT` with no location coasts from the position and track CRC shows, not the aircraft's hidden live position.
 - A CRC ERAM display that connects while a track is coasting now shows that track and its data block.

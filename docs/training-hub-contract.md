@@ -101,6 +101,7 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `GetMyPermittedArtccsAsync()` | `GetMyPermittedArtccs` | `GetMyPermittedArtccs()` — home ARTCC first, then operator grants |
 | `JoinRoomAsync(roomId, initials, artccId, kind)` | `JoinRoom` | `JoinRoom(roomId, initials, artccId, kind)` |
 | `LeaveRoomAsync()` | `LeaveRoom` | `LeaveRoom()` |
+| `CloseRoomAsync(roomId)` | `CloseRoom` | `CloseRoom(roomId)` — the client calls it when its `JoinRoom` right after `CreateRoom` throws; only the room's creator (CID), while no scenario load holds the room and no other connection is a member, else it throws `HubException`; removes the room with the same teardown as abandoned-room cleanup and evicts (`RoomRetired`) any connection that joined meanwhile |
 | `GetActiveRoomsAsync()` | `GetActiveRooms` | `GetActiveRooms()` |
 | `FindRoomForMyCidAsync()` | `FindRoomForMyCid` | `FindRoomForMyCid()` — CID from token claims |
 | `LoadScenarioAsync(json, …rates)` | `LoadScenario` | `LoadScenario(...)` |
