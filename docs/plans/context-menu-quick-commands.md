@@ -6,7 +6,7 @@ The aircraft right-click menus on the radar, ground and aircraft-list views offe
 
 - Radar: `RadarView.ContextMenus.cs` `OnAircraftRightClicked` (~L64). `ContextMenuProfileService.GetProfile(phase, isOnGround)` picks primary groups by phase, but every non-hidden group still shows as a secondary group, and Track, Data Block, Squawk, Ask pilot, Coordination, Display, Sim Control and RPO are always appended.
 - Ground: `GroundView.axaml.cs` `OnAircraftRightClicked` (~L493), a separate builder with inline `phase == "Taxiing"` checks (`AddSimulatedAircraftItems` ~L658).
-- Aircraft list: `DataGridView.ContextMenu.cs`, a third builder.
+- Aircraft list: `DataGridView.axaml.cs` (~L170-279) builds the menu from items in `DataGridView.ContextMenu.cs`, a third builder.
 - Shared today: `AircraftCommandApplicability` predicates, `FavoritesContextMenu`, `LiveTrafficMenuItems`, `MainViewModel.BuildRpoMenuItems`.
 - The phase reaches the client as the string `AircraftDto.CurrentPhase` (the phase's `Name`); some names are dynamic (`Holding Short {target}`, `Following {cs}`). The server also sends `AircraftDto.Situation` (step 1, shipped): `SituationClassifier` in `src/Yaat.Sim/Situation/`, described in `docs/training-hub-contract.md`; the menus do not read it yet.
 
@@ -73,6 +73,16 @@ Review notes that drive predicates:
 - **Wire**: `Situation` is added to `AircraftStateDto` / `AircraftDto` in today's positional style (the `required` init conversion is a separate backlog line) and to `AircraftChangeTracker`'s fingerprint, since several inputs are not fingerprinted.
 - The inbound rule's two time clauses (VFR inbound's "departed that field under 3 min ago" exclusion; VFR departing with no origin by "under 5 min since departure") need a liftoff time that `AircraftState` does not keep (only `HasBeenAirborne`, `SpawnedAtSeconds`), so step 1 leaves both out: no just-departed exclusion, and a VFR aircraft with no origin is flight following. Adding `AirborneAtSeconds` (set at liftoff, snapshotted) and sim time into `Classify` belongs to step 6.
 - The step-6 predicates (nearing the departure hold line, inside FAF / 5 NM, decelerating on rollout) are not step 1's.
+
+## Step 2 rulings
+
+Exploration (2026-09-30): the three builders are `RadarView.ContextMenus.cs` (`OnAircraftRightClicked` ~:64, phase groups via `AddMenuGroup` ~:1235, ~185 leaves), `GroundView.axaml.cs` (~:493-873 plus helpers to ~:1607, ~50 leaves, gated on hard-coded phase strings at ~:742, 756, 796, 804, 819, 869) and the aircraft list (`DataGridView.axaml.cs` ~:170-279 builds the menu, `DataGridView.ContextMenu.cs` the items, ~35 leaves; it sends raw text through `vm.Connection.SendCommandAsync`, the other two through ~130 typed view-model wrappers). Every leaf ends in command text. `Yaat.Client.Core` already references Avalonia (MenuItem is usable there), but `AircraftModel`, `AircraftCommandApplicability` (~40 predicates) and the view models live in `Yaat.Client`.
+
+- **Catalog home** (user 2026-09-30): `Yaat.Client.Core/ContextMenu/`, behind a read-only `IMenuAircraft` (implemented by `AircraftModel`) and an `IMenuHost` (send, input/list/filtered-list/warp popups, command and note flyouts, flight-plan editor, draw route/taxi/push, canvas display toggles, measure, layout and navdata reads, favorites, RPO items, solo/VFR mode); `AircraftCommandApplicability` and its tests move to Core against `IMenuAircraft`. `AircraftModel` itself stays in `Yaat.Client`.
+- **All Commands** (user 2026-09-30): one tree for all three views now, the two CTO submenus merged; this is a visible change, so the goldens are taken before the refactor and the unification is its own reviewed diff with the goldens re-recorded and the differences listed.
+- **Stable IDs**: string constants, `<group>.<item>` (`tower.cto`, `heading.fly`, `ground.pushback`), append-only, since exported preferences carry them.
+- **Goldens** (user 2026-09-30): a `MenuTreeSnapshot` walker in `Yaat.Client.UI.Tests` (headless `[AvaloniaFact]`, as `RadarContextMenuStateTests`, `GroundMovementMenuTests`, `DataGridContextMenuStateTests` do) over ~20 fixtures (one per situation and flight rule, plus live traffic, delayed spawn, relative selection) for each view, with the committed NavData and the KOAK layout pinned so the STAR, airway, approach, preset and pushback-spot submenus are stable.
+- **Briefs** (each ≤6 files, in order): (1) the golden harness on today's code; (2) Core scaffolding — IDs, `MenuCatalogEntry`, `IMenuAircraft`, `IMenuHost`, the predicates moved; (3) the shared and simple groups (header, favorites, live traffic, track, data block, squawk, ask pilot, coordination, sim control, display) with the radar and list moved; (4) the flight groups (heading, altitude, speed, navigation, hold, approach, procedures, tower, pattern) with the radar host adapter and `RadarView.Popups`; (5) the ground groups and host; (6) the list's delayed-spawn and multi-select items, then the dead per-view factories deleted; (7) the unification, goldens re-recorded. 5 and 6 may run in either order.
 
 ## Steps
 
