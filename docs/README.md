@@ -44,4 +44,4 @@ The table above is a quick index, not the full list — **[`../CLAUDE.md`](../CL
 
 ---
 
-*Agents: prefer the `yaat-explore` agent for codebase exploration — it follows this docs-first protocol automatically.*
+*Agents: the user-level `Explore` agent explores the codebase — it follows this docs-first protocol automatically.*
