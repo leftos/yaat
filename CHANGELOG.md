@@ -6,6 +6,7 @@
 
 - ERAM `CA` turns conflict alert and MCI alerts on or off for the center or for chosen sectors, and `RK` reads the settings back.
 - ERAM `SM` sends a sector message that `SM` reads back and `SM DE` clears, and `SW` sends significant weather to the facility's sectors.
+- ERAM `WX` enters weather reports for up to 16 stations, and the instructor terminal shows each entry.
 - ERAM `UR` reads out the upper winds at a picked or typed location, for the standard FD levels, a block, a bound or the altitudes you type.
 - Turning on speech recognition offers to send your push-to-talk recordings to the YAAT developers; change it anytime in Settings → Speech.
 - Scenario → File Bug Report... asks what went wrong, opens a prefilled GitHub issue, and shows the bug report bundle to drag in.

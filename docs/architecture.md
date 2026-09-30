@@ -1654,6 +1654,7 @@ EramRoomSettings.cs            # The room's per-facility conflict-alert settings
                                # new immutable FrozenDictionary of EramFacilityConflictSettings records and bumps Version (unique across instances, so an engine swap never reads as
                                # unchanged), so the CRC broadcast reads without the room gate. TryApply takes a RecordedEramRoomEntry's four absolute shapes (CA {CA|MCI} FUNCTION
                                # {ON|OFF}, CA {CA|MCI} DISPLAY {sector}… {ON|OFF}); a facility back at the defaults is dropped; ShowsConflict(facility, sector, isMciPair) is the per-sector filter
+EramWeatherReports.cs          # The room's ERAM `WX` weather reports, keyed by ICAO station (last entry wins); expire at the first :53 after entry by sim time (`SimulationEngine.ExpireEramWeatherReports` in the end-of-second weather step); snapshotted, recorded, replayed; never broadcast to clients
 EramSectorMessages.cs          # The room's ERAM sector messages: one EramSectorMessage(FacilityId, SectorId, Text) per facility and sector, copy-on-write like EramRoomSettings (one volatile swap of a
                                # FrozenDictionary). TryApply takes a RecordedEramRoomEntry's two absolute shapes (SM {sector} {text} stores or overwrites, SMDE {sector} deletes) and refuses anything else;
                                # TryGet / Messages read, Replace / Clear serve snapshot restore and replay t=0

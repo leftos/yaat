@@ -51,6 +51,21 @@ public sealed class ServerSnapshotDto
     /// (restores none).
     /// </summary>
     public List<EramSectorMessageSnapshotDto>? EramSectorMessages { get; init; }
+
+    /// <summary>
+    /// The entered ERAM weather reports (the <c>WX</c> entry), in station order so two passes of the same run capture the
+    /// same bytes. Absent when no station holds one, which is also what a pre-feature snapshot looks like (restores none).
+    /// </summary>
+    public List<EramWeatherReportSnapshotDto>? EramWeatherReports { get; init; }
+}
+
+/// <summary>One station's entered ERAM weather report: the station, the typed HHMM, the text and the instant it was entered.</summary>
+public sealed class EramWeatherReportSnapshotDto
+{
+    public required string StationId { get; init; }
+    public required string ObservationTime { get; init; }
+    public required string Text { get; init; }
+    public required DateTime EnteredAtUtc { get; init; }
 }
 
 /// <summary>One sector's ERAM sector message: the facility and sector it was left for, and its text.</summary>

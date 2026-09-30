@@ -1151,10 +1151,13 @@ public sealed partial class SimulationEngine
     /// completed second into <see cref="SimulationWorld.Weather"/> — the continuous wind physics and visual acquisition
     /// read — and returns the profile so the host can mirror it; null when the scenario carries no timeline. Ungated on
     /// every run kind (ADR 0002): a slowly veering wind reaches the aircraft as the sub-degree per-second change it is,
-    /// not in 1° / 0.5 kt steps. The reported METAR is issued separately by the host's <c>MetarIssuance</c> step.
+    /// not in 1° / 0.5 kt steps. The reported METAR is issued separately by the host's <c>MetarIssuance</c> step. First,
+    /// on every run kind and with or without a timeline, the entered ERAM weather reports whose expiry the second reached
+    /// are removed.
     /// </summary>
     public WeatherProfile? AdvanceWeatherTimeline()
     {
+        ExpireEramWeatherReports();
         if (Scenario is not { WeatherTimeline: { } timeline } scenario)
         {
             return null;

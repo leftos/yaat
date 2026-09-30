@@ -101,15 +101,40 @@ public sealed partial class SimulationEngine
     public EramSectorMessages EramSectorMessages { get; } = new();
 
     /// <summary>
+    /// The room's entered weather reports (the <c>WX</c> entry), one per station. Engine state on every run kind,
+    /// snapshotted and reset beside <see cref="EramSectorMessages"/>, and kept inside ERAM: no host is told of an entry,
+    /// and no client broadcast carries the reports.
+    /// </summary>
+    public EramWeatherReports EramWeatherReports { get; } = new();
+
+    /// <summary>
+    /// Removes the entered weather reports whose expiry instant the session clock has reached. Part of the end-of-second
+    /// weather advance (<see cref="AdvanceWeatherTimeline"/>), so a report leaves the store on the second it expires on
+    /// every run kind, and a snapshot taken after it never carries it.
+    /// </summary>
+    private void ExpireEramWeatherReports()
+    {
+        if (Scenario is { } scenario)
+        {
+            EramWeatherReports.RemoveExpired(scenario.SimTimeUtc);
+        }
+    }
+
+    /// <summary>
     /// Applies one recorded ERAM room entry, dispatched on its verb: <c>CA </c> to <see cref="EramRoomSettings"/> (which
-    /// tells the host), <c>SM </c> and <c>SMDE </c> to <see cref="EramSectorMessages"/>. An entry outside the recorded
-    /// shapes is a recording bug rather than user input: it is logged, changes nothing and returns false.
+    /// tells the host), <c>WX </c> to <see cref="EramWeatherReports"/>, <c>SM </c> and
+    /// <c>SMDE </c> to <see cref="EramSectorMessages"/>. A weather report is stamped with the session-clock instant of the
+    /// entry's own elapsed time, so a replay stamps it identically. An entry outside the recorded shapes is a recording bug
+    /// rather than user input: it is logged, changes nothing and returns false.
     /// </summary>
     public bool ApplyEramRoomEntry(RecordedEramRoomEntry entry)
     {
         bool isConflictSetting = entry.Entry.StartsWith("CA ", StringComparison.Ordinal);
-        bool applied = isConflictSetting
-            ? EramRoomSettings.TryApply(entry.FacilityId, entry.Entry)
+        bool isWeatherReport = entry.Entry.StartsWith("WX ", StringComparison.Ordinal);
+        DateTime enteredAtUtc = (Scenario?.SessionStartUtc ?? SimScenarioState.ProcessDayUtc).AddSeconds(entry.ElapsedSeconds);
+        bool applied =
+            isConflictSetting ? EramRoomSettings.TryApply(entry.FacilityId, entry.Entry)
+            : isWeatherReport ? EramWeatherReports.TryApply(entry.Entry, enteredAtUtc)
             : EramSectorMessages.TryApply(entry.FacilityId, entry.Entry);
         if (!applied)
         {
