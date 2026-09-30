@@ -130,7 +130,7 @@ public static class ScenarioLoader
             Id = scenario.Id,
             Name = scenario.Name,
             PrimaryAirportId = scenario.PrimaryAirportId,
-            ArtccId = scenario.ArtccId,
+            ArtccId = string.IsNullOrWhiteSpace(scenario.ArtccId) ? scenario.ArtccId : scenario.ArtccId.Trim().ToUpperInvariant(),
             StudentPositionId = scenario.StudentPositionId,
             AtcEntries = scenario.Atc,
             ImmediateAircraft = immediate,
