@@ -361,6 +361,52 @@ public static class ScenarioLoader
     }
 
     /// <summary>
+    /// The airports whose full ground map <paramref name="ac"/>'s spawn needs: the airport a <c>Parking</c> spawn is placed
+    /// at, and the field under a <c>Coordinates</c> / <c>FixOrFrd</c> spawn that <see cref="Load"/> puts on the ground. An
+    /// <c>OnRunway</c> or <c>OnFinal</c> spawn takes its runway from navdata, and an airborne spawn needs no map at spawn.
+    /// <see cref="ScenarioResourceManifest"/> reads the same rule. Entries may be null or empty.
+    /// </summary>
+    internal static IEnumerable<string?> MapRequiredAirportIds(ScenarioAircraft ac, string? primaryAirportId)
+    {
+        switch (ac.StartingConditions.Type)
+        {
+            case "Parking":
+                yield return ParkingAirportId(ac, primaryAirportId);
+                break;
+
+            case "Coordinates":
+            case "FixOrFrd":
+            {
+                string? groundAirportId = GroundSpawnAirportId(ac, primaryAirportId);
+                StartingConditions cond = ac.StartingConditions;
+                double fieldElevation = FieldElevation(groundAirportId);
+                if (IsGroundSpawn(cond.Altitude ?? fieldElevation, AuthoredSpeedSentinel(cond), fieldElevation))
+                {
+                    yield return groundAirportId;
+                }
+
+                break;
+            }
+        }
+    }
+
+    private static double FieldElevation(string? airportId) =>
+        !string.IsNullOrEmpty(airportId) ? NavigationDatabase.Instance.GetAirportElevation(airportId) ?? 0 : 0;
+
+    /// <summary>
+    /// A <c>Coordinates</c> / <c>FixOrFrd</c> spawn's authored speed before any default: 0 when neither altitude nor speed is
+    /// authored, -1 when only the altitude is, else the authored speed.
+    /// </summary>
+    private static double AuthoredSpeedSentinel(StartingConditions cond) => ((cond.Altitude is null) && (cond.Speed is null)) ? 0 : cond.Speed ?? -1;
+
+    /// <summary>
+    /// The ground gate of a <c>Coordinates</c> / <c>FixOrFrd</c> spawn: no positive authored speed and under 200 ft above
+    /// the field. It runs against the unresolved speed sentinel, before the cruise-speed default.
+    /// </summary>
+    private static bool IsGroundSpawn(double altitude, double speedSentinel, double fieldElevation) =>
+        (speedSentinel <= 0) && ((altitude - fieldElevation) < 200);
+
+    /// <summary>
     /// The field under a <c>Coordinates</c> / <c>FixOrFrd</c> spawn: <c>airportId</c> first (the way the OnRunway/OnFinal
     /// paths and FieldElevationResolver resolve it), then the filed departure/destination, then the scenario's primary
     /// airport, which is what <see cref="CreateBaseState"/> assigns the aircraft anyway. A cold-call ground spawn usually
@@ -398,7 +444,7 @@ public static class ScenarioLoader
 
         NavigationDatabase navDb = NavigationDatabase.Instance;
         string? groundAirportId = GroundSpawnAirportId(ac, primaryAirportId);
-        double fieldElevation = !string.IsNullOrEmpty(groundAirportId) ? navDb.GetAirportElevation(groundAirportId) ?? 0 : 0;
+        double fieldElevation = FieldElevation(groundAirportId);
 
         switch (cond.Type)
         {
@@ -411,7 +457,7 @@ public static class ScenarioLoader
                 lat = cond.Coordinates.Lat;
                 lon = cond.Coordinates.Lon;
                 alt = cond.Altitude ?? fieldElevation;
-                speed = cond.Altitude is null && cond.Speed is null ? 0 : cond.Speed ?? -1;
+                speed = AuthoredSpeedSentinel(cond);
                 break;
 
             case "FixOrFrd":
@@ -429,7 +475,7 @@ public static class ScenarioLoader
                 lat = resolved.Value.Lat;
                 lon = resolved.Value.Lon;
                 alt = cond.Altitude ?? fieldElevation;
-                speed = cond.Altitude is null && cond.Speed is null ? 0 : cond.Speed ?? -1;
+                speed = AuthoredSpeedSentinel(cond);
                 break;
 
             case "OnRunway":
@@ -453,8 +499,7 @@ public static class ScenarioLoader
         // elevation, speed omitted) — both mean "no positive authored speed", i.e. a ground spawn.
         // Resolving DefaultSpeed first would turn the -1 sentinel into a positive cruise speed and
         // make the gate fail, spawning a departure that sits at field elevation airborne.
-        double agl = alt - fieldElevation;
-        bool onGround = speed <= 0 && agl < 200;
+        bool onGround = IsGroundSpawn(alt, speed, fieldElevation);
         if (onGround)
         {
             speed = 0;

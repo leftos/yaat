@@ -19,13 +19,14 @@ public sealed class ScenarioResourceManifest
 {
     private static readonly ILogger Log = SimLog.CreateLogger("ScenarioResourceManifest");
 
-    private ScenarioResourceManifest(string? readError, string scenarioName, string? artccId, List<string> neighbourArtccIds, List<string> airportIds)
+    private ScenarioResourceManifest(string? readError, string scenarioName, string? artccId, List<string> neighbourArtccIds, AirportLists airports)
     {
         ReadError = readError;
         ScenarioName = scenarioName;
         ArtccId = artccId;
         NeighbourArtccIds = neighbourArtccIds;
-        AirportIds = airportIds;
+        AirportIds = airports.All;
+        MapRequiredAirportIds = airports.MapRequired;
     }
 
     /// <summary>The parser's message when the scenario JSON could not be read; null when it was.</summary>
@@ -47,6 +48,14 @@ public sealed class ScenarioResourceManifest
     /// an approach's airport); then each VFR arrival generator's <c>directTo</c> that is an airport.
     /// </summary>
     public IReadOnlyList<string> AirportIds { get; }
+
+    /// <summary>
+    /// The airports of <see cref="AirportIds"/> whose full ground map the load needs, FAA-coded and distinct, in the order
+    /// found: the primary airport, and per aircraft the airports <see cref="ScenarioLoader.MapRequiredAirportIds"/> names
+    /// (a <c>Parking</c> spawn's airport, the field under a ground <c>Coordinates</c> / <c>FixOrFrd</c> spawn). A runway
+    /// spawn, a flight plan, a preset or a generator never makes an airport map-required.
+    /// </summary>
+    public IReadOnlyList<string> MapRequiredAirportIds { get; }
 
     /// <summary>
     /// Reads <paramref name="json"/> into a manifest. Never throws on bad input: a JSON that cannot be deserialized
@@ -81,7 +90,7 @@ public sealed class ScenarioResourceManifest
         );
     }
 
-    private static ScenarioResourceManifest Unreadable(string message) => new(message, scenarioName: "", artccId: null, [], []);
+    private static ScenarioResourceManifest Unreadable(string message) => new(message, scenarioName: "", artccId: null, [], new AirportLists([], []));
 
     private static List<string> CollectNeighbourArtccIds(Scenario scenario, string? ownArtccId)
     {
@@ -103,16 +112,19 @@ public sealed class ScenarioResourceManifest
         return ids;
     }
 
-    private static List<string> CollectAirportIds(Scenario scenario, NavigationDatabase navDb)
+    private static AirportLists CollectAirportIds(Scenario scenario, NavigationDatabase navDb)
     {
         var ids = new List<string>();
+        var mapRequired = new List<string>();
         AddAirport(ids, scenario.PrimaryAirportId);
+        AddAirport(mapRequired, scenario.PrimaryAirportId);
 
         foreach (ScenarioAircraft? ac in scenario.Aircraft ?? [])
         {
             if (ac is not null)
             {
                 AddAircraftAirports(ids, ac, scenario.PrimaryAirportId, navDb);
+                AddMapRequiredAirports(mapRequired, ac, scenario.PrimaryAirportId);
             }
         }
 
@@ -121,7 +133,20 @@ public sealed class ScenarioResourceManifest
             AddIfAirport(ids, generator?.DirectTo, navDb);
         }
 
-        return ids;
+        return new AirportLists(ids, mapRequired);
+    }
+
+    private static void AddMapRequiredAirports(List<string> mapRequired, ScenarioAircraft ac, string? primaryAirportId)
+    {
+        if (ac.StartingConditions is null)
+        {
+            return;
+        }
+
+        foreach (string? airportId in ScenarioLoader.MapRequiredAirportIds(ac, primaryAirportId))
+        {
+            AddAirport(mapRequired, airportId);
+        }
     }
 
     private static void AddAircraftAirports(List<string> ids, ScenarioAircraft ac, string? primaryAirportId, NavigationDatabase navDb)
@@ -214,4 +239,7 @@ public sealed class ScenarioResourceManifest
             ids.Add(faaCode);
         }
     }
+
+    /// <summary>Every airport the scenario names, and the subset whose full ground map it needs.</summary>
+    private sealed record AirportLists(List<string> All, List<string> MapRequired);
 }
