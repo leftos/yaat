@@ -55,7 +55,7 @@ Built on System.Text.Json with camelCase names, a `JsonStringEnumConverter` that
   - Set `_primary` on the joiner. The joiner reads `_artccId`, `_currentPositionId`, `_role`, `_realName`, `_isActive` and `_roomEngine` through `_primary ?? this`, so `ResolveEramSectorScope`/`ActingEramSector` and `HandleSubscribe` work unchanged.
   - Do not register a `CrcPositionEntry`, so attendance and OpenPositions are not double-counted.
   - Push `HandleFsdConnectionStateChanged(true)`, `HandleSessionStarted(info)` and `SetSessionActive(isActive)` using the helpers at `Session.cs:763-799`.
-- **Fan-out from the primary** (B2, shipped): as built, described in [crc-display-state.md](../crc-display-state.md) (the joined-session paragraph). An unbind, room move or kick ends the joiners' session (`Session left the room`) rather than rebinding them; vEDST rejoins through `GetSessions`/`JoinSession`.
+- **Fan-out from the primary** (B2, shipped): as built, described in [crc-display-state.md](crc-display-state.md) (the joined-session paragraph). An unbind, room move or kick ends the joiners' session (`Session left the room`) rather than rebinding them; vEDST rejoins through `GetSessions`/`JoinSession`.
 - **`LeaveSession`** detaches.
 - Room-member and lobby DTOs exclude joined connections. The joiner's disconnect removes it from its primary's `_joined`.
 - **UDP entity-history path.** ERAM target histories go out by UDP, looked up through the client's `ConnectionToken` (`CrcBroadcastService.cs:2364`). A direct-WebSocket client has no negotiate token, so it must degrade cleanly: skip it and log once. Check whether vEDST needs histories at all.
