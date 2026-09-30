@@ -341,7 +341,7 @@ public partial class MainViewModel
         {
             string roomId = await _connection.CreateRoomAsync(_preferences.UserInitials, roomArtccId, Yaat.Sim.ClientKind.Main);
 
-            RoomStateDto? state = await _connection.JoinRoomAsync(roomId, _preferences.UserInitials, memberArtccId, Yaat.Sim.ClientKind.Main);
+            RoomStateDto? state = await JoinCreatedRoomAsync(roomId, memberArtccId);
 
             if (state is null)
             {
@@ -360,6 +360,38 @@ public partial class MainViewModel
             StatusText = $"Create room error: {ex.Message}";
             // A server refusal (e.g. an ARTCC the caller may not work) must not be only gray status-bar text.
             AddWarningEntry($"[WARN] Create room failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Joins the room this client just created. When the join throws, the room would be left on the server with no one
+    /// using it, so it is closed first; the join's own failure still reaches the caller. A null join means the room is
+    /// already gone, so there is nothing to close.
+    /// </summary>
+    private async Task<RoomStateDto?> JoinCreatedRoomAsync(string roomId, string memberArtccId)
+    {
+        try
+        {
+            return await _connection.JoinRoomAsync(roomId, _preferences.UserInitials, memberArtccId, Yaat.Sim.ClientKind.Main);
+        }
+        catch (Exception)
+        {
+            await CloseUnjoinedRoomAsync(roomId);
+            throw;
+        }
+    }
+
+    private async Task CloseUnjoinedRoomAsync(string roomId)
+    {
+        try
+        {
+            await _connection.CloseRoomAsync(roomId);
+            _log.LogInformation("Closed room {RoomId} after joining it failed", roomId);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "CloseRoom {RoomId} failed after joining it failed", roomId);
+            AddWarningEntry($"[WARN] Could not close room {roomId} after joining it failed: {ex.Message}");
         }
     }
 

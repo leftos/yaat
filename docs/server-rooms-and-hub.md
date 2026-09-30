@@ -253,6 +253,16 @@ while browser tabs remain: the sim has nobody to serve. It is called from the **
 a tab is a legitimate viewer, so room retirement stays governed by `IsAbandoned` and the paused-retirement sweep —
 and it does not auto-resume.
 
+**A room its creator never joined is closed, not left to the timer.** `TrainingHub.CreateRoom` registers the room
+first; when anything after that throws, it closes the room (`CloseOwnRoomAsync`: every CRC client unbound,
+`ScenarioLifecycleService.CloseRoom`, which cancels the cleanup timer and runs the same `RemoveRoomState` teardown the
+abandoned-room and paused-room retirement use, then the caller out of the group) and rethrows the original exception
+even when the close itself fails. When the client's own
+`JoinRoom` right after a successful create throws, it calls the hub's `CloseRoom(roomId)`, which does the same
+teardown but only for the room's creator (`CreatorCid`), not while a scenario load holds the room, and not while
+another connection is a member; a connection that joins after that check is evicted with `RoomRetired`, as the
+retirement sweeps do. (A `JoinRoom` that returns null found the room already gone, so there is nothing to close.)
+
 **Join gate & kick block.** Two per-room CID sets govern who may `JoinRoom`, both consulted by the pure
 `TrainingHub.CanJoinRoomCore(isMentorOrInstructor, kind, kicked, invited, restored, alreadyMember, crcBound)`:
 `InvitedCids` — CIDs a mentor pulled in as RPOs, the allow-list that lets a limited (non-mentor "main") client join;
