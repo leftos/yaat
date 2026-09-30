@@ -41,6 +41,12 @@
                       all checkpoints. `ckpt clean [-IncludeRestored]` -- rm
                       the checkpoint dir (and optionally the restored
                       archives under session-checkpoints-restored-*).
+      claude          Start Claude Code in this checkout with the matching
+                      yaat-server checkout added via --add-dir: the sibling
+                      yaat-server (main checkout or worktree pair), else the
+                      main checkout's sibling for a lone worktree. Forwards
+                      remaining args to claude (use long forms such as
+                      --continue; PowerShell binds -c to -Command).
       help            Print this summary.
 
     Default (no subcommand) is `help`.
@@ -57,6 +63,7 @@
     .\y.ps1 ckpt clean -IncludeRestored
     .\y.ps1 logs server -Follow
     .\y.ps1 deploy -SkipSessionSave
+    .\y.ps1 claude --continue
 #>
 [CmdletBinding()]
 # Write-Host is intentional: this is an interactive dev script and colored
@@ -70,7 +77,7 @@
 param(
     [Parameter(Position = 0)]
     [ValidateSet('', 'help', 'launch', 'build', 'clean', 'format', 'test', 'deploy',
-        'setup-crc', 'logs', 'status', 'prepare-restart', 'restart-loop', 'ckpt')]
+        'setup-crc', 'logs', 'status', 'prepare-restart', 'restart-loop', 'ckpt', 'claude')]
     [string]$Command = '',
 
     # Everything after the subcommand. Subcommands parse what they need; the
@@ -236,6 +243,7 @@ Lifecycle
   test                      tools/test-all.ps1 (yaat + yaat-server).
   deploy [deploy.ps1 args]  Deploy to droplet. Forwards args.
   setup-crc                 Setup-CrcEnvironment.ps1 dispatcher.
+  claude [claude args]      Claude Code here, --add-dir the yaat-server checkout.
 
 Inspection
   logs server   [-Lines N] [-Follow] [-Remote [host]]
@@ -278,6 +286,56 @@ function Invoke-Launch    { Invoke-Forward (Join-Path $script:RepoRoot 'start.ps
 function Invoke-Test      { Invoke-Forward (Join-Path $script:RepoRoot 'tools\test-all.ps1') }
 function Invoke-Deploy    { Invoke-Forward (Join-Path $script:RepoRoot 'deploy-to-droplet.ps1') }
 function Invoke-SetupCrc  { Invoke-Forward (Join-Path $script:RepoRoot 'Setup-CrcEnvironment.ps1') }
+
+# --- subcommand: claude ---
+
+# A directory counts as a yaat-server checkout only when it carries its own .git
+# (a directory in a main checkout, a file in a worktree). Without that check a
+# path inside a lone yaat worktree would resolve git commands against yaat.
+function Test-ServerCheckout {
+    param([string]$Path)
+    return (Test-Path (Join-Path $Path 'src\Yaat.Server')) -and (Test-Path (Join-Path $Path '.git'))
+}
+
+function Resolve-ClaudeServerRepo {
+    $sibling = Join-Path (Split-Path $script:RepoRoot) 'yaat-server'
+    if (Test-ServerCheckout $sibling) {
+        return (Resolve-Path $sibling).Path
+    }
+
+    $commonDir = git -C $script:RepoRoot rev-parse --path-format=absolute --git-common-dir
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "git rev-parse --git-common-dir failed in $script:RepoRoot"
+        exit 1
+    }
+    $mainCheckout = Split-Path $commonDir
+    $mainSibling = Join-Path (Split-Path $mainCheckout) 'yaat-server'
+    if (Test-ServerCheckout $mainSibling) {
+        Write-Warning "No yaat-server beside $script:RepoRoot; adding the main checkout's sibling $mainSibling"
+        return (Resolve-Path $mainSibling).Path
+    }
+    return $null
+}
+
+function Invoke-Claude {
+    $serverRepo = Resolve-ClaudeServerRepo
+    $claudeArgs = @()
+    if ($serverRepo) {
+        Write-Host "claude --add-dir $serverRepo" -ForegroundColor Cyan
+        $claudeArgs += @('--add-dir', $serverRepo)
+    } else {
+        Write-Warning 'No yaat-server checkout found beside this checkout or the main checkout. Launching with yaat only.'
+    }
+    if ($script:Rest) { $claudeArgs += $script:Rest }
+
+    Push-Location $script:RepoRoot
+    try {
+        & claude @claudeArgs
+    } finally {
+        Pop-Location
+    }
+    exit $LASTEXITCODE
+}
 
 # --- subcommand: build / clean / format ---
 
@@ -677,4 +735,5 @@ switch ($Command) {
     'prepare-restart' { Invoke-PrepareRestart | Out-Null }
     'restart-loop'    { Invoke-RestartLoop }
     'ckpt'            { Invoke-Ckpt }
+    'claude'          { Invoke-Claude }
 }
