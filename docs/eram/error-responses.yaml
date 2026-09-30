@@ -64,6 +64,8 @@ errors:
   - { id: MsgInvalidTextFormat, text: TEXT FORMAT, source: coined }
   - { id: MsgNoRemarks, text: NO MESSAGE TEXT, source: coined }
   - { id: MsgFieldOmission, text: FIELD OMISSION, source: coined }
+  - { id: MsgNoDataPresent, text: NO DATA PRESENT, source: coined }
+  - { id: MsgFieldMismatch, text: FIELD MISMATCH, source: coined }
   - { id: MsgInvalidAltitude, text: INVALID ALT, source: coined }
   - { id: MsgTIMFormat, text: TIME FORMAT, source: coined }
   - { id: MsgInvalidTime, text: INVALID TIME, source: coined }

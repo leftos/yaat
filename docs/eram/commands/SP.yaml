@@ -2,5 +2,110 @@ id: SP
 variants:
   - title: Stereo Flight Plan Message
     descriptor: STEREO FLIGHT PLAN
-    handler: not implemented
-    fields: []
+    format: "SP 02 03 05 07 09 10 (11) | SP 02 03 05 07 08 10 (11)"
+    multiple_flids: false
+    handler: SP.StereoFlightPlan
+    note: |
+      §C.2 lists no R-position source; YAAT accepts it from CRC, which stands in for the D-position and the AT Specialist.
+      An FP whose route is a stereo tag, a facility-adapted stored route (§C.2 p.565). Field 07 picks the altitude field
+      as in FP: P a requested altitude (09), D or E an assigned altitude (08). Each field is checked as FP checks it, the
+      first failure answering. No vNAS ARTCC configuration carries stereo routes, so an entry that passes every check
+      answers "{tag} NOT ADAPTED" whatever its field 02 names, and changes nothing. Yaat rulings: a missing field answers
+      MESSAGE TOO SHORT; anything after field 10 is field 11; as in AM, the first trackball pick is field 02 wherever it
+      sits in the entry, the typed fields following in order.
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 02 Aircraft Identification
+        rule: |
+          Must be in the format Laa(a)(a)(a)(a) or Ld or "M".
+        error: MsgFlidFormat
+      - field: 03 Aircraft Data
+        rule: |
+          Must be in the format ((d)(d)L/)La(a)(a)(/L) or ((d)d/)La(a)(a)(/L).
+        error: MsgTYPFormat
+      - field: 03a Aircraft Data (Special Aircraft Indicator)
+        rule: |
+          The Special Aircraft Indicator in element a in Field 03 (the L in the (d)(d)L), if present, must be "H".
+        error: MsgSAIFormat
+      - field: 05 Speed
+        rule: |
+          Must be in one of the following formats: a. Mach speed - Lddd; b. True air speed (knots) - (d)(d)dd;
+          c. Classified speed - "SC".
+        error: MsgSPDFormat
+      - field: 05 Speed
+        rule: |
+          When in mach speed format, L must be the letter "M", and ddd must be greater than 0 and must not exceed 500.
+        error: MsgSPDFormat
+      - field: 05 Speed
+        rule: |
+          When in true air speed format, the four digits must be greater than 0 and must not exceed 3700.
+        error: MsgSPDFormat
+      - field: 07 Coordination Time
+        rule: |
+          Must be in the format Ldddd or LXXdd, where L is an element representing type of time, which must be "D", "E",
+          or "P".
+        error: MsgTIMFormat
+      - field: 07 Coordination Time
+        rule: |
+          When in the format Ldddd, first two digits (hours) must not exceed 23 and last two digits (minutes) must not
+          exceed 59.
+        error: MsgTIMFormat
+      - field: 07 Departure Time
+        rule: |
+          When in the format LXXdd, the type of time element must be followed by the letters "XX" and the two digits
+          (minutes) must not exceed 99. This configuration signifies a relative time from the current time.
+        error: MsgTIMFormat
+      - field: 08 Assigned Altitude
+        rule: |
+          Must be in one of the following formats: (d)dd, OTP, OTP/(d)dd, VFR, VFR/(d)dd, ABV/(d)dd, (d)ddB(d)dd, or
+          (d)dd/Fix/(d)dd, where Fix (or Airport) must be in the format aa(a)(a)(a) or aa(a)(a)(a)ddd1ddd2 or
+          dddd(L1)/(d)dddd(L2).
+        error: MsgALTFormat
+      - field: 08 Assigned Altitude
+        rule: |
+          When the altitude in the format (d)dd/Fix/(d)dd contains a Fix (or Airport) in the Fix Name format
+          aa(a)(a)(a), if the Fix portion contains a 4 character fix name, it must include at least one letter.
+        error: MsgALTFormat
+      - field: 08 Assigned Altitude
+        rule: |
+          When the altitude in the format (d)dd/Fix/(d)dd contains a Fix in the Fix Radial Distance format
+          aa(a)(a)(a)ddd1ddd2, the radial ddd1 must be between 001-360, and the distance ddd2 must be between 001-999.
+        error: MsgALTFormat
+      - field: 08 Assigned Altitude
+        rule: |
+          When the altitude in the format (d)dd/Fix/(d)dd contains a Fix in the Lat/Long format dddd(L1)/(d)dddd(L2), the
+          latitude must not exceed 90, and longitude must not exceed 180. Minutes of latitude or longitude must not exceed
+          59. If the degrees of latitude are 90, the minutes must be 0. If the degrees of longitude are 180, the minutes
+          must be 0. If the optional L1 or L2 is used, both must be used.
+        error: MsgALTFormat
+      - field: 08 Assigned Altitude
+        rule: |
+          When blocked, second altitude must be greater than the first altitude.
+        error: MsgInvalidBlockedAltitude
+      - field: 09 Requested Altitude
+        rule: |
+          Must be in one of the following formats: (d)dd, OTP, OTP/(d)dd, VFR, VFR/(d)dd, ABV/(d)dd, or (d)ddB(d)dd.
+        error: MsgRALFormat
+      - field: 09 Requested Altitude
+        rule: |
+          When blocked, second altitude must be greater than the first altitude.
+        error: MsgInvalidBlockedAltitude
+      - field: 10 Route (Stereo Tag)
+        rule: |
+          Must be in the format La(a)(a)(a)(a)(a)(a).
+        error: MsgRTEFormat
+      - field: 10 Route (Stereo Tag)
+        rule: |
+          Yaat: a stereo tag must be adapted. No vNAS ARTCC configuration carries stereo routes, so every well-formed entry
+          answers "{tag} NOT ADAPTED".
+        error: YaatFixNotAdapted
+      - field: 11 Remarks
+        rule: |
+          Must be characters preceded by either a clear weather symbol for intercenter remarks or an overcast symbol for
+          intracenter remarks. When both intercenter and intracenter remarks are present, the intracenter remarks must be
+          entered first.
+        error: MsgRMKFormat

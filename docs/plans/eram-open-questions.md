@@ -31,7 +31,7 @@ The full design is [docs/eram/dm-design.md](../eram/dm-design.md).
 
 ## Commands YAAT is adding (`RK`, `UR`, `SM`, `CA`, `FP`, `RM`)
 
-The full design is [eram-c8-design.md](./eram-c8-design.md).
+Each command's behaviour, with its checks and the reasons for its `na` rows, is in its YAML under [docs/eram/commands/](../eram/commands/).
 
 14. **`RK` readout.** What does the Response Area show, word for word, after `RK`, `RK 55 56` or `RK INT`? *Our guess:* `CA FUNCTION ON`, then `CA DISPLAY OFF 55 56`; with named sectors one line each (`55 CA ON`); `MCI` in place of `CA` for `RK INT`.
 15. **`UR` readout.** Which altitudes does `UR` print when you give none, are temperatures shown, and what is the layout? *Our guess:* a header with the location, then one line per FD level (030 to 390) as `altitude direction/speed`, true direction to 10°, no temperature.

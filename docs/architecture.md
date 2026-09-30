@@ -56,6 +56,8 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 | Solo-training evaluation & scoring | [solo-training-evaluation.md](solo-training-evaluation.md) |
 | STARS/ERAM track sharing & consolidation | [track-sharing-and-consolidation.md](track-sharing-and-consolidation.md) |
 | CRC display state & broadcast | [crc-display-state.md](crc-display-state.md) |
+| Add or change an ERAM command (e.g. `FP`/`SP` filing) | [eram/README.md](eram/README.md) → the command's `eram/commands/*.yaml` → yaat-server `CrcClientState.Eram.cs` (`DispatchEramMessage`) → its `CrcClientState.Eram.*.cs` handler (filing: `Eram.Filing.cs`, reusing the AM amenders in `Eram.FlightData.cs`) → `Eram/EramVariants.cs`, `Eram/EramError.cs` → `RoomEngine.AmendFlightPlan` for a plan change → `EramConformance*Tests`, `EramFeedbackConventionTests` |
+| Change FOLLOW's refusals or sequencing | [plans/follow-lead-ahead-study.md](plans/follow-lead-ahead-study.md), [approach-and-pattern-geometry.md](approach-and-pattern-geometry.md) → `CommandDispatcher` (`TryAirborneFollow` → `RouteFollow` → `TryRouteRunwaylessLead` / `TryFollowFromPatternLeg` → `InstallFollow`) → `AirborneFollowHelper` → each phase's `CanAcceptCommand` → `FollowRunwaylessLeadFromPatternTests` |
 | Client↔server SignalR contract | [training-hub-contract.md](training-hub-contract.md), [server-rooms-and-hub.md](server-rooms-and-hub.md) |
 | Client MainViewModel & orchestration | [client-mainviewmodel.md](client-mainviewmodel.md) |
 | Radar display & rendering | [radar-rendering.md](radar-rendering.md) |

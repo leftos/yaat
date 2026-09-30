@@ -2,5 +2,300 @@ id: FP
 variants:
   - title: Flight Plan Message
     descriptor: FLIGHT PLAN
-    handler: not implemented
-    fields: []
+    format: "FP 02 03 (04) 05 06 07 09 10 (11) (12 17)… | FP 02 03 (04) 05 06 07 08 10 (11) (12 17)…"
+    multiple_flids: false
+    handler: FP.FlightPlan
+    note: |
+      §C.2 lists no R-position source; YAAT accepts it from CRC, which stands in for the D-position and the AT Specialist.
+      Files a flight plan (§C.2 p.538) on an aircraft in the room that has none, as one recorded amendment. The first
+      form is a proposed plan, the second an active one: field 07 starting with P makes the next field a requested
+      altitude (09), which also becomes the filed altitude, and D or E makes it an assigned altitude (08). Every field is
+      checked in order and the first failure answers. Field 06 (coordination fix) and field 07 (coordination time) are
+      checked, then dropped: YAAT keeps neither on a plan. Without field 04 a discrete code is drawn, attributed to the
+      entering sector. There is no ownership gate, since no plan exists yet. Proposed and active entries file alike: a new
+      plan starts proposed, and DM activates it. At most 32 12/17 pairs; YAAT's three pair fields cannot repeat, so a
+      longer entry is always refused earlier. Yaat rulings: a missing field answers MESSAGE TOO SHORT; a token of four
+      digits right after field 03 is field 04; field 10 is one token of "."-separated route elements, as AM RTE takes it,
+      whose first element is the departure and last the destination; field 11 starts at a token beginning with a remarks
+      symbol; as in AM, the first trackball pick is field 02 wherever it sits in the entry, the typed fields following in
+      order; field 03's number of aircraft and heavy indicator are stored as NUM and SAI would store them, a NUM or SAI
+      pair overriding them.
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 02 Aircraft Identification
+        rule: |
+          Must be in the format Laa(a)(a)(a)(a) or Ld or "M".
+        error: MsgFlidFormat
+      - field: 02 Aircraft Identification
+        rule: |
+          Yaat: must name an aircraft in the room. "M" (aircraft identification missing, §C.1 p.402) names none, since
+          YAAT holds a flight plan only on an aircraft.
+        error: MsgFLIDNotStored
+      - field: 02 Aircraft Identification
+        rule: |
+          Yaat: must not name more than one aircraft, and the aircraft must not already have a flight plan (AM amends
+          one).
+        error: MsgFLIDDuplication
+      - field: 03 Aircraft Data
+        rule: |
+          Must be in the format ((d)(d)L/)La(a)(a)(/L) or ((d)d/)La(a)(a)(/L).
+        error: MsgTYPFormat
+      - field: 03a Aircraft Data (Special Aircraft Indicator)
+        rule: |
+          The Special Aircraft Indicator in element a in Field 03 (the L in the (d)(d)L), if present, must be "H".
+        error: MsgSAIFormat
+      - field: 04 Beacon Code
+        rule: |
+          Must be in the format dddd, where all digits must be octal.
+        error: MsgBeaconCodeFormat
+      - field: 05 Speed
+        rule: |
+          Must be in one of the following formats: a. Mach speed - Lddd; b. True air speed (knots) - (d)(d)dd;
+          c. Classified speed - "SC".
+        error: MsgSPDFormat
+      - field: 05 Speed
+        rule: |
+          When in mach speed format, L must be the letter "M", and ddd must be greater than 0 and must not exceed 500.
+        error: MsgSPDFormat
+      - field: 05 Speed
+        rule: |
+          When in true air speed format, the four digits must be greater than 0 and must not exceed 3700.
+        error: MsgSPDFormat
+      - field: 06 Coordination Fix
+        rule: |
+          Must be in one of the following formats: a. Fix or Airport Name - aa(a)(a)(a); b. Fix (or Airport) Radial
+          Distance - aa(a)(a)(a)ddd1ddd2; c. Lat/Long - dddd(L1)/(d)dddd(L2). Yaat: a fix or airport must be in the
+          navigation data.
+        error: MsgFIXFormat
+      - field: 06 Coordination Fix
+        rule: |
+          When a Fix Radial Distance, the radial ddd1 must be between 001-360, and the distance ddd2 must be between
+          001-999.
+        error: MsgFIXFormat
+      - field: 06 Coordination Fix
+        rule: |
+          When a Lat/Long, the latitude must not exceed 90, and longitude must not exceed 180. Minutes of latitude or
+          longitude must not exceed 59. L1 may be N or S. L2 may be E or W. If the degrees of latitude are 90, the minutes
+          must be 0. If the degrees of longitude are 180, the minutes must be 0. N latitude and W longitude, when omitted,
+          are implied. If the optional L1 or L2 is used, both must be used.
+        error: MsgFIXFormat
+      - field: 07 Coordination Time
+        rule: |
+          Must be in the format Ldddd or LXXdd, where L is an element representing type of time, which must be "D", "E",
+          or "P".
+        error: MsgTIMFormat
+      - field: 07 Coordination Time
+        rule: |
+          When in the format Ldddd, first two digits (hours) must not exceed 23 and last two digits (minutes) must not
+          exceed 59.
+        error: MsgTIMFormat
+      - field: 07 Departure Time
+        rule: |
+          When in the format LXXdd, the type of time element must be followed by the letters "XX" and the two digits
+          (minutes) must not exceed 99. This configuration signifies a relative time from the current time.
+        error: MsgTIMFormat
+      - field: 08 Assigned Altitude
+        rule: |
+          Must be in one of the following formats: (d)dd, OTP, OTP/(d)dd, VFR, VFR/(d)dd, ABV/(d)dd, (d)ddB(d)dd, or
+          (d)dd/Fix/(d)dd, where Fix or Airport must be in the format aa(a)(a)(a) or aa(a)(a)(a)ddd1ddd2 or
+          dddd(L1)/(d)dddd(L2).
+        error: MsgALTFormat
+      - field: 08 Assigned Altitude
+        rule: |
+          When the altitude in the format (d)dd/Fix/(d)dd contains a Fix (or Airport) in the Fix Name format
+          aa(a)(a)(a), if the Fix portion contains a 4 character fix name, it must include at least one letter.
+        error: MsgALTFormat
+      - field: 08 Assigned Altitude
+        rule: |
+          When the altitude in the format (d)dd/Fix/(d)dd contains a Fix in the Fix Radial Distance format
+          aa(a)(a)(a)ddd1ddd2, the radial ddd1 must be between 001-360, and the distance ddd2 must be between 001-999.
+        error: MsgALTFormat
+      - field: 08 Assigned Altitude
+        rule: |
+          When the altitude in the format (d)dd/Fix/(d)dd contains a Fix in the Lat/Long format dddd(L1)/(d)dddd(L2), the
+          latitude and longitude must be within the bounds field 06 gives.
+        error: MsgALTFormat
+      - field: 08 Assigned Altitude
+        rule: |
+          When blocked, second altitude must be greater than the first altitude.
+        error: MsgInvalidBlockedAltitude
+      - field: 09 Requested Altitude
+        rule: |
+          Must be in one of the following formats: (d)dd, OTP, OTP/(d)dd, VFR, VFR/(d)dd, ABV/(d)dd, or (d)ddB(d)dd.
+        error: MsgRALFormat
+      - field: 09 Requested Altitude
+        rule: |
+          When blocked, second altitude must be greater than the first altitude.
+        error: MsgInvalidBlockedAltitude
+      - field: 10 Route
+        rule: |
+          Must consist of at least 2 characters.
+        error: MsgRTEFormat
+      - field: 10 Route (Stereo Tag)
+        rule: |
+          When Field 10 contains a single route element, it is processed as a stereo tag, and must be in the format
+          La(a)(a)(a)(a)(a)(a).
+        error: MsgRTEFormat
+      - field: 10 Route (Stereo Tag)
+        rule: |
+          Yaat: a stereo tag must be adapted. No vNAS ARTCC configuration carries stereo routes, so every well-formed tag
+          answers "{tag} NOT ADAPTED".
+        error: YaatFixNotAdapted
+      - field: 11 Remarks
+        rule: |
+          Must be characters preceded by either a clear weather symbol for intercenter remarks or an overcast symbol for
+          intracenter remarks. When both are present, the intracenter remarks must be entered first. If any optional
+          fields (12 17) follow Field 11, Field 11 must end with an asterisk character (*) followed by a space character.
+          Before the remarks are stored, any clear weather symbol, overcast symbol, or trailing asterisk delimiter are
+          removed.
+        error: MsgRMKFormat
+      - field: 12 Field Reference
+        rule: |
+          Must be a Field Reference Number (d)d, a Field Abbreviation LLL, or an ICAO Field 918 Indicator L(L)(L)(L)/
+          valid for Field 12 in FP per the Flight Data Fields Table. §C.9 (p.846) keeps the references to fields 02
+          through 11 (AID through RMK) for AM. Yaat: FP takes NUM (21), SAI (22) and EQP (24), the AM fields YAAT models
+          from 12 up; any other reference answers this error, as AM answers a reference to a field it does not model.
+        error: MsgInvalidReference
+      - field: 12 Field Reference
+        rule: |
+          Must not be duplicated.
+        error: MsgCofieDuplicateFieldReference
+      - field: 12 Field Reference
+        rule: |
+          When a Field 12 containing EDT is present, the FP command must have been entered at an AT Specialist position.
+        error: MsgIllegalSource
+        na: YAAT does not model EDT in FP; a reference to it answers INVALID FIELD REF, as AM handles a reference to it.
+      - field: 12 Field Reference + 17 ICAO Field Data
+        rule: |
+          When a Field 12 containing RACE/ is present, or when a Field 12 containing OTH or 30 is present and the
+          corresponding Field 17 includes RACE/, the FP command must have been entered at an AT Specialist position.
+        error: MsgIllegalSource
+        na: YAAT does not model RACE/ or OTH; a reference to either answers INVALID FIELD REF, as AM handles a reference to it.
+      - field: 12 Field Reference + 17 ICAO Field Data
+        rule: |
+          Every Field 12 must be followed by a Field 17 (§C.8 p.680).
+        error: MsgNoDataPresent
+      - field: 12 Field Reference + 17 ICAO Field Data
+        rule: |
+          Yaat: a Field 17 must not be "-". In AM it deletes the field; a new plan has nothing to delete.
+        error: MsgIllegalFieldDeletion
+      - field: 12 Field Reference + 17 ICAO Field Data
+        rule: |
+          When Field 12 contains OTH or 30, or a valid reference to a Field 918 Indicator, and Field 17 contains a minus
+          sign "-" with additional text, the Field 918 Indicator must be adapted as eligible for multiple occurrences
+          <adp_ICAO918MultipleInstancesEligibilityList>.
+        error: MsgMinusSignNotValid
+        na: YAAT does not model OTH or the Field 918 Indicators; a reference to them answers INVALID FIELD REF, as AM handles a reference to it.
+      - field: 17 Field Data
+        rule: |
+          When corresponding Field 12 is EDT, must be in the format dddd, a valid HHMM.
+        error: MsgTIMFormat
+        na: YAAT does not model EDT in FP; a reference to it answers INVALID FIELD REF, as AM handles a reference to it.
+      - field: 17 ICAO Field Data
+        rule: |
+          When corresponding Field 12 is FLR or 26, must be "I", "V", "Y", or "Z".
+        error: MsgFLRFormat
+        na: YAAT does not model FLR; a reference to it answers INVALID FIELD REF, as AM handles a reference to it.
+      - field: 17 ICAO Field Data
+        rule: |
+          When corresponding Field 12 is FLT or 28, must be "S", "N", "G", "M", or "X".
+        error: MsgFLTFormat
+        na: YAAT does not model FLT; a reference to it answers INVALID FIELD REF, as AM handles a reference to it.
+      - field: 17 ICAO Field Data
+        rule: |
+          When corresponding Field 12 is NUM or 21, must be in the format d(d).
+        error: MsgNumFormat
+      - field: 17 ICAO Field Data
+        rule: |
+          When corresponding Field 12 is NUM or 21, the value in Field 17 must match the number of aircraft in Field 03a
+          (its optional first two digits; 1 when they are absent) (§C.8 p.682).
+        error: MsgFieldMismatch
+      - field: 17 ICAO Field Data
+        rule: |
+          When corresponding Field 12 is SAI or 22, must be "H" (as AM).
+        error: MsgSAIFormat
+      - field: 17 ICAO Field Data
+        rule: |
+          When corresponding Field 12 is ACT or 23, must be in the format La(a)(a).
+        error: MsgACTFormat
+        na: YAAT does not model ACT; a reference to it answers INVALID FIELD REF, as AM handles a reference to it.
+      - field: 17 ICAO Field Data
+        rule: |
+          When corresponding Field 12 is ACT or 23, the value in Field 17 must match the aircraft type in Field 03c.
+        error: MsgFieldMismatch
+        na: YAAT does not model ACT; a reference to it answers INVALID FIELD REF, as AM handles a reference to it.
+      - field: 17 ICAO Field Data
+        rule: |
+          When corresponding Field 12 is WAK or 27, must be "H", "L", or "M".
+        error: MsgWAKFormat
+        na: YAAT does not model WAK; a reference to it answers INVALID FIELD REF, as AM handles a reference to it.
+      - field: 17 ICAO Field Data
+        rule: |
+          When corresponding Field 12 is EQP or 24: if the ICAO data format is Present, 1-25 letters; if Indeterminate or
+          New, 1-64 alphanumeric characters. Further EQP validation is by AERO (B-level).
+        error: MsgEQPFormat
+      - field: 17 ICAO Field Data
+        rule: |
+          When corresponding Field 12 is SRV or 25: if the ICAO data format is Present, L(L); if Indeterminate or New, one
+          or more alphanumeric descriptors, up to 20 characters. Further SRV validation is by AERO (B-level).
+        error: MsgSRVFormat
+        na: YAAT does not model SRV; a reference to it answers INVALID FIELD REF, as AM handles a reference to it.
+      - field: 17 ICAO Field Data
+        rule: |
+          When corresponding Field 12 is ALA or 29, must be 2 - 25 characters.
+        error: MsgALAFormat
+        na: YAAT does not model ALA; a reference to it answers INVALID FIELD REF, as AM handles a reference to it.
+      - field: 17 ICAO Field Data
+        rule: |
+          When corresponding Field 12 is OTH or 30, must be enclosed with double plus signs when embedded blanks are
+          present. Each valid Field 918 Indicator entered in Field 17 must be preceded by a space character except the
+          first valid indicator.
+        error: MsgCofieFormat
+        na: YAAT does not model OTH; a reference to it answers INVALID FIELD REF, as AM handles a reference to it.
+      - field: 17 ICAO Field Data
+        rule: |
+          When corresponding Field 12 is OTH or 30, must contain one or more of the Field 918 Indicators permissible in the
+          FP command, one of them at the beginning of the field immediately followed by its data, and must not contain
+          RMK/ or IRMK/. Invalid indicators do not reject the command.
+        error: MsgOTHFormat
+        na: YAAT does not model OTH; a reference to it answers INVALID FIELD REF, as AM handles a reference to it.
+      - field: 17 ICAO Field Data
+        rule: |
+          When corresponding Field 12 is OTH or 30, it must not contain the same Field 918 Indicator more than once, unless
+          the indicator is adapted to permit multiple instances <adp_ICAO918MultipleInstancesEligibilityList> or is
+          unrecognized.
+        error: MsgOTHDuplicateIndicator
+        na: YAAT does not model OTH; a reference to it answers INVALID FIELD REF, as AM handles a reference to it.
+      - field: 17 ICAO Field Data
+        rule: |
+          For multiple instances of an indicator adapted for them <adp_ICAO918MultipleInstancesEligibilityList>, "-"
+          separates instances: a. with Field 12 OTH or 30, Field 17 starts with the indicator name then its data; b. with
+          Field 12 a Field 918 Indicator, Field 17 starts with the first instance's data. The data cannot start with "-".
+          Embedded blanks are permitted only if the whole Field 17 is enclosed in double plus signs.
+        error: MsgOTHIndicatorDataFormat
+        na: YAAT does not model OTH or the Field 918 Indicators; a reference to them answers INVALID FIELD REF, as AM handles a reference to it.
+      - field: 17 ICAO Field Data
+        rule: |
+          When corresponding Field 12 is OTH or 30, it must contain at least one character of data for each Field 918
+          Indicator (SRS error MsgOTHNoDataPresent, OTH NO DATA).
+        na: >-
+          YAAT does not model OTH; a reference to it answers INVALID FIELD REF, as AM handles a reference to it. Nothing
+          can raise MsgOTHNoDataPresent, so it is not in error-responses.yaml.
+      - field: 17 ICAO Field Data containing RACE/ data
+        rule: |
+          The RACE/ data holds, per fix, {Fix}/{Speed}{Requested Altitude}: the fix a fix, FRD or lat/long (NAS, ICAO or
+          abbreviated format) followed by "/", the speed Mddd, Ndddd or Kdddd, and the altitude Fddd, Addd, Sdddd or
+          Mdddd; several fixes are separated by blanks and enclosed in double plus signs.
+        error: MsgOTHIndicatorDataFormat
+        na: YAAT does not model RACE/ or OTH; a reference to either answers INVALID FIELD REF, as AM handles a reference to it.
+      - field: 17 ICAO Field Data containing STS/ data
+        rule: |
+          If the ICAO format is Present or Indeterminate, STS/ data is free text; if New, each STS/ instance must contain
+          one or more of "ALTRV", "ATFMX", "FFR", "FLTCK", "HAZMAT", "HEAD", "HOSP", "HUM", "MARSA", "MEDEVAC",
+          "NONRVSM", "SAR", or "STATE", separated by spaces or "-".
+        error: MsgOTHIndicatorDataFormat
+        na: YAAT does not model STS/ or OTH; a reference to either answers INVALID FIELD REF, as AM handles a reference to it.
