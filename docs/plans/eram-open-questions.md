@@ -39,3 +39,7 @@ Each command's behaviour, with its checks and the reasons for its `na` rows, is 
 17. **`CA 55 OFF`.** Does it only stop sector 55's own display showing conflict alerts, or also stop alerts on tracks sector 55 owns from showing elsewhere? *Our guess:* only sector 55's own display.
 18. **`FP` for an existing flight.** What does ERAM answer to an FP for an aircraft ID that already has an active plan in your centre? *Our guess:* refused as a duplicate; you amend with AM instead.
 19. **`RM` feedback.** After `RM <ACID>` on a route that converts cleanly, do you see anything beyond ACCEPT? *Our guess:* ACCEPT only.
+
+## Flight plan readout (`QF`)
+
+20. **The one-line readout.** What does the `QF <ACID>` line show, column by column, and in what order? *Our guess:* CID, aircraft ID with the controlling sector in parentheses, type and equipment, assigned beacon code, filed speed, the coordination fix and time after a DM, the assigned altitude as the ALT field shows it (`350`, `200B250`, `VFR/065`), then the route followed by the remarks, with no Zulu time on the line.

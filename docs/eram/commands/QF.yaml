@@ -5,7 +5,11 @@ variants:
     format: QF (16) 02 | QF (12) ... (12) 02 | QF (42) 02 | QF 42 02
     multiple_flids: true
     handler: QF.Readout
-    note: YAAT reads out one flight per entry, not the several multiple_flids allows (yaat ruling).
+    note: |
+      YAAT reads out one flight per entry, not the several multiple_flids allows (yaat ruling). The full readout is one
+      line in the Flight Plan Readout entry's column order (App. D.1-D.2): CID, aircraft ID with the controlling sector in
+      parentheses, aircraft data, assigned beacon code, filed airspeed, the coordination fix and time a DM entered, the
+      assigned altitude as the ALT field reads it, then the route, yaat's RAL and HOLD, and the remarks.
     fields:
       - field: Position
         rule: |
@@ -46,6 +50,9 @@ variants:
         rule: |
           Must be "1", "2", "A", "I", "C", "F", "D", or "*".
         error: MsgInvalidSelection
+        na: |
+          QF's formats take Field 42 only as the lone field before Field 02, where the Field 42 + 16 FORMAT check above
+          already answers every value that is not a selection or "R"; two single-character fields are INVALID COMBINATION.
       - field: 02 Flight Identification + 42 Flight Plan Readout Data Selection
         rule: |
           If Field 42 is "*", Field 02 must be in the Aircraft ID format, Laa(a)(a)(a)(a) or Ld.
@@ -54,6 +61,9 @@ variants:
         rule: |
           Must be "R".
         error: MsgIncorrectRouting
+        na: |
+          QF's formats take Field 16 only as the lone field before Field 02, where the Field 42 + 16 FORMAT check above
+          already answers every value that is not a selection or "R"; two single-character fields are INVALID COMBINATION.
       - field: 16 Output Routing + 42 Flight Plan Readout Data Selection + 12 Field Reference
         rule: |
           If Field 16 is present, then neither Field 42 nor Field 12 can be present in the same command.

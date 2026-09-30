@@ -2047,7 +2047,8 @@ public static class CommandDescriber
             DirectFixDeparture { Direction: TurnDirection.Right } dfd => $", turn right direct {dfd.FixName}",
             DirectFixDeparture dfd => $", direct {dfd.FixName}",
             ClosedTrafficDeparture ct when ct.RunwayId is not null =>
-                $", make {(ct.Direction == PatternDirection.Left ? "left" : "right")} traffic runway {RunwayIdentifier.ToDisplayDesignator(ct.RunwayId)}",
+                $", make {(ct.Direction == PatternDirection.Left ? "left" : "right")} traffic runway "
+                    + RunwayIdentifier.ToDisplayDesignator(ct.RunwayId),
             ClosedTrafficDeparture ct => $", make {(ct.Direction == PatternDirection.Left ? "left" : "right")} traffic",
             _ => "",
         };
@@ -2684,7 +2685,8 @@ public static class CommandDescriber
     internal static string FormatTrafficAdvisoryPhrase(TrafficAdvisoryDetails details)
     {
         string basePart =
-            $"Traffic, {details.Clock} o'clock, {FormatMiles(details.Miles)}, {DirectionWord(details.Direction)}, {FormatAircraftType(details.AircraftType)}";
+            $"Traffic, {details.Clock} o'clock, {FormatMiles(details.Miles)}, {DirectionWord(details.Direction)}, "
+            + FormatAircraftType(details.AircraftType);
         return details.Altitude is { } altitude ? $"{basePart}, {altitude:N0}, report it in sight." : $"{basePart}, report it in sight.";
     }
 
@@ -2692,7 +2694,8 @@ public static class CommandDescriber
         $"RTIS {details.Position} {details.Miles} {details.AircraftType}";
 
     internal static string FormatTrafficRelativePhrase(TrafficRelativeDetails details) =>
-        $"Traffic, off your {RelativePositionWord(details.Position)}, {FormatMiles(details.Miles)}, {FormatVfrType(details.AircraftType)}, report it in sight.";
+        $"Traffic, off your {RelativePositionWord(details.Position)}, {FormatMiles(details.Miles)}, "
+        + $"{FormatVfrType(details.AircraftType)}, report it in sight.";
 
     private static string FormatTrafficPatternCanonical(TrafficPatternDetails details)
     {
@@ -2714,7 +2717,8 @@ public static class CommandDescriber
             _ => "",
         };
         string runway = RunwayIdentifier.ToDisplayDesignator(details.RunwayId);
-        return $"Traffic, {details.Miles}-mile {side}{PatternLegWord(details.Leg)} for runway {runway}, {FormatVfrType(details.AircraftType)}, report it in sight.";
+        return $"Traffic, {details.Miles}-mile {side}{PatternLegWord(details.Leg)} for runway {runway}, "
+            + $"{FormatVfrType(details.AircraftType)}, report it in sight.";
     }
 
     internal static string FormatTrafficLandmarkPhrase(TrafficLandmarkDetails details)
@@ -2936,7 +2940,9 @@ public static class CommandDescriber
     /// <summary>
     /// The create-FP text carries its rules and its whole altitude so it round-trips through the parser: <c>VP</c> with
     /// an absolute altitude for a VFR plan, <c>FP</c> with the altitude as <see cref="FlightPlanAltitude.Format"/> writes it
-    /// otherwise (<c>170</c>, <c>OTP/170</c>, <c>A170</c>, <c>170/SJC/110</c>), and <c>000</c> for no altitude.
+    /// otherwise (<c>170</c>, <c>OTP/170</c>, <c>A170</c>, <c>170/SJC/110</c>), and <c>000</c> for no altitude. A single or
+    /// VFR-on-top altitude off the hundred is written in feet (<c>35050</c>, <c>OTP/35050</c>), which the parser reads as
+    /// feet since it is above 999.
     /// </summary>
     private static string FormatCreateFlightPlanCanonical(CreateFlightPlanCommand cmd)
     {
@@ -2944,8 +2950,18 @@ public static class CommandDescriber
         {
             return $"VP {cmd.AircraftType} {cmd.Altitude.CruiseFeet ?? 0} {cmd.Route}";
         }
-        string altitude = FlightPlanAltitude.Format(cmd.Altitude);
-        return $"FP {cmd.AircraftType} {(altitude.Length == 0 ? "000" : altitude)} {cmd.Route}";
+        return $"FP {cmd.AircraftType} {FormatCreateFlightPlanAltitude(cmd.Altitude)} {cmd.Route}";
+    }
+
+    private static string FormatCreateFlightPlanAltitude(PlannedAltitude altitude)
+    {
+        bool singleOrOnTop = altitude.IsSingle || altitude.IsVfrOnTop;
+        if (singleOrOnTop && !altitude.IsFixQualified && (altitude.CruiseFeet is { } feet and > 999) && ((feet % 100) != 0))
+        {
+            return altitude.IsVfrOnTop ? $"OTP/{feet}" : $"{feet}";
+        }
+        string text = FlightPlanAltitude.Format(altitude);
+        return text.Length == 0 ? "000" : text;
     }
 
     private static string DescribeCreateFlightPlanAltitude(PlannedAltitude altitude) =>
