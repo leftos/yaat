@@ -126,36 +126,59 @@ public partial class MainViewModel
         _pendingScenarioSource = json;
         _pendingApiScenarioId = apiId;
         ScenarioFilePath = displayName;
+        LoadOverlay.BeginLocal(displayName);
 
         try
         {
-            string scenarioJson = json;
-            List<string> difficulties = ScenarioDifficultyHelper.GetAvailableDifficulties(scenarioJson);
-
-            if (difficulties.Count >= 2)
+            (string scenarioJson, List<string> warnings, string scenarioId) = await Task.Run(() => SelectHardestDifficulty(json));
+            foreach (string w in warnings)
             {
-                string hardest = difficulties[^1];
-                _log.LogInformation("Auto-selecting difficulty: {Level}", hardest);
-                (string? filtered, List<string>? warnings) = ScenarioDifficultyHelper.FilterByDifficulty(scenarioJson, hardest);
-                foreach (string w in warnings)
-                {
-                    AddWarningEntry($"[WARN] {w}");
-                }
-
-                scenarioJson = filtered;
+                AddWarningEntry($"[WARN] {w}");
             }
 
             _pendingScenarioSource = null;
             _pendingApiScenarioId = null;
-            string scenarioId = ScenarioIdentity.ResolveFromJson(scenarioJson);
             await SendScenarioToServer(scenarioJson, apiId, 100, 100, _preferences.GetSoloGoAroundProbability(scenarioId));
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Auto-load scenario error");
+            LoadOverlay.ApplyRefusal();
             ReportScenarioActionFailure("Load", ex.Message);
         }
     }
+
+    /// <summary>
+    /// Filters the scenario to its hardest difficulty when it offers two or more, and resolves its identity. Pure, so it
+    /// runs off the UI thread.
+    /// </summary>
+    private (string Json, List<string> Warnings, string ScenarioId) SelectHardestDifficulty(string json)
+    {
+        List<string> difficulties = ScenarioDifficultyHelper.GetAvailableDifficulties(json);
+        if (difficulties.Count < 2)
+        {
+            return (json, [], ScenarioIdentity.ResolveFromJson(json));
+        }
+
+        string hardest = difficulties[^1];
+        _log.LogInformation("Auto-selecting difficulty: {Level}", hardest);
+        return FilterAndResolve(json, hardest);
+    }
+
+    /// <summary>Filters the scenario to one difficulty level (none: unfiltered) and resolves its identity, off the UI thread.</summary>
+    private static (string Json, List<string> Warnings, string ScenarioId) FilterAndResolve(string json, string? level)
+    {
+        if (level is null)
+        {
+            return (json, [], ScenarioIdentity.ResolveFromJson(json));
+        }
+
+        (string filtered, List<string> warnings) = ScenarioDifficultyHelper.FilterByDifficulty(json, level);
+        return (filtered, warnings, ScenarioIdentity.ResolveFromJson(filtered));
+    }
+
+    /// <summary>The overlay title at the click: the catalog name, or the local file's name.</summary>
+    private string ScenarioLoadTitle(bool fromCatalog) => fromCatalog ? ScenarioFilePath : Path.GetFileName(ScenarioFilePath);
 
     /// <summary>
     /// Loads a scenario from pre-fetched JSON (e.g. from the vNAS data API).
@@ -192,6 +215,7 @@ public partial class MainViewModel
 
     private async Task ExecuteLoadScenario()
     {
+        LoadOverlay.BeginLocal(ScenarioLoadTitle(fromCatalog: _pendingScenarioSource is not null));
         try
         {
             string json;
@@ -210,48 +234,53 @@ public partial class MainViewModel
                 json = await File.ReadAllTextAsync(ScenarioFilePath);
             }
 
-            string seedScenarioId = ScenarioIdentity.ResolveFromJson(json);
-            var setupPlan = ScenarioSetupPlan.Create(
-                json,
-                _preferences.SoloTrainingMode,
-                _preferences.SoloParkingInitialCallupRatePercent,
-                _preferences.SoloArrivalGeneratorRatePercent,
-                _preferences.GetSoloGoAroundProbability(seedScenarioId)
+            string seedScenarioId = await Task.Run(() => ScenarioIdentity.ResolveFromJson(json));
+            bool soloTrainingMode = _preferences.SoloTrainingMode;
+            int parkingRate = _preferences.SoloParkingInitialCallupRatePercent;
+            int arrivalRate = _preferences.SoloArrivalGeneratorRatePercent;
+            int goAroundProbability = _preferences.GetSoloGoAroundProbability(seedScenarioId);
+            ScenarioSetupPlan setupPlan = await Task.Run(() =>
+                ScenarioSetupPlan.Create(json, soloTrainingMode, parkingRate, arrivalRate, goAroundProbability)
             );
 
             if (setupPlan.RequiresSetup)
             {
-                DifficultyOptions.Clear();
-                foreach (DifficultyOption option in setupPlan.DifficultyOptions)
-                {
-                    DifficultyOptions.Add(option);
-                }
-
-                OnPropertyChanged(nameof(ShowScenarioSetupDifficulty));
-                SelectedDifficultyIndex = setupPlan.SelectedDifficultyIndex;
-                ShowScenarioSetupPacingControls = setupPlan.ShowPacingControls;
-                ShowScenarioSetupParkingInitialCallupRate = setupPlan.ShowParkingInitialCallupRate;
-                ShowScenarioSetupArrivalGeneratorRate = setupPlan.ShowArrivalGeneratorRate;
-                ShowScenarioSetupGoAroundProbability = setupPlan.ShowGoAroundProbability;
-                ScenarioSetupParkingInitialCallupRatePercent = setupPlan.ParkingInitialCallupRatePercent;
-                ScenarioSetupParkingInitialCallupIntervalSeconds = ParkingInitialCallupRateToIntervalSeconds(
-                    setupPlan.ParkingInitialCallupRatePercent
-                );
-                ScenarioSetupArrivalGeneratorRatePercent = setupPlan.ArrivalGeneratorRatePercent;
-                ScenarioSetupSoloGoAroundProbabilityPercent = setupPlan.GoAroundProbabilityPercent;
-                _pendingScenarioJson = json;
-                _pendingDifficultyApiId = apiId;
-                ShowScenarioSetup = true;
+                LoadOverlay.ApplyRefusal();
+                ShowScenarioSetupDialog(setupPlan, json, apiId);
                 return;
             }
 
-            await SendScenarioToServer(json, apiId, 100, 100, _preferences.GetSoloGoAroundProbability(seedScenarioId));
+            await SendScenarioToServer(json, apiId, 100, 100, goAroundProbability);
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Scenario load error");
+            LoadOverlay.ApplyRefusal();
             ReportScenarioActionFailure("Load", ex.Message);
         }
+    }
+
+    private void ShowScenarioSetupDialog(ScenarioSetupPlan setupPlan, string json, string? apiId)
+    {
+        DifficultyOptions.Clear();
+        foreach (DifficultyOption option in setupPlan.DifficultyOptions)
+        {
+            DifficultyOptions.Add(option);
+        }
+
+        OnPropertyChanged(nameof(ShowScenarioSetupDifficulty));
+        SelectedDifficultyIndex = setupPlan.SelectedDifficultyIndex;
+        ShowScenarioSetupPacingControls = setupPlan.ShowPacingControls;
+        ShowScenarioSetupParkingInitialCallupRate = setupPlan.ShowParkingInitialCallupRate;
+        ShowScenarioSetupArrivalGeneratorRate = setupPlan.ShowArrivalGeneratorRate;
+        ShowScenarioSetupGoAroundProbability = setupPlan.ShowGoAroundProbability;
+        ScenarioSetupParkingInitialCallupRatePercent = setupPlan.ParkingInitialCallupRatePercent;
+        ScenarioSetupParkingInitialCallupIntervalSeconds = ParkingInitialCallupRateToIntervalSeconds(setupPlan.ParkingInitialCallupRatePercent);
+        ScenarioSetupArrivalGeneratorRatePercent = setupPlan.ArrivalGeneratorRatePercent;
+        ScenarioSetupSoloGoAroundProbabilityPercent = setupPlan.GoAroundProbabilityPercent;
+        _pendingScenarioJson = json;
+        _pendingDifficultyApiId = apiId;
+        ShowScenarioSetup = true;
     }
 
     [RelayCommand]
@@ -268,7 +297,7 @@ public partial class MainViewModel
             return;
         }
 
-        string scenarioJson = json;
+        string? level = null;
         if (DifficultyOptions.Count > 0)
         {
             if (SelectedDifficultyIndex < 0 || SelectedDifficultyIndex >= DifficultyOptions.Count)
@@ -276,43 +305,75 @@ public partial class MainViewModel
                 return;
             }
 
-            DifficultyOption selected = DifficultyOptions[SelectedDifficultyIndex];
-            (string? filtered, List<string>? warnings) = ScenarioDifficultyHelper.FilterByDifficulty(json, selected.Level);
-            scenarioJson = filtered;
-            foreach (string w in warnings)
-            {
-                AddWarningEntry($"[WARN] {w}");
-            }
+            level = DifficultyOptions[SelectedDifficultyIndex].Level;
         }
 
+        (bool SaveGoAround, (int ParkingRate, int ArrivalRate, int GoAroundProbability) Rates) setup = ResolveSetupRates();
+        DifficultyOptions.Clear();
+        OnPropertyChanged(nameof(ShowScenarioSetupDifficulty));
+        await SendConfirmedScenarioAsync(json, level, apiId, setup.SaveGoAround, setup.Rates);
+    }
+
+    /// <summary>
+    /// The rates the dialog's load sends — the chosen values, or the neutral default for a control the dialog did not
+    /// offer — and whether the go-around choice is stored for the scenario. Saves the pacing pair when the dialog
+    /// offered the pacing controls, since a rate the user did not see must not overwrite their stored preference.
+    /// </summary>
+    private (bool SaveGoAround, (int ParkingRate, int ArrivalRate, int GoAroundProbability) Rates) ResolveSetupRates()
+    {
         int parkingRate = ParkingInitialCallupIntervalSecondsToRate(ScenarioSetupParkingInitialCallupIntervalSeconds);
         int arrivalRate = Math.Clamp(ScenarioSetupArrivalGeneratorRatePercent, 0, 100);
         int goAroundProbability = Math.Clamp(ScenarioSetupSoloGoAroundProbabilityPercent, 0, 100);
-        int loadParkingRate = ShowScenarioSetupParkingInitialCallupRate ? parkingRate : 100;
-        int loadArrivalRate = ShowScenarioSetupArrivalGeneratorRate ? arrivalRate : 100;
-        int loadGoAroundProbability = ShowScenarioSetupGoAroundProbability ? goAroundProbability : 0;
         if (ShowScenarioSetupPacingControls)
         {
             _preferences.SetSoloPacingRates(
                 ShowScenarioSetupParkingInitialCallupRate ? parkingRate : _preferences.SoloParkingInitialCallupRatePercent,
                 ShowScenarioSetupArrivalGeneratorRate ? arrivalRate : _preferences.SoloArrivalGeneratorRatePercent
             );
-            if (ShowScenarioSetupGoAroundProbability)
-            {
-                string scenarioId = ScenarioIdentity.ResolveFromJson(scenarioJson);
-                _preferences.SetSoloGoAroundProbabilityForScenario(scenarioId, goAroundProbability);
-            }
         }
-        DifficultyOptions.Clear();
-        OnPropertyChanged(nameof(ShowScenarioSetupDifficulty));
 
+        return (
+            ShowScenarioSetupPacingControls && ShowScenarioSetupGoAroundProbability,
+            (
+                ShowScenarioSetupParkingInitialCallupRate ? parkingRate : 100,
+                ShowScenarioSetupArrivalGeneratorRate ? arrivalRate : 100,
+                ShowScenarioSetupGoAroundProbability ? goAroundProbability : 0
+            )
+        );
+    }
+
+    /// <summary>
+    /// The setup dialog's load: opens the overlay again, filters to the chosen difficulty off the UI thread, stores the
+    /// go-around probability for the scenario when the dialog offered it, and sends the scenario.
+    /// </summary>
+    private async Task SendConfirmedScenarioAsync(
+        string json,
+        string? level,
+        string? apiId,
+        bool saveGoAround,
+        (int ParkingRate, int ArrivalRate, int GoAroundProbability) rates
+    )
+    {
+        LoadOverlay.BeginLocal(ScenarioLoadTitle(fromCatalog: apiId is not null));
         try
         {
-            await SendScenarioToServer(scenarioJson, apiId, loadParkingRate, loadArrivalRate, loadGoAroundProbability);
+            (string scenarioJson, List<string> warnings, string scenarioId) = await Task.Run(() => FilterAndResolve(json, level));
+            foreach (string w in warnings)
+            {
+                AddWarningEntry($"[WARN] {w}");
+            }
+
+            if (saveGoAround)
+            {
+                _preferences.SetSoloGoAroundProbabilityForScenario(scenarioId, rates.GoAroundProbability);
+            }
+
+            await SendScenarioToServer(scenarioJson, apiId, rates.ParkingRate, rates.ArrivalRate, rates.GoAroundProbability);
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Scenario load error");
+            LoadOverlay.ApplyRefusal();
             ReportScenarioActionFailure("Load", ex.Message);
         }
     }
@@ -383,40 +444,123 @@ public partial class MainViewModel
             soloGoAroundProbabilityPercent
         );
 
-        if (result.Success)
+        if (!result.Success)
         {
-            ApplyScenarioResult(result);
-            string scenarioName = result.Name;
-            if (apiId is not null)
-            {
-                _preferences.AddRecentScenario("", scenarioName, apiId);
-            }
-            else if (File.Exists(ScenarioFilePath))
-            {
-                _preferences.AddRecentScenario(ScenarioFilePath, scenarioName);
-            }
-
-            _log.LogInformation(
-                "Scenario loaded: '{Name}' ({Id}), " + "{Count} aircraft, " + "{Delayed} delayed, " + "{All} total, " + "{Warnings} warnings",
-                result.Name,
-                result.ScenarioId,
-                result.AircraftCount,
-                result.DelayedCount,
-                result.AllAircraft.Count,
-                result.Warnings.Count
-            );
-
-            StatusText = $"Loaded '{result.Name}': " + $"{result.AllAircraft.Count} aircraft";
-            AddSystemEntry($"Scenario loaded: {result.Name}" + $" ({result.AllAircraft.Count} aircraft)");
+            ReportLoadFailure(result);
+            return;
         }
-        else
-        {
-            _log.LogWarning("Scenario load failed");
-            StatusText = "Scenario load failed";
-        }
+
+        LoadOverlay.ApplyResult(result);
+        ApplyScenarioResult(result);
+        RememberLoadedScenario(result, apiId);
+        StatusText = $"Loaded '{result.Name}': " + $"{result.AllAircraft.Count} aircraft";
+        AddSystemEntry($"Scenario loaded: {result.Name}" + $" ({result.AllAircraft.Count} aircraft)");
 
         // Warnings are already displayed and logged via PendingBroadcasts from the server.
     }
+
+    /// <summary>
+    /// A load the server did not complete. With a step table the overlay stays open on the failed step; a refusal before
+    /// the load started has none and closes it. Either way the server's reason reaches the terminal and the status bar.
+    /// </summary>
+    private void ReportLoadFailure(LoadScenarioResultDto result)
+    {
+        if (result.Steps.Count > 0)
+        {
+            LoadOverlay.ApplyResult(result);
+        }
+        else
+        {
+            LoadOverlay.ApplyRefusal();
+        }
+
+        string? reason = result.Warnings.FirstOrDefault();
+        _log.LogWarning("Scenario load failed: {Reason}", reason ?? "(no reason given)");
+        if (reason is null)
+        {
+            StatusText = "Scenario load failed";
+            return;
+        }
+
+        StatusText = reason;
+        AddSystemEntry(reason);
+    }
+
+    private void RememberLoadedScenario(LoadScenarioResultDto result, string? apiId)
+    {
+        string scenarioName = result.Name;
+        if (apiId is not null)
+        {
+            _preferences.AddRecentScenario("", scenarioName, apiId);
+        }
+        else if (File.Exists(ScenarioFilePath))
+        {
+            _preferences.AddRecentScenario(ScenarioFilePath, scenarioName);
+        }
+
+        _log.LogInformation(
+            "Scenario loaded: '{Name}' ({Id}), " + "{Count} aircraft, " + "{Delayed} delayed, " + "{All} total, " + "{Warnings} warnings",
+            result.Name,
+            result.ScenarioId,
+            result.AircraftCount,
+            result.DelayedCount,
+            result.AllAircraft.Count,
+            result.Warnings.Count
+        );
+    }
+
+    /// <summary>
+    /// A scenario load progress event for this client's load, raised on a SignalR thread: applied to the overlay on the UI
+    /// thread. It may arrive before or after the load's RPC returns.
+    /// </summary>
+    internal void OnScenarioLoadProgress(ScenarioLoadProgressDto progress) =>
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => LoadOverlay.ApplyProgress(progress));
+
+    /// <summary>
+    /// The room's load flag changed (<c>RoomLoadingChanged</c>, raised on a SignalR thread): a member's load started
+    /// (<paramref name="loadingBy"/>, their initials) or ended (null).
+    /// </summary>
+    internal void OnRoomLoadingChanged(string? loadingBy) => Avalonia.Threading.Dispatcher.UIThread.Post(() => SetRoomLoadingBy(loadingBy));
+
+    /// <summary>
+    /// Records who is loading a scenario in the room and, while someone is, says so in the status bar. The load
+    /// ending replaces that status line with a note of its own, unless something else has spoken since.
+    /// </summary>
+    private void SetRoomLoadingBy(string? loadingBy)
+    {
+        string? previous = RoomLoadingBy;
+        RoomLoadingBy = loadingBy;
+        if (loadingBy is not null)
+        {
+            StatusText = RoomLoadingStatusText(loadingBy);
+            return;
+        }
+
+        if ((previous is not null) && (StatusText == RoomLoadingStatusText(previous)))
+        {
+            StatusText = $"Load by {previous} ended";
+        }
+    }
+
+    partial void OnRoomLoadingByChanged(string? value) => NotifyRoomLoadingChanged();
+
+    /// <summary>Re-evaluates every command a running scenario load disables.</summary>
+    private void NotifyRoomLoadingChanged()
+    {
+        OnPropertyChanged(nameof(IsRoomLoading));
+        OnPropertyChanged(nameof(CanLoadScenario));
+        OnPropertyChanged(nameof(CanStartLiveSession));
+        LoadScenarioCommand.NotifyCanExecuteChanged();
+        UnloadScenarioCommand.NotifyCanExecuteChanged();
+        RestartScenarioCommand.NotifyCanExecuteChanged();
+        NotifyRewindCommandsCanExecuteChanged();
+    }
+
+    /// <summary>
+    /// The status line while a member's load runs. It never names the scenario: mid-load the room state still carries the
+    /// previous scenario's name.
+    /// </summary>
+    private static string RoomLoadingStatusText(string initials) => $"Loading a scenario (by {initials})…";
 
     [RelayCommand(CanExecute = nameof(CanUnloadScenario))]
     private async Task UnloadScenarioAsync()
@@ -448,7 +592,7 @@ public partial class MainViewModel
         }
     }
 
-    private bool CanUnloadScenario() => CanExecuteInRoom && HasScenario && !IsNonMentor;
+    private bool CanUnloadScenario() => CanExecuteInRoom && HasScenario && !IsNonMentor && !IsRoomLoading;
 
     /// <summary>
     /// Re-runs the loaded scenario from the top with freshly generated traffic. Open to every room
@@ -467,7 +611,7 @@ public partial class MainViewModel
         ShowRestartScenarioConfirmation = true;
     }
 
-    private bool CanRestartScenario() => CanExecuteInRoom && HasScenario;
+    private bool CanRestartScenario() => CanExecuteInRoom && HasScenario && !IsRoomLoading;
 
     [RelayCommand]
     private async Task ConfirmRestartScenarioAsync()
@@ -576,6 +720,7 @@ public partial class MainViewModel
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             _log.LogInformation("Scenario loaded by another client: '{Name}' ({Id})", dto.ScenarioName, dto.ScenarioId);
+            RoomLoadingBy = null;
             ResetPilotVoiceWarningSession();
 
             SetStudentPositionType(dto.StudentPositionType);

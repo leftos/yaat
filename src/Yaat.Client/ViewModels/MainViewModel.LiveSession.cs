@@ -155,12 +155,22 @@ public partial class MainViewModel
     /// </summary>
     public async Task StartLiveSessionAsync(LiveSessionChoice choice)
     {
+        LoadOverlay.BeginLocal("Live session");
         try
         {
             StatusText = $"Starting live session at {choice.PositionLabel} / {choice.AirportId}…";
             LoadScenarioResultDto result = await _connection.StartLiveSessionAsync(
                 new LiveSessionRequestDto(choice.PositionId, choice.AirportId, choice.CeilingFt, choice.StartUtc, choice.Filter)
             );
+            if (result.Success || (result.Steps.Count > 0))
+            {
+                LoadOverlay.ApplyResult(result);
+            }
+            else
+            {
+                LoadOverlay.ApplyRefusal();
+            }
+
             if (!result.Success)
             {
                 string reason = result.Warnings.FirstOrDefault() ?? "Live session refused";
@@ -184,6 +194,7 @@ public partial class MainViewModel
         catch (Exception ex)
         {
             _log.LogError(ex, "Start live session error");
+            LoadOverlay.ApplyRefusal();
             ReportScenarioActionFailure("Start live session", ex.Message);
         }
     }

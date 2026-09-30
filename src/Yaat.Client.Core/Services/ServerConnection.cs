@@ -101,6 +101,8 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     public event Action<string>? KickedFromRoom;
     public event Action<string>? RoomRetired;
     public event Action<int, int>? ExportRecordingProgress;
+    public event Action<ScenarioLoadProgressDto>? ScenarioLoadProgress;
+    public event Action<string?>? RoomLoadingChanged;
     public event Action<FlightStripsStateDto>? FlightStripsStateChanged;
     public event Action<List<StripItemDto>>? StripItemsChanged;
     public event Action<TdlsItemDto>? TdlsItemChanged;
@@ -258,6 +260,8 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         _connection.On<string>("KickedFromRoom", msg => KickedFromRoom?.Invoke(msg));
         _connection.On<string>("RoomRetired", msg => RoomRetired?.Invoke(msg));
         _connection.On<int, int>("ExportRecordingProgress", (current, total) => ExportRecordingProgress?.Invoke(current, total));
+        _connection.On<ScenarioLoadProgressDto>("ScenarioLoadProgress", dto => ScenarioLoadProgress?.Invoke(dto));
+        _connection.On<string?>("RoomLoadingChanged", loadingBy => RoomLoadingChanged?.Invoke(loadingBy));
         _connection.On<FlightStripsStateDto>("FlightStripsStateChanged", dto => FlightStripsStateChanged?.Invoke(dto));
         _connection.On<List<StripItemDto>>("StripItemsChanged", items => StripItemsChanged?.Invoke(items));
         _connection.On<TdlsItemDto>("TdlsItemChanged", dto => TdlsItemChanged?.Invoke(dto));
@@ -1360,7 +1364,28 @@ public record LoadScenarioResultDto(
     int LiveTrafficCeilingFt = 0,
     string LiveTrafficFilter = "",
     bool IsLiveSession = false
-);
+)
+{
+    /// <summary>
+    /// The load's final step table, the one its last <see cref="ScenarioLoadProgressDto"/> carried; empty for a refusal
+    /// before the load started.
+    /// </summary>
+    public List<LoadStepDto> Steps { get; init; } = [];
+}
+
+/// <summary>
+/// The <c>ScenarioLoadProgress</c> event, sent to the loader's client only: the whole step table of load
+/// <paramref name="LoadId"/> at each change, <paramref name="Sequence"/> increasing with every event so a stale one can be
+/// dropped. <paramref name="ScenarioName"/> is empty until the read step finishes; the last event has
+/// <paramref name="IsComplete"/> set and matches <see cref="LoadScenarioResultDto.Steps"/>.
+/// </summary>
+public record ScenarioLoadProgressDto(string LoadId, int Sequence, string ScenarioName, bool IsComplete, List<LoadStepDto> Steps);
+
+/// <summary>
+/// One step of a scenario load: its id, display label, state (<c>pending</c>, <c>running</c>, <c>done</c>, <c>warning</c>,
+/// <c>failed</c> or <c>notNeeded</c>), the detail line, and what it found missing or could not do.
+/// </summary>
+public record LoadStepDto(string Id, string Label, string State, string? Detail, List<string> Problems);
 
 /// <summary>
 /// Server-side scenario summary returned by GetScenarios. Mirrors the shape of the vNAS
@@ -1470,7 +1495,11 @@ public record RoomStateDto(
     string LiveTrafficFilter = "",
     LiveTrafficStatusDto? LiveTrafficStatus = null,
     bool IsLiveSession = false
-);
+)
+{
+    /// <summary>The initials of the member whose scenario load is running in the room; null when none is.</summary>
+    public string? LoadingBy { get; init; }
+}
 
 /// <summary>Live-traffic feed health for the room: feed configured / connected, last-message age, tracks in scope.</summary>
 public record LiveTrafficStatusDto(

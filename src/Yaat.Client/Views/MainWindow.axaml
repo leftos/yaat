@@ -1125,5 +1125,48 @@
         <ProgressBar IsIndeterminate="{Binding IsExportIndeterminate}" Value="{Binding ExportProgress}" Maximum="1" Width="200" />
       </StackPanel>
     </Border>
+
+    <!-- Scenario load overlay -->
+    <Border
+      IsVisible="{Binding LoadOverlay.IsOpen}"
+      Background="#CC000000"
+      HorizontalAlignment="Center"
+      VerticalAlignment="Center"
+      CornerRadius="8"
+      Padding="24"
+      MinWidth="420"
+      MaxWidth="640"
+    >
+      <StackPanel Spacing="12">
+        <TextBlock Text="{Binding LoadOverlay.Title}" FontSize="16" FontWeight="Bold" Foreground="White" TextWrapping="Wrap" />
+        <ItemsControl ItemsSource="{Binding LoadOverlay.Steps}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:LoadStepViewModel">
+              <Grid ColumnDefinitions="24,*" Margin="0,2">
+                <TextBlock Grid.Column="0" Text="{Binding Glyph}" Foreground="{Binding GlyphBrush}" FontWeight="Bold" />
+                <StackPanel Grid.Column="1" Spacing="2">
+                  <TextBlock Text="{Binding Label}" Foreground="{Binding TextBrush}" />
+                  <TextBlock
+                    Text="{Binding Detail}"
+                    IsVisible="{Binding HasDetail}"
+                    Foreground="{Binding TextBrush}"
+                    Opacity="0.8"
+                    TextWrapping="Wrap"
+                  />
+                  <ItemsControl ItemsSource="{Binding Problems}" TextElement.Foreground="{Binding GlyphBrush}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="x:String">
+                        <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Button Content="Close" Command="{Binding LoadOverlay.CloseCommand}" IsVisible="{Binding LoadOverlay.CanClose}" HorizontalAlignment="Right" />
+      </StackPanel>
+    </Border>
   </Panel>
 </Window>

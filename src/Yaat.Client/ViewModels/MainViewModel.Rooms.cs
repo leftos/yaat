@@ -381,7 +381,7 @@ public partial class MainViewModel
 
             ApplyRoomState(state);
             ShowRoomList = false;
-            StatusText = $"Joined room {roomId}";
+            SetStatusUnlessRoomLoading($"Joined room {roomId}");
         }
         catch (Exception ex)
         {
@@ -657,7 +657,7 @@ public partial class MainViewModel
                 bool wasRestart = IsServerRestarting;
                 ApplyRoomState(state);
                 IsServerRestarting = false;
-                StatusText = "Reconnected to room";
+                SetStatusUnlessRoomLoading("Reconnected to room");
                 AddSystemEntry($"Reconnected to {_connectedServerUrl}");
                 if (wasRestart)
                 {
@@ -775,7 +775,7 @@ public partial class MainViewModel
                 {
                     ApplyRoomState(state);
                     IsServerRestarting = false;
-                    StatusText = "Joined restored room";
+                    SetStatusUnlessRoomLoading("Joined restored room");
                     ShowRoomList = false;
                 }
             }
@@ -870,9 +870,21 @@ public partial class MainViewModel
         ApplyConflictAlerts(state.ConflictAlerts);
         ApplyAtpaResults(state.AtpaResults);
 
+        // A member's load may be running: the server refuses load, unload, restart and rewind until it finishes.
+        SetRoomLoadingBy(state.LoadingBy);
+
         _ = RefreshCrcLobbyAsync();
         _ = RefreshRpoLobbyAsync();
         _ = FetchAssignmentsAsync();
+    }
+
+    /// <summary>Sets a room status line, unless it would hide the status of another member's running load.</summary>
+    private void SetStatusUnlessRoomLoading(string text)
+    {
+        if (RoomLoadingBy is null)
+        {
+            StatusText = text;
+        }
     }
 
     internal void ClearRoomState()
@@ -885,6 +897,7 @@ public partial class MainViewModel
 
         ActiveRoomId = null;
         ActiveRoomName = null;
+        RoomLoadingBy = null;
         CrcLobbyClients.Clear();
         CrcRoomMembers.Clear();
         RpoLobbyClients.Clear();

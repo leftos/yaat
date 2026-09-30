@@ -85,6 +85,16 @@ Four other background-thread → UI-thread crossings exist outside the SignalR h
   `Dispatcher.UIThread.CheckAccess()` guard and `Dispatcher.UIThread.Invoke(...)` — `Invoke` (blocking, returns the
   value) rather than `Post` because the caller needs the result. No deadlock: the pipeline is fire-and-forget, so the
   UI thread is never blocked waiting on it.
+- **Scenario-load progress.** `_connection.ScenarioLoadProgress` → `OnScenarioLoadProgress` and
+  `_connection.RoomLoadingChanged` → `OnRoomLoadingChanged` (`MainViewModel.Scenario.cs`) both post. They are
+  subscribed once in the constructor, not around the invoke, because a progress event can arrive before or after
+  `LoadScenario` returns. The overlay state is `LoadOverlayViewModel` (`LoadOverlay`): it adopts the first event's
+  `LoadId`, drops a stale `Sequence`, applies the RPC result's `Steps` only when no complete event came first, and
+  ignores everything once a complete table is shown. `RoomLoadingBy` (from `RoomStateDto.LoadingBy` on join and
+  `RoomLoadingChanged` after) and the client's own in-flight overlay drive `IsRoomLoading`, which gates Load, Unload,
+  Restart and the rewind commands; `RewindToSeconds` checks it too, so a timeline scrub sends nothing mid-load. The
+  scenario parses before the send (`ScenarioSetupPlan.Create`, `FilterByDifficulty`, `ScenarioIdentity.ResolveFromJson`)
+  run under `Task.Run`; the view-model state they feed is applied after the await, on the UI thread.
 - **Export-recording progress.** `_connection.ExportRecordingProgress` → `OnExportRecordingProgress`
   (`MainViewModel.Timeline.cs:280`) posts. The download-update progress callback in `UpdateNowAsync`
   (`MainViewModel.cs:1286`) posts too.

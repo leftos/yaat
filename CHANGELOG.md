@@ -6,7 +6,7 @@
 
 - ERAM `FP` files a flight plan for an aircraft without one, drawing a beacon code if none is given; `SP` answers NOT ADAPTED.
 - The room terminal says who is loading a scenario, and warns when the student position or an arrival generator could not be set up.
-- ERAM `CA` turns conflict alert and MCI alerts on or off for the center or for chosen sectors, and `RK` reads the settings back.
+- Loading a scenario or starting a live session shows each step's progress, and keeps the panel open with the reason when something was missing.- ERAM `CA` turns conflict alert and MCI alerts on or off for the center or for chosen sectors, and `RK` reads the settings back.
 - ERAM `SM` sends a sector message that `SM` reads back and `SM DE` clears, and `SW` sends significant weather to the facility's sectors.
 - ERAM `WX` enters weather reports for up to 16 stations.
 - The instructor terminal shows every ERAM command a CRC controller enters, as it does STARS commands; readouts show the command only.
@@ -43,7 +43,7 @@
 - `FOLLOWF` keeps the aircraft's pattern leg, approach and landing clearance and gets the same refusals as `FOLLOW`; only the traffic-in-sight step is skipped.
 - Loading a scenario or a recording no longer pauses other rooms while it downloads ARTCC and airport data, and an unreadable one keeps the current scenario running.
 - A room restored after a server restart keeps the ARTCC data, neighbouring centers included, it was running with.
-- A second scenario or recording load in a room that is already loading one is refused, naming who started it, as are unload, restart and rewind until it finishes.
+- While a member loads a scenario, every client shows who is loading and disables load, unload, restart and rewind, which the server also refuses.
 - `CLANDF` issued past the threshold lands the aircraft and stops it on the runway instead of rolling off the far end.
 - An aircraft stopped on the runway with no exit ahead asks for a back-taxi and waits; after `CLANDF` it backtracks to an exit on its own.
 - At SFO, a 28R arrival no longer turns off onto a full T: two aircraft only when both are CWT G or smaller.
