@@ -10,23 +10,36 @@ namespace Yaat.Client.ViewModels;
 
 public partial class MainViewModel
 {
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanRewind))]
     private async Task RewindToStart() => await RewindToSeconds(0);
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanRewind))]
     private async Task RewindBack30() => await RewindToSeconds(Math.Max(0, ScenarioElapsedSeconds - 30));
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanRewind))]
     private async Task RewindBack15() => await RewindToSeconds(Math.Max(0, ScenarioElapsedSeconds - 15));
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanRewind))]
     private async Task SkipForward15() => await RewindToSeconds(Math.Min(PlaybackTapeEnd, ScenarioElapsedSeconds + 15));
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanRewind))]
     private async Task SkipForward30() => await RewindToSeconds(Math.Min(PlaybackTapeEnd, ScenarioElapsedSeconds + 30));
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanRewind))]
     private async Task JumpToEnd() => await RewindToSeconds(PlaybackTapeEnd);
+
+    /// <summary>Every timeline jump is a server <c>RewindTo</c>, which the server refuses while a scenario loads.</summary>
+    private bool CanRewind() => !IsRoomLoading;
+
+    private void NotifyRewindCommandsCanExecuteChanged()
+    {
+        RewindToStartCommand.NotifyCanExecuteChanged();
+        RewindBack30Command.NotifyCanExecuteChanged();
+        RewindBack15Command.NotifyCanExecuteChanged();
+        SkipForward15Command.NotifyCanExecuteChanged();
+        SkipForward30Command.NotifyCanExecuteChanged();
+        JumpToEndCommand.NotifyCanExecuteChanged();
+    }
 
     [RelayCommand]
     private async Task TogglePlayback()
@@ -84,6 +97,14 @@ public partial class MainViewModel
 
     public async Task RewindToSeconds(double targetSeconds)
     {
+        // Every timeline jump (buttons, scrub, markers, bookmarks) comes through here; the server refuses RewindTo mid-load.
+        if (IsRoomLoading)
+        {
+            _log.LogInformation("Rewind to {Seconds}s not sent: a scenario is loading in the room", targetSeconds);
+            StatusText = "Rewind unavailable while a scenario loads";
+            return;
+        }
+
         try
         {
             StatusText = $"Rewinding to {FormatTime(targetSeconds)}...";

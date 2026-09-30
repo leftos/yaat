@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using Xunit;
 using Yaat.Client.Services;
@@ -63,6 +64,49 @@ public class HubJsonContractTests
                 + "has no [JsonSerializable] registration in YaatHubJsonContext. It will throw JsonSerializerIsReflectionDisabled in "
                 + $"the WASM client. Add [JsonSerializable(typeof({FriendlyName(payloadType)}))] to YaatHubJsonContext."
         );
+    }
+
+    // The ScenarioLoadProgress event payload is a broadcast (.On<T>), not a method return type, so the theory above does not
+    // see it; these pin its registration and the server's wire shape.
+    [Fact]
+    public void ScenarioLoadProgressDto_ResolvesThroughYaatHubJsonContext() =>
+        Assert.NotNull(YaatHubJsonContext.Default.GetTypeInfo(typeof(ScenarioLoadProgressDto)));
+
+    [Fact]
+    public void LoadStepDto_ResolvesThroughYaatHubJsonContext() => Assert.NotNull(YaatHubJsonContext.Default.GetTypeInfo(typeof(LoadStepDto)));
+
+    [Fact]
+    public void ServerLoadShapes_DeserializeIntoClientRecords()
+    {
+        const string step =
+            """{"Id":"layouts","Label":"Airport layouts","State":"warning","Detail":"1 of 2 airports","Problems":["""
+            + """ "SQL: no ground map on vNAS. Aircraft at SQL cannot taxi or park."]}""";
+        string progressJson = $$"""{"LoadId":"0a1b","Sequence":3,"ScenarioName":"OAK Ground 7","IsComplete":true,"Steps":[{{step}}]}""";
+        string resultJson =
+            $$"""{"Success":false,"Name":"OAK Ground 7","ScenarioId":"s-7","Warnings":["The load failed: boom."],"AllAircraft":[],"""
+            + $$""" "Steps":[{{step}}]}""";
+        const string roomJson =
+            """{"RoomId":"room-1","CreatorInitials":"CX","CreatorArtccId":"ZOA","Members":[],"AllAircraft":[],"""
+            + """ "AircraftGenerators":[],"VfrArrivalGenerators":[],"OverflightGenerators":[],"""
+            + """ "Positions":[],"LoadingBy":"AB"}""";
+
+        ScenarioLoadProgressDto? progress = JsonSerializer.Deserialize(progressJson, YaatHubJsonContext.Default.ScenarioLoadProgressDto);
+        LoadScenarioResultDto? result = JsonSerializer.Deserialize(resultJson, YaatHubJsonContext.Default.LoadScenarioResultDto);
+        RoomStateDto? room = JsonSerializer.Deserialize(roomJson, YaatHubJsonContext.Default.RoomStateDto);
+
+        Assert.NotNull(progress);
+        Assert.Equal(("0a1b", 3, "OAK Ground 7", true), (progress.LoadId, progress.Sequence, progress.ScenarioName, progress.IsComplete));
+        LoadStepDto progressStep = Assert.Single(progress.Steps);
+        Assert.Equal(
+            ("layouts", "Airport layouts", "warning", "1 of 2 airports"),
+            (progressStep.Id, progressStep.Label, progressStep.State, progressStep.Detail)
+        );
+        Assert.Equal("SQL: no ground map on vNAS. Aircraft at SQL cannot taxi or park.", Assert.Single(progressStep.Problems));
+        Assert.NotNull(result);
+        Assert.False(result.Success);
+        Assert.Equal("warning", Assert.Single(result.Steps).State);
+        Assert.NotNull(room);
+        Assert.Equal("AB", room.LoadingBy);
     }
 
     // A return type belongs to the Core context when the payload's underlying

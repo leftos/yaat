@@ -428,6 +428,22 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isExportIndeterminate = true;
 
+    /// <summary>The scenario-load overlay: the step table of the load this client started.</summary>
+    public LoadOverlayViewModel LoadOverlay { get; } = new();
+
+    /// <summary>
+    /// The initials of the member whose scenario load is running in the room, from the joined room's state; null when
+    /// none is. Cleared by the room's next <c>ScenarioLoaded</c> or room state.
+    /// </summary>
+    [ObservableProperty]
+    private string? _roomLoadingBy;
+
+    /// <summary>
+    /// A scenario load is running in the room, another member's (<see cref="RoomLoadingBy"/>) or this client's own; the
+    /// server refuses load, unload, restart and rewind until it finishes, so their commands are disabled.
+    /// </summary>
+    public bool IsRoomLoading => (RoomLoadingBy is not null) || LoadOverlay.IsLoadInFlight;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TapeEndDisplay))]
     [NotifyPropertyChangedFor(nameof(TimelineMaximum))]
@@ -878,7 +894,7 @@ public partial class MainViewModel : ObservableObject
     /// directly by the Load Scenario menu items, which open a picker dialog rather than invoking the
     /// command, so they can't rely on <c>LoadScenarioCommand.CanExecute</c>.
     /// </summary>
-    public bool CanLoadScenario => CanExecuteInRoom && !IsNonMentor;
+    public bool CanLoadScenario => CanExecuteInRoom && !IsNonMentor && !IsRoomLoading;
 
     /// <summary>Visible state of the top-of-window restart banner.</summary>
     public enum RestartBanner
@@ -1701,6 +1717,15 @@ public partial class MainViewModel : ObservableObject
         _connection.LiveTrafficStatusChanged += OnServerLiveTrafficStatus;
         _connection.KickedFromRoom += OnKickedFromRoom;
         _connection.RoomRetired += OnRoomRetired;
+        _connection.ScenarioLoadProgress += OnScenarioLoadProgress;
+        _connection.RoomLoadingChanged += OnRoomLoadingChanged;
+        LoadOverlay.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(LoadOverlayViewModel.IsLoadInFlight))
+            {
+                NotifyRoomLoadingChanged();
+            }
+        };
 
         RefreshCommandScheme();
         _commandInput.Macros = _preferences.Macros;

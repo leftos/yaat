@@ -953,6 +953,10 @@ Use **View > Copy View Settings...** to open a comparison dialog that copies vie
 
 Select a scenario and click **Load** (or double-click). Aircraft spawn at their configured starting positions. The window title shows the room name and scenario name. To switch scenarios, load a new one — a confirmation dialog appears if one is already active.
 
+While a scenario loads, a progress panel over the main window lists each step — reading the scenario, the ARTCC configuration, the airport layouts, building the aircraft, setting up the room, re-applying the weather — with a tick when it finishes. It closes by itself when every step went well. When something was missing (an ARTCC configuration vNAS could not supply, an airport with no ground map, an aircraft that could not be placed) the step shows a warning with the reason and the panel stays open until you click **Close**; a step that stopped the load shows a cross. Starting a live session shows the same panel.
+
+While any member's load is running, every client in the room shows **Loading a scenario (by AB)…** in the status bar and disables Load, Unload, Restart and the timeline's rewind controls until it ends.
+
 When a scenario has multiple difficulty levels, YAAT shows a **Scenario Setup** dialog before loading. In solo training, the same dialog can also show workload pacing sliders for scenarios that have parking spawns or arrival generators. See [Solo Training](#solo-training).
 
 Both API and local scenarios appear in the **Scenario > Load Recent Scenario** menu for quick reloading; entries loaded from a local file are marked with a **(Local)** prefix to distinguish them from vNAS catalog scenarios.
