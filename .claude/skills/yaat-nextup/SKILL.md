@@ -83,7 +83,7 @@ Read by the user-level `ship`; each rule names the phase it adds to or overrides
   | | First | Then | Why |
   |---|---|---|---|
   | Landing | yaat | yaat-server | Default. A `Yaat.Sim` signature change yaat-server calls lands yaat-server first (the deadlock rule below): a fast-forward runs no hooks. |
-  | Push | yaat-server | yaat | yaat's CI dispatches `submodule-updated` only after its build and tests pass on a push (`.github/workflows/ci.yml`, "Trigger yaat-server CI"), and yaat-server's `update-submodule.yml` checks out yaat's `origin/main` and retries its push with a rebase, so the bump never names a missing commit. |
+  | Push | yaat | yaat-server | yaat-server's `ci.yml` builds against yaat's `main` (a PR: yaat's same-named branch, else `main`), not the `extern/yaat` pin, so yaat's commits must be on `origin/main` before the server push that uses them. The pin follows later: yaat's CI dispatches `submodule-updated` after its tests pass, and `update-submodule.yml` retries its push with a rebase over the server commit. |
 
 - Feature PR (Phase 0, Phase 2F): one per repo that carries the branch, `gh pr view feat/<name> --repo leftos/yaat --json number,state,baseRefName` and the same with `--repo leftos/yaat-server`. Phase 2F runs per repo in the landing order; the marker line closes once, on yaat's `main`, after both PRs merge.
 - Additive conflict files (Phase 2, Phase 2F): `CHANGELOG.md`, `docs/plans/*.md`, `docs/architecture.md`.
