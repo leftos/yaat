@@ -217,6 +217,12 @@ A pursuing follower's shallow turn 30° or 45° off the lead's track, to the pat
 A follower on base flying 30° off its base heading away from the field, down to 1.5 turn radii from the extended centerline, to roll out farther behind its lead (`BaseFollowSpacing`, docs/approach-and-pattern-geometry.md).
 _Avoid_: excursion (that is the pursuit's S-turn)
 
+**Behind in sequence**:
+A same-runway lead whose remaining path to the threshold is longer than the follower's by more than 0.5 NM (along-final distance, no tolerance, when both are on final); FOLLOW of such a lead is refused (docs/plans/follow-lead-ahead-study.md).
+
+**Lead-ahead gate**:
+The command-time checks that refuse a FOLLOW whose lead is not ahead of the follower: behind in sequence, outside the ±60° cone, on the ground, or bound for another airport (docs/plans/follow-lead-ahead-study.md).
+
 **Turn-out**:
 A follower level with or ahead of its lead turning to the downwind heading with one call, holding an offset band, and turning base behind the lead once it has passed (`VfrFollowPhase`, docs/approach-and-pattern-geometry.md).
 

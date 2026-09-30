@@ -316,6 +316,111 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
         Assert.Null(follower.Approach.FollowingCallsign);
     }
 
+    // ─── FOLLOWF: FOLLOW with only the traffic-in-sight requirement bypassed ───
+
+    [Fact]
+    public void FollowForceFromBase_RunwaylessLeadBehind_IsRefused()
+    {
+        SimulationEngine engine = BuildEngine();
+
+        AircraftState follower = AddBaseFollower(engine);
+        Phase? before = follower.Phases!.CurrentPhase;
+        // Up the base leg behind the follower (farther from the centerline than it is).
+        AddLead(engine, OffFinal(Oak("28R"), 2.5, 3.0), "DCT VPCBT");
+
+        CommandResult result = engine.SendCommand(Follower, $"FOLLOWF {Leader}");
+        output.WriteLine($"FOLLOWF: success={result.Success} — {result.Message}");
+
+        Assert.False(result.Success, result.Message);
+        Assert.Contains("on base for runway 28R", result.Message);
+        Assert.Contains($"{Leader} is not ahead", result.Message);
+        Assert.Same(before, follower.Phases!.CurrentPhase);
+        Assert.Null(follower.Approach.FollowingCallsign);
+    }
+
+    [Fact]
+    public void FollowForceFromFinal_KeepsPhaseAndLandingClearance()
+    {
+        SimulationEngine engine = BuildEngine();
+
+        RunwayInfo rwy = Oak("28R");
+        AircraftState follower = MakeVfr(Follower, OffFinal(rwy, 3.0, 0), rwy.TrueHeading, 900);
+        follower.Approach.HasReportedTrafficInSight = true;
+        engine.World.AddAircraft(follower);
+        PutOnCircuit(follower, rwy, PatternDirection.Right, PatternEntryLeg.Final);
+        follower.Phases!.LandingClearance = ClearanceType.ClearedToLand;
+        follower.Phases.ClearedRunwayId = "28R";
+        Phase? before = follower.Phases.CurrentPhase;
+        Assert.IsType<FinalApproachPhase>(before);
+
+        // In-trail on the same runway: a follow the final can keep flying. The lead sits on the
+        // 3° path for 1 nm (≈330 ft), not level with the follower.
+        AircraftState lead = MakeVfr(Leader, OffFinal(rwy, 1.0, 0), rwy.TrueHeading, 330);
+        engine.World.AddAircraft(lead);
+        PutOnCircuit(lead, rwy, PatternDirection.Right, PatternEntryLeg.Final);
+
+        CommandResult result = engine.SendCommand(Follower, $"FOLLOWF {Leader}");
+        output.WriteLine($"FOLLOWF: success={result.Success} — {result.Message}");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Same(before, follower.Phases!.CurrentPhase);
+        Assert.Equal(ClearanceType.ClearedToLand, follower.Phases.LandingClearance);
+        Assert.Equal("28R", follower.Phases.ClearedRunwayId);
+        Assert.Equal(Leader, follower.Approach.FollowingCallsign);
+    }
+
+    [Fact]
+    public void FollowForceFromDownwind_LeadOnGround_IsRefused()
+    {
+        SimulationEngine engine = BuildEngine();
+
+        RunwayInfo rwy = Oak("28R");
+        AircraftState follower = AddDownwindFollower(engine, rwy);
+        Phase? before = follower.Phases!.CurrentPhase;
+
+        AircraftState lead = MakeVfr(Leader, new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude), rwy.TrueHeading, rwy.ElevationFt);
+        lead.IsOnGround = true;
+        lead.IndicatedAirspeed = 0;
+        engine.World.AddAircraft(lead);
+
+        CommandResult result = engine.SendCommand(Follower, $"FOLLOWF {Leader}");
+        output.WriteLine($"FOLLOWF: success={result.Success} — {result.Message}");
+
+        Assert.False(result.Success, result.Message);
+        Assert.Equal($"Unable, {Leader} is on the ground", result.Message);
+        Assert.Same(before, follower.Phases!.CurrentPhase);
+        Assert.Null(follower.Approach.FollowingCallsign);
+    }
+
+    [Fact]
+    public void FollowForce_NoTrafficInSight_IsAccepted()
+    {
+        SimulationEngine engine = BuildEngine();
+
+        RunwayInfo rwy = Oak("28R");
+        AircraftState follower = AddDownwindFollower(engine, rwy);
+        follower.Approach.HasReportedTrafficInSight = false;
+        Phase? before = follower.Phases!.CurrentPhase;
+
+        AircraftState lead = MakeVfr(Leader, OffFinal(rwy, 2.0, 1.0), rwy.TrueHeading - 90.0, 1000);
+        engine.World.AddAircraft(lead);
+        PutOnCircuit(lead, rwy, PatternDirection.Right, PatternEntryLeg.Base);
+
+        CommandResult plain = engine.SendCommand(Follower, $"FOLLOW {Leader}");
+        output.WriteLine($"FOLLOW: success={plain.Success} — {plain.Message}");
+        Assert.False(plain.Success, plain.Message);
+        Assert.Contains("Traffic not in sight", plain.Message);
+        Assert.Null(follower.Approach.FollowingCallsign);
+
+        CommandResult result = engine.SendCommand(Follower, $"FOLLOWF {Leader}");
+        output.WriteLine($"FOLLOWF: success={result.Success} — {result.Message}");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Same(before, follower.Phases!.CurrentPhase);
+        Assert.True(follower.Approach.HasReportedTrafficInSight);
+        Assert.Equal(Leader, follower.Approach.FollowingCallsign);
+    }
+
     // ─── Queued entry for another runway, from downwind ───
 
     /// <summary>Follower on the right downwind to <paramref name="rwy"/>, 1 nm abeam, flying the downwind heading.</summary>

@@ -2025,7 +2025,7 @@ public static class CommandDispatcher
             return new CommandResult(false, $"Command not yet supported: {unsupported.RawText}");
         }
 
-        CanonicalCommandType cmdType = CommandDescriber.ToCanonicalType(firstCmd);
+        CanonicalCommandType cmdType = PhaseGateType(CommandDescriber.ToCanonicalType(firstCmd));
 
         // Phase-transparent commands: pure status-flag setters (RFIS/RTIS and their forced
         // variants) with no navigation/altitude/speed effect. They must never clear a phase.
@@ -2206,7 +2206,7 @@ public static class CommandDispatcher
             return;
         }
 
-        CanonicalCommandType cmdType = CommandDescriber.ToCanonicalType(cmd);
+        CanonicalCommandType cmdType = PhaseGateType(CommandDescriber.ToCanonicalType(cmd));
         if (IsPhaseTransparentCommand(cmdType) || IsSimControlBypass(cmdType))
         {
             return;
@@ -2220,6 +2220,16 @@ public static class CommandDispatcher
 
         currentPhase.OnCommandAccepted(cmdType, BuildMinimalContext(aircraft, ctx.GroundLayout));
     }
+
+    /// <summary>
+    /// The canonical type an active phase's <see cref="Phase.CanAcceptCommand"/> gate reads. FOLLOWF is FOLLOW with
+    /// the traffic-in-sight requirement folded into the clearance (<see cref="ApplyForcedFollow"/> is the whole
+    /// difference), so the gate must see Follow: normalising here is what keeps FOLLOWF on its pattern leg, its
+    /// final approach and its landing clearance. Every phase that lists Follow covers both without a FollowForce
+    /// arm of its own, and no phase can clear a chain the plain verb would have kept.
+    /// </summary>
+    private static CanonicalCommandType PhaseGateType(CanonicalCommandType cmd) =>
+        cmd == CanonicalCommandType.FollowForce ? CanonicalCommandType.Follow : cmd;
 
     private static bool IsPhaseTransparentCommand(CanonicalCommandType cmd) =>
         cmd switch

@@ -24,6 +24,7 @@
 
 ### Fixed
 
+- `FOLLOWF` keeps the aircraft's pattern leg, approach and landing clearance and gets the same refusals as `FOLLOW`; only the traffic-in-sight step is skipped.
 - `CLANDF` issued past the threshold lands the aircraft and stops it on the runway instead of rolling off the far end.
 - An aircraft stopped on the runway with no exit ahead asks for a back-taxi and waits; after `CLANDF` it backtracks to an exit on its own.
 - At SFO, a 28R arrival no longer turns off onto a full T: two aircraft only when both are CWT G or smaller.
