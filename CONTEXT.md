@@ -317,7 +317,7 @@ One of the `(logical processors - 1) / 2` slots (`light` in `%LOCALAPPDATA%\gate
 `branch: feat/<name>` on a `docs/plans/MAIN.md` line; every item under that line lands on the `feat/<name>` branch (in yaat and yaat-server) instead of `main` (user-level `nextup`, §3 "Feature branches").
 
 **Feature PR**:
-The draft pull request from a marker's `feat/<name>` into `main`, one per repo, opened with the marker; CI runs on each push to it, and `yaat-ship` Phase 2F merges it with `--rebase` once every line under the marker is done.
+The draft pull request from a marker's `feat/<name>` into `main`, one per repo, opened with the marker; CI runs on each push to it, and `/ship` Phase 2F merges it with `--rebase` once every line under the marker is done.
 
 **Ouroboros**:
 A synthetic round trip through the speech pipeline: a known canonical command is rendered to speech with Piper, fed through Whisper, the rule mapper and the LLM fallback, and the recovered canonical is compared with the one it started from. `--ouroboros` speaks pilot readbacks; `--atc-ouroboros` speaks controller transmissions across every phraseology rule family and diffs each family's pass rate against a committed baseline (`tools/Yaat.SpeechSandbox`, docs/speech-recognition-pipeline.md).

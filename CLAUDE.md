@@ -190,7 +190,7 @@ When invoking aviation-sim-expert, always include:
 - **Bug fixes and sim changes**: `test-fix` implements the mandatory TDD loop below.
 - **Review gates**: invoke the `aviation-sim-expert` and `csharp-reviewer` agents directly (via `Agent`); the `architecture-updater` agent covers the pre-commit `docs/architecture.md` obligation.
 - **Starting a session from the plan**: the user-level `nextup` ("next up", "what's next", "clear the bug list") runs the loop — plan hygiene first, then explorations fan out, independent items run in their own worktrees, each ships as it lands; `yaat-nextup` is only its profile (plan convention, agents, gates, docs map, landing) and is never invoked on its own.
-- **Landing work**: `yaat-changelog-and-commit` → `merge-session-to-main` → `yaat-ship` (the last one composes all three, pushes, and closes issues — invoking it *is* the approval).
+- **Landing work**: `/changelog-and-commit` and `/ship` (user-level), reading `yaat-nextup`'s `## Changelog` and `## Ship` (`/ship` commits, lands both repos, pushes and closes issues — invoking it *is* the approval).
 - **Release**: `prepare-release`. Maintenance: `consolidate-recordings`, `crc-update-check` (any time CRC ships a new version — decides whether the server or client must follow), `triage-open-issues` (folding the open GitHub issues into `docs/plans/` — verdicts, placement, grouping; never closes an issue).
 
 ## Problem Solving
@@ -253,7 +253,8 @@ When invoking aviation-sim-expert, always include:
 
 ### Git & Issues
 
-- **Commit directly to `main`, feature branches by marker**: the sole maintainer commits and pushes directly to `main` in both yaat and yaat-server. Work under a feature marker (`branch: feat/<name>` on a `docs/plans/MAIN.md` line) lives on `feat/<name>` in both repos with a feature PR into `main` each, by the user-level route (`nextup` §3 "Feature branches", `yaat-ship` Phase 2F). Branches and PRs outside a marker only when the user asks. (Still ask before committing — auto-commit is never OK.)
+- **Commit directly to `main`, feature branches by marker**: the sole maintainer commits and pushes directly to `main` in both yaat and yaat-server. Work under a feature marker (`branch: feat/<name>` on a `docs/plans/MAIN.md` line) lives on `feat/<name>` in both repos with a feature PR into `main` each, by the user-level route (`nextup` §3 "Feature branches", `/ship` Phase 2F). Branches and PRs outside a marker only when the user asks. (Still ask before committing — auto-commit is never OK.)
+- **Hooks bypass, one standing exception**: the user's standing approval covers exactly one case: an intermediate cherry-pick of a cross-repo landing that cannot pass its hooks until the sibling repo lands, and is never pushed on its own, may be finished with `git -c core.hooksPath=<empty dir> cherry-pick --continue --no-edit` (`yaat-nextup`, `## Ship`). The end gate over both repos passes before any push. Every other commit runs its hooks.
 - **Commits**: `fix:`/`feat:`/`add:`/`docs:`/`ref:`/`test:` etc. Imperative, ≤72 chars.
 - **Cross-repo issues**: GitHub issues tracked on **yaat** repo. In yaat-server commits use full URL `Closes https://github.com/leftos/yaat/issues/N`, never bare `Closes #N`.
 - **Cross-repo completeness**: Features spanning both repos must be implemented together — no half-done features.

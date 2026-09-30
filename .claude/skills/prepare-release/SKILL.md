@@ -27,7 +27,7 @@ If the dry-run reports zero duplicates, the skill exits without committing
 and we continue. If it produces a cleanup commit, note the SHA — it'll be
 the parent of the release commit.
 
-## Step 0a: Resolve the sibling repo once, and assert it exists
+## Step 0b: Resolve the sibling repo once, and assert it exists
 
 Every later step addresses yaat-server. **`git -C <path>` does not fail when
 `<path>` is not a repository — it walks up from the current working directory to
@@ -49,7 +49,7 @@ git -C "$SERVER" status -sb | head -1
 
 Never `git -C` a path you have not verified exists.
 
-## Step 0b: Run the full cross-repo test suite
+## Step 0c: Run the full cross-repo test suite
 
 Run the suite through the gate wrapper before the release commit goes out. It
 builds and tests yaat + yaat-server in Release configuration; failures here
@@ -121,14 +121,14 @@ old way. The bump is still correct; it just starts helping one release later.
 
 Read `CHANGELOG.md`. Find the topmost version heading (a line starting with `## `, ignoring the file title `# Changelog`). Cross-check against `git tag --sort=-creatordate | head -10`:
 
-- **Topmost heading matches a released tag** → there is no unreleased section. The CHANGELOG is stale relative to HEAD. **Offer to run the `update-changelog` skill inline now**, then re-read the file. Do not proceed past this step until the topmost heading is an unreleased section. Do not fall back to scraping git log.
+- **Topmost heading matches a released tag** → there is no unreleased section. The CHANGELOG is stale relative to HEAD. **Offer to write it inline now by `/changelog-and-commit`'s rules** (Step 3 opens `## Unreleased` and consolidates it as the difference from the last release; Step 4 words the bullets), then re-read the file. Do not proceed past this step until the topmost heading is an unreleased section. Do not fall back to scraping git log.
 - **Topmost heading is `[Unreleased]` or an untagged version** (e.g. `## 0.2.0-alpha` with no matching `v0.2.0-alpha` tag) → that's the unreleased section. Capture its full body (everything from the heading up to but not including the next `## ` heading). This is the source of truth for the release notes.
 
 ## Step 5: Audit the unreleased section, then pick highlights
 
 ### 5a. Audit `### Fixed` for same-release follow-ups
 
-Before drafting highlights, scan the captured unreleased section for **`### Fixed` bullets that describe polish on features added in the same cycle**. These are `internal-fix` smell that `update-changelog` should have folded; they slip through when the changelog was drafted commit-by-commit.
+Before drafting highlights, scan the captured unreleased section for **`### Fixed` bullets that describe polish on features added in the same cycle**. These are `internal-fix` smell that `/changelog-and-commit`'s fold rule (Step 3: a fix to something added in the same unreleased section folds into that bullet) should have folded; they slip through when the changelog was drafted commit-by-commit.
 
 For each Fixed bullet, ask: *was the underlying feature itself added in this release?* (Check `### Added` / `### Changed` in the same section, plus the substance of the bullet.) If yes:
 
@@ -386,7 +386,8 @@ Once the user approves:
     longer be amended.
 
     If the release commit is a partial commit of a dirty tree, follow the
-    partial-commit protocol in the `yaat-changelog-and-commit` skill — stash the
+    partial-commit protocol in `changelog-and-commit`'s `reference.md` ("Partial
+    commits under prek") — stash the
     remainder including untracked files, commit with explicit paths, pop, then
     `git show --stat HEAD` to confirm nothing extra landed.
 
