@@ -56,6 +56,10 @@ Element ids (`e1`, `e2`, …) come from `list_windows` / `find_elements` / `dump
 - The native file dialog is not under the client's UIA windows; drive it with `send_keys("<path>{ENTER}")` once it has focus.
 - A button that "does nothing" usually logged `Unhandled UI-thread exception (recovered)` — `tail_yaat_log` first.
 
+## Before launching: the scratch preferences
+
+A room's ARTCC picks its scenario catalog. Room > Create Room uses the ARTCC picker in the lobby overlay (Training Rooms, beside its Create Room button) and falls back to the `artccId` preference, which a dev sign-in sets to `ZAB`; so the menu item creates ZAB rooms (ABQ scenarios only). Create the room from the lobby instead: `find_elements` the overlay's ComboBox, `send_keys` the ARTCC id (`ZOA` for OAK/SFO) with the ComboBox as `focusElementId` (its dropdown opens off the window's bottom edge, where a click on an item fails), then `invoke` the overlay's Create Room button (a posted click on it did nothing). The Load Scenario window's Local Files folder box is read-only and filled only by Browse (a native dialog, real input); set `lastScenarioFolder` in the same file to the folder holding the scenario instead. The client reads the file at startup, so edit it before launching, or stop the client, edit, and relaunch.
+
 ## Recording a demo
 
 Used for the #462 push demo. Run yaat-server from source on `:5130`, `launch_yaat`, then File > Connect > "Local", Room > Create Room, and Scenario > Load Scenario > Local Files with an empty scenario for the airport. Spawn with the carrier named so the type and airline match (`ADD I L J @F8 CRJ7 *SKW`), and name the aircraft in every command (`SKW735 PUSH $7A`); a bare command goes nowhere without a selection. `set_text` on `CommandInput`, then a separate `send_keys {ENTER}`.
