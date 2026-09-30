@@ -1,7 +1,16 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Commands;
+
+/// <summary>
+/// A filed aircraft-data field (ERAM field 03, FAA 7233-4 block 3) split into its parts: element a's number of aircraft
+/// (<c>2</c> in <c>2H/F16</c>) and indicator (<c>H</c>, <c>J</c> or <c>S</c>), the type designator, and the equipment
+/// suffix. Each part is null when the entry does not give it.
+/// </summary>
+public sealed record FiledAircraftType(int? Count, char? Indicator, string Type, string? Suffix);
 
 /// <summary>
 /// Input normalization shared by every flight-plan create / amend path: the typed <c>FP</c> / <c>DA</c> verbs (the
@@ -11,35 +20,55 @@ namespace Yaat.Sim.Commands;
 public static class FlightPlanNormalization
 {
     /// <summary>
-    /// Splits an FAA equipment string like <c>"C172/G"</c> into its base type and suffix. A leading type prefix — a
-    /// wake category (<c>"H/A306/L"</c>) or a formation count (<c>"2/C130/G"</c>), as
-    /// <see cref="AircraftState.StripTypePrefix"/> recognizes them — is dropped before the split, so the type is never
-    /// read as <c>"H"</c>. A bare type (<c>"SR22"</c>, <c>"H/A306"</c>) returns a null suffix: the equipment suffix is a
-    /// separate field that a type alone never changes, and only <c>SimulationEngine.AmendFlightPlan</c> defaults it to
-    /// <c>"A"</c> when the amendment files a new plan. Null or empty input returns <c>(raw, null)</c> so callers can
-    /// tell "no aircraft type supplied" from "aircraft type with no suffix typed".
+    /// Splits a filed aircraft-data string like <c>"2H/F16/L"</c> into element a (the count <c>2</c> and indicator
+    /// <c>H</c>), the type and the equipment suffix. A leading segment is element a only when
+    /// <see cref="AircraftState.IsTypePrefix"/> accepts it (a one- or two-digit count, an <c>H</c>/<c>J</c>/<c>S</c>
+    /// indicator, or both), so the type is never read as <c>"H"</c> or <c>"2H"</c>; any other leading segment is the
+    /// type (<c>"123/F16"</c> is type <c>123</c>, suffix <c>F16</c>). A bare type (<c>"SR22"</c>, <c>"H/A306"</c>) and
+    /// an empty tail after the last slash (<c>"C172/"</c>) both return a null suffix: the equipment suffix is a separate
+    /// field that a type alone never changes, and only <c>SimulationEngine.AmendFlightPlan</c> defaults it to <c>"A"</c>
+    /// when the amendment files a new plan. Null input returns null ("no aircraft type supplied"); empty input returns
+    /// an empty type.
     /// </summary>
-    public static (string? Type, string? Suffix) SplitTypeAndSuffix(string? raw)
+    [return: NotNullIfNotNull(nameof(raw))]
+    public static FiledAircraftType? SplitTypeAndSuffix(string? raw)
     {
-        if (string.IsNullOrEmpty(raw))
+        if (raw is null)
         {
-            return (raw, null);
+            return null;
         }
 
+        int? count = null;
+        char? indicator = null;
         string typeAndSuffix = raw;
         int prefixSlash = raw.IndexOf('/');
         if ((prefixSlash >= 0) && AircraftState.IsTypePrefix(raw[..prefixSlash]))
         {
+            (count, indicator) = ParseElementA(raw[..prefixSlash]);
             typeAndSuffix = raw[(prefixSlash + 1)..];
         }
 
         int slash = typeAndSuffix.IndexOf('/');
         if (slash < 0)
         {
-            return (typeAndSuffix, null);
+            return new FiledAircraftType(count, indicator, typeAndSuffix, null);
         }
 
-        return (typeAndSuffix[..slash], typeAndSuffix[(slash + 1)..]);
+        string suffix = typeAndSuffix[(slash + 1)..];
+        return new FiledAircraftType(count, indicator, typeAndSuffix[..slash], suffix.Length == 0 ? null : suffix);
+    }
+
+    /// <summary>
+    /// Element a, already accepted by <see cref="AircraftState.IsTypePrefix"/>: leading digits, then an optional indicator
+    /// letter, returned upper-cased.
+    /// </summary>
+    private static (int? Count, char? Indicator) ParseElementA(string prefix)
+    {
+        char last = prefix[^1];
+        char? indicator = char.IsAsciiDigit(last) ? null : char.ToUpperInvariant(last);
+        string digits = indicator is null ? prefix : prefix[..^1];
+        int? count = digits.Length == 0 ? null : int.Parse(digits, CultureInfo.InvariantCulture);
+        return (count, indicator);
     }
 
     /// <summary>
@@ -54,9 +83,9 @@ public static class FlightPlanNormalization
     /// </summary>
     public static (string? Type, string? Suffix) ResolveTypeAndSuffix(string? equipment, string? faaEquipmentSuffix)
     {
-        (string? typeFromEquipment, string? suffixFromEquipment) = SplitTypeAndSuffix(equipment);
-        string? preferredSuffix = !string.IsNullOrEmpty(faaEquipmentSuffix) ? faaEquipmentSuffix : suffixFromEquipment;
-        return (typeFromEquipment, preferredSuffix);
+        FiledAircraftType? fromEquipment = SplitTypeAndSuffix(equipment);
+        string? preferredSuffix = !string.IsNullOrEmpty(faaEquipmentSuffix) ? faaEquipmentSuffix : fromEquipment?.Suffix;
+        return (fromEquipment?.Type, preferredSuffix);
     }
 
     /// <summary>
@@ -113,12 +142,12 @@ public static class FlightPlanNormalization
     public static FlightPlanAmendment FromCreateCommand(CreateFlightPlanCommand command)
     {
         (string? departure, string? destination, string? middleRoute) = SplitRoute(command.Route);
-        (string? acType, string? equipSuffix) = SplitTypeAndSuffix(command.AircraftType);
+        FiledAircraftType aircraftType = SplitTypeAndSuffix(command.AircraftType);
         PlannedAltitude filedAltitude = command.Altitude;
         return new FlightPlanAmendment(
             ClearBeaconCode: false,
-            AircraftType: acType,
-            EquipmentSuffix: equipSuffix,
+            AircraftType: aircraftType.Type,
+            EquipmentSuffix: aircraftType.Suffix,
             Departure: departure,
             Destination: destination,
             Altitude: filedAltitude,
@@ -130,12 +159,12 @@ public static class FlightPlanNormalization
     /// <summary>The amendment a typed <c>DA</c> files: type/suffix, the filed altitude with its rules, scratchpads and beacon.</summary>
     public static FlightPlanAmendment FromCreateAbbreviatedCommand(CreateAbbreviatedFlightPlanCommand command)
     {
-        (string? acType, string? equipSuffix) = SplitTypeAndSuffix(command.AircraftType);
+        FiledAircraftType? aircraftType = SplitTypeAndSuffix(command.AircraftType);
         PlannedAltitude filedAltitude = FlightPlanAltitude.FromRulesAndFeet(command.FlightRules, command.CruiseAltitude);
         return new FlightPlanAmendment(
             ClearBeaconCode: false,
-            AircraftType: acType,
-            EquipmentSuffix: equipSuffix,
+            AircraftType: aircraftType?.Type,
+            EquipmentSuffix: aircraftType?.Suffix,
             Altitude: filedAltitude,
             FlightRules: filedAltitude.IsVfr ? "VFR" : "IFR",
             Scratchpad1: command.Scratchpad1,

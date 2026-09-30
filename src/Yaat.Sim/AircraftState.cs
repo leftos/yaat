@@ -19,7 +19,7 @@ public class AircraftState
     /// <summary>
     /// Extract ICAO type designator from FAA flight plan format.
     /// "B738" → "B738", "H/B763/L" → "B763", "B738/L" → "B738", "2/C130/G" → "C130" (a formation count
-    /// filed as the prefix, FAA 7233-4 block 9).
+    /// filed as the prefix, FAA 7233-4 block 9), "2H/F16" → "F16" (count and indicator together).
     /// </summary>
     public static string StripTypePrefix(string aircraftType)
     {
@@ -33,11 +33,23 @@ public class AircraftState
     }
 
     /// <summary>
-    /// True when a leading '/'-separated segment of a filed type is a prefix rather than the type: a wake category
-    /// (<c>H</c>, <c>J</c>, <c>S</c>) or a one- or two-digit formation count.
+    /// True when a leading '/'-separated segment of a filed type is a prefix (ERAM field 03 element a) rather than the
+    /// type: a one- or two-digit formation count, an indicator (<c>H</c>, <c>J</c>, <c>S</c>), or a count followed by an
+    /// indicator (<c>2H</c>, <c>12H</c>), the indicator in either case. Three digits (<c>123</c>) or trailing text
+    /// (<c>2HX</c>) is not a prefix.
     /// </summary>
-    internal static bool IsTypePrefix(string segment) =>
-        (segment is "H" or "J" or "S") || ((segment.Length is 1 or 2) && segment.All(char.IsAsciiDigit));
+    public static bool IsTypePrefix(string segment)
+    {
+        int digits = 0;
+        while ((digits < segment.Length) && char.IsAsciiDigit(segment[digits]))
+        {
+            digits++;
+        }
+
+        string indicator = segment[digits..];
+        bool isIndicator = (indicator.Length == 1) && (char.ToUpperInvariant(indicator[0]) is 'H' or 'J' or 'S');
+        return (digits <= 2) && (((indicator.Length == 0) && (digits > 0)) || isIndicator);
+    }
 
     /// <summary>
     /// True when two type strings name the same ICAO designator once wake prefixes and equipment suffixes are stripped

@@ -12,30 +12,53 @@ namespace Yaat.Sim.Tests.Commands;
 public class FlightPlanNormalizationTests
 {
     [Theory]
-    [InlineData("H/A306/L", "A306", "L")]
-    [InlineData("2/C130/G", "C130", "G")]
-    [InlineData("C172/G", "C172", "G")]
-    [InlineData("H/A306", "A306", null)]
-    [InlineData("A306", "A306", null)]
-    [InlineData("C182/L-DOV/C", "C182", "L-DOV/C")]
-    public void SplitTypeAndSuffix_SplitsAfterAnyTypePrefix(string raw, string expectedType, string? expectedSuffix)
+    [InlineData("B738", null, null, "B738", null)]
+    [InlineData("B738/L", null, null, "B738", "L")]
+    [InlineData("H/B763/L", null, 'H', "B763", "L")]
+    [InlineData("2/F16", 2, null, "F16", null)]
+    [InlineData("2H/F16", 2, 'H', "F16", null)]
+    [InlineData("2H/F16/L", 2, 'H', "F16", "L")]
+    [InlineData("12/F18/G", 12, null, "F18", "G")]
+    [InlineData("J/A388/L", null, 'J', "A388", "L")]
+    [InlineData("C172/", null, null, "C172", null)]
+    [InlineData("C182/L-DOV/C", null, null, "C182", "L-DOV/C")]
+    [InlineData("123/F16", null, null, "123", "F16")]
+    [InlineData("2HX/F16", null, null, "2HX", "F16")]
+    [InlineData("2h/f16", 2, 'H', "f16", null)]
+    [InlineData("h/b763/l", null, 'H', "b763", "l")]
+    public void SplitTypeAndSuffix_SplitsElementATypeAndSuffix(
+        string raw,
+        int? expectedCount,
+        char? expectedIndicator,
+        string expectedType,
+        string? expectedSuffix
+    )
     {
-        (string? type, string? suffix) = FlightPlanNormalization.SplitTypeAndSuffix(raw);
+        FiledAircraftType split = FlightPlanNormalization.SplitTypeAndSuffix(raw);
 
-        Assert.Equal(expectedType, type);
-        Assert.Equal(expectedSuffix, suffix);
+        Assert.Equal(new FiledAircraftType(expectedCount, expectedIndicator, expectedType, expectedSuffix), split);
     }
+
+    [Fact]
+    public void SplitTypeAndSuffix_Null_ReturnsNull() => Assert.Null(FlightPlanNormalization.SplitTypeAndSuffix(null));
+
+    [Fact]
+    public void SplitTypeAndSuffix_Empty_ReturnsEmptyTypeAndNothingElse() =>
+        Assert.Equal(new FiledAircraftType(null, null, "", null), FlightPlanNormalization.SplitTypeAndSuffix(""));
+
+    [Fact]
+    public void StripTypePrefix_CountAndIndicator_ReturnsTheType() => Assert.Equal("F16", AircraftState.StripTypePrefix("2H/F16"));
 
     [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    public void SplitTypeAndSuffix_NullOrEmpty_ReturnsInputAndNoSuffix(string? raw)
-    {
-        (string? type, string? suffix) = FlightPlanNormalization.SplitTypeAndSuffix(raw);
-
-        Assert.Equal(raw, type);
-        Assert.Null(suffix);
-    }
+    [InlineData("2H", true)]
+    [InlineData("12H", true)]
+    [InlineData("H", true)]
+    [InlineData("2h", true)]
+    [InlineData("123", false)]
+    [InlineData("2HX", false)]
+    [InlineData("", false)]
+    [InlineData("123H", false)]
+    public void IsTypePrefix_AcceptsElementAOnly(string segment, bool expected) => Assert.Equal(expected, AircraftState.IsTypePrefix(segment));
 
     [Fact]
     public void ResolveTypeAndSuffix_WakePrefixedEcho_KeepsBaseTypeAndFaaSuffix()

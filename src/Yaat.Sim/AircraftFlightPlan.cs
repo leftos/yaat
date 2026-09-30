@@ -257,7 +257,8 @@ public class AircraftFlightPlan
 
     /// <summary>
     /// ERAM field 22, the special aircraft indicator <c>H</c> (field 03 element a), entered with
-    /// <c>AM &lt;FLID&gt; SAI H</c>. Independent of any <c>H/</c> prefix on <see cref="AircraftType"/>.
+    /// <c>AM &lt;FLID&gt; SAI H</c> or as the <c>H</c> of a field 03 entry (<c>H/B763</c>, <c>2H/F16</c>). The ERAM
+    /// entry paths store element a only here and in <see cref="NumberOfAircraft"/>, never on <see cref="AircraftType"/>.
     /// Display data only.
     /// </summary>
     public bool HasSpecialAircraftIndicator { get; set; }

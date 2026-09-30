@@ -43,3 +43,4 @@ Each command's behaviour, with its checks and the reasons for its `na` rows, is 
 ## Flight plan readout (`QF`)
 
 20. **The one-line readout.** What does the `QF <ACID>` line show, column by column, and in what order? *Our guess:* CID, aircraft ID with the controlling sector in parentheses, type and equipment, assigned beacon code, filed speed, the coordination fix and time after a DM, the assigned altitude as the ALT field shows it (`350`, `200B250`, `VFR/065`), then the route followed by the remarks, with no Zulu time on the line.
+21. **`AM TYP` format.** Does `AM <ACID> TYP` check the aircraft-data field the way `FP` and `VP` do, so `TYP 0/F16`, `TYP 2H/` or `TYP B738/` is refused? *Our guess:* yes: TYP FORMAT, and SAI FORMAT for an indicator other than H.

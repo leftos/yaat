@@ -28,6 +28,8 @@
 - A pattern follower sequences behind traffic on an instrument approach or a go-around, and aircraft on one leg are ordered by position, not who joined first.
 - ERAM `QF`, `FR` and a bare `AM` show the flight plan line in ERAM's column order: filed speed before the altitude, remarks last.
 - A flight plan filed with an altitude off the hundred (`FP B738 35050 …`) keeps that altitude on replay.
+- ERAM `AM TYP` and `VP` keep a formation count and heavy indicator such as `2H/F16`, and `AM TYP` refuses a malformed type field.
+- A CRC flight plan edit whose equipment ends in `/` no longer clears the filed equipment suffix.
 - `FOLLOWF` keeps the aircraft's pattern leg, approach and landing clearance and gets the same refusals as `FOLLOW`; only the traffic-in-sight step is skipped.
 - `CLANDF` issued past the threshold lands the aircraft and stops it on the runway instead of rolling off the far end.
 - An aircraft stopped on the runway with no exit ahead asks for a back-taxi and waits; after `CLANDF` it backtracks to an exit on its own.
