@@ -18,7 +18,7 @@ public class EramSectorDisplayTests(ITestOutputHelper output)
     private const string BundlePath = "TestData/66fd6538542e.zip";
 
     private static CommandResult Apply(AircraftState ac, string entry) =>
-        EramEntryEngine.Apply(ac, entry, new EramEntryContext(null, Scenario: null, Redirect: null, new EramConflictState()));
+        EramEntryEngine.Apply(ac, entry, new EramEntryContext(null, Scenario: null, Redirect: null, new EramConflictState(), SweptPosition: null));
 
     private static AircraftState Aircraft() => new() { Callsign = "UAL1", AircraftType = "B738" };
 
@@ -127,11 +127,11 @@ public class EramSectorDisplayTests(ITestOutputHelper output)
 
         List<RecordedAction> actions =
         [
-            new RecordedEramEntry(1, callsign, "DWELL ZOA 44 1", null),
+            new RecordedEramEntry(1, callsign, "DWELL ZOA 44 1", null, null, null, null, null),
             // The same value again keeps the lock: a toggle would clear it here.
-            new RecordedEramEntry(2, callsign, "DWELL ZOA 44 1", null),
-            new RecordedEramEntry(2, callsign, "DWELL ZOA 45 1", null),
-            new RecordedEramEntry(3, callsign, "DWELL ZOA 44 0", null),
+            new RecordedEramEntry(2, callsign, "DWELL ZOA 44 1", null, null, null, null, null),
+            new RecordedEramEntry(2, callsign, "DWELL ZOA 45 1", null, null, null, null, null),
+            new RecordedEramEntry(3, callsign, "DWELL ZOA 44 0", null, null, null, null, null),
         ];
         SessionRecording recording = WithActions(baseline, actions, 5);
         var replay = new SimulationEngine(new TestAirportGroundData());

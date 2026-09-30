@@ -32,7 +32,7 @@ public class EramCoastSnapshotTests
         CommandResult result = EramEntryEngine.Apply(
             ac,
             entry,
-            new EramEntryContext(Sector44, Scenario: null, Redirect: null, new EramConflictState())
+            new EramEntryContext(Sector44, Scenario: null, Redirect: null, new EramConflictState(), SweptPosition: null)
         );
         Assert.True(result.Success, result.Message);
         return ac;

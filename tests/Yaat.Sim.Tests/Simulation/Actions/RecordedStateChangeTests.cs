@@ -158,13 +158,46 @@ public class RecordedStateChangeTests
 
         AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
 
-        CommandResult track = engine.Actions.ApplyRecorded(new RecordedEramEntry(0, ac.Callsign, "TRACK", "3O"));
+        CommandResult track = engine.Actions.ApplyRecorded(new RecordedEramEntry(0, ac.Callsign, "TRACK", "3O", null, null, null, null));
         Assert.True(track.Success, track.Message);
         Assert.Equal(engine.Scenario!.StudentPosition, ac.Track.Owner);
 
-        CommandResult heading = engine.Actions.ApplyRecorded(new RecordedEramEntry(1, ac.Callsign, "QS 270", null));
+        CommandResult heading = engine.Actions.ApplyRecorded(new RecordedEramEntry(1, ac.Callsign, "QS 270", null, null, null, null, null));
         Assert.True(heading.Success, heading.Message);
         Assert.Equal("H270", ac.Eram.AssignedHeading);
+    }
+
+    [Fact]
+    public void Qt_NoAt_AnchorsAtRecordedSweptPosition()
+    {
+        // The controller sees the target as last swept, up to 12 s behind the live aircraft; a QT with no @ coasts from there.
+        if ((Engine() is not { } engine) || (Engine() is not { } unswept))
+        {
+            return;
+        }
+
+        // The whole pose is the swept one: its position, stamped at its own sweep time, on its swept track.
+        AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
+        LatLon swept = GeoMath.ProjectPoint(ac.Position, new TrueHeading(270), 2.0);
+        const double sweptAt = 4;
+        const double sweptTrack = 200;
+        CommandResult coast = engine.Actions.ApplyRecorded(
+            new RecordedEramEntry(10, ac.Callsign, "COAST T10", "3O", swept.Lat, swept.Lon, sweptTrack, sweptAt)
+        );
+        Assert.True(coast.Success, coast.Message);
+        Assert.Equal(swept.Lat, ac.Eram.CoastLat);
+        Assert.Equal(swept.Lon, ac.Eram.CoastLon);
+        Assert.Equal(sweptAt, ac.Eram.CoastStartSeconds);
+        Assert.Equal(sweptTrack, ac.Eram.CoastTrueCourse!.Value, 6);
+
+        // A record with no swept pose (unswept, or made before records carried one) keeps the live target at the entry's time.
+        AircraftState live = unswept.FindAircraft(AiTestFixture.Callsign)!;
+        CommandResult liveCoast = unswept.Actions.ApplyRecorded(new RecordedEramEntry(10, live.Callsign, "COAST T10", "3O", null, null, null, null));
+        Assert.True(liveCoast.Success, liveCoast.Message);
+        Assert.Equal(live.Position.Lat, live.Eram.CoastLat);
+        Assert.Equal(live.Position.Lon, live.Eram.CoastLon);
+        Assert.Equal(10, live.Eram.CoastStartSeconds);
+        Assert.Equal(live.TrueTrack.Degrees, live.Eram.CoastTrueCourse!.Value, 6);
     }
 
     [Fact]
@@ -295,11 +328,11 @@ public class RecordedStateChangeTests
         List<RecordedAction> log = engine.Scenario!.ActionLog;
         int before = log.Count;
 
-        CommandResult refused = engine.Actions.IssueDerived(new RecordedEramEntry(0, ac.Callsign, "QS 400", null));
+        CommandResult refused = engine.Actions.IssueDerived(new RecordedEramEntry(0, ac.Callsign, "QS 400", null, null, null, null, null));
         Assert.False(refused.Success);
         Assert.Equal(before, log.Count);
 
-        CommandResult applied = engine.Actions.IssueDerived(new RecordedEramEntry(0, ac.Callsign, "QS 270", null));
+        CommandResult applied = engine.Actions.IssueDerived(new RecordedEramEntry(0, ac.Callsign, "QS 270", null, null, null, null, null));
         Assert.True(applied.Success, applied.Message);
         RecordedEramEntry recorded = Assert.IsType<RecordedEramEntry>(log[^1]);
         Assert.Equal("QS 270", recorded.Entry);

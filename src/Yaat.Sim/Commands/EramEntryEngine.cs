@@ -85,7 +85,7 @@ public static partial class EramEntryEngine
         {
             "TRACK" => ApplyTrack(ac, args, ctx),
             "FREEZE" => ApplyFreeze(ac, args),
-            "COAST" => ApplyCoast(ac, args, identity),
+            "COAST" => ApplyCoast(ac, args, identity, ctx.SweptPosition),
             "QQ" => ApplyQq(ac, args),
             "QR" => ApplyQr(ac, args),
             "QS" => ApplyQs(ac, args),
@@ -676,7 +676,7 @@ public static partial class EramEntryEngine
     /// heading and flies no route; without it, it flies the <c>R</c> fixes as <see cref="JoinRoute"/> joins them. Coasting
     /// unfreezes a frozen track.
     /// </summary>
-    private static CommandResult ApplyCoast(AircraftState ac, List<string> args, TrackOwner? identity)
+    private static CommandResult ApplyCoast(AircraftState ac, List<string> args, TrackOwner? identity, SweptPose? swept)
     {
         if (identity is null)
         {
@@ -697,7 +697,7 @@ public static partial class EramEntryEngine
             return Refused(EramEntryErrors.AlreadyTracked);
         }
 
-        CoastStart start = ResolveCoastStart(ac, coast, double.Parse(secondsText, NumberStyles.Float, CultureInfo.InvariantCulture));
+        CoastStart start = ResolveCoastStart(ac, coast, double.Parse(secondsText, NumberStyles.Float, CultureInfo.InvariantCulture), swept);
         StartTrack(ac, identity);
         Unfreeze(ac);
         WriteCoast(ac.Eram, start);
@@ -705,22 +705,29 @@ public static partial class EramEntryEngine
     }
 
     // What the entry leaves out comes from the track as it shows at the entry's time.
-    private static CoastStart ResolveCoastStart(AircraftState ac, CoastArgs coast, double seconds)
+    private static CoastStart ResolveCoastStart(AircraftState ac, CoastArgs coast, double seconds, SweptPose? swept)
     {
-        LatLon anchor = coast.Values.TryGetValue('@', out string? at) ? ParseCoastLatLon(at)!.Value : DisplayedPosition(ac, seconds);
+        ShownPose shown = coast.Values.TryGetValue('@', out string? at)
+            ? new ShownPose(ParseCoastLatLon(at)!.Value, seconds, CurrentCourse(ac, seconds))
+            : DisplayedPose(ac, seconds, swept);
+        LatLon anchor = shown.Position;
         int altitude = CoastInt(coast, 'A') ?? DisplayedAltitude(ac);
         int speed = CoastInt(coast, 'S') ?? FiledTrueAirspeed(ac);
         if (CoastInt(coast, 'H') is { } heading)
         {
             double trueCourse = MagneticDeclination.MagneticToTrue(heading, anchor.Lat, anchor.Lon);
-            return new CoastStart(anchor, seconds, altitude, speed, trueCourse, []);
+            return new CoastStart(anchor, shown.Seconds, altitude, speed, trueCourse, []);
         }
 
-        // A re-coast keeps the coast's own course; otherwise the target's track.
-        double currentCourse = ac.Eram.CoastCourseAt(seconds) ?? ac.TrueTrack.Degrees;
-        (List<LatLon> route, double course) = JoinRoute(anchor, currentCourse, coast.Route);
-        return new CoastStart(anchor, seconds, altitude, speed, course, route);
+        (List<LatLon> route, double course) = JoinRoute(anchor, shown.Course, coast.Route);
+        return new CoastStart(anchor, shown.Seconds, altitude, speed, course, route);
     }
+
+    /// <summary>Where the track shows, the sim time that position belongs to, and the course a coast from it holds.</summary>
+    private readonly record struct ShownPose(LatLon Position, double Seconds, double Course);
+
+    // A re-coast keeps the coast's own course; otherwise the target's track.
+    private static double CurrentCourse(AircraftState ac, double seconds) => ac.Eram.CoastCourseAt(seconds) ?? ac.TrueTrack.Degrees;
 
     private static void WriteCoast(AircraftEramState eram, CoastStart start)
     {
@@ -780,14 +787,21 @@ public static partial class EramEntryEngine
     private static int? CoastInt(CoastArgs coast, char prefix) =>
         coast.Values.TryGetValue(prefix, out string? text) ? int.Parse(text, CultureInfo.InvariantCulture) : null;
 
-    // Where the track shows now: the frozen spot, the coasted position, or the target.
-    private static LatLon DisplayedPosition(AircraftState ac, double nowSeconds)
+    // Where the track shows now: the frozen spot, the coasted position, the target as the display last showed it (the
+    // swept pose, at its own time and on its own track), or the live target when there is no swept pose.
+    private static ShownPose DisplayedPose(AircraftState ac, double nowSeconds, SweptPose? swept)
     {
         if (ac.Eram.IsFrozen && (ac.Eram.FrozenLat is { } lat) && (ac.Eram.FrozenLon is { } lon))
         {
-            return new LatLon(lat, lon);
+            return new ShownPose(new LatLon(lat, lon), nowSeconds, CurrentCourse(ac, nowSeconds));
         }
-        return ac.Eram.CoastPositionAt(nowSeconds) ?? ac.Position;
+        if (ac.Eram.CoastPositionAt(nowSeconds) is { } coasted)
+        {
+            return new ShownPose(coasted, nowSeconds, CurrentCourse(ac, nowSeconds));
+        }
+        return swept is { } shown
+            ? new ShownPose(shown.Position, shown.SimSeconds, shown.TrackDeg)
+            : new ShownPose(ac.Position, nowSeconds, ac.TrueTrack.Degrees);
     }
 
     // The altitude the data block shows now, in hundreds of feet.

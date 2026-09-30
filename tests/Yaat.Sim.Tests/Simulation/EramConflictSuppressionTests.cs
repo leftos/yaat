@@ -260,7 +260,7 @@ public class EramConflictSuppressionTests
     }
 
     private static CommandResult Suppress(SimulationEngine engine) =>
-        engine.Actions.IssueDerived(new RecordedEramEntry(0, "AAL100", "CO UAL200", null));
+        engine.Actions.IssueDerived(new RecordedEramEntry(0, "AAL100", "CO UAL200", null, null, null, null, null));
 
     [Fact]
     public void SuppressedAlert_ThatClearsAndReopens_ComesBackUnsuppressed()

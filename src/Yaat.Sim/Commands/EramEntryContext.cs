@@ -13,10 +13,18 @@ namespace Yaat.Sim.Commands;
 ///
 /// <para><see cref="EramConflicts"/> is the engine's ERAM conflict-alert set, which the <c>CO</c> entry suppresses and
 /// restores alerts in.</para>
+///
+/// <para><see cref="SweptPosition"/> is the target pose the display shows (the record's last ERAM sweep or coast point),
+/// where a <c>COAST</c> with no <c>@</c> starts a track that is neither frozen nor coasting; null falls back to the live
+/// target at the entry's time.</para>
 /// </summary>
 public sealed record EramEntryContext(
     TrackOwner? Identity,
     SimScenarioState? Scenario,
     ConsolidationRedirect? Redirect,
-    EramConflictState EramConflicts
+    EramConflictState EramConflicts,
+    SweptPose? SweptPosition
 );
+
+/// <summary>A target pose as the ERAM display shows it: its position, its true ground track, and the sim time it belongs to.</summary>
+public readonly record struct SweptPose(LatLon Position, double TrackDeg, double SimSeconds);

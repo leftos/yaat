@@ -280,6 +280,9 @@ A YAAT Scope display file (STARS, ERAM or Mixed) that sets the datablock templat
 **Zoom band**:
 A range interval in a profile (e.g. up to 30 NM, 30–120 NM, beyond) that sets defaults such as other controllers' block level, vector length and history count; a manual change pins the value until AUTO.
 
+**Swept position**:
+An aircraft's ERAM position as of its last 12 s sweep (`EramSweptPosition` in yaat-server's `AircraftChangeTracker`): what CRC's ERAM display shows, and where a coverage coast and a QT without a location start from, rather than the live position.
+
 **Dwell**:
 ERAM's hover emphasis on a data block; in YAAT Scope, hovering expands the block in place, and clicking the callsign locks it open.
 

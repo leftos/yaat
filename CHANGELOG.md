@@ -27,6 +27,9 @@
 
 ### Fixed
 
+- An ERAM track that loses radar coverage starts coasting from where CRC last drew it, instead of jumping ahead up to 12 seconds.
+- An ERAM `QT` with no location coasts from the position and track CRC shows, not the aircraft's hidden live position.
+- A CRC ERAM display that connects while a track is coasting now shows that track and its data block.
 - ERAM `FP`, `VP` and `AM TYP`, and the CRC flight plan editor, store a lower-case aircraft type or equipment suffix in upper case.
 - A pattern follower sequences behind traffic on an instrument approach or a go-around, and aircraft on one leg are ordered by position, not who joined first.
 - ERAM `QF`, `FR` and a bare `AM` show the flight plan line in ERAM's column order: filed speed before the altitude, remarks last.

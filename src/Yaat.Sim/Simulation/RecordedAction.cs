@@ -208,8 +208,22 @@ public sealed record RecordedHoldAnnotationChange(double ElapsedSeconds, string 
 /// (<c>TRACK [/OK]</c>, <c>FREEZE {lat} {lon}</c>, <c>QQ …</c>, <c>QR {alt}</c>, <c>QS …</c>, <c>LF [{label}]</c>).
 /// <see cref="IdentityCode"/> is the acting position's <c>AS</c> code for the entries that act as a position
 /// (<c>TRACK</c>); the router resolves it through <see cref="Commands.TrackResolver.ResolveTcpToOwner"/> on apply.
+/// On a <c>COAST</c>, <see cref="SweptLat"/>, <see cref="SweptLon"/>, <see cref="SweptTrackDeg"/> and
+/// <see cref="SweptSimSeconds"/> are the target pose CRC was showing when the entry was made — the last 12 s sweep, or a
+/// coverage-coasting track's coast point — and the sim time that pose belongs to; a <c>COAST</c> with no <c>@</c> starts
+/// there. All four are set together or all null (every other entry, an unswept aircraft, and recordings made before they
+/// existed).
 /// </summary>
-public sealed record RecordedEramEntry(double ElapsedSeconds, string Callsign, string Entry, string? IdentityCode) : RecordedAction(ElapsedSeconds);
+public sealed record RecordedEramEntry(
+    double ElapsedSeconds,
+    string Callsign,
+    string Entry,
+    string? IdentityCode,
+    double? SweptLat,
+    double? SweptLon,
+    double? SweptTrackDeg,
+    double? SweptSimSeconds
+) : RecordedAction(ElapsedSeconds);
 
 /// <summary>
 /// A Continuous Range Readout group created, replaced or recolored (<c>LF</c> with a location, <c>SetEramCrrGroupColor</c>),

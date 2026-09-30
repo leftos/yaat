@@ -244,7 +244,11 @@ public sealed class ActionRouter
         ConsolidationRedirect? redirect = scenario is null
             ? null
             : new ConsolidationRedirect(scenario, _engine.ConsolidationState, _engine.Attendance.IsTcpAttended);
-        return EramEntryEngine.Apply(aircraft, entry.Entry, new EramEntryContext(identity, scenario, redirect, _engine.EramConflicts));
+        SweptPose? swept =
+            ((entry.SweptLat is { } lat) && (entry.SweptLon is { } lon) && (entry.SweptTrackDeg is { } track) && (entry.SweptSimSeconds is { } at))
+                ? new SweptPose(new LatLon(lat, lon), track, at)
+                : null;
+        return EramEntryEngine.Apply(aircraft, entry.Entry, new EramEntryContext(identity, scenario, redirect, _engine.EramConflicts, swept));
     }
 
     private static readonly CommandResult Applied = new(true);

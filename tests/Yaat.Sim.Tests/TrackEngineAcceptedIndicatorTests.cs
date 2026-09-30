@@ -251,7 +251,7 @@ public class TrackEngineAcceptedIndicatorTests
         ac.Track.HandoffPeer = Eram("ZOA_36", "36");
         Assert.True(TrackEngine.HandleAccept(ac, Scenario(elapsedSeconds: 10)).Success);
 
-        var context = new EramEntryContext(previousOwner, Scenario: null, Redirect: null, new EramConflictState());
+        var context = new EramEntryContext(previousOwner, Scenario: null, Redirect: null, new EramConflictState(), SweptPosition: null);
         CommandResult toggled = EramEntryEngine.Apply(ac, "FDB ZOA 40", context);
 
         Assert.True(toggled.Success, toggled.Message);

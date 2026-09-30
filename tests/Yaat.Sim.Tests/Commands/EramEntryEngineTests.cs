@@ -19,7 +19,11 @@ public class EramEntryEngineTests
     private static readonly TrackOwner Boulder = TrackOwner.CreateStars("NCT_B", "NCT", 2, "B");
 
     private static CommandResult Apply(AircraftState ac, string entry, TrackOwner? identity) =>
-        EramEntryEngine.Apply(ac, entry, new EramEntryContext(identity, Scenario: null, Redirect: null, new EramConflictState()));
+        EramEntryEngine.Apply(
+            ac,
+            entry,
+            new EramEntryContext(identity, Scenario: null, Redirect: null, new EramConflictState(), SweptPosition: null)
+        );
 
     /// <summary>A scenario whose one ATC position, Boulder, answers the TCP code <c>2B</c> a handoff names.</summary>
     private static EramEntryContext HandoffContext(TrackOwner identity) =>
@@ -43,7 +47,8 @@ public class EramEntryEngineTests
                 ],
             },
             Redirect: null,
-            new EramConflictState()
+            new EramConflictState(),
+            SweptPosition: null
         );
 
     private static AircraftState Aircraft() =>
@@ -1042,7 +1047,7 @@ public class EramEntryEngineTests
     }
 
     private static CommandResult ApplyCo(AircraftState ac, string entry, EramConflictState conflicts) =>
-        EramEntryEngine.Apply(ac, entry, new EramEntryContext(Sector44, Scenario: null, Redirect: null, conflicts));
+        EramEntryEngine.Apply(ac, entry, new EramEntryContext(Sector44, Scenario: null, Redirect: null, conflicts, SweptPosition: null));
 
     [Fact]
     public void Co_SuppressesTheAlert_AndASecondEntryRestoresIt()

@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Xunit;
 using Yaat.Sim.Asdex;
@@ -86,6 +87,24 @@ public class RecordedActionSerializationTests
             Assert.Equal(type, roundTripped.GetType());
             Assert.Equal(sample.ElapsedSeconds, roundTripped.ElapsedSeconds);
         }
+    }
+
+    [Fact]
+    public void RecordedEramEntry_WithoutSweptFields_LoadsWithNullSweptPosition()
+    {
+        // A recording written before ERAM entries carried the swept position has no Swept* properties at all.
+        var current = new RecordedEramEntry(100.0, "AAL100", "COAST T100", "07", 37.5, -122.25, 270.0, 96.0);
+        JsonObject json = JsonSerializer.SerializeToNode<RecordedAction>(current, RecordingJsonOptions.Default)!.AsObject();
+        List<string> sweptProperties = [.. json.Select(p => p.Key).Where(k => k.StartsWith("swept", StringComparison.OrdinalIgnoreCase))];
+        Assert.Equal(4, sweptProperties.Count);
+        foreach (string property in sweptProperties)
+        {
+            json.Remove(property);
+        }
+
+        RecordedEramEntry old = Assert.IsType<RecordedEramEntry>(JsonSerializer.Deserialize<RecordedAction>(json, RecordingJsonOptions.Default));
+
+        Assert.Equal(current with { SweptLat = null, SweptLon = null, SweptTrackDeg = null, SweptSimSeconds = null }, old);
     }
 
     private static IReadOnlyList<JsonDerivedTypeAttribute> DerivedTypeRegistrations() =>
@@ -220,7 +239,7 @@ public class RecordedActionSerializationTests
                     Efc = 1815,
                 }
             ),
-            new RecordedEramEntry(100.0, "AAL100", "QR 350", "07"),
+            new RecordedEramEntry(100.0, "AAL100", "QR 350", "07", 37.5, -122.25, 270.0, 96.0),
             new RecordedEramCrrGroup(105.0, "ALPHA", "Green", 37.7213, -122.2208),
             new RecordedEramRoomEntry(107.0, "ZOA", "CA MCI DISPLAY 44 45 OFF"),
             new RecordedStripRequest(110.0, "AAL100", "OAK", "STRIP_11"),
