@@ -18,6 +18,7 @@
 - Scenario → File Bug Report... asks what went wrong, opens a prefilled GitHub issue, and shows the bug report bundle to drag in.
 - At SFO, arrivals enter the Terminal 1 south ramp on M1 and leave on M2; supers use M1 both ways.
 - A plain `TAXI` naming no taxiways, issued on a taxiway, warns about each taxiway it drives that the clearance did not name.
+- TowerCab 3D can join your CRC session on a YAAT server, signing in with VATSIM, and shows its Tower Cab traffic.
 
 ### Changed
 
