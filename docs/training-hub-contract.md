@@ -101,10 +101,10 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `GetMyPermittedArtccsAsync()` | `GetMyPermittedArtccs` | `GetMyPermittedArtccs()` — home ARTCC first, then operator grants |
 | `JoinRoomAsync(roomId, initials, artccId, kind)` | `JoinRoom` | `JoinRoom(roomId, initials, artccId, kind)` |
 | `LeaveRoomAsync()` | `LeaveRoom` | `LeaveRoom()` |
-| `CloseRoomAsync(roomId)` | `CloseRoom` | `CloseRoom(roomId)` — the client calls it when its `JoinRoom` right after `CreateRoom` throws; only the room's creator (CID), while no scenario load holds the room and no other connection is a member, else it throws `HubException`; removes the room with the same teardown as abandoned-room cleanup and evicts (`RoomRetired`) any connection that joined meanwhile |
+| `CloseRoomAsync(roomId)` | `CloseRoom` | `CloseRoom(roomId)` — the client calls it when its `JoinRoom` right after `CreateRoom` throws; only the room's creator (CID), while no scenario load holds the room and no other connection is a member, else it throws `HubException` (`Room {roomId} does not exist`, `Only the room's creator can close it`, `The room is loading a scenario. Try again when it has loaded.`, `The room has other members; leave it instead`); removes the room with the same teardown as abandoned-room cleanup and evicts (`RoomRetired` `The room's creator closed it.`) any connection that joined meanwhile. A `CreateRoom` that throws after registering the room closes it the same way (`RoomRetired` `The room could not be created.`) before rethrowing |
 | `GetActiveRoomsAsync()` | `GetActiveRooms` | `GetActiveRooms()` |
 | `FindRoomForMyCidAsync()` | `FindRoomForMyCid` | `FindRoomForMyCid()` — CID from token claims |
-| `LoadScenarioAsync(json, …rates)` | `LoadScenario` | `LoadScenario(...)` |
+| `LoadScenarioAsync(json, …rates)` | `LoadScenario` | `LoadScenario(...)` → `LoadScenarioResult`; mentor/instructor-gated. Holds the room's load flag for the whole load (see **While a scenario loads**), sends the caller `ScenarioLoadProgress` events, and returns the final step table in `Steps` (see **Scenario load progress**) |
 | `ExportRoomAsScenarioAsync()` | `ExportRoomAsScenario` | `ExportRoomAsScenario()` → `ScenarioExportResultDto(Json, Name, AircraftCount, Flags, DeniedReason)`; mentor/instructor-gated (throws), then `DeniedReason` "Not in a room" / "No scenario is loaded" / "The room has no aircraft to export" with `Json` null. `Flags` lists each aircraft needing review (callsign + reason); the scenario itself is built by `ScenarioExporter` in `Yaat.Sim` |
 | `GetScenarioJsonByIdAsync(id)` | `GetScenarioJsonById` | `GetScenarioJsonById(id)` — gated by the scenario's ARTCC (caller's permitted set), then caller rating |
 | `GetScenariosAsync()` | `GetScenarios` | `GetScenarios()` — filtered by caller rating |
@@ -136,15 +136,15 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `RewindFromSnapshotAsync(…)` | `RewindFromSnapshot` | `RewindFromSnapshot(...)` `:925` |
 | `TakeControlAsync()` | `TakeControl` | `TakeControl()` `:943` |
 | `GoLiveAsync()` | `GoLive` | `GoLive()` → `CommandResultDto`; live session only (`TakeControl` + `Resume`) — refused with "Not a live session" otherwise |
-| `StartLiveSessionAsync(LiveSessionRequestDto)` | `StartLiveSession` | `StartLiveSession(...)` → `LoadScenarioResult` (same shape and broadcast fan-out as `LoadScenario`; a refusal is `Success=false` with the reason as the first warning); mentor/instructor-gated. `LoadScenarioResult` / `ScenarioLoadedDto` / `RoomStateDto` carry `IsLiveSession` (a property of the loaded scenario, not a session setting) |
+| `StartLiveSessionAsync(LiveSessionRequestDto)` | `StartLiveSession` | `StartLiveSession(...)` → `LoadScenarioResult` (same shape, load flag, progress events and broadcast fan-out as `LoadScenario`, its step table ending in a `live` step; a refusal is `Success=false` with the reason as the first warning); mentor/instructor-gated. `LoadScenarioResult` / `ScenarioLoadedDto` / `RoomStateDto` carry `IsLiveSession` (a property of the loaded scenario, not a session setting) |
 | `SeekLiveTrafficAsync(feedUtc)` | `SeekLiveTraffic` | `SeekLiveTraffic(...)` → `CommandResultDto`; live session only — stands the room at a feed instant inside the raw-log window (DVR), dropping every non-shadow aircraft; refused with the reason outside the window or past the two-replay cap. `LiveSessionRequestDto.StartUtc` does the same at session start |
 | `GetLiveTrafficWindowAsync()` | `GetLiveTrafficWindow` | `GetLiveTrafficWindow()` → `LiveTrafficWindowDto` (retained span, active/max replays, or why there is none). `LiveTrafficStatusDto` also carries `FeedTimeUtc`, `BehindSeconds` (null while live), `Preparing` |
 | `GetArtccFacilityTreeAsync(artccId)` | `GetArtccFacilityTree` | `GetArtccFacilityTree(...)` → `FacilityTreeDto?` (facility tree with `PositionSummaryDto`s; `AirportId` when the facility id is an airport, `PrimaryAirportId` from its first STARS area, `Airports` from its STARS configuration) |
 | `GetTimelineInfoAsync()` | `GetTimelineInfo` | `GetTimelineInfo()` |
 | `GetTerminalLogAsync()` | `GetTerminalLog` | `GetTerminalLog()` → `List<TerminalBroadcastDto>` (recorded terminal stream; client repopulates the terminal after a recording load) |
 | `ExportRecordingAsync()` | `ExportRecording` | `ExportRecording()` `:961` (stream) |
-| `LoadRecordingAsync(bytes)` | `LoadRecording` | `LoadRecording(stream)` `:1015` |
-| `MigrateRecordingAsync(json)` | `MigrateRecording` | `MigrateRecording(json)` `:990` |
+| `LoadRecordingAsync(bytes)` | `LoadRecording` | `LoadRecording(stream)` → `RewindResultDto`. Drains the upload, then holds the room's load flag like a scenario load: fetches the recording scenario's ARTCC configs and layouts before taking the tick gate, sends no progress events, and replaces the room's resource pin |
+| `MigrateRecordingAsync(json)` | `MigrateRecording` | `MigrateRecording(json)` → `byte[]?`; replays the v1 recording on its own scenario's freshly fetched resources, never the calling room's |
 | `AddBookmarkAsync(timeSeconds, name, initials)` | `AddBookmark` | `AddBookmark(...)` — adds a shared timeline bookmark, broadcasts `BookmarksChanged` |
 | `RenameBookmarkAsync(id, name)` | `RenameBookmark` | `RenameBookmark(id, name)` — any RPO may rename any bookmark |
 | `DeleteBookmarkAsync(id)` | `DeleteBookmark` | `DeleteBookmark(id)` — any RPO may delete any bookmark |
@@ -208,12 +208,20 @@ Setting only `StatusText` puts it in small gray text at the bottom of the window
 happened"; the client now also raises a terminal warning (`MainViewModel.ReportScenarioActionFailure`) and
 disables the controls up front via `CanLoadScenario`/`CanUnloadScenario`.
 
-**While a scenario loads** (`LoadScenario`, `StartLiveSession`; the room's load flag), a second load in the same room returns `Success = false` with first warning `A scenario is already loading in this room (started by {initials}). Wait for it to finish.` `UnloadScenarioAircraft` and `ConfirmUnloadScenario` throw `HubException` `The room is loading a scenario. Try again when it has loaded.`; `RestartScenario`, `RewindTo`, `RewindFromSnapshot` and `LoadRecording` return their failure DTO with the same text. A load whose JSON cannot be read returns `Success = false` with `The scenario JSON could not be read: {message}. The room keeps its current scenario.`, and one whose room closed meanwhile `The room was closed while the scenario loaded.`, and one that hit an unexpected exception `The load failed: {message}.`; a failed load sends no `ScenarioLoaded`. `LoadScenarioResult.Steps` carries the final step table (empty for a refusal before the load started), and `RoomStateDto.LoadingBy` the initials of whoever is loading (null otherwise), so a joiner sees a load is running. Once the scenario is read, the room group gets the terminal line `{initials} is loading '{name}'…`, sent directly and not recorded in the outgoing scenario's terminal log.
-
 `RestartScenario` is deliberately **not** in that list: it re-runs the same scenario, so unlike unload it can
 neither strand the room nor switch scenarios, and a non-mentor working alone can retry without an instructor.
 Note the gate is a **rating tier**, not the RPO position — a mentor working an RPO position is unaffected (the
 client flag is `IsNonMentor`; see [`vatsim-auth.md`](vatsim-auth.md) for the lobby-and-pull flow).
+
+### While a scenario loads
+
+`LoadScenario`, `StartLiveSession` and `LoadRecording` each hold the room's **load flag** (`TrainingRoom.TryBeginLoad`) from before their fetches until after their `ScenarioLoaded` / `RecordingLoaded` broadcast, and announce it with `RoomLoadingChanged`. While it is held:
+
+- A second `LoadScenario` or `StartLiveSession` in the room returns `Success = false` at once with first warning `A scenario is already loading in this room (started by {initials}). Wait for it to finish.`, no progress events and an empty `Steps`.
+- `UnloadScenarioAircraft`, `ConfirmUnloadScenario` and `CloseRoom` throw `HubException` `The room is loading a scenario. Try again when it has loaded.`; `RestartScenario` (`CommandResultDto`), `RewindTo`, `RewindFromSnapshot` and `LoadRecording` (`RewindResultDto`) return their failure DTO with the same text. Each checks before it waits on the tick gate and again inside it, since a call can wait on the gate while a load commits.
+- `SendCommand` still reaches the scenario the room is running; the load's commit discards that scenario, commands and all.
+
+A load that fails returns `Success = false` with the failed step's problem as its first warning (the texts are in **Scenario load progress** below: an unreadable JSON leaves the room running what it had, a failure after the unload leaves it empty), and sends no `ScenarioLoaded`. `RoomStateDto.LoadingBy` carries the initials of whoever holds the flag (null otherwise), so a joiner sees a load is running. Once the scenario is read, the room group gets the terminal line `{initials} is loading '{name}'…`, sent directly and not recorded in the outgoing scenario's terminal log. A recording load that fails after it cleared the room leaves the room empty and sends the group `ScenarioUnloaded`.
 
 ## Server → client broadcast catalog
 
@@ -242,8 +250,8 @@ payload DTO → the `ServerConnection` C# event it re-raises:
 | `AtpaResultsChanged` | `AtpaResultsChangedDto` (full list of `AtpaPairDto(Callsign, LeadCallsign, AllowedSeparationNm, ConeState)`) | `AtpaResultsChanged` — also seeded on join via `RoomStateDto.AtpaResults`. Computed once per room per wall-tick by `AtpaEvaluator` in `RoomTickLoopService.DetectChanges` (cached on `TrainingRoom.AtpaResults`, shared with the CRC pass) and signature-guarded on follower→lead, allowed separation and cone state — the **actual** separation is deliberately not on the wire: the client recomputes it per frame from the two positions, as for CA. `ConeState` is the shared `Yaat.Sim.Data.Vnas.AtpaConeState` enum (same precedent as `StarsDatablockColor`). Every pair is sent regardless of the volume's TCP adaptation; the client shows them all |
 | `PositionDisplayChanged` | `PositionDisplayConfigDto` | `PositionDisplayChanged` |
 | `ScenarioLoaded` | `ScenarioLoadedDto` | `ScenarioLoaded` (+ `StripsConfigChanged`) |
-| `ScenarioLoadProgress` | `ScenarioLoadProgressDto(LoadId, Sequence, ScenarioName, IsComplete, Steps)`, each step a `LoadStepDto(Id, Label, State, Detail, Problems)` | Sent to the **caller** of `LoadScenario` / `StartLiveSession` only, with the whole step table at every change (`Sequence` strictly increasing; drop a stale one). The last event has `IsComplete = true` and equals `LoadScenarioResult.Steps`, also after a failure. Step ids, labels, states and texts: `docs/plans/async-room-load.md` "Progress event contract". Client: `MainViewModel.OnScenarioLoadProgress` → `LoadOverlayViewModel` |
-| `RoomLoadingChanged` | `string?` — the initials of the member whose load holds the room's load flag; null once it is released | `RoomLoadingChanged` — sent to the **room group** when a `LoadScenario` / `StartLiveSession` takes the load flag, and again with null when the load ends on any path (success, unreadable JSON, exception, room closed). Fire-and-forget; a failed send is logged. Also seeded on join via `RoomStateDto.LoadingBy`. While it is non-null the client disables Load, Unload, Restart and every rewind and shows `Loading a scenario (by {initials})…` |
+| `ScenarioLoadProgress` | `ScenarioLoadProgressDto(LoadId, Sequence, ScenarioName, IsComplete, Steps)`, each step a `LoadStepDto(Id, Label, State, Detail, Problems)` | Sent to the **caller** of `LoadScenario` / `StartLiveSession` only, with the whole step table at every change (`Sequence` strictly increasing; drop a stale one). The last event has `IsComplete = true` and equals `LoadScenarioResult.Steps`, also after a failure. Step ids, labels, states and texts: **Scenario load progress** below. Client: `MainViewModel.OnScenarioLoadProgress` → `LoadOverlayViewModel` |
+| `RoomLoadingChanged` | `string?` — the initials of the member whose load holds the room's load flag; null once it is released | `RoomLoadingChanged` — sent to the **room group** when a `LoadScenario`, `StartLiveSession` or `LoadRecording` takes the load flag, and again with null when the load ends on any path (success, unreadable JSON, exception, room closed). Fire-and-forget; a failed send is logged. Also seeded on join via `RoomStateDto.LoadingBy`. While it is non-null the client disables Load, Start Live Session, Unload, Restart and every rewind and shows `Loading a scenario (by {initials})…` |
 | `ScenarioUnloaded` | *(none)* | `ScenarioUnloaded` (+ `StripsConfigChanged(null)`) |
 | `ScenarioRestarted` | `List<AircraftDto>` — the room's post-restart manifest (live aircraft + re-queued delayed spawns) | `ScenarioRestarted` — handlers **replace** their aircraft list, never merge. The restart tears the world down under `IsBroadcastSuppressed`, so no `AircraftDeleted` is sent for the abandoned run and `AircraftUpdated` only adds or updates; without this payload every aircraft that did not survive stays on the client frozen in place. Group-scoped so every room member re-syncs, not just whoever hit Restart. CRC's equivalent is `RoomEngine.ResyncCrcAfterReload` |
 | `ScenarioRewound` | `List<AircraftDto>` — the post-rewind manifest | `ScenarioRewound` — same additive-stream repair as `ScenarioRestarted`, for `RewindTo` / `RewindFromSnapshot`. Sent **`GroupExcept` the caller**: that client applies the identical manifest from `RewindResultDto.Aircraft` instead, so including it would rebuild its list twice. Unlike a restart the client must **keep** its bookmarks — they are timeline-global and `RewindAsync` carries them across the reload |
@@ -266,6 +274,40 @@ payload DTO → the `ServerConnection` C# event it re-raises:
   the timeline label, scrubber position, and the base for the relative +15/−15 skips — stays live. It is also sent
   on the discrete events (pause/unpause, sim-rate change, rewind-complete, end-of-tape). The `double elapsed`
   argument carries `scenario.ElapsedSeconds`.
+
+## Scenario load progress
+
+`LoadScenario` and `StartLiveSession` report their steps to the caller alone. The hub captures `Clients.Caller` before its first await and hands `ScenarioLoadReporter` (yaat-server `Simulation/ScenarioLoadReporter.cs`) a sink that sends `ScenarioLoadProgress` fire-and-forget: a failed send (the loader disconnected) is logged and never fails the load. Every event carries the **whole** step table, so a lost or reordered event cannot desync the client:
+
+- `ScenarioLoadProgressDto(LoadId, Sequence, ScenarioName, IsComplete, Steps)`: `LoadId` is a new `Guid` ("N" format) per load; `Sequence` goes up by one at every change of the table, item counts included; `ScenarioName` is empty until the `read` step finishes.
+- `LoadStepDto(Id, Label, State, Detail, Problems)`: `State` is one of `pending`, `running`, `done`, `warning` (finished, and something it needed is missing: the load went on without it, `Problems` says what), `failed` (the load stopped here) or `notNeeded` (nothing to do).
+- A finished step is never reopened. Once a step fails or the load ends, the table is complete: one last event with `IsComplete = true` goes out and nothing follows it. `LoadScenarioResult.Steps` is that same table, so the RPC result alone is enough to render the finished overlay. An unexpected exception fails the step the load had reached (the running one, else the next pending one) with `The load failed: {message}.`, then completes the table.
+- A load refused before it started (not in a room, the load flag held elsewhere) sends no events and returns an empty `Steps`. A recording load, and the paths no client watches (`RoomEngine.LoadScenarioAsync` / `LoadScenarioSeededAsync` / `StartLiveSessionAsync`, restore, rewind), report to `ScenarioLoadReporter.None()`, which sends nothing; the unwatched scenario loads still return their table in `Steps`. On the server `LoadScenarioResult.Steps` and `RoomStateDto.LoadingBy` are positional members; the client declares them as `init` properties (`LoadScenarioResultDto.Steps` defaults to empty, `RoomStateDto.LoadingBy` to null).
+
+The steps, in display order, with their text verbatim (`{…}` is filled in; `ScenarioLoadSteps` holds every string):
+
+| Id | Label | `Detail` while running | `Detail` when finished |
+|---|---|---|---|
+| `read` | Read scenario | | `{scenario name}` |
+| `artcc` | ARTCC configuration | `{done} of {total}: {ids still running}` | `{ids, comma-separated}`; `notNeeded` when the scenario names no ARTCC |
+| `layouts` | Airport layouts | `{done} of {total}: {ids still running}` | `{airports with a layout} of {total} airports`, then `; no map: {ids}` for mapless airports that raise no warning; `notNeeded` when the scenario names no airport |
+| `aircraft` | Build aircraft | | `{n} aircraft: {immediate} now, {delayed} delayed, {deferred} not placed`; a live session's is `notNeeded` with `A live session has no scripted aircraft` |
+| `populate` | Set up the room | `Waiting for the room`, then `Replacing the current scenario` | the student position's callsign, or none |
+| `weather` | Re-apply weather | | `{weather name}`; `notNeeded` with `No weather loaded` |
+| `live` (live session only) | Start live traffic | | |
+
+`Problems` texts:
+
+- `read`, failed: `The scenario JSON could not be read: {parser message}. The room keeps its current scenario.` Nothing is fetched and the room is untouched.
+- `artcc`, warning (a live session's step **fails** instead when the creator's ARTCC config is missing): `{ID}: not found on vNAS (HTTP 404). Positions in {ID} will not resolve.` · `{ID}: vNAS unreachable and nothing cached. Positions in {ID} will not resolve.` · `{ID}: vNAS unreachable; using the copy cached {yyyy-MM-dd HH:mm}Z.` · `{ID}: no longer on vNAS (HTTP 404); using the copy cached {yyyy-MM-dd HH:mm}Z.` · `{ID}: the configuration could not be read ({cause}). Positions in {ID} will not resolve.` · `{ID}: no ERAM letter for neighbouring center {NBR}; a handoff to {NBR} answers SECTOR NOT ADAPTED.` A stale copy with no timestamp reads `using the copy cached at an unknown time.`
+- `layouts`, warning: at any airport, `{APT}: vNAS unreachable; using the copy cached {yyyy-MM-dd HH:mm}Z.` · `{APT}: no longer on vNAS (HTTP 404); using the copy cached {yyyy-MM-dd HH:mm}Z.` · `{APT}: the ground map could not be read ({cause}).`; at a map-required airport only (`ScenarioResourceManifest.MapRequiredAirportIds`: the primary airport and each `Parking` or ground-spawn airport), `{APT}: no ground map on vNAS. Aircraft at {APT} cannot taxi or park.` · `{APT}: vNAS unreachable and nothing cached.` Any other airport with no map joins the `no map:` detail and keeps the step green.
+- `aircraft`, warning: each of the loader's `ScenarioLoadResult.Warnings` verbatim (for example `N123AB: No ground layout for SQL`).
+- `populate`, warning: `ATC position {id} not found in {artcc}; it won't appear in the controllers list` · `Student position {id} not found in {artcc}; strips, beacon banks and the STARS display settings are not set up.` · `Arrival generator {id} skipped: {reason}`, the reason one of `no primaryAirportId`, `no runway specified`, `runway {rwy} not found at {apt}`. These and the `aircraft` warnings are also the result's `Warnings` and reach the terminal as `Warning` lines.
+- `populate`, failed: `The room could not be set up: {message}. The previous scenario was already unloaded; load again.` · `The room was closed while the scenario loaded.` (the room was retired or force-closed during the fetches; it is not repopulated).
+- `weather`, warning: `The room's weather could not be re-applied: {message}` (`the weather load gave no reason` when there is no message).
+- `live`, failed: `Live traffic is not enabled on this server` · `Position {id} not found in {artcc}` · `Unknown airport {id}` · the enable, filter and seek failures (`Live traffic could not be enabled`, `Bad live-traffic filter`, `The feed cannot start there` when the call gives no message).
+
+Each finished step logs `Scenario load {LoadId} step {Id}: {State} in {ms} ms` on the server. The client's overlay closes itself when the table is complete and every step is `done` or `notNeeded`; a `warning` or `failed` step keeps it open until the user closes it ([client-mainviewmodel.md](client-mainviewmodel.md)).
 
 ## Client-version gate (off-hub, before connecting)
 
@@ -339,10 +381,7 @@ SignalR's `JsonHubProtocol` calls `JsonSerializer.Serialize<object>(...)` on eve
 metadata throws `JsonSerializerIsReflectionDisabled` **at first use, with no compile error**. The desktop client falls
 through to reflection and works fine — so a forgotten registration is invisible until someone runs the browser client.
 
-`HubJsonContractTests` (`tests/Yaat.Client.Tests`) closes part of that gap: it reflects over every public `Task<T>`
-method on `ServerConnection` (each one an `InvokeAsync<T>` wrapper) and fails the build when a Core-owned return type is
-missing from `YaatHubJsonContext`. It covers **Core return types only** — broadcast (`.On<T>`) payloads, method
-arguments, and the Strips/Tdls contexts aren't reflectable from the method surface and stay unguarded.
+`HubJsonContractTests` (`tests/Yaat.Client.Tests`) closes part of that gap: it reflects over every public `Task<T>` method on `ServerConnection` (each one an `InvokeAsync<T>` wrapper) and fails the build when a Core-owned return type is missing from `YaatHubJsonContext`. It covers **Core return types only** — broadcast (`.On<T>`) payloads, method arguments, and the Strips/Tdls contexts aren't reflectable from the method surface and stay unguarded, apart from the `ScenarioLoadProgress` payload: named facts pin `ScenarioLoadProgressDto` and `LoadStepDto` in the context and deserialize the server's load shapes (`Steps`, `LoadingBy`) into the client records.
 
 The fix is a `[JsonSerializable]` registration in one of **three** source-generated contexts, inserted at the head of the
 resolver chain in the `AddJsonProtocol` callback inside `ServerConnection.ConnectAsync` (`ServerConnection.cs:103`-`106`),

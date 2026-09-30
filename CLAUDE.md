@@ -129,7 +129,7 @@ Subsystem references — open the matching doc *before* exploring, searching, or
 - [`command-handlers.md`](docs/command-handlers.md) — `CommandDispatcher.cs` + `*CommandHandler.cs` internals
 - [`aircraft-data-model.md`](docs/aircraft-data-model.md) — `AircraftState`, `ControlTargets`, `Aircraft*.cs` satellites, `SimulationWorld`; adding a per-aircraft field
 - [`training-hub-contract.md`](docs/training-hub-contract.md) — `/hubs/training` JSON wire contract; adding a hub method or `AircraftUpdated` field
-- [`server-rooms-and-hub.md`](docs/server-rooms-and-hub.md) — hosted tick loop, `RoomEngine`, `TickProcessor`, `AircraftChangeTracker`, `TrainingRoom*`
+- [`server-rooms-and-hub.md`](docs/server-rooms-and-hub.md) — hosted tick loop, `RoomEngine`, `TickProcessor`, `AircraftChangeTracker`, `TrainingRoom*`, the scenario load's prepare/commit and resource pin
 - [`vatsim-auth.md`](docs/vatsim-auth.md) — VATSIM Connect (OAuth2) identity, access control, token flow; the server is the identity authority
 - [`session-persistence.md`](docs/session-persistence.md) — preserving rooms across a *planned* server restart (admin prepare/shutdown flow; no crash recovery)
 - [`crc-display-state.md`](docs/crc-display-state.md) — `CrcClientState`, `CrcBroadcastService`, `CrcVisibilityTracker`, `DtoConverter`, `CrcDtos*.cs`

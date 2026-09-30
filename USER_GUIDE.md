@@ -953,9 +953,21 @@ Use **View > Copy View Settings...** to open a comparison dialog that copies vie
 
 Select a scenario and click **Load** (or double-click). Aircraft spawn at their configured starting positions. The window title shows the room name and scenario name. To switch scenarios, load a new one — a confirmation dialog appears if one is already active.
 
-While a scenario loads, a progress panel over the main window lists each step — reading the scenario, the ARTCC configuration, the airport layouts, building the aircraft, setting up the room, re-applying the weather — with a tick when it finishes. It closes by itself when every step went well. When something was missing (an ARTCC configuration vNAS could not supply, an airport with no ground map, an aircraft that could not be placed) the step shows a warning with the reason and the panel stays open until you click **Close**; a step that stopped the load shows a cross. Starting a live session shows the same panel.
+#### While a scenario loads
 
-While any member's load is running, every client in the room shows **Loading a scenario (by AB)…** in the status bar and disables Load, Unload, Restart and the timeline's rewind controls until it ends.
+A progress panel titled with the scenario's name appears over the main window and lists each step of the load: **Read scenario**, **ARTCC configuration**, **Airport layouts**, **Build aircraft**, **Set up the room** and **Re-apply weather**. Each step shows how it is going:
+
+- a dot while it runs, with what it is working on (for example `3 of 12: SFO, SJC` while the airport layouts download);
+- a tick when it finished, with a summary (for example `58 aircraft: 40 now, 12 delayed, 6 not placed`);
+- a warning sign when it finished but something it needed was missing — an ARTCC configuration vNAS could not supply, an airport whose ground map is missing where aircraft park or taxi, an aircraft that could not be placed, a controller position the configuration does not have — with the reason underneath. The load carries on without it;
+- a cross on the step where the load stopped, with the reason;
+- a grey dash for a step that had nothing to do, such as re-applying the weather when the room has none.
+
+The panel closes by itself when every step went well. A warning or a cross keeps it open until you click **Close**, so you can read what is missing before you start. Airports that have no ground map but where no aircraft parks or taxis (a departure that starts on the runway, a field that is only a destination) do not raise a warning; they are listed quietly on the Airport layouts line, for example `no map: SQL, HAF`.
+
+The room's current scenario keeps running while the new one loads, and is replaced only once the new one is ready. If the scenario file cannot be read at all, the load stops at the first step and the current scenario carries on untouched. When the Scenario Setup dialog appears (see below), the panel closes while you choose and reopens when you confirm. Starting a live session shows the same panel, with a **Start live traffic** step at the end and no aircraft to build.
+
+While any member's load is running, every client in the room — the loader's included — shows **Loading a scenario (by AB)…** in the status bar, and the terminal shows **AB is loading 'OAK Ground 7'…**. Load, Start Live Session, Unload, Restart and the timeline's rewind and skip controls are disabled until it ends; when it does, the status bar reads **Load by AB ended** unless another message has taken its place. Loading a recording holds the room the same way, without the panel. Anything that reaches the server during a load anyway is turned down with **The room is loading a scenario. Try again when it has loaded.**, or, for a second load, **A scenario is already loading in this room (started by AB). Wait for it to finish.**
 
 When a scenario has multiple difficulty levels, YAAT shows a **Scenario Setup** dialog before loading. In solo training, the same dialog can also show workload pacing sliders for scenarios that have parking spawns or arrival generators. See [Solo Training](#solo-training).
 

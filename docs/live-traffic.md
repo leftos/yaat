@@ -364,7 +364,7 @@ bundle's sim seconds back to the real-world feed window (see *Reproducing a repo
 `LoadScenarioResult` whose first warning is the reason) when the server has no feed (`SimControlService.LiveTrafficFeedConfigured`),
 the position is not in the room's ARTCC, or the airport is unknown to the nav database (FAA/ICAO twin accepted); otherwise
 `LiveSessionScenario.Build` serializes a zero-aircraft `Scenario { Id = live:<artcc>:<position>:<airport>, LiveSession = true }`
-that goes through the ordinary `ScenarioLifecycleService.LoadScenarioAsync` (so facility resolution, ground layout, recording and
+that goes through the ordinary scenario load, `RoomEngine.StartLiveSessionGuardedAsync` then `ScenarioLifecycleService.CommitPreparedScenario` (so facility resolution, ground layout, recording and
 rewind are untouched), then `SetLiveTrafficEnabled(true)`, the ceiling, and `Resume`. `Scenario.LiveSession` (JSON `liveSession`)
 → `ScenarioLoadResult.IsLiveSession` → `SimScenarioState.IsLiveSession` (set at every state construction site: `SimulationEngine`,
 `ScenarioLifecycleService` load + rewind) → `IsLiveSession` on `LoadScenarioResult` / `ScenarioLoadedDto` / `RoomStateDto`. It is
