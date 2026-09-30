@@ -27,6 +27,7 @@
 
 ### Fixed
 
+- ERAM `FP`, `VP` and `AM TYP`, and the CRC flight plan editor, store a lower-case aircraft type or equipment suffix in upper case.
 - A pattern follower sequences behind traffic on an instrument approach or a go-around, and aircraft on one leg are ordered by position, not who joined first.
 - ERAM `QF`, `FR` and a bare `AM` show the flight plan line in ERAM's column order: filed speed before the altitude, remarks last.
 - An altitude-only flight plan amend no longer strips the equipment suffix from CRC's equipment field, and CRC gets each type's real wake category.

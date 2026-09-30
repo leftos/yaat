@@ -24,8 +24,9 @@ public class FlightPlanNormalizationTests
     [InlineData("C182/L-DOV/C", null, null, "C182", "L-DOV/C")]
     [InlineData("123/F16", null, null, "123", "F16")]
     [InlineData("2HX/F16", null, null, "2HX", "F16")]
-    [InlineData("2h/f16", 2, 'H', "f16", null)]
-    [InlineData("h/b763/l", null, 'H', "b763", "l")]
+    [InlineData("2h/f16", 2, 'H', "F16", null)]
+    [InlineData("h/b763/l", null, 'H', "B763", "L")]
+    [InlineData("b763/l", null, null, "B763", "L")]
     public void SplitTypeAndSuffix_SplitsElementATypeAndSuffix(
         string raw,
         int? expectedCount,
@@ -76,5 +77,14 @@ public class FlightPlanNormalizationTests
 
         Assert.Equal("A306", type);
         Assert.Null(suffix);
+    }
+
+    [Fact]
+    public void ResolveTypeAndSuffix_LowerCaseFaaSuffix_ReturnsItUpperCase()
+    {
+        (string? type, string? suffix) = FlightPlanNormalization.ResolveTypeAndSuffix("b738", "l");
+
+        Assert.Equal("B738", type);
+        Assert.Equal("L", suffix);
     }
 }

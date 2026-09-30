@@ -27,7 +27,8 @@ public static class FlightPlanNormalization
     /// type (<c>"123/F16"</c> is type <c>123</c>, suffix <c>F16</c>). A bare type (<c>"SR22"</c>, <c>"H/A306"</c>) and
     /// an empty tail after the last slash (<c>"C172/"</c>) both return a null suffix: the equipment suffix is a separate
     /// field that a type alone never changes, and only <c>SimulationEngine.AmendFlightPlan</c> defaults it to <c>"A"</c>
-    /// when the amendment files a new plan. Null input returns null ("no aircraft type supplied"); empty input returns
+    /// when the amendment files a new plan. The type and suffix come back upper-case, as the indicator does, so a
+    /// lower-case entry (<c>"2h/f16/l"</c>) files <c>F16</c> and <c>L</c>. Null input returns null ("no aircraft type supplied"); empty input returns
     /// an empty type.
     /// </summary>
     [return: NotNullIfNotNull(nameof(raw))]
@@ -51,11 +52,11 @@ public static class FlightPlanNormalization
         int slash = typeAndSuffix.IndexOf('/');
         if (slash < 0)
         {
-            return new FiledAircraftType(count, indicator, typeAndSuffix, null);
+            return new FiledAircraftType(count, indicator, typeAndSuffix.ToUpperInvariant(), null);
         }
 
-        string suffix = typeAndSuffix[(slash + 1)..];
-        return new FiledAircraftType(count, indicator, typeAndSuffix[..slash], suffix.Length == 0 ? null : suffix);
+        string suffix = typeAndSuffix[(slash + 1)..].ToUpperInvariant();
+        return new FiledAircraftType(count, indicator, typeAndSuffix[..slash].ToUpperInvariant(), suffix.Length == 0 ? null : suffix);
     }
 
     /// <summary>
@@ -84,7 +85,7 @@ public static class FlightPlanNormalization
     public static (string? Type, string? Suffix) ResolveTypeAndSuffix(string? equipment, string? faaEquipmentSuffix)
     {
         FiledAircraftType? fromEquipment = SplitTypeAndSuffix(equipment);
-        string? preferredSuffix = !string.IsNullOrEmpty(faaEquipmentSuffix) ? faaEquipmentSuffix : fromEquipment?.Suffix;
+        string? preferredSuffix = !string.IsNullOrEmpty(faaEquipmentSuffix) ? faaEquipmentSuffix.ToUpperInvariant() : fromEquipment?.Suffix;
         return (fromEquipment?.Type, preferredSuffix);
     }
 
