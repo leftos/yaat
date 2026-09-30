@@ -157,6 +157,14 @@ public class FollowSequenceRefusalTests(ITestOutputHelper output)
     private static FollowerState Capture(AircraftState ac) =>
         new(ac.Phases, ac.Phases?.CurrentPhase, ac.Phases?.Phases.Count ?? 0, ac.Phases?.LandingClearance, ac.Phases?.ClearedRunwayId);
 
+    private static void TickSeconds(SimulationEngine engine, int seconds)
+    {
+        for (int i = 0; i < seconds * 4; i++)
+        {
+            engine.TickPhysics(0.25);
+        }
+    }
+
     private CommandResult Send(SimulationEngine engine, string command)
     {
         CommandResult result = engine.SendCommand(Follower, command);
@@ -476,7 +484,7 @@ public class FollowSequenceRefusalTests(ITestOutputHelper output)
     // ─── Approach follower ───
 
     /// <summary>Follower intercepting the 28R final <paramref name="alongNm"/> out and 0.8 nm right of it, cleared to land.</summary>
-    private static AircraftState AddApproachFollower(SimulationEngine engine, double alongNm)
+    internal static AircraftState AddApproachFollower(SimulationEngine engine, double alongNm)
     {
         RunwayInfo rwy = Oak("28R");
         AircraftState follower = MakeVfr(Follower, OffFinal(rwy, alongNm, 0.8), rwy.TrueHeading, 900);
@@ -545,7 +553,7 @@ public class FollowSequenceRefusalTests(ITestOutputHelper output)
     /// Follower on an instrument approach's fix sequence 2.5 nm out and 0.8 nm right of the 28R final, its one fix on the
     /// centerline 1.5 nm out, cleared to land.
     /// </summary>
-    private static AircraftState AddApproachNavigationFollower(SimulationEngine engine)
+    internal static AircraftState AddApproachNavigationFollower(SimulationEngine engine)
     {
         RunwayInfo rwy = Oak("28R");
         LatLon fix = OffFinal(rwy, 1.5, 0);
@@ -695,5 +703,33 @@ public class FollowSequenceRefusalTests(ITestOutputHelper output)
         CommandResult result = Send(engine, $"FOLLOWF {Leader}");
 
         AssertRefusedUnchanged(follower, before, result, $"Unable, on base for runway 28R, {Leader} is not ahead of us, request vectors");
+    }
+
+    /// <summary>
+    /// A refused FOLLOWF must not leave the traffic marked in sight: the traffic-in-sight report is what an accepted
+    /// FOLLOWF folds in, and the refusal is the pilot declining the follow entirely. Issued as a condition-led block,
+    /// which is queued and applied to the follower once its trigger is met: only an unconditional compound's first
+    /// block is dry-run on a clone, so this is the path on which a refusal reaches the follower.
+    /// </summary>
+    [Fact]
+    public void FollowForce_Refused_LeavesTrafficNotInSight()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddFollower(engine, PatternEntryLeg.Base, wp => IntoBase(wp, 0.3));
+        follower.Altitude = 2000;
+        follower.Approach.HasReportedTrafficInSight = false;
+        AddOnCircuit(engine, Leader, PatternEntryLeg.Downwind, wp => DownwindShortOfBaseTurn(wp, 1.5));
+
+        CommandResult issued = engine.SendCommand(Follower, $"AT 2000 FOLLOWF {Leader}");
+        output.WriteLine($"AT 2000 FOLLOWF: success={issued.Success} — {issued.Message}");
+        Assert.True(issued.Success, issued.Message);
+
+        TickSeconds(engine, 2);
+        output.WriteLine($"warnings: {string.Join(" | ", follower.PendingWarnings)}");
+
+        // The refusal reaching the follower proves the triggered FOLLOWF fired and was refused, not that it never ran.
+        Assert.Contains(follower.PendingWarnings, w => w.Contains(NotAhead("base"), StringComparison.Ordinal));
+        Assert.False(follower.Approach.HasReportedTrafficInSight, "a refused FOLLOWF must leave the traffic-in-sight state as it was");
+        Assert.Null(follower.Approach.FollowingCallsign);
     }
 }

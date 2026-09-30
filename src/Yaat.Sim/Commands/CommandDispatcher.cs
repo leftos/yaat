@@ -3727,57 +3727,80 @@ public static class CommandDispatcher
             return new CommandResult(false, "FOLLOW requires the aircraft to be airborne");
         }
 
-        if (follow.Force && (ApplyForcedFollow(aircraft, follow, ctx) is { } forcedRefusal))
+        if (follow.Force && (ForcedFollowRefusal(ctx) is { } forcedRefusal))
         {
             return forcedRefusal;
         }
 
         // RTIS gate: a pilot cannot follow traffic they haven't visually acquired.
-        // Matches CVA FOLLOW behavior — controllers can force this with RTISF (or FOLLOWF).
-        if (!aircraft.Approach.HasReportedTrafficInSight)
+        // Matches CVA FOLLOW behavior — controllers can force this with RTISF (or FOLLOWF), which folds the
+        // traffic-in-sight report into the clearance.
+        if (!follow.Force && !aircraft.Approach.HasReportedTrafficInSight)
         {
             return new CommandResult(false, "Traffic not in sight — issue RTIS first");
         }
 
-        // Bare FOLLOW (no explicit callsign) defaults to the most recently reported
-        // traffic. Explicit callsign always wins. If neither is available, reject.
         // Message mirrors the "Unable, no traffic specified" wording used by RTIS.
-        string? target = follow.TargetCallsign ?? aircraft.Approach.LastReportedTrafficCallsign;
+        string? target = ResolveFollowTarget(aircraft, follow);
         if (string.IsNullOrEmpty(target))
         {
             return new CommandResult(false, "Unable, say traffic callsign");
         }
 
         AircraftState? leadAircraft = ctx.FindAircraft?.Invoke(target);
-        return SuperLeadRefusal(leadAircraft, target) ?? RouteFollow(aircraft, leadAircraft, target, ctx);
+        CommandResult result = SuperLeadRefusal(leadAircraft, target) ?? RouteFollow(aircraft, leadAircraft, target, ctx);
+
+        // Only an accepted FOLLOWF marks the traffic in sight: a refused one (a departing, ground, behind-in-sequence
+        // or super lead) leaves the follower's traffic-in-sight state exactly as the command found it, pending RTIS
+        // observation included.
+        if (follow.Force && result.Success)
+        {
+            MarkForcedFollowInSight(aircraft, follow);
+        }
+        return result;
     }
 
     /// <summary>
     /// Forced FOLLOW (FOLLOWF): the RPO folds the RTISF into the follow clearance so traffic-in-sight need not be
     /// reported first. RPO-only, like RTISF — a solo student must acquire the traffic with RTIS before following.
-    /// Returns the refusal, or null once the traffic-in-sight state has been set.
+    /// The refusal, or null when the command may proceed.
     /// </summary>
-    private static CommandResult? ApplyForcedFollow(AircraftState aircraft, FollowCommand follow, DispatchContext ctx)
+    private static CommandResult? ForcedFollowRefusal(DispatchContext ctx) =>
+        ctx.SoloTrainingMode ? new CommandResult(false, "FOLLOWF is RPO-only; use RTIS/RTISF in solo training") : null;
+
+    /// <summary>
+    /// The traffic a FOLLOW names: its explicit callsign always wins; a bare FOLLOWF then folds in the still-pending RTIS
+    /// look-for-traffic (<see cref="PendingTrafficCallsign"/>); a bare FOLLOW defaults to the most recently reported
+    /// traffic. Null or empty when none is available.
+    /// </summary>
+    private static string? ResolveFollowTarget(AircraftState aircraft, FollowCommand follow) =>
+        follow.TargetCallsign ?? (follow.Force ? PendingTrafficCallsign(aircraft) : null) ?? aircraft.Approach.LastReportedTrafficCallsign;
+
+    /// <summary>
+    /// The traffic of the still-pending RTIS look-for-traffic observation, upper-cased: that traffic lives only in
+    /// PendingObservations, since LastReportedTrafficCallsign isn't set until acquisition succeeds. Null when none is pending.
+    /// </summary>
+    private static string? PendingTrafficCallsign(AircraftState aircraft) =>
+        aircraft.PendingObservations.OfType<TrafficAcquisitionObservation>().FirstOrDefault()?.TargetCallsign.ToUpperInvariant();
+
+    /// <summary>
+    /// Records the accepted FOLLOWF: the traffic is in sight and is the last reported traffic. A pending RTIS
+    /// observation for it is consumed — FOLLOWF supersedes that look-for-traffic.
+    /// </summary>
+    private static void MarkForcedFollowInSight(AircraftState aircraft, FollowCommand follow)
     {
-        if (ctx.SoloTrainingMode)
-        {
-            return new CommandResult(false, "FOLLOWF is RPO-only; use RTIS/RTISF in solo training");
-        }
         aircraft.Approach.HasReportedTrafficInSight = true;
         if (!string.IsNullOrWhiteSpace(follow.TargetCallsign))
         {
             aircraft.Approach.LastReportedTrafficCallsign = follow.TargetCallsign.ToUpperInvariant();
+            return;
         }
-        else if (aircraft.PendingObservations.OfType<TrafficAcquisitionObservation>().FirstOrDefault() is { } pending)
+
+        if (PendingTrafficCallsign(aircraft) is { } pending)
         {
-            // Bare FOLLOWF folds in a still-pending RTIS: the traffic the RPO called out but the
-            // pilot hasn't visually acquired yet lives only in PendingObservations
-            // (LastReportedTrafficCallsign isn't set until acquisition succeeds). FOLLOWF
-            // supersedes that look-for-traffic, so consume and clear the observation.
-            aircraft.Approach.LastReportedTrafficCallsign = pending.TargetCallsign.ToUpperInvariant();
+            aircraft.Approach.LastReportedTrafficCallsign = pending;
             aircraft.PendingObservations.RemoveAll(o => o is TrafficAcquisitionObservation);
         }
-        return null;
     }
 
     /// <summary>
@@ -3797,9 +3820,10 @@ public static class CommandDispatcher
 
     /// <summary>
     /// Route an accepted FOLLOW by where the follower is and what the lead is doing: the departing-lead refusal
-    /// (<see cref="DepartingLeadRefusal"/>), the runwayless-lead guards, the cross-runway refusal from base or final, the
-    /// sequence refusal (<see cref="FollowSequenceRefusal"/>), the same-runway retarget on a pattern leg, and otherwise the
-    /// install (<see cref="InstallFollow"/>).
+    /// (<see cref="DepartingLeadRefusal"/>), the runwayless-lead guards, the routing of a follower with no pattern leg
+    /// (<see cref="RouteOffPatternFollow"/>), the cross-runway refusal from base or final, the sequence refusal
+    /// (<see cref="FollowSequenceRefusal"/>), the same-runway retarget on a pattern leg, and otherwise the install
+    /// (<see cref="InstallFollow"/>).
     /// </summary>
     private static CommandResult RouteFollow(AircraftState aircraft, AircraftState? leadAircraft, string target, DispatchContext ctx)
     {
@@ -3819,6 +3843,7 @@ public static class CommandDispatcher
         CommandResult? routed =
             DepartingLeadRefusal(leadAircraft, target)
             ?? TryRouteRunwaylessLead(aircraft, leadAircraft, target, ctx)
+            ?? RouteOffPatternFollow(aircraft, current, leadAircraft, target)
             ?? CrossRunwayFromLegRefusal(aircraft, current, crossRunway, target)
             ?? FollowSequenceRefusal(aircraft, leadAircraft, current, target);
         if (routed is not null)
@@ -4040,8 +4065,8 @@ public static class CommandDispatcher
     }
 
     /// <summary>
-    /// Install the follow for a follower not retargeted in place: the pattern entry behind a lead established
-    /// toward a runway (<see cref="TryFollowIntoLeadPattern"/>), otherwise free pursuit — retargeting a
+    /// Install the follow for a follower not retargeted in place: the pattern entry behind a lead established toward a
+    /// runway (<see cref="TryFollowIntoLeadPattern"/>), otherwise free pursuit — retargeting a
     /// <see cref="VfrFollowPhase"/> already flying, or installing a fresh one.
     /// </summary>
     private static CommandResult InstallFollow(
@@ -4245,7 +4270,7 @@ public static class CommandDispatcher
             return IsRollingOutOnRunway(lead, followerRunway) ? null : new CommandResult(false, $"Unable, {target} is on the ground");
         }
 
-        if (LeadBoundElsewhereRefusal(lead, followerRunway, target) is { } elsewhere)
+        if (LeadBoundElsewhereRefusal(lead, followerRunway.AirportId, target) is { } elsewhere)
         {
             return elsewhere;
         }
@@ -4260,12 +4285,145 @@ public static class CommandDispatcher
         && AirborneFollowHelper.IsSameRunway(leadRunway, runway);
 
     /// <summary>
-    /// The refusal for a lead flying at another airport than the follower's runway: its runway's airport, or with
+    /// Route FOLLOW for a follower that is not on a pattern leg — an approach, a pursuit or an aircraft outside the
+    /// pattern: the ground and elsewhere refusals (<see cref="GroundOrElsewhereLeadRefusal"/>), then the re-FOLLOW of the
+    /// lead already being pursued (<see cref="SameLeadReFollow"/>), then the runwayless-lead cone
+    /// (<see cref="RunwaylessLeadConeRefusal"/>). Null when none applies, or for a follower on a pattern leg.
+    /// </summary>
+    private static CommandResult? RouteOffPatternFollow(AircraftState aircraft, Phase? current, AircraftState? lead, string target) =>
+        IsPatternLeg(current)
+            ? null
+            : GroundOrElsewhereLeadRefusal(aircraft, current, lead, target)
+                ?? SameLeadReFollow(aircraft, current, target)
+                ?? RunwaylessLeadConeRefusal(aircraft, current, lead, target);
+
+    /// <summary>
+    /// The ground and elsewhere lead guards for a follower that is not on a pattern leg: a lead on the ground is refused
+    /// (unless the follower is pursuing and the lead is rolling out on the runway the pursuit returns to, whose follow the
+    /// lead lifecycle ends the next tick), and so is a lead bound for another airport
+    /// (<see cref="LeadBoundElsewhereRefusal"/>). There is no circuit here to sequence either into, and following traffic
+    /// to another field is not a sequencing instruction (7110.65 §3-8-1).
+    /// </summary>
+    private static CommandResult? GroundOrElsewhereLeadRefusal(AircraftState aircraft, Phase? current, AircraftState? lead, string target)
+    {
+        if (lead is null)
+        {
+            return null;
+        }
+
+        if (lead.IsOnGround)
+        {
+            // A lead rolling out on the runway a pursuit returns to is accepted (the lead lifecycle ends the follow on the
+            // next tick). From an approach or outside the pattern every ground lead is refused: accepting it would tear
+            // down the approach, or install a pursuit, only for the follow to end on the next tick.
+            return (PursuitRunway(aircraft, current) is { } runway) && IsRollingOutOnRunway(lead, runway)
+                ? null
+                : new CommandResult(false, $"Unable, {target} is on the ground");
+        }
+
+        return LeadBoundElsewhereRefusal(lead, FollowerAirport(aircraft), target);
+    }
+
+    /// <summary>
+    /// Re-FOLLOW of the lead already being pursued: the pilot is doing what it was told, so it is acknowledged and the
+    /// pursuit is left exactly as it is — same phase instance, same path, same pattern return and a turn-out under way —
+    /// even when that lead is no longer inside the ±60° cone (it overtook, or the follower S-turned). Rebuilding it (a
+    /// downwind entry to an established lead's runway) would discard all of that. Null for any other follower or lead.
+    /// </summary>
+    private static CommandResult? SameLeadReFollow(AircraftState aircraft, Phase? current, string target)
+    {
+        if ((current is not VfrFollowPhase pursuit) || !string.Equals(pursuit.TargetCallsign, target, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        aircraft.Approach.FollowingCallsign = target;
+        return Ok($"Follow {target}");
+    }
+
+    /// <summary>
+    /// The lead-ahead check for an approach or pursuit follower told to follow a lead with no assigned runway
+    /// (<see cref="IsRunwaylessLeadAhead"/>): a lead behind cannot be followed without a 360 (AIM §4-3-5), so the pilot
+    /// declines the follow (AIM §5-5-12.a.2). A lead with a runway is sequenced onto it instead (the pattern install).
+    /// Null when the check does not apply or the lead is ahead.
+    /// </summary>
+    private static CommandResult? RunwaylessLeadConeRefusal(AircraftState aircraft, Phase? current, AircraftState? lead, string target)
+    {
+        if ((lead is null) || (lead.Phases?.AssignedRunway is not null) || !IsConeFollower(current) || IsRunwaylessLeadAhead(aircraft, current, lead))
+        {
+            return null;
+        }
+
+        return (current is VfrFollowPhase) ? NotAheadOfUsRefusal(target) : ApproachNotAheadRefusal(aircraft, target);
+    }
+
+    /// <summary>
+    /// True when a runwayless lead is ahead of a pursuit or approach follower: inside the ±60° cone of its track
+    /// (<see cref="AirborneFollowHelper.IsLeadAheadOfTrack"/>, the predicate the pattern legs apply), or — for an approach
+    /// follower with an assigned runway — closer to that runway's threshold in a straight line than the follower's
+    /// remaining path to it (<see cref="AirborneFollowHelper.SequenceRemainingPathNm(AircraftState, RunwayInfo)"/>, no
+    /// tolerance). During a procedure turn or other course reversal on the approach, traffic ahead in sequence sits behind
+    /// the follower's track.
+    /// </summary>
+    private static bool IsRunwaylessLeadAhead(AircraftState aircraft, Phase? current, AircraftState lead) =>
+        AirborneFollowHelper.IsLeadAheadOfTrack(aircraft, lead)
+        || (IsOnInstrumentApproach(current) && (aircraft.Phases?.AssignedRunway is { } runway) && IsLeadCloserToThreshold(aircraft, lead, runway));
+
+    /// <summary>
+    /// True when <paramref name="lead"/>'s straight-line distance to <paramref name="runway"/>'s threshold is shorter than
+    /// <paramref name="follower"/>'s remaining path to it. False when the follower's path cannot be measured.
+    /// </summary>
+    private static bool IsLeadCloserToThreshold(AircraftState follower, AircraftState lead, RunwayInfo runway)
+    {
+        double followerPathNm = AirborneFollowHelper.SequenceRemainingPathNm(follower, runway);
+        double leadDistanceNm = GeoMath.DistanceNm(lead.Position, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude));
+        return double.IsFinite(followerPathNm) && (leadDistanceNm < followerPathNm);
+    }
+
+    /// <summary>True when <paramref name="phase"/> takes the runwayless-lead cone: an approach or a pursuit.</summary>
+    private static bool IsConeFollower(Phase? phase) => (phase is VfrFollowPhase) || IsOnInstrumentApproach(phase);
+
+    /// <summary>The pursuit follower's cone refusal, and an approach follower's with no runway to name.</summary>
+    private static CommandResult NotAheadOfUsRefusal(string target) => new(false, $"Unable, {target} is not ahead of us, request vectors");
+
+    /// <summary>
+    /// The approach follower's cone refusal, naming the runway it is on approach for (<see cref="SequenceRefusalPosition"/>'s
+    /// wording); with no assigned runway, the pursuit wording (<see cref="NotAheadOfUsRefusal"/>).
+    /// </summary>
+    private static CommandResult ApproachNotAheadRefusal(AircraftState aircraft, string target) =>
+        aircraft.Phases?.AssignedRunway is { } runway
+            ? new CommandResult(false, $"Unable, on approach for runway {runway.Designator}, {target} is not ahead of us, request vectors")
+            : NotAheadOfUsRefusal(target);
+
+    /// <summary>
+    /// The runway a pursuit returns to, for the rolling-out exception: its return circuit
+    /// (<see cref="VfrFollowPhase.PatternReturn"/>), else whatever runway its phase list carries. Null for any other
+    /// follower: from an approach or outside the pattern every ground lead is refused.
+    /// </summary>
+    private static RunwayInfo? PursuitRunway(AircraftState aircraft, Phase? current) =>
+        (current is VfrFollowPhase pursuit) ? (pursuit.PatternReturn?.Runway ?? aircraft.Phases?.AssignedRunway) : null;
+
+    /// <summary>
+    /// Where the follower is bound: its assigned runway's airport, else its filed destination. Null when neither is
+    /// known.
+    /// </summary>
+    private static string? FollowerAirport(AircraftState aircraft)
+    {
+        if (aircraft.Phases?.AssignedRunway?.AirportId is { Length: > 0 } runwayAirport)
+        {
+            return runwayAirport;
+        }
+
+        return string.IsNullOrEmpty(aircraft.FlightPlan.Destination) ? null : aircraft.FlightPlan.Destination;
+    }
+
+    /// <summary>
+    /// The refusal for a lead flying at another airport than the follower's own: its runway's airport, or with
     /// no runway, its filed destination. A lead there cannot be sequenced
     /// behind at this field, whatever its runway designator (OAK and HWD both have 28L/28R). Null when the lead
-    /// is at the follower's airport or its airport is unknown.
+    /// is at the follower's airport, or its airport, or the follower's, is unknown.
     /// </summary>
-    private static CommandResult? LeadBoundElsewhereRefusal(AircraftState lead, RunwayInfo followerRunway, string target)
+    private static CommandResult? LeadBoundElsewhereRefusal(AircraftState lead, string? followerAirport, string target)
     {
         // Only a runway or a filed destination says where the lead is bound; its spawn-time AirportId says where it
         // started, not where it is going, so with neither the airport is unknown and nothing is refused.
@@ -4275,7 +4433,11 @@ public static class CommandDispatcher
             leadAirport = lead.FlightPlan.Destination;
         }
 
-        if (string.IsNullOrEmpty(leadAirport) || NavigationDatabase.AirportIdsMatch(leadAirport, followerRunway.AirportId))
+        if (
+            string.IsNullOrEmpty(leadAirport)
+            || string.IsNullOrEmpty(followerAirport)
+            || NavigationDatabase.AirportIdsMatch(leadAirport, followerAirport)
+        )
         {
             return null;
         }

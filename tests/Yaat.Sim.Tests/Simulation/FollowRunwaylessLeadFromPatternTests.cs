@@ -1071,6 +1071,167 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
         Assert.Null(follower.Approach.FollowingCallsign);
     }
 
+    // ─── Approach and pursuit followers ───
+
+    /// <summary>A runwayless VFR lead with no phase at all, so no assigned runway.</summary>
+    private static AircraftState AddRunwaylessLead(SimulationEngine engine, LatLon position, TrueHeading heading)
+    {
+        AircraftState lead = MakeVfr(Leader, position, heading, 1000);
+        engine.World.AddAircraft(lead);
+        Assert.Null(lead.Phases?.AssignedRunway);
+        return lead;
+    }
+
+    /// <summary>A follower pursuing <paramref name="target"/>, returning to the 28R right-traffic circuit.</summary>
+    private static AircraftState AddPursuitFollower(SimulationEngine engine, string target)
+    {
+        RunwayInfo rwy = Oak("28R");
+        AircraftState follower = MakeVfr(Follower, OffFinal(rwy, 4.0, 1.0), rwy.TrueHeading, 1000);
+        follower.Approach.HasReportedTrafficInSight = true;
+        engine.World.AddAircraft(follower);
+        CommandDispatcher.InstallVfrFollowPhase(
+            follower,
+            target,
+            new FollowPatternReturn(rwy, PatternDirection.Right, rwy.ElevationFt + 1000, false)
+        );
+        return follower;
+    }
+
+    [Fact]
+    public void ApproachFollower_RunwaylessLeadBehind_IsRefused()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = FollowSequenceRefusalTests.AddApproachFollower(engine, 2.5);
+        Phase? before = follower.Phases!.CurrentPhase;
+        AddRunwaylessLead(engine, Astern(follower, 3.0), follower.TrueHeading.ToReciprocal());
+
+        CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
+
+        AssertRefusedUnchanged(follower, before, result, "approach");
+    }
+
+    [Fact]
+    public void ApproachNavigationFollower_RunwaylessLeadBehind_IsRefused()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = FollowSequenceRefusalTests.AddApproachNavigationFollower(engine);
+        Phase? before = follower.Phases!.CurrentPhase;
+        AddRunwaylessLead(engine, Astern(follower, 3.0), follower.TrueHeading.ToReciprocal());
+
+        CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
+
+        AssertRefusedUnchanged(follower, before, result, "approach");
+    }
+
+    [Fact]
+    public void ApproachFollower_RunwaylessLeadAhead_IsAccepted()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = FollowSequenceRefusalTests.AddApproachFollower(engine, 2.5);
+        AddRunwaylessLead(engine, OffTrack(follower, 0.0, 2.0), follower.TrueHeading);
+
+        CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
+
+        output.WriteLine($"FOLLOW: success={result.Success} — {result.Message}");
+        Assert.True(result.Success, result.Message);
+        VfrFollowPhase pursuit = Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
+        Assert.Equal(Leader, pursuit.TargetCallsign);
+        Assert.Equal(Leader, follower.Approach.FollowingCallsign);
+        Assert.Equal(ClearanceType.ClearedToLand, follower.Phases.LandingClearance);
+    }
+
+    /// <summary>
+    /// An approach follower flying away from the field on its approach's outbound leg (an approach-navigation follower: a
+    /// procedure turn is not an approach follower here) has traffic ahead in sequence behind its track. A runwayless lead
+    /// 3 nm out on the final, closer to the threshold in a straight line than the follower's remaining path (about 14 nm
+    /// through the outbound fix and the FAF), is ahead of it and accepted.
+    /// </summary>
+    [Fact]
+    public void ApproachFollower_ProcedureTurnOutbound_RunwaylessLeadCloserToThreshold_Accepted()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak("28R");
+        AircraftState follower = MakeVfr(Follower, OffFinal(rwy, 6.0, 1.0), rwy.TrueHeading.ToReciprocal(), 2000);
+        follower.Approach.HasReportedTrafficInSight = true;
+        engine.World.AddAircraft(follower);
+        LatLon outbound = OffFinal(rwy, 10.0, 1.0);
+        LatLon faf = OffFinal(rwy, 5.0, 0.0);
+        follower.Phases = new PhaseList
+        {
+            AssignedRunway = rwy,
+            LandingClearance = ClearanceType.ClearedToLand,
+            ClearedRunwayId = "28R",
+        };
+        follower.Phases.Add(
+            new ApproachNavigationPhase { Fixes = [new ApproachFix("OUTBD", outbound.Lat, outbound.Lon), new ApproachFix("FAF", faf.Lat, faf.Lon)] }
+        );
+        follower.Phases.Add(new FinalApproachPhase());
+        follower.Phases.Add(new LandingPhase());
+        AircraftState lead = AddRunwaylessLead(engine, OffFinal(rwy, 3.0, 0.0), rwy.TrueHeading);
+        Assert.False(AirborneFollowHelper.IsLeadAheadOfTrack(follower, lead), "the lead must be outside the follower's ±60° cone");
+
+        CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
+
+        output.WriteLine($"FOLLOW: success={result.Success} — {result.Message}");
+        Assert.True(result.Success, result.Message);
+        VfrFollowPhase pursuit = Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
+        Assert.Equal(Leader, pursuit.TargetCallsign);
+        Assert.Equal(Leader, follower.Approach.FollowingCallsign);
+    }
+
+    /// <summary>An approach follower with no assigned runway has no approach to name: the cone refusal uses the pursuit wording.</summary>
+    [Fact]
+    public void ApproachFollower_NoAssignedRunway_RunwaylessLeadBehind_IsRefused()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = FollowSequenceRefusalTests.AddApproachFollower(engine, 2.5);
+        follower.Phases!.AssignedRunway = null;
+        Phase? before = follower.Phases.CurrentPhase;
+        AddRunwaylessLead(engine, Astern(follower, 3.0), follower.TrueHeading.ToReciprocal());
+
+        CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
+
+        output.WriteLine($"FOLLOW: success={result.Success} — {result.Message}");
+        Assert.False(result.Success, result.Message);
+        Assert.Equal($"Unable, {Leader} is not ahead of us, request vectors", result.Message);
+        Assert.Same(before, follower.Phases!.CurrentPhase);
+        Assert.Null(follower.Approach.FollowingCallsign);
+    }
+
+    [Fact]
+    public void PursuitFollower_NewRunwaylessLeadBehind_IsRefused()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddPursuitFollower(engine, "OTHER1");
+        Phase? before = follower.Phases!.CurrentPhase;
+        AddRunwaylessLead(engine, Astern(follower, 3.0), follower.TrueHeading.ToReciprocal());
+
+        CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
+        output.WriteLine($"FOLLOW: success={result.Success} — {result.Message}");
+
+        Assert.False(result.Success, result.Message);
+        Assert.Equal($"Unable, {Leader} is not ahead of us, request vectors", result.Message);
+        Assert.Same(before, follower.Phases!.CurrentPhase);
+        Assert.Equal("OTHER1", follower.Approach.FollowingCallsign);
+    }
+
+    [Fact]
+    public void PursuitFollower_NewRunwaylessLeadAhead_IsAccepted()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddPursuitFollower(engine, "OTHER1");
+        VfrFollowPhase before = Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
+        AddRunwaylessLead(engine, OffTrack(follower, 0.0, 3.0), follower.TrueHeading);
+
+        CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
+        output.WriteLine($"FOLLOW: success={result.Success} — {result.Message}");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Same(before, follower.Phases!.CurrentPhase);
+        Assert.Equal(Leader, before.TargetCallsign);
+        Assert.Equal(Leader, follower.Approach.FollowingCallsign);
+    }
+
     // ─── Pattern return ───
 
     /// <summary>
@@ -2041,7 +2202,9 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
         TickSeconds(engine, 5);
         Assert.NotNull(FollowDto(follower).LeadBase);
 
-        AircraftState other = MakeVfr("LEAD2", OffFinal(rwy, 14.0, 10.0), new TrueHeading(0), 2000);
+        // The new lead sits on the follower's own track: a runwayless lead outside the ±60° cone is refused from a
+        // pursuit, so a retarget only happens when it is ahead.
+        AircraftState other = MakeVfr("LEAD2", GeoMath.ProjectPoint(follower.Position, follower.TrueTrack, 4.0), new TrueHeading(0), 2000);
         engine.World.AddAircraft(other);
         CommandResult result = engine.SendCommand(Follower, "FOLLOW LEAD2");
         Assert.True(result.Success, result.Message);

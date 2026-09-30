@@ -493,6 +493,13 @@ public static class AirborneFollowHelper
     }
 
     /// <summary>
+    /// Remaining path (nm) from <paramref name="ac"/> to <paramref name="runway"/>'s threshold on its own pattern geometry
+    /// (<see cref="SequenceRemainingPathNm(AircraftState, RunwayInfo, PatternWaypoints?)"/> with
+    /// <see cref="SequenceWaypoints"/>). <see cref="double.PositiveInfinity"/> when it cannot be measured.
+    /// </summary>
+    internal static double SequenceRemainingPathNm(AircraftState ac, RunwayInfo runway) => SequenceRemainingPathNm(ac, runway, SequenceWaypoints(ac));
+
+    /// <summary>
     /// Remaining path (nm) from <paramref name="ac"/> to <paramref name="runway"/>'s threshold, the sequence coordinate: its
     /// along-final distance when on final (<see cref="IsOnFinalForSequence"/>); on an instrument approach not yet on final,
     /// the path it still has to fly (<see cref="ApproachPathNm"/>) or, on a course intercept, its straight-line distance to
