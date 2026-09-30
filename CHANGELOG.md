@@ -43,6 +43,9 @@
 - `FOLLOWF` keeps the aircraft's pattern leg, approach and landing clearance and gets the same refusals as `FOLLOW`; only the traffic-in-sight step is skipped.
 - Loading a scenario no longer pauses other rooms while it downloads ARTCC and airport data, and an unreadable scenario keeps the current one running.
 - A second scenario load in a room that is already loading one is refused, naming who started it, as are unload, restart and rewind until it finishes.
+- Loading a scenario or a recording no longer pauses other rooms while it downloads ARTCC and airport data, and an unreadable one keeps the current scenario running.
+- A room restored after a server restart keeps the ARTCC data, neighbouring centers included, it was running with.
+- A second scenario or recording load in a room that is already loading one is refused, naming who started it, as are unload, restart and rewind until it finishes.
 - `CLANDF` issued past the threshold lands the aircraft and stops it on the runway instead of rolling off the far end.
 - An aircraft stopped on the runway with no exit ahead asks for a back-taxi and waits; after `CLANDF` it backtracks to an exit on its own.
 - At SFO, a 28R arrival no longer turns off onto a full T: two aircraft only when both are CWT G or smaller.
