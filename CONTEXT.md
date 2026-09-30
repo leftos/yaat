@@ -68,6 +68,10 @@ Measured in sim-seconds.
 **Joined session**:
 A second connection to the CRC hub (such as vEDST) that attaches to a session another client (CRC) started, via `JoinSession`. It sees that session's position, room and active state but holds no position of its own, so it never counts toward attendance.
 
+**Resource pin**:
+The airport layouts and ARTCC configs a room's scenario load used, held on the room so a restart, rewind, export or session restore rebuilds the simulation from the same data rather than the live vNAS caches. It is replaced only by the next scenario or recording load.
+_Avoid_: snapshot (that is the simulation state, not its reference data)
+
 ## Controller actions
 
 **Action**:
