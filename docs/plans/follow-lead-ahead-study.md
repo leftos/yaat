@@ -204,9 +204,24 @@ No test covers FOLLOWF on a pattern leg (`AirborneFollowTests.cs`:331-356 cover 
 
 **Decisions** (user 2026-09-29, each the recommended option):
 
-1. A same-runway lead that is behind in sequence, from upwind/crosswind/downwind: refuse with "…{T} is not ahead of us, request vectors" (AIM §4-3-5, 7110.65 §5-5-12.a.2).
+1. A same-runway lead that is behind in sequence, from upwind/crosswind/downwind: refuse with "…{T} is not ahead of us, request vectors" (AIM §4-3-5, AIM §5-5-12.a.2).
 2. Cone width for runwayless leads on the legs other than base: ±60°, the base value.
 3. A follower on an approach told to follow traffic landing a different runway (table F, XRWY): refuse inside the final approach fix, re-sequence outside it.
 4. A follower outside the pattern told to follow traffic bound for another airport (table H, ELSE): refuse when its own destination differs.
 
 With these, every differing cell in the list above is decided and becomes implementation work, the FOLLOWF defect (1) first.
+
+**Implementation rulings** (aviation consult 2026-09-30; [J] marks a judgement figure):
+
+- **Behind in sequence** is measured by remaining path to the threshold (the lead's `LeadRemainingPathNm` against the follower's `RemainingPatternPathNm`), not time: a closer, slower lead is still ahead (7110.65 §3-8-1; AIM §4-3-4.d). On the legs before final, FOLLOW is accepted when the lead's remaining path is longer by 0.5 NM or less (about 20 s at 90 kt, absorbed by S-turns or slowing, AIM §4-3-5; this also covers the abeam case) [J]. On final, along-final distance only, with no tolerance.
+- **Inside the FAF** (a different-runway lead, follower on an approach) is along-final distance to the threshold at or below the smaller of the published FAF distance and 5 NM, 5 NM when there is no FAF (7110.65 §5-7-1.b.4's "whichever is closer to the runway") [J]. An `InterceptCoursePhase` follower not yet on final is outside: re-sequenced, not refused. Pattern and straight-in finals keep today's refusal.
+- **FOLLOW in a go-around that re-enters the pattern, or a closed-traffic takeoff climb**: the climb is kept (and today's `NoTurnAgl` 400 ft limit), FOLLOW only sets the lead, and the follow helper counts the go-around as leg 1 (upwind, AIM §4-3-2.a.3.2). A go-around flying a published missed approach (`ReenterPattern` false) accepts FOLLOW as a replacement of the missed approach, as today, keeping the climb's `TargetAltitude` as the altitude to fly [J]; it is not counted as upwind and takes no command-time behind check.
+
+**Brief split** (exploration 2026-09-30; `CommandDispatcher.cs` is a hotspot, so B3–B6 run in order):
+
+- B1: FOLLOWF normalised to FOLLOW at the phase gate (cell 1).
+- B2: per-tick ordering in `AirborneFollowHelper` (cells 5, 6, 9): APP and on-final-by-geometry leads as leg 5, shared-leg ordering by remaining path, GA/DEP leads, and a public `IsLeadAheadInSequence(follower, lead)` predicate with the 0.5 NM tolerance. Independent of B1.
+- B3: the command-time sequence refusal (cells 2, 3, the departing-lead refusal), consuming B2's predicate.
+- B4: the ±60° cone on every leg for a runwayless lead (cell 4).
+- B5: approach followers, re-FOLLOW of the same lead, ground and elsewhere leads from outside the pattern (cells 7, 8, 11).
+- B6: go-around and closed-traffic climb followers (cell 10), last since it touches `AirborneFollowHelper` too.
