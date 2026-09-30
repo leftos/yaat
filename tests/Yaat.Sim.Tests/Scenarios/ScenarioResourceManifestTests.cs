@@ -226,6 +226,97 @@ public class ScenarioResourceManifestTests
         Assert.Equal(["OAK"], manifest.AirportIds);
     }
 
+    [Fact]
+    public void MapRequired_PrimaryAirport_IsMapRequired()
+    {
+        var manifest = ScenarioResourceManifest.FromJson("""{ "primaryAirportId": "KOAK" }""");
+
+        Assert.Equal(["OAK"], manifest.MapRequiredAirportIds);
+    }
+
+    [Fact]
+    public void MapRequired_ParkingAirport_IsMapRequired()
+    {
+        const string json = """
+            {
+              "primaryAirportId": "KOAK",
+              "aircraft": [
+                { "aircraftId": "N1", "aircraftType": "C172", "airportId": "KSQL", "startingConditions": { "type": "Parking", "parking": "A1" } }
+              ]
+            }
+            """;
+
+        Assert.Equal(["OAK", "SQL"], ScenarioResourceManifest.FromJson(json).MapRequiredAirportIds);
+    }
+
+    [Theory]
+    [InlineData("Coordinates", """ "coordinates": { "lat": 37.6589, "lon": -122.1217 } """)]
+    [InlineData("FixOrFrd", """ "fix": "OSI" """)]
+    public void MapRequired_GroundSpawnField_IsMapRequired(string type, string position)
+    {
+        // No altitude and no speed: the loader puts the aircraft on the ground at its departure field.
+        string json = $$"""
+            {
+              "primaryAirportId": "KOAK",
+              "aircraft": [
+                { "aircraftId": "N1", "aircraftType": "C172", "startingConditions": { "type": "{{type}}", {{position}} },
+                  "flightplan": { "departure": "KHWD", "destination": "KSFO" } }
+              ]
+            }
+            """;
+
+        Assert.Equal(["OAK", "HWD"], ScenarioResourceManifest.FromJson(json).MapRequiredAirportIds);
+    }
+
+    [Fact]
+    public void MapRequired_OnRunwayOnlyAirport_IsFetchedButNotMapRequired()
+    {
+        const string json = """
+            {
+              "primaryAirportId": "KOAK",
+              "aircraft": [
+                { "aircraftId": "N1", "aircraftType": "B738", "airportId": "KSFO", "startingConditions": { "type": "OnRunway", "runway": "28R" } }
+              ]
+            }
+            """;
+
+        var manifest = ScenarioResourceManifest.FromJson(json);
+
+        Assert.Contains("SFO", manifest.AirportIds);
+        Assert.Equal(["OAK"], manifest.MapRequiredAirportIds);
+    }
+
+    [Fact]
+    public void MapRequired_AnAirportReachedBothWays_IsMapRequired()
+    {
+        const string json = """
+            {
+              "primaryAirportId": "KOAK",
+              "aircraft": [
+                { "aircraftId": "N1", "aircraftType": "B738", "airportId": "KSQL", "startingConditions": { "type": "OnRunway", "runway": "30" } },
+                { "aircraftId": "N2", "aircraftType": "C172", "airportId": "KSQL", "startingConditions": { "type": "Parking", "parking": "A1" } }
+              ]
+            }
+            """;
+
+        Assert.Equal(["OAK", "SQL"], ScenarioResourceManifest.FromJson(json).MapRequiredAirportIds);
+    }
+
+    [Fact]
+    public void MapRequired_KPrefixAndCase_AreOneAirport()
+    {
+        const string json = """
+            {
+              "primaryAirportId": "KOAK",
+              "aircraft": [
+                { "aircraftId": "N1", "aircraftType": "C172", "airportId": "oak", "startingConditions": { "type": "Parking", "parking": "A1" } }
+              ]
+            }
+            """;
+
+        Assert.Equal(["OAK"], ScenarioResourceManifest.FromJson(json).MapRequiredAirportIds);
+    }
+
     private static void AssertLoaderReadsOnlyManifestAirports(string json, string[] expectedRequested)
     {
         var groundData = new RecordingGroundData();

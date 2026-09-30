@@ -5,6 +5,7 @@
 ### Added
 
 - ERAM `FP` files a flight plan for an aircraft without one, drawing a beacon code if none is given; `SP` answers NOT ADAPTED.
+- The room terminal says who is loading a scenario, and warns when the student position or an arrival generator could not be set up.
 - ERAM `CA` turns conflict alert and MCI alerts on or off for the center or for chosen sectors, and `RK` reads the settings back.
 - ERAM `SM` sends a sector message that `SM` reads back and `SM DE` clears, and `SW` sends significant weather to the facility's sectors.
 - ERAM `WX` enters weather reports for up to 16 stations.
