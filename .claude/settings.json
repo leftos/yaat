@@ -20,18 +20,5 @@
         ]
       }
     ]
-  },
-  "basicMemory": {
-    "primaryProject": "yaat",
-    "secondaryProjects": [],
-    "captureFolder": "sessions",
-    "rememberFolder": "bm-remember",
-    "recallTimeframe": "3d",
-    "preCompactCapture": "extractive",
-    "sessionProfile": "coding",
-    "repository": "leftos/yaat",
-    "captureEvents": true,
-    "placementConventions": "sessions/ holds coding-session checkpoints; decisions/ holds decision notes; tasks/ holds task notes; bm-remember/ holds ad-hoc remembered facts. Durable project knowledge belongs in the repo's docs/, not here.",
-    "teamProjects": {}
   }
 }
