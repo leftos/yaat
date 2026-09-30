@@ -350,7 +350,7 @@ Grounded in the design above and the code as mapped; ERAM behaviour is decided, 
 - **Fields 08/09**: an active entry's 08 goes through `AmendAmAltitude` with AM's semantics; a proposed entry's 09 through `AmendAmRequestedAltitude` and also sets the filed altitude, as above.
 - **Unmodelled 12/17 fields** (ACT, WAK, SRV, ALA, FLR, FLT, OTH): handled exactly as `AM` handles a reference to them today; their format errors cannot fire and are `na` in `FP.yaml` with that reason.
 - **SP**: resolves no aircraft; a well-formed entry answers `<tag> NOT ADAPTED` whatever the ACID. `SP.StereoFlightPlan` is an implemented variant key with no success path; `EramFeedbackConventionTests` carries a refusal row for it.
-- **Echo**: C5 lands after the ERAM terminal echo (MAIN.md "Echo ERAM commands"), so `FP`/`SP` need no echo code of their own.
+- **Echo**: the shared ERAM terminal echo (`BroadcastEramEcho` in `CrcClientState.Eram.cs`) covers `FP`/`SP`, so they need no echo code of their own. CRC's structured flight-plan create/amend still echoes through its own `BroadcastCrcTerminal` path (`CrcClientState.FlightPlan.cs` ~:215, ~:279, `[CRC] {name} FP: (…)`); leave it as it is.
 
 ## Questions for ERAM controllers
 

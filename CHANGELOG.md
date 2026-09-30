@@ -6,7 +6,8 @@
 
 - ERAM `CA` turns conflict alert and MCI alerts on or off for the center or for chosen sectors, and `RK` reads the settings back.
 - ERAM `SM` sends a sector message that `SM` reads back and `SM DE` clears, and `SW` sends significant weather to the facility's sectors.
-- ERAM `WX` enters weather reports for up to 16 stations, and the instructor terminal shows each entry.
+- ERAM `WX` enters weather reports for up to 16 stations.
+- The instructor terminal shows every ERAM command a CRC controller enters, as it does STARS commands; readouts show the command only.
 - ERAM `UR` reads out the upper winds at a picked or typed location, for the standard FD levels, a block, a bound or the altitudes you type.
 - CRC and vEDST get a fix-radial-distance such as `PALVO287009` for a point they look up, instead of raw coordinates.
 - A vEDST private message to an aircraft shows in the terminal as a chat line on that aircraft; one to an unknown recipient is refused.
