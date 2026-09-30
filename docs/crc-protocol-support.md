@@ -74,7 +74,7 @@ Authoritative interface definitions: `..\vatsim-vnas\messaging\` (sibling repo)
 ### Messaging
 
 - [x] `SendRadioMessage(message)` — routes to YAAT terminal + CRC clients in room
-- [x] `SendPrivateMessage(to, message)` — routes to YAAT terminal + target CRC client
+- [x] `SendPrivateMessage(to, message)` — an aircraft in the room (callsign only, case-insensitive): a `Chat` terminal entry on its callsign with the sender's position as its initials and the text verbatim (recorded; no pilot reaction, no CRC delivery); a controller position in the sender's room (case-insensitive, `CrcClientManager.FindPositionInRoom`): the YAAT terminal line + that CRC client under its own spelling (and its joined connections); anything else, no recipient, or a sender with no room: an error completion
 - [x] `SendAtcMessage(message)` — routes to YAAT terminal + CRC clients in room
 - [x] `SendBroadcastMessage(message)` — routes to YAAT terminal + CRC clients in room
 - [x] `SendVnasBroadcastMessage(message)` — routes to YAAT terminal + CRC clients in room
@@ -116,7 +116,7 @@ Authoritative interface definitions: `..\vatsim-vnas\messaging\` (sibling repo)
 
 ### Navigation
 
-- [x] `GenerateFrd(GeoPoint)` — returns empty string (reverse FRD lookup not yet implemented)
+- [x] `GenerateFrd(GeoPoint)` — `FrdResolver.ToFrd` over the navigation database: the fix name within 0.1 NM, else `{fix}{radial:D3}{dist:D3}` within 50 NM, else the empty string (which CRC and vEDST treat as failure); reads no room, so a room-less direct connection answers too
 
 ---
 
