@@ -992,7 +992,16 @@ public class SfoPushRouteE2ETests(ITestOutputHelper output)
 
         var options = new ExplicitPathOptions { OccupiedTaxiway = null, StartHeadingTrue = ac.TrueHeading.Degrees };
         AircraftCategory category = AircraftCategorization.Categorize(ac.AircraftType);
-        return TaxiPathfinder.ResolveExplicitPathDetailed(layout, start.Id, [TaxiOutTaxiway], out _, options, category) is not null;
+        return TaxiPathfinder.ResolveExplicitPathDetailed(
+            layout,
+            start.Id,
+            [TaxiOutTaxiway],
+            out _,
+            options,
+            category,
+            WakeTurbulenceData.WakeClass.Large
+        )
+            is not null;
     }
 
     /// <summary>

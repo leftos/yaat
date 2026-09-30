@@ -84,6 +84,8 @@ The trade-off: tests no longer warn when the bundled NavData serial is behind wh
 `python tools/refresh-navdata.py` is the signal for that — run it to move the pin (writes
 `TestData/NavData.dat` + `navdata-manifest.json`).
 
+The committed airport ground layouts (`TestData/<ID>.geojson`) are pinned the same way. `python tools/refresh-test-layouts.py` re-fetches each one from the vNAS training-airport map API (the endpoint `AirportLayoutDownloader` uses) and rewrites it with LF line endings. Files whose stem is not a plain 3–4 letter airport ID (`issue172-sfo`, `sfo-b1short`) are deliberate snapshots and are skipped, and an airport the API has no map for is kept as committed. `--check` reports what would change and exits 1 if anything would.
+
 **CIFP is required too, and downloads stay enabled on purpose.** `ModuleInit` throws if it cannot
 resolve one. Unlike NavData it needs no offline-first switch: `CifpPathResolver` already returns a
 current-cycle cache hit *before* considering the network, which is why it costs ~9 ms rather than

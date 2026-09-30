@@ -100,7 +100,8 @@ public class SfoT9AB1ConnectorTests
                 StartHeadingTrue = StartHeading,
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.NotNull(route);

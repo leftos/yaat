@@ -10,7 +10,7 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 
 /// <summary>
 /// A stand the graph reaches only the long way round is cut to across the apron, and the cut rolls in on the stand's
-/// heading. SFO <c>TAXI @D1</c> from gate D3: the graph route runs 1,612 ft out of the five alley and back, the cut
+/// heading. SFO <c>TAXIAUTO @D1</c> from gate D3 (a plain <c>TAXI @D1</c> now stays inside the ramp): the graph route runs 1,612 ft out of the five alley and back, the cut
 /// leaves the painted line on T5A and crosses to a point one fuselage out on D1's centreline, then rolls in on D1's
 /// 345° heading — so the aircraft parks lined up with the stand, not at the angle the crossing arrived on.
 /// </summary>
@@ -33,8 +33,9 @@ public class ResolvedRouteCutRollInTests(ITestOutputHelper output)
 
         SimLogBuilder.CreateForTest(output).EnableCategory("RampLaneReposition", LogLevel.Debug).InitializeSimLog();
         AircraftState aircraft = SfoGroundHarness.SpawnParked(ground, "SKW3398", "E75L", "D3");
-        CommandResult result = ground.Engine.SendCommand("SKW3398", "TAXI @D1");
-        output.WriteLine($"TAXI @D1: {result.Success} — {result.Message}");
+        // TAXIAUTO: the unrestricted auto-route runs the long way round over A, which a plain TAXI from the ramp never drives.
+        CommandResult result = ground.Engine.SendCommand("SKW3398", "TAXIAUTO @D1");
+        output.WriteLine($"TAXIAUTO @D1: {result.Success} — {result.Message}");
         Assert.True(result.Success, result.Message);
         TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
         SfoGroundHarness.DumpRoute(output, route);
@@ -67,5 +68,27 @@ public class ResolvedRouteCutRollInTests(ITestOutputHelper output)
             errorDeg <= ParkedHeadingToleranceDeg,
             $"SKW3398 parked at {aircraft.TrueHeading.Degrees:F1}°, {errorDeg:F1}° off the stand heading"
         );
+    }
+
+    /// <summary>A plain <c>TAXI @D1</c> from D3 names no taxiway, so it stays inside the ramp: it cuts across the apron and never drives A.</summary>
+    [Fact]
+    public void PlainTaxiToD1_FromD3_StaysInsideTheRamp()
+    {
+        if (SfoGroundHarness.Build(output, autoCross: false) is not { } ground)
+        {
+            return;
+        }
+
+        AircraftState aircraft = SfoGroundHarness.SpawnParked(ground, "SKW3398", "E75L", "D3");
+        CommandResult result = ground.Engine.SendCommand("SKW3398", "TAXI @D1");
+        output.WriteLine($"TAXI @D1: {result.Success} — {result.Message}");
+        Assert.True(result.Success, result.Message);
+        TaxiRoute route = Assert.IsType<TaxiRoute>(aircraft.Ground.AssignedTaxiRoute);
+        SfoGroundHarness.DumpRoute(output, route);
+
+        GroundNode d1 = Assert.IsType<GroundNode>(ground.Layout.FindParkingByName("D1"));
+        Assert.Equal(d1.Id, route.Segments[^1].ToNodeId);
+        Assert.DoesNotContain(route.Segments, s => s.Edge.Edge.MatchesTaxiway("A"));
+        Assert.Contains(route.Segments, s => VirtualNode.IsVirtualEdge(s.Edge.Edge) && (s.FromNodeId >= 0) && (s.ToNodeId >= 0));
     }
 }

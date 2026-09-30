@@ -1139,6 +1139,10 @@ public class PhraseologyMapperTests
     [Theory]
     [InlineData("cleared for air taxi", "ATXI")]
     [InlineData("cleared air taxi", "ATXI")]
+    [InlineData("air taxi to helipad hotel one", "ATXI @H1")]
+    [InlineData("air taxi to gate delta one", "ATXI @D1")]
+    [InlineData("air taxi to spot seven", "ATXI $7")]
+    [InlineData("air taxi to runway two seven", "ATXI 27")]
     [InlineData("cleared for takeoff present position", "CTOPP")]
     public void Helicopter_Rules(string transcript, string expected)
     {

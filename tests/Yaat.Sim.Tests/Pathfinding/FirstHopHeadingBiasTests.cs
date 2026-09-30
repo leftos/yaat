@@ -68,7 +68,8 @@ public class FirstHopHeadingBiasTests
             taxiwayNames: ["A", "B"],
             out failReason,
             new ExplicitPathOptions { OccupiedTaxiway = null, StartHeadingTrue = headingTrue },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
     [Fact]
@@ -149,7 +150,8 @@ public class FirstHopHeadingBiasTests
             taxiwayNames: ["A"],
             out string? failReason,
             new ExplicitPathOptions { OccupiedTaxiway = null, StartHeadingTrue = 270.0 },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.Null(failReason);

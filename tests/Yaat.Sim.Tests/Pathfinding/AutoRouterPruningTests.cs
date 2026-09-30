@@ -40,6 +40,7 @@ public class AutoRouterPruningTests
             null,
             new HashSet<HoldShortTarget>(),
             AircraftCategory.Piston,
+            WakeTurbulenceData.WakeClass.Large,
             RoutePreference.FewestTurns,
             null
         );

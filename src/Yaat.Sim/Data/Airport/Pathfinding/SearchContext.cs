@@ -36,6 +36,7 @@ public sealed record SearchContext(
     IReadOnlySet<string>? AuthorizedTaxiways,
     IReadOnlySet<HoldShortTarget> ExplicitHoldShorts,
     AircraftCategory Category,
+    WakeTurbulenceData.WakeClass WakeClass,
     RoutePreference? Preference,
     Action<string>? DiagnosticLog
 )
@@ -287,6 +288,7 @@ public sealed record SearchContext(
         int? destinationNodeId,
         IReadOnlyList<HoldShortTarget>? explicitHoldShorts,
         AircraftCategory category,
+        WakeTurbulenceData.WakeClass wakeClass,
         RoutePreference? preference,
         Action<string>? diagnosticLog,
         IReadOnlyList<TurnDirection?>? waypointTurnHints,
@@ -312,7 +314,7 @@ public sealed record SearchContext(
         // One-way constraints hard-exclude the wrong direction on auto routes; an explicit named-taxiway
         // path (waypointSequence non-empty) is allowed to traverse the wrong way but is flagged with a
         // warning by RouteMaterialiser.
-        IReadOnlySet<(int, int)> forbiddenOneWay = ResolveOneWayMoves(layout);
+        IReadOnlySet<(int, int)> forbiddenOneWay = ResolveOneWayMoves(layout, wakeClass);
         OneWayMode oneWayMode =
             forbiddenOneWay.Count == 0 ? OneWayMode.Off
             : waypointSequence.Count == 0 ? OneWayMode.HardExclude
@@ -348,7 +350,18 @@ public sealed record SearchContext(
             }
         }
 
-        return new SearchContext(layout, startNodeId, destination, waypointSequence, authorized, holdShorts, category, preference, diagnosticLog)
+        return new SearchContext(
+            layout,
+            startNodeId,
+            destination,
+            waypointSequence,
+            authorized,
+            holdShorts,
+            category,
+            wakeClass,
+            preference,
+            diagnosticLog
+        )
         {
             AvoidedTaxiways = avoidedTaxiways,
             AvoidMode = avoidMode,
@@ -365,11 +378,11 @@ public sealed record SearchContext(
 
     /// <summary>
     /// Resolves the forbidden directed moves for <paramref name="layout"/>'s one-way constraints via
-    /// <see cref="OneWayResolver"/> (per-layout cached). Empty when no database is initialized or the
-    /// airport is unconfigured.
+    /// <see cref="OneWayResolver"/> (per-layout cached), skipping the constraints that exempt <paramref name="wakeClass"/>.
+    /// Empty when no database is initialized or the airport is unconfigured.
     /// </summary>
-    private static IReadOnlySet<(int, int)> ResolveOneWayMoves(AirportGroundLayout layout) =>
-        NavigationDatabase.InstanceOrNull is null ? EmptyForbiddenMoves : OneWayResolver.GetForbiddenMoves(layout);
+    private static IReadOnlySet<(int, int)> ResolveOneWayMoves(AirportGroundLayout layout, WakeTurbulenceData.WakeClass wakeClass) =>
+        NavigationDatabase.InstanceOrNull is null ? EmptyForbiddenMoves : OneWayResolver.GetForbiddenMoves(layout, wakeClass);
 
     /// <summary>
     /// Resolves the blocked turns for <paramref name="layout"/> via <see cref="BlockedTurnResolver"/>

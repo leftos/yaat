@@ -208,6 +208,7 @@ public class Issue454NamedTaxilaneHonouredTests(ITestOutputHelper output)
                 Destination = d1,
                 Options = new ExplicitPathOptions { OccupiedTaxiway = "B", StartHeadingTrue = Skw3398HeldShortOfKPose.Heading.Degrees },
                 Category = AircraftCategory.Jet,
+                WakeClass = WakeTurbulenceData.WakeClass.Large,
                 AircraftLengthFt = fuselageFt,
             }
         );

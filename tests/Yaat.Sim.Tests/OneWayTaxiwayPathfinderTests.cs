@@ -42,6 +42,7 @@ public class OneWayTaxiwayPathfinderTests
             null,
             new HashSet<HoldShortTarget>(),
             AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large,
             RoutePreference.FewestTurns,
             null
         )

@@ -61,6 +61,7 @@ public class RouteCostFunctionTests
             authorizedTaxiways,
             new HashSet<HoldShortTarget>(),
             AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large,
             preference,
             null
         );
@@ -426,7 +427,18 @@ public class RouteCostFunctionTests
         GroundEdge e = MakeEdge(n0, n1, "A");
 
         var dest = new DestinationDescriptor(null, "28R", null, null, DestinationKind.Runway);
-        var ctx = new SearchContext(layout, 0, dest, [], null, new HashSet<HoldShortTarget>(), AircraftCategory.Jet, null, null);
+        var ctx = new SearchContext(
+            layout,
+            0,
+            dest,
+            [],
+            null,
+            new HashSet<HoldShortTarget>(),
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large,
+            null,
+            null
+        );
 
         PartialRoute r0 = StartRoute(0);
         double cost = RouteCostFunction.IncrementalCost(r0, e, n1, ctx);
@@ -447,7 +459,18 @@ public class RouteCostFunctionTests
 
         // Destination is 30, not 10L/28R — so this hold-short IS a crossing.
         var dest = new DestinationDescriptor(null, "30", null, null, DestinationKind.Runway);
-        var ctx = new SearchContext(layout, 0, dest, [], null, new HashSet<HoldShortTarget>(), AircraftCategory.Jet, null, null);
+        var ctx = new SearchContext(
+            layout,
+            0,
+            dest,
+            [],
+            null,
+            new HashSet<HoldShortTarget>(),
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large,
+            null,
+            null
+        );
 
         PartialRoute r0 = StartRoute(0);
         double cost = RouteCostFunction.IncrementalCost(r0, e, n1, ctx);

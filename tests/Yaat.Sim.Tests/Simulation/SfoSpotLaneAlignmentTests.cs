@@ -568,7 +568,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
 
     /// <summary>The resolved route SKW5590's clearance gives before any line-up: from T7A's junction with A down to spot 7A.</summary>
     private static TaxiRoute JunctionToSpot(AirportGroundLayout layout, GroundNode spot) =>
-        TaxiPathfinder.FindRoute(layout, LaneJunctionWithA(layout, "T7A").Id, spot.Id, AircraftCategory.Jet)
+        TaxiPathfinder.FindRoute(layout, LaneJunctionWithA(layout, "T7A").Id, spot.Id, AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)
         ?? throw new InvalidOperationException("no route from the T7A/A junction to spot 7A");
 
     private static SpotLineUpRequest LineUpRequest(LatLon position, TaxiRoute route, GroundNode spot, double lengthFt) =>
@@ -580,6 +580,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
             Route = route,
             Spot = spot,
             Category = AircraftCategorization.Categorize("CRJ7"),
+            WakeClass = WakeTurbulenceData.WakeClassForType("CRJ7", AircraftCategorization.Categorize("CRJ7")),
             AircraftLengthFt = lengthFt,
             ClearedTaxiways = ["T7A"],
             OtherGroundAircraft = [],
@@ -606,7 +607,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
         Assert.NotNull(RampLaneReposition.TryPlanSpotLineUp(layout, LineUpRequest(Skw5590Pose.Position, resolved, spot7A, lengthFt)));
 
         GroundNode rampSide = LaneNeighbourAwayFrom(spot7A, "T7A", LaneJunctionWithA(layout, "T7A"));
-        TaxiRoute arriving = TaxiPathfinder.FindRoute(layout, rampSide.Id, spot7A.Id, AircraftCategory.Jet)!;
+        TaxiRoute arriving = TaxiPathfinder.FindRoute(layout, rampSide.Id, spot7A.Id, AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large)!;
         Assert.Null(RampLaneReposition.TryPlanSpotLineUp(layout, LineUpRequest(Skw5590Pose.Position, arriving, spot7A, lengthFt)));
 
         Assert.Null(RampLaneReposition.TryPlanSpotLineUp(layout, LineUpRequest(Skw5590Pose.Position, resolved, spot7A, 2000.0)));
@@ -616,7 +617,18 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
 
         (GroundNode offLane, TaxiRoute toOffLane) = layout
             .Nodes.Values.Where(n => (n.Type == GroundNodeType.Spot) && !SitsMidLane(n) && (n.Edges.Count > 0))
-            .Select(n => (Spot: n, Route: TaxiPathfinder.FindRoute(layout, n.Edges[0].OtherNode(n).Id, n.Id, AircraftCategory.Jet)))
+            .Select(n =>
+                (
+                    Spot: n,
+                    Route: TaxiPathfinder.FindRoute(
+                        layout,
+                        n.Edges[0].OtherNode(n).Id,
+                        n.Id,
+                        AircraftCategory.Jet,
+                        WakeTurbulenceData.WakeClass.Large
+                    )
+                )
+            )
             .Where(c => c.Route is { Segments.Count: > 0 })
             .Select(c => (c.Spot, c.Route!))
             .First();
@@ -1055,7 +1067,7 @@ public class SfoSpotLaneAlignmentTests(ITestOutputHelper output)
                         return null;
                     }
 
-                    TaxiRoute? tail = TaxiPathfinder.FindRoute(layout, from.Id, spot.Id, AircraftCategory.Jet);
+                    TaxiRoute? tail = TaxiPathfinder.FindRoute(layout, from.Id, spot.Id, AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large);
                     if (
                         (tail is null)
                         || (tail.Segments.Count == 0)

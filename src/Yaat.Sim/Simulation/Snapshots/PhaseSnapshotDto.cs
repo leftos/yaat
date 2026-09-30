@@ -14,6 +14,7 @@ public sealed class PhaseListDto
     public int? LandingClearance { get; init; }
     public string? ClearedRunwayId { get; init; }
     public bool ForceLanding { get; init; }
+    public bool ForcedRollout { get; init; }
     public int? TrafficDirection { get; init; }
     public RunwayInfoDto? PatternRunway { get; init; }
     public RunwayInfoDto? DepartureRunway { get; init; }
@@ -645,6 +646,12 @@ public sealed class RunwayExitPhaseDto : PhaseDto
     // (the restore path rebuilds the exit route from segment 0 anyway).
     public bool TurnStarted { get; init; }
 
+    // A backtrack exit committed whose route is not yet built: the heading flips to the reciprocal when it is.
+    public bool BacktrackPending { get; init; }
+
+    // The pilot has already reported that it is stopped with no exit ahead.
+    public bool ReportedNoExitAhead { get; init; }
+
     public GroundNavigatorDto? Navigator { get; init; }
 }
 
@@ -1025,6 +1032,13 @@ public sealed class LandingPhaseDto : PhaseDto
     public int CurrentStateValue { get; init; }
     public double TouchdownLat { get; init; }
     public double TouchdownLon { get; init; }
+
+    // Ground speed just after touchdown; null when the phase has not touched down.
+    public double? TouchdownGroundSpeedKts { get; init; }
+
+    // A forced rollout that found no usable exit does not search again until it passes this point (nm along the runway
+    // from the landing threshold); null when it has not cached a miss.
+    public double? ForcedNoExitUntilAlongNm { get; init; }
     public double StabilizedSinceSec { get; init; }
     public List<int>? UnableBranchPointIds { get; init; }
     public int? InferredSideValue { get; init; }

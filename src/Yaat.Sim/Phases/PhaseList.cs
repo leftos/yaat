@@ -180,6 +180,15 @@ public sealed class PhaseList
     public bool ForceLanding { get; set; }
 
     /// <summary>
+    /// The runway exit is finishing a CLANDF rollout. Set by <c>LandingPhase</c> when a forced landing completes on the
+    /// ground (it stopped on the runway, or handed off to the exit); read by <c>RunwayExitPhase</c>, whose backstop
+    /// backtracks to an exit behind a stopped aircraft only when this is set — any other aircraft stopped on the runway
+    /// asks for a back-taxi instead (AIM 4-3-21.a). Cleared when the runway exit ends or any tower or ground command
+    /// reaches the aircraft.
+    /// </summary>
+    public bool ForcedRollout { get; set; }
+
+    /// <summary>
     /// When set, the aircraft is doing pattern work (MLT/MRT/CTOMLT/CTOMRT).
     /// Each approach defaults to touch-and-go and re-enters the pattern.
     /// Null means the aircraft will full-stop on landing.
@@ -400,6 +409,7 @@ public sealed class PhaseList
             LandingClearance = dto.LandingClearance.HasValue ? (ClearanceType)dto.LandingClearance.Value : null,
             ClearedRunwayId = dto.ClearedRunwayId,
             ForceLanding = dto.ForceLanding,
+            ForcedRollout = dto.ForcedRollout,
             RequestedExit =
                 (dto.RequestedExit.HasValue || dto.RequestedExitTaxiway is not null)
                     ? new ExitPreference
@@ -537,6 +547,7 @@ public sealed class PhaseList
             LandingClearance = LandingClearance.HasValue ? (int)LandingClearance.Value : null,
             ClearedRunwayId = ClearedRunwayId,
             ForceLanding = ForceLanding,
+            ForcedRollout = ForcedRollout,
             TrafficDirection = TrafficDirection.HasValue ? (int)TrafficDirection.Value : null,
             PatternRunway = PatternRunway?.ToSnapshot(),
             DepartureRunway = DepartureRunway?.ToSnapshot(),

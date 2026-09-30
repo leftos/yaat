@@ -65,7 +65,8 @@ public class JunctionContinuationTests
 
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.NotNull(route);
@@ -113,7 +114,8 @@ public class JunctionContinuationTests
             ["A"],
             out string? failReason,
             new ExplicitPathOptions { OccupiedTaxiway = null, DiagnosticLog = msg => _output.WriteLine(msg) },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.NotNull(route);
@@ -177,7 +179,8 @@ public class JunctionContinuationTests
             instructed,
             out string? failReason,
             new ExplicitPathOptions { OccupiedTaxiway = null, DiagnosticLog = msg => _output.WriteLine(msg) },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.NotNull(route);
@@ -358,7 +361,8 @@ public class JunctionContinuationTests
             [x, y],
             out string? failReason,
             new ExplicitPathOptions { OccupiedTaxiway = null, DiagnosticLog = msg => _output.WriteLine(msg) },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.NotNull(route);

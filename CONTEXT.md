@@ -128,6 +128,20 @@ _Avoid_: explicit hold-short (that is the controller's `HS`; this one is the res
 An uncleared movement-area taxiway a TAXI to a gate or spot may still drive, because the destination hangs off it: only apron follows it and no more than 1,000 ft of it is driven (`SegmentExpander.MaxImpliedLeadInFt`, docs/ground/pathfinder.md). The readback leaves it out.
 _Avoid_: connector (a connector bridges two cleared taxiways), lead-out
 
+**One-way lane**:
+A taxiway carried by any span of the airport's sidecar `oneWayEdges`, whatever the span's direction or wake-class exemptions (`OneWayResolver.GetOneWayLaneTaxiways`, docs/ground/pathfinder.md). The only kind of uncleared movement-area taxiway the resolver may imply beyond a lead-in.
+
+**Implied one-way lane**:
+One one-way lane a gate or spot extension, a start leg or a ramp-confined route drives uncleared because the one-way rules leave it the only way (SFO `TAXI T A @B2` enters on M1), never past a runway holding position. The readback names it and the controller is told `M1 not in clearance` (`TaxiRoute.ImpliedLanes`, docs/ground/pathfinder.md).
+_Avoid_: implied lead-in (a lead-in is the stand's own short approach, left out of the readback)
+
+**Start leg**:
+The auto-routed drive over nonmovement pavement from the start to the first cleared taxiway, used only when the hop-limited start bridge cannot reach it: at most 4,000 ft, at most one implied one-way lane, never to a runway holding position (`SegmentExpander.TryAutoRoutedStartLeg`, docs/ground/pathfinder.md).
+_Avoid_: bridge (the start bridge is the short hop-limited search tried first), approach leg (the free-space drive to the route's first node)
+
+**Ramp-confined route**:
+The route of a plain TAXI naming only a gate or spot, issued inside the ramp: ramp taxilanes, at most one cut across the apron and one implied one-way lane, no other movement-area taxiway; with none the TAXI is refused and TAXIAUTO suggested (`RampLaneReposition.TryPlanRampConfinedRoute`, docs/ground/pathfinder.md).
+
 **Roll-in**:
 The last part of a direct stand cut: the apron crossing ends one fuselage length out on the stand's centreline (the approach point), and a second straight leg runs in on the stand heading so the aircraft parks lined up (`RampLaneReposition.RollInApproachNode`, docs/ground/pathfinder.md).
 _Avoid_: line-up (a line-up faces a spot along its lane), pull-in
@@ -178,6 +192,18 @@ How far from a runway's centerline its holding position markings sit: the map's 
 
 **Continuation past a short bar**:
 An uninstructed runway exit whose own bar is a dead-end fallback inside the holding distance carries on to the same runway's bar on the joining taxiway, e.g. OAK P → J's 28R bar (docs/landing-and-runway-exit.md).
+
+**Exit capacity segment**:
+The stretch of an exit taxiway between a landing runway's exit hold-short and the parallel runway's hold-short, capped by a sidecar `exitCapacity` rule; when it is full an arrival treats that exit as occupied (`ExitCapacitySegment`, docs/landing-and-runway-exit.md).
+
+**Forced rollout**:
+The rollout of a CLANDF forced landing: graph exits only at 3–6 kt/s, else a stop short of the runway end, and, once stopped with no exit ahead, a backtrack to the exit behind without asking until any tower or ground command arrives (`PhaseList.ForcedRollout`, docs/landing-and-runway-exit.md).
+
+**Runway-exit backstop**:
+What `RunwayExitPhase` does with an aircraft stopped on the runway with no exit ahead: a forced rollout backtracks to the exit behind it; any other aircraft holds, waits for an occupied or full exit, or requests a back-taxi (docs/landing-and-runway-exit.md).
+
+**Pushback hold**:
+A scenario-scripted deferred command that would end an active pushback, or that the pushback would reject once one is held, waits until the pushback phase ends (`SimulationEngine.ProcessDeferredDispatches`, docs/ground/pushback.md).
 
 ## Airborne following
 

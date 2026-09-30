@@ -363,7 +363,7 @@ public static class PhraseologyVerbalizer
     /// </summary>
     private static IReadOnlyDictionary<string, string> AirTaxiArgs(AirTaxiCommand atxi, CaptureFormatter fmt)
     {
-        if (atxi.Destination is not { Length: > 0 } destination)
+        if ((atxi.TargetKind != AirTaxiTargetKind.Runway) || (atxi.Destination is not { Length: > 0 } destination))
         {
             return Empty();
         }

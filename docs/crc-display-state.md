@@ -64,6 +64,7 @@ Runs once per sim-second after PostPhysics ([tick-loop.md](tick-loop.md)). For e
 
 1. `CrcVisibilityTracker.Evaluate` decides STARS visibility, coast phase, ASDEX airport membership, Tower Cab visibility, ground-target status.
 2. `DtoChangeFlags` from per-aircraft change tracking (duplicate beacon codes, ATPA, etc.) coalesce with fingerprint changes.
+   - **Surface history trail.** The ASDE-X and SAID target fingerprints (`AsdexTargetFingerprint`, `SaidTargetFingerprint` in yaat-server's `AircraftChangeTracker`) carry a `PositionHistoryToken`: the count and an FNV-style hash of the newest `DtoConverter.SurfaceHistoryMaxPoints` (5) `PositionHistory` samples, which are exactly the dots CRC draws from `HistoryLocations` (CRC keeps no trail of its own). A stopped target still gains a sample every `PositionHistorySampleSeconds`, so it is re-sent while those dots shift, and goes quiet once all five sit on the same spot. A sample that moves only the part of the buffer CRC is never sent does not re-send the target. Regression: yaat-server `ChangeDetectionTests`.
 3. For each subscription that overlaps, emit either an update payload or a delete.
 
 ### Event-driven

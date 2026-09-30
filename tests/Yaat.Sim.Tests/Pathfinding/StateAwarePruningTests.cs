@@ -64,6 +64,7 @@ public class StateAwarePruningTests
             null,
             new HashSet<HoldShortTarget>(),
             AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large,
             RoutePreference.FewestTurns,
             null
         );
@@ -140,7 +141,7 @@ public class StateAwarePruningTests
 
         GroundNode lineup = RouteMaterialiser.FindFullLengthLineupHoldShort(layout, holdShorts[0], runway, holdShorts);
 
-        TaxiRoute? route = TaxiPathfinder.FindRoute(layout, lineup.Id, parkingNode.Id, AircraftCategory.Jet);
+        TaxiRoute? route = TaxiPathfinder.FindRoute(layout, lineup.Id, parkingNode.Id, AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large);
 
         output.WriteLine(
             $"{airport} {runway}({lineup.Id})->{parking}({parkingNode.Id}): {(route is null ? "NULL" : route.Segments.Count + " segs")}"

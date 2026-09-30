@@ -65,6 +65,12 @@ public sealed class RunwayExitPhase : Phase
     private const double RestoredApproachSegmentNm = 0.25;
 
     /// <summary>
+    /// Ground speed (kts) at or below which an aircraft with no exit ahead counts as stopped and the backstop
+    /// (<see cref="TryCommitExitBehind"/>) looks for an exit behind it.
+    /// </summary>
+    private const double BackstopStoppedSpeedKts = 1.0;
+
+    /// <summary>
     /// Sentinel node ID for the virtual approach segment. The segment from the
     /// aircraft's current position to the exit branch point uses this as FromNodeId.
     /// It never needs to be looked up in the layout — the navigator only resolves
@@ -97,6 +103,13 @@ public sealed class RunwayExitPhase : Phase
 
     // Latched once the turn-off is physically under way — see TurnStarted.
     private bool _turnStarted;
+
+    // The committed exit is behind the aircraft (the forced rollout's backstop): the rollout datum flips to the
+    // reciprocal heading once the route to it is built, and stays put if the build fails.
+    private bool _backtrackPending;
+
+    // Latched once the pilot has reported it cannot exit, so a stopped aircraft with no exit ahead reports once.
+    private bool _reportedNoExitAhead;
 
     // Segment the exit route was on when the snapshot was taken. The route itself is built from the live ground
     // layout and is not serialized, so the first tick after a restore rebuilds it — and without this the rebuild
@@ -264,9 +277,7 @@ public sealed class RunwayExitPhase : Phase
                     // centerline search rather than silently declaring the exit complete — same recovery the
                     // build-time failure path takes.
                     _state = ExitState.RollingOnCenterline;
-                    _holdShortNode = null;
-                    _exitTaxiway = null;
-                    _exitPath = null;
+                    ClearCommittedExit();
                     return TickRolling(ctx);
                 }
             }
@@ -296,13 +307,20 @@ public sealed class RunwayExitPhase : Phase
                 return TickFollowingExitPath(ctx);
             }
 
-            // Route construction failed. Clear and keep searching.
-            _holdShortNode = null;
-            _exitTaxiway = null;
-            _exitPath = null;
+            // Route construction failed. Clear and keep searching — on the rollout heading, since a backtrack that
+            // never got its route never turned the aircraft around.
+            ClearCommittedExit();
         }
 
         return TickRolling(ctx);
+    }
+
+    private void ClearCommittedExit()
+    {
+        _holdShortNode = null;
+        _exitTaxiway = null;
+        _exitPath = null;
+        _backtrackPending = false;
     }
 
     /// <summary>
@@ -348,6 +366,12 @@ public sealed class RunwayExitPhase : Phase
         if (_holdShortNode is null)
         {
             TryFindExitAhead(ctx);
+        }
+
+        // Stopped with no free exit ahead (the runway-end stop below, or a forced landing that stopped short of its end).
+        if ((_holdShortNode is null) && (ctx.Aircraft.GroundSpeed <= BackstopStoppedSpeedKts))
+        {
+            return TickStoppedWithoutExit(ctx);
         }
 
         // Terminal-end safety stop: if no exit was found and the aircraft is
@@ -412,17 +436,38 @@ public sealed class RunwayExitPhase : Phase
     /// </summary>
     private void TryFindExitAhead(PhaseContext ctx)
     {
-        if (ctx.GroundLayout is null || _runwayId is null)
-        {
-            return;
-        }
-
         // Occupied hold-short nodes are excluded at the BFS level so the finder
         // returns the next-best unoccupied exit at each centerline node, rather
         // than returning an occupied exit that we'd have to skip post-hoc (which
         // would miss other exits from the same centerline node).
-        HashSet<int>? occupied = ctx.OccupiedHoldShortNodes;
         var refusedOffSide = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (SearchExitAhead(ctx, ctx.OccupiedHoldShortNodes, refusedOffSide) is not { } hit)
+        {
+            return;
+        }
+
+        CommitFoundExit(ctx, hit.Found.HoldShort, hit.Found.Taxiway, hit.Found.Path, hit.Found.ExitAngle, hit.Preference);
+        if (!hit.FromTiebreaker)
+        {
+            ReportNamedExitOnlyOffSide(ctx, refusedOffSide);
+        }
+    }
+
+    /// <summary>
+    /// The exit <see cref="TryFindExitAhead"/> would take ahead of the aircraft with <paramref name="occupied"/> excluded,
+    /// with the preference it was found under and whether it came from the inferred-side tiebreaker. Null when the
+    /// relaxation (taxiway → side → any) finds nothing.
+    /// </summary>
+    private (AirportGroundLayout.CenterlineExitResult Found, ExitPreference? Preference, bool FromTiebreaker)? SearchExitAhead(
+        PhaseContext ctx,
+        HashSet<int>? occupied,
+        HashSet<string> refusedOffSide
+    )
+    {
+        if (ctx.GroundLayout is null || _runwayId is null)
+        {
+            return null;
+        }
 
         // Soft tiebreaker: when the preference has a taxiway but no side, try
         // with the inferred side first. If nothing found, fall through to the
@@ -430,9 +475,9 @@ public sealed class RunwayExitPhase : Phase
         if ((_lastResolvedPreference is { Taxiway: not null, Side: null }) && (_inferredSide is not null))
         {
             var tiebreakerPref = new ExitPreference { Taxiway = _lastResolvedPreference.Taxiway, Side = _inferredSide.Value };
-            if (TryRunSearchWithLookahead(ctx, tiebreakerPref, occupied, _inferredSide, refusedOffSide))
+            if (RunSearchWithLookahead(ctx, tiebreakerPref, occupied, _inferredSide, refusedOffSide) is { } tiebreak)
             {
-                return;
+                return (tiebreak, tiebreakerPref, true);
             }
         }
 
@@ -441,10 +486,9 @@ public sealed class RunwayExitPhase : Phase
         for (int attempt = 0; attempt < 3; attempt++)
         {
             ExitSide? sidePref = preference?.Side ?? _inferredSide;
-            if (TryRunSearchWithLookahead(ctx, preference, occupied, sidePref, refusedOffSide))
+            if (RunSearchWithLookahead(ctx, preference, occupied, sidePref, refusedOffSide) is { } found)
             {
-                ReportNamedExitOnlyOffSide(ctx, refusedOffSide);
-                return;
+                return (found, preference, false);
             }
 
             // Relax preference: taxiway → side → any
@@ -461,6 +505,129 @@ public sealed class RunwayExitPhase : Phase
                 break; // Already at "any", nothing more to relax
             }
         }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Stopped on the runway with no free exit ahead. A forced (CLANDF) rollout backtracks to the nearest exit behind it
+    /// on its own (<see cref="TryCommitExitBehind"/>). Any other aircraft stays stopped — reversing on the runway needs
+    /// ATC approval (AIM 4-3-21.a) — and re-searches every tick: when an exit ahead exists but is occupied or full it
+    /// waits for it to clear, and when there is none at all (nor for a forced rollout any behind) the pilot reports
+    /// once that it cannot exit and waits for an instructor TAXI or EXIT.
+    /// </summary>
+    private bool TickStoppedWithoutExit(PhaseContext ctx)
+    {
+        ctx.Targets.TargetSpeed = 0;
+        if ((ctx.Aircraft.Phases?.ForcedRollout == true) && TryCommitExitBehind(ctx))
+        {
+            return false;
+        }
+
+        if (!_reportedNoExitAhead && (SearchExitAhead(ctx, occupied: null, new HashSet<string>(StringComparer.OrdinalIgnoreCase)) is null))
+        {
+            ReportNoExitAhead(ctx);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The pilot's report that it is stopped with no exit ahead, asking for a back-taxi to the nearest free exit behind
+    /// it when there is one, plus an instructor terminal line saying the aircraft is waiting.
+    /// </summary>
+    private void ReportNoExitAhead(PhaseContext ctx)
+    {
+        _reportedNoExitAhead = true;
+        string? exitBehind = FindExitBehind(ctx)?.Taxiway;
+        string runway = RunwayIdentifier.ToDisplayDesignator(_runwayId ?? "?");
+        Log.LogInformation(
+            "[Exit] {Callsign}: stopped on runway {Rwy} with no exit ahead, requesting back-taxi to {Twy}",
+            ctx.Aircraft.Callsign,
+            runway,
+            exitBehind ?? "(no exit behind)"
+        );
+
+        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+            ctx.Aircraft,
+            ctx.SoloTrainingMode,
+            ctx.RpoShowPilotSpeech,
+            ctx.StudentPositionType,
+            Pilot.PilotResponder.BuildUnableToExitRequestBackTaxi(ctx.Aircraft, exitBehind),
+            Pilot.PilotResponder.SoloPositionsTower
+        );
+        ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} stopped on RWY {runway} with no exit ahead, awaiting TAXI or EXIT");
+    }
+
+    /// <summary>
+    /// The runway-exit backstop for a forced rollout: the aircraft is stopped with no exit ahead, so it backtracks on the
+    /// runway to the nearest exit behind it (<see cref="FindExitBehind"/>). The rollout datum flips to the reciprocal
+    /// heading once the route to the exit is built (<see cref="StartExitNavigation"/>), so the exit route, the
+    /// turn-started latch and a snapshot restore all read the backtrack as the direction of travel. Returns true when an
+    /// exit was committed.
+    /// </summary>
+    private bool TryCommitExitBehind(PhaseContext ctx)
+    {
+        if (FindExitBehind(ctx) is { } behind)
+        {
+            Log.LogInformation(
+                "[Exit] {Callsign}: stopped on runway {Rwy} with no exit ahead — backtracking to exit {Twy}",
+                ctx.Aircraft.Callsign,
+                _runwayId,
+                behind.Taxiway
+            );
+            CommitFoundExit(ctx, behind.HoldShort, behind.Taxiway, behind.Path, behind.ExitAngle, _lastResolvedPreference);
+            _backtrackPending = true;
+            return true;
+        }
+
+        if (_timeSinceLastLog >= LogIntervalSeconds)
+        {
+            Log.LogWarning("[Exit] {Callsign}: stopped on runway {Rwy} with no exit ahead or behind", ctx.Aircraft.Callsign, _runwayId);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The nearest free exit behind the aircraft — the end-of-runway turnoff included — using the same centerline walk as
+    /// <see cref="TryFindExitAhead"/>, run on the reciprocal heading. The walk is tried under the reciprocal end's
+    /// designator first (the direction the aircraft would roll, so that end's no-turnoff list applies), then this end's.
+    /// </summary>
+    private AirportGroundLayout.CenterlineExitResult? FindExitBehind(PhaseContext ctx)
+    {
+        if ((ctx.GroundLayout is null) || (_runwayId is null))
+        {
+            return null;
+        }
+
+        TrueHeading backtrackHeading = _runwayHeading.ToReciprocal();
+        List<string> designators = [];
+        if (ctx.Aircraft.Phases?.AssignedRunway is { } runway)
+        {
+            designators.Add(string.Equals(runway.Id.End1, runway.Designator, StringComparison.OrdinalIgnoreCase) ? runway.Id.End2 : runway.Id.End1);
+        }
+        designators.Add(_runwayId);
+
+        foreach (string designator in designators)
+        {
+            AirportGroundLayout.CenterlineExitResult? found = ctx.GroundLayout.FindOnSidePreferredExit(
+                ctx.Aircraft.Position.Lat,
+                ctx.Aircraft.Position.Lon,
+                backtrackHeading,
+                designator,
+                preference: null,
+                sidePref: null,
+                excludeBranchPoints: null,
+                excludeHoldShortNodes: ctx.OccupiedHoldShortNodes
+            );
+            if (found is { } exit)
+            {
+                return exit;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -495,9 +662,9 @@ public sealed class RunwayExitPhase : Phase
     /// option, falling back to the deferred off-side if none is found — unless
     /// the controller instructed the side, when an off-side candidate is never
     /// taken and its taxiway is added to <paramref name="refusedOffSide"/>.
-    /// Returns true on commit.
+    /// Returns the exit found, or null.
     /// </summary>
-    private bool TryRunSearchWithLookahead(
+    private AirportGroundLayout.CenterlineExitResult? RunSearchWithLookahead(
         PhaseContext ctx,
         ExitPreference? preference,
         HashSet<int>? occupied,
@@ -507,13 +674,13 @@ public sealed class RunwayExitPhase : Phase
     {
         if (ctx.GroundLayout is null || _runwayId is null)
         {
-            return false;
+            return null;
         }
 
         bool isExplicit = (preference?.Taxiway is not null) || (preference?.Side is not null);
         ExitSide? instructedSide = ctx.Aircraft.Phases?.RequestedExit?.Side;
 
-        AirportGroundLayout.CenterlineExitResult? found = ctx.GroundLayout.FindOnSidePreferredExit(
+        return ctx.GroundLayout.FindOnSidePreferredExit(
             ctx.Aircraft.Position.Lat,
             ctx.Aircraft.Position.Lon,
             _runwayHeading,
@@ -540,14 +707,6 @@ public sealed class RunwayExitPhase : Phase
                 return AirportGroundLayout.CandidateVerdict.Accept;
             }
         );
-
-        if (found is null)
-        {
-            return false;
-        }
-
-        CommitFoundExit(ctx, found.Value.HoldShort, found.Value.Taxiway, found.Value.Path, found.Value.ExitAngle, preference);
-        return true;
     }
 
     private void CommitFoundExit(
@@ -949,6 +1108,13 @@ public sealed class RunwayExitPhase : Phase
 
         _navigator.SetupSegment(_exitRoute, ctx, _ => true);
 
+        // The route to a backtrack exit is built: from here the aircraft travels on the reciprocal heading.
+        if (_backtrackPending)
+        {
+            _runwayHeading = _runwayHeading.ToReciprocal();
+            _backtrackPending = false;
+        }
+
         // TickRolling holds the runway heading through the persistent ControlTargets
         // (TargetTrueHeading + TurnRateOverride). From here the navigator owns steering and
         // writes TrueHeading directly — drop the heading hold, or FlightPhysics keeps turning
@@ -1198,8 +1364,12 @@ public sealed class RunwayExitPhase : Phase
         return null;
     }
 
-    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus) =>
+    /// <summary>The aircraft has left the runway (or a command cleared the exit), so a forced rollout is over.</summary>
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
+    {
+        ctx.Aircraft.Phases?.ForcedRollout = false;
         Log.LogDebug("[Exit] {Callsign}: OnEnd ({Status}), taxiway={Twy}", ctx.Aircraft.Callsign, endStatus, _exitTaxiway ?? "none");
+    }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
@@ -1235,6 +1405,8 @@ public sealed class RunwayExitPhase : Phase
             RunwayHeadingDeg = _runwayHeading.Degrees,
             ExitStateValue = (int)_state,
             TurnStarted = _turnStarted,
+            BacktrackPending = _backtrackPending,
+            ReportedNoExitAhead = _reportedNoExitAhead,
             Navigator = _navigator?.ToSnapshot(),
         };
 
@@ -1252,6 +1424,8 @@ public sealed class RunwayExitPhase : Phase
             _coastSpeed = dto.ExitSpeed,
             _timeSinceLastLog = dto.TimeSinceLastLog,
             _turnStarted = dto.TurnStarted,
+            _backtrackPending = dto.BacktrackPending,
+            _reportedNoExitAhead = dto.ReportedNoExitAhead,
             _restoreSegmentIndex = Math.Max(dto.ExitWaypointIndex, 0),
             Status = (PhaseStatus)dto.Status,
             ElapsedSeconds = dto.ElapsedSeconds,

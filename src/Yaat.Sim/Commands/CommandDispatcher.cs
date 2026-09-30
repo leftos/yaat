@@ -1246,7 +1246,7 @@ public static class CommandDispatcher
             case ClearedTakeoffPresentCommand ctopp:
                 return DepartureClearanceHandler.TryClearedTakeoffPresent(ctopp, aircraft, ctx.GroundLayout);
             case AirTaxiCommand atxi:
-                return GroundCommandHandler.TryAirTaxi(aircraft, atxi.Destination, ctx.GroundLayout);
+                return GroundCommandHandler.TryAirTaxi(aircraft, atxi.DestinationToken, ctx.GroundLayout);
             case LandCommand land:
                 return GroundCommandHandler.TryLand(aircraft, land, ctx.GroundLayout);
 
@@ -2126,6 +2126,25 @@ public static class CommandDispatcher
         cmd is not UnsupportedCommand && CommandDescriber.IsPhaseTransparent(CommandDescriber.ToCanonicalType(cmd));
 
     /// <summary>
+    /// Whether a command reaches the active phase's <see cref="Phase.CanAcceptCommand"/> gate at all. A
+    /// phase-transparent command (squawk, ident, say, strip op), a gate bypass
+    /// (<see cref="IsPhaseTransparentCommand"/>'s RFIS/RTIS/REPORT family and <see cref="IsSimControlBypass"/>'s
+    /// WARP/WARPG) and an unsupported verb never do: they apply, or are refused, without the phase being
+    /// consulted. <see cref="DispatchWithPhase"/>'s driver selection and the deferred-dispatch pushback hold
+    /// share this, so the two cannot drift on what the gate sees.
+    /// </summary>
+    internal static bool ReachesPhaseGate(ParsedCommand cmd)
+    {
+        if (cmd is UnsupportedCommand)
+        {
+            return false;
+        }
+
+        CanonicalCommandType type = CommandDescriber.ToCanonicalType(cmd);
+        return !CommandDescriber.IsPhaseTransparent(type) && !IsPhaseTransparentCommand(type) && !IsSimControlBypass(type);
+    }
+
+    /// <summary>
     /// Index of the command in a parallel block that is checked against the active phase's
     /// <see cref="Phase.CanAcceptCommand"/> — the first phase-interactive (non-transparent) command.
     /// Transparent siblings must not drive the gate: a block reaches <see cref="DispatchWithPhase"/>
@@ -2231,6 +2250,14 @@ public static class CommandDispatcher
     {
         CommandResult? result = TryApplyTowerCommandCore(command, aircraft, currentPhase, ctx);
         EmitProcedureAdvisory(result, aircraft, ctx);
+
+        // Any tower or ground instruction ends a CLANDF rollout's licence to backtrack on its own: from here the
+        // controller directs the aircraft (AIM 4-3-21.a).
+        if ((result is { Success: true }) && aircraft.IsOnGround && (aircraft.Phases is { ForcedRollout: true } phases))
+        {
+            phases.ForcedRollout = false;
+        }
+
         return result;
     }
 
@@ -2514,7 +2541,7 @@ public static class CommandDispatcher
 
             // Helicopter commands
             case AirTaxiCommand atxi:
-                return GroundCommandHandler.TryAirTaxi(aircraft, atxi.Destination, groundLayout);
+                return GroundCommandHandler.TryAirTaxi(aircraft, atxi.DestinationToken, groundLayout);
             case LandCommand land:
                 return GroundCommandHandler.TryLand(aircraft, land, groundLayout);
 

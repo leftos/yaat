@@ -67,7 +67,8 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
                 PathTurnHints = [hint],
                 StartHeadingTrue = AcrossWHeadingDeg,
             },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
     }
 
@@ -187,7 +188,8 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
             taxiwayNames: ["A", "B"],
             out failReason,
             new ExplicitPathOptions { OccupiedTaxiway = null, PathTurnHints = [null, bHint] },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
     [Fact]
@@ -263,7 +265,8 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
                 PathTurnHints = [aHint, null],
                 StartHeadingTrue = 0.0,
             },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
     [Fact]
@@ -327,7 +330,8 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
                 PathTurnHints = [aHint],
                 StartHeadingTrue = 0.0,
             },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
     [Fact]
@@ -390,7 +394,8 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
             taxiwayNames: ["A", "B"],
             out failReason,
             new ExplicitPathOptions { OccupiedTaxiway = null, PathTurnHints = [null, bHint] },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
     [Fact]

@@ -64,7 +64,8 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
                 ExplicitHoldShorts = [HoldShortTarget.Parse("10R")],
                 DestinationRunway = "28R",
             },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.Null(failReason);
@@ -104,7 +105,8 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
             taxiwayNames: ["F", "C"],
             out string? failReason,
             new ExplicitPathOptions { OccupiedTaxiway = null, DestinationRunway = "28R" },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.Null(failReason);
@@ -141,7 +143,8 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
             taxiwayNames: ["F", "C"],
             out string? failReason,
             new ExplicitPathOptions { OccupiedTaxiway = null, DestinationRunway = "28R" },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.Null(failReason);
@@ -196,7 +199,8 @@ public class Issue316NearSideHoldShortTests(ITestOutputHelper output)
                 ExplicitHoldShorts = [HoldShortTarget.Parse("10R")],
                 DestinationRunway = "28R",
             },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.Null(failReason);

@@ -33,14 +33,21 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
-            // Tick timers / evaluate conditions in insertion order and collect the deferrals that are
-            // ready this sub-tick. Dispatching FIFO (rather than the old reverse walk) guarantees that
-            // several commands expiring on the same sub-tick — e.g. two reaction-delayed commands the
-            // order-preserving clamp parked on the same fire time — apply in the order they were issued.
-            List<DeferredDispatch>? ready = null;
+            // A scenario-scripted deferral that would end the running tug move waits for the push to
+            // finish (see EndsPushback). Captured once, because nothing in this scan starts, advances
+            // or clears a phase — the payloads dispatch only after the scan.
+            var activePushback = aircraft.Phases?.CurrentPhase as PushbackPhase;
+
+            // Tick timers / evaluate conditions in insertion order and collect the deferrals that are ready
+            // this sub-tick. They dispatch in the order their timers expired, with this insertion order as the
+            // tiebreak (see the release ordering below), so several commands expiring on the same sub-tick —
+            // e.g. two reaction-delayed commands the order-preserving clamp parked on the same fire time —
+            // apply in the order they were issued.
+            var readyNow = new List<(DeferredDispatch Dispatch, bool JustExpired)>();
             foreach (DeferredDispatch d in aircraft.DeferredDispatches)
             {
                 bool isReady;
+                bool justExpired = false;
                 if (d.GiveWayTarget is not null)
                 {
                     isReady = IsGiveWayDeferredMet(aircraft, d.GiveWayTarget);
@@ -59,19 +66,69 @@ public sealed partial class SimulationEngine
                 }
                 else
                 {
-                    d.RemainingSeconds -= deltaSeconds;
+                    // Left to run negative: the countdown of an expired command kept waiting is what says
+                    // when its timer expired relative to the others (see the release ordering below), and it
+                    // is what the snapshot carries, so a restore keeps the order. The conditional list clamps
+                    // it for display.
+                    double before = d.RemainingSeconds;
+                    d.RemainingSeconds = before - deltaSeconds;
                     isReady = d.RemainingSeconds <= 0;
+                    justExpired = before > 0;
                 }
 
                 if (isReady)
                 {
-                    (ready ??= []).Add(d);
+                    readyNow.Add((d, justExpired));
                 }
+            }
+
+            // Scripted means the scenario wrote the WAIT, not the instructor: a scenario's own taxi
+            // clearance must not take the tug off mid-push (the aircraft would start taxiing tail-first
+            // from the middle of the alley). It fires on the first sub-tick whose current phase is no
+            // longer a pushback — completed, aborted or cancelled. Two rules hold the rest:
+            // (1) a scripted command that would end the tow is held, whatever else is pending;
+            // (2) once one is held, every other scripted command on the aircraft that the pushback would
+            //     refuse is held too, wherever it sits in the list — a refused command dispatched mid-tow
+            //     is lost, and the deferral list is not in time order (time-offset presets are queued and
+            //     fired in reverse), so the refused command may well sit ahead of the one holding the queue.
+            // A lone scripted refusal, with nothing held ahead of it, keeps its own timing.
+            bool holdsPushback =
+                (activePushback is not null)
+                && readyNow.Exists(entry => entry.Dispatch.IsScenarioScripted && EndsPushback(activePushback, entry.Dispatch));
+
+            List<DeferredDispatch>? ready = null;
+            foreach ((DeferredDispatch d, bool justExpired) in readyNow)
+            {
+                bool waitsForPushback =
+                    (activePushback is not null)
+                    && d.IsScenarioScripted
+                    && (EndsPushback(activePushback, d) || (holdsPushback && PushbackRejects(activePushback, d)));
+                if (waitsForPushback)
+                {
+                    if (justExpired)
+                    {
+                        string command = DescribeDeferredPayload(d);
+                        _logger.LogDebug("[Deferred] {Callsign}: {Command} held until pushback completes", aircraft.Callsign, command);
+                        EmitTerminal("System", aircraft.Callsign, $"{command} held until pushback completes");
+                    }
+
+                    continue;
+                }
+
+                (ready ??= []).Add(d);
             }
 
             if (ready is null)
             {
                 continue;
+            }
+
+            // Release in the order the timers expired: the countdown runs negative while a command waits, so
+            // ascending RemainingSeconds is ascending expiry time. OrderBy is stable, so two commands that
+            // expired on the same sub-tick keep their insertion order.
+            if (ready.Count > 1)
+            {
+                ready = [.. ready.OrderBy(d => d.RemainingSeconds)];
             }
 
             foreach (DeferredDispatch d in ready)
@@ -301,6 +358,39 @@ public sealed partial class SimulationEngine
         );
         return [];
     }
+
+    /// <summary>
+    /// Whether a deferred payload would end the running tug move, judged by the classification the phase
+    /// itself applies to an incoming command (<see cref="PushbackPhase.CanAcceptCommand"/>): a TAXI /
+    /// TAXIAUTO / AIRTAXI / LAND / DEL / PUSHM clears the phase and ends the tow, an ALLOWED verb
+    /// (HOLD / RES / a redirecting PUSH) or a REJECTED one (a squawk, a strip op) leaves it running.
+    /// Never hard-code the clearing verbs — the phase owns that list.
+    ///
+    /// <para>Any command of the payload counts, whichever block it sits in: a chain led by a
+    /// transparent block peels that block off and re-dispatches the remainder through the phase gate,
+    /// so the clearing verb reaches the phase even when it is not the first command.</para>
+    /// </summary>
+    private static bool EndsPushback(PushbackPhase pushback, DeferredDispatch d) =>
+        CommandsOf(d).Any(cmd => AcceptanceOf(pushback, cmd)?.ClearsThePhase == true);
+
+    /// <summary>
+    /// Whether the pushback would refuse a deferred payload: it carries a command that reaches the phase gate
+    /// (<see cref="CommandDispatcher.ReachesPhaseGate"/>) and the gate answers REJECTED there. Dispatching one
+    /// mid-tow loses it — the dispatcher surfaces the refusal and the command is gone (an <c>HS</c> at that
+    /// moment has no taxi route to bind to).
+    /// </summary>
+    private static bool PushbackRejects(PushbackPhase pushback, DeferredDispatch d) =>
+        CommandsOf(d).Any(cmd => CommandDispatcher.ReachesPhaseGate(cmd) && (AcceptanceOf(pushback, cmd)?.IsRejected == true));
+
+    /// <summary>Every command of a deferred payload, in block order.</summary>
+    private static IEnumerable<ParsedCommand> CommandsOf(DeferredDispatch d) => d.Payload.Blocks.SelectMany(block => block.Commands);
+
+    /// <summary>
+    /// The phase's verdict on one command, or null for a verb that never reaches the gate — an unsupported
+    /// command, which <see cref="CommandDescriber.ToCanonicalType"/> throws on rather than mapping.
+    /// </summary>
+    private static CommandAcceptance? AcceptanceOf(PushbackPhase pushback, ParsedCommand cmd) =>
+        cmd is UnsupportedCommand ? null : pushback.CanAcceptCommand(CommandDescriber.ToCanonicalType(cmd));
 
     private static string DescribeDeferredPayload(DeferredDispatch d)
     {

@@ -50,7 +50,8 @@ public class SfoBravoToOneLeftConnectorTests(ITestOutputHelper output)
                 DestinationRunway = runway,
                 DiagnosticLog = diag.Add,
             },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         foreach (string line in diag)

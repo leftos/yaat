@@ -78,7 +78,8 @@ public class N70csCrossStopsOnRunwayTests(ITestOutputHelper output)
             taxiwayNames: ["J"],
             out string? failReason,
             new ExplicitPathOptions { OccupiedTaxiway = null, ExplicitHoldShorts = [HoldShortTarget.Parse("28R")] },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.Null(failReason);

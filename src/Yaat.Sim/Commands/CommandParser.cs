@@ -911,7 +911,7 @@ public static class CommandParser
             HoldAtFixRight => ParseHoldAtFix(arg, TurnDirection.Right),
             HoldAtFixHover => ParseHoldAtFixHover(arg),
             // Helicopter
-            AirTaxi => PR.Ok(new AirTaxiCommand(NormalizeAirTaxiDestination(arg))),
+            AirTaxi => PR.Ok(ParseAirTaxi(arg)),
             Land when arg is not null => ParseLand(arg),
             ClearedTakeoffPresent => DepartureCommandParser.ParseCtoppArg(arg),
             // Ground — HOLD is overloaded: bare = HoldPosition, with args = HoldingPattern
@@ -1975,38 +1975,36 @@ public static class CommandParser
     }
 
     /// <summary>
-    /// The ATXI destination as stored: the leading <c>@</c>/<c>$</c> sigil dropped (the layout lookup tries
-    /// helipad, gate, spot and runway in turn, so the sigil carries no information the resolver needs) and
-    /// uppercased. A destination that can only be a runway — one carrying an <c>@taxiway</c> locative, or shaped
-    /// like a designator with an L/C/R side — is zero-padded so no unpadded designator enters sim state. A bare
-    /// one- or two-digit token is left alone: gates named "7" and "9" are real (KOAK), and padding would send
-    /// their air taxi to a runway or refuse it outright. A token that carried a sigil is never padded either:
-    /// the controller said "the gate/spot called 9L", not the runway.
+    /// The ATXI destination, uppercased, with the markers a TAXI destination takes: <c>@</c> names a helipad or a
+    /// gate, <c>$</c> a taxi spot, and a bare token is a runway. The marker moves into
+    /// <see cref="AirTaxiCommand.TargetKind"/> and the name is kept verbatim — <c>$9L</c> is the spot called 9L,
+    /// never runway 09L. A bare runway-shaped designator is zero-padded, the located <c>9@T</c> form included, so no
+    /// unpadded designator enters sim state; a bare token that is not runway-shaped is left for the handler to refuse.
     /// </summary>
-    private static string? NormalizeAirTaxiDestination(string? arg)
+    private static AirTaxiCommand ParseAirTaxi(string? arg)
     {
         if (arg is null)
         {
-            return null;
+            return new AirTaxiCommand(null);
         }
 
-        string trimmed = arg.Trim();
-        bool sigilled = trimmed.Length > 1 && (trimmed[0] == '@' || trimmed[0] == '$');
-        if (sigilled)
+        string trimmed = arg.Trim().ToUpperInvariant();
+        if ((trimmed.Length > 1) && (trimmed[0] is '@' or '$'))
         {
-            trimmed = trimmed[1..];
+            AirTaxiTargetKind kind = trimmed[0] == '@' ? AirTaxiTargetKind.Stand : AirTaxiTargetKind.Spot;
+            return new AirTaxiCommand(trimmed[1..]) { TargetKind = kind };
         }
 
-        trimmed = trimmed.ToUpperInvariant();
         int at = trimmed.IndexOf('@');
         string target = at < 0 ? trimmed : trimmed[..at];
-        if (sigilled || target.Length == 0 || (at < 0 && !IsRunwayArg(target)))
+        bool singleDigit = (target.Length == 1) && char.IsAsciiDigit(target[0]);
+        if (!singleDigit && !IsRunwayArg(target))
         {
-            return trimmed;
+            return new AirTaxiCommand(trimmed);
         }
 
         string padded = RunwayIdentifier.NormalizeDesignator(target);
-        return at < 0 ? padded : padded + trimmed[at..];
+        return new AirTaxiCommand(at < 0 ? padded : padded + trimmed[at..]);
     }
 
     private static PR ParseFollowAirborne(string? arg, bool force)

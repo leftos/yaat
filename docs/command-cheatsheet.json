@@ -210,13 +210,13 @@
       "id": "helicopter",
       "name": "Helicopter",
       "rows": [
-        { "verb": "ATXI", "aliases": [], "description": "Air taxi to helipad / `$spot` / runway holding position (`28L@J` = the bar on J)" },
+        { "verb": "ATXI", "aliases": [], "description": "Air taxi to `@helipad`/gate, `$spot`, or runway holding position (`28L@J` = the bar on J)" },
         { "verb": "LAND", "aliases": [], "description": "Land at helipad (NODEL)" },
         { "verb": "CTOPP", "aliases": [], "description": "Cleared takeoff present position — bare/+0XX AGL hovers & holds; heading|OC|DCT fix departs" },
         { "verb": "HPP", "aliases": [], "description": "Hover present position (no orbit)" },
         { "verb": "HFIX", "aliases": [], "description": "Hover at fix (no orbit)" }
       ],
-      "notes": ["ATXI dest: bare or `@helipad`, bare or `$spot` (holds there), runway holding position `28L` / `28L@J` (holds short as a departure)", "Spawn: `ADD V S H @spot` (light civil R22/R44/B06) or `ADD V S H @spot H60` (explicit type)"]
+      "notes": ["ATXI dest takes TAXI markers: `@helipad`/gate, `$spot` (holds there); a bare token is always a runway holding position `28L` / `28L@J` (holds short as a departure)", "Spawn: `ADD V S H @spot` (light civil R22/R44/B06) or `ADD V S H @spot H60` (explicit type)"]
     },
     {
       "id": "track",

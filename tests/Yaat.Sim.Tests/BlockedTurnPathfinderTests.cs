@@ -48,6 +48,7 @@ public class BlockedTurnPathfinderTests
             seq.Length == 0 ? null : new HashSet<string>(["L", "F", "LF"], StringComparer.OrdinalIgnoreCase),
             new HashSet<HoldShortTarget>(),
             AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large,
             RoutePreference.FewestTurns,
             null
         )

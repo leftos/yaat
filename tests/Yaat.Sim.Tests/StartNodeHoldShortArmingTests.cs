@@ -82,7 +82,8 @@ public sealed class StartNodeHoldShortArmingTests(ITestOutputHelper output)
                 ExplicitHoldShorts = [HoldShortTarget.Parse("10R")],
                 DestinationRunway = "28R",
             },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
         Assert.Null(failReason);
         Assert.NotNull(route);

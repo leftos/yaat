@@ -31,6 +31,7 @@ public sealed partial class SimulationEngine
     public List<string> LoadScenario(string json, int rngSeed, DateTime sessionStartUtc)
     {
         World.Clear();
+        _loggedExitCapacityRefusals.Clear();
         World.Rng = new SerializableRandom(rngSeed);
         World.ReactionDelayRng = new SerializableRandom(rngSeed);
         World.ReleaseJitterRng = new SerializableRandom(rngSeed);

@@ -179,6 +179,22 @@ The pilot's obligation is AIM 4-3-11.b.6 — exit at the first convenient taxiwa
 
 Known gaps are listed in `docs/plans/MAIN.md` (Wave 2): `RunwayExitPhase`'s own re-search and the instructor's late `EL`/`ER`/`EXIT` retarget are LAHSO-blind after the handoff, and the exit filter tests the branch point rather than the turn-off arc.
 
+## Forced landing (CLANDF)
+
+`CLANDF` sets `Phases.ForceLanding`: the aircraft lands and stops on the runway from any energy state, including when the command arrives after it has already passed the threshold. The numbers live in `Phases/Tower/ForcedLandingProfile.cs` and are an instructor-override rule, not aircraft performance: no FAA source covers the override, so they are aviation-sim-expert judgement calls, and a normal landing never reads them. `FinalApproachPhase.ApplyForcedLandingGuidance` and `LandingPhase` (down to the flare, in place of `ApplyGlidepathFloor`) both call `ForcedLandingProfile.ApplyAirborneGuidance`.
+
+- **Aim point** (`AimPointAlongFt`), measured signed along-track from the landing threshold, so an aircraft already past it aims further down the runway rather than back at the threshold: the furthest of the 6° point ahead of the aircraft (along-track + AGL / tan 6°), the threshold + 1,000 ft, and the aircraft + 500 ft. When the runway beyond that point is shorter than a 6 kt/s stop plus 500 ft, the aim point is pulled back toward the aircraft (`LatestTouchdownAlongFt`). The runway length is the landing distance (pavement less any displacement, AIM 2-3-3.h.2) less one sub-tick of travel, because the landing phase sees the wheels on the runway one sub-tick after physics puts them there.
+- **Speed**: the target is Vref plus the wind additive, reached at 5 kt/s (`AirborneDecelKtsPerSec`, written to `DesiredDecelRate`). The forced landing owns the speed profile, so a `SPEEDF` to a forced aircraft is superseded. A go-around or `CLC` that lifts the override also clears that airborne deceleration (`PatternCommandHandler.EndForcedLanding`).
+- **Descent** (`DescentRateFpm`): capped at 3,000 fpm, and at 1,000 fpm at or below 100 ft AGL. The cap gives way only when the capped path cannot reach the runway by the latest touchdown point; the rate is then whatever reaches it. In that case the flare may not float either (`FlareFloorFpm`, applied by `LandingPhase.ApplyForcedFlareFloor`), and a forced descent that crosses the flare band in one sub-tick runs the flare on the same tick.
+
+**Forced rollout.** `ForceLanding` stays set through the rollout and is consumed in `LandingPhase.OnEnd` once the landing ends on the ground. While it is set (and no LAHSO hold-short point outranks it), `LandingPhase.TickForcedRollout` replaces the normal exit braking:
+
+- It takes only exits off the runway's centerline graph (`TryResolveGraphCandidate`), never the straight-line fallback, whose one-node path the runway exit cannot drive. When the normal planner finds none, `ResolveForcedCandidate` takes the last exit ahead it can make at 6 kt/s or less, since the last one is the gentlest to brake for.
+- It brakes to the exit's turn-off speed 300 ft before the branch point (`ExitBrakingMarginFt`), at a rate clamped to 3–6 kt/s. An exit that needs more than 6 kt/s is given up (`MarkExitUnable`) and the search runs again as the aircraft slows. A search that finds nothing is not repeated until the aircraft passes the next branch point it saw (`ForcedNoExitUntilAlongNm`, snapshotted).
+- With no usable exit it stops 300 ft before the runway end (`TickForcedRunwayEndStop`), braking 3–10 kt/s, and harder only when even 10 kt/s would carry it off the end (`ForcedRunwayEndStopDecelKtsPerSec`). Once stopped the landing completes and `RunwayExitPhase` takes over.
+
+A forced landing that completes on the ground sets `Phases.ForcedRollout`. It tells `RunwayExitPhase`'s backstop that this aircraft may taxi back to the nearest exit behind it on its own (below). Any successful tower or ground command to the aircraft on the ground clears the flag (`CommandDispatcher.TryApplyTowerCommand`), and so does the end of the runway exit. From then on the controller directs the aircraft (AIM 4-3-21.a). `SfoClandfPastThresholdTests` and `ForcedRolloutStopAndBackstopTests` pin the profile and the rollout.
+
 ## RunwayExitPhase — Analog Rolling
 
 RunwayExitPhase does not walk centerline nodes. It:
@@ -214,6 +230,13 @@ require `HoldingAfterExitPhase`, so before this branch existed a layout-less arr
 sat in `RunwayExitPhase` for the rest of the session — never deleted under *On landing*. `HoldingAfterExitPhase.OnStart` skips its
 "clear of runway … at …" transmission on this path (no exit taxiway, no layout): the aircraft is stopped *on* the runway, and under mode
 `Never` it stays there awaiting an instruction rather than claiming to be clear.
+
+### Stopped on the runway with no exit ahead
+
+When `RunwayExitPhase` has no committed exit and the aircraft is at or below 1 kt (`BackstopStoppedSpeedKts`), for example after the runway-end safety stop or a forced landing that stopped short of the end, `TickStoppedWithoutExit` holds it at zero speed and searches again every tick:
+
+- **A forced rollout** (`Phases.ForcedRollout`) backtracks on its own to the nearest free exit behind it (`TryCommitExitBehind`). `FindExitBehind` runs the same centerline walk on the reciprocal heading, under the reciprocal end's designator first so that end's no-turnoff list applies, and the end-of-runway turnoff counts. The rollout heading flips to the reciprocal only once the route to that exit is built (`BacktrackPending`, snapshotted), so a failed route build leaves the aircraft facing its rollout direction.
+- **Any other aircraft** stays stopped, because reversing on the runway needs ATC approval (AIM 4-3-21.a). An exit ahead that is occupied or full is waited for. When there is no exit ahead at all, the pilot reports once (`ReportedNoExitAhead`, snapshotted) with `PilotResponder.BuildUnableToExitRequestBackTaxi`: "unable to exit, request back-taxi to {twy}." naming the nearest free exit behind, or "unable to exit the runway." when there is none. The instructor terminal shows "{CS} stopped on RWY {rwy} with no exit ahead, awaiting TAXI or EXIT".
 
 ### Changing the exit after the route is committed
 
@@ -269,7 +292,17 @@ When an aircraft vacates **between two parallel runways** — e.g. lands OAK 28L
 - **Trigger** (`AirportGroundLayout.FindParallelRunwayCrossing`): walk the same exit taxiway forward from the landing-runway hold-short. If the next runway hold-short reached belongs to a *different, (anti-)parallel* runway with **no intervening taxiway intersection** in between, return its near-side and far-side hold-shorts plus the node paths. An intervening intersection (a node carrying a different taxiway) aborts the search — the controller may want to route the aircraft down that taxiway, so the aircraft stops at the landing exit (today's behavior). Forward direction comes from the exit path's tail node, so an outer-side exit (pointing back across the landing runway) finds nothing.
 - **Reuse, not new geometry**: `CompleteExit` synthesizes a normal `AssignedTaxiRoute` of **real nodes** `[landing-HS → parallel-near-HS → … → parallel-far-HS]`, annotates it with `HoldShortAnnotator.AddImplicitRunwayHoldShorts` + `ComputeHoldShortPositions` (which stops the nose *at* the parallel hold-short line, not past it), and hands off to a `TaxiingPhase`. The existing taxi machinery then drives the pull-up, stops short of the parallel, inserts the `HoldingShortPhase`, and — once a `CROSS` clears it — runs the `CrossingRunwayPhase` across and holds clear on the far side. No virtual nodes are added to the route (a negative `VirtualNode` id would drop the whole route on snapshot restore).
 - **Gating**: the `AutoPullUpToParallel` scenario setting (opt-out, on by default for live sessions via the client preference; off in `SimScenarioState` so pre-feature recordings replay faithfully). Independent of `AutoCrossRunway` — the pull-up **always** requires an explicit `CROSS`/`CROSS <rwy>`; it never auto-crosses the parallel.
+- **Exit capacity**: see the next section for how many aircraft a sidecar lets stand between the two runways.
 - **Solo phraseology**: the synthesized pull-up hold-short carries `HoldShortReason.RunwayCrossing`, so it never triggers the solo-mode "ready for departure" report — that report fires only for `HoldShortReason.DestinationRunway` (the aircraft's assigned departure runway). A landed aircraft crossing a parallel is not a departure; it still surfaces a controller-facing "holding short runway <parallel>" reminder.
+
+## Exit capacity between parallel runways
+
+Some exits between parallel runways hold only a few aircraft before the last one's tail is back over the landing runway. An airport sidecar's `exitCapacity` entries (authoring schema in `src/Yaat.Sim/Data/ARTCCs/README.md`) cap each one. SFO 28R's exit onto T holds two aircraft when every aircraft involved is CWT G, H or I, and one otherwise; an aircraft with no known CWT counts as above G.
+
+- **Segment.** `ExitCapacityResolver` resolves each rule against the live layout into an exit capacity segment (`ExitCapacitySegment`): the stretch of the rule's taxiway from the landing runway's exit hold-short to the parallel runway's hold-short, found with the same forward walk as the auto-pull-up (`FindParallelRunwayCrossing`). A rule that does not resolve to exactly one segment logs an Error and is dropped for that layout, so exits there behave as if it were absent; `ExitCapacitySidecarTests` fails on such an entry. Segments are cached per layout instance.
+- **Occupants.** `SimulationEngine.BuildOccupiedHoldShortNodes` counts, in the same pass as the occupied hold-shorts, every aircraft inside a segment: in `RunwayExitPhase` or `HoldingAfterExitPhase` at its exit bar, taxiing on the pull-up route from that bar, or in `HoldingShortPhase` at the parallel runway's bar.
+- **A full segment reads as an occupied exit.** For an arrival in `FinalApproachPhase`, `LandingPhase` or `RunwayExitPhase` on the rule's runway, `OccupancyForExitChoice` adds the exit bar of every segment that is full for it to that aircraft's `OccupiedHoldShortNodes`, so it takes the next exit by the normal logic (AIM 4-3-21.a). An explicit `EXIT T` naming the segment's taxiway bypasses the check. A refusal is logged at Debug under the `ExitCapacity` category, once per distinct occupancy.
+- **Simplifications.** An arrival still in `LandingPhase` that has picked T is not yet counted as an occupant, and a 28L arrival that exits north onto T is not counted either. `SfoExitCapacityTests` pins the SFO rule.
 
 ## Constants
 
@@ -319,8 +352,10 @@ The `SA` (Make Short Approach) compressed pattern has two coupled geometry invar
 
 ## Key Files
 
-- `src/Yaat.Sim/Phases/Tower/LandingPhase.cs` — Rollout braking, exit candidate resolution, unable-replan
-- `src/Yaat.Sim/Phases/Ground/RunwayExitPhase.cs` — Analog rolling, virtual segments, exit search
+- `src/Yaat.Sim/Phases/Tower/LandingPhase.cs` — Rollout braking, exit candidate resolution, unable-replan, the forced (CLANDF) rollout
+- `src/Yaat.Sim/Phases/Tower/ForcedLandingProfile.cs` — CLANDF aim point, descent cap and braking constants
+- `src/Yaat.Sim/Phases/Ground/RunwayExitPhase.cs` — Analog rolling, virtual segments, exit search, the stopped-without-exit backstop
+- `src/Yaat.Sim/Data/Airport/ExitCapacityResolver.cs` — Resolves sidecar `exitCapacity` rules into exit capacity segments
 - `src/Yaat.Sim/Phases/Ground/GroundNavigator.cs` — Steering, turn anticipation, backward-propagated braking
 - `src/Yaat.Sim/Data/Airport/AirportGroundLayout.cs` — FindExitFromCenterline, FindAdjacentHoldShort, InferPreferredExitSide, exit scoring
 - `src/Yaat.Sim/AircraftCategory.cs` — All category-specific performance constants

@@ -45,7 +45,7 @@ public class SfoFiveAlleySpotCutTests
     /// </summary>
     private void LogCutCandidates(AirportGroundLayout layout, GroundNode gate, GroundNode stand)
     {
-        TaxiRoute? graph = TaxiPathfinder.FindRoute(layout, gate.Id, stand.Id, AircraftCategory.Jet);
+        TaxiRoute? graph = TaxiPathfinder.FindRoute(layout, gate.Id, stand.Id, AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large);
         if (graph is null)
         {
             return;

@@ -3838,8 +3838,9 @@ internal static class PatternCommandHandler
             return new CommandResult(false, "Go around not applicable");
         }
 
-        // A controller-commanded go-around always overrides a CLANDF forced landing.
-        aircraft.Phases.ForceLanding = false;
+        // A controller-commanded go-around always overrides a CLANDF forced landing, and with it the forced
+        // landing's firm airborne deceleration.
+        EndForcedLanding(aircraft);
 
         if (ga.TrafficPattern is { } patDir)
         {
@@ -4353,6 +4354,25 @@ internal static class PatternCommandHandler
         return CommandDispatcher.Ok($"Forcing landing{CommandDispatcher.RunwayLabel(aircraft)}");
     }
 
+    /// <summary>
+    /// Lifts a CLANDF override. An airborne forced landing also drops the firm deceleration it was flying
+    /// (<see cref="Phases.Tower.ForcedLandingProfile.AirborneDecelKtsPerSec"/>) so the next speed change uses the
+    /// type's own rate; on the ground the rollout rewrites the braking rate every tick, so it is left alone.
+    /// </summary>
+    private static void EndForcedLanding(AircraftState aircraft)
+    {
+        if (aircraft.Phases is not { ForceLanding: true } phases)
+        {
+            return;
+        }
+
+        phases.ForceLanding = false;
+        if (!aircraft.IsOnGround)
+        {
+            aircraft.Targets.DesiredDecelRate = null;
+        }
+    }
+
     internal static CommandResult TryLandAndHoldShort(
         LandAndHoldShortCommand lahso,
         AircraftState aircraft,
@@ -4466,7 +4486,7 @@ internal static class PatternCommandHandler
         aircraft.Phases.LandingClearance = null;
         aircraft.Phases.ClearedRunwayId = null;
         // Cancelling the (CLANDF-granted) landing clearance also lifts the forced-landing override.
-        aircraft.Phases.ForceLanding = false;
+        EndForcedLanding(aircraft);
         // The hold-short instruction is part of the landing clearance LAHSO grants (7110.65 §3-10-5.b), so it
         // is cancelled with it — the amended-clearance case of AIM 4-3-11.b.5. Otherwise the aircraft would
         // still brake to a point it no longer holds a clearance for.

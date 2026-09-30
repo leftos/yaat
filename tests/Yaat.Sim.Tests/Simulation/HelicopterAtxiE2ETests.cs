@@ -13,7 +13,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Spawns an EC35 helicopter at KOAK parking spot HELI and exercises the ATXI
 /// (air-taxi) command. Asserts the desired controller-facing behavior:
 ///   1. ATXI accepts all three destination types — parking spot, taxiway spot,
-///      and runway — with or without the @ prefix where it would be natural.
+///      and runway — each with the TAXI marker: @ for a helipad or gate, $ for a spot, bare for a runway.
 ///   2. The helicopter takes off in place, climbs to 100 ft AGL, air-taxies
 ///      direct to the destination, and lands safely on the spot.
 ///
@@ -47,9 +47,8 @@ public class HelicopterAtxiE2ETests(ITestOutputHelper output)
     /// see at a glance which destination types still need work.
     /// </summary>
     [Theory]
-    [InlineData("ATXI FDX1", "parking spot, no prefix")]
-    [InlineData("ATXI @FDX1", "parking spot, @ prefix (controller-natural)")]
-    [InlineData("ATXI 7A", "taxiway spot, no prefix")]
+    [InlineData("ATXI @FDX1", "parking spot, @ marker")]
+    [InlineData("ATXI $5", "taxiway spot, $ marker")]
     [InlineData("ATXI 28R", "runway designator")]
     public void Atxi_AcceptsAllSupportedDestinationTypes(string command, string description)
     {
@@ -72,7 +71,7 @@ public class HelicopterAtxiE2ETests(ITestOutputHelper output)
 
     /// <summary>
     /// Full-flight E2E: takeoff in place → climb to 100 ft AGL → air-taxi to
-    /// FDX1 → land safely. Issues `ATXI FDX1` (the form known to parse today)
+    /// FDX1 → land safely. Issues `ATXI @FDX1`
     /// so this test focuses on the climb/cruise/land behavior rather than the
     /// destination-syntax gaps covered by the [Theory] above. Two assertions
     /// are expected to fail today (peak AGL and never-lands).
@@ -90,8 +89,8 @@ public class HelicopterAtxiE2ETests(ITestOutputHelper output)
 
         (SimulationEngine? engine, AirportGroundLayout _, AircraftState? heli, GroundNode? fdx1Spot) = SetupHeliAtHeli();
 
-        CommandResult atxi = engine.SendCommand("TEST1", "ATXI FDX1");
-        output.WriteLine($"ATXI FDX1: success={atxi.Success} message=\"{atxi.Message}\"");
+        CommandResult atxi = engine.SendCommand("TEST1", "ATXI @FDX1");
+        output.WriteLine($"ATXI @FDX1: success={atxi.Success} message=\"{atxi.Message}\"");
         Assert.True(atxi.Success, $"ATXI rejected: {atxi.Message}");
         Assert.IsType<AirTaxiPhase>(heli.Phases!.CurrentPhase);
 

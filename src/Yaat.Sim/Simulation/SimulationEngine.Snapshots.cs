@@ -47,6 +47,7 @@ public sealed partial class SimulationEngine
         SnapshotSchemaMigrator.Migrate(snapshot);
 
         World.Clear();
+        _loggedExitCapacityRefusals.Clear();
         World.Rng = new SerializableRandom(snapshot.Rng.S0, snapshot.Rng.S1, snapshot.Rng.S2, snapshot.Rng.S3);
         World.Weather = snapshot.WeatherJson is not null ? JsonSerializer.Deserialize<WeatherProfile>(snapshot.WeatherJson) : null;
 

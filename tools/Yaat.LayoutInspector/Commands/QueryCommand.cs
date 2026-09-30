@@ -185,7 +185,8 @@ public sealed class QueryCommand : ICommand
                     StartHeadingTrue = options.PathfinderStartHeadingTrue,
                     DiagnosticLog = msg => diagLog.Add(msg),
                 },
-                AircraftCategory.Jet
+                AircraftCategory.Jet,
+                WakeTurbulenceData.WakeClass.Large
             );
 
             // If a destination hint is set but the explicit walk didn't reach it,
@@ -197,7 +198,13 @@ public sealed class QueryCommand : ICommand
                 int explicitEndNodeId = pfRoute.Segments[^1].ToNodeId;
                 if (explicitEndNodeId != destHintNode.Id)
                 {
-                    TaxiRoute? extension = TaxiPathfinder.FindRoute(analyzer.Layout, explicitEndNodeId, destHintNode.Id, AircraftCategory.Jet);
+                    TaxiRoute? extension = TaxiPathfinder.FindRoute(
+                        analyzer.Layout,
+                        explicitEndNodeId,
+                        destHintNode.Id,
+                        AircraftCategory.Jet,
+                        WakeTurbulenceData.WakeClass.Large
+                    );
                     if (extension is not null)
                     {
                         diagLog.Add($"[LI] Extension via FindRoute({explicitEndNodeId} → {destHintNode.Id}): {extension.Segments.Count} segment(s)");
@@ -385,7 +392,13 @@ public sealed class QueryCommand : ICommand
         }
         Console.WriteLine();
 
-        TaxiRoute? route = TaxiPathfinder.FindRoute(analyzer.Layout, startNode.Id, targetHs.Id, AircraftCategory.Jet);
+        TaxiRoute? route = TaxiPathfinder.FindRoute(
+            analyzer.Layout,
+            startNode.Id,
+            targetHs.Id,
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
+        );
         if (route is null)
         {
             Console.Error.WriteLine($"No A* route from #{startNodeId} to #{targetHs.Id}");
@@ -460,7 +473,8 @@ public sealed class QueryCommand : ICommand
             [taxiway],
             out string? failReason,
             new ExplicitPathOptions { OccupiedTaxiway = null, DiagnosticLog = msg => diag.Add(msg) },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         foreach (string line in diag)

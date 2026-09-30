@@ -84,7 +84,8 @@ public class SfoTaxiBToF1RampConnectorTests
                 StartHeadingTrue = StartHeadingTrue,
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.NotNull(route);

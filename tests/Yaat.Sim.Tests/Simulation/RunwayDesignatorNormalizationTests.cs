@@ -45,8 +45,8 @@ public sealed class RunwayDesignatorNormalizationTests(ITestOutputHelper output)
         AircraftCategory category = AircraftCategorization.Categorize("E75L");
         GroundNode startNode = layout.Nodes[304];
 
-        TaxiRoute? padded = TaxiPathfinder.FindRunwayRoute(layout, startNode, "08R", category);
-        TaxiRoute? unpadded = TaxiPathfinder.FindRunwayRoute(layout, startNode, "8R", category);
+        TaxiRoute? padded = TaxiPathfinder.FindRunwayRoute(layout, startNode, "08R", category, WakeTurbulenceData.WakeClass.Large);
+        TaxiRoute? unpadded = TaxiPathfinder.FindRunwayRoute(layout, startNode, "8R", category, WakeTurbulenceData.WakeClass.Large);
 
         Assert.NotNull(padded);
         Assert.NotNull(unpadded);

@@ -75,8 +75,20 @@ public class Issue172RealLayoutEtaGateTests
         Assert.NotNull(winnerStart);
         Assert.NotNull(yielderStart);
 
-        TaxiRoute? winnerRoute = TaxiPathfinder.FindRoute(layout, winnerStart.Id, crossing.Id, AircraftCategory.Jet);
-        TaxiRoute? yielderRoute = TaxiPathfinder.FindRoute(layout, yielderStart.Id, crossing.Id, AircraftCategory.Jet);
+        TaxiRoute? winnerRoute = TaxiPathfinder.FindRoute(
+            layout,
+            winnerStart.Id,
+            crossing.Id,
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
+        );
+        TaxiRoute? yielderRoute = TaxiPathfinder.FindRoute(
+            layout,
+            yielderStart.Id,
+            crossing.Id,
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
+        );
         Assert.NotNull(winnerRoute);
         Assert.NotNull(yielderRoute);
 

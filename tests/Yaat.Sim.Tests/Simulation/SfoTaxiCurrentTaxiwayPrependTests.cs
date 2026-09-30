@@ -299,7 +299,8 @@ public class SfoTaxiCurrentTaxiwayPrependTests(ITestOutputHelper output)
             ["K"],
             out string? asClearedFailure,
             new ExplicitPathOptions { OccupiedTaxiway = null, StartHeadingTrue = Skw3398OnBPose.Heading.Degrees },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
         output.WriteLine($"as cleared from node {start.Id}: {asClearedFailure}");
         Assert.Null(asCleared);

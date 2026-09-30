@@ -23,6 +23,7 @@ public sealed class AirportSidecarCatalog
     private readonly Dictionary<string, List<BlockedTurn>> _blockedTurnsByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<AdwWindow>> _adwByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Dictionary<string, ExitSide>> _exitDirectionsByAirport = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<ExitCapacityRule>> _exitCapacityByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, HashSet<string>> _movementAreaByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, HashSet<string>> _nonMovementByAirport = new(StringComparer.OrdinalIgnoreCase);
 
@@ -43,6 +44,7 @@ public sealed class AirportSidecarCatalog
             MergeBlockedTurns(key, airport.BlockedTurns);
             MergeAdw(key, airport.Adw);
             MergeExitDirections(key, airport.ExitDirections);
+            MergeExitCapacity(key, airport.ExitCapacity);
             MergeNames(_movementAreaByAirport, key, airport.MovementAreaTaxiways);
             MergeNames(_nonMovementByAirport, key, airport.NonMovementTaxilanes);
         }
@@ -105,6 +107,22 @@ public sealed class AirportSidecarCatalog
         {
             byRunway[entry.Runway] = entry.Side;
         }
+    }
+
+    private void MergeExitCapacity(string key, IReadOnlyList<ExitCapacityRule> rules)
+    {
+        if (rules.Count == 0)
+        {
+            return;
+        }
+
+        if (!_exitCapacityByAirport.TryGetValue(key, out List<ExitCapacityRule>? list))
+        {
+            list = [];
+            _exitCapacityByAirport[key] = list;
+        }
+
+        list.AddRange(rules);
     }
 
     private void MergeAdw(string key, IReadOnlyList<AdwWindow> windows)
@@ -301,6 +319,22 @@ public sealed class AirportSidecarCatalog
 
         string key = NavigationDatabase.NormalizeAirport(airportId);
         return _adwByAirport.TryGetValue(key, out List<AdwWindow>? list) ? list : [];
+    }
+
+    /// <summary>
+    /// Exit-capacity rules at the given airport — how many aircraft may stand between a landing runway's exit
+    /// hold-short and the parallel runway's. Never null; returns an empty list when the airport has none. Resolved
+    /// against a concrete layout by <see cref="Yaat.Sim.Data.Airport.ExitCapacityResolver"/>.
+    /// </summary>
+    public IReadOnlyList<ExitCapacityRule> GetExitCapacity(string airportId)
+    {
+        if (string.IsNullOrWhiteSpace(airportId))
+        {
+            return [];
+        }
+
+        string key = NavigationDatabase.NormalizeAirport(airportId);
+        return _exitCapacityByAirport.TryGetValue(key, out List<ExitCapacityRule>? list) ? list : [];
     }
 
     /// <summary>

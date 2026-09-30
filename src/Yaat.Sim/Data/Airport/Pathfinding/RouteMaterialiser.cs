@@ -15,6 +15,13 @@ public static class RouteMaterialiser
     public static string NotInRouteIssuedWarning(string taxiway) => $"taxiing via {taxiway} — not in the route issued";
 
     /// <summary>
+    /// The controller's note for a one-way lane the resolver implied into a gate or spot clearance as the connector the
+    /// one-way rules leave the aircraft (<see cref="SegmentExpander"/>'s one-way lane extension): <c>M1 not in clearance</c>.
+    /// The readback names the lane, since the aircraft drives it.
+    /// </summary>
+    public static string NotInClearanceWarning(string taxiway) => $"{taxiway} not in clearance";
+
+    /// <summary>
     /// Produce a <see cref="TaxiRoute"/> from a committed edge sequence and search context.
     /// <paramref name="insertions"/> are mandatory connectors the resolver had to bridge between
     /// cleared taxiways with no direct junction — surfaced as informative notifications rather

@@ -64,6 +64,7 @@ public class AutoRouterTests
             authorizedTaxiways,
             new HashSet<HoldShortTarget>(),
             AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large,
             preference,
             log
         );
@@ -356,6 +357,7 @@ public class AutoRouterTests
             null,
             new HashSet<HoldShortTarget>(),
             AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large,
             null,
             null
         );
@@ -404,7 +406,7 @@ public class AutoRouterTests
         Edge(n0, n1, "A");
         Edge(n1, n2, "A");
 
-        TaxiRoute? route = TaxiPathfinder.FindRoute(layout, 0, 2, AircraftCategory.Jet);
+        TaxiRoute? route = TaxiPathfinder.FindRoute(layout, 0, 2, AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large);
 
         Assert.NotNull(route);
         Assert.Equal(2, route.Segments.Count);
@@ -424,7 +426,7 @@ public class AutoRouterTests
         Edge(n0, n2, "B");
         Edge(n2, n3, "B");
 
-        List<TaxiRoute> routes = TaxiPathfinder.FindRoutes(layout, 0, 3, null, 3, null, AircraftCategory.Jet);
+        List<TaxiRoute> routes = TaxiPathfinder.FindRoutes(layout, 0, 3, null, 3, null, AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large);
 
         Assert.NotEmpty(routes);
         Assert.True(routes.Count <= 3);
@@ -442,7 +444,16 @@ public class AutoRouterTests
         AirportGroundLayout layout = Layout(n0, n1);
         Edge(n0, n1, "A");
 
-        List<TaxiRoute> routes = TaxiPathfinder.FindRoutes(layout, 0, 1, RoutePreference.Shortest, 5, null, AircraftCategory.Jet);
+        List<TaxiRoute> routes = TaxiPathfinder.FindRoutes(
+            layout,
+            0,
+            1,
+            RoutePreference.Shortest,
+            5,
+            null,
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
+        );
 
         Assert.Single(routes);
     }

@@ -488,12 +488,12 @@ code {
 <details class="cat" id="helicopter" data-name="helicopter" open>
 <summary>Helicopter</summary>
 <div class="cat-body cat-body--no-alias">
-<div class="row" id="cmd-helicopter-atxi" data-verb="atxi" data-aliases="" data-desc="air taxi to helipad / `$spot` / runway holding position (`28l@j` = the bar on j)"><span class="verb">ATXI</span><span class="alias"></span><span class="desc">Air taxi to helipad / `$spot` / runway holding position (`28L@J` = the bar on J)</span></div>
+<div class="row" id="cmd-helicopter-atxi" data-verb="atxi" data-aliases="" data-desc="air taxi to `@helipad`/gate, `$spot`, or runway holding position (`28l@j` = the bar on j)"><span class="verb">ATXI</span><span class="alias"></span><span class="desc">Air taxi to `@helipad`/gate, `$spot`, or runway holding position (`28L@J` = the bar on J)</span></div>
 <div class="row" id="cmd-helicopter-land" data-verb="land" data-aliases="" data-desc="land at helipad (nodel)"><span class="verb">LAND</span><span class="alias"></span><span class="desc">Land at helipad (NODEL)</span></div>
 <div class="row" id="cmd-helicopter-ctopp" data-verb="ctopp" data-aliases="" data-desc="cleared takeoff present position — bare/+0xx agl hovers &amp; holds; heading|oc|dct fix departs"><span class="verb">CTOPP</span><span class="alias"></span><span class="desc">Cleared takeoff present position — bare/+0XX AGL hovers &amp; holds; heading|OC|DCT fix departs</span></div>
 <div class="row" id="cmd-helicopter-hpp" data-verb="hpp" data-aliases="" data-desc="hover present position (no orbit)"><span class="verb">HPP</span><span class="alias"></span><span class="desc">Hover present position (no orbit)</span></div>
 <div class="row" id="cmd-helicopter-hfix" data-verb="hfix" data-aliases="" data-desc="hover at fix (no orbit)"><span class="verb">HFIX</span><span class="alias"></span><span class="desc">Hover at fix (no orbit)</span></div>
-<div class="note">ATXI dest: bare or <code>@helipad</code>, bare or <code>$spot</code> (holds there), runway holding position <code>28L</code> / <code>28L@J</code> (holds short as a departure)</div>
+<div class="note">ATXI dest takes TAXI markers: <code>@helipad</code>/gate, <code>$spot</code> (holds there); a bare token is always a runway holding position <code>28L</code> / <code>28L@J</code> (holds short as a departure)</div>
 <div class="note">Spawn: <code>ADD V S H @spot</code> (light civil R22/R44/B06) or <code>ADD V S H @spot H60</code> (explicit type)</div>
 </div>
 </details>

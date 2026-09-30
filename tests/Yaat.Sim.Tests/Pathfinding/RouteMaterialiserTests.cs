@@ -69,6 +69,7 @@ public class RouteMaterialiserTests
             authorized,
             holdShorts ?? new HashSet<HoldShortTarget>(),
             category,
+            WakeTurbulenceData.WakeClass.Large,
             null,
             null
         );

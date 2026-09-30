@@ -147,7 +147,7 @@ public class GroundNavigatorRouteEndSpeedTests(ITestOutputHelper output)
             return false;
         }
 
-        TaxiRoute? found = TaxiPathfinder.FindRoute(layout, start.Id, bar.Id, AircraftCategory.Piston);
+        TaxiRoute? found = TaxiPathfinder.FindRoute(layout, start.Id, bar.Id, AircraftCategory.Piston, WakeTurbulenceData.WakeClass.Large);
         if (found is null || found.Segments.Count < 2)
         {
             output.WriteLine($"SKIP: no multi-segment route from node {start.Id} to node {bar.Id} ({found?.Segments.Count ?? 0} segments)");

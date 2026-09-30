@@ -857,14 +857,17 @@ public partial class GroundViewModel : ObservableObject
     /// </summary>
     public static AircraftCategory CategoryFor(AircraftModel ac) => AircraftCategorization.Categorize(ac.AircraftType);
 
-    public TaxiRoute? FindRouteToNode(int fromNodeId, int toNodeId, AircraftCategory category)
+    public static WakeTurbulenceData.WakeClass WakeClassFor(AircraftModel ac) =>
+        WakeTurbulenceData.WakeClassForType(ac.AircraftType, CategoryFor(ac));
+
+    public TaxiRoute? FindRouteToNode(int fromNodeId, int toNodeId, AircraftCategory category, WakeTurbulenceData.WakeClass wakeClass)
     {
         if (_domainLayout is null)
         {
             return null;
         }
 
-        return TaxiPathfinder.FindRoute(_domainLayout, fromNodeId, toNodeId, category);
+        return TaxiPathfinder.FindRoute(_domainLayout, fromNodeId, toNodeId, category, wakeClass);
     }
 
     public string BuildTaxiCommand(TaxiRoute route) => string.Join(" ", TaxiRouteFormatter.CleanTaxiwaySequence(route));
@@ -941,7 +944,7 @@ public partial class GroundViewModel : ObservableObject
             return;
         }
 
-        TaxiRoute? route = FindRouteToNode(fromNodeId.Value, toNodeId, CategoryFor(SelectedAircraft));
+        TaxiRoute? route = FindRouteToNode(fromNodeId.Value, toNodeId, CategoryFor(SelectedAircraft), WakeClassFor(SelectedAircraft));
         if (route is null)
         {
             _log.LogWarning("No route from node {From} to {To}", fromNodeId, toNodeId);
@@ -1008,7 +1011,7 @@ public partial class GroundViewModel : ObservableObject
 
     public async Task WarpToNodeAsync(string callsign, string initials, int nodeId) => await _sendCommand(callsign, $"WARPG #{nodeId}", initials);
 
-    public List<TaxiRoute> FindRoutesToNode(int fromNodeId, int toNodeId, AircraftCategory category)
+    public List<TaxiRoute> FindRoutesToNode(int fromNodeId, int toNodeId, AircraftCategory category, WakeTurbulenceData.WakeClass wakeClass)
     {
         if (_domainLayout is null)
         {
@@ -1018,7 +1021,16 @@ public partial class GroundViewModel : ObservableObject
         // The pathfinder returns one route per preference (FewestTurns / Shortest / Fastest), deduped — at most 3.
         // It is intentionally per-preference, not a Yen-style k-shortest generator, so requesting 3
         // matches what the router can actually produce (a 4th request always came back empty).
-        return TaxiPathfinder.FindRoutes(_domainLayout, fromNodeId, toNodeId, preference: null, maxRoutes: 3, authorizedTaxiways: null, category);
+        return TaxiPathfinder.FindRoutes(
+            _domainLayout,
+            fromNodeId,
+            toNodeId,
+            preference: null,
+            maxRoutes: 3,
+            authorizedTaxiways: null,
+            category,
+            wakeClass
+        );
     }
 
     /// <summary>
@@ -1423,7 +1435,7 @@ public partial class GroundViewModel : ObservableObject
                 continue;
             }
 
-            TaxiRoute? route = TaxiPathfinder.FindRoute(_domainLayout, fromNodeId.Value, node.Id, CategoryFor(ac));
+            TaxiRoute? route = TaxiPathfinder.FindRoute(_domainLayout, fromNodeId.Value, node.Id, CategoryFor(ac), WakeClassFor(ac));
             if (route is null)
             {
                 continue;
@@ -1546,13 +1558,15 @@ public partial class GroundViewModel : ObservableObject
             DestinationHintNode = destination,
         };
         AircraftCategory category = CategoryFor(ac);
+        WakeTurbulenceData.WakeClass wakeClass = WakeClassFor(ac);
         TaxiRoute? route = TaxiPathfinder.ResolveExplicitPathDetailed(
             _domainLayout,
             nodeId.Value,
             routeTaxiways,
             out PathfindingFailure? failure,
             options,
-            category
+            category,
+            wakeClass
         );
         // The server replaces a route that reaches the stand only the long way round (SFO $5A: down T5, out to Alpha,
         // back up T5A) with a drive across the apron that rolls in on the stand heading, so the overlay has to make the
@@ -1595,6 +1609,7 @@ public partial class GroundViewModel : ObservableObject
                     Path = routeTaxiways,
                     Options = options,
                     Category = category,
+                    WakeClass = wakeClass,
                 },
                 failure
             );
@@ -1622,6 +1637,7 @@ public partial class GroundViewModel : ObservableObject
                 Destination = destination,
                 Options = options,
                 Category = category,
+                WakeClass = wakeClass,
                 AircraftLengthFt = AircraftLength.ResolveFt(ac.AircraftType),
             }
         );
@@ -1666,6 +1682,7 @@ public partial class GroundViewModel : ObservableObject
             Route = route,
             Spot = destination,
             Category = category,
+            WakeClass = WakeClassFor(ac),
             AircraftLengthFt = AircraftLength.ResolveFt(ac.AircraftType),
             ClearedTaxiways = clearedTaxiways,
             OtherGroundAircraft = [.. all.Where(other => !other.IsDelayed && other.IsOnGround).Select(TugCandidateOf)],
@@ -2016,7 +2033,12 @@ public partial class GroundViewModel : ObservableObject
             return false;
         }
 
-        TaxiRoute? subRoute = FindRouteToNode(_drawWaypointIds[^1], nodeId, _drawAircraft is { } da ? CategoryFor(da) : AircraftCategory.Jet);
+        TaxiRoute? subRoute = FindRouteToNode(
+            _drawWaypointIds[^1],
+            nodeId,
+            _drawAircraft is { } da ? CategoryFor(da) : AircraftCategory.Jet,
+            _drawAircraft is { } dw ? WakeClassFor(dw) : WakeTurbulenceData.WakeClass.Large
+        );
         if (subRoute is null)
         {
             return false;
@@ -2124,7 +2146,12 @@ public partial class GroundViewModel : ObservableObject
             return;
         }
 
-        DrawHoverPreview = FindRouteToNode(_drawWaypointIds[^1], nodeId.Value, _drawAircraft is { } da ? CategoryFor(da) : AircraftCategory.Jet);
+        DrawHoverPreview = FindRouteToNode(
+            _drawWaypointIds[^1],
+            nodeId.Value,
+            _drawAircraft is { } da ? CategoryFor(da) : AircraftCategory.Jet,
+            _drawAircraft is { } dw ? WakeClassFor(dw) : WakeTurbulenceData.WakeClass.Large
+        );
     }
 
     public void CancelDrawRoute() => ClearDrawState();

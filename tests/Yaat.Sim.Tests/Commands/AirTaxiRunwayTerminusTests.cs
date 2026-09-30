@@ -187,8 +187,8 @@ public class AirTaxiRunwayTerminusTests(ITestOutputHelper output)
 
         (SimulationEngine? engine, AirportGroundLayout? layout, AircraftState? heli) = fixture;
 
-        // A Spot node whose name no parking or helipad also carries — the ATXI parser strips the $ sigil, so a
-        // name shared with a gate would resolve as parking.
+        // A Spot node whose name no parking or helipad also carries, so the $ marker alone decides that a
+        // name shared with a gate resolves as the spot.
         GroundNode? spot = layout
             .Nodes.Values.OrderBy(n => n.Id)
             .FirstOrDefault(n =>
@@ -220,7 +220,7 @@ public class AirTaxiRunwayTerminusTests(ITestOutputHelper output)
 
         (SimulationEngine? engine, AirportGroundLayout _, AircraftState? heli) = fixture;
 
-        CommandResult result = engine.SendCommand("TEST1", "ATXI FDX1");
+        CommandResult result = engine.SendCommand("TEST1", "ATXI @FDX1");
         Assert.True(result.Success, result.Message);
         Assert.Equal("Air taxi to FDX1", result.Message);
 

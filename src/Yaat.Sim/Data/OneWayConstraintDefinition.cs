@@ -36,6 +36,13 @@ public sealed class OneWayConstraintEntry
 
     [JsonPropertyName("path")]
     public List<OneWayWaypoint> Path { get; set; } = [];
+
+    /// <summary>
+    /// Wake-turbulence class names (<see cref="WakeTurbulenceData.WakeClass"/>: <c>Small</c>, <c>Large</c>, <c>Heavy</c>,
+    /// <c>Super</c>) the constraint does not apply to. Empty (the default), absent or <c>null</c> binds every aircraft.
+    /// </summary>
+    [JsonPropertyName("exemptWakeClasses")]
+    public List<string>? ExemptWakeClasses { get; set; } = [];
 }
 
 /// <summary>A parsed one-way waypoint: a geographic point and its expected taxiway (validation hint).</summary>
@@ -69,7 +76,12 @@ public sealed record BlockedTurn(IReadOnlyList<OneWayPoint> Path, string? Notes)
 /// <summary>
 /// A parsed, validated one-way constraint produced by <see cref="AirportSidecarLoader"/>. The allowed
 /// travel direction is the order of <see cref="Path"/>; <see cref="BlockBoth"/> closes the span in both
-/// directions. Resolved against a concrete layout into forbidden directed node moves by
-/// <see cref="Yaat.Sim.Data.Airport.Pathfinding.OneWayResolver"/>.
+/// directions. An aircraft whose wake class is in <see cref="ExemptWakeClasses"/> is not bound by it. Resolved against a
+/// concrete layout into forbidden directed node moves by <see cref="Yaat.Sim.Data.Airport.Pathfinding.OneWayResolver"/>.
 /// </summary>
-public sealed record OneWayConstraint(IReadOnlyList<OneWayPoint> Path, bool BlockBoth, string? Notes);
+public sealed record OneWayConstraint(
+    IReadOnlyList<OneWayPoint> Path,
+    bool BlockBoth,
+    string? Notes,
+    IReadOnlySet<WakeTurbulenceData.WakeClass> ExemptWakeClasses
+);

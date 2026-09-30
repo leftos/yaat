@@ -179,7 +179,7 @@ public class HelicopterLandGateTests
     {
         (SimulationEngine? engine, AirportGroundLayout _, AircraftState? heli) = Setup(OverTheBay, altitude: 500, onGround: false);
 
-        CommandResult result = engine.SendCommand(heli.Callsign, "ATXI SIG1");
+        CommandResult result = engine.SendCommand(heli.Callsign, "ATXI @SIG1");
 
         Assert.False(result.Success);
         // Spoken by the pilot as the "unable" readback: short, about the aircraft, no dash for the verbalizer to choke on.
@@ -204,7 +204,7 @@ public class HelicopterLandGateTests
             onGround: false
         );
 
-        CommandResult result = engine.SendCommand(heli.Callsign, "ATXI SIG1");
+        CommandResult result = engine.SendCommand(heli.Callsign, "ATXI @SIG1");
 
         Assert.False(result.Success);
         Assert.Equal("Unable, we're overhead, request landing at SIG1", result.Message);

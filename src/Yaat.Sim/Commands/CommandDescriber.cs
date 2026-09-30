@@ -763,7 +763,7 @@ public static class CommandDescriber
             HoldAtFixHoverCommand cmd => $"HFIX {cmd.FixName}",
             WaitCommand cmd => $"WAIT {cmd.Seconds}",
             WaitDistanceCommand cmd => $"WAITD {cmd.DistanceNm}",
-            AirTaxiCommand atxi => atxi.Destination is not null ? $"ATXI {atxi.Destination}" : "ATXI",
+            AirTaxiCommand atxi => atxi.DestinationToken is { } destination ? $"ATXI {destination}" : "ATXI",
             LandCommand land => land.IsTaxiway ? $"LAND {land.SpotName}" : $"LAND @{land.SpotName}",
             ClearedTakeoffPresentCommand ctopp => FormatCtoppCanonical(ctopp),
             PushbackCommand push => FormatPushCanonical(push),

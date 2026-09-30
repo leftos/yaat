@@ -9,7 +9,7 @@ Query the airport ground graph for debugging ground/taxi/exit bugs. Wraps `tools
 
 GeoJSON airport files come from:
 - The vNAS training-airports API, fetched on demand via `--airport <FAA>` (cached at `%LOCALAPPDATA%/yaat/cache/airports/`). Preferred — works in any worktree without sibling-repo dependencies.
-- `tests/Yaat.Sim.Tests/TestData/<icao>.geojson` (committed subset for tests: oak, sfo, fll, fat, hwd, mer, rno, sjc). Pass these paths positionally when offline.
+- `tests/Yaat.Sim.Tests/TestData/<icao>.geojson` (committed subset for tests: atl, aus, cos, fat, fll, hwd, iah, lax, mer, mia, msy, oak, rno, sea, sfo, sjc, SMF, plus the snapshots `issue172-sfo` and `sfo-b1short`). Pass these paths positionally when offline. `python tools/refresh-test-layouts.py` re-fetches the airport files from vNAS (snapshots are left alone; `--check` for a dry run).
 
 ## Usage
 

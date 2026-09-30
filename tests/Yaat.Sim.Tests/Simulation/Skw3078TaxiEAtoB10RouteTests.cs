@@ -66,7 +66,8 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
                 DestinationHintNode = parkingNode,
                 DiagnosticLog = msg => output.WriteLine(msg),
             },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.Null(failReason);
@@ -156,7 +157,8 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
             taxiwayNames: Taxiways,
             out string? failReason,
             new ExplicitPathOptions { OccupiedTaxiway = null, DestinationHintNode = parkingNode },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.Null(failReason);
@@ -249,7 +251,8 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
             taxiwayNames: Taxiways,
             out string? failReason,
             new ExplicitPathOptions { OccupiedTaxiway = null, DestinationHintNode = parkingNode },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.Null(failReason);

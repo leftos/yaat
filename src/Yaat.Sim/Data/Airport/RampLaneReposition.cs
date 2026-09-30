@@ -45,6 +45,9 @@ public sealed record RampLaneRepositionRequest
 
     /// <summary>The aircraft's performance category.</summary>
     public required AircraftCategory Category { get; init; }
+
+    /// <summary>The aircraft's wake-turbulence class; one-way taxiway constraints can exempt a class.</summary>
+    public required WakeTurbulenceData.WakeClass WakeClass { get; init; }
 }
 
 /// <summary>What <see cref="RampLaneReposition.TryPlanDestinationCut"/> plans a destination-end apron cut from.</summary>
@@ -65,11 +68,45 @@ public sealed record RampLaneDestinationCutRequest
     /// <summary>The aircraft's performance category.</summary>
     public required AircraftCategory Category { get; init; }
 
+    /// <summary>The aircraft's wake-turbulence class; one-way taxiway constraints can exempt a class.</summary>
+    public required WakeTurbulenceData.WakeClass WakeClass { get; init; }
+
     /// <summary>
     /// The aircraft's fuselage length, feet; sets how much lane run a spot arrival needs and how far out from a stand
     /// the roll-in onto its heading starts.
     /// </summary>
     public required double AircraftLengthFt { get; init; }
+}
+
+/// <summary>What <see cref="RampLaneReposition.TryPlanRampConfinedRoute"/> plans a bare spot or gate TAXI from inside the ramp from.</summary>
+public sealed record RampConfinedRouteRequest
+{
+    /// <summary>The graph node the route starts from.</summary>
+    public required int StartNodeId { get; init; }
+
+    /// <summary>The spot, stand or helipad node the TAXI names.</summary>
+    public required GroundNode Destination { get; init; }
+
+    /// <summary>The aircraft's performance category; sets the sharpest turn onto or off a cut.</summary>
+    public required AircraftCategory Category { get; init; }
+
+    /// <summary>The aircraft's wake-turbulence class; one-way taxiway constraints can exempt a class.</summary>
+    public required WakeTurbulenceData.WakeClass WakeClass { get; init; }
+
+    /// <summary>The aircraft's fuselage length, feet; sets how much lane run a spot arrival needs after a cut.</summary>
+    public required double AircraftLengthFt { get; init; }
+
+    /// <summary>The aircraft's callsign; tells it apart from itself in <see cref="OtherGroundAircraft"/>.</summary>
+    public required string Callsign { get; init; }
+
+    /// <summary>ICAO type designator; sets the wingspan the cut keeps clear of other aircraft with.</summary>
+    public required string AircraftType { get; init; }
+
+    /// <summary>
+    /// Every aircraft on the ground the caller can see; may include the aircraft itself. The cut's straight leg may not
+    /// pass within a wingtip buffer of one, or of the stand one is parked on.
+    /// </summary>
+    public required IReadOnlyList<TugNeighbourCandidate> OtherGroundAircraft { get; init; }
 }
 
 /// <summary>What <see cref="RampLaneReposition.TryPlanSpotLineUp"/> re-plans a ramp line-up on a spot from.</summary>
@@ -86,6 +123,9 @@ public sealed record SpotLineUpRequest
 
     /// <summary>The aircraft's performance category.</summary>
     public required AircraftCategory Category { get; init; }
+
+    /// <summary>The aircraft's wake-turbulence class; one-way taxiway constraints can exempt a class.</summary>
+    public required WakeTurbulenceData.WakeClass WakeClass { get; init; }
 
     /// <summary>The aircraft's fuselage length, feet; sets how much lane run the arrival needs.</summary>
     public required double AircraftLengthFt { get; init; }
@@ -224,6 +264,7 @@ public static class RampLaneReposition
         IReadOnlyList<string> path = request.Path;
         ExplicitPathOptions options = request.Options;
         AircraftCategory category = request.Category;
+        WakeTurbulenceData.WakeClass wakeClass = request.WakeClass;
 
         if ((path.Count == 0) || !IsLaneUnreachableFailure(failure, path[0]))
         {
@@ -259,7 +300,8 @@ public static class RampLaneReposition
                 [.. path],
                 out PathfindingFailure? tailFailure,
                 options,
-                category
+                category,
+                wakeClass
             );
             if (tail is null)
             {
@@ -290,6 +332,7 @@ public static class RampLaneReposition
             Segments = [crossing, .. tail.Segments],
             HoldShortPoints = tail.HoldShortPoints,
             Warnings = tail.Warnings,
+            ImpliedLanes = tail.ImpliedLanes,
             MandatoryConnectorCount = tail.MandatoryConnectorCount,
             DestinationParking = tail.DestinationParking,
             DestinationSpot = tail.DestinationSpot,
@@ -323,6 +366,7 @@ public static class RampLaneReposition
         GroundNode destination = request.Destination;
         ExplicitPathOptions options = request.Options;
         AircraftCategory category = request.Category;
+        WakeTurbulenceData.WakeClass wakeClass = request.WakeClass;
         double aircraftLengthFt = request.AircraftLengthFt;
 
         if (destination.Type is not (GroundNodeType.Parking or GroundNodeType.Spot or GroundNodeType.Helipad))
@@ -392,7 +436,7 @@ public static class RampLaneReposition
                 continue;
             }
 
-            TaxiRoute? head = ResolveHeadTo(layout, startNodeId, path, origin, options, category);
+            TaxiRoute? head = ResolveHeadTo(layout, startNodeId, path, origin, options, category, wakeClass);
             if (head is null)
             {
                 Log.LogDebug("[Reposition] clearance does not resolve to {Lane} node {Node}; trying the next origin", lane, origin.Id);
@@ -401,7 +445,7 @@ public static class RampLaneReposition
 
             foreach ((GroundNode? target, double crossingFt) in reachable)
             {
-                TaxiRoute? tail = TaxiPathfinder.FindRoute(layout, target.Id, destination.Id, category);
+                TaxiRoute? tail = TaxiPathfinder.FindRoute(layout, target.Id, destination.Id, category, wakeClass);
                 if ((tail is null) || !EntersSpotAlongItsLane(destination, destinationLane, tail, aircraftLengthFt))
                 {
                     continue;
@@ -466,7 +510,7 @@ public static class RampLaneReposition
 
         foreach ((GroundNode origin, double _) in origins)
         {
-            TaxiRoute? head = ResolveHeadTo(layout, request.StartNodeId, request.Path, origin, request.Options, request.Category);
+            TaxiRoute? head = ResolveHeadTo(layout, request.StartNodeId, request.Path, origin, request.Options, request.Category, request.WakeClass);
             if (head is null)
             {
                 Log.LogDebug("[Reposition] clearance does not resolve to {Lane} node {Node}; trying the next direct-cut origin", lane, origin.Id);
@@ -549,6 +593,7 @@ public static class RampLaneReposition
             Segments = [.. head.Segments, .. legs],
             HoldShortPoints = [.. head.HoldShortPoints],
             Warnings = [.. head.Warnings],
+            ImpliedLanes = [.. head.ImpliedLanes],
             MandatoryConnectorCount = head.MandatoryConnectorCount,
             DestinationParking = destination.Name,
         };
@@ -666,6 +711,7 @@ public static class RampLaneReposition
             Segments = [.. head, .. RollInLegs(cut.Node, approach, destination)],
             HoldShortPoints = [.. resolvedRoute.HoldShortPoints.Where(hs => head.Any(s => s.ToNodeId == hs.NodeId))],
             Warnings = resolvedRoute.Warnings,
+            ImpliedLanes = resolvedRoute.ImpliedLanes,
             MandatoryConnectorCount = resolvedRoute.MandatoryConnectorCount,
             DestinationParking = destination.Name,
         };
@@ -683,6 +729,331 @@ public static class RampLaneReposition
         return new RampLaneDestinationCutPlan(cut.Node, destination, lanes.Lane, lanes.DestinationLane, cut.CutFt, route);
     }
 
+    /// <summary>How many landing nodes near the destination, nearest first, a ramp-confined cut is tried onto.</summary>
+    private const int MaxRampCutTargets = 24;
+
+    /// <summary>How many cut origins a ramp-confined cut resolves the graph route to before settling on the best found.</summary>
+    private const int MaxRampCutHeads = 12;
+
+    /// <summary>
+    /// A bare TAXI to a spot or gate from inside the ramp — no taxiway named, the aircraft on nonmovement pavement — stays
+    /// inside the ramp: 7110.65 §3-7-2 has the controller issue the route to follow on the movement area, so a clearance
+    /// naming none leaves the aircraft only the ramp, where its movement is the pilot's (§3-7-2 NOTE 2). The route runs over
+    /// ramp taxilanes and RAMP with at most one of the airport's one-way lanes implied
+    /// (<see cref="TaxiPathfinder.FindRampConfinedRoute"/>). Where the graph alone does not join the start to the
+    /// destination, the aircraft cuts once across the apron from one lane to another, under the guards of the other ramp
+    /// cuts (see <see cref="TryPlanRampConfinedCut"/>): SFO pushed off B2 onto M5, <c>TAXI $1</c> runs out along M2 and
+    /// crosses the ramp onto M1 short of spot 1, instead of taxiing A. Null when no route stays inside the ramp; the caller
+    /// then refuses the TAXI.
+    /// </summary>
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="request">The start node, the destination and the aircraft.</param>
+    /// <returns>The route, or null.</returns>
+    public static TaxiRoute? TryPlanRampConfinedRoute(AirportGroundLayout layout, RampConfinedRouteRequest request)
+    {
+        TaxiRoute? graph = TaxiPathfinder.FindRampConfinedRoute(
+            layout,
+            request.StartNodeId,
+            request.Destination.Id,
+            request.Category,
+            request.WakeClass
+        );
+        if (graph is not null)
+        {
+            Log.LogDebug(
+                "[RampConfined] #{Start} to {Dest} over the ramp graph: {Summary}",
+                request.StartNodeId,
+                request.Destination.Name,
+                graph.ToSummary()
+            );
+            return graph;
+        }
+
+        return TryPlanRampConfinedCut(layout, request);
+    }
+
+    /// <summary>A lane node a ramp-confined cut lands on, and the graph route from it into the destination.</summary>
+    private sealed record RampCutTail(GroundNode Target, TaxiRoute Route);
+
+    /// <summary>One cut candidate: the ramp node it leaves from, the tail it lands on, and the straight drive between them.</summary>
+    private sealed record RampCut(GroundNode Origin, RampCutTail Tail, double CutFt);
+
+    /// <summary>
+    /// The ramp-confined route with one free-space cut: the graph route inside the ramp from the start to a ramp node
+    /// (the head), a straight drive across the apron to a lane node near the destination, and the graph route from there in
+    /// (the tail). The landing node carries only ramp pavement or one of the airport's one-way lanes and lies within
+    /// <see cref="MaxCrossingFt"/> of the destination; the tail enters a spot along one of its own lanes with a fuselage of
+    /// run (<see cref="SpotAlignmentRunFt"/>). The drive leaves a node that carries only ramp pavement, is at most
+    /// <see cref="MaxCrossingFt"/> long, crosses no runway centreline and nothing but apron and ramp taxilanes — the
+    /// across-the-ramp push's pavement, as the other ramp cuts judge it (<see cref="CrossesForeignPavement"/>) — and turns
+    /// no more than the category's sharpest admissible turn off the head and onto the tail. Head and tail together imply at
+    /// most one one-way lane. The shortest head + drive + tail wins. Null when no cut qualifies.
+    /// </summary>
+    private static TaxiRoute? TryPlanRampConfinedCut(AirportGroundLayout layout, RampConfinedRouteRequest request)
+    {
+        var classification = MovementAreaClassification.For(layout);
+        var rampLanes = new HashSet<string>(layout.AllTaxiwayNames.Where(classification.IsRampTaxilane), StringComparer.OrdinalIgnoreCase);
+        List<RampCutTail> tails = RampCutTails(layout, request, rampLanes);
+        if (tails.Count == 0)
+        {
+            Log.LogDebug(
+                "[RampConfined] no lane node within {Max:F0} ft of {Dest} leads into it inside the ramp",
+                MaxCrossingFt,
+                request.Destination.Name
+            );
+            return null;
+        }
+
+        List<IGroundEdge> foreign = ForeignEdgesNear(layout, request.Destination.Position, 3.0 * MaxCrossingFt, rampLanes);
+        var cuts = tails
+            .SelectMany(tail => RampCutOrigins(layout, tail.Target, rampLanes).Select(o => new RampCut(o.Node, tail, o.Ft)))
+            .OrderBy(c => c.CutFt + c.Tail.Route.TotalDistanceFt)
+            .ToList();
+        if (ChooseRampCut(layout, request, cuts, foreign) is not { } chosen)
+        {
+            Log.LogDebug("[RampConfined] no cut across the ramp reaches {Dest} from #{Start}", request.Destination.Name, request.StartNodeId);
+            return null;
+        }
+
+        return BuildRampCutRoute(chosen.Head, chosen.Cut, request.Destination);
+    }
+
+    /// <summary>
+    /// The shortest head + drive + tail among <paramref name="cuts"/>, which come ordered by drive + tail: once that alone
+    /// is no shorter than the best whole route found, no later cut can win. The head is resolved once per origin, for at
+    /// most <see cref="MaxRampCutHeads"/> origins. Null when no cut is clear, has a head and fits.
+    /// </summary>
+    private static (TaxiRoute Head, RampCut Cut, double TotalFt)? ChooseRampCut(
+        AirportGroundLayout layout,
+        RampConfinedRouteRequest request,
+        List<RampCut> cuts,
+        List<IGroundEdge> foreign
+    )
+    {
+        var heads = new Dictionary<int, TaxiRoute?>();
+        (TaxiRoute Head, RampCut Cut, double TotalFt)? best = null;
+        foreach (RampCut cut in cuts)
+        {
+            double partialFt = cut.CutFt + cut.Tail.Route.TotalDistanceFt;
+            bool headsSpent = !heads.ContainsKey(cut.Origin.Id) && (heads.Count >= MaxRampCutHeads);
+            if ((best?.TotalFt <= partialFt) || headsSpent)
+            {
+                break;
+            }
+
+            if (!IsClearRampCut(layout, request, foreign, cut))
+            {
+                continue;
+            }
+
+            if (!heads.TryGetValue(cut.Origin.Id, out TaxiRoute? head))
+            {
+                head = RampCutHead(layout, request, cut.Origin);
+                heads[cut.Origin.Id] = head;
+            }
+
+            double totalFt = (head?.TotalDistanceFt ?? 0.0) + partialFt;
+            if ((head is not null) && FitsRampCut(head, cut, request.Category) && !(best?.TotalFt <= totalFt))
+            {
+                best = (head, cut, totalFt);
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// The lane nodes within <see cref="MaxCrossingFt"/> of the destination a cut may land on, nearest first (at most
+    /// <see cref="MaxRampCutTargets"/>), each with its ramp-confined graph route into the destination. A landing node carries
+    /// a straight edge, only ramp pavement or one-way lanes, and no runway; a spot's tail enters it along one of the spot's
+    /// own lanes, straight, with a fuselage of run.
+    /// </summary>
+    private static List<RampCutTail> RampCutTails(AirportGroundLayout layout, RampConfinedRouteRequest request, HashSet<string> rampLanes)
+    {
+        GroundNode destination = request.Destination;
+        IReadOnlySet<string> oneWayLanes = OneWayResolver.GetOneWayLaneTaxiways(layout);
+        var spotLanes = destination
+            .Edges.Where(e => (e is GroundEdge) && !e.IsRamp)
+            .Select(e => e.TaxiwayName)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        List<(GroundNode Node, double Ft)> targets =
+        [
+            .. layout
+                .Nodes.Values.Where(n => (n.Id != destination.Id) && IsCutEnd(n) && n.Edges.All(e => IsRampOrLaneEdge(e, rampLanes, oneWayLanes)))
+                .Select(n => (Node: n, Ft: DistanceFt(n.Position, destination.Position)))
+                .Where(t => t.Ft <= MaxCrossingFt)
+                .OrderBy(t => t.Ft)
+                .ThenBy(t => t.Node.Id)
+                .Take(MaxRampCutTargets),
+        ];
+        var tails = new List<RampCutTail>();
+        foreach ((GroundNode target, double _) in targets)
+        {
+            TaxiRoute? tail = EndingAt(
+                TaxiPathfinder.FindRampConfinedRoute(layout, target.Id, destination.Id, request.Category, request.WakeClass),
+                destination.Id
+            );
+            if ((tail is null) || (tail.Segments.Count == 0))
+            {
+                continue;
+            }
+
+            TaxiRouteSegment last = tail.Segments[^1];
+            bool entersAlongLane =
+                (last.Edge.Edge is GroundEdge)
+                && ((spotLanes.Count == 0) || spotLanes.Contains(last.TaxiwayName))
+                && (tail.TotalDistanceFt >= SpotAlignmentRunFt(request.AircraftLengthFt));
+            if ((destination.Type != GroundNodeType.Spot) || entersAlongLane)
+            {
+                tails.Add(new RampCutTail(target, tail));
+            }
+        }
+
+        return tails;
+    }
+
+    /// <summary>The ramp nodes within <see cref="MaxCrossingFt"/> of <paramref name="target"/> a cut onto it may leave from.</summary>
+    private static List<(GroundNode Node, double Ft)> RampCutOrigins(AirportGroundLayout layout, GroundNode target, HashSet<string> rampLanes) =>
+        [
+            .. layout
+                .Nodes.Values.Where(n => (n.Id != target.Id) && IsCutEnd(n) && n.Edges.All(e => IsRampOrLaneEdge(e, rampLanes, null)))
+                .Select(n => (Node: n, Ft: DistanceFt(n.Position, target.Position)))
+                .Where(o => o.Ft <= MaxCrossingFt),
+        ];
+
+    /// <summary>A node a cut may start or end at: on a straight edge, not a stand, helipad or runway holding position, off every runway.</summary>
+    private static bool IsCutEnd(GroundNode node) =>
+        (node.Type is not (GroundNodeType.Parking or GroundNodeType.Helipad or GroundNodeType.RunwayHoldShort))
+        && node.Edges.Any(e => e is GroundEdge)
+        && !AirportGroundLayout.HasRunwayCenterlineEdge(node);
+
+    /// <summary>
+    /// Every name <paramref name="edge"/> carries is RAMP, a ramp taxilane, or one of <paramref name="oneWayLanes"/>; an
+    /// unnamed edge counts as ramp.
+    /// </summary>
+    private static bool IsRampOrLaneEdge(IGroundEdge edge, HashSet<string> rampLanes, IReadOnlySet<string>? oneWayLanes) =>
+        !edge.IsRunwayCenterline
+        && SegmentExpander
+            .EdgeNames(edge)
+            .All(n =>
+                (n.Length == 0)
+                || n.Equals("RAMP", StringComparison.OrdinalIgnoreCase)
+                || rampLanes.Contains(n)
+                || (oneWayLanes?.Contains(n) ?? false)
+            );
+
+    /// <summary>
+    /// The edges within <paramref name="radiusFt"/> of <paramref name="center"/> a cut may not cross: every edge that is
+    /// neither apron nor a ramp taxilane, and every edge touching a runway holding position (<see cref="CrossesForeignPavement"/>'s rule).
+    /// </summary>
+    private static List<IGroundEdge> ForeignEdgesNear(AirportGroundLayout layout, LatLon center, double radiusFt, HashSet<string> rampLanes) =>
+        [
+            .. layout.AllEdges.Where(e =>
+                (TouchesHoldShort(e) || !(e.IsRamp || IsFamilyEdge(e, rampLanes)))
+                && (GeoMath.DistanceToSegmentFt(center, e.Nodes[0].Position, e.Nodes[1].Position) <= radiusFt)
+            ),
+        ];
+
+    /// <summary>
+    /// The straight drive of <paramref name="cut"/> crosses no runway centreline, none of <paramref name="foreign"/> but the
+    /// landing node's own edges, and passes within a wingtip buffer of no other aircraft on the ground nor of the stand one is
+    /// parked on — a taxi across the apron blasts exhaust over the stands it passes (<see cref="FindLegObstacle"/>).
+    /// </summary>
+    private static bool IsClearRampCut(AirportGroundLayout layout, RampConfinedRouteRequest request, List<IGroundEdge> foreign, RampCut cut)
+    {
+        LatLon from = cut.Origin.Position;
+        GroundNode target = cut.Tail.Target;
+        if (layout.RunwayCenterlineBetween(from, target.Position))
+        {
+            return false;
+        }
+
+        if (
+            FindLegObstacle(
+                layout,
+                request.Callsign,
+                TugMovePlanner.WingspanFt(request.AircraftType) / 2.0,
+                request.OtherGroundAircraft,
+                from,
+                target.Position
+            ) is
+            { } obstacle
+        )
+        {
+            Log.LogDebug(
+                "[RampConfined] cut #{Origin} to #{Target}: the drive passes within a wingtip buffer of {Obstacle}",
+                cut.Origin.Id,
+                target.Id,
+                obstacle
+            );
+            return false;
+        }
+
+        return !foreign.Any(e =>
+            !e.HasNode(target.Id) && (GeoMath.SegmentsIntersect(from, target.Position, e.Nodes[0].Position, e.Nodes[1].Position) is not null)
+        );
+    }
+
+    /// <summary>The ramp-confined graph route from the start to <paramref name="origin"/>; an empty route when the start is the origin.</summary>
+    private static TaxiRoute? RampCutHead(AirportGroundLayout layout, RampConfinedRouteRequest request, GroundNode origin) =>
+        origin.Id == request.StartNodeId
+            ? new TaxiRoute { Segments = [], HoldShortPoints = [] }
+            : EndingAt(TaxiPathfinder.FindRampConfinedRoute(layout, request.StartNodeId, origin.Id, request.Category, request.WakeClass), origin.Id);
+
+    /// <summary><paramref name="route"/> cut back to end at <paramref name="nodeId"/>; null when it never reaches it.</summary>
+    private static TaxiRoute? EndingAt(TaxiRoute? route, int nodeId)
+    {
+        if ((route is null) || (route.Segments.Count == 0))
+        {
+            return route;
+        }
+
+        TaxiRoute ending = route.Segments[^1].ToNodeId == nodeId ? route : route.TruncateAt(nodeId);
+        return ending.Segments[^1].ToNodeId == nodeId ? ending : null;
+    }
+
+    /// <summary>
+    /// The drive turns off the head and onto the tail within the category's sharpest admissible turn, and head and tail
+    /// imply at most one one-way lane between them.
+    /// </summary>
+    private static bool FitsRampCut(TaxiRoute head, RampCut cut, AircraftCategory category)
+    {
+        double maxTurnDeg = CategoryLimits.MaxHeadingChangeDeg(category);
+        double cutBearingDeg = GeoMath.BearingTo(cut.Origin.Position, cut.Tail.Target.Position);
+        bool leaves =
+            (head.Segments.Count == 0) || (GeoMath.AbsBearingDifference(head.Segments[^1].Edge.ArrivalBearing, cutBearingDeg) <= maxTurnDeg);
+        bool lands = GeoMath.AbsBearingDifference(cutBearingDeg, cut.Tail.Route.Segments[0].Edge.DepartureBearing) <= maxTurnDeg;
+        int lanes = head.ImpliedLanes.Concat(cut.Tail.Route.ImpliedLanes).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+        return leaves && lands && (lanes <= 1);
+    }
+
+    /// <summary>
+    /// The head, the drive across the apron (named RAMP, so the broadcast sequence and the readback name only the lanes)
+    /// and the tail, as one route.
+    /// </summary>
+    private static TaxiRoute BuildRampCutRoute(TaxiRoute head, RampCut cut, GroundNode destination)
+    {
+        TaxiRoute tail = cut.Tail.Route;
+        TaxiRouteSegment crossing = VirtualNode.CreateSegment(cut.Origin, cut.Tail.Target, "RAMP");
+        var route = new TaxiRoute
+        {
+            Segments = [.. head.Segments, crossing, .. tail.Segments],
+            HoldShortPoints = [.. head.HoldShortPoints, .. tail.HoldShortPoints],
+            Warnings = [.. head.Warnings.Concat(tail.Warnings).Distinct()],
+            ImpliedLanes = [.. head.ImpliedLanes.Concat(tail.ImpliedLanes).Distinct(StringComparer.OrdinalIgnoreCase)],
+        };
+        Log.LogInformation(
+            "[RampConfined] {Dest}: {Head} to node {Origin}, cutting {Ft:F0} ft across the ramp to node {Target}, then {Tail}",
+            destination.Name,
+            head.Segments.Count == 0 ? "from the start" : head.ToSummary(),
+            cut.Origin.Id,
+            cut.CutFt,
+            cut.Tail.Target.Id,
+            tail.ToSummary()
+        );
+        return route;
+    }
+
     /// <summary>The clearance resolved so that it ends exactly at <paramref name="origin"/>, or null.</summary>
     private static TaxiRoute? ResolveHeadTo(
         AirportGroundLayout layout,
@@ -690,7 +1061,8 @@ public static class RampLaneReposition
         IReadOnlyList<string> path,
         GroundNode origin,
         ExplicitPathOptions options,
-        AircraftCategory category
+        AircraftCategory category,
+        WakeTurbulenceData.WakeClass wakeClass
     )
     {
         var headOptions = new ExplicitPathOptions
@@ -704,7 +1076,7 @@ public static class RampLaneReposition
             PathTurnHints = options.PathTurnHints,
             StartHeadingTrue = options.StartHeadingTrue,
         };
-        TaxiRoute? head = TaxiPathfinder.ResolveExplicitPathDetailed(layout, startNodeId, [.. path], out _, headOptions, category);
+        TaxiRoute? head = TaxiPathfinder.ResolveExplicitPathDetailed(layout, startNodeId, [.. path], out _, headOptions, category, wakeClass);
         if (head is null)
         {
             return null;
@@ -742,6 +1114,7 @@ public static class RampLaneReposition
             Segments = [.. head.Segments, crossing, .. tail.Segments],
             HoldShortPoints = [.. head.HoldShortPoints, .. tail.HoldShortPoints],
             Warnings = [.. head.Warnings, .. tail.Warnings],
+            ImpliedLanes = [.. head.ImpliedLanes.Concat(tail.ImpliedLanes).Distinct(StringComparer.OrdinalIgnoreCase)],
             MandatoryConnectorCount = head.MandatoryConnectorCount + tail.MandatoryConnectorCount,
             DestinationParking = destination.Type == GroundNodeType.Spot ? null : destination.Name,
             DestinationSpot = destination.Type == GroundNodeType.Spot ? destination.Name : null,
@@ -991,7 +1364,7 @@ public static class RampLaneReposition
         var joins = new List<LineUpJoin>();
         foreach ((GroundNode join, double runFt) in ends.RampSide.Where(n => n.RunFt >= minimumRunFt))
         {
-            TaxiRoute? tail = TaxiPathfinder.FindRoute(layout, join.Id, request.Spot.Id, request.Category);
+            TaxiRoute? tail = TaxiPathfinder.FindRoute(layout, join.Id, request.Spot.Id, request.Category, request.WakeClass);
             if (
                 (tail is not null)
                 && EntersSpotAlongItsLane(request.Spot, ends.Lane, tail, request.AircraftLengthFt)
@@ -1065,16 +1438,41 @@ public static class RampLaneReposition
     /// and <see cref="GroundOutlineSweep.WingtipBufferFt"/> of; null when it passes clear of all of them. Empty stands
     /// are no obstacle. One the aircraft already stands that close to is an obstacle only when the leg closes on it.
     /// </summary>
-    private static string? FindObstacle(LineUpPlanning planning, LatLon from, LatLon to)
+    private static string? FindObstacle(LineUpPlanning planning, LatLon from, LatLon to) =>
+        FindLegObstacle(planning.Layout, planning.Request.Callsign, planning.HalfSpanFt, planning.Request.OtherGroundAircraft, from, to);
+
+    /// <summary>
+    /// The first other aircraft on the ground, or the stand one is parked on, that the straight leg from
+    /// <paramref name="from"/> to <paramref name="to"/> passes within <paramref name="ownHalfSpanFt"/>, the other's
+    /// half-span and <see cref="GroundOutlineSweep.WingtipBufferFt"/> of; null when it passes clear of all of them. Empty
+    /// stands are no obstacle. One the leg already starts that close to is an obstacle only when the leg closes on it: a
+    /// leg leaving a neighbour abeam opens instead. Two callers, one rule: the spot line-up's free-space legs and the
+    /// ramp-confined cut.
+    /// </summary>
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="callsign">The moving aircraft's callsign; tells it apart from itself in <paramref name="others"/>.</param>
+    /// <param name="ownHalfSpanFt">The moving aircraft's half wingspan, feet.</param>
+    /// <param name="others">Every aircraft on the ground the caller can see.</param>
+    /// <param name="from">The leg's start.</param>
+    /// <param name="to">The leg's end.</param>
+    /// <returns>The blocking aircraft or stand, or null.</returns>
+    private static string? FindLegObstacle(
+        AirportGroundLayout layout,
+        string callsign,
+        double ownHalfSpanFt,
+        IReadOnlyList<TugNeighbourCandidate> others,
+        LatLon from,
+        LatLon to
+    )
     {
-        foreach (TugNeighbourCandidate other in planning.Request.OtherGroundAircraft)
+        foreach (TugNeighbourCandidate other in others)
         {
-            if (string.Equals(other.Callsign, planning.Request.Callsign, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(other.Callsign, callsign, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            double clearFt = planning.HalfSpanFt + (TugMovePlanner.WingspanFt(other.AircraftType) / 2.0) + GroundOutlineSweep.WingtipBufferFt;
+            double clearFt = ownHalfSpanFt + (TugMovePlanner.WingspanFt(other.AircraftType) / 2.0) + GroundOutlineSweep.WingtipBufferFt;
             if (LegCloses(from, to, other.Position, clearFt))
             {
                 return other.Callsign;
@@ -1082,7 +1480,7 @@ public static class RampLaneReposition
 
             if (
                 (other.StandName is { } standName)
-                && (planning.Layout.FindParkingByName(standName) is { } stand)
+                && (layout.FindParkingByName(standName) is { } stand)
                 && LegCloses(from, to, stand.Position, clearFt)
             )
             {
@@ -1175,6 +1573,7 @@ public static class RampLaneReposition
                 .. resolved.HoldShortPoints.Where(h => (h.Reason == HoldShortReason.ExplicitHoldShort) && !tailNodes.Contains(h.NodeId)),
             ],
             Warnings = [.. resolved.Warnings, .. join.Tail.Warnings.Where(w => !resolved.Warnings.Contains(w))],
+            ImpliedLanes = [.. resolved.ImpliedLanes.Concat(join.Tail.ImpliedLanes).Distinct(StringComparer.OrdinalIgnoreCase)],
             MandatoryConnectorCount = join.Tail.MandatoryConnectorCount,
             DestinationSpot = request.Spot.Name,
             // The lane starts where the tail does, after however many free-space legs lead to it.

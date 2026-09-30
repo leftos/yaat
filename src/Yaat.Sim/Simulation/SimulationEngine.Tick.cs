@@ -27,6 +27,17 @@ public sealed partial class SimulationEngine
     // Built at the start of each TickPhysics, used by PreTick to prevent stacking.
     private HashSet<int>? _occupiedHoldShortNodes;
 
+    private static readonly ILogger ExitCapacityLog = SimLog.CreateLogger("ExitCapacity");
+
+    // The aircraft inside each exit-capacity segment, built beside _occupiedHoldShortNodes for the same window.
+    // Null when no aircraft is inside one.
+    private Dictionary<ExitCapacitySegment, List<AircraftState>>? _exitSegmentOccupants;
+
+    // Refusals already logged (arrival, exit bar, occupants), so a rollout that stays refused logs once per distinct
+    // occupancy rather than every sub-tick. Only filled while Debug logging is on for the category; emptied on scenario
+    // load and snapshot restore.
+    private readonly HashSet<string> _loggedExitCapacityRefusals = [];
+
     /// <summary>
     /// Pre-physics: process delayed spawns, generators, triggers, timed presets,
     /// and ensure ground layout. Returns a list of aircraft spawned this tick.
@@ -80,7 +91,7 @@ public sealed partial class SimulationEngine
     public void TickPhysics(double delta)
     {
         long start = TimingStart();
-        _occupiedHoldShortNodes = BuildOccupiedHoldShortNodes();
+        _occupiedHoldShortNodes = BuildOccupiedHoldShortNodes(out _exitSegmentOccupants);
         TimingStop("Physics.BuildHoldShort", start);
 
         // Cache scenario mode flags onto the World so FlightPhysics → PilotObservationUpdater
@@ -98,6 +109,7 @@ public sealed partial class SimulationEngine
         TimingStop("Physics.WorldTick", start);
 
         _occupiedHoldShortNodes = null;
+        _exitSegmentOccupants = null;
 
         start = TimingStart();
         ProcessDeferredDispatches(delta);
@@ -1273,43 +1285,244 @@ public sealed partial class SimulationEngine
     /// short of a taxiway (issue #172). The per-tick cache is transient, so this recomputes on demand —
     /// for diagnostics and tests querying between ticks.
     /// </summary>
-    public IReadOnlySet<int> ComputeOccupiedHoldShortNodes() => BuildOccupiedHoldShortNodes();
+    public IReadOnlySet<int> ComputeOccupiedHoldShortNodes() => BuildOccupiedHoldShortNodes(out _);
 
-    private HashSet<int> BuildOccupiedHoldShortNodes()
+    /// <summary>
+    /// The occupied hold-short nodes, and in the same pass the aircraft inside each exit-capacity segment
+    /// (<paramref name="exitSegmentOccupants"/>, see <see cref="AddExitSegmentOccupancy"/>).
+    /// </summary>
+    private HashSet<int> BuildOccupiedHoldShortNodes(out Dictionary<ExitCapacitySegment, List<AircraftState>>? exitSegmentOccupants)
     {
         var occupied = new HashSet<int>();
+        Dictionary<ExitCapacitySegment, List<AircraftState>>? segmentOccupants = null;
         foreach (AircraftState ac in World.GetSnapshot())
         {
-            if (ac.Phases?.CurrentPhase is HoldingShortPhase hs)
-            {
-                occupied.Add(hs.HoldShort.NodeId);
+            AddOccupiedHoldShort(ac, occupied);
+            AddExitSegmentOccupancy(ac, ref segmentOccupants);
+        }
 
-                // Tail-over-runway (issue #172): an aircraft holding short of a taxiway with its tail
-                // over a runway also occupies that runway's hold-short node, so arrivals don't plan to
-                // use the exit it is blocking. Read from the route — it survives snapshot restore,
-                // unlike the phase's reconstructed HoldShort copy.
-                if (ac.Ground.AssignedTaxiRoute?.GetHoldShortAt(hs.HoldShort.NodeId)?.TailOverRunwayNodeId is { } tailOverNode)
-                {
-                    occupied.Add(tailOverNode);
-                }
+        exitSegmentOccupants = segmentOccupants;
+        return occupied;
+    }
+
+    private static void AddOccupiedHoldShort(AircraftState ac, HashSet<int> occupied)
+    {
+        if (ac.Phases?.CurrentPhase is HoldingShortPhase hs)
+        {
+            occupied.Add(hs.HoldShort.NodeId);
+
+            // Tail-over-runway (issue #172): an aircraft holding short of a taxiway with its tail
+            // over a runway also occupies that runway's hold-short node, so arrivals don't plan to
+            // use the exit it is blocking. Read from the route — it survives snapshot restore,
+            // unlike the phase's reconstructed HoldShort copy.
+            if (ac.Ground.AssignedTaxiRoute?.GetHoldShortAt(hs.HoldShort.NodeId)?.TailOverRunwayNodeId is { } tailOverNode)
+            {
+                occupied.Add(tailOverNode);
+            }
+            return;
+        }
+
+        // Aircraft navigating toward an exit are claiming their target hold-short node
+        if (ac.Phases?.CurrentPhase is RunwayExitPhase rep && rep.TargetHoldShortNodeId is { } repNodeId)
+        {
+            occupied.Add(repNodeId);
+            return;
+        }
+
+        // Aircraft holding after runway exit occupy their hold-short node
+        if (ac.Phases?.CurrentPhase is HoldingAfterExitPhase haep && haep.HoldShortNodeId is { } haepNodeId)
+        {
+            occupied.Add(haepNodeId);
+        }
+    }
+
+    /// <summary>
+    /// Adds <paramref name="ac"/> to every exit-capacity segment (<see cref="ExitCapacitySegment"/>) it is inside: exiting
+    /// toward its exit bar, holding after exiting there, pulling up along it to the parallel runway, or holding short of
+    /// the parallel runway at its bar. An aircraft at an airport with no exit-capacity rules is skipped before its layout
+    /// is resolved. A sidecar rule that does not resolve on an aircraft's layout is dropped by
+    /// <see cref="ExitCapacityResolver.GetSegments"/>, which logs it once per layout.
+    /// </summary>
+    private void AddExitSegmentOccupancy(AircraftState ac, ref Dictionary<ExitCapacitySegment, List<AircraftState>>? occupants)
+    {
+        if (ac.Phases?.CurrentPhase is not (RunwayExitPhase or HoldingAfterExitPhase or TaxiingPhase or HoldingShortPhase))
+        {
+            return;
+        }
+
+        AirportGroundLayout? layout = ac.Ground.Layout;
+        string? airportId = layout?.AirportId ?? ac.Phases.AssignedRunway?.AirportId ?? ac.AirportId;
+        if (!string.IsNullOrEmpty(airportId) && (NavigationDatabase.InstanceOrNull?.AirportSidecars.GetExitCapacity(airportId) is not { Count: > 0 }))
+        {
+            return;
+        }
+
+        if ((layout ?? ResolveGroundLayout(ac)) is not { } resolved)
+        {
+            return;
+        }
+
+        foreach (ExitCapacitySegment segment in ExitCapacityResolver.GetSegments(resolved))
+        {
+            if (!IsInsideExitSegment(ac, segment))
+            {
                 continue;
             }
 
-            // Aircraft navigating toward an exit are claiming their target hold-short node
-            if (ac.Phases?.CurrentPhase is RunwayExitPhase rep && rep.TargetHoldShortNodeId is { } repNodeId)
+            occupants ??= [];
+            if (!occupants.TryGetValue(segment, out List<AircraftState>? inside))
             {
-                occupied.Add(repNodeId);
-                continue;
+                inside = [];
+                occupants[segment] = inside;
             }
 
-            // Aircraft holding after runway exit occupy their hold-short node
-            if (ac.Phases?.CurrentPhase is HoldingAfterExitPhase haep && haep.HoldShortNodeId is { } haepNodeId)
+            inside.Add(ac);
+        }
+    }
+
+    private static bool IsInsideExitSegment(AircraftState ac, ExitCapacitySegment segment) =>
+        ac.Phases?.CurrentPhase switch
+        {
+            RunwayExitPhase exiting => exiting.TargetHoldShortNodeId == segment.ExitBarNodeId,
+            HoldingAfterExitPhase holding => holding.HoldShortNodeId == segment.ExitBarNodeId,
+            HoldingShortPhase holdingShort => holdingShort.HoldShort.NodeId == segment.ParallelBarNodeId,
+            TaxiingPhase => IsPullingUpAlong(ac.Ground.AssignedTaxiRoute, segment),
+            _ => false,
+        };
+
+    /// <summary>
+    /// True for the pull-up route <see cref="RunwayExitPhase"/> builds after an exit between parallels: it starts at the
+    /// segment's exit bar, and the aircraft has not yet passed the parallel runway's bar.
+    /// </summary>
+    private static bool IsPullingUpAlong(TaxiRoute? route, ExitCapacitySegment segment)
+    {
+        if ((route is null) || (route.Segments.Count == 0) || (route.Segments[0].FromNodeId != segment.ExitBarNodeId))
+        {
+            return false;
+        }
+
+        int parallelBarIndex = route.Segments.FindIndex(s => s.ToNodeId == segment.ParallelBarNodeId);
+        return (parallelBarIndex >= 0) && (route.CurrentSegmentIndex <= parallelBarIndex);
+    }
+
+    /// <summary>
+    /// The occupancy set <paramref name="aircraft"/>'s exit choice reads: the shared <paramref name="occupied"/> set, plus
+    /// the exit bar of every exit-capacity segment on its landing runway that is full for it — so a full segment reads
+    /// exactly like an occupied exit and the arrival takes the next one (AIM 4-3-21.a). Only an arrival on final, landing
+    /// or exiting gets a copy; every other aircraft, and an arrival with no full segment, gets the shared set.
+    /// </summary>
+    private HashSet<int>? OccupancyForExitChoice(AircraftState aircraft, AirportGroundLayout? layout, HashSet<int>? occupied)
+    {
+        if (
+            (occupied is null)
+            || (layout is null)
+            || (_exitSegmentOccupants is not { } occupantsBySegment)
+            || (aircraft.Phases?.CurrentPhase is not (FinalApproachPhase or LandingPhase or RunwayExitPhase))
+            || (aircraft.Phases.AssignedRunway?.Designator is not { } runway)
+        )
+        {
+            return occupied;
+        }
+
+        HashSet<int>? forArrival = null;
+        foreach (ExitCapacitySegment segment in ExitCapacityResolver.GetSegments(layout))
+        {
+            if (IsExitSegmentFullFor(aircraft, runway, segment, occupied, occupantsBySegment))
             {
-                occupied.Add(haepNodeId);
+                forArrival ??= [.. occupied];
+                forArrival.Add(segment.ExitBarNodeId);
             }
         }
 
-        return occupied;
+        return forArrival ?? occupied;
+    }
+
+    /// <summary>
+    /// True when <paramref name="segment"/> governs <paramref name="runway"/> and already holds as many aircraft as it
+    /// may with <paramref name="arrival"/> added. An exit bar already in the shared set is left to it, and an explicit
+    /// <c>EXIT</c> naming the segment's taxiway is the controller's call, so neither is refused here.
+    /// </summary>
+    private bool IsExitSegmentFullFor(
+        AircraftState arrival,
+        string runway,
+        ExitCapacitySegment segment,
+        HashSet<int> occupied,
+        Dictionary<ExitCapacitySegment, List<AircraftState>> occupantsBySegment
+    )
+    {
+        if (
+            !segment.AppliesToRunway(runway)
+            || occupied.Contains(segment.ExitBarNodeId)
+            || !occupantsBySegment.TryGetValue(segment, out List<AircraftState>? inside)
+            || string.Equals(arrival.Phases?.RequestedExit?.Taxiway, segment.Rule.Taxiway, StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return false;
+        }
+
+        int othersCount = 0;
+        bool othersAtOrBelowThreshold = true;
+        foreach (AircraftState occupant in inside)
+        {
+            if (ReferenceEquals(occupant, arrival))
+            {
+                continue;
+            }
+
+            othersCount++;
+            othersAtOrBelowThreshold &= segment.IsAtOrBelowThreshold(WakeTurbulenceData.GetCwt(occupant.AircraftType));
+        }
+
+        if (othersCount == 0)
+        {
+            return false;
+        }
+
+        string? arrivalCwt = WakeTurbulenceData.GetCwt(arrival.AircraftType);
+        int capacity = segment.CapacityFor(arrivalCwt, othersAtOrBelowThreshold);
+        if (othersCount < capacity)
+        {
+            return false;
+        }
+
+        LogExitCapacityRefusal(arrival, arrivalCwt, segment, inside, capacity);
+        return true;
+    }
+
+    private void LogExitCapacityRefusal(
+        AircraftState arrival,
+        string? arrivalCwt,
+        ExitCapacitySegment segment,
+        List<AircraftState> inside,
+        int capacity
+    )
+    {
+        if (!ExitCapacityLog.IsEnabled(LogLevel.Debug))
+        {
+            return;
+        }
+
+        List<AircraftState> others = [.. inside.Where(ac => !ReferenceEquals(ac, arrival))];
+        string occupants = string.Join(
+            ", ",
+            others.Select(ac => $"{ac.Callsign} ({ac.AircraftType}, CWT {WakeTurbulenceData.GetCwt(ac.AircraftType) ?? "?"})")
+        );
+        if (!_loggedExitCapacityRefusals.Add($"{arrival.Callsign}|{segment.ExitBarNodeId}|{occupants}"))
+        {
+            return;
+        }
+
+        ExitCapacityLog.LogDebug(
+            "[ExitCapacity] {Callsign} ({Type}, CWT {Cwt}): exit {Twy} off {Rwy} full at {Count}/{Capacity}, taking a later exit; inside: {Occupants}",
+            arrival.Callsign,
+            arrival.AircraftType,
+            arrivalCwt ?? "?",
+            segment.Rule.Taxiway,
+            segment.Rule.Runway,
+            others.Count,
+            capacity,
+            occupants
+        );
     }
 
     private void PreTick(AircraftState aircraft, double deltaSeconds)
@@ -1371,7 +1584,7 @@ public sealed partial class SimulationEngine
             InitialContactTransfers = Scenario?.InitialContactTransfers ?? Yaat.Sim.Data.InitialContactTransferCatalog.Empty,
             PilotContacts = Scenario?.PilotContacts ?? PilotContactRoster.Empty,
             IsHoldShortNodeOccupied = occupiedNodes is not null ? nodeId => occupiedNodes.Contains(nodeId) : null,
-            OccupiedHoldShortNodes = occupiedNodes,
+            OccupiedHoldShortNodes = OccupancyForExitChoice(aircraft, groundLayout, occupiedNodes),
             MarkHoldShortNodeOccupied = occupiedNodes is not null ? nodeId => occupiedNodes.Add(nodeId) : null,
             TowerPosition = (Scenario?.IsStudentTowerPosition == true) ? Scenario.StudentPosition : null,
             // Phases that consult follow targets (pattern spacing, VfrFollowPhase)

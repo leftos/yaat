@@ -88,7 +88,8 @@ public class GroundViewModelHoldShortMenuLocatedTests
             ["A", "B", "C"],
             out string? failReason,
             new ExplicitPathOptions { OccupiedTaxiway = null },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
         Assert.True(direct is not null, $"direct resolve failed: {failReason}");
 

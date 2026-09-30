@@ -334,4 +334,47 @@ public class AirportSidecarLoaderTests
             Directory.Delete(tempDir, recursive: true);
         }
     }
+
+    [Fact]
+    public void LoadAll_OneWayExemptWakeClassesNull_ReadsAsNoExemption()
+    {
+        AirportSidecarLoadResult result = LoadOneWaySidecar(
+            """{ "exemptWakeClasses": null, "path": [ { "point": [-122.39, 37.61] }, { "point": [-122.38, 37.62] } ] }"""
+        );
+
+        OneWayConstraint constraint = Assert.Single(Assert.Single(result.Airports).OneWayEdges);
+        Assert.Empty(constraint.ExemptWakeClasses);
+        Assert.Empty(result.Warnings);
+    }
+
+    [Fact]
+    public void LoadAll_OneWayExemptingEveryWakeClass_Warns()
+    {
+        AirportSidecarLoadResult result = LoadOneWaySidecar(
+            """{ "exemptWakeClasses": ["Small", "Large", "Heavy", "Super"], "path": [ { "point": [-122.39, 37.61] }, { "point": [-122.38, 37.62] } ] }"""
+        );
+
+        OneWayConstraint constraint = Assert.Single(Assert.Single(result.Airports).OneWayEdges);
+        Assert.Equal(4, constraint.ExemptWakeClasses.Count);
+        string warning = Assert.Single(result.Warnings);
+        Assert.Contains("oneWayEdges[0]", warning);
+        Assert.Contains("exempts every wake class", warning);
+    }
+
+    /// <summary>Loads a KSFO sidecar whose only section is one <c>oneWayEdges</c> entry.</summary>
+    private static AirportSidecarLoadResult LoadOneWaySidecar(string oneWayEntry)
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "sidecar-" + Guid.NewGuid());
+        string categoryDir = Path.Combine(tempDir, "ZTEST", "Airports");
+        Directory.CreateDirectory(categoryDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(categoryDir, "sfo.json"), $$"""{ "airportId": "KSFO", "oneWayEdges": [ {{oneWayEntry}} ] }""");
+            return AirportSidecarLoader.LoadAll(tempDir);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
 }

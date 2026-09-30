@@ -654,7 +654,12 @@ public static class PhraseologyRules
             new(["air", "taxi", "to", "runway", "{rwy}", "at", "taxiway", "{taxiway}"], "ATXI {rwy}@{taxiway}", AirTaxi, SttOnly: true),
             new(["air", "taxi", "to", "runway", "{rwy}", "on", "{taxiway}"], "ATXI {rwy}@{taxiway}", AirTaxi, SttOnly: true),
             new(["air", "taxi", "to", "runway", "{rwy}"], "ATXI {rwy}", AirTaxi),
-            new(["air", "taxi", "to", "{helipad}"], "ATXI {helipad}", AirTaxi),
+            // A helipad, gate or spot destination takes the TAXI markers — a bare ATXI token is a runway — so the
+            // spoken noun picks the marker: "parking", "gate", "stand" and "helipad" are @, "spot" is $. A name
+            // spoken with no noun is a helipad or gate, the destination the rule has always named.
+            .. AirTaxiStandRules(),
+            new(["air", "taxi", "to", "spot", "{spot...}"], "ATXI ${spot}", AirTaxi, SttOnly: true),
+            new(["air", "taxi", "to", "{helipad}"], "ATXI @{helipad}", AirTaxi),
             new(["cleared", "takeoff", "present", "position"], "CTOPP", ClearedTakeoffPresent),
             new(["cleared", "for", "takeoff", "present", "position"], "CTOPP", ClearedTakeoffPresent),
         ];
@@ -727,6 +732,18 @@ public static class PhraseologyRules
             yield return new(["taxi", "to?", noun, "{parking...}"], "TAXI @{parking}", Taxi, SttOnly: true);
             yield return new(["taxi", "to?", noun, "{parking...}", "via", "{path...}"], "TAXI {path} @{parking}", Taxi, SttOnly: true);
             yield return new(["taxi", "via", "{path...}", "to", noun, "{parking...}"], "TAXI {path} @{parking}", Taxi, SttOnly: true);
+        }
+    }
+
+    /// <summary>
+    /// STT-only air-taxi rules for a named stand — "air taxi to helipad hotel one", "air taxi to gate delta one" —
+    /// each mapping to the <c>@</c> destination, the same nouns the TAXI parking rules take.
+    /// </summary>
+    private static IEnumerable<PhraseologyRule> AirTaxiStandRules()
+    {
+        foreach (string? noun in new[] { "parking", "gate", "stand", "helipad" })
+        {
+            yield return new(["air", "taxi", "to", noun, "{parking...}"], "ATXI @{parking}", AirTaxi, SttOnly: true);
         }
     }
 

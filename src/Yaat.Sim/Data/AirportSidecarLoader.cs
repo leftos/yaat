@@ -89,6 +89,7 @@ public static class AirportSidecarLoader
                 BlockedTurns = ParseBlockedTurns(file, filePath, result),
                 Adw = ParseAdw(file, filePath, result),
                 ExitDirections = ParseExitDirections(file, filePath, result),
+                ExitCapacity = ParseExitCapacity(file, filePath, result),
                 MovementAreaTaxiways = ParsePavementClassNames(file.MovementAreaTaxiways, "movementAreaTaxiways", filePath, result),
                 NonMovementTaxilanes = ParsePavementClassNames(file.NonMovementTaxilanes, "nonMovementTaxilanes", filePath, result),
             }
@@ -164,6 +165,56 @@ public static class AirportSidecarLoader
         }
 
         return overrides;
+    }
+
+    private static List<ExitCapacityRule> ParseExitCapacity(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)
+    {
+        var rules = new List<ExitCapacityRule>();
+        for (int i = 0; i < file.ExitCapacity.Count; i++)
+        {
+            ExitCapacityEntry entry = file.ExitCapacity[i];
+            string location = $"{filePath}: exitCapacity[{i}]";
+            if (ExitCapacityProblem(entry) is { } problem)
+            {
+                result.Warnings.Add($"{location} ({entry.Runway} {entry.Taxiway}): {problem}, skipping");
+                continue;
+            }
+
+            rules.Add(
+                new ExitCapacityRule(
+                    RunwayIdentifier.NormalizeDesignator(entry.Runway.Trim().ToUpperInvariant()),
+                    entry.Taxiway.Trim().ToUpperInvariant(),
+                    entry.MaxAircraft,
+                    entry.MaxAircraftAboveCwt,
+                    entry.CwtThreshold.Trim().ToUpperInvariant(),
+                    entry.Notes
+                )
+            );
+        }
+
+        return rules;
+    }
+
+    /// <summary>What is wrong with an authored exit-capacity entry, or null when it is usable.</summary>
+    private static string? ExitCapacityProblem(ExitCapacityEntry entry)
+    {
+        if (string.IsNullOrWhiteSpace(entry.Runway) || string.IsNullOrWhiteSpace(entry.Taxiway))
+        {
+            return "requires both runway and taxiway";
+        }
+
+        if ((entry.MaxAircraft < 1) || (entry.MaxAircraftAboveCwt < 1))
+        {
+            return "maxAircraft and maxAircraftAboveCwt must be at least 1";
+        }
+
+        if (entry.MaxAircraftAboveCwt > entry.MaxAircraft)
+        {
+            return "maxAircraftAboveCwt must not exceed maxAircraft";
+        }
+
+        string threshold = entry.CwtThreshold.Trim().ToUpperInvariant();
+        return ((threshold.Length == 1) && (threshold[0] >= 'A') && (threshold[0] <= 'I')) ? null : "cwtThreshold must be one CWT letter A-I";
     }
 
     private static List<AdwWindow> ParseAdw(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)
@@ -262,10 +313,44 @@ public static class AirportSidecarLoader
             }
 
             bool blockBoth = ParseBlockMode(entry.Block, filePath, i, result);
-            constraints.Add(new OneWayConstraint(points, blockBoth, entry.Notes));
+            HashSet<WakeTurbulenceData.WakeClass> exempt = ParseExemptWakeClasses(entry.ExemptWakeClasses, filePath, i, result);
+            constraints.Add(new OneWayConstraint(points, blockBoth, entry.Notes, exempt));
         }
 
         return constraints;
+    }
+
+    /// <summary>
+    /// The wake classes a one-way constraint exempts. An absent or <c>null</c> list exempts none; an unknown name is
+    /// skipped with a warning; a list naming every class is kept but warned about, since that constraint never applies.
+    /// </summary>
+    private static HashSet<WakeTurbulenceData.WakeClass> ParseExemptWakeClasses(
+        List<string>? names,
+        string filePath,
+        int index,
+        AirportSidecarLoadResult result
+    )
+    {
+        var exempt = new HashSet<WakeTurbulenceData.WakeClass>();
+        foreach (string name in names ?? [])
+        {
+            if (Enum.TryParse(name, ignoreCase: true, out WakeTurbulenceData.WakeClass wakeClass) && Enum.IsDefined(wakeClass))
+            {
+                exempt.Add(wakeClass);
+                continue;
+            }
+
+            result.Warnings.Add(
+                $"{filePath}: oneWayEdges[{index}].exemptWakeClasses has unknown wake class \"{name}\" (expected Small, Large, Heavy or Super); ignoring it"
+            );
+        }
+
+        if (exempt.Count == Enum.GetValues<WakeTurbulenceData.WakeClass>().Length)
+        {
+            result.Warnings.Add($"{filePath}: oneWayEdges[{index}].exemptWakeClasses exempts every wake class, so the constraint never applies");
+        }
+
+        return exempt;
     }
 
     private static List<OneWayPoint>? ParseWaypointPath(List<OneWayWaypoint> path, string location, string filePath, AirportSidecarLoadResult result)

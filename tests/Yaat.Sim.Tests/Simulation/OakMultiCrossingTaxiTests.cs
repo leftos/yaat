@@ -54,7 +54,15 @@ public sealed class OakMultiCrossingTaxiTests(ITestOutputHelper output)
 
             DiagnosticLog = m => output.WriteLine("  " + m),
         };
-        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(layout, jsx1.Id, ["C", "B", "W"], out string? fail, opts, category);
+        TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            jsx1.Id,
+            ["C", "B", "W"],
+            out string? fail,
+            opts,
+            category,
+            WakeTurbulenceData.WakeClass.Large
+        );
 
         output.WriteLine($"failReason={fail ?? "(null)"}");
         Assert.NotNull(route);

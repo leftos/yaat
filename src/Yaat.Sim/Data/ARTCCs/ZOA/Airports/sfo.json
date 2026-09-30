@@ -12,6 +12,48 @@
       "notes": "Q is the connector bridging taxiway A and the B1 stub; A and B1 do not meet directly. Authorized implicitly only when the controller routes A adjacent to B1 (TAXI A B1 / TAXI B1 A)."
     }
   ],
+  "oneWayEdges": [
+    {
+      "notes": "Terminal 1 south ramp (stands off M1-M5): aircraft enter on M1, NW-bound from the B and A junctions to the M1/M2 junction. Only the ramp portion; M1's run SE of B to the 01L holding position is two-way. Super-class aircraft are exempt: they use M1 both ways.",
+      "block": "reverse",
+      "exemptWakeClasses": ["Super"],
+      "path": [
+        { "point": [-122.384072, 37.608539], "taxiway": "M1" },
+        { "point": [-122.384993, 37.608773], "taxiway": "M1" },
+        { "point": [-122.385824, 37.608932], "taxiway": "M1" },
+        { "point": [-122.387935, 37.609815], "taxiway": "M1" },
+        { "point": [-122.388432, 37.610073], "taxiway": "M1" },
+        { "point": [-122.388593, 37.610175], "taxiway": "M1" },
+        { "point": [-122.389095, 37.610231], "taxiway": "M1" },
+        { "point": [-122.390084, 37.610149], "taxiway": "M1" }
+      ]
+    },
+    {
+      "notes": "Terminal 1 south ramp: aircraft leave on M2, SE-bound from the M1/M2 junction to the A and B junctions.",
+      "block": "reverse",
+      "path": [
+        { "point": [-122.390084, 37.610149], "taxiway": "M2" },
+        { "point": [-122.389136, 37.609557], "taxiway": "M2" },
+        { "point": [-122.388472, 37.60919], "taxiway": "M2" },
+        { "point": [-122.386348, 37.608301], "taxiway": "M2" },
+        { "point": [-122.384991, 37.607731], "taxiway": "M2" },
+        { "point": [-122.384691, 37.607609], "taxiway": "M2" }
+      ]
+    },
+    {
+      "notes": "Terminal 1 south ramp: M2 is closed to super-class aircraft in both directions; they use M1 in and out. Every other wake class is exempt and bound only by the M2 outbound entry above.",
+      "block": "both",
+      "exemptWakeClasses": ["Small", "Large", "Heavy"],
+      "path": [
+        { "point": [-122.390084, 37.610149], "taxiway": "M2" },
+        { "point": [-122.389136, 37.609557], "taxiway": "M2" },
+        { "point": [-122.388472, 37.60919], "taxiway": "M2" },
+        { "point": [-122.386348, 37.608301], "taxiway": "M2" },
+        { "point": [-122.384991, 37.607731], "taxiway": "M2" },
+        { "point": [-122.384691, 37.607609], "taxiway": "M2" }
+      ]
+    }
+  ],
   "blockedTurns": [
     {
       "notes": "L/F south apex: no direct sharp turn between L and F. Aircraft use the LF connector instead, so the apex corner is never routed and its fillet arc is not drawn. The two middle points are the same apex vertex on L/F.",
@@ -21,6 +63,15 @@
         { "point": [-122.3726033797592, 37.616129801005414], "taxiway": "F" },
         { "point": [-122.37101193249117, 37.615463060496644], "taxiway": "F" }
       ]
+    }
+  ],
+  "exitCapacity": [
+    {
+      "runway": "28R",
+      "taxiway": "T",
+      "maxAircraft": 2,
+      "maxAircraftAboveCwt": 1,
+      "cwtThreshold": "G"
     }
   ]
 }

@@ -1761,6 +1761,18 @@ public static class PilotResponder
     }
 
     /// <summary>
+    /// Pilot report of an aircraft stopped on the runway with no exit ahead: it cannot turn around on the runway without
+    /// ATC approval (AIM 4-3-21.a), so it asks for a back-taxi to <paramref name="exitBehind"/>, the nearest exit behind
+    /// it, or says only that it cannot exit when there is none.
+    /// </summary>
+    public static PilotSpeechText BuildUnableToExitRequestBackTaxi(AircraftState aircraft, string? exitBehind)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string report = exitBehind is { } taxiway ? $"unable to exit, request back-taxi to {taxiway}." : "unable to exit the runway.";
+        return new PilotSpeechText(report, $"{spoken}, {report}");
+    }
+
+    /// <summary>
     /// Pilot transmission when the aircraft is breaking off a follow because separation can't
     /// be maintained relative to the lead. Pilot side; controller will likely re-sequence. Spoken
     /// and solo terminal forms omit the lead callsign; the RPO terminal names it as a diagnostic.

@@ -220,6 +220,7 @@ public class StateAwarePruningNecessityTests
             destinationNodeId: to,
             explicitHoldShorts: null,
             category: AircraftCategory.Jet,
+            wakeClass: WakeTurbulenceData.WakeClass.Large,
             preference: RoutePreference.FewestTurns,
             diagnosticLog: null,
             waypointTurnHints: null,

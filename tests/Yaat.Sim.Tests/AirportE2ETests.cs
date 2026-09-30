@@ -653,7 +653,16 @@ public class AirportE2ETests
         GroundNode? hsNode = FindHoldShortForRunway(layout, "30");
         Assert.NotNull(hsNode);
 
-        List<TaxiRoute> routes = TaxiPathfinder.FindRoutes(layout, startNode.Id, hsNode.Id, null, 3, null, AircraftCategory.Jet);
+        List<TaxiRoute> routes = TaxiPathfinder.FindRoutes(
+            layout,
+            startNode.Id,
+            hsNode.Id,
+            null,
+            3,
+            null,
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
+        );
         Assert.True(routes.Count > 0, "Should find at least one route from C/B junction to RWY 30");
 
         // The first (best) route should use B → W (with optional variant suffix
@@ -687,7 +696,16 @@ public class AirportE2ETests
         GroundNode? hsNode = FindHoldShortForRunway(layout, "30");
         Assert.NotNull(hsNode);
 
-        List<TaxiRoute> routes = TaxiPathfinder.FindRoutes(layout, startNode.Id, hsNode.Id, null, 3, null, AircraftCategory.Jet);
+        List<TaxiRoute> routes = TaxiPathfinder.FindRoutes(
+            layout,
+            startNode.Id,
+            hsNode.Id,
+            null,
+            3,
+            null,
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
+        );
         if (routes.Count < 2)
         {
             return; // Can't test ranking with only one route
@@ -725,7 +743,16 @@ public class AirportE2ETests
             .FirstOrDefault();
         Assert.NotNull(hsNode);
 
-        List<TaxiRoute> routes = TaxiPathfinder.FindRoutes(layout, parking.Id, hsNode.Id, null, 3, null, AircraftCategory.Jet);
+        List<TaxiRoute> routes = TaxiPathfinder.FindRoutes(
+            layout,
+            parking.Id,
+            hsNode.Id,
+            null,
+            3,
+            null,
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
+        );
         Assert.True(routes.Count > 0, "Should find route from NEW7 to RWY 30");
 
         List<string> bestSeq = GetTaxiwaySequence(routes[0]);

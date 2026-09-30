@@ -101,7 +101,15 @@ public class Issue398SpotHoldShortRunwayCollisionTests(ITestOutputHelper output)
                 ExplicitHoldShorts = holdShortTarget is null ? null : [HoldShortTarget.Parse(holdShortTarget)],
                 DestinationHintNode = destAcross,
             };
-            TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(layout, approachSide.Id, ["SK"], out string? fail, options, AircraftCategory.Jet);
+            TaxiRoute? route = TaxiPathfinder.ResolveExplicitPath(
+                layout,
+                approachSide.Id,
+                ["SK"],
+                out string? fail,
+                options,
+                AircraftCategory.Jet,
+                WakeTurbulenceData.WakeClass.Large
+            );
             Assert.True(route is not null, $"pathfinder failed: {fail}");
             return route;
         }

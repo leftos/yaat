@@ -159,6 +159,10 @@ public sealed class LandingPhase : Phase
     private double _stabilizedSinceSec;
     private double _touchdownLat;
     private double _touchdownLon;
+
+    // A forced rollout's exit searches found nothing: skip them until the aircraft passes this point (nm along the runway
+    // from the landing threshold) — the next branch point the last search saw, or the runway end when it saw none.
+    private double? _forcedNoExitUntilAlongNm;
     private bool _floatingForRollout;
 
     // Exit resolution state
@@ -177,6 +181,16 @@ public sealed class LandingPhase : Phase
     public ExitSide? InferredSide => _inferredSide;
 
     public bool StoppedForLahso { get; private set; }
+
+    /// <summary>
+    /// Where the wheels met the runway, and the ground speed just after the touchdown frame flip. Null before a touchdown
+    /// flown in this phase. Both survive a snapshot restore: the position is the snapshotted touchdown point, and the
+    /// ground speed is snapshotted with it.
+    /// </summary>
+    public LatLon? TouchdownPosition => TouchdownGroundSpeedKts is null ? null : new LatLon(_touchdownLat, _touchdownLon);
+
+    /// <inheritdoc cref="TouchdownPosition"/>
+    public double? TouchdownGroundSpeedKts { get; private set; }
 
     public override string Name => "Landing";
 
@@ -216,6 +230,8 @@ public sealed class LandingPhase : Phase
             CurrentStateValue = (int)CurrentState,
             TouchdownLat = _touchdownLat,
             TouchdownLon = _touchdownLon,
+            TouchdownGroundSpeedKts = TouchdownGroundSpeedKts,
+            ForcedNoExitUntilAlongNm = _forcedNoExitUntilAlongNm,
             StabilizedSinceSec = _stabilizedSinceSec,
             UnableBranchPointIds = _unableBranchPoints.Count > 0 ? [.. _unableBranchPoints] : null,
             InferredSideValue = (int?)_inferredSide,
@@ -335,6 +351,8 @@ public sealed class LandingPhase : Phase
         phase.CurrentState = (State)dto.CurrentStateValue;
         phase._touchdownLat = dto.TouchdownLat;
         phase._touchdownLon = dto.TouchdownLon;
+        phase.TouchdownGroundSpeedKts = dto.TouchdownGroundSpeedKts;
+        phase._forcedNoExitUntilAlongNm = dto.ForcedNoExitUntilAlongNm;
         phase._stabilizedSinceSec = dto.StabilizedSinceSec;
         if (dto.UnableBranchPointIds is not null)
         {
@@ -595,7 +613,22 @@ public sealed class LandingPhase : Phase
             _floatingForRollout = false;
         }
 
-        ApplyGlidepathFloor(ctx, plan);
+        // CLANDF: the forced-landing profile owns the descent and the speed down to the flare, aimed at a point
+        // on the runway ahead of the aircraft — including an aircraft that handed off here already past the
+        // threshold, which the glidepath floor would otherwise leave diving at the threshold behind it.
+        if (ctx.Aircraft.Phases?.ForceLanding == true)
+        {
+            ForcedLandingProfile.ApplyAirborneGuidance(
+                ctx,
+                new LatLon(plan.ThresholdLat, plan.ThresholdLon),
+                plan.RunwayHeading,
+                plan.FieldElevation
+            );
+        }
+        else
+        {
+            ApplyGlidepathFloor(ctx, plan);
+        }
 
         // Stabilization gate
         CheckStabilizationGate(ctx, plan);
@@ -604,10 +637,16 @@ public sealed class LandingPhase : Phase
             return false; // GoAroundHelper.Trigger handles the handoff; PhaseList advances next tick
         }
 
-        // Transition to Flare when AGL drops to flare entry altitude
+        // Transition to Flare when AGL drops to flare entry altitude. A forced descent can cross the whole flare band
+        // in one sub-tick, so it runs the flare (and its touchdown gate) on this tick instead of the next — a sub-tick
+        // at its ground speed is ~60 ft of runway it may not have.
         if (agl <= plan.FlareEntryAgl)
         {
             CurrentState = State.Flare;
+            if (ctx.Aircraft.Phases?.ForceLanding == true)
+            {
+                return TickFlare(ctx, plan);
+            }
         }
 
         return false;
@@ -733,6 +772,7 @@ public sealed class LandingPhase : Phase
         // fraction = 0 at flare entry, 1 at touchdown (agl = 0).
         double fraction = Math.Clamp(1.0 - agl / plan.FlareEntryAgl, 0.0, 1.0);
         ctx.Targets.DesiredVerticalRate = -plan.FlareFpm * (1.0 - fraction);
+        ApplyForcedFlareFloor(ctx, plan);
         // Ramp target from the Vref→Vtd curve but never push speed UP above current
         // IAS: a continuous-descent approach may arrive below Vref, and adding energy
         // in the flare would be a bug. IAS is monotone-decreasing in the flare so the
@@ -766,6 +806,24 @@ public sealed class LandingPhase : Phase
         return false;
     }
 
+    /// <summary>
+    /// CLANDF: when the forced descent had to exceed its cap to reach the latest touchdown point, the flare may not
+    /// float — it keeps descending at the forced rate so the wheels meet the runway where there is still room to stop.
+    /// </summary>
+    private static void ApplyForcedFlareFloor(PhaseContext ctx, LandingPlan plan)
+    {
+        if (ctx.Aircraft.Phases?.ForceLanding != true)
+        {
+            return;
+        }
+
+        var threshold = new LatLon(plan.ThresholdLat, plan.ThresholdLon);
+        if (ForcedLandingProfile.FlareFloorFpm(ctx, threshold, plan.RunwayHeading, plan.FieldElevation) is { } floorFpm)
+        {
+            ctx.Targets.DesiredVerticalRate = Math.Min(ctx.Targets.DesiredVerticalRate ?? 0, -floorFpm);
+        }
+    }
+
     private bool TickTouchdown(PhaseContext ctx, LandingPlan plan)
     {
         ctx.Aircraft.IsOnGround = true;
@@ -781,8 +839,9 @@ public sealed class LandingPhase : Phase
             ctx.Aircraft.CompletionDetail = plan.RunwayId;
         }
 
-        // CLANDF override is consumed at touchdown so a later auto-cycle / re-pattern doesn't inherit it.
-        ctx.Aircraft.Phases?.ForceLanding = false;
+        // A CLANDF override stays set through the rollout: it is the forced-rollout state, which brakes the aircraft
+        // to an exit or to a stop on the runway (TickForcedRollout). It is consumed when the landing hands off or
+        // ends on the ground (OnEnd), so a later auto-cycle / re-pattern doesn't inherit it.
 
         // Air → ground frame flip: the field becomes wheel speed. Snap the airborne IAS to
         // Vtd if the flare overshot it, then convert — touchdown groundspeed is touchdown
@@ -793,6 +852,7 @@ public sealed class LandingPhase : Phase
 
         _touchdownLat = ctx.Aircraft.Position.Lat;
         _touchdownLon = ctx.Aircraft.Position.Lon;
+        TouchdownGroundSpeedKts = ctx.Aircraft.GroundSpeed;
 
         Log.LogDebug("[Landing] {Callsign}: touchdown, gs={Gs:F1}kts", ctx.Aircraft.Callsign, ctx.Aircraft.GroundSpeed);
 
@@ -820,6 +880,7 @@ public sealed class LandingPhase : Phase
             _originalPreference = currentPref;
             _activePreference = currentPref;
             _candidateExit = null;
+            _forcedNoExitUntilAlongNm = null;
             _exitResolutionEnabled = currentPref is not null;
         }
 
@@ -847,18 +908,29 @@ public sealed class LandingPhase : Phase
         // Coast speed: decelerate to this speed and hold it while searching for exits
         double coastSpeed = plan.CoastSpeed;
 
-        // Always search for the next exit ahead — even without an explicit
-        // preference, the pilot plans deceleration for the first reachable exit.
-        if (_candidateExit is null)
-        {
-            ResolveNextCandidate(ctx, plan);
-        }
+        bool forced = ctx.Aircraft.Phases?.ForceLanding == true;
 
-        if (HasMissedCandidateExit(ctx, plan))
+        // A LAHSO hold-short point outranks the forced rollout: its own stop logic already keeps the aircraft short.
+        bool forcedRollout = forced && !_hasLahso;
+
+        ResolveRolloutCandidate(ctx, plan, forced, forcedRollout);
+
+        // The forced rollout judges its own candidate — TickForcedRollout gives up one it can no longer make, a
+        // passed one included, and keeps braking to its stop — so the missed-exit path, which ends in State.Unable
+        // and a handoff to the runway exit, is for the other rollouts only.
+        if (!forcedRollout && HasMissedCandidateExit(ctx, plan))
         {
             MarkExitUnable(ctx);
             CurrentState = State.Unable;
             return false;
+        }
+
+        AircraftCategory category = AircraftCategorization.Categorize(ctx.Aircraft.AircraftType);
+        _canGoAround = ctx.Aircraft.IndicatedAirspeed >= CategoryPerformance.RejectedLandingMinSpeed(category);
+
+        if (forcedRollout)
+        {
+            return TickForcedRollout(ctx, plan, coastSpeed);
         }
 
         (double targetSpeed, double decelRateOverride) = PlanExitDeceleration(ctx, plan, coastSpeed);
@@ -871,9 +943,6 @@ public sealed class LandingPhase : Phase
         ctx.Targets.TargetSpeed = targetSpeed;
         ctx.Targets.DesiredDecelRate = decelRateOverride;
 
-        AircraftCategory cat = AircraftCategorization.Categorize(ctx.Aircraft.AircraftType);
-        _canGoAround = ctx.Aircraft.IndicatedAirspeed >= CategoryPerformance.RejectedLandingMinSpeed(cat);
-
         if (CanHandOff(ctx, plan, coastSpeed))
         {
             CurrentState = State.Handoff;
@@ -882,6 +951,58 @@ public sealed class LandingPhase : Phase
 
         return false;
     }
+
+    /// <summary>
+    /// Resolves the rollout's candidate exit when it has none. Always search for the next exit ahead — even without an
+    /// explicit preference, the pilot plans deceleration for the first reachable exit. The forced rollout takes only a
+    /// turnoff off this runway's centerline graph: the straight-line fallback returns any taxiway node ahead within 1.5 nm
+    /// (a ramp or a parallel taxiway included) with a one-node path the runway exit cannot drive, and such a node would
+    /// hand the rollout off short of its stop. A forced landing the normal planner cannot serve falls back to its own
+    /// search (<see cref="ResolveForcedCandidate"/>); when that too finds nothing, both are skipped until the aircraft
+    /// passes the next branch point (<see cref="IsForcedSearchMissCached"/>).
+    /// </summary>
+    private void ResolveRolloutCandidate(PhaseContext ctx, LandingPlan plan, bool forced, bool forcedRollout)
+    {
+        if ((_candidateExit is not null) || (forced && IsForcedSearchMissCached(ctx, plan)))
+        {
+            return;
+        }
+
+        _forcedNoExitUntilAlongNm = null;
+        if (forcedRollout)
+        {
+            TryResolveGraphCandidate(ctx, plan);
+        }
+        else
+        {
+            ResolveNextCandidate(ctx, plan);
+        }
+
+        if (forced && (_candidateExit is null))
+        {
+            ResolveForcedCandidate(ctx, plan);
+        }
+    }
+
+    /// <summary>
+    /// True while a forced rollout's last exit search found nothing and nothing it could find has changed since: the
+    /// aircraft has not reached the next branch point that search saw, and it is braking no harder than
+    /// <see cref="ForcedLandingProfile.RolloutMaxDecelKtsPerSec"/>. At or below that rate an exit that needed more only
+    /// needs more as the aircraft closes on it, so re-searching could not find one; above it (a runway-end stop braking
+    /// harder) an exit can come within reach, so the search runs every tick.
+    /// </summary>
+    private bool IsForcedSearchMissCached(PhaseContext ctx, LandingPlan plan)
+    {
+        if ((_forcedNoExitUntilAlongNm is not { } untilAlongNm) || (ctx.Targets.DesiredDecelRate > ForcedLandingProfile.RolloutMaxDecelKtsPerSec))
+        {
+            return false;
+        }
+
+        return AlongFromThresholdNm(plan, ctx.Aircraft.Position) < untilAlongNm;
+    }
+
+    private static double AlongFromThresholdNm(LandingPlan plan, LatLon position) =>
+        GeoMath.AlongTrackDistanceNm(position, new LatLon(plan.ThresholdLat, plan.ThresholdLon), plan.RunwayHeading);
 
     /// <summary>
     /// True when the rollout has passed the candidate exit's branch point without being able to take it: past the
@@ -1195,6 +1316,217 @@ public sealed class LandingPhase : Phase
         return false;
     }
 
+    // --- Forced rollout (CLANDF) ---
+
+    /// <summary>
+    /// The CLANDF rollout: brake for the committed exit per <see cref="ForcedLandingProfile"/>, or — when no exit is
+    /// usable at <see cref="ForcedLandingProfile.RolloutMaxDecelKtsPerSec"/> — stop on the runway short of its end.
+    /// The exit, when there is one, is the normal planner's or else the last usable exit ahead
+    /// (<see cref="ResolveForcedCandidate"/>).
+    /// </summary>
+    private bool TickForcedRollout(PhaseContext ctx, LandingPlan plan, double coastSpeed)
+    {
+        if (_candidateExit is not null)
+        {
+            if (PlanForcedExitDeceleration(ctx, plan, coastSpeed, _candidateExit) is { } exitPlan)
+            {
+                ctx.Targets.TargetSpeed = exitPlan.TargetSpeed;
+                ctx.Targets.DesiredDecelRate = exitPlan.DecelRate;
+                if (CanHandOff(ctx, plan, coastSpeed))
+                {
+                    CurrentState = State.Handoff;
+                    return TickHandoff(ctx);
+                }
+
+                return false;
+            }
+
+            // The committed exit now needs more than the forced rollout's ceiling: give it up and stop instead,
+            // re-searching (ResolveRolloutCandidate) so an exit that comes within reach as the aircraft slows is still taken.
+            MarkExitUnable(ctx);
+            _candidateExit = null;
+        }
+
+        return TickForcedRunwayEndStop(ctx, plan);
+    }
+
+    /// <summary>
+    /// Target speed and braking rate for the forced rollout to <paramref name="candidate"/>: its turn-off speed (no
+    /// faster than coast) reached <see cref="ForcedLandingProfile.ExitBrakingMarginFt"/> before its branch point, at
+    /// the rate that needs, clamped to the forced rollout's band. Null when the exit needs more than the band's
+    /// ceiling. An aircraft already at or below the target holds its speed.
+    /// </summary>
+    private static (double TargetSpeed, double DecelRate)? PlanForcedExitDeceleration(
+        PhaseContext ctx,
+        LandingPlan plan,
+        double coastSpeed,
+        ResolvedExitInfo candidate
+    )
+    {
+        double targetSpeed = Math.Min(coastSpeed, candidate.TurnOffSpeed);
+        double distToBranchNm = GeoMath.AlongTrackDistanceNm(candidate.BranchPointNode.Position, ctx.Aircraft.Position, plan.RunwayHeading);
+        double brakingDistNm = distToBranchNm - (ForcedLandingProfile.ExitBrakingMarginFt / GeoMath.FeetPerNm);
+        bool alreadySlow = ctx.Aircraft.IndicatedAirspeed <= targetSpeed;
+        double requiredDecel = alreadySlow ? 0 : RolloutBraking.RequiredDecelKtsPerSec(ctx.Aircraft.GroundSpeed, targetSpeed, brakingDistNm);
+
+        if (!alreadySlow && ((brakingDistNm <= 0) || (requiredDecel > ForcedLandingProfile.RolloutMaxDecelKtsPerSec)))
+        {
+            return null;
+        }
+
+        double decel = Math.Clamp(requiredDecel, ForcedLandingProfile.RolloutMinDecelKtsPerSec, ForcedLandingProfile.RolloutMaxDecelKtsPerSec);
+        return (alreadySlow ? ctx.Aircraft.IndicatedAirspeed : targetSpeed, decel);
+    }
+
+    /// <summary>
+    /// No usable exit: stop on the pavement <see cref="ForcedLandingProfile.RunwayEndStopMarginFt"/> before the runway
+    /// end, braking at least the forced rollout's floor and up to
+    /// <see cref="ForcedLandingProfile.RunwayEndStopMaxDecelKtsPerSec"/> — more only when even that would leave the
+    /// runway. Completes once stopped, handing the runway to <see cref="Ground.RunwayExitPhase"/>, whose backstop
+    /// finds a way off.
+    /// </summary>
+    private bool TickForcedRunwayEndStop(PhaseContext ctx, LandingPlan plan)
+    {
+        ctx.Targets.TargetTrueHeading = ComputeCenterlineSteeringTarget(ctx, plan);
+        ctx.Targets.TargetSpeed = 0;
+
+        double alongFt =
+            GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(plan.ThresholdLat, plan.ThresholdLon), plan.RunwayHeading)
+            * GeoMath.FeetPerNm;
+        double runwayLengthFt = ctx.Runway is { } runway ? ForcedLandingProfile.LandingDistanceFt(runway, ctx.GroundLayout) : alongFt;
+        double toEndFt = runwayLengthFt - alongFt;
+        ctx.Targets.DesiredDecelRate = ForcedRunwayEndStopDecelKtsPerSec(ctx.Aircraft.GroundSpeed, toEndFt);
+
+        if (ctx.Aircraft.IndicatedAirspeed > 0.5)
+        {
+            return false;
+        }
+
+        Log.LogInformation(
+            "[Landing] {Callsign}: forced landing stopped on runway {Runway}, {ToEndFt:F0} ft before its end, no exit usable",
+            ctx.Aircraft.Callsign,
+            plan.RunwayId ?? "?",
+            toEndFt
+        );
+        return true;
+    }
+
+    /// <summary>
+    /// Braking (kts/s) for the forced rollout's runway-end stop at <paramref name="groundSpeedKts"/> with
+    /// <paramref name="toEndFt"/> of runway left: the rate that stops the aircraft
+    /// <see cref="ForcedLandingProfile.RunwayEndStopMarginFt"/> before the end, no less than
+    /// <see cref="ForcedLandingProfile.RolloutMinDecelKtsPerSec"/> and no more than
+    /// <see cref="ForcedLandingProfile.RunwayEndStopMaxDecelKtsPerSec"/> — unless even that would leave the runway, when
+    /// it is the rate that stops the aircraft at the end. Inside the margin there is no stopping short of it, so the cap
+    /// applies; past the end, the cap.
+    /// </summary>
+    public static double ForcedRunwayEndStopDecelKtsPerSec(double groundSpeedKts, double toEndFt)
+    {
+        if (toEndFt <= 0)
+        {
+            return ForcedLandingProfile.RunwayEndStopMaxDecelKtsPerSec;
+        }
+
+        double toStopShortFt = toEndFt - ForcedLandingProfile.RunwayEndStopMarginFt;
+        double stopShortDecel =
+            toStopShortFt > 0 ? RolloutBraking.RequiredDecelKtsPerSec(groundSpeedKts, 0, toStopShortFt / GeoMath.FeetPerNm) : double.PositiveInfinity;
+        double stopAtEndDecel = RolloutBraking.RequiredDecelKtsPerSec(groundSpeedKts, 0, toEndFt / GeoMath.FeetPerNm);
+        return Math.Min(
+            Math.Max(stopShortDecel, ForcedLandingProfile.RolloutMinDecelKtsPerSec),
+            Math.Max(ForcedLandingProfile.RunwayEndStopMaxDecelKtsPerSec, stopAtEndDecel)
+        );
+    }
+
+    /// <summary>
+    /// The forced rollout's own exit when the normal planner found none it could make: the last exit ahead whose
+    /// turn-off speed is reachable <see cref="ForcedLandingProfile.ExitBrakingMarginFt"/> before its branch at no
+    /// more than <see cref="ForcedLandingProfile.RolloutMaxDecelKtsPerSec"/>. The last one is the gentlest to make;
+    /// occupied hold-shorts and exits already given up are excluded, and any side will do.
+    /// </summary>
+    private void ResolveForcedCandidate(PhaseContext ctx, LandingPlan plan)
+    {
+        if ((ctx.GroundLayout is null) || (ctx.Aircraft.Phases?.AssignedRunway?.Designator is not { } rwyDesignator))
+        {
+            return;
+        }
+
+        ResolvedExitInfo? last = null;
+        double lastDistNm = double.MinValue;
+        double nearestDistNm = double.MaxValue;
+        ctx.GroundLayout.FindOnSidePreferredExit(
+            ctx.Aircraft.Position.Lat,
+            ctx.Aircraft.Position.Lon,
+            plan.RunwayHeading,
+            rwyDesignator,
+            preference: null,
+            sidePref: null,
+            excludeBranchPoints: _unableBranchPoints.Count > 0 ? [.. _unableBranchPoints] : null,
+            excludeHoldShortNodes: ctx.OccupiedHoldShortNodes,
+            filter: candidate =>
+            {
+                GroundNode branch = candidate.Path[0];
+                double distNm = GeoMath.AlongTrackDistanceNm(branch.Position, ctx.Aircraft.Position, plan.RunwayHeading);
+                double turnOff = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, candidate.ExitAngle);
+                var info = new ResolvedExitInfo
+                {
+                    HoldShortNode = candidate.HoldShort,
+                    TaxiwayName = candidate.Taxiway,
+                    TurnOffSpeed = turnOff,
+                    Path = candidate.Path,
+                    BranchPointNode = branch,
+                    SelectionDecelRate = ForcedLandingProfile.RolloutMaxDecelKtsPerSec,
+                };
+                if ((distNm > lastDistNm) && (PlanForcedExitDeceleration(ctx, plan, plan.CoastSpeed, info) is not null))
+                {
+                    last = info;
+                    lastDistNm = distNm;
+                }
+
+                if (distNm > 0)
+                {
+                    nearestDistNm = Math.Min(nearestDistNm, distNm);
+                }
+
+                // Skip every candidate so the walk goes on to the end of the runway; the last usable one is kept above.
+                return AirportGroundLayout.CandidateVerdict.Skip;
+            }
+        );
+
+        if (last is null)
+        {
+            // Nothing usable: no need to look again before the next branch point, or at all when none is ahead.
+            _forcedNoExitUntilAlongNm =
+                nearestDistNm < double.MaxValue ? AlongFromThresholdNm(plan, ctx.Aircraft.Position) + nearestDistNm : double.MaxValue;
+        }
+        else
+        {
+            _candidateExit = last;
+            Log.LogDebug(
+                "[Landing] {Callsign}: forced rollout committing to the last usable exit {Taxiway}, turnOffSpeed={Speed:F0}kts",
+                ctx.Aircraft.Callsign,
+                last.TaxiwayName,
+                last.TurnOffSpeed
+            );
+        }
+    }
+
+    /// <summary>
+    /// A forced landing that ends on the ground — handed off to the runway exit, stopped, or cleared by a command — has
+    /// finished its rollout, so the CLANDF override is consumed here and a later auto-cycle / re-pattern does not
+    /// inherit it. An airborne end (a commanded go-around) leaves the flag to the command that ended it.
+    /// </summary>
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
+    {
+        if (ctx.Aircraft.IsOnGround && (ctx.Aircraft.Phases is { ForceLanding: true } phases))
+        {
+            phases.ForceLanding = false;
+
+            // The forced rollout completed — stopped on the runway or handed off to the exit — so the runway exit
+            // finishes it as one (PhaseList.ForcedRollout). A command that cleared the phase leaves the aircraft to it.
+            phases.ForcedRollout = (endStatus == PhaseStatus.Completed) && !_hasLahso;
+        }
+    }
+
     // --- Helpers ---
 
     /// <summary>
@@ -1346,24 +1678,12 @@ public sealed class LandingPhase : Phase
 
     private void ResolveNextCandidate(PhaseContext ctx, LandingPlan plan)
     {
-        if (ctx.GroundLayout is null)
+        if ((ctx.GroundLayout is null) || TryResolveGraphCandidate(ctx, plan))
         {
             return;
         }
 
         string? rwyDesignator = ctx.Aircraft.Phases?.AssignedRunway?.Designator;
-        if ((rwyDesignator is not null) && (FindGraphCandidate(ctx, plan, rwyDesignator) is { } resolved))
-        {
-            _candidateExit = resolved;
-            Log.LogDebug(
-                "[Landing] {Callsign}: candidate exit {Taxiway}, turnOffSpeed={Speed:F0}kts, selected at {Rate:F2}kt/s",
-                ctx.Aircraft.Callsign,
-                resolved.TaxiwayName,
-                resolved.TurnOffSpeed,
-                resolved.SelectionDecelRate
-            );
-            return;
-        }
 
         // Fallback: straight-line search (airports without hold-short data)
         (GroundNode Node, string Taxiway)? result = ctx.GroundLayout.FindExitAheadOnRunway(
@@ -1401,6 +1721,34 @@ public sealed class LandingPhase : Phase
             BranchPointNode = result.Value.Node,
             SelectionDecelRate = null,
         };
+    }
+
+    /// <summary>
+    /// Commits the next exit ahead that the runway's centerline graph offers (<see cref="FindGraphCandidate"/>) as the
+    /// candidate. Returns false, leaving the candidate unset, when there is no layout or assigned runway or the graph
+    /// has no reachable exit.
+    /// </summary>
+    private bool TryResolveGraphCandidate(PhaseContext ctx, LandingPlan plan)
+    {
+        if ((ctx.GroundLayout is null) || (ctx.Aircraft.Phases?.AssignedRunway?.Designator is not { } rwyDesignator))
+        {
+            return false;
+        }
+
+        if (FindGraphCandidate(ctx, plan, rwyDesignator) is not { } resolved)
+        {
+            return false;
+        }
+
+        _candidateExit = resolved;
+        Log.LogDebug(
+            "[Landing] {Callsign}: candidate exit {Taxiway}, turnOffSpeed={Speed:F0}kts, selected at {Rate:F2}kt/s",
+            ctx.Aircraft.Callsign,
+            resolved.TaxiwayName,
+            resolved.TurnOffSpeed,
+            resolved.SelectionDecelRate
+        );
+        return true;
     }
 
     /// <summary>

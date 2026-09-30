@@ -53,7 +53,8 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
             ["TE", "U", "W", "W1"],
             out string? failReason,
             new ExplicitPathOptions { OccupiedTaxiway = null, DestinationRunway = "30" },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.Null(failReason);
@@ -87,7 +88,8 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
                 PathTurnHints = [null, TurnDirection.Right],
                 StartHeadingTrue = SfoTSouthboundHeading,
             },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.Null(failReason);
@@ -118,7 +120,8 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
                 PathTurnHints = [null, TurnDirection.Left],
                 StartHeadingTrue = SfoTSouthboundHeading,
             },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.Null(failReason);
@@ -158,7 +161,8 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
             preference,
             maxRoutes: 1,
             authorizedTaxiways: null,
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
         TaxiRoute route = Assert.Single(routes);
         Dump(route);
@@ -212,7 +216,8 @@ public class FilletCornerRoutingTests(ITestOutputHelper output)
             preference,
             maxRoutes: 1,
             authorizedTaxiways: null,
-            pair.Category
+            pair.Category,
+            WakeTurbulenceData.WakeClass.Large
         );
         if (routes.Count == 0)
         {

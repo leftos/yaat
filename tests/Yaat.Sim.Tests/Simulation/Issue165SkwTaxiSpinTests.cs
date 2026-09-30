@@ -160,7 +160,8 @@ public class Issue165SkwTaxiSpinTests(ITestOutputHelper output)
             taxiwayNames: ["A", "E", "B", "B3", "A", "B1", "Z", "S"],
             out string? failReason,
             new ExplicitPathOptions { OccupiedTaxiway = null, DiagnosticLog = s => diagLines.Add(s) },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         foreach (string line in diagLines)

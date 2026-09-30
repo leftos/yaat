@@ -77,7 +77,8 @@ public class Issue235SfoTaxiBKAParkingLoopTests
                 DestinationHintNode = f10,
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.NotNull(route);

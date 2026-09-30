@@ -483,7 +483,40 @@ public record HoldAtFixOrbitCommand(string FixName, double Lat, double Lon, Turn
 public record HoldAtFixHoverCommand(string FixName, double Lat, double Lon) : ParsedCommand;
 
 // Helicopter commands
-public record AirTaxiCommand(string? Destination) : ParsedCommand;
+
+/// <summary>What an <c>ATXI</c> destination token's marker names, the same markers a <c>TAXI</c> destination takes.</summary>
+public enum AirTaxiTargetKind
+{
+    /// <summary>A bare token: a runway (<c>28L</c>, or <c>28L@J</c> for the bar on J).</summary>
+    Runway,
+
+    /// <summary>The <c>@</c> marker: a helipad or a parking position.</summary>
+    Stand,
+
+    /// <summary>The <c>$</c> marker: a taxi spot.</summary>
+    Spot,
+}
+
+/// <summary>
+/// ATXI: helicopter air taxi. <paramref name="Destination"/> is the name without its marker (<c>28L@J</c>,
+/// <c>FDX1</c>, <c>7A</c>); <see cref="TargetKind"/> carries the marker. A command built from a destination alone
+/// is the bare form, which is a runway — exactly what the bare command text means.
+/// </summary>
+public record AirTaxiCommand(string? Destination) : ParsedCommand
+{
+    public AirTaxiTargetKind TargetKind { get; init; } = AirTaxiTargetKind.Runway;
+
+    /// <summary>The destination as command text, marker included: <c>28L@J</c>, <c>@FDX1</c>, <c>$7A</c>.</summary>
+    public string? DestinationToken =>
+        Destination is null
+            ? null
+            : TargetKind switch
+            {
+                AirTaxiTargetKind.Stand => "@" + Destination,
+                AirTaxiTargetKind.Spot => "$" + Destination,
+                _ => Destination,
+            };
+}
 
 public record LandCommand(string SpotName, bool NoDelete = false, bool IsTaxiway = false) : ParsedCommand;
 

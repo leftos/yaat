@@ -99,7 +99,7 @@ public class OakDrawRouteFidelityTests
         const AircraftCategory cat = AircraftCategory.Jet;
 
         // What the draw tool previews (and what the user sees and shapes).
-        TaxiRoute? preview = TaxiPathfinder.FindRoute(layout, a.Id, b.Id, cat);
+        TaxiRoute? preview = TaxiPathfinder.FindRoute(layout, a.Id, b.Id, cat, WakeTurbulenceData.WakeClass.Large);
         Assert.NotNull(preview);
         Assert.NotEmpty(preview!.Segments);
 
@@ -111,7 +111,8 @@ public class OakDrawRouteFidelityTests
             densePath,
             out string? fail,
             new ExplicitPathOptions { OccupiedTaxiway = null },
-            cat
+            cat,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.True(resolved is not null, $"dense path failed to resolve: {fail}");
@@ -147,7 +148,7 @@ public class OakDrawRouteFidelityTests
         }
 
         const AircraftCategory cat = AircraftCategory.Jet;
-        TaxiRoute? preview = TaxiPathfinder.FindRoute(layout, holdShorts[0].Id, parking.Id, cat);
+        TaxiRoute? preview = TaxiPathfinder.FindRoute(layout, holdShorts[0].Id, parking.Id, cat, WakeTurbulenceData.WakeClass.Large);
         if (preview is null || preview.Segments.Count < 10)
         {
             return;
@@ -205,7 +206,7 @@ public class OakDrawRouteFidelityTests
             return;
         }
 
-        TaxiRoute? preview = TaxiPathfinder.FindRoute(layout, vNodes[0].Id, vNodes[^1].Id, AircraftCategory.Jet);
+        TaxiRoute? preview = TaxiPathfinder.FindRoute(layout, vNodes[0].Id, vNodes[^1].Id, AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large);
         if (preview is null || preview.Segments.Count == 0)
         {
             return;
@@ -254,7 +255,7 @@ public class OakDrawRouteFidelityTests
 
         GroundNode start = holdShorts[0];
         const AircraftCategory cat = AircraftCategory.Jet;
-        TaxiRoute? preview = TaxiPathfinder.FindRoute(layout, start.Id, parking.Id, cat);
+        TaxiRoute? preview = TaxiPathfinder.FindRoute(layout, start.Id, parking.Id, cat, WakeTurbulenceData.WakeClass.Large);
         if (preview is null || preview.Segments.Count == 0)
         {
             return;
@@ -307,7 +308,7 @@ public class OakDrawRouteFidelityTests
                     continue;
                 }
 
-                TaxiRoute? preview = TaxiPathfinder.FindRoute(layout, a.Id, b.Id, cat);
+                TaxiRoute? preview = TaxiPathfinder.FindRoute(layout, a.Id, b.Id, cat, WakeTurbulenceData.WakeClass.Large);
                 if (preview is null || preview.Segments.Count == 0)
                 {
                     continue;
@@ -342,7 +343,8 @@ public class OakDrawRouteFidelityTests
                     path,
                     out string? fail,
                     new ExplicitPathOptions { OccupiedTaxiway = null },
-                    cat
+                    cat,
+                    WakeTurbulenceData.WakeClass.Large
                 );
                 if (resolved is null || !NodeIdSet(preview).SetEquals(NodeIdSet(resolved)))
                 {
@@ -382,7 +384,7 @@ public class OakDrawRouteFidelityTests
 
         GroundNode start = holdShorts[0];
         const AircraftCategory cat = AircraftCategory.Jet;
-        TaxiRoute? preview = TaxiPathfinder.FindRoute(layout, start.Id, parking.Id, cat);
+        TaxiRoute? preview = TaxiPathfinder.FindRoute(layout, start.Id, parking.Id, cat, WakeTurbulenceData.WakeClass.Large);
         if (preview is null || preview.Segments.Count == 0)
         {
             return;
@@ -401,7 +403,8 @@ public class OakDrawRouteFidelityTests
             path,
             out string? fail,
             new ExplicitPathOptions { OccupiedTaxiway = null, DestinationHintNode = parking },
-            cat
+            cat,
+            WakeTurbulenceData.WakeClass.Large
         );
         Assert.True(resolved is not null, $"readable parking path failed: {fail}");
         Assert.Equal(parking.Id, resolved!.Segments[^1].ToNodeId);
@@ -427,7 +430,7 @@ public class OakDrawRouteFidelityTests
                     continue;
                 }
 
-                TaxiRoute? preview = TaxiPathfinder.FindRoute(layout, a.Id, b.Id, cat);
+                TaxiRoute? preview = TaxiPathfinder.FindRoute(layout, a.Id, b.Id, cat, WakeTurbulenceData.WakeClass.Large);
                 if (preview is null || preview.Segments.Count == 0)
                 {
                     continue;

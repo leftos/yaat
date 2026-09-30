@@ -728,7 +728,7 @@ public static class CommandRegistry
                     O(null, [], "Air taxi to destination"),
                     O(
                         "Destination",
-                        [R("destination", "helipad/gate ID, $spot, or runway[@taxiway]")],
+                        [R("destination", "runway[@taxiway], @helipad/gate, or $spot")],
                         "Air taxi to a helipad, gate, taxiway spot, or runway holding position"
                     ),
                 ]

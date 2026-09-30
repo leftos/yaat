@@ -41,7 +41,8 @@ public static class TaxiPathfinder
         List<string> taxiwayNames,
         out PathfindingFailure? failure,
         ExplicitPathOptions options,
-        AircraftCategory category
+        AircraftCategory category,
+        WakeTurbulenceData.WakeClass wakeClass
     )
     {
         // Route the resolved destination hint node through the channel that matches its node
@@ -77,6 +78,7 @@ public static class TaxiPathfinder
             destinationNodeId: destNodeId,
             explicitHoldShorts: options.ExplicitHoldShorts,
             category: category,
+            wakeClass: wakeClass,
             preference: null,
             diagnosticLog: options.DiagnosticLog,
             waypointTurnHints: options.PathTurnHints,
@@ -100,10 +102,19 @@ public static class TaxiPathfinder
         List<string> taxiwayNames,
         out string? failReason,
         ExplicitPathOptions options,
-        AircraftCategory category
+        AircraftCategory category,
+        WakeTurbulenceData.WakeClass wakeClass
     )
     {
-        TaxiRoute? route = ResolveExplicitPathDetailed(layout, fromNodeId, taxiwayNames, out PathfindingFailure? failure, options, category);
+        TaxiRoute? route = ResolveExplicitPathDetailed(
+            layout,
+            fromNodeId,
+            taxiwayNames,
+            out PathfindingFailure? failure,
+            options,
+            category,
+            wakeClass
+        );
         failReason = failure?.HumanMessage;
         return route;
     }
@@ -112,7 +123,13 @@ public static class TaxiPathfinder
     /// Find the single best route between two nodes using the FewestTurns strategy.
     /// Returns null when no route exists in the graph.
     /// </summary>
-    public static TaxiRoute? FindRoute(AirportGroundLayout layout, int fromNodeId, int toNodeId, AircraftCategory category)
+    public static TaxiRoute? FindRoute(
+        AirportGroundLayout layout,
+        int fromNodeId,
+        int toNodeId,
+        AircraftCategory category,
+        WakeTurbulenceData.WakeClass wakeClass
+    )
     {
         var ctx = SearchContext.Compile(
             layout,
@@ -124,6 +141,7 @@ public static class TaxiPathfinder
             destinationNodeId: toNodeId,
             explicitHoldShorts: null,
             category: category,
+            wakeClass: wakeClass,
             preference: RoutePreference.FewestTurns,
             diagnosticLog: null,
             waypointTurnHints: null,
@@ -135,11 +153,31 @@ public static class TaxiPathfinder
     }
 
     /// <summary>
+    /// The graph route between two nodes that stays inside the ramp: ramp taxilanes, RAMP and unnamed pavement, with at
+    /// most one of the airport's one-way lanes implied, never a runway holding position
+    /// (<see cref="SegmentExpander.FindRampConfinedRoute"/>). Null when there is none.
+    /// </summary>
+    public static TaxiRoute? FindRampConfinedRoute(
+        AirportGroundLayout layout,
+        int fromNodeId,
+        int toNodeId,
+        AircraftCategory category,
+        WakeTurbulenceData.WakeClass wakeClass
+    ) =>
+        SegmentExpander.FindRampConfinedRoute(BuildNodeContext(layout, fromNodeId, toNodeId, RoutePreference.FewestTurns, null, category, wakeClass));
+
+    /// <summary>
     /// Find an auto-route from <paramref name="startNode"/> toward <paramref name="runwayId"/>,
     /// materialized as a runway destination so the route ends at the first destination hold-short
     /// encountered rather than crossing the runway to a far-side target node.
     /// </summary>
-    public static TaxiRoute? FindRunwayRoute(AirportGroundLayout layout, GroundNode startNode, string runwayId, AircraftCategory category)
+    public static TaxiRoute? FindRunwayRoute(
+        AirportGroundLayout layout,
+        GroundNode startNode,
+        string runwayId,
+        AircraftCategory category,
+        WakeTurbulenceData.WakeClass wakeClass
+    )
     {
         List<GroundNode> holdShortNodes = layout.GetRunwayHoldShortNodes(runwayId);
         if (holdShortNodes.Count == 0)
@@ -147,7 +185,7 @@ public static class TaxiPathfinder
             return null;
         }
 
-        SearchContext runwayContext = CompileRunwayDestinationContext(layout, startNode, runwayId, category);
+        SearchContext runwayContext = CompileRunwayDestinationContext(layout, startNode, runwayId, category, wakeClass);
 
         LatLon reference = RouteMaterialiser.ResolveRunwayThreshold(layout.AirportId, runwayId) ?? startNode.Position;
         var candidates = holdShortNodes.OrderBy(n => GeoMath.DistanceNm(reference, n.Position)).ToList();
@@ -155,7 +193,7 @@ public static class TaxiPathfinder
 
         foreach (GroundNode? targetHs in candidates)
         {
-            TaxiRoute? routeToTarget = FindRoute(layout, startNode.Id, targetHs.Id, category);
+            TaxiRoute? routeToTarget = FindRoute(layout, startNode.Id, targetHs.Id, category, wakeClass);
             if (routeToTarget is null)
             {
                 continue;
@@ -208,7 +246,8 @@ public static class TaxiPathfinder
         GroundNode startNode,
         (LatLon Position, TrueHeading Heading) aircraft,
         string runwayId,
-        AircraftCategory category
+        AircraftCategory category,
+        WakeTurbulenceData.WakeClass wakeClass
     )
     {
         (LatLon position, TrueHeading heading) = aircraft;
@@ -244,7 +283,7 @@ public static class TaxiPathfinder
             return route;
         }
 
-        SearchContext runwayContext = CompileRunwayDestinationContext(layout, startNode, runwayId, category);
+        SearchContext runwayContext = CompileRunwayDestinationContext(layout, startNode, runwayId, category, wakeClass);
 
         // The start node is the bar itself (the heading-aligned endpoint of the edge the aircraft is on)
         // while the aircraft is still short of it: route from the node behind the aircraft so the
@@ -256,7 +295,7 @@ public static class TaxiPathfinder
                 .Select(e => e.OtherNode(startNode))
                 .Where(n => !IsAhead(position, heading, n))
                 .MinBy(n => GeoMath.DistanceNm(position, n.Position));
-            return behind is null ? null : TryAdjacentRoute(layout, runwayContext, behind.Id, startNode, runwayId, category);
+            return behind is null ? null : TryAdjacentRoute(layout, runwayContext, behind.Id, startNode, runwayId, category, wakeClass);
         }
 
         double maxNm = AdjacentRunwayHoldShortMaxFt / GeoMath.FeetPerNm;
@@ -267,7 +306,7 @@ public static class TaxiPathfinder
 
         foreach (GroundNode? bar in candidates)
         {
-            TaxiRoute? route = TryAdjacentRoute(layout, runwayContext, startNode.Id, bar, runwayId, category);
+            TaxiRoute? route = TryAdjacentRoute(layout, runwayContext, startNode.Id, bar, runwayId, category, wakeClass);
             if (route is not null)
             {
                 return route;
@@ -283,10 +322,11 @@ public static class TaxiPathfinder
         int fromNodeId,
         GroundNode bar,
         string runwayId,
-        AircraftCategory category
+        AircraftCategory category,
+        WakeTurbulenceData.WakeClass wakeClass
     )
     {
-        TaxiRoute? routeToBar = FindRoute(layout, fromNodeId, bar.Id, category);
+        TaxiRoute? routeToBar = FindRoute(layout, fromNodeId, bar.Id, category, wakeClass);
         if (routeToBar is null)
         {
             return null;
@@ -346,7 +386,8 @@ public static class TaxiPathfinder
         AirportGroundLayout layout,
         GroundNode startNode,
         string runwayId,
-        AircraftCategory category
+        AircraftCategory category,
+        WakeTurbulenceData.WakeClass wakeClass
     )
     {
         return SearchContext.Compile(
@@ -359,6 +400,7 @@ public static class TaxiPathfinder
             destinationNodeId: null,
             explicitHoldShorts: null,
             category: category,
+            wakeClass: wakeClass,
             preference: RoutePreference.FewestTurns,
             diagnosticLog: null,
             waypointTurnHints: null,
@@ -387,12 +429,13 @@ public static class TaxiPathfinder
         RoutePreference? preference,
         int maxRoutes,
         IReadOnlySet<string>? authorizedTaxiways,
-        AircraftCategory category
+        AircraftCategory category,
+        WakeTurbulenceData.WakeClass wakeClass
     )
     {
         if (preference is not null)
         {
-            SearchContext ctx = BuildNodeContext(layout, fromNodeId, toNodeId, preference.Value, authorizedTaxiways, category);
+            SearchContext ctx = BuildNodeContext(layout, fromNodeId, toNodeId, preference.Value, authorizedTaxiways, category, wakeClass);
             (TaxiRoute? route, PathfindingFailure? _) = RunWithAvoidance(ctx);
             return route is not null ? [route] : [];
         }
@@ -408,7 +451,7 @@ public static class TaxiPathfinder
                 break;
             }
 
-            SearchContext ctx = BuildNodeContext(layout, fromNodeId, toNodeId, pref, authorizedTaxiways, category);
+            SearchContext ctx = BuildNodeContext(layout, fromNodeId, toNodeId, pref, authorizedTaxiways, category, wakeClass);
             (TaxiRoute? route, PathfindingFailure? _) = RunWithAvoidance(ctx);
 
             if (route is null)
@@ -482,7 +525,8 @@ public static class TaxiPathfinder
         int toNodeId,
         RoutePreference preference,
         IReadOnlySet<string>? authorizedTaxiways,
-        AircraftCategory category
+        AircraftCategory category,
+        WakeTurbulenceData.WakeClass wakeClass
     )
     {
         var ctx = SearchContext.Compile(
@@ -495,6 +539,7 @@ public static class TaxiPathfinder
             destinationNodeId: toNodeId,
             explicitHoldShorts: null,
             category: category,
+            wakeClass: wakeClass,
             preference: preference,
             diagnosticLog: null,
             waypointTurnHints: null,

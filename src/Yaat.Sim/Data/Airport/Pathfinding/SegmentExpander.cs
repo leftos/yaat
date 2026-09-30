@@ -234,8 +234,40 @@ public static class SegmentExpander
         return any ? [inserted] : [];
     }
 
+    /// <summary>
+    /// Resolve the clearance with the start bridged onto the first taxiway by <see cref="BridgeStartToTaxiway"/>. Only when
+    /// that fails — the bridge reached no node of the first taxiway, and the clearance did not resolve without it — is the
+    /// clearance re-resolved behind an auto-routed start leg (<see cref="TryAutoRoutedStartLeg"/>), so every route that
+    /// resolves through the bridge resolves exactly as before. When the leg does not help, the bridged failure is reported.
+    /// </summary>
     private static (TaxiRoute? Route, PathfindingFailure? Failure) ResolveExplicit(SearchContext ctx)
     {
+        (TaxiRoute? Route, PathfindingFailure? Failure) bridged = ResolveExplicitFrom(ctx, null, out string? unbridgedTaxiway);
+        if ((bridged.Route is not null) || (unbridgedTaxiway is null) || (TryAutoRoutedStartLeg(ctx, unbridgedTaxiway) is not { } leg))
+        {
+            return bridged;
+        }
+
+        (TaxiRoute? Route, PathfindingFailure? Failure) viaLeg = ResolveExplicitFrom(ctx, leg, out _);
+        ctx.DiagnosticLog?.Invoke(
+            $"[startleg] re-resolved behind a {leg.Edges.Count}-edge start leg onto {unbridgedTaxiway}: "
+                + (viaLeg.Route is not null ? "resolved" : $"failed ({viaLeg.Failure?.HumanMessage})")
+        );
+        return viaLeg.Route is not null ? viaLeg : bridged;
+    }
+
+    /// <summary>
+    /// Resolve the clearance from <see cref="SearchContext.StartNodeId"/>, opening with <paramref name="startLeg"/> when one
+    /// is given and with the hop-limited <see cref="BridgeStartToTaxiway"/> otherwise. <paramref name="unbridgedTaxiway"/>
+    /// names the first taxiway when the bridge was needed and found no node of it; null otherwise.
+    /// </summary>
+    private static (TaxiRoute? Route, PathfindingFailure? Failure) ResolveExplicitFrom(
+        SearchContext ctx,
+        StartLeg? startLeg,
+        out string? unbridgedTaxiway
+    )
+    {
+        unbridgedTaxiway = null;
         if (ctx.WaypointSequence.Count == 0)
         {
             return (
@@ -282,7 +314,12 @@ public static class SegmentExpander
         // junction with the next cleared taxiway, or the destination). A direction-blind
         // pick can enter the taxiway through a corner arc that commits the head to the wrong
         // branch, after which the correct branch fails the U-turn admissibility check.
-        if (!resolvedWaypoints[0].IsNodeRef)
+        if (startLeg is not null)
+        {
+            edges.AddRange(startLeg.Edges);
+            head = startLeg.Head with { VisitedNodeIds = VisitedNodeSet.Single(startLeg.Head.HeadNodeId) };
+        }
+        else if (!resolvedWaypoints[0].IsNodeRef)
         {
             LatLon? bridgeBias = ResolveBridgeBias(resolvedWaypoints, head, ctx);
             (List<DirectionalEdge>? bridgeEdges, PartialRoute? bridgeHead) = BridgeStartToTaxiway(head, resolvedWaypoints[0].Name, bridgeBias, ctx);
@@ -290,6 +327,10 @@ public static class SegmentExpander
             {
                 edges.AddRange(bridgeEdges);
                 head = bridgeHead with { VisitedNodeIds = VisitedNodeSet.Single(bridgeHead.HeadNodeId) };
+            }
+            else if (!resolvedWaypoints[0].IsRunway && !StartIsOnTaxiway(ctx, resolvedWaypoints[0].Name))
+            {
+                unbridgedTaxiway = resolvedWaypoints[0].Name;
             }
         }
         else if (head.HeadNodeId != resolvedWaypoints[0].ResolvedNodeId)
@@ -411,11 +452,12 @@ public static class SegmentExpander
         }
 
         // Parking/spot extension: after the named taxiway walk, auto-route to destination.
+        string? impliedOneWayLane = null;
         if (ctx.Destination.Kind is DestinationKind.Parking or DestinationKind.Spot or DestinationKind.Helipad)
         {
             if (ctx.Destination.TargetNodeId is { } destId && head.HeadNodeId != destId)
             {
-                (List<DirectionalEdge>? extEdges, PathfindingFailure? extFailure) = ExtendToDestination(
+                (List<DirectionalEdge>? extEdges, string? lane, PathfindingFailure? extFailure) = ExtendToDestination(
                     head,
                     destId,
                     ctx,
@@ -430,10 +472,17 @@ public static class SegmentExpander
                 {
                     edges.AddRange(extEdges);
                 }
+
+                impliedOneWayLane = lane;
             }
         }
 
         TaxiRoute route = RouteMaterialiser.Materialise(edges, ctx, insertions);
+        foreach (string lane in new[] { startLeg?.ImpliedLane, impliedOneWayLane }.OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            route.Warnings.Add(RouteMaterialiser.NotInClearanceWarning(lane));
+            route.ImpliedLanes.Add(lane);
+        }
 
         // Honor the clearance: every named taxiway the controller specified must be REACHED by the
         // resolved route — either traversed (an edge labeled for it) or at least touched (the route
@@ -1033,7 +1082,7 @@ public static class SegmentExpander
                 continue;
             }
 
-            (List<DirectionalEdge>? extEdges, PathfindingFailure? extFailure) = ExtendToDestination(candHead, destId, ctx, uncleared);
+            (List<DirectionalEdge>? extEdges, string? _, PathfindingFailure? extFailure) = ExtendToDestination(candHead, destId, ctx, uncleared);
             if (extFailure is not null || extEdges is null)
             {
                 continue;
@@ -1249,6 +1298,170 @@ public static class SegmentExpander
         );
         return (best.Edges, best.Head);
     }
+
+    /// <summary>
+    /// Longest auto-routed start leg (<see cref="TryAutoRoutedStartLeg"/>), in feet of path. A sanity bound with no FAA
+    /// figure behind it: the leg runs over non-movement ramp, where no clearance is needed, so nothing regulatory limits its
+    /// length, but a clearance must not be met by a trek across the airport. SFO's B2 push point on M5 out to A over M2 is
+    /// about 3,000 ft.
+    /// </summary>
+    private const double MaxStartLegFt = 4_000.0;
+
+    /// <summary>
+    /// An auto-routed start leg onto the first cleared taxiway: its edges, the search head at its end, and the one-way lane
+    /// it implies (<see cref="RouteMaterialiser.NotInClearanceWarning"/>), if any.
+    /// </summary>
+    private sealed record StartLeg(List<DirectionalEdge> Edges, PartialRoute Head, string? ImpliedLane);
+
+    /// <summary>A start leg to one node of the first taxiway, its path length, and whether the taxiway continues admissibly from its end.</summary>
+    private sealed record StartLegCandidate(StartLeg Leg, double LengthFt, bool HasOnward);
+
+    private static bool StartIsOnTaxiway(SearchContext ctx, string taxiwayName) =>
+        ctx.Layout.Nodes.TryGetValue(ctx.StartNodeId, out GroundNode? start) && start.Edges.Any(e => e.MatchesTaxiway(taxiwayName));
+
+    /// <summary>
+    /// The start leg when <see cref="BridgeStartToTaxiway"/> reaches no node of <paramref name="taxiway"/> (SFO: pushed off
+    /// B2 onto M5, <c>TAXI A</c>). Movement on a nonmovement area is the pilot's responsibility, not ATC's (7110.65 §3-7-2
+    /// NOTE 2), so the leg is auto-routed, one-way lanes hard-excluded, to the nearest node carrying a straight edge of
+    /// <paramref name="taxiway"/>, over non-movement pavement (ramp taxilanes, RAMP, unnamed edges) and
+    /// <paramref name="taxiway"/> alone. When no such leg exists it may imply one movement-area taxiway, under
+    /// <see cref="TryExtendViaOneWayLane"/>'s rule: one of the airport's one-way lanes the clearance does not name, tried
+    /// with every other movement-area taxiway still excluded. A leg reaching a runway holding position or runway pavement,
+    /// or longer than <see cref="MaxStartLegFt"/>, is refused. Nearest is by path length, a node the taxiway continues
+    /// admissibly from ranking first. Null when no leg qualifies.
+    /// </summary>
+    private static StartLeg? TryAutoRoutedStartLeg(SearchContext ctx, string taxiway)
+    {
+        if (!ctx.Layout.Nodes.TryGetValue(ctx.StartNodeId, out GroundNode? start))
+        {
+            return null;
+        }
+
+        List<(GroundNode Node, double StraightFt)> targets = StartLegTargets(ctx.Layout, start, taxiway);
+        if (targets.Count == 0)
+        {
+            ctx.DiagnosticLog?.Invoke($"[startleg] no node of {taxiway} within {MaxStartLegFt:F0} ft of #{start.Id}");
+            return null;
+        }
+
+        var classification = MovementAreaClassification.For(ctx.Layout);
+        var onlyFirst = new HashSet<string>([taxiway], StringComparer.OrdinalIgnoreCase);
+        var blocked = ctx
+            .Layout.Nodes.Values.SelectMany(n => n.Edges)
+            .SelectMany(EdgeNames)
+            .Where(name => IsUnclearedMovementAreaName(name, onlyFirst, classification))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        SearchContext legCtx = ctx with
+        {
+            WaypointSequence = [],
+            AuthorizedTaxiways = null,
+            ExplicitHoldShorts = new HashSet<HoldShortTarget>(),
+            OneWayMode = ctx.ForbiddenOneWayMoves.Count > 0 ? OneWayMode.HardExclude : OneWayMode.Off,
+        };
+
+        StartLegCandidate? best = NearestStartLeg(legCtx, targets, taxiway, blocked, null);
+        if (best is null)
+        {
+            var cleared = new HashSet<string>(ctx.WaypointSequence, StringComparer.OrdinalIgnoreCase);
+            IReadOnlySet<string> lanes = OneWayResolver.GetOneWayLaneTaxiways(ctx.Layout);
+            foreach (string lane in blocked.Where(n => lanes.Contains(n) && !cleared.Contains(n)).Order(StringComparer.OrdinalIgnoreCase))
+            {
+                var others = new HashSet<string>(
+                    blocked.Where(n => !n.Equals(lane, StringComparison.OrdinalIgnoreCase)),
+                    StringComparer.OrdinalIgnoreCase
+                );
+                if ((NearestStartLeg(legCtx, targets, taxiway, others, lane) is { } viaLane) && ((best is null) || IsNearerStartLeg(viaLane, best)))
+                {
+                    best = viaLane;
+                }
+            }
+        }
+
+        ctx.DiagnosticLog?.Invoke(
+            best is null
+                ? $"[startleg] no leg from #{start.Id} onto {taxiway}"
+                : $"[startleg] #{start.Id} → #{best.Leg.Head.HeadNodeId} onto {taxiway}: {best.LengthFt:F0} ft, {best.Leg.Edges.Count} edges, lane {best.Leg.ImpliedLane ?? "none"}"
+        );
+        return best?.Leg;
+    }
+
+    /// <summary>
+    /// The nodes carrying a straight edge of <paramref name="taxiway"/> within <see cref="MaxStartLegFt"/> in a straight
+    /// line of <paramref name="start"/>, nearest first.
+    /// </summary>
+    private static List<(GroundNode Node, double StraightFt)> StartLegTargets(AirportGroundLayout layout, GroundNode start, string taxiway) =>
+        [
+            .. layout
+                .GetNodesOnTaxiway(taxiway)
+                .Where(n => (n.Id != start.Id) && n.Edges.Any(e => (e is not GroundArc) && e.MatchesTaxiway(taxiway)))
+                .Select(n => (Node: n, StraightFt: GeoMath.DistanceNm(start.Position, n.Position) * GeoMath.FeetPerNm))
+                .Where(t => t.StraightFt <= MaxStartLegFt)
+                .OrderBy(t => t.StraightFt)
+                .ThenBy(t => t.Node.Id),
+        ];
+
+    /// <summary>
+    /// The nearest start leg to any of <paramref name="targets"/> with the taxiways in <paramref name="avoided"/>
+    /// hard-excluded. A path is never shorter than the straight line, so the targets stop being tried once the best leg,
+    /// with an onward continuation, is no longer than the next target's straight-line distance.
+    /// </summary>
+    private static StartLegCandidate? NearestStartLeg(
+        SearchContext legCtx,
+        List<(GroundNode Node, double StraightFt)> targets,
+        string taxiway,
+        IReadOnlySet<string> avoided,
+        string? impliedLane
+    )
+    {
+        SearchContext avoidCtx = legCtx with
+        {
+            AvoidedTaxiways = avoided,
+            AvoidMode = avoided.Count > 0 ? AvoidTaxiwayMode.HardExclude : AvoidTaxiwayMode.Off,
+        };
+        StartLegCandidate? best = null;
+        foreach ((GroundNode target, double straightFt) in targets)
+        {
+            if ((best is { HasOnward: true }) && (best.LengthFt <= straightFt))
+            {
+                break;
+            }
+
+            if ((StartLegTo(avoidCtx, target, taxiway, impliedLane) is { } candidate) && ((best is null) || IsNearerStartLeg(candidate, best)))
+            {
+                best = candidate;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// The auto-routed leg from the start to <paramref name="target"/>; null when there is none, it reaches a runway holding
+    /// position or runway pavement, or it is longer than <see cref="MaxStartLegFt"/>.
+    /// </summary>
+    private static StartLegCandidate? StartLegTo(SearchContext avoidCtx, GroundNode target, string taxiway, string? impliedLane)
+    {
+        SearchContext targetCtx = avoidCtx with { Destination = new DestinationDescriptor(target.Id, null, null, null, DestinationKind.Node) };
+        (TaxiRoute? route, PathfindingFailure? _) = AutoRouter.Run(targetCtx, startOverride: null, maxExpansions: MaxDetourExpansions);
+        if ((route is null) || (route.Segments.Count == 0) || (route.Segments[^1].ToNodeId != target.Id) || ReachesRunway(route, avoidCtx.Layout))
+        {
+            return null;
+        }
+
+        double lengthFt = route.Segments.Sum(s => s.Edge.DistanceNm) * GeoMath.FeetPerNm;
+        if (lengthFt > MaxStartLegFt)
+        {
+            return null;
+        }
+
+        PartialRoute head = BuildHeadFromRoute(PartialRoute.StartAt(avoidCtx.StartNodeId), route);
+        bool hasOnward = AdmissibleOnwardNeighbors(head, taxiway, avoidCtx).Any();
+        return new StartLegCandidate(new StartLeg([.. route.Segments.Select(s => s.Edge)], head, impliedLane), lengthFt, hasOnward);
+    }
+
+    /// <summary>True when <paramref name="candidate"/> beats <paramref name="incumbent"/>: an onward continuation first, then the shorter path.</summary>
+    private static bool IsNearerStartLeg(StartLegCandidate candidate, StartLegCandidate incumbent) =>
+        candidate.HasOnward != incumbent.HasOnward ? candidate.HasOnward : candidate.LengthFt < incumbent.LengthFt - 1e-6;
 
     /// <summary>
     /// Collect the access nodes within <paramref name="maxHops"/> of the head and pick the best one.
@@ -3708,7 +3921,7 @@ public static class SegmentExpander
     // Parking / spot extension
     // -----------------------------------------------------------------------
 
-    private static (List<DirectionalEdge>? Edges, PathfindingFailure? Failure) ExtendToDestination(
+    private static (List<DirectionalEdge>? Edges, string? ImpliedOneWayLane, PathfindingFailure? Failure) ExtendToDestination(
         PartialRoute head,
         int destinationNodeId,
         SearchContext ctx,
@@ -3717,6 +3930,8 @@ public static class SegmentExpander
     {
         ctx.DiagnosticLog?.Invoke($"[extend] extending to destination #{destinationNodeId} from head={head.HeadNodeId}");
 
+        // The extension is the pathfinder's own choice, not the controller's, so one-way lanes bind it hard even when the
+        // named legs before it run in warn mode.
         SearchContext extCtx = ctx with
         {
             StartNodeId = head.HeadNodeId,
@@ -3729,6 +3944,7 @@ public static class SegmentExpander
             ),
             WaypointSequence = [],
             AuthorizedTaxiways = null,
+            OneWayMode = ctx.ForbiddenOneWayMoves.Count > 0 ? OneWayMode.HardExclude : OneWayMode.Off,
         };
 
         // The extension stays on the cleared taxiways, the ramp taxilanes and RAMP: a controller clearing "TAXI B @F1"
@@ -3747,10 +3963,18 @@ public static class SegmentExpander
             failure = null;
         }
 
+        string? impliedLane = null;
+        if (((failure is not null) || (route is null)) && (TryExtendViaOneWayLane(head, extCtx, uncleared) is { } viaLane))
+        {
+            (route, impliedLane) = viaLane;
+            failure = null;
+        }
+
         if (failure is not null || route is null)
         {
             ctx.DiagnosticLog?.Invoke("[extend] confined (cleared + ramp taxilanes + RAMP) extension found no route");
             return (
+                null,
                 null,
                 new PathfindingFailure(
                     FailureKind.DestinationUnreachable,
@@ -3762,8 +3986,95 @@ public static class SegmentExpander
             );
         }
 
-        return ([.. route.Segments.Select(s => s.Edge)], null);
+        return ([.. route.Segments.Select(s => s.Edge)], impliedLane, null);
     }
+
+    /// <summary>
+    /// The confined extension admitting one uncleared movement-area taxiway X that is one of the airport's one-way lanes
+    /// (<see cref="OneWayResolver.GetOneWayLaneTaxiways"/>) as the connector from the last cleared taxiway into the ramp:
+    /// SFO <c>TAXI T A @B2</c> enters the Terminal 1 ramp on M1, because M2 is one-way outbound. It runs only after the
+    /// confined search, with this aircraft's one-way lanes hard-excluded, and the implied lead-in have both failed, so X
+    /// is the lane the one-way rules leave the aircraft. Each X is tried with every other uncleared taxiway still
+    /// excluded, and a route reaching a runway holding position or runway pavement is refused: the lane is implied into
+    /// the ramp, never across a runway (SFO M1 continues past the ramp to the 01L holding position). A lane has no length
+    /// cap: the one-way rules, not the distance, decide that it is the way in. The best route by
+    /// <see cref="IsBetterRoute"/> wins; null when no lane qualifies.
+    /// </summary>
+    private static (TaxiRoute Route, string Lane)? TryExtendViaOneWayLane(PartialRoute head, SearchContext extCtx, IReadOnlySet<string> uncleared)
+    {
+        IReadOnlySet<string> lanes = OneWayResolver.GetOneWayLaneTaxiways(extCtx.Layout);
+        (TaxiRoute Route, string Lane)? best = null;
+        foreach (string lane in uncleared.Where(lanes.Contains).Order(StringComparer.OrdinalIgnoreCase))
+        {
+            var others = new HashSet<string>(
+                uncleared.Where(n => !n.Equals(lane, StringComparison.OrdinalIgnoreCase)),
+                StringComparer.OrdinalIgnoreCase
+            );
+            SearchContext laneCtx = extCtx with { AvoidedTaxiways = others, AvoidMode = AvoidTaxiwayMode.HardExclude };
+            (TaxiRoute? route, PathfindingFailure? _) = AutoRouter.Run(laneCtx, startOverride: head);
+            bool reachesRunway = (route is not null) && ReachesRunway(route, extCtx.Layout);
+            extCtx.DiagnosticLog?.Invoke(
+                $"[extend] one-way lane {lane}: {(route is null ? "no route" : route.FormatTaxiwaySequence())}{(reachesRunway ? " (refused: reaches a runway)" : "")}"
+            );
+            if ((route is null) || reachesRunway)
+            {
+                continue;
+            }
+
+            if ((best is null) || IsBetterRoute(route, best.Value.Route))
+            {
+                best = (route, lane);
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// The graph route from <paramref name="ctx"/>'s start to its destination node that stays inside the ramp, for a TAXI
+    /// naming no taxiway from nonmovement pavement: over ramp taxilanes, RAMP and unnamed pavement, every movement-area
+    /// taxiway and this aircraft's one-way moves hard-excluded, and failing that with one of the airport's one-way lanes
+    /// implied under <see cref="TryExtendViaOneWayLane"/>'s rule. A route reaching a runway holding position or runway
+    /// pavement is refused. The implied lane, if any, is recorded on the route (<see cref="TaxiRoute.ImpliedLanes"/>, with
+    /// its <see cref="RouteMaterialiser.NotInClearanceWarning"/>). Null when no such route exists.
+    /// </summary>
+    public static TaxiRoute? FindRampConfinedRoute(SearchContext ctx)
+    {
+        IReadOnlySet<string> uncleared = UnclearedMovementAreaTaxiways(ctx);
+        SearchContext rampCtx = ctx with
+        {
+            WaypointSequence = [],
+            AuthorizedTaxiways = null,
+            OneWayMode = ctx.ForbiddenOneWayMoves.Count > 0 ? OneWayMode.HardExclude : OneWayMode.Off,
+        };
+        var excluded = new HashSet<string>(uncleared, StringComparer.OrdinalIgnoreCase);
+        excluded.UnionWith(ctx.AvoidedTaxiways);
+        SearchContext confinedCtx =
+            excluded.Count > 0 ? rampCtx with { AvoidedTaxiways = excluded, AvoidMode = AvoidTaxiwayMode.HardExclude } : rampCtx;
+
+        (TaxiRoute? route, PathfindingFailure? _) = AutoRouter.Run(confinedCtx);
+        if ((route is not null) && !ReachesRunway(route, ctx.Layout))
+        {
+            return route;
+        }
+
+        if (TryExtendViaOneWayLane(PartialRoute.StartAt(ctx.StartNodeId), rampCtx, uncleared) is not { } viaLane)
+        {
+            ctx.DiagnosticLog?.Invoke($"[ramp] no route from #{ctx.StartNodeId} to #{ctx.Destination.TargetNodeId} inside the ramp");
+            return null;
+        }
+
+        viaLane.Route.Warnings.Add(RouteMaterialiser.NotInClearanceWarning(viaLane.Lane));
+        viaLane.Route.ImpliedLanes.Add(viaLane.Lane);
+        return viaLane.Route;
+    }
+
+    /// <summary>True when <paramref name="route"/> arrives at a runway holding position or drives runway pavement.</summary>
+    private static bool ReachesRunway(TaxiRoute route, AirportGroundLayout layout) =>
+        route.Segments.Any(s =>
+            s.Edge.Edge.IsRunwayCenterline
+            || (layout.Nodes.TryGetValue(s.ToNodeId, out GroundNode? node) && (node.Type == GroundNodeType.RunwayHoldShort))
+        );
 
     /// <summary>
     /// The longest run an uncleared movement-area taxiway may be driven as a gate's or spot's implied lead-in, in feet
@@ -3776,8 +4087,9 @@ public static class SegmentExpander
     /// <c>TAXI G @SIG1</c> drives 635 ft of D and then only apron to SIG1. X is any uncleared taxiway touching the apron
     /// around the destination (the nodes reached from it along RAMP and its own lane); each is tried with every other
     /// uncleared taxiway still excluded, and a route counts only when <see cref="ImpliedDestinationLeadIn"/> names X on
-    /// it. The best route by <see cref="IsBetterRoute"/> wins. Null for a destination that is no gate or spot, or when no
-    /// X qualifies.
+    /// it. A route reaching a runway holding position or runway pavement is refused, as for the one-way lane: a lead-in is
+    /// never implied across a runway's holding position (SFO spot 35 sits 7 ft past the 01L bar on M1). The best route by
+    /// <see cref="IsBetterRoute"/> wins. Null for a destination that is no gate or spot, or when no X qualifies.
     /// </summary>
     private static TaxiRoute? TryExtendViaImpliedLeadIn(
         PartialRoute head,
@@ -3802,8 +4114,9 @@ public static class SegmentExpander
             );
             SearchContext leadInCtx = extCtx with { AvoidedTaxiways = others, AvoidMode = AvoidTaxiwayMode.HardExclude };
             (TaxiRoute? route, PathfindingFailure? _) = AutoRouter.Run(leadInCtx, startOverride: head);
-            if (route is null)
+            if ((route is null) || ReachesRunway(route, extCtx.Layout))
             {
+                extCtx.DiagnosticLog?.Invoke($"[extend] lead-in {leadIn}: {(route is null ? "no route" : "refused: reaches a runway")}");
                 continue;
             }
 

@@ -118,6 +118,8 @@ Phases write **directly** to `ctx.Targets` — they do not enqueue commands.
 | `ActiveApproach` (`ApproachClearance?`) | JFAC / CAPP / JAPP / PTAC | `ApproachNavigationPhase`, `FinalApproachPhase` |
 | `LahsoHoldShort` | LAHSO clearance | `LandingPhase` (for braking target) |
 | `RequestedExit` (`ExitPreference?`) | EL / ER / EXIT during approach | `RunwayExitPhase` |
+| `ForceLanding` | CLANDF; cleared by a go-around, `CLC`, or `LandingPhase.OnEnd` on the ground | `FinalApproachPhase`, `LandingPhase` (forced descent and forced rollout) |
+| `ForcedRollout` | `LandingPhase.OnEnd` when a forced landing completes on the ground (not under LAHSO); cleared by any successful tower/ground command on the ground and by `RunwayExitPhase.OnEnd` | `RunwayExitPhase` backstop (backtrack to the exit behind) |
 
 ## Command interaction — `CommandDispatcher.cs`
 
@@ -127,6 +129,8 @@ When a command lands on an in-phase aircraft:
 2. **`Rejected`** → return error to user. State unchanged.
 3. **`ClearsPhase`** → run a **dry-run validation** on a clone (`DryRunValidate`). If valid, set `shouldClearPhases = true`. After the rest of the compound validates, `aircraft.Phases?.Clear()` runs and the command is dispatched normally. If dry-run fails, the phase is preserved and the user sees the validation error.
 4. **`Allowed`** → tower-command handler processes the command; remaining blocks queue normally.
+
+Phase-transparent commands (squawk, ident, say, strip ops), the RFIS/RTIS/REPORT family and the WARP/WARPG sim-control bypass never reach the gate; `CommandDispatcher.ReachesPhaseGate` is the one test for that, shared by `DispatchWithPhase` and the deferred-dispatch pushback hold. A scenario-scripted deferred command that would clear an active `PushbackPhase` is held until the pushback ends, along with any scripted command the pushback would reject; an instructor-typed command still clears it. See [ground/pushback.md](ground/pushback.md) and [command-pipeline.md](command-pipeline.md#deferred-dispatch--wait-behind-and-the-command-run-delay).
 
 `Phases.Clear()` marks the active phase `Skipped`, all pending phases `Skipped`, calls each `OnEnd(ctx, Skipped)`, sets `aircraft.Phases = null`, clears `TurnRateOverride` and `PreferredTurnDirection` (so a torn-down turn phase can't bias the next lateral target — e.g. `L360` then `DCT`), and emits a phase-cancellation summary via `PhaseClearSummary`. Turn phases (`MakeTurnPhase`, `InitialClimbPhase`) also null `PreferredTurnDirection` in their own `OnEnd`, covering natural completion as well as force-clear.
 

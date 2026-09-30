@@ -211,6 +211,8 @@ public static class ConditionalList
             return $"in {d.RemainingDistanceNm:0.#}nm: {payload}";
         }
 
-        return $"in {(int)Math.Ceiling(d.RemainingSeconds)}s: {payload}";
+        // Clamped: an expired command waiting on a pushback keeps counting down in the sim (that countdown is
+        // the expiry order the release uses), and the list shows it as due rather than as a growing negative.
+        return $"in {Math.Max(0, (int)Math.Ceiling(d.RemainingSeconds))}s: {payload}";
     }
 }

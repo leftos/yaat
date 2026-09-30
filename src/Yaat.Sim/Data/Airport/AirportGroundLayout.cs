@@ -2146,7 +2146,7 @@ public sealed class AirportGroundLayout
     {
         IReadOnlySet<(int From, int To)> forbiddenMoves = NavigationDatabase.InstanceOrNull is null
             ? new HashSet<(int From, int To)>()
-            : OneWayResolver.GetForbiddenMoves(this);
+            : OneWayResolver.GetForbiddenMoves(this, OneWayResolver.AircraftlessWakeClass);
         return new OutwardWalk(
             runway.Rect,
             runway.Designator,

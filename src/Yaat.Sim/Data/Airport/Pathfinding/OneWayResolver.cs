@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 
@@ -14,38 +15,104 @@ namespace Yaat.Sim.Data.Airport.Pathfinding;
 /// <see cref="OneWayConstraint.BlockBoth"/> is set, the forward direction is forbidden too (a closed
 /// segment / forbidden turn). Consecutive waypoints may sit on different taxiways (a transition across a
 /// junction) or far apart on the same taxiway (the span between them is filled by a taxiway-restricted BFS).
+/// A constraint whose <see cref="OneWayConstraint.ExemptWakeClasses"/> holds the aircraft's wake class is
+/// skipped for that aircraft.
 /// </summary>
 public static class OneWayResolver
 {
     private static readonly ILogger Log = SimLog.CreateLogger("OneWayResolver");
 
-    // Resolved sets are cached per layout instance: a re-downloaded map produces a new layout object
-    // (cache miss → re-resolve against the new node ids), and the old entry is collected with it.
-    private static readonly ConditionalWeakTable<AirportGroundLayout, HashSet<(int, int)>> Cache = [];
+    // Resolved sets are cached per layout instance and, within it, per wake class: a re-downloaded map produces a new
+    // layout object (cache miss → re-resolve against the new node ids), and the old entry is collected with it.
+    private static readonly ConditionalWeakTable<
+        AirportGroundLayout,
+        ConcurrentDictionary<WakeTurbulenceData.WakeClass, HashSet<(int, int)>>
+    > Cache = [];
+
+    private static readonly ConditionalWeakTable<AirportGroundLayout, HashSet<(int, int)>> UnexemptedCache = [];
+
+    private static readonly ConditionalWeakTable<AirportGroundLayout, HashSet<string>> LaneCache = [];
 
     /// <summary>
-    /// Forbidden directed moves for <paramref name="layout"/>, cached. Reads the airport's constraints
-    /// from the global <see cref="NavigationDatabase"/>. Empty when no database is initialized or the
-    /// airport has no one-way data.
+    /// The wake class a search with no aircraft (the runway exit walk) resolves the constraints for: Large, the class most
+    /// traffic is, so a constraint that exempts Large — a supers-only closure — does not bind it, and one that binds every
+    /// aircraft, or every aircraft but supers, does.
     /// </summary>
-    public static IReadOnlySet<(int From, int To)> GetForbiddenMoves(AirportGroundLayout layout) => Cache.GetValue(layout, BuildForLayout);
+    public const WakeTurbulenceData.WakeClass AircraftlessWakeClass = WakeTurbulenceData.WakeClass.Large;
 
-    private static HashSet<(int, int)> BuildForLayout(AirportGroundLayout layout)
+    /// <summary>
+    /// Forbidden directed moves for <paramref name="layout"/> with every constraint binding, whatever its exemptions: the
+    /// span of every one-way lane, for <see cref="GetOneWayLaneTaxiways"/>. Cached; empty when the airport has no one-way data.
+    /// </summary>
+    private static IReadOnlySet<(int From, int To)> GetForbiddenMovesIgnoringExemptions(AirportGroundLayout layout) =>
+        UnexemptedCache.GetValue(layout, BuildUnexempted);
+
+    /// <summary>
+    /// Forbidden directed moves for an aircraft of <paramref name="wakeClass"/> on <paramref name="layout"/>, cached.
+    /// Reads the airport's constraints from the global <see cref="NavigationDatabase"/>. Empty when no database is
+    /// initialized or the airport has no one-way data.
+    /// </summary>
+    public static IReadOnlySet<(int From, int To)> GetForbiddenMoves(AirportGroundLayout layout, WakeTurbulenceData.WakeClass wakeClass) =>
+        Cache.GetValue(layout, static _ => new()).GetOrAdd(wakeClass, static (wc, l) => Resolve(l, ConstraintsFor(l), wc), layout);
+
+    /// <summary>
+    /// The taxiway names carried by any edge on any one-way constraint span of <paramref name="layout"/>, whatever the
+    /// constraint's direction or exemptions: the airport's one-way lanes. Cached per layout; empty when the airport has
+    /// no one-way data.
+    /// </summary>
+    public static IReadOnlySet<string> GetOneWayLaneTaxiways(AirportGroundLayout layout) => LaneCache.GetValue(layout, BuildLaneTaxiways);
+
+    private static IReadOnlyList<OneWayConstraint> ConstraintsFor(AirportGroundLayout layout) =>
+        NavigationDatabase.InstanceOrNull?.AirportSidecars.GetOneWayConstraints(layout.AirportId) ?? [];
+
+    private static HashSet<(int, int)> BuildUnexempted(AirportGroundLayout layout)
     {
-        NavigationDatabase? db = NavigationDatabase.InstanceOrNull;
-        IReadOnlyList<OneWayConstraint> constraints = db?.AirportSidecars.GetOneWayConstraints(layout.AirportId) ?? [];
-        return Resolve(layout, constraints);
+        var moves = new HashSet<(int, int)>();
+        foreach (OneWayConstraint constraint in ConstraintsFor(layout))
+        {
+            ResolveConstraint(layout, constraint, moves);
+        }
+
+        return moves;
+    }
+
+    private static HashSet<string> BuildLaneTaxiways(AirportGroundLayout layout)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach ((int from, int to) in GetForbiddenMovesIgnoringExemptions(layout))
+        {
+            if (!layout.Nodes.TryGetValue(from, out GroundNode? node))
+            {
+                continue;
+            }
+
+            foreach (IGroundEdge edge in node.Edges.Where(e => e.HasNode(to)))
+            {
+                names.UnionWith(SegmentExpander.EdgeNames(edge));
+            }
+        }
+
+        return names;
     }
 
     /// <summary>
-    /// Pure resolution of <paramref name="constraints"/> against <paramref name="layout"/> into forbidden
-    /// directed moves. Unit-testable without a <see cref="NavigationDatabase"/>.
+    /// Pure resolution of <paramref name="constraints"/> against <paramref name="layout"/> into the directed moves
+    /// forbidden to an aircraft of <paramref name="wakeClass"/>. Unit-testable without a <see cref="NavigationDatabase"/>.
     /// </summary>
-    public static HashSet<(int From, int To)> Resolve(AirportGroundLayout layout, IReadOnlyList<OneWayConstraint> constraints)
+    public static HashSet<(int From, int To)> Resolve(
+        AirportGroundLayout layout,
+        IReadOnlyList<OneWayConstraint> constraints,
+        WakeTurbulenceData.WakeClass wakeClass
+    )
     {
         var forbidden = new HashSet<(int, int)>();
         foreach (OneWayConstraint constraint in constraints)
         {
+            if (constraint.ExemptWakeClasses.Contains(wakeClass))
+            {
+                continue;
+            }
+
             ResolveConstraint(layout, constraint, forbidden);
         }
 

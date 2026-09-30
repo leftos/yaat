@@ -48,7 +48,8 @@ public class RampLaneRepositionTests
             path,
             out PathfindingFailure? failure,
             options,
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
         Assert.Null(route);
         Assert.NotNull(failure);
@@ -160,6 +161,7 @@ public class RampLaneRepositionTests
                 Path = path,
                 Options = options,
                 Category = AircraftCategory.Jet,
+                WakeClass = WakeTurbulenceData.WakeClass.Large,
             },
             failure
         );
@@ -203,6 +205,7 @@ public class RampLaneRepositionTests
                 Path = path,
                 Options = options,
                 Category = AircraftCategory.Jet,
+                WakeClass = WakeTurbulenceData.WakeClass.Large,
             },
             failure
         );
@@ -242,6 +245,7 @@ public class RampLaneRepositionTests
                 Path = path,
                 Options = options,
                 Category = AircraftCategory.Jet,
+                WakeClass = WakeTurbulenceData.WakeClass.Large,
             },
             failure
         );
@@ -280,6 +284,7 @@ public class RampLaneRepositionTests
                 Path = path,
                 Options = options,
                 Category = AircraftCategory.Jet,
+                WakeClass = WakeTurbulenceData.WakeClass.Large,
             },
             failure
         )!;
@@ -331,6 +336,7 @@ public class RampLaneRepositionTests
                 Path = path,
                 Options = options,
                 Category = AircraftCategory.Jet,
+                WakeClass = WakeTurbulenceData.WakeClass.Large,
             },
             failure
         );
@@ -361,6 +367,7 @@ public class RampLaneRepositionTests
                 Path = path,
                 Options = options,
                 Category = AircraftCategory.Piston,
+                WakeClass = WakeTurbulenceData.WakeClass.Small,
             },
             failure
         );
@@ -392,6 +399,7 @@ public class RampLaneRepositionTests
                 Path = path,
                 Options = options,
                 Category = AircraftCategory.Jet,
+                WakeClass = WakeTurbulenceData.WakeClass.Large,
             },
             failure
         );
@@ -419,6 +427,7 @@ public class RampLaneRepositionTests
                 Path = path,
                 Options = options,
                 Category = AircraftCategory.Jet,
+                WakeClass = WakeTurbulenceData.WakeClass.Large,
             },
             failure
         );
@@ -444,6 +453,7 @@ public class RampLaneRepositionTests
                 Path = path,
                 Options = options,
                 Category = AircraftCategory.Jet,
+                WakeClass = WakeTurbulenceData.WakeClass.Large,
             },
             failure
         );
@@ -468,7 +478,7 @@ public class RampLaneRepositionTests
         AirportGroundLayout layout = GeoJsonParser.Parse("TST", MiniLoopRampGeoJson(laneLengthFt), "TST");
         GroundNode stand = layout.FindParkingByName("H")!;
         GroundNode start = layout.GetNodesOnTaxiway("M3").OrderByDescending(n => n.Position.Lat).First();
-        TaxiRoute? route = TaxiPathfinder.FindRoute(layout, start.Id, stand.Id, AircraftCategory.Jet);
+        TaxiRoute? route = TaxiPathfinder.FindRoute(layout, start.Id, stand.Id, AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large);
         Assert.NotNull(route);
 
         double straightFt = GeoMath.DistanceNm(start.Position, stand.Position) * GeoMath.FeetPerNm;

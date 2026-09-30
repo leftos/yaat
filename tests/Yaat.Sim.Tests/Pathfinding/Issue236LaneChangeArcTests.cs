@@ -58,7 +58,8 @@ public class Issue236LaneChangeArcTests(ITestOutputHelper output)
             ["A", "F1", "B"],
             out string? failReason,
             new ExplicitPathOptions { OccupiedTaxiway = null, DiagnosticLog = msg => output.WriteLine(msg) },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.NotNull(route);

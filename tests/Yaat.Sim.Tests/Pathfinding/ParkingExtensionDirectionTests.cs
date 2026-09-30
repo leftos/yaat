@@ -58,7 +58,8 @@ public class ParkingExtensionDirectionTests
                 DestinationHintNode = newParking,
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },
-            AircraftCategory.Piston
+            AircraftCategory.Piston,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.NotNull(route);
@@ -110,7 +111,8 @@ public class ParkingExtensionDirectionTests
                 DestinationHintNode = newParking,
                 DiagnosticLog = msg => _output.WriteLine(msg),
             },
-            AircraftCategory.Piston
+            AircraftCategory.Piston,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.NotNull(route);

@@ -127,7 +127,8 @@ public class AirportSidecarCatalogTests
         var constraint = new OneWayConstraint(
             [new OneWayPoint(37.61, -122.39, "A"), new OneWayPoint(37.62, -122.38, "A")],
             BlockBoth: false,
-            Notes: null
+            Notes: null,
+            ExemptWakeClasses: new HashSet<WakeTurbulenceData.WakeClass>()
         );
         var catalog = new AirportSidecarCatalog([new AirportSidecar("KSFO") { OneWayEdges = [constraint] }]);
 
@@ -158,7 +159,8 @@ public class AirportSidecarCatalogTests
             route.GetPathTokens(),
             out string? failReason,
             new ExplicitPathOptions { OccupiedTaxiway = null, DestinationRunway = route.DestinationRunway },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.NotNull(resolved);
@@ -191,7 +193,8 @@ public class AirportSidecarCatalogTests
             bogus.GetPathTokens(),
             out string? failReason,
             new ExplicitPathOptions { OccupiedTaxiway = null },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.True(resolved is null || failReason is not null, "Bogus taxiway must not resolve to a valid route");

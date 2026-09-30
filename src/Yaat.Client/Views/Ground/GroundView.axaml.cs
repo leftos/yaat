@@ -1071,7 +1071,8 @@ public partial class GroundView : UserControl
                 route.GetPathTokens(),
                 out _,
                 new ExplicitPathOptions { OccupiedTaxiway = null, DestinationRunway = route.DestinationRunway },
-                AircraftCategory.Jet
+                AircraftCategory.Jet,
+                WakeTurbulenceData.WakeClass.Large
             );
             if (resolved is null)
             {
@@ -1414,7 +1415,10 @@ public partial class GroundView : UserControl
         // Preview with the aircraft's real category so route options match command execution.
         // Both callers derive `callsign` from vm.SelectedAircraft, so it is the routed aircraft.
         AircraftCategory category = vm.SelectedAircraft is { } ac ? GroundViewModel.CategoryFor(ac) : AircraftCategory.Jet;
-        List<TaxiRoute> routes = vm.FindRoutesToNode(fromNodeId, toNodeId, category);
+        WakeTurbulenceData.WakeClass wakeClass = vm.SelectedAircraft is { } wc
+            ? GroundViewModel.WakeClassFor(wc)
+            : WakeTurbulenceData.WakeClass.Large;
+        List<TaxiRoute> routes = vm.FindRoutesToNode(fromNodeId, toNodeId, category, wakeClass);
 
         if (routes.Count == 0)
         {

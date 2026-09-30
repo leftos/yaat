@@ -50,6 +50,7 @@ public class AvoidTaxiwayPathfinderTests
             null,
             new HashSet<HoldShortTarget>(),
             AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large,
             RoutePreference.FewestTurns,
             null
         )
@@ -183,6 +184,7 @@ public class AvoidTaxiwayPathfinderTests
             dest.Id,
             null,
             AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large,
             RoutePreference.FewestTurns,
             null,
             null,
@@ -202,6 +204,7 @@ public class AvoidTaxiwayPathfinderTests
             dest.Id,
             null,
             AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large,
             null,
             null,
             null,
@@ -248,7 +251,7 @@ public class AvoidTaxiwayPathfinderTests
         Assert.NotNull(parkingA);
 
         // FindRoute runs the two-pass: pass 1 (hard-exclude S) fails, pass 2 reaches A via S.
-        TaxiRoute? route = TaxiPathfinder.FindRoute(layout, ga1.Id, parkingA.Id, AircraftCategory.Jet);
+        TaxiRoute? route = TaxiPathfinder.FindRoute(layout, ga1.Id, parkingA.Id, AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large);
 
         Assert.NotNull(route);
         Assert.True(UsesTaxiway(route, "S"), "A is only reachable via S, so the fallback route must use S.");

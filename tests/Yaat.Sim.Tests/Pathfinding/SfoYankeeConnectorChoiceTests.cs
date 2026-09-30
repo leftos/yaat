@@ -71,7 +71,8 @@ public class SfoYankeeConnectorChoiceTests
                 ExplicitHoldShorts = [],
                 StartHeadingTrue = StartHeadingDeg,
             },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.Null(failReason);

@@ -81,7 +81,8 @@ public class RunwaySegmentRoutingTests
             ["28R", "G", "D"],
             out string? failReason,
             new ExplicitPathOptions { OccupiedTaxiway = null, DiagnosticLog = msg => _output.WriteLine(msg) },
-            AircraftCategory.Piston
+            AircraftCategory.Piston,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.NotNull(route);
@@ -121,7 +122,8 @@ public class RunwaySegmentRoutingTests
             ["28R", "W"],
             out string? failReason,
             new ExplicitPathOptions { OccupiedTaxiway = null, DiagnosticLog = msg => _output.WriteLine(msg) },
-            AircraftCategory.Piston
+            AircraftCategory.Piston,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.Null(route);
@@ -152,7 +154,8 @@ public class RunwaySegmentRoutingTests
             ["28R", "G", "D"],
             out string? failReason,
             new ExplicitPathOptions { OccupiedTaxiway = null, DiagnosticLog = msg => _output.WriteLine(msg) },
-            AircraftCategory.Piston
+            AircraftCategory.Piston,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.NotNull(route);

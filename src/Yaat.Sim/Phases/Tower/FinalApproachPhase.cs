@@ -971,13 +971,13 @@ public sealed class FinalApproachPhase : Phase
             ctx.Targets.DesiredVerticalRate = -Math.Clamp(fpm, 200, maxFpm);
         }
 
-        // CLANDF: override the vertical guidance with an unclamped descent to the threshold so
-        // the aircraft reaches a touchdown even from far above the glidepath. Runs after the
+        // CLANDF: override the vertical and speed guidance with the forced-landing profile so the
+        // aircraft reaches a touchdown on the runway even from far above the glidepath. Runs after the
         // normal descent block so it supersedes the clamped rate. Lateral guidance above already
         // steers toward the centerline; the stabilization and too-high gates are suppressed.
         if (forceLanding)
         {
-            ApplyForcedLandingGuidance(ctx, distNm);
+            ApplyForcedLandingGuidance(ctx);
         }
 
         // Check landing clearance from PhaseList (set earlier by CTL command)
@@ -1681,39 +1681,20 @@ public sealed class FinalApproachPhase : Phase
     }
 
     /// <summary>
-    /// CLANDF forced-landing vertical/speed guidance. Commits to the glideslope and commands
-    /// the descent rate required to reach the threshold by the threshold — unclamped, so an
-    /// aircraft far above the glidepath still dives onto the runway — plus an approach-speed
-    /// bleed. <see cref="FlightPhysics.UpdateAltitude"/> honors the commanded rate directly, so
-    /// no physics clamp blocks the dive. Go-around suppression is handled by the caller.
+    /// CLANDF forced-landing vertical/speed guidance. Commits to the glideslope and flies the
+    /// <see cref="ForcedLandingProfile"/>: a descent toward an aim point on the runway ahead of the
+    /// aircraft (measured signed from the landing threshold, so an aircraft already past it aims
+    /// further down the runway, not back at the threshold) plus a firm approach-speed bleed.
+    /// <see cref="FlightPhysics.UpdateAltitude"/> honors the commanded rate directly, so no physics
+    /// clamp blocks the descent. Go-around suppression is handled by the caller.
     /// </summary>
-    private void ApplyForcedLandingGuidance(PhaseContext ctx, double distNm)
+    private void ApplyForcedLandingGuidance(PhaseContext ctx)
     {
         _gsCaptured = true;
         _fasSet = true;
         _configSet = true;
 
-        ctx.Targets.TargetAltitude = _thresholdElevation;
-
-        double altToLose = ctx.Aircraft.Altitude - _thresholdElevation;
-        if (altToLose <= 1.0)
-        {
-            ctx.Targets.DesiredVerticalRate = 0;
-        }
-        else
-        {
-            double groundSpeed = Math.Max(ctx.Aircraft.GroundSpeed, 60.0);
-            double minutesToThreshold = (distNm / groundSpeed) * 60.0;
-            double requiredFpm = minutesToThreshold > 0.01 ? altToLose / minutesToThreshold : altToLose * 240.0;
-            double standardFpm = GlideSlopeGeometry.RequiredDescentRate(ctx.Aircraft.GroundSpeed, _gsAngleDeg);
-            ctx.Targets.DesiredVerticalRate = -Math.Max(requiredFpm, standardFpm);
-        }
-
-        // The forced landing owns the speed profile: it pins approach speed every tick, so a
-        // SPEEDF issued to a forced aircraft is intentionally superseded.
-        ctx.Targets.TargetSpeed =
-            AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category)
-            + AircraftPerformance.WindApproachAdditive(ctx.Weather, _runwayHeading.Degrees);
+        ForcedLandingProfile.ApplyAirborneGuidance(ctx, new LatLon(_thresholdLat, _thresholdLon), _runwayHeading, _thresholdElevation);
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

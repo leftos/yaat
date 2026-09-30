@@ -111,7 +111,13 @@ internal static class TaxiCoverageRunner
         double bestDistNm = double.MaxValue;
         foreach (GroundNode? candidate in candidates)
         {
-            TaxiRoute? route = TaxiPathfinder.FindRoute(layout, candidate.Id, tieBreakerToNode.Id, AircraftCategory.Jet);
+            TaxiRoute? route = TaxiPathfinder.FindRoute(
+                layout,
+                candidate.Id,
+                tieBreakerToNode.Id,
+                AircraftCategory.Jet,
+                WakeTurbulenceData.WakeClass.Large
+            );
             if (route is null)
             {
                 continue;
@@ -167,7 +173,7 @@ internal static class TaxiCoverageRunner
         ITestOutputHelper output
     )
     {
-        if (TaxiPathfinder.FindRoute(layout, origin.Id, destination.Id, AircraftCategory.Jet) is null)
+        if (TaxiPathfinder.FindRoute(layout, origin.Id, destination.Id, AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large) is null)
         {
             output.WriteLine($"SKIP {pair.PairId}: no A* route from {origin.Id} to {destination.Id}");
             return;

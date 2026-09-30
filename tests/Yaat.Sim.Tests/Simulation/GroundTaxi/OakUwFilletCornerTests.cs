@@ -8,10 +8,11 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 
 /// <summary>
 /// S2-OAK-2 bundle, trimmed to its first 330 s (<c>oak-u-w-fillet-corner-recording.zip</c>): SWA2600 (B738) pushes
-/// back from gate 20 onto TE at t=200 and, when its preset WAIT expires at t≈235, taxis <c>TE U W W1</c> to runway 30.
-/// In the recording the U→W corner was resolved through the junction centre (node 17) and flown as a square pivot:
-/// 3 kt through the turn, then a swing back onto W. The route must turn over the fillet arc 694→691 and the
-/// navigator must play that arc at its cornering speed in one monotonic sweep.
+/// back from gate 20 onto TE at t=200. Its scripted preset WAIT TAXI waits for that push to finish, so the route
+/// resolves when the tow ends at t=299 rather than when the timer expires at t≈235, and the aircraft then taxis
+/// <c>TE U W W1</c> to runway 30. In the recording the U→W corner was resolved through the junction centre (node 17)
+/// and flown as a square pivot: 3 kt through the turn, then a swing back onto W. The route must turn over the fillet
+/// arc 694→691 and the navigator must play that arc at its cornering speed in one monotonic sweep.
 /// </summary>
 public class OakUwFilletCornerTests(ITestOutputHelper output)
 {
@@ -21,15 +22,21 @@ public class OakUwFilletCornerTests(ITestOutputHelper output)
     private const int JunctionCentreNode = 17;
     private const int ArcExitNode = 691;
 
-    /// <summary>The taxi route is resolved when the preset WAIT expires (t≈235 in the recording).</summary>
-    private const int RouteResolvedBySeconds = 240;
+    /// <summary>
+    /// The taxi route is resolved when the scripted WAIT's TAXI finally fires: the preset timer expires at t≈235
+    /// mid-push, and the command is held until the tow ends at t=299 (measured). 310 is that second rounded up to
+    /// the next 10 s plus 10 s of margin.
+    /// </summary>
+    private const int RouteResolvedBySeconds = 310;
 
     /// <summary>
-    /// SWA2600 has cleared the U/W corner and is on W well before this. Measured with physics-owned taxi
-    /// speed: the arc is entered at t=332, its exit node is reached at t=341, and the last corner-window
-    /// sample (one segment past the arc) falls at t=374 - so 420 covers the whole corner with headroom.
+    /// SWA2600 has cleared the U/W corner and is on W well before this. Measured with physics-owned taxi speed on
+    /// the held-tow timing: the corner window opens at t=383 (the segment before the arc), the fillet arc 694→691
+    /// is the current segment from t=385 and its exit node is reached at t=393, and the last corner-window sample
+    /// (one segment past the arc) falls at t=426 - so 440 covers the whole corner with headroom. 440 is the last
+    /// sample rounded up to the next 10 s plus 10 s of margin, the same way <see cref="RouteResolvedBySeconds"/> is.
     /// </summary>
-    private const int CornerWindowEndSeconds = 420;
+    private const int CornerWindowEndSeconds = 440;
 
     /// <summary>Well above the 3 kt nose-wheel pivot, below the fillet's ~9 kt arc speed for a jet.</summary>
     private const double MinCornerSpeedKts = 6.0;

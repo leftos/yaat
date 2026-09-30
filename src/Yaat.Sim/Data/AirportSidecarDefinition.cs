@@ -162,6 +162,9 @@ internal sealed class AirportSidecarFile
     [JsonPropertyName("exitDirections")]
     public List<ExitDirectionEntry> ExitDirections { get; set; } = [];
 
+    [JsonPropertyName("exitCapacity")]
+    public List<ExitCapacityEntry> ExitCapacity { get; set; } = [];
+
     [JsonPropertyName("movementAreaTaxiways")]
     public List<PavementClassEntry> MovementAreaTaxiways { get; set; } = [];
 
@@ -182,6 +185,7 @@ public sealed record AirportSidecar(string AirportId)
     public IReadOnlyList<BlockedTurn> BlockedTurns { get; init; } = [];
     public IReadOnlyList<AdwWindow> Adw { get; init; } = [];
     public IReadOnlyList<ExitDirectionOverride> ExitDirections { get; init; } = [];
+    public IReadOnlyList<ExitCapacityRule> ExitCapacity { get; init; } = [];
 
     /// <summary>Upper-cased taxiway names forced to movement area, overriding the inferred classification.</summary>
     public IReadOnlyList<string> MovementAreaTaxiways { get; init; } = [];

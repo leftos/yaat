@@ -141,7 +141,8 @@ public class IssueAmxTaxiOvershootTests(ITestOutputHelper output)
 
                 DiagnosticLog = msg => output.WriteLine(msg),
             },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.NotNull(route);

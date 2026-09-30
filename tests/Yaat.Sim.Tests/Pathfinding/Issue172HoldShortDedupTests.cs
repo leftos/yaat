@@ -58,7 +58,8 @@ public class Issue172HoldShortDedupTests
             taxiwayNames: ["G", "B"],
             out string? failReason,
             new ExplicitPathOptions { OccupiedTaxiway = null, ExplicitHoldShorts = [HoldShortTarget.Parse("B")] },
-            AircraftCategory.Jet
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
         );
 
         Assert.Null(failReason);

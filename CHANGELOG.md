@@ -8,8 +8,22 @@
 - ERAM `SM` sends a sector message that `SM` reads back and `SM DE` clears, and `SW` sends significant weather to the facility's sectors.
 - Turning on speech recognition offers to send your push-to-talk recordings to the YAAT developers; change it anytime in Settings → Speech.
 - Scenario → File Bug Report... asks what went wrong, opens a prefilled GitHub issue, and shows the bug report bundle to drag in.
+- At SFO, arrivals enter the Terminal 1 south ramp on M1 and leave on M2; supers use M1 both ways.
+- A plain `TAXI` naming no taxiways, issued on a taxiway, warns about each taxiway it drives that the clearance did not name.
+
+### Changed
+
+- `ATXI` needs `@` for a helipad or gate and `$` for a spot; a bare name such as `ATXI 27` is always a runway.
+- A plain `TAXI $spot` or `TAXI @gate` from the ramp stays in the ramp, cutting across taxilanes, or is refused with a `TAXIAUTO` hint.
+- `TAXI A` from a stand several taxilanes from A taxis across the ramp to reach it instead of being refused.
 
 ### Fixed
+
+- `CLANDF` issued past the threshold lands the aircraft and stops it on the runway instead of rolling off the far end.
+- An aircraft stopped on the runway with no exit ahead asks for a back-taxi and waits; after `CLANDF` it backtracks to an exit on its own.
+- At SFO, a 28R arrival no longer turns off onto a full T: two aircraft only when both are CWT G or smaller.
+- A scenario's timed `TAXI` waits for the pushback to finish, and scripted commands behind it wait too, instead of cutting the tug off mid-push.
+- ASDE-X and SAID history dots collapse onto an aircraft that stops instead of freezing where it was rolling.
 
 - Two rooms loading scenarios from the same ARTCC at once no longer leave the second room's positions unresolved.
 - A CRC message larger than 64 KB is no longer cut short, and CRC gets an answer when it unsubscribes or a command fails on the server.

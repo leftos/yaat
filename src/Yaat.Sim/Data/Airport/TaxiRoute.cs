@@ -12,6 +12,14 @@ public sealed class TaxiRoute
     public List<string> Warnings { get; init; } = [];
 
     /// <summary>
+    /// The one-way lanes the resolver implied into the route, uncleared, as the way to a gate or spot (SFO <c>TAXI T A @B2</c>
+    /// enters the Terminal 1 ramp on M1). The readback names them, and they are not warned as taxiways outside the route
+    /// issued: the route carries its own <c>M1 not in clearance</c> note (<see cref="Pathfinding.RouteMaterialiser.NotInClearanceWarning"/>).
+    /// Read when the TAXI is issued; not snapshotted, like <see cref="Warnings"/>.
+    /// </summary>
+    public List<string> ImpliedLanes { get; init; } = [];
+
+    /// <summary>
     /// Number of mandatory connector insertions the resolver had to bridge between cleared taxiways
     /// that shared no direct junction (the "X and Y do not connect directly — taxi via Z" case). A
     /// route that honors the clearance without any blind detour has 0; used by
@@ -152,6 +160,7 @@ public sealed class TaxiRoute
                     Segments = [.. Segments.Take(i + 1)],
                     HoldShortPoints = [.. HoldShortPoints.Where(hs => Segments.Take(i + 1).Any(s => s.ToNodeId == hs.NodeId))],
                     Warnings = Warnings,
+                    ImpliedLanes = ImpliedLanes,
                     SpotLineUpPullFromSegment = SpotLineUpPullFromSegment <= i ? SpotLineUpPullFromSegment : null,
                 };
             }

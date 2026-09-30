@@ -62,9 +62,11 @@ public class PushbackMoveBoundaryTests
 
     /// <summary>
     /// The clearance that takes the tug off mid-move: a taxi to the spot, which routes from the ramp the push is
-    /// still on (a movement-area taxiway does not, mid-push-off — the route leaves the movement area).
+    /// still on (a movement-area taxiway does not, mid-push-off — the route leaves the movement area). It is a TAXIAUTO: a
+    /// plain <c>TAXI $6B</c> from mid-push is refused ("Unable, need a route to spot 6B. To auto-route it: TAXIAUTO $6B"),
+    /// since no route inside the ramp fits from there and a bare TAXI from the ramp stays inside it.
     /// </summary>
-    private const string TaxiClearance = $"TAXI ${AlleySpot}";
+    private const string TaxiClearance = $"TAXIAUTO ${AlleySpot}";
 
     /// <summary>
     /// The fastest the aircraft may be going one second after a clearance clears the push, knots: the tug let go

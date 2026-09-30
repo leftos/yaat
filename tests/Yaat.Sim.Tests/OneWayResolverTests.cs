@@ -34,7 +34,11 @@ public class OneWayResolverTests
             return;
         }
 
-        HashSet<(int From, int To)> fwd = OneWayResolver.Resolve(layout, [new OneWayConstraint([A0, A1], BlockBoth: false, Notes: null)]);
+        HashSet<(int From, int To)> fwd = OneWayResolver.Resolve(
+            layout,
+            [new OneWayConstraint([A0, A1], BlockBoth: false, Notes: null, ExemptWakeClasses: new HashSet<WakeTurbulenceData.WakeClass>())],
+            WakeTurbulenceData.WakeClass.Large
+        );
         Assert.NotEmpty(fwd);
 
         GroundNode n0 = layout.FindNearestNode(A0.Lat, A0.Lon)!;
@@ -56,8 +60,16 @@ public class OneWayResolverTests
             return;
         }
 
-        HashSet<(int From, int To)> fwd = OneWayResolver.Resolve(layout, [new OneWayConstraint([A0, A1], BlockBoth: false, Notes: null)]);
-        HashSet<(int From, int To)> both = OneWayResolver.Resolve(layout, [new OneWayConstraint([A0, A1], BlockBoth: true, Notes: null)]);
+        HashSet<(int From, int To)> fwd = OneWayResolver.Resolve(
+            layout,
+            [new OneWayConstraint([A0, A1], BlockBoth: false, Notes: null, ExemptWakeClasses: new HashSet<WakeTurbulenceData.WakeClass>())],
+            WakeTurbulenceData.WakeClass.Large
+        );
+        HashSet<(int From, int To)> both = OneWayResolver.Resolve(
+            layout,
+            [new OneWayConstraint([A0, A1], BlockBoth: true, Notes: null, ExemptWakeClasses: new HashSet<WakeTurbulenceData.WakeClass>())],
+            WakeTurbulenceData.WakeClass.Large
+        );
 
         // "both" forbids each span edge in either direction — exactly twice the one-way set, and a superset.
         Assert.Equal(fwd.Count * 2, both.Count);
@@ -78,8 +90,16 @@ public class OneWayResolverTests
         }
 
         // A0 -> A8 spans several A edges; the resolver BFS fills the whole span, not just the endpoints.
-        HashSet<(int From, int To)> single = OneWayResolver.Resolve(layout, [new OneWayConstraint([A0, A1], BlockBoth: false, Notes: null)]);
-        HashSet<(int From, int To)> span = OneWayResolver.Resolve(layout, [new OneWayConstraint([A0, A8], BlockBoth: false, Notes: null)]);
+        HashSet<(int From, int To)> single = OneWayResolver.Resolve(
+            layout,
+            [new OneWayConstraint([A0, A1], BlockBoth: false, Notes: null, ExemptWakeClasses: new HashSet<WakeTurbulenceData.WakeClass>())],
+            WakeTurbulenceData.WakeClass.Large
+        );
+        HashSet<(int From, int To)> span = OneWayResolver.Resolve(
+            layout,
+            [new OneWayConstraint([A0, A8], BlockBoth: false, Notes: null, ExemptWakeClasses: new HashSet<WakeTurbulenceData.WakeClass>())],
+            WakeTurbulenceData.WakeClass.Large
+        );
 
         Assert.True(span.Count > single.Count, "A0->A8 must forbid more edges than the single A0->A1 segment.");
     }
@@ -94,7 +114,11 @@ public class OneWayResolverTests
         }
 
         // A7 -> A8 (an A edge) then A8 -> B1_1 (a B1 edge): a turn through the A x B1 junction.
-        HashSet<(int From, int To)> forbidden = OneWayResolver.Resolve(layout, [new OneWayConstraint([A7, A8, B1_1], BlockBoth: false, Notes: null)]);
+        HashSet<(int From, int To)> forbidden = OneWayResolver.Resolve(
+            layout,
+            [new OneWayConstraint([A7, A8, B1_1], BlockBoth: false, Notes: null, ExemptWakeClasses: new HashSet<WakeTurbulenceData.WakeClass>())],
+            WakeTurbulenceData.WakeClass.Large
+        );
 
         Assert.True(forbidden.Count >= 2, "A two-leg turn must forbid the reverse of each leg.");
     }
@@ -109,8 +133,13 @@ public class OneWayResolverTests
         }
 
         // Tagging A0/A1 as "B" is a validation mismatch (logged) but must not stop resolution.
-        var mistagged = new OneWayConstraint([A0 with { Taxiway = "B" }, A1 with { Taxiway = "B" }], BlockBoth: false, Notes: null);
-        HashSet<(int From, int To)> forbidden = OneWayResolver.Resolve(layout, [mistagged]);
+        var mistagged = new OneWayConstraint(
+            [A0 with { Taxiway = "B" }, A1 with { Taxiway = "B" }],
+            BlockBoth: false,
+            Notes: null,
+            ExemptWakeClasses: new HashSet<WakeTurbulenceData.WakeClass>()
+        );
+        HashSet<(int From, int To)> forbidden = OneWayResolver.Resolve(layout, [mistagged], WakeTurbulenceData.WakeClass.Large);
 
         Assert.NotEmpty(forbidden);
     }

@@ -53,7 +53,7 @@ public class FilletPathfindingTests(ITestOutputHelper output)
             return;
         }
 
-        TaxiRoute? route = TaxiPathfinder.FindRoute(layout, parking.Id, holdShort.Id, AircraftCategory.Jet);
+        TaxiRoute? route = TaxiPathfinder.FindRoute(layout, parking.Id, holdShort.Id, AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large);
         Assert.NotNull(route);
         Assert.True(route.Segments.Count > 0);
 
@@ -284,7 +284,7 @@ public class FilletPathfindingTests(ITestOutputHelper output)
             return;
         }
 
-        TaxiRoute? route = TaxiPathfinder.FindRoute(layout, nodes[0].Id, nodes[1].Id, AircraftCategory.Jet);
+        TaxiRoute? route = TaxiPathfinder.FindRoute(layout, nodes[0].Id, nodes[1].Id, AircraftCategory.Jet, WakeTurbulenceData.WakeClass.Large);
         Assert.NotNull(route);
         _output.WriteLine($"SFO route: {route.Segments.Count} segments");
     }

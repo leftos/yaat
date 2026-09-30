@@ -227,9 +227,20 @@ Taxiway segments that may only be taxied in one direction. Each constraint is an
 | `oneWayEdges[].path[].point` | number[2] | Yes | `[lon, lat]` of the vertex (GeoJSON order) |
 | `oneWayEdges[].path[].taxiway` | string | No | Expected taxiway at this vertex (validation hint) |
 | `oneWayEdges[].block` | string | No | `"reverse"` (default — one-way, forbid against-order) or `"both"` (closed segment / forbidden turn) |
+| `oneWayEdges[].exemptWakeClasses` | string[] | No | Wake classes the constraint does not bind: `Small`, `Large`, `Heavy`, `Super` (case-insensitive). Absent, `null` or empty binds every aircraft. An unknown name is skipped with a warning; a list naming all four classes is kept but warned about, since the constraint then never applies |
 | `oneWayEdges[].notes` | string | No | Human-readable rationale. Informational only |
 
 Each waypoint is snapped to the nearest graph node; consecutive waypoints that are directly connected forbid that one edge, while two endpoints on the same taxiway have the whole span between them filled by a taxiway-restricted search. Consecutive waypoints **need not share a taxiway**, so the same construct expresses one-way transitions and forbidden turns across a junction; a path of N points traces a curve.
+
+**Wake-class exemptions.** The pathfinder resolves the constraints per wake class: an aircraft whose class (from its type) is in `exemptWakeClasses` is not bound by that entry. A search with no aircraft behind it (the runway-exit walk, LayoutInspector, client-side route fallbacks) resolves them as `Large`. Two entries over the same span combine: a `"reverse"` entry sets the one-way direction for most traffic, and a `"block": "both"` entry exempting every class but one closes the span to that one class. SFO's Terminal 1 south ramp uses both patterns:
+
+```json
+"oneWayEdges": [
+  { "notes": "M1 ramp portion one-way inbound (NW); supers use M1 both ways", "block": "reverse", "exemptWakeClasses": ["Super"], "path": [ ... ] },
+  { "notes": "M2 one-way outbound (SE)", "block": "reverse", "path": [ ... ] },
+  { "notes": "M2 closed to supers both ways", "block": "both", "exemptWakeClasses": ["Small", "Large", "Heavy"], "path": [ ... ] }
+]
+```
 
 **Enforcement.** Auto-routing (`TAXIAUTO`, right-click "taxi to…") never travels a one-way the wrong way — except, like avoided taxiways, when a destination is *only* reachable against it, in which case the route resolves with a warning. An explicit `TAXI` clearance that names the wrong-way taxiway is honored but flagged with a "Taxiing X against one-way direction" warning.
 
@@ -317,6 +328,27 @@ aircraft still wins, and when no exit on the overridden side can be reached, the
 falls back to the other side rather than rolling out forever. An entry with a blank runway or a side
 other than `left`/`right` is skipped with a warning; a duplicate runway within one file warns and the
 last entry wins.
+
+### `exitCapacity`
+
+How many aircraft may stand at once on an exit taxiway between two parallel runways: the stretch of `taxiway` from `runway`'s exit hold-short to the parallel runway's hold-short reached along it. When that stretch is full, an arrival on `runway` treats the exit as occupied and takes the next one. The behaviour, and what counts as an occupant, is in [`docs/landing-and-runway-exit.md`](../../../../docs/landing-and-runway-exit.md#exit-capacity-between-parallel-runways).
+
+```json
+"exitCapacity": [
+  { "runway": "28R", "taxiway": "T", "maxAircraft": 2, "maxAircraftAboveCwt": 1, "cwtThreshold": "G" }
+]
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `exitCapacity[].runway` | string | Yes | Landing runway end the rule governs, e.g. `"28R"`. Zero-pad-normalized at load |
+| `exitCapacity[].taxiway` | string | Yes | Exit taxiway that leads from `runway`'s hold-short to the parallel runway's |
+| `exitCapacity[].maxAircraft` | int | Yes | Capacity while the arrival and every occupant are at or below `cwtThreshold`. At least 1 |
+| `exitCapacity[].maxAircraftAboveCwt` | int | Yes | Capacity once any of them is above `cwtThreshold` or has no known CWT. At least 1, and no more than `maxAircraft` |
+| `exitCapacity[].cwtThreshold` | string | Yes | One CWT letter `A`–`I` (A heaviest, I lightest); a letter at or after it counts as at or below the threshold |
+| `exitCapacity[].notes` | string | No | Facility rationale. Informational only |
+
+An entry that fails any of the checks above is skipped with a warning at load. An entry that loads but does not resolve on the airport's live layout to exactly one hold-short-to-hold-short stretch logs an Error and is ignored for that layout, so exits there behave as if it were absent; `ExitCapacitySidecarTests` fails on such an entry. Worked example: [`ZOA/Airports/sfo.json`](ZOA/Airports/sfo.json).
 
 ---
 
