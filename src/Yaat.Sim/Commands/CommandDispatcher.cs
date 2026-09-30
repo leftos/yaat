@@ -3796,15 +3796,16 @@ public static class CommandDispatcher
     }
 
     /// <summary>
-    /// Route an accepted FOLLOW by where the follower is and what the lead is doing: the runwayless-lead guards,
-    /// the cross-runway refusal from base or final, the same-runway retarget on a pattern leg, and otherwise the
+    /// Route an accepted FOLLOW by where the follower is and what the lead is doing: the departing-lead refusal
+    /// (<see cref="DepartingLeadRefusal"/>), the runwayless-lead guards, the cross-runway refusal from base or final, the
+    /// sequence refusal (<see cref="FollowSequenceRefusal"/>), the same-runway retarget on a pattern leg, and otherwise the
     /// install (<see cref="InstallFollow"/>).
     /// </summary>
     private static CommandResult RouteFollow(AircraftState aircraft, AircraftState? leadAircraft, string target, DispatchContext ctx)
     {
-        // If the follower is already in a pattern phase to the SAME runway the lead is using,
-        // just update the target — AirborneFollowHelper handles spacing on every pattern leg.
-        // Rebuilding through VfrFollowPhase here would route the follower back through
+        // A follower on a pattern leg to the SAME runway the lead is using that passes every refusal
+        // below keeps its phases and only takes the new target — AirborneFollowHelper handles spacing on
+        // every pattern leg. Rebuilding through VfrFollowPhase here would route the follower back through
         // PatternEntry for the same runway it's already flying — wasteful and confusing.
         //
         // When the lead is landing a DIFFERENT runway, in-trail sequencing against the
@@ -3813,24 +3814,16 @@ public static class CommandDispatcher
         // follower onto the lead's runway with proper in-trail spacing and intercept gates.
         Phase? current = aircraft.Phases?.CurrentPhase;
         bool followerOnPatternLeg = IsPatternLeg(current);
-
-        if (TryRouteRunwaylessLead(aircraft, leadAircraft, target, ctx) is { } routed)
-        {
-            return routed;
-        }
-
         bool crossRunway = followerOnPatternLeg && IsLeadOnDifferentRunway(aircraft, leadAircraft);
 
-        // A cross-runway re-sequence needs room to maneuver. From Base or FinalApproach the
-        // follower is already low and close in, and swinging it onto a (typically closely
-        // spaced) parallel from there flies a low crossing of the original runway's final
-        // approach course — AIM §4-3-3 FIG 4-3-3 note 7 (do not continue on a track that
-        // penetrates the parallel runway's final) and §4-3-5 (no unexpected pattern
-        // maneuvers). Refuse; the controller re-sequences explicitly (ERB/ELB), vectors, or
-        // sends it around. Re-sequencing from upwind/crosswind/downwind/entry is fine.
-        if (crossRunway && (current is BasePhase or FinalApproachPhase))
+        CommandResult? routed =
+            DepartingLeadRefusal(leadAircraft, target)
+            ?? TryRouteRunwaylessLead(aircraft, leadAircraft, target, ctx)
+            ?? CrossRunwayFromLegRefusal(aircraft, current, crossRunway, target)
+            ?? FollowSequenceRefusal(aircraft, leadAircraft, current, target);
+        if (routed is not null)
         {
-            return FollowFromLegRefusal(current is BasePhase, aircraft.Phases!.AssignedRunway!, target);
+            return routed;
         }
 
         if (followerOnPatternLeg && !crossRunway)
@@ -3840,6 +3833,105 @@ public static class CommandDispatcher
 
         return InstallFollow(aircraft, leadAircraft, current, target, ctx);
     }
+
+    /// <summary>
+    /// A cross-runway re-sequence needs room to maneuver. From base or final the follower is already low and close in, and
+    /// swinging it onto a (typically closely spaced) parallel from there flies a low crossing of the original runway's final
+    /// approach course: AIM §4-3-3 FIG 4-3-3 note 7 (do not continue on a track that penetrates the parallel runway's final)
+    /// and §4-3-5 (no unexpected pattern maneuvers). The refusal from base or final; the controller re-sequences explicitly
+    /// (ERB/ELB), vectors, or sends it around. Null otherwise: re-sequencing from upwind, crosswind, downwind or an entry is
+    /// fine.
+    /// </summary>
+    private static CommandResult? CrossRunwayFromLegRefusal(AircraftState aircraft, Phase? current, bool crossRunway, string target) =>
+        (crossRunway && (current is BasePhase or FinalApproachPhase))
+            ? FollowFromLegRefusal(current is BasePhase, aircraft.Phases!.AssignedRunway!, target)
+            : null;
+
+    /// <summary>
+    /// The departing-lead refusal, the first check on an airborne FOLLOW, from any follower: a lead departing (see
+    /// <see cref="IsDepartingLead"/>) any runway or airport is not in the landing sequence (7110.65 §3-8-1 sequences arrivals
+    /// behind arrivals). Null when the lead is not departing.
+    /// </summary>
+    private static CommandResult? DepartingLeadRefusal(AircraftState? lead, string target) =>
+        ((lead is not null) && IsDepartingLead(lead)) ? new CommandResult(false, $"Unable, {target} is departing, request vectors") : null;
+
+    /// <summary>
+    /// The sequence refusal for an airborne FOLLOW, run after the departing-lead, runwayless-lead and cross-runway guards and
+    /// before the same-runway retarget or the install (so a refusal leaves the phase list, its clearance and the follow
+    /// untouched): a lead landing the follower's runway that is behind it in sequence (<see cref="IsLeadBehindInSequence"/>),
+    /// from upwind, crosswind, downwind, base, final or an instrument approach. Following it would take a 360 or other major
+    /// maneuver (AIM §4-3-5), and the pilot says it cannot accept the follow (AIM §5-5-12.a.2). A follower on a pattern
+    /// entry is not refused. Null when that does not apply.
+    /// </summary>
+    private static CommandResult? FollowSequenceRefusal(AircraftState aircraft, AircraftState? lead, Phase? current, string target)
+    {
+        if ((lead is null) || (SequenceRefusalPosition(current) is not { } position) || (aircraft.Phases?.AssignedRunway is not { } runway))
+        {
+            return null;
+        }
+
+        if (!IsSameRunwayLead(lead, runway) || !IsLeadBehindInSequence(aircraft, lead, current))
+        {
+            return null;
+        }
+
+        return new CommandResult(false, $"Unable, on {position} for runway {runway.Designator}, {target} is not ahead of us, request vectors");
+    }
+
+    /// <summary>True when <paramref name="lead"/> lands <paramref name="runway"/> (<see cref="AirborneFollowHelper.IsSameRunway"/>).</summary>
+    private static bool IsSameRunwayLead(AircraftState lead, RunwayInfo runway) =>
+        (lead.Phases?.AssignedRunway is { } leadRunway) && AirborneFollowHelper.IsSameRunway(runway, leadRunway);
+
+    /// <summary>
+    /// True when a lead landing <paramref name="follower"/>'s runway is behind it in the landing sequence, by the lead's leg
+    /// (<see cref="AirborneFollowHelper.PatternLegIndex"/>):
+    /// <list type="bullet">
+    /// <item>no leg in the sequence (a missed approach, a hold): not ahead;</item>
+    /// <item>a pattern entry: behind a follower on base, final or an instrument approach (getting behind a 45° entrant from
+    /// there would take a 360, AIM §4-3-5), and accepted from upwind, crosswind or downwind, since the entrant may join the
+    /// downwind ahead and falling in behind it is the follow's job;</item>
+    /// <item>any other leg: the same test the running follow uses (<see cref="AirborneFollowHelper.IsLeadPatternFlowBehind"/>),
+    /// by remaining path to the threshold from base, final or an approach, by leg order from the outbound legs, and by
+    /// position on a shared leg.</item>
+    /// </list>
+    /// </summary>
+    private static bool IsLeadBehindInSequence(AircraftState follower, AircraftState lead, Phase? current) =>
+        AirborneFollowHelper.PatternLegIndex(lead) switch
+        {
+            null => true,
+            AirborneFollowHelper.EntryLegIndex => current is not (UpwindPhase or CrosswindPhase or DownwindPhase),
+            _ => AirborneFollowHelper.IsLeadPatternFlowBehind(follower, lead),
+        };
+
+    /// <summary>
+    /// The follower's position as its sequence refusal names it: the pattern leg (lower-case) for upwind, crosswind,
+    /// downwind, base and final, "approach" on an instrument approach. Null on any other phase, a pattern entry included.
+    /// </summary>
+    private static string? SequenceRefusalPosition(Phase? phase) =>
+        phase switch
+        {
+            UpwindPhase => "upwind",
+            CrosswindPhase => "crosswind",
+            DownwindPhase => "downwind",
+            BasePhase => "base",
+            FinalApproachPhase => "final",
+            _ when IsOnInstrumentApproach(phase) => "approach",
+            _ => null,
+        };
+
+    /// <summary>True when <paramref name="phase"/> flies an instrument approach: a course intercept or an approach's fixes.</summary>
+    private static bool IsOnInstrumentApproach(Phase? phase) => phase is InterceptCoursePhase or ApproachNavigationPhase;
+
+    /// <summary>
+    /// True when <paramref name="lead"/> is departing: airborne with a runway, in <see cref="TakeoffPhase"/>,
+    /// <see cref="InitialClimbPhase"/> or <see cref="DepartureProcedurePhase"/>, and not climbing out in closed traffic
+    /// (<see cref="AirborneFollowHelper.IsClosedTrafficClimb"/>, which counts as the circuit's upwind).
+    /// </summary>
+    private static bool IsDepartingLead(AircraftState lead) =>
+        !lead.IsOnGround
+        && (lead.Phases?.AssignedRunway is not null)
+        && (lead.Phases.CurrentPhase is TakeoffPhase or InitialClimbPhase or DepartureProcedurePhase)
+        && !AirborneFollowHelper.IsClosedTrafficClimb(lead);
 
     /// <summary>
     /// Same-runway FOLLOW on a pattern leg: set the target in place and clear any prior EXT (extended leg) on
@@ -3879,7 +3971,7 @@ public static class CommandDispatcher
     {
         // From an approach (FOLLOW is Allowed there so the landing clearance survives), the approach is torn down
         // first, as a phase-clearing command would, keeping only that clearance.
-        if (current is InterceptCoursePhase or ApproachNavigationPhase)
+        if (IsOnInstrumentApproach(current))
         {
             ClearPhaseChainKeepingClearance(aircraft, "FOLLOW");
             current = null;

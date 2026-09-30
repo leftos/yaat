@@ -790,9 +790,13 @@ Regression: `N342TFollowStraightInDownwindTests`.
 
 **The pattern-leg-index ordering** (`AirborneFollowHelper.PatternLegIndex`) is hard-coded: `PatternEntryPhase = 0`, `Upwind = 1`, `Crosswind = 2`, `Downwind = 3`, `Base = 4`, `FinalApproach = 5`, `Landing/TouchAndGo = 6`. A lead on an instrument approach (`InterceptCoursePhase`, `ApproachNavigationPhase`) or on final by geometry counts as 5; a go-around that re-enters the pattern and a same-runway closed-traffic takeoff climb count as 1; other non-pattern phases return null.
 
-**Sequence order.** `IsLeadAheadInSequence(follower, lead)` is the one "is the lead ahead" answer for a same-runway pair: remaining path to the threshold (`SequenceRemainingPathNm`; an aircraft on an approach's fixes by the legs it still has to fly, one intercepting by straight-line distance, one on final by along-final distance), the lead counting as ahead when its path is shorter, or longer by at most `SequenceToleranceNm` (0.5 NM) when the two are on different legs and the follower is off final. Two aircraft on the same leg have no tolerance: they are ordered by plain position, on upwind, crosswind or downwind by progress along the leg (`SharedLegOrderNm`), since an aircraft extended past its turn point has more path left the farther out it flies. Distance, not time: a closer, slower lead is ahead (7110.65 §3-8-1, AIM §4-3-4.d).
+**Sequence order.** For a same-runway pair, "is the lead ahead" has one answer, used per tick and by the FOLLOW refusal (`IsLeadAheadAcrossLegs` for pairs on different legs):
+- Same leg: plain position, no tolerance — on upwind, crosswind or downwind progress along the leg, on the other legs remaining path to the threshold (`SharedLegOrderNm`), since an aircraft extended past its turn point has more path left the farther out it flies.
+- Different legs, follower on base, final, final by geometry or an instrument approach (leg 4 or 5): remaining path to the threshold (`SequenceRemainingPathNm`; an aircraft on an approach's fixes by the legs it still has to fly, one intercepting by straight-line distance, one on final by along-final distance), the lead ahead when its path is no longer than the follower's. Base, final and the approach converge on one final, so an extension cannot flip this order; a 6 NM straight-in follows a Cessna on close base, and a close base is not ahead of a 10 NM final. A lead on a pattern entry stays behind a base or final follower.
+- Different legs otherwise: leg order, the later leg ahead however far it is extended. Remaining path across the outbound legs was tried and rejected: an extension adds path, so the order flipped the moment the lead turned onto its next leg.
+Distance, not time: a closer, slower lead is ahead (7110.65 §3-8-1, AIM §4-3-4.d).
 
-`IsLeadPatternFlowAhead` (lead strictly later leg — **plus the same-leg case where the lead is holding the leg out**) and `IsLeadPatternFlowBehind` (lead earlier leg, or on the same leg and behind in sequence order) use this index, gated on both aircraft being on the **same runway**:
+`IsLeadPatternFlowAhead` (lead strictly later leg — **plus the same-leg case where the lead is holding the leg out**) and `IsLeadPatternFlowBehind` (the lead behind in the sequence order above) use this index, gated on both aircraft being on the **same runway**:
 
 - **`IsLeadPatternFlowBehind`** ⇒ the spacing helper returns the baseline (don't slow down for a lead that hasn't
   reached the follower's leg yet — pulling the follower to Vref produces multi-minute downwind extensions).
@@ -930,7 +934,12 @@ and a lead on final with the follower already positioned in the **final-approach
 final in between). There the direct in-trail join is the right shape — a full circuit would loop an aircraft that is
 effectively number two on the approach. The corridor test is **position-only**: the instantaneous track is unreliable
 (the follower may be mid-turn when the FOLLOW arrives). Same-runway pattern-leg FOLLOW keeps the cheap in-place
-retarget, as before.
+retarget once the sequence refusal below has passed.
+
+**Sequence refusals** (`RouteFollow`: `DepartingLeadRefusal`, then the runwayless and cross-runway refusals, then `FollowSequenceRefusal`). A refusal changes nothing: phase list, landing clearance, `FollowingCallsign` and an extended downwind are all kept.
+- A departing lead (airborne in takeoff, initial climb or a departure procedure, not a closed-traffic climb) is refused from any follower: "Unable, {T} is departing, request vectors". FOLLOW is arrival sequencing (7110.65 §3-8-1, §7-6-7.a).
+- A follower on upwind, crosswind, downwind, base, final or an instrument approach refuses a same-runway lead that is behind in the sequence order above, or that has no sequence leg (a missed approach, a hold): "Unable, on {upwind|crosswind|downwind|base|final|approach} for runway {rwy}, {T} is not ahead of us, request vectors" (AIM §5-5-12.a.2). The approach refusal is checked before the approach is torn down.
+- A lead still on a pattern entry is accepted from upwind, crosswind or downwind (it may join downwind ahead, and controllers issue exactly this) and refused from base, final or an approach, where getting behind a 45° entrant would take a 360 (AIM §4-3-5). A follower on a pattern entry is never refused.
 
 **...but not from base or final.** The re-sequence is refused when the follower is already on `BasePhase` or `FinalApproachPhase` ("Unable, on {base|final} for runway {rwy}, request vectors to follow {T}"). From there the follower is low and close in, and swinging it onto a closely-spaced parallel would fly a low crossing of its original runway's final approach course (AIM §4-3-3 FIG 4-3-3 note 7 — do not penetrate the parallel's final; §4-3-5 — no unexpected pattern maneuvers). The controller re-sequences explicitly (`ELB`/`ERB`), vectors, or sends it around. Re-sequencing from upwind / crosswind / downwind / pattern-entry is allowed.
 

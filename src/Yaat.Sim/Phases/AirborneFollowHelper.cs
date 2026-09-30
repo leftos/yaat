@@ -317,6 +317,9 @@ public static class AirborneFollowHelper
         }
     }
 
+    /// <summary>Leg index of a pattern entry (<see cref="PatternEntryPhase"/>, a midfield crossing, a teardrop) in <see cref="PatternLegIndex"/>.</summary>
+    internal const int EntryLegIndex = 0;
+
     /// <summary>Leg index of the upwind in <see cref="PatternLegIndex"/>.</summary>
     private const int UpwindLegIndex = 1;
 
@@ -326,20 +329,14 @@ public static class AirborneFollowHelper
     /// <summary>Leg index of the downwind in <see cref="PatternLegIndex"/>.</summary>
     private const int DownwindLegIndex = 3;
 
+    /// <summary>Leg index of the base in <see cref="PatternLegIndex"/>.</summary>
+    private const int BaseLegIndex = 4;
+
     /// <summary>Leg index of the final in <see cref="PatternLegIndex"/>.</summary>
     private const int FinalLegIndex = 5;
 
     /// <summary>Leg index of the terminal (landing, touch-and-go, stop-and-go, low approach) in <see cref="PatternLegIndex"/>.</summary>
     private const int TerminalLegIndex = 6;
-
-    /// <summary>
-    /// How much longer (nm) a lead's remaining path to the threshold may be than the follower's, while the follower is not yet
-    /// on final, for the lead to still count as ahead in sequence (<see cref="IsLeadAheadInSequence"/>). About 20 s at 90 kt,
-    /// which shallow S-turns or a slower speed absorb (AIM §4-3-5); it also covers two aircraft abeam on opposite legs. A
-    /// judgement figure from the aviation review of the FOLLOW sequence rules, not a published one. It applies only between
-    /// different legs: on a shared leg, or with the follower on final, position alone orders the pair (AIM §4-3-4.d).
-    /// </summary>
-    public const double SequenceToleranceNm = 0.5;
 
     /// <summary>
     /// Position of an aircraft within a single VFR pattern circuit, expressed as
@@ -348,19 +345,19 @@ public static class AirborneFollowHelper
     /// pattern leg but still in the landing sequence gets the leg it stands in for
     /// (<see cref="SequenceLegIndex"/>); anything else returns null.
     /// </summary>
-    private static int? PatternLegIndex(AircraftState aircraft) =>
+    internal static int? PatternLegIndex(AircraftState aircraft) =>
         aircraft.Phases?.CurrentPhase switch
         {
             // Wrong-side crossing/teardrop entries are pattern feeders like PatternEntryPhase:
             // a lead still on one of them is a leg BEHIND any follower already on a numbered
             // leg, and returning null here would suppress the flow-behind guard — the follower
             // would slow toward Vref chasing traffic that has not even joined the pattern yet.
-            PatternEntryPhase or MidfieldCrossingPhase or TeardropReentryPhase => 0,
-            UpwindPhase => 1,
-            CrosswindPhase => 2,
-            DownwindPhase => 3,
-            BasePhase => 4,
-            FinalApproachPhase => 5,
+            PatternEntryPhase or MidfieldCrossingPhase or TeardropReentryPhase => EntryLegIndex,
+            UpwindPhase => UpwindLegIndex,
+            CrosswindPhase => CrosswindLegIndex,
+            DownwindPhase => DownwindLegIndex,
+            BasePhase => BaseLegIndex,
+            FinalApproachPhase => FinalLegIndex,
             // Every terminal a pattern circuit can end on. A helicopter's circuit ends on
             // HelicopterLandingPhase, and a stop-and-go or low-approach clearance swaps the terminal
             // via ReplaceApproachEnding — all four sit in the slot LandingPhase occupies, and all four
@@ -399,7 +396,7 @@ public static class AirborneFollowHelper
     /// circuit's upwind. A cross-runway closed-traffic climb (<see cref="PhaseList.DepartureRunway"/> set) is not on the pattern
     /// runway's upwind, so it is left out.
     /// </summary>
-    private static bool IsClosedTrafficClimb(AircraftState aircraft) =>
+    internal static bool IsClosedTrafficClimb(AircraftState aircraft) =>
         !aircraft.IsOnGround && (aircraft.Phases is { CurrentPhase: TakeoffPhase { Departure: ClosedTrafficDeparture }, DepartureRunway: null });
 
     /// <summary>
@@ -412,9 +409,10 @@ public static class AirborneFollowHelper
     /// downwind extensions (audit observation: N172SP held Downwind for 160 s
     /// at 62 KIAS while N428KK was on PatternEntry feeder 0.67 nm away).
     /// Once the lead catches up to the same or later leg, the check returns
-    /// false and normal spacing resumes.
+    /// false and normal spacing resumes. Across different legs the order is
+    /// <see cref="IsLeadAheadAcrossLegs"/>. The command-time FOLLOW refusal uses the same test.
     /// </summary>
-    private static bool IsLeadPatternFlowBehind(AircraftState follower, AircraftState lead)
+    internal static bool IsLeadPatternFlowBehind(AircraftState follower, AircraftState lead)
     {
         if (
             (follower.Phases?.AssignedRunway is not { } runway)
@@ -428,10 +426,6 @@ public static class AirborneFollowHelper
         {
             return false;
         }
-        if (followerLeg > leadLeg)
-        {
-            return true;
-        }
         // Same leg: ordered by SharedLegOrderNm (progress along an outbound leg, remaining path
         // to the threshold on the others). Time on the leg is no measure: a straight-in joins the
         // final closer in than a pattern aircraft already on it, and an S-turn restarts the
@@ -441,8 +435,21 @@ public static class AirborneFollowHelper
             PatternWaypoints? wp = SequenceWaypoints(follower) ?? SequenceWaypoints(lead);
             return SharedLegOrderNm(follower, followerLeg, runway, wp) < SharedLegOrderNm(lead, followerLeg, runway, wp);
         }
-        return false;
+        return !IsLeadAheadAcrossLegs(follower, lead, followerLeg, leadLeg, runway);
     }
+
+    /// <summary>
+    /// Sequence order of a same-runway pair on different legs, true when <paramref name="lead"/> is ahead. A follower on base
+    /// or final (an instrument approach and final by geometry included) is ordered by remaining path to the threshold
+    /// (<see cref="IsLeadNoFartherFromThreshold"/>): base, final and approach converge on one final, so an extension cannot
+    /// flip the order there, while leg order would put a 6 nm straight-in behind a close base and a close base behind a 10 nm
+    /// final. Against a lead still on a pattern entry, and for a follower on any other leg, the later leg is ahead: an
+    /// outbound leg's extension adds path, so a path order would flip the moment the lead turned onto its next leg.
+    /// </summary>
+    private static bool IsLeadAheadAcrossLegs(AircraftState follower, AircraftState lead, int followerLeg, int leadLeg, RunwayInfo runway) =>
+        ((followerLeg is BaseLegIndex or FinalLegIndex) && (leadLeg != EntryLegIndex))
+            ? IsLeadNoFartherFromThreshold(follower, lead, runway)
+            : (leadLeg > followerLeg);
 
     /// <summary>
     /// Order key (nm) of <paramref name="ac"/> on pattern leg <paramref name="leg"/> it shares with another aircraft, smaller
@@ -475,45 +482,15 @@ public static class AirborneFollowHelper
     }
 
     /// <summary>
-    /// True when <paramref name="lead"/> will reach the threshold of the runway <paramref name="follower"/> lands on before it:
-    /// both land the same runway and the lead has less remaining path to the threshold (<see cref="SequenceRemainingPathNm"/>),
-    /// or, when both fly the same leg, is ahead of it on that leg (<see cref="SharedLegOrderNm"/>). Distance, not time: a
-    /// closer, slower lead is still ahead (7110.65 §3-8-1; AIM §4-3-4.d). On different legs, with the follower not yet on
-    /// final, the lead may be up to <see cref="SequenceToleranceNm"/> farther out; on a shared leg, or with the follower on
-    /// final, position alone decides. False when the runways differ, either has none, or the lead's path cannot be measured
-    /// (a missed approach, a departure leaving the pattern, a hold). Depends only on the two aircraft's present state.
+    /// True when <paramref name="lead"/>'s remaining path to <paramref name="runway"/>'s threshold
+    /// (<see cref="SequenceRemainingPathNm"/>, each aircraft on its own pattern geometry) is no longer than
+    /// <paramref name="follower"/>'s, with no tolerance. False when the lead's path cannot be measured (no leg in the sequence).
     /// </summary>
-    public static bool IsLeadAheadInSequence(AircraftState follower, AircraftState lead)
+    private static bool IsLeadNoFartherFromThreshold(AircraftState follower, AircraftState lead, RunwayInfo runway)
     {
-        if (
-            (follower.Phases?.AssignedRunway is not { } runway)
-            || (lead.Phases?.AssignedRunway is not { } leadRunway)
-            || !IsSameRunway(runway, leadRunway)
-        )
-        {
-            return false;
-        }
-
-        PatternWaypoints? wp = SequenceWaypoints(follower) ?? SequenceWaypoints(lead);
-        int? followerLeg = PatternLegIndex(follower);
-        int? sharedLeg = ((followerLeg is { } leg) && (leg == PatternLegIndex(lead))) ? leg : null;
-        double leadNm = SequenceOrderNm(lead, sharedLeg, runway, wp);
-        if (double.IsPositiveInfinity(leadNm))
-        {
-            return false;
-        }
-
-        double followerNm = SequenceOrderNm(follower, sharedLeg, runway, wp);
-        bool byPositionOnly = (sharedLeg is not null) || IsOnFinalForSequence(follower, followerLeg, runway);
-        return byPositionOnly ? (leadNm < followerNm) : (leadNm <= followerNm + SequenceToleranceNm);
+        double leadNm = SequenceRemainingPathNm(lead, runway, SequenceWaypoints(lead));
+        return !double.IsPositiveInfinity(leadNm) && (leadNm <= SequenceRemainingPathNm(follower, runway, SequenceWaypoints(follower)));
     }
-
-    /// <summary>
-    /// The sequence key (nm, smaller meaning ahead) of <paramref name="ac"/>: <see cref="SharedLegOrderNm"/> on a leg it shares
-    /// with the other aircraft, else <see cref="SequenceRemainingPathNm"/>.
-    /// </summary>
-    private static double SequenceOrderNm(AircraftState ac, int? sharedLeg, RunwayInfo runway, PatternWaypoints? wp) =>
-        sharedLeg is { } leg ? SharedLegOrderNm(ac, leg, runway, wp) : SequenceRemainingPathNm(ac, runway, wp);
 
     /// <summary>
     /// Remaining path (nm) from <paramref name="ac"/> to <paramref name="runway"/>'s threshold, the sequence coordinate: its
@@ -523,7 +500,7 @@ public static class AirborneFollowHelper
     /// <paramref name="wp"/>. <see cref="double.PositiveInfinity"/> when it has no leg in the sequence, or flies a pattern leg
     /// with no geometry to measure it on.
     /// </summary>
-    internal static double SequenceRemainingPathNm(AircraftState ac, RunwayInfo runway, PatternWaypoints? wp)
+    private static double SequenceRemainingPathNm(AircraftState ac, RunwayInfo runway, PatternWaypoints? wp)
     {
         int? leg = PatternLegIndex(ac);
         if (IsOnFinalForSequence(ac, leg, runway))
@@ -641,37 +618,34 @@ public static class AirborneFollowHelper
 
     /// <summary>
     /// True when both aircraft are flying patterns to the same runway and the
-    /// lead is on a LATER pattern leg than the follower — geographic gap growth
+    /// lead is ahead on a different leg (<see cref="IsLeadAheadAcrossLegs"/>: a LATER
+    /// pattern leg than the follower, or for a follower on base or final less path
+    /// to the threshold) — geographic gap growth
     /// during the follower's current leg is expected (e.g. follower on Downwind
     /// heading east, lead on Final heading west — they're on parallel-offset
     /// tracks pointing opposite directions, so the gap can only grow until the
-    /// follower turns base). The runaway-distance watchdog should not fire here:
-    /// pattern flow guarantees the gap will close again once the follower
-    /// transitions toward the lead's leg.
+    /// follower turns base). The follower still has a lateral option here (extend
+    /// its leg, hold its base turn), so the "unable to maintain separation" cancel
+    /// at minimum speed in <see cref="ComputeAdjustedSpeedWithDesired"/> is
+    /// suppressed: the follower holds minimum speed and extends instead.
     ///
     /// <para>
     /// One same-leg case also counts as flow-ahead: a lead <em>holding out</em> on the
     /// shared leg (<see cref="IsLeadHoldingSharedLeg"/>) has deferred its progression, so it
     /// stays ahead in the landing sequence even though it shares the follower's leg index.
     /// Treating it as flow-ahead lets a downwind follower hold its base turn to sequence
-    /// behind it and keeps the runaway watchdog suppressed while both run outbound.
+    /// behind it and keeps the minimum-speed cancel suppressed while both run outbound.
     /// </para>
     /// </summary>
     internal static bool IsLeadPatternFlowAhead(AircraftState follower, AircraftState lead)
     {
-        string? followerRwy = follower.Phases?.AssignedRunway?.Designator;
+        RunwayInfo? runway = follower.Phases?.AssignedRunway;
         string? leadRwy = lead.Phases?.AssignedRunway?.Designator;
-        if (followerRwy is null || leadRwy is null)
+        if ((runway is null) || (leadRwy is null) || !string.Equals(runway.Designator, leadRwy, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
-        if (!string.Equals(followerRwy, leadRwy, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-        int? followerLeg = PatternLegIndex(follower);
-        int? leadLeg = PatternLegIndex(lead);
-        if (followerLeg is null || leadLeg is null)
+        if ((PatternLegIndex(follower) is not { } followerLeg) || (PatternLegIndex(lead) is not { } leadLeg))
         {
             return false;
         }
@@ -679,21 +653,18 @@ public static class AirborneFollowHelper
         // progression, so it stays ahead in the landing sequence despite sharing the
         // follower's leg index. Without this a same-leg follower turns base at its fixed point
         // and rolls out ahead of the aircraft it was told to follow (AIM 4-3-5 broken
-        // sequence), and the runaway watchdog spuriously cancels the follow as the lead runs
-        // outbound. "Holding out" is any deferral (see IsLeadHoldingSharedLeg) — a controller
+        // sequence), and the minimum-speed cancel drops the follow as the pair closes. "Holding out" is any deferral (see IsLeadHoldingSharedLeg) — a controller
         // EXT, the lead's own follow-hold behind other traffic, or a proximity hold — not just
         // the IsExtended flag, which is cleared the moment the lead is itself told to follow.
-        if ((leadLeg == followerLeg) && IsLeadHoldingSharedLeg(lead))
+        // Generic same-leg cases are intentionally NOT flow-ahead: when both aircraft are on
+        // parallel tracks heading the same way and the lead is not holding out, the follower has
+        // no lateral option: a follower too close at minimum speed is cancelled.
+        if (leadLeg == followerLeg)
         {
-            return true;
+            return IsLeadHoldingSharedLeg(lead);
         }
 
-        // Otherwise strict leg-ahead only. Generic same-leg cases are intentionally
-        // NOT short-circuited: when both aircraft are on parallel tracks heading the
-        // same way and the lead is not holding out, gap growth is no longer
-        // "expected pattern geometry" — it means the lead is genuinely outpacing the
-        // follower, which is what the watchdog exists to catch.
-        return leadLeg > followerLeg;
+        return IsLeadAheadAcrossLegs(follower, lead, followerLeg, leadLeg, runway);
     }
 
     /// <summary>
@@ -1107,7 +1078,8 @@ public static class AirborneFollowHelper
 
     /// <summary>
     /// The followed aircraft when it is pattern-flow-ahead of <paramref name="ctx"/>'s aircraft
-    /// (same runway, strictly later leg or holding out on the shared leg); null when there is no
+    /// (<see cref="IsLeadPatternFlowAhead"/>: same runway, ahead on a different leg by
+    /// <see cref="IsLeadAheadAcrossLegs"/>, or holding out on the shared leg); null when there is no
     /// follow, the lead is gone, or it trails in pattern flow — those are the speed / proximity
     /// paths' business, not the base-turn hold's.
     /// </summary>

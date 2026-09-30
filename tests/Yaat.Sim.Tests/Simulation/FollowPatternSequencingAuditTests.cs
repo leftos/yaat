@@ -1133,8 +1133,6 @@ public class FollowPatternSequencingAuditTests
         Assert.Empty(follower.PendingWarnings);
     }
 
-    // ─── IsLeadAheadInSequence: remaining path to the threshold, 0.5 nm tolerance before final ───
-
     private static AircraftState InSequence(string callsign, Phase phase, LatLon pos, TrueHeading heading, RunwayInfo rwy, double ias)
     {
         AircraftState ac = MakeVfr(callsign, pos, heading, altitude: 1000, ias);
@@ -1143,255 +1141,39 @@ public class FollowPatternSequencingAuditTests
         return ac;
     }
 
-    /// <summary>A point on the downwind line <paramref name="alongNm"/> past abeam the threshold.</summary>
-    private static LatLon DownwindPoint(PatternWaypoints wp, double alongNm) =>
-        GeoMath.ProjectPoint(new LatLon(wp.DownwindAbeamLat, wp.DownwindAbeamLon), wp.DownwindHeading, alongNm);
+    // ─── Base and final followers ordered by remaining path to the threshold (per tick) ───
 
-    private static AircraftState DownwindAircraft(string callsign, PatternWaypoints wp, double alongNm, RunwayInfo rwy) =>
-        InSequence(callsign, new DownwindPhase { Waypoints = wp }, DownwindPoint(wp, alongNm), wp.DownwindHeading, rwy, ias: 90);
-
-    private static AircraftState BaseAircraft(string callsign, PatternWaypoints wp, RunwayInfo rwy)
+    private static AircraftState OnCloseBase(string callsign, PatternWaypoints wp, RunwayInfo rwy)
     {
         LatLon midBase = GeoMath.ProjectPoint(new LatLon(wp.BaseTurnLat, wp.BaseTurnLon), wp.CrosswindHeading.ToReciprocal(), 0.3);
         return InSequence(callsign, new BasePhase { Waypoints = wp }, midBase, wp.CrosswindHeading.ToReciprocal(), rwy, ias: 80);
     }
 
-    private static AircraftState FinalAircraft(string callsign, RunwayInfo rwy, double alongNm, double ias) =>
-        InSequence(callsign, new FinalApproachPhase(), OnCenterline(rwy, alongNm), rwy.TrueHeading, rwy, ias);
+    private static AircraftState OnFinal(string callsign, RunwayInfo rwy, double alongNm) =>
+        InSequence(callsign, new FinalApproachPhase(), OnCenterline(rwy, alongNm), rwy.TrueHeading, rwy, ias: 70);
 
+    /// <summary>A lead on a close base has far less path left than a 6 nm straight-in follower: flow-ahead, not flow-behind.</summary>
     [Fact]
-    public void IsLeadAheadInSequence_DownwindFollowerBaseLead_IsAhead()
+    public void FinalFollower_LeadOnCloseBase_IsFlowAhead()
     {
         RunwayInfo rwy = Oak28R();
-        PatternWaypoints wp = PistonWaypoints(rwy, PatternDirection.Right);
+        AircraftState follower = OnFinal(FollowerCallsign, rwy, 6.0);
+        AircraftState lead = OnCloseBase(LeadCallsign, PistonWaypoints(rwy, PatternDirection.Right), rwy);
 
-        Assert.True(
-            AirborneFollowHelper.IsLeadAheadInSequence(DownwindAircraft(FollowerCallsign, wp, 0.0, rwy), BaseAircraft(LeadCallsign, wp, rwy))
-        );
+        Assert.True(AirborneFollowHelper.IsLeadPatternFlowAhead(follower, lead));
+        Assert.False(AirborneFollowHelper.IsLeadPatternFlowBehind(follower, lead));
     }
 
+    /// <summary>A lead 10 nm out on final has more path left than a follower on a close base: flow-behind, not flow-ahead.</summary>
     [Fact]
-    public void IsLeadAheadInSequence_BaseFollowerDownwindLead_IsBehind()
+    public void BaseFollower_LeadOnLongFinal_IsFlowBehind()
     {
         RunwayInfo rwy = Oak28R();
-        PatternWaypoints wp = PistonWaypoints(rwy, PatternDirection.Right);
+        AircraftState follower = OnCloseBase(FollowerCallsign, PistonWaypoints(rwy, PatternDirection.Right), rwy);
+        AircraftState lead = OnFinal(LeadCallsign, rwy, 10.0);
 
-        Assert.False(
-            AirborneFollowHelper.IsLeadAheadInSequence(BaseAircraft(FollowerCallsign, wp, rwy), DownwindAircraft(LeadCallsign, wp, 0.0, rwy))
-        );
-    }
-
-    /// <summary>
-    /// Downwind follower and a lead on the reciprocal final whose remaining path is <paramref name="longerByNm"/> longer: ahead
-    /// within <see cref="AirborneFollowHelper.SequenceToleranceNm"/>, behind beyond it.
-    /// </summary>
-    [Theory]
-    [InlineData(0.4, true)]
-    [InlineData(0.6, false)]
-    public void IsLeadAheadInSequence_OppositeLegLeadLongerPath_AheadOnlyWithinTolerance(double longerByNm, bool expectedAhead)
-    {
-        RunwayInfo rwy = Oak28R();
-        PatternWaypoints wp = PistonWaypoints(rwy, PatternDirection.Right);
-        AircraftState follower = DownwindAircraft(FollowerCallsign, wp, 2.0, rwy);
-        double followerPathNm = AirborneFollowHelper.RemainingPatternPathNm(follower, wp);
-        AircraftState lead = FinalAircraft(LeadCallsign, rwy, followerPathNm + longerByNm, ias: 70);
-
-        Assert.Equal(expectedAhead, AirborneFollowHelper.IsLeadAheadInSequence(follower, lead));
-    }
-
-    /// <summary>Both on final: along-final distance alone, no tolerance — a lead 0.1 nm farther out is behind.</summary>
-    [Fact]
-    public void IsLeadAheadInSequence_BothOnFinalLeadSlightlyFarther_IsBehind()
-    {
-        RunwayInfo rwy = Oak28R();
-
-        Assert.False(
-            AirborneFollowHelper.IsLeadAheadInSequence(
-                FinalAircraft(FollowerCallsign, rwy, 2.0, ias: 70),
-                FinalAircraft(LeadCallsign, rwy, 2.1, ias: 70)
-            )
-        );
-    }
-
-    /// <summary>A lead flying an instrument approach 4 nm out is ahead of a follower extended on the downwind abeam it.</summary>
-    [Fact]
-    public void IsLeadAheadInSequence_IlsLeadAbeamExtendedDownwindFollower_IsAhead()
-    {
-        RunwayInfo rwy = Oak28R();
-        PatternWaypoints wp = PistonWaypoints(rwy, PatternDirection.Right);
-        LatLon fix = OnCenterline(rwy, 1.5);
-        var approach = new ApproachNavigationPhase { Fixes = [new ApproachFix("FIX", fix.Lat, fix.Lon)] };
-        AircraftState lead = InSequence(LeadCallsign, approach, OnCenterline(rwy, 4.0), rwy.TrueHeading, rwy, ias: 75);
-
-        Assert.True(AirborneFollowHelper.IsLeadAheadInSequence(DownwindAircraft(FollowerCallsign, wp, 4.0, rwy), lead));
-    }
-
-    /// <summary>A lead going around to re-enter the pattern counts as upwind: behind a downwind follower.</summary>
-    [Fact]
-    public void IsLeadAheadInSequence_ReenteringGoAroundLeadDownwindFollower_IsBehind()
-    {
-        RunwayInfo rwy = Oak28R();
-        PatternWaypoints wp = PistonWaypoints(rwy, PatternDirection.Right);
-        var goAround = new GoAroundPhase { ReenterPattern = true };
-        AircraftState lead = InSequence(LeadCallsign, goAround, OnCenterline(rwy, -0.3), rwy.TrueHeading, rwy, ias: 75);
-
-        Assert.False(AirborneFollowHelper.IsLeadAheadInSequence(DownwindAircraft(FollowerCallsign, wp, 0.0, rwy), lead));
-    }
-
-    /// <summary>
-    /// On a shared leg the order is plain position, with no tolerance: a lead 0.4 nm behind the follower on the same downwind
-    /// is behind (AIM §4-3-4.d, 7110.65 §3-8-1), and one 0.4 nm ahead is ahead.
-    /// </summary>
-    [Theory]
-    [InlineData(0.6, false)]
-    [InlineData(1.4, true)]
-    public void IsLeadAheadInSequence_SameDownwind_OrderedByPositionWithoutTolerance(double leadAlongNm, bool expectedAhead)
-    {
-        RunwayInfo rwy = Oak28R();
-        PatternWaypoints wp = PistonWaypoints(rwy, PatternDirection.Right);
-
-        bool ahead = AirborneFollowHelper.IsLeadAheadInSequence(
-            DownwindAircraft(FollowerCallsign, wp, 1.0, rwy),
-            DownwindAircraft(LeadCallsign, wp, leadAlongNm, rwy)
-        );
-
-        Assert.Equal(expectedAhead, ahead);
-    }
-
-    /// <summary>On a shared crosswind the aircraft farther out from the runway is ahead.</summary>
-    [Theory]
-    [InlineData(0.3, 0.6, true)]
-    [InlineData(0.6, 0.3, false)]
-    public void IsLeadAheadInSequence_SameCrosswind_FartherOutIsAhead(double followerOutNm, double leadOutNm, bool expectedAhead)
-    {
-        RunwayInfo rwy = Oak28R();
-        PatternWaypoints wp = PistonWaypoints(rwy, PatternDirection.Right);
-        var der = new LatLon(wp.CrosswindTurnLat, wp.CrosswindTurnLon);
-        AircraftState CrosswindAt(string callsign, double outNm) =>
-            InSequence(
-                callsign,
-                new CrosswindPhase { Waypoints = wp },
-                GeoMath.ProjectPoint(der, wp.CrosswindHeading, outNm),
-                wp.CrosswindHeading,
-                rwy,
-                ias: 80
-            );
-
-        Assert.Equal(
-            expectedAhead,
-            AirborneFollowHelper.IsLeadAheadInSequence(CrosswindAt(FollowerCallsign, followerOutNm), CrosswindAt(LeadCallsign, leadOutNm))
-        );
-    }
-
-    /// <summary>
-    /// A closed-traffic takeoff climb counts as upwind: farther out on the upwind than an upwind follower, it is ahead (with no
-    /// leg it would be unmeasurable and never ahead).
-    /// </summary>
-    [Fact]
-    public void IsLeadAheadInSequence_ClosedTrafficClimbLeadAheadOnUpwind_IsAhead()
-    {
-        RunwayInfo rwy = Oak28R();
-        PatternWaypoints wp = PistonWaypoints(rwy, PatternDirection.Right);
-        var der = new LatLon(wp.CrosswindTurnLat, wp.CrosswindTurnLon);
-        AircraftState follower = InSequence(
-            FollowerCallsign,
-            new UpwindPhase { Waypoints = wp },
-            GeoMath.ProjectPoint(der, wp.UpwindHeading.ToReciprocal(), 0.5),
-            wp.UpwindHeading,
-            rwy,
-            ias: 80
-        );
-        var takeoff = new TakeoffPhase();
-        takeoff.SetAssignedDeparture(new ClosedTrafficDeparture(PatternDirection.Right, null, null));
-        AircraftState lead = InSequence(LeadCallsign, takeoff, GeoMath.ProjectPoint(der, wp.UpwindHeading, 0.3), wp.UpwindHeading, rwy, ias: 80);
-
-        Assert.True(AirborneFollowHelper.IsLeadAheadInSequence(follower, lead));
-    }
-
-    /// <summary>
-    /// A lead flying an instrument approach's fix sequence is measured by the path it still has to fly: at an initial fix abeam
-    /// the field, 3 nm from the threshold in a straight line but about 12.7 nm from it through the fixes, it is behind a
-    /// follower on the downwind abeam the threshold.
-    /// </summary>
-    [Fact]
-    public void IsLeadAheadInSequence_ApproachLeadAtInitialFixAbeamTheField_IsBehindDownwindFollower()
-    {
-        RunwayInfo rwy = Oak28R();
-        PatternWaypoints wp = PistonWaypoints(rwy, PatternDirection.Right);
-        LatLon intermediate = OnCenterline(rwy, 6.0);
-        LatLon finalFix = OnCenterline(rwy, 4.0);
-        LatLon initialFix = GeoMath.ProjectPoint(OnCenterline(rwy, 0.0), rwy.TrueHeading - 90.0, 3.0);
-        var approach = new ApproachNavigationPhase
-        {
-            Fixes = [new ApproachFix("IF", intermediate.Lat, intermediate.Lon), new ApproachFix("FAF", finalFix.Lat, finalFix.Lon)],
-        };
-        AircraftState lead = InSequence(
-            LeadCallsign,
-            approach,
-            initialFix,
-            new TrueHeading(GeoMath.BearingTo(initialFix, intermediate)),
-            rwy,
-            ias: 120
-        );
-
-        Assert.False(AirborneFollowHelper.IsLeadAheadInSequence(DownwindAircraft(FollowerCallsign, wp, 0.0, rwy), lead));
-    }
-
-    /// <summary>A lead closer to the threshold of a different runway (28L) is not in the follower's sequence.</summary>
-    [Fact]
-    public void IsLeadAheadInSequence_LeadOnDifferentRunway_IsFalse()
-    {
-        RunwayInfo rwy = Oak28R();
-        RunwayInfo parallel = TestVnasData.NavigationDb?.GetRunway("KOAK", "28L") ?? throw new InvalidOperationException("KOAK 28L missing");
-
-        Assert.False(
-            AirborneFollowHelper.IsLeadAheadInSequence(
-                FinalAircraft(FollowerCallsign, rwy, 3.0, ias: 70),
-                FinalAircraft(LeadCallsign, parallel, 1.0, ias: 70)
-            )
-        );
-    }
-
-    /// <summary>A lead with no assigned runway has no path to compare.</summary>
-    [Fact]
-    public void IsLeadAheadInSequence_LeadWithNoRunway_IsFalse()
-    {
-        RunwayInfo rwy = Oak28R();
-        AircraftState lead = MakeVfr(LeadCallsign, OnCenterline(rwy, 1.0), rwy.TrueHeading, altitude: 500, ias: 70);
-
-        Assert.False(AirborneFollowHelper.IsLeadAheadInSequence(FinalAircraft(FollowerCallsign, rwy, 3.0, ias: 70), lead));
-    }
-
-    /// <summary>A lead flying a missed approach (no pattern re-entry) has no leg and so no measurable path: never ahead.</summary>
-    [Fact]
-    public void IsLeadAheadInSequence_MissedApproachLead_IsUnmeasurableAndFalse()
-    {
-        RunwayInfo rwy = Oak28R();
-        PatternWaypoints wp = PistonWaypoints(rwy, PatternDirection.Right);
-        AircraftState lead = InSequence(
-            LeadCallsign,
-            new GoAroundPhase { ReenterPattern = false },
-            OnCenterline(rwy, -0.3),
-            rwy.TrueHeading,
-            rwy,
-            ias: 75
-        );
-
-        Assert.False(AirborneFollowHelper.IsLeadAheadInSequence(DownwindAircraft(FollowerCallsign, wp, 4.0, rwy), lead));
-    }
-
-    /// <summary>Distance, not time: a lead closer to the threshold is ahead however much slower it flies.</summary>
-    [Fact]
-    public void IsLeadAheadInSequence_CloserSlowerLead_IsAhead()
-    {
-        RunwayInfo rwy = Oak28R();
-
-        Assert.True(
-            AirborneFollowHelper.IsLeadAheadInSequence(
-                FinalAircraft(FollowerCallsign, rwy, 3.0, ias: 120),
-                FinalAircraft(LeadCallsign, rwy, 2.0, ias: 55)
-            )
-        );
+        Assert.True(AirborneFollowHelper.IsLeadPatternFlowBehind(follower, lead));
+        Assert.False(AirborneFollowHelper.IsLeadPatternFlowAhead(follower, lead));
     }
 
     private static CommandResult DispatchTower(string command, AircraftState ac, Func<string, AircraftState?> lookup)
