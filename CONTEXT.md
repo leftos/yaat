@@ -308,10 +308,10 @@ The gate's last-resort kill at five times the ceiling in wall time (`gate: BACKS
 A place machine-wide a gate must hold to run, of the kind its `-Slot` names, from one of two pools that never wait on each other: heavy slots and light slots. A gate that finds every slot of its kind held logs `gate: waiting for a heavy slot` (or `... light slot`) and waits; a gate inside another gate takes none and uses its parent's.
 
 **Heavy slot**:
-One of the `(logical processors - 1) / 4` slots (`GATE_HEAVY_SLOTS` overrides the count) for a gate whose command keeps many threads busy: a build, a `dotnet test` or `dotnet run` that builds first, `test-all.ps1`. Every yaat gate call is heavy.
+One of the `(logical processors - 1) / 4` slots (`heavy` in `%LOCALAPPDATA%\gate\slot-counts.json` overrides the count, live) for a gate whose command keeps many threads busy: a build, a `dotnet test` or `dotnet run` that builds first, `test-all.ps1`. Every yaat gate call is heavy.
 
 **Light slot**:
-One of the `(logical processors - 1) / 2` slots (`GATE_LIGHT_SLOTS` overrides the count) for a gate whose command keeps one or two threads busy: a `dotnet test --no-build` filtered to one class, a small script.
+One of the `(logical processors - 1) / 2` slots (`light` in `%LOCALAPPDATA%\gate\slot-counts.json` overrides the count, live) for a gate whose command keeps one or two threads busy: a `dotnet test --no-build` filtered to one class, a small script.
 
 **Feature marker**:
 `branch: feat/<name>` on a `docs/plans/MAIN.md` line; every item under that line lands on the `feat/<name>` branch (in yaat and yaat-server) instead of `main` (user-level `nextup`, §3 "Feature branches").
