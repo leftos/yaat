@@ -139,8 +139,7 @@ load-time triage at `ScenarioLoader.cs:71`:
 
 - **Deferred** (`DeferralReason is not null`) — the spawn *could not be positioned* (missing/unknown runway, missing ground data,
   parking spot not found). The aircraft still gets a `CreateBaseState` (so it shows in lists) but no position/phase; it is built
-  by `BuildDeferredAircraft` (`:550`). The server never auto-spawns these — they sit in `ScenarioLoadResult.DeferredAircraft`
-  as broadcast-only entries (`ScenarioLifecycleService.cs:240`).
+  by `BuildDeferredAircraft` (`:550`). The server never auto-spawns these — they sit in `ScenarioLoadResult.DeferredAircraft` as broadcast-only entries (`ScenarioLifecycleService.BuildLoadedAircraftDtos`).
 - **Delayed** (`SpawnDelaySeconds > 0`) — positioned correctly but held in `DelayedQueue` until its delay elapses.
 - **Immediate** (everything else) — added to the world and its presets dispatched at load.
 
@@ -156,14 +155,11 @@ entry, so `ResolveStripBayAssignments` joins ULID → callsign at load. Both loa
 (`SimulationEngine.AfterAircraftSpawned`) reads it to drop configured departures straight into their
 bay instead of the printer queue (see [`flight-strips.md`](flight-strips.md)).
 
-The server's `LoadScenarioAsync` (`ScenarioLifecycleService.cs:180`) iterates the three buckets: immediate aircraft are added
-to the world and `DispatchPresetCommands` runs synchronously; delayed aircraft are queued; deferred aircraft only have their
-`ScenarioId` stamped and are reported in the manifest. `SimulationEngine.LoadScenario`
-(`SimulationEngine.cs:378`) is the standalone (test/replay) equivalent.
+The server's `PopulateRoom` (`ScenarioLifecycleService.PlaceLoadedAircraft`, run by a load's commit and by every reload) iterates the three buckets: immediate aircraft are added to the world and `DispatchPresetCommands` runs synchronously; delayed aircraft are queued; deferred aircraft only have their `ScenarioId` stamped and are reported in the manifest. `SimulationEngine.LoadScenario` (`SimulationEngine.cs:378`) is the standalone (test/replay) equivalent.
 
 ### The resource manifest
 
-`ScenarioResourceManifest.FromJson(json)` (`src/Yaat.Sim/Scenarios/ScenarioResourceManifest.cs`) lists, without loading anything, what a scenario will fetch: `ArtccId`, the roster's `NeighbourArtccIds` (own ARTCC excluded), and the FAA-coded `AirportIds` the loader will ask `IAirportGroundData.GetLayout` for, primary airport first. It names the primary airport, each aircraft's `airportId`, departure and destination, the starting-condition airport chains (shared with the loader through `ScenarioLoader.LayoutAirportIds`, so the two cannot drift), a VFR arrival generator's `directTo` when it is an airport, and the airport a preset command carries once parsed with `CommandParser.ParseCompound` (`DEST`/`APT`, the approach clearances, join, straight-in, expect and visual approach, a military-route exit to an airport); a preset that fails to parse names nothing, so free text such as `SAY REQUEST VFR ON TOP` is never an airport. Unreadable JSON, including explicit `null` lists or fields, comes back as `ReadError` rather than an exception. `ScenarioResourceManifestTests.Corpus_LoaderAsksForNoAirportOutsideTheManifest` is the drift guard: it loads every scenario in `docs/atctrainer-scenario-examples/` and the test-data scenarios through a recording `IAirportGroundData` and fails on any airport the manifest did not name. The server's prefetch ([`plans/async-room-load.md`](plans/async-room-load.md)) reads it. `MapRequiredAirportIds` is the subset that needs a full ground map: the primary airport, and each aircraft's `Parking` airport or ground-spawn airport of a `Coordinates` / `FixOrFrd` start (`ScenarioLoader.MapRequiredAirportIds`, sharing `IsGroundSpawn` with the loader); an `OnRunway` or `OnFinal` start, flight-plan airports, presets and generators need none, so a missing map there is not a load warning.
+`ScenarioResourceManifest.FromJson(json)` (`src/Yaat.Sim/Scenarios/ScenarioResourceManifest.cs`) lists, without loading anything, what a scenario will fetch: `ArtccId`, the roster's `NeighbourArtccIds` (own ARTCC excluded), and the FAA-coded `AirportIds` the loader will ask `IAirportGroundData.GetLayout` for, primary airport first. It names the primary airport, each aircraft's `airportId`, departure and destination, the starting-condition airport chains (shared with the loader through `ScenarioLoader.LayoutAirportIds`, so the two cannot drift), a VFR arrival generator's `directTo` when it is an airport, and the airport a preset command carries once parsed with `CommandParser.ParseCompound` (`DEST`/`APT`, the approach clearances, join, straight-in, expect and visual approach, a military-route exit to an airport); a preset that fails to parse names nothing, so free text such as `SAY REQUEST VFR ON TOP` is never an airport. Unreadable JSON, including explicit `null` lists or fields, comes back as `ReadError` rather than an exception. `ScenarioResourceManifestTests.Corpus_LoaderAsksForNoAirportOutsideTheManifest` is the drift guard: it loads every scenario in `docs/atctrainer-scenario-examples/` and the test-data scenarios through a recording `IAirportGroundData` and fails on any airport the manifest did not name. The server's load prefetches what it names before the loader runs ([Server orchestration](#server-orchestration-and-the-rewind-reload-twin-path)), and a restore or recording load pins it. `MapRequiredAirportIds` is the subset that needs a full ground map: the primary airport, and each aircraft's `Parking` airport or ground-spawn airport of a `Coordinates` / `FixOrFrd` start (`ScenarioLoader.MapRequiredAirportIds`, sharing `IsGroundSpawn` with the loader); an `OnRunway` or `OnFinal` start, flight-plan airports, presets and generators need none, so a missing map there is not a load warning (see [Fetch outcomes and load warnings](#fetch-outcomes-and-load-warnings)). The manifest's `ArtccId` is the scenario's own, upper-cased like the loader's `ScenarioLoadResult.ArtccId`; `ArtccConfigService` treats ARTCC ids case-insensitively.
 
 ## The five spawn-condition types and phase-list seeding
 
@@ -680,28 +676,23 @@ Weather is not exported.
 
 ## Server orchestration and the rewind-reload twin path
 
-There are two server entry points that build a scenario, and they share one load core:
+There are two server entry points that build a scenario, and they share one load core: the private `LoadSeeded` (creates the engine over the pinned layouts, seeds all three world RNG streams — `Rng`, `ReactionDelayRng`, `ReleaseJitterRng` — like the standalone `SimulationEngine.LoadScenario`, runs `ScenarioLoader.Load`) and `PopulateRoom` (builds `SimScenarioState`, applies the room's session settings then the live load's pacing overrides, sets the ground layout, warms per-aircraft layouts, resolves track positions / coordination channels / strip bays / TDLS configs against the pinned ARTCC configs, spawns immediate aircraft (+ presets + auto-track), queues delayed aircraft, stamps deferred aircraft, queues triggers, initializes generators). `PopulateRoom` returns what the room could not set up (an ATC or student position that did not resolve, a skipped arrival generator); the live load reports those, a reload drops them.
 
-- **`LoadScenarioAsync`** (`ScenarioLifecycleService.cs`) — the live load: draws a fresh `rngSeed`, reads the session start
-  from the room's `TimeProvider` clock and calls **`LoadScenarioSeededAsync`**, the same load with an explicit `(rngSeed, sessionStartUtc)`
-  that the headless soak host uses (with the process day) so a run reproduces from scenario + seed + session start. Both go through the private `LoadSeeded` (creates the engine,
-  seeds all three world RNG streams — `Rng`, `ReactionDelayRng`, `ReleaseJitterRng` — like the standalone
-  `SimulationEngine.LoadScenario`, runs `ScenarioLoader.Load`) and `PopulateRoom` (builds `SimScenarioState`, applies the room's
-  session settings then the live load's pacing overrides, sets the ground layout, warms per-aircraft layouts, resolves track
-  positions / coordination channels / strip bays / TDLS configs, spawns immediate aircraft (+ presets + auto-track), queues delayed
-  aircraft, stamps deferred aircraft, queues triggers, initializes generators). The live wrapper then adds what a rewind must not
-  do: the CRC open-positions/consolidation broadcasts, the load-time pacing record, and the DTO build. The ARTCC-tab path does
-  **not** call this directly — instead
-  the client first calls the `GetScenarioJsonById` query, which routes to `ResolveGatedJsonAsync` (`:51`): that pulls the
-  **canonical** JSON from the server catalog (not the client payload), applies the rating gate against the canonical
-  MinimumRating, and returns the JSON. The client then runs the normal difficulty/pacing setup and loads it back via
-  `LoadScenario` — so catalog loads get the same difficulty prompt as local-file loads, and client JSON tampering still can't
-  obtain gated content (the gate is enforced at fetch).
-- **`ReloadForRewindAsync`** / **`ReloadForRewind`** — the rewind twin. Takes the **provided** `rngSeed` and
-  `sessionStartUtc` (the session's, or the recording manifest's for an imported archive; a restart reads the room clock again) and the saved scenario JSON, runs
-  the same `LoadSeeded` + `PopulateRoom` core, but skips broadcasting (caller sets `IsBroadcastSuppressed`) and the
-  pacing-override recording. After reload, the caller in `RecordingManager` either restores the nearest snapshot and replays the
-  remaining seconds, or replays from scratch.
+- **The live load** is split in two so no fetch runs under the room's tick gate ([server-rooms-and-hub.md](server-rooms-and-hub.md#scenario-load-prepare-commit-and-the-load-flag) has the gate, the load flag and the threading):
+  - **`PrepareScenarioAsync(json, rngSeed, sessionStartUtc, reporter)`** touches no room. It reads the JSON into a `ScenarioResourceManifest` (an unreadable JSON fails here, before anything is fetched, and the room keeps its scenario), then fetches what the manifest names: the ARTCC configs through `ArtccConfigService.EnsureLoadedAsync` and the airport layouts through `AirportGroundDataService.PrefetchAsync`, all at once, with one parse gate per load so the GeoJSON parses run one airport at a time. With the layouts in, it pins them, warms the CIFP SID/STAR/approach tables of every manifest airport and runs `LoadSeeded`, while the configs may still be arriving; then it pins the configs (`RoomResourcePin`). `PrepareScenarioWithFreshSeedAsync` is the same with a random seed and the room clock's instant, the hub's and a live session's entry; the headless soak passes its own seed and the process day, so a run reproduces from scenario + seed + session start.
+  - **`CommitPreparedScenario`**, under the gate: skips a room that was closed meanwhile, unloads the previous scenario, stores the pin on the room, runs `PopulateRoom`, then adds what a rewind must not do: the CRC open-positions/consolidation broadcasts, the load-time pacing record (`RecordSeededSessionSettings`), the weather re-apply and the DTO build. The loader's warnings and `PopulateRoom`'s problems both become the result's `Warnings` and terminal `Warning` lines.
+  - `PrepareResourcesAsync` is the fetch half alone (manifest, configs, layouts, pin), which a recording load and `MigrateRecording` use for their own scenario's resources.
+
+  The ARTCC-tab path does **not** load a catalog scenario by id — instead the client first calls the `GetScenarioJsonById` query, which routes to `ResolveGatedJsonAsync`: that pulls the **canonical** JSON from the server catalog (not the client payload), applies the rating gate against the canonical MinimumRating, and returns the JSON. The client then runs the normal difficulty/pacing setup and loads it back via `LoadScenario` — so catalog loads get the same difficulty prompt as local-file loads, and client JSON tampering still can't obtain gated content (the gate is enforced at fetch).
+- **`ReloadForRewindAsync`** / **`ReloadForRewind`** — the rewind twin. Takes the **provided** `rngSeed` and `sessionStartUtc` (the session's, or the recording manifest's for an imported archive; a restart reads the room clock again) and the saved scenario JSON, runs the same `LoadSeeded` + `PopulateRoom` core on the room's resource pin, so it never waits on vNAS, but skips broadcasting (caller sets `IsBroadcastSuppressed`) and the pacing-override recording. A room with no pin pins the live caches first (the async form fetches the manifest's resources into them before it does). `ReloadRecording` is the same reload on a recording load's freshly prepared pin, which replaces the room's. After reload, the caller in `RecordingManager` either restores the nearest snapshot and replays the remaining seconds, or replays from scratch.
+
+### Fetch outcomes and load warnings
+
+A missing resource does not stop a scenario load: the prefetch records an outcome per item, and the load's progress step table turns the outcomes into warnings (the verbatim texts are in [training-hub-contract.md](training-hub-contract.md#scenario-load-progress)):
+
+- **ARTCC configs** (`ArtccFetchOutcome`: `Loaded`, `LoadedFromStaleCopy` with the copy's last-changed time and a `StaleReason` of `Unreachable` or `RemovedFromVnas`, `NotFound`, `Unreachable`, `Unparseable`, plus the neighbouring centres left with no ERAM letter). Anything but `Loaded` with every letter read turns the `artcc` step amber and the load goes on; whatever a missing config would have resolved shows up again as `populate` problems (unresolved positions). A live session is the exception: the creator's ARTCC config is required, and its absence fails the load.
+- **Airport layouts** (`LayoutFetchOutcome`: `Loaded`, `LoadedFromStaleCopy`, `NoMap`, `Unreachable`, `Unparseable`). A stale copy or an unreadable map is a warning at any airport. A missing map (`NoMap`, or `Unreachable` with nothing cached) is a warning only at an airport in `ScenarioResourceManifest.MapRequiredAirportIds` — the primary airport and each `Parking` or ground-spawn airport; an `OnRunway` or `OnFinal` start takes its runway from navdata, and TRACON and Center scenarios commonly name fields vNAS has no map for, so such an airport stays green and is listed in the step's detail (`no map: SQL, HAF`). The aircraft that needed a missing layout are deferred by the loader as always (`Parking (…)` deferral reasons), and those reasons appear as `aircraft` warnings.
+- An airport first named at runtime (a typed `ADD` or `DEST`, a CRC-filed flight plan, an approach to a field no flight plan names) is not in the manifest: its first read still fetches blocking, with a warning naming the airport, and the layout joins the room's pin.
 
 The shared seed and model date are what make rewind deterministic: re-running `ScenarioLoader.Load` with the same seed
 reconstructs the exact immediate-aircraft set, beacon codes, and generated-type choices, and the same magnetic-model day
@@ -723,18 +714,7 @@ The division of labour:
   reconstruction `RecordingManager` calls `CaptureFrom(newScenario)` so the room copy follows the rewound values.
 - **Adding a setting means adding it to `RoomSessionSettings` in both `ApplyTo` and `CaptureFrom`.**
   `RoomSessionSettingsTests` walks the type reflectively and fails if you list it in only one.
-- **A seeded setting is recorded at t=0, or every reconstruction runs the default.** `SimControlService`'s setters record a
-  `RecordedSettingChange` only for a toggle made *during* the scenario; a setting already on when the scenario loaded reaches
-  it through `ApplyTo` and left no trace. The live load (`ScenarioLifecycleService.LoadScenarioSeededAsync`) therefore calls
-  `RecordSeededSessionSettings`, which writes a t=0 record for every `ApplyTo` field that differs from a fresh
-  `SimScenarioState` (same setting names and value formats as the setters, so `ApplySettingChange` applies them unchanged;
-  `MetarReissuanceEnabled` is excluded because it travels on the weather record and the manifest). Only the live load records —
-  a rewind or restart replays the log it already holds, so `PopulateRoom` must not. Why it matters: `RoomEngine.CreateTempReplayEngine`
-  builds a brand-new `TrainingRoom` for the export's snapshot regeneration, so without it an exported bundle's snapshots
-  are generated under default settings — the S2-OAK-4 bundle spoke "going around, traffic on the runway" at
-  t=1100 in its terminal log while its own snapshots had `AutoGoAroundOnOccupiedRunway: false` and went around at t≈1108
-  from the no-clearance gate. Pinned by `SeededSessionSettingsRecordingTests`. A bundle exported without the t=0 record cannot be
-  repaired; a hand-injected t=0 record in `actions.json.br` plus a snapshot regeneration is the only route.
+- **A seeded setting is recorded at t=0, or every reconstruction runs the default.** `SimControlService`'s setters record a `RecordedSettingChange` only for a toggle made *during* the scenario; a setting already on when the scenario loaded reaches it through `ApplyTo` and left no trace. The live load's commit (`ScenarioLifecycleService.CommitPreparedScenario`) therefore calls `RecordSeededSessionSettings`, which writes a t=0 record for every `ApplyTo` field that differs from a fresh `SimScenarioState` (same setting names and value formats as the setters, so `ApplySettingChange` applies them unchanged; `MetarReissuanceEnabled` is excluded because it travels on the weather record and the manifest). Only the live load records — a rewind or restart replays the log it already holds, so `PopulateRoom` must not. Why it matters: `RoomEngine.CreateTempReplayEngine` builds a brand-new `TrainingRoom` for the export's snapshot regeneration, so without it an exported bundle's snapshots are generated under default settings — the S2-OAK-4 bundle spoke "going around, traffic on the runway" at t=1100 in its terminal log while its own snapshots had `AutoGoAroundOnOccupiedRunway: false` and went around at t≈1108 from the no-clearance gate. Pinned by `SeededSessionSettingsRecordingTests`. A bundle exported without the t=0 record cannot be repaired; a hand-injected t=0 record in `actions.json.br` plus a snapshot regeneration is the only route.
 - **`ApplyTo` must run before `DispatchPresetCommands`, not just somewhere in the reload.** A preset `TAXI` resolves its
   route — and runs `TaxiRouteAutoCross.Apply` against `AutoCrossRunway` — inside `PopulateRoomForRewind` itself, so seeding
   afterwards leaves every restarted departure holding short of crossings the controller had already cleared (#314).
@@ -743,17 +723,13 @@ The division of labour:
   `Restart_WithAutoCrossOff_LeavesPresetTaxiCrossingUncleared` control arm over `oak-parking-taxi-crossing.json`. That
   fixture must spawn immediately — a delayed spawn dispatches its presets from the tick loop, long after the seed either way.
 
-Weather is the one piece that does **not** ride on `SimScenarioState`: every reload builds a fresh `SimulationWorld`, so both
-`LoadScenarioAsync` and `RestartScenarioAsync` re-load `TrainingRoom.WeatherSourceJson` through `RoomEngine.LoadWeather` once the
-new engine is in place. Rewind needs no equivalent — its snapshot restore and replayed `RecordedWeatherChange` actions put the
-weather back on their own.
+Weather is the one piece that does **not** ride on `SimScenarioState`: every reload builds a fresh `SimulationWorld`, so both a scenario load's commit (the `weather` step, `ReapplyRoomWeather`) and `RestartScenarioAsync` re-load `TrainingRoom.WeatherSourceJson` through `RoomEngine.LoadWeather` once the new engine is in place. A failed re-apply is a load warning, not a failure. Rewind needs no equivalent — its snapshot restore and replayed `RecordedWeatherChange` actions put the weather back on their own.
 
 Before this carry-over existed, a **Scenario → Restart** silently reset every one of those settings while the client's settings
 flyout went on showing the controller's choices — arrivals then went around at 200 ft AGL because auto cleared-to-land had
 reverted to `false` (issue #313).
 
-`ExecuteUnloadScenario` (`:345`) is the teardown: it disposes any held recording archive, clears the world and **all four
-queues** plus the handoff queue, broadcasts deletes, and resets the engine's evaluators.
+`ExecuteUnloadScenario` is the teardown: it drops the room's resource pin, disposes any held recording archive, clears **all four queues** plus the handoff queue, then runs the room half (`ClearRoomScenarioState`, shared with a recording load that failed after clearing the room): clears the world, broadcasts deletes, resets the engine's evaluators and wipes the room-level CRC state.
 
 ## Snapshot / replay survival of the queues
 

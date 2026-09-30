@@ -25,7 +25,7 @@
 | Weather / wind | [`weather-and-wind.md`](./weather-and-wind.md) |
 | Live-traffic shadows | [`live-traffic.md`](./live-traffic.md) |
 | Snapshots / replay / bundles | [`snapshots-and-replay.md`](./snapshots-and-replay.md) |
-| Server rooms / hub | [`server-rooms-and-hub.md`](./server-rooms-and-hub.md), [`training-hub-contract.md`](./training-hub-contract.md) |
+| Server rooms / hub, scenario load (prepare/commit, load flag, resource pin, progress) | [`server-rooms-and-hub.md`](./server-rooms-and-hub.md), [`training-hub-contract.md`](./training-hub-contract.md) |
 | CRC display state | [`crc-display-state.md`](./crc-display-state.md), [`crc-protocol-support.md`](./crc-protocol-support.md) (hub-method status table) |
 | Client (`MainViewModel`) | [`client-mainviewmodel.md`](./client-mainviewmodel.md) |
 | Radar / map rendering | [`radar-rendering.md`](./radar-rendering.md) |

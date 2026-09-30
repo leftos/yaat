@@ -69,8 +69,23 @@ Measured in sim-seconds.
 A second connection to the CRC hub (such as vEDST) that attaches to a session another client (CRC) started, via `JoinSession`. It sees that session's position, room and active state but holds no position of its own, so it never counts toward attendance.
 
 **Resource pin**:
-The airport layouts and ARTCC configs a room's scenario load used, held on the room so a restart, rewind, export or session restore rebuilds the simulation from the same data rather than the live vNAS caches. It is replaced only by the next scenario or recording load.
+The airport layouts and ARTCC configs a room's scenario load used, held on the room so a restart, rewind, export or session restore rebuilds the simulation from the same data rather than the live vNAS caches. It is replaced only by the next scenario or recording load, and cleared by an unload.
 _Avoid_: snapshot (that is the simulation state, not its reference data)
+
+**Resource manifest**:
+What a scenario JSON will make the server fetch — its ARTCC, the roster's neighbouring ARTCCs and every airport it names — read without loading anything (`ScenarioResourceManifest`).
+
+**Map-required airport**:
+An airport in the resource manifest whose full ground map the load needs: the primary airport, and each airport an aircraft parks at or spawns on the ground at. A missing map there is a load warning; elsewhere it is not.
+
+**Prepare / commit**:
+The two halves of a scenario load. Prepare reads the manifest, fetches the resources and builds the aircraft without touching the room or holding its tick gate; commit swaps the prepared scenario into the room under the gate, CPU only.
+
+**Load flag**:
+The per-room marker (`TrainingRoom.LoadingBy`) a scenario, live-session or recording load holds from before its fetches until after its broadcast. While it is held a second load, unload, restart, rewind, recording load and room close are refused, so nothing can change the room between prepare and commit.
+
+**Step table**:
+The list of a scenario load's steps (read, ARTCC configuration, airport layouts, build aircraft, set up the room, re-apply weather, and for a live session start live traffic), each with a state, a detail line and its problems, sent whole to the loader in every progress event and drawn by the client's load overlay.
 
 ## Controller actions
 
