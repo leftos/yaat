@@ -1,0 +1,83 @@
+# radar at-parking
+SWA101 - B738 [disabled]
+---
+Command…
+---
+Favorite Commands
+  (no items) [disabled]
+---
+---
+Track
+  Track
+  Drop track
+  ---
+  Accept handoff
+  Initiate handoff... picker:input
+  Cancel handoff
+  ---
+  Point out... picker:input
+  Acknowledge pointout
+Data Block
+  Scratchpad... picker:input
+  Note... picker:input
+  Temporary altitude... picker:input
+  Cruise... picker:input
+  Annotate
+Squawk
+  Squawk... picker:input
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
+Ask pilot to say...
+  Altitude
+  Heading
+  Speed
+  Mach
+  Position
+  Expected approach
+  ---
+  Custom... picker:input
+Coordination
+  Release
+  Hold
+  Recall
+  Acknowledge release
+Display
+  Mini datablock
+  Show nav route
+  Measure from SWA101
+  ---
+  Leader direction
+    1
+    2
+    3
+    4
+    5 (default)
+    6
+    7
+    8
+    9
+  J-ring
+    Clear
+    1 nm
+    2 nm
+    3 nm
+    5 nm
+    10 nm
+  Cone
+    Clear
+    1 nm
+    2 nm
+    3 nm
+    5 nm
+    10 nm
+  ---
+  Blank target
+  Unblank target
+---
+Sim Control
+  Warp...
+  Delete

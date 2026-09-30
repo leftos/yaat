@@ -1,0 +1,27 @@
+# ground taxiing
+SWA104 — B738 [disabled]
+---
+Command…
+Note…
+Measure from SWA104
+---
+Favorite Commands
+  (no items) [disabled]
+---
+Hold position
+Break conflict
+Cleared for takeoff 30
+  Default (SID/on course)
+  ---
+  Runway heading
+---
+Preset taxi route
+  30 to TERMINAL
+Draw taxi route...
+Taxi route
+  Always show
+  Always hide
+  Follow “Show all” setting [checked]
+Hide datablock
+---
+Delete

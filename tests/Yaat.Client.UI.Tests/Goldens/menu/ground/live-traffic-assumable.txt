@@ -1,0 +1,20 @@
+# ground live-traffic-assumable
+UAL401 — B738 [disabled]
+---
+Command…
+Note…
+Measure from UAL401
+---
+Favorite Commands
+  (no items) [disabled]
+---
+Assume control
+Assume and track
+---
+Taxi route
+  Always show
+  Always hide
+  Follow “Show all” setting [checked]
+Hide datablock
+---
+Delete

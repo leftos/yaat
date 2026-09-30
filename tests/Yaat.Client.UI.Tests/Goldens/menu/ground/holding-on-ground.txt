@@ -1,0 +1,21 @@
+# ground holding-on-ground
+SWA103 — B738 [disabled]
+---
+Command…
+Note…
+Measure from SWA103
+---
+Favorite Commands
+  (no items) [disabled]
+---
+---
+Preset taxi route
+  30 to TERMINAL
+Draw taxi route...
+Taxi route
+  Always show
+  Always hide
+  Follow “Show all” setting [checked]
+Hide datablock
+---
+Delete

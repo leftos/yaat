@@ -1,0 +1,34 @@
+# list live-traffic-assumable
+UAL401 — B738 [disabled]
+---
+Command…
+Note…
+---
+Favorite Commands
+  (no items) [disabled]
+---
+Assume control
+Assume and track
+---
+---
+Track
+  Track
+  Drop track
+  ---
+  Accept handoff
+  Cancel handoff
+  Acknowledge pointout
+Squawk
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
+Coordination
+  Release
+  Hold
+  Recall
+  Acknowledge release
+---
+Delete

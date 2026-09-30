@@ -1,0 +1,31 @@
+# ground relative-selection
+SWA601 — B738 [disabled]
+---
+Command…
+Note…
+Measure from SWA601
+---
+Favorite Commands
+  (no items) [disabled]
+---
+↪ SWA602: [disabled]
+SWA602: give way to SWA601
+SWA602: follow SWA601
+---
+Cross 30
+Line up and wait 30
+Cleared for takeoff 30
+  Default (SID/on course)
+  ---
+  Runway heading
+---
+Preset taxi route
+  30 to TERMINAL
+Draw taxi route...
+Taxi route
+  Always show
+  Always hide
+  Follow “Show all” setting [checked]
+Hide datablock
+---
+Delete

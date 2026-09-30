@@ -1,0 +1,20 @@
+# ground approach-ifr
+AAL204 — B738 [disabled]
+---
+Command…
+Note…
+Measure from AAL204
+---
+Favorite Commands
+  (no items) [disabled]
+---
+Cleared to land 30
+Force landing 30
+Go around 30
+Taxi route
+  Always show
+  Always hide
+  Follow “Show all” setting [checked]
+Hide datablock
+---
+Delete

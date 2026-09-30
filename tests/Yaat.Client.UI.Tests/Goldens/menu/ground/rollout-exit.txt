@@ -1,0 +1,19 @@
+# ground rollout-exit
+SWA107 — B738 [disabled]
+---
+Command…
+Note…
+Measure from SWA107
+---
+Favorite Commands
+  (no items) [disabled]
+---
+Exit left
+Exit right
+Taxi route
+  Always show
+  Always hide
+  Follow “Show all” setting [checked]
+Hide datablock
+---
+Delete

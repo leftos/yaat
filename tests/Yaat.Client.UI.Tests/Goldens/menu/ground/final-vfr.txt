@@ -1,0 +1,24 @@
+# ground final-vfr
+N308AB — C172 [disabled]
+---
+Command…
+Note…
+Measure from N308AB
+---
+Favorite Commands
+  (no items) [disabled]
+---
+Cleared to land 28R
+Force landing 28R
+Touch and go 28R
+Stop and go 28R
+Low approach 28R
+Cleared for the option 28R
+Go around 28R
+Taxi route
+  Always show
+  Always hide
+  Follow “Show all” setting [checked]
+Hide datablock
+---
+Delete

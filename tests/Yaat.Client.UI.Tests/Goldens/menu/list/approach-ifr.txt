@@ -1,0 +1,42 @@
+# list approach-ifr
+AAL204 — B738 [disabled]
+---
+Command…
+Note…
+---
+Favorite Commands
+  (no items) [disabled]
+---
+Cleared to land 30
+Force landing 30
+Go around 30
+---
+Track
+  Track
+  Drop track
+  ---
+  Accept handoff
+  Cancel handoff
+  Acknowledge pointout
+Squawk
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
+Ask pilot to say...
+  Altitude
+  Heading
+  Speed
+  Mach
+  Position
+  Expected approach
+Coordination
+  Release
+  Hold
+  Recall
+  Acknowledge release
+---
+Edit flight plan
+Delete

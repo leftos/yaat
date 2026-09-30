@@ -1,0 +1,45 @@
+# list go-around-vfr
+N309AB — C172 [disabled]
+---
+Command…
+Note…
+---
+Favorite Commands
+  (no items) [disabled]
+---
+Cleared to land 28R
+Force landing 28R
+Touch and go 28R
+Stop and go 28R
+Low approach 28R
+Cleared for the option 28R
+---
+Track
+  Track
+  Drop track
+  ---
+  Accept handoff
+  Cancel handoff
+  Acknowledge pointout
+Squawk
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
+Ask pilot to say...
+  Altitude
+  Heading
+  Speed
+  Mach
+  Position
+  Expected approach
+Coordination
+  Release
+  Hold
+  Recall
+  Acknowledge release
+---
+Edit flight plan
+Delete

@@ -1,0 +1,22 @@
+# ground pushing-back
+SWA102 — B738 [disabled]
+---
+Command…
+Note…
+Measure from SWA102
+---
+Favorite Commands
+  (no items) [disabled]
+---
+Hold position
+---
+Preset taxi route
+  TERMINAL to 30
+Draw taxi route...
+Taxi route
+  Always show
+  Always hide
+  Follow “Show all” setting [checked]
+Hide datablock
+---
+Delete

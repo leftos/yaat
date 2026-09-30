@@ -31,5 +31,15 @@
          back to parallel-collection defaults. The UserPreferences fixtures (and other
          shared-singleton tests) rely on parallelizeTestCollections:false. -->
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The committed NavData, CIFP, aircraft tables and KOAK layout the menu goldens load through
+         TestVnasData, linked from Yaat.Sim.Tests so there is a single source of truth. -->
+    <None Include="..\Yaat.Sim.Tests\TestData\NavData.dat" Link="TestData\NavData.dat" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Yaat.Sim.Tests\TestData\navdata-manifest.json" Link="TestData\navdata-manifest.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Yaat.Sim.Tests\TestData\FAACIFP18.gz" Link="TestData\FAACIFP18.gz" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Yaat.Sim.Tests\TestData\cifp-manifest.json" Link="TestData\cifp-manifest.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Yaat.Sim.Tests\TestData\AircraftSpecs.json" Link="TestData\AircraftSpecs.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Yaat.Sim.Tests\TestData\AircraftCwt.json" Link="TestData\AircraftCwt.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Yaat.Sim.Tests\TestData\FaaAcd.json" Link="TestData\FaaAcd.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Yaat.Sim.Tests\TestData\oak.geojson" Link="TestData\oak.geojson" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

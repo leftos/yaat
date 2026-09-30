@@ -1,0 +1,17 @@
+# ground ifr-enroute
+AAL202 — B738 [disabled]
+---
+Command…
+Note…
+Measure from AAL202
+---
+Favorite Commands
+  (no items) [disabled]
+---
+Taxi route
+  Always show
+  Always hide
+  Follow “Show all” setting [checked]
+Hide datablock
+---
+Delete

@@ -1,0 +1,17 @@
+# ground vfr-flight-following
+N302AB — C172 [disabled]
+---
+Command…
+Note…
+Measure from N302AB
+---
+Favorite Commands
+  (no items) [disabled]
+---
+Taxi route
+  Always show
+  Always hide
+  Follow “Show all” setting [checked]
+Hide datablock
+---
+Delete
