@@ -305,7 +305,7 @@ Grounded in the design above and the code as mapped; ERAM behaviour is decided, 
 - 11 starts with the clear-weather or overcast symbol (`MsgRMKFormat`);
 - the 12/17 pairs run the AM field-reference checks.
 
-**YAAT**: `DispatchVp` (`FlightData.cs:1019-1063`) files a plan through `RoomEngine.AmendFlightPlan` (recorded `RecordedAmendFlightPlan`). AM's parsers cover fields 03–11 and 12/17. Plans are born active (DM's summary, :947-951), and YAAT keeps no coordination fix (the AM.yaml `FIX` row is `na`).
+**YAAT**: `DispatchVp` (`FlightData.cs` ~:1541-1585) files a plan through `RoomEngine.AmendFlightPlan` (recorded `RecordedAmendFlightPlan`). AM's parsers (`BuildAmFields`, `FlightData.cs` ~:494-604) cover fields 03, 04, 05, 08, 09, 10, 11 and the 12/17 fields AM models (TYP, BCN, SPD, ALT, RAL, RTE, RMK, NUM, SAI, EQP); 06 and 07 have no AM parser (06: `EramFields.ParseLocation` + `EramFixResolver`; 07: new, `EramFields.ParseHhmm` takes only `dddd`). Plans are born active (DM's summary, :947-951), and YAAT keeps no coordination fix (the AM.yaml `FIX` row is `na`).
 
 **Behaviour**: one amendment on an aircraft in the room.
 
@@ -341,6 +341,16 @@ Grounded in the design above and the code as mapped; ERAM behaviour is decided, 
 **Tests**: `EramConformanceSpTests`, one per check, and a well-formed entry answering `NOT ADAPTED`.
 
 **Size**: multi-file (after FP).
+
+### C5 rulings (2026-09-30, grounded, not asked)
+
+- **Filing path**: `FP` builds one `FlightPlanAmendmentDto` and calls `RoomEngine.AmendFlightPlan`, as `DispatchVp` does, carrying `BeaconAssignedByFacilityId`/`SectorId` as VP does so the drawn code replays. `RecordAndDispatchFlightPlan` (the STARS/CRC create path) is not used: `CreateFlightPlanCommand` carries no speed, beacon, remarks or requested altitude.
+- **Dispatch**: `FP`/`SP` re-parse the raw elements like `AM` (`"AM" => DispatchAm(elements)`), not as trailing-FLID verbs. New file `CrcClientState.Eram.Filing.cs`.
+- **Duplicate**: `DUPLICATE FLID`, as above (VP's `DUP NEW ID` stays VP's). **Ownership**: none, as above.
+- **Fields 08/09**: an active entry's 08 goes through `AmendAmAltitude` with AM's semantics; a proposed entry's 09 through `AmendAmRequestedAltitude` and also sets the filed altitude, as above.
+- **Unmodelled 12/17 fields** (ACT, WAK, SRV, ALA, FLR, FLT, OTH): handled exactly as `AM` handles a reference to them today; their format errors cannot fire and are `na` in `FP.yaml` with that reason.
+- **SP**: resolves no aircraft; a well-formed entry answers `<tag> NOT ADAPTED` whatever the ACID. `SP.StereoFlightPlan` is an implemented variant key with no success path; `EramFeedbackConventionTests` carries a refusal row for it.
+- **Echo**: C5 lands after the ERAM terminal echo (MAIN.md "Echo ERAM commands"), so `FP`/`SP` need no echo code of their own.
 
 ## Questions for ERAM controllers
 
