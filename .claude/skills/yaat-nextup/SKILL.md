@@ -10,7 +10,8 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 ## Plan and tracker
 
 - Index: `docs/plans/MAIN.md`. Sections in priority order: **Bug reports and feature requests**, then the **Current programme**'s next slice, then **Backlog — waves** top to bottom (a wave is one release-sized bundle sharing files and a review gate); the other programmes run in the background and release with a non-hotfix.
-- Siblings: `../yaat-server`. It has no plan index or changelog of its own: this index plans it, and its `docs/plans/live-traffic-swim/` is linked from here.
+- siblings: ../yaat-server
+- `../yaat-server` has no plan index or changelog of its own: this index plans it, and its `docs/plans/live-traffic-swim/` is linked from here.
 - Pre-loop hooks: none.
 - Finished-item convention: **delete the line**, never tick it; finished subplans are deleted (git history is the archive). Review findings the item does not fix become Backlog lines in the same commit.
 - Tracker: `gh issue list --repo leftos/yaat --state open --json number,title,createdAt`; fold unplanned issues in with `triage-open-issues`. Cross-repo: yaat-server commits cite `Closes https://github.com/leftos/yaat/issues/N`.
