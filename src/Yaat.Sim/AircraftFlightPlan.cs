@@ -1,3 +1,4 @@
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Simulation.Snapshots;
 
@@ -18,16 +19,67 @@ public class AircraftFlightPlan
     /// <see cref="AircraftState.AircraftType"/>, which is the actual physical type that drives
     /// physics/performance and the Tower Cab "out the window" datablock. May differ from the
     /// physical type (instructor amendments, scenario fidelity), and may be empty when an
-    /// instructor blanks the field.
+    /// instructor blanks the field. Stored bare (<c>A306</c>): every writer splits a filed string with
+    /// <see cref="FlightPlanNormalization.SplitTypeAndSuffix"/>, so element a lives in <see cref="NumberOfAircraft"/> and
+    /// <see cref="HasSpecialAircraftIndicator"/> and the suffix in <see cref="EquipmentSuffix"/>;
+    /// <see cref="FiledAircraftData"/> puts them back together. A plan restored from an older snapshot may still hold
+    /// the whole filed string (<c>H/A306/L</c>); that is accepted without migration, and readers go through
+    /// <see cref="BaseAircraftType"/>.
     /// </summary>
     public string AircraftType { get; set; } = "";
 
     /// <summary>
-    /// Filed aircraft type with the wake-turbulence prefix stripped (e.g., "H/B763/L" → "B763").
-    /// Mirrors <see cref="AircraftState.BaseAircraftType"/> for the filed string so STARS,
-    /// ASDE-X, and FP-driven displays can show the bare ICAO designator.
+    /// The ICAO designator alone: <see cref="AircraftType"/> for a plan stored bare, and the designator read out of the
+    /// whole filed string an older snapshot may hold (<c>H/B763/L</c> → <c>B763</c>, <c>B738/L</c> → <c>B738</c>).
+    /// Mirrors <see cref="AircraftState.BaseAircraftType"/> for the filed type.
     /// </summary>
     public string BaseAircraftType => AircraftState.StripTypePrefix(AircraftType);
+
+    /// <summary>
+    /// The filed aircraft data as one string, <c>((d)(d)H/)type(/suffix)</c> (ERAM field 03, FAA 7233-4 block 3): the
+    /// number of aircraft and the special aircraft indicator lead the type when either is set, and the equipment
+    /// suffix follows it when one is filed (<c>2H/F16</c>, <c>H/A306/L</c>, <c>A320/L</c>, <c>B738</c>). The type is
+    /// <see cref="BaseAircraftType"/>, so an older snapshot's whole filed string never prints twice. A blank type gives
+    /// an empty string.
+    /// </summary>
+    public string FiledAircraftData
+    {
+        get
+        {
+            string type = BaseAircraftType;
+            if (type.Length == 0)
+            {
+                return "";
+            }
+
+            string prefix = $"{NumberOfAircraft}{(HasSpecialAircraftIndicator ? "H" : "")}";
+            IEnumerable<string> parts = [prefix, type, EquipmentSuffix];
+            return string.Join("/", parts.Where(part => part.Length > 0));
+        }
+    }
+
+    /// <summary>
+    /// Applies the parts of a parsed filed aircraft-data string other than the type: its suffix to
+    /// <see cref="EquipmentSuffix"/>, its count to <see cref="NumberOfAircraft"/>, and an <c>H</c> indicator to
+    /// <see cref="HasSpecialAircraftIndicator"/>. A part the string does not give, and a <c>J</c> or <c>S</c>
+    /// indicator, leaves the stored value alone. The caller stores the type.
+    /// </summary>
+    public void ApplyFiledAircraftData(FiledAircraftType filed)
+    {
+        if (filed.Suffix is not null)
+        {
+            EquipmentSuffix = filed.Suffix;
+        }
+        if (filed.Count is not null)
+        {
+            NumberOfAircraft = filed.Count;
+        }
+        if (filed.Indicator == 'H')
+        {
+            HasSpecialAircraftIndicator = true;
+        }
+    }
+
     public string Departure { get; set; } = "";
     public string Destination { get; set; } = "";
     public string Route { get; set; } = "";

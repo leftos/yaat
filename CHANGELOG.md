@@ -29,6 +29,8 @@
 
 - A pattern follower sequences behind traffic on an instrument approach or a go-around, and aircraft on one leg are ordered by position, not who joined first.
 - ERAM `QF`, `FR` and a bare `AM` show the flight plan line in ERAM's column order: filed speed before the altitude, remarks last.
+- An altitude-only flight plan amend no longer strips the equipment suffix from CRC's equipment field, and CRC gets each type's real wake category.
+- A scenario flight plan filed with a heavy or formation prefix (`H/A306/L`, `2/C130/G`) reads its type and suffix correctly and keeps them on export.
 - A flight plan filed with an altitude off the hundred (`FP B738 35050 …`) keeps that altitude on replay.
 - ERAM `AM TYP` and `VP` keep a formation count and heavy indicator such as `2H/F16`, and `AM TYP` refuses a malformed type field.
 - A CRC flight plan edit whose equipment ends in `/` no longer clears the filed equipment suffix.

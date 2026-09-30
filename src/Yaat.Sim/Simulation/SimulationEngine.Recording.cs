@@ -80,6 +80,19 @@ public sealed partial class SimulationEngine
         scenario.ActionLog.Add(action);
     }
 
+    /// <summary>
+    /// Stores the synthetic spawn's filed type bare: a blank filed type or one naming the substituted actual type
+    /// becomes the sibling, any other keeps its parsed type; a suffix or element a in the filed string lands in its own
+    /// field, and a part the string does not give leaves the stored value alone.
+    /// </summary>
+    public static void NormalizeSyntheticFiledType(AircraftFlightPlan plan, string baseType, string sibling)
+    {
+        FiledAircraftType filed = FlightPlanNormalization.SplitTypeAndSuffix(plan.AircraftType);
+        bool filedIsActual = (string.IsNullOrWhiteSpace(filed.Type)) || (filed.Type.Equals(baseType, StringComparison.OrdinalIgnoreCase));
+        plan.AircraftType = filedIsActual ? sibling : filed.Type;
+        plan.ApplyFiledAircraftData(filed);
+    }
+
     private static void NormalizeSyntheticAircraftSpawn(AircraftState state)
     {
         string baseType = AircraftState.StripTypePrefix(state.AircraftType).Trim().ToUpperInvariant();
@@ -89,13 +102,7 @@ public sealed partial class SimulationEngine
         }
 
         state.AircraftType = sibling;
-        if (
-            string.IsNullOrWhiteSpace(state.FlightPlan.AircraftType)
-            || state.FlightPlan.AircraftType.Equals(baseType, StringComparison.OrdinalIgnoreCase)
-        )
-        {
-            state.FlightPlan.AircraftType = sibling;
-        }
+        NormalizeSyntheticFiledType(state.FlightPlan, baseType, sibling);
 
         AircraftCategory category = AircraftCategorization.Categorize(sibling);
         double defaultSpeed = AircraftPerformance.DefaultSpeed(sibling, category, state.Altitude, targetAltitude: null);

@@ -152,7 +152,9 @@ public static class FlightPlanNormalization
             Destination: destination,
             Altitude: filedAltitude,
             FlightRules: filedAltitude.IsVfr ? "VFR" : "IFR",
-            Route: middleRoute ?? ""
+            Route: middleRoute ?? "",
+            SpecialAircraftIndicator: (aircraftType.Indicator == 'H') ? true : null,
+            NumberOfAircraft: aircraftType.Count
         );
     }
 
@@ -169,7 +171,9 @@ public static class FlightPlanNormalization
             FlightRules: filedAltitude.IsVfr ? "VFR" : "IFR",
             Scratchpad1: command.Scratchpad1,
             Scratchpad2: command.Scratchpad2,
-            BeaconCode: command.BeaconCode
+            BeaconCode: command.BeaconCode,
+            SpecialAircraftIndicator: (aircraftType?.Indicator == 'H') ? true : null,
+            NumberOfAircraft: aircraftType?.Count
         );
     }
 }

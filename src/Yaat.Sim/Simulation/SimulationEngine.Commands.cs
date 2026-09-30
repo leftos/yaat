@@ -332,17 +332,34 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
+    /// Stores an amended filed type as the bare type. Filed FP type only — never the actual physical type: Tower Cab
+    /// (out-the-window) keeps reading <see cref="AircraftState.AircraftType"/>, which is fixed at spawn. A type that
+    /// arrives with element a or an equipment suffix (the desktop editor's box text, a CRC echo, a STARS implied type)
+    /// is split by <see cref="FlightPlanNormalization.SplitTypeAndSuffix"/>: the parsed suffix and count land in their
+    /// own fields, indicator <c>H</c> sets the special aircraft indicator, and a part the string does not give leaves
+    /// the stored value alone. Null means the type was not edited.
+    /// </summary>
+    private static void ApplyAmendedAircraftType(AircraftFlightPlan plan, string? amendedType)
+    {
+        if (amendedType is null)
+        {
+            return;
+        }
+
+        FiledAircraftType filed = FlightPlanNormalization.SplitTypeAndSuffix(amendedType);
+        plan.AircraftType = filed.Type;
+        plan.ApplyFiledAircraftData(filed);
+    }
+
+    /// <summary>
     /// Copies the aircraft and airport identity fields the amendment carries; a null field means "not edited",
     /// not "cleared". First of the three field groups, which run in the order the fields are filed.
     /// </summary>
     private static void ApplyAircraftAndAirportFields(AircraftState ac, FlightPlanAmendment amendment)
     {
-        if (amendment.AircraftType is not null)
-        {
-            // Filed FP type only — never the actual physical type. Tower Cab (out-the-window)
-            // keeps reading AircraftState.AircraftType, which is fixed at spawn.
-            ac.FlightPlan.AircraftType = amendment.AircraftType;
-        }
+        // Applied before the explicit suffix / count / indicator fields below, so an explicit field wins over the part
+        // parsed out of the type string.
+        ApplyAmendedAircraftType(ac.FlightPlan, amendment.AircraftType);
         if (amendment.EquipmentSuffix is not null)
         {
             ac.FlightPlan.EquipmentSuffix = amendment.EquipmentSuffix;

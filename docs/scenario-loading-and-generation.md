@@ -207,8 +207,11 @@ Three decisions matter:
 
 - **Actual vs filed type.** `AircraftType` (top-level) is the *physical* type and always wins for performance. The filed FP type
   (`FlightPlan.aircraftType`) is opt-in: `FlightPlan.AircraftType` is only populated when the JSON explicitly sets it.
-  `EquipmentSuffix` derives from the filed string when present, else from the actual type, via `ExtractSuffix` (`:1233` — splits
-  on `/`, else `"A"`). A cold-call aircraft (no `flightplan` block at all) gets a blank suffix.
+  The filed string runs through the shared parser (`FlightPlanNormalization.SplitTypeAndSuffix`, applied by
+  `AircraftFlightPlan.ApplyFiledAircraftData`): `FlightPlan.AircraftType` holds the bare type, a count or `H` indicator (`2/C130/G`,
+  `H/A306/L`) goes to `NumberOfAircraft`/`HasSpecialAircraftIndicator`, and the suffix to `EquipmentSuffix` — from the filed string when
+  present, else from the actual type, else `"A"`. A cold-call aircraft (no `flightplan` block at all) gets a blank suffix. The scenario
+  exporter writes `AircraftFlightPlan.FiledAircraftData` back, so a round trip keeps all four.
 - **Approach inheritance.** `PrimaryApproach` is only inherited when the aircraft has no `ExpectedApproach` of its own **and** its
   destination matches the primary airport (or has no destination, or there's no primary airport). The destination match
   normalizes the K-prefix via the local `NormalizeAirportCode` (`:194`). An aircraft destined elsewhere never inherits the

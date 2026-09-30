@@ -169,7 +169,8 @@ public static class ScenarioExporter
             CruiseSpeed = fp.CruiseSpeed,
             Route = fp.Route,
             Remarks = fp.Remarks,
-            AircraftType = fp.AircraftType,
+            // The whole filed string (H/A306/L), so the reload restores the suffix, count and indicator with the type.
+            AircraftType = fp.FiledAircraftData,
         };
     }
 

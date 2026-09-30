@@ -203,18 +203,20 @@ public static class ScenarioLoader
         return map;
     }
 
-    internal static AircraftState CreateBaseState(ScenarioAircraft ac, string? primaryAirportId, string? primaryApproach)
+    public static AircraftState CreateBaseState(ScenarioAircraft ac, string? primaryAirportId, string? primaryApproach)
     {
         // Top-level wins for the actual physical type. Filed FP type is opt-in: only set when
-        // the scenario explicitly populates FlightPlan.aircraftType. EquipmentSuffix derives
+        // the scenario explicitly populates FlightPlan.aircraftType. The filed string is split by
+        // the shared parser: the plan keeps the bare type, element a goes to NumberOfAircraft and
+        // the special aircraft indicator, and the suffix to EquipmentSuffix. The suffix derives
         // from the filed string when present, else from the actual type so legacy scenarios
-        // without a filed type still surface a sensible suffix on strips. Cold calls (no
+        // without a filed type still surface a sensible suffix on strips, else /A. Cold calls (no
         // scenario flightPlan block) get a blank suffix — controllers file via DA / VP.
         bool hasFiledFp = ac.FlightPlan is not null;
         string actualType = ac.AircraftType;
-        string filedType = ac.FlightPlan?.AircraftType ?? "";
-        string suffixSource = !string.IsNullOrEmpty(filedType) ? filedType : actualType;
-        string equipmentSuffix = hasFiledFp ? ExtractSuffix(suffixSource) : "";
+        FiledAircraftType filed = FlightPlanNormalization.SplitTypeAndSuffix(ac.FlightPlan?.AircraftType ?? "");
+        FiledAircraftType suffixSource = filed.Type.Length > 0 ? filed : FlightPlanNormalization.SplitTypeAndSuffix(actualType);
+        string equipmentSuffix = hasFiledFp ? (suffixSource.Suffix ?? "A") : "";
 
         // primaryApproach is only intended for the scenario's primary airport.
         // Aircraft destined elsewhere must not inherit it — even if the same approach ID
@@ -233,7 +235,7 @@ public static class ScenarioLoader
             }
         }
 
-        return new AircraftState
+        var state = new AircraftState
         {
             Callsign = ac.AircraftId,
             AircraftType = actualType,
@@ -242,7 +244,7 @@ public static class ScenarioLoader
             FlightPlan = new AircraftFlightPlan
             {
                 FlightRules = InferFlightRules(ac.FlightPlan),
-                AircraftType = filedType,
+                AircraftType = filed.Type,
                 Altitude = BuildFiledAltitude(ac.FlightPlan),
                 CruiseSpeed = ac.FlightPlan?.CruiseSpeed ?? 0,
                 Departure = ac.FlightPlan?.Departure ?? "",
@@ -258,6 +260,8 @@ public static class ScenarioLoader
             Voice = new AircraftVoice { Type = FlightPlanVoice.ParseVoiceType(ac.FlightPlan?.Remarks) },
             Approach = new AircraftApproachState { Expected = effectiveApproach },
         };
+        state.FlightPlan.ApplyFiledAircraftData(filed);
+        return state;
     }
 
     public static string InferFlightRules(ScenarioFlightPlan? fp)
@@ -1164,15 +1168,5 @@ public static class ScenarioLoader
         }
 
         return -1;
-    }
-
-    private static string ExtractSuffix(string equipType)
-    {
-        if (equipType.Contains('/'))
-        {
-            string[] parts = equipType.Split('/');
-            return parts[^1];
-        }
-        return "A";
     }
 }

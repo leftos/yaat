@@ -50,6 +50,114 @@ public class AmendFlightPlanEquipmentSuffixTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void FiledPlan_TypeAmendedWithElementAAndSuffix_StoresBareTypeAndParts()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState ac = AddAircraft(engine, "UPS2941", filed: true, equipmentSuffix: "G");
+
+        engine.AmendFlightPlan("UPS2941", new FlightPlanAmendment(ClearBeaconCode: false, AircraftType: "H/B763/L", EquipmentSuffix: null));
+
+        Assert.Equal("B763", ac.FlightPlan.AircraftType);
+        Assert.Equal("L", ac.FlightPlan.EquipmentSuffix);
+        Assert.True(ac.FlightPlan.HasSpecialAircraftIndicator);
+    }
+
+    [Fact]
+    public void FiledPlan_TypeWithSuffixAndExplicitSuffix_ExplicitSuffixWins()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState ac = AddAircraft(engine, "UPS2941", filed: true, equipmentSuffix: "A");
+
+        engine.AmendFlightPlan("UPS2941", new FlightPlanAmendment(ClearBeaconCode: false, AircraftType: "H/B763/L", EquipmentSuffix: "G"));
+
+        Assert.Equal("B763", ac.FlightPlan.AircraftType);
+        Assert.Equal("G", ac.FlightPlan.EquipmentSuffix);
+    }
+
+    [Fact]
+    public void FiledPlan_TypeWithIndicatorAndExplicitIndicatorFalse_StaysFalse()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState ac = AddAircraft(engine, "UPS2941", filed: true, equipmentSuffix: "L");
+
+        engine.AmendFlightPlan("UPS2941", new FlightPlanAmendment(ClearBeaconCode: false, AircraftType: "H/B763", SpecialAircraftIndicator: false));
+
+        Assert.Equal("B763", ac.FlightPlan.AircraftType);
+        Assert.False(ac.FlightPlan.HasSpecialAircraftIndicator);
+    }
+
+    [Fact]
+    public void FiledPlan_TypeWithCountAndExplicitCount_ExplicitCountWins()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState ac = AddAircraft(engine, "RCH01", filed: true, equipmentSuffix: "G");
+
+        engine.AmendFlightPlan("RCH01", new FlightPlanAmendment(ClearBeaconCode: false, AircraftType: "2/C130/G", NumberOfAircraft: 3));
+
+        Assert.Equal("C130", ac.FlightPlan.AircraftType);
+        Assert.Equal(3, ac.FlightPlan.NumberOfAircraft);
+    }
+
+    [Fact]
+    public void FiledPlan_BareTypeAmend_KeepsIndicatorAndCount()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState ac = AddAircraft(engine, "UPS2941", filed: true, equipmentSuffix: "L");
+        ac.FlightPlan.HasSpecialAircraftIndicator = true;
+        ac.FlightPlan.NumberOfAircraft = 2;
+
+        engine.AmendFlightPlan("UPS2941", new FlightPlanAmendment(ClearBeaconCode: false, AircraftType: "B738"));
+
+        Assert.Equal("B738", ac.FlightPlan.AircraftType);
+        Assert.True(ac.FlightPlan.HasSpecialAircraftIndicator);
+        Assert.Equal(2, ac.FlightPlan.NumberOfAircraft);
+        Assert.Equal("L", ac.FlightPlan.EquipmentSuffix);
+    }
+
+    [Fact]
+    public void FiledPlan_TypeWithCount_SetsCountAndSuffix()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState ac = AddAircraft(engine, "RCH01", filed: true, equipmentSuffix: "A");
+
+        engine.AmendFlightPlan("RCH01", new FlightPlanAmendment(ClearBeaconCode: false, AircraftType: "2/C130/G"));
+
+        Assert.Equal("C130", ac.FlightPlan.AircraftType);
+        Assert.Equal(2, ac.FlightPlan.NumberOfAircraft);
+        Assert.Equal("G", ac.FlightPlan.EquipmentSuffix);
+        Assert.False(ac.FlightPlan.HasSpecialAircraftIndicator);
+    }
+
+    [Fact]
+    public void TypedFp_TypeWithIndicator_SetsSpecialAircraftIndicator()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState ac = AddAircraft(engine, "UPS1", filed: false, equipmentSuffix: "");
+
+        FlightPlanAmendment amendment = FlightPlanNormalization.FromCreateCommand(
+            new CreateFlightPlanCommand("IFR", "H/B763/L", PlannedAltitude.Ifr(35000), "KOAK KSFO")
+        );
+        engine.AmendFlightPlan("UPS1", amendment);
+
+        Assert.Equal("B763", ac.FlightPlan.AircraftType);
+        Assert.Equal("L", ac.FlightPlan.EquipmentSuffix);
+        Assert.True(ac.FlightPlan.HasSpecialAircraftIndicator);
+    }
+
+    [Fact]
+    public void SyntheticSpawn_FiledTypeWithElementAAndSuffix_StoresBareTypeAndParts()
+    {
+        var plan = new AircraftFlightPlan { AircraftType = "H/A306/L", EquipmentSuffix = "A" };
+
+        SimulationEngine.NormalizeSyntheticFiledType(plan, baseType: "A30B", sibling: "A306");
+
+        Assert.Equal("A306", plan.AircraftType);
+        Assert.Equal("L", plan.EquipmentSuffix);
+        Assert.True(plan.HasSpecialAircraftIndicator);
+        Assert.Null(plan.NumberOfAircraft);
+    }
+
+    [Fact]
     public void NewPlan_FiledWithoutSuffix_DefaultsSuffixToA()
     {
         SimulationEngine engine = BuildEngine();

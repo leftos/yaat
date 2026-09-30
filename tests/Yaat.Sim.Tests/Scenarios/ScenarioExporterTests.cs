@@ -250,6 +250,25 @@ public class ScenarioExporterTests
     }
 
     [Fact]
+    public void FiledAircraftData_ExportsWholeAndReloadsIntoItsFields()
+    {
+        AircraftState heavy = LoadSingle(AirborneJson("UPS2941", "IFR", "SUNOL ECA"));
+        heavy.FlightPlan.AircraftType = "A306";
+        heavy.FlightPlan.EquipmentSuffix = "L";
+        heavy.FlightPlan.HasSpecialAircraftIndicator = true;
+        heavy.FlightPlan.NumberOfAircraft = null;
+
+        ScenarioExportResult result = Export(heavy);
+        AircraftState reloaded = ReloadWithPresets(result);
+
+        Assert.Equal("H/A306/L", Assert.Single(result.Scenario.Aircraft).FlightPlan!.AircraftType);
+        Assert.Equal("A306", reloaded.FlightPlan.AircraftType);
+        Assert.Equal("L", reloaded.FlightPlan.EquipmentSuffix);
+        Assert.True(reloaded.FlightPlan.HasSpecialAircraftIndicator);
+        Assert.Null(reloaded.FlightPlan.NumberOfAircraft);
+    }
+
+    [Fact]
     public void BothRemarksParts_ExportAsTheComposedRemarks()
     {
         AircraftState enRoute = LoadSingle(AirborneJson("DAL45", "IFR", "SUNOL ECA"));
