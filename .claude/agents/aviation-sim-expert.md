@@ -138,7 +138,3 @@ Examples of what to record:
 - Simplifications made and their rationale (for consistency in future work)
 - Separation logic implementations and the standards they're based on
 - Airspace definitions and how they're modeled in code
-
-## Earlier work
-
-Before starting, and again when the work turns to a topic the brief did not cover, call `mcp__plugin_mem0_mem0__search_memories` with a direct question about earlier work in this repository (the feature, file, error or decision at hand). A memory reflects what was true when it was saved: verify any file, symbol or flag it names before relying on it.

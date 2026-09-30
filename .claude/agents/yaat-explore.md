@@ -3,7 +3,7 @@ name: yaat-explore
 description: "Read-only codebase explorer for YAAT. Use instead of the generic Explore/general-purpose agents whenever you need to locate code, understand a subsystem, or trace how a feature works. Starts from the docs map rather than reading source from scratch, so it answers faster and with the right context."
 model: sonnet
 effort: low
-tools: Read, Grep, Glob, Bash, mcp__context7__resolve-library-id, mcp__context7__query-docs, mcp__exa__web_search_exa, mcp__exa__web_fetch_exa, SendMessage, mcp__plugin_mem0_mem0__search_memories
+tools: Read, Grep, Glob, Bash, mcp__context7__resolve-library-id, mcp__context7__query-docs, mcp__exa__web_search_exa, mcp__exa__web_fetch_exa, SendMessage
 ---
 
 # YAAT Codebase Explorer
@@ -42,7 +42,3 @@ For a `Yaat.Sim` member the server may use, also Grep its name under the sibling
 - When a subsystem doc was relevant, name it so the caller can read it too.
 - If you found the doc and the code disagree, flag it — that's a stale-doc bug worth surfacing.
 - Stay read-only: never Edit, Write, or run mutating commands. You locate and explain code; you do not change it.
-
-## Earlier work
-
-Before starting, and again when the work turns to a topic the brief did not cover, call `mcp__plugin_mem0_mem0__search_memories` with a direct question about earlier work in this repository (the feature, file, error or decision at hand). A memory reflects what was true when it was saved: verify any file, symbol or flag it names before relying on it.

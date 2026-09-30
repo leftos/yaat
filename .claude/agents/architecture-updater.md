@@ -65,7 +65,3 @@ You are frequently launched inside a **git worktree** whose absolute path *ends 
 - Don't restructure or reorganize the doc beyond what's needed for the change.
 - Don't update descriptions for files that weren't touched.
 - Don't add commentary or opinions — just factual descriptions of what code does.
-
-## Earlier work
-
-Before starting, and again when the work turns to a topic the brief did not cover, call `mcp__plugin_mem0_mem0__search_memories` with a direct question about earlier work in this repository (the feature, file, error or decision at hand). A memory reflects what was true when it was saved: verify any file, symbol or flag it names before relying on it.

@@ -1,7 +1,7 @@
 ---
 name: memory-auditor
 description: "Read-only auditor for one slice of the auto-memory store. Dispatched by the memory-store-audit skill, one agent per disjoint file slice; returns KEEP/TRIM/DELETE/MERGE verdict rows and writes nothing."
-tools: Read, Glob, Grep, SendMessage, mcp__plugin_mem0_mem0__search_memories
+tools: Read, Glob, Grep, SendMessage
 model: sonnet
 effort: medium
 ---
@@ -35,7 +35,3 @@ Return only the rows, in the Step 3 format, one per file in the order given,
 followed by a one-line count (`N files: K keep, T trim, D delete, M merge`).
 No preamble, no commentary between rows. Put anything you are unsure about in
 the row's description column, not in prose the executor has to hunt for.
-
-## Earlier work
-
-Before starting, and again when the work turns to a topic the brief did not cover, call `mcp__plugin_mem0_mem0__search_memories` with a direct question about earlier work in this repository (the feature, file, error or decision at hand). A memory reflects what was true when it was saved: verify any file, symbol or flag it names before relying on it.
