@@ -394,6 +394,11 @@ public sealed partial class SimulationEngine
         // So are the sector messages: a missing section restores none.
         EramSectorMessages.Replace((snapshot.Server?.EramSectorMessages ?? []).Select(m => new EramSectorMessage(m.FacilityId, m.SectorId, m.Text)));
 
+        // And the entered weather reports: a missing section restores none.
+        EramWeatherReports.Replace(
+            (snapshot.Server?.EramWeatherReports ?? []).Select(r => new EramWeatherReport(r.StationId, r.ObservationTime, r.Text, r.EnteredAtUtc))
+        );
+
         if (snapshot.Server is not null)
         {
             RestoreServerSnapshot(snapshot.Server);
@@ -506,8 +511,26 @@ public sealed partial class SimulationEngine
             CrrGroups = crrGroups,
             EramConflictSettings = CaptureEramConflictSettings(),
             EramSectorMessages = CaptureEramSectorMessages(),
+            EramWeatherReports = CaptureEramWeatherReports(),
         };
     }
+
+    /// <summary>The stored weather reports, ordered by station; null when no station holds one.</summary>
+    private List<EramWeatherReportSnapshotDto>? CaptureEramWeatherReports() =>
+        EramWeatherReports.Reports.Count == 0
+            ? null
+            :
+            [
+                .. EramWeatherReports
+                    .Reports.OrderBy(r => r.StationId, StringComparer.Ordinal)
+                    .Select(r => new EramWeatherReportSnapshotDto
+                    {
+                        StationId = r.StationId,
+                        ObservationTime = r.ObservationTime,
+                        Text = r.Text,
+                        EnteredAtUtc = r.EnteredAtUtc,
+                    }),
+            ];
 
     /// <summary>The stored sector messages, ordered by facility then sector id; null when no sector holds one.</summary>
     private List<EramSectorMessageSnapshotDto>? CaptureEramSectorMessages() =>

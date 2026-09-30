@@ -226,7 +226,10 @@ public sealed record RecordedEramCrrGroup(double ElapsedSeconds, string Label, s
 /// <c>CA {CA|MCI} DISPLAY {sector}[ {sector}…] {ON|OFF}</c>. The sector messages
 /// (<c>SimulationEngine.EramSectorMessages</c>): <c>SM {sector} {text}</c> stores one sector's message and
 /// <c>SMDE {sector}</c> deletes it. Sector ids are explicit adapted ids (the recorder expands <c>ALL</c>, so replay never
-/// consults adaptation). <c>SimulationEngine.ApplyEramRoomEntry</c> applies it on every run kind.
+/// consults adaptation). The entered weather reports (<c>SimulationEngine.EramWeatherReports</c>, room-wide, so the
+/// facility is carried for shape only): <c>WX {station} {hhmm} {text}</c> stores one station's report, stamped with the
+/// session-clock instant of <see cref="RecordedAction.ElapsedSeconds"/>. <c>SimulationEngine.ApplyEramRoomEntry</c> applies
+/// it on every run kind.
 /// </summary>
 public sealed record RecordedEramRoomEntry(double ElapsedSeconds, string FacilityId, string Entry) : RecordedAction(ElapsedSeconds);
 

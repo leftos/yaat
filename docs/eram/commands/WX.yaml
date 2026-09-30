@@ -2,5 +2,47 @@ id: WX
 variants:
   - title: Weather Data
     descriptor: WEATHER DATA
-    handler: not implemented
-    fields: []
+    format: WX 13 35 45 (13 35 45)…
+    multiple_flids: null
+    handler: WX.WeatherData
+    note: |
+      §C.2 lists no R-position source; YAAT accepts it from CRC, which stands in for the D-position and the AT Specialist.
+      Enters a station's weather report (§C.2 p.561, sent to EWDP:Update Weather Data): up to 16 sets, a trailing * on
+      field 45 starting the next. Every set is checked before any is stored; each is recorded as WX {station} {hhmm}
+      {text}, the station upper-cased and the text trimmed without the clear-weather symbol. The report is the room's,
+      one per station keyed by its METAR id (OAK and KOAK are one station), the last entry winning. It stays inside
+      ERAM: no client broadcast carries it, and CRC's WR reads METARs from vNAS itself, so nothing reads it back. It
+      expires at the first :53 routine observation instant after the entry, by sim time. No readout. The entry and its verdict are echoed to
+      the instructor terminal as "[CRC] {position} WX: {entry}". Yaat rulings: a bare WX, and a set missing field 13,
+      answer FIELD OMISSION; a malformed field 35 answers INVALID TIME like an out-of-range one; field 45 needs at least
+      one non-blank character after the symbol.
+    fields:
+      - field: Position
+        rule: |
+          When entered at the D-Position, the D-Position must have an adapted R-Position.
+        error: MsgR-PositionNotConfigured
+        na: CRC always enters commands from the R-Position.
+      - field: 13 Station
+        rule: |
+          Must be in the format aa(a)(a)(a).
+        error: MsgCofieFormat
+      - field: 35 Time
+        rule: |
+          Must be in the format dddd, a valid time HHMM.
+        error: MsgInvalidTime
+      - field: 45 Weather Text
+        rule: |
+          Must start with the clear-weather symbol, and may contain blanks.
+        error: MsgFieldOmission
+      - field: 45 Weather Text
+        rule: |
+          A maximum of 240 characters is permitted.
+        error: MsgMessageTooLong
+      - field: 13 / 35 / 45
+        rule: |
+          Each Field 13 must be followed by a Field 35 and a Field 45.
+        error: MsgFieldOmission
+      - field: 13 / 35 / 45
+        rule: |
+          A maximum of 16 sets of Fields 13, 35 and 45 is permitted.
+        error: MsgMessageTooLong
