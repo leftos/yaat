@@ -51,7 +51,7 @@ The watchdog samples the job every few seconds and kills it for the first of thr
 the log and on standard error:
  - `gate: STALLED`: nothing happened for -StallSeconds. Nothing is the log and <log>.err not growing, the job gaining
    no CPU time (its accounting, which counts the jobs nested in it and the processes that have exited), no new process
-   appearing in it, and no build server (below) started since the command was gaining CPU time. A stalled run has
+   appearing in it, and no build server it counts (below) gaining CPU time. A stalled run has
    hung: read the log for where it stopped.
  - `gate: TIMED OUT`: the ceiling ran out on the load-adjusted clock. That clock advances by the share of the machine
    the command could have had: each sample adds its wall time times the share of logical processors not busy with
@@ -77,12 +77,19 @@ Local\gate-light-slot-<m-1>, m being $env:GATE_LIGHT_SLOTS or, unset, half the l
 the user (at least one): a light gate is taken to keep one or two threads busy. The two pools are independent: a gate
 takes one slot of its own kind and never waits on the other kind, so a serial test run does not queue behind builds,
 nor builds behind it. The heavy slots bear the names a copy of the gate without -Slot takes, so such a copy shares the
-heavy pool. A gate that finds every slot of its kind held says `gate: waiting for a heavy slot` (or a light one) once
-and tries again every 2 s, and its clocks start once it holds one. Mutexes rather than a counting semaphore because a
-killed gate abandons its mutex, which the next gate then takes, saying so, where a semaphore's count would be lost for
-good. The command is started with GATE_SLOT_HELD=1, so a gate it runs in turn (a gate inside a gate) takes no slot of
-either kind and does not wait on the one its parent holds, though it still needs -Slot; set that variable yourself to
-run a gate outside the slots. A gate holding a slot writes a claim file for gate-dashboard.ps1 (beside the canonical
+heavy pool. A gate that finds every slot of its kind held says `gate: waiting for a heavy slot` (or a light one), tries
+again every 2 s, and says `gate: still waiting for a heavy slot (<n> s)` every 30 s after, so a gate around it, whose
+stall window reads that line as output, does not kill it for waiting; its clocks start once it holds one. Mutexes
+rather than a counting semaphore because a killed gate abandons its mutex, which the next gate then takes, saying so,
+where a semaphore's count would be lost for good.
+The command is started with GATE_SLOT_HELD=<kind>:<pid>:<ticks>: the kind of slot its gate runs under, that gate's pid,
+and that process's start time as UTC ticks. A gate started with it (a gate inside a gate, such as a build hook's gate
+under a gated `git commit`) takes no slot when the slot named covers its own -Slot, heavy covering heavy and light and
+light covering light only, and says `gate: running under the heavy slot of gate <pid>`; it still needs -Slot, and keeps
+its own log, ceiling, stall window, priority and job. It hands the same marker on to its own command. A light marker
+under a heavy gate is not enough: that gate waits for a heavy slot like any other. A marker whose pid is no longer a
+running process with that start time, the gate that set it having ended, or one not in that form, is ignored with a
+line saying so, and the gate takes a slot as usual. A gate holding a slot writes a claim file for gate-dashboard.ps1 (beside the canonical
 gate in ~/.claude/tools/gate) to read: $env:LOCALAPPDATA\gate\slots\<mutex name>.json, holding the gate's pid and start
 time, the slot, the caller's location, the command, the log and the ceiling. The gate deletes the file before it
 releases the slot. A killed gate leaves its file behind, and the next gate to take that slot overwrites it; the dashboard
@@ -92,6 +99,7 @@ GATE_TEST_SAMPLER_FAIL=1 is for the self-test only: it makes every sample throw,
 GATE_TEST_SLOT_PREFIX is for the self-test only: up to 32 letters, digits and dashes put in front of both pools' mutex
 names (Local\<prefix>gate-slot-<i>, Local\<prefix>gate-light-slot-<i>), so its slot cases use slots no other session
 holds. GATE_TEST_NATIVE_CACHE is for the self-test only: the folder used in place of the native cache below.
+GATE_TEST_HEARTBEAT_SECONDS is for the self-test only: the seconds between two `still waiting` lines, 30 when unset.
 
 The gate's native calls are C# compiled with Add-Type into a class named after a hash of their source. The compiled
 assembly is cached per user as $env:LOCALAPPDATA\gate\GateNative_<hash>.dll and loaded from there, since compiling it
@@ -108,10 +116,15 @@ class, or in the gate's own when the gate already runs at below-normal or idle, 
 class. A build server already running from an earlier build (VBCSCompiler, or an MSBuild node that dotnet leaves
 running) is not started by the command and does not inherit it, so the watchdog lowers any it finds above below-normal,
 once each; one it cannot lower is named once in the log and does not fail the gate. A build server outside the job
-started after the command was counts as progress, because a build hands its compiling to it; one that was already
-running does not, because the servers other sessions' builds left behind gain CPU all the time and would keep a hung
-command from ever reading as stalled. A build that hands its work to an old server still shows progress through its
-own output. Callers never wrap a gate in `nice` or set a priority of their own.
+started after the command was counts as progress, because a build hands its compiling to it. A compiler server that was
+already running (VBCSCompiler, which every build on the machine shares) counts only while the job holds a build client,
+a dotnet.exe or MSBuild.exe: a build that hands its compile to it waits on it without output or CPU of its own, and a
+gated `git commit` prints nothing until its build hook ends, since prek holds a hook's output until then (measured
+2026-09-29 with prek 0.5.0, -v included). With no build client in the job, an old server's CPU never counts, because
+the servers other sessions' builds left behind gain CPU all the time and would keep a hung command from ever reading as
+stalled. The cost: a build that hangs while another session's build keeps the shared compiler busy reads as working,
+and only the ceiling kills it. Old MSBuild nodes never count, since this gate's builds start nodes of their own (below).
+Callers never wrap a gate in `nice` or set a priority of their own.
 
 A gate's builds start MSBuild worker nodes of their own: the command runs with MSBUILDDISABLENODEREUSE=1 and
 DOTNET_CLI_USE_MSBUILD_SERVER=0, so its nodes run inside the command's job, where their CPU is measured, they inherit
@@ -200,11 +213,14 @@ $slotPools = [ordered]@{
     heavy = @{ Prefix = 'gate-slot-'; Variable = 'GATE_HEAVY_SLOTS'; Threads = 4 }
     light = @{ Prefix = 'gate-light-slot-'; Variable = 'GATE_LIGHT_SLOTS'; Threads = 2 }
 }
+# The kinds of gate that a held slot of each kind lets run under it without a slot of their own.
+$slotCovers = @{ heavy = @('heavy', 'light'); light = @('light') }
 $aboveBelowNormal = @('Normal', 'AboveNormal', 'High', 'RealTime')
-# What the command is started with: the slot marked held for any gate it runs in turn, and MSBuild made to start worker
-# nodes of its own rather than hand the build to reused nodes or the MSBuild server outside the job.
+# What the command is started with: the slot it runs under, marked for any gate it runs in turn (Invoke-Main sets the
+# marker), and MSBuild made to start worker nodes of its own rather than hand the build to reused nodes or the MSBuild
+# server outside the job.
 $commandEnvironment = [ordered]@{
-    GATE_SLOT_HELD                = '1'
+    GATE_SLOT_HELD                = ''
     MSBUILDDISABLENODEREUSE       = '1'
     DOTNET_CLI_USE_MSBUILD_SERVER = '0'
 }
@@ -1185,6 +1201,9 @@ function Get-EnvironmentProblem {
     if ($env:GATE_SAMPLE_SECONDS -and -not (Test-Duration $env:GATE_SAMPLE_SECONDS)) {
         "gate: GATE_SAMPLE_SECONDS must be a number of seconds above 0, got '$env:GATE_SAMPLE_SECONDS'"
     }
+    if ($env:GATE_TEST_HEARTBEAT_SECONDS -and -not (Test-Duration $env:GATE_TEST_HEARTBEAT_SECONDS)) {
+        "gate: GATE_TEST_HEARTBEAT_SECONDS must be a number of seconds above 0, got '$env:GATE_TEST_HEARTBEAT_SECONDS'"
+    }
     if ($env:GATE_TEST_SLOT_PREFIX -and $env:GATE_TEST_SLOT_PREFIX -cnotmatch '^[A-Za-z0-9-]{1,32}$') {
         "gate: GATE_TEST_SLOT_PREFIX must be up to 32 letters, digits and dashes, got '$env:GATE_TEST_SLOT_PREFIX'"
     }
@@ -1215,13 +1234,17 @@ function Request-Mutex {
 }
 
 # Holds one of the machine's slots of the kind given, waiting for one when all of that kind are held; returns the mutex
-# and the lines for the log.
+# and the lines for the log. A waiting gate says so once, then again every heartbeat on standard error only.
 function Enter-Slot {
     param([string]$Kind)
     $count = Get-SlotCount $Kind
     $prefix = "Local\$($env:GATE_TEST_SLOT_PREFIX)$($slotPools[$Kind].Prefix)"
     $notes = [System.Collections.Generic.List[string]]::new()
-    $waiting = $false
+    $heartbeat = if ($env:GATE_TEST_HEARTBEAT_SECONDS) {
+        [double]::Parse($env:GATE_TEST_HEARTBEAT_SECONDS, [cultureinfo]::InvariantCulture)
+    }
+    else { 30.0 }
+    $waited = $null
     while ($true) {
         for ($slot = 0; $slot -lt $count; $slot++) {
             $name = "$prefix$slot"
@@ -1231,14 +1254,66 @@ function Enter-Slot {
             }
             $mutex.Dispose()
         }
-        if (-not $waiting) {
-            $waiting = $true
+        if (-not $waited) {
+            $waited = [System.Diagnostics.Stopwatch]::StartNew()
+            $next = $heartbeat
             $line = "gate: waiting for a $Kind slot ($count busy)"
             Write-Gate $line
             $notes.Add($line)
         }
+        elseif ($waited.Elapsed.TotalSeconds -ge $next) {
+            Write-Gate "gate: still waiting for a $Kind slot ($([math]::Round($waited.Elapsed.TotalSeconds)) s)"
+            $next += $heartbeat
+        }
         Start-Sleep -Seconds 2
     }
+}
+
+# A process's start time as UTC ticks, or $null when there is no such process or its start time cannot be read (another
+# user's or a protected process, which is no gate of this user's).
+function Get-ProcessStartTick {
+    param([int]$Id)
+    $process = Get-Process -Id $Id -ErrorAction SilentlyContinue
+    if (-not $process) { return $null }
+    try {
+        return $process.StartTime.ToUniversalTime().Ticks
+    }
+    catch [System.ComponentModel.Win32Exception], [System.InvalidOperationException] {
+        return $null
+    }
+    finally {
+        $process.Dispose()
+    }
+}
+
+# The marker a gate holding a slot of the kind starts its command with (GATE_SLOT_HELD).
+function Get-SlotMarker {
+    param([string]$Kind)
+    return "${Kind}:${PID}:$(Get-ProcessStartTick $PID)"
+}
+
+# What GATE_SLOT_HELD lets this gate do: Covers when it names a live gate's slot that covers the kind, and Line saying
+# either that the gate runs under it or why it was ignored; Line is $null when the variable is unset.
+function Read-HeldSlot {
+    param([string]$Kind)
+    $marker = $env:GATE_SLOT_HELD
+    if (-not $marker) { return [pscustomobject]@{ Covers = $false; Line = $null } }
+    if ($marker -notmatch '^(heavy|light):(\d{1,9}):(\d{1,18})$') {
+        $line = "gate: ignored GATE_SLOT_HELD='$marker', which is not <kind>:<pid>:<start ticks>; taking a $Kind slot"
+        return [pscustomobject]@{ Covers = $false; Line = $line }
+    }
+    $held = $Matches[1]
+    $holder = [int]$Matches[2]
+    $ticks = [long]$Matches[3]
+    if ((Get-ProcessStartTick $holder) -ne $ticks) {
+        $line = "gate: ignored GATE_SLOT_HELD='$marker': gate $holder is no longer running; taking a $Kind slot"
+        return [pscustomobject]@{ Covers = $false; Line = $line }
+    }
+    if ($slotCovers[$held] -notcontains $Kind) {
+        $line = "gate: the $held slot of gate $holder does not cover a $Kind gate; taking a $Kind slot"
+        return [pscustomobject]@{ Covers = $false; Line = $line }
+    }
+    return [pscustomobject]@{ Covers = $true; Line = "gate: running under the $held slot of gate $holder" }
 }
 
 # The file a gate holding the slot of this mutex writes for gate-dashboard.ps1 to read, named after the mutex.
@@ -1364,6 +1439,7 @@ function New-Watch {
         JobCpu        = $script:Native::JobAccounting($Job)[0]
         TreeIds       = @{}
         ServerCpu     = @{}
+        SharedCpu     = @{}
         CommandLines  = @{}
         Lowered       = @{}
         Notes         = $Notes
@@ -1431,13 +1507,32 @@ function Set-ServerPriority {
     }
 }
 
-# The build servers outside the job. Every one found is lowered to below-normal, but only those started since the gate
-# started its command are returned, as pid -> CPU time: on a machine where other sessions build, the servers their
-# builds left running gain CPU on every sample, and counting them would keep a hung command from ever reading as
-# stalled.
+# Whether a build server is a compiler server: VBCSCompiler.exe, or a dotnet.exe running VBCSCompiler.dll. Its command
+# line is already cached by Test-BuildServer.
+function Test-CompilerServer {
+    param($Watch, $Entry, [string]$Key)
+    if ($Entry.Name -eq 'VBCSCompiler.exe') { return $true }
+    return [string]$Watch.CommandLines[$Key] -match 'VBCSCompiler\.dll'
+}
+
+# Whether the job holds a build client, a process that may hand its compile to a compiler server outside the job.
+function Test-BuildClient {
+    param($Entries, [hashtable]$Tree)
+    foreach ($entry in $Entries) {
+        if ($Tree.ContainsKey($entry.Id) -and $entry.Name -in 'dotnet.exe', 'MSBuild.exe') { return $true }
+    }
+    return $false
+}
+
+# The build servers outside the job, each lowered to below-normal, returned as two maps of pid -> CPU time: New, the
+# servers started since the gate started its command, and Shared, the compiler servers that were already running. The
+# caller counts Shared only while the job holds a build client: on a machine where other sessions build, the servers
+# their builds left running gain CPU on every sample, and counting them for any command would keep a hung one from ever
+# reading as stalled.
 function Get-BuildServer {
     param($Watch, $Entries, [hashtable]$Tree)
-    $cpu = @{}
+    $new = @{}
+    $shared = @{}
     foreach ($entry in $Entries) {
         if ($Tree.ContainsKey($entry.Id) -or ($entry.Name -ne 'VBCSCompiler.exe' -and $entry.Name -ne 'dotnet.exe')) { continue }
         $created = 0L
@@ -1448,9 +1543,10 @@ function Get-BuildServer {
         $key = "$($entry.Id):$created"
         if (-not (Test-BuildServer -Watch $Watch -Entry $entry -Key $key)) { continue }
         Set-ServerPriority -Watch $Watch -Id $entry.Id -Name $entry.Name -Key $key
-        if ($created -ge $Watch.Since) { $cpu[$entry.Id] = $used }
+        if ($created -ge $Watch.Since) { $new[$entry.Id] = $used }
+        elseif (Test-CompilerServer -Watch $Watch -Entry $entry -Key $key) { $shared[$entry.Id] = $used }
     }
-    return $cpu
+    return [pscustomobject]@{ New = $new; Shared = $shared }
 }
 
 # How far one set of processes moved between two samples: the CPU time gained in 100 ns, whether a process seen before
@@ -1513,9 +1609,10 @@ function Update-Watch {
     $servers = Get-BuildServer -Watch $Watch -Entries $entries -Tree $tree
     $treeGained = $jobCpu - $Watch.JobCpu
     $appeared = Test-NewProcess -Before $Watch.TreeIds -After $tree
-    $serverMove = Measure-Cpu -Before $Watch.ServerCpu -After $servers
+    $serverMove = Measure-Cpu -Before $Watch.ServerCpu -After $servers.New
+    $compiling = (Measure-Cpu -Before $Watch.SharedCpu -After $servers.Shared).Rose -and (Test-BuildClient -Entries $entries -Tree $tree)
     $grew = Test-LogGrew $Watch
-    if ($grew -or $treeGained -gt 0 -or $appeared -or $serverMove.Rose) { $Watch.LastProgress = $now }
+    if ($grew -or ($treeGained -gt 0) -or $appeared -or $serverMove.Rose -or $compiling) { $Watch.LastProgress = $now }
     $free = Get-FreeShare -Watch $Watch -Times $times -TreeGained $treeGained -Interval $interval
     $Watch.Adjusted += $interval * $free
     $Watch.LastFree = $free
@@ -1523,7 +1620,8 @@ function Update-Watch {
     $Watch.SystemTimes = $times
     $Watch.JobCpu = $jobCpu
     $Watch.TreeIds = $tree
-    $Watch.ServerCpu = $servers
+    $Watch.ServerCpu = $servers.New
+    $Watch.SharedCpu = $servers.Shared
 }
 
 # One sample, or none once a sample has failed: from then on the watch goes by wall time alone, which is all the
@@ -1778,9 +1876,18 @@ function Invoke-Main {
 
     $notes = @()
     $slot = $null
-    if ($env:GATE_SLOT_HELD -ne '1') {
+    $held = Read-HeldSlot -Kind $options['Slot']
+    if ($held.Line) {
+        Write-Gate $held.Line
+        $notes += $held.Line
+    }
+    if ($held.Covers) {
+        $commandEnvironment['GATE_SLOT_HELD'] = $env:GATE_SLOT_HELD
+    }
+    else {
         $slot = Enter-Slot -Kind $options['Slot']
-        $notes = @($slot.Notes)
+        $notes += @($slot.Notes)
+        $commandEnvironment['GATE_SLOT_HELD'] = Get-SlotMarker $options['Slot']
         Write-SlotClaim -Slot $slot -Kind $options['Slot'] -Command $parsed.Command -Options $options
     }
     try {

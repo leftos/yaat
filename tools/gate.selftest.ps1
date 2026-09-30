@@ -11,11 +11,12 @@ and gate.ps1 into every repo that carries them.
 Each case starts the gate as a caller would, `pwsh -NoProfile -File tools/gate.ps1 ... -Slot light ...`, every command
 here being serial, with a log under .tmp/gate-selftest, and prints `ok <case>` or `FAIL <case>: <why>`. The gate samples
 every second here (GATE_SAMPLE_SECONDS=1) so the stall and ceiling cases end in seconds. Every case but the slot cases
-and the nesting case runs with GATE_SLOT_HELD=1, so the self-test never waits on, or holds up, the gates other sessions
-are running; the slot cases and the nesting case set GATE_TEST_SLOT_PREFIX to a prefix of this run's own, so their
-gates take slots no other session's gate can hold. The cases that leave a process behind on purpose write its pid to a
-file, check it by pid and stop it by pid afterwards. Each gate started as its own process gets 90 s of wall time,
-after which the case fails and the gate is killed with its tree. A case whose verdict rests on timing and fails while
+and the nesting cases runs with GATE_SLOT_HELD set to a heavy marker naming the process that runs it, so the self-test
+never waits on, or holds up, the gates other sessions are running; the slot cases and the nesting cases set
+GATE_TEST_SLOT_PREFIX to a prefix of this run's own, so their gates take slots no other session's gate can hold. The
+cases that leave a process behind on purpose write its pid to a file, check it by pid and stop it by pid afterwards.
+Each gate started as its own process gets 90 s of wall time, after which the case fails and the gate is killed with its
+tree. A case whose verdict rests on timing and fails while
 its log says the machine was under 30% free prints `skip <case>: machine busy (free <p>%)` instead of failing: a kill
 line gives the free share outright, a passed line as the load-adjusted time over the wall time.
 
@@ -27,7 +28,7 @@ priority while they do, so the processes it starts, which inherit that, do not s
 normal too, while they start. The cases whose command keeps a core busy
 and whose verdict rests on that CPU time (CPU, a grandchild's, a packaged child's, a nested job's, short-lived children's
 and the ceiling) run one after another in a single process once those are done, so that none of them shares the machine
-with another. The slot cases and the nesting case run one after another in a process of their own from the start, since
+with another. The slot cases and the nesting cases run one after another in a process of their own from the start, since
 they take the machine's slots and wait rather than compute, and the failing-sampler case runs last in that process: its
 gates cannot say how busy the machine was, so its timing gets no skip, and by then the waiting cases have ended. Each
 process's lines are printed once it and every one before it in that order has finished, so the output reads the same
@@ -63,7 +64,7 @@ $script:failed = 0
 $caseSeconds = 600
 # The cases that wait rather than compute, each in a process of its own, the longest first.
 $waitingCases = @(
-    'Test-QuickExit', 'Test-NestedKill', 'Test-Stall', 'Test-OldServer', 'Test-StopTree', 'Test-OrphanKill',
+    'Test-QuickExit', 'Test-NestedKill', 'Test-Stall', 'Test-OldServer', 'Test-SharedCompiler', 'Test-StopTree', 'Test-OrphanKill',
     'Test-PackagedKill', 'Test-OutputProgress', 'Test-RelativeLog', 'Test-StopJob', 'Test-BuildEnvironment',
     'Test-Status', 'Test-Argument', 'Test-Priority', 'Test-Usage', 'Test-OldNativeType', 'Test-NativeCache'
 )
@@ -71,7 +72,10 @@ $waitingCases = @(
 $cpuCases = @('Test-CpuProgress', 'Test-OrphanProgress', 'Test-PackagedProgress', 'Test-NestedJob', 'Test-ShortLivedChild', 'Test-Ceiling')
 # The cases that take the machine's slots, one after another, and last the failing-sampler case: its gates cannot say
 # how busy the machine was, so it has no skip to fall back on, and by then the waiting cases' processes have ended.
-$slotCases = @('Test-Slot', 'Test-SlotPool', 'Test-SlotClaim', 'Test-Nesting', 'Test-SamplerFailure')
+$slotCases = @(
+    'Test-Slot', 'Test-SlotPool', 'Test-SlotClaim', 'Test-Nesting', 'Test-NestingCovered', 'Test-NestingLightOuter', 'Test-StaleMarker',
+    'Test-WaitHeartbeat', 'Test-SamplerFailure'
+)
 # The prefix every slot case's gates put in front of their mutex names (GATE_TEST_SLOT_PREFIX), so that no other
 # session's gate holds the slots they use, and slot 0 of each kind under it, the one a gate of the kind takes first.
 $slotPrefix = "selftest-$PID-"
@@ -272,6 +276,32 @@ function Test-OldServer {
     $why = $run.Why
     if (-not $why -and $run.Seconds -ge 12) { $why = "took $([math]::Round($run.Seconds)) s, expected under 12 s" }
     Write-TimedResult -Case 'a build server started before the gate does not count as progress' -LogCase 'old-server' -Why $why
+}
+
+# The other half of Test-OldServer: a build hands its compile to the compiler server an earlier build left running and
+# waits on it without a word or CPU of its own, as a gated `git commit` does while prek holds its build hook's output.
+# The command is cmd.exe copied as dotnet.exe, a build client, waiting silently on a pwsh sleep past the stall window,
+# while cmd.exe copied as VBCSCompiler.exe, started before the gate, spins; the run must not be killed as stalled.
+function Test-SharedCompiler {
+    $folder = Join-Path $dir 'shared-compiler'
+    New-Item -ItemType Directory -Force $folder | Out-Null
+    $server = Join-Path $folder 'VBCSCompiler.exe'
+    $client = Join-Path $folder 'dotnet.exe'
+    $cmd = Join-Path $env:SystemRoot 'System32\cmd.exe'
+    Copy-Item -Path $cmd -Destination $server -Force
+    Copy-Item -Path $cmd -Destination $client -Force
+    $spin = Start-Process -FilePath $server -ArgumentList '/d', '/c', '"for /l %i in (1,1,60000000) do @rem"' -PassThru -WindowStyle Hidden
+    try {
+        Start-Sleep -Seconds 1
+        $arguments = @('-Log', "$dir/shared-compiler.log", '-TimeoutSeconds', '60', '-StallSeconds', '3', '-Slot', 'light', '--',
+            $client, '/d', '/c', 'pwsh -NoProfile -c Start-Sleep 8')
+        $run = Invoke-Gate -Arguments $arguments
+    }
+    finally {
+        if (-not $spin.HasExited) { $spin.Kill() }
+    }
+    $why = Get-RunProblem -Case 'shared-compiler' -Run $run -Expected 0
+    Write-TimedResult -Case 'a shared compiler server working for a build client in the job counts as progress' -LogCase 'shared-compiler' -Why $why
 }
 
 function Test-OutputProgress {
@@ -599,17 +629,21 @@ function Test-Usage {
     }
 }
 
-# Starts a gate that takes a slot of this run's own: GATE_SLOT_HELD unset, GATE_TEST_SLOT_PREFIX set and each variable
-# of $Counts set to its value while the process is created, which is when it takes its environment, and this session's
-# put back straight after.
+# Starts a gate that takes a slot of this run's own: GATE_SLOT_HELD set to $Held (unset when empty),
+# GATE_TEST_SLOT_PREFIX set and each variable of $Counts set to its value while the process is created, which is when
+# it takes its environment, and this session's put back straight after.
 function Start-SlotGate {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Starts a gate of this run''s own; the environment it changes is put back before it returns.')]
-    param([string[]]$Arguments, [hashtable]$Counts)
+    param(
+        [Parameter(Mandatory)][string[]]$Arguments,
+        [Parameter(Mandatory)][hashtable]$Counts,
+        [Parameter(Mandatory)][AllowEmptyString()][string]$Held
+    )
     $saved = @{ GATE_SLOT_HELD = $env:GATE_SLOT_HELD; GATE_TEST_SLOT_PREFIX = $env:GATE_TEST_SLOT_PREFIX }
     foreach ($name in $Counts.Keys) { $saved[$name] = [Environment]::GetEnvironmentVariable($name) }
     try {
-        $env:GATE_SLOT_HELD = $null
+        $env:GATE_SLOT_HELD = if ($Held) { $Held } else { $null }
         $env:GATE_TEST_SLOT_PREFIX = $slotPrefix
         foreach ($name in $Counts.Keys) { [Environment]::SetEnvironmentVariable($name, $Counts[$name]) }
         return Start-Gate -Arguments $Arguments
@@ -648,7 +682,7 @@ function Test-SlotKind {
     $cases = @("slot-$Kind-a", "slot-$Kind-b")
     $started = @(foreach ($case in $cases) {
             $arguments = @('-Log', "$dir/$case.log", '-TimeoutSeconds', '60', '-Slot', $Kind, '--', 'pwsh', '-NoProfile', '-c', $script)
-            Start-SlotGate -Arguments $arguments -Counts @{ $variable = '1' }
+            Start-SlotGate -Arguments $arguments -Counts @{ $variable = '1' } -Held ''
         })
     $runs = @($started | ForEach-Object { Complete-Pwsh -Started $_ -Seconds 90 })
     $why = if (@($runs | Where-Object { $_.TimedOut }).Count -gt 0) {
@@ -692,7 +726,8 @@ function Test-OtherPoolHeld {
     if (-not $held) { Write-Result $label "could not take $Other, which only this run uses, within 10 s"; return }
     try {
         $arguments = @('-Log', "$dir/$case.log", '-TimeoutSeconds', '30', '-Slot', $Kind, '--', 'pwsh', '-NoProfile', '-c', 'exit 0')
-        $run = Complete-Pwsh -Started (Start-SlotGate -Arguments $arguments -Counts @{ GATE_HEAVY_SLOTS = '1'; GATE_LIGHT_SLOTS = '1' }) -Seconds 60
+        $counts = @{ GATE_HEAVY_SLOTS = '1'; GATE_LIGHT_SLOTS = '1' }
+        $run = Complete-Pwsh -Started (Start-SlotGate -Arguments $arguments -Counts $counts -Held '') -Seconds 60
     }
     finally {
         $held.ReleaseMutex()
@@ -718,7 +753,7 @@ function Test-SlotClaim {
     $claim = Join-Path $env:LOCALAPPDATA "gate\slots\${slotPrefix}gate-light-slot-0.json"
     $arguments = @('-Log', "$dir/slot-claim.log", '-TimeoutSeconds', '30', '-Slot', 'light', '--',
         'pwsh', '-NoProfile', '-c', 'Start-Sleep 4; exit 0')
-    $started = Start-SlotGate -Arguments $arguments -Counts @{ GATE_LIGHT_SLOTS = '1' }
+    $started = Start-SlotGate -Arguments $arguments -Counts @{ GATE_LIGHT_SLOTS = '1' } -Held ''
     $seen = $null
     while (-not $seen -and -not $started.Process.HasExited) {
         if (Test-Path -LiteralPath $claim) { $seen = Get-Content -LiteralPath $claim -Raw | ConvertFrom-Json }
@@ -771,10 +806,161 @@ function Test-Nesting {
     $inner = @('pwsh', '-NoProfile', '-File', $gate, '-Log', "$dir/nest-inner.log", '-TimeoutSeconds', '20', '-Slot', 'light', '--',
         'pwsh', '-NoProfile', '-c', 'Start-Sleep 5; exit 0')
     $outer = @('-Log', "$dir/nest.log", '-TimeoutSeconds', '20', '-Slot', 'light', '--') + $inner
-    $run = Complete-Gate (Start-SlotGate -Arguments $outer -Counts @{ GATE_LIGHT_SLOTS = '1' })
+    $run = Complete-Gate (Start-SlotGate -Arguments $outer -Counts @{ GATE_LIGHT_SLOTS = '1' } -Held '')
     $why = Get-RunProblem -Case 'nest' -Run $run -Expected 0
     if (-not $why -and $run.Seconds -ge 25) { $why = "took $([math]::Round($run.Seconds)) s, expected under 25 s" }
     Write-TimedResult -Case 'a gate inside a gate does not wait on its parent''s slot' -LogCase 'nest' -Why $why
+}
+
+# One slot of each kind, the light one held by this run and the heavy one by an outer heavy gate: an inner heavy gate
+# and an inner light gate both run under the outer's slot and say so. An inner gate that took a slot would wait on one
+# that never frees, and the outer's stall window kills the run.
+function Test-NestingCovered {
+    $held = Get-HeldMutex -Name $slotZero['light'] -Seconds 10
+    if (-not $held) { Write-Result 'a heavy slot covers the gates inside it' "could not take $($slotZero['light']) within 10 s"; return }
+    try {
+        foreach ($kind in 'heavy', 'light') {
+            $case = "nest-covered-$kind"
+            $inner = @('pwsh', '-NoProfile', '-File', $gate, '-Log', "$dir/$case-inner.log", '-TimeoutSeconds', '20', '-Slot', $kind, '--',
+                'pwsh', '-NoProfile', '-c', 'exit 0')
+            $outer = @('-Log', "$dir/$case.log", '-TimeoutSeconds', '30', '-StallSeconds', '10', '-Slot', 'heavy', '--') + $inner
+            $counts = @{ GATE_HEAVY_SLOTS = '1'; GATE_LIGHT_SLOTS = '1' }
+            $run = Complete-Gate (Start-SlotGate -Arguments $outer -Counts $counts -Held '')
+            $why = Get-RunProblem -Case $case -Run $run -Expected 0 -Holds 'gate: running under the heavy slot of gate \d+'
+            Write-Result "an inner $kind gate runs under its parent's heavy slot" $why
+        }
+    }
+    finally {
+        $held.ReleaseMutex()
+        $held.Dispose()
+    }
+}
+
+# Whether a file a gate may still be writing holds the pattern. The path is read against this session's location,
+# which .NET's own current directory does not follow.
+function Test-FileText {
+    param([string]$Path, [string]$Pattern)
+    $full = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
+    if (-not (Test-Path -LiteralPath $full)) { return $false }
+    try {
+        $stream = [System.IO.File]::Open($full, 'Open', 'Read', 'ReadWrite, Delete')
+    }
+    catch [System.IO.IOException] {
+        # The gate moved or deleted the file between the test and the open; the next poll reads the one it went to.
+        return $false
+    }
+    try { return [System.IO.StreamReader]::new($stream).ReadToEnd() -match $Pattern }
+    finally { $stream.Dispose() }
+}
+
+# While this run holds a slot the gate under test needs: waits up to $Seconds for the gate's command to write the
+# sentinel (it ran without the slot) or for one of the files to say a gate is waiting for a slot; returns 'ran',
+# 'waiting' or 'quiet'.
+function Watch-HeldSlot {
+    param([string]$Sentinel, [string[]]$Files, [int]$Seconds)
+    $clock = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($clock.Elapsed.TotalSeconds -lt $Seconds) {
+        if (Test-Path -LiteralPath $Sentinel) { return 'ran' }
+        foreach ($file in $Files) {
+            if (Test-FileText -Path $file -Pattern 'waiting for a \w+ slot') { return 'waiting' }
+        }
+        Start-Sleep -Milliseconds 200
+    }
+    return 'quiet'
+}
+
+# A command whose only work is to write the sentinel, so a run that bypassed its slot shows at once.
+function Get-SentinelCommand {
+    param([string]$Sentinel)
+    Remove-Item -LiteralPath $Sentinel -ErrorAction SilentlyContinue
+    return @('pwsh', '-NoProfile', '-c', "Set-Content -Path '$Sentinel' -Value 1")
+}
+
+# A light slot does not cover a heavy gate: under an outer light gate, an inner heavy gate waits for the only heavy
+# slot, which this run holds until the inner gate says it is waiting.
+function Test-NestingLightOuter {
+    $label = 'an inner heavy gate under a light one still takes a heavy slot'
+    $case = 'nest-light-heavy'
+    $sentinel = "$dir/$case.started"
+    $inner = @('pwsh', '-NoProfile', '-File', $gate, '-Log', "$dir/$case-inner.log", '-TimeoutSeconds', '30', '-Slot', 'heavy', '--') +
+        (Get-SentinelCommand $sentinel)
+    $outer = @('-Log', "$dir/$case.log", '-TimeoutSeconds', '60', '-Slot', 'light', '--') + $inner
+    $held = Get-HeldMutex -Name $slotZero['heavy'] -Seconds 10
+    if (-not $held) { Write-Result $label "could not take $($slotZero['heavy']) within 10 s"; return }
+    try {
+        $started = Start-SlotGate -Arguments $outer -Counts @{ GATE_HEAVY_SLOTS = '1'; GATE_LIGHT_SLOTS = '1' } -Held ''
+        $seen = Watch-HeldSlot -Sentinel $sentinel -Files @("$dir/$case.log.err", "$dir/$case.log") -Seconds 30
+    }
+    finally {
+        $held.ReleaseMutex()
+        $held.Dispose()
+    }
+    $run = Complete-Gate $started
+    $why = if ($seen -eq 'ran') { 'the inner heavy gate ran its command while this run held the only heavy slot' }
+    elseif ($seen -eq 'quiet') { "the inner gate neither ran nor said it was waiting within 30 s; see $dir/$case.log" }
+    else { Get-RunProblem -Case $case -Run $run -Expected 0 }
+    Write-Result $label $why
+}
+
+# The marker of a process that has ended: its pid and the start time it had.
+function Get-DeadHolder {
+    $process = Start-Process -FilePath cmd.exe -ArgumentList '/d', '/c', 'exit 0' -PassThru -WindowStyle Hidden
+    $ticks = $process.StartTime.ToUniversalTime().Ticks
+    $process.WaitForExit()
+    $id = $process.Id
+    $process.Dispose()
+    return "heavy:${id}:$ticks"
+}
+
+# A marker naming a holder that has ended, or the bare 1 an older gate wrote, does not let a heavy gate skip the only
+# heavy slot, which this run holds for 8 s: the command must not run meanwhile, and the gate must say it waited.
+function Test-StaleMarker {
+    $markers = [ordered]@{ 'whose holder has ended' = (Get-DeadHolder); 'that is a bare 1' = '1' }
+    $index = 0
+    foreach ($label in $markers.Keys) {
+        $index++
+        $case = "stale-marker-$index"
+        $sentinel = "$dir/$case.started"
+        $arguments = @('-Log', "$dir/$case.log", '-TimeoutSeconds', '30', '-Slot', 'heavy', '--') + (Get-SentinelCommand $sentinel)
+        $held = Get-HeldMutex -Name $slotZero['heavy'] -Seconds 10
+        if (-not $held) { Write-Result "a marker $label is ignored" "could not take $($slotZero['heavy']) within 10 s"; continue }
+        try {
+            $started = Start-SlotGate -Arguments $arguments -Counts @{ GATE_HEAVY_SLOTS = '1' } -Held $markers[$label]
+            $seen = Watch-HeldSlot -Sentinel $sentinel -Files @() -Seconds 8
+        }
+        finally {
+            $held.ReleaseMutex()
+            $held.Dispose()
+        }
+        $run = Complete-Gate $started
+        $why = if ($seen -eq 'ran') { "the command ran under GATE_SLOT_HELD=$($markers[$label]) while this run held the only heavy slot" }
+        else { Get-RunProblem -Case $case -Run $run -Expected 0 }
+        if (-not $why -and $run.Err -notmatch 'waiting for a heavy slot') { $why = "the gate never said it was waiting: $($run.Err)" }
+        Write-Result "a marker $label is ignored" $why
+    }
+}
+
+# A gate waiting for a slot says so again every heartbeat (1 s here), so a gate around it sees output while it waits.
+function Test-WaitHeartbeat {
+    $label = 'a gate waiting for a slot prints a heartbeat'
+    $case = 'wait-heartbeat'
+    $sentinel = "$dir/$case.started"
+    $arguments = @('-Log', "$dir/$case.log", '-TimeoutSeconds', '30', '-Slot', 'heavy', '--') + (Get-SentinelCommand $sentinel)
+    $held = Get-HeldMutex -Name $slotZero['heavy'] -Seconds 10
+    if (-not $held) { Write-Result $label "could not take $($slotZero['heavy']) within 10 s"; return }
+    try {
+        $started = Start-SlotGate -Arguments $arguments -Counts @{ GATE_HEAVY_SLOTS = '1'; GATE_TEST_HEARTBEAT_SECONDS = '1' } -Held ''
+        $seen = Watch-HeldSlot -Sentinel $sentinel -Files @() -Seconds 8
+    }
+    finally {
+        $held.ReleaseMutex()
+        $held.Dispose()
+    }
+    $run = Complete-Gate $started
+    $why = if ($seen -eq 'ran') { 'the command ran while this run held the only heavy slot' }
+    else { Get-RunProblem -Case $case -Run $run -Expected 0 }
+    if (-not $why -and $run.Err -notmatch 'gate: still waiting for a heavy slot \(\d+ s\)') { $why = "no heartbeat line: $($run.Err)" }
+    Write-Result $label $why
 }
 
 # An outer gate whose command is an inner gate whose command sleeps without a word: the outer's kill must reach the
@@ -1048,11 +1234,12 @@ function Invoke-All {
 
 $saved = @{}
 $names = 'GATE_SAMPLE_SECONDS', 'GATE_SLOT_HELD', 'GATE_HEAVY_SLOTS', 'GATE_LIGHT_SLOTS', 'GATE_TEST_SAMPLER_FAIL',
-'GATE_TEST_SLOT_PREFIX', 'GATE_TEST_NATIVE_CACHE', 'MSBUILDDISABLENODEREUSE', 'DOTNET_CLI_USE_MSBUILD_SERVER'
+'GATE_TEST_SLOT_PREFIX', 'GATE_TEST_NATIVE_CACHE', 'GATE_TEST_HEARTBEAT_SECONDS', 'MSBUILDDISABLENODEREUSE', 'DOTNET_CLI_USE_MSBUILD_SERVER'
 foreach ($name in $names) { $saved[$name] = [Environment]::GetEnvironmentVariable($name) }
 try {
     $env:GATE_SAMPLE_SECONDS = '1'
-    $env:GATE_SLOT_HELD = '1'
+    # This process's own heavy slot marker, which covers every kind: the gates of every case but the slot cases run under it.
+    $env:GATE_SLOT_HELD = "heavy:${PID}:$((Get-Process -Id $PID).StartTime.ToUniversalTime().Ticks)"
     $env:GATE_TEST_SAMPLER_FAIL = $null
     if ($Case) { Invoke-Case -Names @($Case | ForEach-Object { $_ -split ',' } | Where-Object { $_ }) }
     else { Invoke-All }
