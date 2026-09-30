@@ -207,6 +207,8 @@ Setting only `StatusText` puts it in small gray text at the bottom of the window
 happened"; the client now also raises a terminal warning (`MainViewModel.ReportScenarioActionFailure`) and
 disables the controls up front via `CanLoadScenario`/`CanUnloadScenario`.
 
+**While a scenario loads** (`LoadScenario`, `StartLiveSession`; the room's load flag), a second load in the same room returns `Success = false` with first warning `A scenario is already loading in this room (started by {initials}). Wait for it to finish.` `UnloadScenarioAircraft` and `ConfirmUnloadScenario` throw `HubException` `The room is loading a scenario. Try again when it has loaded.`; `RestartScenario`, `RewindTo`, `RewindFromSnapshot` and `LoadRecording` return their failure DTO with the same text. A load whose JSON cannot be read returns `Success = false` with `The scenario JSON could not be read: {message}. The room keeps its current scenario.`, and one whose room closed meanwhile `The room was closed while the scenario loaded.`; a failed load sends no `ScenarioLoaded`.
+
 `RestartScenario` is deliberately **not** in that list: it re-runs the same scenario, so unlike unload it can
 neither strand the room nor switch scenarios, and a non-mentor working alone can retry without an instructor.
 Note the gate is a **rating tier**, not the RPO position — a mentor working an RPO position is unaffected (the
