@@ -3919,6 +3919,89 @@ public static class CommandDispatcher
             _ => null,
         };
 
+    /// <summary>
+    /// The follower's position as the runwayless-lead lead-ahead cone refusal names it: the pattern leg (lower-case) for
+    /// upwind, crosswind, downwind and base, "pattern entry" for a pattern-entry phase (entry, crossing, teardrop). Null
+    /// on any other phase. Unlike <see cref="SequenceRefusalPosition"/>, a pattern entry names a position here: that
+    /// refusal is for a same-runway lead and accepts an entry follower, while the cone is for a lead with no runway to
+    /// sequence against, from which a follower on its own entry can still be told to look for traffic ahead.
+    /// </summary>
+    private static string? ConeRefusalPosition(Phase? phase) =>
+        phase switch
+        {
+            PatternEntryPhase or MidfieldCrossingPhase or TeardropReentryPhase => "pattern entry",
+            UpwindPhase => "upwind",
+            CrosswindPhase => "crosswind",
+            DownwindPhase => "downwind",
+            BasePhase => "base",
+            _ => null,
+        };
+
+    /// <summary>
+    /// True when <paramref name="lead"/> counts as ahead of a follower on a pattern leg (<see cref="ConeRefusalPosition"/>):
+    /// within ±60° of the follower's own track (<see cref="AirborneFollowHelper.IsLeadAheadOfTrack"/>), or — from upwind
+    /// or crosswind, whose next turn is onto the downwind — inside the downwind box
+    /// (<see cref="IsLeadInDownwindBox"/>), a lead the follower falls in behind by flying its own circuit, with no
+    /// unexpected maneuver (AIM §4-3-5). Every other pattern leg keeps the track test alone.
+    /// </summary>
+    private static bool IsLeadAheadOnPatternLeg(AircraftState aircraft, AircraftState lead, Phase? current, RunwayInfo runway) =>
+        AirborneFollowHelper.IsLeadAheadOfTrack(aircraft, lead)
+        || ((current is UpwindPhase or CrosswindPhase) && (PhaseWaypoints(current) is { } waypoints) && IsLeadInDownwindBox(lead, waypoints, runway));
+
+    /// <summary>The circuit waypoints <paramref name="phase"/> carries, or null when it carries none.</summary>
+    private static PatternWaypoints? PhaseWaypoints(Phase? phase) =>
+        phase switch
+        {
+            UpwindPhase upwind => upwind.Waypoints,
+            CrosswindPhase crosswind => crosswind.Waypoints,
+            _ => null,
+        };
+
+    /// <summary>How far past the base turn a lead still on the downwind line counts as ahead — a judgement figure
+    /// (AIM §4-3-3 / §4-3-5), not a published value.</summary>
+    private const double DownwindBoxExtensionNm = 3.0;
+
+    /// <summary>Fraction of the downwind offset below which a lead is inside the follower's circuit rather than on the
+    /// downwind line — a judgement figure (AIM §4-3-3 / §4-3-5), not a published value.</summary>
+    private const double DownwindBoxInnerFraction = 0.5;
+
+    /// <summary>How far outside the downwind line a lead still counts as on it — a judgement figure (AIM §4-3-3 / §4-3-5),
+    /// not a published value.</summary>
+    private const double DownwindBoxOuterMarginNm = 1.5;
+
+    /// <summary>
+    /// True when <paramref name="lead"/> is inside the follower's downwind box, measured from the follower's circuit
+    /// waypoints: between <see cref="DownwindBoxInnerFraction"/> of the downwind offset and that offset plus
+    /// <see cref="DownwindBoxOuterMarginNm"/> from the extended runway centerline on the circuit side (a lead nearer the
+    /// centerline is traffic between the follower and the runway, not on the downwind line), no further back than the
+    /// downwind turn point (the crosswind turn point moved out to the downwind line, where the follower's first turn puts
+    /// it) and no further along than the base turn plus <see cref="DownwindBoxExtensionNm"/>, tracking within ±90° of the
+    /// downwind heading so it is flying the circuit rather than against it. A lead there is one the follower joins behind
+    /// by flying its own circuit, with no unexpected maneuver (AIM §4-3-5).
+    /// </summary>
+    private static bool IsLeadInDownwindBox(AircraftState lead, PatternWaypoints waypoints, RunwayInfo runway)
+    {
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        var downwindTurn = new LatLon(waypoints.DownwindStartLat, waypoints.DownwindStartLon);
+        double s = GeoMath.AlongTrackDistanceNm(lead.Position, downwindTurn, waypoints.DownwindHeading);
+        double baseTurnS = GeoMath.AlongTrackDistanceNm(
+            new LatLon(waypoints.BaseTurnLat, waypoints.BaseTurnLon),
+            downwindTurn,
+            waypoints.DownwindHeading
+        );
+        double d = GeoMath.SignedCrossTrackDistanceNm(lead.Position, threshold, runway.TrueHeading);
+        if (waypoints.Direction == PatternDirection.Left)
+        {
+            d = -d;
+        }
+
+        return (s >= 0.0)
+            && (s <= baseTurnS + DownwindBoxExtensionNm)
+            && (d >= (waypoints.PatternSizeNm * DownwindBoxInnerFraction))
+            && (d <= (waypoints.PatternSizeNm + DownwindBoxOuterMarginNm))
+            && (waypoints.DownwindHeading.AbsAngleTo(lead.TrueTrack) <= 90.0);
+    }
+
     /// <summary>True when <paramref name="phase"/> flies an instrument approach: a course intercept or an approach's fixes.</summary>
     private static bool IsOnInstrumentApproach(Phase? phase) => phase is InterceptCoursePhase or ApproachNavigationPhase;
 
@@ -4068,7 +4151,10 @@ public static class CommandDispatcher
     /// pattern entry to the queued runway, as the cross-runway re-sequence does;</item>
     /// <item>otherwise (nothing queued, or an entry for the follower's own runway) — trail the lead in free
     /// pursuit with a pattern return to the follower's circuit; from final, refuse (nothing to trail onto
-    /// that close in); from base, only when the lead is ahead within ±60° of the follower's track.</item>
+    /// that close in); from every other pattern leg (entry, crossing, teardrop, upwind, crosswind,
+    /// downwind, base), only when the lead is ahead within ±60° of the follower's track, or — from upwind
+    /// or crosswind — inside the downwind box (see <see cref="IsLeadAheadOnPatternLeg"/>), refused as
+    /// <see cref="ConeRefusalPosition"/> names the leg.</item>
     /// </list>
     /// </summary>
     private static CommandResult TryFollowFromPatternLeg(
@@ -4102,9 +4188,12 @@ public static class CommandDispatcher
             return FollowFromLegRefusal(onBase: false, followerRunway, target);
         }
 
-        if ((current is BasePhase) && !AirborneFollowHelper.IsLeadAheadOfTrack(aircraft, lead))
+        if ((ConeRefusalPosition(current) is { } position) && !IsLeadAheadOnPatternLeg(aircraft, lead, current, followerRunway))
         {
-            return new CommandResult(false, $"Unable, on base for runway {followerRunway.Designator}, {target} is not ahead of us, request vectors");
+            return new CommandResult(
+                false,
+                $"Unable, on {position} for runway {followerRunway.Designator}, {target} is not ahead of us, request vectors"
+            );
         }
 
         InstallVfrFollowPhase(aircraft, target, VfrFollowPhase.BuildFollowPatternReturn(aircraft, followerRunway, ctx.GroundLayout));
@@ -4139,7 +4228,8 @@ public static class CommandDispatcher
     /// runway) is refused, unless it is rolling out on the follower's own runway;</item>
     /// <item>a lead bound for another airport is refused (<see cref="LeadBoundElsewhereRefusal"/>);</item>
     /// <item>a lead with no current runway (free flight, perhaps with a pattern entry queued behind a DCT) gives
-    /// the in-place retarget nothing to sequence against, so it goes through <see cref="TryFollowFromPatternLeg"/>.</item>
+    /// the in-place retarget nothing to sequence against, so it goes through <see cref="TryFollowFromPatternLeg"/>,
+    /// where the ±60° lead-ahead cone applies on every pattern leg.</item>
     /// </list>
     /// Null when none applies (or the follower is not on a pattern leg with a runway) and dispatch continues.
     /// </summary>

@@ -21,8 +21,12 @@ namespace Yaat.Sim.Tests.Simulation;
 ///
 /// Routing under test:
 /// - lead queued for a different runway: re-sequence onto it from downwind/upwind/entry; refuse from base/final;
-/// - otherwise (no queued entry, or one for the follower's runway): free pursuit with a pattern return,
-///   except from final (refused) and from base when the lead is not ahead within ±60° of track (refused);
+/// - otherwise (no queued entry, or one for the follower's runway): free pursuit with a pattern return, except from
+///   final (refused) and from any other pattern leg — entry, upwind, crosswind, downwind, base — when the lead is not
+///   ahead within ±60° of the follower's track, or — from upwind and crosswind, whose next turn is onto the downwind —
+///   inside the downwind box (the corridor along the downwind line from the downwind turn point to 3 nm past the base
+///   turn, between half and the full downwind offset plus 1.5 nm of the extended runway centerline, tracking within ±90°
+///   of the downwind heading), where the follower joins behind it by flying its own circuit;
 /// - the pursuit phase list keeps the follower's landing clearance.
 /// </summary>
 public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
@@ -132,6 +136,43 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
         Assert.Null(lead.Phases?.AssignedRunway);
         return lead;
     }
+
+    /// <summary>
+    /// An aircraft on the 28R right circuit from <paramref name="leg"/>, then placed where <paramref name="place"/> puts
+    /// it on that circuit's own geometry (the dispatcher reads position and track only, so no tick runs between).
+    /// </summary>
+    private static AircraftState AddOnCircuit(
+        SimulationEngine engine,
+        RunwayInfo rwy,
+        PatternEntryLeg leg,
+        Func<PatternWaypoints, (LatLon, TrueHeading)> place
+    )
+    {
+        AircraftState ac = MakeVfr(Follower, OffFinal(rwy, 1.0, 1.0), rwy.TrueHeading, 1000);
+        ac.Approach.HasReportedTrafficInSight = true;
+        engine.World.AddAircraft(ac);
+        PutOnCircuit(ac, rwy, PatternDirection.Right, leg);
+        PatternWaypoints wp = WaypointsOf(ac, leg);
+        (LatLon position, TrueHeading heading) = place(wp);
+        ac.Position = position;
+        ac.TrueHeading = heading;
+        ac.TrueTrack = heading;
+        return ac;
+    }
+
+    private static PatternWaypoints WaypointsOf(AircraftState ac, PatternEntryLeg leg) =>
+        AirborneFollowHelper.PatternWaypointsOf(ac.Phases!.CurrentPhase!) ?? throw new InvalidOperationException($"{leg} carries no waypoints");
+
+    /// <summary>On the upwind, <paramref name="shortNm"/> before the crosswind-turn point (past it when negative).</summary>
+    private static (LatLon, TrueHeading) UpwindShortOfCrosswindTurn(PatternWaypoints wp, double shortNm) =>
+        (GeoMath.ProjectPoint(new LatLon(wp.CrosswindTurnLat, wp.CrosswindTurnLon), wp.UpwindHeading.ToReciprocal(), shortNm), wp.UpwindHeading);
+
+    /// <summary>On the crosswind, <paramref name="outNm"/> out from the crosswind-turn point.</summary>
+    private static (LatLon, TrueHeading) OutOnCrosswind(PatternWaypoints wp, double outNm) =>
+        (GeoMath.ProjectPoint(new LatLon(wp.CrosswindTurnLat, wp.CrosswindTurnLon), wp.CrosswindHeading, outNm), wp.CrosswindHeading);
+
+    /// <summary>Directly behind <paramref name="follower"/> on its own track, <paramref name="nm"/> back.</summary>
+    private static LatLon Astern(AircraftState follower, double nm) => GeoMath.ProjectPoint(follower.Position, follower.TrueTrack.ToReciprocal(), nm);
 
     // ─── Recorded case ───
 
@@ -288,6 +329,364 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
         Assert.Contains($"{Leader} is not ahead", result.Message);
         Assert.Same(before, follower.Phases!.CurrentPhase);
         Assert.Null(follower.Approach.FollowingCallsign);
+    }
+
+    // ─── The ±60° cone on every pattern leg ───
+
+    /// <summary>A position <paramref name="offTrackDeg"/> off <paramref name="follower"/>'s track at <paramref name="nm"/> nm.</summary>
+    private static LatLon OffTrack(AircraftState follower, double offTrackDeg, double nm) =>
+        GeoMath.ProjectPoint(follower.Position, follower.TrueTrack + offTrackDeg, nm);
+
+    /// <summary>Gives <paramref name="lead"/> a ground track, as the box's third condition reads it.</summary>
+    private static AircraftState WithTrack(AircraftState lead, TrueHeading track)
+    {
+        lead.TrueHeading = track;
+        lead.TrueTrack = track;
+        return lead;
+    }
+
+    /// <summary>A circuit point's along-track distance from the threshold, in the frame <see cref="OffFinal"/> uses.</summary>
+    private static double AlongOf(RunwayInfo rwy, double lat, double lon) =>
+        GeoMath.AlongTrackDistanceNm(new LatLon(lat, lon), new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude), rwy.TrueHeading.ToReciprocal());
+
+    /// <summary>The downwind turn point's along-track distance from the threshold: the crosswind turn, offset laterally.</summary>
+    private static double DownwindTurnAlong(RunwayInfo rwy, PatternWaypoints wp) => AlongOf(rwy, wp.CrosswindTurnLat, wp.CrosswindTurnLon);
+
+    /// <summary>The downwind heading's distance from the downwind turn point to the base turn, in nm.</summary>
+    private static double BaseTurnS(RunwayInfo rwy, PatternWaypoints wp) => AlongOf(rwy, wp.BaseTurnLat, wp.BaseTurnLon) - DownwindTurnAlong(rwy, wp);
+
+    /// <summary>The box's coordinates for <paramref name="lead"/>: s (along the downwind heading from the downwind turn
+    /// point, positive toward the base turn), d (from the extended runway centerline, positive toward the circuit side)
+    /// and how far the lead's track lies off the downwind heading.</summary>
+    private static (double S, double D, double TrackOff) BoxCoordinates(RunwayInfo rwy, PatternWaypoints wp, AircraftState lead)
+    {
+        var threshold = new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude);
+        var downwindTurn = new LatLon(wp.DownwindStartLat, wp.DownwindStartLon);
+        double d = GeoMath.SignedCrossTrackDistanceNm(lead.Position, threshold, rwy.TrueHeading);
+        return (
+            GeoMath.AlongTrackDistanceNm(lead.Position, downwindTurn, wp.DownwindHeading),
+            wp.Direction == PatternDirection.Left ? -d : d,
+            wp.DownwindHeading.AbsAngleTo(lead.TrueTrack)
+        );
+    }
+
+    /// <summary>Prints the lead's box coordinates and its angle off the follower's track.</summary>
+    private void LogBoxCoordinates(RunwayInfo rwy, AircraftState follower, PatternWaypoints wp, AircraftState lead)
+    {
+        var bearing = new TrueHeading(GeoMath.BearingTo(follower.Position, lead.Position));
+        (double s, double d, double trackOff) = BoxCoordinates(rwy, wp, lead);
+        output.WriteLine(
+            $"lead: s {s:F2} nm, d {d:F2} nm, track {trackOff:F1}° off the downwind heading, {follower.TrueTrack.AbsAngleTo(bearing):F1}° off the follower's track"
+        );
+    }
+
+    /// <summary>
+    /// Asserts the FOLLOW installed a pursuit on the strength of the downwind box: the lead is more than 60° off the
+    /// follower's track (so the track cone alone would refuse it) yet inside the box, where a follower on its own circuit
+    /// joins behind it. Prints the lead's s, d and track offset.
+    /// </summary>
+    private void AssertAcceptedByTheDownwindBox(
+        SimulationEngine engine,
+        RunwayInfo rwy,
+        AircraftState follower,
+        PatternWaypoints wp,
+        CommandResult result
+    )
+    {
+        output.WriteLine($"FOLLOW: success={result.Success} — {result.Message}");
+        AircraftState lead = engine.FindAircraft(Leader) ?? throw new InvalidOperationException("lead missing");
+        var bearing = new TrueHeading(GeoMath.BearingTo(follower.Position, lead.Position));
+        double offTrack = follower.TrueTrack.AbsAngleTo(bearing);
+        LogBoxCoordinates(rwy, follower, wp, lead);
+        Assert.True(offTrack > 60.0, $"the track cone alone would accept a lead only {offTrack:F1}° off track");
+        (double s, double d, double trackOff) = BoxCoordinates(rwy, wp, lead);
+        Assert.True(s > 0.0, $"s {s:F2} nm, behind the downwind turn point");
+        Assert.True(d >= (0.5 * wp.PatternSizeNm), $"d {d:F2} nm, inside the box's inner edge");
+        Assert.True(trackOff <= 90.0, $"track {trackOff:F1}° off the downwind heading");
+        Assert.True(result.Success, result.Message);
+        VfrFollowPhase pursuit = Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
+        Assert.Equal(Leader, pursuit.TargetCallsign);
+        Assert.Equal(Leader, follower.Approach.FollowingCallsign);
+    }
+
+    /// <summary>The cone refusal text for <paramref name="position"/>: the format the base leg already used.</summary>
+    private static string NotAhead(string position) => $"Unable, on {position} for runway 28R, {Leader} is not ahead of us, request vectors";
+
+    private void AssertRefusedUnchanged(AircraftState follower, Phase? before, CommandResult result, string position)
+    {
+        output.WriteLine($"FOLLOW: success={result.Success} — {result.Message}");
+        Assert.False(result.Success, result.Message);
+        Assert.Equal(NotAhead(position), result.Message);
+        Assert.Same(before, follower.Phases!.CurrentPhase);
+        Assert.Null(follower.Approach.FollowingCallsign);
+    }
+
+    [Fact]
+    public void FollowFromDownwind_RunwaylessLeadBehind_IsRefused()
+    {
+        SimulationEngine engine = BuildEngine();
+
+        RunwayInfo rwy = Oak("28R");
+        AircraftState follower = AddDownwindFollower(engine, rwy);
+        Phase? before = follower.Phases!.CurrentPhase;
+        // Astern on the downwind line, beyond the departure end: following it takes a 360.
+        AddLead(engine, OffFinal(rwy, -2.5, 1.0), "DCT VPCBT");
+
+        CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
+
+        AssertRefusedUnchanged(follower, before, result, "downwind");
+    }
+
+    [Fact]
+    public void FollowFromDownwind_RunwaylessLeadAbeam_IsRefused()
+    {
+        SimulationEngine engine = BuildEngine();
+
+        RunwayInfo rwy = Oak("28R");
+        AircraftState follower = AddDownwindFollower(engine, rwy);
+        Phase? before = follower.Phases!.CurrentPhase;
+        // Abreast of the follower, 2.5 nm farther from the runway: 90° off its track.
+        AddLead(engine, OffFinal(rwy, -1.0, 3.5), "DCT VPCBT");
+
+        CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
+
+        AssertRefusedUnchanged(follower, before, result, "downwind");
+    }
+
+    [Fact]
+    public void FollowFromUpwind_RunwaylessLeadDirectlyAstern_IsRefused()
+    {
+        SimulationEngine engine = BuildEngine();
+
+        RunwayInfo rwy = Oak("28R");
+        AircraftState follower = AddOnCircuit(engine, rwy, PatternEntryLeg.Upwind, wp => UpwindShortOfCrosswindTurn(wp, 0.5));
+        Assert.IsType<UpwindPhase>(follower.Phases!.CurrentPhase);
+        Phase? before = follower.Phases.CurrentPhase;
+        PatternWaypoints wp = WaypointsOf(follower, PatternEntryLeg.Upwind);
+        // Directly astern on the runway line: nearer the centerline than the downwind box's inner edge, so it is traffic
+        // between the follower and the runway rather than a lead on the downwind line.
+        AircraftState lead = AddLead(engine, Astern(follower, 1.5), "DCT VPCBT");
+        LogBoxCoordinates(rwy, follower, wp, lead);
+        (_, double d, _) = BoxCoordinates(rwy, wp, lead);
+        Assert.True(d < (0.5 * wp.PatternSizeNm), $"d {d:F2} nm is not inside the box's inner edge");
+
+        CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
+
+        AssertRefusedUnchanged(follower, before, result, "upwind");
+    }
+
+    [Fact]
+    public void FollowFromCrosswind_RunwaylessLeadBehind_IsRefused()
+    {
+        SimulationEngine engine = BuildEngine();
+
+        RunwayInfo rwy = Oak("28R");
+        AircraftState follower = AddOnCircuit(engine, rwy, PatternEntryLeg.Crosswind, wp => OutOnCrosswind(wp, 0.4));
+        Assert.IsType<CrosswindPhase>(follower.Phases!.CurrentPhase);
+        Phase? before = follower.Phases.CurrentPhase;
+        AddLead(engine, Astern(follower, 1.0), "DCT VPCBT");
+
+        CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
+
+        AssertRefusedUnchanged(follower, before, result, "crosswind");
+    }
+
+    [Fact]
+    public void FollowFromPatternEntry_RunwaylessLeadBehind_IsRefused()
+    {
+        SimulationEngine engine = BuildEngine();
+
+        RunwayInfo rwy = Oak("28R");
+        AircraftState follower = MakeVfr(Follower, OffFinal(rwy, -2.0, 4.0), new TrueHeading(180), 1500);
+        follower.Approach.HasReportedTrafficInSight = true;
+        engine.World.AddAircraft(follower);
+        CommandResult entry = engine.SendCommand(Follower, "ERD 28R");
+        Assert.True(entry.Success, entry.Message);
+        Assert.IsType<PatternEntryPhase>(follower.Phases!.CurrentPhase);
+        Phase? before = follower.Phases.CurrentPhase;
+        AddLead(engine, Astern(follower, 1.0), "DCT VPCBT");
+
+        CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
+
+        AssertRefusedUnchanged(follower, before, result, "pattern entry");
+    }
+
+    [Fact]
+    public void FollowForceFromDownwind_RunwaylessLeadBehind_IsRefused()
+    {
+        SimulationEngine engine = BuildEngine();
+
+        RunwayInfo rwy = Oak("28R");
+        AircraftState follower = AddDownwindFollower(engine, rwy);
+        Phase? before = follower.Phases!.CurrentPhase;
+        AddLead(engine, OffFinal(rwy, -2.5, 1.0), "DCT VPCBT");
+
+        CommandResult result = engine.SendCommand(Follower, $"FOLLOWF {Leader}");
+
+        AssertRefusedUnchanged(follower, before, result, "downwind");
+    }
+
+    /// <summary>Just inside the cone, to the runway side of the downwind track: still followed.</summary>
+    [Fact]
+    public void FollowFromDownwind_RunwaylessLeadJustInsideTheCone_InstallsPursuit()
+    {
+        SimulationEngine engine = BuildEngine();
+
+        RunwayInfo rwy = Oak("28R");
+        AircraftState follower = AddDownwindFollower(engine, rwy);
+        AddLead(engine, OffTrack(follower, 55.0, 1.5), "DCT VPCBT");
+
+        CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
+        output.WriteLine($"FOLLOW: success={result.Success} — {result.Message}");
+
+        Assert.True(result.Success, result.Message);
+        VfrFollowPhase pursuit = Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
+        Assert.Equal(Leader, pursuit.TargetCallsign);
+        Assert.NotNull(pursuit.PatternReturn);
+        Assert.Equal("28R", pursuit.PatternReturn.Runway.Designator);
+        Assert.Equal(Leader, follower.Approach.FollowingCallsign);
+    }
+
+    /// <summary>Just outside the cone on the same side as the accepted pair's lead: refused, at 65° off the track.</summary>
+    [Fact]
+    public void FollowFromDownwind_RunwaylessLeadJustOutsideTheCone_IsRefused()
+    {
+        SimulationEngine engine = BuildEngine();
+
+        RunwayInfo rwy = Oak("28R");
+        AircraftState follower = AddDownwindFollower(engine, rwy);
+        Phase? before = follower.Phases!.CurrentPhase;
+        AddLead(engine, OffTrack(follower, 65.0, 1.5), "DCT VPCBT");
+
+        CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
+
+        AssertRefusedUnchanged(follower, before, result, "downwind");
+    }
+
+    // ─── The downwind box from upwind and crosswind ───
+
+    /// <summary>
+    /// An upwind follower's next turn is onto the downwind, so a lead abeam the downwind turn point on the downwind
+    /// line, tracking the downwind heading, is one it falls in behind by flying its own circuit.
+    /// </summary>
+    [Fact]
+    public void FollowFromUpwind_RunwaylessLeadOnDownwindLineAbeamTurnPoint_IsAccepted()
+    {
+        SimulationEngine engine = BuildEngine();
+
+        RunwayInfo rwy = Oak("28R");
+        AircraftState follower = AddOnCircuit(engine, rwy, PatternEntryLeg.Upwind, wp => UpwindShortOfCrosswindTurn(wp, 0.5));
+        Assert.IsType<UpwindPhase>(follower.Phases!.CurrentPhase);
+        PatternWaypoints wp = WaypointsOf(follower, PatternEntryLeg.Upwind);
+        WithTrack(AddLead(engine, OffFinal(rwy, DownwindTurnAlong(rwy, wp) + 0.1, 1.0), "DCT VPCBT"), wp.DownwindHeading);
+
+        CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
+
+        AssertAcceptedByTheDownwindBox(engine, rwy, follower, wp, result);
+    }
+
+    /// <summary>A lead abeam midfield on the downwind line, tracking the downwind heading: inside the box.</summary>
+    [Fact]
+    public void FollowFromUpwind_RunwaylessLeadAbeamMidfield_IsAccepted()
+    {
+        SimulationEngine engine = BuildEngine();
+
+        RunwayInfo rwy = Oak("28R");
+        AircraftState follower = AddOnCircuit(engine, rwy, PatternEntryLeg.Upwind, wp => UpwindShortOfCrosswindTurn(wp, 0.2));
+        Assert.IsType<UpwindPhase>(follower.Phases!.CurrentPhase);
+        PatternWaypoints wp = WaypointsOf(follower, PatternEntryLeg.Upwind);
+        WithTrack(AddLead(engine, OffFinal(rwy, PatternGeometry.MidfieldAlongTrackNm(wp), 1.0), "DCT VPCBT"), wp.DownwindHeading);
+        output.WriteLine($"midfield along {PatternGeometry.MidfieldAlongTrackNm(wp):F2} nm; base turn s {BaseTurnS(rwy, wp):F2} nm");
+
+        CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
+
+        AssertAcceptedByTheDownwindBox(engine, rwy, follower, wp, result);
+    }
+
+    /// <summary>The abeam-midfield position, but tracking the reciprocal: not flying the circuit, so outside the box.</summary>
+    [Fact]
+    public void FollowFromUpwind_RunwaylessLeadOnDownwindLineFlyingOpposite_IsRefused()
+    {
+        SimulationEngine engine = BuildEngine();
+
+        RunwayInfo rwy = Oak("28R");
+        AircraftState follower = AddOnCircuit(engine, rwy, PatternEntryLeg.Upwind, wp => UpwindShortOfCrosswindTurn(wp, 0.2));
+        Assert.IsType<UpwindPhase>(follower.Phases!.CurrentPhase);
+        Phase? before = follower.Phases.CurrentPhase;
+        PatternWaypoints wp = WaypointsOf(follower, PatternEntryLeg.Upwind);
+        AircraftState lead = WithTrack(
+            AddLead(engine, OffFinal(rwy, PatternGeometry.MidfieldAlongTrackNm(wp), 1.0), "DCT VPCBT"),
+            wp.DownwindHeading.ToReciprocal()
+        );
+        LogBoxCoordinates(rwy, follower, wp, lead);
+        (_, _, double trackOff) = BoxCoordinates(rwy, wp, lead);
+        Assert.True(trackOff > 90.0, $"track {trackOff:F1}° off the downwind heading flies the circuit");
+
+        CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
+
+        AssertRefusedUnchanged(follower, before, result, "upwind");
+    }
+
+    /// <summary>On the downwind line, but on the upwind side of the downwind turn point: behind the box's start.</summary>
+    [Fact]
+    public void FollowFromUpwind_RunwaylessLeadBeforeTheDownwindTurn_IsRefused()
+    {
+        SimulationEngine engine = BuildEngine();
+
+        RunwayInfo rwy = Oak("28R");
+        AircraftState follower = AddOnCircuit(engine, rwy, PatternEntryLeg.Upwind, wp => UpwindShortOfCrosswindTurn(wp, 0.1));
+        Assert.IsType<UpwindPhase>(follower.Phases!.CurrentPhase);
+        Phase? before = follower.Phases.CurrentPhase;
+        PatternWaypoints wp = WaypointsOf(follower, PatternEntryLeg.Upwind);
+        AircraftState lead = WithTrack(AddLead(engine, OffFinal(rwy, DownwindTurnAlong(rwy, wp) - 0.25, 1.0), "DCT VPCBT"), wp.DownwindHeading);
+        LogBoxCoordinates(rwy, follower, wp, lead);
+        (double s, _, _) = BoxCoordinates(rwy, wp, lead);
+        Assert.True(s < 0.0, $"s {s:F2} nm is past the downwind turn point");
+
+        CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
+
+        AssertRefusedUnchanged(follower, before, result, "upwind");
+    }
+
+    /// <summary>From the crosswind, a lead 2 nm down the downwind line from the crosswind-turn point.</summary>
+    [Fact]
+    public void FollowFromCrosswind_RunwaylessLeadDownTheDownwindLine_IsAccepted()
+    {
+        SimulationEngine engine = BuildEngine();
+
+        RunwayInfo rwy = Oak("28R");
+        AircraftState follower = AddOnCircuit(engine, rwy, PatternEntryLeg.Crosswind, wp => OutOnCrosswind(wp, 0.4));
+        Assert.IsType<CrosswindPhase>(follower.Phases!.CurrentPhase);
+        PatternWaypoints wp = WaypointsOf(follower, PatternEntryLeg.Crosswind);
+        WithTrack(AddLead(engine, OffFinal(rwy, DownwindTurnAlong(rwy, wp) + 2.0, 1.0), "DCT VPCBT"), wp.DownwindHeading);
+
+        CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
+
+        AssertAcceptedByTheDownwindBox(engine, rwy, follower, wp, result);
+    }
+
+    /// <summary>On the downwind line, but more than 3 nm beyond the base turn: past the box's far end.</summary>
+    [Fact]
+    public void FollowFromCrosswind_RunwaylessLeadBeyondExtendedDownwind_IsRefused()
+    {
+        SimulationEngine engine = BuildEngine();
+
+        RunwayInfo rwy = Oak("28R");
+        AircraftState follower = AddOnCircuit(engine, rwy, PatternEntryLeg.Crosswind, wp => OutOnCrosswind(wp, 0.4));
+        Assert.IsType<CrosswindPhase>(follower.Phases!.CurrentPhase);
+        Phase? before = follower.Phases.CurrentPhase;
+        PatternWaypoints wp = WaypointsOf(follower, PatternEntryLeg.Crosswind);
+        AircraftState lead = WithTrack(
+            AddLead(engine, OffFinal(rwy, DownwindTurnAlong(rwy, wp) + BaseTurnS(rwy, wp) + 3.5, 1.0), "DCT VPCBT"),
+            wp.DownwindHeading
+        );
+        LogBoxCoordinates(rwy, follower, wp, lead);
+        (double s, _, _) = BoxCoordinates(rwy, wp, lead);
+        Assert.True(s > (BaseTurnS(rwy, wp) + 3.0), $"s {s:F2} nm is inside the box's far end");
+
+        CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
+
+        AssertRefusedUnchanged(follower, before, result, "crosswind");
     }
 
     [Fact]
@@ -504,7 +903,8 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
         RunwayInfo rwy = Oak("28R");
         AircraftState follower = AddDownwindFollower(engine, rwy);
         double circuitAltitudeFt = ((DownwindPhase)follower.Phases!.CurrentPhase!).Waypoints!.PatternAltitude;
-        AddLead(engine, OffFinal(rwy, -2.5, 1.5), "DCT VPCBT");
+        // Ahead on the downwind track, inside the ±60° cone (a lead behind it is refused).
+        AddLead(engine, OffFinal(rwy, 1.5, 1.0), "DCT VPCBT");
 
         CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
         output.WriteLine($"FOLLOW: success={result.Success} — {result.Message}");
