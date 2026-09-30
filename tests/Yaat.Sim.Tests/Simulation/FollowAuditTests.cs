@@ -342,15 +342,19 @@ public class FollowAuditTests(ITestOutputHelper output)
             int startTime = (int)snapshot.ElapsedSeconds;
             output.WriteLine($"Restored snapshot at t={startTime}");
 
-            // Replay through 30 s of post-FOLLOW Downwind — under the bug, IAS
-            // drops to 62 KIAS (Vref) by ~t=1755. With the fix, IAS should stay
-            // at the Downwind baseline (~77.5 KIAS for piston).
-            engine.ReplayRange(startTime, 1750, recording.Actions);
+            // Replay only while N428KK is still on the PatternEntry feeder. At ~t=1710 it
+            // joins the downwind 0.69 nm AHEAD of N172SP, so from then on it is ahead in
+            // sequence by position on the shared leg and the same-leg spacing takes over
+            // (too close at minimum speed: the follow ends) — no longer the pattern-flow-
+            // behind case this test covers. Under the bug the target speed is pulled toward
+            // Vref (62 KIAS) as soon as the follow is set; with the fix it stays at the
+            // Downwind baseline (~77.5 KIAS for piston).
+            engine.ReplayRange(startTime, 1705, recording.Actions);
 
             AircraftState? follower = engine.FindAircraft("N172SP");
             Assert.NotNull(follower);
             output.WriteLine(
-                $"t=1750: N172SP phase={follower.Phases?.CurrentPhase?.GetType().Name ?? "(null)"} "
+                $"t=1705: N172SP phase={follower.Phases?.CurrentPhase?.GetType().Name ?? "(null)"} "
                     + $"following={follower.Approach.FollowingCallsign ?? "(null)"} "
                     + $"ias={follower.IndicatedAirspeed:F1} tgtSpd={follower.Targets.TargetSpeed?.ToString("F1") ?? "(null)"}"
             );
@@ -358,13 +362,54 @@ public class FollowAuditTests(ITestOutputHelper output)
             Assert.Equal("N428KK", follower.Approach.FollowingCallsign);
             Assert.IsType<DownwindPhase>(follower.Phases?.CurrentPhase);
             // Downwind baseline for piston is 77.5 KIAS. The bug pulled IAS down
-            // toward Vref (62 KIAS). Allow a 5-kt tolerance for normal pattern-
-            // tight settling once the lead enters Downwind itself (which it does
-            // at t=1710, 60 s before this assertion fires).
+            // toward Vref (62 KIAS).
             Assert.True(
                 follower.Targets.TargetSpeed is null or >= 70.0,
                 $"Expected target speed near Downwind baseline (≥70 kt) while lead is pattern-flow-behind; got {follower.Targets.TargetSpeed?.ToString("F1") ?? "null"}"
             );
+        }
+    }
+
+    /// <summary>
+    /// The Bug 4 recording past t=1710, when N428KK joins the downwind 0.69 nm AHEAD of N172SP: on the shared leg it is ahead
+    /// by position, so the same-leg spacing runs, finds it too close at minimum speed and ends the follow with "unable to
+    /// maintain separation". Pins today's behaviour; the plan's backlog line "A follower that finds its lead too close on a
+    /// shared pattern leg…" tracks changing it.
+    /// </summary>
+    [Fact]
+    public void Bug4_FollowEnds_OnceLeadJoinsDownwindAheadTooClose()
+    {
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        if (archive is null)
+        {
+            return;
+        }
+
+        using (archive)
+        {
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            SimulationEngine? engine = BuildEngine();
+            if (engine is null)
+            {
+                return;
+            }
+
+            engine.Replay(recording, 0);
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(1690);
+            if (snapshot is null)
+            {
+                output.WriteLine("No snapshot near t=1690 — skipping");
+                return;
+            }
+            engine.RestoreFromSnapshot(snapshot.State);
+            engine.ReplayRange((int)snapshot.ElapsedSeconds, 1750, recording.Actions);
+
+            AircraftState? follower = engine.FindAircraft("N172SP");
+            Assert.NotNull(follower);
+            Assert.Null(follower.Approach.FollowingCallsign);
+            // The "unable to maintain separation" cancel holds the present leg (CancelFollowHoldingLeg extends the downwind);
+            // a follow ended by the lead landing would not. The RPO transmission itself is not left in PendingWarnings here.
+            Assert.True(Assert.IsType<DownwindPhase>(follower.Phases?.CurrentPhase).IsExtended);
         }
     }
 }

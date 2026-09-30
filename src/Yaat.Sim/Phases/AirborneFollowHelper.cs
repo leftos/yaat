@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Commands;
+using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 
@@ -315,11 +317,36 @@ public static class AirborneFollowHelper
         }
     }
 
+    /// <summary>Leg index of the upwind in <see cref="PatternLegIndex"/>.</summary>
+    private const int UpwindLegIndex = 1;
+
+    /// <summary>Leg index of the crosswind in <see cref="PatternLegIndex"/>.</summary>
+    private const int CrosswindLegIndex = 2;
+
+    /// <summary>Leg index of the downwind in <see cref="PatternLegIndex"/>.</summary>
+    private const int DownwindLegIndex = 3;
+
+    /// <summary>Leg index of the final in <see cref="PatternLegIndex"/>.</summary>
+    private const int FinalLegIndex = 5;
+
+    /// <summary>Leg index of the terminal (landing, touch-and-go, stop-and-go, low approach) in <see cref="PatternLegIndex"/>.</summary>
+    private const int TerminalLegIndex = 6;
+
+    /// <summary>
+    /// How much longer (nm) a lead's remaining path to the threshold may be than the follower's, while the follower is not yet
+    /// on final, for the lead to still count as ahead in sequence (<see cref="IsLeadAheadInSequence"/>). About 20 s at 90 kt,
+    /// which shallow S-turns or a slower speed absorb (AIM §4-3-5); it also covers two aircraft abeam on opposite legs. A
+    /// judgement figure from the aviation review of the FOLLOW sequence rules, not a published one. It applies only between
+    /// different legs: on a shared leg, or with the follower on final, position alone orders the pair (AIM §4-3-4.d).
+    /// </summary>
+    public const double SequenceToleranceNm = 0.5;
+
     /// <summary>
     /// Position of an aircraft within a single VFR pattern circuit, expressed as
     /// a monotonically increasing index. Used by <see cref="IsLeadPatternFlowBehind"/>
-    /// to compare two aircraft's progress along the same pattern. Non-pattern
-    /// phases return null.
+    /// to compare two aircraft's progress along the same pattern. An aircraft flying no
+    /// pattern leg but still in the landing sequence gets the leg it stands in for
+    /// (<see cref="SequenceLegIndex"/>); anything else returns null.
     /// </summary>
     private static int? PatternLegIndex(AircraftState aircraft) =>
         aircraft.Phases?.CurrentPhase switch
@@ -340,9 +367,40 @@ public static class AirborneFollowHelper
             // are still flown (the helicopter is airborne on its hover-descent until touchdown). Leaving
             // one out reads as leg null, which makes both the flow-ahead and flow-behind tests false and
             // drops the sequencing guard while the lead is still on the runway.
-            LandingPhase or TouchAndGoPhase or HelicopterLandingPhase or StopAndGoPhase or LowApproachPhase => 6,
-            _ => null,
+            LandingPhase or TouchAndGoPhase or HelicopterLandingPhase or StopAndGoPhase or LowApproachPhase => TerminalLegIndex,
+            _ => SequenceLegIndex(aircraft),
         };
+
+    /// <summary>
+    /// The pattern leg an aircraft flying no pattern-leg phase stands in for in the landing sequence: an instrument approach
+    /// (<see cref="InterceptCoursePhase"/>, <see cref="ApproachNavigationPhase"/>) or any other phase flown on its runway's final
+    /// by geometry (<see cref="IsOnFinalByGeometry"/>) is the final; a go-around that re-enters the pattern
+    /// (<see cref="GoAroundPhase.ReenterPattern"/>) and a closed-traffic takeoff climb are the upwind (AIM §4-3-2.a.3.2). Null
+    /// otherwise: a missed approach, a departure leaving the pattern, a hold.
+    /// </summary>
+    private static int? SequenceLegIndex(AircraftState aircraft)
+    {
+        Phase? phase = aircraft.Phases?.CurrentPhase;
+        if (phase is InterceptCoursePhase or ApproachNavigationPhase)
+        {
+            return FinalLegIndex;
+        }
+
+        if ((phase is GoAroundPhase { ReenterPattern: true }) || IsClosedTrafficClimb(aircraft))
+        {
+            return UpwindLegIndex;
+        }
+
+        return ((aircraft.Phases?.AssignedRunway is { } runway) && IsOnFinalByGeometry(aircraft, runway)) ? FinalLegIndex : null;
+    }
+
+    /// <summary>
+    /// True when <paramref name="aircraft"/> is airborne on a closed-traffic takeoff off its pattern runway: the climb-out is the
+    /// circuit's upwind. A cross-runway closed-traffic climb (<see cref="PhaseList.DepartureRunway"/> set) is not on the pattern
+    /// runway's upwind, so it is left out.
+    /// </summary>
+    private static bool IsClosedTrafficClimb(AircraftState aircraft) =>
+        !aircraft.IsOnGround && (aircraft.Phases is { CurrentPhase: TakeoffPhase { Departure: ClosedTrafficDeparture }, DepartureRunway: null });
 
     /// <summary>
     /// True when both aircraft are flying patterns to the same runway and the
@@ -358,19 +416,15 @@ public static class AirborneFollowHelper
     /// </summary>
     private static bool IsLeadPatternFlowBehind(AircraftState follower, AircraftState lead)
     {
-        string? followerRwy = follower.Phases?.AssignedRunway?.Designator;
-        string? leadRwy = lead.Phases?.AssignedRunway?.Designator;
-        if (followerRwy is null || leadRwy is null)
+        if (
+            (follower.Phases?.AssignedRunway is not { } runway)
+            || (lead.Phases?.AssignedRunway is not { } leadRunway)
+            || !IsSameRunway(runway, leadRunway)
+        )
         {
             return false;
         }
-        if (!string.Equals(followerRwy, leadRwy, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-        int? followerLeg = PatternLegIndex(follower);
-        int? leadLeg = PatternLegIndex(lead);
-        if (followerLeg is null || leadLeg is null)
+        if ((PatternLegIndex(follower) is not { } followerLeg) || (PatternLegIndex(lead) is not { } leadLeg))
         {
             return false;
         }
@@ -378,16 +432,181 @@ public static class AirborneFollowHelper
         {
             return true;
         }
-        // Same leg: the aircraft that's been on it longer is further along it
-        // and therefore "ahead" in pattern flow. Compare phase elapsed time.
+        // Same leg: ordered by SharedLegOrderNm (progress along an outbound leg, remaining path
+        // to the threshold on the others). Time on the leg is no measure: a straight-in joins the
+        // final closer in than a pattern aircraft already on it, and an S-turn restarts the
+        // final's clock.
         if (followerLeg == leadLeg)
         {
-            double followerElapsed = follower.Phases?.CurrentPhase?.ElapsedSeconds ?? 0;
-            double leadElapsed = lead.Phases?.CurrentPhase?.ElapsedSeconds ?? 0;
-            return followerElapsed > leadElapsed;
+            PatternWaypoints? wp = SequenceWaypoints(follower) ?? SequenceWaypoints(lead);
+            return SharedLegOrderNm(follower, followerLeg, runway, wp) < SharedLegOrderNm(lead, followerLeg, runway, wp);
         }
         return false;
     }
+
+    /// <summary>
+    /// Order key (nm) of <paramref name="ac"/> on pattern leg <paramref name="leg"/> it shares with another aircraft, smaller
+    /// meaning ahead. On an outbound leg (upwind, crosswind, downwind) it is progress along the leg, since the remaining pattern
+    /// path of an aircraft extended past the leg's turn point grows the farther out it flies, while it is still the one ahead
+    /// on that leg; on the other legs it is the remaining path to the threshold (<see cref="SequenceRemainingPathNm"/>).
+    /// <see cref="double.PositiveInfinity"/> on an outbound leg with no geometry <paramref name="wp"/> to measure it on.
+    /// </summary>
+    private static double SharedLegOrderNm(AircraftState ac, int leg, RunwayInfo runway, PatternWaypoints? wp)
+    {
+        if (leg is < UpwindLegIndex or > DownwindLegIndex)
+        {
+            return SequenceRemainingPathNm(ac, runway, wp);
+        }
+
+        if (wp is null)
+        {
+            return double.PositiveInfinity;
+        }
+
+        // Along-track on the downwind axis from the threshold: it falls as the upwind is flown out and rises along the downwind.
+        var threshold = new LatLon(wp.ThresholdLat, wp.ThresholdLon);
+        double alongNm = GeoMath.AlongTrackDistanceNm(ac.Position, threshold, wp.DownwindHeading);
+        return leg switch
+        {
+            UpwindLegIndex => alongNm,
+            CrosswindLegIndex => -Math.Abs(GeoMath.SignedCrossTrackDistanceNm(ac.Position, threshold, wp.DownwindHeading)),
+            _ => -alongNm,
+        };
+    }
+
+    /// <summary>
+    /// True when <paramref name="lead"/> will reach the threshold of the runway <paramref name="follower"/> lands on before it:
+    /// both land the same runway and the lead has less remaining path to the threshold (<see cref="SequenceRemainingPathNm"/>),
+    /// or, when both fly the same leg, is ahead of it on that leg (<see cref="SharedLegOrderNm"/>). Distance, not time: a
+    /// closer, slower lead is still ahead (7110.65 §3-8-1; AIM §4-3-4.d). On different legs, with the follower not yet on
+    /// final, the lead may be up to <see cref="SequenceToleranceNm"/> farther out; on a shared leg, or with the follower on
+    /// final, position alone decides. False when the runways differ, either has none, or the lead's path cannot be measured
+    /// (a missed approach, a departure leaving the pattern, a hold). Depends only on the two aircraft's present state.
+    /// </summary>
+    public static bool IsLeadAheadInSequence(AircraftState follower, AircraftState lead)
+    {
+        if (
+            (follower.Phases?.AssignedRunway is not { } runway)
+            || (lead.Phases?.AssignedRunway is not { } leadRunway)
+            || !IsSameRunway(runway, leadRunway)
+        )
+        {
+            return false;
+        }
+
+        PatternWaypoints? wp = SequenceWaypoints(follower) ?? SequenceWaypoints(lead);
+        int? followerLeg = PatternLegIndex(follower);
+        int? sharedLeg = ((followerLeg is { } leg) && (leg == PatternLegIndex(lead))) ? leg : null;
+        double leadNm = SequenceOrderNm(lead, sharedLeg, runway, wp);
+        if (double.IsPositiveInfinity(leadNm))
+        {
+            return false;
+        }
+
+        double followerNm = SequenceOrderNm(follower, sharedLeg, runway, wp);
+        bool byPositionOnly = (sharedLeg is not null) || IsOnFinalForSequence(follower, followerLeg, runway);
+        return byPositionOnly ? (leadNm < followerNm) : (leadNm <= followerNm + SequenceToleranceNm);
+    }
+
+    /// <summary>
+    /// The sequence key (nm, smaller meaning ahead) of <paramref name="ac"/>: <see cref="SharedLegOrderNm"/> on a leg it shares
+    /// with the other aircraft, else <see cref="SequenceRemainingPathNm"/>.
+    /// </summary>
+    private static double SequenceOrderNm(AircraftState ac, int? sharedLeg, RunwayInfo runway, PatternWaypoints? wp) =>
+        sharedLeg is { } leg ? SharedLegOrderNm(ac, leg, runway, wp) : SequenceRemainingPathNm(ac, runway, wp);
+
+    /// <summary>
+    /// Remaining path (nm) from <paramref name="ac"/> to <paramref name="runway"/>'s threshold, the sequence coordinate: its
+    /// along-final distance when on final (<see cref="IsOnFinalForSequence"/>); on an instrument approach not yet on final,
+    /// the path it still has to fly (<see cref="ApproachPathNm"/>) or, on a course intercept, its straight-line distance to
+    /// the threshold; and otherwise its pattern path (<see cref="RemainingPatternPathNm"/>) on the reference geometry
+    /// <paramref name="wp"/>. <see cref="double.PositiveInfinity"/> when it has no leg in the sequence, or flies a pattern leg
+    /// with no geometry to measure it on.
+    /// </summary>
+    internal static double SequenceRemainingPathNm(AircraftState ac, RunwayInfo runway, PatternWaypoints? wp)
+    {
+        int? leg = PatternLegIndex(ac);
+        if (IsOnFinalForSequence(ac, leg, runway))
+        {
+            return Math.Max(0.0, AlongFinalNm(ac.Position, runway));
+        }
+
+        if (leg == FinalLegIndex)
+        {
+            return ac.Phases?.CurrentPhase is ApproachNavigationPhase navigation
+                ? ApproachPathNm(ac.Position, navigation, runway)
+                : GeoMath.DistanceNm(ac.Position, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude));
+        }
+
+        return ((leg is null) || (wp is null)) ? double.PositiveInfinity : RemainingPatternPathNm(ac, wp);
+    }
+
+    /// <summary>
+    /// Path (nm) still to fly on an instrument approach's fix sequence: from <paramref name="position"/> through every fix not
+    /// yet reached (<see cref="ApproachNavigationPhase.CurrentFixIndex"/> onward), then from the last fix to
+    /// <paramref name="runway"/>'s threshold.
+    /// </summary>
+    private static double ApproachPathNm(LatLon position, ApproachNavigationPhase navigation, RunwayInfo runway)
+    {
+        double pathNm = 0.0;
+        LatLon from = position;
+        for (int i = navigation.CurrentFixIndex; i < navigation.Fixes.Count; i++)
+        {
+            var fix = new LatLon(navigation.Fixes[i].Latitude, navigation.Fixes[i].Longitude);
+            pathNm += GeoMath.DistanceNm(from, fix);
+            from = fix;
+        }
+
+        return pathNm + GeoMath.DistanceNm(from, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude));
+    }
+
+    /// <summary>
+    /// True when <paramref name="ac"/> (on pattern leg <paramref name="leg"/>) is on <paramref name="runway"/>'s final for
+    /// sequencing: in <see cref="FinalApproachPhase"/>, on a terminal phase, or on the final by geometry
+    /// (<see cref="IsOnFinalByGeometry"/>).
+    /// </summary>
+    private static bool IsOnFinalForSequence(AircraftState ac, int? leg, RunwayInfo runway) =>
+        (ac.Phases?.CurrentPhase is FinalApproachPhase) || (leg == TerminalLegIndex) || IsOnFinalByGeometry(ac, runway);
+
+    /// <summary>
+    /// The pattern geometry <paramref name="ac"/> flies: its current leg's waypoints, else those of the first leg in its phase
+    /// list that carries them (a follower on final keeps its flown legs; one on an entry has its downwind queued). Null when
+    /// it has none.
+    /// </summary>
+    private static PatternWaypoints? SequenceWaypoints(AircraftState ac) =>
+        PatternWaypointsOf(ac.Phases?.CurrentPhase) ?? FirstPatternWaypoints(ac.Phases);
+
+    /// <summary>The waypoints of the first phase in <paramref name="phases"/> that carries pattern waypoints; null when none does.</summary>
+    internal static PatternWaypoints? FirstPatternWaypoints(PhaseList? phases)
+    {
+        if (phases is null)
+        {
+            return null;
+        }
+
+        foreach (Phase phase in phases.Phases)
+        {
+            if (PatternWaypointsOf(phase) is { } waypoints)
+            {
+                return waypoints;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The pattern waypoints <paramref name="phase"/> flies, for every phase that carries them; null otherwise.</summary>
+    internal static PatternWaypoints? PatternWaypointsOf(Phase? phase) =>
+        phase switch
+        {
+            UpwindPhase u => u.Waypoints,
+            CrosswindPhase c => c.Waypoints,
+            DownwindPhase d => d.Waypoints,
+            BasePhase b => b.Waypoints,
+            MidfieldCrossingPhase m => m.Waypoints,
+            TeardropReentryPhase t => t.Waypoints,
+            _ => null,
+        };
 
     /// <summary>
     /// True when <paramref name="phase"/> is a pattern leg the controller has told
@@ -967,8 +1186,11 @@ public static class AirborneFollowHelper
     ///
     /// <para>
     /// Evaluated against a single reference geometry <paramref name="wp"/> (the follower's own
-    /// pattern waypoints) so two aircraft are compared on identical legs; a non-pattern phase
-    /// returns <see cref="double.PositiveInfinity"/>.
+    /// pattern waypoints) so two aircraft are compared on identical legs. A phase with no leg in
+    /// <see cref="PatternLegIndex"/> returns <see cref="double.PositiveInfinity"/>; of the non-pattern
+    /// phases, an instrument approach or any phase flown on the final by geometry is measured as the
+    /// final, and a go-around that re-enters the pattern or a closed-traffic takeoff climb as the
+    /// upwind (<see cref="SequenceLegIndex"/>).
     /// </para>
     /// </summary>
     public static double RemainingPatternPathNm(AircraftState ac, PatternWaypoints wp)

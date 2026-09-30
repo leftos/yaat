@@ -20,6 +20,9 @@ public sealed class ApproachNavigationPhase : Phase
 
     private int _currentFixIndex;
 
+    /// <summary>Index into <see cref="Fixes"/> of the fix being flown to; <c>Fixes.Count</c> once every fix is reached.</summary>
+    public int CurrentFixIndex => _currentFixIndex;
+
     /// <summary>Ordered fix sequence to fly (name, lat, lon, altitude, speed).</summary>
     public required IReadOnlyList<ApproachFix> Fixes { get; init; }
 

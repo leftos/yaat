@@ -788,14 +788,11 @@ Regression: `N342TFollowStraightInDownwindTests`.
 - **Go around** instead of breaking off when the break-off comes late: less than `LateBreakOffMarginNm = 0.4` nm of base left before the final-turn point (cross-track minus turn radius) with the lead not yet abeam leaves no room to turn out.
 - A **structural overtake** (`IsStructuralOvertake`: the follower's Vref plus the gust additive above the lead's IAS by more than `StructuralOvertakeMarginKts`) never breaks off here; the structural go-around above keeps it, as it runs first. It may still widen.
 
-**The pattern-leg-index ordering** (`PatternLegIndex`, `AirborneFollowHelper.cs:254`) is hard-coded:
+**The pattern-leg-index ordering** (`AirborneFollowHelper.PatternLegIndex`) is hard-coded: `PatternEntryPhase = 0`, `Upwind = 1`, `Crosswind = 2`, `Downwind = 3`, `Base = 4`, `FinalApproach = 5`, `Landing/TouchAndGo = 6`. A lead on an instrument approach (`InterceptCoursePhase`, `ApproachNavigationPhase`) or on final by geometry counts as 5; a go-around that re-enters the pattern and a same-runway closed-traffic takeoff climb count as 1; other non-pattern phases return null.
 
-`PatternEntryPhase = 0`, `Upwind = 1`, `Crosswind = 2`, `Downwind = 3`, `Base = 4`, `FinalApproach = 5`,
-`Landing/TouchAndGo = 6`; non-pattern phases return null.
+**Sequence order.** `IsLeadAheadInSequence(follower, lead)` is the one "is the lead ahead" answer for a same-runway pair: remaining path to the threshold (`SequenceRemainingPathNm`; an aircraft on an approach's fixes by the legs it still has to fly, one intercepting by straight-line distance, one on final by along-final distance), the lead counting as ahead when its path is shorter, or longer by at most `SequenceToleranceNm` (0.5 NM) when the two are on different legs and the follower is off final. Two aircraft on the same leg have no tolerance: they are ordered by plain position, on upwind, crosswind or downwind by progress along the leg (`SharedLegOrderNm`), since an aircraft extended past its turn point has more path left the farther out it flies. Distance, not time: a closer, slower lead is ahead (7110.65 §3-8-1, AIM §4-3-4.d).
 
-`IsLeadPatternFlowAhead` (lead strictly later leg — **plus the same-leg case where the lead is holding the leg out**)
-and `IsLeadPatternFlowBehind` (lead earlier leg, or same leg broken by phase `ElapsedSeconds`) use this index, gated
-on both aircraft being on the **same runway**:
+`IsLeadPatternFlowAhead` (lead strictly later leg — **plus the same-leg case where the lead is holding the leg out**) and `IsLeadPatternFlowBehind` (lead earlier leg, or on the same leg and behind in sequence order) use this index, gated on both aircraft being on the **same runway**:
 
 - **`IsLeadPatternFlowBehind`** ⇒ the spacing helper returns the baseline (don't slow down for a lead that hasn't
   reached the follower's leg yet — pulling the follower to Vref produces multi-minute downwind extensions).
@@ -1073,7 +1070,7 @@ Which command handler builds which phase (parsing/dispatch live in
 | **EF** (enter final) — parallel sidestep | `PatternCommandHandler.TryEnterPattern` → `ApplySidestep` | none — retargets the **active** `FinalApproachPhase` in place (`RetargetRunway`); only when the target is a parallel of the runway the aircraft is on final for, ≥ `MinSidestepAglFt` |
 | **EF** — same-runway short-final continue | `PatternCommandHandler.TryEnterPattern` | none — redundant re-clearance while established on final inside the entry point returns "continuing final" and leaves the live phases untouched (#228) |
 | **CVA** / **CVAF** (cleared visual approach; IFR-only; `Force` bypasses the RFIS field-in-sight gate) | `ApproachCommandHandler.TryClearedVisualApproach` (`:459`) | by angle off final: straight-in `FinalApproachPhase` (≤30°); angled-join `ApproachNavigationPhase` (one `INTCP` fix) → `FinalApproachPhase` (30–90°); IFR-visual pattern `PatternEntryPhase` → Downwind → Base → `FinalApproachPhase` (>90°) → landing. `ApproachId = "VIS<rwy>"`. Acquisition gate (§7-4-3.a): following → requires `HasReportedTrafficInSight` (and lead not a super); otherwise → requires `HasReportedFieldInSight`. `Force` (CVAF) sets the required flag |
-| **FOLLOW** / **FOLLOWF** (VFR-only; `Force` bypasses the RTIS traffic-in-sight gate) | `CommandDispatcher.TryAirborneFollow` (`:2758`) | `VfrFollowPhase` |
+| **FOLLOW** / **FOLLOWF** (VFR-only; `Force` bypasses the RTIS traffic-in-sight gate) | `CommandDispatcher.TryAirborneFollow` | `VfrFollowPhase` |
 | Holding (HOLD) | `NavigationCommandHandler` (`:876`) | `HoldingPatternPhase` |
 
 **An approach clearance cancels the assigned speed and restates a standing in-trail reduction.** `TryClearedApproachCore`

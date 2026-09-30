@@ -781,7 +781,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     internal static FollowPatternReturn BuildFollowPatternReturn(AircraftState aircraft, RunwayInfo runway, AirportGroundLayout? groundLayout)
     {
         bool fromBase = aircraft.Phases?.CurrentPhase is BasePhase;
-        PatternWaypoints? waypoints = aircraft.Phases?.Phases.Select(PatternWaypointsOf).FirstOrDefault(w => w is not null);
+        PatternWaypoints? waypoints = AirborneFollowHelper.FirstPatternWaypoints(aircraft.Phases);
         if (waypoints is not null)
         {
             return new FollowPatternReturn(runway, waypoints.Direction, waypoints.PatternAltitude, fromBase);
@@ -812,18 +812,6 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         );
         return altitudeOverrideFt ?? (runway.AirportElevationFt + CategoryPerformance.PatternAltitudeAgl(category));
     }
-
-    private static PatternWaypoints? PatternWaypointsOf(Phase phase) =>
-        phase switch
-        {
-            UpwindPhase p => p.Waypoints,
-            CrosswindPhase p => p.Waypoints,
-            DownwindPhase p => p.Waypoints,
-            BasePhase p => p.Waypoints,
-            MidfieldCrossingPhase p => p.Waypoints,
-            TeardropReentryPhase p => p.Waypoints,
-            _ => null,
-        };
 
     /// <summary>
     /// When a pursuit that left a pattern leg ends (lead lost or despawned, lead landed with no captured runway,
