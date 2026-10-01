@@ -11,8 +11,6 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.Logging;
-using MsBox.Avalonia;
-using MsBox.Avalonia.Base;
 using MsBox.Avalonia.Enums;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
@@ -3039,11 +3037,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
     }
 
-    private async Task<bool> AskYesNoAsync(string message)
-    {
-        IMsBox<ButtonResult> box = MessageBoxManager.GetMessageBoxStandard("YAAT", message, ButtonEnum.YesNo);
-        return await box.ShowWindowDialogAsync(this) == ButtonResult.Yes;
-    }
+    private async Task<bool> AskYesNoAsync(string message) =>
+        await MessageBoxPresenter.ShowStandardAsync(this, "YAAT", message, ButtonEnum.YesNo) == ButtonResult.Yes;
 
     private void OnCommandCheatsheetClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
@@ -3057,11 +3052,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         item?.Click += (_, _) => UrlLauncher.OpenInBrowser(url);
     }
 
-    private async Task ShowMessageAsync(string message)
-    {
-        IMsBox<ButtonResult> box = MessageBoxManager.GetMessageBoxStandard("YAAT", message, ButtonEnum.Ok);
-        await box.ShowWindowDialogAsync(this);
-    }
+    private async Task ShowMessageAsync(string message) => await MessageBoxPresenter.ShowStandardAsync(this, "YAAT", message, ButtonEnum.Ok);
 
     private async void OnSettingsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e) =>
         await ShowSettingsDialogAsync(openOnSpeechTab: false);

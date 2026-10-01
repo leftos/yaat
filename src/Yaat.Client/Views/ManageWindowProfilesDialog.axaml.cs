@@ -1,7 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using MsBox.Avalonia;
-using MsBox.Avalonia.Base;
 using MsBox.Avalonia.Enums;
 using Yaat.Client.Services;
 
@@ -154,8 +152,12 @@ public partial class ManageWindowProfilesDialog : Window
             return;
         }
 
-        IMsBox<ButtonResult> box = MessageBoxManager.GetMessageBoxStandard("Delete profile?", $"Delete window profile \"{name}\"?", ButtonEnum.YesNo);
-        ButtonResult result = await box.ShowWindowDialogAsync(this);
+        ButtonResult result = await MessageBoxPresenter.ShowStandardAsync(
+            this,
+            "Delete profile?",
+            $"Delete window profile \"{name}\"?",
+            ButtonEnum.YesNo
+        );
         if (result != ButtonResult.Yes)
         {
             return;

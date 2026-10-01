@@ -8,9 +8,8 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.Logging;
-using MsBox.Avalonia;
-using MsBox.Avalonia.Base;
 using MsBox.Avalonia.Dto;
+using MsBox.Avalonia.Enums;
 using MsBox.Avalonia.Models;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
@@ -698,9 +697,12 @@ public partial class FavoritesBarView : UserControl
         if (result is null)
         {
             Log.LogWarning("Favorites import did not recognize {Path} as a favorites zip or entity json", path);
-            await MessageBoxManager
-                .GetMessageBoxStandard("Import Favorites", "The selected file is not a recognized favorites export.")
-                .ShowWindowDialogAsync(owner);
+            await MessageBoxPresenter.ShowStandardAsync(
+                owner,
+                "Import Favorites",
+                "The selected file is not a recognized favorites export.",
+                ButtonEnum.Ok
+            );
             return;
         }
 
@@ -712,7 +714,7 @@ public partial class FavoritesBarView : UserControl
         {
             summary += $" {result.MissingReferences} referenced favorite(s) were missing from the file and were skipped.";
         }
-        await MessageBoxManager.GetMessageBoxStandard("Import Favorites", summary).ShowWindowDialogAsync(owner);
+        await MessageBoxPresenter.ShowStandardAsync(owner, "Import Favorites", summary, ButtonEnum.Ok);
     }
 
     private const string AddToExistingChoice = "Add to existing";
@@ -729,7 +731,8 @@ public partial class FavoritesBarView : UserControl
         string message =
             "Add the imported favorites alongside your current ones, or replace everything? "
             + $"Replace all deletes all {vm.FavoriteStore.AllFavorites.Count} favorite(s) and {vm.FavoriteStore.OrderedSets.Count} set(s) first.";
-        IMsBox<string> box = MessageBoxManager.GetMessageBoxCustom(
+        string choice = await MessageBoxPresenter.ShowCustomAsync(
+            owner,
             new MessageBoxCustomParams
             {
                 ButtonDefinitions =
@@ -744,8 +747,6 @@ public partial class FavoritesBarView : UserControl
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
             }
         );
-
-        string choice = await box.ShowWindowDialogAsync(owner);
         if (string.Equals(choice, AddToExistingChoice, StringComparison.Ordinal))
         {
             return FavoriteImportMode.Merge;

@@ -1,8 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
-using MsBox.Avalonia;
-using MsBox.Avalonia.Base;
 using MsBox.Avalonia.Enums;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -271,12 +269,12 @@ public partial class FavoritesEditorWindow : Window
             return;
         }
 
-        IMsBox<ButtonResult> box = MessageBoxManager.GetMessageBoxStandard(
+        ButtonResult result = await MessageBoxPresenter.ShowStandardAsync(
+            this,
             "Delete set?",
             $"Delete \"{set.DisplayName}\"? Its favorites are kept — any not in another set move to \"Not in any set\".",
             ButtonEnum.YesNo
         );
-        ButtonResult result = await box.ShowWindowDialogAsync(this);
         if (result != ButtonResult.Yes)
         {
             return;
@@ -430,12 +428,12 @@ public partial class FavoritesEditorWindow : Window
             return;
         }
 
-        IMsBox<ButtonResult> box = MessageBoxManager.GetMessageBoxStandard(
+        ButtonResult result = await MessageBoxPresenter.ShowStandardAsync(
+            this,
             "Delete favorites?",
             $"Delete {selected.Count} favorite(s) everywhere, from every set?",
             ButtonEnum.YesNo
         );
-        ButtonResult result = await box.ShowWindowDialogAsync(this);
         if (result != ButtonResult.Yes)
         {
             return;

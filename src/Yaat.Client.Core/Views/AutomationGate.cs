@@ -6,7 +6,10 @@ namespace Yaat.Client.Views;
 /// reuse-and-activate helper) shows windows without activating them, skips every
 /// <see cref="Avalonia.Controls.Window.Activate"/> call and never sets
 /// <see cref="Avalonia.Controls.Window.Topmost"/>, so a driven client stays behind whatever
-/// the user is working in. <c>Yaat.Client</c>'s <c>AutomationMode.IsEnabled</c> is the only
+/// the user is working in. It also never changes <see cref="Avalonia.Controls.Window.WindowState"/>:
+/// windows stay Normal, because Avalonia's Win32 backend activates a visible window on every state
+/// change except to Minimized, and shows a window that is Maximized before its first show activated.
+/// <c>Yaat.Client</c>'s <c>AutomationMode.IsEnabled</c> is the only
 /// writer outside tests; this assembly cannot reference <c>Yaat.Client</c>, so the flag lives here.
 /// </summary>
 public static class AutomationGate

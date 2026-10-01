@@ -29,17 +29,107 @@ public class AutomationModeActivationTests : IDisposable
         WindowGroupRaiser.ResetForTest();
     }
 
-    private static SavedWindowGeometry Geometry(bool isTopmost) =>
+    private static SavedWindowGeometry Geometry(bool isTopmost) => Geometry(isTopmost, isMaximized: false);
+
+    private static SavedWindowGeometry Geometry(bool isTopmost, bool isMaximized) =>
         new()
         {
             X = 200,
             Y = 150,
             Width = 800,
             Height = 500,
-            IsMaximized = false,
+            IsMaximized = isMaximized,
             ScreenIndex = 0,
             IsTopmost = isTopmost,
         };
+
+    [AvaloniaFact]
+    public void AutomationMode_SavedMaximizedGeometry_OpensNormal()
+    {
+        const string windowName = "AutomationSavedMaximizedTest";
+        var prefs = new UserPreferences();
+        prefs.SetWindowGeometry(windowName, Geometry(isTopmost: false, isMaximized: true));
+        var window = new Window();
+        var helper = new WindowGeometryHelper(window, prefs, windowName, defaultWidth: 300, defaultHeight: 200);
+        helper.Restore();
+        try
+        {
+            // A window shown Maximized goes up with SW_SHOWMAXIMIZED, which activates it.
+            Assert.Equal(WindowState.Normal, window.WindowState);
+
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(WindowState.Normal, window.WindowState);
+            Assert.Equal(800.0, window.Width);
+            Assert.Equal(500.0, window.Height);
+
+            // A profile apply of a maximized geometry keeps the visible window Normal too.
+            helper.ApplyGeometry(Geometry(isTopmost: false, isMaximized: true));
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(WindowState.Normal, window.WindowState);
+
+            // The user's saved maximized state survives an automation session that never applied it.
+            helper.FlushSavedGeometry();
+            Assert.True(prefs.GetWindowGeometry(windowName)?.IsMaximized);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void NormalMode_SavedMaximizedGeometry_OpensMaximized()
+    {
+        AutomationMode.IsEnabled = false;
+        const string windowName = "NormalSavedMaximizedTest";
+        var prefs = new UserPreferences();
+        prefs.SetWindowGeometry(windowName, Geometry(isTopmost: false, isMaximized: true));
+        var window = new Window();
+        var helper = new WindowGeometryHelper(window, prefs, windowName, defaultWidth: 300, defaultHeight: 200);
+        helper.Restore();
+        try
+        {
+            Assert.Equal(WindowState.Maximized, window.WindowState);
+
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(WindowState.Maximized, window.WindowState);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void AutomationMode_ApplyGeometry_LeavesMinimizedOrMaximizedWindowStateAlone()
+    {
+        WindowState[] states = [WindowState.Minimized, WindowState.Maximized];
+        foreach (WindowState state in states)
+        {
+            var prefs = new UserPreferences();
+            var window = new Window { ShowActivated = false };
+            var helper = new WindowGeometryHelper(window, prefs, $"AutomationApplyOnto{state}Test", defaultWidth: 300, defaultHeight: 200);
+            helper.Restore();
+            window.Show();
+            try
+            {
+                window.WindowState = state;
+                Dispatcher.UIThread.RunJobs();
+
+                // Outside automation mode a profile apply drops the window to Normal before placing it.
+                helper.ApplyGeometry(Geometry(isTopmost: false));
+                Dispatcher.UIThread.RunJobs();
+
+                Assert.Equal(state, window.WindowState);
+            }
+            finally
+            {
+                window.Close();
+            }
+        }
+    }
 
     [AvaloniaFact]
     public void ApplyGeometry_InAutomationMode_DoesNotActivate()
@@ -75,7 +165,7 @@ public class AutomationModeActivationTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void RestoreAndActivate_InAutomationMode_RestoresButDoesNotActivate()
+    public void AutomationMode_RestoreAndActivate_LeavesWindowStateAlone()
     {
         var window = new Window { ShowActivated = false };
         int activations = 0;
@@ -87,10 +177,12 @@ public class AutomationModeActivationTests : IDisposable
             Dispatcher.UIThread.RunJobs();
             int activationsBefore = activations;
 
+            // Un-minimizing a visible window sends SW_RESTORE and then SetForegroundWindow, so
+            // automation mode leaves a minimized window minimized.
             window.RestoreAndActivate();
             Dispatcher.UIThread.RunJobs();
 
-            Assert.Equal(WindowState.Normal, window.WindowState);
+            Assert.Equal(WindowState.Minimized, window.WindowState);
             Assert.Equal(activationsBefore, activations);
             Assert.False(window.IsActive);
         }
