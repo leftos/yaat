@@ -178,9 +178,10 @@ Subsystem references — open the matching doc *before* exploring, searching, or
 
 - **7110.65**: `.claude/reference/faa/7110.65/` (index: `INDEX.md`)
 - **AIM**: `.claude/reference/faa/aim/` (index: `INDEX.md`)
+- **Semantic search**: the main checkout's `.claude/reference/faa/` is indexed by ck (`mcp__ck__semantic_search` / `mcp__ck__hybrid_search` with `path` set to that folder in the main checkout, not a worktree copy, which would start a fresh index); a hit is a pointer, confirmed by reading the paragraph before it is cited.
 
 When invoking aviation-sim-expert, always include:
-> "IMPORTANT: The FAA 7110.65 and AIM are available as local markdown files in the repo. Read them directly via Read/Grep/Glob at `.claude/reference/faa/7110.65/` and `.claude/reference/faa/aim/`. Do NOT use web search tools to look up 7110.65 or AIM content."
+> "IMPORTANT: The FAA 7110.65 and AIM are available as local markdown files in the repo. Read them directly via Read/Grep/Glob at `.claude/reference/faa/7110.65/` and `.claude/reference/faa/aim/`, and find a paragraph by meaning with ck semantic search over the main checkout's `.claude/reference/faa/` (see your agent file). Do NOT use web search tools to look up 7110.65 or AIM content."
 
 ## Project Skills
 
