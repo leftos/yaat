@@ -1,6 +1,6 @@
 # Command usage history
 
-The desktop client keeps a local, per-user record of the commands the user entered and the server accepted, keyed by scenario and by primary airport. A new window lets the user sort and filter that record and add any entry to their favorites in one action. Index line: [MAIN.md](./MAIN.md), under **Bug reports and feature requests**.
+The desktop client keeps a local, per-user record of the commands the user entered and the server accepted, keyed by scenario and by primary airport. A new window lets the user sort and filter that record and add any entry to their favorites in one action. Index line: [MAIN.md](./MAIN.md), under **Programmes next up**; it starts after the next release is cut (user 2026-10-01).
 
 ## Decisions (user 2026-10-01)
 
