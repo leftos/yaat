@@ -37,7 +37,7 @@ public sealed class WindowNativeMenuHelper(Window window, WindowGeometryHelper g
             return;
         }
 
-        _alwaysOnTopItem = new NativeMenuItem("Always on Top") { ToggleType = MenuItemToggleType.CheckBox, IsChecked = _window.Topmost };
+        _alwaysOnTopItem = new NativeMenuItem("Always on Top") { ToggleType = MenuItemToggleType.CheckBox, IsChecked = _geometryHelper.IsPinned };
         _alwaysOnTopItem.Click += OnAlwaysOnTopClicked;
 
         var windowSubmenu = new NativeMenu();
@@ -51,10 +51,13 @@ public sealed class WindowNativeMenuHelper(Window window, WindowGeometryHelper g
         NativeMenu.SetMenu(_window, menu);
 
         _preferences.WindowTopmostChanged += OnWindowTopmostChanged;
+        _geometryHelper.PinnedChanged += OnPinnedChanged;
         _window.Closed += OnWindowClosed;
     }
 
     private void OnAlwaysOnTopClicked(object? sender, EventArgs e) => _geometryHelper.ToggleTopmost();
+
+    private void OnPinnedChanged(bool isPinned) => OnWindowTopmostChanged(_windowName, isPinned);
 
     private void OnWindowTopmostChanged(string windowName, bool isTopmost)
     {
@@ -69,6 +72,7 @@ public sealed class WindowNativeMenuHelper(Window window, WindowGeometryHelper g
     private void OnWindowClosed(object? sender, EventArgs e)
     {
         _preferences.WindowTopmostChanged -= OnWindowTopmostChanged;
+        _geometryHelper.PinnedChanged -= OnPinnedChanged;
         _window.Closed -= OnWindowClosed;
 
         _alwaysOnTopItem?.Click -= OnAlwaysOnTopClicked;

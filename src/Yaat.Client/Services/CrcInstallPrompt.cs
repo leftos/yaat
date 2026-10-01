@@ -5,6 +5,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Yaat.Client.Views;
 
 namespace Yaat.Client.Services;
 
@@ -82,6 +83,7 @@ public static class CrcInstallPrompt
                 },
             },
         };
+        AutomationGate.ApplyShowActivated(window);
 
         yesButton.Click += (_, _) =>
         {

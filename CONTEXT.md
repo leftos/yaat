@@ -370,6 +370,12 @@ One of the `(logical processors - 1) / 2` slots (`light` in `%LOCALAPPDATA%\gate
 **Feature PR**:
 The draft pull request from a marker's `feat/<name>` into `main`, one per repo, opened with the marker; CI runs on each push to it, and `/ship` Phase 2F merges it with `--rebase` once every line under the marker is done.
 
+**Automation mode**:
+The client's mode for being driven by an agent without disturbing the user, on when `YAAT_AUTOMATION=1` (`AutomationMode.IsEnabled`, `AutomationGate.SuppressActivation`): every window the client builds shows never-activated (except the MsBox message boxes and modal dialogs, which still activate), popups draw inside their window, the client never activates itself or sets `Topmost`, and the global push-to-talk key hook and Discord Rich Presence are off (docs/plans/client-driver-background.md).
+
+**Never-activated window**:
+A window shown with `ShowActivated = false` that the client never activates afterwards, so it opens behind the user's foreground window without taking focus; automation mode shows every window this way.
+
 **Ouroboros**:
 A synthetic round trip through the speech pipeline: a known canonical command is rendered to speech with Piper, fed through Whisper, the rule mapper and the LLM fallback, and the recovered canonical is compared with the one it started from. `--ouroboros` speaks pilot readbacks; `--atc-ouroboros` speaks controller transmissions across every phraseology rule family and diffs each family's pass rate against a committed baseline (`tools/Yaat.SpeechSandbox`, docs/speech-recognition-pipeline.md).
 

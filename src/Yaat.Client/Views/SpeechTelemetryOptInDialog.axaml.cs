@@ -15,6 +15,7 @@ public partial class SpeechTelemetryOptInDialog : Window
     public SpeechTelemetryOptInDialog()
     {
         InitializeComponent();
+        AutomationGate.ApplyShowActivated(this);
 
         this.FindControl<Button>("ShareButton")?.Click += OnShareClick;
         this.FindControl<Button>("DeclineButton")?.Click += OnDeclineClick;

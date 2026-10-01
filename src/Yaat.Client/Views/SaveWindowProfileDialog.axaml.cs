@@ -22,6 +22,7 @@ public partial class SaveWindowProfileDialog : Window
     public SaveWindowProfileDialog(IEnumerable<string> existingNames, string? initialName)
     {
         InitializeComponent();
+        AutomationGate.ApplyShowActivated(this);
         _existingNames = new HashSet<string>(existingNames, StringComparer.OrdinalIgnoreCase);
 
         TextBox? nameBox = this.FindControl<TextBox>("NameTextBox");

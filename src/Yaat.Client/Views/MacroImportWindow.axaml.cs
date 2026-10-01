@@ -66,6 +66,7 @@ public partial class MacroImportWindow : Window
         _newMacros = [];
         _allExistingBaseNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         InitializeComponent();
+        AutomationGate.ApplyShowActivated(this);
     }
 
     public MacroImportWindow(List<MacroImportItem> conflicts, List<SavedMacro> newMacros, HashSet<string> allExistingBaseNames)
@@ -75,6 +76,7 @@ public partial class MacroImportWindow : Window
         _allExistingBaseNames = allExistingBaseNames;
 
         InitializeComponent();
+        AutomationGate.ApplyShowActivated(this);
 
         ItemsControl? list = this.FindControl<ItemsControl>("ConflictList");
         list?.ItemsSource = _items;

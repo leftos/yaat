@@ -9,6 +9,7 @@ public partial class AboutWindow : Window
     public AboutWindow()
     {
         InitializeComponent();
+        AutomationGate.ApplyShowActivated(this);
 
         TextBlock? versionText = this.FindControl<TextBlock>("VersionText");
         versionText?.Text = BuildInfo.Version;

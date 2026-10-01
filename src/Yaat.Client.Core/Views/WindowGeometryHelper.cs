@@ -41,6 +41,10 @@ public sealed class WindowGeometryHelper
     private bool _applyingTitle;
     private bool _isRegistered;
 
+    // The pin the saved geometry or the user asked for; equals Window.Topmost except in automation
+    // mode, where Topmost is never applied but the preference must still round-trip unchanged.
+    private bool _requestedTopmost;
+
     // Set once the window has lost its platform surface. Avalonia's Window.Position getter falls
     // back to PixelPoint.Origin when there is no surface left to ask, while Width/Height keep the
     // values they had — so a capture past this point yields (0,0) at the right size and silently
@@ -63,6 +67,7 @@ public sealed class WindowGeometryHelper
     public WindowGeometryHelper(Window window, UserPreferences preferences, string windowName, double defaultWidth, double defaultHeight)
     {
         _window = window;
+        AutomationGate.ApplyShowActivated(window);
         _preferences = preferences;
         _windowName = windowName;
         _defaultWidth = defaultWidth;
@@ -94,6 +99,9 @@ public sealed class WindowGeometryHelper
 
     public void Restore()
     {
+        // Captured before the geometry is applied: applying a pinned geometry re-titles the window
+        // with the 📌 prefix, which must not end up in the base title.
+        _baseTitle = _window.Title ?? string.Empty;
         SavedWindowGeometry? geo = _preferences.GetWindowGeometry(_windowName);
 
         if (geo is not null && geo.Width > 0 && geo.Height > 0)
@@ -110,7 +118,6 @@ public sealed class WindowGeometryHelper
             _lastNormalGeometry = CaptureCurrentGeometry();
         }
 
-        _baseTitle = _window.Title ?? string.Empty;
         ApplyTitle();
 
         _window.Opened += OnWindowOpened;
@@ -306,11 +313,12 @@ public sealed class WindowGeometryHelper
             _lastNormalGeometry = new NormalWindowGeometry(new PixelPoint(geo.X, geo.Y), geo.Width, geo.Height);
         }
 
-        _window.Topmost = geo.IsTopmost;
+        SetTopmost(geo.IsTopmost);
 
         // Profile apply brings every saved foreground window to the front; startup
         // restore runs while the window is being shown, which raises it anyway.
-        if (!isStartupRestore && _window.WindowState != WindowState.Minimized)
+        // Automation mode never brings a window forward.
+        if (!AutomationGate.SuppressActivation && !isStartupRestore && (_window.WindowState != WindowState.Minimized))
         {
             _window.Activate();
         }
@@ -480,9 +488,41 @@ public sealed class WindowGeometryHelper
             return;
         }
 
-        if (_window.Topmost != isTopmost)
+        if (IsPinned != isTopmost)
+        {
+            SetTopmost(isTopmost);
+        }
+    }
+
+    /// <summary>
+    /// Whether the window is pinned on top as far as the user's preference is concerned. In
+    /// automation mode the pin is recorded but never applied to the window, so the recorded value
+    /// is what gets saved, toggled and shown (📌 title prefix, Always-on-Top menu checks).
+    /// </summary>
+    public bool IsPinned => AutomationGate.SuppressActivation ? _requestedTopmost : _window.Topmost;
+
+    /// <summary>Fired with the new value whenever <see cref="IsPinned"/> changes through this helper.</summary>
+    public event Action<bool>? PinnedChanged;
+
+    /// <summary>
+    /// Pins or unpins the window on top. Automation mode records the pin without applying
+    /// <see cref="Window.Topmost"/>, so a driven client never floats above the user's windows.
+    /// </summary>
+    public void SetPinned(bool isPinned) => SetTopmost(isPinned);
+
+    private void SetTopmost(bool isTopmost)
+    {
+        bool changed = IsPinned != isTopmost;
+        _requestedTopmost = isTopmost;
+        if (!AutomationGate.SuppressActivation)
         {
             _window.Topmost = isTopmost;
+        }
+
+        if (changed)
+        {
+            ApplyTitle();
+            PinnedChanged?.Invoke(isTopmost);
         }
     }
 
@@ -502,7 +542,7 @@ public sealed class WindowGeometryHelper
         _applyingTitle = true;
         try
         {
-            _window.Title = _window.Topmost ? TopmostTitlePrefix + _baseTitle : _baseTitle;
+            _window.Title = IsPinned ? TopmostTitlePrefix + _baseTitle : _baseTitle;
         }
         finally
         {
@@ -654,7 +694,7 @@ public sealed class WindowGeometryHelper
 
     public void ToggleTopmost()
     {
-        _window.Topmost = !_window.Topmost;
+        SetTopmost(!IsPinned);
         SaveCurrentGeometry("topmost-toggle");
     }
 
@@ -672,7 +712,7 @@ public sealed class WindowGeometryHelper
             IsMaximized = (state == WindowState.Maximized) || (isMinimized && _wasMaximizedBeforeMinimize),
             IsMinimized = isMinimized,
             ScreenIndex = GetCurrentScreenIndex(geometry),
-            IsTopmost = _window.Topmost,
+            IsTopmost = IsPinned,
         };
     }
 

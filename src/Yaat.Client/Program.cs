@@ -3,6 +3,7 @@ using Avalonia;
 using LMKit.Global;
 using Microsoft.Extensions.Logging;
 using Velopack;
+using Yaat.Client.Automation;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
@@ -112,8 +113,11 @@ public static class Program
             App.AutoConnectTarget ??= "http://localhost:5000";
         }
 
-        App.GlobalKeyHookEnabled = true;
-        App.DiscordRichPresenceAvailable = true;
+        // Automation mode keeps the client off the user's input and presence: no OS-wide key hook,
+        // no Discord status, and windows that never take activation.
+        AutomationMode.IsEnabled = AutomationMode.ReadFromEnvironment();
+        App.GlobalKeyHookEnabled = !AutomationMode.IsEnabled;
+        App.DiscordRichPresenceAvailable = !AutomationMode.IsEnabled;
 
         try
         {
@@ -176,6 +180,14 @@ public static class Program
         if (OperatingSystem.IsMacOS())
         {
             builder = builder.With(new AvaloniaNativePlatformOptions { RenderingMode = ResolveMacRenderingModes(_rendererMode) });
+        }
+
+        // Automation mode draws popups inside their window rather than as separate native windows,
+        // so they never take activation and a capture of the window includes them. Main sets the
+        // flag before building the app; the designer never runs Main, so it stays off there.
+        if (OperatingSystem.IsWindows() && AutomationMode.IsEnabled)
+        {
+            builder = builder.With(new Win32PlatformOptions { OverlayPopups = true });
         }
 
         return builder.WithInterFont().LogToTrace();

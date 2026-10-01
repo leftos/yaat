@@ -38,13 +38,14 @@ public partial class VTdlsViewWindow : Window, IAlwaysOnTopToggle
 
         // First-time per-facility window: inherit Topmost from the global
         // "VTdlsView" default so the Settings checkbox affects newly opened
-        // facility-scoped windows too. Mirrors the Strips behavior.
+        // facility-scoped windows too. Mirrors the Strips behavior. The helper
+        // records the pin without applying it in automation mode.
         if (!hasSavedGeometry && !string.IsNullOrEmpty(facilityIdForGeometry))
         {
             SavedWindowGeometry? globalGeometry = preferences.GetWindowGeometry("VTdlsView");
             if (globalGeometry?.IsTopmost == true)
             {
-                Topmost = true;
+                _geometryHelper.SetPinned(true);
             }
         }
 

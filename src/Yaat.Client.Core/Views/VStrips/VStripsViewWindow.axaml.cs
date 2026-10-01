@@ -31,13 +31,14 @@ public partial class VStripsViewWindow : Window, IAlwaysOnTopToggle
         _geometryHelper.Restore();
 
         // First-time per-facility window: inherit Topmost from the global "VStripsView" default
-        // so the Settings checkbox affects newly opened facility-scoped windows too.
+        // so the Settings checkbox affects newly opened facility-scoped windows too. The helper
+        // records the pin without applying it in automation mode.
         if (!hasSavedGeometry && !string.IsNullOrEmpty(facilityIdForGeometry))
         {
             SavedWindowGeometry? globalGeometry = preferences.GetWindowGeometry("VStripsView");
             if (globalGeometry?.IsTopmost == true)
             {
-                Topmost = true;
+                _geometryHelper.SetPinned(true);
             }
         }
 

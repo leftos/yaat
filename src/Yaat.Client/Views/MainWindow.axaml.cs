@@ -2371,11 +2371,11 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     /// Returns keyboard focus to the main window after a profile-apply sweep has
     /// activated each pop-out in turn, so focus ends where the user triggered the
     /// apply while the pop-outs stay raised. Skipped when the profile itself put
-    /// the main window in a minimized state.
+    /// the main window in a minimized state, and in automation mode, which never activates a window.
     /// </summary>
     private void ReclaimFocusAfterProfileApply()
     {
-        if (WindowState != WindowState.Minimized)
+        if (!AutomationGate.SuppressActivation && (WindowState != WindowState.Minimized))
         {
             Activate();
         }
@@ -3410,6 +3410,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             CanResize = false,
             ShowInTaskbar = false,
         };
+        AutomationGate.ApplyShowActivated(dialog);
 
         var confirmButton = new Button
         {
@@ -3472,6 +3473,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             CanResize = false,
             ShowInTaskbar = false,
         };
+        AutomationGate.ApplyShowActivated(dialog);
 
         var settingsButton = new Button { Content = "Voice settings", HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center };
         var startButton = new Button { Content = "Start anyway", HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center };
@@ -3591,6 +3593,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 CanResize = false,
                 ShowInTaskbar = false,
             };
+            AutomationGate.ApplyShowActivated(dialog);
 
             var yesButton = new Button
             {
@@ -3763,7 +3766,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     /// <summary>
     /// Focuses whichever command input is currently visible: the embedded one in MainWindow when
     /// the terminal is docked, or the popped-out <see cref="TerminalWindow"/>'s when it isn't.
-    /// Activating the owning window brings it forward so the focused box is on the active surface.
+    /// Activating the owning window brings it forward so the focused box is on the active surface;
+    /// automation mode skips the activation and only moves focus inside the window.
     /// Wired to <see cref="MainViewModel.RequestCommandInputFocus"/>.
     /// </summary>
     private void FocusActiveCommandInput()
@@ -3775,7 +3779,10 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         if (!vm.IsTerminalPoppedOut)
         {
-            Activate();
+            if (!AutomationGate.SuppressActivation)
+            {
+                Activate();
+            }
             this.FindControl<CommandInputView>("CommandInputView")?.FocusCommandInput();
         }
         else
