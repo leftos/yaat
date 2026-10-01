@@ -11,10 +11,12 @@ namespace Yaat.Client.ContextMenus;
 /// <param name="PreviousSelection">The aircraft selected before this one, for relative commands; null when there is none.</param>
 /// <param name="SoloTrainingMode">True when the surface is driving a solo-training session.</param>
 /// <param name="VfrCommandsForIfr">The controller's "VFR commands for IFR aircraft" setting.</param>
+/// <param name="View">The surface the menu is built for, for the entries that keep a per-surface variant.</param>
 public sealed record MenuContext(
     string Callsign,
     string Initials,
     IMenuAircraft? PreviousSelection,
     bool SoloTrainingMode,
-    VfrCommandsForIfr VfrCommandsForIfr
+    VfrCommandsForIfr VfrCommandsForIfr,
+    MenuView View
 );

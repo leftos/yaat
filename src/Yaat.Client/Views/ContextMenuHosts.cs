@@ -3,6 +3,7 @@ using Avalonia.Threading;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Ground;
 using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar;
 using Yaat.Client.Views.Radar.Flyouts;
@@ -67,6 +68,85 @@ internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainVi
         if (radar.Measure is { } measure)
         {
             measure.Pick(RblEndpoint.OnAircraft(callsign), RadarViewModel.MeasureView, radar.MeasureTrackLookup, RadarViewModel.MeasureUnits);
+        }
+    }
+
+    public MenuItem BuildFavorites(IMenuAircraft? menuAircraft, MenuContext context) =>
+        FavoritesContextMenu.Build(main, aircraft, context.Callsign, context.Initials);
+}
+
+/// <summary>
+/// The ground view's <see cref="IMenuHost"/>, built per right-click: commands go through the ground view model's send
+/// path, the data-block reset reads and drives the ground canvas, the measure item latches the ground view model's
+/// measurement, route drawing starts a taxi route for the right-clicked aircraft, and favorites are built for the
+/// right-clicked aircraft model. The ground has no input, list, filtered-list or warp popup, no fix or altitude
+/// picker, no flight-plan item, and no mini data block or nav route.
+/// </summary>
+internal sealed class GroundMenuHost(GroundView view, GroundViewModel ground, MainViewModel? main, AircraftModel? aircraft) : IMenuHost
+{
+    public Task SendAsync(string callsign, string command, string initials) => ground.SendRawCommandAsync(callsign, initials, command);
+
+    public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) =>
+        throw new NotSupportedException("The ground view has no input popup; ground menus never build input pickers");
+
+    public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick) =>
+        throw new NotSupportedException("The ground view has no list popup; ground menus never build list pickers");
+
+    public void ShowFilteredListPopup(string[] sortedNames, IReadOnlyList<object>? priorityItems, Func<string, Task> onPick) =>
+        throw new NotSupportedException("The ground view has no filtered-list popup; ground menus never build fix pickers");
+
+    // Throws rather than returning null: null would silently pick the free-text fix tier, hiding a ground menu that started building fix pickers.
+    public string[]? FixNames => throw new NotSupportedException("The ground view offers no fix pickers; ground menus never build them");
+
+    public double GetFieldElevation(string? destination) =>
+        throw new NotSupportedException("The ground view builds no altitude picker; ground menus never read a field elevation");
+
+    public void EnterDrawRoute(string callsign)
+    {
+        if (aircraft is null || !string.Equals(aircraft.Callsign, callsign, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"The ground view draws a taxi route only for the right-clicked aircraft, not '{callsign}'");
+        }
+
+        ground.StartDrawRoute(aircraft);
+    }
+
+    public void ShowWarpPopup(string callsign, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit) =>
+        throw new NotSupportedException("The ground view has no warp popup; ground menus never build the warp item");
+
+    public void OpenFlightPlanEditor() => throw new NotSupportedException("The ground view has no flight-plan item; ground menus never build it");
+
+    public bool IsMinified(string callsign) =>
+        throw new NotSupportedException("The ground view has no mini data block; ground menus never build the mini datablock item");
+
+    public void ToggleMinified(string callsign) =>
+        throw new NotSupportedException("The ground view has no mini data block; ground menus never build the mini datablock item");
+
+    public bool HasManualDataBlockOffset(string callsign) => view.Canvas.HasManualDataBlockOffset(callsign);
+
+    public void ResetDataBlockOffset(string callsign) => view.Canvas.ResetDataBlockOffset(callsign);
+
+    public bool IsPathShown(string callsign) =>
+        throw new NotSupportedException("The ground view draws no nav route; ground menus never build the nav route item");
+
+    public void ToggleShowPath(string callsign) =>
+        throw new NotSupportedException("The ground view draws no nav route; ground menus never build the nav route item");
+
+    public MenuMeasureState GetMeasureState()
+    {
+        if (ground.Measure is not { } measure)
+        {
+            return MenuMeasureState.None;
+        }
+
+        return measure.Anchor is null ? MenuMeasureState.NoAnchor : MenuMeasureState.HasAnchor;
+    }
+
+    public void MeasurePickOnAircraft(string callsign)
+    {
+        if (ground.Measure is { } measure)
+        {
+            measure.Pick(RblEndpoint.OnAircraft(callsign), GroundViewModel.MeasureView, ground.MeasureTrackLookup, GroundViewModel.MeasureUnits);
         }
     }
 

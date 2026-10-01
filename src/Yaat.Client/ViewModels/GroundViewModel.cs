@@ -960,45 +960,6 @@ public partial class GroundViewModel : ObservableObject
         await _sendCommand(callsign, $"TAXI {taxiways}", initials);
     }
 
-    public async Task HoldPositionAsync(string callsign, string initials) => await _sendCommand(callsign, "HP", initials);
-
-    public async Task ResumeAsync(string callsign, string initials) => await _sendCommand(callsign, "RES", initials);
-
-    public async Task PushbackAsync(string callsign, string initials) => await _sendCommand(callsign, "PUSH", initials);
-
-    public async Task CrossRunwayAsync(string callsign, string initials, string runwayId) =>
-        await _sendCommand(callsign, $"CROSS {runwayId}", initials);
-
-    public async Task LineUpAndWaitAsync(string callsign, string initials) => await _sendCommand(callsign, "LUAW", initials);
-
-    public async Task ClearedForTakeoffAsync(string callsign, string initials, string? arg)
-    {
-        string cmd = string.IsNullOrWhiteSpace(arg) ? "CTO" : $"CTO {arg.Trim()}";
-        await _sendCommand(callsign, cmd, initials);
-    }
-
-    public async Task GoAroundAsync(string callsign, string initials) => await _sendCommand(callsign, "GA", initials);
-
-    public async Task CancelTakeoffClearanceAsync(string callsign, string initials) => await _sendCommand(callsign, "CTOC", initials);
-
-    public async Task ClearedToLandAsync(string callsign, string initials) => await _sendCommand(callsign, "CLAND", initials);
-
-    public async Task ForceLandingAsync(string callsign, string initials) => await _sendCommand(callsign, "CLANDF", initials);
-
-    public async Task CancelLandingClearanceAsync(string callsign, string initials) => await _sendCommand(callsign, "CLC", initials);
-
-    public async Task TouchAndGoAsync(string callsign, string initials) => await _sendCommand(callsign, "TG", initials);
-
-    public async Task StopAndGoAsync(string callsign, string initials) => await _sendCommand(callsign, "SG", initials);
-
-    public async Task LowApproachAsync(string callsign, string initials) => await _sendCommand(callsign, "LA", initials);
-
-    public async Task ClearedForOptionAsync(string callsign, string initials) => await _sendCommand(callsign, "COPT", initials);
-
-    public async Task ExitLeftAsync(string callsign, string initials) => await _sendCommand(callsign, "EL", initials);
-
-    public async Task ExitRightAsync(string callsign, string initials) => await _sendCommand(callsign, "ER", initials);
-
     /// <summary>Pushes back to an absolute magnetic facing given as an 8-point compass cardinal (N, NE, E, SE, S, SW, W, NW).</summary>
     public async Task PushbackFacingAsync(string callsign, string initials, string cardinal) =>
         await _sendCommand(callsign, $"PUSH FACE {cardinal}", initials);
@@ -1006,8 +967,6 @@ public partial class GroundViewModel : ObservableObject
     public async Task SendRawCommandAsync(string callsign, string initials, string command) => await _sendCommand(callsign, command, initials);
 
     public async Task HoldShortAsync(string callsign, string initials, string target) => await _sendCommand(callsign, $"HS {target}", initials);
-
-    public async Task DeleteAsync(string callsign, string initials) => await _sendCommand(callsign, "DEL", initials);
 
     public async Task WarpToNodeAsync(string callsign, string initials, int nodeId) => await _sendCommand(callsign, $"WARPG #{nodeId}", initials);
 

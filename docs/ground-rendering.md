@@ -220,7 +220,7 @@ Because of this, **`HandleRightClick` is the single place every ground right-cli
 
 ### Context menus
 
-`GroundView.axaml.cs` rebuilds the aircraft context menu from scratch on each right-click, gating items by phase via the same `AircraftCommandApplicability` predicates the radar and aircraft-list menus use (so all three agree). The **Taxi route** submenu is a `MenuItemToggleType.Radio` group whose checked item reflects `GetTaxiRouteMode(callsign)`; selecting one calls `SetTaxiRouteMode`.
+`GroundView.axaml.cs` rebuilds the aircraft context menu from scratch on each right-click. Its plain sends, gates and the Tower items come from the Core catalog over a `GroundMenuHost` (`SharedMenuGroups.AddGroundRelative`, `AddGroundClearances`, `AddGroundLanding`); the ground keeps its own narrower takeoff, LUAW and cancel-takeoff gates and its CTO submenu through `View == Ground` branches on the shared `tower.*` entries until the menus are unified. The pushback, follow, give-way, hold-short, preset-route and display submenus are still built in the view and gate on phase strings. The **Taxi route** submenu is a `MenuItemToggleType.Radio` group whose checked item reflects `GetTaxiRouteMode(callsign)`; selecting one calls `SetTaxiRouteMode`.
 
 ## Settings propagation
 

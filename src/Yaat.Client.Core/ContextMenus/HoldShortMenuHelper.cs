@@ -1,7 +1,6 @@
-using Yaat.Client.Models;
 using Yaat.Sim.Data.Airport;
 
-namespace Yaat.Client.Views;
+namespace Yaat.Client.ContextMenus;
 
 /// <summary>
 /// Shared logic for the aircraft right-click menus that act on a holding-short
@@ -17,7 +16,7 @@ public static class HoldShortMenuHelper
     /// Falls back to the aircraft's assigned runway when the phase carries no runway,
     /// or null when neither is available.
     /// </summary>
-    public static string? HeldRunway(string phase, AircraftModel? ac)
+    public static string? HeldRunway(string phase, IMenuAircraft? ac)
     {
         const string prefix = "Holding Short ";
         if (phase.StartsWith(prefix, StringComparison.Ordinal) && phase.Length > prefix.Length)

@@ -97,6 +97,9 @@ public static class MenuIds
     /// <summary>Acknowledge a departure release (<c>RDACK</c>).</summary>
     public const string CoordinationAcknowledge = "coordination.acknowledge";
 
+    /// <summary>Check the call-for-release window (<c>CFR CHECK</c>).</summary>
+    public const string CoordinationCheckReleaseWindow = "coordination.check-release-window";
+
     /// <summary>Set the data-block scratchpad (<c>SP</c>).</summary>
     public const string DataBlockScratchpad = "datablock.scratchpad";
 
@@ -387,4 +390,25 @@ public static class MenuIds
 
     /// <summary>Circle the airport (<c>CA</c>).</summary>
     public const string PatternCircleAirport = "pattern.circle-airport";
+
+    /// <summary>Push back from the stand (<c>PUSH</c>).</summary>
+    public const string GroundPushback = "ground.pushback";
+
+    /// <summary>Hold position on the ground (<c>HP</c>).</summary>
+    public const string GroundHoldPosition = "ground.hold-position";
+
+    /// <summary>Resume taxi from a hold-short or a stationary hold (<c>RES</c>).</summary>
+    public const string GroundResumeTaxi = "ground.resume-taxi";
+
+    /// <summary>Cross the runway being held short of (<c>CROSS</c>).</summary>
+    public const string GroundCrossRunway = "ground.cross-runway";
+
+    /// <summary>Override the ground-conflict speed limit (<c>BREAK</c>).</summary>
+    public const string GroundBreakConflict = "ground.break-conflict";
+
+    /// <summary>The selected aircraft follows the right-clicked one on the ground (<c>FOLLOWG</c>).</summary>
+    public const string GroundRelativeFollow = "ground.relative-follow";
+
+    /// <summary>The selected aircraft gives way to the right-clicked one on the ground (<c>GW</c>).</summary>
+    public const string GroundRelativeGiveWay = "ground.relative-give-way";
 }

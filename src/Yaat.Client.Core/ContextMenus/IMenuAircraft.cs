@@ -9,6 +9,15 @@ namespace Yaat.Client.ContextMenus;
 /// </summary>
 public interface IMenuAircraft
 {
+    /// <summary>The aircraft's callsign, which a relative item sends as when this is the previous selection.</summary>
+    string Callsign { get; }
+
+    /// <summary>True while the aircraft has a taxi route assigned that it has not finished.</summary>
+    bool HasActiveTaxiRoute { get; }
+
+    /// <summary>True when the aircraft has a call-for-release window, which a release-window check reports on.</summary>
+    bool HasCfrWindow { get; }
+
     /// <summary>True for a track mirrored from an external live feed rather than flown by the simulation.</summary>
     bool IsLiveTraffic { get; }
 

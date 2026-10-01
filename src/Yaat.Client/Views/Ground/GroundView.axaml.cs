@@ -521,12 +521,14 @@ public partial class GroundView : UserControl
     /// </summary>
     internal ContextMenu BuildAircraftContextMenu(GroundViewModel vm, GroundMenuTarget target)
     {
-        (AircraftModel? ac, AircraftModel? _, string callsign, string initials) = target;
+        (AircraftModel? ac, AircraftModel? _, string callsign, string _) = target;
+        MenuContext context = MenuContextFor(target);
+        var host = new GroundMenuHost(this, vm, FindMainViewModel(), ac);
         var menu = new ContextMenu();
 
         AddAircraftHeaderItems(menu, vm, target);
         menu.Items.Add(new Separator());
-        menu.Items.Add(FavoritesContextMenu.Build(FindMainViewModel(), ac, callsign, initials));
+        menu.Items.Add(SharedMenuGroups.Favorites(ac, context, host));
         menu.Items.Add(new Separator());
 
         if (ac is { IsLiveTraffic: true })
@@ -534,8 +536,9 @@ public partial class GroundView : UserControl
             // An assumable shadow takes the two assume items and then the same ground command groups a simulated
             // aircraft gets: a command sent to an airborne shadow auto-assumes it server-side, so the groups apply
             // as they are. A surface shadow is not assumable and keeps its read-only menu.
-            if (LiveTrafficMenuItems.Add(menu, ac, cmd => vm.SendRawCommandAsync(callsign, initials, cmd)))
+            if (AircraftCommandApplicability.CanAssume(ac))
             {
+                SharedMenuGroups.AddLiveTrafficAssume(menu.Items, ac, context, host);
                 menu.Items.Add(new Separator());
                 AddSimulatedAircraftItems(menu, vm, target);
             }
@@ -547,13 +550,35 @@ public partial class GroundView : UserControl
 
         AddDisplayItems(menu, vm, callsign);
         menu.Items.Add(new Separator());
-        LiveTrafficMenuItems.AddUnassume(menu.Items, ac, cmd => vm.SendRawCommandAsync(callsign, initials, cmd));
-        menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(callsign, initials)));
+        if (SharedMenuGroups.Unassume(ac, context, host) is { } unassume)
+        {
+            menu.Items.Add(unassume);
+        }
+
+        menu.Items.Add(SharedMenuGroups.Delete(ac, context, host));
 
         // RPO control
         FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
 
         return menu;
+    }
+
+    /// <summary>
+    /// The catalog context for <paramref name="target"/> on the ground view: the solo-training flag and the
+    /// "VFR commands for IFR aircraft" setting come from the main view model, the setting falling back to
+    /// <see cref="VfrCommandsForIfr.None"/> when none is attached.
+    /// </summary>
+    private MenuContext MenuContextFor(GroundMenuTarget target)
+    {
+        MainViewModel? main = FindMainViewModel();
+        return new MenuContext(
+            target.Callsign,
+            target.Initials,
+            target.PrevSelected,
+            main?.SessionSoloTrainingMode ?? false,
+            main?.VfrCommandsForIfr ?? VfrCommandsForIfr.None,
+            MenuView.Ground
+        );
     }
 
     /// <summary>The bold callsign header plus the free-text Command…, Note… and measurement items every aircraft gets.</summary>
@@ -661,35 +686,29 @@ public partial class GroundView : UserControl
 
     /// <summary>
     /// The phase-aware ground command items, for a simulated aircraft and for an assumable live-traffic shadow:
-    /// release checks, pushback, taxi holds, hold-short / crossing, takeoff and landing clearances, runway exits
-    /// and taxi-route drawing. An airborne shadow has no ground phase, so the state-gated predicates inside yield
-    /// nothing for it, and a surface shadow never reaches here, being unassumable.
+    /// release checks, the relative items, pushback, taxi holds, hold-short / crossing, takeoff and landing
+    /// clearances, runway exits and taxi-route drawing. The catalog's entries and ground groups come from
+    /// <see cref="SharedMenuGroups"/>, interleaved with the submenus this view still builds. An airborne shadow has no
+    /// ground phase, so the state-gated predicates inside yield nothing for it, and a surface shadow never reaches
+    /// here, being unassumable.
     /// </summary>
     internal void AddSimulatedAircraftItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target)
     {
-        (AircraftModel? ac, AircraftModel? prevSelected, string? callsign, string? initials) = target;
-        string phase = ac?.CurrentPhase ?? "";
-        // When a different on-ground aircraft is selected, the direct "give way / follow"
-        // items replace the candidate Follow…/Give way to… submenus.
-        bool isRelative =
-            ac is not null
-            && RelativeTrafficActions.HasRelativeContext(prevSelected, callsign)
-            && RelativeTrafficActions.ShouldOfferGroundActions(prevSelected!, ac);
+        AircraftModel? ac = target.Aircraft;
+        MenuContext context = MenuContextFor(target);
+        var host = new GroundMenuHost(this, vm, FindMainViewModel(), ac);
 
-        if (ac is { IsOnGround: true, CfrWindowStartUtc: not null })
-        {
-            menu.Items.Add(CreateMenuItem("Check release window", () => vm.SendRawCommandAsync(callsign, initials, "CFR CHECK")));
-        }
-
-        AddRelativeGroundItems(menu, vm, prevSelected, callsign, initials, isRelative);
-        AddParkingAndTaxiItems(menu, vm, target, phase, isRelative);
-        AddHoldingItems(menu, vm, target, phase, isRelative);
-        AddRunwayItems(menu, vm, target, phase);
+        SharedMenuGroups.AddIfApplicable(menu.Items, MenuIds.CoordinationCheckReleaseWindow, ac, context, host);
+        SharedMenuGroups.AddGroundRelative(menu.Items, ac, context, host);
+        AddParkingAndTaxiItems(menu, vm, target, context, host);
+        SharedMenuGroups.AddGroundClearances(menu.Items, ac, context, host);
+        AddHoldFollowSubmenus(menu, target, context);
+        SharedMenuGroups.AddGroundLanding(menu.Items, ac, context, host);
 
         if (AircraftCommandApplicability.CanDrawTaxiRoute(ac))
         {
             menu.Items.Add(new Separator());
-            MenuItem? presetSubmenu = BuildPresetTaxiSubmenu(vm, ac, callsign, initials);
+            MenuItem? presetSubmenu = BuildPresetTaxiSubmenu(vm, ac, target.Callsign, target.Initials);
             if (presetSubmenu is not null)
             {
                 menu.Items.Add(presetSubmenu);
@@ -710,58 +729,53 @@ public partial class GroundView : UserControl
 
     /// <summary>
     /// At Parking / Holding After Pushback (push back variants and push route) plus At Parking's follow submenus,
-    /// hold position for every phase the sim accepts HOLD from, and Taxiing's hold short, follow, break and deferred CTO.
+    /// hold position for every phase the sim accepts HOLD from, and Taxiing's hold short, follow and break conflict.
+    /// When a different on-ground aircraft is selected, the relative items replace the Follow… / Give way to… submenus.
     /// </summary>
-    private void AddParkingAndTaxiItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target, string phase, bool isRelative)
+    private void AddParkingAndTaxiItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target, MenuContext context, IMenuHost host)
     {
-        (AircraftModel? ac, AircraftModel? _, string? callsign, string? initials) = target;
+        (AircraftModel? ac, AircraftModel? _, string callsign, string initials) = target;
+        string phase = ac?.CurrentPhase ?? "";
+        bool isRelative = RelativeTraffic.OffersGroundRelative(ac, context);
 
-        if (AircraftCommandApplicability.CanPushBack(ac))
+        if (SharedMenuGroups.AddIfApplicable(menu.Items, MenuIds.GroundPushback, ac, context, host) && ac is not null)
         {
-            menu.Items.Add(CreateMenuItem("Push back", () => vm.PushbackAsync(callsign, initials)));
-
-            if (ac is not null)
+            foreach ((string? label, string? cardinal) in vm.GetPushbackDirections(ac))
             {
-                foreach ((string? label, string? cardinal) in vm.GetPushbackDirections(ac))
-                {
-                    string c = cardinal;
-                    menu.Items.Add(CreateMenuItem($"Push back, {label}", () => vm.PushbackFacingAsync(callsign, initials, c)));
-                }
+                string c = cardinal;
+                menu.Items.Add(CreateMenuItem($"Push back, {label}", () => vm.PushbackFacingAsync(callsign, initials, c)));
+            }
 
-                MenuItem? pushSubmenu = BuildPushbackToSpotSubmenu(vm, ac, callsign, initials);
-                if (pushSubmenu is not null)
-                {
-                    menu.Items.Add(pushSubmenu);
-                }
+            MenuItem? pushSubmenu = BuildPushbackToSpotSubmenu(vm, ac, callsign, initials);
+            if (pushSubmenu is not null)
+            {
+                menu.Items.Add(pushSubmenu);
+            }
 
-                menu.Items.Add(
-                    CreateMenuItem(
-                        "Push route...",
-                        () =>
-                        {
-                            vm.StartPushRoute(ac);
-                            return Task.CompletedTask;
-                        }
-                    )
-                );
+            menu.Items.Add(
+                CreateMenuItem(
+                    "Push route...",
+                    () =>
+                    {
+                        vm.StartPushRoute(ac);
+                        return Task.CompletedTask;
+                    }
+                )
+            );
 
-                // A parked aircraft can start up and trail another ground aircraft, but
-                // give-way needs an assigned taxi route, which a parked aircraft never has.
-                // Holding After Pushback gets its follow submenus from AddHoldingItems, which
-                // decides give-way from the route it may have; adding them here would duplicate.
-                if (phase == "At Parking" && !isRelative)
-                {
-                    AddFollowBehindSubmenus(menu, ac, callsign, initials, includeGiveWay: false);
-                }
+            // A parked aircraft can start up and trail another ground aircraft, but
+            // give-way needs an assigned taxi route, which a parked aircraft never has.
+            // Holding After Pushback gets its follow submenus from AddHoldFollowSubmenus, which
+            // decides give-way from the route it may have; adding them here would duplicate.
+            if (phase == "At Parking" && !isRelative)
+            {
+                AddFollowBehindSubmenus(menu, ac, callsign, initials, includeGiveWay: false);
             }
         }
 
         // The single emission for the whole HOLD window, taxi-follow phases included — those emit
         // nothing of their own before this item, so it stays the first item they show.
-        if (AircraftCommandApplicability.CanHoldPosition(ac))
-        {
-            menu.Items.Add(CreateMenuItem("Hold position", () => vm.HoldPositionAsync(callsign, initials)));
-        }
+        SharedMenuGroups.AddIfApplicable(menu.Items, MenuIds.GroundHoldPosition, ac, context, host);
 
         if (phase == "Taxiing" && ac is not null)
         {
@@ -770,150 +784,34 @@ public partial class GroundView : UserControl
             {
                 AddFollowBehindSubmenus(menu, ac, callsign, initials, includeGiveWay: true);
             }
-
-            // BREAK overrides the ground-conflict speed limit for 15 seconds.
-            // Useful when two aircraft are mutually stopped by the conflict
-            // detector and the controller needs one of them to push through.
-            menu.Items.Add(CreateMenuItem("Break conflict", () => vm.SendRawCommandAsync(callsign, initials, "BREAK")));
-
-            // CTO during taxi is accepted by the dispatcher and stored as a
-            // deferred clearance — applied when the aircraft reaches the runway.
-            // Only meaningful when a runway is already assigned to taxi to.
-            if (!string.IsNullOrEmpty(ac.AssignedRunway))
-            {
-                AddCtoSubmenu(menu, vm, ac, callsign, initials, ac.AssignedRunway, VfrCommandsForIfrMode());
-            }
-        }
-    }
-
-    /// <summary>Holding Short, Holding In Position and the after-exit / after-pushback holds.</summary>
-    private void AddHoldingItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target, string phase, bool isRelative)
-    {
-        (AircraftModel? ac, AircraftModel? _, string? callsign, string? initials) = target;
-
-        if (phase.StartsWith("Holding Short", StringComparison.Ordinal))
-        {
-            AddHoldShortCrossingItems(menu, vm, ac, phase, callsign, initials, VfrCommandsForIfrMode());
         }
 
-        // The three stationary holds are mutually exclusive, and in each the item belongs immediately
-        // ahead of that hold's Follow… submenus — so they share one emission here.
-        if (AircraftCommandApplicability.CanResumeTaxi(ac))
-        {
-            menu.Items.Add(CreateMenuItem("Resume taxi", () => vm.ResumeAsync(callsign, initials)));
-        }
-
-        if (phase == "Holding In Position")
-        {
-            if (ac is not null && !isRelative)
-            {
-                AddFollowBehindSubmenus(menu, ac, callsign, initials, includeGiveWay: true);
-            }
-        }
-
-        if (phase is "Holding After Exit" or "Holding After Pushback")
-        {
-            // An aircraft resting after a push or a runway exit may or may not have a taxi route,
-            // and give-way needs one — so unlike the Holding In Position branch this keys off the route.
-            if (ac is not null && !isRelative)
-            {
-                AddFollowBehindSubmenus(menu, ac, callsign, initials, includeGiveWay: ac.HasActiveTaxiRoute);
-            }
-        }
-    }
-
-    /// <summary>Line-up / takeoff clearances, the landing family, runway exits and cancel-takeoff.</summary>
-    private void AddRunwayItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target, string phase)
-    {
-        (AircraftModel? ac, AircraftModel? _, string? callsign, string? initials) = target;
-        if (phase == "LinedUpAndWaiting")
-        {
-            string? rwyId = ac?.AssignedRunway;
-            if (!string.IsNullOrEmpty(rwyId))
-            {
-                AddCtoSubmenu(menu, vm, ac, callsign, initials, rwyId, VfrCommandsForIfrMode());
-            }
-
-            menu.Items.Add(CreateMenuItem("Cancel takeoff clearance", () => vm.CancelTakeoffClearanceAsync(callsign, initials)));
-        }
-
-        if (
-            AircraftCommandApplicability.CanClearToLand(ac)
-            || AircraftCommandApplicability.CanGoAround(ac)
-            || AircraftCommandApplicability.CanCancelLandingClearance(ac)
-        )
-        {
-            string rwy = !string.IsNullOrEmpty(ac?.AssignedRunway) ? $" {RunwayIdentifier.ToDisplayDesignator(ac.AssignedRunway)}" : "";
-            if (AircraftCommandApplicability.CanClearToLand(ac))
-            {
-                menu.Items.Add(CreateMenuItem($"Cleared to land{rwy}", () => vm.ClearedToLandAsync(callsign, initials)));
-                // Force landing (CLANDF) is RPO-only — hidden in solo training.
-                if (FindMainViewModel()?.SessionSoloTrainingMode != true)
-                {
-                    menu.Items.Add(CreateMenuItem($"Force landing{rwy}", () => vm.ForceLandingAsync(callsign, initials)));
-                }
-                if (AircraftCommandApplicability.CanIssueVfrOption(ac, VfrCommandsForIfrMode()))
-                {
-                    menu.Items.Add(CreateMenuItem($"Touch and go{rwy}", () => vm.TouchAndGoAsync(callsign, initials)));
-                    menu.Items.Add(CreateMenuItem($"Stop and go{rwy}", () => vm.StopAndGoAsync(callsign, initials)));
-                    menu.Items.Add(CreateMenuItem($"Low approach{rwy}", () => vm.LowApproachAsync(callsign, initials)));
-                    menu.Items.Add(CreateMenuItem($"Cleared for the option{rwy}", () => vm.ClearedForOptionAsync(callsign, initials)));
-                }
-            }
-            if (AircraftCommandApplicability.CanGoAround(ac))
-            {
-                menu.Items.Add(CreateMenuItem($"Go around{rwy}", () => vm.GoAroundAsync(callsign, initials)));
-            }
-            if (AircraftCommandApplicability.CanCancelLandingClearance(ac))
-            {
-                menu.Items.Add(CreateMenuItem("Cancel landing clearance", () => vm.CancelLandingClearanceAsync(callsign, initials)));
-            }
-        }
-
-        if (AircraftCommandApplicability.CanExitRunway(ac))
-        {
-            menu.Items.Add(CreateMenuItem("Exit left", () => vm.ExitLeftAsync(callsign, initials)));
-            menu.Items.Add(CreateMenuItem("Exit right", () => vm.ExitRightAsync(callsign, initials)));
-        }
-
-        if (phase == "Takeoff")
-        {
-            menu.Items.Add(CreateMenuItem("Cancel takeoff clearance", () => vm.CancelTakeoffClearanceAsync(callsign, initials)));
-        }
+        SharedMenuGroups.AddIfApplicable(menu.Items, MenuIds.GroundBreakConflict, ac, context, host);
     }
 
     /// <summary>
-    /// When a different on-ground aircraft is selected, adds direct "give way to" /
-    /// "follow" items issued to that selected aircraft referencing the right-clicked
-    /// aircraft. No-op otherwise. When active these REPLACE the candidate
-    /// "Follow…/Give way to…" submenus (see <see cref="AddFollowBehindSubmenus"/>).
+    /// The Follow… / Give way to… submenus of Holding In Position and the after-exit / after-pushback holds, which
+    /// follow their Resume taxi item; none while the relative items replace them.
     /// </summary>
-    private void AddRelativeGroundItems(
-        ContextMenu menu,
-        GroundViewModel vm,
-        AircraftModel? selected,
-        string callsign,
-        string initials,
-        bool isRelative
-    )
+    private void AddHoldFollowSubmenus(ContextMenu menu, GroundMenuTarget target, MenuContext context)
     {
-        if (!isRelative)
+        (AircraftModel? ac, AircraftModel? _, string callsign, string initials) = target;
+        if (ac is null || RelativeTraffic.OffersGroundRelative(ac, context))
         {
             return;
         }
 
-        string a = selected!.Callsign;
-        menu.Items.Add(
-            new MenuItem
-            {
-                Header = $"↪ {a}:",
-                IsEnabled = false,
-                FontWeight = Avalonia.Media.FontWeight.Bold,
-            }
-        );
-        menu.Items.Add(CreateMenuItem($"{a}: give way to {callsign}", () => vm.SendRawCommandAsync(a, initials, $"GW {callsign}")));
-        menu.Items.Add(CreateMenuItem($"{a}: follow {callsign}", () => vm.SendRawCommandAsync(a, initials, $"FOLLOWG {callsign}")));
-        menu.Items.Add(new Separator());
+        string phase = ac.CurrentPhase ?? "";
+        if (phase == "Holding In Position")
+        {
+            AddFollowBehindSubmenus(menu, ac, callsign, initials, includeGiveWay: true);
+        }
+        else if (phase is "Holding After Exit" or "Holding After Pushback")
+        {
+            // An aircraft resting after a push or a runway exit may or may not have a taxi route,
+            // and give-way needs one — so unlike the Holding In Position branch this keys off the route.
+            AddFollowBehindSubmenus(menu, ac, callsign, initials, includeGiveWay: ac.HasActiveTaxiRoute);
+        }
     }
 
     /// <summary>
@@ -1525,32 +1423,6 @@ public partial class GroundView : UserControl
     private static void AttachPreviewHover(MenuItem item, GroundViewModel vm, TaxiRoute route) =>
         item.PointerEntered += (_, _) => vm.PreviewRoute = route;
 
-    internal static void AddHoldShortCrossingItems(
-        ContextMenu menu,
-        GroundViewModel vm,
-        AircraftModel? ac,
-        string phase,
-        string callsign,
-        string initials,
-        VfrCommandsForIfr mode
-    )
-    {
-        string? rwyId = HoldShortMenuHelper.HeldRunway(phase, ac);
-
-        if (ac is { HasActiveTaxiRoute: true })
-        {
-            menu.Items.Add(CreateMenuItem("Resume taxi", () => vm.ResumeAsync(callsign, initials)));
-        }
-
-        if (rwyId is not null)
-        {
-            string rwyIdDisplay = RunwayIdentifier.ToDisplayDesignator(rwyId);
-            menu.Items.Add(CreateMenuItem($"Cross {rwyIdDisplay}", () => vm.CrossRunwayAsync(callsign, initials, rwyId)));
-            menu.Items.Add(CreateMenuItem($"Line up and wait {rwyIdDisplay}", () => vm.LineUpAndWaitAsync(callsign, initials)));
-            AddCtoSubmenu(menu, vm, ac, callsign, initials, rwyId, mode);
-        }
-    }
-
     private static void AddHoldShortSubmenu(ContextMenu menu, GroundViewModel vm, AircraftModel ac, string callsign, string initials)
     {
         List<(string DisplayName, string Target)> targets = vm.GetHoldShortTargets(ac);
@@ -1572,45 +1444,6 @@ public partial class GroundView : UserControl
             }
 
             parent.Items.Add(item);
-        }
-
-        menu.Items.Add(parent);
-    }
-
-    private static void AddCtoSubmenu(
-        ContextMenu menu,
-        GroundViewModel vm,
-        AircraftModel? ac,
-        string callsign,
-        string initials,
-        string rwyId,
-        VfrCommandsForIfr mode
-    )
-    {
-        bool showVfrModifiers = AircraftCommandApplicability.ShowVfrTakeoffModifiers(ac, mode);
-
-        var parent = new MenuItem { Header = $"Cleared for takeoff {RunwayIdentifier.ToDisplayDesignator(rwyId)}" };
-        parent.Items.Add(CreateMenuItem("Default (SID/on course)", () => vm.ClearedForTakeoffAsync(callsign, initials, null)));
-
-        if (showVfrModifiers)
-        {
-            // Full modifier menu
-            parent.Items.Add(new Separator());
-            parent.Items.Add(CreateMenuItem("Make left traffic", () => vm.ClearedForTakeoffAsync(callsign, initials, "MLT")));
-            parent.Items.Add(CreateMenuItem("Make right traffic", () => vm.ClearedForTakeoffAsync(callsign, initials, "MRT")));
-            parent.Items.Add(new Separator());
-            parent.Items.Add(CreateMenuItem("Runway heading", () => vm.ClearedForTakeoffAsync(callsign, initials, "RH")));
-            parent.Items.Add(CreateMenuItem("On course", () => vm.ClearedForTakeoffAsync(callsign, initials, "OC")));
-            parent.Items.Add(CreateMenuItem("Right crosswind (90° right)", () => vm.ClearedForTakeoffAsync(callsign, initials, "MRC")));
-            parent.Items.Add(CreateMenuItem("Right downwind (180° right)", () => vm.ClearedForTakeoffAsync(callsign, initials, "MRD")));
-            parent.Items.Add(CreateMenuItem("Left crosswind (90° left)", () => vm.ClearedForTakeoffAsync(callsign, initials, "MLC")));
-            parent.Items.Add(CreateMenuItem("Left downwind (180° left)", () => vm.ClearedForTakeoffAsync(callsign, initials, "MLD")));
-        }
-        else
-        {
-            // IFR with the VFR modifiers gated off: only runway heading (headings via text input)
-            parent.Items.Add(new Separator());
-            parent.Items.Add(CreateMenuItem("Runway heading", () => vm.ClearedForTakeoffAsync(callsign, initials, "RH")));
         }
 
         menu.Items.Add(parent);
@@ -1790,13 +1623,6 @@ public partial class GroundView : UserControl
 
         return null;
     }
-
-    /// <summary>
-    /// The controller's "VFR commands for IFR aircraft" setting, which decides whether the menus
-    /// offer VFR-only items for an IFR aircraft. Falls back to the strict mode when the main view
-    /// model is unreachable — better to hide an item than to offer one the controller disabled.
-    /// </summary>
-    private VfrCommandsForIfr VfrCommandsForIfrMode() => FindMainViewModel()?.VfrCommandsForIfr ?? VfrCommandsForIfr.None;
 
     private void OnPreferencesFontSizesChanged()
     {

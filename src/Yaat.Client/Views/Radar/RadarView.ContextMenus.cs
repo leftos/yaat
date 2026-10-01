@@ -158,7 +158,8 @@ public partial class RadarView
             initials,
             prevSelected,
             main?.SessionSoloTrainingMode ?? false,
-            main?.VfrCommandsForIfr ?? VfrCommandsForIfr.EnterFinalOnly
+            main?.VfrCommandsForIfr ?? VfrCommandsForIfr.EnterFinalOnly,
+            MenuView.Radar
         );
         var host = new RadarMenuHost(this, vm, main, ac);
         var menu = new ContextMenu();
@@ -253,12 +254,12 @@ public partial class RadarView
     /// </summary>
     private static void AddRelativeTrafficItems(ContextMenu menu, RadarViewModel vm, AircraftModel? selected, string callsign, string initials)
     {
-        if (!RelativeTrafficActions.HasRelativeContext(selected, callsign))
+        if (!RelativeTraffic.HasRelativeContext(selected, callsign))
         {
             return;
         }
 
-        string a = selected!.Callsign;
+        string a = selected.Callsign;
         menu.Items.Add(
             new MenuItem
             {

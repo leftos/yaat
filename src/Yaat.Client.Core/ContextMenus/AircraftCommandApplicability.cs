@@ -325,6 +325,43 @@ public static class AircraftCommandApplicability
         return ((ac.CurrentPhase ?? "") is "Holding After Exit" or "Holding After Pushback" or "Holding In Position") && ac.IsHeld;
     }
 
+    /// <summary>
+    /// Resume taxi (<c>RES</c>) from a runway hold-short, the RES path that needs no hold directive: offered while the
+    /// aircraft has an active taxi route to continue on. The stationary holds are <see cref="CanResumeTaxi"/>'s. The
+    /// <see cref="IsControllable"/> guard keeps surface live-traffic shadows out, as in <see cref="CanPushBack"/>.
+    /// </summary>
+    public static bool CanResumeFromHoldShort(IMenuAircraft? ac) =>
+        IsControllable(ac) && (ac.CurrentPhase ?? "").StartsWith("Holding Short", StringComparison.Ordinal) && ac.HasActiveTaxiRoute;
+
+    /// <summary>
+    /// Cross the runway (<c>CROSS</c>) an aircraft is holding short of: the runway comes from the hold-short phase,
+    /// else the assigned runway (<see cref="HoldShortMenuHelper.HeldRunway"/>), and with neither there is no runway
+    /// to name. The <see cref="IsControllable"/> guard keeps surface live-traffic shadows out, as in <see cref="CanPushBack"/>.
+    /// </summary>
+    public static bool CanCrossRunway(IMenuAircraft? ac)
+    {
+        if (!IsControllable(ac))
+        {
+            return false;
+        }
+
+        string phase = ac.CurrentPhase ?? "";
+        return phase.StartsWith("Holding Short", StringComparison.Ordinal) && HoldShortMenuHelper.HeldRunway(phase, ac) is not null;
+    }
+
+    /// <summary>
+    /// Check the release window (<c>CFR CHECK</c>) — an aircraft on the ground that has a call-for-release window to
+    /// report on. The <see cref="IsControllable"/> guard keeps surface live-traffic shadows out, as in <see cref="CanPushBack"/>.
+    /// </summary>
+    public static bool CanCheckReleaseWindow(IMenuAircraft? ac) => IsControllable(ac) && ac.IsOnGround && ac.HasCfrWindow;
+
+    /// <summary>
+    /// Break a ground conflict (<c>BREAK</c>), which overrides the ground-conflict speed limit for 15 seconds so one
+    /// of two mutually stopped aircraft can push through — offered while taxiing. The <see cref="IsControllable"/>
+    /// guard keeps surface live-traffic shadows out, as in <see cref="CanPushBack"/>.
+    /// </summary>
+    public static bool CanBreakConflict(IMenuAircraft? ac) => IsControllable(ac) && (ac.CurrentPhase ?? "") == "Taxiing";
+
     // --- Ground routing ---
 
     /// <summary>

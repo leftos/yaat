@@ -432,4 +432,83 @@ public class AircraftCommandApplicabilityTests
         Assert.True(AircraftCommandApplicability.CanClearToLand(ac));
         Assert.True(AircraftCommandApplicability.CanEnterFinal(ac, VfrCommandsForIfr.None));
     }
+
+    // --- Ground view gates ---
+
+    [Fact]
+    public void CanResumeFromHoldShort_HoldingShortWithAnActiveTaxiRoute()
+    {
+        AircraftModel withRoute = Ac("Holding Short 28R/10L", onGround: true);
+        withRoute.HasActiveTaxiRoute = true;
+        Assert.True(AircraftCommandApplicability.CanResumeFromHoldShort(withRoute));
+
+        // Without a route there is nothing to resume onto.
+        Assert.False(AircraftCommandApplicability.CanResumeFromHoldShort(Ac("Holding Short 28R/10L", onGround: true)));
+
+        // The stationary holds resume through CanResumeTaxi, not here.
+        AircraftModel inPosition = Ac("Holding In Position", onGround: true);
+        inPosition.HasActiveTaxiRoute = true;
+        Assert.False(AircraftCommandApplicability.CanResumeFromHoldShort(inPosition));
+
+        // A surface shadow is never controllable.
+        AircraftModel shadow = Shadow(onGround: true);
+        shadow.CurrentPhase = "Holding Short 28R/10L";
+        shadow.HasActiveTaxiRoute = true;
+        Assert.False(AircraftCommandApplicability.CanResumeFromHoldShort(shadow));
+
+        Assert.False(AircraftCommandApplicability.CanResumeFromHoldShort(null));
+    }
+
+    [Theory]
+    [InlineData("Holding Short 15/33", "28R", false, true)]
+    [InlineData("Holding Short", "10R", false, true)]
+    [InlineData("Holding Short", "", false, false)]
+    [InlineData("Taxiing", "28R", false, false)]
+    [InlineData("LinedUpAndWaiting", "28R", false, false)]
+    [InlineData("Holding Short 15/33", "28R", true, false)]
+    public void CanCrossRunway_HoldingShortOfARunwayNamedByThePhaseOrTheAssignment(
+        string phase,
+        string assignedRunway,
+        bool surfaceShadow,
+        bool expected
+    )
+    {
+        AircraftModel ac = Ac(phase, onGround: true, assignedRunway: assignedRunway);
+        ac.IsLiveTraffic = surfaceShadow;
+        Assert.Equal(expected, AircraftCommandApplicability.CanCrossRunway(ac));
+    }
+
+    [Fact]
+    public void CanCheckReleaseWindow_OnTheGroundWithAReleaseWindow()
+    {
+        AircraftModel ac = Ac("At Parking", onGround: true);
+        Assert.False(AircraftCommandApplicability.CanCheckReleaseWindow(ac));
+
+        ac.CfrWindowStartUtc = new DateTime(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc);
+        Assert.True(AircraftCommandApplicability.CanCheckReleaseWindow(ac));
+
+        // A surface shadow is never controllable.
+        AircraftModel shadow = Shadow(onGround: true);
+        shadow.CfrWindowStartUtc = ac.CfrWindowStartUtc;
+        Assert.False(AircraftCommandApplicability.CanCheckReleaseWindow(shadow));
+
+        ac.IsOnGround = false;
+        Assert.False(AircraftCommandApplicability.CanCheckReleaseWindow(ac));
+
+        Assert.False(AircraftCommandApplicability.CanCheckReleaseWindow(null));
+    }
+
+    [Theory]
+    [InlineData("Taxiing", false, true)]
+    [InlineData("Holding Short 28R", false, false)]
+    [InlineData("Following UAL1", false, false)]
+    [InlineData("Pushback", false, false)]
+    [InlineData("Holding In Position", false, false)]
+    [InlineData("Taxiing", true, false)]
+    public void CanBreakConflict_TaxiingOnly(string phase, bool surfaceShadow, bool expected)
+    {
+        AircraftModel ac = Ac(phase, onGround: true);
+        ac.IsLiveTraffic = surfaceShadow;
+        Assert.Equal(expected, AircraftCommandApplicability.CanBreakConflict(ac));
+    }
 }

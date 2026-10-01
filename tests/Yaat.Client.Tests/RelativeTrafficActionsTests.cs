@@ -1,11 +1,12 @@
 using Xunit;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 
 namespace Yaat.Client.Tests;
 
 /// <summary>
-/// Tests for <see cref="RelativeTrafficActions"/> — the gating logic for the
+/// Tests for <see cref="RelativeTraffic"/> and <see cref="RelativeTrafficActions"/> — the gating logic for the
 /// selected→right-clicked traffic context-menu items (RTIS / FOLLOW in radar,
 /// GIVEWAY / FOLLOWG on the ground). Builds <see cref="AircraftModel"/> instances
 /// directly — no simulation, no recording replay.
@@ -23,17 +24,16 @@ public class RelativeTrafficActionsTests
     // --- HasRelativeContext -----------------------------------------------------
 
     [Fact]
-    public void HasRelativeContext_NullSelected_False() => Assert.False(RelativeTrafficActions.HasRelativeContext(null, "N172SP"));
+    public void HasRelativeContext_NullSelected_False() => Assert.False(RelativeTraffic.HasRelativeContext(null, "N172SP"));
 
     [Fact]
-    public void HasRelativeContext_SameCallsign_False() => Assert.False(RelativeTrafficActions.HasRelativeContext(Ac("N172SP"), "N172SP"));
+    public void HasRelativeContext_SameCallsign_False() => Assert.False(RelativeTraffic.HasRelativeContext(Ac("N172SP"), "N172SP"));
 
     [Fact]
-    public void HasRelativeContext_SameCallsignCaseInsensitive_False() =>
-        Assert.False(RelativeTrafficActions.HasRelativeContext(Ac("n172sp"), "N172SP"));
+    public void HasRelativeContext_SameCallsignCaseInsensitive_False() => Assert.False(RelativeTraffic.HasRelativeContext(Ac("n172sp"), "N172SP"));
 
     [Fact]
-    public void HasRelativeContext_DifferentCallsign_True() => Assert.True(RelativeTrafficActions.HasRelativeContext(Ac("N436MS"), "N172SP"));
+    public void HasRelativeContext_DifferentCallsign_True() => Assert.True(RelativeTraffic.HasRelativeContext(Ac("N436MS"), "N172SP"));
 
     // --- ShouldOfferFollow ------------------------------------------------------
 
@@ -61,13 +61,13 @@ public class RelativeTrafficActionsTests
 
     [Fact]
     public void ShouldOfferGroundActions_BothOnGround_True() =>
-        Assert.True(RelativeTrafficActions.ShouldOfferGroundActions(Ac("N436MS", onGround: true), Ac("N172SP", onGround: true)));
+        Assert.True(RelativeTraffic.ShouldOfferGroundActions(Ac("N436MS", onGround: true), Ac("N172SP", onGround: true)));
 
     [Fact]
     public void ShouldOfferGroundActions_SelectedAirborne_False() =>
-        Assert.False(RelativeTrafficActions.ShouldOfferGroundActions(Ac("N436MS", onGround: false), Ac("N172SP", onGround: true)));
+        Assert.False(RelativeTraffic.ShouldOfferGroundActions(Ac("N436MS", onGround: false), Ac("N172SP", onGround: true)));
 
     [Fact]
     public void ShouldOfferGroundActions_TargetAirborne_False() =>
-        Assert.False(RelativeTrafficActions.ShouldOfferGroundActions(Ac("N436MS", onGround: true), Ac("N172SP", onGround: false)));
+        Assert.False(RelativeTraffic.ShouldOfferGroundActions(Ac("N436MS", onGround: true), Ac("N172SP", onGround: false)));
 }

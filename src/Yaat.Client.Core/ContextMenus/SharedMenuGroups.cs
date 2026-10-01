@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Media;
 
 namespace Yaat.Client.ContextMenus;
 
@@ -8,8 +9,9 @@ namespace Yaat.Client.ContextMenus;
 /// hold, approach, procedures, tower and pattern — assembled from <see cref="MenuCatalog"/> entries. Only track, squawk and ask pilot keep a
 /// <see cref="MenuView"/> variant: the radar carries input pickers (handoff, point out, squawk code, custom say) the
 /// other surfaces leave out, and sends <c>ID</c> for Ident where the others send <c>IDENT</c>. Data block, sim
-/// control, display and the flight groups are built by the radar today, so they take no view. Whether a group is
-/// offered at all stays with the caller.
+/// control, display and the flight groups are built by the radar today, so they take no view. The ground view's
+/// relative items, runway clearances and landing block are flat groups of their own, and its tower variants branch on
+/// <see cref="MenuContext.View"/> inside the entries. Whether a group is offered at all stays with the caller.
 /// </summary>
 public static class SharedMenuGroups
 {
@@ -436,14 +438,113 @@ public static class SharedMenuGroups
 
     private static bool IsApplicable(string id, IMenuAircraft? aircraft, MenuContext context) => MenuCatalog.Get(id).IsApplicable(aircraft, context);
 
-    /// <summary>Adds the entry's item when the entry applies to the aircraft; otherwise adds nothing.</summary>
-    private static void AddIfApplicable(ItemCollection items, string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    /// <summary>
+    /// Adds the entry's item when the entry applies to the aircraft, otherwise nothing, and returns whether it added one;
+    /// the ground view places its single entries with it between the submenus it still builds itself.
+    /// </summary>
+    public static bool AddIfApplicable(ItemCollection items, string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        if (IsApplicable(id, aircraft, context))
+        if (!IsApplicable(id, aircraft, context))
         {
-            items.Add(Leaf(id, aircraft, context, host));
+            return false;
+        }
+
+        items.Add(Leaf(id, aircraft, context, host));
+        return true;
+    }
+
+    /// <summary>
+    /// The ground view's relative items while another on-ground aircraft is selected
+    /// (<see cref="RelativeTraffic.OffersGroundRelative"/>): a bold header naming the selected aircraft, its give-way
+    /// and follow items, then a separator. Adds nothing otherwise.
+    /// </summary>
+    public static void AddGroundRelative(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        if ((context.PreviousSelection is not { } selected) || (!IsApplicable(MenuIds.GroundRelativeFollow, aircraft, context)))
+        {
+            return;
+        }
+
+        items.Add(
+            new MenuItem
+            {
+                Header = $"↪ {selected.Callsign}:",
+                IsEnabled = false,
+                FontWeight = FontWeight.Bold,
+            }
+        );
+        items.Add(Leaf(MenuIds.GroundRelativeGiveWay, aircraft, context, host));
+        items.Add(Leaf(MenuIds.GroundRelativeFollow, aircraft, context, host));
+        items.Add(new Separator());
+    }
+
+    /// <summary>
+    /// The ground view's runway clearances that apply, in the ground's order: resume taxi (from a hold-short or a
+    /// stationary hold), cross the held runway, line up and wait, Cleared for takeoff, then cancel takeoff clearance
+    /// while lined up and waiting. Cancel takeoff while rolling comes after the landing items instead
+    /// (<see cref="AddGroundLanding"/>). The caller builds the context with <see cref="MenuView.Ground"/>.
+    /// </summary>
+    public static void AddGroundClearances(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        foreach (string id in GroundClearanceIds)
+        {
+            AddIfApplicable(items, id, aircraft, context, host);
+        }
+
+        if ((aircraft?.CurrentPhase ?? "") == "LinedUpAndWaiting")
+        {
+            AddIfApplicable(items, MenuIds.TowerCancelTakeoff, aircraft, context, host);
         }
     }
+
+    /// <summary>The ground view's runway clearances, in menu order.</summary>
+    private static readonly string[] GroundClearanceIds =
+    [
+        MenuIds.GroundResumeTaxi,
+        MenuIds.GroundCrossRunway,
+        MenuIds.TowerLineUpAndWait,
+        MenuIds.TowerClearedForTakeoff,
+    ];
+
+    /// <summary>
+    /// The ground view's landing items, flat and in the ground's order (touch and go, stop and go and low approach
+    /// before the option), while any of cleared to land, go around or cancel landing clearance applies; then the
+    /// runway exits; then cancel takeoff clearance while rolling. No separators: the ground menu has none here.
+    /// </summary>
+    public static void AddGroundLanding(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        bool landing =
+            (IsApplicable(MenuIds.TowerClearedToLand, aircraft, context))
+            || (IsApplicable(MenuIds.TowerGoAround, aircraft, context))
+            || (IsApplicable(MenuIds.TowerCancelLanding, aircraft, context));
+        if (landing)
+        {
+            foreach (string id in GroundLandingIds)
+            {
+                AddIfApplicable(items, id, aircraft, context, host);
+            }
+        }
+
+        AddIfApplicable(items, MenuIds.TowerExitLeft, aircraft, context, host);
+        AddIfApplicable(items, MenuIds.TowerExitRight, aircraft, context, host);
+        if ((aircraft?.CurrentPhase ?? "") == "Takeoff")
+        {
+            AddIfApplicable(items, MenuIds.TowerCancelTakeoff, aircraft, context, host);
+        }
+    }
+
+    /// <summary>The ground view's landing items, in menu order.</summary>
+    private static readonly string[] GroundLandingIds =
+    [
+        MenuIds.TowerClearedToLand,
+        MenuIds.TowerForceLanding,
+        MenuIds.TowerTouchAndGo,
+        MenuIds.TowerStopAndGo,
+        MenuIds.TowerLowApproach,
+        MenuIds.TowerClearedOption,
+        MenuIds.TowerGoAround,
+        MenuIds.TowerCancelLanding,
+    ];
 
     private static void AddSeparatorIfNonEmpty(ItemCollection items)
     {

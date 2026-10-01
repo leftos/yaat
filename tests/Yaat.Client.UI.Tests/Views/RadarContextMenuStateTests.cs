@@ -4,6 +4,7 @@ using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Sim.Commands;
+using CatalogMenuView = Yaat.Client.ContextMenus.MenuView;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -19,7 +20,7 @@ public class RadarContextMenuStateTests
     private static MenuContext Context(string callsign) => Context(callsign, false, VfrCommandsForIfr.None);
 
     private static MenuContext Context(string callsign, bool soloTrainingMode, VfrCommandsForIfr vfrCommandsForIfr) =>
-        new(callsign, "AB", null, soloTrainingMode, vfrCommandsForIfr);
+        new(callsign, "AB", null, soloTrainingMode, vfrCommandsForIfr, CatalogMenuView.Radar);
 
     /// <summary>An aircraft on final for 28R under <paramref name="flightRules"/>, which cleared to land applies to.</summary>
     private static AircraftModel OnFinal(string callsign, string flightRules) =>

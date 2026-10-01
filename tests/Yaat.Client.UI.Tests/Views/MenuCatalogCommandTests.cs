@@ -65,6 +65,7 @@ public class MenuCatalogCommandTests
         (MenuIds.CoordinationHold, "", "RDH"),
         (MenuIds.CoordinationRecall, "", "RDR"),
         (MenuIds.CoordinationAcknowledge, "", "RDACK"),
+        (MenuIds.CoordinationCheckReleaseWindow, "", "CFR CHECK"),
         (MenuIds.DataBlockScratchpad, BlockText, $"SP {BlockText}"),
         (MenuIds.DataBlockNote, BlockText, $"NOTE {BlockText}"),
         (MenuIds.DataBlockTempAltitude, "050", "TEMPALT 50"),
@@ -151,11 +152,16 @@ public class MenuCatalogCommandTests
         (MenuIds.PatternPlan270, "", "P270"),
         (MenuIds.PatternCancel270, "", "NO270"),
         (MenuIds.PatternCircleAirport, "", "CA"),
+        (MenuIds.GroundPushback, "", "PUSH"),
+        (MenuIds.GroundHoldPosition, "", "HP"),
+        (MenuIds.GroundResumeTaxi, "", "RES"),
+        (MenuIds.GroundBreakConflict, "", "BREAK"),
     ];
 
     /// <summary>
     /// The entries whose item the host builds rather than the catalog: a popup, an editor, a submenu the catalog
-    /// assembles, or a header the host's own state decides.
+    /// assembles, or a header the host's own state decides; and the entries whose item needs the aircraft or the
+    /// previous selection (the held runway, the relative ground items), which their own tests click.
     /// </summary>
     private static readonly string[] HostBuiltIds =
     [
@@ -172,6 +178,9 @@ public class MenuCatalogCommandTests
         MenuIds.DisplayCone,
         MenuIds.NavigationDrawRoute,
         MenuIds.TowerClearedForTakeoff,
+        MenuIds.GroundCrossRunway,
+        MenuIds.GroundRelativeGiveWay,
+        MenuIds.GroundRelativeFollow,
     ];
 
     public static TheoryData<string, string, string> SingleCommandLeaves()
@@ -185,7 +194,13 @@ public class MenuCatalogCommandTests
         return data;
     }
 
-    private static MenuContext Context() => new(Callsign, Initials, null, false, VfrCommandsForIfr.EnterFinalOnly);
+    private static MenuContext Context() => RadarContext(VfrCommandsForIfr.EnterFinalOnly);
+
+    /// <summary>A radar menu context under <paramref name="mode"/>, outside solo training, with no previous selection.</summary>
+    private static MenuContext RadarContext(VfrCommandsForIfr mode) => new(Callsign, Initials, null, false, mode, CatalogMenuView.Radar);
+
+    /// <summary>A ground-view menu context under <paramref name="mode"/>, outside solo training, with no previous selection.</summary>
+    private static MenuContext GroundContext(VfrCommandsForIfr mode) => new(Callsign, Initials, null, false, mode, CatalogMenuView.Ground);
 
     private static void Click(MenuItem item) => item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
 
@@ -1106,6 +1121,226 @@ public class MenuCatalogCommandTests
         return [.. cto.Items.OfType<MenuItem>()];
     }
 
+    /// <summary>The aircraft selected before the right-click, which the relative ground items send as.</summary>
+    private const string Selected = "N436MS";
+
+    /// <summary>
+    /// A ground aircraft in <paramref name="phase"/> under <paramref name="flightRules"/>, assigned <paramref name="assignedRunway"/>.
+    /// </summary>
+    private static AircraftModel OnGround(string phase, string flightRules, string assignedRunway) =>
+        new()
+        {
+            Callsign = Callsign,
+            IsOnGround = true,
+            CurrentPhase = phase,
+            FlightRules = flightRules,
+            AssignedRunway = assignedRunway,
+        };
+
+    [AvaloniaTheory]
+    [InlineData("Holding Short 28R/10L", true, "")]
+    [InlineData("Holding In Position", false, "HP")]
+    public void GroundResumeTaxi_ShownFromAHoldShortWithARoute_AndFromAHeldStop_SendsRes(string phase, bool hasRoute, string holdKind)
+    {
+        AircraftModel ac = OnGround(phase, "IFR", "");
+        ac.HasActiveTaxiRoute = hasRoute;
+        ac.HoldKind = holdKind;
+        var host = new RecordingMenuHost("");
+        MenuCatalogEntry entry = MenuCatalog.Get(MenuIds.GroundResumeTaxi);
+
+        Assert.True(entry.IsApplicable(ac, GroundContext(VfrCommandsForIfr.None)));
+        MenuItem? item = entry.Build(ac, GroundContext(VfrCommandsForIfr.None), host);
+        Assert.NotNull(item);
+        Assert.Equal("Resume taxi", item.Header as string);
+        Click(item);
+
+        Assert.Equal([(Callsign, "RES", Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void GroundResumeTaxi_HiddenFromAHoldShortWithoutARoute_AndFromAnUnheldStop()
+    {
+        MenuCatalogEntry entry = MenuCatalog.Get(MenuIds.GroundResumeTaxi);
+
+        Assert.False(entry.IsApplicable(OnGround("Holding Short 28R/10L", "IFR", ""), GroundContext(VfrCommandsForIfr.None)));
+        Assert.False(entry.IsApplicable(OnGround("Holding In Position", "IFR", ""), GroundContext(VfrCommandsForIfr.None)));
+    }
+
+    [AvaloniaFact]
+    public void GroundCrossRunway_NamesTheHeldRunway_AndSendsCrossForIt()
+    {
+        var host = new RecordingMenuHost("");
+        AircraftModel ac = OnGround("Holding Short 28R/10L", "IFR", "30");
+
+        MenuItem? item = MenuCatalog.Get(MenuIds.GroundCrossRunway).Build(ac, GroundContext(VfrCommandsForIfr.None), host);
+        Assert.NotNull(item);
+        Assert.Equal("Cross 28R", item.Header as string);
+        Click(item);
+
+        Assert.Equal([(Callsign, "CROSS 28R", Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void GroundRelative_SendsAsTheSelectedAircraft_NamingTheRightClickedOne()
+    {
+        var selected = new AircraftModel { Callsign = Selected, IsOnGround = true };
+        var context = new MenuContext(Callsign, Initials, selected, false, VfrCommandsForIfr.None, CatalogMenuView.Ground);
+        var host = new RecordingMenuHost("");
+        var menu = new ContextMenu();
+
+        SharedMenuGroups.AddGroundRelative(menu.Items, OnGround("Taxiing", "IFR", ""), context, host);
+
+        Assert.Equal([$"↪ {Selected}:", $"{Selected}: give way to {Callsign}", $"{Selected}: follow {Callsign}", "---"], menu.Items.Select(Describe));
+        foreach (MenuItem item in menu.Items.OfType<MenuItem>().Where(i => i.IsEnabled))
+        {
+            Click(item);
+        }
+
+        Assert.Equal([(Selected, $"GW {Callsign}", Initials), (Selected, $"FOLLOWG {Callsign}", Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void GroundRelative_NothingWithoutAnotherOnGroundSelection()
+    {
+        var airborne = new AircraftModel { Callsign = Selected, IsOnGround = false };
+        var same = new AircraftModel { Callsign = Callsign, IsOnGround = true };
+        foreach (AircraftModel? selected in (AircraftModel?[])[null, airborne, same])
+        {
+            var context = new MenuContext(Callsign, Initials, selected, false, VfrCommandsForIfr.None, CatalogMenuView.Ground);
+            var menu = new ContextMenu();
+
+            SharedMenuGroups.AddGroundRelative(menu.Items, OnGround("Taxiing", "IFR", ""), context, new RecordingMenuHost(""));
+
+            Assert.Empty(menu.Items);
+        }
+    }
+
+    [AvaloniaTheory]
+    [InlineData("Holding Short 15/33", "28R", "Cleared for takeoff 15")]
+    [InlineData("Taxiing", "28R", "Cleared for takeoff 28R")]
+    [InlineData("LinedUpAndWaiting", "30", "Cleared for takeoff 30")]
+    public void GroundCto_HeaderNamesTheHeldRunway_ElseTheAssignedOne(string phase, string assignedRunway, string header)
+    {
+        AircraftModel ac = OnGround(phase, "IFR", assignedRunway);
+        MenuCatalogEntry entry = MenuCatalog.Get(MenuIds.TowerClearedForTakeoff);
+
+        Assert.True(entry.IsApplicable(ac, GroundContext(VfrCommandsForIfr.None)));
+        Assert.Equal(header, entry.Build(ac, GroundContext(VfrCommandsForIfr.None), new RecordingMenuHost(""))?.Header as string);
+    }
+
+    [AvaloniaFact]
+    public void GroundCto_VfrDeparture_OffersTheGroundModifierSet_WithNoCustomItem()
+    {
+        var host = new RecordingMenuHost("");
+        AircraftModel ac = OnGround("LinedUpAndWaiting", "VFR", "30");
+
+        MenuItem? cto = MenuCatalog.Get(MenuIds.TowerClearedForTakeoff).Build(ac, GroundContext(VfrCommandsForIfr.None), host);
+        Assert.NotNull(cto);
+        Assert.Equal(
+            [
+                "Default (SID/on course)",
+                "---",
+                "Make left traffic",
+                "Make right traffic",
+                "---",
+                "Runway heading",
+                "On course",
+                "Right crosswind (90° right)",
+                "Right downwind (180° right)",
+                "Left crosswind (90° left)",
+                "Left downwind (180° left)",
+            ],
+            cto.Items.Select(Describe)
+        );
+        foreach (MenuItem item in cto.Items.OfType<MenuItem>())
+        {
+            Click(item);
+        }
+
+        Assert.Equal(["CTO", "CTO MLT", "CTO MRT", "CTO RH", "CTO OC", "CTO MRC", "CTO MRD", "CTO MLC", "CTO MLD"], host.Sent.Select(s => s.Command));
+    }
+
+    [AvaloniaFact]
+    public void GroundCto_IfrDepartureWithoutTheVfrSet_OffersTheDefaultAndRunwayHeadingOnly()
+    {
+        var host = new RecordingMenuHost("");
+        AircraftModel ac = OnGround("Holding Short 28R/10L", "IFR", "");
+
+        MenuItem? cto = MenuCatalog.Get(MenuIds.TowerClearedForTakeoff).Build(ac, GroundContext(VfrCommandsForIfr.None), host);
+        Assert.NotNull(cto);
+        Assert.Equal(["Default (SID/on course)", "---", "Runway heading"], cto.Items.Select(Describe));
+        foreach (MenuItem item in cto.Items.OfType<MenuItem>())
+        {
+            Click(item);
+        }
+
+        Assert.Equal(["CTO", "CTO RH"], host.Sent.Select(s => s.Command));
+    }
+
+    [AvaloniaTheory]
+    [InlineData("LiningUp", "28R")]
+    [InlineData("Takeoff", "28R")]
+    [InlineData("LinedUpAndWaiting", "")]
+    public void GroundCto_NeverInLiningUpOrTakeoff_NorLinedUpWithoutAnAssignedRunway(string phase, string assignedRunway)
+    {
+        AircraftModel ac = OnGround(phase, "IFR", assignedRunway);
+        MenuCatalogEntry entry = MenuCatalog.Get(MenuIds.TowerClearedForTakeoff);
+
+        Assert.True(entry.IsApplicable(ac, Context()));
+        Assert.False(entry.IsApplicable(ac, GroundContext(VfrCommandsForIfr.None)));
+    }
+
+    [AvaloniaTheory]
+    [InlineData("Taxiing", "28R")]
+    public void GroundLineUpAndWait_OnlyAtAHoldShort_NeverTaxiingToTheRunway(string phase, string assignedRunway)
+    {
+        AircraftModel ac = OnGround(phase, "IFR", assignedRunway);
+        MenuCatalogEntry entry = MenuCatalog.Get(MenuIds.TowerLineUpAndWait);
+
+        Assert.True(entry.IsApplicable(ac, Context()));
+        Assert.False(entry.IsApplicable(ac, GroundContext(VfrCommandsForIfr.None)));
+    }
+
+    [AvaloniaTheory]
+    [InlineData("LiningUp", "28R")]
+    public void GroundCancelTakeoff_NeverWhileLiningUp(string phase, string assignedRunway)
+    {
+        AircraftModel ac = OnGround(phase, "IFR", assignedRunway);
+        MenuCatalogEntry entry = MenuCatalog.Get(MenuIds.TowerCancelTakeoff);
+
+        Assert.True(entry.IsApplicable(ac, Context()));
+        Assert.False(entry.IsApplicable(ac, GroundContext(VfrCommandsForIfr.None)));
+    }
+
+    [AvaloniaFact]
+    public void GroundLanding_KeepsTheGroundOrder_TouchAndGoStopAndGoLowApproachThenTheOption()
+    {
+        var ac = new AircraftModel
+        {
+            Callsign = Callsign,
+            IsOnGround = false,
+            CurrentPhase = "FinalApproach",
+            FlightRules = "VFR",
+            AssignedRunway = "28R",
+        };
+        var menu = new ContextMenu();
+
+        SharedMenuGroups.AddGroundLanding(menu.Items, ac, GroundContext(VfrCommandsForIfr.None), new RecordingMenuHost(""));
+
+        Assert.Equal(
+            [
+                "Cleared to land 28R",
+                "Force landing 28R",
+                "Touch and go 28R",
+                "Stop and go 28R",
+                "Low approach 28R",
+                "Cleared for the option 28R",
+                "Go around 28R",
+            ],
+            menu.Items.Select(Describe)
+        );
+    }
+
     /// <summary>Every leg of the circuit (<see cref="AircraftCommandApplicability.IsPatternPhase"/>), comma-separated.</summary>
     private const string AllPatternLegs = "Pattern Entry,Upwind,Crosswind,Downwind,Base,MidfieldCrossing";
 
@@ -1158,13 +1393,9 @@ public class MenuCatalogCommandTests
         };
         var host = new RecordingMenuHost("");
 
-        MenuItem? all = SharedMenuGroups.Pattern(aircraft, new MenuContext(Callsign, Initials, null, false, VfrCommandsForIfr.All), host);
-        MenuItem? enterFinalOnly = SharedMenuGroups.Pattern(
-            aircraft,
-            new MenuContext(Callsign, Initials, null, false, VfrCommandsForIfr.EnterFinalOnly),
-            host
-        );
-        MenuItem? none = SharedMenuGroups.Pattern(aircraft, new MenuContext(Callsign, Initials, null, false, VfrCommandsForIfr.None), host);
+        MenuItem? all = SharedMenuGroups.Pattern(aircraft, RadarContext(VfrCommandsForIfr.All), host);
+        MenuItem? enterFinalOnly = SharedMenuGroups.Pattern(aircraft, RadarContext(VfrCommandsForIfr.EnterFinalOnly), host);
+        MenuItem? none = SharedMenuGroups.Pattern(aircraft, RadarContext(VfrCommandsForIfr.None), host);
 
         Assert.NotNull(all);
         Click(Assert.Single(all.Items.OfType<MenuItem>(), m => m.Header as string == "Turn base"));
@@ -1295,6 +1526,12 @@ public class MenuCatalogCommandTests
     /// </summary>
     private sealed class FakeMenuAircraft : IMenuAircraft
     {
+        public string Callsign => MenuCatalogCommandTests.Callsign;
+
+        public bool HasActiveTaxiRoute => false;
+
+        public bool HasCfrWindow => false;
+
         public bool IsLiveTraffic => false;
 
         public bool AssumedFromLiveTraffic => false;

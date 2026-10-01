@@ -1,6 +1,6 @@
 using Xunit;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
-using Yaat.Client.Views;
 
 namespace Yaat.Client.Tests;
 

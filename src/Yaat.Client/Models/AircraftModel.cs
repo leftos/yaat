@@ -1109,6 +1109,9 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
 
     public DateTime? CfrWindowEndUtc { get; set; }
 
+    /// <inheritdoc />
+    public bool HasCfrWindow => CfrWindowStartUtc is not null;
+
     /// <summary>
     /// Recomputes the live CFR release-window badge (Info column) from the window vs <paramref name="nowUtc"/>:
     /// <c>CFR opens M:SS</c> before it opens, <c>CFR M:SS</c> while open, <c>CFR EXP</c> (red) past close.
