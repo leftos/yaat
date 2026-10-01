@@ -274,7 +274,7 @@ git diff --name-only {prev-tag}..HEAD
 git diff --name-only {prev-tag}..HEAD -- src/Yaat.Sim src/Yaat.Client.Strips src/Yaat.Client.Tdls tools/Yaat.VStrips.Web tools/Yaat.VTdls.Web
 ```
 
-yaat-server — it isn't release-tagged, so anchor on the commit that was HEAD at the prev-tag's timestamp and ignore the `extern/yaat` submodule pointer (CI bumps it on every client release, and the droplet re-resolves yaat via `--remote` at deploy time, so a bare submodule bump ships nothing new):
+yaat-server — it isn't release-tagged, so anchor on the commit that was HEAD at the prev-tag's timestamp and ignore the `extern/yaat` submodule pointer (nothing keeps it current, and the droplet re-resolves yaat via `--remote` at deploy time, so a pointer change ships nothing new):
 ```
 PREV_DATE=$(git log -1 --format=%cI {prev-tag})
 SERVER_BASE=$(git -C "$SERVER" rev-list -1 --before="$PREV_DATE" HEAD)
@@ -393,7 +393,7 @@ Once the user approves:
 
     - First push yaat-server's pending commits (no tag — yaat-server isn't release-tagged):
       `git -C "$SERVER" push origin main`
-      Run even if you think there's nothing pending — it's idempotent. If the push is rejected because the CI submodule-bump landed on remote, rebase (`git -C "$SERVER" pull --rebase origin main`) and re-push.
+      Run even if you think there's nothing pending — it's idempotent. If the push is rejected, rebase (`git -C "$SERVER" pull --rebase origin main`) and re-push.
     - Then push yaat's release commit, and **only after that returns**, push the release tag **by name in a separate command**:
       ```bash
       git push origin main
@@ -423,7 +423,7 @@ Once the user approves:
       This should print nothing but the release tag you just created. If it lists
       others, delete or investigate them before pushing — do not push them along.
 
-    Order matters: yaat-server first means yaat-server's own work is live before yaat's release CI fires. Pushing yaat second triggers yaat-server's `submodule-updated` CI dispatch (which bumps `extern/yaat` on yaat-server), so yaat-server's main already has the cycle's work when the bump arrives.
+    Order matters: yaat-server first means yaat-server's own work is live before yaat's release CI fires. yaat's CI builds and tests yaat-server's `main` against the release commit, so pushing yaat second tests the pair as it ships.
 
     **9a. Watch every client release run — both paths, always.** The tag push starts three workflows on the tagged commit: `Release` (Windows installer + the draft GitHub Release), `Release (macOS)` (signed/notarized `.pkg` + `.app`, appended to that draft with `gh release upload`), and `CI`. Confirming they *started* is not the step; a run that fails after that goes unnoticed until a user reports it, and publishing the draft (step 9b or the deploy) before `Release (macOS)` has uploaded ships a release with no macOS installer. This step is complete only when every run on the tagged SHA reports `success`, or when the one failure is `CI`'s formatting or style step (item 3 below).
 

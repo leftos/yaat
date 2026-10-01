@@ -14,9 +14,14 @@ permissions:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    # yaat sits in yaat/ so yaat-server, checked out beside it below, finds it as its ../yaat sibling.
+    defaults:
+      run:
+        working-directory: yaat
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
+          path: yaat
           persist-credentials: false
           fetch-depth: 0
 
@@ -38,7 +43,7 @@ jobs:
       # The Discord bot is a Cloudflare Worker deployed separately from the app, so its rate-limit
       # retry/queue logic has no other coverage in this build.
       - name: Test Discord bot worker
-        working-directory: tools/discord-bot
+        working-directory: yaat/tools/discord-bot
         run: pnpm install --frozen-lockfile && pnpm test
 
       - uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7  # v5.2.0
@@ -78,11 +83,44 @@ jobs:
       - name: Test
         run: dotnet test --no-build --configuration Release -- --filter-not-trait "Category=Nightly" --report-xunit-trx --report-xunit-trx-filename results.trx
 
-      - name: Trigger yaat-server CI
-        if: github.event_name == 'push'
-        run: |
-          gh api repos/leftos/yaat-server/dispatches \
-            -f event_type=submodule-updated \
-            -f 'client_payload[sha]=${{ github.sha }}'
+      # yaat-server compiles against this commit's Yaat.Sim (its Directory.Build.props prefers the ../yaat sibling), so a
+      # Yaat.Sim change that breaks the server fails here, on the yaat commit that caused it. A PR uses yaat-server's
+      # same-named branch when one exists (feature pairs share a branch name), else main. yaat-server is private: a
+      # fork PR has no secret to read it with and skips these steps.
+      - name: Pick the yaat-server ref
+        id: server-ref
+        if: github.event.pull_request.head.repo.fork != true
         env:
-          GH_TOKEN: ${{ secrets.DISPATCH_TOKEN }}
+          HEAD_REF: ${{ github.head_ref }}
+          SERVER_TOKEN: ${{ secrets.NIGHTLY_REVIEW_TOKEN }}
+        run: |
+          ref=main
+          if [[ "$HEAD_REF" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] &&
+            git ls-remote --exit-code --heads "https://x-access-token:${SERVER_TOKEN}@github.com/leftos/yaat-server.git" "$HEAD_REF" > /dev/null; then
+            ref="$HEAD_REF"
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "yaat-server ref: $ref"
+
+      - name: Checkout yaat-server
+        if: github.event.pull_request.head.repo.fork != true
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          repository: leftos/yaat-server
+          ref: ${{ steps.server-ref.outputs.ref }}
+          path: yaat-server
+          persist-credentials: false
+          lfs: false
+          token: ${{ secrets.NIGHTLY_REVIEW_TOKEN }}
+
+      - name: Build yaat-server
+        if: github.event.pull_request.head.repo.fork != true
+        working-directory: yaat-server
+        run: dotnet build --configuration Release /warnaserror
+
+      # Same filters as yaat-server's own CI: Benchmark reads LFS recordings from its extern/yaat submodule, which is not
+      # checked out here; Nightly is its scheduled soak.
+      - name: Test yaat-server
+        if: github.event.pull_request.head.repo.fork != true
+        working-directory: yaat-server
+        run: dotnet test --no-build --configuration Release -- --filter-not-trait "Category=Benchmark" --filter-not-trait "Category=Nightly"
