@@ -1083,6 +1083,15 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     /// </summary>
     public string PendingLandingClearance { get; set; } = string.Empty;
 
+    /// <inheritdoc />
+    public double HeadingDegrees => Heading.Degrees;
+
+    /// <inheritdoc />
+    public double AltitudeFeet => Altitude;
+
+    /// <inheritdoc />
+    public double IndicatedAirspeedKnots => IndicatedAirspeed;
+
     /// <summary>Route and altitude as one label for the Aircraft List and the strip, or empty.</summary>
     public string MilitaryRouteSummary =>
         string.IsNullOrEmpty(MilitaryRoute) ? string.Empty

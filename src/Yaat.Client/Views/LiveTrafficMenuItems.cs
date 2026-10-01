@@ -53,6 +53,11 @@ public static class LiveTrafficMenuItems
         public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) =>
             throw new NotSupportedException("The live-traffic items build no input pickers");
 
+        public void ShowWarpPopup(string callsign, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit) =>
+            throw new NotSupportedException("The live-traffic items build no warp item");
+
+        public void OpenFlightPlanEditor() => throw new NotSupportedException("The live-traffic items build no flight-plan item");
+
         public MenuItem BuildFavorites(IMenuAircraft? aircraft, MenuContext context) =>
             throw new NotSupportedException("The live-traffic items build no favorites submenu");
     }

@@ -5,7 +5,8 @@ namespace Yaat.Client.ContextMenus;
 /// <summary>
 /// Every context-menu action the catalog knows, one <see cref="MenuCatalogEntry"/> per <see cref="MenuIds"/>
 /// identifier. A leaf's builder sends its command text through <see cref="IMenuHost.SendAsync"/>; an input leaf
-/// opens the host's input popup and formats the submitted text into the command.
+/// opens the host's input popup and formats the submitted text into the command; and a few entries open a host
+/// surface of their own — the warp popup and the flight-plan editor — instead of sending a command at all.
 /// </summary>
 public static class MenuCatalog
 {
@@ -58,6 +59,14 @@ public static class MenuCatalog
         Leaf(MenuIds.CoordinationHold, "Hold", "RDH", Always),
         Leaf(MenuIds.CoordinationRecall, "Recall", "RDR", Always),
         Leaf(MenuIds.CoordinationAcknowledge, "Acknowledge release", "RDACK", Always),
+        InputLeaf(MenuIds.DataBlockScratchpad, "Scratchpad...", "Text", input => $"SP {input}"),
+        InputLeaf(MenuIds.DataBlockNote, "Note...", "Note text (max 40)", input => $"NOTE {input}"),
+        InputLeaf(MenuIds.DataBlockTempAltitude, "Temporary altitude...", "Altitude", input => $"TEMPALT {int.Parse(input)}"),
+        InputLeaf(MenuIds.DataBlockCruise, "Cruise...", "Altitude", input => $"CRUISE {int.Parse(input)}"),
+        Leaf(MenuIds.DataBlockAnnotate, "Annotate", "ANNOTATE", Always),
+        HostLeaf(MenuIds.SimControlWarp, "Warp...", Always, BuildWarp),
+        Leaf(MenuIds.SimControlDelete, "Delete", "DEL", Always),
+        HostLeaf(MenuIds.AircraftEditFlightPlan, "Edit flight plan", CanEditFlightPlan, BuildEditFlightPlan),
     ];
 
     private static readonly Dictionary<string, MenuCatalogEntry> ById = All.ToDictionary(e => e.Id, StringComparer.Ordinal);
@@ -82,16 +91,70 @@ public static class MenuCatalog
 
     private static Func<IMenuAircraft?, MenuContext, bool> CanAskPilot => (ac, _) => AircraftCommandApplicability.CanAskPilot(ac);
 
+    private static Func<IMenuAircraft?, MenuContext, bool> CanEditFlightPlan => (ac, _) => AircraftCommandApplicability.CanEditFlightPlan(ac);
+
     private static MenuCatalogEntry Leaf(string id, string label, string command, Func<IMenuAircraft?, MenuContext, bool> isApplicable) =>
         new(id, label, MenuFlightRules.Both, isApplicable, (_, context, host) => BuildSend(label, command, context, host));
 
     private static MenuCatalogEntry InputLeaf(string id, string label, string placeholder, Func<string, string> format) =>
         new(id, label, MenuFlightRules.Both, Always, (_, context, host) => BuildInput(label, placeholder, format, context, host));
 
+    /// <summary>
+    /// An entry whose item the host builds for a surface of its own rather than from a command text — the warp popup
+    /// and the flight-plan editor today. <paramref name="build"/> receives the entry's own label, so the item's text
+    /// lives in one place.
+    /// </summary>
+    private static MenuCatalogEntry HostLeaf(
+        string id,
+        string label,
+        Func<IMenuAircraft?, MenuContext, bool> isApplicable,
+        Func<string, IMenuAircraft?, MenuContext, IMenuHost, MenuItem?> build
+    ) => new(id, label, MenuFlightRules.Both, isApplicable, (aircraft, context, host) => build(label, aircraft, context, host));
+
     private static MenuItem BuildInput(string label, string placeholder, Func<string, string> format, MenuContext context, IMenuHost host)
     {
         var item = new MenuItem { Header = label, Tag = new MenuPickerDescriptor(MenuPickerDescriptor.Input, []) };
         item.Click += (_, _) => host.ShowInputPopup(placeholder, input => host.SendAsync(context.Callsign, format(input), context.Initials));
+        return item;
+    }
+
+    /// <summary>
+    /// The Warp item: it seeds the host's warp popup with the aircraft's heading, altitude and indicated airspeed and
+    /// sends <c>WARP {frd} {heading} {altitude} {speed}</c> for the values the popup submits. A WARP needs a real
+    /// heading, so a zero or negative one is clamped to 360.
+    /// </summary>
+    private static MenuItem BuildWarp(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        var item = new MenuItem { Header = label };
+        item.Click += (_, _) =>
+        {
+            int heading = aircraft is not null ? (int)Math.Round(aircraft.HeadingDegrees) : 0;
+            if (heading <= 0)
+            {
+                heading = 360;
+            }
+
+            int altitude = aircraft is not null ? (int)Math.Round(aircraft.AltitudeFeet) : 0;
+            int speed = aircraft is not null ? (int)Math.Round(aircraft.IndicatedAirspeedKnots) : 0;
+            host.ShowWarpPopup(
+                context.Callsign,
+                heading,
+                altitude,
+                speed,
+                (frd, h, a, s) => host.SendAsync(context.Callsign, $"WARP {frd} {h} {a} {s}", context.Initials)
+            );
+        };
+        return item;
+    }
+
+    /// <summary>
+    /// The Edit flight plan item, which asks the host to open its flight-plan editor. It takes the aircraft and
+    /// context it has no use for so that it matches the <see cref="HostLeaf"/> builder shape.
+    /// </summary>
+    private static MenuItem BuildEditFlightPlan(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        var item = new MenuItem { Header = label };
+        item.Click += (_, _) => host.OpenFlightPlanEditor();
         return item;
     }
 

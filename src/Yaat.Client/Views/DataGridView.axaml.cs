@@ -203,9 +203,7 @@ public partial class DataGridView : UserControl
 
         AddCommandGroups(menu, ac, vm, context, host);
 
-        var deleteItem = new MenuItem { Header = "Delete" };
-        deleteItem.Click += async (_, _) => await vm.Connection.SendCommandAsync(callsign, "DEL", initials);
-        menu.Items.Add(deleteItem);
+        menu.Items.Add(SharedMenuGroups.Delete(ac, context, host));
 
         // RPO control
         List<string> selectedCallsigns = [.. selection.Select(a => a.Callsign)];
@@ -290,10 +288,8 @@ public partial class DataGridView : UserControl
         menu.Items.Add(SharedMenuGroups.Coordination(ac, context, host));
 
         menu.Items.Add(new Separator());
-        if (AircraftCommandApplicability.CanEditFlightPlan(ac))
+        if (SharedMenuGroups.EditFlightPlan(ac, context, host) is { } editItem)
         {
-            var editItem = new MenuItem { Header = "Edit flight plan" };
-            editItem.Click += (_, _) => FlightPlanEditorManager.Open(ac, vm);
             menu.Items.Add(editItem);
         }
 

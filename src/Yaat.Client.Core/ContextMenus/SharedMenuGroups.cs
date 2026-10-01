@@ -3,10 +3,12 @@ using Avalonia.Controls;
 namespace Yaat.Client.ContextMenus;
 
 /// <summary>
-/// The groups more than one surface builds — live traffic, track, squawk, ask pilot, coordination and favorites —
-/// assembled from <see cref="MenuCatalog"/> entries. Each group keeps its <see cref="MenuView"/> variant: the radar
-/// carries input pickers (handoff, point out, squawk code, custom say) the other surfaces leave out, and sends
-/// <c>ID</c> for Ident where the others send <c>IDENT</c>. Whether a group is offered at all stays with the caller.
+/// The groups more than one surface builds — live traffic, track, squawk, ask pilot, coordination, data block,
+/// sim control and favorites — assembled from <see cref="MenuCatalog"/> entries. Only track, squawk and ask pilot
+/// keep a <see cref="MenuView"/> variant: the radar carries input pickers (handoff, point out, squawk code, custom
+/// say) the other surfaces leave out, and sends <c>ID</c> for Ident where the others send <c>IDENT</c>. Data block
+/// and sim control are built by the radar today, so they take no view. Whether a group is offered at all stays with
+/// the caller.
 /// </summary>
 public static class SharedMenuGroups
 {
@@ -85,6 +87,42 @@ public static class SharedMenuGroups
         menu.Items.Add(Leaf(MenuIds.CoordinationAcknowledge, aircraft, context, host));
         return menu;
     }
+
+    /// <summary>The Data Block submenu: scratchpad, note, temporary altitude, cruise, then annotate.</summary>
+    public static MenuItem DataBlock(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        var menu = new MenuItem { Header = "Data Block" };
+        menu.Items.Add(Leaf(MenuIds.DataBlockScratchpad, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.DataBlockNote, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.DataBlockTempAltitude, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.DataBlockCruise, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.DataBlockAnnotate, aircraft, context, host));
+        return menu;
+    }
+
+    /// <summary>The Sim Control submenu: Warp, the release-to-live-feed item when it applies, then Delete.</summary>
+    public static MenuItem SimControl(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        var menu = new MenuItem { Header = "Sim Control" };
+        menu.Items.Add(Leaf(MenuIds.SimControlWarp, aircraft, context, host));
+        if (Unassume(aircraft, context, host) is { } unassume)
+        {
+            menu.Items.Add(unassume);
+        }
+
+        menu.Items.Add(Leaf(MenuIds.SimControlDelete, aircraft, context, host));
+        return menu;
+    }
+
+    /// <summary>The Delete leaf that sends <c>DEL</c>, which each surface places itself.</summary>
+    public static MenuItem Delete(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
+        Leaf(MenuIds.SimControlDelete, aircraft, context, host);
+
+    /// <summary>The "Edit flight plan" leaf when the aircraft's flight plan is editable, otherwise null.</summary>
+    public static MenuItem? EditFlightPlan(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
+        MenuCatalog.Get(MenuIds.AircraftEditFlightPlan).IsApplicable(aircraft, context)
+            ? Leaf(MenuIds.AircraftEditFlightPlan, aircraft, context, host)
+            : null;
 
     /// <summary>
     /// Appends "Assume control" and "Assume and track" to <paramref name="items"/> when the aircraft is an assumable

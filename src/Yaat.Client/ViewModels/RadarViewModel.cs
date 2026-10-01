@@ -1308,8 +1308,6 @@ public partial class RadarViewModel(
 
     public async Task SendRawCommandAsync(string callsign, string initials, string command) => await _sendCommand(callsign, command, initials);
 
-    public async Task DeleteAsync(string callsign, string initials) => await _sendCommand(callsign, "DEL", initials);
-
     public async Task WarpAsync(string callsign, string initials, string frd, int heading, int altitude, int speed) =>
         await _sendCommand(callsign, $"WARP {frd} {heading} {altitude} {speed}", initials);
 
@@ -1319,19 +1317,6 @@ public partial class RadarViewModel(
 
     public async Task InitiateHandoffAsync(string callsign, string initials, string position) =>
         await _sendCommand(callsign, $"HO {position}", initials);
-
-    // --- Data block ---
-
-    public async Task ScratchpadAsync(string callsign, string initials, string text) => await _sendCommand(callsign, $"SP {text}", initials);
-
-    public async Task NoteAsync(string callsign, string initials, string text) => await _sendCommand(callsign, $"NOTE {text}", initials);
-
-    public async Task TemporaryAltitudeAsync(string callsign, string initials, int altitude) =>
-        await _sendCommand(callsign, $"TEMPALT {altitude}", initials);
-
-    public async Task CruiseAsync(string callsign, string initials, int altitude) => await _sendCommand(callsign, $"CRUISE {altitude}", initials);
-
-    public async Task AnnotateAsync(string callsign, string initials) => await _sendCommand(callsign, "ANNOTATE", initials);
 
     // --- Hold ---
 

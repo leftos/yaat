@@ -436,7 +436,7 @@ public partial class RadarView
 
     // --- Warp popup ---
 
-    private void ShowWarpPopup(
+    internal void ShowWarpPopup(
         string callsign,
         string defaultFrd,
         int defaultHeading,

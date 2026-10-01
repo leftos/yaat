@@ -96,4 +96,28 @@ public static class MenuIds
 
     /// <summary>Acknowledge a departure release (<c>RDACK</c>).</summary>
     public const string CoordinationAcknowledge = "coordination.acknowledge";
+
+    /// <summary>Set the data-block scratchpad (<c>SP</c>).</summary>
+    public const string DataBlockScratchpad = "datablock.scratchpad";
+
+    /// <summary>Set the data-block note (<c>NOTE</c>).</summary>
+    public const string DataBlockNote = "datablock.note";
+
+    /// <summary>Set the data block's temporary altitude (<c>TEMPALT</c>).</summary>
+    public const string DataBlockTempAltitude = "datablock.temp-altitude";
+
+    /// <summary>Set the data block's cruise altitude (<c>CRUISE</c>).</summary>
+    public const string DataBlockCruise = "datablock.cruise";
+
+    /// <summary>Toggle the data-block annotation (<c>ANNOTATE</c>).</summary>
+    public const string DataBlockAnnotate = "datablock.annotate";
+
+    /// <summary>Warp the aircraft to a position, heading, altitude and speed (<c>WARP</c>).</summary>
+    public const string SimControlWarp = "simcontrol.warp";
+
+    /// <summary>Delete the aircraft (<c>DEL</c>).</summary>
+    public const string SimControlDelete = "simcontrol.delete";
+
+    /// <summary>Open the aircraft's flight-plan editor.</summary>
+    public const string AircraftEditFlightPlan = "aircraft.edit-fp";
 }

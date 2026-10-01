@@ -192,13 +192,12 @@ public partial class RadarView
     private void AddSurfaceShadowItems(ContextMenu menu, RadarViewModel vm, AircraftModel ac, MenuContext context, RadarMenuHost host)
     {
         string callsign = context.Callsign;
-        string initials = context.Initials;
         menu.Items.Add(SharedMenuGroups.Track(ac, context, host, MenuView.Radar));
-        menu.Items.Add(BuildDataBlockSubmenu(vm, callsign, initials));
+        menu.Items.Add(SharedMenuGroups.DataBlock(ac, context, host));
         menu.Items.Add(SharedMenuGroups.Coordination(ac, context, host));
         menu.Items.Add(BuildDisplaySubmenu(vm, callsign));
         menu.Items.Add(new Separator());
-        menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(callsign, initials)));
+        menu.Items.Add(SharedMenuGroups.Delete(ac, context, host));
         FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
     }
 
@@ -232,7 +231,7 @@ public partial class RadarView
         // Always-visible groups
         menu.Items.Add(new Separator());
         menu.Items.Add(SharedMenuGroups.Track(ac, context, host, MenuView.Radar));
-        menu.Items.Add(BuildDataBlockSubmenu(vm, callsign, initials));
+        menu.Items.Add(SharedMenuGroups.DataBlock(ac, context, host));
         menu.Items.Add(SharedMenuGroups.Squawk(ac, context, host, MenuView.Radar));
         if (AircraftCommandApplicability.CanAskPilot(ac))
         {
@@ -242,7 +241,7 @@ public partial class RadarView
         menu.Items.Add(SharedMenuGroups.Coordination(ac, context, host));
         menu.Items.Add(BuildDisplaySubmenu(vm, callsign));
         menu.Items.Add(new Separator());
-        menu.Items.Add(BuildSimControlSubmenu(vm, ac, context, host));
+        menu.Items.Add(SharedMenuGroups.SimControl(ac, context, host));
 
         // RPO control
         FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
@@ -573,46 +572,6 @@ public partial class RadarView
             menu.Items.Add(CreateInputMenuItem("Hold at fix (right)...", "Fix name", input => vm.HoldAtFixRightAsync(cs, init, input)));
         }
 
-        return menu;
-    }
-
-    private MenuItem BuildDataBlockSubmenu(RadarViewModel vm, string cs, string init)
-    {
-        var menu = new MenuItem { Header = "Data Block" };
-        menu.Items.Add(CreateInputMenuItem("Scratchpad...", "Text", input => vm.ScratchpadAsync(cs, init, input)));
-        menu.Items.Add(CreateInputMenuItem("Note...", "Note text (max 40)", input => vm.NoteAsync(cs, init, input)));
-        menu.Items.Add(CreateInputMenuItem("Temporary altitude...", "Altitude", input => vm.TemporaryAltitudeAsync(cs, init, int.Parse(input))));
-        menu.Items.Add(CreateInputMenuItem("Cruise...", "Altitude", input => vm.CruiseAsync(cs, init, int.Parse(input))));
-        menu.Items.Add(CreateMenuItem("Annotate", () => vm.AnnotateAsync(cs, init)));
-        return menu;
-    }
-
-    private MenuItem BuildSimControlSubmenu(RadarViewModel vm, AircraftModel? ac, MenuContext context, RadarMenuHost host)
-    {
-        string cs = context.Callsign;
-        string init = context.Initials;
-        var menu = new MenuItem { Header = "Sim Control" };
-        var warpItem = new MenuItem { Header = "Warp..." };
-        warpItem.Click += (_, _) =>
-        {
-            int hdg = ac is not null ? (int)Math.Round(ac.Heading.Degrees) : 0;
-            if (hdg <= 0)
-            {
-                hdg = 360;
-            }
-
-            int alt = ac is not null ? (int)Math.Round(ac.Altitude) : 0;
-            int spd = ac is not null ? (int)Math.Round(ac.IndicatedAirspeed) : 0;
-            Dispatcher.UIThread.Post(() => ShowWarpPopup(cs, "", hdg, alt, spd, (frd, h, a, s) => _ = vm.WarpAsync(cs, init, frd, h, a, s)));
-        };
-        menu.Items.Add(warpItem);
-
-        if (SharedMenuGroups.Unassume(ac, context, host) is { } unassume)
-        {
-            menu.Items.Add(unassume);
-        }
-
-        menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(cs, init)));
         return menu;
     }
 
