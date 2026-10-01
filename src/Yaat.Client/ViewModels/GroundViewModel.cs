@@ -1556,6 +1556,7 @@ public partial class GroundViewModel : ObservableObject
             OccupiedTaxiway = null,
             DestinationRunway = string.IsNullOrEmpty(ac.AssignedRunway) ? null : ac.AssignedRunway,
             DestinationHintNode = destination,
+            StartHeadingTrue = ac.Heading.Degrees,
         };
         AircraftCategory category = CategoryFor(ac);
         WakeTurbulenceData.WakeClass wakeClass = WakeClassFor(ac);

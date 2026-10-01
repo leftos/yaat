@@ -184,6 +184,7 @@ Whenever a route must be drawn, `GroundViewModel.ResolveRemainingRoute(ac)` **re
 - `Lat` / `Lon` — change every tick as the aircraft moves; this alone re-trims the drawn route to the aircraft's advancing position.
 - `TaxiRoute` (the formatted string) — changes on re-clearance and drops to `""` when the route completes (which is also how "show all" stops drawing a finished aircraft).
 - `CurrentTaxiway` — changes as the aircraft crosses junctions.
+- `Heading` — passed as `ExplicitPathOptions.StartHeadingTrue`, as the server resolves the clearance. For a route that is one taxiway with no runway, stand or spot (`TAXI S HS B`), it is the only clue to which way along the taxiway the route runs; without it the walk takes the cheaper first edge and can draw the taxiway backwards (issue #475).
 - `TaxiDestination` — changes on re-clearance to another stand along the same lanes (the taxiway string alone would not).
 - `AssignedRunway` — changes on re-clearance; drives the hold-short truncation above.
 
