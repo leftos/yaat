@@ -29,7 +29,14 @@ public sealed class AutomationDispatcher
     {
         Register(new PingHandler());
         Register(new ListWindowsHandler(registry));
-        Register(new TreeHandler(registry, new SelectorRequestHelper(new SelectorEngine(registry), registry), new NodeInfoBuilder(registry)));
+        var selectors = new SelectorRequestHelper(new SelectorEngine(registry), registry);
+        var targets = new TargetResolver(registry, selectors);
+        Register(new TreeHandler(registry, targets, new NodeInfoBuilder(registry)));
+        Register(new ClickHandler(registry, targets));
+        Register(new ClickPointHandler(registry, targets));
+        Register(new SendKeysHandler(registry, targets));
+        Register(new SetTextHandler(registry, targets));
+        Register(new FocusHandler(registry, targets));
     }
 
     private void Register(IRequestHandler handler) => _handlers[handler.Method] = handler;

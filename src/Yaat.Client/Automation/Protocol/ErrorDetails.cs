@@ -17,3 +17,12 @@ public sealed record InvalidSelectorDetails(string Selector, int Position);
 
 /// <summary><see cref="AutomationError.Details"/> of an <c>AMBIGUOUS_SELECTOR</c> error: how many elements matched.</summary>
 public sealed record AmbiguousSelectorDetails(string Selector, int MatchCount);
+
+/// <summary><see cref="AutomationError.Details"/> of an error about one element: <c>ELEMENT_DISABLED</c>, <c>NOT_FOCUSABLE</c>.</summary>
+public sealed record ElementErrorDetails(int NodeId, string ElementType);
+
+/// <summary><see cref="AutomationError.Details"/> of an <c>OUT_OF_BOUNDS</c> error: the point and the window's client size, in DIPs.</summary>
+public sealed record PointErrorDetails(double X, double Y, double Width, double Height);
+
+/// <summary><see cref="AutomationError.Details"/> of a malformed <c>send_keys</c> string: the zero-based position of the fault.</summary>
+public sealed record KeysErrorDetails(string Keys, int Position);

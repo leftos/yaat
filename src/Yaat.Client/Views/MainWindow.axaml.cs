@@ -3371,18 +3371,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     /// (e.g. RightCtrl) are matched by key alone because when Ctrl is pressed, <c>e.KeyModifiers</c>
     /// also includes the Control flag — comparing modifiers strictly would never match.
     /// </summary>
-    private bool IsPttKeyEvent(KeyEventArgs e)
-    {
-        if (e.Key != _pttKey)
-        {
-            return false;
-        }
-
-        return IsModifierOnlyKey(_pttKey) || e.KeyModifiers == _pttModifiers;
-    }
-
-    private static bool IsModifierOnlyKey(Key key) =>
-        key is Key.LeftShift or Key.RightShift or Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin;
+    private bool IsPttKeyEvent(KeyEventArgs e) => KeybindHelper.MatchesKeybind(e.Key, e.KeyModifiers, _pttKey, _pttModifiers);
 
     /// <summary>
     /// Confirms the destructive, playback-ending Take Control, with <paramref name="message"/> as the body text — the
@@ -3744,15 +3733,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         });
     }
 
-    private bool MatchesPttBinding(Key key, KeyModifiers modifiers)
-    {
-        if (key != _pttKey)
-        {
-            return false;
-        }
-
-        return IsModifierOnlyKey(_pttKey) || modifiers == _pttModifiers;
-    }
+    private bool MatchesPttBinding(Key key, KeyModifiers modifiers) => KeybindHelper.MatchesKeybind(key, modifiers, _pttKey, _pttModifiers);
 
     /// <summary>
     /// Focuses whichever command input is currently visible: the embedded one in MainWindow when

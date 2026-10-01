@@ -18,62 +18,18 @@ namespace Yaat.Client.UI.Tests.Automation;
 /// The automation pipe host end to end over a real named pipe: <c>ping</c>, <c>list_windows</c>, coded errors, the
 /// discovery file and the automation-mode guard. Each test has its own pipe name and discovery directory.
 /// </summary>
-public sealed class AutomationHostTests : IDisposable
+public sealed class AutomationHostTests : AutomationHostFixture
 {
-    private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(5);
-
-    private readonly string _pipeName = $"yaat-automation-test-{Guid.NewGuid():N}";
-    private readonly string _discoveryDirectory = Path.Combine(Path.GetTempPath(), $"yaat-automation-test-{Guid.NewGuid():N}");
-    private readonly List<Window> _windows = [];
-
-    public void Dispose()
-    {
-        foreach (Window window in _windows)
-        {
-            window.Close();
-        }
-
-        if (Directory.Exists(_discoveryDirectory))
-        {
-            Directory.Delete(_discoveryDirectory, recursive: true);
-        }
-    }
-
-    private AutomationHost StartHost(Func<IEnumerable<TopLevel>> rootsProvider)
-    {
-        var host = new AutomationHost(_pipeName, _discoveryDirectory, rootsProvider);
-        host.Start();
-        return host;
-    }
-
-    private Task<AutomationPipeTestClient> Connect() => AutomationPipeTestClient.ConnectAsync(_pipeName, ConnectTimeout);
-
-    private Window ShowWindow(string title, Window? owner)
-    {
-        var window = new Window
-        {
-            Title = title,
-            Width = 300,
-            Height = 200,
-        };
-        _windows.Add(window);
-        if (owner is null)
-        {
-            window.Show();
-        }
-        else
-        {
-            window.Show(owner);
-        }
-
-        return window;
-    }
-
-    private static JsonElement Result(JsonElement response)
-    {
-        Assert.False(response.TryGetProperty("errorInfo", out JsonElement error), $"Unexpected error: {error}");
-        return response.GetProperty("result");
-    }
+    private Window ShowWindow(string title, Window? owner) =>
+        Show(
+            new Window
+            {
+                Title = title,
+                Width = 300,
+                Height = 200,
+            },
+            owner
+        );
 
     private static JsonElement EntryTitled(JsonElement windows, string title) =>
         Assert.Single(windows.EnumerateArray(), entry => entry.TryGetProperty("title", out JsonElement t) && (t.GetString() == title));
@@ -93,7 +49,7 @@ public sealed class AutomationHostTests : IDisposable
     [AvaloniaFact]
     public async Task ListWindows_ReturnsShownWindowAndOwnedWindow_WithStableIds()
     {
-        using AutomationHost host = StartHost(() => _windows.Take(1));
+        using AutomationHost host = StartHost(() => Windows.Take(1));
         Window owner = ShowWindow("Owner window", null);
         ShowWindow("Owned window", owner);
         await using AutomationPipeTestClient client = await Connect();
@@ -116,7 +72,7 @@ public sealed class AutomationHostTests : IDisposable
     [AvaloniaFact]
     public async Task ListWindows_IncludesAnOpenPopup()
     {
-        using AutomationHost host = StartHost(() => _windows);
+        using AutomationHost host = StartHost(() => Windows);
         Window window = ShowWindow("Popup owner", null);
         var panel = new StackPanel();
         window.Content = panel;
@@ -178,7 +134,7 @@ public sealed class AutomationHostTests : IDisposable
     [AvaloniaFact]
     public void DiscoveryFile_WrittenOnStart_RemovedOnDispose()
     {
-        string expectedPath = Path.Combine(_discoveryDirectory, $"{Environment.ProcessId}.json");
+        string expectedPath = Path.Combine(DiscoveryDirectory, $"{Environment.ProcessId}.json");
         AutomationHost host = StartHost(() => []);
         try
         {
@@ -186,9 +142,9 @@ public sealed class AutomationHostTests : IDisposable
             DiscoveryInfo? info = ProtocolSerializer.Deserialize<DiscoveryInfo>(File.ReadAllText(expectedPath));
             Assert.NotNull(info);
             Assert.Equal(Environment.ProcessId, info.Pid);
-            Assert.Equal(_pipeName, info.PipeName);
+            Assert.Equal(PipeName, info.PipeName);
             Assert.Equal(ProtocolVersion.Current, info.ProtocolVersion);
-            Assert.Empty(Directory.GetFiles(_discoveryDirectory, "*.tmp"));
+            Assert.Empty(Directory.GetFiles(DiscoveryDirectory, "*.tmp"));
         }
         finally
         {
@@ -211,8 +167,8 @@ public sealed class AutomationHostTests : IDisposable
 
     private string WriteDiscoveryFile(int pid, string processName)
     {
-        Directory.CreateDirectory(_discoveryDirectory);
-        string path = Path.Combine(_discoveryDirectory, $"{pid}.json");
+        Directory.CreateDirectory(DiscoveryDirectory);
+        string path = Path.Combine(DiscoveryDirectory, $"{pid}.json");
         var info = new DiscoveryInfo
         {
             Pid = pid,
@@ -229,10 +185,10 @@ public sealed class AutomationHostTests : IDisposable
     public void DiscoveryFile_SweepsStalePidFiles()
     {
         string stale = WriteDiscoveryFile(NeverRunningPid, "Yaat.Client");
-        string staleTemp = Path.Combine(_discoveryDirectory, $"{NeverRunningPid}.{Guid.NewGuid():N}.tmp");
+        string staleTemp = Path.Combine(DiscoveryDirectory, $"{NeverRunningPid}.{Guid.NewGuid():N}.tmp");
         File.WriteAllText(staleTemp, "{");
         string live = WriteDiscoveryFile(AlwaysRunningPid, RunningProcessName(AlwaysRunningPid));
-        string unrelated = Path.Combine(_discoveryDirectory, "notes.json");
+        string unrelated = Path.Combine(DiscoveryDirectory, "notes.json");
         File.WriteAllText(unrelated, "{}");
 
         using AutomationHost host = StartHost(() => []);
@@ -295,7 +251,7 @@ public sealed class AutomationHostTests : IDisposable
         }
 
         Assert.Null(line);
-        await Assert.ThrowsAsync<TimeoutException>(() => AutomationPipeTestClient.ConnectAsync(_pipeName, TimeSpan.FromMilliseconds(300)));
+        await Assert.ThrowsAsync<TimeoutException>(() => AutomationPipeTestClient.ConnectAsync(PipeName, TimeSpan.FromMilliseconds(300)));
     }
 
     [AvaloniaFact]
@@ -351,10 +307,10 @@ public sealed class AutomationHostTests : IDisposable
     [AvaloniaFact]
     public async Task Host_IsNotStarted_WhenAutomationModeOff()
     {
-        AutomationHost? host = AutomationHostFactory.StartIfEnabled(false, _pipeName, _discoveryDirectory, () => _windows);
+        AutomationHost? host = AutomationHostFactory.StartIfEnabled(false, PipeName, DiscoveryDirectory, () => Windows);
 
         Assert.Null(host);
-        Assert.False(Directory.Exists(_discoveryDirectory));
-        await Assert.ThrowsAsync<TimeoutException>(() => AutomationPipeTestClient.ConnectAsync(_pipeName, TimeSpan.FromMilliseconds(300)));
+        Assert.False(Directory.Exists(DiscoveryDirectory));
+        await Assert.ThrowsAsync<TimeoutException>(() => AutomationPipeTestClient.ConnectAsync(PipeName, TimeSpan.FromMilliseconds(300)));
     }
 }

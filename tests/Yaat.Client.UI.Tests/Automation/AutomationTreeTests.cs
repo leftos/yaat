@@ -15,58 +15,20 @@ namespace Yaat.Client.UI.Tests.Automation;
 /// windows in the tree, a selector root with a depth, and the coded selector errors. Each test has its own pipe name and
 /// discovery directory.
 /// </summary>
-public sealed class AutomationTreeTests : IDisposable
+public sealed class AutomationTreeTests : AutomationHostFixture
 {
-    private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(5);
-
-    private readonly string _pipeName = $"yaat-automation-test-{Guid.NewGuid():N}";
-    private readonly string _discoveryDirectory = Path.Combine(Path.GetTempPath(), $"yaat-automation-test-{Guid.NewGuid():N}");
-    private readonly List<Window> _windows = [];
-
-    public void Dispose()
-    {
-        foreach (Window window in _windows)
-        {
-            window.Close();
-        }
-
-        if (Directory.Exists(_discoveryDirectory))
-        {
-            Directory.Delete(_discoveryDirectory, recursive: true);
-        }
-    }
-
-    private AutomationHost StartHost(Func<IEnumerable<TopLevel>> rootsProvider)
-    {
-        var host = new AutomationHost(_pipeName, _discoveryDirectory, rootsProvider);
-        host.Start();
-        return host;
-    }
-
-    private Task<AutomationPipeTestClient> Connect() => AutomationPipeTestClient.ConnectAsync(_pipeName, ConnectTimeout);
-
-    private Window ShowWindow(string name, Window? owner, Control content)
-    {
-        var window = new Window
-        {
-            Name = name,
-            Title = name,
-            Width = 300,
-            Height = 200,
-            Content = content,
-        };
-        _windows.Add(window);
-        if (owner is null)
-        {
-            window.Show();
-        }
-        else
-        {
-            window.Show(owner);
-        }
-
-        return window;
-    }
+    private Window ShowWindow(string name, Window? owner, Control content) =>
+        Show(
+            new Window
+            {
+                Name = name,
+                Title = name,
+                Width = 300,
+                Height = 200,
+                Content = content,
+            },
+            owner
+        );
 
     private static StackPanel BuildForm() =>
         new()
@@ -95,20 +57,6 @@ public sealed class AutomationTreeTests : IDisposable
                 }
             )
         );
-
-    private static JsonElement Result(JsonElement response)
-    {
-        Assert.False(response.TryGetProperty("errorInfo", out JsonElement error), $"Unexpected error: {error}");
-        return response.GetProperty("result");
-    }
-
-    private static JsonElement Error(JsonElement response, string expectedCode)
-    {
-        Assert.False(response.TryGetProperty("result", out JsonElement result), $"Unexpected result: {result}");
-        JsonElement error = response.GetProperty("errorInfo");
-        Assert.Equal(expectedCode, error.GetProperty("code").GetString());
-        return error;
-    }
 
     private static IEnumerable<JsonElement> Flatten(JsonElement node)
     {
@@ -139,7 +87,7 @@ public sealed class AutomationTreeTests : IDisposable
     [AvaloniaFact]
     public async Task GetTree_ReturnsStableNodeIdsAcrossCalls()
     {
-        using AutomationHost host = StartHost(() => _windows);
+        using AutomationHost host = StartHost(() => Windows);
         ShowWindow("TreeWindow", null, BuildForm());
         await using AutomationPipeTestClient client = await Connect();
 
@@ -159,7 +107,7 @@ public sealed class AutomationTreeTests : IDisposable
     [AvaloniaFact]
     public async Task GetTree_IncludesOverlayPopupAndOwnedWindow()
     {
-        using AutomationHost host = StartHost(() => _windows.Take(1));
+        using AutomationHost host = StartHost(() => Windows.Take(1));
         var panel = new StackPanel();
         var popup = new Popup
         {
@@ -193,7 +141,7 @@ public sealed class AutomationTreeTests : IDisposable
     [AvaloniaFact]
     public async Task GetTree_FromSelectorRoot_HonoursDepth()
     {
-        using AutomationHost host = StartHost(() => _windows);
+        using AutomationHost host = StartHost(() => Windows);
         ShowWindow("TreeWindow", null, BuildForm());
         await using AutomationPipeTestClient client = await Connect();
 
@@ -215,7 +163,7 @@ public sealed class AutomationTreeTests : IDisposable
     [AvaloniaFact]
     public async Task Selector_MatchingTwoNodes_ReturnsAmbiguousSelectorWithCountAndHint()
     {
-        using AutomationHost host = StartHost(() => _windows);
+        using AutomationHost host = StartHost(() => Windows);
         ShowWindow("TreeWindow", null, BuildForm());
         await using AutomationPipeTestClient client = await Connect();
 
@@ -231,7 +179,7 @@ public sealed class AutomationTreeTests : IDisposable
     [AvaloniaFact]
     public async Task Selector_Invalid_ReturnsInvalidSelectorWithPosition()
     {
-        using AutomationHost host = StartHost(() => _windows);
+        using AutomationHost host = StartHost(() => Windows);
         ShowWindow("TreeWindow", null, BuildForm());
         await using AutomationPipeTestClient client = await Connect();
 
@@ -245,7 +193,7 @@ public sealed class AutomationTreeTests : IDisposable
     [AvaloniaFact]
     public async Task Selector_NoMatch_ReturnsNoMatch()
     {
-        using AutomationHost host = StartHost(() => _windows);
+        using AutomationHost host = StartHost(() => Windows);
         ShowWindow("TreeWindow", null, BuildForm());
         await using AutomationPipeTestClient client = await Connect();
 
@@ -257,7 +205,7 @@ public sealed class AutomationTreeTests : IDisposable
     [AvaloniaFact]
     public async Task Selector_Missing_ReturnsMissingSelector()
     {
-        using AutomationHost host = StartHost(() => _windows);
+        using AutomationHost host = StartHost(() => Windows);
         ShowWindow("TreeWindow", null, BuildForm());
         await using AutomationPipeTestClient client = await Connect();
 
@@ -269,7 +217,7 @@ public sealed class AutomationTreeTests : IDisposable
     [AvaloniaFact]
     public async Task Selector_DataContextAttribute_MatchesByViewModelProperty()
     {
-        using AutomationHost host = StartHost(() => _windows);
+        using AutomationHost host = StartHost(() => Windows);
         var rows = new StackPanel
         {
             Children =
@@ -289,7 +237,7 @@ public sealed class AutomationTreeTests : IDisposable
     [AvaloniaFact]
     public async Task Selector_DataContextAttribute_MatchesOnlyWhereTheDataContextIsSet()
     {
-        using AutomationHost host = StartHost(() => _windows);
+        using AutomationHost host = StartHost(() => Windows);
         var list = new ListBox { Name = "Strips", ItemsSource = new[] { new StripRow("AAL123"), new StripRow("UAL456") } };
         ShowWindow("StripListWindow", null, list);
         await using AutomationPipeTestClient client = await Connect();
@@ -302,7 +250,7 @@ public sealed class AutomationTreeTests : IDisposable
     [AvaloniaFact]
     public async Task Selector_DataContextPropertyWithoutGetter_IsNoMatch()
     {
-        using AutomationHost host = StartHost(() => _windows);
+        using AutomationHost host = StartHost(() => Windows);
         var rows = new StackPanel
         {
             Children =
@@ -319,7 +267,7 @@ public sealed class AutomationTreeTests : IDisposable
     [AvaloniaFact]
     public async Task Selector_WhitespaceBeforeHash_IsADescendantCombinator()
     {
-        using AutomationHost host = StartHost(() => _windows);
+        using AutomationHost host = StartHost(() => Windows);
         ShowWindow("TreeWindow", null, BuildForm());
         await using AutomationPipeTestClient client = await Connect();
 
@@ -331,7 +279,7 @@ public sealed class AutomationTreeTests : IDisposable
     [AvaloniaFact]
     public async Task Selector_Universal_MatchesEveryElementInScope()
     {
-        using AutomationHost host = StartHost(() => _windows);
+        using AutomationHost host = StartHost(() => Windows);
         ShowWindow("TreeWindow", null, BuildForm());
         await using AutomationPipeTestClient client = await Connect();
 
@@ -347,7 +295,7 @@ public sealed class AutomationTreeTests : IDisposable
     [AvaloniaFact]
     public async Task Selector_UnknownPseudoClass_ReturnsInvalidSelectorWithPosition()
     {
-        using AutomationHost host = StartHost(() => _windows);
+        using AutomationHost host = StartHost(() => Windows);
         ShowWindow("TreeWindow", null, BuildForm());
         await using AutomationPipeTestClient client = await Connect();
 
@@ -359,7 +307,7 @@ public sealed class AutomationTreeTests : IDisposable
     [AvaloniaFact]
     public async Task Selector_RoleAndText_UseTheDescriptionsGetTreeReports()
     {
-        using AutomationHost host = StartHost(() => _windows);
+        using AutomationHost host = StartHost(() => Windows);
         var scope = new Border { Name = "Scope" };
         AutomationProperties.SetName(scope, "Radar scope");
         var panel = new StackPanel
@@ -386,7 +334,7 @@ public sealed class AutomationTreeTests : IDisposable
     [AvaloniaFact]
     public async Task Selector_TypeName_MatchesTheTypeOrABaseTypeExactly()
     {
-        using AutomationHost host = StartHost(() => _windows);
+        using AutomationHost host = StartHost(() => Windows);
         var panel = new StackPanel
         {
             Children =
@@ -407,7 +355,7 @@ public sealed class AutomationTreeTests : IDisposable
     [AvaloniaFact]
     public async Task Selector_StaleNodeId_ReturnsStaleNode()
     {
-        using AutomationHost host = StartHost(() => _windows);
+        using AutomationHost host = StartHost(() => Windows);
         StackPanel form = BuildForm();
         ShowWindow("TreeWindow", null, form);
         await using AutomationPipeTestClient client = await Connect();
@@ -422,7 +370,7 @@ public sealed class AutomationTreeTests : IDisposable
     [AvaloniaFact]
     public async Task GetTree_NodeIdRoot_ReturnsThatNode_OrStaleNode()
     {
-        using AutomationHost host = StartHost(() => _windows);
+        using AutomationHost host = StartHost(() => Windows);
         StackPanel form = BuildForm();
         ShowWindow("TreeWindow", null, form);
         await using AutomationPipeTestClient client = await Connect();
@@ -458,7 +406,7 @@ public sealed class AutomationTreeTests : IDisposable
     [AvaloniaFact]
     public async Task GetTree_Logical_WalksLogicalChildren_AndListsPopupContentOnce()
     {
-        using AutomationHost host = StartHost(() => _windows);
+        using AutomationHost host = StartHost(() => Windows);
         var panel = new StackPanel { Name = "PopupPanel" };
         var popup = new Popup
         {

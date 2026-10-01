@@ -9,7 +9,6 @@ using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Yaat.Client.Automation.Protocol;
-using Yaat.Client.Automation.Selectors;
 using Yaat.Client.Automation.Tree;
 
 namespace Yaat.Client.Automation.Handlers;
@@ -25,7 +24,7 @@ namespace Yaat.Client.Automation.Handlers;
 /// <c>depth</c> (levels of children below each root, default 10; 0 lists the roots alone), and at most one of
 /// <c>nodeId</c> and <c>selector</c>.
 /// </summary>
-public sealed class TreeHandler(NodeRegistry registry, SelectorRequestHelper selectors, NodeInfoBuilder builder) : IRequestHandler
+public sealed class TreeHandler(NodeRegistry registry, TargetResolver targets, NodeInfoBuilder builder) : IRequestHandler
 {
     private const int DefaultDepth = 10;
 
@@ -35,7 +34,7 @@ public sealed class TreeHandler(NodeRegistry registry, SelectorRequestHelper sel
         Logical,
     }
 
-    private sealed record TreeParams(TreeKind Kind, int Depth, int? NodeId, string? Selector);
+    private sealed record TreeParams(TreeKind Kind, int Depth, ElementTarget Root);
 
     public string Method => ProtocolMethods.GetTree;
 
@@ -55,7 +54,7 @@ public sealed class TreeHandler(NodeRegistry registry, SelectorRequestHelper sel
     {
         if ((raw is not { } element) || (element.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined))
         {
-            return new TreeParams(TreeKind.Visual, DefaultDepth, null, null);
+            return new TreeParams(TreeKind.Visual, DefaultDepth, new ElementTarget(null, null, "nodeId", "selector"));
         }
 
         if (element.ValueKind != JsonValueKind.Object)
@@ -65,20 +64,14 @@ public sealed class TreeHandler(NodeRegistry registry, SelectorRequestHelper sel
 
         (TreeKind kind, HandlerErrorResult? kindError) = ReadKind(element);
         (int depth, HandlerErrorResult? depthError) = ReadDepth(element);
-        (int? nodeId, HandlerErrorResult? nodeIdError) = ReadNodeId(element);
-        (string? selector, HandlerErrorResult? selectorError) = ReadSelector(element);
-        HandlerErrorResult? error = kindError ?? depthError ?? nodeIdError ?? selectorError;
-        if (error is not null)
+        (ElementTarget root, HandlerErrorResult? rootError) = InputParams.ReadTarget(element, "nodeId", "selector");
+        if ((root.NodeId is not null) && (root.Selector is not null))
         {
-            return error;
+            rootError = HandlerResult.InvalidParam("selector", "Give either 'nodeId' or 'selector' as the root, not both.");
         }
 
-        if ((nodeId is not null) && (selector is not null))
-        {
-            return HandlerResult.InvalidParam("selector", "Give either 'nodeId' or 'selector' as the root, not both.");
-        }
-
-        return new TreeParams(kind, depth, nodeId, selector);
+        HandlerErrorResult? error = kindError ?? depthError ?? rootError;
+        return (error is null) ? new TreeParams(kind, depth, root) : error;
     }
 
     private static (TreeKind Kind, HandlerErrorResult? Error) ReadKind(JsonElement element)
@@ -117,50 +110,12 @@ public sealed class TreeHandler(NodeRegistry registry, SelectorRequestHelper sel
         return (DefaultDepth, HandlerResult.InvalidParam("depth", "'depth' must be a whole number of 0 or more."));
     }
 
-    private static (int? NodeId, HandlerErrorResult? Error) ReadNodeId(JsonElement element)
-    {
-        if (!element.TryGetProperty("nodeId", out JsonElement value) || (value.ValueKind == JsonValueKind.Null))
-        {
-            return (null, null);
-        }
-
-        if ((value.ValueKind == JsonValueKind.Number) && value.TryGetInt32(out int nodeId))
-        {
-            return (nodeId, null);
-        }
-
-        return (null, HandlerResult.InvalidParam("nodeId", "'nodeId' must be a node id from list_windows or get_tree."));
-    }
-
-    // A present but blank selector stays a selector, so the selector helper answers it as MISSING_SELECTOR.
-    private static (string? Selector, HandlerErrorResult? Error) ReadSelector(JsonElement element)
-    {
-        if (!element.TryGetProperty("selector", out JsonElement value) || (value.ValueKind == JsonValueKind.Null))
-        {
-            return (null, null);
-        }
-
-        return value.ValueKind == JsonValueKind.String
-            ? (value.GetString(), null)
-            : (null, HandlerResult.InvalidParam("selector", "'selector' must be a string."));
-    }
-
     private object BuildTree(TreeParams parameters)
     {
-        if (parameters.NodeId is int nodeId)
+        // A present but blank selector is still a given root, which the selector helper answers as MISSING_SELECTOR.
+        if (parameters.Root.IsGiven)
         {
-            (Visual? visual, string? reason) = registry.ResolveChecked(nodeId);
-            if (visual is null)
-            {
-                return (reason is null) ? HandlerResult.StaleNode(nodeId) : HandlerResult.StaleNode(nodeId, reason);
-            }
-
-            return new List<NodeInfo> { Describe(visual, parameters.Kind, parameters.Depth) };
-        }
-
-        if (parameters.Selector is not null)
-        {
-            if (!selectors.TryResolveSingle(parameters.Selector, out Visual? match, out HandlerErrorResult? error))
+            if (!targets.TryResolve(parameters.Root, out Visual? match, out HandlerErrorResult? error))
             {
                 return error;
             }

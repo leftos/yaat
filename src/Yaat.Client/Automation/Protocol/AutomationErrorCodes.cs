@@ -16,6 +16,9 @@ public static class AutomationErrorCodes
     public const string InvalidParam = "INVALID_PARAM";
     public const string InvalidSelector = "INVALID_SELECTOR";
     public const string UnsupportedOperation = "UNSUPPORTED_OPERATION";
+    public const string ElementDisabled = "ELEMENT_DISABLED";
+    public const string NotFocusable = "NOT_FOCUSABLE";
+    public const string OutOfBounds = "OUT_OF_BOUNDS";
     public const string Timeout = "TIMEOUT";
     public const string Internal = "INTERNAL";
 }
