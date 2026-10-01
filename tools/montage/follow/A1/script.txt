@@ -7,6 +7,11 @@
 #
 # Times are sim seconds. See card.md for what the clip shows.
 
+# t=1  Inhibit conflict alerts on both aircraft (CAINH toggles), so no STARS or ERAM
+#      alert draws over the follow. t=1 is the first second a script line may use.
+t=1 N52417 CAINH
+t=1 N738SP CAINH
+
 # t=2  Lead: join the 28R final straight-in, ~5.5 NM out.
 t=2 N52417 EF 28R
 
