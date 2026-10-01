@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.ContextMenus;
 
@@ -82,6 +83,21 @@ public interface IMenuHost
 
     /// <summary>Hides <paramref name="callsign"/>'s data block, or shows it again when it is hidden.</summary>
     void ToggleHiddenDataBlock(string callsign);
+
+    /// <summary>
+    /// The callsigns of a capped number of the other aircraft on the ground (the host sets the cap), nearest to
+    /// <paramref name="callsign"/> first, which the Follow… and Give way to… submenus list; empty when there are none.
+    /// </summary>
+    IReadOnlyList<string> GetGroundTrafficCallsigns(string callsign);
+
+    /// <summary>
+    /// The Hold short of… choices for <paramref name="callsign"/>'s taxi route: each target's text, its finished
+    /// <c>HS</c> command, and the route to it the surface previews on hover; empty when the route offers none.
+    /// </summary>
+    IReadOnlyList<MenuCommandChoice> GetHoldShortChoices(string callsign);
+
+    /// <summary>Previews <paramref name="route"/> on the surface; null clears the preview.</summary>
+    void SetRoutePreview(TaxiRoute? route);
 
     /// <summary>
     /// Builds the Favorite Commands submenu. <paramref name="aircraft"/> is null when the menu has no aircraft model;

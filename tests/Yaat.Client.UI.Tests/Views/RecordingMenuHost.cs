@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Yaat.Client.ContextMenus;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -127,6 +128,20 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
     public bool IsDataBlockHidden(string callsign) => HiddenDataBlockCallsigns.Contains(callsign);
 
     public void ToggleHiddenDataBlock(string callsign) => HiddenDataBlockToggles.Add(callsign);
+
+    /// <summary>The ground traffic the follow and give-way submenus list, whatever the callsign asked about.</summary>
+    public List<string> GroundTraffic { get; } = [];
+
+    /// <summary>The hold-short choices the Hold short of… submenu lists, whatever the callsign asked about.</summary>
+    public List<MenuCommandChoice> HoldShortChoices { get; } = [];
+
+    public List<TaxiRoute?> RoutePreviews { get; } = [];
+
+    public IReadOnlyList<string> GetGroundTrafficCallsigns(string callsign) => GroundTraffic;
+
+    public IReadOnlyList<MenuCommandChoice> GetHoldShortChoices(string callsign) => HoldShortChoices;
+
+    public void SetRoutePreview(TaxiRoute? route) => RoutePreviews.Add(route);
 
     public MenuItem BuildFavorites(IMenuAircraft? aircraft, MenuContext context) =>
         throw new NotSupportedException("The recording host does not build the favorites submenu.");

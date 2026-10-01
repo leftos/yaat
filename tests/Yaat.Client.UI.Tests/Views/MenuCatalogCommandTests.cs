@@ -183,6 +183,9 @@ public class MenuCatalogCommandTests
         MenuIds.GroundCrossRunway,
         MenuIds.GroundRelativeGiveWay,
         MenuIds.GroundRelativeFollow,
+        MenuIds.GroundHoldShort,
+        MenuIds.GroundFollow,
+        MenuIds.GroundGiveWay,
     ];
 
     public static TheoryData<string, string, string> SingleCommandLeaves()

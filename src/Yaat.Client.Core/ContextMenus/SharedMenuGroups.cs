@@ -10,7 +10,7 @@ namespace Yaat.Client.ContextMenus;
 /// <see cref="MenuView"/> variant: the radar carries input pickers (handoff, point out, squawk code, custom say) the
 /// other surfaces leave out, and sends <c>ID</c> for Ident where the others send <c>IDENT</c>. Data block, sim
 /// control, display and the flight groups are built by the radar today, so they take no view. The ground view's
-/// relative items, runway clearances and landing block are flat groups of their own, and its tower variants branch on
+/// relative items, runway clearances, landing block, hold short and follow submenus are groups of their own, and its tower variants branch on
 /// <see cref="MenuContext.View"/> inside the entries. Whether a group is offered at all stays with the caller.
 /// </summary>
 public static class SharedMenuGroups
@@ -547,6 +547,60 @@ public static class SharedMenuGroups
         items.Add(Leaf(MenuIds.DisplayTaxiRoute, aircraft, context, host));
         items.Add(Leaf(MenuIds.DisplayHideDataBlock, aircraft, context, host));
         AddIfBuilt(items, MenuIds.DisplayResetDataBlockPosition, aircraft, context, host);
+    }
+
+    /// <summary>
+    /// The ground view's Hold short of… submenu while the aircraft is taxiing
+    /// (<see cref="AircraftCommandApplicability.CanHoldShort"/>) and its route offers a target; otherwise nothing.
+    /// </summary>
+    public static void AddGroundHoldShort(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
+        AddIfApplicableAndBuilt(items, MenuIds.GroundHoldShort, aircraft, context, host);
+
+    /// <summary>
+    /// The ground view's Follow… and Give way to… submenus at <paramref name="position"/>, which offers them only for
+    /// its own phases: <see cref="GroundFollowPosition.Parking"/> for an aircraft at parking,
+    /// <see cref="GroundFollowPosition.Taxi"/> for a taxiing one, <see cref="GroundFollowPosition.Hold"/> for the
+    /// three stationary holds. Each submenu is added while its predicate
+    /// (<see cref="AircraftCommandApplicability.CanFollowBehind"/>, <see cref="AircraftCommandApplicability.CanGiveWayTo"/>)
+    /// allows it and there is other ground traffic, so the parking position never offers Give way to….
+    /// </summary>
+    public static void AddGroundFollowAndGiveWay(
+        ItemCollection items,
+        IMenuAircraft? aircraft,
+        MenuContext context,
+        IMenuHost host,
+        GroundFollowPosition position
+    )
+    {
+        if (!IsAtFollowPosition(aircraft, position))
+        {
+            return;
+        }
+
+        AddIfApplicableAndBuilt(items, MenuIds.GroundFollow, aircraft, context, host);
+        AddIfApplicableAndBuilt(items, MenuIds.GroundGiveWay, aircraft, context, host);
+    }
+
+    /// <summary>Whether the aircraft's phase is one <paramref name="position"/> places the follow submenus for.</summary>
+    private static bool IsAtFollowPosition(IMenuAircraft? aircraft, GroundFollowPosition position)
+    {
+        string phase = aircraft?.CurrentPhase ?? "";
+        return position switch
+        {
+            GroundFollowPosition.Parking => phase == "At Parking",
+            GroundFollowPosition.Taxi => phase == "Taxiing",
+            GroundFollowPosition.Hold => phase is "Holding In Position" or "Holding After Exit" or "Holding After Pushback",
+            _ => throw new ArgumentOutOfRangeException(nameof(position), position, "Unknown ground follow position"),
+        };
+    }
+
+    /// <summary>Adds the entry's item when the entry applies and the surface's state gives it something to show; otherwise nothing.</summary>
+    private static void AddIfApplicableAndBuilt(ItemCollection items, string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        if (IsApplicable(id, aircraft, context))
+        {
+            AddIfBuilt(items, id, aircraft, context, host);
+        }
     }
 
     /// <summary>The ground view's landing items, in menu order.</summary>

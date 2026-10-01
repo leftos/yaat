@@ -55,4 +55,23 @@ public class RadarMenuHostTests
             Assert.Throws<NotSupportedException>(() => host.ToggleHiddenDataBlock(Callsign));
         }
     }
+
+    /// <summary>The ground view's traffic, hold-short and route-preview members, which neither the radar nor the list builds.</summary>
+    [AvaloniaFact]
+    public void RadarAndListHosts_ThrowForGroundMovementMembers()
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        IMenuHost[] hosts =
+        [
+            new RadarMenuHost(new RadarView(), main.Radar, main, null),
+            new ListMenuHost(main, new AircraftModel { Callsign = Callsign }),
+        ];
+
+        foreach (IMenuHost host in hosts)
+        {
+            Assert.Throws<NotSupportedException>(() => host.GetGroundTrafficCallsigns(Callsign));
+            Assert.Throws<NotSupportedException>(() => host.GetHoldShortChoices(Callsign));
+            Assert.Throws<NotSupportedException>(() => host.SetRoutePreview(null));
+        }
+    }
 }

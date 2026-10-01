@@ -15,7 +15,8 @@ namespace Yaat.Client.ContextMenus;
 /// STARs, airways) and formats the pick into the command, choosing its form from the data present when the menu is
 /// built; a host leaf asks the host for the item itself, for the entries that open a host surface or read the
 /// surface's own state — the warp popup, the flight-plan editor, the data-block toggle, hide and reset, the nav route,
-/// the measure item and route drawing; a value submenu builds a whole submenu of items from its own label and the menu
+/// the measure item, route drawing, and the ground's hold-short, follow and give-way submenus over the choices the host
+/// answers; a value submenu builds a whole submenu of items from its own label and the menu
 /// context, one per value — the leader directions, the J-ring radii, the cone lengths and the taxi-route modes; and the Cleared for
 /// takeoff submenu offers the default clearance and runway heading, the VFR departure instructions when the aircraft
 /// and the controller's VFR-for-IFR setting allow them, and a free-text item last. A pattern entry is a leaf naming the
@@ -214,6 +215,19 @@ public static class MenuCatalog
             BuildCrossRunway
         ),
         Leaf(MenuIds.GroundBreakConflict, "Break conflict", "BREAK", (ac, _) => AircraftCommandApplicability.CanBreakConflict(ac)),
+        HostLeaf(MenuIds.GroundHoldShort, "Hold short of...", (ac, _) => AircraftCommandApplicability.CanHoldShort(ac), BuildHoldShort),
+        HostLeaf(
+            MenuIds.GroundFollow,
+            "Follow...",
+            AircraftCommandApplicability.CanFollowBehind,
+            (label, _, context, host) => BuildGroundTraffic(label, "FOLLOWG", context, host)
+        ),
+        HostLeaf(
+            MenuIds.GroundGiveWay,
+            "Give way to...",
+            AircraftCommandApplicability.CanGiveWayTo,
+            (label, _, context, host) => BuildGroundTraffic(label, "GW", context, host)
+        ),
         RelativeGround(MenuIds.GroundRelativeGiveWay, "Selected aircraft: give way to", "give way to", "GW"),
         RelativeGround(MenuIds.GroundRelativeFollow, "Selected aircraft: follow", "follow", "FOLLOWG"),
     ];
@@ -512,6 +526,55 @@ public static class MenuCatalog
     }
 
     /// <summary>
+    /// The Hold short of… submenu: one item per target the host finds on the taxi route, sending the host's finished
+    /// <c>HS</c> command, and previewing the route to the target when the pointer enters it. Nothing clears the preview
+    /// when the pointer leaves. Null when the route offers no target.
+    /// </summary>
+    private static MenuItem? BuildHoldShort(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        IReadOnlyList<MenuCommandChoice> choices = host.GetHoldShortChoices(context.Callsign);
+        if (choices.Count == 0)
+        {
+            return null;
+        }
+
+        var menu = new MenuItem { Header = label };
+        foreach (MenuCommandChoice choice in choices)
+        {
+            MenuItem item = BuildSend(choice.Label, choice.Command, context, host);
+            if (choice.Preview is { } preview)
+            {
+                item.PointerEntered += (_, _) => host.SetRoutePreview(preview);
+            }
+
+            menu.Items.Add(item);
+        }
+
+        return menu;
+    }
+
+    /// <summary>
+    /// The Follow… or Give way to… submenu: one item per aircraft of the host's nearest ground traffic, sending
+    /// <paramref name="verb"/> with its callsign. Null when there is no other aircraft on the ground.
+    /// </summary>
+    private static MenuItem? BuildGroundTraffic(string label, string verb, MenuContext context, IMenuHost host)
+    {
+        IReadOnlyList<string> traffic = host.GetGroundTrafficCallsigns(context.Callsign);
+        if (traffic.Count == 0)
+        {
+            return null;
+        }
+
+        var menu = new MenuItem { Header = label };
+        foreach (string other in traffic)
+        {
+            menu.Items.Add(BuildSend(other, $"{verb} {other}", context, host));
+        }
+
+        return menu;
+    }
+
+    /// <summary>
     /// The Cleared for takeoff submenu: the default clearance (the filed SID for IFR, runway heading for VFR) and an
     /// explicit runway heading for either, then the VFR-only departure instructions when
     /// <see cref="AircraftCommandApplicability.ShowVfrTakeoffModifiers"/> allows them, then free text: blank sends a
@@ -623,7 +686,8 @@ public static class MenuCatalog
 
     /// <summary>
     /// An entry whose item the host builds for a surface of its own rather than from a command text: the warp popup,
-    /// the flight-plan editor, and the display toggles and measure item that read and drive the surface's own state.
+    /// the flight-plan editor, the display toggles and measure item that read and drive the surface's own state, and
+    /// the ground submenus whose choices the host answers (hold short, follow, give way).
     /// <paramref name="build"/> receives the entry's own label, so the item's text lives in one place, though a
     /// state-dependent item overrides it. A builder returns null for an item the surface's state hides.
     /// </summary>

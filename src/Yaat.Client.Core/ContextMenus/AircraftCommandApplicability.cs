@@ -362,6 +362,48 @@ public static class AircraftCommandApplicability
     /// </summary>
     public static bool CanBreakConflict(IMenuAircraft? ac) => IsControllable(ac) && (ac.CurrentPhase ?? "") == "Taxiing";
 
+    /// <summary>
+    /// Hold short of a point on the taxi route (<c>HS</c>) — offered while taxiing, the phase whose route names the
+    /// targets. Its own predicate although <see cref="CanBreakConflict"/> has the same body: the two gates answer
+    /// different questions and may part. The <see cref="IsControllable"/> guard keeps surface live-traffic shadows
+    /// out, as in <see cref="CanPushBack"/>.
+    /// </summary>
+    public static bool CanHoldShort(IMenuAircraft? ac) => IsControllable(ac) && (ac.CurrentPhase ?? "") == "Taxiing";
+
+    /// <summary>
+    /// Follow another ground aircraft (<c>FOLLOWG</c>) — offered at parking (start up and trail), while taxiing and in
+    /// the three stationary holds, unless another on-ground aircraft is selected, when the relative items
+    /// (<see cref="RelativeTraffic.OffersGroundRelative"/>) replace it. The <see cref="IsControllable"/> guard keeps
+    /// surface live-traffic shadows out, as in <see cref="CanPushBack"/>.
+    /// </summary>
+    public static bool CanFollowBehind(IMenuAircraft? ac, MenuContext context)
+    {
+        if (!IsControllable(ac) || RelativeTraffic.OffersGroundRelative(ac, context))
+        {
+            return false;
+        }
+
+        return (ac.CurrentPhase ?? "") is "At Parking" or "Taxiing" or "Holding In Position" or "Holding After Exit" or "Holding After Pushback";
+    }
+
+    /// <summary>
+    /// Give way to another ground aircraft (<c>GW</c>), which needs an assigned taxi route: offered while taxiing and
+    /// holding in position, and in the after-exit and after-pushback holds only while the aircraft has an active taxi
+    /// route, since an aircraft resting after a runway exit or a push may have none. Never at parking, which has no
+    /// route; and, as with <see cref="CanFollowBehind"/>, not while the relative items replace it.
+    /// </summary>
+    public static bool CanGiveWayTo(IMenuAircraft? ac, MenuContext context)
+    {
+        if (!IsControllable(ac) || RelativeTraffic.OffersGroundRelative(ac, context))
+        {
+            return false;
+        }
+
+        string phase = ac.CurrentPhase ?? "";
+        return (phase is "Taxiing" or "Holding In Position")
+            || ((phase is "Holding After Exit" or "Holding After Pushback") && ac.HasActiveTaxiRoute);
+    }
+
     // --- Ground routing ---
 
     /// <summary>

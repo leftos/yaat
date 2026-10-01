@@ -7,6 +7,8 @@ using Yaat.Client.Views.Ground;
 using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar;
 using Yaat.Client.Views.Radar.Flyouts;
+using Yaat.Sim;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.Views;
 
@@ -23,6 +25,12 @@ internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainVi
 
     /// <summary>The message both hidden-datablock members throw: only the ground view's menu hides data blocks.</summary>
     private const string NoHideDataBlockItem = "The radar menu has no hide datablock item; only the ground view hides data blocks from its menu";
+
+    /// <summary>The message the ground-traffic member throws: only the ground view offers the follow and give-way submenus.</summary>
+    private const string NoGroundTrafficItems = "The radar menu has no ground follow or give way items; only the ground view lists ground traffic";
+
+    /// <summary>The message both hold-short members throw: only the ground view offers hold short and previews its route.</summary>
+    private const string NoHoldShortItem = "The radar menu has no hold short item; only the ground view offers hold short and previews taxi routes";
 
     public Task SendAsync(string callsign, string command, string initials) => radar.SendRawCommandAsync(callsign, initials, command);
 
@@ -85,6 +93,12 @@ internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainVi
 
     public void ToggleHiddenDataBlock(string callsign) => throw new NotSupportedException(NoHideDataBlockItem);
 
+    public IReadOnlyList<string> GetGroundTrafficCallsigns(string callsign) => throw new NotSupportedException(NoGroundTrafficItems);
+
+    public IReadOnlyList<MenuCommandChoice> GetHoldShortChoices(string callsign) => throw new NotSupportedException(NoHoldShortItem);
+
+    public void SetRoutePreview(TaxiRoute? route) => throw new NotSupportedException(NoHoldShortItem);
+
     public MenuItem BuildFavorites(IMenuAircraft? menuAircraft, MenuContext context) =>
         FavoritesContextMenu.Build(main, aircraft, context.Callsign, context.Initials);
 }
@@ -93,7 +107,9 @@ internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainVi
 /// The ground view's <see cref="IMenuHost"/>, built per right-click: commands go through the ground view model's send
 /// path, the taxi-route mode reads and drives the ground view model, the data-block hide and reset read and drive the
 /// ground canvas, the measure item latches the ground view model's measurement, route drawing starts a taxi route for
-/// the right-clicked aircraft, and favorites are built for the right-clicked aircraft model. The ground has no input,
+/// the right-clicked aircraft, the follow and give-way submenus list the main view model's other ground traffic, hold
+/// short asks the ground view model for the route's targets and previews the route to one on hover, and favorites are
+/// built for the right-clicked aircraft model. The ground has no input,
 /// list, filtered-list or warp popup, no fix or altitude picker, no flight-plan item, and no mini data block or nav
 /// route.
 /// </summary>
@@ -116,15 +132,7 @@ internal sealed class GroundMenuHost(GroundView view, GroundViewModel ground, Ma
     public double GetFieldElevation(string? destination) =>
         throw new NotSupportedException("The ground view builds no altitude picker; ground menus never read a field elevation");
 
-    public void EnterDrawRoute(string callsign)
-    {
-        if (aircraft is null || !string.Equals(aircraft.Callsign, callsign, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException($"The ground view draws a taxi route only for the right-clicked aircraft, not '{callsign}'");
-        }
-
-        ground.StartDrawRoute(aircraft);
-    }
+    public void EnterDrawRoute(string callsign) => ground.StartDrawRoute(RequireMenuAircraft(callsign));
 
     public void ShowWarpPopup(string callsign, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit) =>
         throw new NotSupportedException("The ground view has no warp popup; ground menus never build the warp item");
@@ -190,6 +198,64 @@ internal sealed class GroundMenuHost(GroundView view, GroundViewModel ground, Ma
     }
 
     /// <summary>
+    /// The other on-ground aircraft in the main view model's list, nearest the right-clicked aircraft first and at most
+    /// <see cref="MaxGroundTraffic"/>; empty without a main view model.
+    /// </summary>
+    public IReadOnlyList<string> GetGroundTrafficCallsigns(string callsign)
+    {
+        AircraftModel ac = RequireMenuAircraft(callsign);
+        if (main is null)
+        {
+            return [];
+        }
+
+        return
+        [
+            .. main
+                .Aircraft.Where(other => (other.Callsign != callsign) && other.IsOnGround)
+                .OrderBy(other => GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, other.Position.Lat, other.Position.Lon))
+                .Take(MaxGroundTraffic)
+                .Select(other => other.Callsign),
+        ];
+    }
+
+    /// <summary>
+    /// The ground view model's hold-short targets on the right-clicked aircraft's route, each sending <c>HS</c> with its
+    /// route preview.
+    /// </summary>
+    public IReadOnlyList<MenuCommandChoice> GetHoldShortChoices(string callsign)
+    {
+        AircraftModel ac = RequireMenuAircraft(callsign);
+        return
+        [
+            .. ground
+                .GetHoldShortTargets(ac)
+                .Select(t => new MenuCommandChoice(t.DisplayName, $"HS {t.Target}", ground.FindHoldShortPreviewRoute(ac, t.Target))),
+        ];
+    }
+
+    public void SetRoutePreview(TaxiRoute? route) => ground.PreviewRoute = route;
+
+    /// <summary>The most aircraft the Follow… and Give way to… submenus list.</summary>
+    private const int MaxGroundTraffic = 12;
+
+    /// <summary>
+    /// The right-clicked aircraft, which must be <paramref name="callsign"/>'s: route drawing and the movement submenus
+    /// act on no other.
+    /// </summary>
+    private AircraftModel RequireMenuAircraft(string callsign)
+    {
+        if ((aircraft is null) || (!string.Equals(aircraft.Callsign, callsign, StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException(
+                $"The ground view draws routes and builds movement submenus only for the right-clicked aircraft, not '{callsign}'"
+            );
+        }
+
+        return aircraft;
+    }
+
+    /// <summary>
     /// Throws when <paramref name="callsign"/> is not the right-clicked aircraft's. A menu opened on an aircraft the
     /// main view model has no model for (<c>aircraft</c> is null) still reads and drives its display by callsign.
     /// </summary>
@@ -218,6 +284,10 @@ internal sealed class ListMenuHost(MainViewModel main, AircraftModel aircraft) :
     /// <summary>The message every ground display member throws: the list draws no taxi routes or data blocks.</summary>
     private const string NoGroundDisplayItems =
         "The aircraft list has no ground display; list menus never build the taxi route or hide datablock items";
+
+    /// <summary>The message every ground-movement member throws: the list has no ground map to list traffic or preview routes on.</summary>
+    private const string NoGroundMovementItems =
+        "The aircraft list has no ground map; list menus never build the hold short, follow or give way submenus";
 
     public Task SendAsync(string callsign, string command, string initials) => main.Connection.SendCommandAsync(callsign, command, initials);
 
@@ -267,6 +337,12 @@ internal sealed class ListMenuHost(MainViewModel main, AircraftModel aircraft) :
     public bool IsDataBlockHidden(string callsign) => throw new NotSupportedException(NoGroundDisplayItems);
 
     public void ToggleHiddenDataBlock(string callsign) => throw new NotSupportedException(NoGroundDisplayItems);
+
+    public IReadOnlyList<string> GetGroundTrafficCallsigns(string callsign) => throw new NotSupportedException(NoGroundMovementItems);
+
+    public IReadOnlyList<MenuCommandChoice> GetHoldShortChoices(string callsign) => throw new NotSupportedException(NoGroundMovementItems);
+
+    public void SetRoutePreview(TaxiRoute? route) => throw new NotSupportedException(NoGroundMovementItems);
 
     public MenuItem BuildFavorites(IMenuAircraft? menuAircraft, MenuContext context) =>
         FavoritesContextMenu.Build(main, aircraft, context.Callsign, context.Initials);

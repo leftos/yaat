@@ -406,6 +406,15 @@ public static class MenuIds
     /// <summary>Override the ground-conflict speed limit (<c>BREAK</c>).</summary>
     public const string GroundBreakConflict = "ground.break-conflict";
 
+    /// <summary>Hold short of a runway or taxiway on the taxi route (<c>HS</c>), from the route's targets.</summary>
+    public const string GroundHoldShort = "ground.hold-short";
+
+    /// <summary>Follow another ground aircraft (<c>FOLLOWG</c>), from the nearest ground traffic.</summary>
+    public const string GroundFollow = "ground.follow";
+
+    /// <summary>Give way to another ground aircraft (<c>GW</c>), from the nearest ground traffic.</summary>
+    public const string GroundGiveWay = "ground.give-way";
+
     /// <summary>The selected aircraft follows the right-clicked one on the ground (<c>FOLLOWG</c>).</summary>
     public const string GroundRelativeFollow = "ground.relative-follow";
 

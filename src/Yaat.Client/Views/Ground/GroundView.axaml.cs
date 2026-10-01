@@ -653,7 +653,7 @@ public partial class GroundView : UserControl
         SharedMenuGroups.AddGroundRelative(menu.Items, ac, context, host);
         AddParkingAndTaxiItems(menu, vm, target, context, host);
         SharedMenuGroups.AddGroundClearances(menu.Items, ac, context, host);
-        AddHoldFollowSubmenus(menu, target, context);
+        SharedMenuGroups.AddGroundFollowAndGiveWay(menu.Items, ac, context, host, GroundFollowPosition.Hold);
         SharedMenuGroups.AddGroundLanding(menu.Items, ac, context, host);
 
         if (AircraftCommandApplicability.CanDrawTaxiRoute(ac))
@@ -679,15 +679,14 @@ public partial class GroundView : UserControl
     }
 
     /// <summary>
-    /// At Parking / Holding After Pushback (push back variants and push route) plus At Parking's follow submenus,
-    /// hold position for every phase the sim accepts HOLD from, and Taxiing's hold short, follow and break conflict.
-    /// When a different on-ground aircraft is selected, the relative items replace the Follow… / Give way to… submenus.
+    /// At Parking / Holding After Pushback (push back variants and push route) plus At Parking's follow submenu,
+    /// hold position for every phase the sim accepts HOLD from, and Taxiing's hold short, follow, give way and break
+    /// conflict. When a different on-ground aircraft is selected, the relative items replace the Follow… / Give way to…
+    /// submenus.
     /// </summary>
-    private void AddParkingAndTaxiItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target, MenuContext context, IMenuHost host)
+    private static void AddParkingAndTaxiItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target, MenuContext context, IMenuHost host)
     {
         (AircraftModel? ac, AircraftModel? _, string callsign, string initials) = target;
-        string phase = ac?.CurrentPhase ?? "";
-        bool isRelative = RelativeTraffic.OffersGroundRelative(ac, context);
 
         if (SharedMenuGroups.AddIfApplicable(menu.Items, MenuIds.GroundPushback, ac, context, host) && ac is not null)
         {
@@ -714,109 +713,18 @@ public partial class GroundView : UserControl
                 )
             );
 
-            // A parked aircraft can start up and trail another ground aircraft, but
-            // give-way needs an assigned taxi route, which a parked aircraft never has.
-            // Holding After Pushback gets its follow submenus from AddHoldFollowSubmenus, which
-            // decides give-way from the route it may have; adding them here would duplicate.
-            if (phase == "At Parking" && !isRelative)
-            {
-                AddFollowBehindSubmenus(menu, ac, callsign, initials, includeGiveWay: false);
-            }
+            // A parked aircraft can start up and trail another ground aircraft; the Parking position offers no
+            // give-way, which needs a taxi route. Holding After Pushback gets its follow submenus from the Hold
+            // position after the clearances, which decides give-way from the route it may have.
+            SharedMenuGroups.AddGroundFollowAndGiveWay(menu.Items, ac, context, host, GroundFollowPosition.Parking);
         }
 
         // The single emission for the whole HOLD window, taxi-follow phases included — those emit
         // nothing of their own before this item, so it stays the first item they show.
         SharedMenuGroups.AddIfApplicable(menu.Items, MenuIds.GroundHoldPosition, ac, context, host);
-
-        if (phase == "Taxiing" && ac is not null)
-        {
-            AddHoldShortSubmenu(menu, vm, ac, callsign, initials);
-            if (!isRelative)
-            {
-                AddFollowBehindSubmenus(menu, ac, callsign, initials, includeGiveWay: true);
-            }
-        }
-
+        SharedMenuGroups.AddGroundHoldShort(menu.Items, ac, context, host);
+        SharedMenuGroups.AddGroundFollowAndGiveWay(menu.Items, ac, context, host, GroundFollowPosition.Taxi);
         SharedMenuGroups.AddIfApplicable(menu.Items, MenuIds.GroundBreakConflict, ac, context, host);
-    }
-
-    /// <summary>
-    /// The Follow… / Give way to… submenus of Holding In Position and the after-exit / after-pushback holds, which
-    /// follow their Resume taxi item; none while the relative items replace them.
-    /// </summary>
-    private void AddHoldFollowSubmenus(ContextMenu menu, GroundMenuTarget target, MenuContext context)
-    {
-        (AircraftModel? ac, AircraftModel? _, string callsign, string initials) = target;
-        if (ac is null || RelativeTraffic.OffersGroundRelative(ac, context))
-        {
-            return;
-        }
-
-        string phase = ac.CurrentPhase ?? "";
-        if (phase == "Holding In Position")
-        {
-            AddFollowBehindSubmenus(menu, ac, callsign, initials, includeGiveWay: true);
-        }
-        else if (phase is "Holding After Exit" or "Holding After Pushback")
-        {
-            // An aircraft resting after a push or a runway exit may or may not have a taxi route,
-            // and give-way needs one — so unlike the Holding In Position branch this keys off the route.
-            AddFollowBehindSubmenus(menu, ac, callsign, initials, includeGiveWay: ac.HasActiveTaxiRoute);
-        }
-    }
-
-    /// <summary>
-    /// Adds "Follow..." and (when <paramref name="includeGiveWay"/>) "Give way to..." submenus
-    /// listing other ground aircraft (sorted by distance, capped at 12). Skips when no other
-    /// ground aircraft are present. Give-way requires an assigned taxi route, so callers whose
-    /// phase cannot have one (At Parking) pass false.
-    /// </summary>
-    private void AddFollowBehindSubmenus(ContextMenu menu, AircraftModel ac, string callsign, string initials, bool includeGiveWay)
-    {
-        MainViewModel? mainVm = FindMainViewModel();
-        if (mainVm is null || DataContext is not GroundViewModel vm)
-        {
-            return;
-        }
-
-        var candidates = new List<(AircraftModel Other, double DistNm)>();
-        foreach (AircraftModel other in mainVm.Aircraft)
-        {
-            if (other.Callsign == callsign || !other.IsOnGround)
-            {
-                continue;
-            }
-
-            double dist = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, other.Position.Lat, other.Position.Lon);
-            candidates.Add((other, dist));
-        }
-
-        if (candidates.Count == 0)
-        {
-            return;
-        }
-
-        candidates.Sort((a, b) => a.DistNm.CompareTo(b.DistNm));
-        const int maxItems = 12;
-        if (candidates.Count > maxItems)
-        {
-            candidates = candidates.GetRange(0, maxItems);
-        }
-
-        var followSub = new MenuItem { Header = "Follow..." };
-        var giveSub = new MenuItem { Header = "Give way to..." };
-        foreach ((AircraftModel? other, double _) in candidates)
-        {
-            string target = other.Callsign;
-            followSub.Items.Add(CreateMenuItem(target, () => vm.SendRawCommandAsync(callsign, initials, $"FOLLOWG {target}")));
-            giveSub.Items.Add(CreateMenuItem(target, () => vm.SendRawCommandAsync(callsign, initials, $"GW {target}")));
-        }
-
-        menu.Items.Add(followSub);
-        if (includeGiveWay)
-        {
-            menu.Items.Add(giveSub);
-        }
     }
 
     /// <summary>
@@ -1373,32 +1281,6 @@ public partial class GroundView : UserControl
 
     private static void AttachPreviewHover(MenuItem item, GroundViewModel vm, TaxiRoute route) =>
         item.PointerEntered += (_, _) => vm.PreviewRoute = route;
-
-    private static void AddHoldShortSubmenu(ContextMenu menu, GroundViewModel vm, AircraftModel ac, string callsign, string initials)
-    {
-        List<(string DisplayName, string Target)> targets = vm.GetHoldShortTargets(ac);
-        if (targets.Count == 0)
-        {
-            return;
-        }
-
-        var parent = new MenuItem { Header = "Hold short of..." };
-        foreach ((string? displayName, string? target) in targets)
-        {
-            string t = target;
-            MenuItem item = CreateMenuItem(displayName, () => vm.HoldShortAsync(callsign, initials, t));
-
-            TaxiRoute? previewRoute = vm.FindHoldShortPreviewRoute(ac, t);
-            if (previewRoute is not null)
-            {
-                AttachPreviewHover(item, vm, previewRoute);
-            }
-
-            parent.Items.Add(item);
-        }
-
-        menu.Items.Add(parent);
-    }
 
     private static MenuItem CreateMenuItem(string header, Func<Task> action)
     {
