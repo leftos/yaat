@@ -180,6 +180,8 @@ Shared files: `RunwaySafetyAdvisor.cs`, yaat-server `LiveTraffic/`, `docs/plans/
 
 Shared files: root `*.md`, `docs/scenario-validation-known-failures.md`, solution-wide `dotnet format`. Gate: none.
 
+- [ ] `docs/command-input-ux.md` cites stale `MainViewModel.cs` line numbers: ~:177 gives `:1691 → 1710 → 1727` for the macro/prefix/rewrite steps, which are now ~:2572 → 2589 → 2609; ~:189 (`OnCommandTextChanged` at `:1592`) is unchecked. ~:192 omits that recall history also records chat and dot commands with an empty callsign (`MainViewModel.cs` ~:2468, ~:2509). Cite symbols instead of line numbers (explorer, 2026-10-01)
+
 - [ ] Small code hygiene left from the ERAM #465–#468 session (2026-09-28):
   - `src/Yaat.Sim/Simulation/SimulationEngine.TrackAutomation.cs:615` is 165 characters (limit 150); rewrap it.
   - yaat-server `tests/Yaat.Server.Tests/AutoTrackAltitudeTests.cs` `Load` blocks with `.GetAwaiter().GetResult()`; make it async and the tests `async Task`, as `AutoTrackClearedAltitudeDtoTests` already is.
