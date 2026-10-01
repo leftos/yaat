@@ -325,6 +325,36 @@ public sealed class AtcOuroborosTests
         Assert.Equal(results.Totals, back.Totals);
     }
 
+    [Fact]
+    public void Serialize_WritesLfLineEndingsOnly()
+    {
+        AtcOuroborosResults results = Results([Family("HeadingRules", 3, 4)], [Template("fh", "HeadingRules", 3, 4)], [Gap("cm")]);
+
+        string full = AtcOuroborosAnalysis.Serialize(results);
+        string baseline = AtcOuroborosAnalysis.Serialize(AtcOuroborosAnalysis.ToBaseline(results));
+
+        Assert.Contains("\n", full);
+        Assert.DoesNotContain("\r", full);
+        Assert.Contains("\n", baseline);
+        Assert.DoesNotContain("\r", baseline);
+    }
+
+    [Fact]
+    public void BuildReport_WritesLfLineEndingsOnly()
+    {
+        AtcOuroborosResults results = Results([Family("HeadingRules", 3, 4)], [Template("fh", "HeadingRules", 3, 4)], [Gap("cm")]);
+        AtcOuroborosResults baseline = Results([Family("HeadingRules", 4, 4)], [Template("fh", "HeadingRules", 4, 4)], []);
+        BaselineDiffResult diff = AtcOuroborosAnalysis.Compare(baseline, results);
+
+        string withDiff = AtcOuroborosRunner.BuildReport(results, diff, "Compared with `baseline.json`.");
+        string withoutDiff = AtcOuroborosRunner.BuildReport(results, null, "No baseline at `baseline.json`.");
+
+        Assert.Contains("\n", withDiff);
+        Assert.DoesNotContain("\r", withDiff);
+        Assert.Contains("\n", withoutDiff);
+        Assert.DoesNotContain("\r", withoutDiff);
+    }
+
     private static readonly SynthTemplate Good = new("good", "HeadingRules", "fly heading {hdg}", "FH {hdg}");
 
     // Spoken as "fly heading" but labeled as a right turn — the rule mapper can never agree.

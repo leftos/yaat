@@ -37,7 +37,8 @@ public sealed record AtcAggregate(IReadOnlyList<FamilyResult> Families, IReadOnl
 [JsonSourceGenerationOptions(
     WriteIndented = true,
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
-    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    NewLine = "\n"
 )]
 internal sealed partial class AtcOuroborosJsonContext : JsonSerializerContext;
 

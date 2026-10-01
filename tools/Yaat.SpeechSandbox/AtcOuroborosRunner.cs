@@ -19,7 +19,7 @@ namespace Yaat.SpeechSandbox;
 /// <c>report.md</c> into the out dir. Exit codes: 0 no regression (or no baseline), 3 regression,
 /// 2 usage / setup error.
 /// </summary>
-internal static class AtcOuroborosRunner
+public static class AtcOuroborosRunner
 {
     /// <summary>The committed seed every default run (and the baseline) uses.</summary>
     public const int DefaultSeed = 20260928;
@@ -191,7 +191,11 @@ internal static class AtcOuroborosRunner
 
     private static string FormatWer(double? wer) => wer is null ? "n/a" : wer.Value.ToString("P1", CultureInfo.InvariantCulture);
 
-    private static async Task WriteReportAsync(Options options, AtcOuroborosResults results, BaselineDiffResult? diff, string baselineNote)
+    private static Task WriteReportAsync(Options options, AtcOuroborosResults results, BaselineDiffResult? diff, string baselineNote) =>
+        File.WriteAllTextAsync(Path.Combine(options.OutDir, "report.md"), BuildReport(results, diff, baselineNote));
+
+    /// <summary>Renders the <c>report.md</c> body for a finished run.</summary>
+    public static string BuildReport(AtcOuroborosResults results, BaselineDiffResult? diff, string baselineNote)
     {
         var report = new StringBuilder();
         report.AppendLine("# ATC ouroboros report");
@@ -235,7 +239,7 @@ internal static class AtcOuroborosRunner
         }
         report.AppendLine();
         AppendDiff(report, diff, baselineNote);
-        await File.WriteAllTextAsync(Path.Combine(options.OutDir, "report.md"), report.ToString()).ConfigureAwait(false);
+        return report.ToString().ReplaceLineEndings("\n");
     }
 
     private static void AppendDiff(StringBuilder report, BaselineDiffResult? diff, string baselineNote)
