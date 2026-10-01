@@ -41,8 +41,8 @@ per room. Each wall-clock tick (`RunTickLoop`, `:92`):
      the relative +15/−15 skips. The end-of-tape branch sets the paused state first, so that final tick's broadcast
      carries `IsPaused = true`. (Issue #209: previously elapsed only reached clients on pause/unpause/rewind/end.)
 3. After the loop budget check (`TickBudgetMs = 800`, logs a warning if exceeded, `:181`).
-4. **After the all-rooms loop**: `DetectChanges(allRooms)` (`:190`) then `await BroadcastUpdates(allRooms)` (`:191`),
-   which fans out to training clients, admins, and CRC (`:224`). `DetectChanges` also runs `AtpaEvaluator.EvaluateRoom`
+4. **After the all-rooms loop**: `await DetectChangesAsync(allRooms, ct)` (`:138`) then `await BroadcastUpdates(allRooms)` (`:139`),
+   which fans out to training clients, admins, and CRC (`:242`). `DetectChangesAsync` takes each room's tick gate around that room's snapshot and diff, as a separate acquisition from `ProcessRoomSecond`'s (so the tick budget does not time it and a paused room still gets its detection pass): a hub-side `ChangeTracker.Remove`/`Clear`, which runs under the gate, can then never land mid-pass and have the pass re-add the removed aircraft (pin: `ChangeDetectionTests.DetectChangesPass_WhileTheRoomGateIsHeld_WaitsForIt`). The broadcast stays outside the gate. `DetectChangesAsync` also runs `AtpaEvaluator.EvaluateRoom`
    per un-suppressed room — one `AtpaProcessor.Process` per wall-tick cached on `TrainingRoom.AtpaResults` for both the
    CRC pass and the signature-guarded `AtpaResultsChanged` training push (`TrainingRoom.LastBroadcastAtpaSignature`).
 5. Every minute (`PausedRetirementSweepInterval`, `:34`) runs `ScenarioLifecycleService.RetirePausedRoomsAsync` (`:196`) to evict rooms left paused past the threshold, skipping a room whose scenario load holds its load flag until the next sweep.
@@ -214,8 +214,8 @@ wire DTO but **not** in this struct will broadcast on initial join (the full man
 
 `ExternalStarsFingerprint` (`:76`) is computed differently: duplicate-beacon and ATPA values aren't derivable from
 `AircraftState` alone, so they are compared in a **separate pass** (`UpdateExternalStarsState`, `:315`) during the CRC
-broadcast, after `DetectChanges` has already run. `Remove(callsign)` / `Clear()` (`:340`/`:342`) maintain the dictionary
-as aircraft leave / the room resets.
+broadcast, after `DetectChanges` has already run. `Remove(callsign)` / `Clear()` maintain the dictionary
+as aircraft leave / the room resets; every caller runs under the room's tick gate, which the detection pass also holds.
 
 ## `TrainingBroadcastService` — the fan-out (`Simulation/TrainingBroadcastService.cs`)
 
@@ -232,10 +232,10 @@ Implements `ITrainingBroadcast` (`Simulation/ITrainingBroadcast.cs`). Two parall
   `BroadcastAircraftDeleted`, `BroadcastSimState`, `BroadcastWeatherChanged`, the terminal/pilot-transmission broadcasts)
   early-return on `room.IsBroadcastSuppressed`; the per-tick `BroadcastTrainingUpdates` guards each room the same way, but
   the admin path (`BroadcastAdminUpdates` / `BroadcastRoomToAdmin`) only guards on `scenario is null` — suppressed rooms
-  reach it carrying an empty `TickChanges` because `RoomTickLoopService.DetectChanges` (`:212`) skips them when
+  reach it carrying an empty `TickChanges` because `RoomTickLoopService.DetectChangesAsync` (`:207`) skips them when
   populating per-tick flags, so nothing aircraft-shaped is sent for them.
 - **CRC connections** — `CrcBroadcastService.BroadcastUpdatesAsync` runs in the same after-the-loop, *un-gated* phase as
-  `DetectChanges`/`BroadcastUpdates`, but it snapshots `room.World` itself rather than reading `TickChanges`. It must
+  `BroadcastUpdates` (only the detection pass before it is gated), but it snapshots `room.World` itself rather than reading `TickChanges`. It must
   therefore skip `room.IsBroadcastSuppressed` rooms explicitly (alongside `scenario is null`) — otherwise a rewind /
   recording reload, which tears the world down and briefly repopulates it with the full initial scenario before restoring
   the target snapshot, leaks those transient aircraft to CRC as additive `ReceiveStarsTracks` adds that never get deleted
