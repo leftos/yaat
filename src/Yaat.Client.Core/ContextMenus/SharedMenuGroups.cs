@@ -5,7 +5,7 @@ namespace Yaat.Client.ContextMenus;
 /// <summary>
 /// The groups more than one surface builds — live traffic, track, squawk, ask pilot, coordination, data block,
 /// sim control, display, favorites, and the flight groups heading, altitude, speed, navigation (with Draw route),
-/// hold, approach, procedures and tower — assembled from <see cref="MenuCatalog"/> entries. Only track, squawk and ask pilot keep a
+/// hold, approach, procedures, tower and pattern — assembled from <see cref="MenuCatalog"/> entries. Only track, squawk and ask pilot keep a
 /// <see cref="MenuView"/> variant: the radar carries input pickers (handoff, point out, squawk code, custom say) the
 /// other surfaces leave out, and sends <c>ID</c> for Ident where the others send <c>IDENT</c>. Data block, sim
 /// control, display and the flight groups are built by the radar today, so they take no view. Whether a group is
@@ -367,6 +367,72 @@ public static class SharedMenuGroups
         MenuIds.TowerGoAround,
         MenuIds.TowerCancelLanding,
     ];
+
+    /// <summary>
+    /// The Pattern submenu, state-aware: the pattern entries that apply, each with its "(other)" runway picker beside an
+    /// assigned runway, then the leg turns, the spacing adjustments, the orbits and Circle airport, each block after a
+    /// separator when it has an item and items precede it. Null when nothing applies, so the caller omits the submenu.
+    /// </summary>
+    public static MenuItem? Pattern(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        var menu = new MenuItem { Header = "Pattern" };
+        foreach (string id in PatternEntryIds)
+        {
+            if (IsApplicable(id, aircraft, context))
+            {
+                menu.Items.Add(Leaf(id, aircraft, context, host));
+                AddCompanion(menu.Items, MenuCatalog.BuildPatternEntryOther(id, aircraft, context, host));
+            }
+        }
+
+        foreach (string[] block in PatternManeuverBlocks)
+        {
+            AddBlockIfAnyApplies(menu.Items, block, aircraft, context, host);
+        }
+
+        return menu.Items.Count > 0 ? menu : null;
+    }
+
+    /// <summary>The Pattern submenu's entries, in menu order.</summary>
+    private static readonly string[] PatternEntryIds =
+    [
+        MenuIds.PatternEnterLeftDownwind,
+        MenuIds.PatternEnterRightDownwind,
+        MenuIds.PatternEnterLeftBase,
+        MenuIds.PatternEnterRightBase,
+        MenuIds.PatternEnterFinal,
+    ];
+
+    /// <summary>The Pattern submenu's maneuver blocks, in menu order: leg turns, spacing, orbits, then Circle airport.</summary>
+    private static readonly string[][] PatternManeuverBlocks =
+    [
+        [MenuIds.PatternTurnCrosswind, MenuIds.PatternTurnDownwind, MenuIds.PatternTurnBase],
+        [MenuIds.PatternExtend, MenuIds.PatternShortApproach, MenuIds.PatternNormalApproach],
+        [
+            MenuIds.PatternLeft360,
+            MenuIds.PatternRight360,
+            MenuIds.PatternLeft270,
+            MenuIds.PatternRight270,
+            MenuIds.PatternPlan270,
+            MenuIds.PatternCancel270,
+        ],
+        [MenuIds.PatternCircleAirport],
+    ];
+
+    /// <summary>Adds the applicable entries of <paramref name="ids"/> after a separator when items precede them; nothing when none applies.</summary>
+    private static void AddBlockIfAnyApplies(ItemCollection items, string[] ids, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        if (!ids.Any(id => IsApplicable(id, aircraft, context)))
+        {
+            return;
+        }
+
+        AddSeparatorIfNonEmpty(items);
+        foreach (string id in ids)
+        {
+            AddIfApplicable(items, id, aircraft, context, host);
+        }
+    }
 
     private static bool IsApplicable(string id, IMenuAircraft? aircraft, MenuContext context) => MenuCatalog.Get(id).IsApplicable(aircraft, context);
 

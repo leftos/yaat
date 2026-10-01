@@ -333,4 +333,58 @@ public static class MenuIds
 
     /// <summary>Exit the runway to the right (<c>ER</c>).</summary>
     public const string TowerExitRight = "tower.exit-right";
+
+    /// <summary>Enter a left downwind (<c>ELD</c>, with or without a runway).</summary>
+    public const string PatternEnterLeftDownwind = "pattern.enter-left-downwind";
+
+    /// <summary>Enter a right downwind (<c>ERD</c>, with or without a runway).</summary>
+    public const string PatternEnterRightDownwind = "pattern.enter-right-downwind";
+
+    /// <summary>Enter a left base (<c>ELB</c>, with or without a runway).</summary>
+    public const string PatternEnterLeftBase = "pattern.enter-left-base";
+
+    /// <summary>Enter a right base (<c>ERB</c>, with or without a runway).</summary>
+    public const string PatternEnterRightBase = "pattern.enter-right-base";
+
+    /// <summary>Enter a straight-in final (<c>EF</c>, with or without a runway).</summary>
+    public const string PatternEnterFinal = "pattern.enter-final";
+
+    /// <summary>Turn crosswind (<c>TC</c>).</summary>
+    public const string PatternTurnCrosswind = "pattern.turn-crosswind";
+
+    /// <summary>Turn downwind (<c>TD</c>).</summary>
+    public const string PatternTurnDownwind = "pattern.turn-downwind";
+
+    /// <summary>Turn base (<c>TB</c>).</summary>
+    public const string PatternTurnBase = "pattern.turn-base";
+
+    /// <summary>Extend the pattern leg (<c>EXT</c>).</summary>
+    public const string PatternExtend = "pattern.extend";
+
+    /// <summary>Make a short approach (<c>MSA</c>).</summary>
+    public const string PatternShortApproach = "pattern.short-approach";
+
+    /// <summary>Make a normal approach (<c>MNA</c>).</summary>
+    public const string PatternNormalApproach = "pattern.normal-approach";
+
+    /// <summary>Make a left 360 (<c>L360</c>).</summary>
+    public const string PatternLeft360 = "pattern.left-360";
+
+    /// <summary>Make a right 360 (<c>R360</c>).</summary>
+    public const string PatternRight360 = "pattern.right-360";
+
+    /// <summary>Make a left 270 (<c>L270</c>).</summary>
+    public const string PatternLeft270 = "pattern.left-270";
+
+    /// <summary>Make a right 270 (<c>R270</c>).</summary>
+    public const string PatternRight270 = "pattern.right-270";
+
+    /// <summary>Plan a 270 at the next turn (<c>P270</c>).</summary>
+    public const string PatternPlan270 = "pattern.plan-270";
+
+    /// <summary>Cancel a planned 270 (<c>NO270</c>).</summary>
+    public const string PatternCancel270 = "pattern.cancel-270";
+
+    /// <summary>Circle the airport (<c>CA</c>).</summary>
+    public const string PatternCircleAirport = "pattern.circle-airport";
 }

@@ -1326,49 +1326,6 @@ public partial class RadarViewModel(
         await _sendCommand(callsign, cmd, initials);
     }
 
-    // --- Pattern entry ---
-
-    public async Task EnterLeftDownwindAsync(string callsign, string initials, string? runway) =>
-        await _sendCommand(callsign, runway is not null ? $"ELD {runway}" : "ELD", initials);
-
-    public async Task EnterRightDownwindAsync(string callsign, string initials, string? runway) =>
-        await _sendCommand(callsign, runway is not null ? $"ERD {runway}" : "ERD", initials);
-
-    public async Task EnterLeftBaseAsync(string callsign, string initials, string? runway) =>
-        await _sendCommand(callsign, runway is not null ? $"ELB {runway}" : "ELB", initials);
-
-    public async Task EnterRightBaseAsync(string callsign, string initials, string? runway) =>
-        await _sendCommand(callsign, runway is not null ? $"ERB {runway}" : "ERB", initials);
-
-    public async Task EnterFinalAsync(string callsign, string initials, string? runway) =>
-        await _sendCommand(callsign, runway is not null ? $"EF {runway}" : "EF", initials);
-
-    public async Task TurnCrosswindAsync(string callsign, string initials) => await _sendCommand(callsign, "TC", initials);
-
-    public async Task TurnDownwindAsync(string callsign, string initials) => await _sendCommand(callsign, "TD", initials);
-
-    public async Task TurnBaseAsync(string callsign, string initials) => await _sendCommand(callsign, "TB", initials);
-
-    public async Task ExtendPatternAsync(string callsign, string initials) => await _sendCommand(callsign, "EXT", initials);
-
-    public async Task MakeShortApproachAsync(string callsign, string initials) => await _sendCommand(callsign, "MSA", initials);
-
-    public async Task MakeNormalApproachAsync(string callsign, string initials) => await _sendCommand(callsign, "MNA", initials);
-
-    public async Task MakeLeft360Async(string callsign, string initials) => await _sendCommand(callsign, "L360", initials);
-
-    public async Task MakeRight360Async(string callsign, string initials) => await _sendCommand(callsign, "R360", initials);
-
-    public async Task MakeLeft270Async(string callsign, string initials) => await _sendCommand(callsign, "L270", initials);
-
-    public async Task MakeRight270Async(string callsign, string initials) => await _sendCommand(callsign, "R270", initials);
-
-    public async Task Cancel270Async(string callsign, string initials) => await _sendCommand(callsign, "NO270", initials);
-
-    public async Task Plan270Async(string callsign, string initials) => await _sendCommand(callsign, "P270", initials);
-
-    public async Task CircleAirportAsync(string callsign, string initials) => await _sendCommand(callsign, "CA", initials);
-
     // --- Draw route ---
 
     public void EnterDrawRoute(string callsign)

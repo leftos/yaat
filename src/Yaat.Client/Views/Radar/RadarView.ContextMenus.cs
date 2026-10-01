@@ -182,7 +182,7 @@ public partial class RadarView
         }
 
         AddRelativeTrafficItems(menu, vm, prevSelected, callsign, initials);
-        AddAircraftCommandGroups(menu, vm, ac, context, host);
+        AddAircraftCommandGroups(menu, ac, context, host);
         return menu;
     }
 
@@ -205,14 +205,14 @@ public partial class RadarView
     /// the read-only ask-pilot queries stay out (<see cref="AircraftCommandApplicability.CanAskPilot"/>); everything
     /// else, Warp included, applies, because it goes through the command path and so auto-assumes the shadow first.
     /// </summary>
-    private void AddAircraftCommandGroups(ContextMenu menu, RadarViewModel vm, AircraftModel? ac, MenuContext context, RadarMenuHost host)
+    private void AddAircraftCommandGroups(ContextMenu menu, AircraftModel? ac, MenuContext context, RadarMenuHost host)
     {
         string callsign = context.Callsign;
         ContextMenuProfile profile = ContextMenuProfileService.GetProfile(ac?.CurrentPhase, ac?.IsOnGround ?? false);
 
         foreach (MenuGroup group in profile.PrimaryGroups)
         {
-            AddMenuGroup(menu, group, vm, ac, context, host);
+            AddMenuGroup(menu, group, ac, context, host);
         }
 
         if (profile.PrimaryGroups.Count > 0 && profile.SecondaryGroups.Count > 0)
@@ -222,7 +222,7 @@ public partial class RadarView
 
         foreach (MenuGroup group in profile.SecondaryGroups)
         {
-            AddMenuGroup(menu, group, vm, ac, context, host);
+            AddMenuGroup(menu, group, ac, context, host);
         }
 
         // Always-visible groups
@@ -352,18 +352,8 @@ public partial class RadarView
         return item;
     }
 
-    private static void AddSeparatorIfNonEmpty(MenuItem menu)
+    private static void AddMenuGroup(ContextMenu menu, MenuGroup group, AircraftModel? ac, MenuContext context, RadarMenuHost host)
     {
-        if (menu.Items.Count > 0)
-        {
-            menu.Items.Add(new Separator());
-        }
-    }
-
-    private void AddMenuGroup(ContextMenu menu, MenuGroup group, RadarViewModel vm, AircraftModel? ac, MenuContext context, RadarMenuHost host)
-    {
-        string cs = context.Callsign;
-        string init = context.Initials;
         switch (group)
         {
             case MenuGroup.Heading:
@@ -398,7 +388,7 @@ public partial class RadarView
                 }
                 break;
             case MenuGroup.Pattern:
-                MenuItem? pattern = BuildPatternSubmenu(vm, cs, init, ac);
+                MenuItem? pattern = SharedMenuGroups.Pattern(ac, context, host);
                 if (pattern is not null)
                 {
                     menu.Items.Add(pattern);
@@ -406,146 +396,6 @@ public partial class RadarView
                 break;
         }
     }
-
-    /// <summary>
-    /// Builds the Pattern submenu. Entries are offered to airborne aircraft being sequenced in;
-    /// maneuvers are leg-specific (turn-crosswind only from upwind, etc.). Pattern operations are
-    /// VFR-only unless the controller's "VFR commands for IFR aircraft" setting opens them up —
-    /// straight-in final under the default setting, the rest only under the full one. Returns null
-    /// when nothing applies.
-    /// </summary>
-    internal MenuItem? BuildPatternSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
-    {
-        VfrCommandsForIfr mode = VfrCommandsForIfrMode();
-        var menu = new MenuItem { Header = "Pattern" };
-        AddPatternEntryItems(menu, vm, cs, init, ac, mode);
-        AddPatternManeuverItems(menu, vm, cs, init, ac, mode);
-        return menu.Items.Count > 0 ? menu : null;
-    }
-
-    private void AddPatternManeuverItems(MenuItem menu, RadarViewModel vm, string cs, string init, AircraftModel? ac, VfrCommandsForIfr mode)
-    {
-        // Pattern maneuvers are valid only from specific legs of the circuit.
-        if (!AircraftCommandApplicability.CanIssuePatternManeuvers(ac, mode))
-        {
-            return;
-        }
-
-        string phase = ac?.CurrentPhase ?? "";
-
-        // Leg turns — each valid only from the preceding leg
-        var turns = new List<MenuItem>();
-        if (phase == "Upwind")
-        {
-            turns.Add(CreateMenuItem("Turn crosswind", () => vm.TurnCrosswindAsync(cs, init)));
-        }
-        if (phase == "Crosswind")
-        {
-            turns.Add(CreateMenuItem("Turn downwind", () => vm.TurnDownwindAsync(cs, init)));
-        }
-        if (phase == "Downwind")
-        {
-            turns.Add(CreateMenuItem("Turn base", () => vm.TurnBaseAsync(cs, init)));
-        }
-        AddManeuverGroup(menu, turns);
-
-        // Spacing adjustments
-        var spacing = new List<MenuItem>();
-        if (phase is "Upwind" or "Crosswind" or "Downwind")
-        {
-            spacing.Add(CreateMenuItem("Extend pattern leg", () => vm.ExtendPatternAsync(cs, init)));
-        }
-        if (phase is "Downwind" or "Base")
-        {
-            spacing.Add(CreateMenuItem("Make short approach", () => vm.MakeShortApproachAsync(cs, init)));
-            spacing.Add(CreateMenuItem("Make normal approach", () => vm.MakeNormalApproachAsync(cs, init)));
-        }
-        AddManeuverGroup(menu, spacing);
-
-        // 360 / 270 orbits — any pattern leg
-        var orbits = new List<MenuItem>();
-        if (AircraftCommandApplicability.IsPatternPhase(phase))
-        {
-            orbits.Add(CreateMenuItem("Make left 360", () => vm.MakeLeft360Async(cs, init)));
-            orbits.Add(CreateMenuItem("Make right 360", () => vm.MakeRight360Async(cs, init)));
-            orbits.Add(CreateMenuItem("Make left 270", () => vm.MakeLeft270Async(cs, init)));
-            orbits.Add(CreateMenuItem("Make right 270", () => vm.MakeRight270Async(cs, init)));
-        }
-        if (phase is "Upwind" or "Crosswind" or "Downwind" or "Base")
-        {
-            orbits.Add(CreateMenuItem("Plan 270 at next turn", () => vm.Plan270Async(cs, init)));
-            orbits.Add(CreateMenuItem("Cancel 270", () => vm.Cancel270Async(cs, init)));
-        }
-        AddManeuverGroup(menu, orbits);
-
-        // Circle the airport — any pattern leg
-        if (AircraftCommandApplicability.IsPatternPhase(phase))
-        {
-            AddManeuverGroup(menu, [CreateMenuItem("Circle airport", () => vm.CircleAirportAsync(cs, init))]);
-        }
-    }
-
-    private static void AddManeuverGroup(MenuItem menu, List<MenuItem> items)
-    {
-        if (items.Count == 0)
-        {
-            return;
-        }
-
-        AddSeparatorIfNonEmpty(menu);
-        foreach (MenuItem item in items)
-        {
-            menu.Items.Add(item);
-        }
-    }
-
-    private void AddPatternEntryItems(MenuItem menu, RadarViewModel vm, string cs, string init, AircraftModel? ac, VfrCommandsForIfr mode)
-    {
-        bool circuitLegs = AircraftCommandApplicability.CanEnterPattern(ac, mode);
-        bool straightIn = AircraftCommandApplicability.CanEnterFinal(ac, mode);
-        if (!circuitLegs && !straightIn)
-        {
-            return;
-        }
-
-        string? runwayAirport = ac is not null ? (!string.IsNullOrEmpty(ac.Destination) ? ac.Destination : ac.Departure) : null;
-        IReadOnlyList<string> runways = !string.IsNullOrEmpty(runwayAirport) ? RunwayDesignators.ForAirport(runwayAirport) : [];
-        string? defaultRunway = !string.IsNullOrEmpty(ac?.AssignedRunway) ? ac.AssignedRunway : null;
-
-        if (circuitLegs)
-        {
-            AddPatternEntry(menu, "Enter left downwind", runways, defaultRunway, rwy => vm.EnterLeftDownwindAsync(cs, init, rwy));
-            AddPatternEntry(menu, "Enter right downwind", runways, defaultRunway, rwy => vm.EnterRightDownwindAsync(cs, init, rwy));
-            AddPatternEntry(menu, "Enter left base", runways, defaultRunway, rwy => vm.EnterLeftBaseAsync(cs, init, rwy));
-            AddPatternEntry(menu, "Enter right base", runways, defaultRunway, rwy => vm.EnterRightBaseAsync(cs, init, rwy));
-        }
-
-        if (straightIn)
-        {
-            AddPatternEntry(menu, "Enter straight-in final", runways, defaultRunway, rwy => vm.EnterFinalAsync(cs, init, rwy));
-        }
-    }
-
-    private void AddPatternEntry(MenuItem menu, string baseLabel, IReadOnlyList<string> runways, string? defaultRunway, Func<string?, Task> action)
-    {
-        if (defaultRunway is not null)
-        {
-            menu.Items.Add(CreateMenuItem($"{baseLabel} {RunwayIdentifier.ToDisplayDesignator(defaultRunway)}", () => action(defaultRunway)));
-        }
-
-        if (runways.Count > 0)
-        {
-            string label = defaultRunway is not null ? $"{baseLabel} (other)..." : $"{baseLabel}...";
-            var items = runways.Cast<object>().ToList();
-            menu.Items.Add(CreateListMenuItem(label, items, items[0], val => action((string)val)));
-        }
-        else if (defaultRunway is null)
-        {
-            menu.Items.Add(CreateInputMenuItem($"{baseLabel}...", "Runway (optional)", input => action(NullIfEmpty(input))));
-        }
-    }
-
-    private static string? NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s;
 
     private void OnMapRightClicked(double lat, double lon, Point screenPos)
     {
@@ -718,37 +568,5 @@ public partial class RadarView
         }
 
         menu.Items.Add(new Separator());
-    }
-
-    private MenuItem CreateInputMenuItem(string header, string placeholder, Func<string, Task> action)
-    {
-        var item = new MenuItem { Header = header, Tag = new MenuPickerDescriptor(MenuPickerDescriptor.Input, []) };
-        item.Click += (_, _) =>
-        {
-            Dispatcher.UIThread.Post(() => ShowInputPopup(placeholder, action));
-        };
-        return item;
-    }
-
-    private MenuItem CreateListMenuItem(string header, IReadOnlyList<object> items, object? selectedValue, Func<object, Task> action)
-    {
-        var item = new MenuItem { Header = header, Tag = new MenuPickerDescriptor(MenuPickerDescriptor.List, ListPickerTexts(items)) };
-        item.Click += (_, _) =>
-        {
-            Dispatcher.UIThread.Post(() => ShowListPopup(items, selectedValue, action));
-        };
-        return item;
-    }
-
-    /// <summary>The display texts of a popup's values, as the popup itself shows them.</summary>
-    private static List<string> ListPickerTexts(IReadOnlyList<object> values)
-    {
-        var texts = new List<string>(values.Count);
-        foreach (object value in values)
-        {
-            texts.Add(value.ToString() ?? "");
-        }
-
-        return texts;
     }
 }

@@ -133,6 +133,24 @@ public class MenuCatalogCommandTests
         (MenuIds.TowerCancelLanding, "", "CLC"),
         (MenuIds.TowerExitLeft, "", "EL"),
         (MenuIds.TowerExitRight, "", "ER"),
+        (MenuIds.PatternEnterLeftDownwind, "28R", "ELD 28R"),
+        (MenuIds.PatternEnterRightDownwind, "28R", "ERD 28R"),
+        (MenuIds.PatternEnterLeftBase, "28R", "ELB 28R"),
+        (MenuIds.PatternEnterRightBase, "28R", "ERB 28R"),
+        (MenuIds.PatternEnterFinal, "28R", "EF 28R"),
+        (MenuIds.PatternTurnCrosswind, "", "TC"),
+        (MenuIds.PatternTurnDownwind, "", "TD"),
+        (MenuIds.PatternTurnBase, "", "TB"),
+        (MenuIds.PatternExtend, "", "EXT"),
+        (MenuIds.PatternShortApproach, "", "MSA"),
+        (MenuIds.PatternNormalApproach, "", "MNA"),
+        (MenuIds.PatternLeft360, "", "L360"),
+        (MenuIds.PatternRight360, "", "R360"),
+        (MenuIds.PatternLeft270, "", "L270"),
+        (MenuIds.PatternRight270, "", "R270"),
+        (MenuIds.PatternPlan270, "", "P270"),
+        (MenuIds.PatternCancel270, "", "NO270"),
+        (MenuIds.PatternCircleAirport, "", "CA"),
     ];
 
     /// <summary>
@@ -1086,6 +1104,161 @@ public class MenuCatalogCommandTests
         Assert.NotNull(cto);
         Assert.Equal("Cleared for takeoff", cto.Header as string);
         return [.. cto.Items.OfType<MenuItem>()];
+    }
+
+    /// <summary>Every leg of the circuit (<see cref="AircraftCommandApplicability.IsPatternPhase"/>), comma-separated.</summary>
+    private const string AllPatternLegs = "Pattern Entry,Upwind,Crosswind,Downwind,Base,MidfieldCrossing";
+
+    [AvaloniaTheory]
+    [InlineData("Turn crosswind", "Upwind", "Crosswind", "TC")]
+    [InlineData("Turn downwind", "Crosswind", "Upwind", "TD")]
+    [InlineData("Turn base", "Downwind", "Base", "TB")]
+    [InlineData("Extend pattern leg", "Upwind,Crosswind,Downwind", "Base", "EXT")]
+    [InlineData("Make short approach", "Downwind,Base", "Crosswind", "MSA")]
+    [InlineData("Make normal approach", "Downwind,Base", "Upwind", "MNA")]
+    [InlineData("Make left 360", AllPatternLegs, "FinalApproach", "L360")]
+    [InlineData("Make right 360", AllPatternLegs, "FinalApproach", "R360")]
+    [InlineData("Make left 270", AllPatternLegs, "FinalApproach", "L270")]
+    [InlineData("Make right 270", AllPatternLegs, "FinalApproach", "R270")]
+    [InlineData("Plan 270 at next turn", "Upwind,Crosswind,Downwind,Base", "Pattern Entry", "P270")]
+    [InlineData("Cancel 270", "Upwind,Crosswind,Downwind,Base", "MidfieldCrossing", "NO270")]
+    [InlineData("Circle airport", AllPatternLegs, "FinalApproach", "CA")]
+    public void Pattern_Maneuver_ShownOnEveryLegItFits_HiddenElsewhere_AndSendsItsCommand(
+        string label,
+        string shownLegs,
+        string hiddenPhase,
+        string command
+    )
+    {
+        foreach (string leg in shownLegs.Split(','))
+        {
+            var host = new RecordingMenuHost("");
+            MenuItem? shown = SharedMenuGroups.Pattern(VfrInPattern(leg), Context(), host);
+
+            Assert.True(shown is not null, $"the Pattern submenu is offered on {leg}");
+            List<MenuItem> matches = [.. shown.Items.OfType<MenuItem>().Where(m => m.Header as string == label)];
+            Assert.True(matches.Count == 1, $"'{label}' is offered once on {leg}, found {matches.Count}");
+            Click(matches[0]);
+            Assert.Equal([(Callsign, command, Initials)], host.Sent);
+        }
+
+        MenuItem? hidden = SharedMenuGroups.Pattern(VfrInPattern(hiddenPhase), Context(), new RecordingMenuHost(""));
+        Assert.DoesNotContain(hidden?.Items.OfType<MenuItem>() ?? [], m => m.Header as string == label);
+    }
+
+    [AvaloniaFact]
+    public void Pattern_IfrOnDownwind_ManeuversFollowTheVfrForIfrMode()
+    {
+        var aircraft = new AircraftModel
+        {
+            Callsign = Callsign,
+            IsOnGround = false,
+            CurrentPhase = "Downwind",
+            FlightRules = "IFR",
+        };
+        var host = new RecordingMenuHost("");
+
+        MenuItem? all = SharedMenuGroups.Pattern(aircraft, new MenuContext(Callsign, Initials, null, false, VfrCommandsForIfr.All), host);
+        MenuItem? enterFinalOnly = SharedMenuGroups.Pattern(
+            aircraft,
+            new MenuContext(Callsign, Initials, null, false, VfrCommandsForIfr.EnterFinalOnly),
+            host
+        );
+        MenuItem? none = SharedMenuGroups.Pattern(aircraft, new MenuContext(Callsign, Initials, null, false, VfrCommandsForIfr.None), host);
+
+        Assert.NotNull(all);
+        Click(Assert.Single(all.Items.OfType<MenuItem>(), m => m.Header as string == "Turn base"));
+        Assert.Equal([(Callsign, "TB", Initials)], host.Sent);
+        // Under the default setting an IFR aircraft keeps only the straight-in final entry: no circuit legs, no maneuvers.
+        Assert.NotNull(enterFinalOnly);
+        Assert.Equal(["Enter straight-in final..."], enterFinalOnly.Items.Select(Describe));
+        Assert.Null(none);
+    }
+
+    [AvaloniaTheory]
+    [InlineData(ApproachAirport, UnknownAirport, MenuPickerDescriptor.List)]
+    [InlineData(UnknownAirport, ApproachAirport, MenuPickerDescriptor.Input)]
+    public void PatternEntry_RunwaysComeFromTheDestinationWheneverOneIsFiled(string destination, string departure, string kind)
+    {
+        TestVnasData.EnsureInitialized();
+        Assert.Empty(RunwayDesignators.ForAirport(UnknownAirport));
+        string[] runways = kind == MenuPickerDescriptor.List ? [.. RunwayDesignators.ForAirport(ApproachAirport)] : [];
+        var host = new RecordingMenuHost("28R");
+        var aircraft = new FakeMenuAircraft { Destination = destination, Departure = departure };
+
+        MenuItem? item = MenuCatalog.Get(MenuIds.PatternEnterLeftDownwind).Build(aircraft, Context(), host);
+        Click(AssertPicker(item, "Enter left downwind...", kind, runways));
+
+        Assert.Equal([(Callsign, "ELD 28R", Initials)], host.Sent);
+    }
+
+    /// <summary>An airborne VFR aircraft in <paramref name="phase"/>, with no runway assigned.</summary>
+    private static AircraftModel VfrInPattern(string phase) =>
+        new()
+        {
+            Callsign = Callsign,
+            IsOnGround = false,
+            CurrentPhase = phase,
+            FlightRules = "VFR",
+        };
+
+    [AvaloniaTheory]
+    [InlineData("", "ELD")]
+    [InlineData("   ", "ELD")]
+    [InlineData("28R ", "ELD 28R ")]
+    public void PatternEntry_NoDefaultNoRunways_UsesInputTier_BlankSendsTheBareVerb_TextUntrimmed(string input, string command)
+    {
+        TestVnasData.EnsureInitialized();
+        Assert.Empty(RunwayDesignators.ForAirport(UnknownAirport));
+        var host = new RecordingMenuHost(input);
+        var aircraft = new FakeMenuAircraft { Destination = UnknownAirport };
+
+        MenuItem? item = MenuCatalog.Get(MenuIds.PatternEnterLeftDownwind).Build(aircraft, Context(), host);
+        Click(AssertPicker(item, "Enter left downwind...", MenuPickerDescriptor.Input, []));
+
+        Assert.Equal(["Runway (optional)"], host.InputPlaceholders);
+        Assert.Equal([(Callsign, command, Initials)], host.Sent);
+        Assert.Null(MenuCatalog.BuildPatternEntryOther(MenuIds.PatternEnterLeftDownwind, aircraft, Context(), host));
+    }
+
+    [AvaloniaFact]
+    public void PatternEntry_DefaultRunwayWithoutRunwayList_IsALeafOnly_SendingTheRawRunway()
+    {
+        TestVnasData.EnsureInitialized();
+        Assert.Empty(RunwayDesignators.ForAirport(UnknownAirport));
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft { Destination = UnknownAirport, AssignedRunway = "09L" };
+
+        MenuItem? item = MenuCatalog.Get(MenuIds.PatternEnterFinal).Build(aircraft, Context(), host);
+        Assert.NotNull(item);
+        Assert.Equal("Enter straight-in final 9L", item.Header as string);
+        Assert.Null(item.Tag);
+        Click(item);
+
+        Assert.Equal([(Callsign, "EF 09L", Initials)], host.Sent);
+        Assert.Null(MenuCatalog.BuildPatternEntryOther(MenuIds.PatternEnterFinal, aircraft, Context(), host));
+    }
+
+    [AvaloniaFact]
+    public void PatternEntry_NoDestination_ListsTheDepartureRunways()
+    {
+        TestVnasData.EnsureInitialized();
+        string[] runways = [.. RunwayDesignators.ForAirport(ApproachAirport)];
+        Assert.Contains("28R", runways);
+        var host = new RecordingMenuHost("28R");
+        var noDefault = new FakeMenuAircraft { Departure = ApproachAirport };
+        var withDefault = new FakeMenuAircraft { Departure = ApproachAirport, AssignedRunway = "30" };
+
+        MenuItem? list = MenuCatalog.Get(MenuIds.PatternEnterRightBase).Build(noDefault, Context(), host);
+        Click(AssertPicker(list, "Enter right base...", MenuPickerDescriptor.List, runways));
+        Assert.Null(MenuCatalog.BuildPatternEntryOther(MenuIds.PatternEnterRightBase, noDefault, Context(), host));
+
+        Assert.Equal("Enter right base 30", MenuCatalog.Get(MenuIds.PatternEnterRightBase).Build(withDefault, Context(), host)?.Header as string);
+        MenuItem? other = MenuCatalog.BuildPatternEntryOther(MenuIds.PatternEnterRightBase, withDefault, Context(), host);
+        Click(AssertPicker(other, "Enter right base (other)...", MenuPickerDescriptor.List, runways));
+
+        Assert.All(host.ListPopups, popup => Assert.Equal<object?>(runways[0], popup.Selected));
+        Assert.Equal([(Callsign, "ERB 28R", Initials), (Callsign, "ERB 28R", Initials)], host.Sent);
     }
 
     /// <summary>Asserts a picker item's header and the descriptor the menu walker prints for it, and returns the item.</summary>

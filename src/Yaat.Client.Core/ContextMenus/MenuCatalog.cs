@@ -18,7 +18,8 @@ namespace Yaat.Client.ContextMenus;
 /// measure item and route drawing; a value submenu builds a whole submenu of command items from its own label and
 /// the menu context, one per value — the leader directions, the J-ring radii and the cone lengths; and the Cleared for
 /// takeoff submenu offers the default clearance and runway heading, the VFR departure instructions when the aircraft
-/// and the controller's VFR-for-IFR setting allow them, and a free-text item last.
+/// and the controller's VFR-for-IFR setting allow them, and a free-text item last. A pattern entry is a leaf naming the
+/// assigned runway, else a runway picker, else free text, and each pattern maneuver applies only on the legs it fits.
 /// </summary>
 public static class MenuCatalog
 {
@@ -156,7 +157,40 @@ public static class MenuCatalog
         Leaf(MenuIds.TowerCancelLanding, "Cancel landing clearance", "CLC", (ac, _) => AircraftCommandApplicability.CanCancelLandingClearance(ac)),
         Leaf(MenuIds.TowerExitLeft, "Exit left", "EL", CanExitRunway),
         Leaf(MenuIds.TowerExitRight, "Exit right", "ER", CanExitRunway),
+        PatternEntry(MenuIds.PatternEnterLeftDownwind, CanEnterPattern),
+        PatternEntry(MenuIds.PatternEnterRightDownwind, CanEnterPattern),
+        PatternEntry(MenuIds.PatternEnterLeftBase, CanEnterPattern),
+        PatternEntry(MenuIds.PatternEnterRightBase, CanEnterPattern),
+        PatternEntry(MenuIds.PatternEnterFinal, (ac, context) => AircraftCommandApplicability.CanEnterFinal(ac, context.VfrCommandsForIfr)),
+        Leaf(MenuIds.PatternTurnCrosswind, "Turn crosswind", "TC", OnLeg("Upwind")),
+        Leaf(MenuIds.PatternTurnDownwind, "Turn downwind", "TD", OnLeg("Crosswind")),
+        Leaf(MenuIds.PatternTurnBase, "Turn base", "TB", OnLeg("Downwind")),
+        Leaf(MenuIds.PatternExtend, "Extend pattern leg", "EXT", OnLeg("Upwind", "Crosswind", "Downwind")),
+        Leaf(MenuIds.PatternShortApproach, "Make short approach", "MSA", OnLeg("Downwind", "Base")),
+        Leaf(MenuIds.PatternNormalApproach, "Make normal approach", "MNA", OnLeg("Downwind", "Base")),
+        Leaf(MenuIds.PatternLeft360, "Make left 360", "L360", OnAnyPatternLeg),
+        Leaf(MenuIds.PatternRight360, "Make right 360", "R360", OnAnyPatternLeg),
+        Leaf(MenuIds.PatternLeft270, "Make left 270", "L270", OnAnyPatternLeg),
+        Leaf(MenuIds.PatternRight270, "Make right 270", "R270", OnAnyPatternLeg),
+        Leaf(MenuIds.PatternPlan270, "Plan 270 at next turn", "P270", OnLeg("Upwind", "Crosswind", "Downwind", "Base")),
+        Leaf(MenuIds.PatternCancel270, "Cancel 270", "NO270", OnLeg("Upwind", "Crosswind", "Downwind", "Base")),
+        Leaf(MenuIds.PatternCircleAirport, "Circle airport", "CA", OnAnyPatternLeg),
     ];
+
+    /// <summary>
+    /// A pattern entry's label and the verb it sends, with the runway after it when one is given. A method rather than
+    /// a table so that <see cref="All"/>'s initializer can read it whatever the declaration order.
+    /// </summary>
+    private static (string Label, string Command) PatternEntrySpec(string id) =>
+        id switch
+        {
+            MenuIds.PatternEnterLeftDownwind => ("Enter left downwind", "ELD"),
+            MenuIds.PatternEnterRightDownwind => ("Enter right downwind", "ERD"),
+            MenuIds.PatternEnterLeftBase => ("Enter left base", "ELB"),
+            MenuIds.PatternEnterRightBase => ("Enter right base", "ERB"),
+            MenuIds.PatternEnterFinal => ("Enter straight-in final", "EF"),
+            _ => throw new ArgumentException($"'{id}' is not a pattern-entry menu id", nameof(id)),
+        };
 
     /// <summary>The Cleared for takeoff entry's label, the header of the submenu it builds.</summary>
     private const string ClearedForTakeoffLabel = "Cleared for takeoff";
@@ -260,6 +294,25 @@ public static class MenuCatalog
 
     private static Func<IMenuAircraft?, MenuContext, bool> CanExitRunway => (ac, _) => AircraftCommandApplicability.CanExitRunway(ac);
 
+    /// <summary>The circuit-leg entries put the aircraft on a full VFR circuit, offered to an IFR aircraft only under the full VFR setting.</summary>
+    private static Func<IMenuAircraft?, MenuContext, bool> CanEnterPattern =>
+        (ac, context) => AircraftCommandApplicability.CanEnterPattern(ac, context.VfrCommandsForIfr);
+
+    /// <summary>
+    /// A pattern maneuver valid only from the legs named in <paramref name="legs"/> (a leg turn only from the leg before it),
+    /// and only while <see cref="AircraftCommandApplicability.CanIssuePatternManeuvers"/> allows maneuvers at all.
+    /// </summary>
+    private static Func<IMenuAircraft?, MenuContext, bool> OnLeg(params string[] legs) =>
+        (ac, context) =>
+            AircraftCommandApplicability.CanIssuePatternManeuvers(ac, context.VfrCommandsForIfr)
+            && legs.Contains(ac?.CurrentPhase ?? "", StringComparer.Ordinal);
+
+    /// <summary>A pattern maneuver valid from any leg of the circuit (<see cref="AircraftCommandApplicability.IsPatternPhase"/>).</summary>
+    private static Func<IMenuAircraft?, MenuContext, bool> OnAnyPatternLeg =>
+        (ac, context) =>
+            AircraftCommandApplicability.CanIssuePatternManeuvers(ac, context.VfrCommandsForIfr)
+            && AircraftCommandApplicability.IsPatternPhase(ac?.CurrentPhase ?? "");
+
     private static MenuCatalogEntry Leaf(string id, string label, string command, Func<IMenuAircraft?, MenuContext, bool> isApplicable) =>
         new(id, label, MenuFlightRules.Both, isApplicable, (_, context, host) => BuildSend(label, command, context, host));
 
@@ -301,6 +354,81 @@ public static class MenuCatalog
             )
         );
         return menu;
+    }
+
+    /// <summary>
+    /// A pattern entry: with a runway assigned, a leaf naming it that sends the verb for the runway as assigned;
+    /// otherwise a picker over <see cref="PatternEntryRunways"/>, or free text when there are none, where a blank answer
+    /// sends the bare verb and any other is sent after it as typed. <see cref="BuildPatternEntryOther"/> offers the
+    /// runways beside an assigned one.
+    /// </summary>
+    private static MenuCatalogEntry PatternEntry(string id, Func<IMenuAircraft?, MenuContext, bool> isApplicable)
+    {
+        (string label, string command) = PatternEntrySpec(id);
+        return new(id, label, MenuFlightRules.Both, isApplicable, (ac, context, host) => BuildPatternEntry(label, command, ac, context, host));
+    }
+
+    private static MenuItem BuildPatternEntry(string label, string command, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        if (aircraft is { AssignedRunway.Length: > 0 })
+        {
+            string runway = aircraft.AssignedRunway;
+            return BuildSend($"{label} {RunwayIdentifier.ToDisplayDesignator(runway)}", $"{command} {runway}", context, host);
+        }
+
+        IReadOnlyList<string> runways = PatternEntryRunways(aircraft);
+        if (runways.Count > 0)
+        {
+            return BuildPatternRunwayList($"{label}{Ellipsis}", command, runways, context, host);
+        }
+
+        return BuildInput(
+            $"{label}{Ellipsis}",
+            "Runway (optional)",
+            input => string.IsNullOrWhiteSpace(input) ? command : $"{command} {input}",
+            context,
+            host
+        );
+    }
+
+    /// <summary>
+    /// A pattern entry's companion, which shares its id: a picker over <see cref="PatternEntryRunways"/> labelled
+    /// "(other)", offered beside an assigned runway; null without an assigned runway or without runways.
+    /// </summary>
+    internal static MenuItem? BuildPatternEntryOther(string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        if (aircraft is not { AssignedRunway.Length: > 0 })
+        {
+            return null;
+        }
+
+        IReadOnlyList<string> runways = PatternEntryRunways(aircraft);
+        if (runways.Count == 0)
+        {
+            return null;
+        }
+
+        (string label, string command) = PatternEntrySpec(id);
+        return BuildPatternRunwayList($"{label} (other){Ellipsis}", command, runways, context, host);
+    }
+
+    /// <summary>The runways a pattern entry offers: the destination's, else the departure airport's; none without either.</summary>
+    private static IReadOnlyList<string> PatternEntryRunways(IMenuAircraft? aircraft)
+    {
+        if (aircraft is null)
+        {
+            return [];
+        }
+
+        string airport = !string.IsNullOrEmpty(aircraft.Destination) ? aircraft.Destination : aircraft.Departure;
+        return !string.IsNullOrEmpty(airport) ? RunwayDesignators.ForAirport(airport) : [];
+    }
+
+    /// <summary>A list picker over <paramref name="runways"/>, the first highlighted, that sends <paramref name="command"/> for the pick.</summary>
+    private static MenuItem BuildPatternRunwayList(string label, string command, IReadOnlyList<string> runways, MenuContext context, IMenuHost host)
+    {
+        List<object> items = [.. runways];
+        return BuildList(label, items, items[0], picked => Send($"{command} {picked}", context, host), host);
     }
 
     private static MenuCatalogEntry InputLeaf(string id, string label, string placeholder, Func<string, string> format) =>

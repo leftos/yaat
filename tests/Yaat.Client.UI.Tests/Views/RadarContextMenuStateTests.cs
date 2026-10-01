@@ -3,9 +3,6 @@ using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
-using Yaat.Client.UI.Tests.Fakes;
-using Yaat.Client.ViewModels;
-using Yaat.Client.Views.Radar;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -15,12 +12,6 @@ namespace Yaat.Client.UI.Tests.Views;
 // omitted) when nothing applies. Builds run through AircraftCommandApplicability.
 public class RadarContextMenuStateTests
 {
-    private static (RadarView View, RadarViewModel Vm) Harness()
-    {
-        var main = new MainViewModel(new FakeFilePickerService());
-        return (new RadarView(), main.Radar);
-    }
-
     /// <summary>
     /// A menu context outside solo training, under the "VFR commands for IFR aircraft" setting
     /// <see cref="VfrCommandsForIfr.None"/>.
@@ -229,7 +220,6 @@ public class RadarContextMenuStateTests
     [AvaloniaFact]
     public void VfrPatternAircraft_PatternSubmenuLegGated()
     {
-        (RadarView? view, RadarViewModel? vm) = Harness();
         var ac = new AircraftModel
         {
             Callsign = "N77",
@@ -239,7 +229,7 @@ public class RadarContextMenuStateTests
             AssignedRunway = "28L",
         };
 
-        MenuItem? pattern = view.BuildPatternSubmenu(vm, "N77", "AB", ac);
+        MenuItem? pattern = SharedMenuGroups.Pattern(ac, Context("N77"), new RecordingMenuHost(""));
 
         Assert.NotNull(pattern);
         List<string> headers = Headers(pattern!);
@@ -252,7 +242,6 @@ public class RadarContextMenuStateTests
     [AvaloniaFact]
     public void IfrAircraft_PatternSubmenuOmitted()
     {
-        (RadarView? view, RadarViewModel? vm) = Harness();
         var ac = new AircraftModel
         {
             Callsign = "AAL3",
@@ -262,7 +251,7 @@ public class RadarContextMenuStateTests
             AssignedRunway = "28R",
         };
 
-        MenuItem? pattern = view.BuildPatternSubmenu(vm, "AAL3", "AB", ac);
+        MenuItem? pattern = SharedMenuGroups.Pattern(ac, Context("AAL3"), new RecordingMenuHost(""));
 
         // Pattern ops are VFR-only.
         Assert.Null(pattern);
