@@ -1,5 +1,5 @@
 # YAAT plans — index
-<!-- plan-doc-hygiene: 2026-09-30 23f83975 yaat-server@3c862bd9 -->
+<!-- plan-doc-hygiene: 2026-09-30 1fc90155 yaat-server@314eea00 -->
 <!-- triage-open-issues: 2026-09-21T06:31:25Z -->
 
 Entry point for `docs/plans/`. One line per item; the detail lives in the linked subplan. Finished items and finished plans are deleted, never left ticked — git history is the record (a plan whose rationale or status table still has reference value is promoted into `docs/` instead). Issue-specific plans live in [`open-issues/`](./open-issues/) and are deleted once implemented.
@@ -8,7 +8,7 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 ## ERAM — #1 priority
 
-- [ ] **Release gate** (user 2026-09-30): finish every item in this section, the ERAM follow-ups under **Singles**, and **Bug reports and feature requests** (the async-load and context-menu feature branches merged), cut a release, then return to the tick-path unification.
+- [ ] **Release gate** (user 2026-09-30): finish every item in this section, the ERAM follow-ups under **Singles**, and **Bug reports and feature requests** (the context-menu feature branch merged; async load merged as #470), cut a release, then return to the tick-path unification.
 
 ERAM comes before everything else, the other bug reports included (user 2026-09-28). The rulings and SRS reference are in [docs/eram/rulings.md](../eram/rulings.md). ERAM behaviour is decided from the SRS appendices, `vatsim-server-rs` and the CRC docs rather than asked (user 2026-09-28); what those sources leave open is in [eram-open-questions.md](./eram-open-questions.md), a page to share with ERAM controllers. The ERAM follow-ups under **Singles** also count as ERAM work and come after this list.
 
