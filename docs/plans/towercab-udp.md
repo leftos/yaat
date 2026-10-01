@@ -17,7 +17,7 @@
 - The UDP transport is MessagePack whatever the hub protocol. TowerCab 3D uses the **JSON** hub protocol and MessagePack UDP.
 
 **Work.**
-1. Add `[Union(24, typeof(TowerCabAircraftDto))]` to the `IUdpEntity` union, with the tag confirmed against the messaging contract, and add a `UdpEntityCodec` helper for a TowerCab `EntityUpdate`. Add wire-contract tests that pin the bytes, as the existing pong/ack tests do.
+1. Add union tag 24 to `IUdpEntity` (vNAS `IEntity.cs:27`) and a `UdpEntityCodec` helper for a TowerCab `EntityUpdate`, with byte-pinning tests. The hub `TowerCabAircraftDto` cannot go on UDP as is: its `VoiceType` uses `StringEnumFormatter` (`Dtos/CrcDtos.cs` ~:107) and UDP clients decode an int, so the UDP record is its own type built from the hub DTO.
 2. In the per-tick TowerCab batch, send position changes for a UDP-registered subscriber (`UdpEntityServer.IsRegistered(token)`) as UDP entity updates instead of a hub `ReceiveTowerCabAircrafts`.
    - Keep the hub path for a newly visible aircraft, for deletes, for the 10 s full resend, and for any subscriber not registered on UDP. That last case is the fallback, and it keeps today's behaviour for unregistered clients.
    - Check CRC's own expectations. Does CRC ignore UDP Tower Cab updates for an aircraft it has not yet received over the hub? Mirror vNAS ordering.
@@ -28,6 +28,8 @@
      - It would let TowerCab 3D drop its YAAT-only "no negotiate, no UDP" mode.
      - It needs `GetServerConfiguration` in `DirectConnectionTargets` and in the JSON `Methods` table.
    - (b) Rejected: leave direct connections hub-only. TowerCab 3D would keep its YAAT special case and receive every position over the hub.
+   - Decided (user): a socket with `?id=` and an `access_token` that fails validation is refused with 401 before it is accepted (presenting the token asks to be direct); and `NegotiateHandler` records every token it issues (CID null when no Bearer, with a short expiry, e.g. 60 s), so a joiner's `?id=` must be one the server issued, consumed once. TowerCab 3D negotiates without a Bearer header, so today its token is never in `CrcNegotiateTokenStore` and its `?id=` is client-asserted.
+   - Brief B (this step) touches `Hubs/CrcWebSocketHandler.cs` (accept path ~:39-77, extracted into a pure decision helper), `Hubs/NegotiateHandler.cs`, `Hubs/CrcNegotiateTokenStore.cs`, `Hubs/CrcClientState.Join.cs` (`GetServerConfiguration` in `DirectConnectionTargets`), `Protocol/CrcJsonTranscoder.cs` (a `GetServerConfiguration` entry) and a new `Dtos/ServerConfigurationDto` (`[Key(0)] int UdpPort`, contract ~:3730). It follows brief A (wire and send), which also edits `CrcWebSocketHandler`'s release path.
 5. A joined connection reads its primary's room (`CrcClientState.cs:66`). Make sure the UDP send keys on the *joiner's* own token, not the primary's.
 6. Docs: `docs/crc-protocol-support.md` (UDP rows), `docs/architecture.md` (UDP section, JSON transcoder clients), and `SELF_HOSTING.md` (6809/udp is now needed for Tower Cab, not just ERAM history).
 
