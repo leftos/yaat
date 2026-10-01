@@ -38,6 +38,11 @@ public sealed class DownwindPhase : Phase
     private const double DownwindInterceptGainDegPerNm = 200.0;
     private const double MaxDownwindInterceptDeg = 45.0;
 
+    // Past-abeam descent planning: the shortest remaining downwind the line descent is spread over (a release right at
+    // the base trigger), and the ground speed floor that keeps the planned rate finite for a slow or stationary aircraft.
+    private const double MinDescentLegNm = 0.05;
+    private const double MinDescentPlanningGroundSpeedKt = 60.0;
+
     private double _baseTurnAlongTrack;
     private double _abeamAlongTrack;
     private double _midfieldAlongTrack;
@@ -45,7 +50,21 @@ public sealed class DownwindPhase : Phase
     private double _thresholdLon;
     private TrueHeading _downwindHeading;
     private bool _pastAbeam;
-    private double _altitudeFloor;
+
+    // Held level past abeam (null = no hold latched).
+    private double? _holdLevelFt;
+
+    // The line descent's fixed altitude at the base trigger, re-planned toward every unheld tick (null = no line descent).
+    private double? _descentTargetFt;
+
+    // A controller altitude (CM/DM) issued during this leg; once set it owns the leg's altitude (AIM 4-4-10.a).
+    private double? _controllerAltitudeFt;
+
+    // The assigned altitude last seen, recorded at the leg's start; a change is a new controller assignment.
+    private double? _seenAssignedAltitudeFt;
+
+    // Restored from a recording without the baseline above: the next tick takes the assignment in force as the baseline.
+    private bool _assignedAltitudeBaselinePending;
     private bool _midfieldBroadcastIssued;
     private bool _followExtensionWarningIssued;
 
@@ -106,6 +125,11 @@ public sealed class DownwindPhase : Phase
         _downwindHeading = Waypoints.DownwindHeading;
 
         _pastAbeam = false;
+        _holdLevelFt = null;
+        _descentTargetFt = null;
+        _controllerAltitudeFt = null;
+        _seenAssignedAltitudeFt = ctx.Targets.AssignedAltitude;
+        _assignedAltitudeBaselinePending = false;
         _midfieldBroadcastIssued = false;
 
         _abeamAlongTrack = GeoMath.AlongTrackDistanceNm(
@@ -280,21 +304,20 @@ public sealed class DownwindPhase : Phase
             }
         }
 
-        // Begin descent when abeam the approach end of the runway
-        if (!_pastAbeam && Waypoints is not null)
+        // Abeam the approach end: pattern altitude is held to here (AC 90-66B §11.5), so the test has
+        // no along-track slop. The descent itself starts below, once the hold decision for this tick is known.
+        bool reachedAbeamThisTick = false;
+        if (!_pastAbeam && (Waypoints is not null) && (aircraftAlongTrack >= _abeamAlongTrack))
         {
-            if (aircraftAlongTrack >= _abeamAlongTrack - AlongTrackToleranceNm)
-            {
-                _pastAbeam = true;
-                Log.LogDebug("[Downwind] {Callsign}: abeam threshold, beginning descent", ctx.Aircraft.Callsign);
-                ApplyPastAbeamDescentTargets(ctx, aircraftAlongTrack);
+            _pastAbeam = true;
+            reachedAbeamThisTick = true;
+            Log.LogDebug("[Downwind] {Callsign}: abeam threshold", ctx.Aircraft.Callsign);
 
-                // Begin decelerating toward base speed, unless the controller assigned a speed
-                // (7110.65 §5-7-4).
-                if (!ctx.Targets.HasExplicitSpeedCommand)
-                {
-                    ctx.Targets.TargetSpeed = AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category);
-                }
+            // Begin decelerating toward base speed, unless the controller assigned a speed
+            // (7110.65 §5-7-4).
+            if (!ctx.Targets.HasExplicitSpeedCommand)
+            {
+                ctx.Targets.TargetSpeed = AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category);
             }
         }
 
@@ -319,78 +342,177 @@ public sealed class DownwindPhase : Phase
             }
         }
 
-        if (IsExtended)
-        {
-            // Level off at the glideslope altitude for the aircraft's actual position so it
-            // doesn't descend below a normal approach path while waiting for the TB command.
-            if (_pastAbeam)
-            {
-                _altitudeFloor = ExtendedDownwindFloor(ctx, aircraftAlongTrack);
-                if (ctx.Aircraft.Altitude <= _altitudeFloor)
-                {
-                    ctx.Targets.TargetAltitude = _altitudeFloor;
-                    ctx.Targets.DesiredVerticalRate = null;
-                }
-            }
+        TrackControllerAltitude(ctx);
 
-            return false;
-        }
-
-        // Hold the base turn if following traffic and either (a) too close to a
-        // same-leg leader [proximity], (b) a pattern-flow-ahead leader is still forward of
+        // An extended downwind (EXT; 7110.65 §3-8-1 "EXTEND DOWNWIND", with "tower will call your base" in the
+        // examples at §3-9-4 and §3-10-5) waits for the TB command. Otherwise hold the base turn if
+        // following traffic and either (a) too close to a same-leg leader [proximity], (b) a pattern-flow-ahead leader is still forward of
         // the 3-9 line — never bypassed, a base turn now would cut in front of it (14 CFR
         // §91.113(g)) — or (c) turning base now would put the follower over the threshold
         // before the leader is clear of the runway / too tightly behind it on final
         // [sequencing, judged by projected ETAs]. A deliberate short approach waives (c)
         // only: the controller has taken the spacing, not the prohibition on cutting in.
-        // Every hold levels the aircraft at the glideslope-intercept altitude floor while
-        // waiting.
         //
         // A follower does NOT turn base on its own to escape the hold: it keeps flying
         // the downwind until it is genuinely sequenced behind (the hold clears) or the
         // controller issues a turn. Past MaxFollowExtensionNm it advises once ("extending
         // downwind … unable to turn") so the controller can re-sequence, then keeps going.
-        bool holdForProximity = AirborneFollowHelper.ShouldExtendDownwind(ctx);
-        bool leadStillForward = AirborneFollowHelper.IsFlowAheadLeadForwardOfWingline(ctx);
-        bool wantsSequenceHold =
-            leadStillForward || (!ShortApproachArmed && Waypoints is not null && AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, Waypoints));
-
-        if (holdForProximity || wantsSequenceHold)
+        bool followHold = !IsExtended && IsFollowHoldInForce(ctx);
+        if (IsExtended || followHold)
         {
-            bool pastExtensionCap = aircraftAlongTrack >= _baseTurnAlongTrack + AirborneFollowHelper.MaxFollowExtensionNm;
-            if (pastExtensionCap && !_followExtensionWarningIssued && (ctx.Aircraft.Approach.FollowingCallsign is { } followTarget))
+            if (followHold)
             {
-                PilotResponder.RouteSoloOrRpoTransmission(
-                    ctx.Aircraft,
-                    ctx.SoloTrainingMode,
-                    ctx.RpoShowPilotSpeech,
-                    ctx.StudentPositionType,
-                    PilotResponder.BuildFollowExtendingUnableToTurn(ctx.Aircraft, followTarget, "downwind"),
-                    PilotResponder.SoloPositionsTowerApproach
-                );
-                _followExtensionWarningIssued = true;
+                AdviseFollowExtensionOnce(ctx, aircraftAlongTrack);
             }
 
-            if (_pastAbeam)
-            {
-                _altitudeFloor = ExtendedDownwindFloor(ctx, aircraftAlongTrack);
-                if (ctx.Aircraft.Altitude <= _altitudeFloor)
-                {
-                    ctx.Targets.TargetAltitude = _altitudeFloor;
-                    ctx.Targets.DesiredVerticalRate = null;
-                }
-            }
-
+            HoldLevelPastAbeam(ctx);
             return false;
         }
 
-        bool complete = aircraftAlongTrack >= _baseTurnAlongTrack - AlongTrackToleranceNm;
-        if (complete)
+        // Start the descent at abeam, or on the release of a hold that kept the aircraft level past abeam; re-plan
+        // its rate every other unheld tick. A release at or past the base trigger leaves the descent to BasePhase,
+        // which plans it from there, and a controller altitude issued during the leg is never descended away from.
+        bool baseTriggerReached = aircraftAlongTrack >= _baseTurnAlongTrack - AlongTrackToleranceNm;
+        if (_pastAbeam && (reachedAbeamThisTick || (_holdLevelFt is not null)))
+        {
+            _holdLevelFt = null;
+            if (!baseTriggerReached && (_controllerAltitudeFt is null))
+            {
+                Log.LogDebug("[Downwind] {Callsign}: beginning descent, alt={Alt:F0}ft", ctx.Aircraft.Callsign, ctx.Aircraft.Altitude);
+                ApplyPastAbeamDescentTargets(ctx, aircraftAlongTrack);
+            }
+        }
+        else if (!baseTriggerReached)
+        {
+            ReplanLineDescent(ctx, aircraftAlongTrack);
+        }
+
+        if (baseTriggerReached)
         {
             Log.LogDebug("[Downwind] {Callsign}: base turn point reached, alt={Alt:F0}ft", ctx.Aircraft.Callsign, ctx.Aircraft.Altitude);
         }
 
-        return complete;
+        return baseTriggerReached;
+    }
+
+    private bool IsFollowHoldInForce(PhaseContext ctx)
+    {
+        bool holdForProximity = AirborneFollowHelper.ShouldExtendDownwind(ctx);
+        bool leadStillForward = AirborneFollowHelper.IsFlowAheadLeadForwardOfWingline(ctx);
+        bool wantsSequenceHold =
+            leadStillForward || (!ShortApproachArmed && Waypoints is not null && AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, Waypoints));
+        return holdForProximity || wantsSequenceHold;
+    }
+
+    private void AdviseFollowExtensionOnce(PhaseContext ctx, double aircraftAlongTrack)
+    {
+        bool pastExtensionCap = aircraftAlongTrack >= _baseTurnAlongTrack + AirborneFollowHelper.MaxFollowExtensionNm;
+        if (pastExtensionCap && !_followExtensionWarningIssued && (ctx.Aircraft.Approach.FollowingCallsign is { } followTarget))
+        {
+            PilotResponder.RouteSoloOrRpoTransmission(
+                ctx.Aircraft,
+                ctx.SoloTrainingMode,
+                ctx.RpoShowPilotSpeech,
+                ctx.StudentPositionType,
+                PilotResponder.BuildFollowExtendingUnableToTurn(ctx.Aircraft, followTarget, "downwind"),
+                PilotResponder.SoloPositionsTowerApproach
+            );
+            _followExtensionWarningIssued = true;
+        }
+    }
+
+    /// <summary>
+    /// A controller altitude wins over the pattern profile (AIM 4-4-10.a). A change of <see cref="ControlTargets.AssignedAltitude"/>
+    /// since the leg started is a CM/DM issued on this downwind: it becomes the leg's altitude, a latched hold re-latches at
+    /// it, and the line descent stops re-planning so the controller's target stands. An assignment already in force when the
+    /// leg started is not one: the leg targets pattern altitude from its start, as before any hold.
+    /// </summary>
+    private void TrackControllerAltitude(PhaseContext ctx)
+    {
+        double? assigned = ctx.Targets.AssignedAltitude;
+        if (_assignedAltitudeBaselinePending)
+        {
+            _seenAssignedAltitudeFt = assigned;
+            _assignedAltitudeBaselinePending = false;
+            return;
+        }
+
+        if (assigned == _seenAssignedAltitudeFt)
+        {
+            return;
+        }
+
+        _seenAssignedAltitudeFt = assigned;
+        if (assigned is not { } controllerAltitudeFt)
+        {
+            return;
+        }
+
+        _controllerAltitudeFt = controllerAltitudeFt;
+        _descentTargetFt = null;
+        ctx.Targets.DesiredVerticalRate = null;
+        if (_holdLevelFt is not null)
+        {
+            _holdLevelFt = controllerAltitudeFt;
+        }
+
+        Log.LogDebug("[Downwind] {Callsign}: controller altitude {Alt:F0}ft owns the leg", ctx.Aircraft.Callsign, controllerAltitudeFt);
+    }
+
+    /// <summary>
+    /// A held downwind past abeam flies level: a hold in force at abeam keeps pattern altitude, and one that begins
+    /// mid-descent levels off where it is; a controller altitude issued on this leg is the level instead. The level is
+    /// latched on the first held tick and only a new controller altitude moves it, so the pattern never ratchets it and
+    /// never commands a climb back up the pattern. Before abeam the leg already targets pattern altitude.
+    /// </summary>
+    private void HoldLevelPastAbeam(PhaseContext ctx)
+    {
+        if (!_pastAbeam || (Waypoints is null))
+        {
+            return;
+        }
+
+        if (_holdLevelFt is null)
+        {
+            _holdLevelFt = _controllerAltitudeFt ?? Math.Min(ctx.Aircraft.Altitude, Waypoints.PatternAltitude);
+            Log.LogDebug("[Downwind] {Callsign}: downwind held, level at {Alt:F0}ft", ctx.Aircraft.Callsign, _holdLevelFt);
+        }
+
+        _descentTargetFt = null;
+        ctx.Targets.TargetAltitude = _holdLevelFt;
+        ctx.Targets.DesiredVerticalRate = null;
+    }
+
+    /// <summary>
+    /// Re-plans the line descent's rate toward its fixed altitude at the base trigger from where the aircraft is now, so
+    /// the flown profile stays on the line as the aircraft slows to base speed. Stops once the aircraft is at that altitude.
+    /// </summary>
+    private void ReplanLineDescent(PhaseContext ctx, double aircraftAlongTrack)
+    {
+        if (_descentTargetFt is not { } targetFt)
+        {
+            return;
+        }
+
+        double deltaFt = ctx.Aircraft.Altitude - targetFt;
+        if (deltaFt <= 0)
+        {
+            _descentTargetFt = null;
+            return;
+        }
+
+        ctx.Targets.TargetAltitude = targetFt;
+        ctx.Targets.DesiredVerticalRate = -LineDescentRateFpm(ctx, aircraftAlongTrack, deltaFt);
+    }
+
+    /// <summary>The rate that loses <paramref name="deltaFt"/> over the downwind left to the base trigger at the present
+    /// ground speed, capped at the descent ceiling <see cref="BasePhase"/> plans the base with.</summary>
+    private double LineDescentRateFpm(PhaseContext ctx, double aircraftAlongTrack, double deltaFt)
+    {
+        double remainingDwNm = Math.Max(_baseTurnAlongTrack - AlongTrackToleranceNm - aircraftAlongTrack, MinDescentLegNm);
+        double groundSpeedKt = Math.Max(ctx.Aircraft.GroundSpeed, MinDescentPlanningGroundSpeedKt);
+        double timeMinToBaseTrigger = remainingDwNm / (groundSpeedKt / 60.0);
+        return Math.Min(deltaFt / timeMinToBaseTrigger, BasePhase.MaxDescentRateFpm(groundSpeedKt, ctx.Category));
     }
 
     /// <summary>
@@ -426,8 +548,9 @@ public sealed class DownwindPhase : Phase
 
         // If past abeam (descent already started), recompute targets so the
         // altitude profile reflects the compressed geometry. Mid-leg SA implies
-        // a steeper descent to make the new base-turn altitude.
-        if (_pastAbeam)
+        // a steeper descent to make the new base-turn altitude. A held leg stays
+        // level; its release plans the descent.
+        if (_pastAbeam && (_holdLevelFt is null))
         {
             ApplyPastAbeamDescentTargets(ctx, currentAlongTrack);
         }
@@ -457,7 +580,8 @@ public sealed class DownwindPhase : Phase
             _downwindHeading
         );
 
-        if (_pastAbeam)
+        // A held leg stays level and a controller altitude stands; neither plans the line descent here.
+        if (_pastAbeam && (_holdLevelFt is null) && (_controllerAltitudeFt is null))
         {
             double currentAlongTrack = GeoMath.AlongTrackDistanceNm(
                 ctx.Aircraft.Position,
@@ -484,13 +608,12 @@ public sealed class DownwindPhase : Phase
             >= _baseTurnAlongTrack - AlongTrackToleranceNm;
 
     /// <summary>
-    /// Computes the descent target, vertical rate, and altitude floor for the past-abeam
-    /// descent and writes them onto <paramref name="ctx"/>. Branches on
-    /// <see cref="ShortApproachArmed"/>: a normal pattern aims at the glideslope-intercept
-    /// altitude at the base-to-final rollout point at the category default rate; SA uses the
-    /// GS-intercept altitude implied by <see cref="CategoryPerformance.MinShortApproachFinalNm"/>
-    /// with a steeper rate derived from the remaining downwind distance and current ground speed.
-    /// Called both at abeam-detect (OnTick) and live SA/MNA (Apply/RemoveShortApproach).
+    /// Computes the descent target and vertical rate for the past-abeam descent and writes them
+    /// onto <paramref name="ctx"/>. Branches on <see cref="ShortApproachArmed"/>: a normal pattern
+    /// plans the line descent (<see cref="StartLineDescent"/>); SA uses the GS-intercept altitude
+    /// implied by <see cref="CategoryPerformance.MinShortApproachFinalNm"/> with a steeper rate
+    /// derived from the remaining downwind distance and current ground speed. Called at abeam and on
+    /// a hold's release (OnTick) and on a live SA/MNA (Apply/RemoveShortApproach).
     /// </summary>
     private void ApplyPastAbeamDescentTargets(PhaseContext ctx, double aircraftAlongTrack)
     {
@@ -499,75 +622,84 @@ public sealed class DownwindPhase : Phase
             return;
         }
 
+        if (!ShortApproachArmed)
+        {
+            StartLineDescent(ctx, Waypoints, aircraftAlongTrack);
+            return;
+        }
+
+        _descentTargetFt = null;
         double thresholdElev = ctx.Runway?.ElevationFt ?? ctx.FieldElevation;
         double patternSize = Waypoints.PatternSizeNm;
         double gsAngle = GlideSlopeGeometry.AngleForCategory(ctx.Category);
         double baseDescentRate = CategoryPerformance.PatternDescentRate(ctx.Category);
 
-        double midAlt;
-        double descentRate;
-        double turnRadiusNm = BasePhase.TurnRadiusNm(BasePhase.PlannedSpeedKt(ctx.Aircraft, ctx.Category), ctx.Category);
+        // Compressed final length → base-turn altitude is the GS intercept
+        // altitude implied by sqrt(patternSize² + finalLen²).
+        double finalLen = CategoryPerformance.MinShortApproachFinalNm(ctx.Category);
+        double diagonalNm = Math.Sqrt(patternSize * patternSize + finalLen * finalLen);
+        double midAlt = thresholdElev + diagonalNm * GlideSlopeGeometry.FeetPerNm(gsAngle);
 
-        if (ShortApproachArmed)
-        {
-            // Compressed final length → base-turn altitude is the GS intercept
-            // altitude implied by sqrt(patternSize² + finalLen²).
-            double finalLen = CategoryPerformance.MinShortApproachFinalNm(ctx.Category);
-            double diagonalNm = Math.Sqrt(patternSize * patternSize + finalLen * finalLen);
-            midAlt = thresholdElev + diagonalNm * GlideSlopeGeometry.FeetPerNm(gsAngle);
-
-            // Required rate to lose the altitude delta over the remaining distance
-            // to the base-turn point. Clamped at the category default (won't be slower
-            // than normal) and at 1500 fpm (descent limit before "unable, too high").
-            double deltaAlt = Math.Max(ctx.Aircraft.Altitude - midAlt, 0);
-            double distToBaseTurnNm = Math.Max(_baseTurnAlongTrack - aircraftAlongTrack, 0.05);
-            double groundSpeedKt = Math.Max(ctx.Aircraft.GroundSpeed, 60);
-            double timeMinToBaseTurn = distToBaseTurnNm / (groundSpeedKt / 60.0);
-            double computedRate = timeMinToBaseTurn > 0 ? deltaAlt / timeMinToBaseTurn : baseDescentRate;
-            descentRate = Math.Clamp(computedRate, baseDescentRate, 1500);
-        }
-        else
-        {
-            // Aim at the glideslope-intercept altitude at the base-to-final rollout point —
-            // the extension actually flown (PatternGeometry scales BaseExtensionNm with the
-            // resized pattern) plus one turn radius from the threshold. This is the same aim
-            // point BasePhase stabilizes on: pattern altitude is held to abeam (AIM FIG 4-3-2
-            // key 2), then the descent tracks the glide path the rollout will capture,
-            // regardless of TPA. Never above the current altitude — an aircraft already
-            // below the intercept holds rather than climbs.
-            double baseExtForFloor = Math.Max(_baseTurnAlongTrack - _abeamAlongTrack, 0);
-            double gsInterceptAlt = GlideSlopeGeometry.AltitudeAtDistance(baseExtForFloor + turnRadiusNm, thresholdElev, ctx.Category);
-            midAlt = Math.Min(ctx.Aircraft.Altitude, gsInterceptAlt);
-            descentRate = baseDescentRate;
-        }
+        // Required rate to lose the altitude delta over the remaining distance
+        // to the base-turn point. Clamped at the category default (won't be slower
+        // than normal) and at 1500 fpm (descent limit before "unable, too high").
+        double deltaAlt = Math.Max(ctx.Aircraft.Altitude - midAlt, 0);
+        double distToBaseTurnNm = Math.Max(_baseTurnAlongTrack - aircraftAlongTrack, MinDescentLegNm);
+        double groundSpeedKt = Math.Max(ctx.Aircraft.GroundSpeed, MinDescentPlanningGroundSpeedKt);
+        double timeMinToBaseTurn = distToBaseTurnNm / (groundSpeedKt / 60.0);
+        double computedRate = timeMinToBaseTurn > 0 ? deltaAlt / timeMinToBaseTurn : baseDescentRate;
+        double descentRate = Math.Clamp(computedRate, baseDescentRate, 1500);
 
         ctx.Targets.TargetAltitude = midAlt;
         ctx.Targets.DesiredVerticalRate = -descentRate;
-
-        // Initial altitude floor: the descent target itself (never above it — an uncapped
-        // floor would command a climb the moment a hold engaged, e.g. a helicopter whose 6°
-        // intercept sits above its 500 AGL pattern). The extended/held-downwind branches in
-        // OnTick recompute the floor per tick from the aircraft's actual along-track position,
-        // so a long extension levels back at pattern altitude instead of pinning here.
-        _altitudeFloor = midAlt;
     }
 
     /// <summary>
-    /// Per-tick altitude floor for an extended or held-out downwind: the glideslope altitude
-    /// for the aircraft's own along-track position (plus one turn radius of anticipation),
-    /// capped at pattern altitude. A controller's "extend downwind, I'll call your base"
-    /// (7110.65 §3-8-1) expects the aircraft to hold height, not descend the nominal profile
-    /// toward a base turn that keeps moving away.
+    /// Plans the downwind's share of the descent to the base-to-final rollout. Pattern altitude is held to abeam the
+    /// approach end (AIM FIG 4-3-2 key 2; AC 90-66B §11.5), and AC 90-66B Appendix A key 2 begins the descent there and
+    /// turns base at approximately 45 degrees from the intended landing point; AIM FIG 4-3-2 key 3 and AC 90-66B
+    /// Appendix A key 3 only require the turn to final to be complete at least 1/4 mile out. Two simulation modelling
+    /// choices, not FAA text, fill the rest. The downwind and the base descend at one ground gradient, along one straight
+    /// line from the aircraft's present altitude and position to the 3° glidepath altitude at the rollout point
+    /// <see cref="BasePhase"/> plans its own descent to (one turn radius beyond the base trigger's distance out, floored
+    /// at one turn radius). And the turn to final is flown level at that rollout altitude: <see cref="BasePhase"/> reaches
+    /// it where its leg ends, at the start of the turn to final. So the base's share of the line is the distance it
+    /// descends over: the downwind-to-base arc plus the straight base to one turn radius from the final centerline. The
+    /// downwind targets the line's altitude at the base trigger. Never above the current altitude: an aircraft already at
+    /// or below the rollout altitude holds rather than climbs.
     /// </summary>
-    private double ExtendedDownwindFloor(PhaseContext ctx, double aircraftAlongTrack)
+    private void StartLineDescent(PhaseContext ctx, PatternWaypoints waypoints, double aircraftAlongTrack)
     {
         double thresholdElev = ctx.Runway?.ElevationFt ?? ctx.FieldElevation;
         double turnRadiusNm = BasePhase.TurnRadiusNm(BasePhase.PlannedSpeedKt(ctx.Aircraft, ctx.Category), ctx.Category);
-        double gsAlt = GlideSlopeGeometry.AltitudeAtDistance(Math.Max(aircraftAlongTrack, 0) + turnRadiusNm, thresholdElev, ctx.Category);
-        // A floor is a do-not-descend-below limit — never a climb target. Cap it at the aircraft's
-        // current altitude so an extended downwind holds height (or keeps descending to the
-        // position-appropriate glide path) but never climbs back up the pattern.
-        return Math.Min(Math.Min(Waypoints?.PatternAltitude ?? gsAlt, gsAlt), ctx.Aircraft.Altitude);
+        double rolloutDistNm = Math.Max(_baseTurnAlongTrack - AlongTrackToleranceNm, turnRadiusNm) + turnRadiusNm;
+        double rolloutAlt = GlideSlopeGeometry.AltitudeAtDistance(rolloutDistNm, thresholdElev, ctx.Category);
+        double currentAlt = ctx.Aircraft.Altitude;
+        if (currentAlt <= rolloutAlt)
+        {
+            _descentTargetFt = null;
+            ctx.Targets.TargetAltitude = currentAlt;
+            ctx.Targets.DesiredVerticalRate = -CategoryPerformance.PatternDescentRate(ctx.Category);
+            return;
+        }
+
+        double baseLenNm = BaseDescentLengthNm(ctx.Aircraft.Position, waypoints.FinalHeading, turnRadiusNm);
+        double remainingDwNm = Math.Max(_baseTurnAlongTrack - AlongTrackToleranceNm - aircraftAlongTrack, MinDescentLegNm);
+        double targetFt = rolloutAlt + ((currentAlt - rolloutAlt) * baseLenNm / (remainingDwNm + baseLenNm));
+        _descentTargetFt = targetFt;
+        ctx.Targets.TargetAltitude = targetFt;
+        ctx.Targets.DesiredVerticalRate = -LineDescentRateFpm(ctx, aircraftAlongTrack, currentAlt - targetFt);
+    }
+
+    /// <summary>
+    /// The distance <see cref="BasePhase"/> descends over from a base turned at <paramref name="position"/>'s distance from
+    /// the final centerline: a 90° downwind-to-base arc of one turn radius, which closes the centerline by that radius,
+    /// then the straight base until the leg ends one turn radius from the centerline, where the turn to final starts.
+    /// </summary>
+    private double BaseDescentLengthNm(LatLon position, TrueHeading finalHeading, double turnRadiusNm)
+    {
+        double crossTrackNm = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(position, new LatLon(_thresholdLat, _thresholdLon), finalHeading));
+        return (Math.PI / 2.0 * turnRadiusNm) + Math.Max(crossTrackNm - (2.0 * turnRadiusNm), 0);
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
@@ -609,7 +741,11 @@ public sealed class DownwindPhase : Phase
             ThresholdLon = _thresholdLon,
             DownwindHeadingDeg = _downwindHeading.Degrees,
             PastAbeam = _pastAbeam,
-            AltitudeFloor = _altitudeFloor,
+            HoldLevelFt = _holdLevelFt,
+            DescentTargetFt = _descentTargetFt,
+            ControllerAltitudeFt = _controllerAltitudeFt,
+            SeenAssignedAltitudeFt = _seenAssignedAltitudeFt,
+            AssignedAltitudeBaselineRecorded = !_assignedAltitudeBaselinePending,
             MidfieldBroadcastIssued = _midfieldBroadcastIssued,
             ShortApproachArmed = ShortApproachArmed,
             RejoinTrack = RejoinTrack,
@@ -650,7 +786,11 @@ public sealed class DownwindPhase : Phase
         phase._thresholdLon = dto.ThresholdLon;
         phase._downwindHeading = new TrueHeading(dto.DownwindHeadingDeg);
         phase._pastAbeam = dto.PastAbeam;
-        phase._altitudeFloor = dto.AltitudeFloor;
+        phase._holdLevelFt = dto.HoldLevelFt;
+        phase._descentTargetFt = dto.DescentTargetFt;
+        phase._controllerAltitudeFt = dto.ControllerAltitudeFt;
+        phase._seenAssignedAltitudeFt = dto.SeenAssignedAltitudeFt;
+        phase._assignedAltitudeBaselinePending = dto.AssignedAltitudeBaselineRecorded != true;
         phase._midfieldBroadcastIssued = dto.MidfieldBroadcastIssued;
         phase._followExtensionWarningIssued = dto.FollowExtensionWarningIssued ?? false;
         return phase;

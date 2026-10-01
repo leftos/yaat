@@ -38,6 +38,8 @@
 
 ### Fixed
 
+- Pattern traffic holds pattern altitude until abeam and descends on through base; an extended or held downwind levels off instead of sinking toward the runway.
+- A climb or descent you assign on the downwind stays in force instead of being replaced by the pattern descent.
 - An aircraft on a charted SID keeps a climb or descent you assign, and a vector off the SID no longer stalls it at a crossing altitude.
 - A new aircraft taking a just-removed aircraft's callsign always gets its ERAM data block and tracks on CRC displays.
 - vEDST joining a controller's session as it ends is refused, instead of staying attached to a session with no position.

@@ -106,18 +106,7 @@ props fly it as published. With no authored value the category defaults apply (p
 helicopter 500). A command TPA override wins verbatim for every category — every altitude is flyable, so unlike
 the pattern-size flyability floor there is no clamp.
 
-**Past-abeam descent target.** The downwind's past-abeam descent and `BasePhase`'s circuit-entry target both aim
-at the **glideslope-intercept altitude at the base-to-final rollout point** — the base extension actually flown
-plus one turn radius from the threshold (`GlideSlopeGeometry.AltitudeAtDistance`), capped at the current
-altitude. This replaced the old fixed fractions (60% of TPA on downwind, 50% on a waypoint-less base entry),
-which stopped tracking the glide path once the flyability floor decoupled pattern width from TPA. The
-extended-downwind `_altitudeFloor` uses the same rollout-distance expression (the aircraft flies base + final,
-not the base-turn-to-threshold diagonal). AIM FIG 4-3-2 key 2: pattern altitude to abeam, then a continuous
-descent. When a size override is applied, only `BaseExtensionNm` scales **proportionally** by
-`patternSize / defaultSize` (a smaller pattern has a tighter base leg); the crosswind turn stays anchored at the
-DER. The resolved size is carried on `PatternWaypoints.PatternSizeNm` so the downwind/base descent geometry uses
-the actual offset, not the bare category default. Pattern altitude defaults to
-`runway.AirportElevationFt + CategoryPerformance.PatternAltitudeAgl(category)`.
+**Past-abeam descent target.** The downwind's past-abeam descent and `BasePhase`'s circuit-entry target both anchor on the **glideslope-intercept altitude at the base-to-final rollout point** — the base extension actually flown plus one turn radius from the threshold (`GlideSlopeGeometry.AltitudeAtDistance`), capped at the current altitude (the aircraft flies base + final, not the base-turn-to-threshold diagonal). A fixed fraction of TPA would stop tracking the glide path once the flyability floor decouples pattern width from TPA. AIM FIG 4-3-2 key 2 and AC 90-66B §11.5 hold pattern altitude to abeam, and AC 90-66B Appendix A key 2 begins the descent there and turns base at about 45°; AIM FIG 4-3-2 key 3 and AC 90-66B Appendix A key 3 only require the turn to final to be complete at least 1/4 mile out. Two parts of the profile are this simulation's modelling choices, not FAA text: the downwind and base descend at one gradient along a single straight line to the rollout altitude, and the turn to final is flown level at that altitude. A held or extended downwind stays level instead. The downwind's share and the hold are under "Downwind leg" below. When a size override is applied, only `BaseExtensionNm` scales **proportionally** by `patternSize / defaultSize` (a smaller pattern has a tighter base leg); the crosswind turn stays anchored at the DER. The resolved size is carried on `PatternWaypoints.PatternSizeNm` so the downwind/base descent geometry uses the actual offset, not the bare category default. Pattern altitude defaults to `runway.AirportElevationFt + CategoryPerformance.PatternAltitudeAgl(category)`.
 
 **Two elevation datums.** `RunwayInfo.ElevationFt` is the active end's **landing threshold** elevation, from the
 CIFP (see [navigation-database.md](navigation-database.md#runway-end-elevations-come-from-the-cifp)); a glidepath
@@ -280,36 +269,18 @@ produces aircraft that overshoot or turn early.
 
 ### Downwind leg — `DownwindPhase`
 
-`DownwindPhase` (`src/Yaat.Sim/Phases/Pattern/DownwindPhase.cs`) flies the downwind reciprocal heading at pattern
-altitude. Its triggers are all measured as along-track distance from the threshold along the downwind heading
-(`AlongTrackToleranceNm = 0.3`):
+`DownwindPhase` (`src/Yaat.Sim/Phases/Pattern/DownwindPhase.cs`) flies the downwind reciprocal heading at pattern altitude. Its triggers are all measured as along-track distance from the threshold along the downwind heading; the base-turn trigger carries `AlongTrackToleranceNm = 0.3` of slop, the abeam test none:
 
-- **Abeam detection / descent start** (`DownwindPhase.cs:199`): when `aircraftAlongTrack ≥ _abeamAlongTrack − tol`,
-  it sets `_pastAbeam`, calls `ApplyPastAbeamDescentTargets`, and begins decelerating from `DownwindSpeed` toward
-  `BaseSpeed`.
-- **Past-abeam descent target** (`ApplyPastAbeamDescentTargets`): for a normal pattern, the target is the
-  **glideslope-intercept altitude at the base-to-final rollout point** — the base extension actually flown plus
-  one turn radius from the threshold (`GlideSlopeGeometry.AltitudeAtDistance`), capped at the current altitude.
-  The **altitude floor** for an extended/held downwind is recomputed per tick from the aircraft's own along-track
-  position (`min(TPA, glide altitude at position + turn radius)`), so a long extension levels back at pattern
-  altitude rather than pinning to the nominal base-turn geometry.
-- **Base-turn trigger / completion** (`DownwindPhase.cs:286`): completes when
-  `aircraftAlongTrack ≥ _baseTurnAlongTrack − tol`.
-- **Midfield broadcast** (`DownwindPhase.cs:166`): at half the abeam along-track, if no landing clearance, the
-  pilot reminds the controller (solo voices it as delayed pilot speech; RPO mode raises a `PendingWarnings` entry).
+- **Abeam detection** (`DownwindPhase.OnTick`): when `aircraftAlongTrack ≥ _abeamAlongTrack` (abeam exactly), it sets `_pastAbeam` and begins decelerating from `DownwindSpeed` toward `BaseSpeed`. The descent starts on the same tick only if no hold is in force (below).
+- **Past-abeam descent** (`ApplyPastAbeamDescentTargets`, `StartLineDescent`, `ReplanLineDescent`): AIM FIG 4-3-2 key 2 and AC 90-66B §11.5 hold pattern altitude to abeam the approach end ("maintained until the aircraft is at least abeam the approach end of the landing runway on the downwind leg"), and AC 90-66B Appendix A key 2 begins the descent there and turns base "at approximately 45 degrees from the intended landing point". AIM FIG 4-3-2 key 3 and AC 90-66B Appendix A key 3 only require the turn to final to be complete at least 1/4 mile out. How the altitude is lost between abeam and the rollout is not FAA text; two **simulation modelling choices** fill it. First, the downwind and the base descend at **one ground gradient**, along one straight line from the aircraft's present altitude and position to the 3° glidepath altitude at the rollout point `BasePhase.PlanDescent` plans its own descent to: one turn radius beyond the base trigger's distance out (floored at one turn radius), from the threshold (`GlideSlopeGeometry.AltitudeAtDistance`). Second, the **turn to final is flown level** at that rollout altitude: `BasePhase` reaches it where its leg ends, at the start of the turn to final. The downwind flies its share of the line: its fixed target at the base trigger is `rollout + (current − rollout) × baseLen / (remainingDw + baseLen)`, where `remainingDw` is the along-track distance to the base trigger and `baseLen` the distance `BasePhase` descends over (`BaseDescentLengthNm`): the 90° downwind-to-base arc of one turn radius, plus the straight base from there to one turn radius from the final centerline, where `BasePhase` ends and the turn to final starts. The line is planned at abeam when no hold is in force, or when a hold releases past abeam and short of the base trigger; every later unheld tick re-plans the rate that reaches the target over the downwind left at the present ground speed, capped at `BasePhase.MaxDescentRateFpm`. A C172 at KOAK 28R turns base near 663 ft MSL, between its 1,009 ft TPA and the rollout's 320 ft. An aircraft already at or below the rollout altitude holds rather than climbs. A release at or past the base trigger leaves the descent to `PlanDescent`, which plans it from wherever the base starts.
+- **Held downwind** (`HoldLevelPastAbeam`): an extended downwind (`IsExtended`), the follow proximity hold and the follow sequencing hold never start the descent. A hold in force at abeam keeps pattern altitude until the base turn or `TB`; a hold that begins mid-descent levels off where it is. The level, `min(altitude, TPA)`, is latched once on the first held tick past abeam (`HoldLevelFt` on `DownwindPhaseDto`), so the pattern never ratchets it and the aircraft never climbs back up the pattern; the latch clears when the hold releases and the line descent starts. SA and MNA leave a latched level alone.
+- **Controller altitude** (`TrackControllerAltitude`): a CM/DM issued on this leg wins over the profile (AIM 4-4-10.a). A change of `AssignedAltitude` since the leg started is such an assignment: it becomes the leg's altitude (`ControllerAltitudeFt`), a latched hold re-latches at it (climb included), the line descent stops re-planning, and neither abeam nor a hold's release starts a descent away from it. An assignment already in force when the leg started is not one; the leg targets pattern altitude from its start. MNA (`RemoveShortApproach`) does not plan the line descent while a controller altitude or a held level stands. A leg restored from a recording without the baseline (`AssignedAltitudeBaselineRecorded` not true) takes the assignment in force on its next tick as the baseline and adopts nothing.
+- **Base-turn trigger / completion** (`DownwindPhase.OnTick`): completes when `aircraftAlongTrack ≥ _baseTurnAlongTrack − tol`.
+- **Midfield broadcast** (`DownwindPhase.OnTick`): at the midfield point, if no landing clearance, the pilot reminds the controller (solo voices it as delayed pilot speech; RPO mode raises a `PendingWarnings` entry).
 
-**Short approach (SA).** `ApplyShortApproach` (`DownwindPhase.cs:305`) compresses `_baseTurnAlongTrack` to
-`_abeamAlongTrack + ShortApproachBaseExtensionNm`, clamped via `Math.Max(compressed, currentAlongTrack)` so the
-aircraft never reverses backward to an already-passed base-turn point. When SA is **armed before** the leg
-activates, `OnStart` sets `_pastAbeam = true` to suppress the normal abeam descent trigger and begins descending
-immediately. `RemoveShortApproach` (MNA, `DownwindPhase.cs:342`) restores the original base-turn from the
-waypoints; if the aircraft has already flown past it, completion next tick is correct (you can't un-shorten an
-already-flown pattern).
+**Short approach (SA).** `ApplyShortApproach` compresses `_baseTurnAlongTrack` to `_abeamAlongTrack + ShortApproachBaseExtensionNm`, clamped via `Math.Max(compressed, currentAlongTrack)` so the aircraft never reverses backward to an already-passed base-turn point. When SA is **armed before** the leg activates, `OnStart` sets `_pastAbeam = true` to suppress the normal abeam descent trigger and begins descending immediately. `RemoveShortApproach` (MNA) restores the original base-turn from the waypoints; if the aircraft has already flown past it, completion next tick is correct (you can't un-shorten an already-flown pattern).
 
-**Lateral offset (OFL/OFR).** While `LateralOffset` is non-null, `OnTick` overrides `TargetTrueHeading` via
-`PatternLateralOffsetHelper.ComputeTargetHeading` referenced from the downwind abeam point (which is on the
-downwind track, not the runway centerline), then holds a parallel track once acquired (`DownwindPhase.cs:151`).
-Downstream completion logic still uses along-track and is unaffected by the perpendicular dogleg.
+**Lateral offset (OFL/OFR).** While `LateralOffset` is non-null, `OnTick` overrides `TargetTrueHeading` via `PatternLateralOffsetHelper.ComputeTargetHeading` referenced from the downwind abeam point (which is on the downwind track, not the runway centerline), then holds a parallel track once acquired (`DownwindPhase.OnTick`). Downstream completion logic still uses along-track and is unaffected by the perpendicular dogleg.
 
 ### Base leg — `BasePhase`
 
