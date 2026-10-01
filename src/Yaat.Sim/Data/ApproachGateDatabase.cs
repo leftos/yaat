@@ -24,6 +24,9 @@ public static class ApproachGateDatabase
     /// <summary>Vectors end this far outside the approach gate (§5-9-1.a); subtract it to recover the gate itself.</summary>
     public const double InterceptPaddingNm = 2.0;
 
+    /// <summary>7110.65 §5-7-1.b.4's five-mile limit, the ceiling the final approach fix distance is measured against.</summary>
+    public const double InsideFafCeilingNm = 5.0;
+
     private static readonly ILogger Log = SimLog.CreateLogger("ApproachGateDatabase");
 
     private static Dictionary<(string Airport, string Runway), double> _fafDistancesToPavementNm = [];
@@ -107,6 +110,36 @@ public static class ApproachGateDatabase
     }
 
     /// <summary>
+    /// The published FAF distance (nm) to the runway's <em>landing</em> threshold: the stored FAF-to-pavement
+    /// distance plus <paramref name="thresholdDisplacementNm"/> (the same displacement
+    /// <see cref="GetMinInterceptDistanceNm"/> finishes its gate on). Null when the database is not
+    /// initialized, or the runway has no FAF in the loaded procedures.
+    /// </summary>
+    public static double? GetFafDistanceNm(string airportId, string runwayId, double thresholdDisplacementNm)
+    {
+        if (!_initialized)
+        {
+            return null;
+        }
+
+        string normalized = NormalizeAirport(airportId);
+
+        if (!_fafDistancesToPavementNm.TryGetValue((normalized, runwayId), out double fafDistToPavementNm))
+        {
+            return null;
+        }
+
+        return fafDistToPavementNm + thresholdDisplacementNm;
+    }
+
+    /// <summary>
+    /// The distance (nm) inside the final approach fix, the limit 7110.65 §5-7-1.b.4 measures against when the
+    /// FAF is nearer than its five miles: the smaller of <paramref name="fafDistanceNm"/> and
+    /// <see cref="InsideFafCeilingNm"/>. A runway with no published FAF (null) is limited to the ceiling.
+    /// </summary>
+    public static double InsideFafLimitNm(double? fafDistanceNm) => Math.Min(fafDistanceNm ?? InsideFafCeilingNm, InsideFafCeilingNm);
+
+    /// <summary>
     /// Minimum legal intercept distance (nm) from the runway's <em>landing</em> threshold, for the
     /// runway end whose threshold is displaced <paramref name="thresholdDisplacementNm"/>. Pass 0 when
     /// no airport map is available; the runway then reads as undisplaced. Returns the 7.0 nm default
@@ -114,14 +147,7 @@ public static class ApproachGateDatabase
     /// </summary>
     public static double GetMinInterceptDistanceNm(string airportId, string runwayId, double thresholdDisplacementNm)
     {
-        if (!_initialized)
-        {
-            return DefaultMinInterceptNm;
-        }
-
-        string normalized = NormalizeAirport(airportId);
-
-        if (!_fafDistancesToPavementNm.TryGetValue((normalized, runwayId), out double fafDistToPavementNm))
+        if (GetFafDistanceNm(airportId, runwayId, thresholdDisplacementNm) is not { } fafDistNm)
         {
             return DefaultMinInterceptNm;
         }
@@ -129,7 +155,6 @@ public static class ApproachGateDatabase
         // The FAF is out on the approach side, so a threshold displaced downfield is that much further
         // from it. P/CG "approach gate": 1 nm outside the FAF, and never closer than 5 nm to the
         // landing threshold — both measured on the landing datum.
-        double fafDistNm = fafDistToPavementNm + thresholdDisplacementNm;
         double approachGate = Math.Max(fafDistNm + GatePaddingNm, MinGateFloorNm);
         return approachGate + InterceptPaddingNm;
     }

@@ -3821,9 +3821,10 @@ public static class CommandDispatcher
     /// <summary>
     /// Route an accepted FOLLOW by where the follower is and what the lead is doing: the departing-lead refusal
     /// (<see cref="DepartingLeadRefusal"/>), the runwayless-lead guards, the routing of a follower with no pattern leg
-    /// (<see cref="RouteOffPatternFollow"/>), the cross-runway refusal from base or final, the sequence refusal
-    /// (<see cref="FollowSequenceRefusal"/>), the same-runway retarget on a pattern leg, and otherwise the install
-    /// (<see cref="InstallFollow"/>).
+    /// (<see cref="RouteOffPatternFollow"/>), the cross-runway refusals on an approach
+    /// (<see cref="ApproachCrossRunwayRefusal"/>) and from base or final (<see cref="CrossRunwayFromLegRefusal"/>), the
+    /// sequence refusal (<see cref="FollowSequenceRefusal"/>), the same-runway retarget on a pattern leg, and otherwise
+    /// the install (<see cref="InstallFollow"/>).
     /// </summary>
     private static CommandResult RouteFollow(AircraftState aircraft, AircraftState? leadAircraft, string target, DispatchContext ctx)
     {
@@ -3844,6 +3845,7 @@ public static class CommandDispatcher
             DepartingLeadRefusal(leadAircraft, target)
             ?? TryRouteRunwaylessLead(aircraft, leadAircraft, target, ctx)
             ?? RouteOffPatternFollow(aircraft, current, leadAircraft, target)
+            ?? ApproachCrossRunwayRefusal(aircraft, current, leadAircraft, target, ctx)
             ?? CrossRunwayFromLegRefusal(aircraft, current, crossRunway, target)
             ?? FollowSequenceRefusal(aircraft, leadAircraft, current, target);
         if (routed is not null)
@@ -3857,6 +3859,76 @@ public static class CommandDispatcher
         }
 
         return InstallFollow(aircraft, leadAircraft, current, target, ctx);
+    }
+
+    /// <summary>
+    /// The cross-runway refusal for a follower on an instrument approach told to follow a lead landing a different
+    /// runway at the same airport: FOLLOW sequences arrivals onto one runway (7110.65 §7-4-3.c.2), and in-trail has no
+    /// meaning on the parallel. An IFR follower — filed as such (<see cref="AircraftFlightPlan.HasFlightPlan"/> and not
+    /// VFR), so its approach is not a practice one — is refused wherever it is, the controller vectoring the
+    /// re-sequence. A VFR follower (or one with no flight plan) is refused only inside the final approach fix
+    /// (<see cref="IsInsideFinalApproachFix"/>); outside it the follow falls through and re-sequences the follower onto
+    /// the lead's runway as before. Null when the follower is not on an approach, either aircraft has no assigned
+    /// runway, the runways match, or a non-IFR follower is outside the FAF.
+    /// </summary>
+    private static CommandResult? ApproachCrossRunwayRefusal(
+        AircraftState aircraft,
+        Phase? current,
+        AircraftState? lead,
+        string target,
+        DispatchContext ctx
+    )
+    {
+        if (
+            !IsOnInstrumentApproach(current)
+            || (aircraft.Phases?.AssignedRunway is not { } followerRunway)
+            || (lead?.Phases?.AssignedRunway is not { } leadRunway)
+            || AirborneFollowHelper.IsSameRunway(followerRunway, leadRunway)
+        )
+        {
+            return null;
+        }
+
+        if (IsIfrFollower(aircraft) || IsInsideFinalApproachFix(aircraft, followerRunway, ctx))
+        {
+            return new CommandResult(
+                false,
+                $"Unable, on approach for runway {followerRunway.Designator}, {target} is landing runway {leadRunway.Designator}, request vectors"
+            );
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// True when <paramref name="aircraft"/> counts as an IFR arrival: a filed flight plan that is not VFR. An aircraft
+    /// with no flight plan is treated as VFR — a follow issued to it is a practice-approach decision, not a filed
+    /// instrument approach (the same test visual acquisition uses, <c>ConflictAlertDetector</c>).
+    /// </summary>
+    private static bool IsIfrFollower(AircraftState aircraft) => aircraft.FlightPlan.HasFlightPlan && !aircraft.FlightPlan.IsVfr;
+
+    /// <summary>
+    /// True when an aircraft on an instrument approach to <paramref name="runway"/> is inside the final approach fix:
+    /// established on the final — out on the approach side of the threshold (<see cref="AirborneFollowHelper.AlongFinalNm"/>
+    /// at or beyond zero) and within <see cref="AirborneFollowHelper.OnFinalMaxCrossTrackNm"/> of the extended
+    /// centerline — and no further out than <see cref="ApproachGateDatabase.InsideFafLimitNm"/>, measured to the
+    /// landing threshold (the pavement threshold plus the published displacement, the datum the approach is flown on).
+    /// Off the final (abeam, out on a feeder, past the threshold) is outside it (7110.65 §5-7-1.b.4: inside the final
+    /// approach fix <em>on final</em>).
+    /// </summary>
+    private static bool IsInsideFinalApproachFix(AircraftState aircraft, RunwayInfo runway, DispatchContext ctx)
+    {
+        double displacementNm = LandingThreshold.DisplacementFt(runway, ctx.GroundLayout) / GeoMath.FeetPerNm;
+        double alongNm = AirborneFollowHelper.AlongFinalNm(aircraft.Position, runway);
+        double? fafNm = ApproachGateDatabase.GetFafDistanceNm(runway.AirportId, runway.Designator, displacementNm);
+        if ((alongNm < 0.0) || (alongNm + displacementNm > ApproachGateDatabase.InsideFafLimitNm(fafNm)))
+        {
+            return false;
+        }
+
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        double crossTrackNm = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(aircraft.Position, threshold, runway.TrueHeading));
+        return crossTrackNm <= AirborneFollowHelper.OnFinalMaxCrossTrackNm;
     }
 
     /// <summary>

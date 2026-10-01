@@ -1146,7 +1146,7 @@ Data/ARTCCs/{ARTCC}/SurfaceTempData/{FACILITY}.json # Committed ASDE-X / SAAB SA
 Data/ARTCCs/ZOA/Procedures/koak-nimi.cifp # Pinned KOAK NIMITZ SID (NIMI5): charted and flown, but dropped from the FAA CIFP at cycle 2605. Carries the published 315 deg initial turn that the ~12-month prior-cycle chain would otherwise lose.
 Data/FrdResolver.cs            # Fix-Radial-Distance ↔ lat/lon; IsFrdIdentifier gates FRD-named fixes
 Data/LatLonParser.cs           # ERAM DDMM/DDDMM lat-long strings (//4220N/7110W) → lat/lon (CRR group locations)
-Data/ApproachGateDatabase.cs   # Static: FAF->pavement-threshold distances from CIFP; GetMinInterceptDistanceNm(airport, runway, thresholdDisplacementNm) finishes the §5-9-1 gate on the LANDING datum (P/CG: 1 nm outside the FAF, never closer than 5 nm to the landing threshold). Built at startup before any airport map exists, hence the read-time displacement.
+Data/ApproachGateDatabase.cs   # Static: FAF->pavement-threshold distances from CIFP; GetFafDistanceNm(airport, runway, thresholdDisplacementNm) is the FAF distance to the LANDING threshold, InsideFafLimitNm the §5-7-1.b.4 inside-the-FAF limit; GetMinInterceptDistanceNm(airport, runway, thresholdDisplacementNm) finishes the §5-9-1 gate on the LANDING datum (P/CG: 1 nm outside the FAF, never closer than 5 nm to the landing threshold). Built at startup before any airport map exists, hence the read-time displacement.
 Data/VideoMapMetadata.cs       # Video map metadata model
 Data/VideoMapData.cs           # Video map data structures (lines, labels, filters)
 Data/VideoMapParser.cs         # GeoJSON → VideoMapData

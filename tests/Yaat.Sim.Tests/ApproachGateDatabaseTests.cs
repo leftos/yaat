@@ -13,6 +13,35 @@ public class ApproachGateDatabaseTests
         TestVnasData.EnsureInitialized();
     }
 
+    /// <summary>
+    /// The synthetic TST 28L fixture the FAF-distance tests share: a FAF fix at (37.8, -122.2) and a 28L whose
+    /// pavement threshold is at (37.72, -122.22), with the database built from them. The scoped navigation database
+    /// is restored on return — the table keeps the distance it computed from it.
+    /// </summary>
+    private static void InitializeTst28L()
+    {
+        var cifpData = new CifpParseResult(
+            new Dictionary<(string Airport, string Runway), string> { [("TST", "28L")] = "TSTFX" },
+            new Dictionary<string, (double Lat, double Lon)> { ["TSTFX"] = (37.8, -122.2) }
+        );
+
+        NavigationDatabase navDb = TestNavDbFactory.WithRunways(
+            TestRunwayFactory.Make(
+                designator: "28L",
+                airportId: "TST",
+                thresholdLat: 37.72,
+                thresholdLon: -122.22,
+                endLat: 37.72,
+                endLon: -122.25,
+                heading: 280,
+                elevationFt: 10
+            )
+        );
+        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
+
+        ApproachGateDatabase.Initialize(cifpData, []);
+    }
+
     [Fact]
     public void GetMinInterceptDistanceNm_NotInitialized_ReturnsDefault()
     {
@@ -109,26 +138,7 @@ public class ApproachGateDatabaseTests
     [Fact]
     public void GetMinInterceptDistanceNm_DisplacedThreshold_MovesTheGateOutByTheDisplacement()
     {
-        var cifpData = new CifpParseResult(
-            new Dictionary<(string Airport, string Runway), string> { [("TST", "28L")] = "TSTFX" },
-            new Dictionary<string, (double Lat, double Lon)> { ["TSTFX"] = (37.8, -122.2) }
-        );
-
-        NavigationDatabase navDb = TestNavDbFactory.WithRunways(
-            TestRunwayFactory.Make(
-                designator: "28L",
-                airportId: "TST",
-                thresholdLat: 37.72,
-                thresholdLon: -122.22,
-                endLat: 37.72,
-                endLon: -122.25,
-                heading: 280,
-                elevationFt: 10
-            )
-        );
-        using IDisposable _ = NavigationDatabase.ScopedOverride(navDb);
-
-        ApproachGateDatabase.Initialize(cifpData, []);
+        InitializeTst28L();
 
         const double displacementNm = 2537.0 / 6076.12;
         double undisplaced = ApproachGateDatabase.GetMinInterceptDistanceNm("TST", "28L", thresholdDisplacementNm: 0);
@@ -177,6 +187,45 @@ public class ApproachGateDatabaseTests
 
         Assert.Equal(7.0, result);
     }
+
+    /// <summary>
+    /// The published FAF distance is the raw table value — FAF to pavement end — finished on the landing
+    /// threshold exactly as the gate is: a displaced threshold sits that much further from the FAF, so the
+    /// distance to the landing datum grows by the displacement.
+    /// </summary>
+    [Fact]
+    public void GetFafDistanceNm_AddsDisplacementToPavementDistance()
+    {
+        InitializeTst28L();
+
+        const double displacementNm = 2537.0 / 6076.12;
+        double? undisplaced = ApproachGateDatabase.GetFafDistanceNm("TST", "28L", thresholdDisplacementNm: 0);
+        double? displaced = ApproachGateDatabase.GetFafDistanceNm("TST", "28L", displacementNm);
+
+        Assert.NotNull(undisplaced);
+        Assert.NotNull(displaced);
+        Assert.Equal(GeoMath.DistanceNm(37.8, -122.2, 37.72, -122.22), undisplaced.Value, precision: 3);
+        Assert.Equal(undisplaced.Value + displacementNm, displaced.Value, precision: 3);
+    }
+
+    [Fact]
+    public void GetFafDistanceNm_UnknownRunway_IsNull()
+    {
+        InitializeTst28L();
+
+        Assert.NotNull(ApproachGateDatabase.GetFafDistanceNm("TST", "28L", thresholdDisplacementNm: 0));
+        Assert.Null(ApproachGateDatabase.GetFafDistanceNm("TST", "10R", thresholdDisplacementNm: 0));
+        Assert.Null(ApproachGateDatabase.GetFafDistanceNm("NONEXISTENT", "99Z", thresholdDisplacementNm: 0));
+    }
+
+    [Fact]
+    public void InsideFafLimitNm_NoFaf_IsFiveNm() => Assert.Equal(5.0, ApproachGateDatabase.InsideFafLimitNm(null));
+
+    [Fact]
+    public void InsideFafLimitNm_FafInsideFive_IsTheFaf() => Assert.Equal(3.0, ApproachGateDatabase.InsideFafLimitNm(3.0));
+
+    [Fact]
+    public void InsideFafLimitNm_FafBeyondFive_IsFiveNm() => Assert.Equal(5.0, ApproachGateDatabase.InsideFafLimitNm(7.0));
 
     [Fact]
     public void Initialize_FafCloseToThreshold_UsesMinGateFloor()
