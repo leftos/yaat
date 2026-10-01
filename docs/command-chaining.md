@@ -22,10 +22,7 @@ block fails after it was accepted. Read this before changing `FlightPhysics.Upda
   *triggered* blocks fire (per-tick scan plus the event paths `NotifyFixSequenced`,
   `NotifyGroundEntityReached`, and the `NotifyPhaseAdvanced` head-block hook). Untriggered
   `;`-blocks wait for the phase to end.
-- **C — idle phase** (`Phase.IsIdleAwaitingCommands`: AtParking, HoldingAfterPushback,
-  HoldingAfterExit, HoldingInPosition, HoldingShort, LinedUpAndWaiting). These phases never complete
-  on their own, so `AdvanceQueueWhileIdle` additionally applies *untriggered* blocks in strict `;`
-  order (issue #407). A block the idle phase rejects stays queued.
+- **C — idle phase** (`Phase.IsIdleAwaitingCommands`: AtParking, HoldingAfterPushback, HoldingAfterExit, HoldingInPosition, HoldingShort, LinedUpAndWaiting). These phases never complete on their own, so `AdvanceQueueWhileIdle` additionally applies *untriggered* blocks in strict `;` order (issue #407). A block stays queued when the idle phase rejects one of its non-transparent commands that comes before the block's first phase-clearing command. The commands after that one apply against the phase it installs, so `PUSH; TAXIAUTO 30, HS B` taxis after the push although HoldingAfterPushback rejects a bare `HS` (issue #475). A later command whose own apply fails takes the [fire-time abort](#abort-on-fire-time-failure); the installed phase's `CanAcceptCommand` is not consulted for it, as on a direct dispatch, which gates only a block's first command.
 
 ## Completion per command category
 
