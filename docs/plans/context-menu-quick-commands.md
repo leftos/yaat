@@ -100,7 +100,22 @@ Exploration (2026-09-30): the three builders are `RadarView.ContextMenus.cs` (`O
   - **Step 6 rulings** (exploration 2026-09-30; user answers on the classifier home, hysteresis and wire shape). Step 6 splits into **6a** (the Sim classifier) and **6b** (predicates, wire and client). 6b runs after 4c-2, since both grow `IMenuAircraft` and the host implementations.
     - **6a: a stored situation.** The situation is computed by a new per-second spine step (`StepId.Situation`) in PostPhysics, after `TickPilotProactive` so it sees this second's phase changes. The step is modelled on `TickSurfaceMembership`. Its result is stored on a snapshotted satellite, `AircraftSituationState` (`Current`, `AirborneAtSeconds`), with a clean-default DTO and no schema bump. The server's `DtoConverter` and `AircraftChangeTracker` read the stored value. The one-argument `Classify(ac)` is deleted, not kept beside the new form (user).
     - **6a: liftoff time.** `SimulationWorld.LatchAirborne` takes the sim time, a required parameter, and stamps `AirborneAtSeconds` on the false-to-true edge. An aircraft spawned airborne, or restored from an older snapshot, has a null liftoff time and reads as departed long ago, so neither time clause applies to it (the step-1 behaviour).
-    - **6a: hysteresis.** Each band is entered at today's edge and left only past a wider one, on the flight-rules branch only (user). The starting widths are 2.5 NM on the 20 NM edge, 5 NM on the 40 NM edge, and 10° on the 60° and 120° edges, with the 40 kt speed floor left unbanded. `aviation-sim-expert` sets the final widths before the brief.
+    - **6a: hysteresis.** Each band is entered at today's edge and left only past a wider one, on the flight-rules branch only (user). The bands apply per state: while the stored situation is X, all of X's conditions use X's leave thresholds; otherwise every test uses the enter thresholds.
+      - Widths (aviation consult 2026-09-30; [J] marks a judgement figure):
+
+        | Edge | Enter | Leave |
+        |---|---|---|
+        | VFR inbound radius | ≤ 20 NM | > 22.5 NM |
+        | IFR arrival radius | ≤ 40 NM | > 45 NM [J] |
+        | Closing angle | ≤ 60° | > 90° [J] |
+        | Closing ground speed | > 40 kt | ≤ 30 kt [J] |
+        | VFR departing angle | ≥ 120° | < 110° |
+        | VFR departing radius | ≤ 10 NM | unbanded |
+
+      - Why the closing angle leaves at 90°: past 90° the aircraft stops closing. A deliberate turn away still clears the extra 30° in about 10 s.
+      - The descent clause is enter-only. While an aircraft is latched as an IFR arrival through it, the leave test is geometric only: closing at 90° and within 3 NM per 1,000 ft above the field + 10 + 5 NM [J]. Otherwise every level-off on a step-down descent would flip it back to enroute.
+      - A non-local IFR arrival stays an arrival while within 45 NM, whatever its track [J]. Without this, a downwind vector before any STAR or expected approach would drop "Expect approach…" (7110.65 §5-9-1).
+      - On the flight-rules branch, a standalone turn or S-turn phase (nothing mapped after it) keeps the stored situation rather than reclassifying. Otherwise a 360 for spacing sweeps every angle and flips the menu for about 60 s.
     - **6a: turn look-ahead.** The look-ahead skips only consecutive turn and S-turn phases. It then classifies the first phase that is not a turn and never scans past an unmapped one.
     - **6b: wire shape.** A single `[Flags] SituationFlags` field on `AircraftStateDto`/`AircraftDto` carries `NearingDepartureHoldLine`, `HoldShortIsDepartureRunway`, `InsideFinalApproachFix`, `RolloutDecelerating` and `HasReportedFieldInSight` (user). It is append-only, computed in the same step as the situation, and fingerprinted as one slot.
     - **6b: inside the FAF.** The inside-FAF test is extracted from `CommandDispatcher.IsInsideFinalApproachFix` into a shared helper that takes the layout, not a `DispatchContext`.
