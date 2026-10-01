@@ -6,6 +6,10 @@ Entry point for `docs/plans/`. One line per item; the detail lives in the linked
 
 **Order of work:** the **ERAM** list first, then bug reports and feature requests — usually open GitHub issues — come first and ship in hotfix releases. The programmes below them run in the background and release with a non-hotfix. A fresh agent starts at **Bug reports and feature requests**, then the **Current programme**; **Backlog** is unscheduled findings with no report behind them. Folding the open tracker into this file is the `triage-open-issues` skill.
 
+## First task next session (user 2026-10-01)
+
+- [ ] **Make ck's MCP server non-blocking** (user-level tooling, not yaat code): the ck server (`~/.claude/tools/ck/serve.cmd` → `ck --serve`, ck 0.7.11 built from source by `~/.claude/tools/ck/build.ps1`, clone under `%LOCALAPPDATA%\ck-build\src`, BeaconBay/ck) runs one MCP call at a time, so `index_status` and every search queue behind a running `reindex` (seen 2026-10-01 indexing `.claude/reference/faa/`, 153 markdown files, several minutes, both calls pushed to background tasks), and the indexing `ck.exe` held ~17 GB RAM. Goals: tool calls served concurrently with indexing; `reindex` runs in the background and `index_status` reports its progress (files done / total) instead of waiting; find why indexing 153 small files takes ~17 GB. Land it as a BeaconBay/ck PR and carry it as a patch in `build.ps1` meanwhile (as the `esaxx-rs` patch is), with `~/.claude/tools/ck/README.md` updated. Then drop the "do not call `index_status` first" caveat from `.claude/agents/aviation-sim-expert.md`
+
 ## ERAM — #1 priority
 
 - [ ] **Release gate** (user 2026-09-30): finish every item in this section, the ERAM follow-ups under **Singles**, and **Bug reports and feature requests** (the context-menu feature branch merged; async load merged as #470), cut a release, then return to the tick-path unification.
