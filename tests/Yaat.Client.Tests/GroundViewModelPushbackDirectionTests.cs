@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -6,7 +7,7 @@ using Yaat.Sim;
 
 namespace Yaat.Client.Tests;
 
-// Covers GroundViewModel.GetPushbackDirections / PushbackFacingAsync: the ground view's
+// Covers GroundViewModel.GetPushbackDirections / GetPushbackFaceChoices: the ground view's
 // "Push back, face <taxiway>" menu items must emit PUSH FACE <cardinal>, which the server's
 // GroundCommandParser.ParsePushback accepts. The earlier numeric form (PUSH 090) is refused
 // outright ("PUSH no longer accepts numeric headings — use FACE/TAIL or </> with a cardinal"),
@@ -19,9 +20,9 @@ public class GroundViewModelPushbackDirectionTests
     private const double SpokeLengthNm = 0.03;
 
     [Fact]
-    public async Task GetPushbackDirections_DueEastEdge_SendsFaceCardinalNotNumericHeading()
+    public void GetPushbackDirections_DueEastEdge_SendsFaceCardinalNotNumericHeading()
     {
-        (GroundViewModel? vm, List<string>? sent) = MakeViewModel();
+        GroundViewModel vm = MakeViewModel();
         vm.SetLayoutForTesting(SpokeLayout(("T", 90.0)));
         AircraftModel ac = MakeAircraft();
 
@@ -31,14 +32,15 @@ public class GroundViewModelPushbackDirectionTests
         Assert.Equal("face T", only.Label);
         Assert.Equal("E", only.Cardinal);
 
-        await vm.PushbackFacingAsync(ac.Callsign, "AB", only.Cardinal);
-        Assert.Equal("PUSH FACE E", Assert.Single(sent));
+        MenuCommandChoice choice = Assert.Single(vm.GetPushbackFaceChoices(ac));
+        Assert.Equal("Push back, face T", choice.Label);
+        Assert.Equal("PUSH FACE E", choice.Command);
     }
 
     [Fact]
     public void GetPushbackDirections_BearingsStraddlingBucketBoundary_RoundToNearerCardinal()
     {
-        (GroundViewModel? vm, List<string> _) = MakeViewModel();
+        GroundViewModel vm = MakeViewModel();
         // The E/SE bucket boundary sits at magnetic 112.5. With ~13 degrees east variation in the
         // Bay Area these two true bearings land either side of it.
         vm.SetLayoutForTesting(SpokeLayout(("A", 118.0), ("B", 135.0)));
@@ -54,7 +56,7 @@ public class GroundViewModelPushbackDirectionTests
     [Fact]
     public void GetPushbackDirections_ConvertsTrueBearingToMagneticBeforeSnapping()
     {
-        (GroundViewModel? vm, List<string> _) = MakeViewModel();
+        GroundViewModel vm = MakeViewModel();
         // True 072 snaps to E (bucket midpoint 090) if taken as-is, but east variation pulls the
         // magnetic bearing below the NE/E boundary at 67.5, so the correct answer is NE.
         vm.SetLayoutForTesting(SpokeLayout(("C", 72.0)));
@@ -68,7 +70,7 @@ public class GroundViewModelPushbackDirectionTests
     [Fact]
     public void GetPushbackDirections_RampEdge_ProducesNoEntry()
     {
-        (GroundViewModel? vm, List<string> _) = MakeViewModel();
+        GroundViewModel vm = MakeViewModel();
         vm.SetLayoutForTesting(SpokeLayout(("RAMP", 0.0), ("T", 90.0)));
         AircraftModel ac = MakeAircraft();
 
@@ -86,20 +88,7 @@ public class GroundViewModelPushbackDirectionTests
         return match.Cardinal;
     }
 
-    private static (GroundViewModel Vm, List<string> Sent) MakeViewModel()
-    {
-        var sent = new List<string>();
-        var connection = new ServerConnection();
-        var vm = new GroundViewModel(
-            connection,
-            sendCommand: (_, command, _) =>
-            {
-                sent.Add(command);
-                return Task.CompletedTask;
-            }
-        );
-        return (vm, sent);
-    }
+    private static GroundViewModel MakeViewModel() => new(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask);
 
     private static AircraftModel MakeAircraft() => new() { Callsign = "TST123", Position = Center };
 

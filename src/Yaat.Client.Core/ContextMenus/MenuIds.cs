@@ -415,6 +415,21 @@ public static class MenuIds
     /// <summary>Give way to another ground aircraft (<c>GW</c>), from the nearest ground traffic.</summary>
     public const string GroundGiveWay = "ground.give-way";
 
+    /// <summary>Push back to a magnetic facing (<c>PUSH FACE</c>), one flat item per taxiway leaving the stand.</summary>
+    public const string GroundPushbackFace = "ground.pushback-face";
+
+    /// <summary>Push back to a named parking, spot or helipad node (<c>PUSH @name</c> / <c>PUSH $name</c>), nearest first.</summary>
+    public const string GroundPushbackTo = "ground.pushback-to";
+
+    /// <summary>Draw a tug move on the surface (<c>PUSH</c> / <c>PUSHM</c> to the drawn targets).</summary>
+    public const string GroundPushRoute = "ground.push-route";
+
+    /// <summary>Taxi along one of the airport's preset routes (<c>TAXI</c>), the ones walkable from the aircraft's node.</summary>
+    public const string GroundTaxiPreset = "ground.taxi-preset";
+
+    /// <summary>Draw a taxi route on the surface for the aircraft.</summary>
+    public const string GroundDrawTaxiRoute = "ground.draw-taxi-route";
+
     /// <summary>The selected aircraft follows the right-clicked one on the ground (<c>FOLLOWG</c>).</summary>
     public const string GroundRelativeFollow = "ground.relative-follow";
 

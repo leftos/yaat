@@ -100,6 +100,27 @@ public interface IMenuHost
     void SetRoutePreview(TaxiRoute? route);
 
     /// <summary>
+    /// The pushback facings at <paramref name="callsign"/>'s stand, one per taxiway leaving it: each item's text and
+    /// its finished <c>PUSH FACE</c> command, no preview; empty when the stand offers none.
+    /// </summary>
+    IReadOnlyList<MenuCommandChoice> GetPushbackFaceChoices(string callsign);
+
+    /// <summary>
+    /// The named stands <paramref name="callsign"/> can be pushed back to, nearest first and capped by the host: each
+    /// node's name and its finished <c>PUSH</c> command, no preview; empty when there are none.
+    /// </summary>
+    IReadOnlyList<MenuCommandChoice> GetPushbackToChoices(string callsign);
+
+    /// <summary>
+    /// The airport's preset taxi routes that can be walked from <paramref name="callsign"/>'s node: each route's name
+    /// and its finished <c>TAXI</c> command, no preview; empty when none applies.
+    /// </summary>
+    IReadOnlyList<MenuCommandChoice> GetPresetTaxiChoices(string callsign);
+
+    /// <summary>Puts the surface into drawing a tug move for <paramref name="callsign"/>.</summary>
+    void EnterPushRoute(string callsign);
+
+    /// <summary>
     /// Builds the Favorite Commands submenu. <paramref name="aircraft"/> is null when the menu has no aircraft model;
     /// the submenu itself is never null.
     /// </summary>

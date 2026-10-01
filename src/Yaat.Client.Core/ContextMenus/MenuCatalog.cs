@@ -15,8 +15,9 @@ namespace Yaat.Client.ContextMenus;
 /// STARs, airways) and formats the pick into the command, choosing its form from the data present when the menu is
 /// built; a host leaf asks the host for the item itself, for the entries that open a host surface or read the
 /// surface's own state — the warp popup, the flight-plan editor, the data-block toggle, hide and reset, the nav route,
-/// the measure item, route drawing, and the ground's hold-short, follow and give-way submenus over the choices the host
-/// answers; a value submenu builds a whole submenu of items from its own label and the menu
+/// the measure item, route and push-route drawing, and the ground's hold-short, follow, give-way, push-back-to and
+/// preset-taxi submenus over the choices the host answers (the pushback faces are flat items of a companion helper,
+/// <see cref="BuildPushbackFaces"/>); a value submenu builds a whole submenu of items from its own label and the menu
 /// context, one per value — the leader directions, the J-ring radii, the cone lengths and the taxi-route modes; and the Cleared for
 /// takeoff submenu offers the default clearance and runway heading, the VFR departure instructions when the aircraft
 /// and the controller's VFR-for-IFR setting allow them, and a free-text item last. A pattern entry is a leaf naming the
@@ -200,6 +201,22 @@ public static class MenuCatalog
         Leaf(MenuIds.PatternCancel270, "Cancel 270", "NO270", OnLeg("Upwind", "Crosswind", "Downwind", "Base")),
         Leaf(MenuIds.PatternCircleAirport, "Circle airport", "CA", OnAnyPatternLeg),
         Leaf(MenuIds.GroundPushback, "Push back", "PUSH", (ac, _) => AircraftCommandApplicability.CanPushBack(ac)),
+        HostLeaf(
+            MenuIds.GroundPushbackFace,
+            "Push back, face",
+            (ac, _) => AircraftCommandApplicability.CanPushBack(ac),
+            (_, _, _, _) =>
+                throw new InvalidOperationException(
+                    $"The '{MenuIds.GroundPushbackFace}' entry builds no item; MenuCatalog.BuildPushbackFaces builds its flat face items."
+                )
+        ),
+        HostLeaf(
+            MenuIds.GroundPushbackTo,
+            "Push back to...",
+            (ac, _) => AircraftCommandApplicability.CanPushBack(ac),
+            (label, _, context, host) => BuildChoiceSubmenu(label, host.GetPushbackToChoices(context.Callsign), context, host)
+        ),
+        HostLeaf(MenuIds.GroundPushRoute, "Push route...", (ac, _) => AircraftCommandApplicability.CanPushBack(ac), BuildPushRoute),
         Leaf(MenuIds.GroundHoldPosition, "Hold position", "HP", (ac, _) => AircraftCommandApplicability.CanHoldPosition(ac)),
         Leaf(
             MenuIds.GroundResumeTaxi,
@@ -228,6 +245,13 @@ public static class MenuCatalog
             AircraftCommandApplicability.CanGiveWayTo,
             (label, _, context, host) => BuildGroundTraffic(label, "GW", context, host)
         ),
+        HostLeaf(
+            MenuIds.GroundTaxiPreset,
+            "Preset taxi route",
+            (ac, _) => AircraftCommandApplicability.CanDrawTaxiRoute(ac),
+            (label, _, context, host) => BuildChoiceSubmenu(label, host.GetPresetTaxiChoices(context.Callsign), context, host)
+        ),
+        HostLeaf(MenuIds.GroundDrawTaxiRoute, "Draw taxi route...", (ac, _) => AircraftCommandApplicability.CanDrawTaxiRoute(ac), BuildDrawRoute),
         RelativeGround(MenuIds.GroundRelativeGiveWay, "Selected aircraft: give way to", "give way to", "GW"),
         RelativeGround(MenuIds.GroundRelativeFollow, "Selected aircraft: follow", "follow", "FOLLOWG"),
     ];
@@ -527,12 +551,34 @@ public static class MenuCatalog
 
     /// <summary>
     /// The Hold short of… submenu: one item per target the host finds on the taxi route, sending the host's finished
-    /// <c>HS</c> command, and previewing the route to the target when the pointer enters it. Nothing clears the preview
-    /// when the pointer leaves. Null when the route offers no target.
+    /// <c>HS</c> command, and previewing the route to the target when the pointer enters it. Null when the route offers
+    /// no target.
     /// </summary>
-    private static MenuItem? BuildHoldShort(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    private static MenuItem? BuildHoldShort(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
+        BuildChoiceSubmenu(label, host.GetHoldShortChoices(context.Callsign), context, host);
+
+    /// <summary>
+    /// The pushback-face entry's companion, which the ground group places right after Push back: one flat item per
+    /// facing the host answers, sending its finished <c>PUSH FACE</c> command. Building the entry itself throws.
+    /// </summary>
+    internal static IReadOnlyList<MenuItem> BuildPushbackFaces(MenuContext context, IMenuHost host) =>
+        [.. host.GetPushbackFaceChoices(context.Callsign).Select(choice => BuildSend(choice.Label, choice.Command, context, host))];
+
+    /// <summary>The Push route item, which puts the host into drawing a tug move for the aircraft.</summary>
+    private static MenuItem BuildPushRoute(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        IReadOnlyList<MenuCommandChoice> choices = host.GetHoldShortChoices(context.Callsign);
+        var item = new MenuItem { Header = label };
+        item.Click += (_, _) => host.EnterPushRoute(context.Callsign);
+        return item;
+    }
+
+    /// <summary>
+    /// A submenu over host-answered <paramref name="choices"/>: one item per choice, sending its finished command, and
+    /// previewing its route when the pointer enters an item whose choice carries one. Nothing clears the preview when
+    /// the pointer leaves. Null when there are no choices.
+    /// </summary>
+    private static MenuItem? BuildChoiceSubmenu(string label, IReadOnlyList<MenuCommandChoice> choices, MenuContext context, IMenuHost host)
+    {
         if (choices.Count == 0)
         {
             return null;
@@ -687,7 +733,7 @@ public static class MenuCatalog
     /// <summary>
     /// An entry whose item the host builds for a surface of its own rather than from a command text: the warp popup,
     /// the flight-plan editor, the display toggles and measure item that read and drive the surface's own state, and
-    /// the ground submenus whose choices the host answers (hold short, follow, give way).
+    /// the ground submenus whose choices the host answers (hold short, follow, give way, push back to, preset taxi).
     /// <paramref name="build"/> receives the entry's own label, so the item's text lives in one place, though a
     /// state-dependent item overrides it. A builder returns null for an item the surface's state hides.
     /// </summary>

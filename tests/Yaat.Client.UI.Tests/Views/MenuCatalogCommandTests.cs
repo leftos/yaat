@@ -186,6 +186,11 @@ public class MenuCatalogCommandTests
         MenuIds.GroundHoldShort,
         MenuIds.GroundFollow,
         MenuIds.GroundGiveWay,
+        MenuIds.GroundPushbackFace,
+        MenuIds.GroundPushbackTo,
+        MenuIds.GroundPushRoute,
+        MenuIds.GroundTaxiPreset,
+        MenuIds.GroundDrawTaxiRoute,
     ];
 
     public static TheoryData<string, string, string> SingleCommandLeaves()

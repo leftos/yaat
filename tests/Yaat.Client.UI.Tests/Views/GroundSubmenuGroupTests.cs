@@ -12,9 +12,10 @@ using CatalogMenuView = Yaat.Client.ContextMenus.MenuView;
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// The Core hold-short and follow groups over a <see cref="RecordingMenuHost"/>: they build each submenu only from the
-/// host's answers, send the host's finished commands or <c>FOLLOWG</c> / <c>GW</c> with the host's callsigns in the
-/// host's order, and preview only the choices that carry a route.
+/// The Core hold-short, follow, pushback and taxi-route groups over a <see cref="RecordingMenuHost"/>: they build each
+/// submenu and the flat face items only from the host's answers, send the host's finished commands or <c>FOLLOWG</c> /
+/// <c>GW</c> with the host's callsigns in the host's order, preview only the choices that carry a route, and hand push
+/// route and taxi-route drawing to the host.
 /// </summary>
 public class GroundSubmenuGroupTests
 {
@@ -105,6 +106,140 @@ public class GroundSubmenuGroupTests
             [.. traffic.Select(t => (Callsign, $"FOLLOWG {t}", Initials)), .. traffic.Select(t => (Callsign, $"GW {t}", Initials))],
             host.Sent
         );
+    }
+
+    // --- The pushback and taxi-route blocks --------------------------------------------------
+
+    private static AircraftModel Parked() =>
+        new()
+        {
+            Callsign = Callsign,
+            AircraftType = "B738",
+            FlightRules = "IFR",
+            IsOnGround = true,
+            CurrentPhase = "At Parking",
+        };
+
+    private static ContextMenu BuildPushbackGroup(RecordingMenuHost host)
+    {
+        var menu = new ContextMenu();
+        SharedMenuGroups.AddGroundPushback(menu.Items, Parked(), Context, host);
+        return menu;
+    }
+
+    private static ContextMenu BuildTaxiRouteGroup(RecordingMenuHost host, AircraftModel aircraft)
+    {
+        var menu = new ContextMenu();
+        SharedMenuGroups.AddGroundTaxiRoutes(menu.Items, aircraft, Context, host);
+        return menu;
+    }
+
+    [AvaloniaFact]
+    public void Pushback_FaceItemsFollowPushBack_AndSendTheHostsCommands()
+    {
+        var host = new RecordingMenuHost("");
+        host.PushbackFaceChoices.Add(new MenuCommandChoice("Push back, face W1", "PUSH FACE N", null));
+        host.PushbackFaceChoices.Add(new MenuCommandChoice("Push back, face W2", "PUSH FACE SE", null));
+
+        ContextMenu menu = BuildPushbackGroup(host);
+        Assert.Equal(["Push back", "Push back, face W1", "Push back, face W2", "Push route..."], Headers(menu.Items));
+
+        Click(Item(menu.Items, "Push back, face W1"));
+        Click(Item(menu.Items, "Push back, face W2"));
+        Assert.Equal([(Callsign, "PUSH FACE N", Initials), (Callsign, "PUSH FACE SE", Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void Pushback_PushBackToListsTheHostStandsInOrder_AndSendsTheirCommands()
+    {
+        var host = new RecordingMenuHost("");
+        host.PushbackToChoices.Add(new MenuCommandChoice("1", "PUSH $1", null));
+        host.PushbackToChoices.Add(new MenuCommandChoice("32", "PUSH @32", null));
+
+        ContextMenu menu = BuildPushbackGroup(host);
+        Assert.Equal(["Push back", "Push back to...", "Push route..."], Headers(menu.Items));
+
+        MenuItem pushTo = Item(menu.Items, "Push back to...");
+        Assert.Equal(["1", "32"], Headers(pushTo.Items));
+
+        Click(Item(pushTo.Items, "32"));
+        Click(Item(pushTo.Items, "1"));
+        Assert.Equal([(Callsign, "PUSH @32", Initials), (Callsign, "PUSH $1", Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void Pushback_PushRouteEntersPushRouteDrawing_AndSendsNothing()
+    {
+        var host = new RecordingMenuHost("");
+
+        Click(Item(BuildPushbackGroup(host).Items, "Push route..."));
+
+        Assert.Equal([Callsign], host.PushRouteCallsigns);
+        Assert.Empty(host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void Pushback_EmptyHostAnswers_BuildNoFaceItemsOrPushBackToSubmenu()
+    {
+        var host = new RecordingMenuHost("");
+
+        Assert.Equal(["Push back", "Push route..."], Headers(BuildPushbackGroup(host).Items));
+    }
+
+    [AvaloniaFact]
+    public void Pushback_NotOfferedWhileTaxiing()
+    {
+        var host = new RecordingMenuHost("");
+        host.PushbackFaceChoices.Add(new MenuCommandChoice("Push back, face W1", "PUSH FACE N", null));
+        host.PushbackToChoices.Add(new MenuCommandChoice("1", "PUSH $1", null));
+        var menu = new ContextMenu();
+
+        SharedMenuGroups.AddGroundPushback(menu.Items, Taxiing(), Context, host);
+
+        Assert.Empty(menu.Items);
+    }
+
+    [AvaloniaFact]
+    public void TaxiRoutes_PresetsSendTheHostsCommands_AndDrawTaxiRouteEntersDrawing()
+    {
+        var host = new RecordingMenuHost("");
+        host.PresetTaxiChoices.Add(new MenuCommandChoice("TERMINAL to 30", "TAXI T U W RWY 30", null));
+        host.PresetTaxiChoices.Add(new MenuCommandChoice("TERMINAL to 28R", "TAXI B C RWY 28R", null));
+
+        ContextMenu menu = BuildTaxiRouteGroup(host, Taxiing());
+        Assert.IsType<Separator>(menu.Items[0]);
+        Assert.Equal(["Preset taxi route", "Draw taxi route..."], Headers(menu.Items));
+
+        MenuItem presets = Item(menu.Items, "Preset taxi route");
+        Assert.Equal(["TERMINAL to 30", "TERMINAL to 28R"], Headers(presets.Items));
+        Click(Item(presets.Items, "TERMINAL to 28R"));
+        Assert.Equal([(Callsign, "TAXI B C RWY 28R", Initials)], host.Sent);
+
+        Click(Item(menu.Items, "Draw taxi route..."));
+        Assert.Equal([Callsign], host.DrawRouteCallsigns);
+    }
+
+    [AvaloniaFact]
+    public void TaxiRoutes_NoPresets_BuildsOnlyDrawTaxiRoute()
+    {
+        var host = new RecordingMenuHost("");
+
+        ContextMenu menu = BuildTaxiRouteGroup(host, Taxiing());
+
+        Assert.Equal(2, menu.Items.Count);
+        Assert.Equal(["Draw taxi route..."], Headers(menu.Items));
+    }
+
+    [AvaloniaFact]
+    public void TaxiRoutes_NotOfferedAirborne()
+    {
+        var host = new RecordingMenuHost("");
+        host.PresetTaxiChoices.Add(new MenuCommandChoice("TERMINAL to 30", "TAXI T U W RWY 30", null));
+        AircraftModel airborne = Taxiing();
+        airborne.IsOnGround = false;
+        airborne.CurrentPhase = "ApproachNav";
+
+        Assert.Empty(BuildTaxiRouteGroup(host, airborne).Items);
     }
 
     private static List<string> Headers(ItemCollection items) =>

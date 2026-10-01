@@ -9,6 +9,7 @@ using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Ground;
 using Yaat.Sim;
+using CatalogMenuView = Yaat.Client.ContextMenus.MenuView;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -56,9 +57,9 @@ public class GroundMovementMenuTests
     }
 
     /// <summary>
-    /// Builds the ground-map right-click menu for a single aircraft in <paramref name="phase"/>. The view is
-    /// parented to a host carrying the MainViewModel so GroundView.FindMainViewModel resolves, which is what
-    /// the Follow… submenu needs; a second ground aircraft supplies the follow candidate.
+    /// Builds the ground-map right-click menu's command items for a single aircraft in <paramref name="phase"/> from
+    /// the Core group the ground view calls, over a <see cref="GroundMenuHost"/> carrying the MainViewModel, which is what the
+    /// Follow… submenu needs; a second ground aircraft supplies the follow candidate.
     /// </summary>
     private static ContextMenu BuildGroundMenu(string phase, bool held)
     {
@@ -68,12 +69,11 @@ public class GroundMovementMenuTests
         mainVm.Aircraft.Add(GroundAircraft("SWA200", "Taxiing", held: false));
 
         var groundVm = new GroundViewModel(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask);
-        var view = new GroundView { DataContext = groundVm };
-        var host = new Grid { DataContext = mainVm };
-        host.Children.Add(view);
+        var host = new GroundMenuHost(new GroundView { DataContext = groundVm }, groundVm, mainVm, ac);
+        var context = new MenuContext(ac.Callsign, "AB", null, mainVm.SessionSoloTrainingMode, mainVm.VfrCommandsForIfr, CatalogMenuView.Ground);
 
         var menu = new ContextMenu();
-        view.AddSimulatedAircraftItems(menu, groundVm, new GroundMenuTarget(ac, PrevSelected: null, ac.Callsign, "AB"));
+        SharedMenuGroups.AddGroundAircraftCommands(menu.Items, ac, context, host);
         return menu;
     }
 
@@ -98,7 +98,7 @@ public class GroundMovementMenuTests
     public void GroundMenu_DoesNotOfferPushBack_ForHoldsTryPushbackRefuses(string phase) =>
         Assert.DoesNotContain(Headers(BuildGroundMenu(phase, held: false)), h => h.StartsWith("Push back", StringComparison.Ordinal));
 
-    // AddParkingAndTaxiItems and AddHoldFollowSubmenus both build Follow… submenus. Widening the
+    // The pushback block's Parking position and the Hold position both build Follow… submenus. Widening the
     // pushback gate must not let a "Holding After Pushback" aircraft collect one from each.
     [AvaloniaTheory]
     [InlineData("At Parking")]

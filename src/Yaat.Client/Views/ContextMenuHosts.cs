@@ -32,6 +32,12 @@ internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainVi
     /// <summary>The message both hold-short members throw: only the ground view offers hold short and previews its route.</summary>
     private const string NoHoldShortItem = "The radar menu has no hold short item; only the ground view offers hold short and previews taxi routes";
 
+    /// <summary>The message every pushback member throws: only the ground view offers the pushback faces, push back to and push route.</summary>
+    private const string NoPushbackItems = "The radar menu has no pushback items; only the ground view offers pushback faces, stands and push routes";
+
+    /// <summary>The message the preset-taxi member throws: only the ground view offers preset taxi routes.</summary>
+    private const string NoPresetTaxiItem = "The radar menu has no preset taxi route item; only the ground view offers preset taxi routes";
+
     public Task SendAsync(string callsign, string command, string initials) => radar.SendRawCommandAsync(callsign, initials, command);
 
     public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) =>
@@ -99,6 +105,14 @@ internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainVi
 
     public void SetRoutePreview(TaxiRoute? route) => throw new NotSupportedException(NoHoldShortItem);
 
+    public IReadOnlyList<MenuCommandChoice> GetPushbackFaceChoices(string callsign) => throw new NotSupportedException(NoPushbackItems);
+
+    public IReadOnlyList<MenuCommandChoice> GetPushbackToChoices(string callsign) => throw new NotSupportedException(NoPushbackItems);
+
+    public IReadOnlyList<MenuCommandChoice> GetPresetTaxiChoices(string callsign) => throw new NotSupportedException(NoPresetTaxiItem);
+
+    public void EnterPushRoute(string callsign) => throw new NotSupportedException(NoPushbackItems);
+
     public MenuItem BuildFavorites(IMenuAircraft? menuAircraft, MenuContext context) =>
         FavoritesContextMenu.Build(main, aircraft, context.Callsign, context.Initials);
 }
@@ -108,8 +122,9 @@ internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainVi
 /// path, the taxi-route mode reads and drives the ground view model, the data-block hide and reset read and drive the
 /// ground canvas, the measure item latches the ground view model's measurement, route drawing starts a taxi route for
 /// the right-clicked aircraft, the follow and give-way submenus list the main view model's other ground traffic, hold
-/// short asks the ground view model for the route's targets and previews the route to one on hover, and favorites are
-/// built for the right-clicked aircraft model. The ground has no input,
+/// short asks the ground view model for the route's targets and previews the route to one on hover, the pushback faces,
+/// push back to and preset taxi routes ask the ground view model for their finished commands, push route starts a tug
+/// move for the right-clicked aircraft, and favorites are built for the right-clicked aircraft model. The ground has no input,
 /// list, filtered-list or warp popup, no fix or altitude picker, no flight-plan item, and no mini data block or nav
 /// route.
 /// </summary>
@@ -236,6 +251,17 @@ internal sealed class GroundMenuHost(GroundView view, GroundViewModel ground, Ma
 
     public void SetRoutePreview(TaxiRoute? route) => ground.PreviewRoute = route;
 
+    /// <summary>The ground view model's pushback facings at the right-clicked aircraft's node, each sending <c>PUSH FACE</c>.</summary>
+    public IReadOnlyList<MenuCommandChoice> GetPushbackFaceChoices(string callsign) => ground.GetPushbackFaceChoices(RequireMenuAircraft(callsign));
+
+    /// <summary>The ground view model's nearest named stands for the right-clicked aircraft, each sending <c>PUSH</c>.</summary>
+    public IReadOnlyList<MenuCommandChoice> GetPushbackToChoices(string callsign) => ground.GetPushbackToChoices(RequireMenuAircraft(callsign));
+
+    /// <summary>The ground view model's preset taxi routes walkable from the right-clicked aircraft's node, each sending <c>TAXI</c>.</summary>
+    public IReadOnlyList<MenuCommandChoice> GetPresetTaxiChoices(string callsign) => ground.GetPresetTaxiChoices(RequireMenuAircraft(callsign));
+
+    public void EnterPushRoute(string callsign) => ground.StartPushRoute(RequireMenuAircraft(callsign));
+
     /// <summary>The most aircraft the Follow… and Give way to… submenus list.</summary>
     private const int MaxGroundTraffic = 12;
 
@@ -287,7 +313,7 @@ internal sealed class ListMenuHost(MainViewModel main, AircraftModel aircraft) :
 
     /// <summary>The message every ground-movement member throws: the list has no ground map to list traffic or preview routes on.</summary>
     private const string NoGroundMovementItems =
-        "The aircraft list has no ground map; list menus never build the hold short, follow or give way submenus";
+        "The aircraft list has no ground map; list menus never build the hold short, follow, give way, pushback or preset taxi items";
 
     public Task SendAsync(string callsign, string command, string initials) => main.Connection.SendCommandAsync(callsign, command, initials);
 
@@ -343,6 +369,14 @@ internal sealed class ListMenuHost(MainViewModel main, AircraftModel aircraft) :
     public IReadOnlyList<MenuCommandChoice> GetHoldShortChoices(string callsign) => throw new NotSupportedException(NoGroundMovementItems);
 
     public void SetRoutePreview(TaxiRoute? route) => throw new NotSupportedException(NoGroundMovementItems);
+
+    public IReadOnlyList<MenuCommandChoice> GetPushbackFaceChoices(string callsign) => throw new NotSupportedException(NoGroundMovementItems);
+
+    public IReadOnlyList<MenuCommandChoice> GetPushbackToChoices(string callsign) => throw new NotSupportedException(NoGroundMovementItems);
+
+    public IReadOnlyList<MenuCommandChoice> GetPresetTaxiChoices(string callsign) => throw new NotSupportedException(NoGroundMovementItems);
+
+    public void EnterPushRoute(string callsign) => throw new NotSupportedException(NoGroundMovementItems);
 
     public MenuItem BuildFavorites(IMenuAircraft? menuAircraft, MenuContext context) =>
         FavoritesContextMenu.Build(main, aircraft, context.Callsign, context.Initials);

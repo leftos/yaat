@@ -948,10 +948,6 @@ public partial class GroundViewModel : ObservableObject
         await _sendCommand(callsign, $"TAXI {taxiways}", initials);
     }
 
-    /// <summary>Pushes back to an absolute magnetic facing given as an 8-point compass cardinal (N, NE, E, SE, S, SW, W, NW).</summary>
-    public async Task PushbackFacingAsync(string callsign, string initials, string cardinal) =>
-        await _sendCommand(callsign, $"PUSH FACE {cardinal}", initials);
-
     public async Task SendRawCommandAsync(string callsign, string initials, string command) => await _sendCommand(callsign, command, initials);
 
     public async Task WarpToNodeAsync(string callsign, string initials, int nodeId) => await _sendCommand(callsign, $"WARPG #{nodeId}", initials);
@@ -1217,6 +1213,91 @@ public partial class GroundViewModel : ObservableObject
         int bucket = (int)Math.Round(normalized / 45.0) % 8;
         return Cardinals[bucket];
     }
+
+    /// <summary>
+    /// The pushback facings at the aircraft's node (<see cref="GetPushbackDirections"/>) as menu choices: "Push back,
+    /// face {taxiway}", sending <c>PUSH FACE {cardinal}</c>, an absolute magnetic facing.
+    /// </summary>
+    public List<MenuCommandChoice> GetPushbackFaceChoices(AircraftModel ac) =>
+        [.. GetPushbackDirections(ac).Select(d => new MenuCommandChoice($"Push back, {d.Label}", $"PUSH FACE {d.Cardinal}", null))];
+
+    /// <summary>The most stands the Push back to… submenu lists.</summary>
+    private const int MaxPushbackToChoices = 30;
+
+    /// <summary>
+    /// The named Parking, Spot and Helipad nodes the aircraft can be pushed back to, nearest first, at most
+    /// <see cref="MaxPushbackToChoices"/>, excluding the node it stands on: each labelled with its name and sending the
+    /// canonical PUSH command (<c>$name</c> for a spot, <c>@name</c> for parking or a helipad). Empty without a layout.
+    /// </summary>
+    public List<MenuCommandChoice> GetPushbackToChoices(AircraftModel ac)
+    {
+        if (_domainLayout is null)
+        {
+            return [];
+        }
+
+        int? currentNodeId = GetAircraftNearestNodeId(ac);
+        return
+        [
+            .. _domainLayout
+                .Nodes.Values.Where(node =>
+                    (node.Type is GroundNodeType.Parking or GroundNodeType.Spot or GroundNodeType.Helipad)
+                    && (!string.IsNullOrEmpty(node.Name))
+                    && (node.Id != currentNodeId)
+                )
+                .OrderBy(node => GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, node.Position.Lat, node.Position.Lon))
+                .Take(MaxPushbackToChoices)
+                .Select(node => new MenuCommandChoice(node.Name!, $"PUSH {(node.Type == GroundNodeType.Spot ? '$' : '@')}{node.Name}", null)),
+        ];
+    }
+
+    /// <summary>
+    /// The loaded per-ARTCC catalog's preset taxi routes for this airport that can be walked from the aircraft's node,
+    /// each labelled with the route's name and sending its canonical <c>TAXI</c> command; a route whose path cannot be
+    /// walked from here is dropped. Empty without a layout, a navigation database, routes or a nearest node.
+    /// </summary>
+    public List<MenuCommandChoice> GetPresetTaxiChoices(AircraftModel ac)
+    {
+        if (_domainLayout is null)
+        {
+            return [];
+        }
+
+        if (NavigationDatabase.InstanceOrNull is not { } navDb)
+        {
+            return [];
+        }
+
+        AirportSidecarCatalog catalog = navDb.AirportSidecars;
+
+        int? fromNodeId = GetAircraftNearestNodeId(ac);
+        if (fromNodeId is null)
+        {
+            return [];
+        }
+
+        AirportGroundLayout layout = _domainLayout;
+        return
+        [
+            .. catalog
+                .GetTaxiRoutes(layout.AirportId)
+                .Where(route => IsPresetWalkable(layout, fromNodeId.Value, route))
+                .Select(route => new MenuCommandChoice(route.Name, route.ToCanonicalCommand(), null)),
+        ];
+    }
+
+    /// <summary>Whether <paramref name="route"/>'s path resolves from <paramref name="fromNodeId"/>, as a large jet.</summary>
+    private static bool IsPresetWalkable(AirportGroundLayout layout, int fromNodeId, TaxiRouteDefinition route) =>
+        TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            fromNodeId,
+            route.GetPathTokens(),
+            out _,
+            new ExplicitPathOptions { OccupiedTaxiway = null, DestinationRunway = route.DestinationRunway },
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
+        )
+            is not null;
 
     public List<(string DisplayName, string Target)> GetHoldShortTargets(AircraftModel ac)
     {

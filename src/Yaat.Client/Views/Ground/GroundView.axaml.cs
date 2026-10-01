@@ -11,7 +11,6 @@ using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar.Flyouts;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
-using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.Views.Ground;
@@ -638,8 +637,8 @@ public partial class GroundView : UserControl
     /// <summary>
     /// The phase-aware ground command items, for a simulated aircraft and for an assumable live-traffic shadow:
     /// release checks, the relative items, pushback, taxi holds, hold-short / crossing, takeoff and landing
-    /// clearances, runway exits and taxi-route drawing. The catalog's entries and ground groups come from
-    /// <see cref="SharedMenuGroups"/>, interleaved with the submenus this view still builds. An airborne shadow has no
+    /// clearances, runway exits, preset taxi routes and taxi-route drawing, all catalog entries and ground groups from
+    /// <see cref="SharedMenuGroups"/>, in the ground's order. An airborne shadow has no
     /// ground phase, so the state-gated predicates inside yield nothing for it, and a surface shadow never reaches
     /// here, being unassumable.
     /// </summary>
@@ -649,208 +648,7 @@ public partial class GroundView : UserControl
         MenuContext context = MenuContextFor(target);
         var host = new GroundMenuHost(this, vm, FindMainViewModel(), ac);
 
-        SharedMenuGroups.AddIfApplicable(menu.Items, MenuIds.CoordinationCheckReleaseWindow, ac, context, host);
-        SharedMenuGroups.AddGroundRelative(menu.Items, ac, context, host);
-        AddParkingAndTaxiItems(menu, vm, target, context, host);
-        SharedMenuGroups.AddGroundClearances(menu.Items, ac, context, host);
-        SharedMenuGroups.AddGroundFollowAndGiveWay(menu.Items, ac, context, host, GroundFollowPosition.Hold);
-        SharedMenuGroups.AddGroundLanding(menu.Items, ac, context, host);
-
-        if (AircraftCommandApplicability.CanDrawTaxiRoute(ac))
-        {
-            menu.Items.Add(new Separator());
-            MenuItem? presetSubmenu = BuildPresetTaxiSubmenu(vm, ac, target.Callsign, target.Initials);
-            if (presetSubmenu is not null)
-            {
-                menu.Items.Add(presetSubmenu);
-            }
-
-            menu.Items.Add(
-                CreateMenuItem(
-                    "Draw taxi route...",
-                    () =>
-                    {
-                        vm.StartDrawRoute(ac!);
-                        return Task.CompletedTask;
-                    }
-                )
-            );
-        }
-    }
-
-    /// <summary>
-    /// At Parking / Holding After Pushback (push back variants and push route) plus At Parking's follow submenu,
-    /// hold position for every phase the sim accepts HOLD from, and Taxiing's hold short, follow, give way and break
-    /// conflict. When a different on-ground aircraft is selected, the relative items replace the Follow… / Give way to…
-    /// submenus.
-    /// </summary>
-    private static void AddParkingAndTaxiItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target, MenuContext context, IMenuHost host)
-    {
-        (AircraftModel? ac, AircraftModel? _, string callsign, string initials) = target;
-
-        if (SharedMenuGroups.AddIfApplicable(menu.Items, MenuIds.GroundPushback, ac, context, host) && ac is not null)
-        {
-            foreach ((string? label, string? cardinal) in vm.GetPushbackDirections(ac))
-            {
-                string c = cardinal;
-                menu.Items.Add(CreateMenuItem($"Push back, {label}", () => vm.PushbackFacingAsync(callsign, initials, c)));
-            }
-
-            MenuItem? pushSubmenu = BuildPushbackToSpotSubmenu(vm, ac, callsign, initials);
-            if (pushSubmenu is not null)
-            {
-                menu.Items.Add(pushSubmenu);
-            }
-
-            menu.Items.Add(
-                CreateMenuItem(
-                    "Push route...",
-                    () =>
-                    {
-                        vm.StartPushRoute(ac);
-                        return Task.CompletedTask;
-                    }
-                )
-            );
-
-            // A parked aircraft can start up and trail another ground aircraft; the Parking position offers no
-            // give-way, which needs a taxi route. Holding After Pushback gets its follow submenus from the Hold
-            // position after the clearances, which decides give-way from the route it may have.
-            SharedMenuGroups.AddGroundFollowAndGiveWay(menu.Items, ac, context, host, GroundFollowPosition.Parking);
-        }
-
-        // The single emission for the whole HOLD window, taxi-follow phases included — those emit
-        // nothing of their own before this item, so it stays the first item they show.
-        SharedMenuGroups.AddIfApplicable(menu.Items, MenuIds.GroundHoldPosition, ac, context, host);
-        SharedMenuGroups.AddGroundHoldShort(menu.Items, ac, context, host);
-        SharedMenuGroups.AddGroundFollowAndGiveWay(menu.Items, ac, context, host, GroundFollowPosition.Taxi);
-        SharedMenuGroups.AddIfApplicable(menu.Items, MenuIds.GroundBreakConflict, ac, context, host);
-    }
-
-    /// <summary>
-    /// Builds the "Push back to..." submenu listing the closest Parking/Spot/Helipad nodes
-    /// to the aircraft. Sends the canonical PUSH command (`@name` for parking/helipad,
-    /// `$name` for spot). Returns null when the layout is unavailable or there are no candidates.
-    /// </summary>
-    private static MenuItem? BuildPushbackToSpotSubmenu(GroundViewModel vm, AircraftModel ac, string callsign, string initials)
-    {
-        AirportGroundLayout? layout = vm.DomainLayout;
-        if (layout is null)
-        {
-            return null;
-        }
-
-        int? currentNodeId = vm.GetAircraftNearestNodeId(ac);
-        var candidates = new List<(GroundNode Node, double DistNm)>();
-        foreach (GroundNode node in layout.Nodes.Values)
-        {
-            if (node.Type is not (GroundNodeType.Parking or GroundNodeType.Spot or GroundNodeType.Helipad))
-            {
-                continue;
-            }
-
-            if (string.IsNullOrEmpty(node.Name))
-            {
-                continue;
-            }
-
-            if (currentNodeId.HasValue && node.Id == currentNodeId.Value)
-            {
-                continue;
-            }
-
-            double dist = GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, node.Position.Lat, node.Position.Lon);
-            candidates.Add((node, dist));
-        }
-
-        if (candidates.Count == 0)
-        {
-            return null;
-        }
-
-        candidates.Sort((a, b) => a.DistNm.CompareTo(b.DistNm));
-        const int maxItems = 30;
-        if (candidates.Count > maxItems)
-        {
-            candidates = candidates.GetRange(0, maxItems);
-        }
-
-        var submenu = new MenuItem { Header = "Push back to..." };
-        foreach ((GroundNode? node, double _) in candidates)
-        {
-            string name = node.Name!;
-            char prefix = node.Type == GroundNodeType.Spot ? '$' : '@';
-            string cmd = $"PUSH {prefix}{name}";
-            submenu.Items.Add(CreateMenuItem(name, () => vm.SendRawCommandAsync(callsign, initials, cmd)));
-        }
-
-        return submenu;
-    }
-
-    /// <summary>
-    /// Builds the "Preset taxi route" submenu — one click per route from the loaded
-    /// per-ARTCC catalog. Routes are filtered against the aircraft's current ground node:
-    /// any route whose path can't be walked from here is silently dropped. Returns null
-    /// when no routes are applicable so the caller can omit the empty submenu.
-    /// </summary>
-    private static MenuItem? BuildPresetTaxiSubmenu(GroundViewModel vm, AircraftModel? ac, string callsign, string initials)
-    {
-        if (ac is null)
-        {
-            return null;
-        }
-
-        AirportGroundLayout? layout = vm.DomainLayout;
-        if (layout is null)
-        {
-            return null;
-        }
-
-        AirportSidecarCatalog catalog;
-        try
-        {
-            catalog = NavigationDatabase.Instance.AirportSidecars;
-        }
-        catch (InvalidOperationException)
-        {
-            return null;
-        }
-
-        IReadOnlyList<TaxiRouteDefinition> routes = catalog.GetTaxiRoutes(layout.AirportId);
-        if (routes.Count == 0)
-        {
-            return null;
-        }
-
-        int? fromNodeId = vm.GetAircraftNearestNodeId(ac);
-        if (fromNodeId is null)
-        {
-            return null;
-        }
-
-        var submenu = new MenuItem { Header = "Preset taxi route" };
-
-        foreach (TaxiRouteDefinition route in routes)
-        {
-            TaxiRoute? resolved = TaxiPathfinder.ResolveExplicitPath(
-                layout,
-                fromNodeId.Value,
-                route.GetPathTokens(),
-                out _,
-                new ExplicitPathOptions { OccupiedTaxiway = null, DestinationRunway = route.DestinationRunway },
-                AircraftCategory.Jet,
-                WakeTurbulenceData.WakeClass.Large
-            );
-            if (resolved is null)
-            {
-                continue;
-            }
-
-            string command = route.ToCanonicalCommand();
-            submenu.Items.Add(CreateMenuItem(route.Name, () => vm.SendRawCommandAsync(callsign, initials, command)));
-        }
-
-        return submenu.Items.Count > 0 ? submenu : null;
+        SharedMenuGroups.AddGroundAircraftCommands(menu.Items, ac, context, host);
     }
 
     private void OnEmptySpaceClicked()

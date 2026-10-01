@@ -10,7 +10,8 @@ namespace Yaat.Client.ContextMenus;
 /// <see cref="MenuView"/> variant: the radar carries input pickers (handoff, point out, squawk code, custom say) the
 /// other surfaces leave out, and sends <c>ID</c> for Ident where the others send <c>IDENT</c>. Data block, sim
 /// control, display and the flight groups are built by the radar today, so they take no view. The ground view's
-/// relative items, runway clearances, landing block, hold short and follow submenus are groups of their own, and its tower variants branch on
+/// relative items, pushback block, runway clearances, landing block, hold short and follow submenus and taxi-route block are
+/// groups of their own, and its tower variants branch on
 /// <see cref="MenuContext.View"/> inside the entries. Whether a group is offered at all stays with the caller.
 /// </summary>
 public static class SharedMenuGroups
@@ -444,7 +445,7 @@ public static class SharedMenuGroups
 
     /// <summary>
     /// Adds the entry's item when the entry applies to the aircraft, otherwise nothing, and returns whether it added one;
-    /// the ground view places its single entries with it between the submenus it still builds itself.
+    /// the ground view places its single entries with it between its groups.
     /// </summary>
     public static bool AddIfApplicable(ItemCollection items, string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
@@ -579,6 +580,73 @@ public static class SharedMenuGroups
 
         AddIfApplicableAndBuilt(items, MenuIds.GroundFollow, aircraft, context, host);
         AddIfApplicableAndBuilt(items, MenuIds.GroundGiveWay, aircraft, context, host);
+    }
+
+    /// <summary>
+    /// The ground view's phase-aware command items, in the ground's order: the release-window check, the relative
+    /// items, the pushback block, hold position, hold short, the taxi position's follow and give way, break conflict,
+    /// the runway clearances, the hold position's follow and give way, the landing items, then the taxi-route block.
+    /// Each adds nothing when it does not apply.
+    /// </summary>
+    public static void AddGroundAircraftCommands(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        AddIfApplicable(items, MenuIds.CoordinationCheckReleaseWindow, aircraft, context, host);
+        AddGroundRelative(items, aircraft, context, host);
+        AddGroundPushback(items, aircraft, context, host);
+
+        // The single emission for the whole HOLD window, taxi-follow phases included — those emit
+        // nothing of their own before this item, so it stays the first item they show.
+        AddIfApplicable(items, MenuIds.GroundHoldPosition, aircraft, context, host);
+        AddGroundHoldShort(items, aircraft, context, host);
+        AddGroundFollowAndGiveWay(items, aircraft, context, host, GroundFollowPosition.Taxi);
+        AddIfApplicable(items, MenuIds.GroundBreakConflict, aircraft, context, host);
+        AddGroundClearances(items, aircraft, context, host);
+        AddGroundFollowAndGiveWay(items, aircraft, context, host, GroundFollowPosition.Hold);
+        AddGroundLanding(items, aircraft, context, host);
+        AddGroundTaxiRoutes(items, aircraft, context, host);
+    }
+
+    /// <summary>
+    /// The ground view's pushback block while the aircraft can push back (<see cref="AircraftCommandApplicability.CanPushBack"/>):
+    /// Push back, the flat face items (<see cref="MenuCatalog.BuildPushbackFaces"/>), Push back to… when the host
+    /// answers a stand, Push route…, then the parking position's Follow…
+    /// (<see cref="GroundFollowPosition.Parking"/>). Holding After Pushback gets its follow submenus from the hold
+    /// position after the clearances instead. Adds nothing otherwise.
+    /// </summary>
+    public static void AddGroundPushback(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        if (!AddIfApplicable(items, MenuIds.GroundPushback, aircraft, context, host))
+        {
+            return;
+        }
+
+        if (IsApplicable(MenuIds.GroundPushbackFace, aircraft, context))
+        {
+            foreach (MenuItem face in MenuCatalog.BuildPushbackFaces(context, host))
+            {
+                items.Add(face);
+            }
+        }
+
+        AddIfApplicableAndBuilt(items, MenuIds.GroundPushbackTo, aircraft, context, host);
+        AddIfApplicable(items, MenuIds.GroundPushRoute, aircraft, context, host);
+        AddGroundFollowAndGiveWay(items, aircraft, context, host, GroundFollowPosition.Parking);
+    }
+
+    /// <summary>
+    /// The ground view's taxi-route block while a taxi route can be drawn (<see cref="AircraftCommandApplicability.CanDrawTaxiRoute"/>):
+    /// a separator, the Preset taxi route submenu when a preset applies, then Draw taxi route…. Adds nothing otherwise.
+    /// </summary>
+    public static void AddGroundTaxiRoutes(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        if (!IsApplicable(MenuIds.GroundDrawTaxiRoute, aircraft, context))
+        {
+            return;
+        }
+
+        items.Add(new Separator());
+        AddIfApplicableAndBuilt(items, MenuIds.GroundTaxiPreset, aircraft, context, host);
+        AddIfApplicable(items, MenuIds.GroundDrawTaxiRoute, aircraft, context, host);
     }
 
     /// <summary>Whether the aircraft's phase is one <paramref name="position"/> places the follow submenus for.</summary>

@@ -143,6 +143,25 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
 
     public void SetRoutePreview(TaxiRoute? route) => RoutePreviews.Add(route);
 
+    /// <summary>The pushback facings the face items list, whatever the callsign asked about.</summary>
+    public List<MenuCommandChoice> PushbackFaceChoices { get; } = [];
+
+    /// <summary>The stands the Push back to… submenu lists, whatever the callsign asked about.</summary>
+    public List<MenuCommandChoice> PushbackToChoices { get; } = [];
+
+    /// <summary>The routes the Preset taxi route submenu lists, whatever the callsign asked about.</summary>
+    public List<MenuCommandChoice> PresetTaxiChoices { get; } = [];
+
+    public List<string> PushRouteCallsigns { get; } = [];
+
+    public IReadOnlyList<MenuCommandChoice> GetPushbackFaceChoices(string callsign) => PushbackFaceChoices;
+
+    public IReadOnlyList<MenuCommandChoice> GetPushbackToChoices(string callsign) => PushbackToChoices;
+
+    public IReadOnlyList<MenuCommandChoice> GetPresetTaxiChoices(string callsign) => PresetTaxiChoices;
+
+    public void EnterPushRoute(string callsign) => PushRouteCallsigns.Add(callsign);
+
     public MenuItem BuildFavorites(IMenuAircraft? aircraft, MenuContext context) =>
         throw new NotSupportedException("The recording host does not build the favorites submenu.");
 }

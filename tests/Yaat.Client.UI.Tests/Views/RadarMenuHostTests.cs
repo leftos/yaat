@@ -56,7 +56,10 @@ public class RadarMenuHostTests
         }
     }
 
-    /// <summary>The ground view's traffic, hold-short and route-preview members, which neither the radar nor the list builds.</summary>
+    /// <summary>
+    /// The ground view's traffic, hold-short, route-preview, pushback and preset-taxi members, which neither the radar nor
+    /// the list builds.
+    /// </summary>
     [AvaloniaFact]
     public void RadarAndListHosts_ThrowForGroundMovementMembers()
     {
@@ -72,6 +75,10 @@ public class RadarMenuHostTests
             Assert.Throws<NotSupportedException>(() => host.GetGroundTrafficCallsigns(Callsign));
             Assert.Throws<NotSupportedException>(() => host.GetHoldShortChoices(Callsign));
             Assert.Throws<NotSupportedException>(() => host.SetRoutePreview(null));
+            Assert.Throws<NotSupportedException>(() => host.GetPushbackFaceChoices(Callsign));
+            Assert.Throws<NotSupportedException>(() => host.GetPushbackToChoices(Callsign));
+            Assert.Throws<NotSupportedException>(() => host.GetPresetTaxiChoices(Callsign));
+            Assert.Throws<NotSupportedException>(() => host.EnterPushRoute(Callsign));
         }
     }
 }

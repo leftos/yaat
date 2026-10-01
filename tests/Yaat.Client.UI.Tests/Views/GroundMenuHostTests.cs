@@ -21,8 +21,8 @@ namespace Yaat.Client.UI.Tests.Views;
 /// <summary>
 /// The ground menu host's taxi-route and hidden-datablock members: they act only on the right-clicked aircraft, and
 /// still act by callsign when the menu was opened on an aircraft the main view model has no model for. Its ground
-/// traffic, hold-short and route-preview members, and the Core hold-short and follow groups built over it on the real
-/// KOAK layout.
+/// traffic, hold-short, route-preview, pushback and preset-taxi members, and the Core hold-short and follow groups built
+/// over it on the real KOAK layout.
 /// </summary>
 public class GroundMenuHostTests
 {
@@ -148,6 +148,107 @@ public class GroundMenuHostTests
         Assert.Null(ground.PreviewRoute);
     }
 
+    // --- Pushback faces, push back to, push route and preset taxi routes ---------------------
+
+    [AvaloniaFact]
+    public void GroundMenuHost_PushbackAndPresetMembers_ActOnlyOnTheRightClickedAircraft()
+    {
+        (GroundView view, GroundViewModel ground) = GroundHarness();
+        var host = new GroundMenuHost(view, ground, null, new AircraftModel { Callsign = Callsign });
+        var noModel = new GroundMenuHost(view, ground, null, null);
+
+        (GroundMenuHost Host, string Asked)[] cases = [(host, OtherCallsign), (noModel, Callsign)];
+        foreach ((GroundMenuHost h, string asked) in cases)
+        {
+            Assert.Throws<InvalidOperationException>(() => h.GetPushbackFaceChoices(asked));
+            Assert.Throws<InvalidOperationException>(() => h.GetPushbackToChoices(asked));
+            Assert.Throws<InvalidOperationException>(() => h.GetPresetTaxiChoices(asked));
+            Assert.Throws<InvalidOperationException>(() => h.EnterPushRoute(asked));
+        }
+
+        Assert.False(ground.IsDrawingRoute);
+    }
+
+    [AvaloniaFact]
+    public void GetPushbackFaceChoices_AtSpotI30_SendPushFaceForEachNonRampTaxiway()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(PushbackFaceNode));
+        GroundViewModel ground = OakGround(_ => { });
+        var host = new GroundMenuHost(new GroundView { DataContext = ground }, ground, null, target);
+
+        IReadOnlyList<MenuCommandChoice> choices = host.GetPushbackFaceChoices(Callsign);
+
+        List<(string Label, string Cardinal)> directions = ground.GetPushbackDirections(target);
+        Assert.NotEmpty(directions);
+        Assert.Equal(directions.Select(d => ($"Push back, {d.Label}", $"PUSH FACE {d.Cardinal}")), choices.Select(c => (c.Label, c.Command)));
+        Assert.All(choices, c => Assert.StartsWith("Push back, face ", c.Label));
+        Assert.All(choices, c => Assert.Null(c.Preview));
+    }
+
+    [AvaloniaFact]
+    public void GetPushbackToChoices_AtSpotI30_ThirtyNearestStands_SpotUsesDollarParkingUsesAt()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(PushbackFaceNode));
+        GroundViewModel ground = OakGround(_ => { });
+        var host = new GroundMenuHost(new GroundView { DataContext = ground }, ground, null, target);
+
+        IReadOnlyList<MenuCommandChoice> choices = host.GetPushbackToChoices(Callsign);
+
+        Assert.Equal(30, choices.Count);
+        Assert.DoesNotContain(choices, c => c.Label == "I30");
+        Assert.Contains(choices, c => (c.Label == "1") && (c.Command == "PUSH $1"));
+        Assert.Contains(choices, c => (c.Label == "32") && (c.Command == "PUSH @32"));
+        Assert.All(choices, c => Assert.Null(c.Preview));
+
+        List<double> distances = [.. choices.Select(c => DistanceToStand(target, c.Label))];
+        Assert.Equal(distances.Order(), distances);
+    }
+
+    [AvaloniaFact]
+    public void GetPresetTaxiChoices_FromTheOakSidecar_KeepTheWalkableRouteAndDropTheOther()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = GroundAircraft(Callsign, "Taxiing", PositionOf(PresetTaxiNode));
+        target.AssignedRunway = "30";
+        GroundViewModel ground = OakGround(_ => { });
+        var host = new GroundMenuHost(new GroundView { DataContext = ground }, ground, null, target);
+
+        IReadOnlyList<MenuCommandChoice> choices = host.GetPresetTaxiChoices(Callsign);
+
+        MenuCommandChoice terminal = Assert.Single(choices, c => c.Label == "TERMINAL to 30");
+        Assert.Equal("TAXI T U W RWY 30", terminal.Command);
+        Assert.Null(terminal.Preview);
+        Assert.DoesNotContain(choices, c => c.Label == "30 to TERMINAL");
+    }
+
+    [AvaloniaFact]
+    public void PushbackAndPresetChoices_NoLayout_AreEmpty()
+    {
+        (GroundView view, GroundViewModel ground) = GroundHarness();
+        AircraftModel target = GroundAircraft(Callsign, "At Parking", new LatLon(37.72, -122.22));
+        var host = new GroundMenuHost(view, ground, null, target);
+
+        Assert.Empty(host.GetPushbackFaceChoices(Callsign));
+        Assert.Empty(host.GetPushbackToChoices(Callsign));
+        Assert.Empty(host.GetPresetTaxiChoices(Callsign));
+    }
+
+    [AvaloniaFact]
+    public void EnterPushRoute_StartsPushRouteDrawingForTheRightClickedAircraft()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(PushbackFaceNode));
+        GroundViewModel ground = OakGround(_ => { });
+        var host = new GroundMenuHost(new GroundView { DataContext = ground }, ground, null, target);
+
+        host.EnterPushRoute(Callsign);
+
+        Assert.True(ground.IsDrawingRoute);
+        Assert.Equal(Callsign, ground.PushRouteCallsign);
+    }
+
     // --- The Core groups over the ground host ------------------------------------------------
 
     [AvaloniaFact]
@@ -243,6 +344,22 @@ public class GroundMenuHostTests
     }
 
     private static GroundLayoutDto Oak => MenuGoldenFixtures.OakLayoutForClient;
+
+    private static LatLon PositionOf(GroundNodeDto node) => new(node.Latitude, node.Longitude);
+
+    /// <summary>The named Spot "I30", the pushback fixture of <c>GroundSubmenuCharacterizationTests</c>: two non-RAMP W1 edges.</summary>
+    private static GroundNodeDto PushbackFaceNode => Oak.Nodes.First(n => (n.Type == "Spot") && (n.Name == "I30"));
+
+    /// <summary>The only intersection on both taxiway T and taxiway U, where the sidecar's "TERMINAL to 30" route begins.</summary>
+    private static GroundNodeDto PresetTaxiNode =>
+        Oak.Nodes.First(n => (n.Type == "TaxiwayIntersection") && LinkNamesOf(n.Id).Contains("T") && LinkNamesOf(n.Id).Contains("U"));
+
+    /// <summary>The distance from <paramref name="aircraft"/> to the named stand <paramref name="name"/>.</summary>
+    private static double DistanceToStand(AircraftModel aircraft, string name)
+    {
+        GroundNodeDto stand = Oak.Nodes.First(n => (n.Name == name) && (n.Type is "Spot" or "Parking" or "Helipad"));
+        return GeoMath.DistanceNm(aircraft.Position.Lat, aircraft.Position.Lon, stand.Latitude, stand.Longitude);
+    }
 
     /// <summary>
     /// The W3 node just behind runway 30's hold-short at W3: of the hold-short's two W3 neighbours, the one with no link
