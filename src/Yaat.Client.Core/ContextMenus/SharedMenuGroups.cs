@@ -726,6 +726,26 @@ public static class SharedMenuGroups
         menu.Items.Add(Delete(aircraft, context, host));
     }
 
+    /// <summary>
+    /// The aircraft list's multi-selection live-traffic item, placed after the Delete item: a separator and
+    /// "Assume selected live traffic (N)" when <paramref name="selectedShadows"/> names two or more assumable shadows to
+    /// assume at once and the entry's own gate allows it, otherwise nothing. The selection belongs to the list rather
+    /// than to the menu context, so it comes in as a parameter, while the gate — read through
+    /// <see cref="MenuCatalog.Get"/> the way <see cref="AddDelayedSpawn"/> reads the delayed spawn's — stays with the
+    /// entry. The item itself comes from <see cref="MenuCatalog.BuildAssumeSelected"/> rather than from its own entry's
+    /// builder.
+    /// </summary>
+    public static void AddAssumeSelected(ContextMenu menu, IReadOnlyList<string> selectedShadows, MenuContext context, IMenuHost host)
+    {
+        if ((selectedShadows.Count < 2) || !IsApplicable(MenuIds.LiveTrafficAssumeSelected, null, context))
+        {
+            return;
+        }
+
+        menu.Items.Add(new Separator());
+        menu.Items.Add(MenuCatalog.BuildAssumeSelected(selectedShadows, host));
+    }
+
     /// <summary>The ground view's landing items, in menu order.</summary>
     private static readonly string[] GroundLandingIds =
     [

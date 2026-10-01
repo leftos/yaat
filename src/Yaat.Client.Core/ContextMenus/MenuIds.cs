@@ -447,4 +447,7 @@ public static class MenuIds
 
     /// <summary>Change how long a delayed aircraft waits before it spawns (<c>SPAWNDELAY</c>).</summary>
     public const string SpawnDelay = "spawn.delay";
+
+    /// <summary>Assume control of the live-traffic shadows several selected aircraft name (<c>ASSUME</c> each).</summary>
+    public const string LiveTrafficAssumeSelected = "livetraffic.assume-selected";
 }

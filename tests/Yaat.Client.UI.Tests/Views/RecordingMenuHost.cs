@@ -162,6 +162,15 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
 
     public void EnterPushRoute(string callsign) => PushRouteCallsigns.Add(callsign);
 
+    /// <summary>The callsign lists the assume-selected item was clicked with, each in the order it was given.</summary>
+    public List<IReadOnlyList<string>> AssumeSelectedCalls { get; } = [];
+
+    public Task AssumeSelectedLiveTrafficAsync(IReadOnlyList<string> callsigns)
+    {
+        AssumeSelectedCalls.Add(callsigns);
+        return Task.CompletedTask;
+    }
+
     public MenuItem BuildFavorites(IMenuAircraft? aircraft, MenuContext context) =>
         throw new NotSupportedException("The recording host does not build the favorites submenu.");
 }

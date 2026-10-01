@@ -213,13 +213,7 @@ public partial class DataGridView : UserControl
         }
 
         List<string> selectedShadows = [.. selection.Where(AircraftCommandApplicability.CanAssume).Select(a => a.Callsign)];
-        if (selectedShadows.Count >= 2)
-        {
-            menu.Items.Add(new Separator());
-            var assumeSelectedItem = new MenuItem { Header = $"Assume selected live traffic ({selectedShadows.Count})" };
-            assumeSelectedItem.Click += async (_, _) => await vm.AssumeSelectedLiveTrafficAsync(selectedShadows);
-            menu.Items.Add(assumeSelectedItem);
-        }
+        SharedMenuGroups.AddAssumeSelected(menu, selectedShadows, context, host);
 
         vm.BuildRpoMenuItems(menu, selectedCallsigns);
 

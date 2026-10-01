@@ -195,6 +195,7 @@ public class MenuCatalogCommandTests
         MenuIds.GroundTaxiPreset,
         MenuIds.GroundDrawTaxiRoute,
         MenuIds.SpawnDelay,
+        MenuIds.LiveTrafficAssumeSelected,
     ];
 
     public static TheoryData<string, string, string> SingleCommandLeaves()
@@ -248,6 +249,61 @@ public class MenuCatalogCommandTests
         Click(item);
 
         Assert.Equal([(Callsign, "ASSUME", Initials), (Callsign, "TRACK", Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void AssumeSelected_TwoShadows_AddsSeparatorThenItemThatAssumesThem()
+    {
+        var host = new RecordingMenuHost("");
+        var menu = new ContextMenu();
+
+        SharedMenuGroups.AddAssumeSelected(menu, ["SWA1", "SWA2"], ListContext(VfrCommandsForIfr.EnterFinalOnly), host);
+
+        Assert.Equal(2, menu.Items.Count);
+        Assert.IsType<Separator>(menu.Items[0]);
+        MenuItem item = Assert.IsType<MenuItem>(menu.Items[1]);
+        Assert.Equal("Assume selected live traffic (2)", item.Header);
+
+        Click(item);
+
+        IReadOnlyList<string> assumed = Assert.Single(host.AssumeSelectedCalls);
+        Assert.Equal(2, assumed.Count);
+        Assert.Equal("SWA1", assumed[0]);
+        Assert.Equal("SWA2", assumed[1]);
+    }
+
+    [AvaloniaFact]
+    public void AssumeSelected_ThreeShadows_LabelNamesThreeAndAssumesAllThree()
+    {
+        var host = new RecordingMenuHost("");
+        var menu = new ContextMenu();
+
+        SharedMenuGroups.AddAssumeSelected(menu, ["SWA1", "SWA2", "SWA3"], ListContext(VfrCommandsForIfr.EnterFinalOnly), host);
+
+        Assert.Equal(2, menu.Items.Count);
+        Assert.IsType<Separator>(menu.Items[0]);
+        MenuItem item = Assert.IsType<MenuItem>(menu.Items[1]);
+        Assert.Equal("Assume selected live traffic (3)", item.Header);
+
+        Click(item);
+
+        IReadOnlyList<string> assumed = Assert.Single(host.AssumeSelectedCalls);
+        Assert.Equal(3, assumed.Count);
+        Assert.Equal("SWA1", assumed[0]);
+        Assert.Equal("SWA2", assumed[1]);
+        Assert.Equal("SWA3", assumed[2]);
+    }
+
+    [AvaloniaFact]
+    public void AssumeSelected_OneShadow_AddsNothing()
+    {
+        var host = new RecordingMenuHost("");
+        var menu = new ContextMenu();
+
+        SharedMenuGroups.AddAssumeSelected(menu, ["SWA1"], ListContext(VfrCommandsForIfr.EnterFinalOnly), host);
+
+        Assert.Empty(menu.Items);
+        Assert.Empty(host.AssumeSelectedCalls);
     }
 
     [AvaloniaTheory]

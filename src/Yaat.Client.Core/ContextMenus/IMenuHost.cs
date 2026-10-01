@@ -125,4 +125,10 @@ public interface IMenuHost
     /// the submenu itself is never null.
     /// </summary>
     MenuItem BuildFavorites(IMenuAircraft? aircraft, MenuContext context);
+
+    /// <summary>
+    /// Assumes control of the live-traffic shadows <paramref name="callsigns"/> names, in the order given. Only the
+    /// aircraft list selects several aircraft at once, so its host is the only surface that answers.
+    /// </summary>
+    Task AssumeSelectedLiveTrafficAsync(IReadOnlyList<string> callsigns);
 }

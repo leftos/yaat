@@ -32,7 +32,9 @@ namespace Yaat.Client.ContextMenus;
 /// resume taxi from, a cross-runway gate with no controllability requirement, Hold position sending <c>HOLD</c>, a
 /// release-window check with no controllability requirement, and line up and wait and Cleared for takeoff naming the
 /// held runway, the latter as a bare leaf sending <c>CTO</c>. A delayed spawn instead offers Spawn now, the
-/// Change spawn delay submenu and Delete (<see cref="SharedMenuGroups.AddDelayedSpawn"/>).
+/// Change spawn delay submenu and Delete (<see cref="SharedMenuGroups.AddDelayedSpawn"/>), and a selection of two or
+/// more assumable shadows adds "Assume selected live traffic (N)" after Delete
+/// (<see cref="SharedMenuGroups.AddAssumeSelected"/>, built by <see cref="BuildAssumeSelected"/>).
 /// </summary>
 public static class MenuCatalog
 {
@@ -287,6 +289,16 @@ public static class MenuCatalog
                         + "through MenuCatalog.BuildSpawnDelay, which takes the menu its free-text box closes."
                 )
         ),
+        HostLeaf(
+            MenuIds.LiveTrafficAssumeSelected,
+            AssumeSelectedLabel,
+            Always,
+            (_, _, _, _) =>
+                throw new InvalidOperationException(
+                    $"The '{MenuIds.LiveTrafficAssumeSelected}' entry builds no item; SharedMenuGroups.AddAssumeSelected builds it for "
+                        + "the aircraft list through MenuCatalog.BuildAssumeSelected, which takes the shadows the list has selected."
+                )
+        ),
     ];
 
     /// <summary>
@@ -315,6 +327,9 @@ public static class MenuCatalog
 
     /// <summary>The Change spawn delay submenu's label, which the delayed-spawn group heads it with.</summary>
     private const string SpawnDelayLabel = "Change spawn delay";
+
+    /// <summary>The aircraft list's multi-selection assume item's label, which the number of selected shadows follows.</summary>
+    private const string AssumeSelectedLabel = "Assume selected live traffic";
 
     /// <summary>The ground view's closed-traffic departure instructions, offered after the default when the VFR ones apply.</summary>
     private static readonly (string Label, string Argument)[] GroundTrafficTakeoffModifiers =
@@ -575,6 +590,19 @@ public static class MenuCatalog
         delayMenu.Items.Add(new Separator());
         delayMenu.Items.Add(BuildCustomDelayInput(menu, context, host));
         return delayMenu;
+    }
+
+    /// <summary>
+    /// The aircraft list's multi-selection assume item: it assumes every shadow named in
+    /// <paramref name="selectedShadows"/>, in the order given, and its label carries how many there are. The selection
+    /// belongs to the list rather than to the menu context, so this companion builder takes that list instead of the
+    /// entry's own builder shape.
+    /// </summary>
+    internal static MenuItem BuildAssumeSelected(IReadOnlyList<string> selectedShadows, IMenuHost host)
+    {
+        var item = new MenuItem { Header = $"{AssumeSelectedLabel} ({selectedShadows.Count})" };
+        item.Click += async (_, _) => await host.AssumeSelectedLiveTrafficAsync(selectedShadows);
+        return item;
     }
 
     /// <summary>

@@ -38,6 +38,10 @@ internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainVi
     /// <summary>The message the preset-taxi member throws: only the ground view offers preset taxi routes.</summary>
     private const string NoPresetTaxiItem = "The radar menu has no preset taxi route item; only the ground view offers preset taxi routes";
 
+    /// <summary>The message the assume-selected member throws: only the aircraft list selects several aircraft at once.</summary>
+    private const string NoAssumeSelectedItem =
+        "The radar menu has no assume-selected item; only the aircraft list assumes a multi-selection of live traffic";
+
     public Task SendAsync(string callsign, string command, string initials) => radar.SendRawCommandAsync(callsign, initials, command);
 
     public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) =>
@@ -112,6 +116,8 @@ internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainVi
     public IReadOnlyList<MenuCommandChoice> GetPresetTaxiChoices(string callsign) => throw new NotSupportedException(NoPresetTaxiItem);
 
     public void EnterPushRoute(string callsign) => throw new NotSupportedException(NoPushbackItems);
+
+    public Task AssumeSelectedLiveTrafficAsync(IReadOnlyList<string> callsigns) => throw new NotSupportedException(NoAssumeSelectedItem);
 
     public MenuItem BuildFavorites(IMenuAircraft? menuAircraft, MenuContext context) =>
         FavoritesContextMenu.Build(main, aircraft, context.Callsign, context.Initials);
@@ -262,6 +268,11 @@ internal sealed class GroundMenuHost(GroundView view, GroundViewModel ground, Ma
 
     public void EnterPushRoute(string callsign) => ground.StartPushRoute(RequireMenuAircraft(callsign));
 
+    public Task AssumeSelectedLiveTrafficAsync(IReadOnlyList<string> callsigns) =>
+        throw new NotSupportedException(
+            "The ground view has no assume-selected item; only the aircraft list assumes a multi-selection of live traffic"
+        );
+
     /// <summary>The most aircraft the Follow… and Give way to… submenus list.</summary>
     private const int MaxGroundTraffic = 12;
 
@@ -377,6 +388,9 @@ internal sealed class ListMenuHost(MainViewModel main, AircraftModel aircraft) :
     public IReadOnlyList<MenuCommandChoice> GetPresetTaxiChoices(string callsign) => throw new NotSupportedException(NoGroundMovementItems);
 
     public void EnterPushRoute(string callsign) => throw new NotSupportedException(NoGroundMovementItems);
+
+    /// <summary>Assumes the selected shadows through the main view model, which owns the bulk-assume call.</summary>
+    public Task AssumeSelectedLiveTrafficAsync(IReadOnlyList<string> callsigns) => main.AssumeSelectedLiveTrafficAsync([.. callsigns]);
 
     public MenuItem BuildFavorites(IMenuAircraft? menuAircraft, MenuContext context) =>
         FavoritesContextMenu.Build(main, aircraft, context.Callsign, context.Initials);
