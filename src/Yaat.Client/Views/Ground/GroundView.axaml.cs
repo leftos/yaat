@@ -526,7 +526,7 @@ public partial class GroundView : UserControl
         var host = new GroundMenuHost(this, vm, FindMainViewModel(), ac);
         var menu = new ContextMenu();
 
-        AddAircraftHeaderItems(menu, vm, target);
+        AddAircraftHeaderItems(menu, vm, target, context, host);
         menu.Items.Add(new Separator());
         menu.Items.Add(SharedMenuGroups.Favorites(ac, context, host));
         menu.Items.Add(new Separator());
@@ -548,7 +548,7 @@ public partial class GroundView : UserControl
             AddSimulatedAircraftItems(menu, vm, target);
         }
 
-        AddDisplayItems(menu, vm, callsign);
+        SharedMenuGroups.AddGroundDisplay(menu.Items, ac, context, host);
         menu.Items.Add(new Separator());
         if (SharedMenuGroups.Unassume(ac, context, host) is { } unassume)
         {
@@ -581,8 +581,11 @@ public partial class GroundView : UserControl
         );
     }
 
-    /// <summary>The bold callsign header plus the free-text Command…, Note… and measurement items every aircraft gets.</summary>
-    private void AddAircraftHeaderItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target)
+    /// <summary>
+    /// The bold callsign header plus the free-text Command… and Note… items every aircraft gets, then the catalog's
+    /// measure item while the ground view has a measure tool.
+    /// </summary>
+    private void AddAircraftHeaderItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target, MenuContext context, GroundMenuHost host)
     {
         (AircraftModel? ac, AircraftModel? _, string? callsign, string? initials) = target;
         string headerText = ac is not null ? $"{callsign} — {ac.AircraftType}" : callsign;
@@ -626,61 +629,9 @@ public partial class GroundView : UserControl
         );
 
         // Latching the measurement to the aircraft, so the line follows it as it taxis.
-        if (vm.Measure is { } measure)
+        if (SharedMenuGroups.Measure(ac, context, host) is { } measure)
         {
-            string measureHeader = measure.Anchor is null ? $"Measure from {callsign}" : $"Measure to {callsign}";
-            menu.Items.Add(
-                CreateMenuItem(
-                    measureHeader,
-                    () =>
-                    {
-                        measure.Pick(
-                            RblEndpoint.OnAircraft(callsign),
-                            GroundViewModel.MeasureView,
-                            vm.MeasureTrackLookup,
-                            GroundViewModel.MeasureUnits
-                        );
-                        return Task.CompletedTask;
-                    }
-                )
-            );
-        }
-    }
-
-    /// <summary>Taxi-route visibility and datablock show/hide/reset — display-only items shared by shadows and simulated aircraft.</summary>
-    private void AddDisplayItems(ContextMenu menu, GroundViewModel vm, string callsign)
-    {
-        TaxiRouteDisplayMode taxiRouteMode = vm.GetTaxiRouteMode(callsign);
-        var taxiRouteMenu = new MenuItem { Header = "Taxi route" };
-        taxiRouteMenu.Items.Add(CreateTaxiRouteModeItem(vm, callsign, "Always show", TaxiRouteDisplayMode.AlwaysShow, taxiRouteMode));
-        taxiRouteMenu.Items.Add(CreateTaxiRouteModeItem(vm, callsign, "Always hide", TaxiRouteDisplayMode.AlwaysHide, taxiRouteMode));
-        taxiRouteMenu.Items.Add(CreateTaxiRouteModeItem(vm, callsign, "Follow “Show all” setting", TaxiRouteDisplayMode.Follow, taxiRouteMode));
-        menu.Items.Add(taxiRouteMenu);
-
-        bool isDbHidden = _canvas?.IsDataBlockHidden(callsign) ?? false;
-        menu.Items.Add(
-            CreateMenuItem(
-                isDbHidden ? "Show datablock" : "Hide datablock",
-                () =>
-                {
-                    _canvas?.ToggleHiddenDataBlock(callsign);
-                    return Task.CompletedTask;
-                }
-            )
-        );
-
-        if (_canvas?.HasManualDataBlockOffset(callsign) ?? false)
-        {
-            menu.Items.Add(
-                CreateMenuItem(
-                    "Reset datablock position",
-                    () =>
-                    {
-                        _canvas?.ResetDataBlockOffset(callsign);
-                        return Task.CompletedTask;
-                    }
-                )
-            );
+            menu.Items.Add(measure);
         }
     }
 
@@ -1453,25 +1404,6 @@ public partial class GroundView : UserControl
     {
         var item = new MenuItem { Header = header };
         item.Click += async (_, _) => await action();
-        return item;
-    }
-
-    private static MenuItem CreateTaxiRouteModeItem(
-        GroundViewModel vm,
-        string callsign,
-        string header,
-        TaxiRouteDisplayMode mode,
-        TaxiRouteDisplayMode currentMode
-    )
-    {
-        var item = new MenuItem
-        {
-            Header = header,
-            ToggleType = MenuItemToggleType.Radio,
-            GroupName = "TaxiRouteMode",
-            IsChecked = mode == currentMode,
-        };
-        item.Click += (_, _) => vm.SetTaxiRouteMode(callsign, mode);
         return item;
     }
 

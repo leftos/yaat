@@ -133,7 +133,7 @@ Three ways an aircraft's remaining taxi route gets drawn on the ground view, all
 
 1. **Hover (opt-out, default on)** — `GroundShowTaxiRouteOnHover`. Moving the cursor over an aircraft draws its route transiently in white.
 2. **Show all (opt-in, default off)** — `GroundShowAllTaxiRoutes`. Every taxiing aircraft's route is drawn at once.
-3. **Manual per-aircraft override** — the right-click **Taxi route** submenu (`GroundView.axaml.cs`), a radio group of `TaxiRouteDisplayMode`: `AlwaysShow`, `AlwaysHide`, `Follow` (track the global setting — the default).
+3. **Manual per-aircraft override** — the right-click **Taxi route** submenu (the Core catalog's `display.taxi-route`, through `GroundMenuHost`), a radio group of `TaxiRouteDisplayMode`: `AlwaysShow`, `AlwaysHide`, `Follow` (track the global setting — the default).
 
 **Offset precedence is manual drag > deconfliction > default**, resolved in one place —
 `GroundCanvas.ResolvedDataBlockOffset(callsign)` — and used by both `FindDataBlockAtPoint` and the drag-start seed in
@@ -220,7 +220,7 @@ Because of this, **`HandleRightClick` is the single place every ground right-cli
 
 ### Context menus
 
-`GroundView.axaml.cs` rebuilds the aircraft context menu from scratch on each right-click. Its plain sends, gates and the Tower items come from the Core catalog over a `GroundMenuHost` (`SharedMenuGroups.AddGroundRelative`, `AddGroundClearances`, `AddGroundLanding`); the ground keeps its own narrower takeoff, LUAW and cancel-takeoff gates and its CTO submenu through `View == Ground` branches on the shared `tower.*` entries until the menus are unified. The pushback, follow, give-way, hold-short, preset-route and display submenus are still built in the view and gate on phase strings. The **Taxi route** submenu is a `MenuItemToggleType.Radio` group whose checked item reflects `GetTaxiRouteMode(callsign)`; selecting one calls `SetTaxiRouteMode`.
+`GroundView.axaml.cs` rebuilds the aircraft context menu from scratch on each right-click. Its plain sends, gates and the Tower items come from the Core catalog over a `GroundMenuHost` (`SharedMenuGroups.AddGroundRelative`, `AddGroundClearances`, `AddGroundLanding`); the ground keeps its own narrower takeoff, LUAW and cancel-takeoff gates and its CTO submenu through `View == Ground` branches on the shared `tower.*` entries until the menus are unified. The display items (`SharedMenuGroups.AddGroundDisplay`: Taxi route, Show/Hide datablock, Reset datablock position) and the header's Measure item come from the catalog too. The pushback, follow, give-way, hold-short and preset-route submenus are still built in the view and gate on phase strings. The **Taxi route** submenu is a `MenuItemToggleType.Radio` group whose checked item reflects `GetTaxiRouteMode(callsign)`; selecting one calls `SetTaxiRouteMode`.
 
 ## Settings propagation
 

@@ -71,6 +71,18 @@ public interface IMenuHost
     /// <summary>Latches the pending measurement's next endpoint to <paramref name="callsign"/>, so the line follows it.</summary>
     void MeasurePickOnAircraft(string callsign);
 
+    /// <summary>How the surface draws <paramref name="callsign"/>'s taxi route: following the global setting, or always shown or hidden.</summary>
+    TaxiRouteDisplayMode GetTaxiRouteMode(string callsign);
+
+    /// <summary>Sets how the surface draws <paramref name="callsign"/>'s taxi route to <paramref name="mode"/>.</summary>
+    void SetTaxiRouteMode(string callsign, TaxiRouteDisplayMode mode);
+
+    /// <summary>Whether the surface has hidden <paramref name="callsign"/>'s data block.</summary>
+    bool IsDataBlockHidden(string callsign);
+
+    /// <summary>Hides <paramref name="callsign"/>'s data block, or shows it again when it is hidden.</summary>
+    void ToggleHiddenDataBlock(string callsign);
+
     /// <summary>
     /// Builds the Favorite Commands submenu. <paramref name="aircraft"/> is null when the menu has no aircraft model;
     /// the submenu itself is never null.

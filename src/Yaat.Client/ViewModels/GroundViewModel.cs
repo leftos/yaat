@@ -3,6 +3,7 @@ using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
 using SkiaSharp;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
@@ -15,19 +16,6 @@ using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Data.Faa;
 
 namespace Yaat.Client.ViewModels;
-
-/// <summary>Per-aircraft override for how its taxi route is drawn on the ground view.</summary>
-public enum TaxiRouteDisplayMode
-{
-    /// <summary>Track the global "show all taxiing routes" setting (the default, no override).</summary>
-    Follow,
-
-    /// <summary>Always draw this aircraft's route, regardless of the global setting.</summary>
-    AlwaysShow,
-
-    /// <summary>Never draw this aircraft's route, regardless of the global setting.</summary>
-    AlwaysHide,
-}
 
 /// <summary>Which interactive route the ground view's draw mode is building.</summary>
 public enum DrawRouteKind

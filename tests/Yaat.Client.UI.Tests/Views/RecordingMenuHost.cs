@@ -111,6 +111,23 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
 
     public void MeasurePickOnAircraft(string callsign) => MeasurePicks.Add(callsign);
 
+    /// <summary>The taxi-route mode each callsign answers with; a callsign not listed follows the global setting.</summary>
+    public Dictionary<string, TaxiRouteDisplayMode> TaxiRouteModes { get; } = [];
+
+    public List<(string Callsign, TaxiRouteDisplayMode Mode)> TaxiRouteModeSets { get; } = [];
+
+    public HashSet<string> HiddenDataBlockCallsigns { get; } = [];
+
+    public List<string> HiddenDataBlockToggles { get; } = [];
+
+    public TaxiRouteDisplayMode GetTaxiRouteMode(string callsign) => TaxiRouteModes.GetValueOrDefault(callsign, TaxiRouteDisplayMode.Follow);
+
+    public void SetTaxiRouteMode(string callsign, TaxiRouteDisplayMode mode) => TaxiRouteModeSets.Add((callsign, mode));
+
+    public bool IsDataBlockHidden(string callsign) => HiddenDataBlockCallsigns.Contains(callsign);
+
+    public void ToggleHiddenDataBlock(string callsign) => HiddenDataBlockToggles.Add(callsign);
+
     public MenuItem BuildFavorites(IMenuAircraft? aircraft, MenuContext context) =>
         throw new NotSupportedException("The recording host does not build the favorites submenu.");
 }

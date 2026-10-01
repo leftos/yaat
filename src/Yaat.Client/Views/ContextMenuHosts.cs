@@ -18,6 +18,12 @@ namespace Yaat.Client.Views;
 /// </summary>
 internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainViewModel? main, AircraftModel? aircraft) : IMenuHost
 {
+    /// <summary>The message both taxi-route members throw: only the ground view draws taxi routes.</summary>
+    private const string NoTaxiRouteItem = "The radar menu has no taxi route item; only the ground view draws taxi routes";
+
+    /// <summary>The message both hidden-datablock members throw: only the ground view's menu hides data blocks.</summary>
+    private const string NoHideDataBlockItem = "The radar menu has no hide datablock item; only the ground view hides data blocks from its menu";
+
     public Task SendAsync(string callsign, string command, string initials) => radar.SendRawCommandAsync(callsign, initials, command);
 
     public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) =>
@@ -71,16 +77,25 @@ internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainVi
         }
     }
 
+    public TaxiRouteDisplayMode GetTaxiRouteMode(string callsign) => throw new NotSupportedException(NoTaxiRouteItem);
+
+    public void SetTaxiRouteMode(string callsign, TaxiRouteDisplayMode mode) => throw new NotSupportedException(NoTaxiRouteItem);
+
+    public bool IsDataBlockHidden(string callsign) => throw new NotSupportedException(NoHideDataBlockItem);
+
+    public void ToggleHiddenDataBlock(string callsign) => throw new NotSupportedException(NoHideDataBlockItem);
+
     public MenuItem BuildFavorites(IMenuAircraft? menuAircraft, MenuContext context) =>
         FavoritesContextMenu.Build(main, aircraft, context.Callsign, context.Initials);
 }
 
 /// <summary>
 /// The ground view's <see cref="IMenuHost"/>, built per right-click: commands go through the ground view model's send
-/// path, the data-block reset reads and drives the ground canvas, the measure item latches the ground view model's
-/// measurement, route drawing starts a taxi route for the right-clicked aircraft, and favorites are built for the
-/// right-clicked aircraft model. The ground has no input, list, filtered-list or warp popup, no fix or altitude
-/// picker, no flight-plan item, and no mini data block or nav route.
+/// path, the taxi-route mode reads and drives the ground view model, the data-block hide and reset read and drive the
+/// ground canvas, the measure item latches the ground view model's measurement, route drawing starts a taxi route for
+/// the right-clicked aircraft, and favorites are built for the right-clicked aircraft model. The ground has no input,
+/// list, filtered-list or warp popup, no fix or altitude picker, no flight-plan item, and no mini data block or nav
+/// route.
 /// </summary>
 internal sealed class GroundMenuHost(GroundView view, GroundViewModel ground, MainViewModel? main, AircraftModel? aircraft) : IMenuHost
 {
@@ -150,6 +165,42 @@ internal sealed class GroundMenuHost(GroundView view, GroundViewModel ground, Ma
         }
     }
 
+    public TaxiRouteDisplayMode GetTaxiRouteMode(string callsign)
+    {
+        RequireMenuCallsign(callsign);
+        return ground.GetTaxiRouteMode(callsign);
+    }
+
+    public void SetTaxiRouteMode(string callsign, TaxiRouteDisplayMode mode)
+    {
+        RequireMenuCallsign(callsign);
+        ground.SetTaxiRouteMode(callsign, mode);
+    }
+
+    public bool IsDataBlockHidden(string callsign)
+    {
+        RequireMenuCallsign(callsign);
+        return view.Canvas.IsDataBlockHidden(callsign);
+    }
+
+    public void ToggleHiddenDataBlock(string callsign)
+    {
+        RequireMenuCallsign(callsign);
+        view.Canvas.ToggleHiddenDataBlock(callsign);
+    }
+
+    /// <summary>
+    /// Throws when <paramref name="callsign"/> is not the right-clicked aircraft's. A menu opened on an aircraft the
+    /// main view model has no model for (<c>aircraft</c> is null) still reads and drives its display by callsign.
+    /// </summary>
+    private void RequireMenuCallsign(string callsign)
+    {
+        if ((aircraft is not null) && (!string.Equals(aircraft.Callsign, callsign, StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException($"The ground view's display items act only on the right-clicked aircraft, not '{callsign}'");
+        }
+    }
+
     public MenuItem BuildFavorites(IMenuAircraft? menuAircraft, MenuContext context) =>
         FavoritesContextMenu.Build(main, aircraft, context.Callsign, context.Initials);
 }
@@ -163,6 +214,10 @@ internal sealed class ListMenuHost(MainViewModel main, AircraftModel aircraft) :
 {
     /// <summary>The message every display member throws: the list has no radar display to read or drive.</summary>
     private const string NoDisplayGroup = "The aircraft list has no radar display; list menus never build the display group";
+
+    /// <summary>The message every ground display member throws: the list draws no taxi routes or data blocks.</summary>
+    private const string NoGroundDisplayItems =
+        "The aircraft list has no ground display; list menus never build the taxi route or hide datablock items";
 
     public Task SendAsync(string callsign, string command, string initials) => main.Connection.SendCommandAsync(callsign, command, initials);
 
@@ -204,6 +259,14 @@ internal sealed class ListMenuHost(MainViewModel main, AircraftModel aircraft) :
     public MenuMeasureState GetMeasureState() => throw new NotSupportedException(NoDisplayGroup);
 
     public void MeasurePickOnAircraft(string callsign) => throw new NotSupportedException(NoDisplayGroup);
+
+    public TaxiRouteDisplayMode GetTaxiRouteMode(string callsign) => throw new NotSupportedException(NoGroundDisplayItems);
+
+    public void SetTaxiRouteMode(string callsign, TaxiRouteDisplayMode mode) => throw new NotSupportedException(NoGroundDisplayItems);
+
+    public bool IsDataBlockHidden(string callsign) => throw new NotSupportedException(NoGroundDisplayItems);
+
+    public void ToggleHiddenDataBlock(string callsign) => throw new NotSupportedException(NoGroundDisplayItems);
 
     public MenuItem BuildFavorites(IMenuAircraft? menuAircraft, MenuContext context) =>
         FavoritesContextMenu.Build(main, aircraft, context.Callsign, context.Initials);

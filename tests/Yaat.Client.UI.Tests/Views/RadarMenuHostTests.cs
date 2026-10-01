@@ -1,6 +1,7 @@
 using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.ContextMenus;
+using Yaat.Client.Models;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
@@ -33,5 +34,25 @@ public class RadarMenuHostTests
 
         measure.Pick(RblEndpoint.OnAircraft(Callsign), RblView.Radar, RangeBearingViewState.TrackLookup(_ => null), RblUnits.NauticalMiles);
         Assert.Equal(MenuMeasureState.HasAnchor, host.GetMeasureState());
+    }
+
+    /// <summary>The ground view's taxi-route and hidden-datablock members, which neither the radar nor the list builds.</summary>
+    [AvaloniaFact]
+    public void RadarAndListHosts_ThrowForGroundDisplayMembers()
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        IMenuHost[] hosts =
+        [
+            new RadarMenuHost(new RadarView(), main.Radar, main, null),
+            new ListMenuHost(main, new AircraftModel { Callsign = Callsign }),
+        ];
+
+        foreach (IMenuHost host in hosts)
+        {
+            Assert.Throws<NotSupportedException>(() => host.GetTaxiRouteMode(Callsign));
+            Assert.Throws<NotSupportedException>(() => host.SetTaxiRouteMode(Callsign, TaxiRouteDisplayMode.AlwaysShow));
+            Assert.Throws<NotSupportedException>(() => host.IsDataBlockHidden(Callsign));
+            Assert.Throws<NotSupportedException>(() => host.ToggleHiddenDataBlock(Callsign));
+        }
     }
 }

@@ -411,4 +411,10 @@ public static class MenuIds
 
     /// <summary>The selected aircraft gives way to the right-clicked one on the ground (<c>GW</c>).</summary>
     public const string GroundRelativeGiveWay = "ground.relative-give-way";
+
+    /// <summary>Choose how the aircraft's taxi route is drawn: always shown, always hidden, or following the global setting.</summary>
+    public const string DisplayTaxiRoute = "display.taxi-route";
+
+    /// <summary>Hide the aircraft's data block, or show it again.</summary>
+    public const string DisplayHideDataBlock = "display.hide-datablock";
 }

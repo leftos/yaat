@@ -166,6 +166,10 @@ public static class SharedMenuGroups
     public static MenuItem? Unassume(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
         IsApplicable(MenuIds.LiveTrafficUnassume, aircraft, context) ? Leaf(MenuIds.LiveTrafficUnassume, aircraft, context, host) : null;
 
+    /// <summary>The measure item while the surface has a measure tool, otherwise null; the ground view places it in its header.</summary>
+    public static MenuItem? Measure(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
+        MenuCatalog.Get(MenuIds.DisplayMeasure).Build(aircraft, context, host);
+
     /// <summary>
     /// The Heading submenu: present heading, the heading pickers and the relative-turn pickers. The header names the
     /// fix the aircraft is navigating to, else its assigned magnetic heading.
@@ -531,6 +535,18 @@ public static class SharedMenuGroups
         {
             AddIfApplicable(items, MenuIds.TowerCancelTakeoff, aircraft, context, host);
         }
+    }
+
+    /// <summary>
+    /// The ground view's display items, flat and in the ground's order: the taxi-route submenu, show or hide datablock,
+    /// then reset datablock position while the data block has been dragged off its position. The caller builds the
+    /// context with <see cref="MenuView.Ground"/>.
+    /// </summary>
+    public static void AddGroundDisplay(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        items.Add(Leaf(MenuIds.DisplayTaxiRoute, aircraft, context, host));
+        items.Add(Leaf(MenuIds.DisplayHideDataBlock, aircraft, context, host));
+        AddIfBuilt(items, MenuIds.DisplayResetDataBlockPosition, aircraft, context, host);
     }
 
     /// <summary>The ground view's landing items, in menu order.</summary>

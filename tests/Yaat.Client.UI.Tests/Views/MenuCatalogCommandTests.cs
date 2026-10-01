@@ -176,6 +176,8 @@ public class MenuCatalogCommandTests
         MenuIds.DisplayLeaderDirection,
         MenuIds.DisplayJRing,
         MenuIds.DisplayCone,
+        MenuIds.DisplayTaxiRoute,
+        MenuIds.DisplayHideDataBlock,
         MenuIds.NavigationDrawRoute,
         MenuIds.TowerClearedForTakeoff,
         MenuIds.GroundCrossRunway,
@@ -445,6 +447,59 @@ public class MenuCatalogCommandTests
             ],
             display.Items.Select(Describe)
         );
+    }
+
+    [AvaloniaFact]
+    public void GroundDisplayGroup_TaxiRouteRadio_ReflectsAndSetsHostMode()
+    {
+        var host = new RecordingMenuHost("");
+        host.TaxiRouteModes[Callsign] = TaxiRouteDisplayMode.AlwaysHide;
+        var menu = new ContextMenu();
+
+        SharedMenuGroups.AddGroundDisplay(menu.Items, null, GroundContext(VfrCommandsForIfr.None), host);
+
+        Assert.Equal(["Taxi route", "Hide datablock"], menu.Items.Select(Describe));
+        MenuItem taxiRoute = menu.Items.OfType<MenuItem>().First();
+        List<MenuItem> modes = [.. taxiRoute.Items.OfType<MenuItem>()];
+        Assert.Equal(["Always show", "Always hide", "Follow “Show all” setting"], modes.Select(i => i.Header as string));
+        Assert.All(modes, i => Assert.Equal(MenuItemToggleType.Radio, i.ToggleType));
+        Assert.Equal([false, true, false], modes.Select(i => i.IsChecked));
+
+        foreach (MenuItem mode in modes)
+        {
+            Click(mode);
+        }
+
+        Assert.Equal(
+            [(Callsign, TaxiRouteDisplayMode.AlwaysShow), (Callsign, TaxiRouteDisplayMode.AlwaysHide), (Callsign, TaxiRouteDisplayMode.Follow)],
+            host.TaxiRouteModeSets
+        );
+        Assert.Empty(host.Sent);
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false, "Hide datablock")]
+    [InlineData(true, "Show datablock")]
+    public void GroundDisplayGroup_HideDatablock_TogglesThroughHost(bool hidden, string header)
+    {
+        var host = new RecordingMenuHost("");
+        if (hidden)
+        {
+            host.HiddenDataBlockCallsigns.Add(Callsign);
+        }
+
+        host.ManualOffsetCallsigns.Add(Callsign);
+        var menu = new ContextMenu();
+
+        SharedMenuGroups.AddGroundDisplay(menu.Items, null, GroundContext(VfrCommandsForIfr.None), host);
+
+        Assert.Equal(["Taxi route", header, "Reset datablock position"], menu.Items.Select(Describe));
+        MenuItem toggle = menu.Items.OfType<MenuItem>().Single(i => (i.Header as string) == header);
+
+        Click(toggle);
+
+        Assert.Equal([Callsign], host.HiddenDataBlockToggles);
+        Assert.Empty(host.Sent);
     }
 
     [AvaloniaFact]

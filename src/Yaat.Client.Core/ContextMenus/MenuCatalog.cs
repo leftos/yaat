@@ -14,9 +14,9 @@ namespace Yaat.Client.ContextMenus;
 /// the host's list popup over values the catalog computes (headings, altitudes, speeds, fixes, approaches, runways,
 /// STARs, airways) and formats the pick into the command, choosing its form from the data present when the menu is
 /// built; a host leaf asks the host for the item itself, for the entries that open a host surface or read the
-/// surface's own state — the warp popup, the flight-plan editor, the data-block toggle and reset, the nav route, the
-/// measure item and route drawing; a value submenu builds a whole submenu of command items from its own label and
-/// the menu context, one per value — the leader directions, the J-ring radii and the cone lengths; and the Cleared for
+/// surface's own state — the warp popup, the flight-plan editor, the data-block toggle, hide and reset, the nav route,
+/// the measure item and route drawing; a value submenu builds a whole submenu of items from its own label and the menu
+/// context, one per value — the leader directions, the J-ring radii, the cone lengths and the taxi-route modes; and the Cleared for
 /// takeoff submenu offers the default clearance and runway heading, the VFR departure instructions when the aircraft
 /// and the controller's VFR-for-IFR setting allow them, and a free-text item last. A pattern entry is a leaf naming the
 /// assigned runway, else a runway picker, else free text, and each pattern maneuver applies only on the legs it fits.
@@ -98,6 +98,8 @@ public static class MenuCatalog
         Submenu(MenuIds.DisplayCone, "Cone", BuildCone),
         Leaf(MenuIds.DisplayBlank, "Blank target", "BLANK", Always),
         Leaf(MenuIds.DisplayUnblank, "Unblank target", "BLANKD", Always),
+        Submenu(MenuIds.DisplayTaxiRoute, "Taxi route", BuildTaxiRoute),
+        HostLeaf(MenuIds.DisplayHideDataBlock, "Hide datablock", Always, BuildHideDataBlock),
         Leaf(MenuIds.HeadingPresent, "Present heading", "FPH", Always),
         HeadingList(MenuIds.HeadingFly, "Fly heading", "FH"),
         HeadingList(MenuIds.HeadingTurnLeft, "Turn left", "TL"),
@@ -314,6 +316,17 @@ public static class MenuCatalog
 
     /// <summary>The trailing ellipsis a picker label carries while it opens a popup that is not the plain route-fix list.</summary>
     private const string Ellipsis = "...";
+
+    /// <summary>The ground view's text for the data-block reset item, which the radar labels "Reset to student position".</summary>
+    private const string GroundResetDataBlockLabel = "Reset datablock position";
+
+    /// <summary>The taxi-route submenu's items, in menu order: each item's text and the mode it sets.</summary>
+    private static readonly (string Label, TaxiRouteDisplayMode Mode)[] TaxiRouteModeItems =
+    [
+        ("Always show", TaxiRouteDisplayMode.AlwaysShow),
+        ("Always hide", TaxiRouteDisplayMode.AlwaysHide),
+        ("Follow “Show all” setting", TaxiRouteDisplayMode.Follow),
+    ];
 
     /// <summary>The J-ring radii and cone lengths the display submenus offer, in nautical miles.</summary>
     private static readonly double[] RingDistances = [1.0, 2.0, 3.0, 5.0, 10.0];
@@ -696,8 +709,8 @@ public static class MenuCatalog
     }
 
     /// <summary>
-    /// The "Reset to student position" item, which the surface offers only while the data block sits away from the
-    /// position the student sees it in; null otherwise.
+    /// The "Reset to student position" item ("Reset datablock position" on the ground view), which the surface offers
+    /// only while the data block sits away from the position the student sees it in; null otherwise.
     /// </summary>
     private static MenuItem? BuildResetDataBlockPosition(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
@@ -706,7 +719,7 @@ public static class MenuCatalog
             return null;
         }
 
-        var item = new MenuItem { Header = label };
+        var item = new MenuItem { Header = context.View == MenuView.Ground ? GroundResetDataBlockLabel : label };
         item.Click += (_, _) => host.ResetDataBlockOffset(context.Callsign);
         return item;
     }
@@ -734,6 +747,38 @@ public static class MenuCatalog
         string direction = state == MenuMeasureState.HasAnchor ? "to" : "from";
         var item = new MenuItem { Header = $"Measure {direction} {context.Callsign}" };
         item.Click += (_, _) => host.MeasurePickOnAircraft(context.Callsign);
+        return item;
+    }
+
+    /// <summary>
+    /// The taxi-route submenu: one radio item per <see cref="TaxiRouteDisplayMode"/>, the host's current mode checked,
+    /// each setting that mode on the host when clicked.
+    /// </summary>
+    private static MenuItem BuildTaxiRoute(string label, MenuContext context, IMenuHost host)
+    {
+        TaxiRouteDisplayMode current = host.GetTaxiRouteMode(context.Callsign);
+        var menu = new MenuItem { Header = label };
+        foreach ((string itemLabel, TaxiRouteDisplayMode mode) in TaxiRouteModeItems)
+        {
+            var item = new MenuItem
+            {
+                Header = itemLabel,
+                ToggleType = MenuItemToggleType.Radio,
+                GroupName = "TaxiRouteMode",
+                IsChecked = mode == current,
+            };
+            item.Click += (_, _) => host.SetTaxiRouteMode(context.Callsign, mode);
+            menu.Items.Add(item);
+        }
+
+        return menu;
+    }
+
+    /// <summary>The hidden-datablock item: it toggles the host's data block and reads "Show datablock" while it is hidden.</summary>
+    private static MenuItem BuildHideDataBlock(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        var item = new MenuItem { Header = host.IsDataBlockHidden(context.Callsign) ? "Show datablock" : label };
+        item.Click += (_, _) => host.ToggleHiddenDataBlock(context.Callsign);
         return item;
     }
 
