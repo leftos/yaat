@@ -132,18 +132,17 @@ internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainVi
 /// the right-clicked aircraft, the follow and give-way submenus list the main view model's other ground traffic, hold
 /// short asks the ground view model for the route's targets and previews the route to one on hover, the pushback faces,
 /// push back to and preset taxi routes ask the ground view model for their finished commands, push route starts a tug
-/// move for the right-clicked aircraft, and favorites are built for the right-clicked aircraft model. The ground has no input,
-/// list, filtered-list or warp popup, no fix or altitude picker, no flight-plan item, and no mini data block or nav
-/// route.
+/// move for the right-clicked aircraft, and favorites are built for the right-clicked aircraft model. The ground serves
+/// free-text input through <see cref="InputFlyout"/> anchored on its canvas, and has no list, filtered-list or warp
+/// popup, no fix or altitude picker, no flight-plan item, and no mini data block or nav route.
 /// </summary>
 internal sealed class GroundMenuHost(GroundView view, GroundViewModel ground, MainViewModel? main, AircraftModel? aircraft) : IMenuHost
 {
     public Task SendAsync(string callsign, string command, string initials) => ground.SendRawCommandAsync(callsign, initials, command);
 
-    public bool HasInputPopup => false;
+    public bool HasInputPopup => true;
 
-    public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) =>
-        throw new NotSupportedException("The ground view has no input popup; ground menus never build input pickers");
+    public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) => view.ShowInputPopup(placeholder, onSubmit);
 
     public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick) =>
         throw new NotSupportedException("The ground view has no list popup; ground menus never build list pickers");
@@ -314,10 +313,11 @@ internal sealed class GroundMenuHost(GroundView view, GroundViewModel ground, Ma
 
 /// <summary>
 /// The aircraft list's <see cref="IMenuHost"/>, built per right-click: commands go straight to the server
-/// connection, favorites are built for the right-clicked aircraft model, and the flight-plan editor opens on it.
-/// The list has no input or warp popup, and builds no radar display group.
+/// connection, favorites are built for the right-clicked aircraft model, the flight-plan editor opens on it, and
+/// free-text input opens through <see cref="InputFlyout"/> anchored on the menu's own flyout target
+/// (<paramref name="flyoutAnchor"/>). The list has no warp popup, and builds no radar display group.
 /// </summary>
-internal sealed class ListMenuHost(MainViewModel main, AircraftModel aircraft) : IMenuHost
+internal sealed class ListMenuHost(MainViewModel main, AircraftModel aircraft, Control flyoutAnchor) : IMenuHost
 {
     /// <summary>The message every display member throws: the list has no radar display to read or drive.</summary>
     private const string NoDisplayGroup = "The aircraft list has no radar display; list menus never build the display group";
@@ -332,10 +332,9 @@ internal sealed class ListMenuHost(MainViewModel main, AircraftModel aircraft) :
 
     public Task SendAsync(string callsign, string command, string initials) => main.Connection.SendCommandAsync(callsign, command, initials);
 
-    public bool HasInputPopup => false;
+    public bool HasInputPopup => true;
 
-    public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) =>
-        throw new NotSupportedException("The aircraft list has no input popup; list menus never build input pickers");
+    public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) => InputFlyout.Open(flyoutAnchor, placeholder, onSubmit);
 
     public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick) =>
         throw new NotSupportedException("The aircraft list has no list popup; list menus never build list pickers");

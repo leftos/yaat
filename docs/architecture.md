@@ -464,7 +464,7 @@ Views/
   MetarView.axaml.cs            # METAR tab content: per-airport METAR list over MainViewModel.Metars with a per-scenario favorite-station star toggle
   MetarWindow.axaml.cs          # Pop-out host for MetarView (View > Pop Out METAR)
   FavoritesContextMenu.cs       # Builds the Favorite Commands submenu attached to aircraft right-click menus (list/ground/radar)
-  ContextMenuHosts.cs           # RadarMenuHost / ListMenuHost / GroundMenuHost: IMenuHost for the radar (input and warp popups, the view model's send path, the canvas's display state and the measure tool), the aircraft list (Connection.SendCommandAsync, the flight-plan editor) and the ground view (its send path, draw route, taxi-route display mode, hidden data blocks, measure), built per right-click
+  ContextMenuHosts.cs           # RadarMenuHost / ListMenuHost / GroundMenuHost: IMenuHost for the radar (input and warp popups, the view model's send path, the canvas's display state and the measure tool), the aircraft list (Connection.SendCommandAsync, the flight-plan editor, an input popup on the menu's flyout anchor) and the ground view (its send path, an input popup on the canvas, draw route, taxi-route display mode, hidden data blocks, measure), built per right-click
   LiveTrafficDvrFlyout.cs       # Click-the-live-badge DVR control: feed log window (GetLiveTrafficWindow), slider + HH:mm → SeekLiveTraffic, Go Live
   LiveSessionWindow.axaml.cs    # Start Live Session picker: facility TreeView (GetArtccFacilityTree) → positions (starred first) → airport combo (LiveSessionAirportDefaults) + ceiling; returns LiveSessionChoice, pre-selects UserPreferences.LastLiveSession
   LiveTrafficFilterEditor.axaml(.cs) # Structured editor UserControl over the canonical filter string, hosted by the Start Live Session Filters tab and the mid-session dialog
@@ -490,6 +490,7 @@ Views/
   SaveWindowProfileDialog.axaml(.cs)     # Name-entry dialog for saving the current window arrangement as a new profile
   CopyViewSettingsDialog.axaml(.cs)      # View → Copy View Settings dialog: source picker (scenario or window profile), grouped Current-vs-Source diff with per-section checkboxes, airport-mismatch warning. Returns selected keys for MainWindow to apply via ViewSettingsCopyCatalog / WindowProfileService.
   CommandFlyout.cs              # Floating focused command-entry popup opened from aircraft right-click menus (radar/ground/flight list)
+  InputFlyout.cs                # Code-built free-text popup (TextEntryPopup in the overlay layer) behind IMenuHost.ShowInputPopup on the ground and list hosts; a blank submit sends nothing
   ContextMenuExtensions.cs      # Helpers for building Avalonia context menus (right-click submenus, command items)
   FlightPlanEditorWindow.axaml.cs # Built-in flight plan editor window: view/amend fields + route, recycle beacon, live squawk refresh; raises an amend callback per edit; the SPD box holds knots only and shows a Mach/classified speed as its placeholder
   FlightPlanEditorManager.cs    # Static single-instance opener/lifecycle for the flight plan editor window (reuses one open editor)

@@ -5,7 +5,12 @@ using Avalonia.Interactivity;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
+using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
+using Yaat.Client.ViewModels;
+using Yaat.Client.Views;
+using Yaat.Client.Views.Ground;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -1588,6 +1593,32 @@ public class MenuCatalogCommandTests
 
         Assert.Equal("Custom...", Assert.IsType<MenuItem>(cto.Items[^1]).Header as string);
         Assert.IsType<Separator>(cto.Items[^2]);
+    }
+
+    // The ground view and the aircraft list serve free text through the shared input flyout, so both real hosts end
+    // the takeoff submenu with the separator and Custom as the radar does.
+    [AvaloniaFact]
+    public void Cto_GroundAndListHosts_ServeCustomInput()
+    {
+        AircraftModel ac = OnGround("Taxiing", "IFR", "30");
+        var ground = new GroundViewModel(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask);
+        (CatalogMenuView View, IMenuHost Host)[] hosts =
+        [
+            (CatalogMenuView.Ground, new GroundMenuHost(new GroundView { DataContext = ground }, ground, null, ac)),
+            (CatalogMenuView.List, new ListMenuHost(new MainViewModel(new FakeFilePickerService()), ac, new Border())),
+        ];
+
+        foreach ((CatalogMenuView view, IMenuHost host) in hosts)
+        {
+            MenuItem? cto = MenuCatalog
+                .Get(MenuIds.TowerClearedForTakeoff)
+                .Build(ac, new MenuContext(Callsign, Initials, null, false, VfrCommandsForIfr.None, view), host);
+
+            Assert.True(host.HasInputPopup);
+            Assert.NotNull(cto);
+            Assert.IsType<Separator>(cto.Items[^2]);
+            Assert.Equal("Custom...", Assert.IsType<MenuItem>(cto.Items[^1]).Header as string);
+        }
     }
 
     // CTO where the sim takes it and never once rolling: a hold-short naming a runway (held, else assigned), taxiing

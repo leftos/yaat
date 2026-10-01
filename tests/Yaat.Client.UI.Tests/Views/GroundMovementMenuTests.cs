@@ -81,7 +81,7 @@ public class GroundMovementMenuTests
     {
         AircraftModel ac = GroundAircraft("UAL100", phase, held);
         var vm = new MainViewModel(new FakeFilePickerService());
-        var host = new ListMenuHost(vm, ac);
+        var host = new ListMenuHost(vm, ac, new Border());
         var context = new MenuContext(ac.Callsign, "AB", null, vm.SessionSoloTrainingMode, vm.VfrCommandsForIfr, CatalogMenuView.List);
         var menu = new ContextMenu();
         SharedMenuGroups.AddListAircraftCommands(menu.Items, ac, context, host);

@@ -1,3 +1,4 @@
+using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.ContextMenus;
@@ -44,7 +45,7 @@ public class RadarMenuHostTests
         IMenuHost[] hosts =
         [
             new RadarMenuHost(new RadarView(), main.Radar, main, null),
-            new ListMenuHost(main, new AircraftModel { Callsign = Callsign }),
+            new ListMenuHost(main, new AircraftModel { Callsign = Callsign }, new Border()),
         ];
 
         foreach (IMenuHost host in hosts)
@@ -67,7 +68,7 @@ public class RadarMenuHostTests
         IMenuHost[] hosts =
         [
             new RadarMenuHost(new RadarView(), main.Radar, main, null),
-            new ListMenuHost(main, new AircraftModel { Callsign = Callsign }),
+            new ListMenuHost(main, new AircraftModel { Callsign = Callsign }, new Border()),
         ];
 
         foreach (IMenuHost host in hosts)

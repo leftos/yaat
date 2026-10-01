@@ -581,6 +581,12 @@ public partial class GroundView : UserControl
     }
 
     /// <summary>
+    /// Opens the ground canvas's free-text popup for a catalog input item ("Custom..."), anchored on the canvas, and
+    /// hands the submitted text to <paramref name="onSubmit"/> (mirrors <c>RadarView.ShowInputPopup</c>).
+    /// </summary>
+    internal void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) => InputFlyout.Open(_canvas!, placeholder, onSubmit);
+
+    /// <summary>
     /// The bold callsign header plus the free-text Command… and Note… items every aircraft gets, then the catalog's
     /// measure item while the ground view has a measure tool.
     /// </summary>

@@ -189,7 +189,7 @@ public partial class DataGridView : UserControl
     {
         string callsign = ac.Callsign;
         var context = new MenuContext(callsign, initials, null, vm.SessionSoloTrainingMode, vm.VfrCommandsForIfr, MenuView.List);
-        var host = new ListMenuHost(vm, ac);
+        var host = new ListMenuHost(vm, ac, flyoutTarget);
         var menu = new ContextMenu();
         AddAircraftMenuHeader(menu, vm, flyoutTarget, ac, initials);
         menu.Items.Add(SharedMenuGroups.Favorites(ac, context, host));
