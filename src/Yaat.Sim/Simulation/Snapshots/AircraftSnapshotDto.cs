@@ -156,6 +156,12 @@ public sealed class AircraftSnapshotDto
     public AircraftLiveTrafficDto? LiveTraffic { get; init; }
 
     /// <summary>
+    /// Stored situation and liftoff time. Null on snapshots written before the field existed, which restore an
+    /// <see cref="Yaat.Sim.Situation.AircraftSituation.Unknown"/> situation and no liftoff time.
+    /// </summary>
+    public AircraftSituationStateDto? Situation { get; init; }
+
+    /// <summary>
     /// Whether this aircraft was assumed from a live-traffic shadow (<c>UNASSUME</c> hands it back to the feed).
     /// False for an aircraft that was never live traffic, and on snapshots written before the field existed — the
     /// same answer, so no migration step.

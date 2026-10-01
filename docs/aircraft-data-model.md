@@ -10,7 +10,7 @@
 
 `AircraftState` (`src/Yaat.Sim/AircraftState.cs:12`) is the single mutable record that every subsystem reads and writes: physics, phases, command
 handlers, the track engine, ground ops, and three separate DTO projections. It carries a handful of top-level identity + kinematics fields directly,
-then delegates everything else to thirteen cohesive **satellite objects** plus `ControlTargets`. There is no inheritance and no interface — it is a
+then delegates everything else to sixteen cohesive **satellite objects** plus `ControlTargets`. There is no inheritance and no interface — it is a
 plain class whose members are mutated in place.
 
 `SimulationWorld` (`src/Yaat.Sim/SimulationWorld.cs:10`) owns the live set of aircraft behind a single reentrant `lock`. It is the only safe surface
@@ -45,7 +45,7 @@ A handful of cross-phase one-shot booleans and debrief timestamps also live at t
 `HasMadeInitialContact`, `HasControllerAcknowledgedInitialContact`, `HasLeftStudentFrequency`, `IsClearedIntoBravo`, `HasAnnouncedLinedUpReady`,
 `NoLandingClearanceWarningActive`, `SpawnedAtSeconds`, `CompletedAtSeconds`, `CompletionReason`, `CompletionDetail`, `PendingPilotRequest`.
 
-### The fifteen satellites + `ControlTargets`
+### The sixteen satellites + `ControlTargets`
 
 Each satellite is a separate class with its own `ToSnapshot`/`FromSnapshot`. Read the listed file for field-level detail.
 
@@ -66,6 +66,7 @@ Each satellite is a separate class with its own `ToSnapshot`/`FromSnapshot`. Rea
 | `Voice` | `AircraftVoice` | CRC voice config (Unknown/Full/ReceiveOnly/TextOnly) + `TdlsDumped`. | `AircraftVoice.cs:10` |
 | `MilitaryRoute` | `AircraftMilitaryRoute` | AP/1B route clearance kept as a durable *record*: designator, published direction, entry/exit points, current segment, altitude source + assigned block, MARSA, the beacon code stashed on a VR entry. Deliberately outside `Procedure`, whose SID/STAR state `FlightPhysics.ClearProcedureState` tears down on any heading command — a route clearance has to survive a vector. See military-training-routes.md. | `AircraftMilitaryRoute.cs:47` |
 | `LiveTraffic` | `AircraftLiveTraffic?` | **Nullable, unlike the others.** Present only while the aircraft is a live-traffic shadow: the last external sample plus the dead-reckoning clock `LiveTrafficKinematics.Advance` reads instead of running `FlightPhysics`. Assuming sets it to null. See live-traffic.md. | `LiveTraffic/AircraftLiveTraffic.cs` |
+| `Situation` | `AircraftSituationState` | The context-menu situation the `Situation` spine step stores once a second (`Current`, read back as the hysteresis input), the most recent liftoff time (`AirborneAtSeconds`, null when spawned airborne, warped up or restored from an older snapshot) and `WasOnGround`, the edge it is stamped on. | `Situation/AircraftSituationState.cs` |
 | `Targets` | `ControlTargets` | The autopilot panel physics reads each tick. See next section. | `ControlTargets.cs:13` |
 
 ### `ControlTargets` — the autopilot panel
@@ -142,7 +143,7 @@ the SignalR `AircraftUpdated` / `AircraftSpawned` deserialization.
   snapshot — restore mutates the existing instance via the static `ControlTargets.RestoreFrom(dto, ac.Targets)` (`AircraftState.cs:327`,
   `ControlTargets.cs:126`). The same in-place pattern applies to the get-only lists: `NavigationRoute` restores with `Clear()` + `Add` per element
   (`ControlTargets.cs:145-152`), and `PositionHistory` / `DeferredDispatches` are appended into the existing list in `FromSnapshot`. By contrast the
-  fourteen satellites are reassigned wholesale (`FlightPlan = AircraftFlightPlan.FromSnapshot(dto.FlightPlan)`, etc.).
+  the satellites are reassigned wholesale (`FlightPlan = AircraftFlightPlan.FromSnapshot(dto.FlightPlan)`, etc.).
 - **Two `AircraftType` fields, different drivers.** `AircraftState.AircraftType` (`AircraftState.cs:15`) is the **physical** type — fixed at spawn,
   drives physics/performance, the Tower Cab datablock, and the operator Aircraft List. `AircraftFlightPlan.AircraftType` (`AircraftFlightPlan.cs:22`)
   is the **filed** type — mutable by instructor amendment, displayed by STARS/ASDE-X/strips/ERAM/the FP editor. They intentionally do **not**

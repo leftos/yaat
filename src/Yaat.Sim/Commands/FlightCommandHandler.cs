@@ -975,6 +975,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedCeiling = null;
         aircraft.Procedure.LastProcedureSpeedKts = null;
         aircraft.IsOnGround = false;
+        aircraft.Situation.WasOnGround = false;
         return CommandDispatcher.Ok($"Warped to {cmd.PositionLabel}, heading {heading.Degrees:000}, {altitude:N0} ft, {speed} kts");
     }
 

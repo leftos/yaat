@@ -37,6 +37,7 @@ public enum StepId
     AsdexAlerts,
     SoloTrainingEvaluation,
     PilotProactive,
+    Situation,
     Warnings,
     Notifications,
     PilotSpeech,

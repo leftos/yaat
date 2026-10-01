@@ -73,6 +73,9 @@ public static class SpineOrder
         // sees the same picture on every path; before the drains, so an airborne check-in emits the tick it is
         // produced.
         SpineStep.Sim(StepId.PilotProactive, static (engine, _) => engine.TickPilotProactive()),
+        // After the pilot-proactive step, so the stored situation sees this second's phase changes; on every path,
+        // because the hysteresis makes this second's situation depend on last second's.
+        SpineStep.Sim(StepId.Situation, static (engine, _) => engine.TickSituation()),
         SpineStep.Sim(StepId.Warnings, static (engine, host) => host.OnWarnings(engine.World.DrainAllWarnings())),
         SpineStep.Sim(StepId.Notifications, static (engine, host) => host.OnNotifications(engine.World.DrainAllNotifications())),
         // Speech before readbacks: two independent buffers feeding one terminal stream, so the only thing their
