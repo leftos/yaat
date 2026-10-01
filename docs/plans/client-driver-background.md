@@ -102,14 +102,21 @@ Full report with citations to Avalonia 12.1.3 source and Microsoft Learn: [docs/
   - The MCP's YAAT tools switch to the pipe. Real mode stays for the Win32 input path. CRC keeps the outside-the-app driver.
 - **Montage video: WGC of a never-activated window.** A real window, kept behind other windows, captured with Windows Graphics Capture; client audio by per-process loopback. It needs a launch that never activates or minimises (a minimised Avalonia window stops rendering), and the yellow border handled (borderless consent, or a crop).
 - **Feature branch** `feat/client-driver-background`.
+- **One switch, `YAAT_AUTOMATION=1`** (user 2026-10-01): it turns on both the pipe endpoint and the never-activated window; `launch_yaat` always sets it.
+- **Pipe protocol: our own host in Zafiro's format** (user 2026-10-01; research: [docs/research/2026-10-01-in-app-automation-pipe-protocols.md](../research/2026-10-01-in-app-automation-pipe-protocols.md)). About 1,000–1,500 lines, mostly copied from Zafiro.Avalonia.Mcp (MIT):
+  - Zafiro's line-delimited `{id, method, params}` JSON with coded errors and recovery hints, a pipe per process with a discovery file per PID, the pipe restricted to the current user.
+  - Zafiro's CSS-like selectors without the C# predicates (no Roslyn in the client), stable element ids across calls, popups and owned windows in the tree.
+  - Today's tool names one for one, plus `wait_for` over the same selectors.
+  - Click: the meaningful action first (command, toggle, select), then a synthetic click with button, modifiers and double-click; `click_point` in window-relative coordinates for the radar and ground views.
+  - Keys: walk the window's `KeyBindings` for shortcuts, typed characters as text events at the caret (so per-keystroke autocomplete runs). No Avalonia private input API (AVA3001 under warnings-as-errors).
+  - Screenshots by `RenderTargetBitmap` at the monitor's real scale, popups included through `OverlayPopups`.
+  - Out of reach in-app, kept on the outside driver or left out: push-to-talk through the SharpHook hook, drags, hover.
+- **File picker: an injected picker in automation mode** (user 2026-10-01): the client's storage-provider calls go to a pipe-answered picker, so the agent's load/save tool passes a path and no dialog opens.
+- **Activation: suppress all and use no modals** (user 2026-10-01): one gate skips every client self-`Activate()`/`Topmost` pulse in the map's list (geometry apply, profile restore, pop-out reopen, command-input focus, `WindowGroupRaiser`, `CenterOwner`), and dialogs show non-modal in automation mode so Avalonia never calls `owner.Activate()`.
 
 ## Open decisions
 
-1. The env var's name, and whether one switch covers both the never-activated window and the pipe.
-2. Pipe protocol: borrow Zafiro.Avalonia.Mcp's selectors and messages, or a minimal set mapped onto today's tools. Read Zafiro's source first (MIT).
-3. The native file picker: an injected picker service in automation mode (load and save a recording by path), or a `pick_file` tool.
-4. Which client self-activations to suppress (the map lists them), and how to stop Avalonia's own `owner.Activate()` after a modal closes (avoid modals in automation mode, or re-assert the z-order).
-5. The WGC border: consent versus a crop margin; whether 24H2's "frame only on change" breaks a steady frame rate.
+1. The WGC border (consent versus a crop margin) and whether 24H2's "frame only on change" breaks a steady frame rate: **decided after a spike** (user 2026-10-01) that measures both on a never-activated YAAT window, before the montage capture step is briefed.
 
 ## Docs this item corrects
 

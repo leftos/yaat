@@ -64,7 +64,7 @@ Projects found but not examined in depth: [locomorange/uiautomation-mcp](https:/
 
 ### AvaloniaMcp (adirh3)
 - README: "This starts a named-pipe server inside your app at startup. It has zero UI impact — all introspection happens on-demand via the pipe." "All visual tree operations are marshaled to the Avalonia dispatcher thread".
-- `src/AvaloniaMcp.Diagnostics/Handlers/InteractionHandler.cs:25-28`: a click runs `button.Command.Execute(button.CommandParameter)` when there is a command. `:142` `control.RaiseEvent(keyDown)`. `:216-217` `new RenderTargetBitmap(pixelSize); rtb.Render(target);`.
+- `src/AvaloniaMcp.Diagnostics/Handlers/InteractionHandler.cs:25-28`: a click runs `button.Command.Execute(button.CommandParameter)` when there is a command. `:142` `control.RaiseEvent(keyDown)`, which is only the Enter that `input_text` sends, not general key input ([2026-10-01-in-app-automation-pipe-protocols.md](./2026-10-01-in-app-automation-pipe-protocols.md)). `:216-217` `new RenderTargetBitmap(pixelSize); rtb.Render(target);`.
 - `DiagnosticServer.cs:73-79`: `NamedPipeServerStream(..., MaxAllowedServerInstances, ...)`. Discovery file at `%TEMP%/avalonia-mcp/{pid}.json`.
 
 ### Zafiro.Avalonia.Mcp
