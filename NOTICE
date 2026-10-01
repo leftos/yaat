@@ -21,6 +21,21 @@ build to satisfy LGPL §4(d)(1).
 Copyright (c) Simon Bartlett and contributors.
 
 ================================================================================
+Third-party source code included in this project
+================================================================================
+
+## Zafiro.Avalonia.Mcp (MIT)
+
+The automation pipe host under `src/Yaat.Client/Automation/` is derived from
+Zafiro.Avalonia.Mcp's protocol and app-host code, modified for YAAT. Each
+derived file carries an attribution header.
+
+  Upstream: https://github.com/SuperJMN/Zafiro.Avalonia.Mcp
+  License:  MIT License
+
+Copyright (c) 2026 José Manuel Nieto
+
+================================================================================
 Third-party data files bundled with this project
 ================================================================================
 

@@ -376,6 +376,15 @@ The client's mode for being driven by an agent without disturbing the user, on w
 **Never-activated window**:
 A window shown with `ShowActivated = false` that the client never activates afterwards, so it opens behind the user's foreground window without taking focus; automation mode shows every window this way.
 
+**Pipe host**:
+The client's in-process automation endpoint (`src/Yaat.Client/Automation/AutomationHost.cs`), started on Windows in automation mode: a named pipe `yaat-automation-<pid>` open to the current user only, speaking line-delimited JSON requests `{id, method, params}` and answering a result or a coded error with a recovery hint; derived from Zafiro.Avalonia.Mcp (docs/plans/client-driver-background.md).
+
+**Discovery file**:
+`%TEMP%/yaat-automation/<pid>.json`, written by the pipe host on start and deleted on exit, naming the pid, pipe name, process name, start time and protocol version, so a driver finds every running client's pipe; files whose process is gone, or whose pid now runs another program, are swept on start.
+
+**Node id**:
+The pipe host's stable id for a window, popup or element, issued by its `NodeRegistry` and kept for as long as the element lives, so a driver can name the same element across calls.
+
 **Ouroboros**:
 A synthetic round trip through the speech pipeline: a known canonical command is rendered to speech with Piper, fed through Whisper, the rule mapper and the LLM fallback, and the recovered canonical is compared with the one it started from. `--ouroboros` speaks pilot readbacks; `--atc-ouroboros` speaks controller transmissions across every phraseology rule family and diffs each family's pass rate against a committed baseline (`tools/Yaat.SpeechSandbox`, docs/speech-recognition-pipeline.md).
 
