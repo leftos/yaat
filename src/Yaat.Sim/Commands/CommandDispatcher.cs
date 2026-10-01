@@ -4248,7 +4248,8 @@ public static class CommandDispatcher
 
         // If the follower is already in VfrFollowPhase, retarget in place. Reached only for
         // free-flight leads — a lead established toward a runway re-sequences via the
-        // pattern install above.
+        // pattern install above. A pursuit whose circuit compares leads (one that left its
+        // circuit from base, or one turning out) has been answered earlier by PursuitNewLeadRoute.
         if (current is VfrFollowPhase vfp)
         {
             vfp.UpdateTarget(target);
@@ -4473,8 +4474,9 @@ public static class CommandDispatcher
     /// outside the pattern: the IFR missed-approach refusal (<see cref="MissedApproachFollowerRefusal"/>), the ground and
     /// elsewhere refusals (<see cref="GroundOrElsewhereLeadRefusal"/>), the going-around refusal from an approach
     /// (<see cref="LeadGoingAroundRefusal"/>), then the re-FOLLOW of the lead already being followed
-    /// (<see cref="SameLeadReFollow"/>), then the runwayless-lead cone (<see cref="RunwaylessLeadConeRefusal"/>). Null when
-    /// none applies, or for a follower on a pattern leg.
+    /// (<see cref="SameLeadReFollow"/>), then a new lead during a pursuit that compares leads (<see cref="PursuitNewLeadRoute"/>),
+    /// then the runwayless-lead cone (<see cref="RunwaylessLeadConeRefusal"/>). Null when none applies, or for a follower on a
+    /// pattern leg.
     /// </summary>
     private static CommandResult? RouteOffPatternFollow(AircraftState aircraft, Phase? current, AircraftState? lead, string target) =>
         IsPatternLeg(current)
@@ -4483,7 +4485,63 @@ public static class CommandDispatcher
                 ?? GroundOrElsewhereLeadRefusal(aircraft, current, lead, target)
                 ?? LeadGoingAroundRefusal(current, lead, target)
                 ?? SameLeadReFollow(aircraft, current, lead, target)
+                ?? PursuitNewLeadRoute(aircraft, current, lead, target)
                 ?? RunwaylessLeadConeRefusal(aircraft, current, lead, target);
+
+    /// <summary>
+    /// A new lead chosen during a pursuit that compares leads on a circuit (<see cref="VfrFollowPhase.NewLeadCircuit"/>: a
+    /// pursuit that left its circuit from base, or one turning out). A lead landing another runway is refused first; then a
+    /// lead on a pattern entry other than a straight-in (<see cref="IsNonStraightInEntryLead"/>), or one whose remaining path
+    /// (<see cref="AirborneFollowHelper.SequenceRemainingPathNm(AircraftState, RunwayInfo)"/>) is longer than the follower's
+    /// shortest path to the threshold (<see cref="VfrFollowPhase.FollowerPathToThresholdNm"/>, no tolerance), is refused as
+    /// not ahead. A lead ahead is followed in place: the pursuit keeps its pattern return and flies no downwind entry, and a
+    /// turn-out under way ends. Null for any other follower, a runwayless lead (the cone, <see cref="RunwaylessLeadConeRefusal"/>)
+    /// and a lead on the ground (<see cref="GroundOrElsewhereLeadRefusal"/> has already ruled on it). The lead already being
+    /// followed never reaches here: <see cref="SameLeadReFollow"/> answers it first.
+    /// </summary>
+    private static CommandResult? PursuitNewLeadRoute(AircraftState aircraft, Phase? current, AircraftState? lead, string target)
+    {
+        if (
+            (current is not VfrFollowPhase pursuit)
+            || (pursuit.NewLeadCircuit is not { } circuit)
+            || (lead is not { IsOnGround: false, Phases.AssignedRunway: { } leadRunway })
+        )
+        {
+            return null;
+        }
+
+        if (!AirborneFollowHelper.IsSameRunway(leadRunway, circuit.Runway))
+        {
+            return new CommandResult(false, $"Unable, {target} is landing runway {leadRunway.Designator}, request vectors");
+        }
+
+        if (!IsNewLeadAheadOfPursuit(aircraft, lead, circuit))
+        {
+            return NotAheadOfUsRefusal(target);
+        }
+
+        pursuit.UpdateTarget(target);
+        aircraft.Approach.FollowingCallsign = target;
+        return Ok($"Follow {target}");
+    }
+
+    /// <summary>
+    /// True when <paramref name="lead"/> is ahead of a pursuit on <paramref name="circuit"/>: not on a pattern entry other than
+    /// a straight-in, and its remaining path to the runway no longer than the follower's (an infinite path, a lead with no
+    /// sequence leg, is behind).
+    /// </summary>
+    private static bool IsNewLeadAheadOfPursuit(AircraftState aircraft, AircraftState lead, FollowPatternReturn circuit) =>
+        !IsNonStraightInEntryLead(lead)
+        && (AirborneFollowHelper.SequenceRemainingPathNm(lead, circuit.Runway) <= VfrFollowPhase.FollowerPathToThresholdNm(aircraft, circuit));
+
+    /// <summary>
+    /// True when <paramref name="lead"/> is on a pattern entry (<see cref="AirborneFollowHelper.EntryLegIndex"/>) that does not
+    /// join the final: getting behind it from base or final would need a 360 (AIM §4-3-5). A straight-in entrant
+    /// (<see cref="AirborneFollowHelper.IsStraightInEntry"/>) converges on the same final and is measured by path instead
+    /// (AIM §4-3-3 NOTE 1; 7110.65 §3-8-1).
+    /// </summary>
+    private static bool IsNonStraightInEntryLead(AircraftState lead) =>
+        (AirborneFollowHelper.PatternLegIndex(lead) == AirborneFollowHelper.EntryLegIndex) && !AirborneFollowHelper.IsStraightInEntry(lead);
 
     /// <summary>
     /// The refusal for an IFR follower (<see cref="AirborneFollowHelper.IsIfrFollower"/>) flying its own published missed

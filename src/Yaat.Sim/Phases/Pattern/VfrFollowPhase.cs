@@ -215,6 +215,12 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     public bool TurningOut => _turnOut is not null;
 
     /// <summary>
+    /// The circuit a new lead chosen during this pursuit is compared on: the turn-out's own circuit while turning out, else
+    /// the circuit this pursuit left from base (<see cref="FollowPatternReturn.FromBase"/>); null otherwise.
+    /// </summary>
+    internal FollowPatternReturn? NewLeadCircuit => _turnOut?.Circuit ?? ((PatternReturn is { FromBase: true } fromBase) ? fromBase : null);
+
+    /// <summary>
     /// Starts this pursuit with a turn-out on its first tick, when the lead is on base or final to a runway and the follower
     /// on its pattern side in range (<see cref="TurnOutCircuitFor"/>): a base follower breaking off for spacing
     /// (<see cref="BaseFollowSpacing"/>) is level with or ahead of the lead by the break-off's own projection.
@@ -1783,11 +1789,18 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     /// True when the follower's shortest path to <paramref name="circuit"/>'s threshold is no longer than the lead's remaining
     /// path (<see cref="AirborneFollowHelper.LeadRemainingPathNm"/>).
     /// </summary>
-    private static bool IsLevelOrAhead(PhaseContext ctx, AircraftState lead, FollowPatternReturn circuit)
+    private static bool IsLevelOrAhead(PhaseContext ctx, AircraftState lead, FollowPatternReturn circuit) =>
+        FollowerPathToThresholdNm(ctx.Aircraft, circuit) <= AirborneFollowHelper.LeadRemainingPathNm(lead, circuit.Runway);
+
+    /// <summary>
+    /// <paramref name="aircraft"/>'s shortest path to <paramref name="circuit"/>'s threshold (<see cref="ShortestPathToThresholdNm"/>)
+    /// from its present position and heading, at its own turn radius.
+    /// </summary>
+    internal static double FollowerPathToThresholdNm(AircraftState aircraft, FollowPatternReturn circuit)
     {
-        FinalFramePosition frame = FinalFrameOf(ctx.Aircraft.Position, ctx.Aircraft.TrueHeading, circuit.Runway, circuit.Direction);
-        double followerPathNm = ShortestPathToThresholdNm(frame, BasePhase.TurnRadiusNm(ctx.Aircraft.GroundSpeed, ctx.Category));
-        return followerPathNm <= AirborneFollowHelper.LeadRemainingPathNm(lead, circuit.Runway);
+        FinalFramePosition frame = FinalFrameOf(aircraft.Position, aircraft.TrueHeading, circuit.Runway, circuit.Direction);
+        AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        return ShortestPathToThresholdNm(frame, BasePhase.TurnRadiusNm(aircraft.GroundSpeed, category));
     }
 
     /// <summary>

@@ -1475,6 +1475,13 @@ public static class AirborneFollowHelper
             _ => JoinedLegOfKind(entry.Kind),
         };
 
+    /// <summary>
+    /// True when <paramref name="ac"/> is on a straight-in entry: a <see cref="PatternEntryPhase"/> that joins the final
+    /// (<see cref="EntryJoinedLeg"/>).
+    /// </summary>
+    internal static bool IsStraightInEntry(AircraftState ac) =>
+        (ac.Phases?.CurrentPhase is PatternEntryPhase entry) && (EntryJoinedLeg(ac, entry) == FinalLegIndex);
+
     /// <summary>The circuit leg an entry of <paramref name="kind"/> joins: upwind, base or final by name, the downwind otherwise.</summary>
     private static int JoinedLegOfKind(PatternEntryKind kind) =>
         kind switch
