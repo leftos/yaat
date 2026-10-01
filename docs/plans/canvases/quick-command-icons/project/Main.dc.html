@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Quick command icon library</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#8FC1FF}a:hover{color:#B8D8FF}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1640px; box-sizing: border-box; padding: 56px 64px; background: #111316; color: #E4E7EB; font-family: 'IBM Plex Sans', system-ui, sans-serif; display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 32px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.12em; color: #9AA3AD; text-transform: uppercase">YAAT · aircraft context menu</div>
+<h1 style="margin: 0; font-size: 40px; font-weight: 600; letter-spacing: -0.01em">Quick command icons</h1>
+<p style="margin: 0; max-width: 760px; font-size: 16px; line-height: 1.5; color: #B4BBC4">One 24 px stroke glyph per command, colored by family. A small corner notch marks a command that opens a picker (runway, heading, altitude). The strip shows at most ten, in two rows of five, above the menu's text entries.</p>
+</div>
+<div style="display: flex; gap: 18px; flex-wrap: wrap; justify-content: flex-end; max-width: 420px">
+<sc-for list="{{families}}" as="fam" hint-placeholder-count="5">
+<div style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #C7CDD4">
+<span style="width: 10px; height: 10px; border-radius: 2px; background: {{fam.color}}"></span>
+<span>{{fam.name}}</span>
+</div>
+</sc-for>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 28px">
+<sc-for list="{{families}}" as="fam" hint-placeholder-count="5">
+<section style="display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-size: 13px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: {{fam.color}}">{{fam.name}}</h2>
+<div style="display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 12px">
+<sc-for list="{{fam.icons}}" as="ic" hint-placeholder-count="6">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 16px 8px 14px; background: #1A1D21; border: 1px solid #2A2F35; border-radius: 8px">
+<div style="position: relative; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: #22262B; border-radius: 6px; color: {{fam.color}}">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ic.d}}"></path></svg>
+<sc-if value="{{ic.sub}}" hint-placeholder-val="{{ false }}">
+<svg width="7" height="7" viewBox="0 0 7 7" style="position: absolute; right: 3px; bottom: 3px" aria-hidden="true"><path d="M7 0V7H0z" fill="#9AA3AD"></path></svg>
+</sc-if>
+</div>
+<div style="font-size: 13px; text-align: center; line-height: 1.3; color: #E4E7EB">{{ic.label}}</div>
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8C95A0">{{ic.cmd}}</div>
+</div>
+</sc-for>
+</div>
+</section>
+</sc-for>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1640}}'>
+class Component extends DCLogic {
+renderVals() {
+const fam = (name, color, icons) => ({ name, color, icons });
+const families = [
+fam('Tower', '#E8A33D', [
+{ label: 'Cleared for takeoff', cmd: 'CTO', sub: true, d: 'M2 20h20 M5 16L19 6 M13 6h6v6' },
+{ label: 'Line up and wait', cmd: 'LUAW', sub: false, d: 'M6 21V3 M18 21V3 M10 9v6 M14 9v6' },
+{ label: 'Cancel takeoff', cmd: 'CTOC', sub: false, d: 'M2 20h20 M8 5l8 8 M16 5l-8 8' },
+{ label: 'Cleared to land', cmd: 'CTL', sub: false, d: 'M2 20h20 M5 6l11 9 M10 15h6v-6' },
+{ label: 'Cancel landing clearance', cmd: 'CLC', sub: false, d: 'M2 20h20 M8 5l8 8 M16 5l-8 8' },
+{ label: 'Go around', cmd: 'GA', sub: false, d: 'M4 19h7a6 6 0 0 0 6-6V5 M13 9l4-4 4 4' },
+{ label: 'Touch and go', cmd: 'TG', sub: false, d: 'M2 20h20 M3 7c4 0 6 10 9 10s5-10 9-10' },
+{ label: 'Exit left', cmd: 'EL', sub: false, d: 'M15 21V11a4 4 0 0 0-4-4H4 M8 3L4 7l4 4' },
+{ label: 'Exit right', cmd: 'ER', sub: false, d: 'M9 21V11a4 4 0 0 1 4-4h7 M16 3l4 4-4 4' },
+{ label: 'Report traffic in sight', cmd: 'RTIS', sub: false, d: 'M12 3v4 M12 17v4 M3 12h4 M17 12h4 M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8' }
+]),
+fam('Ground', '#4FB8A8', [
+{ label: 'Push back', cmd: 'PUSH', sub: true, d: 'M12 3v12 M8 11l4 4 4-4 M6 20h12' },
+{ label: 'Taxi', cmd: 'TAXI', sub: true, d: 'M4 21v-5a4 4 0 0 1 4-4h8a4 4 0 0 0 4-4V4 M17 7l3-3 3 3' },
+{ label: 'Draw taxi route', cmd: 'draw', sub: false, d: 'M4 20l4-1L19 8l-3-3L5 16z M14 7l3 3' },
+{ label: 'Hold position', cmd: 'HP', sub: false, d: 'M8 3h8l5 5v8l-5 5H8l-5-5V8z M9 12h6' },
+{ label: 'Resume taxi', cmd: 'RES', sub: false, d: 'M7 4l13 8-13 8z' },
+{ label: 'Hold short of', cmd: 'HS', sub: true, d: 'M3 7h18 M3 10h18 M3 14h3 M9 14h3 M15 14h3 M3 17h3 M9 17h3 M15 17h3' },
+{ label: 'Cross runway', cmd: 'CROSS', sub: false, d: 'M3 8h18 M3 16h18 M12 3v18 M9 18l3 3 3-3' },
+{ label: 'Follow', cmd: 'FOLLOW', sub: false, d: 'M4 17l5-5-5-5 M13 17l5-5-5-5' },
+{ label: 'Give way', cmd: 'GW', sub: false, d: 'M3 5h18L12 20z' },
+{ label: 'Break conflict', cmd: 'BREAK', sub: false, d: 'M3 12h6 M15 12h6 M10 6l4 12' }
+]),
+fam('Flight', '#7AA7F0', [
+{ label: 'Fly heading', cmd: 'FH', sub: true, d: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7l3 8-3-2-3 2z' },
+{ label: 'Climb and maintain', cmd: 'CM', sub: true, d: 'M3 18l7-7 4 4 7-7 M15 8h6v6' },
+{ label: 'Descend and maintain', cmd: 'DM', sub: true, d: 'M3 6l7 7 4-4 7 7 M15 16h6v-6' },
+{ label: 'Speed', cmd: 'SPD', sub: true, d: 'M4 17a8 8 0 1 1 16 0 M12 17l4-5' },
+{ label: 'Direct to', cmd: 'DCT', sub: true, d: 'M3 21L16 8 M10 8h6v6 M19 3a2 2 0 1 0 0 4a2 2 0 1 0 0-4' },
+{ label: 'Hold', cmd: 'HOLD', sub: true, d: 'M8 6h8a6 6 0 0 1 0 12H8a6 6 0 0 1 0-12z M8 18l-2 3' },
+{ label: 'Cleared approach', cmd: 'CAPP', sub: true, d: 'M3 12L21 5 M3 12L21 19 M3 12h18' },
+{ label: 'Cleared visual', cmd: 'CVA', sub: true, d: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6' }
+]),
+fam('Pattern', '#B98BE8', [
+{ label: 'Enter downwind', cmd: 'ELD / ERD', sub: true, d: 'M6 20V6h12v14 M2 3l4 3' },
+{ label: 'Extend', cmd: 'EXT', sub: false, d: 'M3 8v8 M3 12h16 M15 8l4 4-4 4' },
+{ label: 'Turn base', cmd: 'TB', sub: false, d: 'M4 4h10a6 6 0 0 1 6 6v10 M16 16l4 4 4-4' },
+{ label: '360', cmd: 'L360 / R360', sub: true, d: 'M20 12a8 8 0 1 1-3-6.2 M20 4v5h-5' },
+{ label: 'Make short approach', cmd: 'MSA', sub: false, d: 'M4 6h8v12 M4 18h16 M9 13l3 5 3-5' },
+{ label: 'Option', cmd: 'OPT', sub: false, d: 'M2 20h20 M6 16c2-6 4-9 6-9 M12 7c2 0 4 3 6 9 M12 7V3' }
+]),
+fam('Scope and sim', '#AEB6C0', [
+{ label: 'Initiate track', cmd: 'TRACK', sub: false, d: 'M4 9V4h5 M15 4h5v5 M20 15v5h-5 M9 20H4v-5 M12 9v6 M9 12h6' },
+{ label: 'Hand off', cmd: 'HO', sub: true, d: 'M14 4h6v16h-6 M3 12h12 M11 8l4 4-4 4' },
+{ label: 'Squawk', cmd: 'SQ', sub: true, d: 'M3 7h18v10H3z M7 12h2 M11 12h2 M15 12h2' },
+{ label: 'Assume live traffic', cmd: 'ASSUME', sub: false, d: 'M12 3v10 M8 9l4 4 4-4 M4 17v4h16v-4' },
+{ label: 'Check release window', cmd: 'REL?', sub: false, d: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7v5l3 3' },
+{ label: 'Warp', cmd: 'WARP', sub: true, d: 'M13 2L4 14h7l-1 8 9-12h-7z' },
+{ label: 'Delete', cmd: 'DEL', sub: false, d: 'M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13' }
+])
+];
+return { families };
+}
+}
+</script>
+</body>
+</html>

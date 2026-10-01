@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Aircraft menus with the icon strip</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#8FC1FF}a:hover{color:#B8D8FF}
+.qc-cell{position:relative;width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:#23272C;border:1px solid #30363D;border-radius:6px;padding:0;cursor:pointer}
+.qc-cell:hover{background:#2E343B;border-color:#56606B}
+.qc-cell:active{background:#1B1F23}
+.qc-cell:focus-visible{outline:2px solid #8FC1FF;outline-offset:1px}
+.qc-row{display:flex;align-items:center;justify-content:space-between;height:28px;padding:0 12px;font-size:13px;color:#E4E7EB;border-radius:4px}
+.qc-row:hover{background:#2A3036}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; box-sizing: border-box; padding: 56px 64px; background: #0B0D0F; color: #E4E7EB; font-family: 'IBM Plex Sans', system-ui, sans-serif; display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.12em; color: #9AA3AD; text-transform: uppercase">Right-click an aircraft</div>
+<h1 style="margin: 0; font-size: 34px; font-weight: 600">The strip above the menu, by situation</h1>
+<p style="margin: 0; max-width: 820px; font-size: 15px; line-height: 1.5; color: #B4BBC4">Each situation's quick commands draw as icons first; the hovered one names itself on the line under the strip. Inapplicable commands are left out, so a situation with five shows one row. Hover the icons to try it.</p>
+</div>
+<div style="display: flex; gap: 40px; align-items: flex-start">
+<sc-for list="{{menus}}" as="m" hint-placeholder-count="3">
+<div style="display: flex; flex-direction: column; gap: 12px; width: 264px">
+<div style="font-size: 13px; color: #9AA3AD">{{m.caption}}</div>
+<div style="width: 264px; box-sizing: border-box; background: #1A1D21; border: 1px solid #343A41; border-radius: 8px; padding: 6px; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 12px 32px rgba(0,0,0,0.5)">
+<div style="display: flex; align-items: baseline; justify-content: space-between; padding: 6px 8px 4px">
+<span style="font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 14px">{{m.callsign}}</span>
+<span style="font-size: 12px; color: #9AA3AD">{{m.type}} · {{m.rules}}</span>
+</div>
+<div style="padding: 0 8px 4px; font-size: 12px; color: #C7CDD4">{{m.situation}}</div>
+<div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; padding: 6px 8px; justify-items: center">
+<sc-for list="{{m.icons}}" as="ic" hint-placeholder-count="5">
+<button type="button" class="qc-cell" aria-label="{{ic.label}}" onMouseEnter="{{ic.hover}}" onFocus="{{ic.hover}}" style="color: {{ic.color}}; box-shadow: {{ic.ring}}">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ic.d}}"></path></svg>
+<sc-if value="{{ic.sub}}" hint-placeholder-val="{{ false }}">
+<svg width="6" height="6" viewBox="0 0 6 6" style="position: absolute; right: 3px; bottom: 3px" aria-hidden="true"><path d="M6 0V6H0z" fill="#9AA3AD"></path></svg>
+</sc-if>
+</button>
+</sc-for>
+</div>
+<div style="display: flex; justify-content: space-between; align-items: center; height: 22px; padding: 0 10px; font-size: 12px">
+<span style="color: #E4E7EB">{{m.hoverLabel}}</span>
+<span style="font-family: 'IBM Plex Mono', monospace; color: #8C95A0">{{m.hoverCmd}}</span>
+</div>
+<div style="height: 1px; background: #30363D; margin: 2px 4px"></div>
+<div class="qc-row"><span>Command…</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #8C95A0">Enter</span></div>
+<div style="height: 1px; background: #30363D; margin: 2px 4px"></div>
+<sc-for list="{{m.groups}}" as="g" hint-placeholder-count="6">
+<div class="qc-row"><span>{{g}}</span><span style="color: #8C95A0">›</span></div>
+</sc-for>
+<div style="height: 1px; background: #30363D; margin: 2px 4px"></div>
+<div class="qc-row"><span style="color: #F08A80">Delete</span><span></span></div>
+</div>
+</div>
+</sc-for>
+<div style="display: flex; flex-direction: column; gap: 16px; width: 300px; padding: 20px 22px; background: #15181B; border: 1px solid #2A2F35; border-radius: 8px">
+<h2 style="margin: 0; font-size: 15px; font-weight: 600">Anatomy</h2>
+<div style="display: flex; gap: 10px; align-items: center">
+<sc-for list="{{states}}" as="s" hint-placeholder-count="4">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 6px">
+<div style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 6px; color: #E8A33D; background: {{s.bg}}; border: 1px solid {{s.border}}; box-shadow: {{s.ring}}">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 20h20 M5 16L19 6 M13 6h6v6"></path></svg>
+<svg width="6" height="6" viewBox="0 0 6 6" style="position: absolute; right: 3px; bottom: 3px" aria-hidden="true"><path d="M6 0V6H0z" fill="#9AA3AD"></path></svg>
+</div>
+<span style="font-size: 11px; color: #9AA3AD">{{s.name}}</span>
+</div>
+</sc-for>
+</div>
+<ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; line-height: 1.45; color: #C7CDD4">
+<li>40 px cells, 6 px apart, five to a row, at most two rows.</li>
+<li>The glyph's color is its family: tower amber, ground teal, flight blue, pattern violet, scope grey.</li>
+<li>The corner notch means a picker opens (runway, heading, altitude) instead of sending at once.</li>
+<li>The line under the strip names the hovered or focused command and its text; it doubles as the tooltip.</li>
+<li>Arrow keys move across the strip, Enter sends; Tab moves on to the text entries.</li>
+<li>A quick command with no glyph drops to a text row under Command….</li>
+</ul>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { hover: { A: 0, B: 1, C: 3 } };
+}
+renderVals() {
+const T = '#E8A33D', G = '#4FB8A8', F = '#7AA7F0';
+const I = {
+CTO: { label: 'Cleared for takeoff', cmd: 'CTO', sub: true, color: T, d: 'M2 20h20 M5 16L19 6 M13 6h6v6' },
+LUAW: { label: 'Line up and wait', cmd: 'LUAW', sub: false, color: T, d: 'M6 21V3 M18 21V3 M10 9v6 M14 9v6' },
+CTL: { label: 'Cleared to land', cmd: 'CTL', sub: false, color: T, d: 'M2 20h20 M5 6l11 9 M10 15h6v-6' },
+CLC: { label: 'Cancel landing clearance', cmd: 'CLC', sub: false, color: T, d: 'M2 20h20 M8 5l8 8 M16 5l-8 8' },
+GA: { label: 'Go around', cmd: 'GA', sub: false, color: T, d: 'M4 19h7a6 6 0 0 0 6-6V5 M13 9l4-4 4 4' },
+RTIS: { label: 'Report traffic in sight', cmd: 'RTIS', sub: false, color: T, d: 'M12 3v4 M12 17v4 M3 12h4 M17 12h4 M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8' },
+TAXI: { label: 'Taxi', cmd: 'TAXI', sub: true, color: G, d: 'M4 21v-5a4 4 0 0 1 4-4h8a4 4 0 0 0 4-4V4 M17 7l3-3 3 3' },
+DRAW: { label: 'Draw taxi route', cmd: 'draw', sub: false, color: G, d: 'M4 20l4-1L19 8l-3-3L5 16z M14 7l3 3' },
+HP: { label: 'Hold position', cmd: 'HP', sub: false, color: G, d: 'M8 3h8l5 5v8l-5 5H8l-5-5V8z M9 12h6' },
+RES: { label: 'Resume taxi', cmd: 'RES', sub: false, color: G, d: 'M7 4l13 8-13 8z' },
+HS: { label: 'Hold short of', cmd: 'HS', sub: true, color: G, d: 'M3 7h18 M3 10h18 M3 14h3 M9 14h3 M15 14h3 M3 17h3 M9 17h3 M15 17h3' },
+CROSS: { label: 'Cross runway 28L', cmd: 'CROSS 28L', sub: false, color: G, d: 'M3 8h18 M3 16h18 M12 3v18 M9 18l3 3 3-3' },
+FOLLOW: { label: 'Follow', cmd: 'FOLLOW', sub: false, color: G, d: 'M4 17l5-5-5-5 M13 17l5-5-5-5' },
+GW: { label: 'Give way', cmd: 'GW', sub: false, color: G, d: 'M3 5h18L12 20z' },
+BREAK: { label: 'Break conflict', cmd: 'BREAK', sub: false, color: G, d: 'M3 12h6 M15 12h6 M10 6l4 12' },
+SPD: { label: 'Reduce to final approach speed', cmd: 'RFAS', sub: false, color: F, d: 'M4 17a8 8 0 1 1 16 0 M12 17l4-5' }
+};
+const groups = ['Track', 'Data Block', 'Squawk', 'Display', 'Favorites', 'All Commands'];
+const defs = [
+{ key: 'A', caption: 'Holding short of the departure runway', callsign: 'N172SP', type: 'C172', rules: 'VFR', situation: 'Holding short 28R, at A', ids: ['CTO', 'LUAW', 'RES', 'FOLLOW', 'GW', 'DRAW'] },
+{ key: 'B', caption: 'On final, one row', callsign: 'UAL123', type: 'B738', rules: 'IFR', situation: 'Final 28R, 6 NM, cleared ILS', ids: ['CTL', 'GA', 'SPD', 'RTIS', 'CLC'] },
+{ key: 'C', caption: 'Taxiing toward the departure runway, full strip', callsign: 'SWA1234', type: 'B737', rules: 'IFR', situation: 'Taxiing via B C, next 28L', ids: ['HP', 'HS', 'CROSS', 'FOLLOW', 'GW', 'BREAK', 'CTO', 'DRAW', 'TAXI', 'RES'] }
+];
+const menus = defs.map((d) => {
+const hi = this.state.hover[d.key];
+const icons = d.ids.map((id, i) => ({
+...I[id],
+ring: i === hi ? '0 0 0 1px #8C95A0 inset' : 'none',
+hover: () => this.setState({ hover: { ...this.state.hover, [d.key]: i } })
+}));
+const cur = icons[hi] ?? icons[0];
+return { ...d, icons, groups, hoverLabel: cur.label + (cur.sub ? ' ›' : ''), hoverCmd: cur.cmd };
+});
+const states = [
+{ name: 'Default', bg: '#23272C', border: '#30363D', ring: 'none' },
+{ name: 'Hover', bg: '#2E343B', border: '#56606B', ring: 'none' },
+{ name: 'Pressed', bg: '#1B1F23', border: '#30363D', ring: 'none' },
+{ name: 'Focus', bg: '#23272C', border: '#30363D', ring: '0 0 0 2px #8FC1FF' }
+];
+return { menus, states };
+}
+}
+</script>
+</body>
+</html>
