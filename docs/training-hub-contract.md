@@ -99,7 +99,7 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 |---|---|---|
 | `CreateRoomAsync(initials, artccId, kind)` | `CreateRoom` | `CreateRoom(initials, artccId, kind)` — CID/rating from token claims; `artccId` must be a permitted ARTCC (token home + operator grants) or it throws `HubException` |
 | `GetMyPermittedArtccsAsync()` | `GetMyPermittedArtccs` | `GetMyPermittedArtccs()` — home ARTCC first, then operator grants |
-| `JoinRoomAsync(roomId, initials, artccId, kind)` | `JoinRoom` | `JoinRoom(roomId, initials, artccId, kind)` |
+| `JoinRoomAsync(roomId, initials, artccId, kind)` | `JoinRoom` | `JoinRoom(roomId, initials, artccId, kind)` → `RoomStateDto?`; `null` when the room is gone, or was retired while the join ran (the connection leaves the group and any CRC client bound to the room is unbound) |
 | `LeaveRoomAsync()` | `LeaveRoom` | `LeaveRoom()` |
 | `CloseRoomAsync(roomId)` | `CloseRoom` | `CloseRoom(roomId)` — the client calls it when its `JoinRoom` right after `CreateRoom` throws; only the room's creator (CID), while no scenario load holds the room and no other connection is a member, else it throws `HubException` (`Room {roomId} does not exist`, `Only the room's creator can close it`, `The room is loading a scenario. Try again when it has loaded.`, `The room has other members; leave it instead`); removes the room with the same teardown as abandoned-room cleanup and evicts (`RoomRetired` `The room's creator closed it.`) any connection that joined meanwhile. A `CreateRoom` that throws after registering the room closes it the same way (`RoomRetired` `The room could not be created.`) before rethrowing |
 | `GetActiveRoomsAsync()` | `GetActiveRooms` | `GetActiveRooms()` |
@@ -144,7 +144,6 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `GetTerminalLogAsync()` | `GetTerminalLog` | `GetTerminalLog()` → `List<TerminalBroadcastDto>` (recorded terminal stream; client repopulates the terminal after a recording load) |
 | `ExportRecordingAsync()` | `ExportRecording` | `ExportRecording()` `:961` (stream) |
 | `LoadRecordingAsync(bytes)` | `LoadRecording` | `LoadRecording(stream)` → `RewindResultDto`. Drains the upload, then holds the room's load flag like a scenario load: fetches the recording scenario's ARTCC configs and layouts before taking the tick gate, sends no progress events, and replaces the room's resource pin |
-| `MigrateRecordingAsync(json)` | `MigrateRecording` | `MigrateRecording(json)` → `byte[]?`; replays the v1 recording on its own scenario's freshly fetched resources, never the calling room's |
 | `AddBookmarkAsync(timeSeconds, name, initials)` | `AddBookmark` | `AddBookmark(...)` — adds a shared timeline bookmark, broadcasts `BookmarksChanged` |
 | `RenameBookmarkAsync(id, name)` | `RenameBookmark` | `RenameBookmark(id, name)` — any RPO may rename any bookmark |
 | `DeleteBookmarkAsync(id)` | `DeleteBookmark` | `DeleteBookmark(id)` — any RPO may delete any bookmark |

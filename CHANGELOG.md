@@ -36,6 +36,7 @@
 
 ### Fixed
 
+- Joining a room just as it closes no longer leaves you, or your CRC display, attached to the closed room.
 - A long-running room picks up ARTCC config changes to ASDE-X, SAID and Tower Cab airports, and CRC drops targets at an airport a config no longer lists.
 - A CRC display or TowerCab 3D that subscribes to the same data twice receives each update once, not once per subscription.
 - A room whose creation or first join fails is closed at once instead of lingering in the room list.

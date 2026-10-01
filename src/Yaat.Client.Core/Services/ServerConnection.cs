@@ -944,12 +944,6 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         }
     }
 
-    public async Task<byte[]?> MigrateRecordingAsync(string recordingJson)
-    {
-        EnsureConnected();
-        return await _connection!.InvokeAsync<byte[]?>("MigrateRecording", recordingJson);
-    }
-
     // --- Data queries ---
 
     public async Task<GroundLayoutDto?> GetAirportGroundLayoutAsync(string airportId)
