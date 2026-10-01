@@ -11,24 +11,25 @@ FOLLOW is not the cause. Every downwind, held or not, commits near abeam to desc
 - Measured (A1, TPA 1009 MSL): descent starts t=138 at −0.277 NM from abeam, reaches 415 ft at t=188 (0.698 NM, exactly the nominal base trigger), then holds 415 ft for the rest of the extension (24 s in A1; 1.1 NM with an `EXT`, same profile with or without FOLLOW). The late base turn then leaves the aircraft below the 3° path, and `FinalApproachPhase` climbs it 415 → 460 ft.
 - Origin: 3f1303f4 ("level off at the glideslope intercept altitude … while waiting for the TB command") — design intent, not a regression.
 
-## Proposed fix (subject to the aviation ruling below)
+## Rulings (aviation-sim-expert; user picks on the open choices)
+
+Grounding: AIM FIG 4-3-2/4-3-3 key 2; AC 90-66B §11.5 ("maintained until the aircraft is at least abeam the approach end"), Appendix A key 2 ("begin descent and turn base at approximately 45 degrees"), §11.3 (a common pattern altitude for traffic acquisition) — `.claude/reference/faa/ac-90-66b/ac-90-66b.md`.
+
+1. **Held or extended downwind** (`EXT`, the proximity hold, the FOLLOW sequencing hold): a hold in force at abeam never starts the descent and keeps TPA until the base turn or `TB`; a hold that arrives mid-descent levels off where it is. **Never climbs back** (user) [J].
+2. **Normal downwind: the descent is split between downwind and base** (user: same item). One constant ground gradient from abeam to the base-to-final rollout: the downwind targets, at the base trigger, `rollout + f × (TPA − rollout)` with `f = baseLen / (dwDescentLen + baseLen)` (`baseLen` the pattern width `PlanDescent` already uses, `dwDescentLen` abeam to the base trigger). Piston f ≈ 0.52 (C172 at KOAK turns base ~720 ft MSL, hand-computed), turboprop ≈ 0.45, **jet ≈ 0.41, the same gradient rule** (user) [J].
+3. **The descent arms at abeam**, not 0.3 NM before: the abeam test alone drops `AlongTrackToleranceNm`; the base-turn trigger keeps it.
+4. A base turned from TPA after a hold released at the nominal base point needs ~921 fpm against the piston ceiling of ~930 fpm: acceptable as an edge case, not pre-descended. Measure go-arounds and "arrives high" in `FollowPairTrajectoryTests` and `N342TFollowAfterExtendTests`; if held releases go around, the fallback (a held-leg floor past the nominal base point) comes back to the user.
+
+## Fix
 
 In `DownwindPhase.OnTick`:
-1. Evaluate the hold (`IsExtended || holdForProximity || wantsSequenceHold`, today ~:353-356) **before** the abeam block.
-2. At the abeam trigger set `_pastAbeam` and start the base-speed deceleration, but skip `ApplyPastAbeamDescentTargets` while held.
-3. While held: on the first held tick latch `_altitudeFloor = Math.Min(ctx.Aircraft.Altitude, Waypoints.PatternAltitude)` once (a new snapshotted bool on `DownwindPhaseDto` so the latch does not ratchet), then each held tick write `TargetAltitude = _altitudeFloor`, `DesiredVerticalRate = null`.
-4. On release while the leg continues past abeam: call `ApplyPastAbeamDescentTargets(ctx, alongTrack)` once and clear the latch; a release at the base turn is covered by `BasePhase.PlanDescent` (`BasePhase.cs` ~:156-204), which plans from the held altitude.
-5. Delete `ExtendedDownwindFloor` (dead), fix the comment at ~:547-552 and `docs/approach-and-pattern-geometry.md` "Past-abeam descent target" (~:109-118).
+1. Evaluate the hold (`IsExtended || holdForProximity || wantsSequenceHold`) **before** the abeam block; the abeam test is `aircraftAlongTrack >= _abeamAlongTrack`.
+2. At abeam set `_pastAbeam` and start the base-speed deceleration; start the descent only when not held.
+3. While held: on the first held tick latch `_altitudeFloor = Math.Min(Altitude, PatternAltitude)` once (a snapshotted bool on `DownwindPhaseDto`, so the latch never ratchets or rises), then each held tick `TargetAltitude = _altitudeFloor`, `DesiredVerticalRate = null`.
+4. The descent (at abeam unheld, or on release past abeam before the base trigger) aims along one straight line from the aircraft's current altitude and position to the rollout altitude at the rollout point: at the base trigger, `rollout + (current − rollout) × baseLen / (remainingDw + baseLen)`, at the rate that reaches it over the remaining downwind at ground speed. At abeam from TPA that is ruling 2. A release at or past the base trigger is `BasePhase.PlanDescent`'s (unchanged; it plans from wherever the base starts).
+5. Delete `ExtendedDownwindFloor`, fix the comment at ~:547-552 and `docs/approach-and-pattern-geometry.md` "Past-abeam descent target", citing AC 90-66B §11.5 and App. A key 2 beside AIM FIG 4-3-2.
 
-Leave untouched: the normal and SA branches of `ApplyPastAbeamDescentTargets`, `BasePhase.PlanDescent`, the hold decisions in `AirborneFollowHelper`.
-
-Risk to measure: a base turned from TPA at the nominal point needs ~921 fpm against the piston base ceiling of min(1500, 69.8 kt × tan 7.5° × 101.27) = 930 fpm — feasible at the edge; check it does not arrive high and go around (`FollowPairTrajectoryTests` landing-order checks would catch it).
-
-## Open for `aviation-sim-expert` (before the brief)
-
-1. A held or extended downwind: hold TPA until the base turn (or `TB`), or arrest at whatever altitude the hold catches it (A1's hold caught it ~70 ft into the descent)?
-2. A normal downwind: may it lose the whole TPA-to-rollout drop (~594 ft for a C172 at KOAK) before the base turn and fly the base level, as today, or should the downwind descent be partial with the rest on base? AIM FIG 4-3-2 key 2 says only "maintain pattern altitude until abeam".
-3. Should the descent arm 0.3 NM before abeam (the shared `AlongTrackToleranceNm`) or at abeam?
+Leave untouched: the short-approach branch of `ApplyPastAbeamDescentTargets`, `BasePhase.PlanDescent`, the hold decisions in `AirborneFollowHelper`.
 
 ## Tests
 
