@@ -197,10 +197,15 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     /// closed-traffic climb off its pattern runway or a close parallel of it), the runway it is flying: that runway's heading,
     /// past the farther departure end of it and the pattern runway (<see cref="PatternGeometry.TransitionDepartureEnd"/>), at
     /// the pattern runway's pattern altitude less the turn margin; else null — a pursuit started anywhere else may steer at its
-    /// lead at once.
+    /// lead at once. A crossing-runway transition (<see cref="CrossingTransitionGate"/>) has its own gate.
     /// </summary>
     internal static FollowClimbOutGate? ClimbOutGateFor(AircraftState aircraft, AirportGroundLayout? groundLayout)
     {
+        if (CrossingTransitionGate(aircraft, groundLayout) is { } crossingGate)
+        {
+            return crossingGate;
+        }
+
         Phase? current = aircraft.Phases?.CurrentPhase;
         if (current is UpwindPhase { Waypoints: { } waypoints })
         {
@@ -218,6 +223,42 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
 
         return null;
     }
+
+    /// <summary>
+    /// The departure-leg hold of a closed-traffic climb off a runway crossing its pattern runway, or of its upwind
+    /// (<see cref="AirborneFollowHelper.IsCrossingTransitionClimb"/>): the flown runway's heading, held past that runway's own
+    /// departure end (the upwind's crosswind-turn point; the crossing runway's end may lie anywhere along another heading), at
+    /// the pattern runway's pattern altitude less the turn margin (AIM §4-3-2.c.1, FIG 4-3-2/4-3-3 keys 4–5). Null for any
+    /// other aircraft.
+    /// </summary>
+    private static FollowClimbOutGate? CrossingTransitionGate(AircraftState aircraft, AirportGroundLayout? groundLayout)
+    {
+        if (
+            !AirborneFollowHelper.IsCrossingTransitionClimb(aircraft)
+            || (aircraft.Phases?.AssignedRunway is not { } patternRunway)
+            || (aircraft.Phases.DepartureRunway is not { } flown)
+        )
+        {
+            return null;
+        }
+
+        if (aircraft.Phases.CurrentPhase is UpwindPhase { Waypoints: { } waypoints })
+        {
+            return FollowClimbOutGate.FromWaypoints(waypoints) with
+            {
+                MinTurnAltitude = CrossingTurnAltitudeFt(aircraft, patternRunway, groundLayout),
+            };
+        }
+
+        return FollowClimbOutGate.ForClimbOut(flown, flown, ResolvePatternAltitudeFt(aircraft, patternRunway, groundLayout));
+    }
+
+    /// <summary>
+    /// The legal crosswind-turn altitude of a crossing transition's upwind: <paramref name="patternRunway"/>'s pattern altitude
+    /// (<see cref="ResolvePatternAltitudeFt"/>) less <see cref="UpwindPhase.PatternHandoffMarginFt"/>, not the runway flown's.
+    /// </summary>
+    private static double CrossingTurnAltitudeFt(AircraftState aircraft, RunwayInfo patternRunway, AirportGroundLayout? groundLayout) =>
+        ResolvePatternAltitudeFt(aircraft, patternRunway, groundLayout) - UpwindPhase.PatternHandoffMarginFt;
 
     /// <summary>
     /// The runway the followed traffic is landing on, captured while the lead is
