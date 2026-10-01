@@ -55,7 +55,7 @@ A taxi command that extends the aircraft's current taxi route instead of replaci
 5. (decided above: fall back to `TAXI`)
 6. `CROSS` in an append clears only the crossings the appended part adds, never a bar already on the route (`aviation-sim-expert`).
 7. (decided above: atomic)
-8. Which phases accept it as an append: Taxiing and HoldingShort. `RunwayExitPhase` has an exit route of its own: does the append extend that, or fall back? Also, whether `GIVEWAY`, `NODEL` and speed carry onto the appended part.
+8. Which phases accept it as an append: Taxiing and HoldingShort, and `RunwayExitPhase`, whose exit route the append extends after the exit's end (user); an exit not yet committed has no end, so it falls back to `TAXI` from the exit. `GIVEWAY`, `NODEL` and the taxi speed carry onto the appended part (user).
 
 ## Task Index rows for the landing commit
 
