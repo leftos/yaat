@@ -59,7 +59,7 @@ public sealed class InterceptCoursePhase : Phase
 
     private const double AlreadyOnCourseThresholdNm = 0.15;
     private const double SpeedAnticipationThresholdNm = 2.0;
-    private const double InterceptSpeedFasMultiplier = 1.3;
+    internal const double InterceptSpeedFasMultiplier = 1.3;
     private const double MaxElapsedSeconds = 180.0;
 
     /// <summary>
@@ -131,8 +131,14 @@ public sealed class InterceptCoursePhase : Phase
         // approach clearance clears any follow, but restored or hand-authored state can
         // carry one onto an intercept; the same lost-lead event must behave the same
         // here as on any other approach segment. Bails out when a cancel replaced or
-        // cleared the phase list mid-tick.
-        if (AirborneFollowHelper.CheckLeadLifecycle(ctx))
+        // cleared the phase list mid-tick. A lead that landed ends the spacing on it too.
+        if (
+            AirborneFollowHelper.CheckLeadLifecycleRestoringSpacing(
+                ctx,
+                _approachSpeedSet ? SpacingCeilingKts(ctx) : null,
+                DistanceToThresholdNm(ctx)
+            )
+        )
         {
             return false;
         }
@@ -183,6 +189,8 @@ public sealed class InterceptCoursePhase : Phase
                 crossTrack
             );
         }
+
+        ApplyPreFinalSpacing(ctx, crossTrack);
 
         // Already on the centerline with heading roughly aligned — complete immediately.
         if ((crossTrack < AlreadyOnCourseThresholdNm) && (ComputeEffectiveHeadingDiff(ctx) <= maxAlignmentDeg))
@@ -273,6 +281,25 @@ public sealed class InterceptCoursePhase : Phase
 
         return false;
     }
+
+    /// <summary>
+    /// A follower joining the course (inside <see cref="SpeedAnticipationThresholdNm"/>, once the intercept speed is set)
+    /// spaces on its lead by slowing from the intercept speed toward its approach speed.
+    /// </summary>
+    private void ApplyPreFinalSpacing(PhaseContext ctx, double crossTrackNm)
+    {
+        if (_approachSpeedSet && (crossTrackNm < SpeedAnticipationThresholdNm) && AirborneFollowHelper.MaySpaceBeforeFinal(ctx))
+        {
+            double floorKts = AirborneFollowHelper.PreFinalSpacingFloorKts(ctx);
+            AirborneFollowHelper.ApplyPreFinalSpacing(ctx, SpacingCeilingKts(ctx), floorKts, DistanceToThresholdNm(ctx));
+        }
+    }
+
+    /// <summary>The intercept speed, 1.3 × the bare approach speed: the most a follower's spacing lets it fly here.</summary>
+    private static double SpacingCeilingKts(PhaseContext ctx) =>
+        AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category) * InterceptSpeedFasMultiplier;
+
+    private double DistanceToThresholdNm(PhaseContext ctx) => GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(ThresholdLat, ThresholdLon));
 
     /// <summary>
     /// Heading diff using current aircraft heading only — for anticipation decisions

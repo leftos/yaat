@@ -310,6 +310,14 @@ public static class AirborneFollowHelper
     internal static bool IsOnApproachBeforeFinal(Phase? phase) =>
         (phase is InterceptCoursePhase or ApproachNavigationPhase { IsMissedApproach: false }) || IsApproachCourseReversal(phase);
 
+    /// <summary>
+    /// True when <paramref name="aircraft"/> flies an approach FOLLOW keeps: a segment before final
+    /// (<see cref="IsOnApproachBeforeFinal"/>), or the final of an approach it is cleared for.
+    /// </summary>
+    private static bool IsOnKeptApproach(AircraftState aircraft) =>
+        IsOnApproachBeforeFinal(aircraft.Phases?.CurrentPhase)
+        || ((aircraft.Phases?.CurrentPhase is FinalApproachPhase) && (aircraft.Phases.ActiveApproach is not null));
+
     /// <summary>True when <paramref name="phase"/> is an approach's course reversal: a procedure turn or a hold-in-lieu of one.</summary>
     private static bool IsApproachCourseReversal(Phase? phase) => phase is ProcedureTurnPhase or HoldingPatternPhase { IsHoldInLieu: true };
 
@@ -883,6 +891,91 @@ public static class AirborneFollowHelper
     }
 
     /// <summary>
+    /// True when an approach follower may space on its lead by speed before final approach speed: no explicit ATC speed
+    /// (the pilot complies with an assigned speed, AIM §4-4-12.c; speed adjustment is the controller's, 7110.65 §5-7-1) and a
+    /// clearance that is more than a lateral join (JFAC/JLOC authorizes joining the course and nothing else).
+    /// </summary>
+    internal static bool MaySpaceBeforeFinal(PhaseContext ctx) =>
+        !ctx.Targets.HasExplicitSpeedCommand && (ctx.Aircraft.Phases?.ActiveApproach is not { LateralInterceptOnly: true });
+
+    /// <summary>
+    /// <see cref="CheckLeadLifecycle"/> for a phase that spaces before final approach speed: when the lifecycle ends the follow
+    /// because the lead landed, the follower goes back to <paramref name="ceilingKts"/> (null when the phase's spacing is not
+    /// active), unless it is inside the stabilization window or spacing is not allowed (<see cref="MaySpaceBeforeFinal"/>).
+    /// </summary>
+    /// <returns>True if the follow was cancelled this tick: the caller skips the rest of its tick, as with <see cref="CheckLeadLifecycle"/>.</returns>
+    internal static bool CheckLeadLifecycleRestoringSpacing(PhaseContext ctx, double? ceilingKts, double distanceToThresholdNm)
+    {
+        bool leadLanded = IsFollowedLeadOnGround(ctx);
+        if (!CheckLeadLifecycle(ctx))
+        {
+            return false;
+        }
+
+        if (leadLanded && (ceilingKts is { } ceiling) && MaySpaceBeforeFinal(ctx) && !IsInsideStabilizationWindow(ctx, distanceToThresholdNm))
+        {
+            ctx.Targets.TargetSpeed = ceiling;
+        }
+
+        return true;
+    }
+
+    private static bool IsFollowedLeadOnGround(PhaseContext ctx) =>
+        (ctx.Aircraft.Approach.FollowingCallsign is { } leadCallsign) && (ctx.AircraftLookup?.Invoke(leadCallsign) is { IsOnGround: true });
+
+    /// <summary>
+    /// The floor of pre-final spacing: Vapp on the assigned runway — Vref plus half the steady headwind plus the full gust
+    /// increment, capped at 20 kt (manufacturer technique, <see cref="AircraftPerformance.WindApproachAdditive"/>) — or the
+    /// bare approach speed with no runway assigned. The assigned runway's heading, not the final approach course, so the floor
+    /// does not jump at the hand-off to final on an offset (LDA/SDF) final.
+    /// </summary>
+    internal static double PreFinalSpacingFloorKts(PhaseContext ctx)
+    {
+        double approachSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
+        return ctx.Aircraft.Phases?.AssignedRunway is { } runway
+            ? approachSpeed + AircraftPerformance.WindApproachAdditive(ctx.Weather, runway.TrueHeading.Degrees)
+            : approachSpeed;
+    }
+
+    /// <summary>
+    /// Space an approach follower on its lead by speed before final approach speed: <see cref="GetAdjustedSpeed"/> about the
+    /// lead's airspeed clamped to [<paramref name="floorKts"/>, <paramref name="ceilingKts"/>], then
+    /// <c>max(min(adjusted, ceiling), floor)</c>. Matching the lead's speed settles the follower at the desired distance
+    /// instead of closing on a slower lead; the clamp keeps spacing from ever speeding it above the ceiling or slowing it
+    /// below the floor. A no-op when there is no lead, when the floor reaches the ceiling, inside the stabilization window
+    /// (<see cref="FinalApproachPhase.StabilizationWindowSeconds"/>), and when the helper returns no speed (a lead behind in
+    /// the pattern flow, or a follow it cancelled).
+    /// </summary>
+    /// <returns>True when it wrote <see cref="ControlTargets.TargetSpeed"/>.</returns>
+    internal static bool ApplyPreFinalSpacing(PhaseContext ctx, double ceilingKts, double floorKts, double distanceToThresholdNm)
+    {
+        AircraftState? lead = ctx.Aircraft.Approach.FollowingCallsign is { } leadCallsign ? ctx.AircraftLookup?.Invoke(leadCallsign) : null;
+        if ((lead is null) || (floorKts >= ceilingKts) || IsInsideStabilizationWindow(ctx, distanceToThresholdNm))
+        {
+            return false;
+        }
+
+        double baselineKts = Math.Clamp(lead.IndicatedAirspeed, floorKts, ceilingKts);
+        if (GetAdjustedSpeed(ctx, baselineKts, floorKts, MaxSpeedAdjustKts) is not { } adjusted)
+        {
+            return false;
+        }
+
+        ctx.Targets.TargetSpeed = Math.Max(Math.Min(adjusted, ceilingKts), floorKts);
+        return true;
+    }
+
+    /// <summary>
+    /// True when <paramref name="distanceToThresholdNm"/> is no more than <see cref="FinalApproachPhase.StabilizationWindowSeconds"/>
+    /// away at the aircraft's ground speed: committed to the approach, so a follower stops adjusting its speed.
+    /// </summary>
+    internal static bool IsInsideStabilizationWindow(PhaseContext ctx, double distanceToThresholdNm)
+    {
+        double groundSpeed = ctx.Aircraft.GroundSpeed;
+        return (groundSpeed > 0) && ((distanceToThresholdNm / groundSpeed * 3600.0) <= FinalApproachPhase.StabilizationWindowSeconds);
+    }
+
+    /// <summary>
     /// Variant of <see cref="GetAdjustedSpeed"/> that uses the wider
     /// free-flight desired spacing instead of pattern-tight spacing. Used by
     /// phases that are navigating toward the pattern but not yet established
@@ -1039,6 +1132,14 @@ public static class AirborneFollowHelper
                 rpoShowPilotSpeech,
                 Pilot.PilotResponder.BuildUnableToMaintainSeparation(follower, lead.Callsign)
             );
+
+            // An IFR follow on an approach is pilot-applied visual separation; with the follow ended the controller is back
+            // to radar separation (7110.65 §7-2-1). The approach itself goes on.
+            if (IsOnKeptApproach(follower) && IsIfrFollower(follower))
+            {
+                follower.PendingWarnings.Add(Tower.VisualApproachHelper.VisualSeparationTerminatedWarning(follower.Callsign));
+            }
+
             logger.LogWarning(
                 "[Follow] {Callsign}: cancelled follow on {Target}, at min speed with dist={Dist:F2}nm (desired={Desired:F1}nm)",
                 follower.Callsign,

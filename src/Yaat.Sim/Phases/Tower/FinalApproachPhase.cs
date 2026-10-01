@@ -163,7 +163,7 @@ public sealed class FinalApproachPhase : Phase
     /// firmly inside the industry VMC 500-ft stabilized gate (FAA AC 120-71 /
     /// InFO 11009) and well below the 1000-ft IMC gate.
     /// </summary>
-    private const double StabilizationWindowSeconds = 60.0;
+    internal const double StabilizationWindowSeconds = 60.0;
 
     /// <summary>
     /// Minimum distance-to-threshold (nm) outside which a following aircraft may self-initiate a
@@ -332,6 +332,12 @@ public sealed class FinalApproachPhase : Phase
     private double _mapDistNm;
 
     /// <summary>
+    /// The most a follower's spacing before the FAS bleed lets it fly: the latest speed this phase's own schedule wrote (the
+    /// approach-flap or configuration stage), else the target (or, with none, the airspeed) latched at phase entry.
+    /// </summary>
+    private double? _spacingCeilingKts;
+
+    /// <summary>
     /// Remaining cooldown (seconds) before another spacing S-turn may fire. Set on the resume
     /// phase after a spacing S-turn is inserted; decremented each tick.
     /// </summary>
@@ -409,6 +415,7 @@ public sealed class FinalApproachPhase : Phase
             GoAroundRolled = _goAroundRolled,
             LateralOffCourseSeconds = _lateralOffCourseSec,
             LateralGateGraceSeconds = _lateralGateGraceSec,
+            SpacingCeilingKts = _spacingCeilingKts,
         };
 
     public static FinalApproachPhase FromSnapshot(FinalApproachPhaseDto dto)
@@ -451,6 +458,7 @@ public sealed class FinalApproachPhase : Phase
         phase._goAroundRolled = dto.GoAroundRolled;
         phase._lateralOffCourseSec = dto.LateralOffCourseSeconds ?? 0;
         phase._lateralGateGraceSec = dto.LateralGateGraceSeconds ?? 0;
+        phase._spacingCeilingKts = dto.SpacingCeilingKts;
         return phase;
     }
 
@@ -495,6 +503,7 @@ public sealed class FinalApproachPhase : Phase
         ctx.Targets.TargetTrueHeading = _finalApproachCourse;
         ctx.Targets.PreferredTurnDirection = null;
         ctx.Targets.NavigationRoute.Clear();
+        _spacingCeilingKts ??= ctx.Targets.TargetSpeed ?? ctx.Aircraft.IndicatedAirspeed;
 
         // Lateral intercept only (JFAC/JLOC, no CAPP): keep the aircraft's assigned speed —
         // a localizer join does not start the approach deceleration. OnTick holds altitude
@@ -616,7 +625,31 @@ public sealed class FinalApproachPhase : Phase
             _goAroundRolled = true,
             // Keep a commanded retarget/join's establishment allowance across an auto-S-turn resume.
             _lateralGateGraceSec = _lateralGateGraceSec,
+            // Keep the spacing ceiling too, so the resume does not latch the S-turn's slower speed as a new one.
+            _spacingCeilingKts = _spacingCeilingKts,
         };
+
+    /// <summary>
+    /// Before the FAS bleed a follower spaces by slowing below <see cref="_spacingCeilingKts"/> toward FAS — decrease-only, so
+    /// the schedule's latches (<see cref="_flapSet"/>, <see cref="_configSet"/>) stay the schedule's own. An explicit ATC speed
+    /// drops the latched ceiling; the first spacing tick after it clears latches it again.
+    /// </summary>
+    private void ApplyPreFinalSpacing(PhaseContext ctx, double distNm)
+    {
+        if (ctx.Targets.HasExplicitSpeedCommand)
+        {
+            _spacingCeilingKts = null;
+            return;
+        }
+
+        if (_fasSet || (ctx.Aircraft.Approach.FollowingCallsign is null) || !AirborneFollowHelper.MaySpaceBeforeFinal(ctx))
+        {
+            return;
+        }
+
+        _spacingCeilingKts ??= ctx.Targets.TargetSpeed ?? ctx.Aircraft.IndicatedAirspeed;
+        AirborneFollowHelper.ApplyPreFinalSpacing(ctx, _spacingCeilingKts.Value, FinalApproachSpeedKts(ctx), distNm);
+    }
 
     /// <summary>
     /// Re-aim this active phase at a different runway without resetting glideslope /
@@ -670,12 +703,13 @@ public sealed class FinalApproachPhase : Phase
         // DownwindPhase.OnTick for the full rationale. The on-ground branch
         // is what catches a leader that lands while we're still on final. A
         // cancel can replace/clear this phase list mid-tick — bail out when it fires.
-        if (AirborneFollowHelper.CheckLeadLifecycle(ctx))
+        // A lead that landed before the FAS bleed ends the spacing on it too.
+        double distNm = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon));
+        if (AirborneFollowHelper.CheckLeadLifecycleRestoringSpacing(ctx, _fasSet ? null : _spacingCeilingKts, distNm))
         {
             return false;
         }
 
-        double distNm = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon));
         DistanceToThresholdNm = distNm;
 
         // JFAC/JLOC lateral intercept without CAPP: track the final approach course but hold
@@ -691,9 +725,7 @@ public sealed class FinalApproachPhase : Phase
             // Vapp = Vref + half the steady headwind + the full gust increment (capped at
             // 20 kt): standard windy-day technique, and the controller-visible reason
             // tight in-trail spacing degrades in gusts.
-            double fas =
-                AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category)
-                + AircraftPerformance.WindApproachAdditive(ctx.Weather, _runwayHeading.Degrees);
+            double fas = FinalApproachSpeedKts(ctx);
             double decelRate = AircraftPerformance.DecelRate(ctx.AircraftType, ctx.Category);
             double reachGate = EffectiveFasReachGateNm(ctx);
             double fasTrigger = ComputeFasTriggerDistanceNm(ctx.Aircraft.IndicatedAirspeed, fas, ctx.Aircraft.GroundSpeed, decelRate, reachGate);
@@ -738,6 +770,8 @@ public sealed class FinalApproachPhase : Phase
             return false;
         }
 
+        ApplyPreFinalSpacing(ctx, distNm);
+
         // Follow speed adjustment on final has three rules:
         // 1. Feed Vref (phase baseline) as normalSpeed — never the previous tick's
         //    target — otherwise the +MaxSpeedAdjust clamp compounds each tick and
@@ -749,11 +783,8 @@ public sealed class FinalApproachPhase : Phase
         //    is committed — land safely or go around, don't chase.
         if (_fasSet && ctx.Aircraft.Approach.FollowingCallsign is not null)
         {
-            double vref =
-                AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category)
-                + AircraftPerformance.WindApproachAdditive(ctx.Weather, _runwayHeading.Degrees);
-            double gs = ctx.Aircraft.GroundSpeed;
-            bool inStabilizationWindow = (gs > 0) && ((distNm / gs * 3600.0) <= StabilizationWindowSeconds);
+            double vref = FinalApproachSpeedKts(ctx);
+            bool inStabilizationWindow = AirborneFollowHelper.IsInsideStabilizationWindow(ctx, distNm);
             AircraftState? lead = ctx.AircraftLookup?.Invoke(ctx.Aircraft.Approach.FollowingCallsign);
             bool leaderOnGround = lead?.IsOnGround ?? true;
 
@@ -1181,6 +1212,7 @@ public sealed class FinalApproachPhase : Phase
         if (distNm <= configTrigger)
         {
             ctx.Targets.TargetSpeed = configSpeed;
+            _spacingCeilingKts = configSpeed;
             _configSet = true;
             Log.LogDebug(
                 "[FinalApproach] {Callsign}: slowing to config speed {Cfg:F0}kts at {Dist:F1}nm (trigger={Trigger:F2}nm)",
@@ -1191,6 +1223,13 @@ public sealed class FinalApproachPhase : Phase
             );
         }
     }
+
+    /// <summary>
+    /// Vapp: Vref + half the steady headwind + the full gust increment (capped at 20 kt), on the assigned runway's heading.
+    /// </summary>
+    private double FinalApproachSpeedKts(PhaseContext ctx) =>
+        AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category)
+        + AircraftPerformance.WindApproachAdditive(ctx.Weather, _runwayHeading.Degrees);
 
     private void TickApproachFlapStage(PhaseContext ctx, double distNm, double fas, double decelRate)
     {
@@ -1219,6 +1258,7 @@ public sealed class FinalApproachPhase : Phase
         if (distNm <= flapTrigger)
         {
             ctx.Targets.TargetSpeed = flapSpeed;
+            _spacingCeilingKts = flapSpeed;
             _flapSet = true;
             Log.LogDebug(
                 "[FinalApproach] {Callsign}: slowing to approach-flap speed {Flap:F0}kts at {Dist:F1}nm (gate={Gate:F1}nm, trigger={Trigger:F2}nm)",

@@ -999,6 +999,10 @@ public sealed class FinalApproachPhaseDto : PhaseDto
     /// <summary>Remaining lateral-alignment-gate hold-off after a commanded retarget/join (null in pre-gate snapshots).</summary>
     public double? LateralGateGraceSeconds { get; init; }
 
+    /// <summary>The ceiling of a follower's spacing before the FAS bleed (kt): the latest schedule speed, else the speed latched
+    /// at phase entry. Null in snapshots made before the field, which re-latch at the first spacing tick.</summary>
+    public double? SpacingCeilingKts { get; init; }
+
     /// <summary>True once the one-shot pilot-decision go-around roll has been performed or suppressed. Defaults to false.</summary>
     public bool GoAroundRolled { get; init; }
 }
@@ -1344,6 +1348,10 @@ public sealed class ApproachNavigationPhaseDto : PhaseDto
     /// <summary>The fixes are the published missed approach. Optional (defaults false) so recordings made before the
     /// field deserialize cleanly.</summary>
     public bool IsMissedApproach { get; init; }
+
+    /// <summary>The latched ceiling of a follower's pre-final spacing (kt); null when not latched. Optional so recordings
+    /// made before the field deserialize cleanly.</summary>
+    public double? SpacingCeilingKts { get; init; }
 }
 
 public sealed class InterceptCoursePhaseDto : PhaseDto

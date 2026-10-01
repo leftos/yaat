@@ -591,6 +591,17 @@ public static class FlightPhysics
                 continue;
             }
 
+            // A maximum ("at or below") restriction caps a following aircraft's speed; it is never a cue to accelerate,
+            // which would close on the lead the follower is spacing behind. Skip it, as a minimum is skipped above.
+            if (
+                (restriction.Type == CifpSpeedRestrictionType.AtOrBelow)
+                && (aircraft.Approach.FollowingCallsign is not null)
+                && (aircraft.IndicatedAirspeed < constraintSpeed)
+            )
+            {
+                continue;
+            }
+
             double speedDelta = Math.Abs(aircraft.IndicatedAirspeed - constraintSpeed);
             if (speedDelta < SpeedSnapKts)
             {

@@ -448,10 +448,12 @@ public class FollowEntryLeadPathTests(ITestOutputHelper output)
         AircraftState lead = StraightInEntrant(rwy, "B738", 3.0, OffFinal(rwy, 3.0, 2.0));
         engine.World.AddAircraft(lead);
         AircraftState follower = FollowSequenceRefusalTests.AddApproachFollower(engine, 6.0);
+        // A 30° intercept from 0.65 nm right of the final, so the capture comes before the entrant reaches its join even
+        // though the follower slows for spacing on the entrant while it intercepts.
+        follower.Position = OffFinal(rwy, 6.0, 0.65);
         double leadNm = AirborneFollowHelper.SequenceRemainingPathNm(lead, rwy);
         Assert.True(leadNm < AirborneFollowHelper.SequenceRemainingPathNm(follower, rwy), $"lead path {leadNm:F2} nm");
         follower.Approach.FollowingCallsign = Leader;
-        // A 30° intercept from the right of the final, so the capture comes before the entrant reaches its join.
         follower.TrueHeading = rwy.TrueHeading - 30.0;
         follower.TrueTrack = follower.TrueHeading;
 

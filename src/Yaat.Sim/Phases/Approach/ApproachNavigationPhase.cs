@@ -20,6 +20,13 @@ public sealed class ApproachNavigationPhase : Phase
 
     private int _currentFixIndex;
 
+    /// <summary>
+    /// The most a follower's pre-final spacing lets it fly: latched as the target (or, with none, the airspeed) the first
+    /// time spacing runs, replaced by each fix speed the phase applies, and dropped under an explicit ATC speed so the first
+    /// spacing tick after it re-latches. Null when not latched. Never the previous tick's spacing output.
+    /// </summary>
+    private double? _spacingCeilingKts;
+
     /// <summary>Index into <see cref="Fixes"/> of the fix being flown to; <c>Fixes.Count</c> once every fix is reached.</summary>
     public int CurrentFixIndex => _currentFixIndex;
 
@@ -77,8 +84,9 @@ public sealed class ApproachNavigationPhase : Phase
         // Lead lifecycle watchdog: a CVA FOLLOW with an angled join rides this phase before
         // FinalApproachPhase, and without the check the same lost-lead event would produce a
         // different outcome here than 30 seconds later on final. A cancel can replace or
-        // clear this phase list mid-tick — bail out when it fires.
-        if (AirborneFollowHelper.CheckLeadLifecycle(ctx))
+        // clear this phase list mid-tick — bail out when it fires. A lead that landed ends the spacing on it too.
+        double? spacingCeilingKts = IsMissedApproach ? null : _spacingCeilingKts;
+        if (AirborneFollowHelper.CheckLeadLifecycleRestoringSpacing(ctx, spacingCeilingKts, DistanceToThresholdNm(ctx)))
         {
             return false;
         }
@@ -150,8 +158,41 @@ public sealed class ApproachNavigationPhase : Phase
             NavigateToCurrentFix(ctx);
         }
 
+        ApplyPreFinalSpacing(ctx);
         return false;
     }
+
+    /// <summary>
+    /// A follower on the approach's fixes spaces on its lead by slowing below <see cref="_spacingCeilingKts"/> toward its
+    /// approach speed. Not on the published missed approach, which is flown away from the runway.
+    /// </summary>
+    private void ApplyPreFinalSpacing(PhaseContext ctx)
+    {
+        if (ctx.Targets.HasExplicitSpeedCommand)
+        {
+            _spacingCeilingKts = null;
+            return;
+        }
+
+        if (IsMissedApproach || (ctx.Aircraft.Approach.FollowingCallsign is null) || !AirborneFollowHelper.MaySpaceBeforeFinal(ctx))
+        {
+            return;
+        }
+
+        _spacingCeilingKts ??= ctx.Targets.TargetSpeed ?? ctx.Aircraft.IndicatedAirspeed;
+        AirborneFollowHelper.ApplyPreFinalSpacing(
+            ctx,
+            _spacingCeilingKts.Value,
+            AirborneFollowHelper.PreFinalSpacingFloorKts(ctx),
+            DistanceToThresholdNm(ctx)
+        );
+    }
+
+    /// <summary>Distance to the landing threshold, or infinity with no runway in the context.</summary>
+    private static double DistanceToThresholdNm(PhaseContext ctx) =>
+        ctx.Runway is { } runway
+            ? GeoMath.DistanceNm(ctx.Aircraft.Position, LandingThreshold.Resolve(runway, ctx.GroundLayout))
+            : double.PositiveInfinity;
 
     private void NavigateToCurrentFix(PhaseContext ctx)
     {
@@ -181,6 +222,7 @@ public sealed class ApproachNavigationPhase : Phase
         if (fix.SpeedKts is { } speed)
         {
             ctx.Targets.TargetSpeed = speed;
+            _spacingCeilingKts = speed;
         }
     }
 
@@ -290,6 +332,7 @@ public sealed class ApproachNavigationPhase : Phase
             PostTurnAnchorLon = PostTurnJoin?.Anchor.Lon,
             PostTurnInboundCourseDeg = PostTurnJoin?.InboundCourse.Degrees,
             IsMissedApproach = IsMissedApproach,
+            SpacingCeilingKts = _spacingCeilingKts,
         };
 
     public static ApproachNavigationPhase FromSnapshot(ApproachNavigationPhaseDto dto)
@@ -306,6 +349,7 @@ public sealed class ApproachNavigationPhase : Phase
             Status = (PhaseStatus)dto.Status,
             ElapsedSeconds = dto.ElapsedSeconds,
             _currentFixIndex = dto.CurrentFixIndex,
+            _spacingCeilingKts = dto.SpacingCeilingKts,
         };
         return phase;
     }

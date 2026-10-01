@@ -766,6 +766,8 @@ once the leg speed is reached, which would otherwise silently stop spacing for a
 result at the leg baseline** (`Math.Min(adjusted, baseline)`): spacing only ever *slows* a follower below its leg
 speed, never accelerates it above to chase a far lead — a too-far lead is handled laterally (extend / hold base turn).
 
+**Pre-final spacing on a kept approach** (`AirborneFollowHelper.ApplyPreFinalSpacing`): an approach follower spaces by speed before `FinalApproachPhase` sets its FAS, in `InterceptCoursePhase` (once its approach speed is set, never at ≥ 2 NM cross-track), `ApproachNavigationPhase` (not on a published missed) and `FinalApproachPhase` before `_fasSet` (every active follow, pattern and visual followers included). The baseline is the lead's IAS clamped to [floor, ceiling], so the follower settles at the desired distance instead of closing on a slower lead; the result is `max(min(adjusted, ceiling), floor)` and nothing is written when floor ≥ ceiling. Floor: the approach speed plus the wind additive (bare FAS with no assigned runway). Ceiling: 1.3 × the bare approach speed on the intercept; on the approach's fixes a latch of `TargetSpeed ?? IAS` at the first spacing tick, replaced by each fix speed and cleared under an explicit speed (re-latched after it); on final before FAS the latest speed the phase's schedule wrote, else the entry latch, kept across an S-turn resume. Both latches are snapshotted (`SpacingCeilingKts`, optional, no schema bump). Gates: an active follow, no explicit ATC speed, not `LateralInterceptOnly`. A lead on the ground restores the ceiling (`CheckLeadLifecycleRestoringSpacing`); inside the 60 s stabilization window nothing is written; a follow that ends any other way keeps the spaced speed. While following, `FlightPhysics.UpdateSpeedPlanning` never accelerates toward an at-or-below fix limit. The minimum-speed "unable" cancel on a kept approach clears only the follow; an IFR follower on a kept approach (before final, or in `FinalApproachPhase` with an `ActiveApproach`) also gets `{Callsign} visual separation terminated — radar separation required`. Tests: `FollowPreFinalSpacingTests`.
+
 **At-min-speed: extend, don't cut in.** When the follower is at min speed and inside half the desired distance, it
 cannot open the gap by slowing any further. If the lead is **pattern-flow-ahead** (`IsLeadPatternFlowAhead` — same
 runway, strictly later leg or a same leg the lead is *holding out*) the follower still has a *lateral* option, so the helper returns
@@ -1131,7 +1133,7 @@ writes nothing to the aircraft. It is silent when nothing stands, and when the l
 - **`AirborneFollowHelper.GetAdjustedSpeed` MUST be fed the phase's fixed baseline speed** (`DownwindSpeed` /
   `BaseSpeed`), never the previous tick's `TargetSpeed`. Feeding the output back compounds the ±`MaxSpeedAdjustKts`
   clamp every tick and lets IAS escape the stabilized-approach gate. Every pattern `OnTick` re-derives the baseline
-  for this reason.
+  for this reason. Pre-final spacing uses the lead's clamped IAS as its baseline for the same reason, and its ceilings are latched once, never re-derived from the previous tick (the final's entry latch can take the intercept's last spaced speed: a one-time, conservative step down).
 - **`InterceptCoursePhase` computes the heading diff three ways and takes the min** (current-vs-FAC,
   current-vs-runway-number-heading-from-regex, assigned-magnetic-vs-runway-number), specifically to tolerate
   magnetic variation. A two-way comparison reintroduces the false bust-through bug.
