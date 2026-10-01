@@ -1,8 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
-using Yaat.Client.Models;
 using Yaat.Sim.Commands;
 
-namespace Yaat.Client.Services;
+namespace Yaat.Client.ContextMenus;
 
 /// <summary>
 /// Single source of truth for whether a tower / ground / landing / pattern command
@@ -18,7 +17,7 @@ namespace Yaat.Client.Services;
 /// reject a maneuver that makes no sense from the aircraft's current state. The flight-rules
 /// predicates are different: the simulation does not gate on IFR-vs-VFR at all, so the
 /// <see cref="VfrCommandsForIfr"/> checks here are the enforcement for menu-issued commands
-/// (typed commands go through <see cref="VfrCommandGate"/>). Dropping a mode check here means
+/// (typed commands go through <c>VfrCommandGate</c>). Dropping a mode check here means
 /// the command goes through.</para>
 /// </summary>
 public static class AircraftCommandApplicability
@@ -53,7 +52,7 @@ public static class AircraftCommandApplicability
         phase is "S-Turns" or "ProcedureTurn" or "TeardropReentry" || phase.StartsWith("Turn", StringComparison.Ordinal);
 
     /// <summary>True when a landing phase is still pending anywhere in the phase sequence.</summary>
-    private static bool HasPendingLandingPhase(AircraftModel ac)
+    private static bool HasPendingLandingPhase(IMenuAircraft ac)
     {
         if (string.IsNullOrEmpty(ac.PhaseSequence))
         {
@@ -76,7 +75,7 @@ public static class AircraftCommandApplicability
     /// either by its current leg/approach phase, or while in a transient maneuver that still
     /// has a landing pending in the sequence.
     /// </summary>
-    private static bool IsOnArrival(AircraftModel ac)
+    private static bool IsOnArrival(IMenuAircraft ac)
     {
         string phase = ac.CurrentPhase ?? "";
         return IsPendingLandingPhase(phase) || (IsTransientArrivalManeuver(phase) && HasPendingLandingPhase(ac));
@@ -111,53 +110,53 @@ public static class AircraftCommandApplicability
 
     /// <summary>
     /// Whether the sim will accept flight / ground commands for this aircraft at all. A live-traffic shadow
-    /// (<see cref="AircraftModel.IsLiveTraffic"/>) is read-only until assumed — the server rejects every such
+    /// (<see cref="IMenuAircraft.IsLiveTraffic"/>) is read-only until assumed — the server rejects every such
     /// command with "ASSUME first" — but a command sent to one the sim would auto-assume
     /// (<see cref="CanAssume"/>) counts as controllable: the dispatcher assumes the shadow and applies the
     /// command in the same call, exactly as it does for a typed command. A surface shadow is never assumable
     /// and stays uncontrollable, so no maneuver predicate below offers anything for it.
     /// </summary>
-    public static bool IsControllable([NotNullWhen(true)] AircraftModel? ac) => ac is not null && (!ac.IsLiveTraffic || CanAssume(ac));
+    public static bool IsControllable([NotNullWhen(true)] IMenuAircraft? ac) => ac is not null && (!ac.IsLiveTraffic || CanAssume(ac));
 
     /// <summary>
     /// Assume control of a live-traffic shadow (<c>ASSUME</c>): airborne shadows only. Surface shadows come from
     /// ASDE-X with no flight plan or air vector to seed a simulated aircraft from, so they are never assumable.
     /// </summary>
-    public static bool CanAssume(AircraftModel? ac) => ac is { IsLiveTraffic: true, IsOnGround: false };
+    public static bool CanAssume(IMenuAircraft? ac) => ac is { IsLiveTraffic: true, IsOnGround: false };
 
     /// <summary>
     /// Ask-pilot queries ("say altitude", "say heading") — never for a live-traffic shadow, assumable or not:
     /// they are read-only queries and the auto-assume gate skips those (<c>IsReadOnlyQuery</c>), so the server
     /// answers every one of them with "ASSUME first".
     /// </summary>
-    public static bool CanAskPilot(AircraftModel? ac) => ac is { IsLiveTraffic: false };
+    public static bool CanAskPilot(IMenuAircraft? ac) => ac is { IsLiveTraffic: false };
 
     /// <summary>
     /// Edit an aircraft's flight plan — never for a live-traffic shadow, assumable or not: the flight-plan editor
     /// is not a command, so the edit never reaches the dispatcher's auto-assume gate and the server refuses it.
     /// </summary>
-    public static bool CanEditFlightPlan(AircraftModel? ac) => ac is { IsLiveTraffic: false };
+    public static bool CanEditFlightPlan(IMenuAircraft? ac) => ac is { IsLiveTraffic: false };
 
     /// <summary>
     /// Release an assumed aircraft back to the live feed (<c>UNASSUME</c>): only an aircraft the sim is flying
     /// that came from the feed in the first place — the sim refuses it for a scenario aircraft and for a shadow.
     /// </summary>
-    public static bool CanUnassume(AircraftModel? ac) => ac is { AssumedFromLiveTraffic: true, IsLiveTraffic: false };
+    public static bool CanUnassume(IMenuAircraft? ac) => ac is { AssumedFromLiveTraffic: true, IsLiveTraffic: false };
 
     /// <summary>True when the aircraft is operating under VFR.</summary>
-    public static bool IsVfr(AircraftModel? ac) => ac is not null && string.Equals(ac.FlightRules, "VFR", StringComparison.OrdinalIgnoreCase);
+    public static bool IsVfr(IMenuAircraft? ac) => ac is not null && string.Equals(ac.FlightRules, "VFR", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Whether a VFR-only command may be offered for this aircraft: always for a VFR aircraft,
     /// and for an IFR aircraft only when the controller opted into the full set.
     /// </summary>
-    private static bool AllowsVfrOnly(AircraftModel? ac, VfrCommandsForIfr mode) =>
+    private static bool AllowsVfrOnly(IMenuAircraft? ac, VfrCommandsForIfr mode) =>
         IsControllable(ac) && (IsVfr(ac) || mode == VfrCommandsForIfr.All);
 
     // --- Departures ---
 
     /// <summary>Line up and wait — a departure that has reached, or is taxiing to, its runway.</summary>
-    public static bool CanLineUpAndWait(AircraftModel? ac)
+    public static bool CanLineUpAndWait(IMenuAircraft? ac)
     {
         if (!IsControllable(ac) || !ac.IsOnGround)
         {
@@ -173,7 +172,7 @@ public static class AircraftCommandApplicability
     /// "Taxiing" is stored as a deferred clearance applied when the aircraft reaches
     /// the runway, so only offer it when a runway is already assigned.
     /// </summary>
-    public static bool CanClearForTakeoff(AircraftModel? ac)
+    public static bool CanClearForTakeoff(IMenuAircraft? ac)
     {
         if (!IsControllable(ac) || !ac.IsOnGround)
         {
@@ -192,10 +191,10 @@ public static class AircraftCommandApplicability
     /// or runway heading only; the pattern-relative modifiers appear for it only when the
     /// controller opted into the full VFR command set.
     /// </summary>
-    public static bool ShowVfrTakeoffModifiers(AircraftModel? ac, VfrCommandsForIfr mode) => AllowsVfrOnly(ac, mode);
+    public static bool ShowVfrTakeoffModifiers(IMenuAircraft? ac, VfrCommandsForIfr mode) => AllowsVfrOnly(ac, mode);
 
     /// <summary>Cancel takeoff clearance — a departure that has been cleared/lined up.</summary>
-    public static bool CanCancelTakeoff(AircraftModel? ac)
+    public static bool CanCancelTakeoff(IMenuAircraft? ac)
     {
         if (!IsControllable(ac) || !ac.IsOnGround)
         {
@@ -213,7 +212,7 @@ public static class AircraftCommandApplicability
     /// where a pattern entry is queued but has not fired: there is no arrival phase yet, but the
     /// clearance is pre-issued against that entry and applies when it builds its circuit.
     /// </summary>
-    public static bool CanClearToLand(AircraftModel? ac)
+    public static bool CanClearToLand(IMenuAircraft? ac)
     {
         if (!IsControllable(ac))
         {
@@ -228,14 +227,14 @@ public static class AircraftCommandApplicability
     /// "cleared to land", but these model VFR operations, so an IFR aircraft is only offered
     /// them when the controller opted into the full VFR command set.
     /// </summary>
-    public static bool CanIssueVfrOption(AircraftModel? ac, VfrCommandsForIfr mode) => CanClearToLand(ac) && AllowsVfrOnly(ac, mode);
+    public static bool CanIssueVfrOption(IMenuAircraft? ac, VfrCommandsForIfr mode) => CanClearToLand(ac) && AllowsVfrOnly(ac, mode);
 
     /// <summary>
     /// Go around / missed approach — pending-landing phases and the climb-out of an
     /// option maneuver. Deliberately NOT offered during "Landing" rollout (a go-around
     /// once committed/decelerating on the runway is a rejected-landing edge case).
     /// </summary>
-    public static bool CanGoAround(AircraftModel? ac)
+    public static bool CanGoAround(IMenuAircraft? ac)
     {
         if (!IsControllable(ac))
         {
@@ -250,14 +249,14 @@ public static class AircraftCommandApplicability
     /// Cancel landing clearance — only when a clearance is currently set, either on the circuit the
     /// aircraft is flying or pre-issued against a pattern entry that is still queued.
     /// </summary>
-    public static bool CanCancelLandingClearance(AircraftModel? ac) =>
+    public static bool CanCancelLandingClearance(IMenuAircraft? ac) =>
         IsControllable(ac) && (!string.IsNullOrEmpty(ac.LandingClearance) || !string.IsNullOrEmpty(ac.PendingLandingClearance));
 
     /// <summary>
     /// Exit left / right after touchdown. Fixed-wing only — helicopters ("Landing-H")
     /// land to a spot, not a runway exit.
     /// </summary>
-    public static bool CanExitRunway(AircraftModel? ac)
+    public static bool CanExitRunway(IMenuAircraft? ac)
     {
         if (!IsControllable(ac))
         {
@@ -279,7 +278,7 @@ public static class AircraftCommandApplicability
     /// live-traffic shadows, which are never assumable, out; an assumable (airborne) shadow reaches the phase test
     /// below and is refused there, having no ground phase.
     /// </summary>
-    public static bool CanPushBack(AircraftModel? ac)
+    public static bool CanPushBack(IMenuAircraft? ac)
     {
         if (!IsControllable(ac))
         {
@@ -296,7 +295,7 @@ public static class AircraftCommandApplicability
     /// The <see cref="IsControllable"/> guard keeps surface live-traffic shadows, which are never assumable, out,
     /// as in <see cref="CanPushBack"/>.
     /// </summary>
-    public static bool CanHoldPosition(AircraftModel? ac)
+    public static bool CanHoldPosition(IMenuAircraft? ac)
     {
         if (!IsControllable(ac))
         {
@@ -316,7 +315,7 @@ public static class AircraftCommandApplicability
     /// <see cref="IsControllable"/> guard keeps surface live-traffic shadows, which are never assumable, out, as
     /// in <see cref="CanPushBack"/>.
     /// </summary>
-    public static bool CanResumeTaxi(AircraftModel? ac)
+    public static bool CanResumeTaxi(IMenuAircraft? ac)
     {
         if (!IsControllable(ac))
         {
@@ -337,7 +336,7 @@ public static class AircraftCommandApplicability
     /// FollowingPhase treat it as ClearsPhase). The airborne pattern-follow phase is named
     /// "VFR Follow", so the "Following" prefix here matches only the ground taxi-follow.
     /// </summary>
-    public static bool CanDrawTaxiRoute(AircraftModel? ac)
+    public static bool CanDrawTaxiRoute(IMenuAircraft? ac)
     {
         if (!IsControllable(ac) || !ac.IsOnGround)
         {
@@ -357,7 +356,7 @@ public static class AircraftCommandApplicability
     /// airborne and either inbound (free-flight), holding, or in a pending-landing phase.
     /// Says nothing about flight rules.
     /// </summary>
-    private static bool IsPatternEntryEligible(AircraftModel? ac)
+    private static bool IsPatternEntryEligible(IMenuAircraft? ac)
     {
         if (!IsControllable(ac) || ac.IsOnGround)
         {
@@ -374,14 +373,14 @@ public static class AircraftCommandApplicability
     /// controller opted into the full VFR command set. Straight-in final is separate —
     /// see <see cref="CanEnterFinal"/>.
     /// </summary>
-    public static bool CanEnterPattern(AircraftModel? ac, VfrCommandsForIfr mode) => IsPatternEntryEligible(ac) && AllowsVfrOnly(ac, mode);
+    public static bool CanEnterPattern(IMenuAircraft? ac, VfrCommandsForIfr mode) => IsPatternEntryEligible(ac) && AllowsVfrOnly(ac, mode);
 
     /// <summary>
     /// Enter straight-in final (EF). This is the one pattern entry an IFR arrival flying a
     /// visual routinely needs — moving it to the parallel runway — so it is offered under the
     /// default setting as well as the full one (issue #317).
     /// </summary>
-    public static bool CanEnterFinal(AircraftModel? ac, VfrCommandsForIfr mode) =>
+    public static bool CanEnterFinal(IMenuAircraft? ac, VfrCommandsForIfr mode) =>
         IsPatternEntryEligible(ac) && (IsVfr(ac) || mode != VfrCommandsForIfr.None);
 
     /// <summary>
@@ -389,5 +388,5 @@ public static class AircraftCommandApplicability
     /// make sense once the aircraft is flying the circuit, so an IFR aircraft is offered them
     /// only when the controller opted into the full VFR command set.
     /// </summary>
-    public static bool CanIssuePatternManeuvers(AircraftModel? ac, VfrCommandsForIfr mode) => AllowsVfrOnly(ac, mode);
+    public static bool CanIssuePatternManeuvers(IMenuAircraft? ac, VfrCommandsForIfr mode) => AllowsVfrOnly(ac, mode);
 }

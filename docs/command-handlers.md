@@ -209,7 +209,7 @@ Client side, two independent surfaces consume that:
 - `Yaat.Client/Services/VfrCommandGate.cs` — typed, speech-mapped, and favorite/macro commands, wired
   into `MainViewModel.SendCommandAsync`. It re-parses the canonical string through `CommandParser` to
   get typed commands, so no verb list is duplicated.
-- `Yaat.Client/Services/AircraftCommandApplicability.cs` — the right-click menus, which enforce by not
+- `Yaat.Client.Core/ContextMenus/AircraftCommandApplicability.cs` — the right-click menus, which enforce by not
   offering the item. Menu send paths call `Connection.SendCommandAsync` directly and never reach
   `SendCommandAsync`, so both surfaces are needed.
 

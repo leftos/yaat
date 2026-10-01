@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Services;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
@@ -11,7 +12,7 @@ using Yaat.Sim.Situation;
 
 namespace Yaat.Client.Models;
 
-public partial class AircraftModel : ObservableObject
+public partial class AircraftModel : ObservableObject, IMenuAircraft
 {
     [ObservableProperty]
     private string _callsign = "";

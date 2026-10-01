@@ -324,6 +324,12 @@ _Avoid_: phase (one situation spans several phases)
 **Quick commands**:
 The short, user-editable list of commands an aircraft's right-click menu shows first for its current situation; the rest sit under All Commands.
 
+**Catalog entry (menu catalog)**:
+One command the aircraft menus can offer, with a stable ID (`<group>.<item>`, never reused), a label, a default flight-rules filter, an applicability predicate and a builder (`MenuCatalogEntry` in `Yaat.Client.Core/ContextMenus/`); quick commands are lists of these IDs.
+
+**Menu host**:
+The surface that owns an aircraft menu (radar, ground, aircraft list) as a catalog entry's builder sees it (`IMenuHost`): sending the command text, and whatever popups or reads the entry needs.
+
 ## CRC hub connections
 
 **Direct connection**:

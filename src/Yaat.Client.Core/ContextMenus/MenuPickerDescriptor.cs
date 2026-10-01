@@ -1,4 +1,4 @@
-namespace Yaat.Client.Views;
+namespace Yaat.Client.ContextMenus;
 
 /// <summary>
 /// The values a picker menu item (<see cref="List"/>, <see cref="FilteredList"/> or <see cref="Input"/>)

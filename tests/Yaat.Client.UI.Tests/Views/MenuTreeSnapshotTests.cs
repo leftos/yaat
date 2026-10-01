@@ -1,7 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Xunit;
-using Yaat.Client.Views;
+using Yaat.Client.ContextMenus;
 
 namespace Yaat.Client.UI.Tests.Views;
 
