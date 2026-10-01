@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Automation.Handlers;
 using Yaat.Client.Automation.Protocol;
+using Yaat.Client.Automation.Selectors;
 using Yaat.Client.Automation.Tree;
 using Yaat.Client.Logging;
 
@@ -28,6 +29,7 @@ public sealed class AutomationDispatcher
     {
         Register(new PingHandler());
         Register(new ListWindowsHandler(registry));
+        Register(new TreeHandler(registry, new SelectorRequestHelper(new SelectorEngine(registry), registry), new NodeInfoBuilder(registry)));
     }
 
     private void Register(IRequestHandler handler) => _handlers[handler.Method] = handler;

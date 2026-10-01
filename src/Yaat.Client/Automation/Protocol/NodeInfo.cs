@@ -47,6 +47,10 @@ public sealed class NodeInfo
     [JsonPropertyName("parentId")]
     public int? ParentId { get; init; }
 
+    /// <summary>The owning window's node id: an owned window's owner, or the window an overlay popup opens in; null otherwise.</summary>
+    [JsonPropertyName("ownerId")]
+    public int? OwnerId { get; init; }
+
     [JsonPropertyName("children")]
     public List<NodeInfo>? Children { get; init; }
 }

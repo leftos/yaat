@@ -27,20 +27,48 @@ public static class HandlerResult
             AutomationErrorCodes.StaleNode,
             $"Node {nodeId} not found (may have been garbage collected or detached from the visual tree).",
             RefreshNodeIdsHint,
-            new { nodeId }
+            new NodeErrorDetails(nodeId)
         );
 
+    /// <summary>A stale-node error whose message is <paramref name="reason"/>, e.g. <see cref="Tree.NodeRegistry.ResolveChecked"/>'s.</summary>
     public static HandlerErrorResult StaleNode(int nodeId, string reason) =>
-        Error(AutomationErrorCodes.StaleNode, $"Node {nodeId}: {reason}", RefreshNodeIdsHint, new { nodeId });
+        Error(AutomationErrorCodes.StaleNode, reason, RefreshNodeIdsHint, new NodeErrorDetails(nodeId));
 
     public static HandlerErrorResult InvalidParam(string paramName, string message) =>
-        Error(AutomationErrorCodes.InvalidParam, message, $"Provide a valid value for '{paramName}'.", new { param = paramName });
+        Error(AutomationErrorCodes.InvalidParam, message, $"Provide a valid value for '{paramName}'.", new ParamErrorDetails(paramName));
 
     public static HandlerErrorResult Unsupported(string operation, string elementType) =>
         Error(
             AutomationErrorCodes.UnsupportedOperation,
             $"Operation '{operation}' is not supported on element type '{elementType}'.",
             null,
-            new { operation, elementType }
+            new UnsupportedOperationDetails(operation, elementType)
+        );
+
+    public static HandlerErrorResult MissingSelector() =>
+        Error(AutomationErrorCodes.MissingSelector, "Selector is required.", "Provide the selector parameter.", new ParamErrorDetails("selector"));
+
+    public static HandlerErrorResult InvalidSelector(string selector, string message, int position) =>
+        Error(
+            AutomationErrorCodes.InvalidSelector,
+            message,
+            "Check the selector syntax (e.g. Type, #name, #42, [Property=Value], :nth(N), A > B).",
+            new InvalidSelectorDetails(selector, position)
+        );
+
+    public static HandlerErrorResult NoMatch(string selector) =>
+        Error(
+            AutomationErrorCodes.NoMatch,
+            $"No element matched selector '{selector}'.",
+            "Check the selector, or call get_tree to inspect the available elements.",
+            new SelectorErrorDetails(selector)
+        );
+
+    public static HandlerErrorResult AmbiguousSelector(string selector, int matchCount) =>
+        Error(
+            AutomationErrorCodes.AmbiguousSelector,
+            $"Selector '{selector}' matched {matchCount} elements.",
+            $"Use :nth(0) through :nth({matchCount - 1}), or narrow the selector with #name or [Property=Value].",
+            new AmbiguousSelectorDetails(selector, matchCount)
         );
 }
