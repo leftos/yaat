@@ -16,6 +16,14 @@ public sealed class UpwindPhase : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("UpwindPhase");
 
+    /// <summary>
+    /// Handoff margin below pattern altitude (AIM 4-3-2): the crosswind turn is commenced within this of pattern altitude, so the
+    /// turn is legal at pattern altitude less it. A climb hands off to this leg at that same altitude
+    /// (<see cref="Tower.GoAroundHelper"/>), and a pursuit that starts on the leg holds it until the turn is legal
+    /// (<see cref="VfrFollowPhase.ClimbOutGate"/>).
+    /// </summary>
+    internal const double PatternHandoffMarginFt = 300.0;
+
     private double _targetLat;
     private double _targetLon;
     private TrueHeading _upwindHeading;
@@ -67,7 +75,7 @@ public sealed class UpwindPhase : Phase
         _targetLat = Waypoints.CrosswindTurnLat;
         _targetLon = Waypoints.CrosswindTurnLon;
         _upwindHeading = Waypoints.UpwindHeading;
-        _minTurnAltitude = Waypoints.PatternAltitude - 300;
+        _minTurnAltitude = Waypoints.PatternAltitude - PatternHandoffMarginFt;
 
         ctx.Targets.TargetTrueHeading = Waypoints.UpwindHeading;
         ctx.Targets.PreferredTurnDirection = null;
@@ -136,16 +144,16 @@ public sealed class UpwindPhase : Phase
             return false;
         }
 
-        // AIM 4-3-2: the crosswind turn is commenced beyond the departure end of the runway, within
-        // 300 ft of pattern altitude. The crosswind-turn waypoint sits at the DER; the aircraft must have
-        // flown over it (bearing to the waypoint more than 90° off the upwind heading = abeam/behind)
-        // before the turn fires, so it never turns crosswind while still over the runway.
-        double bearingToTarget = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon));
-        double bearingDiff = Math.Abs(GeoMath.SignedBearingDifference(bearingToTarget, _upwindHeading.Degrees));
-        bool pastDepartureEnd = bearingDiff > 90.0;
-
-        bool altitudeReached = ctx.Aircraft.Altitude >= _minTurnAltitude;
-        bool complete = pastDepartureEnd && altitudeReached;
+        // AIM 4-3-2: the crosswind turn is commenced beyond the departure end of the runway, within 300 ft of
+        // pattern altitude — the shared condition, so the aircraft never turns crosswind while still over the runway
+        // (a pursuit that starts on this leg holds it the same way, VfrFollowPhase.ClimbOutGate).
+        bool complete = PastDepartureEndAtTurnAltitude(
+            ctx.Aircraft.Position,
+            new LatLon(_targetLat, _targetLon),
+            _upwindHeading,
+            ctx.Aircraft.Altitude,
+            _minTurnAltitude
+        );
         if (complete)
         {
             Log.LogDebug("[Upwind] {Callsign}: crosswind turn at departure end, alt={Alt:F0}ft", ctx.Aircraft.Callsign, ctx.Aircraft.Altitude);
@@ -203,6 +211,33 @@ public sealed class UpwindPhase : Phase
 
         return complete;
     }
+
+    /// <summary>
+    /// True once the crosswind turn is legal (AIM §4-3-2.c.1): the aircraft has flown over <paramref name="departureEnd"/> —
+    /// the bearing to it more than 90° off <paramref name="upwindHeading"/>, so abeam or behind — and is at or above
+    /// <paramref name="minTurnAltitude"/> (pattern altitude less <see cref="PatternHandoffMarginFt"/>).
+    /// </summary>
+    /// <remarks>
+    /// Shared with the pursuit that starts on the upwind, which holds the departure leg until the turn is legal
+    /// (<see cref="VfrFollowPhase.ClimbOutGate"/>) and supplies its own altitude half when the controller has cleared it lower
+    /// (<see cref="VfrFollowPhase"/>).
+    /// </remarks>
+    internal static bool PastDepartureEndAtTurnAltitude(
+        LatLon position,
+        LatLon departureEnd,
+        TrueHeading upwindHeading,
+        double altitude,
+        double minTurnAltitude
+    ) => PastDepartureEnd(position, departureEnd, upwindHeading) && (altitude >= minTurnAltitude);
+
+    /// <summary>
+    /// True when <paramref name="position"/> is beyond the departure end: the bearing to <paramref name="departureEnd"/> more
+    /// than 90° off <paramref name="upwindHeading"/>, so the point is abeam or behind (AIM §4-3-2.c.1, "beyond the departure
+    /// end"). The position half of the crosswind-turn condition on its own, for callers that pair it with their own altitude
+    /// half.
+    /// </summary>
+    internal static bool PastDepartureEnd(LatLon position, LatLon departureEnd, TrueHeading upwindHeading) =>
+        Math.Abs(GeoMath.SignedBearingDifference(GeoMath.BearingTo(position, departureEnd), upwindHeading.Degrees)) > 90.0;
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {

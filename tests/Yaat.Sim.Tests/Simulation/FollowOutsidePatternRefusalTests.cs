@@ -101,7 +101,8 @@ public class FollowOutsidePatternRefusalTests(ITestOutputHelper output)
         CommandDispatcher.InstallVfrFollowPhase(
             follower,
             target,
-            new FollowPatternReturn(rwy, PatternDirection.Right, PatternAltitudeFt(rwy), false)
+            new FollowPatternReturn(rwy, PatternDirection.Right, PatternAltitudeFt(rwy), false),
+            climbOutGate: null
         );
         return follower;
     }

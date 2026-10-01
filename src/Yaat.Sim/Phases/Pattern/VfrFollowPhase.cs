@@ -163,6 +163,9 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     /// <summary>The turn-out to the downwind heading under way (<see cref="TryStartTurnOut"/>), or null.</summary>
     private FollowTurnOut? _turnOut;
 
+    /// <summary>The departure-leg hold owed before this pursuit steers at its lead, or null (<see cref="ClimbOutGate"/>).</summary>
+    private FollowClimbOutGate? _climbOutGate;
+
     /// <summary>A base break-off asked this pursuit to start with a turn-out (<see cref="RequestTurnOut"/>).</summary>
     private bool _turnOutRequested;
 
@@ -176,6 +179,40 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     /// when the pursuit did not start from a pattern leg.
     /// </summary>
     public FollowPatternReturn? PatternReturn { get; } = patternReturn;
+
+    /// <summary>
+    /// The departure leg this pursuit owes before it may steer at its lead: the gate the install handed it
+    /// (<see cref="Commands.CommandDispatcher.InstallVfrFollowPhase"/>), else null. Read-only outside this phase: only the hold
+    /// itself clears it, on the first tick the crosswind turn is legal, after which this is an ordinary free pursuit.
+    /// </summary>
+    internal FollowClimbOutGate? ClimbOutGate
+    {
+        get => _climbOutGate;
+        init => _climbOutGate = value;
+    }
+
+    /// <summary>
+    /// The departure-leg hold pursuing <paramref name="aircraft"/> owes: its upwind leg's gate when that is the leg it is on (a
+    /// FOLLOW issued on the upwind, or the hand-over from a climb-out to one), the runway's own when it is climbing out with no
+    /// circuit to read (a go-around flown as the published missed), else null — a pursuit started anywhere else may steer at its
+    /// lead at once.
+    /// </summary>
+    internal static FollowClimbOutGate? ClimbOutGateFor(AircraftState aircraft, AirportGroundLayout? groundLayout)
+    {
+        Phase? current = aircraft.Phases?.CurrentPhase;
+        if (current is UpwindPhase { Waypoints: { } waypoints })
+        {
+            return FollowClimbOutGate.FromWaypoints(waypoints);
+        }
+
+        bool climbingOutOfPattern = (current is GoAroundPhase) || ((current is TakeoffPhase) && AirborneFollowHelper.IsClosedTrafficClimb(aircraft));
+        if (climbingOutOfPattern && (aircraft.Phases?.AssignedRunway is { } runway))
+        {
+            return FollowClimbOutGate.ForRunway(runway, ResolvePatternAltitudeFt(aircraft, runway, groundLayout));
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// The runway the followed traffic is landing on, captured while the lead is
@@ -283,6 +320,14 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             return true;
         }
 
+        // A pursuit that started on the upwind holds the departure leg until the crosswind turn is legal: no pursuit heading,
+        // no join and no spacing from a few hundred feet over the runway, whatever the traffic ahead is doing (AIM §4-3-2.c.1,
+        // FIG 4-3-2 keys 4–5). The gate clears on the first tick the turn is legal.
+        if (HoldDepartureLeg(ctx))
+        {
+            return false;
+        }
+
         SeedLeadPath(lead);
         _leadPath.Record(lead.Position);
         RememberLeadBase(ctx.Aircraft, lead);
@@ -312,6 +357,82 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         }
 
         return TickFreePursuit(ctx, lead);
+    }
+
+    /// <summary>
+    /// Holds the departure leg while <see cref="ClimbOutGate"/> is set: the upwind heading and the leg's speed, with no pursuit
+    /// heading and no join, until the aircraft is past the departure end at a legal turn altitude (AIM §4-3-2.c.1). The
+    /// altitude target is left alone — a circuit's pattern altitude is set once in <see cref="OnStart"/> (AIM 4-3-3), so a
+    /// controller's later CM or DM stands through the hold. True while it holds, so the caller's tick ends there; the gate is
+    /// cleared on the first tick the turn is legal, after which the pursuit flies as any other.
+    /// </summary>
+    private bool HoldDepartureLeg(PhaseContext ctx)
+    {
+        if (_climbOutGate is not { } gate)
+        {
+            return false;
+        }
+
+        if (UpwindPhase.PastDepartureEnd(ctx.Aircraft.Position, gate.DepartureEnd, gate.UpwindHeading) && AtLegalTurnAltitude(ctx, gate))
+        {
+            _climbOutGate = null;
+            Log.LogDebug(
+                "[VfrFollow] {Callsign}: past the departure end at {Alt:F0}ft, steering for {Target}",
+                ctx.Aircraft.Callsign,
+                ctx.Aircraft.Altitude,
+                TargetCallsign
+            );
+            return false;
+        }
+
+        ctx.Targets.TargetTrueHeading = gate.UpwindHeading;
+        HoldUpwindSpeed(ctx);
+        return true;
+    }
+
+    /// <summary>
+    /// The altitude half of the crosswind-turn condition (AIM §4-3-2.c.1): the leg's own minimum turn altitude, or — when the
+    /// controller has cleared the aircraft below it — that cleared altitude reached within the physics' capture tolerance
+    /// (<see cref="FlightPhysics.AltitudeSnapFt"/>). A CM or DM below pattern altitude less the margin is the aircraft's
+    /// clearance, so the pursuit turns when it gets there instead of holding the upwind for an altitude it was told not to
+    /// climb to. The assigned altitude stands in for the target once the physics has captured it, which is what clears the
+    /// target.
+    /// </summary>
+    private static bool AtLegalTurnAltitude(PhaseContext ctx, FollowClimbOutGate gate)
+    {
+        if (ctx.Aircraft.Altitude >= gate.MinTurnAltitude)
+        {
+            return true;
+        }
+
+        double? cleared = ctx.Targets.TargetAltitude ?? ctx.Targets.AssignedAltitude;
+        return cleared is { } target && (target < gate.MinTurnAltitude) && (ctx.Aircraft.Altitude >= (target - FlightPhysics.AltitudeSnapFt));
+    }
+
+    /// <summary>
+    /// The speed a departure leg flies, exactly as <see cref="UpwindPhase"/> flies it so the two legs agree: the downwind
+    /// baseline unless the controller assigned a speed (7110.65 §5-7-4), slowed for a lead followed too closely and never sped
+    /// up to chase one.
+    /// </summary>
+    private static void HoldUpwindSpeed(PhaseContext ctx)
+    {
+        double baseline = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
+        if (!ctx.Targets.HasExplicitSpeedCommand)
+        {
+            ctx.Targets.TargetSpeed = baseline;
+        }
+
+        if (ctx.Aircraft.Approach.FollowingCallsign is null)
+        {
+            return;
+        }
+
+        double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
+        double? adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, baseline, minSpeed, AirborneFollowHelper.MaxSpeedAdjustKts);
+        if (adjusted is not null)
+        {
+            ctx.Targets.TargetSpeed = Math.Min(adjusted.Value, baseline);
+        }
     }
 
     /// <summary>
@@ -2216,6 +2337,15 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
                 }
                 : null,
             TurnOutRequested = _turnOutRequested ? true : null,
+            ClimbOutGate = ClimbOutGate is { } climbOutGate
+                ? new FollowClimbOutGateDto
+                {
+                    DepartureEndLat = climbOutGate.DepartureEnd.Lat,
+                    DepartureEndLon = climbOutGate.DepartureEnd.Lon,
+                    UpwindHeadingDeg = climbOutGate.UpwindHeading.Degrees,
+                    MinTurnAltitude = climbOutGate.MinTurnAltitude,
+                }
+                : null,
             StallWindowStartGapNm = _parallelHold?.StartGapNm,
             StallWindowSeconds = _parallelHold?.Seconds,
             LeadBase = _leadBase is { } leadBase
@@ -2262,7 +2392,18 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
                 returnDto.FromBase ?? false
             )
             : null;
-        var phase = new VfrFollowPhase(dto.TargetCallsign, patternReturn) { Status = (PhaseStatus)dto.Status, ElapsedSeconds = dto.ElapsedSeconds };
+        var phase = new VfrFollowPhase(dto.TargetCallsign, patternReturn)
+        {
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
+            ClimbOutGate = dto.ClimbOutGate is { } climbOutGate
+                ? new FollowClimbOutGate(
+                    new LatLon(climbOutGate.DepartureEndLat, climbOutGate.DepartureEndLon),
+                    new TrueHeading(climbOutGate.UpwindHeadingDeg),
+                    climbOutGate.MinTurnAltitude
+                )
+                : null,
+        };
         phase.RestoreRequirements(dto.Requirements);
         if (dto.LeadLandingRunway is not null)
         {
@@ -2294,6 +2435,35 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
 /// <see cref="FromBase"/> is true when the pursuit started from the base leg, which caps its altitude at the
 /// present altitude rather than climbing back to pattern altitude.
 public sealed record FollowPatternReturn(RunwayInfo Runway, PatternDirection Direction, double PatternAltitudeFt, bool FromBase);
+
+/// <summary>
+/// The departure leg a pursuit owes before it may steer at its lead: the departure-end / crosswind-turn point, the upwind
+/// heading held until the aircraft is over it, and the altitude that (with the point behind) makes the crosswind turn legal
+/// (AIM §4-3-2.c.1, FIG 4-3-2 keys 4–5). Derived from the circuit's <see cref="PatternWaypoints"/> exactly as the upwind leg
+/// derives its own crosswind turn (<see cref="UpwindPhase.PastDepartureEndAtTurnAltitude"/>), so a follow that starts on the
+/// upwind holds it rather than turning at traffic in the downwind at a few hundred feet.
+/// </summary>
+/// <param name="DepartureEnd">The departure-end / crosswind-turn point, past which the hold ends.</param>
+/// <param name="UpwindHeading">The upwind heading held while the gate is set.</param>
+/// <param name="MinTurnAltitude">Pattern altitude less <see cref="UpwindPhase.PatternHandoffMarginFt"/>, feet MSL.</param>
+internal sealed record FollowClimbOutGate(LatLon DepartureEnd, TrueHeading UpwindHeading, double MinTurnAltitude)
+{
+    /// <summary>The gate a circuit's waypoints put on a pursuit: its crosswind-turn point, its upwind heading and its turn altitude.</summary>
+    internal static FollowClimbOutGate FromWaypoints(PatternWaypoints waypoints) =>
+        new(
+            new LatLon(waypoints.CrosswindTurnLat, waypoints.CrosswindTurnLon),
+            waypoints.UpwindHeading,
+            waypoints.PatternAltitude - UpwindPhase.PatternHandoffMarginFt
+        );
+
+    /// <summary>
+    /// The gate a runway puts on a departure-leg pursuit with no circuit of its own: the runway's pavement end — the point
+    /// <see cref="PatternGeometry"/> anchors a circuit's crosswind turn at — its true heading, and the circuit's pattern altitude
+    /// less the legal-turn margin.
+    /// </summary>
+    internal static FollowClimbOutGate ForRunway(RunwayInfo runway, double patternAltitudeFt) =>
+        new(new LatLon(runway.EndLatitude, runway.EndLongitude), runway.TrueHeading, patternAltitudeFt - UpwindPhase.PatternHandoffMarginFt);
+}
 
 /// <summary>A position and heading in a runway's final frame, for the turn-out geometry (<see cref="VfrFollowPhase.FinalFrameOf"/>).</summary>
 /// <param name="AlongNm">Distance out along the extended centerline from the threshold (negative past it).</param>

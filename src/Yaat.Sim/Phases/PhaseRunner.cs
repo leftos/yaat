@@ -1,3 +1,4 @@
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
@@ -50,8 +51,36 @@ public static class PhaseRunner
 
         HandleAutoCycle(ctx, phases, current, kind, persistentDir);
 
+        StartPendingPursuitAfterClimb(aircraft, ctx, current);
+
         // The list is settled (plain advance, or a new circuit appended), so offer queued blocks to the new current phase.
         FlightPhysics.NotifyPhaseAdvanced(aircraft);
+    }
+
+    /// <summary>
+    /// Starts the pursuit a climb that accepted FOLLOW of a lead with no runway was holding off
+    /// (<see cref="IPendingPursuitClimb"/>): with the climb handed over to its circuit's upwind, a free pursuit with a pattern
+    /// return starts, exactly as for an upwind follower told to follow a runwayless lead. The pattern return and the
+    /// departure-leg hold are built before the install, which replaces the phase list they are read from. Nothing changes when
+    /// the flag is set but the follow or its lead is gone.
+    /// </summary>
+    private static void StartPendingPursuitAfterClimb(AircraftState aircraft, PhaseContext ctx, Phase completed)
+    {
+        if (
+            (completed is not IPendingPursuitClimb { PursuesRunwaylessLeadAfterClimb: true })
+            || (aircraft.Approach.FollowingCallsign is not { } target)
+        )
+        {
+            return;
+        }
+
+        if ((ctx.AircraftLookup?.Invoke(target) is null) || (aircraft.Phases?.AssignedRunway is not { } runway))
+        {
+            return;
+        }
+
+        FollowPatternReturn patternReturn = VfrFollowPhase.BuildFollowPatternReturn(aircraft, runway, ctx.GroundLayout);
+        CommandDispatcher.InstallVfrFollowPhase(aircraft, target, patternReturn, VfrFollowPhase.ClimbOutGateFor(aircraft, ctx.GroundLayout));
     }
 
     /// <summary>

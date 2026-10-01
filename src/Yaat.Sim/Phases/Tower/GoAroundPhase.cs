@@ -11,7 +11,7 @@ namespace Yaat.Sim.Phases.Tower;
 /// 2000ft AGL (self-clear) when none of those apply.
 /// RPO commands clear the phase, allowing immediate re-vectoring.
 /// </summary>
-public sealed class GoAroundPhase : Phase
+public sealed class GoAroundPhase : Phase, IPendingPursuitClimb
 {
     private static readonly ILogger Log = SimLog.CreateLogger("GoAroundPhase");
 
@@ -37,6 +37,7 @@ public sealed class GoAroundPhase : Phase
             RunwayTrueHeadingDeg = _runwayTrueHeading.Degrees,
             HeadingAssigned = _headingAssigned,
             NextLandingFullStop = NextLandingFullStop,
+            PursuesRunwaylessLeadAfterClimb = PursuesRunwaylessLeadAfterClimb ? true : null,
         };
 
     public static GoAroundPhase FromSnapshot(GoAroundPhaseDto dto)
@@ -55,6 +56,7 @@ public sealed class GoAroundPhase : Phase
         phase._fieldElevation = dto.FieldElevation;
         phase._runwayTrueHeading = new TrueHeading(dto.RunwayTrueHeadingDeg);
         phase._headingAssigned = dto.HeadingAssigned;
+        phase.PursuesRunwaylessLeadAfterClimb = dto.PursuesRunwaylessLeadAfterClimb ?? false;
         return phase;
     }
 
@@ -77,6 +79,14 @@ public sealed class GoAroundPhase : Phase
     /// instead of a touch-and-go phase, preserving the aircraft's pre-go-around landing intent.
     /// </summary>
     public bool NextLandingFullStop { get; init; }
+
+    /// <summary>
+    /// Armed when FOLLOW accepts a lead with no runway on this go-around: the climb is kept and only the lead is set, and the
+    /// free pursuit with a pattern return starts when the climb hands over to its circuit's upwind
+    /// (<see cref="PhaseRunner.Tick"/>). Cleared wherever the follow ends (<see cref="AirborneFollowHelper.ClearFollowState"/>)
+    /// or is retargeted to a lead with a runway, so a stranded flag never starts a pursuit.
+    /// </summary>
+    public bool PursuesRunwaylessLeadAfterClimb { get; set; }
 
     public override void OnStart(PhaseContext ctx)
     {

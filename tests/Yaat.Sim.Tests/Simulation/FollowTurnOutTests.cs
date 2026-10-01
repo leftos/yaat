@@ -134,7 +134,8 @@ public class FollowTurnOutTests(ITestOutputHelper output)
         CommandDispatcher.InstallVfrFollowPhase(
             follower,
             Leader,
-            new FollowPatternReturn(rwy, PatternDirection.Right, PatternAltitudeFt(rwy), false)
+            new FollowPatternReturn(rwy, PatternDirection.Right, PatternAltitudeFt(rwy), false),
+            climbOutGate: null
         );
         return follower;
     }

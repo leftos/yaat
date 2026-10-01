@@ -686,6 +686,11 @@ public sealed class GoAroundPhaseDto : PhaseDto
     // Drives the next auto-cycled circuit's terminator: false → TouchAndGoPhase, true → LandingPhase.
     // Default false on absent field keeps replays of older snapshots on the pre-fix code path.
     public bool NextLandingFullStop { get; init; }
+
+    /// <summary>The pending pursuit a climb armed for a lead with no runway
+    /// (<see cref="Phases.Tower.GoAroundPhase.PursuesRunwaylessLeadAfterClimb"/>); written only when armed, and absent reads as
+    /// false, so a snapshot taken before it existed needs no migration.</summary>
+    public bool? PursuesRunwaylessLeadAfterClimb { get; init; }
 }
 
 public sealed class HelicopterTakeoffPhaseDto : PhaseDto
@@ -854,6 +859,11 @@ public sealed class TakeoffPhaseDto : PhaseDto
     public required double ThresholdLon { get; init; }
     public DepartureInstructionDto? Departure { get; init; }
     public double RollElapsedSeconds { get; init; }
+
+    /// <summary>The pending pursuit a climb armed for a lead with no runway
+    /// (<see cref="Phases.Tower.TakeoffPhase.PursuesRunwaylessLeadAfterClimb"/>); written only when armed, and absent reads as
+    /// false, so a snapshot taken before it existed needs no migration.</summary>
+    public bool? PursuesRunwaylessLeadAfterClimb { get; init; }
 }
 
 public sealed class RejectedTakeoffPhaseDto : PhaseDto
@@ -1253,6 +1263,22 @@ public sealed class VfrFollowPhaseDto : PhaseDto
 
     /// <summary>Seconds the parallel-hold stall window has been open; null when none and in older snapshots.</summary>
     public double? StallWindowSeconds { get; init; }
+
+    /// <summary>The departure-leg hold this pursuit flies before it may steer at its lead
+    /// (<see cref="Phases.Pattern.VfrFollowPhase.ClimbOutGate"/>); written only while it holds, and absent reads as no hold.</summary>
+    public FollowClimbOutGateDto? ClimbOutGate { get; init; }
+}
+
+/// <summary>
+/// A pursuit's departure-leg hold (<see cref="Phases.Pattern.FollowClimbOutGate"/>): the departure-end point it must fly past,
+/// the upwind heading held until it is over that point, and the altitude at which the crosswind turn is legal.
+/// </summary>
+public sealed class FollowClimbOutGateDto
+{
+    public required double DepartureEndLat { get; init; }
+    public required double DepartureEndLon { get; init; }
+    public required double UpwindHeadingDeg { get; init; }
+    public required double MinTurnAltitude { get; init; }
 }
 
 /// <summary>A follower's turn-out to the downwind heading: the runway and circuit it rejoins, and where the turn began.</summary>

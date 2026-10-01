@@ -382,7 +382,7 @@ public sealed class BasePhase : Phase
         RunwayInfo runway = aircraft.Phases!.AssignedRunway!;
         FollowPatternReturn patternReturn = VfrFollowPhase.BuildFollowPatternReturn(aircraft, runway, ctx.GroundLayout);
         Log.LogDebug("[Base] {Callsign}: breaking off the base to turn out behind {Lead} for spacing", aircraft.Callsign, lead);
-        CommandDispatcher.InstallVfrFollowPhase(aircraft, lead, patternReturn).RequestTurnOut();
+        CommandDispatcher.InstallVfrFollowPhase(aircraft, lead, patternReturn, climbOutGate: null).RequestTurnOut();
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

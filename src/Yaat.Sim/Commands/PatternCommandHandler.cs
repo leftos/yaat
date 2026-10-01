@@ -992,7 +992,7 @@ internal static class PatternCommandHandler
         if (!aircraft.IsOnGround && aircraft.Phases.CurrentPhase is GoAroundPhase activeGoAround)
         {
             PhaseContext goAroundCtx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout ?? aircraft.Ground.Layout);
-            activeGoAround.RetargetForPatternClimbOut(goAroundCtx, (int)(waypoints.PatternAltitude - GoAroundHelper.PatternHandoffMarginFt));
+            activeGoAround.RetargetForPatternClimbOut(goAroundCtx, (int)(waypoints.PatternAltitude - UpwindPhase.PatternHandoffMarginFt));
             aircraft.Phases.ReplaceUpcoming([]);
 
             Log.LogDebug(

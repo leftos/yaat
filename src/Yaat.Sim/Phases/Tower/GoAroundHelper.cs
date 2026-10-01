@@ -129,14 +129,11 @@ internal static class GoAroundHelper
         return null;
     }
 
-    /// <summary>Handoff margin below pattern altitude (AIM 4-3-2); mirrors <c>UpwindPhase</c>'s crosswind-turn gate.</summary>
-    internal const double PatternHandoffMarginFt = 300.0;
-
     /// <summary>
     /// Resolve the climb-out target altitude for a go-around when the controller did not
     /// specify one: the published missed-approach altitude when missed-approach phases were
-    /// built, otherwise pattern altitude (300 ft below TPA, AIM 4-3-2) for a pattern
-    /// go-around, otherwise null (the phase self-clears at 2000 ft AGL).
+    /// built, otherwise pattern altitude less the upwind's handoff margin (AIM 4-3-2) for a
+    /// pattern go-around, otherwise null (the phase self-clears at 2000 ft AGL).
     /// </summary>
     internal static int? ResolveClimbOutAltitude(PhaseContext ctx, bool isPattern, IReadOnlyList<Phase> missedApproachPhases)
     {
@@ -146,11 +143,11 @@ internal static class GoAroundHelper
             return ApproachCommandHandler.GetMissedApproachAltitude(mapFixes);
         }
 
-        // AIM 4-3-2: hand off to UpwindPhase 300ft below pattern altitude so the crosswind
-        // turn becomes available at the same threshold as a VFR departure.
+        // AIM 4-3-2: hand off to UpwindPhase at pattern altitude less its crosswind-turn margin, so
+        // the turn becomes available at the same threshold as a VFR departure.
         if (isPattern)
         {
-            return (int)(ResolvePatternAltitudeMsl(ctx) - PatternHandoffMarginFt);
+            return (int)(ResolvePatternAltitudeMsl(ctx) - UpwindPhase.PatternHandoffMarginFt);
         }
 
         return null;

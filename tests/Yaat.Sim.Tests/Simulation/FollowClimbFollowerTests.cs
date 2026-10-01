@@ -647,7 +647,8 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
         SimulationEngine engine = BuildEngine();
         RunwayInfo rwy = Oak28R();
         AircraftState follower = AddGoAroundFollower(engine, 0.5, reenter: false, "VFR");
-        AddRunwaylessLead(engine, OffFinal(rwy, -3.0, 0.3), rwy.TrueHeading);
+        AircraftState lead = AddLeadAheadRight(engine, follower);
+        HoldGeometry hold = HoldFrom(CircuitWaypoints(follower), clearedAltitude: null);
         Phase goAround = follower.Phases!.CurrentPhase!;
 
         CommandResult result = Send(engine, $"FOLLOW {Leader}");
@@ -657,6 +658,9 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
         Assert.IsType<VfrFollowPhase>(follower.Phases?.CurrentPhase);
         Assert.Equal(Leader, follower.Approach.FollowingCallsign);
         Assert.Contains(follower.PendingWarnings, w => w.Contains("cancelled by FOLLOW", StringComparison.Ordinal));
+
+        // The chain-clearing install owes the departure leg too: the runway's own end, no circuit of its own to read.
+        TickThroughDepartureLegHold(engine, follower, lead, rwy, hold);
     }
 
     // ─── Rule 7: the lead lifecycle while climbing ───
@@ -725,5 +729,626 @@ public class FollowClimbFollowerTests(ITestOutputHelper output)
         Assert.False(goAround.ReenterPattern);
         Assert.Null(goAround.TargetAltitude);
         Assert.Null(follower.Pattern.TrafficDirection);
+    }
+
+    // ─── The pending pursuit a runwayless lead leaves on the climb ───
+
+    private const string OtherLeader = "LEAD2";
+
+    /// <summary>The pursuit a climb is holding off, as it is armed on the climbing phase itself.</summary>
+    private static bool PendingPursuitOf(AircraftState ac) =>
+        ac.Phases?.CurrentPhase is IPendingPursuitClimb { PursuesRunwaylessLeadAfterClimb: true };
+
+    /// <summary>Ticks a departure-leg hold test will wait through — 4 sub-ticks a second, so this is 150 s of sim time.</summary>
+    private const int MaxHoldTicks = 600;
+
+    /// <summary>Degrees the follower may drift off the upwind heading while the departure-leg hold applies.</summary>
+    private const double HoldingHeadingToleranceDeg = 5.0;
+
+    /// <summary>
+    /// Degrees off the runway heading that count as the pursuit having begun its turn toward its lead. Its direction is asserted
+    /// separately, against the side the lead is on: a slow climb-out banks gently, so the angle alone would prove little.
+    /// </summary>
+    private const double TurnedHeadingDeg = 10.0;
+
+    /// <summary>Ticks (4 sub-ticks a second) within which the pursuit must start its turn once the gate clears: 20 s (AIM §4-3-2).</summary>
+    private const int MaxTurnTicks = 80;
+
+    /// <summary>Degrees off the runway heading <paramref name="ac"/> is flying.</summary>
+    private static double HeadingOffRunway(AircraftState ac, RunwayInfo rwy) => Math.Abs(rwy.TrueHeading.SignedAngleTo(ac.TrueHeading));
+
+    /// <summary>
+    /// The departure leg a hold test waits through: the point to fly past, the heading held until then, the gate's own minimum
+    /// turn altitude and the altitude the controller has cleared the aircraft to, when that is lower (a CM or DM below TPA − 300).
+    /// </summary>
+    private sealed record HoldGeometry(LatLon DepartureEnd, TrueHeading UpwindHeading, double MinTurnAltitude, double? ClearedAltitude);
+
+    /// <summary>The hold a circuit's waypoints put on a pursuit: its crosswind-turn point, upwind heading and pattern altitude less 300 ft.</summary>
+    private static HoldGeometry HoldFrom(PatternWaypoints circuit, double? clearedAltitude) =>
+        new(new LatLon(circuit.CrosswindTurnLat, circuit.CrosswindTurnLon), circuit.UpwindHeading, circuit.PatternAltitude - 300.0, clearedAltitude);
+
+    /// <summary>What a hold test observed, for the callers that assert on it.</summary>
+    private sealed record HoldOutcome(int HoldTicks, bool HeldPastDepartureEndBelowTurnAltitude);
+
+    /// <summary>
+    /// True when <paramref name="ac"/> has flown over the departure end: the bearing to the point more than 90° off the upwind
+    /// heading (AIM §4-3-2). Written out here rather than read back through the production helper, so a wrong extraction of that
+    /// condition fails this test.
+    /// </summary>
+    private static bool PastDepartureEnd(AircraftState ac, HoldGeometry geometry) =>
+        Math.Abs(GeoMath.SignedBearingDifference(GeoMath.BearingTo(ac.Position, geometry.DepartureEnd), geometry.UpwindHeading.Degrees)) > 90.0;
+
+    /// <summary>
+    /// The altitude at or above which the hold ends: pattern altitude less 300 ft, or a lower clearance reached within the
+    /// physics' capture tolerance (<see cref="FlightPhysics.AltitudeSnapFt"/>, read here as "reached").
+    /// </summary>
+    private static double LegalTurnAltitude(HoldGeometry geometry) =>
+        (geometry.ClearedAltitude is { } cleared) && (cleared < geometry.MinTurnAltitude)
+            ? cleared - FlightPhysics.AltitudeSnapFt
+            : geometry.MinTurnAltitude;
+
+    /// <summary>True while the departure-leg hold must still be holding: short of the departure end, or below a legal turn altitude.</summary>
+    private static bool HoldsDepartureLeg(AircraftState ac, HoldGeometry geometry) =>
+        !PastDepartureEnd(ac, geometry) || (ac.Altitude < LegalTurnAltitude(geometry));
+
+    /// <summary>
+    /// Ticks the pursuit through its departure-leg hold: while the hold applies the follower must stay on the upwind heading;
+    /// then the gate must clear, the pursuit must still be following its lead and must start its turn within 20 s, on the same
+    /// side of the upwind heading the lead is. The gate and its geometry are checked before the first tick, so the wiring is
+    /// covered too.
+    /// </summary>
+    private static HoldOutcome TickThroughDepartureLegHold(
+        SimulationEngine engine,
+        AircraftState follower,
+        AircraftState lead,
+        RunwayInfo rwy,
+        HoldGeometry geometry
+    )
+    {
+        VfrFollowPhase pursuit = Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
+        FollowClimbOutGate gate = pursuit.ClimbOutGate ?? throw new InvalidOperationException("the pursuit must hold the departure leg");
+        Assert.Equal(geometry.DepartureEnd.Lat, gate.DepartureEnd.Lat, 6);
+        Assert.Equal(geometry.DepartureEnd.Lon, gate.DepartureEnd.Lon, 6);
+        Assert.Equal(geometry.UpwindHeading.Degrees, gate.UpwindHeading.Degrees, 3);
+        Assert.Equal(geometry.MinTurnAltitude, gate.MinTurnAltitude, 1);
+
+        int holdTicks = 0;
+        bool heldPastDepartureEndBelowTurnAltitude = false;
+        while (HoldsDepartureLeg(follower, geometry) && (holdTicks < MaxHoldTicks))
+        {
+            engine.TickPhysics(0.25);
+            if (HoldsDepartureLeg(follower, geometry))
+            {
+                holdTicks++;
+                Assert.True(
+                    HeadingOffRunway(follower, rwy) <= HoldingHeadingToleranceDeg,
+                    $"the departure-leg hold must keep the upwind heading; off by {HeadingOffRunway(follower, rwy):F0}° after {holdTicks} ticks"
+                );
+                heldPastDepartureEndBelowTurnAltitude |= PastDepartureEnd(follower, geometry) && (follower.Altitude < geometry.MinTurnAltitude);
+            }
+        }
+
+        Assert.True(holdTicks > 0, "the departure-leg hold must last at least one tick, or nothing was held");
+        Assert.True(PastDepartureEnd(follower, geometry), "the follower must fly past the departure end");
+
+        int turnTicks = 0;
+        while ((turnTicks < MaxTurnTicks) && (HeadingOffRunway(follower, rwy) <= TurnedHeadingDeg))
+        {
+            engine.TickPhysics(0.25);
+            turnTicks++;
+        }
+
+        Assert.True(
+            (turnTicks < MaxTurnTicks) && (HeadingOffRunway(follower, rwy) > TurnedHeadingDeg),
+            $"the pursuit must start its turn toward the lead within 20 s; still {HeadingOffRunway(follower, rwy):F0}° off the runway heading"
+        );
+
+        double sideToLead = rwy.TrueHeading.SignedAngleTo(new TrueHeading(GeoMath.BearingTo(follower.Position, lead.Position)));
+        double sideTurned = rwy.TrueHeading.SignedAngleTo(follower.TrueHeading);
+        Assert.Equal(Math.Sign(sideToLead), Math.Sign(sideTurned));
+        Assert.Equal(lead.Callsign, follower.Approach.FollowingCallsign);
+        Assert.Null(pursuit.ClimbOutGate);
+        return new HoldOutcome(holdTicks, heldPastDepartureEndBelowTurnAltitude);
+    }
+
+    /// <summary>
+    /// Place the closed-traffic climb just past its 400 ft completion so it hands over on its next tick; the climb's own
+    /// integration is not what these tests are about.
+    /// </summary>
+    private static void ReadyClosedClimbToComplete(AircraftState follower) => follower.Altitude = Oak28R().AirportElevationFt + 410.0;
+
+    /// <summary>The same for the go-around climb, just past its target altitude (pattern altitude less the AIM 4-3-2 margin).</summary>
+    private static void ReadyGoAroundToComplete(AircraftState follower) => follower.Altitude = Oak28R().AirportElevationFt + 720.0;
+
+    /// <summary>A runwayless lead dead ahead of a climb on the 28R centerline, inside its ±60° cone.</summary>
+    private static AircraftState AddLeadAheadOfClimb(SimulationEngine engine)
+    {
+        RunwayInfo rwy = Oak28R();
+        return AddRunwaylessLead(engine, OffFinal(rwy, -3.0, 0.0), rwy.TrueHeading);
+    }
+
+    /// <summary>
+    /// Land the lead on 28R: it is put on the runway just past the threshold and marked down, so the landing the follow ends
+    /// on happens on a runway rather than out over the bay.
+    /// </summary>
+    private static void LandOn28R(AircraftState lead)
+    {
+        RunwayInfo rwy = Oak28R();
+        lead.Position = OffFinal(rwy, -0.05, 0.0);
+        lead.Phases = null;
+        lead.IsOnGround = true;
+        lead.IndicatedAirspeed = 0;
+    }
+
+    /// <summary>
+    /// FOLLOW of a runwayless lead keeps the climb and leaves the pursuit pending on it: nothing is installed from a few
+    /// hundred feet, and the phase instance is untouched.
+    /// </summary>
+    [Theory]
+    [InlineData("closed-climb")]
+    [InlineData("go-around")]
+    public void ClimbWithRunwaylessLead_AcceptKeepsClimbAndArmsPending(string followerKind)
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower =
+            followerKind == "go-around" ? AddGoAroundFollower(engine, 0.5, reenter: true, "VFR") : AddClosedClimbFollower(engine, 1.0);
+        AddLeadAheadOfClimb(engine);
+        Phase climb = follower.Phases!.CurrentPhase!;
+        ClimbState before = Capture(follower);
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        AssertKeptClimbFollowingLead(follower, before, result);
+        Assert.Same(climb, follower.Phases!.CurrentPhase);
+        Assert.True(PendingPursuitOf(follower), "the pursuit must be pending on the climb, not started");
+    }
+
+    /// <summary>
+    /// The pending pursuit starts when the closed-traffic climb hands over to its circuit's upwind: a free pursuit with the
+    /// circuit's pattern return, carrying the runway, direction and altitude the climb was making, and the landing clearance.
+    /// </summary>
+    [Fact]
+    public void PendingPursuit_StartsAtHandOverToUpwind_FromTakeoff()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak28R();
+        AircraftState follower = AddClosedClimbFollower(engine, 1.0);
+        follower.Phases!.LandingClearance = ClearanceType.ClearedToLand;
+        follower.Phases.ClearedRunwayId = "28R";
+        AddLeadAheadOfClimb(engine);
+        Assert.True(Send(engine, $"FOLLOW {Leader}").Success);
+        PatternWaypoints circuit = CircuitWaypoints(follower);
+        ReadyClosedClimbToComplete(follower);
+
+        TickSeconds(engine, 1);
+
+        VfrFollowPhase pursuit = Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
+        Assert.Equal(Leader, pursuit.TargetCallsign);
+        FollowPatternReturn patternReturn = pursuit.PatternReturn ?? throw new InvalidOperationException("the pursuit must carry a pattern return");
+        Assert.Equal("28R", patternReturn.Runway.Designator);
+        Assert.Equal(PatternDirection.Right, patternReturn.Direction);
+        Assert.Equal(circuit.PatternAltitude, patternReturn.PatternAltitudeFt, 1);
+        Assert.Equal(Leader, follower.Approach.FollowingCallsign);
+        Assert.Equal(ClearanceType.ClearedToLand, follower.Phases.LandingClearance);
+        Assert.Equal("28R", follower.Phases.ClearedRunwayId);
+
+        // A few hundred feet over the runway, the pursuit owes the departure leg: no steering at the lead yet.
+        Assert.NotNull(pursuit.ClimbOutGate);
+        Assert.Equal(rwy.TrueHeading, follower.Targets.TargetTrueHeading);
+    }
+
+    /// <summary>The same through a re-entering go-around, which hands over to the upwind like any other re-entry.</summary>
+    [Fact]
+    public void PendingPursuit_StartsAtHandOverToUpwind_FromGoAround()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddGoAroundFollower(engine, 0.5, reenter: true, "VFR");
+        AddLeadAheadOfClimb(engine);
+        Assert.True(Send(engine, $"FOLLOW {Leader}").Success);
+        PatternWaypoints circuit = CircuitWaypoints(follower);
+        ReadyGoAroundToComplete(follower);
+
+        TickSeconds(engine, 1);
+
+        VfrFollowPhase pursuit = Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
+        Assert.Equal(Leader, pursuit.TargetCallsign);
+        FollowPatternReturn patternReturn = pursuit.PatternReturn ?? throw new InvalidOperationException("the pursuit must carry a pattern return");
+        Assert.Equal("28R", patternReturn.Runway.Designator);
+        Assert.Equal(PatternDirection.Right, patternReturn.Direction);
+        Assert.Equal(circuit.PatternAltitude, patternReturn.PatternAltitudeFt, 1);
+        Assert.Equal(Leader, follower.Approach.FollowingCallsign);
+        Assert.NotNull(pursuit.ClimbOutGate);
+
+        // The control: the same go-around with no FOLLOW hands over to its circuit's upwind as well, so the pursuit above is
+        // the follow's doing and not the hand-over's.
+        SimulationEngine controlEngine = BuildEngine();
+        AircraftState control = AddGoAround(controlEngine, Follower, 0.5, reenter: true, "VFR");
+        ReadyGoAroundToComplete(control);
+        TickSeconds(controlEngine, 1);
+        Assert.IsType<UpwindPhase>(control.Phases!.CurrentPhase);
+    }
+
+    /// <summary>
+    /// The lead lands on 28R while the climb is still flying: the follow ends, the pending pursuit is disarmed and the climb
+    /// hands over to its own circuit instead of pursuing. The disarm is read on the climb the cancel left in place, so a
+    /// missing disarm fails here rather than being masked by the hand-over.
+    /// </summary>
+    [Fact]
+    public void PendingPursuit_CancelledWhenLeadLands()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddClosedClimbFollower(engine, 1.0);
+        AircraftState lead = AddLeadAheadOfClimb(engine);
+        Assert.True(Send(engine, $"FOLLOW {Leader}").Success);
+        Assert.True(PendingPursuitOf(follower));
+
+        LandOn28R(lead);
+        TickSeconds(engine, 1);
+
+        Assert.Null(follower.Approach.FollowingCallsign);
+        Assert.IsType<TakeoffPhase>(follower.Phases!.CurrentPhase);
+        Assert.False(PendingPursuitOf(follower), "the cancel must disarm the climb, not just drop the follow");
+
+        ReadyClosedClimbToComplete(follower);
+        TickSeconds(engine, 1);
+
+        Assert.IsNotType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
+        Assert.IsType<UpwindPhase>(follower.Phases.CurrentPhase);
+    }
+
+    /// <summary>The lead despawns while the climb is still flying: the same disarm and the same untouched hand-over.</summary>
+    [Fact]
+    public void PendingPursuit_CancelledWhenLeadLost()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddClosedClimbFollower(engine, 1.0);
+        AddLeadAheadOfClimb(engine);
+        Assert.True(Send(engine, $"FOLLOW {Leader}").Success);
+        Assert.True(PendingPursuitOf(follower));
+
+        engine.RemoveFromWorld(Leader);
+        TickSeconds(engine, 1);
+
+        Assert.Null(follower.Approach.FollowingCallsign);
+        Assert.IsType<TakeoffPhase>(follower.Phases!.CurrentPhase);
+        Assert.False(PendingPursuitOf(follower), "the cancel must disarm the climb, not just drop the follow");
+
+        ReadyClosedClimbToComplete(follower);
+        TickSeconds(engine, 1);
+
+        Assert.IsNotType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
+        Assert.IsType<UpwindPhase>(follower.Phases.CurrentPhase);
+    }
+
+    /// <summary>
+    /// A same-runway re-FOLLOW while climbing keeps the climb for the new lead, which flies the follower's own runway: the
+    /// pending pursuit of the runwayless lead is disarmed, and the hand-over sequences in trail instead.
+    /// </summary>
+    [Fact]
+    public void PendingPursuit_CancelledBySameRunwayReFollow()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddClosedClimbFollower(engine, 1.0);
+        AddLeadAheadOfClimb(engine);
+        Assert.True(Send(engine, $"FOLLOW {Leader}").Success);
+        Assert.True(PendingPursuitOf(follower));
+
+        AddOnCircuit(engine, OtherLeader, PatternEntryLeg.Crosswind, wp => OutOnCrosswind(wp, 0.5));
+        CommandResult refollow = Send(engine, $"FOLLOW {OtherLeader}");
+
+        Assert.True(refollow.Success, refollow.Message);
+        Assert.Equal(OtherLeader, follower.Approach.FollowingCallsign);
+        Assert.False(PendingPursuitOf(follower), "the new lead flies a runway, so nothing is pending after the hand-over");
+        ReadyClosedClimbToComplete(follower);
+
+        TickSeconds(engine, 1);
+
+        Assert.IsNotType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
+        Assert.IsType<UpwindPhase>(follower.Phases.CurrentPhase);
+        Assert.Equal(OtherLeader, follower.Approach.FollowingCallsign);
+    }
+
+    /// <summary>The armed flag survives a mid-climb snapshot round trip, and the hand-over still starts the pursuit.</summary>
+    [Fact]
+    public void PendingPursuit_SurvivesSnapshotRoundTrip()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddClosedClimbFollower(engine, 1.0);
+        AddLeadAheadOfClimb(engine);
+        Assert.True(Send(engine, $"FOLLOW {Leader}").Success);
+
+        follower.Phases = PhaseList.FromSnapshot(follower.Phases!.ToSnapshot(), groundLayout: null);
+        Assert.True(PendingPursuitOf(follower), "the flag must survive the snapshot");
+        ReadyClosedClimbToComplete(follower);
+
+        TickSeconds(engine, 1);
+
+        VfrFollowPhase pursuit = Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
+        Assert.Equal(Leader, pursuit.TargetCallsign);
+        Assert.NotNull(pursuit.PatternReturn);
+        Assert.Equal(Leader, follower.Approach.FollowingCallsign);
+    }
+
+    // ─── The departure leg a pursuit started on the upwind owes (AIM 4-3-2.c.1, FIG 4-3-2 keys 4–5) ───
+
+    /// <summary>A runwayless lead out in the follower's downwind box, off its track: the box, not the cone, decides it, and
+    /// steering at it takes a turn well past the upwind heading.</summary>
+    private static AircraftState AddLeadInDownwindBox(SimulationEngine engine, AircraftState follower) =>
+        AddRunwaylessLeadNamed(engine, follower, Leader);
+
+    /// <summary><see cref="AddLeadInDownwindBox"/> under its own callsign, for a test that follows two leads in turn.</summary>
+    private static AircraftState AddRunwaylessLeadNamed(SimulationEngine engine, AircraftState follower, string callsign)
+    {
+        (LatLon position, TrueHeading heading) = DownwindShortOfBaseTurn(CircuitWaypoints(follower), 1.0);
+        AircraftState lead = MakeAircraft(callsign, position, heading, 1500, "VFR");
+        engine.World.AddAircraft(lead);
+        Assert.False(AirborneFollowHelper.IsLeadAheadOfTrack(follower, lead), "the lead must sit outside the cone for the box to decide");
+        return lead;
+    }
+
+    /// <summary>
+    /// A runwayless lead two miles ahead of the follower and one to the right of its track: inside the ±60° cone, and far enough
+    /// off the track that steering at it is unambiguously a right turn, which a lead in the downwind box need not be — the
+    /// pursuit's steering point is then a spacing excursion off the lead's own track rather than the lead itself.
+    /// </summary>
+    private static AircraftState AddLeadAheadRight(SimulationEngine engine, AircraftState follower)
+    {
+        LatLon ahead = GeoMath.ProjectPoint(follower.Position, follower.TrueHeading, 2.0);
+        LatLon position = GeoMath.ProjectPoint(ahead, follower.TrueHeading + 90.0, 1.0);
+        AircraftState lead = MakeAircraft(Leader, position, follower.TrueHeading, 1500, "VFR");
+        engine.World.AddAircraft(lead);
+        Assert.True(AirborneFollowHelper.IsLeadAheadOfTrack(follower, lead), "the lead must sit inside the cone");
+        return lead;
+    }
+
+    /// <summary>
+    /// A pursuit that starts at the closed-traffic climb's hand-over holds the departure leg: with the lead out in the
+    /// downwind, the follower keeps the upwind heading and climbs to pattern altitude less 300 ft before it steers at all.
+    /// </summary>
+    [Fact]
+    public void PendingPursuit_FromClosedClimb_HoldsUpwindUntilPastDepartureEndAndTpaMinus300()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak28R();
+        // Placed further along the runway than the other fixtures: the departure end arrives well before pattern altitude less
+        // 300 ft, so the altitude half is shown holding the pursuit on its own.
+        AircraftState follower = AddClosedClimbFollower(engine, 1.4);
+        AircraftState lead = AddLeadInDownwindBox(engine, follower);
+        Assert.True(Send(engine, $"FOLLOW {Leader}").Success);
+        HoldGeometry hold = HoldFrom(CircuitWaypoints(follower), clearedAltitude: null);
+        ReadyClosedClimbToComplete(follower);
+
+        TickSeconds(engine, 1);
+
+        Assert.True(HoldsDepartureLeg(follower, hold), "the hand-over is short of the departure end and below TPA - 300");
+        HoldOutcome outcome = TickThroughDepartureLegHold(engine, follower, lead, rwy, hold);
+
+        Assert.True(follower.Altitude >= LegalTurnAltitude(hold), "the follower must reach the legal turn altitude");
+        Assert.True(
+            outcome.HeldPastDepartureEndBelowTurnAltitude,
+            "past the departure end and below TPA - 300 the altitude half must still be holding the pursuit"
+        );
+    }
+
+    /// <summary>
+    /// The same through a re-entering go-around, which reaches pattern altitude less 300 ft while still over 28R: only the
+    /// departure end still holds it.
+    /// </summary>
+    [Fact]
+    public void PendingPursuit_FromGoAround_HoldsUpwindUntilPastDepartureEnd()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak28R();
+        AircraftState follower = AddGoAroundFollower(engine, 0.5, reenter: true, "VFR");
+        AircraftState lead = AddLeadInDownwindBox(engine, follower);
+        Assert.True(Send(engine, $"FOLLOW {Leader}").Success);
+        HoldGeometry hold = HoldFrom(CircuitWaypoints(follower), clearedAltitude: null);
+        ReadyGoAroundToComplete(follower);
+
+        TickSeconds(engine, 1);
+
+        Assert.True(follower.Altitude >= hold.MinTurnAltitude, "the go-around must reach TPA - 300 over the runway");
+        Assert.True(HoldsDepartureLeg(follower, hold), "the follower must still be short of the departure end");
+        TickThroughDepartureLegHold(engine, follower, lead, rwy, hold);
+    }
+
+    /// <summary>
+    /// The same hold on the existing upwind path: a runwayless lead followed from the upwind is pursued from the crosswind
+    /// point, not from where the FOLLOW was issued.
+    /// </summary>
+    [Fact]
+    public void Follow_RunwaylessLeadFromUpwind_HoldsUpwindUntilCrosswindPoint()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak28R();
+        AircraftState follower = AddOnCircuit(engine, Follower, PatternEntryLeg.Upwind, wp => UpwindShortOfCrosswindTurn(wp, 1.0));
+        follower.Approach.HasReportedTrafficInSight = true;
+        AircraftState lead = AddLeadInDownwindBox(engine, follower);
+        Assert.True(Send(engine, $"FOLLOW {Leader}").Success);
+        HoldGeometry hold = HoldFrom(CircuitWaypoints(follower), clearedAltitude: null);
+
+        Assert.True(HoldsDepartureLeg(follower, hold), "the upwind follower is short of the crosswind point");
+        TickThroughDepartureLegHold(engine, follower, lead, rwy, hold);
+    }
+
+    /// <summary>The departure-leg hold survives a snapshot round trip, and the restored pursuit still flies it.</summary>
+    [Fact]
+    public void PendingPursuit_GateSurvivesSnapshotRoundTrip()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak28R();
+        AircraftState follower = AddClosedClimbFollower(engine, 1.0);
+        AddLeadInDownwindBox(engine, follower);
+        Assert.True(Send(engine, $"FOLLOW {Leader}").Success);
+        ReadyClosedClimbToComplete(follower);
+        TickSeconds(engine, 1);
+
+        VfrFollowPhase pursuit = Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
+        FollowClimbOutGate gate = pursuit.ClimbOutGate ?? throw new InvalidOperationException("the pursuit must hold the departure leg");
+
+        follower.Phases = PhaseList.FromSnapshot(follower.Phases.ToSnapshot(), groundLayout: null);
+
+        VfrFollowPhase restored = Assert.IsType<VfrFollowPhase>(follower.Phases.CurrentPhase);
+        FollowClimbOutGate restoredGate = restored.ClimbOutGate ?? throw new InvalidOperationException("the hold must survive the snapshot");
+        Assert.Equal(gate.DepartureEnd.Lat, restoredGate.DepartureEnd.Lat, 6);
+        Assert.Equal(gate.DepartureEnd.Lon, restoredGate.DepartureEnd.Lon, 6);
+        Assert.Equal(gate.UpwindHeading.Degrees, restoredGate.UpwindHeading.Degrees, 3);
+        Assert.Equal(gate.MinTurnAltitude, restoredGate.MinTurnAltitude, 3);
+
+        engine.TickPhysics(0.25);
+
+        Assert.NotNull(restored.ClimbOutGate);
+        Assert.True(HeadingOffRunway(follower, rwy) <= HoldingHeadingToleranceDeg, "the restored pursuit must still hold the upwind");
+    }
+
+    /// <summary>
+    /// The VFR follower re-sequenced in place out of a non-reentering go-around keeps that climb for a lead flying the
+    /// follower's own runway: a runway-bearing lead is sequenced in trail, so nothing is left pending for the hand-over.
+    /// </summary>
+    [Fact]
+    public void RuleThreeConversion_ThenRunwaylessLead_ArmsPendingPursuitAndHoldsDepartureLeg()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak28R();
+        AircraftState follower = AddGoAroundFollower(engine, 0.5, reenter: false, "VFR");
+        AddCrosswindLead(engine);
+        var goAround = (GoAroundPhase)follower.Phases!.CurrentPhase!;
+
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+
+        Assert.True(result.Success, result.Message);
+        Assert.Same(goAround, follower.Phases!.CurrentPhase);
+        Assert.True(goAround.ReenterPattern, "the conversion re-enters the pattern");
+        Assert.Equal(Leader, follower.Approach.FollowingCallsign);
+        Assert.False(PendingPursuitOf(follower), "a lead flying the follower's runway is sequenced in trail, not pursued");
+
+        // The converted climb is now the circuit's upwind, so a runwayless lead is the climb case: the follow keeps it and
+        // leaves the pursuit pending.
+        AircraftState runwayless = AddRunwaylessLeadNamed(engine, follower, OtherLeader);
+        CommandResult second = Send(engine, $"FOLLOW {OtherLeader}");
+
+        Assert.True(second.Success, second.Message);
+        Assert.Same(goAround, follower.Phases!.CurrentPhase);
+        Assert.True(PendingPursuitOf(follower), "the runwayless lead leaves the pursuit pending on the converted climb");
+        HoldGeometry hold = HoldFrom(CircuitWaypoints(follower), clearedAltitude: null);
+
+        ReadyGoAroundToComplete(follower);
+        TickSeconds(engine, 1);
+
+        Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
+        TickThroughDepartureLegHold(engine, follower, runwayless, rwy, hold);
+    }
+
+    // ─── The altitude and speed the hold leaves to the controller and to the leg ───
+
+    /// <summary>
+    /// A CM issued while the pursuit holds the departure leg stands once the gate clears: the hold owns no altitude, so the
+    /// controller's clearance is still the target (a per-tick pattern-altitude write would have overwritten it).
+    /// </summary>
+    [Fact]
+    public void PendingPursuit_CmDuringHold_StandsAfterTheGateClears()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak28R();
+        AircraftState follower = AddClosedClimbFollower(engine, 1.0);
+        AircraftState lead = AddLeadInDownwindBox(engine, follower);
+        Assert.True(Send(engine, $"FOLLOW {Leader}").Success);
+        HoldGeometry hold = HoldFrom(CircuitWaypoints(follower), clearedAltitude: null);
+        ReadyClosedClimbToComplete(follower);
+        TickSeconds(engine, 1);
+
+        Assert.True(Send(engine, "CM 2500").Success);
+        Assert.True(HoldsDepartureLeg(follower, hold), "the CM must not end the hold");
+
+        TickThroughDepartureLegHold(engine, follower, lead, rwy, hold);
+
+        Assert.Equal(2500.0, follower.Targets.TargetAltitude);
+    }
+
+    /// <summary>
+    /// A DM below pattern altitude less 300 ft is the aircraft's clearance, and so the gate's ceiling too: past the departure end
+    /// at that altitude the pursuit turns, instead of holding the upwind for an altitude it was told not to climb to.
+    /// </summary>
+    [Fact]
+    public void PendingPursuit_DmBelowTurnAltitude_ClearsTheGateAtTheDmAltitude()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak28R();
+        AircraftState follower = AddClosedClimbFollower(engine, 1.0);
+        AircraftState lead = AddLeadInDownwindBox(engine, follower);
+        Assert.True(Send(engine, $"FOLLOW {Leader}").Success);
+        // 600 ft above the field: below pattern altitude less the 300 ft margin, and above the climb's present altitude.
+        double dmAltitude = Oak28R().AirportElevationFt + 600.0;
+        HoldGeometry hold = HoldFrom(CircuitWaypoints(follower), clearedAltitude: dmAltitude);
+        ReadyClosedClimbToComplete(follower);
+        TickSeconds(engine, 1);
+
+        Assert.True(Send(engine, "DM KOAK+006").Success);
+        Assert.True(HoldsDepartureLeg(follower, hold), "the DM must not end the hold before the aircraft is there");
+
+        TickThroughDepartureLegHold(engine, follower, lead, rwy, hold);
+
+        Assert.True(follower.Altitude < hold.MinTurnAltitude, $"the pursuit must turn below TPA - 300, was at {follower.Altitude:F0} ft");
+        Assert.Equal(dmAltitude, follower.Altitude, 0);
+    }
+
+    /// <summary>
+    /// While it holds the departure leg the pursuit flies the upwind's speed schedule — the downwind baseline, or the spaced
+    /// figure when the lead is close ahead — rather than the climb's.
+    /// </summary>
+    [Fact]
+    public void PendingPursuit_GatedHold_FliesTheUpwindSpeedBaseline()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = AddClosedClimbFollower(engine, 1.0);
+        // A slow climb-out, so the leg's speed schedule has room to climb to and the target is not captured on the first tick.
+        follower.IndicatedAirspeed = 60.0;
+        AddLeadInDownwindBox(engine, follower);
+        Assert.True(Send(engine, $"FOLLOW {Leader}").Success);
+        ReadyClosedClimbToComplete(follower);
+        TickSeconds(engine, 1);
+
+        AircraftCategory category = AircraftCategorization.Categorize(follower.AircraftType);
+        double baseline = AircraftPerformance.DownwindSpeed(follower.AircraftType, category);
+        double minSpeed = AircraftPerformance.ApproachSpeed(follower.AircraftType, category);
+
+        double speed = follower.Targets.TargetSpeed ?? double.NaN;
+        Assert.False(double.IsNaN(speed), "the gated hold must schedule the upwind's leg speed");
+        Assert.InRange(speed, minSpeed, baseline);
+        Assert.Equal(baseline, speed, 3.0);
+    }
+
+    /// <summary>
+    /// An upwind follower told to follow a lead on another runway that it cannot sequence onto (a lead flying no circuit of its
+    /// own) installs a free pursuit, and owes the departure leg like any other pursuit started on the upwind.
+    /// </summary>
+    [Fact]
+    public void Follow_LeadOnAnotherRunwayFromUpwind_HoldsDepartureLeg()
+    {
+        SimulationEngine engine = BuildEngine();
+        RunwayInfo rwy = Oak28R();
+        AircraftState follower = AddOnCircuit(engine, Follower, PatternEntryLeg.Upwind, wp => UpwindShortOfCrosswindTurn(wp, 1.0));
+        follower.Approach.HasReportedTrafficInSight = true;
+        AircraftState lead = AddLeadOn28L(engine, follower, 1.5);
+        Assert.True(Send(engine, $"FOLLOW {Leader}").Success);
+        HoldGeometry hold = HoldFrom(CircuitWaypoints(follower), clearedAltitude: null);
+
+        Assert.True(HoldsDepartureLeg(follower, hold), "the upwind follower is short of the crosswind point");
+        TickThroughDepartureLegHold(engine, follower, lead, rwy, hold);
+    }
+
+    /// <summary>
+    /// A lead assigned another runway of the field (28L) but flying no pattern phase, so FOLLOW installs a free pursuit rather
+    /// than sequencing onto its circuit. Placed abeam of the follower's track, which takes a turn well past the upwind heading.
+    /// </summary>
+    private static AircraftState AddLeadOn28L(SimulationEngine engine, AircraftState follower, double sideNm)
+    {
+        RunwayInfo rwy28L =
+            NavigationDatabase.Instance.GetRunway("KOAK", "28L") ?? throw new InvalidOperationException("KOAK 28L missing from navdata");
+        LatLon position = GeoMath.ProjectPoint(follower.Position, follower.TrueHeading + 90.0, sideNm);
+        AircraftState lead = MakeAircraft(Leader, position, follower.TrueHeading, 1500, "VFR");
+        engine.World.AddAircraft(lead);
+        lead.Phases = new PhaseList { AssignedRunway = rwy28L };
+        return lead;
     }
 }

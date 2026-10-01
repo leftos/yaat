@@ -9,7 +9,7 @@ namespace Yaat.Sim.Phases.Tower;
 /// acceleration at brake release rising to the type's steady rate) then liftoff and climb.
 /// Completes at 400ft AGL.
 /// </summary>
-public sealed class TakeoffPhase : Phase, IGroundRollClock
+public sealed class TakeoffPhase : Phase, IGroundRollClock, IPendingPursuitClimb
 {
     private static readonly ILogger Log = SimLog.CreateLogger("TakeoffPhase");
 
@@ -43,6 +43,7 @@ public sealed class TakeoffPhase : Phase, IGroundRollClock
             ThresholdLon = _thresholdLon,
             Departure = _departure?.ToSnapshot(),
             RollElapsedSeconds = _rollElapsedSeconds,
+            PursuesRunwaylessLeadAfterClimb = PursuesRunwaylessLeadAfterClimb ? true : null,
         };
 
     public static TakeoffPhase FromSnapshot(TakeoffPhaseDto dto)
@@ -58,6 +59,7 @@ public sealed class TakeoffPhase : Phase, IGroundRollClock
         phase._departure = departure;
         phase.Departure = departure;
         phase._rollElapsedSeconds = dto.RollElapsedSeconds;
+        phase.PursuesRunwaylessLeadAfterClimb = dto.PursuesRunwaylessLeadAfterClimb ?? false;
         return phase;
     }
 
@@ -79,6 +81,14 @@ public sealed class TakeoffPhase : Phase, IGroundRollClock
 
     /// <summary>Departure instruction from CTO command.</summary>
     public DepartureInstruction? Departure { get; private set; }
+
+    /// <summary>
+    /// Armed when FOLLOW accepts a lead with no runway on this climb: the climb is kept and only the lead is set, and the free
+    /// pursuit with a pattern return starts when the climb hands over to its circuit's upwind (<see cref="PhaseRunner.Tick"/>).
+    /// Cleared wherever the follow ends (<see cref="AirborneFollowHelper.ClearFollowState"/>) or is retargeted to a lead with a
+    /// runway, so a stranded flag never starts a pursuit.
+    /// </summary>
+    public bool PursuesRunwaylessLeadAfterClimb { get; set; }
 
     /// <summary>
     /// Called by the dispatcher when CTO is issued.

@@ -341,7 +341,8 @@ public static class AirborneFollowHelper
     /// in-pattern cancels (lead lost/despawned, spacing unmaintainable) use
     /// <see cref="CancelFollowHoldingLeg"/> instead.
     /// </summary>
-    public static void ClearFollowState(AircraftState follower) =>
+    public static void ClearFollowState(AircraftState follower)
+    {
         // Deliberately does NOT touch HasReportedTrafficInSight: ending the follow
         // instruction is not the same event as losing sight of the traffic. The
         // dispatcher's generic phase-clear runs this before every phase-clearing
@@ -350,6 +351,20 @@ public static class AirborneFollowHelper
         // the sight itself is lost (VisualApproachHelper.HandleTrafficContactLost,
         // VoidVisualApproach) clear the report themselves.
         follower.Approach.FollowingCallsign = null;
+        DisarmPendingPursuit(follower);
+    }
+
+    /// <summary>
+    /// Disarm the pursuit a climb was holding off for a lead with no runway (<see cref="IPendingPursuitClimb"/>): the follow it
+    /// was armed for has ended, so the climb hands over to its circuit as an untouched one.
+    /// </summary>
+    private static void DisarmPendingPursuit(AircraftState follower)
+    {
+        if (follower.Phases?.CurrentPhase is IPendingPursuitClimb climb)
+        {
+            climb.PursuesRunwaylessLeadAfterClimb = false;
+        }
+    }
 
     /// <summary>
     /// End a follow that was cancelled involuntarily — the lead despawned or was lost from

@@ -4259,10 +4259,14 @@ public static class CommandDispatcher
     /// <summary>
     /// Same-runway FOLLOW on a pattern leg: set the target in place and clear any prior EXT (extended leg) on
     /// Upwind/Crosswind/Downwind — FOLLOW supersedes the controller's hold-and-call-the-next-leg instruction
-    /// since the pilot now has explicit traffic to sequence behind.
+    /// since the pilot now has explicit traffic to sequence behind. A climb that counts as the upwind is retargeted the same
+    /// way, and its pending pursuit of an earlier runwayless lead is disarmed.
     /// </summary>
     private static CommandResult RetargetFollowOnPatternLeg(AircraftState aircraft, Phase? current, string target)
     {
+        // The lead now flies a runway, so the climb it is set on sequences in-trail rather than pursuing it after the
+        // hand-over: disarm any pursuit left pending for the earlier runwayless lead.
+        DisarmPendingPursuit(current);
         switch (current)
         {
             case UpwindPhase uw when uw.IsExtended:
@@ -4279,6 +4283,15 @@ public static class CommandDispatcher
         return Ok($"Follow {target}");
     }
 
+    /// <summary>Disarm the pursuit a climb holds off for a lead with no runway (<see cref="IPendingPursuitClimb"/>).</summary>
+    private static void DisarmPendingPursuit(Phase? climb)
+    {
+        if (climb is IPendingPursuitClimb pending)
+        {
+            pending.PursuesRunwaylessLeadAfterClimb = false;
+        }
+    }
+
     /// <summary>
     /// Install the follow for a follower not retargeted in place: the pattern entry behind a lead established toward a
     /// runway (<see cref="TryFollowIntoLeadPattern"/>), otherwise free pursuit — retargeting a
@@ -4292,6 +4305,11 @@ public static class CommandDispatcher
         DispatchContext ctx
     )
     {
+        // The departure leg a pursuit installed here owes, read before the teardown discards the climb it is read from: a
+        // follower on its upwind, or climbing out of the pattern with no circuit to read (a go-around flown as the published
+        // missed), holds it before it steers at this lead.
+        FollowClimbOutGate? climbOutGate = VfrFollowPhase.ClimbOutGateFor(aircraft, ctx.GroundLayout);
+
         if (TearDownUnkeptChainForFollow(aircraft, current, leadAircraft))
         {
             current = null;
@@ -4317,7 +4335,7 @@ public static class CommandDispatcher
             return Ok($"Follow {target}");
         }
 
-        InstallVfrFollowPhase(aircraft, target, patternReturn: null);
+        InstallVfrFollowPhase(aircraft, target, patternReturn: null, climbOutGate);
         return Ok($"Follow {target}");
     }
 
@@ -4487,7 +4505,12 @@ public static class CommandDispatcher
             );
         }
 
-        InstallVfrFollowPhase(aircraft, target, VfrFollowPhase.BuildFollowPatternReturn(aircraft, followerRunway, ctx.GroundLayout));
+        InstallVfrFollowPhase(
+            aircraft,
+            target,
+            VfrFollowPhase.BuildFollowPatternReturn(aircraft, followerRunway, ctx.GroundLayout),
+            VfrFollowPhase.ClimbOutGateFor(aircraft, ctx.GroundLayout)
+        );
         return Ok($"Follow {target}");
     }
 
@@ -4572,8 +4595,9 @@ public static class CommandDispatcher
     /// upwind it hands over to does (<see cref="TryFollowFromPatternLeg"/>): a lead queued to enter the pattern for another
     /// runway (<see cref="QueuedEntryForOtherRunway"/>) re-sequences the follower onto that runway
     /// (<see cref="FollowOntoQueuedRunway"/>); any other lead is accepted when it is ahead
-    /// (<see cref="IsRunwaylessLeadAheadOfClimb"/>), keeping the climb and setting only the lead (no pursuit from a few hundred
-    /// feet), and otherwise refused as not ahead, as <see cref="ClimbPositionName"/> names the climb.
+    /// (<see cref="IsRunwaylessLeadAheadOfClimb"/>), keeping the climb and setting only the lead and leaving the pursuit that
+    /// starts at the hand-over pending (<see cref="ArmPendingPursuit"/>) — no pursuit from a few hundred feet — and otherwise
+    /// refused as not ahead, as <see cref="ClimbPositionName"/> names the climb.
     /// </summary>
     private static CommandResult ClimbRunwaylessLeadRoute(
         AircraftState aircraft,
@@ -4594,7 +4618,21 @@ public static class CommandDispatcher
         }
 
         aircraft.Approach.FollowingCallsign = target;
+        ArmPendingPursuit(aircraft.Phases?.CurrentPhase);
         return Ok($"Follow {target}");
+    }
+
+    /// <summary>
+    /// Leave the free pursuit this climb starts once it hands over to its circuit's upwind pending on it
+    /// (<see cref="TakeoffPhase.PursuesRunwaylessLeadAfterClimb"/>): the lead has no runway to sequence onto, and no pursuit
+    /// starts from a few hundred feet.
+    /// </summary>
+    private static void ArmPendingPursuit(Phase? climb)
+    {
+        if (climb is IPendingPursuitClimb pending)
+        {
+            pending.PursuesRunwaylessLeadAfterClimb = true;
+        }
     }
 
     /// <summary>
@@ -5014,8 +5052,15 @@ public static class CommandDispatcher
     /// A new PhaseList (mirrors ApproachCommandHandler.TryClearedVisualApproach) so no stale phase index is
     /// inherited; the standing landing-family clearance and its runway are carried onto it, so a follower
     /// cleared before FOLLOW keeps its clearance through the pursuit. Returns the installed phase.
+    /// <paramref name="climbOutGate"/> is the departure leg the pursuit holds first when it starts on the upwind
+    /// (<see cref="VfrFollowPhase.ClimbOutGateFor"/>), null for a pursuit that may steer at its lead at once.
     /// </summary>
-    internal static VfrFollowPhase InstallVfrFollowPhase(AircraftState aircraft, string target, FollowPatternReturn? patternReturn)
+    internal static VfrFollowPhase InstallVfrFollowPhase(
+        AircraftState aircraft,
+        string target,
+        FollowPatternReturn? patternReturn,
+        FollowClimbOutGate? climbOutGate
+    )
     {
         ClearanceType? standingClearance = aircraft.Phases?.LandingClearance;
         string? standingClearedRunwayId = aircraft.Phases?.ClearedRunwayId;
@@ -5024,7 +5069,7 @@ public static class CommandDispatcher
             existing.Clear(BuildMinimalContext(aircraft, groundLayout: null));
         }
 
-        var pursuit = new VfrFollowPhase(target, patternReturn);
+        var pursuit = new VfrFollowPhase(target, patternReturn) { ClimbOutGate = climbOutGate };
         aircraft.Phases = new PhaseList { LandingClearance = standingClearance, ClearedRunwayId = standingClearedRunwayId };
         aircraft.Phases.Phases.Add(pursuit);
         aircraft.Phases.Start(BuildMinimalContext(aircraft, groundLayout: null));

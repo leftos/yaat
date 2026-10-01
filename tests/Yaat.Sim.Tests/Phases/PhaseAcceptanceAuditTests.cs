@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
@@ -7,6 +8,7 @@ using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Tests.Phases;
@@ -158,6 +160,26 @@ public class PhaseAcceptanceAuditTests
     public void TakeoffPhase_GroundRoll_FollowRejected() =>
         Assert.True(TakeoffWith(RightClosedTraffic(), airborne: false).CanAcceptCommand(CanonicalCommandType.Follow).IsRejected);
 
+    /// <summary>
+    /// The pursuit a climb holds pending for a lead with no runway survives the phase snapshot while armed, and a null field —
+    /// what an absent field in an older snapshot deserializes to — reads as not armed: the clean default, needing no migration.
+    /// </summary>
+    [Fact]
+    public void TakeoffPhase_PendingRunwaylessPursuit_RoundTrips()
+    {
+        TakeoffPhase phase = TakeoffWith(RightClosedTraffic(), airborne: true);
+        Assert.False(phase.PursuesRunwaylessLeadAfterClimb);
+
+        TakeoffPhaseDto unarmed = Assert.IsType<TakeoffPhaseDto>(phase.ToSnapshot());
+        Assert.Null(unarmed.PursuesRunwaylessLeadAfterClimb);
+        Assert.False(TakeoffPhase.FromSnapshot(unarmed).PursuesRunwaylessLeadAfterClimb);
+
+        phase.PursuesRunwaylessLeadAfterClimb = true;
+        TakeoffPhaseDto armed = Assert.IsType<TakeoffPhaseDto>(phase.ToSnapshot());
+        Assert.True(armed.PursuesRunwaylessLeadAfterClimb);
+        Assert.True(TakeoffPhase.FromSnapshot(armed).PursuesRunwaylessLeadAfterClimb);
+    }
+
     [Theory]
     [MemberData(nameof(AdditiveAirborneFamily))]
     public void GoAroundPhase_AdditiveCommands_Allowed(CanonicalCommandType cmd)
@@ -175,6 +197,39 @@ public class PhaseAcceptanceAuditTests
     [InlineData(false)]
     public void GoAroundPhase_Follow_Allowed(bool reenterPattern) =>
         Assert.Equal(CommandAcceptance.Allowed, new GoAroundPhase { ReenterPattern = reenterPattern }.CanAcceptCommand(CanonicalCommandType.Follow));
+
+    /// <inheritdoc cref="TakeoffPhase_PendingRunwaylessPursuit_RoundTrips"/>
+    [Fact]
+    public void GoAroundPhase_PendingRunwaylessPursuit_RoundTrips()
+    {
+        var phase = new GoAroundPhase { ReenterPattern = true };
+        Assert.False(phase.PursuesRunwaylessLeadAfterClimb);
+
+        GoAroundPhaseDto unarmed = Assert.IsType<GoAroundPhaseDto>(phase.ToSnapshot());
+        Assert.Null(unarmed.PursuesRunwaylessLeadAfterClimb);
+        Assert.False(GoAroundPhase.FromSnapshot(unarmed).PursuesRunwaylessLeadAfterClimb);
+
+        phase.PursuesRunwaylessLeadAfterClimb = true;
+        GoAroundPhaseDto armed = Assert.IsType<GoAroundPhaseDto>(phase.ToSnapshot());
+        Assert.True(armed.PursuesRunwaylessLeadAfterClimb);
+        Assert.True(GoAroundPhase.FromSnapshot(armed).PursuesRunwaylessLeadAfterClimb);
+    }
+
+    /// <summary>
+    /// A pursuit snapshot written before the departure-leg hold existed carries no gate key at all: it must deserialize with no
+    /// hold, so an older recording's pursuit flies exactly as it always did.
+    /// </summary>
+    [Fact]
+    public void VfrFollowPhaseDto_WithoutClimbOutGateKey_ReadsAsNoHold()
+    {
+        const string json = """{"Status":1,"ElapsedSeconds":2,"TargetCallsign":"LEAD123"}""";
+
+        VfrFollowPhaseDto? dto = JsonSerializer.Deserialize<VfrFollowPhaseDto>(json, RecordingJsonOptions.Default);
+
+        Assert.NotNull(dto);
+        Assert.Null(dto.ClimbOutGate);
+        Assert.Null(VfrFollowPhase.FromSnapshot(dto).ClimbOutGate);
+    }
 
     [Theory]
     [MemberData(nameof(AdditiveAirborneFamily))]

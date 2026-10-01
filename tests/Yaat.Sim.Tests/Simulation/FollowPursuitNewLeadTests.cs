@@ -90,7 +90,8 @@ public class FollowPursuitNewLeadTests(ITestOutputHelper output)
         CommandDispatcher.InstallVfrFollowPhase(
             follower,
             target,
-            new FollowPatternReturn(rwy, PatternDirection.Right, PatternAltitudeFt(rwy), fromBase)
+            new FollowPatternReturn(rwy, PatternDirection.Right, PatternAltitudeFt(rwy), fromBase),
+            climbOutGate: null
         );
         Assert.Equal(target, follower.Approach.FollowingCallsign);
         return follower;
@@ -106,7 +107,8 @@ public class FollowPursuitNewLeadTests(ITestOutputHelper output)
         CommandDispatcher.InstallVfrFollowPhase(
             follower,
             target,
-            new FollowPatternReturn(rwy, PatternDirection.Right, PatternAltitudeFt(rwy), false)
+            new FollowPatternReturn(rwy, PatternDirection.Right, PatternAltitudeFt(rwy), false),
+            climbOutGate: null
         );
         return follower;
     }

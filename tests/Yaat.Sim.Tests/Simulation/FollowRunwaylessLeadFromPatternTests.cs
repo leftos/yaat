@@ -1083,7 +1083,8 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
         CommandDispatcher.InstallVfrFollowPhase(
             follower,
             target,
-            new FollowPatternReturn(rwy, PatternDirection.Right, rwy.ElevationFt + 1000, false)
+            new FollowPatternReturn(rwy, PatternDirection.Right, rwy.ElevationFt + 1000, false),
+            climbOutGate: null
         );
         return follower;
     }
@@ -1612,7 +1613,7 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
         AircraftState follower = MakeVfr(Follower, position, heading, 1000);
         follower.Approach.HasReportedTrafficInSight = true;
         engine.World.AddAircraft(follower);
-        CommandDispatcher.InstallVfrFollowPhase(follower, Leader, patternReturn: null);
+        CommandDispatcher.InstallVfrFollowPhase(follower, Leader, patternReturn: null, climbOutGate: null);
         Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
         return follower;
     }
@@ -2245,7 +2246,12 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
         AircraftState follower = MakeVfr(Follower, OffFinal(rwy, 4.0, -0.4), rwy.TrueHeading, 1500);
         follower.Approach.HasReportedTrafficInSight = true;
         engine.World.AddAircraft(follower);
-        CommandDispatcher.InstallVfrFollowPhase(follower, Leader, new FollowPatternReturn(rwy, PatternDirection.Right, 1009, FromBase: false));
+        CommandDispatcher.InstallVfrFollowPhase(
+            follower,
+            Leader,
+            new FollowPatternReturn(rwy, PatternDirection.Right, 1009, FromBase: false),
+            climbOutGate: null
+        );
 
         TickSeconds(engine, 1);
 

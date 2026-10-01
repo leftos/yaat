@@ -229,6 +229,12 @@ A scenario-scripted deferred command that would end an active pushback, or that 
 **Free pursuit**:
 A VFR follower trailing its lead along the lead's recorded ground path in `VfrFollowPhase`, rather than flying a pattern leg (docs/approach-and-pattern-geometry.md).
 
+**Pending pursuit**:
+A free pursuit armed on a go-around or closed-traffic climb whose follower accepted FOLLOW of a lead with no runway; it starts when the climb hands over to the upwind, and a cancelled follow disarms it (docs/approach-and-pattern-geometry.md).
+
+**Climb-out gate**:
+The hold on a pursuit that starts on the departure leg: runway heading and climb until past the departure end and at or above TPA − 300, the upwind's own crosswind-turn rule (docs/approach-and-pattern-geometry.md).
+
 **Excursion (S-turn)**:
 A pursuing follower's shallow turn 30° or 45° off the lead's track, to the pattern's outside, to lengthen a gap that is short; capped at an offset from the lead's track (docs/approach-and-pattern-geometry.md).
 
