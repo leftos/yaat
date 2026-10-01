@@ -826,18 +826,6 @@ public partial class GroundViewModel : ObservableObject
         ApplySettings(saved);
     }
 
-    public void UpdateAircraftList(IEnumerable<AircraftModel> allAircraft)
-    {
-        GroundAircraft.Clear();
-        foreach (AircraftModel ac in allAircraft)
-        {
-            if (ac.IsOnGround)
-            {
-                GroundAircraft.Add(ac);
-            }
-        }
-    }
-
     /// <summary>
     /// Resolve the performance category the sim will use for <paramref name="ac"/>, so route
     /// previews match command execution — <see cref="Yaat.Sim.Commands.GroundCommandHandler"/>
@@ -874,17 +862,6 @@ public partial class GroundViewModel : ObservableObject
         return variants.Count > 0 ? variants[^1].Command : $"TAXI {readablePath}{(spot is not null ? $" {spot.Token}" : "")}";
     }
 
-    public int? FindNearestNodeId(LatLon position)
-    {
-        if (_domainLayout is null)
-        {
-            return null;
-        }
-
-        GroundNode? node = _domainLayout.FindNearestNode(position);
-        return node?.Id;
-    }
-
     public int? GetAircraftNearestNodeId(AircraftModel ac)
     {
         if (_domainLayout is null)
@@ -918,35 +895,6 @@ public partial class GroundViewModel : ObservableObject
     }
 
     // --- Command methods ---
-
-    public async Task TaxiToNodeAsync(string callsign, string initials, int toNodeId)
-    {
-        if (_domainLayout is null || SelectedAircraft is null)
-        {
-            return;
-        }
-
-        int? fromNodeId = GetAircraftNearestNodeId(SelectedAircraft);
-        if (fromNodeId is null)
-        {
-            return;
-        }
-
-        TaxiRoute? route = FindRouteToNode(fromNodeId.Value, toNodeId, CategoryFor(SelectedAircraft), WakeClassFor(SelectedAircraft));
-        if (route is null)
-        {
-            _log.LogWarning("No route from node {From} to {To}", fromNodeId, toNodeId);
-            return;
-        }
-
-        string taxiways = BuildTaxiCommand(route);
-        if (string.IsNullOrEmpty(taxiways))
-        {
-            return;
-        }
-
-        await _sendCommand(callsign, $"TAXI {taxiways}", initials);
-    }
 
     public async Task SendRawCommandAsync(string callsign, string initials, string command) => await _sendCommand(callsign, command, initials);
 

@@ -77,7 +77,7 @@ public static class AircraftCommandApplicability
     /// </summary>
     private static bool IsOnArrival(IMenuAircraft ac)
     {
-        string phase = ac.CurrentPhase ?? "";
+        string phase = ac.CurrentPhase;
         return IsPendingLandingPhase(phase) || (IsTransientArrivalManeuver(phase) && HasPendingLandingPhase(ac));
     }
 
@@ -163,7 +163,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        string phase = ac.CurrentPhase ?? "";
+        string phase = ac.CurrentPhase;
         return phase.StartsWith("Holding Short", StringComparison.Ordinal) || (phase == "Taxiing" && !string.IsNullOrEmpty(ac.AssignedRunway));
     }
 
@@ -179,7 +179,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        string phase = ac.CurrentPhase ?? "";
+        string phase = ac.CurrentPhase;
         return phase is "LinedUpAndWaiting" or "LiningUp" or "Takeoff"
             || phase.StartsWith("Holding Short", StringComparison.Ordinal)
             || (phase == "Taxiing" && !string.IsNullOrEmpty(ac.AssignedRunway));
@@ -201,7 +201,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        string phase = ac.CurrentPhase ?? "";
+        string phase = ac.CurrentPhase;
         return phase is "LinedUpAndWaiting" or "LiningUp" or "Takeoff";
     }
 
@@ -219,7 +219,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        return IsOnArrival(ac) || ac.HasQueuedPatternEntry || (ac.CurrentPhase ?? "") == "GoAround";
+        return IsOnArrival(ac) || ac.HasQueuedPatternEntry || (ac.CurrentPhase == "GoAround");
     }
 
     /// <summary>
@@ -241,7 +241,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        string phase = ac.CurrentPhase ?? "";
+        string phase = ac.CurrentPhase;
         return IsOnArrival(ac) || phase is "TouchAndGo" or "StopAndGo" or "LowApproach";
     }
 
@@ -263,7 +263,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        string phase = ac.CurrentPhase ?? "";
+        string phase = ac.CurrentPhase;
         return phase is "Landing" or "Runway Exit";
     }
 
@@ -285,7 +285,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        return (ac.CurrentPhase ?? "") is "At Parking" or "Holding After Pushback";
+        return ac.CurrentPhase is "At Parking" or "Holding After Pushback";
     }
 
     /// <summary>
@@ -302,7 +302,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        string phase = ac.CurrentPhase ?? "";
+        string phase = ac.CurrentPhase;
         return phase is "Pushback" or "Taxiing" || phase.StartsWith("Following", StringComparison.Ordinal);
     }
 
@@ -322,7 +322,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        return ((ac.CurrentPhase ?? "") is "Holding After Exit" or "Holding After Pushback" or "Holding In Position") && ac.IsHeld;
+        return (ac.CurrentPhase is "Holding After Exit" or "Holding After Pushback" or "Holding In Position") && ac.IsHeld;
     }
 
     /// <summary>
@@ -331,7 +331,7 @@ public static class AircraftCommandApplicability
     /// <see cref="IsControllable"/> guard keeps surface live-traffic shadows out, as in <see cref="CanPushBack"/>.
     /// </summary>
     public static bool CanResumeFromHoldShort(IMenuAircraft? ac) =>
-        IsControllable(ac) && (ac.CurrentPhase ?? "").StartsWith("Holding Short", StringComparison.Ordinal) && ac.HasActiveTaxiRoute;
+        IsControllable(ac) && (ac.CurrentPhase.StartsWith("Holding Short", StringComparison.Ordinal)) && ac.HasActiveTaxiRoute;
 
     /// <summary>
     /// Cross the runway (<c>CROSS</c>) an aircraft is holding short of: the runway comes from the hold-short phase,
@@ -345,7 +345,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        string phase = ac.CurrentPhase ?? "";
+        string phase = ac.CurrentPhase;
         return phase.StartsWith("Holding Short", StringComparison.Ordinal) && HoldShortMenuHelper.HeldRunway(phase, ac) is not null;
     }
 
@@ -360,7 +360,7 @@ public static class AircraftCommandApplicability
     /// of two mutually stopped aircraft can push through — offered while taxiing. The <see cref="IsControllable"/>
     /// guard keeps surface live-traffic shadows out, as in <see cref="CanPushBack"/>.
     /// </summary>
-    public static bool CanBreakConflict(IMenuAircraft? ac) => IsControllable(ac) && (ac.CurrentPhase ?? "") == "Taxiing";
+    public static bool CanBreakConflict(IMenuAircraft? ac) => IsControllable(ac) && (ac.CurrentPhase == "Taxiing");
 
     /// <summary>
     /// Hold short of a point on the taxi route (<c>HS</c>) — offered while taxiing, the phase whose route names the
@@ -368,7 +368,7 @@ public static class AircraftCommandApplicability
     /// different questions and may part. The <see cref="IsControllable"/> guard keeps surface live-traffic shadows
     /// out, as in <see cref="CanPushBack"/>.
     /// </summary>
-    public static bool CanHoldShort(IMenuAircraft? ac) => IsControllable(ac) && (ac.CurrentPhase ?? "") == "Taxiing";
+    public static bool CanHoldShort(IMenuAircraft? ac) => IsControllable(ac) && (ac.CurrentPhase == "Taxiing");
 
     /// <summary>
     /// Follow another ground aircraft (<c>FOLLOWG</c>) — offered at parking (start up and trail), while taxiing and in
@@ -383,7 +383,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        return (ac.CurrentPhase ?? "") is "At Parking" or "Taxiing" or "Holding In Position" or "Holding After Exit" or "Holding After Pushback";
+        return ac.CurrentPhase is "At Parking" or "Taxiing" or "Holding In Position" or "Holding After Exit" or "Holding After Pushback";
     }
 
     /// <summary>
@@ -399,7 +399,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        string phase = ac.CurrentPhase ?? "";
+        string phase = ac.CurrentPhase;
         return (phase is "Taxiing" or "Holding In Position")
             || ((phase is "Holding After Exit" or "Holding After Pushback") && ac.HasActiveTaxiRoute);
     }
@@ -422,7 +422,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        string phase = ac.CurrentPhase ?? "";
+        string phase = ac.CurrentPhase;
         return phase is "At Parking" or "Pushback" or "Taxiing" or "Holding After Exit" or "Holding After Pushback" or "Holding In Position"
             || phase.StartsWith("Holding Short", StringComparison.Ordinal)
             || phase.StartsWith("Following", StringComparison.Ordinal);
@@ -442,7 +442,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        string phase = ac.CurrentPhase ?? "";
+        string phase = ac.CurrentPhase;
         return string.IsNullOrEmpty(phase) || IsPendingLandingPhase(phase) || IsHoldingPhase(phase);
     }
 

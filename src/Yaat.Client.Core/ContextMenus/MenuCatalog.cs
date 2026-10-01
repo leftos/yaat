@@ -513,7 +513,7 @@ public static class MenuCatalog
             return false;
         }
 
-        string phase = aircraft.CurrentPhase ?? "";
+        string phase = aircraft.CurrentPhase;
         bool departing = (phase is "Taxiing" or "LinedUpAndWaiting") || (phase.StartsWith("Holding Short", StringComparison.Ordinal));
         return departing && !string.IsNullOrEmpty(GroundTakeoffRunway(aircraft));
     }
@@ -523,7 +523,7 @@ public static class MenuCatalog
 
     /// <summary>The ground view's Cancel takeoff clearance gate: lined up and waiting or rolling, never while lining up.</summary>
     private static bool CanGroundCancelTakeoff(IMenuAircraft? aircraft) =>
-        AircraftCommandApplicability.IsControllable(aircraft) && ((aircraft.CurrentPhase ?? "") is "LinedUpAndWaiting" or "Takeoff");
+        AircraftCommandApplicability.IsControllable(aircraft) && (aircraft.CurrentPhase is "LinedUpAndWaiting" or "Takeoff");
 
     /// <summary>
     /// The aircraft list's Resume taxi gate: a hold-short whose clearance RES satisfies, or a stationary hold with a

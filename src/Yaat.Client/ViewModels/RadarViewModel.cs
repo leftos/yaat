@@ -1297,9 +1297,6 @@ public partial class RadarViewModel(
 
     public async Task AppendDirectToAsync(string callsign, string initials, string fix) => await _sendCommand(callsign, $"ADCT {fix}", initials);
 
-    public async Task AppendForceDirectToAsync(string callsign, string initials, string fix) =>
-        await _sendCommand(callsign, $"ADCTF {fix}", initials);
-
     public async Task AcceptHandoffAsync(string callsign, string initials) => await _sendCommand(callsign, "ACCEPT", initials);
 
     public async Task SendRawCommandAsync(string callsign, string initials, string command) => await _sendCommand(callsign, command, initials);
