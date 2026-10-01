@@ -1,6 +1,8 @@
 # Normalize all text files to LF in the repo and on checkout (matches CSharpier).
 # Binary files are auto-detected; the rule below also pins the test bundles.
 * text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
 
 # Recording test bundles are committed as regular Git objects (not Git LFS).
 # Mark them binary so they are never EOL-normalized or shown as text diffs.

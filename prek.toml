@@ -6,6 +6,7 @@
 repo = "builtin"
 hooks = [
     { id = "check-merge-conflict" },
+    { id = "mixed-line-ending", args = ["--fix=lf"], exclude = '\.(bat|cmd)$' },
     { id = "detect-private-key", exclude = "tools/discord-bot/" },
     # 20 MB ceiling: the recording test bundles (tests/Yaat.Sim.Tests/TestData/*.zip) are
     # committed as regular Git objects (not Git LFS) and the largest snapshot-bearing
