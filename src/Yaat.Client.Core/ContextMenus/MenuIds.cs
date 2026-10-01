@@ -201,4 +201,70 @@ public static class MenuIds
 
     /// <summary>Hold at a fix, right turns (<c>HFIXR</c>).</summary>
     public const string HoldFixRight = "hold.fix-right";
+
+    /// <summary>Clear the aircraft for an approach (<c>CAPP</c>).</summary>
+    public const string ApproachCleared = "approach.cleared";
+
+    /// <summary>Join an approach (<c>JAPP</c>).</summary>
+    public const string ApproachJoin = "approach.join";
+
+    /// <summary>Clear the aircraft for a straight-in approach (<c>CAPPSI</c>).</summary>
+    public const string ApproachClearedStraightIn = "approach.cleared-straight-in";
+
+    /// <summary>Join an approach straight in (<c>JAPPSI</c>).</summary>
+    public const string ApproachJoinStraightIn = "approach.join-straight-in";
+
+    /// <summary>Clear the aircraft for an approach, skipping the intercept checks (<c>CAPPF</c>).</summary>
+    public const string ApproachClearedForce = "approach.cleared-force";
+
+    /// <summary>Join an approach, skipping the intercept checks (<c>JAPPF</c>).</summary>
+    public const string ApproachJoinForce = "approach.join-force";
+
+    /// <summary>Join an approach's final approach course (<c>JFAC</c>).</summary>
+    public const string ApproachJoinFinalCourse = "approach.join-final-course";
+
+    /// <summary>Tell the pilot to expect an approach (<c>EAPP</c>).</summary>
+    public const string ApproachExpect = "approach.expect";
+
+    /// <summary>Clear the aircraft for a visual approach to a runway (<c>CVA</c>).</summary>
+    public const string ApproachClearedVisual = "approach.cleared-visual";
+
+    /// <summary>Ask the pilot to report the field in sight (<c>RFIS</c>).</summary>
+    public const string ApproachReportFieldInSight = "approach.report-field-in-sight";
+
+    /// <summary>Ask the pilot to report traffic in sight, optionally naming the target (<c>RTIS</c>).</summary>
+    public const string ApproachReportTrafficInSight = "approach.report-traffic-in-sight";
+
+    /// <summary>Ask the pilot to report turning base (<c>REPORT BASE</c>).</summary>
+    public const string ApproachReportBase = "approach.report-base";
+
+    /// <summary>Ask the pilot to report turning final (<c>REPORT FINAL</c>).</summary>
+    public const string ApproachReportFinal = "approach.report-final";
+
+    /// <summary>Ask the pilot to report turning crosswind (<c>REPORT CROSSWIND</c>).</summary>
+    public const string ApproachReportCrosswind = "approach.report-crosswind";
+
+    /// <summary>Ask the pilot to report turning downwind (<c>REPORT DOWNWIND</c>).</summary>
+    public const string ApproachReportDownwind = "approach.report-downwind";
+
+    /// <summary>Ask the pilot to report a typed distance on final (<c>REPORT {n} FINAL</c>).</summary>
+    public const string ApproachReportNMileFinal = "approach.report-n-mile-final";
+
+    /// <summary>Ask the pilot to report at a typed fix (<c>REPORT {fix}</c>).</summary>
+    public const string ApproachReportAtFix = "approach.report-at-fix";
+
+    /// <summary>Cancel the turning-base report (<c>REPORT OFF BASE</c>).</summary>
+    public const string ApproachReportOffBase = "approach.report-off-base";
+
+    /// <summary>Cancel the turning-final report (<c>REPORT OFF FINAL</c>).</summary>
+    public const string ApproachReportOffFinal = "approach.report-off-final";
+
+    /// <summary>Cancel the turning-crosswind report (<c>REPORT OFF CROSSWIND</c>).</summary>
+    public const string ApproachReportOffCrosswind = "approach.report-off-crosswind";
+
+    /// <summary>Cancel the turning-downwind report (<c>REPORT OFF DOWNWIND</c>).</summary>
+    public const string ApproachReportOffDownwind = "approach.report-off-downwind";
+
+    /// <summary>Cancel every pending report (<c>REPORT OFF</c>).</summary>
+    public const string ApproachReportOffAll = "approach.report-off-all";
 }

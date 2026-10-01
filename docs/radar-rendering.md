@@ -506,9 +506,9 @@ predicates so all three surfaces agree.
 Each phase action exposes a **one-click top-level item** resolved from aircraft state, with the scrollable submenu as the
 *override* — not the default. Promoted here from the `feedback_smart_defaults_in_menus` memory:
 
-- "Cleared visual approach `<rwy>`" resolves the runway via `TryGetSmartRunway` — `AssignedRunway`, else the runway of
-  `ActiveApproachId`, else `ExpectedApproach` (`RadarView.ContextMenus.cs:720-756`). If a smart runway exists it's the
-  top item; the picker label becomes "(other)…".
+- "Cleared visual approach `<rwy>`" resolves the runway via `MenuCatalog.SmartVisualRunway` (`Yaat.Client.Core/ContextMenus/`)
+  — `AssignedRunway`, else the runway of `ActiveApproachId`, else `ExpectedApproach`. If a smart runway exists it's the
+  top item (`approach.cleared-visual`) and `MenuCatalog.BuildClearedVisualOther` adds the "(other)…" picker under the same ID.
 - "Join STAR `<id>`" resolves via `TryGetFiledStar` by scanning the filed route for a STAR known at the destination
   (`:780-804`).
 - Single-value pickers (one filed airway, one route fix) likewise promote the lone value to a direct item and offer
@@ -523,7 +523,7 @@ of thousands of entries:
 
 - `GetRouteFixes` — CIFP fixes in the filed route plus the active DCT queue (`NavigationRoute`), deduped (`:910-946`).
 - `GetFiledAirways` — airway IDs found in the filed route (`:856-880`).
-- `GetStarIds` / `GetRunwayDesignators` — STARs / runway ends for the aircraft's destination airport (`:806-849`).
+- `GetStarIds` — STARs for the aircraft's destination airport; `RunwayDesignators.ForAirport` (`Yaat.Client.Core/ContextMenus/`) — its runway ends in display form, sorted by `RunwayDesignatorComparer`.
 
 New pickers must follow this rule (echoes the `feedback_no_global_navdata_pickers` memory). See
 [aircraft-data-model.md](aircraft-data-model.md) for the `AircraftModel` fields (`Route`, `NavigationRoute`, `Destination`,

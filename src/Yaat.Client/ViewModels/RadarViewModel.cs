@@ -1320,30 +1320,6 @@ public partial class RadarViewModel(
 
     // --- Approach ---
 
-    public async Task ClearedApproachAsync(string callsign, string initials, string id) => await _sendCommand(callsign, $"CAPP {id}", initials);
-
-    public async Task JoinApproachAsync(string callsign, string initials, string id) => await _sendCommand(callsign, $"JAPP {id}", initials);
-
-    public async Task ClearedApproachStraightInAsync(string callsign, string initials, string id) =>
-        await _sendCommand(callsign, $"CAPPSI {id}", initials);
-
-    public async Task JoinApproachStraightInAsync(string callsign, string initials, string id) =>
-        await _sendCommand(callsign, $"JAPPSI {id}", initials);
-
-    public async Task ClearedApproachForceAsync(string callsign, string initials, string id) => await _sendCommand(callsign, $"CAPPF {id}", initials);
-
-    public async Task JoinApproachForceAsync(string callsign, string initials, string id) => await _sendCommand(callsign, $"JAPPF {id}", initials);
-
-    public async Task JoinFinalApproachCourseAsync(string callsign, string initials, string id) =>
-        await _sendCommand(callsign, $"JFAC {id}", initials);
-
-    public async Task ExpectApproachAsync(string callsign, string initials, string id) => await _sendCommand(callsign, $"EAPP {id}", initials);
-
-    public async Task ClearedVisualApproachAsync(string callsign, string initials, string runway) =>
-        await _sendCommand(callsign, $"CVA {runway}", initials);
-
-    public async Task ReportFieldInSightAsync(string callsign, string initials) => await _sendCommand(callsign, "RFIS", initials);
-
     public async Task ReportTrafficInSightAsync(string callsign, string initials, string? targetCallsign)
     {
         string cmd = string.IsNullOrWhiteSpace(targetCallsign) ? "RTIS" : $"RTIS {targetCallsign}";

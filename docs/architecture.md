@@ -290,7 +290,9 @@ ContextMenus/                   # The aircraft right-click menu catalog shared b
   MenuMeasureState.cs           # Enum None/NoAnchor/HasAnchor: the host's measure tool as the Display group's measure item reads it (None = no tool, no item)
   MenuPickerDescriptor.cs       # Tag on a picker menu item: the values its list/filtered-list/input popup offers, readable without opening it (the menu goldens print it)
   MenuView.cs                   # Enum Radar/Ground/List: which surface a group is built for, until the All Commands tree is unified
-  SharedMenuGroups.cs           # Static: the live traffic, track, squawk, ask pilot, coordination, data block, sim control, display and favorites groups, plus the Delete and Edit flight plan leaves each view places itself, built from catalog entries in each view's current order and texts
+  RunwayDesignatorComparer.cs   # Orders runway designators by number then L/C/R (the runway flyout and the menu runway pickers)
+  RunwayDesignators.cs          # Static: ForAirport — an airport's runway ends in display form, sorted, for the visual-approach and pattern pickers
+  SharedMenuGroups.cs           # Static: the live traffic, track, squawk, ask pilot, coordination, data block, sim control, display, favorites, heading, altitude, speed, navigation, hold and approach (with Report when…) groups, plus the Delete and Edit flight plan leaves each view places itself, built from catalog entries in each view's current order and texts
 
 Models/
   TerminalColorScheme.cs        # Operator-tunable per-Kind terminal foreground colors (Command/Response/System/Say/PilotSpeech/Warning/Error/Chat/Tdls/Strip); defaults match the legacy hard-coded scheme

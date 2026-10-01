@@ -4,8 +4,8 @@ namespace Yaat.Client.ContextMenus;
 
 /// <summary>
 /// The groups more than one surface builds — live traffic, track, squawk, ask pilot, coordination, data block,
-/// sim control, display, favorites, and the flight groups heading, altitude, speed, navigation (with Draw route) and
-/// hold — assembled from <see cref="MenuCatalog"/> entries. Only track, squawk and ask pilot keep a
+/// sim control, display, favorites, and the flight groups heading, altitude, speed, navigation (with Draw route),
+/// hold and approach — assembled from <see cref="MenuCatalog"/> entries. Only track, squawk and ask pilot keep a
 /// <see cref="MenuView"/> variant: the radar carries input pickers (handoff, point out, squawk code, custom say) the
 /// other surfaces leave out, and sends <c>ID</c> for Ident where the others send <c>IDENT</c>. Data block, sim
 /// control, display and the flight groups are built by the radar today, so they take no view. Whether a group is
@@ -246,6 +246,66 @@ public static class SharedMenuGroups
         menu.Items.Add(Leaf(MenuIds.HoldPresentRight, aircraft, context, host));
         menu.Items.Add(Leaf(MenuIds.HoldFixLeft, aircraft, context, host));
         menu.Items.Add(Leaf(MenuIds.HoldFixRight, aircraft, context, host));
+        return menu;
+    }
+
+    /// <summary>
+    /// The Approach submenu: the approach clearances, the visual approach (with its "(other)" runway picker beside a
+    /// default runway), the in-sight requests, then the Report when… submenu. The header names the active approach,
+    /// else the expected one.
+    /// </summary>
+    public static MenuItem Approach(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        string header = aircraft switch
+        {
+            { ActiveApproachId: { Length: > 0 } active } => $"Approach ({active})",
+            { ExpectedApproach: { Length: > 0 } expected } => $"Approach (exp: {expected})",
+            _ => "Approach",
+        };
+        var menu = new MenuItem { Header = header };
+        menu.Items.Add(Leaf(MenuIds.ApproachCleared, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.ApproachJoin, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.ApproachClearedStraightIn, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.ApproachJoinStraightIn, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.ApproachClearedForce, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.ApproachJoinForce, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.ApproachJoinFinalCourse, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.ApproachExpect, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.ApproachClearedVisual, aircraft, context, host));
+        if (MenuCatalog.BuildClearedVisualOther(aircraft, context, host) is { } otherRunway)
+        {
+            menu.Items.Add(otherRunway);
+        }
+
+        menu.Items.Add(new Separator());
+        menu.Items.Add(Leaf(MenuIds.ApproachReportFieldInSight, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.ApproachReportTrafficInSight, aircraft, context, host));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(ReportWhen(aircraft, context, host));
+        return menu;
+    }
+
+    /// <summary>The Report when… submenu: the turn and position reports, then the Stop reporting submenu.</summary>
+    private static MenuItem ReportWhen(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        var menu = new MenuItem { Header = "Report when…" };
+        menu.Items.Add(Leaf(MenuIds.ApproachReportBase, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.ApproachReportFinal, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.ApproachReportCrosswind, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.ApproachReportDownwind, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.ApproachReportNMileFinal, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.ApproachReportAtFix, aircraft, context, host));
+
+        var stop = new MenuItem { Header = "Stop reporting" };
+        stop.Items.Add(Leaf(MenuIds.ApproachReportOffBase, aircraft, context, host));
+        stop.Items.Add(Leaf(MenuIds.ApproachReportOffFinal, aircraft, context, host));
+        stop.Items.Add(Leaf(MenuIds.ApproachReportOffCrosswind, aircraft, context, host));
+        stop.Items.Add(Leaf(MenuIds.ApproachReportOffDownwind, aircraft, context, host));
+        stop.Items.Add(new Separator());
+        stop.Items.Add(Leaf(MenuIds.ApproachReportOffAll, aircraft, context, host));
+
+        menu.Items.Add(new Separator());
+        menu.Items.Add(stop);
         return menu;
     }
 

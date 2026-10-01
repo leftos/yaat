@@ -5,6 +5,7 @@ using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Testing;
 using CatalogMenuView = Yaat.Client.ContextMenus.MenuView;
 
@@ -22,6 +23,13 @@ public class MenuCatalogCommandTests
     private const string SayText = "say again";
     private const string BlockText = "gate 25";
     private const string Fix = "SUNOL";
+    private const string ApproachId = "I28R";
+
+    /// <summary>An airport the navigation data has approaches (among them <see cref="ApproachId"/>) and runways for.</summary>
+    private const string ApproachAirport = "KOAK";
+
+    /// <summary>An airport the navigation data has neither approaches nor runways for.</summary>
+    private const string UnknownAirport = "ZZZZ";
 
     /// <summary>
     /// Every catalog entry but the host-built ones (see <see cref="HostBuiltIds"/>): its id, the text an input or
@@ -80,6 +88,28 @@ public class MenuCatalogCommandTests
         (MenuIds.HoldPresentRight, "", "HPPR"),
         (MenuIds.HoldFixLeft, Fix, "HFIXL SUNOL"),
         (MenuIds.HoldFixRight, Fix, "HFIXR SUNOL"),
+        (MenuIds.ApproachCleared, ApproachId, "CAPP I28R"),
+        (MenuIds.ApproachJoin, ApproachId, "JAPP I28R"),
+        (MenuIds.ApproachClearedStraightIn, ApproachId, "CAPPSI I28R"),
+        (MenuIds.ApproachJoinStraightIn, ApproachId, "JAPPSI I28R"),
+        (MenuIds.ApproachClearedForce, ApproachId, "CAPPF I28R"),
+        (MenuIds.ApproachJoinForce, ApproachId, "JAPPF I28R"),
+        (MenuIds.ApproachJoinFinalCourse, ApproachId, "JFAC I28R"),
+        (MenuIds.ApproachExpect, ApproachId, "EAPP I28R"),
+        (MenuIds.ApproachClearedVisual, "28R", "CVA 28R"),
+        (MenuIds.ApproachReportFieldInSight, "", "RFIS"),
+        (MenuIds.ApproachReportTrafficInSight, "AAL12", "RTIS AAL12"),
+        (MenuIds.ApproachReportBase, "", "REPORT BASE"),
+        (MenuIds.ApproachReportFinal, "", "REPORT FINAL"),
+        (MenuIds.ApproachReportCrosswind, "", "REPORT CROSSWIND"),
+        (MenuIds.ApproachReportDownwind, "", "REPORT DOWNWIND"),
+        (MenuIds.ApproachReportNMileFinal, "5", "REPORT 5 FINAL"),
+        (MenuIds.ApproachReportAtFix, Fix, "REPORT SUNOL"),
+        (MenuIds.ApproachReportOffBase, "", "REPORT OFF BASE"),
+        (MenuIds.ApproachReportOffFinal, "", "REPORT OFF FINAL"),
+        (MenuIds.ApproachReportOffCrosswind, "", "REPORT OFF CROSSWIND"),
+        (MenuIds.ApproachReportOffDownwind, "", "REPORT OFF DOWNWIND"),
+        (MenuIds.ApproachReportOffAll, "", "REPORT OFF"),
     ];
 
     /// <summary>
@@ -635,6 +665,182 @@ public class MenuCatalogCommandTests
         Assert.Empty(host.Sent);
     }
 
+    [AvaloniaFact]
+    public void Approach_DestinationWithNoApproaches_UsesInputTier()
+    {
+        TestVnasData.EnsureInitialized();
+        Assert.Empty(NavigationDatabase.Instance.GetApproaches(UnknownAirport));
+        var host = new RecordingMenuHost(ApproachId);
+        var aircraft = new FakeMenuAircraft { Destination = UnknownAirport };
+
+        Click(
+            AssertPicker(
+                MenuCatalog.Get(MenuIds.ApproachCleared).Build(aircraft, Context(), host),
+                "Cleared approach...",
+                MenuPickerDescriptor.Input,
+                []
+            )
+        );
+
+        Assert.Equal(["Approach ID"], host.InputPlaceholders);
+        Assert.Equal([(Callsign, "CAPP I28R", Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void Approach_DestinationWithApproaches_UsesListTierSeededWithTheFirst()
+    {
+        TestVnasData.EnsureInitialized();
+        string[] ids = [.. NavigationDatabase.Instance.GetApproaches(ApproachAirport).Select(a => a.ApproachId)];
+        Assert.Contains(ApproachId, ids);
+        var host = new RecordingMenuHost(ApproachId);
+        var aircraft = new FakeMenuAircraft { Destination = ApproachAirport };
+
+        Click(
+            AssertPicker(
+                MenuCatalog.Get(MenuIds.ApproachCleared).Build(aircraft, Context(), host),
+                "Cleared approach",
+                MenuPickerDescriptor.List,
+                ids
+            )
+        );
+
+        Assert.Equal<object?>(ids[0], Assert.Single(host.ListPopups).Selected);
+        Assert.Equal([(Callsign, "CAPP I28R", Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void ClearedVisual_NoDefaultWithRunways_UsesListTier()
+    {
+        TestVnasData.EnsureInitialized();
+        string[] runways = [.. RunwayDesignators.ForAirport(ApproachAirport)];
+        Assert.Contains("28R", runways);
+        var host = new RecordingMenuHost("28R");
+        var aircraft = new FakeMenuAircraft { Destination = ApproachAirport };
+
+        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachClearedVisual).Build(aircraft, Context(), host);
+        Click(AssertPicker(item, "Cleared visual approach...", MenuPickerDescriptor.List, runways));
+
+        Assert.Equal<object?>(runways[0], Assert.Single(host.ListPopups).Selected);
+        Assert.Equal([(Callsign, "CVA 28R", Initials)], host.Sent);
+        Assert.Null(MenuCatalog.BuildClearedVisualOther(aircraft, Context(), host));
+    }
+
+    [AvaloniaFact]
+    public void ClearedVisualOther_BesideADefaultRunway_ListsTheRunwaysAndSendsCva()
+    {
+        TestVnasData.EnsureInitialized();
+        string[] runways = [.. RunwayDesignators.ForAirport(ApproachAirport)];
+        Assert.Contains("28R", runways);
+        var host = new RecordingMenuHost("28R");
+        var aircraft = new FakeMenuAircraft { Destination = ApproachAirport, AssignedRunway = "30" };
+
+        Assert.Equal("Cleared visual approach 30", MenuCatalog.Get(MenuIds.ApproachClearedVisual).Build(aircraft, Context(), host)?.Header as string);
+        MenuItem? other = MenuCatalog.BuildClearedVisualOther(aircraft, Context(), host);
+        Click(AssertPicker(other, "Cleared visual approach (other)...", MenuPickerDescriptor.List, runways));
+
+        Assert.Equal([(Callsign, "CVA 28R", Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void ReportTrafficInSight_BlankAnswer_SendsBareRtis()
+    {
+        var host = new RecordingMenuHost("");
+        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, Context(), host);
+
+        Click(AssertPicker(item, "Report traffic in sight...", MenuPickerDescriptor.Input, []));
+
+        Assert.Equal(["Target callsign (optional)"], host.InputPlaceholders);
+        Assert.Equal([(Callsign, "RTIS", Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void Approach_Header_ShowsActiveThenExpected()
+    {
+        var host = new RecordingMenuHost("");
+
+        Assert.Equal("Approach", SharedMenuGroups.Approach(new FakeMenuAircraft(), Context(), host).Header as string);
+        Assert.Equal(
+            "Approach (exp: I28R)",
+            SharedMenuGroups.Approach(new FakeMenuAircraft { ExpectedApproach = ApproachId }, Context(), host).Header as string
+        );
+        Assert.Equal(
+            "Approach (I30)",
+            SharedMenuGroups.Approach(new FakeMenuAircraft { ActiveApproachId = "I30", ExpectedApproach = ApproachId }, Context(), host).Header
+                as string
+        );
+    }
+
+    [AvaloniaFact]
+    public void ClearedVisual_NoDefaultNoRunways_UsesInputTier()
+    {
+        TestVnasData.EnsureInitialized();
+        Assert.Empty(NavigationDatabase.Instance.GetRunways(UnknownAirport));
+        var host = new RecordingMenuHost("28R");
+        var aircraft = new FakeMenuAircraft { Destination = UnknownAirport };
+
+        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachClearedVisual).Build(aircraft, Context(), host);
+        Click(AssertPicker(item, "Cleared visual approach...", MenuPickerDescriptor.Input, []));
+
+        Assert.Equal(["Runway (e.g. 28R)"], host.InputPlaceholders);
+        Assert.Equal([(Callsign, "CVA 28R", Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void ClearedVisual_DefaultFromAssignedRunway_LabelsAndSendsCva()
+    {
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft { AssignedRunway = "09L" };
+
+        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachClearedVisual).Build(aircraft, Context(), host);
+        Assert.NotNull(item);
+        Assert.Equal("Cleared visual approach 9L", item.Header as string);
+        Assert.Null(item.Tag);
+        Click(item);
+
+        Assert.Equal([(Callsign, "CVA 09L", Initials)], host.Sent);
+        Assert.Null(MenuCatalog.BuildClearedVisualOther(aircraft, Context(), host));
+    }
+
+    [AvaloniaFact]
+    public void ReportWhen_LeavesSendTheirCommands()
+    {
+        var host = new RecordingMenuHost("5");
+        MenuItem reportWhen = Assert.Single(
+            SharedMenuGroups.Approach(null, Context(), host).Items.OfType<MenuItem>(),
+            i => (i.Header as string) == "Report when…"
+        );
+        MenuItem stop = Assert.IsType<MenuItem>(reportWhen.Items[^1]);
+
+        Assert.Equal(
+            ["Turning base", "Turning final", "Turning crosswind", "Turning downwind", "N-mile final...", "At fix...", "---", "Stop reporting"],
+            reportWhen.Items.Select(Describe)
+        );
+        Assert.Equal(["Base", "Final", "Crosswind", "Downwind", "---", "All reports"], stop.Items.Select(Describe));
+
+        foreach (MenuItem item in reportWhen.Items.OfType<MenuItem>().Where(i => i != stop).Concat(stop.Items.OfType<MenuItem>()))
+        {
+            Click(item);
+        }
+
+        Assert.Equal(["Distance (NM)", "Fix name"], host.InputPlaceholders);
+        Assert.Equal(
+            [
+                "REPORT BASE",
+                "REPORT FINAL",
+                "REPORT CROSSWIND",
+                "REPORT DOWNWIND",
+                "REPORT 5 FINAL",
+                "REPORT 5",
+                "REPORT OFF BASE",
+                "REPORT OFF FINAL",
+                "REPORT OFF CROSSWIND",
+                "REPORT OFF DOWNWIND",
+                "REPORT OFF",
+            ],
+            host.Sent.Select(s => s.Command)
+        );
+    }
+
     /// <summary>Asserts a picker item's header and the descriptor the menu walker prints for it, and returns the item.</summary>
     private static MenuItem AssertPicker(MenuItem? item, string header, string kind, string[] texts)
     {
@@ -712,7 +918,13 @@ public class MenuCatalogCommandTests
             return Task.CompletedTask;
         }
 
-        public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) => _ = onSubmit(input);
+        public List<string> InputPlaceholders { get; } = [];
+
+        public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit)
+        {
+            InputPlaceholders.Add(placeholder);
+            _ = onSubmit(input);
+        }
 
         public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick)
         {
@@ -786,7 +998,7 @@ public class MenuCatalogCommandTests
 
         public string CurrentPhase => "";
 
-        public string AssignedRunway => "";
+        public string AssignedRunway { get; init; } = "";
 
         public string PhaseSequence => "";
 

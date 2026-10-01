@@ -1,6 +1,9 @@
 using System.Globalization;
 using Avalonia.Controls;
 using Yaat.Sim;
+using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Client.ContextMenus;
 
@@ -8,7 +11,7 @@ namespace Yaat.Client.ContextMenus;
 /// Every context-menu action the catalog knows, one <see cref="MenuCatalogEntry"/> per <see cref="MenuIds"/>
 /// identifier. A leaf's builder sends its command text through <see cref="IMenuHost.SendAsync"/>; an input leaf
 /// opens the host's input popup and formats the submitted text into the command; a list or filtered-list picker opens
-/// the host's list popup over values the catalog computes (headings, altitudes, speeds, fixes) and formats the pick
+/// the host's list popup over values the catalog computes (headings, altitudes, speeds, fixes, approaches, runways) and formats the pick
 /// into the command, choosing its form from the data present when the menu is built; a host leaf asks the host for the
 /// item itself, for the entries that open a host surface or read the surface's own state — the warp popup, the
 /// flight-plan editor, the data-block toggle and reset, the nav route, the measure item and route drawing; and a value submenu
@@ -101,7 +104,32 @@ public static class MenuCatalog
         Leaf(MenuIds.HoldPresentRight, "Hold present position (right)", "HPPR", Always),
         FixPicker(MenuIds.HoldFixLeft, "Hold at fix (left)...", "HFIXL", Always, NoRouteFixes),
         FixPicker(MenuIds.HoldFixRight, "Hold at fix (right)...", "HFIXR", Always, NoRouteFixes),
+        ApproachPicker(MenuIds.ApproachCleared, "Cleared approach", "CAPP"),
+        ApproachPicker(MenuIds.ApproachJoin, "Join approach", "JAPP"),
+        ApproachPicker(MenuIds.ApproachClearedStraightIn, "Cleared straight-in", "CAPPSI"),
+        ApproachPicker(MenuIds.ApproachJoinStraightIn, "Join straight-in", "JAPPSI"),
+        ApproachPicker(MenuIds.ApproachClearedForce, "Cleared approach (force)", "CAPPF"),
+        ApproachPicker(MenuIds.ApproachJoinForce, "Join approach (force)", "JAPPF"),
+        ApproachPicker(MenuIds.ApproachJoinFinalCourse, "Join final approach course", "JFAC"),
+        ApproachPicker(MenuIds.ApproachExpect, "Expect approach", "EAPP"),
+        Picker(MenuIds.ApproachClearedVisual, ClearedVisualLabel, BuildClearedVisual),
+        Leaf(MenuIds.ApproachReportFieldInSight, "Report field in sight", "RFIS", Always),
+        InputLeaf(MenuIds.ApproachReportTrafficInSight, "Report traffic in sight...", "Target callsign (optional)", FormatTrafficInSight),
+        Leaf(MenuIds.ApproachReportBase, "Turning base", "REPORT BASE", Always),
+        Leaf(MenuIds.ApproachReportFinal, "Turning final", "REPORT FINAL", Always),
+        Leaf(MenuIds.ApproachReportCrosswind, "Turning crosswind", "REPORT CROSSWIND", Always),
+        Leaf(MenuIds.ApproachReportDownwind, "Turning downwind", "REPORT DOWNWIND", Always),
+        InputLeaf(MenuIds.ApproachReportNMileFinal, "N-mile final...", "Distance (NM)", input => $"REPORT {input} FINAL"),
+        InputLeaf(MenuIds.ApproachReportAtFix, "At fix...", "Fix name", input => $"REPORT {input}"),
+        Leaf(MenuIds.ApproachReportOffBase, "Base", "REPORT OFF BASE", Always),
+        Leaf(MenuIds.ApproachReportOffFinal, "Final", "REPORT OFF FINAL", Always),
+        Leaf(MenuIds.ApproachReportOffCrosswind, "Crosswind", "REPORT OFF CROSSWIND", Always),
+        Leaf(MenuIds.ApproachReportOffDownwind, "Downwind", "REPORT OFF DOWNWIND", Always),
+        Leaf(MenuIds.ApproachReportOffAll, "All reports", "REPORT OFF", Always),
     ];
+
+    /// <summary>The visual-approach entry's label, which its smart-default leaf and its "(other)" companion extend.</summary>
+    private const string ClearedVisualLabel = "Cleared visual approach";
 
     /// <summary>The headings the heading pickers list, 005 to 360 in fives.</summary>
     private const int HeadingStep = 5;
@@ -574,6 +602,111 @@ public static class MenuCatalog
         item.Click += (_, _) => host.EnterDrawRoute(context.Callsign);
         return item;
     }
+
+    /// <summary>An approach picker that sends <paramref name="command"/> with the picked or typed approach id.</summary>
+    private static MenuCatalogEntry ApproachPicker(string id, string label, string command) =>
+        new(id, label, MenuFlightRules.Both, Always, (ac, context, host) => BuildApproachPicker(label, command, ac, context, host));
+
+    /// <summary>
+    /// The approach picker's form, by the data present when the menu is built: a list of the destination's approaches
+    /// with the first highlighted, else free text under the label with an ellipsis.
+    /// </summary>
+    private static MenuItem BuildApproachPicker(string label, string command, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        List<object> ids = [.. DestinationApproaches(aircraft).Select(approach => (object)approach.ApproachId)];
+        if (ids.Count > 0)
+        {
+            return BuildList(label, ids, ids[0], picked => Send($"{command} {picked}", context, host), host);
+        }
+
+        return BuildInput($"{label}{Ellipsis}", "Approach ID", input => $"{command} {input}", context, host);
+    }
+
+    /// <summary>The destination's published approaches; none without an aircraft or a destination.</summary>
+    private static IReadOnlyList<CifpApproachProcedure> DestinationApproaches(IMenuAircraft? aircraft) =>
+        aircraft is { Destination.Length: > 0 } ? NavigationDatabase.Instance.GetApproaches(aircraft.Destination) : [];
+
+    /// <summary>The destination's runway designators, which the visual-approach picker lists; none without a destination.</summary>
+    private static IReadOnlyList<string> DestinationRunways(IMenuAircraft? aircraft) =>
+        aircraft is { Destination.Length: > 0 } ? RunwayDesignators.ForAirport(aircraft.Destination) : [];
+
+    /// <summary>
+    /// The runway a visual approach defaults to: the assigned runway, else the runway of the active approach, else
+    /// that of the expected one, looked up among the destination's approaches; null when none applies.
+    /// </summary>
+    private static string? SmartVisualRunway(IMenuAircraft? aircraft)
+    {
+        if (aircraft is null)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrEmpty(aircraft.AssignedRunway))
+        {
+            return aircraft.AssignedRunway;
+        }
+
+        IReadOnlyList<CifpApproachProcedure> approaches = DestinationApproaches(aircraft);
+        return ApproachRunway(approaches, aircraft.ActiveApproachId) ?? ApproachRunway(approaches, aircraft.ExpectedApproach);
+    }
+
+    /// <summary>The runway of the approach named <paramref name="approachId"/> among <paramref name="approaches"/>; null when none.</summary>
+    private static string? ApproachRunway(IReadOnlyList<CifpApproachProcedure> approaches, string? approachId)
+    {
+        if (string.IsNullOrEmpty(approachId))
+        {
+            return null;
+        }
+
+        string? runway = approaches.FirstOrDefault(a => string.Equals(a.ApproachId, approachId, StringComparison.OrdinalIgnoreCase))?.Runway;
+        return string.IsNullOrEmpty(runway) ? null : runway;
+    }
+
+    /// <summary>
+    /// The visual-approach item: with a default runway (<see cref="SmartVisualRunway"/>) a leaf naming it that sends
+    /// <c>CVA</c> for it; otherwise a picker over the destination's runways, or free text when it has none.
+    /// <see cref="BuildClearedVisualOther"/> offers the other runways beside a default.
+    /// </summary>
+    private static MenuItem BuildClearedVisual(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        if (SmartVisualRunway(aircraft) is { } runway)
+        {
+            return BuildSend($"{label} {RunwayIdentifier.ToDisplayDesignator(runway)}", $"CVA {runway}", context, host);
+        }
+
+        IReadOnlyList<string> runways = DestinationRunways(aircraft);
+        if (runways.Count > 0)
+        {
+            return BuildVisualRunwayList($"{label}{Ellipsis}", runways, context, host);
+        }
+
+        return BuildInput($"{label}{Ellipsis}", "Runway (e.g. 28R)", input => $"CVA {input}", context, host);
+    }
+
+    /// <summary>
+    /// The visual-approach item's companion, which shares its id: a picker over the destination's runways labelled
+    /// "(other)", offered beside a default runway; null without a default or without runways.
+    /// </summary>
+    internal static MenuItem? BuildClearedVisualOther(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        if (SmartVisualRunway(aircraft) is null)
+        {
+            return null;
+        }
+
+        IReadOnlyList<string> runways = DestinationRunways(aircraft);
+        return runways.Count > 0 ? BuildVisualRunwayList($"{ClearedVisualLabel} (other){Ellipsis}", runways, context, host) : null;
+    }
+
+    /// <summary>A list picker over <paramref name="runways"/>, the first highlighted, that sends <c>CVA</c> for the pick.</summary>
+    private static MenuItem BuildVisualRunwayList(string label, IReadOnlyList<string> runways, MenuContext context, IMenuHost host)
+    {
+        List<object> items = [.. runways];
+        return BuildList(label, items, items[0], picked => Send($"CVA {picked}", context, host), host);
+    }
+
+    /// <summary>The traffic-in-sight request: bare <c>RTIS</c> for a blank answer, else <c>RTIS</c> naming the target.</summary>
+    private static string FormatTrafficInSight(string input) => string.IsNullOrWhiteSpace(input) ? "RTIS" : $"RTIS {input}";
 
     private static MenuItem BuildAssumeAndTrack(MenuContext context, IMenuHost host)
     {
