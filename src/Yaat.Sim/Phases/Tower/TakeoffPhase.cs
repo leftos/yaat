@@ -126,6 +126,13 @@ public sealed class TakeoffPhase : Phase, IGroundRollClock
             return TickGroundRoll(ctx);
         }
 
+        // A closed-traffic climb told to follow keeps climbing; the lifecycle ends only the follow (a lead landed, despawned
+        // or lost from sight), with the pattern legs' texts. A cancel can replace the phase list mid-tick, so this tick ends.
+        if (AirborneFollowHelper.CheckLeadLifecycle(ctx))
+        {
+            return false;
+        }
+
         return TickAirborneClimb(agl);
     }
 
@@ -229,6 +236,14 @@ public sealed class TakeoffPhase : Phase, IGroundRollClock
         // climb-out speed shouldn't cancel the heading guidance baked into the
         // takeoff clearance.
         if (IsSpeedFamilyCommand(cmd))
+        {
+            return CommandAcceptance.Allowed;
+        }
+
+        // A closed-traffic climb is not cleared by FOLLOW: off its pattern runway it is the circuit's upwind
+        // (AIM §4-3-2.a.3.2) and FOLLOW only sets the lead; off another runway the dispatcher clears the chain itself when it
+        // installs the follow. Either way a refusal leaves the chain untouched. Any other departure climb is cleared.
+        if ((cmd == CanonicalCommandType.Follow) && (Departure is ClosedTrafficDeparture))
         {
             return CommandAcceptance.Allowed;
         }

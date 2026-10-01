@@ -972,24 +972,8 @@ internal static class PatternCommandHandler
         RunwayInfo runway = aircraft.Phases.AssignedRunway;
         AircraftCategory category = AircraftCategorization.Categorize(aircraft.AircraftType);
         IReadOnlyList<RunwayInfo> airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
-        (double? sizeOv, double? altOv) = PatternGeometry.ResolveAuthoredOverrides(
-            runway,
-            (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
-            category,
-            aircraft.Pattern.SizeOverrideNm,
-            aircraft.Pattern.AltitudeOverrideFt
-        );
-        PatternWaypoints waypoints = PatternGeometry.Compute(
-            runway,
-            category,
-            aircraft.AircraftType,
-            aircraft.WindSpeedKts,
-            newDirection,
-            sizeOv,
-            altOv,
-            airportRunways,
-            AuthoredRunway(aircraft, groundLayout, runway)
-        );
+        (double? sizeOv, double? altOv) = ResolvePatternOverrides(aircraft, runway, groundLayout);
+        PatternWaypoints waypoints = ComputePatternWaypoints(aircraft, runway, newDirection, groundLayout);
 
         // Set traffic direction — aircraft is now in pattern mode. Stamp both the
         // transient PhaseList field (current circuit) and the persistent
@@ -3778,6 +3762,50 @@ internal static class PatternCommandHandler
     /// </summary>
     private static GroundRunway? AuthoredRunway(AircraftState aircraft, AirportGroundLayout? groundLayout, RunwayInfo runway) =>
         (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator);
+
+    /// <summary>
+    /// The pattern geometry of <paramref name="aircraft"/>'s circuit to <paramref name="runway"/> on <paramref name="side"/>:
+    /// its category and type, the wind at the aircraft, the authored and commanded size and altitude overrides
+    /// (<see cref="PatternGeometry.ResolveAuthoredOverrides"/>) and the authored runway's threshold displacement, the ground
+    /// layout falling back to the aircraft's own.
+    /// </summary>
+    internal static PatternWaypoints ComputePatternWaypoints(
+        AircraftState aircraft,
+        RunwayInfo runway,
+        PatternDirection side,
+        AirportGroundLayout? groundLayout
+    )
+    {
+        (double? sizeOv, double? altOv) = ResolvePatternOverrides(aircraft, runway, groundLayout);
+        return PatternGeometry.Compute(
+            runway,
+            AircraftCategorization.Categorize(aircraft.AircraftType),
+            aircraft.AircraftType,
+            aircraft.WindSpeedKts,
+            side,
+            sizeOv,
+            altOv,
+            NavigationDatabase.Instance.GetRunways(runway.AirportId),
+            AuthoredRunway(aircraft, groundLayout, runway)
+        );
+    }
+
+    /// <summary>
+    /// The pattern size and altitude overrides of <paramref name="aircraft"/>'s circuit to <paramref name="runway"/>: the
+    /// authored runway's, else the aircraft's commanded ones (<see cref="PatternGeometry.ResolveAuthoredOverrides"/>).
+    /// </summary>
+    private static (double? SizeNm, double? AltitudeFt) ResolvePatternOverrides(
+        AircraftState aircraft,
+        RunwayInfo runway,
+        AirportGroundLayout? groundLayout
+    ) =>
+        PatternGeometry.ResolveAuthoredOverrides(
+            runway,
+            AuthoredRunway(aircraft, groundLayout, runway),
+            AircraftCategorization.Categorize(aircraft.AircraftType),
+            aircraft.Pattern.SizeOverrideNm,
+            aircraft.Pattern.AltitudeOverrideFt
+        );
 
     /// <summary>
     /// Apply a parallel-runway sidestep on an active FinalApproachPhase: retarget the

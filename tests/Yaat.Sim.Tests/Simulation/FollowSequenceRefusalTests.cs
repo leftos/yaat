@@ -388,7 +388,7 @@ public class FollowSequenceRefusalTests(ITestOutputHelper output)
         AssertRetargetedInPlace(follower, before, result);
     }
 
-    /// <summary>A same-runway lead flying a missed approach has no leg in the landing sequence: not ahead, refused.</summary>
+    /// <summary>A same-runway lead flying a missed approach is leaving the landing sequence: refused as going around.</summary>
     [Fact]
     public void FollowFromDownwind_SameRunwayLeadOnMissedApproach_IsRefused()
     {
@@ -399,7 +399,7 @@ public class FollowSequenceRefusalTests(ITestOutputHelper output)
 
         CommandResult result = Send(engine, $"FOLLOW {Leader}");
 
-        AssertRefusedUnchanged(follower, before, result, NotAhead("downwind"));
+        AssertRefusedUnchanged(follower, before, result, $"Unable, {Leader} is going around, request vectors");
     }
 
     /// <summary>On a shared downwind, a lead 1 nm farther from its base-turn point than the follower is behind it.</summary>

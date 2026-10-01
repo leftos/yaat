@@ -480,7 +480,18 @@ public static class AirborneFollowHelper
     /// false and normal spacing resumes. Across different legs the order is
     /// <see cref="IsLeadAheadAcrossLegs"/>. The command-time FOLLOW refusal uses the same test.
     /// </summary>
-    internal static bool IsLeadPatternFlowBehind(AircraftState follower, AircraftState lead)
+    internal static bool IsLeadPatternFlowBehind(AircraftState follower, AircraftState lead) =>
+        (FollowerLegIndex(follower) is { } followerLeg) && IsLeadPatternFlowBehindFromLeg(follower, followerLeg, lead);
+
+    /// <summary>
+    /// <see cref="IsLeadPatternFlowBehind"/> for <paramref name="follower"/> counted as on the upwind (leg 1), whatever phase it
+    /// flies now: a go-around about to be re-sequenced in place as a pattern climb-out, judged as the upwind it becomes.
+    /// </summary>
+    internal static bool IsLeadPatternFlowBehindOnUpwind(AircraftState follower, AircraftState lead) =>
+        IsLeadPatternFlowBehindFromLeg(follower, UpwindLegIndex, lead);
+
+    /// <summary><see cref="IsLeadPatternFlowBehind"/> for a follower standing on sequence leg <paramref name="followerLeg"/>.</summary>
+    private static bool IsLeadPatternFlowBehindFromLeg(AircraftState follower, int followerLeg, AircraftState lead)
     {
         if (
             (follower.Phases?.AssignedRunway is not { } runway)
@@ -490,7 +501,7 @@ public static class AirborneFollowHelper
         {
             return false;
         }
-        if ((FollowerLegIndex(follower) is not { } followerLeg) || (PatternLegIndex(lead) is not { } leadLeg))
+        if (PatternLegIndex(lead) is not { } leadLeg)
         {
             return false;
         }
@@ -527,7 +538,9 @@ public static class AirborneFollowHelper
     /// meaning ahead. On an outbound leg (upwind, crosswind, downwind) it is progress along the leg, since the remaining pattern
     /// path of an aircraft extended past the leg's turn point grows the farther out it flies, while it is still the one ahead
     /// on that leg; on the other legs it is the remaining path to the threshold (<see cref="SequenceRemainingPathNm"/>).
-    /// <see cref="double.PositiveInfinity"/> on an outbound leg with no geometry <paramref name="wp"/> to measure it on.
+    /// With no geometry <paramref name="wp"/> to measure it on (two go-arounds, a go-around against a closed-traffic climb),
+    /// the upwind is ordered by along-track distance from <paramref name="runway"/>'s threshold on its heading, farther out
+    /// ahead; any other outbound leg is <see cref="double.PositiveInfinity"/>.
     /// </summary>
     private static double SharedLegOrderNm(AircraftState ac, int leg, RunwayInfo runway, PatternWaypoints? wp)
     {
@@ -538,7 +551,10 @@ public static class AirborneFollowHelper
 
         if (wp is null)
         {
-            return double.PositiveInfinity;
+            var runwayThreshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+            return (leg == UpwindLegIndex)
+                ? -GeoMath.AlongTrackDistanceNm(ac.Position, runwayThreshold, runway.TrueHeading)
+                : double.PositiveInfinity;
         }
 
         // Along-track on the downwind axis from the threshold: it falls as the upwind is flown out and rises along the downwind.

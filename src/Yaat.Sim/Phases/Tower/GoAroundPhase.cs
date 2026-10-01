@@ -129,6 +129,13 @@ public sealed class GoAroundPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
+        // A go-around told to follow keeps climbing; the lifecycle ends only the follow (a lead landed, despawned or lost from
+        // sight), with the pattern legs' texts. A cancel can replace the phase list mid-tick, so this tick ends.
+        if (AirborneFollowHelper.CheckLeadLifecycle(ctx))
+        {
+            return false;
+        }
+
         double agl = ctx.Aircraft.Altitude - _fieldElevation;
 
         if (!_headingAssigned && AssignedMagneticHeading is not null && agl >= NoTurnAgl)
@@ -209,6 +216,10 @@ public sealed class GoAroundPhase : Phase
             or CanonicalCommandType.ExitLeft
             or CanonicalCommandType.ExitRight
             or CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
+            // FOLLOW keeps the climb: re-entering the pattern, it is the circuit's upwind and only the lead is set; on the
+            // missed approach the dispatcher refuses an IFR follower and re-sequences a VFR one in place, or clears the chain
+            // itself for the installs that replace it. Either way a refusal leaves the chain untouched.
+            CanonicalCommandType.Follow => CommandAcceptance.Allowed,
             _ => CommandAcceptance.ClearsPhase,
         };
     }

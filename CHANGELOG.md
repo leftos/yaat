@@ -28,6 +28,7 @@
 - Repeating `FOLLOW` for the traffic already being followed keeps the aircraft's current maneuver, and a refused `FOLLOWF` leaves the traffic not in sight.
 - A pilot on final or an approach follows same-runway traffic by distance to the runway, so a long straight-in can follow an aircraft on close base.
 - A pilot on an instrument approach told to `FOLLOW` traffic landing another runway answers unable; on a VFR practice approach, only inside the final approach fix.
+- A pilot going around into the pattern, or climbing out on closed traffic, told to `FOLLOW` keeps its climb; traffic behind it or going around is refused.
 - A pilot on an approach told to `FOLLOW` traffic still entering the pattern judges whether it is ahead by the path that traffic has left to fly.
 - A pilot already following told to `FOLLOW` different traffic ahead in the landing sequence switches to it in place; traffic behind or landing another runway gets unable.
 - `ATXI` needs `@` for a helipad or gate and `$` for a spot; a bare name such as `ATXI 27` is always a runway.

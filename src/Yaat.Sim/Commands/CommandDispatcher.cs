@@ -3864,7 +3864,8 @@ public static class CommandDispatcher
         // follower's own pattern is meaningless — fall through to the VfrFollowPhase install
         // below, whose auto-join (TryJoinLeadPattern / TryJoinLeadFinal) re-sequences the
         // follower onto the lead's runway with proper in-trail spacing and intercept gates.
-        if (IsPatternLeg(current) && !IsLeadOnDifferentRunway(aircraft, leadAircraft))
+        // A climb that counts as the upwind (a re-entering go-around, a closed-traffic climb) is kept the same way.
+        if (IsSequencedLeg(aircraft, current) && !IsLeadOnDifferentRunway(aircraft, leadAircraft))
         {
             return RetargetFollowOnPatternLeg(aircraft, current, target);
         }
@@ -3874,10 +3875,12 @@ public static class CommandDispatcher
 
     /// <summary>
     /// The FOLLOW refusals and the routes that answer without an install, in order: the departing-lead refusal
-    /// (<see cref="DepartingLeadRefusal"/>), the runwayless-lead guards on a pattern leg (<see cref="TryRouteRunwaylessLead"/>),
-    /// the routing of a follower with no pattern leg (<see cref="RouteOffPatternFollow"/>), the cross-runway refusals
-    /// (<see cref="CrossRunwayRefusal"/>), the sequence refusal (<see cref="FollowSequenceRefusal"/>) and the kept approach
-    /// (<see cref="KeepApproachFollow"/>). Null when none answers.
+    /// (<see cref="DepartingLeadRefusal"/>), the IFR follower's own missed-approach refusal
+    /// (<see cref="MissedApproachFollowerRefusal"/>, whoever the lead is), the going-around refusal
+    /// (<see cref="LeadGoingAroundRefusal"/>), the runwayless-lead guards on a pattern leg or climb
+    /// (<see cref="TryRouteRunwaylessLead"/>), the routing of a follower with no pattern leg (<see cref="RouteOffPatternFollow"/>),
+    /// the cross-runway refusals (<see cref="CrossRunwayRefusal"/>), the sequence refusal (<see cref="FollowSequenceRefusal"/>)
+    /// and the kept approach (<see cref="KeepApproachFollow"/>). Null when none answers.
     /// </summary>
     private static CommandResult? FollowRefusalOrRoute(
         AircraftState aircraft,
@@ -3887,8 +3890,10 @@ public static class CommandDispatcher
         DispatchContext ctx
     ) =>
         DepartingLeadRefusal(lead, target)
+        ?? MissedApproachFollowerRefusal(aircraft, current)
+        ?? LeadGoingAroundRefusal(aircraft, current, lead, target)
         ?? TryRouteRunwaylessLead(aircraft, lead, target, ctx)
-        ?? RouteOffPatternFollow(aircraft, current, lead, target)
+        ?? RouteOffPatternFollow(aircraft, current, lead, target, ctx)
         ?? CrossRunwayRefusal(aircraft, current, lead, target, ctx)
         ?? FollowSequenceRefusal(aircraft, lead, current, target)
         ?? KeepApproachFollow(aircraft, current, lead, target);
@@ -4028,13 +4033,14 @@ public static class CommandDispatcher
     /// The sequence refusal for an airborne FOLLOW, run after the departing-lead, runwayless-lead and cross-runway guards and
     /// before the same-runway retarget or the install (so a refusal leaves the phase list, its clearance and the follow
     /// untouched): a lead landing the follower's runway that is behind it in sequence (<see cref="IsLeadBehindInSequence"/>),
-    /// from upwind, crosswind, downwind, base, final or an instrument approach. Following it would take a 360 or other major
-    /// maneuver (AIM §4-3-5), and the pilot says it cannot accept the follow (AIM §5-5-12.a.2). A follower on a pattern
-    /// entry is not refused. Null when that does not apply.
+    /// from upwind, crosswind, downwind, base, final, an instrument approach or a climb that counts as the upwind
+    /// (<see cref="ClimbPosition"/>). Following it would take a 360 or other major maneuver (AIM §4-3-5), and the pilot says it
+    /// cannot accept the follow (AIM §5-5-12.a.2). A follower on a pattern entry is not refused. Null when that does not apply.
     /// </summary>
     private static CommandResult? FollowSequenceRefusal(AircraftState aircraft, AircraftState? lead, Phase? current, string target)
     {
-        if ((lead is null) || (SequenceRefusalPosition(current) is not { } position) || (aircraft.Phases?.AssignedRunway is not { } runway))
+        string? position = SequenceRefusalPosition(current) ?? ClimbPosition(aircraft, current);
+        if ((lead is null) || (position is null) || (aircraft.Phases?.AssignedRunway is not { } runway))
         {
             return null;
         }
@@ -4044,8 +4050,43 @@ public static class CommandDispatcher
             return null;
         }
 
-        return new CommandResult(false, $"Unable, on {position} for runway {runway.Designator}, {target} is not ahead of us, request vectors");
+        return NotAheadOnLegRefusal(position, runway, target);
     }
+
+    /// <summary>The refusal of a lead that is not ahead of a follower at <paramref name="position"/> for <paramref name="runway"/>.</summary>
+    private static CommandResult NotAheadOnLegRefusal(string position, RunwayInfo runway, string target) =>
+        new(false, $"Unable, on {position} for runway {runway.Designator}, {target} is not ahead of us, request vectors");
+
+    /// <summary>
+    /// True when <paramref name="current"/> is a climb that counts as the circuit's upwind (AIM §4-3-2.a.3.2): a go-around
+    /// that re-enters the pattern, or an airborne closed-traffic takeoff climb off its pattern runway
+    /// (<see cref="AirborneFollowHelper.IsClosedTrafficClimb"/>). FOLLOW keeps such a climb and only sets the lead.
+    /// </summary>
+    private static bool IsClimbLeg(AircraftState aircraft, Phase? current) =>
+        (current is GoAroundPhase { ReenterPattern: true }) || ((current is TakeoffPhase) && AirborneFollowHelper.IsClosedTrafficClimb(aircraft));
+
+    /// <summary>
+    /// True when the follower flies a leg of the landing sequence FOLLOW keeps in place: a pattern leg
+    /// (<see cref="IsPatternLeg"/>) or a climb that counts as the upwind (<see cref="IsClimbLeg"/>).
+    /// </summary>
+    private static bool IsSequencedLeg(AircraftState aircraft, Phase? current) => IsPatternLeg(current) || IsClimbLeg(aircraft, current);
+
+    /// <summary>
+    /// The follower's position as a refusal from a climb names it (<see cref="IsClimbLeg"/>): "the go-around" in a go-around,
+    /// "upwind" in a closed-traffic climb. Null for any other phase.
+    /// </summary>
+    private static string? ClimbPosition(AircraftState aircraft, Phase? current)
+    {
+        if (!IsClimbLeg(aircraft, current))
+        {
+            return null;
+        }
+
+        return ClimbPositionName(current);
+    }
+
+    /// <summary>The name of a climb that counts as the upwind (<see cref="IsClimbLeg"/>): "the go-around", else "upwind".</summary>
+    private static string ClimbPositionName(Phase? climb) => (climb is GoAroundPhase) ? "the go-around" : "upwind";
 
     /// <summary>True when <paramref name="lead"/> lands <paramref name="runway"/> (<see cref="AirborneFollowHelper.IsSameRunway"/>).</summary>
     private static bool IsSameRunwayLead(AircraftState lead, RunwayInfo runway) =>
@@ -4065,15 +4106,38 @@ public static class CommandDispatcher
     /// by remaining path to the threshold from base, final or an approach, by leg order from the outbound legs, and by
     /// position on a shared leg.</item>
     /// </list>
+    /// A follower in a climb that counts as the upwind (<see cref="IsClimbLeg"/>) is ordered as the upwind
+    /// (<see cref="IsLeadBehindUpwindFollower"/>).
     /// </summary>
-    private static bool IsLeadBehindInSequence(AircraftState follower, AircraftState lead, Phase? current) =>
-        AirborneFollowHelper.PatternLegIndex(lead) switch
+    private static bool IsLeadBehindInSequence(AircraftState follower, AircraftState lead, Phase? current)
+    {
+        if (IsClimbLeg(follower, current))
+        {
+            return IsLeadBehindUpwindFollower(follower, lead);
+        }
+
+        return AirborneFollowHelper.PatternLegIndex(lead) switch
         {
             null => true,
             AirborneFollowHelper.EntryLegIndex => IsOnInstrumentApproach(current)
                 ? AirborneFollowHelper.IsLeadPatternFlowBehind(follower, lead)
                 : (current is not (UpwindPhase or CrosswindPhase or DownwindPhase)),
             _ => AirborneFollowHelper.IsLeadPatternFlowBehind(follower, lead),
+        };
+    }
+
+    /// <summary>
+    /// True when a lead landing the follower's runway is behind a follower counted as on the upwind (leg 1), as the running
+    /// follow orders them (<see cref="AirborneFollowHelper.IsLeadPatternFlowBehindOnUpwind"/>): a lead with no leg in the
+    /// sequence is behind; a lead on a pattern entry is accepted, as from the outbound legs (AIM FIG 4-3-3), and stays
+    /// flow-behind until it joins; a lead on a later leg is ahead; and on the shared upwind the order is by position.
+    /// </summary>
+    private static bool IsLeadBehindUpwindFollower(AircraftState follower, AircraftState lead) =>
+        AirborneFollowHelper.PatternLegIndex(lead) switch
+        {
+            null => true,
+            AirborneFollowHelper.EntryLegIndex => false,
+            _ => AirborneFollowHelper.IsLeadPatternFlowBehindOnUpwind(follower, lead),
         };
 
     /// <summary>
@@ -4228,12 +4292,8 @@ public static class CommandDispatcher
         DispatchContext ctx
     )
     {
-        // From an approach that is not kept, or a VFR follower's own missed approach (FOLLOW is Allowed on both so a kept
-        // approach survives), the chain is torn down first, as a phase-clearing command would; the landing clearance goes
-        // with it when the lead lands another runway, and is never carried off a missed approach.
-        if (IsOnInstrumentApproach(current) || AirborneFollowHelper.IsOnMissedApproach(current))
+        if (TearDownUnkeptChainForFollow(aircraft, current, leadAircraft))
         {
-            ClearApproachForFollow(aircraft, current, leadAircraft);
             current = null;
         }
 
@@ -4259,6 +4319,31 @@ public static class CommandDispatcher
 
         InstallVfrFollowPhase(aircraft, target, patternReturn: null);
         return Ok($"Follow {target}");
+    }
+
+    /// <summary>
+    /// Tear down the chain of a follower whose phase FOLLOW does not keep, before the install builds a new one; true when it
+    /// was torn down. An approach that is not kept, or a VFR follower's own published missed approach, goes as a phase-clearing
+    /// command would take it (<see cref="ClearApproachForFollow"/>): the landing clearance goes with it when the lead lands
+    /// another runway, and is never carried off a missed approach. A go-around or takeoff climb that reaches the install (a
+    /// lead landing another runway, a missed-approach lead flying no circuit, a cross-runway closed-traffic climb) is cleared
+    /// whole (<see cref="ClearPhaseChain"/>), with a warning that FOLLOW cancelled it.
+    /// </summary>
+    private static bool TearDownUnkeptChainForFollow(AircraftState aircraft, Phase? current, AircraftState? lead)
+    {
+        if (IsOnInstrumentApproach(current) || AirborneFollowHelper.IsOnMissedApproach(current))
+        {
+            ClearApproachForFollow(aircraft, current, lead);
+            return true;
+        }
+
+        if (current is GoAroundPhase or TakeoffPhase)
+        {
+            ClearPhaseChain(aircraft, "FOLLOW");
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -4376,12 +4461,8 @@ public static class CommandDispatcher
     )
     {
         Phase? current = aircraft.Phases?.CurrentPhase;
-        string ownRunwayId = RunwayIdentifier.NormalizeDesignator(followerRunway.Designator);
 
-        if (
-            (PatternCommandHandler.QueuedPatternEntry(lead) is { } queued)
-            && !string.Equals(queued.RunwayId, ownRunwayId, StringComparison.OrdinalIgnoreCase)
-        )
+        if (QueuedEntryForOtherRunway(lead, followerRunway) is { } queued)
         {
             if (current is BasePhase or FinalApproachPhase)
             {
@@ -4408,6 +4489,20 @@ public static class CommandDispatcher
 
         InstallVfrFollowPhase(aircraft, target, VfrFollowPhase.BuildFollowPatternReturn(aircraft, followerRunway, ctx.GroundLayout));
         return Ok($"Follow {target}");
+    }
+
+    /// <summary>
+    /// The pattern entry <paramref name="lead"/> has queued (<see cref="PatternCommandHandler.QueuedPatternEntry"/>) when it
+    /// names a runway other than <paramref name="followerRunway"/>; null when nothing is queued or the entry is for that runway.
+    /// </summary>
+    private static (string RunwayId, PatternDirection? Direction)? QueuedEntryForOtherRunway(AircraftState lead, RunwayInfo followerRunway)
+    {
+        string ownRunwayId = RunwayIdentifier.NormalizeDesignator(followerRunway.Designator);
+        return
+            (PatternCommandHandler.QueuedPatternEntry(lead) is { } queued)
+            && !string.Equals(queued.RunwayId, ownRunwayId, StringComparison.OrdinalIgnoreCase)
+            ? queued
+            : null;
     }
 
     /// <summary>
@@ -4439,13 +4534,15 @@ public static class CommandDispatcher
     /// <item>a lead bound for another airport is refused (<see cref="LeadBoundElsewhereRefusal"/>);</item>
     /// <item>a lead with no current runway (free flight, perhaps with a pattern entry queued behind a DCT) gives
     /// the in-place retarget nothing to sequence against, so it goes through <see cref="TryFollowFromPatternLeg"/>,
-    /// where the ±60° lead-ahead cone applies on every pattern leg.</item>
+    /// where the ±60° lead-ahead cone applies on every pattern leg; from a climb that counts as the upwind
+    /// (<see cref="IsClimbLeg"/>), through <see cref="ClimbRunwaylessLeadRoute"/>, which keeps the climb.</item>
     /// </list>
-    /// Null when none applies (or the follower is not on a pattern leg with a runway) and dispatch continues.
+    /// Null when none applies (or the follower is not on a pattern leg or climb with a runway) and dispatch continues.
     /// </summary>
     private static CommandResult? TryRouteRunwaylessLead(AircraftState aircraft, AircraftState? lead, string target, DispatchContext ctx)
     {
-        if (!IsPatternLeg(aircraft.Phases?.CurrentPhase) || (lead is null) || (aircraft.Phases?.AssignedRunway is not { } followerRunway))
+        Phase? current = aircraft.Phases?.CurrentPhase;
+        if (!IsSequencedLeg(aircraft, current) || (lead is null) || (aircraft.Phases?.AssignedRunway is not { } followerRunway))
         {
             return null;
         }
@@ -4460,7 +4557,72 @@ public static class CommandDispatcher
             return elsewhere;
         }
 
-        return lead.Phases?.AssignedRunway is null ? TryFollowFromPatternLeg(aircraft, lead, target, followerRunway, ctx) : null;
+        if (lead.Phases?.AssignedRunway is not null)
+        {
+            return null;
+        }
+
+        return IsClimbLeg(aircraft, current)
+            ? ClimbRunwaylessLeadRoute(aircraft, lead, target, followerRunway, ctx)
+            : TryFollowFromPatternLeg(aircraft, lead, target, followerRunway, ctx);
+    }
+
+    /// <summary>
+    /// FOLLOW of a lead with no runway from a climb that counts as the upwind (<see cref="IsClimbLeg"/>), answering as the
+    /// upwind it hands over to does (<see cref="TryFollowFromPatternLeg"/>): a lead queued to enter the pattern for another
+    /// runway (<see cref="QueuedEntryForOtherRunway"/>) re-sequences the follower onto that runway
+    /// (<see cref="FollowOntoQueuedRunway"/>); any other lead is accepted when it is ahead
+    /// (<see cref="IsRunwaylessLeadAheadOfClimb"/>), keeping the climb and setting only the lead (no pursuit from a few hundred
+    /// feet), and otherwise refused as not ahead, as <see cref="ClimbPositionName"/> names the climb.
+    /// </summary>
+    private static CommandResult ClimbRunwaylessLeadRoute(
+        AircraftState aircraft,
+        AircraftState lead,
+        string target,
+        RunwayInfo runway,
+        DispatchContext ctx
+    )
+    {
+        if (QueuedEntryForOtherRunway(lead, runway) is { } queued)
+        {
+            return FollowOntoQueuedRunway(aircraft, target, queued.RunwayId, queued.Direction ?? lead.Phases?.TrafficDirection, ctx);
+        }
+
+        if (!IsRunwaylessLeadAheadOfClimb(aircraft, lead, runway, ctx))
+        {
+            return NotAheadOnLegRefusal(ClimbPositionName(aircraft.Phases?.CurrentPhase), runway, target);
+        }
+
+        aircraft.Approach.FollowingCallsign = target;
+        return Ok($"Follow {target}");
+    }
+
+    /// <summary>
+    /// True when a runwayless lead is ahead of a climb that counts as the upwind: inside the ±60° cone of its track
+    /// (<see cref="AirborneFollowHelper.IsLeadAheadOfTrack"/>), or — when the climb's traffic side is known — inside the
+    /// downwind box of the circuit it climbs into (<see cref="ClimbCircuitWaypoints"/>, <see cref="IsLeadInDownwindBox"/>), the
+    /// same test the upwind it hands over to applies (<see cref="IsLeadAheadOnPatternLeg"/>).
+    /// </summary>
+    private static bool IsRunwaylessLeadAheadOfClimb(AircraftState aircraft, AircraftState lead, RunwayInfo runway, DispatchContext ctx) =>
+        AirborneFollowHelper.IsLeadAheadOfTrack(aircraft, lead)
+        || ((ClimbCircuitWaypoints(aircraft, runway, ctx) is { } waypoints) && IsLeadInDownwindBox(lead, waypoints, runway));
+
+    /// <summary>
+    /// The circuit a climb that counts as the upwind joins: a closed-traffic climb's queued circuit; for a go-around, the
+    /// circuit the auto-cycle will build on <paramref name="runway"/> on the side it will use (the persistent MLT/MRT side,
+    /// else the phase list's), computed as MLT/MRT computes it (<see cref="PatternCommandHandler.ComputePatternWaypoints"/>).
+    /// Null when the side is not known.
+    /// </summary>
+    private static PatternWaypoints? ClimbCircuitWaypoints(AircraftState aircraft, RunwayInfo runway, DispatchContext ctx)
+    {
+        if (aircraft.Phases?.CurrentPhase is TakeoffPhase)
+        {
+            return AirborneFollowHelper.FirstPatternWaypoints(aircraft.Phases);
+        }
+
+        return (aircraft.Pattern.TrafficDirection ?? aircraft.Phases?.TrafficDirection) is { } side
+            ? PatternCommandHandler.ComputePatternWaypoints(aircraft, runway, side, ctx.GroundLayout)
+            : null;
     }
 
     /// <summary>True when <paramref name="lead"/> is on the landing terminal of <paramref name="runway"/> itself.</summary>
@@ -4471,19 +4633,24 @@ public static class CommandDispatcher
 
     /// <summary>
     /// Route FOLLOW for a follower that is not on a pattern leg — an approach, a missed approach, a pursuit or an aircraft
-    /// outside the pattern: the IFR missed-approach refusal (<see cref="MissedApproachFollowerRefusal"/>), the ground and
-    /// elsewhere refusals (<see cref="GroundOrElsewhereLeadRefusal"/>), the going-around refusal from an approach
-    /// (<see cref="LeadGoingAroundRefusal"/>), then the re-FOLLOW of the lead already being followed
+    /// outside the pattern, after the IFR missed-approach refusal (<see cref="MissedApproachFollowerRefusal"/>): the ground and
+    /// elsewhere refusals (<see cref="GroundOrElsewhereLeadRefusal"/>), the VFR re-sequence of a go-around that does not re-enter
+    /// the pattern (<see cref="MissedGoAroundResequence"/>), then the re-FOLLOW of the lead already being followed
     /// (<see cref="SameLeadReFollow"/>), then a new lead during a pursuit that compares leads (<see cref="PursuitNewLeadRoute"/>),
     /// then the runwayless-lead cone (<see cref="RunwaylessLeadConeRefusal"/>). Null when none applies, or for a follower on a
-    /// pattern leg.
+    /// pattern leg or a climb that counts as the upwind.
     /// </summary>
-    private static CommandResult? RouteOffPatternFollow(AircraftState aircraft, Phase? current, AircraftState? lead, string target) =>
-        IsPatternLeg(current)
+    private static CommandResult? RouteOffPatternFollow(
+        AircraftState aircraft,
+        Phase? current,
+        AircraftState? lead,
+        string target,
+        DispatchContext ctx
+    ) =>
+        IsSequencedLeg(aircraft, current)
             ? null
-            : MissedApproachFollowerRefusal(aircraft, current)
-                ?? GroundOrElsewhereLeadRefusal(aircraft, current, lead, target)
-                ?? LeadGoingAroundRefusal(current, lead, target)
+            : GroundOrElsewhereLeadRefusal(aircraft, current, lead, target)
+                ?? MissedGoAroundResequence(aircraft, lead, target, ctx)
                 ?? SameLeadReFollow(aircraft, current, lead, target)
                 ?? PursuitNewLeadRoute(aircraft, current, lead, target)
                 ?? RunwaylessLeadConeRefusal(aircraft, current, lead, target);
@@ -4544,26 +4711,108 @@ public static class CommandDispatcher
         (AirborneFollowHelper.PatternLegIndex(lead) == AirborneFollowHelper.EntryLegIndex) && !AirborneFollowHelper.IsStraightInEntry(lead);
 
     /// <summary>
-    /// The refusal for an IFR follower (<see cref="AirborneFollowHelper.IsIfrFollower"/>) flying its own published missed
-    /// approach (<see cref="AirborneFollowHelper.IsOnMissedApproach"/>): it flies the missed it was cleared for, not an
-    /// approach, and its re-sequence is the controller's, by vectors. A VFR follower there is re-sequenced behind the lead by
-    /// the install (<see cref="InstallFollow"/>). Null otherwise.
+    /// The refusal for an IFR follower (<see cref="AirborneFollowHelper.IsIfrFollower"/>) flying its own missed approach
+    /// (<see cref="IsOnOwnMissedApproach"/>): it flies the missed it was cleared for, not an approach, and its re-sequence is
+    /// the controller's, by vectors (7110.65 §4-8-9.a, §4-8-11.e.1), whatever heading or altitude ATC gave the go-around. A VFR
+    /// follower there is re-sequenced behind the lead (<see cref="MissedGoAroundResequence"/>, else the install,
+    /// <see cref="InstallFollow"/>). Null otherwise.
     /// </summary>
     private static CommandResult? MissedApproachFollowerRefusal(AircraftState aircraft, Phase? current) =>
-        (AirborneFollowHelper.IsOnMissedApproach(current) && AirborneFollowHelper.IsIfrFollower(aircraft))
+        (IsOnOwnMissedApproach(current) && AirborneFollowHelper.IsIfrFollower(aircraft))
             ? new CommandResult(false, "Unable, on the missed approach, request vectors")
             : null;
 
     /// <summary>
-    /// The refusal for a follower on an instrument approach before final (<see cref="IsOnInstrumentApproach"/>) told to follow
-    /// a lead that is going around (<see cref="AirborneFollowHelper.IsGoingAround"/>: a go-around, re-entering the pattern or
-    /// not, or the published missed approach): the lead is leaving the landing sequence and may re-enter it behind the
-    /// follower. A repeat FOLLOW of that lead is refused too. Null otherwise.
+    /// True when <paramref name="current"/> flies the follower's own missed approach: a go-around that does not re-enter the
+    /// pattern, or the published missed approach after it (<see cref="AirborneFollowHelper.IsOnMissedApproach"/>).
     /// </summary>
-    private static CommandResult? LeadGoingAroundRefusal(Phase? current, AircraftState? lead, string target) =>
-        (IsOnInstrumentApproach(current) && (lead is not null) && AirborneFollowHelper.IsGoingAround(lead))
+    private static bool IsOnOwnMissedApproach(Phase? current) =>
+        (current is GoAroundPhase { ReenterPattern: false }) || AirborneFollowHelper.IsOnMissedApproach(current);
+
+    /// <summary>
+    /// The VFR follower on a go-around that does not re-enter the pattern (the IFR one is refused first by
+    /// <see cref="MissedApproachFollowerRefusal"/>), told to follow a lead flying a circuit on its runway
+    /// (<see cref="LeadCircuitSide"/>): re-sequenced with no landing clearance (7110.65 §4-8-11.e.2, §3-10-5) by converting the
+    /// go-around in place to a pattern climb-out on the lead's side, the MLT/MRT path
+    /// (<see cref="PatternCommandHandler.TryChangePatternDirection"/>), after which it counts as the upwind. The lead is first
+    /// judged as from that upwind (<see cref="IsLeadBehindUpwindFollower"/>), so a lead behind is refused before anything is
+    /// converted. Null for any other follower, or a lead flying no circuit on that runway (the install,
+    /// <see cref="InstallFollow"/>, then clears the chain as before).
+    /// </summary>
+    private static CommandResult? MissedGoAroundResequence(AircraftState aircraft, AircraftState? lead, string target, DispatchContext ctx)
+    {
+        if (
+            (aircraft.Phases is not { CurrentPhase: GoAroundPhase { ReenterPattern: false }, AssignedRunway: { } runway } phases)
+            || AirborneFollowHelper.IsIfrFollower(aircraft)
+            || (lead is null)
+            || (LeadCircuitSide(lead, runway) is not { } side)
+        )
+        {
+            return null;
+        }
+
+        if (IsLeadBehindUpwindFollower(aircraft, lead))
+        {
+            return NotAheadOnLegRefusal("the go-around", runway, target);
+        }
+
+        CommandResult converted = PatternCommandHandler.TryChangePatternDirection(
+            aircraft,
+            side,
+            runwayId: null,
+            altitudeOverride: null,
+            ctx.GroundLayout
+        );
+        if (!converted.Success)
+        {
+            return converted;
+        }
+
+        phases.LandingClearance = null;
+        phases.ClearedRunwayId = null;
+        aircraft.Approach.FollowingCallsign = target;
+        return Ok($"Follow {target}");
+    }
+
+    /// <summary>
+    /// The side of the circuit <paramref name="lead"/> flies on <paramref name="runway"/>: the side of the first pattern leg in
+    /// its phase list, else its phase list's traffic direction. Null when it lands another runway, or flies no circuit.
+    /// </summary>
+    private static PatternDirection? LeadCircuitSide(AircraftState lead, RunwayInfo runway) =>
+        IsSameRunwayLead(lead, runway) ? (AirborneFollowHelper.FirstPatternWaypoints(lead.Phases)?.Direction ?? lead.Phases?.TrafficDirection) : null;
+
+    /// <summary>
+    /// The refusal for a lead that is going around, checked beside the departing-lead refusal: from a follower on an instrument
+    /// approach before final (<see cref="IsOnInstrumentApproach"/>), any go-around, re-entering the pattern or not, or the
+    /// published missed approach (<see cref="AirborneFollowHelper.IsGoingAround"/>), a repeat FOLLOW of that lead included; from
+    /// a follower on a pattern leg or a climb that counts as the upwind (<see cref="IsSequencedLeg"/>), or on its own missed
+    /// approach (<see cref="IsOnOwnMissedApproach"/>), a lead leaving the sequence (<see cref="IsLeavingSequence"/>), since a
+    /// re-entering go-around keeps the upwind's place in it (AIM §4-4-14.a.2 NOTE, §5-5-12.a.1). Null otherwise.
+    /// </summary>
+    private static CommandResult? LeadGoingAroundRefusal(AircraftState aircraft, Phase? current, AircraftState? lead, string target) =>
+        ((lead is not null) && IsLeadGoingAroundFor(aircraft, current, lead))
             ? new CommandResult(false, $"Unable, {target} is going around, request vectors")
             : null;
+
+    /// <summary>
+    /// True when <paramref name="lead"/> counts as going around for a follower flying <paramref name="current"/>
+    /// (<see cref="LeadGoingAroundRefusal"/>).
+    /// </summary>
+    private static bool IsLeadGoingAroundFor(AircraftState aircraft, Phase? current, AircraftState lead)
+    {
+        if (IsOnInstrumentApproach(current))
+        {
+            return AirborneFollowHelper.IsGoingAround(lead);
+        }
+
+        return (IsSequencedLeg(aircraft, current) || IsOnOwnMissedApproach(current)) && IsLeavingSequence(lead);
+    }
+
+    /// <summary>
+    /// True when <paramref name="lead"/> is leaving the landing sequence: a go-around that does not re-enter the pattern, or the
+    /// published missed approach (<see cref="AirborneFollowHelper.IsOnMissedApproach"/>).
+    /// </summary>
+    private static bool IsLeavingSequence(AircraftState lead) => IsOnOwnMissedApproach(lead.Phases?.CurrentPhase);
 
     /// <summary>
     /// The ground and elsewhere lead guards for a follower that is not on a pattern leg: a lead on the ground is refused

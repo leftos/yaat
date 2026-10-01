@@ -117,6 +117,47 @@ public class PhaseAcceptanceAuditTests
         Assert.True(acceptance.IsRejected, "Speed should be rejected during takeoff roll");
     }
 
+    private static TakeoffPhase TakeoffWith(DepartureInstructionDto? departure, bool airborne) =>
+        TakeoffPhase.FromSnapshot(
+            new TakeoffPhaseDto
+            {
+                Status = (int)PhaseStatus.Active,
+                ElapsedSeconds = 30,
+                Airborne = airborne,
+                FieldElevation = 0,
+                RunwayHeadingDeg = 280,
+                ThresholdLat = 0,
+                ThresholdLon = 0,
+                Departure = departure,
+            }
+        );
+
+    private static ClosedTrafficDepartureDto RightClosedTraffic() => new() { Direction = (int)PatternDirection.Right };
+
+    /// <summary>
+    /// An airborne closed-traffic climb is not cleared by FOLLOW: off its pattern runway it is the circuit's upwind and FOLLOW
+    /// only sets the lead; off another runway the dispatcher clears the chain itself when it installs the follow. Either way the
+    /// phase must not be cleared before the dispatcher's refusals run.
+    /// </summary>
+    [Fact]
+    public void TakeoffPhase_AirborneClosedTrafficClimb_FollowAllowed() =>
+        Assert.Equal(CommandAcceptance.Allowed, TakeoffWith(RightClosedTraffic(), airborne: true).CanAcceptCommand(CanonicalCommandType.Follow));
+
+    /// <summary>Any other departure climb — runway heading, or no departure instruction — keeps ClearsPhase.</summary>
+    [Fact]
+    public void TakeoffPhase_AirborneOtherDepartureClimb_FollowClearsPhase()
+    {
+        Assert.Equal(
+            CommandAcceptance.ClearsPhase,
+            TakeoffWith(new RunwayHeadingDepartureDto(), airborne: true).CanAcceptCommand(CanonicalCommandType.Follow)
+        );
+        Assert.Equal(CommandAcceptance.ClearsPhase, TakeoffWith(departure: null, airborne: true).CanAcceptCommand(CanonicalCommandType.Follow));
+    }
+
+    [Fact]
+    public void TakeoffPhase_GroundRoll_FollowRejected() =>
+        Assert.True(TakeoffWith(RightClosedTraffic(), airborne: false).CanAcceptCommand(CanonicalCommandType.Follow).IsRejected);
+
     [Theory]
     [MemberData(nameof(AdditiveAirborneFamily))]
     public void GoAroundPhase_AdditiveCommands_Allowed(CanonicalCommandType cmd)
@@ -124,6 +165,16 @@ public class PhaseAcceptanceAuditTests
         var phase = new GoAroundPhase();
         Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(cmd));
     }
+
+    /// <summary>
+    /// FOLLOW keeps a go-around: re-entering the pattern it only sets the lead; on the missed approach the dispatcher refuses an
+    /// IFR follower or re-sequences a VFR one in place, so neither may be cleared before the refusals run.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void GoAroundPhase_Follow_Allowed(bool reenterPattern) =>
+        Assert.Equal(CommandAcceptance.Allowed, new GoAroundPhase { ReenterPattern = reenterPattern }.CanAcceptCommand(CanonicalCommandType.Follow));
 
     [Theory]
     [MemberData(nameof(AdditiveAirborneFamily))]
