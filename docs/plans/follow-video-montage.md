@@ -9,7 +9,8 @@ A montage of FOLLOW situations recorded in the engine, in two cuts: a 60–90 s 
 - **Cuts.** The release cut (10 clips, accepted follows) and the review reel, one clip per shipped rule branch (accept and refusal once each, ~30 clips, variants dropped).
 - **On screen.** Command captions, the solo pilot's TTS, a rule + citation card opening each review clip (the rule, its AIM / 7110.65 grounding, what to watch for), and a live spacing readout.
 - **Spacing readout.** The client's own range/bearing line, `.rbl <FOLLOWER> <LEAD>` typed during the take.
-- **Timing.** Made after FOLLOW B6b-1 ships and before the release is cut; the release gate waits on it.
+- **Timing.** Made after FOLLOW B6b-1 ships and before the release is cut; the release gate waits on it. The capture also waits on the downwind-sink fix (MAIN.md, "A pattern follower holding its downwind sinks"), which clip A1 surfaced.
+- **Conflict alerts.** Every clip script inhibits conflict alerts on its aircraft (`CAINH` on each, at the start), so an ERAM or STARS alert never draws over a follow (user 2026-10-01).
 
 ## Pipeline (mapped 2026-10-01)
 
