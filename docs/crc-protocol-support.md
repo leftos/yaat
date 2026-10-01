@@ -187,6 +187,7 @@ Authoritative interface definitions: `..\vatsim-vnas\messaging\` (sibling repo)
 
 - [x] `ReceiveTowerCabAircrafts(Topic, List<TowerCabAircraftDto>)` — per-tick broadcast + initial data; VoiceType from AircraftState
 - [x] `DeleteTowerCabAircrafts(Topic, List<string>)` — aircraft removal
+- [x] UDP `EntityUpdate` for `TowerCabAircraft` (union tag 24, topic `[10, airport, nil, nil]`, integer `VoiceType`) — a UDP-registered subscriber gets an aircraft's position changes over UDP, as vNAS sends them; new aircraft, the 10 s resend, deletes and the subscribe snapshot stay on the hub, and an unregistered subscriber or a failed send falls back to the hub
 
 ### Ground Targets
 
@@ -281,7 +282,7 @@ Authoritative interface definitions: `..\vatsim-vnas\messaging\` (sibling repo)
 - [x] Coasted/dropped surface tracks on disconnect — `SurfaceCoastStore`; 45 s coast/drop per `asdex.md` (individual removals only; bulk wipes hard-delete)
 - [x] SAID surface display vertical limit — 2,500 ft AGL field-relative (`CrcVisibilityTracker`)
 - [x] ERAM short-term conflict detection + broadcast (`EramConflictDetector`; see [conflict-and-visual-detection.md](./conflict-and-visual-detection.md))
-- [ ] ERAM target history UDP stream (+ `DeleteEramTargetHistoryEntries`) — vNAS sends over UDP, not SignalR
+- [x] ERAM target history UDP stream (`EramTargetHistoryEntryDto`, union tag 13); `DeleteEramTargetHistoryEntries` is still open (above)
 - [ ] `AsdexHoldBarDto` dynamic `Status` from safety logic (geometry sourced from ASDEX video maps) — sole remaining ASDE-X parity gap; needs hold-bar geometry synthesis + aviation review (the shipped safety-logic plan, `docs/plans/archive/asdex-safety-logic.md`, is in git history)
 - [ ] Remaining Bucket E items (QP pointouts, CRR lifecycle)
 
