@@ -1410,4 +1410,9 @@ public sealed class DepartureProcedurePhaseDto : PhaseDto
     public LatLon? LegEntryPosition { get; init; }
     public double? PreviousSignedCrossTrack { get; init; }
     public double LegElapsedSeconds { get; init; }
+
+    /// <summary>A controller "maintain" interrupting the SID's vertical navigation
+    /// (<see cref="Phases.Tower.DepartureProcedurePhase"/>); written only when set, and absent reads as
+    /// false, so a snapshot taken before it existed needs no migration.</summary>
+    public bool? ControllerAltitude { get; init; }
 }

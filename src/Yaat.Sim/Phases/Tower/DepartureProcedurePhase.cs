@@ -24,6 +24,12 @@ public sealed class DepartureProcedurePhase : Phase
 
     private int _legIndex;
     private bool _overridden;
+
+    /// <summary>A controller "maintain" (<c>CM</c>/<c>DM</c>) issued while the coded legs are active: the plain
+    /// altitude assignment interrupts the SID's vertical navigation and outranks its published crossing
+    /// restrictions (7110.65 §4-3-2.c.1 / AIM §5-2-9.h.3), so the phase must stop writing <c>TargetAltitude</c>.</summary>
+    private bool _controllerAltitude;
+
     private LatLon? _legEntryPosition;
     private double? _previousSignedCrossTrack;
     private double _legElapsedSeconds;
@@ -56,7 +62,18 @@ public sealed class DepartureProcedurePhase : Phase
     public override void OnStart(PhaseContext ctx)
     {
         _climbCeiling = ResolveClimbCeiling();
-        ctx.Targets.TargetAltitude = _climbCeiling;
+        if (ctx.Targets.AssignedAltitude is { } assigned && assigned != AssignedAltitude)
+        {
+            // A "maintain" issued during the takeoff/initial climb, before this phase started: it owns the
+            // altitude from the first tick, so a coded leg's crossing window must not re-cap it.
+            _controllerAltitude = true;
+            ctx.Targets.TargetAltitude = assigned;
+        }
+        else
+        {
+            ctx.Targets.TargetAltitude = _climbCeiling;
+        }
+
         _legEntryPosition = ctx.Aircraft.Position;
         ApplyActiveLegHeading(ctx);
         Log.LogDebug(
@@ -71,6 +88,13 @@ public sealed class DepartureProcedurePhase : Phase
     {
         if (_overridden)
         {
+            // A lateral vector took the aircraft off the coded procedure. Release the leg altitude cap
+            // (as Finish does) so the climb resumes instead of stalling at a SID crossing window: a vector
+            // off a SID cancels its altitude restrictions, and the pilot flies the altitude ATC assigned —
+            // a plain "maintain" interrupting the SID's vertical navigation takes priority (7110.65
+            // §4-3-2.c.1 / AIM §5-2-9.h.3). The override does not load the post-route — the vector owns
+            // lateral guidance from here — so this is a cap release, not a full Finish().
+            ctx.Targets.TargetAltitude = ResolveReleaseAltitude(ctx);
             return true;
         }
 
@@ -267,9 +291,15 @@ public sealed class DepartureProcedurePhase : Phase
     /// (AIM §5-2-9.e): a pure ceiling, never a target. The aircraft levels off only if it reaches the
     /// cap before the leg sequences; the cap is released (restored to <see cref="_climbCeiling"/>) on
     /// the next leg. "At or above" is deliberately excluded — its floor is satisfied by the climb.
+    /// A controller altitude assignment owns the target instead (7110.65 §4-3-2.c.1 / AIM §5-2-9.h.3).
     /// </summary>
     private void ApplyLegAltitudeCap(PhaseContext ctx, ProcedureLeg leg)
     {
+        if (_controllerAltitude)
+        {
+            return;
+        }
+
         double ceiling = _climbCeiling;
         if (
             leg.AltitudeRestriction is { } restriction
@@ -327,8 +357,9 @@ public sealed class DepartureProcedurePhase : Phase
     {
         ctx.Targets.PreferredTurnDirection = null;
         // Release any leg altitude cap — the remaining route's own crossing restrictions are
-        // enforced by FlightPhysics.UpdateNavigation from here.
-        ctx.Targets.TargetAltitude = _climbCeiling;
+        // enforced by FlightPhysics.UpdateNavigation from here. A controller altitude assignment
+        // outlives the coded legs.
+        ctx.Targets.TargetAltitude = ctx.Targets.AssignedAltitude ?? _climbCeiling;
         ctx.Targets.NavigationRoute.Clear();
 
         var flown = new HashSet<string>(Legs.Where(l => l.FixName is not null).Select(l => l.FixName!), StringComparer.OrdinalIgnoreCase);
@@ -348,6 +379,27 @@ public sealed class DepartureProcedurePhase : Phase
             ctx.Targets.NavigationRoute.Count
         );
         return true;
+    }
+
+    /// <summary>
+    /// The altitude a lateral vector releases the climb to: the controller's assignment, else — for an IFR
+    /// departure flying with none — the SID's published initial altitude, never below the aircraft's current
+    /// altitude (a vector is lateral-only and cannot command a descent: the pilot levels off where it is and
+    /// awaits an altitude), else the resolved ceiling.
+    /// </summary>
+    private double ResolveReleaseAltitude(PhaseContext ctx)
+    {
+        if (ctx.Targets.AssignedAltitude is { } assigned)
+        {
+            return assigned;
+        }
+
+        if (!ctx.Aircraft.FlightPlan.IsVfr && ctx.Aircraft.Procedure.SidInitialAltitudeFt is { } sidInitial)
+        {
+            return Math.Max(ctx.Aircraft.Altitude, sidInitial);
+        }
+
+        return _climbCeiling;
     }
 
     private double ResolveClimbCeiling()
@@ -426,6 +478,10 @@ public sealed class DepartureProcedurePhase : Phase
         {
             _overridden = true;
         }
+        if (IsAltitudeFamilyCommand(cmd))
+        {
+            _controllerAltitude = true;
+        }
     }
 
     public override PhaseDto ToSnapshot() =>
@@ -443,6 +499,7 @@ public sealed class DepartureProcedurePhase : Phase
             LegEntryPosition = _legEntryPosition,
             PreviousSignedCrossTrack = _previousSignedCrossTrack,
             LegElapsedSeconds = _legElapsedSeconds,
+            ControllerAltitude = _controllerAltitude ? true : null,
         };
 
     public static DepartureProcedurePhase FromSnapshot(DepartureProcedurePhaseDto dto)
@@ -462,6 +519,7 @@ public sealed class DepartureProcedurePhase : Phase
         phase._legEntryPosition = dto.LegEntryPosition;
         phase._previousSignedCrossTrack = dto.PreviousSignedCrossTrack;
         phase._legElapsedSeconds = dto.LegElapsedSeconds;
+        phase._controllerAltitude = dto.ControllerAltitude ?? false;
         // Deterministic from Legs/AssignedAltitude/CruiseAltitude (all restored above) — recompute
         // rather than persist. OnStart is not called on restore.
         phase._climbCeiling = phase.ResolveClimbCeiling();
