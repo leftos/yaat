@@ -1404,6 +1404,115 @@ public class MenuCatalogCommandTests
         );
     }
 
+    // --- The aircraft list's flat command block (MenuView.List) ---
+
+    /// <summary>An aircraft-list context under <paramref name="mode"/>, outside solo training, with no previous selection.</summary>
+    private static MenuContext ListContext(VfrCommandsForIfr mode) => new(Callsign, Initials, null, false, mode, CatalogMenuView.List);
+
+    /// <summary>
+    /// The list's command block for <paramref name="aircraft"/>: each item's header and the command clicking it sends, in
+    /// menu order, so the gates, labels and bare verbs the list differs by are all pinned.
+    /// </summary>
+    private static List<(string Header, string Command)> ListMenuCommands(FakeMenuAircraft aircraft, RecordingMenuHost host)
+    {
+        var menu = new ContextMenu();
+        SharedMenuGroups.AddListAircraftCommands(menu.Items, aircraft, ListContext(VfrCommandsForIfr.None), host);
+        var result = new List<(string, string)>();
+        foreach (MenuItem item in menu.Items.OfType<MenuItem>())
+        {
+            host.Sent.Clear();
+            Click(item);
+            result.Add(((string)item.Header!, Assert.Single(host.Sent).Command));
+        }
+
+        return result;
+    }
+
+    // A hold-short: Resume taxi (the list's route-free RES, offered with no taxi route), Cross the held runway,
+    // Line up and wait and a bare Cleared for takeoff, both naming the held 28R rather than the assigned 30.
+    [AvaloniaFact]
+    public void ListMenu_HoldingShort_SendsResCrossLineUpAndBareCto()
+    {
+        var aircraft = new FakeMenuAircraft
+        {
+            IsOnGround = true,
+            CurrentPhase = "Holding Short 28R/10L",
+            AssignedRunway = "30",
+        };
+
+        Assert.Equal(
+            [("Resume taxi", "RES"), ("Cross 28R", "CROSS 28R"), ("Line up and wait 28R", "LUAW"), ("Cleared for takeoff 28R", "CTO")],
+            ListMenuCommands(aircraft, new RecordingMenuHost(""))
+        );
+    }
+
+    // Lined up and waiting: the bare Cleared for takeoff and Cancel takeoff clearance, no line up and wait.
+    [AvaloniaFact]
+    public void ListMenu_LinedUpAndWaiting_SendsCtoAndCancelTakeoff()
+    {
+        var aircraft = new FakeMenuAircraft
+        {
+            IsOnGround = true,
+            CurrentPhase = "LinedUpAndWaiting",
+            AssignedRunway = "30",
+        };
+
+        Assert.Equal(
+            [("Cleared for takeoff 30", "CTO"), ("Cancel takeoff clearance", "CTOC")],
+            ListMenuCommands(aircraft, new RecordingMenuHost(""))
+        );
+    }
+
+    // Airborne on final: the landing block in the ground's order, with the assigned runway in every label.
+    [AvaloniaFact]
+    public void ListMenu_OnFinal_SendsTheLandingClearances()
+    {
+        var aircraft = new FakeMenuAircraft
+        {
+            IsOnGround = false,
+            CurrentPhase = "FinalApproach",
+            AssignedRunway = "28R",
+        };
+
+        Assert.Equal(
+            [("Cleared to land 28R", "CLAND"), ("Force landing 28R", "CLANDF"), ("Go around 28R", "GA")],
+            ListMenuCommands(aircraft, new RecordingMenuHost(""))
+        );
+    }
+
+    // Rolling out: the runway exits, and no tower clearance.
+    [AvaloniaFact]
+    public void ListMenu_Landing_SendsTheRunwayExits()
+    {
+        var aircraft = new FakeMenuAircraft
+        {
+            IsOnGround = true,
+            CurrentPhase = "Landing",
+            AssignedRunway = "28R",
+        };
+
+        Assert.Equal([("Exit left", "EL"), ("Exit right", "ER")], ListMenuCommands(aircraft, new RecordingMenuHost("")));
+    }
+
+    // Taxiing with a call-for-release window: Hold position sends HOLD (not the ground view's HP), and the
+    // release-window check is offered on the phase and window alone.
+    [AvaloniaFact]
+    public void ListMenu_TaxiingWithCfrWindow_SendsHoldAndCheckReleaseWindow()
+    {
+        var aircraft = new FakeMenuAircraft
+        {
+            IsOnGround = true,
+            CurrentPhase = "Taxiing",
+            AssignedRunway = "30",
+            HasCfrWindow = true,
+        };
+
+        Assert.Equal(
+            [("Hold position", "HOLD"), ("Line up and wait 30", "LUAW"), ("Cleared for takeoff 30", "CTO"), ("Check release window", "CFR CHECK")],
+            ListMenuCommands(aircraft, new RecordingMenuHost(""))
+        );
+    }
+
     /// <summary>Every leg of the circuit (<see cref="AircraftCommandApplicability.IsPatternPhase"/>), comma-separated.</summary>
     private const string AllPatternLegs = "Pattern Entry,Upwind,Crosswind,Downwind,Base,MidfieldCrossing";
 
@@ -1591,15 +1700,15 @@ public class MenuCatalogCommandTests
     {
         public string Callsign => MenuCatalogCommandTests.Callsign;
 
-        public bool HasActiveTaxiRoute => false;
+        public bool HasActiveTaxiRoute { get; init; }
 
-        public bool HasCfrWindow => false;
+        public bool HasCfrWindow { get; init; }
 
         public bool IsLiveTraffic => false;
 
         public bool AssumedFromLiveTraffic => false;
 
-        public bool IsOnGround => false;
+        public bool IsOnGround { get; init; }
 
         public bool IsHeld => false;
 
@@ -1607,7 +1716,7 @@ public class MenuCatalogCommandTests
 
         public string FlightRules => "IFR";
 
-        public string CurrentPhase => "";
+        public string CurrentPhase { get; init; } = "";
 
         public string AssignedRunway { get; init; } = "";
 

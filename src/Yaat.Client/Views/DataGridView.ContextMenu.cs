@@ -1,19 +1,13 @@
 using System.Text.RegularExpressions;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Yaat.Client.ContextMenus;
-using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
-using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.Views;
 
 /// <summary>
-/// Phase-aware context menu builders for the aircraft list. Mirrors the
-/// content of Ground/Radar context menus so an RPO can act on an aircraft
-/// without first finding it on a scope. Items needing free-text input or
-/// filtered list popups (e.g. Direct to fix...) are omitted — those remain
-/// reachable via the inline command box at the top of the menu.
+/// Delayed-spawn (list-only) context menu items for the aircraft list. The phase-aware commands come from the shared
+/// catalog group (<see cref="Yaat.Client.ContextMenus.SharedMenuGroups.AddListAircraftCommands"/>).
 /// </summary>
 public partial class DataGridView
 {
@@ -22,120 +16,6 @@ public partial class DataGridView
         var item = new MenuItem { Header = header };
         item.Click += async (_, _) => await action();
         return item;
-    }
-
-    internal static void AddPhaseAwareItems(ContextMenu menu, AircraftModel ac, MainViewModel vm, string callsign, string initials)
-    {
-        Task Cmd(string raw) => vm.Connection.SendCommandAsync(callsign, raw, initials);
-
-        string phase = ac.CurrentPhase ?? "";
-
-        // Ground movement (taxi/push/hold)
-        if (ac.IsOnGround)
-        {
-            if (AircraftCommandApplicability.CanPushBack(ac))
-            {
-                menu.Items.Add(MakeItem("Push back", () => Cmd("PUSH")));
-            }
-
-            if (AircraftCommandApplicability.CanHoldPosition(ac))
-            {
-                menu.Items.Add(MakeItem("Hold position", () => Cmd("HOLD")));
-            }
-
-            // A separate RES path: this one satisfies a hold-short clearance rather than clearing a
-            // hold directive, so it needs no hold and stays out of CanResumeTaxi.
-            if (phase.StartsWith("Holding Short", StringComparison.Ordinal))
-            {
-                menu.Items.Add(MakeItem("Resume taxi", () => Cmd("RES")));
-                string? heldRwy = HoldShortMenuHelper.HeldRunway(phase, ac);
-                if (!string.IsNullOrEmpty(heldRwy))
-                {
-                    menu.Items.Add(MakeItem($"Cross {RunwayIdentifier.ToDisplayDesignator(heldRwy)}", () => Cmd($"CROSS {heldRwy}")));
-                }
-            }
-
-            if (AircraftCommandApplicability.CanResumeTaxi(ac))
-            {
-                menu.Items.Add(MakeItem("Resume taxi", () => Cmd("RES")));
-            }
-        }
-
-        // Departure clearances. The runway is shown in the label for context, but the
-        // command is always the bare verb — LUAW and CTO have no runway argument; the
-        // server resolves the departure runway from the aircraft's assigned runway.
-        string? depRwy = HoldShortMenuHelper.HeldRunway(phase, ac);
-        string depRwyLabel = !string.IsNullOrEmpty(depRwy) ? $" {RunwayIdentifier.ToDisplayDesignator(depRwy)}" : "";
-
-        if (AircraftCommandApplicability.CanLineUpAndWait(ac))
-        {
-            menu.Items.Add(MakeItem($"Line up and wait{depRwyLabel}", () => Cmd("LUAW")));
-        }
-
-        if (AircraftCommandApplicability.CanClearForTakeoff(ac))
-        {
-            menu.Items.Add(MakeItem($"Cleared for takeoff{depRwyLabel}", () => Cmd("CTO")));
-        }
-
-        if (AircraftCommandApplicability.CanCancelTakeoff(ac))
-        {
-            menu.Items.Add(MakeItem("Cancel takeoff clearance", () => Cmd("CTOC")));
-        }
-
-        if (ac.CfrWindowStartUtc is not null && ac.IsOnGround)
-        {
-            menu.Items.Add(MakeItem("Check release window", () => Cmd("CFR CHECK")));
-        }
-
-        // Arrival / landing clearances
-        if (
-            AircraftCommandApplicability.CanClearToLand(ac)
-            || AircraftCommandApplicability.CanGoAround(ac)
-            || AircraftCommandApplicability.CanCancelLandingClearance(ac)
-        )
-        {
-            AddLandingItems(menu, ac, vm, callsign, initials);
-        }
-
-        // Runway exit (after touchdown)
-        if (AircraftCommandApplicability.CanExitRunway(ac))
-        {
-            menu.Items.Add(MakeItem("Exit left", () => Cmd("EL")));
-            menu.Items.Add(MakeItem("Exit right", () => Cmd("ER")));
-        }
-    }
-
-    private static void AddLandingItems(ContextMenu menu, AircraftModel ac, MainViewModel vm, string callsign, string initials)
-    {
-        Task Cmd(string raw) => vm.Connection.SendCommandAsync(callsign, raw, initials);
-        string rwy = !string.IsNullOrEmpty(ac.AssignedRunway) ? $" {RunwayIdentifier.ToDisplayDesignator(ac.AssignedRunway)}" : "";
-
-        if (AircraftCommandApplicability.CanClearToLand(ac))
-        {
-            menu.Items.Add(MakeItem($"Cleared to land{rwy}", () => Cmd("CLAND")));
-            // Force landing (CLANDF) is RPO-only — hidden in solo training.
-            if (vm.SessionSoloTrainingMode != true)
-            {
-                menu.Items.Add(MakeItem($"Force landing{rwy}", () => Cmd("CLANDF")));
-            }
-            if (AircraftCommandApplicability.CanIssueVfrOption(ac, vm.VfrCommandsForIfr))
-            {
-                menu.Items.Add(MakeItem($"Touch and go{rwy}", () => Cmd("TG")));
-                menu.Items.Add(MakeItem($"Stop and go{rwy}", () => Cmd("SG")));
-                menu.Items.Add(MakeItem($"Low approach{rwy}", () => Cmd("LA")));
-                menu.Items.Add(MakeItem($"Cleared for the option{rwy}", () => Cmd("COPT")));
-            }
-        }
-
-        if (AircraftCommandApplicability.CanGoAround(ac))
-        {
-            menu.Items.Add(MakeItem($"Go around{rwy}", () => Cmd("GA")));
-        }
-
-        if (AircraftCommandApplicability.CanCancelLandingClearance(ac))
-        {
-            menu.Items.Add(MakeItem("Cancel landing clearance", () => Cmd("CLC")));
-        }
     }
 
     private static readonly (string Label, int Seconds)[] SpawnDelayPresets =

@@ -201,7 +201,7 @@ public partial class DataGridView : UserControl
             return menu;
         }
 
-        AddCommandGroups(menu, ac, vm, context, host);
+        AddCommandGroups(menu, ac, context, host);
 
         menu.Items.Add(SharedMenuGroups.Delete(ac, context, host));
 
@@ -260,7 +260,7 @@ public partial class DataGridView : UserControl
     /// the flight-plan editor (<see cref="AircraftCommandApplicability.CanEditFlightPlan"/>). A surface shadow is
     /// not assumable and keeps its read-only track / coordination menu.
     /// </summary>
-    private static void AddCommandGroups(ContextMenu menu, AircraftModel ac, MainViewModel vm, MenuContext context, ListMenuHost host)
+    private static void AddCommandGroups(ContextMenu menu, AircraftModel ac, MenuContext context, ListMenuHost host)
     {
         if (AircraftCommandApplicability.CanAssume(ac))
         {
@@ -275,7 +275,7 @@ public partial class DataGridView : UserControl
             return;
         }
 
-        AddPhaseAwareItems(menu, ac, vm, context.Callsign, context.Initials);
+        SharedMenuGroups.AddListAircraftCommands(menu.Items, ac, context, host);
 
         menu.Items.Add(new Separator());
         menu.Items.Add(SharedMenuGroups.Track(ac, context, host, MenuView.List));

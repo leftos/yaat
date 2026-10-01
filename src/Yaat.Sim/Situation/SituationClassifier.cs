@@ -202,6 +202,7 @@ public static class SituationClassifier
     private static AircraftSituation ClassifyAirbornePhase(Phase? phase) =>
         phase switch
         {
+            ApproachNavigationPhase { IsMissedApproach: true } => AircraftSituation.GoAround,
             ApproachNavigationPhase or InterceptCoursePhase or ProcedureTurnPhase => AircraftSituation.Approach,
             HoldingPatternPhase or VfrHoldPhase or AirspaceBoundaryHoldPhase or AerialRefuelingAnchorPhase => AircraftSituation.Holding,
             UpwindPhase or CrosswindPhase or DownwindPhase or BasePhase => AircraftSituation.Pattern,

@@ -6,6 +6,7 @@ using Yaat.Client.Models;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
+using CatalogMenuView = Yaat.Client.ContextMenus.MenuView;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -21,8 +22,10 @@ public class DataGridContextMenuStateTests
     private static ContextMenu Build(AircraftModel ac)
     {
         var vm = new MainViewModel(new FakeFilePickerService());
+        var host = new ListMenuHost(vm, ac);
+        var context = new MenuContext(ac.Callsign, "AB", null, vm.SessionSoloTrainingMode, vm.VfrCommandsForIfr, CatalogMenuView.List);
         var menu = new ContextMenu();
-        DataGridView.AddPhaseAwareItems(menu, ac, vm, ac.Callsign, "AB");
+        SharedMenuGroups.AddListAircraftCommands(menu.Items, ac, context, host);
         return menu;
     }
 

@@ -1,5 +1,6 @@
 using System.Reflection;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.LiveTraffic;
@@ -8,7 +9,9 @@ using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation;
 using Yaat.Sim.Situation;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Situation;
 
@@ -129,6 +132,63 @@ public sealed class SituationClassifierTests
 
         Assert.Equal(AircraftSituation.LiveTraffic, SituationClassifier.Classify(ac, Now, AircraftSituation.Unknown));
     }
+
+    // --- Missed approach ---
+
+    /// <summary>
+    /// An aircraft cleared for the KOAK I28R approach, then put on the published missed approach
+    /// <see cref="ApproachCommandHandler.BuildMissedApproachPhases"/> builds and started on it, as
+    /// <c>FollowKeepApproachTests.AddOnMissedApproach</c> does for KCCR. KOAK's real navdata supplies the approach.
+    /// </summary>
+    [Fact]
+    public void Classify_OnPublishedMissedApproach_IsGoAround()
+    {
+        SimulationEngine engine = new(new TestAirportGroundData());
+        var ac = new AircraftState
+        {
+            Callsign = "N123",
+            AircraftType = "B738",
+            Position = new LatLon(37.75, -122.35),
+            TrueHeading = new TrueHeading(280),
+            Altitude = 3000,
+            IndicatedAirspeed = 210,
+            IsOnGround = false,
+            FlightPlan = new AircraftFlightPlan { Destination = "OAK" },
+        };
+        engine.World.AddAircraft(ac);
+
+        CommandResult result = engine.SendCommand(ac.Callsign, "CAPP I28R");
+        Assert.True(result.Success, result.Message);
+
+        PhaseList cleared = ac.Phases!;
+        RunwayInfo runway = cleared.AssignedRunway!;
+        List<Phase> missed = ApproachCommandHandler.BuildMissedApproachPhases(ac);
+        Assert.NotEmpty(missed);
+        ac.Phases = new PhaseList { AssignedRunway = runway, ActiveApproach = cleared.ActiveApproach };
+        foreach (Phase phase in missed)
+        {
+            ac.Phases.Add(phase);
+        }
+
+        ac.Position = OffFinal(runway, -0.5, 0.0);
+        ac.TrueHeading = runway.TrueHeading;
+        ac.TrueTrack = runway.TrueHeading;
+        ac.Altitude = 800;
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+
+        ApproachNavigationPhase onMissed = Assert.IsType<ApproachNavigationPhase>(ac.Phases.CurrentPhase);
+        Assert.True(onMissed.IsMissedApproach);
+
+        Assert.Equal(AircraftSituation.GoAround, SituationClassifier.Classify(ac, Now, AircraftSituation.Unknown));
+    }
+
+    /// <summary>A point <paramref name="alongNm"/> out the final and <paramref name="rightNm"/> right of the landing direction.</summary>
+    private static LatLon OffFinal(RunwayInfo rwy, double alongNm, double rightNm) =>
+        GeoMath.ProjectPoint(
+            GeoMath.ProjectPoint(new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude), rwy.TrueHeading.ToReciprocal(), alongNm),
+            rwy.TrueHeading + 90.0,
+            rightNm
+        );
 
     // --- Turns take the phase they interrupt ---
 

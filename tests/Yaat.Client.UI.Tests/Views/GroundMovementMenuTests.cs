@@ -81,8 +81,10 @@ public class GroundMovementMenuTests
     {
         AircraftModel ac = GroundAircraft("UAL100", phase, held);
         var vm = new MainViewModel(new FakeFilePickerService());
+        var host = new ListMenuHost(vm, ac);
+        var context = new MenuContext(ac.Callsign, "AB", null, vm.SessionSoloTrainingMode, vm.VfrCommandsForIfr, CatalogMenuView.List);
         var menu = new ContextMenu();
-        DataGridView.AddPhaseAwareItems(menu, ac, vm, ac.Callsign, "AB");
+        SharedMenuGroups.AddListAircraftCommands(menu.Items, ac, context, host);
         return menu;
     }
 

@@ -671,6 +671,44 @@ public static class SharedMenuGroups
         }
     }
 
+    /// <summary>
+    /// The aircraft list's phase-aware command items, in the list's order: the ground-movement block (push back, hold
+    /// position, resume taxi and cross the held runway) for an on-ground aircraft, then line up and wait, Cleared for
+    /// takeoff, cancel takeoff clearance and the release-window check, then the landing items and the runway exits. The
+    /// landing block reuses the ground's order (<see cref="GroundLandingIds"/>). The caller builds the context with
+    /// <see cref="MenuView.List"/>. Each item adds nothing when it does not apply.
+    /// </summary>
+    public static void AddListAircraftCommands(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        if (aircraft?.IsOnGround == true)
+        {
+            AddIfApplicable(items, MenuIds.GroundPushback, aircraft, context, host);
+            AddIfApplicable(items, MenuIds.GroundHoldPosition, aircraft, context, host);
+            AddIfApplicable(items, MenuIds.GroundResumeTaxi, aircraft, context, host);
+            AddIfApplicable(items, MenuIds.GroundCrossRunway, aircraft, context, host);
+        }
+
+        AddIfApplicable(items, MenuIds.TowerLineUpAndWait, aircraft, context, host);
+        AddIfApplicable(items, MenuIds.TowerClearedForTakeoff, aircraft, context, host);
+        AddIfApplicable(items, MenuIds.TowerCancelTakeoff, aircraft, context, host);
+        AddIfApplicable(items, MenuIds.CoordinationCheckReleaseWindow, aircraft, context, host);
+
+        bool landing =
+            (IsApplicable(MenuIds.TowerClearedToLand, aircraft, context))
+            || (IsApplicable(MenuIds.TowerGoAround, aircraft, context))
+            || (IsApplicable(MenuIds.TowerCancelLanding, aircraft, context));
+        if (landing)
+        {
+            foreach (string id in GroundLandingIds)
+            {
+                AddIfApplicable(items, id, aircraft, context, host);
+            }
+        }
+
+        AddIfApplicable(items, MenuIds.TowerExitLeft, aircraft, context, host);
+        AddIfApplicable(items, MenuIds.TowerExitRight, aircraft, context, host);
+    }
+
     /// <summary>The ground view's landing items, in menu order.</summary>
     private static readonly string[] GroundLandingIds =
     [

@@ -498,8 +498,7 @@ ground departures, landing/option clearances only while a landing is pending wit
 items only after touchdown, pattern maneuvers gated per leg). `SharedMenuGroups.Tower` and `SharedMenuGroups.Pattern` (Core) return `null` when
 nothing applies, so the group is dropped even if the profile listed it. A trailing always-visible block adds Track,
 Data-block, Squawk, Ask-pilot, Coordination, Display, Sim-control, and RPO-control submenus (`:138-150`). The aircraft-list
-(`DataGridView.ContextMenu.cs`) and ground (`GroundView.axaml.cs`) menus consult the same `AircraftCommandApplicability`
-predicates so all three surfaces agree.
+(`DataGridView.BuildAircraftMenu`) and ground (`GroundView.axaml.cs`) menus build from the same Core catalog (`Yaat.Client.Core/ContextMenus/`, `SharedMenuGroups`) and consult the same `AircraftCommandApplicability` predicates, with per-view branches where a view's behaviour differs.
 
 ### Smart-default convention
 

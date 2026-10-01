@@ -1,10 +1,12 @@
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Xunit;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
+using CatalogMenuView = Yaat.Client.ContextMenus.MenuView;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -25,8 +27,10 @@ public class DataGridContextMenuHoldShortTests
             AssignedRunway = "28R",
         };
 
+        var host = new ListMenuHost(vm, ac);
+        var context = new MenuContext(ac.Callsign, "AB", null, vm.SessionSoloTrainingMode, vm.VfrCommandsForIfr, CatalogMenuView.List);
         var menu = new ContextMenu();
-        DataGridView.AddPhaseAwareItems(menu, ac, vm, "N784ME", "AB");
+        SharedMenuGroups.AddListAircraftCommands(menu.Items, ac, context, host);
 
         var crossItems = menu
             .Items.OfType<MenuItem>()
