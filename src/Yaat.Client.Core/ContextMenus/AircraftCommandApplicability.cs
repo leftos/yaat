@@ -335,7 +335,7 @@ public static class AircraftCommandApplicability
 
     /// <summary>
     /// Cross the runway (<c>CROSS</c>) an aircraft is holding short of: the runway comes from the hold-short phase,
-    /// else the assigned runway (<see cref="HoldShortMenuHelper.HeldRunway"/>), and with neither there is no runway
+    /// else the assigned runway (<see cref="HoldShortMenuHelper.HeldRunway(string, IMenuAircraft?)"/>), and with neither there is no runway
     /// to name. The <see cref="IsControllable"/> guard keeps surface live-traffic shadows out, as in <see cref="CanPushBack"/>.
     /// </summary>
     public static bool CanCrossRunway(IMenuAircraft? ac)
@@ -345,8 +345,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        string phase = ac.CurrentPhase;
-        return phase.StartsWith("Holding Short", StringComparison.Ordinal) && HoldShortMenuHelper.HeldRunway(phase, ac) is not null;
+        return ac.CurrentPhase.StartsWith("Holding Short", StringComparison.Ordinal) && HoldShortMenuHelper.HeldRunway(ac) is not null;
     }
 
     /// <summary>

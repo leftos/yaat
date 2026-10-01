@@ -790,7 +790,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// <summary>
     /// Clears any manual drag offset for the callsign so its datablock returns to the student's leader
     /// direction (when leader-direction sync is on) or the default placement. Backs the radar
-    /// "Reset to student position" context-menu item.
+    /// "Reset datablock position" context-menu item.
     /// </summary>
     public void ResetDataBlockOffset(string callsign)
     {

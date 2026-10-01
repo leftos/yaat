@@ -156,7 +156,7 @@ public class MenuCatalogCommandTests
         (MenuIds.PatternCancel270, "", "NO270"),
         (MenuIds.PatternCircleAirport, "", "CA"),
         (MenuIds.GroundPushback, "", "PUSH"),
-        (MenuIds.GroundHoldPosition, "", "HP"),
+        (MenuIds.GroundHoldPosition, "", "HOLD"),
         (MenuIds.GroundResumeTaxi, "", "RES"),
         (MenuIds.GroundBreakConflict, "", "BREAK"),
         (MenuIds.SpawnNow, "", "SPAWN"),
@@ -308,9 +308,10 @@ public class MenuCatalogCommandTests
     }
 
     [AvaloniaTheory]
-    [InlineData(CatalogMenuView.Radar, "ID")]
-    [InlineData(CatalogMenuView.List, "IDENT")]
-    public void SquawkGroup_Ident_SendsTheViewsCommand(CatalogMenuView view, string command)
+    [InlineData(CatalogMenuView.Radar)]
+    [InlineData(CatalogMenuView.List)]
+    [InlineData(CatalogMenuView.Ground)]
+    public void SquawkGroup_Ident_SendsIdent_OnEveryView(CatalogMenuView view)
     {
         var host = new RecordingMenuHost("");
         MenuItem squawk = SharedMenuGroups.Squawk(null, Context(), host, view);
@@ -318,7 +319,7 @@ public class MenuCatalogCommandTests
 
         Click(ident);
 
-        Assert.Equal([(Callsign, command, Initials)], host.Sent);
+        Assert.Equal([(Callsign, "IDENT", Initials)], host.Sent);
     }
 
     [AvaloniaFact]
@@ -412,7 +413,7 @@ public class MenuCatalogCommandTests
         MenuItem? item = MenuCatalog.Get(MenuIds.DisplayResetDataBlockPosition).Build(null, Context(), host);
 
         Assert.NotNull(item);
-        Assert.Equal("Reset to student position", item.Header as string);
+        Assert.Equal("Reset datablock position", item.Header as string);
 
         Click(item);
 
@@ -503,7 +504,7 @@ public class MenuCatalogCommandTests
         Assert.Equal(
             [
                 "Full datablock",
-                "Reset to student position",
+                "Reset datablock position",
                 "Hide nav route",
                 $"Measure to {Callsign}",
                 "---",
@@ -1352,6 +1353,130 @@ public class MenuCatalogCommandTests
         Assert.Equal(header, entry.Build(ac, GroundContext(VfrCommandsForIfr.None), new RecordingMenuHost(""))?.Header as string);
     }
 
+    // Holding short of crossing runway 15 while assigned 28R: line up and wait names the held 15 on every view.
+    [AvaloniaTheory]
+    [InlineData(CatalogMenuView.Radar)]
+    [InlineData(CatalogMenuView.List)]
+    [InlineData(CatalogMenuView.Ground)]
+    public void LuawLabel_NamesHeldRunway_OnEveryView(CatalogMenuView view)
+    {
+        AircraftModel ac = OnGround("Holding Short 15/33", "IFR", "28R");
+        var context = new MenuContext(Callsign, Initials, null, false, VfrCommandsForIfr.None, view);
+        MenuCatalogEntry entry = MenuCatalog.Get(MenuIds.TowerLineUpAndWait);
+
+        Assert.True(entry.IsApplicable(ac, context));
+        Assert.Equal("Line up and wait 15", entry.Build(ac, context, new RecordingMenuHost(""))?.Header as string);
+    }
+
+    // A VFR C172 on the downwind to 28R: the radar's Tower submenu, the ground's landing block and the list's command
+    // block offer the landing items in one order.
+    [AvaloniaFact]
+    public void LandingBlockOrder_IsTheSameOnEveryView()
+    {
+        var ac = new AircraftModel
+        {
+            Callsign = Callsign,
+            AircraftType = "C172",
+            FlightRules = "VFR",
+            CurrentPhase = "Downwind",
+            IsOnGround = false,
+            Departure = "KOAK",
+            Destination = "KOAK",
+            AssignedRunway = "28R",
+        };
+        string[] expected =
+        [
+            "Cleared to land 28R",
+            "Force landing 28R",
+            "Cleared for the option 28R",
+            "Touch and go 28R",
+            "Stop and go 28R",
+            "Low approach 28R",
+            "Go around 28R",
+        ];
+        var host = new RecordingMenuHost("");
+
+        MenuItem? tower = SharedMenuGroups.Tower(ac, RadarContext(VfrCommandsForIfr.None), host);
+        var ground = new ContextMenu();
+        SharedMenuGroups.AddGroundLanding(ground.Items, ac, GroundContext(VfrCommandsForIfr.None), host);
+        var list = new ContextMenu();
+        SharedMenuGroups.AddListAircraftCommands(list.Items, ac, ListContext(VfrCommandsForIfr.None), host);
+
+        Assert.NotNull(tower);
+        Assert.Equal(expected, tower.Items.Select(Describe));
+        Assert.Equal(expected, ground.Items.Select(Describe));
+        Assert.Equal(expected, list.Items.Select(Describe));
+    }
+
+    // The flat ground and list menus open the landing block and the exits with exactly one separator, whether the
+    // items before them end in a plain item or already in a separator.
+    [AvaloniaTheory]
+    [InlineData(CatalogMenuView.Ground, false)]
+    [InlineData(CatalogMenuView.Ground, true)]
+    [InlineData(CatalogMenuView.List, false)]
+    [InlineData(CatalogMenuView.List, true)]
+    public void FlatLandingAndExits_OpenWithOneSeparator(CatalogMenuView view, bool seedEndsInSeparator)
+    {
+        var downwind = new AircraftModel
+        {
+            Callsign = Callsign,
+            FlightRules = "VFR",
+            CurrentPhase = "Downwind",
+            IsOnGround = false,
+            AssignedRunway = "28R",
+        };
+        var rollout = new AircraftModel
+        {
+            Callsign = Callsign,
+            FlightRules = "IFR",
+            CurrentPhase = "Landing",
+            IsOnGround = true,
+            AssignedRunway = "28R",
+        };
+
+        Assert.Equal(
+            [
+                "Seed",
+                "---",
+                "Cleared to land 28R",
+                "Force landing 28R",
+                "Cleared for the option 28R",
+                "Touch and go 28R",
+                "Stop and go 28R",
+                "Low approach 28R",
+                "Go around 28R",
+            ],
+            FlatLandingItems(view, downwind, seedEndsInSeparator)
+        );
+        Assert.Equal(["Seed", "---", "Exit left", "Exit right"], FlatLandingItems(view, rollout, seedEndsInSeparator));
+    }
+
+    /// <summary>
+    /// The items of a flat menu seeded with a plain "Seed" item (and a separator after it when
+    /// <paramref name="seedEndsInSeparator"/>), after the ground's landing builder or the list's command block runs.
+    /// </summary>
+    private static List<string> FlatLandingItems(CatalogMenuView view, AircraftModel aircraft, bool seedEndsInSeparator)
+    {
+        var menu = new ContextMenu();
+        menu.Items.Add(new MenuItem { Header = "Seed" });
+        if (seedEndsInSeparator)
+        {
+            menu.Items.Add(new Separator());
+        }
+
+        var host = new RecordingMenuHost("");
+        if (view == CatalogMenuView.Ground)
+        {
+            SharedMenuGroups.AddGroundLanding(menu.Items, aircraft, GroundContext(VfrCommandsForIfr.None), host);
+        }
+        else
+        {
+            SharedMenuGroups.AddListAircraftCommands(menu.Items, aircraft, ListContext(VfrCommandsForIfr.None), host);
+        }
+
+        return [.. menu.Items.Select(Describe)];
+    }
+
     [AvaloniaFact]
     public void GroundCto_VfrDeparture_OffersTheGroundModifierSet_WithNoCustomItem()
     {
@@ -1437,7 +1562,7 @@ public class MenuCatalogCommandTests
     }
 
     [AvaloniaFact]
-    public void GroundLanding_KeepsTheGroundOrder_TouchAndGoStopAndGoLowApproachThenTheOption()
+    public void GroundLanding_OnFinal_UsesTheTowerOrder_TheOptionBeforeTouchAndGo()
     {
         var ac = new AircraftModel
         {
@@ -1455,10 +1580,10 @@ public class MenuCatalogCommandTests
             [
                 "Cleared to land 28R",
                 "Force landing 28R",
+                "Cleared for the option 28R",
                 "Touch and go 28R",
                 "Stop and go 28R",
                 "Low approach 28R",
-                "Cleared for the option 28R",
                 "Go around 28R",
             ],
             menu.Items.Select(Describe)
@@ -1555,7 +1680,7 @@ public class MenuCatalogCommandTests
         Assert.Equal([("Exit left", "EL"), ("Exit right", "ER")], ListMenuCommands(aircraft, new RecordingMenuHost("")));
     }
 
-    // Taxiing with a call-for-release window: Hold position sends HOLD (not the ground view's HP), and the
+    // Taxiing with a call-for-release window: Hold position sends HOLD, as on every view, and the
     // release-window check is offered on the phase and window alone.
     [AvaloniaFact]
     public void ListMenu_TaxiingWithCfrWindow_SendsHoldAndCheckReleaseWindow()

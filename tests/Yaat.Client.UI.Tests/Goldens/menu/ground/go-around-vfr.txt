@@ -10,10 +10,10 @@ Favorite Commands
 ---
 Cleared to land 28R
 Force landing 28R
+Cleared for the option 28R
 Touch and go 28R
 Stop and go 28R
 Low approach 28R
-Cleared for the option 28R
 Taxi route
   Always show
   Always hide

@@ -20,20 +20,20 @@ namespace Yaat.Client.ContextMenus;
 /// preset-taxi submenus over the choices the host answers (the pushback faces are flat items of a companion helper,
 /// <see cref="BuildPushbackFaces"/>), and so is the delayed spawn's Change spawn delay submenu
 /// (<see cref="BuildSpawnDelay"/>), whose free-text box closes the menu it sits in; a value submenu builds a whole
-/// submenu of items from its own label and the menu
-/// context, one per value — the leader directions, the J-ring radii, the cone lengths and the taxi-route modes; and the Cleared for
-/// takeoff submenu offers the default clearance and runway heading, the VFR departure instructions when the aircraft
-/// and the controller's VFR-for-IFR setting allow them, and a free-text item last. A pattern entry is a leaf naming the
-/// assigned runway, else a runway picker, else free text, and each pattern maneuver applies only on the legs it fits.
-/// On the ground view (<see cref="MenuContext.View"/>), line up and wait, Cleared for takeoff and cancel takeoff keep
-/// the ground's narrower gates, line up and wait and the Cleared for takeoff header name the held runway, and that
-/// submenu keeps the ground's modifier set with no free text; the relative ground items send as the previous selection.
-/// The aircraft list (<see cref="MenuView.List"/>) shows its own flat variants: a hold-short or stationary hold to
-/// resume taxi from, a cross-runway gate with no controllability requirement, Hold position sending <c>HOLD</c>, a
-/// release-window check with no controllability requirement, and line up and wait and Cleared for takeoff naming the
-/// held runway, the latter as a bare leaf sending <c>CTO</c>. A delayed spawn instead offers Spawn now, the
-/// Change spawn delay submenu and Delete (<see cref="SharedMenuGroups.AddDelayedSpawn"/>), and a selection of two or
-/// more assumable shadows adds "Assume selected live traffic (N)" after Delete
+/// submenu of items from its own label and the menu context, one per value — the leader directions, the J-ring radii,
+/// the cone lengths and the taxi-route modes; and the Cleared for takeoff submenu offers the default clearance and
+/// runway heading, the VFR departure instructions when the aircraft and the controller's VFR-for-IFR setting allow
+/// them, and a free-text item last. A pattern entry is a leaf naming the assigned runway, else a runway picker, else
+/// free text, and each pattern maneuver applies only on the legs it fits. Line up and wait names the held runway, else
+/// the assigned one, on every view (<see cref="HoldShortMenuHelper.HeldRunway(IMenuAircraft?)"/>). On the ground view
+/// (<see cref="MenuContext.View"/>), line up and wait, Cleared for takeoff and cancel takeoff keep the ground's
+/// narrower gates, the Cleared for takeoff header names the held runway, and that submenu keeps the ground's modifier
+/// set with no free text; the relative ground items send as the previous selection. The aircraft list
+/// (<see cref="MenuView.List"/>) shows its own flat variants: a hold-short or stationary hold to resume taxi from, a
+/// cross-runway gate with no controllability requirement, a release-window check with no controllability requirement,
+/// and Cleared for takeoff naming the held runway as a bare leaf sending <c>CTO</c>. A delayed spawn instead offers
+/// Spawn now, the Change spawn delay submenu and Delete (<see cref="SharedMenuGroups.AddDelayedSpawn"/>), and a
+/// selection of two or more assumable shadows adds "Assume selected live traffic (N)" after Delete
 /// (<see cref="SharedMenuGroups.AddAssumeSelected"/>, built by <see cref="BuildAssumeSelected"/>).
 /// </summary>
 public static class MenuCatalog
@@ -102,7 +102,7 @@ public static class MenuCatalog
         Leaf(MenuIds.SimControlDelete, "Delete", "DEL", Always),
         HostLeaf(MenuIds.AircraftEditFlightPlan, "Edit flight plan", CanEditFlightPlan, BuildEditFlightPlan),
         HostLeaf(MenuIds.DisplayMiniDataBlock, "Mini datablock", Always, BuildMiniDataBlock),
-        HostLeaf(MenuIds.DisplayResetDataBlockPosition, "Reset to student position", Always, BuildResetDataBlockPosition),
+        HostLeaf(MenuIds.DisplayResetDataBlockPosition, "Reset datablock position", Always, BuildResetDataBlockPosition),
         HostLeaf(MenuIds.DisplayNavRoute, "Show nav route", Always, BuildNavRoute),
         HostLeaf(MenuIds.DisplayMeasure, "Measure", Always, BuildMeasure),
         Submenu(MenuIds.DisplayLeaderDirection, "Leader direction", BuildLeaderDirection),
@@ -232,13 +232,7 @@ public static class MenuCatalog
             (label, _, context, host) => BuildChoiceSubmenu(label, host.GetPushbackToChoices(context.Callsign), context, host)
         ),
         HostLeaf(MenuIds.GroundPushRoute, "Push route...", (ac, _) => AircraftCommandApplicability.CanPushBack(ac), BuildPushRoute),
-        new(
-            MenuIds.GroundHoldPosition,
-            "Hold position",
-            MenuFlightRules.Both,
-            (ac, _) => AircraftCommandApplicability.CanHoldPosition(ac),
-            (_, context, host) => BuildSend("Hold position", context.View == MenuView.List ? "HOLD" : "HP", context, host)
-        ),
+        Leaf(MenuIds.GroundHoldPosition, "Hold position", "HOLD", (ac, _) => AircraftCommandApplicability.CanHoldPosition(ac)),
         Leaf(
             MenuIds.GroundResumeTaxi,
             "Resume taxi",
@@ -406,9 +400,6 @@ public static class MenuCatalog
     /// <summary>The trailing ellipsis a picker label carries while it opens a popup that is not the plain route-fix list.</summary>
     private const string Ellipsis = "...";
 
-    /// <summary>The ground view's text for the data-block reset item, which the radar labels "Reset to student position".</summary>
-    private const string GroundResetDataBlockLabel = "Reset datablock position";
-
     /// <summary>The taxi-route submenu's items, in menu order: each item's text and the mode it sets.</summary>
     private static readonly (string Label, TaxiRouteDisplayMode Mode)[] TaxiRouteModeItems =
     [
@@ -491,20 +482,10 @@ public static class MenuCatalog
     /// <summary><paramref name="runway"/> in display form as a label suffix (" 28R"), or empty when there is none.</summary>
     private static string DisplaySuffix(string? runway) => string.IsNullOrEmpty(runway) ? "" : $" {RunwayIdentifier.ToDisplayDesignator(runway)}";
 
-    /// <summary>The runway the aircraft is holding short of (<see cref="HoldShortMenuHelper.HeldRunway"/>), or null when none.</summary>
-    private static string? HeldRunway(IMenuAircraft? aircraft) => HoldShortMenuHelper.HeldRunway(aircraft?.CurrentPhase ?? "", aircraft);
-
-    /// <summary>
-    /// The runway the ground view's takeoff items name: the held runway at a hold-short, else the assigned one; null
-    /// or empty when there is none.
-    /// </summary>
-    private static string? GroundTakeoffRunway(IMenuAircraft? aircraft) =>
-        (aircraft?.CurrentPhase ?? "").StartsWith("Holding Short", StringComparison.Ordinal) ? HeldRunway(aircraft) : aircraft?.AssignedRunway;
-
     /// <summary>
     /// The ground view's Cleared for takeoff gate, narrower than <see cref="AircraftCommandApplicability.CanClearForTakeoff"/>:
-    /// a departure taxiing to, holding short of or lined up on a runway it can name (<see cref="GroundTakeoffRunway"/>),
-    /// never while lining up or rolling.
+    /// a departure taxiing to, holding short of or lined up on a runway it can name
+    /// (<see cref="HoldShortMenuHelper.HeldRunway(IMenuAircraft?)"/>), never while lining up or rolling.
     /// </summary>
     private static bool CanGroundClearForTakeoff(IMenuAircraft? aircraft)
     {
@@ -515,7 +496,7 @@ public static class MenuCatalog
 
         string phase = aircraft.CurrentPhase;
         bool departing = (phase is "Taxiing" or "LinedUpAndWaiting") || (phase.StartsWith("Holding Short", StringComparison.Ordinal));
-        return departing && !string.IsNullOrEmpty(GroundTakeoffRunway(aircraft));
+        return departing && !string.IsNullOrEmpty(HoldShortMenuHelper.HeldRunway(aircraft));
     }
 
     /// <summary>The ground view's Line up and wait gate: holding short of a runway it can name, never while taxiing to one.</summary>
@@ -544,7 +525,7 @@ public static class MenuCatalog
         string phase = aircraft?.CurrentPhase ?? "";
         return (aircraft?.IsOnGround == true)
             && (phase.StartsWith("Holding Short", StringComparison.Ordinal))
-            && (HoldShortMenuHelper.HeldRunway(phase, aircraft) is { Length: > 0 });
+            && (HoldShortMenuHelper.HeldRunway(aircraft) is { Length: > 0 });
     }
 
     /// <summary>
@@ -553,26 +534,25 @@ public static class MenuCatalog
     /// </summary>
     private static bool CanListCheckReleaseWindow(IMenuAircraft? aircraft) => aircraft is { IsOnGround: true, HasCfrWindow: true };
 
-    /// <summary>
-    /// Line up and wait, sending the bare verb: on the ground view and the aircraft list the label names the held
-    /// runway, elsewhere the assigned one.
-    /// </summary>
-    private static MenuItem BuildLineUpAndWait(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-    {
-        string suffix = context.View is MenuView.Ground or MenuView.List ? DisplaySuffix(HeldRunway(aircraft)) : RunwaySuffix(aircraft);
-        return BuildSend(LineUpAndWaitLabel + suffix, "LUAW", context, host);
-    }
+    /// <summary>Line up and wait, sending the bare verb, its label naming the held runway, else the assigned one.</summary>
+    private static MenuItem BuildLineUpAndWait(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
+        BuildSend(LineUpAndWaitLabel + DisplaySuffix(HoldShortMenuHelper.HeldRunway(aircraft)), "LUAW", context, host);
 
     /// <summary>
     /// The aircraft list's Cleared for takeoff item: a bare leaf sending <c>CTO</c>, its label naming the held runway
     /// (else the assigned one) as the ground header does, but with no submenu.
     /// </summary>
     private static MenuItem BuildListClearedForTakeoff(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
-        BuildSend(ClearedForTakeoffLabel + DisplaySuffix(HeldRunway(aircraft)), "CTO", context, host);
+        BuildSend(ClearedForTakeoffLabel + DisplaySuffix(HoldShortMenuHelper.HeldRunway(aircraft)), "CTO", context, host);
 
-    /// <summary>Cross the held runway, named in display form and sent as held; null when the aircraft holds short of none.</summary>
+    /// <summary>
+    /// Cross the held runway, else the assigned one (<see cref="HoldShortMenuHelper.HeldRunway(IMenuAircraft?)"/>), named
+    /// in display form and sent as resolved; null when the aircraft has neither.
+    /// </summary>
     private static MenuItem? BuildCrossRunway(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
-        HeldRunway(aircraft) is { } runway ? BuildSend(CrossRunwayLabel + DisplaySuffix(runway), $"CROSS {runway}", context, host) : null;
+        HoldShortMenuHelper.HeldRunway(aircraft) is { } runway
+            ? BuildSend(CrossRunwayLabel + DisplaySuffix(runway), $"CROSS {runway}", context, host)
+            : null;
 
     /// <summary>
     /// The Change spawn delay submenu: one item per <see cref="SpawnDelay.Presets"/> entry, then a free-text box that
@@ -638,13 +618,14 @@ public static class MenuCatalog
     }
 
     /// <summary>
-    /// The ground view's Cleared for takeoff submenu, headed with the runway it names (<see cref="GroundTakeoffRunway"/>):
+    /// The ground view's Cleared for takeoff submenu, headed with the runway it names
+    /// (<see cref="HoldShortMenuHelper.HeldRunway(IMenuAircraft?)"/>):
     /// the default clearance, then the closed-traffic and departure-heading instructions when
     /// <see cref="AircraftCommandApplicability.ShowVfrTakeoffModifiers"/> allows them, else runway heading only. No free text.
     /// </summary>
     private static MenuItem BuildGroundClearedForTakeoff(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        var menu = new MenuItem { Header = ClearedForTakeoffLabel + DisplaySuffix(GroundTakeoffRunway(aircraft)) };
+        var menu = new MenuItem { Header = ClearedForTakeoffLabel + DisplaySuffix(HoldShortMenuHelper.HeldRunway(aircraft)) };
         menu.Items.Add(BuildSend("Default (SID/on course)", "CTO", context, host));
         menu.Items.Add(new Separator());
         if (AircraftCommandApplicability.ShowVfrTakeoffModifiers(aircraft, context.VfrCommandsForIfr))
@@ -968,7 +949,7 @@ public static class MenuCatalog
     }
 
     /// <summary>
-    /// The "Reset to student position" item ("Reset datablock position" on the ground view), which the surface offers
+    /// The "Reset datablock position" item, which the surface offers
     /// only while the data block sits away from the position the student sees it in; null otherwise.
     /// </summary>
     private static MenuItem? BuildResetDataBlockPosition(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
@@ -978,7 +959,7 @@ public static class MenuCatalog
             return null;
         }
 
-        var item = new MenuItem { Header = context.View == MenuView.Ground ? GroundResetDataBlockLabel : label };
+        var item = new MenuItem { Header = label };
         item.Click += (_, _) => host.ResetDataBlockOffset(context.Callsign);
         return item;
     }
