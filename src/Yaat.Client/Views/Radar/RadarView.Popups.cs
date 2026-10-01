@@ -14,7 +14,7 @@ public partial class RadarView
 {
     // --- Input popup ---
 
-    private void ShowInputPopup(string watermark, Func<string, Task> action)
+    internal void ShowInputPopup(string watermark, Func<string, Task> action)
     {
         _pendingInputAction = action;
         Popup? popup = this.FindControl<Popup>("InputPopup");

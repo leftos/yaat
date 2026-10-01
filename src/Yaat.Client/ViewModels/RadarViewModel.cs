@@ -1304,10 +1304,6 @@ public partial class RadarViewModel(
     public async Task AppendForceDirectToAsync(string callsign, string initials, string fix) =>
         await _sendCommand(callsign, $"ADCTF {fix}", initials);
 
-    public async Task TrackAsync(string callsign, string initials) => await _sendCommand(callsign, "TRACK", initials);
-
-    public async Task DropTrackAsync(string callsign, string initials) => await _sendCommand(callsign, "DROP", initials);
-
     public async Task AcceptHandoffAsync(string callsign, string initials) => await _sendCommand(callsign, "ACCEPT", initials);
 
     public async Task SendRawCommandAsync(string callsign, string initials, string command) => await _sendCommand(callsign, command, initials);
@@ -1317,20 +1313,12 @@ public partial class RadarViewModel(
     public async Task WarpAsync(string callsign, string initials, string frd, int heading, int altitude, int speed) =>
         await _sendCommand(callsign, $"WARP {frd} {heading} {altitude} {speed}", initials);
 
-    public async Task IdentAsync(string callsign, string initials) => await _sendCommand(callsign, "ID", initials);
-
     public async Task PresentHeadingAsync(string callsign, string initials) => await _sendCommand(callsign, "FPH", initials);
 
     // --- Track operations ---
 
     public async Task InitiateHandoffAsync(string callsign, string initials, string position) =>
         await _sendCommand(callsign, $"HO {position}", initials);
-
-    public async Task CancelHandoffAsync(string callsign, string initials) => await _sendCommand(callsign, "CANCEL", initials);
-
-    public async Task PointOutAsync(string callsign, string initials, string position) => await _sendCommand(callsign, $"PO {position}", initials);
-
-    public async Task AcknowledgeAsync(string callsign, string initials) => await _sendCommand(callsign, "OK", initials);
 
     // --- Data block ---
 
@@ -1460,32 +1448,6 @@ public partial class RadarViewModel(
     public async Task EnterFinalAsync(string callsign, string initials, string? runway) =>
         await _sendCommand(callsign, runway is not null ? $"EF {runway}" : "EF", initials);
 
-    // --- Squawk ---
-
-    public async Task SquawkAsync(string callsign, string initials, int code) => await _sendCommand(callsign, $"SQ {code}", initials);
-
-    public async Task SquawkVfrAsync(string callsign, string initials) => await _sendCommand(callsign, "SQVFR", initials);
-
-    public async Task SquawkNormalAsync(string callsign, string initials) => await _sendCommand(callsign, "SQNORM", initials);
-
-    public async Task SquawkStandbyAsync(string callsign, string initials) => await _sendCommand(callsign, "SQSBY", initials);
-
-    public async Task RandomSquawkAsync(string callsign, string initials) => await _sendCommand(callsign, "RANDSQ", initials);
-
-    public async Task SayAltitudeAsync(string callsign, string initials) => await _sendCommand(callsign, "SALT", initials);
-
-    public async Task SayHeadingAsync(string callsign, string initials) => await _sendCommand(callsign, "SHDG", initials);
-
-    public async Task SaySpeedAsync(string callsign, string initials) => await _sendCommand(callsign, "SSPD", initials);
-
-    public async Task SayMachAsync(string callsign, string initials) => await _sendCommand(callsign, "SMACH", initials);
-
-    public async Task SayPositionAsync(string callsign, string initials) => await _sendCommand(callsign, "SPOS", initials);
-
-    public async Task SayExpectedApproachAsync(string callsign, string initials) => await _sendCommand(callsign, "SEAPP", initials);
-
-    public async Task SayCustomAsync(string callsign, string initials, string text) => await _sendCommand(callsign, $"SAY {text}", initials);
-
     public async Task LeaderDirectionAsync(string callsign, string initials, int direction) =>
         await _sendCommand(callsign, $"LDR {direction}", initials);
 
@@ -1538,16 +1500,6 @@ public partial class RadarViewModel(
 
     public async Task JoinRadialInboundAsync(string callsign, string initials, string radial) =>
         await _sendCommand(callsign, $"JRADI {radial}", initials);
-
-    // --- Coordination ---
-
-    public async Task CoordinationReleaseAsync(string callsign, string initials) => await _sendCommand(callsign, "RD", initials);
-
-    public async Task CoordinationHoldAsync(string callsign, string initials) => await _sendCommand(callsign, "RDH", initials);
-
-    public async Task CoordinationRecallAsync(string callsign, string initials) => await _sendCommand(callsign, "RDR", initials);
-
-    public async Task CoordinationAcknowledgeAsync(string callsign, string initials) => await _sendCommand(callsign, "RDACK", initials);
 
     // --- Draw route ---
 

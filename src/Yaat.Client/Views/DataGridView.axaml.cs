@@ -187,17 +187,21 @@ public partial class DataGridView : UserControl
         string initials
     )
     {
+        string callsign = ac.Callsign;
+        var context = new MenuContext(callsign, initials, null, vm.SessionSoloTrainingMode, vm.VfrCommandsForIfr);
+        var host = new ListMenuHost(vm, ac);
         var menu = new ContextMenu();
         AddAircraftMenuHeader(menu, vm, flyoutTarget, ac, initials);
+        menu.Items.Add(SharedMenuGroups.Favorites(ac, context, host));
+        menu.Items.Add(new Separator());
 
-        string callsign = ac.Callsign;
         if (ac.IsDelayed)
         {
             AddDelayedSpawnItems(menu, vm, callsign, initials);
             return menu;
         }
 
-        AddCommandGroups(menu, ac, vm, callsign, initials);
+        AddCommandGroups(menu, ac, vm, context, host);
 
         var deleteItem = new MenuItem { Header = "Delete" };
         deleteItem.Click += async (_, _) => await vm.Connection.SendCommandAsync(callsign, "DEL", initials);
@@ -224,7 +228,7 @@ public partial class DataGridView : UserControl
         return menu;
     }
 
-    /// <summary>The bold callsign header, the free-text Command… and Note… and the favorites block.</summary>
+    /// <summary>The bold callsign header and the free-text Command… and Note…, each block closed by a separator.</summary>
     private static void AddAircraftMenuHeader(ContextMenu menu, MainViewModel vm, Control flyoutTarget, AircraftModel ac, string initials)
     {
         string callsign = ac.Callsign;
@@ -248,9 +252,6 @@ public partial class DataGridView : UserControl
         noteItem.Click += (_, _) => NoteFlyout.Open(flyoutTarget, callsign, ac.Note, cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials));
         menu.Items.Add(noteItem);
         menu.Items.Add(new Separator());
-
-        menu.Items.Add(FavoritesContextMenu.Build(vm, ac, callsign, initials));
-        menu.Items.Add(new Separator());
     }
 
     /// <summary>
@@ -261,31 +262,32 @@ public partial class DataGridView : UserControl
     /// the flight-plan editor (<see cref="AircraftCommandApplicability.CanEditFlightPlan"/>). A surface shadow is
     /// not assumable and keeps its read-only track / coordination menu.
     /// </summary>
-    private static void AddCommandGroups(ContextMenu menu, AircraftModel ac, MainViewModel vm, string callsign, string initials)
+    private static void AddCommandGroups(ContextMenu menu, AircraftModel ac, MainViewModel vm, MenuContext context, ListMenuHost host)
     {
-        if (LiveTrafficMenuItems.Add(menu, ac, cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials)))
+        if (AircraftCommandApplicability.CanAssume(ac))
         {
+            SharedMenuGroups.AddLiveTrafficAssume(menu.Items, ac, context, host);
             menu.Items.Add(new Separator());
         }
         else if (ac.IsLiveTraffic)
         {
-            menu.Items.Add(BuildTrackSubmenu(vm, callsign, initials));
-            menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
+            menu.Items.Add(SharedMenuGroups.Track(ac, context, host, MenuView.List));
+            menu.Items.Add(SharedMenuGroups.Coordination(ac, context, host));
             menu.Items.Add(new Separator());
             return;
         }
 
-        AddPhaseAwareItems(menu, ac, vm, callsign, initials);
+        AddPhaseAwareItems(menu, ac, vm, context.Callsign, context.Initials);
 
         menu.Items.Add(new Separator());
-        menu.Items.Add(BuildTrackSubmenu(vm, callsign, initials));
-        menu.Items.Add(BuildSquawkSubmenu(vm, callsign, initials));
+        menu.Items.Add(SharedMenuGroups.Track(ac, context, host, MenuView.List));
+        menu.Items.Add(SharedMenuGroups.Squawk(ac, context, host, MenuView.List));
         if (AircraftCommandApplicability.CanAskPilot(ac))
         {
-            menu.Items.Add(BuildAskPilotSubmenu(vm, callsign, initials));
+            menu.Items.Add(SharedMenuGroups.AskPilot(ac, context, host, MenuView.List));
         }
 
-        menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
+        menu.Items.Add(SharedMenuGroups.Coordination(ac, context, host));
 
         menu.Items.Add(new Separator());
         if (AircraftCommandApplicability.CanEditFlightPlan(ac))
@@ -295,7 +297,10 @@ public partial class DataGridView : UserControl
             menu.Items.Add(editItem);
         }
 
-        LiveTrafficMenuItems.AddUnassume(menu.Items, ac, cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials));
+        if (SharedMenuGroups.Unassume(ac, context, host) is { } unassume)
+        {
+            menu.Items.Add(unassume);
+        }
     }
 
     private void OnDataGridViewKeyDown(object? sender, KeyEventArgs e)

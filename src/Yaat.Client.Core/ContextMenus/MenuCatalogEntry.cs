@@ -16,6 +16,6 @@ public sealed record MenuCatalogEntry(
     string Id,
     string Label,
     MenuFlightRules DefaultFlightRules,
-    Func<IMenuAircraft, MenuContext, bool> IsApplicable,
-    Func<IMenuAircraft, MenuContext, IMenuHost, MenuItem?> Build
+    Func<IMenuAircraft?, MenuContext, bool> IsApplicable,
+    Func<IMenuAircraft?, MenuContext, IMenuHost, MenuItem?> Build
 );

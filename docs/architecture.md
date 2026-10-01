@@ -280,12 +280,15 @@ Services/
 ContextMenus/                   # The aircraft right-click menu catalog shared by radar, ground and the aircraft list (namespace Yaat.Client.ContextMenus; ContextMenu would shadow Avalonia's type)
   AircraftCommandApplicability.cs # Static: single source of truth for whether a tower/ground/landing/pattern command fits an aircraft's state (CanClearForTakeoff/CanClearToLand/CanPushBack/…), read against IMenuAircraft
   IMenuAircraft.cs              # Read-only view of an aircraft the applicability predicates read; AircraftModel implements it
-  IMenuHost.cs                  # What a catalog entry's builder needs from the surface that owns the menu (SendAsync)
-  MenuCatalogEntry.cs           # Record: stable ID, label, default flight-rules filter, applicability predicate, builder → MenuItem?
+  IMenuHost.cs                  # What a catalog entry's builder needs from the surface that owns the menu (SendAsync, ShowInputPopup, BuildFavorites)
+  MenuCatalog.cs                # Static: one MenuCatalogEntry per MenuIds action (All, Get); a leaf's click sends its command text through IMenuHost.SendAsync
+  MenuCatalogEntry.cs           # Record: stable ID, label, default flight-rules filter, applicability predicate, builder → MenuItem? (aircraft nullable: the radar builds some groups with no aircraft model)
   MenuContext.cs                # Record: callsign, initials, previous selection, solo mode, VFR-for-IFR mode — the predicates' non-aircraft inputs
   MenuFlightRules.cs            # Enum Both/IfrOnly/VfrOnly: a quick-command entry's default flight-rules filter
   MenuIds.cs                    # Stable menu IDs, <group>.<item>, one per action, append-only (exported preferences carry them)
   MenuPickerDescriptor.cs       # Tag on a picker menu item: the values its list/filtered-list/input popup offers, readable without opening it (the menu goldens print it)
+  MenuView.cs                   # Enum Radar/Ground/List: which surface a group is built for, until the All Commands tree is unified
+  SharedMenuGroups.cs           # Static: the live traffic, track, squawk, ask pilot, coordination and favorites groups, built from catalog entries in each view's current order and texts
 
 Models/
   TerminalColorScheme.cs        # Operator-tunable per-Kind terminal foreground colors (Command/Response/System/Say/PilotSpeech/Warning/Error/Chat/Tdls/Strip); defaults match the legacy hard-coded scheme
@@ -448,7 +451,8 @@ Views/
   MetarView.axaml.cs            # METAR tab content: per-airport METAR list over MainViewModel.Metars with a per-scenario favorite-station star toggle
   MetarWindow.axaml.cs          # Pop-out host for MetarView (View > Pop Out METAR)
   FavoritesContextMenu.cs       # Builds the Favorite Commands submenu attached to aircraft right-click menus (list/ground/radar)
-  LiveTrafficMenuItems.cs       # "Assume control" / "Assume and track" for an assumable live-traffic shadow and "Release to live feed" (UNASSUME) for an aircraft assumed from the feed, shared by the three right-click menus
+  ContextMenuHosts.cs           # RadarMenuHost / ListMenuHost: IMenuHost for the radar (popups, the view model's send path) and the aircraft list (Connection.SendCommandAsync), built per right-click
+  LiveTrafficMenuItems.cs       # "Assume control" / "Assume and track" for an assumable live-traffic shadow and "Release to live feed" (UNASSUME) for an aircraft assumed from the feed, for the ground view's menu (a thin call into SharedMenuGroups; radar and list call SharedMenuGroups directly)
   LiveTrafficDvrFlyout.cs       # Click-the-live-badge DVR control: feed log window (GetLiveTrafficWindow), slider + HH:mm → SeekLiveTraffic, Go Live
   LiveSessionWindow.axaml.cs    # Start Live Session picker: facility TreeView (GetArtccFacilityTree) → positions (starred first) → airport combo (LiveSessionAirportDefaults) + ceiling; returns LiveSessionChoice, pre-selects UserPreferences.LastLiveSession
   LiveTrafficFilterEditor.axaml(.cs) # Structured editor UserControl over the canonical filter string, hosted by the Start Live Session Filters tab and the mid-session dialog

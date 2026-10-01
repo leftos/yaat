@@ -86,8 +86,10 @@ public partial class RadarView
     }
 
     /// <summary>The bold callsign header, route and hold status, the release items, the free-text Command… and the favorites block.</summary>
-    private void AddAircraftMenuHeader(ContextMenu menu, RadarViewModel vm, AircraftModel? ac, string callsign, string initials)
+    private void AddAircraftMenuHeader(ContextMenu menu, RadarViewModel vm, AircraftModel? ac, MenuContext context, RadarMenuHost host)
     {
+        string callsign = context.Callsign;
+        string initials = context.Initials;
         string typeText = ac is not null ? $"{callsign} - {ac.DisplayAircraftType}" : callsign;
         menu.Items.Add(
             new MenuItem
@@ -141,7 +143,7 @@ public partial class RadarView
         );
         menu.Items.Add(new Separator());
 
-        menu.Items.Add(FavoritesContextMenu.Build(FindMainViewModel(), ac, callsign, initials));
+        menu.Items.Add(SharedMenuGroups.Favorites(ac, context, host));
         menu.Items.Add(new Separator());
     }
 
@@ -152,13 +154,23 @@ public partial class RadarView
     /// </summary>
     internal ContextMenu BuildAircraftContextMenu(RadarViewModel vm, AircraftModel? ac, AircraftModel? prevSelected, string callsign, string initials)
     {
+        MainViewModel? main = FindMainViewModel();
+        var context = new MenuContext(
+            callsign,
+            initials,
+            prevSelected,
+            main?.SessionSoloTrainingMode ?? false,
+            main?.VfrCommandsForIfr ?? VfrCommandsForIfr.EnterFinalOnly
+        );
+        var host = new RadarMenuHost(this, vm, main, ac);
         var menu = new ContextMenu();
-        AddAircraftMenuHeader(menu, vm, ac, callsign, initials);
+        AddAircraftMenuHeader(menu, vm, ac, context, host);
 
         if (ac is { IsLiveTraffic: true })
         {
-            if (LiveTrafficMenuItems.Add(menu, ac, cmd => vm.SendRawCommandAsync(callsign, initials, cmd)))
+            if (AircraftCommandApplicability.CanAssume(ac))
             {
+                SharedMenuGroups.AddLiveTrafficAssume(menu.Items, ac, context, host);
                 // An assumable shadow then gets the same items a simulated aircraft gets: a command sent to an
                 // airborne shadow auto-assumes it server-side, so they apply as they are — minus the ask-pilot
                 // queries, which the server refuses for a shadow.
@@ -166,22 +178,24 @@ public partial class RadarView
             }
             else
             {
-                AddSurfaceShadowItems(menu, vm, callsign, initials);
+                AddSurfaceShadowItems(menu, vm, ac, context, host);
                 return menu;
             }
         }
 
         AddRelativeTrafficItems(menu, vm, prevSelected, callsign, initials);
-        AddAircraftCommandGroups(menu, vm, ac, callsign, initials);
+        AddAircraftCommandGroups(menu, vm, ac, context, host);
         return menu;
     }
 
     /// <summary>A surface live-traffic shadow is never assumable: its menu is read-only — the display groups and a Delete.</summary>
-    private void AddSurfaceShadowItems(ContextMenu menu, RadarViewModel vm, string callsign, string initials)
+    private void AddSurfaceShadowItems(ContextMenu menu, RadarViewModel vm, AircraftModel ac, MenuContext context, RadarMenuHost host)
     {
-        menu.Items.Add(BuildTrackSubmenu(vm, callsign, initials));
+        string callsign = context.Callsign;
+        string initials = context.Initials;
+        menu.Items.Add(SharedMenuGroups.Track(ac, context, host, MenuView.Radar));
         menu.Items.Add(BuildDataBlockSubmenu(vm, callsign, initials));
-        menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
+        menu.Items.Add(SharedMenuGroups.Coordination(ac, context, host));
         menu.Items.Add(BuildDisplaySubmenu(vm, callsign));
         menu.Items.Add(new Separator());
         menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(callsign, initials)));
@@ -194,8 +208,10 @@ public partial class RadarView
     /// the read-only ask-pilot queries stay out (<see cref="AircraftCommandApplicability.CanAskPilot"/>); everything
     /// else, Warp included, applies, because it goes through the command path and so auto-assumes the shadow first.
     /// </summary>
-    private void AddAircraftCommandGroups(ContextMenu menu, RadarViewModel vm, AircraftModel? ac, string callsign, string initials)
+    private void AddAircraftCommandGroups(ContextMenu menu, RadarViewModel vm, AircraftModel? ac, MenuContext context, RadarMenuHost host)
     {
+        string callsign = context.Callsign;
+        string initials = context.Initials;
         ContextMenuProfile profile = ContextMenuProfileService.GetProfile(ac?.CurrentPhase, ac?.IsOnGround ?? false);
 
         foreach (MenuGroup group in profile.PrimaryGroups)
@@ -215,18 +231,18 @@ public partial class RadarView
 
         // Always-visible groups
         menu.Items.Add(new Separator());
-        menu.Items.Add(BuildTrackSubmenu(vm, callsign, initials));
+        menu.Items.Add(SharedMenuGroups.Track(ac, context, host, MenuView.Radar));
         menu.Items.Add(BuildDataBlockSubmenu(vm, callsign, initials));
-        menu.Items.Add(BuildSquawkSubmenu(vm, callsign, initials));
+        menu.Items.Add(SharedMenuGroups.Squawk(ac, context, host, MenuView.Radar));
         if (AircraftCommandApplicability.CanAskPilot(ac))
         {
-            menu.Items.Add(BuildAskPilotSubmenu(vm, callsign, initials));
+            menu.Items.Add(SharedMenuGroups.AskPilot(ac, context, host, MenuView.Radar));
         }
 
-        menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
+        menu.Items.Add(SharedMenuGroups.Coordination(ac, context, host));
         menu.Items.Add(BuildDisplaySubmenu(vm, callsign));
         menu.Items.Add(new Separator());
-        menu.Items.Add(BuildSimControlSubmenu(vm, callsign, initials, ac));
+        menu.Items.Add(BuildSimControlSubmenu(vm, ac, context, host));
 
         // RPO control
         FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
@@ -560,21 +576,6 @@ public partial class RadarView
         return menu;
     }
 
-    private MenuItem BuildTrackSubmenu(RadarViewModel vm, string cs, string init)
-    {
-        var menu = new MenuItem { Header = "Track" };
-        menu.Items.Add(CreateMenuItem("Track", () => vm.TrackAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem("Drop track", () => vm.DropTrackAsync(cs, init)));
-        menu.Items.Add(new Separator());
-        menu.Items.Add(CreateMenuItem("Accept handoff", () => vm.AcceptHandoffAsync(cs, init)));
-        menu.Items.Add(CreateInputMenuItem("Initiate handoff...", "Position ID", input => vm.InitiateHandoffAsync(cs, init, input)));
-        menu.Items.Add(CreateMenuItem("Cancel handoff", () => vm.CancelHandoffAsync(cs, init)));
-        menu.Items.Add(new Separator());
-        menu.Items.Add(CreateInputMenuItem("Point out...", "Position ID", input => vm.PointOutAsync(cs, init, input)));
-        menu.Items.Add(CreateMenuItem("Acknowledge pointout", () => vm.AcknowledgeAsync(cs, init)));
-        return menu;
-    }
-
     private MenuItem BuildDataBlockSubmenu(RadarViewModel vm, string cs, string init)
     {
         var menu = new MenuItem { Header = "Data Block" };
@@ -586,45 +587,10 @@ public partial class RadarView
         return menu;
     }
 
-    private MenuItem BuildSquawkSubmenu(RadarViewModel vm, string cs, string init)
+    private MenuItem BuildSimControlSubmenu(RadarViewModel vm, AircraftModel? ac, MenuContext context, RadarMenuHost host)
     {
-        var menu = new MenuItem { Header = "Squawk" };
-        menu.Items.Add(CreateInputMenuItem("Squawk...", "Code (0000-7777)", input => vm.SquawkAsync(cs, init, int.Parse(input))));
-        menu.Items.Add(CreateMenuItem("Squawk random", () => vm.RandomSquawkAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem("Squawk VFR", () => vm.SquawkVfrAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem("Squawk normal", () => vm.SquawkNormalAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem("Squawk standby", () => vm.SquawkStandbyAsync(cs, init)));
-        menu.Items.Add(new Separator());
-        menu.Items.Add(CreateMenuItem("Ident", () => vm.IdentAsync(cs, init)));
-        return menu;
-    }
-
-    private MenuItem BuildAskPilotSubmenu(RadarViewModel vm, string cs, string init)
-    {
-        var menu = new MenuItem { Header = "Ask pilot to say..." };
-        menu.Items.Add(CreateMenuItem("Altitude", () => vm.SayAltitudeAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem("Heading", () => vm.SayHeadingAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem("Speed", () => vm.SaySpeedAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem("Mach", () => vm.SayMachAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem("Position", () => vm.SayPositionAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem("Expected approach", () => vm.SayExpectedApproachAsync(cs, init)));
-        menu.Items.Add(new Separator());
-        menu.Items.Add(CreateInputMenuItem("Custom...", "Text", input => vm.SayCustomAsync(cs, init, input)));
-        return menu;
-    }
-
-    private static MenuItem BuildCoordinationSubmenu(RadarViewModel vm, string cs, string init)
-    {
-        var menu = new MenuItem { Header = "Coordination" };
-        menu.Items.Add(CreateMenuItem("Release", () => vm.CoordinationReleaseAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem("Hold", () => vm.CoordinationHoldAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem("Recall", () => vm.CoordinationRecallAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem("Acknowledge release", () => vm.CoordinationAcknowledgeAsync(cs, init)));
-        return menu;
-    }
-
-    private MenuItem BuildSimControlSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
-    {
+        string cs = context.Callsign;
+        string init = context.Initials;
         var menu = new MenuItem { Header = "Sim Control" };
         var warpItem = new MenuItem { Header = "Warp..." };
         warpItem.Click += (_, _) =>
@@ -641,7 +607,11 @@ public partial class RadarView
         };
         menu.Items.Add(warpItem);
 
-        LiveTrafficMenuItems.AddUnassume(menu.Items, ac, cmd => vm.SendRawCommandAsync(cs, init, cmd));
+        if (SharedMenuGroups.Unassume(ac, context, host) is { } unassume)
+        {
+            menu.Items.Add(unassume);
+        }
+
         menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(cs, init)));
         return menu;
     }

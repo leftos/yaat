@@ -473,13 +473,13 @@ harness shows is what the server did.
   The assume hand-off flips `IsLiveTraffic` in the same `AircraftUpdated`, so every surface below re-evaluates at once.
 - **Applicability** — `AircraftCommandApplicability.IsControllable(ac)` (`!IsLiveTraffic || CanAssume(ac)`) gates every maneuver
   predicate; `CanAssume(ac)` = airborne shadow, which any manoeuvre command auto-assumes server-side (`CommandDispatcher.TryAssumeShadow`),
-  so the menus offer it the phase-aware groups a simulated aircraft gets. `LiveTrafficMenuItems.Add` (Views/) prepends "Assume
+  so the menus offer it the phase-aware groups a simulated aircraft gets. `SharedMenuGroups.AddLiveTrafficAssume` (`Yaat.Client.Core/ContextMenus/`; the ground view reaches it through `LiveTrafficMenuItems.Add`) prepends "Assume
   control" / "Assume and track" (two commands — the server doesn't couple `ASSUME` and `TRACK`). Each right-click surface
   (`RadarView.ContextMenus`, `DataGridView.axaml.cs`, `GroundView.axaml.cs`) leaves out for an airborne shadow what the server
   refuses — Ask pilot (read-only queries, `CanAskPilot`) and Edit flight plan (refused ahead of the gate, `CanEditFlightPlan`); Warp goes through the command path and auto-assumes like any other verb — and keeps a
   surface shadow (not assumable) to Track / Coordination / Data Block / Display / Delete. `CanUnassume(ac)` = a simulated
   aircraft that was assumed from the feed (`AssumedFromLiveTraffic && !IsLiveTraffic` — the `ActionArms.Unassume` gate);
-  `LiveTrafficMenuItems.AddUnassume` puts "Release to live feed" (sends `UNASSUME`) directly above Delete on all three
+  `SharedMenuGroups.Unassume` (ground: `LiveTrafficMenuItems.AddUnassume`) puts "Release to live feed" (sends `UNASSUME`) directly above Delete on all three
   surfaces — inside the radar menu's Sim Control submenu, where that menu keeps Delete.
 - **Bulk assume** — `AssumeLiveTrafficWindow` (session flyout "Assume Live Traffic…", shown while live traffic is on) and the aircraft-list multi-select item "Assume selected live traffic (n)" call the `AssumeLiveTraffic` hub method. The server picks candidates (`ShadowAssumeSelector`): every shadow for All, those within `RadiusNm` of a resolved airport/fix/FRD for WithinRadius, both narrowed by the Both / VFR / IFR rules (`RulesOf(AircraftState)`, the store's three-state reading), or the listed callsigns for Selected. It skips on-ground shadows always and stale ones for All / WithinRadius (an unattended bulk action does not take a coasting track; a hand-picked one does), then issues one recorded `ASSUME` per aircraft under a single room gate. The client prints `Assumed X of Y live aircraft (n on the ground, n stale, n refused)`.
 - **Rendering** — `TargetRenderer.DrawPositionSymbol` draws a shadow with `_shadowSymbolPaint` (dashed outline circle);
