@@ -93,7 +93,7 @@ every cell with its own row.
 ## Recognition and expansion
 
 Routes are **shadow-registered into `_airways`**, which is what lets `JAWY IR149` and the radar
-context menu's `GetFiledAirways` work with no changes to either. Expansion does *not* ride that path:
+context menu's `MenuCatalog.FiledAirways` (`Yaat.Client.Core`) work with no changes to either. Expansion does *not* ride that path:
 `ExpandAirwaySegment` walks bidirectionally and matches anchors by name, both wrong here, and it now
 refuses to reverse along a military route.
 

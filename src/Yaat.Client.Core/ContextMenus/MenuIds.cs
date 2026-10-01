@@ -267,4 +267,31 @@ public static class MenuIds
 
     /// <summary>Cancel every pending report (<c>REPORT OFF</c>).</summary>
     public const string ApproachReportOffAll = "approach.report-off-all";
+
+    /// <summary>Join a STAR (<c>JARR</c>).</summary>
+    public const string ProceduresJoinStar = "procedures.join-star";
+
+    /// <summary>Climb via the SID (<c>CVIA</c>).</summary>
+    public const string ProceduresClimbViaSid = "procedures.climb-via-sid";
+
+    /// <summary>Descend via the STAR (<c>DVIA</c>).</summary>
+    public const string ProceduresDescendViaStar = "procedures.descend-via-star";
+
+    /// <summary>Cross a fix (<c>CFIX</c>).</summary>
+    public const string ProceduresCrossFix = "procedures.cross-fix";
+
+    /// <summary>Depart a fix (<c>DEPART</c>).</summary>
+    public const string ProceduresDepartFix = "procedures.depart-fix";
+
+    /// <summary>Position, turn, altitude and approach clearance in one (<c>PTAC</c>).</summary>
+    public const string ProceduresPtac = "procedures.ptac";
+
+    /// <summary>Join an airway (<c>JAWY</c>).</summary>
+    public const string ProceduresJoinAirway = "procedures.join-airway";
+
+    /// <summary>Join a radial outbound from a fix (<c>JRADO</c>).</summary>
+    public const string ProceduresJoinRadialOutbound = "procedures.join-radial-outbound";
+
+    /// <summary>Join a radial inbound to a fix (<c>JRADI</c>).</summary>
+    public const string ProceduresJoinRadialInbound = "procedures.join-radial-inbound";
 }

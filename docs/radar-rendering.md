@@ -509,10 +509,10 @@ Each phase action exposes a **one-click top-level item** resolved from aircraft 
 - "Cleared visual approach `<rwy>`" resolves the runway via `MenuCatalog.SmartVisualRunway` (`Yaat.Client.Core/ContextMenus/`)
   — `AssignedRunway`, else the runway of `ActiveApproachId`, else `ExpectedApproach`. If a smart runway exists it's the
   top item (`approach.cleared-visual`) and `MenuCatalog.BuildClearedVisualOther` adds the "(other)…" picker under the same ID.
-- "Join STAR `<id>`" resolves via `TryGetFiledStar` by scanning the filed route for a STAR known at the destination
-  (`:780-804`).
+- "Join STAR `<id>`" resolves via `MenuCatalog.FiledStar` by scanning the filed route for a STAR known at the destination;
+  `BuildJoinStarOther` adds the "(other)…" list.
 - Single-value pickers (one filed airway, one route fix) likewise promote the lone value to a direct item and offer
-  "(other)…" for the rest (`AddJoinAirwayItems` `:882`, `AddRouteFixItem` `:948`).
+  "(other)…" for the rest (`MenuCatalog.BuildOneManyOrInput` with the `Build…Other` companions, added by `SharedMenuGroups.AddCompanion`).
 
 When adding a new phase action, add **both** the smart-default item and the override path.
 
@@ -521,9 +521,11 @@ When adding a new phase action, add **both** the smart-default item and the over
 Pickers enumerate **only this aircraft's** data — never the global `NavigationDatabase` fix/airway lists, which run to tens
 of thousands of entries:
 
-- `GetRouteFixes` — CIFP fixes in the filed route plus the active DCT queue (`NavigationRoute`), deduped (`:910-946`).
-- `GetFiledAirways` — airway IDs found in the filed route (`:856-880`).
-- `GetStarIds` — STARs for the aircraft's destination airport; `RunwayDesignators.ForAirport` (`Yaat.Client.Core/ContextMenus/`) — its runway ends in display form, sorted by `RunwayDesignatorComparer`.
+All in `Yaat.Client.Core/ContextMenus/MenuCatalog.cs` unless named:
+
+- `RouteFixes` — `IMenuAircraft.RouteFixNames()`: CIFP fixes in the filed route plus the active DCT queue (`NavigationRoute`), deduped.
+- `FiledAirways` — airway IDs found in the filed route.
+- `DestinationStars` — STARs for the aircraft's destination airport; `RunwayDesignators.ForAirport` (`Yaat.Client.Core/ContextMenus/`) — its runway ends in display form, sorted by `RunwayDesignatorComparer`.
 
 New pickers must follow this rule (echoes the `feedback_no_global_navdata_pickers` memory). See
 [aircraft-data-model.md](aircraft-data-model.md) for the `AircraftModel` fields (`Route`, `NavigationRoute`, `Destination`,

@@ -11,12 +11,12 @@ namespace Yaat.Client.ContextMenus;
 /// Every context-menu action the catalog knows, one <see cref="MenuCatalogEntry"/> per <see cref="MenuIds"/>
 /// identifier. A leaf's builder sends its command text through <see cref="IMenuHost.SendAsync"/>; an input leaf
 /// opens the host's input popup and formats the submitted text into the command; a list or filtered-list picker opens
-/// the host's list popup over values the catalog computes (headings, altitudes, speeds, fixes, approaches, runways) and formats the pick
-/// into the command, choosing its form from the data present when the menu is built; a host leaf asks the host for the
-/// item itself, for the entries that open a host surface or read the surface's own state — the warp popup, the
-/// flight-plan editor, the data-block toggle and reset, the nav route, the measure item and route drawing; and a value submenu
-/// builds a whole submenu of command items from its own label and the menu context, one per value — the leader
-/// directions, the J-ring radii and the cone lengths.
+/// the host's list popup over values the catalog computes (headings, altitudes, speeds, fixes, approaches, runways,
+/// STARs, airways) and formats the pick into the command, choosing its form from the data present when the menu is
+/// built; a host leaf asks the host for the item itself, for the entries that open a host surface or read the
+/// surface's own state — the warp popup, the flight-plan editor, the data-block toggle and reset, the nav route, the
+/// measure item and route drawing; and a value submenu builds a whole submenu of command items from its own label
+/// and the menu context, one per value — the leader directions, the J-ring radii and the cone lengths.
 /// </summary>
 public static class MenuCatalog
 {
@@ -126,10 +126,46 @@ public static class MenuCatalog
         Leaf(MenuIds.ApproachReportOffCrosswind, "Crosswind", "REPORT OFF CROSSWIND", Always),
         Leaf(MenuIds.ApproachReportOffDownwind, "Downwind", "REPORT OFF DOWNWIND", Always),
         Leaf(MenuIds.ApproachReportOffAll, "All reports", "REPORT OFF", Always),
+        Picker(MenuIds.ProceduresJoinStar, JoinStarLabel, BuildJoinStar),
+        Leaf(MenuIds.ProceduresClimbViaSid, "Climb via SID", "CVIA", Always),
+        Leaf(MenuIds.ProceduresDescendViaStar, "Descend via STAR", "DVIA", Always),
+        RouteFixPicker(MenuIds.ProceduresCrossFix, CrossFixLabel, CrossFixCommand),
+        RouteFixPicker(MenuIds.ProceduresDepartFix, DepartFixLabel, DepartFixCommand),
+        InputLeaf(MenuIds.ProceduresPtac, "PTAC...", "PTAC arguments", input => $"PTAC {input}"),
+        Picker(MenuIds.ProceduresJoinAirway, JoinAirwayLabel, BuildJoinAirway),
+        RadialPicker(MenuIds.ProceduresJoinRadialOutbound, "Join radial outbound...", "JRADO", fix => $"Bearing from {fix} (0-360)"),
+        RadialPicker(MenuIds.ProceduresJoinRadialInbound, "Join radial inbound...", "JRADI", fix => $"Bearing to {fix} (0-360)"),
     ];
 
     /// <summary>The visual-approach entry's label, which its smart-default leaf and its "(other)" companion extend.</summary>
     private const string ClearedVisualLabel = "Cleared visual approach";
+
+    /// <summary>The Join STAR entry's label, which its filed-STAR leaf and its "(other)" companion extend.</summary>
+    private const string JoinStarLabel = "Join STAR";
+
+    /// <summary>The Cross fix entry's label, which its single-fix leaf and its "(other)" companion extend.</summary>
+    private const string CrossFixLabel = "Cross fix";
+
+    private const string CrossFixCommand = "CFIX";
+
+    /// <summary>The Depart fix entry's label, which its single-fix leaf and its "(other)" companion extend.</summary>
+    private const string DepartFixLabel = "Depart fix";
+
+    private const string DepartFixCommand = "DEPART";
+
+    /// <summary>The Join airway entry's label, which its single-airway leaf and its "(other)" companion extend.</summary>
+    private const string JoinAirwayLabel = "Join airway";
+
+    private const string JoinAirwayCommand = "JAWY";
+
+    /// <summary>The placeholder of the free-text fix inputs.</summary>
+    private const string FixNamePlaceholder = "Fix name";
+
+    /// <summary>The placeholder of the free-text airway inputs.</summary>
+    private const string AirwayIdPlaceholder = "Airway ID";
+
+    /// <summary>The separators a filed route's tokens are split on.</summary>
+    private static readonly char[] RouteSeparators = [' ', '.'];
 
     /// <summary>The headings the heading pickers list, 005 to 360 in fives.</summary>
     private const int HeadingStep = 5;
@@ -592,7 +628,7 @@ public static class MenuCatalog
             return BuildList(label[..^Ellipsis.Length], routeItems, routeItems[0], fix => Send($"{command} {fix}", context, host), host);
         }
 
-        return BuildInput(label, "Fix name", input => $"{command} {input}", context, host);
+        return BuildInput(label, FixNamePlaceholder, input => $"{command} {input}", context, host);
     }
 
     /// <summary>The Draw route item, which puts the host into drawing a route for the aircraft.</summary>
@@ -707,6 +743,213 @@ public static class MenuCatalog
 
     /// <summary>The traffic-in-sight request: bare <c>RTIS</c> for a blank answer, else <c>RTIS</c> naming the target.</summary>
     private static string FormatTrafficInSight(string input) => string.IsNullOrWhiteSpace(input) ? "RTIS" : $"RTIS {input}";
+
+    /// <summary>
+    /// The Join STAR item: with a filed STAR (<see cref="FiledStar"/>) a leaf naming it that sends <c>JARR</c> for it;
+    /// otherwise a picker over the destination's STARs, or free text when it has none.
+    /// <see cref="BuildJoinStarOther"/> offers the other STARs beside a filed one.
+    /// </summary>
+    private static MenuItem BuildJoinStar(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        if (FiledStar(aircraft) is { } star)
+        {
+            return BuildSend($"{label} {star}", $"JARR {star}", context, host);
+        }
+
+        IReadOnlyList<string> stars = DestinationStars(aircraft);
+        if (stars.Count > 0)
+        {
+            return BuildStarList($"{label}{Ellipsis}", stars, context, host);
+        }
+
+        return BuildInput($"{label}{Ellipsis}", "STAR name", input => $"JARR {input}", context, host);
+    }
+
+    /// <summary>
+    /// The Join STAR item's companion, which shares its id: a picker over the destination's STARs labelled "(other)",
+    /// offered beside a filed STAR; null without a filed STAR or without STARs.
+    /// </summary>
+    internal static MenuItem? BuildJoinStarOther(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        if (FiledStar(aircraft) is null)
+        {
+            return null;
+        }
+
+        IReadOnlyList<string> stars = DestinationStars(aircraft);
+        return stars.Count > 0 ? BuildStarList($"{JoinStarLabel} (other){Ellipsis}", stars, context, host) : null;
+    }
+
+    /// <summary>A list picker over <paramref name="stars"/>, the first highlighted, that sends <c>JARR</c> for the pick.</summary>
+    private static MenuItem BuildStarList(string label, IReadOnlyList<string> stars, MenuContext context, IMenuHost host)
+    {
+        List<object> items = [.. stars];
+        return BuildList(label, items, items[0], picked => Send($"JARR {picked}", context, host), host);
+    }
+
+    /// <summary>
+    /// The STAR the flight plan files: the first route token the navigation data resolves as a STAR into the
+    /// destination; null without a destination, a route or such a token.
+    /// </summary>
+    private static string? FiledStar(IMenuAircraft? aircraft)
+    {
+        if ((aircraft is null) || string.IsNullOrEmpty(aircraft.Destination) || string.IsNullOrEmpty(aircraft.Route))
+        {
+            return null;
+        }
+
+        foreach (string token in RouteTokens(aircraft.Route))
+        {
+            if (NavigationDatabase.Instance.GetStar(aircraft.Destination, token) is { } star)
+            {
+                return star.ProcedureId;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The destination's STAR ids, sorted ignoring case; none without an aircraft or a destination.</summary>
+    private static IReadOnlyList<string> DestinationStars(IMenuAircraft? aircraft)
+    {
+        if (aircraft is not { Destination.Length: > 0 })
+        {
+            return [];
+        }
+
+        List<string> ids = [.. NavigationDatabase.Instance.GetStars(aircraft.Destination).Select(star => star.ProcedureId)];
+        ids.Sort(StringComparer.OrdinalIgnoreCase);
+        return ids;
+    }
+
+    /// <summary>The non-blank tokens of a filed route, split on spaces and dots.</summary>
+    private static IEnumerable<string> RouteTokens(string route) =>
+        route.Split(RouteSeparators, StringSplitOptions.RemoveEmptyEntries).Select(token => token.Trim()).Where(token => token.Length > 0);
+
+    /// <summary>
+    /// A fix entry over the aircraft's route fixes that sends <paramref name="command"/> with the fix; its form is
+    /// <see cref="BuildOneManyOrInput"/>'s, and <see cref="BuildCrossFixOther"/> or <see cref="BuildDepartFixOther"/>
+    /// offers free text beside the route fixes.
+    /// </summary>
+    private static MenuCatalogEntry RouteFixPicker(string id, string label, string command) =>
+        new(
+            id,
+            label,
+            MenuFlightRules.Both,
+            Always,
+            (ac, context, host) => BuildOneManyOrInput(new(label, command, FixNamePlaceholder), RouteFixes(ac), context, host)
+        );
+
+    /// <summary>
+    /// The Cross fix item's companion, which shares its id: free text labelled "(other)" beside the route fixes; null
+    /// without any.
+    /// </summary>
+    internal static MenuItem? BuildCrossFixOther(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
+        BuildOtherInput(new(CrossFixLabel, CrossFixCommand, FixNamePlaceholder), RouteFixes(aircraft), context, host);
+
+    /// <summary>
+    /// The Depart fix item's companion, which shares its id: free text labelled "(other)" beside the route fixes; null
+    /// without any.
+    /// </summary>
+    internal static MenuItem? BuildDepartFixOther(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
+        BuildOtherInput(new(DepartFixLabel, DepartFixCommand, FixNamePlaceholder), RouteFixes(aircraft), context, host);
+
+    /// <summary>The Join airway item over the airways the flight plan files; its form is <see cref="BuildOneManyOrInput"/>'s.</summary>
+    private static MenuItem BuildJoinAirway(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
+        BuildOneManyOrInput(new(label, JoinAirwayCommand, AirwayIdPlaceholder), FiledAirways(aircraft), context, host);
+
+    /// <summary>
+    /// The Join airway item's companion, which shares its id: free text labelled "(other)" beside the filed airways;
+    /// null without any.
+    /// </summary>
+    internal static MenuItem? BuildJoinAirwayOther(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
+        BuildOtherInput(new(JoinAirwayLabel, JoinAirwayCommand, AirwayIdPlaceholder), FiledAirways(aircraft), context, host);
+
+    /// <summary>
+    /// The airways the flight plan files, in filed order without repeats; none without a route. Every airway is never
+    /// offered: the navigation data holds thousands, too many to pick from.
+    /// </summary>
+    private static IReadOnlyList<string> FiledAirways(IMenuAircraft? aircraft)
+    {
+        if ((aircraft is null) || string.IsNullOrEmpty(aircraft.Route))
+        {
+            return [];
+        }
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var airways = new List<string>();
+        foreach (string token in RouteTokens(aircraft.Route))
+        {
+            if (NavigationDatabase.Instance.IsAirway(token) && seen.Add(token))
+            {
+                airways.Add(token);
+            }
+        }
+
+        return airways;
+    }
+
+    /// <summary>
+    /// An item over <paramref name="values"/> that sends the spec's command with one of them: a leaf naming the only
+    /// value, a list picker labelled with an ellipsis over two or more (the first highlighted), else free text showing
+    /// the spec's placeholder.
+    /// </summary>
+    private static MenuItem BuildOneManyOrInput(ValueItemSpec spec, IReadOnlyList<string> values, MenuContext context, IMenuHost host)
+    {
+        if (values.Count == 1)
+        {
+            return BuildSend($"{spec.Label} {values[0]}", $"{spec.Command} {values[0]}", context, host);
+        }
+
+        if (values.Count > 1)
+        {
+            List<object> items = [.. values];
+            return BuildList($"{spec.Label}{Ellipsis}", items, items[0], picked => Send($"{spec.Command} {picked}", context, host), host);
+        }
+
+        return BuildInput($"{spec.Label}{Ellipsis}", spec.Placeholder, input => $"{spec.Command} {input}", context, host);
+    }
+
+    /// <summary>
+    /// The free-text companion of a <see cref="BuildOneManyOrInput"/> item, labelled "(other)" and offered beside one
+    /// or more <paramref name="values"/>; null without any, where the item itself is the free text.
+    /// </summary>
+    private static MenuItem? BuildOtherInput(ValueItemSpec spec, IReadOnlyList<string> values, MenuContext context, IMenuHost host) =>
+        values.Count > 0 ? BuildInput($"{spec.Label} (other){Ellipsis}", spec.Placeholder, input => $"{spec.Command} {input}", context, host) : null;
+
+    /// <summary>
+    /// What a <see cref="BuildOneManyOrInput"/> item and its "(other)" companion say and send: the label they extend,
+    /// the command the value follows and the free-text placeholder.
+    /// </summary>
+    private sealed record ValueItemSpec(string Label, string Command, string Placeholder);
+
+    /// <summary>
+    /// A join-radial entry that sends <paramref name="command"/> with a fix and a bearing. While the host has fix
+    /// names, a type-to-filter fix picker whose pick opens the input popup showing <paramref name="bearingPrompt"/>
+    /// for the fix; else free text taking the fix and the bearing together.
+    /// </summary>
+    private static MenuCatalogEntry RadialPicker(string id, string label, string command, Func<string, string> bearingPrompt) =>
+        new(id, label, MenuFlightRules.Both, Always, (_, context, host) => BuildRadialPicker(label, command, bearingPrompt, context, host));
+
+    private static MenuItem BuildRadialPicker(string label, string command, Func<string, string> bearingPrompt, MenuContext context, IMenuHost host)
+    {
+        if (host.FixNames is { } fixNames)
+        {
+            return BuildFilteredList(
+                label,
+                fixNames,
+                null,
+                fix =>
+                {
+                    host.ShowInputPopup(bearingPrompt(fix), bearing => Send($"{command} {fix} {bearing}", context, host));
+                    return Task.CompletedTask;
+                },
+                host
+            );
+        }
+
+        return BuildInput(label, "FIX bearing", input => $"{command} {input}", context, host);
+    }
 
     private static MenuItem BuildAssumeAndTrack(MenuContext context, IMenuHost host)
     {

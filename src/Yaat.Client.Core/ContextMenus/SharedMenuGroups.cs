@@ -5,7 +5,7 @@ namespace Yaat.Client.ContextMenus;
 /// <summary>
 /// The groups more than one surface builds — live traffic, track, squawk, ask pilot, coordination, data block,
 /// sim control, display, favorites, and the flight groups heading, altitude, speed, navigation (with Draw route),
-/// hold and approach — assembled from <see cref="MenuCatalog"/> entries. Only track, squawk and ask pilot keep a
+/// hold, approach and procedures — assembled from <see cref="MenuCatalog"/> entries. Only track, squawk and ask pilot keep a
 /// <see cref="MenuView"/> variant: the radar carries input pickers (handoff, point out, squawk code, custom say) the
 /// other surfaces leave out, and sends <c>ID</c> for Ident where the others send <c>IDENT</c>. Data block, sim
 /// control, display and the flight groups are built by the radar today, so they take no view. Whether a group is
@@ -272,10 +272,7 @@ public static class SharedMenuGroups
         menu.Items.Add(Leaf(MenuIds.ApproachJoinFinalCourse, aircraft, context, host));
         menu.Items.Add(Leaf(MenuIds.ApproachExpect, aircraft, context, host));
         menu.Items.Add(Leaf(MenuIds.ApproachClearedVisual, aircraft, context, host));
-        if (MenuCatalog.BuildClearedVisualOther(aircraft, context, host) is { } otherRunway)
-        {
-            menu.Items.Add(otherRunway);
-        }
+        AddCompanion(menu.Items, MenuCatalog.BuildClearedVisualOther(aircraft, context, host));
 
         menu.Items.Add(new Separator());
         menu.Items.Add(Leaf(MenuIds.ApproachReportFieldInSight, aircraft, context, host));
@@ -307,6 +304,39 @@ public static class SharedMenuGroups
         menu.Items.Add(new Separator());
         menu.Items.Add(stop);
         return menu;
+    }
+
+    /// <summary>
+    /// The Procedures submenu: join STAR (with its "(other)" STAR picker beside a filed STAR), climb via SID and
+    /// descend via STAR, cross and depart fix and join airway (each with its "(other)" free text beside the values it
+    /// offers), PTAC, then the join-radial items.
+    /// </summary>
+    public static MenuItem Procedures(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        var menu = new MenuItem { Header = "Procedures" };
+        menu.Items.Add(Leaf(MenuIds.ProceduresJoinStar, aircraft, context, host));
+        AddCompanion(menu.Items, MenuCatalog.BuildJoinStarOther(aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.ProceduresClimbViaSid, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.ProceduresDescendViaStar, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.ProceduresCrossFix, aircraft, context, host));
+        AddCompanion(menu.Items, MenuCatalog.BuildCrossFixOther(aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.ProceduresDepartFix, aircraft, context, host));
+        AddCompanion(menu.Items, MenuCatalog.BuildDepartFixOther(aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.ProceduresPtac, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.ProceduresJoinAirway, aircraft, context, host));
+        AddCompanion(menu.Items, MenuCatalog.BuildJoinAirwayOther(aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.ProceduresJoinRadialOutbound, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.ProceduresJoinRadialInbound, aircraft, context, host));
+        return menu;
+    }
+
+    /// <summary>Adds an entry's "(other)" companion item, or nothing when the entry offers none (the item is null).</summary>
+    private static void AddCompanion(ItemCollection items, MenuItem? companion)
+    {
+        if (companion is not null)
+        {
+            items.Add(companion);
+        }
     }
 
     /// <summary>The Favorite Commands submenu, which the catalog entry has the host build.</summary>

@@ -291,7 +291,7 @@ through `ExpandAirwaySegment`, for two reasons: AP/1B routes are one-way and rev
 bidirectionally and matches anchors by name, so it now refuses to reverse along a military route.
 
 Routes *are* still shadow-registered into `_airways`, which is what lets `JAWY IR149` and the radar
-context menu's `GetFiledAirways` work without either learning a second concept.
+context menu's `MenuCatalog.FiledAirways` (`Yaat.Client.Core`) work without either learning a second concept.
 
 Their points live in a separate `_militaryRoutePoints` dictionary that `GetFixPosition` consults only
 after `_navDb` misses. That keeps ~8,600 synthetic names (`IR149A`, `AR1ARIP`) out of `AllFixNames`

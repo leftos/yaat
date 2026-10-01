@@ -292,7 +292,7 @@ ContextMenus/                   # The aircraft right-click menu catalog shared b
   MenuView.cs                   # Enum Radar/Ground/List: which surface a group is built for, until the All Commands tree is unified
   RunwayDesignatorComparer.cs   # Orders runway designators by number then L/C/R (the runway flyout and the menu runway pickers)
   RunwayDesignators.cs          # Static: ForAirport — an airport's runway ends in display form, sorted, for the visual-approach and pattern pickers
-  SharedMenuGroups.cs           # Static: the live traffic, track, squawk, ask pilot, coordination, data block, sim control, display, favorites, heading, altitude, speed, navigation, hold and approach (with Report when…) groups, plus the Delete and Edit flight plan leaves each view places itself, built from catalog entries in each view's current order and texts
+  SharedMenuGroups.cs           # Static: the live traffic, track, squawk, ask pilot, coordination, data block, sim control, display, favorites, heading, altitude, speed, navigation, hold, approach (with Report when…) and procedures groups, plus the Delete and Edit flight plan leaves each view places itself, built from catalog entries in each view's current order and texts
 
 Models/
   TerminalColorScheme.cs        # Operator-tunable per-Kind terminal foreground colors (Command/Response/System/Say/PilotSpeech/Warning/Error/Chat/Tdls/Strip); defaults match the legacy hard-coded scheme

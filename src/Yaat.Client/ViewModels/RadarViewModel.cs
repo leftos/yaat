@@ -1326,20 +1326,6 @@ public partial class RadarViewModel(
         await _sendCommand(callsign, cmd, initials);
     }
 
-    // --- Procedures ---
-
-    public async Task JoinStarAsync(string callsign, string initials, string star) => await _sendCommand(callsign, $"JARR {star}", initials);
-
-    public async Task ClimbViaSidAsync(string callsign, string initials) => await _sendCommand(callsign, "CVIA", initials);
-
-    public async Task DescendViaStarAsync(string callsign, string initials) => await _sendCommand(callsign, "DVIA", initials);
-
-    public async Task CrossFixAsync(string callsign, string initials, string fix) => await _sendCommand(callsign, $"CFIX {fix}", initials);
-
-    public async Task DepartFixAsync(string callsign, string initials, string fix) => await _sendCommand(callsign, $"DEPART {fix}", initials);
-
-    public async Task PtacAsync(string callsign, string initials, string args) => await _sendCommand(callsign, $"PTAC {args}", initials);
-
     // --- Tower / Landing ---
 
     public async Task ClearedToLandAsync(string callsign, string initials) => await _sendCommand(callsign, "CLAND", initials);
@@ -1414,14 +1400,6 @@ public partial class RadarViewModel(
     public async Task Plan270Async(string callsign, string initials) => await _sendCommand(callsign, "P270", initials);
 
     public async Task CircleAirportAsync(string callsign, string initials) => await _sendCommand(callsign, "CA", initials);
-
-    public async Task JoinRadialOutboundAsync(string callsign, string initials, string radial) =>
-        await _sendCommand(callsign, $"JRADO {radial}", initials);
-
-    public async Task JoinAirwayAsync(string callsign, string initials, string airway) => await _sendCommand(callsign, $"JAWY {airway}", initials);
-
-    public async Task JoinRadialInboundAsync(string callsign, string initials, string radial) =>
-        await _sendCommand(callsign, $"JRADI {radial}", initials);
 
     // --- Draw route ---
 

@@ -14,7 +14,6 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Mva;
-using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Client.Views.Radar;
@@ -353,213 +352,6 @@ public partial class RadarView
         return item;
     }
 
-    private void AddJoinStarItems(MenuItem menu, RadarViewModel vm, string cs, string init, AircraftModel? ac)
-    {
-        string? defaultStar = TryGetFiledStar(ac);
-        IReadOnlyList<string> starIds = ac is not null && !string.IsNullOrEmpty(ac.Destination) ? GetStarIds(ac.Destination) : [];
-
-        if (defaultStar is not null)
-        {
-            menu.Items.Add(CreateMenuItem($"Join STAR {defaultStar}", () => vm.JoinStarAsync(cs, init, defaultStar)));
-        }
-
-        if (starIds.Count > 0)
-        {
-            string label = defaultStar is not null ? "Join STAR (other)..." : "Join STAR...";
-            var items = starIds.Cast<object>().ToList();
-            menu.Items.Add(CreateListMenuItem(label, items, items[0], val => vm.JoinStarAsync(cs, init, (string)val)));
-        }
-        else if (defaultStar is null)
-        {
-            menu.Items.Add(CreateInputMenuItem("Join STAR...", "STAR name", input => vm.JoinStarAsync(cs, init, input)));
-        }
-    }
-
-    private static string? TryGetFiledStar(AircraftModel? ac)
-    {
-        if (ac is null || string.IsNullOrEmpty(ac.Destination) || string.IsNullOrEmpty(ac.Route))
-        {
-            return null;
-        }
-
-        string[] tokens = ac.Route.Split([' ', '.'], StringSplitOptions.RemoveEmptyEntries);
-        foreach (string token in tokens)
-        {
-            string trimmed = token.Trim();
-            if (trimmed.Length == 0)
-            {
-                continue;
-            }
-
-            CifpStarProcedure? star = NavigationDatabase.Instance.GetStar(ac.Destination, trimmed);
-            if (star is not null)
-            {
-                return star.ProcedureId;
-            }
-        }
-
-        return null;
-    }
-
-    private static IReadOnlyList<string> GetStarIds(string airportCode)
-    {
-        IReadOnlyList<CifpStarProcedure> stars = NavigationDatabase.Instance.GetStars(airportCode);
-        if (stars.Count == 0)
-        {
-            return [];
-        }
-
-        var ids = new List<string>(stars.Count);
-        foreach (CifpStarProcedure s in stars)
-        {
-            ids.Add(s.ProcedureId);
-        }
-
-        ids.Sort(StringComparer.OrdinalIgnoreCase);
-        return ids;
-    }
-
-    /// <summary>
-    /// Returns airway IDs found in the aircraft's filed route, in filed order.
-    /// We never offer "all airways" — global CIFP exposes thousands and the picker
-    /// would be useless.
-    /// </summary>
-    private static IReadOnlyList<string> GetFiledAirways(AircraftModel? ac)
-    {
-        if (ac is null || string.IsNullOrEmpty(ac.Route))
-        {
-            return [];
-        }
-
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var result = new List<string>();
-        foreach (string token in ac.Route.Split([' ', '.'], StringSplitOptions.RemoveEmptyEntries))
-        {
-            string trimmed = token.Trim();
-            if (trimmed.Length == 0)
-            {
-                continue;
-            }
-
-            if (NavigationDatabase.Instance.IsAirway(trimmed) && seen.Add(trimmed))
-            {
-                result.Add(trimmed);
-            }
-        }
-
-        return result;
-    }
-
-    private void AddJoinAirwayItems(MenuItem menu, RadarViewModel vm, string cs, string init, AircraftModel? ac)
-    {
-        IReadOnlyList<string> filed = GetFiledAirways(ac);
-
-        if (filed.Count == 1)
-        {
-            string only = filed[0];
-            menu.Items.Add(CreateMenuItem($"Join airway {only}", () => vm.JoinAirwayAsync(cs, init, only)));
-            menu.Items.Add(CreateInputMenuItem("Join airway (other)...", "Airway ID", input => vm.JoinAirwayAsync(cs, init, input)));
-            return;
-        }
-
-        if (filed.Count > 1)
-        {
-            var items = filed.Cast<object>().ToList();
-            menu.Items.Add(CreateListMenuItem("Join airway...", items, items[0], val => vm.JoinAirwayAsync(cs, init, (string)val)));
-            menu.Items.Add(CreateInputMenuItem("Join airway (other)...", "Airway ID", input => vm.JoinAirwayAsync(cs, init, input)));
-            return;
-        }
-
-        menu.Items.Add(CreateInputMenuItem("Join airway...", "Airway ID", input => vm.JoinAirwayAsync(cs, init, input)));
-    }
-
-    /// <summary>
-    /// Returns suggested fix names for this aircraft, in the canonical order shared with the
-    /// typed autocomplete: active navigation route, then filed-route fixes, then destination,
-    /// then departure. Deduped. We never offer "all fixes" — global CIFP has tens of thousands.
-    /// </summary>
-    private static IReadOnlyList<string> GetRouteFixes(AircraftModel? ac) => ac is null ? [] : FixSuggester.CollectRouteFixNames(ac);
-
-    private void AddRouteFixItem(MenuItem menu, string label, AircraftModel? ac, Func<string, Task> dispatch)
-    {
-        IReadOnlyList<string> fixes = GetRouteFixes(ac);
-
-        if (fixes.Count == 1)
-        {
-            string only = fixes[0];
-            menu.Items.Add(CreateMenuItem($"{label} {only}", () => dispatch(only)));
-            menu.Items.Add(CreateInputMenuItem($"{label} (other)...", "Fix name", input => dispatch(input)));
-            return;
-        }
-
-        if (fixes.Count > 1)
-        {
-            var items = fixes.Cast<object>().ToList();
-            menu.Items.Add(CreateListMenuItem($"{label}...", items, items[0], val => dispatch((string)val)));
-            menu.Items.Add(CreateInputMenuItem($"{label} (other)...", "Fix name", input => dispatch(input)));
-            return;
-        }
-
-        menu.Items.Add(CreateInputMenuItem($"{label}...", "Fix name", input => dispatch(input)));
-    }
-
-    private MenuItem BuildProceduresSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
-    {
-        var menu = new MenuItem { Header = "Procedures" };
-        AddJoinStarItems(menu, vm, cs, init, ac);
-        menu.Items.Add(CreateMenuItem("Climb via SID", () => vm.ClimbViaSidAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem("Descend via STAR", () => vm.DescendViaStarAsync(cs, init)));
-
-        AddRouteFixItem(menu, "Cross fix", ac, val => vm.CrossFixAsync(cs, init, val));
-        AddRouteFixItem(menu, "Depart fix", ac, val => vm.DepartFixAsync(cs, init, val));
-
-        menu.Items.Add(CreateInputMenuItem("PTAC...", "PTAC arguments", input => vm.PtacAsync(cs, init, input)));
-
-        AddJoinAirwayItems(menu, vm, cs, init, ac);
-
-        AddJoinRadialItems(menu, vm, cs, init);
-
-        return menu;
-    }
-
-    private void AddJoinRadialItems(MenuItem menu, RadarViewModel vm, string cs, string init)
-    {
-        if (vm.FixNames is not null)
-        {
-            menu.Items.Add(
-                CreateFilteredListMenuItem(
-                    "Join radial outbound...",
-                    vm.FixNames,
-                    fix =>
-                    {
-                        Dispatcher.UIThread.Post(() =>
-                            ShowInputPopup($"Bearing from {fix} (0-360)", bearing => vm.JoinRadialOutboundAsync(cs, init, $"{fix} {bearing}"))
-                        );
-                        return Task.CompletedTask;
-                    }
-                )
-            );
-            menu.Items.Add(
-                CreateFilteredListMenuItem(
-                    "Join radial inbound...",
-                    vm.FixNames,
-                    fix =>
-                    {
-                        Dispatcher.UIThread.Post(() =>
-                            ShowInputPopup($"Bearing to {fix} (0-360)", bearing => vm.JoinRadialInboundAsync(cs, init, $"{fix} {bearing}"))
-                        );
-                        return Task.CompletedTask;
-                    }
-                )
-            );
-        }
-        else
-        {
-            menu.Items.Add(CreateInputMenuItem("Join radial outbound...", "FIX bearing", input => vm.JoinRadialOutboundAsync(cs, init, input)));
-            menu.Items.Add(CreateInputMenuItem("Join radial inbound...", "FIX bearing", input => vm.JoinRadialInboundAsync(cs, init, input)));
-        }
-    }
-
     /// <summary>
     /// Builds the state-aware Tower submenu. Departure clearances appear only for ground
     /// departures, arrival/option clearances only while a landing is pending (VFR options
@@ -703,7 +495,7 @@ public partial class RadarView
                 menu.Items.Add(SharedMenuGroups.Approach(ac, context, host));
                 break;
             case MenuGroup.Procedures:
-                menu.Items.Add(BuildProceduresSubmenu(vm, cs, init, ac));
+                menu.Items.Add(SharedMenuGroups.Procedures(ac, context, host));
                 break;
             case MenuGroup.Tower:
                 MenuItem? tower = BuildTowerSubmenu(vm, cs, init, ac);
@@ -1041,26 +833,6 @@ public partial class RadarView
         item.Click += (_, _) =>
         {
             Dispatcher.UIThread.Post(() => ShowInputPopup(placeholder, action));
-        };
-        return item;
-    }
-
-    private MenuItem CreateFilteredListMenuItem(
-        string header,
-        string[] sortedNames,
-        Func<string, Task> action,
-        IReadOnlyList<object>? priorityItems = null
-    )
-    {
-        var item = new MenuItem
-        {
-            Header = header,
-            // The popup lists the priority items until the controller types; the rest of the candidates filter in as they do.
-            Tag = new MenuPickerDescriptor(MenuPickerDescriptor.FilteredList, ListPickerTexts(priorityItems ?? [])),
-        };
-        item.Click += (_, _) =>
-        {
-            Dispatcher.UIThread.Post(() => ShowFilteredListPopup(sortedNames, action, priorityItems));
         };
         return item;
     }

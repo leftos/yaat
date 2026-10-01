@@ -24,6 +24,7 @@ public class MenuCatalogCommandTests
     private const string BlockText = "gate 25";
     private const string Fix = "SUNOL";
     private const string ApproachId = "I28R";
+    private const string StarId = "EMZOH4";
 
     /// <summary>An airport the navigation data has approaches (among them <see cref="ApproachId"/>) and runways for.</summary>
     private const string ApproachAirport = "KOAK";
@@ -110,6 +111,15 @@ public class MenuCatalogCommandTests
         (MenuIds.ApproachReportOffCrosswind, "", "REPORT OFF CROSSWIND"),
         (MenuIds.ApproachReportOffDownwind, "", "REPORT OFF DOWNWIND"),
         (MenuIds.ApproachReportOffAll, "", "REPORT OFF"),
+        (MenuIds.ProceduresJoinStar, StarId, "JARR EMZOH4"),
+        (MenuIds.ProceduresClimbViaSid, "", "CVIA"),
+        (MenuIds.ProceduresDescendViaStar, "", "DVIA"),
+        (MenuIds.ProceduresCrossFix, Fix, "CFIX SUNOL"),
+        (MenuIds.ProceduresDepartFix, Fix, "DEPART SUNOL"),
+        (MenuIds.ProceduresPtac, "280 025 I28R", "PTAC 280 025 I28R"),
+        (MenuIds.ProceduresJoinAirway, "V25", "JAWY V25"),
+        (MenuIds.ProceduresJoinRadialOutbound, "SUNOL 090", "JRADO SUNOL 090"),
+        (MenuIds.ProceduresJoinRadialInbound, "SUNOL 270", "JRADI SUNOL 270"),
     ];
 
     /// <summary>
@@ -841,6 +851,147 @@ public class MenuCatalogCommandTests
         );
     }
 
+    [AvaloniaFact]
+    public void JoinStar_NoStarsNoDefault_UsesInputTier()
+    {
+        TestVnasData.EnsureInitialized();
+        Assert.Empty(NavigationDatabase.Instance.GetStars(UnknownAirport));
+        var host = new RecordingMenuHost(StarId);
+        var aircraft = new FakeMenuAircraft { Destination = UnknownAirport, Route = $"SUNOL {StarId}" };
+
+        Click(
+            AssertPicker(MenuCatalog.Get(MenuIds.ProceduresJoinStar).Build(aircraft, Context(), host), "Join STAR...", MenuPickerDescriptor.Input, [])
+        );
+
+        Assert.Equal(["STAR name"], host.InputPlaceholders);
+        Assert.Equal([(Callsign, "JARR EMZOH4", Initials)], host.Sent);
+        Assert.Null(MenuCatalog.BuildJoinStarOther(aircraft, Context(), host));
+    }
+
+    [AvaloniaFact]
+    public void CrossFix_OneRouteFix_DirectItemPlusOther()
+    {
+        var host = new RecordingMenuHost("ECA");
+        var aircraft = new FakeMenuAircraft { RouteFixes = [Fix] };
+
+        MenuItem? item = MenuCatalog.Get(MenuIds.ProceduresCrossFix).Build(aircraft, Context(), host);
+        Assert.NotNull(item);
+        Assert.Equal("Cross fix SUNOL", item.Header as string);
+        Assert.Null(item.Tag);
+        Click(item);
+        Click(AssertPicker(MenuCatalog.BuildCrossFixOther(aircraft, Context(), host), "Cross fix (other)...", MenuPickerDescriptor.Input, []));
+
+        Assert.Equal(["Fix name"], host.InputPlaceholders);
+        Assert.Equal([(Callsign, "CFIX SUNOL", Initials), (Callsign, "CFIX ECA", Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void CrossFix_NoRouteFixes_UsesInputTier()
+    {
+        var host = new RecordingMenuHost(Fix);
+        var aircraft = new FakeMenuAircraft();
+
+        Click(
+            AssertPicker(MenuCatalog.Get(MenuIds.ProceduresCrossFix).Build(aircraft, Context(), host), "Cross fix...", MenuPickerDescriptor.Input, [])
+        );
+
+        Assert.Equal(["Fix name"], host.InputPlaceholders);
+        Assert.Equal([(Callsign, "CFIX SUNOL", Initials)], host.Sent);
+        Assert.Null(MenuCatalog.BuildCrossFixOther(aircraft, Context(), host));
+    }
+
+    [AvaloniaFact]
+    public void JoinAirway_TwoFiledAirways_UsesListPlusOther()
+    {
+        TestVnasData.EnsureInitialized();
+        Assert.True(NavigationDatabase.Instance.IsAirway("V25"));
+        Assert.True(NavigationDatabase.Instance.IsAirway("J80"));
+        var host = new RecordingMenuHost("J80") { InputAnswer = "J6" };
+        var aircraft = new FakeMenuAircraft { Route = "OAK V25 SUNOL J80 ECA V25" };
+
+        MenuItem? item = MenuCatalog.Get(MenuIds.ProceduresJoinAirway).Build(aircraft, Context(), host);
+        Click(AssertPicker(item, "Join airway...", MenuPickerDescriptor.List, ["V25", "J80"]));
+        Click(AssertPicker(MenuCatalog.BuildJoinAirwayOther(aircraft, Context(), host), "Join airway (other)...", MenuPickerDescriptor.Input, []));
+
+        Assert.Equal<object?>("V25", Assert.Single(host.ListPopups).Selected);
+        Assert.Equal(["Airway ID"], host.InputPlaceholders);
+        Assert.Equal([(Callsign, "JAWY J80", Initials), (Callsign, "JAWY J6", Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void JoinStar_FiledStar_LeafPlusOtherList()
+    {
+        TestVnasData.EnsureInitialized();
+        string[] stars =
+        [
+            .. NavigationDatabase.Instance.GetStars(ApproachAirport).Select(s => s.ProcedureId).Order(StringComparer.OrdinalIgnoreCase),
+        ];
+        Assert.Contains(StarId, stars);
+        string other = stars.First(s => s != StarId);
+        var host = new RecordingMenuHost(other);
+        var aircraft = new FakeMenuAircraft { Destination = ApproachAirport, Route = $"RGOOD.{StarId}.{ApproachAirport}" };
+
+        MenuItem? item = MenuCatalog.Get(MenuIds.ProceduresJoinStar).Build(aircraft, Context(), host);
+        Assert.NotNull(item);
+        Assert.Equal("Join STAR EMZOH4", item.Header as string);
+        Assert.Null(item.Tag);
+        Click(item);
+        Click(AssertPicker(MenuCatalog.BuildJoinStarOther(aircraft, Context(), host), "Join STAR (other)...", MenuPickerDescriptor.List, stars));
+
+        Assert.Equal<object?>(stars[0], Assert.Single(host.ListPopups).Selected);
+        Assert.Equal([(Callsign, "JARR EMZOH4", Initials), (Callsign, $"JARR {other}", Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void JoinStar_NoFiledStar_ListsTheStars()
+    {
+        TestVnasData.EnsureInitialized();
+        string[] stars =
+        [
+            .. NavigationDatabase.Instance.GetStars(ApproachAirport).Select(s => s.ProcedureId).Order(StringComparer.OrdinalIgnoreCase),
+        ];
+        Assert.Contains(StarId, stars);
+        var host = new RecordingMenuHost(StarId);
+        var aircraft = new FakeMenuAircraft { Destination = ApproachAirport, Route = "" };
+
+        MenuItem? item = MenuCatalog.Get(MenuIds.ProceduresJoinStar).Build(aircraft, Context(), host);
+        Click(AssertPicker(item, "Join STAR...", MenuPickerDescriptor.List, stars));
+
+        Assert.Equal<object?>(stars[0], Assert.Single(host.ListPopups).Selected);
+        Assert.Equal([(Callsign, "JARR EMZOH4", Initials)], host.Sent);
+        Assert.Null(MenuCatalog.BuildJoinStarOther(aircraft, Context(), host));
+    }
+
+    [AvaloniaTheory]
+    [InlineData(MenuIds.ProceduresJoinRadialOutbound, "Join radial outbound...", "Bearing from SUNOL (0-360)", "JRADO SUNOL 090")]
+    [InlineData(MenuIds.ProceduresJoinRadialInbound, "Join radial inbound...", "Bearing to SUNOL (0-360)", "JRADI SUNOL 090")]
+    public void JoinRadial_WithFixNames_PicksFixThenAsksBearing(string id, string label, string prompt, string command)
+    {
+        var host = new RecordingMenuHost(Fix) { FixNames = ["ECA", "OAK", Fix], InputAnswer = "090" };
+
+        MenuItem? item = MenuCatalog.Get(id).Build(null, Context(), host);
+        Click(AssertPicker(item, label, MenuPickerDescriptor.FilteredList, []));
+
+        (string[] Names, IReadOnlyList<string>? Priority) popup = Assert.Single(host.FilteredListPopups);
+        Assert.Equal(["ECA", "OAK", Fix], popup.Names);
+        Assert.Null(popup.Priority);
+        Assert.Equal([prompt], host.InputPlaceholders);
+        Assert.Equal([(Callsign, command, Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void JoinRadialInbound_WithoutFixNames_SendsInputVerbatim()
+    {
+        var host = new RecordingMenuHost("SUNOL 270");
+
+        MenuItem? item = MenuCatalog.Get(MenuIds.ProceduresJoinRadialInbound).Build(null, Context(), host);
+        Click(AssertPicker(item, "Join radial inbound...", MenuPickerDescriptor.Input, []));
+
+        Assert.Empty(host.FilteredListPopups);
+        Assert.Equal(["FIX bearing"], host.InputPlaceholders);
+        Assert.Equal([(Callsign, "JRADI SUNOL 270", Initials)], host.Sent);
+    }
+
     /// <summary>Asserts a picker item's header and the descriptor the menu walker prints for it, and returns the item.</summary>
     private static MenuItem AssertPicker(MenuItem? item, string header, string kind, string[] texts)
     {
@@ -920,10 +1071,13 @@ public class MenuCatalogCommandTests
 
         public List<string> InputPlaceholders { get; } = [];
 
+        /// <summary>The text an input popup is answered with when it differs from a picker's answer; the picker's answer when null.</summary>
+        public string? InputAnswer { get; init; }
+
         public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit)
         {
             InputPlaceholders.Add(placeholder);
-            _ = onSubmit(input);
+            _ = onSubmit(InputAnswer ?? input);
         }
 
         public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick)
