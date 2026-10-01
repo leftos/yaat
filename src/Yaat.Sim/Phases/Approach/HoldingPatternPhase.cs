@@ -39,6 +39,13 @@ public sealed class HoldingPatternPhase : Phase
     /// </summary>
     public int? MaxCircuits { get; init; }
 
+    /// <summary>
+    /// True when this hold is an approach's hold-in-lieu of a procedure turn, set by the approach clearance that builds it
+    /// (<see cref="ApproachCommandHandler"/>): a segment of the cleared approach. An en-route, published or missed-approach
+    /// hold is not one.
+    /// </summary>
+    public bool IsHoldInLieu { get; init; }
+
     private HoldState _state = HoldState.NavigatingToFix;
     private HoldingEntry _entry;
     private TrueHeading _outboundHeading;
@@ -70,6 +77,12 @@ public sealed class HoldingPatternPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
+        // Lead lifecycle watchdog for a follow kept on an approach's hold-in-lieu — see ApproachNavigationPhase.OnTick.
+        if (AirborneFollowHelper.CheckLeadLifecycle(ctx))
+        {
+            return false;
+        }
+
         switch (_state)
         {
             case HoldState.NavigatingToFix:
@@ -388,8 +401,10 @@ public sealed class HoldingPatternPhase : Phase
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
         // Holding manages only the lateral pattern. Altitude and speed adjustments
-        // are additive — they retarget without breaking the hold.
-        if (IsAdditiveAirborneAdjustment(cmd))
+        // are additive — they retarget without breaking the hold. A hold-in-lieu of a
+        // procedure turn is part of the approach, which FOLLOW keeps (the dispatcher only
+        // records the lead); any other hold is cleared by it.
+        if (IsAdditiveAirborneAdjustment(cmd) || ((cmd == CanonicalCommandType.Follow) && IsHoldInLieu))
         {
             return CommandAcceptance.Allowed;
         }
@@ -412,6 +427,7 @@ public sealed class HoldingPatternPhase : Phase
             Direction = (int)Direction,
             Entry = Entry is { } e ? (int)e : null,
             MaxCircuits = MaxCircuits,
+            IsHoldInLieu = IsHoldInLieu,
             State = (int)_state,
             ResolvedEntry = (int)_entry,
             OutboundHeadingDeg = _outboundHeading.Degrees,
@@ -433,6 +449,7 @@ public sealed class HoldingPatternPhase : Phase
             Direction = (TurnDirection)dto.Direction,
             Entry = dto.Entry is { } entry ? (HoldingEntry)entry : null,
             MaxCircuits = dto.MaxCircuits,
+            IsHoldInLieu = dto.IsHoldInLieu,
             Status = (PhaseStatus)dto.Status,
             ElapsedSeconds = dto.ElapsedSeconds,
             _state = (HoldState)dto.State,

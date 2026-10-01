@@ -1238,7 +1238,10 @@ public static class ApproachCommandHandler
             return [];
         }
 
-        var phases = new List<Phase> { new ApproachNavigationPhase { Fixes = clearance.MissedApproachFixes } };
+        var phases = new List<Phase>
+        {
+            new ApproachNavigationPhase { Fixes = clearance.MissedApproachFixes, IsMissedApproach = true },
+        };
 
         if (clearance.MapHold is { } hold)
         {
@@ -1570,6 +1573,7 @@ public static class ApproachCommandHandler
             IsMinuteBased = holdLeg.LegDistanceNm is null,
             Direction = holdLeg.TurnDirection == 'L' ? TurnDirection.Left : TurnDirection.Right,
             MaxCircuits = 1,
+            IsHoldInLieu = true,
         };
     }
 

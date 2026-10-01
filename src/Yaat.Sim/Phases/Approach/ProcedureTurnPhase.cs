@@ -85,6 +85,12 @@ public sealed class ProcedureTurnPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
+        // Lead lifecycle watchdog for a follow kept on the approach — see ApproachNavigationPhase.OnTick.
+        if (AirborneFollowHelper.CheckLeadLifecycle(ctx))
+        {
+            return false;
+        }
+
         switch (_state)
         {
             case PtState.NavigateToFix:
@@ -337,7 +343,9 @@ public sealed class ProcedureTurnPhase : Phase
     {
         // The procedure turn manages only the lateral course reversal. Altitude and
         // speed adjustments are additive — they retarget without cancelling the turn.
-        if (IsAdditiveAirborneAdjustment(cmd))
+        // FOLLOW is routed by the dispatcher, which keeps the approach (this turn included)
+        // and only records the lead.
+        if (IsAdditiveAirborneAdjustment(cmd) || (cmd == CanonicalCommandType.Follow))
         {
             return CommandAcceptance.Allowed;
         }

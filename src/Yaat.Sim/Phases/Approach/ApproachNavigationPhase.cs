@@ -34,6 +34,12 @@ public sealed class ApproachNavigationPhase : Phase
     /// </summary>
     public ProcedureTurnInbound? PostTurnJoin { get; init; }
 
+    /// <summary>
+    /// True when these fixes are the published missed approach (built by <see cref="ApproachCommandHandler.BuildMissedApproachPhases"/>),
+    /// flown away from the runway after a go-around: not a segment of the approach inbound.
+    /// </summary>
+    public bool IsMissedApproach { get; init; }
+
     public override string Name => "ApproachNav";
 
     public override void OnStart(PhaseContext ctx)
@@ -54,7 +60,7 @@ public sealed class ApproachNavigationPhase : Phase
     }
 
     /// <summary>The index of the first fix no farther from the inbound anchor, along the inbound course, than the aircraft.</summary>
-    private int FirstFixAheadOnInbound(LatLon aircraftPosition, ProcedureTurnInbound join)
+    internal int FirstFixAheadOnInbound(LatLon aircraftPosition, ProcedureTurnInbound join)
     {
         double aircraftToAnchorNm = join.DistanceToAnchorNm(aircraftPosition);
         int index = 0;
@@ -264,8 +270,8 @@ public sealed class ApproachNavigationPhase : Phase
             CanonicalCommandType.ExitLeft => CommandAcceptance.Allowed,
             CanonicalCommandType.ExitRight => CommandAcceptance.Allowed,
             CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
-            // FOLLOW replaces the phase list itself and carries the landing clearance onto the pursuit;
-            // clearing the phase first would drop that clearance.
+            // FOLLOW is routed by the dispatcher: it keeps the approach and only records the lead, or replaces
+            // the phase list itself for a re-sequence; clearing the phase first would drop the approach.
             CanonicalCommandType.Follow => CommandAcceptance.Allowed,
             // Everything else (heading, direct-to, etc.) takes the aircraft off the approach
             _ => CommandAcceptance.ClearsPhase,
@@ -283,6 +289,7 @@ public sealed class ApproachNavigationPhase : Phase
             PostTurnAnchorLat = PostTurnJoin?.Anchor.Lat,
             PostTurnAnchorLon = PostTurnJoin?.Anchor.Lon,
             PostTurnInboundCourseDeg = PostTurnJoin?.InboundCourse.Degrees,
+            IsMissedApproach = IsMissedApproach,
         };
 
     public static ApproachNavigationPhase FromSnapshot(ApproachNavigationPhaseDto dto)
@@ -295,6 +302,7 @@ public sealed class ApproachNavigationPhase : Phase
         {
             Fixes = [.. dto.Fixes.Select(ApproachFix.FromSnapshot)],
             PostTurnJoin = postTurnJoin,
+            IsMissedApproach = dto.IsMissedApproach,
             Status = (PhaseStatus)dto.Status,
             ElapsedSeconds = dto.ElapsedSeconds,
             _currentFixIndex = dto.CurrentFixIndex,

@@ -919,7 +919,7 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void FollowFromStraightIn_RunwaylessLead_KeepsLandingClearanceWithoutPatternReturn()
+    public void FollowFromIntercept_RunwaylessLeadInCone_KeepsApproachAndClearance()
     {
         SimulationEngine engine = BuildEngine();
 
@@ -945,28 +945,24 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
         follower.Phases.Add(new FinalApproachPhase());
         follower.Phases.Add(new LandingPhase());
         follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower));
+        Phase? intercept = follower.Phases.CurrentPhase;
         AddLead(engine, OffFinal(rwy, 4.5, 0.5), "DCT VPCBT");
 
         CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
         output.WriteLine($"FOLLOW: success={result.Success} — {result.Message}");
 
         Assert.True(result.Success, result.Message);
-        VfrFollowPhase pursuit = Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
-        Assert.Null(pursuit.PatternReturn);
+        Assert.Same(intercept, follower.Phases!.CurrentPhase);
+        Assert.Equal(Leader, follower.Approach.FollowingCallsign);
         Assert.Equal(ClearanceType.ClearedToLand, follower.Phases.LandingClearance);
         Assert.Equal("28R", follower.Phases.ClearedRunwayId);
-        Assert.Contains(
-            follower.PendingWarnings,
-            w =>
-                w.StartsWith($"{Follower} ", StringComparison.Ordinal)
-                && w.EndsWith(" cancelled by FOLLOW, landing clearance kept", StringComparison.Ordinal)
-        );
+        Assert.DoesNotContain(follower.PendingWarnings, w => w.Contains("cancelled by FOLLOW", StringComparison.Ordinal));
     }
 
     // ─── From an approach (intercept) ───
 
     [Fact]
-    public void FollowFromIntercept_LeadInRunwayPattern_EntersPatternKeepingClearance()
+    public void FollowFromIntercept_LeadInRunwayPattern_KeepsApproachAndClearance()
     {
         SimulationEngine engine = BuildEngine();
         RunwayInfo rwy = Oak("28R");
@@ -1002,19 +998,14 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
         output.WriteLine($"FOLLOW: success={result.Success} — {result.Message}; now {follower.Phases?.CurrentPhase?.GetType().Name}");
 
         Assert.True(result.Success, result.Message);
-        Assert.IsNotType<InterceptCoursePhase>(follower.Phases!.CurrentPhase);
+        Assert.IsType<InterceptCoursePhase>(follower.Phases!.CurrentPhase);
         Assert.Equal("28R", follower.Phases.AssignedRunway?.Designator);
         Assert.Equal(ClearanceType.ClearedToLand, follower.Phases.LandingClearance);
         Assert.Equal("28R", follower.Phases.ClearedRunwayId);
         Assert.Equal(Leader, follower.Approach.FollowingCallsign);
-        Assert.Null(follower.Targets.TurnRateOverride);
-        Assert.False(follower.Targets.HasExplicitTurnRate);
-        Assert.Contains(
-            follower.PendingWarnings,
-            w =>
-                w.StartsWith($"{Follower} ", StringComparison.Ordinal)
-                && w.EndsWith(" cancelled by FOLLOW, landing clearance kept", StringComparison.Ordinal)
-        );
+        Assert.Equal(1.0, follower.Targets.TurnRateOverride);
+        Assert.True(follower.Targets.HasExplicitTurnRate);
+        Assert.DoesNotContain(follower.PendingWarnings, w => w.Contains("cancelled by FOLLOW", StringComparison.Ordinal));
     }
 
     // ─── Ground and other-airport leads ───
@@ -1128,23 +1119,23 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
     {
         SimulationEngine engine = BuildEngine();
         AircraftState follower = FollowSequenceRefusalTests.AddApproachFollower(engine, 2.5);
+        Phase? intercept = follower.Phases!.CurrentPhase;
         AddRunwaylessLead(engine, OffTrack(follower, 0.0, 2.0), follower.TrueHeading);
 
         CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
 
         output.WriteLine($"FOLLOW: success={result.Success} — {result.Message}");
         Assert.True(result.Success, result.Message);
-        VfrFollowPhase pursuit = Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
-        Assert.Equal(Leader, pursuit.TargetCallsign);
+        Assert.Same(intercept, follower.Phases!.CurrentPhase);
         Assert.Equal(Leader, follower.Approach.FollowingCallsign);
         Assert.Equal(ClearanceType.ClearedToLand, follower.Phases.LandingClearance);
     }
 
     /// <summary>
-    /// An approach follower flying away from the field on its approach's outbound leg (an approach-navigation follower: a
-    /// procedure turn is not an approach follower here) has traffic ahead in sequence behind its track. A runwayless lead
-    /// 3 nm out on the final, closer to the threshold in a straight line than the follower's remaining path (about 14 nm
-    /// through the outbound fix and the FAF), is ahead of it and accepted.
+    /// An approach follower flying away from the field on its approach's outbound leg (an approach-navigation follower) has
+    /// traffic ahead in sequence behind its track. A runwayless lead 3 nm out on the final, closer to the threshold in a
+    /// straight line than the follower's remaining path (about 14 nm through the outbound fix and the FAF), is ahead of it,
+    /// accepted, and the approach is kept.
     /// </summary>
     [Fact]
     public void ApproachFollower_ProcedureTurnOutbound_RunwaylessLeadCloserToThreshold_Accepted()
@@ -1169,13 +1160,13 @@ public class FollowRunwaylessLeadFromPatternTests(ITestOutputHelper output)
         follower.Phases.Add(new LandingPhase());
         AircraftState lead = AddRunwaylessLead(engine, OffFinal(rwy, 3.0, 0.0), rwy.TrueHeading);
         Assert.False(AirborneFollowHelper.IsLeadAheadOfTrack(follower, lead), "the lead must be outside the follower's ±60° cone");
+        Phase? navigation = follower.Phases.CurrentPhase;
 
         CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
 
         output.WriteLine($"FOLLOW: success={result.Success} — {result.Message}");
         Assert.True(result.Success, result.Message);
-        VfrFollowPhase pursuit = Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
-        Assert.Equal(Leader, pursuit.TargetCallsign);
+        Assert.Same(navigation, follower.Phases!.CurrentPhase);
         Assert.Equal(Leader, follower.Approach.FollowingCallsign);
     }
 

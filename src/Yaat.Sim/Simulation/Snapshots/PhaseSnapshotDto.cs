@@ -1304,6 +1304,10 @@ public sealed class HoldingPatternPhaseDto : PhaseDto
     public required int Direction { get; init; }
     public int? Entry { get; init; }
     public int? MaxCircuits { get; init; }
+
+    /// <summary>The hold is an approach's hold-in-lieu of a procedure turn. Optional (defaults false) so recordings made
+    /// before the field deserialize cleanly.</summary>
+    public bool IsHoldInLieu { get; init; }
     public required int State { get; init; }
     public required int ResolvedEntry { get; init; }
     public required double OutboundHeadingDeg { get; init; }
@@ -1336,6 +1340,10 @@ public sealed class ApproachNavigationPhaseDto : PhaseDto
     public double? PostTurnAnchorLat { get; init; }
     public double? PostTurnAnchorLon { get; init; }
     public double? PostTurnInboundCourseDeg { get; init; }
+
+    /// <summary>The fixes are the published missed approach. Optional (defaults false) so recordings made before the
+    /// field deserialize cleanly.</summary>
+    public bool IsMissedApproach { get; init; }
 }
 
 public sealed class InterceptCoursePhaseDto : PhaseDto

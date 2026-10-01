@@ -208,7 +208,7 @@ public class FollowEntryLeadPathTests(ITestOutputHelper output)
     /// centerline from <paramref name="position"/>, heading for the join, with the circuit a Final entry hands over to (the
     /// final approach and the landing, no pattern legs).
     /// </summary>
-    private static AircraftState StraightInEntrant(RunwayInfo rwy, string type, double joinNm, LatLon position)
+    internal static AircraftState StraightInEntrant(RunwayInfo rwy, string type, double joinNm, LatLon position)
     {
         LatLon join = OffFinal(rwy, joinNm, 0.0);
         AircraftState lead = Fly(rwy, type, position, [Entry(join, PatternEntryKind.Final, null)], PatternEntryLeg.Final);
@@ -403,11 +403,13 @@ public class FollowEntryLeadPathTests(ITestOutputHelper output)
         (AircraftState _, double truePathNm) = AddFortyFiveEntryLead(engine, rwy, 0.5);
         AircraftState follower = FollowSequenceRefusalTests.AddApproachFollower(engine, 9.0);
         Assert.True(truePathNm < AirborneFollowHelper.SequenceRemainingPathNm(follower, rwy), $"lead path {truePathNm:F2} nm");
+        Phase? intercept = follower.Phases!.CurrentPhase;
 
         CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(Leader, follower.Approach.FollowingCallsign);
+        Assert.Same(intercept, follower.Phases!.CurrentPhase);
     }
 
     /// <summary>
@@ -424,11 +426,13 @@ public class FollowEntryLeadPathTests(ITestOutputHelper output)
         AircraftState follower = FollowSequenceRefusalTests.AddApproachFollower(engine, 8.0);
         double leadNm = AirborneFollowHelper.SequenceRemainingPathNm(lead, rwy);
         Assert.True(leadNm < AirborneFollowHelper.SequenceRemainingPathNm(follower, rwy), $"lead path {leadNm:F2} nm");
+        Phase? intercept = follower.Phases!.CurrentPhase;
 
         CommandResult result = engine.SendCommand(Follower, $"FOLLOW {Leader}");
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(Leader, follower.Approach.FollowingCallsign);
+        Assert.Same(intercept, follower.Phases!.CurrentPhase);
     }
 
     /// <summary>

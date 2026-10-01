@@ -542,12 +542,12 @@ public class FollowSequenceRefusalTests(ITestOutputHelper output)
         SimulationEngine engine = BuildEngine();
         AircraftState follower = AddApproachFollower(engine, 6.0);
         AddOnCircuit(engine, Leader, PatternEntryLeg.Base, wp => IntoBase(wp, 0.3));
+        FollowerState before = Capture(follower);
 
         CommandResult result = Send(engine, $"FOLLOW {Leader}");
 
-        Assert.True(result.Success, result.Message);
-        Assert.Equal(Leader, follower.Approach.FollowingCallsign);
-        Assert.Equal(ClearanceType.ClearedToLand, follower.Phases!.LandingClearance);
+        AssertRetargetedInPlace(follower, before, result);
+        Assert.IsType<InterceptCoursePhase>(follower.Phases!.CurrentPhase);
     }
 
     /// <summary>
@@ -601,7 +601,7 @@ public class FollowSequenceRefusalTests(ITestOutputHelper output)
 
         CommandResult result = Send(engine, $"FOLLOW {Leader}");
 
-        AssertRefusedUnchanged(follower, before, result, NotAhead("approach"));
+        AssertRefusedUnchanged(follower, before, result, $"Unable, {Leader} is going around, request vectors");
     }
 
     /// <summary>

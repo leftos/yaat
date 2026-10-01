@@ -47,15 +47,17 @@ internal static class VisualApproachHelper
     /// detectors so the same loss event gets the same consequence regardless of which
     /// cadence saw it first. Clears the follow; then per the disjunction: field held →
     /// handback (report + instructor warning, visual continues); nothing held on a visual →
-    /// the visual ends. Non-visual follows (VFR pattern FOLLOW) keep the historical freeze
+    /// the visual ends. Non-visual follows (a pattern FOLLOW, a kept approach) keep the historical freeze
     /// behavior: the follower's only outstanding instruction was to follow, so it holds its
-    /// present leg awaiting a controller turn.
+    /// present leg awaiting a controller turn, and an approach continues; an IFR follower also
+    /// tells the instructor that visual separation ended.
     /// <paramref name="fieldAlsoLostThisTick"/> names the field in the end-of-visual
     /// transmission when both references were lost in the same evaluation.
     /// </summary>
     public static void HandleTrafficContactLost(PhaseContext ctx, string targetCallsign, bool fieldAlsoLostThisTick)
     {
         AircraftState follower = ctx.Aircraft;
+        bool wasFollowing = follower.Approach.FollowingCallsign is not null;
 
         // The pilot just reported losing sight — the in-sight report is consumed with
         // the loss, unlike a command-driven follow cancel (where the pilot still sees
@@ -73,6 +75,15 @@ internal static class VisualApproachHelper
                 Pilot.PilotResponder.BuildLostSightOfTraffic(follower, targetCallsign),
                 Pilot.PilotResponder.SoloPositionsTowerApproach
             );
+
+            // An IFR follow is pilot-applied visual separation: with sight lost, the controller is back to radar separation
+            // (7110.65 §7-2-1, §4-8-11.c). A VFR follower's own call is all there is (AIM §5-5-12.a.2); an aircraft with
+            // no flight plan counts as VFR.
+            if (wasFollowing && AirborneFollowHelper.IsIfrFollower(follower))
+            {
+                follower.PendingWarnings.Add(VisualSeparationTerminatedWarning(follower.Callsign));
+            }
+
             return;
         }
 
@@ -88,12 +99,16 @@ internal static class VisualApproachHelper
                 Pilot.PilotResponder.BuildLostSightOfTrafficFieldInSight(follower, targetCallsign),
                 Pilot.PilotResponder.SoloPositionsTowerApproach
             );
-            follower.PendingWarnings.Add($"{follower.Callsign} visual separation terminated — radar separation required");
+            follower.PendingWarnings.Add(VisualSeparationTerminatedWarning(follower.Callsign));
             return;
         }
 
         EndVisualLostReference(ctx, fieldAlsoLostThisTick, true, targetCallsign);
     }
+
+    /// <summary>The instructor warning that a follower's visual separation from its lead has ended and radar separation applies.</summary>
+    internal static string VisualSeparationTerminatedWarning(string callsign) =>
+        $"{callsign} visual separation terminated — radar separation required";
 
     /// <summary>
     /// End a visual approach whose pilot no longer has any visual reference. Committed →

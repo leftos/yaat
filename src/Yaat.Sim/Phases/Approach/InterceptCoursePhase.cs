@@ -513,8 +513,8 @@ public sealed class InterceptCoursePhase : Phase
             CanonicalCommandType.ExitLeft => CommandAcceptance.Allowed,
             CanonicalCommandType.ExitRight => CommandAcceptance.Allowed,
             CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
-            // FOLLOW replaces the phase list itself and carries the landing clearance onto the pursuit;
-            // clearing the phase first would drop that clearance.
+            // FOLLOW is routed by the dispatcher: it keeps the approach and only records the lead, or replaces
+            // the phase list itself for a re-sequence; clearing the phase first would drop the approach.
             CanonicalCommandType.Follow => CommandAcceptance.Allowed,
             // Everything else (heading, direct-to, etc.) takes the aircraft off the approach
             _ => CommandAcceptance.ClearsPhase,

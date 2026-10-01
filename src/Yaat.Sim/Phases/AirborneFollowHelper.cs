@@ -251,6 +251,13 @@ public static class AirborneFollowHelper
             return true;
         }
 
+        if (IsOnApproachBeforeFinal(follower.Phases?.CurrentPhase) && IsGoingAround(lead))
+        {
+            Log.LogDebug("[Follow] {Callsign}: target {Target} went around, ending follow on the approach", follower.Callsign, targetCallsign);
+            EndFollowLeadWentAround(follower, targetCallsign);
+            return true;
+        }
+
         // Loss of visual contact is the ONLY self-generated follow cancel (AIM
         // §5-5-12.a.2 / §4-4-14 NOTE). A lead that merely pulls ahead (it is faster)
         // or slips behind is still followed — a growing gap *increases* separation and
@@ -270,6 +277,53 @@ public static class AirborneFollowHelper
 
         return false;
     }
+
+    /// <summary>
+    /// End the follow of a follower on an approach before final whose lead went around or is flying the missed approach: the
+    /// approach continues, and the pilot, who still has the lead in sight, says nothing. The instructor is told the follow
+    /// ended, and for an IFR follower (<see cref="IsIfrFollower"/>) that visual separation ended with it
+    /// (AIM §5-5-12.a.1; 7110.65 §7-2-1). A re-sequencing lead can end up behind the follower, so the follow is not kept.
+    /// </summary>
+    private static void EndFollowLeadWentAround(AircraftState follower, string leadCallsign)
+    {
+        ClearFollowState(follower);
+        follower.PendingWarnings.Add($"{follower.Callsign} follow of {leadCallsign} ended — {leadCallsign} went around");
+        if (IsIfrFollower(follower))
+        {
+            follower.PendingWarnings.Add(Tower.VisualApproachHelper.VisualSeparationTerminatedWarning(follower.Callsign));
+        }
+    }
+
+    /// <summary>
+    /// True when <paramref name="aircraft"/> counts as IFR for a follow: a filed flight plan that is not VFR. An aircraft with
+    /// no flight plan counts as VFR: a follow issued to it is a practice-approach decision, not a filed instrument approach
+    /// (the test visual acquisition uses, <c>ConflictAlertDetector</c>).
+    /// </summary>
+    internal static bool IsIfrFollower(AircraftState aircraft) => aircraft.FlightPlan.HasFlightPlan && !aircraft.FlightPlan.IsVfr;
+
+    /// <summary>
+    /// True when <paramref name="phase"/> is a segment of an instrument approach flown before its final: a course intercept, an
+    /// approach's fixes, a procedure turn or the approach's hold-in-lieu of a procedure turn (7110.65 §4-8-11.a). FOLLOW keeps
+    /// these and gives them the approach follower's refusals; the published missed approach (<see cref="IsOnMissedApproach"/>)
+    /// and an en-route or published hold are not among them.
+    /// </summary>
+    internal static bool IsOnApproachBeforeFinal(Phase? phase) =>
+        (phase is InterceptCoursePhase or ApproachNavigationPhase { IsMissedApproach: false }) || IsApproachCourseReversal(phase);
+
+    /// <summary>True when <paramref name="phase"/> is an approach's course reversal: a procedure turn or a hold-in-lieu of one.</summary>
+    private static bool IsApproachCourseReversal(Phase? phase) => phase is ProcedureTurnPhase or HoldingPatternPhase { IsHoldInLieu: true };
+
+    /// <summary>
+    /// True when <paramref name="phase"/> flies the published missed approach (<see cref="ApproachNavigationPhase.IsMissedApproach"/>).
+    /// </summary>
+    internal static bool IsOnMissedApproach(Phase? phase) => phase is ApproachNavigationPhase { IsMissedApproach: true };
+
+    /// <summary>
+    /// True when <paramref name="aircraft"/> is going around: in <see cref="GoAroundPhase"/>, re-entering the pattern or not, or
+    /// flying the published missed approach after it (<see cref="IsOnMissedApproach"/>).
+    /// </summary>
+    internal static bool IsGoingAround(AircraftState aircraft) =>
+        (aircraft.Phases?.CurrentPhase is GoAroundPhase) || IsOnMissedApproach(aircraft.Phases?.CurrentPhase);
 
     /// <summary>
     /// Clear the follow target on a follower without holding its pattern leg — for cases where
@@ -370,14 +424,20 @@ public static class AirborneFollowHelper
 
     /// <summary>
     /// The pattern leg an aircraft flying no pattern-leg phase stands in for in the landing sequence: an instrument approach
-    /// (<see cref="InterceptCoursePhase"/>, <see cref="ApproachNavigationPhase"/>) or any other phase flown on its runway's final
-    /// by geometry (<see cref="IsOnFinalByGeometry"/>) is the final; a go-around that re-enters the pattern
+    /// (<see cref="InterceptCoursePhase"/>, an inbound <see cref="ApproachNavigationPhase"/>) or any other phase flown on its
+    /// runway's final by geometry (<see cref="IsOnFinalByGeometry"/>) is the final; a go-around that re-enters the pattern
     /// (<see cref="GoAroundPhase.ReenterPattern"/>) and a closed-traffic takeoff climb are the upwind (AIM §4-3-2.a.3.2). Null
-    /// otherwise: a missed approach, a departure leaving the pattern, a hold.
+    /// for the published missed approach (<see cref="IsOnMissedApproach"/>), even where it climbs out over the final, and
+    /// otherwise: a go-around leaving the pattern, a departure leaving the pattern, a hold.
     /// </summary>
     private static int? SequenceLegIndex(AircraftState aircraft)
     {
         Phase? phase = aircraft.Phases?.CurrentPhase;
+        if (IsOnMissedApproach(phase))
+        {
+            return null;
+        }
+
         if (phase is InterceptCoursePhase or ApproachNavigationPhase)
         {
             return FinalLegIndex;
@@ -422,7 +482,7 @@ public static class AirborneFollowHelper
         {
             return false;
         }
-        if ((PatternLegIndex(follower) is not { } followerLeg) || (PatternLegIndex(lead) is not { } leadLeg))
+        if ((FollowerLegIndex(follower) is not { } followerLeg) || (PatternLegIndex(lead) is not { } leadLeg))
         {
             return false;
         }
@@ -465,7 +525,7 @@ public static class AirborneFollowHelper
     {
         if (leg is < UpwindLegIndex or > DownwindLegIndex)
         {
-            return SequenceRemainingPathNm(ac, runway, wp);
+            return SequenceRemainingPathNm(ac, leg, runway, wp);
         }
 
         if (wp is null)
@@ -491,29 +551,48 @@ public static class AirborneFollowHelper
     /// </summary>
     private static bool IsLeadNoFartherFromThreshold(AircraftState follower, AircraftState lead, RunwayInfo runway)
     {
-        double leadNm = SequenceRemainingPathNm(lead, runway, SequenceWaypoints(lead));
-        return !double.IsPositiveInfinity(leadNm) && (leadNm <= SequenceRemainingPathNm(follower, runway, SequenceWaypoints(follower)));
+        double leadNm = SequenceRemainingPathNm(lead, PatternLegIndex(lead), runway, SequenceWaypoints(lead));
+        return !double.IsPositiveInfinity(leadNm) && (leadNm <= FollowerRemainingPathNm(follower, runway));
     }
 
     /// <summary>
-    /// Remaining path (nm) from <paramref name="ac"/> to <paramref name="runway"/>'s threshold on its own pattern geometry
-    /// (<see cref="SequenceRemainingPathNm(AircraftState, RunwayInfo, PatternWaypoints?)"/> with
-    /// <see cref="SequenceWaypoints"/>). <see cref="double.PositiveInfinity"/> when it cannot be measured.
+    /// The leg a follower stands in for when it orders a lead: <see cref="PatternLegIndex"/>, except that a follower flying an
+    /// approach's course reversal (a procedure turn or the hold-in-lieu of one) is on the approach, so it stands for the final
+    /// like a course intercept, measured through the reversal's fix (<see cref="CourseReversalPathNm"/>). A lead flying one
+    /// keeps <see cref="PatternLegIndex"/>'s "no leg in the sequence": with no credit for its outbound leg and turn, its path
+    /// would put it ahead too early.
     /// </summary>
-    internal static double SequenceRemainingPathNm(AircraftState ac, RunwayInfo runway) => SequenceRemainingPathNm(ac, runway, SequenceWaypoints(ac));
+    private static int? FollowerLegIndex(AircraftState follower) =>
+        IsApproachCourseReversal(follower.Phases?.CurrentPhase) ? FinalLegIndex : PatternLegIndex(follower);
 
     /// <summary>
-    /// Remaining path (nm) from <paramref name="ac"/> to <paramref name="runway"/>'s threshold, the sequence coordinate: its
-    /// along-final distance when on final (<see cref="IsOnFinalForSequence"/>); on an instrument approach not yet on final,
-    /// the path it still has to fly (<see cref="ApproachPathNm"/>) or, on a course intercept, its straight-line distance to
-    /// the threshold; on a pattern entry that joins the final (a straight-in), its entry route and then the final measured
-    /// from the runway; and otherwise its pattern path (<see cref="RemainingPatternPathNm"/>) on the reference geometry
-    /// <paramref name="wp"/>. <see cref="double.PositiveInfinity"/> when it has no leg in the sequence, or flies a pattern leg
-    /// with no geometry to measure it on.
+    /// Remaining path (nm) from <paramref name="ac"/> to <paramref name="runway"/>'s threshold on its own pattern geometry
+    /// (<see cref="SequenceRemainingPathNm(AircraftState, int?, RunwayInfo, PatternWaypoints?)"/> on its
+    /// <see cref="PatternLegIndex"/> with <see cref="SequenceWaypoints"/>). <see cref="double.PositiveInfinity"/> when it
+    /// cannot be measured.
     /// </summary>
-    private static double SequenceRemainingPathNm(AircraftState ac, RunwayInfo runway, PatternWaypoints? wp)
+    internal static double SequenceRemainingPathNm(AircraftState ac, RunwayInfo runway) =>
+        SequenceRemainingPathNm(ac, PatternLegIndex(ac), runway, SequenceWaypoints(ac));
+
+    /// <summary>
+    /// <see cref="SequenceRemainingPathNm(AircraftState, RunwayInfo)"/> for a follower ordering a lead, on its
+    /// <see cref="FollowerLegIndex"/>: a follower on a procedure turn or a hold-in-lieu is measured through the reversal's fix
+    /// (<see cref="CourseReversalPathNm"/>).
+    /// </summary>
+    internal static double FollowerRemainingPathNm(AircraftState follower, RunwayInfo runway) =>
+        SequenceRemainingPathNm(follower, FollowerLegIndex(follower), runway, SequenceWaypoints(follower));
+
+    /// <summary>
+    /// Remaining path (nm) from <paramref name="ac"/>, standing on sequence leg <paramref name="leg"/>, to
+    /// <paramref name="runway"/>'s threshold, the sequence coordinate: its along-final distance when on final
+    /// (<see cref="IsOnFinalForSequence"/>); on an instrument approach not yet on final, the path it still has to fly
+    /// (<see cref="InboundApproachPathNm"/>); on a pattern entry that joins the final (a straight-in), its entry route and then
+    /// the final measured from the runway; and otherwise its pattern path (<see cref="RemainingPatternPathNm"/>) on the
+    /// reference geometry <paramref name="wp"/>. <see cref="double.PositiveInfinity"/> when it has no leg in the sequence, or
+    /// flies a pattern leg with no geometry to measure it on.
+    /// </summary>
+    private static double SequenceRemainingPathNm(AircraftState ac, int? leg, RunwayInfo runway, PatternWaypoints? wp)
     {
-        int? leg = PatternLegIndex(ac);
         if (IsOnFinalForSequence(ac, leg, runway))
         {
             return Math.Max(0.0, AlongFinalNm(ac.Position, runway));
@@ -521,9 +600,7 @@ public static class AirborneFollowHelper
 
         if (leg == FinalLegIndex)
         {
-            return ac.Phases?.CurrentPhase is ApproachNavigationPhase navigation
-                ? ApproachPathNm(ac.Position, navigation, runway)
-                : GeoMath.DistanceNm(ac.Position, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude));
+            return InboundApproachPathNm(ac, runway);
         }
 
         // A straight-in entrant carries no pattern waypoints (its circuit is the entry, the final and the landing), so its
@@ -539,17 +616,78 @@ public static class AirborneFollowHelper
     }
 
     /// <summary>
-    /// Path (nm) still to fly on an instrument approach's fix sequence: from <paramref name="position"/> through every fix not
-    /// yet reached (<see cref="ApproachNavigationPhase.CurrentFixIndex"/> onward), then from the last fix to
-    /// <paramref name="runway"/>'s threshold.
+    /// Path (nm) to <paramref name="runway"/>'s threshold of an aircraft standing for the final off it on an instrument approach:
+    /// along the approach's fixes not yet reached (<see cref="ApproachPathNm"/>), through the fix of a procedure turn or
+    /// hold-in-lieu it is flying (<see cref="CourseReversalPathNm"/>), and otherwise (a course intercept) in a straight line.
     /// </summary>
-    private static double ApproachPathNm(LatLon position, ApproachNavigationPhase navigation, RunwayInfo runway)
+    private static double InboundApproachPathNm(AircraftState ac, RunwayInfo runway) =>
+        ac.Phases?.CurrentPhase switch
+        {
+            ApproachNavigationPhase navigation => ApproachPathNm(ac.Position, navigation.Fixes, navigation.CurrentFixIndex, runway),
+            ProcedureTurnPhase turn => CourseReversalPathNm(ac, turn.InboundJoin, runway),
+            HoldingPatternPhase { IsHoldInLieu: true } hold => CourseReversalPathNm(ac, HoldInLieuInbound(hold), runway),
+            _ => GeoMath.DistanceNm(ac.Position, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude)),
+        };
+
+    /// <summary>
+    /// Path (nm) to <paramref name="runway"/>'s threshold of <paramref name="ac"/> flying an approach's course reversal, whose
+    /// fix and inbound course are <paramref name="inbound"/>: the straight line to the fix, then from the fix along the
+    /// approach's fixes still ahead of it on the inbound course (those of the next <see cref="ApproachNavigationPhase"/> queued,
+    /// <see cref="ApproachNavigationPhase.FirstFixAheadOnInbound"/> onward) to the threshold, as <see cref="ApproachPathNm"/>
+    /// measures them; with no such fixes queued, the straight line from the fix to the threshold. No credit for the outbound
+    /// leg or the turn.
+    /// </summary>
+    private static double CourseReversalPathNm(AircraftState ac, ProcedureTurnInbound inbound, RunwayInfo runway)
+    {
+        double toFixNm = GeoMath.DistanceNm(ac.Position, inbound.Anchor);
+        if (NextApproachNavigation(ac.Phases) is not { } navigation)
+        {
+            return toFixNm + GeoMath.DistanceNm(inbound.Anchor, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude));
+        }
+
+        int fromIndex = navigation.FirstFixAheadOnInbound(inbound.Anchor, inbound);
+        return toFixNm + ApproachPathNm(inbound.Anchor, navigation.Fixes, fromIndex, runway);
+    }
+
+    /// <summary>The fix and inbound course of an approach's hold-in-lieu of a procedure turn.</summary>
+    private static ProcedureTurnInbound HoldInLieuInbound(HoldingPatternPhase hold) =>
+        new(new LatLon(hold.FixLat, hold.FixLon), new TrueHeading(hold.InboundCourse));
+
+    /// <summary>
+    /// The first inbound <see cref="ApproachNavigationPhase"/> queued after the current phase of <paramref name="phases"/>; null
+    /// when none is.
+    /// </summary>
+    private static ApproachNavigationPhase? NextApproachNavigation(PhaseList? phases)
+    {
+        if (phases is null)
+        {
+            return null;
+        }
+
+        for (int i = phases.CurrentIndex + 1; i < phases.Phases.Count; i++)
+        {
+            if (phases.Phases[i] is ApproachNavigationPhase { IsMissedApproach: false } navigation)
+            {
+                return navigation;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Path (nm) along an instrument approach's fix sequence: from <paramref name="position"/> through every fix of
+    /// <paramref name="fixes"/> from <paramref name="fromIndex"/> on (for a phase flying them, the fixes not yet reached,
+    /// <see cref="ApproachNavigationPhase.CurrentFixIndex"/> onward), then from the last fix to <paramref name="runway"/>'s
+    /// threshold.
+    /// </summary>
+    private static double ApproachPathNm(LatLon position, IReadOnlyList<ApproachFix> fixes, int fromIndex, RunwayInfo runway)
     {
         double pathNm = 0.0;
         LatLon from = position;
-        for (int i = navigation.CurrentFixIndex; i < navigation.Fixes.Count; i++)
+        for (int i = fromIndex; i < fixes.Count; i++)
         {
-            var fix = new LatLon(navigation.Fixes[i].Latitude, navigation.Fixes[i].Longitude);
+            var fix = new LatLon(fixes[i].Latitude, fixes[i].Longitude);
             pathNm += GeoMath.DistanceNm(from, fix);
             from = fix;
         }
@@ -665,7 +803,7 @@ public static class AirborneFollowHelper
         {
             return false;
         }
-        if ((PatternLegIndex(follower) is not { } followerLeg) || (PatternLegIndex(lead) is not { } leadLeg))
+        if ((FollowerLegIndex(follower) is not { } followerLeg) || (PatternLegIndex(lead) is not { } leadLeg))
         {
             return false;
         }
