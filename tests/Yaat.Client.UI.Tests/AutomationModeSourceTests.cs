@@ -9,7 +9,11 @@ namespace Yaat.Client.UI.Tests;
 /// has to sit in an allow-listed member, under a gate: either its nearest enclosing <c>if</c>
 /// tests <c>!AutomationGate.SuppressActivation</c> / <c>!AutomationMode.IsEnabled</c>, or the
 /// member returns early on <c>if (AutomationGate.SuppressActivation)</c> /
-/// <c>if (AutomationMode.IsEnabled)</c> before the call.
+/// <c>if (AutomationMode.IsEnabled)</c> before the call. A raw <c>ShowDialog</c> call activates the
+/// dialog and re-activates its owner on close, so it may only appear in <c>DialogPresenter</c>,
+/// under the same gate; every other dialog opens through <c>DialogPresenter.ShowModalAsync</c>.
+/// A dialog that returns a value closes through <c>DialogPresenter.Close</c>, never a bare
+/// <c>Close(result)</c>, whose value would reach only a <c>ShowDialog</c> caller.
 /// </summary>
 public partial class AutomationModeSourceTests
 {
@@ -29,6 +33,9 @@ public partial class AutomationModeSourceTests
         "src/Yaat.Client.Core/Views/WindowGeometryHelper.cs::SetTopmost",
         "src/Yaat.Client.Core/Views/WindowGroupRaiser.cs::RaiseAll",
     ];
+
+    // "relative/path.cs::Member" for each member allowed to call Window.ShowDialog behind the gate.
+    private static readonly HashSet<string> GatedShowDialogMembers = ["src/Yaat.Client.Core/Views/DialogPresenter.cs::ShowModalAsync"];
 
     private static readonly string[] NegatedGateTokens = ["!AutomationGate.SuppressActivation", "!AutomationMode.IsEnabled"];
 
@@ -53,6 +60,13 @@ public partial class AutomationModeSourceTests
 
     [GeneratedRegex(@"(?<![\w])Topmost\s*=(?![=>])")]
     private static partial Regex TopmostAssignment();
+
+    [GeneratedRegex(@"(?<![\w])ShowDialog\s*[<(]")]
+    private static partial Regex ShowDialogCall();
+
+    // A receiver-less Close with a result: the value would reach only a ShowDialog caller.
+    [GeneratedRegex(@"(?<![\w.])(?:this\.)?Close\s*\(\s*(?!\)|null\s*\))")]
+    private static partial Regex ResultClose();
 
     // Methods (generic or not) and constructors: modifiers, an optional return type, the name, then "(".
     // No "new" modifier: a statement line such as "new WindowGeometryHelper(...)" would read as a member.
@@ -84,7 +98,10 @@ public partial class AutomationModeSourceTests
             }
         }
 
-        Assert.True(violations.Count == 0, "Ungated activation or Topmost:" + Environment.NewLine + string.Join(Environment.NewLine, violations));
+        Assert.True(
+            violations.Count == 0,
+            "Ungated activation, Topmost or ShowDialog, or a bare result Close:" + Environment.NewLine + string.Join(Environment.NewLine, violations)
+        );
     }
 
     public static TheoryData<string, string, string, string?> ScannerCases() =>
@@ -214,6 +231,55 @@ public partial class AutomationModeSourceTests
                     """,
                 "Topmost assignment in Pin"
             },
+            {
+                "raw generic ShowDialog is flagged",
+                "src/Yaat.Client/Views/SomeWindow.axaml.cs",
+                """
+                        private async void OnPickClick(object? sender, RoutedEventArgs e)
+                        {
+                            string? result = await dialog.ShowDialog<string?>(this);
+                        }
+                    """,
+                "ShowDialog in OnPickClick is not in the allow-list"
+            },
+            {
+                "raw ShowDialog is flagged even when gated",
+                "src/Yaat.Client/Views/SomeWindow.axaml.cs",
+                """
+                        private async void OnAboutClick(object? sender, RoutedEventArgs e)
+                        {
+                            if (!AutomationGate.SuppressActivation)
+                            {
+                                await about.ShowDialog(this);
+                            }
+                        }
+                    """,
+                "ShowDialog in OnAboutClick is not in the allow-list"
+            },
+            {
+                "raw Close with a result is flagged",
+                "src/Yaat.Client/Views/SomeWindow.axaml.cs",
+                """
+                        private void OnOkClick(object? sender, RoutedEventArgs e)
+                        {
+                            Close(BuildResult());
+                        }
+                    """,
+                "Close(<result>) in OnOkClick: result dialogs must close through DialogPresenter.Close"
+            },
+            {
+                "Close through the presenter, Close(null) and a Close member signature pass",
+                "src/Yaat.Client/Views/SomeWindow.axaml.cs",
+                """
+                        public static void Close(MainViewModel vm)
+                        {
+                            DialogPresenter.Close(this, BuildResult());
+                            Close(null);
+                            Close();
+                        }
+                    """,
+                null
+            },
         };
 
     [Theory]
@@ -232,7 +298,10 @@ public partial class AutomationModeSourceTests
         }
     }
 
-    /// <summary>Returns one violation line per ungated <c>Activate</c> use or <c>Topmost</c> assignment in <paramref name="source"/>.</summary>
+    /// <summary>
+    /// Returns one violation line per ungated <c>Activate</c> use, <c>Topmost</c> assignment or
+    /// <c>ShowDialog</c> call, and per receiver-less <c>Close(result)</c>, in <paramref name="source"/>.
+    /// </summary>
     public static List<string> Scan(string relativePath, string source)
     {
         string[] lines = source.ReplaceLineEndings("\n").Split('\n');
@@ -248,6 +317,19 @@ public partial class AutomationModeSourceTests
             if (TopmostAssignment().IsMatch(code))
             {
                 CheckUse(relativePath, lines, i, "Topmost assignment", GatedTopmostMembers, violations);
+            }
+
+            if (ShowDialogCall().IsMatch(code))
+            {
+                CheckUse(relativePath, lines, i, "ShowDialog", GatedShowDialogMembers, violations);
+            }
+
+            if (ResultClose().IsMatch(code) && !MemberSignature().IsMatch(code))
+            {
+                (string? member, _) = FindEnclosingMember(lines, i);
+                violations.Add(
+                    $"{relativePath}:{i + 1} Close(<result>) in {member ?? "<unknown member>"}: result dialogs must close through DialogPresenter.Close"
+                );
             }
         }
 

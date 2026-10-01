@@ -113,7 +113,7 @@ public partial class MacroImportWindow : Window
             return;
         }
 
-        Close(BuildResult());
+        DialogPresenter.Close(this, BuildResult());
     }
 
     private void OnOverwriteAllClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -123,7 +123,7 @@ public partial class MacroImportWindow : Window
             item.Resolution = ConflictResolution.Overwrite;
         }
 
-        Close(BuildResult());
+        DialogPresenter.Close(this, BuildResult());
     }
 
     private void OnSkipAllClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -133,10 +133,10 @@ public partial class MacroImportWindow : Window
             item.Resolution = ConflictResolution.Skip;
         }
 
-        Close(BuildResult());
+        DialogPresenter.Close(this, BuildResult());
     }
 
-    private void OnCancelClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => Close(null);
+    private void OnCancelClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => DialogPresenter.Close(this, null);
 
     private MacroImportResult BuildResult()
     {

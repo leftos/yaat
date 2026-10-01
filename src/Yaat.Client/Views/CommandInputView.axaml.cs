@@ -256,7 +256,7 @@ public partial class CommandInputView : UserControl
         }
 
         var dialog = new LiveTrafficFilterWindow(vm.Preferences, vm.SessionLiveTrafficFilter);
-        string? result = await dialog.ShowDialog<string?>(window);
+        string? result = await DialogPresenter.ShowModalAsync<string?>(dialog, window);
         if (result is not null)
         {
             vm.SessionLiveTrafficFilter = result;
@@ -271,7 +271,7 @@ public partial class CommandInputView : UserControl
         }
 
         var dialog = new AssumeLiveTrafficWindow(vm.Preferences, vm.ActiveScenarioPrimaryAirportId ?? "");
-        AssumeLiveTrafficRequestDto? request = await dialog.ShowDialog<AssumeLiveTrafficRequestDto?>(window);
+        AssumeLiveTrafficRequestDto? request = await DialogPresenter.ShowModalAsync<AssumeLiveTrafficRequestDto?>(dialog, window);
         if (request is not null)
         {
             await vm.AssumeLiveTrafficAsync(request);

@@ -212,7 +212,7 @@ public partial class FavoritesEditorWindow : Window
     private async void OnNewSetClick(object? sender, RoutedEventArgs e)
     {
         var dlg = new FavoriteSetNameDialog(NamedSetNames, null) { Title = "New Favorite Set" };
-        await dlg.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(dlg, this);
         if (dlg.SetName is null)
         {
             return;
@@ -241,7 +241,7 @@ public partial class FavoritesEditorWindow : Window
 
         IEnumerable<string> others = NamedSetNames.Where(n => !string.Equals(n, set.Name, StringComparison.OrdinalIgnoreCase));
         var dlg = new FavoriteSetNameDialog(others, set.Name) { Title = "Rename Favorite Set" };
-        await dlg.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(dlg, this);
         if (dlg.SetName is null || string.Equals(dlg.SetName, set.Name, StringComparison.Ordinal))
         {
             return;
@@ -358,7 +358,7 @@ public partial class FavoritesEditorWindow : Window
     private async Task TransferToNewSetAsync(bool move)
     {
         var dlg = new FavoriteSetNameDialog(NamedSetNames, null) { Title = "New Favorite Set" };
-        await dlg.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(dlg, this);
         if (dlg.SetName is null)
         {
             return;

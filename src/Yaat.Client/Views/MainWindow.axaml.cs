@@ -852,7 +852,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                     defaultOrder
                 );
                 Window ownerWindow = TopLevel.GetTopLevel(dataGrid) as Window ?? this;
-                await chooser.ShowDialog(ownerWindow);
+                await DialogPresenter.ShowModalAsync(chooser, ownerWindow);
 
                 if (!chooser.Confirmed)
                 {
@@ -2121,7 +2121,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
 
         var window = new LoadScenarioWindow(vm.Preferences, vm.Connection);
-        ScenarioLoadResult? result = await window.ShowDialog<ScenarioLoadResult?>(this);
+        ScenarioLoadResult? result = await DialogPresenter.ShowModalAsync<ScenarioLoadResult?>(window, this);
         if (result is null)
         {
             return;
@@ -2167,7 +2167,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
 
         var window = new LiveSessionWindow(vm.Preferences, vm.Connection);
-        LiveSessionChoice? choice = await window.ShowDialog<LiveSessionChoice?>(this);
+        LiveSessionChoice? choice = await DialogPresenter.ShowModalAsync<LiveSessionChoice?>(window, this);
         if (choice is null)
         {
             return;
@@ -2225,7 +2225,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     {
         IEnumerable<string> existing = vm.Preferences.WindowProfiles.Select(p => p.Name);
         var dlg = new SaveWindowProfileDialog(existing, null);
-        await dlg.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(dlg, this);
 
         if (string.IsNullOrWhiteSpace(dlg.ProfileName))
         {
@@ -2240,7 +2240,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private async System.Threading.Tasks.Task OnManageWindowProfilesAsync(MainViewModel vm)
     {
         var dlg = new ManageWindowProfilesDialog(vm.Preferences);
-        await dlg.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(dlg, this);
 
         switch (dlg.Action)
         {
@@ -2466,7 +2466,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         {
             IReadOnlyList<string> airports = await vm.GetArtccAirportIdsAsync();
             var dialog = new ExtraViewAirportDialog(title, airports, vm.DefaultExtraViewAirportId, vm.IsKnownAirport);
-            await dialog.ShowDialog(this);
+            await DialogPresenter.ShowModalAsync(dialog, this);
             if (dialog.AirportId is { } airportId)
             {
                 open(vm, airportId);
@@ -2507,7 +2507,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         };
 
         var dlg = new CopyViewSettingsDialog(context);
-        await dlg.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(dlg, this);
         if (!dlg.Confirmed || dlg.SourceId is null)
         {
             return;
@@ -2725,7 +2725,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
 
         var window = new LoadWeatherWindow(vm.Preferences);
-        WeatherLoadResult? result = await window.ShowDialog<WeatherLoadResult?>(this);
+        WeatherLoadResult? result = await DialogPresenter.ShowModalAsync<WeatherLoadResult?>(window, this);
         if (result is null)
         {
             return;
@@ -2959,7 +2959,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             closeAction: () => connectWindow?.Close()
         );
         connectWindow = new ConnectWindow(connectVm, vm.Preferences);
-        await connectWindow.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(connectWindow, this);
     }
 
     private async void OnConfigureCrcClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -2983,7 +2983,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private async void OnAboutClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         var about = new AboutWindow();
-        await about.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(about, this);
     }
 
     /// <summary>
@@ -3107,7 +3107,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         // Subscribe to live preview
         settingsVm?.VisualSettingsChanged += OnPreview;
 
-        await dialog.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(dialog, this);
 
         // Unsubscribe
         settingsVm?.VisualSettingsChanged -= OnPreview;
@@ -3451,7 +3451,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             },
         };
 
-        await dialog.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(dialog, this);
         return confirmed;
     }
 
@@ -3515,7 +3515,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             },
         };
 
-        await dialog.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(dialog, this);
         return choice;
     }
 
@@ -3526,7 +3526,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private async Task<bool> ShowSpeechTelemetryOptInAsync()
     {
         var dialog = new SpeechTelemetryOptInDialog();
-        await dialog.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(dialog, this);
         return dialog.Accepted;
     }
 
@@ -3538,7 +3538,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private async Task<BugReportForm?> ShowFileBugReportDialogAsync(bool attachesRecording)
     {
         var dialog = new FileBugReportDialog(attachesRecording);
-        await dialog.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(dialog, this);
         return dialog.Result;
     }
 
@@ -3637,7 +3637,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 },
             };
 
-            await dialog.ShowDialog(this);
+            await DialogPresenter.ShowModalAsync(dialog, this);
 
             if (confirmed)
             {

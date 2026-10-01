@@ -128,7 +128,7 @@ public partial class ManageWindowProfilesDialog : Window
             .WindowProfiles.Where(p => !string.Equals(p.Name, oldName, StringComparison.OrdinalIgnoreCase))
             .Select(p => p.Name);
         var dlg = new SaveWindowProfileDialog(others, oldName) { Title = "Rename Window Profile" };
-        await dlg.ShowDialog(this);
+        await DialogPresenter.ShowModalAsync(dlg, this);
 
         if (dlg.ProfileName is null || string.Equals(dlg.ProfileName, oldName, StringComparison.OrdinalIgnoreCase))
         {

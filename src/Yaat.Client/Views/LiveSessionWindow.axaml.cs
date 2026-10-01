@@ -48,7 +48,7 @@ public partial class LiveSessionWindow : Window
         _startAtBox.TextChanged += (_, _) => UpdateStartEnabled();
         _filterEditor.Changed += (_, _) => UpdateStartEnabled();
 
-        this.FindControl<Button>("CancelButton")!.Click += (_, _) => Close(null);
+        this.FindControl<Button>("CancelButton")!.Click += (_, _) => DialogPresenter.Close(this, null);
         _startButton.Click += (_, _) => Finish();
         _facilityTree.SelectionChanged += (_, _) => OnFacilitySelected();
         _positionList.SelectionChanged += (_, _) => OnPositionSelected();
@@ -58,7 +58,7 @@ public partial class LiveSessionWindow : Window
         {
             if (e.Key == Key.Escape)
             {
-                Close(null);
+                DialogPresenter.Close(this, null);
             }
         };
 
@@ -258,7 +258,8 @@ public partial class LiveSessionWindow : Window
             return;
         }
 
-        Close(
+        DialogPresenter.Close(
+            this,
             new LiveSessionChoice
             {
                 PositionId = entry.Position.Id,

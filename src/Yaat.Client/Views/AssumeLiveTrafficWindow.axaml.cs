@@ -40,13 +40,13 @@ public partial class AssumeLiveTrafficWindow : Window
         _radiusBox.ValueChanged += (_, _) => RefreshEnabled();
         RefreshEnabled();
 
-        _assumeButton.Click += (_, _) => Close(BuildRequest());
-        this.FindControl<Button>("CancelButton")!.Click += (_, _) => Close(null);
+        _assumeButton.Click += (_, _) => DialogPresenter.Close(this, BuildRequest());
+        this.FindControl<Button>("CancelButton")!.Click += (_, _) => DialogPresenter.Close(this, null);
         KeyDown += (_, e) =>
         {
             if (e.Key == Key.Escape)
             {
-                Close(null);
+                DialogPresenter.Close(this, null);
             }
         };
     }

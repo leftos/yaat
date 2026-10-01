@@ -59,7 +59,7 @@ public partial class LoadWeatherWindow : Window
         _localWeatherList = this.FindControl<ListBox>("LocalWeatherList")!;
 
         // Wire events
-        this.FindControl<Button>("CancelButton")!.Click += (_, _) => Close(null);
+        this.FindControl<Button>("CancelButton")!.Click += (_, _) => DialogPresenter.Close(this, null);
         this.FindControl<Button>("BrowseButton")!.Click += OnBrowseClick;
         _loadButton.Click += OnLoadClick;
 
@@ -184,7 +184,7 @@ public partial class LoadWeatherWindow : Window
     {
         if (_artccWeatherList.SelectedItem is ArtccWeatherItem item)
         {
-            Close(new WeatherLoadResult(null, item.Id, item.Name));
+            DialogPresenter.Close(this, new WeatherLoadResult(null, item.Id, item.Name));
         }
     }
 
@@ -192,7 +192,7 @@ public partial class LoadWeatherWindow : Window
     {
         if (_localWeatherList.SelectedItem is LocalWeatherItem item)
         {
-            Close(new WeatherLoadResult(item.FilePath, null));
+            DialogPresenter.Close(this, new WeatherLoadResult(item.FilePath, null));
         }
     }
 
@@ -200,11 +200,11 @@ public partial class LoadWeatherWindow : Window
     {
         if (IsArtccTabActive && _artccWeatherList.SelectedItem is ArtccWeatherItem artcc)
         {
-            Close(new WeatherLoadResult(null, artcc.Id, artcc.Name));
+            DialogPresenter.Close(this, new WeatherLoadResult(null, artcc.Id, artcc.Name));
         }
         else if (!IsArtccTabActive && _localWeatherList.SelectedItem is LocalWeatherItem local)
         {
-            Close(new WeatherLoadResult(local.FilePath, null));
+            DialogPresenter.Close(this, new WeatherLoadResult(local.FilePath, null));
         }
     }
 }

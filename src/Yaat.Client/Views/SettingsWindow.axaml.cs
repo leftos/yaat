@@ -200,7 +200,7 @@ public partial class SettingsWindow : Window
             }
 
             var importWindow = new MacroImportWindow(conflicts, newMacros, existingBaseNames);
-            MacroImportResult? result = await importWindow.ShowDialog<MacroImportResult?>(this);
+            MacroImportResult? result = await DialogPresenter.ShowModalAsync<MacroImportResult?>(importWindow, this);
             if (result is not null)
             {
                 vm.ImportMacros(result);

@@ -536,7 +536,7 @@ public partial class FavoritesBarView : UserControl
         }
 
         var editor = new FavoritesEditorWindow(vm.Preferences, vm.FavoriteStore);
-        _ = editor.ShowDialog(owner);
+        _ = DialogPresenter.ShowModalAsync(editor, owner);
     }
 
     private Button CreateImportButton()

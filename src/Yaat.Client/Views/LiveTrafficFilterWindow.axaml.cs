@@ -31,15 +31,15 @@ public partial class LiveTrafficFilterWindow : Window
         {
             if (_editor.TryGetFilterText(out string? text, out _))
             {
-                Close(text);
+                DialogPresenter.Close(this, text);
             }
         };
-        this.FindControl<Button>("CancelButton")!.Click += (_, _) => Close(null);
+        this.FindControl<Button>("CancelButton")!.Click += (_, _) => DialogPresenter.Close(this, null);
         KeyDown += (_, e) =>
         {
             if (e.Key == Key.Escape)
             {
-                Close(null);
+                DialogPresenter.Close(this, null);
             }
         };
     }
