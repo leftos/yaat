@@ -280,15 +280,16 @@ Services/
 ContextMenus/                   # The aircraft right-click menu catalog shared by radar, ground and the aircraft list (namespace Yaat.Client.ContextMenus; ContextMenu would shadow Avalonia's type)
   AircraftCommandApplicability.cs # Static: single source of truth for whether a tower/ground/landing/pattern command fits an aircraft's state (CanClearForTakeoff/CanClearToLand/CanPushBack/…), read against IMenuAircraft
   IMenuAircraft.cs              # Read-only view of an aircraft the applicability predicates and the Warp seed read; AircraftModel implements it
-  IMenuHost.cs                  # What a catalog entry's builder needs from the surface that owns the menu (SendAsync, ShowInputPopup, ShowWarpPopup, OpenFlightPlanEditor, BuildFavorites)
-  MenuCatalog.cs                # Static: one MenuCatalogEntry per MenuIds action (All, Get); a leaf's click sends its command text through IMenuHost.SendAsync, and Warp / Edit flight plan open a host surface instead
+  IMenuHost.cs                  # What a catalog entry's builder needs from the surface that owns the menu (SendAsync, ShowInputPopup, ShowWarpPopup, OpenFlightPlanEditor, BuildFavorites, and the radar's display state: IsMinified/ToggleMinified, HasManualDataBlockOffset/ResetDataBlockOffset, IsPathShown/ToggleShowPath, GetMeasureState/MeasurePickOnAircraft — the host owns the measure view and units)
+  MenuCatalog.cs                # Static: one MenuCatalogEntry per MenuIds action (All, Get); a leaf's click sends its command text through IMenuHost.SendAsync; Warp, Edit flight plan, the display toggles and the measure item use the host instead, and leader direction / J-ring / cone are one entry each that builds its value submenu
   MenuCatalogEntry.cs           # Record: stable ID, label, default flight-rules filter, applicability predicate, builder → MenuItem? (aircraft nullable: the radar builds some groups with no aircraft model)
   MenuContext.cs                # Record: callsign, initials, previous selection, solo mode, VFR-for-IFR mode — the predicates' non-aircraft inputs
   MenuFlightRules.cs            # Enum Both/IfrOnly/VfrOnly: a quick-command entry's default flight-rules filter
   MenuIds.cs                    # Stable menu IDs, <group>.<item>, one per action, append-only (exported preferences carry them)
+  MenuMeasureState.cs           # Enum None/NoAnchor/HasAnchor: the host's measure tool as the Display group's measure item reads it (None = no tool, no item)
   MenuPickerDescriptor.cs       # Tag on a picker menu item: the values its list/filtered-list/input popup offers, readable without opening it (the menu goldens print it)
   MenuView.cs                   # Enum Radar/Ground/List: which surface a group is built for, until the All Commands tree is unified
-  SharedMenuGroups.cs           # Static: the live traffic, track, squawk, ask pilot, coordination, data block, sim control and favorites groups, plus the Delete and Edit flight plan leaves each view places itself, built from catalog entries in each view's current order and texts
+  SharedMenuGroups.cs           # Static: the live traffic, track, squawk, ask pilot, coordination, data block, sim control, display and favorites groups, plus the Delete and Edit flight plan leaves each view places itself, built from catalog entries in each view's current order and texts
 
 Models/
   TerminalColorScheme.cs        # Operator-tunable per-Kind terminal foreground colors (Command/Response/System/Say/PilotSpeech/Warning/Error/Chat/Tdls/Strip); defaults match the legacy hard-coded scheme
@@ -451,7 +452,7 @@ Views/
   MetarView.axaml.cs            # METAR tab content: per-airport METAR list over MainViewModel.Metars with a per-scenario favorite-station star toggle
   MetarWindow.axaml.cs          # Pop-out host for MetarView (View > Pop Out METAR)
   FavoritesContextMenu.cs       # Builds the Favorite Commands submenu attached to aircraft right-click menus (list/ground/radar)
-  ContextMenuHosts.cs           # RadarMenuHost / ListMenuHost: IMenuHost for the radar (input and warp popups, the view model's send path) and the aircraft list (Connection.SendCommandAsync, the flight-plan editor), built per right-click
+  ContextMenuHosts.cs           # RadarMenuHost / ListMenuHost: IMenuHost for the radar (input and warp popups, the view model's send path, the canvas's display state and the measure tool) and the aircraft list (Connection.SendCommandAsync, the flight-plan editor), built per right-click
   LiveTrafficMenuItems.cs       # "Assume control" / "Assume and track" for an assumable live-traffic shadow and "Release to live feed" (UNASSUME) for an aircraft assumed from the feed, for the ground view's menu (a thin call into SharedMenuGroups; radar and list call SharedMenuGroups directly)
   LiveTrafficDvrFlyout.cs       # Click-the-live-badge DVR control: feed log window (GetLiveTrafficWindow), slider + HH:mm → SeekLiveTraffic, Go Live
   LiveSessionWindow.axaml.cs    # Start Live Session picker: facility TreeView (GetArtccFacilityTree) → positions (starred first) → airport combo (LiveSessionAirportDefaults) + ceiling; returns LiveSessionChoice, pre-selects UserPreferences.LastLiveSession

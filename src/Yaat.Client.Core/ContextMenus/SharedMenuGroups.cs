@@ -4,11 +4,11 @@ namespace Yaat.Client.ContextMenus;
 
 /// <summary>
 /// The groups more than one surface builds — live traffic, track, squawk, ask pilot, coordination, data block,
-/// sim control and favorites — assembled from <see cref="MenuCatalog"/> entries. Only track, squawk and ask pilot
-/// keep a <see cref="MenuView"/> variant: the radar carries input pickers (handoff, point out, squawk code, custom
-/// say) the other surfaces leave out, and sends <c>ID</c> for Ident where the others send <c>IDENT</c>. Data block
-/// and sim control are built by the radar today, so they take no view. Whether a group is offered at all stays with
-/// the caller.
+/// sim control, display and favorites — assembled from <see cref="MenuCatalog"/> entries. Only track, squawk and ask
+/// pilot keep a <see cref="MenuView"/> variant: the radar carries input pickers (handoff, point out, squawk code,
+/// custom say) the other surfaces leave out, and sends <c>ID</c> for Ident where the others send <c>IDENT</c>. Data
+/// block, sim control and display are built by the radar today, so they take no view. Whether a group is offered at
+/// all stays with the caller.
 /// </summary>
 public static class SharedMenuGroups
 {
@@ -125,6 +125,28 @@ public static class SharedMenuGroups
             : null;
 
     /// <summary>
+    /// The Display submenu: the data-block form and position, the nav route and the measurement in progress, then the
+    /// leader-direction, J-ring and cone overlays, then blank and unblank. The data-block reset and the measure items
+    /// come and go with the surface's own state, so each is added only when it built an item.
+    /// </summary>
+    public static MenuItem Display(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        var menu = new MenuItem { Header = "Display" };
+        AddIfBuilt(menu.Items, MenuIds.DisplayMiniDataBlock, aircraft, context, host);
+        AddIfBuilt(menu.Items, MenuIds.DisplayResetDataBlockPosition, aircraft, context, host);
+        AddIfBuilt(menu.Items, MenuIds.DisplayNavRoute, aircraft, context, host);
+        AddIfBuilt(menu.Items, MenuIds.DisplayMeasure, aircraft, context, host);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(Leaf(MenuIds.DisplayLeaderDirection, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.DisplayJRing, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.DisplayCone, aircraft, context, host));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(Leaf(MenuIds.DisplayBlank, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.DisplayUnblank, aircraft, context, host));
+        return menu;
+    }
+
+    /// <summary>
     /// Appends "Assume control" and "Assume and track" to <paramref name="items"/> when the aircraft is an assumable
     /// live-traffic shadow (<see cref="AircraftCommandApplicability.CanAssume"/>); otherwise adds nothing.
     /// </summary>
@@ -155,4 +177,13 @@ public static class SharedMenuGroups
     private static MenuItem Leaf(string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
         MenuCatalog.Get(id).Build(aircraft, context, host)
         ?? throw new InvalidOperationException($"The context-menu catalog entry '{id}' built no menu item.");
+
+    /// <summary>Adds the entry's item, or nothing when the surface's own state hides it (the item is null).</summary>
+    private static void AddIfBuilt(ItemCollection items, string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        if (MenuCatalog.Get(id).Build(aircraft, context, host) is { } item)
+        {
+            items.Add(item);
+        }
+    }
 }

@@ -3,7 +3,6 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Threading;
-using CommunityToolkit.Mvvm.Input;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
@@ -178,7 +177,7 @@ public partial class RadarView
             }
             else
             {
-                AddSurfaceShadowItems(menu, vm, ac, context, host);
+                AddSurfaceShadowItems(menu, ac, context, host);
                 return menu;
             }
         }
@@ -189,13 +188,13 @@ public partial class RadarView
     }
 
     /// <summary>A surface live-traffic shadow is never assumable: its menu is read-only — the display groups and a Delete.</summary>
-    private void AddSurfaceShadowItems(ContextMenu menu, RadarViewModel vm, AircraftModel ac, MenuContext context, RadarMenuHost host)
+    private void AddSurfaceShadowItems(ContextMenu menu, AircraftModel ac, MenuContext context, RadarMenuHost host)
     {
         string callsign = context.Callsign;
         menu.Items.Add(SharedMenuGroups.Track(ac, context, host, MenuView.Radar));
         menu.Items.Add(SharedMenuGroups.DataBlock(ac, context, host));
         menu.Items.Add(SharedMenuGroups.Coordination(ac, context, host));
-        menu.Items.Add(BuildDisplaySubmenu(vm, callsign));
+        menu.Items.Add(SharedMenuGroups.Display(ac, context, host));
         menu.Items.Add(new Separator());
         menu.Items.Add(SharedMenuGroups.Delete(ac, context, host));
         FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
@@ -239,7 +238,7 @@ public partial class RadarView
         }
 
         menu.Items.Add(SharedMenuGroups.Coordination(ac, context, host));
-        menu.Items.Add(BuildDisplaySubmenu(vm, callsign));
+        menu.Items.Add(SharedMenuGroups.Display(ac, context, host));
         menu.Items.Add(new Separator());
         menu.Items.Add(SharedMenuGroups.SimControl(ac, context, host));
 
@@ -572,88 +571,6 @@ public partial class RadarView
             menu.Items.Add(CreateInputMenuItem("Hold at fix (right)...", "Fix name", input => vm.HoldAtFixRightAsync(cs, init, input)));
         }
 
-        return menu;
-    }
-
-    private MenuItem BuildDisplaySubmenu(RadarViewModel vm, string callsign)
-    {
-        var menu = new MenuItem { Header = "Display" };
-        bool isMinified = _canvas?.IsMinified(callsign) ?? false;
-        menu.Items.Add(
-            CreateMenuItem(
-                isMinified ? "Full datablock" : "Mini datablock",
-                () =>
-                {
-                    _canvas?.ToggleMinifiedDataBlock(callsign);
-                    return Task.CompletedTask;
-                }
-            )
-        );
-        if (_canvas?.HasManualDataBlockOffset(callsign) ?? false)
-        {
-            menu.Items.Add(
-                CreateMenuItem(
-                    "Reset to student position",
-                    () =>
-                    {
-                        _canvas?.ResetDataBlockOffset(callsign);
-                        return Task.CompletedTask;
-                    }
-                )
-            );
-        }
-        bool isPathShown = vm.IsPathShown(callsign);
-        menu.Items.Add(
-            new MenuItem { Header = isPathShown ? "Hide nav route" : "Show nav route", Command = new RelayCommand(() => vm.ToggleShowPath(callsign)) }
-        );
-
-        // Latching the measurement to the aircraft, so the line follows it (CRC STARS *T on a track).
-        if (vm.Measure is { } measure)
-        {
-            string header = measure.Anchor is null ? $"Measure from {callsign}" : $"Measure to {callsign}";
-            menu.Items.Add(
-                CreateMenuItem(
-                    header,
-                    () =>
-                        measure.Pick(RblEndpoint.OnAircraft(callsign), RadarViewModel.MeasureView, vm.MeasureTrackLookup, RadarViewModel.MeasureUnits)
-                )
-            );
-        }
-
-        menu.Items.Add(new Separator());
-
-        var ldr = new MenuItem { Header = "Leader direction" };
-        for (int d = 1; d <= 9; d++)
-        {
-            int direction = d;
-            string label = direction == 5 ? "5 (default)" : direction.ToString();
-            ldr.Items.Add(CreateMenuItem(label, () => vm.LeaderDirectionAsync(callsign, GetInitials(), direction)));
-        }
-
-        menu.Items.Add(ldr);
-
-        var jring = new MenuItem { Header = "J-ring" };
-        jring.Items.Add(CreateMenuItem("Clear", () => vm.JRingAsync(callsign, GetInitials(), null)));
-        foreach (double r in new[] { 1.0, 2.0, 3.0, 5.0, 10.0 })
-        {
-            double radius = r;
-            jring.Items.Add(CreateMenuItem($"{radius:0} nm", () => vm.JRingAsync(callsign, GetInitials(), radius)));
-        }
-
-        menu.Items.Add(jring);
-
-        var cone = new MenuItem { Header = "Cone" };
-        cone.Items.Add(CreateMenuItem("Clear", () => vm.ConeAsync(callsign, GetInitials(), null)));
-        foreach (double l in new[] { 1.0, 2.0, 3.0, 5.0, 10.0 })
-        {
-            double length = l;
-            cone.Items.Add(CreateMenuItem($"{length:0} nm", () => vm.ConeAsync(callsign, GetInitials(), length)));
-        }
-
-        menu.Items.Add(cone);
-        menu.Items.Add(new Separator());
-        menu.Items.Add(CreateMenuItem("Blank target", () => vm.BlankAsync(callsign, GetInitials())));
-        menu.Items.Add(CreateMenuItem("Unblank target", () => vm.BlankDeleteAsync(callsign, GetInitials())));
         return menu;
     }
 

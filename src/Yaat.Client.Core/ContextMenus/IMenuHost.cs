@@ -26,6 +26,30 @@ public interface IMenuHost
     /// <summary>Opens the flight-plan editor for the aircraft the menu was opened on.</summary>
     void OpenFlightPlanEditor();
 
+    /// <summary>Whether the surface shows <paramref name="callsign"/>'s data block in its mini (compressed) form.</summary>
+    bool IsMinified(string callsign);
+
+    /// <summary>Switches <paramref name="callsign"/>'s data block between its mini and full forms.</summary>
+    void ToggleMinified(string callsign);
+
+    /// <summary>Whether <paramref name="callsign"/>'s data block has been dragged off the student position.</summary>
+    bool HasManualDataBlockOffset(string callsign);
+
+    /// <summary>Puts <paramref name="callsign"/>'s data block back on its student position.</summary>
+    void ResetDataBlockOffset(string callsign);
+
+    /// <summary>Whether <paramref name="callsign"/>'s nav route is drawn on the surface.</summary>
+    bool IsPathShown(string callsign);
+
+    /// <summary>Shows or hides <paramref name="callsign"/>'s nav route.</summary>
+    void ToggleShowPath(string callsign);
+
+    /// <summary>What the surface's measure tool is doing, which decides whether the Display menu offers a measure item.</summary>
+    MenuMeasureState GetMeasureState();
+
+    /// <summary>Latches the pending measurement's next endpoint to <paramref name="callsign"/>, so the line follows it.</summary>
+    void MeasurePickOnAircraft(string callsign);
+
     /// <summary>
     /// Builds the Favorite Commands submenu. <paramref name="aircraft"/> is null when the menu has no aircraft model;
     /// the submenu itself is never null.

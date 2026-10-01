@@ -1433,25 +1433,6 @@ public partial class RadarViewModel(
     public async Task EnterFinalAsync(string callsign, string initials, string? runway) =>
         await _sendCommand(callsign, runway is not null ? $"EF {runway}" : "EF", initials);
 
-    public async Task LeaderDirectionAsync(string callsign, string initials, int direction) =>
-        await _sendCommand(callsign, $"LDR {direction}", initials);
-
-    public async Task JRingAsync(string callsign, string initials, double? radiusNm)
-    {
-        string? arg = radiusNm?.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
-        await _sendCommand(callsign, arg is not null ? $"JRING {arg}" : "JRING", initials);
-    }
-
-    public async Task ConeAsync(string callsign, string initials, double? lengthNm)
-    {
-        string? arg = lengthNm?.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
-        await _sendCommand(callsign, arg is not null ? $"CONE {arg}" : "CONE", initials);
-    }
-
-    public async Task BlankAsync(string callsign, string initials) => await _sendCommand(callsign, "BLANK", initials);
-
-    public async Task BlankDeleteAsync(string callsign, string initials) => await _sendCommand(callsign, "BLANKD", initials);
-
     public async Task TurnCrosswindAsync(string callsign, string initials) => await _sendCommand(callsign, "TC", initials);
 
     public async Task TurnDownwindAsync(string callsign, string initials) => await _sendCommand(callsign, "TD", initials);

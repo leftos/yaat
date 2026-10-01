@@ -120,4 +120,31 @@ public static class MenuIds
 
     /// <summary>Open the aircraft's flight-plan editor.</summary>
     public const string AircraftEditFlightPlan = "aircraft.edit-fp";
+
+    /// <summary>Toggle the aircraft's data block between its full and mini forms.</summary>
+    public const string DisplayMiniDataBlock = "display.mini-datablock";
+
+    /// <summary>Put the aircraft's data block back on the student position it was dragged off.</summary>
+    public const string DisplayResetDataBlockPosition = "display.reset-datablock-position";
+
+    /// <summary>Show or hide the aircraft's nav route.</summary>
+    public const string DisplayNavRoute = "display.nav-route";
+
+    /// <summary>Latch the pending range/bearing measurement to the aircraft.</summary>
+    public const string DisplayMeasure = "display.measure";
+
+    /// <summary>Set the aircraft's leader-direction line, 1-9 (<c>LDR</c>).</summary>
+    public const string DisplayLeaderDirection = "display.leader-direction";
+
+    /// <summary>Draw a J-ring around the aircraft at a radius, or clear it (<c>JRING</c>).</summary>
+    public const string DisplayJRing = "display.jring";
+
+    /// <summary>Draw a cone from the aircraft at a length, or clear it (<c>CONE</c>).</summary>
+    public const string DisplayCone = "display.cone";
+
+    /// <summary>Blank the aircraft's data block (<c>BLANK</c>).</summary>
+    public const string DisplayBlank = "display.blank";
+
+    /// <summary>Unblank the aircraft's data block (<c>BLANKD</c>).</summary>
+    public const string DisplayUnblank = "display.unblank";
 }

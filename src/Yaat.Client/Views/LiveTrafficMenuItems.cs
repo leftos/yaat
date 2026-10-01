@@ -48,6 +48,9 @@ public static class LiveTrafficMenuItems
     /// <summary>A host over a send delegate that already carries the callsign and initials; the live-traffic items need nothing else.</summary>
     private sealed class SendOnlyMenuHost(Func<string, Task> sendCommand) : IMenuHost
     {
+        /// <summary>The message every display member throws: these items carry no display group of their own.</summary>
+        private const string NoDisplayGroup = "The live-traffic items build no radar display group";
+
         public Task SendAsync(string callsign, string command, string initials) => sendCommand(command);
 
         public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) =>
@@ -57,6 +60,22 @@ public static class LiveTrafficMenuItems
             throw new NotSupportedException("The live-traffic items build no warp item");
 
         public void OpenFlightPlanEditor() => throw new NotSupportedException("The live-traffic items build no flight-plan item");
+
+        public bool IsMinified(string callsign) => throw new NotSupportedException(NoDisplayGroup);
+
+        public void ToggleMinified(string callsign) => throw new NotSupportedException(NoDisplayGroup);
+
+        public bool HasManualDataBlockOffset(string callsign) => throw new NotSupportedException(NoDisplayGroup);
+
+        public void ResetDataBlockOffset(string callsign) => throw new NotSupportedException(NoDisplayGroup);
+
+        public bool IsPathShown(string callsign) => throw new NotSupportedException(NoDisplayGroup);
+
+        public void ToggleShowPath(string callsign) => throw new NotSupportedException(NoDisplayGroup);
+
+        public MenuMeasureState GetMeasureState() => throw new NotSupportedException(NoDisplayGroup);
+
+        public void MeasurePickOnAircraft(string callsign) => throw new NotSupportedException(NoDisplayGroup);
 
         public MenuItem BuildFavorites(IMenuAircraft? aircraft, MenuContext context) =>
             throw new NotSupportedException("The live-traffic items build no favorites submenu");

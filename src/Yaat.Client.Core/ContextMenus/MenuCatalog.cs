@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalonia.Controls;
 
 namespace Yaat.Client.ContextMenus;
@@ -5,8 +6,11 @@ namespace Yaat.Client.ContextMenus;
 /// <summary>
 /// Every context-menu action the catalog knows, one <see cref="MenuCatalogEntry"/> per <see cref="MenuIds"/>
 /// identifier. A leaf's builder sends its command text through <see cref="IMenuHost.SendAsync"/>; an input leaf
-/// opens the host's input popup and formats the submitted text into the command; and a few entries open a host
-/// surface of their own — the warp popup and the flight-plan editor — instead of sending a command at all.
+/// opens the host's input popup and formats the submitted text into the command; a host leaf asks the host for the
+/// item itself, for the entries that open a host surface or read the surface's own state — the warp popup, the
+/// flight-plan editor, the data-block toggle and reset, the nav route and the measure item; and a value submenu
+/// builds a whole submenu of command items from its own label and the menu context, one per value — the leader
+/// directions, the J-ring radii and the cone lengths.
 /// </summary>
 public static class MenuCatalog
 {
@@ -67,7 +71,19 @@ public static class MenuCatalog
         HostLeaf(MenuIds.SimControlWarp, "Warp...", Always, BuildWarp),
         Leaf(MenuIds.SimControlDelete, "Delete", "DEL", Always),
         HostLeaf(MenuIds.AircraftEditFlightPlan, "Edit flight plan", CanEditFlightPlan, BuildEditFlightPlan),
+        HostLeaf(MenuIds.DisplayMiniDataBlock, "Mini datablock", Always, BuildMiniDataBlock),
+        HostLeaf(MenuIds.DisplayResetDataBlockPosition, "Reset to student position", Always, BuildResetDataBlockPosition),
+        HostLeaf(MenuIds.DisplayNavRoute, "Show nav route", Always, BuildNavRoute),
+        HostLeaf(MenuIds.DisplayMeasure, "Measure", Always, BuildMeasure),
+        Submenu(MenuIds.DisplayLeaderDirection, "Leader direction", BuildLeaderDirection),
+        Submenu(MenuIds.DisplayJRing, "J-ring", BuildJRing),
+        Submenu(MenuIds.DisplayCone, "Cone", BuildCone),
+        Leaf(MenuIds.DisplayBlank, "Blank target", "BLANK", Always),
+        Leaf(MenuIds.DisplayUnblank, "Unblank target", "BLANKD", Always),
     ];
+
+    /// <summary>The J-ring radii and cone lengths the display submenus offer, in nautical miles.</summary>
+    private static readonly double[] RingDistances = [1.0, 2.0, 3.0, 5.0, 10.0];
 
     private static readonly Dictionary<string, MenuCatalogEntry> ById = All.ToDictionary(e => e.Id, StringComparer.Ordinal);
 
@@ -100,9 +116,10 @@ public static class MenuCatalog
         new(id, label, MenuFlightRules.Both, Always, (_, context, host) => BuildInput(label, placeholder, format, context, host));
 
     /// <summary>
-    /// An entry whose item the host builds for a surface of its own rather than from a command text — the warp popup
-    /// and the flight-plan editor today. <paramref name="build"/> receives the entry's own label, so the item's text
-    /// lives in one place.
+    /// An entry whose item the host builds for a surface of its own rather than from a command text: the warp popup,
+    /// the flight-plan editor, and the display toggles and measure item that read and drive the surface's own state.
+    /// <paramref name="build"/> receives the entry's own label, so the item's text lives in one place, though a
+    /// state-dependent item overrides it. A builder returns null for an item the surface's state hides.
     /// </summary>
     private static MenuCatalogEntry HostLeaf(
         string id,
@@ -110,6 +127,14 @@ public static class MenuCatalog
         Func<IMenuAircraft?, MenuContext, bool> isApplicable,
         Func<string, IMenuAircraft?, MenuContext, IMenuHost, MenuItem?> build
     ) => new(id, label, MenuFlightRules.Both, isApplicable, (aircraft, context, host) => build(label, aircraft, context, host));
+
+    /// <summary>
+    /// An entry that builds a whole submenu of command items rather than a single leaf — the leader directions, the
+    /// J-ring radii and the cone lengths today. <paramref name="build"/> receives the entry's own label, so the
+    /// submenu's header lives in one place.
+    /// </summary>
+    private static MenuCatalogEntry Submenu(string id, string label, Func<string, MenuContext, IMenuHost, MenuItem> build) =>
+        new(id, label, MenuFlightRules.Both, Always, (_, context, host) => build(label, context, host));
 
     private static MenuItem BuildInput(string label, string placeholder, Func<string, string> format, MenuContext context, IMenuHost host)
     {
@@ -156,6 +181,95 @@ public static class MenuCatalog
         var item = new MenuItem { Header = label };
         item.Click += (_, _) => host.OpenFlightPlanEditor();
         return item;
+    }
+
+    /// <summary>
+    /// The data-block form item: it toggles the host's data block and reads "Mini datablock" or "Full datablock" by
+    /// the form the surface is showing.
+    /// </summary>
+    private static MenuItem BuildMiniDataBlock(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        var item = new MenuItem { Header = host.IsMinified(context.Callsign) ? "Full datablock" : "Mini datablock" };
+        item.Click += (_, _) => host.ToggleMinified(context.Callsign);
+        return item;
+    }
+
+    /// <summary>
+    /// The "Reset to student position" item, which the surface offers only while the data block sits away from the
+    /// position the student sees it in; null otherwise.
+    /// </summary>
+    private static MenuItem? BuildResetDataBlockPosition(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        if (!host.HasManualDataBlockOffset(context.Callsign))
+        {
+            return null;
+        }
+
+        var item = new MenuItem { Header = label };
+        item.Click += (_, _) => host.ResetDataBlockOffset(context.Callsign);
+        return item;
+    }
+
+    /// <summary>The nav-route item: it toggles the route and reads "Show nav route" or "Hide nav route" by whether it is drawn.</summary>
+    private static MenuItem BuildNavRoute(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        var item = new MenuItem { Header = host.IsPathShown(context.Callsign) ? "Hide nav route" : label };
+        item.Click += (_, _) => host.ToggleShowPath(context.Callsign);
+        return item;
+    }
+
+    /// <summary>
+    /// The measure item, offered whenever the surface has a measure tool: it reads "from" while the tool has no
+    /// endpoint yet and "to" once one is anchored, and latches that endpoint to the aircraft the menu was opened on.
+    /// </summary>
+    private static MenuItem? BuildMeasure(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        MenuMeasureState state = host.GetMeasureState();
+        if (state == MenuMeasureState.None)
+        {
+            return null;
+        }
+
+        string direction = state == MenuMeasureState.HasAnchor ? "to" : "from";
+        var item = new MenuItem { Header = $"Measure {direction} {context.Callsign}" };
+        item.Click += (_, _) => host.MeasurePickOnAircraft(context.Callsign);
+        return item;
+    }
+
+    /// <summary>The leader-direction submenu: one line per 1-9, with 5 marked as the STARS default.</summary>
+    private static MenuItem BuildLeaderDirection(string label, MenuContext context, IMenuHost host)
+    {
+        var menu = new MenuItem { Header = label };
+        for (int direction = 1; direction <= 9; direction++)
+        {
+            string itemLabel = direction == 5 ? "5 (default)" : direction.ToString(CultureInfo.InvariantCulture);
+            menu.Items.Add(BuildSend(itemLabel, $"LDR {direction}", context, host));
+        }
+
+        return menu;
+    }
+
+    /// <summary>The J-ring submenu: Clear turns the overlay off, then one item per ring radius.</summary>
+    private static MenuItem BuildJRing(string label, MenuContext context, IMenuHost host) => BuildRingMenu(label, "JRING", context, host);
+
+    /// <summary>The cone submenu: Clear turns the overlay off, then one item per cone length.</summary>
+    private static MenuItem BuildCone(string label, MenuContext context, IMenuHost host) => BuildRingMenu(label, "CONE", context, host);
+
+    /// <summary>
+    /// A J-ring or cone submenu: Clear sends the bare command, then each distance sends it with the size. The item
+    /// reads "3 nm" while the command carries the same figure without the unit.
+    /// </summary>
+    private static MenuItem BuildRingMenu(string label, string command, MenuContext context, IMenuHost host)
+    {
+        var menu = new MenuItem { Header = label };
+        menu.Items.Add(BuildSend("Clear", command, context, host));
+        foreach (double distance in RingDistances)
+        {
+            string size = distance.ToString("0.#", CultureInfo.InvariantCulture);
+            menu.Items.Add(BuildSend($"{distance:0} nm", $"{command} {size}", context, host));
+        }
+
+        return menu;
     }
 
     private static MenuItem BuildAssumeAndTrack(MenuContext context, IMenuHost host)
