@@ -3,6 +3,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Interactivity;
 using Xunit;
 using Yaat.Client.ContextMenus;
+using Yaat.Client.Models;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -120,6 +121,18 @@ public class MenuCatalogCommandTests
         (MenuIds.ProceduresJoinAirway, "V25", "JAWY V25"),
         (MenuIds.ProceduresJoinRadialOutbound, "SUNOL 090", "JRADO SUNOL 090"),
         (MenuIds.ProceduresJoinRadialInbound, "SUNOL 270", "JRADI SUNOL 270"),
+        (MenuIds.TowerLineUpAndWait, "", "LUAW"),
+        (MenuIds.TowerCancelTakeoff, "", "CTOC"),
+        (MenuIds.TowerClearedToLand, "", "CLAND"),
+        (MenuIds.TowerForceLanding, "", "CLANDF"),
+        (MenuIds.TowerClearedOption, "", "COPT"),
+        (MenuIds.TowerTouchAndGo, "", "TG"),
+        (MenuIds.TowerStopAndGo, "", "SG"),
+        (MenuIds.TowerLowApproach, "", "LA"),
+        (MenuIds.TowerGoAround, "", "GA"),
+        (MenuIds.TowerCancelLanding, "", "CLC"),
+        (MenuIds.TowerExitLeft, "", "EL"),
+        (MenuIds.TowerExitRight, "", "ER"),
     ];
 
     /// <summary>
@@ -140,6 +153,7 @@ public class MenuCatalogCommandTests
         MenuIds.DisplayJRing,
         MenuIds.DisplayCone,
         MenuIds.NavigationDrawRoute,
+        MenuIds.TowerClearedForTakeoff,
     ];
 
     public static TheoryData<string, string, string> SingleCommandLeaves()
@@ -992,6 +1006,88 @@ public class MenuCatalogCommandTests
         Assert.Equal([(Callsign, "JRADI SUNOL 270", Initials)], host.Sent);
     }
 
+    [AvaloniaFact]
+    public void Tower_CancelLandingClearance_SendsClc()
+    {
+        var host = new RecordingMenuHost("");
+        var ac = new AircraftModel
+        {
+            Callsign = Callsign,
+            IsOnGround = false,
+            CurrentPhase = "FinalApproach",
+            FlightRules = "IFR",
+            AssignedRunway = "28R",
+            LandingClearance = "CTL",
+        };
+
+        MenuItem? tower = SharedMenuGroups.Tower(ac, Context(), host);
+
+        Assert.NotNull(tower);
+        Click(Assert.Single(tower.Items.OfType<MenuItem>(), m => m.Header is "Cancel landing clearance"));
+        Assert.Equal([(Callsign, "CLC", Initials)], host.Sent);
+    }
+
+    public static TheoryData<string, string> ClearedForTakeoffChildren() =>
+        new()
+        {
+            { "Default (SID/on course)", "CTO" },
+            { "Fly runway heading", "CTO RH" },
+            { "Fly on course", "CTO OC" },
+            { "Make left traffic", "CTO MLT" },
+            { "Make right traffic", "CTO MRT" },
+            { "Turn left crosswind", "CTO MLC" },
+            { "Turn right crosswind", "CTO MRC" },
+            { "Turn left downwind", "CTO MLD" },
+            { "Turn right downwind", "CTO MRD" },
+            { "Left 270", "CTO ML270" },
+            { "Right 270", "CTO MR270" },
+            { "360 overhead", "CTO 360" },
+        };
+
+    [AvaloniaTheory]
+    [MemberData(nameof(ClearedForTakeoffChildren))]
+    public void Tower_Cto_ChildrenSendTheirArguments(string label, string command)
+    {
+        var host = new RecordingMenuHost("");
+
+        List<MenuItem> children = ClearedForTakeoffChildItems(host);
+
+        Click(Assert.Single(children, m => m.Header as string == label));
+        Assert.Equal([(Callsign, command, Initials)], host.Sent);
+    }
+
+    [AvaloniaTheory]
+    [InlineData("", "CTO")]
+    [InlineData("   ", "CTO")]
+    [InlineData("  RH 3000 ", "CTO RH 3000")]
+    public void Tower_CtoCustom_BlankSendsCto_TextIsTrimmed(string input, string command)
+    {
+        var host = new RecordingMenuHost(input);
+
+        List<MenuItem> children = ClearedForTakeoffChildItems(host);
+
+        Click(Assert.Single(children, m => m.Header is "Custom..."));
+        Assert.Equal(["CTO arg (e.g. RH 3000, LT 270, DCT BERKS)"], host.InputPlaceholders);
+        Assert.Equal([(Callsign, command, Initials)], host.Sent);
+    }
+
+    /// <summary>The Cleared for takeoff submenu's items for a VFR departure lined up on 30, which is offered every one.</summary>
+    private static List<MenuItem> ClearedForTakeoffChildItems(RecordingMenuHost host)
+    {
+        var ac = new AircraftModel
+        {
+            Callsign = Callsign,
+            IsOnGround = true,
+            CurrentPhase = "LinedUpAndWaiting",
+            FlightRules = "VFR",
+            AssignedRunway = "30",
+        };
+        MenuItem? cto = MenuCatalog.Get(MenuIds.TowerClearedForTakeoff).Build(ac, Context(), host);
+        Assert.NotNull(cto);
+        Assert.Equal("Cleared for takeoff", cto.Header as string);
+        return [.. cto.Items.OfType<MenuItem>()];
+    }
+
     /// <summary>Asserts a picker item's header and the descriptor the menu walker prints for it, and returns the item.</summary>
     private static MenuItem AssertPicker(MenuItem? item, string header, string kind, string[] texts)
     {
@@ -1018,118 +1114,6 @@ public class MenuCatalogCommandTests
         MenuItem? submenu = MenuCatalog.Get(id).Build(null, Context(), host);
         Assert.NotNull(submenu);
         return [.. submenu.Items.OfType<MenuItem>()];
-    }
-
-    /// <summary>
-    /// Records every send and popup, and answers a picker at once: an input or filtered list with
-    /// <paramref name="input"/>, a list with the item whose text is <paramref name="input"/> (an empty input only records the list).
-    /// </summary>
-    private sealed class RecordingMenuHost(string input) : IMenuHost
-    {
-        public List<(string Callsign, string Command, string Initials)> Sent { get; } = [];
-
-        public string[]? FixNames { get; init; }
-
-        /// <summary>The field elevation the altitude picker is answered with; sea level by default, so the list starts at 100 ft.</summary>
-        public double FieldElevation { get; init; }
-
-        public List<string?> FieldElevationRequests { get; } = [];
-
-        public List<(IReadOnlyList<string> Items, object? Selected)> ListPopups { get; } = [];
-
-        public List<(string[] Names, IReadOnlyList<string>? Priority)> FilteredListPopups { get; } = [];
-
-        public List<string> DrawRouteCallsigns { get; } = [];
-
-        public List<(string Callsign, int Heading, int Altitude, int Speed)> WarpPopups { get; } = [];
-
-        public Func<string, int, int, int, Task>? WarpSubmit { get; private set; }
-
-        public int FlightPlanEditorOpens { get; private set; }
-
-        public HashSet<string> MinifiedCallsigns { get; } = [];
-
-        public HashSet<string> ManualOffsetCallsigns { get; } = [];
-
-        public HashSet<string> PathShownCallsigns { get; } = [];
-
-        public MenuMeasureState MeasureState { get; set; } = MenuMeasureState.None;
-
-        public List<string> MinifiedToggles { get; } = [];
-
-        public List<string> DataBlockOffsetResets { get; } = [];
-
-        public List<string> PathToggles { get; } = [];
-
-        public List<string> MeasurePicks { get; } = [];
-
-        public Task SendAsync(string callsign, string command, string initials)
-        {
-            Sent.Add((callsign, command, initials));
-            return Task.CompletedTask;
-        }
-
-        public List<string> InputPlaceholders { get; } = [];
-
-        /// <summary>The text an input popup is answered with when it differs from a picker's answer; the picker's answer when null.</summary>
-        public string? InputAnswer { get; init; }
-
-        public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit)
-        {
-            InputPlaceholders.Add(placeholder);
-            _ = onSubmit(InputAnswer ?? input);
-        }
-
-        public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick)
-        {
-            ListPopups.Add(([.. items.Select(i => i.ToString() ?? "")], selected));
-            if (input.Length > 0)
-            {
-                _ = onPick(items.First(i => i.ToString() == input));
-            }
-        }
-
-        public void ShowFilteredListPopup(string[] sortedNames, IReadOnlyList<object>? priorityItems, Func<string, Task> onPick)
-        {
-            FilteredListPopups.Add((sortedNames, priorityItems?.Select(i => i.ToString() ?? "").ToList()));
-            _ = onPick(input);
-        }
-
-        /// <summary>Records the destination asked about and answers <see cref="FieldElevation"/>.</summary>
-        public double GetFieldElevation(string? destination)
-        {
-            FieldElevationRequests.Add(destination);
-            return FieldElevation;
-        }
-
-        public void EnterDrawRoute(string callsign) => DrawRouteCallsigns.Add(callsign);
-
-        public void ShowWarpPopup(string callsign, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit)
-        {
-            WarpPopups.Add((callsign, heading, altitude, speed));
-            WarpSubmit = onSubmit;
-        }
-
-        public void OpenFlightPlanEditor() => FlightPlanEditorOpens++;
-
-        public bool IsMinified(string callsign) => MinifiedCallsigns.Contains(callsign);
-
-        public void ToggleMinified(string callsign) => MinifiedToggles.Add(callsign);
-
-        public bool HasManualDataBlockOffset(string callsign) => ManualOffsetCallsigns.Contains(callsign);
-
-        public void ResetDataBlockOffset(string callsign) => DataBlockOffsetResets.Add(callsign);
-
-        public bool IsPathShown(string callsign) => PathShownCallsigns.Contains(callsign);
-
-        public void ToggleShowPath(string callsign) => PathToggles.Add(callsign);
-
-        public MenuMeasureState GetMeasureState() => MeasureState;
-
-        public void MeasurePickOnAircraft(string callsign) => MeasurePicks.Add(callsign);
-
-        public MenuItem BuildFavorites(IMenuAircraft? aircraft, MenuContext context) =>
-            throw new NotSupportedException("The command table does not build the favorites submenu");
     }
 
     /// <summary>

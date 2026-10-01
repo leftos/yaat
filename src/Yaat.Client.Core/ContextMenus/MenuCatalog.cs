@@ -15,8 +15,10 @@ namespace Yaat.Client.ContextMenus;
 /// STARs, airways) and formats the pick into the command, choosing its form from the data present when the menu is
 /// built; a host leaf asks the host for the item itself, for the entries that open a host surface or read the
 /// surface's own state — the warp popup, the flight-plan editor, the data-block toggle and reset, the nav route, the
-/// measure item and route drawing; and a value submenu builds a whole submenu of command items from its own label
-/// and the menu context, one per value — the leader directions, the J-ring radii and the cone lengths.
+/// measure item and route drawing; a value submenu builds a whole submenu of command items from its own label and
+/// the menu context, one per value — the leader directions, the J-ring radii and the cone lengths; and the Cleared for
+/// takeoff submenu offers the default clearance and runway heading, the VFR departure instructions when the aircraft
+/// and the controller's VFR-for-IFR setting allow them, and a free-text item last.
 /// </summary>
 public static class MenuCatalog
 {
@@ -135,6 +137,49 @@ public static class MenuCatalog
         Picker(MenuIds.ProceduresJoinAirway, JoinAirwayLabel, BuildJoinAirway),
         RadialPicker(MenuIds.ProceduresJoinRadialOutbound, "Join radial outbound...", "JRADO", fix => $"Bearing from {fix} (0-360)"),
         RadialPicker(MenuIds.ProceduresJoinRadialInbound, "Join radial inbound...", "JRADI", fix => $"Bearing to {fix} (0-360)"),
+        RunwayLeaf(MenuIds.TowerLineUpAndWait, "Line up and wait", "LUAW", (ac, _) => AircraftCommandApplicability.CanLineUpAndWait(ac)),
+        new(
+            MenuIds.TowerClearedForTakeoff,
+            ClearedForTakeoffLabel,
+            MenuFlightRules.Both,
+            (ac, _) => AircraftCommandApplicability.CanClearForTakeoff(ac),
+            BuildClearedForTakeoff
+        ),
+        Leaf(MenuIds.TowerCancelTakeoff, "Cancel takeoff clearance", "CTOC", (ac, _) => AircraftCommandApplicability.CanCancelTakeoff(ac)),
+        RunwayLeaf(MenuIds.TowerClearedToLand, "Cleared to land", "CLAND", CanClearToLand),
+        RunwayLeaf(MenuIds.TowerForceLanding, "Force landing", "CLANDF", CanForceLanding),
+        RunwayLeaf(MenuIds.TowerClearedOption, "Cleared for the option", "COPT", CanIssueVfrOption),
+        RunwayLeaf(MenuIds.TowerTouchAndGo, "Touch and go", "TG", CanIssueVfrOption),
+        RunwayLeaf(MenuIds.TowerStopAndGo, "Stop and go", "SG", CanIssueVfrOption),
+        RunwayLeaf(MenuIds.TowerLowApproach, "Low approach", "LA", CanIssueVfrOption),
+        RunwayLeaf(MenuIds.TowerGoAround, "Go around", "GA", (ac, _) => AircraftCommandApplicability.CanGoAround(ac)),
+        Leaf(MenuIds.TowerCancelLanding, "Cancel landing clearance", "CLC", (ac, _) => AircraftCommandApplicability.CanCancelLandingClearance(ac)),
+        Leaf(MenuIds.TowerExitLeft, "Exit left", "EL", CanExitRunway),
+        Leaf(MenuIds.TowerExitRight, "Exit right", "ER", CanExitRunway),
+    ];
+
+    /// <summary>The Cleared for takeoff entry's label, the header of the submenu it builds.</summary>
+    private const string ClearedForTakeoffLabel = "Cleared for takeoff";
+
+    /// <summary>The placeholder of the Cleared for takeoff submenu's free-text item.</summary>
+    private const string ClearedForTakeoffPlaceholder = "CTO arg (e.g. RH 3000, LT 270, DCT BERKS)";
+
+    /// <summary>
+    /// The VFR-only departure instructions the Cleared for takeoff submenu offers after the default and runway heading:
+    /// each item's text and the argument it sends after <c>CTO</c>.
+    /// </summary>
+    private static readonly (string Label, string Argument)[] VfrTakeoffModifiers =
+    [
+        ("Fly on course", "OC"),
+        ("Make left traffic", "MLT"),
+        ("Make right traffic", "MRT"),
+        ("Turn left crosswind", "MLC"),
+        ("Turn right crosswind", "MRC"),
+        ("Turn left downwind", "MLD"),
+        ("Turn right downwind", "MRD"),
+        ("Left 270", "ML270"),
+        ("Right 270", "MR270"),
+        ("360 overhead", "360"),
     ];
 
     /// <summary>The visual-approach entry's label, which its smart-default leaf and its "(other)" companion extend.</summary>
@@ -200,8 +245,63 @@ public static class MenuCatalog
 
     private static Func<IMenuAircraft?, MenuContext, bool> CanEditFlightPlan => (ac, _) => AircraftCommandApplicability.CanEditFlightPlan(ac);
 
+    private static Func<IMenuAircraft?, MenuContext, bool> CanClearToLand => (ac, _) => AircraftCommandApplicability.CanClearToLand(ac);
+
+    /// <summary>
+    /// Force landing is an RPO-only override that touches down regardless of the energy state, so it is hidden in solo
+    /// training, where the server rejects it.
+    /// </summary>
+    private static Func<IMenuAircraft?, MenuContext, bool> CanForceLanding =>
+        (ac, context) => AircraftCommandApplicability.CanClearToLand(ac) && !context.SoloTrainingMode;
+
+    /// <summary>The option clearances are VFR operations, offered to an IFR aircraft only under the controller's full VFR setting.</summary>
+    private static Func<IMenuAircraft?, MenuContext, bool> CanIssueVfrOption =>
+        (ac, context) => AircraftCommandApplicability.CanIssueVfrOption(ac, context.VfrCommandsForIfr);
+
+    private static Func<IMenuAircraft?, MenuContext, bool> CanExitRunway => (ac, _) => AircraftCommandApplicability.CanExitRunway(ac);
+
     private static MenuCatalogEntry Leaf(string id, string label, string command, Func<IMenuAircraft?, MenuContext, bool> isApplicable) =>
         new(id, label, MenuFlightRules.Both, isApplicable, (_, context, host) => BuildSend(label, command, context, host));
+
+    /// <summary>A leaf whose text names the aircraft's assigned runway after <paramref name="label"/> when it has one.</summary>
+    private static MenuCatalogEntry RunwayLeaf(string id, string label, string command, Func<IMenuAircraft?, MenuContext, bool> isApplicable) =>
+        new(id, label, MenuFlightRules.Both, isApplicable, (ac, context, host) => BuildSend(label + RunwaySuffix(ac), command, context, host));
+
+    /// <summary>The assigned runway as a label suffix (" 28R"), or empty when the aircraft has none.</summary>
+    private static string RunwaySuffix(IMenuAircraft? aircraft) =>
+        string.IsNullOrEmpty(aircraft?.AssignedRunway) ? "" : $" {RunwayIdentifier.ToDisplayDesignator(aircraft.AssignedRunway)}";
+
+    /// <summary>
+    /// The Cleared for takeoff submenu: the default clearance (the filed SID for IFR, runway heading for VFR) and an
+    /// explicit runway heading for either, then the VFR-only departure instructions when
+    /// <see cref="AircraftCommandApplicability.ShowVfrTakeoffModifiers"/> allows them, then free text: blank sends a
+    /// bare <c>CTO</c>, anything else is trimmed and sent after it.
+    /// </summary>
+    private static MenuItem BuildClearedForTakeoff(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        var menu = new MenuItem { Header = ClearedForTakeoffLabel };
+        menu.Items.Add(BuildSend("Default (SID/on course)", "CTO", context, host));
+        menu.Items.Add(BuildSend("Fly runway heading", "CTO RH", context, host));
+        if (AircraftCommandApplicability.ShowVfrTakeoffModifiers(aircraft, context.VfrCommandsForIfr))
+        {
+            foreach ((string label, string argument) in VfrTakeoffModifiers)
+            {
+                menu.Items.Add(BuildSend(label, $"CTO {argument}", context, host));
+            }
+        }
+
+        menu.Items.Add(new Separator());
+        menu.Items.Add(
+            BuildInput(
+                "Custom...",
+                ClearedForTakeoffPlaceholder,
+                input => string.IsNullOrWhiteSpace(input) ? "CTO" : $"CTO {input.Trim()}",
+                context,
+                host
+            )
+        );
+        return menu;
+    }
 
     private static MenuCatalogEntry InputLeaf(string id, string label, string placeholder, Func<string, string> format) =>
         new(id, label, MenuFlightRules.Both, Always, (_, context, host) => BuildInput(label, placeholder, format, context, host));

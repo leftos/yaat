@@ -5,7 +5,7 @@ namespace Yaat.Client.ContextMenus;
 /// <summary>
 /// The groups more than one surface builds — live traffic, track, squawk, ask pilot, coordination, data block,
 /// sim control, display, favorites, and the flight groups heading, altitude, speed, navigation (with Draw route),
-/// hold, approach and procedures — assembled from <see cref="MenuCatalog"/> entries. Only track, squawk and ask pilot keep a
+/// hold, approach, procedures and tower — assembled from <see cref="MenuCatalog"/> entries. Only track, squawk and ask pilot keep a
 /// <see cref="MenuView"/> variant: the radar carries input pickers (handoff, point out, squawk code, custom say) the
 /// other surfaces leave out, and sends <c>ID</c> for Ident where the others send <c>IDENT</c>. Data block, sim
 /// control, display and the flight groups are built by the radar today, so they take no view. Whether a group is
@@ -121,9 +121,7 @@ public static class SharedMenuGroups
 
     /// <summary>The "Edit flight plan" leaf when the aircraft's flight plan is editable, otherwise null.</summary>
     public static MenuItem? EditFlightPlan(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
-        MenuCatalog.Get(MenuIds.AircraftEditFlightPlan).IsApplicable(aircraft, context)
-            ? Leaf(MenuIds.AircraftEditFlightPlan, aircraft, context, host)
-            : null;
+        IsApplicable(MenuIds.AircraftEditFlightPlan, aircraft, context) ? Leaf(MenuIds.AircraftEditFlightPlan, aircraft, context, host) : null;
 
     /// <summary>
     /// The Display submenu: the data-block form and position, the nav route and the measurement in progress, then the
@@ -155,10 +153,7 @@ public static class SharedMenuGroups
     {
         foreach (string id in (string[])[MenuIds.LiveTrafficAssume, MenuIds.LiveTrafficAssumeAndTrack])
         {
-            if (MenuCatalog.Get(id).IsApplicable(aircraft, context))
-            {
-                items.Add(Leaf(id, aircraft, context, host));
-            }
+            AddIfApplicable(items, id, aircraft, context, host);
         }
     }
 
@@ -167,9 +162,7 @@ public static class SharedMenuGroups
     /// (<see cref="AircraftCommandApplicability.CanUnassume"/>), otherwise null.
     /// </summary>
     public static MenuItem? Unassume(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
-        MenuCatalog.Get(MenuIds.LiveTrafficUnassume).IsApplicable(aircraft, context)
-            ? Leaf(MenuIds.LiveTrafficUnassume, aircraft, context, host)
-            : null;
+        IsApplicable(MenuIds.LiveTrafficUnassume, aircraft, context) ? Leaf(MenuIds.LiveTrafficUnassume, aircraft, context, host) : null;
 
     /// <summary>
     /// The Heading submenu: present heading, the heading pickers and the relative-turn pickers. The header names the
@@ -226,11 +219,7 @@ public static class SharedMenuGroups
         string header = aircraft is { NavigatingTo.Length: > 0 } ? $"Navigation (→ {aircraft.NavigatingTo})" : "Navigation";
         var menu = new MenuItem { Header = header };
         menu.Items.Add(Leaf(MenuIds.NavigationDirectTo, aircraft, context, host));
-        if (MenuCatalog.Get(MenuIds.NavigationAppendDirectTo).IsApplicable(aircraft, context))
-        {
-            menu.Items.Add(Leaf(MenuIds.NavigationAppendDirectTo, aircraft, context, host));
-        }
-
+        AddIfApplicable(menu.Items, MenuIds.NavigationAppendDirectTo, aircraft, context, host);
         return menu;
     }
 
@@ -328,6 +317,74 @@ public static class SharedMenuGroups
         menu.Items.Add(Leaf(MenuIds.ProceduresJoinRadialOutbound, aircraft, context, host));
         menu.Items.Add(Leaf(MenuIds.ProceduresJoinRadialInbound, aircraft, context, host));
         return menu;
+    }
+
+    /// <summary>
+    /// The Tower submenu, state-aware: the departure clearances, then the landing and option clearances with go around
+    /// and cancel landing clearance while any of cleared to land, go around or cancel landing clearance applies, then
+    /// the runway exits after touchdown, each block after a separator when items precede it. Null when nothing applies,
+    /// so the caller omits the submenu.
+    /// </summary>
+    public static MenuItem? Tower(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        var menu = new MenuItem { Header = "Tower" };
+        AddIfApplicable(menu.Items, MenuIds.TowerLineUpAndWait, aircraft, context, host);
+        AddIfApplicable(menu.Items, MenuIds.TowerClearedForTakeoff, aircraft, context, host);
+        AddIfApplicable(menu.Items, MenuIds.TowerCancelTakeoff, aircraft, context, host);
+
+        bool landing =
+            (IsApplicable(MenuIds.TowerClearedToLand, aircraft, context))
+            || (IsApplicable(MenuIds.TowerGoAround, aircraft, context))
+            || (IsApplicable(MenuIds.TowerCancelLanding, aircraft, context));
+        if (landing)
+        {
+            AddSeparatorIfNonEmpty(menu.Items);
+            foreach (string id in TowerLandingIds)
+            {
+                AddIfApplicable(menu.Items, id, aircraft, context, host);
+            }
+        }
+
+        if (IsApplicable(MenuIds.TowerExitLeft, aircraft, context))
+        {
+            AddSeparatorIfNonEmpty(menu.Items);
+            menu.Items.Add(Leaf(MenuIds.TowerExitLeft, aircraft, context, host));
+            AddIfApplicable(menu.Items, MenuIds.TowerExitRight, aircraft, context, host);
+        }
+
+        return menu.Items.Count > 0 ? menu : null;
+    }
+
+    /// <summary>The Tower submenu's landing block, in menu order.</summary>
+    private static readonly string[] TowerLandingIds =
+    [
+        MenuIds.TowerClearedToLand,
+        MenuIds.TowerForceLanding,
+        MenuIds.TowerClearedOption,
+        MenuIds.TowerTouchAndGo,
+        MenuIds.TowerStopAndGo,
+        MenuIds.TowerLowApproach,
+        MenuIds.TowerGoAround,
+        MenuIds.TowerCancelLanding,
+    ];
+
+    private static bool IsApplicable(string id, IMenuAircraft? aircraft, MenuContext context) => MenuCatalog.Get(id).IsApplicable(aircraft, context);
+
+    /// <summary>Adds the entry's item when the entry applies to the aircraft; otherwise adds nothing.</summary>
+    private static void AddIfApplicable(ItemCollection items, string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        if (IsApplicable(id, aircraft, context))
+        {
+            items.Add(Leaf(id, aircraft, context, host));
+        }
+    }
+
+    private static void AddSeparatorIfNonEmpty(ItemCollection items)
+    {
+        if (items.Count > 0)
+        {
+            items.Add(new Separator());
+        }
     }
 
     /// <summary>Adds an entry's "(other)" companion item, or nothing when the entry offers none (the item is null).</summary>

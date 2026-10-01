@@ -352,119 +352,12 @@ public partial class RadarView
         return item;
     }
 
-    /// <summary>
-    /// Builds the state-aware Tower submenu. Departure clearances appear only for ground
-    /// departures, arrival/option clearances only while a landing is pending (VFR options
-    /// hidden for IFR), runway-exit items only after touchdown. Returns null when nothing
-    /// applies so the caller can omit the submenu entirely.
-    /// </summary>
-    internal MenuItem? BuildTowerSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
-    {
-        var menu = new MenuItem { Header = "Tower" };
-        string rwy = !string.IsNullOrEmpty(ac?.AssignedRunway) ? $" {RunwayIdentifier.ToDisplayDesignator(ac.AssignedRunway)}" : "";
-
-        // Departures
-        if (AircraftCommandApplicability.CanLineUpAndWait(ac))
-        {
-            menu.Items.Add(CreateMenuItem($"Line up and wait{rwy}", () => vm.LineUpAndWaitAsync(cs, init)));
-        }
-        if (AircraftCommandApplicability.CanClearForTakeoff(ac))
-        {
-            menu.Items.Add(BuildClearedForTakeoffSubmenu(vm, cs, init, ac));
-        }
-        if (AircraftCommandApplicability.CanCancelTakeoff(ac))
-        {
-            menu.Items.Add(CreateMenuItem("Cancel takeoff clearance", () => vm.CancelTakeoffClearanceAsync(cs, init)));
-        }
-
-        // Arrivals / pattern landing
-        bool canLand = AircraftCommandApplicability.CanClearToLand(ac);
-        bool canGoAround = AircraftCommandApplicability.CanGoAround(ac);
-        bool canCancelLanding = AircraftCommandApplicability.CanCancelLandingClearance(ac);
-        if (canLand || canGoAround || canCancelLanding)
-        {
-            AddSeparatorIfNonEmpty(menu);
-            if (canLand)
-            {
-                menu.Items.Add(CreateMenuItem($"Cleared to land{rwy}", () => vm.ClearedToLandAsync(cs, init)));
-                // Force landing (CLANDF) is an RPO-only override — hidden in solo training, where
-                // the server rejects it. Forces a touchdown regardless of energy state.
-                if (FindMainViewModel()?.SessionSoloTrainingMode != true)
-                {
-                    menu.Items.Add(CreateMenuItem($"Force landing{rwy}", () => vm.ForceLandingAsync(cs, init)));
-                }
-                if (AircraftCommandApplicability.CanIssueVfrOption(ac, VfrCommandsForIfrMode()))
-                {
-                    menu.Items.Add(CreateMenuItem($"Cleared for the option{rwy}", () => vm.ClearedForOptionAsync(cs, init)));
-                    menu.Items.Add(CreateMenuItem($"Touch and go{rwy}", () => vm.TouchAndGoAsync(cs, init)));
-                    menu.Items.Add(CreateMenuItem($"Stop and go{rwy}", () => vm.StopAndGoAsync(cs, init)));
-                    menu.Items.Add(CreateMenuItem($"Low approach{rwy}", () => vm.LowApproachAsync(cs, init)));
-                }
-            }
-            if (canGoAround)
-            {
-                menu.Items.Add(CreateMenuItem($"Go around{rwy}", () => vm.GoAroundAsync(cs, init)));
-            }
-            if (canCancelLanding)
-            {
-                menu.Items.Add(CreateMenuItem("Cancel landing clearance", () => vm.CancelLandingClearanceAsync(cs, init)));
-            }
-        }
-
-        // Runway exit (after touchdown)
-        if (AircraftCommandApplicability.CanExitRunway(ac))
-        {
-            AddSeparatorIfNonEmpty(menu);
-            menu.Items.Add(CreateMenuItem("Exit left", () => vm.ExitLeftAsync(cs, init)));
-            menu.Items.Add(CreateMenuItem("Exit right", () => vm.ExitRightAsync(cs, init)));
-        }
-
-        return menu.Items.Count > 0 ? menu : null;
-    }
-
     private static void AddSeparatorIfNonEmpty(MenuItem menu)
     {
         if (menu.Items.Count > 0)
         {
             menu.Items.Add(new Separator());
         }
-    }
-
-    private MenuItem BuildClearedForTakeoffSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
-    {
-        var menu = new MenuItem { Header = "Cleared for takeoff" };
-
-        // Default clearance: IFR follows the filed SID, VFR flies runway heading.
-        menu.Items.Add(CreateMenuItem("Default (SID/on course)", () => vm.ClearedForTakeoffAsync(cs, init, null)));
-        // Explicit runway heading — valid for both VFR and IFR (issue #221).
-        menu.Items.Add(CreateMenuItem("Fly runway heading", () => vm.ClearedForTakeoffAsync(cs, init, "RH")));
-
-        // On-course, pattern, and closed-traffic modifiers are VFR-only — offered for an IFR
-        // departure only when the controller opted into the full VFR command set.
-        if (AircraftCommandApplicability.ShowVfrTakeoffModifiers(ac, VfrCommandsForIfrMode()))
-        {
-            menu.Items.Add(CreateMenuItem("Fly on course", () => vm.ClearedForTakeoffAsync(cs, init, "OC")));
-            menu.Items.Add(CreateMenuItem("Make left traffic", () => vm.ClearedForTakeoffAsync(cs, init, "MLT")));
-            menu.Items.Add(CreateMenuItem("Make right traffic", () => vm.ClearedForTakeoffAsync(cs, init, "MRT")));
-            menu.Items.Add(CreateMenuItem("Turn left crosswind", () => vm.ClearedForTakeoffAsync(cs, init, "MLC")));
-            menu.Items.Add(CreateMenuItem("Turn right crosswind", () => vm.ClearedForTakeoffAsync(cs, init, "MRC")));
-            menu.Items.Add(CreateMenuItem("Turn left downwind", () => vm.ClearedForTakeoffAsync(cs, init, "MLD")));
-            menu.Items.Add(CreateMenuItem("Turn right downwind", () => vm.ClearedForTakeoffAsync(cs, init, "MRD")));
-            menu.Items.Add(CreateMenuItem("Left 270", () => vm.ClearedForTakeoffAsync(cs, init, "ML270")));
-            menu.Items.Add(CreateMenuItem("Right 270", () => vm.ClearedForTakeoffAsync(cs, init, "MR270")));
-            menu.Items.Add(CreateMenuItem("360 overhead", () => vm.ClearedForTakeoffAsync(cs, init, "360")));
-        }
-
-        menu.Items.Add(new Separator());
-        menu.Items.Add(
-            CreateInputMenuItem(
-                "Custom...",
-                "CTO arg (e.g. RH 3000, LT 270, DCT BERKS)",
-                input => vm.ClearedForTakeoffAsync(cs, init, NullIfEmpty(input))
-            )
-        );
-
-        return menu;
     }
 
     private void AddMenuGroup(ContextMenu menu, MenuGroup group, RadarViewModel vm, AircraftModel? ac, MenuContext context, RadarMenuHost host)
@@ -498,7 +391,7 @@ public partial class RadarView
                 menu.Items.Add(SharedMenuGroups.Procedures(ac, context, host));
                 break;
             case MenuGroup.Tower:
-                MenuItem? tower = BuildTowerSubmenu(vm, cs, init, ac);
+                MenuItem? tower = SharedMenuGroups.Tower(ac, context, host);
                 if (tower is not null)
                 {
                     menu.Items.Add(tower);

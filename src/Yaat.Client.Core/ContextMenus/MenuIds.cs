@@ -294,4 +294,43 @@ public static class MenuIds
 
     /// <summary>Join a radial inbound to a fix (<c>JRADI</c>).</summary>
     public const string ProceduresJoinRadialInbound = "procedures.join-radial-inbound";
+
+    /// <summary>Line up and wait (<c>LUAW</c>).</summary>
+    public const string TowerLineUpAndWait = "tower.line-up-and-wait";
+
+    /// <summary>Cleared for takeoff (<c>CTO</c>, with or without a departure instruction).</summary>
+    public const string TowerClearedForTakeoff = "tower.cto";
+
+    /// <summary>Cancel the takeoff clearance (<c>CTOC</c>).</summary>
+    public const string TowerCancelTakeoff = "tower.cancel-takeoff";
+
+    /// <summary>Cleared to land (<c>CLAND</c>).</summary>
+    public const string TowerClearedToLand = "tower.cleared-to-land";
+
+    /// <summary>Force a landing regardless of the energy state (<c>CLANDF</c>).</summary>
+    public const string TowerForceLanding = "tower.force-landing";
+
+    /// <summary>Cleared for the option (<c>COPT</c>).</summary>
+    public const string TowerClearedOption = "tower.cleared-option";
+
+    /// <summary>Touch and go (<c>TG</c>).</summary>
+    public const string TowerTouchAndGo = "tower.touch-and-go";
+
+    /// <summary>Stop and go (<c>SG</c>).</summary>
+    public const string TowerStopAndGo = "tower.stop-and-go";
+
+    /// <summary>Low approach (<c>LA</c>).</summary>
+    public const string TowerLowApproach = "tower.low-approach";
+
+    /// <summary>Go around (<c>GA</c>).</summary>
+    public const string TowerGoAround = "tower.go-around";
+
+    /// <summary>Cancel the landing clearance (<c>CLC</c>).</summary>
+    public const string TowerCancelLanding = "tower.cancel-landing";
+
+    /// <summary>Exit the runway to the left (<c>EL</c>).</summary>
+    public const string TowerExitLeft = "tower.exit-left";
+
+    /// <summary>Exit the runway to the right (<c>ER</c>).</summary>
+    public const string TowerExitRight = "tower.exit-right";
 }
