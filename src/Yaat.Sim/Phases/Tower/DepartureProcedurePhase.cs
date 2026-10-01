@@ -71,6 +71,12 @@ public sealed class DepartureProcedurePhase : Phase
     {
         if (_overridden)
         {
+            // A lateral vector took the aircraft off the coded procedure. Release the leg altitude cap
+            // (as Finish does) so the climb resumes to the ceiling instead of stalling at a SID crossing
+            // window: a heading vector is horizontal-only and does not cancel the altitude clearance
+            // (7110.65 §4-5-7 / AIM 5-2-8). The override does not load the post-route — the vector owns
+            // lateral guidance from here — so this is a cap release, not a full Finish().
+            ctx.Targets.TargetAltitude = _climbCeiling;
             return true;
         }
 
