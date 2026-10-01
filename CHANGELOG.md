@@ -39,6 +39,8 @@
 
 - A new aircraft taking a just-removed aircraft's callsign always gets its ERAM data block and tracks on CRC displays.
 - vEDST joining a controller's session as it ends is refused, instead of staying attached to a session with no position.
+- An airport map the server already holds stays loaded, reported as a cached copy, when a refresh cannot reach vNAS or gets a broken map.
+- The server's admin endpoints take the admin password only in the `X-Yaat-Admin-Password` header; a `?password=` query is refused.
 - An aircraft following traffic on an instrument approach slows to keep its spacing before final, instead of closing on a slower lead.
 - Joining a room just as it closes no longer leaves you, or your CRC display, attached to the closed room.
 - A long-running room picks up ARTCC config changes to ASDE-X, SAID and Tower Cab airports, and CRC drops targets at an airport a config no longer lists.
