@@ -54,6 +54,13 @@ python tools/bug_bundle.py phases <bundle.zip> --callsign N9225L --out .tmp/bb-p
 python tools/bug_bundle.py commands <bundle.zip> --callsign N42416 --out .tmp/bb-cmds-N42416.log
 ```
 
+**The room's broadcast terminal log, or SubRip captions to burn over a replay video:**
+```bash
+python tools/bug_bundle.py terminal-log <bundle.zip> --callsign N42416 --kind Response
+python tools/bug_bundle.py terminal-log <bundle.zip> --from 300 --to 420 --srt --offset 2.5 --out .tmp/captions.srt
+```
+The terminal log is the room's broadcast stream — commands, responses, SAY, warnings, chat — each line carrying its sim-elapsed `t=` and a kind (`Command`, `Response`, `Error`, `Say`, `SayReadback`, `Warning`, `Strip`, `System`, `Chat`). `--callsign` / `--kind` are repeatable and case-insensitive; `--from/--to` filter by sim-elapsed second. `--json` dumps the filtered entries verbatim (the archive's field names), `--srt` prints SubRip captions (`--hold S` default 4.0, `--offset S`) for the FOLLOW montage. `info` reports whether the archive has one (`HasTerminalLog`); an archive recorded before the feature prints `no terminal log in …` and exits 1.
+
 **Time-series of aircraft state, with selectable columns (`--fields`):**
 ```bash
 # default columns: phase / alt / vs / ias / target-speed / assigned-alt / following
@@ -154,6 +161,7 @@ python tools/bug_bundle.py validate <bundle.zip>
 | `track` | Time-series per callsign across snapshots. Columns via `--fields` (keys or presets `default`/`nav`/`vert`/`pos`/`proc`/`full`; `--json` emits all). Also `--callsigns A B`, `--pair A B`, `--start/--end` |
 | `proximity` | All-pairs minimum-separation scan, interpolated between snapshots — ranks pairs by closest approach in feet with phase/speed at that moment (`--callsign X`, `--start/--end`, `--top N`, `--max-gap-ft F`, `--airborne`, `--json`) |
 | `actions` | Recorded user actions timeline (`--json`) |
+| `terminal-log` | Room broadcast terminal log (commands, responses, SAY, warnings, chat) with each line's sim-elapsed `t=`. Filters: `--callsign X` / `--kind K` (repeatable, case-insensitive), `--from/--to S`. `--json` dumps the filtered entries verbatim; `--srt` prints SubRip captions (`--hold S` default 4.0, `--offset S`) for burning over a replay video. An archive without one prints `no terminal log in …` and exits 1 |
 | `history` | Per-callsign chronological events: commands + phase / route / target / approach / track / runway changes (`--callsign X`, `--start/--end`, `--include-global`, `--json`) |
 | `live-status` | Live-traffic feed health over the session (`LiveTrafficStatus` actions: wall clock, connected, message age, in-scope count) and the real-world UTC window to slice the SWIM raw log by (`--callsign X` narrows it to that shadow's observations and names the feed facility; `--pad` minutes, `--all`, `--start/--end`). Prints the `swim-slice.ps1` line to run (yaat `docs/live-traffic.md`, *Reproducing a report*) |
 | `phases` | Per-callsign phase-transition timeline only (`--callsign X`, `--start/--end`, `--json`) |

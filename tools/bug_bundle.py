@@ -11,6 +11,9 @@ Subcommands:
               with --fields (keys or presets: default/nav/vert/pos/proc/full);
               --json always emits every field.
     actions   List recorded user actions chronologically.
+    terminal-log  Room broadcast terminal log (commands, responses, SAY, warnings, chat);
+                  filter by --callsign / --kind / --from / --to, dump as --json, or burn
+                  --srt SubRip captions (--hold, --offset) for a replay video.
     history   Per-callsign chronological events: commands + phase / route / target / approach changes.
     phases    Per-callsign phase-transition timeline (subset of history).
     commands  Actions filtered to one recipient callsign.
@@ -31,6 +34,7 @@ V4 bundle layout (ZIP at root):
     manifest.json               plain JSON (metadata + snapshot index)
     scenario.json.br            Brotli-compressed scenario JSON
     actions.json.br             Brotli-compressed user actions list
+    terminal-log.json.br        Brotli-compressed broadcast terminal log (optional; HasTerminalLog in manifest)
     snapshots/NNN.json.br       one Brotli-compressed snapshot per index
     layouts/<airport>.json.br   deduplicated ground layouts (optional)
     airport-geojson/<airport>.geojson.br
@@ -44,7 +48,7 @@ Legacy bug bundles contain a nested `recording.yaat-recording.zip` with the same
 inner layout and logs at the outer root; this script handles both.
 
 Requires: brotli (pip install brotli). Manifest/log/weather work without it,
-but scenario/actions/snapshots/layouts/airport-geojson need brotli to decompress.
+but scenario/actions/terminal-log/snapshots/layouts/airport-geojson need brotli to decompress.
 """
 
 from __future__ import annotations
@@ -190,6 +194,15 @@ class BundleReader:
     def read_actions(self) -> list[dict[str, Any]]:
         return json.loads(self.read_brotli_text("actions.json.br"))
 
+    def read_terminal_log(self) -> list[dict[str, Any]] | None:
+        """The room's broadcast terminal log (commands, responses, SAY, warnings, chat), or None
+        when the archive carries none — manifest ``HasTerminalLog`` false, or the entry absent."""
+        if not self.manifest.get("HasTerminalLog"):
+            return None
+        if "terminal-log.json.br" not in self.archive_entries:
+            return None
+        return json.loads(self.read_brotli_text("terminal-log.json.br"))
+
     def read_weather(self) -> str | None:
         if not self.manifest.get("HasWeather"):
             return None
@@ -320,6 +333,7 @@ def cmd_info(args: argparse.Namespace) -> int:
         lines.append(f"  SessionStartUtc:     {m.get('SessionStartUtc') or '(pre-feature: replay anchors to the RecordedAtUtc day)'}")
         lines.append(f"  HasWeather:          {m.get('HasWeather')}")
         lines.append(f"  HasArtccConfig:      {m.get('HasArtccConfig', False)}")
+        lines.append(f"  HasTerminalLog:      {m.get('HasTerminalLog', False)}")
         lines.append(f"  Layouts ({len(layouts)}):         {', '.join(layouts) if layouts else '(none)'}")
         lines.append(f"  Airport GeoJSON ({len(airport_geojsons)}): {', '.join(airport_geojsons) if airport_geojsons else '(none)'}")
         lines.append(f"  Logs ({len(logs)}):            {', '.join(logs) if logs else '(none)'}")
@@ -849,6 +863,83 @@ def cmd_actions(args: argparse.Namespace) -> int:
             rest = {k: v for k, v in a.items() if k not in {"ElapsedSeconds", "$type"}}
             lines.append(f"t={t:>7} {kind:<24} {json.dumps(rest)}")
         write_output("\n".join(lines), args.out)
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Subcommand: terminal-log
+# ---------------------------------------------------------------------------
+
+
+def _filter_terminal_entries(
+    entries: list[dict[str, Any]],
+    callsigns: list[str] | None,
+    kinds: list[str] | None,
+    start: float | None,
+    end: float | None,
+) -> list[dict[str, Any]]:
+    """Keep entries matching the callsign/kind sets (case-insensitive) within [start, end]."""
+    wanted_callsigns = {c.upper() for c in callsigns} if callsigns else None
+    wanted_kinds = {k.upper() for k in kinds} if kinds else None
+    kept: list[dict[str, Any]] = []
+    for entry in entries:
+        if wanted_callsigns is not None and str(entry.get("Callsign") or "").upper() not in wanted_callsigns:
+            continue
+        if wanted_kinds is not None and str(entry.get("Kind") or "").upper() not in wanted_kinds:
+            continue
+        t = entry.get("ElapsedSeconds", 0)
+        if (start is not None and t < start) or (end is not None and t > end):
+            continue
+        kept.append(entry)
+    return kept
+
+
+def _terminal_entry_text(entry: dict[str, Any]) -> str:
+    message = entry.get("Message") or ""
+    callsign = entry.get("Callsign") or ""
+    return f"{callsign}: {message}" if callsign else message
+
+
+def _srt_timestamp(seconds: float) -> str:
+    total_ms = max(0, round(seconds * 1000))
+    hours, remainder = divmod(total_ms, 3_600_000)
+    minutes, remainder = divmod(remainder, 60_000)
+    secs, millis = divmod(remainder, 1000)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
+
+
+def _format_srt(entries: list[dict[str, Any]], shift: float, hold: float, offset: float) -> str:
+    """SubRip captions: cue i runs from its shifted start to the next cue's start (or +hold),
+    whichever is earlier, and never shorter than one second."""
+
+    def cue_start(entry: dict[str, Any]) -> float:
+        return entry.get("ElapsedSeconds", 0.0) - shift + offset
+
+    cues: list[str] = []
+    for i, entry in enumerate(entries):
+        start = cue_start(entry)
+        following = cue_start(entries[i + 1]) if i + 1 < len(entries) else start + hold
+        end = max(min(following, start + hold), start + 1.0)
+        cues.append(f"{i + 1}\n{_srt_timestamp(start)} --> {_srt_timestamp(end)}\n{_terminal_entry_text(entry)}")
+    return "\n\n".join(cues)
+
+
+def cmd_terminal_log(args: argparse.Namespace) -> int:
+    with BundleReader(args.bundle) as reader:
+        entries = reader.read_terminal_log()
+        if entries is None:
+            print(f"no terminal log in {args.bundle} (recorded before the feature)", file=sys.stderr)
+            return 1
+
+        matched = _filter_terminal_entries(entries, args.callsigns, args.kinds, args.from_seconds, args.to_seconds)
+
+        if args.json:
+            write_output(json.dumps(matched, indent=2), args.out)
+        elif args.srt:
+            write_output(_format_srt(matched, args.from_seconds or 0.0, args.hold, args.offset), args.out)
+        else:
+            lines = [f"t={e.get('ElapsedSeconds', 0):.1f}  {e.get('Kind', '?')}  {e.get('Callsign', '')}  {e.get('Message', '')}" for e in matched]
+            write_output("\n".join(lines), args.out)
     return 0
 
 
@@ -2037,6 +2128,22 @@ def build_parser() -> argparse.ArgumentParser:
     _add_out_arg(p_act)
     p_act.add_argument("--json", action="store_true", help="structured JSON output")
     p_act.set_defaults(func=cmd_actions)
+
+    p_term = sub.add_parser("terminal-log", help="room broadcast terminal log (commands, responses, SAY, warnings, chat) with SubRip caption export")
+    _add_bundle_arg(p_term)
+    _add_out_arg(p_term)
+    p_term.add_argument(
+        "--callsign", dest="callsigns", action="append", default=None, help="keep only entries for this callsign (case-insensitive; repeatable)"
+    )
+    p_term.add_argument("--kind", dest="kinds", action="append", default=None, help="keep only these kinds (case-insensitive; repeatable)")
+    p_term.add_argument("--from", dest="from_seconds", type=float, default=None, help="only entries at or after FROM; captions start at FROM")
+    p_term.add_argument("--to", dest="to_seconds", type=float, default=None, help="only entries at or before TO")
+    term_format = p_term.add_mutually_exclusive_group()
+    term_format.add_argument("--json", action="store_true", help="structured JSON output")
+    term_format.add_argument("--srt", action="store_true", help="print SubRip captions instead of a listing")
+    p_term.add_argument("--hold", type=float, default=4.0, help="caption hold seconds when no cue follows (default 4.0; --srt only)")
+    p_term.add_argument("--offset", type=float, default=0.0, help="seconds added to every caption start (default 0; --srt only)")
+    p_term.set_defaults(func=cmd_terminal_log)
 
     p_hist = sub.add_parser("history", help="per-callsign chronological events (commands + phase / route / target / approach changes)")
     _add_bundle_arg(p_hist)

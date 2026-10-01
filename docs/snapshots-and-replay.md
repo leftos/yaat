@@ -159,9 +159,11 @@ A `*.yaat-bug-report-bundle.zip` (v4) wraps a `RecordingArchive` plus client/ser
 
 ```
 info        snapshot   track       actions     history
-phases      commands   scenario    weather     layouts
-artcc-config logs       install     validate
+phases      commands   terminal-log scenario    weather
+layouts     artcc-config logs      install     validate
 ```
+
+`terminal-log` reads the archive's `terminal-log.json.br` — the room's broadcast terminal stream (commands, responses, SAY, warnings, chat), one line per entry with its sim-elapsed `t=`; it filters by `--callsign` / `--kind` / `--from` / `--to`, dumps the filtered entries with `--json`, or emits SubRip captions with `--srt` (`--hold`, `--offset`) for the FOLLOW montage. An archive with no terminal log (`HasTerminalLog` false, or the entry absent) prints `no terminal log in <path> (recorded before the feature)` and exits 1.
 
 For single-aircraft triage, `history --callsign X` is one chronological view that replaces 5+ targeted `snapshot --at` calls. See `.claude/skills/bug-bundle/SKILL.md` for the full reference and CLAUDE.md for examples.
 
