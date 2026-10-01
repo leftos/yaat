@@ -22,12 +22,12 @@
    - Keep the hub path for a newly visible aircraft, for deletes, for the 10 s full resend, and for any subscriber not registered on UDP. That last case is the fallback, and it keeps today's behaviour for unregistered clients.
    - Check CRC's own expectations. Does CRC ignore UDP Tower Cab updates for an aircraft it has not yet received over the hub? Mirror vNAS ordering.
 3. Rate: at most about 1 Hz per aircraft per subscriber, whatever the sim tick rate or fast-forward speed.
-4. **Decide how direct/joined connections get UDP. Ask the user, because this is an API choice.**
-   - (a) **Negotiated joiner** (recommended): a connection that negotiates *and* presents a valid YAAT `access_token` on the WebSocket URL is treated as a direct connection. It keeps its negotiate token, so it can register UDP, and `JoinSession` is allowed for it.
+4. **Direct/joined connections get UDP as negotiated joiners** (decided by the user, option (a)).
+   - (a) **Negotiated joiner** (chosen): a connection that negotiates *and* presents a valid YAAT `access_token` on the WebSocket URL is treated as a direct connection. It keeps its negotiate token, so it can register UDP, and `JoinSession` is allowed for it.
      - This matches the real vNAS TowerCab flow exactly: negotiate → `?id=…&access_token=…` → `GetServerConfiguration` → `GetSessions`/`JoinSession` → UDP register.
      - It would let TowerCab 3D drop its YAAT-only "no negotiate, no UDP" mode.
      - It needs `GetServerConfiguration` in `DirectConnectionTargets` and in the JSON `Methods` table.
-   - (b) Leave direct connections hub-only. TowerCab 3D keeps its YAAT special case and polls nothing over UDP.
+   - (b) Rejected: leave direct connections hub-only. TowerCab 3D would keep its YAAT special case and receive every position over the hub.
 5. A joined connection reads its primary's room (`CrcClientState.cs:66`). Make sure the UDP send keys on the *joiner's* own token, not the primary's.
 6. Docs: `docs/crc-protocol-support.md` (UDP rows), `docs/architecture.md` (UDP section, JSON transcoder clients), and `SELF_HOSTING.md` (6809/udp is now needed for Tower Cab, not just ERAM history).
 
