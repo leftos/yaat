@@ -1,4 +1,5 @@
 using Yaat.Sim;
+using Yaat.Sim.Situation;
 
 namespace Yaat.Client.ContextMenus;
 
@@ -89,6 +90,9 @@ public interface IMenuAircraft
 
     /// <summary>The approach the aircraft has been told to expect, or null when none.</summary>
     string? ExpectedApproach { get; }
+
+    /// <summary>The server-computed situation flags (the stored AircraftSituationState.Flags), sent beside Situation.</summary>
+    SituationFlags SituationFlags { get; }
 
     /// <summary>The fixes along the aircraft's route that a fix picker offers first, computed on each call.</summary>
     IReadOnlyList<string> RouteFixNames();

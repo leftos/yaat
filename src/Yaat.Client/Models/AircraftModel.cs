@@ -1021,6 +1021,9 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     [ObservableProperty]
     private AircraftSituation _situation = AircraftSituation.Unknown;
 
+    [ObservableProperty]
+    private SituationFlags _situationFlags = SituationFlags.None;
+
     // Live CFR release-window badge shown as a prefix in the Aircraft List Info column.
     [ObservableProperty]
     private string _cfrBadge = "";
@@ -1262,6 +1265,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         model.SmartStatus = dto.SmartStatus;
         model.SmartStatusSeverity = dto.SmartStatusSeverity;
         model.Situation = dto.Situation;
+        model.SituationFlags = dto.SituationFlags;
         return model;
     }
 
@@ -1383,6 +1387,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
         SmartStatus = dto.SmartStatus;
         SmartStatusSeverity = dto.SmartStatusSeverity;
         Situation = dto.Situation;
+        SituationFlags = dto.SituationFlags;
     }
 
     internal static (int Order, int Seconds) ParseStatusSortKey(string status)

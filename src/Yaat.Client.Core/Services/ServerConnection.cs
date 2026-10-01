@@ -1212,6 +1212,9 @@ public record AircraftDto(
     // What the controller is most likely to do next with the aircraft, classified server-side by
     // Yaat.Sim.Situation.SituationClassifier and sent as a number.
     Yaat.Sim.Situation.AircraftSituation Situation = Yaat.Sim.Situation.AircraftSituation.Unknown,
+    // The situation flags the server's Situation step computes beside the situation (Yaat.Sim.Situation.SituationFlagCalculator),
+    // sent as a number.
+    Yaat.Sim.Situation.SituationFlags SituationFlags = Yaat.Sim.Situation.SituationFlags.None,
     // Airport id of the ground layout this aircraft is on (server AircraftGroundOps.LayoutAirportId,
     // scenario primary airport as fallback). Null when airborne / unknown. Lets the radar surface a
     // ground aircraft's speech bubble when no ground view is currently showing that airport.

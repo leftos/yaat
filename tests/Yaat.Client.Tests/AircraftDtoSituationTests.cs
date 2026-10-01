@@ -60,6 +60,36 @@ public class AircraftDtoSituationTests
         Assert.Equal(AircraftSituation.LinedUp, model.Situation);
     }
 
+    [Fact]
+    public void Json_SituationFlagsNumber_DeserializesToTheFlags()
+    {
+        string json = JsonSerializer.Serialize(Dto(AircraftSituation.Final), WireOptions);
+        using var doc = JsonDocument.Parse(json);
+        JsonElement flags = doc.RootElement.GetProperty("situationFlags");
+        Assert.Equal(JsonValueKind.Number, flags.ValueKind);
+        Assert.Equal(0, flags.GetInt32());
+
+        // The server sends the flags as a number: 20 is InsideFinalApproachFix (4) | HasReportedFieldInSight (16).
+        string hubJson = json.Replace("\"situationFlags\":0", "\"situationFlags\":20", StringComparison.Ordinal);
+        AircraftDto? back = JsonSerializer.Deserialize<AircraftDto>(hubJson, WireOptions);
+
+        Assert.NotNull(back);
+        Assert.Equal(SituationFlags.InsideFinalApproachFix | SituationFlags.HasReportedFieldInSight, back.SituationFlags);
+    }
+
+    [Fact]
+    public void Model_CopiesSituationFlags_OnCreateAndUpdate()
+    {
+        var model = AircraftModel.FromDto(Dto(AircraftSituation.HoldingShort) with { SituationFlags = SituationFlags.HoldShortIsDepartureRunway });
+        Assert.Equal(SituationFlags.HoldShortIsDepartureRunway, model.SituationFlags);
+
+        model.UpdateFromDto(Dto(AircraftSituation.Final) with { SituationFlags = SituationFlags.InsideFinalApproachFix });
+        Assert.Equal(SituationFlags.InsideFinalApproachFix, model.SituationFlags);
+
+        model.UpdateFromDto(Dto(AircraftSituation.Final));
+        Assert.Equal(SituationFlags.None, model.SituationFlags);
+    }
+
     private static AircraftDto Dto(AircraftSituation situation) =>
         new(
             Callsign: "UAL123",

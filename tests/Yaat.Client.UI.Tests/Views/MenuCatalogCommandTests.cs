@@ -9,6 +9,7 @@ using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Situation;
 using Yaat.Sim.Testing;
 using CatalogMenuView = Yaat.Client.ContextMenus.MenuView;
 
@@ -1948,6 +1949,8 @@ public class MenuCatalogCommandTests
         public string? ActiveApproachId { get; init; }
 
         public string? ExpectedApproach { get; init; }
+
+        public SituationFlags SituationFlags { get; init; }
 
         public IReadOnlyList<string> RouteFixes { get; init; } = [];
 
