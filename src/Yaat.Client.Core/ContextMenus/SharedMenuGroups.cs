@@ -709,6 +709,23 @@ public static class SharedMenuGroups
         AddIfApplicable(items, MenuIds.TowerExitRight, aircraft, context, host);
     }
 
+    /// <summary>
+    /// The aircraft list's delayed-spawn items, in the list's order: Spawn now, the Change spawn delay submenu and
+    /// Delete. The caller places them in place of the phase-aware command groups when the aircraft is a delayed spawn.
+    /// The submenu's free-text delay box closes the menu it sits in, so the submenu comes from
+    /// <see cref="MenuCatalog.BuildSpawnDelay"/> rather than from its own entry's builder.
+    /// </summary>
+    public static void AddDelayedSpawn(ContextMenu menu, IMenuAircraft aircraft, MenuContext context, IMenuHost host)
+    {
+        menu.Items.Add(Leaf(MenuIds.SpawnNow, aircraft, context, host));
+        if (IsApplicable(MenuIds.SpawnDelay, aircraft, context))
+        {
+            menu.Items.Add(MenuCatalog.BuildSpawnDelay(menu, context, host));
+        }
+
+        menu.Items.Add(Delete(aircraft, context, host));
+    }
+
     /// <summary>The ground view's landing items, in menu order.</summary>
     private static readonly string[] GroundLandingIds =
     [

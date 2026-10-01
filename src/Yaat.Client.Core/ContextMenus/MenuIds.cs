@@ -441,4 +441,10 @@ public static class MenuIds
 
     /// <summary>Hide the aircraft's data block, or show it again.</summary>
     public const string DisplayHideDataBlock = "display.hide-datablock";
+
+    /// <summary>Spawn a delayed aircraft now (<c>SPAWN</c>).</summary>
+    public const string SpawnNow = "spawn.now";
+
+    /// <summary>Change how long a delayed aircraft waits before it spawns (<c>SPAWNDELAY</c>).</summary>
+    public const string SpawnDelay = "spawn.delay";
 }

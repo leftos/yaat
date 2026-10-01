@@ -1,9 +1,11 @@
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
+using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -156,6 +158,7 @@ public class MenuCatalogCommandTests
         (MenuIds.GroundHoldPosition, "", "HP"),
         (MenuIds.GroundResumeTaxi, "", "RES"),
         (MenuIds.GroundBreakConflict, "", "BREAK"),
+        (MenuIds.SpawnNow, "", "SPAWN"),
     ];
 
     /// <summary>
@@ -191,6 +194,7 @@ public class MenuCatalogCommandTests
         MenuIds.GroundPushRoute,
         MenuIds.GroundTaxiPreset,
         MenuIds.GroundDrawTaxiRoute,
+        MenuIds.SpawnDelay,
     ];
 
     public static TheoryData<string, string, string> SingleCommandLeaves()
@@ -1511,6 +1515,143 @@ public class MenuCatalogCommandTests
             [("Hold position", "HOLD"), ("Line up and wait 30", "LUAW"), ("Cleared for takeoff 30", "CTO"), ("Check release window", "CFR CHECK")],
             ListMenuCommands(aircraft, new RecordingMenuHost(""))
         );
+    }
+
+    // --- The aircraft list's delayed-spawn block (MenuView.List) ---
+
+    /// <summary>The list's delayed-spawn items for a delayed aircraft, placed as the list places them.</summary>
+    private static ContextMenu DelayedSpawnMenu(RecordingMenuHost host)
+    {
+        var menu = new ContextMenu();
+        SharedMenuGroups.AddDelayedSpawn(menu, new FakeMenuAircraft(), ListContext(VfrCommandsForIfr.None), host);
+        return menu;
+    }
+
+    /// <summary>The Change spawn delay submenu of <paramref name="menu"/>.</summary>
+    private static MenuItem DelaySubmenu(ContextMenu menu) =>
+        Assert.Single(menu.Items.OfType<MenuItem>(), i => (i.Header as string) == "Change spawn delay");
+
+    /// <summary>The delay submenu's free-text box, the item after its separator.</summary>
+    private static TextBox CustomDelayBox(ContextMenu menu) => Assert.IsType<TextBox>(DelaySubmenu(menu).Items[^1]);
+
+    private static void RaiseEnter(TextBox textBox) =>
+        textBox.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+
+    /// <summary>
+    /// Opens <paramref name="menu"/> on an anchor in a shown window, so its open state can be observed, and asserts it
+    /// opened. The caller closes the window when it is done.
+    /// </summary>
+    private static Window OpenMenuOnAnchor(ContextMenu menu)
+    {
+        var anchor = new Border();
+        var window = new Window
+        {
+            Width = 400,
+            Height = 200,
+            Content = anchor,
+        };
+        window.ShowAndRunLayout();
+        menu.Open(anchor);
+        HeadlessWindowExtensions.PumpDispatcher();
+        Assert.True(menu.IsOpen, "the menu opens before the custom box is used");
+        return window;
+    }
+
+    // The delayed-spawn menu replaces the phase-aware block: Spawn now, the preset submenu (whose custom box sits
+    // after a separator, placeholder and size as the list always had them) and Delete.
+    [AvaloniaFact]
+    public void DelayedSpawn_OffersSpawnNowTheDelaySubmenuAndDelete()
+    {
+        ContextMenu menu = DelayedSpawnMenu(new RecordingMenuHost(""));
+
+        Assert.Equal(["Spawn now", "Change spawn delay", "Delete"], menu.Items.OfType<MenuItem>().Select(i => i.Header as string));
+        Assert.Equal(
+            ["15 seconds", "30 seconds", "1 minute", "2 minutes", "5 minutes", "10 minutes", "---", "TextBox"],
+            DelaySubmenu(menu).Items.Select(Describe)
+        );
+
+        TextBox box = CustomDelayBox(menu);
+        Assert.Equal("Custom (e.g. 90, 2m15s, 1h)", box.PlaceholderText);
+        Assert.Equal(12, box.FontSize);
+        Assert.Equal(180, box.MinWidth);
+    }
+
+    [AvaloniaFact]
+    public void DelayedSpawn_SpawnNow_SendsSpawn()
+    {
+        var host = new RecordingMenuHost("");
+        ContextMenu menu = DelayedSpawnMenu(host);
+
+        Click(Assert.Single(menu.Items.OfType<MenuItem>(), i => (i.Header as string) == "Spawn now"));
+
+        Assert.Equal([(Callsign, "SPAWN", Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void DelayedSpawn_Delete_SendsDel()
+    {
+        var host = new RecordingMenuHost("");
+        ContextMenu menu = DelayedSpawnMenu(host);
+
+        Click(Assert.Single(menu.Items.OfType<MenuItem>(), i => (i.Header as string) == "Delete"));
+
+        Assert.Equal([(Callsign, "DEL", Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void DelayedSpawn_DelayPreset_SendsSpawndelayWithItsSeconds()
+    {
+        var host = new RecordingMenuHost("");
+        ContextMenu menu = DelayedSpawnMenu(host);
+
+        Click(Assert.Single(DelaySubmenu(menu).Items.OfType<MenuItem>(), i => (i.Header as string) == "1 minute"));
+
+        Assert.Equal([(Callsign, "SPAWNDELAY 60", Initials)], host.Sent);
+    }
+
+    // The custom box closes the menu it sits in, so the test opens the menu on a real anchor and asserts it closes.
+    [AvaloniaFact]
+    public void DelayedSpawn_CustomDelayBox_ParsedText_SendsItsSecondsAndClosesTheMenu()
+    {
+        var host = new RecordingMenuHost("");
+        ContextMenu menu = DelayedSpawnMenu(host);
+        TextBox box = CustomDelayBox(menu);
+        Window window = OpenMenuOnAnchor(menu);
+        try
+        {
+            box.Text = "2m15s";
+            RaiseEnter(box);
+            HeadlessWindowExtensions.PumpDispatcher();
+
+            Assert.Equal([(Callsign, "SPAWNDELAY 135", Initials)], host.Sent);
+            Assert.False(menu.IsOpen, "a parsed delay closes the menu");
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void DelayedSpawn_CustomDelayBox_UnparsableText_SendsNothingAndLeavesTheMenuOpen()
+    {
+        var host = new RecordingMenuHost("");
+        ContextMenu menu = DelayedSpawnMenu(host);
+        TextBox box = CustomDelayBox(menu);
+        Window window = OpenMenuOnAnchor(menu);
+        try
+        {
+            box.Text = "abc";
+            RaiseEnter(box);
+            HeadlessWindowExtensions.PumpDispatcher();
+
+            Assert.Empty(host.Sent);
+            Assert.True(menu.IsOpen, "text that names no delay leaves the menu open");
+        }
+        finally
+        {
+            window.Close();
+        }
     }
 
     /// <summary>Every leg of the circuit (<see cref="AircraftCommandApplicability.IsPatternPhase"/>), comma-separated.</summary>

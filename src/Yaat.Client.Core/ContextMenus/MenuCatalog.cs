@@ -1,5 +1,6 @@
 using System.Globalization;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
@@ -17,7 +18,9 @@ namespace Yaat.Client.ContextMenus;
 /// surface's own state — the warp popup, the flight-plan editor, the data-block toggle, hide and reset, the nav route,
 /// the measure item, route and push-route drawing, and the ground's hold-short, follow, give-way, push-back-to and
 /// preset-taxi submenus over the choices the host answers (the pushback faces are flat items of a companion helper,
-/// <see cref="BuildPushbackFaces"/>); a value submenu builds a whole submenu of items from its own label and the menu
+/// <see cref="BuildPushbackFaces"/>), and so is the delayed spawn's Change spawn delay submenu
+/// (<see cref="BuildSpawnDelay"/>), whose free-text box closes the menu it sits in; a value submenu builds a whole
+/// submenu of items from its own label and the menu
 /// context, one per value — the leader directions, the J-ring radii, the cone lengths and the taxi-route modes; and the Cleared for
 /// takeoff submenu offers the default clearance and runway heading, the VFR departure instructions when the aircraft
 /// and the controller's VFR-for-IFR setting allow them, and a free-text item last. A pattern entry is a leaf naming the
@@ -28,7 +31,8 @@ namespace Yaat.Client.ContextMenus;
 /// The aircraft list (<see cref="MenuView.List"/>) shows its own flat variants: a hold-short or stationary hold to
 /// resume taxi from, a cross-runway gate with no controllability requirement, Hold position sending <c>HOLD</c>, a
 /// release-window check with no controllability requirement, and line up and wait and Cleared for takeoff naming the
-/// held runway, the latter as a bare leaf sending <c>CTO</c>.
+/// held runway, the latter as a bare leaf sending <c>CTO</c>. A delayed spawn instead offers Spawn now, the
+/// Change spawn delay submenu and Delete (<see cref="SharedMenuGroups.AddDelayedSpawn"/>).
 /// </summary>
 public static class MenuCatalog
 {
@@ -272,6 +276,17 @@ public static class MenuCatalog
         HostLeaf(MenuIds.GroundDrawTaxiRoute, "Draw taxi route...", (ac, _) => AircraftCommandApplicability.CanDrawTaxiRoute(ac), BuildDrawRoute),
         RelativeGround(MenuIds.GroundRelativeGiveWay, "Selected aircraft: give way to", "give way to", "GW"),
         RelativeGround(MenuIds.GroundRelativeFollow, "Selected aircraft: follow", "follow", "FOLLOWG"),
+        Leaf(MenuIds.SpawnNow, "Spawn now", "SPAWN", Always),
+        HostLeaf(
+            MenuIds.SpawnDelay,
+            SpawnDelayLabel,
+            Always,
+            (_, _, _, _) =>
+                throw new InvalidOperationException(
+                    $"The '{MenuIds.SpawnDelay}' entry builds no item; SharedMenuGroups.AddDelayedSpawn builds its submenu "
+                        + "through MenuCatalog.BuildSpawnDelay, which takes the menu its free-text box closes."
+                )
+        ),
     ];
 
     /// <summary>
@@ -297,6 +312,9 @@ public static class MenuCatalog
 
     /// <summary>The Cross runway entry's label, which the held runway follows.</summary>
     private const string CrossRunwayLabel = "Cross";
+
+    /// <summary>The Change spawn delay submenu's label, which the delayed-spawn group heads it with.</summary>
+    private const string SpawnDelayLabel = "Change spawn delay";
 
     /// <summary>The ground view's closed-traffic departure instructions, offered after the default when the VFR ones apply.</summary>
     private static readonly (string Label, string Argument)[] GroundTrafficTakeoffModifiers =
@@ -540,6 +558,56 @@ public static class MenuCatalog
     /// <summary>Cross the held runway, named in display form and sent as held; null when the aircraft holds short of none.</summary>
     private static MenuItem? BuildCrossRunway(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
         HeldRunway(aircraft) is { } runway ? BuildSend(CrossRunwayLabel + DisplaySuffix(runway), $"CROSS {runway}", context, host) : null;
+
+    /// <summary>
+    /// The Change spawn delay submenu: one item per <see cref="SpawnDelay.Presets"/> entry, then a free-text box that
+    /// sends the delay it parses. The box closes the menu it sits in, so this companion builder takes that menu rather
+    /// than the entry's own builder shape.
+    /// </summary>
+    internal static MenuItem BuildSpawnDelay(ContextMenu menu, MenuContext context, IMenuHost host)
+    {
+        var delayMenu = new MenuItem { Header = SpawnDelayLabel };
+        foreach ((string label, int seconds) in SpawnDelay.Presets)
+        {
+            delayMenu.Items.Add(BuildSend(label, $"SPAWNDELAY {seconds}", context, host));
+        }
+
+        delayMenu.Items.Add(new Separator());
+        delayMenu.Items.Add(BuildCustomDelayInput(menu, context, host));
+        return delayMenu;
+    }
+
+    /// <summary>
+    /// The delay submenu's free-text box: Enter parses the text as a delay and, when it names one, closes
+    /// <paramref name="parentMenu"/> and sends <c>SPAWNDELAY {seconds}</c>; text that names no delay sends nothing.
+    /// </summary>
+    private static TextBox BuildCustomDelayInput(ContextMenu parentMenu, MenuContext context, IMenuHost host)
+    {
+        var textBox = new TextBox
+        {
+            PlaceholderText = "Custom (e.g. 90, 2m15s, 1h)",
+            FontSize = 12,
+            MinWidth = 180,
+        };
+        textBox.KeyDown += async (_, e) =>
+        {
+            if (e.Key != Key.Enter)
+            {
+                return;
+            }
+
+            e.Handled = true;
+            int? seconds = SpawnDelay.ParseDelayInput(textBox.Text);
+            if (seconds is null)
+            {
+                return;
+            }
+
+            parentMenu.Close();
+            await host.SendAsync(context.Callsign, $"SPAWNDELAY {seconds.Value}", context.Initials);
+        };
+        return textBox;
+    }
 
     /// <summary>
     /// The ground view's Cleared for takeoff submenu, headed with the runway it names (<see cref="GroundTakeoffRunway"/>):

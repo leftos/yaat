@@ -197,7 +197,7 @@ public partial class DataGridView : UserControl
 
         if (ac.IsDelayed)
         {
-            AddDelayedSpawnItems(menu, vm, callsign, initials);
+            SharedMenuGroups.AddDelayedSpawn(menu, ac, context, host);
             return menu;
         }
 
