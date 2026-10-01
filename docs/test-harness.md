@@ -483,6 +483,7 @@ Run it: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -
 
 ## Footguns and pitfalls
 
+- **A pinned value must not carry the process's day.** `MagneticDeclination.EvaluationDateUtc` and `SimScenarioState.ProcessDayUtc` are the UTC day the test process started, and a session start goes into the snapshot (`SimScenarioState.SessionStartUtc`). A test that compares against a value pinned across runs (a hash, a golden) passes a fixed `DateTime` with `DateTimeKind.Utc` as the session start, or it breaks every day at 00:00Z. Tests comparing two loads made in one process may use `EvaluationDateUtc`.
 - **Static-singleton race.** A class reading a `TestVnasData`-populated singleton (`AircraftProfileDatabase`, `AircraftSiblingMap`,
   `NavigationDatabase`, …) can race a class mid-init. Symptom: `Expected 98 / Actual 96.5` (default-fallback), passes alone, flakes in the
   suite. **Fix: `TestVnasData.EnsureInitialized()` in the class *constructor*.**
