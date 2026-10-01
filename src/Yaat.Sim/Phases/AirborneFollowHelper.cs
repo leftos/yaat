@@ -449,7 +449,7 @@ public static class AirborneFollowHelper
     /// The pattern leg an aircraft flying no pattern-leg phase stands in for in the landing sequence: an instrument approach
     /// (<see cref="InterceptCoursePhase"/>, an inbound <see cref="ApproachNavigationPhase"/>) or any other phase flown on its
     /// runway's final by geometry (<see cref="IsOnFinalByGeometry"/>) is the final; a go-around that re-enters the pattern
-    /// (<see cref="GoAroundPhase.ReenterPattern"/>) and a closed-traffic takeoff climb are the upwind (AIM §4-3-2.a.3.2). Null
+    /// (<see cref="GoAroundPhase.ReenterPattern"/>) and a closed-traffic takeoff climb are the upwind (AIM §4-3-2.c.2). Null
     /// for the published missed approach (<see cref="IsOnMissedApproach"/>), even where it climbs out over the final, and
     /// otherwise: a go-around leaving the pattern, a departure leaving the pattern, a hold.
     /// </summary>
@@ -475,12 +475,19 @@ public static class AirborneFollowHelper
     }
 
     /// <summary>
-    /// True when <paramref name="aircraft"/> is airborne on a closed-traffic takeoff off its pattern runway: the climb-out is the
-    /// circuit's upwind. A cross-runway closed-traffic climb (<see cref="PhaseList.DepartureRunway"/> set) is not on the pattern
-    /// runway's upwind, so it is left out.
+    /// True when <paramref name="aircraft"/> is airborne on a closed-traffic takeoff whose climb-out is its pattern circuit's
+    /// upwind: off the pattern runway itself, or off a close parallel of it (<see cref="PhaseList.DepartureRunway"/> set,
+    /// <see cref="RunwayGeometry.AreCloseParallels"/>), which continues its upwind past both departure ends. A climb off a
+    /// crossing runway is not on the pattern runway's upwind, so it is left out, and so is one whose pattern runway is at
+    /// another airport: <see cref="RunwayGeometry.AreCloseParallels"/> holds only for two runways with the same airport id.
     /// </summary>
     internal static bool IsClosedTrafficClimb(AircraftState aircraft) =>
-        !aircraft.IsOnGround && (aircraft.Phases is { CurrentPhase: TakeoffPhase { Departure: ClosedTrafficDeparture }, DepartureRunway: null });
+        !aircraft.IsOnGround
+        && (aircraft.Phases is { CurrentPhase: TakeoffPhase { Departure: ClosedTrafficDeparture } } phases)
+        && (
+            (phases.DepartureRunway is not { } flown)
+            || ((phases.AssignedRunway is { } patternRunway) && RunwayGeometry.AreCloseParallels(flown, patternRunway))
+        );
 
     /// <summary>
     /// True when both aircraft are flying patterns to the same runway and the

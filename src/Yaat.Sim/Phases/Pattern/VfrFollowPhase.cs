@@ -193,8 +193,10 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
 
     /// <summary>
     /// The departure-leg hold pursuing <paramref name="aircraft"/> owes: its upwind leg's gate when that is the leg it is on (a
-    /// FOLLOW issued on the upwind, or the hand-over from a climb-out to one), the runway's own when it is climbing out with no
-    /// circuit to read (a go-around flown as the published missed), else null — a pursuit started anywhere else may steer at its
+    /// FOLLOW issued on the upwind, or the hand-over from a climb-out to one); when it is still climbing out (a go-around, or a
+    /// closed-traffic climb off its pattern runway or a close parallel of it), the runway it is flying: that runway's heading,
+    /// past the farther departure end of it and the pattern runway (<see cref="PatternGeometry.TransitionDepartureEnd"/>), at
+    /// the pattern runway's pattern altitude less the turn margin; else null — a pursuit started anywhere else may steer at its
     /// lead at once.
     /// </summary>
     internal static FollowClimbOutGate? ClimbOutGateFor(AircraftState aircraft, AirportGroundLayout? groundLayout)
@@ -205,10 +207,13 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             return FollowClimbOutGate.FromWaypoints(waypoints);
         }
 
-        bool climbingOutOfPattern = (current is GoAroundPhase) || ((current is TakeoffPhase) && AirborneFollowHelper.IsClosedTrafficClimb(aircraft));
-        if (climbingOutOfPattern && (aircraft.Phases?.AssignedRunway is { } runway))
+        bool closedTrafficClimb = (current is TakeoffPhase) && AirborneFollowHelper.IsClosedTrafficClimb(aircraft);
+        bool climbingOutOfPattern = (current is GoAroundPhase) || closedTrafficClimb;
+        if (climbingOutOfPattern && (aircraft.Phases?.AssignedRunway is { } patternRunway))
         {
-            return FollowClimbOutGate.ForRunway(runway, ResolvePatternAltitudeFt(aircraft, runway, groundLayout));
+            // A closed-traffic climb off a close parallel flies that runway's centerline; the pattern runway sets the altitude.
+            RunwayInfo flownRunway = (closedTrafficClimb ? aircraft.Phases.DepartureRunway : null) ?? patternRunway;
+            return FollowClimbOutGate.ForClimbOut(flownRunway, patternRunway, ResolvePatternAltitudeFt(aircraft, patternRunway, groundLayout));
         }
 
         return null;
@@ -2457,12 +2462,18 @@ internal sealed record FollowClimbOutGate(LatLon DepartureEnd, TrueHeading Upwin
         );
 
     /// <summary>
-    /// The gate a runway puts on a departure-leg pursuit with no circuit of its own: the runway's pavement end — the point
-    /// <see cref="PatternGeometry"/> anchors a circuit's crosswind turn at — its true heading, and the circuit's pattern altitude
-    /// less the legal-turn margin.
+    /// The gate a climb-out on <paramref name="flownRunway"/> into <paramref name="patternRunway"/>'s circuit puts on a
+    /// departure-leg pursuit with no circuit waypoints to read: the farther of the two runways' departure ends along the pattern
+    /// runway's heading (<see cref="PatternGeometry.TransitionDepartureEnd"/>, the point a transition circuit anchors its
+    /// crosswind turn at; the runway's own pavement end when the two are one), the flown runway's true heading (AIM 4-3-2.c.1),
+    /// and the pattern altitude less the legal-turn margin.
     /// </summary>
-    internal static FollowClimbOutGate ForRunway(RunwayInfo runway, double patternAltitudeFt) =>
-        new(new LatLon(runway.EndLatitude, runway.EndLongitude), runway.TrueHeading, patternAltitudeFt - UpwindPhase.PatternHandoffMarginFt);
+    internal static FollowClimbOutGate ForClimbOut(RunwayInfo flownRunway, RunwayInfo patternRunway, double patternAltitudeFt) =>
+        new(
+            PatternGeometry.TransitionDepartureEnd(flownRunway, patternRunway),
+            flownRunway.TrueHeading,
+            patternAltitudeFt - UpwindPhase.PatternHandoffMarginFt
+        );
 }
 
 /// <summary>A position and heading in a runway's final frame, for the turn-out geometry (<see cref="VfrFollowPhase.FinalFrameOf"/>).</summary>

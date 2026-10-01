@@ -4058,9 +4058,9 @@ public static class CommandDispatcher
         new(false, $"Unable, on {position} for runway {runway.Designator}, {target} is not ahead of us, request vectors");
 
     /// <summary>
-    /// True when <paramref name="current"/> is a climb that counts as the circuit's upwind (AIM §4-3-2.a.3.2): a go-around
-    /// that re-enters the pattern, or an airborne closed-traffic takeoff climb off its pattern runway
-    /// (<see cref="AirborneFollowHelper.IsClosedTrafficClimb"/>). FOLLOW keeps such a climb and only sets the lead.
+    /// True when <paramref name="current"/> is a climb that counts as the circuit's upwind (AIM §4-3-2.c.2): a go-around
+    /// that re-enters the pattern, or an airborne closed-traffic takeoff climb off its pattern runway or a close parallel of it
+    /// at the same airport (<see cref="AirborneFollowHelper.IsClosedTrafficClimb"/>). FOLLOW keeps such a climb and only sets the lead.
     /// </summary>
     private static bool IsClimbLeg(AircraftState aircraft, Phase? current) =>
         (current is GoAroundPhase { ReenterPattern: true }) || ((current is TakeoffPhase) && AirborneFollowHelper.IsClosedTrafficClimb(aircraft));
@@ -4247,8 +4247,10 @@ public static class CommandDispatcher
 
     /// <summary>
     /// True when <paramref name="lead"/> is departing: airborne with a runway, in <see cref="TakeoffPhase"/>,
-    /// <see cref="InitialClimbPhase"/> or <see cref="DepartureProcedurePhase"/>, and not climbing out in closed traffic
-    /// (<see cref="AirborneFollowHelper.IsClosedTrafficClimb"/>, which counts as the circuit's upwind).
+    /// <see cref="InitialClimbPhase"/> or <see cref="DepartureProcedurePhase"/>, and not climbing out in closed traffic off its
+    /// pattern runway or a close parallel of it (<see cref="AirborneFollowHelper.IsClosedTrafficClimb"/>, which counts as the
+    /// circuit's upwind). A closed-traffic climb off a crossing runway, or toward a pattern runway at another airport, is
+    /// departing.
     /// </summary>
     private static bool IsDepartingLead(AircraftState lead) =>
         !lead.IsOnGround
