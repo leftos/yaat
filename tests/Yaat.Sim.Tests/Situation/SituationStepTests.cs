@@ -3,9 +3,11 @@ using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -260,6 +262,106 @@ public class SituationStepTests(ITestOutputHelper output)
         Assert.False(restored.Situation.WasOnGround);
     }
 
+    [Fact]
+    public void TickSituation_StoresTheFlags()
+    {
+        if (Engine(AiTestFixture.ParkedAtOak) is not { } engine)
+        {
+            return;
+        }
+
+        AircraftState ac = Airborne(engine, OffAirport("OAK", 180, 10), trackDeg: 0);
+        ac.FlightPlan.FlightRules = "IFR";
+        ac.Approach.HasReportedFieldInSight = true;
+        Assert.Equal(SituationFlags.None, ac.Situation.Flags);
+
+        engine.TickSituation();
+
+        Assert.Equal(SituationFlags.HasReportedFieldInSight, ac.Situation.Flags);
+    }
+
+    /// <summary>
+    /// The inside-FAF test measures against the assigned runway's own airport map, not the aircraft's ground layout:
+    /// on KSJC 30L (landing threshold displaced 2,537 ft) with an OAK ground layout, at a point the displacement puts
+    /// outside the FAF, the flag stays clear; well inside it, it is set.
+    /// </summary>
+    [Fact]
+    public void TickSituation_InsideFaf_UsesTheRunwaysAirportLayout()
+    {
+        if (Engine(AiTestFixture.ParkedAtOak) is not { } engine)
+        {
+            return;
+        }
+
+        var groundData = new TestAirportGroundData();
+        AirportGroundLayout sjc = groundData.GetLayout("SJC") ?? throw new InvalidOperationException("KSJC layout missing from TestData");
+        AirportGroundLayout oak = groundData.GetLayout("OAK") ?? throw new InvalidOperationException("KOAK layout missing from TestData");
+        RunwayInfo runway = NavigationDatabase.Instance.GetRunway("KSJC", "30L") ?? throw new InvalidOperationException("KSJC 30L missing");
+        AircraftState ac = Airborne(engine, OnFinal(runway, 1.0), trackDeg: runway.TrueHeading.Degrees);
+        ac.Ground.Layout = oak;
+        var phases = new PhaseList { AssignedRunway = runway };
+        phases.Add(new FinalApproachPhase());
+        ac.Phases = phases;
+
+        double? decisiveNm = null;
+        for (double alongNm = 1.0; (alongNm < 15.0) && (decisiveNm is null); alongNm += 0.05)
+        {
+            ac.Position = OnFinal(runway, alongNm);
+            if (FinalApproachFix.IsInside(ac, runway, oak) && (!FinalApproachFix.IsInside(ac, runway, sjc)))
+            {
+                decisiveNm = alongNm;
+            }
+        }
+
+        Assert.NotNull(decisiveNm);
+        engine.TickSituation();
+        Assert.Equal(SituationFlags.None, ac.Situation.Flags & SituationFlags.InsideFinalApproachFix);
+
+        ac.Position = OnFinal(runway, 1.0);
+        engine.TickSituation();
+        Assert.Equal(SituationFlags.InsideFinalApproachFix, ac.Situation.Flags & SituationFlags.InsideFinalApproachFix);
+    }
+
+    [Fact]
+    public void Snapshot_RoundTripsTheFlags()
+    {
+        var ac = new AircraftState
+        {
+            Callsign = "N123AB",
+            AircraftType = "C172",
+            IsOnGround = false,
+        };
+        ac.Situation.Flags = SituationFlags.InsideFinalApproachFix | SituationFlags.HasReportedTrafficInSight;
+
+        string json = JsonSerializer.Serialize(ac.ToSnapshot(), RecordingJsonOptions.Default);
+        AircraftSnapshotDto dto = JsonSerializer.Deserialize<AircraftSnapshotDto>(json, RecordingJsonOptions.Default)!;
+        var restored = AircraftState.FromSnapshot(dto, null);
+
+        Assert.Equal(SituationFlags.InsideFinalApproachFix | SituationFlags.HasReportedTrafficInSight, restored.Situation.Flags);
+    }
+
+    [Fact]
+    public void Snapshot_WithoutFlags_RestoresNone()
+    {
+        var ac = new AircraftState
+        {
+            Callsign = "N123AB",
+            AircraftType = "C172",
+            IsOnGround = false,
+        };
+        ac.Situation.Current = AircraftSituation.Final;
+        ac.Situation.Flags = SituationFlags.RolloutDecelerating;
+
+        JsonObject node = JsonSerializer.SerializeToNode(ac.ToSnapshot(), RecordingJsonOptions.Default)!.AsObject();
+        JsonObject situation = node[nameof(AircraftSnapshotDto.Situation)]!.AsObject();
+        Assert.True(situation.Remove(nameof(AircraftSituationStateDto.Flags)));
+        AircraftSnapshotDto dto = node.Deserialize<AircraftSnapshotDto>(RecordingJsonOptions.Default)!;
+        var restored = AircraftState.FromSnapshot(dto, null);
+
+        Assert.Equal(AircraftSituation.Final, restored.Situation.Current);
+        Assert.Equal(SituationFlags.None, restored.Situation.Flags);
+    }
+
     /// <summary>The fixture's parked aircraft lifted into the air at <paramref name="position"/>: no phase, 2,000 ft, 100 kt.</summary>
     private static AircraftState Airborne(SimulationEngine engine, LatLon position, double trackDeg)
     {
@@ -273,6 +375,9 @@ public class SituationStepTests(ITestOutputHelper output)
         ac.TrueTrack = new TrueHeading(trackDeg);
         return ac;
     }
+
+    private static LatLon OnFinal(RunwayInfo runway, double alongNm) =>
+        GeoMath.ProjectPoint(new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude), runway.TrueHeading.ToReciprocal(), alongNm);
 
     private static LatLon OffAirport(string airport, double bearingDeg, double distanceNm)
     {

@@ -11,4 +11,7 @@ public sealed class AircraftSituationStateDto
 
     /// <summary>Whether the last <c>Situation</c> step saw the aircraft on the ground; false when absent.</summary>
     public bool WasOnGround { get; init; }
+
+    /// <summary>The stored <see cref="Yaat.Sim.Situation.SituationFlags"/> as their fixed bits; 0 (none) when absent.</summary>
+    public int Flags { get; init; }
 }

@@ -25,8 +25,13 @@ public static class FinalApproachFix
             return false;
         }
 
+        return CrossTrackNm(aircraft, runway) <= AirborneFollowHelper.OnFinalMaxCrossTrackNm;
+    }
+
+    /// <summary>The aircraft's absolute distance from the runway's extended centerline, the cross-track <see cref="IsInside"/> tests.</summary>
+    public static double CrossTrackNm(AircraftState aircraft, RunwayInfo runway)
+    {
         var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
-        double crossTrackNm = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(aircraft.Position, threshold, runway.TrueHeading));
-        return crossTrackNm <= AirborneFollowHelper.OnFinalMaxCrossTrackNm;
+        return Math.Abs(GeoMath.SignedCrossTrackDistanceNm(aircraft.Position, threshold, runway.TrueHeading));
     }
 }

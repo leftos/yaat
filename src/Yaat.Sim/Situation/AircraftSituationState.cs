@@ -27,12 +27,20 @@ public class AircraftSituationState
     /// </summary>
     public bool WasOnGround { get; set; }
 
+    /// <summary>
+    /// The flags the last <c>Situation</c> step computed (<see cref="SituationFlagCalculator"/>); the next step reads
+    /// them back as the previous second's, which the latched flags hold on. <see cref="SituationFlags.None"/> until it
+    /// first runs.
+    /// </summary>
+    public SituationFlags Flags { get; set; }
+
     public AircraftSituationStateDto ToSnapshot() =>
         new()
         {
             Current = (int)Current,
             AirborneAtSeconds = AirborneAtSeconds,
             WasOnGround = WasOnGround,
+            Flags = (int)Flags,
         };
 
     public static AircraftSituationState FromSnapshot(AircraftSituationStateDto dto) =>
@@ -41,5 +49,6 @@ public class AircraftSituationState
             Current = (AircraftSituation)dto.Current,
             AirborneAtSeconds = dto.AirborneAtSeconds,
             WasOnGround = dto.WasOnGround,
+            Flags = (SituationFlags)dto.Flags,
         };
 }
