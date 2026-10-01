@@ -3,7 +3,9 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Interactivity;
 using Xunit;
 using Yaat.Client.ContextMenus;
+using Yaat.Sim;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Testing;
 using CatalogMenuView = Yaat.Client.ContextMenus.MenuView;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -19,10 +21,11 @@ public class MenuCatalogCommandTests
     private const string PositionOrCode = "1234";
     private const string SayText = "say again";
     private const string BlockText = "gate 25";
+    private const string Fix = "SUNOL";
 
     /// <summary>
-    /// Every catalog entry but the host-built ones (see <see cref="HostBuiltIds"/>): its id, the text an input picker
-    /// is answered with, and the command it sends.
+    /// Every catalog entry but the host-built ones (see <see cref="HostBuiltIds"/>): its id, the text an input or
+    /// filtered-list picker is answered with or the item text a list picker picks, and the command it sends.
     /// </summary>
     private static readonly (string Id, string Input, string Command)[] Expected =
     [
@@ -60,6 +63,23 @@ public class MenuCatalogCommandTests
         (MenuIds.SimControlDelete, "", "DEL"),
         (MenuIds.DisplayBlank, "", "BLANK"),
         (MenuIds.DisplayUnblank, "", "BLANKD"),
+        (MenuIds.HeadingPresent, "", "FPH"),
+        (MenuIds.HeadingFly, "270", "FH 270"),
+        (MenuIds.HeadingTurnLeft, "270", "TL 270"),
+        (MenuIds.HeadingTurnRight, "270", "TR 270"),
+        (MenuIds.HeadingTurnLeftDegrees, "30", "LT 30"),
+        (MenuIds.HeadingTurnRightDegrees, "30", "RT 30"),
+        (MenuIds.AltitudeMaintain, "FL350", "CM 35000"),
+        (MenuIds.SpeedAssign, "250", "SPD 250"),
+        (MenuIds.SpeedCustom, "210", "SPD 210"),
+        (MenuIds.SpeedNormal, "", "RNS"),
+        (MenuIds.SpeedFinalApproach, "", "RFAS"),
+        (MenuIds.NavigationDirectTo, Fix, "DCT SUNOL"),
+        (MenuIds.NavigationAppendDirectTo, Fix, "ADCT SUNOL"),
+        (MenuIds.HoldPresentLeft, "", "HPPL"),
+        (MenuIds.HoldPresentRight, "", "HPPR"),
+        (MenuIds.HoldFixLeft, Fix, "HFIXL SUNOL"),
+        (MenuIds.HoldFixRight, Fix, "HFIXR SUNOL"),
     ];
 
     /// <summary>
@@ -79,6 +99,7 @@ public class MenuCatalogCommandTests
         MenuIds.DisplayLeaderDirection,
         MenuIds.DisplayJRing,
         MenuIds.DisplayCone,
+        MenuIds.NavigationDrawRoute,
     ];
 
     public static TheoryData<string, string, string> SingleCommandLeaves()
@@ -370,6 +391,261 @@ public class MenuCatalogCommandTests
         );
     }
 
+    [AvaloniaTheory]
+    [InlineData(92.0, 90)]
+    [InlineData(1.0, 360)]
+    public void FlyHeading_SeedsPopupWithTheHeadingRoundedToFive(double heading, int seed)
+    {
+        var host = new RecordingMenuHost("270");
+        MenuItem? item = MenuCatalog.Get(MenuIds.HeadingFly).Build(new FakeMenuAircraft { HeadingDegrees = heading }, Context(), host);
+
+        Assert.NotNull(item);
+        Click(item);
+
+        (IReadOnlyList<string> Items, object? Selected) popup = Assert.Single(host.ListPopups);
+        Assert.Equal<object?>(seed, popup.Selected);
+        Assert.Equal(72, popup.Items.Count);
+        Assert.Equal([(Callsign, "FH 270", Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void HeadingGroup_HeaderPrefersNavigatingTo_ThenTheAssignedMagneticHeading()
+    {
+        var host = new RecordingMenuHost("");
+        var assigned = new MagneticHeading(270);
+
+        Assert.Equal("Heading", SharedMenuGroups.Heading(new FakeMenuAircraft(), Context(), host).Header as string);
+        Assert.Equal(
+            "Heading (→ 270)",
+            SharedMenuGroups.Heading(new FakeMenuAircraft { AssignedHeading = assigned }, Context(), host).Header as string
+        );
+        Assert.Equal(
+            "Heading (→ SUNOL)",
+            SharedMenuGroups.Heading(new FakeMenuAircraft { AssignedHeading = assigned, NavigatingTo = Fix }, Context(), host).Header as string
+        );
+    }
+
+    [AvaloniaTheory]
+    [InlineData(10000.0, "FL350", "CM 35000")]
+    [InlineData(10000.0, "5000", "DM 5000")]
+    [InlineData(10000.0, "10000", "DM 10000")]
+    public void MaintainAltitude_ClimbsAboveTheCurrentAltitude_DescendsBelowIt(double altitude, string pick, string command)
+    {
+        var host = new RecordingMenuHost(pick);
+        MenuItem? item = MenuCatalog.Get(MenuIds.AltitudeMaintain).Build(new FakeMenuAircraft { AltitudeFeet = altitude }, Context(), host);
+
+        Assert.NotNull(item);
+        Assert.Equal("Maintain", item.Header as string);
+        Click(item);
+
+        (IReadOnlyList<string> Items, object? Selected) popup = Assert.Single(host.ListPopups);
+        Assert.Null(popup.Selected);
+        Assert.Contains("17500", popup.Items);
+        Assert.Contains("FL180", popup.Items);
+        Assert.DoesNotContain("18000", popup.Items);
+        Assert.Equal([(Callsign, command, Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void MaintainAltitude_ListsFromTheDestinationsFieldElevation_In100sThen500s()
+    {
+        var host = new RecordingMenuHost("9500") { FieldElevation = 4321 };
+        var aircraft = new FakeMenuAircraft { AltitudeFeet = 5000, Destination = "KXYZ" };
+        MenuItem? item = MenuCatalog.Get(MenuIds.AltitudeMaintain).Build(aircraft, Context(), host);
+
+        Assert.NotNull(item);
+        Click(item);
+
+        Assert.Equal(["KXYZ"], host.FieldElevationRequests);
+        IReadOnlyList<string> items = Assert.Single(host.ListPopups).Items;
+        Assert.Equal("4400", items[0]);
+        int last100 = items.ToList().IndexOf("9300");
+        Assert.True(last100 >= 0, "9300 (the last 100-ft step below field + 5,000 ft) is listed");
+        Assert.Equal("9500", items[last100 + 1]);
+        Assert.Equal([(Callsign, "CM 9500", Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void RelativeTurn_PreselectsThirtyDegrees()
+    {
+        var host = new RecordingMenuHost("30");
+        MenuItem? item = MenuCatalog.Get(MenuIds.HeadingTurnLeftDegrees).Build(null, Context(), host);
+
+        Assert.NotNull(item);
+        Click(item);
+
+        (IReadOnlyList<string> Items, object? Selected) popup = Assert.Single(host.ListPopups);
+        Assert.Equal<object?>(30, popup.Selected);
+        Assert.Equal(["5", "10", "15", "20", "30", "45", "60", "90"], popup.Items);
+    }
+
+    [AvaloniaFact]
+    public void AssignSpeed_FiledJet_ListsFromApproachSpeedToClimbSpeedInTens()
+    {
+        const double altitude = 10000;
+        TestVnasData.EnsureInitialized();
+        AircraftCategory category = AircraftCategorization.Categorize("B738");
+        int approachFloor = (int)(Math.Floor(AircraftPerformance.ApproachSpeed("B738", category) / 10.0) * 10);
+        int climbCeiling = (int)(Math.Ceiling(AircraftPerformance.ClimbSpeed("B738", category, altitude) / 10.0) * 10);
+        Assert.True(climbCeiling - approachFloor >= 50, "the B738 span needs no widening");
+
+        IReadOnlyList<string> items = AssignSpeedItems(new FakeMenuAircraft { FiledAircraftType = "B738", AltitudeFeet = altitude });
+
+        Assert.Equal($"{approachFloor}", items[0]);
+        Assert.Equal($"{climbCeiling}", items[^1]);
+    }
+
+    [AvaloniaFact]
+    public void AssignSpeed_FiledPiston_WidensANarrowSpanBy20EachWay_NeverBelow40()
+    {
+        const double altitude = 3000;
+        TestVnasData.EnsureInitialized();
+        AircraftCategory category = AircraftCategorization.Categorize("C172");
+        int approachFloor = (int)(Math.Floor(AircraftPerformance.ApproachSpeed("C172", category) / 10.0) * 10);
+        int climbCeiling = (int)(Math.Ceiling(AircraftPerformance.ClimbSpeed("C172", category, altitude) / 10.0) * 10);
+        string span = $"approach floor {approachFloor} kt, climb ceiling {climbCeiling} kt";
+        Assert.True(climbCeiling - Math.Max(40, approachFloor) < 50, $"the C172 span is narrow enough to widen ({span})");
+        Assert.True(approachFloor - 20 <= 40, $"the widened C172 floor reaches the 40 kt limit ({span})");
+
+        IReadOnlyList<string> items = AssignSpeedItems(new FakeMenuAircraft { FiledAircraftType = "C172", AltitudeFeet = altitude });
+
+        Assert.Equal("40", items[0]);
+        Assert.Equal($"{climbCeiling + 20}", items[^1]);
+    }
+
+    /// <summary>The texts the Assign speed popup lists for <paramref name="aircraft"/>.</summary>
+    private static IReadOnlyList<string> AssignSpeedItems(FakeMenuAircraft aircraft)
+    {
+        var host = new RecordingMenuHost("");
+        MenuItem? item = MenuCatalog.Get(MenuIds.SpeedAssign).Build(aircraft, Context(), host);
+        Assert.NotNull(item);
+        Click(item);
+        return Assert.Single(host.ListPopups).Items;
+    }
+
+    [AvaloniaTheory]
+    [InlineData(35000.0, "Altitude (→ FL350)")]
+    [InlineData(5000.0, "Altitude (→ 5000)")]
+    public void AltitudeGroup_HeaderShowsTheAssignedAltitude(double assigned, string header) =>
+        Assert.Equal(
+            header,
+            SharedMenuGroups.Altitude(new FakeMenuAircraft { AssignedAltitude = assigned }, Context(), new RecordingMenuHost("")).Header as string
+        );
+
+    [AvaloniaTheory]
+    [InlineData(213.0, 210, "Speed (→ 213)")]
+    [InlineData(null, 250, "Speed")]
+    public void AssignSpeed_SeedsPopupWithTheAssignedSpeed_OrTheListMiddle(double? assigned, int seed, string header)
+    {
+        var host = new RecordingMenuHost("200");
+        var aircraft = new FakeMenuAircraft { AssignedSpeed = assigned };
+        MenuItem? item = MenuCatalog.Get(MenuIds.SpeedAssign).Build(aircraft, Context(), host);
+
+        Assert.NotNull(item);
+        Click(item);
+
+        Assert.Equal<object?>(seed, Assert.Single(host.ListPopups).Selected);
+        Assert.Equal([(Callsign, "SPD 200", Initials)], host.Sent);
+        Assert.Equal(header, SharedMenuGroups.Speed(aircraft, Context(), host).Header as string);
+    }
+
+    [AvaloniaFact]
+    public void FinalApproachSpeed_LabelShowsTheTypesApproachSpeed()
+    {
+        var host = new RecordingMenuHost("");
+        TestVnasData.EnsureInitialized();
+        double fas = AircraftPerformance.ApproachSpeed("B738", AircraftCategorization.Categorize("B738"));
+
+        MenuItem? typed = MenuCatalog.Get(MenuIds.SpeedFinalApproach).Build(new FakeMenuAircraft { FiledAircraftType = "B738" }, Context(), host);
+        MenuItem? untyped = MenuCatalog.Get(MenuIds.SpeedFinalApproach).Build(new FakeMenuAircraft(), Context(), host);
+
+        Assert.Equal($"FAS - {fas:F0} kt", typed?.Header as string);
+        Assert.Equal("FAS", untyped?.Header as string);
+    }
+
+    [AvaloniaTheory]
+    [InlineData(MenuIds.NavigationDirectTo, "Direct to", "DCT")]
+    [InlineData(MenuIds.NavigationAppendDirectTo, "Append direct to", "ADCT")]
+    public void DirectTo_FilteredListWithRouteFixesFirst_ElseRouteFixList_ElseInput(string id, string label, string command)
+    {
+        var routed = new FakeMenuAircraft { NavigatingTo = "ECA", RouteFixes = [Fix, "ECA"] };
+
+        var filteredHost = new RecordingMenuHost(Fix) { FixNames = ["ECA", "OAK", Fix] };
+        Click(
+            AssertPicker(MenuCatalog.Get(id).Build(routed, Context(), filteredHost), $"{label}...", MenuPickerDescriptor.FilteredList, [Fix, "ECA"])
+        );
+        (string[] Names, IReadOnlyList<string>? Priority) filteredPopup = Assert.Single(filteredHost.FilteredListPopups);
+        Assert.Equal(["ECA", "OAK", Fix], filteredPopup.Names);
+        Assert.Equal([Fix, "ECA"], filteredPopup.Priority);
+
+        var listHost = new RecordingMenuHost("ECA");
+        Click(AssertPicker(MenuCatalog.Get(id).Build(routed, Context(), listHost), label, MenuPickerDescriptor.List, [Fix, "ECA"]));
+        Assert.Equal<object?>(Fix, Assert.Single(listHost.ListPopups).Selected);
+
+        var inputHost = new RecordingMenuHost(Fix);
+        Click(AssertPicker(MenuCatalog.Get(id).Build(new FakeMenuAircraft(), Context(), inputHost), $"{label}...", MenuPickerDescriptor.Input, []));
+
+        Assert.Equal([(Callsign, $"{command} SUNOL", Initials)], filteredHost.Sent);
+        Assert.Equal([(Callsign, $"{command} ECA", Initials)], listHost.Sent);
+        Assert.Equal([(Callsign, $"{command} SUNOL", Initials)], inputHost.Sent);
+    }
+
+    [AvaloniaTheory]
+    [InlineData(MenuIds.HoldFixLeft, "Hold at fix (left)...", "HFIXL")]
+    [InlineData(MenuIds.HoldFixRight, "Hold at fix (right)...", "HFIXR")]
+    public void HoldAtFix_FilteredListWithoutRouteFixes_ElseInput(string id, string label, string command)
+    {
+        var routed = new FakeMenuAircraft { NavigatingTo = "ECA", RouteFixes = [Fix, "ECA"] };
+
+        var filteredHost = new RecordingMenuHost(Fix) { FixNames = ["ECA", "OAK", Fix] };
+        Click(AssertPicker(MenuCatalog.Get(id).Build(routed, Context(), filteredHost), label, MenuPickerDescriptor.FilteredList, []));
+        Assert.Null(Assert.Single(filteredHost.FilteredListPopups).Priority);
+
+        var inputHost = new RecordingMenuHost(Fix);
+        Click(AssertPicker(MenuCatalog.Get(id).Build(routed, Context(), inputHost), label, MenuPickerDescriptor.Input, []));
+
+        Assert.Equal([(Callsign, $"{command} SUNOL", Initials)], filteredHost.Sent);
+        Assert.Equal([(Callsign, $"{command} SUNOL", Initials)], inputHost.Sent);
+    }
+
+    [AvaloniaFact]
+    public void NavigationGroup_OffersAppendDirectToOnlyWhileNavigating()
+    {
+        var host = new RecordingMenuHost("");
+        MenuItem idle = SharedMenuGroups.Navigation(new FakeMenuAircraft(), Context(), host);
+        MenuItem navigating = SharedMenuGroups.Navigation(new FakeMenuAircraft { NavigatingTo = Fix }, Context(), host);
+
+        Assert.Equal("Navigation", idle.Header as string);
+        Assert.Equal(["Direct to..."], idle.Items.Select(Describe));
+        Assert.Equal("Navigation (→ SUNOL)", navigating.Header as string);
+        Assert.Equal(["Direct to...", "Append direct to..."], navigating.Items.Select(Describe));
+    }
+
+    [AvaloniaFact]
+    public void DrawRoute_EntersTheHostsDrawRouteMode()
+    {
+        var host = new RecordingMenuHost("");
+        MenuItem? item = MenuCatalog.Get(MenuIds.NavigationDrawRoute).Build(null, Context(), host);
+
+        Assert.NotNull(item);
+        Assert.Equal("Draw route", item.Header as string);
+        Click(item);
+
+        Assert.Equal([Callsign], host.DrawRouteCallsigns);
+        Assert.Empty(host.Sent);
+    }
+
+    /// <summary>Asserts a picker item's header and the descriptor the menu walker prints for it, and returns the item.</summary>
+    private static MenuItem AssertPicker(MenuItem? item, string header, string kind, string[] texts)
+    {
+        Assert.NotNull(item);
+        Assert.Equal(header, item.Header as string);
+        MenuPickerDescriptor descriptor = Assert.IsType<MenuPickerDescriptor>(item.Tag);
+        Assert.Equal(kind, descriptor.Kind);
+        Assert.Equal(texts, descriptor.Items);
+        return item;
+    }
+
     /// <summary>An item's header text, or "---" for a separator, so a menu's whole item sequence can be asserted.</summary>
     private static string Describe(object? item) =>
         item switch
@@ -387,10 +663,26 @@ public class MenuCatalogCommandTests
         return [.. submenu.Items.OfType<MenuItem>()];
     }
 
-    /// <summary>Records every send and popup, and answers an input picker at once with <paramref name="input"/>.</summary>
+    /// <summary>
+    /// Records every send and popup, and answers a picker at once: an input or filtered list with
+    /// <paramref name="input"/>, a list with the item whose text is <paramref name="input"/> (an empty input only records the list).
+    /// </summary>
     private sealed class RecordingMenuHost(string input) : IMenuHost
     {
         public List<(string Callsign, string Command, string Initials)> Sent { get; } = [];
+
+        public string[]? FixNames { get; init; }
+
+        /// <summary>The field elevation the altitude picker is answered with; sea level by default, so the list starts at 100 ft.</summary>
+        public double FieldElevation { get; init; }
+
+        public List<string?> FieldElevationRequests { get; } = [];
+
+        public List<(IReadOnlyList<string> Items, object? Selected)> ListPopups { get; } = [];
+
+        public List<(string[] Names, IReadOnlyList<string>? Priority)> FilteredListPopups { get; } = [];
+
+        public List<string> DrawRouteCallsigns { get; } = [];
 
         public List<(string Callsign, int Heading, int Altitude, int Speed)> WarpPopups { get; } = [];
 
@@ -422,6 +714,30 @@ public class MenuCatalogCommandTests
 
         public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) => _ = onSubmit(input);
 
+        public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick)
+        {
+            ListPopups.Add(([.. items.Select(i => i.ToString() ?? "")], selected));
+            if (input.Length > 0)
+            {
+                _ = onPick(items.First(i => i.ToString() == input));
+            }
+        }
+
+        public void ShowFilteredListPopup(string[] sortedNames, IReadOnlyList<object>? priorityItems, Func<string, Task> onPick)
+        {
+            FilteredListPopups.Add((sortedNames, priorityItems?.Select(i => i.ToString() ?? "").ToList()));
+            _ = onPick(input);
+        }
+
+        /// <summary>Records the destination asked about and answers <see cref="FieldElevation"/>.</summary>
+        public double GetFieldElevation(string? destination)
+        {
+            FieldElevationRequests.Add(destination);
+            return FieldElevation;
+        }
+
+        public void EnterDrawRoute(string callsign) => DrawRouteCallsigns.Add(callsign);
+
         public void ShowWarpPopup(string callsign, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit)
         {
             WarpPopups.Add((callsign, heading, altitude, speed));
@@ -450,7 +766,10 @@ public class MenuCatalogCommandTests
             throw new NotSupportedException("The command table does not build the favorites submenu");
     }
 
-    /// <summary>A minimal <see cref="IMenuAircraft"/>: never live traffic, and only the warp popup's seed values matter.</summary>
+    /// <summary>
+    /// A minimal <see cref="IMenuAircraft"/>: never live traffic, with the warp seed values, the assignments the flight
+    /// group headers show, the type the speed items read and the route fixes the navigation pickers offer settable.
+    /// </summary>
     private sealed class FakeMenuAircraft : IMenuAircraft
     {
         public bool IsLiveTraffic => false;
@@ -480,5 +799,29 @@ public class MenuCatalogCommandTests
         public double AltitudeFeet { get; init; }
 
         public double IndicatedAirspeedKnots { get; init; }
+
+        public string NavigatingTo { get; init; } = "";
+
+        public MagneticHeading? AssignedHeading { get; init; }
+
+        public double? AssignedAltitude { get; init; }
+
+        public double? AssignedSpeed { get; init; }
+
+        public string FiledAircraftType { get; init; } = "";
+
+        public string Destination { get; init; } = "";
+
+        public string Departure { get; init; } = "";
+
+        public string Route { get; init; } = "";
+
+        public string? ActiveApproachId { get; init; }
+
+        public string? ExpectedApproach { get; init; }
+
+        public IReadOnlyList<string> RouteFixes { get; init; } = [];
+
+        public IReadOnlyList<string> RouteFixNames() => RouteFixes;
     }
 }

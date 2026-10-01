@@ -955,11 +955,3 @@ public partial class RadarView : UserControl
     /// </summary>
     private VfrCommandsForIfr VfrCommandsForIfrMode() => FindMainViewModel()?.VfrCommandsForIfr ?? VfrCommandsForIfr.None;
 }
-
-/// <summary>
-/// Wraps an int value with a display label for the list popup.
-/// </summary>
-internal sealed record LabeledValue(string Label, int Value)
-{
-    public override string ToString() => Label;
-}

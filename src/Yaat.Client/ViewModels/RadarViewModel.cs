@@ -1281,10 +1281,6 @@ public partial class RadarViewModel(
 
     public async Task FlyHeadingAsync(string callsign, string initials, int heading) => await _sendCommand(callsign, $"FH {heading}", initials);
 
-    public async Task TurnLeftAsync(string callsign, string initials, int heading) => await _sendCommand(callsign, $"TL {heading}", initials);
-
-    public async Task TurnRightAsync(string callsign, string initials, int heading) => await _sendCommand(callsign, $"TR {heading}", initials);
-
     public async Task ClimbAndMaintainAsync(string callsign, string initials, int altitude) =>
         await _sendCommand(callsign, $"CM {altitude}", initials);
 
@@ -1311,8 +1307,6 @@ public partial class RadarViewModel(
     public async Task WarpAsync(string callsign, string initials, string frd, int heading, int altitude, int speed) =>
         await _sendCommand(callsign, $"WARP {frd} {heading} {altitude} {speed}", initials);
 
-    public async Task PresentHeadingAsync(string callsign, string initials) => await _sendCommand(callsign, "FPH", initials);
-
     // --- Track operations ---
 
     public async Task InitiateHandoffAsync(string callsign, string initials, string position) =>
@@ -1320,23 +1314,9 @@ public partial class RadarViewModel(
 
     // --- Hold ---
 
-    public async Task HoldPresentLeftAsync(string callsign, string initials) => await _sendCommand(callsign, "HPPL", initials);
-
-    public async Task HoldPresentRightAsync(string callsign, string initials) => await _sendCommand(callsign, "HPPR", initials);
-
     public async Task HoldAtFixLeftAsync(string callsign, string initials, string fix) => await _sendCommand(callsign, $"HFIXL {fix}", initials);
 
     public async Task HoldAtFixRightAsync(string callsign, string initials, string fix) => await _sendCommand(callsign, $"HFIXR {fix}", initials);
-
-    // --- Relative turns ---
-
-    public async Task RelativeLeftAsync(string callsign, string initials, int degrees) => await _sendCommand(callsign, $"LT {degrees}", initials);
-
-    public async Task RelativeRightAsync(string callsign, string initials, int degrees) => await _sendCommand(callsign, $"RT {degrees}", initials);
-
-    // --- Speed ---
-
-    public async Task SpeedAssignAsync(string callsign, string initials, int speed) => await _sendCommand(callsign, $"SPD {speed}", initials);
 
     // --- Approach ---
 

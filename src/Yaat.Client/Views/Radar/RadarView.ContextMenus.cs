@@ -209,12 +209,11 @@ public partial class RadarView
     private void AddAircraftCommandGroups(ContextMenu menu, RadarViewModel vm, AircraftModel? ac, MenuContext context, RadarMenuHost host)
     {
         string callsign = context.Callsign;
-        string initials = context.Initials;
         ContextMenuProfile profile = ContextMenuProfileService.GetProfile(ac?.CurrentPhase, ac?.IsOnGround ?? false);
 
         foreach (MenuGroup group in profile.PrimaryGroups)
         {
-            AddMenuGroup(menu, group, vm, callsign, initials, ac);
+            AddMenuGroup(menu, group, vm, ac, context, host);
         }
 
         if (profile.PrimaryGroups.Count > 0 && profile.SecondaryGroups.Count > 0)
@@ -224,7 +223,7 @@ public partial class RadarView
 
         foreach (MenuGroup group in profile.SecondaryGroups)
         {
-            AddMenuGroup(menu, group, vm, callsign, initials, ac);
+            AddMenuGroup(menu, group, vm, ac, context, host);
         }
 
         // Always-visible groups
@@ -352,226 +351,6 @@ public partial class RadarView
             Opacity = 0.85,
         };
         return item;
-    }
-
-    private MenuItem BuildHeadingSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
-    {
-        string hdgLabel = "Heading";
-        if (ac is not null)
-        {
-            if (!string.IsNullOrEmpty(ac.NavigatingTo))
-            {
-                hdgLabel = $"Heading (\u2192 {ac.NavigatingTo})";
-            }
-            else if (ac.AssignedHeading.HasValue)
-            {
-                hdgLabel = $"Heading (\u2192 {ac.AssignedHeading.Value.ToDisplayString()})";
-            }
-        }
-
-        var menu = new MenuItem { Header = hdgLabel };
-        menu.Items.Add(CreateMenuItem("Present heading", () => vm.PresentHeadingAsync(cs, init)));
-
-        IReadOnlyList<object> headings = BuildHeadingList();
-        int currentHdg = ac is not null ? (int)(Math.Round(ac.Heading.Degrees / 5.0) * 5) : 360;
-        if (currentHdg <= 0)
-        {
-            currentHdg = 360;
-        }
-
-        menu.Items.Add(CreateListMenuItem("Fly heading", headings, currentHdg, val => vm.FlyHeadingAsync(cs, init, (int)val)));
-        menu.Items.Add(CreateListMenuItem("Turn left", headings, currentHdg, val => vm.TurnLeftAsync(cs, init, (int)val)));
-        menu.Items.Add(CreateListMenuItem("Turn right", headings, currentHdg, val => vm.TurnRightAsync(cs, init, (int)val)));
-
-        IReadOnlyList<object> relativeDegrees = BuildRelativeTurnList();
-        menu.Items.Add(CreateListMenuItem("Turn left (degrees)", relativeDegrees, 30, val => vm.RelativeLeftAsync(cs, init, (int)val)));
-        menu.Items.Add(CreateListMenuItem("Turn right (degrees)", relativeDegrees, 30, val => vm.RelativeRightAsync(cs, init, (int)val)));
-
-        return menu;
-    }
-
-    private MenuItem BuildAltitudeSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
-    {
-        string altLabel = "Altitude";
-        if (ac?.AssignedAltitude is not null)
-        {
-            altLabel = $"Altitude (\u2192 {FormatAltitude((int)ac.AssignedAltitude.Value)})";
-        }
-
-        var menu = new MenuItem { Header = altLabel };
-        int currentAlt = (int)(ac?.Altitude ?? 0);
-        double fieldElev = vm.GetFieldElevation(ac?.Destination);
-
-        IReadOnlyList<object> altitudes = BuildFullAltitudeList(fieldElev);
-        if (altitudes.Count > 0)
-        {
-            menu.Items.Add(
-                CreateListMenuItem(
-                    "Maintain",
-                    altitudes,
-                    currentAlt,
-                    val =>
-                    {
-                        int selected = (int)val;
-                        return selected > currentAlt ? vm.ClimbAndMaintainAsync(cs, init, selected) : vm.DescendAndMaintainAsync(cs, init, selected);
-                    },
-                    FormatAltitude
-                )
-            );
-        }
-
-        return menu;
-    }
-
-    private MenuItem BuildSpeedSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
-    {
-        string spdLabel = "Speed";
-        if (ac?.AssignedSpeed is not null && ac.AssignedSpeed.Value > 0)
-        {
-            spdLabel = $"Speed (\u2192 {ac.AssignedSpeed.Value:F0})";
-        }
-
-        var menu = new MenuItem { Header = spdLabel };
-
-        IReadOnlyList<object> speeds = BuildSpeedListForAircraft(ac);
-        int currentSpd =
-            ac?.AssignedSpeed is not null && ac.AssignedSpeed.Value > 0
-                ? (int)(Math.Round(ac.AssignedSpeed.Value / 10.0) * 10)
-                : (int)((IList<object>)speeds)[speeds.Count / 2];
-        menu.Items.Add(CreateListMenuItem("Assign speed", speeds, currentSpd, val => vm.SpeedAssignAsync(cs, init, (int)val)));
-        menu.Items.Add(CreateInputMenuItem("Speed...", "Speed (knots)", input => vm.SpeedAsync(cs, init, int.Parse(input))));
-        menu.Items.Add(CreateMenuItem("Resume normal speed", () => vm.SpeedNormalAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem(BuildFasMenuLabel(ac), () => vm.ReduceFinalApproachSpeedAsync(cs, init)));
-        return menu;
-    }
-
-    private static IReadOnlyList<object> BuildSpeedListForAircraft(AircraftModel? ac)
-    {
-        if (ac is null || string.IsNullOrEmpty(ac.FiledAircraftType))
-        {
-            return BuildSpeedList();
-        }
-
-        string type = ac.FiledAircraftType;
-        AircraftCategory cat = Yaat.Sim.AircraftCategorization.Categorize(type);
-        double alt = Math.Max(ac.Altitude, 0);
-
-        double approach = Yaat.Sim.AircraftPerformance.ApproachSpeed(type, cat);
-        double climb = Yaat.Sim.AircraftPerformance.ClimbSpeed(type, cat, alt);
-
-        int min = (int)(Math.Floor(approach / 10.0) * 10);
-        int max = (int)(Math.Ceiling(climb / 10.0) * 10);
-
-        if (min < 40)
-        {
-            min = 40;
-        }
-
-        if (max - min < 50)
-        {
-            min = Math.Max(40, min - 20);
-            max += 20;
-        }
-
-        var items = new List<object>(((max - min) / 10) + 1);
-        for (int s = min; s <= max; s += 10)
-        {
-            items.Add(s);
-        }
-
-        return items;
-    }
-
-    private static string BuildFasMenuLabel(AircraftModel? ac)
-    {
-        if (ac is null || string.IsNullOrEmpty(ac.FiledAircraftType))
-        {
-            return "FAS";
-        }
-
-        AircraftCategory category = Yaat.Sim.AircraftCategorization.Categorize(ac.FiledAircraftType);
-        double fas = Yaat.Sim.AircraftPerformance.ApproachSpeed(ac.FiledAircraftType, category);
-        return fas > 0 ? $"FAS - {fas:F0} kt" : "FAS";
-    }
-
-    private MenuItem BuildNavigationSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
-    {
-        string navLabel = "Navigation";
-        if (ac is not null && !string.IsNullOrEmpty(ac.NavigatingTo))
-        {
-            navLabel = $"Navigation (\u2192 {ac.NavigatingTo})";
-        }
-
-        var menu = new MenuItem { Header = navLabel };
-
-        IReadOnlyList<object> routeFixes = ac is not null ? BuildRouteFixList(ac) : [];
-        if (vm.FixNames is not null)
-        {
-            menu.Items.Add(
-                CreateFilteredListMenuItem(
-                    "Direct to...",
-                    vm.FixNames,
-                    fix => vm.DirectToAsync(cs, init, fix),
-                    routeFixes.Count > 0 ? routeFixes : null
-                )
-            );
-        }
-        else if (routeFixes.Count > 0)
-        {
-            menu.Items.Add(CreateListMenuItem("Direct to", routeFixes, routeFixes[0], val => vm.DirectToAsync(cs, init, (string)val)));
-        }
-        else
-        {
-            menu.Items.Add(CreateInputMenuItem("Direct to...", "Fix name", input => vm.DirectToAsync(cs, init, input)));
-        }
-
-        bool hasActiveRoute = ac is not null && !string.IsNullOrEmpty(ac.NavigatingTo);
-        if (hasActiveRoute)
-        {
-            if (vm.FixNames is not null)
-            {
-                menu.Items.Add(
-                    CreateFilteredListMenuItem(
-                        "Append direct to...",
-                        vm.FixNames,
-                        fix => vm.AppendDirectToAsync(cs, init, fix),
-                        routeFixes.Count > 0 ? routeFixes : null
-                    )
-                );
-            }
-            else if (routeFixes.Count > 0)
-            {
-                menu.Items.Add(
-                    CreateListMenuItem("Append direct to", routeFixes, routeFixes[0], val => vm.AppendDirectToAsync(cs, init, (string)val))
-                );
-            }
-            else
-            {
-                menu.Items.Add(CreateInputMenuItem("Append direct to...", "Fix name", input => vm.AppendDirectToAsync(cs, init, input)));
-            }
-        }
-
-        return menu;
-    }
-
-    private MenuItem BuildHoldSubmenu(RadarViewModel vm, string cs, string init)
-    {
-        var menu = new MenuItem { Header = "Hold" };
-        menu.Items.Add(CreateMenuItem("Hold present position (left)", () => vm.HoldPresentLeftAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem("Hold present position (right)", () => vm.HoldPresentRightAsync(cs, init)));
-
-        if (vm.FixNames is not null)
-        {
-            menu.Items.Add(CreateFilteredListMenuItem("Hold at fix (left)...", vm.FixNames, fix => vm.HoldAtFixLeftAsync(cs, init, fix)));
-            menu.Items.Add(CreateFilteredListMenuItem("Hold at fix (right)...", vm.FixNames, fix => vm.HoldAtFixRightAsync(cs, init, fix)));
-        }
-        else
-        {
-            menu.Items.Add(CreateInputMenuItem("Hold at fix (left)...", "Fix name", input => vm.HoldAtFixLeftAsync(cs, init, input)));
-            menu.Items.Add(CreateInputMenuItem("Hold at fix (right)...", "Fix name", input => vm.HoldAtFixRightAsync(cs, init, input)));
-        }
-
-        return menu;
     }
 
     private MenuItem BuildApproachSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
@@ -1096,36 +875,29 @@ public partial class RadarView
         return menu;
     }
 
-    private void AddMenuGroup(ContextMenu menu, MenuGroup group, RadarViewModel vm, string cs, string init, AircraftModel? ac)
+    private void AddMenuGroup(ContextMenu menu, MenuGroup group, RadarViewModel vm, AircraftModel? ac, MenuContext context, RadarMenuHost host)
     {
+        string cs = context.Callsign;
+        string init = context.Initials;
         switch (group)
         {
             case MenuGroup.Heading:
-                menu.Items.Add(BuildHeadingSubmenu(vm, cs, init, ac));
+                menu.Items.Add(SharedMenuGroups.Heading(ac, context, host));
                 break;
             case MenuGroup.Altitude:
-                menu.Items.Add(BuildAltitudeSubmenu(vm, cs, init, ac));
+                menu.Items.Add(SharedMenuGroups.Altitude(ac, context, host));
                 break;
             case MenuGroup.Speed:
-                menu.Items.Add(BuildSpeedSubmenu(vm, cs, init, ac));
+                menu.Items.Add(SharedMenuGroups.Speed(ac, context, host));
                 break;
             case MenuGroup.Navigation:
-                menu.Items.Add(BuildNavigationSubmenu(vm, cs, init, ac));
+                menu.Items.Add(SharedMenuGroups.Navigation(ac, context, host));
                 break;
             case MenuGroup.DrawRoute:
-                menu.Items.Add(
-                    CreateMenuItem(
-                        "Draw route",
-                        () =>
-                        {
-                            vm.EnterDrawRoute(cs);
-                            return Task.CompletedTask;
-                        }
-                    )
-                );
+                menu.Items.Add(SharedMenuGroups.DrawRoute(ac, context, host));
                 break;
             case MenuGroup.Hold:
-                menu.Items.Add(BuildHoldSubmenu(vm, cs, init));
+                menu.Items.Add(SharedMenuGroups.Hold(ac, context, host));
                 break;
             case MenuGroup.Approach:
                 menu.Items.Add(BuildApproachSubmenu(vm, cs, init, ac));
@@ -1493,49 +1265,12 @@ public partial class RadarView
         return item;
     }
 
-    private MenuItem CreateListMenuItem(
-        string header,
-        IReadOnlyList<object> items,
-        object? selectedValue,
-        Func<object, Task> action,
-        Func<int, string>? formatLabel = null
-    )
+    private MenuItem CreateListMenuItem(string header, IReadOnlyList<object> items, object? selectedValue, Func<object, Task> action)
     {
-        IReadOnlyList<object> popupItems = items;
-        if (formatLabel is not null)
-        {
-            var labeled = new List<object>(items.Count);
-            foreach (object i in items)
-            {
-                labeled.Add(new LabeledValue(formatLabel((int)i), (int)i));
-            }
-
-            popupItems = labeled;
-        }
-
-        var item = new MenuItem { Header = header, Tag = new MenuPickerDescriptor(MenuPickerDescriptor.List, ListPickerTexts(popupItems)) };
-        bool isLabeled = formatLabel is not null;
+        var item = new MenuItem { Header = header, Tag = new MenuPickerDescriptor(MenuPickerDescriptor.List, ListPickerTexts(items)) };
         item.Click += (_, _) =>
         {
-            Dispatcher.UIThread.Post(() =>
-            {
-                if (isLabeled)
-                {
-                    ShowListPopup(
-                        popupItems,
-                        null,
-                        val =>
-                        {
-                            var lv = (LabeledValue)val;
-                            return action(lv.Value);
-                        }
-                    );
-                }
-                else
-                {
-                    ShowListPopup(popupItems, selectedValue, action);
-                }
-            });
+            Dispatcher.UIThread.Post(() => ShowListPopup(items, selectedValue, action));
         };
         return item;
     }

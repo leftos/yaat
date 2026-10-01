@@ -1092,6 +1092,9 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     /// <inheritdoc />
     public double IndicatedAirspeedKnots => IndicatedAirspeed;
 
+    /// <inheritdoc />
+    public IReadOnlyList<string> RouteFixNames() => FixSuggester.CollectRouteFixNames(this);
+
     /// <summary>Route and altitude as one label for the Aircraft List and the strip, or empty.</summary>
     public string MilitaryRouteSummary =>
         string.IsNullOrEmpty(MilitaryRoute) ? string.Empty

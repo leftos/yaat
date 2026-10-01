@@ -2,8 +2,6 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Yaat.Client.Models;
-using Yaat.Client.Services;
 
 namespace Yaat.Client.Views.Radar;
 
@@ -73,7 +71,7 @@ public partial class RadarView
 
     // --- List popup ---
 
-    private void ShowListPopup(IReadOnlyList<object> items, object? selectedValue, Func<object, Task> action)
+    internal void ShowListPopup(IReadOnlyList<object> items, object? selectedValue, Func<object, Task> action)
     {
         _pendingListAction = action;
         _listPopupInitializing = true;
@@ -183,7 +181,7 @@ public partial class RadarView
 
     // --- Filtered list popup ---
 
-    private void ShowFilteredListPopup(string[] sortedNames, Func<string, Task> action, IReadOnlyList<object>? priorityItems = null)
+    internal void ShowFilteredListPopup(string[] sortedNames, Func<string, Task> action, IReadOnlyList<object>? priorityItems)
     {
         _pendingFilteredListAction = action;
         _filteredListAllNames = sortedNames;
@@ -519,59 +517,4 @@ public partial class RadarView
         Popup? popup = this.FindControl<Popup>("WarpPopup");
         popup?.IsOpen = false;
     }
-
-    // --- Heading/altitude/route list builders ---
-
-    private static IReadOnlyList<object> BuildHeadingList()
-    {
-        var items = new List<object>(72);
-        for (int h = 5; h <= 360; h += 5)
-        {
-            items.Add(h);
-        }
-
-        return items;
-    }
-
-    private static IReadOnlyList<object> BuildRelativeTurnList() => [5, 10, 15, 20, 30, 45, 60, 90];
-
-    private static IReadOnlyList<object> BuildSpeedList()
-    {
-        var items = new List<object>(21);
-        for (int s = 150; s <= 350; s += 10)
-        {
-            items.Add(s);
-        }
-
-        return items;
-    }
-
-    private static IReadOnlyList<object> BuildFullAltitudeList(double fieldElevation)
-    {
-        var items = new List<object>();
-        int lowThreshold = (int)(fieldElevation + 5000);
-
-        int roundedLow = (int)(Math.Ceiling(fieldElevation / 100.0) * 100);
-        if (roundedLow < 100)
-        {
-            roundedLow = 100;
-        }
-
-        for (int alt = roundedLow; alt < lowThreshold; alt += 100)
-        {
-            items.Add(alt);
-        }
-
-        int start500 = (int)(Math.Ceiling(lowThreshold / 500.0) * 500);
-        for (int alt = start500; alt <= 60000; alt += 500)
-        {
-            items.Add(alt);
-        }
-
-        return items;
-    }
-
-    private static string FormatAltitude(int alt) => alt >= 18000 ? $"FL{alt / 100}" : $"{alt}";
-
-    private static IReadOnlyList<object> BuildRouteFixList(AircraftModel ac) => [.. FixSuggester.CollectRouteFixNames(ac).Cast<object>()];
 }

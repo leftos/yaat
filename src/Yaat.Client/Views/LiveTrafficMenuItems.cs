@@ -56,6 +56,19 @@ public static class LiveTrafficMenuItems
         public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) =>
             throw new NotSupportedException("The live-traffic items build no input pickers");
 
+        public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick) =>
+            throw new NotSupportedException("The live-traffic items build no list pickers");
+
+        public void ShowFilteredListPopup(string[] sortedNames, IReadOnlyList<object>? priorityItems, Func<string, Task> onPick) =>
+            throw new NotSupportedException("The live-traffic items build no fix pickers");
+
+        // Throws rather than returning null: null would silently pick the free-text fix tier, hiding a fix picker built here by mistake.
+        public string[]? FixNames => throw new NotSupportedException("The live-traffic items build no fix pickers");
+
+        public double GetFieldElevation(string? destination) => throw new NotSupportedException("The live-traffic items build no altitude picker");
+
+        public void EnterDrawRoute(string callsign) => throw new NotSupportedException("The live-traffic items build no Draw route item");
+
         public void ShowWarpPopup(string callsign, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit) =>
             throw new NotSupportedException("The live-traffic items build no warp item");
 

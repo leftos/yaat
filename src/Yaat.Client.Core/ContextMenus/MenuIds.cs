@@ -147,4 +147,58 @@ public static class MenuIds
 
     /// <summary>Unblank the aircraft's data block (<c>BLANKD</c>).</summary>
     public const string DisplayUnblank = "display.unblank";
+
+    /// <summary>Fly present heading (<c>FPH</c>).</summary>
+    public const string HeadingPresent = "heading.present";
+
+    /// <summary>Fly a heading picked from the list (<c>FH</c>).</summary>
+    public const string HeadingFly = "heading.fly";
+
+    /// <summary>Turn left to a heading picked from the list (<c>TL</c>).</summary>
+    public const string HeadingTurnLeft = "heading.turn-left";
+
+    /// <summary>Turn right to a heading picked from the list (<c>TR</c>).</summary>
+    public const string HeadingTurnRight = "heading.turn-right";
+
+    /// <summary>Turn left by a number of degrees picked from the list (<c>LT</c>).</summary>
+    public const string HeadingTurnLeftDegrees = "heading.turn-left-degrees";
+
+    /// <summary>Turn right by a number of degrees picked from the list (<c>RT</c>).</summary>
+    public const string HeadingTurnRightDegrees = "heading.turn-right-degrees";
+
+    /// <summary>Climb or descend to an altitude picked from the list (<c>CM</c> above the current altitude, <c>DM</c> otherwise).</summary>
+    public const string AltitudeMaintain = "altitude.maintain";
+
+    /// <summary>Assign a speed picked from the list (<c>SPD</c>).</summary>
+    public const string SpeedAssign = "speed.assign";
+
+    /// <summary>Assign a typed speed (<c>SPD</c>).</summary>
+    public const string SpeedCustom = "speed.custom";
+
+    /// <summary>Resume normal speed (<c>RNS</c>).</summary>
+    public const string SpeedNormal = "speed.normal";
+
+    /// <summary>Reduce to final approach speed (<c>RFAS</c>).</summary>
+    public const string SpeedFinalApproach = "speed.final-approach";
+
+    /// <summary>Proceed direct to a fix (<c>DCT</c>).</summary>
+    public const string NavigationDirectTo = "navigation.direct-to";
+
+    /// <summary>Append a direct-to fix after the current one (<c>ADCT</c>).</summary>
+    public const string NavigationAppendDirectTo = "navigation.append-direct-to";
+
+    /// <summary>Draw a route for the aircraft on the surface.</summary>
+    public const string NavigationDrawRoute = "navigation.draw-route";
+
+    /// <summary>Hold at present position, left turns (<c>HPPL</c>).</summary>
+    public const string HoldPresentLeft = "hold.present-left";
+
+    /// <summary>Hold at present position, right turns (<c>HPPR</c>).</summary>
+    public const string HoldPresentRight = "hold.present-right";
+
+    /// <summary>Hold at a fix, left turns (<c>HFIXL</c>).</summary>
+    public const string HoldFixLeft = "hold.fix-left";
+
+    /// <summary>Hold at a fix, right turns (<c>HFIXR</c>).</summary>
+    public const string HoldFixRight = "hold.fix-right";
 }

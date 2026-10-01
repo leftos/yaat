@@ -1,3 +1,5 @@
+using Yaat.Sim;
+
 namespace Yaat.Client.ContextMenus;
 
 /// <summary>
@@ -48,4 +50,37 @@ public interface IMenuAircraft
 
     /// <summary>The current indicated airspeed in knots, which the warp popup seeds its speed field with.</summary>
     double IndicatedAirspeedKnots { get; }
+
+    /// <summary>The fix the aircraft is navigating to, empty when it is not navigating to one.</summary>
+    string NavigatingTo { get; }
+
+    /// <summary>The assigned magnetic heading, or null when none is assigned.</summary>
+    MagneticHeading? AssignedHeading { get; }
+
+    /// <summary>The assigned altitude in feet, or null when none is assigned.</summary>
+    double? AssignedAltitude { get; }
+
+    /// <summary>The assigned speed in knots, or null when none is assigned.</summary>
+    double? AssignedSpeed { get; }
+
+    /// <summary>The aircraft type filed in the flight plan, empty when none was filed.</summary>
+    string FiledAircraftType { get; }
+
+    /// <summary>The flight plan's destination airport, empty when none.</summary>
+    string Destination { get; }
+
+    /// <summary>The flight plan's departure airport, empty when none.</summary>
+    string Departure { get; }
+
+    /// <summary>The flight plan's route text, empty when none.</summary>
+    string Route { get; }
+
+    /// <summary>The approach the aircraft is cleared for or flying, or null when none.</summary>
+    string? ActiveApproachId { get; }
+
+    /// <summary>The approach the aircraft has been told to expect, or null when none.</summary>
+    string? ExpectedApproach { get; }
+
+    /// <summary>The fixes along the aircraft's route that a fix picker offers first, computed on each call.</summary>
+    IReadOnlyList<string> RouteFixNames();
 }

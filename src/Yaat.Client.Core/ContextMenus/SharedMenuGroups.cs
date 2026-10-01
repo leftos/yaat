@@ -4,11 +4,12 @@ namespace Yaat.Client.ContextMenus;
 
 /// <summary>
 /// The groups more than one surface builds — live traffic, track, squawk, ask pilot, coordination, data block,
-/// sim control, display and favorites — assembled from <see cref="MenuCatalog"/> entries. Only track, squawk and ask
-/// pilot keep a <see cref="MenuView"/> variant: the radar carries input pickers (handoff, point out, squawk code,
-/// custom say) the other surfaces leave out, and sends <c>ID</c> for Ident where the others send <c>IDENT</c>. Data
-/// block, sim control and display are built by the radar today, so they take no view. Whether a group is offered at
-/// all stays with the caller.
+/// sim control, display, favorites, and the flight groups heading, altitude, speed, navigation (with Draw route) and
+/// hold — assembled from <see cref="MenuCatalog"/> entries. Only track, squawk and ask pilot keep a
+/// <see cref="MenuView"/> variant: the radar carries input pickers (handoff, point out, squawk code, custom say) the
+/// other surfaces leave out, and sends <c>ID</c> for Ident where the others send <c>IDENT</c>. Data block, sim
+/// control, display and the flight groups are built by the radar today, so they take no view. Whether a group is
+/// offered at all stays with the caller.
 /// </summary>
 public static class SharedMenuGroups
 {
@@ -169,6 +170,84 @@ public static class SharedMenuGroups
         MenuCatalog.Get(MenuIds.LiveTrafficUnassume).IsApplicable(aircraft, context)
             ? Leaf(MenuIds.LiveTrafficUnassume, aircraft, context, host)
             : null;
+
+    /// <summary>
+    /// The Heading submenu: present heading, the heading pickers and the relative-turn pickers. The header names the
+    /// fix the aircraft is navigating to, else its assigned magnetic heading.
+    /// </summary>
+    public static MenuItem Heading(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        string header = aircraft switch
+        {
+            { NavigatingTo: { Length: > 0 } fix } => $"Heading (→ {fix})",
+            { AssignedHeading: { } assigned } => $"Heading (→ {assigned.ToDisplayString()})",
+            _ => "Heading",
+        };
+        var menu = new MenuItem { Header = header };
+        menu.Items.Add(Leaf(MenuIds.HeadingPresent, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.HeadingFly, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.HeadingTurnLeft, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.HeadingTurnRight, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.HeadingTurnLeftDegrees, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.HeadingTurnRightDegrees, aircraft, context, host));
+        return menu;
+    }
+
+    /// <summary>The Altitude submenu: the Maintain picker, under a header naming the assigned altitude.</summary>
+    public static MenuItem Altitude(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        string header = aircraft?.AssignedAltitude is { } assigned ? $"Altitude (→ {MenuCatalog.FormatAltitude((int)assigned)})" : "Altitude";
+        var menu = new MenuItem { Header = header };
+        AddIfBuilt(menu.Items, MenuIds.AltitudeMaintain, aircraft, context, host);
+        return menu;
+    }
+
+    /// <summary>
+    /// The Speed submenu: the speed picker and input, resume normal speed and final approach speed, under a header
+    /// naming the assigned speed.
+    /// </summary>
+    public static MenuItem Speed(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        double? assigned = aircraft?.AssignedSpeed;
+        var menu = new MenuItem { Header = assigned is > 0 ? $"Speed (→ {assigned.Value:F0})" : "Speed" };
+        menu.Items.Add(Leaf(MenuIds.SpeedAssign, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.SpeedCustom, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.SpeedNormal, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.SpeedFinalApproach, aircraft, context, host));
+        return menu;
+    }
+
+    /// <summary>
+    /// The Navigation submenu: direct to, and while the aircraft is navigating to a fix (named in the header) append
+    /// direct to.
+    /// </summary>
+    public static MenuItem Navigation(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        string header = aircraft is { NavigatingTo.Length: > 0 } ? $"Navigation (→ {aircraft.NavigatingTo})" : "Navigation";
+        var menu = new MenuItem { Header = header };
+        menu.Items.Add(Leaf(MenuIds.NavigationDirectTo, aircraft, context, host));
+        if (MenuCatalog.Get(MenuIds.NavigationAppendDirectTo).IsApplicable(aircraft, context))
+        {
+            menu.Items.Add(Leaf(MenuIds.NavigationAppendDirectTo, aircraft, context, host));
+        }
+
+        return menu;
+    }
+
+    /// <summary>The Draw route leaf, which each surface places itself.</summary>
+    public static MenuItem DrawRoute(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
+        Leaf(MenuIds.NavigationDrawRoute, aircraft, context, host);
+
+    /// <summary>The Hold submenu: hold at present position, then hold at a fix, each with left and right turns.</summary>
+    public static MenuItem Hold(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        var menu = new MenuItem { Header = "Hold" };
+        menu.Items.Add(Leaf(MenuIds.HoldPresentLeft, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.HoldPresentRight, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.HoldFixLeft, aircraft, context, host));
+        menu.Items.Add(Leaf(MenuIds.HoldFixRight, aircraft, context, host));
+        return menu;
+    }
 
     /// <summary>The Favorite Commands submenu, which the catalog entry has the host build.</summary>
     public static MenuItem Favorites(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>

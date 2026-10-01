@@ -17,6 +17,27 @@ public interface IMenuHost
     void ShowInputPopup(string placeholder, Func<string, Task> onSubmit);
 
     /// <summary>
+    /// Opens the surface's list popup over <paramref name="items"/>, with <paramref name="selected"/> (or the item
+    /// closest to it) highlighted when it is not null, and hands the picked item to <paramref name="onPick"/>.
+    /// </summary>
+    void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick);
+
+    /// <summary>
+    /// Opens the surface's type-to-filter popup over <paramref name="sortedNames"/>, listing
+    /// <paramref name="priorityItems"/> until the controller types, and hands the picked name to <paramref name="onPick"/>.
+    /// </summary>
+    void ShowFilteredListPopup(string[] sortedNames, IReadOnlyList<object>? priorityItems, Func<string, Task> onPick);
+
+    /// <summary>Every fix name the surface's filtered fix pickers offer, sorted; null while the navigation data is not loaded.</summary>
+    string[]? FixNames { get; }
+
+    /// <summary>The field elevation in feet of <paramref name="destination"/>, or of the surface's primary airport when it has none.</summary>
+    double GetFieldElevation(string? destination);
+
+    /// <summary>Puts the surface into drawing a route for <paramref name="callsign"/>.</summary>
+    void EnterDrawRoute(string callsign);
+
+    /// <summary>
     /// Opens the surface's warp popup for <paramref name="callsign"/>, seeded with <paramref name="heading"/>,
     /// <paramref name="altitude"/> and <paramref name="speed"/>, and hands the submitted position, heading, altitude
     /// and speed to <paramref name="onSubmit"/>.
