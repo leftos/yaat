@@ -53,6 +53,9 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
         return Task.CompletedTask;
     }
 
+    /// <summary>Whether the host answers as one that can open a free-text input popup; true, so input-tier items are built.</summary>
+    public bool HasInputPopup { get; set; } = true;
+
     public List<string> InputPlaceholders { get; } = [];
 
     /// <summary>The text an input popup is answered with when it differs from a picker's answer; the picker's answer when null.</summary>

@@ -7,7 +7,7 @@ Favorite Commands
   (no items) [disabled]
 ---
 Tower
-  Cleared for takeoff
+  Cleared for takeoff 30
     Default (SID/on course)
     Fly runway heading
     ---

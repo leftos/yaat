@@ -17,6 +17,9 @@ public interface IMenuHost
     /// </summary>
     void ShowInputPopup(string placeholder, Func<string, Task> onSubmit);
 
+    /// <summary>True when the host can open a free-text input popup; the catalog hides input-tier items otherwise.</summary>
+    bool HasInputPopup { get; }
+
     /// <summary>
     /// Opens the surface's list popup over <paramref name="items"/>, with <paramref name="selected"/> (or the item
     /// closest to it) highlighted when it is not null, and hands the picked item to <paramref name="onPick"/>.

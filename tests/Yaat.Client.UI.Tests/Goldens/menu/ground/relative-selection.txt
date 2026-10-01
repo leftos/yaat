@@ -16,8 +16,7 @@ Cross 30
 Line up and wait 30
 Cleared for takeoff 30
   Default (SID/on course)
-  ---
-  Runway heading
+  Fly runway heading
 ---
 Preset taxi route
   30 to TERMINAL

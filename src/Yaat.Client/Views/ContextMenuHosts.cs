@@ -44,6 +44,8 @@ internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainVi
 
     public Task SendAsync(string callsign, string command, string initials) => radar.SendRawCommandAsync(callsign, initials, command);
 
+    public bool HasInputPopup => true;
+
     public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) =>
         Dispatcher.UIThread.Post(() => view.ShowInputPopup(placeholder, onSubmit));
 
@@ -137,6 +139,8 @@ internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainVi
 internal sealed class GroundMenuHost(GroundView view, GroundViewModel ground, MainViewModel? main, AircraftModel? aircraft) : IMenuHost
 {
     public Task SendAsync(string callsign, string command, string initials) => ground.SendRawCommandAsync(callsign, initials, command);
+
+    public bool HasInputPopup => false;
 
     public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) =>
         throw new NotSupportedException("The ground view has no input popup; ground menus never build input pickers");
@@ -327,6 +331,8 @@ internal sealed class ListMenuHost(MainViewModel main, AircraftModel aircraft) :
         "The aircraft list has no ground map; list menus never build the hold short, follow, give way, pushback or preset taxi items";
 
     public Task SendAsync(string callsign, string command, string initials) => main.Connection.SendCommandAsync(callsign, command, initials);
+
+    public bool HasInputPopup => false;
 
     public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) =>
         throw new NotSupportedException("The aircraft list has no input popup; list menus never build input pickers");

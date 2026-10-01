@@ -21,17 +21,15 @@ namespace Yaat.Client.ContextMenus;
 /// <see cref="BuildPushbackFaces"/>), and so is the delayed spawn's Change spawn delay submenu
 /// (<see cref="BuildSpawnDelay"/>), whose free-text box closes the menu it sits in; a value submenu builds a whole
 /// submenu of items from its own label and the menu context, one per value — the leader directions, the J-ring radii,
-/// the cone lengths and the taxi-route modes; and the Cleared for takeoff submenu offers the default clearance and
-/// runway heading, the VFR departure instructions when the aircraft and the controller's VFR-for-IFR setting allow
-/// them, and a free-text item last. A pattern entry is a leaf naming the assigned runway, else a runway picker, else
+/// the cone lengths and the taxi-route modes; and the Cleared for takeoff submenu is the same on every view: the
+/// default clearance and runway heading, the VFR departure instructions when the aircraft and the controller's
+/// VFR-for-IFR setting allow them, and, on a host that opens a free-text popup (<see cref="IMenuHost.HasInputPopup"/>),
+/// a free-text item last. A pattern entry is a leaf naming the assigned runway, else a runway picker, else
 /// free text, and each pattern maneuver applies only on the legs it fits. Line up and wait names the held runway, else
 /// the assigned one, on every view (<see cref="HoldShortMenuHelper.HeldRunway(IMenuAircraft?)"/>). Line up and wait,
-/// Cleared for takeoff, cancel takeoff, resume taxi, cross runway and the release-window check apply by one gate on
-/// every view. On the ground view (<see cref="MenuContext.View"/>), the Cleared for takeoff header names the held
-/// runway, and that submenu keeps the ground's modifier set with no free text; the relative ground items send as the
-/// previous selection. The aircraft list (<see cref="MenuView.List"/>) shows Cleared for takeoff naming the held
-/// runway as a bare leaf sending <c>CTO</c>. A delayed spawn instead offers
-/// Spawn now, the Change spawn delay submenu and Delete (<see cref="SharedMenuGroups.AddDelayedSpawn"/>), and a
+/// Cleared for takeoff and its runway-bearing header, cancel takeoff, resume taxi, cross runway and the release-window
+/// check are the same on every view. The relative ground items send as the previous selection. A delayed spawn instead
+/// offers Spawn now, the Change spawn delay submenu and Delete (<see cref="SharedMenuGroups.AddDelayedSpawn"/>), and a
 /// selection of two or more assumable shadows adds "Assume selected live traffic (N)" after Delete
 /// (<see cref="SharedMenuGroups.AddAssumeSelected"/>, built by <see cref="BuildAssumeSelected"/>).
 /// </summary>
@@ -172,13 +170,7 @@ public static class MenuCatalog
             ClearedForTakeoffLabel,
             MenuFlightRules.Both,
             (ac, _) => AircraftCommandApplicability.CanClearForTakeoff(ac),
-            (ac, context, host) =>
-                context.View switch
-                {
-                    MenuView.Ground => BuildGroundClearedForTakeoff(ac, context, host),
-                    MenuView.List => BuildListClearedForTakeoff(ac, context, host),
-                    _ => BuildClearedForTakeoff(ac, context, host),
-                }
+            BuildClearedForTakeoff
         ),
         Leaf(MenuIds.TowerCancelTakeoff, "Cancel takeoff clearance", "CTOC", (ac, _) => AircraftCommandApplicability.CanCancelTakeoff(ac)),
         RunwayLeaf(MenuIds.TowerClearedToLand, "Cleared to land", "CLAND", CanClearToLand),
@@ -315,24 +307,6 @@ public static class MenuCatalog
 
     /// <summary>The aircraft list's multi-selection assume item's label, which the number of selected shadows follows.</summary>
     private const string AssumeSelectedLabel = "Assume selected live traffic";
-
-    /// <summary>The ground view's closed-traffic departure instructions, offered after the default when the VFR ones apply.</summary>
-    private static readonly (string Label, string Argument)[] GroundTrafficTakeoffModifiers =
-    [
-        ("Make left traffic", "MLT"),
-        ("Make right traffic", "MRT"),
-    ];
-
-    /// <summary>The ground view's departure-heading instructions, offered after the closed-traffic ones when the VFR ones apply.</summary>
-    private static readonly (string Label, string Argument)[] GroundDepartureTakeoffModifiers =
-    [
-        ("Runway heading", "RH"),
-        ("On course", "OC"),
-        ("Right crosswind (90° right)", "MRC"),
-        ("Right downwind (180° right)", "MRD"),
-        ("Left crosswind (90° left)", "MLC"),
-        ("Left downwind (180° left)", "MLD"),
-    ];
 
     /// <summary>The placeholder of the Cleared for takeoff submenu's free-text item.</summary>
     private const string ClearedForTakeoffPlaceholder = "CTO arg (e.g. RH 3000, LT 270, DCT BERKS)";
@@ -478,13 +452,6 @@ public static class MenuCatalog
         BuildSend(LineUpAndWaitLabel + DisplaySuffix(HoldShortMenuHelper.HeldRunway(aircraft)), "LUAW", context, host);
 
     /// <summary>
-    /// The aircraft list's Cleared for takeoff item: a bare leaf sending <c>CTO</c>, its label naming the held runway
-    /// (else the assigned one) as the ground header does, but with no submenu.
-    /// </summary>
-    private static MenuItem BuildListClearedForTakeoff(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
-        BuildSend(ClearedForTakeoffLabel + DisplaySuffix(HoldShortMenuHelper.HeldRunway(aircraft)), "CTO", context, host);
-
-    /// <summary>
     /// Cross the held runway, else the assigned one (<see cref="HoldShortMenuHelper.HeldRunway(IMenuAircraft?)"/>), named
     /// in display form and sent as resolved; null when the aircraft has neither.
     /// </summary>
@@ -554,40 +521,6 @@ public static class MenuCatalog
             await host.SendAsync(context.Callsign, $"SPAWNDELAY {seconds.Value}", context.Initials);
         };
         return textBox;
-    }
-
-    /// <summary>
-    /// The ground view's Cleared for takeoff submenu, headed with the runway it names
-    /// (<see cref="HoldShortMenuHelper.HeldRunway(IMenuAircraft?)"/>):
-    /// the default clearance, then the closed-traffic and departure-heading instructions when
-    /// <see cref="AircraftCommandApplicability.ShowVfrTakeoffModifiers"/> allows them, else runway heading only. No free text.
-    /// </summary>
-    private static MenuItem BuildGroundClearedForTakeoff(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-    {
-        var menu = new MenuItem { Header = ClearedForTakeoffLabel + DisplaySuffix(HoldShortMenuHelper.HeldRunway(aircraft)) };
-        menu.Items.Add(BuildSend("Default (SID/on course)", "CTO", context, host));
-        menu.Items.Add(new Separator());
-        if (AircraftCommandApplicability.ShowVfrTakeoffModifiers(aircraft, context.VfrCommandsForIfr))
-        {
-            AddTakeoffModifiers(menu.Items, GroundTrafficTakeoffModifiers, context, host);
-            menu.Items.Add(new Separator());
-            AddTakeoffModifiers(menu.Items, GroundDepartureTakeoffModifiers, context, host);
-        }
-        else
-        {
-            menu.Items.Add(BuildSend("Runway heading", "CTO RH", context, host));
-        }
-
-        return menu;
-    }
-
-    /// <summary>Adds one item per modifier, each sending <c>CTO</c> followed by the modifier's argument.</summary>
-    private static void AddTakeoffModifiers(ItemCollection items, (string Label, string Argument)[] modifiers, MenuContext context, IMenuHost host)
-    {
-        foreach ((string label, string argument) in modifiers)
-        {
-            items.Add(BuildSend(label, $"CTO {argument}", context, host));
-        }
     }
 
     /// <summary>
@@ -690,14 +623,16 @@ public static class MenuCatalog
     }
 
     /// <summary>
-    /// The Cleared for takeoff submenu: the default clearance (the filed SID for IFR, runway heading for VFR) and an
-    /// explicit runway heading for either, then the VFR-only departure instructions when
-    /// <see cref="AircraftCommandApplicability.ShowVfrTakeoffModifiers"/> allows them, then free text: blank sends a
-    /// bare <c>CTO</c>, anything else is trimmed and sent after it.
+    /// The Cleared for takeoff submenu, the same on every view: headed with the held runway, else the assigned one
+    /// (<see cref="HoldShortMenuHelper.HeldRunway(IMenuAircraft?)"/>), the default clearance (the filed SID for IFR,
+    /// runway heading for VFR) and an explicit runway heading for either, then the VFR-only departure instructions when
+    /// <see cref="AircraftCommandApplicability.ShowVfrTakeoffModifiers"/> allows them. Only a host that opens a
+    /// free-text input popup (<see cref="IMenuHost.HasInputPopup"/>) gets the trailing separator and Custom item: blank
+    /// sends a bare <c>CTO</c>, anything else is trimmed and sent after it.
     /// </summary>
     private static MenuItem BuildClearedForTakeoff(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        var menu = new MenuItem { Header = ClearedForTakeoffLabel };
+        var menu = new MenuItem { Header = ClearedForTakeoffLabel + DisplaySuffix(HoldShortMenuHelper.HeldRunway(aircraft)) };
         menu.Items.Add(BuildSend("Default (SID/on course)", "CTO", context, host));
         menu.Items.Add(BuildSend("Fly runway heading", "CTO RH", context, host));
         if (AircraftCommandApplicability.ShowVfrTakeoffModifiers(aircraft, context.VfrCommandsForIfr))
@@ -706,6 +641,11 @@ public static class MenuCatalog
             {
                 menu.Items.Add(BuildSend(label, $"CTO {argument}", context, host));
             }
+        }
+
+        if (!host.HasInputPopup)
+        {
+            return menu;
         }
 
         menu.Items.Add(new Separator());

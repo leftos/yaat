@@ -10,8 +10,7 @@ Favorite Commands
 ---
 Cleared for takeoff 30
   Default (SID/on course)
-  ---
-  Runway heading
+  Fly runway heading
 Cancel takeoff clearance
 Taxi route
   Always show

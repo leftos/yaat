@@ -166,7 +166,7 @@ public class RadarContextMenuStateTests
         MenuItem? tower = SharedMenuGroups.Tower(ac, Context("AAL2"), new RecordingMenuHost(""));
         Assert.NotNull(tower);
 
-        MenuItem? cto = tower!.Items.OfType<MenuItem>().FirstOrDefault(m => m.Header is "Cleared for takeoff");
+        MenuItem? cto = tower!.Items.OfType<MenuItem>().FirstOrDefault(m => m.Header is "Cleared for takeoff 30");
         Assert.NotNull(cto);
         List<string> ctoHeaders = Headers(cto!);
         // IFR gets the default (follow-SID) clearance and an explicit runway-heading clearance (issue #221).
@@ -193,7 +193,7 @@ public class RadarContextMenuStateTests
         MenuItem? tower = SharedMenuGroups.Tower(ac, Context("N123"), new RecordingMenuHost(""));
         Assert.NotNull(tower);
 
-        MenuItem? cto = tower!.Items.OfType<MenuItem>().FirstOrDefault(m => m.Header is "Cleared for takeoff");
+        MenuItem? cto = tower!.Items.OfType<MenuItem>().FirstOrDefault(m => m.Header is "Cleared for takeoff 30");
         Assert.NotNull(cto);
         Assert.Equal(
             [

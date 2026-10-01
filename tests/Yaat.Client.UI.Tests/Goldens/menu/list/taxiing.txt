@@ -10,6 +10,8 @@ Favorite Commands
 Hold position
 Line up and wait 30
 Cleared for takeoff 30
+  Default (SID/on course)
+  Fly runway heading
 ---
 Track
   Track

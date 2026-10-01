@@ -4,8 +4,8 @@ namespace Yaat.Client.ContextMenus;
 
 /// <summary>
 /// The one source of the runway the aircraft right-click menus name for a departure: the held runway at a
-/// hold-short, else the assigned one. Every view's "Cross" and "Line up and wait" items read it, and so do the
-/// ground and list "Cleared for takeoff" labels.
+/// hold-short, else the assigned one. Every view's "Cross", "Line up and wait" and "Cleared for takeoff" items
+/// read it.
 /// </summary>
 public static class HoldShortMenuHelper
 {
