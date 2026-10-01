@@ -20,7 +20,7 @@ Authoritative interface definitions: `..\vatsim-vnas\messaging\` (sibling repo)
 
 ### Session Management
 
-- [x] `GetServerConfiguration()` → returns UDP port (6809)
+- [x] `GetServerConfiguration()` → returns UDP port (6809) as `ServerConfigurationDto`; also answered for direct connections and negotiated joiners, and over the JSON hub protocol (`{"udpPort":6809}`)
 - [x] `StartSession(StartSessionDto)` → registers position, returns `SessionInfoDto`
 - [x] `ActivateSession()` → sends `ReceiveOpenPositions` + `SetSessionActive(true)` + ack
 - [x] `DeactivateSession()` → sends `ReceiveOpenPositions` + `SetSessionActive(false)` + ack
@@ -187,7 +187,7 @@ Authoritative interface definitions: `..\vatsim-vnas\messaging\` (sibling repo)
 
 - [x] `ReceiveTowerCabAircrafts(Topic, List<TowerCabAircraftDto>)` — per-tick broadcast + initial data; VoiceType from AircraftState
 - [x] `DeleteTowerCabAircrafts(Topic, List<string>)` — aircraft removal
-- [x] UDP `EntityUpdate` for `TowerCabAircraft` (union tag 24, topic `[10, airport, nil, nil]`, integer `VoiceType`) — a UDP-registered subscriber gets an aircraft's position changes over UDP, as vNAS sends them; new aircraft, the 10 s resend, deletes and the subscribe snapshot stay on the hub, and an unregistered subscriber or a failed send falls back to the hub
+- [x] UDP `EntityUpdate` for `TowerCabAircraft` (union tag 24, topic `[10, airport, nil, nil]`, integer `VoiceType`) — a UDP-registered subscriber gets an aircraft's position changes over UDP, as vNAS sends them; new aircraft, the 10 s resend, deletes and the subscribe snapshot stay on the hub, and an unregistered subscriber or a failed send falls back to the hub. TowerCab 3D registers as a negotiated joiner (negotiate, then `?id=` plus `?access_token=`; [vatsim-auth.md](./vatsim-auth.md)), keyed by its own negotiate id
 
 ### Ground Targets
 

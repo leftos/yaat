@@ -22,7 +22,7 @@
 
 ### Changed
 
-- CRC's Tower Cab receives aircraft position updates over UDP, as on vNAS; new aircraft and removals still arrive over the hub connection.
+- CRC's Tower Cab and TowerCab 3D receive aircraft position updates over UDP, as on vNAS; new aircraft and removals still arrive over the hub connection.
 - A pilot on an instrument approach told to `FOLLOW` traffic to its runway keeps flying the approach and keeps its landing clearance.
 - A pilot told to `FOLLOW` traffic behind it in the landing sequence, departing, on a missed approach, or with no runway and not ahead of it answers unable, on an approach or already following too.
 - Repeating `FOLLOW` for the traffic already being followed keeps the aircraft's current maneuver, and a refused `FOLLOWF` leaves the traffic not in sight.

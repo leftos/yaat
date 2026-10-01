@@ -194,7 +194,20 @@ vEDST (the web ERAM client) signs in against yaat-server as if it were vNAS. `Au
 
 vEDST opens the CRC hub socket directly (`skipNegotiation`), so it carries no negotiate `?id=`; it presents its access token as `?access_token=`, which `CrcWebSocketHandler` validates the way the training hub validates a bearer token (a refresh token is refused). The connection takes that token's CID and no room of its own; a missing or invalid token gets HTTP 401 before the upgrade, and the token is never logged.
 
-TowerCab 3D (a third-party vNAS client) uses the same direct connection and the JSON hub protocol: it lists its CID's CRC sessions with `GetSessions`, joins one with `JoinSession`, and subscribes to `TowerCabAircraft`. It signs in like a real vNAS client: its own VATSIM Connect client yields a VATSIM access token, which it sends as `/vnas/auth/refresh?vatsimToken=`. The refresh endpoint therefore accepts two kinds of token: a YAAT refresh token (vEDST) is validated as before and never forwarded anywhere, revoked or not; any other token that is not a YAAT access token is looked up at VATSIM's userinfo endpoint (`VatsimAuthService.FetchUserByAccessTokenAsync`), and a user with the `vatsim_details` scope gets a YAAT access token. Against a Development server with `RequireVatsimAuth` off, TowerCab signs in through `/vnas/auth/dev-login?cid=` instead. It does not use the UDP entity socket: a direct connection has no negotiate token to register with, and Tower Cab aircraft arrive over the hub ([plans/towercab-udp.md](./plans/towercab-udp.md) covers UDP parity).
+**Accepting a CRC hub socket** (`CrcWebSocketHandler.DecideAcceptAsync`, a pure decision over the `?id=`, the `?access_token=` and the token store). `NegotiateHandler` records every connection token it issues in `CrcNegotiateTokenStore`, with the Bearer fsd-jwt's unverified `sub` as its CID when one is sent and none otherwise; a token lives 60 s and is consumed once, and lapsed entries are swept at most once a second. Then:
+
+| `?id=` | `?access_token=` | Outcome |
+|---|---|---|
+| none | valid | **direct** (vEDST): the token's CID, no connection token |
+| none | missing or invalid | 401 |
+| issued, live, unused | none (or blank) | **negotiated** (CRC): the store's CID, possibly none; may be dev-auto-bound |
+| issued, live, unused | valid | **negotiated joiner** (TowerCab 3D): direct, the access token's CID (the store's is ignored), the `?id=` as its connection token, so it can register for UDP |
+| issued, live, unused | invalid | 401 (the id is spent) |
+| not issued, lapsed or already used | any | 401 |
+
+Every refusal is a bare 401 before the upgrade, logged as a warning that names the reason and the remote address and never a token. A direct connection or a joiner may call only the hub methods in `CrcClientState.DirectConnectionTargets` (`GetServerConfiguration` among them); `JoinSession` needs a CRC primary session with the same CID. An access token is checked once, at connect: its 60-minute expiry does not close an open socket, as on the training hub.
+
+TowerCab 3D (a third-party vNAS client) connects as a negotiated joiner over the JSON hub protocol: it lists its CID's CRC sessions with `GetSessions`, joins one with `JoinSession`, and subscribes to `TowerCabAircraft`. It signs in like a real vNAS client: its own VATSIM Connect client yields a VATSIM access token, which it sends as `/vnas/auth/refresh?vatsimToken=`. The refresh endpoint therefore accepts two kinds of token: a YAAT refresh token (vEDST) is validated as before and never forwarded anywhere, revoked or not; any other token that is not a YAAT access token is looked up at VATSIM's userinfo endpoint (`VatsimAuthService.FetchUserByAccessTokenAsync`), and a user with the `vatsim_details` scope gets a YAAT access token. Against a Development server with `RequireVatsimAuth` off, TowerCab signs in through `/vnas/auth/dev-login?cid=` instead. After `GetServerConfiguration` (`{"udpPort":6809}`) it registers its negotiate id on the UDP entity socket and receives Tower Cab positions there, as on vNAS; new aircraft, removals and the periodic full set still arrive over the hub. A TowerCab build that skips negotiate connects as a plain direct client and gets every position over the hub.
 
 Accepted risks, set by vEDST's protocol:
 
@@ -225,5 +238,6 @@ Accepted risks, set by vEDST's protocol:
   to a room (`TrainingRoomManager.GetRoomForCid`) when that CID joined via the OAuth-gated training hub,
   so a forged CID can at most bind to a room whose owner's CID it already knows — one room's STARS/ERAM
   feed and CRC mutations, no cross-room/server escalation. CRC is rating-exempt regardless. The
-  negotiate connection token uses `RandomNumberGenerator`. A proper fix (e.g. lobby-only binding with
+  negotiate connection token uses `RandomNumberGenerator`, lives 60 s and is consumed once; a socket
+  presenting an `?id=` the server did not issue is refused. A proper fix (e.g. lobby-only binding with
   an explicit instructor pull) is tracked for a future design pass.

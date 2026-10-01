@@ -318,6 +318,17 @@ _Avoid_: phase (one situation spans several phases)
 **Quick commands**:
 The short, user-editable list of commands an aircraft's right-click menu shows first for its current situation; the rest sit under All Commands.
 
+## CRC hub connections
+
+**Direct connection**:
+A CRC hub socket identified by its own YAAT `access_token` (vEDST, TowerCab 3D) rather than by a CRC negotiate: it never joins a room, the lobby or attendance, and reaches a session only through `JoinSession` with a primary of the same CID (docs/vatsim-auth.md).
+
+**Primary**:
+The CRC connection whose session a direct connection joins; the joiner reads the primary's room.
+
+**Negotiated joiner**:
+A direct connection that also negotiated first (TowerCab 3D): it keeps its negotiate id as its connection token, so it can register for UDP entity updates, while its CID comes from its access token.
+
 ## Tooling
 
 **Gate**:
