@@ -3912,9 +3912,11 @@ public static class CommandDispatcher
     /// (<see cref="AirborneFollowHelper.PatternLegIndex"/>):
     /// <list type="bullet">
     /// <item>no leg in the sequence (a missed approach, a hold): not ahead;</item>
-    /// <item>a pattern entry: behind a follower on base, final or an instrument approach (getting behind a 45° entrant from
-    /// there would take a 360, AIM §4-3-5), and accepted from upwind, crosswind or downwind, since the entrant may join the
-    /// downwind ahead and falling in behind it is the follow's job;</item>
+    /// <item>a pattern entry: from an instrument approach, by remaining path to the threshold, the entrant's measured through
+    /// its entry route (the running follow's test, <see cref="AirborneFollowHelper.IsLeadPatternFlowBehind"/>), since a
+    /// follower 8–10 nm out can fall in behind an entrant close to its join; behind a follower on base or final (getting
+    /// behind a 45° entrant from there would take a 360, AIM §4-3-5); and accepted from upwind, crosswind or downwind, since
+    /// the entrant may join the downwind ahead and falling in behind it is the follow's job;</item>
     /// <item>any other leg: the same test the running follow uses (<see cref="AirborneFollowHelper.IsLeadPatternFlowBehind"/>),
     /// by remaining path to the threshold from base, final or an approach, by leg order from the outbound legs, and by
     /// position on a shared leg.</item>
@@ -3924,7 +3926,9 @@ public static class CommandDispatcher
         AirborneFollowHelper.PatternLegIndex(lead) switch
         {
             null => true,
-            AirborneFollowHelper.EntryLegIndex => current is not (UpwindPhase or CrosswindPhase or DownwindPhase),
+            AirborneFollowHelper.EntryLegIndex => IsOnInstrumentApproach(current)
+                ? AirborneFollowHelper.IsLeadPatternFlowBehind(follower, lead)
+                : (current is not (UpwindPhase or CrosswindPhase or DownwindPhase)),
             _ => AirborneFollowHelper.IsLeadPatternFlowBehind(follower, lead),
         };
 

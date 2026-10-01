@@ -22,6 +22,7 @@
 - A pilot told to `FOLLOW` traffic behind it in the landing sequence, departing, on a missed approach, or with no runway and not ahead of it answers unable, on an approach or already following too.
 - Repeating `FOLLOW` for the traffic already being followed keeps the aircraft's current maneuver, and a refused `FOLLOWF` leaves the traffic not in sight.
 - A pilot on final or an approach follows same-runway traffic by distance to the runway, so a long straight-in can follow an aircraft on close base.
+- A pilot on an approach told to `FOLLOW` traffic still entering the pattern judges whether it is ahead by the path that traffic has left to fly.
 - `ATXI` needs `@` for a helipad or gate and `$` for a spot; a bare name such as `ATXI 27` is always a runway.
 - A plain `TAXI $spot` or `TAXI @gate` from the ramp stays in the ramp, cutting across taxilanes, or is refused with a `TAXIAUTO` hint.
 - `TAXI A` from a stand several taxilanes from A taxis across the ramp to reach it instead of being refused.

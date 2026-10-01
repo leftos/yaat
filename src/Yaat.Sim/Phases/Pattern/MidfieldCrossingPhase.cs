@@ -66,9 +66,9 @@ public sealed class MidfieldCrossingPhase : Phase
             return;
         }
 
-        // Target: midfield point on the correct side (midpoint of downwind leg)
-        _targetLat = (Waypoints.DownwindStartLat + Waypoints.DownwindAbeamLat) / 2.0;
-        _targetLon = (Waypoints.DownwindStartLon + Waypoints.DownwindAbeamLon) / 2.0;
+        LatLon target = MidfieldTarget(Waypoints);
+        _targetLat = target.Lat;
+        _targetLon = target.Lon;
 
         // Set heading toward midfield target
         double bearing = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon));
@@ -97,6 +97,13 @@ public sealed class MidfieldCrossingPhase : Phase
 
         Log.LogDebug("[MidfieldCrossing] {Callsign}: started, cat={Cat}, crossingAlt={Alt:F0}ft", ctx.Aircraft.Callsign, ctx.Category, crossingAlt);
     }
+
+    /// <summary>
+    /// The point the crossing flies to: midfield on the pattern side, the midpoint of the downwind leg of
+    /// <paramref name="waypoints"/>.
+    /// </summary>
+    public static LatLon MidfieldTarget(PatternWaypoints waypoints) =>
+        new((waypoints.DownwindStartLat + waypoints.DownwindAbeamLat) / 2.0, (waypoints.DownwindStartLon + waypoints.DownwindAbeamLon) / 2.0);
 
     /// <summary>
     /// The altitude (ft MSL) this crossing is flown at. An in-pattern crossover and a piston/helicopter
