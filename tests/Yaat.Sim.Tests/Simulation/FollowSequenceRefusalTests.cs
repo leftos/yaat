@@ -16,7 +16,8 @@ namespace Yaat.Sim.Tests.Simulation;
 /// that the running follow counts as behind (<see cref="AirborneFollowHelper.IsLeadPatternFlowBehind"/>), or with no leg in
 /// the sequence. From upwind, crosswind or downwind the order is by leg (a lead on a later leg is ahead however far it is
 /// extended) and by position on a shared leg, and a lead on a pattern entry is accepted; from base, final or an instrument
-/// approach it is by remaining path to the threshold, and a lead on a pattern entry is refused. A departing lead is refused
+/// approach it is by remaining path to the threshold, and a lead on a pattern entry is refused from base or final and measured by
+/// its path through the entry from an instrument approach. A departing lead is refused
 /// from any follower, ahead of every other check. A refusal leaves the phase, the clearance and the follow untouched. Real
 /// KOAK 28R right traffic.
 /// </summary>
@@ -603,8 +604,12 @@ public class FollowSequenceRefusalTests(ITestOutputHelper output)
         AssertRefusedUnchanged(follower, before, result, NotAhead("approach"));
     }
 
+    /// <summary>
+    /// Follower 2.5 nm out on the intercept, lead on its entry to the right downwind from north of the field: its path through
+    /// the entry and the circuit is far longer than the follower's, so it is behind and FOLLOW is refused.
+    /// </summary>
     [Fact]
-    public void FollowFromApproach_LeadOnPatternEntry_IsRefused()
+    public void FollowFromApproach_LeadOnPatternEntryWithLongerPath_IsRefused()
     {
         SimulationEngine engine = BuildEngine();
         AircraftState follower = AddApproachFollower(engine, 2.5);

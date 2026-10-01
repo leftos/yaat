@@ -39,32 +39,59 @@ public sealed class TeardropReentryPhase : Phase
     public override string Name => "TeardropReentry";
     public override bool ManagesSpeed => true;
 
-    public override void OnStart(PhaseContext ctx)
+    /// <summary>Name of the re-entry's last navigation target, the downwind abeam point where the downwind is joined.</summary>
+    internal const string AbeamTargetName = "TDROP-ABM";
+
+    /// <summary>
+    /// The re-entry's outbound anchor (TDROP-OUT) and 45° lead-in (TDROP-LI) on <paramref name="waypoints"/> for a
+    /// <paramref name="category"/> aircraft. The route's third fix is the downwind abeam point itself.
+    /// </summary>
+    /// <param name="waypoints">The pattern the re-entry joins.</param>
+    /// <param name="category">The aircraft's category, which sets the outbound and lead-in distances.</param>
+    /// <returns>The outbound anchor and the lead-in, in the order they are flown.</returns>
+    public static (LatLon Outbound, LatLon LeadIn) ReentryFixes(PatternWaypoints waypoints, AircraftCategory category)
     {
-        double downwindDeg = Waypoints.DownwindHeading.Degrees;
-        double reverseEntryDeg = Waypoints.Direction == PatternDirection.Right ? downwindDeg + 45.0 + 180.0 : downwindDeg - 45.0 + 180.0;
+        double downwindDeg = waypoints.DownwindHeading.Degrees;
+        double reverseEntryDeg = waypoints.Direction == PatternDirection.Right ? downwindDeg + 45.0 + 180.0 : downwindDeg - 45.0 + 180.0;
         var reverseEntryHdg = new TrueHeading(reverseEntryDeg);
 
-        double leadInNm = ctx.Category switch
+        (double Lat, double Lon) outbound = GeoMath.ProjectPoint(
+            waypoints.DownwindAbeamLat,
+            waypoints.DownwindAbeamLon,
+            waypoints.CrosswindHeading,
+            OutboundNm(category)
+        );
+        (double Lat, double Lon) leadIn = GeoMath.ProjectPoint(
+            waypoints.DownwindAbeamLat,
+            waypoints.DownwindAbeamLon,
+            reverseEntryHdg,
+            LeadInNm(category)
+        );
+        return (new LatLon(outbound.Lat, outbound.Lon), new LatLon(leadIn.Lat, leadIn.Lon));
+    }
+
+    /// <summary>Distance (nm) from the abeam point back out to the 45° lead-in, by category.</summary>
+    private static double LeadInNm(AircraftCategory category) =>
+        category switch
         {
             AircraftCategory.Jet => 2.0,
             AircraftCategory.Turboprop => 1.5,
             _ => 1.0,
         };
-        double outboundNm = ctx.Category switch
+
+    /// <summary>Distance (nm) from the abeam point out to the outbound anchor, by category.</summary>
+    private static double OutboundNm(AircraftCategory category) =>
+        category switch
         {
             AircraftCategory.Jet => 3.0,
             AircraftCategory.Turboprop => 2.5,
             _ => 2.0,
         };
 
-        (double Lat, double Lon) outbound = GeoMath.ProjectPoint(
-            Waypoints.DownwindAbeamLat,
-            Waypoints.DownwindAbeamLon,
-            Waypoints.CrosswindHeading,
-            outboundNm
-        );
-        (double Lat, double Lon) leadIn = GeoMath.ProjectPoint(Waypoints.DownwindAbeamLat, Waypoints.DownwindAbeamLon, reverseEntryHdg, leadInNm);
+    public override void OnStart(PhaseContext ctx)
+    {
+        (LatLon outbound, LatLon leadIn) = ReentryFixes(Waypoints, ctx.Category);
+        double leadInNm = LeadInNm(ctx.Category);
 
         _outboundLat = outbound.Lat;
         _outboundLon = outbound.Lon;
@@ -97,7 +124,7 @@ public sealed class TeardropReentryPhase : Phase
             new NavigationTarget
             {
                 Position = new LatLon(Waypoints.DownwindAbeamLat, Waypoints.DownwindAbeamLon),
-                Name = "TDROP-ABM",
+                Name = AbeamTargetName,
                 AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, abeamAlt),
             }
         );

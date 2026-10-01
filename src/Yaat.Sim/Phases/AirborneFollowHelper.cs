@@ -443,11 +443,14 @@ public static class AirborneFollowHelper
     /// or final (an instrument approach and final by geometry included) is ordered by remaining path to the threshold
     /// (<see cref="IsLeadNoFartherFromThreshold"/>): base, final and approach converge on one final, so an extension cannot
     /// flip the order there, while leg order would put a 6 nm straight-in behind a close base and a close base behind a 10 nm
-    /// final. Against a lead still on a pattern entry, and for a follower on any other leg, the later leg is ahead: an
-    /// outbound leg's extension adds path, so a path order would flip the moment the lead turned onto its next leg.
+    /// final. A follower on the final (an instrument approach and final by geometry included) orders a lead still on a pattern
+    /// entry by path too, the entrant's measured through its entry route (<see cref="RemainingPatternPathNm"/>): an approach
+    /// follower accepted behind an entrant keeps spacing on it after it captures the final. Against an entry lead from base,
+    /// and for a follower on any other leg, the later leg is ahead: an outbound leg's extension adds path, so a path order
+    /// would flip the moment the lead turned onto its next leg.
     /// </summary>
     private static bool IsLeadAheadAcrossLegs(AircraftState follower, AircraftState lead, int followerLeg, int leadLeg, RunwayInfo runway) =>
-        ((followerLeg is BaseLegIndex or FinalLegIndex) && (leadLeg != EntryLegIndex))
+        ((followerLeg == FinalLegIndex) || ((followerLeg == BaseLegIndex) && (leadLeg != EntryLegIndex)))
             ? IsLeadNoFartherFromThreshold(follower, lead, runway)
             : (leadLeg > followerLeg);
 
@@ -503,7 +506,8 @@ public static class AirborneFollowHelper
     /// Remaining path (nm) from <paramref name="ac"/> to <paramref name="runway"/>'s threshold, the sequence coordinate: its
     /// along-final distance when on final (<see cref="IsOnFinalForSequence"/>); on an instrument approach not yet on final,
     /// the path it still has to fly (<see cref="ApproachPathNm"/>) or, on a course intercept, its straight-line distance to
-    /// the threshold; and otherwise its pattern path (<see cref="RemainingPatternPathNm"/>) on the reference geometry
+    /// the threshold; on a pattern entry that joins the final (a straight-in), its entry route and then the final measured
+    /// from the runway; and otherwise its pattern path (<see cref="RemainingPatternPathNm"/>) on the reference geometry
     /// <paramref name="wp"/>. <see cref="double.PositiveInfinity"/> when it has no leg in the sequence, or flies a pattern leg
     /// with no geometry to measure it on.
     /// </summary>
@@ -520,6 +524,15 @@ public static class AirborneFollowHelper
             return ac.Phases?.CurrentPhase is ApproachNavigationPhase navigation
                 ? ApproachPathNm(ac.Position, navigation, runway)
                 : GeoMath.DistanceNm(ac.Position, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude));
+        }
+
+        // A straight-in entrant carries no pattern waypoints (its circuit is the entry, the final and the landing), so its
+        // join to the final is measured from the runway.
+        if ((ac.Phases?.CurrentPhase is PatternEntryPhase entry) && (EntryJoinedLeg(ac, entry) == FinalLegIndex))
+        {
+            var join = new LatLon(entry.EntryLat, entry.EntryLon);
+            var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+            return EntryRouteNm(ac, entry) + FinalRemainingNm(join, threshold, runway.TrueHeading.ToReciprocal());
         }
 
         return ((leg is null) || (wp is null)) ? double.PositiveInfinity : RemainingPatternPathNm(ac, wp);
@@ -1169,7 +1182,8 @@ public static class AirborneFollowHelper
     /// <see cref="PatternLegIndex"/> returns <see cref="double.PositiveInfinity"/>; of the non-pattern
     /// phases, an instrument approach or any phase flown on the final by geometry is measured as the
     /// final, and a go-around that re-enters the pattern or a closed-traffic takeoff climb as the
-    /// upwind (<see cref="SequenceLegIndex"/>).
+    /// upwind (<see cref="SequenceLegIndex"/>). An aircraft still on a pattern entry is measured along its entry route to the
+    /// point where it joins the circuit, then from there (<see cref="EntryRemainingPathNm"/>).
     /// </para>
     /// </summary>
     public static double RemainingPatternPathNm(AircraftState ac, PatternWaypoints wp)
@@ -1180,43 +1194,207 @@ public static class AirborneFollowHelper
             return double.PositiveInfinity;
         }
 
-        var threshold = new LatLon(wp.ThresholdLat, wp.ThresholdLon);
-        TrueHeading dwHeading = wp.DownwindHeading;
+        var frame = PatternFrame.Of(wp);
+        return (leg == EntryLegIndex) ? EntryRemainingPathNm(ac, frame) : LegRemainingNm(frame, leg.Value, ac.Position);
+    }
 
-        double AlongTrack(LatLon p) => GeoMath.AlongTrackDistanceNm(p, threshold, dwHeading);
-        double PerpOffset(LatLon p) => Math.Abs(GeoMath.SignedCrossTrackDistanceNm(p, threshold, dwHeading));
+    /// <summary>
+    /// The rectangular circuit <see cref="RemainingPatternPathNm"/> measures on, as distances along and across the downwind axis
+    /// from the threshold (along-track positive toward the base turn): the crosswind turn (DER) at <paramref name="DerNm"/>, on
+    /// the departure side at a negative along-track, the base turn at <paramref name="BaseNm"/>, and the downwind's offset
+    /// <paramref name="WidthNm"/>.
+    /// </summary>
+    private readonly record struct PatternFrame(LatLon Threshold, TrueHeading DownwindHeading, double DerNm, double BaseNm, double WidthNm)
+    {
+        /// <summary>The frame of <paramref name="wp"/>.</summary>
+        public static PatternFrame Of(PatternWaypoints wp)
+        {
+            var axis = new PatternFrame(new LatLon(wp.ThresholdLat, wp.ThresholdLon), wp.DownwindHeading, 0.0, 0.0, 0.0);
+            return axis with
+            {
+                DerNm = axis.AlongNm(new LatLon(wp.CrosswindTurnLat, wp.CrosswindTurnLon)),
+                BaseNm = axis.AlongNm(new LatLon(wp.BaseTurnLat, wp.BaseTurnLon)),
+                WidthNm = axis.OffsetNm(new LatLon(wp.DownwindStartLat, wp.DownwindStartLon)),
+            };
+        }
 
-        // Fixed pattern reference distances along / across the downwind axis (threshold at 0,
-        // positive toward the base turn). The DER (crosswind-turn) sits on the departure side at a
-        // negative along-track; the base turn on the approach side at a positive along-track.
-        double dDer = AlongTrack(new LatLon(wp.CrosswindTurnLat, wp.CrosswindTurnLon));
-        double dBase = AlongTrack(new LatLon(wp.BaseTurnLat, wp.BaseTurnLon));
-        double width = PerpOffset(new LatLon(wp.DownwindStartLat, wp.DownwindStartLon));
+        /// <summary>Along-track distance (nm) of <paramref name="p"/> on the downwind axis from the threshold.</summary>
+        public double AlongNm(LatLon p) => GeoMath.AlongTrackDistanceNm(p, Threshold, DownwindHeading);
 
+        /// <summary>Perpendicular distance (nm) of <paramref name="p"/> from the downwind axis through the threshold.</summary>
+        public double OffsetNm(LatLon p) => Math.Abs(GeoMath.SignedCrossTrackDistanceNm(p, Threshold, DownwindHeading));
+    }
+
+    /// <summary>
+    /// Remaining circuit path (nm) from <paramref name="position"/> on pattern leg <paramref name="leg"/>, with the position's own
+    /// offset from the downwind axis (<see cref="LegRemainingNm(PatternFrame, int, LatLon, double)"/>).
+    /// </summary>
+    private static double LegRemainingNm(PatternFrame frame, int leg, LatLon position) =>
+        LegRemainingNm(frame, leg, position, frame.OffsetNm(position));
+
+    /// <summary>
+    /// Remaining circuit path (nm) from <paramref name="position"/> on pattern leg <paramref name="leg"/> of
+    /// <paramref name="frame"/>, the offset from the downwind axis taken as <paramref name="rhoP"/>. Any leg past the base
+    /// (final, terminal) is measured as the final.
+    /// </summary>
+    private static double LegRemainingNm(PatternFrame frame, int leg, LatLon position, double rhoP)
+    {
+        double dP = frame.AlongNm(position);
+        double width = frame.WidthNm;
+        double dDer = frame.DerNm;
+        double dBase = frame.BaseNm;
         double dwLen = dBase - dDer; // downwind leg length (DER-abeam to base turn)
         double finalLen = dBase; // final leg length (base turn along-track to threshold at 0)
-
-        double dP = AlongTrack(ac.Position);
-        double rhoP = PerpOffset(ac.Position);
 
         return leg switch
         {
             // Upwind: on the centerline, departure side. Remaining upwind to the DER (0 once past),
             // then crosswind + downwind (longer if extended past the DER) + base + final.
-            1 => Math.Max(0, dP - dDer) + width + (dBase - Math.Min(dP, dDer)) + width + finalLen,
+            UpwindLegIndex => Math.Max(0, dP - dDer) + width + (dBase - Math.Min(dP, dDer)) + width + finalLen,
             // Crosswind: near the DER along-track, perpendicular 0→width. Remaining crosswind (0 if
             // extended wider) + downwind + base (wider if extended) + final.
-            2 => Math.Max(0, width - rhoP) + dwLen + Math.Max(width, rhoP) + finalLen,
+            CrosswindLegIndex => Math.Max(0, width - rhoP) + dwLen + Math.Max(width, rhoP) + finalLen,
             // Downwind: at the downwind offset, along-track DER→base turn. Remaining downwind (0 if
             // extended past the base turn) + base (the aircraft's ACTUAL perpendicular offset, so a
             // wider downwind from a widened crosswind counts its longer base) + final (longer if
             // extended past the base turn).
-            3 => Math.Max(0, dBase - dP) + rhoP + Math.Max(dP, dBase),
+            DownwindLegIndex => Math.Max(0, dBase - dP) + rhoP + Math.Max(dP, dBase),
             // Base: near the base-turn along-track, perpendicular width→0. Remaining base + final.
-            4 => rhoP + Math.Max(dP, 0),
+            BaseLegIndex => rhoP + Math.Max(dP, 0),
             // Final: on the centerline, closing the threshold.
-            _ => Math.Max(dP, GeoMath.DistanceNm(ac.Position, threshold)),
+            _ => FinalRemainingNm(position, frame.Threshold, frame.DownwindHeading),
         };
+    }
+
+    /// <summary>
+    /// Remaining path (nm) from <paramref name="position"/> on the final to <paramref name="threshold"/>: its distance out
+    /// along the extended centerline (<paramref name="outboundCourse"/>, the reciprocal of the landing direction), or its
+    /// straight-line distance when that is longer (off the centerline).
+    /// </summary>
+    private static double FinalRemainingNm(LatLon position, LatLon threshold, TrueHeading outboundCourse) =>
+        Math.Max(GeoMath.AlongTrackDistanceNm(position, threshold, outboundCourse), GeoMath.DistanceNm(position, threshold));
+
+    /// <summary>
+    /// Remaining path (nm) of <paramref name="ac"/> on a pattern entry (<see cref="EntryLegIndex"/>): from its position along
+    /// its entry route to the point where it joins the circuit, in straight lines between the route's points with no credit for
+    /// turn arcs, plus the circuit path from that join point on <paramref name="frame"/>. A <see cref="PatternEntryPhase"/>
+    /// flies its lead-in while that is still in its navigation route, then its entry point, and joins the leg it hands over to
+    /// (<see cref="EntryJoinedLeg"/>); a <see cref="MidfieldCrossingPhase"/> flies to the midfield point and joins the
+    /// downwind there, or with a <see cref="TeardropReentryPhase"/> next flies the teardrop's fixes and joins at the downwind
+    /// abeam point; a teardrop flies the fixes left in its route to the abeam point. A crossing with no waypoints of its own
+    /// flies nowhere and cannot be measured.
+    /// </summary>
+    private static double EntryRemainingPathNm(AircraftState ac, PatternFrame frame) =>
+        ac.Phases?.CurrentPhase switch
+        {
+            PatternEntryPhase entry => PatternEntryPathNm(ac, entry, frame),
+            MidfieldCrossingPhase { Waypoints: { } waypoints } => MidfieldCrossingPathNm(ac, waypoints, frame),
+            TeardropReentryPhase teardrop => TeardropPathNm(ac, teardrop.Waypoints, frame),
+            _ => double.PositiveInfinity,
+        };
+
+    /// <summary>
+    /// A <see cref="PatternEntryPhase"/>'s remaining path: its entry route (<see cref="EntryRouteNm"/>), then the circuit from
+    /// the entry point on the leg it joins (<see cref="EntryJoinedLeg"/>) — a downwind at the downwind's own offset, a final
+    /// by <see cref="FinalRemainingNm"/>.
+    /// </summary>
+    private static double PatternEntryPathNm(AircraftState ac, PatternEntryPhase entry, PatternFrame frame)
+    {
+        var join = new LatLon(entry.EntryLat, entry.EntryLon);
+        double fromJoinNm = EntryJoinedLeg(ac, entry) switch
+        {
+            DownwindLegIndex => DownwindJoinRemainingNm(frame, join),
+            FinalLegIndex => FinalRemainingNm(join, frame.Threshold, frame.DownwindHeading),
+            int leg => LegRemainingNm(frame, leg, join),
+        };
+        return EntryRouteNm(ac, entry) + fromJoinNm;
+    }
+
+    /// <summary>
+    /// Path (nm) from <paramref name="ac"/> to <paramref name="entry"/>'s entry point: through its lead-in while the lead-in
+    /// target is still in the aircraft's navigation route, then straight to the entry point.
+    /// </summary>
+    private static double EntryRouteNm(AircraftState ac, PatternEntryPhase entry)
+    {
+        var join = new LatLon(entry.EntryLat, entry.EntryLon);
+        NavigationTarget? leadIn = ac.Targets.NavigationRoute.Find(t => t.Name == PatternEntryPhase.LeadInTargetName);
+        return (leadIn is null) ? PolylineNm(ac.Position, [join]) : PolylineNm(ac.Position, [leadIn.Position, join]);
+    }
+
+    /// <summary>
+    /// The circuit leg <paramref name="entry"/> joins: the leg of the phase that follows it in <paramref name="ac"/>'s phase
+    /// list (an entry to the crosswind joins at the crosswind turn whatever its kind), else the leg its
+    /// <see cref="PatternEntryPhase.Kind"/> names (<see cref="JoinedLegOfKind"/>).
+    /// </summary>
+    private static int EntryJoinedLeg(AircraftState ac, PatternEntryPhase entry) =>
+        ac.Phases?.Phases.ElementAtOrDefault(ac.Phases.CurrentIndex + 1) switch
+        {
+            UpwindPhase => UpwindLegIndex,
+            CrosswindPhase => CrosswindLegIndex,
+            DownwindPhase => DownwindLegIndex,
+            BasePhase => BaseLegIndex,
+            FinalApproachPhase => FinalLegIndex,
+            _ => JoinedLegOfKind(entry.Kind),
+        };
+
+    /// <summary>The circuit leg an entry of <paramref name="kind"/> joins: upwind, base or final by name, the downwind otherwise.</summary>
+    private static int JoinedLegOfKind(PatternEntryKind kind) =>
+        kind switch
+        {
+            PatternEntryKind.Upwind => UpwindLegIndex,
+            PatternEntryKind.Base => BaseLegIndex,
+            PatternEntryKind.Final => FinalLegIndex,
+            _ => DownwindLegIndex,
+        };
+
+    /// <summary>
+    /// A <see cref="MidfieldCrossingPhase"/>'s remaining path on <paramref name="waypoints"/>: to the midfield point, then either
+    /// the downwind from there or, when a <see cref="TeardropReentryPhase"/> is the next phase, the teardrop's outbound anchor
+    /// and lead-in (<see cref="TeardropReentryPhase.ReentryFixes"/>, as the teardrop will build them for this aircraft's
+    /// category) to the downwind abeam point, and the downwind from there.
+    /// </summary>
+    private static double MidfieldCrossingPathNm(AircraftState ac, PatternWaypoints waypoints, PatternFrame frame)
+    {
+        LatLon midfield = MidfieldCrossingPhase.MidfieldTarget(waypoints);
+        if (ac.Phases?.Phases.ElementAtOrDefault(ac.Phases.CurrentIndex + 1) is not TeardropReentryPhase teardrop)
+        {
+            return PolylineNm(ac.Position, [midfield]) + DownwindJoinRemainingNm(frame, midfield);
+        }
+
+        (LatLon outbound, LatLon leadIn) = TeardropReentryPhase.ReentryFixes(teardrop.Waypoints, AircraftCategorization.Categorize(ac.AircraftType));
+        var abeam = new LatLon(teardrop.Waypoints.DownwindAbeamLat, teardrop.Waypoints.DownwindAbeamLon);
+        return PolylineNm(ac.Position, [midfield, outbound, leadIn, abeam]) + DownwindJoinRemainingNm(frame, abeam);
+    }
+
+    /// <summary>
+    /// A <see cref="TeardropReentryPhase"/>'s remaining path: through the fixes left in the aircraft's navigation route short of
+    /// the abeam fix, to the downwind abeam point of <paramref name="waypoints"/>, and the downwind from there.
+    /// </summary>
+    private static double TeardropPathNm(AircraftState ac, PatternWaypoints waypoints, PatternFrame frame)
+    {
+        var abeam = new LatLon(waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon);
+        IEnumerable<LatLon> fixes = ac
+            .Targets.NavigationRoute.TakeWhile(t => t.Name != TeardropReentryPhase.AbeamTargetName)
+            .Select(t => t.Position)
+            .Append(abeam);
+        return PolylineNm(ac.Position, fixes) + DownwindJoinRemainingNm(frame, abeam);
+    }
+
+    /// <summary>Remaining circuit path (nm) from joining the downwind at <paramref name="join"/>, at the downwind's own offset.</summary>
+    private static double DownwindJoinRemainingNm(PatternFrame frame, LatLon join) => LegRemainingNm(frame, DownwindLegIndex, join, frame.WidthNm);
+
+    /// <summary>Length (nm) of the straight-line path from <paramref name="from"/> through each of <paramref name="points"/> in order.</summary>
+    private static double PolylineNm(LatLon from, IEnumerable<LatLon> points)
+    {
+        double pathNm = 0.0;
+        LatLon previous = from;
+        foreach (LatLon point in points)
+        {
+            pathNm += GeoMath.DistanceNm(previous, point);
+            previous = point;
+        }
+
+        return pathNm;
     }
 
     /// <summary>

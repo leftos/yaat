@@ -77,6 +77,9 @@ public sealed class PatternEntryPhase : Phase
     public double? LeadInLat { get; init; }
     public double? LeadInLon { get; init; }
 
+    /// <summary>Name of the lead-in's navigation target; it stays in the route until the lead-in is passed.</summary>
+    internal const string LeadInTargetName = "PTN-LEADIN";
+
     private bool _hasAnnouncedInitialCall;
 
     public override string Name => "Pattern Entry";
@@ -88,7 +91,9 @@ public sealed class PatternEntryPhase : Phase
 
         if (LeadInLat is not null && LeadInLon is not null)
         {
-            ctx.Targets.NavigationRoute.Add(new NavigationTarget { Position = new LatLon(LeadInLat.Value, LeadInLon.Value), Name = "PTN-LEADIN" });
+            ctx.Targets.NavigationRoute.Add(
+                new NavigationTarget { Position = new LatLon(LeadInLat.Value, LeadInLon.Value), Name = LeadInTargetName }
+            );
         }
 
         ctx.Targets.NavigationRoute.Add(
