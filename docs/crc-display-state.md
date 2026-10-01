@@ -43,7 +43,7 @@ Per-connection fields:
 
 ## Topics
 
-A topic is a subscription channel keyed by `(Name, FacilityId, Subset?, SectorId?)`. Subscribers receive `Receive<Topic>` (updates) and `Delete<Topic>` (removals). Categories:
+A topic is a subscription channel keyed by `(Name, FacilityId, Subset?, SectorId?)`. A client holds each topic once: a repeat `Subscribe` for a topic it already holds (CRC sends one on every reconnect) replaces the entry rather than adding a second, which would double every per-subscription broadcast, and moves it to the end, since the ERAM conflict sector is read from the last `EramDataBlocks` entry; the repeat is still acknowledged with the topic's initial snapshot (`CrcClientState.AddSubscription`). Subscribers receive `Receive<Topic>` (updates) and `Delete<Topic>` (removals). Categories:
 
 - **Position / Consolidation**: `OpenPositions`, `StarsConsolidation`.
 - **STARS**: `StarsTracks`, `StarsLineNumbers`, `StarsShortTermConflicts` (ATPA), `StarsCoordination`.

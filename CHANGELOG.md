@@ -32,6 +32,7 @@
 
 ### Fixed
 
+- A CRC display or TowerCab 3D that subscribes to the same data twice receives each update once, not once per subscription.
 - A room whose creation or first join fails is closed at once instead of lingering in the room list.
 - An ERAM track that loses radar coverage starts coasting from where CRC last drew it, instead of jumping ahead up to 12 seconds.
 - An ERAM `QT` with no location coasts from the position and track CRC shows, not the aircraft's hidden live position.
