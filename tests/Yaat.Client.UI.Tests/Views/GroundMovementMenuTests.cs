@@ -98,7 +98,7 @@ public class GroundMovementMenuTests
     public void GroundMenu_DoesNotOfferPushBack_ForHoldsTryPushbackRefuses(string phase) =>
         Assert.DoesNotContain(Headers(BuildGroundMenu(phase, held: false)), h => h.StartsWith("Push back", StringComparison.Ordinal));
 
-    // AddParkingAndTaxiItems and AddHoldingItems both build Follow… submenus. Widening the
+    // AddParkingAndTaxiItems and AddHoldFollowSubmenus both build Follow… submenus. Widening the
     // pushback gate must not let a "Holding After Pushback" aircraft collect one from each.
     [AvaloniaTheory]
     [InlineData("At Parking")]
