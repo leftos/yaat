@@ -10,6 +10,7 @@ A montage of FOLLOW situations recorded in the engine, in two cuts: a 60–90 s 
 - **On screen.** Command captions, the solo pilot's TTS, a rule + citation card opening each review clip (the rule, its AIM / 7110.65 grounding, what to watch for), and a live spacing readout.
 - **Spacing readout.** The client's own range/bearing line, `.rbl <FOLLOWER> <LEAD>` typed during the take.
 - **Timing.** Made after FOLLOW B6b-1 ships and before the release is cut; the release gate waits on it. Clip A1 surfaced the downwind sink, fixed before any clip was captured.
+- **Framing** (user 2026-10-01): the radar view itself is 1920×1080; the commands are overlaid on the video; the facility's video maps are on (KOAK: maps 590, 594 and 1); the scope is zoomed in on the action; data blocks are positioned so that every line of text is readable; SAY and pilot-speech bubbles are on, although solo mode normally suppresses them (`AircraftSpeechBubble.TryBuild`'s `soloMode` gate, `MainViewModel.Aircraft.cs` `MaybeAttachSpeechBubble`) — take 1 uses an uncommitted dev switch (`YAAT_DEV_SOLO_SPEECH_BUBBLES=1`) in the capture worktree; decide whether to commit it before the rest of the clips are captured.
 - **Conflict alerts.** Every clip script inhibits conflict alerts on its aircraft (`CAINH` on each, at the start), so an ERAM or STARS alert never draws over a follow (user 2026-10-01).
 
 ## Pipeline (mapped 2026-10-01)

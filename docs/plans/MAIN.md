@@ -27,6 +27,7 @@ ERAM comes before everything else, the other bug reports included (user 2026-09-
 
 ## Programmes next up (background; release with a non-hotfix)
 
+- [ ] **Say again** (user 2026-10-01; waits until the next release is cut) — [say-again.md](./say-again.md): a student command that asks a pilot to repeat its last transmission. Planning: exploration under way
 - [ ] **Taxi append** (user 2026-10-01; waits until the next release is cut) — [taxi-append.md](./taxi-append.md): a taxi command, like the direct-to append, that adds taxiways and optionally a new destination after the part of the current taxi route the aircraft has not yet covered, instead of replacing the route, keeping its stored clearances. Mapped (2026-10-01); a new destination replaces the old, no remaining route falls back to `TAXI`, a non-connecting append is refused (user); the rest of the open decisions are in the subplan; sequence after Wave 2 (shared ground grammar files) — **branch: feat/taxi-append** (opens when work starts)
 
 - [ ] **Command usage history** (user 2026-10-01; waits until the next release is cut) — [command-usage-history.md](./command-usage-history.md): track the local user's accepted commands per scenario and per primary airport, callsign-free, local only, and a new window to sort, filter and add them to favorites. First interview round answered (granularity, sources, compounds, window scope); the exploration map goes into the subplan
