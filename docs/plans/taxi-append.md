@@ -44,10 +44,11 @@ A taxi command that extends the aircraft's current taxi route instead of replaci
 - **No remaining route falls back to `TAXI`.** If the aircraft has no route left (stopped at the end, parked, pushing back, following), the append acts as a plain `TAXI` from where it stands. That path installs a fresh `PhaseList`, so the response must say what it dropped, the same way as the drop-and-warn backlog line for a same-runway re-taxi.
 - **Atomic.** If the appended taxiways do not connect to the end of the remaining route, the append is refused, the route is left unchanged, and the reply names the taxiway that fails to connect.
 - **Feature branch** `feat/taxi-append`: it opens when the work starts, after the release, and is sequenced after Wave 2's ground grammar items.
+- **Verb** (user): `TAXIA` ("taxi append"), beside `TAXIALL` and `TAXIAUTO`. ATCTrainer's command list has no append form; `ADCT` is the airborne precedent.
 
 ## Open decisions
 
-1. The verb's name and aliases (check ATCTrainer and VICE first).
+1. (decided above: `TAXIA`)
 2. (decided above)
 3. What happens to an old runway destination's bar: re-armed as an explicit hold-short, converted to a cleared crossing (the `CROSS` precedent), or dropped? This includes what a stored `CTO`/`LUAW` does when the aircraft reaches it (`aviation-sim-expert`).
 4. Readback wording (7110.65 §3-7-2, AIM 4-3-18; `ADCT` says "Then …"), for the response and for the solo pilot (`aviation-sim-expert`).

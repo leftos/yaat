@@ -32,12 +32,13 @@ Say again is a command for students. It asks a pilot to repeat its last transmis
 - **"Say again callsign" is supported** besides the whole-transmission repeat: the pilot repeats only its callsign. Partial repeats ("all after/before X") are not supported; a plain "say again" repeats the whole transmission.
 - **Nothing to repeat:** the pilot answers briefly (e.g. "{callsign}, I didn't say anything"). An aircraft that has left the frequency gets the refusal `CONTACT` already gives.
 - **Feature branch** `feat/say-again`, opened when work starts.
+- **Verb** (user): `AGAIN` repeats the whole transmission, `AGAIN CS` only the callsign. Neither ATCTrainer's nor VICE's command list has a say-again verb; `SA` is already taken in `CommandRegistry`.
+- **Last transmission** (user): any pilot line on the frequency counts — readbacks, proactive calls, reports and "unable" lines. The repeat itself does not replace it (its text is the same).
+- **Mid-transmission** (user): at most one pending repeat per aircraft. A say-again while the pilot is transmitting or has a line queued queues one repeat behind it; a second say-again while one is pending is a no-op. The pending flag is snapshotted with the last transmission.
 
 ## Open decisions
 
-1. Verb name, aliases and STT phrases ("say again", "say again callsign", "repeat"; check ATCTrainer and VICE). Also how an unaddressed "station calling ground, say again callsign" picks its aircraft (the last one that transmitted?).
-4. What counts as the last transmission (a readback, proactive call, report or unable), and whether the repeat itself becomes the last.
-5. With nothing to repeat: an "unable" line or a no-op. Mid-transmission: queue the repeat behind the line, or reject.
+1. STT phrases ("say again", "say again callsign", "repeat"), and how an unaddressed "station calling ground, say again callsign" picks its aircraft (the last one that transmitted?).
 6. Pilots asking the student to say again (M11.3/M11.4 territory).
 
 ## Task Index rows for the landing commit
