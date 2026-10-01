@@ -91,14 +91,14 @@ Exploration (2026-09-30): the three builders are `RadarView.ContextMenus.cs` (`O
   - **5a: plain sends, gates and the ground host.**
     - Adds a `MenuView View` field on `MenuContext`, since entry delegates need it, and edits every `new MenuContext(` caller.
     - Adds the `IMenuAircraft` members `Callsign`, `HasActiveTaxiRoute` and a CFR-window flag.
-    - Adds new predicates in `AircraftCommandApplicability`, each pinned in `AircraftCommandApplicabilityTests`: `CanFollowBehind`, `CanGiveWayTo`, `CanResumeFromHoldShort`, `CanCrossRunway`, `CanCheckReleaseWindow`, and the Taxiing-only hold-short and break-conflict gates.
+    - Adds new predicates in `AircraftCommandApplicability`, each pinned in `AircraftCommandApplicabilityTests`: `CanResumeFromHoldShort`, `CanCrossRunway`, `CanCheckReleaseWindow`, `CanBreakConflict`. The ground's LUAW, CTO and cancel-takeoff gates are private `MenuCatalog` helpers behind `View == Ground`. The ground relative items gate through Core's `RelativeTraffic.OffersGroundRelative`.
     - Adds a `GroundMenuHost` beside the radar and list hosts. `LiveTrafficMenuItems.cs` and its `SendOnlyMenuHost` are deleted, so there are still four `IMenuHost` implementations.
     - Moves only `HasRelativeContext` and `ShouldOfferGroundActions` of `RelativeTrafficActions`, together with `HoldShortMenuHelper`, to Core against `IMenuAircraft`. `ShouldOfferFollow` stays radar-side.
     - The ground's plain leaves move to the catalog.
     - Deletes the orphaned `GroundViewModel` wrappers and `GroundView.VfrCommandsForIfrMode()`. The ground context keeps its `None` fallback.
     - Re-points `Issue229TakeoffMenuRunwayTests` and `GroundContextMenuHoldShortTests`.
   - **5b: the host-answered submenus and the display items.**
-    - Covers pushback face and pushback to, preset taxi routes, hold short with its eager preview route, and follow and give way. These go through a Core `MenuCommandChoice(Label, Command, Preview)` and host data queries.
+    - Covers pushback face and pushback to, preset taxi routes, hold short with its eager preview route, and follow and give way. These go through a Core `MenuCommandChoice(Label, Command, Preview)` and host data queries, gated by the new predicates `CanFollowBehind`, `CanGiveWayTo` and the Taxiing-only hold-short gate.
     - Adds `EnterPushRoute` and `SetRoutePreview` to the host.
     - Catalogues `display.taxi-route` (`TaxiRouteDisplayMode` moves to Core) and `display.hide-datablock`, with host members. The ground keeps the label "Reset datablock position" through a `View` branch.
     - Adds ground Measure through `display.measure`.
