@@ -25,13 +25,12 @@ namespace Yaat.Client.ContextMenus;
 /// runway heading, the VFR departure instructions when the aircraft and the controller's VFR-for-IFR setting allow
 /// them, and a free-text item last. A pattern entry is a leaf naming the assigned runway, else a runway picker, else
 /// free text, and each pattern maneuver applies only on the legs it fits. Line up and wait names the held runway, else
-/// the assigned one, on every view (<see cref="HoldShortMenuHelper.HeldRunway(IMenuAircraft?)"/>). On the ground view
-/// (<see cref="MenuContext.View"/>), line up and wait, Cleared for takeoff and cancel takeoff keep the ground's
-/// narrower gates, the Cleared for takeoff header names the held runway, and that submenu keeps the ground's modifier
-/// set with no free text; the relative ground items send as the previous selection. The aircraft list
-/// (<see cref="MenuView.List"/>) shows its own flat variants: a hold-short or stationary hold to resume taxi from, a
-/// cross-runway gate with no controllability requirement, a release-window check with no controllability requirement,
-/// and Cleared for takeoff naming the held runway as a bare leaf sending <c>CTO</c>. A delayed spawn instead offers
+/// the assigned one, on every view (<see cref="HoldShortMenuHelper.HeldRunway(IMenuAircraft?)"/>). Line up and wait,
+/// Cleared for takeoff, cancel takeoff, resume taxi, cross runway and the release-window check apply by one gate on
+/// every view. On the ground view (<see cref="MenuContext.View"/>), the Cleared for takeoff header names the held
+/// runway, and that submenu keeps the ground's modifier set with no free text; the relative ground items send as the
+/// previous selection. The aircraft list (<see cref="MenuView.List"/>) shows Cleared for takeoff naming the held
+/// runway as a bare leaf sending <c>CTO</c>. A delayed spawn instead offers
 /// Spawn now, the Change spawn delay submenu and Delete (<see cref="SharedMenuGroups.AddDelayedSpawn"/>), and a
 /// selection of two or more assumable shadows adds "Assume selected live traffic (N)" after Delete
 /// (<see cref="SharedMenuGroups.AddAssumeSelected"/>, built by <see cref="BuildAssumeSelected"/>).
@@ -91,7 +90,7 @@ public static class MenuCatalog
             MenuIds.CoordinationCheckReleaseWindow,
             "Check release window",
             "CFR CHECK",
-            (ac, context) => context.View == MenuView.List ? CanListCheckReleaseWindow(ac) : AircraftCommandApplicability.CanCheckReleaseWindow(ac)
+            (ac, _) => AircraftCommandApplicability.CanCheckReleaseWindow(ac)
         ),
         InputLeaf(MenuIds.DataBlockScratchpad, "Scratchpad...", "Text", input => $"SP {input}"),
         InputLeaf(MenuIds.DataBlockNote, "Note...", "Note text (max 40)", input => $"NOTE {input}"),
@@ -165,14 +164,14 @@ public static class MenuCatalog
             MenuIds.TowerLineUpAndWait,
             LineUpAndWaitLabel,
             MenuFlightRules.Both,
-            (ac, context) => context.View == MenuView.Ground ? CanGroundLineUpAndWait(ac) : AircraftCommandApplicability.CanLineUpAndWait(ac),
+            (ac, _) => AircraftCommandApplicability.CanLineUpAndWait(ac),
             BuildLineUpAndWait
         ),
         new(
             MenuIds.TowerClearedForTakeoff,
             ClearedForTakeoffLabel,
             MenuFlightRules.Both,
-            (ac, context) => context.View == MenuView.Ground ? CanGroundClearForTakeoff(ac) : AircraftCommandApplicability.CanClearForTakeoff(ac),
+            (ac, _) => AircraftCommandApplicability.CanClearForTakeoff(ac),
             (ac, context, host) =>
                 context.View switch
                 {
@@ -181,12 +180,7 @@ public static class MenuCatalog
                     _ => BuildClearedForTakeoff(ac, context, host),
                 }
         ),
-        Leaf(
-            MenuIds.TowerCancelTakeoff,
-            "Cancel takeoff clearance",
-            "CTOC",
-            (ac, context) => context.View == MenuView.Ground ? CanGroundCancelTakeoff(ac) : AircraftCommandApplicability.CanCancelTakeoff(ac)
-        ),
+        Leaf(MenuIds.TowerCancelTakeoff, "Cancel takeoff clearance", "CTOC", (ac, _) => AircraftCommandApplicability.CanCancelTakeoff(ac)),
         RunwayLeaf(MenuIds.TowerClearedToLand, "Cleared to land", "CLAND", CanClearToLand),
         RunwayLeaf(MenuIds.TowerForceLanding, "Force landing", "CLANDF", CanForceLanding),
         RunwayLeaf(MenuIds.TowerClearedOption, "Cleared for the option", "COPT", CanIssueVfrOption),
@@ -237,16 +231,13 @@ public static class MenuCatalog
             MenuIds.GroundResumeTaxi,
             "Resume taxi",
             "RES",
-            (ac, context) =>
-                context.View == MenuView.List
-                    ? CanListResumeTaxi(ac)
-                    : (AircraftCommandApplicability.CanResumeFromHoldShort(ac)) || (AircraftCommandApplicability.CanResumeTaxi(ac))
+            (ac, _) => (AircraftCommandApplicability.CanResumeFromHoldShort(ac)) || (AircraftCommandApplicability.CanResumeTaxi(ac))
         ),
         new(
             MenuIds.GroundCrossRunway,
             CrossRunwayLabel,
             MenuFlightRules.Both,
-            (ac, context) => context.View == MenuView.List ? CanListCrossRunway(ac) : AircraftCommandApplicability.CanCrossRunway(ac),
+            (ac, _) => AircraftCommandApplicability.CanCrossRunway(ac),
             BuildCrossRunway
         ),
         Leaf(MenuIds.GroundBreakConflict, "Break conflict", "BREAK", (ac, _) => AircraftCommandApplicability.CanBreakConflict(ac)),
@@ -481,58 +472,6 @@ public static class MenuCatalog
 
     /// <summary><paramref name="runway"/> in display form as a label suffix (" 28R"), or empty when there is none.</summary>
     private static string DisplaySuffix(string? runway) => string.IsNullOrEmpty(runway) ? "" : $" {RunwayIdentifier.ToDisplayDesignator(runway)}";
-
-    /// <summary>
-    /// The ground view's Cleared for takeoff gate, narrower than <see cref="AircraftCommandApplicability.CanClearForTakeoff"/>:
-    /// a departure taxiing to, holding short of or lined up on a runway it can name
-    /// (<see cref="HoldShortMenuHelper.HeldRunway(IMenuAircraft?)"/>), never while lining up or rolling.
-    /// </summary>
-    private static bool CanGroundClearForTakeoff(IMenuAircraft? aircraft)
-    {
-        if (!AircraftCommandApplicability.IsControllable(aircraft))
-        {
-            return false;
-        }
-
-        string phase = aircraft.CurrentPhase;
-        bool departing = (phase is "Taxiing" or "LinedUpAndWaiting") || (phase.StartsWith("Holding Short", StringComparison.Ordinal));
-        return departing && !string.IsNullOrEmpty(HoldShortMenuHelper.HeldRunway(aircraft));
-    }
-
-    /// <summary>The ground view's Line up and wait gate: holding short of a runway it can name, never while taxiing to one.</summary>
-    private static bool CanGroundLineUpAndWait(IMenuAircraft? aircraft) => AircraftCommandApplicability.CanCrossRunway(aircraft);
-
-    /// <summary>The ground view's Cancel takeoff clearance gate: lined up and waiting or rolling, never while lining up.</summary>
-    private static bool CanGroundCancelTakeoff(IMenuAircraft? aircraft) =>
-        AircraftCommandApplicability.IsControllable(aircraft) && (aircraft.CurrentPhase is "LinedUpAndWaiting" or "Takeoff");
-
-    /// <summary>
-    /// The aircraft list's Resume taxi gate: a hold-short whose clearance RES satisfies, or a stationary hold with a
-    /// hold directive. The hold-short arm has no taxi-route requirement (unlike the ground view's
-    /// <see cref="AircraftCommandApplicability.CanResumeFromHoldShort"/>); the two arms' phases are disjoint, so the
-    /// list emits the entry once and never duplicates it.
-    /// </summary>
-    private static bool CanListResumeTaxi(IMenuAircraft? aircraft) =>
-        ((aircraft?.CurrentPhase ?? "").StartsWith("Holding Short", StringComparison.Ordinal))
-        || (AircraftCommandApplicability.CanResumeTaxi(aircraft));
-
-    /// <summary>
-    /// The aircraft list's Cross runway gate: on the ground holding short of a runway it can name. No controllability
-    /// requirement (the shared <see cref="AircraftCommandApplicability.CanCrossRunway"/> has one).
-    /// </summary>
-    private static bool CanListCrossRunway(IMenuAircraft? aircraft)
-    {
-        string phase = aircraft?.CurrentPhase ?? "";
-        return (aircraft?.IsOnGround == true)
-            && (phase.StartsWith("Holding Short", StringComparison.Ordinal))
-            && (HoldShortMenuHelper.HeldRunway(aircraft) is { Length: > 0 });
-    }
-
-    /// <summary>
-    /// The aircraft list's release-window gate: on the ground with a window to report on. No controllability
-    /// requirement (the shared <see cref="AircraftCommandApplicability.CanCheckReleaseWindow"/> has one).
-    /// </summary>
-    private static bool CanListCheckReleaseWindow(IMenuAircraft? aircraft) => aircraft is { IsOnGround: true, HasCfrWindow: true };
 
     /// <summary>Line up and wait, sending the bare verb, its label naming the held runway, else the assigned one.</summary>
     private static MenuItem BuildLineUpAndWait(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>

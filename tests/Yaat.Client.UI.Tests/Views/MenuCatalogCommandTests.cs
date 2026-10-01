@@ -1283,15 +1283,6 @@ public class MenuCatalogCommandTests
     }
 
     [AvaloniaFact]
-    public void GroundResumeTaxi_HiddenFromAHoldShortWithoutARoute_AndFromAnUnheldStop()
-    {
-        MenuCatalogEntry entry = MenuCatalog.Get(MenuIds.GroundResumeTaxi);
-
-        Assert.False(entry.IsApplicable(OnGround("Holding Short 28R/10L", "IFR", ""), GroundContext(VfrCommandsForIfr.None)));
-        Assert.False(entry.IsApplicable(OnGround("Holding In Position", "IFR", ""), GroundContext(VfrCommandsForIfr.None)));
-    }
-
-    [AvaloniaFact]
     public void GroundCrossRunway_NamesTheHeldRunway_AndSendsCrossForIt()
     {
         var host = new RecordingMenuHost("");
@@ -1526,39 +1517,158 @@ public class MenuCatalogCommandTests
         Assert.Equal(["CTO", "CTO RH"], host.Sent.Select(s => s.Command));
     }
 
+    // CTO where the sim takes it and never once rolling: a hold-short naming a runway (held, else assigned), taxiing
+    // with a runway (a deferred clearance), lined up, and lining up (a mid-line-up upgrade) — the same on every view.
     [AvaloniaTheory]
-    [InlineData("LiningUp", "28R")]
-    [InlineData("Takeoff", "28R")]
-    [InlineData("LinedUpAndWaiting", "")]
-    public void GroundCto_NeverInLiningUpOrTakeoff_NorLinedUpWithoutAnAssignedRunway(string phase, string assignedRunway)
-    {
-        AircraftModel ac = OnGround(phase, "IFR", assignedRunway);
-        MenuCatalogEntry entry = MenuCatalog.Get(MenuIds.TowerClearedForTakeoff);
+    [InlineData("Holding Short 28R/10L", "", true)]
+    [InlineData("Holding Short", "28R", true)]
+    [InlineData("Holding Short", "", false)]
+    [InlineData("Taxiing", "28R", true)]
+    [InlineData("Taxiing", "", false)]
+    [InlineData("LinedUpAndWaiting", "", true)]
+    [InlineData("LiningUp", "28R", true)]
+    [InlineData("Takeoff", "28R", false)]
+    [InlineData("At Parking", "28R", false)]
+    public void Cto_OfferedInLiningUp_NeverInTakeoff_OnEveryView(string phase, string assignedRunway, bool offered) =>
+        AssertSameOnEveryView(MenuIds.TowerClearedForTakeoff, OnGround(phase, "IFR", assignedRunway), offered);
 
-        Assert.True(entry.IsApplicable(ac, Context()));
-        Assert.False(entry.IsApplicable(ac, GroundContext(VfrCommandsForIfr.None)));
+    // LUAW at a hold-short naming a runway or taxiing with a runway — the ground view included.
+    [AvaloniaTheory]
+    [InlineData("Holding Short 28R/10L", "", true)]
+    [InlineData("Holding Short", "28R", true)]
+    [InlineData("Holding Short", "", false)]
+    [InlineData("Taxiing", "28R", true)]
+    [InlineData("Taxiing", "", false)]
+    [InlineData("LinedUpAndWaiting", "28R", false)]
+    [InlineData("LiningUp", "28R", false)]
+    public void Luaw_AtAHoldShortOrTaxiingWithARunway_OnEveryView(string phase, string assignedRunway, bool offered) =>
+        AssertSameOnEveryView(MenuIds.TowerLineUpAndWait, OnGround(phase, "IFR", assignedRunway), offered);
+
+    // Cancel takeoff clearance while lining up, lined up or rolling — the ground view included.
+    [AvaloniaTheory]
+    [InlineData("LiningUp", true)]
+    [InlineData("LinedUpAndWaiting", true)]
+    [InlineData("Takeoff", true)]
+    [InlineData("Holding Short 28R/10L", false)]
+    [InlineData("Taxiing", false)]
+    public void CancelTakeoff_LiningUpLinedUpOrRolling_OnEveryView(string phase, bool offered) =>
+        AssertSameOnEveryView(MenuIds.TowerCancelTakeoff, OnGround(phase, "IFR", "28R"), offered);
+
+    // RES from a hold-short only where HoldingShortPhase takes it: a mid-route bar (a crossing or an explicit hold-short)
+    // with route left to resume onto. The bars where the sim refuses RES — the departure-runway bar and the end of an
+    // incomplete route — both end the route, so "route left" is the whole gate. The departure-runway situation flag is
+    // no substitute: it is also set at an intersection-departure explicit bar, where the sim accepts RES. The held
+    // stationary holds resume on every view as well.
+    [AvaloniaTheory]
+    [InlineData("Holding Short 28R/10L", true, "", true)]
+    [InlineData("Holding Short 28R/10L", false, "", false)]
+    [InlineData("Holding In Position", false, "HP", true)]
+    [InlineData("Holding In Position", false, "", false)]
+    public void ResumeTaxi_OnlyWhereTheSimAcceptsRes_OnEveryView(string phase, bool hasActiveTaxiRoute, string holdKind, bool offered)
+    {
+        AircraftModel ac = OnGround(phase, "IFR", "28R");
+        ac.HasActiveTaxiRoute = hasActiveTaxiRoute;
+        ac.HoldKind = holdKind;
+
+        AssertSameOnEveryView(MenuIds.GroundResumeTaxi, ac, offered);
     }
 
+    // A taxiway or spot bar names no runway: line up and wait and Cleared for takeoff name the assigned departure
+    // runway instead, on every view.
     [AvaloniaTheory]
-    [InlineData("Taxiing", "28R")]
-    public void GroundLineUpAndWait_OnlyAtAHoldShort_NeverTaxiingToTheRunway(string phase, string assignedRunway)
+    [InlineData("Holding Short B", MenuIds.TowerLineUpAndWait, "Line up and wait 28R")]
+    [InlineData("Holding Short spot 17", MenuIds.TowerLineUpAndWait, "Line up and wait 28R")]
+    [InlineData("Holding Short B", MenuIds.TowerClearedForTakeoff, "Cleared for takeoff 28R")]
+    [InlineData("Holding Short spot 17", MenuIds.TowerClearedForTakeoff, "Cleared for takeoff 28R")]
+    public void TaxiwayBar_WithAnAssignedRunway_LuawAndCtoNameTheAssignedRunway_OnEveryView(string phase, string id, string header)
     {
-        AircraftModel ac = OnGround(phase, "IFR", assignedRunway);
-        MenuCatalogEntry entry = MenuCatalog.Get(MenuIds.TowerLineUpAndWait);
+        AircraftModel ac = OnGround(phase, "IFR", "28R");
+        AssertSameOnEveryView(id, ac, true);
 
-        Assert.True(entry.IsApplicable(ac, Context()));
-        Assert.False(entry.IsApplicable(ac, GroundContext(VfrCommandsForIfr.None)));
+        foreach (CatalogMenuView view in new[] { CatalogMenuView.Radar, CatalogMenuView.List, CatalogMenuView.Ground })
+        {
+            if ((id == MenuIds.TowerClearedForTakeoff) && (view == CatalogMenuView.Radar))
+            {
+                // The radar's Cleared for takeoff submenu header names no runway.
+                continue;
+            }
+
+            var context = new MenuContext(Callsign, Initials, null, false, VfrCommandsForIfr.None, view);
+            MenuItem? item = MenuCatalog.Get(id).Build(ac, context, new RecordingMenuHost(""));
+            Assert.NotNull(item);
+            Assert.Equal(header, item.Header as string);
+        }
     }
 
+    // A taxiway or spot bar with no assigned runway has no runway to name: no line up and wait or Cleared for takeoff.
     [AvaloniaTheory]
-    [InlineData("LiningUp", "28R")]
-    public void GroundCancelTakeoff_NeverWhileLiningUp(string phase, string assignedRunway)
+    [InlineData("Holding Short B", MenuIds.TowerLineUpAndWait)]
+    [InlineData("Holding Short spot 17", MenuIds.TowerLineUpAndWait)]
+    [InlineData("Holding Short B", MenuIds.TowerClearedForTakeoff)]
+    [InlineData("Holding Short spot 17", MenuIds.TowerClearedForTakeoff)]
+    public void TaxiwayBar_WithNoAssignedRunway_NoLuawOrCto_OnEveryView(string phase, string id) =>
+        AssertSameOnEveryView(id, OnGround(phase, "IFR", ""), false);
+
+    // A taxiway or spot bar protects no runway, so Cross is never offered there, even with a runway assigned.
+    [AvaloniaTheory]
+    [InlineData("Holding Short B", "28R")]
+    [InlineData("Holding Short C", "28R")]
+    [InlineData("Holding Short F1", "")]
+    [InlineData("Holding Short spot 17", "28R")]
+    public void TaxiwayBar_NeverOffersCross_OnEveryView(string phase, string assignedRunway) =>
+        AssertSameOnEveryView(MenuIds.GroundCrossRunway, OnGround(phase, "IFR", assignedRunway), false);
+
+    [AvaloniaFact]
+    public void ResumeTaxi_NeverForASurfaceShadow_OnEveryView()
+    {
+        AircraftModel shadow = OnGround("Holding Short 28R/10L", "IFR", "28R");
+        shadow.IsLiveTraffic = true;
+        shadow.HasActiveTaxiRoute = true;
+
+        AssertSameOnEveryView(MenuIds.GroundResumeTaxi, shadow, false);
+    }
+
+    // Cross the runway held short of, named by the phase or the assignment, and never for an uncontrollable shadow.
+    [AvaloniaTheory]
+    [InlineData("Holding Short 28R/10L", "", false, true)]
+    [InlineData("Holding Short", "28R", false, true)]
+    [InlineData("Holding Short", "", false, false)]
+    [InlineData("Taxiing", "28R", false, false)]
+    [InlineData("Holding Short 28R/10L", "28R", true, false)]
+    public void CrossRunway_HoldingShortOfANamedRunway_NeverForAShadow_OnEveryView(
+        string phase,
+        string assignedRunway,
+        bool surfaceShadow,
+        bool offered
+    )
     {
         AircraftModel ac = OnGround(phase, "IFR", assignedRunway);
-        MenuCatalogEntry entry = MenuCatalog.Get(MenuIds.TowerCancelTakeoff);
+        ac.IsLiveTraffic = surfaceShadow;
 
-        Assert.True(entry.IsApplicable(ac, Context()));
-        Assert.False(entry.IsApplicable(ac, GroundContext(VfrCommandsForIfr.None)));
+        AssertSameOnEveryView(MenuIds.GroundCrossRunway, ac, offered);
+    }
+
+    // The release-window check for an aircraft on the ground with a window, and never for an uncontrollable shadow.
+    [AvaloniaTheory]
+    [InlineData(true, false, true)]
+    [InlineData(false, false, false)]
+    [InlineData(true, true, false)]
+    public void CheckReleaseWindow_OnTheGroundWithAWindow_NeverForAShadow_OnEveryView(bool hasWindow, bool surfaceShadow, bool offered)
+    {
+        AircraftModel ac = OnGround("Taxiing", "IFR", "28R");
+        ac.CfrWindowStartUtc = hasWindow ? new DateTime(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc) : null;
+        ac.IsLiveTraffic = surfaceShadow;
+
+        AssertSameOnEveryView(MenuIds.CoordinationCheckReleaseWindow, ac, offered);
+    }
+
+    private static void AssertSameOnEveryView(string id, AircraftModel ac, bool offered)
+    {
+        MenuCatalogEntry entry = MenuCatalog.Get(id);
+
+        Assert.Equal(offered, entry.IsApplicable(ac, RadarContext(VfrCommandsForIfr.None)));
+        Assert.Equal(offered, entry.IsApplicable(ac, ListContext(VfrCommandsForIfr.None)));
+        Assert.Equal(offered, entry.IsApplicable(ac, GroundContext(VfrCommandsForIfr.None)));
     }
 
     [AvaloniaFact]
@@ -1614,8 +1724,8 @@ public class MenuCatalogCommandTests
         return result;
     }
 
-    // A hold-short: Resume taxi (the list's route-free RES, offered with no taxi route), Cross the held runway,
-    // Line up and wait and a bare Cleared for takeoff, both naming the held 28R rather than the assigned 30.
+    // A mid-route hold-short: Resume taxi (route left to resume onto), Cross the held runway, Line up and wait and a
+    // bare Cleared for takeoff, both naming the held 28R rather than the assigned 30.
     [AvaloniaFact]
     public void ListMenu_HoldingShort_SendsResCrossLineUpAndBareCto()
     {
@@ -1624,6 +1734,7 @@ public class MenuCatalogCommandTests
             IsOnGround = true,
             CurrentPhase = "Holding Short 28R/10L",
             AssignedRunway = "30",
+            HasActiveTaxiRoute = true,
         };
 
         Assert.Equal(

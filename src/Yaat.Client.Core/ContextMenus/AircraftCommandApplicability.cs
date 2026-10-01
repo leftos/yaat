@@ -155,7 +155,10 @@ public static class AircraftCommandApplicability
 
     // --- Departures ---
 
-    /// <summary>Line up and wait — a departure that has reached, or is taxiing to, its runway.</summary>
+    /// <summary>
+    /// Line up and wait — a departure holding short of a runway it can name (the held runway, else the assigned one,
+    /// <see cref="HoldShortMenuHelper.HeldRunway(IMenuAircraft?)"/>), or taxiing with a runway assigned.
+    /// </summary>
     public static bool CanLineUpAndWait(IMenuAircraft? ac)
     {
         if (!IsControllable(ac) || !ac.IsOnGround)
@@ -163,14 +166,14 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        string phase = ac.CurrentPhase;
-        return phase.StartsWith("Holding Short", StringComparison.Ordinal) || (phase == "Taxiing" && !string.IsNullOrEmpty(ac.AssignedRunway));
+        return IsHoldingShortOfANamedRunway(ac) || IsTaxiingWithAnAssignedRunway(ac);
     }
 
     /// <summary>
-    /// Cleared for takeoff — a ground departure at/approaching the runway. CTO during
-    /// "Taxiing" is stored as a deferred clearance applied when the aircraft reaches
-    /// the runway, so only offer it when a runway is already assigned.
+    /// Cleared for takeoff — a departure holding short of a runway it can name
+    /// (<see cref="HoldShortMenuHelper.HeldRunway(IMenuAircraft?)"/>), taxiing with a runway assigned (stored as a
+    /// deferred clearance applied when the aircraft reaches the runway), lined up, or lining up (the sim upgrades a
+    /// line-up in progress). Never once rolling.
     /// </summary>
     public static bool CanClearForTakeoff(IMenuAircraft? ac)
     {
@@ -179,11 +182,13 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        string phase = ac.CurrentPhase;
-        return phase is "LinedUpAndWaiting" or "LiningUp" or "Takeoff"
-            || phase.StartsWith("Holding Short", StringComparison.Ordinal)
-            || (phase == "Taxiing" && !string.IsNullOrEmpty(ac.AssignedRunway));
+        return (ac.CurrentPhase is "LinedUpAndWaiting" or "LiningUp") || IsHoldingShortOfANamedRunway(ac) || IsTaxiingWithAnAssignedRunway(ac);
     }
+
+    private static bool IsHoldingShortOfANamedRunway(IMenuAircraft ac) =>
+        ac.CurrentPhase.StartsWith("Holding Short", StringComparison.Ordinal) && (HoldShortMenuHelper.HeldRunway(ac) is { Length: > 0 });
+
+    private static bool IsTaxiingWithAnAssignedRunway(IMenuAircraft ac) => (ac.CurrentPhase == "Taxiing") && !string.IsNullOrEmpty(ac.AssignedRunway);
 
     /// <summary>
     /// Whether to show the VFR-only takeoff modifiers (closed-traffic / pattern entries
@@ -193,7 +198,7 @@ public static class AircraftCommandApplicability
     /// </summary>
     public static bool ShowVfrTakeoffModifiers(IMenuAircraft? ac, VfrCommandsForIfr mode) => AllowsVfrOnly(ac, mode);
 
-    /// <summary>Cancel takeoff clearance — a departure that has been cleared/lined up.</summary>
+    /// <summary>Cancel takeoff clearance — a departure lining up, lined up and waiting, or rolling.</summary>
     public static bool CanCancelTakeoff(IMenuAircraft? ac)
     {
         if (!IsControllable(ac) || !ac.IsOnGround)
@@ -326,8 +331,10 @@ public static class AircraftCommandApplicability
     }
 
     /// <summary>
-    /// Resume taxi (<c>RES</c>) from a runway hold-short, the RES path that needs no hold directive: offered while the
-    /// aircraft has an active taxi route to continue on. The stationary holds are <see cref="CanResumeTaxi"/>'s. The
+    /// Resume taxi (<c>RES</c>) from a hold-short, the RES path that needs no hold directive: offered while the
+    /// aircraft has an active taxi route to continue on. The sim takes RES at a runway-crossing or explicit hold-short
+    /// bar and refuses it at a departure-runway bar or the bar ending an incomplete route; both of those end the route,
+    /// so an aircraft held there has no active route. The stationary holds are <see cref="CanResumeTaxi"/>'s. The
     /// <see cref="IsControllable"/> guard keeps surface live-traffic shadows out, as in <see cref="CanPushBack"/>.
     /// </summary>
     public static bool CanResumeFromHoldShort(IMenuAircraft? ac) =>
@@ -336,7 +343,9 @@ public static class AircraftCommandApplicability
     /// <summary>
     /// Cross the runway (<c>CROSS</c>) an aircraft is holding short of: the runway comes from the hold-short phase,
     /// else the assigned runway (<see cref="HoldShortMenuHelper.HeldRunway(string, IMenuAircraft?)"/>), and with neither there is no runway
-    /// to name. The <see cref="IsControllable"/> guard keeps surface live-traffic shadows out, as in <see cref="CanPushBack"/>.
+    /// to name. Never at a taxiway or spot bar (<see cref="HoldShortMenuHelper.IsNonRunwayBar"/>), which protects no
+    /// runway to cross. The <see cref="IsControllable"/> guard keeps surface live-traffic shadows out, as in
+    /// <see cref="CanPushBack"/>.
     /// </summary>
     public static bool CanCrossRunway(IMenuAircraft? ac)
     {
@@ -345,7 +354,7 @@ public static class AircraftCommandApplicability
             return false;
         }
 
-        return ac.CurrentPhase.StartsWith("Holding Short", StringComparison.Ordinal) && HoldShortMenuHelper.HeldRunway(ac) is not null;
+        return IsHoldingShortOfANamedRunway(ac) && !HoldShortMenuHelper.IsNonRunwayBar(ac.CurrentPhase);
     }
 
     /// <summary>

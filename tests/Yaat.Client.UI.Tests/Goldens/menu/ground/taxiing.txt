@@ -10,6 +10,7 @@ Favorite Commands
 ---
 Hold position
 Break conflict
+Line up and wait 30
 Cleared for takeoff 30
   Default (SID/on course)
   ---

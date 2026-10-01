@@ -68,7 +68,7 @@ public class AircraftCommandApplicabilityTests
 
     [Theory]
     [InlineData("Holding Short 28L/10R", true, true)]
-    [InlineData("Holding Short", true, true)]
+    [InlineData("Holding Short", true, false)] // no runway to name: neither held nor assigned
     [InlineData("LinedUpAndWaiting", true, false)] // already on the runway
     [InlineData("At Parking", true, false)]
     [InlineData("FinalApproach", false, false)] // airborne arrival
@@ -87,7 +87,8 @@ public class AircraftCommandApplicabilityTests
     [InlineData("LinedUpAndWaiting", true, true)]
     [InlineData("LiningUp", true, true)]
     [InlineData("Holding Short 28L", true, true)]
-    [InlineData("Takeoff", true, true)] // on-ground rolling re-clear
+    [InlineData("Holding Short", true, false)] // no runway to name: neither held nor assigned
+    [InlineData("Takeoff", true, false)] // never once rolling
     [InlineData("Takeoff", false, false)] // airborne — already departing
     [InlineData("At Parking", true, false)]
     [InlineData("FinalApproach", false, false)]

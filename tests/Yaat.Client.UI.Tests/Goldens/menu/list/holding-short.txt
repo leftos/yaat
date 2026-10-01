@@ -7,7 +7,6 @@ Note…
 Favorite Commands
   (no items) [disabled]
 ---
-Resume taxi
 Cross 30
 Line up and wait 30
 Cleared for takeoff 30
