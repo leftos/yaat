@@ -243,10 +243,16 @@ A follower on base flying 30° off its base heading away from the field, down to
 _Avoid_: excursion (that is the pursuit's S-turn)
 
 **Behind in sequence**:
-A same-runway lead whose remaining path to the threshold is longer than the follower's by more than 0.5 NM (along-final distance, no tolerance, when both are on final); FOLLOW of such a lead is refused (docs/plans/follow-lead-ahead-study.md).
+A same-runway lead that comes after the follower in the landing order: on a shared leg by position along it, on different legs by leg order, and for a follower on base, final or an instrument approach by remaining path to the threshold (no tolerance); FOLLOW of such a lead is refused (docs/approach-and-pattern-geometry.md, *Sequence order*).
 
 **Lead-ahead gate**:
-The command-time checks that refuse a FOLLOW whose lead is not ahead of the follower: behind in sequence, outside the ±60° cone, on the ground, or bound for another airport (docs/plans/follow-lead-ahead-study.md).
+The command-time checks that refuse a FOLLOW whose lead is not ahead of the follower: behind in sequence, outside the ±60° cone, on the ground, or bound for another airport (docs/approach-and-pattern-geometry.md, *Sequence refusals*; the full list is COMMANDS.md *FOLLOW refusals*).
+
+**Downwind box**:
+The area an upwind or crosswind follower accepts a lead with no runway in, outside the ±60° cone: along the downwind line from the downwind turn point to 3 NM past the base turn point, on the circuit side, tracking with the downwind (`CommandDispatcher.IsLeadInDownwindBox`, docs/approach-and-pattern-geometry.md).
+
+**Judgement figure**:
+A value or rule the aviation review set where 7110.65 and the AIM give no figure; the docs mark it so a later change knows it is a modelling choice, not a regulation (docs/approach-and-pattern-geometry.md, *FOLLOW rulings a change must respect*).
 
 **Turn-out**:
 A follower level with or ahead of its lead turning to the downwind heading with one call, holding an offset band, and turning base behind the lead once it has passed (`VfrFollowPhase`, docs/approach-and-pattern-geometry.md).

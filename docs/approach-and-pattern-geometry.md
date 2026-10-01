@@ -752,10 +752,7 @@ approach navigation, downwind/base descent, and final approach. Constants and he
 aircraft with `Approach.FollowingCallsign` set. Pattern phases (`DownwindPhase`, `BasePhase`, `PatternEntryPhase`)
 and `VfrFollowPhase` call into it each tick.
 
-**Desired spacing** scales with the leader's category. Pattern-tight (`DesiredDistanceForLeader`,
-`AirborneFollowHelper.cs:689`): Jet 3.0 / Turboprop 1.5 / Piston/Heli 1.0 nm. Free-flight (wider, used before the
-follower is established on a leg, `FreeFlightDistanceForLeader`, `AirborneFollowHelper.cs:706`): Jet 3.5 / TP 2.0 /
-Piston/Heli 1.5 nm. The jet 3.0 nm matches the FAA 7110.65 §5-5-4 same-runway radar minimum.
+**Desired spacing** scales with the leader's category. Pattern-tight (`AirborneFollowHelper.DesiredDistanceForLeader`): Jet 3.0 / Turboprop 1.5 / Piston/Heli 1.0 nm. Free-flight (wider, used before the follower is established on a leg, `AirborneFollowHelper.FreeFlightDistanceForLeader`): Jet 3.5 / TP 2.0 / Piston/Heli 1.5 nm. The jet 3.0 nm matches the FAA 7110.65 §5-5-4 same-runway radar minimum.
 
 **Speed adjustment** (`ComputeAdjustedSpeedWithDesired`): the correction is
 `(distance − desired) × SpeedGainPerNm (25 kt/nm)`, clamped to `±maxSpeedAdjustKts`. Pattern/entry/free-flight use
@@ -961,6 +958,25 @@ runway: both phases accept `Follow`, run `CheckLeadLifecycle` + the free-flight 
 (mirroring `PatternEntryPhase`), and the `DownwindPhase` the entry feeds runs all the sequencing holds. Clearing the
 crossing to free-pursue instead would discard the wrong-side entry (#352).
 
+### FOLLOW rulings a change must respect
+
+The reasons behind the behaviour above, with the alternatives that were tried or weighed and rejected. "Judgement figure" marks a value or rule the aviation review set where 7110.65 and the AIM give no figure.
+
+- **Every refusal is a spoken pilot "unable".** Accepting a follow commits the pilot to maneuver as necessary to stay in trail (AIM §5-5-12.a.1, §4-4-14.b), and the pilot tells the controller promptly when it cannot accept that responsibility "for any reason" (AIM §5-5-12.a.2, §4-4-14.b NOTE). A lead the follower could reach only by a 360 or another major maneuver is refused (AIM §4-3-5), and the wording puts the reason first, then the request.
+- **`FOLLOWF` is `FOLLOW` with the traffic-in-sight report folded in, nothing else.** The phase gate reads `FollowForce` as `Follow` (`CommandDispatcher.PhaseGateType`), so `FOLLOWF` keeps the pattern leg, the final and the landing clearance, and meets every refusal `FOLLOW` does. Rejected: a separate canonical type that no phase listed, which cleared the chain and its landing clearance and bypassed every refusal.
+- **The ±60° cone is for runwayless leads only.** A same-runway lead is judged by sequence order, never by bearing: from a 3 NM final a lead on downwind abeam the threshold bears about 14° off the follower's track, so the cone would call it ahead.
+- **The downwind box, not a cone on the downwind heading**, for upwind and crosswind followers. The track cone alone refused traffic on the downwind line the follower joins behind by flying its own circuit; a cone on the downwind heading accepted a lead directly astern, since upwind and downwind are antiparallel. The box's three limits are judgement figures.
+- **No command-time ahead gate for a follower outside the pattern with a runway-bearing lead.** It is expected to maneuver into the sequence (7110.65 §7-6-7.a; AIM §5-5-12.a.1), and falling in behind is the pattern entry's job.
+- **A pattern-entry lead is measured, not refused, from an instrument approach**: an approach follower 8–10 NM out can fall in trail behind a 45° entrant (AIM §5-5-12.a.1; 7110.65 §3-8-1). The entry path's straight lines with no corner-cut credit are a judgement figure, as is the crossing-runway climb's straight line to its midfield target.
+- **"Inside the FAF"** is along-final distance at or below the published FAF distance or 5 NM, whichever is closer to the runway, 5 NM with no FAF: a judgement figure reading 7110.65 §5-7-1.b.4. An `InterceptCoursePhase` follower not yet on the final is outside.
+- **An IFR follower is one with a flight plan that is not VFR**; no flight plan counts as VFR (14 CFR §91.173; 7110.65 §4-8-11.d).
+- **A runwayless lead also keeps the approach** (judgement figure): a lead with no runway gives no landing sequence, and an IFR follow is pilot-applied visual separation that never leaves the cleared approach (7110.65 §7-2-1.a.2, §7-4-3). Only segments of the cleared approach are kept (§4-8-11.a): a plain en-route or published hold is not one and keeps the install (judgement figure). The hold-in-lieu is an explicit flag (`HoldingPatternPhase.IsHoldInLieu`), never inferred from a circuit limit. A procedure-turn or hold-in-lieu follower's path takes no credit for the outbound leg or the turn (judgement figure).
+- **No command-time gap refusal for a lead already on final** when the approach is kept: the running checks (pre-final spacing, `FinalApproachPhase`'s S-turn, the structural break-off, the "unable to maintain separation" cancel) handle it.
+- **Loss of sight.** An IFR follower's loss tells the RPO "visual separation terminated — radar separation required" (7110.65 §7-2-1, §4-8-11.c); a VFR follower gives only its own "lost sight" call (AIM §5-5-12.a.2; no RPO line, a judgement figure on §4-8-11.d.2/d.4). A lead that lands ends the follow with no visual-separation line, since traffic in its landing phase is no longer a factor (AIM §4-4-14.a.2 NOTE).
+- **A lead that goes around during a kept-approach follow** ends the follow with no pilot transmission, since the lead is still in sight (judgement figure). It does not fall back to `FinalApproachPhase`'s baseline spacing, because a re-sequencing lead can end up behind the follower (judgement figure). A lead already going around is refused from an approach (judgement figure; AIM §5-5-12.a.1).
+- **Pre-final spacing only slows the follower**, floored at the category approach speed plus the wind additive (judgement figures; 7110.65 §5-7-1.d; AIM §5-5-11.b.4, §5-5-9.a.2–3; the additive is manufacturer technique, and AIM §5-4-23.e makes spacing the pilot's). The intercept's 1.3 × approach-speed ceiling is a judgement figure. The floor uses the assigned runway's heading, not the final course, so it does not jump at the hand-off onto an LDA or SDF final. Nothing is written inside the 60 s stabilization window (judgement figure), and the fix-speed ceiling is re-latched after an explicit speed clears (7110.65 §5-7-4.a NOTE). Rejected: a speed baseline at the ceiling instead of the lead's IAS, which settled about 1.6 NM inside the desired gap and could not match a slower lead.
+- **Climb followers keep the climb.** Two aircraft with no circuit waypoints (two go-arounds, a go-around and a closed climb) order by along-track distance from the threshold, a judgement figure. A runwayless lead accepted from a climb arms the pending pursuit instead of starting one from a few hundred feet.
+
 ### `VfrFollowPhase` — free pursuit + auto-join
 
 `VfrFollowPhase` (`src/Yaat.Sim/Phases/Pattern/VfrFollowPhase.cs`, built by `CommandDispatcher` for FOLLOW) follows in trail behind the lead along its recorded ground path (below) and matches the lead's speed. Altitude is untouched unless the pursuit carries a `FollowPatternReturn` (it started from a pattern leg): then `OnStart` targets pattern altitude, or the lower of the present and pattern altitude when it started from base, and drops the base leg's glideslope descent (AIM §4-3-3). When such a pursuit ends (lead lost or despawned, landed with no sane final join, spacing lost), `ReturnToPattern` re-enters the pattern for the follower's own runway on its own side, or for the landed lead's runway when the lead is down and its runway was captured (`LifecycleReturn`) ("{cs} follow ended, re-entering {right|left} traffic runway {rwy}"). The re-entry is a downwind entry (a follower on the far side of a close parallel takes the midfield crossing, as any wrong-side entry does), or an upwind entry when the follower is past the threshold and flying the runway's way (`ReturnEntryLeg`), so it continues upwind, crosswind and downwind (AIM §4-3-3) instead of turning back onto the final. `TryEnterPattern` builds a fresh phase list, so an armed `PatternRunway` (a `COPT MLT 28L` flown on the 28R circuit) is carried into the re-entry by `KeepArmedPatternRunway`. `PatternReturn` (with `FromBase`) is snapshotted in `VfrFollowPhaseDto`, null for older snapshots. A return's pattern altitude is read from the circuit the follower was flying, and otherwise, as for a turn-out to a runway other than the return's, from `ResolvePatternAltitudeFt` (an authored or commanded override, else field elevation plus the category's pattern height).
@@ -981,13 +997,11 @@ Why the pursuit builds spacing this way. A follower close behind a lead often si
 
 The turn-out state (`FollowTurnOut`: circuit and start point), a pending request and the stall window are snapshotted on `VfrFollowPhaseDto` as nullable fields; older snapshots restore without them.
 
-When the lead is in a pattern, `TryJoinLeadPattern` (`VfrFollowPhase.cs:111`) rebuilds the follower's phase list with a
-full circuit copied from the lead's runway/direction/altitude, gated on **three** conditions:
+When the lead is in a pattern, `VfrFollowPhase.TryJoinLeadPattern` rebuilds the follower's phase list with a full circuit copied from the lead's runway/direction/altitude, gated on **three** conditions:
 
 1. follower within `JoinRangeNm = 3.0` of the lead's downwind abeam point,
 2. follower within `MaxJoinGapNm = 5.0` of the lead itself (guards against a stale pattern), and
-3. follower on the **pattern side** of the runway centerline (`IsOnPatternSide`, `VfrFollowPhase.cs:315` — uses the
-   positive-is-right cross-track convention).
+3. follower on the **pattern side** of the runway centerline (`VfrFollowPhase.IsOnPatternSide`, which uses the positive-is-right cross-track convention).
 
 On join it preserves `FollowingCallsign` so the pattern phases keep adjusting spacing, and skips `PatternEntryPhase`
 if the follower is already established on the downwind leg.
