@@ -38,6 +38,7 @@
 
 ### Fixed
 
+- An aircraft on a charted SID keeps a climb or descent you assign, and a vector off the SID no longer stalls it at a crossing altitude.
 - A new aircraft taking a just-removed aircraft's callsign always gets its ERAM data block and tracks on CRC displays.
 - vEDST joining a controller's session as it ends is refused, instead of staying attached to a session with no position.
 - An airport map the server already holds stays loaded, reported as a cached copy, when a refresh cannot reach vNAS or gets a broken map.
