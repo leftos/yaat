@@ -190,7 +190,7 @@ public partial class DataGridView : UserControl
         var context = new MenuContext(callsign, initials, null, vm.SessionSoloTrainingMode, vm.VfrCommandsForIfr, MenuView.List);
         var host = new ListMenuHost(vm, ac, flyoutTarget);
         var menu = new ContextMenu();
-        SharedMenuGroups.AddHeader(menu.Items, ac, context, host, []);
+        SharedMenuGroups.AddHeader(menu.Items, ac, context, host);
         menu.Items.Add(SharedMenuGroups.Favorites(ac, context, host));
         menu.Items.Add(new Separator());
 

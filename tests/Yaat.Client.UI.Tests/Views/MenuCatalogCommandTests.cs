@@ -2418,6 +2418,16 @@ public class MenuCatalogCommandTests
 
         public bool IsHeld => false;
 
+        public string? HoldKind => null;
+
+        public string? HoldYieldTarget => null;
+
+        public string? AutoYieldTarget => null;
+
+        public bool AutoYieldIsFollowing => false;
+
+        public bool IsDelayed => false;
+
         public bool HasQueuedPatternEntry => false;
 
         public string FlightRules => "IFR";
@@ -2439,6 +2449,8 @@ public class MenuCatalogCommandTests
         public double IndicatedAirspeedKnots { get; init; }
 
         public string NavigatingTo { get; init; } = "";
+
+        public IReadOnlyList<string> NavigationRoute => [];
 
         public MagneticHeading? AssignedHeading { get; init; }
 

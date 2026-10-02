@@ -82,31 +82,6 @@ public partial class RadarView
     }
 
     /// <summary>
-    /// The radar's own rows under the shared header's title: the route summary and hold status. None without an
-    /// aircraft model. The release items are the shared header's, not the radar's.
-    /// </summary>
-    private List<MenuItem> RadarTitleRows(AircraftModel? ac)
-    {
-        List<MenuItem> rows = [];
-        if (ac is null)
-        {
-            return rows;
-        }
-
-        if (BuildRouteSummaryItem(ac) is { } routeItem)
-        {
-            rows.Add(routeItem);
-        }
-
-        if (BuildHoldStatusItem(ac) is { } holdItem)
-        {
-            rows.Add(holdItem);
-        }
-
-        return rows;
-    }
-
-    /// <summary>
     /// The whole aircraft context menu a right-click shows, built without opening it: everything the handler
     /// resolved first (<paramref name="ac"/>, the selected aircraft <paramref name="prevSelected"/> that
     /// relative actions target, the callsign and the initials). Touches no canvas, popup or pointer state.
@@ -124,7 +99,7 @@ public partial class RadarView
         );
         var host = new RadarMenuHost(this, vm, main, ac);
         var menu = new ContextMenu();
-        SharedMenuGroups.AddHeader(menu.Items, ac, context, host, RadarTitleRows(ac));
+        SharedMenuGroups.AddHeader(menu.Items, ac, context, host);
         menu.Items.Add(SharedMenuGroups.Favorites(ac, context, host));
         menu.Items.Add(new Separator());
 
@@ -195,83 +170,6 @@ public partial class RadarView
 
         // RPO control
         FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
-    }
-
-    private static MenuItem? BuildRouteSummaryItem(AircraftModel ac)
-    {
-        if (ac.NavigationRoute.Count == 0)
-        {
-            return null;
-        }
-
-        var fixes = new List<string>();
-        bool started = string.IsNullOrEmpty(ac.NavigatingTo);
-        foreach (string fix in ac.NavigationRoute)
-        {
-            if (!started && fix == ac.NavigatingTo)
-            {
-                started = true;
-            }
-
-            if (started)
-            {
-                fixes.Add(fix);
-            }
-        }
-
-        if (fixes.Count == 0)
-        {
-            return null;
-        }
-
-        const int maxDisplay = 5;
-        string displayFixes = fixes.Count > maxDisplay ? string.Join(" ", fixes.Take(maxDisplay)) + " ..." : string.Join(" ", fixes);
-        string fullRoute = string.Join(" ", fixes);
-
-        var item = new MenuItem
-        {
-            Header = displayFixes,
-            IsEnabled = false,
-            FontSize = 11,
-            Opacity = 0.8,
-        };
-        ToolTip.SetTip(item, fullRoute);
-        ToolTip.SetShowDelay(item, 0);
-
-        return item;
-    }
-
-    /// <summary>
-    /// Header-strip item that surfaces an active ground hold ("Held: position" for
-    /// HOLDPOSITION; "Yielding to {target}" for GIVEWAY). Non-clickable, italicised
-    /// so it visually reads as status rather than as a command. Null when the
-    /// aircraft is not held.
-    /// </summary>
-    private static MenuItem? BuildHoldStatusItem(AircraftModel ac)
-    {
-        if (!ac.IsHeld && string.IsNullOrEmpty(ac.AutoYieldTarget))
-        {
-            return null;
-        }
-
-        string header = ac.HoldKind switch
-        {
-            "GiveWay" when !string.IsNullOrEmpty(ac.HoldYieldTarget) => $"Yielding to: {ac.HoldYieldTarget}",
-            "HoldPosition" => "Held: position",
-            _ when !string.IsNullOrEmpty(ac.AutoYieldTarget) && ac.AutoYieldIsFollowing => $"Following: {ac.AutoYieldTarget} (auto-detected)",
-            _ when !string.IsNullOrEmpty(ac.AutoYieldTarget) => $"Yielding to: {ac.AutoYieldTarget} (auto-detected)",
-            _ => "Held",
-        };
-
-        var item = new MenuItem
-        {
-            Header = header,
-            IsEnabled = false,
-            FontSize = 11,
-            FontStyle = Avalonia.Media.FontStyle.Italic,
-            Opacity = 0.85,
-        };
-        return item;
     }
 
     private static void AddMenuGroup(ContextMenu menu, MenuGroup group, AircraftModel? ac, MenuContext context, RadarMenuHost host)

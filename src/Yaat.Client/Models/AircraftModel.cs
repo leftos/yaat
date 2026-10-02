@@ -455,6 +455,9 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     [NotifyPropertyChangedFor(nameof(NavigationRouteDisplay))]
     private List<string> _navigationRoute = [];
 
+    /// <summary>The route's fix names as the context menu's read-only view of an aircraft exposes them.</summary>
+    IReadOnlyList<string> IMenuAircraft.NavigationRoute => NavigationRoute;
+
     /// <summary>
     /// Full flown lateral route as projected by the server: each fix's geographic position (arc
     /// vertices, custom fixes, and FRD fixes included) plus any per-fix crossing-restriction label

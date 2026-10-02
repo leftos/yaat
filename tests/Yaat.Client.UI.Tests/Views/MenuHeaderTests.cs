@@ -23,9 +23,9 @@ namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
 /// The header every aircraft menu opens with (<see cref="SharedMenuGroups.AddHeader"/>): the bold title naming the
-/// callsign and the filed type, any view-side rows under it, the release items (Release (HFR) and Check release
-/// window) where they apply, then the free-text Command… and Note…, which ask the host to open its command and note
-/// flyouts.
+/// callsign and the filed type, the route summary and hold status rows under it, the release items (Release (HFR) and
+/// Check release window) where they apply, then the free-text Command… and Note…, which ask the host to open its
+/// command and note flyouts.
 /// </summary>
 public class MenuHeaderTests
 {
@@ -38,7 +38,7 @@ public class MenuHeaderTests
         AircraftModel ac = Jet();
         ac.FiledAircraftType = "B739";
 
-        MenuItem title = Assert.IsType<MenuItem>(Header(ac, new RecordingMenuHost(""), [])[0]);
+        MenuItem title = Assert.IsType<MenuItem>(Header(ac, new RecordingMenuHost(""))[0]);
 
         Assert.Equal("SWA104 — B739", title.Header as string);
         Assert.False(title.IsEnabled);
@@ -48,7 +48,7 @@ public class MenuHeaderTests
     [AvaloniaFact]
     public void Title_WithNoFiledType_ShowsTheAircraftType()
     {
-        MenuItem title = Assert.IsType<MenuItem>(Header(Jet(), new RecordingMenuHost(""), [])[0]);
+        MenuItem title = Assert.IsType<MenuItem>(Header(Jet(), new RecordingMenuHost(""))[0]);
 
         Assert.Equal("SWA104 — B738", title.Header as string);
     }
@@ -56,7 +56,7 @@ public class MenuHeaderTests
     [AvaloniaFact]
     public void Title_WithNoAircraftModel_IsTheBareCallsign()
     {
-        MenuItem title = Assert.IsType<MenuItem>(Header(null, new RecordingMenuHost(""), [])[0]);
+        MenuItem title = Assert.IsType<MenuItem>(Header(null, new RecordingMenuHost(""))[0]);
 
         Assert.Equal(Callsign, title.Header as string);
     }
@@ -70,19 +70,20 @@ public class MenuHeaderTests
         ac.AircraftType = type;
         ac.FiledAircraftType = type;
 
-        MenuItem title = Assert.IsType<MenuItem>(Header(ac, new RecordingMenuHost(""), [])[0]);
+        MenuItem title = Assert.IsType<MenuItem>(Header(ac, new RecordingMenuHost(""))[0]);
 
         Assert.Equal(Callsign, title.Header as string);
     }
 
     [AvaloniaFact]
-    public void Header_IsTitleRowsSeparatorCommandNoteSeparator()
+    public void Header_IsTitleRowSeparatorCommandNoteSeparator()
     {
-        var row = new MenuItem { Header = "View row" };
+        AircraftModel ac = Jet();
+        ac.HoldKind = "HoldPosition";
 
-        List<string> items = [.. Header(Jet(), new RecordingMenuHost(""), [row]).Select(Describe)];
+        List<string> items = [.. Header(ac, new RecordingMenuHost("")).Select(Describe)];
 
-        Assert.Equal(["SWA104 — B738", "View row", "---", "Command…", "Note…", "---"], items);
+        Assert.Equal(["SWA104 — B738", "Held: position", "---", "Command…", "Note…", "---"], items);
     }
 
     [AvaloniaFact]
@@ -90,7 +91,7 @@ public class MenuHeaderTests
     {
         var host = new RecordingMenuHost("");
 
-        Click(Item(Header(Jet(), host, []), "Command…"));
+        Click(Item(Header(Jet(), host), "Command…"));
 
         Assert.Equal([(Callsign, Initials)], host.CommandFlyouts);
         Assert.Empty(host.Sent);
@@ -103,7 +104,7 @@ public class MenuHeaderTests
         ac.Note = "OLD NOTE";
         var host = new RecordingMenuHost("");
 
-        Click(Item(Header(ac, host, []), "Note…"));
+        Click(Item(Header(ac, host), "Note…"));
 
         (string callsign, string currentNote) = Assert.Single(host.NoteFlyouts);
         Assert.Equal((Callsign, "OLD NOTE"), (callsign, currentNote));
@@ -117,7 +118,7 @@ public class MenuHeaderTests
     {
         var host = new RecordingMenuHost("");
 
-        Click(Item(Header(null, host, []), "Note…"));
+        Click(Item(Header(null, host), "Note…"));
 
         Assert.Equal([(Callsign, "")], host.NoteFlyouts);
     }
@@ -133,7 +134,7 @@ public class MenuHeaderTests
         ac.Note = "OLD NOTE";
         var host = new GroundMenuHost(view, (GroundViewModel)view.DataContext!, null, ac);
 
-        Click(Item(Header(ac, host, []), "Note…"));
+        Click(Item(Header(ac, host), "Note…"));
         HeadlessWindowExtensions.PumpDispatcher();
 
         TextBox textBox = FindTextBox(view);
@@ -152,7 +153,7 @@ public class MenuHeaderTests
         (GroundView view, List<(string Callsign, string Command, string Initials)> sent, AircraftModel ac) = GroundHostFixture();
         var host = new GroundMenuHost(view, (GroundViewModel)view.DataContext!, null, ac);
 
-        Click(Item(Header(ac, host, []), "Command…"));
+        Click(Item(Header(ac, host), "Command…"));
         HeadlessWindowExtensions.PumpDispatcher();
 
         TextBox textBox = FindTextBox(view);
@@ -357,7 +358,7 @@ public class MenuHeaderTests
         ac.IsHeldForRelease = true;
         ac.CfrWindowStartUtc = new DateTime(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc);
 
-        List<string> items = [.. Header(ac, new RecordingMenuHost(""), []).Select(Describe)];
+        List<string> items = [.. Header(ac, new RecordingMenuHost("")).Select(Describe)];
 
         Assert.Equal(["SWA104 — B738", "Release (HFR)", "Check release window", "---", "Command…", "Note…", "---"], items);
     }
@@ -365,7 +366,7 @@ public class MenuHeaderTests
     [AvaloniaFact]
     public void Header_NotHeldNoWindow_NoReleaseRows()
     {
-        List<string> items = [.. Header(Jet(), new RecordingMenuHost(""), []).Select(Describe)];
+        List<string> items = [.. Header(Jet(), new RecordingMenuHost("")).Select(Describe)];
 
         Assert.DoesNotContain("Release (HFR)", items);
         Assert.DoesNotContain("Check release window", items);
@@ -405,9 +406,9 @@ public class MenuHeaderTests
         Assert.DoesNotContain("Check release window", items);
     }
 
-    // The radar's own rows sit between the title and the shared release items.
+    // The hold status row sits between the title and the shared release items.
     [AvaloniaFact]
-    public void Header_Radar_ReleaseRowsFollowTitleRows()
+    public void Header_Radar_ReleaseRowsFollowTheHoldRow()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(_navDb);
         var main = new MainViewModel(new FakeFilePickerService());
@@ -424,6 +425,54 @@ public class MenuHeaderTests
         Assert.Equal(["SWA108 — B738", "Held: position", "Release (HFR)", "---"], items[..4]);
     }
 
+    // --- The route summary and hold status rows, on every view ---------------------------------
+
+    [AvaloniaFact]
+    public void Header_RouteSummary_UnderTheTitle_OnEveryView()
+    {
+        foreach (MenuView view in new[] { MenuView.Radar, MenuView.Ground, MenuView.List })
+        {
+            List<string> items = TopLevel(view, "ifr-enroute", ac => ac.NavigationRoute = ["OAK", "SUNOL", "MOD"], out _);
+
+            Assert.Equal("AAL202 — B738", items[0]);
+            Assert.Equal("OAK SUNOL MOD", items[1]);
+            Assert.Equal("---", items[2]);
+        }
+    }
+
+    [AvaloniaFact]
+    public void Header_HoldStatus_UnderTheTitle_OnEveryView()
+    {
+        foreach (MenuView view in new[] { MenuView.Radar, MenuView.Ground, MenuView.List })
+        {
+            List<string> items = TopLevel(view, "ifr-enroute", ac => ac.HoldKind = "HoldPosition", out _);
+
+            Assert.Equal("AAL202 — B738", items[0]);
+            Assert.Equal("Held: position", items[1]);
+            Assert.Equal("---", items[2]);
+        }
+    }
+
+    [AvaloniaFact]
+    public void Header_TitleThenRouteSummaryThenHoldStatus_OnEveryView()
+    {
+        foreach (MenuView view in new[] { MenuView.Radar, MenuView.Ground, MenuView.List })
+        {
+            List<string> items = TopLevel(
+                view,
+                "ifr-enroute",
+                ac =>
+                {
+                    ac.NavigationRoute = ["OAK", "SUNOL", "MOD"];
+                    ac.HoldKind = "HoldPosition";
+                },
+                out _
+            );
+
+            Assert.Equal(["AAL202 — B738", "OAK SUNOL MOD", "Held: position", "---"], items[..4]);
+        }
+    }
+
     private static int CountOccurrences(string text, string value)
     {
         int count = 0;
@@ -438,7 +487,13 @@ public class MenuHeaderTests
     }
 
     /// <summary>The top-level items of one golden fixture's menu on <paramref name="view"/>: each item's header, a separator as <c>---</c>.</summary>
-    private List<string> TopLevel(MenuView view, string fixtureName, out ContextMenu menu)
+    private List<string> TopLevel(MenuView view, string fixtureName, out ContextMenu menu) => TopLevel(view, fixtureName, static _ => { }, out menu);
+
+    /// <summary>
+    /// The top-level items of one golden fixture's menu on <paramref name="view"/>, with <paramref name="setUp"/> adjusting
+    /// the fixture's aircraft before the menu is built: each item's header, a separator as <c>---</c>.
+    /// </summary>
+    private List<string> TopLevel(MenuView view, string fixtureName, Action<AircraftModel> setUp, out ContextMenu menu)
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(_navDb);
         var main = new MainViewModel(new FakeFilePickerService());
@@ -446,6 +501,7 @@ public class MenuHeaderTests
         main.Ground.SetLayoutForTesting(MenuGoldenFixtures.OakLayoutForClient);
 
         AircraftModel ac = MenuGoldenFixtures.For(view).Single(f => f.Name == fixtureName).Aircraft;
+        setUp(ac);
         main.Aircraft.Add(ac);
 
         menu = view switch
@@ -471,11 +527,11 @@ public class MenuHeaderTests
             CurrentPhase = "Taxiing",
         };
 
-    private static ItemCollection Header(AircraftModel? ac, IMenuHost host, IReadOnlyList<MenuItem> titleRows)
+    private static ItemCollection Header(AircraftModel? ac, IMenuHost host)
     {
         var context = new MenuContext(Callsign, Initials, null, false, VfrCommandsForIfr.None, CatalogMenuView.Ground);
         var menu = new ContextMenu();
-        SharedMenuGroups.AddHeader(menu.Items, ac, context, host, titleRows);
+        SharedMenuGroups.AddHeader(menu.Items, ac, context, host);
         return menu.Items;
     }
 

@@ -43,6 +43,24 @@ public interface IMenuAircraft
     /// <summary>True while a hold directive is keeping the aircraft stopped.</summary>
     bool IsHeld { get; }
 
+    /// <summary>The hold in force, <c>HoldPosition</c> or <c>GiveWay</c>, or null when the aircraft is free to move.</summary>
+    string? HoldKind { get; }
+
+    /// <summary>The callsign the aircraft yields to under a give-way hold, null for another hold or none.</summary>
+    string? HoldYieldTarget { get; }
+
+    /// <summary>The callsign the ground conflict detector has the aircraft yielding to, null when it yields to none.</summary>
+    string? AutoYieldTarget { get; }
+
+    /// <summary>True when <see cref="AutoYieldTarget"/> is a same-edge in-trail follow rather than a converging give-way.</summary>
+    bool AutoYieldIsFollowing { get; }
+
+    /// <summary>
+    /// True for an aircraft the scenario holds back until its spawn delay expires, which the list menus show a
+    /// spawn-delay menu for.
+    /// </summary>
+    bool IsDelayed { get; }
+
     /// <summary>True when a VFR pattern entry is queued but has not become the current phase yet.</summary>
     bool HasQueuedPatternEntry { get; }
 
@@ -75,6 +93,9 @@ public interface IMenuAircraft
 
     /// <summary>The fix the aircraft is navigating to, empty when it is not navigating to one.</summary>
     string NavigatingTo { get; }
+
+    /// <summary>The fix names along the aircraft's route, in order, which the header's route summary row starts from.</summary>
+    IReadOnlyList<string> NavigationRoute { get; }
 
     /// <summary>The assigned magnetic heading, or null when none is assigned.</summary>
     MagneticHeading? AssignedHeading { get; }

@@ -525,7 +525,7 @@ public partial class GroundView : UserControl
         var host = new GroundMenuHost(this, vm, FindMainViewModel(), ac);
         var menu = new ContextMenu();
 
-        SharedMenuGroups.AddHeader(menu.Items, ac, context, host, []);
+        SharedMenuGroups.AddHeader(menu.Items, ac, context, host);
         menu.Items.Add(SharedMenuGroups.Favorites(ac, context, host));
         menu.Items.Add(new Separator());
 

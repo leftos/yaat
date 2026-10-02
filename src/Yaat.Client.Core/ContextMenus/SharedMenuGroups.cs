@@ -106,18 +106,13 @@ public static class SharedMenuGroups
     /// <summary>
     /// The header every aircraft menu opens with: the bold, disabled title — the callsign and the type the aircraft
     /// filed (<see cref="IMenuAircraft.DisplayAircraftType"/>), or the bare callsign with no aircraft model or no type —
-    /// then <paramref name="titleRows"/>, the view's own rows under the title, then the release items every view offers
-    /// where they apply (Release (HFR) while the aircraft is held for release, then Check release window while it has a
+    /// then the rows under the title, the route summary (<see cref="RouteSummaryItem"/>) and the hold status
+    /// (<see cref="HoldStatusItem"/>) the aircraft's own state raises, then the release items every view offers where
+    /// they apply (Release (HFR) while the aircraft is held for release, then Check release window while it has a
     /// call-for-release window), then a separator, the free-text Command… and Note… (which ask the host for its
     /// flyouts), and a separator.
     /// </summary>
-    public static void AddHeader(
-        ItemCollection items,
-        IMenuAircraft? aircraft,
-        MenuContext context,
-        IMenuHost host,
-        IReadOnlyList<MenuItem> titleRows
-    )
+    public static void AddHeader(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         items.Add(
             new MenuItem
@@ -127,10 +122,8 @@ public static class SharedMenuGroups
                 FontWeight = FontWeight.Bold,
             }
         );
-        foreach (MenuItem row in titleRows)
-        {
-            items.Add(row);
-        }
+        TryAdd(items, RouteSummaryItem(aircraft));
+        TryAdd(items, HoldStatusItem(aircraft));
 
         AddIfApplicable(items, MenuIds.CoordinationReleaseHeld, aircraft, context, host);
         AddIfApplicable(items, MenuIds.CoordinationCheckReleaseWindow, aircraft, context, host);
@@ -144,6 +137,87 @@ public static class SharedMenuGroups
     /// <summary>The header title: <c>{callsign} — {type}</c>, or the bare callsign when there is no aircraft model or no type.</summary>
     private static string HeaderTitle(IMenuAircraft? aircraft, string callsign) =>
         ((aircraft is null) || string.IsNullOrWhiteSpace(aircraft.DisplayAircraftType)) ? callsign : $"{callsign} — {aircraft.DisplayAircraftType}";
+
+    /// <summary>
+    /// The header's route summary row: the aircraft's route fix names from the fix it is navigating to on, joined with
+    /// spaces — the first five, then an ellipsis when the route has more — with the whole run as the row's tooltip. The
+    /// row is a disabled, dimmed label. Null without an aircraft, with no route, or when nothing is left to fly.
+    /// </summary>
+    private static MenuItem? RouteSummaryItem(IMenuAircraft? aircraft)
+    {
+        if ((aircraft is null) || (aircraft.NavigationRoute.Count == 0))
+        {
+            return null;
+        }
+
+        var fixes = new List<string>();
+        bool started = string.IsNullOrEmpty(aircraft.NavigatingTo);
+        foreach (string fix in aircraft.NavigationRoute)
+        {
+            if (!started && fix == aircraft.NavigatingTo)
+            {
+                started = true;
+            }
+
+            if (started)
+            {
+                fixes.Add(fix);
+            }
+        }
+
+        if (fixes.Count == 0)
+        {
+            return null;
+        }
+
+        const int maxDisplay = 5;
+        string displayFixes = fixes.Count > maxDisplay ? string.Join(" ", fixes.Take(maxDisplay)) + " ..." : string.Join(" ", fixes);
+        string fullRoute = string.Join(" ", fixes);
+
+        var item = new MenuItem
+        {
+            Header = displayFixes,
+            IsEnabled = false,
+            FontSize = 11,
+            Opacity = 0.8,
+        };
+        ToolTip.SetTip(item, fullRoute);
+        ToolTip.SetShowDelay(item, 0);
+        return item;
+    }
+
+    /// <summary>
+    /// The header's hold status row: "Held: position" for a hold in position, "Yielding to: {target}" for a give-way
+    /// hold, then the auto-detected yield ("Following: {target} (auto-detected)" for a same-edge in-trail follow,
+    /// "Yielding to: {target} (auto-detected)" for a converging one) and a bare "Held" otherwise. The row is a
+    /// disabled, dimmed, italicised label. Null without an aircraft, or when it is under neither a hold nor a yield.
+    /// </summary>
+    private static MenuItem? HoldStatusItem(IMenuAircraft? aircraft)
+    {
+        if ((aircraft is null) || (!aircraft.IsHeld && string.IsNullOrEmpty(aircraft.AutoYieldTarget)))
+        {
+            return null;
+        }
+
+        string header = aircraft.HoldKind switch
+        {
+            "GiveWay" when !string.IsNullOrEmpty(aircraft.HoldYieldTarget) => $"Yielding to: {aircraft.HoldYieldTarget}",
+            "HoldPosition" => "Held: position",
+            _ when !string.IsNullOrEmpty(aircraft.AutoYieldTarget) && aircraft.AutoYieldIsFollowing =>
+                $"Following: {aircraft.AutoYieldTarget} (auto-detected)",
+            _ when !string.IsNullOrEmpty(aircraft.AutoYieldTarget) => $"Yielding to: {aircraft.AutoYieldTarget} (auto-detected)",
+            _ => "Held",
+        };
+
+        return new MenuItem
+        {
+            Header = header,
+            IsEnabled = false,
+            FontSize = 11,
+            FontStyle = FontStyle.Italic,
+            Opacity = 0.85,
+        };
+    }
 
     /// <summary>
     /// The foot every aircraft menu ends with, before the RPO items the caller appends: a separator (unless the menu
