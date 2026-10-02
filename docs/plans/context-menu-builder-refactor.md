@@ -114,7 +114,7 @@ Docs (`USER_GUIDE.md` menu sections, `docs/client-context-menus.md`:16 "filtered
 - **Q2:** option 1, a point click opens the point menu only (the shared `point.*` items for the selected aircraft by predicate, then the view's point section).
 - **Q3:** option 2, Draw taxi route… and Push route… stay shared catalog entries on every view; from the radar or the list they start the draw on the primary ground view (the brief that wires this decides what happens when no ground view is open, and asks if the code does not settle it).
 
-The rest of the design awaits the user's approval before the first brief.
+The user approved the rest of the design as written; the briefs run in the order of the brief split.
 
 ## Open questions as asked
 
