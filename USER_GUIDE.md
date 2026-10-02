@@ -1687,6 +1687,14 @@ Once CRC is configured:
 
 If the student's VATSIM CID matches a YAAT client in the room, they're pulled in automatically.
 
+### TowerCab 3D
+
+TowerCab 3D, the 3D tower view, can join a student's CRC session on a YAAT server and show the Tower Cab traffic, as it does on vNAS. It needs a TowerCab 3D version that lists the YAAT environments.
+
+1. The student connects CRC to the room first, as above
+2. In TowerCab 3D's vNAS environment picker, the student chooses **YAAT1** (or **YAAT Local**, offered when a YAAT server runs on the same computer)
+3. The student signs in with VATSIM; TowerCab 3D joins the CRC session open under the same CID and shows its Tower Cab traffic
+
 ---
 
 ## Customization

@@ -1862,6 +1862,10 @@ smoke.ps1                      # Protocol smoke: stdout is pure JSON, every tool
 live-check.ps1                 # Live pass against a real client (-WithInput types and clicks); captures CRC's first display window when CRC is running
 ```
 
+## FOLLOW montage clips (`tools/montage/follow/`)
+
+One folder per clip id of the FOLLOW video montage ([`docs/plans/follow-video-montage.md`](plans/follow-video-montage.md)): each holds the clip's spawn-only `scenario.json`, the timed instructor commands that fly it into the situation (`script.txt`), and its rule card (`card.md`); the folder's `README.md` says how to record one.
+
 ## stash-procedure.py — CLI tool (`tools/stash-procedure.py`)
 
 Captures a published procedure as an ARTCC CIFP fragment before it ages out of reach. The FAA sometimes drops a still-charted procedure from the CIFP dataset (KOAK NIMITZ); the prior-cycle chain recovers it for only ~12 months and only on a machine that cached the right cycle, so anything a facility depends on has to be pinned into `Data/ARTCCs/{ARTCC}/Procedures/*.cifp`.

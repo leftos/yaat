@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.15.0-beta [2026/10/02]
+
+### Highlights
+- Loading a scenario shows each step's progress and names anything missing, such as an airport map; other members see who is loading.
+- `FOLLOW` works from an approach, any pattern leg or a climb-out: pilots keep their spacing, and say why when they can't follow.
+- New ERAM entries: `FP`, `CA`/`RK`, `SM`, `SW`, `WX` and `UR`. ERAM targets now update every 12 seconds, as on the real system.
+- **Scenario → File Bug Report…** opens a prefilled GitHub issue with the bug report bundle ready to drag in.
 
 ### Added
 
@@ -23,8 +29,8 @@
 ### Changed
 
 - CRC's Tower Cab and TowerCab 3D receive aircraft position updates over UDP, as on vNAS; new aircraft and removals still arrive over the hub connection.
-- A pilot on an instrument approach told to `FOLLOW` traffic to its runway keeps flying the approach and keeps its landing clearance.
-- A pilot told to `FOLLOW` traffic behind it in the landing sequence, departing, on a missed approach, or with no runway and not ahead of it answers unable, on an approach or already following too.
+- A pilot on an instrument approach told to `FOLLOW` same-runway traffic keeps the approach and its landing clearance, slowing before final to hold spacing.
+- `FOLLOW` is refused, with the pilot's reason, from base or final, or for traffic behind, on the ground, departing, going missed, or bound elsewhere.
 - Repeating `FOLLOW` for the traffic already being followed keeps the aircraft's current maneuver, and a refused `FOLLOWF` leaves the traffic not in sight.
 - A pilot on final or an approach follows same-runway traffic by distance to the runway, so a long straight-in can follow an aircraft on close base.
 - A pilot on an instrument approach told to `FOLLOW` traffic landing another runway answers unable; on a VFR practice approach, only inside the final approach fix.
@@ -57,20 +63,16 @@
 - vEDST joining a controller's session as it ends is refused, instead of staying attached to a session with no position.
 - An airport map the server already holds stays loaded, reported as a cached copy, when a refresh cannot reach vNAS or gets a broken map.
 - The server's admin endpoints take the admin password only in the `X-Yaat-Admin-Password` header; a `?password=` query is refused.
-- An aircraft following traffic on an instrument approach slows to keep its spacing before final, instead of closing on a slower lead.
 - Joining a room just as it closes no longer leaves you, or your CRC display, attached to the closed room.
 - A long-running room picks up ARTCC config changes to ASDE-X, SAID and Tower Cab airports, and CRC drops targets at an airport a config no longer lists.
 - A CRC display or TowerCab 3D that subscribes to the same data twice receives each update once, not once per subscription.
 - A room whose creation or first join fails is closed at once instead of lingering in the room list.
-- An ERAM track that loses radar coverage starts coasting from where CRC last drew it, instead of jumping ahead up to 12 seconds.
-- An ERAM `QT` with no location coasts from the position and track CRC shows, not the aircraft's hidden live position.
 - A CRC ERAM display that connects while a track is coasting now shows that track and its data block.
-- ERAM `FP`, `VP` and `AM TYP`, and the CRC flight plan editor, store a lower-case aircraft type or equipment suffix in upper case.
+- ERAM `VP` and `AM TYP`, and the CRC flight plan editor, store a lower-case aircraft type or equipment suffix in upper case.
 - A pattern follower sequences behind traffic on an instrument approach or a go-around, and aircraft on one leg are ordered by position, not who joined first.
 - ERAM `QF`, `FR` and a bare `AM` show the flight plan line in ERAM's column order: filed speed before the altitude, remarks last.
 - An altitude-only flight plan amend no longer strips the equipment suffix from CRC's equipment field, and CRC gets each type's real wake category.
 - A scenario flight plan filed with a heavy or formation prefix (`H/A306/L`, `2/C130/G`) reads its type and suffix correctly and keeps them on export.
-- A flight plan filed with an altitude off the hundred (`FP B738 35050 …`) keeps that altitude on replay.
 - ERAM `AM TYP` and `VP` keep a formation count and heavy indicator such as `2H/F16`, and `AM TYP` refuses a malformed type field.
 - A CRC flight plan edit whose equipment ends in `/` no longer clears the filed equipment suffix.
 - `FOLLOWF` keeps the aircraft's pattern leg, approach and landing clearance and gets the same refusals as `FOLLOW`; only the traffic-in-sight step is skipped.
@@ -81,15 +83,12 @@
 - At SFO, a 28R arrival no longer turns off onto a full T: two aircraft only when both are CWT G or smaller.
 - A scenario's timed `TAXI` waits for the pushback to finish, and scripted commands behind it wait too, instead of cutting the tug off mid-push.
 - ASDE-X and SAID history dots collapse onto an aircraft that stops instead of freezing where it was rolling.
-
 - Two rooms loading scenarios from the same ARTCC at once no longer leave the second room's positions unresolved.
 - A CRC message larger than 64 KB is no longer cut short, and CRC gets an answer when it unsubscribes or a command fails on the server.
 - The aircraft list and the Flight Plan Editor show a Mach or classified cruise speed (`M078`, `SC`) instead of nothing.
 - FOLLOW behind a lead that has no runway yet trails it nose-on, S-turns for spacing when too close, joins the lead's base where it began, and from a pattern leg climbs to pattern altitude and rejoins its own pattern if the lead is lost.
 - A FOLLOW aircraft on base too close to its lead widens its base, or turns downwind for spacing and asks for a base turn; it never joins final from beyond the threshold.
 - A follower that cannot build spacing extends its downwind, says it is unable to follow and asks for a base turn.
-- FOLLOW is refused, with the pilot's reason, from base or final, behind a lead on the ground, or behind a lead bound for another airport.
-- FOLLOW from an approach keeps the landing clearance.
 - `WAIT 2NM`, `WAIT 2 NM` and `WAIT .5NM` wait a distance, like `WAITD`.
 - ERAM shows `X`/`XXX` for an aircraft whose transponder is in standby, and a stopped target shows no `000` ground speed.
 - ERAM emergency and special-code text (EMRG, RDOF, HIJK) blinks for 30 seconds instead of for as long as the code is squawked.
@@ -110,7 +109,7 @@
 - ERAM flight IDs follow the SRS format: a two-character ID is a letter and a digit, Mode C intruder IDs are reserved, and 15 is the most per entry.
 - ERAM `QB` and `LF` refuse a beacon code as the flight ID, and `QB` changes a qualifier or voice type for several flights at once.
 - ERAM `AM =EQP` (or `AM =24`) reads out the filed equipment codes.
-- A flight plan created from CRC or typed with `FP` keeps a fix-qualified altitude (`170/SJC/110`) or an at-or-above altitude (`A170`).
+- A flight plan created from CRC keeps a fix-qualified altitude (`170/SJC/110`) or an at-or-above altitude (`A170`).
 - ERAM `QF` shows the assigned beacon code, the CID and the controlling sector, and reads the ERAM assigned altitude, or `-` when the flight plan has none.
 - ERAM `QS` takes every speed form, such as `/78`, `/.78`, `/M.78`, `/+50` and `/PS`, shows knots as `S250`, and takes heading and speed together.
 - After an ERAM handoff is accepted, the handing-off sector keeps its full data block until it toggles it, and `<FLID>` toggles STARS-owned tracks too.
