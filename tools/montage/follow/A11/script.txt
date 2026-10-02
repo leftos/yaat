@@ -1,0 +1,30 @@
+# A11 — FOLLOW with no traffic in sight is refused; FOLLOWF is accepted.
+# KOAK runway 28R, right traffic. Two VFR C172s inbound from the northwest in trail,
+# about 1.2 NM apart, neither placed on a leg by the scenario.
+#
+#   N52417  lead     — joins the right downwind first and turns base
+#   N738SP  follower — joins the same downwind behind it; never given a traffic advisory
+#
+# Times are sim seconds. See card.md for what the clip shows.
+
+# t=1  Inhibit conflict alerts on both aircraft (CAINH toggles).
+t=1 N52417 CAINH
+t=1 N738SP CAINH
+
+# t=2  Both: enter the right downwind for 28R, lead first.
+t=2 N52417 ERD 28R
+t=3 N738SP ERD 28R
+
+# t=102 Lead: cleared to land (first in the sequence).
+t=102 N52417 CLAND 28R
+
+# t=195 The follow, with the lead on base and the follower on the downwind. No traffic
+#       advisory was issued, so the follower has not reported the traffic in sight: refused.
+t=195 N738SP FOLLOW N52417
+
+# t=200 The forced follow: FOLLOWF skips the traffic-in-sight check (the instructor vouches
+#       for it) and is accepted.
+t=200 N738SP FOLLOWF N52417
+
+# t=204 Follower: cleared to land; it applies when the follower joins the final behind.
+t=204 N738SP CLAND 28R

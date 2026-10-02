@@ -1,6 +1,6 @@
 {
-  "id": "01DXMNRHTG5Y13PE421FC19F8Y",
-  "name": "Montage E2 | Right-base follower that would roll out ahead turns out for spacing",
+  "id": "01JA08XRWY28N28RFQ5MZC3T7V",
+  "name": "Montage A8 | 28L left downwind follows a 28R straight-in",
   "artccId": "ZOA",
   "primaryAirportId": "OAK",
   "studentPositionId": "01GEAMB98RKCPP9HCNPW5AVDA5",
@@ -9,18 +9,15 @@
   "aircraftGenerators": [],
   "aircraft": [
     {
-      "id": "017DXGQA7AK61KRSC4F6K72PVQ",
+      "id": "01JA08N52417XRWYF7Q5MZC3TB",
       "aircraftId": "N52417",
       "aircraftType": "C172",
       "transponderMode": "C",
       "startingConditions": {
         "type": "Coordinates",
-        "coordinates": {
-          "lat": 37.678672,
-          "lon": -122.062448
-        },
+        "coordinates": { "lat": 37.693248, "lon": -122.10723 },
         "altitude": 2000,
-        "speed": 90,
+        "speed": 100,
         "heading": 279,
         "navigationPath": "OAK"
       },
@@ -38,31 +35,25 @@
       "presetCommands": [],
       "airportId": "OAK",
       "difficulty": "Easy",
-      "autoTrackConditions": {
-        "positionId": "01GEAMB98RKCPP9HCNPW5AVDA5",
-        "handoffDelay": 0
-      }
+      "autoTrackConditions": { "positionId": "01GEAMB98RKCPP9HCNPW5AVDA5", "handoffDelay": 0 }
     },
     {
-      "id": "014N0TZ6VQX9VBHYXVHMF5HWFX",
+      "id": "01JA08N738SPXRWYF7Q5MZC3TD",
       "aircraftId": "N738SP",
       "aircraftType": "C172",
       "transponderMode": "C",
       "startingConditions": {
         "type": "Coordinates",
-        "coordinates": {
-          "lat": 37.767108,
-          "lon": -122.112931
-        },
-        "altitude": 1500,
-        "speed": 90,
-        "heading": 189,
+        "coordinates": { "lat": 37.732315, "lon": -122.278226 },
+        "altitude": 1200,
+        "speed": 110,
+        "heading": 99,
         "navigationPath": "OAK"
       },
       "onAltitudeProfile": false,
       "flightplan": {
         "rules": "VFR",
-        "departure": "KCCR",
+        "departure": "KSQL",
         "destination": "KOAK",
         "cruiseAltitude": 3500,
         "cruiseSpeed": 0,
@@ -73,10 +64,7 @@
       "presetCommands": [],
       "airportId": "OAK",
       "difficulty": "Easy",
-      "autoTrackConditions": {
-        "positionId": "01GEAMB98RKCPP9HCNPW5AVDA5",
-        "handoffDelay": 0
-      }
+      "autoTrackConditions": { "positionId": "01GEAMB98RKCPP9HCNPW5AVDA5", "handoffDelay": 0 }
     }
   ],
   "atc": [

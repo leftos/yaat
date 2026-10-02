@@ -1,7 +1,7 @@
 # E2 — right-base follower that would roll out level with or ahead of a straight-in.
 # KOAK runway 28R, right traffic. Two VFR C172s, neither placed on a leg by the scenario.
 #
-#   N52417  lead     — C172 7.6 NM out on the 28R extended centerline, on a practice ILS 28R
+#   N52417  lead     — C172 7.3 NM out on the 28R extended centerline, on a practice ILS 28R
 #   N738SP  follower — C172 4 NM north of the final, inbound southbound, joins a right base
 #
 # Times are sim seconds. See card.md for what the clip shows.
