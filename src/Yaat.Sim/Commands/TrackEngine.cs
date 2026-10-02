@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Coast;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Commands;
@@ -201,6 +203,14 @@ public static partial class TrackEngine
         MarkRecentHandoffAccepted(ac, previousOwner, wasForced: false, scenario);
         return new CommandResult(true, $"Accepted {ac.Callsign}");
     }
+
+    /// <summary>
+    /// True when auto-accept leaves a pending handoff alone because ERAM may show the track as CST: below ERAM coverage,
+    /// on the ground, or a QT coast track (7110.65 §5-4-5.e, §5-4-6.f.3 require verbal coordination then). Shared by the
+    /// auto-accept timer and the controller-AI handoff watchdog so they cannot drift.
+    /// </summary>
+    public static bool IsAutoAcceptWithheld(AircraftState ac, NavigationDatabase navDb) =>
+        !DisconnectCoastRules.IsVisibleOnEram(ac, navDb) || ac.Eram.IsCoastTrack;
 
     /// <summary>
     /// Flags the previous owner's STARS <c>SharedState</c> entry as previously-owned so that, after a

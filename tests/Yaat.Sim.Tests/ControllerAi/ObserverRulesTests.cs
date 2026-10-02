@@ -286,6 +286,29 @@ public class ObserverRulesTests
     }
 
     [Fact]
+    public void HandoffUnaccepted_HandoffWithheldBelowCoverage_OpensNoAnomaly()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig approach = TestAiPositions.NorCalApproach(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        AircraftState aircraft = AiTestFixture.Airborne("AAL1", 37.9, -122.0, 1000);
+        aircraft.Track.Owner = approach.Identity;
+        aircraft.Track.HandoffPeer = TrackOwner.CreateEram("OAK_14_CTR", "ZOA", "14");
+        aircraft.Track.OnHandoff = true;
+        aircraft.Track.HandoffInitiatedAt = 100;
+        var rule = new HandoffUnacceptedRule();
+        double horizon = engine.Scenario!.EffectiveAutoAcceptDelaySeconds + HandoffUnacceptedRule.GraceSeconds;
+
+        rule.Evaluate(ConflictScope(engine, [aircraft], approach, 100 + horizon + 5, []));
+
+        Assert.Empty(engine.Scenario.AiAnomalies.Drain());
+    }
+
+    [Fact]
     public void ConflictAlert_OpensPerConflictIdInTheJurisdiction_AndClosesWhenTheAlertClears()
     {
         if (_zoa is null)

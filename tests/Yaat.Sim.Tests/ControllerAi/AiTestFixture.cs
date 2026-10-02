@@ -1,6 +1,7 @@
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.ControllerAi.Brains;
 using Yaat.Sim.ControllerAi.Knowledge;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -166,6 +167,7 @@ internal static class AiTestFixture
             ActiveConflicts = conflicts,
             EramConflicts = [],
             AutoAcceptDelaySeconds = scenario.EffectiveAutoAcceptDelaySeconds,
+            NavDb = NavigationDatabase.Instance,
             LayoutFor = engine.ResolveGroundLayout,
             RunwaysFor = RunwayOccupancy.AirportRunways,
             RunwayInUse = new RunwayInUseState(FacilityOpsDatabase.For),

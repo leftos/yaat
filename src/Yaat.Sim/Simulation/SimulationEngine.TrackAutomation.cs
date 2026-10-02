@@ -692,6 +692,17 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
+            // Auto-accept never takes a track ERAM may show as CST (7110.65 §5-4-5.e, §5-4-6.f.3 require verbal
+            // coordination then). The check is stateless (below ERAM coverage, on the ground, or a QT coast track) and
+            // applies to every handoff, STARS included, by design: a low STARS handoff waits until the aircraft climbs
+            // into ERAM coverage. It also holds inside the display's hysteresis band and after the coast has expired,
+            // both of which only keep the handoff pending longer.
+            if (TrackEngine.IsAutoAcceptWithheld(aircraft, NavigationDatabase.Instance))
+            {
+                _logger.LogTrace("TickAutoAccept: {Callsign} handoff withheld below ERAM coverage or on a QT coast, skipping", aircraft.Callsign);
+                continue;
+            }
+
             // Solo mode: never auto-accept a handoff to the student's own position — the student
             // accepts it by hand (in non-solo an RPO does). Every other position auto-accepts below.
             if (soloMode && scenario.StudentPosition is { } student && aircraft.Track.HandoffPeer.MatchesPosition(student))

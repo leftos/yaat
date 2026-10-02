@@ -1,4 +1,5 @@
 using Yaat.Sim.ControllerAi.Knowledge;
+using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.ControllerAi;
@@ -68,6 +69,7 @@ public sealed class AiControllerService(IReadOnlyList<IPositionBrain> brains, IA
             ActiveConflicts = inputs.ActiveConflicts,
             EramConflicts = inputs.EramConflicts,
             AutoAcceptDelaySeconds = scenario.EffectiveAutoAcceptDelaySeconds,
+            NavDb = NavigationDatabase.Instance,
             LayoutFor = inputs.LayoutFor,
             RunwaysFor = inputs.RunwaysFor,
             RunwayInUse = RunwayInUse,

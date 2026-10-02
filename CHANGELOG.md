@@ -36,6 +36,7 @@
 - A plain `TAXI $spot` or `TAXI @gate` from the ramp stays in the ramp, cutting across taxilanes, or is refused with a `TAXIAUTO` hint.
 - `TAXI A` from a stand several taxilanes from A taxis across the ramp to reach it instead of being refused.
 - In solo sessions, handoffs to the automated positions are accepted after at least 5 seconds instead of 3.
+- Handoffs of an aircraft on the ground, below 1,500 ft above its field, or on a coast track are no longer auto-accepted; they wait until it climbs into coverage.
 
 ### Fixed
 
