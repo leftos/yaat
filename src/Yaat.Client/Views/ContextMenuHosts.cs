@@ -3,7 +3,6 @@ using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Ground;
-using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
@@ -13,18 +12,11 @@ namespace Yaat.Client.Views;
 /// <summary>
 /// The radar's <see cref="IMenuHost"/>, built per right-click: commands go through the radar view model's send path,
 /// input, list, filtered-list and warp pickers and the Command… and Note… flyouts open through <see cref="MenuPopups"/>
-/// at the pointer on the radar canvas, fix names, field elevations and route drawing
-/// come from the radar view model, the display items read and drive the radar canvas, and favorites are built for the
-/// right-clicked aircraft model.
+/// at the pointer on the radar canvas, fix names and field elevations come from the radar view model, and favorites are
+/// built for the right-clicked aircraft model. Route drawing is the radar's own canvas item, never the host's.
 /// </summary>
 internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainViewModel? main, AircraftModel? aircraft) : IMenuHost
 {
-    /// <summary>The message both taxi-route members throw: only the ground view draws taxi routes.</summary>
-    private const string NoTaxiRouteItem = "The radar menu has no taxi route item; only the ground view draws taxi routes";
-
-    /// <summary>The message both hidden-datablock members throw: only the ground view's menu hides data blocks.</summary>
-    private const string NoHideDataBlockItem = "The radar menu has no hide datablock item; only the ground view hides data blocks from its menu";
-
     /// <summary>The message the ground-traffic member throws: only the ground view offers the follow and give-way submenus.</summary>
     private const string NoGroundTrafficItems = "The radar menu has no ground follow or give way items; only the ground view lists ground traffic";
 
@@ -44,20 +36,12 @@ internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainVi
     public Task SendAsync(string callsign, string command, string initials) => radar.SendRawCommandAsync(callsign, initials, command);
 
     /// <summary>
-    /// The radar serves the free-text popup, both pickers, the warp popup, the data-block form and position, the nav
-    /// route, the measure tool and route drawing. It has no flight-plan editor, no ground map, no taxi-route or
-    /// hidden-datablock display, and no multi-selection, so those families' members throw.
+    /// The radar serves the free-text popup, both pickers and the warp popup. It has no flight-plan editor, no route
+    /// drawing (its Draw route is a canvas item the view builds), no ground map and no multi-selection, so those
+    /// families' members throw.
     /// </summary>
     public MenuHostCapabilities Capabilities =>
-        MenuHostCapabilities.InputPopup
-        | MenuHostCapabilities.ListPicker
-        | MenuHostCapabilities.FilteredListPicker
-        | MenuHostCapabilities.Warp
-        | MenuHostCapabilities.MiniDataBlock
-        | MenuHostCapabilities.DataBlockOffset
-        | MenuHostCapabilities.NavRoute
-        | MenuHostCapabilities.Measure
-        | MenuHostCapabilities.DrawRoute;
+        MenuHostCapabilities.InputPopup | MenuHostCapabilities.ListPicker | MenuHostCapabilities.FilteredListPicker | MenuHostCapabilities.Warp;
 
     public void ShowInputPopup(string placeholder, BlankInput blank, Func<string, Task> onSubmit) =>
         MenuPopups.ShowInput(view.Canvas, placeholder, "", 0, blank, onSubmit);
@@ -72,7 +56,8 @@ internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainVi
 
     public double GetFieldElevation(string? destination) => radar.GetFieldElevation(destination);
 
-    public void EnterDrawRoute(string callsign) => radar.EnterDrawRoute(callsign);
+    public void EnterDrawRoute(string callsign) =>
+        throw new NotSupportedException("The radar menu has no catalog route item; its Draw route is a canvas item the view builds");
 
     public void ShowWarpPopup(string callsign, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit) =>
         MenuPopups.ShowWarp(view.Canvas, new MenuPopups.WarpSeed(callsign, "", heading, altitude, speed), onSubmit);
@@ -92,44 +77,6 @@ internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainVi
 
     public void OpenFlightPlanEditor() =>
         throw new NotSupportedException("The radar menu has no flight-plan item; Ctrl-clicking an aircraft opens the editor");
-
-    public bool IsMinified(string callsign) => view.Canvas.IsMinified(callsign);
-
-    public void ToggleMinified(string callsign) => view.Canvas.ToggleMinifiedDataBlock(callsign);
-
-    public bool HasManualDataBlockOffset(string callsign) => view.Canvas.HasManualDataBlockOffset(callsign);
-
-    public void ResetDataBlockOffset(string callsign) => view.Canvas.ResetDataBlockOffset(callsign);
-
-    public bool IsPathShown(string callsign) => radar.IsPathShown(callsign);
-
-    public void ToggleShowPath(string callsign) => radar.ToggleShowPath(callsign);
-
-    public MenuMeasureState GetMeasureState()
-    {
-        if (radar.Measure is not { } measure)
-        {
-            return MenuMeasureState.None;
-        }
-
-        return measure.Anchor is null ? MenuMeasureState.NoAnchor : MenuMeasureState.HasAnchor;
-    }
-
-    public void MeasurePickOnAircraft(string callsign)
-    {
-        if (radar.Measure is { } measure)
-        {
-            measure.Pick(RblEndpoint.OnAircraft(callsign), RadarViewModel.MeasureView, radar.MeasureTrackLookup, RadarViewModel.MeasureUnits);
-        }
-    }
-
-    public TaxiRouteDisplayMode GetTaxiRouteMode(string callsign) => throw new NotSupportedException(NoTaxiRouteItem);
-
-    public void SetTaxiRouteMode(string callsign, TaxiRouteDisplayMode mode) => throw new NotSupportedException(NoTaxiRouteItem);
-
-    public bool IsDataBlockHidden(string callsign) => throw new NotSupportedException(NoHideDataBlockItem);
-
-    public void ToggleHiddenDataBlock(string callsign) => throw new NotSupportedException(NoHideDataBlockItem);
 
     public IReadOnlyList<string> GetGroundTrafficCallsigns(string callsign) => throw new NotSupportedException(NoGroundTrafficItems);
 
@@ -153,35 +100,26 @@ internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainVi
 
 /// <summary>
 /// The ground view's <see cref="IMenuHost"/>, built per right-click: commands go through the ground view model's send
-/// path, the taxi-route mode reads and drives the ground view model, the data-block hide and reset read and drive the
-/// ground canvas, the measure item latches the ground view model's measurement, route drawing starts a taxi route for
-/// the right-clicked aircraft, the follow and give-way submenus list the main view model's other ground traffic, hold
-/// short asks the ground view model for the route's targets and previews the route to one on hover, the pushback faces,
-/// push back to and preset taxi routes ask the ground view model for their finished commands, push route starts a tug
-/// move for the right-clicked aircraft, and favorites are built for the right-clicked aircraft model. Its popups and
-/// flyouts open through <see cref="MenuPopups"/> at the pointer on the ground canvas. It has no fix or altitude picker,
-/// no flight-plan item, and no mini data block or nav route.
+/// path, route drawing starts a taxi route for the right-clicked aircraft, the follow and give-way submenus list the
+/// main view model's other ground traffic, hold short asks the ground view model for the route's targets and previews
+/// the route to one on hover, the pushback faces, push back to and preset taxi routes ask the ground view model for
+/// their finished commands, push route starts a tug move for the right-clicked aircraft, and favorites are built for
+/// the right-clicked aircraft model. Its popups and flyouts open through <see cref="MenuPopups"/> at the pointer on
+/// the ground canvas. It has no fix or altitude picker and no flight-plan item.
 /// </summary>
 internal sealed class GroundMenuHost(GroundView view, GroundViewModel ground, MainViewModel? main, AircraftModel? aircraft) : IMenuHost
 {
     public Task SendAsync(string callsign, string command, string initials) => ground.SendRawCommandAsync(callsign, initials, command);
 
     /// <summary>
-    /// The ground view serves the free-text popup, the data-block position reset, the measure tool, the taxi-route and
-    /// hidden-datablock display, route drawing and the ground-movement submenus. Its list and warp popups open, but
-    /// <see cref="MenuHostCapabilities.ListPicker"/> and <see cref="MenuHostCapabilities.Warp"/> are left undeclared so
-    /// those entries stay off the ground menu until the capabilities go; <see cref="MenuHostCapabilities.FilteredListPicker"/>
-    /// stays undeclared because <see cref="FixNames"/> throws. It has no mini data block or nav route, no flight-plan
-    /// editor and no multi-selection, so those throw.
+    /// The ground view serves the free-text popup, route drawing and the ground-movement submenus. Its list and warp
+    /// popups open, but <see cref="MenuHostCapabilities.ListPicker"/> and <see cref="MenuHostCapabilities.Warp"/> are
+    /// left undeclared so those entries stay off the ground menu until the capabilities go;
+    /// <see cref="MenuHostCapabilities.FilteredListPicker"/> stays undeclared because <see cref="FixNames"/> throws. It
+    /// has no flight-plan editor and no multi-selection, so those throw.
     /// </summary>
     public MenuHostCapabilities Capabilities =>
-        MenuHostCapabilities.InputPopup
-        | MenuHostCapabilities.DataBlockOffset
-        | MenuHostCapabilities.Measure
-        | MenuHostCapabilities.TaxiRouteDisplay
-        | MenuHostCapabilities.HideDataBlock
-        | MenuHostCapabilities.DrawRoute
-        | MenuHostCapabilities.GroundMovement;
+        MenuHostCapabilities.InputPopup | MenuHostCapabilities.DrawRoute | MenuHostCapabilities.GroundMovement;
 
     public void ShowInputPopup(string placeholder, BlankInput blank, Func<string, Task> onSubmit) =>
         MenuPopups.ShowInput(view.Canvas, placeholder, "", 0, blank, onSubmit);
@@ -217,64 +155,6 @@ internal sealed class GroundMenuHost(GroundView view, GroundViewModel ground, Ma
         MenuPopups.ShowNote(view.Canvas, callsign, currentNote, sendCommand);
 
     public void OpenFlightPlanEditor() => throw new NotSupportedException("The ground view has no flight-plan item; ground menus never build it");
-
-    public bool IsMinified(string callsign) =>
-        throw new NotSupportedException("The ground view has no mini data block; ground menus never build the mini datablock item");
-
-    public void ToggleMinified(string callsign) =>
-        throw new NotSupportedException("The ground view has no mini data block; ground menus never build the mini datablock item");
-
-    public bool HasManualDataBlockOffset(string callsign) => view.Canvas.HasManualDataBlockOffset(callsign);
-
-    public void ResetDataBlockOffset(string callsign) => view.Canvas.ResetDataBlockOffset(callsign);
-
-    public bool IsPathShown(string callsign) =>
-        throw new NotSupportedException("The ground view draws no nav route; ground menus never build the nav route item");
-
-    public void ToggleShowPath(string callsign) =>
-        throw new NotSupportedException("The ground view draws no nav route; ground menus never build the nav route item");
-
-    public MenuMeasureState GetMeasureState()
-    {
-        if (ground.Measure is not { } measure)
-        {
-            return MenuMeasureState.None;
-        }
-
-        return measure.Anchor is null ? MenuMeasureState.NoAnchor : MenuMeasureState.HasAnchor;
-    }
-
-    public void MeasurePickOnAircraft(string callsign)
-    {
-        if (ground.Measure is { } measure)
-        {
-            measure.Pick(RblEndpoint.OnAircraft(callsign), GroundViewModel.MeasureView, ground.MeasureTrackLookup, GroundViewModel.MeasureUnits);
-        }
-    }
-
-    public TaxiRouteDisplayMode GetTaxiRouteMode(string callsign)
-    {
-        RequireMenuCallsign(callsign);
-        return ground.GetTaxiRouteMode(callsign);
-    }
-
-    public void SetTaxiRouteMode(string callsign, TaxiRouteDisplayMode mode)
-    {
-        RequireMenuCallsign(callsign);
-        ground.SetTaxiRouteMode(callsign, mode);
-    }
-
-    public bool IsDataBlockHidden(string callsign)
-    {
-        RequireMenuCallsign(callsign);
-        return view.Canvas.IsDataBlockHidden(callsign);
-    }
-
-    public void ToggleHiddenDataBlock(string callsign)
-    {
-        RequireMenuCallsign(callsign);
-        view.Canvas.ToggleHiddenDataBlock(callsign);
-    }
 
     /// <summary>
     /// The other on-ground aircraft in the main view model's list, nearest the right-clicked aircraft first and at most
@@ -350,18 +230,6 @@ internal sealed class GroundMenuHost(GroundView view, GroundViewModel ground, Ma
         return aircraft;
     }
 
-    /// <summary>
-    /// Throws when <paramref name="callsign"/> is not the right-clicked aircraft's. A menu opened on an aircraft the
-    /// main view model has no model for (<c>aircraft</c> is null) still reads and drives its display by callsign.
-    /// </summary>
-    private void RequireMenuCallsign(string callsign)
-    {
-        if ((aircraft is not null) && (!string.Equals(aircraft.Callsign, callsign, StringComparison.Ordinal)))
-        {
-            throw new InvalidOperationException($"The ground view's display items act only on the right-clicked aircraft, not '{callsign}'");
-        }
-    }
-
     public MenuItem BuildFavorites(IMenuAircraft? menuAircraft, MenuContext context) =>
         FavoritesContextMenu.Build(main, aircraft, context.Callsign, context.Initials);
 }
@@ -374,13 +242,6 @@ internal sealed class GroundMenuHost(GroundView view, GroundViewModel ground, Ma
 /// </summary>
 internal sealed class ListMenuHost(MainViewModel main, AircraftModel aircraft, Control flyoutAnchor) : IMenuHost
 {
-    /// <summary>The message every display member throws: the list has no radar display to read or drive.</summary>
-    private const string NoDisplayGroup = "The aircraft list has no radar display; list menus never build the display group";
-
-    /// <summary>The message every ground display member throws: the list draws no taxi routes or data blocks.</summary>
-    private const string NoGroundDisplayItems =
-        "The aircraft list has no ground display; list menus never build the taxi route or hide datablock items";
-
     /// <summary>The message every ground-movement member throws: the list has no ground map to list traffic or preview routes on.</summary>
     private const string NoGroundMovementItems =
         "The aircraft list has no ground map; list menus never build the hold short, follow, give way, pushback or preset taxi items";
@@ -392,7 +253,7 @@ internal sealed class ListMenuHost(MainViewModel main, AircraftModel aircraft, C
     /// warp popups open, but <see cref="MenuHostCapabilities.ListPicker"/> and <see cref="MenuHostCapabilities.Warp"/> are
     /// left undeclared so those entries stay off the list's menu until the capabilities go;
     /// <see cref="MenuHostCapabilities.FilteredListPicker"/> stays undeclared because <see cref="FixNames"/> throws. It
-    /// has no radar or ground display, so every display family's members throw.
+    /// draws no route, so route drawing throws.
     /// </summary>
     public MenuHostCapabilities Capabilities =>
         MenuHostCapabilities.InputPopup | MenuHostCapabilities.FlightPlanEditor | MenuHostCapabilities.MultiSelectAssume;
@@ -413,7 +274,7 @@ internal sealed class ListMenuHost(MainViewModel main, AircraftModel aircraft, C
         throw new NotSupportedException("The aircraft list builds no altitude picker; list menus never read a field elevation");
 
     public void EnterDrawRoute(string callsign) =>
-        throw new NotSupportedException("The aircraft list has no route drawing; list menus never build the Draw route item");
+        throw new NotSupportedException("The aircraft list draws no route; only the ground view's Draw taxi route item reaches this member");
 
     public void ShowWarpPopup(string callsign, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit) =>
         MenuPopups.ShowWarp(flyoutAnchor, new MenuPopups.WarpSeed(callsign, "", heading, altitude, speed), onSubmit);
@@ -425,31 +286,6 @@ internal sealed class ListMenuHost(MainViewModel main, AircraftModel aircraft, C
         MenuPopups.ShowNote(flyoutAnchor, callsign, currentNote, sendCommand);
 
     public void OpenFlightPlanEditor() => FlightPlanEditorManager.Open(aircraft, main);
-
-    public bool IsMinified(string callsign) => throw new NotSupportedException(NoDisplayGroup);
-
-    public void ToggleMinified(string callsign) => throw new NotSupportedException(NoDisplayGroup);
-
-    public bool HasManualDataBlockOffset(string callsign) => throw new NotSupportedException(NoDisplayGroup);
-
-    public void ResetDataBlockOffset(string callsign) => throw new NotSupportedException(NoDisplayGroup);
-
-    public bool IsPathShown(string callsign) => throw new NotSupportedException(NoDisplayGroup);
-
-    public void ToggleShowPath(string callsign) => throw new NotSupportedException(NoDisplayGroup);
-
-    /// <summary>The list has no measure tool, so the measure item never shows on it.</summary>
-    public MenuMeasureState GetMeasureState() => MenuMeasureState.None;
-
-    public void MeasurePickOnAircraft(string callsign) => throw new NotSupportedException(NoDisplayGroup);
-
-    public TaxiRouteDisplayMode GetTaxiRouteMode(string callsign) => throw new NotSupportedException(NoGroundDisplayItems);
-
-    public void SetTaxiRouteMode(string callsign, TaxiRouteDisplayMode mode) => throw new NotSupportedException(NoGroundDisplayItems);
-
-    public bool IsDataBlockHidden(string callsign) => throw new NotSupportedException(NoGroundDisplayItems);
-
-    public void ToggleHiddenDataBlock(string callsign) => throw new NotSupportedException(NoGroundDisplayItems);
 
     public IReadOnlyList<string> GetGroundTrafficCallsigns(string callsign) => throw new NotSupportedException(NoGroundMovementItems);
 

@@ -80,8 +80,6 @@ public class MenuCatalogCommandTests
         (MenuIds.DataBlockCruise, "050", "CRUISE 50"),
         (MenuIds.DataBlockAnnotate, "", "ANNOTATE"),
         (MenuIds.SimControlDelete, "", "DEL"),
-        (MenuIds.DisplayBlank, "", "BLANK"),
-        (MenuIds.DisplayUnblank, "", "BLANKD"),
         (MenuIds.HeadingPresent, "", "FPH"),
         (MenuIds.HeadingFly, "270", "FH 270"),
         (MenuIds.HeadingTurnLeft, "270", "TL 270"),
@@ -180,16 +178,6 @@ public class MenuCatalogCommandTests
         MenuIds.AircraftEditFlightPlan,
         MenuIds.AircraftCommand,
         MenuIds.AircraftNote,
-        MenuIds.DisplayMiniDataBlock,
-        MenuIds.DisplayResetDataBlockPosition,
-        MenuIds.DisplayNavRoute,
-        MenuIds.DisplayMeasure,
-        MenuIds.DisplayLeaderDirection,
-        MenuIds.DisplayJRing,
-        MenuIds.DisplayCone,
-        MenuIds.DisplayTaxiRoute,
-        MenuIds.DisplayHideDataBlock,
-        MenuIds.NavigationDrawRoute,
         MenuIds.TowerClearedForTakeoff,
         MenuIds.GroundCrossRunway,
         MenuIds.RelativeReportInSight,
@@ -377,7 +365,7 @@ public class MenuCatalogCommandTests
         var host = new RecordingMenuHost("") { Capabilities = MenuHostCapabilities.None };
         var menu = new ContextMenu();
 
-        bool added = SharedMenuGroups.AddIfApplicable(menu.Items, MenuIds.DisplayMiniDataBlock, null, Context(), host);
+        bool added = SharedMenuGroups.AddIfApplicable(menu.Items, MenuIds.TrackInitiateHandoff, null, Context(), host);
 
         Assert.False(added);
         Assert.Empty(menu.Items);
@@ -387,14 +375,14 @@ public class MenuCatalogCommandTests
     [AvaloniaFact]
     public void Entry_RequiringACapabilityTheHostHas_IsShown()
     {
-        var host = new RecordingMenuHost("") { Capabilities = MenuHostCapabilities.MiniDataBlock };
+        var host = new RecordingMenuHost("") { Capabilities = MenuHostCapabilities.InputPopup };
         var menu = new ContextMenu();
 
-        bool added = SharedMenuGroups.AddIfApplicable(menu.Items, MenuIds.DisplayMiniDataBlock, null, Context(), host);
+        bool added = SharedMenuGroups.AddIfApplicable(menu.Items, MenuIds.TrackInitiateHandoff, null, Context(), host);
 
         Assert.True(added);
         MenuItem item = Assert.IsType<MenuItem>(Assert.Single(menu.Items));
-        Assert.Equal("Mini datablock", item.Header as string);
+        Assert.Equal("Initiate handoff...", item.Header as string);
     }
 
     // Warp's popup is a capability of the radar canvas alone: a host that declares the Warp family offers the foot's
@@ -437,244 +425,6 @@ public class MenuCatalogCommandTests
         Click(item);
 
         Assert.Equal([(Callsign, "DEL", Initials)], host.Sent);
-    }
-
-    [AvaloniaTheory]
-    [InlineData(false, "Mini datablock")]
-    [InlineData(true, "Full datablock")]
-    public void MiniDatablock_LabelFollowsHostState_AndClickToggles(bool minified, string header)
-    {
-        var host = new RecordingMenuHost("");
-        if (minified)
-        {
-            host.MinifiedCallsigns.Add(Callsign);
-        }
-
-        MenuItem? item = MenuCatalog.Get(MenuIds.DisplayMiniDataBlock).Build(null, Context(), host);
-
-        Assert.NotNull(item);
-        Assert.Equal(header, item.Header as string);
-
-        Click(item);
-
-        Assert.Equal([Callsign], host.MinifiedToggles);
-    }
-
-    [AvaloniaFact]
-    public void ResetDatablockPosition_ShownOnlyWithManualOffset()
-    {
-        var host = new RecordingMenuHost("");
-        Assert.Null(MenuCatalog.Get(MenuIds.DisplayResetDataBlockPosition).Build(null, Context(), host));
-
-        host.ManualOffsetCallsigns.Add(Callsign);
-        MenuItem? item = MenuCatalog.Get(MenuIds.DisplayResetDataBlockPosition).Build(null, Context(), host);
-
-        Assert.NotNull(item);
-        Assert.Equal("Reset datablock position", item.Header as string);
-
-        Click(item);
-
-        Assert.Equal([Callsign], host.DataBlockOffsetResets);
-    }
-
-    [AvaloniaTheory]
-    [InlineData(false, "Show nav route")]
-    [InlineData(true, "Hide nav route")]
-    public void NavRoute_LabelFollowsHostState_AndClickToggles(bool shown, string header)
-    {
-        var host = new RecordingMenuHost("");
-        if (shown)
-        {
-            host.PathShownCallsigns.Add(Callsign);
-        }
-
-        MenuItem? item = MenuCatalog.Get(MenuIds.DisplayNavRoute).Build(null, Context(), host);
-
-        Assert.NotNull(item);
-        Assert.Equal(header, item.Header as string);
-
-        Click(item);
-
-        Assert.Equal([Callsign], host.PathToggles);
-    }
-
-    [AvaloniaFact]
-    public void Measure_HiddenWithoutMeasure_FromWithoutAnchor_ToWithAnchor_AndClickPicks()
-    {
-        var host = new RecordingMenuHost("") { MeasureState = MenuMeasureState.None };
-        Assert.Null(MenuCatalog.Get(MenuIds.DisplayMeasure).Build(null, Context(), host));
-
-        host.MeasureState = MenuMeasureState.NoAnchor;
-        MenuItem? from = MenuCatalog.Get(MenuIds.DisplayMeasure).Build(null, Context(), host);
-        Assert.NotNull(from);
-        Assert.Equal($"Measure from {Callsign}", from.Header as string);
-
-        host.MeasureState = MenuMeasureState.HasAnchor;
-        MenuItem? to = MenuCatalog.Get(MenuIds.DisplayMeasure).Build(null, Context(), host);
-        Assert.NotNull(to);
-        Assert.Equal($"Measure to {Callsign}", to.Header as string);
-
-        Click(from);
-        Click(to);
-
-        Assert.Equal([Callsign, Callsign], host.MeasurePicks);
-    }
-
-    [AvaloniaFact]
-    public void LeaderDirection_SubmenuSendsLdr_WithDefaultLabelOnFive()
-    {
-        var host = new RecordingMenuHost("");
-        List<MenuItem> items = SubmenuItems(MenuIds.DisplayLeaderDirection, host);
-
-        Assert.Equal(["1", "2", "3", "4", "5 (default)", "6", "7", "8", "9"], items.Select(i => i.Header as string));
-        foreach (MenuItem item in items)
-        {
-            Click(item);
-        }
-
-        Assert.Equal(
-            [
-                (Callsign, "LDR 1", Initials),
-                (Callsign, "LDR 2", Initials),
-                (Callsign, "LDR 3", Initials),
-                (Callsign, "LDR 4", Initials),
-                (Callsign, "LDR 5", Initials),
-                (Callsign, "LDR 6", Initials),
-                (Callsign, "LDR 7", Initials),
-                (Callsign, "LDR 8", Initials),
-                (Callsign, "LDR 9", Initials),
-            ],
-            host.Sent
-        );
-    }
-
-    [AvaloniaFact]
-    public void Display_AllStatesOn_HeaderSequence()
-    {
-        var host = new RecordingMenuHost("") { MeasureState = MenuMeasureState.HasAnchor };
-        host.MinifiedCallsigns.Add(Callsign);
-        host.ManualOffsetCallsigns.Add(Callsign);
-        host.PathShownCallsigns.Add(Callsign);
-
-        MenuItem display = SharedMenuGroups.Display(null, Context(), host);
-
-        Assert.Equal(
-            [
-                "Taxi route",
-                "Hide datablock",
-                "Full datablock",
-                "Reset datablock position",
-                "Hide nav route",
-                $"Measure to {Callsign}",
-                "---",
-                "Leader direction",
-                "J-ring",
-                "Cone",
-                "---",
-                "Blank target",
-                "Unblank target",
-            ],
-            display.Items.Select(Describe)
-        );
-    }
-
-    // A host that serves no display capability shows the overlay blocks alone: no separator opens or closes the submenu.
-    [AvaloniaFact]
-    public void Display_NoCapabilities_OpensWithoutSeparator()
-    {
-        var host = new RecordingMenuHost("") { Capabilities = MenuHostCapabilities.None };
-        List<object?> items = [.. SharedMenuGroups.Display(null, Context(), host).Items];
-
-        Assert.Equal(["Leader direction", "J-ring", "Cone", "---", "Blank target", "Unblank target"], items.Select(Describe));
-        Assert.False(items[^1] is Separator);
-        for (int i = 1; i < items.Count; i++)
-        {
-            Assert.False((items[i] is Separator) && (items[i - 1] is Separator));
-        }
-    }
-
-    [AvaloniaFact]
-    public void GroundDisplayGroup_TaxiRouteRadio_ReflectsAndSetsHostMode()
-    {
-        var host = new RecordingMenuHost("");
-        host.TaxiRouteModes[Callsign] = TaxiRouteDisplayMode.AlwaysHide;
-        var menu = new ContextMenu();
-
-        SharedMenuGroups.AddGroundDisplay(menu.Items, null, GroundContext(VfrCommandsForIfr.None), host);
-
-        Assert.Equal(["Taxi route", "Hide datablock"], menu.Items.Select(Describe));
-        MenuItem taxiRoute = menu.Items.OfType<MenuItem>().First();
-        List<MenuItem> modes = [.. taxiRoute.Items.OfType<MenuItem>()];
-        Assert.Equal(["Always show", "Always hide", "Follow “Show all” setting"], modes.Select(i => i.Header as string));
-        Assert.All(modes, i => Assert.Equal(MenuItemToggleType.Radio, i.ToggleType));
-        Assert.Equal([false, true, false], modes.Select(i => i.IsChecked));
-
-        foreach (MenuItem mode in modes)
-        {
-            Click(mode);
-        }
-
-        Assert.Equal(
-            [(Callsign, TaxiRouteDisplayMode.AlwaysShow), (Callsign, TaxiRouteDisplayMode.AlwaysHide), (Callsign, TaxiRouteDisplayMode.Follow)],
-            host.TaxiRouteModeSets
-        );
-        Assert.Empty(host.Sent);
-    }
-
-    [AvaloniaTheory]
-    [InlineData(false, "Hide datablock")]
-    [InlineData(true, "Show datablock")]
-    public void GroundDisplayGroup_HideDatablock_TogglesThroughHost(bool hidden, string header)
-    {
-        var host = new RecordingMenuHost("");
-        if (hidden)
-        {
-            host.HiddenDataBlockCallsigns.Add(Callsign);
-        }
-
-        host.ManualOffsetCallsigns.Add(Callsign);
-        var menu = new ContextMenu();
-
-        SharedMenuGroups.AddGroundDisplay(menu.Items, null, GroundContext(VfrCommandsForIfr.None), host);
-
-        Assert.Equal(["Taxi route", header, "Reset datablock position"], menu.Items.Select(Describe));
-        MenuItem toggle = menu.Items.OfType<MenuItem>().Single(i => (i.Header as string) == header);
-
-        Click(toggle);
-
-        Assert.Equal([Callsign], host.HiddenDataBlockToggles);
-        Assert.Empty(host.Sent);
-    }
-
-    [AvaloniaFact]
-    public void JRing_SubmenuSendsClearAndRadii() => AssertRingSubmenu(MenuIds.DisplayJRing, "JRING");
-
-    [AvaloniaFact]
-    public void Cone_SubmenuSendsClearAndRadii() => AssertRingSubmenu(MenuIds.DisplayCone, "CONE");
-
-    /// <summary>Clicks the Clear item and every radius of a J-ring or cone submenu and checks each command text.</summary>
-    private static void AssertRingSubmenu(string id, string command)
-    {
-        var host = new RecordingMenuHost("");
-        List<MenuItem> items = SubmenuItems(id, host);
-
-        Assert.Equal(["Clear", "1 nm", "2 nm", "3 nm", "5 nm", "10 nm"], items.Select(i => i.Header as string));
-        foreach (MenuItem item in items)
-        {
-            Click(item);
-        }
-
-        Assert.Equal(
-            [
-                (Callsign, command, Initials),
-                (Callsign, $"{command} 1", Initials),
-                (Callsign, $"{command} 2", Initials),
-                (Callsign, $"{command} 3", Initials),
-                (Callsign, $"{command} 5", Initials),
-                (Callsign, $"{command} 10", Initials),
-            ],
-            host.Sent
-        );
     }
 
     [AvaloniaTheory]
@@ -905,20 +655,6 @@ public class MenuCatalogCommandTests
         Assert.Equal(["Direct to..."], idle.Items.Select(Describe));
         Assert.Equal("Navigation (→ SUNOL)", navigating.Header as string);
         Assert.Equal(["Direct to...", "Append direct to..."], navigating.Items.Select(Describe));
-    }
-
-    [AvaloniaFact]
-    public void DrawRoute_EntersTheHostsDrawRouteMode()
-    {
-        var host = new RecordingMenuHost("");
-        MenuItem? item = MenuCatalog.Get(MenuIds.NavigationDrawRoute).Build(null, Context(), host);
-
-        Assert.NotNull(item);
-        Assert.Equal("Draw route", item.Header as string);
-        Click(item);
-
-        Assert.Equal([Callsign], host.DrawRouteCallsigns);
-        Assert.Empty(host.Sent);
     }
 
     [AvaloniaFact]
@@ -2451,14 +2187,6 @@ public class MenuCatalogCommandTests
             MenuItem menuItem => menuItem.Header as string ?? "",
             _ => item?.GetType().Name ?? "null",
         };
-
-    /// <summary>The child items of the submenu the entry builds; asserts the entry built one.</summary>
-    private static List<MenuItem> SubmenuItems(string id, RecordingMenuHost host)
-    {
-        MenuItem? submenu = MenuCatalog.Get(id).Build(null, Context(), host);
-        Assert.NotNull(submenu);
-        return [.. submenu.Items.OfType<MenuItem>()];
-    }
 
     /// <summary>
     /// A minimal <see cref="IMenuAircraft"/>: never live traffic, with the warp seed values, the assignments the flight

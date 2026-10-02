@@ -129,33 +129,6 @@ public static class MenuIds
     /// <summary>Open the note popup, prefilled with the current note, and set or clear the note (<c>NOTE</c>).</summary>
     public const string AircraftNote = "aircraft.note";
 
-    /// <summary>Toggle the aircraft's data block between its full and mini forms.</summary>
-    public const string DisplayMiniDataBlock = "display.mini-datablock";
-
-    /// <summary>Put the aircraft's data block back on the student position it was dragged off.</summary>
-    public const string DisplayResetDataBlockPosition = "display.reset-datablock-position";
-
-    /// <summary>Show or hide the aircraft's nav route.</summary>
-    public const string DisplayNavRoute = "display.nav-route";
-
-    /// <summary>Latch the pending range/bearing measurement to the aircraft.</summary>
-    public const string DisplayMeasure = "display.measure";
-
-    /// <summary>Set the aircraft's leader-direction line, 1-9 (<c>LDR</c>).</summary>
-    public const string DisplayLeaderDirection = "display.leader-direction";
-
-    /// <summary>Draw a J-ring around the aircraft at a radius, or clear it (<c>JRING</c>).</summary>
-    public const string DisplayJRing = "display.jring";
-
-    /// <summary>Draw a cone from the aircraft at a length, or clear it (<c>CONE</c>).</summary>
-    public const string DisplayCone = "display.cone";
-
-    /// <summary>Blank the aircraft's data block (<c>BLANK</c>).</summary>
-    public const string DisplayBlank = "display.blank";
-
-    /// <summary>Unblank the aircraft's data block (<c>BLANKD</c>).</summary>
-    public const string DisplayUnblank = "display.unblank";
-
     /// <summary>Fly present heading (<c>FPH</c>).</summary>
     public const string HeadingPresent = "heading.present";
 
@@ -194,9 +167,6 @@ public static class MenuIds
 
     /// <summary>Append a direct-to fix after the current one (<c>ADCT</c>).</summary>
     public const string NavigationAppendDirectTo = "navigation.append-direct-to";
-
-    /// <summary>Draw a route for the aircraft on the surface.</summary>
-    public const string NavigationDrawRoute = "navigation.draw-route";
 
     /// <summary>Hold at present position, left turns (<c>HPPL</c>).</summary>
     public const string HoldPresentLeft = "hold.present-left";
@@ -446,12 +416,6 @@ public static class MenuIds
 
     /// <summary>The selected aircraft gives way to the right-clicked one on the ground (<c>GW</c>).</summary>
     public const string GroundRelativeGiveWay = "ground.relative-give-way";
-
-    /// <summary>Choose how the aircraft's taxi route is drawn: always shown, always hidden, or following the global setting.</summary>
-    public const string DisplayTaxiRoute = "display.taxi-route";
-
-    /// <summary>Hide the aircraft's data block, or show it again.</summary>
-    public const string DisplayHideDataBlock = "display.hide-datablock";
 
     /// <summary>Spawn a delayed aircraft now (<c>SPAWN</c>).</summary>
     public const string SpawnNow = "spawn.now";

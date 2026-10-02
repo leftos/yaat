@@ -533,7 +533,7 @@ public partial class GroundView : UserControl
         {
             // A surface shadow is never assumable, so it stays read-only: the shared shadow tree every view gives it
             // (SharedMenuGroups.AddSurfaceShadow), then the foot. No ground command group is offered for it.
-            SharedMenuGroups.AddSurfaceShadow(menu.Items, ac, context, host);
+            SharedMenuGroups.AddSurfaceShadow(menu.Items, ac, context, host, BuildCanvasDisplay(vm, context, host));
         }
         else
         {
@@ -546,7 +546,7 @@ public partial class GroundView : UserControl
             }
 
             AddSimulatedAircraftItems(menu, vm, target);
-            SharedMenuGroups.AddGroundDisplay(menu.Items, ac, context, host);
+            SharedMenuGroups.AddGroundDisplay(menu.Items, BuildCanvasItems(vm, context));
         }
 
         SharedMenuGroups.AddFoot(menu.Items, ac, context, host);
@@ -570,6 +570,53 @@ public partial class GroundView : UserControl
             new MenuSession(target.Initials, main?.SessionSoloTrainingMode ?? false, main?.VfrCommandsForIfr ?? VfrCommandsForIfr.None),
             MenuView.Ground
         );
+    }
+
+    /// <summary>
+    /// The ground canvas's display items, built from the ground view model's own state: the taxi-route submenu, show
+    /// or hide datablock, then reset datablock position while the data block sits away from its position, then the
+    /// measure item, which latches the measurement to the aircraft so the line follows it as it taxis. An item the
+    /// state hides is null. The ground's flat menu places them as they are; the shadow's Display submenu wraps them.
+    /// </summary>
+    internal IReadOnlyList<MenuItem?> BuildCanvasItems(GroundViewModel vm, MenuContext context)
+    {
+        string callsign = context.Callsign;
+        return
+        [
+            CanvasMenuItems.TaxiRoute(vm.GetTaxiRouteMode(callsign), mode => vm.SetTaxiRouteMode(callsign, mode)),
+            CanvasMenuItems.HideDataBlock(Canvas.IsDataBlockHidden(callsign), () => Canvas.ToggleHiddenDataBlock(callsign)),
+            CanvasMenuItems.ResetDataBlockPosition(Canvas.HasManualDataBlockOffset(callsign), () => Canvas.ResetDataBlockOffset(callsign)),
+            CanvasMenuItems.Measure(MeasureState(vm), callsign, () => MeasurePickOnAircraft(vm, callsign)),
+        ];
+    }
+
+    /// <summary>
+    /// The ground canvas's Display submenu for a live-traffic shadow: the ground's own display items, then the
+    /// leader-direction, J-ring and cone overlays, then blank and unblank.
+    /// </summary>
+    internal MenuItem BuildCanvasDisplay(GroundViewModel vm, MenuContext context, IMenuHost host) =>
+        CanvasMenuItems.Display([
+            BuildCanvasItems(vm, context),
+            [CanvasMenuItems.LeaderDirection(context, host), CanvasMenuItems.JRing(context, host), CanvasMenuItems.Cone(context, host)],
+            [CanvasMenuItems.Blank(context, host), CanvasMenuItems.Unblank(context, host)],
+        ]);
+
+    /// <summary>What the ground view's measure tool is doing, which decides whether the display items offer a measure item.</summary>
+    private static MenuMeasureState MeasureState(GroundViewModel vm) =>
+        vm.Measure switch
+        {
+            null => MenuMeasureState.None,
+            { Anchor: null } => MenuMeasureState.NoAnchor,
+            _ => MenuMeasureState.HasAnchor,
+        };
+
+    /// <summary>Latches the ground view's pending measurement to <paramref name="callsign"/>, so the line follows it.</summary>
+    private static void MeasurePickOnAircraft(GroundViewModel vm, string callsign)
+    {
+        if (vm.Measure is { } measure)
+        {
+            measure.Pick(RblEndpoint.OnAircraft(callsign), GroundViewModel.MeasureView, vm.MeasureTrackLookup, GroundViewModel.MeasureUnits);
+        }
     }
 
     /// <summary>

@@ -336,7 +336,7 @@ public partial class DataGridView : UserControl
         }
         else if (ac.IsLiveTraffic)
         {
-            SharedMenuGroups.AddSurfaceShadow(menu.Items, ac, context, host);
+            SharedMenuGroups.AddSurfaceShadow(menu.Items, ac, context, host, BuildCanvasDisplay(context, host));
             return;
         }
 
@@ -358,6 +358,17 @@ public partial class DataGridView : UserControl
             menu.Items.Add(editItem);
         }
     }
+
+    /// <summary>
+    /// The aircraft list's Display submenu, which a surface live-traffic shadow carries: the list draws no canvas of
+    /// its own, so it opens on the leader-direction, J-ring and cone overlays and the blank and unblank items.
+    /// </summary>
+    internal static MenuItem BuildCanvasDisplay(MenuContext context, IMenuHost host) =>
+        CanvasMenuItems.Display([
+            [],
+            [CanvasMenuItems.LeaderDirection(context, host), CanvasMenuItems.JRing(context, host), CanvasMenuItems.Cone(context, host)],
+            [CanvasMenuItems.Blank(context, host), CanvasMenuItems.Unblank(context, host)],
+        ]);
 
     private void OnDataGridViewKeyDown(object? sender, KeyEventArgs e)
     {

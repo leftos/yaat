@@ -89,15 +89,6 @@ public class MenuFootTests
         Assert.Equal(["---", "Spawn now", "Change spawn delay", "Delete"], items[^4..]);
     }
 
-    [AvaloniaFact]
-    public void ListMenuHost_GetMeasureState_ReturnsNone()
-    {
-        MenuFixture fixture = Fixture(MenuView.List, "taxiing");
-        var host = new ListMenuHost(new MainViewModel(new FakeFilePickerService()), fixture.Aircraft, new Border());
-
-        Assert.Equal(MenuMeasureState.None, host.GetMeasureState());
-    }
-
     private static MenuFixture Fixture(MenuView view, string name) => MenuGoldenFixtures.For(view).Single(f => f.Name == name);
 
     /// <summary>The top-level items of one fixture's menu on <paramref name="view"/>: each item's header, a separator as <c>---</c>.</summary>

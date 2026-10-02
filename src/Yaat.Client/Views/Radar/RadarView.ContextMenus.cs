@@ -112,7 +112,7 @@ public partial class RadarView
             }
             else
             {
-                SharedMenuGroups.AddSurfaceShadow(menu.Items, ac, context, host);
+                SharedMenuGroups.AddSurfaceShadow(menu.Items, ac, context, host, BuildCanvasDisplay(vm, context, host));
                 SharedMenuGroups.AddFoot(menu.Items, ac, context, host);
                 FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
                 return menu;
@@ -120,8 +120,47 @@ public partial class RadarView
         }
 
         SharedMenuGroups.AddRelative(menu.Items, ac, context, host);
-        AddAircraftCommandGroups(menu, ac, context, host);
+        AddAircraftCommandGroups(menu, vm, ac, context, host);
         return menu;
+    }
+
+    /// <summary>
+    /// The radar canvas's Display submenu, built from the radar's own state: the data-block form and its position
+    /// reset, the nav route and the measurement in progress, then the leader-direction, J-ring and cone overlays, then
+    /// blank and unblank. It is the radar's view section — a canvas-only item every radar menu ends with and the
+    /// radar's live-traffic shadow carries.
+    /// </summary>
+    internal MenuItem BuildCanvasDisplay(RadarViewModel vm, MenuContext context, IMenuHost host)
+    {
+        string callsign = context.Callsign;
+        return CanvasMenuItems.Display([
+            [
+                CanvasMenuItems.DataBlockForm(Canvas.IsMinified(callsign), () => Canvas.ToggleMinifiedDataBlock(callsign)),
+                CanvasMenuItems.ResetDataBlockPosition(Canvas.HasManualDataBlockOffset(callsign), () => Canvas.ResetDataBlockOffset(callsign)),
+                CanvasMenuItems.NavRoute(vm.IsPathShown(callsign), () => vm.ToggleShowPath(callsign)),
+                CanvasMenuItems.Measure(MeasureState(vm), callsign, () => MeasurePickOnAircraft(vm, callsign)),
+            ],
+            [CanvasMenuItems.LeaderDirection(context, host), CanvasMenuItems.JRing(context, host), CanvasMenuItems.Cone(context, host)],
+            [CanvasMenuItems.Blank(context, host), CanvasMenuItems.Unblank(context, host)],
+        ]);
+    }
+
+    /// <summary>What the radar's measure tool is doing, which decides whether the Display submenu offers a measure item.</summary>
+    private static MenuMeasureState MeasureState(RadarViewModel vm) =>
+        vm.Measure switch
+        {
+            null => MenuMeasureState.None,
+            { Anchor: null } => MenuMeasureState.NoAnchor,
+            _ => MenuMeasureState.HasAnchor,
+        };
+
+    /// <summary>Latches the radar's pending measurement to <paramref name="callsign"/>, so the line follows it.</summary>
+    private static void MeasurePickOnAircraft(RadarViewModel vm, string callsign)
+    {
+        if (vm.Measure is { } measure)
+        {
+            measure.Pick(RblEndpoint.OnAircraft(callsign), RadarViewModel.MeasureView, vm.MeasureTrackLookup, RadarViewModel.MeasureUnits);
+        }
     }
 
     /// <summary>
@@ -131,14 +170,25 @@ public partial class RadarView
     /// (<see cref="AircraftCommandApplicability.CanAskPilot"/>); everything else, Warp included, applies, because it
     /// goes through the command path and so auto-assumes the shadow first.
     /// </summary>
-    private void AddAircraftCommandGroups(ContextMenu menu, AircraftModel? ac, MenuContext context, RadarMenuHost host)
+    private void AddAircraftCommandGroups(ContextMenu menu, RadarViewModel vm, AircraftModel? ac, MenuContext context, RadarMenuHost host)
     {
         string callsign = context.Callsign;
         ContextMenuProfile profile = ContextMenuProfileService.GetProfile(ac?.CurrentPhase, ac?.IsOnGround ?? false);
 
+        void AddGroup(MenuGroup group)
+        {
+            if (group == MenuGroup.DrawRoute)
+            {
+                menu.Items.Add(CanvasMenuItems.DrawRoute("Draw route", () => vm.EnterDrawRoute(callsign)));
+                return;
+            }
+
+            AddMenuGroup(menu, group, ac, context, host);
+        }
+
         foreach (MenuGroup group in profile.PrimaryGroups)
         {
-            AddMenuGroup(menu, group, ac, context, host);
+            AddGroup(group);
         }
 
         if (profile.PrimaryGroups.Count > 0 && profile.SecondaryGroups.Count > 0)
@@ -148,7 +198,7 @@ public partial class RadarView
 
         foreach (MenuGroup group in profile.SecondaryGroups)
         {
-            AddMenuGroup(menu, group, ac, context, host);
+            AddGroup(group);
         }
 
         // Always-visible groups
@@ -162,7 +212,7 @@ public partial class RadarView
         }
 
         menu.Items.Add(SharedMenuGroups.Coordination(ac, context, host));
-        menu.Items.Add(SharedMenuGroups.Display(ac, context, host));
+        menu.Items.Add(BuildCanvasDisplay(vm, context, host));
         SharedMenuGroups.AddFoot(menu.Items, ac, context, host);
 
         // RPO control
@@ -184,13 +234,6 @@ public partial class RadarView
                 break;
             case MenuGroup.Navigation:
                 menu.Items.Add(SharedMenuGroups.Navigation(ac, context, host));
-                break;
-            case MenuGroup.DrawRoute:
-                if (SharedMenuGroups.DrawRoute(ac, context, host) is { } drawRoute)
-                {
-                    menu.Items.Add(drawRoute);
-                }
-
                 break;
             case MenuGroup.Hold:
                 menu.Items.Add(SharedMenuGroups.Hold(ac, context, host));

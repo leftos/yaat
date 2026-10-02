@@ -1,4 +1,3 @@
-using System.Globalization;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Yaat.Sim;
@@ -14,21 +13,18 @@ namespace Yaat.Client.ContextMenus;
 /// opens the host's input popup and formats the submitted text into the command; a list or filtered-list picker opens
 /// the host's list popup over values the catalog computes (headings, altitudes, speeds, fixes, approaches, runways,
 /// STARs, airways) and formats the pick into the command, choosing its form from the data present when the menu is
-/// built; a host leaf asks the host for the item itself, for the entries that open a host surface or read the
-/// surface's own state — the warp popup, the flight-plan editor, the data-block toggle, hide and reset, the nav route,
-/// the measure item, route and push-route drawing, and the ground's hold-short, follow, give-way, push-back-to and
-/// preset-taxi submenus over the choices the host answers (the pushback faces are flat items of a companion helper,
-/// <see cref="BuildPushbackFaces"/>), and so is the delayed spawn's Change spawn delay submenu
-/// (<see cref="BuildSpawnDelay"/>), whose free-text box closes the menu it sits in; a value submenu builds a whole
-/// submenu of items from its own label and the menu context, one per value — the leader directions, the J-ring radii,
-/// the cone lengths and the taxi-route modes; and the Cleared for takeoff submenu is the same on every view: the
-/// default clearance and runway heading, the VFR departure instructions when the aircraft and the controller's
-/// VFR-for-IFR setting allow them, and, on a host that serves the free-text popup
+/// built; a host leaf asks the host for the item itself, for the entries that open a host surface or act on the
+/// surface — the warp popup, the flight-plan editor, route and push-route drawing, and the ground's hold-short,
+/// follow, give-way, push-back-to and preset-taxi submenus over the choices the host answers (the pushback faces are
+/// flat items of a companion helper, <see cref="BuildPushbackFaces"/>), and so is the delayed spawn's Change spawn
+/// delay submenu (<see cref="BuildSpawnDelay"/>), whose free-text box closes the menu it sits in; and the Cleared for
+/// takeoff submenu is the same on every view: the default clearance and runway heading, the VFR departure instructions
+/// when the aircraft and the controller's VFR-for-IFR setting allow them, and, on a host that serves the free-text popup
 /// (<see cref="MenuHostCapabilities.InputPopup"/>), a free-text item last. A pattern entry is a leaf naming the
-/// assigned runway, else a runway picker, else
-/// free text, and each pattern maneuver applies only on the legs it fits. Line up and wait names the held runway, else
-/// the assigned one, on every view (<see cref="HoldShortMenuHelper.HeldRunway(IMenuAircraft?)"/>). Line up and wait,
-/// Cleared for takeoff and its runway-bearing header, cancel takeoff, resume taxi, cross runway and the release-window
+/// assigned runway, else a runway picker, else free text, and each pattern maneuver applies only on the legs it fits.
+/// Line up and wait names the held runway, else the assigned one, on every view
+/// (<see cref="HoldShortMenuHelper.HeldRunway(IMenuAircraft?)"/>). Line up and wait, Cleared for takeoff and its
+/// runway-bearing header, cancel takeoff, resume taxi, cross runway and the release-window
 /// check are the same on every view. The relative ground items send as the previous selection. A delayed spawn instead
 /// offers Spawn now, the Change spawn delay submenu and Delete (<see cref="SharedMenuGroups.AddDelayedSpawn"/>), and a
 /// selection of two or more assumable shadows adds "Assume selected live traffic (N)" after Delete
@@ -116,35 +112,6 @@ public static class MenuCatalog
         },
         HostLeaf(MenuIds.AircraftCommand, "Command…", Always, BuildCommand),
         HostLeaf(MenuIds.AircraftNote, "Note…", Always, BuildNote),
-        HostLeaf(MenuIds.DisplayMiniDataBlock, "Mini datablock", Always, BuildMiniDataBlock) with
-        {
-            Requires = MenuHostCapabilities.MiniDataBlock,
-        },
-        HostLeaf(MenuIds.DisplayResetDataBlockPosition, "Reset datablock position", Always, BuildResetDataBlockPosition) with
-        {
-            Requires = MenuHostCapabilities.DataBlockOffset,
-        },
-        HostLeaf(MenuIds.DisplayNavRoute, "Show nav route", Always, BuildNavRoute) with
-        {
-            Requires = MenuHostCapabilities.NavRoute,
-        },
-        HostLeaf(MenuIds.DisplayMeasure, "Measure", Always, BuildMeasure) with
-        {
-            Requires = MenuHostCapabilities.Measure,
-        },
-        Submenu(MenuIds.DisplayLeaderDirection, "Leader direction", BuildLeaderDirection),
-        Submenu(MenuIds.DisplayJRing, "J-ring", BuildJRing),
-        Submenu(MenuIds.DisplayCone, "Cone", BuildCone),
-        Leaf(MenuIds.DisplayBlank, "Blank target", "BLANK", Always),
-        Leaf(MenuIds.DisplayUnblank, "Unblank target", "BLANKD", Always),
-        Submenu(MenuIds.DisplayTaxiRoute, "Taxi route", BuildTaxiRoute) with
-        {
-            Requires = MenuHostCapabilities.TaxiRouteDisplay,
-        },
-        HostLeaf(MenuIds.DisplayHideDataBlock, "Hide datablock", Always, BuildHideDataBlock) with
-        {
-            Requires = MenuHostCapabilities.HideDataBlock,
-        },
         Leaf(MenuIds.HeadingPresent, "Present heading", "FPH", Always),
         HeadingList(MenuIds.HeadingFly, "Fly heading", "FH"),
         HeadingList(MenuIds.HeadingTurnLeft, "Turn left", "TL"),
@@ -164,10 +131,6 @@ public static class MenuCatalog
         Picker(MenuIds.SpeedFinalApproach, "FAS", BuildFinalApproachSpeed),
         FixPicker(MenuIds.NavigationDirectTo, "Direct to...", "DCT", Always, RouteFixes),
         FixPicker(MenuIds.NavigationAppendDirectTo, "Append direct to...", "ADCT", IsNavigatingToFix, RouteFixes),
-        HostLeaf(MenuIds.NavigationDrawRoute, "Draw route", Always, BuildDrawRoute) with
-        {
-            Requires = MenuHostCapabilities.DrawRoute,
-        },
         Leaf(MenuIds.HoldPresentLeft, "Hold present position (left)", "HPPL", Always),
         Leaf(MenuIds.HoldPresentRight, "Hold present position (right)", "HPPR", Always),
         FixPicker(MenuIds.HoldFixLeft, "Hold at fix (left)...", "HFIXL", Always, NoRouteFixes),
@@ -480,17 +443,6 @@ public static class MenuCatalog
 
     /// <summary>The trailing ellipsis a picker label carries while it opens a popup that is not the plain route-fix list.</summary>
     private const string Ellipsis = "...";
-
-    /// <summary>The taxi-route submenu's items, in menu order: each item's text and the mode it sets.</summary>
-    private static readonly (string Label, TaxiRouteDisplayMode Mode)[] TaxiRouteModeItems =
-    [
-        ("Always show", TaxiRouteDisplayMode.AlwaysShow),
-        ("Always hide", TaxiRouteDisplayMode.AlwaysHide),
-        ("Follow “Show all” setting", TaxiRouteDisplayMode.Follow),
-    ];
-
-    /// <summary>The J-ring radii and cone lengths the display submenus offer, in nautical miles.</summary>
-    private static readonly double[] RingDistances = [1.0, 2.0, 3.0, 5.0, 10.0];
 
     private static readonly Dictionary<string, MenuCatalogEntry> ById = All.ToDictionary(e => e.Id, StringComparer.Ordinal);
 
@@ -896,14 +848,6 @@ public static class MenuCatalog
     private static MenuCatalogEntry Picker(string id, string label, Func<string, IMenuAircraft?, MenuContext, IMenuHost, MenuItem?> build) =>
         new(id, label, MenuFlightRules.Both, Always, (aircraft, context, host) => build(label, aircraft, context, host));
 
-    /// <summary>
-    /// An entry that builds a whole submenu of command items rather than a single leaf — the leader directions, the
-    /// J-ring radii and the cone lengths today. <paramref name="build"/> receives the entry's own label, so the
-    /// submenu's header lives in one place.
-    /// </summary>
-    private static MenuCatalogEntry Submenu(string id, string label, Func<string, MenuContext, IMenuHost, MenuItem> build) =>
-        new(id, label, MenuFlightRules.Both, Always, (_, context, host) => build(label, context, host));
-
     private static MenuItem BuildInput(
         string label,
         string placeholder,
@@ -992,127 +936,6 @@ public static class MenuCatalog
         var item = new MenuItem { Header = label };
         item.Click += (_, _) => host.OpenFlightPlanEditor();
         return item;
-    }
-
-    /// <summary>
-    /// The data-block form item: it toggles the host's data block and reads "Mini datablock" or "Full datablock" by
-    /// the form the surface is showing.
-    /// </summary>
-    private static MenuItem BuildMiniDataBlock(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-    {
-        var item = new MenuItem { Header = host.IsMinified(context.Callsign) ? "Full datablock" : "Mini datablock" };
-        item.Click += (_, _) => host.ToggleMinified(context.Callsign);
-        return item;
-    }
-
-    /// <summary>
-    /// The "Reset datablock position" item, which the surface offers
-    /// only while the data block sits away from the position the student sees it in; null otherwise.
-    /// </summary>
-    private static MenuItem? BuildResetDataBlockPosition(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-    {
-        if (!host.HasManualDataBlockOffset(context.Callsign))
-        {
-            return null;
-        }
-
-        var item = new MenuItem { Header = label };
-        item.Click += (_, _) => host.ResetDataBlockOffset(context.Callsign);
-        return item;
-    }
-
-    /// <summary>The nav-route item: it toggles the route and reads "Show nav route" or "Hide nav route" by whether it is drawn.</summary>
-    private static MenuItem BuildNavRoute(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-    {
-        var item = new MenuItem { Header = host.IsPathShown(context.Callsign) ? "Hide nav route" : label };
-        item.Click += (_, _) => host.ToggleShowPath(context.Callsign);
-        return item;
-    }
-
-    /// <summary>
-    /// The measure item, offered whenever the surface has a measure tool: it reads "from" while the tool has no
-    /// endpoint yet and "to" once one is anchored, and latches that endpoint to the aircraft the menu was opened on.
-    /// </summary>
-    private static MenuItem? BuildMeasure(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-    {
-        MenuMeasureState state = host.GetMeasureState();
-        if (state == MenuMeasureState.None)
-        {
-            return null;
-        }
-
-        string direction = state == MenuMeasureState.HasAnchor ? "to" : "from";
-        var item = new MenuItem { Header = $"Measure {direction} {context.Callsign}" };
-        item.Click += (_, _) => host.MeasurePickOnAircraft(context.Callsign);
-        return item;
-    }
-
-    /// <summary>
-    /// The taxi-route submenu: one radio item per <see cref="TaxiRouteDisplayMode"/>, the host's current mode checked,
-    /// each setting that mode on the host when clicked.
-    /// </summary>
-    private static MenuItem BuildTaxiRoute(string label, MenuContext context, IMenuHost host)
-    {
-        TaxiRouteDisplayMode current = host.GetTaxiRouteMode(context.Callsign);
-        var menu = new MenuItem { Header = label };
-        foreach ((string itemLabel, TaxiRouteDisplayMode mode) in TaxiRouteModeItems)
-        {
-            var item = new MenuItem
-            {
-                Header = itemLabel,
-                ToggleType = MenuItemToggleType.Radio,
-                GroupName = "TaxiRouteMode",
-                IsChecked = mode == current,
-            };
-            item.Click += (_, _) => host.SetTaxiRouteMode(context.Callsign, mode);
-            menu.Items.Add(item);
-        }
-
-        return menu;
-    }
-
-    /// <summary>The hidden-datablock item: it toggles the host's data block and reads "Show datablock" while it is hidden.</summary>
-    private static MenuItem BuildHideDataBlock(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-    {
-        var item = new MenuItem { Header = host.IsDataBlockHidden(context.Callsign) ? "Show datablock" : label };
-        item.Click += (_, _) => host.ToggleHiddenDataBlock(context.Callsign);
-        return item;
-    }
-
-    /// <summary>The leader-direction submenu: one line per 1-9, with 5 marked as the STARS default.</summary>
-    private static MenuItem BuildLeaderDirection(string label, MenuContext context, IMenuHost host)
-    {
-        var menu = new MenuItem { Header = label };
-        for (int direction = 1; direction <= 9; direction++)
-        {
-            string itemLabel = direction == 5 ? "5 (default)" : direction.ToString(CultureInfo.InvariantCulture);
-            menu.Items.Add(BuildSend(itemLabel, $"LDR {direction}", context, host));
-        }
-
-        return menu;
-    }
-
-    /// <summary>The J-ring submenu: Clear turns the overlay off, then one item per ring radius.</summary>
-    private static MenuItem BuildJRing(string label, MenuContext context, IMenuHost host) => BuildRingMenu(label, "JRING", context, host);
-
-    /// <summary>The cone submenu: Clear turns the overlay off, then one item per cone length.</summary>
-    private static MenuItem BuildCone(string label, MenuContext context, IMenuHost host) => BuildRingMenu(label, "CONE", context, host);
-
-    /// <summary>
-    /// A J-ring or cone submenu: Clear sends the bare command, then each distance sends it with the size. The item
-    /// reads "3 nm" while the command carries the same figure without the unit.
-    /// </summary>
-    private static MenuItem BuildRingMenu(string label, string command, MenuContext context, IMenuHost host)
-    {
-        var menu = new MenuItem { Header = label };
-        menu.Items.Add(BuildSend("Clear", command, context, host));
-        foreach (double distance in RingDistances)
-        {
-            string size = distance.ToString("0.#", CultureInfo.InvariantCulture);
-            menu.Items.Add(BuildSend($"{distance:0} nm", $"{command} {size}", context, host));
-        }
-
-        return menu;
     }
 
     /// <summary>An altitude as the altitude picker and the Altitude header show it: a flight level from 18,000 ft, feet below.</summary>
@@ -1384,7 +1207,7 @@ public static class MenuCatalog
         return BuildInput(label, FixNamePlaceholder, BlankInput.Closes, input => $"{command} {input}", context, host);
     }
 
-    /// <summary>The Draw route item, which puts the host into drawing a route for the aircraft.</summary>
+    /// <summary>The Draw taxi route item, which puts the host into drawing a route for the aircraft.</summary>
     private static MenuItem BuildDrawRoute(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         var item = new MenuItem { Header = label };

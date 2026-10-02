@@ -10,6 +10,8 @@ using Yaat.Client.Views;
 using Yaat.Client.Views.Ground;
 using Yaat.Client.Views.Radar;
 using Yaat.Sim;
+using Yaat.Sim.Commands;
+using CatalogMenuView = Yaat.Client.ContextMenus.MenuView;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -194,9 +196,51 @@ public class ContextMenuBuilderSeamTests
     /// <summary>The top-level Display submenu of a menu that offers one.</summary>
     private static MenuItem DisplayOf(ContextMenu menu) => menu.Items.OfType<MenuItem>().Single(i => (i.Header as string) == "Display");
 
+    /// <summary>A canvas click on the shadow <c>SWA9</c> for <paramref name="view"/>, the way that view builds it.</summary>
+    private static MenuContext Context(CatalogMenuView view) => TestMenuContext.Create("SWA9", "AB", null, false, VfrCommandsForIfr.None, view);
+
     /// <summary>The Display submenu's item headers, in order.</summary>
     private static List<string> DisplayHeaders(ContextMenu menu) =>
         [.. DisplayOf(menu).Items.OfType<MenuItem>().Select(i => i.Header as string ?? "")];
+
+    // Every view's Display is the view's own: each builds it from its own canvas state (or from none, on the aircraft
+    // list), so it still builds over a host with no canvas members at all, and so does the ground's flat item list.
+    [AvaloniaFact]
+    public void EveryViewsDisplay_BuildsOverAHostWithNoCanvasMembers()
+    {
+        var host = new RecordingMenuHost("");
+        AircraftModel shadow = SurfaceShadow("SWA9");
+
+        (RadarView radarView, MainViewModel radarMain) = RadarHarness();
+        (GroundView groundView, GroundViewModel ground, MainViewModel groundMain) = GroundHarness();
+        MenuContext radar = Context(CatalogMenuView.Radar);
+        MenuContext groundContext = Context(CatalogMenuView.Ground);
+        MenuContext list = Context(CatalogMenuView.List);
+
+        (MenuContext Context, MenuItem Display)[] sections =
+        [
+            (radar, radarView.BuildCanvasDisplay(radarMain.Radar, radar, host)),
+            (groundContext, groundView.BuildCanvasDisplay(ground, groundContext, host)),
+            (list, DataGridView.BuildCanvasDisplay(list, host)),
+        ];
+
+        // Each view's shadow tree still builds, and its Display carries the view's own items.
+        foreach ((MenuContext context, MenuItem display) in sections)
+        {
+            var menu = new ContextMenu();
+            SharedMenuGroups.AddSurfaceShadow(menu.Items, shadow, context, host, display);
+            Assert.Equal(["Track", "Data Block", "Coordination", "Display"], Sequence(menu));
+            Assert.NotEmpty(display.Items);
+            Assert.False(display.Items[0] is Separator);
+        }
+
+        // The ground's flat display items come from the ground view too, and still build over the same host.
+        var groundMenu = new ContextMenu();
+        SharedMenuGroups.AddGroundDisplay(groundMenu.Items, groundView.BuildCanvasItems(ground, groundContext));
+        List<string?> groundItems = [.. groundMenu.Items.Select(i => (i as MenuItem)?.Header as string)];
+        Assert.Equal("Taxi route", groundItems[0]);
+        Assert.Equal("Hide datablock", groundItems[1]);
+    }
 
     // Every view gives a surface shadow the same read-only tree: track / data block / coordination / display, then the foot.
     [AvaloniaFact]
@@ -210,7 +254,7 @@ public class ContextMenuBuilderSeamTests
         Assert.Equal(expected, AfterFavorites(ListSurfaceShadowMenu(shadow)));
     }
 
-    // The list host serves no radar or ground display entries, so its Display must open on a group, never on a separator.
+    // The list's Display has no canvas block, so it must open on the overlay group, never on a separator.
     [AvaloniaFact]
     public void ListSurfaceShadow_DisplayHasNoLeadingOrTrailingSeparator()
     {

@@ -31,22 +31,6 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
 
     public int FlightPlanEditorOpens { get; private set; }
 
-    public HashSet<string> MinifiedCallsigns { get; } = [];
-
-    public HashSet<string> ManualOffsetCallsigns { get; } = [];
-
-    public HashSet<string> PathShownCallsigns { get; } = [];
-
-    public MenuMeasureState MeasureState { get; set; } = MenuMeasureState.None;
-
-    public List<string> MinifiedToggles { get; } = [];
-
-    public List<string> DataBlockOffsetResets { get; } = [];
-
-    public List<string> PathToggles { get; } = [];
-
-    public List<string> MeasurePicks { get; } = [];
-
     public Task SendAsync(string callsign, string command, string initials)
     {
         Sent.Add((callsign, command, initials));
@@ -63,12 +47,6 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
         | MenuHostCapabilities.FilteredListPicker
         | MenuHostCapabilities.Warp
         | MenuHostCapabilities.FlightPlanEditor
-        | MenuHostCapabilities.MiniDataBlock
-        | MenuHostCapabilities.DataBlockOffset
-        | MenuHostCapabilities.NavRoute
-        | MenuHostCapabilities.Measure
-        | MenuHostCapabilities.TaxiRouteDisplay
-        | MenuHostCapabilities.HideDataBlock
         | MenuHostCapabilities.DrawRoute
         | MenuHostCapabilities.GroundMovement
         | MenuHostCapabilities.MultiSelectAssume;
@@ -119,39 +97,6 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
     }
 
     public void OpenFlightPlanEditor() => FlightPlanEditorOpens++;
-
-    public bool IsMinified(string callsign) => MinifiedCallsigns.Contains(callsign);
-
-    public void ToggleMinified(string callsign) => MinifiedToggles.Add(callsign);
-
-    public bool HasManualDataBlockOffset(string callsign) => ManualOffsetCallsigns.Contains(callsign);
-
-    public void ResetDataBlockOffset(string callsign) => DataBlockOffsetResets.Add(callsign);
-
-    public bool IsPathShown(string callsign) => PathShownCallsigns.Contains(callsign);
-
-    public void ToggleShowPath(string callsign) => PathToggles.Add(callsign);
-
-    public MenuMeasureState GetMeasureState() => MeasureState;
-
-    public void MeasurePickOnAircraft(string callsign) => MeasurePicks.Add(callsign);
-
-    /// <summary>The taxi-route mode each callsign answers with; a callsign not listed follows the global setting.</summary>
-    public Dictionary<string, TaxiRouteDisplayMode> TaxiRouteModes { get; } = [];
-
-    public List<(string Callsign, TaxiRouteDisplayMode Mode)> TaxiRouteModeSets { get; } = [];
-
-    public HashSet<string> HiddenDataBlockCallsigns { get; } = [];
-
-    public List<string> HiddenDataBlockToggles { get; } = [];
-
-    public TaxiRouteDisplayMode GetTaxiRouteMode(string callsign) => TaxiRouteModes.GetValueOrDefault(callsign, TaxiRouteDisplayMode.Follow);
-
-    public void SetTaxiRouteMode(string callsign, TaxiRouteDisplayMode mode) => TaxiRouteModeSets.Add((callsign, mode));
-
-    public bool IsDataBlockHidden(string callsign) => HiddenDataBlockCallsigns.Contains(callsign);
-
-    public void ToggleHiddenDataBlock(string callsign) => HiddenDataBlockToggles.Add(callsign);
 
     /// <summary>The ground traffic the follow and give-way submenus list, whatever the callsign asked about.</summary>
     public List<string> GroundTraffic { get; } = [];

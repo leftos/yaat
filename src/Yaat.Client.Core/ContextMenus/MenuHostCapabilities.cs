@@ -27,28 +27,7 @@ public enum MenuHostCapabilities
     /// <summary>The flight-plan editor (<see cref="IMenuHost.OpenFlightPlanEditor"/>).</summary>
     FlightPlanEditor = 1 << 4,
 
-    /// <summary>The mini and full data-block forms (<see cref="IMenuHost.IsMinified"/>, <see cref="IMenuHost.ToggleMinified"/>).</summary>
-    MiniDataBlock = 1 << 5,
-
-    /// <summary>
-    /// The data-block position reset (<see cref="IMenuHost.HasManualDataBlockOffset"/>,
-    /// <see cref="IMenuHost.ResetDataBlockOffset"/>).
-    /// </summary>
-    DataBlockOffset = 1 << 6,
-
-    /// <summary>The nav-route display toggle (<see cref="IMenuHost.IsPathShown"/>, <see cref="IMenuHost.ToggleShowPath"/>).</summary>
-    NavRoute = 1 << 7,
-
-    /// <summary>The measure tool (<see cref="IMenuHost.GetMeasureState"/>, <see cref="IMenuHost.MeasurePickOnAircraft"/>).</summary>
-    Measure = 1 << 8,
-
-    /// <summary>The taxi-route display mode (<see cref="IMenuHost.GetTaxiRouteMode"/>, <see cref="IMenuHost.SetTaxiRouteMode"/>).</summary>
-    TaxiRouteDisplay = 1 << 9,
-
-    /// <summary>The data-block hide toggle (<see cref="IMenuHost.IsDataBlockHidden"/>, <see cref="IMenuHost.ToggleHiddenDataBlock"/>).</summary>
-    HideDataBlock = 1 << 10,
-
-    /// <summary>Route drawing (<see cref="IMenuHost.EnterDrawRoute"/>), which the radar canvas and the ground map both serve.</summary>
+    /// <summary>Route drawing (<see cref="IMenuHost.EnterDrawRoute"/>), which the ground map serves for the ground's Draw taxi route item.</summary>
     DrawRoute = 1 << 11,
 
     /// <summary>

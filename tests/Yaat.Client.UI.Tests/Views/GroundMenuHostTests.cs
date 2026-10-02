@@ -19,10 +19,9 @@ using CatalogMenuView = Yaat.Client.ContextMenus.MenuView;
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// The ground menu host's taxi-route and hidden-datablock members: they act only on the right-clicked aircraft, and
-/// still act by callsign when the menu was opened on an aircraft the main view model has no model for. Its ground
-/// traffic, hold-short, route-preview, pushback and preset-taxi members, and the Core hold-short and follow groups built
-/// over it on the real KOAK layout.
+/// The ground menu host's ground traffic, hold-short, route-preview, pushback and preset-taxi members, and the Core
+/// hold-short and follow groups built over it on the real KOAK layout. The display items the menu shows are the view's
+/// own (see <c>CanvasMenuItemsTests</c>), so the host serves none of them.
 /// </summary>
 public class GroundMenuHostTests
 {
@@ -35,38 +34,6 @@ public class GroundMenuHostTests
         var ground = new GroundViewModel(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask);
         var view = new GroundView { DataContext = ground };
         return (view, ground);
-    }
-
-    [AvaloniaFact]
-    public void GroundMenuHost_MismatchedCallsign_Throws()
-    {
-        (GroundView view, GroundViewModel ground) = GroundHarness();
-        var host = new GroundMenuHost(view, ground, null, new AircraftModel { Callsign = Callsign });
-
-        Assert.Throws<InvalidOperationException>(() => host.GetTaxiRouteMode(OtherCallsign));
-        Assert.Throws<InvalidOperationException>(() => host.SetTaxiRouteMode(OtherCallsign, TaxiRouteDisplayMode.AlwaysShow));
-        Assert.Throws<InvalidOperationException>(() => host.IsDataBlockHidden(OtherCallsign));
-        Assert.Throws<InvalidOperationException>(() => host.ToggleHiddenDataBlock(OtherCallsign));
-
-        Assert.Equal(TaxiRouteDisplayMode.Follow, ground.GetTaxiRouteMode(OtherCallsign));
-        Assert.False(view.Canvas.IsDataBlockHidden(OtherCallsign));
-    }
-
-    [AvaloniaFact]
-    public void GroundMenuHost_NoAircraftModel_ReadsAndDrivesDisplayByCallsign()
-    {
-        (GroundView view, GroundViewModel ground) = GroundHarness();
-        var host = new GroundMenuHost(view, ground, null, null);
-
-        Assert.Equal(TaxiRouteDisplayMode.Follow, host.GetTaxiRouteMode(Callsign));
-        host.SetTaxiRouteMode(Callsign, TaxiRouteDisplayMode.AlwaysHide);
-        Assert.Equal(TaxiRouteDisplayMode.AlwaysHide, ground.GetTaxiRouteMode(Callsign));
-        Assert.Equal(TaxiRouteDisplayMode.AlwaysHide, host.GetTaxiRouteMode(Callsign));
-
-        Assert.False(host.IsDataBlockHidden(Callsign));
-        host.ToggleHiddenDataBlock(Callsign);
-        Assert.True(view.Canvas.IsDataBlockHidden(Callsign));
-        Assert.True(host.IsDataBlockHidden(Callsign));
     }
 
     // --- Ground traffic, hold short and route preview ----------------------------------------
