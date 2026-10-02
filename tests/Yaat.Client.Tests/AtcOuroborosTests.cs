@@ -13,27 +13,10 @@ public sealed class AtcOuroborosTests
 {
     /// <summary>
     /// Templates that render labels the rule mapper cannot currently produce. Each entry names the
-    /// rule gap; a template leaves this set the moment its rule is fixed (the test fails until it does).
+    /// rule gap in a comment; a template leaves this set the moment its rule is fixed (the test fails
+    /// until it does). Every template currently verifies, so the set is empty.
     /// </summary>
-    private static readonly HashSet<string> KnownGaps =
-    [
-        // "cleared into bravo airspace": NATO collapse turns "bravo" into "B" before matching, so the
-        // CLBRV literal never matches and "cleared into {route}" wins (CMTR B).
-        "clbrv",
-        // "cleared visual approach runway {rwy}": maps to nothing under a populated scenario context
-        // (the same phrase maps to CVA with an empty context in PhraseologyMapperTests).
-        "cva",
-        // "follow / give way to {callsign}": {callsign} captures one token, a spoken telephony is several.
-        "follow",
-        "giveway",
-        // "follow {callsign} on ground": same single-token capture; the bare FOLLOW rule wins with the
-        // first word of the telephony (FOLLOW united / FOLLOW N).
-        "followg",
-        // "make left three sixty" / "make right two seventy": digit normalization turns the literals
-        // into 360 / 270 before the rule's "three sixty" / "two seventy" tokens can match.
-        "l360",
-        "r270",
-    ];
+    private static readonly HashSet<string> KnownGaps = [];
 
     private const int RendersPerTemplate = 8;
 

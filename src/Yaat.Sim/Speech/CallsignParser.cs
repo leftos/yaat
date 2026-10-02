@@ -51,14 +51,23 @@ public static class CallsignParser
     /// <summary>
     /// Try to parse a callsign from the trailing tokens of a transcript.
     /// Used when pilots put the callsign at the end: "climb and maintain 5000 southwest 123".
+    /// A candidate directly after a traffic cue (<see cref="TrafficCallsignNormalizer.IsPrecededByCue"/>)
+    /// is skipped: in "… follow american 2231" that callsign is the traffic, not the addressed aircraft.
     /// </summary>
     public static ParsedCallsign? TryParseTrailing(string transcript, IReadOnlyCollection<string> activeCallsigns)
     {
         List<string> tokens = Tokenize(transcript);
         // Scan backward looking for a telephony start. We try each position from the end,
-        // attempting a forward parse from there. The first full match wins.
-        for (int i = tokens.Count - 1; i >= 0; i--)
+        // attempting a forward parse from there. The first full match wins. A callsign directly
+        // after a traffic cue ("give way to american 2231") names the traffic, not the addressee,
+        // and so does every shorter parse inside it ("cargo 8160" in "give way to lufthansa cargo 8160").
+        int trafficTailStart = TrafficTailStart(tokens, activeCallsigns);
+        for (int i = trafficTailStart - 1; i >= 0; i--)
         {
+            if (TrafficCallsignNormalizer.IsPrecededByCue(tokens, i))
+            {
+                continue;
+            }
             ParsedCallsign? match = TryParseAt(tokens, i, forward: true, activeCallsigns);
             if (match is not null)
             {
@@ -71,6 +80,27 @@ public static class CallsignParser
             }
         }
         return null;
+    }
+
+    /// <summary>
+    /// The start of the earliest callsign that directly follows a traffic cue and runs to the end of
+    /// the transcript, or <c>tokens.Count</c> when there is none. Everything from there on is traffic.
+    /// </summary>
+    private static int TrafficTailStart(List<string> tokens, IReadOnlyCollection<string> activeCallsigns)
+    {
+        for (int j = 0; j < tokens.Count; j++)
+        {
+            if (!TrafficCallsignNormalizer.IsPrecededByCue(tokens, j))
+            {
+                continue;
+            }
+            ParsedCallsign? traffic = TryParseAt(tokens, j, forward: true, activeCallsigns);
+            if ((traffic is not null) && (j + traffic.TokensConsumed == tokens.Count))
+            {
+                return j;
+            }
+        }
+        return tokens.Count;
     }
 
     /// <summary>

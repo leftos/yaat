@@ -320,11 +320,9 @@ public class PhraseologyMapperTests
     [Fact]
     public void TaxiAndGroundSynonyms_BehindCallsign_Pattern()
     {
-        // "Behind {callsign}" only captures a single token. The outer trailing CallsignParser
-        // swallows N-numbers and known active callsigns, so this rule serves mostly as an
-        // intermediary path before the LLM fallback. We verify the rule pattern matches an
-        // arbitrary single-token capture via the test-only matcher to keep the regression
-        // honest without depending on CallsignParser's behavior in the full pipeline.
+        // In the full pipeline TrafficCallsignNormalizer collapses a spoken telephony after
+        // "behind" into one ICAO token before matching (OuroborosGap_Rules covers that path).
+        // This test covers only the raw pattern: "behind {callsign}" takes one token.
         Dictionary<string, string>? captures = PhraseologyMapper.TryMatchPatternForTests(["behind", "{callsign}"], ["behind", "ualx5321"]);
         Assert.NotNull(captures);
         Assert.Equal("ualx5321", captures!["callsign"]);
@@ -1099,9 +1097,11 @@ public class PhraseologyMapperTests
     public void TwoPassFiller_RunwayInvalidFromPass1_DoesNotPoisonWinningPass2()
     {
         // "cross runway for two eight right" — pass 1's "cross runway {rwy}" rule captures the
-        // conversational filler "for" as the runway and fails validation. Pass 2 strips the
-        // filler, resolves CROSS 28R, and wins — pass 1's invalid capture must not null out the
-        // winning pass 2 result (that would force a needless LLM fallback).
+        // conversational filler "for" as the runway. A digit-less capture is no longer a runway
+        // mention, so it never sets the invalid flag; pass 2 strips the filler, resolves CROSS 28R
+        // and wins. No digit-bearing pass 1 artifact is known ("for" is the only second-pass
+        // filler), so this no longer exercises "pass 2's flag is authoritative" — the live veto
+        // direction of that branch is pinned by RunwayCapture_InvalidRunway_NoFuzzyRecovery_FailsRule.
         MapContext ctx = ContextWithRunways("KOAK", "28R", "28L", "10R", "10L");
         MapResult? result = PhraseologyMapper.Map("cross runway for two eight right", ctx);
         Assert.NotNull(result);
@@ -1516,5 +1516,99 @@ public class PhraseologyMapperTests
         MapResult? result = PhraseologyMapper.Map("cleared into IR149 maintain route altitudes", NoContext);
         Assert.NotNull(result);
         Assert.Equal("CMTR IR149", result!.CanonicalCommand.ToUpperInvariant());
+    }
+
+    // --- Rule gaps found by the ATC ouroboros run ---
+
+    [Theory]
+    // Digit normalization turns "three sixty" / "two seventy" into 360 / 270 before matching.
+    [InlineData("make left three sixty", "L360")]
+    [InlineData("make a left three sixty", "L360")]
+    [InlineData("make right three sixty", "R360")]
+    [InlineData("left three sixty", "L360")]
+    [InlineData("right three sixty", "R360")]
+    [InlineData("make left two seventy", "L270")]
+    [InlineData("make right two seventy", "R270")]
+    [InlineData("cancel two seventy", "NO270")]
+    [InlineData("cancel the two seventy", "NO270")]
+    // NATO collapse turns "bravo" into "B" before matching.
+    [InlineData("cleared into bravo airspace", "CLBRV")]
+    [InlineData("cleared through bravo airspace", "CLBRV")]
+    [InlineData("cleared to enter bravo airspace", "CLBRV")]
+    [InlineData("cleared out of bravo airspace", "CLBRV")]
+    [InlineData("cleared bravo airspace", "CLBRV")]
+    [InlineData("cleared into the class bravo airspace", "CLBRV")]
+    [InlineData("cleared through the class bravo airspace", "CLBRV")]
+    // A multi-word traffic callsign after a follow / give-way cue becomes one ICAO token.
+    [InlineData("follow american twenty two thirty one", "FOLLOW AAL2231")]
+    [InlineData("follow the american twenty two thirty one", "FOLLOW AAL2231")]
+    [InlineData("follow traffic american twenty two thirty one", "FOLLOW AAL2231")]
+    [InlineData("follow american twenty two thirty one on ground", "FOLLOWG AAL2231")]
+    [InlineData("follow november three four six golf on ground", "FOLLOWG N346G")]
+    [InlineData("give way to american twenty two thirty one", "GIVEWAY AAL2231")]
+    [InlineData("behind american twenty two thirty one", "GIVEWAY AAL2231")]
+    public void OuroborosGap_Rules(string transcript, string expected)
+    {
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+        Assert.Null(result.Callsign);
+    }
+
+    [Theory]
+    // "runway" itself must not fill the {rwy} slot of the shorter rule and veto the longer one.
+    [InlineData("cleared visual approach runway two eight right", "CVA 28R")]
+    [InlineData("cleared visual approach two eight right", "CVA 28R")]
+    public void OuroborosGap_VisualApproach_WithScenarioRunways(string transcript, string expected)
+    {
+        MapContext ctx = ContextWithRunways("KOAK", "28R", "28L", "10R", "10L", "30", "12", "33", "15");
+        MapResult? result = PhraseologyMapper.Map(transcript, ctx);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
+    [Fact]
+    public void OuroborosGap_AddressedCallsignAndFollowTraffic_AreTold_Apart()
+    {
+        MapResult? result = PhraseologyMapper.Map("american twenty two thirty one follow united four fifty six", NoContext);
+        Assert.NotNull(result);
+        Assert.Equal("AAL2231", result!.Callsign);
+        Assert.Equal("FOLLOW UAL456", result.CanonicalCommand);
+    }
+
+    [Theory]
+    [InlineData("cleared into IR149 maintain route altitudes", "CMTR IR149")]
+    [InlineData("traffic off your right slightly behind you two miles a cessna", "RTIS RR 2 CESSNA")]
+    // A cue at the end, and a cue whose callsign parse fails, leave the tokens as spoken.
+    [InlineData("taxi via alpha behind", "TAXI A BEHIND")]
+    // A {callsign} capture with no digit is not a callsign: no "GIVEWAY the".
+    [InlineData("give way to the cessna", "(null)")]
+    // §3-9-4.a forbids this conditional; "the" / "landing" must never become a traffic callsign,
+    // and the line-up-and-wait clause still maps.
+    [InlineData("behind the landing traffic, line up and wait", "LUAW")]
+    public void OuroborosGap_NonExamples_KeepTodaysOutput(string transcript, string expected)
+    {
+        MapResult? result = PhraseologyMapper.Map(transcript, NoContext);
+        Assert.Equal(expected, result?.CanonicalCommand.ToUpperInvariant() ?? "(null)");
+    }
+
+    [Fact]
+    public void OuroborosGap_NonExample_DigitRunwayMishear_StillVetoes()
+    {
+        MapContext ctx = ContextWithRunways("KOAK", "28R", "28L", "10R", "10L", "30", "12", "33", "15");
+        Assert.Null(PhraseologyMapper.Map("enter right downwind for runway 274", ctx));
+    }
+
+    [Fact]
+    public void OuroborosGap_NonExample_TelephonyShapedTypeNotOnFrequency_IsNotACallsign()
+    {
+        // BOEING is an airline telephony, so "boeing seven three seven" parses as BOE737. With traffic
+        // on frequency and BOE737 not among it, the phrase is an aircraft description, not a callsign.
+        MapContext ctx = MapContext.Empty with
+        {
+            ActiveCallsigns = ["AAL2231", "UAL456"],
+        };
+        MapResult? result = PhraseologyMapper.Map("follow the boeing seven three seven", ctx);
+        Assert.NotEqual("FOLLOW BOE737", result?.CanonicalCommand.ToUpperInvariant());
     }
 }

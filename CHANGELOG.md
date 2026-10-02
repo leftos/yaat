@@ -40,6 +40,8 @@
 
 ### Fixed
 
+- Speech recognition understands spoken 270s and 360s, Class B clearances, and "cleared visual approach runway…" with a scenario loaded.
+- Spoken "follow", "behind" and "give way to" a full callsign now target that traffic; "behind" means give way, not follow.
 - Wrong-side jet and turboprop pattern entries at a field with no authored pattern altitude join downwind directly instead of climbing into a teardrop.
 - Right-clicking a parking spot beside a parked aircraft, or overlapping aircraft on the ground or radar view, opens a list to pick the one you meant.
 - An aircraft holding short of a taxiway or runway stops at the hold line instead of rolling up to the intersection when the line sits well back.

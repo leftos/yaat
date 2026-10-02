@@ -280,6 +280,14 @@ public static class PhraseologyRules
             new(["cleared", "into", "bravo", "airspace"], "CLBRV", ClearedBravoAirspace),
             new(["cleared", "out", "of", "bravo", "airspace"], "CLBRV", ClearedBravoAirspace),
             new(["cleared", "bravo", "airspace"], "CLBRV", ClearedBravoAirspace),
+            // Letter twins of the forms above: NATO collapse turns "bravo" into "B" before matching,
+            // so the spoken literals only serve the pilot verbalizer. "the class bravo airspace" is
+            // accepted here too.
+            new(["cleared", "through", "the?", "class?", "b", "airspace"], "CLBRV", ClearedBravoAirspace, SttOnly: true),
+            new(["cleared", "to", "enter", "the?", "class?", "b", "airspace"], "CLBRV", ClearedBravoAirspace, SttOnly: true),
+            new(["cleared", "into", "the?", "class?", "b", "airspace"], "CLBRV", ClearedBravoAirspace, SttOnly: true),
+            new(["cleared", "out", "of", "the?", "class?", "b", "airspace"], "CLBRV", ClearedBravoAirspace, SttOnly: true),
+            new(["cleared", "the?", "class?", "b", "airspace"], "CLBRV", ClearedBravoAirspace, SttOnly: true),
             // AIM 3-2-4 / 3-2-5 and 7110.65 7-8-4: "(aircraft callsign) standby"
             // establishes two-way radio communications for Class C/D entry.
             new(["standby"], "STBY", AcknowledgePilotContact),
@@ -626,6 +634,15 @@ public static class PhraseologyRules
             new(["make", "left", "two", "seventy"], "L270", MakeLeft270),
             new(["make", "right", "two", "seventy"], "R270", MakeRight270),
             new(["cancel", "the?", "two", "seventy"], "NO270", Cancel270),
+            // Digit twins of the spoken 360/270 forms above: number normalization turns "three sixty"
+            // into 360 before matching, so the spoken literals only serve the pilot verbalizer.
+            new(["make", "a?", "left", "360"], "L360", MakeLeft360, SttOnly: true),
+            new(["make", "a?", "right", "360"], "R360", MakeRight360, SttOnly: true),
+            new(["left", "360"], "L360", MakeLeft360, SttOnly: true),
+            new(["right", "360"], "R360", MakeRight360, SttOnly: true),
+            new(["make", "a?", "left", "270"], "L270", MakeLeft270, SttOnly: true),
+            new(["make", "a?", "right", "270"], "R270", MakeRight270, SttOnly: true),
+            new(["cancel", "the?", "270"], "NO270", Cancel270, SttOnly: true),
             new(["circle", "the?", "airport"], "CIRCLE", CircleAirport),
         ];
 
@@ -942,9 +959,10 @@ public static class PhraseologyRules
             new(["hold", "short", "of?", "runway", "{rwy}"], "HS {rwy}", HoldShort),
             new(["hold", "short", "of?", "{taxiway}"], "HS {taxiway}", HoldShort),
             new(["follow", "the?", "{callsign}", "on", "ground"], "FOLLOWG {callsign}", FollowGround),
-            // §3-7 "BEHIND (traffic)" — alternate to FOLLOW. SttOnly so the pilot AI keeps the
-            // "follow … on ground" canonical readback form.
-            new(["behind", "{callsign}"], "FOLLOWG {callsign}", FollowGround, SttOnly: true),
+            // §3-7-2.a "BEHIND (traffic)" — a taxi element separate from FOLLOW: yield to the traffic
+            // and trail it on your own route, which is GIVEWAY (COMMANDS.md lists BEHIND as its alias).
+            // SttOnly so the pilot AI keeps the "give way to …" canonical readback form.
+            new(["behind", "{callsign}"], "GIVEWAY {callsign}", GiveWay, SttOnly: true),
             new(["give", "way", "to", "{callsign}"], "GIVEWAY {callsign}", GiveWay),
             new(["exit", "left"], "EL", ExitLeft),
             new(["exit", "right"], "ER", ExitRight),

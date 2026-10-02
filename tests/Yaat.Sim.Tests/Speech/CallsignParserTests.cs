@@ -198,6 +198,27 @@ public class CallsignParserTests
         // "southwest 123" is at the start, not the end, so TryParseTrailing should find nothing.
         Assert.Null(CallsignParser.TryParseTrailing("southwest 123 climb and maintain 5000", NoActiveCallsigns));
 
+    [Theory]
+    // A callsign right after a traffic cue names the traffic, not the addressed aircraft.
+    [InlineData("taxi via alpha give way to american 2231")]
+    [InlineData("follow american 2231")]
+    [InlineData("follow the american 2231")]
+    [InlineData("follow traffic american 2231")]
+    [InlineData("hold short of bravo behind american 2231")]
+    // A multi-word telephony: "cargo 8160" inside the traffic callsign is not the addressee either.
+    [InlineData("give way to lufthansa cargo 8160")]
+    [InlineData("hold short of bravo behind november 346 golf")]
+    public void TryParseTrailing_CallsignAfterTrafficCue_IsNotTheAddressedAircraft(string transcript) =>
+        Assert.Null(CallsignParser.TryParseTrailing(transcript, NoActiveCallsigns));
+
+    [Fact]
+    public void TryParseTrailing_AddressedCallsignAfterTrafficInstruction_IsStillFound()
+    {
+        CallsignParser.ParsedCallsign? result = CallsignParser.TryParseTrailing("give way to united 456 american 2231", NoActiveCallsigns);
+        Assert.NotNull(result);
+        Assert.Equal("AAL2231", result!.IcaoCallsign);
+    }
+
     // --- IcaoToSpoken (primary paired form) ---
 
     [Theory]

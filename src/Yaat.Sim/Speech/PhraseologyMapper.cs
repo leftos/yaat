@@ -192,6 +192,11 @@ public static class PhraseologyMapper
             tokens = RemoveRange(tokens, callsignStart, callsignEnd - callsignStart);
         }
 
+        // Step 3b: collapse a spoken traffic callsign after "follow" / "behind" / "give way to" into
+        // one ICAO token, so the single-token {callsign} slot sees the whole telephony. Runs before
+        // the NATO collapse, which would otherwise eat the "november" of an N-number.
+        tokens = TrafficCallsignNormalizer.Normalize(tokens, context.ActiveCallsigns);
+
         // Step 4: extract condition prefix ("at {fix}", "when level at {alt}", "when {condition}").
         string? conditionPrefix = ExtractConditionPrefix(tokens, out int conditionConsumed);
         if (conditionPrefix is not null)
@@ -253,20 +258,21 @@ public static class PhraseologyMapper
         // so a "for"-rule match in pass 1 always beats an equivalent pass 2 result.
         //
         // The runwayInvalid flag is tracked per pass. It's set whenever a rule pattern-matches
-        // and produces a {rwy} capture that isn't in MapContext.AvailableRunways (see
-        // TryMatchRule). When it holds, Map returns null — even if some shorter rule still
-        // matched — because the user explicitly mentioned a runway and downgrading to a
-        // runway-less rule (e.g. "ERD" instead of "ERD 28R") would silently strip that mention.
-        // Returning null lets the LLM fallback recover the intended runway from scenario context.
+        // and produces a digit-bearing {rwy} capture that isn't in MapContext.AvailableRunways and
+        // can't be fuzzy-recovered (see TryMatchRule). When it holds, Map returns null — even if
+        // some shorter rule still matched — because the user explicitly mentioned a runway and
+        // downgrading to a runway-less rule (e.g. "ERD" instead of "ERD 28R") would silently strip
+        // that mention. Returning null lets the LLM fallback recover the intended runway from
+        // scenario context. A {rwy} capture with no digit ("runway", "for") is no runway mention:
+        // that rule simply does not match, so a shorter or longer rule may win and nothing escalates.
         //
         // Whenever pass 2 runs, ITS flag is authoritative — win or lose. Pass 2's de-fillered
-        // token stream is the truer view of the transcript: an invalid {rwy} capture there can
-        // only come from a genuine runway mention, whereas pass 1 routinely captures a filler
-        // itself (e.g. "for" in "cross runway for two eight right") as the runway, and that
-        // artifact must not poison a pass 2 that stripped the filler and resolved the real
-        // runway. Conversely, a pass 2 invalid still vetoes a tying pass 1 result ("enter right
-        // downwind for runway 274" downgrades to a bare ERD in both passes — only pass 2's rule
-        // attempt ever reaches the 274 capture).
+        // token stream is the truer view of the transcript, so a pass 1 artifact must not poison
+        // a pass 2 that resolved the real runway. Since digit-less captures stopped flagging, no
+        // known transcript sets the flag in pass 1 alone; the live direction is the veto: a pass 2
+        // invalid still vetoes a tying pass 1 result ("enter right downwind for runway 274"
+        // downgrades to a bare ERD in both passes — only pass 2's rule attempt ever reaches the
+        // 274 capture; RunwayCapture_InvalidRunway_NoFuzzyRecovery_FailsRule pins it).
         var matchedRulesPass1 = new List<PhraseologyRule>();
         bool runwayInvalidPass1 = false;
         (List<string>? outputs, int consumedPass1) = MatchTokens(tokens, context, matchedRulesPass1, ref runwayInvalidPass1);
@@ -452,10 +458,12 @@ public static class PhraseologyMapper
     /// are post-processed through <see cref="PhoneticFixMatcher"/> against the context's
     /// programmed fix set, and the final filled template is validated by <see cref="CommandParser"/>
     /// so noisy captures (e.g. <c>CM main</c> from "climb to main aim ...") are rejected.
-    /// Sets <paramref name="runwayInvalid"/> to true (never resets it to false) when a
+    /// Sets <paramref name="runwayInvalid"/> to true (never resets it to false) when a digit-bearing
     /// <c>{rwy}</c> capture pattern-matched but failed validation against
     /// <see cref="MapContext.AvailableRunways"/>. This signal escalates all the way to
     /// <see cref="Map"/> so a shorter runway-less rule cannot silently mask a misheard runway.
+    /// A <c>{rwy}</c> capture with no digit is not a runway mention: the rule fails to match
+    /// without setting the flag, so another rule may win and no LLM escalation happens.
     /// </summary>
     private static bool TryMatchRule(
         PhraseologyRule rule,
@@ -505,6 +513,14 @@ public static class PhraseologyMapper
                 {
                     if (captures.TryGetValue(name, out string? rawValue))
                     {
+                        // A word with no digit ("runway" in "cleared visual approach runway 28R") is
+                        // not a runway mention at all, so this candidate simply does not match. Only
+                        // a digit-bearing mishear ("274") vetoes the transcript below.
+                        if (!rawValue.Any(char.IsDigit))
+                        {
+                            output = "";
+                            return false;
+                        }
                         string? recovered = TryRecoverRunway(rawValue, context.AvailableRunways);
                         if (recovered is null)
                         {
@@ -524,6 +540,17 @@ public static class PhraseologyMapper
                         }
                     }
                 }
+            }
+
+            // Post-pass: a traffic {callsign} capture names an aircraft, and every callsign the
+            // pipeline produces carries a flight number or tail digits (TrafficCallsignNormalizer has
+            // already collapsed a spoken telephony into one ICAO token). A word with no digit ("the"
+            // in "behind the landing traffic") is not a callsign, so the rule does not match.
+            if (captures.TryGetValue("callsign", out string? callsignCapture) && !callsignCapture.Any(char.IsDigit))
+            {
+                Log.LogDebug("[Speech] CallsignCapture: \"{Raw}\" has no digit, not a callsign, rule rejected", callsignCapture);
+                output = "";
+                return false;
             }
 
             // Post-pass: rewrite cardinal-direction captures to their canonical letter form (N/S/E/W).
