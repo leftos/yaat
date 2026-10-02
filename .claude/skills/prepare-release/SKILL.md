@@ -64,6 +64,10 @@ pwsh tools/gate.ps1 -Log .tmp/test-all-prerelease.log -TimeoutSeconds 900 -Slot 
 If anything fails, stop and surface it. Do not proceed to the version-bump
 commit on a red suite — fix forward (or abort the release), then re-run.
 
+## Step 0d: No open user-reported bug ships
+
+A release never ships with a known user-reported bug: an open GitHub issue that reports a defect and was opened by `app/yaat-bot` (a Discord thread), by anyone other than the owner, or by the owner on a named user's behalf. The tracker carries no labels, so list the candidates with `gh issue list --repo leftos/yaat --state open --limit 400 --json number,title,author,body` and read each body that is not an agent's (the `🤖 Posted by Claude Code` marker) or Linear's (`app/linear`, `app/linear-code`) to judge whether it reports a defect. For each user-reported bug, its Linear issue must be Landed in the open release, or the user must have agreed in this session or a comment on the issue to defer it. Any other one stops the release: list them and ask the user, one question per bug, whether to fix it first or defer it; a deferral is written as a comment on the Linear issue.
+
 ## Step 1: Read current version
 Read `Directory.Build.props` at the repo root to get the current `<Version>` value.
 
