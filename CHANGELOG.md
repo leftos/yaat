@@ -30,7 +30,7 @@
 
 - CRC's Tower Cab and TowerCab 3D receive aircraft position updates over UDP, as on vNAS; new aircraft and removals still arrive over the hub connection.
 - A pilot on an instrument approach told to `FOLLOW` same-runway traffic keeps the approach and its landing clearance, slowing before final to hold spacing.
-- `FOLLOW` is refused, with the pilot's reason, from base or final, or for traffic behind, on the ground, departing, going missed, or bound elsewhere.
+- `FOLLOW` is refused, with the pilot's reason, for traffic behind, on the ground, departing, going missed, bound elsewhere, or landing another runway from base or final.
 - Repeating `FOLLOW` for the traffic already being followed keeps the aircraft's current maneuver, and a refused `FOLLOWF` leaves the traffic not in sight.
 - A pilot on final or an approach follows same-runway traffic by distance to the runway, so a long straight-in can follow an aircraft on close base.
 - A pilot on an instrument approach told to `FOLLOW` traffic landing another runway answers unable; on a VFR practice approach, only inside the final approach fix.
