@@ -525,7 +525,7 @@ public static class GroundCommandHandler
             route.Segments.Count,
             route.HoldShortPoints.Count,
             hsDetails,
-            // Same overload as the response below, so the log names an along-runway leg by the
+            // The response's turn hints and commanded path, so the log names an along-runway leg by the
             // commanded end ("on 33") instead of the travel-direction fallback ("on 15").
             route.ToSummary(BuildTurnHintMap(taxi), taxi.Path)
         );
@@ -1429,7 +1429,21 @@ public static class GroundCommandHandler
 
         Func<string, bool> issued = ReadbackTaxiwayFilter(taxi.Path, occupiedTaxiway);
         bool Named(string taxiway) => issued(taxiway) || route.ImpliedLanes.Contains(taxiway, StringComparer.OrdinalIgnoreCase);
-        return $"Taxi via {route.ToSummary(BuildTurnHintMap(taxi), taxi.Path, Named)}";
+        IReadOnlyList<string> beyondRoute = inputs.EndsShort ? [] : IssuedTaxiwaysBeyondRoute(route, layout, taxi.Path);
+        return $"Taxi via {route.ToSummary(BuildTurnHintMap(taxi), taxi.Path, Named, beyondRoute)}";
+    }
+
+    /// <summary>
+    /// The issued taxiways after the last one the route drives: a clearance with no destination ends at the junction
+    /// where the last taxiways of the path begin (<c>TAXI TE T U</c> stops where TE meets T and U), and the readback still
+    /// names them as issued. Node references and runways are not taxiways; a route that drives none of the path's taxiways
+    /// has nothing to anchor the tail on and gets none.
+    /// </summary>
+    private static List<string> IssuedTaxiwaysBeyondRoute(TaxiRoute route, AirportGroundLayout layout, IReadOnlyList<string> path)
+    {
+        var taxiways = path.Where(t => !t.StartsWith('#') && layout.Edges.Any(e => !e.IsRunwayCenterline && e.MatchesTaxiway(t))).ToList();
+        int lastDriven = taxiways.FindLastIndex(t => route.Segments.Any(s => s.Edge.Edge.MatchesTaxiway(t)));
+        return lastDriven < 0 ? [] : taxiways[(lastDriven + 1)..];
     }
 
     /// <summary>

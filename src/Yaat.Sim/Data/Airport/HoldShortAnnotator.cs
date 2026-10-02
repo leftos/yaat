@@ -576,14 +576,23 @@ public static class HoldShortAnnotator
             return lengthSetbackStop;
         }
 
-        List<(LatLon A, LatLon B)> centreline = CrossedCentreline(layout, target, path.Vertex(barIndex).Position);
+        (List<(LatLon A, LatLon B)> centreline, string clearanceFrom) = FloorCentreline(
+            layout,
+            route,
+            barIndex,
+            target,
+            path.Vertex(barIndex).Position
+        );
         if (centreline.Count == 0)
         {
+            RemoveWingtipWarning(route, target);
             Log.LogDebug(
-                "[HoldShortAnnotator] No straight centreline of {Target} within {RadiusFt:F0}ft of bar node {NodeId}; keeping the length setback",
+                "[HoldShortAnnotator] No centreline to clear for {Target} at bar node {NodeId} ({Reason}); keeping the length setback",
                 target,
-                CentrelineSearchRadiusFt,
-                hs.NodeId
+                hs.NodeId,
+                clearanceFrom.Length == 0
+                    ? "it continues straight ahead and no other branch meets there"
+                    : $"no straight centreline of {clearanceFrom} within {CentrelineSearchRadiusFt:F0}ft"
             );
             return lengthSetbackStop;
         }
@@ -602,12 +611,14 @@ public static class HoldShortAnnotator
         LatLon floorCentre = path.PositionAt(centreFt);
         GroundNode stop = centreFt < lengthSetbackCentreFt ? VirtualNode.Create(floorCentre.Lat, floorCentre.Lon) : lengthSetbackStop;
         double noseFt = DistanceToCentrelineFt(path.PositionAt(centreFt + halfFt), centreline);
-        ReplaceWingtipWarning(route, target, noseFt, floorFt);
+        ReplaceWingtipWarning(route, target, clearanceFrom, noseFt, floorFt);
 
         Log.LogDebug(
-            "[HoldShortAnnotator] Wingtip floor for {Target} at node {NodeId}: setback {SetbackFt:F0}ft (floor {FloorFt:F0}), nose {NoseFt:F0}ft, junctionAt {JunctionFt}, centre moved back {MovedFt:F0}ft",
+            "[HoldShortAnnotator] Wingtip floor for {Target} at node {NodeId} against {ClearanceFrom}: setback {SetbackFt:F0}ft "
+                + "(floor {FloorFt:F0}), nose {NoseFt:F0}ft, junctionAt {JunctionFt}, centre moved back {MovedFt:F0}ft",
             target,
             hs.NodeId,
+            clearanceFrom,
             setbackFt,
             floorFt,
             noseFt,
@@ -623,14 +634,131 @@ public static class HoldShortAnnotator
     /// wingtip floor. The floor alone decides the warning — the <c>L/2 + 30</c> part of the setback is a placement
     /// margin, not wingtip clearance, so a nose that meets the floor is clear of a crosser's wingtip.
     /// </summary>
-    private static void ReplaceWingtipWarning(TaxiRoute route, string target, double noseFt, double floorFt)
+    private static void ReplaceWingtipWarning(TaxiRoute route, string target, string clearanceFrom, double noseFt, double floorFt)
     {
-        string prefix = $"holding short of TWY {target} — wingtip clearance from {target} not assured (";
-        route.Warnings.RemoveAll(w => w.StartsWith(prefix, StringComparison.Ordinal));
+        RemoveWingtipWarning(route, target);
         if (noseFt < floorFt - 0.5)
         {
-            route.Warnings.Add($"{prefix}{noseFt:F0} ft)");
+            route.Warnings.Add($"{WingtipWarningPrefix(target)}{clearanceFrom} not assured ({noseFt:F0} ft)");
         }
+    }
+
+    /// <summary>Drops the route's wingtip-clearance warning for the bar on <paramref name="target"/>, whichever branches it named.</summary>
+    private static void RemoveWingtipWarning(TaxiRoute route, string target)
+    {
+        string prefix = WingtipWarningPrefix(target);
+        route.Warnings.RemoveAll(w => w.StartsWith(prefix, StringComparison.Ordinal));
+    }
+
+    private static string WingtipWarningPrefix(string target) => $"holding short of TWY {target} — wingtip clearance from ";
+
+    /// <summary>How far (ft) a branch's centreline is followed from the bar's node when the floor is held against it.</summary>
+    private const double BranchWalkFt = 500.0;
+
+    /// <summary>
+    /// The centreline of one branch leaving <paramref name="node"/> by <paramref name="first"/>: that edge and the straight
+    /// edges of the same taxiway that carry it on, for <see cref="BranchWalkFt"/>. Built from the branch's own edges rather
+    /// than by name, so a branch named like the taxiway the aircraft arrives on never measures against the aircraft's own line.
+    /// </summary>
+    private static List<(LatLon A, LatLon B)> BranchCentreline(GroundEdge first, GroundNode node)
+    {
+        var pieces = new List<(LatLon A, LatLon B)>();
+        GroundEdge? edge = first;
+        GroundNode from = node;
+        double walkedFt = 0.0;
+        while ((edge is not null) && (walkedFt < BranchWalkFt))
+        {
+            var points = new List<LatLon> { edge.Nodes[0].Position };
+            points.AddRange(edge.IntermediatePoints.Select(p => new LatLon(p.Lat, p.Lon)));
+            points.Add(edge.Nodes[1].Position);
+            for (int i = 0; i + 1 < points.Count; i++)
+            {
+                pieces.Add((points[i], points[i + 1]));
+            }
+
+            walkedFt += edge.DistanceNm * GeoMath.FeetPerNm;
+            GroundEdge current = edge;
+            from = current.OtherNode(from);
+            edge = from.Edges.OfType<GroundEdge>().FirstOrDefault(e => !ReferenceEquals(e, current) && e.MatchesTaxiway(current.TaxiwayName));
+        }
+
+        return pieces;
+    }
+
+    /// <summary>A branch leaving the bar's node within this many degrees of the arriving heading continues straight ahead.</summary>
+    private const double StraightAheadToleranceDeg = 20.0;
+
+    /// <summary>
+    /// The centreline the wingtip floor is measured against, and the taxiway name(s) a warning names. Normally the
+    /// crossed taxiway's own. When the target continues the route's taxiway straight ahead at the bar's node, an aircraft
+    /// on it is ahead, not crossing (AIM 2-3-5.b.3 speaks of "an aircraft on the intersecting taxiway"), so the floor is
+    /// held against the node's other branches instead, those not straight ahead or straight behind; with none, the
+    /// centreline is empty and the plain length setback stands.
+    /// </summary>
+    private static (List<(LatLon A, LatLon B)> Centreline, string ClearanceFrom) FloorCentreline(
+        AirportGroundLayout layout,
+        TaxiRoute route,
+        int barIndex,
+        string target,
+        LatLon anchor
+    )
+    {
+        if (BranchesBesideStraightAhead(route, barIndex, target) is not { } branches)
+        {
+            return (CrossedCentreline(layout, target, anchor), target);
+        }
+
+        GroundNode node = route.Segments[barIndex - 1].Edge.ToNode;
+        var centreline = new List<(LatLon A, LatLon B)>();
+        foreach (GroundEdge branch in branches)
+        {
+            centreline.AddRange(BranchCentreline(branch, node));
+        }
+
+        string names = string.Join(
+            "/",
+            branches.Select(b => b.TaxiwayName).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase)
+        );
+        return (centreline, names);
+    }
+
+    /// <summary>
+    /// When <paramref name="target"/> leaves the bar's node straight ahead (within <see cref="StraightAheadToleranceDeg"/>
+    /// of the arriving heading), the node's other straight, non-ramp taxiway edges that are neither straight
+    /// ahead nor straight behind; null when the target does not continue straight ahead there.
+    /// </summary>
+    private static List<GroundEdge>? BranchesBesideStraightAhead(TaxiRoute route, int barIndex, string target)
+    {
+        if ((barIndex < 1) || (barIndex > route.Segments.Count))
+        {
+            return null;
+        }
+
+        DirectionalEdge arriving = route.Segments[barIndex - 1].Edge;
+        GroundNode node = arriving.ToNode;
+        double arrivingDeg = arriving.ArrivalBearing;
+        var branches = node
+            .Edges.OfType<GroundEdge>()
+            .Where(e => !e.IsRamp && !e.IsRunwayCenterline)
+            .Select(e => (Edge: e, OffDeg: GeoMath.AbsBearingDifference(arrivingDeg, LeavingBearingDeg(e, node))))
+            .ToList();
+        if (!branches.Any(b => b.Edge.MatchesTaxiway(target) && (b.OffDeg <= StraightAheadToleranceDeg)))
+        {
+            return null;
+        }
+
+        return [.. branches.Where(b => (b.OffDeg > StraightAheadToleranceDeg) && (b.OffDeg < 180.0 - StraightAheadToleranceDeg)).Select(b => b.Edge)];
+    }
+
+    /// <summary>The bearing a straight edge leaves <paramref name="node"/> on: toward its first shape point, else its far node.</summary>
+    private static double LeavingBearingDeg(GroundEdge edge, GroundNode node)
+    {
+        bool fromStart = edge.Nodes[0].Id == node.Id;
+        LatLon next =
+            edge.IntermediatePoints.Count == 0 ? edge.OtherNode(node).Position
+            : fromStart ? new LatLon(edge.IntermediatePoints[0].Lat, edge.IntermediatePoints[0].Lon)
+            : new LatLon(edge.IntermediatePoints[^1].Lat, edge.IntermediatePoints[^1].Lon);
+        return GeoMath.BearingTo(node.Position, next);
     }
 
     /// <summary>The nose walk-back's inputs, all along-route distances or setbacks in feet.</summary>

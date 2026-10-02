@@ -51,10 +51,11 @@ public class N7ljCrossingRunwayInfoTests(ITestOutputHelper output)
             return;
         }
 
-        // t=1390s is ~5s into the CrossingRunwayPhase that begins at t=1385 after
-        // RES at t=1384. The aircraft should be mid-crossing of 28R/10L (the first
-        // parallel pair from SIG6 parking), still 20+ seconds before completing.
-        engine.Replay(recording, 1390);
+        // RES at t=1384 releases N7LJ from its 28R/10L stop, which sits a half-length back from
+        // the bar node behind a short last segment: it taxis the gap and the CrossingRunwayPhase
+        // begins at ~t=1391. t=1396 is mid-crossing of 28R/10L (the first parallel pair from SIG6
+        // parking), well before completing.
+        engine.Replay(recording, 1396);
 
         AircraftState? ac = engine.FindAircraft("N7LJ");
         Assert.NotNull(ac);
