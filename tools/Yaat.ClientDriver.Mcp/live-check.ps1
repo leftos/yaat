@@ -52,12 +52,22 @@ if (-not ('ClientDriverCheck.User32' -as [type])) {
         '[DllImport("user32.dll", CharSet = CharSet.Unicode)]'
         'public static extern int GetWindowText(IntPtr window, System.Text.StringBuilder text, int size);'
         '[DllImport("user32.dll")] public static extern bool GetCursorPos(out System.Drawing.Point point);'
+        # GWL_EXSTYLE read across processes; GetWindowLongPtrW is the 64-bit entry point, so this needs a 64-bit pwsh.
+        '[DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] public static extern IntPtr GetWindowLongPtr(IntPtr window, int index);'
+        '[DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr window, int command);'
+        '[DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);'
     )
     Add-Type -Namespace ClientDriverCheck -Name User32 -MemberDefinition ($signatures -join ' ') -ReferencedAssemblies System.Drawing.Primitives
 }
 
 function Test-VisibleWindowTitled {
     param([int]$ProcessId, [string]$Title)
+
+    @(Get-ClientTopLevelWindows -ProcessId $ProcessId | Where-Object { $_.Title -eq $Title }).Count -ge 1
+}
+
+function Get-ClientTopLevelWindows {
+    param([int]$ProcessId)
 
     $window = [ClientDriverCheck.User32]::GetTopWindow([IntPtr]::Zero)
     while ($window -ne [IntPtr]::Zero) {
@@ -66,11 +76,114 @@ function Test-VisibleWindowTitled {
         if (($ownerPid -eq $ProcessId) -and [ClientDriverCheck.User32]::IsWindowVisible($window)) {
             $text = [System.Text.StringBuilder]::new(256)
             $null = [ClientDriverCheck.User32]::GetWindowText($window, $text, $text.Capacity)
-            if ($text.ToString() -eq $Title) { return $true }
+            # GWL_EXSTYLE (-20), read across processes; touches nothing.
+            $exStyle = [int64][ClientDriverCheck.User32]::GetWindowLongPtr($window, -20)
+            [pscustomobject]@{ Handle = [int64]$window; Title = $text.ToString(); ExStyle = $exStyle }
         }
         $window = [ClientDriverCheck.User32]::GetWindow($window, 2)
     }
-    $false
+}
+
+# Every visible client window carries WS_EX_NOACTIVATE, so the system never hands it the foreground when the user's
+# foreground window is minimized. Reads styles across processes; touches nothing.
+function Assert-ClientWindowsNoActivate {
+    param([int]$ProcessId, [string]$Step)
+
+    $windows = @(Get-ClientTopLevelWindows -ProcessId $ProcessId)
+    Assert-That ($windows.Count -ge 1) "$Step found no visible top-level window of pid $ProcessId"
+    foreach ($window in $windows) {
+        $missing = "$Step '$($window.Title)' (0x$('{0:X}' -f $window.Handle)) has extended style 0x$('{0:X}' -f $window.ExStyle) without " +
+            'WS_EX_NOACTIVATE (0x08000000): Windows can hand it the foreground when the window in front of it is minimized'
+        Assert-That (($window.ExStyle -band 0x08000000) -ne 0) $missing
+    }
+    Write-Host "$Step`: $($windows.Count) client windows carry WS_EX_NOACTIVATE"
+}
+
+# The montage's trigger, reproduced: the window in front of the client is minimized, and Windows activates the next window
+# in Z-order. A destroyed window hands the foreground back to the previous one, so closing never triggers it — only a
+# minimize does. The client must not be that window. Sampled every 10 ms for 1 s, so a transient surfacing is caught too.
+# Nothing but the console this function starts is ever minimized: the console must first take the foreground in a window of
+# its own, and only that console's own processes count as its owner.
+function Assert-ForegroundHandoffSkipsClient {
+    param([int]$ProcessId)
+
+    # conhost.exe started directly hosts its own classic console window, which Windows Terminal cannot adopt as a tab. A pwsh
+    # started on its own would open as a tab in the owner's terminal instead, and minimizing that window would take their tabs.
+    $childIds = @()
+    $console = Start-Process conhost.exe -ArgumentList 'pwsh', '-NoProfile', '-Command', 'Start-Sleep -Seconds 60' -PassThru
+    try {
+        $before = $script:untouched.Foreground.Handle
+        $deadline = [DateTime]::UtcNow.AddSeconds(3)
+        do {
+            Start-Sleep -Milliseconds 50
+            $front = Get-ForegroundWindowInfo
+        } while (($front.Handle -eq $before) -and ([DateTime]::UtcNow -lt $deadline))
+        # Windows may report a console window's owner as either the host or the attached client, so both count.
+        $childIds = @(
+            Get-CimInstance Win32_Process -Filter "ParentProcessId = $($console.Id)" -ErrorAction Stop |
+                Select-Object -ExpandProperty ProcessId
+        )
+        $tookForeground = ($front.Handle -ne $before) -and (($front.Pid -eq $console.Id) -or ($front.Pid -in $childIds))
+        $noConsoleMessage = "The console never took the foreground; the foreground went to $($front.Name) (pid $($front.Pid)) instead"
+        Assert-That $tookForeground $noConsoleMessage
+
+        # The window directly behind the one about to be minimized has to be a client window, or the minimize proves nothing.
+        $behind = [ClientDriverCheck.User32]::GetWindow([IntPtr]$front.Handle, 2)
+        while (($behind -ne [IntPtr]::Zero) -and (-not [ClientDriverCheck.User32]::IsWindowVisible($behind))) {
+            $behind = [ClientDriverCheck.User32]::GetWindow($behind, 2)
+        }
+        $behindTitle = '(none)'
+        [uint32]$behindPid = 0
+        if ($behind -ne [IntPtr]::Zero) {
+            $behindText = [System.Text.StringBuilder]::new(256)
+            $null = [ClientDriverCheck.User32]::GetWindowText($behind, $behindText, $behindText.Capacity)
+            $null = [ClientDriverCheck.User32]::GetWindowThreadProcessId($behind, [ref]$behindPid)
+            $behindTitle = $behindText.ToString()
+        }
+        $behindMessage = 'The hand-off check needs a client window directly behind the window it minimizes; ' +
+            "found $behindTitle ($behindPid) instead"
+        Assert-That (($behind -ne [IntPtr]::Zero) -and ($behindPid -eq $ProcessId)) $behindMessage
+
+        $null = [ClientDriverCheck.User32]::ShowWindow([IntPtr]$front.Handle, 6)   # SW_MINIMIZE activates the next window in Z-order
+        # ShowWindow's return value is not a substitute: a handle that died since the wait reports success without minimizing.
+        $minimizeMessage = 'The console in front was not minimized; the hand-off was never exercised'
+        Assert-That ([ClientDriverCheck.User32]::IsIconic([IntPtr]$front.Handle)) $minimizeMessage
+        $deadline = [DateTime]::UtcNow.AddSeconds(1)
+        $seen = [System.Collections.Generic.List[string]]::new()
+        do {
+            $foreground = Get-ForegroundWindowInfo
+            if ($seen.Count -eq 0 -or $seen[$seen.Count - 1] -ne $foreground.Name) { $seen.Add($foreground.Name) }
+            $handoffMessage = 'The window in front of the client minimized and Windows handed the foreground to the client ' +
+                "(foreground sequence: $($seen -join ' -> ')): its windows lack WS_EX_NOACTIVATE"
+            Assert-That ($foreground.Pid -ne $ProcessId) $handoffMessage
+            Start-Sleep -Milliseconds 10
+        } while ([DateTime]::UtcNow -lt $deadline)
+
+        # The console moved the run's foreground; Windows picks the next window in Z-order, which this script does not
+        # control, so only report where it landed.
+        $baselineName = $script:untouched.Foreground.Name
+        $afterForeground = Get-ForegroundWindowInfo
+        if ($afterForeground.Handle -ne $script:untouched.Foreground.Handle) {
+            $landedMessage = "The run's foreground was $baselineName (0x$('{0:X}' -f $script:untouched.Foreground.Handle)); " +
+                "after the hand-off it is $($afterForeground.Name) (0x$('{0:X}' -f $afterForeground.Handle))"
+            Write-Warning $landedMessage
+        }
+    }
+    finally {
+        # Stops the console's pwsh child and conhost itself, whichever are still running.
+        foreach ($consolePid in @($childIds) + @($console.Id)) {
+            try {
+                Stop-Process -Id $consolePid -ErrorAction Stop
+            }
+            catch {
+                # A console process that exited on its own is expected; only a real failure to stop one earns a warning.
+                if ($_.Exception -isnot [Microsoft.PowerShell.Commands.ProcessCommandException]) {
+                    Write-Warning "Could not stop the console process (pid=$consolePid): $_"
+                }
+            }
+        }
+    }
+    Write-Host "foreground hand-off after minimizing the window in front: $($seen -join ' -> ') (client never took it)"
 }
 
 function Get-CursorPosition {
@@ -149,7 +262,8 @@ function Find-InProcessWindows {
     # A menu popup is its own top-level window, so an opened menu item is found by scanning every window of the process.
     $found = @()
     foreach ($window in (Get-ClientWindows -Session $Session -ClientPid $ClientPid)) {
-        $found += @(ConvertFrom-DescribeLines -Text (Get-McpResultText -Result (Invoke-CheckedTool -Session $Session -Name 'find_elements' -ToolArguments @{
+        $found += @(ConvertFrom-DescribeLines -Text (Get-McpResultText -Result (
+            Invoke-CheckedTool -Session $Session -Name 'find_elements' -ToolArguments @{
                         rootElementId = $window.Id
                         automationId  = $AutomationId
                     })))
@@ -272,6 +386,7 @@ else {
         Assert-That ($null -ne $launchMain) "launch_yaat (pid=$launchedPid) listed no YAAT* window: $launchText"
         Assert-That ($launchMain.Active -eq 'False') "The main window of pid=$launchedPid is active after launch_yaat: $($launchMain.Active)"
         Write-Host "foreground unchanged by the launch; main window active=$($launchMain.Active)"
+        if ($Background) { Assert-ClientWindowsNoActivate -ProcessId $launchedPid -Step 'launch' }
         $launchedPid
     }
 
@@ -300,6 +415,10 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..' '..')).Path
 $session = $null
 $clientPid = 0
 try {
+    if ($Background -and (-not [Environment]::Is64BitProcess)) {
+        throw 'The -Background hand-off check reads 64-bit window handles (GetWindowLongPtrW), so it needs a 64-bit pwsh.'
+    }
+
     $session = Start-McpServer -Command $Command -Arguments $Arguments -WorkingDirectory $repoRoot
     $null = Initialize-McpSession -Session $session
     Write-Host "mode: $($mode.Name)"
@@ -315,7 +434,8 @@ try {
     $unfiltered = Invoke-McpTool -Session $session -Name 'find_elements' -ToolArguments @{ rootElementId = 'e1' }
     $unfilteredText = Get-McpResultText -Result $unfiltered
     Assert-That ($unfiltered.isError -eq $true) "find_elements accepted an empty criteria set: $unfilteredText"
-    Assert-That ($unfilteredText -like '*at least one of name, automationId or controlType*') "find_elements rejected the empty criteria set with an unexpected message: $unfilteredText"
+    $unfilteredMessage = "find_elements rejected the empty criteria set with an unexpected message: $unfilteredText"
+    Assert-That ($unfilteredText -like '*at least one of name, automationId or controlType*') $unfilteredMessage
     Write-Host $unfilteredText
 
     $foregroundBefore = Get-ForegroundWindowInfo
@@ -354,11 +474,13 @@ try {
 
     # Avalonia builds a menu's popup only when it opens, so ConnectMenuItem and its siblings are absent from the tree
     # until something clicks File. The input passes are where that expectation can hold.
-    $connectItems = @(ConvertFrom-DescribeLines -Text (Get-McpResultText -Result (Invoke-CheckedTool -Session $session -Name 'find_elements' -ToolArguments @{
+    $connectItems = @(ConvertFrom-DescribeLines -Text (Get-McpResultText -Result (
+        Invoke-CheckedTool -Session $session -Name 'find_elements' -ToolArguments @{
                     rootElementId = $mainWindow.Id
                     automationId  = 'ConnectMenuItem'
                 })))
-    Assert-That ($connectItems.Count -eq 0) "ConnectMenuItem was expected to be absent while the File menu is closed, but find_elements returned $($connectItems.Count)"
+    $absentMessage = "ConnectMenuItem was expected to be absent while the File menu is closed, but find_elements returned $($connectItems.Count)"
+    Assert-That ($connectItems.Count -eq 0) $absentMessage
     Write-Host 'ConnectMenuItem: absent while the File menu is closed (Avalonia builds popup content on open)'
 
     Write-Host '--- screenshot'
@@ -375,7 +497,9 @@ try {
 
     Write-Host '--- tail_yaat_log'
     # The window must be wider than the client's startup chatter (navdata, CIFP, aliases), or the 'Log file:' line scrolls out of it.
-    $logText = Get-McpResultText -Result (Invoke-CheckedTool -Session $session -Name 'tail_yaat_log' -ToolArguments @{ appDataDir = $AppDataDir; lines = 200 })
+    $logText = Get-McpResultText -Result (
+        Invoke-CheckedTool -Session $session -Name 'tail_yaat_log' -ToolArguments @{ appDataDir = $AppDataDir; lines = 200 }
+    )
     Assert-That ($logText -match 'Log file:') "tail_yaat_log has no 'Log file:' line: $logText"
     Write-Host ($logText -split "`r?`n" | Select-Object -First 4)
 
@@ -386,7 +510,8 @@ try {
         $deadline = [DateTime]::UtcNow.AddSeconds(90)
         do {
             Start-Sleep -Milliseconds 500
-            $loaded = @(ConvertFrom-DescribeLines -Text (Get-McpResultText -Result (Invoke-CheckedTool -Session $session -Name 'find_elements' -ToolArguments @{
+            $loaded = @(ConvertFrom-DescribeLines -Text (Get-McpResultText -Result (
+                Invoke-CheckedTool -Session $session -Name 'find_elements' -ToolArguments @{
                             rootElementId = $mainWindow.Id
                             name          = 'Navigation data loaded'
                         })))
@@ -395,7 +520,8 @@ try {
 
         $script:untouched = [pscustomobject]@{ Foreground = Get-ForegroundWindowInfo; Cursor = Get-CursorPosition }
         if ($Background) {
-            Assert-That ($script:untouched.Foreground.Pid -ne $clientPid) 'The client holds the foreground — -Background needs another window in front of it'
+            $holdsMessage = 'The client holds the foreground — -Background needs another window in front of it'
+            Assert-That ($script:untouched.Foreground.Pid -ne $clientPid) $holdsMessage
             Write-Host "baseline: foreground $($script:untouched.Foreground.Name), cursor ($($script:untouched.Cursor))"
         }
         $windowCountBefore = Get-MenuWindowCount -Session $session -ClientPid $clientPid
@@ -432,7 +558,9 @@ try {
             })
         Write-Host $typeText
         Assert-InputPath -Text $typeText -Step 'send_keys hello'
-        $typed = Get-McpResultText -Result (Invoke-CheckedTool -Session $session -Name 'get_value' -ToolArguments @{ elementId = $commandInputs[0].Id })
+        $typed = Get-McpResultText -Result (
+            Invoke-CheckedTool -Session $session -Name 'get_value' -ToolArguments @{ elementId = $commandInputs[0].Id }
+        )
         Assert-That ($typed.Trim() -ceq 'hello') "get_value after send_keys returned '$typed', expected 'hello'"
         Write-Host "get_value: $typed"
 
@@ -443,7 +571,9 @@ try {
             })
         Write-Host $setText
         Assert-InputPath -Text $setText -Step 'set_text'
-        $value = Get-McpResultText -Result (Invoke-CheckedTool -Session $session -Name 'get_value' -ToolArguments @{ elementId = $commandInputs[0].Id })
+        $value = Get-McpResultText -Result (
+            Invoke-CheckedTool -Session $session -Name 'get_value' -ToolArguments @{ elementId = $commandInputs[0].Id }
+        )
         Assert-That ($value.Trim() -eq 'HELLO') "get_value after set_text returned '$value', expected 'HELLO'"
         Write-Host "get_value: $value"
 
@@ -458,8 +588,12 @@ try {
         Assert-InputPath -Text $doubleText -Step 'double click_point in CommandInput'
         $zText = Get-McpResultText -Result (Invoke-CheckedTool -Session $session -Name 'send_keys' -ToolArguments @{ keys = 'Z' })
         Assert-InputPath -Text $zText -Step 'send_keys Z'
-        $replaced = Get-McpResultText -Result (Invoke-CheckedTool -Session $session -Name 'get_value' -ToolArguments @{ elementId = $commandInputs[0].Id })
-        Assert-That ($replaced.Trim() -ceq 'Z') "After a double click on HELLO and typing Z the command box holds '$replaced', expected 'Z' — the double click did not select the word"
+        $replaced = Get-McpResultText -Result (
+            Invoke-CheckedTool -Session $session -Name 'get_value' -ToolArguments @{ elementId = $commandInputs[0].Id }
+        )
+        $replacedMessage = "After a double click on HELLO and typing Z the command box holds '$replaced', expected 'Z'" +
+            ' — the double click did not select the word'
+        Assert-That ($replaced.Trim() -ceq 'Z') $replacedMessage
         Write-Host "get_value: $replaced"
 
         Write-Host "--- open File and click Connect... inside its popup ($($mode.Name)): the modal Connect to Server dialog opens"
@@ -469,14 +603,19 @@ try {
         Start-Sleep -Milliseconds 700
         $connectItems = @(Find-InProcessWindows -Session $session -ClientPid $clientPid -AutomationId 'ConnectMenuItem')
         Assert-That ($connectItems.Count -ge 1) 'The File menu did not reopen: no ConnectMenuItem'
-        $connectClick = Get-McpResultText -Result (Invoke-CheckedTool -Session $session -Name 'click' -ToolArguments @{ elementId = $connectItems[0].Id })
+        $connectClick = Get-McpResultText -Result (
+            Invoke-CheckedTool -Session $session -Name 'click' -ToolArguments @{ elementId = $connectItems[0].Id }
+        )
         Write-Host $connectClick
         Assert-InputPath -Text $connectClick -Step 'click Connect... in the popup'
         Start-Sleep -Milliseconds 1500
-        Assert-That (Test-VisibleWindowTitled -ProcessId $clientPid -Title 'Connect to Server') 'Clicking Connect... opened no visible "Connect to Server" window'
+        $openedMessage = 'Clicking Connect... opened no visible "Connect to Server" window'
+        Assert-That (Test-VisibleWindowTitled -ProcessId $clientPid -Title 'Connect to Server') $openedMessage
         $closeButtons = @(Find-InProcessWindows -Session $session -ClientPid $clientPid -AutomationId 'CloseButton')
         Assert-That ($closeButtons.Count -ge 1) 'The Connect to Server dialog has no CloseButton under any window of the client'
         Write-Host 'Connect to Server dialog opened'
+        # The dialog is a second top-level window of the client, so it carries WS_EX_NOACTIVATE too.
+        if ($Background) { Assert-ClientWindowsNoActivate -ProcessId $clientPid -Step 'Connect to Server open' }
 
         if ($null -ne $mode.BlockedError) {
             Write-Host "--- negative: a click on the main window behind the modal dialog is refused ($($mode.Name))"
@@ -489,11 +628,14 @@ try {
             Write-Host $blockedText
         }
 
-        $closeText = Get-McpResultText -Result (Invoke-CheckedTool -Session $session -Name 'click' -ToolArguments @{ elementId = $closeButtons[0].Id })
+        $closeText = Get-McpResultText -Result (
+            Invoke-CheckedTool -Session $session -Name 'click' -ToolArguments @{ elementId = $closeButtons[0].Id }
+        )
         Write-Host $closeText
         Assert-InputPath -Text $closeText -Step 'click Close on the dialog'
         Start-Sleep -Milliseconds 700
-        Assert-That (-not (Test-VisibleWindowTitled -ProcessId $clientPid -Title 'Connect to Server')) 'Close did not close the Connect to Server dialog'
+        $stillOpenMessage = 'Close did not close the Connect to Server dialog'
+        Assert-That (-not (Test-VisibleWindowTitled -ProcessId $clientPid -Title 'Connect to Server')) $stillOpenMessage
         Write-Host 'Connect to Server dialog closed'
 
         Write-Host "--- click the Help menu ($($mode.Name))"
@@ -527,6 +669,12 @@ try {
             ' — a pipe-driven client must never take it'
         Assert-That ($foregroundAfter.Handle -eq $foregroundBefore.Handle) $foregroundMessage
         Write-Host "foreground unchanged: 0x$('{0:X}' -f $foregroundAfter.Handle) ($($foregroundAfter.Name))"
+
+        if ($Background) {
+            # Last, because it minimizes the window in front and so ends the run's untouched foreground: nothing after it
+            # may assume the foreground the run started with.
+            Assert-ForegroundHandoffSkipsClient -ProcessId $clientPid
+        }
     }
 
     Write-Host '--- stop_process'
@@ -563,11 +711,18 @@ catch {
         $orphan = [regex]::Match($failure, 'pid[= ](?<pid>\d+)')
         if ($orphan.Success) { $clientPid = [int]$orphan.Groups['pid'].Value }
     }
-    if ($clientPid -ne 0) {
-        try { Stop-Process -Id $clientPid -Force -ErrorAction Stop } catch { Write-Warning "Could not stop the client (pid $clientPid): $($_.Exception.Message)" }
-    }
     exit 1
 }
 finally {
+    # Runs on success, on failure and on Ctrl+C (which skips the catch above), so a launched client is never left behind.
+    # The success path stops it through stop_process and clears the pid, so this never stops it twice or too early.
+    if ($clientPid -ne 0) {
+        try {
+            Stop-Process -Id $clientPid -Force -ErrorAction Stop
+        }
+        catch {
+            Write-Warning "Could not stop the client (pid $clientPid): $($_.Exception.Message)"
+        }
+    }
     Stop-McpServer -Session $session
 }

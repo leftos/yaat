@@ -57,7 +57,7 @@ public static class DialogPresenter
     private static Task<T?> ShowModeless<T>(Window dialog, Window owner)
     {
         TaskCompletionSource<T?> completion = new();
-        dialog.ShowActivated = false;
+        AutomationGate.ApplyShowActivated(dialog);
         dialog.Closed += OnClosed;
         LockOwner(owner);
         try

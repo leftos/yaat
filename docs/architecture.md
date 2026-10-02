@@ -307,7 +307,7 @@ Views/
   WindowGroupRaiser.cs          # CRC-style group raise (#392): when focus returns from another app, raises all tracked windows via Topmost pulses (no focus steal) in Z-order, clicked window last; suspended during profile apply; gated by the RaiseWindowsTogether preference (default on); never raises in automation mode
   WindowActivationExtensions.cs # Window.RestoreAndActivate(): un-minimize (WindowState.Normal) before Activate — every reuse-and-activate window (FPE, Favorites Panel, Speech Debug, Session Report, Weather/Arrival editors) goes through this (#360); skips Activate in automation mode
   DialogPresenter.cs            # ShowModalAsync[<T>](dialog, owner): every client dialog opens through it. Outside automation mode it is ShowDialog; in automation mode the dialog shows never-activated and non-modal, the owner is disabled by hand (one count per owner) and its user close cancelled (ShouldCancelOwnerClose), and the result comes back on Closed. Result dialogs close through DialogPresenter.Close(this, value); AutomationModeSourceTests rejects a raw ShowDialog or a bare Close(result)
-  AutomationGate.cs             # Core-side automation-mode flag (SuppressActivation, set through Yaat.Client's AutomationMode) and ApplyShowActivated(window) for windows that do not build a WindowGeometryHelper; AutomationModeSourceTests keeps every Activate()/Topmost=true behind it
+  AutomationGate.cs             # Core-side automation-mode flag (SuppressActivation, set through Yaat.Client's AutomationMode) and ApplyShowActivated(window) (ShowActivated=false plus WS_EX_NOACTIVATE through the Win32 window-styles callback, NoActivateStyles) for windows that do not build a WindowGeometryHelper and for every DialogPresenter dialog; AutomationModeSourceTests keeps every Activate()/Topmost=true behind it
   WindowSystemMenuHelper.cs     # Windows-only: injects "Always on Top" into the title-bar system menu via WM_SYSCOMMAND + SetWindowSubclass
   WindowNativeMenuHelper.cs     # macOS-only: adds "Window → Always on Top" to the menu bar via Avalonia NativeMenu
   KeybindHelper.cs              # Keyboard shortcut resolution
@@ -1891,7 +1891,7 @@ Pipe/PipeRemoteException.cs    # A host error answer: code, the host's own messa
 launch.ps1                     # What `.mcp.json` runs: copies bin/ to %LOCALAPPDATA%/yaat/client-driver-mcp/run-<pid> and starts the server there, so a running server never locks the build output; prunes dead sessions' copies
 McpStdio.ps1                   # Dot-sourced JSON-RPC-over-stdio plumbing for the two scripts
 smoke.ps1                      # Protocol smoke: stdout is pure JSON, every tool listed; opens no window
-live-check.ps1                 # Live pass against a real client: default and -Background over the automation pipe (foreground and cursor must not change), -WithInput over UI Automation with real input; captures CRC's first display window when CRC is running
+live-check.ps1                 # Live pass against a real client: default and -Background over the automation pipe (foreground and cursor must not change; -Background also asserts WS_EX_NOACTIVATE and that minimizing a console in front never hands the client the foreground), -WithInput over UI Automation with real input; captures CRC's first display window when CRC is running
 ```
 
 ## FOLLOW montage clips (`tools/montage/follow/`)
