@@ -147,7 +147,7 @@ public sealed class PipeCallsTests : AutomationHostFixture
             PipeClient? client = await PipeCalls.TryRouteAsync(directory, Environment.ProcessId, CancellationToken.None);
 
             Assert.NotNull(client);
-            PingResult ping = await client.SendAsync<PingResult>(ProtocolMethods.Ping, null, CancellationToken.None);
+            PingResult ping = await client.SendAsync<PingResult>(ProtocolMethods.Ping, null, PipeClient.RequestTimeout, CancellationToken.None);
             Assert.Equal(Environment.ProcessId, ping.Pid);
         }
         finally
@@ -163,7 +163,14 @@ public sealed class PipeCallsTests : AutomationHostFixture
         directory.RememberTarget(99999999);
 
         McpException failure = await Assert.ThrowsAsync<McpException>(() =>
-            PipeCalls.SendForPidAsync<JsonElement>(directory, 99999999, ProtocolMethods.SendKeys, new { keys = "x" }, CancellationToken.None)
+            PipeCalls.SendForPidAsync<JsonElement>(
+                directory,
+                99999999,
+                ProtocolMethods.SendKeys,
+                new { keys = "x" },
+                PipeClient.RequestTimeout,
+                CancellationToken.None
+            )
         );
 
         Assert.Equal("The automation pipe for pid 99999999 closed; call list_windows again, or pass an element id", failure.Message);

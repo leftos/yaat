@@ -31,8 +31,8 @@ public sealed class PipeDirectory(
 
     /// <summary>
     /// The pid of the YAAT client the last successful pipe-routed call reached: where <c>send_keys</c> without an element
-    /// types over the pipe. Null until a pipe call succeeds, and again once that pid's client is forgotten or dropped. A
-    /// call routed through UI Automation leaves it as it is.
+    /// types over the pipe. Null until a pipe call succeeds, and again once that pid's client is forgotten or dropped, or a
+    /// call routed through UI Automation succeeds: untargeted keys follow whatever was touched last, YAAT or CRC.
     /// </summary>
     public int? LastTargetPid
     {
@@ -121,7 +121,7 @@ public sealed class PipeDirectory(
         var client = new PipeClient(info.PipeName, pid, clientLogger);
         try
         {
-            await client.SendAsync<PingResult>(ProtocolMethods.Ping, null, ct).ConfigureAwait(false);
+            await client.SendAsync<PingResult>(ProtocolMethods.Ping, null, PipeClient.RequestTimeout, ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -151,6 +151,18 @@ public sealed class PipeDirectory(
         if (_clients.TryRemove(pid, out PipeClient? client))
         {
             await client.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Stops remembering any pid as the last target, because a call routed through UI Automation succeeded: what the agent
+    /// touched last is no longer a client reached over its pipe.
+    /// </summary>
+    public void ForgetLastTarget()
+    {
+        lock (_lastTargetGate)
+        {
+            _lastTargetPid = null;
         }
     }
 

@@ -29,7 +29,7 @@ public static class PipeCalls
         string method,
         object? parameters,
         CancellationToken ct
-    ) => SendAsync<T>(directory, element.Node.Pid, element.Id, method, parameters, ct);
+    ) => SendAsync<T>(directory, element.Node.Pid, element.Id, new PipeRequest(method, parameters, PipeClient.RequestTimeout), ct);
 
     /// <summary>
     /// Sends <paramref name="method"/> to the client of <paramref name="pid"/>, for a call that names no element (keys typed
@@ -39,30 +39,30 @@ public static class PipeCalls
     /// <param name="pid">The client's process id.</param>
     /// <param name="method">The host method, e.g. <c>send_keys</c> (see <see cref="ProtocolMethods"/>).</param>
     /// <param name="parameters">The request's params object, or null for a method that takes none.</param>
+    /// <param name="timeout">How long to wait for the answer: <see cref="PipeClient.RequestTimeout"/>, or longer for a host-side wait.</param>
     /// <param name="ct">Cancels the send.</param>
     /// <exception cref="McpException">The pid has no usable pipe, the pipe closed, or the host answered with a coded error.</exception>
-    public static Task<T> SendForPidAsync<T>(PipeDirectory directory, int pid, string method, object? parameters, CancellationToken ct) =>
-        SendAsync<T>(directory, pid, null, method, parameters, ct);
+    public static Task<T> SendForPidAsync<T>(
+        PipeDirectory directory,
+        int pid,
+        string method,
+        object? parameters,
+        TimeSpan timeout,
+        CancellationToken ct
+    ) => SendAsync<T>(directory, pid, null, new PipeRequest(method, parameters, timeout), ct);
 
     /// <summary>
     /// The send both entry points share; <paramref name="elementId"/> is null for a pid-level call, whose messages name the
     /// pid instead. A successful call records the pid as the directory's last target.
     /// </summary>
-    private static async Task<T> SendAsync<T>(
-        PipeDirectory directory,
-        int pid,
-        string? elementId,
-        string method,
-        object? parameters,
-        CancellationToken ct
-    )
+    private static async Task<T> SendAsync<T>(PipeDirectory directory, int pid, string? elementId, PipeRequest request, CancellationToken ct)
     {
         PipeClient client = await directory.TryGetAsync(pid, ct).ConfigureAwait(false) ?? throw PipeClosed(directory, elementId, pid);
 
         T result;
         try
         {
-            result = await client.SendAsync<T>(method, parameters, ct).ConfigureAwait(false);
+            result = await client.SendAsync<T>(request.Method, request.Parameters, request.Timeout, ct).ConfigureAwait(false);
         }
         catch (ObjectDisposedException)
         {
@@ -131,3 +131,9 @@ public static class PipeCalls
 /// <param name="Id">The short id the registry handed out, named in the messages a caller acts on.</param>
 /// <param name="Node">The client pipe node that id resolves to.</param>
 public sealed record PipeElement(string Id, PipeNodeRef Node);
+
+/// <summary>One request to a client's automation pipe: the host method, its params, and how long its answer may take.</summary>
+/// <param name="Method">The host method (see <see cref="ProtocolMethods"/>).</param>
+/// <param name="Parameters">The request's params object, or null for a method that takes none.</param>
+/// <param name="Timeout">How long to wait for the answer once the request is sent.</param>
+internal sealed record PipeRequest(string Method, object? Parameters, TimeSpan Timeout);

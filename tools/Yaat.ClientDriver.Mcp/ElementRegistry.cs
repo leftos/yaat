@@ -85,16 +85,14 @@ public sealed class ElementRegistry(ILogger<ElementRegistry> logger)
 
     /// <summary>
     /// The UI Automation element an id was registered for, or throws a message the agent can act on. An id registered for
-    /// a client's automation pipe is refused: every other tool taking an element id routes a pipe id over the pipe before
-    /// calling this, so only screenshot, which drives UI Automation only, can reach the refusal.
+    /// a client's automation pipe is refused: every tool taking an element id routes a pipe id over the pipe before calling
+    /// this, so no tool reaches the refusal today; it guards a tool that drives UI Automation only.
     /// </summary>
     public AutomationElement ResolveUia(string id)
     {
         if (Resolve(id) is not UiaElementRef reference)
         {
-            throw new McpException(
-                $"Element '{id}' belongs to a YAAT client driven over its automation pipe; screenshot cannot drive it until it routes over the pipe."
-            );
+            throw new McpException($"Element '{id}' belongs to a YAAT client driven over its automation pipe; this tool drives UI Automation only.");
         }
 
         AutomationElement element = reference.Element;

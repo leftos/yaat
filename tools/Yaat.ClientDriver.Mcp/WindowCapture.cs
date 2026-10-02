@@ -16,6 +16,12 @@ namespace Yaat.ClientDriver.Mcp;
 /// <param name="Source">Where the pixels came from: the window's own content, or whatever the screen showed at its rectangle.</param>
 internal sealed record CaptureResult(string Path, int SourceWidth, int SourceHeight, int Width, int Height, byte[] Png, string Source);
 
+/// <summary>A PNG a YAAT client rendered itself and sent over its automation pipe, with the pixel size it reports.</summary>
+/// <param name="Png">The decoded PNG bytes.</param>
+/// <param name="Width">Width of the render, in pixels.</param>
+/// <param name="Height">Height of the render, in pixels.</param>
+internal sealed record PipeShot(byte[] Png, int Width, int Height);
+
 /// <summary>
 /// Captures an element to a PNG — the only read path into surfaces UI Automation cannot see, such as CRC's scopes. A YAAT window
 /// is asked to render itself (PrintWindow), so a covered window still captures correctly; anything else is copied off the screen.
@@ -112,13 +118,50 @@ internal static partial class WindowCapture
         }
 
         using Bitmap output = Resize(source, width, height);
-        Directory.CreateDirectory(directory);
-        string path = System.IO.Path.Combine(directory, $"{DateTime.Now:yyyyMMdd-HHmmss-fff}.png");
         using MemoryStream buffer = new();
         output.Save(buffer, ImageFormat.Png);
         byte[] png = buffer.ToArray();
+        return new CaptureResult(SavePng(png, directory), source.Width, source.Height, width, height, png, sourceDescription);
+    }
+
+    /// <summary>
+    /// A PNG a YAAT client rendered itself, at the size it reports: saved byte for byte when it fits <paramref name="maxWidth"/>,
+    /// otherwise decoded and downscaled as a captured window is.
+    /// </summary>
+    internal static CaptureResult FromPng(PipeShot shot, int maxWidth, string directory, string sourceDescription)
+    {
+        if ((maxWidth <= 0) || (shot.Width <= maxWidth))
+        {
+            return new CaptureResult(SavePng(shot.Png, directory), shot.Width, shot.Height, shot.Width, shot.Height, shot.Png, sourceDescription);
+        }
+
+        using MemoryStream stream = new(shot.Png);
+        Bitmap source;
+        try
+        {
+            source = new Bitmap(stream);
+        }
+        catch (ArgumentException ex)
+        {
+            throw new McpException(
+                $"The client's {shot.Width}x{shot.Height} screenshot is not a PNG this server can decode to downscale; pass maxWidth 0",
+                ex
+            );
+        }
+
+        using (source)
+        {
+            return Encode(source, maxWidth, directory, sourceDescription);
+        }
+    }
+
+    /// <summary>Writes <paramref name="png"/> to a timestamped file in <paramref name="directory"/> and returns its path.</summary>
+    private static string SavePng(byte[] png, string directory)
+    {
+        Directory.CreateDirectory(directory);
+        string path = System.IO.Path.Combine(directory, $"{DateTime.Now:yyyyMMdd-HHmmss-fff}.png");
         File.WriteAllBytes(path, png);
-        return new CaptureResult(path, source.Width, source.Height, width, height, png, sourceDescription);
+        return path;
     }
 
     private static Bitmap Grab(int x, int y, int width, int height)

@@ -42,5 +42,7 @@
     <Compile Include="..\Yaat.Client.UI.Tests\ModuleInit.cs" Link="ModuleInit.cs" />
     <!-- xunit.runner.json must be next to the test DLL or xUnit ignores it. -->
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- A real PNG a scripted pipe host answers screenshot with: headless drawing encodes none a decoder reads. -->
+    <None Include="TestData\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

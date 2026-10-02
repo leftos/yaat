@@ -67,7 +67,7 @@ public sealed class ElementRegistryTests
     }
 
     [Fact]
-    public void ResolveUia_PipeId_NamesTheUiaOnlyTools()
+    public void ResolveUia_PipeId_SaysTheToolDrivesUiaOnly()
     {
         ElementRegistry registry = NewRegistry();
         string id = registry.Register(4242, 1);
@@ -75,7 +75,7 @@ public sealed class ElementRegistryTests
         McpException failure = Assert.Throws<McpException>(() => registry.ResolveUia(id));
 
         Assert.Equal(
-            $"Element '{id}' belongs to a YAAT client driven over its automation pipe; screenshot cannot drive it until it routes over the pipe.",
+            $"Element '{id}' belongs to a YAAT client driven over its automation pipe; this tool drives UI Automation only.",
             failure.Message
         );
     }

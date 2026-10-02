@@ -31,7 +31,9 @@ param(
         'set_text',
         'send_keys',
         'set_input_mode',
-        'focus'
+        'focus',
+        'wait_for',
+        'queue_file_pick'
     )
 )
 

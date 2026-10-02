@@ -19,8 +19,13 @@ namespace Yaat.ClientDriver.Mcp.Pipe;
 /// <param name="logger">Where connection diagnostics go (stderr through the host's logging).</param>
 public sealed class PipeClient(string pipeName, int? pid, ILogger<PipeClient> logger) : IAsyncDisposable
 {
+    /// <summary>
+    /// How long a request waits for its answer: every call passes this, except one whose host-side wait runs longer
+    /// (wait_for).
+    /// </summary>
+    public static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(30);
+
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(30);
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
     private readonly SemaphoreSlim _sendGate = new(1, 1);
@@ -33,12 +38,13 @@ public sealed class PipeClient(string pipeName, int? pid, ILogger<PipeClient> lo
     /// <summary>Sends one request and deserializes the answer's <c>result</c> as <typeparamref name="T"/>.</summary>
     /// <param name="method">The host method, e.g. <c>ping</c> (see <see cref="ProtocolMethods"/>).</param>
     /// <param name="parameters">The request's params object, or null for a method that takes none.</param>
+    /// <param name="timeout">How long to wait for the answer once the request is sent, <see cref="RequestTimeout"/> for most calls.</param>
     /// <param name="ct">Cancels the send; the cancel propagates unchanged and drops the connection.</param>
     /// <exception cref="PipeRemoteException">The host answered with a coded error.</exception>
     /// <exception cref="McpException">The connection closed, failed or timed out; the next call reconnects.</exception>
     /// <exception cref="JsonException">The host answered with a line that is not a response; the connection is dropped.</exception>
     /// <exception cref="InvalidOperationException">The host answered with a foreign id, or with neither result nor error.</exception>
-    public async Task<T> SendAsync<T>(string method, object? parameters, CancellationToken ct)
+    public async Task<T> SendAsync<T>(string method, object? parameters, TimeSpan timeout, CancellationToken ct)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         await _sendGate.WaitAsync(ct).ConfigureAwait(false);
@@ -49,7 +55,7 @@ public sealed class PipeClient(string pipeName, int? pid, ILogger<PipeClient> lo
             try
             {
                 await EnsureConnectedAsync(ct).ConfigureAwait(false);
-                return await SendCoreAsync<T>(method, parameters, ct).ConfigureAwait(false);
+                return await SendCoreAsync<T>(method, parameters, timeout, ct).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -120,7 +126,7 @@ public sealed class PipeClient(string pipeName, int? pid, ILogger<PipeClient> lo
         _writer = new StreamWriter(pipe, Utf8NoBom) { AutoFlush = true };
     }
 
-    private async Task<T> SendCoreAsync<T>(string method, object? parameters, CancellationToken ct)
+    private async Task<T> SendCoreAsync<T>(string method, object? parameters, TimeSpan timeout, CancellationToken ct)
     {
         StreamWriter writer = _writer ?? throw new InvalidOperationException("The automation pipe is not connected");
         StreamReader reader = _reader ?? throw new InvalidOperationException("The automation pipe is not connected");
@@ -134,7 +140,7 @@ public sealed class PipeClient(string pipeName, int? pid, ILogger<PipeClient> lo
         };
 
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeoutCts.CancelAfter(RequestTimeout);
+        timeoutCts.CancelAfter(timeout);
 
         await writer.WriteLineAsync(ProtocolSerializer.Serialize(request).AsMemory(), timeoutCts.Token).ConfigureAwait(false);
         string line =

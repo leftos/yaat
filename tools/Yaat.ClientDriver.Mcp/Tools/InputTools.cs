@@ -63,7 +63,7 @@ public sealed class InputTools(ElementRegistry registry, PipeDirectory pipes, IL
         }
 
         AutomationElement element = registry.ResolveUia(elementId);
-        return UiaQuery.Guarded(logger, "invoke", elementId, () => InvokeElement(element, elementId));
+        return UiaRouted(UiaQuery.Guarded(logger, "invoke", elementId, () => InvokeElement(element, elementId)));
     }
 
     [McpServerTool]
@@ -95,7 +95,9 @@ public sealed class InputTools(ElementRegistry registry, PipeDirectory pipes, IL
         AutomationElement element = registry.ResolveUia(elementId);
         MouseButton mouseButton = ParseButton(button);
         KeyModifiers keyModifiers = ParseModifiers(modifiers);
-        return UiaQuery.Guarded(logger, "click", elementId, () => ClickElement(element, elementId, mouseButton, doubleClick, keyModifiers));
+        return UiaRouted(
+            UiaQuery.Guarded(logger, "click", elementId, () => ClickElement(element, elementId, mouseButton, doubleClick, keyModifiers))
+        );
     }
 
     [McpServerTool]
@@ -127,7 +129,7 @@ public sealed class InputTools(ElementRegistry registry, PipeDirectory pipes, IL
     {
         if (string.IsNullOrEmpty(windowElementId))
         {
-            return ClickScreenPoint(x, y, button, doubleClick, modifiers);
+            return UiaRouted(ClickScreenPoint(x, y, button, doubleClick, modifiers));
         }
 
         if (registry.Resolve(windowElementId) is not PipeNodeRef window)
@@ -165,7 +167,7 @@ public sealed class InputTools(ElementRegistry registry, PipeDirectory pipes, IL
         }
 
         AutomationElement element = registry.ResolveUia(elementId);
-        return UiaQuery.Guarded(logger, "set_text", elementId, () => WriteText(element, elementId, text));
+        return UiaRouted(UiaQuery.Guarded(logger, "set_text", elementId, () => WriteText(element, elementId, text)));
     }
 
     [McpServerTool]
@@ -176,15 +178,15 @@ public sealed class InputTools(ElementRegistry registry, PipeDirectory pipes, IL
             + "sends modifiers — ^a for Ctrl+A, %{F4} for Alt+F4, +a for Shift+A — and drives the native file dialog, which never "
             + "appears in a process's window list: send the full path followed by {ENTER}. The result ends with (virtual) or (real). "
             + "Over a YAAT client's automation pipe the keys, modifiers included, go in any mode: to focusElementId when it is an id "
-            + "from the pipe, or, with focusElementId empty, to the focused element of the client the last pipe call reached; the result "
-            + "ends with (pipe)."
+            + "from the pipe, or, with focusElementId empty, to the focused element of the client the last pipe call reached, unless a UI "
+            + "Automation call came since; the result ends with (pipe)."
     )]
     public async Task<string> SendKeysAsync(
         [Description("The keystrokes, in SendKeys syntax.")] string keys,
         CancellationToken cancellationToken,
         [Description(
             "Element id to focus first, or empty to type into whatever is focused now — or, after a call over a YAAT client's automation "
-                + "pipe, the focused element of that client."
+                + "pipe, the focused element of that client, unless a UI Automation call came since."
         )]
             string focusElementId = ""
     )
@@ -201,7 +203,7 @@ public sealed class InputTools(ElementRegistry registry, PipeDirectory pipes, IL
             return await PipeInput.SendKeysAsync(pipes, new PipeElement(focusElementId, node), keys, cancellationToken).ConfigureAwait(false);
         }
 
-        return SendUiaKeys(keys, focusElementId);
+        return UiaRouted(SendUiaKeys(keys, focusElementId));
     }
 
     [McpServerTool]
@@ -219,7 +221,7 @@ public sealed class InputTools(ElementRegistry registry, PipeDirectory pipes, IL
         }
 
         AutomationElement element = registry.ResolveUia(elementId);
-        return UiaQuery.Guarded(logger, "focus", elementId, () => FocusAndRemember(element, elementId));
+        return UiaRouted(UiaQuery.Guarded(logger, "focus", elementId, () => FocusAndRemember(element, elementId)));
     }
 
     private static string ModeName(InputMode mode) => mode == InputMode.Real ? "real" : "virtual";
@@ -277,6 +279,16 @@ public sealed class InputTools(ElementRegistry registry, PipeDirectory pipes, IL
                         : VirtualKeysToElement(element, focusElementId, keys)
             );
         }
+    }
+
+    /// <summary>
+    /// A call's <paramref name="result"/> once it went through UI Automation or native input and succeeded: untargeted keys follow
+    /// what was touched last, so the client remembered from the last pipe call is forgotten.
+    /// </summary>
+    private string UiaRouted(string result)
+    {
+        pipes.ForgetLastTarget();
+        return result;
     }
 
     private static string ClickVerb(bool doubleClick) => doubleClick ? "double-clicked" : "clicked";

@@ -456,6 +456,32 @@ public sealed class InputToolsPipeTests : AutomationHostFixture
         }
     }
 
+    // Untargeted keys follow whatever the agent touched last, YAAT or CRC: a UI Automation call after a pipe call stops
+    // send_keys from typing into the YAAT client. The desktop root is walked without any input being driven at it.
+    [AvaloniaFact]
+    public async Task UiaCall_AfterPipeCall_ClearsRememberedPid()
+    {
+        using AutomationHost host = StartHost(() => Windows);
+        ShowWindow("PipeWindow", Column(new TextBox { Name = "Box" }), null);
+        PipeDirectory directory = NewPipeDirectory();
+        try
+        {
+            var registry = new ElementRegistry(NullLogger<ElementRegistry>.Instance);
+            var inspect = new InspectTools(registry, directory, NullLogger<InspectTools>.Instance);
+            await inspect.ListWindowsAsync(Pid, CancellationToken.None);
+            Assert.Equal(Pid, directory.LastTargetPid);
+            string rootId = registry.Register(AutomationElement.RootElement);
+
+            await inspect.DumpTreeAsync(rootId, CancellationToken.None, 0);
+
+            Assert.Null(directory.LastTargetPid);
+        }
+        finally
+        {
+            await directory.ForgetAsync(Pid);
+        }
+    }
+
     // The desktop root is registered as a UI Automation element without any input being driven at it.
     [Fact]
     public async Task ClickPoint_UiaWindowId_Refused()

@@ -26,7 +26,7 @@ public sealed class PipeClientTests : AutomationHostFixture
         using AutomationHost host = StartHost(() => Windows);
         await using var client = new PipeClient(PipeName, null, NullLogger<PipeClient>.Instance);
 
-        PingResult ping = await client.SendAsync<PingResult>(ProtocolMethods.Ping, null, CancellationToken.None);
+        PingResult ping = await client.SendAsync<PingResult>(ProtocolMethods.Ping, null, PipeClient.RequestTimeout, CancellationToken.None);
 
         Assert.Equal(Environment.ProcessId, ping.Pid);
         Assert.Equal(ProtocolVersion.Current, ping.ProtocolVersion);
@@ -39,7 +39,12 @@ public sealed class PipeClientTests : AutomationHostFixture
         using AutomationHost host = StartHost(() => Windows);
         await using var client = new PipeClient(PipeName, null, NullLogger<PipeClient>.Instance);
 
-        List<WindowInfo> windows = await client.SendAsync<List<WindowInfo>>(ProtocolMethods.ListWindows, null, CancellationToken.None);
+        List<WindowInfo> windows = await client.SendAsync<List<WindowInfo>>(
+            ProtocolMethods.ListWindows,
+            null,
+            PipeClient.RequestTimeout,
+            CancellationToken.None
+        );
 
         Assert.Contains(windows, window => window.Title == "AutomationRoot");
     }
@@ -51,7 +56,7 @@ public sealed class PipeClientTests : AutomationHostFixture
         await using var client = new PipeClient(PipeName, null, NullLogger<PipeClient>.Instance);
 
         PipeRemoteException error = await Assert.ThrowsAsync<PipeRemoteException>(() =>
-            client.SendAsync<PingResult>("no_such_method", null, CancellationToken.None)
+            client.SendAsync<PingResult>("no_such_method", null, PipeClient.RequestTimeout, CancellationToken.None)
         );
 
         Assert.Equal(AutomationErrorCodes.InvalidParam, error.Code);
@@ -70,7 +75,12 @@ public sealed class PipeClientTests : AutomationHostFixture
         ShowWindow("AutomationRoot", Pad(), null);
 
         // A request the host will not answer soon: the wait_for polls to its timeout, so the send stays in flight.
-        Task<WaitForResult> pending = client.SendAsync<WaitForResult>(ProtocolMethods.WaitFor, CountEqualsParams(), CancellationToken.None);
+        Task<WaitForResult> pending = client.SendAsync<WaitForResult>(
+            ProtocolMethods.WaitFor,
+            CountEqualsParams(),
+            PipeClient.RequestTimeout,
+            CancellationToken.None
+        );
         ValueTask disposal = client.DisposeAsync();
         host.Dispose();
 
@@ -87,9 +97,14 @@ public sealed class PipeClientTests : AutomationHostFixture
         ShowWindow("AutomationRoot", Pad(), null);
         using var cancellation = new CancellationTokenSource();
         // Open the connection first, so the cancel lands on a request already on the wire rather than on the connect.
-        _ = await client.SendAsync<PingResult>(ProtocolMethods.Ping, null, CancellationToken.None);
+        _ = await client.SendAsync<PingResult>(ProtocolMethods.Ping, null, PipeClient.RequestTimeout, CancellationToken.None);
 
-        Task<WaitForResult> pending = client.SendAsync<WaitForResult>(ProtocolMethods.WaitFor, CountEqualsParams(), cancellation.Token);
+        Task<WaitForResult> pending = client.SendAsync<WaitForResult>(
+            ProtocolMethods.WaitFor,
+            CountEqualsParams(),
+            PipeClient.RequestTimeout,
+            cancellation.Token
+        );
         // The request is answered only when the wait_for's polls run out; the cancel lands well inside that window.
         await Task.Delay(300);
         cancellation.Cancel();
@@ -97,7 +112,7 @@ public sealed class PipeClientTests : AutomationHostFixture
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
 
         // The host's late answer to the cancelled request would desync a reused connection; this one was dropped.
-        PingResult ping = await client.SendAsync<PingResult>(ProtocolMethods.Ping, null, CancellationToken.None);
+        PingResult ping = await client.SendAsync<PingResult>(ProtocolMethods.Ping, null, PipeClient.RequestTimeout, CancellationToken.None);
         Assert.Equal(Environment.ProcessId, ping.Pid);
     }
 
@@ -106,16 +121,16 @@ public sealed class PipeClientTests : AutomationHostFixture
     {
         using AutomationHost host = StartHost(() => Windows);
         await using var client = new PipeClient(PipeName, null, NullLogger<PipeClient>.Instance);
-        _ = await client.SendAsync<PingResult>(ProtocolMethods.Ping, null, CancellationToken.None);
+        _ = await client.SendAsync<PingResult>(ProtocolMethods.Ping, null, PipeClient.RequestTimeout, CancellationToken.None);
 
         host.Dispose();
         McpException closed = await Assert.ThrowsAsync<McpException>(() =>
-            client.SendAsync<PingResult>(ProtocolMethods.Ping, null, CancellationToken.None)
+            client.SendAsync<PingResult>(ProtocolMethods.Ping, null, PipeClient.RequestTimeout, CancellationToken.None)
         );
         Assert.Contains(PipeName, closed.Message, StringComparison.Ordinal);
 
         using AutomationHost restarted = StartHost(() => Windows);
-        PingResult ping = await client.SendAsync<PingResult>(ProtocolMethods.Ping, null, CancellationToken.None);
+        PingResult ping = await client.SendAsync<PingResult>(ProtocolMethods.Ping, null, PipeClient.RequestTimeout, CancellationToken.None);
         Assert.Equal(Environment.ProcessId, ping.Pid);
     }
 
@@ -128,7 +143,7 @@ public sealed class PipeClientTests : AutomationHostFixture
         PipeClient? client = await directory.TryGetAsync(Environment.ProcessId, CancellationToken.None);
 
         Assert.NotNull(client);
-        PingResult ping = await client.SendAsync<PingResult>(ProtocolMethods.Ping, null, CancellationToken.None);
+        PingResult ping = await client.SendAsync<PingResult>(ProtocolMethods.Ping, null, PipeClient.RequestTimeout, CancellationToken.None);
         Assert.Equal(Environment.ProcessId, ping.Pid);
         await directory.ForgetAsync(Environment.ProcessId);
     }
@@ -194,7 +209,9 @@ public sealed class PipeClientTests : AutomationHostFixture
 
         await directory.ForgetAsync(Environment.ProcessId);
 
-        await Assert.ThrowsAsync<ObjectDisposedException>(() => client.SendAsync<PingResult>(ProtocolMethods.Ping, null, CancellationToken.None));
+        await Assert.ThrowsAsync<ObjectDisposedException>(() =>
+            client.SendAsync<PingResult>(ProtocolMethods.Ping, null, PipeClient.RequestTimeout, CancellationToken.None)
+        );
         PipeClient? rebuilt = await directory.TryGetAsync(Environment.ProcessId, CancellationToken.None);
         Assert.NotNull(rebuilt);
         Assert.NotSame(client, rebuilt);
@@ -223,7 +240,9 @@ public sealed class PipeClientTests : AutomationHostFixture
             PipeClient? afterExit = await directory.TryGetAsync(childPid, CancellationToken.None);
 
             Assert.Null(afterExit);
-            await Assert.ThrowsAsync<ObjectDisposedException>(() => cached.SendAsync<PingResult>(ProtocolMethods.Ping, null, CancellationToken.None));
+            await Assert.ThrowsAsync<ObjectDisposedException>(() =>
+                cached.SendAsync<PingResult>(ProtocolMethods.Ping, null, PipeClient.RequestTimeout, CancellationToken.None)
+            );
         }
         finally
         {

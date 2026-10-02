@@ -70,7 +70,7 @@ public static class PipeInput
     public static async Task<string> SendKeysToFocusedAsync(PipeDirectory pipes, int pid, string keys, CancellationToken ct)
     {
         SendKeysResult result = await PipeCalls
-            .SendForPidAsync<SendKeysResult>(pipes, pid, ProtocolMethods.SendKeys, new { keys }, ct)
+            .SendForPidAsync<SendKeysResult>(pipes, pid, ProtocolMethods.SendKeys, new { keys }, PipeClient.RequestTimeout, ct)
             .ConfigureAwait(false);
         return $"sent '{keys}' to the focused element ({Strokes(result.Strokes)}, pipe)";
     }
