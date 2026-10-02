@@ -1051,10 +1051,7 @@ public partial class AircraftModel : ObservableObject, IMenuAircraft
     /// </summary>
     public string? GroundAirportId { get; set; }
 
-    /// <summary>
-    /// True when this ground departure is held for release (hold-for-release armed at its airport).
-    /// Drives the radar "Release (HFR)" context-menu item and the held datablock badge.
-    /// </summary>
+    /// <inheritdoc />
     public bool IsHeldForRelease { get; set; }
 
     /// <summary>

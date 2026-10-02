@@ -1,0 +1,48 @@
+# list held-for-release
+SWA108 — B738 [disabled]
+Release (HFR)
+---
+Command…
+Note…
+---
+Favorite Commands
+  (no items) [disabled]
+---
+Hold position
+Line up and wait 30
+Cleared for takeoff 30
+  Default (SID/on course)
+  Fly runway heading
+  ---
+  Custom... picker:input
+---
+Track
+  Track
+  Drop track
+  ---
+  Accept handoff
+  Cancel handoff
+  Acknowledge pointout
+Squawk
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
+Ask pilot to say...
+  Altitude
+  Heading
+  Speed
+  Mach
+  Position
+  Expected approach
+Coordination
+  Release
+  Hold
+  Recall
+  Acknowledge release
+---
+Edit flight plan
+---
+Delete

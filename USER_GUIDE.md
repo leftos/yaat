@@ -992,7 +992,7 @@ Model the departure-release coordination a TRACON provides to satellite towered 
 Release them in any of these ways:
 
 - `REL <airport>` (or `CTOA <airport>`) — release the next pending departure at that field.
-- `REL <callsign>` — release a specific aircraft (also available as a one-click **Release (HFR)** item in the aircraft's radar right-click menu).
+- `REL <callsign>` — release a specific aircraft (also available as a one-click **Release (HFR)** item under the title of the aircraft's right-click menu on the radar, ground view and aircraft list).
 - `REL <airport> <minutes>` — release the field's whole held queue, auto-spaced by that many minutes (e.g. `REL SJC 2`).
 - `HFROFF <airport>` — disarm the field; anything still held is auto-released.
 

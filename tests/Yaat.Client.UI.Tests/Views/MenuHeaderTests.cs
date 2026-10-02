@@ -23,8 +23,9 @@ namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
 /// The header every aircraft menu opens with (<see cref="SharedMenuGroups.AddHeader"/>): the bold title naming the
-/// callsign and the filed type, any view-side rows under it, then the free-text Command… and Note…, which ask the host
-/// to open its command and note flyouts.
+/// callsign and the filed type, any view-side rows under it, the release items (Release (HFR) and Check release
+/// window) where they apply, then the free-text Command… and Note…, which ask the host to open its command and note
+/// flyouts.
 /// </summary>
 public class MenuHeaderTests
 {
@@ -313,6 +314,127 @@ public class MenuHeaderTests
         List<string> children = [.. dataBlock.Items.Select(Describe)];
         Assert.Contains("Scratchpad...", children);
         Assert.DoesNotContain(children, c => c.StartsWith("Note", StringComparison.Ordinal));
+    }
+
+    // --- The release items, in the header on every view ----------------------------------------
+
+    [AvaloniaFact]
+    public void Header_HeldForRelease_ShowsReleaseUnderTitle_OnEveryView()
+    {
+        Assert.Equal(
+            ["SWA108 — B738", "Release (HFR)", "---", "Command…", "Note…", "---"],
+            TopLevel(MenuView.Ground, "held-for-release", out _)[..6]
+        );
+        Assert.Equal(["SWA108 — B738", "Release (HFR)", "---", "Command…", "Note…", "---"], TopLevel(MenuView.List, "held-for-release", out _)[..6]);
+
+        List<string> radar = TopLevel(MenuView.Radar, "held-for-release", out _);
+        Assert.Equal("SWA108 — B738", radar[0]);
+        Assert.Equal("Release (HFR)", radar[1]);
+        Assert.Equal("---", radar[2]);
+        Assert.Single(radar, i => i == "Release (HFR)");
+    }
+
+    [AvaloniaFact]
+    public void Header_CfrWindow_ShowsCheckReleaseWindowUnderTitle_OnEveryView()
+    {
+        Assert.Equal(
+            ["SWA109 — B738", "Check release window", "---", "Command…", "Note…", "---"],
+            TopLevel(MenuView.Ground, "cfr-window", out _)[..6]
+        );
+        Assert.Equal(["SWA109 — B738", "Check release window", "---", "Command…", "Note…", "---"], TopLevel(MenuView.List, "cfr-window", out _)[..6]);
+
+        List<string> radar = TopLevel(MenuView.Radar, "cfr-window", out _);
+        Assert.Equal("SWA109 — B738", radar[0]);
+        Assert.Equal("Check release window", radar[1]);
+        Assert.Equal("---", radar[2]);
+        Assert.Single(radar, i => i == "Check release window");
+    }
+
+    [AvaloniaFact]
+    public void Header_HeldAndCfrWindow_ReleaseBeforeCheck()
+    {
+        AircraftModel ac = Jet();
+        ac.IsHeldForRelease = true;
+        ac.CfrWindowStartUtc = new DateTime(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc);
+
+        List<string> items = [.. Header(ac, new RecordingMenuHost(""), []).Select(Describe)];
+
+        Assert.Equal(["SWA104 — B738", "Release (HFR)", "Check release window", "---", "Command…", "Note…", "---"], items);
+    }
+
+    [AvaloniaFact]
+    public void Header_NotHeldNoWindow_NoReleaseRows()
+    {
+        List<string> items = [.. Header(Jet(), new RecordingMenuHost(""), []).Select(Describe)];
+
+        Assert.DoesNotContain("Release (HFR)", items);
+        Assert.DoesNotContain("Check release window", items);
+    }
+
+    [AvaloniaFact]
+    public void CheckReleaseWindow_NotInCommandBlock()
+    {
+        foreach (MenuView view in new[] { MenuView.Ground, MenuView.List })
+        {
+            List<string> items = TopLevel(view, "cfr-window", out ContextMenu menu);
+
+            Assert.Equal(["SWA109 — B738", "Check release window"], items[..2]);
+            Assert.Single(items, i => i == "Check release window");
+            Assert.Equal(1, CountOccurrences(MenuTreeSnapshot.Render(menu), "Check release window"));
+        }
+    }
+
+    // A surface live-traffic shadow is not controllable, so the radar header offers neither release row even with both flags set.
+    [AvaloniaFact]
+    public void Header_ShadowWithReleaseFlags_ShowsNoReleaseRow_OnTheRadar()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(_navDb);
+        var main = new MainViewModel(new FakeFilePickerService());
+        main.DisplayFavorites.Clear();
+        main.Ground.SetLayoutForTesting(MenuGoldenFixtures.OakLayoutForClient);
+
+        AircraftModel ac = MenuGoldenFixtures.For(MenuView.Radar).Single(f => f.Name == "live-traffic-surface").Aircraft;
+        ac.IsHeldForRelease = true;
+        ac.CfrWindowStartUtc = new DateTime(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc);
+        main.Aircraft.Add(ac);
+
+        ContextMenu menu = MenuHostHarness.BuildRadarMenu(main, ac, null, MenuGoldenFixtures.Initials);
+        List<string> items = [.. menu.Items.Select(Describe)];
+
+        Assert.DoesNotContain("Release (HFR)", items);
+        Assert.DoesNotContain("Check release window", items);
+    }
+
+    // The radar's own rows sit between the title and the shared release items.
+    [AvaloniaFact]
+    public void Header_Radar_ReleaseRowsFollowTitleRows()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(_navDb);
+        var main = new MainViewModel(new FakeFilePickerService());
+        main.DisplayFavorites.Clear();
+        main.Ground.SetLayoutForTesting(MenuGoldenFixtures.OakLayoutForClient);
+
+        AircraftModel ac = MenuGoldenFixtures.For(MenuView.Radar).Single(f => f.Name == "held-for-release").Aircraft;
+        ac.HoldKind = "HoldPosition";
+        main.Aircraft.Add(ac);
+
+        ContextMenu menu = MenuHostHarness.BuildRadarMenu(main, ac, null, MenuGoldenFixtures.Initials);
+        List<string> items = [.. menu.Items.Select(Describe)];
+
+        Assert.Equal(["SWA108 — B738", "Held: position", "Release (HFR)", "---"], items[..4]);
+    }
+
+    private static int CountOccurrences(string text, string value)
+    {
+        int count = 0;
+        int index = text.IndexOf(value, StringComparison.Ordinal);
+        while (index >= 0)
+        {
+            count++;
+            index = text.IndexOf(value, index + value.Length, StringComparison.Ordinal);
+        }
+
+        return count;
     }
 
     /// <summary>The top-level items of one golden fixture's menu on <paramref name="view"/>: each item's header, a separator as <c>---</c>.</summary>

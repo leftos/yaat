@@ -121,7 +121,25 @@ internal static class MenuGoldenFixtures
             ),
             new("lined-up", GroundJet("SWA106", "LinedUpAndWaiting", AircraftSituation.LinedUp, holdShort.Position, "30"), null),
             new("rollout-exit", RolloutJet(holdShort.Position), null),
+            new("held-for-release", HeldForRelease(taxiway), null),
+            new("cfr-window", CfrWindow(taxiway), null),
         ];
+    }
+
+    /// <summary>A B738 taxiing under an armed hold-for-release, which the header's Release (HFR) item clears.</summary>
+    private static AircraftModel HeldForRelease(LatLon position)
+    {
+        AircraftModel ac = GroundJet("SWA108", "Taxiing", AircraftSituation.Taxiing, position, "30");
+        ac.IsHeldForRelease = true;
+        return ac;
+    }
+
+    /// <summary>A B738 taxiing with a call-for-release window, which the header's Check release window item reports on.</summary>
+    private static AircraftModel CfrWindow(LatLon position)
+    {
+        AircraftModel ac = GroundJet("SWA109", "Taxiing", AircraftSituation.Taxiing, position, "30");
+        ac.CfrWindowStartUtc = new DateTime(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc);
+        return ac;
     }
 
     /// <summary>A B738 departing KOAK, on the ground in the given phase.</summary>

@@ -96,6 +96,9 @@ public static class MenuIds
     /// <summary>Acknowledge a departure release (<c>RDACK</c>).</summary>
     public const string CoordinationAcknowledge = "coordination.acknowledge";
 
+    /// <summary>Release an aircraft held for release (<c>REL</c>).</summary>
+    public const string CoordinationReleaseHeld = "coordination.release-held";
+
     /// <summary>Check the call-for-release window (<c>CFR CHECK</c>).</summary>
     public const string CoordinationCheckReleaseWindow = "coordination.check-release-window";
 

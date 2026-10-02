@@ -1663,11 +1663,7 @@ or callsign rides in the argument, no aircraft selection is needed.
 | `REL <callsign>` | Release a specific held departure. |
 | `REL <airport> <minutes>` | Release the field's **whole** held queue, auto-spaced by the given interval in minutes (e.g. `REL SJC 2` = one every two minutes). |
 
-Released departures don't pop airborne instantly — a held runway/airborne departure appears after a
-20–60 s delay; a held ground departure is auto-cleared for takeoff once it's holding short (after a
-short readback delay) and departs normally. The **Releases** flyout on the command bar shows the live
-rundown of what's held at each armed field with click-to-release buttons; a held departure also gets a
-one-click "Release (HFR)" item in its radar right-click menu.
+Released departures don't pop airborne instantly — a held runway/airborne departure appears after a 20–60 s delay; a held ground departure is auto-cleared for takeoff once it's holding short (after a short readback delay) and departs normally. The **Releases** flyout on the command bar shows the live rundown of what's held at each armed field with click-to-release buttons; a held departure also gets a one-click **Release (HFR)** item under the title of its right-click menu (radar / ground / list).
 
 ### Call for Release (CFR)
 
@@ -1691,9 +1687,7 @@ on the aircraft when warning bubbles are enabled — when the departure **depart
 expires (late), **departs before** the window opens (early), or is **still holding for release** when
 the window expires. Rejected if the aircraft is already airborne (nothing to release).
 
-While a window is active, the **Aircraft List** "Info" column shows a live amber `CFR M:SS` countdown
-badge for that departure (turning red `CFR EXP` past the window); the aircraft's right-click menu
-(radar / ground / list) also gains a **Check release window** item that runs `CFR CHECK`.
+While a window is active, the **Aircraft List** "Info" column shows a live amber `CFR M:SS` countdown badge for that departure (turning red `CFR EXP` past the window); while it is on the ground, the aircraft's right-click menu (radar / ground / list) also shows a **Check release window** item under its title that runs `CFR CHECK`.
 
 ### Timer (TIMER / TMR)
 

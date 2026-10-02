@@ -499,6 +499,32 @@ public class AircraftCommandApplicabilityTests
         Assert.False(AircraftCommandApplicability.CanCheckReleaseWindow(null));
     }
 
+    [Fact]
+    public void CanReleaseHeld_HeldAndControllable()
+    {
+        AircraftModel ac = Ac("At Parking", onGround: true);
+        Assert.False(AircraftCommandApplicability.CanReleaseHeld(ac));
+
+        ac.IsHeldForRelease = true;
+        Assert.True(AircraftCommandApplicability.CanReleaseHeld(ac));
+
+        // No on-ground term: a departure can be held for release off the ground.
+        ac.IsOnGround = false;
+        Assert.True(AircraftCommandApplicability.CanReleaseHeld(ac));
+
+        // A surface shadow is never controllable.
+        AircraftModel shadow = Shadow(onGround: true);
+        shadow.IsHeldForRelease = true;
+        Assert.False(AircraftCommandApplicability.CanReleaseHeld(shadow));
+
+        // An airborne shadow is controllable: the sim auto-assumes it and applies the command in the same call.
+        AircraftModel airborneShadow = Shadow(onGround: false);
+        airborneShadow.IsHeldForRelease = true;
+        Assert.True(AircraftCommandApplicability.CanReleaseHeld(airborneShadow));
+
+        Assert.False(AircraftCommandApplicability.CanReleaseHeld(null));
+    }
+
     [Theory]
     [InlineData("Taxiing", false, true)]
     [InlineData("Holding Short 28R", false, false)]

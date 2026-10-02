@@ -73,6 +73,7 @@ public class MenuCatalogCommandTests
         (MenuIds.CoordinationHold, "", "RDH"),
         (MenuIds.CoordinationRecall, "", "RDR"),
         (MenuIds.CoordinationAcknowledge, "", "RDACK"),
+        (MenuIds.CoordinationReleaseHeld, "", $"REL {Callsign}"),
         (MenuIds.CoordinationCheckReleaseWindow, "", "CFR CHECK"),
         (MenuIds.DataBlockScratchpad, BlockText, $"SP {BlockText}"),
         (MenuIds.DataBlockTempAltitude, "050", "TEMPALT 50"),
@@ -1761,6 +1762,20 @@ public class MenuCatalogCommandTests
         AssertSameOnEveryView(MenuIds.CoordinationCheckReleaseWindow, ac, offered);
     }
 
+    // Release (HFR) for a held departure on any view, and never for an uncontrollable surface shadow.
+    [AvaloniaTheory]
+    [InlineData(true, false, true)]
+    [InlineData(false, false, false)]
+    [InlineData(true, true, false)]
+    public void ReleaseHeld_OfferedOnlyWhenHeldAndControllable_OnEveryView(bool held, bool surfaceShadow, bool offered)
+    {
+        AircraftModel ac = OnGround("Taxiing", "IFR", "28R");
+        ac.IsHeldForRelease = held;
+        ac.IsLiveTraffic = surfaceShadow;
+
+        AssertSameOnEveryView(MenuIds.CoordinationReleaseHeld, ac, offered);
+    }
+
     private static void AssertSameOnEveryView(string id, AircraftModel ac, bool offered)
     {
         MenuCatalogEntry entry = MenuCatalog.Get(id);
@@ -1898,10 +1913,10 @@ public class MenuCatalogCommandTests
         Assert.Equal([("Exit left", "EL"), ("Exit right", "ER")], ListMenuCommands(aircraft, new RecordingMenuHost("")));
     }
 
-    // Taxiing with a call-for-release window: Hold position sends HOLD, as on every view, and the
-    // release-window check is offered on the phase and window alone.
+    // Taxiing with a call-for-release window: Hold position sends HOLD, as on every view; the release-window check is
+    // the shared header's row, not part of the command block.
     [AvaloniaFact]
-    public void ListMenu_TaxiingWithCfrWindow_SendsHoldAndCheckReleaseWindow()
+    public void ListMenu_TaxiingWithCfrWindow_SendsTheCommandBlockWithoutTheReleaseCheck()
     {
         var aircraft = new FakeMenuAircraft
         {
@@ -1912,12 +1927,7 @@ public class MenuCatalogCommandTests
         };
 
         Assert.Equal(
-            [
-                ("Hold position", "HOLD"),
-                ("Line up and wait 30", "LUAW"),
-                ("Cleared for takeoff 30 > Default (SID/on course)", "CTO"),
-                ("Check release window", "CFR CHECK"),
-            ],
+            [("Hold position", "HOLD"), ("Line up and wait 30", "LUAW"), ("Cleared for takeoff 30 > Default (SID/on course)", "CTO")],
             ListMenuCommands(aircraft, new RecordingMenuHost(""))
         );
     }
@@ -2249,6 +2259,8 @@ public class MenuCatalogCommandTests
         public bool HasActiveTaxiRoute { get; init; }
 
         public bool HasCfrWindow { get; init; }
+
+        public bool IsHeldForRelease { get; init; }
 
         public bool IsLiveTraffic => false;
 

@@ -83,10 +83,10 @@ public partial class RadarView
     }
 
     /// <summary>
-    /// The radar's own rows under the shared header's title: the route summary and hold status, then the release items
-    /// for a held-for-release aircraft and an on-ground one with a call-for-release window. None without an aircraft model.
+    /// The radar's own rows under the shared header's title: the route summary and hold status. None without an
+    /// aircraft model. The release items are the shared header's, not the radar's.
     /// </summary>
-    private List<MenuItem> RadarTitleRows(RadarViewModel vm, AircraftModel? ac, MenuContext context)
+    private List<MenuItem> RadarTitleRows(AircraftModel? ac)
     {
         List<MenuItem> rows = [];
         if (ac is null)
@@ -94,8 +94,6 @@ public partial class RadarView
             return rows;
         }
 
-        string callsign = context.Callsign;
-        string initials = context.Initials;
         if (BuildRouteSummaryItem(ac) is { } routeItem)
         {
             rows.Add(routeItem);
@@ -104,16 +102,6 @@ public partial class RadarView
         if (BuildHoldStatusItem(ac) is { } holdItem)
         {
             rows.Add(holdItem);
-        }
-
-        if (ac.IsHeldForRelease)
-        {
-            rows.Add(CreateMenuItem($"Release {callsign} (HFR)", () => vm.SendRawCommandAsync(callsign, initials, $"REL {callsign}")));
-        }
-
-        if ((ac.CfrWindowStartUtc is not null) && ac.IsOnGround)
-        {
-            rows.Add(CreateMenuItem($"Check {callsign} release window", () => vm.SendRawCommandAsync(callsign, initials, "CFR CHECK")));
         }
 
         return rows;
@@ -137,7 +125,7 @@ public partial class RadarView
         );
         var host = new RadarMenuHost(this, vm, main, ac);
         var menu = new ContextMenu();
-        SharedMenuGroups.AddHeader(menu.Items, ac, context, host, RadarTitleRows(vm, ac, context));
+        SharedMenuGroups.AddHeader(menu.Items, ac, context, host, RadarTitleRows(ac));
         menu.Items.Add(SharedMenuGroups.Favorites(ac, context, host));
         menu.Items.Add(new Separator());
 

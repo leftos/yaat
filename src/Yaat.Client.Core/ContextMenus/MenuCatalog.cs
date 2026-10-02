@@ -84,6 +84,13 @@ public static class MenuCatalog
         Leaf(MenuIds.CoordinationHold, "Hold", "RDH", Always),
         Leaf(MenuIds.CoordinationRecall, "Recall", "RDR", Always),
         Leaf(MenuIds.CoordinationAcknowledge, "Acknowledge release", "RDACK", Always),
+        new(
+            MenuIds.CoordinationReleaseHeld,
+            ReleaseHeldLabel,
+            MenuFlightRules.Both,
+            (ac, _) => AircraftCommandApplicability.CanReleaseHeld(ac),
+            (_, context, host) => BuildSend(ReleaseHeldLabel, $"REL {context.Callsign}", context, host)
+        ),
         Leaf(
             MenuIds.CoordinationCheckReleaseWindow,
             "Check release window",
@@ -308,6 +315,9 @@ public static class MenuCatalog
 
     /// <summary>The aircraft list's multi-selection assume item's label, which the number of selected shadows follows.</summary>
     private const string AssumeSelectedLabel = "Assume selected live traffic";
+
+    /// <summary>The Release (HFR) entry's label, which the header shows under the title on every view.</summary>
+    private const string ReleaseHeldLabel = "Release (HFR)";
 
     /// <summary>The placeholder of the Cleared for takeoff submenu's free-text item.</summary>
     private const string ClearedForTakeoffPlaceholder = "CTO arg (e.g. RH 3000, LT 270, DCT BERKS)";

@@ -364,6 +364,12 @@ public static class AircraftCommandApplicability
     public static bool CanCheckReleaseWindow(IMenuAircraft? ac) => IsControllable(ac) && ac.IsOnGround && ac.HasCfrWindow;
 
     /// <summary>
+    /// Release an aircraft held for release (<c>REL</c>). No on-ground term: a departure can be held for release off the
+    /// ground. The <see cref="IsControllable"/> guard keeps surface live-traffic shadows out, as in <see cref="CanCheckReleaseWindow"/>.
+    /// </summary>
+    public static bool CanReleaseHeld(IMenuAircraft? ac) => IsControllable(ac) && ac.IsHeldForRelease;
+
+    /// <summary>
     /// Break a ground conflict (<c>BREAK</c>), which overrides the ground-conflict speed limit for 15 seconds so one
     /// of two mutually stopped aircraft can push through — offered while taxiing. The <see cref="IsControllable"/>
     /// guard keeps surface live-traffic shadows out, as in <see cref="CanPushBack"/>.

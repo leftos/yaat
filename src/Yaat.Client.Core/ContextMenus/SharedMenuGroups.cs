@@ -103,8 +103,10 @@ public static class SharedMenuGroups
     /// <summary>
     /// The header every aircraft menu opens with: the bold, disabled title — the callsign and the type the aircraft
     /// filed (<see cref="IMenuAircraft.DisplayAircraftType"/>), or the bare callsign with no aircraft model or no type —
-    /// then <paramref name="titleRows"/>, the view's own rows under the title, then a separator, the free-text Command…
-    /// and Note… (which ask the host for its flyouts), and a separator.
+    /// then <paramref name="titleRows"/>, the view's own rows under the title, then the release items every view offers
+    /// where they apply (Release (HFR) while the aircraft is held for release, then Check release window while it has a
+    /// call-for-release window), then a separator, the free-text Command… and Note… (which ask the host for its
+    /// flyouts), and a separator.
     /// </summary>
     public static void AddHeader(
         ItemCollection items,
@@ -126,6 +128,9 @@ public static class SharedMenuGroups
         {
             items.Add(row);
         }
+
+        AddIfApplicable(items, MenuIds.CoordinationReleaseHeld, aircraft, context, host);
+        AddIfApplicable(items, MenuIds.CoordinationCheckReleaseWindow, aircraft, context, host);
 
         items.Add(new Separator());
         items.Add(Leaf(MenuIds.AircraftCommand, aircraft, context, host));
@@ -593,14 +598,13 @@ public static class SharedMenuGroups
     }
 
     /// <summary>
-    /// The ground view's phase-aware command items, in the ground's order: the release-window check, the relative
-    /// items, the pushback block, hold position, hold short, the taxi position's follow and give way, break conflict,
-    /// the runway clearances, the hold position's follow and give way, the landing items, then the taxi-route block.
-    /// Each adds nothing when it does not apply.
+    /// The ground view's phase-aware command items, in the ground's order: the relative items, the pushback block,
+    /// hold position, hold short, the taxi position's follow and give way, break conflict, the runway clearances, the
+    /// hold position's follow and give way, the landing items, then the taxi-route block. Each adds nothing when it
+    /// does not apply.
     /// </summary>
     public static void AddGroundAircraftCommands(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        AddIfApplicable(items, MenuIds.CoordinationCheckReleaseWindow, aircraft, context, host);
         AddGroundRelative(items, aircraft, context, host);
         AddGroundPushback(items, aircraft, context, host);
 
@@ -684,8 +688,8 @@ public static class SharedMenuGroups
     /// <summary>
     /// The aircraft list's phase-aware command items, in the list's order: the ground-movement block (push back, hold
     /// position, resume taxi and cross the held runway) for an on-ground aircraft, then line up and wait, Cleared for
-    /// takeoff, cancel takeoff clearance and the release-window check, then the landing items and the runway exits. The
-    /// landing block and the exits come from <see cref="AddFlatLandingAndExits"/>. The caller builds the context with
+    /// takeoff and cancel takeoff clearance, then the landing items and the runway exits. The landing block and the
+    /// exits come from <see cref="AddFlatLandingAndExits"/>. The caller builds the context with
     /// <see cref="MenuView.List"/>. Each item adds nothing when it does not apply.
     /// </summary>
     public static void AddListAircraftCommands(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
@@ -701,7 +705,6 @@ public static class SharedMenuGroups
         AddIfApplicable(items, MenuIds.TowerLineUpAndWait, aircraft, context, host);
         AddIfApplicable(items, MenuIds.TowerClearedForTakeoff, aircraft, context, host);
         AddIfApplicable(items, MenuIds.TowerCancelTakeoff, aircraft, context, host);
-        AddIfApplicable(items, MenuIds.CoordinationCheckReleaseWindow, aircraft, context, host);
         AddFlatLandingAndExits(items, aircraft, context, host);
     }
 

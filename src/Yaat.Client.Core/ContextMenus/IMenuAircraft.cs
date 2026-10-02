@@ -19,6 +19,12 @@ public interface IMenuAircraft
     /// <summary>True when the aircraft has a call-for-release window, which a release-window check reports on.</summary>
     bool HasCfrWindow { get; }
 
+    /// <summary>
+    /// True when a hold-for-release keeps the departure from departing. Drives the menu header's Release (HFR) item on
+    /// every view and the held datablock badge.
+    /// </summary>
+    bool IsHeldForRelease { get; }
+
     /// <summary>True for a track mirrored from an external live feed rather than flown by the simulation.</summary>
     bool IsLiveTraffic { get; }
 
