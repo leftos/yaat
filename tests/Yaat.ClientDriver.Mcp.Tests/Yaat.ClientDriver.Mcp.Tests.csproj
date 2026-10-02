@@ -2,6 +2,9 @@
   <!-- The MCP server's own tests. net10.0-windows because the server (and so its pipe client) is. -->
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
+    <!-- Builds on the Linux CI runner like the server itself; runs only on Windows, where UI Automation exists. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <IsTestProject Condition="!$([MSBuild]::IsOSPlatform('Windows'))">false</IsTestProject>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
