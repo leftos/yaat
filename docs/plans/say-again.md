@@ -35,11 +35,12 @@ Say again is a command for students. It asks a pilot to repeat its last transmis
 - **Verb** (user): `AGAIN` repeats the whole transmission, `AGAIN CS` only the callsign. Neither ATCTrainer's nor VICE's command list has a say-again verb; `SA` is already taken in `CommandRegistry`.
 - **Last transmission** (user): any pilot line on the frequency counts — readbacks, proactive calls, reports and "unable" lines. The repeat itself does not replace it (its text is the same).
 - **Mid-transmission** (user): at most one pending repeat per aircraft. A say-again while the pilot is transmitting or has a line queued queues one repeat behind it; a second say-again while one is pending is a no-op. The pending flag is snapshotted with the last transmission.
+- **Unaddressed "station calling, say again callsign"** (user): the most recent aircraft whose call still awaits a controller response (a check-in or a request) repeats its callsign; with none waiting, the last aircraft to transmit does.
+- **Pilots asking the student to say again** stays with pilot-AI M11.3/M11.4 (user); this programme builds the student verb and the last-transmission store they will reuse.
 
 ## Open decisions
 
-1. STT phrases ("say again", "say again callsign", "repeat"), and how an unaddressed "station calling ground, say again callsign" picks its aircraft (the last one that transmitted?).
-6. Pilots asking the student to say again (M11.3/M11.4 territory).
+1. The STT phrase set ("say again", "say again callsign", "repeat") and its rule shapes in `PhraseologyRules.cs`, settled at the STT step against the real corpus.
 
 ## Task Index rows for the landing commit
 
