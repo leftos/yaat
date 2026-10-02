@@ -1649,9 +1649,12 @@ public class PatternEntryTests : IDisposable
     }
 
     [Fact]
-    public void TeardropReentry_AltitudeProfileDescendsLinearly()
+    public void TeardropReentry_AltitudeProfileNeverClimbsAboveTheEntryHeight()
     {
-        // Waypoint altitude restrictions: anchor > lead-in > abeam, ending at TPA.
+        // Waypoint altitude restrictions step DOWN from the crossing (entry) height to TPA: the teardrop
+        // only ever sheds the AIM 4-3-3.a.2 entry height, never climbs above it (AIM 4-3-5). At an
+        // unauthored field the turbine entry height equals the TPA, so the profile stays at TPA — a B738
+        // crossing OAK 28R at TPA must not be commanded to climb 250 ft above its own pattern.
         RunwayInfo runway = MakeOak28R();
         AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
         aircraft.AircraftType = "B738";
@@ -1668,9 +1671,18 @@ public class PatternEntryTests : IDisposable
         int abeamAlt = route[2].AltitudeRestriction!.Altitude1Ft;
         int tpa = (int)teardrop.Waypoints.PatternAltitude;
 
-        _output.WriteLine($"Altitude profile: anchor={anchorAlt}, lead-in={leadInAlt}, abeam={abeamAlt}, TPA={tpa}");
-        Assert.True(anchorAlt > leadInAlt, $"anchor ({anchorAlt}) should be above lead-in ({leadInAlt})");
-        Assert.True(leadInAlt > abeamAlt, $"lead-in ({leadInAlt}) should be above abeam ({abeamAlt})");
+        double crossingAlt = MidfieldCrossingPhase.ResolveCrossingAltitude(
+            crossAtPatternAltitude: false,
+            AircraftCategorization.Categorize("B738"),
+            altitudeOverrideFt: null,
+            teardrop.Waypoints.PatternAltitude,
+            runway.AirportElevationFt
+        );
+
+        _output.WriteLine($"Altitude profile: anchor={anchorAlt}, lead-in={leadInAlt}, abeam={abeamAlt}, TPA={tpa}, crossing={crossingAlt:F0}");
+        Assert.True(anchorAlt <= crossingAlt + 1, $"anchor ({anchorAlt}) must not climb above the crossing altitude ({crossingAlt:F0})");
+        Assert.True(anchorAlt >= leadInAlt, $"anchor ({anchorAlt}) should not be below lead-in ({leadInAlt})");
+        Assert.True(leadInAlt >= abeamAlt, $"lead-in ({leadInAlt}) should not be below abeam ({abeamAlt})");
         Assert.Equal(tpa, abeamAlt);
     }
 }

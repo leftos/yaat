@@ -99,8 +99,22 @@ public sealed class TeardropReentryPhase : Phase
         _leadInLon = leadIn.Lon;
 
         double tpa = Waypoints.PatternAltitude;
-        int anchorAlt = (int)(tpa + 250);
-        int leadInAlt = (int)(tpa + 50);
+
+        // The crossing hands the aircraft in at the AIM 4-3-3.a.2 entry height (the higher of TPA and
+        // field + 1,500 ft); this re-entry only ever *sheds* that height down to TPA on the outbound leg.
+        // At an unauthored field the turbine entry height IS the TPA (MidfieldCrossingPhase), so there is
+        // nothing to shed — cap each step at the crossing altitude so the teardrop never climbs above the
+        // height it entered at (AIM 4-3-5, no unexpected pattern maneuvers). A teardrop is only inserted
+        // when the crossing is NOT at pattern altitude, so pass crossAtPatternAltitude: false here.
+        double crossingAlt = MidfieldCrossingPhase.ResolveCrossingAltitude(
+            crossAtPatternAltitude: false,
+            ctx.Category,
+            ctx.Aircraft.Pattern.AltitudeOverrideFt,
+            tpa,
+            ctx.Runway?.AirportElevationFt
+        );
+        int anchorAlt = (int)Math.Min(tpa + 250, crossingAlt);
+        int leadInAlt = (int)Math.Min(tpa + 50, crossingAlt);
         int abeamAlt = (int)tpa;
 
         ctx.Targets.NavigationRoute.Clear();
