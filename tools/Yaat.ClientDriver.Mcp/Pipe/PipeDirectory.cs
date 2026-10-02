@@ -26,6 +26,33 @@ public sealed class PipeDirectory(
     public const string ClientProcessName = "Yaat.Client";
 
     private readonly ConcurrentDictionary<int, PipeClient> _clients = new();
+    private readonly Lock _lastTargetGate = new();
+    private int? _lastTargetPid;
+
+    /// <summary>
+    /// The pid of the YAAT client the last successful pipe-routed call reached: where <c>send_keys</c> without an element
+    /// types over the pipe. Null until a pipe call succeeds, and again once that pid's client is forgotten or dropped. A
+    /// call routed through UI Automation leaves it as it is.
+    /// </summary>
+    public int? LastTargetPid
+    {
+        get
+        {
+            lock (_lastTargetGate)
+            {
+                return _lastTargetPid;
+            }
+        }
+    }
+
+    /// <summary>Records <paramref name="pid"/> as the client the last successful pipe-routed call reached.</summary>
+    public void RememberTarget(int pid)
+    {
+        lock (_lastTargetGate)
+        {
+            _lastTargetPid = pid;
+        }
+    }
 
     /// <summary>
     /// Returns a connected client for <paramref name="pid"/>, or null when the pid has no automation pipe this process
@@ -44,6 +71,7 @@ public sealed class PipeDirectory(
             }
 
             logger.LogDebug("Pid {Pid} is no longer {Expected}; dropping its cached automation pipe", pid, expectedProcessName);
+            ForgetTarget(pid);
             if (_clients.TryRemove(new KeyValuePair<int, PipeClient>(pid, cached)))
             {
                 await cached.DisposeAsync().ConfigureAwait(false);
@@ -116,12 +144,25 @@ public sealed class PipeDirectory(
         return existing;
     }
 
-    /// <summary>Drops the client cached for <paramref name="pid"/>, if any, disposing it.</summary>
+    /// <summary>Drops the client cached for <paramref name="pid"/>, if any, disposing it, and stops remembering it as the last target.</summary>
     public async Task ForgetAsync(int pid)
     {
+        ForgetTarget(pid);
         if (_clients.TryRemove(pid, out PipeClient? client))
         {
             await client.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Stops remembering <paramref name="pid"/> as the last target, if it still is; another remembered pid is left alone.</summary>
+    public void ForgetTarget(int pid)
+    {
+        lock (_lastTargetGate)
+        {
+            if (_lastTargetPid == pid)
+            {
+                _lastTargetPid = null;
+            }
         }
     }
 

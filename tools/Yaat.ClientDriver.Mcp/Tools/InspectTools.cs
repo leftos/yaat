@@ -147,7 +147,8 @@ public sealed class InspectTools(ElementRegistry registry, PipeDirectory pipes, 
     {
         if (registry.Resolve(elementId) is PipeNodeRef node)
         {
-            NodeInfo info = await GetPipeNodeAsync(new PipeElement(elementId, node), new { nodeId = node.NodeId, depth = 0 }, cancellationToken)
+            NodeInfo info = await PipeCalls
+                .GetNodeAsync(pipes, new PipeElement(elementId, node), new { nodeId = node.NodeId, depth = 0 }, cancellationToken)
                 .ConfigureAwait(false);
             // A text box's own text, empty when it has none, never the automation name its Text falls back to.
             return info.Value
@@ -177,7 +178,11 @@ public sealed class InspectTools(ElementRegistry registry, PipeDirectory pipes, 
     {
         try
         {
-            return await client.SendAsync<List<WindowInfo>>(ProtocolMethods.ListWindows, null, cancellationToken).ConfigureAwait(false);
+            List<WindowInfo> windows = await client
+                .SendAsync<List<WindowInfo>>(ProtocolMethods.ListWindows, null, cancellationToken)
+                .ConfigureAwait(false);
+            pipes.RememberTarget(pid);
+            return windows;
         }
         catch (ObjectDisposedException ex)
         {
@@ -190,15 +195,6 @@ public sealed class InspectTools(ElementRegistry registry, PipeDirectory pipes, 
         }
     }
 
-    /// <summary>The one node a <c>get_tree</c> call rooted at <paramref name="element"/> returns, with the children the depth asked for.</summary>
-    private async Task<NodeInfo> GetPipeNodeAsync(PipeElement element, object parameters, CancellationToken cancellationToken)
-    {
-        List<NodeInfo> roots = await PipeCalls
-            .SendForElementAsync<List<NodeInfo>>(pipes, element, ProtocolMethods.GetTree, parameters, cancellationToken)
-            .ConfigureAwait(false);
-        return roots.Single();
-    }
-
     private async Task<string> DumpPipeTreeAsync(PipeElement element, int maxDepth, CancellationToken cancellationToken)
     {
         object parameters = new
@@ -207,7 +203,7 @@ public sealed class InspectTools(ElementRegistry registry, PipeDirectory pipes, 
             treeKind = "Visual",
             depth = maxDepth,
         };
-        NodeInfo root = await GetPipeNodeAsync(element, parameters, cancellationToken).ConfigureAwait(false);
+        NodeInfo root = await PipeCalls.GetNodeAsync(pipes, element, parameters, cancellationToken).ConfigureAwait(false);
         List<string> lines = [];
         if (AppendPipeLines(root, 0, element.Node.Pid, lines))
         {
@@ -245,7 +241,7 @@ public sealed class InspectTools(ElementRegistry registry, PipeDirectory pipes, 
             treeKind = "Visual",
             depth = PipeFindDepth,
         };
-        NodeInfo root = await GetPipeNodeAsync(element, parameters, cancellationToken).ConfigureAwait(false);
+        NodeInfo root = await PipeCalls.GetNodeAsync(pipes, element, parameters, cancellationToken).ConfigureAwait(false);
         List<NodeInfo> matches = [];
         CollectPipeMatches(root.Children ?? [], criteria, matches);
         return FormatMatches([.. matches.Select(match => PipeDescribe.Node(match, registry.Register(element.Node.Pid, match.NodeId)))]);

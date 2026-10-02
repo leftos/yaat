@@ -67,14 +67,17 @@ public sealed class ElementRegistryTests
     }
 
     [Fact]
-    public void ResolveUia_GivenAPipeId_RefusesWithTheNotYetMessage()
+    public void ResolveUia_PipeId_NamesTheUiaOnlyTools()
     {
         ElementRegistry registry = NewRegistry();
         string id = registry.Register(4242, 1);
 
         McpException failure = Assert.Throws<McpException>(() => registry.ResolveUia(id));
 
-        Assert.Equal($"Element '{id}' belongs to a YAAT client driven over its automation pipe; this tool cannot use it yet.", failure.Message);
+        Assert.Equal(
+            $"Element '{id}' belongs to a YAAT client driven over its automation pipe; screenshot cannot drive it until it routes over the pipe.",
+            failure.Message
+        );
     }
 
     private static ElementRegistry NewRegistry() => new(NullLogger<ElementRegistry>.Instance);
