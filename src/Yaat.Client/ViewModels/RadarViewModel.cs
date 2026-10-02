@@ -1315,14 +1315,6 @@ public partial class RadarViewModel(
 
     public async Task HoldAtFixRightAsync(string callsign, string initials, string fix) => await _sendCommand(callsign, $"HFIXR {fix}", initials);
 
-    // --- Approach ---
-
-    public async Task ReportTrafficInSightAsync(string callsign, string initials, string? targetCallsign)
-    {
-        string cmd = string.IsNullOrWhiteSpace(targetCallsign) ? "RTIS" : $"RTIS {targetCallsign}";
-        await _sendCommand(callsign, cmd, initials);
-    }
-
     // --- Draw route ---
 
     public void EnterDrawRoute(string callsign)

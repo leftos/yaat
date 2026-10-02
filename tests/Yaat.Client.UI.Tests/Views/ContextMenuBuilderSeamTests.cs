@@ -297,4 +297,43 @@ public class ContextMenuBuilderSeamTests
         Assert.Equal(MenuPickerDescriptor.Input, inputDescriptor.Kind);
         Assert.Empty(inputDescriptor.Items);
     }
+
+    [AvaloniaFact]
+    public void RadarMenu_GroundPair_OffersGiveWayAndFollowG()
+    {
+        (RadarView view, MainViewModel main) = RadarHarness();
+        AircraftModel clicked = AirborneIfr("SWA104", "Taxiing");
+        clicked.IsOnGround = true;
+        AircraftModel selected = AirborneIfr("SWA602", "Taxiing");
+        selected.IsOnGround = true;
+        main.Aircraft.Add(clicked);
+        main.Aircraft.Add(selected);
+
+        ContextMenu menu = view.BuildAircraftContextMenu(main.Radar, clicked, selected, clicked.Callsign, "AB");
+
+        List<string> sequence = Sequence(menu);
+        Assert.Contains("↪ SWA602:", sequence);
+        Assert.Contains("SWA602: give way to SWA104", sequence);
+        Assert.Contains("SWA602: follow SWA104", sequence);
+        Assert.DoesNotContain(sequence, item => item.Contains("report SWA104 in sight", StringComparison.Ordinal));
+    }
+
+    [AvaloniaFact]
+    public void GroundMenu_AirbornePair_OffersReportInSightAndFollow()
+    {
+        (GroundView view, GroundViewModel ground, MainViewModel main) = GroundHarness();
+        AircraftModel clicked = AirborneIfr("AAL601", "ApproachNav");
+        AircraftModel selected = AirborneIfr("AAL602", "ApproachNav");
+        selected.LastReportedTrafficCallsign = clicked.Callsign;
+        main.Aircraft.Add(clicked);
+        main.Aircraft.Add(selected);
+
+        ContextMenu menu = view.BuildAircraftContextMenu(ground, new GroundMenuTarget(clicked, selected, clicked.Callsign, "AB"));
+
+        List<string> sequence = Sequence(menu);
+        Assert.Contains("↪ AAL602:", sequence);
+        Assert.Contains("AAL602: report AAL601 in sight", sequence);
+        Assert.Contains("AAL602: follow AAL601", sequence);
+        Assert.DoesNotContain(sequence, item => item.Contains("give way", StringComparison.Ordinal));
+    }
 }

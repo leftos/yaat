@@ -146,7 +146,7 @@ public partial class RadarView
             }
         }
 
-        AddRelativeTrafficItems(menu, vm, prevSelected, callsign, initials);
+        SharedMenuGroups.AddRelative(menu.Items, ac, context, host);
         AddAircraftCommandGroups(menu, ac, context, host);
         return menu;
     }
@@ -209,37 +209,6 @@ public partial class RadarView
 
         // RPO control
         FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
-    }
-
-    /// <summary>
-    /// When a different aircraft is selected, adds traffic actions issued to that
-    /// selected aircraft referencing the right-clicked aircraft: "report in sight"
-    /// (RTIS, always offered) and "follow" (only once the selected aircraft has
-    /// reported the right-clicked traffic in sight). No-op when no different aircraft
-    /// is selected.
-    /// </summary>
-    private static void AddRelativeTrafficItems(ContextMenu menu, RadarViewModel vm, AircraftModel? selected, string callsign, string initials)
-    {
-        if (!RelativeTraffic.HasRelativeContext(selected, callsign))
-        {
-            return;
-        }
-
-        string a = selected.Callsign;
-        menu.Items.Add(
-            new MenuItem
-            {
-                Header = $"↪ {a}:",
-                IsEnabled = false,
-                FontWeight = Avalonia.Media.FontWeight.Bold,
-            }
-        );
-        menu.Items.Add(CreateMenuItem($"{a}: report {callsign} in sight", () => vm.ReportTrafficInSightAsync(a, initials, callsign)));
-        if (RelativeTrafficActions.ShouldOfferFollow(selected, callsign))
-        {
-            menu.Items.Add(CreateMenuItem($"{a}: follow {callsign}", () => vm.SendRawCommandAsync(a, initials, $"FOLLOW {callsign}")));
-        }
-        menu.Items.Add(new Separator());
     }
 
     private static MenuItem? BuildRouteSummaryItem(AircraftModel ac)

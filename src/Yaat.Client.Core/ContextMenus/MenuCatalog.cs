@@ -261,8 +261,34 @@ public static class MenuCatalog
             (label, _, context, host) => BuildChoiceSubmenu(label, host.GetPresetTaxiChoices(context.Callsign), context, host)
         ),
         HostLeaf(MenuIds.GroundDrawTaxiRoute, "Draw taxi route...", (ac, _) => AircraftCommandApplicability.CanDrawTaxiRoute(ac), BuildDrawRoute),
-        RelativeGround(MenuIds.GroundRelativeGiveWay, "Selected aircraft: give way to", "give way to", "GW"),
-        RelativeGround(MenuIds.GroundRelativeFollow, "Selected aircraft: follow", "follow", "FOLLOWG"),
+        Relative(
+            MenuIds.RelativeReportInSight,
+            "Selected aircraft: report in sight",
+            "RTIS",
+            RelativeTraffic.OffersAirborneRelative,
+            (sender, clicked) => $"{sender}: report {clicked} in sight"
+        ),
+        Relative(
+            MenuIds.RelativeFollow,
+            "Selected aircraft: follow traffic",
+            "FOLLOW",
+            RelativeTraffic.OffersAirborneFollow,
+            (sender, clicked) => $"{sender}: follow {clicked}"
+        ),
+        Relative(
+            MenuIds.GroundRelativeGiveWay,
+            "Selected aircraft: give way to",
+            "GW",
+            RelativeTraffic.OffersGroundRelative,
+            (sender, clicked) => $"{sender}: give way to {clicked}"
+        ),
+        Relative(
+            MenuIds.GroundRelativeFollow,
+            "Selected aircraft: follow",
+            "FOLLOWG",
+            RelativeTraffic.OffersGroundRelative,
+            (sender, clicked) => $"{sender}: follow {clicked}"
+        ),
         Leaf(MenuIds.SpawnNow, "Spawn now", "SPAWN", Always),
         HostLeaf(
             MenuIds.SpawnDelay,
@@ -535,21 +561,20 @@ public static class MenuCatalog
     }
 
     /// <summary>
-    /// A relative ground item, offered while <see cref="RelativeTraffic.OffersGroundRelative"/> holds: sent as the
-    /// previous selection with the right-clicked callsign after <paramref name="verb"/>, labelled
-    /// "{selected}: {phrase} {right-clicked}".
+    /// A relative item, offered while <paramref name="isApplicable"/> holds: sent as the previous selection with the
+    /// right-clicked callsign after <paramref name="verb"/>, labelled by <paramref name="label"/> with the selected
+    /// aircraft's callsign and the right-clicked one.
     /// </summary>
-    private static MenuCatalogEntry RelativeGround(string id, string label, string phrase, string verb) =>
-        new(
-            id,
-            label,
-            MenuFlightRules.Both,
-            RelativeTraffic.OffersGroundRelative,
-            (_, context, host) => BuildRelativeGround(phrase, verb, context, host)
-        );
+    private static MenuCatalogEntry Relative(
+        string id,
+        string entryLabel,
+        string verb,
+        Func<IMenuAircraft?, MenuContext, bool> isApplicable,
+        Func<string, string, string> label
+    ) => new(id, entryLabel, MenuFlightRules.Both, isApplicable, (_, context, host) => BuildRelative(verb, label, context, host));
 
-    /// <summary>The relative ground item for the context's previous selection, or null when there is none.</summary>
-    private static MenuItem? BuildRelativeGround(string phrase, string verb, MenuContext context, IMenuHost host)
+    /// <summary>The relative item for the context's previous selection, or null when there is none.</summary>
+    private static MenuItem? BuildRelative(string verb, Func<string, string, string> label, MenuContext context, IMenuHost host)
     {
         if (context.PreviousSelection is not { } selected)
         {
@@ -557,7 +582,7 @@ public static class MenuCatalog
         }
 
         string sender = selected.Callsign;
-        var item = new MenuItem { Header = $"{sender}: {phrase} {context.Callsign}" };
+        var item = new MenuItem { Header = label(sender, context.Callsign) };
         item.Click += async (_, _) => await host.SendAsync(sender, $"{verb} {context.Callsign}", context.Initials);
         return item;
     }

@@ -4,16 +4,15 @@ using Avalonia.Media;
 namespace Yaat.Client.ContextMenus;
 
 /// <summary>
-/// The groups more than one surface builds — the menu header (title, Command…, Note…), live traffic, track, squawk,
-/// ask pilot, coordination, data block, display, favorites, the menu foot (warp, release to live feed, delete), and
-/// the flight groups heading, altitude, speed, navigation (with Draw route), hold, approach, procedures, tower and
-/// pattern — assembled from <see cref="MenuCatalog"/> entries. Only track, squawk and ask pilot keep a
-/// <see cref="MenuView"/> variant: the radar carries input pickers (handoff, point out, squawk code, custom say) the
-/// other surfaces leave out. Data block, display and the flight groups are
-/// built by the radar today, so they take no view. The ground view's relative items, pushback block, runway
-/// clearances, landing block, hold short and follow submenus and taxi-route block are groups of their own, and its
-/// tower variants branch on <see cref="MenuContext.View"/> inside the entries. Whether a group is offered at all stays
-/// with the caller.
+/// The groups more than one surface builds — the menu header (title, Command…, Note…), live traffic, track, squawk, ask
+/// pilot, coordination, data block, display, favorites, the menu foot (warp, release to live feed, delete), and the flight
+/// groups heading, altitude, speed, navigation (with Draw route), hold, approach, procedures, tower and pattern — assembled
+/// from <see cref="MenuCatalog"/> entries. Only track, squawk and ask pilot keep a <see cref="MenuView"/> variant: the radar
+/// carries input pickers (handoff, point out, squawk code, custom say) the other surfaces leave out. Data block, display and
+/// the flight groups are built by the radar today, so they take no view. The relative items (<see cref="AddRelative"/>) and
+/// the ground view's pushback block, runway clearances, landing block, hold short and follow submenus and taxi-route block
+/// are groups of their own, and its tower variants branch on <see cref="MenuContext.View"/> inside the entries. Whether a
+/// group is offered at all stays with the caller.
 /// </summary>
 public static class SharedMenuGroups
 {
@@ -486,13 +485,22 @@ public static class SharedMenuGroups
     }
 
     /// <summary>
-    /// The ground view's relative items while another on-ground aircraft is selected
-    /// (<see cref="RelativeTraffic.OffersGroundRelative"/>): a bold header naming the selected aircraft, its give-way
-    /// and follow items, then a separator. Adds nothing otherwise.
+    /// The relative items while another aircraft is selected (<see cref="MenuContext.PreviousSelection"/>): a bold
+    /// header naming the selected aircraft, the pair that applies — report in sight, then follow once the selected
+    /// aircraft has reported the right-clicked one in sight, for an airborne pair
+    /// (<see cref="RelativeTraffic.OffersAirborneRelative"/>); give way, then follow, for a ground pair
+    /// (<see cref="RelativeTraffic.OffersGroundRelative"/>) — and a trailing separator. Adds nothing when there is no
+    /// previous selection or neither pair applies, so a mixed pair gets no header either.
     /// </summary>
-    public static void AddGroundRelative(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    public static void AddRelative(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        if ((context.PreviousSelection is not { } selected) || (!IsApplicable(MenuIds.GroundRelativeFollow, aircraft, context)))
+        if (context.PreviousSelection is not { } selected)
+        {
+            return;
+        }
+
+        bool airborne = RelativeTraffic.OffersAirborneRelative(aircraft, context);
+        if (!airborne && !RelativeTraffic.OffersGroundRelative(aircraft, context))
         {
             return;
         }
@@ -505,8 +513,17 @@ public static class SharedMenuGroups
                 FontWeight = FontWeight.Bold,
             }
         );
-        items.Add(Leaf(MenuIds.GroundRelativeGiveWay, aircraft, context, host));
-        items.Add(Leaf(MenuIds.GroundRelativeFollow, aircraft, context, host));
+        if (airborne)
+        {
+            items.Add(Leaf(MenuIds.RelativeReportInSight, aircraft, context, host));
+            AddIfApplicable(items, MenuIds.RelativeFollow, aircraft, context, host);
+        }
+        else
+        {
+            items.Add(Leaf(MenuIds.GroundRelativeGiveWay, aircraft, context, host));
+            items.Add(Leaf(MenuIds.GroundRelativeFollow, aircraft, context, host));
+        }
+
         items.Add(new Separator());
     }
 
@@ -598,14 +615,14 @@ public static class SharedMenuGroups
     }
 
     /// <summary>
-    /// The ground view's phase-aware command items, in the ground's order: the relative items, the pushback block,
-    /// hold position, hold short, the taxi position's follow and give way, break conflict, the runway clearances, the
-    /// hold position's follow and give way, the landing items, then the taxi-route block. Each adds nothing when it
-    /// does not apply.
+    /// The ground view's phase-aware command items, in the ground's order: the relative items
+    /// (<see cref="AddRelative"/>), the pushback block, hold position, hold short, the taxi position's follow and give
+    /// way, break conflict, the runway clearances, the hold position's follow and give way, the landing items, then the
+    /// taxi-route block. Each adds nothing when it does not apply.
     /// </summary>
     public static void AddGroundAircraftCommands(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        AddGroundRelative(items, aircraft, context, host);
+        AddRelative(items, aircraft, context, host);
         AddGroundPushback(items, aircraft, context, host);
 
         // The single emission for the whole HOLD window, taxi-follow phases included — those emit

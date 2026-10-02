@@ -301,7 +301,7 @@ ContextMenus/                   # The aircraft right-click menu catalog shared b
   TaxiRouteDisplayMode.cs       # Enum Follow/AlwaysShow/AlwaysHide: an aircraft's per-aircraft taxi-route override in the ground view (the Taxi route radio submenu)
   SpawnDelay.cs                 # The Change spawn delay presets and the custom box's parser (90, 2m15s, 1h → seconds)
   HoldShortMenuHelper.cs        # The held runway from the "Holding Short {rwy}" phase, for the ground and list Cross/LUAW items
-  RelativeTraffic.cs            # Ground relative-selection gate (HasRelativeContext, ShouldOfferGroundActions, OffersGroundRelative) over IMenuAircraft
+  RelativeTraffic.cs            # Relative-selection gates over IMenuAircraft: HasRelativeContext, the ground pair (ShouldOfferGroundActions, OffersGroundRelative, both on the ground and the selected aircraft controllable), the airborne pair (both airborne, controllable) and ShouldOfferFollow (the selected aircraft reported the clicked one in sight); SharedMenuGroups.AddRelative builds the block on radar and ground
 
 Models/
   TerminalColorScheme.cs        # Operator-tunable per-Kind terminal foreground colors (Command/Response/System/Say/PilotSpeech/Warning/Error/Chat/Tdls/Strip); defaults match the legacy hard-coded scheme
@@ -380,7 +380,6 @@ Services/
   ContextMenuProfile.cs         # Record: Primary/Secondary/Hidden menu groups for a phase
   ContextMenuProfileService.cs  # Static: maps phase name + isOnGround → ContextMenuProfile (which radar submenu GROUPS show)
   VfrCommandGate.cs             # Static: checks a canonical command against the controller's VfrCommandsForIfr setting before MainViewModel.SendCommandAsync puts it on the wire; re-parses via CommandParser so no verb list is duplicated (issue #317)
-  RelativeTrafficActions.cs     # The radar's relative-traffic gate: ShouldOfferFollow (airborne + LastReportedTrafficCallsign match); the ground's half is Core's RelativeTraffic
   BuildInfo.cs                  # Static: version (from AssemblyInformationalVersion) + release-vs-dev detection (VelopackLocator.Current); used by title bar, About window, and startup log line
   DocLinks.cs                   # Static: GitHub URLs for user-facing docs (README/USER_GUIDE/COMMANDS/CHANGELOG/issues), pinned to release tag for installed builds, main for dev
   UrlLauncher.cs                # Static: opens HTTPS URLs in OS default browser (Process.Start with UseShellExecute)

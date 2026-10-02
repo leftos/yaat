@@ -170,7 +170,7 @@ public class MenuCatalogCommandTests
     /// <summary>
     /// The entries whose item the host builds rather than the catalog: a popup, an editor, a submenu the catalog
     /// assembles, or a header the host's own state decides; and the entries whose item needs the aircraft or the
-    /// previous selection (the held runway, the relative ground items), which their own tests click.
+    /// previous selection (the held runway, the relative items), which their own tests click.
     /// </summary>
     private static readonly string[] HostBuiltIds =
     [
@@ -192,6 +192,8 @@ public class MenuCatalogCommandTests
         MenuIds.NavigationDrawRoute,
         MenuIds.TowerClearedForTakeoff,
         MenuIds.GroundCrossRunway,
+        MenuIds.RelativeReportInSight,
+        MenuIds.RelativeFollow,
         MenuIds.GroundRelativeGiveWay,
         MenuIds.GroundRelativeFollow,
         MenuIds.GroundHoldShort,
@@ -1311,7 +1313,7 @@ public class MenuCatalogCommandTests
         var host = new RecordingMenuHost("");
         var menu = new ContextMenu();
 
-        SharedMenuGroups.AddGroundRelative(menu.Items, OnGround("Taxiing", "IFR", ""), context, host);
+        SharedMenuGroups.AddRelative(menu.Items, OnGround("Taxiing", "IFR", ""), context, host);
 
         Assert.Equal([$"↪ {Selected}:", $"{Selected}: give way to {Callsign}", $"{Selected}: follow {Callsign}", "---"], menu.Items.Select(Describe));
         foreach (MenuItem item in menu.Items.OfType<MenuItem>().Where(i => i.IsEnabled))
@@ -1332,7 +1334,65 @@ public class MenuCatalogCommandTests
             var context = new MenuContext(Callsign, Initials, selected, false, VfrCommandsForIfr.None, CatalogMenuView.Ground);
             var menu = new ContextMenu();
 
-            SharedMenuGroups.AddGroundRelative(menu.Items, OnGround("Taxiing", "IFR", ""), context, new RecordingMenuHost(""));
+            SharedMenuGroups.AddRelative(menu.Items, OnGround("Taxiing", "IFR", ""), context, new RecordingMenuHost(""));
+
+            Assert.Empty(menu.Items);
+        }
+    }
+
+    [AvaloniaFact]
+    public void AirborneRelative_SendsAsTheSelectedAircraft()
+    {
+        var selected = new AircraftModel
+        {
+            Callsign = Selected,
+            IsOnGround = false,
+            LastReportedTrafficCallsign = Callsign,
+        };
+        var context = new MenuContext(Callsign, Initials, selected, false, VfrCommandsForIfr.None, CatalogMenuView.Radar);
+        var host = new RecordingMenuHost("");
+        var menu = new ContextMenu();
+
+        SharedMenuGroups.AddRelative(menu.Items, new AircraftModel { Callsign = Callsign, IsOnGround = false }, context, host);
+
+        Assert.Equal(
+            [$"↪ {Selected}:", $"{Selected}: report {Callsign} in sight", $"{Selected}: follow {Callsign}", "---"],
+            menu.Items.Select(Describe)
+        );
+        foreach (MenuItem item in menu.Items.OfType<MenuItem>().Where(i => i.IsEnabled))
+        {
+            Click(item);
+        }
+
+        Assert.Equal([(Selected, $"RTIS {Callsign}", Initials), (Selected, $"FOLLOW {Callsign}", Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void AirborneRelative_FollowOnlyAfterTrafficReportedInSight()
+    {
+        var selected = new AircraftModel { Callsign = Selected, IsOnGround = false };
+        var context = new MenuContext(Callsign, Initials, selected, false, VfrCommandsForIfr.None, CatalogMenuView.Radar);
+        var menu = new ContextMenu();
+
+        SharedMenuGroups.AddRelative(menu.Items, new AircraftModel { Callsign = Callsign, IsOnGround = false }, context, new RecordingMenuHost(""));
+
+        Assert.Equal([$"↪ {Selected}:", $"{Selected}: report {Callsign} in sight", "---"], menu.Items.Select(Describe));
+    }
+
+    [AvaloniaFact]
+    public void Relative_MixedPair_AddsNothing()
+    {
+        (AircraftModel Selected, AircraftModel Clicked)[] pairs =
+        [
+            (new AircraftModel { Callsign = Selected, IsOnGround = false }, new AircraftModel { Callsign = Callsign, IsOnGround = true }),
+            (new AircraftModel { Callsign = Selected, IsOnGround = true }, new AircraftModel { Callsign = Callsign, IsOnGround = false }),
+        ];
+        foreach ((AircraftModel selected, AircraftModel clicked) in pairs)
+        {
+            var context = new MenuContext(Callsign, Initials, selected, false, VfrCommandsForIfr.None, CatalogMenuView.Radar);
+            var menu = new ContextMenu();
+
+            SharedMenuGroups.AddRelative(menu.Items, clicked, context, new RecordingMenuHost(""));
 
             Assert.Empty(menu.Items);
         }
@@ -2267,6 +2327,8 @@ public class MenuCatalogCommandTests
         public bool AssumedFromLiveTraffic => false;
 
         public bool IsOnGround { get; init; }
+
+        public string? LastReportedTrafficCallsign { get; init; }
 
         public bool IsHeld => false;
 

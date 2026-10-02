@@ -34,6 +34,12 @@ public interface IMenuAircraft
     /// <summary>True while the aircraft is on the surface rather than airborne.</summary>
     bool IsOnGround { get; }
 
+    /// <summary>
+    /// The callsign of the traffic the aircraft most recently reported in sight (RTIS), or null when it has reported
+    /// none. Gates the airborne "follow" relative item to traffic the aircraft can actually see.
+    /// </summary>
+    string? LastReportedTrafficCallsign { get; }
+
     /// <summary>True while a hold directive is keeping the aircraft stopped.</summary>
     bool IsHeld { get; }
 

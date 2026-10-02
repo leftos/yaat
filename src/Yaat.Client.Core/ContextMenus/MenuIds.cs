@@ -435,6 +435,12 @@ public static class MenuIds
     /// <summary>Draw a taxi route on the surface for the aircraft.</summary>
     public const string GroundDrawTaxiRoute = "ground.draw-taxi-route";
 
+    /// <summary>Ask the selected aircraft to report the right-clicked one in sight (<c>RTIS</c>).</summary>
+    public const string RelativeReportInSight = "relative.report-in-sight";
+
+    /// <summary>The selected aircraft follows the right-clicked one in the air (<c>FOLLOW</c>), once it has reported that traffic in sight.</summary>
+    public const string RelativeFollow = "relative.follow";
+
     /// <summary>The selected aircraft follows the right-clicked one on the ground (<c>FOLLOWG</c>).</summary>
     public const string GroundRelativeFollow = "ground.relative-follow";
 
