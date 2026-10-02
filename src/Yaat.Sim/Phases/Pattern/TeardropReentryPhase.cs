@@ -23,7 +23,10 @@ namespace Yaat.Sim.Phases.Pattern;
 /// whatever height it crossed at. After the route drains, DownwindPhase takes over at abeam
 /// with the aircraft already tracking the 45° intercept course.
 ///
-/// Not inserted for pistons or helicopters — they cross at TPA (no teardrop needed).
+/// Not inserted when the crossing is flown at pattern altitude: always for pistons and helicopters, and
+/// for a turbine entry whenever the AIM 4-3-3.a.2 entry height is not above the field's pattern altitude
+/// (<c>PatternBuilder.BuildFieldCrossingPrefix</c> compares the resolved crossing altitude to
+/// <see cref="PatternWaypoints.PatternAltitude"/>).
 /// </summary>
 public sealed class TeardropReentryPhase : Phase
 {
@@ -102,10 +105,11 @@ public sealed class TeardropReentryPhase : Phase
 
         // The crossing hands the aircraft in at the AIM 4-3-3.a.2 entry height (the higher of TPA and
         // field + 1,500 ft); this re-entry only ever *sheds* that height down to TPA on the outbound leg.
-        // At an unauthored field the turbine entry height IS the TPA (MidfieldCrossingPhase), so there is
-        // nothing to shed — cap each step at the crossing altitude so the teardrop never climbs above the
-        // height it entered at (AIM 4-3-5, no unexpected pattern maneuvers). A teardrop is only inserted
-        // when the crossing is NOT at pattern altitude, so pass crossAtPatternAltitude: false here.
+        // Cap each step at the crossing altitude so the teardrop never climbs above the height it entered
+        // at: the phase's contract is to descend to pattern altitude; climbing above the circuit
+        // contradicts AIM 4-3-3.a's recommendation that pattern altitude be maintained. A teardrop is only
+        // inserted when the crossing is above pattern altitude (PatternBuilder.BuildFieldCrossingPrefix),
+        // so pass crossAtPatternAltitude: false here.
         double crossingAlt = MidfieldCrossingPhase.ResolveCrossingAltitude(
             crossAtPatternAltitude: false,
             ctx.Category,

@@ -243,7 +243,7 @@ instead of re-entering the pattern from outside it:
 | Active leg | Same side | Opposite side |
 |---|---|---|
 | Upwind | transition circuit above (either direction) | transition circuit above |
-| Crosswind | same-side rebuild | wrong-side midfield crossing via `BuildFieldCrossingPrefix` (shared with `TryEnterPattern`: crossing → `TeardropReentryPhase` for jet/turboprop entry crossings → downwind with `RejoinTrack`) |
+| Crosswind | same-side rebuild | wrong-side midfield crossing via `BuildFieldCrossingPrefix` (shared with `TryEnterPattern`: crossing → `TeardropReentryPhase` when the crossing is above TPA, else straight → downwind with `RejoinTrack`) |
 | Downwind, close parallels | same-side rebuild with `RejoinTrack` (the parallel's downwind is laterally offset) | **crossover at midfield**: the old runway's `DownwindPhase` with `ExitAtMidfield` → `MidfieldCrossingPhase` (`CrossAtPatternAltitude`, `InitialTurn` toward the field = the old pattern's turn sense) → new `DownwindPhase` (`RejoinTrack`) → … Past midfield already: the chain starts at the crossing |
 | Downwind, other pairs | same-side rebuild with `RejoinTrack` | wrong-side midfield crossing (unchanged) |
 | Base | same-side rebuild | wrong-side midfield crossing (unchanged) |
@@ -358,22 +358,13 @@ Aircraft further out along the extended downwind are **arrivals**, not pattern m
 
 ### Teardrop re-entry — `TeardropReentryPhase`
 
-For **turboprop/jet** aircraft entering from the wrong side, `PatternCommandHandler` inserts a
-`MidfieldCrossingPhase` and then a `TeardropReentryPhase` (`PatternCommandHandler.cs:484`). Pistons and helicopters
-cross at TPA and drop straight into downwind — no teardrop. `TeardropReentryPhase`
-(`src/Yaat.Sim/Phases/Pattern/TeardropReentryPhase.cs`) builds a three-waypoint outbound-then-inbound descent that
-rejoins downwind at the abeam point via a 45° intercept:
+An aircraft entering from the wrong side flies a `MidfieldCrossingPhase`, built with its join by `PatternBuilder.BuildFieldCrossingPrefix`. A jet or turboprop crosses at the AIM 4-3-3.a.2 entry height, the higher of TPA and field + 1,500 ft (`MidfieldCrossingPhase.ResolveCrossingAltitude`). The builder inserts a `TeardropReentryPhase` only when that crossing altitude is more than 10 ft above TPA, so there is height to shed: a field authoring a low pattern (OAK 28L, 600 ft AGL). At a field with no authored pattern the turbine TPA already is field + 1,500 ft, the crossing is flown at TPA, and the aircraft turns straight onto downwind with `RejoinTrack`, as a piston, a helicopter, an in-pattern crossover and a controller-assigned pattern altitude always do. `TeardropReentryPhase` (`src/Yaat.Sim/Phases/Pattern/TeardropReentryPhase.cs`) builds a three-waypoint outbound-then-inbound descent that rejoins downwind at the abeam point via a 45° intercept:
 
 1. **Outbound anchor** = abeam + `CrosswindHeading` × outbound distance (Jet 3.0 / TP 2.5 / else 2.0 nm).
 2. **45° lead-in** = abeam + reverse-45°-entry heading × lead-in distance (Jet 2.0 / TP 1.5 / else 1.0 nm).
 3. **Abeam** = the downwind abeam point itself.
 
-The aircraft enters from `MidfieldCrossingPhase` at the large/turbine crossing altitude of **TPA + 500 ft** (AIM
-4-3-3.1.b / AC 90-66B). The route waypoints carry `At` altitude restrictions that step it down across the three
-points: **TPA + 250**, **TPA + 50**, then **TPA** (`TeardropReentryPhase.cs:69`). (The class doc-comment and the
-debug log describe the band loosely as "TPA+500 → TPA"; the actual per-waypoint restrictions are +250/+50/+0 — the
-+500 is where the aircraft *starts*, handed in by `MidfieldCrossingPhase`.) After the route drains, `DownwindPhase`
-takes over with the aircraft already tracking the 45° intercept course.
+The aircraft enters from `MidfieldCrossingPhase` at its crossing altitude. The route waypoints carry `At` altitude restrictions that step it down across the three points: **TPA + 250**, **TPA + 50**, then **TPA**, each capped at the crossing altitude so the teardrop never climbs above the height it entered at (a turbine pattern altitude between 1,251 and 1,489 ft AGL, from an authored pattern of about 751–989 ft AGL plus the turbine 500 ft, crosses less than 250 ft above TPA and steps down from there). After the route drains, `DownwindPhase` takes over with the aircraft already tracking the 45° intercept course.
 
 ### Final entry distance (EF) — `PatternCommandHandler`
 
@@ -1149,8 +1140,7 @@ writes nothing to the aircraft. It is silent when nothing stands, and when the l
   trigger, and clamps the new base-turn to `max(compressed, currentAlongTrack)` so the aircraft never reverses to
   an already-passed turn point. MNA restoring the original base-turn can leave it behind the aircraft — completing
   next tick is correct.
-- **TeardropReentry's per-waypoint altitudes are TPA+250 / TPA+50 / TPA**, not "+500 → TPA." The +500 is the
-  *entry* altitude handed in by `MidfieldCrossingPhase`; the class comment / log describe the band loosely.
+- **TeardropReentry's per-waypoint altitudes are TPA+250 / TPA+50 / TPA, each capped at the crossing altitude**, and the teardrop exists only when the crossing is above TPA. A fixed TPA+250 at a field whose crossing is at TPA commands a climb above the circuit.
 - **Pattern phases — and `FinalApproachPhase` — set `ManagesSpeed = true`; the other approach phases do NOT.** `DownwindPhase`, `BasePhase`,
   `PatternEntryPhase`, `TeardropReentryPhase`, `VfrFollowPhase` and `FinalApproachPhase` (`Phases/Tower/`) all override `ManagesSpeed` to `true`, so
   `FlightPhysics`' auto speed schedule is suppressed and the phase owns `TargetSpeed`. The **approach** phases
