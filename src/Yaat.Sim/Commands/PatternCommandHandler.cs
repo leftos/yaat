@@ -852,6 +852,7 @@ internal static class PatternCommandHandler
                     waypoints,
                     category,
                     aircraft.Pattern.AltitudeOverrideFt,
+                    runway.AirportElevationFt,
                     circuitPhases
                 )
             )
@@ -1390,6 +1391,7 @@ internal static class PatternCommandHandler
             newWaypoints,
             category,
             aircraft.Pattern.AltitudeOverrideFt,
+            runway.AirportElevationFt,
             circuit
         );
         chain.AddRange(circuit);

@@ -1,6 +1,7 @@
 ﻿using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
@@ -51,6 +52,30 @@ public class PatternEntryTests : IDisposable
             widthFt: 150
         );
     }
+
+    /// <summary>
+    /// OAK 28R with the low pattern the airport authors on the real 28L — 600 ft AGL. A turbine's
+    /// AIM 4-3-3.a.2 entry crossing (field + 1,500 ft) then sits 400 ft above the circuit, so a wrong-side
+    /// turbine join still gets the <see cref="TeardropReentryPhase"/> that sheds it. At an unauthored field
+    /// the turbine TPA is itself the entry height, the crossing has nothing to shed, and no teardrop is
+    /// inserted (<c>PatternBuilder.BuildFieldCrossingPrefix</c>).
+    /// </summary>
+    private static AirportGroundLayout MakeAuthoredLowPatternLayout() =>
+        new()
+        {
+            AirportId = "KOAK",
+            Runways =
+            [
+                new GroundRunway
+                {
+                    Name = "28R - 10L",
+                    Coordinates = [],
+                    WidthFt = 150,
+                    PatternAltitudeAglFt = 600,
+                    PatternSizeNm = null,
+                },
+            ],
+        };
 
     private static AircraftState MakeAircraft(double lat, double lon, double alt, double heading)
     {
@@ -1360,9 +1385,11 @@ public class PatternEntryTests : IDisposable
     // Wrong-side teardrop re-entry (AIM 4-3-3.a.2, AC 90-66B §11.3-§11.4)
     //
     // Pistons and helicopters cross midfield at pattern altitude and drop
-    // directly into DownwindPhase. Turboprops and jets cross at the 1,500 ft AGL entry height and
-    // hand off to TeardropReentryPhase, which descends to TPA via an outbound
-    // leg and 45° intercept to abeam.
+    // directly into DownwindPhase. A turboprop or jet crosses at the 1,500 ft AGL entry height, and when
+    // that sits above the field's pattern altitude (an authored-low field, e.g. OAK 28L's 600 AGL) it
+    // hands off to TeardropReentryPhase, which descends to TPA via an outbound leg and 45° intercept to
+    // abeam. At an unauthored field the turbine TPA already IS the entry height, so the crossing has
+    // nothing to shed and drops straight onto the downwind like a piston.
     // ───────────────────────────────────────────────────────────────────────
 
     private static PhaseContext MakeContext(AircraftState aircraft) => CommandDispatcher.BuildMinimalContext(aircraft);
@@ -1410,8 +1437,15 @@ public class PatternEntryTests : IDisposable
         Assert.NotEqual(mc.Waypoints!.PatternAltitude + 500.0, ctx.Targets.TargetAltitude);
     }
 
+    /// <summary>
+    /// At an unauthored field the turbine TPA is itself the AIM 4-3-3.a.2 entry height, so the wrong-side
+    /// crossing is flown at pattern altitude and has nothing to shed: no teardrop is inserted, and the
+    /// aircraft turns straight onto the downwind, which re-intercepts its computed track (the crossing can
+    /// leave it inside the leg). A teardrop flown level at TPA would otherwise send it 2.5 nm outbound
+    /// against the 45° entry flow at entrants' altitude.
+    /// </summary>
     [Fact]
-    public void WrongSide_Turboprop_PhaseChain_IncludesTeardrop()
+    public void WrongSide_Turboprop_AtUnauthoredField_JoinsDownwindDirectly()
     {
         RunwayInfo runway = MakeOak28R();
         AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
@@ -1423,12 +1457,14 @@ public class PatternEntryTests : IDisposable
         List<Phase> phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
         Assert.IsType<MidfieldCrossingPhase>(phases[0]);
-        Assert.IsType<TeardropReentryPhase>(phases[1]);
-        Assert.IsType<DownwindPhase>(phases[2]);
+        DownwindPhase downwind = Assert.IsType<DownwindPhase>(phases[1]);
+        Assert.True(downwind.RejoinTrack, "the downwind after a crossing at pattern altitude must re-intercept its computed track");
+        Assert.DoesNotContain(phases, p => p is TeardropReentryPhase);
     }
 
+    /// <summary>Jet counterpart of <see cref="WrongSide_Turboprop_AtUnauthoredField_JoinsDownwindDirectly"/>.</summary>
     [Fact]
-    public void WrongSide_Jet_PhaseChain_IncludesTeardrop()
+    public void WrongSide_Jet_AtUnauthoredField_JoinsDownwindDirectly()
     {
         RunwayInfo runway = MakeOak28R();
         AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
@@ -1440,8 +1476,9 @@ public class PatternEntryTests : IDisposable
         List<Phase> phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
         Assert.IsType<MidfieldCrossingPhase>(phases[0]);
-        Assert.IsType<TeardropReentryPhase>(phases[1]);
-        Assert.IsType<DownwindPhase>(phases[2]);
+        DownwindPhase downwind = Assert.IsType<DownwindPhase>(phases[1]);
+        Assert.True(downwind.RejoinTrack, "the downwind after a crossing at pattern altitude must re-intercept its computed track");
+        Assert.DoesNotContain(phases, p => p is TeardropReentryPhase);
     }
 
     /// <summary>
@@ -1493,6 +1530,7 @@ public class PatternEntryTests : IDisposable
         AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
         aircraft.AircraftType = "B738";
         aircraft.Phases!.AssignedRunway = runway;
+        aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
         var teardrop = (TeardropReentryPhase)aircraft.Phases!.Phases[1];
@@ -1522,6 +1560,7 @@ public class PatternEntryTests : IDisposable
         AircraftState aircraft = MakeAircraft(37.87, -122.21, 3000, 180); // N of field, wrong side for left pattern
         aircraft.AircraftType = "B738";
         aircraft.Phases!.AssignedRunway = runway;
+        aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
         var teardrop = (TeardropReentryPhase)aircraft.Phases!.Phases[1];
@@ -1550,6 +1589,7 @@ public class PatternEntryTests : IDisposable
         AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
         aircraft.AircraftType = "B738";
         aircraft.Phases!.AssignedRunway = runway;
+        aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
         var teardrop = (TeardropReentryPhase)aircraft.Phases!.Phases[1];
@@ -1607,6 +1647,7 @@ public class PatternEntryTests : IDisposable
         AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
         aircraft.AircraftType = "B738";
         aircraft.Phases!.AssignedRunway = runway;
+        aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
         var teardrop = (TeardropReentryPhase)aircraft.Phases!.Phases[1];
@@ -1631,6 +1672,7 @@ public class PatternEntryTests : IDisposable
         AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
         aircraft.AircraftType = "DH8D";
         aircraft.Phases!.AssignedRunway = runway;
+        aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
         var teardrop = (TeardropReentryPhase)aircraft.Phases!.Phases[1];
@@ -1649,13 +1691,18 @@ public class PatternEntryTests : IDisposable
     }
 
     [Fact]
-    public void TeardropReentry_AltitudeProfileDescendsLinearly()
+    public void TeardropReentry_AltitudeProfileNeverClimbsAboveTheEntryHeight()
     {
-        // Waypoint altitude restrictions: anchor > lead-in > abeam, ending at TPA.
+        // Waypoint altitude restrictions step DOWN from the crossing (entry) height to TPA: the teardrop
+        // only ever sheds the AIM 4-3-3.a.2 entry height, never climbs above it — its contract is to
+        // descend to pattern altitude; climbing above the circuit contradicts AIM 4-3-3.a's recommendation
+        // that pattern altitude be maintained. On an authored-low field the crossing is 400 ft above the
+        // circuit, so the full profile is flown: anchor TPA + 250, lead-in TPA + 50, abeam TPA.
         RunwayInfo runway = MakeOak28R();
         AircraftState aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
         aircraft.AircraftType = "B738";
         aircraft.Phases!.AssignedRunway = runway;
+        aircraft.Ground.Layout = MakeAuthoredLowPatternLayout();
 
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
         var teardrop = (TeardropReentryPhase)aircraft.Phases!.Phases[1];
@@ -1669,8 +1716,8 @@ public class PatternEntryTests : IDisposable
         int tpa = (int)teardrop.Waypoints.PatternAltitude;
 
         _output.WriteLine($"Altitude profile: anchor={anchorAlt}, lead-in={leadInAlt}, abeam={abeamAlt}, TPA={tpa}");
-        Assert.True(anchorAlt > leadInAlt, $"anchor ({anchorAlt}) should be above lead-in ({leadInAlt})");
-        Assert.True(leadInAlt > abeamAlt, $"lead-in ({leadInAlt}) should be above abeam ({abeamAlt})");
+        Assert.Equal(tpa + 250, anchorAlt);
+        Assert.Equal(tpa + 50, leadInAlt);
         Assert.Equal(tpa, abeamAlt);
     }
 }

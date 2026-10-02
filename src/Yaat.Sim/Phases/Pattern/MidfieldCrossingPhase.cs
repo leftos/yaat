@@ -15,10 +15,11 @@ namespace Yaat.Sim.Phases.Pattern;
 /// <para>An aircraft already established in the pattern, and a departure crossing into another runway's
 /// pattern (<see cref="CrossAtPatternAltitude"/>), cross at pattern altitude whatever their category, as
 /// does any aircraft flying a controller-assigned pattern altitude (AIM 4-4-7.b).
-/// <see cref="CrossesAtPatternAltitude"/> is the single predicate for all of that, and the one the
-/// builders key the follow-on <see cref="TeardropReentryPhase"/> off: the teardrop exists to shed the
-/// entry height on an outbound leg and a 45° re-entry to abeam, so only an entry-height crossing gets
-/// one. Everything else drops straight into <see cref="DownwindPhase"/>.</para>
+/// <see cref="CrossesAtPatternAltitude"/> is the single predicate for all of that; where a teardrop is
+/// involved the builders compare the <see cref="ResolveCrossingAltitude(bool, AircraftCategory, double?, double, double?)"/>
+/// this crossing will actually be flown at against the pattern altitude, because the teardrop exists to
+/// shed the entry height on an outbound leg and a 45° re-entry to abeam. Only a crossing above pattern
+/// altitude gets one; everything else drops straight into <see cref="DownwindPhase"/>.</para>
 /// </summary>
 public sealed class MidfieldCrossingPhase : Phase
 {
@@ -151,8 +152,10 @@ public sealed class MidfieldCrossingPhase : Phase
     /// an aircraft that never left the pattern (<paramref name="crossAtPatternAltitude"/> — an
     /// in-pattern crossover, or a departure crossing into another runway's pattern), one flying a
     /// controller-assigned pattern altitude (AIM 4-4-7.b outranks a recommended entry height), and any
-    /// piston or helicopter. The builders read this to decide whether a
-    /// <c>TeardropReentryPhase</c> has anything to do: it exists to shed the entry height, so a crossing
+    /// piston or helicopter. It decides the crossing altitude
+    /// (<see cref="ResolveCrossingAltitude(bool, AircraftCategory, double?, double, double?)"/>); the
+    /// builders compare that resolved altitude against the pattern altitude to decide whether a
+    /// <c>TeardropReentryPhase</c> has anything to do — it exists to shed the entry height, so a crossing
     /// already at pattern altitude never gets one.
     /// </summary>
     public static bool CrossesAtPatternAltitude(bool crossAtPatternAltitude, AircraftCategory category, double? altitudeOverrideFt) =>

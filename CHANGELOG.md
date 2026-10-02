@@ -40,6 +40,7 @@
 
 ### Fixed
 
+- Wrong-side jet and turboprop pattern entries at a field with no authored pattern altitude join downwind directly instead of climbing into a teardrop.
 - Right-clicking a parking spot beside a parked aircraft, or overlapping aircraft on the ground or radar view, opens a list to pick the one you meant.
 - An aircraft holding short of a taxiway or runway stops at the hold line instead of rolling up to the intersection when the line sits well back.
 - `TAXI TE T U HS T` reads back the route as issued, and its wingtip warning names the crossing taxiways, not T straight ahead.
