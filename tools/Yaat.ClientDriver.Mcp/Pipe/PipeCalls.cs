@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using ModelContextProtocol;
 using Yaat.Client.Automation.Protocol;
 
@@ -89,6 +90,36 @@ public static class PipeCalls
     /// </summary>
     public static async Task<PipeClient?> TryRouteAsync(PipeDirectory directory, int pid, CancellationToken ct) =>
         await directory.TryGetAsync(pid, ct).ConfigureAwait(false);
+
+    /// <summary>
+    /// The windows the client of <paramref name="pid"/> lists over its automation pipe, empty when it has none open; null when
+    /// the pid has no pipe or another caller disposed the cached client mid-call, so the caller falls back or polls again. It
+    /// never records the pid as the directory's last target: each caller decides which answer makes the pid the one to drive.
+    /// </summary>
+    /// <param name="directory">The directory that finds and caches the client pipes.</param>
+    /// <param name="pid">The client's process id.</param>
+    /// <param name="logger">Where the disposed-mid-call fallback is logged.</param>
+    /// <param name="ct">Cancels the lookup and the send.</param>
+    /// <exception cref="PipeRemoteException">The host answered with a coded error; each caller maps it.</exception>
+    /// <exception cref="McpException">The pipe broke or the request timed out.</exception>
+    public static async Task<List<WindowInfo>?> TryListWindowsAsync(PipeDirectory directory, int pid, ILogger logger, CancellationToken ct)
+    {
+        PipeClient? client = await TryRouteAsync(directory, pid, ct).ConfigureAwait(false);
+        if (client is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return await client.SendAsync<List<WindowInfo>>(ProtocolMethods.ListWindows, null, PipeClient.RequestTimeout, ct).ConfigureAwait(false);
+        }
+        catch (ObjectDisposedException ex)
+        {
+            logger.LogDebug(ex, "The automation pipe client for pid {Pid} was disposed mid-call; it has no window list to give", pid);
+            return null;
+        }
+    }
 
     /// <summary>
     /// The one <c>get_tree</c> node rooted at <paramref name="element"/>, with the children <paramref name="parameters"/>'

@@ -13,6 +13,7 @@ using Xunit;
 using Yaat.Client.Automation;
 using Yaat.Client.Automation.Protocol;
 using Yaat.Client.UI.Tests.Helpers;
+using McpWindowInfo = mcp::Yaat.Client.Automation.Protocol.WindowInfo;
 
 namespace Yaat.ClientDriver.Mcp.Tests;
 
@@ -156,6 +157,98 @@ public sealed class PipeCallsTests : AutomationHostFixture
         }
     }
 
+    [AvaloniaFact]
+    public async Task TryListWindows_LiveHost_ReturnsTheWindowsAndRemembersNothing()
+    {
+        using AutomationHost host = StartHost(() => Windows);
+        ShowWindow("Main", Pad(), null);
+        PipeDirectory directory = NewPipeDirectory();
+        try
+        {
+            List<McpWindowInfo>? windows = await PipeCalls.TryListWindowsAsync(
+                directory,
+                Environment.ProcessId,
+                NullLogger.Instance,
+                CancellationToken.None
+            );
+
+            Assert.NotNull(windows);
+            McpWindowInfo window = Assert.Single(windows);
+            Assert.Equal("Main", window.Title);
+            Assert.Null(directory.LastTargetPid);
+        }
+        finally
+        {
+            await directory.ForgetAsync(Environment.ProcessId);
+        }
+    }
+
+    [Fact]
+    public async Task TryListWindows_PidWithNoPipe_ReturnsNull()
+    {
+        PipeDirectory directory = NewPipeDirectory();
+
+        List<McpWindowInfo>? windows = await PipeCalls.TryListWindowsAsync(directory, 99999999, NullLogger.Instance, CancellationToken.None);
+
+        Assert.Null(windows);
+        Assert.Null(directory.LastTargetPid);
+    }
+
+    [AvaloniaFact]
+    public async Task TryListWindows_DisposedClient_ReturnsNull()
+    {
+        using AutomationHost host = StartHost(() => Windows);
+        PipeDirectory directory = NewPipeDirectory();
+        try
+        {
+            PipeClient cached = (await directory.TryGetAsync(Environment.ProcessId, CancellationToken.None))!;
+
+            // Another caller forgetting the pid between the lookup and the send disposes the client the directory still hands out.
+            await cached.DisposeAsync();
+
+            List<McpWindowInfo>? windows = await PipeCalls.TryListWindowsAsync(
+                directory,
+                Environment.ProcessId,
+                NullLogger.Instance,
+                CancellationToken.None
+            );
+
+            Assert.Null(windows);
+            Assert.Null(directory.LastTargetPid);
+        }
+        finally
+        {
+            await directory.ForgetAsync(Environment.ProcessId);
+        }
+    }
+
+    [Fact]
+    public async Task TryListWindows_HostCodedError_ThrowsPipeRemoteException()
+    {
+        string pipeName = $"yaat-scripted-host-{Guid.NewGuid():N}";
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        await WriteDiscoveryAsync(Environment.ProcessId, pipeName, Process.GetCurrentProcess().ProcessName);
+        var busy = new AutomationError("The host could not list its windows.", "HOST_BUSY", "try again", null);
+        Task server = ServeAsync(pipeName, Environment.ProcessId, busy, timeout.Token);
+        PipeDirectory directory = NewPipeDirectory();
+        try
+        {
+            PipeRemoteException failure = await Assert.ThrowsAsync<PipeRemoteException>(() =>
+                PipeCalls.TryListWindowsAsync(directory, Environment.ProcessId, NullLogger.Instance, CancellationToken.None)
+            );
+
+            Assert.Equal("HOST_BUSY", failure.Code);
+            Assert.Equal("HOST_BUSY: The host could not list its windows. Hint: try again", failure.Message);
+            Assert.Null(directory.LastTargetPid);
+        }
+        finally
+        {
+            await directory.ForgetAsync(Environment.ProcessId);
+        }
+
+        await server;
+    }
+
     [Fact]
     public async Task SendForPid_PidWithoutAPipe_ReadsPipeClosedAndForgetsThePid()
     {
@@ -200,7 +293,7 @@ public sealed class PipeCallsTests : AutomationHostFixture
         string childName = child.ProcessName;
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         await WriteDiscoveryAsync(childPid, pipeName, childName);
-        Task server = ServePingAsync(pipeName, childPid, timeout.Token);
+        Task server = ServeAsync(pipeName, childPid, null, timeout.Token);
         var directory = new PipeDirectory(DiscoveryDirectory, childName, NullLogger<PipeDirectory>.Instance, NullLogger<PipeClient>.Instance);
         try
         {
@@ -242,20 +335,50 @@ public sealed class PipeCallsTests : AutomationHostFixture
         );
     }
 
-    /// <summary>Answers every request with a ping result for <paramref name="pid"/>, until the client hangs up.</summary>
-    private static async Task ServePingAsync(string pipeName, int pid, CancellationToken ct)
+    /// <summary>
+    /// Answers a ping with a ping result for <paramref name="pid"/>, and every other request with <paramref name="otherError"/>,
+    /// or with the same ping result when it is null, until the client hangs up. Each answer is flushed as it is written.
+    /// </summary>
+    private static async Task ServeAsync(string pipeName, int pid, AutomationError? otherError, CancellationToken ct)
     {
         await using var pipe = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
         await pipe.WaitForConnectionAsync(ct);
         var utf8 = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
         using var reader = new StreamReader(pipe, utf8, detectEncodingFromByteOrderMarks: false, bufferSize: 1024, leaveOpen: true);
-        await using var writer = new StreamWriter(pipe, utf8, bufferSize: 1024, leaveOpen: true) { AutoFlush = true };
-        while (await reader.ReadLineAsync(ct) is { } line)
+        var writer = new StreamWriter(pipe, utf8, bufferSize: 1024, leaveOpen: true);
+        try
         {
-            using var request = JsonDocument.Parse(line);
-            string id = request.RootElement.GetProperty("id").GetString()!;
-            var response = AutomationResponse.Success(id, ProtocolSerializer.ToElement(new PingResult(pid, ProtocolVersion.Current)));
-            await writer.WriteLineAsync(ProtocolSerializer.Serialize(response).AsMemory(), ct);
+            while (await reader.ReadLineAsync(ct) is { } line)
+            {
+                using var request = JsonDocument.Parse(line);
+                string id = request.RootElement.GetProperty("id").GetString()!;
+                bool isPing = request.RootElement.GetProperty("method").GetString() == ProtocolMethods.Ping;
+                AutomationResponse response =
+                    (isPing || (otherError is null))
+                        ? AutomationResponse.Success(id, ProtocolSerializer.ToElement(new PingResult(pid, ProtocolVersion.Current)))
+                        : AutomationResponse.Failure(id, otherError);
+                await writer.WriteLineAsync(ProtocolSerializer.Serialize(response).AsMemory(), ct);
+                await writer.FlushAsync(ct);
+            }
+        }
+        finally
+        {
+            await CloseAfterHangUpAsync(writer);
+        }
+    }
+
+    /// <summary>Disposes the stub's writer, whose closing flush may find the pipe already broken by the client.</summary>
+    private static async Task CloseAfterHangUpAsync(StreamWriter writer)
+    {
+        try
+        {
+            await writer.DisposeAsync();
+        }
+        catch (IOException ex)
+        {
+            // The client closes the pipe after a coded error, so the closing flush can hit a broken pipe; every answer was
+            // already flushed when it was written, so nothing is lost.
+            TestContext.Current.TestOutputHelper?.WriteLine($"The client hung up before the stub writer closed: {ex.Message}");
         }
     }
 

@@ -59,7 +59,7 @@ public sealed class PipeTools(PipeDirectory pipes)
         "Queues one answer for the next file dialog a YAAT client opens in automation mode: a path, or cancel. Call it before the action "
             + "that opens the dialog — the dialog takes the oldest queued answer at once and fails when none is queued; queue one answer "
             + "per dialog, in the order the dialogs open. Goes over the client's automation pipe to pid, or with pid 0 to the client the "
-            + "last pipe call reached; the result counts the answers waiting and ends with (pipe)."
+            + "last pipe call reached; the result counts the answers waiting and ends with (N waiting, pipe)."
     )]
     public async Task<string> QueueFilePickAsync(
         CancellationToken cancellationToken,

@@ -1885,13 +1885,13 @@ Tools/PipeTools.cs             # wait_for and queue_file_pick, pipe-only: the pi
 Pipe/PipeClient.cs             # One named-pipe connection to a client's automation host (protocol DTOs linked from the client's Automation/Protocol): serialised requests, a 30 s request timeout, the connection dropped on a cancel, a broken pipe or an unparsable answer and re-opened on the next call
 Pipe/PipeDirectory.cs          # Finds a client's pipe from its discovery file (%TEMP%/yaat-automation/<pid>.json), caches one PipeClient per pid, evicts a client whose process has exited; ForgetAsync; LastTargetPid, the pid of the last successful pipe call (cleared when that pid is forgotten, evicted or its pipe found closed)
 Pipe/PipeCalls.cs              # The one place a tool talks to a pipe: SendForElementAsync for an element id (STALE_NODE reads as the UIA gone message), SendForPidAsync for a pid; a closed or missing pipe reads as "the automation pipe for pid N closed", other host errors keep their message; GetNodeAsync reads one node; TryRouteAsync picks pipe or UIA for a pid
-Pipe/PipeInput.cs              # The input tools' pipe params (PipePointer: button, modifiers, click count) and result wording: "clicked (<action>) on <row> (pipe)", "N strokes"
+Pipe/PipeInput.cs              # The input tools' pipe params (PipePointer: button, modifiers, click count) and result wording: "clicked (<action>) on <row> (pipe)", "sent '<text>' to <row>, N strokes (pipe)"
 Pipe/PipeDescribe.cs           # The row shape of a pipe node or window in dump_tree / find_elements / list_windows: Avalonia type, text, id (AutomationId else x:Name), state, rect in window DIPs (NodeInfo.WindowBounds)
 Pipe/PipeRemoteException.cs    # A host error answer: code, the host's own message (RemoteMessage) and its hint
 launch.ps1                     # What `.mcp.json` runs: copies bin/ to %LOCALAPPDATA%/yaat/client-driver-mcp/run-<pid> and starts the server there, so a running server never locks the build output; prunes dead sessions' copies
 McpStdio.ps1                   # Dot-sourced JSON-RPC-over-stdio plumbing for the two scripts
 smoke.ps1                      # Protocol smoke: stdout is pure JSON, every tool listed; opens no window
-live-check.ps1                 # Live pass against a real client (-WithInput types and clicks); captures CRC's first display window when CRC is running
+live-check.ps1                 # Live pass against a real client: default and -Background over the automation pipe (foreground and cursor must not change), -WithInput over UI Automation with real input; captures CRC's first display window when CRC is running
 ```
 
 ## FOLLOW montage clips (`tools/montage/follow/`)

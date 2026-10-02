@@ -159,6 +159,12 @@ public sealed class ClickHandler(NodeRegistry registry, TargetResolver targets) 
 
     private static object RunMenuItem(MenuItem menuItem, int nodeId)
     {
+        if (menuItem.HasSubMenu)
+        {
+            PressSubmenuParent(menuItem);
+            return new ClickResult(nodeId, MenuItemAction);
+        }
+
         bool hasCommand = menuItem.Command is not null;
         bool commandExecuted = ActivateMenuItem(menuItem);
         if (hasCommand && !commandExecuted)
@@ -169,19 +175,46 @@ public sealed class ClickHandler(NodeRegistry registry, TargetResolver targets) 
         return new ClickResult(nodeId, MenuItemAction);
     }
 
+    /// <summary>
+    /// What a real press does to a menu item with a submenu (Avalonia's <c>DefaultMenuInteractionHandler</c>); it never raises
+    /// <c>Click</c>. A top-level item whose submenu is open closes its menu. A closed top-level item opens its menu, so the
+    /// menu's <c>Opened</c> is raised, then its submenu. A nested item first closes any open sibling submenu, as the pointer
+    /// entering it does, then opens its own, so two sibling submenus are never open at once.
+    /// </summary>
+    private static void PressSubmenuParent(MenuItem menuItem)
+    {
+        if (menuItem.Parent is Menu menu)
+        {
+            if (menuItem.IsSubMenuOpen)
+            {
+                menu.Close();
+                return;
+            }
+
+            menu.Open();
+            menuItem.Open();
+            return;
+        }
+
+        IEnumerable<MenuItem> siblings = ItemsControl.ItemsControlFromItemContainer(menuItem)?.GetRealizedContainers().OfType<MenuItem>() ?? [];
+        foreach (MenuItem sibling in siblings.Where(sibling => (sibling != menuItem) && sibling.IsSubMenuOpen))
+        {
+            sibling.Close();
+        }
+
+        menuItem.Open();
+    }
+
     private static bool ActivateMenuItem(MenuItem menuItem)
     {
         // SetCurrentValue, as the control itself does, so a OneWay binding on IsChecked survives the click.
-        if (!menuItem.HasSubMenu)
+        if (menuItem.ToggleType == MenuItemToggleType.CheckBox)
         {
-            if (menuItem.ToggleType == MenuItemToggleType.CheckBox)
-            {
-                menuItem.SetCurrentValue(MenuItem.IsCheckedProperty, !menuItem.IsChecked);
-            }
-            else if ((menuItem.ToggleType == MenuItemToggleType.Radio) && !menuItem.IsChecked)
-            {
-                menuItem.SetCurrentValue(MenuItem.IsCheckedProperty, true);
-            }
+            menuItem.SetCurrentValue(MenuItem.IsCheckedProperty, !menuItem.IsChecked);
+        }
+        else if ((menuItem.ToggleType == MenuItemToggleType.Radio) && !menuItem.IsChecked)
+        {
+            menuItem.SetCurrentValue(MenuItem.IsCheckedProperty, true);
         }
 
         var clickArgs = new RoutedEventArgs(MenuItem.ClickEvent);

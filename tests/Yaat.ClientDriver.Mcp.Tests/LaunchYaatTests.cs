@@ -23,7 +23,7 @@ namespace Yaat.ClientDriver.Mcp.Tests;
 /// YAAT_AUTOMATION at the started process, waits for its automation pipe to answer <c>list_windows</c> rather than for a
 /// top-level window, reports the pipe's own rows, and on failure reports the exit code, the deadline or the cancellation
 /// while keeping the app-data directory. The pipe the wait polls is the one a real <see cref="AutomationHost"/> answers in
-/// this process, or a stub that never answers. Every test that starts a child stops it through a handle of its own.
+/// this process, or a stub that never answers or answers with a coded error. Every test that starts a child stops it through a handle of its own.
 /// </summary>
 public sealed class LaunchYaatTests : AutomationHostFixture
 {
@@ -215,6 +215,46 @@ public sealed class LaunchYaatTests : AutomationHostFixture
             // Without the deadline linked into the pipe calls, the ping waits out its own connect and request timeouts.
             Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(5), $"the deadline did not bound the stalled pipe call: {elapsed.Elapsed}");
             Assert.True(child.HasExited);
+        }
+        finally
+        {
+            StopChild(child);
+            await ceiling.CancelAsync();
+            await server;
+            Delete(appDataDir);
+            Delete(Path.GetDirectoryName(exePath)!);
+        }
+    }
+
+    // A host error is the host's own answer, not a pipe still coming up, so the wait reports it at once instead of polling on.
+    [Fact]
+    public async Task LaunchYaat_HostCodedError_FailsAtOnce()
+    {
+        string appDataDir = NewDirectory("appdata");
+        string exePath = NewDummyClientExe();
+        // This test starts the child itself, so the discovery file and the pipe stub are ready before the launch runs.
+        using Process child = Process.Start(Shell("ping.exe", "-n 30 127.0.0.1"))!;
+        string pipeName = $"yaat-stub-host-{Guid.NewGuid():N}";
+        WriteDiscovery(child.Id, pipeName, child.ProcessName);
+        using var ceiling = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        Task server = ServeCodedErrorAfterPingAsync(pipeName, child.Id, ceiling.Token);
+        var directory = new PipeDirectory(DiscoveryDirectory, child.ProcessName, NullLogger<PipeDirectory>.Instance, NullLogger<PipeClient>.Instance);
+        var starter = new ScriptedStarter(() => Process.GetProcessById(child.Id));
+        ProcessTools tools = NewTools(directory, starter);
+        const int waitSeconds = 10;
+        try
+        {
+            var elapsed = Stopwatch.StartNew();
+            McpException failure = await Assert.ThrowsAsync<McpException>(() =>
+                tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, waitSeconds)
+            );
+            elapsed.Stop();
+
+            Assert.Equal("HOST_BUSY: The host could not list its windows. Hint: try again", failure.Message);
+            Assert.True(
+                elapsed.Elapsed < TimeSpan.FromSeconds(waitSeconds / 2.0),
+                $"the launch polled past the host's coded error: {elapsed.Elapsed}"
+            );
         }
         finally
         {
@@ -437,6 +477,60 @@ public sealed class LaunchYaatTests : AutomationHostFixture
         catch (OperationCanceledException ex)
         {
             Report($"The closing stub pipe's ceiling passed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Answers a ping for <paramref name="pid"/> and every other request with a coded host error, until the client hangs up
+    /// or <paramref name="ct"/> cancels.
+    /// </summary>
+    private static async Task ServeCodedErrorAfterPingAsync(string pipeName, int pid, CancellationToken ct)
+    {
+        await using var pipe = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+        var utf8 = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+        var busy = new AutomationError("The host could not list its windows.", "HOST_BUSY", "try again", null);
+        try
+        {
+            await pipe.WaitForConnectionAsync(ct);
+            using var reader = new StreamReader(pipe, utf8, detectEncodingFromByteOrderMarks: false, bufferSize: 1024, leaveOpen: true);
+            var writer = new StreamWriter(pipe, utf8, bufferSize: 1024, leaveOpen: true);
+            try
+            {
+                while (await reader.ReadLineAsync(ct) is { } line)
+                {
+                    using var request = JsonDocument.Parse(line);
+                    string id = request.RootElement.GetProperty("id").GetString()!;
+                    AutomationResponse response =
+                        (request.RootElement.GetProperty("method").GetString() == ProtocolMethods.Ping)
+                            ? AutomationResponse.Success(id, ProtocolSerializer.ToElement(new PingResult(pid, ProtocolVersion.Current)))
+                            : AutomationResponse.Failure(id, busy);
+                    await writer.WriteLineAsync(ProtocolSerializer.Serialize(response).AsMemory(), ct);
+                    await writer.FlushAsync(ct);
+                }
+            }
+            finally
+            {
+                await CloseAfterHangUpAsync(writer);
+            }
+        }
+        catch (OperationCanceledException ex)
+        {
+            Report($"The coded-error stub pipe's ceiling passed: {ex.Message}");
+        }
+    }
+
+    /// <summary>Disposes the stub's writer, whose closing flush may find the pipe already broken by the client.</summary>
+    private static async Task CloseAfterHangUpAsync(StreamWriter writer)
+    {
+        try
+        {
+            await writer.DisposeAsync();
+        }
+        catch (IOException ex)
+        {
+            // The client closes the pipe after a coded error, so the closing flush can hit a broken pipe; every answer was
+            // already flushed when it was written, so nothing is lost.
+            Report($"The client hung up before the stub writer closed: {ex.Message}");
         }
     }
 

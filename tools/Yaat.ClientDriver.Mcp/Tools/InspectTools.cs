@@ -37,10 +37,20 @@ public sealed class InspectTools(ElementRegistry registry, PipeDirectory pipes, 
         CancellationToken cancellationToken
     )
     {
-        PipeClient? client = await PipeCalls.TryRouteAsync(pipes, pid, cancellationToken).ConfigureAwait(false);
-        List<WindowInfo>? pipeWindows = (client is null) ? null : await TryListPipeWindowsAsync(client, pid, cancellationToken).ConfigureAwait(false);
+        List<WindowInfo>? pipeWindows;
+        try
+        {
+            pipeWindows = await PipeCalls.TryListWindowsAsync(pipes, pid, logger, cancellationToken).ConfigureAwait(false);
+        }
+        catch (PipeRemoteException ex)
+        {
+            throw new McpException(ex.Message);
+        }
+
         if (pipeWindows is not null)
         {
+            // Any answer, none included, makes the pid the one a later pid-less pipe call drives.
+            pipes.RememberTarget(pid);
             if (pipeWindows.Count == 0)
             {
                 return NoWindowsMessage(pid);
@@ -194,28 +204,6 @@ public sealed class InspectTools(ElementRegistry registry, PipeDirectory pipes, 
 
         string note = rows.Count >= MaxRows ? $"{Environment.NewLine}… stopped at {MaxRows} matches — narrow the criteria" : string.Empty;
         return string.Join(Environment.NewLine, rows) + note;
-    }
-
-    /// <summary>The client's windows over its pipe, or null when another caller disposed the cached client and UI Automation must answer.</summary>
-    private async Task<List<WindowInfo>?> TryListPipeWindowsAsync(PipeClient client, int pid, CancellationToken cancellationToken)
-    {
-        try
-        {
-            List<WindowInfo> windows = await client
-                .SendAsync<List<WindowInfo>>(ProtocolMethods.ListWindows, null, PipeClient.RequestTimeout, cancellationToken)
-                .ConfigureAwait(false);
-            pipes.RememberTarget(pid);
-            return windows;
-        }
-        catch (ObjectDisposedException ex)
-        {
-            logger.LogDebug(ex, "The automation pipe client for pid {Pid} was disposed mid-call; listing its windows through UI Automation", pid);
-            return null;
-        }
-        catch (PipeRemoteException ex)
-        {
-            throw new McpException(ex.Message);
-        }
     }
 
     private async Task<string> DumpPipeTreeAsync(PipeElement element, int maxDepth, CancellationToken cancellationToken)

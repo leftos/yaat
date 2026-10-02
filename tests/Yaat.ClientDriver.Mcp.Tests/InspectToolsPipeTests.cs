@@ -56,6 +56,26 @@ public sealed class InspectToolsPipeTests : AutomationHostFixture
         }
     }
 
+    [AvaloniaFact]
+    public async Task ListWindows_PipeHostWithNoWindows_ReportsNoneAndRemembersThePid()
+    {
+        using AutomationHost host = StartHost(() => []);
+        PipeDirectory directory = NewPipeDirectory();
+        try
+        {
+            InspectTools tools = NewTools(directory);
+
+            string rows = await tools.ListWindowsAsync(Pid, CancellationToken.None);
+
+            Assert.Equal($"No top-level windows for pid {Pid} — it may still be starting, or it has none.", rows);
+            Assert.Equal(Pid, directory.LastTargetPid);
+        }
+        finally
+        {
+            await directory.ForgetAsync(Pid);
+        }
+    }
+
     // The headless window has no HWND, so UI Automation finds no top-level window for this process: the fallback answers
     // with the UI Automation path's empty-result text.
     [AvaloniaFact]
@@ -437,23 +457,42 @@ public sealed class InspectToolsPipeTests : AutomationHostFixture
         await server;
     }
 
-    /// <summary>Answers a ping with this process's pid and every other request with a coded error, until the client hangs up.</summary>
+    /// <summary>
+    /// Answers a ping with this process's pid and every other request with a coded error, until the client hangs up. Each answer
+    /// is flushed as it is written, so the hang-up a coded error provokes cannot lose the one before it.
+    /// </summary>
     private static async Task ServeListWindowsErrorAsync(string pipeName, CancellationToken ct)
     {
         await using var pipe = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
         await pipe.WaitForConnectionAsync(ct);
         var utf8 = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
         using var reader = new StreamReader(pipe, utf8, detectEncodingFromByteOrderMarks: false, bufferSize: 1024, leaveOpen: true);
-        await using var writer = new StreamWriter(pipe, utf8, bufferSize: 1024, leaveOpen: true) { AutoFlush = true };
-        while (await reader.ReadLineAsync(ct) is { } line)
+        var writer = new StreamWriter(pipe, utf8, bufferSize: 1024, leaveOpen: true) { AutoFlush = true };
+        try
         {
-            using var request = JsonDocument.Parse(line);
-            string id = request.RootElement.GetProperty("id").GetString()!;
-            bool isPing = request.RootElement.GetProperty("method").GetString() == ProtocolMethods.Ping;
-            AutomationResponse response = isPing
-                ? AutomationResponse.Success(id, ProtocolSerializer.ToElement(new PingResult(Pid, ProtocolVersion.Current)))
-                : AutomationResponse.Failure(id, new AutomationError("The host could not list its windows.", "HOST_BUSY", "try again", null));
-            await writer.WriteLineAsync(ProtocolSerializer.Serialize(response).AsMemory(), ct);
+            while (await reader.ReadLineAsync(ct) is { } line)
+            {
+                using var request = JsonDocument.Parse(line);
+                string id = request.RootElement.GetProperty("id").GetString()!;
+                bool isPing = request.RootElement.GetProperty("method").GetString() == ProtocolMethods.Ping;
+                AutomationResponse response = isPing
+                    ? AutomationResponse.Success(id, ProtocolSerializer.ToElement(new PingResult(Pid, ProtocolVersion.Current)))
+                    : AutomationResponse.Failure(id, new AutomationError("The host could not list its windows.", "HOST_BUSY", "try again", null));
+                await writer.WriteLineAsync(ProtocolSerializer.Serialize(response).AsMemory(), ct);
+            }
+        }
+        finally
+        {
+            try
+            {
+                await writer.DisposeAsync();
+            }
+            catch (IOException ex)
+            {
+                // The client closes the pipe after a coded error, so the writer's closing flush can find it broken; every answer
+                // was already flushed when it was written, so nothing is lost.
+                TestContext.Current.TestOutputHelper?.WriteLine($"The client hung up before the stub writer closed: {ex.Message}");
+            }
         }
     }
 

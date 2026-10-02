@@ -63,7 +63,7 @@ public static class PipeInput
         SendKeysResult result = await PipeCalls
             .SendForElementAsync<SendKeysResult>(pipes, element, ProtocolMethods.SendKeys, parameters, ct)
             .ConfigureAwait(false);
-        return $"sent '{keys}' to {described} ({Strokes(result.Strokes)}, pipe)";
+        return $"sent '{keys}' to {described}, {Strokes(result.Strokes)} (pipe)";
     }
 
     /// <summary>Sends <paramref name="keys"/> to the focused element of <paramref name="pid"/>'s active window.</summary>
@@ -72,7 +72,7 @@ public static class PipeInput
         SendKeysResult result = await PipeCalls
             .SendForPidAsync<SendKeysResult>(pipes, pid, ProtocolMethods.SendKeys, new { keys }, PipeClient.RequestTimeout, ct)
             .ConfigureAwait(false);
-        return $"sent '{keys}' to the focused element ({Strokes(result.Strokes)}, pipe)";
+        return $"sent '{keys}' to the focused element, {Strokes(result.Strokes)} (pipe)";
     }
 
     /// <summary>Gives <paramref name="element"/> the keyboard focus.</summary>

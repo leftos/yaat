@@ -92,6 +92,92 @@ public sealed class AutomationClickTests : AutomationHostFixture
     }
 
     [AvaloniaFact]
+    public async Task Click_MenuItemWithSubmenu_OpensIt()
+    {
+        var file = new MenuItem
+        {
+            Name = "File",
+            Header = "_File",
+            Items =
+            {
+                new MenuItem { Name = "Connect", Header = "Connect..." },
+            },
+        };
+        var menu = new Menu { Items = { file } };
+        int clicks = 0;
+        int menuOpenings = 0;
+        file.Click += (_, _) => clicks++;
+        menu.Opened += (_, _) => menuOpenings++;
+        ShowWindow("SubmenuWindow", menu, null);
+
+        JsonElement result = Result(await Click(new { selector = "#File" }));
+
+        Assert.Equal("menu_item", result.GetProperty("action").GetString());
+        Assert.True(file.IsSubMenuOpen);
+        Assert.True(menu.IsOpen);
+        Assert.Equal(1, menuOpenings);
+        Assert.Equal(0, clicks);
+    }
+
+    [AvaloniaFact]
+    public async Task Click_OpenTopLevelMenuItem_ClosesTheMenu()
+    {
+        MenuItem file = SubmenuParent("File", "Connect");
+        var menu = new Menu { Items = { file } };
+        int clicks = 0;
+        file.Click += (_, _) => clicks++;
+        ShowWindow("SubmenuWindow", menu, null);
+        using AutomationHost host = StartHost(() => Windows);
+        await using AutomationPipeTestClient client = await Connect();
+
+        Result(await Send(client, ProtocolMethods.Click, new { selector = "#File" }));
+        JsonElement result = Result(await Send(client, ProtocolMethods.Click, new { selector = "#File" }));
+
+        Assert.Equal("menu_item", result.GetProperty("action").GetString());
+        Assert.False(file.IsSubMenuOpen);
+        Assert.False(menu.IsOpen);
+        Assert.Equal(0, clicks);
+    }
+
+    [AvaloniaFact]
+    public async Task Click_NestedSubmenuParents_NeverOpenTwoAtOnce()
+    {
+        MenuItem recent = SubmenuParent("Recent", "RecentOne");
+        MenuItem export = SubmenuParent("Export", "ExportOne");
+        var file = new MenuItem
+        {
+            Name = "File",
+            Header = "_File",
+            Items = { recent, export },
+        };
+        ShowWindow("SubmenuWindow", new Menu { Items = { file } }, null);
+        using AutomationHost host = StartHost(() => Windows);
+        await using AutomationPipeTestClient client = await Connect();
+        List<(bool Recent, bool Export)> open = [];
+
+        foreach (string selector in new[] { "#File", "#Recent", "#Export", "#Recent" })
+        {
+            Result(await Send(client, ProtocolMethods.Click, new { selector }));
+            open.Add((recent.IsSubMenuOpen, export.IsSubMenuOpen));
+        }
+
+        Assert.Equal([(false, false), (true, false), (false, true), (true, false)], open);
+        Assert.True(file.IsSubMenuOpen);
+    }
+
+    /// <summary>A menu item named <paramref name="name"/> whose submenu holds one plain item named <paramref name="childName"/>.</summary>
+    private static MenuItem SubmenuParent(string name, string childName) =>
+        new()
+        {
+            Name = name,
+            Header = name,
+            Items =
+            {
+                new MenuItem { Name = childName, Header = childName },
+            },
+        };
+
+    [AvaloniaFact]
     public async Task Click_ItemContainers_SelectThem()
     {
         var list = new ListBox { ItemsSource = new[] { "A", "B" } };

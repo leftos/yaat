@@ -235,8 +235,8 @@ public sealed class InputToolsPipeTests : AutomationHostFixture
             string chord = await tools.Input.SendKeysAsync("^a", CancellationToken.None, id);
 
             Assert.StartsWith($"sent 'abc{{ENTER}}' to {id} | TextBox |", typed, StringComparison.Ordinal);
-            Assert.EndsWith(" (4 strokes, pipe)", typed, StringComparison.Ordinal);
-            Assert.EndsWith(" (1 stroke, pipe)", chord, StringComparison.Ordinal);
+            Assert.EndsWith(", 4 strokes (pipe)", typed, StringComparison.Ordinal);
+            Assert.EndsWith(", 1 stroke (pipe)", chord, StringComparison.Ordinal);
             Assert.Equal("abc", box.Text);
             Assert.Equal([(Key.Enter, KeyModifiers.None), (Key.A, KeyModifiers.Control)], keyDowns);
         }
@@ -261,7 +261,7 @@ public sealed class InputToolsPipeTests : AutomationHostFixture
 
             string result = await tools.Input.SendKeysAsync("xy", CancellationToken.None, "");
 
-            Assert.Equal("sent 'xy' to the focused element (2 strokes, pipe)", result);
+            Assert.Equal("sent 'xy' to the focused element, 2 strokes (pipe)", result);
             Assert.Equal("xy", box.Text);
         }
         finally

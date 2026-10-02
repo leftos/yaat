@@ -228,31 +228,21 @@ public sealed class ProcessTools(ElementRegistry registry, PipeDirectory pipes, 
     private static McpException ExitedBeforeWindow(Process process) =>
         new($"The client (pid {process.Id}) exited with code {process.ExitCode} before opening a window — read the log with tail_yaat_log");
 
-    /// <summary>The pid's pipe window list, or null while the client has no pipe that answers — the wait polls again.</summary>
+    /// <summary>
+    /// The pid's pipe window list, or null while the client has no pipe that answers — the wait polls again. Only a list with
+    /// a window in it leaves the pid remembered as the last target: the client is not ready to drive before that.
+    /// </summary>
     private async Task<List<WindowInfo>?> TryListPipeWindowsAsync(int pid, CancellationToken cancellationToken)
     {
-        PipeClient? client = await PipeCalls.TryRouteAsync(pipes, pid, cancellationToken).ConfigureAwait(false);
-        if (client is null)
-        {
-            return null;
-        }
-
         try
         {
-            List<WindowInfo> windows = await client
-                .SendAsync<List<WindowInfo>>(ProtocolMethods.ListWindows, null, PipeClient.RequestTimeout, cancellationToken)
-                .ConfigureAwait(false);
-            if (windows.Count > 0)
+            List<WindowInfo>? windows = await PipeCalls.TryListWindowsAsync(pipes, pid, logger, cancellationToken).ConfigureAwait(false);
+            if (windows is { Count: > 0 })
             {
                 pipes.RememberTarget(pid);
             }
 
             return windows;
-        }
-        catch (ObjectDisposedException ex)
-        {
-            logger.LogDebug(ex, "The automation pipe client for pid {Pid} was disposed mid-call; waiting for it to answer again", pid);
-            return null;
         }
         catch (PipeRemoteException ex)
         {
