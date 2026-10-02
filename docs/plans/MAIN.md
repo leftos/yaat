@@ -9,9 +9,6 @@
 ## Bug reports and feature requests
 
 - [/] YAAT-7 Record the FOLLOW video montage (release cut and review reel) · release vNext
-- [x] YAAT-5 Misc Ground Issues · release vNext
-- [x] YAAT-207 TAXI TE T U HS T holds at the T/U intersection instead of short of T · release vNext
-- [x] YAAT-208 Right-click picker when a click hits several targets (aircraft, parking spot) · release vNext
 
 ## Client driver in the background (#474)
 
