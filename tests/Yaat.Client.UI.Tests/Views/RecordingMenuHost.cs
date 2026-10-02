@@ -174,6 +174,23 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
         return Task.CompletedTask;
     }
 
+    /// <summary>The callsign and initials each command flyout was opened for, in order.</summary>
+    public List<(string Callsign, string Initials)> CommandFlyouts { get; } = [];
+
+    public void ShowCommandFlyout(string callsign, string initials) => CommandFlyouts.Add((callsign, initials));
+
+    /// <summary>The callsign and prefilled note each note flyout was opened with, in order.</summary>
+    public List<(string Callsign, string CurrentNote)> NoteFlyouts { get; } = [];
+
+    /// <summary>The command sink the last note flyout was opened with, which a test answers in the flyout's place.</summary>
+    public Func<string, Task>? NoteSubmit { get; private set; }
+
+    public void ShowNoteFlyout(string callsign, string currentNote, Func<string, Task> sendCommand)
+    {
+        NoteFlyouts.Add((callsign, currentNote));
+        NoteSubmit = sendCommand;
+    }
+
     public MenuItem BuildFavorites(IMenuAircraft? aircraft, MenuContext context) =>
         throw new NotSupportedException("The recording host does not build the favorites submenu.");
 }

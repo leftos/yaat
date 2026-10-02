@@ -8,7 +8,6 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
-using Yaat.Client.Views.Radar.Flyouts;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -83,66 +82,41 @@ public partial class RadarView
         ShowContextMenu(BuildAircraftContextMenu(vm, ac, prevSelected, callsign, GetInitials()));
     }
 
-    /// <summary>The bold callsign header, route and hold status, the release items, the free-text Command… and the favorites block.</summary>
-    private void AddAircraftMenuHeader(ContextMenu menu, RadarViewModel vm, AircraftModel? ac, MenuContext context, RadarMenuHost host)
+    /// <summary>
+    /// The radar's own rows under the shared header's title: the route summary and hold status, then the release items
+    /// for a held-for-release aircraft and an on-ground one with a call-for-release window. None without an aircraft model.
+    /// </summary>
+    private List<MenuItem> RadarTitleRows(RadarViewModel vm, AircraftModel? ac, MenuContext context)
     {
-        string callsign = context.Callsign;
-        string initials = context.Initials;
-        string typeText = ac is not null ? $"{callsign} - {ac.DisplayAircraftType}" : callsign;
-        menu.Items.Add(
-            new MenuItem
-            {
-                Header = typeText,
-                IsEnabled = false,
-                FontWeight = Avalonia.Media.FontWeight.Bold,
-            }
-        );
-        if (ac is not null)
+        List<MenuItem> rows = [];
+        if (ac is null)
         {
-            MenuItem? routeItem = BuildRouteSummaryItem(ac);
-            if (routeItem is not null)
-            {
-                menu.Items.Add(routeItem);
-            }
-            MenuItem? holdItem = BuildHoldStatusItem(ac);
-            if (holdItem is not null)
-            {
-                menu.Items.Add(holdItem);
-            }
-            if (ac.IsHeldForRelease)
-            {
-                menu.Items.Add(CreateMenuItem($"Release {callsign} (HFR)", () => vm.SendRawCommandAsync(callsign, initials, $"REL {callsign}")));
-            }
-            if (ac.CfrWindowStartUtc is not null && ac.IsOnGround)
-            {
-                menu.Items.Add(CreateMenuItem($"Check {callsign} release window", () => vm.SendRawCommandAsync(callsign, initials, "CFR CHECK")));
-            }
+            return rows;
         }
 
-        menu.Items.Add(new Separator());
-        menu.Items.Add(
-            CreateMenuItem(
-                "Command…",
-                () =>
-                {
-                    // Free-text: the RPO types arbitrary canonical, so it goes through the VFR gate like typed input.
-                    MainViewModel? mainVm = FindMainViewModel();
-                    CommandFlyout.Open(
-                        _canvas!,
-                        callsign,
-                        cmd =>
-                            mainVm is not null
-                                ? mainVm.SendGatedCommandForViewAsync(ac, callsign, cmd, initials)
-                                : vm.SendRawCommandAsync(callsign, initials, cmd)
-                    );
-                    return Task.CompletedTask;
-                }
-            )
-        );
-        menu.Items.Add(new Separator());
+        string callsign = context.Callsign;
+        string initials = context.Initials;
+        if (BuildRouteSummaryItem(ac) is { } routeItem)
+        {
+            rows.Add(routeItem);
+        }
 
-        menu.Items.Add(SharedMenuGroups.Favorites(ac, context, host));
-        menu.Items.Add(new Separator());
+        if (BuildHoldStatusItem(ac) is { } holdItem)
+        {
+            rows.Add(holdItem);
+        }
+
+        if (ac.IsHeldForRelease)
+        {
+            rows.Add(CreateMenuItem($"Release {callsign} (HFR)", () => vm.SendRawCommandAsync(callsign, initials, $"REL {callsign}")));
+        }
+
+        if ((ac.CfrWindowStartUtc is not null) && ac.IsOnGround)
+        {
+            rows.Add(CreateMenuItem($"Check {callsign} release window", () => vm.SendRawCommandAsync(callsign, initials, "CFR CHECK")));
+        }
+
+        return rows;
     }
 
     /// <summary>
@@ -163,7 +137,9 @@ public partial class RadarView
         );
         var host = new RadarMenuHost(this, vm, main, ac);
         var menu = new ContextMenu();
-        AddAircraftMenuHeader(menu, vm, ac, context, host);
+        SharedMenuGroups.AddHeader(menu.Items, ac, context, host, RadarTitleRows(vm, ac, context));
+        menu.Items.Add(SharedMenuGroups.Favorites(ac, context, host));
+        menu.Items.Add(new Separator());
 
         if (ac is { IsLiveTraffic: true })
         {

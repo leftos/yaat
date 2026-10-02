@@ -76,6 +76,12 @@ public interface IMenuAircraft
     /// <summary>The aircraft type filed in the flight plan, empty when none was filed.</summary>
     string FiledAircraftType { get; }
 
+    /// <summary>The type a menu header names: the filed type, else the simulated aircraft's own type.</summary>
+    string DisplayAircraftType { get; }
+
+    /// <summary>The instructor note on the aircraft, empty when none; the note popup opens prefilled with it.</summary>
+    string Note { get; }
+
     /// <summary>The flight plan's destination airport, empty when none.</summary>
     string Destination { get; }
 

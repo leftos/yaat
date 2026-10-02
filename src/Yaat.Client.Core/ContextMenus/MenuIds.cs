@@ -7,9 +7,8 @@ namespace Yaat.Client.ContextMenus;
 /// belongs to is its prefix, and a list stores the action, so moving an action between groups is a deliberate
 /// identifier change.
 ///
-/// <para>Identifiers are append-only. An exported preference file carries them, so one is never renamed, reused
-/// or deleted — a retired action keeps its constant, so an old file resolves to nothing rather than to a
-/// different command.</para>
+/// <para>An exported preference file carries identifiers, so one is never renamed or reused for a different
+/// action. A retired action's constant is deleted together with its catalog entry.</para>
 /// </summary>
 public static class MenuIds
 {
@@ -103,9 +102,6 @@ public static class MenuIds
     /// <summary>Set the data-block scratchpad (<c>SP</c>).</summary>
     public const string DataBlockScratchpad = "datablock.scratchpad";
 
-    /// <summary>Set the data-block note (<c>NOTE</c>).</summary>
-    public const string DataBlockNote = "datablock.note";
-
     /// <summary>Set the data block's temporary altitude (<c>TEMPALT</c>).</summary>
     public const string DataBlockTempAltitude = "datablock.temp-altitude";
 
@@ -123,6 +119,12 @@ public static class MenuIds
 
     /// <summary>Open the aircraft's flight-plan editor.</summary>
     public const string AircraftEditFlightPlan = "aircraft.edit-fp";
+
+    /// <summary>Open the free-text command popup and send what the controller types, through the VFR gate.</summary>
+    public const string AircraftCommand = "aircraft.command";
+
+    /// <summary>Open the note popup, prefilled with the current note, and set or clear the note (<c>NOTE</c>).</summary>
+    public const string AircraftNote = "aircraft.note";
 
     /// <summary>Toggle the aircraft's data block between its full and mini forms.</summary>
     public const string DisplayMiniDataBlock = "display.mini-datablock";

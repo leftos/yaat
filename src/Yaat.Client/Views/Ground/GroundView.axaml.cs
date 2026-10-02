@@ -8,7 +8,6 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
-using Yaat.Client.Views.Radar.Flyouts;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
@@ -525,8 +524,7 @@ public partial class GroundView : UserControl
         var host = new GroundMenuHost(this, vm, FindMainViewModel(), ac);
         var menu = new ContextMenu();
 
-        AddAircraftHeaderItems(menu, vm, target);
-        menu.Items.Add(new Separator());
+        SharedMenuGroups.AddHeader(menu.Items, ac, context, host, []);
         menu.Items.Add(SharedMenuGroups.Favorites(ac, context, host));
         menu.Items.Add(new Separator());
 
@@ -579,53 +577,6 @@ public partial class GroundView : UserControl
     /// hands the submitted text to <paramref name="onSubmit"/> (mirrors <c>RadarView.ShowInputPopup</c>).
     /// </summary>
     internal void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) => InputFlyout.Open(_canvas!, placeholder, onSubmit);
-
-    /// <summary>
-    /// The bold callsign header plus the free-text Command… and Note… items every aircraft gets.
-    /// </summary>
-    private void AddAircraftHeaderItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target)
-    {
-        (AircraftModel? ac, AircraftModel? _, string? callsign, string? initials) = target;
-        string headerText = ac is not null ? $"{callsign} — {ac.AircraftType}" : callsign;
-        menu.Items.Add(
-            new MenuItem
-            {
-                Header = headerText,
-                IsEnabled = false,
-                FontWeight = Avalonia.Media.FontWeight.Bold,
-            }
-        );
-        menu.Items.Add(new Separator());
-        menu.Items.Add(
-            CreateMenuItem(
-                "Command…",
-                () =>
-                {
-                    // Free-text: the RPO types arbitrary canonical, so it goes through the VFR gate like typed input.
-                    MainViewModel? mainVm = FindMainViewModel();
-                    CommandFlyout.Open(
-                        _canvas!,
-                        callsign,
-                        cmd =>
-                            mainVm is not null
-                                ? mainVm.SendGatedCommandForViewAsync(ac, callsign, cmd, initials)
-                                : vm.SendRawCommandAsync(callsign, initials, cmd)
-                    );
-                    return Task.CompletedTask;
-                }
-            )
-        );
-        menu.Items.Add(
-            CreateMenuItem(
-                "Note…",
-                () =>
-                {
-                    NoteFlyout.Open(_canvas!, callsign, ac?.Note ?? "", cmd => vm.SendRawCommandAsync(callsign, initials, cmd));
-                    return Task.CompletedTask;
-                }
-            )
-        );
-    }
 
     /// <summary>
     /// The phase-aware ground command items, for a simulated aircraft and for an assumable live-traffic shadow:

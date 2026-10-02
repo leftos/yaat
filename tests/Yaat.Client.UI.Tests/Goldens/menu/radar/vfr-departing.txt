@@ -1,7 +1,8 @@
 # radar vfr-departing
-N304AB - C172 [disabled]
+N304AB — C172 [disabled]
 ---
 Command…
+Note…
 ---
 Favorite Commands
   (no items) [disabled]
@@ -84,7 +85,6 @@ Track
   Acknowledge pointout
 Data Block
   Scratchpad... picker:input
-  Note... picker:input
   Temporary altitude... picker:input
   Cruise... picker:input
   Annotate

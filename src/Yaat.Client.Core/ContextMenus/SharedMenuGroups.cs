@@ -4,12 +4,12 @@ using Avalonia.Media;
 namespace Yaat.Client.ContextMenus;
 
 /// <summary>
-/// The groups more than one surface builds — live traffic, track, squawk, ask pilot, coordination, data block,
-/// display, favorites, the menu foot (warp, release to live feed, delete), and the flight groups heading, altitude,
-/// speed, navigation (with Draw route), hold, approach, procedures, tower and pattern — assembled from
-/// <see cref="MenuCatalog"/> entries. Only track,
-/// squawk and ask pilot keep a <see cref="MenuView"/> variant: the radar carries input pickers (handoff, point out,
-/// squawk code, custom say) the other surfaces leave out. Data block, display and the flight groups are
+/// The groups more than one surface builds — the menu header (title, Command…, Note…), live traffic, track, squawk,
+/// ask pilot, coordination, data block, display, favorites, the menu foot (warp, release to live feed, delete), and
+/// the flight groups heading, altitude, speed, navigation (with Draw route), hold, approach, procedures, tower and
+/// pattern — assembled from <see cref="MenuCatalog"/> entries. Only track, squawk and ask pilot keep a
+/// <see cref="MenuView"/> variant: the radar carries input pickers (handoff, point out, squawk code, custom say) the
+/// other surfaces leave out. Data block, display and the flight groups are
 /// built by the radar today, so they take no view. The ground view's relative items, pushback block, runway
 /// clearances, landing block, hold short and follow submenus and taxi-route block are groups of their own, and its
 /// tower variants branch on <see cref="MenuContext.View"/> inside the entries. Whether a group is offered at all stays
@@ -89,17 +89,53 @@ public static class SharedMenuGroups
         return menu;
     }
 
-    /// <summary>The Data Block submenu: scratchpad, note, temporary altitude, cruise, then annotate.</summary>
+    /// <summary>The Data Block submenu: scratchpad, temporary altitude, cruise, then annotate. The note is the header's Note….</summary>
     public static MenuItem DataBlock(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         var menu = new MenuItem { Header = "Data Block" };
         menu.Items.Add(Leaf(MenuIds.DataBlockScratchpad, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.DataBlockNote, aircraft, context, host));
         menu.Items.Add(Leaf(MenuIds.DataBlockTempAltitude, aircraft, context, host));
         menu.Items.Add(Leaf(MenuIds.DataBlockCruise, aircraft, context, host));
         menu.Items.Add(Leaf(MenuIds.DataBlockAnnotate, aircraft, context, host));
         return menu;
     }
+
+    /// <summary>
+    /// The header every aircraft menu opens with: the bold, disabled title — the callsign and the type the aircraft
+    /// filed (<see cref="IMenuAircraft.DisplayAircraftType"/>), or the bare callsign with no aircraft model or no type —
+    /// then <paramref name="titleRows"/>, the view's own rows under the title, then a separator, the free-text Command…
+    /// and Note… (which ask the host for its flyouts), and a separator.
+    /// </summary>
+    public static void AddHeader(
+        ItemCollection items,
+        IMenuAircraft? aircraft,
+        MenuContext context,
+        IMenuHost host,
+        IReadOnlyList<MenuItem> titleRows
+    )
+    {
+        items.Add(
+            new MenuItem
+            {
+                Header = HeaderTitle(aircraft, context.Callsign),
+                IsEnabled = false,
+                FontWeight = FontWeight.Bold,
+            }
+        );
+        foreach (MenuItem row in titleRows)
+        {
+            items.Add(row);
+        }
+
+        items.Add(new Separator());
+        items.Add(Leaf(MenuIds.AircraftCommand, aircraft, context, host));
+        items.Add(Leaf(MenuIds.AircraftNote, aircraft, context, host));
+        items.Add(new Separator());
+    }
+
+    /// <summary>The header title: <c>{callsign} — {type}</c>, or the bare callsign when there is no aircraft model or no type.</summary>
+    private static string HeaderTitle(IMenuAircraft? aircraft, string callsign) =>
+        ((aircraft is null) || string.IsNullOrWhiteSpace(aircraft.DisplayAircraftType)) ? callsign : $"{callsign} — {aircraft.DisplayAircraftType}";
 
     /// <summary>
     /// The foot every aircraft menu ends with, before the RPO items the caller appends: a separator (unless the menu

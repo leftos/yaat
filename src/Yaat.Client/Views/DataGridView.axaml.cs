@@ -7,7 +7,6 @@ using Avalonia.VisualTree;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
-using Yaat.Client.Views.Radar.Flyouts;
 
 namespace Yaat.Client.Views;
 
@@ -191,7 +190,7 @@ public partial class DataGridView : UserControl
         var context = new MenuContext(callsign, initials, null, vm.SessionSoloTrainingMode, vm.VfrCommandsForIfr, MenuView.List);
         var host = new ListMenuHost(vm, ac, flyoutTarget);
         var menu = new ContextMenu();
-        AddAircraftMenuHeader(menu, vm, flyoutTarget, ac, initials);
+        SharedMenuGroups.AddHeader(menu.Items, ac, context, host, []);
         menu.Items.Add(SharedMenuGroups.Favorites(ac, context, host));
         menu.Items.Add(new Separator());
 
@@ -217,32 +216,6 @@ public partial class DataGridView : UserControl
         vm.BuildRpoMenuItems(menu, selectedCallsigns);
 
         return menu;
-    }
-
-    /// <summary>The bold callsign header and the free-text Command… and Note…, each block closed by a separator.</summary>
-    private static void AddAircraftMenuHeader(ContextMenu menu, MainViewModel vm, Control flyoutTarget, AircraftModel ac, string initials)
-    {
-        string callsign = ac.Callsign;
-        menu.Items.Add(
-            new MenuItem
-            {
-                Header = $"{callsign} — {ac.AircraftType}",
-                IsEnabled = false,
-                FontWeight = Avalonia.Media.FontWeight.Bold,
-            }
-        );
-        menu.Items.Add(new Separator());
-
-        var commandItem = new MenuItem { Header = "Command…" };
-        // Free-text: the RPO types arbitrary canonical, so it goes through the VFR gate like typed input.
-        commandItem.Click += (_, _) =>
-            CommandFlyout.Open(flyoutTarget, callsign, cmd => vm.SendGatedCommandForViewAsync(ac, callsign, cmd, initials));
-        menu.Items.Add(commandItem);
-
-        var noteItem = new MenuItem { Header = "Note…" };
-        noteItem.Click += (_, _) => NoteFlyout.Open(flyoutTarget, callsign, ac.Note, cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials));
-        menu.Items.Add(noteItem);
-        menu.Items.Add(new Separator());
     }
 
     /// <summary>

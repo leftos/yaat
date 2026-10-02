@@ -75,7 +75,6 @@ public class MenuCatalogCommandTests
         (MenuIds.CoordinationAcknowledge, "", "RDACK"),
         (MenuIds.CoordinationCheckReleaseWindow, "", "CFR CHECK"),
         (MenuIds.DataBlockScratchpad, BlockText, $"SP {BlockText}"),
-        (MenuIds.DataBlockNote, BlockText, $"NOTE {BlockText}"),
         (MenuIds.DataBlockTempAltitude, "050", "TEMPALT 50"),
         (MenuIds.DataBlockCruise, "050", "CRUISE 50"),
         (MenuIds.DataBlockAnnotate, "", "ANNOTATE"),
@@ -178,6 +177,8 @@ public class MenuCatalogCommandTests
         MenuIds.LiveTrafficAssumeAndTrack,
         MenuIds.SimControlWarp,
         MenuIds.AircraftEditFlightPlan,
+        MenuIds.AircraftCommand,
+        MenuIds.AircraftNote,
         MenuIds.DisplayMiniDataBlock,
         MenuIds.DisplayResetDataBlockPosition,
         MenuIds.DisplayNavRoute,
@@ -2286,6 +2287,10 @@ public class MenuCatalogCommandTests
         public double? AssignedSpeed { get; init; }
 
         public string FiledAircraftType { get; init; } = "";
+
+        public string DisplayAircraftType => FiledAircraftType;
+
+        public string Note => "";
 
         public string Destination { get; init; } = "";
 

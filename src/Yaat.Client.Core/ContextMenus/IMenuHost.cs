@@ -48,6 +48,18 @@ public interface IMenuHost
     /// </summary>
     void ShowWarpPopup(string callsign, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit);
 
+    /// <summary>
+    /// Opens the surface's free-text command popup for <paramref name="callsign"/>, and sends what the controller types
+    /// on behalf of <paramref name="initials"/> through the VFR gate, as typed input goes.
+    /// </summary>
+    void ShowCommandFlyout(string callsign, string initials);
+
+    /// <summary>
+    /// Opens the surface's note popup for <paramref name="callsign"/>, prefilled with <paramref name="currentNote"/>, and
+    /// hands the finished <c>NOTE</c> command it builds to <paramref name="sendCommand"/>.
+    /// </summary>
+    void ShowNoteFlyout(string callsign, string currentNote, Func<string, Task> sendCommand);
+
     /// <summary>Opens the flight-plan editor for the aircraft the menu was opened on.</summary>
     void OpenFlightPlanEditor();
 

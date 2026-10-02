@@ -91,9 +91,10 @@ public class ContextMenuBuilderSeamTests
 
         AssertSequence(
             menu,
-            "AAL123 - B738",
+            "AAL123 — B738",
             "---",
             "Command…",
+            "Note…",
             "---",
             "Favorite Commands",
             "---",
@@ -132,9 +133,10 @@ public class ContextMenuBuilderSeamTests
 
         AssertSequence(
             menu,
-            "SWA9 - B738",
+            "SWA9 — B738",
             "---",
             "Command…",
+            "Note…",
             "---",
             "Favorite Commands",
             "---",

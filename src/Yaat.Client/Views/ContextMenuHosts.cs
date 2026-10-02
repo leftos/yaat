@@ -64,6 +64,19 @@ internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainVi
     public void ShowWarpPopup(string callsign, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit) =>
         Dispatcher.UIThread.Post(() => view.ShowWarpPopup(callsign, "", heading, altitude, speed, (frd, h, a, s) => _ = onSubmit(frd, h, a, s)));
 
+    public void ShowCommandFlyout(string callsign, string initials) =>
+        CommandFlyout.Open(
+            view.Canvas,
+            callsign,
+            command =>
+                main is not null
+                    ? main.SendGatedCommandForViewAsync(aircraft, callsign, command, initials)
+                    : radar.SendRawCommandAsync(callsign, initials, command)
+        );
+
+    public void ShowNoteFlyout(string callsign, string currentNote, Func<string, Task> sendCommand) =>
+        NoteFlyout.Open(view.Canvas, callsign, currentNote, sendCommand);
+
     public void OpenFlightPlanEditor() =>
         throw new NotSupportedException("The radar menu has no flight-plan item; Ctrl-clicking an aircraft opens the editor");
 
@@ -160,6 +173,19 @@ internal sealed class GroundMenuHost(GroundView view, GroundViewModel ground, Ma
 
     public void ShowWarpPopup(string callsign, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit) =>
         throw new NotSupportedException("The ground view has no warp popup; ground menus never build the warp item");
+
+    public void ShowCommandFlyout(string callsign, string initials) =>
+        CommandFlyout.Open(
+            view.Canvas,
+            callsign,
+            command =>
+                main is not null
+                    ? main.SendGatedCommandForViewAsync(aircraft, callsign, command, initials)
+                    : ground.SendRawCommandAsync(callsign, initials, command)
+        );
+
+    public void ShowNoteFlyout(string callsign, string currentNote, Func<string, Task> sendCommand) =>
+        NoteFlyout.Open(view.Canvas, callsign, currentNote, sendCommand);
 
     public void OpenFlightPlanEditor() => throw new NotSupportedException("The ground view has no flight-plan item; ground menus never build it");
 
@@ -353,6 +379,12 @@ internal sealed class ListMenuHost(MainViewModel main, AircraftModel aircraft, C
 
     public void ShowWarpPopup(string callsign, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit) =>
         throw new NotSupportedException("The aircraft list has no warp popup; list menus never build the warp item");
+
+    public void ShowCommandFlyout(string callsign, string initials) =>
+        CommandFlyout.Open(flyoutAnchor, callsign, command => main.SendGatedCommandForViewAsync(aircraft, callsign, command, initials));
+
+    public void ShowNoteFlyout(string callsign, string currentNote, Func<string, Task> sendCommand) =>
+        NoteFlyout.Open(flyoutAnchor, callsign, currentNote, sendCommand);
 
     public void OpenFlightPlanEditor() => FlightPlanEditorManager.Open(aircraft, main);
 

@@ -1,7 +1,8 @@
 # radar rollout-exit
-SWA107 - B738 [disabled]
+SWA107 — B738 [disabled]
 ---
 Command…
+Note…
 ---
 Favorite Commands
   (no items) [disabled]
@@ -22,7 +23,6 @@ Track
   Acknowledge pointout
 Data Block
   Scratchpad... picker:input
-  Note... picker:input
   Temporary altitude... picker:input
   Cruise... picker:input
   Annotate

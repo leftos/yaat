@@ -91,13 +91,14 @@ public static class MenuCatalog
             (ac, _) => AircraftCommandApplicability.CanCheckReleaseWindow(ac)
         ),
         InputLeaf(MenuIds.DataBlockScratchpad, "Scratchpad...", "Text", input => $"SP {input}"),
-        InputLeaf(MenuIds.DataBlockNote, "Note...", "Note text (max 40)", input => $"NOTE {input}"),
         InputLeaf(MenuIds.DataBlockTempAltitude, "Temporary altitude...", "Altitude", input => $"TEMPALT {int.Parse(input)}"),
         InputLeaf(MenuIds.DataBlockCruise, "Cruise...", "Altitude", input => $"CRUISE {int.Parse(input)}"),
         Leaf(MenuIds.DataBlockAnnotate, "Annotate", "ANNOTATE", Always),
         HostLeaf(MenuIds.SimControlWarp, "Warp...", CanWarp, BuildWarp),
         Leaf(MenuIds.SimControlDelete, "Delete", "DEL", Always),
         HostLeaf(MenuIds.AircraftEditFlightPlan, "Edit flight plan", CanEditFlightPlan, BuildEditFlightPlan),
+        HostLeaf(MenuIds.AircraftCommand, "Command…", Always, BuildCommand),
+        HostLeaf(MenuIds.AircraftNote, "Note…", Always, BuildNote),
         HostLeaf(MenuIds.DisplayMiniDataBlock, "Mini datablock", Always, BuildMiniDataBlock),
         HostLeaf(MenuIds.DisplayResetDataBlockPosition, "Reset datablock position", Always, BuildResetDataBlockPosition),
         HostLeaf(MenuIds.DisplayNavRoute, "Show nav route", Always, BuildNavRoute),
@@ -809,6 +810,29 @@ public static class MenuCatalog
                 (frd, h, a, s) => host.SendAsync(context.Callsign, $"WARP {frd} {h} {a} {s}", context.Initials)
             );
         };
+        return item;
+    }
+
+    /// <summary>
+    /// The header's Command… item, which asks the host to open its free-text command popup; the host sends what is typed.
+    /// It takes the aircraft it has no use for so that it matches the <see cref="HostLeaf"/> builder shape.
+    /// </summary>
+    private static MenuItem BuildCommand(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        var item = new MenuItem { Header = label };
+        item.Click += (_, _) => host.ShowCommandFlyout(context.Callsign, context.Initials);
+        return item;
+    }
+
+    /// <summary>
+    /// The header's Note… item, which asks the host to open its note popup prefilled with the aircraft's current note
+    /// (empty with no aircraft model) and sends the <c>NOTE</c> command the popup builds.
+    /// </summary>
+    private static MenuItem BuildNote(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        var item = new MenuItem { Header = label };
+        item.Click += (_, _) =>
+            host.ShowNoteFlyout(context.Callsign, aircraft?.Note ?? "", command => host.SendAsync(context.Callsign, command, context.Initials));
         return item;
     }
 
