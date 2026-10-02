@@ -141,7 +141,9 @@ public partial class RadarView
             }
             else
             {
-                AddSurfaceShadowItems(menu, ac, context, host);
+                SharedMenuGroups.AddSurfaceShadow(menu.Items, ac, context, host);
+                SharedMenuGroups.AddFoot(menu.Items, ac, context, host);
+                FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
                 return menu;
             }
         }
@@ -149,21 +151,6 @@ public partial class RadarView
         SharedMenuGroups.AddRelative(menu.Items, ac, context, host);
         AddAircraftCommandGroups(menu, ac, context, host);
         return menu;
-    }
-
-    /// <summary>
-    /// A surface live-traffic shadow is never assumable: its menu is read-only — the display groups, then the foot,
-    /// which offers it no Warp.
-    /// </summary>
-    private void AddSurfaceShadowItems(ContextMenu menu, AircraftModel ac, MenuContext context, RadarMenuHost host)
-    {
-        string callsign = context.Callsign;
-        menu.Items.Add(SharedMenuGroups.Track(ac, context, host, MenuView.Radar));
-        menu.Items.Add(SharedMenuGroups.DataBlock(ac, context, host));
-        menu.Items.Add(SharedMenuGroups.Coordination(ac, context, host));
-        menu.Items.Add(SharedMenuGroups.Display(ac, context, host));
-        SharedMenuGroups.AddFoot(menu.Items, ac, context, host);
-        FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
     }
 
     /// <summary>

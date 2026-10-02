@@ -224,8 +224,8 @@ public partial class DataGridView : UserControl
     /// aircraft gets: a command sent to an airborne shadow auto-assumes it server-side, so the groups apply as they
     /// are, minus the two the server refuses for a shadow — the ask-pilot queries
     /// (<see cref="AircraftCommandApplicability.CanAskPilot"/>) and the flight-plan editor
-    /// (<see cref="AircraftCommandApplicability.CanEditFlightPlan"/>). A surface shadow is not assumable and keeps its
-    /// read-only track / coordination menu.
+    /// (<see cref="AircraftCommandApplicability.CanEditFlightPlan"/>). A surface shadow is not assumable and gets the
+    /// read-only shadow tree every view shares (<see cref="SharedMenuGroups.AddSurfaceShadow"/>).
     /// </summary>
     private static void AddCommandGroups(ContextMenu menu, AircraftModel ac, MenuContext context, ListMenuHost host)
     {
@@ -236,8 +236,7 @@ public partial class DataGridView : UserControl
         }
         else if (ac.IsLiveTraffic)
         {
-            menu.Items.Add(SharedMenuGroups.Track(ac, context, host, MenuView.List));
-            menu.Items.Add(SharedMenuGroups.Coordination(ac, context, host));
+            SharedMenuGroups.AddSurfaceShadow(menu.Items, ac, context, host);
             return;
         }
 

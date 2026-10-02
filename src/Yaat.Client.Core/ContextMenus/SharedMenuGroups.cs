@@ -8,8 +8,12 @@ namespace Yaat.Client.ContextMenus;
 /// pilot, coordination, data block, display, favorites, the menu foot (warp, release to live feed, delete), and the flight
 /// groups heading, altitude, speed, navigation (with Draw route), hold, approach, procedures, tower and pattern — assembled
 /// from <see cref="MenuCatalog"/> entries. Only track, squawk and ask pilot keep a <see cref="MenuView"/> variant: the radar
-/// carries input pickers (handoff, point out, squawk code, custom say) the other surfaces leave out. Data block, display and
-/// the flight groups are built by the radar today, so they take no view. The relative items (<see cref="AddRelative"/>) and
+/// carries input pickers (handoff, point out, squawk code, custom say) the other surfaces leave out when they build the
+/// group themselves. The read-only tree a surface live-traffic shadow gets (<see cref="AddSurfaceShadow"/>) uses the radar's
+/// Track on every view, so a shadow's handoff and point-out pickers are there on all three. Data block and display take no
+/// view: their entries are capability-gated, so a surface without the radar's pickers or overlays shows fewer of them, the
+/// ground host's taxi-route and hide-datablock entries leading display there; the flight groups are the radar's own, so they
+/// take no view either. The relative items (<see cref="AddRelative"/>) and
 /// the ground view's pushback block, runway clearances, landing block, hold short and follow submenus and taxi-route block
 /// are groups of their own, and its tower variants branch on <see cref="MenuContext.View"/> inside the entries. Whether a
 /// group is offered at all stays with the caller.
@@ -164,25 +168,54 @@ public static class SharedMenuGroups
         IsApplicable(MenuIds.AircraftEditFlightPlan, aircraft, context) ? TryLeaf(MenuIds.AircraftEditFlightPlan, aircraft, context, host) : null;
 
     /// <summary>
-    /// The Display submenu: the data-block form and position, the nav route and the measurement in progress, then the
-    /// leader-direction, J-ring and cone overlays, then blank and unblank. The data-block reset and the measure items
-    /// come and go with the surface's own state, so each is added only when it built an item.
+    /// The Display submenu: the taxi-route and hide-datablock entries the ground's host serves lead (the ground's flat
+    /// simulated-aircraft menu, <see cref="AddGroundDisplay"/>, places them the same way), then the data-block form and
+    /// position, the nav route and the measurement in progress, then the leader-direction, J-ring and cone overlays,
+    /// then blank and unblank. Every entry comes and goes with the surface's own capabilities and state, so one is added
+    /// only when it built an item, and a block opens with a separator only when items precede it and the block adds at
+    /// least one item.
     /// </summary>
     public static MenuItem Display(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         var menu = new MenuItem { Header = "Display" };
-        AddIfBuilt(menu.Items, MenuIds.DisplayMiniDataBlock, aircraft, context, host);
-        AddIfBuilt(menu.Items, MenuIds.DisplayResetDataBlockPosition, aircraft, context, host);
-        AddIfBuilt(menu.Items, MenuIds.DisplayNavRoute, aircraft, context, host);
-        AddIfBuilt(menu.Items, MenuIds.DisplayMeasure, aircraft, context, host);
-        menu.Items.Add(new Separator());
-        TryAdd(menu.Items, TryLeaf(MenuIds.DisplayLeaderDirection, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.DisplayJRing, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.DisplayCone, aircraft, context, host));
-        menu.Items.Add(new Separator());
-        TryAdd(menu.Items, TryLeaf(MenuIds.DisplayBlank, aircraft, context, host));
-        TryAdd(menu.Items, TryLeaf(MenuIds.DisplayUnblank, aircraft, context, host));
+        AddItemsAsBlock(
+            menu.Items,
+            [
+                TryLeaf(MenuIds.DisplayTaxiRoute, aircraft, context, host),
+                TryLeaf(MenuIds.DisplayHideDataBlock, aircraft, context, host),
+                TryLeaf(MenuIds.DisplayMiniDataBlock, aircraft, context, host),
+                TryLeaf(MenuIds.DisplayResetDataBlockPosition, aircraft, context, host),
+                TryLeaf(MenuIds.DisplayNavRoute, aircraft, context, host),
+                TryLeaf(MenuIds.DisplayMeasure, aircraft, context, host),
+            ]
+        );
+        AddItemsAsBlock(
+            menu.Items,
+            [
+                TryLeaf(MenuIds.DisplayLeaderDirection, aircraft, context, host),
+                TryLeaf(MenuIds.DisplayJRing, aircraft, context, host),
+                TryLeaf(MenuIds.DisplayCone, aircraft, context, host),
+            ]
+        );
+        AddItemsAsBlock(
+            menu.Items,
+            [TryLeaf(MenuIds.DisplayBlank, aircraft, context, host), TryLeaf(MenuIds.DisplayUnblank, aircraft, context, host)]
+        );
         return menu;
+    }
+
+    /// <summary>
+    /// The read-only tree a surface live-traffic shadow gets on every view: the track, data block, coordination and
+    /// display groups, and nothing that would command the aircraft. The track group is the radar's, so every view's
+    /// shadow offers the radar's handoff and point-out pickers. It adds no foot and no RPO items; the caller appends
+    /// those.
+    /// </summary>
+    public static void AddSurfaceShadow(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    {
+        items.Add(Track(aircraft, context, host, MenuView.Radar));
+        items.Add(DataBlock(aircraft, context, host));
+        items.Add(Coordination(aircraft, context, host));
+        items.Add(Display(aircraft, context, host));
     }
 
     /// <summary>
@@ -823,6 +856,29 @@ public static class SharedMenuGroups
         if (companion is not null)
         {
             items.Add(companion);
+        }
+    }
+
+    /// <summary>
+    /// Adds the block's items after a separator when <paramref name="items"/> already holds at least one item and the
+    /// block adds at least one of its own, so a block never opens or closes the group with a separator and no two sit
+    /// in a row.
+    /// </summary>
+    private static void AddItemsAsBlock(ItemCollection items, IReadOnlyList<MenuItem?> block)
+    {
+        if (!block.Any(item => item is not null))
+        {
+            return;
+        }
+
+        if (items.Count > 0)
+        {
+            items.Add(new Separator());
+        }
+
+        foreach (MenuItem? item in block)
+        {
+            TryAdd(items, item);
         }
     }
 

@@ -558,6 +558,8 @@ public class MenuCatalogCommandTests
 
         Assert.Equal(
             [
+                "Taxi route",
+                "Hide datablock",
                 "Full datablock",
                 "Reset datablock position",
                 "Hide nav route",
@@ -572,6 +574,21 @@ public class MenuCatalogCommandTests
             ],
             display.Items.Select(Describe)
         );
+    }
+
+    // A host that serves no display capability shows the overlay blocks alone: no separator opens or closes the submenu.
+    [AvaloniaFact]
+    public void Display_NoCapabilities_OpensWithoutSeparator()
+    {
+        var host = new RecordingMenuHost("") { Capabilities = MenuHostCapabilities.None };
+        List<object?> items = [.. SharedMenuGroups.Display(null, Context(), host).Items];
+
+        Assert.Equal(["Leader direction", "J-ring", "Cone", "---", "Blank target", "Unblank target"], items.Select(Describe));
+        Assert.False(items[^1] is Separator);
+        for (int i = 1; i < items.Count; i++)
+        {
+            Assert.False((items[i] is Separator) && (items[i - 1] is Separator));
+        }
     }
 
     [AvaloniaFact]

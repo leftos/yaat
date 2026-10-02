@@ -514,7 +514,8 @@ public partial class GroundView : UserControl
 
     /// <summary>
     /// The whole aircraft context menu a right-click shows, built without opening it: the header, the favorites
-    /// block, the phase-aware ground command groups and the display items, for the aircraft
+    /// block, then either the phase-aware ground command groups and the display items or, for a surface live-traffic
+    /// shadow, the read-only shadow tree every view shares (SharedMenuGroups.AddSurfaceShadow), for the aircraft
     /// <paramref name="target"/> resolves. Touches no canvas, popup or pointer state.
     /// </summary>
     internal ContextMenu BuildAircraftContextMenu(GroundViewModel vm, GroundMenuTarget target)
@@ -528,24 +529,26 @@ public partial class GroundView : UserControl
         menu.Items.Add(SharedMenuGroups.Favorites(ac, context, host));
         menu.Items.Add(new Separator());
 
-        if (ac is { IsLiveTraffic: true })
+        if (ac is { IsLiveTraffic: true } && !AircraftCommandApplicability.CanAssume(ac))
         {
-            // An assumable shadow takes the two assume items and then the same ground command groups a simulated
-            // aircraft gets: a command sent to an airborne shadow auto-assumes it server-side, so the groups apply
-            // as they are. A surface shadow is not assumable and keeps its read-only menu.
-            if (AircraftCommandApplicability.CanAssume(ac))
-            {
-                SharedMenuGroups.AddLiveTrafficAssume(menu.Items, ac, context, host);
-                menu.Items.Add(new Separator());
-                AddSimulatedAircraftItems(menu, vm, target);
-            }
+            // A surface shadow is never assumable, so it stays read-only: the shared shadow tree every view gives it
+            // (SharedMenuGroups.AddSurfaceShadow), then the foot. No ground command group is offered for it.
+            SharedMenuGroups.AddSurfaceShadow(menu.Items, ac, context, host);
         }
         else
         {
+            if (ac is { IsLiveTraffic: true })
+            {
+                // An assumable shadow takes the two assume items and then the same ground command groups a simulated
+                // aircraft gets: a command sent to it auto-assumes it server-side, so the groups apply as they are.
+                SharedMenuGroups.AddLiveTrafficAssume(menu.Items, ac, context, host);
+                menu.Items.Add(new Separator());
+            }
+
             AddSimulatedAircraftItems(menu, vm, target);
+            SharedMenuGroups.AddGroundDisplay(menu.Items, ac, context, host);
         }
 
-        SharedMenuGroups.AddGroundDisplay(menu.Items, ac, context, host);
         SharedMenuGroups.AddFoot(menu.Items, ac, context, host);
 
         // RPO control
@@ -584,7 +587,7 @@ public partial class GroundView : UserControl
     /// clearances, runway exits, preset taxi routes and taxi-route drawing, all catalog entries and ground groups from
     /// <see cref="SharedMenuGroups"/>, in the ground's order. An airborne shadow has no
     /// ground phase, so the state-gated predicates inside yield nothing for it, and a surface shadow never reaches
-    /// here, being unassumable.
+    /// here, being unassumable — it takes the shared shadow tree instead.
     /// </summary>
     internal void AddSimulatedAircraftItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target)
     {

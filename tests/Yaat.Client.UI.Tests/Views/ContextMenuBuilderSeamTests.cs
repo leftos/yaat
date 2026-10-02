@@ -151,6 +151,94 @@ public class ContextMenuBuilderSeamTests
         Assert.DoesNotContain(Sequence(menu), item => item.StartsWith('↪'));
     }
 
+    /// <summary>A surface live-traffic shadow: on the ground, so it is never assumable and its menu stays read-only.</summary>
+    private static AircraftModel SurfaceShadow(string callsign)
+    {
+        AircraftModel ac = AirborneIfr(callsign, "");
+        ac.IsLiveTraffic = true;
+        ac.IsOnGround = true;
+        return ac;
+    }
+
+    /// <summary>A surface shadow's radar menu, through the radar view's whole-menu builder.</summary>
+    private static ContextMenu RadarSurfaceShadowMenu(AircraftModel shadow)
+    {
+        (RadarView view, MainViewModel main) = RadarHarness();
+        main.Aircraft.Add(shadow);
+        return view.BuildAircraftContextMenu(main.Radar, shadow, prevSelected: null, shadow.Callsign, "AB");
+    }
+
+    /// <summary>A surface shadow's ground menu, through the ground view's whole-menu builder.</summary>
+    private static ContextMenu GroundSurfaceShadowMenu(AircraftModel shadow)
+    {
+        (GroundView view, GroundViewModel ground, MainViewModel main) = GroundHarness();
+        main.Aircraft.Add(shadow);
+        return view.BuildAircraftContextMenu(ground, new GroundMenuTarget(shadow, PrevSelected: null, shadow.Callsign, "AB"));
+    }
+
+    /// <summary>A surface shadow's list menu, through the list's whole-menu builder.</summary>
+    private static ContextMenu ListSurfaceShadowMenu(AircraftModel shadow)
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        main.Aircraft.Add(shadow);
+        return DataGridView.BuildAircraftMenu(main, new DataGrid(), shadow, [shadow], "AB");
+    }
+
+    /// <summary>The top-level items after the favorites block: the groups every aircraft menu opens with.</summary>
+    private static List<string> AfterFavorites(ContextMenu menu)
+    {
+        List<string> sequence = Sequence(menu);
+        return sequence[(sequence.IndexOf("Favorite Commands") + 2)..];
+    }
+
+    /// <summary>The top-level Display submenu of a menu that offers one.</summary>
+    private static MenuItem DisplayOf(ContextMenu menu) => menu.Items.OfType<MenuItem>().Single(i => (i.Header as string) == "Display");
+
+    /// <summary>The Display submenu's item headers, in order.</summary>
+    private static List<string> DisplayHeaders(ContextMenu menu) =>
+        [.. DisplayOf(menu).Items.OfType<MenuItem>().Select(i => i.Header as string ?? "")];
+
+    // Every view gives a surface shadow the same read-only tree: track / data block / coordination / display, then the foot.
+    [AvaloniaFact]
+    public void SurfaceShadow_OffersTheSameGroupsOnEveryView()
+    {
+        AircraftModel shadow = SurfaceShadow("SWA9");
+
+        string[] expected = ["Track", "Data Block", "Coordination", "Display", "---", "Delete"];
+        Assert.Equal(expected, AfterFavorites(RadarSurfaceShadowMenu(shadow)));
+        Assert.Equal(expected, AfterFavorites(GroundSurfaceShadowMenu(shadow)));
+        Assert.Equal(expected, AfterFavorites(ListSurfaceShadowMenu(shadow)));
+    }
+
+    // The list host serves no radar or ground display entries, so its Display must open on a group, never on a separator.
+    [AvaloniaFact]
+    public void ListSurfaceShadow_DisplayHasNoLeadingOrTrailingSeparator()
+    {
+        List<object?> items = [.. DisplayOf(ListSurfaceShadowMenu(SurfaceShadow("SWA9"))).Items];
+
+        Assert.NotEmpty(items);
+        Assert.False(items[0] is Separator);
+        Assert.False(items[^1] is Separator);
+        for (int i = 1; i < items.Count; i++)
+        {
+            Assert.False((items[i] is Separator) && (items[i - 1] is Separator));
+        }
+    }
+
+    // Only the ground view's shadow offers the ground's own display entries; the radar's and the list's do not.
+    [AvaloniaFact]
+    public void GroundSurfaceShadow_DisplayHasTaxiRouteAndHideDatablock()
+    {
+        List<string> groundHeaders = DisplayHeaders(GroundSurfaceShadowMenu(SurfaceShadow("SWA9")));
+        Assert.Contains("Taxi route", groundHeaders);
+        Assert.Contains("Hide datablock", groundHeaders);
+
+        Assert.DoesNotContain("Taxi route", DisplayHeaders(RadarSurfaceShadowMenu(SurfaceShadow("SWA9"))));
+        Assert.DoesNotContain("Taxi route", DisplayHeaders(ListSurfaceShadowMenu(SurfaceShadow("SWA9"))));
+        Assert.DoesNotContain("Hide datablock", DisplayHeaders(RadarSurfaceShadowMenu(SurfaceShadow("SWA9"))));
+        Assert.DoesNotContain("Hide datablock", DisplayHeaders(ListSurfaceShadowMenu(SurfaceShadow("SWA9"))));
+    }
+
     [AvaloniaFact]
     public void GroundBuildAircraftContextMenu_ReturnsTopLevelItems()
     {
