@@ -35,4 +35,10 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
     <PackageReference Include="ModelContextProtocol" Version="2.2.0" />
   </ItemGroup>
+
+  <!-- The automation pipe protocol DTOs are shared source, not a project reference: the MCP must speak the same wire
+       format as the client without dragging Yaat.Client (and Avalonia) into the server. These files use only System.Text.Json. -->
+  <ItemGroup>
+    <Compile Include="..\..\src\Yaat.Client\Automation\Protocol\*.cs" LinkBase="Protocol" />
+  </ItemGroup>
 </Project>
