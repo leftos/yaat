@@ -14,6 +14,7 @@ if (!NativeInput.EnablePerMonitorDpiAwareness())
 HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 builder.Logging.AddConsole(options => options.LogToStandardErrorThreshold = LogLevel.Trace);
 builder.Services.AddSingleton<ElementRegistry>();
+builder.Services.AddSingleton<IProcessStarter, ProcessStarter>();
 
 // The client advertises its pipe under %TEMP%/yaat-automation, whatever YAAT_APPDATA_DIR either process runs with
 // (AutomationHostFactory.DiscoveryDirectory in the client; the MCP links the protocol types, not the client).
