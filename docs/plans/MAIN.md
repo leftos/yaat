@@ -26,12 +26,12 @@
 
 ## Context-menu quick commands (#471)
 
+- [/] YAAT-224 Open the command and note flyouts through MenuPopups; drop the unreachable blank-input branches
 - [/] YAAT-12 Context-menu quick commands: per-situation lists with the icon strip · release vNext
   - [x] YAAT-13 Context-menu quick commands: brief 7d (header, footer, relative items) · release vNext
   - [/] YAAT-14 Context-menu quick commands: brief 7e (one tree on every surface) · release vNext
   - [ ] YAAT-15 Context-menu quick commands step 3: per-situation lists with the icon strip · release vNext
 - [ ] YAAT-16 Merge feat/context-menu-quick-commands (#471, yaat-server#21) · release vNext
-- [ ] YAAT-224 Open the command and note flyouts through MenuPopups; drop the unreachable blank-input branches
 
 ## Tick-path unification
 
