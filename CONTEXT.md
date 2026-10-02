@@ -99,6 +99,11 @@ The single route every action takes, on every run kind, from text to effect. The
 it lives in `Yaat.Sim`, and no entry point decides anything the router decides.
 _Avoid_: dispatch chain, handler chain, command pipeline (the pipeline is the whole path from keyboard to aircraft)
 
+**RPO-only command**:
+A command only a pilot operator may give, because it makes a pilot do something no controller instruction can, such as
+FOLLOWF, CVAF, RFISF, RTISF or CLANDF. Solo training refuses them unless the scenario's recorded `SoloRpoCommandsAllowed`
+flag is set (`DispatchContext.RefusesRpoOnly`).
+
 **Kind**:
 What sort of action a text is, decided once by the router before anything runs. Every text has exactly
 one kind; a text with none is an error, never a default.
