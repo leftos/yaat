@@ -38,6 +38,7 @@
 
 ### Fixed
 
+- Right-clicking a parking spot beside a parked aircraft, or overlapping aircraft on the ground or radar view, opens a list to pick the one you meant.
 - A queued taxi with a hold short, such as `PUSH; TAXIAUTO 30, HS B`, now taxis when the push ends instead of waiting forever.
 - The Ground View's taxi route overlay follows the aircraft's heading, so a one-taxiway route such as `TAXI S HS B` is no longer drawn the wrong way.
 - Pattern traffic holds pattern altitude until abeam and descends on through base; an extended or held downwind levels off instead of sinking toward the runway.

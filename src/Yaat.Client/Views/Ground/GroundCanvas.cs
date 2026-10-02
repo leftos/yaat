@@ -338,6 +338,16 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     // the button.
     private readonly RightClickGesture _rightClick = new();
 
+    // The menu a right-click on two or more targets opens to choose between them.
+    private readonly RightClickPicker _rightClickPicker = new();
+
+    // Pixel radius within which a click lands on an aircraft symbol.
+    private const float AircraftHitRadiusPx = 28f;
+
+    // Pixel radius within which a right-click with an aircraft selected lands on a parking, spot or helipad marker. Tighter
+    // than the general node radius so a stand only joins the picker when the click is really on its marker.
+    private const float StandHitRadiusPx = 10f;
+
     // Pixel radius for deciding a right-click is pointing at an already-drawn measurement.
     private const float MeasurePickRadiusPx = 8f;
 
@@ -1569,26 +1579,47 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
         if (IsDrawingRoute)
         {
-            // A push route decides in the view model whether the click finishes the route or opens an earlier
-            // point's push/pull menu, so it gets the markers under the pointer as well as the node.
-            if (PushWaypointMarks is { } marks)
-            {
-                PushRouteRightClicked?.Invoke(PushMarkersAt(marks, screenPos), FindNodeAtPoint(screenPos)?.Id);
-                return true;
-            }
-
-            // Right-click finishes the drawn route at the clicked node; anywhere else it does nothing,
-            // so the gesture stays free for panning while the route is being laid out.
-            GroundNodeDto? drawNode = FindNodeAtPoint(screenPos);
-            if (drawNode is not null)
-            {
-                DrawNodeFinished?.Invoke(drawNode.Id, screenPos);
-                return true;
-            }
-
-            return false;
+            return HandleDrawRouteRightClick(screenPos);
         }
 
+        // Two or more things under the pointer (a parked aircraft over its stand, overlapping aircraft) are offered in a
+        // picker; one target or none falls through to the single-target chain below.
+        IReadOnlyList<RightClickTarget> targets = FindRightClickTargets(screenPos);
+        if (targets.Count >= 2)
+        {
+            _rightClickPicker.Open(this, screenPos, targets, target => RaiseRightClickTarget(target, screenPos));
+            return true;
+        }
+
+        return TryRaiseHitRightClick(screenPos) || TryRaiseThresholdOrNearestNodeRightClick(screenPos);
+    }
+
+    /// <summary>A right-click while a route is being drawn: it reports push-route markers, or finishes the route at a node.</summary>
+    private bool HandleDrawRouteRightClick(Point screenPos)
+    {
+        // A push route decides in the view model whether the click finishes the route or opens an earlier
+        // point's push/pull menu, so it gets the markers under the pointer as well as the node.
+        if (PushWaypointMarks is { } marks)
+        {
+            PushRouteRightClicked?.Invoke(PushMarkersAt(marks, screenPos), FindNodeAtPoint(screenPos)?.Id);
+            return true;
+        }
+
+        // Right-click finishes the drawn route at the clicked node; anywhere else it does nothing,
+        // so the gesture stays free for panning while the route is being laid out.
+        GroundNodeDto? drawNode = FindNodeAtPoint(screenPos);
+        if (drawNode is not null)
+        {
+            DrawNodeFinished?.Invoke(drawNode.Id, screenPos);
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>Raises the menu of the single datablock, aircraft or node under the pointer; false when nothing is hit.</summary>
+    private bool TryRaiseHitRightClick(Point screenPos)
+    {
         AircraftModel? dataBlockAc = FindDataBlockAtPoint(screenPos);
         if (dataBlockAc is not null)
         {
@@ -1611,6 +1642,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return true;
         }
 
+        return false;
+    }
+
+    /// <summary>Raises the menu of a runway threshold under the pointer, else of the nearest ground node; false with no layout.</summary>
+    private bool TryRaiseThresholdOrNearestNodeRightClick(Point screenPos)
+    {
         // Runway thresholds: mirror the left-click menu so the user gets the
         // same Taxi/Takeoff options regardless of which mouse button they used. Needs a selection —
         // the items it offers are taxi/takeoff clearances for the selected aircraft.
@@ -1912,6 +1949,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         return best;
     }
 
+    /// <summary>The aircraft whose datablock is drawn on top at <paramref name="screenPos"/>, or null when none contains it.</summary>
     public AircraftModel? FindDataBlockAtPoint(Point screenPos)
     {
         if (Aircraft is null)
@@ -1919,27 +1957,50 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return null;
         }
 
-        // Use z-order-sorted list so the topmost (last-drawn) datablock wins
-        IReadOnlyList<AircraftModel> sorted = SortByZOrder(VisibleAircraft(), State.DataBlockZOrder);
+        // The z-order list is drawn first to last, so the last hit is the block on top.
         AircraftModel? best = null;
-
-        foreach (AircraftModel ac in sorted)
+        foreach (AircraftModel ac in SortByZOrder(VisibleAircraft(), State.DataBlockZOrder))
         {
-            (float sx, float sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
-
-            SKPoint offset = ResolvedDataBlockOffset(ac.Callsign);
-
-            // Match the draw path's airborne flag (GroundRenderer.DrawOneDataBlock) so an airborne
-            // aircraft's altitude line is included in the hit rect — otherwise its block is one line
-            // shorter than drawn and clicks near the bottom miss.
-            var layout = DataBlockLayout.Compute(ac, sx, sy, offset, HitTestStyle, isAirborne: !ac.IsOnGround);
-            if (layout.Rect.Contains((float)screenPos.X, (float)screenPos.Y))
+            if (DataBlockContains(ac, screenPos))
             {
                 best = ac;
             }
         }
 
         return best;
+    }
+
+    /// <summary>Every aircraft whose datablock contains <paramref name="screenPos"/>, topmost (last-drawn) first.</summary>
+    private List<AircraftModel> DataBlocksAtPoint(Point screenPos)
+    {
+        var hits = new List<AircraftModel>();
+        if (Aircraft is null)
+        {
+            return hits;
+        }
+
+        foreach (AircraftModel ac in SortByZOrder(VisibleAircraft(), State.DataBlockZOrder))
+        {
+            if (DataBlockContains(ac, screenPos))
+            {
+                hits.Add(ac);
+            }
+        }
+
+        hits.Reverse();
+        return hits;
+    }
+
+    private bool DataBlockContains(AircraftModel ac, Point screenPos)
+    {
+        (float sx, float sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+        SKPoint offset = ResolvedDataBlockOffset(ac.Callsign);
+
+        // Match the draw path's airborne flag (GroundRenderer.DrawOneDataBlock) so an airborne
+        // aircraft's altitude line is included in the hit rect — otherwise its block is one line
+        // shorter than drawn and clicks near the bottom miss.
+        var layout = DataBlockLayout.Compute(ac, sx, sy, offset, HitTestStyle, isAirborne: !ac.IsOnGround);
+        return layout.Rect.Contains((float)screenPos.X, (float)screenPos.Y);
     }
 
     /// <summary>
@@ -2032,6 +2093,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// <summary>Returns true if the callsign's datablock has been manually dragged to a custom position.</summary>
     public bool HasManualDataBlockOffset(string callsign) => State.ManualOffsets.ContainsKey(callsign);
 
+    /// <summary>The aircraft whose symbol is nearest <paramref name="screenPos"/> within <see cref="AircraftHitRadiusPx"/>, or null.</summary>
     public AircraftModel? FindAircraftAtPoint(Point screenPos)
     {
         if (Aircraft is null)
@@ -2039,17 +2101,11 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return null;
         }
 
-        const float hitRadius = 28f;
         AircraftModel? closest = null;
-        float closestDist = hitRadius;
-
+        float closestDist = AircraftHitRadiusPx;
         foreach (AircraftModel ac in VisibleAircraft())
         {
-            (float sx, float sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
-            float dx = (float)screenPos.X - sx;
-            float dy = (float)screenPos.Y - sy;
-            float dist = MathF.Sqrt(dx * dx + dy * dy);
-
+            float dist = ScreenDistance(screenPos, ac.Position.Lat, ac.Position.Lon);
             if (dist < closestDist)
             {
                 closestDist = dist;
@@ -2058,6 +2114,124 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         }
 
         return closest;
+    }
+
+    /// <summary>Every aircraft whose symbol is within <see cref="AircraftHitRadiusPx"/> of <paramref name="screenPos"/>, nearest first.</summary>
+    private List<AircraftModel> AircraftNearPoint(Point screenPos)
+    {
+        if (Aircraft is null)
+        {
+            return [];
+        }
+
+        var hits = new List<(AircraftModel Aircraft, float Distance)>();
+        foreach (AircraftModel ac in VisibleAircraft())
+        {
+            float dist = ScreenDistance(screenPos, ac.Position.Lat, ac.Position.Lon);
+            if (dist < AircraftHitRadiusPx)
+            {
+                hits.Add((ac, dist));
+            }
+        }
+
+        // OrderBy is stable, so of two equally near aircraft the earlier in the list stays first.
+        return [.. hits.OrderBy(h => h.Distance).Select(h => h.Aircraft)];
+    }
+
+    /// <summary>
+    /// Every parking, spot and helipad node within <see cref="StandHitRadiusPx"/> of <paramref name="screenPos"/>, nearest
+    /// first, except the stand <paramref name="selected"/> occupies (one within <see cref="AircraftHitRadiusPx"/> of its
+    /// symbol): right-clicking the selected aircraft at its own gate opens its menu, not a picker.
+    /// </summary>
+    private List<GroundNodeDto> StandsNearPoint(Point screenPos, AircraftModel selected)
+    {
+        if (Layout is null)
+        {
+            return [];
+        }
+
+        (float selX, float selY) = Viewport.LatLonToScreen(selected.Position.Lat, selected.Position.Lon);
+        var selectedPos = new Point(selX, selY);
+        var hits = new List<(GroundNodeDto Node, float Distance)>();
+        foreach (GroundNodeDto node in Layout.Nodes)
+        {
+            if (node.Type is not ("Parking" or "Spot" or "Helipad"))
+            {
+                continue;
+            }
+
+            float dist = ScreenDistance(screenPos, node.Latitude, node.Longitude);
+            if ((dist <= StandHitRadiusPx) && (ScreenDistance(selectedPos, node.Latitude, node.Longitude) >= AircraftHitRadiusPx))
+            {
+                hits.Add((node, dist));
+            }
+        }
+
+        return [.. hits.OrderBy(h => h.Distance).Select(h => h.Node)];
+    }
+
+    private float ScreenDistance(Point screenPos, double lat, double lon)
+    {
+        (float sx, float sy) = Viewport.LatLonToScreen(lat, lon);
+        float dx = (float)screenPos.X - sx;
+        float dy = (float)screenPos.Y - sy;
+        return MathF.Sqrt((dx * dx) + (dy * dy));
+    }
+
+    /// <summary>
+    /// Every target a right-click at <paramref name="screenPos"/> lands on, in the order the picker lists them: aircraft
+    /// whose datablock contains the point (topmost first), then aircraft whose symbol is within <see cref="AircraftHitRadiusPx"/>
+    /// (nearest first), then — only with an aircraft selected, the only time a stand's menu offers more than measuring —
+    /// parking, spot and helipad nodes within <see cref="StandHitRadiusPx"/> (nearest first). An aircraft hit both ways is
+    /// listed once, as its datablock hit.
+    /// </summary>
+    public IReadOnlyList<RightClickTarget> FindRightClickTargets(Point screenPos)
+    {
+        var targets = new List<RightClickTarget>();
+        var listed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (AircraftModel ac in DataBlocksAtPoint(screenPos))
+        {
+            if (listed.Add(ac.Callsign))
+            {
+                targets.Add(RightClickTarget.ForAircraft(ac.Callsign, ac.AircraftType, viaDataBlock: true));
+            }
+        }
+
+        foreach (AircraftModel ac in AircraftNearPoint(screenPos))
+        {
+            if (listed.Add(ac.Callsign))
+            {
+                targets.Add(RightClickTarget.ForAircraft(ac.Callsign, ac.AircraftType, viaDataBlock: false));
+            }
+        }
+
+        if (SelectedAircraft is { } selected)
+        {
+            targets.AddRange(StandsNearPoint(screenPos, selected).Select(RightClickTarget.ForNode));
+        }
+
+        return targets;
+    }
+
+    /// <summary>The right-click target picker while it is open, or null.</summary>
+    public ContextMenu? ActiveRightClickPicker => _rightClickPicker.Menu;
+
+    /// <summary>Raises the right-click event of a target chosen in the picker, at the original click position.</summary>
+    private void RaiseRightClickTarget(RightClickTarget target, Point screenPos)
+    {
+        if (target.Callsign is { } callsign)
+        {
+            if (target.ViaDataBlock)
+            {
+                SurfaceDataBlock(callsign);
+            }
+
+            AircraftRightClicked?.Invoke(callsign, screenPos);
+        }
+        else if (target.NodeId is { } nodeId)
+        {
+            NodeRightClicked?.Invoke(nodeId, screenPos);
+        }
     }
 
     private void UpdateHoveredNode(Point screenPos)
@@ -2236,6 +2410,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
     public void Dispose()
     {
+        _rightClickPicker.Close();
         _renderer.Dispose();
         _hitTestPaint.Dispose();
         _hitTestFont.Dispose();

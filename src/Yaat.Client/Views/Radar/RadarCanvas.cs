@@ -183,6 +183,10 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     private bool _suppressCenterSync;
     private readonly Services.ScrollStepAccumulator _rangeRingSizeScroll = new();
     private readonly RightClickGesture _rightClick = new();
+    private readonly RightClickPicker _rightClickPicker = new();
+
+    // Pixel radius within which a click lands on an aircraft symbol.
+    private const float AircraftHitRadiusPx = 28f;
     private Dictionary<string, string> _brightnessLookup = [];
     private bool _isDraggingDataBlock;
     private string? _dragCallsign;
@@ -1369,6 +1373,15 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             }
         }
 
+        // Two or more aircraft under the pointer are offered in a picker; one or none falls through to the single-target
+        // menus below.
+        if (props.IsRightButtonPressed && FindRightClickTargets(pos) is { Count: >= 2 } targets)
+        {
+            _rightClickPicker.Open(this, pos, targets, target => RaiseRightClickTarget(target, pos));
+            e.Handled = true;
+            return;
+        }
+
         AircraftModel? dataBlockAc = FindDataBlockAtPoint(pos);
         if (dataBlockAc is not null)
         {
@@ -1667,6 +1680,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// </summary>
     public event Func<AircraftModel, TagFieldId, Point, bool>? EuroScopeFieldRightClicked;
 
+    /// <summary>The aircraft whose datablock is drawn on top at <paramref name="screenPos"/>, or null when none contains it.</summary>
     public AircraftModel? FindDataBlockAtPoint(Point screenPos)
     {
         if (Aircraft is null)
@@ -1674,23 +1688,91 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             return null;
         }
 
-        // Use z-order-sorted list so the topmost (last-drawn) datablock wins
-        IReadOnlyList<AircraftModel> sorted = SortByZOrder(
-            FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, AlwaysShowGroundBubblesOnRadar, GroundShownAirportId, DateTime.UtcNow),
-            State.DataBlockZOrder
-        );
+        // The z-order list is drawn first to last, so the last hit is the block on top.
         AircraftModel? best = null;
-
-        foreach (AircraftModel ac in sorted)
+        foreach (AircraftModel ac in SortByZOrder(HitTestableAircraft(), State.DataBlockZOrder))
         {
-            SKRect blockRect = ComputeDataBlockRect(ac);
-            if (blockRect.Contains((float)screenPos.X, (float)screenPos.Y))
+            if (ComputeDataBlockRect(ac).Contains((float)screenPos.X, (float)screenPos.Y))
             {
                 best = ac;
             }
         }
 
         return best;
+    }
+
+    /// <summary>Every aircraft whose datablock contains <paramref name="screenPos"/>, topmost (last-drawn) first.</summary>
+    private List<AircraftModel> DataBlocksAtPoint(Point screenPos)
+    {
+        var hits = new List<AircraftModel>();
+        if (Aircraft is null)
+        {
+            return hits;
+        }
+
+        foreach (AircraftModel ac in SortByZOrder(HitTestableAircraft(), State.DataBlockZOrder))
+        {
+            SKRect blockRect = ComputeDataBlockRect(ac);
+            if (blockRect.Contains((float)screenPos.X, (float)screenPos.Y))
+            {
+                hits.Add(ac);
+            }
+        }
+
+        // The z-order list is drawn first to last, so the last hit is the block on top.
+        hits.Reverse();
+        return hits;
+    }
+
+    /// <summary>The aircraft the radar draws, which are the ones a click can land on.</summary>
+    private IReadOnlyList<AircraftModel> HitTestableAircraft() =>
+        FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, AlwaysShowGroundBubblesOnRadar, GroundShownAirportId, DateTime.UtcNow);
+
+    /// <summary>
+    /// Every aircraft a right-click at <paramref name="screenPos"/> lands on, in the order the picker lists them: those whose
+    /// datablock contains the point (topmost first), then those whose symbol is within <see cref="AircraftHitRadiusPx"/>
+    /// (nearest first). An aircraft hit both ways is listed once, as its datablock hit.
+    /// </summary>
+    public IReadOnlyList<RightClickTarget> FindRightClickTargets(Point screenPos)
+    {
+        var targets = new List<RightClickTarget>();
+        var listed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (AircraftModel ac in DataBlocksAtPoint(screenPos))
+        {
+            if (listed.Add(ac.Callsign))
+            {
+                targets.Add(RightClickTarget.ForAircraft(ac.Callsign, ac.DisplayAircraftType, viaDataBlock: true));
+            }
+        }
+
+        foreach (AircraftModel ac in AircraftNearPoint(screenPos))
+        {
+            if (listed.Add(ac.Callsign))
+            {
+                targets.Add(RightClickTarget.ForAircraft(ac.Callsign, ac.DisplayAircraftType, viaDataBlock: false));
+            }
+        }
+
+        return targets;
+    }
+
+    /// <summary>The right-click target picker while it is open, or null.</summary>
+    public ContextMenu? ActiveRightClickPicker => _rightClickPicker.Menu;
+
+    /// <summary>Raises <see cref="AircraftRightClicked"/> for an aircraft chosen in the picker, at the original click position.</summary>
+    private void RaiseRightClickTarget(RightClickTarget target, Point screenPos)
+    {
+        if (target.Callsign is not { } callsign)
+        {
+            return;
+        }
+
+        if (target.ViaDataBlock)
+        {
+            SurfaceDataBlock(callsign);
+        }
+
+        AircraftRightClicked?.Invoke(callsign, screenPos);
     }
 
     private SKRect ComputeDataBlockRect(AircraftModel ac) => ComputeDataBlockPlacement(ac).Rect;
@@ -1898,6 +1980,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         return items;
     }
 
+    /// <summary>The aircraft whose symbol is nearest <paramref name="screenPos"/> within <see cref="AircraftHitRadiusPx"/>, or null.</summary>
     public AircraftModel? FindAircraftAtPoint(Point screenPos)
     {
         if (Aircraft is null)
@@ -1905,26 +1988,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             return null;
         }
 
-        const float hitRadius = 28f;
         AircraftModel? closest = null;
-        float closestDist = hitRadius;
-
-        foreach (
-            AircraftModel ac in FilterAircraft(
-                Aircraft,
-                ShowTopDown,
-                ShowSpeechBubbles,
-                AlwaysShowGroundBubblesOnRadar,
-                GroundShownAirportId,
-                DateTime.UtcNow
-            )
-        )
+        float closestDist = AircraftHitRadiusPx;
+        foreach (AircraftModel ac in HitTestableAircraft())
         {
-            (float sx, float sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
-            float dx = (float)screenPos.X - sx;
-            float dy = (float)screenPos.Y - sy;
-            float dist = MathF.Sqrt(dx * dx + dy * dy);
-
+            float dist = ScreenDistance(screenPos, ac);
             if (dist < closestDist)
             {
                 closestDist = dist;
@@ -1933,6 +2001,36 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
 
         return closest;
+    }
+
+    /// <summary>Every aircraft whose symbol is within <see cref="AircraftHitRadiusPx"/> of <paramref name="screenPos"/>, nearest first.</summary>
+    private List<AircraftModel> AircraftNearPoint(Point screenPos)
+    {
+        if (Aircraft is null)
+        {
+            return [];
+        }
+
+        var hits = new List<(AircraftModel Aircraft, float Distance)>();
+        foreach (AircraftModel ac in HitTestableAircraft())
+        {
+            float dist = ScreenDistance(screenPos, ac);
+            if (dist < AircraftHitRadiusPx)
+            {
+                hits.Add((ac, dist));
+            }
+        }
+
+        // OrderBy is stable, so of two equally near aircraft the earlier in the list stays first.
+        return [.. hits.OrderBy(h => h.Distance).Select(h => h.Aircraft)];
+    }
+
+    private float ScreenDistance(Point screenPos, AircraftModel ac)
+    {
+        (float sx, float sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+        float dx = (float)screenPos.X - sx;
+        float dy = (float)screenPos.Y - sy;
+        return MathF.Sqrt((dx * dx) + (dy * dy));
     }
 
     /// <summary>
@@ -2289,6 +2387,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     public void Dispose()
     {
+        _rightClickPicker.Close();
         _renderer.Dispose();
         _hitTestPaint.Dispose();
         _hitTestFont.Dispose();

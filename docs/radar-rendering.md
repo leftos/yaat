@@ -445,6 +445,13 @@ the wrong rung silently steals clicks from a lower one. The order, top to bottom
 7. **Datablock** — left click selects (Ctrl = open FP editor) and begins a drag; right click opens the aircraft context
    menu (`:982-1013`).
 8. **Aircraft symbol (right)** — right click on a symbol opens the context menu (`:1015-1023`).
+
+   Rungs 7 and 8 first gather every aircraft the right click hits (`FindRightClickTargets`: each datablock containing the
+   point, topmost first, then each symbol within `AircraftHitRadiusPx` = 28 px by distance, an aircraft hit both ways
+   listed once). Two or more open the shared `Views/Map/RightClickPicker` (labels `"{callsign} ({type})"` from
+   `DisplayAircraftType`, else the bare callsign); choosing one raises its `AircraftRightClicked` with the original
+   point after the picker closes. One or none falls through to the rungs unchanged. `docs/ground-rendering.md` ("Right-click
+   vs right-drag") has the ground version, which adds parking/spot/helipad markers.
 9. **Range-ring placement (left)** — places the range ring when in placing mode (`:1037-1046`).
 10. **Aircraft symbol (left)** — select / Ctrl-open (`:1048-1062`).
 11. **Bubble dismiss / empty-space** — record a bubble-press for release-side dismiss, else fire `EmptySpaceClicked`
