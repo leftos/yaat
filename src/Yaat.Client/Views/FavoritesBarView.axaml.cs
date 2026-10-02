@@ -600,7 +600,7 @@ public partial class FavoritesBarView : UserControl
             return;
         }
 
-        var picker = new AvaloniaFilePickerService(owner);
+        IFilePickerService picker = FilePickerFactory.Create(owner);
         string? path = await picker.SaveFileAsync(
             new SaveFileOptions(
                 Title: "Export Favorite Set",
@@ -634,7 +634,7 @@ public partial class FavoritesBarView : UserControl
             return false;
         }
 
-        var picker = new AvaloniaFilePickerService(owner);
+        IFilePickerService picker = FilePickerFactory.Create(owner);
         string? path = await picker.SaveFileAsync(
             new SaveFileOptions(
                 Title: "Export Favorites Library",
@@ -670,7 +670,7 @@ public partial class FavoritesBarView : UserControl
             return;
         }
 
-        var picker = new AvaloniaFilePickerService(owner);
+        IFilePickerService picker = FilePickerFactory.Create(owner);
         string? path = await picker.OpenFileAsync(new OpenFileOptions("Import Favorites", [FavoritesZipType, JsonFileType]));
         if (path is null)
         {

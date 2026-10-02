@@ -28,6 +28,7 @@ public sealed class AutomationDispatcher
     public AutomationDispatcher(NodeRegistry registry)
     {
         Register(new PingHandler());
+        Register(new QueueFilePickHandler());
         Register(new ListWindowsHandler(registry));
         var engine = new SelectorEngine(registry);
         var selectors = new SelectorRequestHelper(engine, registry);

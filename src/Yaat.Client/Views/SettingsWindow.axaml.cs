@@ -32,7 +32,7 @@ public partial class SettingsWindow : Window
     public SettingsWindow(UserPreferences preferences, AudioCaptureService? audioCapture, SpeechSampleStore? speechSampleStore)
     {
         InitializeComponent();
-        _filePicker = new AvaloniaFilePickerService(this);
+        _filePicker = FilePickerFactory.Create(this);
 
         var vm = new SettingsViewModel(preferences, audioCapture, speechSampleStore);
         DataContext = vm;

@@ -12,6 +12,7 @@ public static class ProtocolMethods
     public const string GetTree = "get_tree";
     public const string ListWindows = "list_windows";
     public const string Ping = "ping";
+    public const string QueueFilePick = "queue_file_pick";
     public const string Screenshot = "screenshot";
     public const string SendKeys = "send_keys";
     public const string SetText = "set_text";

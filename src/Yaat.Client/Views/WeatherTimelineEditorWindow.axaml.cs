@@ -25,7 +25,7 @@ public partial class WeatherTimelineEditorWindow : Window
         _applyCallback = applyCallback;
         DataContext = viewModel;
         InitializeComponent();
-        _filePicker = new AvaloniaFilePickerService(this);
+        _filePicker = FilePickerFactory.Create(this);
         new WindowGeometryHelper(this, preferences, "WeatherTimelineEditor", 800, 600).Restore();
 
         this.FindControl<Button>("ApplyButton")!.Click += OnApplyClick;

@@ -64,7 +64,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     public MainWindow()
     {
         InitializeComponent();
-        var vm = new MainViewModel(new AvaloniaFilePickerService(this));
+        var vm = new MainViewModel(FilePickerFactory.Create(this));
         DataContext = vm;
 
         // Apply the saved Interface font size into the app-level dynamic resources

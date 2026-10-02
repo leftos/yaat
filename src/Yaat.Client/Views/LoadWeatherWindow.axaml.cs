@@ -43,7 +43,7 @@ public partial class LoadWeatherWindow : Window
         _preferences = preferences;
         _artccId = preferences.ArtccId;
         InitializeComponent();
-        _filePicker = new AvaloniaFilePickerService(this);
+        _filePicker = FilePickerFactory.Create(this);
         new WindowGeometryHelper(this, preferences, "LoadWeather", 550, 450).Restore();
 
         _sourceTabs = this.FindControl<TabControl>("SourceTabs")!;

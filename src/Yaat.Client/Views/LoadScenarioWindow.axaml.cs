@@ -50,7 +50,7 @@ public partial class LoadScenarioWindow : Window
         _connection = connection;
         _artccId = preferences.ArtccId;
         InitializeComponent();
-        _filePicker = new AvaloniaFilePickerService(this);
+        _filePicker = FilePickerFactory.Create(this);
         new WindowGeometryHelper(this, preferences, "LoadScenario", 600, 500).Restore();
 
         _sourceTabs = this.FindControl<TabControl>("SourceTabs")!;

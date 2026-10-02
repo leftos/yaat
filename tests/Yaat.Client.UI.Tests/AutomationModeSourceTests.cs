@@ -483,6 +483,39 @@ public partial class AutomationModeSourceTests
         }
     }
 
+    /// <summary>Avalonia's picker is constructed only in the factory, so automation mode's injected picker can answer every dialog.</summary>
+    [Fact]
+    public void NoAvaloniaFilePickerConstructedOutsideFactory() =>
+        AssertOnlyFileContains("new AvaloniaFilePickerService(", "src/Yaat.Client/Services/FilePickerFactory.cs");
+
+    /// <summary>The storage provider is reached only from AvaloniaFilePickerService, so no call site bypasses the factory.</summary>
+    [Fact]
+    public void NoStorageProviderOutsideAvaloniaFilePickerService() =>
+        AssertOnlyFileContains("StorageProvider.", "src/Yaat.Client/Services/AvaloniaFilePickerService.cs");
+
+    // Asserts that "needle" appears in exactly one file under src/Yaat.Client, the allow-listed "allowed".
+    private static void AssertOnlyFileContains(string needle, string allowed)
+    {
+        string root = FindRepoRoot();
+        string clientRoot = Path.Combine(root, "src", "Yaat.Client");
+        List<string> files = [];
+        foreach (string file in Directory.EnumerateFiles(clientRoot, "*.cs", SearchOption.AllDirectories))
+        {
+            string relative = Path.GetRelativePath(root, file).Replace('\\', '/');
+            if (relative.Contains("/obj/") || relative.Contains("/bin/"))
+            {
+                continue;
+            }
+
+            if (File.ReadAllText(file).Contains(needle, StringComparison.Ordinal))
+            {
+                files.Add(relative);
+            }
+        }
+
+        Assert.True((files.Count == 1) && (files[0] == allowed), $"Files containing '{needle}': {string.Join(", ", files)} (want only {allowed})");
+    }
+
     /// <summary>
     /// Returns one violation line per ungated <c>Activate</c> use, <c>Topmost</c> assignment,
     /// <c>ShowDialog</c> call or <c>WindowState</c> change (an assignment, or <c>SetValue</c> /

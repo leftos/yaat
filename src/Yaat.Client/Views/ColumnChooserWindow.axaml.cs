@@ -31,7 +31,7 @@ public partial class ColumnChooserWindow : Window
         InitializeComponent();
         AutomationGate.ApplyShowActivated(this);
         _defaultOrder = [];
-        _filePicker = new AvaloniaFilePickerService(this);
+        _filePicker = FilePickerFactory.Create(this);
     }
 
     public ColumnChooserWindow(
@@ -46,7 +46,7 @@ public partial class ColumnChooserWindow : Window
     {
         InitializeComponent();
         AutomationGate.ApplyShowActivated(this);
-        _filePicker = new AvaloniaFilePickerService(this);
+        _filePicker = FilePickerFactory.Create(this);
 
         _columnWidths = columnWidths;
         _sortColumn = sortColumn;

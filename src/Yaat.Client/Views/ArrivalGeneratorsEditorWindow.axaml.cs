@@ -29,7 +29,7 @@ public partial class ArrivalGeneratorsEditorWindow : Window
         _scenarioJsonProvider = scenarioJsonProvider;
         DataContext = viewModel;
         InitializeComponent();
-        _filePicker = new AvaloniaFilePickerService(this);
+        _filePicker = FilePickerFactory.Create(this);
         new WindowGeometryHelper(this, preferences, "ArrivalGeneratorsEditor", 760, 560).Restore();
 
         this.FindControl<Button>("ApplyButton")!.Click += OnApplyClick;
