@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
@@ -268,6 +269,24 @@ public class RecordingSchemaUpgraderTests
 
     private static List<int?> RecordedEfcs(IEnumerable<RecordedAction> actions) =>
         [.. actions.Cast<RecordedHoldAnnotationChange>().Select(c => c.HoldAnnotation!.Efc)];
+
+    [Fact]
+    public void SnapshotJsonWithoutDisconnectCoasts_DeserializesNull_AndTheMigratorKeepsIt()
+    {
+        // A pre-feature snapshot: the field is not in the JSON at all. It deserializes as null — absent already means
+        // an empty coast set — and the migrator has nothing to transform, so the schema version does not move.
+        byte[] json = JsonSerializer.SerializeToUtf8Bytes(EmptySnapshotAt(CurrentVersion));
+        JsonObject node = JsonNode.Parse(json)!.AsObject();
+        Assert.True(node["Scenario"]!.AsObject().Remove("DisconnectCoasts"));
+
+        StateSnapshotDto snapshot = node.Deserialize<StateSnapshotDto>()!;
+        Assert.Null(snapshot.Scenario.DisconnectCoasts);
+
+        SnapshotSchemaMigrator.Migrate(snapshot);
+
+        Assert.Null(snapshot.Scenario.DisconnectCoasts);
+        Assert.Equal(CurrentVersion, snapshot.SchemaVersion);
+    }
 
     [Fact]
     public void Upgrade_V1RecordingWithoutSnapshots_ReportsNeedsResimulation()

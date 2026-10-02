@@ -16,6 +16,7 @@ using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Scenarios;
+using Yaat.Sim.Simulation.Coast;
 using Yaat.Sim.Simulation.Eram;
 using Yaat.Sim.Simulation.Replay;
 using Yaat.Sim.Simulation.Snapshots;
@@ -332,6 +333,23 @@ public sealed partial class SimulationEngine
 
             Scenario.ActiveAsdexAlerts = restoredAlerts.ToImmutable();
 
+            // Replace, never merge, for the coasts too: a snapshot that predates the feature carries none, and the
+            // coasts registered in the undone future must go with it. The pending cleared-callsign list is emptied
+            // because the spawns that queued it belong to that same undone future.
+            var restoredCoasts = Scenario.DisconnectCoasts.Clear().ToBuilder();
+            foreach (DisconnectCoastDto coastDto in scenarioDto.DisconnectCoasts ?? [])
+            {
+                restoredCoasts[coastDto.Callsign] = new AircraftDisconnectCoast(
+                    coastDto.Anchor,
+                    coastDto.AnchorTrackDeg,
+                    coastDto.AnchorGroundSpeed,
+                    coastDto.CoastStartSimSeconds,
+                    [.. coastDto.Facets.Select(f => new DisconnectCoastFacet(f.Scope, f.FacilityId, f.IsDrop, f.DeadlineSimSeconds))]
+                );
+            }
+
+            Scenario.DisconnectCoasts = restoredCoasts.ToImmutable();
+
             // Replace, never merge, for the hidden live traffic too: a snapshot that carries none restores an empty set,
             // and the removals the log replays after it hide whatever the live run hid later.
             Scenario.SuppressedLiveTraffic.Clear();
@@ -342,6 +360,7 @@ public sealed partial class SimulationEngine
         }
 
         // Reset engine-level state, then restore from snapshot if available
+        ResetDisconnectCoastClears();
         ConsolidationState.Clear();
         ConflictAlerts.Conflicts.Clear();
         EramConflicts.Conflicts.Clear();

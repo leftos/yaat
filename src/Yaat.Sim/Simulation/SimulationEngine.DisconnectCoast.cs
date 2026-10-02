@@ -170,6 +170,13 @@ public sealed partial class SimulationEngine
         _pendingDisconnectCoastClears.Add(callsign);
     }
 
+    /// <summary>
+    /// Empties the pending cleared-callsign list. A snapshot restore replaces the whole coast set, so whatever a spawn
+    /// queued for the next drain since the snapshot belongs to the future the restore has undone and must not reach the
+    /// host.
+    /// </summary>
+    internal void ResetDisconnectCoastClears() => _pendingDisconnectCoastClears.Clear();
+
     private void DrainDisconnectCoastClearsInto(IStateChangeConsumer host)
     {
         if (_pendingDisconnectCoastClears.Count == 0)

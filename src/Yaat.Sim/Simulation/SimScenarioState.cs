@@ -676,5 +676,41 @@ public sealed class SimScenarioState
                     ]
                     : null,
             SuppressedLiveTraffic = SuppressedLiveTraffic.Count > 0 ? [.. SuppressedLiveTraffic.Order(StringComparer.Ordinal)] : null,
+            DisconnectCoasts = SnapshotDisconnectCoasts(),
         };
+
+    /// <summary>
+    /// The coast set as snapshot DTOs, or null when nothing is coasting. The volatile property is read into a local
+    /// once, so a tick landing between the emptiness check and the enumeration cannot straddle two sets.
+    /// </summary>
+    private List<DisconnectCoastDto>? SnapshotDisconnectCoasts()
+    {
+        ImmutableSortedDictionary<string, AircraftDisconnectCoast> coasts = DisconnectCoasts;
+        if (coasts.Count == 0)
+        {
+            return null;
+        }
+
+        return
+        [
+            .. coasts.Select(c => new DisconnectCoastDto
+            {
+                Callsign = c.Key,
+                Anchor = c.Value.Anchor,
+                AnchorTrackDeg = c.Value.AnchorTrackDeg,
+                AnchorGroundSpeed = c.Value.AnchorGroundSpeed,
+                CoastStartSimSeconds = c.Value.CoastStartSimSeconds,
+                Facets =
+                [
+                    .. c.Value.Facets.Select(f => new DisconnectCoastFacetDto
+                    {
+                        Scope = f.Scope,
+                        FacilityId = f.FacilityId,
+                        IsDrop = f.IsDrop,
+                        DeadlineSimSeconds = f.DeadlineSimSeconds,
+                    }),
+                ],
+            }),
+        ];
+    }
 }
