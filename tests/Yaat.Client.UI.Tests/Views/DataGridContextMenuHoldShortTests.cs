@@ -28,7 +28,7 @@ public class DataGridContextMenuHoldShortTests
         };
 
         var host = new ListMenuHost(vm, ac, new Border());
-        var context = new MenuContext(ac.Callsign, "AB", null, vm.SessionSoloTrainingMode, vm.VfrCommandsForIfr, CatalogMenuView.List);
+        MenuContext context = TestMenuContext.Create(ac.Callsign, "AB", null, vm.SessionSoloTrainingMode, vm.VfrCommandsForIfr, CatalogMenuView.List);
         var menu = new ContextMenu();
         SharedMenuGroups.AddListAircraftCommands(menu.Items, ac, context, host);
 

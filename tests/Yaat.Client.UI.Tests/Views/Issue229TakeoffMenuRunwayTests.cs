@@ -28,7 +28,7 @@ public class Issue229TakeoffMenuRunwayTests
             IsOnGround = true,
             CurrentPhase = "Holding Short 28R/10L",
         };
-        var context = new MenuContext(Callsign, Initials, null, false, VfrCommandsForIfr.EnterFinalOnly, CatalogMenuView.Ground);
+        MenuContext context = TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.EnterFinalOnly, CatalogMenuView.Ground);
         var menu = new ContextMenu();
         SharedMenuGroups.AddGroundClearances(menu.Items, ac, context, host);
         return menu;

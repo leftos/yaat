@@ -543,7 +543,7 @@ public class AircraftCommandApplicabilityTests
 
     /// <summary>A ground-view context for the <see cref="Ac"/> aircraft, with <paramref name="previousSelection"/> selected before it.</summary>
     private static MenuContext GroundContext(AircraftModel? previousSelection) =>
-        new("TST123", "AB", previousSelection, false, VfrCommandsForIfr.None, MenuView.Ground);
+        new(new MenuClick("TST123", previousSelection, []), new MenuSession("AB", false, VfrCommandsForIfr.None), MenuView.Ground);
 
     /// <summary>Another on-ground aircraft, selected before the right-click, which makes the ground menu relative.</summary>
     private static AircraftModel OtherGroundAircraft()

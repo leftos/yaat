@@ -289,12 +289,14 @@ ContextMenus/                   # The aircraft right-click menu catalog shared b
   MenuCommandChoice.cs          # Record Label/Command/Preview: a host-answered submenu choice carrying its finished command text and optional preview TaxiRoute (the ground's hold-short items)
   MenuCatalog.cs                # Static: one MenuCatalogEntry per MenuIds action (All, Get); a leaf's click sends its command text through IMenuHost.SendAsync; Warp, Edit flight plan, the display toggles and the measure item use the host instead, and leader direction / J-ring / cone are one entry each that builds its value submenu
   MenuCatalogEntry.cs           # Record: stable ID, label, default flight-rules filter, applicability predicate, builder → MenuItem? (aircraft nullable: the radar builds some groups with no aircraft model), Requires (the host capabilities its builder calls; SharedMenuGroups.TryLeaf/TryAdd hide the entry on a host lacking any)
-  MenuContext.cs                # Record: callsign, initials, previous selection, solo mode, VFR-for-IFR mode — the predicates' non-aircraft inputs
+  MenuClick.cs                  # Record: the click context — the commanded callsign, the previous selection (sender of the relative items), the list's selected rows
+  MenuContext.cs                # Record: the click (MenuClick), the session (MenuSession) and the view, with read-through Callsign / PreviousSelection / Initials / SoloTrainingMode / VfrCommandsForIfr — the predicates' non-aircraft inputs
   MenuFlightRules.cs            # Enum Both/IfrOnly/VfrOnly: a quick-command entry's default flight-rules filter
   MenuIds.cs                    # Stable menu IDs, <group>.<item>, one per action, append-only (exported preferences carry them)
   MenuLabeledValue.cs           # A picker value with its display label (altitude list: the value in feet, shown as FLnnn at or above 18000); the catalog unwraps it before the pick
   MenuMeasureState.cs           # Enum None/NoAnchor/HasAnchor: the host's measure tool as the Display group's measure item reads it (None = no tool, no item)
   MenuPickerDescriptor.cs       # Tag on a picker menu item: the values its list/filtered-list/input popup offers, readable without opening it (the menu goldens print it)
+  MenuSession.cs                # Record: the menu session — initials, solo training mode, VFR-for-IFR mode
   MenuView.cs                   # Enum Radar/Ground/List: which surface a group is built for, until the All Commands tree is unified
   RunwayDesignatorComparer.cs   # Orders runway designators by number then L/C/R (the runway flyout and the menu runway pickers)
   RunwayDesignators.cs          # Static: ForAirport — an airport's runway ends in display form, sorted, for the visual-approach and pattern pickers

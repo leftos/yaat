@@ -118,7 +118,7 @@ public class MenuFootTests
         {
             MenuView.Radar => MenuHostHarness.BuildRadarMenu(main, ac, null, MenuGoldenFixtures.Initials),
             MenuView.Ground => MenuHostHarness.BuildGroundMenu(main, ac, null, MenuGoldenFixtures.Initials),
-            _ => DataGridView.BuildAircraftMenu(main, new DataGrid(), ac, [ac], MenuGoldenFixtures.Initials),
+            _ => DataGridView.BuildAircraftMenu(main, new DataGrid(), ac, null, [ac], MenuGoldenFixtures.Initials),
         };
         return [.. menu.Items.Select(Describe)];
     }

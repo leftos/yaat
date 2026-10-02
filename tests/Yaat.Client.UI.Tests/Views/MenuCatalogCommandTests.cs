@@ -222,10 +222,12 @@ public class MenuCatalogCommandTests
     private static MenuContext Context() => RadarContext(VfrCommandsForIfr.EnterFinalOnly);
 
     /// <summary>A radar menu context under <paramref name="mode"/>, outside solo training, with no previous selection.</summary>
-    private static MenuContext RadarContext(VfrCommandsForIfr mode) => new(Callsign, Initials, null, false, mode, CatalogMenuView.Radar);
+    private static MenuContext RadarContext(VfrCommandsForIfr mode) =>
+        TestMenuContext.Create(Callsign, Initials, null, false, mode, CatalogMenuView.Radar);
 
     /// <summary>A ground-view menu context under <paramref name="mode"/>, outside solo training, with no previous selection.</summary>
-    private static MenuContext GroundContext(VfrCommandsForIfr mode) => new(Callsign, Initials, null, false, mode, CatalogMenuView.Ground);
+    private static MenuContext GroundContext(VfrCommandsForIfr mode) =>
+        TestMenuContext.Create(Callsign, Initials, null, false, mode, CatalogMenuView.Ground);
 
     private static void Click(MenuItem item) => item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
 
@@ -267,7 +269,7 @@ public class MenuCatalogCommandTests
         var host = new RecordingMenuHost("");
         var menu = new ContextMenu();
 
-        SharedMenuGroups.AddAssumeSelected(menu, ["SWA1", "SWA2"], ListContext(VfrCommandsForIfr.EnterFinalOnly), host);
+        SharedMenuGroups.AddAssumeSelected(menu, ShadowSelectionContext("SWA1", "SWA2"), host);
 
         Assert.Equal(2, menu.Items.Count);
         Assert.IsType<Separator>(menu.Items[0]);
@@ -288,7 +290,7 @@ public class MenuCatalogCommandTests
         var host = new RecordingMenuHost("");
         var menu = new ContextMenu();
 
-        SharedMenuGroups.AddAssumeSelected(menu, ["SWA1", "SWA2", "SWA3"], ListContext(VfrCommandsForIfr.EnterFinalOnly), host);
+        SharedMenuGroups.AddAssumeSelected(menu, ShadowSelectionContext("SWA1", "SWA2", "SWA3"), host);
 
         Assert.Equal(2, menu.Items.Count);
         Assert.IsType<Separator>(menu.Items[0]);
@@ -310,7 +312,7 @@ public class MenuCatalogCommandTests
         var host = new RecordingMenuHost("");
         var menu = new ContextMenu();
 
-        SharedMenuGroups.AddAssumeSelected(menu, ["SWA1"], ListContext(VfrCommandsForIfr.EnterFinalOnly), host);
+        SharedMenuGroups.AddAssumeSelected(menu, ShadowSelectionContext("SWA1"), host);
 
         Assert.Empty(menu.Items);
         Assert.Empty(host.AssumeSelectedCalls);
@@ -1372,7 +1374,7 @@ public class MenuCatalogCommandTests
     public void GroundRelative_SendsAsTheSelectedAircraft_NamingTheRightClickedOne()
     {
         var selected = new AircraftModel { Callsign = Selected, IsOnGround = true };
-        var context = new MenuContext(Callsign, Initials, selected, false, VfrCommandsForIfr.None, CatalogMenuView.Ground);
+        MenuContext context = TestMenuContext.Create(Callsign, Initials, selected, false, VfrCommandsForIfr.None, CatalogMenuView.Ground);
         var host = new RecordingMenuHost("");
         var menu = new ContextMenu();
 
@@ -1394,7 +1396,7 @@ public class MenuCatalogCommandTests
         var same = new AircraftModel { Callsign = Callsign, IsOnGround = true };
         foreach (AircraftModel? selected in (AircraftModel?[])[null, airborne, same])
         {
-            var context = new MenuContext(Callsign, Initials, selected, false, VfrCommandsForIfr.None, CatalogMenuView.Ground);
+            MenuContext context = TestMenuContext.Create(Callsign, Initials, selected, false, VfrCommandsForIfr.None, CatalogMenuView.Ground);
             var menu = new ContextMenu();
 
             SharedMenuGroups.AddRelative(menu.Items, OnGround("Taxiing", "IFR", ""), context, new RecordingMenuHost(""));
@@ -1412,7 +1414,7 @@ public class MenuCatalogCommandTests
             IsOnGround = false,
             LastReportedTrafficCallsign = Callsign,
         };
-        var context = new MenuContext(Callsign, Initials, selected, false, VfrCommandsForIfr.None, CatalogMenuView.Radar);
+        MenuContext context = TestMenuContext.Create(Callsign, Initials, selected, false, VfrCommandsForIfr.None, CatalogMenuView.Radar);
         var host = new RecordingMenuHost("");
         var menu = new ContextMenu();
 
@@ -1434,7 +1436,7 @@ public class MenuCatalogCommandTests
     public void AirborneRelative_FollowOnlyAfterTrafficReportedInSight()
     {
         var selected = new AircraftModel { Callsign = Selected, IsOnGround = false };
-        var context = new MenuContext(Callsign, Initials, selected, false, VfrCommandsForIfr.None, CatalogMenuView.Radar);
+        MenuContext context = TestMenuContext.Create(Callsign, Initials, selected, false, VfrCommandsForIfr.None, CatalogMenuView.Radar);
         var menu = new ContextMenu();
 
         SharedMenuGroups.AddRelative(menu.Items, new AircraftModel { Callsign = Callsign, IsOnGround = false }, context, new RecordingMenuHost(""));
@@ -1452,7 +1454,7 @@ public class MenuCatalogCommandTests
         ];
         foreach ((AircraftModel selected, AircraftModel clicked) in pairs)
         {
-            var context = new MenuContext(Callsign, Initials, selected, false, VfrCommandsForIfr.None, CatalogMenuView.Radar);
+            MenuContext context = TestMenuContext.Create(Callsign, Initials, selected, false, VfrCommandsForIfr.None, CatalogMenuView.Radar);
             var menu = new ContextMenu();
 
             SharedMenuGroups.AddRelative(menu.Items, clicked, context, new RecordingMenuHost(""));
@@ -1492,7 +1494,7 @@ public class MenuCatalogCommandTests
     {
         AircraftModel ac = OnGround(phase, "IFR", assignedRunway);
         MenuCatalogEntry entry = MenuCatalog.Get(MenuIds.TowerClearedForTakeoff);
-        var context = new MenuContext(Callsign, Initials, null, false, VfrCommandsForIfr.None, view);
+        MenuContext context = TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None, view);
 
         Assert.True(entry.IsApplicable(ac, context));
         Assert.Equal(header, CtoSubmenu(view, ac, new RecordingMenuHost("")).Header as string);
@@ -1506,7 +1508,7 @@ public class MenuCatalogCommandTests
     public void LuawLabel_NamesHeldRunway_OnEveryView(CatalogMenuView view)
     {
         AircraftModel ac = OnGround("Holding Short 15/33", "IFR", "28R");
-        var context = new MenuContext(Callsign, Initials, null, false, VfrCommandsForIfr.None, view);
+        MenuContext context = TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None, view);
         MenuCatalogEntry entry = MenuCatalog.Get(MenuIds.TowerLineUpAndWait);
 
         Assert.True(entry.IsApplicable(ac, context));
@@ -1631,7 +1633,7 @@ public class MenuCatalogCommandTests
     /// </summary>
     private static MenuItem CtoSubmenu(CatalogMenuView view, AircraftModel aircraft, RecordingMenuHost host)
     {
-        var context = new MenuContext(Callsign, Initials, null, false, VfrCommandsForIfr.None, view);
+        MenuContext context = TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None, view);
         MenuItem? cto = MenuCatalog.Get(MenuIds.TowerClearedForTakeoff).Build(aircraft, context, host);
         Assert.NotNull(cto);
         return cto;
@@ -1760,7 +1762,7 @@ public class MenuCatalogCommandTests
         {
             MenuItem? cto = MenuCatalog
                 .Get(MenuIds.TowerClearedForTakeoff)
-                .Build(ac, new MenuContext(Callsign, Initials, null, false, VfrCommandsForIfr.None, view), host);
+                .Build(ac, TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None, view), host);
 
             Assert.True(host.Capabilities.HasFlag(MenuHostCapabilities.InputPopup));
             Assert.NotNull(cto);
@@ -1839,7 +1841,7 @@ public class MenuCatalogCommandTests
 
         foreach (CatalogMenuView view in new[] { CatalogMenuView.Radar, CatalogMenuView.List, CatalogMenuView.Ground })
         {
-            var context = new MenuContext(Callsign, Initials, null, false, VfrCommandsForIfr.None, view);
+            MenuContext context = TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None, view);
             MenuItem? item = MenuCatalog.Get(id).Build(ac, context, new RecordingMenuHost(""));
             Assert.NotNull(item);
             Assert.Equal(header, item.Header as string);
@@ -1963,7 +1965,24 @@ public class MenuCatalogCommandTests
     // --- The aircraft list's flat command block (MenuView.List) ---
 
     /// <summary>An aircraft-list context under <paramref name="mode"/>, outside solo training, with no previous selection.</summary>
-    private static MenuContext ListContext(VfrCommandsForIfr mode) => new(Callsign, Initials, null, false, mode, CatalogMenuView.List);
+    private static MenuContext ListContext(VfrCommandsForIfr mode) =>
+        TestMenuContext.Create(Callsign, Initials, null, false, mode, CatalogMenuView.List);
+
+    /// <summary>An aircraft-list context whose selected rows are airborne live-traffic shadows named <paramref name="callsigns"/>.</summary>
+    private static MenuContext ShadowSelectionContext(params string[] callsigns)
+    {
+        MenuContext context = ListContext(VfrCommandsForIfr.EnterFinalOnly);
+        List<IMenuAircraft> shadows =
+        [
+            .. callsigns.Select(callsign => new AircraftModel
+            {
+                Callsign = callsign,
+                IsLiveTraffic = true,
+                IsOnGround = false,
+            }),
+        ];
+        return context with { Click = context.Click with { Selection = shadows } };
+    }
 
     /// <summary>
     /// The list's command block for <paramref name="aircraft"/>: each item's header and the command clicking it sends, in

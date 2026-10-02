@@ -815,14 +815,16 @@ public static class SharedMenuGroups
     }
 
     /// <summary>
-    /// The aircraft list's phase-aware command items, in the list's order: the ground-movement block (push back, hold
-    /// position, resume taxi and cross the held runway) for an on-ground aircraft, then line up and wait, Cleared for
-    /// takeoff and cancel takeoff clearance, then the landing items and the runway exits. The landing block and the
-    /// exits come from <see cref="AddFlatLandingAndExits"/>. The caller builds the context with
-    /// <see cref="MenuView.List"/>. Each item adds nothing when it does not apply.
+    /// The aircraft list's phase-aware command items, in the list's order: the relative items
+    /// (<see cref="AddRelative"/>) while another row was selected at the right-click, as the ground's command block
+    /// opens with them; the ground-movement block (push back, hold position, resume taxi and cross the held runway) for
+    /// an on-ground aircraft, then line up and wait, Cleared for takeoff and cancel takeoff clearance, then the landing
+    /// items and the runway exits. The landing block and the exits come from <see cref="AddFlatLandingAndExits"/>. The
+    /// caller builds the context with <see cref="MenuView.List"/>. Each item adds nothing when it does not apply.
     /// </summary>
     public static void AddListAircraftCommands(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
+        AddRelative(items, aircraft, context, host);
         if (aircraft?.IsOnGround == true)
         {
             AddIfApplicable(items, MenuIds.GroundPushback, aircraft, context, host);
@@ -885,15 +887,15 @@ public static class SharedMenuGroups
 
     /// <summary>
     /// The aircraft list's multi-selection live-traffic item, placed after the Delete item: a separator and
-    /// "Assume selected live traffic (N)" when <paramref name="selectedShadows"/> names two or more assumable shadows to
-    /// assume at once and the entry's own gate allows it, otherwise nothing. The selection belongs to the list rather
-    /// than to the menu context, so it comes in as a parameter, while the gate — read through
-    /// <see cref="MenuCatalog.Get"/> the way <see cref="AddDelayedSpawn"/> reads the delayed spawn's — stays with the
-    /// entry. The item itself comes from <see cref="MenuCatalog.BuildAssumeSelected"/> rather than from its own entry's
-    /// builder.
+    /// "Assume selected live traffic (N)" when the click's selection (<see cref="MenuClick.Selection"/>) holds two or
+    /// more assumable shadows (<see cref="AircraftCommandApplicability.CanAssume"/>) to assume at once and the entry's
+    /// own gate allows it, otherwise nothing. The gate — read through <see cref="MenuCatalog.Get"/> the way
+    /// <see cref="AddDelayedSpawn"/> reads the delayed spawn's — stays with the entry. The item itself comes from
+    /// <see cref="MenuCatalog.BuildAssumeSelected"/> rather than from its own entry's builder.
     /// </summary>
-    public static void AddAssumeSelected(ContextMenu menu, IReadOnlyList<string> selectedShadows, MenuContext context, IMenuHost host)
+    public static void AddAssumeSelected(ContextMenu menu, MenuContext context, IMenuHost host)
     {
+        List<string> selectedShadows = [.. context.Click.Selection.Where(AircraftCommandApplicability.CanAssume).Select(a => a.Callsign)];
         if (
             (selectedShadows.Count < 2)
             || !IsApplicable(MenuIds.LiveTrafficAssumeSelected, null, context)

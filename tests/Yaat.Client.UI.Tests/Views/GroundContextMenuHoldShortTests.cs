@@ -27,7 +27,7 @@ public class GroundContextMenuHoldShortTests
             AssignedRunway = "28R",
             HasActiveTaxiRoute = true,
         };
-        var context = new MenuContext("N784ME", "AB", null, false, VfrCommandsForIfr.EnterFinalOnly, CatalogMenuView.Ground);
+        MenuContext context = TestMenuContext.Create("N784ME", "AB", null, false, VfrCommandsForIfr.EnterFinalOnly, CatalogMenuView.Ground);
 
         var menu = new ContextMenu();
         SharedMenuGroups.AddGroundClearances(menu.Items, ac, context, new RecordingMenuHost(""));

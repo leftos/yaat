@@ -128,7 +128,7 @@ public class MenuGoldenTests
             {
                 MenuView.Radar => MenuHostHarness.BuildRadarMenu(main, fixture.Aircraft, fixture.Selected, MenuGoldenFixtures.Initials),
                 MenuView.Ground => MenuHostHarness.BuildGroundMenu(main, fixture.Aircraft, fixture.Selected, MenuGoldenFixtures.Initials),
-                _ => DataGridView.BuildAircraftMenu(main, new DataGrid(), fixture.Aircraft, [fixture.Aircraft], MenuGoldenFixtures.Initials),
+                _ => DataGridView.BuildAircraftMenu(main, new DataGrid(), fixture.Aircraft, null, [fixture.Aircraft], MenuGoldenFixtures.Initials),
             };
             goldens.Add((fixture.Name, $"# {FolderName(view)} {fixture.Name}\n{MenuTreeSnapshot.Render(menu)}"));
         }

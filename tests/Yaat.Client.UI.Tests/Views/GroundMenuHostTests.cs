@@ -260,7 +260,7 @@ public class GroundMenuHostTests
         var sent = new List<(string Callsign, string Command, string Initials)>();
         GroundViewModel ground = OakGround(sent.Add);
         var host = new GroundMenuHost(new GroundView { DataContext = ground }, ground, MainWith(target, [candidate]), target);
-        var context = new MenuContext(Callsign, Initials, null, false, VfrCommandsForIfr.None, CatalogMenuView.Ground);
+        MenuContext context = TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None, CatalogMenuView.Ground);
 
         var menu = new ContextMenu();
         SharedMenuGroups.AddGroundFollowAndGiveWay(menu.Items, target, context, host, GroundFollowPosition.Parking);

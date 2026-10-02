@@ -566,11 +566,8 @@ public partial class GroundView : UserControl
     {
         MainViewModel? main = FindMainViewModel();
         return new MenuContext(
-            target.Callsign,
-            target.Initials,
-            target.PrevSelected,
-            main?.SessionSoloTrainingMode ?? false,
-            main?.VfrCommandsForIfr ?? VfrCommandsForIfr.None,
+            new MenuClick(target.Callsign, target.PrevSelected, []),
+            new MenuSession(target.Initials, main?.SessionSoloTrainingMode ?? false, main?.VfrCommandsForIfr ?? VfrCommandsForIfr.None),
             MenuView.Ground
         );
     }

@@ -22,7 +22,14 @@ public class GroundSubmenuGroupTests
     private const string Callsign = "SWA104";
     private const string Initials = "AB";
 
-    private static readonly MenuContext Context = new(Callsign, Initials, null, false, VfrCommandsForIfr.None, CatalogMenuView.Ground);
+    private static readonly MenuContext Context = TestMenuContext.Create(
+        Callsign,
+        Initials,
+        null,
+        false,
+        VfrCommandsForIfr.None,
+        CatalogMenuView.Ground
+    );
 
     private static AircraftModel Taxiing() =>
         new()

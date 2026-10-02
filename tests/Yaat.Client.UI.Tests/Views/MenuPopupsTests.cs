@@ -499,7 +499,7 @@ public class MenuPopupsTests
     /// <summary>The takeoff submenu's trailing Custom… item over <paramref name="host"/>, asserting it is there.</summary>
     private static MenuItem CustomTakeoff(AircraftModel aircraft, CatalogMenuView view, IMenuHost host)
     {
-        var context = new MenuContext(Callsign, Initials, null, false, VfrCommandsForIfr.None, view);
+        MenuContext context = TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None, view);
         MenuItem? cto = MenuCatalog.Get(MenuIds.TowerClearedForTakeoff).Build(aircraft, context, host);
         Assert.NotNull(cto);
         MenuItem custom = Assert.IsType<MenuItem>(cto.Items[^1]);

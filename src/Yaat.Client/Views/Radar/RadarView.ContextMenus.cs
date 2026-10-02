@@ -90,11 +90,8 @@ public partial class RadarView
     {
         MainViewModel? main = FindMainViewModel();
         var context = new MenuContext(
-            callsign,
-            initials,
-            prevSelected,
-            main?.SessionSoloTrainingMode ?? false,
-            main?.VfrCommandsForIfr ?? VfrCommandsForIfr.EnterFinalOnly,
+            new MenuClick(callsign, prevSelected, []),
+            new MenuSession(initials, main?.SessionSoloTrainingMode ?? false, main?.VfrCommandsForIfr ?? VfrCommandsForIfr.EnterFinalOnly),
             MenuView.Radar
         );
         var host = new RadarMenuHost(this, vm, main, ac);

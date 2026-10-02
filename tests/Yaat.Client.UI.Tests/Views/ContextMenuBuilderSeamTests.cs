@@ -181,7 +181,7 @@ public class ContextMenuBuilderSeamTests
     {
         var main = new MainViewModel(new FakeFilePickerService());
         main.Aircraft.Add(shadow);
-        return DataGridView.BuildAircraftMenu(main, new DataGrid(), shadow, [shadow], "AB");
+        return DataGridView.BuildAircraftMenu(main, new DataGrid(), shadow, null, [shadow], "AB");
     }
 
     /// <summary>The top-level items after the favorites block: the groups every aircraft menu opens with.</summary>
@@ -290,7 +290,7 @@ public class ContextMenuBuilderSeamTests
             AssignedRunway = "30",
         };
 
-        ContextMenu menu = DataGridView.BuildAircraftMenu(main, new DataGrid(), ac, [ac], "AB");
+        ContextMenu menu = DataGridView.BuildAircraftMenu(main, new DataGrid(), ac, null, [ac], "AB");
 
         AssertSequence(
             menu,
@@ -324,7 +324,7 @@ public class ContextMenuBuilderSeamTests
         AircraftModel second = AirborneIfr("SWA2", "InitialClimb");
         second.IsLiveTraffic = true;
 
-        ContextMenu menu = DataGridView.BuildAircraftMenu(main, new DataGrid(), first, [first, second], "AB");
+        ContextMenu menu = DataGridView.BuildAircraftMenu(main, new DataGrid(), first, null, [first, second], "AB");
 
         List<string> sequence = Sequence(menu);
         // The right-clicked shadow is assumable, so it leads with the assume items...
@@ -343,7 +343,7 @@ public class ContextMenuBuilderSeamTests
         AircraftModel ac = AirborneIfr("UAL9", "InitialClimb");
         ac.Status = "Delayed";
 
-        ContextMenu menu = DataGridView.BuildAircraftMenu(main, new DataGrid(), ac, [ac], "AB");
+        ContextMenu menu = DataGridView.BuildAircraftMenu(main, new DataGrid(), ac, null, [ac], "AB");
 
         AssertSequence(
             menu,
