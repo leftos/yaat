@@ -188,6 +188,10 @@ Handlers don't move aircraft directly — they write to `ControlTargets` (the au
 
 `FlightPhysics.Update` reads `ControlTargets` next tick and turns/climbs/accelerates accordingly. See [tick-loop.md](tick-loop.md).
 
+## Typed command arguments — overloads by declared type
+
+The registry names each argument's type instead of a prose hint (`src/Yaat.Sim/Commands/Arguments/`), with one small validator per type, and arguments bind to record fields by type. A slot that takes a runway or an altitude is two overloads, resolved the way a compiler resolves them: the token is tried against each viable overload's declared type — `RunwayArgument` is 1–2 digits plus an optional `L`/`C`/`R`, `AltitudeArgument` is 3 or more digits — and there is no combined runway-or-altitude type. A runway the airport lacks is rejected at dispatch, not at parse. The pattern modifiers use it; the audit of the remaining argument slots is open ([plans/typed-command-arguments.md](plans/typed-command-arguments.md)).
+
 ## `DispatchContext` — bundled call-site state
 
 (`src/Yaat.Sim/Commands/DispatchContext.cs`)

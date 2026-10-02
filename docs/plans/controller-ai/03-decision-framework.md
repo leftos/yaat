@@ -84,6 +84,7 @@ Result: no every-tick spam, realistic cadence, bounded per-tick work.
 - Every decision rule is TDD'd (failing test first, real navdata via
   `TestVnasData.EnsureInitialized()`, real airport layouts).
 - Every rule set gets `aviation-sim-expert` review before implementation and re-review after.
+- **A suppressed alert is acknowledged, not resolved** (7110.65 §5-13-1c.2). A brain that reads `AiTickContext.EramConflicts` or the STARS conflict set never re-alerts on a suppressed alert (ERAM `CO`, STARS `CASUP`) and still separates the pair.
 
 ## CA0 observer thresholds (2026-09-01)
 

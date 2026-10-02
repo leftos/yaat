@@ -455,6 +455,8 @@ event), not the stream itself. Copying the `InvokeAsync<T>` wrapper pattern for 
 This is the canonical version of the add-a-field flow. [server-rooms-and-hub.md](server-rooms-and-hub.md) links here
 rather than restating it.
 
+**Decided shape, not converted yet:** `AircraftStateDto` becomes `required` init properties server-side and `AircraftDto` plain init properties client-side, replacing the defaulted positional constructor parameters (about 100 on the server DTO, against the no-optional-parameters rule). The defaults buy nothing: there is one production construction site (`DtoConverter.cs`), and System.Text.Json fills a missing constructor parameter either way. Until the pair is converted, step 1 below still adds a defaulted parameter; the conversion rewrites this checklist.
+
 1. **Add to `AircraftStateDto`** (`../yaat-server/.../Dtos/TrainingDtos.cs:3`) — a new constructor param with a default
    so older positional call sites still compile.
 2. **Add to `AircraftDto`** (`src/Yaat.Client.Core/Services/ServerConnection.cs:723`) — **same JSON property name**, a

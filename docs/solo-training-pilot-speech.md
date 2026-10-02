@@ -156,6 +156,8 @@ staffed Local answers at the airport, the pilot stays with the tower until sent 
 ground position or an `FCA` sets `AircraftGroundOps.ReleasedToGround`, which the call consumes; a combined cab (one answering
 position under both hats) needs no release.
 
+**Non-gate names stay out of arrival picks (decided, not built yet).** A per-airport denylist data file lists the names in a layout that are not gates, and `ArrivalParkingPicker` excludes them from every pool: SMF's digit-led markers off the concourses (`1`–`4`, `30`–`32`, `40`–`43`), FLL's terminal markers (`1`–`4`), and layout placeholders such as SMF's `FAA`, `GA` and `TEXT`. Today `ArrivalParkingPicker.Candidates` keeps every gate name when the digit-led names are under half of them, so at SMF `UAL123` can draw `41`.
+
 **`HasMadeInitialContact` stays student-scoped; the AI latch is per position.** A call answered by an AI position
 adds only that position's id to `AircraftState.AiInitialContactPositionIds` (`PilotAnsweringPosition.MarkInitialContact`
 / `HasInitialContact`), so a departure handled by AI Ground and AI Local still makes its airborne check-in with a

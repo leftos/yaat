@@ -4,7 +4,7 @@
 
 The systematic FAA-coverage audit ran in two prior sessions and produced [`phraseology-coverage-backlog.md`](./phraseology-coverage-backlog.md) — 799 phrasings classified as **Covered / MissingRule / MissingCanonical / OutOfScope** across 7110.65 Chapters 2/3/4/5/6/7/9 and AIM Chapters 4/5/10.
 
-**Your job:** turn the remaining **176 MissingRule entries** into shipped rules. MissingCanonical entries are deferred to product review; you do not touch those (except to surface them at the end). OutOfScope entries are noise — ignore them.
+**Your job:** turn the remaining **72 MissingRule entries** into shipped rules. MissingCanonical entries are deferred to product review; you do not touch those (except to surface them at the end). OutOfScope entries are noise — ignore them.
 
 Each MissingRule entry names a canonical command that already exists in `Yaat.Sim.Commands.CanonicalCommandType` but has no rule in `src/Yaat.Sim/Speech/PhraseologyRules.cs` that produces it from the FAA-cited phrasing. The fix is mechanical: add the literal-token pattern + canonical-output template to `PhraseologyRules.cs`, write a failing test, confirm it passes, run the verbalizer regression check, ship.
 

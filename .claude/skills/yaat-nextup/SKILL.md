@@ -9,13 +9,14 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 
 ## Plan and tracker
 
-- Index: `docs/plans/MAIN.md`. Sections in priority order: **Bug reports and feature requests**, then the **Current programme**'s next slice, then **Backlog — waves** top to bottom (a wave is one release-sized bundle sharing files and a review gate); the other programmes run in the background and release with a non-hotfix.
 - siblings: ../yaat-server
-- `../yaat-server` has no plan index or changelog of its own: this index plans it, and its `docs/plans/live-traffic-swim/` is linked from here.
+- linear: yaat
+- The plan lives in Linear: every task is a Linear issue in team YAAT, per `~/.claude/docs/plan-operations.md`; `docs/plans/MAIN.md` is its generated snapshot, never edited by hand, and `docs/plans/README.md` says what each design folder holds. Project order, which is the order the queue is worked: `ERAM release gate` (ERAM is the #1 priority, ahead of every other bug report), `Bug reports and feature requests`, the two feature projects (`Client driver in the background (#474)`, `Context-menu quick commands (#471)`), then `Tick-path unification` (the current programme), the background programmes (`Say again`, `Taxi append`, `Programmes`; they release with a non-hotfix), `STT tuning`, the waves `Wave 1 — Ground realism and braking` through `Wave 9 — Docs and repo hygiene` (a wave is one release-sized bundle sharing files and a review gate, its record in the project's content), `Singles`, then `Backlog`.
+- `../yaat-server` has no plan or changelog of its own: team YAAT plans it, and its `docs/plans/live-traffic-swim/` is linked from the issues that use it.
 - Pre-loop hooks: none.
-- Finished-item convention: **delete the line**, never tick it; finished subplans are deleted (git history is the archive). Review findings the item does not fix become Backlog lines in the same commit.
-- Tracker: `gh issue list --repo leftos/yaat --state open --json number,title,createdAt`; fold unplanned issues in with `triage-open-issues`. Cross-repo: yaat-server commits cite `Closes https://github.com/leftos/yaat/issues/N`.
-- Pull requests: `gh pr list --repo leftos/yaat --state open --json number,title,author`, and the same with `--repo leftos/yaat-server`. An unplanned PR gets one line, its review and landing: a person's PR under **Bug reports and feature requests**, a bot's dependency bump at the foot of the Backlog, each naming the files, whether the checks pass and whether it merges cleanly.
+- An item **land**s after its commit; finished subplans are deleted (git history is the archive). Review findings the item does not fix get an **add**, in the project that shares their files, else in `Backlog`.
+- Tracker: **triage** as plan-operations says (GitHub issues reach the team through Linear's sync and arrive in Triage), each placed in the project that shares its files, using `triage-open-issues` for the reading. Cross-repo: yaat-server commits cite `Closes https://github.com/leftos/yaat/issues/N`.
+- Pull requests: `gh pr list --repo leftos/yaat --state open --json number,title,author`, and the same with `--repo leftos/yaat-server`. A PR is planned when its title, body or branch names an issue id; an unplanned one gets an **add**, its review and landing: a person's PR in `Bug reports and feature requests`, a bot's dependency bump in `Backlog`, each naming the files, whether the checks pass and whether it merges cleanly.
 - Hotspots (3,000–4,000 lines each; two items touching one wait on each other): `PatternCommandHandler.cs`, `MainViewModel.cs`, `CommandParser.cs`, `CommandDispatcher.cs`, `MainWindow.axaml.cs`, `GroundCommandHandler.cs`.
 
 ## Agents and gates
@@ -53,17 +54,17 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 
 ## Landing
 
-- Orchestrator writes docs, the changelog bullet and the MAIN.md line removal **in the worktree**, commits there, then `/ship` (with `## Ship` below): land `base..<slug>` onto the recorded `landOn` (`ship` Phase 2), gate there when it was a real cherry-pick, push both repos, close the issue with an audit comment, then in each repo remove its half of the pair and its branch once landed, by the user-level `nextup` §4 step 6 check.
-- An item under a feature marker (`branch: feat/<name>`, user-level `nextup` §3 "Feature branches") lands the same way onto the feature pair (`../yaat.wt/feat-<name>/yaat` and `/yaat-server`), whose `landOn` is `feat/<name>`; `/ship` then pushes both feature branches and watches their feature PRs without merging them. Its MAIN.md line stays on `main` with the note `landed on feat/<name>, ships with #N` in a separate `docs:` commit there, and leaves MAIN.md with the marker line when `/ship` Phase 2F merges the feature PRs.
+- Orchestrator writes docs and the changelog bullet **in the worktree**, commits there with a `Refs: YAAT-<n>` trailer per issue, then `/ship` (with `## Ship` below): land `base..<slug>` onto the recorded `landOn` (`ship` Phase 2), gate there when it was a real cherry-pick, push both repos, close the issue with an audit comment, then in each repo remove its half of the pair and its branch once landed, by the user-level `nextup` §4 step 6 check.
+- An item under a feature marker (`branch: feat/<name>`, user-level `nextup` §3 "Feature branches") lands the same way onto the feature pair (`../yaat.wt/feat-<name>/yaat` and `/yaat-server`), whose `landOn` is `feat/<name>`; `/ship` then pushes both feature branches and watches their feature PRs without merging them. The item is **land**ed with the note `on feat/<name>, ships with #N`; the project's `Merge feat/<name> (…)` tracking issue is landed when `/ship` Phase 2F merges the feature PRs.
 - The main checkout hosts at most one implementer, and none while a gate runs there.
 
 ## Changelog
 
 Read by the user-level `changelog-and-commit`; each rule names the step it adds to or overrides.
 
-- Home: one `CHANGELOG.md`, at the yaat checkout root. yaat-server has none; its user-visible changes are bulleted in yaat's file. Plan lines close by `## Plan and tracker`.
+- Home: one `CHANGELOG.md`, at the yaat checkout root. yaat-server has none; its user-visible changes are bulleted in yaat's file. Step 2b: **land** each item after its commit.
 - Sibling (Step 0, Step 1): yaat-server, snapshotted and scoped like yaat. It is the `yaat-server` beside the current yaat checkout when that is a checkout on the same branch (a paired worktree), else the main checkout's sibling, `"$(git rev-parse --path-format=absolute --git-common-dir)/../../yaat-server"`; never a drive letter. Naming the main checkout's sibling from a paired session reports the server side clean and commits nothing there.
-- Commit order (Step 8): yaat-server first, its code and tests, prefix from the work; then yaat, `CHANGELOG.md` and the plan index plus any yaat scope, `docs:` when the changelog and plan are all it carries, subject and body mirroring the bullets. A yaat-server branch behind `origin/main` runs `git pull --ff-only` before its commit. A diff wholly in yaat is one commit.
+- Commit order (Step 8): yaat-server first, its code and tests, prefix from the work; then yaat, `CHANGELOG.md` plus any yaat scope, `docs:` when the changelog is all it carries, subject and body mirroring the bullets. A yaat-server branch behind `origin/main` runs `git pull --ff-only` before its commit. A diff wholly in yaat is one commit.
 - Hooks (Step 8): per repo. A hook that reformats a file means re-stage and a new commit in that repo; the other repo's commit is unaffected.
 - Announcement and report (Step 5, Step 8): name both repos and which files go in which commit; the report prints both HEADs, `Committed yaat-server@<sha> — <subject>`, `Committed yaat@<sha> — <subject>`, `Working trees: clean / clean`.
 - Reference (Step 2): `### Fixed` against `### Added` is judged against the emulated upstream (vNAS TDLS, CRC/STARS, ATCTrainer). A YAAT-original convenience the upstream lacks (a Tools-menu shortcut, an instructor-only view) is Added.
@@ -85,8 +86,8 @@ Read by the user-level `ship`; each rule names the phase it adds to or overrides
   | Landing | yaat | yaat-server | Default. A `Yaat.Sim` signature change yaat-server calls lands yaat-server first (the deadlock rule below): a fast-forward runs no hooks. |
   | Push | yaat | yaat-server | yaat-server's `ci.yml` builds against yaat's `main` (a PR: yaat's same-named branch, else `main`), not the `extern/yaat` pin, so yaat's commits must be on `origin/main` before the server push that uses them. yaat's own CI builds and tests yaat-server's `main` (a PR: the same-named branch) against each yaat commit, so a server break shows on the yaat commit that caused it. |
 
-- Feature PR (Phase 0, Phase 2F): one per repo that carries the branch, `gh pr view feat/<name> --repo leftos/yaat --json number,state,baseRefName` and the same with `--repo leftos/yaat-server`. Phase 2F runs per repo in the landing order; the marker line closes once, on yaat's `main`, after both PRs merge.
-- Additive conflict files (Phase 2, Phase 2F): `CHANGELOG.md`, `docs/plans/*.md`, `docs/architecture.md`.
+- Feature PR (Phase 0, Phase 2F): one per repo that carries the branch, `gh pr view feat/<name> --repo leftos/yaat --json number,state,baseRefName` and the same with `--repo leftos/yaat-server`. Phase 2F runs per repo in the landing order; the project's tracking issue is **land**ed once, after both PRs merge.
+- Additive conflict files (Phase 2, Phase 2F): `CHANGELOG.md`, `docs/plans/*.md` other than the snapshot, `docs/architecture.md`. A conflict on the snapshot `docs/plans/MAIN.md` takes either side and runs **snapshot** again.
 - Hook deadlock (Phase 2): a `Yaat.Sim` signature change yaat-server calls deadlocks the two prek build hooks. yaat's compiles `yaat.slnx`, which builds the sibling yaat-server from disk (old call site, `CS7036`); yaat-server's builds against the sibling yaat (no new API). Land yaat-server first:
   - yaat-server fast-forwards: `git merge --ff-only` makes no commit and runs no hooks; then run or resume the yaat pick, whose hook now sees the new call site.
   - yaat-server needs a real cherry-pick: start the yaat cherry-pick first and let it pause (a conflict or a hook failure; yaat's tree then holds the new `Yaat.Sim` on disk), cherry-pick yaat-server (its hook builds against that tree), then `git cherry-pick --continue --no-edit` in yaat.

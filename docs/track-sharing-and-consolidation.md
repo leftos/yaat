@@ -269,6 +269,8 @@ sets it true locally): `TrackEngine.AcceptIncomingPointout` (from `HandleAcknowl
 `SharedState[recipient.Id].IsRecentlyAcceptedIncomingPointout = true` on accept, and `TrackEngine.ClearDismissedIncomingPointout` drops the
 stale accepted pointout on the true→false slew flip.
 
+**An unanswered pointout is withdrawn, never accepted.** `TickPointoutTimeout` (a sim spine step) withdraws a pointout still pending after `PointoutNoActionSeconds` (30 s) and advises the initiator to coordinate verbally, because 7110.65 §5-4-7.a.1 says that when the receiver takes no action the controllers revert to verbal procedures: non-response must never become approval. The withdrawal applies everywhere, with no carve-out for the a.1.(b) terminal case. Real STARS never times a pointout out, so this display divergence is deliberate: the timeout exists to clear the flashing pending indicator, and withdrawing (rather than accepting) is what keeps it faithful to §5-4-7.
+
 ### ERAM pointouts — `AircraftEramState.Pointouts`
 
 ERAM uses a **list** of `EramPointoutState` (`EramPointoutState.cs:9`) on `AircraftEramState.Pointouts`, each with originating /
