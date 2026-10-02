@@ -69,14 +69,15 @@ The check runs automatically five seconds after startup and stays silent unless 
 Triggered on `push` of a `v*` tag. Jobs run in dependency order:
 
 1. **version** — reads `<Version>` from `Directory.Build.props` and the short SHA.
-2. **changelog** — extracts the `CHANGELOG.md` section matching the tag, splitting out a `### Highlights` subsection (authored by `/prepare-release`) from the changelog body.
+2. **changelog** — extracts the `CHANGELOG.md` section matching the tag, splitting out a `### Highlights` subsection (authored by `/prepare-release`) from the changelog body, and uploads both as `changelog.md` and `highlights.md` in the `release-notes` artifact. It fails when the section is missing or has no entries outside Highlights.
 3. **build** — `dotnet publish` of `src/Yaat.Client` for `win-x64` and `linux-x64` (`release-macos.yml` publishes `osx-arm64` and `osx-x64` itself).
 4. **package-win / package-linux / package-macos** — `vpk pack` per platform. `package-macos` (in `release-macos.yml`, once per architecture) additionally imports the Developer ID certificates and an App Store Connect API key into a temporary keychain, then signs + notarizes (skipped when the `MACOS_*` secrets are absent).
-5. **release** — assembles `release/`, builds the release body from highlights + changelog + a download table, and creates the release via `softprops/action-gh-release` with the default `GITHUB_TOKEN`, always as a **draft**.
+5. **release** — assembles `release/`, builds `release-body.md` from the `release-notes` files + a download table (failing when `changelog.md` is missing or blank), and creates the release via `softprops/action-gh-release` with the default `GITHUB_TOKEN`, always as a **draft**.
 
 ### Workflow authoring notes
 
 - `windows-latest` `run:` steps default to **pwsh**, where `"$VPK_VERSION"` is an undefined PowerShell variable that expands to an empty string rather than the env var. Reference env vars as `$env:VPK_VERSION` (or `${{ env.VPK_VERSION }}`, or set `shell: bash`); the Linux/macOS steps use the bash `"$VPK_VERSION"` form. The failure mode is silent: `dotnet tool install -g vpk --version ""` installs the latest vpk and the only symptom is a `Velopack library version is lower than vpk version` warning in the pack log.
+- Release text travels between jobs and into the release action as files, never as a job or step output: the runner silently drops a job output it takes for a credential (`Skip output '…' since it may contain secret.`), and `password=` followed by any non-space character is enough, so a changelog bullet quoting a `?password=` query empties the value.
 - The `vpk` pin (`VPK_VERSION`) lives in **two** workflow files, `release.yml` and `release-macos.yml`, and must stay equal to the `Velopack` package version in the client csproj. When bumping either, grep every workflow for the env name and check each consumer's shell.
 
 ### Draft-until-published

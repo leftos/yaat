@@ -48,12 +48,13 @@ jobs:
           echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           echo "Version: $version"
 
+  # The section travels to the release job as files in the release-notes
+  # artifact, never as a job output: the runner drops any job output that
+  # looks like a credential (a bullet quoting a `?password=` query is enough),
+  # which would publish an empty Changelog block.
   changelog:
     needs: version
     runs-on: ubuntu-latest
-    outputs:
-      changelog: ${{ steps.cl.outputs.changelog }}
-      highlights: ${{ steps.cl.outputs.highlights }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
@@ -61,7 +62,6 @@ jobs:
           fetch-depth: 0
 
       - name: Extract changelog section
-        id: cl
         run: |
           # Extract the section of CHANGELOG.md matching the just-pushed tag.
           # Headings look like "## 0.1.1-alpha" or "## 0.1.1-alpha - 2026-04-24".
@@ -120,14 +120,20 @@ jobs:
           highlights=$(printf '%s\n' "$highlights" | trim)
           changelog=$(printf '%s\n' "$changelog" | trim)
 
-          {
-            echo "changelog<<CHANGELOG_EOF"
-            printf '%s\n' "$changelog"
-            echo "CHANGELOG_EOF"
-            echo "highlights<<HIGHLIGHTS_EOF"
-            printf '%s\n' "$highlights"
-            echo "HIGHLIGHTS_EOF"
-          } >> "$GITHUB_OUTPUT"
+          if [[ -z "$changelog" ]]; then
+            echo "::error::The CHANGELOG.md section for '$VERSION' has no entries outside ### Highlights."
+            exit 1
+          fi
+
+          mkdir -p release-notes
+          printf '%s\n' "$changelog" > release-notes/changelog.md
+          printf '%s\n' "$highlights" > release-notes/highlights.md
+
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
+        with:
+          name: release-notes
+          path: release-notes/
+          if-no-files-found: error
 
   build:
     needs: version
@@ -285,29 +291,27 @@ jobs:
           find release -maxdepth 1 -type f -printf '%-50f %12s bytes\n' | sort
 
       - name: Build release body
-        id: body
         env:
-          # Values arrive through the environment so bash never re-parses
-          # literal backticks (or other shell metacharacters) in the highlight
-          # and changelog text as command substitutions. Inlining via ${{ }}
-          # directly into the script source treats the text as code.
-          HIGHLIGHTS: ${{ needs.changelog.outputs.highlights }}
-          CHANGELOG: ${{ needs.changelog.outputs.changelog }}
           VERSION: ${{ needs.version.outputs.version }}
         run: |
-          body_file=$(mktemp)
+          set -euo pipefail
+          notes=artifacts/release-notes
+          if [[ ! -s "$notes/changelog.md" ]] || ! grep -q '[^[:space:]]' "$notes/changelog.md"; then
+            echo "::error::$notes/changelog.md is missing or empty; refusing to publish a release with an empty Changelog block."
+            exit 1
+          fi
 
           {
-            if [[ -n "$HIGHLIGHTS" ]]; then
+            if grep -q '[^[:space:]]' "$notes/highlights.md"; then
               echo "## Highlights"
               echo ""
-              printf '%s\n' "$HIGHLIGHTS"
+              cat "$notes/highlights.md"
               echo ""
             fi
 
             echo "## Changelog"
             echo ""
-            printf '%s\n' "$CHANGELOG"
+            cat "$notes/changelog.md"
             echo ""
 
             echo "---"
@@ -323,17 +327,11 @@ jobs:
             echo "Installers include auto-update support. Portable archives unzip to a folder you can run from anywhere — no install, no auto-update. The Linux AppImage is itself portable."
             echo ""
             echo "macOS builds require macOS 14 (Sonoma) or newer. Pick the package matching your Mac — the installer refuses the wrong architecture."
-          } > "$body_file"
-
-          {
-            echo "body<<BODY_EOF"
-            cat "$body_file"
-            echo "BODY_EOF"
-          } >> "$GITHUB_OUTPUT"
+          } > release-body.md
 
       - uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda  # v3.0.0
         with:
-          body: ${{ steps.body.outputs.body }}
+          body_path: release-body.md
           files: release/*
           draft: true
 
