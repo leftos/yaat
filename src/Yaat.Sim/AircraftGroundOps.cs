@@ -91,6 +91,36 @@ public class AircraftGroundOps
     public bool ForcedTowIgnoresParked { get; set; }
 
     /// <summary>
+    /// Where the tow under way began and its first move's kind: the row anchor every move of the tow is judged against
+    /// (<see cref="GroundOutlineSweep.FloorFt"/>). Set when a tow is installed, kept through its continuations and a
+    /// mid-push re-plan, and cleared with <see cref="ForcedTowIgnoresParked"/> when the tow ends
+    /// (<c>PushbackPhase.OnEnd</c>). Null when no tow is under way, which anchors the floor to each move's start alone.
+    /// </summary>
+    public TugRowAnchor? TowRowAnchor
+    {
+        get => _towRowAnchor;
+        set
+        {
+            if (value != _towRowAnchor)
+            {
+                TowRowClearances.Clear();
+            }
+
+            _towRowAnchor = value;
+        }
+    }
+
+    private TugRowAnchor? _towRowAnchor;
+
+    /// <summary>
+    /// The row clearances the tow under way has measured against its neighbours, reused tick after tick by
+    /// <see cref="GroundConflictDetector"/> and forgotten when <see cref="TowRowAnchor"/> changes. Not snapshotted: each is
+    /// a pure function of its inputs, measured again after a restore.
+    /// </summary>
+    [JsonIgnore]
+    internal TugRowClearances TowRowClearances { get; } = new();
+
+    /// <summary>
     /// When true, the active TaxiingPhase raises its straight-line speed cap by
     /// <see cref="CategoryPerformance.TaxiExpediteMultiplier"/>. Cleared on the
     /// next HOLD/RES/HS command — pilots resume normal taxi after any of those.
@@ -300,6 +330,7 @@ public class AircraftGroundOps
             PendingAutoDelete = PendingAutoDelete,
             NoDeleteRequested = NoDeleteRequested,
             ForcedTowIgnoresParked = ForcedTowIgnoresParked,
+            TowRowAnchor = TowRowAnchor?.ToSnapshot(),
             ConflictBreakRemainingSeconds = ConflictBreakRemainingSeconds,
             SpeedLimit = SpeedLimit,
             AutoYieldTarget = AutoYieldTarget,
@@ -340,6 +371,7 @@ public class AircraftGroundOps
             PendingAutoDelete = dto.PendingAutoDelete,
             NoDeleteRequested = dto.NoDeleteRequested,
             ForcedTowIgnoresParked = dto.ForcedTowIgnoresParked,
+            TowRowAnchor = dto.TowRowAnchor is { } towRowAnchor ? TugRowAnchor.FromSnapshot(towRowAnchor) : null,
             ConflictBreakRemainingSeconds = dto.ConflictBreakRemainingSeconds,
             SpeedLimit = dto.SpeedLimit,
             AutoYieldTarget = dto.AutoYieldTarget,

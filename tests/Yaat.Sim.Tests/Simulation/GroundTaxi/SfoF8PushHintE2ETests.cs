@@ -686,12 +686,13 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
     private const double SwingToleranceDeg = 1.0;
 
     /// <summary>
-    /// F5 → 7A, 7 and 7B with a B738 parked on F6. The straight push-off off F5 swings a wing within the planner's 24.5 ft
-    /// floor of the parked B738's outline whatever the pusher, so every template built on it is dropped; the planner then
-    /// searches longer and angled push-offs and the stepped shapes before it refuses. The CRJ7 pushes must be accepted,
-    /// flown without the outlines ever meeting, never under the floor, and come to rest on the spot. The B738 pushes are
-    /// refused as swinging into the parked aircraft, in exactly those words: no fallback shape the search tries may put
-    /// its own reason in the refusal.
+    /// F5 → 7A, 7 and 7B with a B738 parked on F6, the next stand in F5's row. The floor is the one the code computes
+    /// (<see cref="GroundOutlineSweep.TowStartFloorFt"/>): anchored to the start clearance and to the row the push leaves
+    /// from. The CRJ7 pushes must be accepted, flown without the outlines ever meeting, never under the floor nor more
+    /// than the slack under the row's wingtip gap, and come to rest on the spot; among the candidates the planner
+    /// accepted, none with no more reversals keeps more than <see cref="TugPlanBuilder.ClearanceTieBandFt"/> more room
+    /// than the one it chose. The B738 pushes are refused as swinging into the parked aircraft, in exactly those words:
+    /// no fallback shape the search tries may put its own reason in the refusal.
     /// </summary>
     [Theory]
     [InlineData("CRJ7", "7A", true)]
@@ -709,10 +710,21 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
 
         AircraftState parked = SfoGroundHarness.SpawnParked(ground, ParkedCallsign, ParkedType, "F6");
         AircraftState pusher = SfoGroundHarness.SpawnParked(ground, PusherCallsign, pusherType, "F5");
-        double floorFt = GroundOutlineSweep.FloorFt(GroundOutline.ClearanceBetween(pusher, false, parked));
+        var standPose = new TugPose(pusher.Position, pusher.TrueHeading.Degrees);
+        var parkedPose = new TugPose(parked.Position, parked.TrueHeading.Degrees);
+        double floorFt = GroundOutlineSweep.TowStartFloorFt(new TugRowAnchor(standPose, PushbackLegKind.Push), pusherType, parkedPose, ParkedType);
+        double rowGapFt = RowGapFt(standPose, pusherType, parkedPose, ParkedType);
+        double startFt = GroundOutline.ClearanceBetween(pusher, false, parked);
+        IReadOnlyList<TugParkedNeighbour> neighbours = TugParkedNeighbours.Build(
+            TugNeighbourCandidate.From(pusher),
+            [TugNeighbourCandidate.From(parked)]
+        );
         string command = $"PUSH ${spotName}";
         CommandResult result = ground.Engine.SendCommand(pusher.Callsign, command);
-        output.WriteLine($"F6-OCCUPIED {pusherType} '{command}' off F5: success={result.Success} \"{result.Message}\"");
+        output.WriteLine(
+            $"F6-OCCUPIED {pusherType} '{command}' off F5: success={result.Success} \"{result.Message}\"; start {startFt:F1} ft, "
+                + $"row gap {rowGapFt:F1} ft, floor {floorFt:F1} ft"
+        );
         if (!mustBeAccepted)
         {
             Assert.False(result.Success, $"{pusherType} '{command}' off F5 with F6 occupied was accepted");
@@ -736,8 +748,109 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
             sweep.ClosestFt >= floorFt - NeighbourFloorToleranceFt,
             $"the flown outline came {sweep.ClosestFt:F1} ft from {ParkedCallsign}, under the {floorFt:F1} ft floor"
         );
+        Assert.True(
+            sweep.ClosestFt >= rowGapFt - Issue475StaggeredStandPushTests.RowGapToleranceFt,
+            $"the flown outline came {sweep.ClosestFt:F1} ft from {ParkedCallsign}, under the row's {rowGapFt:F1} ft wingtip gap"
+        );
         AssertRestsOnSpot(ground.Layout, pusher, spotName, pusherType);
         Assert.True(pusher.GroundSpeed <= AtRestSpeedKts, $"the aircraft was still moving at {pusher.GroundSpeed:F2} kt when the move ended");
+        AssertNoRoomierCandidateWasPassedOver(ground.Layout, standPose, pusherType, spotName, neighbours);
+    }
+
+    /// <summary>
+    /// The wingtip gap of the row two parked aircraft stand in, feet: the neighbour's offset from the mover's fuselage axis
+    /// less the two half-wingspans.
+    /// </summary>
+    private static double RowGapFt(TugPose mover, string moverType, TugPose neighbour, string neighbourType)
+    {
+        double lateralFt =
+            Math.Abs(GeoMath.SignedCrossTrackDistanceNm(neighbour.Position, mover.Position, new TrueHeading(mover.NoseTrueDeg))) * GeoMath.FeetPerNm;
+        double halfSpansFt =
+            (
+                GroundOutlineSize.Of(moverType, towedNoseFirst: false).WingspanFt
+                + GroundOutlineSize.Of(neighbourType, towedNoseFirst: false).WingspanFt
+            ) / 2.0;
+        return lateralFt - halfSpansFt;
+    }
+
+    /// <summary>
+    /// Plans the push again through the planner itself and asserts its ranking at every choice it made by the clearance
+    /// band — the ranking's own and every keep pool's fallback: no candidate it ranked with no more reversals than the
+    /// one it picked keeps more than <see cref="TugPlanBuilder.ClearanceTieBandFt"/> more room to the parked aircraft.
+    /// </summary>
+    private void AssertNoRoomierCandidateWasPassedOver(
+        AirportGroundLayout layout,
+        TugPose standPose,
+        string pusherType,
+        string spotName,
+        IReadOnlyList<TugParkedNeighbour> neighbours
+    )
+    {
+        foreach (TugBandChoice choice in PlanAgain(layout, standPose, pusherType, spotName, neighbours).BandChoices)
+        {
+            TugBandRoom kept = choice.Kept;
+            output.WriteLine(
+                $"planner picked {kept.Candidate.Template} ({kept.Candidate.Describe()}), {kept.Candidate.Reversals} reversal(s), "
+                    + $"{kept.RoomFt:F1} ft of room from {ParkedCallsign}, among {choice.RankedAmong.Count}"
+            );
+            foreach (TugBandRoom rival in choice.RankedAmong.Where(r => r.Candidate.Reversals <= kept.Candidate.Reversals))
+            {
+                Assert.True(
+                    rival.RoomFt <= kept.RoomFt + TugPlanBuilder.ClearanceTieBandFt,
+                    $"the planner picked {kept.Candidate.Template} with {kept.RoomFt:F1} ft of room from {ParkedCallsign} over "
+                        + $"{rival.Candidate.Template} ({rival.Candidate.Reversals} reversal(s)) with {rival.RoomFt:F1} ft"
+                );
+            }
+        }
+    }
+
+    /// <summary>
+    /// Plans the push to 7A again and asserts that room beyond the wingtip buffer bought nothing: every candidate the
+    /// clearance band ranked keeps the E1 B738 further off than <see cref="GroundOutlineSweep.WingtipBufferFt"/>, so each
+    /// counts the buffer alone and they all tie, leaving the lane's own keys to decide — uncapped, the roomiest wrong-way
+    /// swing off a turning push-off outranked the three-point turn the lane asks for.
+    /// </summary>
+    private static void AssertRoomBeyondTheBufferTies(
+        AirportGroundLayout layout,
+        TugPose standPose,
+        string pusherType,
+        IReadOnlyList<TugParkedNeighbour> neighbours
+    )
+    {
+        foreach (TugBandChoice choice in PlanAgain(layout, standPose, pusherType, "7A", neighbours).BandChoices)
+        {
+            Assert.All(choice.RankedAmong, r => Assert.Equal(GroundOutlineSweep.WingtipBufferFt, r.RoomFt));
+        }
+    }
+
+    /// <summary>
+    /// Plans the push again through the planner itself, from the stand, and returns the builder once it has planned:
+    /// its clearance-band choices (<see cref="TugPlanBuilder.BandChoices"/>) are what the ranking assertions read.
+    /// </summary>
+    private static TugPlanBuilder PlanAgain(
+        AirportGroundLayout layout,
+        TugPose standPose,
+        string pusherType,
+        string spotName,
+        IReadOnlyList<TugParkedNeighbour> neighbours
+    )
+    {
+        var request = new TugRequest
+        {
+            Start = standPose,
+            StartsAtStand = true,
+            AircraftType = pusherType,
+            Goals = [TugGoal.Spot(Spot(layout, spotName))],
+            ParkedNeighbours = neighbours,
+            FinalFacingTrueDeg = null,
+            PreviousKind = null,
+            Forced = false,
+        };
+        Assert.NotEmpty(neighbours);
+        var builder = new TugPlanBuilder(layout, request);
+        Assert.True(builder.TryPlan(out string refusal), $"the planner refused the push it accepted as a command: {refusal}");
+        Assert.NotEmpty(builder.BandChoices);
+        return builder;
     }
 
     /// <summary>
@@ -757,6 +870,11 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
 
         AircraftState parked = SfoGroundHarness.SpawnParked(ground, ParkedCallsign, ParkedType, "E1");
         AircraftState pusher = SfoGroundHarness.SpawnParked(ground, PusherCallsign, pusherType, "F5");
+        var standPose = new TugPose(pusher.Position, pusher.TrueHeading.Degrees);
+        IReadOnlyList<TugParkedNeighbour> neighbours = TugParkedNeighbours.Build(
+            TugNeighbourCandidate.From(pusher),
+            [TugNeighbourCandidate.From(parked)]
+        );
         const string command = "PUSH $7A";
         CommandResult result = ground.Engine.SendCommand(pusher.Callsign, command);
         output.WriteLine($"E1-OCCUPIED {pusherType} '{command}' off F5: success={result.Success} \"{result.Message}\"");
@@ -780,6 +898,7 @@ public class SfoF8PushHintE2ETests(ITestOutputHelper output)
         StandSweepResult? overlap = SweepRun(run, pusherType, parked.Position, parked.TrueHeading.Degrees, ParkedType, parked.Callsign);
         Assert.True((overlap is null) || (overlap.DepthFt <= 0.0), $"the flown outline went {overlap?.DepthFt:F1} ft into {ParkedCallsign}");
         AssertRestsOnSpot(ground.Layout, pusher, "7A", pusherType);
+        AssertRoomBeyondTheBufferTies(ground.Layout, standPose, pusherType, neighbours);
     }
 
     /// <summary>

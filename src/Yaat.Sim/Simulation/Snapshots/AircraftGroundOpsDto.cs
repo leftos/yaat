@@ -1,4 +1,15 @@
+using Yaat.Sim.Data.Airport;
+
 namespace Yaat.Sim.Simulation.Snapshots;
+
+/// <summary>A <see cref="TugRowAnchor"/>: where a tow began, with the nose it had there, and its first move's kind.</summary>
+public sealed class TugRowAnchorDto
+{
+    public required double Latitude { get; init; }
+    public required double Longitude { get; init; }
+    public required double NoseTrueDeg { get; init; }
+    public required PushbackLegKind FirstKind { get; init; }
+}
 
 public sealed class AircraftGroundOpsDto
 {
@@ -16,6 +27,13 @@ public sealed class AircraftGroundOpsDto
 
     /// <summary>A forced tow (<c>PUSHF</c>/<c>PUSHMF</c>) under way ignores parked aircraft; optional — earlier snapshots restore false.</summary>
     public bool ForcedTowIgnoresParked { get; init; }
+
+    /// <summary>
+    /// Where the tow under way began and its first move's kind, the row anchor of its outline floor
+    /// (<see cref="TugRowAnchor"/>); null when no tow is under way. Optional — earlier snapshots restore null, which
+    /// anchors the floor to each move's start alone.
+    /// </summary>
+    public TugRowAnchorDto? TowRowAnchor { get; init; }
     public required double ConflictBreakRemainingSeconds { get; init; }
     public double? SpeedLimit { get; init; }
 

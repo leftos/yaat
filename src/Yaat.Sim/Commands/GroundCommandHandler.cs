@@ -4218,6 +4218,7 @@ public static class GroundCommandHandler
     {
         TugTerminus terminus = tow.Terminus;
         bool atStand = aircraft.Phases?.CurrentPhase is AtParkingPhase;
+        TugRowAnchor? rowAnchor = plan.Moves.Count > 0 ? new TugRowAnchor(PoseOf(aircraft), plan.Moves[0].Move.Kind) : null;
         PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         aircraft.Phases!.Clear(ctx);
         aircraft.Phases = new PhaseList();
@@ -4228,8 +4229,10 @@ public static class GroundCommandHandler
 
         aircraft.Phases.Start(ctx);
 
-        // Set behind the clear: ending the tow it replaces cleared it (PushbackPhase.OnEnd).
+        // Set behind the clear: ending the tow it replaces cleared them (PushbackPhase.OnEnd). The row anchor is where this
+        // tow begins, the same pose the planner judged it from (TugRequest.Start).
         aircraft.Ground.ForcedTowIgnoresParked = tow.Forced;
+        aircraft.Ground.TowRowAnchor = rowAnchor;
         LogForcedOverrides(aircraft, plan);
         switch (terminus.Kind)
         {
