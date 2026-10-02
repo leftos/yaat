@@ -219,6 +219,45 @@ Each rule below is settled; the open Linear issue named in it builds it, and a c
 - **Taxiway overshoot against the clamped polyline.** The overshoot of a push onto taxiway X is measured against X's polyline clamped at its ends (the nearest point, clamped per segment), not the infinite line through the nearest segment, which never counts an overrun past a dead end and flips side at a bend. The exception: a tow that starts beyond an end of X and lines up on X's extended line (#452) is measured as today. "Past an end" is measured along X's last straight segment's line from its end node, and the tow's start counts as beyond an end when its own clamp falls on that end. Chosen from tick-playback renders of seven cases: SFO C8 `PUSH Y TAIL S` / `FACE N`, SFO B2 `PUSH M4`, OAK 25 `PUSH TE` and the same with a neighbour on the push line stay accepted; a push from X's side past A's dead end at SFO node 33 (66 ft flown from spot 10 nose 070) and the G-gate `PUSH A FACE N`s that end on A's extended line (G11R 839 ft past node 33, G10 325 ft) are refused. Those cases are the named tests.
 - **Node goals judged by overshoot.** `TugGoalResolver.ResolveNodeGoal`'s node-with-facing branch is judged by the taxiway overshoot like a taxiway goal, and drops its exemption of `NodeEdgeNames(node)` by name across the search box.
 
+## Writing a push brief
+
+A brief for pushback or tug-move work cites the rules above by section and quotes a probe for every gate, spot or route it names; it never states a push's outcome from reasoning alone. Most dispatches that came back underspecified or blocked did so on a premise the planner's rules falsify.
+
+**Probe before naming a gate.** LayoutInspector shows what the planner reads, not what it decides; it has no push flag.
+
+1. The geometry, through the `layout-inspect` skill: `--parking` / `--spots` for stand and spot positions and headings, `--node N --node-depth 2` for the edges round a gate or spot, `--taxiway T` for a taxiway's edges, `--node-angles` for a junction. Quote the stand heading, the spot, and the taxiway edges behind the stand in the brief.
+2. The plan: a test calling `TugMovePlanner.Plan(layout, request, out refusal)` against the real layout, as `TugMovePlannerTests` does; quote the move kinds and the refusal, if any. The client's Push route… preview plans with the same call and refuses in the same words.
+3. The flown path, when the shape matters: record the run with `TickRecorder` and render it with `--ticks <json> --html <out>` ([Designing a push shape](#designing-a-push-shape)).
+
+**Premises a brief must not assume.**
+
+- **A plan exists.** "Unable, cannot line up on X from here" is a legal outcome for a spot or lane goal; a stand whose lead-in does not line up with its lane needs T0, T4 or T5, or has no plan.
+- **The planner routes round a neighbour.** Only faced goals are swept at plan time (the plan-time sweep under [The planner](#the-planner--tugmoveplanner)); bare `PUSH`, `PUSH <twy>` and `PUSH FACE` stop short of the neighbour at fly time with it shown as the yield target.
+- **`PUSH <X> <facing-twy>` tows to the junction.** It stops one routine radius plus half a fuselage short of a near junction, and lined up at the exit when the junction is farther (rule 7).
+- **`PUSH <X>` ends lined up on X.** Across (≥ 45° crossing) stops on the centreline across it; a crossing just over 45° ends across the lane (rule 6).
+- **Spots abeam on parallel sub-lanes are reached without a reversal** (SFO 6A/6B always reverse; their two best plans differ by 1 ft).
+- **The fuselage may cross any taxiway behind.** The flown-path check refuses movement-area pavement outside the 300 ft behind-stand exemption and the leaving/arriving exemption.
+- **The layout knows the ramp's real limits.** Jet bridges, terminal faces and pavement polygons are not in it; a push-off sweep toward the terminal is unchecked.
+
+**Refusal texts**, as the RPO sees them (pin them verbatim in a test):
+
+| Text | Where |
+|---|---|
+| `Pushback requires aircraft to be at parking` | `GroundCommandHandler.TryPushback` |
+| `A tug move requires the aircraft to be at parking, holding after a pushback, or already under tow` | `GroundCommandHandler.TryPushbackMulti` |
+| `Unable, a tug move needs at least two points — use PUSH to reach a single one` | `GroundCommandHandler.TryPushbackMulti` |
+| `No airport ground layout available` | `GroundCommandHandler.ResolvePushTarget` and the other layout-reading handlers |
+| `Cannot find taxiway '<X>' near aircraft` | `GroundCommandHandler.ResolvePushToTaxiway` |
+| `Cannot find facing taxiway '<F>' near <X>` | `GroundCommandHandler.ResolvePushToTaxiway` |
+| `Cannot find spot '<name>'` / `Cannot find parking '<name>'` | `GroundCommandHandler` stand and spot goal resolution |
+| `Unable, taxiway X is not behind the aircraft` | `TugMovePlanner` (`TryStraightBackCandidate`), rule 6 |
+| `Unable, <goal> is ahead of the nose — the aircraft has to be pushed back off the stand first` | `TugMovePlanner`, a node goal off a stand |
+| `Unable, cannot line up on <goal> from here` | `TugMovePlanner`, no candidate survives |
+| `Unable, <hint> is passed through; only the last point takes a facing` | `TugMovePlanner`, a `PUSHM` hint with a facing |
+| `Unable, the move to <goal> would swing into <callsign> at <stand>` | `TugPlanBuilder.Judge` (`NeighbourRefusal`), faced goals |
+
+**Rules under revision.** A brief touching one of these names the open issue and says which side of the change it assumes: the clamped-polyline overshoot (YAAT-35) and node goals judged by overshoot (YAAT-37), both under [Decided rules the code does not follow yet](#decided-rules-the-code-does-not-follow-yet); the Across/Alongside split at 45° (YAAT-41); the tug-versus-parked floor, tow speed by category and the type-blind tight steering angle (YAAT-38); the clear-plan swing guard (YAAT-176); the taxilane wingtip figure, cited as 0.05 × span + 10 ft here and quoted differently in `GroundOutlineSweep.cs` (YAAT-179).
+
 ## Designing a push shape
 
 When it is unclear how a push should be shaped, render the candidate options as LayoutInspector tick-playback HTML, one run per option (TickRecorder JSON → `--ticks --html`, the involved taxiways highlighted and the key nodes annotated), and show them to the user before anything is built. The user picks or corrects the shape from the renders; no push geometry is decided from reasoning alone.

@@ -13,6 +13,7 @@
 | **Speed commands** | `FlightCommandHandler.cs`, `FlightPhysics.cs` (UpdateSpeed/UpdateSpeedPlanning), `ControlTargets.cs`, `AircraftPerformance.cs` |
 | **Heading/navigation** | `FlightCommandHandler.cs`, `NavigationCommandHandler.cs`, `FlightPhysics.cs` (UpdateNavigation/UpdateHeading), `ControlTargets.cs` |
 | **Ground taxiing** | `GroundNavigator.cs`, `TaxiPathfinder.cs`, `TaxiingPhase.cs`, `TaxiRoute.cs`, `AirportGroundLayout.cs`, `RouteCostFunction.cs`, `GeometricAdmissibility.cs`, `AutoRouter.cs`, `SegmentExpander.cs`, `PartialRoute.cs` |
+| **Pushback / tug move (`PUSH`, `PUSHM`, `PUSHF`), or a brief for one** | [`ground/pushback.md`](./ground/pushback.md) (the rules, then "Writing a push brief": probe recipe, premises, refusal texts) → `GroundCommandHandler.cs` (`ResolvePushTarget`, `TryPushbackMulti`) → `TugMovePlanner.cs` → `TugPathCheck.cs`, `TugTaxiwayClearance.cs` → `PushbackPhase.cs`; tests `Pathfinding/TugMovePlannerTests.cs`, `Pathfinding/TugAlleyClearanceTests.cs` |
 | **Ground layout parsing** | `GeoJsonParser.cs`, `IFilletArcGenerator` / `FilletGeneratorFactory`, `FilletArcGenerator.cs` + `Fillet/` (plan-then-execute edge-split), `TaxiwayGraphBuilder.cs`, `CoordinateIndex.cs` |
 | **Runway exits** | `LandingPhase.cs`, `ForcedLandingProfile.cs` (CLANDF), `RunwayExitPhase.cs`, `ExitPreference.cs`, `ExitCapacityResolver.cs`, `AirportGroundLayout.cs` (FindExitPath) |
 | **Approach procedures** | `ApproachCommandHandler.cs`, `ApproachNavigationPhase.cs`, `FinalApproachPhase.cs`, `CifpParser.cs` |
