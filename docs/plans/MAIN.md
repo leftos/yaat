@@ -4,7 +4,7 @@
 
 ## Do first
 
-- [ ] YAAT-124 Write the pushback planner rules into docs/ground/pushback.md — High · Wave 9 — Docs and repo hygiene
+- [x] YAAT-124 Write the pushback planner rules into docs/ground/pushback.md · release vNext — High · Wave 9 — Docs and repo hygiene
 
 ## ERAM release gate
 
@@ -31,6 +31,7 @@
   - [/] YAAT-14 Context-menu quick commands: brief 7e (one tree on every surface) · release vNext
   - [ ] YAAT-15 Context-menu quick commands step 3: per-situation lists with the icon strip · release vNext
 - [ ] YAAT-16 Merge feat/context-menu-quick-commands (#471, yaat-server#21) · release vNext
+- [ ] YAAT-224 Open the command and note flyouts through MenuPopups; drop the unreachable blank-input branches
 
 ## Tick-path unification
 
@@ -40,6 +41,10 @@
 - [/] YAAT-17 Tick-path unification: finish step 4 relocation, then step 5
 - [ ] YAAT-209 Move the ERAM coverage-loss coast state machine into the Sim
 - [ ] YAAT-216 HandoffUnacceptedRule: keep the anomaly for low handoffs to human-attended positions
+
+## Coast D (feat/coast-d)
+
+- [/] YAAT-223 Tick-path coast D: the server's disconnect-coast wiring reads the Sim facets
 
 ## Say again
 
@@ -64,6 +69,8 @@
 - [ ] YAAT-29 Spike: bake off local STT models on our corpus in Yaat.SpeechSandbox
 - [ ] YAAT-218 Map spoken 'follow <callsign>' on the ground to FOLLOWG by aircraft state
 - [ ] YAAT-219 Map 'follow <description>' to FOLLOW and 'follow X, cleared visual' to CVA FOLLOW
+- [ ] YAAT-225 Make the controller-voice ouroboros reproducible across runs of one seed
+- [ ] YAAT-226 RTIS type slot takes a stray word; LLM prompt renders optional rule words
 
 ## Wave 1 — Ground realism and braking
 
