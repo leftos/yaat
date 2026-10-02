@@ -368,7 +368,8 @@ internal sealed class ListMenuHost(MainViewModel main, AircraftModel aircraft, C
 
     public void ToggleShowPath(string callsign) => throw new NotSupportedException(NoDisplayGroup);
 
-    public MenuMeasureState GetMeasureState() => throw new NotSupportedException(NoDisplayGroup);
+    /// <summary>The list has no measure tool, so the measure item never shows on it.</summary>
+    public MenuMeasureState GetMeasureState() => MenuMeasureState.None;
 
     public void MeasurePickOnAircraft(string callsign) => throw new NotSupportedException(NoDisplayGroup);
 

@@ -2,12 +2,9 @@ using System.Text;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Xunit;
-using Yaat.Client.Models;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
-using Yaat.Client.Views.Ground;
-using Yaat.Client.Views.Radar;
 using Yaat.Sim.Data;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -129,53 +126,14 @@ public class MenuGoldenTests
 
             ContextMenu menu = view switch
             {
-                MenuView.Radar => BuildRadarMenu(main, fixture),
-                MenuView.Ground => BuildGroundMenu(main, fixture),
+                MenuView.Radar => MenuHostHarness.BuildRadarMenu(main, fixture.Aircraft, fixture.Selected, MenuGoldenFixtures.Initials),
+                MenuView.Ground => MenuHostHarness.BuildGroundMenu(main, fixture.Aircraft, fixture.Selected, MenuGoldenFixtures.Initials),
                 _ => DataGridView.BuildAircraftMenu(main, new DataGrid(), fixture.Aircraft, [fixture.Aircraft], MenuGoldenFixtures.Initials),
             };
             goldens.Add((fixture.Name, $"# {FolderName(view)} {fixture.Name}\n{MenuTreeSnapshot.Render(menu)}"));
         }
 
         return goldens;
-    }
-
-    /// <summary>
-    /// A radar view in a shown window whose data context is the main view model, as the client hosts it, with the
-    /// selection the right-click handler leaves: the previously selected aircraft, else the right-clicked one.
-    /// </summary>
-    private static ContextMenu BuildRadarMenu(MainViewModel main, MenuFixture fixture)
-    {
-        var view = new RadarView { DataContext = main.Radar };
-        var window = new Window { DataContext = main, Content = view };
-        window.Show();
-        try
-        {
-            AircraftModel ac = fixture.Aircraft;
-            main.Radar.SelectedAircraft = fixture.Selected ?? ac;
-            return view.BuildAircraftContextMenu(main.Radar, ac, fixture.Selected, ac.Callsign, MenuGoldenFixtures.Initials);
-        }
-        finally
-        {
-            window.Close();
-        }
-    }
-
-    /// <summary>The ground view hosted the same way, over the main view model's ground view model and its KOAK layout.</summary>
-    private static ContextMenu BuildGroundMenu(MainViewModel main, MenuFixture fixture)
-    {
-        var view = new GroundView { DataContext = main.Ground };
-        var window = new Window { DataContext = main, Content = view };
-        window.Show();
-        try
-        {
-            AircraftModel ac = fixture.Aircraft;
-            main.Ground.SelectedAircraft = fixture.Selected ?? ac;
-            return view.BuildAircraftContextMenu(main.Ground, new GroundMenuTarget(ac, fixture.Selected, ac.Callsign, MenuGoldenFixtures.Initials));
-        }
-        finally
-        {
-            window.Close();
-        }
     }
 
     private static string FolderName(MenuView view) => view.ToString().ToLowerInvariant();

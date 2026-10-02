@@ -3,7 +3,6 @@ SWA107 — B738 [disabled]
 ---
 Command…
 Note…
-Measure from SWA107
 ---
 Favorite Commands
   (no items) [disabled]
@@ -15,5 +14,6 @@ Taxi route
   Always hide
   Follow “Show all” setting [checked]
 Hide datablock
+Measure from SWA107
 ---
 Delete

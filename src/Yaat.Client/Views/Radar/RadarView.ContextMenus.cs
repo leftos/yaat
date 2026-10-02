@@ -187,7 +187,10 @@ public partial class RadarView
         return menu;
     }
 
-    /// <summary>A surface live-traffic shadow is never assumable: its menu is read-only — the display groups and a Delete.</summary>
+    /// <summary>
+    /// A surface live-traffic shadow is never assumable: its menu is read-only — the display groups, then the foot,
+    /// which offers it no Warp.
+    /// </summary>
     private void AddSurfaceShadowItems(ContextMenu menu, AircraftModel ac, MenuContext context, RadarMenuHost host)
     {
         string callsign = context.Callsign;
@@ -195,16 +198,16 @@ public partial class RadarView
         menu.Items.Add(SharedMenuGroups.DataBlock(ac, context, host));
         menu.Items.Add(SharedMenuGroups.Coordination(ac, context, host));
         menu.Items.Add(SharedMenuGroups.Display(ac, context, host));
-        menu.Items.Add(new Separator());
-        menu.Items.Add(SharedMenuGroups.Delete(ac, context, host));
+        SharedMenuGroups.AddFoot(menu.Items, ac, context, host);
         FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
     }
 
     /// <summary>
     /// The phase-aware command groups, the always-visible track / data block / squawk / coordination / display
-    /// submenus and the Sim Control submenu, exactly as a simulated aircraft gets them. For a live-traffic shadow
-    /// the read-only ask-pilot queries stay out (<see cref="AircraftCommandApplicability.CanAskPilot"/>); everything
-    /// else, Warp included, applies, because it goes through the command path and so auto-assumes the shadow first.
+    /// submenus and the foot (Warp, release to live feed, Delete), exactly as a simulated aircraft gets them. For a
+    /// live-traffic shadow the read-only ask-pilot queries stay out
+    /// (<see cref="AircraftCommandApplicability.CanAskPilot"/>); everything else, Warp included, applies, because it
+    /// goes through the command path and so auto-assumes the shadow first.
     /// </summary>
     private void AddAircraftCommandGroups(ContextMenu menu, AircraftModel? ac, MenuContext context, RadarMenuHost host)
     {
@@ -238,8 +241,7 @@ public partial class RadarView
 
         menu.Items.Add(SharedMenuGroups.Coordination(ac, context, host));
         menu.Items.Add(SharedMenuGroups.Display(ac, context, host));
-        menu.Items.Add(new Separator());
-        menu.Items.Add(SharedMenuGroups.SimControl(ac, context, host));
+        SharedMenuGroups.AddFoot(menu.Items, ac, context, host);
 
         // RPO control
         FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);

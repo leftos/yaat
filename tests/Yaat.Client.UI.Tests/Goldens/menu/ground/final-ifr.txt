@@ -3,7 +3,6 @@ AAL207 — B738 [disabled]
 ---
 Command…
 Note…
-Measure from AAL207
 ---
 Favorite Commands
   (no items) [disabled]
@@ -16,5 +15,6 @@ Taxi route
   Always hide
   Follow “Show all” setting [checked]
 Hide datablock
+Measure from AAL207
 ---
 Delete

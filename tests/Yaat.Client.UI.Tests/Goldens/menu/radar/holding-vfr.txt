@@ -154,6 +154,5 @@ Display
   Blank target
   Unblank target
 ---
-Sim Control
-  Warp...
-  Delete
+Warp...
+Delete

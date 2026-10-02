@@ -114,7 +114,8 @@ public class ContextMenuBuilderSeamTests
             "Coordination",
             "Display",
             "---",
-            "Sim Control"
+            "Warp...",
+            "Delete"
         );
     }
 
@@ -219,6 +220,7 @@ public class ContextMenuBuilderSeamTests
             "Coordination",
             "---",
             "Edit flight plan",
+            "---",
             "Delete"
         );
     }

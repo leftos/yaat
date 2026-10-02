@@ -202,8 +202,7 @@ public partial class DataGridView : UserControl
         }
 
         AddCommandGroups(menu, ac, context, host);
-
-        menu.Items.Add(SharedMenuGroups.Delete(ac, context, host));
+        SharedMenuGroups.AddFoot(menu.Items, ac, context, host);
 
         // RPO control
         List<string> selectedCallsigns = [.. selection.Select(a => a.Callsign)];
@@ -247,12 +246,13 @@ public partial class DataGridView : UserControl
     }
 
     /// <summary>
-    /// The command groups between the favorites block and the Delete item. An assumable live-traffic shadow takes
-    /// the two assume items and then the same phase-aware groups a simulated aircraft gets: a command sent to an
-    /// airborne shadow auto-assumes it server-side, so the groups apply as they are, minus the two the server
-    /// refuses for a shadow — the ask-pilot queries (<see cref="AircraftCommandApplicability.CanAskPilot"/>) and
-    /// the flight-plan editor (<see cref="AircraftCommandApplicability.CanEditFlightPlan"/>). A surface shadow is
-    /// not assumable and keeps its read-only track / coordination menu.
+    /// The command groups between the favorites block and the foot (<see cref="SharedMenuGroups.AddFoot"/>). An
+    /// assumable live-traffic shadow takes the two assume items and then the same phase-aware groups a simulated
+    /// aircraft gets: a command sent to an airborne shadow auto-assumes it server-side, so the groups apply as they
+    /// are, minus the two the server refuses for a shadow — the ask-pilot queries
+    /// (<see cref="AircraftCommandApplicability.CanAskPilot"/>) and the flight-plan editor
+    /// (<see cref="AircraftCommandApplicability.CanEditFlightPlan"/>). A surface shadow is not assumable and keeps its
+    /// read-only track / coordination menu.
     /// </summary>
     private static void AddCommandGroups(ContextMenu menu, AircraftModel ac, MenuContext context, ListMenuHost host)
     {
@@ -265,7 +265,6 @@ public partial class DataGridView : UserControl
         {
             menu.Items.Add(SharedMenuGroups.Track(ac, context, host, MenuView.List));
             menu.Items.Add(SharedMenuGroups.Coordination(ac, context, host));
-            menu.Items.Add(new Separator());
             return;
         }
 
@@ -285,11 +284,6 @@ public partial class DataGridView : UserControl
         if (SharedMenuGroups.EditFlightPlan(ac, context, host) is { } editItem)
         {
             menu.Items.Add(editItem);
-        }
-
-        if (SharedMenuGroups.Unassume(ac, context, host) is { } unassume)
-        {
-            menu.Items.Add(unassume);
         }
     }
 

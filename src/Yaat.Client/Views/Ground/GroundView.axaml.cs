@@ -525,7 +525,7 @@ public partial class GroundView : UserControl
         var host = new GroundMenuHost(this, vm, FindMainViewModel(), ac);
         var menu = new ContextMenu();
 
-        AddAircraftHeaderItems(menu, vm, target, context, host);
+        AddAircraftHeaderItems(menu, vm, target);
         menu.Items.Add(new Separator());
         menu.Items.Add(SharedMenuGroups.Favorites(ac, context, host));
         menu.Items.Add(new Separator());
@@ -548,13 +548,7 @@ public partial class GroundView : UserControl
         }
 
         SharedMenuGroups.AddGroundDisplay(menu.Items, ac, context, host);
-        menu.Items.Add(new Separator());
-        if (SharedMenuGroups.Unassume(ac, context, host) is { } unassume)
-        {
-            menu.Items.Add(unassume);
-        }
-
-        menu.Items.Add(SharedMenuGroups.Delete(ac, context, host));
+        SharedMenuGroups.AddFoot(menu.Items, ac, context, host);
 
         // RPO control
         FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
@@ -587,10 +581,9 @@ public partial class GroundView : UserControl
     internal void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) => InputFlyout.Open(_canvas!, placeholder, onSubmit);
 
     /// <summary>
-    /// The bold callsign header plus the free-text Command… and Note… items every aircraft gets, then the catalog's
-    /// measure item while the ground view has a measure tool.
+    /// The bold callsign header plus the free-text Command… and Note… items every aircraft gets.
     /// </summary>
-    private void AddAircraftHeaderItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target, MenuContext context, GroundMenuHost host)
+    private void AddAircraftHeaderItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target)
     {
         (AircraftModel? ac, AircraftModel? _, string? callsign, string? initials) = target;
         string headerText = ac is not null ? $"{callsign} — {ac.AircraftType}" : callsign;
@@ -632,12 +625,6 @@ public partial class GroundView : UserControl
                 }
             )
         );
-
-        // Latching the measurement to the aircraft, so the line follows it as it taxis.
-        if (SharedMenuGroups.Measure(ac, context, host) is { } measure)
-        {
-            menu.Items.Add(measure);
-        }
     }
 
     /// <summary>

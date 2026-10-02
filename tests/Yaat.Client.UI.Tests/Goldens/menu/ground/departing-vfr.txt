@@ -3,7 +3,6 @@ N301AB — C172 [disabled]
 ---
 Command…
 Note…
-Measure from N301AB
 ---
 Favorite Commands
   (no items) [disabled]
@@ -13,5 +12,6 @@ Taxi route
   Always hide
   Follow “Show all” setting [checked]
 Hide datablock
+Measure from N301AB
 ---
 Delete

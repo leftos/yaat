@@ -95,7 +95,7 @@ public static class MenuCatalog
         InputLeaf(MenuIds.DataBlockTempAltitude, "Temporary altitude...", "Altitude", input => $"TEMPALT {int.Parse(input)}"),
         InputLeaf(MenuIds.DataBlockCruise, "Cruise...", "Altitude", input => $"CRUISE {int.Parse(input)}"),
         Leaf(MenuIds.DataBlockAnnotate, "Annotate", "ANNOTATE", Always),
-        HostLeaf(MenuIds.SimControlWarp, "Warp...", Always, BuildWarp),
+        HostLeaf(MenuIds.SimControlWarp, "Warp...", CanWarp, BuildWarp),
         Leaf(MenuIds.SimControlDelete, "Delete", "DEL", Always),
         HostLeaf(MenuIds.AircraftEditFlightPlan, "Edit flight plan", CanEditFlightPlan, BuildEditFlightPlan),
         HostLeaf(MenuIds.DisplayMiniDataBlock, "Mini datablock", Always, BuildMiniDataBlock),
@@ -775,6 +775,13 @@ public static class MenuCatalog
         item.Click += (_, _) => host.ShowInputPopup(placeholder, input => host.SendAsync(context.Callsign, format(input), context.Initials));
         return item;
     }
+
+    /// <summary>
+    /// Warp is offered on the radar only, whose host has the warp popup, and only for a controllable aircraft: the warp
+    /// goes through the command path, which auto-assumes an airborne shadow but refuses an unassumable surface one.
+    /// </summary>
+    private static bool CanWarp(IMenuAircraft? aircraft, MenuContext context) =>
+        (context.View == MenuView.Radar) && AircraftCommandApplicability.IsControllable(aircraft);
 
     /// <summary>
     /// The Warp item: it seeds the host's warp popup with the aircraft's heading, altitude and indicated airspeed and

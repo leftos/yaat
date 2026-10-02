@@ -5,10 +5,11 @@ namespace Yaat.Client.ContextMenus;
 
 /// <summary>
 /// The groups more than one surface builds — live traffic, track, squawk, ask pilot, coordination, data block,
-/// sim control, display, favorites, and the flight groups heading, altitude, speed, navigation (with Draw route),
-/// hold, approach, procedures, tower and pattern — assembled from <see cref="MenuCatalog"/> entries. Only track,
+/// display, favorites, the menu foot (warp, release to live feed, delete), and the flight groups heading, altitude,
+/// speed, navigation (with Draw route), hold, approach, procedures, tower and pattern — assembled from
+/// <see cref="MenuCatalog"/> entries. Only track,
 /// squawk and ask pilot keep a <see cref="MenuView"/> variant: the radar carries input pickers (handoff, point out,
-/// squawk code, custom say) the other surfaces leave out. Data block, sim control, display and the flight groups are
+/// squawk code, custom say) the other surfaces leave out. Data block, display and the flight groups are
 /// built by the radar today, so they take no view. The ground view's relative items, pushback block, runway
 /// clearances, landing block, hold short and follow submenus and taxi-route block are groups of their own, and its
 /// tower variants branch on <see cref="MenuContext.View"/> inside the entries. Whether a group is offered at all stays
@@ -100,22 +101,22 @@ public static class SharedMenuGroups
         return menu;
     }
 
-    /// <summary>The Sim Control submenu: Warp, the release-to-live-feed item when it applies, then Delete.</summary>
-    public static MenuItem SimControl(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    /// <summary>
+    /// The foot every aircraft menu ends with, before the RPO items the caller appends: a separator (unless the menu
+    /// already ends in one), Warp… where it applies (the radar, and never for a surface live-traffic shadow), "Release
+    /// to live feed" when the aircraft was assumed from the feed (<see cref="AircraftCommandApplicability.CanUnassume"/>),
+    /// then Delete. The aircraft list's delayed-spawn menu keeps its own foot (<see cref="AddDelayedSpawn"/>).
+    /// </summary>
+    public static void AddFoot(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        var menu = new MenuItem { Header = "Sim Control" };
-        menu.Items.Add(Leaf(MenuIds.SimControlWarp, aircraft, context, host));
-        if (Unassume(aircraft, context, host) is { } unassume)
-        {
-            menu.Items.Add(unassume);
-        }
-
-        menu.Items.Add(Leaf(MenuIds.SimControlDelete, aircraft, context, host));
-        return menu;
+        AddBlockSeparator(items);
+        AddIfApplicable(items, MenuIds.SimControlWarp, aircraft, context, host);
+        AddIfApplicable(items, MenuIds.LiveTrafficUnassume, aircraft, context, host);
+        items.Add(Delete(aircraft, context, host));
     }
 
-    /// <summary>The Delete leaf that sends <c>DEL</c>, which each surface places itself.</summary>
-    public static MenuItem Delete(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
+    /// <summary>The Delete leaf that sends <c>DEL</c>.</summary>
+    private static MenuItem Delete(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
         Leaf(MenuIds.SimControlDelete, aircraft, context, host);
 
     /// <summary>The "Edit flight plan" leaf when the aircraft's flight plan is editable, otherwise null.</summary>
@@ -155,17 +156,6 @@ public static class SharedMenuGroups
             AddIfApplicable(items, id, aircraft, context, host);
         }
     }
-
-    /// <summary>
-    /// "Release to live feed" when the aircraft was assumed from the feed
-    /// (<see cref="AircraftCommandApplicability.CanUnassume"/>), otherwise null.
-    /// </summary>
-    public static MenuItem? Unassume(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
-        IsApplicable(MenuIds.LiveTrafficUnassume, aircraft, context) ? Leaf(MenuIds.LiveTrafficUnassume, aircraft, context, host) : null;
-
-    /// <summary>The measure item while the surface has a measure tool, otherwise null; the ground view places it in its header.</summary>
-    public static MenuItem? Measure(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
-        MenuCatalog.Get(MenuIds.DisplayMeasure).Build(aircraft, context, host);
 
     /// <summary>
     /// The Heading submenu: present heading, the heading pickers and the relative-turn pickers. The header names the
@@ -522,14 +512,16 @@ public static class SharedMenuGroups
 
     /// <summary>
     /// The ground view's display items, flat and in the ground's order: the taxi-route submenu, show or hide datablock,
-    /// then reset datablock position while the data block has been dragged off its position. The caller builds the
-    /// context with <see cref="MenuView.Ground"/>.
+    /// then reset datablock position while the data block has been dragged off its position, then the measure item while
+    /// the ground view has a measure tool, which latches the measurement to the aircraft so the line follows it as it
+    /// taxis. The caller builds the context with <see cref="MenuView.Ground"/>.
     /// </summary>
     public static void AddGroundDisplay(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         items.Add(Leaf(MenuIds.DisplayTaxiRoute, aircraft, context, host));
         items.Add(Leaf(MenuIds.DisplayHideDataBlock, aircraft, context, host));
         AddIfBuilt(items, MenuIds.DisplayResetDataBlockPosition, aircraft, context, host);
+        AddIfBuilt(items, MenuIds.DisplayMeasure, aircraft, context, host);
     }
 
     /// <summary>

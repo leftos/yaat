@@ -3,7 +3,6 @@ SWA601 — B738 [disabled]
 ---
 Command…
 Note…
-Measure from SWA601
 ---
 Favorite Commands
   (no items) [disabled]
@@ -28,5 +27,6 @@ Taxi route
   Always hide
   Follow “Show all” setting [checked]
 Hide datablock
+Measure from SWA601
 ---
 Delete

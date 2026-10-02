@@ -3,7 +3,6 @@ AAL205 — B738 [disabled]
 ---
 Command…
 Note…
-Measure from AAL205
 ---
 Favorite Commands
   (no items) [disabled]
@@ -13,5 +12,6 @@ Taxi route
   Always hide
   Follow “Show all” setting [checked]
 Hide datablock
+Measure from AAL205
 ---
 Delete
