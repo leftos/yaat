@@ -17,8 +17,11 @@ public interface IMenuHost
     /// </summary>
     void ShowInputPopup(string placeholder, Func<string, Task> onSubmit);
 
-    /// <summary>True when the host can open a free-text input popup; the catalog hides input-tier items otherwise.</summary>
-    bool HasInputPopup { get; }
+    /// <summary>
+    /// The families of members this surface serves. The catalog hides an entry whose
+    /// <see cref="MenuCatalogEntry.Requires"/> names a flag the surface does not declare.
+    /// </summary>
+    MenuHostCapabilities Capabilities { get; }
 
     /// <summary>
     /// Opens the surface's list popup over <paramref name="items"/>, with <paramref name="selected"/> (or the item

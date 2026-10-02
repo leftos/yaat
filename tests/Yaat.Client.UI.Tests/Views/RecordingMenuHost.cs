@@ -53,8 +53,25 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
         return Task.CompletedTask;
     }
 
-    /// <summary>Whether the host answers as one that can open a free-text input popup; true, so input-tier items are built.</summary>
-    public bool HasInputPopup { get; set; } = true;
+    /// <summary>
+    /// The capabilities the host answers; every family by default, so any entry builds. A test clears the ones its case
+    /// is about.
+    /// </summary>
+    public MenuHostCapabilities Capabilities { get; set; } =
+        MenuHostCapabilities.InputPopup
+        | MenuHostCapabilities.ListPicker
+        | MenuHostCapabilities.FilteredListPicker
+        | MenuHostCapabilities.Warp
+        | MenuHostCapabilities.FlightPlanEditor
+        | MenuHostCapabilities.MiniDataBlock
+        | MenuHostCapabilities.DataBlockOffset
+        | MenuHostCapabilities.NavRoute
+        | MenuHostCapabilities.Measure
+        | MenuHostCapabilities.TaxiRouteDisplay
+        | MenuHostCapabilities.HideDataBlock
+        | MenuHostCapabilities.DrawRoute
+        | MenuHostCapabilities.GroundMovement
+        | MenuHostCapabilities.MultiSelectAssume;
 
     public List<string> InputPlaceholders { get; } = [];
 

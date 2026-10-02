@@ -367,6 +367,52 @@ public class MenuCatalogCommandTests
         Assert.Equal([(Callsign, 360, 0, 0)], host.WarpPopups);
     }
 
+    // A catalog entry whose builder needs host members the surface does not serve is hidden, never shown disabled:
+    // AddIfApplicable adds nothing and reports it added nothing.
+    [AvaloniaFact]
+    public void Entry_RequiringACapabilityTheHostLacks_IsHidden()
+    {
+        var host = new RecordingMenuHost("") { Capabilities = MenuHostCapabilities.None };
+        var menu = new ContextMenu();
+
+        bool added = SharedMenuGroups.AddIfApplicable(menu.Items, MenuIds.DisplayMiniDataBlock, null, Context(), host);
+
+        Assert.False(added);
+        Assert.Empty(menu.Items);
+    }
+
+    // The same entry on a host that declares the family it needs is offered.
+    [AvaloniaFact]
+    public void Entry_RequiringACapabilityTheHostHas_IsShown()
+    {
+        var host = new RecordingMenuHost("") { Capabilities = MenuHostCapabilities.MiniDataBlock };
+        var menu = new ContextMenu();
+
+        bool added = SharedMenuGroups.AddIfApplicable(menu.Items, MenuIds.DisplayMiniDataBlock, null, Context(), host);
+
+        Assert.True(added);
+        MenuItem item = Assert.IsType<MenuItem>(Assert.Single(menu.Items));
+        Assert.Equal("Mini datablock", item.Header as string);
+    }
+
+    // Warp's popup is a capability of the radar canvas alone: a host that declares the Warp family offers the foot's
+    // Warp item, and one that does not hides it as the ground and list foots do.
+    [AvaloniaFact]
+    public void Warp_IsOfferedOnlyByAHostWithTheWarpCapability()
+    {
+        var aircraft = new FakeMenuAircraft();
+        var withWarp = new RecordingMenuHost("") { Capabilities = MenuHostCapabilities.Warp };
+        var withoutWarp = new RecordingMenuHost("") { Capabilities = MenuHostCapabilities.None };
+        var withMenu = new ContextMenu();
+        var withoutMenu = new ContextMenu();
+
+        SharedMenuGroups.AddFoot(withMenu.Items, aircraft, Context(), withWarp);
+        SharedMenuGroups.AddFoot(withoutMenu.Items, aircraft, Context(), withoutWarp);
+
+        Assert.Contains(withMenu.Items.OfType<MenuItem>(), i => (i.Header as string) == "Warp...");
+        Assert.DoesNotContain(withoutMenu.Items.OfType<MenuItem>(), i => (i.Header as string) == "Warp...");
+    }
+
     [AvaloniaFact]
     public void EditFlightPlan_CallsHostOpenFlightPlanEditor()
     {
@@ -1639,10 +1685,33 @@ public class MenuCatalogCommandTests
     [AvaloniaFact]
     public void Cto_HostWithoutInputPopup_HidesSeparatorAndCustom()
     {
-        var host = new RecordingMenuHost("") { HasInputPopup = false };
+        var host = new RecordingMenuHost("") { Capabilities = MenuHostCapabilities.None };
 
         MenuItem cto = CtoSubmenu(CatalogMenuView.List, OnGround("LinedUpAndWaiting", "VFR", "30"), host);
 
+        Assert.Empty(cto.Items.OfType<Separator>());
+        Assert.NotEqual("Custom...", Assert.IsType<MenuItem>(cto.Items[^1]).Header as string);
+    }
+
+    // The gated add path offers the submenu on a host without the input popup too: only the separator and Custom… come
+    // from the capability, so the entry itself carries no requirement.
+    [AvaloniaFact]
+    public void Cto_HostWithoutInputPopup_IsStillOfferedThroughTheGatedAddPath()
+    {
+        var host = new RecordingMenuHost("") { Capabilities = MenuHostCapabilities.None };
+        var menu = new ContextMenu();
+
+        bool added = SharedMenuGroups.AddIfApplicable(
+            menu.Items,
+            MenuIds.TowerClearedForTakeoff,
+            OnGround("LinedUpAndWaiting", "IFR", "30"),
+            Context(),
+            host
+        );
+
+        Assert.True(added);
+        MenuItem cto = Assert.IsType<MenuItem>(Assert.Single(menu.Items));
+        Assert.Equal("Cleared for takeoff 30", cto.Header as string);
         Assert.Empty(cto.Items.OfType<Separator>());
         Assert.NotEqual("Custom...", Assert.IsType<MenuItem>(cto.Items[^1]).Header as string);
     }
@@ -1676,7 +1745,7 @@ public class MenuCatalogCommandTests
                 .Get(MenuIds.TowerClearedForTakeoff)
                 .Build(ac, new MenuContext(Callsign, Initials, null, false, VfrCommandsForIfr.None, view), host);
 
-            Assert.True(host.HasInputPopup);
+            Assert.True(host.Capabilities.HasFlag(MenuHostCapabilities.InputPopup));
             Assert.NotNull(cto);
             Assert.IsType<Separator>(cto.Items[^2]);
             Assert.Equal("Custom...", Assert.IsType<MenuItem>(cto.Items[^1]).Header as string);

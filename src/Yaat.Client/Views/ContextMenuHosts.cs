@@ -44,7 +44,21 @@ internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainVi
 
     public Task SendAsync(string callsign, string command, string initials) => radar.SendRawCommandAsync(callsign, initials, command);
 
-    public bool HasInputPopup => true;
+    /// <summary>
+    /// The radar serves the free-text popup, both pickers, the warp popup, the data-block form and position, the nav
+    /// route, the measure tool and route drawing. It has no flight-plan editor, no ground map, no taxi-route or
+    /// hidden-datablock display, and no multi-selection, so those families' members throw.
+    /// </summary>
+    public MenuHostCapabilities Capabilities =>
+        MenuHostCapabilities.InputPopup
+        | MenuHostCapabilities.ListPicker
+        | MenuHostCapabilities.FilteredListPicker
+        | MenuHostCapabilities.Warp
+        | MenuHostCapabilities.MiniDataBlock
+        | MenuHostCapabilities.DataBlockOffset
+        | MenuHostCapabilities.NavRoute
+        | MenuHostCapabilities.Measure
+        | MenuHostCapabilities.DrawRoute;
 
     public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) =>
         Dispatcher.UIThread.Post(() => view.ShowInputPopup(placeholder, onSubmit));
@@ -153,7 +167,19 @@ internal sealed class GroundMenuHost(GroundView view, GroundViewModel ground, Ma
 {
     public Task SendAsync(string callsign, string command, string initials) => ground.SendRawCommandAsync(callsign, initials, command);
 
-    public bool HasInputPopup => true;
+    /// <summary>
+    /// The ground view serves the free-text popup, the data-block position reset, the measure tool, the taxi-route and
+    /// hidden-datablock display, route drawing and the ground-movement submenus. It has no list, filtered-list or warp
+    /// popup, no mini data block or nav route, no flight-plan editor and no multi-selection, so those throw.
+    /// </summary>
+    public MenuHostCapabilities Capabilities =>
+        MenuHostCapabilities.InputPopup
+        | MenuHostCapabilities.DataBlockOffset
+        | MenuHostCapabilities.Measure
+        | MenuHostCapabilities.TaxiRouteDisplay
+        | MenuHostCapabilities.HideDataBlock
+        | MenuHostCapabilities.DrawRoute
+        | MenuHostCapabilities.GroundMovement;
 
     public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) => view.ShowInputPopup(placeholder, onSubmit);
 
@@ -358,7 +384,12 @@ internal sealed class ListMenuHost(MainViewModel main, AircraftModel aircraft, C
 
     public Task SendAsync(string callsign, string command, string initials) => main.Connection.SendCommandAsync(callsign, command, initials);
 
-    public bool HasInputPopup => true;
+    /// <summary>
+    /// The aircraft list serves the free-text popup, the flight-plan editor and the multi-selection assume. It has no
+    /// radar or ground display and no picker or popup beyond free text, so every other family's members throw.
+    /// </summary>
+    public MenuHostCapabilities Capabilities =>
+        MenuHostCapabilities.InputPopup | MenuHostCapabilities.FlightPlanEditor | MenuHostCapabilities.MultiSelectAssume;
 
     public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) => InputFlyout.Open(flyoutAnchor, placeholder, onSubmit);
 

@@ -305,7 +305,11 @@ public partial class RadarView
                 menu.Items.Add(SharedMenuGroups.Navigation(ac, context, host));
                 break;
             case MenuGroup.DrawRoute:
-                menu.Items.Add(SharedMenuGroups.DrawRoute(ac, context, host));
+                if (SharedMenuGroups.DrawRoute(ac, context, host) is { } drawRoute)
+                {
+                    menu.Items.Add(drawRoute);
+                }
+
                 break;
             case MenuGroup.Hold:
                 menu.Items.Add(SharedMenuGroups.Hold(ac, context, host));

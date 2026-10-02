@@ -330,6 +330,9 @@ One command the aircraft menus can offer, with a stable ID (`<group>.<item>`, ne
 **Menu host**:
 The surface that owns an aircraft menu (radar, ground, aircraft list) as a catalog entry's builder sees it (`IMenuHost`): sending the command text, and whatever popups or reads the entry needs.
 
+**Host capability (menu host)**:
+A family of menu-host members a surface serves (`MenuHostCapabilities`: input popup, list picker, warp, ground movement…); a catalog entry names the capabilities it needs (`Requires`) and is hidden on a host that lacks any of them, never disabled.
+
 ## CRC hub connections
 
 **Direct connection**:

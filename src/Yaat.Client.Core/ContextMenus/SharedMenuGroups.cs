@@ -20,23 +20,23 @@ public static class SharedMenuGroups
     public static MenuItem Track(IMenuAircraft? aircraft, MenuContext context, IMenuHost host, MenuView view)
     {
         var menu = new MenuItem { Header = "Track" };
-        menu.Items.Add(Leaf(MenuIds.TrackTrack, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.TrackDrop, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.TrackTrack, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.TrackDrop, aircraft, context, host));
         menu.Items.Add(new Separator());
-        menu.Items.Add(Leaf(MenuIds.TrackAcceptHandoff, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.TrackAcceptHandoff, aircraft, context, host));
         if (view == MenuView.Radar)
         {
-            menu.Items.Add(Leaf(MenuIds.TrackInitiateHandoff, aircraft, context, host));
+            TryAdd(menu.Items, TryLeaf(MenuIds.TrackInitiateHandoff, aircraft, context, host));
         }
 
-        menu.Items.Add(Leaf(MenuIds.TrackCancelHandoff, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.TrackCancelHandoff, aircraft, context, host));
         if (view == MenuView.Radar)
         {
             menu.Items.Add(new Separator());
-            menu.Items.Add(Leaf(MenuIds.TrackPointOut, aircraft, context, host));
+            TryAdd(menu.Items, TryLeaf(MenuIds.TrackPointOut, aircraft, context, host));
         }
 
-        menu.Items.Add(Leaf(MenuIds.TrackAcknowledgePointout, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.TrackAcknowledgePointout, aircraft, context, host));
         return menu;
     }
 
@@ -46,15 +46,15 @@ public static class SharedMenuGroups
         var menu = new MenuItem { Header = "Squawk" };
         if (view == MenuView.Radar)
         {
-            menu.Items.Add(Leaf(MenuIds.SquawkCode, aircraft, context, host));
+            TryAdd(menu.Items, TryLeaf(MenuIds.SquawkCode, aircraft, context, host));
         }
 
-        menu.Items.Add(Leaf(MenuIds.SquawkRandom, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.SquawkVfr, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.SquawkNormal, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.SquawkStandby, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.SquawkRandom, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.SquawkVfr, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.SquawkNormal, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.SquawkStandby, aircraft, context, host));
         menu.Items.Add(new Separator());
-        menu.Items.Add(Leaf(MenuIds.SquawkIdent, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.SquawkIdent, aircraft, context, host));
         return menu;
     }
 
@@ -62,16 +62,16 @@ public static class SharedMenuGroups
     public static MenuItem AskPilot(IMenuAircraft? aircraft, MenuContext context, IMenuHost host, MenuView view)
     {
         var menu = new MenuItem { Header = "Ask pilot to say..." };
-        menu.Items.Add(Leaf(MenuIds.AskPilotAltitude, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.AskPilotHeading, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.AskPilotSpeed, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.AskPilotMach, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.AskPilotPosition, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.AskPilotExpectedApproach, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotAltitude, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotHeading, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotSpeed, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotMach, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotPosition, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotExpectedApproach, aircraft, context, host));
         if (view == MenuView.Radar)
         {
             menu.Items.Add(new Separator());
-            menu.Items.Add(Leaf(MenuIds.AskPilotCustom, aircraft, context, host));
+            TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotCustom, aircraft, context, host));
         }
 
         return menu;
@@ -81,10 +81,10 @@ public static class SharedMenuGroups
     public static MenuItem Coordination(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         var menu = new MenuItem { Header = "Coordination" };
-        menu.Items.Add(Leaf(MenuIds.CoordinationRelease, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.CoordinationHold, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.CoordinationRecall, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.CoordinationAcknowledge, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.CoordinationRelease, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.CoordinationHold, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.CoordinationRecall, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.CoordinationAcknowledge, aircraft, context, host));
         return menu;
     }
 
@@ -92,10 +92,10 @@ public static class SharedMenuGroups
     public static MenuItem DataBlock(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         var menu = new MenuItem { Header = "Data Block" };
-        menu.Items.Add(Leaf(MenuIds.DataBlockScratchpad, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.DataBlockTempAltitude, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.DataBlockCruise, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.DataBlockAnnotate, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.DataBlockScratchpad, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.DataBlockTempAltitude, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.DataBlockCruise, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.DataBlockAnnotate, aircraft, context, host));
         return menu;
     }
 
@@ -132,8 +132,8 @@ public static class SharedMenuGroups
         AddIfApplicable(items, MenuIds.CoordinationCheckReleaseWindow, aircraft, context, host);
 
         items.Add(new Separator());
-        items.Add(Leaf(MenuIds.AircraftCommand, aircraft, context, host));
-        items.Add(Leaf(MenuIds.AircraftNote, aircraft, context, host));
+        TryAdd(items, TryLeaf(MenuIds.AircraftCommand, aircraft, context, host));
+        TryAdd(items, TryLeaf(MenuIds.AircraftNote, aircraft, context, host));
         items.Add(new Separator());
     }
 
@@ -161,7 +161,7 @@ public static class SharedMenuGroups
 
     /// <summary>The "Edit flight plan" leaf when the aircraft's flight plan is editable, otherwise null.</summary>
     public static MenuItem? EditFlightPlan(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
-        IsApplicable(MenuIds.AircraftEditFlightPlan, aircraft, context) ? Leaf(MenuIds.AircraftEditFlightPlan, aircraft, context, host) : null;
+        IsApplicable(MenuIds.AircraftEditFlightPlan, aircraft, context) ? TryLeaf(MenuIds.AircraftEditFlightPlan, aircraft, context, host) : null;
 
     /// <summary>
     /// The Display submenu: the data-block form and position, the nav route and the measurement in progress, then the
@@ -176,12 +176,12 @@ public static class SharedMenuGroups
         AddIfBuilt(menu.Items, MenuIds.DisplayNavRoute, aircraft, context, host);
         AddIfBuilt(menu.Items, MenuIds.DisplayMeasure, aircraft, context, host);
         menu.Items.Add(new Separator());
-        menu.Items.Add(Leaf(MenuIds.DisplayLeaderDirection, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.DisplayJRing, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.DisplayCone, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.DisplayLeaderDirection, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.DisplayJRing, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.DisplayCone, aircraft, context, host));
         menu.Items.Add(new Separator());
-        menu.Items.Add(Leaf(MenuIds.DisplayBlank, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.DisplayUnblank, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.DisplayBlank, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.DisplayUnblank, aircraft, context, host));
         return menu;
     }
 
@@ -210,12 +210,12 @@ public static class SharedMenuGroups
             _ => "Heading",
         };
         var menu = new MenuItem { Header = header };
-        menu.Items.Add(Leaf(MenuIds.HeadingPresent, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.HeadingFly, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.HeadingTurnLeft, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.HeadingTurnRight, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.HeadingTurnLeftDegrees, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.HeadingTurnRightDegrees, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.HeadingPresent, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.HeadingFly, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.HeadingTurnLeft, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.HeadingTurnRight, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.HeadingTurnLeftDegrees, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.HeadingTurnRightDegrees, aircraft, context, host));
         return menu;
     }
 
@@ -236,10 +236,10 @@ public static class SharedMenuGroups
     {
         double? assigned = aircraft?.AssignedSpeed;
         var menu = new MenuItem { Header = assigned is > 0 ? $"Speed (→ {assigned.Value:F0})" : "Speed" };
-        menu.Items.Add(Leaf(MenuIds.SpeedAssign, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.SpeedCustom, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.SpeedNormal, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.SpeedFinalApproach, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.SpeedAssign, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.SpeedCustom, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.SpeedNormal, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.SpeedFinalApproach, aircraft, context, host));
         return menu;
     }
 
@@ -251,23 +251,23 @@ public static class SharedMenuGroups
     {
         string header = aircraft is { NavigatingTo.Length: > 0 } ? $"Navigation (→ {aircraft.NavigatingTo})" : "Navigation";
         var menu = new MenuItem { Header = header };
-        menu.Items.Add(Leaf(MenuIds.NavigationDirectTo, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.NavigationDirectTo, aircraft, context, host));
         AddIfApplicable(menu.Items, MenuIds.NavigationAppendDirectTo, aircraft, context, host);
         return menu;
     }
 
-    /// <summary>The Draw route leaf, which each surface places itself.</summary>
-    public static MenuItem DrawRoute(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
-        Leaf(MenuIds.NavigationDrawRoute, aircraft, context, host);
+    /// <summary>The Draw route leaf, which each surface places itself; null on a surface with no route drawing.</summary>
+    public static MenuItem? DrawRoute(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
+        TryLeaf(MenuIds.NavigationDrawRoute, aircraft, context, host);
 
     /// <summary>The Hold submenu: hold at present position, then hold at a fix, each with left and right turns.</summary>
     public static MenuItem Hold(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         var menu = new MenuItem { Header = "Hold" };
-        menu.Items.Add(Leaf(MenuIds.HoldPresentLeft, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.HoldPresentRight, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.HoldFixLeft, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.HoldFixRight, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.HoldPresentLeft, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.HoldPresentRight, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.HoldFixLeft, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.HoldFixRight, aircraft, context, host));
         return menu;
     }
 
@@ -285,20 +285,20 @@ public static class SharedMenuGroups
             _ => "Approach",
         };
         var menu = new MenuItem { Header = header };
-        menu.Items.Add(Leaf(MenuIds.ApproachCleared, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.ApproachJoin, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.ApproachClearedStraightIn, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.ApproachJoinStraightIn, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.ApproachClearedForce, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.ApproachJoinForce, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.ApproachJoinFinalCourse, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.ApproachExpect, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.ApproachClearedVisual, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachCleared, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachJoin, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachClearedStraightIn, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachJoinStraightIn, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachClearedForce, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachJoinForce, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachJoinFinalCourse, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachExpect, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachClearedVisual, aircraft, context, host));
         AddCompanion(menu.Items, MenuCatalog.BuildClearedVisualOther(aircraft, context, host));
 
         menu.Items.Add(new Separator());
-        menu.Items.Add(Leaf(MenuIds.ApproachReportFieldInSight, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.ApproachReportTrafficInSight, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachReportFieldInSight, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachReportTrafficInSight, aircraft, context, host));
         menu.Items.Add(new Separator());
         menu.Items.Add(ReportWhen(aircraft, context, host));
         return menu;
@@ -308,20 +308,20 @@ public static class SharedMenuGroups
     private static MenuItem ReportWhen(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         var menu = new MenuItem { Header = "Report when…" };
-        menu.Items.Add(Leaf(MenuIds.ApproachReportBase, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.ApproachReportFinal, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.ApproachReportCrosswind, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.ApproachReportDownwind, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.ApproachReportNMileFinal, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.ApproachReportAtFix, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachReportBase, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachReportFinal, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachReportCrosswind, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachReportDownwind, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachReportNMileFinal, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ApproachReportAtFix, aircraft, context, host));
 
         var stop = new MenuItem { Header = "Stop reporting" };
-        stop.Items.Add(Leaf(MenuIds.ApproachReportOffBase, aircraft, context, host));
-        stop.Items.Add(Leaf(MenuIds.ApproachReportOffFinal, aircraft, context, host));
-        stop.Items.Add(Leaf(MenuIds.ApproachReportOffCrosswind, aircraft, context, host));
-        stop.Items.Add(Leaf(MenuIds.ApproachReportOffDownwind, aircraft, context, host));
+        TryAdd(stop.Items, TryLeaf(MenuIds.ApproachReportOffBase, aircraft, context, host));
+        TryAdd(stop.Items, TryLeaf(MenuIds.ApproachReportOffFinal, aircraft, context, host));
+        TryAdd(stop.Items, TryLeaf(MenuIds.ApproachReportOffCrosswind, aircraft, context, host));
+        TryAdd(stop.Items, TryLeaf(MenuIds.ApproachReportOffDownwind, aircraft, context, host));
         stop.Items.Add(new Separator());
-        stop.Items.Add(Leaf(MenuIds.ApproachReportOffAll, aircraft, context, host));
+        TryAdd(stop.Items, TryLeaf(MenuIds.ApproachReportOffAll, aircraft, context, host));
 
         menu.Items.Add(new Separator());
         menu.Items.Add(stop);
@@ -336,19 +336,19 @@ public static class SharedMenuGroups
     public static MenuItem Procedures(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         var menu = new MenuItem { Header = "Procedures" };
-        menu.Items.Add(Leaf(MenuIds.ProceduresJoinStar, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresJoinStar, aircraft, context, host));
         AddCompanion(menu.Items, MenuCatalog.BuildJoinStarOther(aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.ProceduresClimbViaSid, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.ProceduresDescendViaStar, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.ProceduresCrossFix, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresClimbViaSid, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresDescendViaStar, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresCrossFix, aircraft, context, host));
         AddCompanion(menu.Items, MenuCatalog.BuildCrossFixOther(aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.ProceduresDepartFix, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresDepartFix, aircraft, context, host));
         AddCompanion(menu.Items, MenuCatalog.BuildDepartFixOther(aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.ProceduresPtac, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.ProceduresJoinAirway, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresPtac, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresJoinAirway, aircraft, context, host));
         AddCompanion(menu.Items, MenuCatalog.BuildJoinAirwayOther(aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.ProceduresJoinRadialOutbound, aircraft, context, host));
-        menu.Items.Add(Leaf(MenuIds.ProceduresJoinRadialInbound, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresJoinRadialOutbound, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.ProceduresJoinRadialInbound, aircraft, context, host));
         return menu;
     }
 
@@ -381,7 +381,7 @@ public static class SharedMenuGroups
         if (IsApplicable(MenuIds.TowerExitLeft, aircraft, context))
         {
             AddSeparatorIfNonEmpty(menu.Items);
-            menu.Items.Add(Leaf(MenuIds.TowerExitLeft, aircraft, context, host));
+            TryAdd(menu.Items, TryLeaf(MenuIds.TowerExitLeft, aircraft, context, host));
             AddIfApplicable(menu.Items, MenuIds.TowerExitRight, aircraft, context, host);
         }
 
@@ -413,7 +413,7 @@ public static class SharedMenuGroups
         {
             if (IsApplicable(id, aircraft, context))
             {
-                menu.Items.Add(Leaf(id, aircraft, context, host));
+                TryAdd(menu.Items, TryLeaf(id, aircraft, context, host));
                 AddCompanion(menu.Items, MenuCatalog.BuildPatternEntryOther(id, aircraft, context, host));
             }
         }
@@ -480,7 +480,12 @@ public static class SharedMenuGroups
             return false;
         }
 
-        items.Add(Leaf(id, aircraft, context, host));
+        if (TryLeaf(id, aircraft, context, host) is not { } item)
+        {
+            return false;
+        }
+
+        items.Add(item);
         return true;
     }
 
@@ -515,13 +520,13 @@ public static class SharedMenuGroups
         );
         if (airborne)
         {
-            items.Add(Leaf(MenuIds.RelativeReportInSight, aircraft, context, host));
+            TryAdd(items, TryLeaf(MenuIds.RelativeReportInSight, aircraft, context, host));
             AddIfApplicable(items, MenuIds.RelativeFollow, aircraft, context, host);
         }
         else
         {
-            items.Add(Leaf(MenuIds.GroundRelativeGiveWay, aircraft, context, host));
-            items.Add(Leaf(MenuIds.GroundRelativeFollow, aircraft, context, host));
+            TryAdd(items, TryLeaf(MenuIds.GroundRelativeGiveWay, aircraft, context, host));
+            TryAdd(items, TryLeaf(MenuIds.GroundRelativeFollow, aircraft, context, host));
         }
 
         items.Add(new Separator());
@@ -576,8 +581,8 @@ public static class SharedMenuGroups
     /// </summary>
     public static void AddGroundDisplay(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        items.Add(Leaf(MenuIds.DisplayTaxiRoute, aircraft, context, host));
-        items.Add(Leaf(MenuIds.DisplayHideDataBlock, aircraft, context, host));
+        TryAdd(items, TryLeaf(MenuIds.DisplayTaxiRoute, aircraft, context, host));
+        TryAdd(items, TryLeaf(MenuIds.DisplayHideDataBlock, aircraft, context, host));
         AddIfBuilt(items, MenuIds.DisplayResetDataBlockPosition, aircraft, context, host);
         AddIfBuilt(items, MenuIds.DisplayMeasure, aircraft, context, host);
     }
@@ -762,7 +767,7 @@ public static class SharedMenuGroups
     /// </summary>
     public static void AddDelayedSpawn(ContextMenu menu, IMenuAircraft aircraft, MenuContext context, IMenuHost host)
     {
-        menu.Items.Add(Leaf(MenuIds.SpawnNow, aircraft, context, host));
+        TryAdd(menu.Items, TryLeaf(MenuIds.SpawnNow, aircraft, context, host));
         if (IsApplicable(MenuIds.SpawnDelay, aircraft, context))
         {
             menu.Items.Add(MenuCatalog.BuildSpawnDelay(menu, context, host));
@@ -782,7 +787,11 @@ public static class SharedMenuGroups
     /// </summary>
     public static void AddAssumeSelected(ContextMenu menu, IReadOnlyList<string> selectedShadows, MenuContext context, IMenuHost host)
     {
-        if ((selectedShadows.Count < 2) || !IsApplicable(MenuIds.LiveTrafficAssumeSelected, null, context))
+        if (
+            (selectedShadows.Count < 2)
+            || !IsApplicable(MenuIds.LiveTrafficAssumeSelected, null, context)
+            || !MenuCatalog.Serves(MenuIds.LiveTrafficAssumeSelected, host)
+        )
         {
             return;
         }
@@ -821,16 +830,33 @@ public static class SharedMenuGroups
     public static MenuItem Favorites(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
         Leaf(MenuIds.FavoritesMenu, aircraft, context, host);
 
-    private static MenuItem Leaf(string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
-        MenuCatalog.Get(id).Build(aircraft, context, host)
-        ?? throw new InvalidOperationException($"The context-menu catalog entry '{id}' built no menu item.");
-
-    /// <summary>Adds the entry's item, or nothing when the surface's own state hides it (the item is null).</summary>
-    private static void AddIfBuilt(ItemCollection items, string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
+    /// <summary>
+    /// The entry's item when the host serves it and it built one; null when the host lacks any capability the entry
+    /// requires, or when the entry's own state hides it.
+    /// </summary>
+    private static MenuItem? TryLeaf(string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        if (MenuCatalog.Get(id).Build(aircraft, context, host) is { } item)
+        MenuCatalogEntry entry = MenuCatalog.Get(id);
+        return MenuCatalog.CanServe(entry, host) ? entry.Build(aircraft, context, host) : null;
+    }
+
+    /// <summary>The entry's item, which must exist: for the entries that require no capability (Delete, Favorites).</summary>
+    private static MenuItem Leaf(string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
+        TryLeaf(id, aircraft, context, host) ?? throw new InvalidOperationException($"The context-menu catalog entry '{id}' built no menu item.");
+
+    /// <summary>Adds <paramref name="item"/>, or nothing when it is null.</summary>
+    private static void TryAdd(ItemCollection items, MenuItem? item)
+    {
+        if (item is not null)
         {
             items.Add(item);
         }
     }
+
+    /// <summary>
+    /// Adds the entry's item, or nothing when the surface cannot serve it (<see cref="MenuCatalog.CanServe"/>) or its
+    /// own state hides it (the item is null).
+    /// </summary>
+    private static void AddIfBuilt(ItemCollection items, string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
+        TryAdd(items, TryLeaf(id, aircraft, context, host));
 }
