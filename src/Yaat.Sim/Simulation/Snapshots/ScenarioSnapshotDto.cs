@@ -51,6 +51,10 @@ public sealed class ScenarioSnapshotDto
     // topology). New snapshots always carry the current value.
     public bool SoloTrainingMode { get; init; }
 
+    // Optional so a snapshot written before the field existed restores the default (false: solo refuses the
+    // RPO-only commands).
+    public bool SoloRpoCommandsAllowed { get; init; }
+
     public int SoloParkingInitialCallupRatePercent { get; init; } = 100;
 
     public int SoloArrivalGeneratorRatePercent { get; init; } = 100;

@@ -319,6 +319,12 @@ public sealed partial class SimulationEngine
                     scenario.SoloTrainingMode = soloTrainingMode;
                 }
                 break;
+            case "SoloRpoCommandsAllowed":
+                if (bool.TryParse(setting.Value, out bool soloRpoCommandsAllowed))
+                {
+                    scenario.SoloRpoCommandsAllowed = soloRpoCommandsAllowed;
+                }
+                break;
             case "SoloParkingInitialCallupRatePercent":
                 if (int.TryParse(setting.Value, out int parkingRate))
                 {

@@ -193,6 +193,7 @@ public static class SnapshotSchemaMigrator
         //   state (AircraftEramStateDto.SectorDisplays, keyed by facility and sector). No data transformation: the legacy
         //   values name no sector, so they are skipped on read and every sector restores at CRC's defaults (no dwell lock,
         //   the default leader, no halo). The step exists so the version names the reinterpretation.
+        // V32: Added ScenarioSnapshotDto.SoloRpoCommandsAllowed. No bump — additive and optional, an older snapshot reads false.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (AircraftSnapshotDto ac in snapshot.Aircraft)

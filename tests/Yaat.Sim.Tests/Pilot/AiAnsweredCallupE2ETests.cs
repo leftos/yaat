@@ -176,6 +176,7 @@ public class AiAnsweredCallupE2ETests
             ValidateDctFixes = engine.Scenario!.ValidateDctFixes,
             AutoCrossRunway = engine.Scenario.AutoCrossRunway,
             SoloTrainingMode = engine.Scenario.SoloTrainingMode,
+            SoloRpoCommandsAllowed = engine.Scenario.SoloRpoCommandsAllowed,
             RpoShowPilotSpeech = engine.Scenario.RpoShowPilotSpeech,
             TerminalEmitter = engine.EmitTerminalEntry,
             ArtccConfig = engine.Scenario.ArtccConfig,

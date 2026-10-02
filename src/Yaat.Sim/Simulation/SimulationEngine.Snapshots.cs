@@ -99,6 +99,7 @@ public sealed partial class SimulationEngine
             Scenario.LiveTrafficFilter = scenarioDto.LiveTrafficFilter;
             Scenario.ValidateDctFixes = scenarioDto.ValidateDctFixes;
             Scenario.SoloTrainingMode = scenarioDto.SoloTrainingMode;
+            Scenario.SoloRpoCommandsAllowed = scenarioDto.SoloRpoCommandsAllowed;
             Scenario.SoloParkingInitialCallupRatePercent = scenarioDto.SoloParkingInitialCallupRatePercent;
             Scenario.SoloArrivalGeneratorRatePercent = scenarioDto.SoloArrivalGeneratorRatePercent;
             Scenario.SoloGoAroundProbabilityPercent = ScenarioPacing.ClampGoAroundProbabilityPercent(scenarioDto.SoloGoAroundProbabilityPercent);

@@ -85,6 +85,7 @@ public sealed partial class SimulationEngine
             ValidateDctFixes = Scenario?.ValidateDctFixes ?? true,
             AutoCrossRunway = Scenario?.AutoCrossRunway ?? false,
             SoloTrainingMode = Scenario?.SoloTrainingMode ?? false,
+            SoloRpoCommandsAllowed = Scenario?.SoloRpoCommandsAllowed ?? false,
             RpoShowPilotSpeech = Scenario?.RpoShowPilotSpeech ?? false,
             TerminalEmitter = AddTerminalEntry,
             ArtccConfig = Scenario?.ArtccConfig,

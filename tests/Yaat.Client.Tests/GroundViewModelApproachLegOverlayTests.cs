@@ -118,6 +118,7 @@ public class GroundViewModelApproachLegOverlayTests
             ValidateDctFixes = false,
             AutoCrossRunway = false,
             SoloTrainingMode = false,
+            SoloRpoCommandsAllowed = false,
             RpoShowPilotSpeech = false,
             TerminalEmitter = null,
             ArtccConfig = null,

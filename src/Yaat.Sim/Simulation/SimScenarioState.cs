@@ -231,6 +231,13 @@ public sealed class SimScenarioState
     // change.
     public bool SoloTrainingMode { get; set; }
 
+    /// <summary>
+    /// Development flag: when true, solo training accepts the RPO-only commands (FOLLOWF, CVAF, RFISF, RTISF, CLANDF)
+    /// it otherwise refuses. Set only by a recorded setting change (the headless soak runner's switch), never from the
+    /// environment, so a replay restores it from the archive. Default false.
+    /// </summary>
+    public bool SoloRpoCommandsAllowed { get; set; }
+
     public int SoloParkingInitialCallupRatePercent { get; set; } = 100;
 
     public int SoloArrivalGeneratorRatePercent { get; set; } = 100;
@@ -528,6 +535,7 @@ public sealed class SimScenarioState
             LiveTrafficFilter = LiveTrafficFilter,
             ValidateDctFixes = ValidateDctFixes,
             SoloTrainingMode = SoloTrainingMode,
+            SoloRpoCommandsAllowed = SoloRpoCommandsAllowed,
             SoloParkingInitialCallupRatePercent = SoloParkingInitialCallupRatePercent,
             SoloArrivalGeneratorRatePercent = SoloArrivalGeneratorRatePercent,
             SoloGoAroundProbabilityPercent = SoloGoAroundProbabilityPercent,

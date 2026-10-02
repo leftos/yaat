@@ -1768,7 +1768,7 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchReportFieldInSightForced(AircraftState aircraft, DispatchContext ctx)
     {
-        if (ctx.SoloTrainingMode)
+        if (ctx.RefusesRpoOnly)
         {
             return new CommandResult(false, "RFISF is RPO-only; use RFIS <clock> <miles> in solo training");
         }
@@ -1786,7 +1786,7 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchReportTrafficInSightForced(AircraftState aircraft, string? targetCallsign, DispatchContext ctx)
     {
-        if (ctx.SoloTrainingMode)
+        if (ctx.RefusesRpoOnly)
         {
             return new CommandResult(false, "RTISF is RPO-only; use RTIS <clock> <miles> <direction> <type> <altitude> in solo training");
         }

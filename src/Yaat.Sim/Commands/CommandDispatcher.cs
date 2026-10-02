@@ -3790,7 +3790,7 @@ public static class CommandDispatcher
     /// The refusal, or null when the command may proceed.
     /// </summary>
     private static CommandResult? ForcedFollowRefusal(DispatchContext ctx) =>
-        ctx.SoloTrainingMode ? new CommandResult(false, "FOLLOWF is RPO-only; use RTIS/RTISF in solo training") : null;
+        ctx.RefusesRpoOnly ? new CommandResult(false, "FOLLOWF is RPO-only; use RTIS/RTISF in solo training") : null;
 
     /// <summary>
     /// The traffic a FOLLOW names: its explicit callsign always wins; a bare FOLLOWF then folds in the still-pending RTIS
