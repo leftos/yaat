@@ -4,15 +4,12 @@
 
 ## Do first
 
-- [ ] YAAT-228 release.yml drops the changelog output as 'may contain secret', leaving the draft's Changelog empty — High · No project
-
-## ERAM release gate
-
-- [ ] YAAT-6 Cut the release once ERAM, the ERAM singles and the bug/request list land · release vNext
+- [x] YAAT-228 release.yml drops the changelog output as 'may contain secret', leaving the draft's Changelog empty · release vNext — High · Singles
 
 ## Bug reports and feature requests
 
 - [/] YAAT-7 Record the FOLLOW video montage (release cut and review reel) · release vNext
+- [ ] YAAT-232 Solo dev cheat so montage clips can use RPO-only commands (FOLLOWF for A11)
 - [ ] YAAT-217 Pattern: apply a pending pattern-altitude override before the wrong-side join decides on a teardrop
 
 ## Client driver in the background (#474)
@@ -20,17 +17,19 @@
 - [/] YAAT-8 Drive YAAT.Client without stealing focus (automation pipe) · release vNext
   - [x] YAAT-9 Client driver automation pipe: brief 4b, the wait_for tool · release vNext
   - [x] YAAT-10 Client driver automation pipe: brief 4c, the screenshot tool · release vNext
-  - [ ] YAAT-220 Share the pipe list_windows helper between launch_yaat and list_windows
+  - [x] YAAT-220 Share the pipe list_windows helper between launch_yaat and list_windows · release vNext
 - [ ] YAAT-11 Merge feat/client-driver-background (#474) · release vNext
+- [ ] YAAT-230 live-check -WithInput: File click sometimes counts 2 menu windows before the click
 
 ## Context-menu quick commands (#471)
 
-- [/] YAAT-224 Open the command and note flyouts through MenuPopups; drop the unreachable blank-input branches
+- [x] YAAT-224 Open the command and note flyouts through MenuPopups; drop the unreachable blank-input branches · release vNext
 - [/] YAAT-12 Context-menu quick commands: per-situation lists with the icon strip · release vNext
   - [x] YAAT-13 Context-menu quick commands: brief 7d (header, footer, relative items) · release vNext
   - [/] YAAT-14 Context-menu quick commands: brief 7e (one tree on every surface) · release vNext
   - [ ] YAAT-15 Context-menu quick commands step 3: per-situation lists with the icon strip · release vNext
 - [ ] YAAT-16 Merge feat/context-menu-quick-commands (#471, yaat-server#21) · release vNext
+- [ ] YAAT-229 Route the data-block field popups through MenuPopups.Open; wrap MenuPopups' summary line
 
 ## Tick-path unification
 
@@ -272,6 +271,7 @@
 - [ ] YAAT-193 Add the HOLDP EFC argument and release path
 - [ ] YAAT-194 Auto-delete follow-ups: split TickAutoDelete, override null check
 - [ ] YAAT-195 Cover the SFO ground-technique tests (next: B4 RES HS B1, A2)
+- [ ] YAAT-233 FOLLOW: base-turn hold releases then breaks off; 28L pattern altitude 609 ft
 
 ## Backlog
 
