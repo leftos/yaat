@@ -17,6 +17,7 @@
 - [/] YAAT-8 Drive YAAT.Client without stealing focus (automation pipe) · release vNext
   - [x] YAAT-9 Client driver automation pipe: brief 4b, the wait_for tool · release vNext
   - [x] YAAT-10 Client driver automation pipe: brief 4c, the screenshot tool · release vNext
+  - [ ] YAAT-220 Share the pipe list_windows helper between launch_yaat and list_windows
 - [ ] YAAT-11 Merge feat/client-driver-background (#474) · release vNext
 
 ## Context-menu quick commands (#471)
@@ -55,8 +56,10 @@
 
 ## STT tuning
 
-- [ ] YAAT-28 Close the STT rule gaps from the controller-voice ouroboros
+- [/] YAAT-28 Close the STT rule gaps from the controller-voice ouroboros
 - [ ] YAAT-29 Spike: bake off local STT models on our corpus in Yaat.SpeechSandbox
+- [ ] YAAT-218 Map spoken 'follow <callsign>' on the ground to FOLLOWG by aircraft state
+- [ ] YAAT-219 Map 'follow <description>' to FOLLOW and 'follow X, cleared visual' to CVA FOLLOW
 
 ## Wave 1 — Ground realism and braking
 
