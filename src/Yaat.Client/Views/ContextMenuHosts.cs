@@ -59,7 +59,8 @@ internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainVi
         | MenuHostCapabilities.Measure
         | MenuHostCapabilities.DrawRoute;
 
-    public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) => MenuPopups.ShowInput(view.Canvas, placeholder, "", 0, onSubmit);
+    public void ShowInputPopup(string placeholder, BlankInput blank, Func<string, Task> onSubmit) =>
+        MenuPopups.ShowInput(view.Canvas, placeholder, "", 0, blank, onSubmit);
 
     public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick) =>
         MenuPopups.ShowList(view.Canvas, items, selected, onPick);
@@ -182,7 +183,8 @@ internal sealed class GroundMenuHost(GroundView view, GroundViewModel ground, Ma
         | MenuHostCapabilities.DrawRoute
         | MenuHostCapabilities.GroundMovement;
 
-    public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) => MenuPopups.ShowInput(view.Canvas, placeholder, "", 0, onSubmit);
+    public void ShowInputPopup(string placeholder, BlankInput blank, Func<string, Task> onSubmit) =>
+        MenuPopups.ShowInput(view.Canvas, placeholder, "", 0, blank, onSubmit);
 
     public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick) =>
         MenuPopups.ShowList(view.Canvas, items, selected, onPick);
@@ -395,7 +397,8 @@ internal sealed class ListMenuHost(MainViewModel main, AircraftModel aircraft, C
     public MenuHostCapabilities Capabilities =>
         MenuHostCapabilities.InputPopup | MenuHostCapabilities.FlightPlanEditor | MenuHostCapabilities.MultiSelectAssume;
 
-    public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) => MenuPopups.ShowInput(flyoutAnchor, placeholder, "", 0, onSubmit);
+    public void ShowInputPopup(string placeholder, BlankInput blank, Func<string, Task> onSubmit) =>
+        MenuPopups.ShowInput(flyoutAnchor, placeholder, "", 0, blank, onSubmit);
 
     public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick) =>
         MenuPopups.ShowList(flyoutAnchor, items, selected, onPick);

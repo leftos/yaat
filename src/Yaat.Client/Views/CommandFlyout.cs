@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
-using Avalonia.Threading;
 using Yaat.Client.Views.Radar.Flyouts;
 
 namespace Yaat.Client.Views;
@@ -13,9 +12,10 @@ namespace Yaat.Client.Views;
 /// </summary>
 internal static class CommandFlyout
 {
-    public static void Open(Control anchor, string callsign, Func<string, Task> onSubmit)
+    /// <summary>Builds the command popup anchored to <paramref name="anchor"/>; the caller attaches and opens it.</summary>
+    public static Popup Build(Control anchor, string callsign, Func<string, Task> onSubmit)
     {
-        Popup popup = TextEntryPopup.Build(
+        return TextEntryPopup.Build(
             anchor,
             title: $"Command — {callsign}",
             subtitle: null,
@@ -32,22 +32,5 @@ internal static class CommandFlyout
                 }
             }
         );
-
-        var overlay = OverlayLayer.GetOverlayLayer(anchor);
-        if (overlay is null)
-        {
-            return;
-        }
-        overlay.Children.Add(popup);
-        popup.Closed += (s, _) =>
-        {
-            if (s is Popup p)
-            {
-                overlay.Children.Remove(p);
-            }
-        };
-        // Defer so the context menu closing in this same message doesn't immediately light-dismiss the
-        // new popup (mirrors MenuPopups.Open).
-        Dispatcher.UIThread.Post(() => popup.IsOpen = true);
     }
 }

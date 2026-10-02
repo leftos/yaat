@@ -1010,6 +1010,28 @@ public class MenuCatalogCommandTests
     }
 
     [AvaloniaFact]
+    public void ReportTrafficInSight_AsksWithBlankSubmits()
+    {
+        var host = new RecordingMenuHost("");
+        MenuItem? item = MenuCatalog.Get(MenuIds.ApproachReportTrafficInSight).Build(null, Context(), host);
+
+        Click(AssertPicker(item, "Report traffic in sight...", MenuPickerDescriptor.Input, []));
+
+        Assert.Equal(BlankInput.Submits, host.LastBlankInput);
+    }
+
+    [AvaloniaFact]
+    public void Squawk_AsksWithBlankCloses()
+    {
+        var host = new RecordingMenuHost(PositionOrCode);
+        MenuItem? item = MenuCatalog.Get(MenuIds.SquawkCode).Build(null, Context(), host);
+
+        Click(AssertPicker(item, "Squawk...", MenuPickerDescriptor.Input, []));
+
+        Assert.Equal(BlankInput.Closes, host.LastBlankInput);
+    }
+
+    [AvaloniaFact]
     public void Approach_Header_ShowsActiveThenExpected()
     {
         var host = new RecordingMenuHost("");
@@ -1301,6 +1323,17 @@ public class MenuCatalogCommandTests
         Click(Assert.Single(children, m => m.Header is "Custom..."));
         Assert.Equal(["CTO arg (e.g. RH 3000, LT 270, DCT BERKS)"], host.InputPlaceholders);
         Assert.Equal([(Callsign, command, Initials)], host.Sent);
+    }
+
+    [AvaloniaFact]
+    public void Tower_CtoCustom_AsksWithBlankSubmits()
+    {
+        var host = new RecordingMenuHost("");
+
+        List<MenuItem> children = ClearedForTakeoffChildItems(host);
+
+        Click(Assert.Single(children, m => m.Header is "Custom..."));
+        Assert.Equal(BlankInput.Submits, host.LastBlankInput);
     }
 
     /// <summary>The Cleared for takeoff submenu's items for a VFR departure lined up on 30, which is offered every one.</summary>
@@ -2343,6 +2376,20 @@ public class MenuCatalogCommandTests
         Assert.Equal(["Runway (optional)"], host.InputPlaceholders);
         Assert.Equal([(Callsign, command, Initials)], host.Sent);
         Assert.Null(MenuCatalog.BuildPatternEntryOther(MenuIds.PatternEnterLeftDownwind, aircraft, Context(), host));
+    }
+
+    [AvaloniaFact]
+    public void PatternEntry_InputTier_AsksWithBlankSubmits()
+    {
+        TestVnasData.EnsureInitialized();
+        Assert.Empty(RunwayDesignators.ForAirport(UnknownAirport));
+        var host = new RecordingMenuHost("");
+        var aircraft = new FakeMenuAircraft { Destination = UnknownAirport };
+
+        MenuItem? item = MenuCatalog.Get(MenuIds.PatternEnterLeftDownwind).Build(aircraft, Context(), host);
+        Click(AssertPicker(item, "Enter left downwind...", MenuPickerDescriptor.Input, []));
+
+        Assert.Equal(BlankInput.Submits, host.LastBlankInput);
     }
 
     [AvaloniaFact]

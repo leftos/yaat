@@ -78,9 +78,13 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
     /// <summary>The text an input popup is answered with when it differs from a picker's answer; the picker's answer when null.</summary>
     public string? InputAnswer { get; init; }
 
-    public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit)
+    /// <summary>The blank-submit setting the last input popup was opened with; null before any input popup opened.</summary>
+    public BlankInput? LastBlankInput { get; private set; }
+
+    public void ShowInputPopup(string placeholder, BlankInput blank, Func<string, Task> onSubmit)
     {
         InputPlaceholders.Add(placeholder);
+        LastBlankInput = blank;
         _ = onSubmit(InputAnswer ?? input);
     }
 

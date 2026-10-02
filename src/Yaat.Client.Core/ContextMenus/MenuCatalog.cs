@@ -58,11 +58,11 @@ public static class MenuCatalog
         Leaf(MenuIds.TrackTrack, "Track", "TRACK", Always),
         Leaf(MenuIds.TrackDrop, "Drop track", "DROP", Always),
         Leaf(MenuIds.TrackAcceptHandoff, "Accept handoff", "ACCEPT", Always),
-        InputLeaf(MenuIds.TrackInitiateHandoff, "Initiate handoff...", "Position ID", input => $"HO {input}"),
+        InputLeaf(MenuIds.TrackInitiateHandoff, "Initiate handoff...", "Position ID", BlankInput.Closes, input => $"HO {input}"),
         Leaf(MenuIds.TrackCancelHandoff, "Cancel handoff", "CANCEL", Always),
-        InputLeaf(MenuIds.TrackPointOut, "Point out...", "Position ID", input => $"PO {input}"),
+        InputLeaf(MenuIds.TrackPointOut, "Point out...", "Position ID", BlankInput.Closes, input => $"PO {input}"),
         Leaf(MenuIds.TrackAcknowledgePointout, "Acknowledge pointout", "OK", Always),
-        InputLeaf(MenuIds.SquawkCode, "Squawk...", "Code (0000-7777)", input => $"SQ {int.Parse(input)}"),
+        InputLeaf(MenuIds.SquawkCode, "Squawk...", "Code (0000-7777)", BlankInput.Closes, input => $"SQ {int.Parse(input)}"),
         Leaf(MenuIds.SquawkRandom, "Squawk random", "RANDSQ", Always),
         Leaf(MenuIds.SquawkVfr, "Squawk VFR", "SQVFR", Always),
         Leaf(MenuIds.SquawkNormal, "Squawk normal", "SQNORM", Always),
@@ -79,7 +79,7 @@ public static class MenuCatalog
             "Custom...",
             MenuFlightRules.Both,
             CanAskPilot,
-            (_, context, host) => BuildInput("Custom...", "Text", input => $"SAY {input}", context, host)
+            (_, context, host) => BuildInput("Custom...", "Text", BlankInput.Closes, input => $"SAY {input}", context, host)
         )
         {
             Requires = MenuHostCapabilities.InputPopup,
@@ -101,9 +101,9 @@ public static class MenuCatalog
             "CFR CHECK",
             (ac, _) => AircraftCommandApplicability.CanCheckReleaseWindow(ac)
         ),
-        InputLeaf(MenuIds.DataBlockScratchpad, "Scratchpad...", "Text", input => $"SP {input}"),
-        InputLeaf(MenuIds.DataBlockTempAltitude, "Temporary altitude...", "Altitude", input => $"TEMPALT {int.Parse(input)}"),
-        InputLeaf(MenuIds.DataBlockCruise, "Cruise...", "Altitude", input => $"CRUISE {int.Parse(input)}"),
+        InputLeaf(MenuIds.DataBlockScratchpad, "Scratchpad...", "Text", BlankInput.Closes, input => $"SP {input}"),
+        InputLeaf(MenuIds.DataBlockTempAltitude, "Temporary altitude...", "Altitude", BlankInput.Closes, input => $"TEMPALT {int.Parse(input)}"),
+        InputLeaf(MenuIds.DataBlockCruise, "Cruise...", "Altitude", BlankInput.Closes, input => $"CRUISE {int.Parse(input)}"),
         Leaf(MenuIds.DataBlockAnnotate, "Annotate", "ANNOTATE", Always),
         HostLeaf(MenuIds.SimControlWarp, "Warp...", Always, BuildWarp) with
         {
@@ -159,7 +159,7 @@ public static class MenuCatalog
         {
             Requires = MenuHostCapabilities.ListPicker,
         },
-        InputLeaf(MenuIds.SpeedCustom, "Speed...", "Speed (knots)", input => $"SPD {int.Parse(input)}"),
+        InputLeaf(MenuIds.SpeedCustom, "Speed...", "Speed (knots)", BlankInput.Closes, input => $"SPD {int.Parse(input)}"),
         Leaf(MenuIds.SpeedNormal, "Resume normal speed", "RNS", Always),
         Picker(MenuIds.SpeedFinalApproach, "FAS", BuildFinalApproachSpeed),
         FixPicker(MenuIds.NavigationDirectTo, "Direct to...", "DCT", Always, RouteFixes),
@@ -185,13 +185,19 @@ public static class MenuCatalog
             Requires = MenuHostCapabilities.ListPicker | MenuHostCapabilities.InputPopup,
         },
         Leaf(MenuIds.ApproachReportFieldInSight, "Report field in sight", "RFIS", Always),
-        InputLeaf(MenuIds.ApproachReportTrafficInSight, "Report traffic in sight...", "Target callsign (optional)", FormatTrafficInSight),
+        InputLeaf(
+            MenuIds.ApproachReportTrafficInSight,
+            "Report traffic in sight...",
+            "Target callsign (optional)",
+            BlankInput.Submits,
+            FormatTrafficInSight
+        ),
         Leaf(MenuIds.ApproachReportBase, "Turning base", "REPORT BASE", Always),
         Leaf(MenuIds.ApproachReportFinal, "Turning final", "REPORT FINAL", Always),
         Leaf(MenuIds.ApproachReportCrosswind, "Turning crosswind", "REPORT CROSSWIND", Always),
         Leaf(MenuIds.ApproachReportDownwind, "Turning downwind", "REPORT DOWNWIND", Always),
-        InputLeaf(MenuIds.ApproachReportNMileFinal, "N-mile final...", "Distance (NM)", input => $"REPORT {input} FINAL"),
-        InputLeaf(MenuIds.ApproachReportAtFix, "At fix...", "Fix name", input => $"REPORT {input}"),
+        InputLeaf(MenuIds.ApproachReportNMileFinal, "N-mile final...", "Distance (NM)", BlankInput.Closes, input => $"REPORT {input} FINAL"),
+        InputLeaf(MenuIds.ApproachReportAtFix, "At fix...", "Fix name", BlankInput.Closes, input => $"REPORT {input}"),
         Leaf(MenuIds.ApproachReportOffBase, "Base", "REPORT OFF BASE", Always),
         Leaf(MenuIds.ApproachReportOffFinal, "Final", "REPORT OFF FINAL", Always),
         Leaf(MenuIds.ApproachReportOffCrosswind, "Crosswind", "REPORT OFF CROSSWIND", Always),
@@ -205,7 +211,7 @@ public static class MenuCatalog
         Leaf(MenuIds.ProceduresDescendViaStar, "Descend via STAR", "DVIA", Always),
         RouteFixPicker(MenuIds.ProceduresCrossFix, CrossFixLabel, CrossFixCommand),
         RouteFixPicker(MenuIds.ProceduresDepartFix, DepartFixLabel, DepartFixCommand),
-        InputLeaf(MenuIds.ProceduresPtac, "PTAC...", "PTAC arguments", input => $"PTAC {input}"),
+        InputLeaf(MenuIds.ProceduresPtac, "PTAC...", "PTAC arguments", BlankInput.Closes, input => $"PTAC {input}"),
         Picker(MenuIds.ProceduresJoinAirway, JoinAirwayLabel, BuildJoinAirway) with
         {
             Requires = MenuHostCapabilities.ListPicker | MenuHostCapabilities.InputPopup,
@@ -774,6 +780,7 @@ public static class MenuCatalog
             BuildInput(
                 "Custom...",
                 ClearedForTakeoffPlaceholder,
+                BlankInput.Submits,
                 input => string.IsNullOrWhiteSpace(input) ? "CTO" : $"CTO {input.Trim()}",
                 context,
                 host
@@ -814,6 +821,7 @@ public static class MenuCatalog
         return BuildInput(
             $"{label}{Ellipsis}",
             "Runway (optional)",
+            BlankInput.Submits,
             input => string.IsNullOrWhiteSpace(input) ? command : $"{command} {input}",
             context,
             host
@@ -860,8 +868,8 @@ public static class MenuCatalog
         return BuildList(label, items, items[0], picked => Send($"{command} {picked}", context, host), host);
     }
 
-    private static MenuCatalogEntry InputLeaf(string id, string label, string placeholder, Func<string, string> format) =>
-        new(id, label, MenuFlightRules.Both, Always, (_, context, host) => BuildInput(label, placeholder, format, context, host))
+    private static MenuCatalogEntry InputLeaf(string id, string label, string placeholder, BlankInput blank, Func<string, string> format) =>
+        new(id, label, MenuFlightRules.Both, Always, (_, context, host) => BuildInput(label, placeholder, blank, format, context, host))
         {
             Requires = MenuHostCapabilities.InputPopup,
         };
@@ -896,10 +904,17 @@ public static class MenuCatalog
     private static MenuCatalogEntry Submenu(string id, string label, Func<string, MenuContext, IMenuHost, MenuItem> build) =>
         new(id, label, MenuFlightRules.Both, Always, (_, context, host) => build(label, context, host));
 
-    private static MenuItem BuildInput(string label, string placeholder, Func<string, string> format, MenuContext context, IMenuHost host)
+    private static MenuItem BuildInput(
+        string label,
+        string placeholder,
+        BlankInput blank,
+        Func<string, string> format,
+        MenuContext context,
+        IMenuHost host
+    )
     {
         var item = new MenuItem { Header = label, Tag = new MenuPickerDescriptor(MenuPickerDescriptor.Input, []) };
-        item.Click += (_, _) => host.ShowInputPopup(placeholder, input => host.SendAsync(context.Callsign, format(input), context.Initials));
+        item.Click += (_, _) => host.ShowInputPopup(placeholder, blank, input => host.SendAsync(context.Callsign, format(input), context.Initials));
         return item;
     }
 
@@ -1366,7 +1381,7 @@ public static class MenuCatalog
             return BuildList(label[..^Ellipsis.Length], routeItems, routeItems[0], fix => Send($"{command} {fix}", context, host), host);
         }
 
-        return BuildInput(label, FixNamePlaceholder, input => $"{command} {input}", context, host);
+        return BuildInput(label, FixNamePlaceholder, BlankInput.Closes, input => $"{command} {input}", context, host);
     }
 
     /// <summary>The Draw route item, which puts the host into drawing a route for the aircraft.</summary>
@@ -1396,7 +1411,7 @@ public static class MenuCatalog
             return BuildList(label, ids, ids[0], picked => Send($"{command} {picked}", context, host), host);
         }
 
-        return BuildInput($"{label}{Ellipsis}", "Approach ID", input => $"{command} {input}", context, host);
+        return BuildInput($"{label}{Ellipsis}", "Approach ID", BlankInput.Closes, input => $"{command} {input}", context, host);
     }
 
     /// <summary>The destination's published approaches; none without an aircraft or a destination.</summary>
@@ -1457,7 +1472,7 @@ public static class MenuCatalog
             return BuildVisualRunwayList($"{label}{Ellipsis}", runways, context, host);
         }
 
-        return BuildInput($"{label}{Ellipsis}", "Runway (e.g. 28R)", input => $"CVA {input}", context, host);
+        return BuildInput($"{label}{Ellipsis}", "Runway (e.g. 28R)", BlankInput.Closes, input => $"CVA {input}", context, host);
     }
 
     /// <summary>
@@ -1503,7 +1518,7 @@ public static class MenuCatalog
             return BuildStarList($"{label}{Ellipsis}", stars, context, host);
         }
 
-        return BuildInput($"{label}{Ellipsis}", "STAR name", input => $"JARR {input}", context, host);
+        return BuildInput($"{label}{Ellipsis}", "STAR name", BlankInput.Closes, input => $"JARR {input}", context, host);
     }
 
     /// <summary>
@@ -1657,7 +1672,7 @@ public static class MenuCatalog
             return BuildList($"{spec.Label}{Ellipsis}", items, items[0], picked => Send($"{spec.Command} {picked}", context, host), host);
         }
 
-        return BuildInput($"{spec.Label}{Ellipsis}", spec.Placeholder, input => $"{spec.Command} {input}", context, host);
+        return BuildInput($"{spec.Label}{Ellipsis}", spec.Placeholder, BlankInput.Closes, input => $"{spec.Command} {input}", context, host);
     }
 
     /// <summary>
@@ -1665,7 +1680,9 @@ public static class MenuCatalog
     /// or more <paramref name="values"/>; null without any, where the item itself is the free text.
     /// </summary>
     private static MenuItem? BuildOtherInput(ValueItemSpec spec, IReadOnlyList<string> values, MenuContext context, IMenuHost host) =>
-        values.Count > 0 ? BuildInput($"{spec.Label} (other){Ellipsis}", spec.Placeholder, input => $"{spec.Command} {input}", context, host) : null;
+        values.Count > 0
+            ? BuildInput($"{spec.Label} (other){Ellipsis}", spec.Placeholder, BlankInput.Closes, input => $"{spec.Command} {input}", context, host)
+            : null;
 
     /// <summary>
     /// What a <see cref="BuildOneManyOrInput"/> item and its "(other)" companion say and send: the label they extend,
@@ -1694,14 +1711,14 @@ public static class MenuCatalog
                 null,
                 fix =>
                 {
-                    host.ShowInputPopup(bearingPrompt(fix), bearing => Send($"{command} {fix} {bearing}", context, host));
+                    host.ShowInputPopup(bearingPrompt(fix), BlankInput.Closes, bearing => Send($"{command} {fix} {bearing}", context, host));
                     return Task.CompletedTask;
                 },
                 host
             );
         }
 
-        return BuildInput(label, "FIX bearing", input => $"{command} {input}", context, host);
+        return BuildInput(label, "FIX bearing", BlankInput.Closes, input => $"{command} {input}", context, host);
     }
 
     private static MenuItem BuildAssumeAndTrack(MenuContext context, IMenuHost host)

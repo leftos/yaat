@@ -13,9 +13,10 @@ public interface IMenuHost
 
     /// <summary>
     /// Opens the surface's free-text input showing <paramref name="placeholder"/>, and hands the submitted text to
-    /// <paramref name="onSubmit"/>.
+    /// <paramref name="onSubmit"/>. A blank submit follows <paramref name="blank"/>: <see cref="BlankInput.Closes"/>
+    /// closes the popup without calling it, <see cref="BlankInput.Submits"/> hands it <c>""</c>.
     /// </summary>
-    void ShowInputPopup(string placeholder, Func<string, Task> onSubmit);
+    void ShowInputPopup(string placeholder, BlankInput blank, Func<string, Task> onSubmit);
 
     /// <summary>
     /// The families of members this surface serves. The catalog hides an entry whose

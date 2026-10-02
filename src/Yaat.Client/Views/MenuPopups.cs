@@ -6,6 +6,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Logging;
 using Yaat.Client.Views.Radar.Flyouts;
 
@@ -39,10 +40,18 @@ internal static class MenuPopups
     /// <summary>
     /// Opens a focused free-text box showing <paramref name="placeholder"/> as its prompt, holding
     /// <paramref name="initialText"/> with the caret at <paramref name="caretIndex"/> (clamped to the text). Enter or OK
-    /// closes it and hands the trimmed text to <paramref name="onSubmit"/>; blank text, Clear and Escape close it
-    /// without calling it.
+    /// closes it and hands the trimmed text to <paramref name="onSubmit"/>; a blank submit follows
+    /// <paramref name="blank"/> — <see cref="BlankInput.Submits"/> calls it with <c>""</c>, <see cref="BlankInput.Closes"/>
+    /// does not call it. Clear and Escape close it without calling it.
     /// </summary>
-    public static void ShowInput(Control anchor, string placeholder, string initialText, int caretIndex, Func<string, Task> onSubmit)
+    public static void ShowInput(
+        Control anchor,
+        string placeholder,
+        string initialText,
+        int caretIndex,
+        BlankInput blank,
+        Func<string, Task> onSubmit
+    )
     {
         Popup popup = NewPopup(anchor);
         var textBox = new TextBox
@@ -60,6 +69,10 @@ internal static class MenuPopups
             if (text.Length > 0)
             {
                 await onSubmit(text);
+            }
+            else if (blank == BlankInput.Submits)
+            {
+                await onSubmit("");
             }
         }
 
@@ -329,11 +342,12 @@ internal static class MenuPopups
     }
 
     /// <summary>Opens the Command… flyout for <paramref name="callsign"/> on <paramref name="anchor"/>.</summary>
-    public static void ShowCommand(Control anchor, string callsign, Func<string, Task> onSubmit) => CommandFlyout.Open(anchor, callsign, onSubmit);
+    public static void ShowCommand(Control anchor, string callsign, Func<string, Task> onSubmit) =>
+        Open(anchor, CommandFlyout.Build(anchor, callsign, onSubmit), "command");
 
     /// <summary>Opens the Note… flyout for <paramref name="callsign"/> on <paramref name="anchor"/>.</summary>
     public static void ShowNote(Control anchor, string callsign, string currentNote, Func<string, Task> sendCommand) =>
-        NoteFlyout.Open(anchor, callsign, currentNote, sendCommand);
+        Open(anchor, NoteFlyout.Build(anchor, callsign, currentNote, sendCommand), "note");
 
     private static Popup NewPopup(Control anchor) =>
         new()
