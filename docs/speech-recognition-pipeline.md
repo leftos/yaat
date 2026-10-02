@@ -550,8 +550,9 @@ at startup with `WhisperBiasingPrompt.Default` to match production.
 - Alphanumeric taxiway names (`B6`, `A13`) — `"bravo six"` collides
   with `AtcNumberParser`'s digit pass before `NatoLetterNormalizer`
   sees it. Single-letter + bare-letter-combinations only.
-- Destinations like "the ramp" — no canonical without pre-programmed
-  parking names (`@<name>`).
+- Destinations like "the ramp" — no canonical; a spoken gate, parking or
+  spot name maps to `@<name>` only when the scenario's layout supplies it
+  (NATO letters collapse first, Whisper's ICAO "alfa" included).
 - `face left` / `face right` — no canonical without parking geometry.
 - Intercardinals (`face northeast`).
 - Compound clauses the rule engine can't express.

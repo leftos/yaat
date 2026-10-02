@@ -13,9 +13,21 @@ public sealed record TemplateResult(string Template, string Family, int Cases, i
 public sealed record TotalsResult(int Cases, int Pass, int Flaky, int Fail, double PassRate, double? MeanWer);
 
 /// <summary>
+/// A case that did not pass every trial, with what each trial heard and mapped — evidence for a
+/// tuning wave, never compared against the baseline.
+/// </summary>
+/// <param name="Case">The case directory name (<c>synth-&lt;seed&gt;-NNN-&lt;template&gt;</c>).</param>
+/// <param name="Template">The generator template key, or <c>(none)</c> for a real recording.</param>
+/// <param name="Expected">The labeled canonical.</param>
+/// <param name="Verdict">FLAKY or FAIL.</param>
+/// <param name="Trials">Each trial's transcript, rule-mapper canonical and final canonical.</param>
+public sealed record FailingCase(string Case, string Template, string Expected, EvalVerdict Verdict, IReadOnlyList<EvalTrial> Trials);
+
+/// <summary>
 /// The <c>results.json</c> of one <c>--atc-ouroboros</c> run, and the shape of the committed
 /// baseline (which omits <see cref="GeneratedUtc"/>). <see cref="Families"/> and
-/// <see cref="Templates"/> are sorted worst pass rate first.
+/// <see cref="Templates"/> are sorted worst pass rate first; <see cref="Failures"/> is in case
+/// order and is information only.
 /// </summary>
 public sealed record AtcOuroborosResults(
     int Seed,
@@ -27,7 +39,8 @@ public sealed record AtcOuroborosResults(
     IReadOnlyList<FamilyResult> Families,
     IReadOnlyList<TemplateResult> Templates,
     TotalsResult Totals,
-    IReadOnlyList<TemplateGap> Gaps
+    IReadOnlyList<TemplateGap> Gaps,
+    IReadOnlyList<FailingCase> Failures
 );
 
 /// <summary>Per-family, per-template and overall tallies of one scored corpus.</summary>
@@ -38,6 +51,7 @@ public sealed record AtcAggregate(IReadOnlyList<FamilyResult> Families, IReadOnl
     WriteIndented = true,
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    UseStringEnumConverter = true,
     NewLine = "\n"
 )]
 internal sealed partial class AtcOuroborosJsonContext : JsonSerializerContext;
@@ -73,12 +87,15 @@ public static class AtcOuroborosAnalysis
 
     private const double Epsilon = 1e-9;
 
+    /// <summary>The template key reported for a case with none (a real recording).</summary>
+    private const string NoTemplate = "(none)";
+
     /// <summary>Tallies <paramref name="verdicts"/> per rule family and per template (worst pass rate first) and overall.</summary>
     /// <param name="verdicts">Scored cases; a case with no template is grouped under <c>(none)</c>.</param>
     /// <param name="familyByTemplate">Template key → rule family; an unknown template reports family <c>unknown</c>.</param>
     public static AtcAggregate Aggregate(IReadOnlyList<EvalCaseResult> verdicts, IReadOnlyDictionary<string, string> familyByTemplate)
     {
-        string TemplateOf(EvalCaseResult v) => v.Template ?? "(none)";
+        string TemplateOf(EvalCaseResult v) => v.Template ?? NoTemplate;
         string FamilyOf(EvalCaseResult v) => familyByTemplate.TryGetValue(TemplateOf(v), out string? f) ? f : "unknown";
 
         List<FamilyResult> families =
@@ -145,6 +162,14 @@ public static class AtcOuroborosAnalysis
         return new BaselineDiffResult(diffs, totals, newGaps);
     }
 
+    /// <summary>Every case that did not pass all its trials, in the order given, with its trials' transcripts and canonicals.</summary>
+    public static IReadOnlyList<FailingCase> Failures(IReadOnlyList<EvalCaseResult> verdicts) =>
+        [
+            .. verdicts
+                .Where(v => v.Verdict != EvalVerdict.Pass)
+                .Select(v => new FailingCase(v.CaseName, v.Template ?? NoTemplate, v.ExpectedCanonical, v.Verdict, v.Trials)),
+        ];
+
     /// <summary>Exit code for a finished run: no baseline (null) or no regression → 0, any regression → 3.</summary>
     public static int ExitCodeFor(BaselineDiffResult? diff) => (diff?.HasRegression ?? false) ? ExitRegression : ExitNoRegression;
 
@@ -154,8 +179,14 @@ public static class AtcOuroborosAnalysis
     public static string Serialize(AtcOuroborosResults results) =>
         JsonSerializer.Serialize(results, AtcOuroborosJsonContext.Default.AtcOuroborosResults);
 
+    /// <summary>Reads a results document; one written before failing cases were recorded reads with an empty <see cref="AtcOuroborosResults.Failures"/>.</summary>
     public static AtcOuroborosResults? Deserialize(string json) =>
-        JsonSerializer.Deserialize(json, AtcOuroborosJsonContext.Default.AtcOuroborosResults);
+        JsonSerializer.Deserialize(json, AtcOuroborosJsonContext.Default.AtcOuroborosResults) is { } back
+            ? back with
+            {
+                Failures = back.Failures ?? [],
+            }
+            : null;
 
     private static DiffKind Classify(double baselinePassRate, int baselineCases, double currentPassRate, int currentCases)
     {

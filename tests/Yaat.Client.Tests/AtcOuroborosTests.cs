@@ -309,6 +309,85 @@ public sealed class AtcOuroborosTests
     }
 
     [Fact]
+    public void Failing_Case_Transcripts_Round_Trip_Through_The_Baseline_And_Are_Never_Compared()
+    {
+        EvalTrial heard = new("taxi via bravo charlie to gate golf alfa five", null, "TAXI B C TO GATE GOLF ALFA FIVE");
+        EvalCaseResult[] verdicts =
+        [
+            Verdict("fh", EvalVerdict.Pass, 0.0),
+            new(
+                "synth-007-taxi-gate",
+                "TAXI B C @GA5",
+                ["TAXI B C TO GATE GOLF ALFA FIVE"],
+                EvalVerdict.Fail,
+                0.1,
+                Synthetic: true,
+                "taxi-gate",
+                [heard]
+            ),
+            new(
+                "synth-008-fh",
+                "FH 270",
+                ["FH 270", "TR 270"],
+                EvalVerdict.Flaky,
+                0.0,
+                Synthetic: true,
+                "fh",
+                [new EvalTrial("fly heading two seven zero", "FH 270", "FH 270"), new EvalTrial("right heading two seven zero", "TR 270", "TR 270")]
+            ),
+        ];
+        AtcOuroborosResults results = Results([Family("GroundRules", 0, 1)], [], []) with { Failures = AtcOuroborosAnalysis.Failures(verdicts) };
+
+        AtcOuroborosResults? back = AtcOuroborosAnalysis.Deserialize(AtcOuroborosAnalysis.Serialize(AtcOuroborosAnalysis.ToBaseline(results)));
+
+        Assert.NotNull(back);
+        Assert.Equal(2, back.Failures.Count);
+        FailingCase failing = back.Failures[0];
+        Assert.Equal(
+            ("synth-007-taxi-gate", "taxi-gate", "TAXI B C @GA5", EvalVerdict.Fail),
+            (failing.Case, failing.Template, failing.Expected, failing.Verdict)
+        );
+        Assert.Equal(heard, Assert.Single(failing.Trials));
+        FailingCase flaky = back.Failures[1];
+        Assert.Equal(("synth-008-fh", EvalVerdict.Flaky), (flaky.Case, flaky.Verdict));
+        Assert.Equal(["fly heading two seven zero", "right heading two seven zero"], flaky.Trials.Select(t => t.Transcript));
+        Assert.Equal("TR 270", flaky.Trials[1].MapperCanonical);
+
+        EvalTrial heardOtherwise = new("taxi via bravo charlie to gate golf alpha five", "TAXI B C @GA5", "TAXI B C @GA5");
+        AtcOuroborosResults differentWords = back with { Failures = [failing with { Trials = [heardOtherwise] }] };
+        BaselineDiffResult diff = AtcOuroborosAnalysis.Compare(back, differentWords);
+
+        Assert.All(diff.Families, f => Assert.Equal(DiffKind.Unchanged, f.Kind));
+        Assert.Equal(DiffKind.Unchanged, diff.Totals);
+        Assert.Empty(diff.NewGaps);
+        Assert.Equal(AtcOuroborosAnalysis.ExitNoRegression, AtcOuroborosAnalysis.ExitCodeFor(diff));
+    }
+
+    [Fact]
+    public void A_Baseline_Without_Failures_Reads_As_An_Empty_List()
+    {
+        const string json = """
+            {
+              "seed": 1,
+              "cases": 4,
+              "trials": 3,
+              "sttModel": "stt",
+              "llmModel": "llm",
+              "families": [],
+              "templates": [],
+              "totals": { "cases": 4, "pass": 4, "flaky": 0, "fail": 0, "passRate": 1 },
+              "gaps": []
+            }
+            """;
+
+        AtcOuroborosResults? back = AtcOuroborosAnalysis.Deserialize(json);
+
+        Assert.NotNull(back);
+        Assert.NotNull(back.Failures);
+        Assert.Empty(back.Failures);
+    }
+
+    [Fact]
     public void Serialize_WritesLfLineEndingsOnly()
     {
         AtcOuroborosResults results = Results([Family("HeadingRules", 3, 4)], [Template("fh", "HeadingRules", 3, 4)], [Gap("cm")]);
@@ -350,7 +429,16 @@ public sealed class AtcOuroborosTests
         ];
 
     private static EvalCaseResult Verdict(string template, EvalVerdict verdict, double? wer) =>
-        new($"case-{template}", "FH 270", ["FH 270"], verdict, wer, Synthetic: true, template);
+        new(
+            $"case-{template}",
+            "FH 270",
+            ["FH 270"],
+            verdict,
+            wer,
+            Synthetic: true,
+            template,
+            [new EvalTrial("fly heading two seven zero", "FH 270", "FH 270")]
+        );
 
     private const int AtcOuroborosSeed = 20260928;
 
@@ -366,6 +454,6 @@ public sealed class AtcOuroborosTests
         int cases = families.Sum(f => f.Cases);
         int pass = families.Sum(f => f.Pass);
         var totals = new TotalsResult(cases, pass, 0, cases - pass, cases == 0 ? 0 : (double)pass / cases, null);
-        return new AtcOuroborosResults(1, cases, 3, "stt", "llm", DateTime.UtcNow, families, templates, totals, gaps);
+        return new AtcOuroborosResults(1, cases, 3, "stt", "llm", DateTime.UtcNow, families, templates, totals, gaps, []);
     }
 }

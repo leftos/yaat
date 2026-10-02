@@ -359,126 +359,58 @@ public static class PhraseologyRules
     private static PhraseologyRule[] TrafficAdvisoryRules() =>
         [
             // Relative position off the nose (8 octants).
-            new(
-                ["traffic", "off", "your?", "the?", "nose", "and?", "to?", "the?", "right", "{miles}", "mile?", "miles?", "a?", "an?", "{type}"],
-                "RTIS NR {miles} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
+            TrafficAdvisory(
+                ["traffic", "off", "your?", "the?", "nose", "and?", "to?", "the?", "right", "{miles}", "mile?", "miles?"],
+                "RTIS NR {miles} {type}"
             ),
-            new(
-                ["traffic", "off", "your?", "the?", "nose", "and?", "to?", "the?", "left", "{miles}", "mile?", "miles?", "a?", "an?", "{type}"],
-                "RTIS NL {miles} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
+            TrafficAdvisory(
+                ["traffic", "off", "your?", "the?", "nose", "and?", "to?", "the?", "left", "{miles}", "mile?", "miles?"],
+                "RTIS NL {miles} {type}"
             ),
-            new(
-                ["traffic", "off", "your?", "the?", "nose", "{miles}", "mile?", "miles?", "a?", "an?", "{type}"],
-                "RTIS NOSE {miles} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
+            TrafficAdvisory(["traffic", "off", "your?", "the?", "nose", "{miles}", "mile?", "miles?"], "RTIS NOSE {miles} {type}"),
+            TrafficAdvisory(
+                ["traffic", "off", "your?", "the?", "right", "and?", "slightly?", "behind", "you?", "{miles}", "mile?", "miles?"],
+                "RTIS RR {miles} {type}"
             ),
-            new(
-                [
-                    "traffic",
-                    "off",
-                    "your?",
-                    "the?",
-                    "right",
-                    "and?",
-                    "slightly?",
-                    "behind",
-                    "you?",
-                    "{miles}",
-                    "mile?",
-                    "miles?",
-                    "a?",
-                    "an?",
-                    "{type}",
-                ],
-                "RTIS RR {miles} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
+            TrafficAdvisory(
+                ["traffic", "off", "your?", "the?", "left", "and?", "slightly?", "behind", "you?", "{miles}", "mile?", "miles?"],
+                "RTIS LR {miles} {type}"
             ),
-            new(
-                [
-                    "traffic",
-                    "off",
-                    "your?",
-                    "the?",
-                    "left",
-                    "and?",
-                    "slightly?",
-                    "behind",
-                    "you?",
-                    "{miles}",
-                    "mile?",
-                    "miles?",
-                    "a?",
-                    "an?",
-                    "{type}",
-                ],
-                "RTIS LR {miles} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
-            ),
-            new(
-                ["traffic", "off", "your?", "to?", "your?", "the?", "right", "{miles}", "mile?", "miles?", "a?", "an?", "{type}"],
-                "RTIS R {miles} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
-            ),
-            new(
-                ["traffic", "off", "your?", "to?", "your?", "the?", "left", "{miles}", "mile?", "miles?", "a?", "an?", "{type}"],
-                "RTIS L {miles} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
-            ),
-            new(
-                ["traffic", "off", "your?", "the?", "tail", "{miles}", "mile?", "miles?", "a?", "an?", "{type}"],
-                "RTIS TAIL {miles} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
-            ),
-            new(
-                ["traffic", "behind", "{miles}", "mile?", "miles?", "a?", "an?", "{type}"],
-                "RTIS TAIL {miles} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
-            ),
+            TrafficAdvisory(["traffic", "off", "your?", "to?", "your?", "the?", "right", "{miles}", "mile?", "miles?"], "RTIS R {miles} {type}"),
+            TrafficAdvisory(["traffic", "off", "your?", "to?", "your?", "the?", "left", "{miles}", "mile?", "miles?"], "RTIS L {miles} {type}"),
+            TrafficAdvisory(["traffic", "off", "your?", "the?", "tail", "{miles}", "mile?", "miles?"], "RTIS TAIL {miles} {type}"),
+            TrafficAdvisory(["traffic", "behind", "{miles}", "mile?", "miles?"], "RTIS TAIL {miles} {type}"),
             // Pattern legs.
-            new(
-                ["traffic", "on?", "a?", "{miles}", "mile?", "miles?", "left", "downwind", "for?", "runway?", "{rwy}", "a?", "an?", "{type}"],
-                "RTIS DW L {miles} {rwy} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
+            TrafficAdvisory(
+                ["traffic", "on?", "a?", "{miles}", "mile?", "miles?", "left", "downwind", "for?", "runway?", "{rwy}"],
+                "RTIS DW L {miles} {rwy} {type}"
             ),
-            new(
-                ["traffic", "on?", "a?", "{miles}", "mile?", "miles?", "right", "downwind", "for?", "runway?", "{rwy}", "a?", "an?", "{type}"],
-                "RTIS DW R {miles} {rwy} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
+            TrafficAdvisory(
+                ["traffic", "on?", "a?", "{miles}", "mile?", "miles?", "right", "downwind", "for?", "runway?", "{rwy}"],
+                "RTIS DW R {miles} {rwy} {type}"
             ),
-            new(
-                ["traffic", "on?", "a?", "{miles}", "mile?", "miles?", "left", "base", "for?", "runway?", "{rwy}", "a?", "an?", "{type}"],
-                "RTIS BASE L {miles} {rwy} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
+            TrafficAdvisory(
+                ["traffic", "on?", "a?", "{miles}", "mile?", "miles?", "left", "base", "for?", "runway?", "{rwy}"],
+                "RTIS BASE L {miles} {rwy} {type}"
             ),
-            new(
-                ["traffic", "on?", "a?", "{miles}", "mile?", "miles?", "right", "base", "for?", "runway?", "{rwy}", "a?", "an?", "{type}"],
-                "RTIS BASE R {miles} {rwy} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
+            TrafficAdvisory(
+                ["traffic", "on?", "a?", "{miles}", "mile?", "miles?", "right", "base", "for?", "runway?", "{rwy}"],
+                "RTIS BASE R {miles} {rwy} {type}"
             ),
-            new(
-                ["traffic", "on?", "a?", "{miles}", "mile?", "miles?", "final", "for?", "runway?", "{rwy}", "a?", "an?", "{type}"],
-                "RTIS FINAL {miles} {rwy} {type}",
-                ReportTrafficInSight,
-                SttOnly: true
+            TrafficAdvisory(
+                ["traffic", "on?", "a?", "{miles}", "mile?", "miles?", "final", "for?", "runway?", "{rwy}"],
+                "RTIS FINAL {miles} {rwy} {type}"
             ),
             // Landmark / VFR reporting point.
-            new(["traffic", "over", "the?", "{landmark}", "a?", "an?", "{type}"], "RTIS OVER {landmark} {type}", ReportTrafficInSight, SttOnly: true),
+            TrafficAdvisory(["traffic", "over", "the?", "{landmark}"], "RTIS OVER {landmark} {type}"),
         ];
+
+    /// <summary>
+    /// One traffic-advisory rule: the spoken position, then the shared type tail. The type follows an
+    /// optional article ("a" / "an") or a stray "of" / "to", which is how Whisper often hears "a Boeing".
+    /// </summary>
+    private static PhraseologyRule TrafficAdvisory(string[] position, string canonical) =>
+        new([.. position, "a?", "an?", "of?", "to?", "{type}"], canonical, ReportTrafficInSight, SttOnly: true);
 
     // --- Position-Turn-Altitude-Clearance (CommandRegistry.PositionTurnAltitudeClearance) ---
     //

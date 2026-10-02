@@ -60,6 +60,7 @@ public enum EvalVerdict
 /// <param name="Wer">Best (lowest) STT word-error-rate across trials; null when the case has no labeled transcript.</param>
 /// <param name="Synthetic">True for generator-produced (Piper) cases.</param>
 /// <param name="Template">The generator template key, or null for real recordings.</param>
+/// <param name="Trials">What each trial heard and mapped, in trial order.</param>
 public sealed record EvalCaseResult(
     string CaseName,
     string ExpectedCanonical,
@@ -67,8 +68,15 @@ public sealed record EvalCaseResult(
     EvalVerdict Verdict,
     double? Wer,
     bool Synthetic,
-    string? Template
+    string? Template,
+    IReadOnlyList<EvalTrial> Trials
 );
+
+/// <summary>One trial of an eval case.</summary>
+/// <param name="Transcript">The raw STT transcript (empty when STT heard nothing).</param>
+/// <param name="MapperCanonical">The rule mapper's canonical, or null when no rule matched.</param>
+/// <param name="FinalCanonical">The canonical the full pipeline produced (rule mapper, then the LLM fallback), or null when nothing mapped.</param>
+public sealed record EvalTrial(string Transcript, string? MapperCanonical, string? FinalCanonical);
 
 /// <summary>Everything one scoring pass produced.</summary>
 public sealed record EvalRunResult(IReadOnlyList<EvalCaseResult> Cases, int Skipped, string Summary, string ReportPath);
@@ -345,7 +353,8 @@ public static class EvalRunner
                 score.Verdict,
                 score.Wer,
                 expectation.Synthetic,
-                expectation.Template
+                expectation.Template,
+                score.Trials
             );
             results.Add(result);
             (expectation.Synthetic ? synthTally : realTally).Add(result);
@@ -429,13 +438,15 @@ public static class EvalRunner
         string LastTranscript,
         string LastCallsign,
         long SttMsTotal,
-        long TotalMs
+        long TotalMs,
+        IReadOnlyList<EvalTrial> Trials
     );
 
     private static async Task<CaseScore> ScoreCaseAsync(EvalPipeline pipeline, EvalExpectation expectation, float[] samples, int trials)
     {
         var ctx = expectation.ToSpeechContext(pipeline.BiasingPrompt);
         var got = new List<string>();
+        var trialRecords = new List<EvalTrial>();
         int matches = 0;
         string lastTranscript = string.Empty;
         string lastCallsign = "<none>";
@@ -452,13 +463,22 @@ public static class EvalRunner
             if (string.IsNullOrWhiteSpace(transcript))
             {
                 got.Add("<empty transcript>");
+                trialRecords.Add(new EvalTrial(lastTranscript, null, null));
                 continue;
             }
 
-            TranscriptMapResult mapped = await SpeechRecognitionService
-                .MapTranscriptAsync(transcript, ctx, pipeline.RuleMapper, pipeline.LlmMapper, pipeline.CallsignResolver, CancellationToken.None)
+            (TranscriptMapResult mapped, RuleMapperTrace ruleTrace, LlmMapperTrace? _) = await SpeechRecognitionService
+                .MapTranscriptWithTraceAsync(
+                    transcript,
+                    ctx,
+                    pipeline.RuleMapper,
+                    pipeline.LlmMapper,
+                    pipeline.CallsignResolver,
+                    CancellationToken.None
+                )
                 .ConfigureAwait(false);
             got.Add(mapped.Canonical ?? "<null>");
+            trialRecords.Add(new EvalTrial(transcript, ruleTrace.OutputCanonical, mapped.Canonical));
             lastCallsign = mapped.Callsign ?? "<none>";
 
             if (CanonicalsMatch(expectation.Canonical, mapped.Canonical) && CallsignMatches(expectation.Callsign, mapped.Callsign))
@@ -481,7 +501,7 @@ public static class EvalRunner
             matches == trials ? EvalVerdict.Pass
             : matches == 0 ? EvalVerdict.Fail
             : EvalVerdict.Flaky;
-        return new CaseScore(got, matches, verdict, wer, lastTranscript, lastCallsign, sttMsTotal, sw.ElapsedMilliseconds);
+        return new CaseScore(got, matches, verdict, wer, lastTranscript, lastCallsign, sttMsTotal, sw.ElapsedMilliseconds, trialRecords);
     }
 
     /// <summary>Per-source (real vs synthetic) verdict and WER accumulator.</summary>

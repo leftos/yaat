@@ -213,7 +213,7 @@ public static class PhraseologyMapper
         // the callsign correctly, and BEFORE rule matching so rules use plain single-token
         // captures against already-collapsed tokens.
         List<string> beforeNatoCollapse = tokens;
-        tokens = NatoLetterNormalizer.Collapse(tokens, context.TaxiwayNames);
+        tokens = CollapseNatoKeepingAliasFixes(tokens, context);
         if (!beforeNatoCollapse.SequenceEqual(tokens))
         {
             Log.LogDebug(
@@ -1311,6 +1311,40 @@ public static class PhraseologyMapper
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Runs <see cref="NatoLetterNormalizer.Collapse"/> around any programmed fix spelled like a NATO
+    /// input alias ("alfa", "juliet"): the alias collapses to its letter everywhere else, but a fix of
+    /// that name stays the fix. Canonical NATO words collapse as before, programmed or not.
+    /// </summary>
+    private static List<string> CollapseNatoKeepingAliasFixes(List<string> tokens, MapContext context)
+    {
+        var aliasFixes = new HashSet<string>(
+            context.ProgrammedFixes.Where(f => NatoPhoneticAlphabet.TryGetLetter(f, out _) && !NatoPhoneticAlphabet.WordSet.Contains(f)),
+            StringComparer.OrdinalIgnoreCase
+        );
+        if (aliasFixes.Count == 0)
+        {
+            return NatoLetterNormalizer.Collapse(tokens, context.TaxiwayNames);
+        }
+
+        var result = new List<string>(tokens.Count);
+        int segmentStart = 0;
+        for (int i = 0; i <= tokens.Count; i++)
+        {
+            if ((i < tokens.Count) && !aliasFixes.Contains(tokens[i]))
+            {
+                continue;
+            }
+            result.AddRange(NatoLetterNormalizer.Collapse(tokens.GetRange(segmentStart, i - segmentStart), context.TaxiwayNames));
+            if (i < tokens.Count)
+            {
+                result.Add(tokens[i]);
+            }
+            segmentStart = i + 1;
+        }
+        return result;
     }
 
     /// <summary>

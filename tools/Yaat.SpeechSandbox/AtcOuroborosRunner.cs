@@ -90,7 +90,8 @@ public static class AtcOuroborosRunner
             aggregate.Families,
             aggregate.Templates,
             aggregate.Totals,
-            generated.Gaps
+            generated.Gaps,
+            AtcOuroborosAnalysis.Failures(scored.Cases)
         );
         await File.WriteAllTextAsync(Path.Combine(options.OutDir, "results.json"), AtcOuroborosAnalysis.Serialize(results)).ConfigureAwait(false);
 

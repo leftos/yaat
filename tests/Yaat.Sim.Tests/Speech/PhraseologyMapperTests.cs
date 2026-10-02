@@ -649,6 +649,50 @@ public class PhraseologyMapperTests
         Assert.Equal(expected, result!.CanonicalCommand);
     }
 
+    // The ouroboros scenario's KOAK context: its parking names and spot numbers, and its taxiways.
+    private static readonly MapContext OuroborosParkingContext = new([], [])
+    {
+        TaxiwayNames = new HashSet<string>(
+            ["A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L", "P", "R", "S", "U", "V", "W", "T", "TC", "TE"],
+            StringComparer.OrdinalIgnoreCase
+        ),
+        DestinationNames = new HashSet<string>(
+            ["CARGO1", "GA5", "S12", "KAI3", "FDX12", "1", "2", "3", "4", "5", "7", "9"],
+            StringComparer.OrdinalIgnoreCase
+        ),
+    };
+
+    [Theory]
+    [InlineData("taxi via bravo charlie to gate golf alfa five", "TAXI B C @GA5")]
+    [InlineData("taxi to parking kilo alfa india three via alfa", "TAXI A @KAI3")]
+    [InlineData("taxi to parking golf alfa five via bravo cross runway two eight right", "TAXI B @GA5 CROSS 28R")]
+    [InlineData("taxi via romeo delta to parking golf alfa five hold short of runway one nine left", "TAXI R D @GA5 HS 19L")]
+    public void Taxi_ToParkingSpelledWithAlfa_JoinsTheSpokenName(string transcript, string expected)
+    {
+        // Whisper writes the ICAO spelling "alfa" (synth-20260928-099-taxi-parking-hs heard "to parking
+        // golf alfa five"); it collapses to A like "alpha", so the joined name matches the layout's GA5.
+        MapResult? result = PhraseologyMapper.Map(transcript, OuroborosParkingContext);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
+    [Fact]
+    public void Alfa_NonExamples_StayUnmappedOrUnrewritten()
+    {
+        // No digit and not a layout name: the joined KAI is no parking.
+        Assert.Null(PhraseologyMapper.Map("taxi to parking kilo alfa india", OuroborosParkingContext));
+
+        // A programmed fix spelled ALFA stays the fix; the alias never turns it into the letter A. The
+        // tokens are the pin: no navdata fix is named ALFA, so the DCT itself does not map.
+        var ctx = new MapContext([], ["ALFA", "CEPIN"]);
+        Assert.Equal("direct to alfa", PhraseologyMapper.MapWithTrace("direct to alfa", ctx).Trace.NormalizedTokens);
+        Assert.Equal("direct to juliet", PhraseologyMapper.MapWithTrace("direct to juliet", new MapContext([], ["JULIET"])).Trace.NormalizedTokens);
+
+        // Only the alias spellings are shielded: a canonical NATO word still collapses even when it is a programmed fix.
+        Assert.Equal("direct to A", PhraseologyMapper.MapWithTrace("direct to alpha", new MapContext([], ["ALPHA"])).Trace.NormalizedTokens);
+        Assert.Equal("taxi via A B", PhraseologyMapper.MapWithTrace("taxi via alfa bravo", OuroborosParkingContext).Trace.NormalizedTokens);
+    }
+
     [Fact]
     public void Taxi_ToParking_ValidatesAgainstTheLoadedLayout()
     {
