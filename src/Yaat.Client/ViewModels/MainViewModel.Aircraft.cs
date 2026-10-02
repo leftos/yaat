@@ -164,7 +164,7 @@ public partial class MainViewModel
         var bubble = AircraftSpeechBubble.TryBuild(
             _preferences.ShowSpeechBubbles,
             _preferences.ShowWarningSpeechBubbles,
-            SessionSoloTrainingMode,
+            SessionSoloTrainingMode && (Environment.GetEnvironmentVariable("YAAT_DEV_SOLO_SPEECH_BUBBLES") != "1"),
             kind,
             message,
             _preferences.SpeechBubbleDurationMultiplier,

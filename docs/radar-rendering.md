@@ -164,6 +164,10 @@ Inside step 6, `TargetRenderer` first draws **history trails** behind all symbol
 datablock, and bubble pill paint on top of neighboring aircraft (`:207-258`). The deferred list is allocated only when
 speech bubbles are enabled.
 
+Solo training suppresses SAY and pilot-speech bubbles (`AircraftSpeechBubble.TryBuild`'s solo-mode gate, fed by
+`MainViewModel.MaybeAttachSpeechBubble`). The environment variable `YAAT_DEV_SOLO_SPEECH_BUBBLES=1` lifts that
+suppression; it is a capture-only switch for recording demo videos of solo replays, not an instructor setting.
+
 ## Datablock and tag layout
 
 Two layout families, selected by the `EuroScopeMode` preference:
