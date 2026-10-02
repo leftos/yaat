@@ -1,0 +1,30 @@
+# E2 — right-base follower that would roll out level with or ahead of a straight-in.
+# KOAK runway 28R, right traffic. Two VFR C172s, neither placed on a leg by the scenario.
+#
+#   N52417  lead     — C172 7.6 NM out on the 28R extended centerline, on a practice ILS 28R
+#   N738SP  follower — C172 4 NM north of the final, inbound southbound, joins a right base
+#
+# Times are sim seconds. See card.md for what the clip shows.
+
+# t=1  Inhibit conflict alerts on both aircraft (CAINH toggles).
+t=1 N52417 CAINH
+t=1 N738SP CAINH
+
+# t=2  Lead: a practice ILS 28R from present position and altitude (it is already on
+#      the localizer, below the glideslope), so it is on final from the start.
+t=2 N52417 PTAC PH PA ILS28R
+
+# t=3  Follower: enter a right base for 28R from present position.
+t=3 N738SP ERB 28R
+
+# t=4  Lead: cleared to land (first in the sequence).
+t=4 N52417 CLAND 28R
+
+# t=60 Traffic advisory to the follower: the Cessna at 10 o'clock, 4 miles, westbound
+#      on its straight-in. The pilot looks, and calls it in sight inside 3 miles.
+t=60 N738SP RTIS 10 4 W C172
+
+# t=122 The follow, once the traffic is called in sight, with the follower about 1.6 NM north of the final and the lead
+#       about 5 NM out; then the follower's landing clearance.
+t=122 N738SP FOLLOW N52417
+t=124 N738SP CLAND 28R

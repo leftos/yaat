@@ -1,0 +1,32 @@
+# A4 — right-downwind follower behind a lead that extends its downwind, then turns base.
+# KOAK runway 28R, right traffic. Two VFR C172s inbound from the northwest in trail,
+# about 1.2 NM apart, neither placed on a leg by the scenario.
+#
+#   N52417  lead     — joins the right downwind first; told to extend, later to turn base
+#   N738SP  follower — joins the same downwind behind it and is told to follow it
+#
+# Times are sim seconds. See card.md for what the clip shows.
+
+# t=1  Inhibit conflict alerts on both aircraft (CAINH toggles).
+t=1 N52417 CAINH
+t=1 N738SP CAINH
+
+# t=2  Both: enter the right downwind for 28R, lead first.
+t=2 N52417 ERD 28R
+t=3 N738SP ERD 28R
+
+# t=40 Traffic advisory to the follower: the lead off its nose, about a mile.
+t=40 N738SP RTIS NOSE 1 C172
+
+# t=100 Follower: follow the lead (both still on their downwind entries).
+t=100 N738SP FOLLOW N52417
+
+# t=102 Both cleared to land; the follower's applies when it joins the final behind.
+t=102 N52417 CLAND 28R
+t=104 N738SP CLAND 28R
+
+# t=135 Lead, now on the downwind: extend downwind.
+t=135 N52417 EXT
+
+# t=250 Lead: turn base, well past its normal base-turn point.
+t=250 N52417 TB
