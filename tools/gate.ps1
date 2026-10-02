@@ -26,7 +26,8 @@ block: a declared block sends the bare -- of a caller's command through PowerShe
 as a parameter name and stops. The command is every word after a --, or, when the caller's session ate the separator,
 every word from the first that is not one of the options.
 
-Usage: pwsh tools/gate.ps1 -Log <path> -TimeoutSeconds <n> -Slot heavy|light|critical [-StallSeconds <n>] [-Tail <n>] [-NoMarkers] -- <command> [args...]
+Usage: pwsh tools/gate.ps1 -Log <path> -TimeoutSeconds <n> -Slot heavy|light|critical [-StallSeconds <n>] [-Tail <n>]
+           [-NoMarkers] -- <command> [args...]
        pwsh tools/gate.ps1 -StopTree <pid>
 #>
 
