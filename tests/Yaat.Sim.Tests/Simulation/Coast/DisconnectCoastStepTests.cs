@@ -137,7 +137,8 @@ public class DisconnectCoastStepTests
         Assert.Equal(DisconnectCoastScope.Eram, eram.Scope);
         Assert.Null(eram.FacilityId);
         Assert.False(eram.IsDrop);
-        Assert.Equal(now + 24, eram.DeadlineSimSeconds);
+        // N152SP's sweep phase is 0: the coast ends 24 s after its last sweep on the 12 s grid.
+        Assert.Equal((Math.Floor(now / 12) * 12) + 24, eram.DeadlineSimSeconds);
         Assert.Equal(24, SimScenarioState.EramDisconnectCoastSeconds);
     }
 
@@ -280,6 +281,8 @@ public class DisconnectCoastStepTests
         AircraftState ac = AfterOneSecond(engine, spine);
         Lift(ac, InsideTheSurfaceBandsFt);
         double start = engine.Scenario!.ElapsedSeconds;
+        // N152SP's sweep phase is 0: the ERAM facet ends 24 s after its last sweep on the 12 s grid.
+        double eramDeadline = (Math.Floor(start / 12) * 12) + 24;
         engine.DeleteAircraft(Callsign, "DEL");
         Assert.Equal(4, EntryFor(engine, Callsign).Facets.Length);
 
@@ -300,11 +303,11 @@ public class DisconnectCoastStepTests
         // Between the two deadlines: the ERAM facet is gone, the surface facets still stand.
         RunSeconds(30);
         Assert.Equal(start + 30, engine.Scenario!.ElapsedSeconds);
-        Assert.Equal([start + 24], firedAt);
+        Assert.Equal([eramDeadline], firedAt);
         Assert.Equal(3, EntryFor(engine, Callsign).Facets.Length);
 
         RunSeconds(20);
-        Assert.Equal([start + 24, start + 45], firedAt);
+        Assert.Equal([eramDeadline, start + 45], firedAt);
 
         ExpiredDisconnectCoastFacet eram = Assert.Single(spine.DisconnectCoastExpiries[0]);
         Assert.Equal(Callsign, eram.Callsign);

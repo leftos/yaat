@@ -60,6 +60,7 @@
 
 ### Fixed
 
+- A deleted aircraft's coasting track on CRC's ERAM, ASDE-X and SAID displays now ends on sim time, and a rewind, restart or reload clears it.
 - Speech recognition understands spoken 270s and 360s, Class B clearances, and "cleared visual approach runway…" with a scenario loaded.
 - Speech recognition maps gate and parking names spelled "alfa" ("taxi to gate golf alfa five") and traffic calls heard as "…miles of Boeing".
 - Spoken "follow", "behind" and "give way to" a full callsign now target that traffic; "behind" means give way, not follow.

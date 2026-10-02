@@ -17,9 +17,11 @@ public sealed partial class SimulationEngine
 
     /// <summary>
     /// Records what <paramref name="ac"/> — about to leave the world — coasts on: an ERAM facet when the en-route radar
-    /// still sees it and its track is not QH-frozen, then one facet per ASDE-X airport and per SAID airport it is a
-    /// member of, a surface facet at its destination marked a drop. The entry replaces any the callsign already has;
-    /// a track with no facet leaves no entry. With no scenario this does nothing.
+    /// still sees it and its track is not QH-frozen (ending <see cref="SimScenarioState.EramDisconnectCoastSeconds"/>
+    /// after its last grid sweep on the <see cref="EramSweepGrid"/>, or after its spawn when that came later; a forced
+    /// off-grid sweep is not seen), then one facet per ASDE-X airport and per SAID airport it is a member of, a surface
+    /// facet at its destination marked a drop. The entry replaces any the callsign already has; a track with no facet
+    /// leaves no entry. With no scenario this does nothing.
     /// </summary>
     public void RegisterDisconnectCoast(AircraftState ac)
     {
@@ -49,7 +51,11 @@ public sealed partial class SimulationEngine
         ImmutableArray<DisconnectCoastFacet>.Builder facets = ImmutableArray.CreateBuilder<DisconnectCoastFacet>();
         if (DisconnectCoastRules.IsVisibleOnEram(ac, NavigationDatabase.Instance) && !ac.Eram.IsFrozen && !ac.Eram.IsCoastTrack)
         {
-            facets.Add(new DisconnectCoastFacet(DisconnectCoastScope.Eram, null, false, nowSimSeconds + SimScenarioState.EramDisconnectCoastSeconds));
+            // The ERAM track coasts from its last grid sweep; an aircraft that spawned after it counts from its spawn. A
+            // forced off-grid sweep (first sight ~1 s after the spawn, ERAM newly visible, a coverage return) is not seen
+            // here: after one, the coast ends less than one sweep period short of 24 s after CRC last drew the track.
+            double lastSweep = Math.Max(EramSweepGrid.LastSweepSimSeconds(ac.Callsign, nowSimSeconds), ac.SpawnedAtSeconds);
+            facets.Add(new DisconnectCoastFacet(DisconnectCoastScope.Eram, null, false, lastSweep + SimScenarioState.EramDisconnectCoastSeconds));
         }
 
         string destination = NavigationDatabase.NormalizeAirport(ac.FlightPlan.Destination);

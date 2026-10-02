@@ -26,8 +26,6 @@ internal sealed class BareHost(SimulationEngine engine) : ISimulationHost
 
     public void ApplyPreTickRecordedActions(int second) { }
 
-    public void SurfaceCoastExpiry() { }
-
     public void RundownBroadcast() { }
 
     public void LiveTrafficStatusBroadcast() { }

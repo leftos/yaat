@@ -26,7 +26,6 @@ public interface IHostSteps
 
     // --- PostPhysics ---
 
-    void SurfaceCoastExpiry();
     void RundownBroadcast();
     void LiveTrafficStatusBroadcast();
     void TimersBroadcast();

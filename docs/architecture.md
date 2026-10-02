@@ -1458,8 +1458,10 @@ SimulationEngine.DisconnectCoast.cs # The disconnect-coast lifecycle as Sim stat
                                # World.RemoveAircraft) builds the facets — ERAM when
                                # DisconnectCoastRules.IsVisibleOnEram and not frozen (24 s), one ASDE-X / SAID facet per AircraftStarsState membership (45 s, IsDrop at
                                # the destination) — and replaces any standing entry; TickDisconnectCoastExpiry (post-physics Sim step after the host's
-                               # SurfaceCoastExpiry) expires facets on sim time and hands the host OnDisconnectCoastExpired; AfterAircraftSpawned (and SpawnShadow,
-                               # for a live-feed shadow) clears a re-spawned callsign's entry, drained as OnDisconnectCoastsCleared. The server's coast stores still drive every CRC display
+                               # auto-delete) expires facets on sim time and hands the host OnDisconnectCoastExpired, which ends those coast entries (also while broadcasts are suppressed) and queues
+                               # their CRC deletes on TrainingRoom.PendingCoastDeletes; AfterAircraftSpawned (public; SpawnShadow for a live-feed shadow) clears a re-spawned
+                               # callsign's entry, drained as OnDisconnectCoastsCleared, which ends the server's coast caches and queues a delete for each entry it ends;
+                               # the queue is sent, awaited and in order, at the start of the room's next unsuppressed CRC broadcast pass, before any live track
 SimulationEngine.Eram.cs       # The ERAM CRR-group definitions: CrrGroups (label → EramCrrGroup, case-insensitive) and
                                # ApplyCrrGroup(RecordedEramCrrGroup) — create/replace/recolor, null latitude = delete — marking the dirty flag DrainStateChangesInto
                                # hands the host as OnEramCrrGroupsChanged (the room re-pushes the whole EramCrrGroups topic; a delete is still the CRC handler's
@@ -1728,6 +1730,8 @@ DisconnectCoastScope.cs        # Eram / Asdex / Said
 DisconnectCoastFacet.cs        # DisconnectCoastFacet(Scope, FacilityId — null for ERAM, IsDrop, DeadlineSimSeconds)
 AircraftDisconnectCoast.cs     # AircraftDisconnectCoast(Anchor, AnchorTrackDeg, AnchorGroundSpeed, CoastStartSimSeconds, Facets): the last pose a coast dead-reckons from
 ExpiredDisconnectCoastFacet.cs # (Callsign, Facet) — one entry of an OnDisconnectCoastExpired payload
+EramSweepGrid.cs               # Static: the ERAM 12 s sweep grid (SweepSeconds, OffsetSeconds — FNV-1a of the callsign mod 12, Index, LastSweepSimSeconds); the ERAM
+                               # facet's deadline is the last grid sweep (not before spawn) + 24 s; yaat-server's AircraftChangeTracker sweeps on the same grid
 DisconnectCoastRules.cs        # IsVisibleOnEram (ERAM coverage: field elevation + EramCoverageFloorAglFt 1,500 ft; frozen / unsupported ghost visible, on-ground not) and
                                # IsDestinationFacility; yaat-server's CrcVisibilityTracker.IsVisibleOnEram / CrcBroadcastService.IsDestinationFacility wrap them
 

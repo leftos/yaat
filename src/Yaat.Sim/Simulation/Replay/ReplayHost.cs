@@ -54,8 +54,6 @@ internal sealed class ReplayHost : ISimulationHost
     /// <summary>Applies every action at or before <paramref name="second"/> the pre-tick pass did not, advancing the cursor past them.</summary>
     public void ApplyRecordedActionsThrough(int second) => _pump.ApplyThrough(second, _applier);
 
-    public void SurfaceCoastExpiry() => _bare.SurfaceCoastExpiry();
-
     public void RundownBroadcast() => _bare.RundownBroadcast();
 
     public void LiveTrafficStatusBroadcast() => _bare.LiveTrafficStatusBroadcast();
