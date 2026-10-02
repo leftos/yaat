@@ -20,6 +20,7 @@
 | **Radar rendering** | `RadarCanvas.cs` (input/zoom) → `RadarRenderer.cs` (drawing) → `TargetRenderer.cs` (datablocks) → `VideoMapRenderer.cs` (maps) |
 | **Ground view rendering** | `GroundCanvas.cs` (input/hit-test) → `GroundRenderer.cs` (drawing, 3 layers) |
 | **Command input UX** | `CommandInputController.cs` (parse pipeline) → `ArgumentSuggester.cs` (dropdown values) → `SignatureHelpState.cs` (inline hints) |
+| **Solo auto-accept floor or delay** | `SimScenarioState.cs` (`SoloAutoAcceptFloorSeconds`, `EffectiveAutoAcceptDelaySeconds`) → `SimulationEngine.TrackAutomation.cs` (`TickAutoAccept`) → `ControllerAi/AiControllerService.cs` → `ControllerAi/AiTickContext.cs` → `HandoffUnacceptedRule.cs` → `USER_GUIDE.md` (Auto-Accept) |
 | **Weather** | `WeatherProfile.cs`, `WeatherTimeline.cs`, `WindInterpolator.cs`, `WindVariation.cs`, `WindObservation.cs`, `LiveWeatherService.cs`, `MetarComposer.cs`, `MetarIssuer.cs`, `SpeciCriteria.cs` |
 | **Scenarios** | `ScenarioLoader.cs`, `ScenarioExporter.cs` (the loader run backwards, for `TrainingHub.ExportRoomAsScenario`), `ScenarioModels.cs`, `AircraftInitializer.cs`, `ScenarioLifecycleService.cs` (server) |
 | **Snapshots/replay** | `StateSnapshotDto.cs`, `AircraftSnapshotDto.cs`, `RecordingArchive.cs`, `SimulationEngine.cs` |

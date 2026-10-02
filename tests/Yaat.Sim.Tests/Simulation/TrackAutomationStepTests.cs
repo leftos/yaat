@@ -200,7 +200,7 @@ public class TrackAutomationStepTests
     }
 
     [Fact]
-    public void SoloModeLeavesTheStudentsOwnHandoffPendingAndFloorsTheDelayAtThreeSeconds()
+    public void SoloModeLeavesTheStudentsOwnHandoffPendingAndFloorsTheDelayAtFiveSeconds()
     {
         if (Engine() is not { } toStudent)
         {
@@ -227,7 +227,7 @@ public class TrackAutomationStepTests
         handedToAi.Track.HandoffPeer = Nct4U;
         handedToAi.Track.HandoffInitiatedAt = aiScenario.ElapsedSeconds;
 
-        AiTestFixture.Tick(toAi, 2);
+        AiTestFixture.Tick(toAi, 4);
 
         Assert.NotNull(handedToAi.Track.HandoffPeer);
 

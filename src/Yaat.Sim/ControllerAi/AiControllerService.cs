@@ -67,7 +67,7 @@ public sealed class AiControllerService(IReadOnlyList<IPositionBrain> brains, IA
             Weather = inputs.World.Weather,
             ActiveConflicts = inputs.ActiveConflicts,
             EramConflicts = inputs.EramConflicts,
-            AutoAcceptDelaySeconds = scenario.AutoAcceptDelay.TotalSeconds,
+            AutoAcceptDelaySeconds = scenario.EffectiveAutoAcceptDelaySeconds,
             LayoutFor = inputs.LayoutFor,
             RunwaysFor = inputs.RunwaysFor,
             RunwayInUse = RunwayInUse,

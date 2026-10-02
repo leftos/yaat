@@ -257,6 +257,35 @@ public class ObserverRulesTests
     }
 
     [Fact]
+    public void HandoffUnaccepted_InSoloMode_WaitsForTheFlooredDelayPlusGrace()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig approach = TestAiPositions.NorCalApproach(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(AiTestFixture.ParkedAtOak, _zoa, 7, []);
+        SimScenarioState scenario = engine.Scenario!;
+        scenario.SoloTrainingMode = true;
+        scenario.AutoAcceptDelay = TimeSpan.FromSeconds(2);
+        AircraftState aircraft = AiTestFixture.Airborne("AAL1", 37.9, -122.0, 8000);
+        aircraft.Track.Owner = approach.Identity;
+        aircraft.Track.HandoffPeer = TrackOwner.CreateEram("OAK_14_CTR", "ZOA", "14");
+        aircraft.Track.OnHandoff = true;
+        aircraft.Track.HandoffInitiatedAt = 100;
+        var rule = new HandoffUnacceptedRule();
+        double horizon = 5 + HandoffUnacceptedRule.GraceSeconds;
+
+        rule.Evaluate(ConflictScope(engine, [aircraft], approach, 100 + horizon - 1, []));
+        Assert.Empty(scenario.AiAnomalies.Drain());
+
+        rule.Evaluate(ConflictScope(engine, [aircraft], approach, 100 + horizon + 1, []));
+        AiAnomalyEvent opened = Assert.Single(scenario.AiAnomalies.Drain());
+        Assert.Equal(AiAnomalyKind.HandoffUnaccepted, opened.Kind);
+    }
+
+    [Fact]
     public void ConflictAlert_OpensPerConflictIdInTheJurisdiction_AndClosesWhenTheAlertClears()
     {
         if (_zoa is null)

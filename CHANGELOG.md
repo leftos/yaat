@@ -35,6 +35,7 @@
 - `ATXI` needs `@` for a helipad or gate and `$` for a spot; a bare name such as `ATXI 27` is always a runway.
 - A plain `TAXI $spot` or `TAXI @gate` from the ramp stays in the ramp, cutting across taxilanes, or is refused with a `TAXIAUTO` hint.
 - `TAXI A` from a stand several taxilanes from A taxis across the ramp to reach it instead of being refused.
+- In solo sessions, handoffs to the automated positions are accepted after at least 5 seconds instead of 3.
 
 ### Fixed
 

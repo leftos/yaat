@@ -660,11 +660,9 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        // Solo mode forces a >=3s auto-accept for non-student positions even when the operator
+        // Solo mode forces a floored auto-accept for non-student positions even when the operator
         // globally disabled auto-accept; non-solo play uses the operator's configured delay verbatim.
-        TimeSpan effectiveDelay = soloMode
-            ? TimeSpan.FromSeconds(Math.Max(scenario.AutoAcceptDelay.TotalSeconds, SimScenarioState.SoloAutoAcceptFloorSeconds))
-            : scenario.AutoAcceptDelay;
+        double effectiveDelaySeconds = scenario.EffectiveAutoAcceptDelaySeconds;
 
         List<AircraftState> snapshot = World.GetSnapshot();
         var pendingHandoffs = snapshot.Where(a => a.Track.HandoffPeer is not null && a.Track.HandoffInitiatedAt is not null).ToList();
@@ -703,7 +701,7 @@ public sealed partial class SimulationEngine
             }
 
             double elapsed = scenario.ElapsedSeconds - aircraft.Track.HandoffInitiatedAt.Value;
-            if (elapsed >= effectiveDelay.TotalSeconds)
+            if (elapsed >= effectiveDelaySeconds)
             {
                 TrackOwner? previousOwner = aircraft.Track.Owner;
                 TrackOwner newOwner = aircraft.Track.HandoffPeer;

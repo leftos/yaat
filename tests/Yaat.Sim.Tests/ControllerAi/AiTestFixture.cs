@@ -165,7 +165,7 @@ internal static class AiTestFixture
             Weather = engine.World.Weather,
             ActiveConflicts = conflicts,
             EramConflicts = [],
-            AutoAcceptDelaySeconds = scenario.AutoAcceptDelay.TotalSeconds,
+            AutoAcceptDelaySeconds = scenario.EffectiveAutoAcceptDelaySeconds,
             LayoutFor = engine.ResolveGroundLayout,
             RunwaysFor = RunwayOccupancy.AirportRunways,
             RunwayInUse = new RunwayInUseState(FacilityOpsDatabase.For),
