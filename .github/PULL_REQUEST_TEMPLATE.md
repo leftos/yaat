@@ -9,7 +9,7 @@ See CONTRIBUTING.md for the development setup and CHANGELOG conventions.
 
 ## Linked issues
 
-<!-- e.g., "Closes #123" or "Refs #456". Use the full URL form for cross-repo links: "Closes https://github.com/leftos/yaat/issues/123" -->
+<!-- e.g., "Refs #123". The issue is closed when the release that ships it goes out, so please don't use "Closes" or "Fixes". -->
 
 ## Test plan
 

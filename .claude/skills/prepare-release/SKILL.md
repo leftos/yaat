@@ -214,11 +214,7 @@ Doc updates ride along in the release commit; the staging list in Step 9 picks t
 
 ## Step 6d: Scan for open issues this release fixes
 
-GitHub auto-closes issues whose commits carry `Closes #N` (yaat) or
-`Closes https://github.com/leftos/yaat/issues/N` (yaat-server). That only
-catches issues someone remembered to cite. Feature work driven by a Discord
-thread routinely ships without ever naming the issue, leaving a fixed request
-open — the reporter never learns it landed.
+`linear release complete` moves every Landed issue in the release to Done, which closes its GitHub issue through the sync. That only catches issues someone **land**ed in Linear. Feature work driven by a Discord thread routinely ships without ever naming the issue, leaving a fixed request open — the reporter never learns it landed.
 
 Match open issues against what actually shipped, not against commit metadata:
 

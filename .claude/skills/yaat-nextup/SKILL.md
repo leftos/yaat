@@ -15,7 +15,7 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 - `../yaat-server` has no plan or changelog of its own: team YAAT plans it, and its `docs/plans/live-traffic-swim/` is linked from the issues that use it.
 - Pre-loop hooks: none.
 - An item **land**s after its commit; finished subplans are deleted (git history is the archive). Review findings the item does not fix get an **add**, in the project that shares their files, else in `Backlog`.
-- Tracker: **triage** as plan-operations says (GitHub issues reach the team through Linear's sync and arrive in Triage), each placed in the project that shares its files, using `triage-open-issues` for the reading. Cross-repo: yaat-server commits cite `Closes https://github.com/leftos/yaat/issues/N`.
+- Tracker: **triage** as plan-operations says (GitHub issues reach the team through Linear's sync and arrive in Triage), each placed in the project that shares its files, using `triage-open-issues` for the reading. Commits in either repo cite a GitHub issue as `Refs https://github.com/leftos/yaat/issues/N`, never with a closing keyword (`Closes`, `Fixes`, `Resolves`): GitHub closes a yaat issue on push when a yaat commit says `Closes #N`, ahead of the **land**, and the sync then reopens it.
 - Pull requests: `gh pr list --repo leftos/yaat --state open --json number,title,author`, and the same with `--repo leftos/yaat-server`. A PR is planned when its title, body or branch names an issue id; an unplanned one gets an **add**, its review and landing: a person's PR in `Bug reports and feature requests`, a bot's dependency bump in `Backlog`, each naming the files, whether the checks pass and whether it merges cleanly.
 - Hotspots (3,000–4,000 lines each; two items touching one wait on each other): `PatternCommandHandler.cs`, `MainViewModel.cs`, `CommandParser.cs`, `CommandDispatcher.cs`, `MainWindow.axaml.cs`, `GroundCommandHandler.cs`.
 
@@ -54,7 +54,7 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 
 ## Landing
 
-- Orchestrator writes docs and the changelog bullet **in the worktree**, commits there with a `Refs: YAAT-<n>` trailer per issue, then `/ship` (with `## Ship` below): land `base..<slug>` onto the recorded `landOn` (`ship` Phase 2), gate there when it was a real cherry-pick, push both repos, close the issue with an audit comment, then in each repo remove its half of the pair and its branch once landed, by the user-level `nextup` §4 step 6 check.
+- Orchestrator writes docs and the changelog bullet **in the worktree**, commits there with a `Refs: YAAT-<n>` trailer per issue, then `/ship` (with `## Ship` below): land `base..<slug>` onto the recorded `landOn` (`ship` Phase 2), gate there when it was a real cherry-pick, push both repos, post the audit comment on the GitHub issue and leave it open (it stays Landed until `linear release complete` moves it to Done, which closes it through the sync), then in each repo remove its half of the pair and its branch once landed, by the user-level `nextup` §4 step 6 check.
 - An item under a feature marker (`branch: feat/<name>`, user-level `nextup` §3 "Feature branches") lands the same way onto the feature pair (`../yaat.wt/feat-<name>/yaat` and `/yaat-server`), whose `landOn` is `feat/<name>`; `/ship` then pushes both feature branches and watches their feature PRs without merging them. The item is **land**ed with the note `on feat/<name>, ships with #N`; the project's `Merge feat/<name> (…)` tracking issue is landed when `/ship` Phase 2F merges the feature PRs.
 - The main checkout hosts at most one implementer, and none while a gate runs there.
 
@@ -70,7 +70,7 @@ Read by the user-level `changelog-and-commit`; each rule names the step it adds 
 - Reference (Step 2): `### Fixed` against `### Added` is judged against the emulated upstream (vNAS TDLS, CRC/STARS, ATCTrainer). A YAAT-original convenience the upstream lacks (a Tools-menu shortcut, an instructor-only view) is Added.
 - Reach vocabulary (Step 2): all rooms, solo sessions only, headless/soak only, replay only.
 - Audience (Step 4): instructors and students. No framework names (Velopack, Avalonia, SignalR, MessagePack); command names and UI vocabulary stay (`CTOC`, the "Update Now" button, Help → About).
-- Issue references (Step 7): a yaat-server commit that closes a yaat issue writes `Closes https://github.com/leftos/yaat/issues/N`.
+- Issue references (Step 7): a commit in either repo that resolves a yaat issue writes `Refs https://github.com/leftos/yaat/issues/N`, never a closing keyword (`## Plan and tracker`).
 - Partial commits (Step 8): the build hook is cross-repo (`CLAUDE.md`, "prek's build hook is cross-repo"), so a partial commit in yaat stashes yaat-server too: `git -C <yaat-server> stash push -u`, commit, `git -C <yaat-server> stash pop`.
 - Commit call (Step 8): never chain `git commit` after a `dotnet` command in one shell call; a guard reads the whole command text and rejects it. Implicated tests run through the gate as `## Agents and gates` says.
 
@@ -96,5 +96,5 @@ Read by the user-level `ship`; each rule names the phase it adds to or overrides
 - End gate (Phase 3), after the deadlock path or after any signature-changing commit lands on a diverged `main`, before anything is pushed, in both main checkouts (yaat-server has no gate of its own; call `../yaat/tools/gate.ps1` from it): the gated build in each, then the gated `test-all.ps1` in yaat's, which builds and tests both. Report those results, not "hooks passed". A break it finds is fixed forward on `main`; a DTO or wire mapping fix goes into one shared helper both call sites use, never a duplicated switch.
 - Large-file hook (Phase 2): a recording bundle (`tests/Yaat.Sim.Tests/TestData/*.zip`) over the `check-added-large-files` limit in `prek.toml` is trimmed, never exempted: cut the manifest's `Snapshots` to the time range the test uses.
 - Submodule (Phase 2, Phase 4): yaat-server's `extern/yaat` pin is not kept current and nothing reads it for a build that matters (yaat-server `CLAUDE.md`); never bump it by hand, and leave a stale pin alone.
-- Issues (Phase 5): the issue repository is always `leftos/yaat`, also for a yaat-server-only fix, whose `Closes` GitHub never auto-closes. Comment lines name `leftos/yaat@<sha>` and `leftos/yaat-server@<sha>`.
+- Issues (Phase 5): the issue repository is always `leftos/yaat`, also for a yaat-server-only fix. yaat has a release pipeline, so Phase 5 comments and never closes: `#N landed, open until release`. Comment lines name `leftos/yaat@<sha>` and `leftos/yaat-server@<sha>`.
 - Branch names (Phase 5): `nightly-review/<date>-<slug>` encodes a date, not an issue.
