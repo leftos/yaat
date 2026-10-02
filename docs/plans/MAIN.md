@@ -4,38 +4,41 @@
 
 ## ERAM release gate
 
-- [ ] YAAT-6 Cut the release once ERAM, the ERAM singles and the bug/request list land
+- [ ] YAAT-6 Cut the release once ERAM, the ERAM singles and the bug/request list land · release vNext
 
 ## Bug reports and feature requests
 
-- [ ] YAAT-5 Misc Ground Issues
-- [ ] YAAT-7 Record the FOLLOW video montage (release cut and review reel)
+- [/] YAAT-7 Record the FOLLOW video montage (release cut and review reel) · release vNext
+- [x] YAAT-5 Misc Ground Issues · release vNext
+- [x] YAAT-207 TAXI TE T U HS T holds at the T/U intersection instead of short of T · release vNext
+- [x] YAAT-208 Right-click picker when a click hits several targets (aircraft, parking spot) · release vNext
 
 ## Client driver in the background (#474)
 
-- [/] YAAT-8 Drive YAAT.Client without stealing focus (automation pipe)
-  - [ ] YAAT-9 Client driver automation pipe: brief 4b, the wait_for tool
-  - [ ] YAAT-10 Client driver automation pipe: brief 4c, the screenshot tool
-- [ ] YAAT-11 Merge feat/client-driver-background (#474)
+- [/] YAAT-8 Drive YAAT.Client without stealing focus (automation pipe) · release vNext
+  - [x] YAAT-9 Client driver automation pipe: brief 4b, the wait_for tool · release vNext
+  - [x] YAAT-10 Client driver automation pipe: brief 4c, the screenshot tool · release vNext
+- [ ] YAAT-11 Merge feat/client-driver-background (#474) · release vNext
 
 ## Context-menu quick commands (#471)
 
-- [/] YAAT-12 Context-menu quick commands: per-situation lists with the icon strip
-  - [ ] YAAT-13 Context-menu quick commands: brief 7d (header, footer, relative items)
-  - [ ] YAAT-14 Context-menu quick commands: brief 7e (one tree on every surface)
-  - [ ] YAAT-15 Context-menu quick commands step 3: per-situation lists with the icon strip
-- [ ] YAAT-16 Merge feat/context-menu-quick-commands (#471, yaat-server#21)
+- [/] YAAT-12 Context-menu quick commands: per-situation lists with the icon strip · release vNext
+  - [/] YAAT-13 Context-menu quick commands: brief 7d (header, footer, relative items) · release vNext
+  - [ ] YAAT-14 Context-menu quick commands: brief 7e (one tree on every surface) · release vNext
+  - [ ] YAAT-15 Context-menu quick commands step 3: per-situation lists with the icon strip · release vNext
+- [ ] YAAT-16 Merge feat/context-menu-quick-commands (#471, yaat-server#21) · release vNext
 
 ## Tick-path unification
 
 - [/] YAAT-17 Tick-path unification: finish step 4 relocation, then step 5
 - [ ] YAAT-18 Suppress auto-accept while a track shows CST
+- [ ] YAAT-209 Move the ERAM coverage-loss coast state machine into the Sim
 - [ ] YAAT-19 Fix the false ERAM-coast citation in CrcVisibilityTracker (yaat-server)
 - [ ] YAAT-20 Raise the solo auto-accept floor to 5 s; HandoffUnacceptedRule reads it
 
 ## Say again
 
-- [ ] YAAT-21 Say again: student asks a pilot to repeat its last transmission
+- [/] YAAT-21 Say again: student asks a pilot to repeat its last transmission
 
 ## Taxi append
 
@@ -90,6 +93,7 @@
 - [ ] YAAT-57 Re-cite docs/ground/pathfinder.md by symbol, not line
 - [ ] YAAT-58 Split SegmentExpander.ResolveExplicitFrom (over 100 lines)
 - [ ] YAAT-59 GroundCommandHandler leftovers: split TryTaxiCore, cut Resolve*Route params
+- [ ] YAAT-212 A no-destination taxi stops with its nose in the junction it ends at
 
 ## Wave 3 — Ground routing, pathfinder and their docs
 
@@ -132,7 +136,7 @@
 - [ ] YAAT-90 Trim applied ground blocks; cover EL/ER/ET in the dry-run ground guard
 - [ ] YAAT-91 Close dry-run fidelity gaps: split re-parse fallback, FinalApproach DTO field
 - [ ] YAAT-92 Skip the vTDLS re-broadcast when no field the TDLS item shows changed
-- [ ] YAAT-93 Decide whether the apply path refuses later commands the new phase rejects
+- [ ] YAAT-93 Refuse a block's later command the new phase rejects; drop the rest
 - [ ] YAAT-94 Make IdlePhaseAcceptsBlock follow the dispatcher's phase gate
 
 ## Wave 6 — Strips, TDLS, air-taxi and hub
@@ -151,6 +155,8 @@
 - [ ] YAAT-103 Validate the radar Squawk input as four octal digits
 - [ ] YAAT-104 Share one runway-ends helper between RunwayFlyout and Core
 - [ ] YAAT-105 Show the sim's Zulu clock on the Radar and Ground views, CRC-style
+- [ ] YAAT-210 Skip hidden datablocks in the ground view's hit test
+- [ ] YAAT-211 Split RadarCanvas.OnPointerPressed into one helper per ladder rung
 
 ## Wave 8 — Live traffic
 
@@ -184,6 +190,9 @@
 - [ ] YAAT-130 Reshape docs/architecture.md (both repos) to the entry-point template
 - [ ] YAAT-131 Fix dead doc paths rigcheck found
 - [ ] YAAT-204 Rework the triage-open-issues skill for the Linear plan
+- [ ] YAAT-205 prepare-release: complete the Linear release after tagging
+- [ ] YAAT-206 Add the Agent Mail lease guard to yaat-server's prek hooks
+- [ ] YAAT-213 Isolate UserPreferences writes between UI tests
 
 ## Singles
 
