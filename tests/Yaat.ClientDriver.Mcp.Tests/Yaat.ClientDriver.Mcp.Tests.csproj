@@ -5,6 +5,7 @@
     <!-- Builds on the Linux CI runner like the server itself; runs only on Windows, where UI Automation exists. -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <IsTestProject Condition="!$([MSBuild]::IsOSPlatform('Windows'))">false</IsTestProject>
+    <IsTestingPlatformApplication Condition="!$([MSBuild]::IsOSPlatform('Windows'))">false</IsTestingPlatformApplication>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
