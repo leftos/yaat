@@ -29,7 +29,8 @@ public sealed class AutomationDispatcher
     {
         Register(new PingHandler());
         Register(new ListWindowsHandler(registry));
-        var selectors = new SelectorRequestHelper(new SelectorEngine(registry), registry);
+        var engine = new SelectorEngine(registry);
+        var selectors = new SelectorRequestHelper(engine, registry);
         var targets = new TargetResolver(registry, selectors);
         Register(new TreeHandler(registry, targets, new NodeInfoBuilder(registry)));
         Register(new ClickHandler(registry, targets));
@@ -37,11 +38,18 @@ public sealed class AutomationDispatcher
         Register(new SendKeysHandler(registry, targets));
         Register(new SetTextHandler(registry, targets));
         Register(new FocusHandler(registry, targets));
+        Register(new WaitForHandler(engine));
+        Register(new ScreenshotHandler(registry, targets));
     }
 
     private void Register(IRequestHandler handler) => _handlers[handler.Method] = handler;
 
-    public async Task<string> Dispatch(string json)
+    /// <summary>
+    /// Answers <paramref name="json"/>. A cancellation of <paramref name="cancellationToken"/> (the client disconnected or the
+    /// host stopped) is the one failure not answered: the <see cref="OperationCanceledException"/> reaches the caller, since
+    /// there is no one to answer.
+    /// </summary>
+    public async Task<string> Dispatch(string json, CancellationToken cancellationToken)
     {
         AutomationRequest? request;
         try
@@ -79,20 +87,25 @@ public sealed class AutomationDispatcher
             );
         }
 
-        return await Invoke(handler, request, id).ConfigureAwait(false);
+        return await Invoke(handler, request, id, cancellationToken).ConfigureAwait(false);
     }
 
-    private static async Task<string> Invoke(IRequestHandler handler, AutomationRequest request, string id)
+    private static async Task<string> Invoke(IRequestHandler handler, AutomationRequest request, string id, CancellationToken cancellationToken)
     {
         try
         {
-            object result = await handler.Handle(request).ConfigureAwait(false);
+            object result = await handler.Handle(request, cancellationToken).ConfigureAwait(false);
             if (result is HandlerErrorResult error)
             {
                 return ProtocolSerializer.Serialize(AutomationResponse.Failure(id, error.Error));
             }
 
             return ProtocolSerializer.Serialize(AutomationResponse.Success(id, ProtocolSerializer.ToElement(result)));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            Log.LogDebug("Automation method {Method} (request {Id}) cancelled", handler.Method, id);
+            throw;
         }
         catch (Exception ex)
         {

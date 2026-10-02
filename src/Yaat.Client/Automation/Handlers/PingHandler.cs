@@ -10,5 +10,6 @@ public sealed class PingHandler : IRequestHandler
 {
     public string Method => ProtocolMethods.Ping;
 
-    public Task<object> Handle(AutomationRequest request) => Task.FromResult<object>(new PingResult(Environment.ProcessId, ProtocolVersion.Current));
+    public Task<object> Handle(AutomationRequest request, CancellationToken cancellationToken) =>
+        Task.FromResult<object>(new PingResult(Environment.ProcessId, ProtocolVersion.Current));
 }

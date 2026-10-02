@@ -19,7 +19,8 @@ public sealed class ListWindowsHandler(NodeRegistry registry) : IRequestHandler
 {
     public string Method => ProtocolMethods.ListWindows;
 
-    public async Task<object> Handle(AutomationRequest request) => await Dispatcher.UIThread.InvokeAsync<object>(ListWindows);
+    public async Task<object> Handle(AutomationRequest request, CancellationToken cancellationToken) =>
+        await Dispatcher.UIThread.InvokeAsync<object>(ListWindows);
 
     private List<WindowInfo> ListWindows()
     {

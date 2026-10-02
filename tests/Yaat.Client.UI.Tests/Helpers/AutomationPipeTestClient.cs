@@ -62,6 +62,9 @@ public sealed class AutomationPipeTestClient : IAsyncDisposable
         return document.RootElement.Clone();
     }
 
+    /// <summary>Sends <paramref name="line"/> as one request line without waiting for the response.</summary>
+    public async Task WriteLineAsync(string line) => await _pipe.WriteAsync(Utf8NoBom.GetBytes(line + "\n")).AsTask().WaitAsync(ReplyTimeout);
+
     /// <summary>Reads the next line from the host; null once the host has closed the connection.</summary>
     public async Task<string?> ReadLineAsync() => await _reader.ReadLineAsync().WaitAsync(ReplyTimeout);
 

@@ -41,7 +41,7 @@ public sealed class SendKeysHandler(NodeRegistry registry, TargetResolver target
 
     public string Method => ProtocolMethods.SendKeys;
 
-    public async Task<object> Handle(AutomationRequest request)
+    public async Task<object> Handle(AutomationRequest request, CancellationToken cancellationToken)
     {
         object parsed = ParseParams(request.Params);
         if (parsed is not SendKeysParams parameters)

@@ -38,7 +38,7 @@ public sealed class TreeHandler(NodeRegistry registry, TargetResolver targets, N
 
     public string Method => ProtocolMethods.GetTree;
 
-    public async Task<object> Handle(AutomationRequest request)
+    public async Task<object> Handle(AutomationRequest request, CancellationToken cancellationToken)
     {
         object parsed = ParseParams(request.Params);
         if (parsed is not TreeParams parameters)

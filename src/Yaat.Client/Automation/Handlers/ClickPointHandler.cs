@@ -23,7 +23,7 @@ public sealed class ClickPointHandler(NodeRegistry registry, TargetResolver targ
 
     public string Method => ProtocolMethods.ClickPoint;
 
-    public async Task<object> Handle(AutomationRequest request)
+    public async Task<object> Handle(AutomationRequest request, CancellationToken cancellationToken)
     {
         object parsed = ParseParams(request.Params);
         if (parsed is not ClickPointParams parameters)

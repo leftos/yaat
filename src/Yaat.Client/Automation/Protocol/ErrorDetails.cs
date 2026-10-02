@@ -26,3 +26,15 @@ public sealed record PointErrorDetails(double X, double Y, double Width, double 
 
 /// <summary><see cref="AutomationError.Details"/> of a malformed <c>send_keys</c> string: the zero-based position of the fault.</summary>
 public sealed record KeysErrorDetails(string Keys, int Position);
+
+/// <summary>
+/// <see cref="AutomationError.Details"/> of a <c>wait_for</c> <c>TIMEOUT</c>: the clamped timeout and the selector's last
+/// match count.
+/// </summary>
+public sealed record WaitTimeoutDetails(string Selector, string Condition, int TimeoutMs, int MatchCount);
+
+/// <summary>
+/// <see cref="AutomationError.Details"/> of a <c>screenshot</c> <c>OUT_OF_BOUNDS</c> error: the element's size in DIPs,
+/// which has no area.
+/// </summary>
+public sealed record SizeErrorDetails(int NodeId, string ElementType, double Width, double Height);

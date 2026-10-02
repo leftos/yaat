@@ -10,5 +10,9 @@ public interface IRequestHandler
 {
     string Method { get; }
 
-    Task<object> Handle(AutomationRequest request);
+    /// <summary>
+    /// Serves <paramref name="request"/>. <paramref name="cancellationToken"/> is cancelled when the client disconnects or
+    /// the host stops; a handler that waits honours it, one that answers at once may ignore it.
+    /// </summary>
+    Task<object> Handle(AutomationRequest request, CancellationToken cancellationToken);
 }

@@ -44,18 +44,49 @@ public sealed class AutomationHost(string pipeName, string discoveryDirectory, F
         var writer = new StreamWriter(stream, Utf8NoBom) { AutoFlush = true };
         await using ConfiguredAsyncDisposable writerScope = writer.ConfigureAwait(false);
 
-        while (!ct.IsCancellationRequested)
+        Task<string?> nextLine = reader.ReadLineAsync(ct).AsTask();
+        while (await nextLine.ConfigureAwait(false) is { } line)
         {
-            string? line = await reader.ReadLineAsync(ct).ConfigureAwait(false);
-            if (line is null)
+            // Read ahead while the request runs, so the end of the stream (the client has gone) cancels it.
+            nextLine = reader.ReadLineAsync(ct).AsTask();
+            string? response = await DispatchWhileConnected(line, nextLine, ct).ConfigureAwait(false);
+            if (response is null)
             {
                 break;
             }
 
-            string response = await _dispatcher.Dispatch(line).ConfigureAwait(false);
             await writer.WriteLineAsync(response.AsMemory(), ct).ConfigureAwait(false);
         }
     }
+
+    /// <summary>
+    /// Dispatches <paramref name="line"/> with a token cancelled on host shutdown (<paramref name="ct"/>) or when
+    /// <paramref name="nextLine"/> shows the client has disconnected; null when the client disconnected mid-request.
+    /// </summary>
+    private async Task<string?> DispatchWhileConnected(string line, Task<string?> nextLine, CancellationToken ct)
+    {
+        using var request = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        Task<string> dispatch = _dispatcher.Dispatch(line, request.Token);
+        Task finished = await Task.WhenAny((Task)dispatch, nextLine).ConfigureAwait(false);
+        if ((finished == nextLine) && IsDisconnect(nextLine))
+        {
+            await request.CancelAsync().ConfigureAwait(false);
+        }
+
+        try
+        {
+            return await dispatch.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            Log.LogDebug("Automation request cancelled on pipe {PipeName}: the client disconnected", pipeName);
+            return null;
+        }
+    }
+
+    /// <summary>A finished read-ahead that is the end of the stream or a broken pipe, rather than the client's next request.</summary>
+    private static bool IsDisconnect(Task<string?> nextLine) =>
+        (nextLine.Exception is not null) || (nextLine.IsCompletedSuccessfully && (nextLine.Result is null));
 
     public void Dispose()
     {

@@ -53,7 +53,8 @@ public sealed class SelectorRequestHelper(SelectorEngine engine, NodeRegistry re
         return false;
     }
 
-    private static bool TryParse(string selector, [NotNullWhen(true)] out ParsedSelector? parsed, [NotNullWhen(false)] out HandlerErrorResult? error)
+    /// <summary>Parses <paramref name="selector"/>, or answers the <c>INVALID_SELECTOR</c> error with the parse position.</summary>
+    public static bool TryParse(string selector, [NotNullWhen(true)] out ParsedSelector? parsed, [NotNullWhen(false)] out HandlerErrorResult? error)
     {
         try
         {

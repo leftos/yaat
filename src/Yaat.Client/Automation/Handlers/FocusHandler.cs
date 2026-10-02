@@ -16,7 +16,7 @@ public sealed class FocusHandler(NodeRegistry registry, TargetResolver targets) 
 {
     public string Method => ProtocolMethods.Focus;
 
-    public async Task<object> Handle(AutomationRequest request)
+    public async Task<object> Handle(AutomationRequest request, CancellationToken cancellationToken)
     {
         (JsonElement element, HandlerErrorResult? objectError) = InputParams.RequireObject(request.Params);
         if (objectError is not null)

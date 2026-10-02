@@ -78,6 +78,15 @@ public static class HandlerResult
             new PointErrorDetails(x, y, width, height)
         );
 
+    /// <summary>An <c>OUT_OF_BOUNDS</c> error for an element with no area to capture.</summary>
+    public static HandlerErrorResult ZeroSize(int nodeId, string elementType, double width, double height) =>
+        Error(
+            AutomationErrorCodes.OutOfBounds,
+            string.Create(CultureInfo.InvariantCulture, $"Element '{elementType}' is {width} x {height} DIPs and has no area to capture."),
+            "Capture an element that is laid out with a non-zero size, or its window.",
+            new SizeErrorDetails(nodeId, elementType, width, height)
+        );
+
     public static HandlerErrorResult MissingSelector() =>
         Error(AutomationErrorCodes.MissingSelector, "Selector is required.", "Provide the selector parameter.", new ParamErrorDetails("selector"));
 
