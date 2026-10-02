@@ -45,7 +45,7 @@ public sealed class InputTools(ElementRegistry registry, ILogger<InputTools> log
     [Description("Invokes an element through its InvokePattern — the fast, focus-free path for buttons and other controls that support it.")]
     public string Invoke([Description("Element id from find_elements, list_windows or dump_tree.")] string elementId)
     {
-        AutomationElement element = registry.Resolve(elementId);
+        AutomationElement element = registry.ResolveUia(elementId);
         return UiaQuery.Guarded(logger, "invoke", elementId, () => InvokeElement(element, elementId));
     }
 
@@ -62,7 +62,7 @@ public sealed class InputTools(ElementRegistry registry, ILogger<InputTools> log
         [Description("Keys held during the click: shift, ctrl or shift+ctrl; empty for none. Real input only.")] string modifiers = ""
     )
     {
-        AutomationElement element = registry.Resolve(elementId);
+        AutomationElement element = registry.ResolveUia(elementId);
         MouseButton mouseButton = ParseButton(button);
         KeyModifiers keyModifiers = ParseModifiers(modifiers);
         return UiaQuery.Guarded(logger, "click", elementId, () => ClickElement(element, elementId, mouseButton, doubleClick, keyModifiers));
@@ -123,7 +123,7 @@ public sealed class InputTools(ElementRegistry registry, ILogger<InputTools> log
             string text
     )
     {
-        AutomationElement element = registry.Resolve(elementId);
+        AutomationElement element = registry.ResolveUia(elementId);
         return UiaQuery.Guarded(logger, "set_text", elementId, () => WriteText(element, elementId, text));
     }
 
@@ -147,7 +147,7 @@ public sealed class InputTools(ElementRegistry registry, ILogger<InputTools> log
                 return NativeInput.Mode == InputMode.Real ? RealKeysToFocused(keys) : VirtualKeysToFocused(keys);
             }
 
-            AutomationElement element = registry.Resolve(focusElementId);
+            AutomationElement element = registry.ResolveUia(focusElementId);
             return UiaQuery.Guarded(
                 logger,
                 "send_keys",
@@ -168,7 +168,7 @@ public sealed class InputTools(ElementRegistry registry, ILogger<InputTools> log
     )]
     public string Focus([Description("Element id to focus.")] string elementId)
     {
-        AutomationElement element = registry.Resolve(elementId);
+        AutomationElement element = registry.ResolveUia(elementId);
         return UiaQuery.Guarded(logger, "focus", elementId, () => FocusAndRemember(element, elementId));
     }
 

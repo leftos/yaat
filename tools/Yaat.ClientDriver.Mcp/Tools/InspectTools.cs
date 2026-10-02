@@ -41,7 +41,7 @@ public sealed class InspectTools(ElementRegistry registry, ILogger<InspectTools>
         [Description("How many levels below the element to walk.")] int maxDepth = 4
     )
     {
-        AutomationElement element = registry.Resolve(elementId);
+        AutomationElement element = registry.ResolveUia(elementId);
         return UiaQuery.Guarded(logger, "dump_tree", elementId, () => UiaQuery.DumpTree(element, maxDepth, MaxTreeLines, registry));
     }
 
@@ -62,7 +62,7 @@ public sealed class InspectTools(ElementRegistry registry, ILogger<InspectTools>
             throw new McpException("Give at least one of name, automationId or controlType — an unfiltered search walks the whole window");
         }
 
-        AutomationElement root = registry.Resolve(rootElementId);
+        AutomationElement root = registry.ResolveUia(rootElementId);
         List<AutomationElement> matches = UiaQuery.Guarded(
             logger,
             "find_elements",
@@ -91,7 +91,7 @@ public sealed class InspectTools(ElementRegistry registry, ILogger<InspectTools>
         [Description("Widest the returned image may be, in pixels; wider captures are downscaled.")] int maxWidth = 1280
     )
     {
-        AutomationElement element = registry.Resolve(windowElementId);
+        AutomationElement element = registry.ResolveUia(windowElementId);
         CaptureResult capture = UiaQuery.Guarded(logger, "screenshot", windowElementId, () => CaptureElement(element, maxWidth));
         string captured = $"{capture.Path} — captured {capture.SourceWidth}x{capture.SourceHeight} from {capture.Source}";
         string summary = $"{captured}, returned {capture.Width}x{capture.Height} ({capture.Png.Length} bytes)";
@@ -105,7 +105,7 @@ public sealed class InspectTools(ElementRegistry registry, ILogger<InspectTools>
     )]
     public string GetValue([Description("Element id whose value to read.")] string elementId)
     {
-        AutomationElement element = registry.Resolve(elementId);
+        AutomationElement element = registry.ResolveUia(elementId);
         return UiaQuery.Guarded(logger, "get_value", elementId, () => ReadValue(element));
     }
 
