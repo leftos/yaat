@@ -19,23 +19,24 @@ using CatalogMenuView = Yaat.Client.ContextMenus.MenuView;
 
 namespace Yaat.Client.UI.Tests.Views;
 
-// Coverage for InputFlyout, the shared free-text popup behind a catalog "Custom..." item on the ground view and the
-// aircraft list: it opens on its anchor with the item's placeholder, submits what the controller typed, and closes
-// without sending on a blank submit, the Clear button or Escape.
-public class InputFlyoutTests
+// Coverage for MenuPopups, the popup service every view's menu host opens its pickers through: the free-text input
+// (with an initial text and caret), the list, the type-to-filter list and the warp popup, each opening on its anchor's
+// overlay, handing back what the controller picked or typed, and closing without sending on a blank submit, the Clear
+// button or Escape.
+public class MenuPopupsTests
 {
     private const string Placeholder = "CTO arg (e.g. RH 3000, LT 270, DCT BERKS)";
     private const string Callsign = "SWA104";
     private const string Initials = "AB";
 
-    // --- The flyout on its own --------------------------------------------------------------
+    // --- The input popup ----------------------------------------------------------------------
 
     [AvaloniaFact]
     public void Open_ShowsPopupWithPlaceholderAndFocus()
     {
         (Window _, Control anchor) = ShowAnchorWindow();
 
-        InputFlyout.Open(anchor, Placeholder, _ => Task.CompletedTask);
+        MenuPopups.ShowInput(anchor, Placeholder, "", 0, _ => Task.CompletedTask);
         HeadlessWindowExtensions.PumpDispatcher();
 
         Popup popup = FindPopup(anchor);
@@ -46,15 +47,18 @@ public class InputFlyoutTests
     }
 
     [AvaloniaFact]
-    public void Open_HasNoEmptyTitleRow()
+    public void Input_InitialTextAndCaret()
     {
         (Window _, Control anchor) = ShowAnchorWindow();
 
-        InputFlyout.Open(anchor, Placeholder, _ => Task.CompletedTask);
+        MenuPopups.ShowInput(anchor, Placeholder, "TAXI A B", 5, _ => Task.CompletedTask);
         HeadlessWindowExtensions.PumpDispatcher();
 
-        IEnumerable<TextBlock> textBlocks = FindPopup(anchor).Child?.GetLogicalDescendants().OfType<TextBlock>() ?? [];
-        Assert.DoesNotContain(textBlocks, block => string.IsNullOrEmpty(block.Text));
+        TextBox textBox = FindTextBox(anchor);
+        Assert.Equal("TAXI A B", textBox.Text);
+        Assert.True(textBox.IsFocused, "The input popup's TextBox should receive focus when the popup opens.");
+        Assert.Equal(5, textBox.CaretIndex);
+        Assert.True(string.IsNullOrEmpty(textBox.SelectedText), "An initial caret should leave nothing selected.");
     }
 
     [AvaloniaFact]
@@ -62,9 +66,11 @@ public class InputFlyoutTests
     {
         (Window _, Control anchor) = ShowAnchorWindow();
         var submitted = new TaskCompletionSource<string>();
-        InputFlyout.Open(
+        MenuPopups.ShowInput(
             anchor,
             Placeholder,
+            "",
+            0,
             value =>
             {
                 submitted.TrySetResult(value);
@@ -75,7 +81,7 @@ public class InputFlyoutTests
 
         Popup popup = FindPopup(anchor);
         TextBox textBox = FindTextBox(anchor);
-        textBox.Text = "RH 3000";
+        textBox.Text = "  RH 3000 ";
         RaiseKey(textBox, Key.Enter);
 
         Assert.Equal("RH 3000", await submitted.Task.WaitAsync(TimeSpan.FromSeconds(2)));
@@ -88,9 +94,11 @@ public class InputFlyoutTests
     {
         (Window _, Control anchor) = ShowAnchorWindow();
         bool submitted = false;
-        InputFlyout.Open(
+        MenuPopups.ShowInput(
             anchor,
             Placeholder,
+            "",
+            0,
             _ =>
             {
                 submitted = true;
@@ -114,9 +122,11 @@ public class InputFlyoutTests
     {
         (Window _, Control anchor) = ShowAnchorWindow();
         bool submitted = false;
-        InputFlyout.Open(
+        MenuPopups.ShowInput(
             anchor,
             Placeholder,
+            "",
+            0,
             _ =>
             {
                 submitted = true;
@@ -138,9 +148,11 @@ public class InputFlyoutTests
     {
         (Window _, Control anchor) = ShowAnchorWindow();
         bool submitted = false;
-        InputFlyout.Open(
+        MenuPopups.ShowInput(
             anchor,
             Placeholder,
+            "",
+            0,
             _ =>
             {
                 submitted = true;
@@ -157,13 +169,220 @@ public class InputFlyoutTests
 
         Assert.False(submitted, "Escape must not invoke the submit callback.");
         Assert.False(popup.IsOpen, "Escape should dismiss the popup.");
+        Assert.DoesNotContain(popup, OverlayLayer.GetOverlayLayer(anchor)!.Children);
+    }
+
+    // --- The list, filtered-list and warp popups ------------------------------------------------
+
+    /// <summary>The list popup seeds the current value and hands back the item a click selects, then closes.</summary>
+    [AvaloniaFact]
+    public void List_ClickPicksTheItem()
+    {
+        (Window _, Control anchor) = ShowAnchorWindow();
+        object? picked = null;
+        MenuPopups.ShowList(
+            anchor,
+            [3000, 4000, 5000],
+            4100,
+            value =>
+            {
+                picked = value;
+                return Task.CompletedTask;
+            }
+        );
+        HeadlessWindowExtensions.PumpDispatcher();
+
+        Popup popup = FindPopup(anchor);
+        Assert.True(popup.IsOpen, "The list popup should open on its anchor.");
+        ListBox list = FindListBox(anchor);
+        Assert.Equal<object?>(4000, list.SelectedItem);
+        Assert.Null(picked);
+
+        list.SelectedIndex = 2;
+        HeadlessWindowExtensions.PumpDispatcher();
+
+        Assert.Equal<object?>(5000, picked);
+        Assert.False(popup.IsOpen, "A pick should close the list popup.");
+    }
+
+    /// <summary>
+    /// The filtered list shows the priority items first, narrows to the names starting with the typed prefix (case
+    /// folded), and Enter picks the first match.
+    /// </summary>
+    [AvaloniaFact]
+    public void FilteredList_TypeThenEnterPicksTheMatch()
+    {
+        (Window _, Control anchor) = ShowAnchorWindow();
+        string? picked = null;
+        MenuPopups.ShowFilteredList(
+            anchor,
+            ["ECA", "OAK", "OAKLE", "SFO"],
+            ["SFO"],
+            value =>
+            {
+                picked = value;
+                return Task.CompletedTask;
+            }
+        );
+        HeadlessWindowExtensions.PumpDispatcher();
+
+        Popup popup = FindPopup(anchor);
+        TextBox textBox = FindTextBox(anchor);
+        ListBox list = FindListBox(anchor);
+        Assert.True(textBox.IsFocused, "The filter box should receive focus when the popup opens.");
+        Assert.Equal(["SFO"], list.Items.Cast<object>().Select(i => i.ToString()));
+
+        textBox.Text = "oa";
+        HeadlessWindowExtensions.PumpDispatcher();
+        Assert.Equal(["OAK", "OAKLE"], list.Items.Cast<object>().Select(i => i.ToString()));
+        Assert.Null(picked);
+
+        RaiseKey(textBox, Key.Enter);
+        HeadlessWindowExtensions.PumpDispatcher();
+
+        Assert.Equal("OAK", picked);
+        Assert.False(popup.IsOpen, "Enter should close the filtered-list popup.");
+    }
+
+    /// <summary>Up and Down move the filtered list's selection within the matches, stopping at either end.</summary>
+    [AvaloniaFact]
+    public void FilteredList_UpDownMoveTheSelection()
+    {
+        (Window _, Control anchor) = ShowAnchorWindow();
+        MenuPopups.ShowFilteredList(anchor, ["ECA", "OAK", "OAKLE", "SFO"], null, _ => Task.CompletedTask);
+        HeadlessWindowExtensions.PumpDispatcher();
+
+        TextBox textBox = FindTextBox(anchor);
+        ListBox list = FindListBox(anchor);
+        textBox.Text = "OA";
+        HeadlessWindowExtensions.PumpDispatcher();
+        Assert.Equal<object?>("OAK", list.SelectedItem);
+
+        RaiseKey(textBox, Key.Down);
+        Assert.Equal<object?>("OAKLE", list.SelectedItem);
+        RaiseKey(textBox, Key.Down);
+        Assert.Equal<object?>("OAKLE", list.SelectedItem);
+        RaiseKey(textBox, Key.Up);
+        Assert.Equal<object?>("OAK", list.SelectedItem);
+        RaiseKey(textBox, Key.Up);
+        Assert.Equal<object?>("OAK", list.SelectedItem);
+    }
+
+    /// <summary>With no name matching, Enter picks the typed text upper-cased.</summary>
+    [AvaloniaFact]
+    public void FilteredList_NoMatch_EnterPicksTheTypedTextUpperCased()
+    {
+        (Window _, Control anchor) = ShowAnchorWindow();
+        string? picked = null;
+        MenuPopups.ShowFilteredList(
+            anchor,
+            ["ECA", "OAK", "OAKLE", "SFO"],
+            null,
+            value =>
+            {
+                picked = value;
+                return Task.CompletedTask;
+            }
+        );
+        HeadlessWindowExtensions.PumpDispatcher();
+
+        TextBox textBox = FindTextBox(anchor);
+        textBox.Text = " zz ";
+        HeadlessWindowExtensions.PumpDispatcher();
+        Assert.Empty(FindListBox(anchor).Items);
+
+        RaiseKey(textBox, Key.Enter);
+        HeadlessWindowExtensions.PumpDispatcher();
+
+        Assert.Equal("ZZ", picked);
+    }
+
+    /// <summary>The warp popup opens seeded with the aircraft's values and hands back FRD, heading, altitude and speed.</summary>
+    [AvaloniaFact]
+    public void Warp_SubmitHandsBackFrdHeadingAltitudeSpeed()
+    {
+        (Window _, Control anchor) = ShowAnchorWindow();
+        (string Frd, int Heading, int Altitude, int Speed)? submitted = null;
+        MenuPopups.ShowWarp(
+            anchor,
+            new MenuPopups.WarpSeed(Callsign, "SFO", 90, 5000, 250),
+            (frd, heading, altitude, speed) =>
+            {
+                submitted = (frd, heading, altitude, speed);
+                return Task.CompletedTask;
+            }
+        );
+        HeadlessWindowExtensions.PumpDispatcher();
+
+        Popup popup = FindPopup(anchor);
+        Assert.Contains(popup.Child!.GetLogicalDescendants().OfType<TextBlock>(), block => block.Text == $"Warp {Callsign}");
+        TextBox[] boxes = [.. popup.Child!.GetLogicalDescendants().OfType<TextBox>()];
+        Assert.Equal(["SFO", "90", "5000", "250"], boxes.Select(b => b.Text));
+        Assert.True(boxes[0].IsFocused, "The FRD box should receive focus when the popup opens.");
+
+        boxes[0].Text = " OAK180010 ";
+        boxes[3].Text = "210";
+        RaiseKey(boxes[1], Key.Enter);
+        HeadlessWindowExtensions.PumpDispatcher();
+
+        Assert.Equal(("OAK180010", 90, 5000, 210), submitted);
+        Assert.False(popup.IsOpen, "Submitting should close the warp popup.");
+    }
+
+    /// <summary>
+    /// The warp popup closes without submitting on a blank FRD, a heading that is not a number, Cancel and Escape.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData("blank-frd")]
+    [InlineData("bad-heading")]
+    [InlineData("cancel")]
+    [InlineData("escape")]
+    public void Warp_ClosesWithoutSubmitting(string how)
+    {
+        (Window _, Control anchor) = ShowAnchorWindow();
+        bool submitted = false;
+        MenuPopups.ShowWarp(
+            anchor,
+            new MenuPopups.WarpSeed(Callsign, "SFO", 90, 5000, 250),
+            (_, _, _, _) =>
+            {
+                submitted = true;
+                return Task.CompletedTask;
+            }
+        );
+        HeadlessWindowExtensions.PumpDispatcher();
+
+        Popup popup = FindPopup(anchor);
+        TextBox[] boxes = [.. popup.Child!.GetLogicalDescendants().OfType<TextBox>()];
+        switch (how)
+        {
+            case "blank-frd":
+                boxes[0].Text = "   ";
+                RaiseKey(boxes[0], Key.Enter);
+                break;
+            case "bad-heading":
+                boxes[1].Text = "abc";
+                RaiseKey(boxes[1], Key.Enter);
+                break;
+            case "cancel":
+                FindButton(anchor, "Cancel").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                break;
+            default:
+                RaiseKey(boxes[2], Key.Escape);
+                break;
+        }
+
+        HeadlessWindowExtensions.PumpDispatcher();
+
+        Assert.False(submitted, $"The warp popup must not submit on {how}.");
+        Assert.False(popup.IsOpen, $"The warp popup should close on {how}.");
     }
 
     // --- The ground host's Custom… ------------------------------------------------------------
 
     /// <summary>
-    /// The ground host's takeoff Custom… opens the input flyout on the ground canvas and sends the clearance the
-    /// controller typed, trimmed by the catalog's own compose step.
+    /// The ground host's takeoff Custom… opens the input popup on the ground canvas and sends the clearance the
+    /// controller typed, trimmed.
     /// </summary>
     [AvaloniaFact]
     public void GroundMenuHost_CustomTakeoff_SendsCtoWithTheTypedArgument()
@@ -200,7 +419,7 @@ public class InputFlyoutTests
     // --- The list host's Custom… --------------------------------------------------------------
 
     /// <summary>
-    /// The aircraft list's takeoff Custom… opens the input flyout on the anchor the list menu already passes its
+    /// The aircraft list's takeoff Custom… opens the input popup on the anchor the list menu already passes its
     /// Command… and Note… flyouts. The list sends through the main view model's own connection, which a test cannot
     /// reach (a real <c>ServerConnection</c> with no seam), so the composed command text stays pinned by
     /// <c>MenuCatalogCommandTests</c>' recording host and this test pins the popup the list opens.
@@ -317,6 +536,13 @@ public class InputFlyoutTests
         return textBox!;
     }
 
+    private static ListBox FindListBox(Control anchor)
+    {
+        ListBox? listBox = FindPopup(anchor).Child?.GetLogicalDescendants().OfType<ListBox>().FirstOrDefault();
+        Assert.NotNull(listBox);
+        return listBox!;
+    }
+
     private static Button FindButton(Control anchor, string content)
     {
         Button? button = FindPopup(anchor).Child?.GetLogicalDescendants().OfType<Button>().FirstOrDefault(b => (b.Content as string) == content);
@@ -326,6 +552,6 @@ public class InputFlyoutTests
 
     private static void Click(MenuItem item) => item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
 
-    private static void RaiseKey(TextBox textBox, Key key) =>
-        textBox.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key });
+    private static void RaiseKey(Control control, Key key) =>
+        control.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key });
 }

@@ -633,64 +633,6 @@
         </Border>
       </Popup>
 
-      <!-- Input popup (free-text entry for commands) -->
-      <Popup x:Name="InputPopup" IsLightDismissEnabled="True" PlacementTarget="{Binding #Canvas}" Placement="Pointer">
-        <Border Background="#222" BorderBrush="#555" BorderThickness="1" Padding="6" CornerRadius="2">
-          <StackPanel Spacing="4">
-            <TextBox x:Name="InputPopupText" Width="160" FontSize="12" KeyDown="OnInputPopupKeyDown" />
-            <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right">
-              <Button Content="OK" Click="OnInputPopupSubmit" Padding="8,2" FontSize="11" />
-              <Button Content="Cancel" Click="OnInputPopupCancel" Padding="8,2" FontSize="11" />
-            </StackPanel>
-          </StackPanel>
-        </Border>
-      </Popup>
-
-      <!-- Warp popup (FRD + heading + altitude + speed for teleporting aircraft) -->
-      <Popup x:Name="WarpPopup" IsLightDismissEnabled="True" PlacementTarget="{Binding #Canvas}" Placement="Pointer">
-        <Border Background="#222" BorderBrush="#555" BorderThickness="1" Padding="8" CornerRadius="2">
-          <StackPanel Spacing="6" Width="280">
-            <TextBlock x:Name="WarpPopupHeader" FontSize="13" FontWeight="Bold" Foreground="#DDD" />
-            <TextBlock Text="Fix or FRD" FontSize="11" Foreground="#999" />
-            <TextBox
-              x:Name="WarpPopupFrd"
-              PlaceholderText="e.g. SFO or SFO180010"
-              FontSize="12"
-              FontFamily="{StaticResource MonoFont}"
-              KeyDown="OnWarpPopupKeyDown"
-            />
-            <TextBlock Text="Heading" FontSize="11" Foreground="#999" />
-            <TextBox
-              x:Name="WarpPopupHeading"
-              PlaceholderText="0-360"
-              FontSize="12"
-              FontFamily="{StaticResource MonoFont}"
-              KeyDown="OnWarpPopupKeyDown"
-            />
-            <TextBlock Text="Altitude (feet)" FontSize="11" Foreground="#999" />
-            <TextBox
-              x:Name="WarpPopupAltitude"
-              PlaceholderText="e.g. 5000"
-              FontSize="12"
-              FontFamily="{StaticResource MonoFont}"
-              KeyDown="OnWarpPopupKeyDown"
-            />
-            <TextBlock Text="Speed (knots IAS)" FontSize="11" Foreground="#999" />
-            <TextBox
-              x:Name="WarpPopupSpeed"
-              PlaceholderText="e.g. 250"
-              FontSize="12"
-              FontFamily="{StaticResource MonoFont}"
-              KeyDown="OnWarpPopupKeyDown"
-            />
-            <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right" Margin="0,4,0,0">
-              <Button Content="OK" Click="OnWarpPopupSubmit" Padding="8,2" FontSize="11" />
-              <Button Content="Cancel" Click="OnWarpPopupCancel" Padding="8,2" FontSize="11" />
-            </StackPanel>
-          </StackPanel>
-        </Border>
-      </Popup>
-
       <!-- Waypoint condition popup (altitude + commands for draw route waypoints) -->
       <Popup x:Name="WaypointConditionPopup" IsLightDismissEnabled="True" PlacementTarget="{Binding #Canvas}" Placement="Pointer">
         <Border Background="#222" BorderBrush="#555" BorderThickness="1" Padding="8" CornerRadius="2">
@@ -718,46 +660,6 @@
               <Button Content="Clear" Click="OnWaypointConditionClear" Padding="8,2" FontSize="11" />
               <Button Content="Cancel" Click="OnWaypointConditionCancel" Padding="8,2" FontSize="11" />
             </StackPanel>
-          </StackPanel>
-        </Border>
-      </Popup>
-
-      <!-- List popup (scrollable value picker for heading, altitude, DCT) -->
-      <Popup x:Name="ListPopup" IsLightDismissEnabled="True" PlacementTarget="{Binding #Canvas}" Placement="Pointer">
-        <Border Background="#222" BorderBrush="#555" BorderThickness="1" CornerRadius="2">
-          <ListBox
-            x:Name="ListPopupItems"
-            MaxHeight="300"
-            Width="120"
-            FontSize="12"
-            FontFamily="{StaticResource MonoFont}"
-            Background="#222"
-            Foreground="#CCC"
-            SelectionChanged="OnListPopupSelectionChanged"
-          />
-        </Border>
-      </Popup>
-
-      <!-- Filtered list popup (text filter + scrollable list for fix name entry) -->
-      <Popup x:Name="FilteredListPopup" IsLightDismissEnabled="True" PlacementTarget="{Binding #Canvas}" Placement="Pointer">
-        <Border Background="#222" BorderBrush="#555" BorderThickness="1" Padding="4" CornerRadius="2">
-          <StackPanel Width="200" Spacing="4">
-            <TextBox
-              x:Name="FilteredListText"
-              FontSize="12"
-              FontFamily="{StaticResource MonoFont}"
-              PlaceholderText="Fix name..."
-              KeyDown="OnFilteredListKeyDown"
-            />
-            <ListBox
-              x:Name="FilteredListItems"
-              MaxHeight="250"
-              FontSize="12"
-              FontFamily="{StaticResource MonoFont}"
-              Background="#222"
-              Foreground="#CCC"
-              SelectionChanged="OnFilteredListSelectionChanged"
-            />
           </StackPanel>
         </Border>
       </Popup>

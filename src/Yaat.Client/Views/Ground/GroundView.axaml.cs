@@ -576,12 +576,6 @@ public partial class GroundView : UserControl
     }
 
     /// <summary>
-    /// Opens the ground canvas's free-text popup for a catalog input item ("Custom..."), anchored on the canvas, and
-    /// hands the submitted text to <paramref name="onSubmit"/> (mirrors <c>RadarView.ShowInputPopup</c>).
-    /// </summary>
-    internal void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) => InputFlyout.Open(_canvas!, placeholder, onSubmit);
-
-    /// <summary>
     /// The phase-aware ground command items, for a simulated aircraft and for an assumable live-traffic shadow:
     /// release checks, the relative items, pushback, taxi holds, hold-short / crossing, takeoff and landing
     /// clearances, runway exits, preset taxi routes and taxi-route drawing, all catalog entries and ground groups from

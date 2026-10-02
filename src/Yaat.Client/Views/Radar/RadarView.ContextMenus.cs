@@ -2,7 +2,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
-using Avalonia.Threading;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
@@ -430,18 +429,11 @@ public partial class RadarView
                 int warpSpd = (int)Math.Round(vm.SelectedAircraft.IndicatedAirspeed);
                 var warpItem = new MenuItem { Header = $"Warp here ({target})" };
                 warpItem.Click += (_, _) =>
-                {
-                    Dispatcher.UIThread.Post(() =>
-                        ShowWarpPopup(
-                            callsign,
-                            warpFrd,
-                            warpHdg,
-                            warpAlt,
-                            warpSpd,
-                            (frd, h, a, s) => _ = vm.WarpAsync(callsign, initials, frd, h, a, s)
-                        )
+                    MenuPopups.ShowWarp(
+                        Canvas,
+                        new MenuPopups.WarpSeed(callsign, warpFrd, warpHdg, warpAlt, warpSpd),
+                        (frd, h, a, s) => vm.WarpAsync(callsign, initials, frd, h, a, s)
                     );
-                };
                 menu.Items.Add(warpItem);
             }
         }

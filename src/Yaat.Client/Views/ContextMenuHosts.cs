@@ -1,12 +1,10 @@
 using Avalonia.Controls;
-using Avalonia.Threading;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Ground;
 using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar;
-using Yaat.Client.Views.Radar.Flyouts;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 
@@ -14,7 +12,8 @@ namespace Yaat.Client.Views;
 
 /// <summary>
 /// The radar's <see cref="IMenuHost"/>, built per right-click: commands go through the radar view model's send path,
-/// input, list, filtered-list and warp pickers open the radar's popups, fix names, field elevations and route drawing
+/// input, list, filtered-list and warp pickers and the Command… and Note… flyouts open through <see cref="MenuPopups"/>
+/// at the pointer on the radar canvas, fix names, field elevations and route drawing
 /// come from the radar view model, the display items read and drive the radar canvas, and favorites are built for the
 /// right-clicked aircraft model.
 /// </summary>
@@ -60,14 +59,13 @@ internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainVi
         | MenuHostCapabilities.Measure
         | MenuHostCapabilities.DrawRoute;
 
-    public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) =>
-        Dispatcher.UIThread.Post(() => view.ShowInputPopup(placeholder, onSubmit));
+    public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) => MenuPopups.ShowInput(view.Canvas, placeholder, "", 0, onSubmit);
 
     public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick) =>
-        Dispatcher.UIThread.Post(() => view.ShowListPopup(items, selected, onPick));
+        MenuPopups.ShowList(view.Canvas, items, selected, onPick);
 
     public void ShowFilteredListPopup(string[] sortedNames, IReadOnlyList<object>? priorityItems, Func<string, Task> onPick) =>
-        Dispatcher.UIThread.Post(() => view.ShowFilteredListPopup(sortedNames, onPick, priorityItems));
+        MenuPopups.ShowFilteredList(view.Canvas, sortedNames, priorityItems, onPick);
 
     public string[]? FixNames => radar.FixNames;
 
@@ -76,10 +74,10 @@ internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainVi
     public void EnterDrawRoute(string callsign) => radar.EnterDrawRoute(callsign);
 
     public void ShowWarpPopup(string callsign, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit) =>
-        Dispatcher.UIThread.Post(() => view.ShowWarpPopup(callsign, "", heading, altitude, speed, (frd, h, a, s) => _ = onSubmit(frd, h, a, s)));
+        MenuPopups.ShowWarp(view.Canvas, new MenuPopups.WarpSeed(callsign, "", heading, altitude, speed), onSubmit);
 
     public void ShowCommandFlyout(string callsign, string initials) =>
-        CommandFlyout.Open(
+        MenuPopups.ShowCommand(
             view.Canvas,
             callsign,
             command =>
@@ -89,7 +87,7 @@ internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainVi
         );
 
     public void ShowNoteFlyout(string callsign, string currentNote, Func<string, Task> sendCommand) =>
-        NoteFlyout.Open(view.Canvas, callsign, currentNote, sendCommand);
+        MenuPopups.ShowNote(view.Canvas, callsign, currentNote, sendCommand);
 
     public void OpenFlightPlanEditor() =>
         throw new NotSupportedException("The radar menu has no flight-plan item; Ctrl-clicking an aircraft opens the editor");
@@ -159,9 +157,9 @@ internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainVi
 /// the right-clicked aircraft, the follow and give-way submenus list the main view model's other ground traffic, hold
 /// short asks the ground view model for the route's targets and previews the route to one on hover, the pushback faces,
 /// push back to and preset taxi routes ask the ground view model for their finished commands, push route starts a tug
-/// move for the right-clicked aircraft, and favorites are built for the right-clicked aircraft model. The ground serves
-/// free-text input through <see cref="InputFlyout"/> anchored on its canvas, and has no list, filtered-list or warp
-/// popup, no fix or altitude picker, no flight-plan item, and no mini data block or nav route.
+/// move for the right-clicked aircraft, and favorites are built for the right-clicked aircraft model. Its popups and
+/// flyouts open through <see cref="MenuPopups"/> at the pointer on the ground canvas. It has no fix or altitude picker,
+/// no flight-plan item, and no mini data block or nav route.
 /// </summary>
 internal sealed class GroundMenuHost(GroundView view, GroundViewModel ground, MainViewModel? main, AircraftModel? aircraft) : IMenuHost
 {
@@ -169,8 +167,11 @@ internal sealed class GroundMenuHost(GroundView view, GroundViewModel ground, Ma
 
     /// <summary>
     /// The ground view serves the free-text popup, the data-block position reset, the measure tool, the taxi-route and
-    /// hidden-datablock display, route drawing and the ground-movement submenus. It has no list, filtered-list or warp
-    /// popup, no mini data block or nav route, no flight-plan editor and no multi-selection, so those throw.
+    /// hidden-datablock display, route drawing and the ground-movement submenus. Its list and warp popups open, but
+    /// <see cref="MenuHostCapabilities.ListPicker"/> and <see cref="MenuHostCapabilities.Warp"/> are left undeclared so
+    /// those entries stay off the ground menu until the capabilities go; <see cref="MenuHostCapabilities.FilteredListPicker"/>
+    /// stays undeclared because <see cref="FixNames"/> throws. It has no mini data block or nav route, no flight-plan
+    /// editor and no multi-selection, so those throw.
     /// </summary>
     public MenuHostCapabilities Capabilities =>
         MenuHostCapabilities.InputPopup
@@ -181,13 +182,13 @@ internal sealed class GroundMenuHost(GroundView view, GroundViewModel ground, Ma
         | MenuHostCapabilities.DrawRoute
         | MenuHostCapabilities.GroundMovement;
 
-    public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) => view.ShowInputPopup(placeholder, onSubmit);
+    public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) => MenuPopups.ShowInput(view.Canvas, placeholder, "", 0, onSubmit);
 
     public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick) =>
-        throw new NotSupportedException("The ground view has no list popup; ground menus never build list pickers");
+        MenuPopups.ShowList(view.Canvas, items, selected, onPick);
 
     public void ShowFilteredListPopup(string[] sortedNames, IReadOnlyList<object>? priorityItems, Func<string, Task> onPick) =>
-        throw new NotSupportedException("The ground view has no filtered-list popup; ground menus never build fix pickers");
+        MenuPopups.ShowFilteredList(view.Canvas, sortedNames, priorityItems, onPick);
 
     // Throws rather than returning null: null would silently pick the free-text fix tier, hiding a ground menu that started building fix pickers.
     public string[]? FixNames => throw new NotSupportedException("The ground view offers no fix pickers; ground menus never build them");
@@ -198,10 +199,10 @@ internal sealed class GroundMenuHost(GroundView view, GroundViewModel ground, Ma
     public void EnterDrawRoute(string callsign) => ground.StartDrawRoute(RequireMenuAircraft(callsign));
 
     public void ShowWarpPopup(string callsign, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit) =>
-        throw new NotSupportedException("The ground view has no warp popup; ground menus never build the warp item");
+        MenuPopups.ShowWarp(view.Canvas, new MenuPopups.WarpSeed(callsign, "", heading, altitude, speed), onSubmit);
 
     public void ShowCommandFlyout(string callsign, string initials) =>
-        CommandFlyout.Open(
+        MenuPopups.ShowCommand(
             view.Canvas,
             callsign,
             command =>
@@ -211,7 +212,7 @@ internal sealed class GroundMenuHost(GroundView view, GroundViewModel ground, Ma
         );
 
     public void ShowNoteFlyout(string callsign, string currentNote, Func<string, Task> sendCommand) =>
-        NoteFlyout.Open(view.Canvas, callsign, currentNote, sendCommand);
+        MenuPopups.ShowNote(view.Canvas, callsign, currentNote, sendCommand);
 
     public void OpenFlightPlanEditor() => throw new NotSupportedException("The ground view has no flight-plan item; ground menus never build it");
 
@@ -365,9 +366,9 @@ internal sealed class GroundMenuHost(GroundView view, GroundViewModel ground, Ma
 
 /// <summary>
 /// The aircraft list's <see cref="IMenuHost"/>, built per right-click: commands go straight to the server
-/// connection, favorites are built for the right-clicked aircraft model, the flight-plan editor opens on it, and
-/// free-text input opens through <see cref="InputFlyout"/> anchored on the menu's own flyout target
-/// (<paramref name="flyoutAnchor"/>). The list has no warp popup, and builds no radar display group.
+/// connection, favorites are built for the right-clicked aircraft model, the flight-plan editor opens on it, and its
+/// popups and flyouts open through <see cref="MenuPopups"/> at the pointer on the menu's own flyout target
+/// (<paramref name="flyoutAnchor"/>). The list builds no radar display group.
 /// </summary>
 internal sealed class ListMenuHost(MainViewModel main, AircraftModel aircraft, Control flyoutAnchor) : IMenuHost
 {
@@ -385,19 +386,22 @@ internal sealed class ListMenuHost(MainViewModel main, AircraftModel aircraft, C
     public Task SendAsync(string callsign, string command, string initials) => main.Connection.SendCommandAsync(callsign, command, initials);
 
     /// <summary>
-    /// The aircraft list serves the free-text popup, the flight-plan editor and the multi-selection assume. It has no
-    /// radar or ground display and no picker or popup beyond free text, so every other family's members throw.
+    /// The aircraft list serves the free-text popup, the flight-plan editor and the multi-selection assume. Its list and
+    /// warp popups open, but <see cref="MenuHostCapabilities.ListPicker"/> and <see cref="MenuHostCapabilities.Warp"/> are
+    /// left undeclared so those entries stay off the list's menu until the capabilities go;
+    /// <see cref="MenuHostCapabilities.FilteredListPicker"/> stays undeclared because <see cref="FixNames"/> throws. It
+    /// has no radar or ground display, so every display family's members throw.
     /// </summary>
     public MenuHostCapabilities Capabilities =>
         MenuHostCapabilities.InputPopup | MenuHostCapabilities.FlightPlanEditor | MenuHostCapabilities.MultiSelectAssume;
 
-    public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) => InputFlyout.Open(flyoutAnchor, placeholder, onSubmit);
+    public void ShowInputPopup(string placeholder, Func<string, Task> onSubmit) => MenuPopups.ShowInput(flyoutAnchor, placeholder, "", 0, onSubmit);
 
     public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick) =>
-        throw new NotSupportedException("The aircraft list has no list popup; list menus never build list pickers");
+        MenuPopups.ShowList(flyoutAnchor, items, selected, onPick);
 
     public void ShowFilteredListPopup(string[] sortedNames, IReadOnlyList<object>? priorityItems, Func<string, Task> onPick) =>
-        throw new NotSupportedException("The aircraft list has no filtered-list popup; list menus never build fix pickers");
+        MenuPopups.ShowFilteredList(flyoutAnchor, sortedNames, priorityItems, onPick);
 
     // Throws rather than returning null: null would silently pick the free-text fix tier, hiding a list menu that started building fix pickers.
     public string[]? FixNames => throw new NotSupportedException("The aircraft list offers no fix pickers; list menus never build them");
@@ -409,13 +413,13 @@ internal sealed class ListMenuHost(MainViewModel main, AircraftModel aircraft, C
         throw new NotSupportedException("The aircraft list has no route drawing; list menus never build the Draw route item");
 
     public void ShowWarpPopup(string callsign, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit) =>
-        throw new NotSupportedException("The aircraft list has no warp popup; list menus never build the warp item");
+        MenuPopups.ShowWarp(flyoutAnchor, new MenuPopups.WarpSeed(callsign, "", heading, altitude, speed), onSubmit);
 
     public void ShowCommandFlyout(string callsign, string initials) =>
-        CommandFlyout.Open(flyoutAnchor, callsign, command => main.SendGatedCommandForViewAsync(aircraft, callsign, command, initials));
+        MenuPopups.ShowCommand(flyoutAnchor, callsign, command => main.SendGatedCommandForViewAsync(aircraft, callsign, command, initials));
 
     public void ShowNoteFlyout(string callsign, string currentNote, Func<string, Task> sendCommand) =>
-        NoteFlyout.Open(flyoutAnchor, callsign, currentNote, sendCommand);
+        MenuPopups.ShowNote(flyoutAnchor, callsign, currentNote, sendCommand);
 
     public void OpenFlightPlanEditor() => FlightPlanEditorManager.Open(aircraft, main);
 

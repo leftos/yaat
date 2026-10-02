@@ -47,7 +47,7 @@ internal static class CommandFlyout
             }
         };
         // Defer so the context menu closing in this same message doesn't immediately light-dismiss the
-        // new popup (mirrors RadarMenuHost's Dispatcher.UIThread.Post of the input and list popups).
+        // new popup (mirrors MenuPopups.Open).
         Dispatcher.UIThread.Post(() => popup.IsOpen = true);
     }
 }

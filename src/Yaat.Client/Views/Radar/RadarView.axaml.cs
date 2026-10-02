@@ -23,12 +23,6 @@ public partial class RadarView : UserControl
     private Popup? _activeFieldPopup;
     private double _scrollSensitivity = 1.0;
     private readonly Services.ScrollStepAccumulator _dcbSpinnerScroll = new();
-    private Func<string, Task>? _pendingInputAction;
-    private Func<object, Task>? _pendingListAction;
-    private bool _listPopupInitializing;
-    private Func<string, Task>? _pendingFilteredListAction;
-    private string[]? _filteredListAllNames;
-    private Action<string, int, int, int>? _pendingWarpAction;
 
     public static readonly FuncValueConverter<DcbMenuMode, bool> IsDcbModeMain = new(v => v == DcbMenuMode.Main);
     public static readonly FuncValueConverter<DcbMenuMode, bool> IsDcbModeAux = new(v => v == DcbMenuMode.Aux);
@@ -70,9 +64,6 @@ public partial class RadarView : UserControl
         _canvas.MeasurePointPicked += OnMeasurePointPicked;
         _canvas.MeasureDragCompleted += OnMeasureDragCompleted;
         _canvas.MeasureCancelled += OnMeasureCancelled;
-
-        TextBox? filteredText = this.FindControl<TextBox>("FilteredListText");
-        filteredText?.TextChanged += OnFilteredListTextChanged;
 
         // Sync brightness and button states from ViewModel
         if (DataContext is RadarViewModel vm)
@@ -851,10 +842,7 @@ public partial class RadarView : UserControl
         if (props.IsLeftButtonPressed)
         {
             CloseActiveContextMenu();
-            CloseInputPopup();
             CloseWaypointConditionPopup();
-            CloseListPopup();
-            CloseFilteredListPopup();
         }
     }
 
