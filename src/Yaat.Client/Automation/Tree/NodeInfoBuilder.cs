@@ -31,8 +31,10 @@ public sealed class NodeInfoBuilder(NodeRegistry registry)
                 Width = visual.Bounds.Width,
                 Height = visual.Bounds.Height,
             },
+            WindowBounds = GetWindowBounds(visual),
             IsVisible = visual.IsVisible,
             Text = ElementDescription.TextOf(visual),
+            Value = (visual is TextBox textBox) ? (textBox.Text ?? string.Empty) : null,
             IsEnabled = (visual as InputElement)?.IsEffectivelyEnabled,
             IsFocused = (visual as InputElement)?.IsFocused,
             IsInteractive = GetIsInteractive(visual),
@@ -52,6 +54,32 @@ public sealed class NodeInfoBuilder(NodeRegistry registry)
             OverlayPopupHost host when TopLevel.GetTopLevel(host) is { } window => registry.GetOrRegister(window),
             _ => null,
         };
+
+    /// <summary>
+    /// The element's bounds in its top-level's coordinates, or null when it is detached or the translation fails. An overlay
+    /// popup lives in its window's overlay layer, so its top-level is that window: <c>list_windows</c> reports a popup's
+    /// rectangle with this same rule, and its <c>get_tree</c> node agrees by construction.
+    /// </summary>
+    public static BoundsInfo? GetWindowBounds(Visual visual)
+    {
+        if (TopLevel.GetTopLevel(visual) is not { } topLevel)
+        {
+            return null;
+        }
+
+        if (visual.TranslatePoint(new Point(0, 0), topLevel) is not { } origin)
+        {
+            return null;
+        }
+
+        return new BoundsInfo
+        {
+            X = origin.X,
+            Y = origin.Y,
+            Width = visual.Bounds.Width,
+            Height = visual.Bounds.Height,
+        };
+    }
 
     // Button covers RepeatButton, ToggleButton, CheckBox and RadioButton; TextBox covers MaskedTextBox.
     private static bool? GetIsInteractive(Visual visual)

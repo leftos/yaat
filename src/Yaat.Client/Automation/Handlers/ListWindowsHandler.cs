@@ -72,13 +72,16 @@ public sealed class ListWindowsHandler(NodeRegistry registry) : IRequestHandler
         int ownerId = registry.GetOrRegister(window);
         foreach (OverlayPopupHost host in window.GetVisualDescendants().OfType<OverlayPopupHost>())
         {
-            var bounds = new BoundsInfo
-            {
-                X = host.Bounds.X,
-                Y = host.Bounds.Y,
-                Width = host.Bounds.Width,
-                Height = host.Bounds.Height,
-            };
+            // The open popup is attached to the window, so the translation succeeds; the fallback covers a host torn down mid-walk.
+            BoundsInfo bounds =
+                NodeInfoBuilder.GetWindowBounds(host)
+                ?? new BoundsInfo
+                {
+                    X = host.Bounds.X,
+                    Y = host.Bounds.Y,
+                    Width = host.Bounds.Width,
+                    Height = host.Bounds.Height,
+                };
             entries.Add(
                 new WindowInfo(
                     registry.GetOrRegister(host),

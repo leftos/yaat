@@ -89,13 +89,17 @@ internal static class UiaQuery
         return matches;
     }
 
+    /// <summary>The last line of a <c>dump_tree</c> walk the line cap stopped, on either backend.</summary>
+    internal static string TruncatedTreeLine(int maxLines) =>
+        $"… truncated at {maxLines} lines — narrow the walk with a deeper element id or a smaller maxDepth";
+
     /// <summary>Control-view walk from an element, one indented line per node, stopping at the depth or line cap.</summary>
     internal static string DumpTree(AutomationElement root, int maxDepth, int maxLines, ElementRegistry registry)
     {
         List<string> lines = [];
         if (Walk(root, 0))
         {
-            lines.Add($"… truncated at {maxLines} lines — narrow the walk with a deeper element id or a smaller maxDepth");
+            lines.Add(TruncatedTreeLine(maxLines));
         }
 
         return string.Join(Environment.NewLine, lines);

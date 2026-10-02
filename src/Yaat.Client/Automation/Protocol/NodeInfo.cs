@@ -20,11 +20,25 @@ public sealed class NodeInfo
     [JsonPropertyName("bounds")]
     public BoundsInfo? Bounds { get; init; }
 
+    /// <summary>
+    /// The element's bounds translated into its top-level's coordinates: a window's own, or for an overlay popup's content
+    /// the window the popup opens in. Null when the element is detached or the translation fails.
+    /// </summary>
+    [JsonPropertyName("windowBounds")]
+    public BoundsInfo? WindowBounds { get; init; }
+
     [JsonPropertyName("isVisible")]
     public bool IsVisible { get; init; } = true;
 
     [JsonPropertyName("text")]
     public string? Text { get; init; }
+
+    /// <summary>
+    /// A text box's own text, empty when it has none; null for any other element. Unlike <see cref="Text"/>, it never falls
+    /// back to the automation name, so an emptied text box reads empty.
+    /// </summary>
+    [JsonPropertyName("value")]
+    public string? Value { get; init; }
 
     [JsonPropertyName("isEnabled")]
     public bool? IsEnabled { get; init; }

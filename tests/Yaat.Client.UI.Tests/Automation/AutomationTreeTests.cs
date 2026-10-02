@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -158,6 +159,38 @@ public sealed class AutomationTreeTests : AutomationHostFixture
         JsonElement formAtTwo = Assert.Single(depthTwo.EnumerateArray());
         JsonElement saveAtTwo = Assert.Single(formAtTwo.GetProperty("children").EnumerateArray(), node => HasName(node, "Save"));
         Assert.NotEmpty(saveAtTwo.GetProperty("children").EnumerateArray());
+    }
+
+    [AvaloniaFact]
+    public async Task GetTree_NodeInsideAPanelWithMargin_ReportsWindowRelativeBounds()
+    {
+        using AutomationHost host = StartHost(() => Windows);
+        var button = new Button { Name = "Inner", Content = "Inner" };
+        var border = new Border
+        {
+            Name = "Outer",
+            Margin = new Thickness(40, 30),
+            Child = new StackPanel
+            {
+                Name = "Middle",
+                Margin = new Thickness(10, 5),
+                Children = { button },
+            },
+        };
+        ShowWindow("MarginWindow", border, null);
+        await using AutomationPipeTestClient client = await Connect();
+
+        JsonElement roots = Result(await GetTree(client, new { selector = "#Inner", depth = 0 }));
+
+        JsonElement node = Assert.Single(roots.EnumerateArray());
+        JsonElement windowBounds = node.GetProperty("windowBounds");
+        Assert.Equal(50, windowBounds.GetProperty("x").GetDouble());
+        Assert.Equal(35, windowBounds.GetProperty("y").GetDouble());
+        Assert.Equal(button.Bounds.Width, windowBounds.GetProperty("width").GetDouble());
+        Assert.Equal(button.Bounds.Height, windowBounds.GetProperty("height").GetDouble());
+        JsonElement bounds = node.GetProperty("bounds");
+        Assert.Equal(0, bounds.GetProperty("x").GetDouble());
+        Assert.Equal(0, bounds.GetProperty("y").GetDouble());
     }
 
     [AvaloniaFact]

@@ -4,28 +4,54 @@ using Microsoft.Extensions.Logging;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
+using Yaat.Client.Automation.Protocol;
+using Yaat.ClientDriver.Mcp.Pipe;
 using Rect = System.Windows.Rect;
 
 namespace Yaat.ClientDriver.Mcp.Tools;
 
-/// <summary>Reading the screen: the UI Automation tree where it is exposed, and pixels where it is not.</summary>
+/// <summary>
+/// Reading the screen: a YAAT client's own automation tree over its pipe where it has one, the UI Automation tree where
+/// it is exposed, and pixels where neither is.
+/// </summary>
 /// <param name="registry">Shared element registry; ids handed out here resolve in the input tools.</param>
+/// <param name="pipes">Finds and caches the YAAT clients' automation pipes.</param>
 /// <param name="logger">Server logger, writing to stderr.</param>
 [McpServerToolType]
-public sealed class InspectTools(ElementRegistry registry, ILogger<InspectTools> logger)
+public sealed class InspectTools(ElementRegistry registry, PipeDirectory pipes, ILogger<InspectTools> logger)
 {
     private const int MaxRows = 50;
     private const int MaxTreeLines = 400;
+    private const int PipeFindDepth = 50;
     private const string ShotDirectory = ".tmp/client-driver/shots";
 
     [McpServerTool]
-    [Description("Lists every top-level UI Automation window of a process, with the element id each later tool takes.")]
-    public string ListWindows([Description("The process id, as returned by launch_yaat or list_processes.")] int pid)
+    [Description(
+        "Lists every top-level window of a process, with the element id each later tool takes. A YAAT client with an automation pipe "
+            + "answers over the pipe, its open overlay popups included, with Avalonia type names and window-relative rectangles in DIPs; "
+            + "any other process answers through UI Automation."
+    )]
+    public async Task<string> ListWindowsAsync(
+        [Description("The process id, as returned by launch_yaat or list_processes.")] int pid,
+        CancellationToken cancellationToken
+    )
     {
+        PipeClient? client = await PipeCalls.TryRouteAsync(pipes, pid, cancellationToken).ConfigureAwait(false);
+        List<WindowInfo>? pipeWindows = (client is null) ? null : await TryListPipeWindowsAsync(client, pid, cancellationToken).ConfigureAwait(false);
+        if (pipeWindows is not null)
+        {
+            if (pipeWindows.Count == 0)
+            {
+                return NoWindowsMessage(pid);
+            }
+
+            return string.Join(Environment.NewLine, pipeWindows.Select(window => PipeDescribe.Window(window, registry.Register(pid, window.NodeId))));
+        }
+
         List<AutomationElement> windows = UiaQuery.Guarded(logger, "list_windows", $"pid {pid}", () => UiaQuery.TopLevelWindows(pid));
         if (windows.Count == 0)
         {
-            return $"No top-level windows for pid {pid} — it may still be starting, or it has none.";
+            return NoWindowsMessage(pid);
         }
 
         return string.Join(Environment.NewLine, windows.Select(window => UiaQuery.Describe(window, registry.Register(window))));
@@ -33,33 +59,54 @@ public sealed class InspectTools(ElementRegistry registry, ILogger<InspectTools>
 
     [McpServerTool]
     [Description(
-        "Walks the control view under an element, one indented line per node, and registers an id for each. CRC's scopes are an OpenGL "
-            + "surface: its windows, menus and dialogs appear here, but tracks and datablocks never do — use screenshot for those."
+        "Walks the tree under an element, one indented line per node, and registers an id for each: a YAAT client's visual tree when "
+            + "the id came from its automation pipe, otherwise the UI Automation control view. CRC's scopes are an OpenGL surface: its "
+            + "windows, menus and dialogs appear here, but tracks and datablocks never do — use screenshot for those."
     )]
-    public string DumpTree(
+    public async Task<string> DumpTreeAsync(
         [Description("Element id from list_windows, find_elements or an earlier dump_tree.")] string elementId,
+        CancellationToken cancellationToken,
         [Description("How many levels below the element to walk.")] int maxDepth = 4
     )
     {
+        if (registry.Resolve(elementId) is PipeNodeRef node)
+        {
+            return await DumpPipeTreeAsync(new PipeElement(elementId, node), maxDepth, cancellationToken).ConfigureAwait(false);
+        }
+
         AutomationElement element = registry.ResolveUia(elementId);
         return UiaQuery.Guarded(logger, "dump_tree", elementId, () => UiaQuery.DumpTree(element, maxDepth, MaxTreeLines, registry));
     }
 
     [McpServerTool]
     [Description(
-        "Finds descendants of an element matching every criterion given (exact matches, ANDed). Avalonia maps x:Name to AutomationId, "
-            + "so the client's CommandInput, ConnectMenuItem and friends are found by automationId; other controls by name."
+        "Finds descendants of an element matching every criterion given (exact matches, ANDed). Through UI Automation, Avalonia maps "
+            + "x:Name to AutomationId, so the client's CommandInput, ConnectMenuItem and friends are found by automationId; other controls "
+            + "by name. Under a root from a YAAT client's automation pipe the search goes 50 levels deep: name matches the control's Name "
+            + "or its text, automationId matches its AutomationProperties.AutomationId or else its x:Name (the id= a dump_tree row shows), "
+            + "and controlType is the Avalonia type name (TextBox, Button, MenuItem)."
     )]
-    public string FindElements(
+    public async Task<string> FindElementsAsync(
         [Description("Element id to search under, from list_windows or an earlier find_elements/dump_tree.")] string rootElementId,
+        CancellationToken cancellationToken,
         [Description("Exact Name, or empty to ignore the name.")] string name = "",
-        [Description("Exact AutomationId, or empty to ignore it.")] string automationId = "",
-        [Description("ControlType suffix such as Button, MenuItem, Edit or Window, or empty to ignore the type.")] string controlType = ""
+        [Description("Exact AutomationId (x:Name when the control sets none), or empty to ignore it.")] string automationId = "",
+        [Description(
+            "ControlType suffix such as Button, MenuItem, Edit or Window (UI Automation), or the Avalonia type name such as TextBox "
+                + "(automation pipe), or empty to ignore the type."
+        )]
+            string controlType = ""
     )
     {
         if (string.IsNullOrEmpty(name) && string.IsNullOrEmpty(automationId) && string.IsNullOrEmpty(controlType))
         {
             throw new McpException("Give at least one of name, automationId or controlType — an unfiltered search walks the whole window");
+        }
+
+        if (registry.Resolve(rootElementId) is PipeNodeRef node)
+        {
+            var criteria = new PipeCriteria(name, automationId, controlType);
+            return await FindPipeElementsAsync(new PipeElement(rootElementId, node), criteria, cancellationToken).ConfigureAwait(false);
         }
 
         AutomationElement root = registry.ResolveUia(rootElementId);
@@ -69,14 +116,7 @@ public sealed class InspectTools(ElementRegistry registry, ILogger<InspectTools>
             rootElementId,
             () => UiaQuery.FindDescendants(root, name, automationId, controlType, MaxRows)
         );
-        if (matches.Count == 0)
-        {
-            return "No match. Widen the criteria, or dump_tree the root to see what is actually there.";
-        }
-
-        string rows = string.Join(Environment.NewLine, matches.Select(match => UiaQuery.Describe(match, registry.Register(match))));
-        string note = matches.Count >= MaxRows ? $"{Environment.NewLine}… stopped at {MaxRows} matches — narrow the criteria" : string.Empty;
-        return rows + note;
+        return FormatMatches([.. matches.Select(match => UiaQuery.Describe(match, registry.Register(match)))]);
     }
 
     [McpServerTool]
@@ -103,10 +143,131 @@ public sealed class InspectTools(ElementRegistry registry, ILogger<InspectTools>
         "Reads an element's current value — the text of a TextBox, the content of a document — to confirm what set_text or "
             + "send_keys actually did."
     )]
-    public string GetValue([Description("Element id whose value to read.")] string elementId)
+    public async Task<string> GetValueAsync([Description("Element id whose value to read.")] string elementId, CancellationToken cancellationToken)
     {
+        if (registry.Resolve(elementId) is PipeNodeRef node)
+        {
+            NodeInfo info = await GetPipeNodeAsync(new PipeElement(elementId, node), new { nodeId = node.NodeId, depth = 0 }, cancellationToken)
+                .ConfigureAwait(false);
+            // A text box's own text, empty when it has none, never the automation name its Text falls back to.
+            return info.Value
+                ?? info.Text
+                ?? throw new McpException($"Element '{elementId}' ({info.Type}) has no readable text; use dump_tree or screenshot to inspect it.");
+        }
+
         AutomationElement element = registry.ResolveUia(elementId);
         return UiaQuery.Guarded(logger, "get_value", elementId, () => ReadValue(element));
+    }
+
+    private static string NoWindowsMessage(int pid) => $"No top-level windows for pid {pid} — it may still be starting, or it has none.";
+
+    private static string FormatMatches(List<string> rows)
+    {
+        if (rows.Count == 0)
+        {
+            return "No match. Widen the criteria, or dump_tree the root to see what is actually there.";
+        }
+
+        string note = rows.Count >= MaxRows ? $"{Environment.NewLine}… stopped at {MaxRows} matches — narrow the criteria" : string.Empty;
+        return string.Join(Environment.NewLine, rows) + note;
+    }
+
+    /// <summary>The client's windows over its pipe, or null when another caller disposed the cached client and UI Automation must answer.</summary>
+    private async Task<List<WindowInfo>?> TryListPipeWindowsAsync(PipeClient client, int pid, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await client.SendAsync<List<WindowInfo>>(ProtocolMethods.ListWindows, null, cancellationToken).ConfigureAwait(false);
+        }
+        catch (ObjectDisposedException ex)
+        {
+            logger.LogDebug(ex, "The automation pipe client for pid {Pid} was disposed mid-call; listing its windows through UI Automation", pid);
+            return null;
+        }
+        catch (PipeRemoteException ex)
+        {
+            throw new McpException(ex.Message);
+        }
+    }
+
+    /// <summary>The one node a <c>get_tree</c> call rooted at <paramref name="element"/> returns, with the children the depth asked for.</summary>
+    private async Task<NodeInfo> GetPipeNodeAsync(PipeElement element, object parameters, CancellationToken cancellationToken)
+    {
+        List<NodeInfo> roots = await PipeCalls
+            .SendForElementAsync<List<NodeInfo>>(pipes, element, ProtocolMethods.GetTree, parameters, cancellationToken)
+            .ConfigureAwait(false);
+        return roots.Single();
+    }
+
+    private async Task<string> DumpPipeTreeAsync(PipeElement element, int maxDepth, CancellationToken cancellationToken)
+    {
+        object parameters = new
+        {
+            nodeId = element.Node.NodeId,
+            treeKind = "Visual",
+            depth = maxDepth,
+        };
+        NodeInfo root = await GetPipeNodeAsync(element, parameters, cancellationToken).ConfigureAwait(false);
+        List<string> lines = [];
+        if (AppendPipeLines(root, 0, element.Node.Pid, lines))
+        {
+            lines.Add(UiaQuery.TruncatedTreeLine(MaxTreeLines));
+        }
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    /// <summary>Appends <paramref name="node"/> and its subtree pre-order; true when the line cap stopped the walk with nodes left.</summary>
+    private bool AppendPipeLines(NodeInfo node, int depth, int pid, List<string> lines)
+    {
+        if (lines.Count >= MaxTreeLines)
+        {
+            return true;
+        }
+
+        lines.Add(new string(' ', depth * 2) + PipeDescribe.Node(node, registry.Register(pid, node.NodeId)));
+        foreach (NodeInfo child in node.Children ?? [])
+        {
+            if (AppendPipeLines(child, depth + 1, pid, lines))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private async Task<string> FindPipeElementsAsync(PipeElement element, PipeCriteria criteria, CancellationToken cancellationToken)
+    {
+        object parameters = new
+        {
+            nodeId = element.Node.NodeId,
+            treeKind = "Visual",
+            depth = PipeFindDepth,
+        };
+        NodeInfo root = await GetPipeNodeAsync(element, parameters, cancellationToken).ConfigureAwait(false);
+        List<NodeInfo> matches = [];
+        CollectPipeMatches(root.Children ?? [], criteria, matches);
+        return FormatMatches([.. matches.Select(match => PipeDescribe.Node(match, registry.Register(element.Node.Pid, match.NodeId)))]);
+    }
+
+    /// <summary>Collects the matching nodes among <paramref name="nodes"/> and their descendants, pre-order, up to <see cref="MaxRows"/>.</summary>
+    private static void CollectPipeMatches(List<NodeInfo> nodes, PipeCriteria criteria, List<NodeInfo> matches)
+    {
+        foreach (NodeInfo node in nodes)
+        {
+            if (matches.Count >= MaxRows)
+            {
+                return;
+            }
+
+            if (criteria.Matches(node))
+            {
+                matches.Add(node);
+            }
+
+            CollectPipeMatches(node.Children ?? [], criteria, matches);
+        }
     }
 
     private static string ReadValue(AutomationElement element)
@@ -187,5 +348,23 @@ public sealed class InspectTools(ElementRegistry registry, ILogger<InspectTools>
         }
 
         return WindowCapture.CaptureWindow(handle, rect, maxWidth, directory);
+    }
+
+    /// <summary>
+    /// The <c>find_elements</c> filters over pipe nodes, each ignored when empty and ANDed otherwise: <paramref name="Name"/>
+    /// against the node's name or text, <paramref name="AutomationId"/> against its automation id or else its name (as UI
+    /// Automation maps x:Name to AutomationId, so an id read from a row finds the element on both backends), and
+    /// <paramref name="ControlType"/> against its Avalonia type name, all exact and ordinal.
+    /// </summary>
+    private sealed record PipeCriteria(string Name, string AutomationId, string ControlType)
+    {
+        public bool Matches(NodeInfo node) =>
+            (
+                string.IsNullOrEmpty(Name)
+                || string.Equals(Name, node.Name, StringComparison.Ordinal)
+                || string.Equals(Name, node.Text, StringComparison.Ordinal)
+            )
+            && (string.IsNullOrEmpty(AutomationId) || string.Equals(AutomationId, node.AutomationId ?? node.Name, StringComparison.Ordinal))
+            && (string.IsNullOrEmpty(ControlType) || string.Equals(ControlType, node.Type, StringComparison.Ordinal));
     }
 }
