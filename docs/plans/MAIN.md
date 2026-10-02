@@ -4,7 +4,7 @@
 
 ## Do first
 
-- [x] YAAT-124 Write the pushback planner rules into docs/ground/pushback.md · release vNext — High · Wave 9 — Docs and repo hygiene
+- [ ] YAAT-228 release.yml drops the changelog output as 'may contain secret', leaving the draft's Changelog empty — High · No project
 
 ## ERAM release gate
 
@@ -12,7 +12,6 @@
 
 ## Bug reports and feature requests
 
-- [x] YAAT-215 Pattern: wrong-side turbine entry climbs 250 ft above TPA at an unauthored field (TeardropReentryPhase's At TPA+250 ignores the crossing altitude) · release vNext
 - [/] YAAT-7 Record the FOLLOW video montage (release cut and review reel) · release vNext
 - [ ] YAAT-217 Pattern: apply a pending pattern-altitude override before the wrong-side join decides on a teardrop
 
@@ -35,9 +34,6 @@
 
 ## Tick-path unification
 
-- [x] YAAT-19 Fix the false ERAM-coast citation in CrcVisibilityTracker (yaat-server) · release vNext
-- [x] YAAT-18 Suppress auto-accept while a track shows CST · release vNext
-- [x] YAAT-20 Raise the solo auto-accept floor to 5 s; HandoffUnacceptedRule reads it · release vNext
 - [/] YAAT-17 Tick-path unification: finish step 4 relocation, then step 5
 - [ ] YAAT-209 Move the ERAM coverage-loss coast state machine into the Sim
 - [ ] YAAT-216 HandoffUnacceptedRule: keep the anomaly for low handoffs to human-attended positions
@@ -204,10 +200,10 @@
 - [ ] YAAT-130 Reshape docs/architecture.md (both repos) to the entry-point template
 - [ ] YAAT-131 Fix dead doc paths rigcheck found
 - [ ] YAAT-204 Rework the triage-open-issues skill for the Linear plan
-- [ ] YAAT-205 prepare-release: complete the Linear release after tagging
 - [ ] YAAT-206 Add the Agent Mail lease guard to yaat-server's prek hooks
 - [ ] YAAT-213 Isolate UserPreferences writes between UI tests
 - [ ] YAAT-222 land-bot-pr: name the real merge contrast and add the landing family's shared rules
+- [ ] YAAT-227 Fix the two broken vEDST doc links (architecture.md, CLAUDE.md)
 
 ## Singles
 
