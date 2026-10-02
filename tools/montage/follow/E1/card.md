@@ -6,7 +6,7 @@
 
 - AIM 4-3-5 *Unexpected Maneuvers in the Airport Traffic Pattern* — "On occasion it may be necessary for pilots to maneuver their aircraft to maintain spacing with the traffic they have been sequenced to follow. The controller can anticipate minor maneuvering such as shallow “S” turns." (`.claude/reference/faa/aim/chap04_sec03.md`)
 - 7110.65 §3-8-1 *SEQUENCE/SPACING APPLICATION* — establish the sequence by requiring aircraft to adjust their operation to achieve proper spacing; the phraseology is `FOLLOW (description and location of traffic)` (`.claude/reference/faa/7110.65/chap03_sec08.md`).
-- 7110.65 §7-6-7.b *SEQUENCING* — "Ensure visual contact is established with the aircraft to follow and provide instruction to follow that aircraft." (`.claude/reference/faa/7110.65/chap07_sec06.md`)
+- 7110.65 §7-6-7.a *SEQUENCING* — "Ensure visual contact is established with the aircraft to follow and provide instruction to follow that aircraft." (`.claude/reference/faa/7110.65/chap07_sec06.md`)
 - AIM 4-3-4.d — a pilot "should not take advantage of another aircraft, which is on final approach to land, by cutting in front of, or overtaking that aircraft."
 
 **What to watch for.**

@@ -4,7 +4,7 @@
 
 **Grounding.**
 
-- 7110.65 §7-6-7.b *SEQUENCING* — "Ensure visual contact is established with the aircraft to follow and provide instruction to follow that aircraft." (`.claude/reference/faa/7110.65/chap07_sec06.md`)
+- 7110.65 §7-6-7.a *SEQUENCING* — "Ensure visual contact is established with the aircraft to follow and provide instruction to follow that aircraft." (`.claude/reference/faa/7110.65/chap07_sec06.md`)
 - 7110.65 §3-8-1 *SEQUENCE/SPACING APPLICATION* — the phraseology is `FOLLOW (description and location of traffic)` (`.claude/reference/faa/7110.65/chap03_sec08.md`).
 - `COMMANDS.md`, `FOLLOWF` — "RPO-only; folds `RTISF` in, no prior `RTIS` needed, otherwise exactly `FOLLOW` (same refusals)".
 

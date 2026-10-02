@@ -27,7 +27,8 @@ pwsh tools/gate.ps1 -Log .tmp/montage/<ID>-run.log -TimeoutSeconds 900 -Slot hea
 - `--script` sends each line through the instructor's command path once sim-second `t` has ticked; every verdict prints to `stderr` (`script t=… -> accepted` / `refused`), and refused lines are counted in `report.json` as `ScriptRefused`.
 - `--solo` turns solo training on so the pilots read back and call in, and the recording replays with their voices. It is what makes the terminal log carry pilot lines.
 - `--snapshot-interval 1` writes one snapshot per sim-second, which is what `bug_bundle.py track` needs for a per-second trajectory.
-- `--sim-hours` is the sim-time budget and must exceed the last `t=` in `script.txt`. `0.15` = 540 s.
+- `--sim-hours` is the sim-time budget and must exceed the last `t=` in `script.txt`. `0.15` = 540 s; a clip whose follower lands later states its own budget in its card (C1 0.17, C2 0.23, G6 0.17).
+- **Choose each clip's runway by length before scripting it.** Check the runway against every type in the clip: a jet never lands KOAK 28R (5,458 ft); airliners use 30 at OAK.
 - The run exits 0 when the budget completes; exit 2 is a tick exception or a script line that threw.
 
 Output lands in `.tmp/montage/<ID>/episodes/ep00/` (gitignored — archives are never committed):

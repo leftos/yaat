@@ -6,7 +6,7 @@
 
 - AIM 4-3-3 FIG 4-3-3 *Traffic Pattern Operations Parallel Runways*, key 7 — "Do not overshoot final or continue on a track which will penetrate the final approach of the parallel runway." (`.claude/reference/faa/aim/chap04_sec03.md`)
 - 7110.65 §3-8-1 *SEQUENCE/SPACING APPLICATION* — establish the sequence by requiring aircraft to adjust their operation to achieve proper spacing (`.claude/reference/faa/7110.65/chap03_sec08.md`). Its phraseology for traffic on another runway is a traffic advisory, so following onto another runway is a trainer affordance ([geometry doc](../../../../docs/approach-and-pattern-geometry.md), *Visual following*).
-- 7110.65 §7-6-7.b *SEQUENCING* — "Ensure visual contact is established with the aircraft to follow and provide instruction to follow that aircraft." (`.claude/reference/faa/7110.65/chap07_sec06.md`)
+- 7110.65 §7-6-7.a *SEQUENCING* — "Ensure visual contact is established with the aircraft to follow and provide instruction to follow that aircraft." (`.claude/reference/faa/7110.65/chap07_sec06.md`)
 
 **What to watch for.**
 

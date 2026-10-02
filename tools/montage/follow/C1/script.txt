@@ -1,0 +1,32 @@
+# C1 — right-base follower told to follow a free-flight lead whose own right base is still queued.
+# KOAK runway 28R, right traffic. Two VFR C172s, neither placed on a leg by the scenario.
+#
+#   N52417  lead     — C172 11 NM east of the field, inbound direct Lake Chabot (VPCBT), then a right base for 28R
+#   N738SP  follower — C172 north-east of Lake Chabot, joins a wide right base for 28R from present position
+#
+# At the FOLLOW the lead has no runway yet: it is a free-flight lead with its pattern entry queued behind DCT VPCBT.
+# Times are sim seconds. See card.md for what the clip shows.
+
+# t=1  Inhibit conflict alerts on both aircraft (CAINH toggles).
+t=1 N52417 CAINH
+t=1 N738SP CAINH
+
+# t=2  Lead: direct Lake Chabot, then enter a right base for 28R from there.
+t=2 N52417 DCT VPCBT; ERB 28R
+
+# t=3  Follower: enter a right base for 28R from present position.
+t=3 N738SP ERB 28R
+
+# t=30 Traffic advisories, both ways: the Cessna at 11 o'clock, 3 miles, westbound for the follower; the Cessna at
+#      2 o'clock, 3 miles, southbound for the lead. Both call the traffic in sight inside 3 miles.
+t=30 N738SP RTIS 11 3 W C172
+t=30 N52417 RTIS 2 3 S C172
+
+# t=90 The follow, with the lead about 1.6 NM south of the follower and still bound for Lake Chabot.
+t=90 N738SP FOLLOW N52417
+
+# t=215 Lead: cleared to land 28R once its queued right base has begun (first in the sequence).
+t=215 N52417 CLAND 28R
+
+# t=260 Follower: cleared to land 28R, behind the traffic.
+t=260 N738SP CLAND 28R
