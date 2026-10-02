@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- A loaded solo recording comes up in solo mode, so its replay speaks every pilot line and keeps its recorded conflict-alert inhibits.
+
 ## v0.15.0-beta [2026/10/02]
 
 ### Highlights
