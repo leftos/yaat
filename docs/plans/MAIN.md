@@ -8,7 +8,9 @@
 
 ## Bug reports and feature requests
 
+- [x] YAAT-215 Pattern: wrong-side turbine entry climbs 250 ft above TPA at an unauthored field (TeardropReentryPhase's At TPA+250 ignores the crossing altitude) · release vNext
 - [/] YAAT-7 Record the FOLLOW video montage (release cut and review reel) · release vNext
+- [ ] YAAT-217 Pattern: apply a pending pattern-altitude override before the wrong-side join decides on a teardrop
 
 ## Client driver in the background (#474)
 
@@ -20,18 +22,19 @@
 ## Context-menu quick commands (#471)
 
 - [/] YAAT-12 Context-menu quick commands: per-situation lists with the icon strip · release vNext
-  - [/] YAAT-13 Context-menu quick commands: brief 7d (header, footer, relative items) · release vNext
-  - [ ] YAAT-14 Context-menu quick commands: brief 7e (one tree on every surface) · release vNext
+  - [x] YAAT-13 Context-menu quick commands: brief 7d (header, footer, relative items) · release vNext
+  - [/] YAAT-14 Context-menu quick commands: brief 7e (one tree on every surface) · release vNext
   - [ ] YAAT-15 Context-menu quick commands step 3: per-situation lists with the icon strip · release vNext
 - [ ] YAAT-16 Merge feat/context-menu-quick-commands (#471, yaat-server#21) · release vNext
 
 ## Tick-path unification
 
+- [x] YAAT-19 Fix the false ERAM-coast citation in CrcVisibilityTracker (yaat-server) · release vNext
+- [x] YAAT-18 Suppress auto-accept while a track shows CST · release vNext
+- [x] YAAT-20 Raise the solo auto-accept floor to 5 s; HandoffUnacceptedRule reads it · release vNext
 - [/] YAAT-17 Tick-path unification: finish step 4 relocation, then step 5
-- [ ] YAAT-18 Suppress auto-accept while a track shows CST
 - [ ] YAAT-209 Move the ERAM coverage-loss coast state machine into the Sim
-- [ ] YAAT-19 Fix the false ERAM-coast citation in CrcVisibilityTracker (yaat-server)
-- [ ] YAAT-20 Raise the solo auto-accept floor to 5 s; HandoffUnacceptedRule reads it
+- [ ] YAAT-216 HandoffUnacceptedRule: keep the anomaly for low handoffs to human-attended positions
 
 ## Say again
 
@@ -269,3 +272,4 @@
 - [ ] YAAT-201 Work the phraseology coverage backlog
 - [ ] YAAT-202 BEHIND grammar extensions
 - [ ] YAAT-203 Measure ApproachEvaluator separation at a common instant, not the current lead
+- [ ] YAAT-214 Warn the RPO in the terminal when an amended flight plan has unresolvable route elements
