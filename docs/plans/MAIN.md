@@ -14,12 +14,11 @@
 
 ## Client driver in the background (#474)
 
-- [/] YAAT-8 Drive YAAT.Client without stealing focus (automation pipe) · release vNext
+- [x] YAAT-11 Merge feat/client-driver-background (#474) · release vNext
+- [x] YAAT-8 Drive YAAT.Client without stealing focus (automation pipe) · release vNext
   - [x] YAAT-9 Client driver automation pipe: brief 4b, the wait_for tool · release vNext
   - [x] YAAT-10 Client driver automation pipe: brief 4c, the screenshot tool · release vNext
   - [x] YAAT-220 Share the pipe list_windows helper between launch_yaat and list_windows · release vNext
-- [ ] YAAT-11 Merge feat/client-driver-background (#474) · release vNext
-- [ ] YAAT-230 live-check -WithInput: File click sometimes counts 2 menu windows before the click
 
 ## Context-menu quick commands (#471)
 
@@ -40,6 +39,7 @@
 ## Coast D (feat/coast-d)
 
 - [/] YAAT-223 Tick-path coast D: the server's disconnect-coast wiring reads the Sim facets
+- [ ] YAAT-234 Queue the unload/reload coast deletes like the rest; wrap two long server lines
 
 ## Say again
 
@@ -278,6 +278,7 @@
 - [ ] YAAT-196 Draw the server's remaining line-up instead of re-planning it (Ground View)
 - [ ] YAAT-197 Confirm which vNAS position entities go over UDP before moving any
 - [ ] YAAT-198 Accept a Mode C Intruder ID in ERAM QN
+- [ ] YAAT-230 live-check -WithInput: File click sometimes counts 2 menu windows before the click
 - [ ] YAAT-199 Keep the PUSHF hint out of the spoken pilot refusal
 - [ ] YAAT-200 Build the standalone airport GeoJSON editor
 - [ ] YAAT-201 Work the phraseology coverage backlog
