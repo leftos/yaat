@@ -9,13 +9,13 @@
 
 ## Bug reports and feature requests
 
+- [x] YAAT-285 Record demos fully in the background: no visible window, no audio to the speakers · release vNext
 - [x] YAAT-289 WindowRecorder: refuse a hidden window cleanly instead of crashing · release vNext
 - [x] YAAT-282 Automation-mode client came to the foreground during the sampler run · release vNext
 - [x] YAAT-283 Montage capture pipeline: launch_yaat env, load_recording room, PTL wording, caption filter · release vNext
 - [x] YAAT-286 vEDST sign-in: enable it on yaat1 and fix the connect docs · release vNext
 - [x] YAAT-248 Client driver records a window: start, mark and stop, with sim-time marks and the client's audio · release vNext
 - [x] YAAT-250 Client-defined automation tools; client log errors on every pipe result · release vNext
-- [/] YAAT-285 Record demos fully in the background: no visible window, no audio to the speakers
 - [/] YAAT-279 Sizzle reel: the release's new and reworked UI and UX · release vNext
 - [x] YAAT-242 Deconflict the RBL readout from data blocks so it stays readable · release vNext
 - [x] YAAT-259 Pilots no longer report 'the traffic's on the ground, breaking off the follow' · release vNext
@@ -37,6 +37,7 @@
 - [ ] YAAT-270 Widen the timing bound in AutomationWaitForTests.WaitFor_ConditionNeverMet (flakes under a loaded full UI suite)
 - [ ] YAAT-284 FOLLOW gets no pilot readback in solo; late 'traffic in sight' in clip C2
 - [ ] YAAT-288 Find what gave an automation-mode client the keyboard foreground for 3.5 s (YAAT-282 leftover)
+- [ ] YAAT-300 Pilot voice speech rate setting, default 1.1x
 
 ## Client driver in the background (#474)
 
@@ -64,7 +65,7 @@
 
 ## Client surfaces redesign
 
-- [ ] YAAT-291 Client surfaces redesign: Settings window shell (sidebar sections, OK/Apply/Cancel)
+- [/] YAAT-291 Client surfaces redesign: Settings window shell (sidebar sections, OK/Apply/Cancel)
 - [ ] YAAT-292 Client surfaces redesign: Settings search with aliases and cross-section links
 - [ ] YAAT-293 Client surfaces redesign: open Settings at a section (view menus, Ctrl+comma, status-bar links)
 - [ ] YAAT-294 Client surfaces redesign: reconcile Scenario defaults with the session flyout
@@ -349,3 +350,4 @@
 - [ ] YAAT-260 Two follow comments cite the wrong AIM paragraph for no cutting in on final
 - [ ] YAAT-262 RBL readout nudges: avoid pinned blocks; two RadarCanvas tidy-ups
 - [ ] YAAT-263 Solo toggle: a failed SetSoloTrainingMode send is silent
+- [ ] YAAT-298 Server admin settings are stored but nothing reads them: wire them up or remove them
