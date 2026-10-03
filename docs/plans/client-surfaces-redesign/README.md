@@ -16,15 +16,22 @@ branch: feat/client-surfaces-redesign (owner ruling): the redesign lands on a fe
 - **Import clashes: per item type, then a clash list.** Each ticked item type is Merge or Replace; under Merge, named entries that clash (a macro, a favorite set, a layout) are listed with Skip, Overwrite or Rename, as the macro import does today.
 - **Window Profiles and Copy View Settings merge into Layouts.** One concept: a layout holds the window arrangement and the view settings; copying from a scenario becomes one source of a layout. Existing saved window profiles map into layouts.
 
+## Mocks
+
+Design canvas https://claude.ai/artifact/S2FPQNyeFvz5JjgGW5D8m7, saved in [`../canvases/client-surfaces-redesign/`](../canvases/client-surfaces-redesign/): Settings on Scenario defaults, Settings search, the regrouped View menu, the session flyout, and the Import / Export hub's export and import-preview pages.
+
+## Rulings on the mocks (owner)
+
+- **Sidebar.** General, Appearance; Session: Scenario defaults; Views: Radar, Ground, Aircraft list, Strips and vTDLS, Terminal; Input: Command input, Command verbs, Macros, Keys; Voice: Speech, Audio devices; Advanced: Server admin (keybinds and server admin are separate sections). Font sizes and the strips/vTDLS zoom have one home in Appearance and appear as links in each view's section, so search finds them from either; colours live with their view (ground colours in Ground, radar tint in Radar, terminal channel colours in Terminal).
+- **Flyout-only settings.** Solo parking call-up rate and solo arrival generator rate get Settings defaults under Scenario defaults › Solo training; live traffic (SWIM, ceiling, filters, assume) and releases stay room-only, listed in Scenario defaults as such.
+- **Hotkeys.** Defaults Ctrl+Shift+L aircraft list, G ground, R radar, E terminal (Ctrl+Shift+T is always-on-top), C controllers, M METAR, F favorites bar, and Ctrl+, for Settings; every one rebindable in Settings › Keys, which shows a clash when rebinding.
+- **Status-bar menus.** The mic indicator and the live-traffic status text keep their quick on/off toggles and gain a link item ("Speech settings…", "Live traffic…") to the matching Settings section or the session flyout.
+
 ## Next
 
-1. Brainstorm the remaining open decisions with the owner (below).
-2. Mocks of the Settings window, the import/export hub and the View menu as an Artifact Design canvas, saved under `docs/plans/canvases/` beside its URL.
-3. Split into build items in a Linear project carrying the branch marker.
+1. Split into build items in a Linear project carrying the branch marker.
 
 ## Open decisions
 
-- The sidebar's exact sections and where each of today's 120-odd controls lands; the search's aliases.
-- Which pop-outs get hotkeys, and which keys.
+- Where each of today's 120-odd controls lands within its section, and the search's alias list (settled per build item, against the sidebar above).
 - What a layout holds exactly (which view settings beyond today's Copy View Settings set), and how a saved window profile maps into one.
-- Whether the mic and live-traffic status-bar context menus stay settings entry points, and whether keybinds and server admin mode stay together under one section.

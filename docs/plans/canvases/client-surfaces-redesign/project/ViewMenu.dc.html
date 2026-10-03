@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>View menu</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0f1215}
+</style>
+</helmet>
+<div style="width: 760px; height: 560px; box-sizing: border-box; background: #0f1215; color: #e4e8ec; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; position: relative">
+  <div style="height: 30px; display: flex; align-items: center; gap: 2px; padding: 0 6px; background: #171b20; border-bottom: 1px solid #2c333b">
+    <span style="padding: 4px 10px; color: #c9d0d7">Scenario</span>
+    <span style="padding: 4px 10px; color: #0f1215; background: #7cc4e8; border-radius: 3px">View</span>
+    <span style="padding: 4px 10px; color: #c9d0d7">Tools</span>
+    <span style="padding: 4px 10px; color: #c9d0d7">Help</span>
+  </div>
+  <div style="position: absolute; left: 62px; top: 30px; width: 270px; background: #1d2228; border: 1px solid #39424c; border-radius: 4px; padding: 4px 0; display: flex; flex-direction: column">
+    <div style="display: flex; justify-content: space-between; padding: 6px 12px; background: #2a323a"><span>Windows</span><span style="color: #8c96a1">▸</span></div>
+    <div style="display: flex; justify-content: space-between; padding: 6px 12px"><span>Bars</span><span style="color: #8c96a1">▸</span></div>
+    <div style="display: flex; justify-content: space-between; padding: 6px 12px"><span>Layout</span><span style="color: #8c96a1">▸</span></div>
+    <div style="height: 1px; background: #2c333b; margin: 4px 0"></div>
+    <div style="display: flex; justify-content: space-between; padding: 6px 12px"><span>Strips</span><span style="color: #8c96a1">▸</span></div>
+    <div style="display: flex; justify-content: space-between; padding: 6px 12px"><span>vTDLS</span><span style="color: #8c96a1">▸</span></div>
+    <div style="height: 1px; background: #2c333b; margin: 4px 0"></div>
+    <div style="display: flex; justify-content: space-between; padding: 6px 12px"><span>Settings…</span><span style="color: #8c96a1; font-family: 'IBM Plex Mono', monospace; font-size: 12px">Ctrl+,</span></div>
+  </div>
+  <div style="position: absolute; left: 330px; top: 34px; width: 300px; background: #1d2228; border: 1px solid #39424c; border-radius: 4px; padding: 4px 0; display: flex; flex-direction: column">
+    <div style="padding: 4px 12px; font-size: 11px; letter-spacing: 0.06em; color: #8c96a1; text-transform: uppercase">Pop out</div>
+    <div style="display: flex; justify-content: space-between; padding: 6px 12px"><span>✓ Aircraft list</span><span style="color: #a3adb8; font-family: 'IBM Plex Mono', monospace; font-size: 12px">Ctrl+Shift+L</span></div>
+    <div style="display: flex; justify-content: space-between; padding: 6px 12px"><span>&#8195;Ground view</span><span style="color: #a3adb8; font-family: 'IBM Plex Mono', monospace; font-size: 12px">Ctrl+Shift+G</span></div>
+    <div style="display: flex; justify-content: space-between; padding: 6px 12px"><span>&#8195;Radar view</span><span style="color: #a3adb8; font-family: 'IBM Plex Mono', monospace; font-size: 12px">Ctrl+Shift+R</span></div>
+    <div style="display: flex; justify-content: space-between; padding: 6px 12px"><span>&#8195;Terminal</span><span style="color: #a3adb8; font-family: 'IBM Plex Mono', monospace; font-size: 12px">Ctrl+Shift+E</span></div>
+    <div style="display: flex; justify-content: space-between; padding: 6px 12px"><span>&#8195;Controllers</span><span style="color: #a3adb8; font-family: 'IBM Plex Mono', monospace; font-size: 12px">Ctrl+Shift+C</span></div>
+    <div style="display: flex; justify-content: space-between; padding: 6px 12px"><span>&#8195;METAR</span><span style="color: #a3adb8; font-family: 'IBM Plex Mono', monospace; font-size: 12px">Ctrl+Shift+M</span></div>
+    <div style="height: 1px; background: #2c333b; margin: 4px 0"></div>
+    <div style="display: flex; justify-content: space-between; padding: 6px 12px"><span>New ground window…</span></div>
+    <div style="display: flex; justify-content: space-between; padding: 6px 12px"><span>New radar window</span></div>
+  </div>
+  <div style="position: absolute; left: 62px; top: 300px; width: 270px; background: #1d2228; border: 1px solid #39424c; border-radius: 4px; padding: 4px 0; display: flex; flex-direction: column">
+    <div style="padding: 4px 12px; font-size: 11px; letter-spacing: 0.06em; color: #8c96a1; text-transform: uppercase">Bars ▸</div>
+    <div style="display: flex; justify-content: space-between; padding: 6px 12px"><span>✓ Favorites bar</span><span style="color: #a3adb8; font-family: 'IBM Plex Mono', monospace; font-size: 12px">Ctrl+Shift+F</span></div>
+    <div style="display: flex; justify-content: space-between; padding: 6px 12px"><span>&#8195;Favorites panel…</span></div>
+    <div style="display: flex; justify-content: space-between; padding: 6px 12px"><span>&#8195;Timeline bar</span></div>
+  </div>
+  <div style="position: absolute; left: 380px; top: 360px; width: 300px; background: #1d2228; border: 1px solid #39424c; border-radius: 4px; padding: 4px 0; display: flex; flex-direction: column">
+    <div style="padding: 4px 12px; font-size: 11px; letter-spacing: 0.06em; color: #8c96a1; text-transform: uppercase">Layout ▸</div>
+    <div style="display: flex; justify-content: space-between; padding: 6px 12px"><span>OAK tower, two screens</span></div>
+    <div style="display: flex; justify-content: space-between; padding: 6px 12px"><span>NCT approach</span></div>
+    <div style="height: 1px; background: #2c333b; margin: 4px 0"></div>
+    <div style="display: flex; justify-content: space-between; padding: 6px 12px"><span>Save current as layout…</span></div>
+    <div style="display: flex; justify-content: space-between; padding: 6px 12px"><span>From this scenario's views…</span></div>
+    <div style="display: flex; justify-content: space-between; padding: 6px 12px"><span>Manage layouts…</span></div>
+    <div style="display: flex; justify-content: space-between; padding: 6px 12px"><span>Reset aircraft list columns</span></div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":760,"height":560}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

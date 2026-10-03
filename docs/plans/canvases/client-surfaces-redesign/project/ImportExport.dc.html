@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Import and export: export</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0f1215}
+a{color:#7cc4e8}a:hover{color:#a9dbf3}
+input,select,button{font-family:inherit}
+</style>
+</helmet>
+<div style="width: 880px; height: 640px; box-sizing: border-box; display: flex; flex-direction: column; background: #171b20; color: #e4e8ec; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; border: 1px solid #2c333b">
+  <div style="height: 34px; display: flex; align-items: center; padding: 0 14px; background: #11151a; border-bottom: 1px solid #2c333b; font-size: 12px; color: #aeb7c1">Import / Export</div>
+  <div style="display: flex; gap: 4px; padding: 12px 20px 0; border-bottom: 1px solid #2c333b">
+    <button type="button" aria-pressed="true" style="height: 32px; padding: 0 16px; background: #1d2228; color: #e4e8ec; border: 1px solid #2c333b; border-bottom-color: #1d2228; border-radius: 4px 4px 0 0; margin-bottom: -1px; font-size: 13px; font-weight: 600">Export</button>
+    <button type="button" style="height: 32px; padding: 0 16px; background: transparent; color: #a3adb8; border: 0; font-size: 13px">Import</button>
+  </div>
+  <main style="flex: 1; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; background: #1d2228">
+    <p style="margin: 0; color: #a3adb8">Tick what to include. Everything goes into one <code style="font-family: 'IBM Plex Mono', monospace; color: #c9d0d7">.yaat-settings.zip</code>; a single item keeps its own file type, so older YAAT versions can still import it.</p>
+    <table style="border-collapse: collapse; width: 100%">
+      <thead><tr style="color: #a3adb8; font-size: 12px; text-align: left"><th style="width: 32px"></th><th style="font-weight: 500; padding: 6px 0">Item</th><th style="font-weight: 500">What is in it</th><th style="font-weight: 500; width: 190px">Exported as</th></tr></thead>
+      <tbody>
+        <tr style="border-top: 1px solid #2c333b"><td><input type="checkbox" checked aria-label="Preferences"></td><td style="padding: 9px 0">Preferences</td><td style="color: #b9c1ca">Every Settings section</td><td style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #a3adb8">preferences.json</td></tr>
+        <tr style="border-top: 1px solid #2c333b"><td><input type="checkbox" checked aria-label="Macros"></td><td style="padding: 9px 0">Macros</td><td style="color: #b9c1ca">24 macros <a href="#">choose…</a></td><td style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #a3adb8">.yaat-macros.json</td></tr>
+        <tr style="border-top: 1px solid #2c333b"><td><input type="checkbox" checked aria-label="Command verbs"></td><td style="padding: 9px 0">Command verbs</td><td style="color: #b9c1ca">9 changed aliases</td><td style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #a3adb8">.yaat-verbs.json</td></tr>
+        <tr style="border-top: 1px solid #2c333b"><td><input type="checkbox" checked aria-label="Favorites"></td><td style="padding: 9px 0">Favorites</td><td style="color: #b9c1ca">4 sets <a href="#">choose…</a></td><td style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #a3adb8">.yaat-favlibrary.zip</td></tr>
+        <tr style="border-top: 1px solid #2c333b"><td><input type="checkbox" aria-label="Aircraft list columns"></td><td style="padding: 9px 0">Aircraft list columns</td><td style="color: #b9c1ca">Order, widths, hidden columns</td><td style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #a3adb8">.yaat-grid-layout.json</td></tr>
+        <tr style="border-top: 1px solid #2c333b"><td><input type="checkbox" aria-label="Layouts"></td><td style="padding: 9px 0">Layouts</td><td style="color: #b9c1ca">3 layouts <a href="#">choose…</a></td><td style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #a3adb8">layouts.json</td></tr>
+      </tbody>
+    </table>
+    <p style="margin: 0; color: #8c96a1; font-size: 12px">Opened from Settings › Macros › Export, Macros comes preselected; the same for verbs, favorites and the column chooser.</p>
+  </main>
+  <div style="height: 52px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; background: #13171c; border-top: 1px solid #2c333b">
+    <span style="color: #a3adb8">4 items · about 38 KB</span>
+    <div style="display: flex; gap: 8px">
+      <button type="button" style="height: 30px; padding: 0 16px; background: #7cc4e8; color: #0f1215; border: 0; border-radius: 4px; font-size: 13px; font-weight: 600">Export…</button>
+      <button type="button" style="height: 30px; min-width: 76px; background: #262c33; color: #e4e8ec; border: 1px solid #39424c; border-radius: 4px; font-size: 13px">Close</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":880,"height":640}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

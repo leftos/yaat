@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings: search</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0f1215}
+a{color:#7cc4e8}a:hover{color:#a9dbf3}
+input,select,button{font-family:inherit}
+mark{background:#4a3c12;color:#f6dc8a;padding:0 1px;border-radius:2px}
+</style>
+</helmet>
+<div style="width: 1040px; height: 720px; box-sizing: border-box; display: flex; flex-direction: column; background: #171b20; color: #e4e8ec; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; border: 1px solid #2c333b">
+  <div style="height: 34px; display: flex; align-items: center; padding: 0 14px; background: #11151a; border-bottom: 1px solid #2c333b; font-size: 12px; color: #aeb7c1">Settings</div>
+  <div style="flex: 1; display: flex; min-height: 0">
+    <nav aria-label="Settings sections" style="width: 232px; flex-shrink: 0; background: #13171c; border-right: 1px solid #2c333b; padding: 12px 10px; display: flex; flex-direction: column; gap: 2px">
+      <label for="q" style="position: absolute; left: -9999px">Search settings</label>
+      <input id="q" type="search" value="font" style="height: 32px; box-sizing: border-box; padding: 0 10px; margin-bottom: 10px; background: #0f1215; color: #e4e8ec; border: 1px solid #7cc4e8; border-radius: 4px; font-size: 13px">
+      <a href="#" style="display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 4px; color: #e4e8ec; text-decoration: none; background: #232a31">Appearance <span style="color: #7cc4e8; font-family: 'IBM Plex Mono', monospace">7</span></a>
+      <a href="#" style="display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 4px; color: #e4e8ec; text-decoration: none">Radar <span style="color: #8c96a1; font-family: 'IBM Plex Mono', monospace">2</span></a>
+      <a href="#" style="display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 4px; color: #e4e8ec; text-decoration: none">Ground <span style="color: #8c96a1; font-family: 'IBM Plex Mono', monospace">2</span></a>
+      <a href="#" style="display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 4px; color: #e4e8ec; text-decoration: none">Aircraft list <span style="color: #8c96a1; font-family: 'IBM Plex Mono', monospace">1</span></a>
+      <a href="#" style="display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 4px; color: #e4e8ec; text-decoration: none">Terminal <span style="color: #8c96a1; font-family: 'IBM Plex Mono', monospace">1</span></a>
+      <div style="margin-top: 8px; padding: 0 10px; color: #8c96a1; font-size: 12px">No matches in 12 other sections</div>
+    </nav>
+    <main style="flex: 1; min-width: 0; padding: 20px 28px; display: flex; flex-direction: column; gap: 16px; overflow: hidden">
+      <p style="margin: 0; color: #a3adb8">13 settings match "font". Font sizes live in Appearance; the view sections list them too, as links.</p>
+      <section style="background: #1d2228; border: 1px solid #2c333b; border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px">
+        <h2 style="margin: 0; font-size: 13px; font-weight: 600; color: #7cc4e8">Appearance › <mark>Font</mark> sizes</h2>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 32px">
+          <div style="display: flex; justify-content: space-between; align-items: center"><label for="f1">Aircraft list</label><input id="f1" value="12" style="width: 52px; height: 24px; box-sizing: border-box; padding: 0 6px; background: #0f1215; color: #e4e8ec; border: 1px solid #39424c; border-radius: 3px; font-family: 'IBM Plex Mono', monospace"></div>
+          <div style="display: flex; justify-content: space-between; align-items: center"><label for="f2">Radar data blocks</label><input id="f2" value="12" style="width: 52px; height: 24px; box-sizing: border-box; padding: 0 6px; background: #0f1215; color: #e4e8ec; border: 1px solid #39424c; border-radius: 3px; font-family: 'IBM Plex Mono', monospace"></div>
+          <div style="display: flex; justify-content: space-between; align-items: center"><label for="f3">Radar flyouts</label><input id="f3" value="12" style="width: 52px; height: 24px; box-sizing: border-box; padding: 0 6px; background: #0f1215; color: #e4e8ec; border: 1px solid #39424c; border-radius: 3px; font-family: 'IBM Plex Mono', monospace"></div>
+          <div style="display: flex; justify-content: space-between; align-items: center"><label for="f4">Ground data blocks</label><input id="f4" value="12" style="width: 52px; height: 24px; box-sizing: border-box; padding: 0 6px; background: #0f1215; color: #e4e8ec; border: 1px solid #39424c; border-radius: 3px; font-family: 'IBM Plex Mono', monospace"></div>
+          <div style="display: flex; justify-content: space-between; align-items: center"><label for="f5">Ground labels</label><input id="f5" value="13" style="width: 52px; height: 24px; box-sizing: border-box; padding: 0 6px; background: #0f1215; color: #e4e8ec; border: 1px solid #39424c; border-radius: 3px; font-family: 'IBM Plex Mono', monospace"></div>
+          <div style="display: flex; justify-content: space-between; align-items: center"><label for="f6">Terminal</label><input id="f6" value="12" style="width: 52px; height: 24px; box-sizing: border-box; padding: 0 6px; background: #0f1215; color: #e4e8ec; border: 1px solid #39424c; border-radius: 3px; font-family: 'IBM Plex Mono', monospace"></div>
+          <div style="display: flex; justify-content: space-between; align-items: center"><label for="f7">Strips and vTDLS zoom</label><input id="f7" type="range" min="50" max="200" value="100" style="width: 140px"></div>
+        </div>
+      </section>
+      <section style="background: #1d2228; border: 1px solid #2c333b; border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px">
+        <h2 style="margin: 0; font-size: 13px; font-weight: 600; color: #7cc4e8">Radar</h2>
+        <div style="display: flex; justify-content: space-between"><span>Data block <mark>font</mark> size</span><a href="#">12 · in Appearance</a></div>
+        <div style="display: flex; justify-content: space-between"><span>Flyout <mark>font</mark> size</span><a href="#">12 · in Appearance</a></div>
+      </section>
+      <section style="background: #1d2228; border: 1px solid #2c333b; border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px">
+        <h2 style="margin: 0; font-size: 13px; font-weight: 600; color: #7cc4e8">Ground</h2>
+        <div style="display: flex; justify-content: space-between"><span>Data block <mark>font</mark> size</span><a href="#">12 · in Appearance</a></div>
+        <div style="display: flex; justify-content: space-between"><span>Label <mark>font</mark> size</span><a href="#">13 · in Appearance</a></div>
+      </section>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+        <section style="background: #1d2228; border: 1px solid #2c333b; border-radius: 6px; padding: 12px 14px; display: flex; justify-content: space-between"><span><strong style="color: #7cc4e8; font-weight: 600">Aircraft list</strong> · <mark>Font</mark> size</span><a href="#">12 · in Appearance</a></section>
+        <section style="background: #1d2228; border: 1px solid #2c333b; border-radius: 6px; padding: 12px 14px; display: flex; justify-content: space-between"><span><strong style="color: #7cc4e8; font-weight: 600">Terminal</strong> · <mark>Font</mark> size</span><a href="#">12 · in Appearance</a></section>
+      </div>
+    </main>
+  </div>
+  <div style="height: 52px; flex-shrink: 0; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 0 16px; background: #13171c; border-top: 1px solid #2c333b">
+    <button type="button" style="height: 30px; min-width: 76px; background: #7cc4e8; color: #0f1215; border: 0; border-radius: 4px; font-size: 13px; font-weight: 600">OK</button>
+    <button type="button" style="height: 30px; min-width: 76px; background: #262c33; color: #e4e8ec; border: 1px solid #39424c; border-radius: 4px; font-size: 13px">Apply</button>
+    <button type="button" style="height: 30px; min-width: 76px; background: #262c33; color: #e4e8ec; border: 1px solid #39424c; border-radius: 4px; font-size: 13px">Cancel</button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1040,"height":720}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

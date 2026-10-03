@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Session settings flyout</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0f1215}
+a{color:#7cc4e8}a:hover{color:#a9dbf3}
+input,select,button{font-family:inherit}
+</style>
+</helmet>
+<div style="width: 420px; height: 720px; box-sizing: border-box; background: #1d2228; color: #e4e8ec; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; border: 1px solid #39424c; border-radius: 6px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px">
+  <div style="display: flex; justify-content: space-between; align-items: baseline">
+    <h1 style="margin: 0; font-size: 15px; font-weight: 600">Session settings</h1>
+    <a href="#" style="font-size: 12px">Defaults…</a>
+  </div>
+  <p style="margin: 0; color: #a3adb8; font-size: 12px">This room, for every RPO, now. Same settings as Scenario defaults.</p>
+  <section style="display: flex; flex-direction: column; gap: 7px">
+    <h2 style="margin: 0; font-size: 12px; font-weight: 600; color: #7cc4e8">Solo training</h2>
+    <label style="display: flex; gap: 8px"><input type="checkbox"> Solo training mode</label>
+    <div style="display: flex; justify-content: space-between"><label for="g1">Parking call-up rate</label><span><input id="g1" value="100" style="width: 48px; height: 22px; box-sizing: border-box; padding: 0 6px; background: #0f1215; color: #e4e8ec; border: 1px solid #39424c; border-radius: 3px; font-family: 'IBM Plex Mono', monospace"> %</span></div>
+    <div style="display: flex; justify-content: space-between"><label for="g2">Arrival generator rate</label><span><input id="g2" value="100" style="width: 48px; height: 22px; box-sizing: border-box; padding: 0 6px; background: #0f1215; color: #e4e8ec; border: 1px solid #39424c; border-radius: 3px; font-family: 'IBM Plex Mono', monospace"> %</span></div>
+    <div style="display: flex; justify-content: space-between"><label for="g3">Go-around probability</label><span><input id="g3" value="0" style="width: 48px; height: 22px; box-sizing: border-box; padding: 0 6px; background: #0f1215; color: #e4e8ec; border: 1px solid #39424c; border-radius: 3px; font-family: 'IBM Plex Mono', monospace"> %</span></div>
+  </section>
+  <section style="display: flex; flex-direction: column; gap: 6px">
+    <h2 style="margin: 0; font-size: 12px; font-weight: 600; color: #7cc4e8">By position</h2>
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 40px 40px 40px 40px; gap: 4px; align-items: center; font-size: 12px">
+      <span></span><span style="text-align: center; color: #a3adb8">GND</span><span style="text-align: center; color: #a3adb8">TWR</span><span style="text-align: center; color: #a3adb8">APP</span><span style="text-align: center; color: #a3adb8">CTR</span>
+      <span>Auto cleared to land</span><input type="checkbox" checked aria-label="GND"><input type="checkbox" aria-label="TWR"><input type="checkbox" checked aria-label="APP"><input type="checkbox" checked aria-label="CTR">
+      <span>Arrival spacing</span><input type="checkbox" checked aria-label="GND"><input type="checkbox" aria-label="TWR"><span></span><span></span>
+    </div>
+  </section>
+  <section style="display: flex; flex-direction: column; gap: 6px">
+    <h2 style="margin: 0; font-size: 12px; font-weight: 600; color: #7cc4e8">Runway and handoffs</h2>
+    <label style="display: flex; gap: 8px"><input type="checkbox"> Auto cross runways</label>
+    <label style="display: flex; gap: 8px"><input type="checkbox" checked> Go around / reject takeoff when occupied</label>
+    <div style="display: flex; gap: 8px; align-items: center"><input id="g4" type="checkbox" checked><label for="g4">Auto-accept handoffs after</label><input aria-label="Delay" value="5" style="width: 40px; height: 22px; box-sizing: border-box; padding: 0 6px; background: #0f1215; color: #e4e8ec; border: 1px solid #39424c; border-radius: 3px; font-family: 'IBM Plex Mono', monospace"> s</div>
+  </section>
+  <section style="display: flex; flex-direction: column; gap: 6px; border-top: 1px solid #2c333b; padding-top: 10px">
+    <h2 style="margin: 0; font-size: 12px; font-weight: 600; color: #f0c766">Room only</h2>
+    <div style="display: flex; justify-content: space-between; align-items: center"><label style="display: flex; gap: 8px"><input type="checkbox"> Live traffic (SWIM)</label><span style="font-size: 12px; color: #a3adb8">ceiling <input aria-label="Ceiling" value="FL180" style="width: 60px; height: 22px; box-sizing: border-box; padding: 0 6px; background: #0f1215; color: #e4e8ec; border: 1px solid #39424c; border-radius: 3px; font-family: 'IBM Plex Mono', monospace"></span></div>
+    <div style="display: flex; justify-content: space-between"><span>Releases</span><a href="#">2 held ▸</a></div>
+  </section>
+  <a href="#" style="margin-top: auto; font-size: 12px">More session settings…</a>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":420,"height":720}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

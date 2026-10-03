@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings: scenario defaults</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0f1215}
+a{color:#7cc4e8}a:hover{color:#a9dbf3}
+input,select,button{font-family:inherit}
+</style>
+</helmet>
+<div style="width: 1040px; height: 720px; box-sizing: border-box; display: flex; flex-direction: column; background: #171b20; color: #e4e8ec; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; border: 1px solid #2c333b">
+  <div style="height: 34px; display: flex; align-items: center; padding: 0 14px; background: #11151a; border-bottom: 1px solid #2c333b; font-size: 12px; color: #aeb7c1">Settings</div>
+  <div style="flex: 1; display: flex; min-height: 0">
+    <nav aria-label="Settings sections" style="width: 232px; flex-shrink: 0; background: #13171c; border-right: 1px solid #2c333b; padding: 12px 10px; display: flex; flex-direction: column; gap: 2px; overflow: hidden">
+      <label for="s-search" style="position: absolute; left: -9999px">Search settings</label>
+      <input id="s-search" type="search" placeholder="Search all settings" style="height: 32px; box-sizing: border-box; padding: 0 10px; margin-bottom: 10px; background: #0f1215; color: #e4e8ec; border: 1px solid #39424c; border-radius: 4px; font-size: 13px">
+      <a href="#" style="display: block; padding: 6px 10px; border-radius: 4px; color: #c9d0d7; text-decoration: none">General</a>
+      <a href="#" style="display: block; padding: 6px 10px; border-radius: 4px; color: #c9d0d7; text-decoration: none">Appearance</a>
+      <div style="padding: 12px 10px 4px; font-size: 11px; letter-spacing: 0.06em; color: #8c96a1; text-transform: uppercase">Session</div>
+      <a href="#" aria-current="page" style="display: block; padding: 6px 10px; border-radius: 4px; color: #0f1215; background: #7cc4e8; font-weight: 600; text-decoration: none">Scenario defaults</a>
+      <div style="padding: 12px 10px 4px; font-size: 11px; letter-spacing: 0.06em; color: #8c96a1; text-transform: uppercase">Views</div>
+      <a href="#" style="display: block; padding: 6px 10px; border-radius: 4px; color: #c9d0d7; text-decoration: none">Radar</a>
+      <a href="#" style="display: block; padding: 6px 10px; border-radius: 4px; color: #c9d0d7; text-decoration: none">Ground</a>
+      <a href="#" style="display: block; padding: 6px 10px; border-radius: 4px; color: #c9d0d7; text-decoration: none">Aircraft list</a>
+      <a href="#" style="display: block; padding: 6px 10px; border-radius: 4px; color: #c9d0d7; text-decoration: none">Strips and vTDLS</a>
+      <a href="#" style="display: block; padding: 6px 10px; border-radius: 4px; color: #c9d0d7; text-decoration: none">Terminal</a>
+      <div style="padding: 12px 10px 4px; font-size: 11px; letter-spacing: 0.06em; color: #8c96a1; text-transform: uppercase">Input</div>
+      <a href="#" style="display: block; padding: 6px 10px; border-radius: 4px; color: #c9d0d7; text-decoration: none">Command input</a>
+      <a href="#" style="display: block; padding: 6px 10px; border-radius: 4px; color: #c9d0d7; text-decoration: none">Command verbs</a>
+      <a href="#" style="display: block; padding: 6px 10px; border-radius: 4px; color: #c9d0d7; text-decoration: none">Macros</a>
+      <a href="#" style="display: block; padding: 6px 10px; border-radius: 4px; color: #c9d0d7; text-decoration: none">Keys</a>
+      <div style="padding: 12px 10px 4px; font-size: 11px; letter-spacing: 0.06em; color: #8c96a1; text-transform: uppercase">Voice</div>
+      <a href="#" style="display: block; padding: 6px 10px; border-radius: 4px; color: #c9d0d7; text-decoration: none">Speech</a>
+      <a href="#" style="display: block; padding: 6px 10px; border-radius: 4px; color: #c9d0d7; text-decoration: none">Audio devices</a>
+      <div style="padding: 12px 10px 4px; font-size: 11px; letter-spacing: 0.06em; color: #8c96a1; text-transform: uppercase">Advanced</div>
+      <a href="#" style="display: block; padding: 6px 10px; border-radius: 4px; color: #c9d0d7; text-decoration: none">Server admin</a>
+    </nav>
+    <main style="flex: 1; min-width: 0; padding: 20px 28px; display: flex; flex-direction: column; gap: 16px; overflow: hidden">
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <h1 style="margin: 0; font-size: 20px; font-weight: 600">Scenario defaults</h1>
+        <p style="margin: 0; color: #a3adb8">Applied when a scenario loads. The room's live values are in the session flyout (the gear beside the command input).</p>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+        <section style="background: #1d2228; border: 1px solid #2c333b; border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 9px">
+          <h2 style="margin: 0; font-size: 13px; font-weight: 600; color: #7cc4e8">Solo training</h2>
+          <label style="display: flex; align-items: center; gap: 8px"><input type="checkbox"> Solo training mode</label>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px"><label for="pc">Parking call-up rate</label><span style="display: flex; align-items: center; gap: 6px"><span style="font-size: 11px; padding: 1px 6px; border-radius: 3px; background: #3a2f12; color: #f0c766">new default</span><input id="pc" value="100" style="width: 52px; height: 24px; box-sizing: border-box; padding: 0 6px; background: #0f1215; color: #e4e8ec; border: 1px solid #39424c; border-radius: 3px; font-family: 'IBM Plex Mono', monospace"> %</span></div>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px"><label for="ag">Arrival generator rate</label><span style="display: flex; align-items: center; gap: 6px"><span style="font-size: 11px; padding: 1px 6px; border-radius: 3px; background: #3a2f12; color: #f0c766">new default</span><input id="ag" value="100" style="width: 52px; height: 24px; box-sizing: border-box; padding: 0 6px; background: #0f1215; color: #e4e8ec; border: 1px solid #39424c; border-radius: 3px; font-family: 'IBM Plex Mono', monospace"> %</span></div>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px"><label for="ga">Pilot go-around probability</label><span><input id="ga" value="0" style="width: 52px; height: 24px; box-sizing: border-box; padding: 0 6px; background: #0f1215; color: #e4e8ec; border: 1px solid #39424c; border-radius: 3px; font-family: 'IBM Plex Mono', monospace"> %</span></div>
+        </section>
+        <section style="background: #1d2228; border: 1px solid #2c333b; border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 9px">
+          <h2 style="margin: 0; font-size: 13px; font-weight: 600; color: #7cc4e8">Pilots and commands</h2>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px"><span>Command run delay</span><span style="font-family: 'IBM Plex Mono', monospace"><input aria-label="Minimum delay" value="0" style="width: 40px; height: 24px; box-sizing: border-box; padding: 0 6px; background: #0f1215; color: #e4e8ec; border: 1px solid #39424c; border-radius: 3px; font-family: inherit"> to <input aria-label="Maximum delay" value="0" style="width: 40px; height: 24px; box-sizing: border-box; padding: 0 6px; background: #0f1215; color: #e4e8ec; border: 1px solid #39424c; border-radius: 3px; font-family: inherit"> s</span></div>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px"><label for="vfr">VFR commands for IFR</label><select id="vfr" style="height: 24px; background: #0f1215; color: #e4e8ec; border: 1px solid #39424c; border-radius: 3px"><option>Refuse (CIFR first)</option></select></div>
+          <label style="display: flex; align-items: center; gap: 8px"><input type="checkbox"> Validate DCT fixes</label>
+          <label style="display: flex; align-items: center; gap: 8px"><input type="checkbox"> Show RPO pilot speech</label>
+          <label style="display: flex; align-items: center; gap: 8px; padding-left: 22px; color: #b9c1ca"><input type="checkbox"> Audible alert on pilot transmissions</label>
+        </section>
+      </div>
+      <section style="background: #1d2228; border: 1px solid #2c333b; border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px">
+        <h2 style="margin: 0; font-size: 13px; font-weight: 600; color: #7cc4e8">By position</h2>
+        <table style="border-collapse: collapse; width: 100%">
+          <thead><tr style="color: #a3adb8; font-size: 12px"><th style="text-align: left; font-weight: 500; padding: 4px 0">Behaviour</th><th style="width: 64px; font-weight: 500">GND</th><th style="width: 64px; font-weight: 500">TWR</th><th style="width: 64px; font-weight: 500">APP</th><th style="width: 64px; font-weight: 500">CTR</th></tr></thead>
+          <tbody>
+            <tr style="border-top: 1px solid #2c333b"><td style="padding: 6px 0">Auto cleared to land</td><td style="text-align: center"><input type="checkbox" checked aria-label="GND"></td><td style="text-align: center"><input type="checkbox" aria-label="TWR"></td><td style="text-align: center"><input type="checkbox" checked aria-label="APP"></td><td style="text-align: center"><input type="checkbox" checked aria-label="CTR"></td></tr>
+            <tr style="border-top: 1px solid #2c333b"><td style="padding: 6px 0">Arrival spacing on an occupied runway</td><td style="text-align: center"><input type="checkbox" checked aria-label="GND"></td><td style="text-align: center"><input type="checkbox" aria-label="TWR"></td><td style="text-align: center; color: #5d6772">–</td><td style="text-align: center; color: #5d6772">–</td></tr>
+          </tbody>
+        </table>
+      </section>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+        <section style="background: #1d2228; border: 1px solid #2c333b; border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 9px">
+          <h2 style="margin: 0; font-size: 13px; font-weight: 600; color: #7cc4e8">Runway and handoffs</h2>
+          <label style="display: flex; align-items: center; gap: 8px"><input type="checkbox"> Auto cross runways</label>
+          <label style="display: flex; align-items: center; gap: 8px"><input type="checkbox" checked> Auto pull up to parallel</label>
+          <label style="display: flex; align-items: center; gap: 8px"><input type="checkbox" checked> Go around when the runway is occupied</label>
+          <label style="display: flex; align-items: center; gap: 8px"><input type="checkbox" checked> Reject takeoff when the runway is occupied</label>
+          <div style="display: flex; align-items: center; gap: 8px"><input id="aa" type="checkbox" checked><label for="aa">Auto-accept handoffs after</label><input aria-label="Delay" value="5" style="width: 40px; height: 24px; box-sizing: border-box; padding: 0 6px; background: #0f1215; color: #e4e8ec; border: 1px solid #39424c; border-radius: 3px; font-family: 'IBM Plex Mono', monospace"> s</div>
+        </section>
+        <section style="background: #1d2228; border: 1px solid #2c333b; border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 9px">
+          <h2 style="margin: 0; font-size: 13px; font-weight: 600; color: #7cc4e8">Room only: set in the session flyout</h2>
+          <p style="margin: 0; color: #a3adb8">No default here; each room starts from the scenario.</p>
+          <ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; color: #c9d0d7">
+            <li>Live traffic (SWIM): on/off, ceiling, filters, assume</li>
+            <li>Releases (hold for release)</li>
+          </ul>
+          <div style="margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid #2c333b; padding-top: 8px"><label for="ad">Default auto-delete</label><select id="ad" style="height: 24px; background: #0f1215; color: #e4e8ec; border: 1px solid #39424c; border-radius: 3px"><option>Scenario's setting</option></select></div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <div style="height: 52px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; background: #13171c; border-top: 1px solid #2c333b">
+    <button type="button" style="height: 30px; padding: 0 12px; background: transparent; color: #c9d0d7; border: 1px solid #39424c; border-radius: 4px; font-size: 13px">Reset section to defaults</button>
+    <div style="display: flex; gap: 8px">
+      <button type="button" style="height: 30px; min-width: 76px; padding: 0 14px; background: #7cc4e8; color: #0f1215; border: 0; border-radius: 4px; font-size: 13px; font-weight: 600">OK</button>
+      <button type="button" style="height: 30px; min-width: 76px; padding: 0 14px; background: #262c33; color: #e4e8ec; border: 1px solid #39424c; border-radius: 4px; font-size: 13px">Apply</button>
+      <button type="button" style="height: 30px; min-width: 76px; padding: 0 14px; background: #262c33; color: #e4e8ec; border: 1px solid #39424c; border-radius: 4px; font-size: 13px">Cancel</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1040,"height":720}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
