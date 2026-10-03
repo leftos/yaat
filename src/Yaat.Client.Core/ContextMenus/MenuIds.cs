@@ -425,4 +425,31 @@ public static class MenuIds
 
     /// <summary>Assume control of the live-traffic shadows several selected aircraft name (<c>ASSUME</c> each).</summary>
     public const string LiveTrafficAssumeSelected = "livetraffic.assume-selected";
+
+    /// <summary>Fly the magnetic heading to the right-clicked point, rounded to five degrees (<c>FH</c>).</summary>
+    public const string PointFlyHeading = "point.fly-heading";
+
+    /// <summary>Proceed direct to the right-clicked point as a fix-radial-distance (<c>DCT</c>).</summary>
+    public const string PointDirectTo = "point.direct-to";
+
+    /// <summary>Append the right-clicked point to the route after the fix being navigated to (<c>ADCT</c>).</summary>
+    public const string PointAppendDirectTo = "point.append-direct-to";
+
+    /// <summary>Hold at the right-clicked point with left turns (<c>HFIXL</c>).</summary>
+    public const string PointHoldLeft = "point.hold-left";
+
+    /// <summary>Hold at the right-clicked point with right turns (<c>HFIXR</c>).</summary>
+    public const string PointHoldRight = "point.hold-right";
+
+    /// <summary>Taxi to the right-clicked taxi node along one of the routes the host finds (<c>TAXI</c>).</summary>
+    public const string PointTaxiHere = "point.taxi-here";
+
+    /// <summary>Push back to the right-clicked named stand or spot (<c>PUSH</c>).</summary>
+    public const string PointPushTo = "point.push-to";
+
+    /// <summary>Type a taxi command, prefilled for the right-clicked taxi node.</summary>
+    public const string PointCustomTaxi = "point.custom-taxi";
+
+    /// <summary>Warp to the right-clicked taxi node (<c>WARPG</c>) or map point (<c>WARP</c>, through the warp popup).</summary>
+    public const string PointWarpHere = "point.warp-here";
 }

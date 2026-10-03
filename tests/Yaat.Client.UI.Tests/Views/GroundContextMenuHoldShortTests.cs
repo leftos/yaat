@@ -25,7 +25,7 @@ public class GroundContextMenuHoldShortTests
             AssignedRunway = "28R",
             HasActiveTaxiRoute = true,
         };
-        ContextMenu menu = AircraftMenuBuilder.Build(ac, new MenuClick("N784ME", null, []), new RecordingMenuHost(""), _ => []);
+        ContextMenu menu = AircraftMenuBuilder.Build(ac, new MenuClick("N784ME", null, null, []), new RecordingMenuHost(""), _ => []);
 
         var crossItems = menu
             .Items.OfType<MenuItem>()

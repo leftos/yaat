@@ -1,5 +1,7 @@
 using Avalonia.Controls;
 using Yaat.Client.ContextMenus;
+using Yaat.Client.Services;
+using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -21,8 +23,15 @@ internal sealed class SendCapturingHost(IMenuHost inner, string sessionInitials)
         return Task.CompletedTask;
     }
 
-    public void ShowInputPopup(string placeholder, BlankInput blank, Func<string, Task> onSubmit) =>
-        inner.ShowInputPopup(placeholder, blank, onSubmit);
+    public void ShowInputPopup(string placeholder, BlankInput blank, string initialText, int caretIndex, Func<string, Task> onSubmit) =>
+        inner.ShowInputPopup(placeholder, blank, initialText, caretIndex, onSubmit);
+
+    public string? DescribePoint(LatLon position) => inner.DescribePoint(position);
+
+    public IReadOnlyList<MenuCommandChoice> GetTaxiChoices(string callsign, GroundNodeDto node, string? runwayEnd) =>
+        inner.GetTaxiChoices(callsign, node, runwayEnd);
+
+    public MenuTextSeed GetCustomTaxiSeed(GroundNodeDto node) => inner.GetCustomTaxiSeed(node);
 
     public MenuHostCapabilities Capabilities => inner.Capabilities;
 
@@ -38,8 +47,8 @@ internal sealed class SendCapturingHost(IMenuHost inner, string sessionInitials)
 
     public void EnterDrawRoute(string callsign) => inner.EnterDrawRoute(callsign);
 
-    public void ShowWarpPopup(string callsign, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit) =>
-        inner.ShowWarpPopup(callsign, heading, altitude, speed, onSubmit);
+    public void ShowWarpPopup(string callsign, string frd, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit) =>
+        inner.ShowWarpPopup(callsign, frd, heading, altitude, speed, onSubmit);
 
     public void ShowCommandFlyout(string callsign, string initials) => inner.ShowCommandFlyout(callsign, initials);
 

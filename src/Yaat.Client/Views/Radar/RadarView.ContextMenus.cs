@@ -103,7 +103,12 @@ public partial class RadarView
             FindMainViewModel()
             ?? throw new InvalidOperationException("The radar aircraft menu needs the main view model; the radar view is not hosted by one");
         var host = new ClientMenuHost(main, ac, Canvas);
-        return AircraftMenuBuilder.Build(ac, new MenuClick(callsign, prevSelected, []), host, context => BuildViewSection(vm, ac, context, host));
+        return AircraftMenuBuilder.Build(
+            ac,
+            new MenuClick(callsign, prevSelected, null, []),
+            host,
+            context => BuildViewSection(vm, ac, context, host)
+        );
     }
 
     /// <summary>

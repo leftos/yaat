@@ -112,7 +112,10 @@ public class ClientMenuHostGroundTests
 
         List<(string Label, string Cardinal)> directions = main.Ground.GetPushbackDirections(target);
         Assert.NotEmpty(directions);
-        Assert.Equal(directions.Select(d => ($"Push back, {d.Label}", $"PUSH FACE {d.Cardinal}")), choices.Select(c => (c.Label, c.Command)));
+        Assert.Equal(
+            directions.Select(d => ($"Push back, {d.Label}", (string?)$"PUSH FACE {d.Cardinal}")),
+            choices.Select(c => (c.Label, c.Command))
+        );
         Assert.All(choices, c => Assert.StartsWith("Push back, face ", c.Label));
         Assert.All(choices, c => Assert.Null(c.Preview));
     }
@@ -177,6 +180,120 @@ public class ClientMenuHostGroundTests
         Assert.Equal(Callsign, main.Ground.PushRouteCallsign);
     }
 
+    // --- Point menu: taxi choices and the custom-taxi seed ----------------------------------
+
+    [AvaloniaFact]
+    public void TaxiChoices_NoRoute_IsOneDisabledRow()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(PushbackFaceNode));
+        MainViewModel main = OakMain(target, []);
+        var host = new ClientMenuHost(main, target, new Border());
+        int from = main.Ground.GetAircraftNearestNodeId(target)!.Value;
+        // The first node, helipads first, that the pathfinder cannot reach from I30 for a B738.
+        GroundNodeDto? unreachable = Oak
+            .Nodes.OrderBy(n => (n.Type == "Helipad") ? 0 : 1)
+            .FirstOrDefault(n =>
+                main.Ground.FindRoutesToNode(from, n.Id, GroundViewModel.CategoryFor(target), GroundViewModel.WakeClassFor(target)).Count == 0
+            );
+        Assert.NotNull(unreachable);
+
+        IReadOnlyList<MenuCommandChoice> choices = host.GetTaxiChoices(Callsign, unreachable, null);
+
+        MenuCommandChoice row = Assert.Single(choices);
+        Assert.Equal("No route found", row.Label);
+        Assert.Null(row.Command);
+        Assert.Null(row.Preview);
+        Assert.Empty(row.Children);
+    }
+
+    [AvaloniaFact]
+    public void TaxiChoices_HoldShortNode_UsesItsRunwayEnd1()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(PushbackFaceNode));
+        var host = new ClientMenuHost(OakMain(target, []), target, new Border());
+        string end1 = RunwayIdentifier.Parse(Runway30HoldShortNode.RunwayId!).End1;
+
+        IReadOnlyList<MenuCommandChoice> routes = RouteChoices(host.GetTaxiChoices(Callsign, Runway30HoldShortNode, null));
+
+        Assert.NotEmpty(routes);
+        Assert.All(routes, AssertRoutesToRunway(end1));
+    }
+
+    [AvaloniaFact]
+    public void TaxiChoices_ThresholdClick_UsesTheClickedEnd()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(PushbackFaceNode));
+        var host = new ClientMenuHost(OakMain(target, []), target, new Border());
+        // The other end than the node's own End1, so the answer can only come from the click.
+        string clickedEnd = RunwayIdentifier.Parse(Runway30HoldShortNode.RunwayId!).End2;
+
+        IReadOnlyList<MenuCommandChoice> routes = RouteChoices(host.GetTaxiChoices(Callsign, Runway30HoldShortNode, clickedEnd));
+
+        Assert.NotEmpty(routes);
+        Assert.All(routes, AssertRoutesToRunway(clickedEnd));
+    }
+
+    [AvaloniaFact]
+    public void TaxiChoices_TwoOrMoreRoutes_NestUnderTaxiHere()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = TaxiingOnW3();
+        MainViewModel main = OakMain(target, []);
+        var host = new ClientMenuHost(main, target, new Border());
+        int from = main.Ground.GetAircraftNearestNodeId(target)!.Value;
+        List<TaxiRoute> RoutesTo(GroundNodeDto node) =>
+            main.Ground.FindRoutesToNode(from, node.Id, GroundViewModel.CategoryFor(target), GroundViewModel.WakeClassFor(target));
+        // The first taxiway intersection, in layout order, the pathfinder reaches from W3 by two or more routes.
+        GroundNodeDto destination = Oak.Nodes.Where(n => n.Type == "TaxiwayIntersection").First(n => RoutesTo(n).Count >= 2);
+        List<TaxiRoute> found = RoutesTo(destination);
+
+        IReadOnlyList<MenuCommandChoice> choices = host.GetTaxiChoices(Callsign, destination, null);
+
+        MenuCommandChoice taxiHere = Assert.Single(choices);
+        Assert.Equal("Taxi here", taxiHere.Label);
+        Assert.Null(taxiHere.Command);
+        Assert.Equal(found.Count, taxiHere.Children.Count);
+        Assert.All(taxiHere.Children, c => Assert.StartsWith("Taxi ", c.Label));
+        Assert.All(taxiHere.Children, c => Assert.True((c.Command is not null) || (c.Children.Count > 0), $"'{c.Label}' sends nothing"));
+    }
+
+    [AvaloniaFact]
+    public void CustomTaxiSeed_FollowsTheNodeType()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(PushbackFaceNode));
+        MainViewModel main = OakMain(target, []);
+        var host = new ClientMenuHost(main, target, new Border());
+        GroundNodeDto parking = Oak.Nodes.First(n => (n.Type == "Parking") && (n.Name is not null));
+        string rwy = RunwayIdentifier.ToDisplayDesignator(RunwayIdentifier.Parse(Runway30HoldShortNode.RunwayId!).End1);
+        string taxiway = main.Ground.GetNodeTaxiwayNames(PresetTaxiNode.Id)[0];
+
+        Assert.Equal(new MenuTextSeed("TAXI  $I30", 5), host.GetCustomTaxiSeed(PushbackFaceNode));
+        Assert.Equal(new MenuTextSeed($"TAXI  @{parking.Name}", 5), host.GetCustomTaxiSeed(parking));
+        Assert.Equal(new MenuTextSeed($"RWY {rwy} TAXI ", $"RWY {rwy} TAXI ".Length), host.GetCustomTaxiSeed(Runway30HoldShortNode));
+        Assert.Equal(new MenuTextSeed($"TAXI  {taxiway}", 5), host.GetCustomTaxiSeed(PresetTaxiNode));
+    }
+
+    /// <summary>The per-route choices: a "Taxi here" submenu's children, else the answer itself.</summary>
+    private static IReadOnlyList<MenuCommandChoice> RouteChoices(IReadOnlyList<MenuCommandChoice> choices) =>
+        (choices is [{ Label: "Taxi here" } parent]) ? parent.Children : choices;
+
+    /// <summary>
+    /// A route to <paramref name="runway"/>: a "Taxi …" submenu previewing the route, whose first item is the departure
+    /// taxi to that runway and whose separator divides it from the hold-short variants.
+    /// </summary>
+    private static Action<MenuCommandChoice> AssertRoutesToRunway(string runway) =>
+        route =>
+        {
+            Assert.StartsWith("Taxi ", route.Label);
+            Assert.NotNull(route.Preview);
+            Assert.StartsWith($"For Departure {runway}", route.Children[0].Label);
+            Assert.Contains(route.Children, c => ReferenceEquals(c, MenuCommandChoice.Separator));
+        };
+
     // --- The builder's ground items over the host's answers ---------------------------------
 
     // The menu is built over the client host with only its sends captured, since the client host sends to a server a test
@@ -190,7 +307,7 @@ public class ClientMenuHostGroundTests
         MainViewModel main = OakMain(target, [candidate]);
         var host = new SendCapturingHost(new ClientMenuHost(main, target, new Border()), "AB");
 
-        ContextMenu menu = AircraftMenuBuilder.Build(target, new MenuClick(Callsign, null, []), host, _ => []);
+        ContextMenu menu = AircraftMenuBuilder.Build(target, new MenuClick(Callsign, null, null, []), host, _ => []);
 
         string[] groundItems = ["Hold short of...", "Follow...", "Give way to..."];
         Assert.Equal(groundItems, Headers(menu.Items).Where(groundItems.Contains));
@@ -277,6 +394,10 @@ public class ClientMenuHostGroundTests
         return GeoMath.DistanceNm(aircraft.Position.Lat, aircraft.Position.Lon, stand.Latitude, stand.Longitude);
     }
 
+    /// <summary>Runway 30's hold-short node on taxiway W3.</summary>
+    private static GroundNodeDto Runway30HoldShortNode =>
+        Oak.Nodes.First(n => (n.Type == "RunwayHoldShort") && (n.RunwayId is { } rwy) && rwy.Contains("30") && LinkNamesOf(n.Id).Contains("W3"));
+
     /// <summary>
     /// The W3 node just behind runway 30's hold-short at W3: of the hold-short's two W3 neighbours, the one with no link
     /// onto the runway (the hold-short fixture of <c>GroundSubmenuCharacterizationTests</c>).
@@ -285,9 +406,7 @@ public class ClientMenuHostGroundTests
     {
         get
         {
-            GroundNodeDto holdShort = Oak.Nodes.First(n =>
-                (n.Type == "RunwayHoldShort") && (n.RunwayId is { } rwy) && rwy.Contains("30") && LinkNamesOf(n.Id).Contains("W3")
-            );
+            GroundNodeDto holdShort = Runway30HoldShortNode;
             return Oak
                 .Edges.Where(e => (e.TaxiwayName == "W3") && ((e.FromNodeId == holdShort.Id) || (e.ToNodeId == holdShort.Id)))
                 .Select(e => Oak.Nodes.First(n => n.Id == ((e.FromNodeId == holdShort.Id) ? e.ToNodeId : e.FromNodeId)))

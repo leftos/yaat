@@ -193,6 +193,17 @@ public class MenuCatalogCommandTests
         MenuIds.GroundDrawTaxiRoute,
         MenuIds.SpawnDelay,
         MenuIds.LiveTrafficAssumeSelected,
+        // The point entries build only for a point click (MenuClick.Point set), which this table's context never has;
+        // PointMenuTests builds them through AircraftMenuBuilder and clicks their items there.
+        MenuIds.PointFlyHeading,
+        MenuIds.PointDirectTo,
+        MenuIds.PointAppendDirectTo,
+        MenuIds.PointHoldLeft,
+        MenuIds.PointHoldRight,
+        MenuIds.PointTaxiHere,
+        MenuIds.PointPushTo,
+        MenuIds.PointCustomTaxi,
+        MenuIds.PointWarpHere,
     ];
 
     public static TheoryData<string, string, string> SingleCommandLeaves()
@@ -335,7 +346,7 @@ public class MenuCatalogCommandTests
         Assert.NotNull(item);
         Click(item);
 
-        Assert.Equal([(Callsign, 90, 5000, 250)], host.WarpPopups);
+        Assert.Equal([(Callsign, "", 90, 5000, 250)], host.WarpPopups);
 
         Func<string, int, int, int, Task>? submit = host.WarpSubmit;
         Assert.NotNull(submit);
@@ -353,7 +364,7 @@ public class MenuCatalogCommandTests
         Assert.NotNull(item);
         Click(item);
 
-        Assert.Equal([(Callsign, 360, 0, 0)], host.WarpPopups);
+        Assert.Equal([(Callsign, "", 360, 0, 0)], host.WarpPopups);
     }
 
     // A catalog entry whose builder needs host members the surface does not serve is hidden, never shown disabled:
@@ -1980,6 +1991,8 @@ public class MenuCatalogCommandTests
         public bool AssumedFromLiveTraffic => false;
 
         public bool IsOnGround { get; init; }
+
+        public LatLon Position { get; init; }
 
         public string? LastReportedTrafficCallsign { get; init; }
 

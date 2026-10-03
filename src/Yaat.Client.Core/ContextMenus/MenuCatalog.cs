@@ -352,6 +352,52 @@ public static class MenuCatalog
         {
             Requires = MenuHostCapabilities.MultiSelectAssume,
         },
+        PointEntry(MenuIds.PointFlyHeading, "Fly heading", AtPointAirborne, BuildPointFlyHeading),
+        PointEntry(
+            MenuIds.PointDirectTo,
+            "Direct to",
+            AtPointAirborne,
+            (_, point, context, host) => BuildPointFrd(point, "Direct to", "DCT", context, host)
+        ),
+        PointEntry(
+            MenuIds.PointAppendDirectTo,
+            "Append direct to",
+            (ac, context) => AtPointAirborne(ac, context) && IsNavigatingToFix(ac, context),
+            (_, point, context, host) => BuildPointFrd(point, "Append direct to", "ADCT", context, host)
+        ),
+        PointEntry(
+            MenuIds.PointHoldLeft,
+            "Hold (left)",
+            AtPointAirborne,
+            (_, point, context, host) => BuildPointHold(point, "left", "HFIXL", context, host)
+        ),
+        PointEntry(
+            MenuIds.PointHoldRight,
+            "Hold (right)",
+            AtPointAirborne,
+            (_, point, context, host) => BuildPointHold(point, "right", "HFIXR", context, host)
+        ),
+        PointEntry(MenuIds.PointTaxiHere, "Taxi here", AtNodeTaxiable, BuildPointTaxiHere) with
+        {
+            Requires = MenuHostCapabilities.GroundMovement,
+        },
+        PointEntry(MenuIds.PointPushTo, "Push to", AtNodePushable, BuildPointPushTo) with
+        {
+            Requires = MenuHostCapabilities.GroundMovement,
+        },
+        PointEntry(MenuIds.PointCustomTaxi, "Custom taxi...", AtNodeTaxiable, BuildPointCustomTaxi) with
+        {
+            Requires = MenuHostCapabilities.InputPopup | MenuHostCapabilities.GroundMovement,
+        },
+        PointEntry(
+            MenuIds.PointWarpHere,
+            "Warp here",
+            (ac, context) => (context.Click.Point is not null) && AircraftCommandApplicability.IsControllable(ac),
+            BuildPointWarp
+        ) with
+        {
+            Requires = MenuHostCapabilities.Warp,
+        },
     ];
 
     /// <summary>
@@ -642,8 +688,13 @@ public static class MenuCatalog
     /// </summary>
     internal static IReadOnlyList<MenuItem> BuildPushbackFaces(MenuContext context, IMenuHost host) =>
         Serves(MenuIds.GroundPushbackFace, host)
-            ? [.. host.GetPushbackFaceChoices(context.Callsign).Select(choice => BuildSend(choice.Label, choice.Command, context, host))]
+            ? [.. host.GetPushbackFaceChoices(context.Callsign).Select(choice => BuildSend(choice.Label, FaceCommand(choice), context, host))]
             : [];
+
+    /// <summary>A pushback facing's <c>PUSH FACE</c> command, which every face choice the host answers carries.</summary>
+    private static string FaceCommand(MenuCommandChoice choice) =>
+        choice.Command
+        ?? throw new InvalidOperationException($"The host answered the pushback face choice '{choice.Label}' without a PUSH FACE command.");
 
     /// <summary>The Push route item, which puts the host into drawing a tug move for the aircraft.</summary>
     private static MenuItem BuildPushRoute(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
@@ -668,16 +719,48 @@ public static class MenuCatalog
         var menu = new MenuItem { Header = label };
         foreach (MenuCommandChoice choice in choices)
         {
-            MenuItem item = BuildSend(choice.Label, choice.Command, context, host);
-            if (choice.Preview is { } preview)
-            {
-                item.PointerEntered += (_, _) => host.SetRoutePreview(preview);
-            }
-
-            menu.Items.Add(item);
+            menu.Items.Add(BuildChoice(choice, context, host));
         }
 
         return menu;
+    }
+
+    /// <summary>
+    /// One host-answered choice as a menu control: <see cref="MenuCommandChoice.Separator"/> as a separator, a choice
+    /// with children as a submenu over them (built the same way), one with a command as an item that sends it, and one
+    /// with neither as a disabled row. An item whose choice carries a route previews it when the pointer enters it.
+    /// </summary>
+    private static Control BuildChoice(MenuCommandChoice choice, MenuContext context, IMenuHost host)
+    {
+        if (ReferenceEquals(choice, MenuCommandChoice.Separator))
+        {
+            return new Separator();
+        }
+
+        MenuItem item;
+        if (choice.Children.Count > 0)
+        {
+            item = new MenuItem { Header = choice.Label };
+            foreach (MenuCommandChoice child in choice.Children)
+            {
+                item.Items.Add(BuildChoice(child, context, host));
+            }
+        }
+        else if (choice.Command is { } command)
+        {
+            item = BuildSend(choice.Label, command, context, host);
+        }
+        else
+        {
+            item = new MenuItem { Header = choice.Label, IsEnabled = false };
+        }
+
+        if (choice.Preview is { } preview)
+        {
+            item.PointerEntered += (_, _) => host.SetRoutePreview(preview);
+        }
+
+        return item;
     }
 
     /// <summary>
@@ -858,7 +941,8 @@ public static class MenuCatalog
     )
     {
         var item = new MenuItem { Header = label, Tag = new MenuPickerDescriptor(MenuPickerDescriptor.Input, []) };
-        item.Click += (_, _) => host.ShowInputPopup(placeholder, blank, input => host.SendAsync(context.Callsign, format(input), context.Initials));
+        item.Click += (_, _) =>
+            host.ShowInputPopup(placeholder, blank, "", 0, input => host.SendAsync(context.Callsign, format(input), context.Initials));
         return item;
     }
 
@@ -883,24 +967,161 @@ public static class MenuCatalog
         }
 
         var item = new MenuItem { Header = label };
-        item.Click += (_, _) =>
-        {
-            int heading = aircraft is not null ? (int)Math.Round(aircraft.HeadingDegrees) : 0;
-            if (heading <= 0)
-            {
-                heading = 360;
-            }
+        item.Click += (_, _) => ShowWarp(aircraft, "", context, host);
+        return item;
+    }
 
-            int altitude = aircraft is not null ? (int)Math.Round(aircraft.AltitudeFeet) : 0;
-            int speed = aircraft is not null ? (int)Math.Round(aircraft.IndicatedAirspeedKnots) : 0;
-            host.ShowWarpPopup(
-                context.Callsign,
-                heading,
-                altitude,
-                speed,
-                (frd, h, a, s) => host.SendAsync(context.Callsign, $"WARP {frd} {h} {a} {s}", context.Initials)
+    /// <summary>
+    /// Opens the host's warp popup at <paramref name="frd"/>, seeded with the aircraft's heading (a zero or negative one
+    /// clamped to 360), altitude and indicated airspeed, and sends <c>WARP {frd} {heading} {altitude} {speed}</c> for the
+    /// values the popup submits.
+    /// </summary>
+    private static void ShowWarp(IMenuAircraft? aircraft, string frd, MenuContext context, IMenuHost host)
+    {
+        int heading = aircraft is not null ? (int)Math.Round(aircraft.HeadingDegrees) : 0;
+        if (heading <= 0)
+        {
+            heading = 360;
+        }
+
+        int altitude = aircraft is not null ? (int)Math.Round(aircraft.AltitudeFeet) : 0;
+        int speed = aircraft is not null ? (int)Math.Round(aircraft.IndicatedAirspeedKnots) : 0;
+        host.ShowWarpPopup(
+            context.Callsign,
+            frd,
+            heading,
+            altitude,
+            speed,
+            (position, h, a, s) => host.SendAsync(context.Callsign, $"WARP {position} {h} {a} {s}", context.Initials)
+        );
+    }
+
+    // --- Point menu ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// A point-menu entry: <paramref name="build"/> receives the aircraft and the right-clicked point, and the entry builds
+    /// nothing without either.
+    /// </summary>
+    private static MenuCatalogEntry PointEntry(
+        string id,
+        string label,
+        Func<IMenuAircraft?, MenuContext, bool> isApplicable,
+        Func<IMenuAircraft, MenuPoint, MenuContext, IMenuHost, MenuItem?> build
+    ) =>
+        new(
+            id,
+            label,
+            MenuFlightRules.Both,
+            isApplicable,
+            (aircraft, context, host) => ((aircraft is not null) && (context.Click.Point is { } point)) ? build(aircraft, point, context, host) : null
+        );
+
+    /// <summary>A point click on a controllable airborne aircraft, which the heading, direct-to and hold items command.</summary>
+    private static bool AtPointAirborne(IMenuAircraft? aircraft, MenuContext context) =>
+        (context.Click.Point is not null) && AircraftCommandApplicability.IsAirborneControllable(aircraft);
+
+    /// <summary>A taxi-node click on an aircraft that can be given a taxi route, which Taxi here and Custom taxi… route.</summary>
+    private static bool AtNodeTaxiable(IMenuAircraft? aircraft, MenuContext context) =>
+        (context.Click.Point?.Node is not null) && AircraftCommandApplicability.CanDrawTaxiRoute(aircraft);
+
+    /// <summary>A click on a named stand or spot with an aircraft that can push back, which Push to sends there.</summary>
+    private static bool AtNodePushable(IMenuAircraft? aircraft, MenuContext context) =>
+        (context.Click.Point?.Node is { Type: "Parking" or "Spot", Name: not null }) && AircraftCommandApplicability.CanPushBack(aircraft);
+
+    /// <summary>
+    /// Fly heading to the point: the true bearing from the aircraft to it, made magnetic with the variation at the
+    /// aircraft's position and rounded to five degrees, a zero or negative one flown as 360.
+    /// </summary>
+    private static MenuItem BuildPointFlyHeading(IMenuAircraft aircraft, MenuPoint point, MenuContext context, IMenuHost host)
+    {
+        double trueBearing = GeoMath.BearingTo(aircraft.Position, point.Position);
+        double magnetic = new TrueHeading(trueBearing).ToMagnetic(MagneticDeclination.GetDeclination(aircraft.Position)).Degrees;
+        int heading = (int)(Math.Round(magnetic / HeadingStep) * HeadingStep);
+        if (heading <= 0)
+        {
+            heading = 360;
+        }
+
+        return BuildSend($"Fly heading {new MagneticHeading(heading).ToDisplayString()}", $"FH {heading}", context, host);
+    }
+
+    /// <summary>An item naming the point by the host's fix-radial-distance and sending <paramref name="verb"/> with it; null without one.</summary>
+    private static MenuItem? BuildPointFrd(MenuPoint point, string label, string verb, MenuContext context, IMenuHost host) =>
+        host.DescribePoint(point.Position) is { } frd ? BuildSend($"{label} {frd}", $"{verb} {frd}", context, host) : null;
+
+    /// <summary>Hold at the point's fix-radial-distance with <paramref name="side"/> turns; null without one.</summary>
+    private static MenuItem? BuildPointHold(MenuPoint point, string side, string verb, MenuContext context, IMenuHost host) =>
+        host.DescribePoint(point.Position) is { } frd ? BuildSend($"Hold at {frd} ({side})", $"{verb} {frd}", context, host) : null;
+
+    /// <summary>
+    /// The host's Taxi here choices for the clicked node as one item: its one choice (a route's item, a "Taxi here"
+    /// submenu over several, or the disabled "No route found" row), or a "Taxi here" submenu should it answer more.
+    /// </summary>
+    private static MenuItem? BuildPointTaxiHere(IMenuAircraft aircraft, MenuPoint point, MenuContext context, IMenuHost host)
+    {
+        if (point.Node is not { } node)
+        {
+            return null;
+        }
+
+        IReadOnlyList<MenuCommandChoice> choices = host.GetTaxiChoices(context.Callsign, node, point.RunwayEnd);
+        if (choices.Count != 1)
+        {
+            return BuildChoiceSubmenu("Taxi here", choices, context, host);
+        }
+
+        return BuildChoice(choices[0], context, host) as MenuItem
+            ?? throw new InvalidOperationException(
+                $"IMenuHost.GetTaxiChoices answered a lone separator for {context.Callsign} at node {node.Id}; it answers a route, a "
+                    + "\"Taxi here\" submenu or a \"No route found\" row."
             );
-        };
+    }
+
+    /// <summary>Push to the clicked named spot (<c>PUSH $SPOT</c>) or stand (<c>PUSH @STAND</c>).</summary>
+    private static MenuItem? BuildPointPushTo(IMenuAircraft aircraft, MenuPoint point, MenuContext context, IMenuHost host) =>
+        point.Node is { Type: "Parking" or "Spot", Name: { } name } node
+            ? BuildSend($"Push to {name}", $"PUSH {((node.Type == "Spot") ? '$' : '@')}{name}", context, host)
+            : null;
+
+    /// <summary>Custom taxi…: the host's input popup, seeded for the clicked node, sending the trimmed text it submits.</summary>
+    private static MenuItem? BuildPointCustomTaxi(IMenuAircraft aircraft, MenuPoint point, MenuContext context, IMenuHost host)
+    {
+        if (point.Node is not { } node)
+        {
+            return null;
+        }
+
+        MenuTextSeed seed = host.GetCustomTaxiSeed(node);
+        var item = new MenuItem { Header = "Custom taxi...", Tag = new MenuPickerDescriptor(MenuPickerDescriptor.Input, []) };
+        item.Click += (_, _) =>
+            host.ShowInputPopup(
+                "Taxi command",
+                BlankInput.Closes,
+                seed.Text,
+                seed.Caret,
+                text => host.SendAsync(context.Callsign, text.Trim(), context.Initials)
+            );
+        return item;
+    }
+
+    /// <summary>
+    /// Warp here: to a clicked taxi node, <c>WARPG #node</c>; to a map point, the warp popup at its fix-radial-distance,
+    /// seeded as Warp… seeds it; null at a map point the host cannot name.
+    /// </summary>
+    private static MenuItem? BuildPointWarp(IMenuAircraft aircraft, MenuPoint point, MenuContext context, IMenuHost host)
+    {
+        if (point.Node is { } node)
+        {
+            return BuildSend("Warp here", $"WARPG #{node.Id}", context, host);
+        }
+
+        if (host.DescribePoint(point.Position) is not { } frd)
+        {
+            return null;
+        }
+
+        var item = new MenuItem { Header = $"Warp here ({frd})" };
+        item.Click += (_, _) => ShowWarp(aircraft, frd, context, host);
         return item;
     }
 
@@ -1534,7 +1755,7 @@ public static class MenuCatalog
                 null,
                 fix =>
                 {
-                    host.ShowInputPopup(bearingPrompt(fix), BlankInput.Closes, bearing => Send($"{command} {fix} {bearing}", context, host));
+                    host.ShowInputPopup(bearingPrompt(fix), BlankInput.Closes, "", 0, bearing => Send($"{command} {fix} {bearing}", context, host));
                     return Task.CompletedTask;
                 },
                 host

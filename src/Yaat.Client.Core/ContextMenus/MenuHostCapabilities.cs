@@ -34,7 +34,8 @@ public enum MenuHostCapabilities
     /// The ground-movement submenus (<see cref="IMenuHost.GetGroundTrafficCallsigns"/>,
     /// <see cref="IMenuHost.GetHoldShortChoices"/>, <see cref="IMenuHost.SetRoutePreview"/>,
     /// <see cref="IMenuHost.GetPushbackFaceChoices"/>, <see cref="IMenuHost.GetPushbackToChoices"/>,
-    /// <see cref="IMenuHost.GetPresetTaxiChoices"/>, <see cref="IMenuHost.EnterPushRoute"/>).
+    /// <see cref="IMenuHost.GetPresetTaxiChoices"/>, <see cref="IMenuHost.EnterPushRoute"/>,
+    /// <see cref="IMenuHost.GetTaxiChoices"/>, <see cref="IMenuHost.GetCustomTaxiSeed"/>).
     /// </summary>
     GroundMovement = 1 << 12,
 

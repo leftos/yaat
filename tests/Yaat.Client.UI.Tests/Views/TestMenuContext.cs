@@ -15,5 +15,5 @@ internal static class TestMenuContext
         bool soloTrainingMode,
         VfrCommandsForIfr vfrCommandsForIfr,
         CatalogMenuView view
-    ) => new(new MenuClick(callsign, previousSelection, []), new MenuSession(initials, soloTrainingMode, vfrCommandsForIfr), view);
+    ) => new(new MenuClick(callsign, previousSelection, null, []), new MenuSession(initials, soloTrainingMode, vfrCommandsForIfr), view);
 }

@@ -119,6 +119,12 @@ public static class AircraftCommandApplicability
     public static bool IsControllable([NotNullWhen(true)] IMenuAircraft? ac) => ac is not null && (!ac.IsLiveTraffic || CanAssume(ac));
 
     /// <summary>
+    /// A controllable aircraft in the air, which a point menu's heading, direct-to and hold items command toward the
+    /// right-clicked point.
+    /// </summary>
+    public static bool IsAirborneControllable([NotNullWhen(true)] IMenuAircraft? ac) => IsControllable(ac) && !ac.IsOnGround;
+
+    /// <summary>
     /// Assume control of a live-traffic shadow (<c>ASSUME</c>): airborne shadows only. Surface shadows come from
     /// ASDE-X with no flight plan or air vector to seed a simulated aircraft from, so they are never assumable.
     /// </summary>

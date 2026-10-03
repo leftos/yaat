@@ -22,7 +22,7 @@ public class GroundSubmenuGroupTests
 
     /// <summary>The whole aircraft menu for <paramref name="ac"/> over <paramref name="host"/>, with no view section.</summary>
     private static ContextMenu BuildMenu(RecordingMenuHost host, AircraftModel ac) =>
-        AircraftMenuBuilder.Build(ac, new MenuClick(Callsign, null, []), host, _ => []);
+        AircraftMenuBuilder.Build(ac, new MenuClick(Callsign, null, null, []), host, _ => []);
 
     /// <summary>The top-level headers of <paramref name="menu"/> that <paramref name="keep"/> picks, in order.</summary>
     private static List<string> HeadersWhere(ContextMenu menu, Func<string, bool> keep) => [.. Headers(menu.Items).Where(keep)];
@@ -61,8 +61,8 @@ public class GroundSubmenuGroupTests
     {
         var route = new TaxiRoute { Segments = [], HoldShortPoints = [] };
         var host = new RecordingMenuHost("");
-        host.HoldShortChoices.Add(new MenuCommandChoice("Runway 12", "HS 12", null));
-        host.HoldShortChoices.Add(new MenuCommandChoice("Runway 30", "HS 30", route));
+        host.HoldShortChoices.Add(new MenuCommandChoice("Runway 12", "HS 12", null, []));
+        host.HoldShortChoices.Add(new MenuCommandChoice("Runway 30", "HS 30", route, []));
 
         ContextMenu menu = BuildTaxiGroups(host);
         MenuItem holdShort = Item(menu.Items, "Hold short of...");
@@ -128,8 +128,8 @@ public class GroundSubmenuGroupTests
     public void Pushback_FaceItemsFollowPushBack_AndSendTheHostsCommands()
     {
         var host = new RecordingMenuHost("");
-        host.PushbackFaceChoices.Add(new MenuCommandChoice("Push back, face W1", "PUSH FACE N", null));
-        host.PushbackFaceChoices.Add(new MenuCommandChoice("Push back, face W2", "PUSH FACE SE", null));
+        host.PushbackFaceChoices.Add(new MenuCommandChoice("Push back, face W1", "PUSH FACE N", null, []));
+        host.PushbackFaceChoices.Add(new MenuCommandChoice("Push back, face W2", "PUSH FACE SE", null, []));
 
         ContextMenu menu = BuildPushbackGroup(host);
         Assert.Equal(["Push back", "Push back, face W1", "Push back, face W2", "Push route..."], HeadersWhere(menu, IsPushItem));
@@ -143,8 +143,8 @@ public class GroundSubmenuGroupTests
     public void Pushback_PushBackToListsTheHostStandsInOrder_AndSendsTheirCommands()
     {
         var host = new RecordingMenuHost("");
-        host.PushbackToChoices.Add(new MenuCommandChoice("1", "PUSH $1", null));
-        host.PushbackToChoices.Add(new MenuCommandChoice("32", "PUSH @32", null));
+        host.PushbackToChoices.Add(new MenuCommandChoice("1", "PUSH $1", null, []));
+        host.PushbackToChoices.Add(new MenuCommandChoice("32", "PUSH @32", null, []));
 
         ContextMenu menu = BuildPushbackGroup(host);
         Assert.Equal(["Push back", "Push back to...", "Push route..."], HeadersWhere(menu, IsPushItem));
@@ -180,8 +180,8 @@ public class GroundSubmenuGroupTests
     public void Pushback_NotOfferedWhileTaxiing()
     {
         var host = new RecordingMenuHost("");
-        host.PushbackFaceChoices.Add(new MenuCommandChoice("Push back, face W1", "PUSH FACE N", null));
-        host.PushbackToChoices.Add(new MenuCommandChoice("1", "PUSH $1", null));
+        host.PushbackFaceChoices.Add(new MenuCommandChoice("Push back, face W1", "PUSH FACE N", null, []));
+        host.PushbackToChoices.Add(new MenuCommandChoice("1", "PUSH $1", null, []));
 
         Assert.Empty(HeadersWhere(BuildMenu(host, Taxiing()), IsPushItem));
     }
@@ -190,8 +190,8 @@ public class GroundSubmenuGroupTests
     public void TaxiRoutes_PresetsSendTheHostsCommands_AndDrawTaxiRouteEntersDrawing()
     {
         var host = new RecordingMenuHost("");
-        host.PresetTaxiChoices.Add(new MenuCommandChoice("TERMINAL to 30", "TAXI T U W RWY 30", null));
-        host.PresetTaxiChoices.Add(new MenuCommandChoice("TERMINAL to 28R", "TAXI B C RWY 28R", null));
+        host.PresetTaxiChoices.Add(new MenuCommandChoice("TERMINAL to 30", "TAXI T U W RWY 30", null, []));
+        host.PresetTaxiChoices.Add(new MenuCommandChoice("TERMINAL to 28R", "TAXI B C RWY 28R", null, []));
 
         ContextMenu menu = BuildMenu(host, Taxiing());
         Assert.Equal(["Preset taxi route", "Draw taxi route..."], HeadersWhere(menu, IsTaxiRouteItem));
@@ -219,7 +219,7 @@ public class GroundSubmenuGroupTests
     public void TaxiRoutes_NotOfferedAirborne()
     {
         var host = new RecordingMenuHost("");
-        host.PresetTaxiChoices.Add(new MenuCommandChoice("TERMINAL to 30", "TAXI T U W RWY 30", null));
+        host.PresetTaxiChoices.Add(new MenuCommandChoice("TERMINAL to 30", "TAXI T U W RWY 30", null, []));
         AircraftModel airborne = Taxiing();
         airborne.IsOnGround = false;
         airborne.CurrentPhase = "ApproachNav";

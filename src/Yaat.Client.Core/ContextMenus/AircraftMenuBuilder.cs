@@ -21,6 +21,8 @@ public static class AircraftMenuBuilder
     /// </item>
     /// </list>
     /// then "Assume selected live traffic (N)" and the RPO items for the click's selection, else for the clicked aircraft.
+    /// A point click (<see cref="MenuClick.Point"/> set) builds the point menu instead (<see cref="BuildPointMenu"/>), and
+    /// throws <see cref="ArgumentException"/> without an aircraft.
     /// </summary>
     /// <param name="aircraft">The aircraft the menu commands.</param>
     /// <param name="click">What was right-clicked and what was selected then.</param>
@@ -32,6 +34,20 @@ public static class AircraftMenuBuilder
     {
         // Radar, so the per-view groups build every picker: every view now has the popups they open.
         var context = new MenuContext(click, host.Session, MenuView.Radar);
+        if (click.Point is not null)
+        {
+            return BuildPointMenu(
+                aircraft
+                    ?? throw new ArgumentException(
+                        $"A point click needs the selected aircraft; {click.Callsign} has no aircraft model.",
+                        nameof(aircraft)
+                    ),
+                context,
+                host,
+                viewSection
+            );
+        }
+
         var menu = new ContextMenu();
         SharedMenuGroups.AddHeader(menu.Items, aircraft, context, host);
         menu.Items.Add(SharedMenuGroups.Favorites(aircraft, context, host));
@@ -55,6 +71,58 @@ public static class AircraftMenuBuilder
         SharedMenuGroups.AddFoot(menu.Items, aircraft, context, host);
         SharedMenuGroups.AddAssumeSelected(menu, context, host);
         SharedMenuGroups.AddRange(menu.Items, host.BuildRpoItems(RpoCallsigns(click)));
+        return menu;
+    }
+
+    /// <summary>The point items before Warp here, each where its own predicate allows it, in menu order.</summary>
+    private static readonly string[] PointIds =
+    [
+        MenuIds.PointFlyHeading,
+        MenuIds.PointDirectTo,
+        MenuIds.PointAppendDirectTo,
+        MenuIds.PointHoldLeft,
+        MenuIds.PointHoldRight,
+        MenuIds.PointTaxiHere,
+        MenuIds.PointPushTo,
+        MenuIds.PointCustomTaxi,
+    ];
+
+    /// <summary>
+    /// The menu for a point right-clicked with <paramref name="aircraft"/> selected: the point items by the aircraft's
+    /// predicates — airborne, Fly heading, Direct to, Append direct to and the two holds; at a taxi node, Taxi here, Push
+    /// to and Custom taxi… — then Warp here after a separator, then the view section after another. No header,
+    /// Favorites, command tree, foot or RPO items.
+    /// </summary>
+    private static ContextMenu BuildPointMenu(
+        IMenuAircraft aircraft,
+        MenuContext context,
+        IMenuHost host,
+        Func<MenuContext, IReadOnlyList<Control>> viewSection
+    )
+    {
+        var menu = new ContextMenu();
+        foreach (string id in PointIds)
+        {
+            SharedMenuGroups.AddIfApplicable(menu.Items, id, aircraft, context, host);
+        }
+
+        // Warp here is built into a scratch menu first, so its separator goes in only when it builds.
+        var scratch = new ContextMenu();
+        if (SharedMenuGroups.AddIfApplicable(scratch.Items, MenuIds.PointWarpHere, aircraft, context, host))
+        {
+            List<Control> warp = [.. scratch.Items.OfType<Control>()];
+            scratch.Items.Clear();
+            SharedMenuGroups.AddBlockSeparator(menu.Items);
+            SharedMenuGroups.AddRange(menu.Items, warp);
+        }
+
+        IReadOnlyList<Control> section = viewSection(context);
+        if (section.Count > 0)
+        {
+            SharedMenuGroups.AddBlockSeparator(menu.Items);
+            SharedMenuGroups.AddRange(menu.Items, section);
+        }
+
         return menu;
     }
 

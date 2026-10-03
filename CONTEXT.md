@@ -334,7 +334,13 @@ The surface that owns an aircraft menu (radar, ground, aircraft list) as a catal
 A family of menu-host members a surface serves (`MenuHostCapabilities`: input popup, list picker, warp, ground movement…); a catalog entry names the capabilities it needs (`Requires`) and is hidden on a host that lacks any of them, never disabled.
 
 **Click context (menu click)**:
-What a right-click gives an aircraft menu (`MenuClick`): the aircraft the menu commands, the previously selected aircraft that sends the relative items (null when it is the clicked one), and the list's selected rows (`[]` on the canvases).
+What a right-click gives an aircraft menu (`MenuClick`): the aircraft the menu commands, the previously selected aircraft that sends the relative items (null when it is the clicked one), the clicked point on a point click (`MenuPoint`: a map position, a taxi node, a runway end; null on an aircraft click), and the list's selected rows (`[]` on the canvases).
+
+**Point menu**:
+The menu a right-click on empty map (radar) or on a taxi node or runway threshold (ground) opens for the selected aircraft: the shared `point.*` items its state allows (Fly heading, Direct to, Hold, Taxi here, Push to, Custom taxi, Warp here), then the view's own point items (markers, Measure, FRD).
+
+**View section**:
+The few canvas-only items a view appends to the shared aircraft menu (the radar's Display and Draw route, the ground's Display); they have no catalog entry and never sit on a quick-command list.
 
 **Menu session**:
 The session settings an aircraft menu's predicates read (`MenuSession`): the user's initials, solo training mode and the VFR-commands-for-IFR mode.

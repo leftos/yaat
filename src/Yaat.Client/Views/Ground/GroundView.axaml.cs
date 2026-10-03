@@ -533,7 +533,7 @@ public partial class GroundView : UserControl
             FindMainViewModel()
             ?? throw new InvalidOperationException("The ground aircraft menu needs the main view model; the ground view is not hosted by one");
         var host = new ClientMenuHost(main, ac, Canvas);
-        return AircraftMenuBuilder.Build(ac, new MenuClick(callsign, prevSelected, []), host, context => BuildViewSection(vm, context));
+        return AircraftMenuBuilder.Build(ac, new MenuClick(callsign, prevSelected, null, []), host, context => BuildViewSection(vm, context));
     }
 
     /// <summary>

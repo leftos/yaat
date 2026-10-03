@@ -394,7 +394,7 @@ public class GroundSubmenuCharacterizationTests
         main.Ground.SetLayoutForTesting(MenuGoldenFixtures.OakLayoutForClient);
 
         var host = new SendCapturingHost(new ClientMenuHost(main, target, new Border()), Initials);
-        ContextMenu menu = AircraftMenuBuilder.Build(target, new MenuClick(target.Callsign, prevSelected, []), host, _ => []);
+        ContextMenu menu = AircraftMenuBuilder.Build(target, new MenuClick(target.Callsign, prevSelected, null, []), host, _ => []);
         return new Built(main.Ground, host.Sent, menu);
     }
 

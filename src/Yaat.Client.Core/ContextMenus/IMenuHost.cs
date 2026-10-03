@@ -1,4 +1,6 @@
 using Avalonia.Controls;
+using Yaat.Client.Services;
+using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.ContextMenus;
@@ -16,11 +18,30 @@ public interface IMenuHost
     Task SendAsync(string callsign, string command, string initials);
 
     /// <summary>
-    /// Opens the surface's free-text input showing <paramref name="placeholder"/>, and hands the submitted text to
-    /// <paramref name="onSubmit"/>. A blank submit follows <paramref name="blank"/>: <see cref="BlankInput.Closes"/>
-    /// closes the popup without calling it, <see cref="BlankInput.Submits"/> hands it <c>""</c>.
+    /// Opens the surface's free-text input showing <paramref name="placeholder"/>, holding <paramref name="initialText"/>
+    /// with the caret at <paramref name="caretIndex"/>, and hands the submitted text to <paramref name="onSubmit"/>. A
+    /// blank submit follows <paramref name="blank"/>: <see cref="BlankInput.Closes"/> closes the popup without calling
+    /// it, <see cref="BlankInput.Submits"/> hands it <c>""</c>.
     /// </summary>
-    void ShowInputPopup(string placeholder, BlankInput blank, Func<string, Task> onSubmit);
+    void ShowInputPopup(string placeholder, BlankInput blank, string initialText, int caretIndex, Func<string, Task> onSubmit);
+
+    /// <summary>
+    /// The point at <paramref name="position"/> as a fix-radial-distance the point menu's Direct to, Hold and Warp here
+    /// items name; null while the surface's fixes are not loaded or none is near enough. Every host serves it, so it
+    /// belongs to no <see cref="MenuHostCapabilities"/> family.
+    /// </summary>
+    string? DescribePoint(LatLon position);
+
+    /// <summary>
+    /// The Taxi here choices for <paramref name="callsign"/> to <paramref name="node"/>, routed to
+    /// <paramref name="runwayEnd"/> when a threshold click names one: one disabled "No route found" row when no route
+    /// reaches it, one route's choice when one does, else one "Taxi here" submenu over every route's choice; each route
+    /// previews on hover. Empty when the aircraft has no node to start from.
+    /// </summary>
+    IReadOnlyList<MenuCommandChoice> GetTaxiChoices(string callsign, GroundNodeDto node, string? runwayEnd);
+
+    /// <summary>The text and caret the point menu's Custom taxi… input opens with at <paramref name="node"/>.</summary>
+    MenuTextSeed GetCustomTaxiSeed(GroundNodeDto node);
 
     /// <summary>
     /// The families of members this surface serves. The catalog hides an entry whose
@@ -50,11 +71,11 @@ public interface IMenuHost
     void EnterDrawRoute(string callsign);
 
     /// <summary>
-    /// Opens the surface's warp popup for <paramref name="callsign"/>, seeded with <paramref name="heading"/>,
-    /// <paramref name="altitude"/> and <paramref name="speed"/>, and hands the submitted position, heading, altitude
-    /// and speed to <paramref name="onSubmit"/>.
+    /// Opens the surface's warp popup for <paramref name="callsign"/>, seeded with the position <paramref name="frd"/>
+    /// (<c>""</c> for none), <paramref name="heading"/>, <paramref name="altitude"/> and <paramref name="speed"/>, and
+    /// hands the submitted position, heading, altitude and speed to <paramref name="onSubmit"/>.
     /// </summary>
-    void ShowWarpPopup(string callsign, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit);
+    void ShowWarpPopup(string callsign, string frd, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit);
 
     /// <summary>
     /// Opens the surface's free-text command popup for <paramref name="callsign"/>, and sends what the controller types

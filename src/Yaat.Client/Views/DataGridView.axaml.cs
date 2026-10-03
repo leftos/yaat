@@ -294,7 +294,7 @@ public partial class DataGridView : UserControl
     )
     {
         var host = new ClientMenuHost(vm, ac, flyoutTarget);
-        return AircraftMenuBuilder.Build(ac, new MenuClick(ac.Callsign, previousSelection, selection), host, _ => []);
+        return AircraftMenuBuilder.Build(ac, new MenuClick(ac.Callsign, previousSelection, null, selection), host, _ => []);
     }
 
     private void OnDataGridViewKeyDown(object? sender, KeyEventArgs e)

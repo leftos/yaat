@@ -1,5 +1,7 @@
 using Avalonia.Controls;
 using Yaat.Client.ContextMenus;
+using Yaat.Client.Services;
+using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 
@@ -26,7 +28,7 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
 
     public List<string> DrawRouteCallsigns { get; } = [];
 
-    public List<(string Callsign, int Heading, int Altitude, int Speed)> WarpPopups { get; } = [];
+    public List<(string Callsign, string Frd, int Heading, int Altitude, int Speed)> WarpPopups { get; } = [];
 
     public Func<string, int, int, int, Task>? WarpSubmit { get; private set; }
 
@@ -60,12 +62,45 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
     /// <summary>The blank-submit setting the last input popup was opened with; null before any input popup opened.</summary>
     public BlankInput? LastBlankInput { get; private set; }
 
-    public void ShowInputPopup(string placeholder, BlankInput blank, Func<string, Task> onSubmit)
+    /// <summary>The initial text and caret each input popup was opened with, in order.</summary>
+    public List<(string Text, int Caret)> InputSeeds { get; } = [];
+
+    public void ShowInputPopup(string placeholder, BlankInput blank, string initialText, int caretIndex, Func<string, Task> onSubmit)
     {
         InputPlaceholders.Add(placeholder);
+        InputSeeds.Add((initialText, caretIndex));
         LastBlankInput = blank;
         _ = onSubmit(InputAnswer ?? input);
     }
+
+    /// <summary>The fix-radial-distance every point is described as; null (no fixes loaded) by default.</summary>
+    public string? PointDescription { get; init; }
+
+    /// <summary>The positions the point menu asked to describe, in order.</summary>
+    public List<LatLon> DescribedPoints { get; } = [];
+
+    public string? DescribePoint(LatLon position)
+    {
+        DescribedPoints.Add(position);
+        return PointDescription;
+    }
+
+    /// <summary>The Taxi here choices answered for every node, whatever the callsign asked about.</summary>
+    public List<MenuCommandChoice> TaxiChoices { get; } = [];
+
+    /// <summary>The callsign, node id and runway end each Taxi here request named, in order.</summary>
+    public List<(string Callsign, int NodeId, string? RunwayEnd)> TaxiChoiceRequests { get; } = [];
+
+    public IReadOnlyList<MenuCommandChoice> GetTaxiChoices(string callsign, GroundNodeDto node, string? runwayEnd)
+    {
+        TaxiChoiceRequests.Add((callsign, node.Id, runwayEnd));
+        return TaxiChoices;
+    }
+
+    /// <summary>The seed every Custom taxi… input opens with, whatever the node.</summary>
+    public MenuTextSeed CustomTaxiSeed { get; init; } = new("TAXI ", 5);
+
+    public MenuTextSeed GetCustomTaxiSeed(GroundNodeDto node) => CustomTaxiSeed;
 
     public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick)
     {
@@ -91,9 +126,9 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
 
     public void EnterDrawRoute(string callsign) => DrawRouteCallsigns.Add(callsign);
 
-    public void ShowWarpPopup(string callsign, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit)
+    public void ShowWarpPopup(string callsign, string frd, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit)
     {
-        WarpPopups.Add((callsign, heading, altitude, speed));
+        WarpPopups.Add((callsign, frd, heading, altitude, speed));
         WarpSubmit = onSubmit;
     }
 

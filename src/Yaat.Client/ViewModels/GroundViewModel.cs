@@ -1167,7 +1167,7 @@ public partial class GroundViewModel : ObservableObject
     /// face {taxiway}", sending <c>PUSH FACE {cardinal}</c>, an absolute magnetic facing.
     /// </summary>
     public List<MenuCommandChoice> GetPushbackFaceChoices(AircraftModel ac) =>
-        [.. GetPushbackDirections(ac).Select(d => new MenuCommandChoice($"Push back, {d.Label}", $"PUSH FACE {d.Cardinal}", null))];
+        [.. GetPushbackDirections(ac).Select(d => new MenuCommandChoice($"Push back, {d.Label}", $"PUSH FACE {d.Cardinal}", null, []))];
 
     /// <summary>The most stands the Push back to… submenu lists.</summary>
     private const int MaxPushbackToChoices = 30;
@@ -1195,7 +1195,7 @@ public partial class GroundViewModel : ObservableObject
                 )
                 .OrderBy(node => GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, node.Position.Lat, node.Position.Lon))
                 .Take(MaxPushbackToChoices)
-                .Select(node => new MenuCommandChoice(node.Name!, $"PUSH {(node.Type == GroundNodeType.Spot ? '$' : '@')}{node.Name}", null)),
+                .Select(node => new MenuCommandChoice(node.Name!, $"PUSH {(node.Type == GroundNodeType.Spot ? '$' : '@')}{node.Name}", null, [])),
         ];
     }
 
@@ -1230,7 +1230,7 @@ public partial class GroundViewModel : ObservableObject
             .. catalog
                 .GetTaxiRoutes(layout.AirportId)
                 .Where(route => IsPresetWalkable(layout, fromNodeId.Value, route))
-                .Select(route => new MenuCommandChoice(route.Name, route.ToCanonicalCommand(), null)),
+                .Select(route => new MenuCommandChoice(route.Name, route.ToCanonicalCommand(), null, [])),
         ];
     }
 

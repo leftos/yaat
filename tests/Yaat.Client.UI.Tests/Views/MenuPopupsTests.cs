@@ -556,6 +556,8 @@ public class MenuPopupsTests
         host.ShowInputPopup(
             Placeholder,
             BlankInput.Closes,
+            "",
+            0,
             v =>
             {
                 got = v;

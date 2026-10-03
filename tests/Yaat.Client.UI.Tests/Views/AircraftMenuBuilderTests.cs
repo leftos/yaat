@@ -19,8 +19,8 @@ public class AircraftMenuBuilderTests
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         var host = new RecordingMenuHost("");
         host.GroundTraffic.Add("SWA602");
-        host.PushbackToChoices.Add(new MenuCommandChoice("Gate 26", "PUSH 26", null));
-        host.PresetTaxiChoices.Add(new MenuCommandChoice("Via B", "TAXI B 30", null));
+        host.PushbackToChoices.Add(new MenuCommandChoice("Gate 26", "PUSH 26", null, []));
+        host.PresetTaxiChoices.Add(new MenuCommandChoice("Via B", "TAXI B 30", null, []));
 
         List<string> atParking = Sequence(Build(Fixture("at-parking"), host, _ => []));
         AssertBeforeTrack(atParking, Label(MenuIds.GroundPushback), Label(MenuIds.GroundPushbackTo), Label(MenuIds.GroundFollow));
@@ -34,8 +34,8 @@ public class AircraftMenuBuilderTests
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         var host = new RecordingMenuHost("");
-        host.PushbackToChoices.Add(new MenuCommandChoice("Gate 26", "PUSH 26", null));
-        host.PresetTaxiChoices.Add(new MenuCommandChoice("Via B", "TAXI B 30", null));
+        host.PushbackToChoices.Add(new MenuCommandChoice("Gate 26", "PUSH 26", null, []));
+        host.PresetTaxiChoices.Add(new MenuCommandChoice("Via B", "TAXI B 30", null, []));
 
         List<string> atParking = Sequence(Build(Fixture("at-parking"), host, _ => []));
         Assert.True(
@@ -96,7 +96,7 @@ public class AircraftMenuBuilderTests
     }
 
     private static ContextMenu Build(AircraftModel ac, RecordingMenuHost host, Func<MenuContext, IReadOnlyList<Control>> section) =>
-        AircraftMenuBuilder.Build(ac, new MenuClick(ac.Callsign, null, []), host, section);
+        AircraftMenuBuilder.Build(ac, new MenuClick(ac.Callsign, null, null, []), host, section);
 
     /// <summary>The radar golden fixture of that name: its aircraft, the same on every view.</summary>
     private static AircraftModel Fixture(string name) => MenuGoldenFixtures.For(MenuView.Radar).Single(f => f.Name == name).Aircraft;

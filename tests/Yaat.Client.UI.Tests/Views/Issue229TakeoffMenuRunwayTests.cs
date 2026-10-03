@@ -30,7 +30,7 @@ public class Issue229TakeoffMenuRunwayTests
             IsOnGround = true,
             CurrentPhase = "Holding Short 28R/10L",
         };
-        ContextMenu menu = AircraftMenuBuilder.Build(ac, new MenuClick(Callsign, null, []), host, _ => []);
+        ContextMenu menu = AircraftMenuBuilder.Build(ac, new MenuClick(Callsign, null, null, []), host, _ => []);
         return FindItem(menu.Items, "Tower").Items;
     }
 

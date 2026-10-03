@@ -3,8 +3,10 @@ using Microsoft.Extensions.Logging;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Sim;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.Views;
@@ -43,8 +45,125 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
 
     public Task SendAsync(string callsign, string command, string initials) => main.SendCommandForViewAsync(callsign, command, initials);
 
-    public void ShowInputPopup(string placeholder, BlankInput blank, Func<string, Task> onSubmit) =>
-        MenuPopups.ShowInput(anchor, placeholder, "", 0, blank, onSubmit);
+    public void ShowInputPopup(string placeholder, BlankInput blank, string initialText, int caretIndex, Func<string, Task> onSubmit) =>
+        MenuPopups.ShowInput(anchor, placeholder, initialText, caretIndex, blank, onSubmit);
+
+    /// <summary>The point as the primary radar view model's fixes name it (<see cref="FrdResolver.ToFrd"/>); null before they load.</summary>
+    public string? DescribePoint(LatLon position) => main.Radar.Fixes is { } fixes ? FrdResolver.ToFrd(position.Lat, position.Lon, fixes) : null;
+
+    /// <summary>
+    /// The primary ground view model's routes from the aircraft's nearest node to <paramref name="node"/>, with the
+    /// aircraft's own category and wake class. A named Spot is the taxi's spot destination, a named Parking or Helipad
+    /// its stand; the destination runway is <paramref name="runwayEnd"/>, else a hold-short node's runway End1.
+    /// </summary>
+    public IReadOnlyList<MenuCommandChoice> GetTaxiChoices(string callsign, GroundNodeDto node, string? runwayEnd)
+    {
+        if (FindAircraft(callsign) is not { } ac)
+        {
+            return [];
+        }
+
+        GroundViewModel ground = main.Ground;
+        if (ground.GetAircraftNearestNodeId(ac) is not { } fromNodeId)
+        {
+            return [];
+        }
+
+        TaxiSpotDestination? spot = SpotDestinationFor(node);
+        string? destRunway = DestinationRunwayFor(node, runwayEnd);
+        List<TaxiRoute> routes = ground.FindRoutesToNode(fromNodeId, node.Id, GroundViewModel.CategoryFor(ac), GroundViewModel.WakeClassFor(ac));
+        if (routes.Count == 0)
+        {
+            return [new MenuCommandChoice("No route found", null, null, [])];
+        }
+
+        List<MenuCommandChoice> perRoute = [.. routes.Select(route => RouteChoice(ground, route, spot, destRunway)).OfType<MenuCommandChoice>()];
+        return (routes.Count == 1) ? perRoute : [new MenuCommandChoice("Taxi here", null, null, perRoute)];
+    }
+
+    /// <summary>The taxi's named destination at <paramref name="node"/>: a named Spot (<c>$</c>), a named Parking or Helipad stand (<c>@</c>); else null.</summary>
+    private static TaxiSpotDestination? SpotDestinationFor(GroundNodeDto node) =>
+        node.Type switch
+        {
+            "Spot" when node.Name is not null => new TaxiSpotDestination(node.Name, IsTaxiSpot: true),
+            "Parking" or "Helipad" when node.Name is not null => new TaxiSpotDestination(node.Name, IsTaxiSpot: false),
+            _ => null,
+        };
+
+    /// <summary>The runway a taxi to <paramref name="node"/> ends at: <paramref name="runwayEnd"/> when a threshold click names one, else a hold-short node's runway End1, else none.</summary>
+    private static string? DestinationRunwayFor(GroundNodeDto node, string? runwayEnd)
+    {
+        if (runwayEnd is not null)
+        {
+            return runwayEnd;
+        }
+
+        return ((node.Type == "RunwayHoldShort") && (node.RunwayId is not null)) ? RunwayIdentifier.Parse(node.RunwayId).End1 : null;
+    }
+
+    /// <summary>
+    /// One route's Taxi choice. To a runway: a submenu previewing the route over the departure and hold-short variants
+    /// (null when there are none). Otherwise one crossing variant is a leaf sending it, several a submenu previewing the
+    /// route over them, and none leaves the route out.
+    /// </summary>
+    private static MenuCommandChoice? RouteChoice(GroundViewModel ground, TaxiRoute route, TaxiSpotDestination? spot, string? destRunway)
+    {
+        string label = $"Taxi {(spot is not null ? $"to {spot.Name} {ground.GetTaxiwayDisplayName(route)}" : ground.GetTaxiwayDisplayName(route))}";
+        if (destRunway is not null)
+        {
+            List<(string Label, string Command, TaxiRoute Preview)?> destVariants = ground.BuildTaxiDestVariants(route, destRunway, spot);
+            if (destVariants.Count == 0)
+            {
+                return null;
+            }
+
+            return new MenuCommandChoice(
+                label,
+                null,
+                route,
+                [
+                    .. destVariants.Select(v =>
+                        v is { } variant ? new MenuCommandChoice(variant.Label, variant.Command, variant.Preview, []) : MenuCommandChoice.Separator
+                    ),
+                ]
+            );
+        }
+
+        List<(string Label, string Command, TaxiRoute Preview)> variants = ground.BuildTaxiCrossingVariants(route, spot, pathOverride: null);
+        return variants.Count switch
+        {
+            0 => null,
+            1 => new MenuCommandChoice(label, variants[0].Command, variants[0].Preview, []),
+            _ => new MenuCommandChoice(label, null, route, [.. variants.Select(v => new MenuCommandChoice(v.Label, v.Command, v.Preview, []))]),
+        };
+    }
+
+    /// <summary>
+    /// The Custom taxi… seed for <paramref name="node"/>: a named stand or spot after the caret (<c>TAXI  @STAND</c>,
+    /// <c>TAXI  $SPOT</c>), a hold-short node's runway before it (<c>RWY 30 TAXI </c>, caret at the end), else the node's
+    /// first taxiway after it (<c>TAXI  E</c>) or a bare <c>TAXI </c>.
+    /// </summary>
+    public MenuTextSeed GetCustomTaxiSeed(GroundNodeDto node)
+    {
+        const string taxiPrefix = "TAXI ";
+        if (SpotDestinationFor(node) is { } spot)
+        {
+            return new MenuTextSeed($"{taxiPrefix} {spot.Token}", taxiPrefix.Length);
+        }
+
+        switch (node.Type)
+        {
+            case "RunwayHoldShort" when node.RunwayId is not null:
+                string runwayText = $"RWY {RunwayIdentifier.ToDisplayDesignator(RunwayIdentifier.Parse(node.RunwayId).End1)} {taxiPrefix}";
+                return new MenuTextSeed(runwayText, runwayText.Length);
+
+            default:
+                List<string> names = main.Ground.GetNodeTaxiwayNames(node.Id);
+                return (names.Count > 0)
+                    ? new MenuTextSeed($"{taxiPrefix} {names[0]}", taxiPrefix.Length)
+                    : new MenuTextSeed(taxiPrefix, taxiPrefix.Length);
+        }
+    }
 
     public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick) =>
         MenuPopups.ShowList(anchor, items, selected, onPick);
@@ -61,8 +180,8 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     /// </summary>
     public double GetFieldElevation(string? destination) => main.Radar.GetFieldElevation(destination);
 
-    public void ShowWarpPopup(string callsign, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit) =>
-        MenuPopups.ShowWarp(anchor, new MenuPopups.WarpSeed(callsign, "", heading, altitude, speed), onSubmit);
+    public void ShowWarpPopup(string callsign, string frd, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit) =>
+        MenuPopups.ShowWarp(anchor, new MenuPopups.WarpSeed(callsign, frd, heading, altitude, speed), onSubmit);
 
     public void ShowCommandFlyout(string callsign, string initials) =>
         MenuPopups.ShowCommand(anchor, callsign, command => main.SendGatedCommandForViewAsync(FindAircraft(callsign), callsign, command, initials));
@@ -153,7 +272,7 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
         [
             .. ground
                 .GetHoldShortTargets(ac)
-                .Select(t => new MenuCommandChoice(t.DisplayName, $"HS {t.Target}", ground.FindHoldShortPreviewRoute(ac, t.Target))),
+                .Select(t => new MenuCommandChoice(t.DisplayName, $"HS {t.Target}", ground.FindHoldShortPreviewRoute(ac, t.Target), [])),
         ];
     }
 
