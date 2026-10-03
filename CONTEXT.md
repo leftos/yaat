@@ -404,3 +404,8 @@ A synthetic round trip through the speech pipeline: a known canonical command is
 
 **Speech telemetry**:
 Push-to-talk samples (audio, per-stage transcripts, scenario context) that opted-in users' clients upload to the official yaat-server, which stores them for developers to pull with `tools/speech_telemetry.py` (docs/speech-recognition-pipeline.md).
+
+## Releases
+
+**Sizzle reel**:
+A short captioned video showing a major feature a release introduces or reworks, made from scripted scenes replayed in the client and recorded with the client driver, before the release is cut (the FOLLOW reel: docs/plans/follow-video-montage.md). Every release is reviewed for features that warrant one (`prepare-release` Step 5d).

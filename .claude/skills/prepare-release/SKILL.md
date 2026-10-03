@@ -170,6 +170,10 @@ reader gets wrong. Skipping the check leaves both errors available: a bullet tha
 under-states its reach, and a needless narrowing of correct behavior because the
 reviewer trusted a heading instead of a call site.
 
+### 5d. Sizzle-reel review
+
+Every release is reviewed for features that warrant a **sizzle reel** (`CONTEXT.md`, "Releases"): a major feature this release introduces or reworks, or a set of UI and UX changes worth showing together. Read the open release's issues (`linear list yaat`, release `vNext`) beside the unreleased section, and list each candidate with the reel that covers it: an existing reel issue in the release (the FOLLOW reel, YAAT-7, and its sub-issues are the model), or none. A candidate with no reel is put to the user, one question per candidate: plan a reel now (an **add** in the release, `linear release add`), or ship without one. A reel issue in the release that is not finished stops the release like any other open release item, unless the user agrees to cut without it.
+
 ## Step 6: Audit user-facing documentation against the release commits
 
 Before locking the release notes, walk the commits going into this release and confirm user-facing documentation actually covers what changed. Stale or missing docs hurt users more than missing changelog bullets — they steer instructors and RPOs wrong on real workflows.
