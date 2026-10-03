@@ -53,6 +53,185 @@ public sealed class LaunchYaatTests : AutomationHostFixture
     }
 
     [Fact]
+    public async Task LaunchYaat_Env_SetsEachVariable()
+    {
+        string appDataDir = NewDirectory("appdata");
+        string exePath = NewDummyClientExe();
+        var starter = new ScriptedStarter(() => throw new InvalidOperationException("this test never lets the launch start"));
+        ProcessTools tools = NewTools(NewPipeDirectory(), starter);
+        try
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 1, ["YAAT_DEV_SOLO_SPEECH_BUBBLES=1", "YAAT_TEST_FLAG=on"])
+            );
+
+            ProcessStartInfo startInfo = starter.LastStartInfo!;
+            Assert.Equal("1", startInfo.Environment["YAAT_DEV_SOLO_SPEECH_BUBBLES"]);
+            Assert.Equal("on", startInfo.Environment["YAAT_TEST_FLAG"]);
+            Assert.Equal("1", startInfo.Environment["YAAT_AUTOMATION"]);
+        }
+        finally
+        {
+            Delete(appDataDir);
+            Delete(Path.GetDirectoryName(exePath)!);
+        }
+    }
+
+    [Fact]
+    public async Task LaunchYaat_Env_ValueKeepsLaterEquals()
+    {
+        string appDataDir = NewDirectory("appdata");
+        string exePath = NewDummyClientExe();
+        var starter = new ScriptedStarter(() => throw new InvalidOperationException("this test never lets the launch start"));
+        ProcessTools tools = NewTools(NewPipeDirectory(), starter);
+        try
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 1, ["YAAT_TEST_PATTERN=a=b=c"])
+            );
+
+            Assert.Equal("a=b=c", starter.LastStartInfo!.Environment["YAAT_TEST_PATTERN"]);
+        }
+        finally
+        {
+            Delete(appDataDir);
+            Delete(Path.GetDirectoryName(exePath)!);
+        }
+    }
+
+    [Fact]
+    public async Task LaunchYaat_Env_RejectsMissingEquals()
+    {
+        string appDataDir = NewDirectory("appdata");
+        string exePath = NewDummyClientExe();
+        var starter = new ScriptedStarter(() => throw new InvalidOperationException("a rejected env must not start anything"));
+        ProcessTools tools = NewTools(NewPipeDirectory(), starter);
+        try
+        {
+            McpException failure = await Assert.ThrowsAsync<McpException>(() =>
+                tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 1, ["NO_EQUALS"])
+            );
+
+            Assert.Equal("INVALID_PARAM: env entry 'NO_EQUALS' has no '='; each entry must be KEY=VALUE", failure.Message);
+            Assert.Null(starter.LastStartInfo);
+        }
+        finally
+        {
+            Delete(appDataDir);
+            Delete(Path.GetDirectoryName(exePath)!);
+        }
+    }
+
+    [Fact]
+    public async Task LaunchYaat_Env_RejectsEmptyKey()
+    {
+        string appDataDir = NewDirectory("appdata");
+        string exePath = NewDummyClientExe();
+        var starter = new ScriptedStarter(() => throw new InvalidOperationException("a rejected env must not start anything"));
+        ProcessTools tools = NewTools(NewPipeDirectory(), starter);
+        try
+        {
+            McpException failure = await Assert.ThrowsAsync<McpException>(() =>
+                tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 1, ["=value"])
+            );
+
+            Assert.Equal("INVALID_PARAM: env entry '=value' has an empty key", failure.Message);
+            Assert.Null(starter.LastStartInfo);
+        }
+        finally
+        {
+            Delete(appDataDir);
+            Delete(Path.GetDirectoryName(exePath)!);
+        }
+    }
+
+    [Fact]
+    public async Task LaunchYaat_Env_RejectsToolOwnedKeys()
+    {
+        string appDataDir = NewDirectory("appdata");
+        string exePath = NewDummyClientExe();
+        var starter = new ScriptedStarter(() => throw new InvalidOperationException("a rejected env must not start anything"));
+        ProcessTools tools = NewTools(NewPipeDirectory(), starter);
+        try
+        {
+            McpException automation = await Assert.ThrowsAsync<McpException>(() =>
+                tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 1, ["YAAT_AUTOMATION=1"])
+            );
+            Assert.Equal("INVALID_PARAM: env entry 'YAAT_AUTOMATION=1' sets YAAT_AUTOMATION, which launch_yaat owns", automation.Message);
+
+            McpException appData = await Assert.ThrowsAsync<McpException>(() =>
+                tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 1, ["YAAT_APPDATA_DIR=C:/elsewhere"])
+            );
+            Assert.Equal("INVALID_PARAM: env entry 'YAAT_APPDATA_DIR=C:/elsewhere' sets YAAT_APPDATA_DIR, which launch_yaat owns", appData.Message);
+
+            // Windows environment variable names are case-insensitive, so a case variant is still the tool's own.
+            McpException automationVariant = await Assert.ThrowsAsync<McpException>(() =>
+                tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 1, ["yaat_automation=0"])
+            );
+            Assert.Equal("INVALID_PARAM: env entry 'yaat_automation=0' sets yaat_automation, which launch_yaat owns", automationVariant.Message);
+
+            McpException appDataVariant = await Assert.ThrowsAsync<McpException>(() =>
+                tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 1, ["Yaat_AppData_Dir=x"])
+            );
+            Assert.Equal("INVALID_PARAM: env entry 'Yaat_AppData_Dir=x' sets Yaat_AppData_Dir, which launch_yaat owns", appDataVariant.Message);
+
+            Assert.Null(starter.LastStartInfo);
+        }
+        finally
+        {
+            Delete(appDataDir);
+            Delete(Path.GetDirectoryName(exePath)!);
+        }
+    }
+
+    [Fact]
+    public async Task LaunchYaat_Env_RejectsNullEntry()
+    {
+        string appDataDir = NewDirectory("appdata");
+        string exePath = NewDummyClientExe();
+        var starter = new ScriptedStarter(() => throw new InvalidOperationException("a rejected env must not start anything"));
+        ProcessTools tools = NewTools(NewPipeDirectory(), starter);
+        try
+        {
+            McpException failure = await Assert.ThrowsAsync<McpException>(() =>
+                tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 1, [null!])
+            );
+
+            Assert.Equal("INVALID_PARAM: env entry is null", failure.Message);
+            Assert.Null(starter.LastStartInfo);
+        }
+        finally
+        {
+            Delete(appDataDir);
+            Delete(Path.GetDirectoryName(exePath)!);
+        }
+    }
+
+    [Fact]
+    public async Task LaunchYaat_Env_RejectsDuplicateKey()
+    {
+        string appDataDir = NewDirectory("appdata");
+        string exePath = NewDummyClientExe();
+        var starter = new ScriptedStarter(() => throw new InvalidOperationException("a rejected env must not start anything"));
+        ProcessTools tools = NewTools(NewPipeDirectory(), starter);
+        try
+        {
+            McpException failure = await Assert.ThrowsAsync<McpException>(() =>
+                tools.LaunchYaatAsync(CancellationToken.None, appDataDir, exePath, 1, ["FOO=1", "foo=2"])
+            );
+
+            // The key is named as it was first written, not as the duplicate spelled it.
+            Assert.Equal("INVALID_PARAM: env sets FOO twice", failure.Message);
+            Assert.Null(starter.LastStartInfo);
+        }
+        finally
+        {
+            Delete(appDataDir);
+            Delete(Path.GetDirectoryName(exePath)!);
+        }
+    }
+
+    [Fact]
     public async Task LaunchYaat_WaitSecondsBelowOne_IsRejected()
     {
         string appDataDir = NewDirectory("appdata");

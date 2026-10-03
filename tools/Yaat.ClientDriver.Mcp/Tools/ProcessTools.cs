@@ -19,6 +19,8 @@ public sealed class ProcessTools(ElementRegistry registry, PipeDirectory pipes, 
 {
     private const string ClientProcessName = "Yaat.Client";
     private const string ClientExecutableName = "Yaat.Client.exe";
+    private const string AppDataVariable = "YAAT_APPDATA_DIR";
+    private const string AutomationVariable = "YAAT_AUTOMATION";
 
     /// <summary>The processes this server started, kept as live handles: a pid alone is reused by Windows and cannot identify one.</summary>
     private static readonly ConcurrentDictionary<int, Process> LaunchedProcesses = new();
@@ -35,7 +37,12 @@ public sealed class ProcessTools(ElementRegistry registry, PipeDirectory pipes, 
             string appDataDir = ".tmp/client-driver/appdata",
         [Description("Path to the client executable; a relative path resolves against the repo root the server runs in.")]
             string exePath = "src/Yaat.Client/bin/Debug/net10.0/Yaat.Client.exe",
-        [Description("How long to wait for the client's automation pipe to answer, in seconds.")] int waitSeconds = 30
+        [Description("How long to wait for the client's automation pipe to answer, in seconds.")] int waitSeconds = 30,
+        [Description(
+            "Extra environment variables for the client, each KEY=VALUE (e.g. YAAT_DEV_SOLO_SPEECH_BUBBLES=1). "
+                + "YAAT_APPDATA_DIR and YAAT_AUTOMATION are set by the tool and rejected here."
+        )]
+            string[]? env = null
     )
     {
         if (waitSeconds < 1)
@@ -56,14 +63,19 @@ public sealed class ProcessTools(ElementRegistry registry, PipeDirectory pipes, 
         }
 
         string fullAppDataDir = Path.GetFullPath(appDataDir);
+        List<KeyValuePair<string, string>> extraEnv = ParseEnvironment(env);
+        ProcessStartInfo startInfo = BuildStartInfo(fullExePath, fullAppDataDir, extraEnv);
         Directory.CreateDirectory(fullAppDataDir);
-
-        ProcessStartInfo startInfo = new(fullExePath) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(fullExePath)! };
-        startInfo.Environment["YAAT_APPDATA_DIR"] = fullAppDataDir;
-        startInfo.Environment["YAAT_AUTOMATION"] = "1";
         Process process = processes.Start(startInfo);
         LaunchedProcesses[process.Id] = process;
-        logger.LogInformation("Launched {Exe} as pid {Pid} with YAAT_APPDATA_DIR={AppData}", fullExePath, process.Id, fullAppDataDir);
+        string extraEnvKeys = string.Join(",", extraEnv.Select(pair => pair.Key));
+        logger.LogInformation(
+            "Launched {Exe} as pid {Pid} with YAAT_APPDATA_DIR={AppData} extraEnv={ExtraEnv}",
+            fullExePath,
+            process.Id,
+            fullAppDataDir,
+            extraEnvKeys
+        );
 
         List<WindowInfo> windows = await WaitForPipeWindowsOrKillAsync(process, waitSeconds, cancellationToken).ConfigureAwait(false);
         string windowLines = string.Join(
@@ -74,6 +86,79 @@ public sealed class ProcessTools(ElementRegistry registry, PipeDirectory pipes, 
         string header = $"pid={process.Id} appDataDir={fullAppDataDir} log={logPath}";
         return $"{header}{Environment.NewLine}windows ({windows.Count}):{Environment.NewLine}{windowLines}";
     }
+
+    /// <summary>
+    /// The start info a launch uses: the client executable, with YAAT_APPDATA_DIR and YAAT_AUTOMATION set and the
+    /// already-validated <paramref name="extraEnv"/> pairs added.
+    /// </summary>
+    private static ProcessStartInfo BuildStartInfo(string exePath, string appDataDir, List<KeyValuePair<string, string>> extraEnv)
+    {
+        ProcessStartInfo startInfo = new(exePath) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(exePath)! };
+        startInfo.Environment[AppDataVariable] = appDataDir;
+        startInfo.Environment[AutomationVariable] = "1";
+        foreach (KeyValuePair<string, string> pair in extraEnv)
+        {
+            startInfo.Environment[pair.Key] = pair.Value;
+        }
+
+        return startInfo;
+    }
+
+    /// <summary>
+    /// Every env entry as a key/value pair, rejecting one that is null, malformed or tool-owned, and a key written
+    /// twice (compared case-insensitively, as Windows compares environment variable names).
+    /// </summary>
+    private static List<KeyValuePair<string, string>> ParseEnvironment(string[]? env)
+    {
+        List<KeyValuePair<string, string>> pairs = [];
+        Dictionary<string, string> written = new(StringComparer.OrdinalIgnoreCase);
+        foreach (string? entry in env ?? [])
+        {
+            (string key, string value) = SplitEnvironmentEntry(entry);
+            if (written.TryGetValue(key, out string? first))
+            {
+                throw new McpException($"INVALID_PARAM: env sets {first} twice");
+            }
+
+            written[key] = key;
+            pairs.Add(new KeyValuePair<string, string>(key, value));
+        }
+
+        return pairs;
+    }
+
+    /// <summary>Splits one KEY=VALUE entry, rejecting a null, malformed or tool-owned one. The value may be empty and may hold further '='.</summary>
+    private static (string Key, string Value) SplitEnvironmentEntry(string? entry)
+    {
+        if (entry is null)
+        {
+            throw new McpException("INVALID_PARAM: env entry is null");
+        }
+
+        int separator = entry.IndexOf('=');
+        if (separator < 0)
+        {
+            throw new McpException($"INVALID_PARAM: env entry '{entry}' has no '='; each entry must be KEY=VALUE");
+        }
+
+        string key = entry[..separator];
+        if (key.Length == 0)
+        {
+            throw new McpException($"INVALID_PARAM: env entry '{entry}' has an empty key");
+        }
+
+        if (IsToolOwnedVariable(key))
+        {
+            throw new McpException($"INVALID_PARAM: env entry '{entry}' sets {key}, which launch_yaat owns");
+        }
+
+        return (key, entry[(separator + 1)..]);
+    }
+
+    /// <summary>True for a variable launch_yaat sets itself, which an env entry may not overwrite.</summary>
+    private static bool IsToolOwnedVariable(string key) =>
+        string.Equals(key, AppDataVariable, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(key, AutomationVariable, StringComparison.OrdinalIgnoreCase);
 
     [McpServerTool]
     [Description("Lists running processes whose name contains the given text, with pid and main window title. Use \"Yaat.Client\" or \"CRC\".")]

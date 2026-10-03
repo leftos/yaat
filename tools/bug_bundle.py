@@ -870,6 +870,25 @@ def cmd_actions(args: argparse.Namespace) -> int:
 # Subcommand: terminal-log
 # ---------------------------------------------------------------------------
 
+# The `--captions` preset drops the instructor-facing entries that would read as noise in a video:
+# the controller's command echo, which is the Command kind (e.g. "CAINH") or the Strip kind for a
+# flight-strip command (RoomEngine.BroadcastCommandResult), and the sim's response to it (Response).
+# Matched case-insensitively against the entry's Kind.
+CAPTION_EXCLUDED_KINDS = frozenset({"COMMAND", "RESPONSE", "STRIP"})
+
+# The solo-training notices ride the shared Warning kind, so the preset drops them by their text
+# markers: TickProcessor.BroadcastSoloTrainingEvents writes "Solo {Severity}: {Description}" for
+# every SoloTrainingEventSeverity.
+CAPTION_EXCLUDED_TEXT_PREFIXES = ("Solo Coach: ", "Solo Warning: ", "Solo Safety: ")
+
+# Caption timing reads at a fixed pace: a cue lasts clamp(words / CAPTION_WORDS_PER_SECOND,
+# CAPTION_MIN_SECONDS, CAPTION_MAX_SECONDS), and an entry whose text repeats one kept within
+# CAPTION_DEDUPE_SECONDS of sim time earlier is dropped (repeated ground calls).
+CAPTION_WORDS_PER_SECOND = 2.5
+CAPTION_MIN_SECONDS = 1.5
+CAPTION_MAX_SECONDS = 6.0
+CAPTION_DEDUPE_SECONDS = 30.0
+
 
 def _filter_terminal_entries(
     entries: list[dict[str, Any]],
@@ -894,10 +913,43 @@ def _filter_terminal_entries(
     return kept
 
 
+def _exclude_kinds(entries: list[dict[str, Any]], exclude_kinds: list[str] | None) -> list[dict[str, Any]]:
+    """Drop entries whose Kind (case-insensitive) is in exclude_kinds."""
+    if not exclude_kinds:
+        return entries
+    unwanted = {k.upper() for k in exclude_kinds}
+    return [entry for entry in entries if str(entry.get("Kind") or "").upper() not in unwanted]
+
+
 def _terminal_entry_text(entry: dict[str, Any]) -> str:
     message = entry.get("Message") or ""
     callsign = entry.get("Callsign") or ""
     return f"{callsign}: {message}" if callsign else message
+
+
+def _caption_entries(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The caption preset's entry set: the excluded kinds and the solo-training markers are dropped, and an
+    entry whose text repeats one kept within CAPTION_DEDUPE_SECONDS of sim time earlier is dropped."""
+    kept: list[dict[str, Any]] = []
+    last_kept: dict[str, float] = {}
+    for entry in entries:
+        if str(entry.get("Kind") or "").upper() in CAPTION_EXCLUDED_KINDS:
+            continue
+        if str(entry.get("Message") or "").startswith(CAPTION_EXCLUDED_TEXT_PREFIXES):
+            continue
+        text = _terminal_entry_text(entry)
+        elapsed = entry.get("ElapsedSeconds", 0.0)
+        previous = last_kept.get(text)
+        if previous is not None and elapsed - previous <= CAPTION_DEDUPE_SECONDS:
+            continue
+        last_kept[text] = elapsed
+        kept.append(entry)
+    return kept
+
+
+def _caption_duration(text: str) -> float:
+    """Reading-speed cue length: the text's word count over CAPTION_WORDS_PER_SECOND, clamped to the min and max."""
+    return min(max(len(text.split()) / CAPTION_WORDS_PER_SECOND, CAPTION_MIN_SECONDS), CAPTION_MAX_SECONDS)
 
 
 def _srt_timestamp(seconds: float) -> str:
@@ -908,9 +960,10 @@ def _srt_timestamp(seconds: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
 
 
-def _format_srt(entries: list[dict[str, Any]], shift: float, hold: float, offset: float) -> str:
-    """SubRip captions: cue i runs from its shifted start to the next cue's start (or +hold),
-    whichever is earlier, and never shorter than one second."""
+def _format_srt(entries: list[dict[str, Any]], shift: float, hold: float, offset: float, captions: bool) -> str:
+    """SubRip captions: cue i runs from its shifted start to the next cue's start (or its own length),
+    whichever is earlier, and never shorter than one second. A cue's length is the caption hold, or
+    with captions its reading-speed duration."""
 
     def cue_start(entry: dict[str, Any]) -> float:
         return entry.get("ElapsedSeconds", 0.0) - shift + offset
@@ -918,9 +971,11 @@ def _format_srt(entries: list[dict[str, Any]], shift: float, hold: float, offset
     cues: list[str] = []
     for i, entry in enumerate(entries):
         start = cue_start(entry)
-        following = cue_start(entries[i + 1]) if i + 1 < len(entries) else start + hold
-        end = max(min(following, start + hold), start + 1.0)
-        cues.append(f"{i + 1}\n{_srt_timestamp(start)} --> {_srt_timestamp(end)}\n{_terminal_entry_text(entry)}")
+        text = _terminal_entry_text(entry)
+        length = _caption_duration(text) if captions else hold
+        following = cue_start(entries[i + 1]) if i + 1 < len(entries) else start + length
+        end = max(min(following, start + length), start + 1.0)
+        cues.append(f"{i + 1}\n{_srt_timestamp(start)} --> {_srt_timestamp(end)}\n{text}")
     return "\n\n".join(cues)
 
 
@@ -932,11 +987,14 @@ def cmd_terminal_log(args: argparse.Namespace) -> int:
             return 1
 
         matched = _filter_terminal_entries(entries, args.callsigns, args.kinds, args.from_seconds, args.to_seconds)
+        matched = _exclude_kinds(matched, args.exclude_kinds)
+        if args.captions:
+            matched = _caption_entries(matched)
 
         if args.json:
             write_output(json.dumps(matched, indent=2), args.out)
         elif args.srt:
-            write_output(_format_srt(matched, args.from_seconds or 0.0, args.hold, args.offset), args.out)
+            write_output(_format_srt(matched, args.from_seconds or 0.0, args.hold, args.offset, args.captions), args.out)
         else:
             lines = [f"t={e.get('ElapsedSeconds', 0):.1f}  {e.get('Kind', '?')}  {e.get('Callsign', '')}  {e.get('Message', '')}" for e in matched]
             write_output("\n".join(lines), args.out)
@@ -2136,6 +2194,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--callsign", dest="callsigns", action="append", default=None, help="keep only entries for this callsign (case-insensitive; repeatable)"
     )
     p_term.add_argument("--kind", dest="kinds", action="append", default=None, help="keep only these kinds (case-insensitive; repeatable)")
+    p_term.add_argument("--exclude-kind", dest="exclude_kinds", action="append", default=None, help="drop these kinds (case-insensitive; repeatable)")
+    p_term.add_argument(
+        "--captions",
+        action="store_true",
+        help="drop command echoes, pilot responses and solo-training notices, skip a text repeated within 30 s, and time by reading speed (--srt)",
+    )
     p_term.add_argument("--from", dest="from_seconds", type=float, default=None, help="only entries at or after FROM; captions start at FROM")
     p_term.add_argument("--to", dest="to_seconds", type=float, default=None, help="only entries at or before TO")
     term_format = p_term.add_mutually_exclusive_group()

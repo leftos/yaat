@@ -28,7 +28,7 @@ Windows only (`net10.0-windows`, `System.Windows.Automation`); `EnableWindowsTar
 
 | Tool | What it does |
 |---|---|
-| `launch_yaat(appDataDir, exePath, waitSeconds)` | Starts `Yaat.Client.exe` (only that file name) in automation mode (`YAAT_AUTOMATION=1`) with `YAAT_APPDATA_DIR` pointed at a scratch directory (default `.tmp/client-driver/appdata`), so the developer's preferences and favorites stay untouched. Waits for the automation pipe to answer with a window list, and returns the pid, that window list and the log path. |
+| `launch_yaat(appDataDir, exePath, waitSeconds, env)` | Starts `Yaat.Client.exe` (only that file name) in automation mode (`YAAT_AUTOMATION=1`) with `YAAT_APPDATA_DIR` pointed at a scratch directory (default `.tmp/client-driver/appdata`), so the developer's preferences and favorites stay untouched. `env` adds environment variables to the client, each `KEY=VALUE` (e.g. `YAAT_DEV_SOLO_SPEECH_BUBBLES=1`); an entry with no `=`, an empty key, a null, a key given twice, or `YAAT_APPDATA_DIR` / `YAAT_AUTOMATION` in any case is refused with `INVALID_PARAM`. Waits for the automation pipe to answer with a window list, and returns the pid, that window list and the log path. |
 | `list_processes(nameContains)` | Finds processes to attach to — `Yaat.Client`, `CRC`. |
 | `list_windows(pid)` | Every top-level UIA window of a process, with an element id each. Each row ends `| hwnd=0x<HEX>`, the window's native handle (a recorder captures by it; `0x0` when the platform gives none, always for a YAAT overlay popup). |
 | `dump_tree(elementId, maxDepth)` | Control-view tree under an element, one line per node (capped at 400 lines). |
