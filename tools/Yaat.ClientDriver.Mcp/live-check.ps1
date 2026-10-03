@@ -72,22 +72,35 @@ function Test-VisibleWindowTitled {
     @(Get-ClientTopLevelWindows -ProcessId $ProcessId | Where-Object { $_.Title -eq $Title }).Count -ge 1
 }
 
-function Get-ClientTopLevelWindows {
-    param([int]$ProcessId)
-
+# Every top-level window in the desktop's Z chain, top of the stack first, each with its 1-based rank. Reads handles,
+# pids, titles and extended styles across processes; touches nothing.
+function Get-TopLevelWindows {
+    $rank = 0
     $window = [ClientDriverCheck.User32]::GetTopWindow([IntPtr]::Zero)
     while ($window -ne [IntPtr]::Zero) {
+        $rank++
         [uint32]$ownerPid = 0
         $null = [ClientDriverCheck.User32]::GetWindowThreadProcessId($window, [ref]$ownerPid)
-        if (($ownerPid -eq $ProcessId) -and [ClientDriverCheck.User32]::IsWindowVisible($window)) {
-            $text = [System.Text.StringBuilder]::new(256)
-            $null = [ClientDriverCheck.User32]::GetWindowText($window, $text, $text.Capacity)
-            # GWL_EXSTYLE (-20), read across processes; touches nothing.
-            $exStyle = [int64][ClientDriverCheck.User32]::GetWindowLongPtr($window, -20)
-            [pscustomobject]@{ Handle = [int64]$window; Title = $text.ToString(); ExStyle = $exStyle }
+        $text = [System.Text.StringBuilder]::new(256)
+        $null = [ClientDriverCheck.User32]::GetWindowText($window, $text, $text.Capacity)
+        # GWL_EXSTYLE (-20), read across processes; touches nothing.
+        $exStyle = [int64][ClientDriverCheck.User32]::GetWindowLongPtr($window, -20)
+        [pscustomobject]@{
+            Handle  = [int64]$window
+            Pid     = [int]$ownerPid
+            Title   = $text.ToString()
+            ExStyle = $exStyle
+            Visible = [ClientDriverCheck.User32]::IsWindowVisible($window)
+            Rank    = $rank
         }
         $window = [ClientDriverCheck.User32]::GetWindow($window, 2)
     }
+}
+
+function Get-ClientTopLevelWindows {
+    param([int]$ProcessId)
+
+    @(Get-TopLevelWindows | Where-Object { ($_.Pid -eq $ProcessId) -and $_.Visible })
 }
 
 # Every visible client window carries WS_EX_NOACTIVATE, so the system never hands it the foreground when the user's
@@ -103,6 +116,38 @@ function Assert-ClientWindowsNoActivate {
         Assert-That (($window.ExStyle -band 0x08000000) -ne 0) $missing
     }
     Write-Host "$Step`: $($windows.Count) client windows carry WS_EX_NOACTIVATE"
+}
+
+# A client in automation mode must open behind whatever the user already had on screen. Windows creates a new top-level
+# window at the top of the Z-order whenever the creating process may set the foreground window — an agent's shell usually
+# may — and a never-activated show leaves the window where it was created, so without the gate's move to the bottom the
+# client paints over the focused app. Ranks are counted from the top of the Z chain (rank 1); a visible client window whose
+# rank is lower than the launch foreground's is above it. Reads the Z chain and window titles; touches nothing.
+function Assert-ClientWindowsBelowForegroundAtLaunch {
+    param([int]$ProcessId, [int64]$ForegroundHandle, [string]$Step)
+
+    Assert-That ($ForegroundHandle -ne 0) "$Step cannot check the Z order: nothing held the foreground when the client was launched"
+
+    $chain = @(Get-TopLevelWindows)
+    $foreground = $chain | Where-Object { $_.Handle -eq $ForegroundHandle } | Select-Object -First 1
+    $noForegroundMessage = "$Step cannot check the Z order: the window that held the foreground at launch " +
+        "(0x$('{0:X}' -f $ForegroundHandle)) is not a top-level window any more"
+    Assert-That ($null -ne $foreground) $noForegroundMessage
+
+    $clientWindows = @($chain | Where-Object { ($_.Pid -eq $ProcessId) -and $_.Visible })
+    Assert-That ($clientWindows.Count -ge 1) "$Step found no visible top-level window of pid $ProcessId to check the Z order"
+    $ranksText = @($clientWindows | ForEach-Object {
+            $label = if ([string]::IsNullOrEmpty($_.Title)) { '(untitled)' } else { $_.Title }
+            "$label rank $($_.Rank)"
+        }) -join ', '
+
+    $above = @($clientWindows | Where-Object { $_.Rank -lt $foreground.Rank })
+    if ($above.Count -gt 0) {
+        $aboveMessage = "$Step '$($above[0].Title)' (0x$('{0:X}' -f $above[0].Handle), rank $($above[0].Rank)) opened above the window " +
+            "already on screen (rank $($foreground.Rank)) — a client in automation mode must start behind it; client windows: $ranksText"
+        Assert-That $false $aboveMessage
+    }
+    Write-Host "$Step`: $($clientWindows.Count) visible client windows, all below the launch foreground (rank $($foreground.Rank)): $ranksText"
 }
 
 # The montage's trigger, reproduced: the window in front of the client is minimized, and Windows activates the next window
@@ -392,15 +437,7 @@ if ($WithInput) {
 
         # Avalonia files a menu popup under its main window in UI Automation, so list_windows never shows it; the popup is still its
         # own visible top-level HWND, which is what this counts.
-        $count = 0
-        $window = [ClientDriverCheck.User32]::GetTopWindow([IntPtr]::Zero)
-        while ($window -ne [IntPtr]::Zero) {
-            [uint32]$ownerPid = 0
-            $null = [ClientDriverCheck.User32]::GetWindowThreadProcessId($window, [ref]$ownerPid)
-            if (($ownerPid -eq $ClientPid) -and [ClientDriverCheck.User32]::IsWindowVisible($window)) { $count++ }
-            $window = [ClientDriverCheck.User32]::GetWindow($window, 2)
-        }
-        $count
+        @(Get-ClientTopLevelWindows -ProcessId $ClientPid).Count
     }
 
     function Get-PointArguments {
@@ -440,6 +477,7 @@ else {
         Assert-That ($null -ne $launchMain) "launch_yaat (pid=$launchedPid) listed no YAAT* window: $launchText"
         Assert-That ($launchMain.Active -eq 'False') "The main window of pid=$launchedPid is active after launch_yaat: $($launchMain.Active)"
         Write-Host "foreground unchanged by the launch; main window active=$($launchMain.Active)"
+        Assert-ClientWindowsBelowForegroundAtLaunch -ProcessId $launchedPid -ForegroundHandle $ForegroundBefore.Handle -Step 'launch'
         if ($Background) { Assert-ClientWindowsNoActivate -ProcessId $launchedPid -Step 'launch' }
         $launchedPid
     }

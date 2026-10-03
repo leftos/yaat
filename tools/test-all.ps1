@@ -159,17 +159,23 @@ function Complete-TestJob {
 }
 
 # Exclude the heavy gated-by-intent categories unless -Full. `--filter-not-trait`
-# only drops tests explicitly tagged Nightly or PathfinderGrid; untagged tests
-# still run. Test options follow the `--` separator (Microsoft.Testing.Platform
-# runner, selected by global.json); `dotnet test` runs the test assemblies
-# concurrently under it.
-$testFilter = if ($Full) { '' } else { '-- --filter-not-trait "Category=Nightly" --filter-not-trait "Category=PathfinderGrid"' }
+# only drops tests explicitly tagged Nightly, PathfinderGrid or Desktop; untagged
+# tests still run. Desktop is the interactive-desktop suite, which starts real
+# clients on the machine it runs on. Test options follow the `--` separator
+# (Microsoft.Testing.Platform runner, selected by global.json); `dotnet test`
+# runs the test assemblies concurrently under it.
+$testFilter = if ($Full) {
+    ''
+} else {
+    '-- --filter-not-trait "Category=Nightly" --filter-not-trait "Category=PathfinderGrid" ' +
+    '--filter-not-trait "Category=Desktop"'
+}
 
 Write-Host "Configuration: $Config" -ForegroundColor Yellow
 if ($Full) {
-    Write-Host 'Scope: FULL (incl. Nightly + PathfinderGrid sweeps)' -ForegroundColor Yellow
+    Write-Host 'Scope: FULL (incl. Nightly + PathfinderGrid + Desktop)' -ForegroundColor Yellow
 } else {
-    Write-Host 'Scope: default (Nightly + PathfinderGrid excluded; pass -Full to include)' -ForegroundColor Yellow
+    Write-Host 'Scope: default (Nightly + PathfinderGrid + Desktop excluded; pass -Full to include)' -ForegroundColor Yellow
 }
 
 # Point dotnet at the .slnx explicitly. .NET 10 SDK 10.0.300 will otherwise
