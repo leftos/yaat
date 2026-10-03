@@ -39,7 +39,7 @@ public sealed class WaitForAndFilePickTests : AutomationHostFixture
         PipeDirectory directory = NewPipeDirectory();
         try
         {
-            string result = await new PipeTools(directory).WaitForAsync("#Box", "exists", CancellationToken.None, Pid);
+            string result = await new PipeTools(directory, RecordingFakes.NewSession()).WaitForAsync("#Box", "exists", CancellationToken.None, Pid);
 
             Assert.StartsWith("exists held on '#Box' after ", result, StringComparison.Ordinal);
             Assert.EndsWith(" ms (1 matches, pipe)", result, StringComparison.Ordinal);
@@ -61,7 +61,7 @@ public sealed class WaitForAndFilePickTests : AutomationHostFixture
         {
             directory.RememberTarget(Pid);
 
-            string result = await new PipeTools(directory).WaitForAsync("#Box", "visible", CancellationToken.None);
+            string result = await new PipeTools(directory, RecordingFakes.NewSession()).WaitForAsync("#Box", "visible", CancellationToken.None);
 
             Assert.StartsWith("visible held on '#Box' after ", result, StringComparison.Ordinal);
         }
@@ -74,7 +74,7 @@ public sealed class WaitForAndFilePickTests : AutomationHostFixture
     [Fact]
     public async Task WaitFor_NoTarget_Fails()
     {
-        var tools = new PipeTools(NewPipeDirectory());
+        var tools = new PipeTools(NewPipeDirectory(), RecordingFakes.NewSession());
 
         McpException failure = await Assert.ThrowsAsync<McpException>(() => tools.WaitForAsync("#Box", "exists", CancellationToken.None));
 
@@ -89,7 +89,7 @@ public sealed class WaitForAndFilePickTests : AutomationHostFixture
         PipeDirectory directory = NewPipeDirectory();
         try
         {
-            var tools = new PipeTools(directory);
+            var tools = new PipeTools(directory, RecordingFakes.NewSession());
 
             McpException failure = await Assert.ThrowsAsync<McpException>(() =>
                 tools.WaitForAsync("#Box", "not_exists", CancellationToken.None, Pid, timeoutMs: 200)
@@ -115,7 +115,13 @@ public sealed class WaitForAndFilePickTests : AutomationHostFixture
         PipeDirectory directory = NewPipeDirectory();
         try
         {
-            string result = await new PipeTools(directory).WaitForAsync("#Box", "text_contains", CancellationToken.None, Pid, "koak");
+            string result = await new PipeTools(directory, RecordingFakes.NewSession()).WaitForAsync(
+                "#Box",
+                "text_contains",
+                CancellationToken.None,
+                Pid,
+                "koak"
+            );
 
             Assert.StartsWith("text_contains held on '#Box' after ", result, StringComparison.Ordinal);
             Assert.EndsWith(" ms (1 matches, pipe)", result, StringComparison.Ordinal);
@@ -169,7 +175,12 @@ public sealed class WaitForAndFilePickTests : AutomationHostFixture
         PipeDirectory directory = NewPipeDirectory();
         try
         {
-            string result = await new PipeTools(directory).QueueFilePickAsync(CancellationToken.None, @"C:\temp\scenario.json", false, Pid);
+            string result = await new PipeTools(directory, RecordingFakes.NewSession()).QueueFilePickAsync(
+                CancellationToken.None,
+                @"C:\temp\scenario.json",
+                false,
+                Pid
+            );
 
             Assert.Equal(@"queued C:\temp\scenario.json (1 waiting, pipe)", result);
             IFilePickerService picker = FilePickerFactory.Create(new Window());
@@ -191,7 +202,7 @@ public sealed class WaitForAndFilePickTests : AutomationHostFixture
         PipeDirectory directory = NewPipeDirectory();
         try
         {
-            string result = await new PipeTools(directory).QueueFilePickAsync(CancellationToken.None, "", true, Pid);
+            string result = await new PipeTools(directory, RecordingFakes.NewSession()).QueueFilePickAsync(CancellationToken.None, "", true, Pid);
 
             Assert.Equal("queued a cancel (1 waiting, pipe)", result);
             Assert.True(FilePickQueue.TryDequeue(out FilePickAnswer? answer));
@@ -212,7 +223,7 @@ public sealed class WaitForAndFilePickTests : AutomationHostFixture
         PipeDirectory directory = NewPipeDirectory();
         try
         {
-            var tools = new PipeTools(directory);
+            var tools = new PipeTools(directory, RecordingFakes.NewSession());
 
             McpException failure = await Assert.ThrowsAsync<McpException>(() =>
                 tools.QueueFilePickAsync(CancellationToken.None, @"C:\temp\scenario.json", true, Pid)

@@ -166,7 +166,11 @@ internal static class Program
             return ExitUsage;
         }
 
-        // The first frame is the run's start for both tracks; ffmpeg lines them up by sample and frame count from there.
+        // The first frame is the run's start for both tracks; ffmpeg lines them up by sample and frame count from there. The
+        // line says when, so whoever marks moments in the run (the client driver's record_mark) can place them on the clip.
+        await Console
+            .Error.WriteLineAsync($"Yaat.WindowRecorder: first frame at {DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture)}")
+            .ConfigureAwait(false);
         deadline.Start();
         Task<bool> audioRecording = audio?.RecordAsync(deadline, startOnConnect: false) ?? Task.FromResult(true);
         (int written, TimeSpan elapsed) = await WriteFramesAsync(capture, frame, deadline, fps).ConfigureAwait(false);

@@ -334,6 +334,9 @@ A range/bearing readout pushing an auto-placed data block (one at its default or
 **App tool**:
 A YAAT client method marked `[AutomationTool]` that the client-driver MCP lists (`list_app_tools`) and calls by name (`call_app_tool`): a setup action such as framing the radar or loading a recording, done directly rather than through the UI.
 
+**Recording mark**:
+A labelled moment in a client-driver recording (`record_mark`, or `wait_until`'s `stop_recording`), saved in `<clip>-marks.json` beside the MP4 with its wall time, its seconds into the clip and the scenario's sim seconds, so an edit can find the moment again.
+
 **Situation**:
 A named bucket of aircraft phases and state (Taxiing, Holding short, Final, IFR arrival…) that picks an aircraft menu's quick commands.
 _Avoid_: phase (one situation spans several phases)

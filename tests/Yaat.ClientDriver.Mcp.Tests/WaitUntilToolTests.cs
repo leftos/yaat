@@ -3,6 +3,7 @@ extern alias mcp;
 using System.Diagnostics;
 using System.Text.Json;
 using mcp::Yaat.ClientDriver.Mcp.Pipe;
+using mcp::Yaat.ClientDriver.Mcp.Recording;
 using mcp::Yaat.ClientDriver.Mcp.Tools;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -192,6 +193,208 @@ public sealed class WaitUntilToolTests : AutomationHostFixture
         Assert.Contains("then set_rate: failed — no reason given", lines);
     }
 
+    // stop_recording is the MCP's own action: the client accepts only pause and set_rate, so it never sees it, and a then
+    // holding nothing else goes as null.
+    [Fact]
+    public async Task StopRecording_IsStrippedBeforeTheClient()
+    {
+        Outcome mixed = await CallWaitUntilAsync(
+            new WaitRequest(OnGround, "any", 1000, null, """[{"action":"pause"},{"action":"stop_recording"}]"""),
+            Answering(NotMet)
+        );
+        Outcome alone = await CallWaitUntilAsync(
+            new WaitRequest(OnGround, "any", 1000, null, """[{"action":"stop_recording"}]"""),
+            Answering(NotMet)
+        );
+
+        Assert.True(JsonElement.DeepEquals(Parse("""[{"action":"pause"}]"""), mixed.Parameters!.Value.GetProperty("then")));
+        Assert.True(
+            !alone.Parameters!.Value.TryGetProperty("then", out JsonElement then) || (then.ValueKind == JsonValueKind.Null),
+            alone.Parameters.Value.GetRawText()
+        );
+    }
+
+    // The final mark is stamped with the match's own sim time, then the recording stops and the stop's line closes the answer.
+    [Fact]
+    public async Task StopRecording_Met_AddsTheFinalMarkAtTheMatchSimTimeAndStops()
+    {
+        (RecordingSession session, FakeRecordingBackend backend, ManualClock clock, RecordingPaths paths) = await StartRecordingAsync();
+        RecordingFakes.WriteRecorderLog(paths.Mp4, RecorderLog.FirstFrameLine(clock.Now.UtcDateTime));
+        clock.Now += TimeSpan.FromSeconds(4);
+        backend.Process.OnStop = () =>
+        {
+            RecordingFakes.WriteRecorderLog(paths.Mp4, "Yaat.WindowRecorder: 120 frames in 4.0 s (30.0 fps of 30)");
+            File.WriteAllBytes(paths.Mp4, [0]);
+        };
+
+        Outcome outcome = await CallWaitUntilAsync(
+            new WaitRequest(OnGround, "any", 1000, null, """[{"action":"stop_recording"}]"""),
+            Answering(MetAt(42.5)),
+            session
+        );
+
+        Assert.EndsWith($"then stop_recording: ok — {paths.Mp4}, 4.0 s, 120 frames", outcome.Text, StringComparison.Ordinal);
+        Assert.False(session.IsRecording);
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(paths.Marks, TestContext.Current.CancellationToken));
+        JsonElement mark = document.RootElement.GetProperty("marks")[0];
+        Assert.Equal("wait_until met", mark.GetProperty("label").GetString());
+        Assert.Equal(42.5, mark.GetProperty("simSeconds").GetDouble());
+        Assert.Equal(4.0, mark.GetProperty("clipSeconds").GetDouble());
+    }
+
+    [Fact]
+    public async Task StopRecording_TimedOut_DoesNotStop()
+    {
+        (RecordingSession session, FakeRecordingBackend backend, _, _) = await StartRecordingAsync();
+
+        Outcome outcome = await CallWaitUntilAsync(
+            new WaitRequest(OnGround, "any", 1000, null, """[{"action":"stop_recording"}]"""),
+            Answering(NotMet),
+            session
+        );
+
+        Assert.Contains("then stop_recording: not run", outcome.Text, StringComparison.Ordinal);
+        Assert.True(session.IsRecording);
+        Assert.Single(backend.Deadlines);
+    }
+
+    [Fact]
+    public async Task StopRecording_NothingRecording_IsAFailedLine()
+    {
+        Outcome outcome = await CallWaitUntilAsync(
+            new WaitRequest(OnGround, "any", 1000, null, """[{"action":"stop_recording"}]"""),
+            Answering(MetAt(7))
+        );
+
+        Assert.EndsWith("then stop_recording: failed — no recording was running when the wait began", outcome.Text, StringComparison.Ordinal);
+    }
+
+    // The wait itself succeeded, so a stop that throws is one failed line under the met result, never an error for the call.
+    [Fact]
+    public async Task StopRecording_StopThrows_KeepsTheMetResultAndReportsAFailedLine()
+    {
+        (RecordingSession session, FakeRecordingBackend backend, _, _) = await StartRecordingAsync();
+        backend.DeadlineFailure = new IOException("the disk is full");
+
+        Outcome outcome = await CallWaitUntilAsync(
+            new WaitRequest(OnGround, "any", 1000, null, """[{"action":"stop_recording"}]"""),
+            Answering(MetAt(42.5)),
+            session
+        );
+
+        string[] lines = outcome.Text.Split(Environment.NewLine);
+        Assert.Equal(
+            ["met after 12 ms at sim 42.5 s: held on_ground (pipe)", "- [0] on_ground: on ground", "then stop_recording: failed — the disk is full"],
+            lines
+        );
+    }
+
+    // The stop belongs to the recording the wait began with: one started during the wait is not that recording, and goes on.
+    [Fact]
+    public async Task StopRecording_RecordingReplacedDuringTheWait_LeavesTheNewOneRunning()
+    {
+        (RecordingSession session, FakeRecordingBackend backend, _, _) = await StartRecordingAsync();
+        string replacement = Path.Combine(DiscoveryDirectory, "recordings", "replacement.mp4");
+
+        Outcome outcome = await ReplaceDuringTheWaitAsync(session, backend, 0, replacement);
+
+        Assert.EndsWith(
+            "then stop_recording: failed — the recording that was running when the wait began has ended",
+            outcome.Text,
+            StringComparison.Ordinal
+        );
+        Assert.Equal(replacement, session.RecordingMp4);
+        Assert.False(backend.Process.HasExited);
+        Assert.Equal((RecordingPaths.For(replacement).Deadline, RecordingFakes.Start.UtcDateTime.AddHours(1)), backend.Deadlines[^1]);
+    }
+
+    // A recording that died without writing its MP4 frees its out, and one started there during the wait is a different
+    // recording: the old wait does not stop it.
+    [Fact]
+    public async Task StopRecording_DiedAndRestartedIntoTheSameOut_LeavesTheNewOneRunning()
+    {
+        (RecordingSession session, FakeRecordingBackend backend, _, RecordingPaths paths) = await StartRecordingAsync();
+
+        Outcome outcome = await ReplaceDuringTheWaitAsync(session, backend, 1, paths.Mp4);
+
+        Assert.EndsWith(
+            "then stop_recording: failed — the recording that was running when the wait began has ended",
+            outcome.Text,
+            StringComparison.Ordinal
+        );
+        Assert.Equal(paths.Mp4, session.RecordingMp4);
+        Assert.False(backend.Process.HasExited);
+        Assert.Equal((paths.Deadline, RecordingFakes.Start.UtcDateTime.AddHours(1)), backend.Deadlines[^1]);
+    }
+
+    [Fact]
+    public async Task StopRecording_StopThrowsInvalidOperation_ReportsAFailedLine()
+    {
+        (RecordingSession session, FakeRecordingBackend backend, _, _) = await StartRecordingAsync();
+        backend.DeadlineFailure = new InvalidOperationException("No process is associated with this object.");
+
+        Outcome outcome = await CallWaitUntilAsync(
+            new WaitRequest(OnGround, "any", 1000, null, """[{"action":"stop_recording"}]"""),
+            Answering(MetAt(42.5)),
+            session
+        );
+
+        Assert.EndsWith("then stop_recording: failed — No process is associated with this object.", outcome.Text, StringComparison.Ordinal);
+    }
+
+    // A pipeline that already ended gets no final mark at the match: there is no clip left for it to point into.
+    [Fact]
+    public async Task StopRecording_PipelineAlreadyEnded_AddsNoFinalMark()
+    {
+        (RecordingSession session, FakeRecordingBackend backend, _, RecordingPaths paths) = await StartRecordingAsync();
+        await File.WriteAllBytesAsync(paths.Mp4, [0], TestContext.Current.CancellationToken);
+        backend.Process.HasExited = true;
+
+        Outcome outcome = await CallWaitUntilAsync(
+            new WaitRequest(OnGround, "any", 1000, null, """[{"action":"stop_recording"}]"""),
+            Answering(MetAt(42.5)),
+            session
+        );
+
+        Assert.EndsWith(
+            $"then stop_recording: ok — {paths.Mp4}, unknown s, unknown frames; {RecordingSession.EndedOnItsOwnNote}",
+            outcome.Text,
+            StringComparison.Ordinal
+        );
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(paths.Marks, TestContext.Current.CancellationToken));
+        Assert.Empty(document.RootElement.GetProperty("marks").EnumerateArray());
+    }
+
+    /// <summary>
+    /// Runs a met wait whose client, mid-wait, sees the recording end with <paramref name="exitCode"/>, be stopped, and a new
+    /// one start into <paramref name="mp4"/>; returns the wait's outcome.
+    /// </summary>
+    private async Task<Outcome> ReplaceDuringTheWaitAsync(RecordingSession session, FakeRecordingBackend backend, int exitCode, string mp4)
+    {
+        var arrived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var replaced = new ManualResetEventSlim();
+        Task<Outcome> call = CallWaitUntilAsync(
+            new WaitRequest(OnGround, "any", 1000, null, """[{"action":"stop_recording"}]"""),
+            (id, method, parameters) =>
+            {
+                arrived.TrySetResult();
+                replaced.Wait(TimeSpan.FromSeconds(20), TestContext.Current.CancellationToken);
+                return Answering(MetAt(9))(id, method, parameters);
+            },
+            session
+        );
+        await arrived.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        backend.Process.HasExited = true;
+        backend.Process.ExitCode = exitCode;
+        await session.StopAsync(TestContext.Current.CancellationToken);
+        await session.StartAsync(
+            new RecordingRequest(new RecordingTarget(4242, 0x1234, false), @"C:\tools\ffmpeg\ffmpeg.exe", mp4, 30, false),
+            TestContext.Current.CancellationToken
+        );
+        replaced.Set();
+        return await call;
+    }
+
     // The tool's ceiling is the host's own: drift between the two would send a wait the host clamps to something else.
     [Fact]
     public void WaitUntil_CeilingMatchesTheHost() => Assert.Equal(WaitUntilParams.MaxTimeoutMs, PipeTools.MaxWaitUntilMs);
@@ -214,11 +417,37 @@ public sealed class WaitUntilToolTests : AutomationHostFixture
     private static Func<string, string, JsonElement?, AutomationResponse> Answering(WaitUntilResult result) =>
         (id, _, _) => AutomationResponse.Success(id, ProtocolSerializer.ToElement(result));
 
+    private static WaitUntilResult NotMet => new(false, [], 12.5, 1000, [new WaitUntilLastValue(0, "on_ground", "airborne")], null, null, null);
+
+    private static WaitUntilResult MetAt(double simSeconds) =>
+        new(true, [0], simSeconds, 12, [new WaitUntilLastValue(0, "on_ground", "on ground")], null, null, null);
+
+    /// <summary>A session over the fakes with one recording running, of a pid with no pipe, into this test's own folder.</summary>
+    private async Task<(RecordingSession Session, FakeRecordingBackend Backend, ManualClock Clock, RecordingPaths Paths)> StartRecordingAsync()
+    {
+        var backend = new FakeRecordingBackend();
+        var clock = new ManualClock(RecordingFakes.Start);
+        RecordingSession session = RecordingFakes.NewSession(backend, clock);
+        string mp4 = Path.Combine(DiscoveryDirectory, "recordings", "wait.mp4");
+        await session.StartAsync(
+            new RecordingRequest(new RecordingTarget(4242, 0x1234, false), @"C:\tools\ffmpeg\ffmpeg.exe", mp4, 30, false),
+            TestContext.Current.CancellationToken
+        );
+        return (session, backend, clock, RecordingPaths.For(mp4));
+    }
+
+    private Task<Outcome> CallWaitUntilAsync(WaitRequest request, Func<string, string, JsonElement?, AutomationResponse> respond) =>
+        CallWaitUntilAsync(request, respond, RecordingFakes.NewSession());
+
     /// <summary>
     /// Serves a scripted host that records the params it is sent and answers every <c>wait_until</c> with
-    /// <paramref name="respond"/>, and runs the tool against it.
+    /// <paramref name="respond"/>, and runs the tool against it with <paramref name="session"/> as the server's recording.
     /// </summary>
-    private async Task<Outcome> CallWaitUntilAsync(WaitRequest request, Func<string, string, JsonElement?, AutomationResponse> respond)
+    private async Task<Outcome> CallWaitUntilAsync(
+        WaitRequest request,
+        Func<string, string, JsonElement?, AutomationResponse> respond,
+        RecordingSession session
+    )
     {
         using var conditions = JsonDocument.Parse(request.Conditions);
         JsonElement? screenshot = (request.Screenshot is null) ? null : Parse(request.Screenshot);
@@ -245,7 +474,7 @@ public sealed class WaitUntilToolTests : AutomationHostFixture
         );
         try
         {
-            string text = await new PipeTools(directory).WaitUntilAsync(
+            string text = await new PipeTools(directory, session).WaitUntilAsync(
                 conditions.RootElement,
                 TestContext.Current.CancellationToken,
                 Pid,

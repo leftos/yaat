@@ -5,6 +5,7 @@ using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Yaat.Client.Automation.Protocol;
 using Yaat.ClientDriver.Mcp.Pipe;
+using Yaat.ClientDriver.Mcp.Recording;
 
 namespace Yaat.ClientDriver.Mcp.Tools;
 
@@ -14,9 +15,13 @@ namespace Yaat.ClientDriver.Mcp.Tools;
 /// the last pipe-routed call reached.
 /// </summary>
 /// <param name="pipes">Finds and caches the YAAT clients' automation pipes, and remembers the client last reached over one.</param>
+/// <param name="recordings">The server's one recording, which <c>wait_until</c>'s <c>stop_recording</c> action stops.</param>
 [McpServerToolType]
-public sealed class PipeTools(PipeDirectory pipes)
+public sealed class PipeTools(PipeDirectory pipes, RecordingSession recordings)
 {
+    /// <summary>The <c>then</c> action this server runs itself, once the client's answer is back; the client never sees it.</summary>
+    private const string StopRecordingAction = "stop_recording";
+
     /// <summary>The shortest wait the host accepts, in ms; it clamps a shorter one up to this.</summary>
     public const int MinWaitMs = 100;
 
@@ -71,9 +76,12 @@ public sealed class PipeTools(PipeDirectory pipes)
             + "\"any\" (the default: one condition is enough) or \"all\". timeoutMs is clamped to 100–600000 (default 30000). screenshot is an "
             + "object naming what to capture by selector: {\"windowSelector\": \"<selector>\"} for a window's client area or {\"selector\": "
             + "\"<selector>\"} for one element (not an element id from find_elements). then is an array of client actions run "
-            + "at that poll, in order: {action: \"pause\"} or {action: \"set_rate\", rate: <one of the client's sim rates>}. A timeout is a "
-            + "result, not an error: the text says met or not met, lists each condition's last value, then each action's outcome, and the "
-            + "saved screenshot's path. Goes to pid, or with pid 0 to the client the last pipe call reached; the first line ends with (pipe)."
+            + "at that poll, in order: {action: \"pause\"} or {action: \"set_rate\", rate: <one of the client's sim rates>}; "
+            + "{action: \"stop_recording\"} is run by this server after the client's answer, only when met: it adds a final 'wait_until met' "
+            + "mark at the match's sim time and stops the record_start recording that was running when the wait began (a recording "
+            + "started during the wait goes on). A timeout is a result, not an error: the text "
+            + "says met or not met, lists each condition's last value, then each action's outcome, and the saved screenshot's path. Goes to "
+            + "pid, or with pid 0 to the client the last pipe call reached; the first line ends with (pipe)."
     )]
     public async Task<string> WaitUntilAsync(
         [Description("A non-empty JSON array of {kind, ...} condition objects; the tool description lists the kinds and their fields.")]
@@ -84,23 +92,106 @@ public sealed class PipeTools(PipeDirectory pipes)
         [Description("How long to wait, in ms, clamped to 100–600000.")] int timeoutMs = DefaultWaitUntilMs,
         [Description("Optional capture once the wait ends: {\"windowSelector\": \"<selector>\"} or {\"selector\": \"<selector>\"}.")]
             JsonElement? screenshot = null,
-        [Description("Client actions run at the match, in order: {action: \"pause\"} or {action: \"set_rate\", rate: n}.")] JsonElement? then = null
+        [Description("Actions run at the match, in order: {action: \"pause\"}, {action: \"set_rate\", rate: n} or {action: \"stop_recording\"}.")]
+            JsonElement? then = null
     )
     {
         int target = TargetPid(pipes, pid);
         (int hostMs, TimeSpan request) = WaitUntilTimeouts(timeoutMs);
+        // stop_recording stops the recording running now, never one started while the wait goes on.
+        Guid? recordingId = recordings.RecordingId;
+        (JsonElement? clientThen, bool stopRecording) = SplitStopRecording(then);
         object parameters = new
         {
             conditions,
             mode,
             timeoutMs = hostMs,
             screenshot,
-            then,
+            then = clientThen,
         };
         WaitUntilResult result = await PipeCalls
             .SendForPidAsync<WaitUntilResult>(pipes, target, ProtocolMethods.WaitUntil, parameters, request, cancellationToken)
             .ConfigureAwait(false);
-        return FormatWaitUntil(result);
+        string? stopLine = stopRecording ? await StopRecordingLineAsync(result, recordingId, cancellationToken).ConfigureAwait(false) : null;
+        return FormatWaitUntil(result, stopLine);
+    }
+
+    /// <summary>
+    /// <paramref name="then"/> without its <c>stop_recording</c> actions, which the client does not accept, and whether there
+    /// were any; null when nothing is left for the client.
+    /// </summary>
+    internal static (JsonElement? ClientThen, bool StopRecording) SplitStopRecording(JsonElement? then)
+    {
+        if (then is not { ValueKind: JsonValueKind.Array } actions)
+        {
+            return (then, false);
+        }
+
+        List<JsonElement> kept = [.. actions.EnumerateArray().Where(action => !IsStopRecording(action))];
+        if (kept.Count == actions.GetArrayLength())
+        {
+            return (then, false);
+        }
+
+        return ((kept.Count == 0) ? null : JsonSerializer.SerializeToElement(kept), true);
+    }
+
+    private static bool IsStopRecording(JsonElement action) =>
+        (action.ValueKind == JsonValueKind.Object)
+        && action.TryGetProperty("action", out JsonElement name)
+        && (name.ValueKind == JsonValueKind.String)
+        && string.Equals(name.GetString(), StopRecordingAction, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Runs <c>stop_recording</c> once the client has answered: only when met, with a final mark at the match's sim time. Every
+    /// outcome is a line of the answer, never an error, since the wait itself succeeded.
+    /// </summary>
+    private async Task<string> StopRecordingLineAsync(WaitUntilResult result, Guid? recordingId, CancellationToken ct)
+    {
+        if (!result.Met)
+        {
+            return $"then {StopRecordingAction}: not run — the wait was not met, so the recording goes on";
+        }
+
+        if (recordingId is not { } id)
+        {
+            return $"then {StopRecordingAction}: failed — no recording was running when the wait began";
+        }
+
+        RecordingStopResult? stopped;
+        try
+        {
+            stopped = await recordings.StopAtMatchAsync(id, result.SimSeconds, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+            when (ex
+                    is IOException
+                        or UnauthorizedAccessException
+                        or McpException
+                        or OperationCanceledException
+                        or Win32Exception
+                        or InvalidOperationException
+            )
+        {
+            return $"then {StopRecordingAction}: failed — {ex.Message}";
+        }
+
+        return (stopped is null)
+            ? $"then {StopRecordingAction}: failed — the recording that was running when the wait began has ended"
+            : StoppedLine(stopped);
+    }
+
+    /// <summary>The <c>stop_recording</c> line for a stop that ran: ok with its summary, or failed with what went wrong.</summary>
+    private static string StoppedLine(RecordingStopResult stopped)
+    {
+        if ((stopped.Problem is null) && stopped.Mp4Exists)
+        {
+            string note = (stopped.Note is { } ended) ? $"; {ended}" : string.Empty;
+            return $"then {StopRecordingAction}: ok — {stopped.Summary}{note}";
+        }
+
+        string mp4 = stopped.Mp4Exists ? $" (an MP4 exists: {stopped.Summary})" : $" (no MP4 at {stopped.Paths.Mp4})";
+        return $"then {StopRecordingAction}: failed — {stopped.Problem ?? "the recording ended"}{mp4}";
     }
 
     [McpServerTool]
@@ -155,9 +246,10 @@ public sealed class PipeTools(PipeDirectory pipes)
 
     /// <summary>
     /// The text an agent reads for a <c>wait_until</c> answer: whether the conditions were met, when, and every condition's last
-    /// value, then each action's outcome in order and the path of the screenshot taken at the match when there was one.
+    /// value, then each action's outcome in order (the client's, then this server's <c>stop_recording</c> line when one was
+    /// asked for) and the path of the screenshot taken at the match when there was one.
     /// </summary>
-    private static string FormatWaitUntil(WaitUntilResult result)
+    private static string FormatWaitUntil(WaitUntilResult result, string? stopRecordingLine)
     {
         string header = result.Met
             ? $"met after {result.ElapsedMs} ms at sim {SimSeconds(result.SimSeconds)} s: held {Held(result)}"
@@ -167,6 +259,11 @@ public sealed class PipeTools(PipeDirectory pipes)
         if (result.Then is { } actions)
         {
             lines.AddRange(actions.Select(ActionLine));
+        }
+
+        if (stopRecordingLine is not null)
+        {
+            lines.Add(stopRecordingLine);
         }
 
         if (result.ScreenshotError is { } error)

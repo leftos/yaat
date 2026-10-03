@@ -17,11 +17,16 @@ default      launch_yaat starts the client in automation mode, so every YAAT cal
 -WithInput   the script starts the client itself without its automation pipe (YAAT_AUTOMATION removed from its environment)
              and the tools drive it through UI Automation with real input (set_input_mode real): the same input steps, every
              result must end "(real)", the client takes the foreground and the real cursor moves.
+-Record      with any mode, also records the client's main window for about 3 s (record_start, record_mark, record_stop): the
+             MP4 must exist with an ffprobe duration above 0 and the marks file must hold the one mark, with its sim time when the
+             client has a pipe; then the window is minimized without activation and record_start must refuse it. Needs ffmpeg
+             and ffprobe on PATH.
 
 .EXAMPLE
 pwsh tools/Yaat.ClientDriver.Mcp/live-check.ps1
 pwsh tools/Yaat.ClientDriver.Mcp/live-check.ps1 -Background
 pwsh tools/Yaat.ClientDriver.Mcp/live-check.ps1 -WithInput
+pwsh tools/Yaat.ClientDriver.Mcp/live-check.ps1 -Record
 #>
 
 #Requires -Version 7.4
@@ -32,7 +37,8 @@ param(
     [string[]]$Arguments = @('-NoProfile', '-File', 'tools/Yaat.ClientDriver.Mcp/launch.ps1'),
     [string]$AppDataDir = '.tmp/client-driver/live-appdata',
     [switch]$WithInput,
-    [switch]$Background
+    [switch]$Background,
+    [switch]$Record
 )
 
 $ErrorActionPreference = 'Stop'
@@ -269,6 +275,54 @@ function Find-InProcessWindows {
                     })))
     }
     $found
+}
+
+function Invoke-RecordCheck {
+    param($Session, [int]$ClientPid, [string]$WindowsText, [string]$MainWindowId)
+
+    Write-Host '--- record_start / record_mark / record_stop'
+    Assert-That ($null -ne (Get-Command ffprobe -ErrorAction SilentlyContinue)) 'ffprobe is not on PATH; -Record needs it. Fix: winget install Gyan.FFmpeg'
+    $startText = Get-McpResultText -Result (Invoke-CheckedTool -Session $Session -Name 'record_start' -ToolArguments @{ pid = $ClientPid })
+    Write-Host $startText
+    $clip = [regex]::Match($startText, '^recording (?<mp4>.+?\.mp4) \(')
+    Assert-That $clip.Success "record_start did not name its MP4: $startText"
+    $mp4 = $clip.Groups['mp4'].Value
+    Start-Sleep -Seconds 3
+    $markText = Get-McpResultText -Result (Invoke-CheckedTool -Session $Session -Name 'record_mark' -ToolArguments @{ label = 'live check' })
+    Write-Host $markText
+    $stopText = Get-McpResultText -Result (Invoke-CheckedTool -Session $Session -Name 'record_stop' -TimeoutSeconds 60)
+    Write-Host $stopText
+    Assert-That ($stopText -like "stopped $mp4*") "record_stop did not report the clip record_start named ($mp4): $stopText"
+    Assert-That (Test-Path -LiteralPath $mp4) "record_stop reported '$mp4' but no file is there"
+    $duration = & ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 $mp4
+    Assert-That (($LASTEXITCODE -eq 0) -and ([double]$duration -gt 0)) "ffprobe found no duration in ${mp4}: $duration"
+    $marksPath = [regex]::Match($stopText, 'marks: (?<path>.+)$', 'Multiline').Groups['path'].Value.Trim()
+    Assert-That (Test-Path -LiteralPath $marksPath) "record_stop named no marks file that exists: '$marksPath'"
+    $marks = @((Get-Content -LiteralPath $marksPath -Raw | ConvertFrom-Json).marks)
+    Assert-That ($marks.Count -eq 1) "The marks file $marksPath holds $($marks.Count) marks, expected the one record_mark wrote"
+    if (-not $WithInput) {
+        Assert-That ($null -ne $marks[0].simSeconds) "The mark in $marksPath has no simSeconds although the client has a pipe"
+    }
+    Write-Host "recorded $mp4 ($duration s); mark '$($marks[0].label)' at clip $($marks[0].clipSeconds) s, sim $($marks[0].simSeconds) s"
+
+    Write-Host '--- record_start refuses a minimized window'
+    $handle = [regex]::Match($WindowsText, "$([regex]::Escape($MainWindowId))\b.*hwnd=0x(?<hwnd>[0-9A-F]+)")
+    Assert-That $handle.Success "list_windows gave no hwnd for the main window $MainWindowId"
+    $mainHandle = [IntPtr][Convert]::ToInt64($handle.Groups['hwnd'].Value, 16)
+    # SW_SHOWMINNOACTIVE (7) minimizes without activating another window, and SW_SHOWNOACTIVATE (4) restores the same way,
+    # so the foreground the run started with is untouched.
+    $null = [ClientDriverCheck.User32]::ShowWindow($mainHandle, 7)
+    try {
+        Start-Sleep -Milliseconds 500
+        $refused = Invoke-McpTool -Session $Session -Name 'record_start' -ToolArguments @{ pid = $ClientPid }
+        $refusedText = Get-McpResultText -Result $refused
+        Write-Host $refusedText
+        Assert-That ($refused.isError -eq $true) "record_start accepted a minimized window: $refusedText"
+        Assert-That ($refusedText -like '*is minimized*') "record_start refused the minimized window with an unexpected message: $refusedText"
+    }
+    finally {
+        $null = [ClientDriverCheck.User32]::ShowWindow($mainHandle, 4)
+    }
 }
 
 function Invoke-CheckedTool {
@@ -657,6 +711,10 @@ try {
         $helpEsc = Get-McpResultText -Result (Invoke-CheckedTool -Session $session -Name 'send_keys' -ToolArguments @{ keys = '{ESC}' })
         Write-Host $helpEsc
         Assert-InputPath -Text $helpEsc -Step 'send_keys {ESC} after Help'
+    }
+
+    if ($Record) {
+        Invoke-RecordCheck -Session $session -ClientPid $clientPid -WindowsText $windowsText -MainWindowId $mainWindow.Id
     }
 
     if (-not $WithInput) {

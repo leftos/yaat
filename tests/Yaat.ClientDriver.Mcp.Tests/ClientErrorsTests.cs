@@ -160,6 +160,7 @@ public sealed class ClientErrorsTests : AutomationHostFixture
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(directory);
+        services.AddSingleton(RecordingFakes.NewSession());
         services
             .AddMcpServer()
             .WithStreamServerTransport(clientToServer.Reader.AsStream(), serverToClient.Writer.AsStream())
