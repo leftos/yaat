@@ -23,10 +23,8 @@ public static class AirborneFollowHelper
     private const double DesiredDistanceMediumNm = 1.5;
 
     /// <summary>
-    /// Desired following distance when leader is a jet (nm). 3.0 nm matches
-    /// the FAA 7110.65 §5-5-4 IFR same-runway / same-altitude radar separation
-    /// minimum, which is the floor real controllers aim for on jet-follows-jet
-    /// approaches even under visual separation.
+    /// Desired following distance when leader is a jet (nm): the pattern spacing YAAT flies behind a jet, not a radar
+    /// separation minimum — a visual follow carries none (AIM 7-4-6.a, 7-4-8.b).
     /// </summary>
     private const double DesiredDistanceLargeNm = 3.0;
 
@@ -2036,15 +2034,11 @@ public static class AirborneFollowHelper
     }
 
     /// <summary>
-    /// Spacing behind a lead in the pattern: the pattern spacing (<see cref="DesiredDistanceForLeader"/>), or the on-approach
-    /// wake-turbulence minimum behind a heavier lead when that is more.
+    /// Spacing behind a lead in the pattern: YAAT's pattern spacing (<see cref="DesiredDistanceForLeader"/>), with no radar
+    /// wake minimum (TBL 5-5-2) — accepting instructions to follow an aircraft puts wake turbulence separation on the pilot
+    /// (AIM 7-4-8.b).
     /// </summary>
-    internal static double PatternSpacingNm(PhaseContext ctx, AircraftState lead)
-    {
-        AircraftCategory leadCategory = AircraftCategorization.Categorize(lead.AircraftType);
-        double wakeNm = WakeTurbulenceData.OnApproachWakeSeparationNm(lead.AircraftType, leadCategory, ctx.AircraftType, ctx.Category);
-        return Math.Max(DesiredDistanceForLeader(leadCategory), wakeNm);
-    }
+    internal static double PatternSpacingNm(AircraftState lead) => DesiredDistanceForLeader(AircraftCategorization.Categorize(lead.AircraftType));
 
     /// <summary>
     /// Runway occupancy allowance for a landing lead of the given category: seconds from its

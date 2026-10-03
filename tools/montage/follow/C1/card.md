@@ -12,7 +12,7 @@
 **What to watch for.**
 
 1. `N52417` flies direct Lake Chabot with a right base for 28R queued behind it; `N738SP` joins a wide right base for 28R north-east of Lake Chabot. After the two `RTIS` calls at t=30 the lead calls "traffic in sight." at t=52 and the follower at t=55.
-2. At t=90 `FOLLOW N52417` is accepted with the lead 1.6 NM south of the follower and still runwayless. The follower is short of the 1.0 NM pattern spacing measured along the lead's path, so it says "S-turning for spacing behind the traffic." at t=91 and turns out to the north-west at 62 kt.
+2. At t=90 `FOLLOW N52417` is accepted with the lead 1.6 NM south of the follower and still runwayless. The follower is short of YAAT's 1.0 NM pattern spacing measured along the lead's path, so it says "S-turning for spacing behind the traffic." at t=91 and turns out to the north-west at 62 kt.
 3. At t=199 the lead's queued right base begins at Lake Chabot, and the follower joins the lead's base behind it. It is on the base from t=250, never more than 0.09 NM off the lead's base line, and never crosses south of the 28R centerline before its own final.
 4. Both are on final from t=359, the follower 1.43 NM behind; the trail never closes below 1.20 NM.
 5. The lead lands at t=525; the follower says "the traffic's on the ground, breaking off the follow." at t=537 and lands second at t=591.

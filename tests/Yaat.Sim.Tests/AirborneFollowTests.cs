@@ -275,6 +275,17 @@ public class AirborneFollowTests : IDisposable
     public void DesiredDistance_VariesByLeaderCategory(AircraftCategory cat, double expected) =>
         Assert.Equal(expected, AirborneFollowHelper.DesiredDistanceForLeader(cat));
 
+    [Theory]
+    [InlineData("B738", 3.0)]
+    [InlineData("B744", 3.0)]
+    [InlineData("C172", 1.0)]
+    public void PatternSpacing_IsTheCategorySpacingNotTheWakeMinimum(string leadType, double expected)
+    {
+        AircraftState lead = MakeAircraft(callsign: "LEAD", type: leadType);
+
+        Assert.Equal(expected, AirborneFollowHelper.PatternSpacingNm(lead));
+    }
+
     // -------------------------------------------------------------------------
     // Airborne FOLLOW command dispatch
     // -------------------------------------------------------------------------

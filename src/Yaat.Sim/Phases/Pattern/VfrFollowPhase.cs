@@ -46,13 +46,19 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     public const double MaxJoinGapNm = 5.0;
 
     /// <summary>
-    /// Minimum in-trail spacing (follower distance-to-threshold minus the lead's) before
-    /// sequencing onto a straight-in lead's final. Keeps the follower genuinely behind the
-    /// traffic (AIM 4-3-4.4 "no cutting in front") and at the same-runway separation floor
-    /// for a light single behind same/lighter traffic (7110.65 3-10-3); a heavier lead
-    /// raises the requirement to its wake minimum (see <see cref="TryJoinLeadFinal"/>).
+    /// The final-join in-trail floor behind a lead with no wake minimum for this follower: 1.5 NM, a YAAT convention (the pattern spacing behind a
+    /// turboprop), not an FAA figure. It keeps the follower behind the traffic (AIM 4-3-4.d). Behind a lead that carries a wake minimum for this
+    /// follower, <see cref="WakeLeadInTrailFloorNm"/> applies instead.
     /// </summary>
     public const double SameRunwayInTrailFloorNm = 1.5;
+
+    /// <summary>
+    /// The final-join in-trail floor behind a lead that carries a wake minimum for this follower. A judgement call: no interval is published for a
+    /// pilot landing behind a larger aircraft on a visual follow, so 2.5 NM borrows the two-minute interval the AIM recommends to pilots landing
+    /// after a larger aircraft's low approach, missed approach or touch-and-go ("an interval of at least 2 minutes", AIM 7-4-6.b.8), at a light
+    /// single's ~75 kt final groundspeed.
+    /// </summary>
+    public const double WakeLeadInTrailFloorNm = 2.5;
 
     /// <summary>Maximum cross-track from the extended centerline allowed when committing the turn onto a straight-in lead's final.</summary>
     public const double MaxFinalJoinCrossTrackNm = 1.0;
@@ -749,7 +755,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
     {
         if ((leadBase is not null) || (LeadCircuit(lead) is not null) || Commands.PatternCommandHandler.HasQueuedPatternEntry(lead))
         {
-            return AirborneFollowHelper.PatternSpacingNm(ctx, lead);
+            return AirborneFollowHelper.PatternSpacingNm(lead);
         }
 
         bool leadOnStraightInFinal =
@@ -1217,7 +1223,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
 
         if (
             (lead.Phases?.CurrentPhase is not BasePhase)
-            || !CanJoinLeadBase(ctx.Aircraft, join, gapToLeadNm, AirborneFollowHelper.PatternSpacingNm(ctx, lead))
+            || !CanJoinLeadBase(ctx.Aircraft, join, gapToLeadNm, AirborneFollowHelper.PatternSpacingNm(lead))
         )
         {
             return false;
@@ -1296,7 +1302,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         double pathGapNm = _leadPath.LengthFromNm(join.StartPoint, lead.Position) + extensionNm;
         if (
             _widen.Active
-            || (pathGapNm < AirborneFollowHelper.PatternSpacingNm(ctx, lead))
+            || (pathGapNm < AirborneFollowHelper.PatternSpacingNm(lead))
             || !IsOnPatternSide(ctx.Aircraft, runway, join.Waypoints.Direction)
             || CapturePathCrossesParallelFinal(ctx.Aircraft.Position, finalAbeam, runway)
         )
@@ -1414,10 +1420,10 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
         double crossTrackNm = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, threshold, runway.TrueHeading));
         double interceptDeg = ctx.Aircraft.TrueTrack.AbsAngleTo(runway.TrueHeading);
 
-        // In-trail floor: stay genuinely behind the traffic (AIM 4-3-4.4 "no cutting in
-        // front") and no closer than the same-runway separation minimum (7110.65 3-10-3) —
-        // or the wake-turbulence minimum when the lead is heavier (TBL 5-5-2). Until that
-        // spacing exists, keep pursuing rather than rolling onto final too close.
+        // In-trail floor: stay behind the traffic (a pilot "should not take advantage of another aircraft, which is on final approach to land,
+        // by cutting in front of, or overtaking that aircraft", AIM 4-3-4.d) and no closer than the same-runway floor, or the wake floor
+        // behind a lead that carries a wake minimum for this follower. Until that spacing exists, keep pursuing rather than rolling onto final
+        // too close.
         if (followerDistNm - leadDistNm < RequiredFinalInTrailNm(ctx, lead))
         {
             return false;
@@ -1452,9 +1458,11 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
 
     /// <summary>
     /// The in-trail spacing a follower needs before it is sequenced onto a straight-in lead's final: the same-runway floor
-    /// (<see cref="SameRunwayInTrailFloorNm"/>), or the wake-turbulence minimum behind a heavier lead.
+    /// (<see cref="SameRunwayInTrailFloorNm"/>), or <see cref="WakeLeadInTrailFloorNm"/> behind a lead with a wake minimum
+    /// for this follower. The radar wake minimum itself does not apply: accepting instructions to follow an aircraft puts
+    /// wake turbulence separation on the pilot (AIM 7-4-8.b).
     /// </summary>
-    private static double RequiredFinalInTrailNm(PhaseContext ctx, AircraftState lead)
+    internal static double RequiredFinalInTrailNm(PhaseContext ctx, AircraftState lead)
     {
         double leadWakeMinNm = WakeTurbulenceData.OnApproachWakeSeparationNm(
             lead.AircraftType,
@@ -1462,7 +1470,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             ctx.AircraftType,
             ctx.Category
         );
-        return Math.Max(SameRunwayInTrailFloorNm, leadWakeMinNm);
+        return leadWakeMinNm > 0 ? WakeLeadInTrailFloorNm : SameRunwayInTrailFloorNm;
     }
 
     /// <summary>
@@ -2071,7 +2079,7 @@ public sealed class VfrFollowPhase(string targetCallsign, FollowPatternReturn? p
             && ShouldExitTurnOut(
                 leadPassedAbeam,
                 BaseFollowSpacing.ProjectedBaseGapNm(ctx, lead, runway),
-                AirborneFollowHelper.PatternSpacingNm(ctx, lead)
+                AirborneFollowHelper.PatternSpacingNm(lead)
             )
             && !CapturePathCrossesParallelFinal(
                 ctx.Aircraft.Position,

@@ -1,6 +1,6 @@
 # G6 — Closed-traffic climb follows a runwayless lead, holding the upwind first
 
-**Rule.** A VFR departure in closed traffic told, during its takeoff climb, to follow traffic that has no runway yet accepts the follow but does not turn toward the lead at once. It flies the departure leg first: straight ahead past the departure end of the runway until it is within 300 ft of pattern altitude. Then it turns and pursues the lead, and when the lead joins the pattern it flies the circuit behind it and lands second.
+**Rule.** A VFR departure in closed traffic told, during its takeoff climb, to follow traffic that has no runway yet accepts the follow but does not turn toward the lead at once. It flies the departure leg first: straight ahead until it is at least 1/2 mile beyond the departure end of the runway and within 300 ft of pattern altitude. Then it turns and pursues the lead, and when the lead joins the pattern it flies the circuit behind it and lands second.
 
 **Grounding.**
 

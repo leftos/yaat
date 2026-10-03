@@ -166,6 +166,92 @@ public class FollowJoinGateTests
         Assert.Equal("28R", follower.Phases.AssignedRunway?.Designator);
     }
 
+    // ─── Visual follow: the final-join in-trail floor ───
+
+    /// <summary>
+    /// The in-trail floor the final join waits for: <see cref="VfrFollowPhase.SameRunwayInTrailFloorNm"/> behind a lead with
+    /// no wake minimum for this follower, <see cref="VfrFollowPhase.WakeLeadInTrailFloorNm"/> behind one that has one. The
+    /// radar wake minimum itself does not apply to a visual follow (AIM 7-4-8.b).
+    /// </summary>
+    [Theory]
+    [InlineData("C550", "C172", 1.5)] // TBL 5-5-2 has no (I, I) cell: a light jet carries no minimum for a light single
+    [InlineData("C172", "C172", 1.5)]
+    [InlineData("B738", "B738", 1.5)] // no (F, F) cell either
+    [InlineData("B738", "C172", 2.5)] // TBL 5-5-2 (F, I) = 4 nm
+    [InlineData("B744", "C172", 2.5)] // TBL 5-5-2 (B, I) = 6 nm
+    public void FinalInTrail_IsTheSameRunwayFloorOrTheWakeFloor(string leadType, string followerType, double expected)
+    {
+        AircraftState lead = MakeVfr(Leader, new LatLon(37.0, -122.0), new TrueHeading(280), altitude: 1000, ias: 90);
+        lead.AircraftType = leadType;
+        AircraftState follower = MakeVfr(Follower, new LatLon(37.0, -122.0), new TrueHeading(280), altitude: 1000, ias: 90);
+        follower.AircraftType = followerType;
+        PhaseContext ctx = Ctx(follower, Runway28R(), cs => cs == Leader ? lead : null);
+
+        Assert.Equal(expected, VfrFollowPhase.RequiredFinalInTrailNm(ctx, lead));
+    }
+
+    [Fact]
+    public void JoinLeadFinal_BehindALightJetWithNoWakeMinimum_JoinsAtTheSameRunwayFloor()
+    {
+        RunwayInfo rwy = Runway28R();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
+        // 2.0 nm in trail of a C550 on a 1.4 nm straight-in final, 0.5 nm off the centerline, 25° intercept.
+        (AircraftState? follower, VfrFollowPhase? phase, PhaseContext? ctx) = SetupFinalJoin(
+            rwy,
+            leadDistNm: 1.4,
+            followerAlongNm: 3.4,
+            followerCrossNm: 0.5,
+            followerTrackDeg: 255
+        );
+        ctx.AircraftLookup!(Leader)!.AircraftType = "C550";
+
+        phase.OnTick(ctx);
+
+        Assert.IsType<PatternEntryPhase>(follower.Phases!.CurrentPhase);
+        Assert.Equal("28R", follower.Phases.AssignedRunway?.Designator);
+    }
+
+    [Fact]
+    public void JoinLeadFinal_BehindAWakeLead_WaitsForTheWakeFloor()
+    {
+        RunwayInfo rwy = Runway28R();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
+        // 2.0 nm in trail of a B744: inside the 2.5 nm wake floor, so the join keeps pursuing.
+        (AircraftState? follower, VfrFollowPhase? phase, PhaseContext? ctx) = SetupFinalJoin(
+            rwy,
+            leadDistNm: 1.4,
+            followerAlongNm: 3.4,
+            followerCrossNm: 0.5,
+            followerTrackDeg: 255
+        );
+        ctx.AircraftLookup!(Leader)!.AircraftType = "B744";
+
+        phase.OnTick(ctx);
+
+        Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
+    }
+
+    [Fact]
+    public void JoinLeadFinal_BehindAWakeLead_JoinsPastTheWakeFloor()
+    {
+        RunwayInfo rwy = Runway28R();
+        using IDisposable _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
+        // 2.7 nm in trail of a B744: past the 2.5 nm wake floor, so the join commits.
+        (AircraftState? follower, VfrFollowPhase? phase, PhaseContext? ctx) = SetupFinalJoin(
+            rwy,
+            leadDistNm: 1.4,
+            followerAlongNm: 4.1,
+            followerCrossNm: 0.5,
+            followerTrackDeg: 255
+        );
+        ctx.AircraftLookup!(Leader)!.AircraftType = "B744";
+
+        phase.OnTick(ctx);
+
+        Assert.IsType<PatternEntryPhase>(follower.Phases!.CurrentPhase);
+        Assert.Equal("28R", follower.Phases.AssignedRunway?.Designator);
+    }
+
     // ─── Parallel-final capture gate ───
 
     /// <summary>

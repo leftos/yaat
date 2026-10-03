@@ -357,10 +357,7 @@ public class BaseFollowSpacingTests(ITestOutputHelper output)
         SimulationEngine engine = BuildEngine();
         AircraftState lead = AddFinalLead(engine, "BE20", 4.8, 109.0);
         AircraftState follower = AddBaseFollower(engine, 3.0, 1.3);
-        double requiredNm = Math.Max(
-            AirborneFollowHelper.DesiredDistanceForLeader(AircraftCategory.Turboprop),
-            WakeTurbulenceData.OnApproachWakeSeparationNm("BE20", AircraftCategory.Turboprop, "C172", AircraftCategory.Piston)
-        );
+        double requiredNm = AirborneFollowHelper.DesiredDistanceForLeader(AircraftCategory.Turboprop);
 
         AssertTurnsOutAndTrails(engine, follower, lead, requiredNm);
     }
