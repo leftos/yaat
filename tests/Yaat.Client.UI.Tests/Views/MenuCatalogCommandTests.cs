@@ -15,7 +15,6 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Situation;
 using Yaat.Sim.Testing;
-using CatalogMenuView = Yaat.Client.ContextMenus.MenuView;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -217,15 +216,10 @@ public class MenuCatalogCommandTests
         return data;
     }
 
-    private static MenuContext Context() => RadarContext(VfrCommandsForIfr.EnterFinalOnly);
+    private static MenuContext Context() => Context(VfrCommandsForIfr.EnterFinalOnly);
 
-    /// <summary>A radar menu context under <paramref name="mode"/>, outside solo training, with no previous selection.</summary>
-    private static MenuContext RadarContext(VfrCommandsForIfr mode) =>
-        TestMenuContext.Create(Callsign, Initials, null, false, mode, CatalogMenuView.Radar);
-
-    /// <summary>A ground-view menu context under <paramref name="mode"/>, outside solo training, with no previous selection.</summary>
-    private static MenuContext GroundContext(VfrCommandsForIfr mode) =>
-        TestMenuContext.Create(Callsign, Initials, null, false, mode, CatalogMenuView.Ground);
+    /// <summary>A menu context under <paramref name="mode"/>, outside solo training, with no previous selection.</summary>
+    private static MenuContext Context(VfrCommandsForIfr mode) => TestMenuContext.Create(Callsign, Initials, null, false, mode);
 
     private static void Click(MenuItem item) => item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
 
@@ -316,14 +310,11 @@ public class MenuCatalogCommandTests
         Assert.Empty(host.AssumeSelectedCalls);
     }
 
-    [AvaloniaTheory]
-    [InlineData(CatalogMenuView.Radar)]
-    [InlineData(CatalogMenuView.List)]
-    [InlineData(CatalogMenuView.Ground)]
-    public void SquawkGroup_Ident_SendsIdent_OnEveryView(CatalogMenuView view)
+    [AvaloniaFact]
+    public void SquawkGroup_Ident_SendsIdent()
     {
         var host = new RecordingMenuHost("");
-        MenuItem squawk = SharedMenuGroups.Squawk(null, Context(), host, view);
+        MenuItem squawk = SharedMenuGroups.Squawk(null, Context(), host);
         MenuItem ident = Assert.Single(squawk.Items.OfType<MenuItem>(), i => (i.Header as string) == "Ident");
 
         Click(ident);
@@ -1126,8 +1117,8 @@ public class MenuCatalogCommandTests
         var host = new RecordingMenuHost("");
         MenuCatalogEntry entry = MenuCatalog.Get(MenuIds.GroundResumeTaxi);
 
-        Assert.True(entry.IsApplicable(ac, GroundContext(VfrCommandsForIfr.None)));
-        MenuItem? item = entry.Build(ac, GroundContext(VfrCommandsForIfr.None), host);
+        Assert.True(entry.IsApplicable(ac, Context(VfrCommandsForIfr.None)));
+        MenuItem? item = entry.Build(ac, Context(VfrCommandsForIfr.None), host);
         Assert.NotNull(item);
         Assert.Equal("Resume taxi", item.Header as string);
         Click(item);
@@ -1141,7 +1132,7 @@ public class MenuCatalogCommandTests
         var host = new RecordingMenuHost("");
         AircraftModel ac = OnGround("Holding Short 28R/10L", "IFR", "30");
 
-        MenuItem? item = MenuCatalog.Get(MenuIds.GroundCrossRunway).Build(ac, GroundContext(VfrCommandsForIfr.None), host);
+        MenuItem? item = MenuCatalog.Get(MenuIds.GroundCrossRunway).Build(ac, Context(VfrCommandsForIfr.None), host);
         Assert.NotNull(item);
         Assert.Equal("Cross 28R", item.Header as string);
         Click(item);
@@ -1153,7 +1144,7 @@ public class MenuCatalogCommandTests
     public void GroundRelative_SendsAsTheSelectedAircraft_NamingTheRightClickedOne()
     {
         var selected = new AircraftModel { Callsign = Selected, IsOnGround = true };
-        MenuContext context = TestMenuContext.Create(Callsign, Initials, selected, false, VfrCommandsForIfr.None, CatalogMenuView.Ground);
+        MenuContext context = TestMenuContext.Create(Callsign, Initials, selected, false, VfrCommandsForIfr.None);
         var host = new RecordingMenuHost("");
         var menu = new ContextMenu();
 
@@ -1175,7 +1166,7 @@ public class MenuCatalogCommandTests
         var same = new AircraftModel { Callsign = Callsign, IsOnGround = true };
         foreach (AircraftModel? selected in (AircraftModel?[])[null, airborne, same])
         {
-            MenuContext context = TestMenuContext.Create(Callsign, Initials, selected, false, VfrCommandsForIfr.None, CatalogMenuView.Ground);
+            MenuContext context = TestMenuContext.Create(Callsign, Initials, selected, false, VfrCommandsForIfr.None);
             var menu = new ContextMenu();
 
             SharedMenuGroups.AddRelative(menu.Items, OnGround("Taxiing", "IFR", ""), context, new RecordingMenuHost(""));
@@ -1193,7 +1184,7 @@ public class MenuCatalogCommandTests
             IsOnGround = false,
             LastReportedTrafficCallsign = Callsign,
         };
-        MenuContext context = TestMenuContext.Create(Callsign, Initials, selected, false, VfrCommandsForIfr.None, CatalogMenuView.Radar);
+        MenuContext context = TestMenuContext.Create(Callsign, Initials, selected, false, VfrCommandsForIfr.None);
         var host = new RecordingMenuHost("");
         var menu = new ContextMenu();
 
@@ -1215,7 +1206,7 @@ public class MenuCatalogCommandTests
     public void AirborneRelative_FollowOnlyAfterTrafficReportedInSight()
     {
         var selected = new AircraftModel { Callsign = Selected, IsOnGround = false };
-        MenuContext context = TestMenuContext.Create(Callsign, Initials, selected, false, VfrCommandsForIfr.None, CatalogMenuView.Radar);
+        MenuContext context = TestMenuContext.Create(Callsign, Initials, selected, false, VfrCommandsForIfr.None);
         var menu = new ContextMenu();
 
         SharedMenuGroups.AddRelative(menu.Items, new AircraftModel { Callsign = Callsign, IsOnGround = false }, context, new RecordingMenuHost(""));
@@ -1233,7 +1224,7 @@ public class MenuCatalogCommandTests
         ];
         foreach ((AircraftModel selected, AircraftModel clicked) in pairs)
         {
-            MenuContext context = TestMenuContext.Create(Callsign, Initials, selected, false, VfrCommandsForIfr.None, CatalogMenuView.Radar);
+            MenuContext context = TestMenuContext.Create(Callsign, Initials, selected, false, VfrCommandsForIfr.None);
             var menu = new ContextMenu();
 
             SharedMenuGroups.AddRelative(menu.Items, clicked, context, new RecordingMenuHost(""));
@@ -1243,12 +1234,12 @@ public class MenuCatalogCommandTests
     }
 
     /// <summary>
-    /// Every view crossed with each header row: the phase, the assigned runway and the header the submenu carries. The
-    /// held-runway rows name the held runway, the empty one names none.
+    /// Each header row: the phase, the assigned runway and the header the submenu carries. The held-runway rows name
+    /// the held runway, the empty one names none.
     /// </summary>
-    public static TheoryData<CatalogMenuView, string, string, string> CtoHeaderRows()
+    public static TheoryData<string, string, string> CtoHeaderRows()
     {
-        TheoryData<CatalogMenuView, string, string, string> data = [];
+        TheoryData<string, string, string> data = [];
         (string Phase, string AssignedRunway, string Header)[] rows =
         [
             ("Holding Short 15/33", "28R", "Cleared for takeoff 15"),
@@ -1256,12 +1247,9 @@ public class MenuCatalogCommandTests
             ("LinedUpAndWaiting", "30", "Cleared for takeoff 30"),
             ("LinedUpAndWaiting", "", "Cleared for takeoff"),
         ];
-        foreach (CatalogMenuView view in CtoViews)
+        foreach ((string phase, string assignedRunway, string header) in rows)
         {
-            foreach ((string phase, string assignedRunway, string header) in rows)
-            {
-                data.Add(view, phase, assignedRunway, header);
-            }
+            data.Add(phase, assignedRunway, header);
         }
 
         return data;
@@ -1269,34 +1257,31 @@ public class MenuCatalogCommandTests
 
     [AvaloniaTheory]
     [MemberData(nameof(CtoHeaderRows))]
-    public void Cto_HeaderNamesTheHeldRunway_ElseTheAssignedOne_OnEveryView(CatalogMenuView view, string phase, string assignedRunway, string header)
+    public void Cto_HeaderNamesTheHeldRunway_ElseTheAssignedOne(string phase, string assignedRunway, string header)
     {
         AircraftModel ac = OnGround(phase, "IFR", assignedRunway);
         MenuCatalogEntry entry = MenuCatalog.Get(MenuIds.TowerClearedForTakeoff);
-        MenuContext context = TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None, view);
+        MenuContext context = Context(VfrCommandsForIfr.None);
 
         Assert.True(entry.IsApplicable(ac, context));
-        Assert.Equal(header, CtoSubmenu(view, ac, new RecordingMenuHost("")).Header as string);
+        Assert.Equal(header, CtoSubmenu(ac, new RecordingMenuHost("")).Header as string);
     }
 
-    // Holding short of crossing runway 15 while assigned 28R: line up and wait names the held 15 on every view.
-    [AvaloniaTheory]
-    [InlineData(CatalogMenuView.Radar)]
-    [InlineData(CatalogMenuView.List)]
-    [InlineData(CatalogMenuView.Ground)]
-    public void LuawLabel_NamesHeldRunway_OnEveryView(CatalogMenuView view)
+    // Holding short of crossing runway 15 while assigned 28R: line up and wait names the held 15.
+    [AvaloniaFact]
+    public void LuawLabel_NamesHeldRunway()
     {
         AircraftModel ac = OnGround("Holding Short 15/33", "IFR", "28R");
-        MenuContext context = TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None, view);
+        MenuContext context = Context(VfrCommandsForIfr.None);
         MenuCatalogEntry entry = MenuCatalog.Get(MenuIds.TowerLineUpAndWait);
 
         Assert.True(entry.IsApplicable(ac, context));
         Assert.Equal("Line up and wait 15", entry.Build(ac, context, new RecordingMenuHost(""))?.Header as string);
     }
 
-    // A VFR C172 on the downwind to 28R: the Tower submenu every view builds offers the landing items in this order.
+    // A VFR C172 on the downwind to 28R: the Tower submenu offers the landing items in this order.
     [AvaloniaFact]
-    public void LandingBlockOrder_IsTheSameOnEveryView()
+    public void LandingBlockOrder_FollowsTheSharedOrder()
     {
         var ac = new AircraftModel
         {
@@ -1321,37 +1306,32 @@ public class MenuCatalogCommandTests
         ];
         var host = new RecordingMenuHost("");
 
-        MenuItem? tower = SharedMenuGroups.Tower(ac, RadarContext(VfrCommandsForIfr.None), host);
+        MenuItem? tower = SharedMenuGroups.Tower(ac, Context(VfrCommandsForIfr.None), host);
 
         Assert.NotNull(tower);
         Assert.Equal(expected, tower.Items.Select(Describe));
     }
 
-    /// <summary>The views the catalog builds the same Cleared for takeoff submenu on.</summary>
-    private static readonly CatalogMenuView[] CtoViews = [CatalogMenuView.Radar, CatalogMenuView.List, CatalogMenuView.Ground];
-
     /// <summary>
-    /// The Cleared for takeoff submenu <paramref name="view"/> builds for <paramref name="aircraft"/>, over
-    /// <paramref name="host"/>.
+    /// The Cleared for takeoff submenu built for <paramref name="aircraft"/> over <paramref name="host"/>.
     /// </summary>
-    private static MenuItem CtoSubmenu(CatalogMenuView view, AircraftModel aircraft, RecordingMenuHost host)
+    private static MenuItem CtoSubmenu(AircraftModel aircraft, RecordingMenuHost host)
     {
-        MenuContext context = TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None, view);
-        MenuItem? cto = MenuCatalog.Get(MenuIds.TowerClearedForTakeoff).Build(aircraft, context, host);
+        MenuItem? cto = MenuCatalog.Get(MenuIds.TowerClearedForTakeoff).Build(aircraft, Context(VfrCommandsForIfr.None), host);
         Assert.NotNull(cto);
         return cto;
     }
 
-    // The radar's takeoff submenu, on every view: one runway-bearing header, one child list, and one command per child.
-    // The ground's own modifier set and the list's bare leaf are gone.
+    // The takeoff submenu: one runway-bearing header, one child list, and one command per child.
     [AvaloniaFact]
-    public void Cto_VfrDeparture_OffersTheSameChildrenOnEveryView()
+    public void Cto_VfrDeparture_OffersTheSameChildren()
     {
         AircraftModel ac = OnGround("LinedUpAndWaiting", "VFR", "30");
-        Dictionary<CatalogMenuView, RecordingMenuHost> hosts = CtoViews.ToDictionary(v => v, _ => new RecordingMenuHost(""));
-        Dictionary<CatalogMenuView, MenuItem> submenus = CtoViews.ToDictionary(v => v, v => CtoSubmenu(v, ac, hosts[v]));
+        var host = new RecordingMenuHost("");
 
-        List<List<string>> children = [.. CtoViews.Select(v => submenus[v].Items.Select(Describe).ToList())];
+        MenuItem cto = CtoSubmenu(ac, host);
+
+        Assert.Equal("Cleared for takeoff 30", cto.Header as string);
         Assert.Equal(
             [
                 "Default (SID/on course)",
@@ -1369,38 +1349,29 @@ public class MenuCatalogCommandTests
                 "---",
                 "Custom...",
             ],
-            children[0]
+            cto.Items.Select(Describe)
         );
-        Assert.All(children, c => Assert.Equal(children[0], c));
 
-        foreach (CatalogMenuView view in CtoViews)
+        foreach (MenuItem child in cto.Items.OfType<MenuItem>().Where(i => (i.Header as string) != "Custom..."))
         {
-            Assert.Equal("Cleared for takeoff 30", submenus[view].Header as string);
-            foreach (MenuItem child in submenus[view].Items.OfType<MenuItem>().Where(i => (i.Header as string) != "Custom..."))
-            {
-                Click(child);
-            }
-
-            Assert.Equal(
-                ["CTO", "CTO RH", "CTO OC", "CTO MLT", "CTO MRT", "CTO MLC", "CTO MRC", "CTO MLD", "CTO MRD", "CTO ML270", "CTO MR270", "CTO 360"],
-                hosts[view].Sent.Select(s => s.Command)
-            );
+            Click(child);
         }
+
+        Assert.Equal(
+            ["CTO", "CTO RH", "CTO OC", "CTO MLT", "CTO MRT", "CTO MLC", "CTO MRC", "CTO MLD", "CTO MRD", "CTO ML270", "CTO MR270", "CTO 360"],
+            host.Sent.Select(s => s.Command)
+        );
     }
 
-    // IFR without the VFR set: the default clearance and an explicit runway heading, then the separator and Custom —
-    // the same on every view.
+    // IFR without the VFR set: the default clearance and an explicit runway heading, then the separator and Custom.
     [AvaloniaFact]
-    public void Cto_IfrDeparture_OffersDefaultAndRunwayHeading_OnEveryView()
+    public void Cto_IfrDeparture_OffersDefaultAndRunwayHeading()
     {
         AircraftModel ac = OnGround("LinedUpAndWaiting", "IFR", "30");
 
-        foreach (CatalogMenuView view in CtoViews)
-        {
-            MenuItem cto = CtoSubmenu(view, ac, new RecordingMenuHost(""));
-            Assert.Equal("Cleared for takeoff 30", cto.Header as string);
-            Assert.Equal(["Default (SID/on course)", "Fly runway heading", "---", "Custom..."], cto.Items.Select(Describe));
-        }
+        MenuItem cto = CtoSubmenu(ac, new RecordingMenuHost(""));
+        Assert.Equal("Cleared for takeoff 30", cto.Header as string);
+        Assert.Equal(["Default (SID/on course)", "Fly runway heading", "---", "Custom..."], cto.Items.Select(Describe));
     }
 
     // A host that cannot open a free-text popup gets neither the separator nor Custom: the submenu ends on a child.
@@ -1409,7 +1380,7 @@ public class MenuCatalogCommandTests
     {
         var host = new RecordingMenuHost("") { Capabilities = MenuHostCapabilities.None };
 
-        MenuItem cto = CtoSubmenu(CatalogMenuView.List, OnGround("LinedUpAndWaiting", "VFR", "30"), host);
+        MenuItem cto = CtoSubmenu(OnGround("LinedUpAndWaiting", "VFR", "30"), host);
 
         Assert.Empty(cto.Items.OfType<Separator>());
         Assert.NotEqual("Custom...", Assert.IsType<MenuItem>(cto.Items[^1]).Header as string);
@@ -1442,7 +1413,7 @@ public class MenuCatalogCommandTests
     [AvaloniaFact]
     public void Cto_HostWithInputPopup_EndsWithSeparatorAndCustom()
     {
-        MenuItem cto = CtoSubmenu(CatalogMenuView.Radar, OnGround("LinedUpAndWaiting", "IFR", "30"), new RecordingMenuHost(""));
+        MenuItem cto = CtoSubmenu(OnGround("LinedUpAndWaiting", "IFR", "30"), new RecordingMenuHost(""));
 
         Assert.Equal("Custom...", Assert.IsType<MenuItem>(cto.Items[^1]).Header as string);
         Assert.IsType<Separator>(cto.Items[^2]);
@@ -1456,9 +1427,7 @@ public class MenuCatalogCommandTests
         AircraftModel ac = OnGround("Taxiing", "IFR", "30");
         IMenuHost host = new ClientMenuHost(new MainViewModel(new FakeFilePickerService()), ac, new Border());
 
-        MenuItem? cto = MenuCatalog
-            .Get(MenuIds.TowerClearedForTakeoff)
-            .Build(ac, TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None, CatalogMenuView.Ground), host);
+        MenuItem? cto = MenuCatalog.Get(MenuIds.TowerClearedForTakeoff).Build(ac, Context(VfrCommandsForIfr.None), host);
 
         Assert.True(host.Capabilities.HasFlag(MenuHostCapabilities.InputPopup));
         Assert.NotNull(cto);
@@ -1467,7 +1436,7 @@ public class MenuCatalogCommandTests
     }
 
     // CTO where the sim takes it and never once rolling: a hold-short naming a runway (held, else assigned), taxiing
-    // with a runway (a deferred clearance), lined up, and lining up (a mid-line-up upgrade) — the same on every view.
+    // with a runway (a deferred clearance), lined up, and lining up (a mid-line-up upgrade).
     [AvaloniaTheory]
     [InlineData("Holding Short 28R/10L", "", true)]
     [InlineData("Holding Short", "28R", true)]
@@ -1478,10 +1447,10 @@ public class MenuCatalogCommandTests
     [InlineData("LiningUp", "28R", true)]
     [InlineData("Takeoff", "28R", false)]
     [InlineData("At Parking", "28R", false)]
-    public void Cto_OfferedInLiningUp_NeverInTakeoff_OnEveryView(string phase, string assignedRunway, bool offered) =>
-        AssertSameOnEveryView(MenuIds.TowerClearedForTakeoff, OnGround(phase, "IFR", assignedRunway), offered);
+    public void Cto_OfferedInLiningUp_NeverInTakeoff(string phase, string assignedRunway, bool offered) =>
+        AssertSame(MenuIds.TowerClearedForTakeoff, OnGround(phase, "IFR", assignedRunway), offered);
 
-    // LUAW at a hold-short naming a runway or taxiing with a runway — the ground view included.
+    // LUAW at a hold-short naming a runway or taxiing with a runway.
     [AvaloniaTheory]
     [InlineData("Holding Short 28R/10L", "", true)]
     [InlineData("Holding Short", "28R", true)]
@@ -1490,57 +1459,53 @@ public class MenuCatalogCommandTests
     [InlineData("Taxiing", "", false)]
     [InlineData("LinedUpAndWaiting", "28R", false)]
     [InlineData("LiningUp", "28R", false)]
-    public void Luaw_AtAHoldShortOrTaxiingWithARunway_OnEveryView(string phase, string assignedRunway, bool offered) =>
-        AssertSameOnEveryView(MenuIds.TowerLineUpAndWait, OnGround(phase, "IFR", assignedRunway), offered);
+    public void Luaw_AtAHoldShortOrTaxiingWithARunway(string phase, string assignedRunway, bool offered) =>
+        AssertSame(MenuIds.TowerLineUpAndWait, OnGround(phase, "IFR", assignedRunway), offered);
 
-    // Cancel takeoff clearance while lining up, lined up or rolling — the ground view included.
+    // Cancel takeoff clearance while lining up, lined up or rolling.
     [AvaloniaTheory]
     [InlineData("LiningUp", true)]
     [InlineData("LinedUpAndWaiting", true)]
     [InlineData("Takeoff", true)]
     [InlineData("Holding Short 28R/10L", false)]
     [InlineData("Taxiing", false)]
-    public void CancelTakeoff_LiningUpLinedUpOrRolling_OnEveryView(string phase, bool offered) =>
-        AssertSameOnEveryView(MenuIds.TowerCancelTakeoff, OnGround(phase, "IFR", "28R"), offered);
+    public void CancelTakeoff_LiningUpLinedUpOrRolling(string phase, bool offered) =>
+        AssertSame(MenuIds.TowerCancelTakeoff, OnGround(phase, "IFR", "28R"), offered);
 
     // RES from a hold-short only where HoldingShortPhase takes it: a mid-route bar (a crossing or an explicit hold-short)
     // with route left to resume onto. The bars where the sim refuses RES — the departure-runway bar and the end of an
     // incomplete route — both end the route, so "route left" is the whole gate. The departure-runway situation flag is
     // no substitute: it is also set at an intersection-departure explicit bar, where the sim accepts RES. The held
-    // stationary holds resume on every view as well.
+    // stationary holds resume as well.
     [AvaloniaTheory]
     [InlineData("Holding Short 28R/10L", true, "", true)]
     [InlineData("Holding Short 28R/10L", false, "", false)]
     [InlineData("Holding In Position", false, "HP", true)]
     [InlineData("Holding In Position", false, "", false)]
-    public void ResumeTaxi_OnlyWhereTheSimAcceptsRes_OnEveryView(string phase, bool hasActiveTaxiRoute, string holdKind, bool offered)
+    public void ResumeTaxi_OnlyWhereTheSimAcceptsRes(string phase, bool hasActiveTaxiRoute, string holdKind, bool offered)
     {
         AircraftModel ac = OnGround(phase, "IFR", "28R");
         ac.HasActiveTaxiRoute = hasActiveTaxiRoute;
         ac.HoldKind = holdKind;
 
-        AssertSameOnEveryView(MenuIds.GroundResumeTaxi, ac, offered);
+        AssertSame(MenuIds.GroundResumeTaxi, ac, offered);
     }
 
     // A taxiway or spot bar names no runway: line up and wait and Cleared for takeoff name the assigned departure
-    // runway instead, on every view.
+    // runway instead.
     [AvaloniaTheory]
     [InlineData("Holding Short B", MenuIds.TowerLineUpAndWait, "Line up and wait 28R")]
     [InlineData("Holding Short spot 17", MenuIds.TowerLineUpAndWait, "Line up and wait 28R")]
     [InlineData("Holding Short B", MenuIds.TowerClearedForTakeoff, "Cleared for takeoff 28R")]
     [InlineData("Holding Short spot 17", MenuIds.TowerClearedForTakeoff, "Cleared for takeoff 28R")]
-    public void TaxiwayBar_WithAnAssignedRunway_LuawAndCtoNameTheAssignedRunway_OnEveryView(string phase, string id, string header)
+    public void TaxiwayBar_WithAnAssignedRunway_LuawAndCtoNameTheAssignedRunway(string phase, string id, string header)
     {
         AircraftModel ac = OnGround(phase, "IFR", "28R");
-        AssertSameOnEveryView(id, ac, true);
+        AssertSame(id, ac, true);
 
-        foreach (CatalogMenuView view in new[] { CatalogMenuView.Radar, CatalogMenuView.List, CatalogMenuView.Ground })
-        {
-            MenuContext context = TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None, view);
-            MenuItem? item = MenuCatalog.Get(id).Build(ac, context, new RecordingMenuHost(""));
-            Assert.NotNull(item);
-            Assert.Equal(header, item.Header as string);
-        }
+        MenuItem? item = MenuCatalog.Get(id).Build(ac, Context(VfrCommandsForIfr.None), new RecordingMenuHost(""));
+        Assert.NotNull(item);
+        Assert.Equal(header, item.Header as string);
     }
 
     // A taxiway or spot bar with no assigned runway has no runway to name: no line up and wait or Cleared for takeoff.
@@ -1549,8 +1514,7 @@ public class MenuCatalogCommandTests
     [InlineData("Holding Short spot 17", MenuIds.TowerLineUpAndWait)]
     [InlineData("Holding Short B", MenuIds.TowerClearedForTakeoff)]
     [InlineData("Holding Short spot 17", MenuIds.TowerClearedForTakeoff)]
-    public void TaxiwayBar_WithNoAssignedRunway_NoLuawOrCto_OnEveryView(string phase, string id) =>
-        AssertSameOnEveryView(id, OnGround(phase, "IFR", ""), false);
+    public void TaxiwayBar_WithNoAssignedRunway_NoLuawOrCto(string phase, string id) => AssertSame(id, OnGround(phase, "IFR", ""), false);
 
     // A taxiway or spot bar protects no runway, so Cross is never offered there, even with a runway assigned.
     [AvaloniaTheory]
@@ -1558,17 +1522,17 @@ public class MenuCatalogCommandTests
     [InlineData("Holding Short C", "28R")]
     [InlineData("Holding Short F1", "")]
     [InlineData("Holding Short spot 17", "28R")]
-    public void TaxiwayBar_NeverOffersCross_OnEveryView(string phase, string assignedRunway) =>
-        AssertSameOnEveryView(MenuIds.GroundCrossRunway, OnGround(phase, "IFR", assignedRunway), false);
+    public void TaxiwayBar_NeverOffersCross(string phase, string assignedRunway) =>
+        AssertSame(MenuIds.GroundCrossRunway, OnGround(phase, "IFR", assignedRunway), false);
 
     [AvaloniaFact]
-    public void ResumeTaxi_NeverForASurfaceShadow_OnEveryView()
+    public void ResumeTaxi_NeverForASurfaceShadow()
     {
         AircraftModel shadow = OnGround("Holding Short 28R/10L", "IFR", "28R");
         shadow.IsLiveTraffic = true;
         shadow.HasActiveTaxiRoute = true;
 
-        AssertSameOnEveryView(MenuIds.GroundResumeTaxi, shadow, false);
+        AssertSame(MenuIds.GroundResumeTaxi, shadow, false);
     }
 
     // Cross the runway held short of, named by the phase or the assignment, and never for an uncontrollable shadow.
@@ -1578,17 +1542,12 @@ public class MenuCatalogCommandTests
     [InlineData("Holding Short", "", false, false)]
     [InlineData("Taxiing", "28R", false, false)]
     [InlineData("Holding Short 28R/10L", "28R", true, false)]
-    public void CrossRunway_HoldingShortOfANamedRunway_NeverForAShadow_OnEveryView(
-        string phase,
-        string assignedRunway,
-        bool surfaceShadow,
-        bool offered
-    )
+    public void CrossRunway_HoldingShortOfANamedRunway_NeverForAShadow(string phase, string assignedRunway, bool surfaceShadow, bool offered)
     {
         AircraftModel ac = OnGround(phase, "IFR", assignedRunway);
         ac.IsLiveTraffic = surfaceShadow;
 
-        AssertSameOnEveryView(MenuIds.GroundCrossRunway, ac, offered);
+        AssertSame(MenuIds.GroundCrossRunway, ac, offered);
     }
 
     // The release-window check for an aircraft on the ground with a window, and never for an uncontrollable shadow.
@@ -1596,48 +1555,42 @@ public class MenuCatalogCommandTests
     [InlineData(true, false, true)]
     [InlineData(false, false, false)]
     [InlineData(true, true, false)]
-    public void CheckReleaseWindow_OnTheGroundWithAWindow_NeverForAShadow_OnEveryView(bool hasWindow, bool surfaceShadow, bool offered)
+    public void CheckReleaseWindow_OnTheGroundWithAWindow_NeverForAShadow(bool hasWindow, bool surfaceShadow, bool offered)
     {
         AircraftModel ac = OnGround("Taxiing", "IFR", "28R");
         ac.CfrWindowStartUtc = hasWindow ? new DateTime(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc) : null;
         ac.IsLiveTraffic = surfaceShadow;
 
-        AssertSameOnEveryView(MenuIds.CoordinationCheckReleaseWindow, ac, offered);
+        AssertSame(MenuIds.CoordinationCheckReleaseWindow, ac, offered);
     }
 
-    // Release (HFR) for a held departure on any view, and never for an uncontrollable surface shadow.
+    // Release (HFR) for a held departure, and never for an uncontrollable surface shadow.
     [AvaloniaTheory]
     [InlineData(true, false, true)]
     [InlineData(false, false, false)]
     [InlineData(true, true, false)]
-    public void ReleaseHeld_OfferedOnlyWhenHeldAndControllable_OnEveryView(bool held, bool surfaceShadow, bool offered)
+    public void ReleaseHeld_OfferedOnlyWhenHeldAndControllable(bool held, bool surfaceShadow, bool offered)
     {
         AircraftModel ac = OnGround("Taxiing", "IFR", "28R");
         ac.IsHeldForRelease = held;
         ac.IsLiveTraffic = surfaceShadow;
 
-        AssertSameOnEveryView(MenuIds.CoordinationReleaseHeld, ac, offered);
+        AssertSame(MenuIds.CoordinationReleaseHeld, ac, offered);
     }
 
-    private static void AssertSameOnEveryView(string id, AircraftModel ac, bool offered)
+    private static void AssertSame(string id, AircraftModel ac, bool offered)
     {
         MenuCatalogEntry entry = MenuCatalog.Get(id);
 
-        Assert.Equal(offered, entry.IsApplicable(ac, RadarContext(VfrCommandsForIfr.None)));
-        Assert.Equal(offered, entry.IsApplicable(ac, ListContext(VfrCommandsForIfr.None)));
-        Assert.Equal(offered, entry.IsApplicable(ac, GroundContext(VfrCommandsForIfr.None)));
+        Assert.Equal(offered, entry.IsApplicable(ac, Context(VfrCommandsForIfr.None)));
     }
 
-    // --- The ListContext / ShadowSelectionContext helpers the command tests share ---
+    // --- The context helpers the command tests share ---
 
-    /// <summary>An aircraft-list context under <paramref name="mode"/>, outside solo training, with no previous selection.</summary>
-    private static MenuContext ListContext(VfrCommandsForIfr mode) =>
-        TestMenuContext.Create(Callsign, Initials, null, false, mode, CatalogMenuView.List);
-
-    /// <summary>An aircraft-list context whose selected rows are airborne live-traffic shadows named <paramref name="callsigns"/>.</summary>
+    /// <summary>A context whose selected rows are airborne live-traffic shadows named <paramref name="callsigns"/>.</summary>
     private static MenuContext ShadowSelectionContext(params string[] callsigns)
     {
-        MenuContext context = ListContext(VfrCommandsForIfr.EnterFinalOnly);
+        MenuContext context = Context(VfrCommandsForIfr.EnterFinalOnly);
         List<IMenuAircraft> shadows =
         [
             .. callsigns.Select(callsign => new AircraftModel
@@ -1656,7 +1609,7 @@ public class MenuCatalogCommandTests
     private static ContextMenu DelayedSpawnMenu(RecordingMenuHost host)
     {
         var menu = new ContextMenu();
-        SharedMenuGroups.AddDelayedSpawn(menu, new FakeMenuAircraft(), ListContext(VfrCommandsForIfr.None), host);
+        SharedMenuGroups.AddDelayedSpawn(menu, new FakeMenuAircraft(), Context(VfrCommandsForIfr.None), host);
         return menu;
     }
 
@@ -1839,9 +1792,9 @@ public class MenuCatalogCommandTests
         };
         var host = new RecordingMenuHost("");
 
-        MenuItem? all = SharedMenuGroups.Pattern(aircraft, RadarContext(VfrCommandsForIfr.All), host);
-        MenuItem? enterFinalOnly = SharedMenuGroups.Pattern(aircraft, RadarContext(VfrCommandsForIfr.EnterFinalOnly), host);
-        MenuItem? none = SharedMenuGroups.Pattern(aircraft, RadarContext(VfrCommandsForIfr.None), host);
+        MenuItem? all = SharedMenuGroups.Pattern(aircraft, Context(VfrCommandsForIfr.All), host);
+        MenuItem? enterFinalOnly = SharedMenuGroups.Pattern(aircraft, Context(VfrCommandsForIfr.EnterFinalOnly), host);
+        MenuItem? none = SharedMenuGroups.Pattern(aircraft, Context(VfrCommandsForIfr.None), host);
 
         Assert.NotNull(all);
         Click(Assert.Single(all.Items.OfType<MenuItem>(), m => m.Header as string == "Turn base"));

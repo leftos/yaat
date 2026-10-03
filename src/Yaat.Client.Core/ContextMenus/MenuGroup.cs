@@ -11,11 +11,4 @@ public enum MenuGroup
     Procedures,
     Tower,
     Pattern,
-    Tracking,
-    DataBlock,
-    Squawk,
-    Coordination,
-    Assignment,
-    DatablockToggle,
-    Delete,
 }

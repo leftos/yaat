@@ -14,7 +14,6 @@ using Yaat.Client.Views.Ground;
 using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar;
 using Yaat.Sim.Commands;
-using CatalogMenuView = Yaat.Client.ContextMenus.MenuView;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -70,7 +69,7 @@ public class CanvasMenuSectionTests
         return (view, canvas, window);
     }
 
-    private static MenuContext Context(CatalogMenuView view) => TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None, view);
+    private static MenuContext Context() => TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None);
 
     // The ground's Display items: the order with a data-block offset set (no golden carries one), and that the
     // taxi-route radio and the datablock item write the ground view model and the canvas the section reads back.
@@ -83,7 +82,7 @@ public class CanvasMenuSectionTests
         {
             GroundViewModel ground = main.Ground;
             ground.DataBlockState.ManualOffsets[Callsign] = new SKPoint(12, 34);
-            MenuContext context = Context(CatalogMenuView.Ground);
+            MenuContext context = Context();
 
             List<MenuItem> items = [.. view.BuildCanvasItems(ground, context).OfType<MenuItem>()];
 
@@ -125,7 +124,7 @@ public class CanvasMenuSectionTests
         {
             RadarViewModel radar = main.Radar;
             var host = new RecordingMenuHost("");
-            MenuContext context = Context(CatalogMenuView.Radar);
+            MenuContext context = Context();
 
             canvas.ToggleMinifiedDataBlock(Callsign);
             radar.DataBlockState.ManualOffsets[Callsign] = new SKPoint(12, 34);
@@ -168,7 +167,7 @@ public class CanvasMenuSectionTests
         {
             RadarViewModel radar = main.Radar;
             var host = new RecordingMenuHost("");
-            MenuContext context = Context(CatalogMenuView.Radar);
+            MenuContext context = Context();
 
             radar.Measure = null;
             Assert.DoesNotContain("Measure", Headers(view.BuildCanvasDisplay(radar, context, host)));

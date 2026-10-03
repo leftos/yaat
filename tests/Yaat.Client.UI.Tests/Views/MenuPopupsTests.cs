@@ -15,7 +15,6 @@ using Yaat.Client.Views;
 using Yaat.Client.Views.Ground;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
-using CatalogMenuView = Yaat.Client.ContextMenus.MenuView;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -492,7 +491,7 @@ public class MenuPopupsTests
         AircraftModel ac = TaxiingJet();
         var host = new ClientMenuHost(main, ac, view.Canvas);
 
-        Click(CustomTakeoff(ac, CatalogMenuView.Ground, host));
+        Click(CustomTakeoff(ac, host));
         HeadlessWindowExtensions.PumpDispatcher();
 
         Popup popup = FindPopup(view);
@@ -524,7 +523,7 @@ public class MenuPopupsTests
         main.Aircraft.Add(ac);
         var host = new ClientMenuHost(main, ac, anchor);
 
-        Click(CustomTakeoff(ac, CatalogMenuView.List, host));
+        Click(CustomTakeoff(ac, host));
         HeadlessWindowExtensions.PumpDispatcher();
 
         Popup popup = FindPopup(anchor);
@@ -617,9 +616,9 @@ public class MenuPopupsTests
         };
 
     /// <summary>The takeoff submenu's trailing Custom… item over <paramref name="host"/>, asserting it is there.</summary>
-    private static MenuItem CustomTakeoff(AircraftModel aircraft, CatalogMenuView view, IMenuHost host)
+    private static MenuItem CustomTakeoff(AircraftModel aircraft, IMenuHost host)
     {
-        MenuContext context = TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None, view);
+        MenuContext context = TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None);
         MenuItem? cto = MenuCatalog.Get(MenuIds.TowerClearedForTakeoff).Build(aircraft, context, host);
         Assert.NotNull(cto);
         MenuItem custom = Assert.IsType<MenuItem>(cto.Items[^1]);

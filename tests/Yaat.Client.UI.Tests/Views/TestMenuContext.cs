@@ -1,6 +1,5 @@
 using Yaat.Client.ContextMenus;
 using Yaat.Sim.Commands;
-using CatalogMenuView = Yaat.Client.ContextMenus.MenuView;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -13,7 +12,6 @@ internal static class TestMenuContext
         string initials,
         IMenuAircraft? previousSelection,
         bool soloTrainingMode,
-        VfrCommandsForIfr vfrCommandsForIfr,
-        CatalogMenuView view
-    ) => new(new MenuClick(callsign, previousSelection, null, []), new MenuSession(initials, soloTrainingMode, vfrCommandsForIfr), view);
+        VfrCommandsForIfr vfrCommandsForIfr
+    ) => new(new MenuClick(callsign, previousSelection, null, []), new MenuSession(initials, soloTrainingMode, vfrCommandsForIfr));
 }

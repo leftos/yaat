@@ -7,49 +7,36 @@ namespace Yaat.Client.ContextMenus;
 /// The groups more than one surface builds — the menu header (title, Command…, Note…), live traffic, track, squawk, ask
 /// pilot, coordination, data block, favorites, the menu foot (warp, release to live feed, delete), and the flight groups
 /// heading, altitude, speed, navigation, hold, approach, procedures, tower and pattern — assembled from
-/// <see cref="MenuCatalog"/> entries. <see cref="AircraftMenuBuilder"/> builds every surface's menu as
-/// <see cref="MenuView.Radar"/>, so the radar's input pickers — handoff, point out, squawk code, custom say — are on
-/// every surface, and nothing reads <see cref="MenuContext.View"/>. Data block entries are capability-gated, so a surface
-/// without the free-text popup shows fewer of them. The relative items (<see cref="AddRelative"/>) are a group of their
-/// own. Whether a group is offered at all stays with the caller. A group whose items are canvas-only in nature — the
-/// Display submenu — takes the surface's prebuilt items instead of the entries: the surface builds them with
-/// <see cref="CanvasMenuItems"/> from its own canvas state and only the placing stays here.
+/// <see cref="MenuCatalog"/> entries. Every surface offers the input pickers — handoff, point out, squawk code, custom
+/// say. Data block entries are capability-gated, so a surface without the free-text popup shows fewer of them. The
+/// relative items (<see cref="AddRelative"/>) are a group of their own. Whether a group is offered at all stays with the
+/// caller. A group whose items are canvas-only in nature — the Display submenu — takes the surface's prebuilt items
+/// instead of the entries: the surface builds them with <see cref="CanvasMenuItems"/> from its own canvas state and only
+/// the placing stays here.
 /// </summary>
 public static class SharedMenuGroups
 {
     /// <summary>The Track submenu: track and drop, then the handoff and pointout items.</summary>
-    public static MenuItem Track(IMenuAircraft? aircraft, MenuContext context, IMenuHost host, MenuView view)
+    public static MenuItem Track(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         var menu = new MenuItem { Header = "Track" };
         TryAdd(menu.Items, TryLeaf(MenuIds.TrackTrack, aircraft, context, host));
         TryAdd(menu.Items, TryLeaf(MenuIds.TrackDrop, aircraft, context, host));
         menu.Items.Add(new Separator());
         TryAdd(menu.Items, TryLeaf(MenuIds.TrackAcceptHandoff, aircraft, context, host));
-        if (view == MenuView.Radar)
-        {
-            TryAdd(menu.Items, TryLeaf(MenuIds.TrackInitiateHandoff, aircraft, context, host));
-        }
-
+        TryAdd(menu.Items, TryLeaf(MenuIds.TrackInitiateHandoff, aircraft, context, host));
         TryAdd(menu.Items, TryLeaf(MenuIds.TrackCancelHandoff, aircraft, context, host));
-        if (view == MenuView.Radar)
-        {
-            menu.Items.Add(new Separator());
-            TryAdd(menu.Items, TryLeaf(MenuIds.TrackPointOut, aircraft, context, host));
-        }
-
+        menu.Items.Add(new Separator());
+        TryAdd(menu.Items, TryLeaf(MenuIds.TrackPointOut, aircraft, context, host));
         TryAdd(menu.Items, TryLeaf(MenuIds.TrackAcknowledgePointout, aircraft, context, host));
         return menu;
     }
 
     /// <summary>The Squawk submenu: the code items, then Ident.</summary>
-    public static MenuItem Squawk(IMenuAircraft? aircraft, MenuContext context, IMenuHost host, MenuView view)
+    public static MenuItem Squawk(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         var menu = new MenuItem { Header = "Squawk" };
-        if (view == MenuView.Radar)
-        {
-            TryAdd(menu.Items, TryLeaf(MenuIds.SquawkCode, aircraft, context, host));
-        }
-
+        TryAdd(menu.Items, TryLeaf(MenuIds.SquawkCode, aircraft, context, host));
         TryAdd(menu.Items, TryLeaf(MenuIds.SquawkRandom, aircraft, context, host));
         TryAdd(menu.Items, TryLeaf(MenuIds.SquawkVfr, aircraft, context, host));
         TryAdd(menu.Items, TryLeaf(MenuIds.SquawkNormal, aircraft, context, host));
@@ -59,8 +46,8 @@ public static class SharedMenuGroups
         return menu;
     }
 
-    /// <summary>The "Ask pilot to say..." submenu: the say queries, and on the radar a free-text one.</summary>
-    public static MenuItem AskPilot(IMenuAircraft? aircraft, MenuContext context, IMenuHost host, MenuView view)
+    /// <summary>The "Ask pilot to say..." submenu: the say queries and the free-text one.</summary>
+    public static MenuItem AskPilot(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         var menu = new MenuItem { Header = "Ask pilot to say..." };
         TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotAltitude, aircraft, context, host));
@@ -69,12 +56,8 @@ public static class SharedMenuGroups
         TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotMach, aircraft, context, host));
         TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotPosition, aircraft, context, host));
         TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotExpectedApproach, aircraft, context, host));
-        if (view == MenuView.Radar)
-        {
-            menu.Items.Add(new Separator());
-            TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotCustom, aircraft, context, host));
-        }
-
+        menu.Items.Add(new Separator());
+        TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotCustom, aircraft, context, host));
         return menu;
     }
 

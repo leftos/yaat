@@ -4,7 +4,6 @@ using Avalonia.Interactivity;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Sim.Commands;
-using CatalogMenuView = Yaat.Client.ContextMenus.MenuView;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -17,7 +16,7 @@ public class CanvasMenuItemsTests
     private const string Callsign = "SWA104";
     private const string Initials = "AB";
 
-    private static MenuContext Context() => TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None, CatalogMenuView.Radar);
+    private static MenuContext Context() => TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None);
 
     private static void Click(MenuItem item) => item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
 

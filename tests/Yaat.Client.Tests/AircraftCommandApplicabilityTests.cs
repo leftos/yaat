@@ -541,9 +541,9 @@ public class AircraftCommandApplicabilityTests
 
     // --- Hold short, follow and give way ---
 
-    /// <summary>A ground-view context for the <see cref="Ac"/> aircraft, with <paramref name="previousSelection"/> selected before it.</summary>
-    private static MenuContext GroundContext(AircraftModel? previousSelection) =>
-        new(new MenuClick("TST123", previousSelection, null, []), new MenuSession("AB", false, VfrCommandsForIfr.None), MenuView.Ground);
+    /// <summary>A menu context for the <see cref="Ac"/> aircraft, with <paramref name="previousSelection"/> selected before it.</summary>
+    private static MenuContext Context(AircraftModel? previousSelection) =>
+        new(new MenuClick("TST123", previousSelection, null, []), new MenuSession("AB", false, VfrCommandsForIfr.None));
 
     /// <summary>Another on-ground aircraft, selected before the right-click, which makes the ground menu relative.</summary>
     private static AircraftModel OtherGroundAircraft()
@@ -580,20 +580,20 @@ public class AircraftCommandApplicabilityTests
     [InlineData("Holding Short 28R", false)]
     [InlineData("Following UAL1", false)]
     public void CanFollowBehind_GroundPhases(string phase, bool expected) =>
-        Assert.Equal(expected, AircraftCommandApplicability.CanFollowBehind(Ac(phase, onGround: true), GroundContext(null)));
+        Assert.Equal(expected, AircraftCommandApplicability.CanFollowBehind(Ac(phase, onGround: true), Context(null)));
 
     [Fact]
     public void CanFollowBehind_RelativeSelectionShadowOrNoAircraft_IsFalse()
     {
         AircraftModel ac = Ac("Taxiing", onGround: true);
         AircraftModel selected = OtherGroundAircraft();
-        Assert.False(AircraftCommandApplicability.CanFollowBehind(ac, GroundContext(selected)));
+        Assert.False(AircraftCommandApplicability.CanFollowBehind(ac, Context(selected)));
 
         AircraftModel shadow = Ac("Taxiing", onGround: true);
         shadow.IsLiveTraffic = true;
-        Assert.False(AircraftCommandApplicability.CanFollowBehind(shadow, GroundContext(null)));
+        Assert.False(AircraftCommandApplicability.CanFollowBehind(shadow, Context(null)));
 
-        Assert.False(AircraftCommandApplicability.CanFollowBehind(null, GroundContext(null)));
+        Assert.False(AircraftCommandApplicability.CanFollowBehind(null, Context(null)));
     }
 
     /// <summary>An airborne selection, or the right-clicked aircraft itself, offers no relative items, so follow stays.</summary>
@@ -604,8 +604,8 @@ public class AircraftCommandApplicabilityTests
         AircraftModel airborne = OtherGroundAircraft();
         airborne.IsOnGround = false;
 
-        Assert.True(AircraftCommandApplicability.CanFollowBehind(ac, GroundContext(airborne)));
-        Assert.True(AircraftCommandApplicability.CanFollowBehind(ac, GroundContext(Ac("Taxiing", onGround: true))));
+        Assert.True(AircraftCommandApplicability.CanFollowBehind(ac, Context(airborne)));
+        Assert.True(AircraftCommandApplicability.CanFollowBehind(ac, Context(Ac("Taxiing", onGround: true))));
     }
 
     [Theory]
@@ -623,7 +623,7 @@ public class AircraftCommandApplicabilityTests
     {
         AircraftModel ac = Ac(phase, onGround: true);
         ac.HasActiveTaxiRoute = hasActiveTaxiRoute;
-        Assert.Equal(expected, AircraftCommandApplicability.CanGiveWayTo(ac, GroundContext(null)));
+        Assert.Equal(expected, AircraftCommandApplicability.CanGiveWayTo(ac, Context(null)));
     }
 
     [Fact]
@@ -631,13 +631,13 @@ public class AircraftCommandApplicabilityTests
     {
         AircraftModel ac = Ac("Taxiing", onGround: true);
         AircraftModel selected = OtherGroundAircraft();
-        Assert.False(AircraftCommandApplicability.CanGiveWayTo(ac, GroundContext(selected)));
+        Assert.False(AircraftCommandApplicability.CanGiveWayTo(ac, Context(selected)));
 
         AircraftModel shadow = Ac("Taxiing", onGround: true);
         shadow.IsLiveTraffic = true;
-        Assert.False(AircraftCommandApplicability.CanGiveWayTo(shadow, GroundContext(null)));
+        Assert.False(AircraftCommandApplicability.CanGiveWayTo(shadow, Context(null)));
 
-        Assert.False(AircraftCommandApplicability.CanGiveWayTo(null, GroundContext(null)));
+        Assert.False(AircraftCommandApplicability.CanGiveWayTo(null, Context(null)));
     }
 
     /// <summary>An airborne selection, or the right-clicked aircraft itself, offers no relative items, so give way stays.</summary>
@@ -648,7 +648,7 @@ public class AircraftCommandApplicabilityTests
         AircraftModel airborne = OtherGroundAircraft();
         airborne.IsOnGround = false;
 
-        Assert.True(AircraftCommandApplicability.CanGiveWayTo(ac, GroundContext(airborne)));
-        Assert.True(AircraftCommandApplicability.CanGiveWayTo(ac, GroundContext(Ac("Taxiing", onGround: true))));
+        Assert.True(AircraftCommandApplicability.CanGiveWayTo(ac, Context(airborne)));
+        Assert.True(AircraftCommandApplicability.CanGiveWayTo(ac, Context(Ac("Taxiing", onGround: true))));
     }
 }

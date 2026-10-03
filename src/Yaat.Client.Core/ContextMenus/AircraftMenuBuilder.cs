@@ -32,8 +32,7 @@ public static class AircraftMenuBuilder
     /// </param>
     public static ContextMenu Build(IMenuAircraft? aircraft, MenuClick click, IMenuHost host, Func<MenuContext, IReadOnlyList<Control>> viewSection)
     {
-        // Radar, so the per-view groups build every picker: every view now has the popups they open.
-        var context = new MenuContext(click, host.Session, MenuView.Radar);
+        var context = new MenuContext(click, host.Session);
         if (click.Point is not null)
         {
             return BuildPointMenu(
@@ -138,7 +137,7 @@ public static class AircraftMenuBuilder
         IReadOnlyList<Control> section
     )
     {
-        items.Add(SharedMenuGroups.Track(aircraft, context, host, MenuView.Radar));
+        items.Add(SharedMenuGroups.Track(aircraft, context, host));
         items.Add(SharedMenuGroups.DataBlock(aircraft, context, host));
         items.Add(SharedMenuGroups.Coordination(aircraft, context, host));
         SharedMenuGroups.AddRange(items, section);
@@ -172,12 +171,12 @@ public static class AircraftMenuBuilder
         SharedMenuGroups.AddIfApplicable(items, MenuIds.GroundDrawTaxiRoute, aircraft, context, host);
 
         items.Add(new Separator());
-        items.Add(SharedMenuGroups.Track(aircraft, context, host, MenuView.Radar));
+        items.Add(SharedMenuGroups.Track(aircraft, context, host));
         items.Add(SharedMenuGroups.DataBlock(aircraft, context, host));
-        items.Add(SharedMenuGroups.Squawk(aircraft, context, host, MenuView.Radar));
+        items.Add(SharedMenuGroups.Squawk(aircraft, context, host));
         if (AircraftCommandApplicability.CanAskPilot(aircraft))
         {
-            items.Add(SharedMenuGroups.AskPilot(aircraft, context, host, MenuView.Radar));
+            items.Add(SharedMenuGroups.AskPilot(aircraft, context, host));
         }
 
         items.Add(SharedMenuGroups.Coordination(aircraft, context, host));

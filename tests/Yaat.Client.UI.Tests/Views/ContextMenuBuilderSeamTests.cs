@@ -11,7 +11,6 @@ using Yaat.Client.Views.Ground;
 using Yaat.Client.Views.Radar;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
-using CatalogMenuView = Yaat.Client.ContextMenus.MenuView;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -198,8 +197,8 @@ public class ContextMenuBuilderSeamTests
     /// <summary>The top-level Display submenu of a menu that offers one.</summary>
     private static MenuItem DisplayOf(ContextMenu menu) => menu.Items.OfType<MenuItem>().Single(i => (i.Header as string) == "Display");
 
-    /// <summary>A canvas click on the shadow <c>SWA9</c> for <paramref name="view"/>, the way that view builds it.</summary>
-    private static MenuContext Context(CatalogMenuView view) => TestMenuContext.Create("SWA9", "AB", null, false, VfrCommandsForIfr.None, view);
+    /// <summary>A canvas click on the shadow <c>SWA9</c>, the way a view builds it.</summary>
+    private static MenuContext Context() => TestMenuContext.Create("SWA9", "AB", null, false, VfrCommandsForIfr.None);
 
     /// <summary>The Display submenu's item headers, in order.</summary>
     private static List<string> DisplayHeaders(ContextMenu menu) =>
@@ -214,10 +213,9 @@ public class ContextMenuBuilderSeamTests
 
         (RadarView radarView, MainViewModel radarMain) = RadarHarness();
         (GroundView groundView, GroundViewModel ground, _) = GroundHarness();
-        MenuContext radar = Context(CatalogMenuView.Radar);
-        MenuContext groundContext = Context(CatalogMenuView.Ground);
+        MenuContext context = Context();
 
-        MenuItem[] displays = [radarView.BuildCanvasDisplay(radarMain.Radar, radar, host), groundView.BuildCanvasDisplay(ground, groundContext)];
+        MenuItem[] displays = [radarView.BuildCanvasDisplay(radarMain.Radar, context, host), groundView.BuildCanvasDisplay(ground, context)];
 
         foreach (MenuItem display in displays)
         {

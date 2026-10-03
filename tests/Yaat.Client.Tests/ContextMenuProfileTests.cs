@@ -5,17 +5,6 @@ namespace Yaat.Client.Tests;
 
 public class ContextMenuProfileTests
 {
-    private static readonly MenuGroup[] AlwaysVisibleGroups =
-    [
-        MenuGroup.Tracking,
-        MenuGroup.DataBlock,
-        MenuGroup.Squawk,
-        MenuGroup.Coordination,
-        MenuGroup.Assignment,
-        MenuGroup.DatablockToggle,
-        MenuGroup.Delete,
-    ];
-
     private static readonly MenuGroup[] PhaseGroups =
     [
         MenuGroup.Heading,
@@ -28,36 +17,6 @@ public class ContextMenuProfileTests
         MenuGroup.Tower,
         MenuGroup.Pattern,
     ];
-
-    [Fact]
-    public void AlwaysVisibleGroups_NeverHidden()
-    {
-        // Test with a variety of phases
-        string[] phases =
-        [
-            "",
-            "At Parking",
-            "Taxiing",
-            "Takeoff",
-            "InitialClimb",
-            "Downwind",
-            "FinalApproach",
-            "ApproachNav",
-            "HoldingPattern",
-            "Landing",
-            "GoAround",
-            "S-Turns",
-        ];
-
-        foreach (string phase in phases)
-        {
-            ContextMenuProfile profile = ContextMenuProfileService.GetProfile(phase, false);
-            foreach (MenuGroup group in AlwaysVisibleGroups)
-            {
-                Assert.DoesNotContain(group, profile.HiddenGroups);
-            }
-        }
-    }
 
     [Theory]
     [InlineData(null)]

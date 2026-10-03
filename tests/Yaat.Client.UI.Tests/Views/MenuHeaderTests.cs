@@ -17,7 +17,6 @@ using Yaat.Client.Views.Ground;
 using Yaat.Client.Views.Radar;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
-using CatalogMenuView = Yaat.Client.ContextMenus.MenuView;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -523,7 +522,7 @@ public class MenuHeaderTests
 
     private static ItemCollection Header(AircraftModel? ac, IMenuHost host)
     {
-        MenuContext context = TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None, CatalogMenuView.Ground);
+        MenuContext context = TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None);
         var menu = new ContextMenu();
         SharedMenuGroups.AddHeader(menu.Items, ac, context, host);
         return menu.Items;
