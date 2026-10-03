@@ -78,10 +78,10 @@ public class PhraseologyMapperTraceTests
     [InlineData("make straight in", "EF")]
     public void MakeStraightIn_Matches_EnterFinal_With_Optional_Runway(string transcript, string expectedCanonical)
     {
-        // AIM 4-3-3 / FAA 7110.65 §3-10-4: tower may direct VFR pilots to "MAKE STRAIGHT-IN
-        // (APPROACH) RUNWAY (number)". Maps to EF with the runway captured so the post-clearance
-        // pattern entry knows which final to fly. Pilot AI verbalizes EnterFinal with null RunwayId
-        // as the bare "enter final" form; that's preserved because the bare rule stays first.
+        // 7110.65 §3-10-1.a "MAKE STRAIGHT-IN" (runway per §3-10-1.b); the "…approach" variant is
+        // accepted on recognition only. Maps to EF with the runway captured so the post-clearance
+        // pattern entry knows which final to fly. The pilot AI verbalizes EnterFinal as
+        // "make straight in [runway {rwy}]"; "enter final" is SttOnly.
         MapContext ctx = MapContext.Empty with
         {
             AvailableRunways = new Dictionary<string, IReadOnlyList<string>> { ["KOAK"] = ["28R"] },

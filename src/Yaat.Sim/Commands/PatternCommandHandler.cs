@@ -899,13 +899,13 @@ internal static class PatternCommandHandler
             );
         }
 
-        string legDesc =
+        string verb =
             entryLeg == PatternEntryLeg.Final
-                ? "final"
-                : $"{(direction == PatternDirection.Left ? "left" : "right")} {entryLeg.ToString().ToLowerInvariant()}";
+                ? "Make straight-in"
+                : $"Enter {(direction == PatternDirection.Left ? "left" : "right")} {entryLeg.ToString().ToLowerInvariant()}";
         string distStr = finalDistanceNm is not null ? $", {finalDistanceNm:G}nm final" : "";
         string sideStr = isOnWrongSide ? " (crossing midfield)" : "";
-        return CommandDispatcher.Ok($"Enter {legDesc}{CommandDispatcher.RunwayLabel(aircraft)}{distStr}{sideStr}");
+        return CommandDispatcher.Ok($"{verb}{CommandDispatcher.RunwayLabel(aircraft)}{distStr}{sideStr}");
     }
 
     internal static CommandResult TryChangePatternDirection(

@@ -456,8 +456,15 @@ public class PatternEntryTests : IDisposable
         Assert.IsType<FinalApproachPhase>(aircraft.Phases.Phases[1]);
     }
 
-    // ───────────────────────────────────────────────────────────────────────
-    // Entry point geometry validation
+    [Fact]
+    public void EnterFinal_Caption_IsMakeStraightIn()
+    {
+        // 7110.65 §3-10-1.a "MAKE STRAIGHT-IN"; the runway is a separate item of the landing
+        // information (§3-10-1.b), so it follows as ", Runway 28R".
+        Assert.Equal("Make straight-in, Runway 28R", CommandDescriber.DescribeNatural(new EnterFinalCommand("28R")));
+        Assert.Equal("Make straight-in", CommandDescriber.DescribeNatural(new EnterFinalCommand()));
+    }
+
     // ───────────────────────────────────────────────────────────────────────
 
     [Fact]

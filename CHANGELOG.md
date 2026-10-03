@@ -5,6 +5,7 @@
 ### Fixed
 
 - A loaded solo recording comes up in solo mode, so its replay speaks every pilot line and keeps its recorded conflict-alert inhibits.
+- `EF` reads back and shows as "make straight-in", per 7110.65; "straight-in approach" and "enter final" are still understood when spoken.
 
 ## v0.15.0-beta [2026/10/02]
 

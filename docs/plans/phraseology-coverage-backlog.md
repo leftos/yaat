@@ -525,7 +525,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Notes:** `PhraseologyRules.cs:395-397`.
 - **Phrasing:** "MAKE APPROACH STRAIGHT-IN" (helicopter landing clearance §3-11-6)
   **Canonical:** `EnterFinal`
-  **Notes:** `PhraseologyRules.cs:344, 350` ("make straight in approach") covers the form.
+  **Notes:** `PhraseologyRules.cs` EF rules ("make straight in [runway X]") cover the form; the "…approach" and "enter final" variants are recognition only (SttOnly).
 - **Phrasing:** "HOLD SHORT OF (active runway/extended runway centerline/other)"
   **Canonical:** `HoldShort`
   **Notes:** `PhraseologyRules.cs:501-502`.
@@ -2502,7 +2502,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** §4-3-2.4 "Proceed southwestbound, enter a right downwind runway 30" / suggested heading
   **Canonical:** `EnterRightDownwind` + `FlyHeading`
   **Notes:** `PhraseologyRules.cs:62, 326-330`.
-- **Phrasing:** §4-3-3 Straight-in approaches ("make straight in [approach] runway X")
+- **Phrasing:** 7110.65 §3-10-1.a "MAKE STRAIGHT-IN" (runway per §3-10-1.b): "make straight in [runway X]"
   **Canonical:** `EnterFinal`
   **Notes:** `PhraseologyRules.cs:344-352`; recent work.
 - **Phrasing:** §4-3-5 360-degree turn for spacing ("make left/right 360")

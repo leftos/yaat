@@ -40,7 +40,7 @@ public class CompoundTowerCommandTests
 
     /// <summary>
     /// EF 28R, CLAND — both clauses are tower commands that get applied in the same
-    /// parallel block. The result message must include both verbs ("Enter final" AND
+    /// parallel block. The result message must include both verbs ("Make straight-in" AND
     /// "Cleared to land") so the RPO sees the full outcome. Pre-fix, only the first
     /// clause's message was returned and the second was silently dropped, which left
     /// the RPO unsure whether the landing clearance had taken effect.
@@ -94,7 +94,7 @@ public class CompoundTowerCommandTests
 
         Assert.True(result.Success, $"Dispatch failed: {result.Message}");
         Assert.NotNull(result.Message);
-        Assert.Contains("Enter final", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Make straight-in", result.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Cleared to land", result.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(ClearanceType.ClearedToLand, ac.Phases?.LandingClearance);
     }
