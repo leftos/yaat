@@ -86,6 +86,10 @@ internal static class ActionArms
                 ctx.StripId = ctx.Engine.ReprintDepartureStripAfterAmendment(aircraft.Callsign, ctx.Input.Baked?.StripId);
                 engine.MarkTdlsItemsChanged(aircraft.Callsign);
             }
+
+            // A warp (WARP, WARPG), a forced altitude (FA) or a set-down moves the aircraft at once, paused or not, and the
+            // CRC displays read the membership while paused. On every run kind, so a replay holds what the live run did.
+            engine.EvaluateSurfaceMembership(aircraft);
         }
 
         engine.ApplyPostDispatch(aircraft, compound, result, origin, bravoWait);

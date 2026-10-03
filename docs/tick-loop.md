@@ -58,7 +58,7 @@ PostPhysics    SpineOrder.PostPhysics — the live server's 34-step order
                ├─ sim TickTowerLists                                  the P-list dwell entries (snapshotted); a change marks the same coordination flag
                ├─ sim DrainTerminalEntries → host.OnTerminalEntries     the track-automation lines, the same second they were emitted
                ├─ sim TickVisualDetection, TickConflictAlerts → host, TickEramConflictAlerts → host
-               ├─ sim TickSurfaceMembership                          ASDE-X / SAID hysteresis membership per aircraft (`AircraftStarsState.VisibleAsdexAirports` / `VisibleSaidAirports`, snapshotted), from the scenario's ARTCC config; an airport no longer configured drops out
+               ├─ sim TickSurfaceMembership                          ASDE-X / SAID hysteresis membership per aircraft (`AircraftStarsState.VisibleAsdexAirports` / `VisibleSaidAirports`, snapshotted), from the scenario's ARTCC config; an airport no longer configured drops out; the only place hysteresis lives (the server's `CrcVisibilityTracker` diffs these sets)
                ├─ sim TickAsdexAlerts → host                          the ASDE-X Safety Logic detector over the scenario's standing alert set; hands over only the diff (new alerts, cleared ids), and only when something changed
                ├─ sim TickSoloTrainingEvaluation → host                empty outside solo mode
                ├─ sim TickPilotProactive                              after the detectors, before the drains
@@ -154,7 +154,7 @@ After PostPhysics, `BroadcastTrainingUpdates` runs **once per sim-second**:
 3. `CrcBroadcastService.BroadcastUpdates` evaluates each subscribed CRC topic and emits MessagePack updates/deletes. See [crc-display-state.md](crc-display-state.md).
 4. Drained warnings / notifications / pilot readbacks become terminal entries.
 
-CRC visibility transitions (entering STARS coverage, ASDEX airport entry/exit, coast phase) are evaluated by `CrcVisibilityTracker` inside the broadcast pass — not in physics. ASDE-X / SAID membership is also computed by the Sim step `TickSurfaceMembership` on every run kind; until the server reads it (disconnect-coast step D in `docs/plans/tick-path/04-relocation.md`), the tracker's own copy still decides what CRC displays.
+CRC visibility transitions (entering STARS coverage, ASDEX airport entry/exit, coast phase) are evaluated by `CrcVisibilityTracker` inside the broadcast pass — not in physics. ASDE-X / SAID membership is the exception: the Sim step `TickSurfaceMembership` computes it on every run kind (hysteresis included), and the same per-aircraft evaluation also runs between ticks at every spawn and after every successful aircraft command, so a paused room's surface displays are current, and the tracker's ASDE-X/SAID evaluators only diff the aircraft's Sim sets against the set the previous evaluation saw (newly visible, removed), which drives the per-airport creates and deletes.
 
 ## Recording capture
 
@@ -183,7 +183,7 @@ The per-feature parity tests above each guard one step. The **oracle** guards th
 - **Corpus triage** (ADR [0004](adr/0004-the-oracle-and-the-corpus.md)): an over-broad assertion → fix the test; a genuine desync → delete the recording; an unexpected cause → stop.
 - **Green across both repos before every commit** (`pwsh tools/test-all.ps1`), red test first, and the commit records predicted-versus-got so a later reader can check the attribution.
 
-**Live behaviour changes that land as named decisions, not silently:** ASDE-X/SAID coast moves off the wall clock to sim time (ERAM coast already runs on sim time); the three post-physics ordering moves (ADR [0002](adr/0002-ordering-defers-to-live-semantics-defer-to-merit.md)); `DrainAllApproachScores` consumed on every path.
+**Live behaviour changes that land as named decisions, not silently:** ASDE-X/SAID coast runs on sim time (as the ERAM coast does) and the CRC surface displays follow the Sim's membership, so a room's ASDE-X/SAID airports come from its own ARTCC config; the three post-physics ordering moves (ADR [0002](adr/0002-ordering-defers-to-live-semantics-defer-to-merit.md)); `DrainAllApproachScores` consumed on every path.
 
 ## Client-side: animation only
 

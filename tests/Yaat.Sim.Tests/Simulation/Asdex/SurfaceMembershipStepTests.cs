@@ -1,7 +1,9 @@
 using System.Text.Json;
 using Xunit;
+using Yaat.Sim.Asdex;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.LiveTraffic;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 using Yaat.Sim.Simulation.Spine;
@@ -305,5 +307,65 @@ public class SurfaceMembershipStepTests
         int membership = ids.IndexOf(StepId.SurfaceMembership);
         Assert.True(membership >= 0, "SurfaceMembership did not run in the second");
         Assert.Equal(ids.IndexOf(StepId.AsdexAlerts) - 1, membership);
+    }
+
+    [Fact]
+    public void MayEnterAsdex_InsideRangeAtOrBelowCeiling_RefusedOutside()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        AsdexAirportInfo sfo = SurfaceAirports.Resolve(_zoa!, NavigationDatabase.Instance).Asdex.Single(apt => apt.AirportId == "SFO");
+
+        Assert.True(SurfaceMembership.MayEnterAsdex(PutAt(engine, OverSfo, 0), sfo));
+        Assert.True(SurfaceMembership.MayEnterAsdex(PutAt(engine, OverSfo, sfo.Ceiling), sfo), "the ceiling itself is inside");
+        Assert.False(SurfaceMembership.MayEnterAsdex(PutAt(engine, OverSfo, sfo.Ceiling + 1), sfo), "above the ceiling");
+        Assert.False(SurfaceMembership.MayEnterAsdex(PutAt(engine, NorthOfSfoOutOfRange, 0), sfo), "outside the range");
+    }
+
+    [Fact]
+    public void MayEnterSaid_InsideRangeAtOrBelowAglCeiling_RefusedOutside()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        SaidSurfaceAirport rno = SurfaceAirports.Resolve(_zoa!, NavigationDatabase.Instance).Said.Single(apt => apt.AirportId == "RNO");
+        double ceiling = NavigationDatabase.Instance.GetAirportElevation("RNO")!.Value + SurfaceMembership.SaidAglCeilingFt;
+        Assert.Equal(ceiling, rno.CeilingFt);
+
+        Assert.True(SurfaceMembership.MayEnterSaid(PutAt(engine, OverReno, ceiling), rno), "the AGL ceiling itself is inside");
+        Assert.False(SurfaceMembership.MayEnterSaid(PutAt(engine, OverReno, ceiling + 1), rno), "above the AGL ceiling");
+        Assert.False(SurfaceMembership.MayEnterSaid(PutAt(engine, OverSfo, 0), rno), "outside the range");
+    }
+
+    [Fact]
+    public void ShadowSpawn_MembershipMatchesLiveAndReplay()
+    {
+        if ((Engine() is not { } live) || (Engine() is not { } replay))
+        {
+            return;
+        }
+
+        // Observed about 17 nm north of SFO, southbound at 240 kt; aged 60 s by the feed latency it is about 13 nm out,
+        // inside the 15 nm ASDE-X range. Live and replay must both evaluate at the aged position, once.
+        const string callsign = "SKW5010";
+        var sample = new LiveTrafficSample(0, NorthOfSfoOutOfRange.Lat, NorthOfSfoOutOfRange.Lon, 1000, 240, 180, 0, LiveTrafficSource.Stars, 4521);
+        AircraftSnapshotDto spawnState = LiveTrafficKinematics.CreateShadow(callsign, "CRJ7", sample, new AircraftFlightPlan()).ToSnapshot();
+        live.Scenario!.ElapsedSeconds = 60;
+        replay.Scenario!.ElapsedSeconds = 60;
+
+        Assert.True(live.ApplyLiveTrafficSample(callsign, sample, spawnState));
+        RecordedLiveTrafficSample recorded = live.Scenario.ActionLog.OfType<RecordedLiveTrafficSample>().Single();
+        replay.Actions.ApplyRecorded(recorded);
+
+        AircraftState liveShadow = live.World.FindAircraft(callsign)!;
+        AircraftState replayShadow = replay.World.FindAircraft(callsign)!;
+        Assert.Equal(["SFO"], liveShadow.Stars.VisibleAsdexAirports);
+        Assert.Equal(liveShadow.Stars.VisibleAsdexAirports, replayShadow.Stars.VisibleAsdexAirports);
+        Assert.Equal(liveShadow.Stars.VisibleSaidAirports, replayShadow.Stars.VisibleSaidAirports);
     }
 }

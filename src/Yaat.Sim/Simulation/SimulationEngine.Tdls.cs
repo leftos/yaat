@@ -258,6 +258,7 @@ public sealed partial class SimulationEngine
         }
 
         ClearDisconnectCoast(scenario, ac.Callsign);
+        EvaluateSurfaceMembership(ac);
 
         if (!IsDepartureAircraft(ac, scenario))
         {
