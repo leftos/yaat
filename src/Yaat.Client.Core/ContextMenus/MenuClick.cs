@@ -18,8 +18,24 @@ namespace Yaat.Client.ContextMenus;
 /// </param>
 public sealed record MenuClick(string Callsign, IMenuAircraft? PreviousSelection, MenuPoint? Point, IReadOnlyList<IMenuAircraft> Selection);
 
-/// <summary>A right-clicked point: a map position on the radar, a taxi node on the ground.</summary>
-/// <param name="Position">Where the click landed: the map position, or the taxi node's position.</param>
-/// <param name="Node">The taxi node clicked, or the hold-short node a runway-threshold click resolves to; null on the radar.</param>
+/// <summary>A right-clicked point: a map position on the radar, a taxi node or a runway surface on the ground.</summary>
+/// <param name="Position">Where the click landed: the map position, the taxi node's position, or the clicked spot on a runway surface.</param>
+/// <param name="Node">
+/// The taxi node clicked, or the hold-short node a runway-threshold click resolves to; null on the radar and on a runway surface.
+/// </param>
 /// <param name="RunwayEnd">The runway end a threshold click names, which the taxi choices route to; null otherwise.</param>
-public sealed record MenuPoint(LatLon Position, GroundNodeDto? Node, string? RunwayEnd);
+/// <param name="SurfaceRunways">
+/// The runways (e.g. <c>"28R/10L"</c>) whose surface a ground click landed on, nearest centerline first, which Taxi to
+/// runway offers; <c>[]</c> on every other point.
+/// </param>
+/// <param name="WarpNode">
+/// The ground node nearest a runway-surface click, which Warp here warps to when <paramref name="Node"/> is null; null on
+/// every other point.
+/// </param>
+public sealed record MenuPoint(
+    LatLon Position,
+    GroundNodeDto? Node,
+    string? RunwayEnd,
+    IReadOnlyList<string> SurfaceRunways,
+    GroundNodeDto? WarpNode
+);

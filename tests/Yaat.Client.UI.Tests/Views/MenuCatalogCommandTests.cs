@@ -200,6 +200,7 @@ public class MenuCatalogCommandTests
         MenuIds.PointHoldLeft,
         MenuIds.PointHoldRight,
         MenuIds.PointTaxiHere,
+        MenuIds.PointTaxiToRunway,
         MenuIds.PointPushTo,
         MenuIds.PointCustomTaxi,
         MenuIds.PointWarpHere,

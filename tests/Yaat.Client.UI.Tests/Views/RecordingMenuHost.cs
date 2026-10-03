@@ -83,6 +83,18 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
         return TaxiChoices;
     }
 
+    /// <summary>The Taxi to runway targets answered per runway end (keyed by the end designator); none for an end not listed.</summary>
+    public Dictionary<string, List<RunwayHoldShortTarget>> RunwayHoldShortTargets { get; } = [];
+
+    /// <summary>The callsign, runway, end and click each Taxi to runway target request named, in order.</summary>
+    public List<(string Callsign, string RunwayName, string RunwayEnd, LatLon Click)> RunwayHoldShortTargetRequests { get; } = [];
+
+    public IReadOnlyList<RunwayHoldShortTarget> GetRunwayHoldShortTargets(string callsign, string runwayName, string runwayEnd, LatLon click)
+    {
+        RunwayHoldShortTargetRequests.Add((callsign, runwayName, runwayEnd, click));
+        return RunwayHoldShortTargets.TryGetValue(runwayEnd, out List<RunwayHoldShortTarget>? targets) ? targets : [];
+    }
+
     /// <summary>The seed every Custom taxi… input opens with, whatever the node and runway end.</summary>
     public MenuTextSeed CustomTaxiSeed { get; init; } = new("TAXI ", 5);
 

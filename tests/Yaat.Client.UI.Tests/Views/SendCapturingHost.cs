@@ -31,6 +31,9 @@ internal sealed class SendCapturingHost(IMenuHost inner, string sessionInitials)
     public IReadOnlyList<MenuCommandChoice> GetTaxiChoices(string callsign, GroundNodeDto node, string? runwayEnd) =>
         inner.GetTaxiChoices(callsign, node, runwayEnd);
 
+    public IReadOnlyList<RunwayHoldShortTarget> GetRunwayHoldShortTargets(string callsign, string runwayName, string runwayEnd, LatLon click) =>
+        inner.GetRunwayHoldShortTargets(callsign, runwayName, runwayEnd, click);
+
     public MenuTextSeed GetCustomTaxiSeed(GroundNodeDto node, string? runwayEnd) => inner.GetCustomTaxiSeed(node, runwayEnd);
 
     public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick) =>

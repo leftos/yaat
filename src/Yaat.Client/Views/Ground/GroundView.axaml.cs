@@ -55,6 +55,7 @@ public partial class GroundView : UserControl
         _canvas.EmptySpaceClicked += OnEmptySpaceClicked;
         _canvas.RunwayThresholdClicked += OnRunwayThresholdClicked;
         _canvas.RunwayThresholdRightClicked += OnRunwayThresholdClicked;
+        _canvas.RunwaySurfaceRightClicked += OnRunwaySurfaceRightClicked;
         _canvas.PointerPressed += OnCanvasPointerPressed;
         _canvas.DrawNodeClicked += OnDrawNodeClicked;
         _canvas.DrawNodeFinished += OnDrawNodeFinished;
@@ -98,6 +99,7 @@ public partial class GroundView : UserControl
             _canvas.EmptySpaceClicked -= OnEmptySpaceClicked;
             _canvas.RunwayThresholdClicked -= OnRunwayThresholdClicked;
             _canvas.RunwayThresholdRightClicked -= OnRunwayThresholdClicked;
+            _canvas.RunwaySurfaceRightClicked -= OnRunwaySurfaceRightClicked;
             _canvas.PointerPressed -= OnCanvasPointerPressed;
             _canvas.DrawNodeClicked -= OnDrawNodeClicked;
             _canvas.DrawNodeFinished -= OnDrawNodeFinished;
@@ -434,7 +436,7 @@ public partial class GroundView : UserControl
             );
         }
 
-        return BuildPointMenu(selected, new MenuPoint(new LatLon(node.Latitude, node.Longitude), node, null), section);
+        return BuildPointMenu(selected, new MenuPoint(new LatLon(node.Latitude, node.Longitude), node, null, [], null), section);
     }
 
     /// <summary>
@@ -660,7 +662,51 @@ public partial class GroundView : UserControl
 
         List<Control> section = [];
         AddDrawTaxiRouteFrom(section, vm, selected, holdShortNodeId);
-        return BuildPointMenu(selected, new MenuPoint(new LatLon(holdShort.Latitude, holdShort.Longitude), holdShort, runwayEnd), section);
+        return BuildPointMenu(selected, new MenuPoint(new LatLon(holdShort.Latitude, holdShort.Longitude), holdShort, runwayEnd, [], null), section);
+    }
+
+    private void OnRunwaySurfaceRightClicked(IReadOnlyList<string> runways, Point screenPos)
+    {
+        if ((DataContext is not GroundViewModel vm) || (_canvas is null))
+        {
+            return;
+        }
+
+        (double lat, double lon) = _canvas.Viewport.ScreenToLatLon((float)screenPos.X, (float)screenPos.Y);
+        if (BuildRunwaySurfaceMenu(vm, runways, new LatLon(lat, lon), _canvas.FindNearestNode(screenPos), screenPos) is { } menu)
+        {
+            ShowContextMenu(menu);
+        }
+    }
+
+    /// <summary>
+    /// The menu a right-click on the surface of <paramref name="runways"/> at <paramref name="click"/> shows, built
+    /// without opening it. With an aircraft selected, the shared point menu at the click carries Taxi to runway for each
+    /// runway and Warp here to <paramref name="nearestNode"/> (the node the nearest-node fallback would have opened), then
+    /// the ground's section: the measuring items, then Draw taxi route… from that node; with nothing selected, the
+    /// measuring items alone. Null when there is nothing to show.
+    /// </summary>
+    internal ContextMenu? BuildRunwaySurfaceMenu(
+        GroundViewModel vm,
+        IReadOnlyList<string> runways,
+        LatLon click,
+        GroundNodeDto? nearestNode,
+        Point screenPos
+    )
+    {
+        List<Control> section = [];
+        AddMeasureMenuItems(section, vm, screenPos);
+        if (vm.SelectedAircraft is not { } selected)
+        {
+            return SectionMenu(section);
+        }
+
+        if (nearestNode is not null)
+        {
+            AddDrawTaxiRouteFrom(section, vm, selected, nearestNode.Id);
+        }
+
+        return BuildPointMenu(selected, new MenuPoint(click, null, null, runways, nearestNode), section);
     }
 
     private void OnDrawNodeHovered(int? nodeId)

@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using SkiaSharp;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -325,6 +326,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
     /// <summary>How close to a push-route marker's centre, in pixels, a click or a drag's press lands on that marker.</summary>
     private const float PushMarkerHitRadiusPx = 10f;
+
+    /// <summary>How close to a ground node, in pixels, a click lands on that node.</summary>
+    private const float NodeHitRadiusPx = 20f;
 
     /// <summary>The last pointer position over the canvas, updated on every move.</summary>
     private Point _pointerPos;
@@ -685,6 +689,13 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// Args: runway-end designator (e.g. <c>"28L"</c>), screen position of the click.
     /// </summary>
     public event Action<string, Point>? RunwayThresholdRightClicked;
+
+    /// <summary>
+    /// Fired when a runway's surface is right-clicked away from its hold-short nodes and threshold markers while the
+    /// selected aircraft can be given a taxi route. Args: every runway under the click (e.g. <c>"28R/10L"</c>), nearest
+    /// centerline first (<see cref="FindRunwaysAtPoint"/>), and the screen position of the click.
+    /// </summary>
+    public event Action<IReadOnlyList<string>, Point>? RunwaySurfaceRightClicked;
 
     /// <summary>Fired when a node is left-clicked during draw mode.</summary>
     public event Action<int>? DrawNodeClicked;
@@ -1604,6 +1615,11 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return true;
         }
 
+        if (TryRaiseRunwaySurfaceClick(screenPos))
+        {
+            return true;
+        }
+
         GroundNodeDto? node = FindNodeAtPoint(screenPos);
         if (node is not null)
         {
@@ -1796,9 +1812,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
     public GroundNodeDto? FindNodeAtPoint(Point screenPos)
     {
-        const float hitRadius = 20f;
         GroundNodeDto? nearest = FindNearestNode(screenPos, out float dist);
-        return dist <= hitRadius ? nearest : null;
+        return dist <= NodeHitRadiusPx ? nearest : null;
     }
 
     /// <summary>The ground node closest to <paramref name="screenPos"/> regardless of distance, or null if no layout is loaded.</summary>
@@ -1910,6 +1925,127 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         }
 
         return best;
+    }
+
+    /// <summary>
+    /// Resolves a right-click on a runway surface while the selected aircraft can be given a taxi route: a
+    /// <c>RunwayHoldShort</c> node within the node hit radius opens that node's menu, even over a nearer node; a hit
+    /// threshold marker is left to the threshold rung below; anywhere else on the surface raises
+    /// <see cref="RunwaySurfaceRightClicked"/>. Returns whether it raised an event.
+    /// </summary>
+    private bool TryRaiseRunwaySurfaceClick(Point screenPos)
+    {
+        if (!AircraftCommandApplicability.CanDrawTaxiRoute(SelectedAircraft) || (FindRunwaysAtPoint(screenPos) is not { Count: > 0 } runways))
+        {
+            return false;
+        }
+
+        if (FindHoldShortNodeAtPoint(screenPos) is { } holdShort)
+        {
+            NodeRightClicked?.Invoke(holdShort.Id, screenPos);
+            return true;
+        }
+
+        if (FindRunwayThresholdAtPoint(screenPos) is not null)
+        {
+            return false;
+        }
+
+        RunwaySurfaceRightClicked?.Invoke(runways, screenPos);
+        return true;
+    }
+
+    /// <summary>The <c>RunwayHoldShort</c> node nearest <paramref name="screenPos"/> within the node hit radius, or null.</summary>
+    private GroundNodeDto? FindHoldShortNodeAtPoint(Point screenPos)
+    {
+        if (Layout is null)
+        {
+            return null;
+        }
+
+        GroundNodeDto? nearest = null;
+        float nearestDist = NodeHitRadiusPx;
+        foreach (GroundNodeDto node in Layout.Nodes)
+        {
+            if (node.Type != "RunwayHoldShort")
+            {
+                continue;
+            }
+
+            (float sx, float sy) = Viewport.LatLonToScreen(node.Latitude, node.Longitude);
+            float dx = (float)screenPos.X - sx;
+            float dy = (float)screenPos.Y - sy;
+            float dist = MathF.Sqrt((dx * dx) + (dy * dy));
+            if (dist <= nearestDist)
+            {
+                nearestDist = dist;
+                nearest = node;
+            }
+        }
+
+        return nearest;
+    }
+
+    /// <summary>
+    /// The runways whose painted rectangle — the centerline between the two thresholds, half the runway's width either
+    /// side, as <see cref="GroundRenderer"/> draws it — contains <paramref name="screenPos"/>, nearest centerline first.
+    /// Empty when no layout or runway is loaded, runways are not drawn (neither the YAAT layout nor the video map is
+    /// shown), or the point is on none.
+    /// </summary>
+    public IReadOnlyList<string> FindRunwaysAtPoint(Point screenPos)
+    {
+        if ((Layout?.Runways is not { } runways) || (!ShowYaatLayout && !ShowVideoMapOverlay))
+        {
+            return [];
+        }
+
+        var hits = new List<(string Name, double CenterlineDistancePx)>();
+        foreach (GroundRunwayDto rwy in runways)
+        {
+            if ((RunwayScreenCorners(rwy) is { } corners) && IsInsideConvexQuad(corners, screenPos))
+            {
+                Point firstEnd = Midpoint(corners[0], corners[1]);
+                Point lastEnd = Midpoint(corners[2], corners[3]);
+                hits.Add((rwy.Name, DistanceToSegment(screenPos, firstEnd, lastEnd)));
+            }
+        }
+
+        return [.. hits.OrderBy(h => h.CenterlineDistancePx).Select(h => h.Name)];
+    }
+
+    /// <summary><see cref="RunwayRectangle.ScreenCorners"/> under this canvas's viewport, as Avalonia points.</summary>
+    private Point[]? RunwayScreenCorners(GroundRunwayDto rwy) =>
+        RunwayRectangle.ScreenCorners(rwy, Viewport) is { } corners ? [.. corners.Select(c => new Point(c.X, c.Y))] : null;
+
+    /// <summary>Whether <paramref name="p"/> lies inside or on the convex quadrilateral <paramref name="corners"/> (either winding).</summary>
+    private static bool IsInsideConvexQuad(Point[] corners, Point p)
+    {
+        bool anyPositive = false;
+        bool anyNegative = false;
+        for (int i = 0; i < corners.Length; i++)
+        {
+            Point a = corners[i];
+            Point b = corners[(i + 1) % corners.Length];
+            double cross = ((b.X - a.X) * (p.Y - a.Y)) - ((b.Y - a.Y) * (p.X - a.X));
+            anyPositive |= cross > 0;
+            anyNegative |= cross < 0;
+        }
+
+        return !(anyPositive && anyNegative);
+    }
+
+    private static Point Midpoint(Point a, Point b) => new((a.X + b.X) / 2.0, (a.Y + b.Y) / 2.0);
+
+    /// <summary>The distance in pixels from <paramref name="p"/> to the segment <paramref name="a"/>–<paramref name="b"/>.</summary>
+    private static double DistanceToSegment(Point p, Point a, Point b)
+    {
+        double dx = b.X - a.X;
+        double dy = b.Y - a.Y;
+        double lengthSq = (dx * dx) + (dy * dy);
+        double t = (lengthSq > 0) ? Math.Clamp((((p.X - a.X) * dx) + ((p.Y - a.Y) * dy)) / lengthSq, 0, 1) : 0;
+        double fx = a.X + (t * dx) - p.X;
+        double fy = a.Y + (t * dy) - p.Y;
+        return Math.Sqrt((fx * fx) + (fy * fy));
     }
 
     public AircraftModel? FindDataBlockAtPoint(Point screenPos)

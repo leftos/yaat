@@ -326,6 +326,16 @@ public static class MenuCatalog
             (_, point, context, host) => BuildPointHold(point, "right", "HFIXR", context, host)
         ),
         PointEntry(MenuIds.PointTaxiHere, "Taxi here", AtNodeTaxiable, BuildPointTaxiHere),
+        PointEntry(
+            MenuIds.PointTaxiToRunway,
+            "Taxi to runway",
+            AtRunwaySurfaceTaxiable,
+            (_, _, _, _) =>
+                throw new InvalidOperationException(
+                    $"The '{MenuIds.PointTaxiToRunway}' entry builds no item; SharedMenuGroups.AddTaxiToRunwayEnds adds one item per "
+                        + "runway end through MenuCatalog.BuildTaxiToRunwayEnds."
+                )
+        ),
         PointEntry(MenuIds.PointPushTo, "Push to", AtNodePushable, BuildPointPushTo),
         PointEntry(MenuIds.PointCustomTaxi, "Custom taxi…", AtNodeTaxiable, BuildPointCustomTaxi),
         PointEntry(
@@ -936,6 +946,10 @@ public static class MenuCatalog
     private static bool AtNodeTaxiable(IMenuAircraft? aircraft, MenuContext context) =>
         (context.Click.Point?.Node is not null) && AircraftCommandApplicability.CanDrawTaxiRoute(aircraft);
 
+    /// <summary>A runway-surface click on an aircraft that can be given a taxi route, which Taxi to runway routes.</summary>
+    private static bool AtRunwaySurfaceTaxiable(IMenuAircraft? aircraft, MenuContext context) =>
+        (context.Click.Point is { SurfaceRunways.Count: > 0 }) && AircraftCommandApplicability.CanDrawTaxiRoute(aircraft);
+
     /// <summary>A click on a named stand or spot with an aircraft that can push back, which Push to sends there.</summary>
     private static bool AtNodePushable(IMenuAircraft? aircraft, MenuContext context) =>
         (context.Click.Point?.Node is { Type: "Parking" or "Spot", Name: not null }) && AircraftCommandApplicability.CanPushBack(aircraft);
@@ -989,6 +1003,49 @@ public static class MenuCatalog
             );
     }
 
+    /// <summary>
+    /// Taxi to runway: for each runway under the click, one <c>Taxi to {end}</c> submenu per end in the runway's order,
+    /// over the host's hold-short targets for that end, each a submenu of the Taxi here choices for its node routed to
+    /// that end, for <see cref="SharedMenuGroups.AddTaxiToRunwayEnds"/> to add in the point menu. An end with no target
+    /// that has a choice is left out.
+    /// </summary>
+    internal static IReadOnlyList<MenuItem> BuildTaxiToRunwayEnds(MenuPoint point, MenuContext context, IMenuHost host)
+    {
+        List<MenuItem> ends = [];
+        foreach (string runwayName in point.SurfaceRunways)
+        {
+            var ids = RunwayIdentifier.Parse(runwayName);
+            foreach (string end in new[] { ids.End1, ids.End2 }.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (BuildTaxiToRunwayEnd(runwayName, end, point, context, host) is { } endItem)
+                {
+                    ends.Add(endItem);
+                }
+            }
+        }
+
+        return ends;
+    }
+
+    /// <summary>
+    /// The <c>Taxi to {end}</c> submenu: one submenu per host target for <paramref name="end"/> of
+    /// <paramref name="runwayName"/>, over <see cref="IMenuHost.GetTaxiChoices"/> for its node and that end, built as Taxi
+    /// here builds them; a target with no choice is left out, and null when none is left.
+    /// </summary>
+    private static MenuItem? BuildTaxiToRunwayEnd(string runwayName, string end, MenuPoint point, MenuContext context, IMenuHost host)
+    {
+        var endItem = new MenuItem { Header = $"Taxi to {RunwayIdentifier.ToDisplayDesignator(end)}" };
+        foreach (RunwayHoldShortTarget target in host.GetRunwayHoldShortTargets(context.Callsign, runwayName, end, point.Position))
+        {
+            if (BuildChoiceSubmenu(target.Label, host.GetTaxiChoices(context.Callsign, target.Node, end), context, host) is { } targetItem)
+            {
+                endItem.Items.Add(targetItem);
+            }
+        }
+
+        return (endItem.Items.Count > 0) ? endItem : null;
+    }
+
     /// <summary>Push to the clicked named spot (<c>PUSH $SPOT</c>) or stand (<c>PUSH @STAND</c>).</summary>
     private static MenuItem? BuildPointPushTo(IMenuAircraft aircraft, MenuPoint point, MenuContext context, IMenuHost host) =>
         point.Node is { Type: "Parking" or "Spot", Name: { } name } node
@@ -1022,7 +1079,7 @@ public static class MenuCatalog
     /// </summary>
     private static MenuItem? BuildPointWarp(IMenuAircraft aircraft, MenuPoint point, MenuContext context, IMenuHost host)
     {
-        if (point.Node is { } node)
+        if ((point.Node ?? point.WarpNode) is { } node)
         {
             return BuildSend("Warp here", $"WARPG #{node.Id}", context, host);
         }

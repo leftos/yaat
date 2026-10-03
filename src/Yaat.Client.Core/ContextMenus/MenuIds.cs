@@ -444,6 +444,9 @@ public static class MenuIds
     /// <summary>Taxi to the right-clicked taxi node along one of the routes the host finds (<c>TAXI</c>).</summary>
     public const string PointTaxiHere = "point.taxi-here";
 
+    /// <summary>Taxi to a hold short of either end of the right-clicked runway surface, along a route the host finds (<c>TAXI</c>).</summary>
+    public const string PointTaxiToRunway = "point.taxi-to-runway";
+
     /// <summary>Push back to the right-clicked named stand or spot (<c>PUSH</c>).</summary>
     public const string PointPushTo = "point.push-to";
 

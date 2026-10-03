@@ -41,5 +41,6 @@
     <None Include="..\Yaat.Sim.Tests\TestData\AircraftCwt.json" Link="TestData\AircraftCwt.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Yaat.Sim.Tests\TestData\FaaAcd.json" Link="TestData\FaaAcd.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Yaat.Sim.Tests\TestData\oak.geojson" Link="TestData\oak.geojson" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Yaat.Sim.Tests\TestData\sfo.geojson" Link="TestData\sfo.geojson" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

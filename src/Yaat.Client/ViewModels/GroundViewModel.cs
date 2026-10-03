@@ -1371,6 +1371,136 @@ public partial class GroundViewModel : ObservableObject
         return null;
     }
 
+    /// <summary>How far past the first hold short from a threshold, along the runway, another still counts as a full-length one.</summary>
+    private const double FullLengthWindowFt = 300;
+
+    /// <summary>
+    /// The <c>RunwayHoldShort</c> node of <paramref name="runwayName"/> (e.g. <c>"28R/10L"</c>) with the smallest
+    /// great-circle distance to <paramref name="point"/>; null when no layout is loaded or the runway has none.
+    /// </summary>
+    public int? FindHoldShortNodeNearestPoint(string runwayName, LatLon point) =>
+        HoldShortNodesOf(RunwayIdentifier.Parse(runwayName)).MinBy(n => GeoMath.DistanceNm(point.Lat, point.Lon, n.Latitude, n.Longitude))?.Id;
+
+    /// <summary>
+    /// The full-length hold short for a departure from <paramref name="runwayEnd"/> of <paramref name="runwayName"/>:
+    /// among the runway's <c>RunwayHoldShort</c> nodes whose along-track distance from that end's threshold is within
+    /// <see cref="FullLengthWindowFt"/> of the smallest (the hold shorts either side of the runway at that end), the one
+    /// with the lowest-cost route from <paramref name="ac"/>'s nearest node. Null when no layout is loaded, the runway or
+    /// end is not in it, or no such node is reachable.
+    /// </summary>
+    public int? FindFullLengthHoldShortNode(AircraftModel ac, string runwayName, string runwayEnd)
+    {
+        var runway = RunwayIdentifier.Parse(runwayName);
+        if ((GetAircraftNearestNodeId(ac) is not { } fromNodeId) || (RunwayEndGeometry(runway, runwayEnd) is not { } end))
+        {
+            return null;
+        }
+
+        List<(GroundNodeDto Node, double AlongNm)> along =
+        [
+            .. HoldShortNodesOf(runway)
+                .Select(n => (n, GeoMath.AlongTrackDistanceNm(n.Latitude, n.Longitude, end.Threshold.Lat, end.Threshold.Lon, end.Heading))),
+        ];
+        if (along.Count == 0)
+        {
+            return null;
+        }
+
+        double windowNm = along.Min(a => a.AlongNm) + (FullLengthWindowFt / GeoMath.FeetPerNm);
+        int? bestNodeId = null;
+        double bestCostNm = double.MaxValue;
+        foreach ((GroundNodeDto node, double alongNm) in along)
+        {
+            if ((alongNm <= windowNm) && (RouteCostNm(ac, fromNodeId, node.Id) is { } costNm) && (costNm < bestCostNm))
+            {
+                bestCostNm = costNm;
+                bestNodeId = node.Id;
+            }
+        }
+
+        return bestNodeId;
+    }
+
+    /// <summary>The layout's <c>RunwayHoldShort</c> nodes for <paramref name="runway"/> (either end); none when no layout is loaded.</summary>
+    private IEnumerable<GroundNodeDto> HoldShortNodesOf(RunwayIdentifier runway) =>
+        Layout?.Nodes.Where(n => (n.Type == "RunwayHoldShort") && (n.RunwayId is { } id) && (RunwayIdentifier.Parse(id) == runway)) ?? [];
+
+    /// <summary>
+    /// <paramref name="runwayEnd"/>'s threshold on <paramref name="runway"/> and the true heading from it toward the other
+    /// end, from the layout's runway coordinates; null when the runway or the end is not in the layout.
+    /// </summary>
+    private (LatLon Threshold, TrueHeading Heading)? RunwayEndGeometry(RunwayIdentifier runway, string runwayEnd)
+    {
+        GroundRunwayDto? dto = Layout?.Runways?.FirstOrDefault(r => (r.Coordinates.Count >= 2) && (RunwayIdentifier.Parse(r.Name) == runway));
+        if (dto is null)
+        {
+            return null;
+        }
+
+        var ids = RunwayIdentifier.Parse(dto.Name);
+        string end = RunwayIdentifier.NormalizeDesignator(runwayEnd);
+        double[] threshold;
+        double[] far;
+        if (string.Equals(ids.End1, end, StringComparison.OrdinalIgnoreCase))
+        {
+            (threshold, far) = (dto.Coordinates[0], dto.Coordinates[^1]);
+        }
+        else if (string.Equals(ids.End2, end, StringComparison.OrdinalIgnoreCase))
+        {
+            (threshold, far) = (dto.Coordinates[^1], dto.Coordinates[0]);
+        }
+        else
+        {
+            return null;
+        }
+
+        return (new LatLon(threshold[0], threshold[1]), new TrueHeading(GeoMath.BearingTo(threshold[0], threshold[1], far[0], far[1])));
+    }
+
+    /// <summary>
+    /// The length in nautical miles of the lowest-cost route from <paramref name="fromNodeId"/> to
+    /// <paramref name="toNodeId"/> for <paramref name="ac"/>; null when no layout is loaded or no route exists.
+    /// </summary>
+    private double? RouteCostNm(AircraftModel ac, int fromNodeId, int toNodeId)
+    {
+        if (_domainLayout is null)
+        {
+            return null;
+        }
+
+        TaxiRoute? route = TaxiPathfinder.FindRoute(_domainLayout, fromNodeId, toNodeId, CategoryFor(ac), WakeClassFor(ac));
+        if (route is null)
+        {
+            return null;
+        }
+
+        double costNm = 0;
+        foreach (TaxiRouteSegment seg in route.Segments)
+        {
+            costNm += seg.Edge.DistanceNm;
+        }
+
+        return costNm;
+    }
+
+    /// <summary>
+    /// The taxiway a <c>RunwayHoldShort</c> node sits on: the name of its edge that leads off the runway — not along a
+    /// runway centerline, toward a node with no runway-centerline edge — else of any edge not along a centerline, the
+    /// ordinal-first name when several qualify, so the answer does not depend on edge order. Null when the node is not in
+    /// the layout or no such edge is named.
+    /// </summary>
+    public string? GetHoldShortTaxiwayName(int nodeId)
+    {
+        if ((_domainLayout is null) || !_domainLayout.Nodes.TryGetValue(nodeId, out GroundNode? node))
+        {
+            return null;
+        }
+
+        List<IGroundEdge> offRunway = [.. node.Edges.Where(e => !e.IsRunwayCenterline && !string.IsNullOrEmpty(e.TaxiwayName))];
+        List<IGroundEdge> leadingOff = [.. offRunway.Where(e => !e.OtherNode(node).Edges.Any(other => other.IsRunwayCenterline))];
+        return (leadingOff.Count > 0 ? leadingOff : offRunway).Select(e => e.TaxiwayName).Order(StringComparer.Ordinal).FirstOrDefault();
+    }
+
     /// <summary>
     /// Finds the lowest-cost <c>RunwayHoldShort</c> node for <paramref name="runwayEnd"/>
     /// (e.g. <c>"28L"</c>) reachable from <paramref name="ac"/>'s current nearest node.
@@ -1407,16 +1537,9 @@ public partial class GroundViewModel : ObservableObject
                 continue;
             }
 
-            TaxiRoute? route = TaxiPathfinder.FindRoute(_domainLayout, fromNodeId.Value, node.Id, CategoryFor(ac), WakeClassFor(ac));
-            if (route is null)
+            if (RouteCostNm(ac, fromNodeId.Value, node.Id) is not { } costNm)
             {
                 continue;
-            }
-
-            double costNm = 0;
-            foreach (TaxiRouteSegment seg in route.Segments)
-            {
-                costNm += seg.Edge.DistanceNm;
             }
 
             if (costNm < bestCostNm)

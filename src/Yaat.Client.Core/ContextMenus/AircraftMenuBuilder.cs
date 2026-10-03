@@ -82,6 +82,7 @@ public static class AircraftMenuBuilder
         MenuIds.PointHoldLeft,
         MenuIds.PointHoldRight,
         MenuIds.PointTaxiHere,
+        MenuIds.PointTaxiToRunway,
         MenuIds.PointPushTo,
         MenuIds.PointCustomTaxi,
     ];
@@ -89,8 +90,8 @@ public static class AircraftMenuBuilder
     /// <summary>
     /// The menu for a point right-clicked with <paramref name="aircraft"/> selected: the point items by the aircraft's
     /// predicates — airborne, Fly heading, Direct to, Append direct to and the two holds; at a taxi node, Taxi here, Push
-    /// to and Custom taxi… — then Warp here after a separator, then the view section after another. No header,
-    /// Favorites, command tree, foot or RPO items.
+    /// to and Custom taxi…; on a runway surface, a Taxi to submenu per runway end — then Warp here after a separator,
+    /// then the view section after another. No header, Favorites, command tree, foot or RPO items.
     /// </summary>
     private static ContextMenu BuildPointMenu(
         IMenuAircraft aircraft,
@@ -102,6 +103,12 @@ public static class AircraftMenuBuilder
         var menu = new ContextMenu();
         foreach (string id in PointIds)
         {
+            if (id == MenuIds.PointTaxiToRunway)
+            {
+                SharedMenuGroups.AddTaxiToRunwayEnds(menu.Items, aircraft, context, host);
+                continue;
+            }
+
             SharedMenuGroups.AddIfApplicable(menu.Items, id, aircraft, context, host);
         }
 

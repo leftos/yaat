@@ -27,6 +27,9 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
     /// <summary>The most aircraft the Follow… and Give way to… submenus list.</summary>
     private const int MaxGroundTraffic = 12;
 
+    /// <summary>The route-nearest hold short per aircraft and runway, found once for the menu this host builds.</summary>
+    private readonly Dictionary<(string Callsign, RunwayIdentifier Runway), int?> _nearestHoldShortByRunway = [];
+
     public MenuSession Session => SessionOf(main);
 
     public Task SendAsync(string callsign, string command, string initials) => main.SendCommandForViewAsync(callsign, command, initials);
@@ -65,6 +68,82 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
 
         List<MenuCommandChoice> perRoute = [.. routes.Select(route => RouteChoice(ground, route, spot, destRunway)).OfType<MenuCommandChoice>()];
         return (routes.Count == 1) ? perRoute : [new MenuCommandChoice("Taxi here", null, null, perRoute)];
+    }
+
+    /// <summary>
+    /// The primary ground view model's picks for <paramref name="runwayEnd"/>: the route-nearest hold short
+    /// (<see cref="GroundViewModel.FindNearestHoldShortNodeForRunwayEnd"/>), the one nearest the click
+    /// (<see cref="GroundViewModel.FindHoldShortNodeNearestPoint"/>) and the full-length one
+    /// (<see cref="GroundViewModel.FindFullLengthHoldShortNode"/>). A node two picks agree on is one target naming both
+    /// reasons, labelled by the taxiway it sits on (<c>At W (nearest, full length)</c>), or by the reasons alone, capitalised,
+    /// when it sits on no named taxiway.
+    /// </summary>
+    public IReadOnlyList<RunwayHoldShortTarget> GetRunwayHoldShortTargets(string callsign, string runwayName, string runwayEnd, LatLon click)
+    {
+        if (FindAircraft(callsign) is not { } ac)
+        {
+            return [];
+        }
+
+        GroundViewModel ground = main.Ground;
+        (int? NodeId, string Reason)[] picks =
+        [
+            (NearestHoldShortForRunway(ground, ac, runwayName, runwayEnd), "nearest"),
+            (ground.FindHoldShortNodeNearestPoint(runwayName, click), "near click"),
+            (ground.FindFullLengthHoldShortNode(ac, runwayName, runwayEnd), "full length"),
+        ];
+        var reasonsByNode = new List<(int NodeId, List<string> Reasons)>();
+        foreach ((int? nodeId, string reason) in picks)
+        {
+            if (nodeId is not { } id)
+            {
+                continue;
+            }
+
+            int index = reasonsByNode.FindIndex(r => r.NodeId == id);
+            if (index >= 0)
+            {
+                reasonsByNode[index].Reasons.Add(reason);
+            }
+            else
+            {
+                reasonsByNode.Add((id, [reason]));
+            }
+        }
+
+        List<RunwayHoldShortTarget> targets = [];
+        foreach ((int nodeId, List<string> reasons) in reasonsByNode)
+        {
+            if (ground.GetNode(nodeId) is { } node)
+            {
+                targets.Add(new RunwayHoldShortTarget(node, HoldShortTargetLabel(ground.GetHoldShortTaxiwayName(nodeId), reasons)));
+            }
+        }
+
+        return targets;
+    }
+
+    /// <summary>
+    /// The route-nearest hold short of the whole runway (<see cref="GroundViewModel.FindNearestHoldShortNodeForRunwayEnd"/>),
+    /// which is the same node for either end, so it is searched once per aircraft and runway for the menu this host builds.
+    /// </summary>
+    private int? NearestHoldShortForRunway(GroundViewModel ground, AircraftModel ac, string runwayName, string runwayEnd)
+    {
+        (string, RunwayIdentifier) key = (ac.Callsign, RunwayIdentifier.Parse(runwayName));
+        if (!_nearestHoldShortByRunway.TryGetValue(key, out int? nodeId))
+        {
+            nodeId = ground.FindNearestHoldShortNodeForRunwayEnd(ac, runwayEnd);
+            _nearestHoldShortByRunway[key] = nodeId;
+        }
+
+        return nodeId;
+    }
+
+    /// <summary><c>At {taxiway} ({reasons})</c>, or the reasons alone with the first capitalised when the taxiway is unnamed.</summary>
+    private static string HoldShortTargetLabel(string? taxiway, List<string> reasons)
+    {
+        string joined = string.Join(", ", reasons);
+        return string.IsNullOrEmpty(taxiway) ? char.ToUpperInvariant(joined[0]) + joined[1..] : $"At {taxiway} ({joined})";
     }
 
     /// <summary>The taxi's named destination at <paramref name="node"/>: a named Spot (<c>$</c>), a named Parking or Helipad stand (<c>@</c>); else null.</summary>

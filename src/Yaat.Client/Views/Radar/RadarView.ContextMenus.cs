@@ -202,7 +202,7 @@ public partial class RadarView
         }
 
         var host = new ClientMenuHost(main, selected, Canvas);
-        var click = new MenuClick(selected.Callsign, null, new MenuPoint(position, null, null), []);
+        var click = new MenuClick(selected.Callsign, null, new MenuPoint(position, null, null, [], null), []);
         return AircraftMenuBuilder.Build(selected, click, host, _ => section);
     }
 

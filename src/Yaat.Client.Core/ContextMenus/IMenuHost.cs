@@ -40,6 +40,14 @@ public interface IMenuHost
     IReadOnlyList<MenuCommandChoice> GetTaxiChoices(string callsign, GroundNodeDto node, string? runwayEnd);
 
     /// <summary>
+    /// The hold-short nodes Taxi to runway offers <paramref name="callsign"/> for <paramref name="runwayEnd"/> of
+    /// <paramref name="runwayName"/> after a click on its surface at <paramref name="click"/>: the route-nearest hold
+    /// short, the one nearest the click, and the route-nearest of those at that end's threshold (full length), each node
+    /// once with every reason it was picked, in that order. Empty when the aircraft or the runway is not found.
+    /// </summary>
+    IReadOnlyList<RunwayHoldShortTarget> GetRunwayHoldShortTargets(string callsign, string runwayName, string runwayEnd, LatLon click);
+
+    /// <summary>
     /// The text and caret the point menu's Custom taxi… input opens with at <paramref name="node"/>, naming
     /// <paramref name="runwayEnd"/> when a threshold click names one.
     /// </summary>

@@ -112,6 +112,37 @@ public class PointMenuViewTests
         Assert.Null(view.BuildThresholdPointMenu(main.Ground, ac, "30", missing));
     }
 
+    // --- Runway surface ---------------------------------------------------------------------
+
+    [AvaloniaFact]
+    public void GroundView_RunwaySurfaceClick_BuildsTheTaxiToRunwayMenu()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        GroundNodeDto start = OakNode("Spot", "I30");
+        (GroundView view, MainViewModel main) = GroundHarness(GroundAircraft(new LatLon(start.Latitude, start.Longitude)));
+        Show(Parent(view));
+        var id = RunwayIdentifier.Parse("28R/10L");
+        GroundRunwayDto runway = Assert.Single(MenuGoldenFixtures.OakLayoutForClient.Runways!, r => RunwayIdentifier.Parse(r.Name) == id);
+        var click = new LatLon(
+            (runway.Coordinates[0][0] + runway.Coordinates[^1][0]) / 2.0,
+            (runway.Coordinates[0][1] + runway.Coordinates[^1][1]) / 2.0
+        );
+        GroundNodeDto nearest = main.Ground.GetNode(main.Ground.DomainLayout!.FindNearestNode(click)!.Id)!;
+
+        ContextMenu? menu = view.BuildRunwaySurfaceMenu(main.Ground, [runway.Name], click, nearest, default);
+
+        Assert.NotNull(menu);
+        List<string> labels = Labels(menu.Items);
+        Assert.Contains("Taxi to 28R", labels);
+        Assert.Contains("Taxi to 10L", labels);
+        Assert.DoesNotContain(labels, l => (l is "Taxi here" or "Custom taxi…") || l.StartsWith("Push to", StringComparison.Ordinal));
+        // Warp here, then the ground's section: the measuring items and Draw taxi route… from the node nearest the click.
+        int warp = labels.IndexOf("Warp here");
+        int measure = labels.IndexOf("Measure from here");
+        Assert.InRange(warp, labels.IndexOf("Taxi to 10L") + 1, measure - 1);
+        Assert.Equal("Draw taxi route…", labels[^1]);
+    }
+
     // --- Radar map --------------------------------------------------------------------------
 
     [AvaloniaFact]

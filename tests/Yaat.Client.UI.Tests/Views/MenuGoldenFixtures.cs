@@ -90,7 +90,7 @@ internal static class MenuGoldenFixtures
     /// The runway 30/12 hold-short on taxiway W3 (hold-short nodes carry no name; each of the seven runway 30 hold-shorts
     /// sits on its own taxiway, W1 to W7, so the runway and taxiway pair picks exactly one).
     /// </summary>
-    private static GroundNode HoldShort30AtW3(AirportGroundLayout layout) =>
+    public static GroundNode HoldShort30AtW3(AirportGroundLayout layout) =>
         layout.Nodes.Values.Single(n =>
             (n.Type == GroundNodeType.RunwayHoldShort) && (n.RunwayId is { } rwy) && rwy.Contains("30") && n.Edges.Any(e => e.MatchesTaxiway("W3"))
         );
@@ -99,7 +99,7 @@ internal static class MenuGoldenFixtures
     /// The W3 node just behind <see cref="HoldShort30AtW3"/> on the side away from the runway, where an aircraft taxis up
     /// to it: of the hold-short's two W3 neighbours, the one with no edge onto the runway (the other joins RWY30/12).
     /// </summary>
-    private static GroundNode W3NodeBeforeHoldShort30(AirportGroundLayout layout)
+    public static GroundNode W3NodeBeforeHoldShort30(AirportGroundLayout layout)
     {
         GroundNode holdShort = HoldShort30AtW3(layout);
         return holdShort
@@ -385,10 +385,10 @@ internal static class MenuGoldenFixtures
 
     /// <summary>
     /// The layout as a <see cref="GroundLayoutDto"/>, covering only what <c>GroundViewModel.ReconstructLayout</c> and the
-    /// menus read: nodes, edges and arc geometry. Runways and ADW marks are left null and no arc is hidden; the server's
+    /// menus read: nodes, edges, arc geometry and runways. ADW marks are left null and no arc is hidden; the server's
     /// <c>DtoConverter.ToGroundLayoutDto</c> is the full conversion.
     /// </summary>
-    private static GroundLayoutDto ToGroundLayoutDto(AirportGroundLayout layout)
+    public static GroundLayoutDto ToGroundLayoutDto(AirportGroundLayout layout)
     {
         var nodes = new List<GroundNodeDto>(layout.Nodes.Count);
         foreach (GroundNode node in layout.Nodes.Values)
@@ -433,6 +433,27 @@ internal static class MenuGoldenFixtures
             );
         }
 
-        return new GroundLayoutDto(layout.AirportId, nodes, edges, arcs, Runways: null, AdwMarks: null);
+        return new GroundLayoutDto(layout.AirportId, nodes, edges, arcs, ToRunwayDtos(layout), AdwMarks: null);
     }
+
+    /// <summary>The layout's runways as the server's <c>DtoConverter.ToGroundLayoutDto</c> sends them: name, coordinates and width.</summary>
+    private static List<GroundRunwayDto> ToRunwayDtos(AirportGroundLayout layout)
+    {
+        var runways = new List<GroundRunwayDto>(layout.Runways.Count);
+        foreach (GroundRunway rwy in layout.Runways)
+        {
+            var coords = new List<double[]>(rwy.Coordinates.Count);
+            foreach ((double lat, double lon) in rwy.Coordinates)
+            {
+                coords.Add([lat, lon]);
+            }
+
+            runways.Add(new GroundRunwayDto(rwy.Name, coords, rwy.WidthFt));
+        }
+
+        return runways;
+    }
+
+    /// <summary>The KOAK layout as parsed from the committed GeoJSON, for tests that read its domain graph.</summary>
+    public static AirportGroundLayout OakDomainLayout => OakLayout.Value;
 }

@@ -598,6 +598,24 @@ public static class SharedMenuGroups
         menu.Items.Add(MenuCatalog.BuildAssumeSelected(selectedShadows, host));
     }
 
+    /// <summary>
+    /// Taxi to runway on a runway-surface point: one <c>Taxi to {end}</c> submenu per end of each runway under the click,
+    /// when the entry's own gate allows it, otherwise nothing. The items come from
+    /// <see cref="MenuCatalog.BuildTaxiToRunwayEnds"/> rather than from the entry's builder, since one click offers several.
+    /// </summary>
+    public static void AddTaxiToRunwayEnds(ItemCollection items, IMenuAircraft aircraft, MenuContext context, IMenuHost host)
+    {
+        if ((context.Click.Point is not { } point) || !IsApplicable(MenuIds.PointTaxiToRunway, aircraft, context))
+        {
+            return;
+        }
+
+        foreach (MenuItem end in MenuCatalog.BuildTaxiToRunwayEnds(point, context, host))
+        {
+            items.Add(end);
+        }
+    }
+
     private static void AddSeparatorIfNonEmpty(ItemCollection items)
     {
         if (items.Count > 0)
