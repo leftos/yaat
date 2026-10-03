@@ -473,7 +473,7 @@ harness shows is what the server did.
   The assume hand-off flips `IsLiveTraffic` in the same `AircraftUpdated`, so every surface below re-evaluates at once.
 - **Applicability** — `AircraftCommandApplicability.IsControllable(ac)` (`!IsLiveTraffic || CanAssume(ac)`) gates every maneuver
   predicate; `CanAssume(ac)` = airborne shadow, which any manoeuvre command auto-assumes server-side (`CommandDispatcher.TryAssumeShadow`),
-  so the menus offer it the phase-aware groups a simulated aircraft gets. `SharedMenuGroups.AddLiveTrafficAssume` (`Yaat.Client.Core/ContextMenus/`; the radar and ground views through `AircraftMenuBuilder` / `ClientMenuHost`, the list through `ListMenuHost`) prepends "Assume
+  so the menus offer it the phase-aware groups a simulated aircraft gets. `SharedMenuGroups.AddLiveTrafficAssume` (`Yaat.Client.Core/ContextMenus/`; every view through `AircraftMenuBuilder` / `ClientMenuHost`) prepends "Assume
   control" / "Assume and track" (two commands — the server doesn't couple `ASSUME` and `TRACK`). Each right-click surface
   (`RadarView.ContextMenus`, `DataGridView.axaml.cs`, `GroundView.axaml.cs`) leaves out for an airborne shadow what the server
   refuses — Ask pilot (read-only queries, `CanAskPilot`) and Edit flight plan (refused ahead of the gate, `CanEditFlightPlan`); Warp goes through the command path and auto-assumes like any other verb — and keeps a

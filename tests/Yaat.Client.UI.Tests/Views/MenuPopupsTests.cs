@@ -506,16 +506,14 @@ public class MenuPopupsTests
         Assert.StartsWith("Command error:", main.StatusText);
     }
 
-    // --- The list host's Custom… --------------------------------------------------------------
+    // --- Custom… on the menu's anchor ----------------------------------------------------------
 
     /// <summary>
-    /// The aircraft list's takeoff Custom… opens the input popup on the anchor the list menu already passes its
-    /// Command… and Note… flyouts. The list sends through the main view model's own connection, which a test cannot
-    /// reach (a real <c>ServerConnection</c> with no seam), so the composed command text stays pinned by
-    /// <c>MenuCatalogCommandTests</c>' recording host and this test pins the popup the list opens.
+    /// The takeoff Custom… opens the input popup on the control the menu was built with. The composed command text stays
+    /// pinned by <c>MenuCatalogCommandTests</c>' recording host; this test pins the popup the menu opens.
     /// </summary>
     [AvaloniaFact]
-    public void ListMenuHost_CustomTakeoff_OpensThePopup()
+    public void ClientHost_CustomTakeoff_OpensThePopupOnTheMenuAnchor()
     {
         var main = new MainViewModel(new FakeFilePickerService());
         var anchor = new Border();
@@ -524,7 +522,7 @@ public class MenuPopupsTests
 
         AircraftModel ac = TaxiingJet();
         main.Aircraft.Add(ac);
-        var host = new ListMenuHost(main, ac, anchor);
+        var host = new ClientMenuHost(main, ac, anchor);
 
         Click(CustomTakeoff(ac, CatalogMenuView.List, host));
         HeadlessWindowExtensions.PumpDispatcher();
@@ -539,11 +537,11 @@ public class MenuPopupsTests
     }
 
     /// <summary>
-    /// The list host's input popup, opened on its flyout anchor, hands the text the controller typed to the submit
-    /// callback.
+    /// The client host's input popup, opened on the control the menu was built with, hands the text the controller typed
+    /// to the submit callback.
     /// </summary>
     [AvaloniaFact]
-    public void ListMenuHost_ShowInputPopup_SubmitsTheTypedText()
+    public void ClientHost_ShowInputPopup_OnTheMenuAnchor_SubmitsTheTypedText()
     {
         var main = new MainViewModel(new FakeFilePickerService());
         var anchor = new Border();
@@ -552,7 +550,7 @@ public class MenuPopupsTests
 
         AircraftModel ac = TaxiingJet();
         main.Aircraft.Add(ac);
-        var host = new ListMenuHost(main, ac, anchor);
+        var host = new ClientMenuHost(main, ac, anchor);
 
         string? got = null;
         host.ShowInputPopup(
@@ -572,6 +570,35 @@ public class MenuPopupsTests
         HeadlessWindowExtensions.PumpDispatcher();
 
         Assert.Equal("LT 270", got);
+    }
+
+    // --- The list's own menu anchors its popups on the grid -----------------------------------
+
+    /// <summary>
+    /// The aircraft list's menu, built through <see cref="DataGridView.BuildAircraftMenu"/>, opens its input popups on
+    /// the DataGrid the right-click came from, so the takeoff Custom… places its popup there.
+    /// </summary>
+    [AvaloniaFact]
+    public void DataGridMenu_CustomInputPopup_OpensOnTheGrid()
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        AircraftModel ac = TaxiingJet();
+        main.Aircraft.Add(ac);
+
+        var grid = new DataGrid();
+        new Window { Content = grid }.ShowAndRunLayout();
+
+        ContextMenu menu = DataGridView.BuildAircraftMenu(main, grid, ac, null, [ac]);
+        MenuItem tower = menu.Items.OfType<MenuItem>().Single(m => (m.Header as string) == "Tower");
+        MenuItem takeoff = tower
+            .Items.OfType<MenuItem>()
+            .Single(m => ((m.Header as string) ?? "").StartsWith("Cleared for takeoff", StringComparison.Ordinal));
+        Click(Assert.IsType<MenuItem>(takeoff.Items[^1]));
+        HeadlessWindowExtensions.PumpDispatcher();
+
+        Popup popup = FindPopup(grid);
+        Assert.True(popup.IsOpen, "Clicking Custom… should open the list's input popup.");
+        Assert.Same(grid, popup.PlacementTarget);
     }
 
     // --- Fixtures -----------------------------------------------------------------------------

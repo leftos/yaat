@@ -1,6 +1,5 @@
-# list cfr-window
-SWA109 — B738 [disabled]
-Check release window
+# list relative-selection
+SWA601 — B738 [disabled]
 ---
 Command…
 Note…
@@ -8,8 +7,11 @@ Note…
 Favorite Commands
   (no items) [disabled]
 ---
-Hold position
-Break conflict
+↪ SWA602: [disabled]
+SWA602: give way to SWA601
+SWA602: follow SWA601
+---
+Cross 30
 Tower
   Line up and wait 30
   Cleared for takeoff 30

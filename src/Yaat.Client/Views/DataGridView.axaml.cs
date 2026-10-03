@@ -4,7 +4,9 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Microsoft.Extensions.Logging;
 using Yaat.Client.ContextMenus;
+using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 
@@ -12,6 +14,7 @@ namespace Yaat.Client.Views;
 
 public partial class DataGridView : UserControl
 {
+    private static readonly ILogger MenuLog = AppLog.CreateLogger("DataGridView");
     private bool _suppressSelectionFeedback;
     private RightPress? _rightPress;
 
@@ -212,6 +215,7 @@ public partial class DataGridView : UserControl
         grid.ContextMenu = null;
         if (DataContext is not MainViewModel vm)
         {
+            MenuLog.LogWarning("Context request on the aircraft list: the list has no main view model, so no aircraft menu opens");
             return;
         }
 
@@ -230,7 +234,7 @@ public partial class DataGridView : UserControl
             return;
         }
 
-        grid.ContextMenu = BuildAircraftMenu(vm, grid, resolved.Clicked, resolved.Previous, [resolved.Clicked], vm.Preferences.UserInitials);
+        grid.ContextMenu = BuildAircraftMenu(vm, grid, resolved.Clicked, resolved.Previous, [resolved.Clicked]);
     }
 
     /// <summary>
@@ -275,100 +279,23 @@ public partial class DataGridView : UserControl
     }
 
     /// <summary>
-    /// The whole aircraft-list context menu a right-click shows, built without assigning it: the header, the
-    /// favorites block, the phase-aware command groups (the relative items first when
-    /// <paramref name="previousSelection"/> is set) and the multi-selection items, for <paramref name="ac"/> with
-    /// <paramref name="selection"/> supplying the RPO callsigns and the assumable shadows.
-    /// <paramref name="flyoutTarget"/> is the control the command and note flyouts anchor to.
+    /// The whole aircraft-list context menu a right-click shows, built without assigning it, through
+    /// <see cref="AircraftMenuBuilder"/>: the right-clicked <paramref name="ac"/>, the selected aircraft
+    /// <paramref name="previousSelection"/> that relative actions target, and <paramref name="selection"/> supplying the
+    /// RPO callsigns and the assumable shadows. The list draws no canvas, so its view section is empty. Popups and
+    /// flyouts open at the pointer on <paramref name="flyoutTarget"/>.
     /// </summary>
     internal static ContextMenu BuildAircraftMenu(
         MainViewModel vm,
         Control flyoutTarget,
         AircraftModel ac,
         AircraftModel? previousSelection,
-        IReadOnlyList<AircraftModel> selection,
-        string initials
+        IReadOnlyList<AircraftModel> selection
     )
     {
-        string callsign = ac.Callsign;
-        var context = new MenuContext(
-            new MenuClick(callsign, previousSelection, selection),
-            new MenuSession(initials, vm.SessionSoloTrainingMode, vm.VfrCommandsForIfr),
-            MenuView.List
-        );
-        var host = new ListMenuHost(vm, ac, flyoutTarget);
-        var menu = new ContextMenu();
-        SharedMenuGroups.AddHeader(menu.Items, ac, context, host);
-        menu.Items.Add(SharedMenuGroups.Favorites(ac, context, host));
-        menu.Items.Add(new Separator());
-
-        if (ac.IsDelayed)
-        {
-            SharedMenuGroups.AddDelayedSpawn(menu, ac, context, host);
-            return menu;
-        }
-
-        AddCommandGroups(menu, ac, context, host);
-        SharedMenuGroups.AddFoot(menu.Items, ac, context, host);
-
-        SharedMenuGroups.AddAssumeSelected(menu, context, host);
-
-        vm.BuildRpoMenuItems(menu, [.. selection.Select(a => a.Callsign)]);
-
-        return menu;
+        var host = new ClientMenuHost(vm, ac, flyoutTarget);
+        return AircraftMenuBuilder.Build(ac, new MenuClick(ac.Callsign, previousSelection, selection), host, _ => []);
     }
-
-    /// <summary>
-    /// The command groups between the favorites block and the foot (<see cref="SharedMenuGroups.AddFoot"/>). An
-    /// assumable live-traffic shadow takes the two assume items and then the same phase-aware groups a simulated
-    /// aircraft gets: a command sent to an airborne shadow auto-assumes it server-side, so the groups apply as they
-    /// are, minus the two the server refuses for a shadow — the ask-pilot queries
-    /// (<see cref="AircraftCommandApplicability.CanAskPilot"/>) and the flight-plan editor
-    /// (<see cref="AircraftCommandApplicability.CanEditFlightPlan"/>). A surface shadow is not assumable and gets the
-    /// read-only shadow tree every view shares (<see cref="SharedMenuGroups.AddSurfaceShadow"/>).
-    /// </summary>
-    private static void AddCommandGroups(ContextMenu menu, AircraftModel ac, MenuContext context, ListMenuHost host)
-    {
-        if (AircraftCommandApplicability.CanAssume(ac))
-        {
-            SharedMenuGroups.AddLiveTrafficAssume(menu.Items, ac, context, host);
-            menu.Items.Add(new Separator());
-        }
-        else if (ac.IsLiveTraffic)
-        {
-            SharedMenuGroups.AddSurfaceShadow(menu.Items, ac, context, host, BuildCanvasDisplay(context, host));
-            return;
-        }
-
-        SharedMenuGroups.AddListAircraftCommands(menu.Items, ac, context, host);
-
-        menu.Items.Add(new Separator());
-        menu.Items.Add(SharedMenuGroups.Track(ac, context, host, MenuView.List));
-        menu.Items.Add(SharedMenuGroups.Squawk(ac, context, host, MenuView.List));
-        if (AircraftCommandApplicability.CanAskPilot(ac))
-        {
-            menu.Items.Add(SharedMenuGroups.AskPilot(ac, context, host, MenuView.List));
-        }
-
-        menu.Items.Add(SharedMenuGroups.Coordination(ac, context, host));
-
-        menu.Items.Add(new Separator());
-        if (SharedMenuGroups.EditFlightPlan(ac, context, host) is { } editItem)
-        {
-            menu.Items.Add(editItem);
-        }
-    }
-
-    /// <summary>
-    /// The aircraft list's Display submenu, which a surface live-traffic shadow carries: the list draws no canvas of
-    /// its own, so it opens on the leader-direction, J-ring and cone overlays and the blank and unblank items.
-    /// </summary>
-    internal static MenuItem BuildCanvasDisplay(MenuContext context, IMenuHost host) =>
-        CanvasMenuItems.Display([
-            [],
-            [CanvasMenuItems.LeaderDirection(context, host), CanvasMenuItems.JRing(context, host), CanvasMenuItems.Cone(context, host)],
-            [CanvasMenuItems.Blank(context, host), CanvasMenuItems.Unblank(context, host)],
-        ]);
 
     private void OnDataGridViewKeyDown(object? sender, KeyEventArgs e)
     {

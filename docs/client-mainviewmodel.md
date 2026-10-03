@@ -300,7 +300,7 @@ dispatch tail for its mapped canonical, and favorites/macros re-enter through `S
 
 **Not every client command flows through this chain.** Sub-VMs (Strips/TDLS) dispatch through the simpler
 `SendCommandForViewAsync(callsign, command, initials)`, which skips the resolution chain because the caller already
-knows the callsign — and the **right-click context menus skip both**: their catalog entries send through `IMenuHost.SendAsync` (`Views/ContextMenuHosts.cs`), which calls `Connection.SendCommandAsync` directly.
+knows the callsign — and so do the **right-click context menus**: their catalog entries send through `IMenuHost.SendAsync` (`Views/ClientMenuHost.cs`), which calls `SendCommandForViewAsync` on every view.
 Anything that must apply to *every* command a controller issues therefore needs a second enforcement point: for the VFR
 gate that is `AircraftCommandApplicability`, which the menus consult when deciding which items to build.
 

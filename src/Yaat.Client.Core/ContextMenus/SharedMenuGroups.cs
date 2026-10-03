@@ -7,15 +7,12 @@ namespace Yaat.Client.ContextMenus;
 /// The groups more than one surface builds — the menu header (title, Command…, Note…), live traffic, track, squawk, ask
 /// pilot, coordination, data block, favorites, the menu foot (warp, release to live feed, delete), and the flight groups
 /// heading, altitude, speed, navigation, hold, approach, procedures, tower and pattern — assembled from
-/// <see cref="MenuCatalog"/> entries. Only track, squawk and ask pilot keep a <see cref="MenuView"/> variant: the radar
-/// carries input pickers (handoff, point out, squawk code, custom say) the other surfaces leave out when they build the
-/// group themselves. The read-only tree a surface live-traffic shadow gets (<see cref="AddSurfaceShadow"/>) uses the radar's
-/// Track on every view, so a shadow's handoff and point-out pickers are there on all three. Data block takes no view: its
-/// entries are capability-gated, so a surface without the free-text popup shows fewer of them; the flight groups are the
-/// radar's own, so they take no view either. The relative items (<see cref="AddRelative"/>) are a group of their own,
-/// and the tower variants branch on <see cref="MenuContext.View"/> inside the entries. Whether a group is offered at all
-/// stays with the caller. A group whose items are canvas-only in nature — the Display submenu — takes the surface's
-/// prebuilt items instead of the entries: the surface builds them with
+/// <see cref="MenuCatalog"/> entries. <see cref="AircraftMenuBuilder"/> builds every surface's menu as
+/// <see cref="MenuView.Radar"/>, so the radar's input pickers — handoff, point out, squawk code, custom say — are on
+/// every surface, and nothing reads <see cref="MenuContext.View"/>. Data block entries are capability-gated, so a surface
+/// without the free-text popup shows fewer of them. The relative items (<see cref="AddRelative"/>) are a group of their
+/// own. Whether a group is offered at all stays with the caller. A group whose items are canvas-only in nature — the
+/// Display submenu — takes the surface's prebuilt items instead of the entries: the surface builds them with
 /// <see cref="CanvasMenuItems"/> from its own canvas state and only the placing stays here.
 /// </summary>
 public static class SharedMenuGroups
@@ -221,9 +218,9 @@ public static class SharedMenuGroups
 
     /// <summary>
     /// The foot every aircraft menu ends with, before the RPO items the caller appends: a separator (unless the menu
-    /// already ends in one), Warp… where it applies (the radar, and never for a surface live-traffic shadow), "Release
+    /// already ends in one), Warp… where it applies (every view offers it, never a surface live-traffic shadow), "Release
     /// to live feed" when the aircraft was assumed from the feed (<see cref="AircraftCommandApplicability.CanUnassume"/>),
-    /// then Delete. The aircraft list's delayed-spawn menu keeps its own foot (<see cref="AddDelayedSpawn"/>).
+    /// then Delete. Every view's delayed-spawn menu keeps its own foot (<see cref="AddDelayedSpawn"/>).
     /// </summary>
     public static void AddFoot(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
@@ -240,20 +237,6 @@ public static class SharedMenuGroups
     /// <summary>The "Edit flight plan" leaf when the aircraft's flight plan is editable, otherwise null.</summary>
     public static MenuItem? EditFlightPlan(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
         IsApplicable(MenuIds.AircraftEditFlightPlan, aircraft, context) ? TryLeaf(MenuIds.AircraftEditFlightPlan, aircraft, context, host) : null;
-
-    /// <summary>
-    /// The read-only tree a surface live-traffic shadow gets on every view: the track, data block and coordination
-    /// groups, then <paramref name="display"/>, the surface's own Display submenu, and nothing that would command the
-    /// aircraft. The track group is the radar's, so every view's shadow offers the radar's handoff and point-out
-    /// pickers. It adds no foot and no RPO items; the caller appends those.
-    /// </summary>
-    public static void AddSurfaceShadow(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host, MenuItem display)
-    {
-        items.Add(Track(aircraft, context, host, MenuView.Radar));
-        items.Add(DataBlock(aircraft, context, host));
-        items.Add(Coordination(aircraft, context, host));
-        items.Add(display);
-    }
 
     /// <summary>
     /// Appends "Assume control" and "Assume and track" to <paramref name="items"/> when the aircraft is an assumable
@@ -598,61 +581,8 @@ public static class SharedMenuGroups
     }
 
     /// <summary>
-    /// The aircraft list's phase-aware command items, in the list's order: the relative items
-    /// (<see cref="AddRelative"/>) while another row was selected at the right-click, as the builder's command tree
-    /// opens with them; the ground-movement block (push back, hold position, resume taxi and cross the held runway) for
-    /// an on-ground aircraft, then line up and wait, Cleared for takeoff and cancel takeoff clearance, then the landing
-    /// items and the runway exits. The landing block and the exits come from <see cref="AddFlatLandingAndExits"/>. The
-    /// caller builds the context with <see cref="MenuView.List"/>. Each item adds nothing when it does not apply.
-    /// </summary>
-    public static void AddListAircraftCommands(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-    {
-        AddRelative(items, aircraft, context, host);
-        if (aircraft?.IsOnGround == true)
-        {
-            AddIfApplicable(items, MenuIds.GroundPushback, aircraft, context, host);
-            AddIfApplicable(items, MenuIds.GroundHoldPosition, aircraft, context, host);
-            AddIfApplicable(items, MenuIds.GroundResumeTaxi, aircraft, context, host);
-            AddIfApplicable(items, MenuIds.GroundCrossRunway, aircraft, context, host);
-        }
-
-        AddIfApplicable(items, MenuIds.TowerLineUpAndWait, aircraft, context, host);
-        AddIfApplicable(items, MenuIds.TowerClearedForTakeoff, aircraft, context, host);
-        AddIfApplicable(items, MenuIds.TowerCancelTakeoff, aircraft, context, host);
-        AddFlatLandingAndExits(items, aircraft, context, host);
-    }
-
-    /// <summary>
-    /// The landing items in the Tower submenu's order (<see cref="LandingIds"/>) while any of cleared to land, go around
-    /// or cancel landing clearance applies, then the runway exits, for the aircraft list's flat menu. Each block opens with a separator when items precede it (<see cref="AddBlockSeparator"/>), as the
-    /// Tower submenu separates its blocks.
-    /// </summary>
-    private static void AddFlatLandingAndExits(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-    {
-        bool landing =
-            (IsApplicable(MenuIds.TowerClearedToLand, aircraft, context))
-            || (IsApplicable(MenuIds.TowerGoAround, aircraft, context))
-            || (IsApplicable(MenuIds.TowerCancelLanding, aircraft, context));
-        if (landing)
-        {
-            AddBlockSeparator(items);
-            foreach (string id in LandingIds)
-            {
-                AddIfApplicable(items, id, aircraft, context, host);
-            }
-        }
-
-        if ((IsApplicable(MenuIds.TowerExitLeft, aircraft, context)) || (IsApplicable(MenuIds.TowerExitRight, aircraft, context)))
-        {
-            AddBlockSeparator(items);
-            AddIfApplicable(items, MenuIds.TowerExitLeft, aircraft, context, host);
-            AddIfApplicable(items, MenuIds.TowerExitRight, aircraft, context, host);
-        }
-    }
-
-    /// <summary>
-    /// The aircraft list's delayed-spawn items, in the list's order: Spawn now, the Change spawn delay submenu and
-    /// Delete. The caller places them in place of the phase-aware command groups when the aircraft is a delayed spawn.
+    /// The delayed-spawn items <see cref="AircraftMenuBuilder"/> places on every view, in order: Spawn now, the Change
+    /// spawn delay submenu and Delete. They replace the phase-aware command groups when the aircraft is a delayed spawn.
     /// The submenu's free-text delay box closes the menu it sits in, so the submenu comes from
     /// <see cref="MenuCatalog.BuildSpawnDelay"/> rather than from its own entry's builder.
     /// </summary>

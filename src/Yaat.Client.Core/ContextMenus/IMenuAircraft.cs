@@ -56,7 +56,7 @@ public interface IMenuAircraft
     bool AutoYieldIsFollowing { get; }
 
     /// <summary>
-    /// True for an aircraft the scenario holds back until its spawn delay expires, which the list menus show a
+    /// True for an aircraft the scenario holds back until its spawn delay expires, which every view's menu shows a
     /// spawn-delay menu for.
     /// </summary>
     bool IsDelayed { get; }

@@ -7,21 +7,31 @@ Note…
 Favorite Commands
   (no items) [disabled]
 ---
-Cleared for takeoff 30
-  Default (SID/on course)
-  Fly runway heading
-  ---
-  Custom... picker:input
-Cancel takeoff clearance
+Tower
+  Cleared for takeoff 30
+    Default (SID/on course)
+    Fly runway heading
+    ---
+    Custom... picker:input
+  Cancel takeoff clearance
 ---
 Track
   Track
   Drop track
   ---
   Accept handoff
+  Initiate handoff... picker:input
   Cancel handoff
+  ---
+  Point out... picker:input
   Acknowledge pointout
+Data Block
+  Scratchpad... picker:input
+  Temporary altitude... picker:input
+  Cruise... picker:input
+  Annotate
 Squawk
+  Squawk... picker:input
   Squawk random
   Squawk VFR
   Squawk normal
@@ -35,6 +45,8 @@ Ask pilot to say...
   Mach
   Position
   Expected approach
+  ---
+  Custom... picker:input
 Coordination
   Release
   Hold
@@ -43,4 +55,5 @@ Coordination
 ---
 Edit flight plan
 ---
+Warp...
 Delete

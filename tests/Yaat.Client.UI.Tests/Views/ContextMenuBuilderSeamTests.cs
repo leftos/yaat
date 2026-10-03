@@ -185,7 +185,7 @@ public class ContextMenuBuilderSeamTests
     {
         var main = new MainViewModel(new FakeFilePickerService());
         main.Aircraft.Add(shadow);
-        return DataGridView.BuildAircraftMenu(main, new DataGrid(), shadow, null, [shadow], "AB");
+        return DataGridView.BuildAircraftMenu(main, new DataGrid(), shadow, null, [shadow]);
     }
 
     /// <summary>The top-level items after the favorites block: the groups every aircraft menu opens with.</summary>
@@ -205,66 +205,41 @@ public class ContextMenuBuilderSeamTests
     private static List<string> DisplayHeaders(ContextMenu menu) =>
         [.. DisplayOf(menu).Items.OfType<MenuItem>().Select(i => i.Header as string ?? "")];
 
-    // Every view's Display is the view's own: each builds it from its own canvas state (or from none, on the aircraft
-    // list), so it still builds over a host with no canvas members at all.
+    // Each canvas's Display is the view's own: each builds it from its own canvas state, so it still builds over a host
+    // with no canvas members at all.
     [AvaloniaFact]
-    public void EveryViewsDisplay_BuildsOverAHostWithNoCanvasMembers()
+    public void RadarAndGroundDisplay_BuildOverAHostWithNoCanvasMembers()
     {
         var host = new RecordingMenuHost("");
-        AircraftModel shadow = SurfaceShadow("SWA9");
 
         (RadarView radarView, MainViewModel radarMain) = RadarHarness();
         (GroundView groundView, GroundViewModel ground, _) = GroundHarness();
         MenuContext radar = Context(CatalogMenuView.Radar);
         MenuContext groundContext = Context(CatalogMenuView.Ground);
-        MenuContext list = Context(CatalogMenuView.List);
 
-        (MenuContext Context, MenuItem Display)[] sections =
-        [
-            (radar, radarView.BuildCanvasDisplay(radarMain.Radar, radar, host)),
-            (groundContext, groundView.BuildCanvasDisplay(ground, groundContext)),
-            (list, DataGridView.BuildCanvasDisplay(list, host)),
-        ];
+        MenuItem[] displays = [radarView.BuildCanvasDisplay(radarMain.Radar, radar, host), groundView.BuildCanvasDisplay(ground, groundContext)];
 
-        // Each view's shadow tree still builds, and its Display carries the view's own items.
-        foreach ((MenuContext context, MenuItem display) in sections)
+        foreach (MenuItem display in displays)
         {
-            var menu = new ContextMenu();
-            SharedMenuGroups.AddSurfaceShadow(menu.Items, shadow, context, host, display);
-            Assert.Equal(["Track", "Data Block", "Coordination", "Display"], Sequence(menu));
             Assert.NotEmpty(display.Items);
             Assert.False(display.Items[0] is Separator);
         }
     }
 
-    // Every view gives a surface shadow the same read-only tree: track / data block / coordination / display, then the foot.
+    // Every view gives a surface shadow the same read-only tree: track / data block / coordination, then the view's
+    // section (Display on the canvases, nothing on the list), then the foot.
     [AvaloniaFact]
     public void SurfaceShadow_OffersTheSameGroupsOnEveryView()
     {
         AircraftModel shadow = SurfaceShadow("SWA9");
 
-        string[] expected = ["Track", "Data Block", "Coordination", "Display", "---", "Delete"];
-        Assert.Equal(expected, AfterFavorites(RadarSurfaceShadowMenu(shadow)));
-        Assert.Equal(expected, AfterFavorites(GroundSurfaceShadowMenu(shadow)));
-        Assert.Equal(expected, AfterFavorites(ListSurfaceShadowMenu(shadow)));
+        string[] canvas = ["Track", "Data Block", "Coordination", "Display", "---", "Delete"];
+        Assert.Equal(canvas, AfterFavorites(RadarSurfaceShadowMenu(shadow)));
+        Assert.Equal(canvas, AfterFavorites(GroundSurfaceShadowMenu(shadow)));
+        Assert.Equal(["Track", "Data Block", "Coordination", "---", "Delete"], AfterFavorites(ListSurfaceShadowMenu(shadow)));
     }
 
-    // The list's Display has no canvas block, so it must open on the overlay group, never on a separator.
-    [AvaloniaFact]
-    public void ListSurfaceShadow_DisplayHasNoLeadingOrTrailingSeparator()
-    {
-        List<object?> items = [.. DisplayOf(ListSurfaceShadowMenu(SurfaceShadow("SWA9"))).Items];
-
-        Assert.NotEmpty(items);
-        Assert.False(items[0] is Separator);
-        Assert.False(items[^1] is Separator);
-        for (int i = 1; i < items.Count; i++)
-        {
-            Assert.False((items[i] is Separator) && (items[i - 1] is Separator));
-        }
-    }
-
-    // Only the ground view's shadow offers the ground's own display entries; the radar's and the list's do not.
+    // Only the ground view's shadow offers the ground's own display entries; the radar's does not.
     [AvaloniaFact]
     public void GroundSurfaceShadow_DisplayHasTaxiRouteAndHideDatablock()
     {
@@ -274,9 +249,7 @@ public class ContextMenuBuilderSeamTests
         Assert.DoesNotContain("Leader direction", groundHeaders);
 
         Assert.DoesNotContain("Taxi route", DisplayHeaders(RadarSurfaceShadowMenu(SurfaceShadow("SWA9"))));
-        Assert.DoesNotContain("Taxi route", DisplayHeaders(ListSurfaceShadowMenu(SurfaceShadow("SWA9"))));
         Assert.DoesNotContain("Hide datablock", DisplayHeaders(RadarSurfaceShadowMenu(SurfaceShadow("SWA9"))));
-        Assert.DoesNotContain("Hide datablock", DisplayHeaders(ListSurfaceShadowMenu(SurfaceShadow("SWA9"))));
     }
 
     [AvaloniaFact]
@@ -338,7 +311,7 @@ public class ContextMenuBuilderSeamTests
             AssignedRunway = "30",
         };
 
-        ContextMenu menu = DataGridView.BuildAircraftMenu(main, new DataGrid(), ac, null, [ac], "AB");
+        ContextMenu menu = DataGridView.BuildAircraftMenu(main, new DataGrid(), ac, null, [ac]);
 
         AssertSequence(
             menu,
@@ -349,16 +322,17 @@ public class ContextMenuBuilderSeamTests
             "---",
             "Favorite Commands",
             "---",
-            "Cleared for takeoff 30",
-            "Cancel takeoff clearance",
+            "Tower",
             "---",
             "Track",
+            "Data Block",
             "Squawk",
             "Ask pilot to say...",
             "Coordination",
             "---",
             "Edit flight plan",
             "---",
+            "Warp...",
             "Delete"
         );
     }
@@ -372,7 +346,7 @@ public class ContextMenuBuilderSeamTests
         AircraftModel second = AirborneIfr("SWA2", "InitialClimb");
         second.IsLiveTraffic = true;
 
-        ContextMenu menu = DataGridView.BuildAircraftMenu(main, new DataGrid(), first, null, [first, second], "AB");
+        ContextMenu menu = DataGridView.BuildAircraftMenu(main, new DataGrid(), first, null, [first, second]);
 
         List<string> sequence = Sequence(menu);
         // The right-clicked shadow is assumable, so it leads with the assume items...
@@ -391,7 +365,7 @@ public class ContextMenuBuilderSeamTests
         AircraftModel ac = AirborneIfr("UAL9", "InitialClimb");
         ac.Status = "Delayed";
 
-        ContextMenu menu = DataGridView.BuildAircraftMenu(main, new DataGrid(), ac, null, [ac], "AB");
+        ContextMenu menu = DataGridView.BuildAircraftMenu(main, new DataGrid(), ac, null, [ac]);
 
         AssertSequence(
             menu,

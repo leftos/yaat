@@ -18,6 +18,9 @@ public class MenuGoldenTests
     private const int DiffLines = 8;
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
+    /// <summary>The top-level labels that open a view's own section: the canvases' Display submenu and the radar's Draw route.</summary>
+    private static readonly string[] ViewSectionHeads = ["Display", "Draw route"];
+
     private readonly NavigationDatabase _navDb;
 
     public MenuGoldenTests() => _navDb = MenuGoldenFixtures.EnsureNavData();
@@ -42,16 +45,91 @@ public class MenuGoldenTests
         }
     }
 
+    /// <summary>
+    /// Every fixture's menu is the same on every view that renders it, once each view's own section (its Display submenu
+    /// and Draw route, with the separator before them) and the golden's title line are set aside. A fixture is the
+    /// fixture name plus the right-clicked aircraft's callsign, since the radar and ground relative selections right-click
+    /// different aircraft; every list fixture must also be rendered by another view, so the list is always compared. The
+    /// callsign keys the fixture, not the rendered title row, so the title row stays inside the compared text.
+    /// </summary>
+    [AvaloniaFact]
+    public void EveryView_SharesTheMenuOutsideItsViewSection()
+    {
+        var byFixture = new Dictionary<string, List<(MenuView View, string Menu)>>(StringComparer.Ordinal);
+        foreach (MenuView view in Enum.GetValues<MenuView>())
+        {
+            foreach ((string name, string callsign, string text) in RenderAll(view))
+            {
+                string shared = WithoutViewSection(text);
+                string key = $"{name} ({callsign})";
+                if (!byFixture.TryGetValue(key, out List<(MenuView View, string Menu)>? menus))
+                {
+                    menus = [];
+                    byFixture[key] = menus;
+                }
+
+                menus.Add((view, shared));
+            }
+        }
+
+        var failures = new List<string>();
+        foreach ((string key, List<(MenuView View, string Menu)> menus) in byFixture)
+        {
+            if ((menus.Count == 1) && (menus[0].View == MenuView.List))
+            {
+                failures.Add($"{key}: only the list renders it, so nothing compares it");
+            }
+
+            (MenuView firstView, string firstMenu) = menus[0];
+            foreach ((MenuView view, string menu) in menus.Skip(1).Where(m => m.Menu != firstMenu))
+            {
+                failures.Add($"{key}: {FolderName(firstView)} (-) vs {FolderName(view)} (+):\n{Diff(firstMenu, menu)}");
+            }
+        }
+
+        Assert.True(failures.Count == 0, string.Join("\n\n", failures));
+    }
+
+    /// <summary>
+    /// <paramref name="golden"/> without its title line and without the view's section: each top-level block a
+    /// <see cref="ViewSectionHeads"/> label opens, its indented children, and the separator straight before the section.
+    /// </summary>
+    private static string WithoutViewSection(string golden)
+    {
+        var kept = new List<string>();
+        bool inSection = false;
+        foreach (string line in golden.Split('\n').Skip(1))
+        {
+            if (!line.StartsWith(' '))
+            {
+                bool head = ViewSectionHeads.Contains(line);
+                if (head && !inSection && (kept.Count > 0) && (kept[^1] == "---"))
+                {
+                    kept.RemoveAt(kept.Count - 1);
+                }
+
+                inSection = head;
+            }
+
+            if (!inSection)
+            {
+                kept.Add(line);
+            }
+        }
+
+        return string.Join('\n', kept);
+    }
+
     private void AssertGoldens(MenuView view)
     {
         string dir = Path.Combine(FindRepoRoot(), "tests", "Yaat.Client.UI.Tests", "Goldens", "menu", FolderName(view));
-        IReadOnlyList<(string Name, string Text)> goldens = RenderAll(view);
+        IReadOnlyList<(string Name, string Callsign, string Text)> goldens = RenderAll(view);
         List<string> stale = StaleGoldens(dir, goldens);
 
         if (Environment.GetEnvironmentVariable(RegenerateVariable) == "1")
         {
             Directory.CreateDirectory(dir);
-            foreach ((string name, string text) in goldens)
+            foreach ((string name, string _, string text) in goldens)
             {
                 File.WriteAllText(Path.Combine(dir, name + ".txt"), text, Utf8NoBom);
             }
@@ -65,7 +143,7 @@ public class MenuGoldenTests
         }
 
         List<string> failures = [.. stale.Select(path => $"{FolderName(view)}/{Path.GetFileName(path)}: stale golden, no fixture of that name")];
-        foreach ((string name, string actual) in goldens)
+        foreach ((string name, string _, string actual) in goldens)
         {
             string path = Path.Combine(dir, name + ".txt");
             if (!File.Exists(path))
@@ -85,7 +163,7 @@ public class MenuGoldenTests
     }
 
     /// <summary>The <c>.txt</c> files in <paramref name="dir"/> that name no current fixture, sorted by path.</summary>
-    private static List<string> StaleGoldens(string dir, IReadOnlyList<(string Name, string Text)> goldens)
+    private static List<string> StaleGoldens(string dir, IReadOnlyList<(string Name, string Callsign, string Text)> goldens)
     {
         if (!Directory.Exists(dir))
         {
@@ -107,14 +185,14 @@ public class MenuGoldenTests
     /// aircraft at each build. The render runs under a scoped override of the committed navigation database, which the
     /// main view model's own background navdata load cannot replace.
     /// </summary>
-    private List<(string Name, string Text)> RenderAll(MenuView view)
+    private List<(string Name, string Callsign, string Text)> RenderAll(MenuView view)
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(_navDb);
         var main = new MainViewModel(new FakeFilePickerService());
         main.DisplayFavorites.Clear();
         main.Ground.SetLayoutForTesting(MenuGoldenFixtures.OakLayoutForClient);
 
-        var goldens = new List<(string Name, string Text)>();
+        var goldens = new List<(string Name, string Callsign, string Text)>();
         foreach (MenuFixture fixture in MenuGoldenFixtures.For(view))
         {
             main.Aircraft.Clear();
@@ -128,9 +206,9 @@ public class MenuGoldenTests
             {
                 MenuView.Radar => MenuHostHarness.BuildRadarMenu(main, fixture.Aircraft, fixture.Selected),
                 MenuView.Ground => MenuHostHarness.BuildGroundMenu(main, fixture.Aircraft, fixture.Selected),
-                _ => DataGridView.BuildAircraftMenu(main, new DataGrid(), fixture.Aircraft, null, [fixture.Aircraft], MenuGoldenFixtures.Initials),
+                _ => DataGridView.BuildAircraftMenu(main, new DataGrid(), fixture.Aircraft, fixture.Selected, [fixture.Aircraft]),
             };
-            goldens.Add((fixture.Name, $"# {FolderName(view)} {fixture.Name}\n{MenuTreeSnapshot.Render(menu)}"));
+            goldens.Add((fixture.Name, fixture.Aircraft.Callsign, $"# {FolderName(view)} {fixture.Name}\n{MenuTreeSnapshot.Render(menu)}"));
         }
 
         return goldens;

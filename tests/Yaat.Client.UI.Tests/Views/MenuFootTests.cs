@@ -56,16 +56,16 @@ public class MenuFootTests
         Assert.Equal(["Display", "---", "Warp...", "Release to live feed", "Delete", "---", "Give control", "Unassign"], items[^8..]);
     }
 
+    // The list's view section is empty, so the foot follows Edit flight plan with one separator and no Display.
     [AvaloniaFact]
-    public void ListMenu_EndsWithSeparatorReleaseDeleteThenRpoItems_EditFlightPlanStaysInCommandBlock()
+    public void ListMenu_EndsWithSeparatorWarpReleaseDeleteThenRpoItems_EditFlightPlanStaysInCommandBlock()
     {
         List<string> items = TopLevel(MenuView.List, "taxiing", assumedFromLiveFeed: true);
 
         Assert.Equal(
-            ["Coordination", "---", "Edit flight plan", "---", "Release to live feed", "Delete", "---", "Give control", "Unassign"],
-            items[^9..]
+            ["Coordination", "---", "Edit flight plan", "---", "Warp...", "Release to live feed", "Delete", "---", "Give control", "Unassign"],
+            items[^10..]
         );
-        Assert.DoesNotContain("Warp...", items);
     }
 
     [AvaloniaFact]
@@ -96,7 +96,7 @@ public class MenuFootTests
         {
             MenuView.Radar => MenuHostHarness.BuildRadarMenu(main, ac, null),
             MenuView.Ground => MenuHostHarness.BuildGroundMenu(main, ac, null),
-            _ => DataGridView.BuildAircraftMenu(main, new DataGrid(), ac, null, [ac], MenuGoldenFixtures.Initials),
+            _ => DataGridView.BuildAircraftMenu(main, new DataGrid(), ac, null, [ac]),
         };
         return [.. menu.Items.Select(Describe)];
     }

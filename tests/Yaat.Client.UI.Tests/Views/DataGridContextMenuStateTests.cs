@@ -7,14 +7,12 @@ using Avalonia.Input;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
-using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
-using CatalogMenuView = Yaat.Client.ContextMenus.MenuView;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -24,17 +22,31 @@ namespace Yaat.Client.UI.Tests.Views;
 // clearances). The phase-aware items now flow through AircraftCommandApplicability.
 public class DataGridContextMenuStateTests
 {
-    private static List<string> Headers(ContextMenu menu) =>
-        [.. menu.Items.OfType<MenuItem>().Where(m => m.Header is string).Select(m => (string)m.Header!)];
+    /// <summary>Every item header in <paramref name="menu"/>'s whole tree, submenus included, depth first.</summary>
+    private static List<string> Headers(ContextMenu menu) => [.. HeadersIn(menu.Items)];
 
+    private static IEnumerable<string> HeadersIn(ItemCollection items)
+    {
+        foreach (MenuItem item in items.OfType<MenuItem>())
+        {
+            if (item.Header is string header)
+            {
+                yield return header;
+            }
+
+            foreach (string child in HeadersIn(item.Items))
+            {
+                yield return child;
+            }
+        }
+    }
+
+    /// <summary>The aircraft list's right-click menu for <paramref name="ac"/>, through the list's whole-menu builder.</summary>
     private static ContextMenu Build(AircraftModel ac)
     {
         var vm = new MainViewModel(new FakeFilePickerService());
-        var host = new ListMenuHost(vm, ac, new Border());
-        MenuContext context = TestMenuContext.Create(ac.Callsign, "AB", null, vm.SessionSoloTrainingMode, vm.VfrCommandsForIfr, CatalogMenuView.List);
-        var menu = new ContextMenu();
-        SharedMenuGroups.AddListAircraftCommands(menu.Items, ac, context, host);
-        return menu;
+        vm.Aircraft.Add(ac);
+        return DataGridView.BuildAircraftMenu(vm, new DataGrid(), ac, null, [ac]);
     }
 
     [AvaloniaFact]
@@ -193,7 +205,7 @@ public class DataGridContextMenuStateTests
         main.Aircraft.Add(clicked);
         main.Aircraft.Add(selected);
 
-        ContextMenu menu = DataGridView.BuildAircraftMenu(main, new DataGrid(), clicked, selected, [clicked], "AB");
+        ContextMenu menu = DataGridView.BuildAircraftMenu(main, new DataGrid(), clicked, selected, [clicked]);
 
         List<string> sequence = Sequence(menu);
         Assert.Contains("↪ AAL602:", sequence);
@@ -209,7 +221,7 @@ public class DataGridContextMenuStateTests
         main.Aircraft.Add(clicked);
 
         (AircraftModel resolved, AircraftModel? previous) = DataGridView.ResolveRightClick(clicked, clicked);
-        ContextMenu menu = DataGridView.BuildAircraftMenu(main, new DataGrid(), resolved, previous, [resolved], "AB");
+        ContextMenu menu = DataGridView.BuildAircraftMenu(main, new DataGrid(), resolved, previous, [resolved]);
 
         Assert.DoesNotContain(Sequence(menu), item => item.StartsWith('↪'));
     }
@@ -272,7 +284,7 @@ public class DataGridContextMenuStateTests
         main.Aircraft.Add(clicked);
         main.Aircraft.Add(selected);
 
-        ContextMenu menu = DataGridView.BuildAircraftMenu(main, new DataGrid(), clicked, selected, [clicked], "AB");
+        ContextMenu menu = DataGridView.BuildAircraftMenu(main, new DataGrid(), clicked, selected, [clicked]);
 
         List<string> sequence = Sequence(menu);
         Assert.Contains("↪ SWA602:", sequence);

@@ -384,8 +384,8 @@ public class MenuCatalogCommandTests
         Assert.Equal("Initiate handoff...", item.Header as string);
     }
 
-    // Warp's popup is a capability of the radar canvas alone: a host that declares the Warp family offers the foot's
-    // Warp item, and one that does not hides it as the ground and list foots do.
+    // Warp's popup is a capability of the host alone, offered by every view's foot: a host that declares the Warp family
+    // offers the foot's Warp item, and one that does not hides it.
     [AvaloniaFact]
     public void Warp_IsOfferedOnlyByAHostWithTheWarpCapability()
     {
@@ -1283,8 +1283,7 @@ public class MenuCatalogCommandTests
         Assert.Equal("Line up and wait 15", entry.Build(ac, context, new RecordingMenuHost(""))?.Header as string);
     }
 
-    // A VFR C172 on the downwind to 28R: the Tower submenu (radar and ground) and the list's command
-    // block offer the landing items in one order.
+    // A VFR C172 on the downwind to 28R: the Tower submenu every view builds offers the landing items in this order.
     [AvaloniaFact]
     public void LandingBlockOrder_IsTheSameOnEveryView()
     {
@@ -1312,70 +1311,9 @@ public class MenuCatalogCommandTests
         var host = new RecordingMenuHost("");
 
         MenuItem? tower = SharedMenuGroups.Tower(ac, RadarContext(VfrCommandsForIfr.None), host);
-        var list = new ContextMenu();
-        SharedMenuGroups.AddListAircraftCommands(list.Items, ac, ListContext(VfrCommandsForIfr.None), host);
 
         Assert.NotNull(tower);
         Assert.Equal(expected, tower.Items.Select(Describe));
-        Assert.Equal(expected, list.Items.Select(Describe));
-    }
-
-    // The flat list menu opens the landing block and the exits with exactly one separator, whether the items before
-    // them end in a plain item or already in a separator.
-    [AvaloniaTheory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void FlatLandingAndExits_OpenWithOneSeparator(bool seedEndsInSeparator)
-    {
-        var downwind = new AircraftModel
-        {
-            Callsign = Callsign,
-            FlightRules = "VFR",
-            CurrentPhase = "Downwind",
-            IsOnGround = false,
-            AssignedRunway = "28R",
-        };
-        var rollout = new AircraftModel
-        {
-            Callsign = Callsign,
-            FlightRules = "IFR",
-            CurrentPhase = "Landing",
-            IsOnGround = true,
-            AssignedRunway = "28R",
-        };
-
-        Assert.Equal(
-            [
-                "Seed",
-                "---",
-                "Cleared to land 28R",
-                "Force landing 28R",
-                "Cleared for the option 28R",
-                "Touch and go 28R",
-                "Stop and go 28R",
-                "Low approach 28R",
-                "Go around 28R",
-            ],
-            FlatLandingItems(downwind, seedEndsInSeparator)
-        );
-        Assert.Equal(["Seed", "---", "Exit left", "Exit right"], FlatLandingItems(rollout, seedEndsInSeparator));
-    }
-
-    /// <summary>
-    /// The items of a flat menu seeded with a plain "Seed" item (and a separator after it when
-    /// <paramref name="seedEndsInSeparator"/>), after the list's command block runs.
-    /// </summary>
-    private static List<string> FlatLandingItems(AircraftModel aircraft, bool seedEndsInSeparator)
-    {
-        var menu = new ContextMenu();
-        menu.Items.Add(new MenuItem { Header = "Seed" });
-        if (seedEndsInSeparator)
-        {
-            menu.Items.Add(new Separator());
-        }
-
-        SharedMenuGroups.AddListAircraftCommands(menu.Items, aircraft, ListContext(VfrCommandsForIfr.None), new RecordingMenuHost(""));
-        return [.. menu.Items.Select(Describe)];
     }
 
     /// <summary>The views the catalog builds the same Cleared for takeoff submenu on.</summary>
@@ -1499,29 +1437,22 @@ public class MenuCatalogCommandTests
         Assert.IsType<Separator>(cto.Items[^2]);
     }
 
-    // The client host (radar and ground) and the aircraft list serve free text through the shared input popup, so both
-    // real hosts end the takeoff submenu with the separator and Custom.
+    // The client host every view builds serves free text through the shared input popup, so it ends the takeoff
+    // submenu with the separator and Custom.
     [AvaloniaFact]
-    public void Cto_ClientAndListHosts_ServeCustomInput()
+    public void Cto_ClientHost_ServesCustomInput()
     {
         AircraftModel ac = OnGround("Taxiing", "IFR", "30");
-        (CatalogMenuView View, IMenuHost Host)[] hosts =
-        [
-            (CatalogMenuView.Ground, new ClientMenuHost(new MainViewModel(new FakeFilePickerService()), ac, new Border())),
-            (CatalogMenuView.List, new ListMenuHost(new MainViewModel(new FakeFilePickerService()), ac, new Border())),
-        ];
+        IMenuHost host = new ClientMenuHost(new MainViewModel(new FakeFilePickerService()), ac, new Border());
 
-        foreach ((CatalogMenuView view, IMenuHost host) in hosts)
-        {
-            MenuItem? cto = MenuCatalog
-                .Get(MenuIds.TowerClearedForTakeoff)
-                .Build(ac, TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None, view), host);
+        MenuItem? cto = MenuCatalog
+            .Get(MenuIds.TowerClearedForTakeoff)
+            .Build(ac, TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None, CatalogMenuView.Ground), host);
 
-            Assert.True(host.Capabilities.HasFlag(MenuHostCapabilities.InputPopup));
-            Assert.NotNull(cto);
-            Assert.IsType<Separator>(cto.Items[^2]);
-            Assert.Equal("Custom...", Assert.IsType<MenuItem>(cto.Items[^1]).Header as string);
-        }
+        Assert.True(host.Capabilities.HasFlag(MenuHostCapabilities.InputPopup));
+        Assert.NotNull(cto);
+        Assert.IsType<Separator>(cto.Items[^2]);
+        Assert.Equal("Custom...", Assert.IsType<MenuItem>(cto.Items[^1]).Header as string);
     }
 
     // CTO where the sim takes it and never once rolling: a hold-short naming a runway (held, else assigned), taxiing
@@ -1686,7 +1617,7 @@ public class MenuCatalogCommandTests
         Assert.Equal(offered, entry.IsApplicable(ac, GroundContext(VfrCommandsForIfr.None)));
     }
 
-    // --- The aircraft list's flat command block (MenuView.List) ---
+    // --- The ListContext / ShadowSelectionContext helpers the command tests share ---
 
     /// <summary>An aircraft-list context under <paramref name="mode"/>, outside solo training, with no previous selection.</summary>
     private static MenuContext ListContext(VfrCommandsForIfr mode) =>
@@ -1708,122 +1639,9 @@ public class MenuCatalogCommandTests
         return context with { Click = context.Click with { Selection = shadows } };
     }
 
-    /// <summary>
-    /// The list's command block for <paramref name="aircraft"/>: each item's header and the command clicking it sends, in
-    /// menu order, so the gates, labels and bare verbs the list differs by are all pinned. A submenu sends nothing
-    /// itself — its leading child carries the command — so its header records the shape ("Parent &gt; Child").
-    /// </summary>
-    private static List<(string Header, string Command)> ListMenuCommands(FakeMenuAircraft aircraft, RecordingMenuHost host)
-    {
-        var menu = new ContextMenu();
-        SharedMenuGroups.AddListAircraftCommands(menu.Items, aircraft, ListContext(VfrCommandsForIfr.None), host);
-        var result = new List<(string, string)>();
-        foreach (MenuItem item in menu.Items.OfType<MenuItem>())
-        {
-            host.Sent.Clear();
-            MenuItem? firstChild = item.Items.OfType<MenuItem>().FirstOrDefault();
-            Click(firstChild ?? item);
-            string header = firstChild is null ? (string)item.Header! : $"{item.Header} > {firstChild.Header}";
-            result.Add((header, Assert.Single(host.Sent).Command));
-        }
+    // --- The delayed-spawn block every view's menu places ---
 
-        return result;
-    }
-
-    // A mid-route hold-short: Resume taxi (route left to resume onto), Cross the held runway, Line up and wait and a
-    // Cleared for takeoff submenu, both naming the held 28R rather than the assigned 30.
-    [AvaloniaFact]
-    public void ListMenu_HoldingShort_SendsResCrossLineUpAndCto()
-    {
-        var aircraft = new FakeMenuAircraft
-        {
-            IsOnGround = true,
-            CurrentPhase = "Holding Short 28R/10L",
-            AssignedRunway = "30",
-            HasActiveTaxiRoute = true,
-        };
-
-        Assert.Equal(
-            [
-                ("Resume taxi", "RES"),
-                ("Cross 28R", "CROSS 28R"),
-                ("Line up and wait 28R", "LUAW"),
-                ("Cleared for takeoff 28R > Default (SID/on course)", "CTO"),
-            ],
-            ListMenuCommands(aircraft, new RecordingMenuHost(""))
-        );
-    }
-
-    // Lined up and waiting: the Cleared for takeoff submenu and Cancel takeoff clearance, no line up and wait.
-    [AvaloniaFact]
-    public void ListMenu_LinedUpAndWaiting_SendsCtoAndCancelTakeoff()
-    {
-        var aircraft = new FakeMenuAircraft
-        {
-            IsOnGround = true,
-            CurrentPhase = "LinedUpAndWaiting",
-            AssignedRunway = "30",
-        };
-
-        Assert.Equal(
-            [("Cleared for takeoff 30 > Default (SID/on course)", "CTO"), ("Cancel takeoff clearance", "CTOC")],
-            ListMenuCommands(aircraft, new RecordingMenuHost(""))
-        );
-    }
-
-    // Airborne on final: the landing block in the ground's order, with the assigned runway in every label.
-    [AvaloniaFact]
-    public void ListMenu_OnFinal_SendsTheLandingClearances()
-    {
-        var aircraft = new FakeMenuAircraft
-        {
-            IsOnGround = false,
-            CurrentPhase = "FinalApproach",
-            AssignedRunway = "28R",
-        };
-
-        Assert.Equal(
-            [("Cleared to land 28R", "CLAND"), ("Force landing 28R", "CLANDF"), ("Go around 28R", "GA")],
-            ListMenuCommands(aircraft, new RecordingMenuHost(""))
-        );
-    }
-
-    // Rolling out: the runway exits, and no tower clearance.
-    [AvaloniaFact]
-    public void ListMenu_Landing_SendsTheRunwayExits()
-    {
-        var aircraft = new FakeMenuAircraft
-        {
-            IsOnGround = true,
-            CurrentPhase = "Landing",
-            AssignedRunway = "28R",
-        };
-
-        Assert.Equal([("Exit left", "EL"), ("Exit right", "ER")], ListMenuCommands(aircraft, new RecordingMenuHost("")));
-    }
-
-    // Taxiing with a call-for-release window: Hold position sends HOLD, as on every view; the release-window check is
-    // the shared header's row, not part of the command block.
-    [AvaloniaFact]
-    public void ListMenu_TaxiingWithCfrWindow_SendsTheCommandBlockWithoutTheReleaseCheck()
-    {
-        var aircraft = new FakeMenuAircraft
-        {
-            IsOnGround = true,
-            CurrentPhase = "Taxiing",
-            AssignedRunway = "30",
-            HasCfrWindow = true,
-        };
-
-        Assert.Equal(
-            [("Hold position", "HOLD"), ("Line up and wait 30", "LUAW"), ("Cleared for takeoff 30 > Default (SID/on course)", "CTO")],
-            ListMenuCommands(aircraft, new RecordingMenuHost(""))
-        );
-    }
-
-    // --- The aircraft list's delayed-spawn block (MenuView.List) ---
-
-    /// <summary>The list's delayed-spawn items for a delayed aircraft, placed as the list places them.</summary>
+    /// <summary>The delayed-spawn items for a delayed aircraft, the block every view's menu places.</summary>
     private static ContextMenu DelayedSpawnMenu(RecordingMenuHost host)
     {
         var menu = new ContextMenu();

@@ -26,7 +26,7 @@ internal sealed record MenuFixture(string Name, AircraftModel Aircraft, Aircraft
 /// The fixed aircraft the menu goldens right-click, with the committed NavData, CIFP and KOAK layout they are built
 /// against. Every call returns fresh <see cref="AircraftModel"/>s built from constants (no clock, no randomness), one per
 /// <see cref="AircraftSituation"/> except <see cref="AircraftSituation.Unknown"/> (an IFR and a VFR one where the
-/// situation allows both), plus live traffic, a delayed spawn (every view) and a relative selection (radar and ground).
+/// situation allows both), plus live traffic, a delayed spawn and a relative selection (every view; the list shares the ground's).
 /// IFR fixtures fly a B738 to KOAK runway 30 and VFR fixtures a C172 to 28R.
 /// </summary>
 internal static class MenuGoldenFixtures
@@ -64,12 +64,11 @@ internal static class MenuGoldenFixtures
         ];
         switch (view)
         {
-            case MenuView.List:
-                break;
             case MenuView.Radar:
                 fixtures.Add(RadarRelativeSelection());
                 break;
             case MenuView.Ground:
+            case MenuView.List:
                 fixtures.Add(GroundRelativeSelection(layout));
                 break;
         }
@@ -369,7 +368,7 @@ internal static class MenuGoldenFixtures
         return new MenuFixture("relative-selection", rightClicked, selected);
     }
 
-    /// <summary>Ground: both aircraft on the ground, so the give-way and follow items appear.</summary>
+    /// <summary>Ground and list: both aircraft on the ground, so the give-way and follow items appear.</summary>
     private static MenuFixture GroundRelativeSelection(AirportGroundLayout layout)
     {
         GroundNode holdShort = HoldShort30AtW3(layout);

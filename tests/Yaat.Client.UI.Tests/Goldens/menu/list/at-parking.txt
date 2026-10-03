@@ -8,15 +8,59 @@ Favorite Commands
   (no items) [disabled]
 ---
 Push back
+Push back to...
+  24
+  26
+  23
+  27
+  22
+  29
+  21
+  30
+  20
+  31
+  6
+  4
+  32
+  8
+  8B
+  E
+  8A
+  C
+  10
+  3
+  3A
+  12
+  5
+  14
+  7A
+  7
+  9
+  17
+  9A
+  1
+Push route...
+Preset taxi route
+  TERMINAL to 30
+Draw taxi route...
 ---
 Track
   Track
   Drop track
   ---
   Accept handoff
+  Initiate handoff... picker:input
   Cancel handoff
+  ---
+  Point out... picker:input
   Acknowledge pointout
+Data Block
+  Scratchpad... picker:input
+  Temporary altitude... picker:input
+  Cruise... picker:input
+  Annotate
 Squawk
+  Squawk... picker:input
   Squawk random
   Squawk VFR
   Squawk normal
@@ -30,6 +74,8 @@ Ask pilot to say...
   Mach
   Position
   Expected approach
+  ---
+  Custom... picker:input
 Coordination
   Release
   Hold
@@ -38,4 +84,5 @@ Coordination
 ---
 Edit flight plan
 ---
+Warp...
 Delete

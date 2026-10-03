@@ -182,13 +182,13 @@ public class MenuHeaderTests
     }
 
     [AvaloniaFact]
-    public void ListHost_Command_OpensOnTheFlyoutAnchorAndGoesThroughTheVfrGate()
+    public void ClientHost_Command_OpensOnTheMenuAnchorAndGoesThroughTheVfrGate()
     {
         (MainViewModel main, AircraftModel ac) = GatedMain();
         var anchor = new Border();
         new Window { Content = anchor }.ShowAndRunLayout();
 
-        AssertCommandRefusedByTheGate(new ListMenuHost(main, ac, anchor), anchor, main);
+        AssertCommandRefusedByTheGate(new ClientMenuHost(main, ac, anchor), anchor, main);
     }
 
     [AvaloniaFact]
@@ -202,13 +202,13 @@ public class MenuHeaderTests
     }
 
     [AvaloniaFact]
-    public void ListHost_Note_OpensThePrefilledPopupOnTheFlyoutAnchor_AndHandsBackTheNoteCommand()
+    public void ClientHost_Note_OpensThePrefilledPopupOnTheMenuAnchor_AndHandsBackTheNoteCommand()
     {
         var main = new MainViewModel(new FakeFilePickerService());
         var anchor = new Border();
         new Window { Content = anchor }.ShowAndRunLayout();
 
-        AssertNotePopup(new ListMenuHost(main, Jet(), anchor), anchor);
+        AssertNotePopup(new ClientMenuHost(main, Jet(), anchor), anchor);
     }
 
     /// <summary>
@@ -502,7 +502,7 @@ public class MenuHeaderTests
         {
             MenuView.Radar => MenuHostHarness.BuildRadarMenu(main, ac, null),
             MenuView.Ground => MenuHostHarness.BuildGroundMenu(main, ac, null),
-            _ => DataGridView.BuildAircraftMenu(main, new DataGrid(), ac, null, [ac], MenuGoldenFixtures.Initials),
+            _ => DataGridView.BuildAircraftMenu(main, new DataGrid(), ac, null, [ac]),
         };
         return [.. menu.Items.Select(Describe)];
     }

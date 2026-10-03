@@ -120,8 +120,8 @@ public interface IMenuHost
     IReadOnlyList<Control> BuildRpoItems(IReadOnlyList<string> callsigns);
 
     /// <summary>
-    /// Assumes control of the live-traffic shadows <paramref name="callsigns"/> names, in the order given. Only the
-    /// aircraft list selects several aircraft at once, so its host is the only surface that answers.
+    /// Assumes control of the live-traffic shadows <paramref name="callsigns"/> names, in the order given. One host serves
+    /// every view; only the list's click carries a multi-row selection, so only its call is ever non-empty.
     /// </summary>
     Task AssumeSelectedLiveTrafficAsync(IReadOnlyList<string> callsigns);
 }
