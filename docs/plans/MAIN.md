@@ -5,11 +5,12 @@
 ## Do first
 
 - [x] YAAT-228 release.yml drops the changelog output as 'may contain secret', leaving the draft's Changelog empty · release vNext — High · Singles
+- [ ] YAAT-274 Redesign overwhelming client surfaces: Settings, import/export, View menu pop-outs — High · Backlog
 
 ## Bug reports and feature requests
 
+- [x] YAAT-248 Client driver records a window: start, mark and stop, with sim-time marks and the client's audio · release vNext
 - [x] YAAT-250 Client-defined automation tools; client log errors on every pipe result · release vNext
-- [/] YAAT-248 Client driver records a window: start, mark and stop, with sim-time marks and the client's audio · release vNext
 - [x] YAAT-242 Deconflict the RBL readout from data blocks so it stays readable · release vNext
 - [x] YAAT-259 Pilots no longer report 'the traffic's on the ground, breaking off the follow' · release vNext
 - [x] YAAT-244 Aircraft owned by a TCP flash a pending handoff to that same TCP · release vNext
@@ -26,6 +27,7 @@
 - [ ] YAAT-217 Pattern: apply a pending pattern-altitude override before the wrong-side join decides on a teardrop
 - [ ] YAAT-256 batch_drive: save a wait_until step's screenshot and fit its wait inside the batch ceiling
 - [ ] YAAT-261 AutomationWaitUntilTests.Landed_HeldAfterAirborneThenGround times out in the full UI suite
+- [ ] YAAT-270 Widen the timing bound in AutomationWaitForTests.WaitFor_ConditionNeverMet (flakes under a loaded full UI suite)
 
 ## Client driver in the background (#474)
 
@@ -46,16 +48,18 @@
 - [ ] YAAT-229 Route the data-block field popups through MenuPopups.Open; wrap MenuPopups' summary line
 - [ ] YAAT-264 Context menus: no double separator before Track in the builder
 - [ ] YAAT-268 Context menus in an extra ground window at another airport use the primary view's layout
+- [ ] YAAT-273 DataGridContextMenuStateTests depend on test order for NavigationDatabase
 
 ## Tick-path unification
 
 - [/] YAAT-17 Tick-path unification: finish step 4 relocation, then step 5
 - [ ] YAAT-209 Move the ERAM coverage-loss coast state machine into the Sim
 - [ ] YAAT-216 HandoffUnacceptedRule: keep the anomaly for low handoffs to human-attended positions
+- [ ] YAAT-272 Shadow spawns run AfterAircraftSpawned on replay only (PDC queue, strip print)
 
 ## Coast D (feat/coast-d)
 
-- [/] YAAT-223 Tick-path coast D: the server's disconnect-coast wiring reads the Sim facets
+- [x] YAAT-223 Tick-path coast D: the server's disconnect-coast wiring reads the Sim facets · release vNext
 - [ ] YAAT-241 Merge feat/coast-d (#712, yaat-server#22)
 
 ## Say again
@@ -229,6 +233,7 @@
 - [ ] YAAT-227 Fix the two broken vEDST doc links (architecture.md, CLAUDE.md)
 - [ ] YAAT-265 Re-measure the bare dotnet test ceilings and the test-loop baseline on a quiet machine
 - [ ] YAAT-267 Record AircraftProfiles.json provenance and licence in NOTICE
+- [ ] YAAT-271 Use linear release add in the yaat-nextup profile; note test-all's silent test phase
 
 ## Singles
 
