@@ -14,6 +14,6 @@
 2. After the `RTIS` the follower answers "Negative contact, N52417, looking", calls "traffic in sight." at t=137, and at t=142 is told `FOLLOW N52417` with the lead about 2 NM out on 28R's final: accepted, then `CLAND 28R`.
 3. The follower turns north across the field instead of turning base (t=142–196), climbing from 600 ft to 28R's pattern altitude (about 1,000 ft) as it crosses, and turns onto 28R's right downwind on the north side.
 4. It holds that downwind while the lead finishes its final (the `.rbl` line reads about 0.72 NM abeam at t≈242), turns a right base at t=258 and rolls out on 28R's final about 1.3 NM behind the lead. No left base, nothing across 28L's final.
-5. The lead lands first; the follower says "the traffic's on the ground, breaking off the follow." at t=281 and lands on 28R second.
+5. The lead lands first; the follow ends without a call and the follower lands on 28R second.
 
 Seed test: `FollowPairTrajectoryTests.Follow_CrossRunway_FromDownwind_ResequencesOntoLeadRunway_NoAboutFace`.

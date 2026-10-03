@@ -14,6 +14,6 @@
 1. Both Cessnas join the right downwind for 28R from the northwest in trail, about 1.2 NM apart. `N738SP` calls the traffic in sight after the `RTIS` and is told to `FOLLOW N52417` while both are still on the entry.
 2. The lead is told to `EXT`; from t≈200 both are on the downwind, the lead extending past its normal base-turn point and the follower holding 1.2 NM behind it at pattern altitude (about 1,000 ft), slowed to approach speed.
 3. The lead is told `TB` at t=250. The follower does **not** turn with it: it flies on for another ~70 s, the `.rbl` line closing to about 0.75 NM as the lead's base swings across in front of it, and turns base at t≈322 once the lead is established on final.
-4. The follower rolls out on 28R's final about 1.3 NM behind the lead, the lead lands first, and the follower says "the traffic's on the ground, breaking off the follow." before landing second.
+4. The follower rolls out on 28R's final about 1.3 NM behind the lead, the lead lands first, and the follower lands second; the follow ends without a call.
 
 Seed test: `FollowPatternSequencingAuditTests.Follower_SequencesBehind_WhenLeadExtendsThenTurnsBase`.

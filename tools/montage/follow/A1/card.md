@@ -14,6 +14,6 @@
 1. `N738SP` answers the `RTIS` with "negative contact, looking", reports the traffic in sight, then is told to `FOLLOW N52417`; the follow is accepted, not refused.
 2. The follower stays on the downwind past the point where it would normally turn base, holding pattern altitude (about 1,000 ft) while it extends, as the lead flies its straight-in.
 3. The follower turns base behind the lead from pattern altitude, descends on base, rolls out in trail on 28R's final about 1.3 NM behind, and is never closer than that in trail on final.
-4. The lead touches down first and the follower says "the traffic's on the ground, breaking off the follow", then flies its own approach and lands second. No go-around, no overtake.
+4. The lead touches down first and the follow ends without a call; the follower flies its own approach and lands second. No go-around, no overtake.
 
 Seed test: `FollowPairTrajectoryTests.Follow_FromDownwind_LeadOnStraightInFinal_SequencesBehind`.

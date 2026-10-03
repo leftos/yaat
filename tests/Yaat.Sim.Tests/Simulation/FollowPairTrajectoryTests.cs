@@ -899,6 +899,5 @@ public class FollowPairTrajectoryTests
         AssertNoAboutFace(run.Follower, rwy, Dir);
         AssertLandingOrder(run);
         Assert.Null(follower.Approach.FollowingCallsign);
-        Assert.Contains(follower.PendingWarnings, w => w.Contains("on the ground", StringComparison.OrdinalIgnoreCase));
     }
 }

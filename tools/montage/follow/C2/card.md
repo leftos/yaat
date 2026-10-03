@@ -14,7 +14,7 @@
 2. At t=100 `FOLLOW N52417` is accepted with the follower 0.81 NM behind the lead.
 3. At t=101 the follower says "S-turning for spacing behind the traffic.", slows to 62 kt and turns right, to the north (the pattern side), on a heading of about 300° against the lead's westbound track.
 4. The gap reaches 1.1 NM at t=152 and 1.37 NM at t=200, when the follower has turned back. From t=205 until the lead turns base at t=355 the follower flies nose-on to the lead (its heading within 0.3° of the bearing to it), 1.17–1.37 NM in trail at the lead's 70 kt.
-5. At t=355 the lead turns its right base at Lake Chabot and the follower joins that base behind it. The lead lands at t=687; the follower says "the traffic's on the ground, breaking off the follow." at t=700 and lands second at t=753.
+5. At t=355 the lead turns its right base at Lake Chabot and the follower joins that base behind it. The lead lands at t=687; the follow ends without a call and the follower lands second at t=753.
 
 Seed test: `FollowRunwaylessLeadFromPatternTests.FreePursuit_TooCloseBehindPatternBoundLead_STurnsOutsideThenFollowsNoseOnInTrail`.
 

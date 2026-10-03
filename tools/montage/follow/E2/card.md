@@ -15,6 +15,6 @@
 2. `FOLLOW N52417` at t=122 is accepted, with the lead about 4.5 NM out on the final and the follower about 1.6 NM north of it on its base, 3.1 NM out: by path the lead is just ahead, but at its faster base speed the follower would reach the final first.
 3. At t=123 the follower says "turning downwind for spacing behind the traffic, request base turn." and turns out to the downwind heading (112°), slowing to 62 kt, while the lead passes in front of it on the final.
 4. It turns base again at t≈161, rolls out on 28R's final at t≈240 about 1.45 NM behind the lead, and stays at least 1.18 NM in trail to the lead's touchdown.
-5. The lead lands first; the follower says "the traffic's on the ground, breaking off the follow." at t=372 and lands second.
+5. The lead lands first; the follow ends without a call and the follower lands second.
 
 Seed test: `BaseFollowSpacingTests.RightBaseFollower_RolloutAheadOfLeadOnFinal_BreaksOffTurnsDownwindAndTrails`.

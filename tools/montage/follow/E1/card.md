@@ -15,6 +15,6 @@
 2. `FOLLOW N52417` at t=93 is accepted, with the lead about 4.1 NM out on the final and the follower about 2.2 NM north of it on its base, 3.1 NM out.
 3. At once the follower turns 30° away from the field (heading 202° → 172°, t=94–99), holds it for about 10 s, and turns back onto the base heading by t=116. No radio call.
 4. It rolls out on 28R's final at t≈207 about 1.17 NM behind the lead (the `.rbl` line is at its closest, 0.94 NM, as the base converges on the final) and stays above 1.07 NM in trail to the lead's touchdown.
-5. The lead lands first; the follower says "the traffic's on the ground, breaking off the follow." at t=322 and lands second. No break-off of the base, no go-around.
+5. The lead lands first; the follow ends without a call and the follower lands second. No break-off of the base, no go-around.
 
 Seed test: `BaseFollowSpacingTests.RightBaseFollower_RolloutSlightlyTooClose_WidensAndRollsOutBehind`.

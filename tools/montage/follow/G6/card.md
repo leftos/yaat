@@ -14,7 +14,7 @@
 2. At t=40 `FOLLOW N52417` is accepted with the follower airborne at 132 ft, 0.39 NM down the runway, and the lead 1.2 NM to its north-east.
 3. The follower holds runway heading through the whole departure leg. It finishes its takeoff climb at t=63 (415 ft), passes the departure end at t≈64 (0.90 NM from the threshold) and keeps climbing straight ahead to 709 ft, the 1,009 ft pattern altitude less 300, at t≈87. By then it is 1.41 NM from the threshold and the lead is 2.8 NM away.
 4. Only then does it turn, at t=88, right through north onto the lead's eastbound track, level at 1,009 ft by t=120, and pursue the lead 3.5 NM ahead.
-5. At t=179 the lead turns its queued right base near Lake Chabot. The follower returns to the pattern ("midfield downwind runway 28R.") and flies the right downwind behind it: base at t=325, final at t=369. The lead lands at t=474 with the follower 1.27 NM behind. The follower says "the traffic's on the ground, breaking off the follow." at t=481 and lands second at t=541.
+5. At t=179 the lead turns its queued right base near Lake Chabot. The follower returns to the pattern ("midfield downwind runway 28R.") and flies the right downwind behind it: base at t=325, final at t=369. The lead lands at t=474 with the follower 1.27 NM behind. The follow ends there without a call, and the follower lands second at t=541.
 
 Seed test: `FollowClimbFollowerTests.PendingPursuit_FromClosedClimb_HoldsUpwindUntilPastDepartureEndAndTpaMinus300`.
 

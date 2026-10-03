@@ -705,6 +705,33 @@ public class FollowKeepApproachTests(ITestOutputHelper output)
         Assert.Equal([LeadWentAround], follower.PendingWarnings);
     }
 
+    // ─── Lead lands ───
+
+    /// <summary>
+    /// An approach follower 6 nm out following a lead 2 nm out that lands: the follow ends and the
+    /// pilot says nothing. A lead landing is how a follow normally finishes, not a report to make.
+    /// </summary>
+    [Fact]
+    public void FollowFromApproach_LeadLands_EndsFollowSilently()
+    {
+        SimulationEngine engine = BuildEngine();
+        AircraftState follower = FollowSequenceRefusalTests.AddApproachFollower(engine, 6.0);
+        AircraftState lead = AddFinalLead(engine, Runway("KOAK", "28R"), 2.0);
+        CommandResult result = Send(engine, $"FOLLOW {Leader}");
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(Leader, follower.Approach.FollowingCallsign);
+        follower.PendingWarnings.Clear();
+        follower.PendingPilotTransmissions.Clear();
+
+        lead.IsOnGround = true;
+        TickSeconds(engine, 1);
+
+        output.WriteLine($"warnings: {string.Join(" | ", follower.PendingWarnings)}");
+        Assert.Null(follower.Approach.FollowingCallsign);
+        Assert.Empty(follower.PendingPilotTransmissions);
+        Assert.DoesNotContain(follower.PendingWarnings, w => w.Contains("breaking off the follow", StringComparison.OrdinalIgnoreCase));
+    }
+
     // ─── Course reversals: the lead lifecycle runs on the procedure turn and the hold-in-lieu ───
 
     /// <summary>An IFR follower on the KCCR S19R procedure turn following a lead that goes around: the follow ends there.</summary>

@@ -21,7 +21,7 @@
 2. At t=112 `FOLLOW SWA2471` is accepted with the jet 0.3 NM ahead; the Cessna says "S-turning for spacing behind the traffic." at t=113. At t=114 the jet is told `ERB 30` and turns a right base for runway 30, 0.35 NM ahead of the Cessna.
 3. The Cessna does not turn with the jet. It slows to 62 kt by t=135 and holds it, flying 45° left of the jet's westbound leg. It passes the jet's base turn point at t≈131 and carries on 0.72 NM past it, while the gap along the jet's path grows from 0.85 NM at t=130 to 3.08 NM at t=170.
 4. It turns base at t=189, about 3 NM (re-record pending after the spacing fix) behind the jet along the jet's path (2.19 NM in a straight line). It flies the jet's long right base and turns final for 30 at t=416.
-5. The jet lands on 30 at t=336 and turns off at W5. The Cessna says "the traffic's on the ground, breaking off the follow." at t=344 and lands on 30 second, at t=660.
+5. The jet lands on 30 at t=336 and turns off at W5. The Cessna's follow ends without a call and it lands on 30 second, at t=660.
 
 Seed test: `FollowRunwaylessLeadFromPatternTests.FreePursuit_ExtendingPastTheLeadsBaseTurn_KeepsTheLegAtTheFloorAndTurnsBaseOnceSpaced`.
 

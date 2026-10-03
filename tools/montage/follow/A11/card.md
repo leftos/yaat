@@ -13,7 +13,7 @@
 1. Both Cessnas join the right downwind for 28R from the northwest in trail, about 1.2 NM apart. `N738SP` is never given a traffic advisory.
 2. With the lead on base and the follower on the downwind, `FOLLOW N52417` at t=195 is refused: "Traffic not in sight — issue RTIS first".
 3. `FOLLOWF N52417` at t=200 is accepted: "Follow N52417".
-4. In the run without `--solo`, the follower turns base at t=245 and at once turns back out ("turning downwind for spacing behind N52417, request base turn." at t=246), turns base again at t≈256, and lands second; the lead lands first and the follower reports "N52417 is on the ground, breaking off the follow." at t=287.
+4. In the run without `--solo`, the follower turns base at t=245 and at once turns back out ("turning downwind for spacing behind N52417, request base turn." at t=246), turns base again at t≈256, and lands second; the lead lands first and the follow ends without a call.
 
 **Open.** `FOLLOWF` is refused in solo training ("FOLLOWF is RPO-only; use RTIS/RTISF in solo training"), so this clip cannot be recorded with `--solo` as the other clips are; how it is recorded is not decided.
 

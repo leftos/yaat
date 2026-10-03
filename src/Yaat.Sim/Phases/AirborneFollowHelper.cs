@@ -199,9 +199,12 @@ public static class AirborneFollowHelper
 
     /// <summary>
     /// Per-tick lifecycle watchdog for any aircraft with
-    /// <see cref="AircraftApproachState.FollowingCallsign"/> set. Cancels follow
-    /// (clearing FollowingCallsign + emitting the appropriate pilot transmission)
-    /// when:
+    /// <see cref="AircraftApproachState.FollowingCallsign"/> set. Cancels the follow (clearing FollowingCallsign in every
+    /// case) and returns true when one of the conditions below holds. Of those, the lead-missing and lost-visual branches
+    /// hand off to <see cref="Tower.VisualApproachHelper.HandleTrafficContactLost"/> — the pilot reports losing sight and
+    /// an IFR follower's visual separation is warned as terminated — the lead-went-around branch warns the instructor
+    /// only (the pilot still has the lead in sight), and a lead that lands ends the follow silently, being the normal end
+    /// of a follow. The conditions are:
     /// <list type="bullet">
     /// <item><description>The lead is no longer in the world (lookup returns null).</description></item>
     /// <item><description>The lead has transitioned to <see cref="AircraftState.IsOnGround"/>.</description></item>
@@ -236,16 +239,9 @@ public static class AirborneFollowHelper
 
         if (lead.IsOnGround)
         {
+            // The lead landing is the normal end of a follow, so the follower reports nothing.
             Log.LogDebug("[Follow] {Callsign}: target {Target} on ground, ending follow", follower.Callsign, targetCallsign);
             ClearFollowState(follower);
-            Pilot.PilotResponder.RouteSoloOrRpoTransmission(
-                follower,
-                ctx.SoloTrainingMode,
-                ctx.RpoShowPilotSpeech,
-                ctx.StudentPositionType,
-                Pilot.PilotResponder.BuildTargetLanded(follower, targetCallsign),
-                Pilot.PilotResponder.SoloPositionsTowerApproach
-            );
             return true;
         }
 
