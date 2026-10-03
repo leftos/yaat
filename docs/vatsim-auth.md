@@ -146,7 +146,7 @@ client** with its own callback. Config (secrets via env / `appsettings.Local.jso
 | `Yaat:Vatsim:ClientId` / `ClientSecret` | This server's VATSIM Connect client (`ClientSecret` blank for a public/PKCE client) |
 | `Yaat:Vatsim:CallbackUrl` | This server's registered redirect — in Docker, derived as `https://<YAAT_DOMAIN>/auth/vatsim/callback` |
 | `Yaat:Vatusa:Enabled` / `ApiKey` | VATUSA mentor lookup (disable for non-US; ApiKey optional) |
-| `Yaat:Vnas:ClientId` / `ClientSecret` | The server's second VATSIM Connect client, for vEDST (env `VNAS_VATSIM_CLIENT_ID` / `VNAS_VATSIM_CLIENT_SECRET`); only `/vnas/login` and `/vnas/auth/login` need it |
+| `Yaat:Vnas:ClientId` / `ClientSecret` | The server's second VATSIM Connect client, for vEDST (env `VNAS_VATSIM_CLIENT_ID` / `VNAS_VATSIM_CLIENT_SECRET`); only `/vnas/login` and `/vnas/auth/login` need it. Setup for the `Yaat:Vnas` keys: [vedst-sign-in.md](vedst-sign-in.md) |
 | `Yaat:Vnas:LoginReturnUrl` | Where `/vnas/login` sends the browser with the code (vEDST's `/login` page, e.g. `http://localhost:3000/login`); absolute http(s), validated at startup |
 | `Yaat:Vnas:PublicBaseUrl` | The server's public origin for the `/vnas/configuration` URLs and the expected vEDST redirect; compose sets `https://<YAAT_DOMAIN>`, blank derives it from the request |
 | `Yaat:Vnas:AllowedOrigins` | Exact browser origins allowed by the `vnas` CORS policy (env `VNAS_ALLOWED_ORIGINS`, comma-separated); blank is `http://localhost:3000` in Development and nothing in Production; must include `LoginReturnUrl`'s origin |
@@ -177,30 +177,22 @@ Each VATSIM client's registered redirect must equal the server URL that receives
 | Client ID | Name | Redirect URL | Used by |
 |---|---|---|---|
 | 1883 | yaat1 | `https://yaat1.leftos.dev/auth/vatsim/callback` | `Yaat:Vatsim:ClientId` on the yaat1 target |
-| 1974 | yaat1 vedst | `https://yaat1.leftos.dev/vnas/login` | `Yaat:Vnas:ClientId` on the yaat1 target |
+| 1985 | yaat1 vedst | `https://yaat1.leftos.dev/vnas/login` | `Yaat:Vnas:ClientId` on the yaat1 target (confidential, with a secret: [vedst-sign-in.md](vedst-sign-in.md)) |
 | 1728 | towercab-3d | `tc3d://oauth/callback` | not YAAT (the owner's TowerCab 3D app) |
 
-VATSIM accepts only a registered redirect, so a vEDST developer running on `http://localhost:3000` signs in through the server's `/vnas/login` (which `LoginReturnUrl` then sends back to localhost), never by naming `localhost:3000` as the redirect. Copy
-`Caddyfile.example` to `Caddyfile` once (it reads `{$YAAT_DOMAIN}`, so it needs no per-domain edit).
-Deploy/update a target with `./update.sh <target>` (e.g. `./update.sh yaat1`), which runs every
-`docker compose` command with `--env-file .env.<target>` (no argument falls back to `.env`). By
-default it pulls the CI-built ghcr image with the `docker-compose.image.yml` overlay; self-hosters
-without ghcr access pass `--build` to build from source instead. For leftos deployments prefer the
-yaat repo's `deploy-to-droplet.ps1`, which builds the image in CI first.
+How vEDST uses its client, and the `VNAS_*` keys that enable it: [vedst-sign-in.md](vedst-sign-in.md).
+
+Copy `Caddyfile.example` to `Caddyfile` once (it reads `{$YAAT_DOMAIN}`, so it needs no per-domain edit). Deploy/update a target with `./update.sh <target>` (e.g. `./update.sh yaat1`), which runs every `docker compose` command with `--env-file .env.<target>` (no argument falls back to `.env`). By default it pulls the CI-built ghcr image with the `docker-compose.image.yml` overlay; self-hosters without ghcr access pass `--build` to build from source instead. For leftos deployments prefer the yaat repo's `deploy-to-droplet.ps1`, which builds the image in CI first.
 
 ## Local development
 
-`dotnet run` is Development, and `appsettings.Development.json` sets `RequireVatsimAuth=false`. In that
-mode the server exposes `/auth/dev`, and the desktop `VatsimAuthClient` (and the GuideCapture in-process
-host) mint a dev session (rating `I1`) without any VATSIM round-trip. **Under dev auth the ARTCC gate is off**: nobody logged in with VATSIM, so `CreateRoom` and `GetScenarioJsonById` accept any ARTCC (the hub checks `RequireVatsimAuth` before `ArtccAccessPolicy`, which itself stays fail-secure). Why the gate would bite: `VatsimAuthClient` passes `?artcc=` to `/auth/dev` only when it mints a session, a stored dev session is refreshed rather than re-minted for the refresh token's lifetime, and VATUSA 404s for CID 0000001, so a dev token minted without the ARTCC stays ARTCC-less forever. `GetMyPermittedArtccs` is untouched, so the Create Room ARTCC picker stays hidden for an ARTCC-less dev token and the client falls back to its preferred ARTCC (MAIN.md backlog). To test the real flow locally,
-register an `http://localhost:5000/auth/vatsim/callback` redirect on a dedicated dev VATSIM client and
-set `RequireVatsimAuth=true` + the `Vatsim:*` config.
+`dotnet run` is Development (it binds `http://localhost:5130`), and `appsettings.Development.json` sets `RequireVatsimAuth=false`. In that mode the server exposes `/auth/dev`, and the desktop `VatsimAuthClient` (and the GuideCapture in-process host) mint a dev session (rating `I1`) without any VATSIM round-trip. **Under dev auth the ARTCC gate is off**: nobody logged in with VATSIM, so `CreateRoom` and `GetScenarioJsonById` accept any ARTCC (the hub checks `RequireVatsimAuth` before `ArtccAccessPolicy`, which itself stays fail-secure). Why the gate would bite: `VatsimAuthClient` passes `?artcc=` to `/auth/dev` only when it mints a session, a stored dev session is refreshed rather than re-minted for the refresh token's lifetime, and VATUSA 404s for CID 0000001, so a dev token minted without the ARTCC stays ARTCC-less forever. `GetMyPermittedArtccs` is untouched, so the Create Room ARTCC picker stays hidden for an ARTCC-less dev token and the client falls back to its preferred ARTCC (MAIN.md backlog). To test the real flow locally, register an `http://localhost:5130/auth/vatsim/callback` redirect on a dedicated dev VATSIM client and set `RequireVatsimAuth=true` + the `Vatsim:*` config.
 
 ## vEDST sign-in (`/vnas`)
 
-vEDST (the web ERAM client) signs in against yaat-server as if it were vNAS. `Auth/VnasCompatEndpoints.cs` serves `/vnas/configuration` (one environment whose API and hub URLs point back at this server), passes `/vnas/artccs/{id}` and `/vnas/airports/{id}` through to the vNAS data API as JSON, and runs vEDST's login: VATSIM Connect redirects to `/vnas/login?code` (VATSIM will not register a localhost redirect), which sends the browser on to the configured `LoginReturnUrl` with the code and nothing else; vEDST then calls `/vnas/auth/login`, which checks the client id and redirect, exchanges the code with the vEDST VATSIM client (no PKCE), applies VATUSA, and answers YAAT tokens as `{nasToken, vatsimToken}`. `/vnas/auth/refresh?vatsimToken` answers a fresh access token as plain text without rotating the refresh token. `/vnas/auth/dev-login` exists only in Development with `RequireVatsimAuth` off.
+vEDST's sign-in (the `/vnas` endpoints, its VATSIM client, setup on a deployed or local server, troubleshooting and its accepted risks) is in [vedst-sign-in.md](vedst-sign-in.md).
 
-vEDST opens the CRC hub socket directly (`skipNegotiation`), so it carries no negotiate `?id=`; it presents its access token as `?access_token=`, which `CrcWebSocketHandler` validates the way the training hub validates a bearer token (a refresh token is refused). The connection takes that token's CID and no room of its own; a missing or invalid token gets HTTP 401 before the upgrade, and the token is never logged.
+## CRC hub socket: direct and joined clients
 
 **Accepting a CRC hub socket** (`CrcWebSocketHandler.DecideAcceptAsync`, a pure decision over the `?id=`, the `?access_token=` and the token store). `NegotiateHandler` records every connection token it issues in `CrcNegotiateTokenStore`, with the Bearer fsd-jwt's unverified `sub` as its CID when one is sent and none otherwise; a token lives 60 s and is consumed once, and lapsed entries are swept at most once a second. Then:
 
@@ -216,11 +208,6 @@ vEDST opens the CRC hub socket directly (`skipNegotiation`), so it carries no ne
 Every refusal is a bare 401 before the upgrade, logged as a warning that names the reason and the remote address and never a token. A direct connection or a joiner may call only the hub methods in `CrcClientState.DirectConnectionTargets` (`GetServerConfiguration` among them); `JoinSession` needs a CRC primary session with the same CID. An access token is checked once, at connect: its 60-minute expiry does not close an open socket, as on the training hub.
 
 TowerCab 3D (a third-party vNAS client) connects as a negotiated joiner over the JSON hub protocol: it lists its CID's CRC sessions with `GetSessions`, joins one with `JoinSession`, and subscribes to `TowerCabAircraft`. It signs in like a real vNAS client: its own VATSIM Connect client yields a VATSIM access token, which it sends as `/vnas/auth/refresh?vatsimToken=`. The refresh endpoint therefore accepts two kinds of token: a YAAT refresh token (vEDST) is validated as before and never forwarded anywhere, revoked or not; any other token that is not a YAAT access token is looked up at VATSIM's userinfo endpoint (`VatsimAuthService.FetchUserByAccessTokenAsync`), and a user with the `vatsim_details` scope gets a YAAT access token. Against a Development server with `RequireVatsimAuth` off, TowerCab signs in through `/vnas/auth/dev-login?cid=` instead. After `GetServerConfiguration` (`{"udpPort":6809}`) it registers its negotiate id on the UDP entity socket and receives Tower Cab positions there, as on vNAS; new aircraft, removals and the periodic full set still arrive over the hub. A TowerCab build that skips negotiate connects as a plain direct client and gets every position over the hub.
-
-Accepted risks, set by vEDST's protocol:
-
-- **Login codes are bearer secrets.** vEDST sends neither PKCE nor `state`, so whoever reads a code (browser history, a log, a referrer) can redeem it at `/vnas/auth/login`, and a crafted `/vnas/login?code=` link can sign a victim in as someone else. Closing this needs a vEDST change; the server keeps the flow vEDST expects.
-- **The refresh token travels in a query string** (`?vatsimToken=`), and vEDST never rotates or revokes it. vEDST refresh tokens therefore live 24 hours, not 30 days. Keep `Microsoft.AspNetCore` logging at Warning or above (the server warns at startup otherwise), and use the commented filter in `Caddyfile.example` if Caddy access logs are turned on; it deletes `vatsimToken` and `code` from logged URLs.
 
 ## Key files
 
