@@ -8,6 +8,8 @@
 
 ## Bug reports and feature requests
 
+- [x] YAAT-250 Client-defined automation tools; client log errors on every pipe result · release vNext
+- [/] YAAT-248 Client driver records a window: start, mark and stop, with sim-time marks and the client's audio · release vNext
 - [x] YAAT-242 Deconflict the RBL readout from data blocks so it stays readable · release vNext
 - [x] YAAT-259 Pilots no longer report 'the traffic's on the ground, breaking off the follow' · release vNext
 - [x] YAAT-244 Aircraft owned by a TCP flash a pending handoff to that same TCP · release vNext
@@ -16,8 +18,6 @@
 - [x] YAAT-249 Client driver batch_drive: steps, waits and assertions in one call · release vNext
 - [x] YAAT-245 Automation-mode client came to the foreground on its own during a capture · release vNext
 - [x] YAAT-247 Replayed solo recording loads with solo off and speaks only the opening check-ins · release vNext
-- [/] YAAT-250 Client-defined automation tools; client log errors on every pipe result · release vNext
-- [ ] YAAT-248 Client driver records a window: start, mark and stop, with sim-time marks and the client's audio · release vNext
 - [x] YAAT-232 Solo dev cheat so montage clips can use RPO-only commands (FOLLOWF for A11) · release vNext
 - [/] YAAT-7 Record the FOLLOW video montage (release cut and review reel) · release vNext
   - [x] YAAT-238 Re-script montage clip C3 on OAK runway 30 (no B738 on 28R) · release vNext
@@ -45,6 +45,7 @@
 - [ ] YAAT-16 Merge feat/context-menu-quick-commands (#471, yaat-server#21) · release vNext
 - [ ] YAAT-229 Route the data-block field popups through MenuPopups.Open; wrap MenuPopups' summary line
 - [ ] YAAT-264 Context menus: no double separator before Track in the builder
+- [ ] YAAT-268 Context menus in an extra ground window at another airport use the primary view's layout
 
 ## Tick-path unification
 
@@ -174,6 +175,7 @@
 - [ ] YAAT-95 Warn at ATXI issue time for each runway the direct air-taxi path crosses
 - [ ] YAAT-96 Make a re-fired deferred BLANK idempotent after a rewind
 - [ ] YAAT-97 Withdraw stranded ASDE-X safety-logic config and alerts on rewind/unload
+- [ ] YAAT-266 Tower Cab 3D joins a YAAT room without CRC and shows in Room Members
 
 ## Wave 7 — Client UI cleanup
 
@@ -187,6 +189,7 @@
 - [ ] YAAT-105 Show the sim's Zulu clock on the Radar and Ground views, CRC-style
 - [ ] YAAT-210 Skip hidden datablocks in the ground view's hit test
 - [ ] YAAT-211 Split RadarCanvas.OnPointerPressed into one helper per ladder rung
+- [ ] YAAT-269 Route the ground canvas's data-block drag and reset through DataBlockViewState
 
 ## Wave 8 — Live traffic
 
@@ -225,6 +228,7 @@
 - [ ] YAAT-222 land-bot-pr: name the real merge contrast and add the landing family's shared rules
 - [ ] YAAT-227 Fix the two broken vEDST doc links (architecture.md, CLAUDE.md)
 - [ ] YAAT-265 Re-measure the bare dotnet test ceilings and the test-loop baseline on a quiet machine
+- [ ] YAAT-267 Record AircraftProfiles.json provenance and licence in NOTICE
 
 ## Singles
 
