@@ -89,7 +89,7 @@ public class ContextMenuBuilderSeamTests
         AircraftModel ac = AirborneIfr("AAL123", "InitialClimb");
         main.Aircraft.Add(ac);
 
-        ContextMenu menu = view.BuildAircraftContextMenu(main.Radar, ac, prevSelected: null, ac.Callsign, "AB");
+        ContextMenu menu = view.BuildAircraftContextMenu(main.Radar, ac, prevSelected: null, ac.Callsign);
 
         AssertSequence(
             menu,
@@ -105,7 +105,6 @@ public class ContextMenuBuilderSeamTests
             "Speed",
             "Navigation",
             "---",
-            "Draw route",
             "Hold",
             "Approach",
             "Procedures",
@@ -115,7 +114,11 @@ public class ContextMenuBuilderSeamTests
             "Squawk",
             "Ask pilot to say...",
             "Coordination",
+            "---",
+            "Edit flight plan",
+            "---",
             "Display",
+            "Draw route",
             "---",
             "Warp...",
             "Delete"
@@ -131,7 +134,7 @@ public class ContextMenuBuilderSeamTests
         ac.IsOnGround = true;
         main.Aircraft.Add(ac);
 
-        ContextMenu menu = view.BuildAircraftContextMenu(main.Radar, ac, prevSelected: null, ac.Callsign, "AB");
+        ContextMenu menu = view.BuildAircraftContextMenu(main.Radar, ac, prevSelected: null, ac.Callsign);
 
         AssertSequence(
             menu,
@@ -167,7 +170,7 @@ public class ContextMenuBuilderSeamTests
     {
         (RadarView view, MainViewModel main) = RadarHarness();
         main.Aircraft.Add(shadow);
-        return view.BuildAircraftContextMenu(main.Radar, shadow, prevSelected: null, shadow.Callsign, "AB");
+        return view.BuildAircraftContextMenu(main.Radar, shadow, prevSelected: null, shadow.Callsign);
     }
 
     /// <summary>A surface shadow's ground menu, through the ground view's whole-menu builder.</summary>
@@ -411,7 +414,7 @@ public class ContextMenuBuilderSeamTests
         AircraftModel ac = AirborneIfr("AAL123", "InitialClimb");
         main.Aircraft.Add(ac);
 
-        ContextMenu menu = view.BuildAircraftContextMenu(main.Radar, ac, prevSelected: null, ac.Callsign, "AB");
+        ContextMenu menu = view.BuildAircraftContextMenu(main.Radar, ac, prevSelected: null, ac.Callsign);
 
         // "Fly heading" lists every 5-degree heading the popup would list, in the same order.
         MenuItem heading = menu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Heading");
@@ -441,7 +444,7 @@ public class ContextMenuBuilderSeamTests
         main.Aircraft.Add(clicked);
         main.Aircraft.Add(selected);
 
-        ContextMenu menu = view.BuildAircraftContextMenu(main.Radar, clicked, selected, clicked.Callsign, "AB");
+        ContextMenu menu = view.BuildAircraftContextMenu(main.Radar, clicked, selected, clicked.Callsign);
 
         List<string> sequence = Sequence(menu);
         Assert.Contains("↪ SWA602:", sequence);

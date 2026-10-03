@@ -3,100 +3,11 @@ using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Ground;
-using Yaat.Client.Views.Radar;
 using Yaat.Sim;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.Views;
-
-/// <summary>
-/// The radar's <see cref="IMenuHost"/>, built per right-click: commands go through the radar view model's send path,
-/// input, list, filtered-list and warp pickers and the Command… and Note… flyouts open through <see cref="MenuPopups"/>
-/// at the pointer on the radar canvas, fix names and field elevations come from the radar view model, and favorites are
-/// built for the right-clicked aircraft model. Route drawing is the radar's own canvas item, never the host's.
-/// </summary>
-internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainViewModel? main, AircraftModel? aircraft) : IMenuHost
-{
-    /// <summary>The message the ground-traffic member throws: only the ground view offers the follow and give-way submenus.</summary>
-    private const string NoGroundTrafficItems = "The radar menu has no ground follow or give way items; only the ground view lists ground traffic";
-
-    /// <summary>The message both hold-short members throw: only the ground view offers hold short and previews its route.</summary>
-    private const string NoHoldShortItem = "The radar menu has no hold short item; only the ground view offers hold short and previews taxi routes";
-
-    /// <summary>The message every pushback member throws: only the ground view offers the pushback faces, push back to and push route.</summary>
-    private const string NoPushbackItems = "The radar menu has no pushback items; only the ground view offers pushback faces, stands and push routes";
-
-    /// <summary>The message the preset-taxi member throws: only the ground view offers preset taxi routes.</summary>
-    private const string NoPresetTaxiItem = "The radar menu has no preset taxi route item; only the ground view offers preset taxi routes";
-
-    /// <summary>The message the assume-selected member throws: only the aircraft list selects several aircraft at once.</summary>
-    private const string NoAssumeSelectedItem =
-        "The radar menu has no assume-selected item; only the aircraft list assumes a multi-selection of live traffic";
-
-    public Task SendAsync(string callsign, string command, string initials) => radar.SendRawCommandAsync(callsign, initials, command);
-
-    /// <summary>
-    /// The radar serves the free-text popup, both pickers and the warp popup. It has no flight-plan editor, no route
-    /// drawing (its Draw route is a canvas item the view builds), no ground map and no multi-selection, so those
-    /// families' members throw.
-    /// </summary>
-    public MenuHostCapabilities Capabilities =>
-        MenuHostCapabilities.InputPopup | MenuHostCapabilities.ListPicker | MenuHostCapabilities.FilteredListPicker | MenuHostCapabilities.Warp;
-
-    public void ShowInputPopup(string placeholder, BlankInput blank, Func<string, Task> onSubmit) =>
-        MenuPopups.ShowInput(view.Canvas, placeholder, "", 0, blank, onSubmit);
-
-    public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick) =>
-        MenuPopups.ShowList(view.Canvas, items, selected, onPick);
-
-    public void ShowFilteredListPopup(string[] sortedNames, IReadOnlyList<object>? priorityItems, Func<string, Task> onPick) =>
-        MenuPopups.ShowFilteredList(view.Canvas, sortedNames, priorityItems, onPick);
-
-    public string[]? FixNames => radar.FixNames;
-
-    public double GetFieldElevation(string? destination) => radar.GetFieldElevation(destination);
-
-    public void EnterDrawRoute(string callsign) =>
-        throw new NotSupportedException("The radar menu has no catalog route item; its Draw route is a canvas item the view builds");
-
-    public void ShowWarpPopup(string callsign, int heading, int altitude, int speed, Func<string, int, int, int, Task> onSubmit) =>
-        MenuPopups.ShowWarp(view.Canvas, new MenuPopups.WarpSeed(callsign, "", heading, altitude, speed), onSubmit);
-
-    public void ShowCommandFlyout(string callsign, string initials) =>
-        MenuPopups.ShowCommand(
-            view.Canvas,
-            callsign,
-            command =>
-                main is not null
-                    ? main.SendGatedCommandForViewAsync(aircraft, callsign, command, initials)
-                    : radar.SendRawCommandAsync(callsign, initials, command)
-        );
-
-    public void ShowNoteFlyout(string callsign, string currentNote, Func<string, Task> sendCommand) =>
-        MenuPopups.ShowNote(view.Canvas, callsign, currentNote, sendCommand);
-
-    public void OpenFlightPlanEditor() =>
-        throw new NotSupportedException("The radar menu has no flight-plan item; Ctrl-clicking an aircraft opens the editor");
-
-    public IReadOnlyList<string> GetGroundTrafficCallsigns(string callsign) => throw new NotSupportedException(NoGroundTrafficItems);
-
-    public IReadOnlyList<MenuCommandChoice> GetHoldShortChoices(string callsign) => throw new NotSupportedException(NoHoldShortItem);
-
-    public void SetRoutePreview(TaxiRoute? route) => throw new NotSupportedException(NoHoldShortItem);
-
-    public IReadOnlyList<MenuCommandChoice> GetPushbackFaceChoices(string callsign) => throw new NotSupportedException(NoPushbackItems);
-
-    public IReadOnlyList<MenuCommandChoice> GetPushbackToChoices(string callsign) => throw new NotSupportedException(NoPushbackItems);
-
-    public IReadOnlyList<MenuCommandChoice> GetPresetTaxiChoices(string callsign) => throw new NotSupportedException(NoPresetTaxiItem);
-
-    public void EnterPushRoute(string callsign) => throw new NotSupportedException(NoPushbackItems);
-
-    public Task AssumeSelectedLiveTrafficAsync(IReadOnlyList<string> callsigns) => throw new NotSupportedException(NoAssumeSelectedItem);
-
-    public MenuItem BuildFavorites(IMenuAircraft? menuAircraft, MenuContext context) =>
-        FavoritesContextMenu.Build(main, aircraft, context.Callsign, context.Initials);
-}
 
 /// <summary>
 /// The ground view's <see cref="IMenuHost"/>, built per right-click: commands go through the ground view model's send
@@ -109,6 +20,10 @@ internal sealed class RadarMenuHost(RadarView view, RadarViewModel radar, MainVi
 /// </summary>
 internal sealed class GroundMenuHost(GroundView view, GroundViewModel ground, MainViewModel? main, AircraftModel? aircraft) : IMenuHost
 {
+    public MenuSession Session => main is not null ? ClientMenuHost.SessionOf(main) : new MenuSession("", false, VfrCommandsForIfr.None);
+
+    public IReadOnlyList<Control> BuildRpoItems(IReadOnlyList<string> callsigns) => main is not null ? ClientMenuHost.RpoItems(main, callsigns) : [];
+
     public Task SendAsync(string callsign, string command, string initials) => ground.SendRawCommandAsync(callsign, initials, command);
 
     /// <summary>
@@ -154,7 +69,8 @@ internal sealed class GroundMenuHost(GroundView view, GroundViewModel ground, Ma
     public void ShowNoteFlyout(string callsign, string currentNote, Func<string, Task> sendCommand) =>
         MenuPopups.ShowNote(view.Canvas, callsign, currentNote, sendCommand);
 
-    public void OpenFlightPlanEditor() => throw new NotSupportedException("The ground view has no flight-plan item; ground menus never build it");
+    public void OpenFlightPlanEditor(string callsign) =>
+        throw new NotSupportedException("The ground view has no flight-plan item; ground menus never build it");
 
     /// <summary>
     /// The other on-ground aircraft in the main view model's list, nearest the right-clicked aircraft first and at most
@@ -246,6 +162,10 @@ internal sealed class ListMenuHost(MainViewModel main, AircraftModel aircraft, C
     private const string NoGroundMovementItems =
         "The aircraft list has no ground map; list menus never build the hold short, follow, give way, pushback or preset taxi items";
 
+    public MenuSession Session => ClientMenuHost.SessionOf(main);
+
+    public IReadOnlyList<Control> BuildRpoItems(IReadOnlyList<string> callsigns) => ClientMenuHost.RpoItems(main, callsigns);
+
     public Task SendAsync(string callsign, string command, string initials) => main.Connection.SendCommandAsync(callsign, command, initials);
 
     /// <summary>
@@ -285,7 +205,8 @@ internal sealed class ListMenuHost(MainViewModel main, AircraftModel aircraft, C
     public void ShowNoteFlyout(string callsign, string currentNote, Func<string, Task> sendCommand) =>
         MenuPopups.ShowNote(flyoutAnchor, callsign, currentNote, sendCommand);
 
-    public void OpenFlightPlanEditor() => FlightPlanEditorManager.Open(aircraft, main);
+    /// <summary>Opens the editor on <paramref name="callsign"/>'s aircraft, looked up as the client host does; logs when it is gone.</summary>
+    public void OpenFlightPlanEditor(string callsign) => ClientMenuHost.OpenFlightPlanEditor(main, aircraft, callsign);
 
     public IReadOnlyList<string> GetGroundTrafficCallsigns(string callsign) => throw new NotSupportedException(NoGroundMovementItems);
 

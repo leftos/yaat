@@ -1,5 +1,5 @@
 using Xunit;
-using Yaat.Client.Services;
+using Yaat.Client.ContextMenus;
 
 namespace Yaat.Client.Tests;
 
@@ -22,7 +22,6 @@ public class ContextMenuProfileTests
         MenuGroup.Altitude,
         MenuGroup.Speed,
         MenuGroup.Navigation,
-        MenuGroup.DrawRoute,
         MenuGroup.Hold,
         MenuGroup.Approach,
         MenuGroup.Procedures,

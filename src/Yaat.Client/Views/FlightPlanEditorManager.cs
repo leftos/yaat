@@ -72,6 +72,9 @@ public static class FlightPlanEditorManager
         return window;
     }
 
+    /// <summary>The flight-plan editor window open now, or null when none is.</summary>
+    internal static FlightPlanEditorWindow? OpenEditor => _openEditor;
+
     public static void Close()
     {
         _openEditor?.Close();

@@ -27,7 +27,7 @@ public class MenuFootTests
     {
         List<string> items = TopLevel(MenuView.Radar, "ifr-enroute", assumedFromLiveFeed: true);
 
-        Assert.Equal(["Display", "---", "Warp...", "Release to live feed", "Delete", "---", "Give control", "Unassign"], items[^8..]);
+        Assert.Equal(["Draw route", "---", "Warp...", "Release to live feed", "Delete", "---", "Give control", "Unassign"], items[^8..]);
     }
 
     [AvaloniaFact]
@@ -107,7 +107,7 @@ public class MenuFootTests
 
         ContextMenu menu = view switch
         {
-            MenuView.Radar => MenuHostHarness.BuildRadarMenu(main, ac, null, MenuGoldenFixtures.Initials),
+            MenuView.Radar => MenuHostHarness.BuildRadarMenu(main, ac, null),
             MenuView.Ground => MenuHostHarness.BuildGroundMenu(main, ac, null, MenuGoldenFixtures.Initials),
             _ => DataGridView.BuildAircraftMenu(main, new DataGrid(), ac, null, [ac], MenuGoldenFixtures.Initials),
         };

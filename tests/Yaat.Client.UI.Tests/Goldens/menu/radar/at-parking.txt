@@ -7,6 +7,42 @@ Note…
 Favorite Commands
   (no items) [disabled]
 ---
+Push back
+Push back to...
+  24
+  26
+  23
+  27
+  22
+  29
+  21
+  30
+  20
+  31
+  6
+  4
+  32
+  8
+  8B
+  E
+  8A
+  C
+  10
+  3
+  3A
+  12
+  5
+  14
+  7A
+  7
+  9
+  17
+  9A
+  1
+Push route...
+Preset taxi route
+  TERMINAL to 30
+Draw taxi route...
 ---
 Track
   Track
@@ -45,6 +81,9 @@ Coordination
   Hold
   Recall
   Acknowledge release
+---
+Edit flight plan
+---
 Display
   Mini datablock
   Show nav route

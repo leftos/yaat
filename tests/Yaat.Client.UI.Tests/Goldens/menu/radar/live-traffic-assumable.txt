@@ -26,7 +26,6 @@ Speed
   FAS
 Navigation
   Direct to picker:list [KOAK, KLAX]
-Draw route
 Hold
   Hold present position (left)
   Hold present position (right)
@@ -105,6 +104,7 @@ Coordination
   Hold
   Recall
   Acknowledge release
+---
 Display
   Mini datablock
   Show nav route
@@ -137,6 +137,7 @@ Display
   ---
   Blank target
   Unblank target
+Draw route
 ---
 Warp...
 Delete

@@ -10,6 +10,9 @@ namespace Yaat.Client.ContextMenus;
 /// </summary>
 public interface IMenuHost
 {
+    /// <summary>The controller's session settings — initials, solo-training flag, "VFR commands for IFR aircraft" — the menu is built with.</summary>
+    MenuSession Session { get; }
+
     /// <summary>For <paramref name="callsign"/>, sends <paramref name="command"/> on behalf of <paramref name="initials"/>.</summary>
     Task SendAsync(string callsign, string command, string initials);
 
@@ -66,8 +69,8 @@ public interface IMenuHost
     /// </summary>
     void ShowNoteFlyout(string callsign, string currentNote, Func<string, Task> sendCommand);
 
-    /// <summary>Opens the flight-plan editor for the aircraft the menu was opened on.</summary>
-    void OpenFlightPlanEditor();
+    /// <summary>Opens the flight-plan editor for <paramref name="callsign"/>.</summary>
+    void OpenFlightPlanEditor(string callsign);
 
     /// <summary>
     /// The callsigns of a capped number of the other aircraft on the ground (the host sets the cap), nearest to
@@ -110,6 +113,12 @@ public interface IMenuHost
     /// the submenu itself is never null.
     /// </summary>
     MenuItem BuildFavorites(IMenuAircraft? aircraft, MenuContext context);
+
+    /// <summary>
+    /// The room's control items for <paramref name="callsigns"/> (take, give up, give and unassign control), opening with
+    /// a separator; empty when the room has no one to hand control to.
+    /// </summary>
+    IReadOnlyList<Control> BuildRpoItems(IReadOnlyList<string> callsigns);
 
     /// <summary>
     /// Assumes control of the live-traffic shadows <paramref name="callsigns"/> names, in the order given. Only the

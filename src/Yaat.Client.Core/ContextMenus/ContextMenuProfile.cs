@@ -1,4 +1,4 @@
-namespace Yaat.Client.Services;
+namespace Yaat.Client.ContextMenus;
 
 public record ContextMenuProfile(
     IReadOnlyList<MenuGroup> PrimaryGroups,

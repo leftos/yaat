@@ -724,10 +724,7 @@ public static class SharedMenuGroups
 
         if (IsApplicable(MenuIds.GroundPushbackFace, aircraft, context))
         {
-            foreach (MenuItem face in MenuCatalog.BuildPushbackFaces(context, host))
-            {
-                items.Add(face);
-            }
+            AddRange(items, MenuCatalog.BuildPushbackFaces(context, host));
         }
 
         AddIfApplicableAndBuilt(items, MenuIds.GroundPushbackTo, aircraft, context, host);
@@ -877,11 +874,20 @@ public static class SharedMenuGroups
     }
 
     /// <summary>Opens a block in a flat menu: a separator, unless the menu is empty or already ends in one.</summary>
-    private static void AddBlockSeparator(ItemCollection items)
+    internal static void AddBlockSeparator(ItemCollection items)
     {
         if ((items.Count > 0) && (items[items.Count - 1] is not Separator))
         {
             items.Add(new Separator());
+        }
+    }
+
+    /// <summary>Adds every one of <paramref name="controls"/>, in order.</summary>
+    internal static void AddRange(ItemCollection items, IEnumerable<Control> controls)
+    {
+        foreach (Control control in controls)
+        {
+            items.Add(control);
         }
     }
 

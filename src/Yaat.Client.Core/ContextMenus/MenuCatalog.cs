@@ -928,13 +928,13 @@ public static class MenuCatalog
     }
 
     /// <summary>
-    /// The Edit flight plan item, which asks the host to open its flight-plan editor. It takes the aircraft and
-    /// context it has no use for so that it matches the <see cref="HostLeaf"/> builder shape.
+    /// The Edit flight plan item, which asks the host to open its flight-plan editor for the menu's aircraft. It takes
+    /// the aircraft it has no use for so that it matches the <see cref="HostLeaf"/> builder shape.
     /// </summary>
     private static MenuItem BuildEditFlightPlan(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
         var item = new MenuItem { Header = label };
-        item.Click += (_, _) => host.OpenFlightPlanEditor();
+        item.Click += (_, _) => host.OpenFlightPlanEditor(context.Callsign);
         return item;
     }
 

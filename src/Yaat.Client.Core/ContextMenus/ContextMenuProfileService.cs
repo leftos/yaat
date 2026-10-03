@@ -1,7 +1,6 @@
 using System.Collections.Frozen;
-using Yaat.Client.ContextMenus;
 
-namespace Yaat.Client.Services;
+namespace Yaat.Client.ContextMenus;
 
 /// <summary>
 /// Maps aircraft phase names to context menu profiles that control
@@ -15,7 +14,6 @@ public static class ContextMenuProfileService
         MenuGroup.Altitude,
         MenuGroup.Speed,
         MenuGroup.Navigation,
-        MenuGroup.DrawRoute,
         MenuGroup.Hold,
         MenuGroup.Approach,
         MenuGroup.Procedures,
@@ -29,7 +27,6 @@ public static class ContextMenuProfileService
         MenuGroup.Altitude,
         MenuGroup.Speed,
         MenuGroup.Navigation,
-        MenuGroup.DrawRoute,
         MenuGroup.Hold,
         MenuGroup.Approach,
         MenuGroup.Procedures,
@@ -40,7 +37,6 @@ public static class ContextMenuProfileService
         MenuGroup.Altitude,
         MenuGroup.Speed,
         MenuGroup.Navigation,
-        MenuGroup.DrawRoute,
         MenuGroup.Hold,
         MenuGroup.Approach,
         MenuGroup.Procedures,

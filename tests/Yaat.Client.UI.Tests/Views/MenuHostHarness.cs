@@ -14,7 +14,7 @@ namespace Yaat.Client.UI.Tests.Views;
 internal static class MenuHostHarness
 {
     /// <summary>The radar menu for <paramref name="ac"/>, with <paramref name="selected"/> as the previous selection.</summary>
-    public static ContextMenu BuildRadarMenu(MainViewModel main, AircraftModel ac, AircraftModel? selected, string initials)
+    public static ContextMenu BuildRadarMenu(MainViewModel main, AircraftModel ac, AircraftModel? selected)
     {
         var view = new RadarView { DataContext = main.Radar };
         var window = new Window { DataContext = main, Content = view };
@@ -22,7 +22,7 @@ internal static class MenuHostHarness
         try
         {
             main.Radar.SelectedAircraft = selected ?? ac;
-            return view.BuildAircraftContextMenu(main.Radar, ac, selected, ac.Callsign, initials);
+            return view.BuildAircraftContextMenu(main.Radar, ac, selected, ac.Callsign);
         }
         finally
         {

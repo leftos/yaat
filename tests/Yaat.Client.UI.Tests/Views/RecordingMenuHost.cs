@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Yaat.Client.ContextMenus;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -96,7 +97,26 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
         WarpSubmit = onSubmit;
     }
 
-    public void OpenFlightPlanEditor() => FlightPlanEditorOpens++;
+    /// <summary>The callsign each flight-plan editor was opened for, in order.</summary>
+    public List<string> FlightPlanEditorCallsigns { get; } = [];
+
+    public void OpenFlightPlanEditor(string callsign)
+    {
+        FlightPlanEditorOpens++;
+        FlightPlanEditorCallsigns.Add(callsign);
+    }
+
+    /// <summary>The session the menu is built with: initials "AB", no solo training, no VFR commands for IFR aircraft.</summary>
+    public MenuSession Session { get; init; } = new("AB", false, VfrCommandsForIfr.None);
+
+    /// <summary>The callsign lists the RPO items were asked for, in order; the host answers none.</summary>
+    public List<IReadOnlyList<string>> RpoRequests { get; } = [];
+
+    public IReadOnlyList<Control> BuildRpoItems(IReadOnlyList<string> callsigns)
+    {
+        RpoRequests.Add(callsigns);
+        return [];
+    }
 
     /// <summary>The ground traffic the follow and give-way submenus list, whatever the callsign asked about.</summary>
     public List<string> GroundTraffic { get; } = [];
@@ -157,6 +177,6 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
         NoteSubmit = sendCommand;
     }
 
-    public MenuItem BuildFavorites(IMenuAircraft? aircraft, MenuContext context) =>
-        throw new NotSupportedException("The recording host does not build the favorites submenu.");
+    /// <summary>An empty Favorite Commands submenu: the recording host has no favorites store.</summary>
+    public MenuItem BuildFavorites(IMenuAircraft? aircraft, MenuContext context) => new() { Header = "Favorite Commands" };
 }

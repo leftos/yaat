@@ -169,13 +169,13 @@ public class MenuHeaderTests
     private const string VfrOnlyCommand = "ELD 28L";
 
     [AvaloniaFact]
-    public void RadarHost_Command_OpensOnTheRadarAndGoesThroughTheVfrGate()
+    public void ClientHost_Command_OpensOnTheRadarAndGoesThroughTheVfrGate()
     {
         (MainViewModel main, AircraftModel ac) = GatedMain();
         var view = new RadarView { DataContext = main.Radar };
         new Window { DataContext = main, Content = view }.ShowAndRunLayout();
 
-        AssertCommandRefusedByTheGate(new RadarMenuHost(view, main.Radar, main, ac), view, main);
+        AssertCommandRefusedByTheGate(new ClientMenuHost(main, ac, view.Canvas), view, main);
     }
 
     [AvaloniaFact]
@@ -199,13 +199,13 @@ public class MenuHeaderTests
     }
 
     [AvaloniaFact]
-    public void RadarHost_Note_OpensThePrefilledPopupOnTheRadar_AndHandsBackTheNoteCommand()
+    public void ClientHost_Note_OpensThePrefilledPopupOnTheRadar_AndHandsBackTheNoteCommand()
     {
         var main = new MainViewModel(new FakeFilePickerService());
         var view = new RadarView { DataContext = main.Radar };
         new Window { DataContext = main, Content = view }.ShowAndRunLayout();
 
-        AssertNotePopup(new RadarMenuHost(view, main.Radar, main, Jet()), view);
+        AssertNotePopup(new ClientMenuHost(main, Jet(), view.Canvas), view);
     }
 
     [AvaloniaFact]
@@ -399,7 +399,7 @@ public class MenuHeaderTests
         ac.CfrWindowStartUtc = new DateTime(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc);
         main.Aircraft.Add(ac);
 
-        ContextMenu menu = MenuHostHarness.BuildRadarMenu(main, ac, null, MenuGoldenFixtures.Initials);
+        ContextMenu menu = MenuHostHarness.BuildRadarMenu(main, ac, null);
         List<string> items = [.. menu.Items.Select(Describe)];
 
         Assert.DoesNotContain("Release (HFR)", items);
@@ -419,7 +419,7 @@ public class MenuHeaderTests
         ac.HoldKind = "HoldPosition";
         main.Aircraft.Add(ac);
 
-        ContextMenu menu = MenuHostHarness.BuildRadarMenu(main, ac, null, MenuGoldenFixtures.Initials);
+        ContextMenu menu = MenuHostHarness.BuildRadarMenu(main, ac, null);
         List<string> items = [.. menu.Items.Select(Describe)];
 
         Assert.Equal(["SWA108 — B738", "Held: position", "Release (HFR)", "---"], items[..4]);
@@ -506,7 +506,7 @@ public class MenuHeaderTests
 
         menu = view switch
         {
-            MenuView.Radar => MenuHostHarness.BuildRadarMenu(main, ac, null, MenuGoldenFixtures.Initials),
+            MenuView.Radar => MenuHostHarness.BuildRadarMenu(main, ac, null),
             MenuView.Ground => MenuHostHarness.BuildGroundMenu(main, ac, null, MenuGoldenFixtures.Initials),
             _ => DataGridView.BuildAircraftMenu(main, new DataGrid(), ac, null, [ac], MenuGoldenFixtures.Initials),
         };

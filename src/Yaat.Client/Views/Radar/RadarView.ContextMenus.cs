@@ -2,7 +2,9 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
+using Microsoft.Extensions.Logging;
 using Yaat.Client.ContextMenus;
+using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -21,6 +23,8 @@ namespace Yaat.Client.Views.Radar;
 /// </summary>
 public partial class RadarView
 {
+    private static readonly ILogger MenuLog = AppLog.CreateLogger("RadarView.ContextMenus");
+
     private void OnAircraftLeftClicked(string callsign)
     {
         if (DataContext is not RadarViewModel vm)
@@ -65,7 +69,13 @@ public partial class RadarView
             return;
         }
 
-        AircraftModel? ac = FindMainViewModel()?.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
+        if (FindMainViewModel() is not { } main)
+        {
+            MenuLog.LogWarning("Right-click on {Callsign}: the radar view has no main view model, so no aircraft menu opens", callsign);
+            return;
+        }
+
+        AircraftModel? ac = main.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
 
         // Keep the previously-selected aircraft as the command recipient when the
         // controller right-clicks a DIFFERENT aircraft, so selected→right-clicked
@@ -78,57 +88,49 @@ public partial class RadarView
             vm.SelectedAircraft = ac;
         }
 
-        ShowContextMenu(BuildAircraftContextMenu(vm, ac, prevSelected, callsign, GetInitials()));
+        ShowContextMenu(BuildAircraftContextMenu(vm, ac, prevSelected, callsign));
     }
 
     /// <summary>
-    /// The whole aircraft context menu a right-click shows, built without opening it: everything the handler
-    /// resolved first (<paramref name="ac"/>, the selected aircraft <paramref name="prevSelected"/> that
-    /// relative actions target, the callsign and the initials). Touches no canvas, popup or pointer state.
+    /// The whole aircraft context menu a right-click shows, built without opening it through
+    /// <see cref="AircraftMenuBuilder"/>: the right-clicked <paramref name="callsign"/> and its model
+    /// <paramref name="ac"/>, the selected aircraft <paramref name="prevSelected"/> that relative actions target, and
+    /// the radar's view section (<see cref="BuildViewSection"/>). Touches no canvas, popup or pointer state.
     /// </summary>
-    internal ContextMenu BuildAircraftContextMenu(RadarViewModel vm, AircraftModel? ac, AircraftModel? prevSelected, string callsign, string initials)
+    internal ContextMenu BuildAircraftContextMenu(RadarViewModel vm, AircraftModel? ac, AircraftModel? prevSelected, string callsign)
     {
-        MainViewModel? main = FindMainViewModel();
-        var context = new MenuContext(
-            new MenuClick(callsign, prevSelected, []),
-            new MenuSession(initials, main?.SessionSoloTrainingMode ?? false, main?.VfrCommandsForIfr ?? VfrCommandsForIfr.EnterFinalOnly),
-            MenuView.Radar
-        );
-        var host = new RadarMenuHost(this, vm, main, ac);
-        var menu = new ContextMenu();
-        SharedMenuGroups.AddHeader(menu.Items, ac, context, host);
-        menu.Items.Add(SharedMenuGroups.Favorites(ac, context, host));
-        menu.Items.Add(new Separator());
+        MainViewModel main =
+            FindMainViewModel()
+            ?? throw new InvalidOperationException("The radar aircraft menu needs the main view model; the radar view is not hosted by one");
+        var host = new ClientMenuHost(main, ac, Canvas);
+        return AircraftMenuBuilder.Build(ac, new MenuClick(callsign, prevSelected, []), host, context => BuildViewSection(vm, ac, context, host));
+    }
 
-        if (ac is { IsLiveTraffic: true })
+    /// <summary>
+    /// The radar's view section: its Display submenu (<see cref="BuildCanvasDisplay"/>), then Draw route. A surface
+    /// live-traffic shadow — read-only, so nothing may command it — goes without Draw route, and so does an aircraft
+    /// whose phase hides the flight commands (<see cref="ContextMenuProfileService"/>: on the ground, landing or rolling).
+    /// </summary>
+    internal IReadOnlyList<Control> BuildViewSection(RadarViewModel vm, AircraftModel? ac, MenuContext context, IMenuHost host)
+    {
+        MenuItem display = BuildCanvasDisplay(vm, context, host);
+        bool surfaceShadow = AircraftCommandApplicability.IsSurfaceShadow(ac);
+        bool flightCommandsHidden = ContextMenuProfileService
+            .GetProfile(ac?.CurrentPhase, ac?.IsOnGround ?? false)
+            .HiddenGroups.Contains(MenuGroup.Navigation);
+        if (surfaceShadow || flightCommandsHidden)
         {
-            if (AircraftCommandApplicability.CanAssume(ac))
-            {
-                SharedMenuGroups.AddLiveTrafficAssume(menu.Items, ac, context, host);
-                // An assumable shadow then gets the same items a simulated aircraft gets: a command sent to an
-                // airborne shadow auto-assumes it server-side, so they apply as they are — minus the ask-pilot
-                // queries, which the server refuses for a shadow.
-                menu.Items.Add(new Separator());
-            }
-            else
-            {
-                SharedMenuGroups.AddSurfaceShadow(menu.Items, ac, context, host, BuildCanvasDisplay(vm, context, host));
-                SharedMenuGroups.AddFoot(menu.Items, ac, context, host);
-                FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
-                return menu;
-            }
+            return [display];
         }
 
-        SharedMenuGroups.AddRelative(menu.Items, ac, context, host);
-        AddAircraftCommandGroups(menu, vm, ac, context, host);
-        return menu;
+        string callsign = context.Callsign;
+        return [display, CanvasMenuItems.DrawRoute("Draw route", () => vm.EnterDrawRoute(callsign))];
     }
 
     /// <summary>
     /// The radar canvas's Display submenu, built from the radar's own state: the data-block form and its position
     /// reset, the nav route and the measurement in progress, then the leader-direction, J-ring and cone overlays, then
-    /// blank and unblank. It is the radar's view section — a canvas-only item every radar menu ends with and the
-    /// radar's live-traffic shadow carries.
+    /// blank and unblank. It opens the radar's view section, on every radar aircraft menu.
     /// </summary>
     internal MenuItem BuildCanvasDisplay(RadarViewModel vm, MenuContext context, IMenuHost host)
     {
@@ -160,104 +162,6 @@ public partial class RadarView
         if (vm.Measure is { } measure)
         {
             measure.Pick(RblEndpoint.OnAircraft(callsign), RadarViewModel.MeasureView, vm.MeasureTrackLookup, RadarViewModel.MeasureUnits);
-        }
-    }
-
-    /// <summary>
-    /// The phase-aware command groups, the always-visible track / data block / squawk / coordination / display
-    /// submenus and the foot (Warp, release to live feed, Delete), exactly as a simulated aircraft gets them. For a
-    /// live-traffic shadow the read-only ask-pilot queries stay out
-    /// (<see cref="AircraftCommandApplicability.CanAskPilot"/>); everything else, Warp included, applies, because it
-    /// goes through the command path and so auto-assumes the shadow first.
-    /// </summary>
-    private void AddAircraftCommandGroups(ContextMenu menu, RadarViewModel vm, AircraftModel? ac, MenuContext context, RadarMenuHost host)
-    {
-        string callsign = context.Callsign;
-        ContextMenuProfile profile = ContextMenuProfileService.GetProfile(ac?.CurrentPhase, ac?.IsOnGround ?? false);
-
-        void AddGroup(MenuGroup group)
-        {
-            if (group == MenuGroup.DrawRoute)
-            {
-                menu.Items.Add(CanvasMenuItems.DrawRoute("Draw route", () => vm.EnterDrawRoute(callsign)));
-                return;
-            }
-
-            AddMenuGroup(menu, group, ac, context, host);
-        }
-
-        foreach (MenuGroup group in profile.PrimaryGroups)
-        {
-            AddGroup(group);
-        }
-
-        if (profile.PrimaryGroups.Count > 0 && profile.SecondaryGroups.Count > 0)
-        {
-            menu.Items.Add(new Separator());
-        }
-
-        foreach (MenuGroup group in profile.SecondaryGroups)
-        {
-            AddGroup(group);
-        }
-
-        // Always-visible groups
-        menu.Items.Add(new Separator());
-        menu.Items.Add(SharedMenuGroups.Track(ac, context, host, MenuView.Radar));
-        menu.Items.Add(SharedMenuGroups.DataBlock(ac, context, host));
-        menu.Items.Add(SharedMenuGroups.Squawk(ac, context, host, MenuView.Radar));
-        if (AircraftCommandApplicability.CanAskPilot(ac))
-        {
-            menu.Items.Add(SharedMenuGroups.AskPilot(ac, context, host, MenuView.Radar));
-        }
-
-        menu.Items.Add(SharedMenuGroups.Coordination(ac, context, host));
-        menu.Items.Add(BuildCanvasDisplay(vm, context, host));
-        SharedMenuGroups.AddFoot(menu.Items, ac, context, host);
-
-        // RPO control
-        FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
-    }
-
-    private static void AddMenuGroup(ContextMenu menu, MenuGroup group, AircraftModel? ac, MenuContext context, RadarMenuHost host)
-    {
-        switch (group)
-        {
-            case MenuGroup.Heading:
-                menu.Items.Add(SharedMenuGroups.Heading(ac, context, host));
-                break;
-            case MenuGroup.Altitude:
-                menu.Items.Add(SharedMenuGroups.Altitude(ac, context, host));
-                break;
-            case MenuGroup.Speed:
-                menu.Items.Add(SharedMenuGroups.Speed(ac, context, host));
-                break;
-            case MenuGroup.Navigation:
-                menu.Items.Add(SharedMenuGroups.Navigation(ac, context, host));
-                break;
-            case MenuGroup.Hold:
-                menu.Items.Add(SharedMenuGroups.Hold(ac, context, host));
-                break;
-            case MenuGroup.Approach:
-                menu.Items.Add(SharedMenuGroups.Approach(ac, context, host));
-                break;
-            case MenuGroup.Procedures:
-                menu.Items.Add(SharedMenuGroups.Procedures(ac, context, host));
-                break;
-            case MenuGroup.Tower:
-                MenuItem? tower = SharedMenuGroups.Tower(ac, context, host);
-                if (tower is not null)
-                {
-                    menu.Items.Add(tower);
-                }
-                break;
-            case MenuGroup.Pattern:
-                MenuItem? pattern = SharedMenuGroups.Pattern(ac, context, host);
-                if (pattern is not null)
-                {
-                    menu.Items.Add(pattern);
-                }
-                break;
         }
     }
 

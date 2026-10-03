@@ -7,6 +7,10 @@ Note…
 Favorite Commands
   (no items) [disabled]
 ---
+Hold position
+Preset taxi route
+  TERMINAL to 30
+Draw taxi route...
 ---
 Track
   Track
@@ -45,6 +49,9 @@ Coordination
   Hold
   Recall
   Acknowledge release
+---
+Edit flight plan
+---
 Display
   Mini datablock
   Show nav route

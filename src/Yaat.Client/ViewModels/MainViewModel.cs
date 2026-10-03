@@ -1130,6 +1130,28 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public void FocusCommandInput() => RequestCommandInputFocus?.Invoke();
 
+    /// <summary>
+    /// Raised by <see cref="ShowPrimaryGroundView"/> when the primary ground view is popped out: the main window owns
+    /// that window and brings it forward. Mirrors the <see cref="RequestCommandInputFocus"/> pattern.
+    /// </summary>
+    public event Action? RequestPrimaryGroundViewActivation;
+
+    /// <summary>
+    /// Shows the primary ground view: selects its tab in the main window while it is docked, else asks the main window
+    /// to bring its popped-out window forward. A menu item that starts a draw on the ground view from another view calls
+    /// this first, so the draw is on screen.
+    /// </summary>
+    public void ShowPrimaryGroundView()
+    {
+        if (IsGroundViewPoppedOut)
+        {
+            RequestPrimaryGroundViewActivation?.Invoke();
+            return;
+        }
+
+        SelectedTabIndex = GroundViewTabIndex;
+    }
+
     [ObservableProperty]
     private bool _showCommandEntries = true;
 
@@ -3353,8 +3375,11 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private Task SendCommandForViewAsync(string callsign, string command, string initials) =>
-        SendCommandForViewCoreAsync(callsign, command, initials);
+    /// <summary>
+    /// Sends a command a view or menu built for <paramref name="callsign"/> on behalf of <paramref name="initials"/>; a
+    /// failed send is logged and shown in the status line rather than thrown.
+    /// </summary>
+    public Task SendCommandForViewAsync(string callsign, string command, string initials) => SendCommandForViewCoreAsync(callsign, command, initials);
 
     /// <summary>Sends a menu command and returns the server's result, or null when the send threw.</summary>
     private async Task<CommandResultDto?> SendCommandForViewCoreAsync(string callsign, string command, string initials)

@@ -126,7 +126,7 @@ public class MenuGoldenTests
 
             ContextMenu menu = view switch
             {
-                MenuView.Radar => MenuHostHarness.BuildRadarMenu(main, fixture.Aircraft, fixture.Selected, MenuGoldenFixtures.Initials),
+                MenuView.Radar => MenuHostHarness.BuildRadarMenu(main, fixture.Aircraft, fixture.Selected),
                 MenuView.Ground => MenuHostHarness.BuildGroundMenu(main, fixture.Aircraft, fixture.Selected, MenuGoldenFixtures.Initials),
                 _ => DataGridView.BuildAircraftMenu(main, new DataGrid(), fixture.Aircraft, null, [fixture.Aircraft], MenuGoldenFixtures.Initials),
             };

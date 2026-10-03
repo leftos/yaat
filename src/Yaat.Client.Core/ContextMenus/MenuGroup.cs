@@ -1,4 +1,4 @@
-namespace Yaat.Client.Services;
+namespace Yaat.Client.ContextMenus;
 
 public enum MenuGroup
 {
@@ -6,7 +6,6 @@ public enum MenuGroup
     Altitude,
     Speed,
     Navigation,
-    DrawRoute,
     Hold,
     Approach,
     Procedures,

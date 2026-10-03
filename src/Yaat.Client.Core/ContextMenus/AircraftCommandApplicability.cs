@@ -125,6 +125,12 @@ public static class AircraftCommandApplicability
     public static bool CanAssume(IMenuAircraft? ac) => ac is { IsLiveTraffic: true, IsOnGround: false };
 
     /// <summary>
+    /// A live-traffic shadow that cannot be assumed (<see cref="CanAssume"/>): its menu is read-only, so nothing on it may
+    /// command the aircraft.
+    /// </summary>
+    public static bool IsSurfaceShadow([NotNullWhen(true)] IMenuAircraft? ac) => (ac is { IsLiveTraffic: true }) && !CanAssume(ac);
+
+    /// <summary>
     /// Ask-pilot queries ("say altitude", "say heading") — never for a live-traffic shadow, assumable or not:
     /// they are read-only queries and the auto-assume gate skips those (<c>IsReadOnlyQuery</c>), so the server
     /// answers every one of them with "ASSUME first".

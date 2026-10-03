@@ -7,6 +7,7 @@ Note…
 Favorite Commands
   (no items) [disabled]
 ---
+Cross 30
 Tower
   Line up and wait 30
   Cleared for takeoff 30
@@ -14,6 +15,9 @@ Tower
     Fly runway heading
     ---
     Custom... picker:input
+Preset taxi route
+  30 to TERMINAL
+Draw taxi route...
 ---
 Track
   Track
@@ -52,6 +56,9 @@ Coordination
   Hold
   Recall
   Acknowledge release
+---
+Edit flight plan
+---
 Display
   Mini datablock
   Show nav route
