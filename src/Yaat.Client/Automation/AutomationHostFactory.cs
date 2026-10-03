@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Yaat.Client.Automation.Tools;
 
 namespace Yaat.Client.Automation;
 
@@ -21,7 +22,8 @@ public static class AutomationHostFactory
         string pipeName,
         string discoveryDirectory,
         Func<IEnumerable<TopLevel>> rootsProvider,
-        Func<IAutomationState?> stateProvider
+        Func<IAutomationState?> stateProvider,
+        Func<AutomationTools?> toolsProvider
     )
     {
         if (!isEnabled)
@@ -29,7 +31,7 @@ public static class AutomationHostFactory
             return null;
         }
 
-        var host = new AutomationHost(pipeName, discoveryDirectory, rootsProvider, stateProvider);
+        var host = new AutomationHost(pipeName, discoveryDirectory, rootsProvider, stateProvider, toolsProvider);
         try
         {
             host.Start();

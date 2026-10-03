@@ -640,32 +640,57 @@ public partial class MainViewModel
                 return;
             }
 
+            await LoadRecordingFromFileAsync(path);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Load recording file pick failed");
+            StatusText = $"Load recording error: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Loads the recording at <paramref name="path"/> into the room, then applies it and rebuilds the terminal from the room's
+    /// log, both done before the returned task completes. The load command and the automation pipe's <c>load_recording</c>
+    /// share it. Never throws: a failure is logged, and the returned status line (also set as <see cref="StatusText"/>) names
+    /// the loaded scenario or the failure.
+    /// </summary>
+    internal async Task<string> LoadRecordingFromFileAsync(string path)
+    {
+        try
+        {
             byte[] recordingBytes = await File.ReadAllBytesAsync(path);
 
             StatusText = "Loading recording...";
             RewindResultDto? result = await _connection.LoadRecordingAsync(recordingBytes);
             if (result is null || !result.Success)
             {
-                StatusText = $"Load recording failed: {result?.Error ?? "Unknown error"}";
-                return;
+                string failed = $"Load recording failed: {result?.Error ?? "Unknown error"}";
+                StatusText = failed;
+                return failed;
             }
 
             List<TerminalBroadcastDto> terminalLog = await _connection.GetTerminalLogAsync();
 
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            // Each status is kept in a local: StatusText itself may be overwritten by another UI message before it is returned.
+            string loaded = $"Recording loaded: {result.ScenarioName}";
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
             {
                 // Bookmarks are seeded server-side from the recording's bookmarks.json and arrive via the
                 // BookmarksChanged broadcast (so every RPO in the room sees them), not read locally here.
                 ApplyRecordingResult(result);
                 RepopulateTerminalFromRecording(terminalLog);
-                StatusText = $"Recording loaded: {result.ScenarioName}";
-                AddSystemEntry($"Recording loaded: {result.ScenarioName}");
+                StatusText = loaded;
+                AddSystemEntry(loaded);
             });
+            return loaded;
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Load recording failed");
-            StatusText = $"Load recording error: {ex.Message}";
+            string error = $"Load recording error: {ex.Message}";
+            StatusText = error;
+            return error;
         }
     }
 

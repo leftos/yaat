@@ -6,6 +6,7 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Automation;
+using Yaat.Client.Automation.Tools;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -95,7 +96,11 @@ public class App : Application
                 AutomationHostFactory.PipeName(Environment.ProcessId),
                 AutomationHostFactory.DiscoveryDirectory,
                 () => desktop.Windows,
-                () => (desktop.MainWindow?.DataContext is MainViewModel viewModel) ? new MainViewModelAutomationState(viewModel) : null
+                () => (desktop.MainWindow?.DataContext is MainViewModel viewModel) ? new MainViewModelAutomationState(viewModel) : null,
+                () =>
+                    (desktop.MainWindow?.DataContext is MainViewModel viewModel)
+                        ? new AutomationTools(viewModel, new MainViewModelAutomationState(viewModel))
+                        : null
             );
             if (automationHost is not null)
             {

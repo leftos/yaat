@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Client.Automation.Handlers;
 using Yaat.Client.Automation.Protocol;
 using Yaat.Client.Automation.Selectors;
+using Yaat.Client.Automation.Tools;
 using Yaat.Client.Automation.Tree;
 using Yaat.Client.Logging;
 
@@ -27,7 +28,8 @@ public sealed class AutomationDispatcher
 
     /// <param name="registry">The node ids of the windows the host reports.</param>
     /// <param name="stateProvider">The simulation state, or null while the main window is not up; read on the UI thread.</param>
-    public AutomationDispatcher(NodeRegistry registry, Func<IAutomationState?> stateProvider)
+    /// <param name="toolsProvider">The app tools bound to the main window's view model, or null while it is not up; read on the UI thread.</param>
+    public AutomationDispatcher(NodeRegistry registry, Func<IAutomationState?> stateProvider, Func<AutomationTools?> toolsProvider)
     {
         Register(new PingHandler());
         Register(new QueueFilePickHandler());
@@ -45,6 +47,8 @@ public sealed class AutomationDispatcher
         var screenshots = new ScreenshotHandler(registry, targets);
         Register(screenshots);
         Register(new WaitUntilHandler(stateProvider, screenshots));
+        Register(new ListAppToolsHandler(toolsProvider));
+        Register(new CallAppToolHandler(toolsProvider));
     }
 
     private void Register(IRequestHandler handler) => _handlers[handler.Method] = handler;

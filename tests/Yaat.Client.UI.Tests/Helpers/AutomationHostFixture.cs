@@ -5,6 +5,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.Automation;
+using Yaat.Client.Automation.Tools;
 
 namespace Yaat.Client.UI.Tests.Helpers;
 
@@ -50,9 +51,17 @@ public abstract class AutomationHostFixture : IDisposable
     /// <summary>Starts a host over <paramref name="rootsProvider"/> with no main window, so it has no simulation state.</summary>
     protected AutomationHost StartHost(Func<IEnumerable<TopLevel>> rootsProvider) => StartHost(rootsProvider, () => null);
 
-    protected AutomationHost StartHost(Func<IEnumerable<TopLevel>> rootsProvider, Func<IAutomationState?> stateProvider)
+    /// <summary>Starts a host over <paramref name="rootsProvider"/> and <paramref name="stateProvider"/>, with no app tools to call.</summary>
+    protected AutomationHost StartHost(Func<IEnumerable<TopLevel>> rootsProvider, Func<IAutomationState?> stateProvider) =>
+        StartHost(rootsProvider, stateProvider, () => null);
+
+    protected AutomationHost StartHost(
+        Func<IEnumerable<TopLevel>> rootsProvider,
+        Func<IAutomationState?> stateProvider,
+        Func<AutomationTools?> toolsProvider
+    )
     {
-        var host = new AutomationHost(PipeName, DiscoveryDirectory, rootsProvider, stateProvider);
+        var host = new AutomationHost(PipeName, DiscoveryDirectory, rootsProvider, stateProvider, toolsProvider);
         host.Start();
         return host;
     }

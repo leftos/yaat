@@ -3,5 +3,5 @@ namespace Yaat.Client.Automation.Protocol;
 /// <summary>The automation pipe protocol's version, reported by <c>ping</c> and the discovery file.</summary>
 public static class ProtocolVersion
 {
-    public const string Current = "1.2.0";
+    public const string Current = "1.3.0";
 }
