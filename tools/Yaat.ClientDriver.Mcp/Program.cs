@@ -24,5 +24,7 @@ builder.Services.AddSingleton(provider => new PipeDirectory(
     provider.GetRequiredService<ILogger<PipeDirectory>>(),
     provider.GetRequiredService<ILogger<PipeClient>>()
 ));
-builder.Services.AddMcpServer().WithStdioServerTransport().WithToolsFromAssembly();
+
+// Every tool result also shows the errors the client logged while its pipe calls ran (PipeCallErrors).
+builder.Services.AddMcpServer().WithStdioServerTransport().WithToolsFromAssembly().WithPipeCallErrors();
 await builder.Build().RunAsync();

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using Yaat.Client.Logging;
 
 namespace Yaat.Client.UI.Tests;
 
@@ -29,6 +30,10 @@ internal static class ModuleInit
         Directory.CreateDirectory(testDir);
         File.WriteAllText(Path.Combine(testDir, PidMarker), Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
         Environment.SetEnvironmentVariable("YAAT_APPDATA_DIR", testDir);
+
+        // Logging is set up once, before any test or YAAT static runs, so every logger a class creates on first use (the
+        // automation dispatcher's among them) writes to the per-run log and feeds AppLog.RecentErrors, whatever the order.
+        AppLog.Initialize("yaat-ui-tests.log");
 
         AppDomain.CurrentDomain.ProcessExit += (_, _) => TryDeleteDir(testDir);
     }

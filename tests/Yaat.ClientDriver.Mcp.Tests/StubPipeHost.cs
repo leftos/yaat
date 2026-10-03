@@ -32,13 +32,30 @@ internal static class StubPipeHost
     /// method and params after <paramref name="delay"/>, until the client hangs up. A client that hangs up while an answer is
     /// pending ends the serve quietly.
     /// </summary>
-    public static async Task ServeAsync(string pipeName, Func<string, JsonElement?, object> answer, TimeSpan delay, CancellationToken ct)
+    public static Task ServeAsync(string pipeName, Func<string, JsonElement?, object> answer, TimeSpan delay, CancellationToken ct) =>
+        ServeResponsesAsync(
+            pipeName,
+            (id, method, parameters) => AutomationResponse.Success(id, ProtocolSerializer.ToElement(answer(method, parameters))),
+            delay,
+            ct
+        );
+
+    /// <summary>
+    /// As <see cref="ServeAsync"/>, but every request other than a ping is answered with the whole response
+    /// <paramref name="respond"/> builds from its id, method and params: an error, or an answer carrying client errors.
+    /// </summary>
+    public static async Task ServeResponsesAsync(
+        string pipeName,
+        Func<string, string, JsonElement?, AutomationResponse> respond,
+        TimeSpan delay,
+        CancellationToken ct
+    )
     {
         await using var pipe = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
         await pipe.WaitForConnectionAsync(ct);
         try
         {
-            await ServeConnectionAsync(pipe, answer, delay, ct);
+            await ServeConnectionAsync(pipe, respond, delay, ct);
         }
         catch (IOException)
         {
@@ -46,7 +63,12 @@ internal static class StubPipeHost
         }
     }
 
-    private static async Task ServeConnectionAsync(Stream pipe, Func<string, JsonElement?, object> answer, TimeSpan delay, CancellationToken ct)
+    private static async Task ServeConnectionAsync(
+        Stream pipe,
+        Func<string, string, JsonElement?, AutomationResponse> respond,
+        TimeSpan delay,
+        CancellationToken ct
+    )
     {
         var utf8 = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
         using var reader = new StreamReader(pipe, utf8, detectEncodingFromByteOrderMarks: false, bufferSize: 1024, leaveOpen: true);
@@ -57,14 +79,15 @@ internal static class StubPipeHost
             string id = request.RootElement.GetProperty("id").GetString()!;
             string method = request.RootElement.GetProperty("method").GetString()!;
             JsonElement? parameters = request.RootElement.TryGetProperty("params", out JsonElement value) ? value.Clone() : null;
-            object result =
-                (method == ProtocolMethods.Ping) ? new PingResult(Environment.ProcessId, ProtocolVersion.Current) : answer(method, parameters);
+            AutomationResponse response =
+                (method == ProtocolMethods.Ping)
+                    ? AutomationResponse.Success(id, ProtocolSerializer.ToElement(new PingResult(Environment.ProcessId, ProtocolVersion.Current)))
+                    : respond(id, method, parameters);
             if (method != ProtocolMethods.Ping)
             {
                 await Task.Delay(delay, ct);
             }
 
-            var response = AutomationResponse.Success(id, ProtocolSerializer.ToElement(result));
             await writer.WriteLineAsync(ProtocolSerializer.Serialize(response).AsMemory(), ct);
         }
     }

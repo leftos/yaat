@@ -155,6 +155,11 @@ public sealed class PipeClient(string pipeName, int? pid, ILogger<PipeClient> lo
             throw new InvalidOperationException($"The host answered request id '{response.Id}' while request '{id}' was in flight");
         }
 
+        if (response.ClientErrors is { Count: > 0 } clientErrors)
+        {
+            PipeCallErrors.Add(clientErrors, response.ClientErrorsOmitted);
+        }
+
         if (response.ErrorInfo is { } error)
         {
             throw new PipeRemoteException(error.Code, error.Message, error.Suggested);

@@ -14,6 +14,12 @@ public static class AppLog
 
     public static string LogPath { get; private set; } = "";
 
+    /// <summary>
+    /// The last errors the client logged (warnings are not kept), fed by every logger this class hands out once it is
+    /// initialized; the automation pipe attaches the ones logged during a call to that call's answer.
+    /// </summary>
+    public static RecentErrorLog RecentErrors { get; } = new();
+
     public static void Initialize(string logFileName)
     {
         LogPath = YaatPaths.Combine(logFileName);
@@ -24,6 +30,7 @@ public static class AppLog
         {
             builder.SetMinimumLevel(LogLevel.Debug);
             builder.AddProvider(provider);
+            builder.AddProvider(RecentErrors);
         });
         SimLog.Initialize(_factory);
     }
@@ -42,6 +49,7 @@ public static class AppLog
         {
             builder.SetMinimumLevel(minimumLevel);
             builder.AddProvider(new ConsoleLineLoggerProvider());
+            builder.AddProvider(RecentErrors);
         });
         SimLog.Initialize(_factory);
     }

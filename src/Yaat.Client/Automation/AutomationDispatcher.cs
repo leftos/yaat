@@ -91,17 +91,39 @@ public sealed class AutomationDispatcher
         return await Invoke(handler, request, id, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Runs <paramref name="handler"/> and answers with its result or error, carrying in <c>clientErrors</c> the errors the client
+    /// logged from the call's start until its answer was ready (at most <see cref="AutomationResponse.MaxClientErrors"/>), including the handler
+    /// failure's own. The capture is by time window, not by caller: an error another thread logs while the call runs comes back
+    /// with it too, and every error past the cap or dropped by the log's ring is counted in <c>clientErrorsOmitted</c>. A
+    /// cancelled call is not answered, so it carries nothing.
+    /// </summary>
     private static async Task<string> Invoke(IRequestHandler handler, AutomationRequest request, string id, CancellationToken cancellationToken)
+    {
+        long start = AppLog.RecentErrors.LastSequence;
+        AutomationResponse response = await Answer(handler, request, id, cancellationToken).ConfigureAwait(false);
+        long end = AppLog.RecentErrors.LastSequence;
+        List<ClientLogEntry>? errors = ClientErrorsSince(start);
+        int omitted = (int)((end - start) - (errors?.Count ?? 0));
+        return ProtocolSerializer.Serialize(response with { ClientErrors = errors, ClientErrorsOmitted = omitted });
+    }
+
+    private static async Task<AutomationResponse> Answer(
+        IRequestHandler handler,
+        AutomationRequest request,
+        string id,
+        CancellationToken cancellationToken
+    )
     {
         try
         {
             object result = await handler.Handle(request, cancellationToken).ConfigureAwait(false);
             if (result is HandlerErrorResult error)
             {
-                return ProtocolSerializer.Serialize(AutomationResponse.Failure(id, error.Error));
+                return AutomationResponse.Failure(id, error.Error);
             }
 
-            return ProtocolSerializer.Serialize(AutomationResponse.Success(id, ProtocolSerializer.ToElement(result)));
+            return AutomationResponse.Success(id, ProtocolSerializer.ToElement(result));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -111,8 +133,22 @@ public sealed class AutomationDispatcher
         catch (Exception ex)
         {
             Log.LogError(ex, "Automation method {Method} (request {Id}) failed", handler.Method, id);
-            return Fail(id, AutomationErrorCodes.Internal, ex.Message, "See the client log for the stack trace.");
+            return AutomationResponse.Failure(
+                id,
+                new AutomationError(ex.Message, AutomationErrorCodes.Internal, "See the client log for the stack trace.", null)
+            );
         }
+    }
+
+    private static List<ClientLogEntry>? ClientErrorsSince(long sequence)
+    {
+        IReadOnlyList<RecentErrorEntry> entries = AppLog.RecentErrors.Since(sequence, AutomationResponse.MaxClientErrors);
+        if (entries.Count == 0)
+        {
+            return null;
+        }
+
+        return [.. entries.Select(entry => new ClientLogEntry(entry.Level.ToString(), entry.Category, entry.Message, entry.Exception))];
     }
 
     private static string Fail(string id, string code, string message, string? hint) =>
