@@ -330,9 +330,6 @@ One command the aircraft menus can offer, with a stable ID (`<group>.<item>`, ne
 **Menu host**:
 The surface that owns an aircraft menu (radar, ground, aircraft list) as a catalog entry's builder sees it (`IMenuHost`): sending the command text, and whatever popups or reads the entry needs.
 
-**Host capability (menu host)**:
-A family of menu-host members a surface serves (`MenuHostCapabilities`: input popup, list picker, warp, ground movement…); a catalog entry names the capabilities it needs (`Requires`) and is hidden on a host that lacks any of them, never disabled.
-
 **Click context (menu click)**:
 What a right-click gives an aircraft menu (`MenuClick`): the aircraft the menu commands, the previously selected aircraft that sends the relative items (null when it is the clicked one), the clicked point on a point click (`MenuPoint`: a map position, a taxi node, a runway end; null on an aircraft click), and the list's selected rows (`[]` on the canvases).
 

@@ -27,8 +27,7 @@ public interface IMenuHost
 
     /// <summary>
     /// The point at <paramref name="position"/> as a fix-radial-distance the point menu's Direct to, Hold and Warp here
-    /// items name; null while the surface's fixes are not loaded or none is near enough. Every host serves it, so it
-    /// belongs to no <see cref="MenuHostCapabilities"/> family.
+    /// items name; null while the surface's fixes are not loaded or none is near enough.
     /// </summary>
     string? DescribePoint(LatLon position);
 
@@ -45,12 +44,6 @@ public interface IMenuHost
     /// <paramref name="runwayEnd"/> when a threshold click names one.
     /// </summary>
     MenuTextSeed GetCustomTaxiSeed(GroundNodeDto node, string? runwayEnd);
-
-    /// <summary>
-    /// The families of members this surface serves. The catalog hides an entry whose
-    /// <see cref="MenuCatalogEntry.Requires"/> names a flag the surface does not declare.
-    /// </summary>
-    MenuHostCapabilities Capabilities { get; }
 
     /// <summary>
     /// Opens the surface's list popup over <paramref name="items"/>, with <paramref name="selected"/> (or the item

@@ -16,7 +16,7 @@ using Yaat.Sim.Data.Airport;
 namespace Yaat.Client.UI.Tests.Views;
 
 // The aircraft menu's host-answered ground submenus, built through AircraftMenuBuilder over the client menu host: the
-// pushback face items and "Push back to...", "Preset taxi route", "Hold short of...", "Follow..." and "Give way to...".
+// pushback face items and "Push back to…", "Preset taxi route", "Hold short of…", "Follow…" and "Give way to…".
 // The menu goldens are single-aircraft fixtures and show none of them, so nothing else pins their
 // headers, their children and order, their caps and gates, or the exact command a click sends.
 //
@@ -54,7 +54,7 @@ public class GroundSubmenuCharacterizationTests
 
         Built built = BuildMenu(target, prevSelected: null, others);
 
-        List<string> follow = Children(built.Menu, "Follow...");
+        List<string> follow = Children(built.Menu, "Follow…");
         Assert.Equal(12, follow.Count);
         Assert.Equal(Enumerable.Range(1, 12).Select(i => $"SWA{i:000}"), follow);
     }
@@ -64,7 +64,7 @@ public class GroundSubmenuCharacterizationTests
     {
         Built built = BuildMenu(ParkedAircraft(), prevSelected: null, Candidate());
 
-        Click(Child(built.Menu, "Follow...", CandidateCallsign));
+        Click(Child(built.Menu, "Follow…", CandidateCallsign));
 
         Assert.Equal([(ParkedCallsign, $"FOLLOWG {CandidateCallsign}", Initials)], built.Sent);
     }
@@ -75,8 +75,8 @@ public class GroundSubmenuCharacterizationTests
         Built built = BuildMenu(ParkedAircraft(), prevSelected: null, Candidate());
 
         List<string> headers = Headers(built.Menu.Items);
-        Assert.Contains("Follow...", headers);
-        Assert.DoesNotContain("Give way to...", headers);
+        Assert.Contains("Follow…", headers);
+        Assert.DoesNotContain("Give way to…", headers);
     }
 
     [AvaloniaFact]
@@ -105,11 +105,11 @@ public class GroundSubmenuCharacterizationTests
 
         Assert.NotEqual(NodeTypeOf("1"), NodeTypeOf("32"));
 
-        Click(Child(built.Menu, "Push back to...", "1"));
+        Click(Child(built.Menu, "Push back to…", "1"));
         Assert.Equal([(ParkedCallsign, "PUSH $1", Initials)], built.Sent);
 
         built.Sent.Clear();
-        Click(Child(built.Menu, "Push back to...", "32"));
+        Click(Child(built.Menu, "Push back to…", "32"));
         Assert.Equal([(ParkedCallsign, "PUSH @32", Initials)], built.Sent);
     }
 
@@ -119,7 +119,7 @@ public class GroundSubmenuCharacterizationTests
         Built built = BuildMenu(ParkedAircraft(), prevSelected: null);
         Assert.False(built.Vm.IsDrawingRoute);
 
-        Click(Item(built.Menu.Items, "Push route..."));
+        Click(Item(built.Menu.Items, "Push route…"));
 
         Assert.True(built.Vm.IsDrawingRoute);
     }
@@ -131,7 +131,7 @@ public class GroundSubmenuCharacterizationTests
     {
         Built built = BuildMenu(TaxiingOnW3(), prevSelected: null, Candidate());
 
-        Click(Child(built.Menu, "Give way to...", CandidateCallsign));
+        Click(Child(built.Menu, "Give way to…", CandidateCallsign));
 
         Assert.Equal([(TaxiingCallsign, $"GW {CandidateCallsign}", Initials)], built.Sent);
     }
@@ -141,13 +141,13 @@ public class GroundSubmenuCharacterizationTests
     {
         AircraftModel withoutRoute = HoldingAfterExit(hasActiveTaxiRoute: false);
         Built noRoute = BuildMenu(withoutRoute, prevSelected: null, Candidate());
-        Assert.Contains("Follow...", Headers(noRoute.Menu.Items));
-        Assert.DoesNotContain("Give way to...", Headers(noRoute.Menu.Items));
+        Assert.Contains("Follow…", Headers(noRoute.Menu.Items));
+        Assert.DoesNotContain("Give way to…", Headers(noRoute.Menu.Items));
 
         AircraftModel withRoute = HoldingAfterExit(hasActiveTaxiRoute: true);
         Built routed = BuildMenu(withRoute, prevSelected: null, Candidate());
-        Assert.Contains("Follow...", Headers(routed.Menu.Items));
-        Assert.Contains("Give way to...", Headers(routed.Menu.Items));
+        Assert.Contains("Follow…", Headers(routed.Menu.Items));
+        Assert.Contains("Give way to…", Headers(routed.Menu.Items));
     }
 
     [AvaloniaFact]
@@ -157,7 +157,7 @@ public class GroundSubmenuCharacterizationTests
 
         Built built = BuildMenu(target, prevSelected: null, Candidate());
 
-        Assert.Equal(1, Headers(built.Menu.Items).Count(h => h == "Follow..."));
+        Assert.Equal(1, Headers(built.Menu.Items).Count(h => h == "Follow…"));
     }
 
     [AvaloniaFact]
@@ -169,8 +169,8 @@ public class GroundSubmenuCharacterizationTests
         Built built = BuildMenu(target, prevSelected: selected);
 
         List<string> headers = Headers(built.Menu.Items);
-        Assert.DoesNotContain("Follow...", headers);
-        Assert.DoesNotContain("Give way to...", headers);
+        Assert.DoesNotContain("Follow…", headers);
+        Assert.DoesNotContain("Give way to…", headers);
         Assert.Contains("SWA602: follow SWA104", headers);
         Assert.Contains("SWA602: give way to SWA104", headers);
     }
@@ -186,7 +186,7 @@ public class GroundSubmenuCharacterizationTests
 
         Built built = BuildMenu(target, prevSelected: null, self, airborne, Candidate());
 
-        Assert.Equal([CandidateCallsign], Children(built.Menu, "Follow..."));
+        Assert.Equal([CandidateCallsign], Children(built.Menu, "Follow…"));
     }
 
     [AvaloniaFact]
@@ -195,8 +195,8 @@ public class GroundSubmenuCharacterizationTests
         Built built = BuildMenu(TaxiingOnW3(), prevSelected: null);
 
         List<string> headers = Headers(built.Menu.Items);
-        Assert.DoesNotContain("Follow...", headers);
-        Assert.DoesNotContain("Give way to...", headers);
+        Assert.DoesNotContain("Follow…", headers);
+        Assert.DoesNotContain("Give way to…", headers);
     }
 
     [AvaloniaFact]
@@ -204,9 +204,9 @@ public class GroundSubmenuCharacterizationTests
     {
         Built built = BuildMenu(TaxiingOnW3(), prevSelected: null);
 
-        Assert.Equal(["Runway 12", "Runway 30"], Children(built.Menu, "Hold short of..."));
+        Assert.Equal(["Runway 12", "Runway 30"], Children(built.Menu, "Hold short of…"));
 
-        Click(Child(built.Menu, "Hold short of...", "Runway 30"));
+        Click(Child(built.Menu, "Hold short of…", "Runway 30"));
 
         Assert.Equal([(TaxiingCallsign, "HS 30", Initials)], built.Sent);
     }
@@ -217,7 +217,7 @@ public class GroundSubmenuCharacterizationTests
         AircraftModel target = TaxiingOnW3();
         Built built = BuildMenu(target, prevSelected: null);
 
-        MenuItem item = Child(built.Menu, "Hold short of...", "Runway 30");
+        MenuItem item = Child(built.Menu, "Hold short of…", "Runway 30");
         Assert.Null(built.Vm.PreviewRoute);
 
         RaisePointer(item, InputElement.PointerEnteredEvent);
@@ -243,7 +243,7 @@ public class GroundSubmenuCharacterizationTests
 
         Built built = BuildMenu(target, prevSelected: null);
 
-        Assert.DoesNotContain("Hold short of...", Headers(built.Menu.Items));
+        Assert.DoesNotContain("Hold short of…", Headers(built.Menu.Items));
     }
 
     // --- Preset taxi routes ------------------------------------------------------------------
@@ -275,7 +275,7 @@ public class GroundSubmenuCharacterizationTests
     {
         Built built = BuildMenu(TaxiingOnW3(), prevSelected: null, Candidate());
 
-        string[] covered = ["Hold position", "Hold short of...", "Follow...", "Give way to...", "Break conflict"];
+        string[] covered = ["Hold position", "Hold short of…", "Follow…", "Give way to…", "Break conflict"];
         List<string> present = [.. Headers(built.Menu.Items).Where(covered.Contains)];
 
         Assert.Equal(covered, present);

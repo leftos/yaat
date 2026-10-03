@@ -27,7 +27,7 @@ public class MenuFootTests
     {
         List<string> items = TopLevel(MenuView.Radar, "ifr-enroute", assumedFromLiveFeed: true);
 
-        Assert.Equal(["Draw route", "---", "Warp...", "Release to live feed", "Delete", "---", "Give control", "Unassign"], items[^8..]);
+        Assert.Equal(["Draw route", "---", "Warp…", "Release to live feed", "Delete", "---", "Give control", "Unassign"], items[^8..]);
     }
 
     [AvaloniaFact]
@@ -36,7 +36,7 @@ public class MenuFootTests
         List<string> items = TopLevel(MenuView.Radar, "taxiing", assumedFromLiveFeed: false);
 
         Assert.DoesNotContain("Sim Control", items);
-        Assert.Single(items, i => i == "Warp...");
+        Assert.Single(items, i => i == "Warp…");
     }
 
     // A surface shadow is never assumable, so the warp, which goes through the command path, stays out of its foot.
@@ -53,7 +53,7 @@ public class MenuFootTests
     {
         List<string> items = TopLevel(MenuView.Ground, "taxiing", assumedFromLiveFeed: true);
 
-        Assert.Equal(["Display", "---", "Warp...", "Release to live feed", "Delete", "---", "Give control", "Unassign"], items[^8..]);
+        Assert.Equal(["Display", "---", "Warp…", "Release to live feed", "Delete", "---", "Give control", "Unassign"], items[^8..]);
     }
 
     // The list's view section is empty, so the foot follows Edit flight plan with one separator and no Display.
@@ -63,7 +63,7 @@ public class MenuFootTests
         List<string> items = TopLevel(MenuView.List, "taxiing", assumedFromLiveFeed: true);
 
         Assert.Equal(
-            ["Coordination", "---", "Edit flight plan", "---", "Warp...", "Release to live feed", "Delete", "---", "Give control", "Unassign"],
+            ["Coordination", "---", "Edit flight plan", "---", "Warp…", "Release to live feed", "Delete", "---", "Give control", "Unassign"],
             items[^10..]
         );
     }

@@ -306,7 +306,7 @@ public class MenuHeaderTests
 
         MenuItem dataBlock = menu.Items.OfType<MenuItem>().Single(i => (i.Header as string) == "Data Block");
         List<string> children = [.. dataBlock.Items.Select(Describe)];
-        Assert.Contains("Scratchpad...", children);
+        Assert.Contains("Scratchpad…", children);
         Assert.DoesNotContain(children, c => c.StartsWith("Note", StringComparison.Ordinal));
     }
 

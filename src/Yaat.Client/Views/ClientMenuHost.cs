@@ -29,20 +29,6 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
 
     public MenuSession Session => SessionOf(main);
 
-    /// <summary>
-    /// Every family the client serves. The capability flags stay declared, all of them, until the catalog stops reading
-    /// them.
-    /// </summary>
-    public MenuHostCapabilities Capabilities =>
-        MenuHostCapabilities.InputPopup
-        | MenuHostCapabilities.ListPicker
-        | MenuHostCapabilities.FilteredListPicker
-        | MenuHostCapabilities.Warp
-        | MenuHostCapabilities.FlightPlanEditor
-        | MenuHostCapabilities.DrawRoute
-        | MenuHostCapabilities.GroundMovement
-        | MenuHostCapabilities.MultiSelectAssume;
-
     public Task SendAsync(string callsign, string command, string initials) => main.SendCommandForViewAsync(callsign, command, initials);
 
     public void ShowInputPopup(string placeholder, BlankInput blank, string initialText, int caretIndex, Func<string, Task> onSubmit) =>

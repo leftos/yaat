@@ -8,8 +8,7 @@ namespace Yaat.Client.ContextMenus;
 /// pilot, coordination, data block, favorites, the menu foot (warp, release to live feed, delete), and the flight groups
 /// heading, altitude, speed, navigation, hold, approach, procedures, tower and pattern — assembled from
 /// <see cref="MenuCatalog"/> entries. Every surface offers the input pickers — handoff, point out, squawk code, custom
-/// say. Data block entries are capability-gated, so a surface without the free-text popup shows fewer of them. The
-/// relative items (<see cref="AddRelative"/>) are a group of their own. Whether a group is offered at all stays with the
+/// say. The relative items (<see cref="AddRelative"/>) are a group of their own. Whether a group is offered at all stays with the
 /// caller. A group whose items are canvas-only in nature — the Display submenu — takes the surface's prebuilt items
 /// instead of the entries: the surface builds them with <see cref="CanvasMenuItems"/> from its own canvas state and only
 /// the placing stays here.
@@ -46,10 +45,10 @@ public static class SharedMenuGroups
         return menu;
     }
 
-    /// <summary>The "Ask pilot to say..." submenu: the say queries and the free-text one.</summary>
+    /// <summary>The "Ask pilot to say…" submenu: the say queries and the free-text one.</summary>
     public static MenuItem AskPilot(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        var menu = new MenuItem { Header = "Ask pilot to say..." };
+        var menu = new MenuItem { Header = "Ask pilot to say…" };
         TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotAltitude, aircraft, context, host));
         TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotHeading, aircraft, context, host));
         TryAdd(menu.Items, TryLeaf(MenuIds.AskPilotSpeed, aircraft, context, host));
@@ -151,7 +150,7 @@ public static class SharedMenuGroups
         }
 
         const int maxDisplay = 5;
-        string displayFixes = fixes.Count > maxDisplay ? string.Join(" ", fixes.Take(maxDisplay)) + " ..." : string.Join(" ", fixes);
+        string displayFixes = fixes.Count > maxDisplay ? string.Join(" ", fixes.Take(maxDisplay)) + " …" : string.Join(" ", fixes);
         string fullRoute = string.Join(" ", fixes);
 
         var item = new MenuItem
@@ -584,18 +583,13 @@ public static class SharedMenuGroups
     /// The aircraft list's multi-selection live-traffic item, placed after the Delete item: a separator and
     /// "Assume selected live traffic (N)" when the click's selection (<see cref="MenuClick.Selection"/>) holds two or
     /// more assumable shadows (<see cref="AircraftCommandApplicability.CanAssume"/>) to assume at once and the entry's
-    /// own gate allows it, otherwise nothing. The gate — read through <see cref="MenuCatalog.Get"/> the way
-    /// <see cref="AddDelayedSpawn"/> reads the delayed spawn's — stays with the entry. The item itself comes from
-    /// <see cref="MenuCatalog.BuildAssumeSelected"/> rather than from its own entry's builder.
+    /// own gate allows it, otherwise nothing. The item itself comes from <see cref="MenuCatalog.BuildAssumeSelected"/>
+    /// rather than from its own entry's builder.
     /// </summary>
     public static void AddAssumeSelected(ContextMenu menu, MenuContext context, IMenuHost host)
     {
         List<string> selectedShadows = [.. context.Click.Selection.Where(AircraftCommandApplicability.CanAssume).Select(a => a.Callsign)];
-        if (
-            (selectedShadows.Count < 2)
-            || !IsApplicable(MenuIds.LiveTrafficAssumeSelected, null, context)
-            || !MenuCatalog.Serves(MenuIds.LiveTrafficAssumeSelected, host)
-        )
+        if ((selectedShadows.Count < 2) || !IsApplicable(MenuIds.LiveTrafficAssumeSelected, null, context))
         {
             return;
         }
@@ -643,17 +637,11 @@ public static class SharedMenuGroups
     public static MenuItem Favorites(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
         Leaf(MenuIds.FavoritesMenu, aircraft, context, host);
 
-    /// <summary>
-    /// The entry's item when the host serves it and it built one; null when the host lacks any capability the entry
-    /// requires, or when the entry's own state hides it.
-    /// </summary>
-    private static MenuItem? TryLeaf(string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-    {
-        MenuCatalogEntry entry = MenuCatalog.Get(id);
-        return MenuCatalog.CanServe(entry, host) ? entry.Build(aircraft, context, host) : null;
-    }
+    /// <summary>The entry's item, or null when the entry's own state hides it.</summary>
+    private static MenuItem? TryLeaf(string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
+        MenuCatalog.Get(id).Build(aircraft, context, host);
 
-    /// <summary>The entry's item, which must exist: for the entries that require no capability (Delete, Favorites).</summary>
+    /// <summary>The entry's item, which must exist (Delete, Favorites).</summary>
     private static MenuItem Leaf(string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
         TryLeaf(id, aircraft, context, host) ?? throw new InvalidOperationException($"The context-menu catalog entry '{id}' built no menu item.");
 
@@ -666,10 +654,7 @@ public static class SharedMenuGroups
         }
     }
 
-    /// <summary>
-    /// Adds the entry's item, or nothing when the surface cannot serve it (<see cref="MenuCatalog.CanServe"/>) or its
-    /// own state hides it (the item is null).
-    /// </summary>
+    /// <summary>Adds the entry's item, or nothing when its own state hides it (the item is null).</summary>
     private static void AddIfBuilt(ItemCollection items, string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
         TryAdd(items, TryLeaf(id, aircraft, context, host));
 }

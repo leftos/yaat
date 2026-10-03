@@ -33,8 +33,6 @@ internal sealed class SendCapturingHost(IMenuHost inner, string sessionInitials)
 
     public MenuTextSeed GetCustomTaxiSeed(GroundNodeDto node, string? runwayEnd) => inner.GetCustomTaxiSeed(node, runwayEnd);
 
-    public MenuHostCapabilities Capabilities => inner.Capabilities;
-
     public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick) =>
         inner.ShowListPopup(items, selected, onPick);
 

@@ -147,14 +147,14 @@ public class PointMenuTests
         IReadOnlyList<MenuCommandChoice> taxi = client.GetTaxiChoices(Callsign, spot, null);
         MenuCommandChoice taxiChoice = Assert.Single(taxi);
         Assert.NotEqual("No route found", taxiChoice.Label);
-        Assert.Equal([taxiChoice.Label, "Push to 1", "Custom taxi...", Separator, "Warp here"], Labels(menu.Items));
+        Assert.Equal([taxiChoice.Label, "Push to 1", "Custom taxi…", Separator, "Warp here"], Labels(menu.Items));
         Assert.DoesNotContain(Labels(menu.Items), l => l.StartsWith("Fly heading", StringComparison.Ordinal));
 
         Click(Item(menu.Items, "Push to 1"));
         Click(Item(menu.Items, "Warp here"));
         Assert.Equal([(Callsign, "PUSH $1", "AB"), (Callsign, $"WARPG #{spot.Id}", "AB")], host.Sent);
 
-        Click(Item(menu.Items, "Custom taxi..."));
+        Click(Item(menu.Items, "Custom taxi…"));
         HeadlessWindowExtensions.PumpDispatcher();
         TextBox input = FindTextBox(anchor);
         Assert.Equal("TAXI  $1", input.Text);
@@ -182,7 +182,7 @@ public class PointMenuTests
         var point = new MenuPoint(new LatLon(holdShort.Latitude, holdShort.Longitude), holdShort, clickedEnd);
 
         ContextMenu menu = Build(ac, point, host, _ => []);
-        Click(Item(menu.Items, "Custom taxi..."));
+        Click(Item(menu.Items, "Custom taxi…"));
         HeadlessWindowExtensions.PumpDispatcher();
 
         string expected = $"RWY {RunwayIdentifier.ToDisplayDesignator(clickedEnd)} TAXI ";
@@ -255,7 +255,7 @@ public class PointMenuTests
 
         ContextMenu menu = Build(GroundAircraft(new LatLon(37.72, -122.22)), NodePoint(null), host, _ => []);
 
-        Assert.Equal(["Custom taxi...", Separator, "Warp here"], Labels(menu.Items));
+        Assert.Equal(["Custom taxi…", Separator, "Warp here"], Labels(menu.Items));
         Assert.Equal([(Callsign, TaxiNode.Id, (string?)null)], host.TaxiChoiceRequests);
     }
 
@@ -267,7 +267,7 @@ public class PointMenuTests
 
         ContextMenu menu = Build(GroundAircraft(new LatLon(37.72, -122.22)), NodePoint(null), host, _ => []);
 
-        Assert.Equal(["Taxi via B", "Custom taxi...", Separator, "Warp here"], Labels(menu.Items));
+        Assert.Equal(["Taxi via B", "Custom taxi…", Separator, "Warp here"], Labels(menu.Items));
         Click(Item(menu.Items, "Taxi via B"));
         Assert.Equal([(Callsign, "TAXI B", "AB")], host.Sent);
     }
@@ -281,7 +281,7 @@ public class PointMenuTests
 
         ContextMenu menu = Build(GroundAircraft(new LatLon(37.72, -122.22)), NodePoint(null), host, _ => []);
 
-        Assert.Equal(["Taxi here", "Custom taxi...", Separator, "Warp here"], Labels(menu.Items));
+        Assert.Equal(["Taxi here", "Custom taxi…", Separator, "Warp here"], Labels(menu.Items));
         Assert.Equal(["Taxi via A", "Taxi via B"], Labels(Item(menu.Items, "Taxi here").Items));
     }
 
@@ -291,7 +291,7 @@ public class PointMenuTests
         var host = new RecordingMenuHost("") { CustomTaxiSeed = new MenuTextSeed("TAXI  E", 5), InputAnswer = "  TAXI B E  " };
 
         ContextMenu menu = Build(GroundAircraft(new LatLon(37.72, -122.22)), NodePoint("28R"), host, _ => []);
-        Click(Item(menu.Items, "Custom taxi..."));
+        Click(Item(menu.Items, "Custom taxi…"));
 
         Assert.Equal([(TaxiNode.Id, (string?)"28R")], host.CustomTaxiSeedRequests);
         Assert.Equal([("TAXI  E", 5)], host.InputSeeds);

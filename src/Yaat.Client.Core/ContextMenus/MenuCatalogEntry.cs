@@ -18,12 +18,4 @@ public sealed record MenuCatalogEntry(
     MenuFlightRules DefaultFlightRules,
     Func<IMenuAircraft?, MenuContext, bool> IsApplicable,
     Func<IMenuAircraft?, MenuContext, IMenuHost, MenuItem?> Build
-)
-{
-    /// <summary>
-    /// The host capabilities the entry's builder needs, the union of every family its host members belong to;
-    /// <see cref="MenuHostCapabilities.None"/> when its builder calls none of the optional members. A surface whose
-    /// <see cref="IMenuHost.Capabilities"/> lacks one of them hides the entry.
-    /// </summary>
-    public MenuHostCapabilities Requires { get; init; }
-}
+);

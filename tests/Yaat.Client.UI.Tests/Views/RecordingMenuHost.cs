@@ -40,20 +40,6 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
         return Task.CompletedTask;
     }
 
-    /// <summary>
-    /// The capabilities the host answers; every family by default, so any entry builds. A test clears the ones its case
-    /// is about.
-    /// </summary>
-    public MenuHostCapabilities Capabilities { get; set; } =
-        MenuHostCapabilities.InputPopup
-        | MenuHostCapabilities.ListPicker
-        | MenuHostCapabilities.FilteredListPicker
-        | MenuHostCapabilities.Warp
-        | MenuHostCapabilities.FlightPlanEditor
-        | MenuHostCapabilities.DrawRoute
-        | MenuHostCapabilities.GroundMovement
-        | MenuHostCapabilities.MultiSelectAssume;
-
     public List<string> InputPlaceholders { get; } = [];
 
     /// <summary>The text an input popup is answered with when it differs from a picker's answer; the picker's answer when null.</summary>

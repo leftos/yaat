@@ -208,12 +208,12 @@ public class RadarContextMenuStateTests
                 "Left 270",
                 "Right 270",
                 "360 overhead",
-                "Custom...",
+                "Custom…",
             ],
             Headers(cto!)
         );
         List<object?> items = [.. cto!.Items];
-        int custom = items.FindIndex(i => i is MenuItem { Header: "Custom..." });
+        int custom = items.FindIndex(i => i is MenuItem { Header: "Custom…" });
         Assert.IsType<Separator>(items[custom - 1]);
     }
 

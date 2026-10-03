@@ -12,15 +12,15 @@ Track
   Drop track
   ---
   Accept handoff
-  Initiate handoff... picker:input
+  Initiate handoff… picker:input
   Cancel handoff
   ---
-  Point out... picker:input
+  Point out… picker:input
   Acknowledge pointout
 Data Block
-  Scratchpad... picker:input
-  Temporary altitude... picker:input
-  Cruise... picker:input
+  Scratchpad… picker:input
+  Temporary altitude… picker:input
+  Cruise… picker:input
   Annotate
 Coordination
   Release

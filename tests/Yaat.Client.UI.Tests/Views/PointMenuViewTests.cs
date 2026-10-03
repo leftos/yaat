@@ -42,7 +42,7 @@ public class PointMenuViewTests
         Assert.NotNull(menu);
         List<string> labels = Labels(menu.Items);
         Assert.StartsWith("Fly heading ", labels[0]);
-        Assert.DoesNotContain("Draw taxi route...", labels);
+        Assert.DoesNotContain("Draw taxi route…", labels);
     }
 
     [AvaloniaFact]
@@ -75,7 +75,7 @@ public class PointMenuViewTests
         ContextMenu? menu = view.BuildNodePointMenu(main.Ground, OakNode("Spot", "1").Id, default);
 
         Assert.NotNull(menu);
-        Assert.Equal(["Draw taxi route...", "Push route..."], Labels(menu.Items));
+        Assert.Equal(["Draw taxi route…", "Push route…"], Labels(menu.Items));
     }
 
     // --- Runway threshold -------------------------------------------------------------------
@@ -94,7 +94,7 @@ public class PointMenuViewTests
         ContextMenu? menu = view.BuildRunwayThresholdMenu(main.Ground, clickedEnd);
 
         Assert.NotNull(menu);
-        Click(Item(menu.Items, "Custom taxi..."));
+        Click(Item(menu.Items, "Custom taxi…"));
         HeadlessWindowExtensions.PumpDispatcher();
         string expected = $"RWY {RunwayIdentifier.ToDisplayDesignator(clickedEnd)} TAXI ";
         Assert.Equal(expected, FindTextBox(view).Text);

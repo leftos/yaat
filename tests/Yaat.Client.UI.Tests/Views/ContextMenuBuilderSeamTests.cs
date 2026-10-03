@@ -110,7 +110,7 @@ public class ContextMenuBuilderSeamTests
             "Track",
             "Data Block",
             "Squawk",
-            "Ask pilot to say...",
+            "Ask pilot to say…",
             "Coordination",
             "---",
             "Edit flight plan",
@@ -118,7 +118,7 @@ public class ContextMenuBuilderSeamTests
             "Display",
             "Draw route",
             "---",
-            "Warp...",
+            "Warp…",
             "Delete"
         );
     }
@@ -277,20 +277,20 @@ public class ContextMenuBuilderSeamTests
             "Favorite Commands",
             "---",
             "Push back",
-            "Push route...",
-            "Draw taxi route...",
+            "Push route…",
+            "Draw taxi route…",
             "---",
             "Track",
             "Data Block",
             "Squawk",
-            "Ask pilot to say...",
+            "Ask pilot to say…",
             "Coordination",
             "---",
             "Edit flight plan",
             "---",
             "Display",
             "---",
-            "Warp...",
+            "Warp…",
             "Delete"
         );
     }
@@ -325,12 +325,12 @@ public class ContextMenuBuilderSeamTests
             "Track",
             "Data Block",
             "Squawk",
-            "Ask pilot to say...",
+            "Ask pilot to say…",
             "Coordination",
             "---",
             "Edit flight plan",
             "---",
-            "Warp...",
+            "Warp…",
             "Delete"
         );
     }
@@ -400,7 +400,7 @@ public class ContextMenuBuilderSeamTests
 
         // A free-text picker carries the input kind and no values.
         MenuItem speed = menu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Speed");
-        MenuItem speedInput = speed.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Speed...");
+        MenuItem speedInput = speed.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "Speed…");
         MenuPickerDescriptor inputDescriptor = Assert.IsType<MenuPickerDescriptor>(speedInput.Tag);
         Assert.Equal(MenuPickerDescriptor.Input, inputDescriptor.Kind);
         Assert.Empty(inputDescriptor.Items);

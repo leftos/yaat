@@ -19,8 +19,7 @@ namespace Yaat.Client.ContextMenus;
 /// flat items of a companion helper, <see cref="BuildPushbackFaces"/>), and so is the delayed spawn's Change spawn
 /// delay submenu (<see cref="BuildSpawnDelay"/>), whose free-text box closes the menu it sits in; and the Cleared for
 /// takeoff submenu is the same on every view: the default clearance and runway heading, the VFR departure instructions
-/// when the aircraft and the controller's VFR-for-IFR setting allow them, and, on a host that serves the free-text popup
-/// (<see cref="MenuHostCapabilities.InputPopup"/>), a free-text item last. A pattern entry is a leaf naming the
+/// when the aircraft and the controller's VFR-for-IFR setting allow them, and a free-text item last. A pattern entry is a leaf naming the
 /// assigned runway, else a runway picker, else free text, and each pattern maneuver applies only on the legs it fits.
 /// Line up and wait names the held runway, else the assigned one, on every view
 /// (<see cref="HoldShortMenuHelper.HeldRunway(IMenuAircraft?)"/>). Line up and wait, Cleared for takeoff and its
@@ -54,11 +53,11 @@ public static class MenuCatalog
         Leaf(MenuIds.TrackTrack, "Track", "TRACK", Always),
         Leaf(MenuIds.TrackDrop, "Drop track", "DROP", Always),
         Leaf(MenuIds.TrackAcceptHandoff, "Accept handoff", "ACCEPT", Always),
-        InputLeaf(MenuIds.TrackInitiateHandoff, "Initiate handoff...", "Position ID", BlankInput.Closes, input => $"HO {input}"),
+        InputLeaf(MenuIds.TrackInitiateHandoff, "Initiate handoff…", "Position ID", BlankInput.Closes, input => $"HO {input}"),
         Leaf(MenuIds.TrackCancelHandoff, "Cancel handoff", "CANCEL", Always),
-        InputLeaf(MenuIds.TrackPointOut, "Point out...", "Position ID", BlankInput.Closes, input => $"PO {input}"),
+        InputLeaf(MenuIds.TrackPointOut, "Point out…", "Position ID", BlankInput.Closes, input => $"PO {input}"),
         Leaf(MenuIds.TrackAcknowledgePointout, "Acknowledge pointout", "OK", Always),
-        InputLeaf(MenuIds.SquawkCode, "Squawk...", "Code (0000-7777)", BlankInput.Closes, input => $"SQ {int.Parse(input)}"),
+        InputLeaf(MenuIds.SquawkCode, "Squawk…", "Code (0000-7777)", BlankInput.Closes, input => $"SQ {int.Parse(input)}"),
         Leaf(MenuIds.SquawkRandom, "Squawk random", "RANDSQ", Always),
         Leaf(MenuIds.SquawkVfr, "Squawk VFR", "SQVFR", Always),
         Leaf(MenuIds.SquawkNormal, "Squawk normal", "SQNORM", Always),
@@ -72,14 +71,11 @@ public static class MenuCatalog
         Leaf(MenuIds.AskPilotExpectedApproach, "Expected approach", "SEAPP", CanAskPilot),
         new(
             MenuIds.AskPilotCustom,
-            "Custom...",
+            "Custom…",
             MenuFlightRules.Both,
             CanAskPilot,
-            (_, context, host) => BuildInput("Custom...", "Text", BlankInput.Closes, input => $"SAY {input}", context, host)
-        )
-        {
-            Requires = MenuHostCapabilities.InputPopup,
-        },
+            (_, context, host) => BuildInput("Custom…", "Text", BlankInput.Closes, input => $"SAY {input}", context, host)
+        ),
         Leaf(MenuIds.CoordinationRelease, "Release", "RD", Always),
         Leaf(MenuIds.CoordinationHold, "Hold", "RDH", Always),
         Leaf(MenuIds.CoordinationRecall, "Recall", "RDR", Always),
@@ -97,19 +93,13 @@ public static class MenuCatalog
             "CFR CHECK",
             (ac, _) => AircraftCommandApplicability.CanCheckReleaseWindow(ac)
         ),
-        InputLeaf(MenuIds.DataBlockScratchpad, "Scratchpad...", "Text", BlankInput.Closes, input => $"SP {input}"),
-        InputLeaf(MenuIds.DataBlockTempAltitude, "Temporary altitude...", "Altitude", BlankInput.Closes, input => $"TEMPALT {int.Parse(input)}"),
-        InputLeaf(MenuIds.DataBlockCruise, "Cruise...", "Altitude", BlankInput.Closes, input => $"CRUISE {int.Parse(input)}"),
+        InputLeaf(MenuIds.DataBlockScratchpad, "Scratchpad…", "Text", BlankInput.Closes, input => $"SP {input}"),
+        InputLeaf(MenuIds.DataBlockTempAltitude, "Temporary altitude…", "Altitude", BlankInput.Closes, input => $"TEMPALT {int.Parse(input)}"),
+        InputLeaf(MenuIds.DataBlockCruise, "Cruise…", "Altitude", BlankInput.Closes, input => $"CRUISE {int.Parse(input)}"),
         Leaf(MenuIds.DataBlockAnnotate, "Annotate", "ANNOTATE", Always),
-        HostLeaf(MenuIds.SimControlWarp, "Warp...", Always, BuildWarp) with
-        {
-            Requires = MenuHostCapabilities.Warp,
-        },
+        HostLeaf(MenuIds.SimControlWarp, "Warp…", Always, BuildWarp),
         Leaf(MenuIds.SimControlDelete, "Delete", "DEL", Always),
-        HostLeaf(MenuIds.AircraftEditFlightPlan, "Edit flight plan", CanEditFlightPlan, BuildEditFlightPlan) with
-        {
-            Requires = MenuHostCapabilities.FlightPlanEditor,
-        },
+        HostLeaf(MenuIds.AircraftEditFlightPlan, "Edit flight plan", CanEditFlightPlan, BuildEditFlightPlan),
         HostLeaf(MenuIds.AircraftCommand, "Command…", Always, BuildCommand),
         HostLeaf(MenuIds.AircraftNote, "Note…", Always, BuildNote),
         Leaf(MenuIds.HeadingPresent, "Present heading", "FPH", Always),
@@ -118,23 +108,17 @@ public static class MenuCatalog
         HeadingList(MenuIds.HeadingTurnRight, "Turn right", "TR"),
         RelativeTurnList(MenuIds.HeadingTurnLeftDegrees, "Turn left (degrees)", "LT"),
         RelativeTurnList(MenuIds.HeadingTurnRightDegrees, "Turn right (degrees)", "RT"),
-        Picker(MenuIds.AltitudeMaintain, "Maintain", BuildMaintainAltitude) with
-        {
-            Requires = MenuHostCapabilities.ListPicker,
-        },
-        Picker(MenuIds.SpeedAssign, "Assign speed", BuildAssignSpeed) with
-        {
-            Requires = MenuHostCapabilities.ListPicker,
-        },
-        InputLeaf(MenuIds.SpeedCustom, "Speed...", "Speed (knots)", BlankInput.Closes, input => $"SPD {int.Parse(input)}"),
+        Picker(MenuIds.AltitudeMaintain, "Maintain", BuildMaintainAltitude),
+        Picker(MenuIds.SpeedAssign, "Assign speed", BuildAssignSpeed),
+        InputLeaf(MenuIds.SpeedCustom, "Speed…", "Speed (knots)", BlankInput.Closes, input => $"SPD {int.Parse(input)}"),
         Leaf(MenuIds.SpeedNormal, "Resume normal speed", "RNS", Always),
         Picker(MenuIds.SpeedFinalApproach, "FAS", BuildFinalApproachSpeed),
-        FixPicker(MenuIds.NavigationDirectTo, "Direct to...", "DCT", Always, RouteFixes),
-        FixPicker(MenuIds.NavigationAppendDirectTo, "Append direct to...", "ADCT", IsNavigatingToFix, RouteFixes),
+        FixPicker(MenuIds.NavigationDirectTo, "Direct to…", "DCT", Always, RouteFixes),
+        FixPicker(MenuIds.NavigationAppendDirectTo, "Append direct to…", "ADCT", IsNavigatingToFix, RouteFixes),
         Leaf(MenuIds.HoldPresentLeft, "Hold present position (left)", "HPPL", Always),
         Leaf(MenuIds.HoldPresentRight, "Hold present position (right)", "HPPR", Always),
-        FixPicker(MenuIds.HoldFixLeft, "Hold at fix (left)...", "HFIXL", Always, NoRouteFixes),
-        FixPicker(MenuIds.HoldFixRight, "Hold at fix (right)...", "HFIXR", Always, NoRouteFixes),
+        FixPicker(MenuIds.HoldFixLeft, "Hold at fix (left)…", "HFIXL", Always, NoRouteFixes),
+        FixPicker(MenuIds.HoldFixRight, "Hold at fix (right)…", "HFIXR", Always, NoRouteFixes),
         ApproachPicker(MenuIds.ApproachCleared, "Cleared approach", "CAPP"),
         ApproachPicker(MenuIds.ApproachJoin, "Join approach", "JAPP"),
         ApproachPicker(MenuIds.ApproachClearedStraightIn, "Cleared straight-in", "CAPPSI"),
@@ -143,14 +127,11 @@ public static class MenuCatalog
         ApproachPicker(MenuIds.ApproachJoinForce, "Join approach (force)", "JAPPF"),
         ApproachPicker(MenuIds.ApproachJoinFinalCourse, "Join final approach course", "JFAC"),
         ApproachPicker(MenuIds.ApproachExpect, "Expect approach", "EAPP"),
-        Picker(MenuIds.ApproachClearedVisual, ClearedVisualLabel, BuildClearedVisual) with
-        {
-            Requires = MenuHostCapabilities.ListPicker | MenuHostCapabilities.InputPopup,
-        },
+        Picker(MenuIds.ApproachClearedVisual, ClearedVisualLabel, BuildClearedVisual),
         Leaf(MenuIds.ApproachReportFieldInSight, "Report field in sight", "RFIS", Always),
         InputLeaf(
             MenuIds.ApproachReportTrafficInSight,
-            "Report traffic in sight...",
+            "Report traffic in sight…",
             "Target callsign (optional)",
             BlankInput.Submits,
             FormatTrafficInSight
@@ -159,28 +140,22 @@ public static class MenuCatalog
         Leaf(MenuIds.ApproachReportFinal, "Turning final", "REPORT FINAL", Always),
         Leaf(MenuIds.ApproachReportCrosswind, "Turning crosswind", "REPORT CROSSWIND", Always),
         Leaf(MenuIds.ApproachReportDownwind, "Turning downwind", "REPORT DOWNWIND", Always),
-        InputLeaf(MenuIds.ApproachReportNMileFinal, "N-mile final...", "Distance (NM)", BlankInput.Closes, input => $"REPORT {input} FINAL"),
-        InputLeaf(MenuIds.ApproachReportAtFix, "At fix...", "Fix name", BlankInput.Closes, input => $"REPORT {input}"),
+        InputLeaf(MenuIds.ApproachReportNMileFinal, "N-mile final…", "Distance (NM)", BlankInput.Closes, input => $"REPORT {input} FINAL"),
+        InputLeaf(MenuIds.ApproachReportAtFix, "At fix…", "Fix name", BlankInput.Closes, input => $"REPORT {input}"),
         Leaf(MenuIds.ApproachReportOffBase, "Base", "REPORT OFF BASE", Always),
         Leaf(MenuIds.ApproachReportOffFinal, "Final", "REPORT OFF FINAL", Always),
         Leaf(MenuIds.ApproachReportOffCrosswind, "Crosswind", "REPORT OFF CROSSWIND", Always),
         Leaf(MenuIds.ApproachReportOffDownwind, "Downwind", "REPORT OFF DOWNWIND", Always),
         Leaf(MenuIds.ApproachReportOffAll, "All reports", "REPORT OFF", Always),
-        Picker(MenuIds.ProceduresJoinStar, JoinStarLabel, BuildJoinStar) with
-        {
-            Requires = MenuHostCapabilities.ListPicker | MenuHostCapabilities.InputPopup,
-        },
+        Picker(MenuIds.ProceduresJoinStar, JoinStarLabel, BuildJoinStar),
         Leaf(MenuIds.ProceduresClimbViaSid, "Climb via SID", "CVIA", Always),
         Leaf(MenuIds.ProceduresDescendViaStar, "Descend via STAR", "DVIA", Always),
         RouteFixPicker(MenuIds.ProceduresCrossFix, CrossFixLabel, CrossFixCommand),
         RouteFixPicker(MenuIds.ProceduresDepartFix, DepartFixLabel, DepartFixCommand),
-        InputLeaf(MenuIds.ProceduresPtac, "PTAC...", "PTAC arguments", BlankInput.Closes, input => $"PTAC {input}"),
-        Picker(MenuIds.ProceduresJoinAirway, JoinAirwayLabel, BuildJoinAirway) with
-        {
-            Requires = MenuHostCapabilities.ListPicker | MenuHostCapabilities.InputPopup,
-        },
-        RadialPicker(MenuIds.ProceduresJoinRadialOutbound, "Join radial outbound...", "JRADO", fix => $"Bearing from {fix} (0-360)"),
-        RadialPicker(MenuIds.ProceduresJoinRadialInbound, "Join radial inbound...", "JRADI", fix => $"Bearing to {fix} (0-360)"),
+        InputLeaf(MenuIds.ProceduresPtac, "PTAC…", "PTAC arguments", BlankInput.Closes, input => $"PTAC {input}"),
+        Picker(MenuIds.ProceduresJoinAirway, JoinAirwayLabel, BuildJoinAirway),
+        RadialPicker(MenuIds.ProceduresJoinRadialOutbound, "Join radial outbound…", "JRADO", fix => $"Bearing from {fix} (0-360)"),
+        RadialPicker(MenuIds.ProceduresJoinRadialInbound, "Join radial inbound…", "JRADI", fix => $"Bearing to {fix} (0-360)"),
         new(
             MenuIds.TowerLineUpAndWait,
             LineUpAndWaitLabel,
@@ -233,23 +208,14 @@ public static class MenuCatalog
                 throw new InvalidOperationException(
                     $"The '{MenuIds.GroundPushbackFace}' entry builds no item; MenuCatalog.BuildPushbackFaces builds its flat face items."
                 )
-        ) with
-        {
-            Requires = MenuHostCapabilities.GroundMovement,
-        },
+        ),
         HostLeaf(
             MenuIds.GroundPushbackTo,
-            "Push back to...",
+            "Push back to…",
             (ac, _) => AircraftCommandApplicability.CanPushBack(ac),
             (label, _, context, host) => BuildChoiceSubmenu(label, host.GetPushbackToChoices(context.Callsign), context, host)
-        ) with
-        {
-            Requires = MenuHostCapabilities.GroundMovement,
-        },
-        HostLeaf(MenuIds.GroundPushRoute, "Push route...", (ac, _) => AircraftCommandApplicability.CanPushBack(ac), BuildPushRoute) with
-        {
-            Requires = MenuHostCapabilities.GroundMovement,
-        },
+        ),
+        HostLeaf(MenuIds.GroundPushRoute, "Push route…", (ac, _) => AircraftCommandApplicability.CanPushBack(ac), BuildPushRoute),
         Leaf(MenuIds.GroundHoldPosition, "Hold position", "HOLD", (ac, _) => AircraftCommandApplicability.CanHoldPosition(ac)),
         Leaf(
             MenuIds.GroundResumeTaxi,
@@ -265,41 +231,26 @@ public static class MenuCatalog
             BuildCrossRunway
         ),
         Leaf(MenuIds.GroundBreakConflict, "Break conflict", "BREAK", (ac, _) => AircraftCommandApplicability.CanBreakConflict(ac)),
-        HostLeaf(MenuIds.GroundHoldShort, "Hold short of...", (ac, _) => AircraftCommandApplicability.CanHoldShort(ac), BuildHoldShort) with
-        {
-            Requires = MenuHostCapabilities.GroundMovement,
-        },
+        HostLeaf(MenuIds.GroundHoldShort, "Hold short of…", (ac, _) => AircraftCommandApplicability.CanHoldShort(ac), BuildHoldShort),
         HostLeaf(
             MenuIds.GroundFollow,
-            "Follow...",
+            "Follow…",
             AircraftCommandApplicability.CanFollowBehind,
             (label, _, context, host) => BuildGroundTraffic(label, "FOLLOWG", context, host)
-        ) with
-        {
-            Requires = MenuHostCapabilities.GroundMovement,
-        },
+        ),
         HostLeaf(
             MenuIds.GroundGiveWay,
-            "Give way to...",
+            "Give way to…",
             AircraftCommandApplicability.CanGiveWayTo,
             (label, _, context, host) => BuildGroundTraffic(label, "GW", context, host)
-        ) with
-        {
-            Requires = MenuHostCapabilities.GroundMovement,
-        },
+        ),
         HostLeaf(
             MenuIds.GroundTaxiPreset,
             "Preset taxi route",
             (ac, _) => AircraftCommandApplicability.CanDrawTaxiRoute(ac),
             (label, _, context, host) => BuildChoiceSubmenu(label, host.GetPresetTaxiChoices(context.Callsign), context, host)
-        ) with
-        {
-            Requires = MenuHostCapabilities.GroundMovement,
-        },
-        HostLeaf(MenuIds.GroundDrawTaxiRoute, "Draw taxi route...", (ac, _) => AircraftCommandApplicability.CanDrawTaxiRoute(ac), BuildDrawRoute) with
-        {
-            Requires = MenuHostCapabilities.GroundMovement | MenuHostCapabilities.DrawRoute,
-        },
+        ),
+        HostLeaf(MenuIds.GroundDrawTaxiRoute, "Draw taxi route…", (ac, _) => AircraftCommandApplicability.CanDrawTaxiRoute(ac), BuildDrawRoute),
         Relative(
             MenuIds.RelativeReportInSight,
             "Selected aircraft: report in sight",
@@ -348,10 +299,7 @@ public static class MenuCatalog
                     $"The '{MenuIds.LiveTrafficAssumeSelected}' entry builds no item; SharedMenuGroups.AddAssumeSelected builds it for "
                         + "the aircraft list through MenuCatalog.BuildAssumeSelected, which takes the shadows the list has selected."
                 )
-        ) with
-        {
-            Requires = MenuHostCapabilities.MultiSelectAssume,
-        },
+        ),
         PointEntry(MenuIds.PointFlyHeading, "Fly heading", AtPointAirborne, BuildPointFlyHeading),
         PointEntry(
             MenuIds.PointDirectTo,
@@ -377,27 +325,15 @@ public static class MenuCatalog
             AtPointAirborne,
             (_, point, context, host) => BuildPointHold(point, "right", "HFIXR", context, host)
         ),
-        PointEntry(MenuIds.PointTaxiHere, "Taxi here", AtNodeTaxiable, BuildPointTaxiHere) with
-        {
-            Requires = MenuHostCapabilities.GroundMovement,
-        },
-        PointEntry(MenuIds.PointPushTo, "Push to", AtNodePushable, BuildPointPushTo) with
-        {
-            Requires = MenuHostCapabilities.GroundMovement,
-        },
-        PointEntry(MenuIds.PointCustomTaxi, "Custom taxi...", AtNodeTaxiable, BuildPointCustomTaxi) with
-        {
-            Requires = MenuHostCapabilities.InputPopup | MenuHostCapabilities.GroundMovement,
-        },
+        PointEntry(MenuIds.PointTaxiHere, "Taxi here", AtNodeTaxiable, BuildPointTaxiHere),
+        PointEntry(MenuIds.PointPushTo, "Push to", AtNodePushable, BuildPointPushTo),
+        PointEntry(MenuIds.PointCustomTaxi, "Custom taxi…", AtNodeTaxiable, BuildPointCustomTaxi),
         PointEntry(
             MenuIds.PointWarpHere,
             "Warp here",
             (ac, context) => (context.Click.Point is not null) && AircraftCommandApplicability.IsControllable(ac),
             BuildPointWarp
-        ) with
-        {
-            Requires = MenuHostCapabilities.Warp,
-        },
+        ),
     ];
 
     /// <summary>
@@ -488,7 +424,7 @@ public static class MenuCatalog
     private const int HeadingStep = 5;
 
     /// <summary>The trailing ellipsis a picker label carries while it opens a popup that is not the plain route-fix list.</summary>
-    private const string Ellipsis = "...";
+    private const string Ellipsis = "…";
 
     private static readonly Dictionary<string, MenuCatalogEntry> ById = All.ToDictionary(e => e.Id, StringComparer.Ordinal);
 
@@ -499,15 +435,6 @@ public static class MenuCatalog
             : throw new KeyNotFoundException(
                 $"The context-menu catalog has no entry with id '{id}'; add it to MenuCatalog.All alongside its MenuIds constant."
             );
-
-    /// <summary>
-    /// Whether <paramref name="host"/> declares every capability <paramref name="entry"/> requires. A surface that
-    /// lacks any of them hides the entry rather than showing it disabled.
-    /// </summary>
-    public static bool CanServe(MenuCatalogEntry entry, IMenuHost host) => (host.Capabilities & entry.Requires) == entry.Requires;
-
-    /// <summary>Whether <paramref name="host"/> serves the entry with <paramref name="id"/>.</summary>
-    internal static bool Serves(string id, IMenuHost host) => CanServe(Get(id), host);
 
     /// <summary>A menu item labelled <paramref name="label"/> that sends <paramref name="command"/> for the menu's aircraft when clicked.</summary>
     internal static MenuItem BuildSend(string label, string command, MenuContext context, IMenuHost host)
@@ -684,12 +611,10 @@ public static class MenuCatalog
     /// <summary>
     /// The pushback-face entry's companion, which the ground group places right after Push back: one flat item per
     /// facing the host answers, sending its finished <c>PUSH FACE</c> command. Building the entry itself throws, and a
-    /// host that serves no pushback faces gets no items.
+    /// host that answers no pushback faces gets no items.
     /// </summary>
     internal static IReadOnlyList<MenuItem> BuildPushbackFaces(MenuContext context, IMenuHost host) =>
-        Serves(MenuIds.GroundPushbackFace, host)
-            ? [.. host.GetPushbackFaceChoices(context.Callsign).Select(choice => BuildSend(choice.Label, FaceCommand(choice), context, host))]
-            : [];
+        [.. host.GetPushbackFaceChoices(context.Callsign).Select(choice => BuildSend(choice.Label, FaceCommand(choice), context, host))];
 
     /// <summary>A pushback facing's <c>PUSH FACE</c> command, which every face choice the host answers carries.</summary>
     private static string FaceCommand(MenuCommandChoice choice) =>
@@ -788,9 +713,8 @@ public static class MenuCatalog
     /// The Cleared for takeoff submenu, the same on every view: headed with the held runway, else the assigned one
     /// (<see cref="HoldShortMenuHelper.HeldRunway(IMenuAircraft?)"/>), the default clearance (the filed SID for IFR,
     /// runway heading for VFR) and an explicit runway heading for either, then the VFR-only departure instructions when
-    /// <see cref="AircraftCommandApplicability.ShowVfrTakeoffModifiers"/> allows them. Only a host that opens a
-    /// free-text input popup (<see cref="MenuHostCapabilities.InputPopup"/>) gets the trailing separator and Custom
-    /// item: blank sends a bare <c>CTO</c>, anything else is trimmed and sent after it.
+    /// <see cref="AircraftCommandApplicability.ShowVfrTakeoffModifiers"/> allows them, then the trailing separator and
+    /// Custom item: blank sends a bare <c>CTO</c>, anything else is trimmed and sent after it.
     /// </summary>
     private static MenuItem BuildClearedForTakeoff(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
@@ -805,15 +729,10 @@ public static class MenuCatalog
             }
         }
 
-        if (!host.Capabilities.HasFlag(MenuHostCapabilities.InputPopup))
-        {
-            return menu;
-        }
-
         menu.Items.Add(new Separator());
         menu.Items.Add(
             BuildInput(
-                "Custom...",
+                "Custom…",
                 ClearedForTakeoffPlaceholder,
                 BlankInput.Submits,
                 input => string.IsNullOrWhiteSpace(input) ? "CTO" : $"CTO {input.Trim()}",
@@ -833,10 +752,7 @@ public static class MenuCatalog
     private static MenuCatalogEntry PatternEntry(string id, Func<IMenuAircraft?, MenuContext, bool> isApplicable)
     {
         (string label, string command) = PatternEntrySpec(id);
-        return new(id, label, MenuFlightRules.Both, isApplicable, (ac, context, host) => BuildPatternEntry(label, command, ac, context, host))
-        {
-            Requires = MenuHostCapabilities.ListPicker | MenuHostCapabilities.InputPopup,
-        };
+        return new(id, label, MenuFlightRules.Both, isApplicable, (ac, context, host) => BuildPatternEntry(label, command, ac, context, host));
     }
 
     private static MenuItem BuildPatternEntry(string label, string command, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
@@ -869,7 +785,7 @@ public static class MenuCatalog
     /// </summary>
     internal static MenuItem? BuildPatternEntryOther(string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        if ((!Serves(id, host)) || (aircraft is not { AssignedRunway.Length: > 0 }))
+        if (aircraft is not { AssignedRunway.Length: > 0 })
         {
             return null;
         }
@@ -904,10 +820,7 @@ public static class MenuCatalog
     }
 
     private static MenuCatalogEntry InputLeaf(string id, string label, string placeholder, BlankInput blank, Func<string, string> format) =>
-        new(id, label, MenuFlightRules.Both, Always, (_, context, host) => BuildInput(label, placeholder, blank, format, context, host))
-        {
-            Requires = MenuHostCapabilities.InputPopup,
-        };
+        new(id, label, MenuFlightRules.Both, Always, (_, context, host) => BuildInput(label, placeholder, blank, format, context, host));
 
     /// <summary>
     /// An entry whose item the host builds for a surface of its own rather than from a command text: the warp popup,
@@ -948,8 +861,7 @@ public static class MenuCatalog
 
     /// <summary>
     /// Warp is offered only for a controllable aircraft: the warp goes through the command path, which auto-assumes an
-    /// airborne shadow but refuses an unassumable surface one. The warp popup is the entry's own requirement
-    /// (<see cref="MenuHostCapabilities.Warp"/>, the radar canvas), which keeps it off a surface that has none.
+    /// airborne shadow but refuses an unassumable surface one.
     /// </summary>
     private static bool CanWarp(IMenuAircraft? aircraft) => AircraftCommandApplicability.IsControllable(aircraft);
 
@@ -1092,7 +1004,7 @@ public static class MenuCatalog
         }
 
         MenuTextSeed seed = host.GetCustomTaxiSeed(node, point.RunwayEnd);
-        var item = new MenuItem { Header = "Custom taxi...", Tag = new MenuPickerDescriptor(MenuPickerDescriptor.Input, []) };
+        var item = new MenuItem { Header = "Custom taxi…", Tag = new MenuPickerDescriptor(MenuPickerDescriptor.Input, []) };
         item.Click += (_, _) =>
             host.ShowInputPopup(
                 "Taxi command",
@@ -1217,10 +1129,7 @@ public static class MenuCatalog
             MenuFlightRules.Both,
             Always,
             (ac, context, host) => BuildList(label, HeadingValues(), HeadingSeed(ac), picked => Send($"{command} {picked}", context, host), host)
-        )
-        {
-            Requires = MenuHostCapabilities.ListPicker,
-        };
+        );
 
     /// <summary>A relative-turn picker that sends <paramref name="command"/> with the picked number of degrees, highlighting 30.</summary>
     private static MenuCatalogEntry RelativeTurnList(string id, string label, string command) =>
@@ -1230,10 +1139,7 @@ public static class MenuCatalog
             MenuFlightRules.Both,
             Always,
             (_, context, host) => BuildList(label, [5, 10, 15, 20, 30, 45, 60, 90], 30, picked => Send($"{command} {picked}", context, host), host)
-        )
-        {
-            Requires = MenuHostCapabilities.ListPicker,
-        };
+        );
 
     private static List<object> HeadingValues()
     {
@@ -1401,10 +1307,7 @@ public static class MenuCatalog
             MenuFlightRules.Both,
             isApplicable,
             (ac, context, host) => BuildFixPicker(label, command, routeFixes(ac), context, host)
-        )
-        {
-            Requires = MenuHostCapabilities.FilteredListPicker | MenuHostCapabilities.ListPicker | MenuHostCapabilities.InputPopup,
-        };
+        );
     }
 
     /// <summary>
@@ -1438,10 +1341,7 @@ public static class MenuCatalog
 
     /// <summary>An approach picker that sends <paramref name="command"/> with the picked or typed approach id.</summary>
     private static MenuCatalogEntry ApproachPicker(string id, string label, string command) =>
-        new(id, label, MenuFlightRules.Both, Always, (ac, context, host) => BuildApproachPicker(label, command, ac, context, host))
-        {
-            Requires = MenuHostCapabilities.ListPicker | MenuHostCapabilities.InputPopup,
-        };
+        new(id, label, MenuFlightRules.Both, Always, (ac, context, host) => BuildApproachPicker(label, command, ac, context, host));
 
     /// <summary>
     /// The approach picker's form, by the data present when the menu is built: a list of the destination's approaches
@@ -1525,7 +1425,7 @@ public static class MenuCatalog
     /// </summary>
     internal static MenuItem? BuildClearedVisualOther(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        if ((!Serves(MenuIds.ApproachClearedVisual, host)) || (SmartVisualRunway(aircraft) is null))
+        if (SmartVisualRunway(aircraft) is null)
         {
             return null;
         }
@@ -1571,7 +1471,7 @@ public static class MenuCatalog
     /// </summary>
     internal static MenuItem? BuildJoinStarOther(IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
-        if ((!Serves(MenuIds.ProceduresJoinStar, host)) || (FiledStar(aircraft) is null))
+        if (FiledStar(aircraft) is null)
         {
             return null;
         }
@@ -1638,28 +1538,21 @@ public static class MenuCatalog
             MenuFlightRules.Both,
             Always,
             (ac, context, host) => BuildOneManyOrInput(new(label, command, FixNamePlaceholder), RouteFixes(ac), context, host)
-        )
-        {
-            Requires = MenuHostCapabilities.ListPicker | MenuHostCapabilities.InputPopup,
-        };
+        );
 
     /// <summary>
     /// The Cross fix item's companion, which shares its id: free text labelled "(other)" beside the route fixes; null
     /// without any.
     /// </summary>
     internal static MenuItem? BuildCrossFixOther(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
-        Serves(MenuIds.ProceduresCrossFix, host)
-            ? BuildOtherInput(new(CrossFixLabel, CrossFixCommand, FixNamePlaceholder), RouteFixes(aircraft), context, host)
-            : null;
+        BuildOtherInput(new(CrossFixLabel, CrossFixCommand, FixNamePlaceholder), RouteFixes(aircraft), context, host);
 
     /// <summary>
     /// The Depart fix item's companion, which shares its id: free text labelled "(other)" beside the route fixes; null
     /// without any.
     /// </summary>
     internal static MenuItem? BuildDepartFixOther(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
-        Serves(MenuIds.ProceduresDepartFix, host)
-            ? BuildOtherInput(new(DepartFixLabel, DepartFixCommand, FixNamePlaceholder), RouteFixes(aircraft), context, host)
-            : null;
+        BuildOtherInput(new(DepartFixLabel, DepartFixCommand, FixNamePlaceholder), RouteFixes(aircraft), context, host);
 
     /// <summary>The Join airway item over the airways the flight plan files; its form is <see cref="BuildOneManyOrInput"/>'s.</summary>
     private static MenuItem BuildJoinAirway(string label, IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
@@ -1670,9 +1563,7 @@ public static class MenuCatalog
     /// null without any.
     /// </summary>
     internal static MenuItem? BuildJoinAirwayOther(IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
-        Serves(MenuIds.ProceduresJoinAirway, host)
-            ? BuildOtherInput(new(JoinAirwayLabel, JoinAirwayCommand, AirwayIdPlaceholder), FiledAirways(aircraft), context, host)
-            : null;
+        BuildOtherInput(new(JoinAirwayLabel, JoinAirwayCommand, AirwayIdPlaceholder), FiledAirways(aircraft), context, host);
 
     /// <summary>
     /// The airways the flight plan files, in filed order without repeats; none without a route. Every airway is never
@@ -1740,10 +1631,7 @@ public static class MenuCatalog
     /// for the fix; else free text taking the fix and the bearing together.
     /// </summary>
     private static MenuCatalogEntry RadialPicker(string id, string label, string command, Func<string, string> bearingPrompt) =>
-        new(id, label, MenuFlightRules.Both, Always, (_, context, host) => BuildRadialPicker(label, command, bearingPrompt, context, host))
-        {
-            Requires = MenuHostCapabilities.FilteredListPicker | MenuHostCapabilities.InputPopup,
-        };
+        new(id, label, MenuFlightRules.Both, Always, (_, context, host) => BuildRadialPicker(label, command, bearingPrompt, context, host));
 
     private static MenuItem BuildRadialPicker(string label, string command, Func<string, string> bearingPrompt, MenuContext context, IMenuHost host)
     {

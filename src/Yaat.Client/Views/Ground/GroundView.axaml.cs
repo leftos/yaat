@@ -423,7 +423,7 @@ public partial class GroundView : UserControl
         {
             section.Add(
                 CreateMenuItem(
-                    "Push route...",
+                    "Push route…",
                     () =>
                     {
                         vm.StartPushRoute(selected);
@@ -450,7 +450,7 @@ public partial class GroundView : UserControl
 
         items.Add(
             CreateMenuItem(
-                "Draw taxi route...",
+                "Draw taxi route…",
                 () =>
                 {
                     vm.StartDrawRoute(aircraft);

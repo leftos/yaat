@@ -622,7 +622,7 @@ public class MenuPopupsTests
         MenuItem? cto = MenuCatalog.Get(MenuIds.TowerClearedForTakeoff).Build(aircraft, context, host);
         Assert.NotNull(cto);
         MenuItem custom = Assert.IsType<MenuItem>(cto.Items[^1]);
-        Assert.Equal("Custom...", custom.Header as string);
+        Assert.Equal("Custom…", custom.Header as string);
         return custom;
     }
 

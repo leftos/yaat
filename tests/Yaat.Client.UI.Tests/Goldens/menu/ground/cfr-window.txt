@@ -16,35 +16,35 @@ Tower
     Default (SID/on course)
     Fly runway heading
     ---
-    Custom... picker:input
+    Custom… picker:input
 Preset taxi route
   30 to TERMINAL
-Draw taxi route...
+Draw taxi route…
 ---
 Track
   Track
   Drop track
   ---
   Accept handoff
-  Initiate handoff... picker:input
+  Initiate handoff… picker:input
   Cancel handoff
   ---
-  Point out... picker:input
+  Point out… picker:input
   Acknowledge pointout
 Data Block
-  Scratchpad... picker:input
-  Temporary altitude... picker:input
-  Cruise... picker:input
+  Scratchpad… picker:input
+  Temporary altitude… picker:input
+  Cruise… picker:input
   Annotate
 Squawk
-  Squawk... picker:input
+  Squawk… picker:input
   Squawk random
   Squawk VFR
   Squawk normal
   Squawk standby
   ---
   Ident
-Ask pilot to say...
+Ask pilot to say…
   Altitude
   Heading
   Speed
@@ -52,7 +52,7 @@ Ask pilot to say...
   Position
   Expected approach
   ---
-  Custom... picker:input
+  Custom… picker:input
 Coordination
   Release
   Hold
@@ -69,5 +69,5 @@ Display
   Hide datablock
   Measure from SWA109
 ---
-Warp...
+Warp…
 Delete

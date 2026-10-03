@@ -27,11 +27,11 @@ public class GroundSubmenuGroupTests
     /// <summary>The top-level headers of <paramref name="menu"/> that <paramref name="keep"/> picks, in order.</summary>
     private static List<string> HeadersWhere(ContextMenu menu, Func<string, bool> keep) => [.. Headers(menu.Items).Where(keep)];
 
-    private static bool IsTaxiGroup(string header) => header is "Hold short of..." or "Follow..." or "Give way to...";
+    private static bool IsTaxiGroup(string header) => header is "Hold short of…" or "Follow…" or "Give way to…";
 
     private static bool IsPushItem(string header) => header.StartsWith("Push", StringComparison.Ordinal);
 
-    private static bool IsTaxiRouteItem(string header) => header is "Preset taxi route" or "Draw taxi route...";
+    private static bool IsTaxiRouteItem(string header) => header is "Preset taxi route" or "Draw taxi route…";
 
     private static AircraftModel Taxiing() =>
         new()
@@ -65,7 +65,7 @@ public class GroundSubmenuGroupTests
         host.HoldShortChoices.Add(new MenuCommandChoice("Runway 30", "HS 30", route, []));
 
         ContextMenu menu = BuildTaxiGroups(host);
-        MenuItem holdShort = Item(menu.Items, "Hold short of...");
+        MenuItem holdShort = Item(menu.Items, "Hold short of…");
         Assert.Equal(["Runway 12", "Runway 30"], Headers(holdShort.Items));
 
         RaisePointerEntered(Item(holdShort.Items, "Runway 12"));
@@ -87,10 +87,10 @@ public class GroundSubmenuGroupTests
         host.GroundTraffic.AddRange(traffic);
 
         ContextMenu menu = BuildTaxiGroups(host);
-        Assert.Equal(["Follow...", "Give way to..."], HeadersWhere(menu, IsTaxiGroup));
+        Assert.Equal(["Follow…", "Give way to…"], HeadersWhere(menu, IsTaxiGroup));
 
-        MenuItem follow = Item(menu.Items, "Follow...");
-        MenuItem giveWay = Item(menu.Items, "Give way to...");
+        MenuItem follow = Item(menu.Items, "Follow…");
+        MenuItem giveWay = Item(menu.Items, "Give way to…");
         Assert.Equal(traffic, Headers(follow.Items));
         Assert.Equal(traffic, Headers(giveWay.Items));
 
@@ -132,7 +132,7 @@ public class GroundSubmenuGroupTests
         host.PushbackFaceChoices.Add(new MenuCommandChoice("Push back, face W2", "PUSH FACE SE", null, []));
 
         ContextMenu menu = BuildPushbackGroup(host);
-        Assert.Equal(["Push back", "Push back, face W1", "Push back, face W2", "Push route..."], HeadersWhere(menu, IsPushItem));
+        Assert.Equal(["Push back", "Push back, face W1", "Push back, face W2", "Push route…"], HeadersWhere(menu, IsPushItem));
 
         Click(Item(menu.Items, "Push back, face W1"));
         Click(Item(menu.Items, "Push back, face W2"));
@@ -147,9 +147,9 @@ public class GroundSubmenuGroupTests
         host.PushbackToChoices.Add(new MenuCommandChoice("32", "PUSH @32", null, []));
 
         ContextMenu menu = BuildPushbackGroup(host);
-        Assert.Equal(["Push back", "Push back to...", "Push route..."], HeadersWhere(menu, IsPushItem));
+        Assert.Equal(["Push back", "Push back to…", "Push route…"], HeadersWhere(menu, IsPushItem));
 
-        MenuItem pushTo = Item(menu.Items, "Push back to...");
+        MenuItem pushTo = Item(menu.Items, "Push back to…");
         Assert.Equal(["1", "32"], Headers(pushTo.Items));
 
         Click(Item(pushTo.Items, "32"));
@@ -162,7 +162,7 @@ public class GroundSubmenuGroupTests
     {
         var host = new RecordingMenuHost("");
 
-        Click(Item(BuildPushbackGroup(host).Items, "Push route..."));
+        Click(Item(BuildPushbackGroup(host).Items, "Push route…"));
 
         Assert.Equal([Callsign], host.PushRouteCallsigns);
         Assert.Empty(host.Sent);
@@ -173,7 +173,7 @@ public class GroundSubmenuGroupTests
     {
         var host = new RecordingMenuHost("");
 
-        Assert.Equal(["Push back", "Push route..."], HeadersWhere(BuildPushbackGroup(host), IsPushItem));
+        Assert.Equal(["Push back", "Push route…"], HeadersWhere(BuildPushbackGroup(host), IsPushItem));
     }
 
     [AvaloniaFact]
@@ -194,14 +194,14 @@ public class GroundSubmenuGroupTests
         host.PresetTaxiChoices.Add(new MenuCommandChoice("TERMINAL to 28R", "TAXI B C RWY 28R", null, []));
 
         ContextMenu menu = BuildMenu(host, Taxiing());
-        Assert.Equal(["Preset taxi route", "Draw taxi route..."], HeadersWhere(menu, IsTaxiRouteItem));
+        Assert.Equal(["Preset taxi route", "Draw taxi route…"], HeadersWhere(menu, IsTaxiRouteItem));
 
         MenuItem presets = Item(menu.Items, "Preset taxi route");
         Assert.Equal(["TERMINAL to 30", "TERMINAL to 28R"], Headers(presets.Items));
         Click(Item(presets.Items, "TERMINAL to 28R"));
         Assert.Equal([(Callsign, "TAXI B C RWY 28R", Initials)], host.Sent);
 
-        Click(Item(menu.Items, "Draw taxi route..."));
+        Click(Item(menu.Items, "Draw taxi route…"));
         Assert.Equal([Callsign], host.DrawRouteCallsigns);
     }
 
@@ -212,7 +212,7 @@ public class GroundSubmenuGroupTests
 
         ContextMenu menu = BuildMenu(host, Taxiing());
 
-        Assert.Equal(["Draw taxi route..."], HeadersWhere(menu, IsTaxiRouteItem));
+        Assert.Equal(["Draw taxi route…"], HeadersWhere(menu, IsTaxiRouteItem));
     }
 
     [AvaloniaFact]

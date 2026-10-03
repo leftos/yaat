@@ -9,7 +9,7 @@ Favorite Commands
 ---
 Speed
   Assign speed picker:list [150, 160, 170, 180, 190, 200, 210, 220, 230, 240, 250, 260, 270, 280, 290, 300, 310, 320, 330, 340, 350]
-  Speed... picker:input
+  Speed… picker:input
   Resume normal speed
   FAS
 Altitude
@@ -31,8 +31,8 @@ Navigation
 Hold
   Hold present position (left)
   Hold present position (right)
-  Hold at fix (left)... picker:input
-  Hold at fix (right)... picker:input
+  Hold at fix (left)… picker:input
+  Hold at fix (right)… picker:input
 Approach
   Cleared approach picker:list [H12-Z, H28LZ, H28RZ, H30-Z, I12, I28R, I30, L12, L28R, L30, R10L, R10R, R12-Y, R28LY, R28RY, R30-Y, S10R]
   Join approach picker:list [H12-Z, H28LZ, H28RZ, H30-Z, I12, I28R, I30, L12, L28R, L30, R10L, R10R, R12-Y, R28LY, R28RY, R30-Y, S10R]
@@ -43,18 +43,18 @@ Approach
   Join final approach course picker:list [H12-Z, H28LZ, H28RZ, H30-Z, I12, I28R, I30, L12, L28R, L30, R10L, R10R, R12-Y, R28LY, R28RY, R30-Y, S10R]
   Expect approach picker:list [H12-Z, H28LZ, H28RZ, H30-Z, I12, I28R, I30, L12, L28R, L30, R10L, R10R, R12-Y, R28LY, R28RY, R30-Y, S10R]
   Cleared visual approach 30
-  Cleared visual approach (other)... picker:list [10L, 10R, 12, 15, 28L, 28R, 30, 33]
+  Cleared visual approach (other)… picker:list [10L, 10R, 12, 15, 28L, 28R, 30, 33]
   ---
   Report field in sight
-  Report traffic in sight... picker:input
+  Report traffic in sight… picker:input
   ---
   Report when…
     Turning base
     Turning final
     Turning crosswind
     Turning downwind
-    N-mile final... picker:input
-    At fix... picker:input
+    N-mile final… picker:input
+    At fix… picker:input
     ---
     Stop reporting
       Base
@@ -64,45 +64,45 @@ Approach
       ---
       All reports
 Procedures
-  Join STAR... picker:list [AANET1, EMZOH4, OAKES3, PIRAT3, PXN6, WNDSR2]
+  Join STAR… picker:list [AANET1, EMZOH4, OAKES3, PIRAT3, PXN6, WNDSR2]
   Climb via SID
   Descend via STAR
-  Cross fix... picker:list [KOAK, KLAX]
-  Cross fix (other)... picker:input
-  Depart fix... picker:list [KOAK, KLAX]
-  Depart fix (other)... picker:input
-  PTAC... picker:input
-  Join airway... picker:input
-  Join radial outbound... picker:input
-  Join radial inbound... picker:input
+  Cross fix… picker:list [KOAK, KLAX]
+  Cross fix (other)… picker:input
+  Depart fix… picker:list [KOAK, KLAX]
+  Depart fix (other)… picker:input
+  PTAC… picker:input
+  Join airway… picker:input
+  Join radial outbound… picker:input
+  Join radial inbound… picker:input
 Pattern
   Enter straight-in final 30
-  Enter straight-in final (other)... picker:list [10L, 10R, 12, 15, 28L, 28R, 30, 33]
+  Enter straight-in final (other)… picker:list [10L, 10R, 12, 15, 28L, 28R, 30, 33]
 ---
 Track
   Track
   Drop track
   ---
   Accept handoff
-  Initiate handoff... picker:input
+  Initiate handoff… picker:input
   Cancel handoff
   ---
-  Point out... picker:input
+  Point out… picker:input
   Acknowledge pointout
 Data Block
-  Scratchpad... picker:input
-  Temporary altitude... picker:input
-  Cruise... picker:input
+  Scratchpad… picker:input
+  Temporary altitude… picker:input
+  Cruise… picker:input
   Annotate
 Squawk
-  Squawk... picker:input
+  Squawk… picker:input
   Squawk random
   Squawk VFR
   Squawk normal
   Squawk standby
   ---
   Ident
-Ask pilot to say...
+Ask pilot to say…
   Altitude
   Heading
   Speed
@@ -110,7 +110,7 @@ Ask pilot to say...
   Position
   Expected approach
   ---
-  Custom... picker:input
+  Custom… picker:input
 Coordination
   Release
   Hold
@@ -153,5 +153,5 @@ Display
   Unblank target
 Draw route
 ---
-Warp...
+Warp…
 Delete
