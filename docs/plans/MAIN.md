@@ -8,20 +8,20 @@
 
 ## Bug reports and feature requests
 
-- [/] YAAT-245 Automation-mode client came to the foreground on its own during a capture
-- [/] YAAT-247 Replayed solo recording loads with solo off and speaks only the opening check-ins
-- [ ] YAAT-246 Client-driver wait_until on sim state, so a capture stops when the follower lands
-- [ ] YAAT-248 Client driver records a window: start, mark and stop, with sim-time marks and the client's audio
-- [ ] YAAT-249 Client driver batch_drive: steps, waits and assertions in one call
-- [ ] YAAT-250 Client-defined automation tools; client log errors on every pipe result
+- [x] YAAT-249 Client driver batch_drive: steps, waits and assertions in one call · release vNext
+- [x] YAAT-245 Automation-mode client came to the foreground on its own during a capture · release vNext
+- [x] YAAT-247 Replayed solo recording loads with solo off and speaks only the opening check-ins · release vNext
+- [/] YAAT-243 Say 'make straight-in', not 'make straight-in approach'
+- [/] YAAT-246 Client-driver wait_until on sim state, so a capture stops when the follower lands · release vNext
+- [/] YAAT-250 Client-defined automation tools; client log errors on every pipe result · release vNext
+- [ ] YAAT-248 Client driver records a window: start, mark and stop, with sim-time marks and the client's audio · release vNext
 - [x] YAAT-232 Solo dev cheat so montage clips can use RPO-only commands (FOLLOWF for A11) · release vNext
 - [/] YAAT-7 Record the FOLLOW video montage (release cut and review reel) · release vNext
   - [x] YAAT-238 Re-script montage clip C3 on OAK runway 30 (no B738 on 28R) · release vNext
-  - [!] YAAT-239 Short edited montage sampler of the clips so far, for presentation feedback
-  - [ ] YAAT-240 Aviation review of the montage cards; visual follow should not use the radar wake minimum (C3)
+  - [!] YAAT-239 Short edited montage sampler of the clips so far, for presentation feedback · release vNext
+  - [/] YAAT-240 Aviation review of the montage cards; visual follow should not use the radar wake minimum (C3) · release vNext
 - [ ] YAAT-217 Pattern: apply a pending pattern-altitude override before the wrong-side join decides on a teardrop
 - [ ] YAAT-242 Deconflict the RBL readout from data blocks so it stays readable
-- [ ] YAAT-243 Say 'make straight-in', not 'make straight-in approach'
 - [ ] YAAT-244 Aircraft owned by a TCP flash a pending handoff to that same TCP
 
 ## Client driver in the background (#474)
@@ -101,6 +101,7 @@
 - [ ] YAAT-47 CLANDF follow-ups: clear the forced landing on phase clear, aim point, teleport
 - [ ] YAAT-48 Check the SFO I28L MAP/DA (65 ft) against CIFP
 - [ ] YAAT-49 Re-validate the reroute rate after the fillet floor; corner speed, sample gaps
+- [ ] YAAT-254 Visual follower behind a heavier lead lands beyond its touchdown point
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -148,6 +149,8 @@
 - [ ] YAAT-84 Fix recording-load oddities: version label, future log lines, stuck landers
 - [ ] YAAT-85 Skip AfterAircraftSpawned for live-traffic shadows on the replay path
 - [ ] YAAT-251 A mid-tape recorded setting change never reaches the room's Session Settings or the clients
+- [ ] YAAT-252 Loading a recording resets the auto cleared-to-land flags from the preference, not the tape's session setting
+- [ ] YAAT-253 Recording load and t=0 rebuild dispatch scenario presets under the room's settings, not the tape's
 
 ## Wave 5 — Command queue and dispatch architecture
 
