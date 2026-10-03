@@ -7,6 +7,7 @@
 - A loaded solo recording comes up in solo mode, so its replay speaks every pilot line and keeps its recorded conflict-alert inhibits.
 - `EF` reads back and shows as "make straight-in", per 7110.65; "straight-in approach" and "enter final" are still understood when spoken.
 - An aircraft told to `FOLLOW` traffic keeps pattern spacing instead of the radar wake minimum, so a Cessna following a jet turns base about 3 NM behind it, not 4–6.
+- A track never flashes a handoff to the position that already owns it: an auto-tracked arrival owned by the student stays owned, and `HO`/`HOALL` to your own position is refused.
 
 ## v0.15.0-beta [2026/10/02]
 

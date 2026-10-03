@@ -74,7 +74,7 @@ public class ConsolidationArmTests
     }
 
     [Fact]
-    public void Consolidate_Full_Replay_TransfersTheBlocksTracks_AndRedirectsItsHandoffs()
+    public void Consolidate_Full_Replay_TransfersTheBlocksTracks_AndClearsAHandoffToTheReceiver()
     {
         if (Engine() is not { } engine)
         {
@@ -85,17 +85,19 @@ public class ConsolidationArmTests
         AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
         ac.Track.Owner = Nct4Q;
         ac.Track.HandoffPeer = Nct4U;
+        ac.Track.HandoffInitiatedAt = engine.Scenario!.ElapsedSeconds;
 
         ActionOutcome outcome = engine.Actions.Apply(Recorded("CON+ 2B 4U"), host);
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
-        Assert.Equal("Full consolidation: 4U → 2B (1 track(s) transferred, 1 handoff(s) redirected)", outcome.Result.Message);
+        Assert.Equal("Full consolidation: 4U → 2B (1 track(s) transferred, 0 handoff(s) redirected)", outcome.Result.Message);
         ConsolidationState.ManualOverride? over = engine.ConsolidationState.GetOverride(TcpId(engine, "4U"));
         Assert.NotNull(over);
         Assert.False(over!.IsBasic);
         Assert.True(ac.Track.Owner!.MatchesPosition(Student));
-        Assert.True(ac.Track.HandoffPeer!.MatchesPosition(Student));
-        Assert.True(ac.Track.HandoffRedirectedBy!.MatchesPosition(Nct4U));
+        Assert.Null(ac.Track.HandoffPeer);
+        Assert.Null(ac.Track.HandoffRedirectedBy);
+        Assert.Null(ac.Track.HandoffInitiatedAt);
         Assert.Equal(1, host.ConsolidationChanges);
     }
 
@@ -111,12 +113,15 @@ public class ConsolidationArmTests
         AttendanceTestSupport.Attend(engine, "4Q");
         AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
         ac.Track.Owner = Nct4Q;
+        ac.Track.HandoffPeer = Nct4U;
 
         ActionOutcome outcome = engine.Actions.Apply(Recorded("CON+ 2B 4U"), host);
 
         Assert.True(outcome.Result.Success, outcome.Result.Message);
-        Assert.Equal("Full consolidation: 4U → 2B", outcome.Result.Message);
+        Assert.Equal("Full consolidation: 4U → 2B (0 track(s) transferred, 1 handoff(s) redirected)", outcome.Result.Message);
         Assert.True(ac.Track.Owner!.MatchesPosition(Nct4Q));
+        Assert.True(ac.Track.HandoffPeer!.MatchesPosition(Student));
+        Assert.True(ac.Track.HandoffRedirectedBy!.MatchesPosition(Nct4U));
     }
 
     [Fact]

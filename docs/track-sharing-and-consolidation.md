@@ -165,7 +165,17 @@ position that no longer works that airspace. Both walks then match **by `(Subset
 
 - **Transfers tracks**: any aircraft whose `Track.Owner` matches a moving TCP has its `Owner` reassigned to the receiving owner.
 - **Redirects in-flight handoffs**: any aircraft whose `Track.HandoffPeer` matches a moving TCP gets `HandoffRedirectedBy` set to
-  the original peer and `HandoffPeer` reassigned to the receiving owner.
+  the original peer and `HandoffPeer` reassigned to the receiving owner. When the receiver already owns the track (same position,
+  after the transfer above), the handoff is cleared instead (`HandoffPeer`, `HandoffRedirectedBy`, `HandoffInitiatedAt` null) and
+  not counted as redirected.
+
+**No handoff to oneself.** Every path that sets a handoff refuses one whose recipient is the track's owner's position, TCP included
+(`TrackOwner.MatchesPosition`): positions sharing a TCP (a tower cab's GND, TWR and DEL) hand off by coordination, never by a
+STARS/ERAM handoff.
+`TrackEngine.ApplyHandoff` (every branch, the redirected recipient included) fails with `<callsign> is already owned by <owner>`,
+`HOALL` to one's own position fails with `Cannot hand off to your own position <tcp>` and skips tracks the target already owns,
+the consolidation transfer clears as above, and `TickDelayedHandoffs` drops a scenario handoff to the current owner (logged at
+Information) — the auto-track case where `autoTrackConditions.positionId` is the student's own position.
 
 If the ARTCC/facility can't be resolved the block degrades to the sender alone, preserving the old single-TCP behaviour.
 

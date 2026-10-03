@@ -541,14 +541,7 @@ public sealed partial class SimulationEngine
             List<AircraftState> snapshot = World.GetSnapshot();
             AircraftState? aircraft = snapshot.FirstOrDefault(a => a.Callsign.Equals(entry.Callsign, StringComparison.OrdinalIgnoreCase));
 
-            if (aircraft is not null && aircraft.Track.Owner is not null)
-            {
-                aircraft.Track.HandoffPeer = entry.Target;
-                aircraft.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
-
-                EmitTerminal("System", entry.Callsign, "[AutoTrack] Delayed handoff initiated to " + TrackEngine.FormatOwner(entry.Target));
-            }
-            else
+            if (aircraft?.Track.Owner is not { } owner)
             {
                 _logger.LogWarning(
                     "[AutoTrack] Delayed handoff for {Callsign} to {Target} dropped at t={T}s: {Reason}",
@@ -557,6 +550,22 @@ public sealed partial class SimulationEngine
                     scenario.ElapsedSeconds,
                     aircraft is null ? "aircraft not found" : "aircraft is untracked (no owner to hand off from)"
                 );
+            }
+            else if (owner.MatchesPosition(entry.Target))
+            {
+                _logger.LogInformation(
+                    "[AutoTrack] Delayed handoff for {Callsign} to {Target} dropped at t={T}s: already owned by the target",
+                    entry.Callsign,
+                    TrackEngine.FormatOwner(entry.Target),
+                    scenario.ElapsedSeconds
+                );
+            }
+            else
+            {
+                aircraft.Track.HandoffPeer = entry.Target;
+                aircraft.Track.HandoffInitiatedAt = scenario.ElapsedSeconds;
+
+                EmitTerminal("System", entry.Callsign, "[AutoTrack] Delayed handoff initiated to " + TrackEngine.FormatOwner(entry.Target));
             }
         }
     }
