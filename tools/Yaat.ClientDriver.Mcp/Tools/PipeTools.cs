@@ -24,7 +24,7 @@ public sealed class PipeTools(PipeDirectory pipes)
     private const string NoTargetMessage = "No YAAT client to target: pass pid, or call a tool on a YAAT client first (launch_yaat, list_windows).";
 
     /// <summary>How much longer than the host's wait the pipe client waits for its answer, so a full-length wait is never cut short.</summary>
-    private static readonly TimeSpan WaitAnswerMargin = TimeSpan.FromSeconds(5);
+    internal static readonly TimeSpan WaitAnswerMargin = TimeSpan.FromSeconds(5);
 
     [McpServerTool]
     [Description(
@@ -45,7 +45,7 @@ public sealed class PipeTools(PipeDirectory pipes)
         [Description("How long to wait, in ms, clamped to 100–30000.")] int timeoutMs = 5000
     )
     {
-        int target = TargetPid(pid);
+        int target = TargetPid(pipes, pid);
         (int hostMs, TimeSpan request) = WaitForTimeouts(timeoutMs);
         object parameters = WaitForParams(selector, condition, text, count, hostMs);
         WaitForResult result = await PipeCalls
@@ -68,7 +68,7 @@ public sealed class PipeTools(PipeDirectory pipes)
         [Description("The YAAT client's process id, or 0 for the client the last pipe call reached.")] int pid = 0
     )
     {
-        int target = TargetPid(pid);
+        int target = TargetPid(pipes, pid);
         QueueFilePickResult result = await PipeCalls
             .SendForPidAsync<QueueFilePickResult>(
                 pipes,
@@ -93,8 +93,14 @@ public sealed class PipeTools(PipeDirectory pipes)
         return (hostMs, TimeSpan.FromMilliseconds(hostMs) + WaitAnswerMargin);
     }
 
-    /// <summary>The pid a pipe-only tool goes to: <paramref name="pid"/> when given, else the client the last pipe call reached.</summary>
-    private int TargetPid(int pid)
+    /// <summary>
+    /// The pid a pipe-only tool goes to: <paramref name="pid"/> when given, else the client the last pipe call reached. Shared
+    /// by every pipe-only tool, batch_drive included, so an untargeted call has one meaning across all of them.
+    /// </summary>
+    /// <param name="pipes">The directory whose remembered target answers a pid of 0.</param>
+    /// <param name="pid">The caller's pid, or 0 for the remembered one.</param>
+    /// <exception cref="McpException">The caller gave no pid and no pipe call has succeeded yet.</exception>
+    internal static int TargetPid(PipeDirectory pipes, int pid)
     {
         if (pid != 0)
         {
@@ -105,7 +111,7 @@ public sealed class PipeTools(PipeDirectory pipes)
     }
 
     /// <summary>The wait_for params: text only for the text conditions, count only for count_equals, as the host reads them.</summary>
-    private static object WaitForParams(string selector, string condition, string text, int count, int timeoutMs) =>
+    internal static object WaitForParams(string selector, string condition, string text, int count, int timeoutMs) =>
         condition.Trim().ToLowerInvariant() switch
         {
             "text_equals" or "text_contains" => new

@@ -39,6 +39,24 @@ public static class PipeCallErrors
     }
 
     /// <summary>
+    /// The active tool call's collected errors, copied: the entries so far in the order they arrived, and how many further
+    /// errors the answers counted without listing. Both zero when no call began a collector in this async flow.
+    /// </summary>
+    public static (IReadOnlyList<ClientLogEntry> Entries, int Omitted) Snapshot()
+    {
+        Collector? collector = Active.Value;
+        if (collector is null)
+        {
+            return ([], 0);
+        }
+
+        lock (collector.Entries)
+        {
+            return ([.. collector.Entries], collector.Omitted);
+        }
+    }
+
+    /// <summary>
     /// Adds one answer's <paramref name="entries"/> and its <paramref name="omitted"/> count to the active collector; does
     /// nothing when no tool call began one.
     /// </summary>

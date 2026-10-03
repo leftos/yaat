@@ -307,18 +307,38 @@ public sealed class InspectTools(ElementRegistry registry, PipeDirectory pipes, 
                 cancellationToken
             )
             .ConfigureAwait(false);
+        return SavePipeShot(shot, maxWidth, $"element '{element.Id}'");
+    }
+
+    /// <summary>
+    /// Decodes a PNG a YAAT client rendered and sent over its pipe, saves it under the shots folder — downscaled when wider
+    /// than <paramref name="maxWidth"/> — and describes where it landed: the one route the screenshot tool and a batch_drive
+    /// screenshot step both take, so a missing or undecodable answer is refused in one place and the same way.
+    /// <paramref name="subject"/> names the target in those errors.
+    /// </summary>
+    /// <param name="shot">The host's answer: the PNG's base 64, its pixel size and the render scale; null when it gave none.</param>
+    /// <param name="maxWidth">Widest the saved image may be, in pixels; 0 keeps the client's own size.</param>
+    /// <param name="subject">What was rendered, for the refusals, e.g. <c>element 'e1'</c>.</param>
+    /// <exception cref="McpException">The answer carried no PNG, or its base 64 is not one this server can decode.</exception>
+    internal static CaptureResult SavePipeShot(ScreenshotResult? shot, int maxWidth, string subject)
+    {
+        if (shot is not { PngBase64: { } base64 } target)
+        {
+            throw new McpException($"The client's screenshot of {subject} carried no PNG to save");
+        }
+
         byte[] png;
         try
         {
-            png = Convert.FromBase64String(shot.PngBase64);
+            png = Convert.FromBase64String(base64);
         }
         catch (FormatException ex)
         {
-            throw new McpException($"The client's screenshot of element '{element.Id}' is not valid base64: {ex.Message}", ex);
+            throw new McpException($"The client's screenshot of {subject} is not valid base64: {ex.Message}", ex);
         }
 
-        string source = $"the client's render at scale {shot.Scale.ToString(CultureInfo.InvariantCulture)} (pipe)";
-        return WindowCapture.FromPng(new PipeShot(png, shot.Width, shot.Height), maxWidth, Path.GetFullPath(ShotDirectory), source);
+        string source = $"the client's render at scale {target.Scale.ToString(CultureInfo.InvariantCulture)} (pipe)";
+        return WindowCapture.FromPng(new PipeShot(png, target.Width, target.Height), maxWidth, Path.GetFullPath(ShotDirectory), source);
     }
 
     private CaptureResult CaptureElement(AutomationElement element, int maxWidth)

@@ -33,7 +33,8 @@ param(
         'set_input_mode',
         'focus',
         'wait_for',
-        'queue_file_pick'
+        'queue_file_pick',
+        'batch_drive'
     )
 )
 
