@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace Yaat.WindowRecorder;
 
-/// <summary>Finds a top-level window by its exact title and says whether it is minimized.</summary>
+/// <summary>Finds a top-level window by its exact title and says whether it is minimized or hidden.</summary>
 internal static class WindowFinder
 {
     private delegate bool EnumWindowsProc(nint hwnd, nint lParam);
@@ -48,6 +48,15 @@ internal static class WindowFinder
 
     public static bool IsMinimized(nint hwnd) => IsIconic(hwnd);
 
+    /// <summary>
+    /// A window hidden with ShowWindow(SW_HIDE) keeps its handle but presents no surface to capture. DWM cloaking
+    /// (DWMWA_CLOAK) leaves WS_VISIBLE set, so a cloaked window is still visible here and is not hidden.
+    /// </summary>
+    public static bool IsHidden(nint hwnd) => !IsWindowVisible(hwnd);
+
+    /// <summary>False once the window has been destroyed; a dead handle reads as neither visible nor minimized.</summary>
+    public static bool Exists(nint hwnd) => IsWindow(hwnd);
+
     private static string GetTitle(nint hwnd)
     {
         int length = GetWindowTextLengthW(hwnd);
@@ -75,4 +84,12 @@ internal static class WindowFinder
     [DllImport("user32.dll", ExactSpelling = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     private static extern bool IsIconic(nint hwnd);
+
+    [DllImport("user32.dll", ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern bool IsWindowVisible(nint hwnd);
+
+    [DllImport("user32.dll", ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern bool IsWindow(nint hwnd);
 }

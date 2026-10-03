@@ -22,6 +22,9 @@ internal static class Program
     private const double KeptUpShare = 0.95;
     private static readonly TimeSpan FirstFrameWait = TimeSpan.FromSeconds(5);
 
+    /// <summary>How often the run looks at whether the window is still capturable; a transition, not every look, warns.</summary>
+    private static readonly TimeSpan StateCheckInterval = TimeSpan.FromSeconds(1);
+
     private static async Task<int> Main(string[] args)
     {
         if (args is ["--help"] or ["-h"])
@@ -54,25 +57,38 @@ internal static class Program
             return ExitUsage;
         }
 
-        using WindowCapture capture = new(hwnd);
-        // The audio pipe is created here, before the first video byte: ffmpeg opens its second input only after the first
-        // has delivered data, so the pipe exists by the time it is opened. A probe with --audio-pid activates the audio
-        // too, so an activation failure is refused before ffmpeg starts.
-        using AudioTrack? audio = options.AudioPid is null
-            ? null
-            : await OpenAudioAsync(options.AudioPid.Value, options.AudioPipe).ConfigureAwait(false);
-        if (options.AudioPid is not null && audio is null)
+        WindowCapture? capture = await OpenCaptureAsync(hwnd).ConfigureAwait(false);
+        if (capture is null)
         {
-            return ExitAudioActivation;
+            return ExitUsage;
         }
-        if (options.Probe)
+        using (capture)
         {
-            Console.Out.WriteLine(FormattableString.Invariant($"{capture.OutputSize.Width}x{capture.OutputSize.Height}"));
-            return 0;
+            // The audio pipe is created here, before the first video byte: ffmpeg opens its second input only after the first
+            // has delivered data, so the pipe exists by the time it is opened. A probe with --audio-pid activates the audio
+            // too, so an activation failure is refused before ffmpeg starts.
+            using AudioTrack? audio = options.AudioPid is null
+                ? null
+                : await OpenAudioAsync(options.AudioPid.Value, options.AudioPipe).ConfigureAwait(false);
+            if (options.AudioPid is not null && audio is null)
+            {
+                return ExitAudioActivation;
+            }
+            if (options.Probe)
+            {
+                Console.Out.WriteLine(FormattableString.Invariant($"{capture.OutputSize.Width}x{capture.OutputSize.Height}"));
+                return 0;
+            }
+            return await RecordReportingResizeAsync(capture, hwnd, options, deadline!, audio).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>Runs the recording, turning a mid-run resize into one stderr line and the resize exit code.</summary>
+    private static async Task<int> RecordReportingResizeAsync(WindowCapture capture, nint hwnd, Options options, Deadline deadline, AudioTrack? audio)
+    {
         try
         {
-            return await RecordAsync(capture, options, deadline!, audio).ConfigureAwait(false);
+            return await RecordAsync(capture, hwnd, options, deadline, audio).ConfigureAwait(false);
         }
         catch (WindowResizedException resized)
         {
@@ -80,6 +96,27 @@ internal static class Program
                 .Error.WriteLineAsync($"Yaat.WindowRecorder: {resized.Message}; the output size is fixed for a run, so it stopped.")
                 .ConfigureAwait(false);
             return ExitResized;
+        }
+    }
+
+    /// <summary>
+    /// The window can be hidden or closed between the refusal check and this call, which makes <see cref="WindowCapture"/>'s
+    /// constructor throw <see cref="ArgumentException"/>; only that failure is caught here, not one raised later in the run.
+    /// </summary>
+    private static async Task<WindowCapture?> OpenCaptureAsync(nint hwnd)
+    {
+        try
+        {
+            return new WindowCapture(hwnd);
+        }
+        catch (ArgumentException failure)
+        {
+            await Console
+                .Error.WriteLineAsync(
+                    $"Yaat.WindowRecorder: the window could not be captured (hidden or closed as the run started): {failure.Message}. Show it and rerun."
+                )
+                .ConfigureAwait(false);
+            return null;
         }
     }
 
@@ -92,6 +129,10 @@ internal static class Program
         if (WindowFinder.IsMinimized(hwnd))
         {
             return "the window is minimized; a minimized window has no surface to capture. Restore it and rerun.";
+        }
+        if (WindowFinder.IsHidden(hwnd))
+        {
+            return "the window is hidden; a hidden window has no surface to capture. Show it and rerun.";
         }
         return GraphicsCaptureSession.IsSupported() ? null : "Windows.Graphics.Capture is not supported on this machine.";
     }
@@ -150,7 +191,7 @@ internal static class Program
         }
     }
 
-    private static async Task<int> RecordAsync(WindowCapture capture, Options options, Deadline deadline, AudioTrack? audio)
+    private static async Task<int> RecordAsync(WindowCapture capture, nint hwnd, Options options, Deadline deadline, AudioTrack? audio)
     {
         int fps = options.Fps;
         await Console
@@ -173,7 +214,7 @@ internal static class Program
             .ConfigureAwait(false);
         deadline.Start();
         Task<bool> audioRecording = audio?.RecordAsync(deadline, startOnConnect: false) ?? Task.FromResult(true);
-        (int written, TimeSpan elapsed) = await WriteFramesAsync(capture, frame, deadline, fps).ConfigureAwait(false);
+        (int written, TimeSpan elapsed) = await WriteFramesAsync(capture, hwnd, frame, deadline, fps).ConfigureAwait(false);
         await ReportFrameRateAsync(written, elapsed, fps).ConfigureAwait(false);
         return await audioRecording.ConfigureAwait(false) ? 0 : ExitAudioUnread;
     }
@@ -182,12 +223,23 @@ internal static class Program
     /// Writes a frame on every timer tick until the deadline passes, and closes stdout before the caller waits for the
     /// audio: the EOF is what makes ffmpeg flush the frames its encoder still holds (h264_nvenc keeps a few) and end the
     /// video stream, so ffmpeg is never left waiting on a video input that has stopped sending while the audio drains.
-    /// Returns the frames written and the time from the first of them to the end.
+    /// Returns the frames written and the time from the first of them to the end. About once a second it also names on
+    /// stderr a change between capturable and hidden-or-minimized, and once when the window closes, so a clip that froze
+    /// mid-run is not silently taken for a window that simply did not change.
     /// </summary>
-    private static async Task<(int Written, TimeSpan Elapsed)> WriteFramesAsync(WindowCapture capture, byte[] frame, Deadline deadline, int fps)
+    private static async Task<(int Written, TimeSpan Elapsed)> WriteFramesAsync(
+        WindowCapture capture,
+        nint hwnd,
+        byte[] frame,
+        Deadline deadline,
+        int fps
+    )
     {
         int written = 0;
         Stopwatch clock = new();
+        bool capturable = true;
+        bool windowClosed = false;
+        TimeSpan nextStateCheck = TimeSpan.Zero;
         await using (Stream stdout = Console.OpenStandardOutput())
         await using (BufferedStream output = new(stdout, 1 << 20))
         {
@@ -198,12 +250,52 @@ internal static class Program
                 capture.TryCopyLatestFrame(frame);
                 await output.WriteAsync(frame).ConfigureAwait(false);
                 written++;
+                if (clock.Elapsed >= nextStateCheck && !windowClosed)
+                {
+                    string? change = WindowStateLine(hwnd, clock.Elapsed, capturable, out bool capturableNow, out bool closed);
+                    capturable = capturableNow;
+                    windowClosed = closed;
+                    if (change is not null)
+                    {
+                        await Console.Error.WriteLineAsync(change).ConfigureAwait(false);
+                    }
+                    nextStateCheck = clock.Elapsed + StateCheckInterval;
+                }
             }
             clock.Stop();
             await output.FlushAsync().ConfigureAwait(false);
         }
         StandardOutput.Close();
         return (written, clock.Elapsed);
+    }
+
+    /// <summary>
+    /// Returns the line to write when the window's capturable state changed since the last check, else null. A window whose
+    /// handle no longer exists reports as closed once and sets <paramref name="done"/>, after which the caller stops checking,
+    /// since a closed window stays closed. <paramref name="capturableNow"/> receives the state now; a DWM-cloaked window
+    /// stays visible, so it is not a change.
+    /// </summary>
+    private static string? WindowStateLine(nint hwnd, TimeSpan elapsed, bool capturable, out bool capturableNow, out bool done)
+    {
+        capturableNow = false;
+        done = false;
+        if (!WindowFinder.Exists(hwnd))
+        {
+            done = true;
+            return FormattableString.Invariant(
+                $"Yaat.WindowRecorder: the window closed at {elapsed.TotalSeconds:F1} s into the run; the clip holds its last frame from there."
+            );
+        }
+        capturableNow = !WindowFinder.IsHidden(hwnd) && !WindowFinder.IsMinimized(hwnd);
+        if (capturableNow == capturable)
+        {
+            return null;
+        }
+        return capturableNow
+            ? FormattableString.Invariant($"Yaat.WindowRecorder: the window was shown again at {elapsed.TotalSeconds:F1} s into the run.")
+            : FormattableString.Invariant(
+                $"Yaat.WindowRecorder: the window was hidden or minimized at {elapsed.TotalSeconds:F1} s into the run; the clip holds its last frame from there until it is shown again."
+            );
     }
 
     /// <summary>
