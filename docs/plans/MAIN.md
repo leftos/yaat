@@ -5,12 +5,13 @@
 ## Do first
 
 - [x] YAAT-228 release.yml drops the changelog output as 'may contain secret', leaving the draft's Changelog empty · release vNext — High · Singles
-- [ ] YAAT-274 Redesign overwhelming client surfaces: Settings, import/export, View menu pop-outs — High · Backlog
+- [/] YAAT-274 Redesign overwhelming client surfaces: Settings, import/export, View menu pop-outs — High · Backlog
 
 ## Bug reports and feature requests
 
 - [x] YAAT-248 Client driver records a window: start, mark and stop, with sim-time marks and the client's audio · release vNext
 - [x] YAAT-250 Client-defined automation tools; client log errors on every pipe result · release vNext
+- [/] YAAT-279 Sizzle reel: the release's new and reworked UI and UX · release vNext
 - [x] YAAT-242 Deconflict the RBL readout from data blocks so it stays readable · release vNext
 - [x] YAAT-259 Pilots no longer report 'the traffic's on the ground, breaking off the follow' · release vNext
 - [x] YAAT-244 Aircraft owned by a TCP flash a pending handoff to that same TCP · release vNext
@@ -24,6 +25,7 @@
   - [x] YAAT-238 Re-script montage clip C3 on OAK runway 30 (no B738 on 28R) · release vNext
   - [!] YAAT-239 Short edited montage sampler of the clips so far, for presentation feedback · release vNext
   - [x] YAAT-240 Aviation review of the montage cards; visual follow should not use the radar wake minimum (C3) · release vNext
+  - [/] YAAT-278 FOLLOW sizzle reel: add ground FOLLOW and give-way taxi clips · release vNext
 - [ ] YAAT-217 Pattern: apply a pending pattern-altitude override before the wrong-side join decides on a teardrop
 - [ ] YAAT-256 batch_drive: save a wait_until step's screenshot and fit its wait inside the batch ceiling
 - [ ] YAAT-261 AutomationWaitUntilTests.Landed_HeldAfterAirborneThenGround times out in the full UI suite
@@ -49,6 +51,9 @@
 - [ ] YAAT-264 Context menus: no double separator before Track in the builder
 - [ ] YAAT-268 Context menus in an extra ground window at another airport use the primary view's layout
 - [ ] YAAT-273 DataGridContextMenuStateTests depend on test order for NavigationDatabase
+- [ ] YAAT-275 Ground right-click on a runway surface offers taxi to that runway (nearest hold short)
+- [ ] YAAT-280 DataGridContextMenuStateTests fail when run alone (NavigationDatabase not initialized)
+- [ ] YAAT-281 Aircraft menus leave a hold-short route preview on other ground windows
 
 ## Tick-path unification
 
@@ -60,7 +65,7 @@
 ## Coast D (feat/coast-d)
 
 - [x] YAAT-223 Tick-path coast D: the server's disconnect-coast wiring reads the Sim facets · release vNext
-- [ ] YAAT-241 Merge feat/coast-d (#712, yaat-server#22)
+- [x] YAAT-241 Merge feat/coast-d (#712, yaat-server#22) · release vNext
 
 ## Say again
 
@@ -234,6 +239,7 @@
 - [ ] YAAT-265 Re-measure the bare dotnet test ceilings and the test-loop baseline on a quiet machine
 - [ ] YAAT-267 Record AircraftProfiles.json provenance and licence in NOTICE
 - [ ] YAAT-271 Use linear release add in the yaat-nextup profile; note test-all's silent test phase
+- [ ] YAAT-276 Correct the gear flyout's field count in client-mainviewmodel.md
 
 ## Singles
 
@@ -305,6 +311,7 @@
 - [ ] YAAT-233 FOLLOW: base-turn hold releases then breaks off; 28L pattern altitude 609 ft
 - [ ] YAAT-235 Solo Safety flags a lead landing behind a closed-traffic follower that left the runway long ago
 - [ ] YAAT-236 B738 rolls past the end of OAK 28R; a cleared follower then lands on the occupied runway
+- [ ] YAAT-277 Settings: Quick Bookmark hotkey button may not capture a key
 
 ## Backlog
 
