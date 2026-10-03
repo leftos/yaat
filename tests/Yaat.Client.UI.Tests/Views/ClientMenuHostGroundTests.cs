@@ -271,10 +271,23 @@ public class ClientMenuHostGroundTests
         string rwy = RunwayIdentifier.ToDisplayDesignator(RunwayIdentifier.Parse(Runway30HoldShortNode.RunwayId!).End1);
         string taxiway = main.Ground.GetNodeTaxiwayNames(PresetTaxiNode.Id)[0];
 
-        Assert.Equal(new MenuTextSeed("TAXI  $I30", 5), host.GetCustomTaxiSeed(PushbackFaceNode));
-        Assert.Equal(new MenuTextSeed($"TAXI  @{parking.Name}", 5), host.GetCustomTaxiSeed(parking));
-        Assert.Equal(new MenuTextSeed($"RWY {rwy} TAXI ", $"RWY {rwy} TAXI ".Length), host.GetCustomTaxiSeed(Runway30HoldShortNode));
-        Assert.Equal(new MenuTextSeed($"TAXI  {taxiway}", 5), host.GetCustomTaxiSeed(PresetTaxiNode));
+        Assert.Equal(new MenuTextSeed("TAXI  $I30", 5), host.GetCustomTaxiSeed(PushbackFaceNode, null));
+        Assert.Equal(new MenuTextSeed($"TAXI  @{parking.Name}", 5), host.GetCustomTaxiSeed(parking, null));
+        Assert.Equal(new MenuTextSeed($"RWY {rwy} TAXI ", $"RWY {rwy} TAXI ".Length), host.GetCustomTaxiSeed(Runway30HoldShortNode, null));
+        Assert.Equal(new MenuTextSeed($"TAXI  {taxiway}", 5), host.GetCustomTaxiSeed(PresetTaxiNode, null));
+    }
+
+    [AvaloniaFact]
+    public void CustomTaxiSeed_ThresholdEnd_WinsOverTheHoldShortRunwayEnd1()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(PushbackFaceNode));
+        MainViewModel main = OakMain(target, []);
+        var host = new ClientMenuHost(main, target, new Border());
+        string end2 = RunwayIdentifier.Parse(Runway30HoldShortNode.RunwayId!).End2;
+        string seed = $"RWY {RunwayIdentifier.ToDisplayDesignator(end2)} TAXI ";
+
+        Assert.Equal(new MenuTextSeed(seed, seed.Length), host.GetCustomTaxiSeed(Runway30HoldShortNode, end2));
     }
 
     /// <summary>The per-route choices: a "Taxi here" submenu's children, else the answer itself.</summary>

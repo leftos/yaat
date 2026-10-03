@@ -31,7 +31,7 @@ internal sealed class SendCapturingHost(IMenuHost inner, string sessionInitials)
     public IReadOnlyList<MenuCommandChoice> GetTaxiChoices(string callsign, GroundNodeDto node, string? runwayEnd) =>
         inner.GetTaxiChoices(callsign, node, runwayEnd);
 
-    public MenuTextSeed GetCustomTaxiSeed(GroundNodeDto node) => inner.GetCustomTaxiSeed(node);
+    public MenuTextSeed GetCustomTaxiSeed(GroundNodeDto node, string? runwayEnd) => inner.GetCustomTaxiSeed(node, runwayEnd);
 
     public MenuHostCapabilities Capabilities => inner.Capabilities;
 

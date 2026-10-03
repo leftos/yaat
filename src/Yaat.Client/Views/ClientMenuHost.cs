@@ -140,10 +140,11 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
 
     /// <summary>
     /// The Custom taxi… seed for <paramref name="node"/>: a named stand or spot after the caret (<c>TAXI  @STAND</c>,
-    /// <c>TAXI  $SPOT</c>), a hold-short node's runway before it (<c>RWY 30 TAXI </c>, caret at the end), else the node's
-    /// first taxiway after it (<c>TAXI  E</c>) or a bare <c>TAXI </c>.
+    /// <c>TAXI  $SPOT</c>), the destination runway before it (<c>RWY 30 TAXI </c>, caret at the end) — the clicked
+    /// <paramref name="runwayEnd"/> when set, else a hold-short node's runway End1 (<see cref="DestinationRunwayFor"/>) —
+    /// else the node's first taxiway after it (<c>TAXI  E</c>) or a bare <c>TAXI </c>.
     /// </summary>
-    public MenuTextSeed GetCustomTaxiSeed(GroundNodeDto node)
+    public MenuTextSeed GetCustomTaxiSeed(GroundNodeDto node, string? runwayEnd)
     {
         const string taxiPrefix = "TAXI ";
         if (SpotDestinationFor(node) is { } spot)
@@ -151,18 +152,14 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
             return new MenuTextSeed($"{taxiPrefix} {spot.Token}", taxiPrefix.Length);
         }
 
-        switch (node.Type)
+        if (DestinationRunwayFor(node, runwayEnd) is { } runway)
         {
-            case "RunwayHoldShort" when node.RunwayId is not null:
-                string runwayText = $"RWY {RunwayIdentifier.ToDisplayDesignator(RunwayIdentifier.Parse(node.RunwayId).End1)} {taxiPrefix}";
-                return new MenuTextSeed(runwayText, runwayText.Length);
-
-            default:
-                List<string> names = main.Ground.GetNodeTaxiwayNames(node.Id);
-                return (names.Count > 0)
-                    ? new MenuTextSeed($"{taxiPrefix} {names[0]}", taxiPrefix.Length)
-                    : new MenuTextSeed(taxiPrefix, taxiPrefix.Length);
+            string runwayText = $"RWY {RunwayIdentifier.ToDisplayDesignator(runway)} {taxiPrefix}";
+            return new MenuTextSeed(runwayText, runwayText.Length);
         }
+
+        List<string> names = main.Ground.GetNodeTaxiwayNames(node.Id);
+        return (names.Count > 0) ? new MenuTextSeed($"{taxiPrefix} {names[0]}", taxiPrefix.Length) : new MenuTextSeed(taxiPrefix, taxiPrefix.Length);
     }
 
     public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick) =>

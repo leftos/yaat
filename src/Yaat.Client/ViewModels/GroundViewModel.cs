@@ -898,8 +898,6 @@ public partial class GroundViewModel : ObservableObject
 
     public async Task SendRawCommandAsync(string callsign, string initials, string command) => await _sendCommand(callsign, command, initials);
 
-    public async Task WarpToNodeAsync(string callsign, string initials, int nodeId) => await _sendCommand(callsign, $"WARPG #{nodeId}", initials);
-
     public List<TaxiRoute> FindRoutesToNode(int fromNodeId, int toNodeId, AircraftCategory category, WakeTurbulenceData.WakeClass wakeClass)
     {
         if (_domainLayout is null)

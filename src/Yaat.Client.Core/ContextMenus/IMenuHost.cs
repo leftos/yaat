@@ -40,8 +40,11 @@ public interface IMenuHost
     /// </summary>
     IReadOnlyList<MenuCommandChoice> GetTaxiChoices(string callsign, GroundNodeDto node, string? runwayEnd);
 
-    /// <summary>The text and caret the point menu's Custom taxi… input opens with at <paramref name="node"/>.</summary>
-    MenuTextSeed GetCustomTaxiSeed(GroundNodeDto node);
+    /// <summary>
+    /// The text and caret the point menu's Custom taxi… input opens with at <paramref name="node"/>, naming
+    /// <paramref name="runwayEnd"/> when a threshold click names one.
+    /// </summary>
+    MenuTextSeed GetCustomTaxiSeed(GroundNodeDto node, string? runwayEnd);
 
     /// <summary>
     /// The families of members this surface serves. The catalog hides an entry whose

@@ -97,10 +97,17 @@ internal sealed class RecordingMenuHost(string input) : IMenuHost
         return TaxiChoices;
     }
 
-    /// <summary>The seed every Custom taxi… input opens with, whatever the node.</summary>
+    /// <summary>The seed every Custom taxi… input opens with, whatever the node and runway end.</summary>
     public MenuTextSeed CustomTaxiSeed { get; init; } = new("TAXI ", 5);
 
-    public MenuTextSeed GetCustomTaxiSeed(GroundNodeDto node) => CustomTaxiSeed;
+    /// <summary>Every Custom taxi… seed asked for, as the node and the clicked runway end.</summary>
+    public List<(int NodeId, string? RunwayEnd)> CustomTaxiSeedRequests { get; } = [];
+
+    public MenuTextSeed GetCustomTaxiSeed(GroundNodeDto node, string? runwayEnd)
+    {
+        CustomTaxiSeedRequests.Add((node.Id, runwayEnd));
+        return CustomTaxiSeed;
+    }
 
     public void ShowListPopup(IReadOnlyList<object> items, object? selected, Func<object, Task> onPick)
     {

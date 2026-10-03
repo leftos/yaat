@@ -133,7 +133,7 @@ public partial class GroundView : UserControl
     /// The endpoint comes from the raw cursor position rather than the snapped node the rest of this menu
     /// is built around — measuring a wingtip-to-hold-bar gap means using the exact point clicked.
     /// </remarks>
-    private void AddMeasureMenuItems(ContextMenu menu, GroundViewModel vm, Point screenPos)
+    private void AddMeasureMenuItems(List<Control> items, GroundViewModel vm, Point screenPos)
     {
         if (vm.Measure is not { } measure || _canvas is null)
         {
@@ -142,7 +142,7 @@ public partial class GroundView : UserControl
 
         RblEndpoint endpoint = _canvas.MeasureEndpointAt(screenPos);
         string startLabel = measure.Anchor is null ? "Measure from here" : "Measure to here";
-        menu.Items.Add(
+        items.Add(
             CreateMenuItem(
                 startLabel,
                 () =>
@@ -155,7 +155,7 @@ public partial class GroundView : UserControl
 
         if (_canvas.MeasurementSlotAt(screenPos) is { } slot)
         {
-            menu.Items.Add(
+            items.Add(
                 CreateMenuItem(
                     $"Remove measurement {slot}",
                     () =>
@@ -169,7 +169,7 @@ public partial class GroundView : UserControl
 
         if (measure.HasLines)
         {
-            menu.Items.Add(
+            items.Add(
                 CreateMenuItem(
                     "Clear measurements",
                     () =>
@@ -181,7 +181,7 @@ public partial class GroundView : UserControl
             );
         }
 
-        menu.Items.Add(new Separator());
+        items.Add(new Separator());
     }
 
     private void OnMeasurePointPicked(RblEndpoint endpoint)
@@ -389,106 +389,125 @@ public partial class GroundView : UserControl
 
     private void OnNodeRightClicked(int nodeId, Point screenPos)
     {
-        if (DataContext is not GroundViewModel vm)
+        if ((DataContext is GroundViewModel vm) && (BuildNodePointMenu(vm, nodeId, screenPos) is { } menu))
         {
-            return;
+            ShowContextMenu(menu);
         }
+    }
 
+    /// <summary>
+    /// The menu a right-click on taxi node <paramref name="nodeId"/> shows, built without opening it. With an aircraft
+    /// selected, the shared point menu at the node (<see cref="BuildPointMenu"/>) carries the aircraft's point items, then
+    /// the ground's node section: the measuring items, then Draw taxi route… and Push route… from the node; with nothing
+    /// selected, the measuring items alone. Null when the node is not in the layout or there is nothing to show.
+    /// </summary>
+    internal ContextMenu? BuildNodePointMenu(GroundViewModel vm, int nodeId, Point screenPos)
+    {
         GroundNodeDto? node = vm.GetNode(nodeId);
         if (node is null)
         {
+            return null;
+        }
+
+        List<Control> section = [];
+        AddMeasureMenuItems(section, vm, screenPos);
+        if (vm.SelectedAircraft is not { } selected)
+        {
+            return SectionMenu(section);
+        }
+
+        AddDrawTaxiRouteFrom(section, vm, selected, nodeId);
+
+        // Same gate as the aircraft context menu's pushback items.
+        if (AircraftCommandApplicability.CanPushBack(selected))
+        {
+            section.Add(
+                CreateMenuItem(
+                    "Push route...",
+                    () =>
+                    {
+                        vm.StartPushRoute(selected);
+                        vm.AddPushWaypoint(nodeId);
+                        return Task.CompletedTask;
+                    }
+                )
+            );
+        }
+
+        return BuildPointMenu(selected, new MenuPoint(new LatLon(node.Latitude, node.Longitude), node, null), section);
+    }
+
+    /// <summary>
+    /// Adds Draw taxi route…, which starts drawing a taxi route for <paramref name="aircraft"/> from
+    /// <paramref name="nodeId"/>, when the aircraft can be given one (the shared Taxi here and Custom taxi… gate).
+    /// </summary>
+    private static void AddDrawTaxiRouteFrom(List<Control> items, GroundViewModel vm, AircraftModel aircraft, int nodeId)
+    {
+        if (!AircraftCommandApplicability.CanDrawTaxiRoute(aircraft))
+        {
             return;
         }
 
-        var menu = new ContextMenu();
-
-        // Measuring is available with nothing selected, so these come before the aircraft-only items.
-        AddMeasureMenuItems(menu, vm, screenPos);
-
-        if (vm.SelectedAircraft is not null)
-        {
-            string callsign = vm.SelectedAircraft.Callsign;
-            string initials = GetInitials();
-            int? fromNodeId = vm.GetAircraftNearestNodeId(vm.SelectedAircraft);
-
-            if (fromNodeId is not null)
-            {
-                TaxiSpotDestination? spotDest = node.Type switch
+        items.Add(
+            CreateMenuItem(
+                "Draw taxi route...",
+                () =>
                 {
-                    "Spot" when node.Name is not null => new TaxiSpotDestination(node.Name, IsTaxiSpot: true),
-                    "Parking" or "Helipad" when node.Name is not null => new TaxiSpotDestination(node.Name, IsTaxiSpot: false),
-                    _ => null,
-                };
-                string? destRunway = node.Type == "RunwayHoldShort" && node.RunwayId is not null ? RunwayIdentifier.Parse(node.RunwayId).End1 : null;
-                AddTaxiRouteItems(menu, vm, callsign, initials, fromNodeId.Value, nodeId, spotDest, destRunway);
-            }
+                    vm.StartDrawRoute(aircraft);
+                    vm.AddDrawWaypoint(nodeId);
+                    return Task.CompletedTask;
+                }
+            )
+        );
+    }
 
-            // Same gate as the aircraft context menu's pushback items: PUSH to a spot is accepted from a
-            // stand and from a completed pushback, so an aircraft resting on a ramp spot can be pushed on.
-            bool canPush = AircraftCommandApplicability.CanPushBack(vm.SelectedAircraft);
-            if (node.Type is "Parking" or "Spot" && node.Name is not null && canPush)
-            {
-                string spotName = node.Name;
-                char pushPrefix = node.Type == "Spot" ? '$' : '@';
-                menu.Items.Add(
-                    CreateMenuItem($"Push to {spotName}", () => vm.SendRawCommandAsync(callsign, initials, $"PUSH {pushPrefix}{spotName}"))
-                );
-            }
-
-            int nid = nodeId;
-            menu.Items.Add(
-                CreateMenuItem(
-                    "Draw taxi route...",
-                    () =>
-                    {
-                        vm.StartDrawRoute(vm.SelectedAircraft!);
-                        vm.AddDrawWaypoint(nid);
-                        return Task.CompletedTask;
-                    }
-                )
+    /// <summary>
+    /// The shared point menu for <paramref name="selected"/> at <paramref name="point"/> with the ground's
+    /// <paramref name="section"/>, clearing the Taxi here hover preview on every ground view when it closes. Without a
+    /// main view model it logs and returns the section alone (<see cref="SectionMenu"/>).
+    /// </summary>
+    private ContextMenu? BuildPointMenu(AircraftModel selected, MenuPoint point, List<Control> section)
+    {
+        if (FindMainViewModel() is not { } main)
+        {
+            MenuLog.LogWarning(
+                "Point right-click with {Callsign} selected: the ground view has no main view model, so only the view's items open",
+                selected.Callsign
             );
-
-            if (canPush)
-            {
-                menu.Items.Add(
-                    CreateMenuItem(
-                        "Push route...",
-                        () =>
-                        {
-                            vm.StartPushRoute(vm.SelectedAircraft!);
-                            vm.AddPushWaypoint(nid);
-                            return Task.CompletedTask;
-                        }
-                    )
-                );
-            }
-
-            (string? prefill, int caretPos) = BuildCustomTaxiPrefill(vm, node, nodeId);
-            menu.Items.Add(
-                CreateMenuItem(
-                    "Custom taxi...",
-                    () =>
-                    {
-                        ShowTaxiInput(callsign, initials, prefill, caretPos);
-                        return Task.CompletedTask;
-                    }
-                )
-            );
-
-            menu.Items.Add(new Separator());
-            menu.Items.Add(CreateMenuItem("Warp here", () => vm.WarpToNodeAsync(callsign, initials, nodeId)));
+            return SectionMenu(section);
         }
 
-        // With no aircraft selected the menu is just the measuring items, so drop the divider they add to
-        // separate themselves from the aircraft items that would normally follow.
-        while (menu.Items.Count > 0 && menu.Items[^1] is Separator)
+        TrimTrailingSeparators(section);
+        var host = new ClientMenuHost(main, selected, Canvas);
+        ContextMenu menu = AircraftMenuBuilder.Build(selected, new MenuClick(selected.Callsign, null, point, []), host, _ => section);
+        menu.Closed += (_, _) => host.SetRoutePreview(null);
+        return menu;
+    }
+
+    /// <summary><paramref name="section"/> as the whole menu, after dropping its trailing separators; null when it is empty.</summary>
+    private static ContextMenu? SectionMenu(List<Control> section)
+    {
+        TrimTrailingSeparators(section);
+        if (section.Count == 0)
         {
-            menu.Items.RemoveAt(menu.Items.Count - 1);
+            return null;
         }
 
-        if (menu.Items.Count > 0)
+        var menu = new ContextMenu();
+        foreach (Control item in section)
         {
-            ShowContextMenu(menu);
+            menu.Items.Add(item);
+        }
+
+        return menu;
+    }
+
+    /// <summary>Drops the separators that end <paramref name="items"/>, which divided them from items that do not follow.</summary>
+    private static void TrimTrailingSeparators(List<Control> items)
+    {
+        while ((items.Count > 0) && (items[^1] is Separator))
+        {
+            items.RemoveAt(items.Count - 1);
         }
     }
 
@@ -594,68 +613,54 @@ public partial class GroundView : UserControl
 
     private void OnRunwayThresholdClicked(string runwayEnd, Point screenPos)
     {
-        if (DataContext is not GroundViewModel vm || vm.SelectedAircraft is null)
+        if ((DataContext is GroundViewModel vm) && (BuildRunwayThresholdMenu(vm, runwayEnd) is { } menu))
         {
-            return;
+            ShowContextMenu(menu);
+        }
+    }
+
+    /// <summary>
+    /// The menu a click on the <paramref name="runwayEnd"/> threshold shows, built without opening it: the point menu at
+    /// the end's nearest hold-short node reachable by the selected aircraft (<see cref="BuildThresholdPointMenu"/>).
+    /// Null with nothing selected, or when the aircraft has no node to start from or the end has no hold-short node.
+    /// </summary>
+    internal ContextMenu? BuildRunwayThresholdMenu(GroundViewModel vm, string runwayEnd)
+    {
+        if (vm.SelectedAircraft is not { } selected)
+        {
+            return null;
         }
 
-        string callsign = vm.SelectedAircraft.Callsign;
-        string initials = GetInitials();
-        int? fromNodeId = vm.GetAircraftNearestNodeId(vm.SelectedAircraft);
-        if (fromNodeId is null)
+        if (vm.GetAircraftNearestNodeId(selected) is null)
         {
-            return;
+            return null;
         }
 
-        int? holdShortNodeId = vm.FindNearestHoldShortNodeForRunwayEnd(vm.SelectedAircraft, runwayEnd);
-        if (holdShortNodeId is null)
+        return (vm.FindNearestHoldShortNodeForRunwayEnd(selected, runwayEnd) is { } holdShortNodeId)
+            ? BuildThresholdPointMenu(vm, selected, runwayEnd, holdShortNodeId)
+            : null;
+    }
+
+    /// <summary>
+    /// The shared point menu for <paramref name="selected"/> at hold-short node <paramref name="holdShortNodeId"/>,
+    /// naming the clicked <paramref name="runwayEnd"/> so Taxi here routes to it and Custom taxi… seeds it, then the
+    /// ground's section, Draw taxi route… from that node. Null, with a logged warning, when the node is not in the layout.
+    /// </summary>
+    internal ContextMenu? BuildThresholdPointMenu(GroundViewModel vm, AircraftModel selected, string runwayEnd, int holdShortNodeId)
+    {
+        if (vm.GetNode(holdShortNodeId) is not { } holdShort)
         {
-            return;
-        }
-
-        var menu = new ContextMenu();
-        AddTaxiRouteItems(menu, vm, callsign, initials, fromNodeId.Value, holdShortNodeId.Value, spot: null, destRunway: runwayEnd);
-
-        // Mirror the hold-short node menu — give the controller the same draw /
-        // custom / warp escape hatches when clicking the threshold marker.
-        int nid = holdShortNodeId.Value;
-        GroundNodeDto? node = vm.GetNode(nid);
-        menu.Items.Add(
-            CreateMenuItem(
-                "Draw taxi route...",
-                () =>
-                {
-                    vm.StartDrawRoute(vm.SelectedAircraft!);
-                    vm.AddDrawWaypoint(nid);
-                    return Task.CompletedTask;
-                }
-            )
-        );
-
-        if (node is not null)
-        {
-            (string? prefill, int caretPos) = BuildCustomTaxiPrefill(vm, node, nid);
-            menu.Items.Add(
-                CreateMenuItem(
-                    "Custom taxi...",
-                    () =>
-                    {
-                        ShowTaxiInput(callsign, initials, prefill, caretPos);
-                        return Task.CompletedTask;
-                    }
-                )
+            MenuLog.LogWarning(
+                "Threshold click on {RunwayEnd}: hold-short node {NodeId} is not in the ground layout, so no menu opens",
+                runwayEnd,
+                holdShortNodeId
             );
+            return null;
         }
 
-        menu.Items.Add(new Separator());
-        menu.Items.Add(CreateMenuItem("Warp here", () => vm.WarpToNodeAsync(callsign, initials, nid)));
-
-        if (menu.Items.Count == 0)
-        {
-            return;
-        }
-
-        ShowContextMenu(menu);
+        List<Control> section = [];
+        AddDrawTaxiRouteFrom(section, vm, selected, holdShortNodeId);
+        return BuildPointMenu(selected, new MenuPoint(new LatLon(holdShort.Latitude, holdShort.Longitude), holdShort, runwayEnd), section);
     }
 
     private void OnDrawNodeHovered(int? nodeId)
@@ -899,117 +904,6 @@ public partial class GroundView : UserControl
         ShowContextMenu(menu);
     }
 
-    private static void AddTaxiRouteItems(
-        ContextMenu menu,
-        GroundViewModel vm,
-        string callsign,
-        string initials,
-        int fromNodeId,
-        int toNodeId,
-        TaxiSpotDestination? spot,
-        string? destRunway
-    )
-    {
-        // Preview with the aircraft's real category so route options match command execution.
-        // Both callers derive `callsign` from vm.SelectedAircraft, so it is the routed aircraft.
-        AircraftCategory category = vm.SelectedAircraft is { } ac ? GroundViewModel.CategoryFor(ac) : AircraftCategory.Jet;
-        WakeTurbulenceData.WakeClass wakeClass = vm.SelectedAircraft is { } wc
-            ? GroundViewModel.WakeClassFor(wc)
-            : WakeTurbulenceData.WakeClass.Large;
-        List<TaxiRoute> routes = vm.FindRoutesToNode(fromNodeId, toNodeId, category, wakeClass);
-
-        if (routes.Count == 0)
-        {
-            var disabled = new MenuItem { Header = "No route found", IsEnabled = false };
-            menu.Items.Add(disabled);
-            return;
-        }
-
-        if (routes.Count == 1)
-        {
-            AddSingleRouteItems(menu, vm, callsign, initials, routes[0], spot, destRunway);
-        }
-        else
-        {
-            var parent = new MenuItem { Header = "Taxi here" };
-            foreach (TaxiRoute route in routes)
-            {
-                AddSingleRouteItems(parent, vm, callsign, initials, route, spot, destRunway);
-            }
-
-            menu.Items.Add(parent);
-        }
-    }
-
-    private static void AddSingleRouteItems(
-        ItemsControl parent,
-        GroundViewModel vm,
-        string callsign,
-        string initials,
-        TaxiRoute route,
-        TaxiSpotDestination? spot,
-        string? destRunway
-    )
-    {
-        string displayName = spot is not null ? $"to {spot.Name} {vm.GetTaxiwayDisplayName(route)}" : vm.GetTaxiwayDisplayName(route);
-        List<(string Label, string Command, TaxiRoute Preview)> variants = vm.BuildTaxiCrossingVariants(route, spot, pathOverride: null);
-
-        // When destination is a runway hold-short, offer RWY and non-RWY variants
-        // with progressive crossing options for each.
-        if (destRunway is not null)
-        {
-            List<(string Label, string Command, TaxiRoute Preview)?> destVariants = vm.BuildTaxiDestVariants(route, destRunway, spot);
-            if (destVariants.Count == 0)
-            {
-                return;
-            }
-
-            var sub = new MenuItem { Header = $"Taxi {displayName}" };
-            AttachPreviewHover(sub, vm, route);
-
-            foreach ((string Label, string Command, TaxiRoute Preview)? entry in destVariants)
-            {
-                if (entry is null)
-                {
-                    sub.Items.Add(new Separator());
-                    continue;
-                }
-
-                (string? label, string? command, TaxiRoute? preview) = entry.Value;
-                string cmd = command;
-                MenuItem child = CreateMenuItem(label, () => vm.SendRawCommandAsync(callsign, initials, cmd));
-                AttachPreviewHover(child, vm, preview);
-                sub.Items.Add(child);
-            }
-
-            parent.Items.Add(sub);
-            return;
-        }
-
-        if (variants.Count <= 1)
-        {
-            string command = variants.Count == 1 ? variants[0].Command : "";
-            TaxiRoute preview = variants.Count == 1 ? variants[0].Preview : route;
-            MenuItem item = CreateMenuItem($"Taxi {displayName}", () => vm.SendRawCommandAsync(callsign, initials, command));
-            AttachPreviewHover(item, vm, preview);
-            parent.Items.Add(item);
-            return;
-        }
-
-        var defaultSub = new MenuItem { Header = $"Taxi {displayName}" };
-        AttachPreviewHover(defaultSub, vm, route);
-
-        foreach ((string? label, string? command, TaxiRoute? preview) in variants)
-        {
-            string cmd = command;
-            MenuItem child = CreateMenuItem(label, () => vm.SendRawCommandAsync(callsign, initials, cmd));
-            AttachPreviewHover(child, vm, preview);
-            defaultSub.Items.Add(child);
-        }
-
-        parent.Items.Add(defaultSub);
-    }
-
     private static void AttachPreviewHover(MenuItem item, GroundViewModel vm, TaxiRoute route) =>
         item.PointerEntered += (_, _) => vm.PreviewRoute = route;
 
@@ -1060,41 +954,6 @@ public partial class GroundView : UserControl
         menu.PlacementTarget = _canvas;
         menu.Placement = PlacementMode.Pointer;
         menu.Open(_canvas);
-    }
-
-    private static (string Text, int CaretIndex) BuildCustomTaxiPrefill(GroundViewModel vm, GroundNodeDto node, int nodeId)
-    {
-        const string taxiPrefix = "TAXI ";
-
-        switch (node.Type)
-        {
-            case "Parking" or "Helipad" when node.Name is not null:
-                // "TAXI  @STAND" — cursor between TAXI and @STAND
-                string parkingSuffix = $"@{node.Name}";
-                return ($"{taxiPrefix} {parkingSuffix}", taxiPrefix.Length);
-
-            case "Spot" when node.Name is not null:
-                // "TAXI  $SPOT" — cursor between TAXI and $SPOT
-                string spotSuffixToken = $"${node.Name}";
-                return ($"{taxiPrefix} {spotSuffixToken}", taxiPrefix.Length);
-
-            case "RunwayHoldShort" when node.RunwayId is not null:
-                // "RWY 30 TAXI " — cursor at end for user to add taxiway route
-                string rwyEnd1 = RunwayIdentifier.ToDisplayDesignator(RunwayIdentifier.Parse(node.RunwayId).End1);
-                string rwyText = $"RWY {rwyEnd1} {taxiPrefix}";
-                return (rwyText, rwyText.Length);
-
-            default:
-                // Taxiway intersection or spot: "TAXI  E" — cursor between TAXI and taxiway name
-                List<string> names = vm.GetNodeTaxiwayNames(nodeId);
-                if (names.Count > 0)
-                {
-                    string twySuffix = names[0];
-                    return ($"{taxiPrefix} {twySuffix}", taxiPrefix.Length);
-                }
-
-                return (taxiPrefix, taxiPrefix.Length);
-        }
     }
 
     private void ShowTaxiInput(string callsign, string initials, string prefill, int caretIndex)

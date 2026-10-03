@@ -161,6 +161,36 @@ public class PointMenuTests
         Assert.Equal(5, input.CaretIndex);
     }
 
+    // A threshold click names the runway end that was clicked; Custom taxi… seeds that end, as Taxi here routes to it,
+    // not the hold-short node's runway End1.
+    [AvaloniaFact]
+    public void ThresholdClick_CustomTaxiSeed_UsesTheClickedEnd()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        GroundNodeDto start = OakNode("Spot", "I30");
+        GroundNodeDto holdShort = MenuGoldenFixtures.OakLayoutForClient.Nodes.First(n => (n.Type == "RunwayHoldShort") && (n.RunwayId is not null));
+        string clickedEnd = RunwayIdentifier.Parse(holdShort.RunwayId!).End2;
+        AircraftModel ac = GroundAircraft(new LatLon(start.Latitude, start.Longitude));
+        var main = new MainViewModel(new FakeFilePickerService());
+        main.Aircraft.Clear();
+        main.Aircraft.Add(ac);
+        main.Ground.SetLayoutForTesting(MenuGoldenFixtures.OakLayoutForClient);
+        var anchor = new Border();
+        var window = new Window { Content = anchor };
+        window.ShowAndRunLayout();
+        var host = new SendCapturingHost(new ClientMenuHost(main, ac, anchor), "AB");
+        var point = new MenuPoint(new LatLon(holdShort.Latitude, holdShort.Longitude), holdShort, clickedEnd);
+
+        ContextMenu menu = Build(ac, point, host, _ => []);
+        Click(Item(menu.Items, "Custom taxi..."));
+        HeadlessWindowExtensions.PumpDispatcher();
+
+        string expected = $"RWY {RunwayIdentifier.ToDisplayDesignator(clickedEnd)} TAXI ";
+        TextBox input = FindTextBox(anchor);
+        Assert.Equal(expected, input.Text);
+        Assert.Equal(expected.Length, input.CaretIndex);
+    }
+
     // --- Taxi here over the host's choices -------------------------------------------------
 
     [AvaloniaFact]
@@ -260,9 +290,10 @@ public class PointMenuTests
     {
         var host = new RecordingMenuHost("") { CustomTaxiSeed = new MenuTextSeed("TAXI  E", 5), InputAnswer = "  TAXI B E  " };
 
-        ContextMenu menu = Build(GroundAircraft(new LatLon(37.72, -122.22)), NodePoint(null), host, _ => []);
+        ContextMenu menu = Build(GroundAircraft(new LatLon(37.72, -122.22)), NodePoint("28R"), host, _ => []);
         Click(Item(menu.Items, "Custom taxi..."));
 
+        Assert.Equal([(TaxiNode.Id, (string?)"28R")], host.CustomTaxiSeedRequests);
         Assert.Equal([("TAXI  E", 5)], host.InputSeeds);
         Assert.Equal([(Callsign, "TAXI B E", "AB")], host.Sent);
     }

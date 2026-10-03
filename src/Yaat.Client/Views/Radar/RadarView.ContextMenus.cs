@@ -172,123 +172,121 @@ public partial class RadarView
 
     private void OnMapRightClicked(double lat, double lon, Point screenPos)
     {
-        if (DataContext is not RadarViewModel vm)
+        if (DataContext is RadarViewModel vm)
         {
-            return;
+            ShowContextMenu(BuildMapPointMenu(vm, new LatLon(lat, lon), screenPos));
+        }
+    }
+
+    /// <summary>
+    /// The menu a right-click on empty map at <paramref name="position"/> shows, built without opening it. With an
+    /// aircraft selected, the shared point menu (<see cref="AircraftMenuBuilder"/> with the clicked position) carries the
+    /// aircraft's point items, then the radar's point section (<see cref="BuildMapPointSection"/>); with nothing selected,
+    /// or without a main view model (logged), the point section alone.
+    /// </summary>
+    internal ContextMenu BuildMapPointMenu(RadarViewModel vm, LatLon position, Point screenPos)
+    {
+        List<Control> section = BuildMapPointSection(vm, position, screenPos);
+        if (vm.SelectedAircraft is not { } selected)
+        {
+            return MenuOf(section);
         }
 
-        var menu = new ContextMenu();
-
-        // FRD header — always show regardless of aircraft selection
-        string? frdString = null;
-        if (vm.Fixes is not null)
+        if (FindMainViewModel() is not { } main)
         {
-            frdString = FrdResolver.ToFrd(lat, lon, vm.Fixes);
+            MenuLog.LogWarning(
+                "Map right-click with {Callsign} selected: the radar view has no main view model, so only the map items open",
+                selected.Callsign
+            );
+            return MenuOf(section);
         }
 
+        var host = new ClientMenuHost(main, selected, Canvas);
+        var click = new MenuClick(selected.Callsign, null, new MenuPoint(position, null, null), []);
+        return AircraftMenuBuilder.Build(selected, click, host, _ => section);
+    }
+
+    /// <summary>
+    /// The radar's point section for a map right-click at <paramref name="position"/>: the point's FRD row, Copy FRD
+    /// and the scope-marker pins when the fixes name the point, the measuring tool's items, then the charted MVA there.
+    /// </summary>
+    private List<Control> BuildMapPointSection(RadarViewModel vm, LatLon position, Point screenPos)
+    {
+        List<Control> items = [];
+        string? frdString = (vm.Fixes is { } fixes) ? FrdResolver.ToFrd(position.Lat, position.Lon, fixes) : null;
         if (frdString is not null)
         {
-            menu.Items.Add(
-                new MenuItem
-                {
-                    Header = frdString,
-                    IsEnabled = false,
-                    FontWeight = Avalonia.Media.FontWeight.Bold,
-                }
-            );
-            string frd = frdString;
-            menu.Items.Add(
-                CreateMenuItem(
-                    "Copy FRD",
-                    async () =>
-                    {
-                        IClipboard? clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
-                        if (clipboard is not null)
-                        {
-                            await clipboard.SetTextAsync(frd);
-                        }
-                    }
-                )
-            );
-
-            // Scope-marker pins (CRC ".ff"/".marker"). Pick radius scales with the current range.
-            double pickNm = Math.Max(0.5, vm.RangeNm * 0.04);
-            var clickPos = new LatLon(lat, lon);
-            bool nearPin = vm.PinnedMarkers is { } pins && pins.Any(m => GeoMath.DistanceNm(clickPos, new LatLon(m.Lat, m.Lon)) <= pickNm);
-
-            menu.Items.Add(CreateMenuItem("Pin marker here", () => vm.AddMarker(frd)));
-            if (nearPin)
-            {
-                menu.Items.Add(CreateMenuItem("Remove marker", () => vm.RemoveNearestMarker(lat, lon, pickNm)));
-            }
-            if (vm.HasMarkers)
-            {
-                menu.Items.Add(CreateMenuItem("Clear pinned markers", () => vm.ClearMarkers()));
-            }
-
-            menu.Items.Add(new Separator());
+            AddFrdItems(items, vm, position, frdString);
         }
 
-        AddMeasureMenuItems(menu, vm, RblEndpoint.AtPoint(new LatLon(lat, lon), frdString ?? ""), screenPos);
+        AddMeasureMenuItems(items, vm, RblEndpoint.AtPoint(position, frdString ?? ""), screenPos);
 
         // MVA at the clicked point (FAA-charted; only the loaded facility's coverage, null elsewhere).
-        MvaSector? mvaSector = MvaDatabase.Default.FindSector(new LatLon(lat, lon));
-        menu.Items.Add(
+        MvaSector? mvaSector = MvaDatabase.Default.FindSector(position);
+        items.Add(
             new MenuItem
             {
                 Header = mvaSector is null ? "MVA: no data here" : $"MVA {mvaSector.FloorFtMsl} ft ({mvaSector.Sector})",
                 IsEnabled = false,
             }
         );
-        menu.Items.Add(new Separator());
+        return items;
+    }
 
-        if (vm.SelectedAircraft is not null)
-        {
-            string callsign = vm.SelectedAircraft.Callsign;
-            string initials = GetInitials();
-
-            int heading = (int)(Math.Round(GeoMath.BearingTo(vm.SelectedAircraft.Position, new LatLon(lat, lon)) / 5.0) * 5);
-            if (heading <= 0)
+    /// <summary>
+    /// The point's <paramref name="frd"/> as a bold row, Copy FRD, then the scope-marker pins (CRC ".ff"/".marker"): pin
+    /// one here, remove the one near the click, clear them all; then a separator.
+    /// </summary>
+    private void AddFrdItems(List<Control> items, RadarViewModel vm, LatLon position, string frd)
+    {
+        items.Add(
+            new MenuItem
             {
-                heading = 360;
+                Header = frd,
+                IsEnabled = false,
+                FontWeight = Avalonia.Media.FontWeight.Bold,
             }
-
-            menu.Items.Add(
-                CreateMenuItem($"Fly heading {new MagneticHeading(heading).ToDisplayString()}", () => vm.FlyHeadingAsync(callsign, initials, heading))
-            );
-
-            if (frdString is not null)
-            {
-                string target = frdString;
-                menu.Items.Add(CreateMenuItem($"Direct to {target}", () => vm.DirectToAsync(callsign, initials, target)));
-                menu.Items.Add(CreateMenuItem($"Append direct to {target}", () => vm.AppendDirectToAsync(callsign, initials, target)));
-                menu.Items.Add(CreateMenuItem($"Hold at {target} (left)", () => vm.HoldAtFixLeftAsync(callsign, initials, target)));
-                menu.Items.Add(CreateMenuItem($"Hold at {target} (right)", () => vm.HoldAtFixRightAsync(callsign, initials, target)));
-
-                string warpFrd = target;
-                int warpHdg = (int)Math.Round(vm.SelectedAircraft.Heading.Degrees);
-                if (warpHdg <= 0)
+        );
+        items.Add(
+            CreateMenuItem(
+                "Copy FRD",
+                async () =>
                 {
-                    warpHdg = 360;
+                    IClipboard? clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+                    if (clipboard is not null)
+                    {
+                        await clipboard.SetTextAsync(frd);
+                    }
                 }
+            )
+        );
 
-                int warpAlt = (int)Math.Round(vm.SelectedAircraft.Altitude);
-                int warpSpd = (int)Math.Round(vm.SelectedAircraft.IndicatedAirspeed);
-                var warpItem = new MenuItem { Header = $"Warp here ({target})" };
-                warpItem.Click += (_, _) =>
-                    MenuPopups.ShowWarp(
-                        Canvas,
-                        new MenuPopups.WarpSeed(callsign, warpFrd, warpHdg, warpAlt, warpSpd),
-                        (frd, h, a, s) => vm.WarpAsync(callsign, initials, frd, h, a, s)
-                    );
-                menu.Items.Add(warpItem);
-            }
-        }
+        // The pick radius scales with the current range.
+        double pickNm = Math.Max(0.5, vm.RangeNm * 0.04);
+        bool nearPin = (vm.PinnedMarkers is { } pins) && pins.Any(m => GeoMath.DistanceNm(position, new LatLon(m.Lat, m.Lon)) <= pickNm);
 
-        if (menu.Items.Count > 0)
+        items.Add(CreateMenuItem("Pin marker here", () => vm.AddMarker(frd)));
+        if (nearPin)
         {
-            ShowContextMenu(menu);
+            items.Add(CreateMenuItem("Remove marker", () => vm.RemoveNearestMarker(position.Lat, position.Lon, pickNm)));
         }
+        if (vm.HasMarkers)
+        {
+            items.Add(CreateMenuItem("Clear pinned markers", () => vm.ClearMarkers()));
+        }
+
+        items.Add(new Separator());
+    }
+
+    private static ContextMenu MenuOf(IEnumerable<Control> items)
+    {
+        var menu = new ContextMenu();
+        foreach (Control item in items)
+        {
+            menu.Items.Add(item);
+        }
+
+        return menu;
     }
 
     // --- Menu item factories ---
@@ -311,7 +309,7 @@ public partial class RadarView
     /// Adds the distance measuring tool's items: start or finish a measurement at
     /// <paramref name="endpoint" />, remove the one under the cursor, and clear them all.
     /// </summary>
-    private void AddMeasureMenuItems(ContextMenu menu, RadarViewModel vm, RblEndpoint endpoint, Point screenPos)
+    private void AddMeasureMenuItems(List<Control> items, RadarViewModel vm, RblEndpoint endpoint, Point screenPos)
     {
         if (vm.Measure is not { } measure)
         {
@@ -319,20 +317,20 @@ public partial class RadarView
         }
 
         string startLabel = measure.Anchor is null ? "Measure from here" : "Measure to here";
-        menu.Items.Add(
+        items.Add(
             CreateMenuItem(startLabel, () => measure.Pick(endpoint, RadarViewModel.MeasureView, vm.MeasureTrackLookup, RadarViewModel.MeasureUnits))
         );
 
         if (_canvas?.MeasurementSlotAt(screenPos) is { } slot)
         {
-            menu.Items.Add(CreateMenuItem($"Remove measurement {slot}", () => measure.Remove(slot)));
+            items.Add(CreateMenuItem($"Remove measurement {slot}", () => measure.Remove(slot)));
         }
 
         if (measure.HasLines)
         {
-            menu.Items.Add(CreateMenuItem("Clear measurements", measure.Clear));
+            items.Add(CreateMenuItem("Clear measurements", measure.Clear));
         }
 
-        menu.Items.Add(new Separator());
+        items.Add(new Separator());
     }
 }

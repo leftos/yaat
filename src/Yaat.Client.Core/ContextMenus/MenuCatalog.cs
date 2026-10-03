@@ -1091,7 +1091,7 @@ public static class MenuCatalog
             return null;
         }
 
-        MenuTextSeed seed = host.GetCustomTaxiSeed(node);
+        MenuTextSeed seed = host.GetCustomTaxiSeed(node, point.RunwayEnd);
         var item = new MenuItem { Header = "Custom taxi...", Tag = new MenuPickerDescriptor(MenuPickerDescriptor.Input, []) };
         item.Click += (_, _) =>
             host.ShowInputPopup(

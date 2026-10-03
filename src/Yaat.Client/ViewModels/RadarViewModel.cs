@@ -1293,27 +1293,14 @@ public partial class RadarViewModel(
 
     public async Task ReduceFinalApproachSpeedAsync(string callsign, string initials) => await _sendCommand(callsign, "RFAS", initials);
 
-    public async Task DirectToAsync(string callsign, string initials, string fix) => await _sendCommand(callsign, $"DCT {fix}", initials);
-
-    public async Task AppendDirectToAsync(string callsign, string initials, string fix) => await _sendCommand(callsign, $"ADCT {fix}", initials);
-
     public async Task AcceptHandoffAsync(string callsign, string initials) => await _sendCommand(callsign, "ACCEPT", initials);
 
     public async Task SendRawCommandAsync(string callsign, string initials, string command) => await _sendCommand(callsign, command, initials);
-
-    public async Task WarpAsync(string callsign, string initials, string frd, int heading, int altitude, int speed) =>
-        await _sendCommand(callsign, $"WARP {frd} {heading} {altitude} {speed}", initials);
 
     // --- Track operations ---
 
     public async Task InitiateHandoffAsync(string callsign, string initials, string position) =>
         await _sendCommand(callsign, $"HO {position}", initials);
-
-    // --- Hold ---
-
-    public async Task HoldAtFixLeftAsync(string callsign, string initials, string fix) => await _sendCommand(callsign, $"HFIXL {fix}", initials);
-
-    public async Task HoldAtFixRightAsync(string callsign, string initials, string fix) => await _sendCommand(callsign, $"HFIXR {fix}", initials);
 
     // --- Draw route ---
 
