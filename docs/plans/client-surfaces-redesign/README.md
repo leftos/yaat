@@ -10,7 +10,11 @@ branch: feat/client-surfaces-redesign (owner ruling): the redesign lands on a fe
 - **Navigation: sidebar, search and jump-in.** A larger Settings window with a left sidebar grouped by surface (General, Scenarios, Radar, Ground, Strips/vTDLS, Terminal, Speech, Keys, and the rest as the design settles), a search box that filters across every section, and a "Settings for this view…" entry in each view's menu that opens its section. A setting that spans surfaces (font sizes, always-on-top) needs one home and search aliases.
 - **Save model: OK, Apply, Cancel.** The classic three buttons: Apply commits without closing, OK commits and closes, Cancel discards what was not applied.
 - **Import/export: one hub, the existing buttons open it.** One Import / Export window: tick what to include (preferences, macros, command verbs, favorites, grid layout, window profiles) into one bundle file; import previews the bundle's contents and asks merge or replace per item. The per-feature buttons that exist today (Macros tab, Commands tab, favorites bar, column chooser) open the hub with their item preselected. Window profiles and preferences, which cannot be exported today, become exportable through it.
-- **View menu: regroup and add hotkeys.** Submenus Windows (pop-outs, New Ground/Radar Window, Strips, vTDLS), Bars (Favorites, Timeline) and Layout (Window Profiles, Copy View Settings, Reset Aircraft List Layout), with hotkeys on the common pop-outs.
+- **View menu: regroup and add hotkeys.** Submenus Windows (pop-outs, New Ground/Radar Window, Strips, vTDLS), Bars (Favorites, Timeline) and Layout (Layouts, Reset Aircraft List Layout), with hotkeys on the common pop-outs.
+- **Flyout-only settings are decided one by one on the mocks.** The design proposes, per setting (live traffic and its ceiling, solo parking call-up interval, arrival generator rate, releases), whether it gets a Settings default; the owner rules on the mock.
+- **Bundle: a zip of today's files.** One `.yaat-settings.zip` holding a manifest and the existing per-feature files (macros JSON, verbs JSON, the favorites zip, the grid layout JSON, plus preferences and layouts). A single-item export keeps today's extension, so files exported before the hub still import.
+- **Import clashes: per item type, then a clash list.** Each ticked item type is Merge or Replace; under Merge, named entries that clash (a macro, a favorite set, a layout) are listed with Skip, Overwrite or Rename, as the macro import does today.
+- **Window Profiles and Copy View Settings merge into Layouts.** One concept: a layout holds the window arrangement and the view settings; copying from a scenario becomes one source of a layout. Existing saved window profiles map into layouts.
 
 ## Next
 
@@ -21,9 +25,6 @@ branch: feat/client-surfaces-redesign (owner ruling): the redesign lands on a fe
 ## Open decisions
 
 - The sidebar's exact sections and where each of today's 120-odd controls lands; the search's aliases.
-- Which flyout-only settings get a Settings default.
-- The bundle format (one zip with a manifest and the existing per-feature files inside, or one JSON) and its extension; whether the per-feature files keep their own extensions for single-item export.
-- Merge semantics per item in the hub preview (today: macros resolve clashes per item, verbs overlay, favorites ask merge or replace once, grid layout replaces).
 - Which pop-outs get hotkeys, and which keys.
-- Whether Copy View Settings and Window Profiles merge into one concept.
+- What a layout holds exactly (which view settings beyond today's Copy View Settings set), and how a saved window profile maps into one.
 - Whether the mic and live-traffic status-bar context menus stay settings entry points, and whether keybinds and server admin mode stay together under one section.
