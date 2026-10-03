@@ -27,11 +27,11 @@ Design canvas https://claude.ai/artifact/S2FPQNyeFvz5JjgGW5D8m7, saved in [`../c
 - **Hotkeys.** Defaults Ctrl+Shift+L aircraft list, G ground, R radar, E terminal (Ctrl+Shift+T is always-on-top), C controllers, M METAR, F favorites bar, and Ctrl+, for Settings; every one rebindable in Settings › Keys, which shows a clash when rebinding.
 - **Status-bar menus.** The mic indicator and the live-traffic status text keep their quick on/off toggles and gain a link item ("Speech settings…", "Live traffic…") to the matching Settings section or the session flyout.
 
-## Next
+## Build items
 
-1. Split into build items in a Linear project carrying the branch marker.
+Linear project `Client surfaces redesign` (carrying the branch marker), sub-issues of YAAT-274: YAAT-291 Settings window shell (sidebar, OK/Apply/Cancel), YAAT-292 search and cross-section links, YAAT-293 open Settings at a section (view menus, Ctrl+, , status-bar links), YAAT-294 Scenario defaults reconciled with the session flyout, YAAT-295 View menu regroup and hotkeys, YAAT-296 Layouts, YAAT-297 Import / Export hub. YAAT-292 to YAAT-295 build on YAAT-291; YAAT-297 builds on YAAT-296.
 
 ## Open decisions
 
 - Where each of today's 120-odd controls lands within its section, and the search's alias list (settled per build item, against the sidebar above).
-- What a layout holds exactly (which view settings beyond today's Copy View Settings set), and how a saved window profile maps into one.
+- What a layout holds exactly (which view settings beyond today's Copy View Settings set), and how a saved window profile maps into one (YAAT-296).
