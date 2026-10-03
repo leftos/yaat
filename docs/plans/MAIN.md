@@ -4,16 +4,18 @@
 
 ## Do first
 
+- [/] YAAT-274 Redesign overwhelming client surfaces: Settings, import/export, View menu pop-outs — High · Client surfaces redesign
 - [x] YAAT-228 release.yml drops the changelog output as 'may contain secret', leaving the draft's Changelog empty · release vNext — High · Singles
-- [/] YAAT-274 Redesign overwhelming client surfaces: Settings, import/export, View menu pop-outs — High · Backlog
 
 ## Bug reports and feature requests
 
+- [x] YAAT-289 WindowRecorder: refuse a hidden window cleanly instead of crashing · release vNext
 - [x] YAAT-282 Automation-mode client came to the foreground during the sampler run · release vNext
 - [x] YAAT-283 Montage capture pipeline: launch_yaat env, load_recording room, PTL wording, caption filter · release vNext
 - [x] YAAT-286 vEDST sign-in: enable it on yaat1 and fix the connect docs · release vNext
 - [x] YAAT-248 Client driver records a window: start, mark and stop, with sim-time marks and the client's audio · release vNext
 - [x] YAAT-250 Client-defined automation tools; client log errors on every pipe result · release vNext
+- [/] YAAT-285 Record demos fully in the background: no visible window, no audio to the speakers
 - [/] YAAT-279 Sizzle reel: the release's new and reworked UI and UX · release vNext
 - [x] YAAT-242 Deconflict the RBL readout from data blocks so it stays readable · release vNext
 - [x] YAAT-259 Pilots no longer report 'the traffic's on the ground, breaking off the follow' · release vNext
@@ -34,9 +36,7 @@
 - [ ] YAAT-261 AutomationWaitUntilTests.Landed_HeldAfterAirborneThenGround times out in the full UI suite
 - [ ] YAAT-270 Widen the timing bound in AutomationWaitForTests.WaitFor_ConditionNeverMet (flakes under a loaded full UI suite)
 - [ ] YAAT-284 FOLLOW gets no pilot readback in solo; late 'traffic in sight' in clip C2
-- [ ] YAAT-285 Record demos fully in the background: no visible window, no audio to the speakers
 - [ ] YAAT-288 Find what gave an automation-mode client the keyboard foreground for 3.5 s (YAAT-282 leftover)
-- [ ] YAAT-289 WindowRecorder: refuse a hidden window cleanly instead of crashing
 
 ## Client driver in the background (#474)
 
@@ -61,6 +61,16 @@
 - [ ] YAAT-273 DataGridContextMenuStateTests depend on test order for NavigationDatabase
 - [ ] YAAT-280 DataGridContextMenuStateTests fail when run alone (NavigationDatabase not initialized)
 - [ ] YAAT-281 Aircraft menus leave a hold-short route preview on other ground windows
+
+## Client surfaces redesign
+
+- [ ] YAAT-291 Client surfaces redesign: Settings window shell (sidebar sections, OK/Apply/Cancel)
+- [ ] YAAT-292 Client surfaces redesign: Settings search with aliases and cross-section links
+- [ ] YAAT-293 Client surfaces redesign: open Settings at a section (view menus, Ctrl+comma, status-bar links)
+- [ ] YAAT-294 Client surfaces redesign: reconcile Scenario defaults with the session flyout
+- [ ] YAAT-295 Client surfaces redesign: regroup the View menu and add pop-out hotkeys
+- [ ] YAAT-296 Client surfaces redesign: merge Window Profiles and Copy View Settings into Layouts
+- [ ] YAAT-297 Client surfaces redesign: one Import / Export hub with a .yaat-settings.zip bundle
 
 ## Tick-path unification
 
@@ -248,6 +258,7 @@
 - [ ] YAAT-271 Use linear release add in the yaat-nextup profile; note test-all's silent test phase
 - [ ] YAAT-276 Correct the gear flyout's field count in client-mainviewmodel.md
 - [ ] YAAT-287 Remove the phantom GuideCapture Fakes/FakeFilePickerService.cs line from architecture.md
+- [ ] YAAT-290 Run the tools/tests Python suite in CI
 
 ## Singles
 
