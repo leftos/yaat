@@ -172,7 +172,15 @@ ADMIN_PASSWORD=
 REQUIRE_VATSIM_AUTH=true
 ```
 
-Each VATSIM client's registered redirect must equal `https://<YAAT_DOMAIN>/auth/vatsim/callback`. Copy
+Each VATSIM client's registered redirect must equal the server URL that receives its code: `https://<YAAT_DOMAIN>/auth/vatsim/callback` for the YAAT client (`Yaat:Vatsim`), `https://<YAAT_DOMAIN>/vnas/login` for the vEDST client (`Yaat:Vnas`). The clients registered in the owner's VATSIM Connect dashboard:
+
+| Client ID | Name | Redirect URL | Used by |
+|---|---|---|---|
+| 1883 | yaat1 | `https://yaat1.leftos.dev/auth/vatsim/callback` | `Yaat:Vatsim:ClientId` on the yaat1 target |
+| 1974 | yaat1 vedst | `https://yaat1.leftos.dev/vnas/login` | `Yaat:Vnas:ClientId` on the yaat1 target |
+| 1728 | towercab-3d | `tc3d://oauth/callback` | not YAAT (the owner's TowerCab 3D app) |
+
+VATSIM accepts only a registered redirect, so a vEDST developer running on `http://localhost:3000` signs in through the server's `/vnas/login` (which `LoginReturnUrl` then sends back to localhost), never by naming `localhost:3000` as the redirect. Copy
 `Caddyfile.example` to `Caddyfile` once (it reads `{$YAAT_DOMAIN}`, so it needs no per-domain edit).
 Deploy/update a target with `./update.sh <target>` (e.g. `./update.sh yaat1`), which runs every
 `docker compose` command with `--env-file .env.<target>` (no argument falls back to `.env`). By
