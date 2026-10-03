@@ -43,4 +43,13 @@ public static class AutomationMode
 
     /// <summary>True when <c>YAAT_AUTOMATION</c> is exactly <c>"1"</c>; any other value, or none, is off.</summary>
     public static bool ReadFromEnvironment() => Environment.GetEnvironmentVariable(EnvironmentVariable) == "1";
+
+    /// <summary>
+    /// The environment variable that, when it equals <c>"1"</c>, DWM-cloaks every client window before its first show
+    /// (<see cref="AutomationGate.CloakWindows"/>). Only valid together with <see cref="EnvironmentVariable"/>.
+    /// </summary>
+    public const string CloakEnvironmentVariable = "YAAT_CLOAK";
+
+    /// <summary>True when <c>YAAT_CLOAK</c> is exactly <c>"1"</c>; any other value, or none, is off.</summary>
+    public static bool ReadCloakFromEnvironment() => Environment.GetEnvironmentVariable(CloakEnvironmentVariable) == "1";
 }

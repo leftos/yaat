@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Reflection;
 using System.Text.Json;
+using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using SkiaSharp;
@@ -12,6 +13,7 @@ using Yaat.Client.Models;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views;
 using Yaat.Client.Views.Map;
 using Yaat.Sim;
 using Yaat.Sim.Data;
@@ -141,6 +143,7 @@ public sealed class AppToolsTests : AutomationHostFixture
                 "remove_rbl(slot:int)",
                 "reset_datablock_offset(callsign:string)",
                 "seek(simSeconds:double)",
+                "set_cloaked(cloaked:bool)",
                 "set_datablock_offset(callsign:string,dxPx:int,dyPx:int)",
                 "set_leader_direction(callsign:string,direction:int)",
                 "set_ptl(lengthMinutes:double,all:bool)",
@@ -168,8 +171,9 @@ public sealed class AppToolsTests : AutomationHostFixture
     {
         JsonElement list = Result(await ListTools(ToolsOf(NewMain())));
 
-        // connect is the one tool that needs no server: it is how the agent gets one.
-        foreach (JsonElement tool in list.EnumerateArray().Where(tool => tool.GetProperty("name").GetString() != "connect"))
+        // connect needs no server: it is how the agent gets one. set_cloaked acts on the client's own windows only.
+        string[] needNoRoom = ["connect", "set_cloaked"];
+        foreach (JsonElement tool in list.EnumerateArray().Where(tool => !needNoRoom.Contains(tool.GetProperty("name").GetString())))
         {
             Assert.False(tool.GetProperty("available").GetBoolean(), tool.GetRawText());
             Assert.False(string.IsNullOrWhiteSpace(tool.GetProperty("reason").GetString()), tool.GetRawText());
@@ -272,6 +276,92 @@ public sealed class AppToolsTests : AutomationHostFixture
         Assert.Equal([4], state.Rates);
         Assert.True(result.GetProperty("available").GetBoolean());
         Assert.Contains("4", result.GetProperty("message").GetString(), StringComparison.Ordinal);
+    }
+
+    [AvaloniaFact]
+    public async Task SetCloaked_CloaksEveryOpenWindow_ThenUncloaks()
+    {
+        Window main = new() { Title = "YAAT" };
+        Window settings = new() { Title = "Settings" };
+        List<(WindowBase Window, bool Cloaked)> calls = [];
+
+        await WithWindowsAndCloaker(
+            [main, settings],
+            (_, _) => null,
+            calls,
+            async () =>
+            {
+                // No server and no room: set_cloaked acts on the client's own windows only.
+                JsonElement cloak = Result(await CallTool(ToolsOf(NewMain()), "set_cloaked", new { cloaked = true }));
+                Assert.True(AutomationGate.CloakWindows);
+                Assert.Equal([(main, true), (settings, true)], calls);
+                Assert.True(cloak.GetProperty("available").GetBoolean());
+                Assert.Equal("Cloaked 2 windows; windows opened from now on open cloaked.", cloak.GetProperty("message").GetString());
+
+                calls.Clear();
+                JsonElement uncloak = Result(await CallTool(ToolsOf(NewMain()), "set_cloaked", new { cloaked = false }));
+                Assert.False(AutomationGate.CloakWindows);
+                Assert.Equal([(main, false), (settings, false)], calls);
+                Assert.Equal("Uncloaked 2 windows; windows opened from now on open uncloaked.", uncloak.GetProperty("message").GetString());
+            }
+        );
+    }
+
+    [AvaloniaFact]
+    public async Task SetCloaked_OneWindowFails_ReportsThePartialResult()
+    {
+        Window main = new() { Title = "YAAT" };
+        Window settings = new() { Title = "Settings" };
+        List<(WindowBase Window, bool Cloaked)> calls = [];
+
+        await WithWindowsAndCloaker(
+            [main, settings],
+            (window, _) => ReferenceEquals(window, settings) ? "DwmSetWindowAttribute(DWMWA_CLOAK, 1) failed with HRESULT 0x80070005" : null,
+            calls,
+            async () =>
+            {
+                JsonElement result = Result(await CallTool(ToolsOf(NewMain()), "set_cloaked", new { cloaked = true }));
+
+                Assert.Equal([(main, true), (settings, true)], calls);
+                Assert.True(AutomationGate.CloakWindows);
+                Assert.True(result.GetProperty("available").GetBoolean());
+                Assert.Equal(
+                    "Cloaked 1 of 2 windows; could not cloak 'Settings': DwmSetWindowAttribute(DWMWA_CLOAK, 1) failed with HRESULT 0x80070005. "
+                        + "Windows opened from now on open cloaked.",
+                    result.GetProperty("message").GetString()
+                );
+            }
+        );
+    }
+
+    [AvaloniaFact]
+    public async Task SetCloaked_EveryWindowFails_KeepsThePreviousState()
+    {
+        Window main = new() { Title = "YAAT" };
+        Window settings = new() { Title = "Settings" };
+        List<(WindowBase Window, bool Cloaked)> calls = [];
+
+        await WithWindowsAndCloaker(
+            [main, settings],
+            (_, _) => "DwmSetWindowAttribute(DWMWA_CLOAK, 1) failed with HRESULT 0x80070005",
+            calls,
+            async () =>
+            {
+                AutomationGate.CloakWindows = false;
+
+                JsonElement result = Result(await CallTool(ToolsOf(NewMain()), "set_cloaked", new { cloaked = true }));
+
+                Assert.Equal([(main, true), (settings, true)], calls);
+                Assert.False(AutomationGate.CloakWindows);
+                Assert.True(result.GetProperty("available").GetBoolean());
+                Assert.Equal(
+                    "Could not cloak any of the 2 windows: 'YAAT': DwmSetWindowAttribute(DWMWA_CLOAK, 1) failed with HRESULT 0x80070005; "
+                        + "'Settings': DwmSetWindowAttribute(DWMWA_CLOAK, 1) failed with HRESULT 0x80070005. "
+                        + "Nothing changed: windows opened from now on still open uncloaked.",
+                    result.GetProperty("message").GetString()
+                );
+            }
+        );
     }
 
     [AvaloniaFact]
@@ -1546,6 +1636,43 @@ public sealed class AppToolsTests : AutomationHostFixture
         {
             Rates.Add(rate);
             return Task.FromResult(new AutomationActionOutcome(refusal is null, refusal));
+        }
+    }
+
+    /// <summary>
+    /// Runs <paramref name="body"/> with <c>set_cloaked</c>'s window source answering <paramref name="windows"/> (the headless session
+    /// has no desktop lifetime, and Avalonia's lifetime interfaces cannot be implemented outside it) and the cloaker seam recording each
+    /// call into <paramref name="calls"/> and answering <paramref name="cloaker"/>; restores both seams and the cloak flag after.
+    /// </summary>
+    private static async Task WithWindowsAndCloaker(
+        IReadOnlyList<Window> windows,
+        Func<WindowBase, bool, string?> cloaker,
+        List<(WindowBase Window, bool Cloaked)> calls,
+        Func<Task> body
+    )
+    {
+        Func<IReadOnlyList<Window>> previousWindows = AutomationTools.OpenWindows;
+        Func<WindowBase, bool, string?> previousCloaker = AutomationGate.Cloaker;
+        bool previousCloak = AutomationGate.CloakWindows;
+        AutomationTools.OpenWindows = () => windows;
+        AutomationGate.Cloaker = (window, cloaked) =>
+        {
+            calls.Add((window, cloaked));
+            return cloaker(window, cloaked);
+        };
+        try
+        {
+            await body();
+        }
+        finally
+        {
+            AutomationTools.OpenWindows = previousWindows;
+            AutomationGate.Cloaker = previousCloaker;
+            AutomationGate.CloakWindows = previousCloak;
+            foreach (Window window in windows)
+            {
+                window.Close();
+            }
         }
     }
 }
