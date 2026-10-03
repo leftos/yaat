@@ -310,6 +310,16 @@ public partial class RadarViewModel(
     /// </summary>
     public RadarDataBlockViewState DataBlockState { get; } = new();
 
+    /// <summary>
+    /// Moves the callsign's datablock to a screen-pixel <paramref name="offset"/> from its target symbol, as dragging it does;
+    /// every bound radar canvas repaints on <see cref="DataBlockViewState.ManualOffsetsChanged"/>.
+    /// </summary>
+    public void SetDataBlockOffset(string callsign, SKPoint offset) => DataBlockState.SetManualOffset(callsign, offset);
+
+    /// <summary>Returns the callsign's datablock to its default placement.</summary>
+    /// <returns>True when the datablock had a manual offset to remove.</returns>
+    public bool ResetDataBlockOffset(string callsign) => DataBlockState.RemoveManualOffset(callsign);
+
     private readonly HashSet<string> _shownPathCallsigns = [];
     private readonly Dictionary<string, (IReadOnlyList<ShownPathEntry> Segments, string Fingerprint)> _pathCache = [];
     private readonly Dictionary<string, int> _pathColorIndices = [];

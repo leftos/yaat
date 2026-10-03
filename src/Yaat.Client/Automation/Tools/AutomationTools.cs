@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Reflection;
+using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.Automation.Tools;
@@ -54,6 +55,13 @@ public sealed partial class AutomationTools(MainViewModel viewModel, IAutomation
     /// that restore would overwrite a centre or range set now.
     /// </summary>
     public string? RadarNotReady() => NoScenario() ?? (_viewModel.Radar.VideoMapsReady ? null : "The radar is still loading its maps and settings.");
+
+    /// <summary>The client's aircraft with <paramref name="callsign"/>, matched case-insensitively, or null.</summary>
+    private AircraftModel? FindAircraft(string callsign) =>
+        _viewModel.Aircraft.FirstOrDefault(candidate => string.Equals(candidate.Callsign, callsign, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>The answer of every tool given a callsign the client has no aircraft for.</summary>
+    private static AppToolOutcome NoAircraft(string callsign) => AppToolOutcome.Unavailable($"No aircraft with callsign {callsign} in the client.");
 
     private static IReadOnlyList<AppTool> Discover()
     {

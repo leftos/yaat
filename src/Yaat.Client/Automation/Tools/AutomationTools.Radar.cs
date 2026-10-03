@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Globalization;
-using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.Automation.Tools;
@@ -26,12 +25,9 @@ public sealed partial class AutomationTools
             );
         }
 
-        AircraftModel? aircraft = _viewModel.Aircraft.FirstOrDefault(candidate =>
-            string.Equals(candidate.Callsign, callsign, StringComparison.OrdinalIgnoreCase)
-        );
-        if (aircraft is null)
+        if (FindAircraft(callsign) is not { } aircraft)
         {
-            return Task.FromResult(AppToolOutcome.Unavailable($"No aircraft with callsign {callsign} in the client."));
+            return Task.FromResult(NoAircraft(callsign));
         }
 
         RadarViewModel radar = _viewModel.Radar;

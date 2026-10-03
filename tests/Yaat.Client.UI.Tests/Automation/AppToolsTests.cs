@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Reflection;
 using System.Text.Json;
 using Avalonia.Headless.XUnit;
+using SkiaSharp;
 using Xunit;
 using Yaat.Client.Automation;
 using Yaat.Client.Automation.Protocol;
@@ -10,6 +11,7 @@ using Yaat.Client.Models;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Map;
 using Yaat.Sim;
 
 namespace Yaat.Client.UI.Tests.Automation;
@@ -112,7 +114,13 @@ public sealed class AppToolsTests : AutomationHostFixture
         Assert.Equal(
             [
                 "center_radar(callsign:string,rangeNm:double)",
+                "clear_rbls()",
                 "load_recording(path:string)",
+                "place_rbl(from:string,to:string)",
+                "remove_rbl(slot:int)",
+                "reset_datablock_offset(callsign:string)",
+                "set_datablock_offset(callsign:string,dxPx:int,dyPx:int)",
+                "set_leader_direction(callsign:string,direction:int)",
                 "set_sim_rate(rate:int)",
                 "set_solo(enabled:bool)",
                 "set_video_map(starsId:int,enabled:bool)",
@@ -467,6 +475,263 @@ public sealed class AppToolsTests : AutomationHostFixture
         Assert.True(result.GetProperty("available").GetBoolean());
         Assert.Equal(pickerStatus, result.GetProperty("message").GetString());
         Assert.Equal(pickerStatus, viewModel.StatusText);
+    }
+
+    /// <summary><see cref="RadarReady"/> with two aircraft, UAL123 and AAL9, to measure between.</summary>
+    private static MainViewModel RadarReadyWithTwoAircraft()
+    {
+        MainViewModel viewModel = RadarReady();
+        viewModel.Aircraft.Add(new AircraftModel { Callsign = "UAL123", Position = new LatLon(37.7213, -122.2208) });
+        viewModel.Aircraft.Add(new AircraftModel { Callsign = "AAL9", Position = new LatLon(37.6188, -122.3750) });
+        return viewModel;
+    }
+
+    [AvaloniaFact]
+    public async Task PlaceRbl_TwoCallsigns_ReturnsTheSlotAndDrawsTheLine()
+    {
+        MainViewModel viewModel = RadarReadyWithTwoAircraft();
+
+        JsonElement result = Result(await CallTool(ToolsOf(viewModel), "place_rbl", new { from = "UAL123", to = "AAL9" }));
+
+        Assert.True(result.GetProperty("available").GetBoolean(), result.GetRawText());
+        Assert.Equal("RBL 1 placed: UAL123 to AAL9.", result.GetProperty("message").GetString());
+        RangeBearingLine line = Assert.Single(viewModel.Measure.Lines);
+        Assert.Equal(1, line.Slot);
+        Assert.Equal("UAL123", line.A.Callsign);
+        Assert.Equal("AAL9", line.B.Callsign);
+        Assert.Equal(RadarViewModel.MeasureView, line.View);
+    }
+
+    [AvaloniaFact]
+    public async Task PlaceRbl_UnknownEndpoint_IsUnavailableWithTheReason()
+    {
+        MainViewModel viewModel = RadarReadyWithTwoAircraft();
+
+        JsonElement result = Result(await CallTool(ToolsOf(viewModel), "place_rbl", new { from = "UAL123", to = "ZZZ9" }));
+
+        Assert.False(result.GetProperty("available").GetBoolean());
+        string reason = result.GetProperty("reason").GetString() ?? "";
+        Assert.StartsWith("Unknown", reason, StringComparison.Ordinal);
+        Assert.Contains("ZZZ9", reason, StringComparison.Ordinal);
+        Assert.Empty(viewModel.Measure.Lines);
+    }
+
+    [AvaloniaFact]
+    public async Task PlaceRbl_WhenAllSlotsAreUsed_IsUnavailable()
+    {
+        MainViewModel viewModel = RadarReadyWithTwoAircraft();
+        for (int i = 0; i < RangeBearingLineStore.MaxLines; i++)
+        {
+            Assert.NotNull(viewModel.PlaceMeasurementFromText("UAL123", "AAL9").Slot);
+        }
+
+        JsonElement result = Result(await CallTool(ToolsOf(viewModel), "place_rbl", new { from = "UAL123", to = "AAL9" }));
+
+        Assert.False(result.GetProperty("available").GetBoolean());
+        Assert.Equal(RangeBearingViewState.FullStatus, result.GetProperty("reason").GetString());
+        Assert.Equal(RangeBearingLineStore.MaxLines, viewModel.Measure.Lines.Count);
+    }
+
+    [AvaloniaFact]
+    public async Task RemoveRbl_RemovesOnlyThatSlot()
+    {
+        MainViewModel viewModel = RadarReadyWithTwoAircraft();
+        viewModel.PlaceMeasurementFromText("UAL123", "AAL9");
+        viewModel.PlaceMeasurementFromText("AAL9", "UAL123");
+        viewModel.PlaceMeasurementFromText("UAL123", "AAL9");
+
+        JsonElement result = Result(await CallTool(ToolsOf(viewModel), "remove_rbl", new { slot = 2 }));
+
+        Assert.True(result.GetProperty("available").GetBoolean(), result.GetRawText());
+        Assert.Equal("RBL 2 removed.", result.GetProperty("message").GetString());
+        Assert.Equal([1, 3], viewModel.Measure.Lines.Select(line => line.Slot));
+    }
+
+    [AvaloniaFact]
+    public async Task PlaceRbl_ReusesTheLowestFreeSlot()
+    {
+        MainViewModel viewModel = RadarReadyWithTwoAircraft();
+        viewModel.PlaceMeasurementFromText("UAL123", "AAL9");
+        viewModel.PlaceMeasurementFromText("AAL9", "UAL123");
+        viewModel.PlaceMeasurementFromText("UAL123", "AAL9");
+        viewModel.Measure.Remove(2);
+
+        JsonElement result = Result(await CallTool(ToolsOf(viewModel), "place_rbl", new { from = "AAL9", to = "UAL123" }));
+
+        Assert.Equal("RBL 2 placed: AAL9 to UAL123.", result.GetProperty("message").GetString());
+        Assert.Equal([1, 2, 3], viewModel.Measure.Lines.Select(line => line.Slot));
+    }
+
+    [AvaloniaFact]
+    public async Task RemoveRbl_EmptySlot_IsUnavailable()
+    {
+        MainViewModel viewModel = RadarReadyWithTwoAircraft();
+        viewModel.PlaceMeasurementFromText("UAL123", "AAL9");
+
+        JsonElement[] responses = await SendAll(
+            ToolsOf(viewModel),
+            (ProtocolMethods.CallAppTool, new { tool = "remove_rbl", arguments = new { slot = 3 } }),
+            (ProtocolMethods.CallAppTool, new { tool = "remove_rbl", arguments = new { slot = 99 } })
+        );
+
+        Assert.Equal("No RBL in slot 3.", Result(responses[0]).GetProperty("reason").GetString());
+        Assert.Equal("No RBL in slot 99.", Result(responses[1]).GetProperty("reason").GetString());
+        Assert.Single(viewModel.Measure.Lines);
+    }
+
+    [AvaloniaFact]
+    public async Task ClearRbls_RemovesEveryLine()
+    {
+        MainViewModel viewModel = RadarReadyWithTwoAircraft();
+        viewModel.PlaceMeasurementFromText("UAL123", "AAL9");
+        viewModel.PlaceMeasurementFromText("AAL9", "UAL123");
+
+        JsonElement result = Result(await CallTool(ToolsOf(viewModel), "clear_rbls", new { }));
+
+        Assert.Equal("Cleared 2 RBL(s).", result.GetProperty("message").GetString());
+        Assert.Empty(viewModel.Measure.Lines);
+    }
+
+    // The command and place_rbl share PlaceMeasurementFromText; the command still writes its outcome to the status line.
+    [AvaloniaFact]
+    public async Task MeasureCommand_PlacesTheLineAndReportsItInTheStatusLine()
+    {
+        MainViewModel viewModel = RadarReadyWithTwoAircraft();
+
+        viewModel.CommandText = ".rbl UAL123 AAL9";
+        await viewModel.SendCommandCommand.ExecuteAsync(null);
+        string placedStatus = viewModel.StatusText;
+        viewModel.CommandText = ".rbl UAL123 ZZZ9";
+        await viewModel.SendCommandCommand.ExecuteAsync(null);
+        string unknownStatus = viewModel.StatusText;
+
+        Assert.Equal(1, Assert.Single(viewModel.Measure.Lines).Slot);
+        Assert.Matches(@"^Measurement \d{3}/[\d.]+-1$", placedStatus);
+        JsonElement result = Result(await CallTool(ToolsOf(viewModel), "place_rbl", new { from = "UAL123", to = "ZZZ9" }));
+        Assert.Equal(unknownStatus, result.GetProperty("reason").GetString());
+    }
+
+    // No client test fakes the server, so no test observes the LDR on the wire: this pins the text the tool sends, and
+    // SetLeaderDirection_NeverConnected_ReportsNotSent proves the tool reaches the send.
+    [Fact]
+    public void LeaderDirectionCommand_IsLdrAndTheDigit()
+    {
+        Assert.Equal("LDR 7", AutomationTools.LeaderDirectionCommand(7));
+        Assert.Equal("LDR 5", AutomationTools.LeaderDirectionCommand(5));
+    }
+
+    [AvaloniaFact]
+    public async Task SetLeaderDirection_NeverConnected_ReportsNotSent()
+    {
+        MainViewModel viewModel = RadarReadyWithTwoAircraft();
+        viewModel.Preferences.SetSyncStudentLeaderDirection(true);
+
+        JsonElement result = Result(await CallTool(ToolsOf(viewModel), "set_leader_direction", new { callsign = "ual123", direction = 3 }));
+
+        Assert.True(result.GetProperty("available").GetBoolean(), result.GetRawText());
+        string message = result.GetProperty("message").GetString() ?? "";
+        Assert.StartsWith("LDR 3 for UAL123 was not sent: Command error:", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("preference", message, StringComparison.Ordinal);
+    }
+
+    [AvaloniaFact]
+    public async Task SetLeaderDirection_OutOfRange_IsInvalidParam()
+    {
+        JsonElement[] responses = await SendAll(
+            ToolsOf(RadarReadyWithTwoAircraft()),
+            (ProtocolMethods.CallAppTool, new { tool = "set_leader_direction", arguments = new { callsign = "UAL123", direction = 0 } }),
+            (ProtocolMethods.CallAppTool, new { tool = "set_leader_direction", arguments = new { callsign = "UAL123", direction = 10 } })
+        );
+
+        Assert.All(responses, response => Assert.Equal("direction", ErrorParam(Error(response, AutomationErrorCodes.InvalidParam))));
+    }
+
+    [AvaloniaFact]
+    public async Task SetLeaderDirection_SyncOff_SaysSo()
+    {
+        MainViewModel viewModel = RadarReadyWithTwoAircraft();
+        viewModel.Preferences.SetSyncStudentLeaderDirection(false);
+
+        JsonElement result = Result(await CallTool(ToolsOf(viewModel), "set_leader_direction", new { callsign = "UAL123", direction = 9 }));
+
+        Assert.EndsWith(
+            " The radar shows it only while the student leader direction sync preference is on; it is off.",
+            result.GetProperty("message").GetString(),
+            StringComparison.Ordinal
+        );
+    }
+
+    [AvaloniaFact]
+    public void RadarViewModel_SetDataBlockOffset_RaisesTheRepaintEvent()
+    {
+        MainViewModel viewModel = RadarReady();
+        int raised = 0;
+        viewModel.Radar.DataBlockState.ManualOffsetsChanged += () => raised++;
+
+        viewModel.Radar.SetDataBlockOffset("UAL123", new SKPoint(12, -8));
+        bool removed = viewModel.Radar.ResetDataBlockOffset("UAL123");
+        bool removedAgain = viewModel.Radar.ResetDataBlockOffset("UAL123");
+
+        Assert.True(removed);
+        Assert.False(removedAgain);
+        Assert.Equal(2, raised);
+    }
+
+    [AvaloniaFact]
+    public async Task SetDatablockOffset_WritesTheOffsetAndRaisesManualOffsetsChanged()
+    {
+        MainViewModel viewModel = RadarReadyWithTwoAircraft();
+        int raised = 0;
+        viewModel.Radar.DataBlockState.ManualOffsetsChanged += () => raised++;
+
+        JsonElement[] responses = await SendAll(
+            ToolsOf(viewModel),
+            (
+                ProtocolMethods.CallAppTool,
+                new
+                {
+                    tool = "set_datablock_offset",
+                    arguments = new
+                    {
+                        callsign = "ual123",
+                        dxPx = 40,
+                        dyPx = -20,
+                    },
+                }
+            ),
+            (
+                ProtocolMethods.CallAppTool,
+                new
+                {
+                    tool = "set_datablock_offset",
+                    arguments = new
+                    {
+                        callsign = "DAL1",
+                        dxPx = 1,
+                        dyPx = 1,
+                    },
+                }
+            )
+        );
+
+        Assert.Equal("Data block of UAL123 offset to (40, -20) px.", Result(responses[0]).GetProperty("message").GetString());
+        Assert.Equal(new SKPoint(40, -20), viewModel.Radar.DataBlockState.ManualOffsets["UAL123"]);
+        Assert.Equal(1, raised);
+        Assert.Equal("No aircraft with callsign DAL1 in the client.", Result(responses[1]).GetProperty("reason").GetString());
+    }
+
+    [AvaloniaFact]
+    public async Task ResetDatablockOffset_RemovesTheOffset()
+    {
+        MainViewModel viewModel = RadarReadyWithTwoAircraft();
+        viewModel.Radar.SetDataBlockOffset("UAL123", new SKPoint(40, -20));
+        var reset = new { tool = "reset_datablock_offset", arguments = new { callsign = "UAL123" } };
+
+        JsonElement[] responses = await SendAll(ToolsOf(viewModel), (ProtocolMethods.CallAppTool, reset), (ProtocolMethods.CallAppTool, reset));
+
+        Assert.Equal("Data block of UAL123 reset.", Result(responses[0]).GetProperty("message").GetString());
+        Assert.Equal("Data block of UAL123 was already at its default position.", Result(responses[1]).GetProperty("message").GetString());
+        Assert.False(viewModel.Radar.DataBlockState.ManualOffsets.ContainsKey("UAL123"));
     }
 
     /// <summary>

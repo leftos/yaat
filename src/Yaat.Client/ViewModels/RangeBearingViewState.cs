@@ -76,10 +76,12 @@ public sealed partial class RangeBearingViewState : ObservableObject
     }
 
     /// <summary>Places a whole measurement at once, for the modifier-drag and text-command paths.</summary>
-    public void Place(RblEndpoint from, RblEndpoint to, RblView view, RblTrackLookup lookup, RblUnits units)
+    /// <returns>The slot number the measurement took, or null when every slot is in use.</returns>
+    public int? Place(RblEndpoint from, RblEndpoint to, RblView view, RblTrackLookup lookup, RblUnits units)
     {
         int? slot = _store.Add(from, to, view);
         Report(slot is { } placed ? DescribePlaced(placed, lookup, units, view) : FullStatus);
+        return slot;
     }
 
     /// <summary>Cancels a half-placed measurement and disarms the tool. Placed measurements stay.</summary>
@@ -95,7 +97,13 @@ public sealed partial class RangeBearingViewState : ObservableObject
     }
 
     /// <summary>Removes one measurement by slot number.</summary>
-    public void Remove(int slot) => Report(_store.Remove(slot) ? $"Measurement {slot} removed" : $"No measurement {slot}");
+    /// <returns>True when the slot held a measurement; false when it was empty or out of range.</returns>
+    public bool Remove(int slot)
+    {
+        bool removed = _store.Remove(slot);
+        Report(removed ? $"Measurement {slot} removed" : $"No measurement {slot}");
+        return removed;
+    }
 
     /// <summary>Removes every measurement.</summary>
     public void Clear()
@@ -138,5 +146,13 @@ public sealed partial class RangeBearingViewState : ObservableObject
 
     private const string ArmedStatus = "Measure: click the first point or aircraft (Esc to cancel)";
     private const string AnchoredStatus = "Measure: click the second point or aircraft (Esc to cancel)";
-    private const string FullStatus = "Measure: all 15 measurements in use — clear one first";
+
+    /// <summary>The status every placement reports when all 15 slots are in use.</summary>
+    public const string FullStatus = "Measure: all 15 measurements in use — clear one first";
 }
+
+/// <summary>
+/// How placing a measurement from two typed endpoints ended: the slot it took, or the error the status line shows (an
+/// unresolvable or ambiguous endpoint, or every slot in use). Exactly one of the two is non-null.
+/// </summary>
+public readonly record struct MeasurePlacement(int? Slot, string? Error);

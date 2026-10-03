@@ -165,6 +165,13 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     private readonly RadarDataBlockViewState _localDataBlockState = new();
     private RadarDataBlockViewState State => DataBlockState ?? _localDataBlockState;
 
+    // The state whose offset changes (a drag, the reset menu item, an app tool) repaint this canvas: State while the
+    // canvas is in the visual tree, null otherwise, so a view-model state never holds a detached canvas.
+    private RadarDataBlockViewState? _watchedDataBlockState;
+
+    /// <summary>The datablock state whose offset changes repaint this canvas now, or null while detached. Test seam.</summary>
+    internal RadarDataBlockViewState? WatchedDataBlockState => _watchedDataBlockState;
+
     // Per-frame deconfliction result (callsign -> effective text-origin offset). Written on the UI
     // thread at snapshot build; read by the snapshot copy (draw) and by hit-testing. Persists across
     // frames to seed the next pass for stability.
@@ -805,12 +812,25 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// direction (when leader-direction sync is on) or the default placement. Backs the radar
     /// "Reset to student position" context-menu item.
     /// </summary>
-    public void ResetDataBlockOffset(string callsign)
+    public void ResetDataBlockOffset(string callsign) => State.RemoveManualOffset(callsign);
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        if (State.ManualOffsets.Remove(callsign))
-        {
-            MarkDirty();
-        }
+        base.OnAttachedToVisualTree(e);
+        WatchDataBlockState(State);
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        WatchDataBlockState(null);
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    private void WatchDataBlockState(RadarDataBlockViewState? state)
+    {
+        _watchedDataBlockState?.ManualOffsetsChanged -= MarkDirty;
+        _watchedDataBlockState = state;
+        _watchedDataBlockState?.ManualOffsetsChanged += MarkDirty;
     }
 
     /// <summary>Returns true if the callsign's datablock has been manually dragged to a custom position.</summary>
@@ -908,6 +928,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         )
         {
             MarkDirty();
+        }
+
+        if ((change.Property == DataBlockStateProperty) && (_watchedDataBlockState is not null))
+        {
+            WatchDataBlockState(State);
         }
 
         // Sync center from binding → viewport. On initial load, also zoom to range.
@@ -1612,8 +1637,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
             if (_dragThresholdMet && _dragCallsign is not null)
             {
-                State.ManualOffsets[_dragCallsign] = new SKPoint(_dragStartOffset.X + dx, _dragStartOffset.Y + dy);
-                MarkDirty();
+                State.SetManualOffset(_dragCallsign, new SKPoint(_dragStartOffset.X + dx, _dragStartOffset.Y + dy));
             }
 
             e.Handled = true;
