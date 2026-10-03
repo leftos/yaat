@@ -572,6 +572,8 @@ Once armed, the first click sets the anchor and a dashed line follows your curso
 
 The label sits at the line's far end. When that end is off-screen — say you measured `OAK` to `MOD` and are zoomed in on OAK — the reading is pulled back to where the line leaves the screen, so a partially visible line always shows its numbers.
 
+The label stays readable around traffic: it normally sits just right of the line's end, as in CRC, but moves to whichever side around the end is clearest of data blocks and aircraft. When every side is covered, it pushes the data blocks in the way just far enough aside, and they slide back once the label no longer needs the room. A data block you dragged by hand is never moved; the label works around it instead. (CRC leaves its label where it is, covered or not.)
+
 **Removing measurements:**
 
 - Right-click on or near a line → **Remove measurement N**.

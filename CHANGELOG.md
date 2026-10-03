@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- A range/bearing measurement's label moves clear of data blocks and aircraft, pushing auto-placed data blocks aside while every side is covered.
+
 ### Fixed
 
 - A loaded solo recording comes up in solo mode, so its replay speaks every pilot line and keeps its recorded conflict-alert inhibits.

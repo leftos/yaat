@@ -155,9 +155,7 @@ performs the fit once the viewport has pixel dimensions (`Viewport.PixelWidth >=
     `Views/Map/RangeBearingRenderer`. Last so a measurement stays legible over targets and datablocks. The snapshot
     carries them already resolved (`ResolvedRbl`), because a latched endpoint has to be looked up against the live
     aircraft list on the UI thread. Only lines tagged `RblView.Radar` are resolved into the snapshot — measurements
-    taken in the ground view never render here. The label normally sits at the far endpoint (CRC's placement); when
-    that endpoint is off-screen, `RblLabelPlacement` pulls it back to where the line exits the viewport and clamps it
-    fully inside, so a partially visible line always shows its reading.
+    taken in the ground view never render here. The readout is anchored at the far endpoint, or, when that endpoint is off-screen, where the line exits the viewport (`RblLabelPlacement.Anchor`), and every candidate spot is clamped fully inside the view (`RblLabelPlacement.ClampIntoView`), so a partially visible line always shows its reading. `RblReadoutPlacement` then picks one of eight spots around the anchor, East first (CRC's spot, 9 px out): the spot with the least overlap with data blocks, aircraft symbols (except the symbol of the aircraft the far end is latched to) and readouts already placed, scored as clamped, and kept frame to frame unless another spot is clearly cheaper. When every spot is covered, it takes the spot the fixed obstacles (manually dragged blocks, EuroScope tags, other readouts) leave freest and **nudges** the auto-placed blocks under it just clear (the shortest left/right/up/down move whose leader stays within `MaxLeaderLength`); a block no such move clears counts as fixed for that spot. A nudged block stays nudged until it clears the readout by 6 px, and readouts placed later in the frame treat it as fixed; a later readout's nudge never moves a block onto an earlier readout or a block it nudged (`RblObstacles.PlacedThisFrame`). The half-placed (pending) line uses the same spots but never nudges. CRC does not deconflict its readout; this is a YAAT departure.
 
 Inside step 6, `TargetRenderer` first draws **history trails** behind all symbols (`TargetRenderer.cs:198-202`), then does a
 **two-pass deferred render**: aircraft with an active speech bubble are held back to a second pass so their symbol,
@@ -394,6 +392,8 @@ direction > default**. Manually-dragged blocks are *pinned* (immovable obstacles
 for v1 because their per-field hit rects are cached from the draw. A non-overlapping block resolves to its preferred
 offset, so deconfliction only moves labels that actually collide. `BuildDeconflictItems` assembles the input list (anchor,
 rect-at-origin, preferred offset, pinned/priority flags) using the same `ComputeStableRectAtOrigin` the hit-test uses.
+
+**Readout nudges** sit on top of that precedence: after the deconfliction pass, `RadarCanvas` places the range/bearing readouts (`RblReadoutPlacement.PlaceAll`, see step 10 above) and keeps the nudges they gave auto-placed blocks in a separate `_rblNudgeOffsets` map (callsign → `RblNudge`: the delta and the readout slot that made it, so each readout's hysteresis keeps only its own nudges), never in `_resolvedDeconflictOffsets`, so a nudge does not seed the next deconfliction pass. The snapshot ships the deconflicted offsets with every nudge folded in, and the UI-thread hit-test reads the same layer (`DeconflictOffsetFor`, `ComputeDataBlockPlacement(includeNudge: true)`), so a nudged block is clicked and dragged where it is drawn. A manually dragged block is never nudged. `GroundCanvas` keeps the same layer (`ResolvedDataBlockOffset` with the nudge included).
 
 ## Hit-testing and visibility
 

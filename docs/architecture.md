@@ -19,6 +19,7 @@
 | **Approach procedures** | `ApproachCommandHandler.cs`, `ApproachNavigationPhase.cs`, `FinalApproachPhase.cs`, `CifpParser.cs` |
 | **SID/STAR** | `DepartureClearanceHandler.cs`, `InitialClimbPhase.cs`, `DepartureProcedurePhase.cs`, `ProcedureLegResolver.cs`, `ProcedureLeg.cs`, `CifpParser.cs`, `NavigationDatabase.cs` |
 | **Radar rendering** | `RadarCanvas.cs` (input/zoom) → `RadarRenderer.cs` (drawing) → `TargetRenderer.cs` (datablocks) → `VideoMapRenderer.cs` (maps) |
+| **Change where a radar or ground overlay label sits relative to datablocks** | `docs/radar-rendering.md` → `RadarCanvas.cs` → `GroundCanvas.cs` → `RadarDatablockLayout.ResolveBlockOffset` → `TargetRenderer.cs` / `GroundRenderer.cs` → `RangeBearingRenderer.cs` → `RblReadoutPlacement.cs` → `DatablockDeconfliction.cs` → `DatablockHitTestParityTests.cs` |
 | **Ground view rendering** | `GroundCanvas.cs` (input/hit-test) → `GroundRenderer.cs` (drawing, 3 layers) |
 | **Command input UX** | `CommandInputController.cs` (parse pipeline) → `ArgumentSuggester.cs` (dropdown values) → `SignatureHelpState.cs` (inline hints) |
 | **Fix an STT phraseology rule that never matches** | [speech-recognition-pipeline.md](speech-recognition-pipeline.md) (the mapper's pass order) → [plans/stt-rule-gaps.md](plans/stt-rule-gaps.md) → `src/Yaat.Sim/Speech/PhraseologyRules.cs` → `PhraseologyMapper.cs` (`MapWithTrace` pass order, capture guards) → `AtcNumberParser.NormalizeDigits` / `NatoLetterNormalizer.cs` / `TrafficCallsignNormalizer.cs` (what rewrites the tokens first) → `CallsignParser.cs` → `PhraseologyVerbalizer.cs` (shares the non-`SttOnly` patterns) → `tests/Yaat.Sim.Tests/Speech/PhraseologyMapperTests.cs`, `tests/Yaat.Client.Tests/AtcOuroborosTests.cs` (`KnownGaps`) |
@@ -512,8 +513,9 @@ Views/Map/
   MapCanvasBase.cs              # ICustomDrawOperation base + pan/zoom input handling
   TextStyle.cs                  # Paired (SKFont, SKPaint) for measuring + drawing text; keeps draw and hit-test metrics identical
   DatablockDeconfliction.cs     # Pure opt-in datablock overlap resolver shared by radar + ground (snap / free-form)
-  RangeBearingLines.cs          # Distance measuring tool (CRC STARS *T): endpoints, 15-slot store (lines tagged per RblView — radar/ground each render only their own), label formatting, resolver, viewport label clamp (RblLabelPlacement), hit-test
-  RangeBearingRenderer.cs       # Draws measurement lines + labels (label clamped on-screen via RblLabelPlacement); shared by radar + ground renderers
+  RangeBearingLines.cs          # Distance measuring tool (CRC STARS *T): endpoints, 15-slot store (lines tagged per RblView — radar/ground each render only their own), label formatting, resolver, readout anchor + viewport clamp (RblLabelPlacement), hit-test
+  RblReadoutPlacement.cs        # Places each range/bearing readout at the least-covered of eight spots around its anchor and nudges auto-placed datablocks clear when every spot is covered; shared by radar + ground canvases
+  RangeBearingRenderer.cs       # Draws measurement lines + readouts at the rects RblReadoutPlacement chose; shared by radar + ground renderers
   RightClickGesture.cs          # Right-button click-vs-drag tracker shared by radar + ground: menu on release-without-drag, pan otherwise
   RightClickTarget.cs           # One thing a right click hit (aircraft or parking/spot/helipad node) and its picker label
   RightClickPicker.cs           # Small menu listing several right-click targets; choosing one raises that target's own right-click event

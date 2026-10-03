@@ -328,6 +328,9 @@ YAAT Scope overlays drawn from simulation truth rather than from what the contro
 **Scope entry**:
 Data a controller types into their display's automation (ERAM `QQ`, a STARS scratchpad): it changes what the displays show and never moves the aircraft, unlike a pilot command.
 
+**Nudge**:
+A range/bearing readout pushing an auto-placed data block (one at its default or deconflicted placement, never a manually dragged one) just far enough aside to stay readable, capped at the leader's maximum length; the block returns once the readout no longer needs the room (`RblReadoutPlacement`).
+
 **Situation**:
 A named bucket of aircraft phases and state (Taxiing, Holding short, Final, IFR arrival…) that picks an aircraft menu's quick commands.
 _Avoid_: phase (one situation spans several phases)

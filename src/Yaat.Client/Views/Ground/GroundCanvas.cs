@@ -204,6 +204,15 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     // frames to seed the next pass for stability.
     private readonly Dictionary<string, SKPoint> _resolvedDeconflictOffsets = [];
     private readonly Dictionary<string, SKPoint> _deconflictScratch = [];
+
+    // Nudges the measurement readouts gave auto-placed datablocks this frame (callsign -> delta added to the
+    // block's offset), and each readout's spot (slot -> spot). Written once per snapshot build; the draw reads
+    // the nudges through the snapshot's merged offsets, the hit-test through DeconflictOffsetFor. Kept apart
+    // from _resolvedDeconflictOffsets, which seeds the next deconfliction pass, so a nudge never feeds back.
+    private readonly Dictionary<string, RblNudge> _rblNudgeOffsets = [];
+    private readonly Dictionary<int, RblReadoutSpot> _rblReadoutSpots = [];
+    private readonly SKFont _rblMeasureFont = PlatformHelper.MonospaceFont(RangeBearingRenderer.LabelFontSize);
+    private static readonly IReadOnlyDictionary<int, SKRect> NoReadoutRects = new Dictionary<int, SKRect>();
     private readonly SKPaint _hitTestPaint = new();
     private readonly SKFont _hitTestFont = PlatformHelper.MonospaceFontBold(12);
 
@@ -211,7 +220,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// Measuring pair for the hit-test path. Must stay metric-identical to the renderer's ground
     /// datablock style, or clicks miss the block.
     /// </summary>
-    private TextStyle HitTestStyle => new(_hitTestFont, _hitTestPaint);
+    internal TextStyle HitTestStyle => new(_hitTestFont, _hitTestPaint);
 
     public float DatablockTextSize
     {
@@ -861,6 +870,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         bool ShowAdwMarkings,
         IReadOnlyList<ResolvedRbl>? RangeBearingLines,
         ResolvedRbl? PendingRangeBearingLine,
+        IReadOnlyDictionary<int, SKRect> RblReadoutRects,
         (string Label, SKPoint NodePos)? CtrlNodeHover,
         PendingPushPoint? PendingPushPoint
     );
@@ -890,36 +900,14 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             }
         }
 
-        List<ResolvedRbl>? measurements = null;
-        ResolvedRbl? pendingMeasurement = null;
-        IReadOnlyList<RangeBearingLine>? placedMeasurements = RangeBearingLines;
-        // A half-placed anchor picked in the other view previews there, not here.
-        RblEndpoint? measureAnchor =
-            _measureDragAnchor ?? (MeasureAnchor is { View: RblView.Ground } pending ? pending.Endpoint : (RblEndpoint?)null);
-        if (placedMeasurements is { Count: > 0 } || measureAnchor is not null)
-        {
-            RblTrackLookup lookup = BuildMeasureLookup();
-            if (placedMeasurements is { Count: > 0 })
-            {
-                measurements = RangeBearingLineResolver.Resolve(
-                    placedMeasurements,
-                    lookup,
-                    GroundViewModel.MeasureUnits,
-                    GroundViewModel.MeasureView
-                );
-            }
-
-            if (measureAnchor is not null)
-            {
-                (double Lat, double Lon) cursor = Viewport.ScreenToLatLon((float)_pointerPos.X, (float)_pointerPos.Y);
-                pendingMeasurement = RangeBearingLineResolver.ResolvePending(
-                    measureAnchor,
-                    new LatLon(cursor.Lat, cursor.Lon),
-                    lookup,
-                    GroundViewModel.MeasureUnits
-                );
-            }
-        }
+        (List<ResolvedRbl>? measurements, ResolvedRbl? pendingMeasurement) = ResolveMeasurements();
+        (IReadOnlyDictionary<int, SKRect> readoutRects, IReadOnlyDictionary<string, SKPoint> shippedOffsets) = PlaceRblReadouts(
+            aircraft,
+            hiddenDbs,
+            measurements,
+            pendingMeasurement,
+            deconflictOffsets
+        );
 
         (string Label, SKPoint NodePos)? ctrlNodeHover = ResolveCtrlNodeHover();
         DrawnPendingPushPoint = ResolvePendingPushPoint();
@@ -940,7 +928,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             PushRoutePreview,
             IsDrawingRoute,
             new Dictionary<string, SKPoint>(state.ManualOffsets),
-            deconflictOffsets,
+            shippedOffsets,
             ShowDebugInfo,
             WeatherInfo,
             WeatherNote,
@@ -963,9 +951,148 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             ShowAdwMarkings,
             measurements,
             pendingMeasurement,
+            readoutRects,
             ctrlNodeHover,
             DrawnPendingPushPoint
         );
+    }
+
+    /// <summary>Resolves the placed measurements and the half-placed one (picked in this view) for this frame.</summary>
+    private (List<ResolvedRbl>? Lines, ResolvedRbl? Pending) ResolveMeasurements()
+    {
+        IReadOnlyList<RangeBearingLine>? placedMeasurements = RangeBearingLines;
+        // A half-placed anchor picked in the other view previews there, not here.
+        RblEndpoint? measureAnchor =
+            _measureDragAnchor ?? (MeasureAnchor is { View: RblView.Ground } pending ? pending.Endpoint : (RblEndpoint?)null);
+        if ((placedMeasurements is not { Count: > 0 }) && (measureAnchor is null))
+        {
+            return (null, null);
+        }
+
+        RblTrackLookup lookup = BuildMeasureLookup();
+        List<ResolvedRbl>? measurements = placedMeasurements is { Count: > 0 }
+            ? RangeBearingLineResolver.Resolve(placedMeasurements, lookup, GroundViewModel.MeasureUnits, GroundViewModel.MeasureView)
+            : null;
+        ResolvedRbl? pendingMeasurement = null;
+        if (measureAnchor is not null)
+        {
+            (double Lat, double Lon) cursor = Viewport.ScreenToLatLon((float)_pointerPos.X, (float)_pointerPos.Y);
+            pendingMeasurement = RangeBearingLineResolver.ResolvePending(
+                measureAnchor,
+                new LatLon(cursor.Lat, cursor.Lon),
+                lookup,
+                GroundViewModel.MeasureUnits
+            );
+        }
+
+        return (measurements, pendingMeasurement);
+    }
+
+    /// <summary>
+    /// Places this frame's measurement readouts clear of datablocks and symbols (<see cref="RblReadoutPlacement"/>),
+    /// rewriting <see cref="_rblNudgeOffsets"/> and <see cref="_rblReadoutSpots"/>. Returns each readout's rect by slot
+    /// and the datablock offsets to ship to the draw: <paramref name="deconflictOffsets"/> with every nudge folded in.
+    /// </summary>
+    private (IReadOnlyDictionary<int, SKRect> ReadoutRects, IReadOnlyDictionary<string, SKPoint> Offsets) PlaceRblReadouts(
+        IReadOnlyList<AircraftModel> aircraft,
+        IReadOnlySet<string> hiddenDataBlocks,
+        IReadOnlyList<ResolvedRbl>? lines,
+        ResolvedRbl? pending,
+        IReadOnlyDictionary<string, SKPoint> deconflictOffsets
+    )
+    {
+        if ((lines is not { Count: > 0 }) && (pending is null))
+        {
+            return ClearRblPlacement(deconflictOffsets);
+        }
+
+        List<RblReadout> readouts = RangeBearingRenderer.BuildReadouts(lines, pending, Viewport, _rblMeasureFont);
+        if (readouts.Count == 0)
+        {
+            return ClearRblPlacement(deconflictOffsets);
+        }
+
+        RblObstacles obstacles = BuildRblObstacles(aircraft, hiddenDataBlocks);
+        Dictionary<int, SKRect> rects = RblReadoutPlacement.PlaceAll(readouts, obstacles, _rblReadoutSpots, _rblNudgeOffsets);
+        if (_rblNudgeOffsets.Count == 0)
+        {
+            return (rects, deconflictOffsets);
+        }
+
+        var merged = new Dictionary<string, SKPoint>(deconflictOffsets);
+        foreach (string callsign in _rblNudgeOffsets.Keys)
+        {
+            if (DeconflictOffsetFor(callsign) is { } nudged)
+            {
+                merged[callsign] = nudged;
+            }
+        }
+
+        return (rects, merged);
+    }
+
+    /// <summary>
+    /// What the readouts avoid: every drawn datablock with no nudge applied — movable at its default or
+    /// auto-deconflicted placement, fixed with a manual drag offset — and every symbol. A hidden block is not drawn,
+    /// so it is neither.
+    /// </summary>
+    private RblObstacles BuildRblObstacles(IReadOnlyList<AircraftModel> aircraft, IReadOnlySet<string> hiddenDataBlocks)
+    {
+        var fixedBlocks = new List<SKRect>();
+        var movable = new List<RblMovableBlock>();
+        var symbols = new List<SKPoint>(aircraft.Count);
+        foreach (AircraftModel ac in aircraft)
+        {
+            (float sx, float sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+            symbols.Add(new SKPoint(sx, sy));
+            if (hiddenDataBlocks.Contains(ac.Callsign) && !ReferenceEquals(ac, SelectedAircraft))
+            {
+                continue;
+            }
+
+            SKRect rect = DataBlockRect(ac, includeNudge: false);
+            if (State.ManualOffsets.ContainsKey(ac.Callsign))
+            {
+                fixedBlocks.Add(rect);
+            }
+            else
+            {
+                movable.Add(new RblMovableBlock(ac.Callsign, new SKPoint(sx, sy), rect));
+            }
+        }
+
+        var bounds = new SKRect(0, 0, Viewport.PixelWidth, Viewport.PixelHeight);
+        float maxLeader = DatablockDeconfliction.MaxLeaderLength(DatablockDeconfliction.Options.Default(bounds));
+        return new RblObstacles
+        {
+            FixedBlocks = fixedBlocks,
+            PlacedThisFrame = [],
+            MovableBlocks = movable,
+            SymbolCentres = symbols,
+            SymbolHalfSide = AircraftHitRadiusPx,
+            MaxLeaderLength = maxLeader,
+            ViewSize = new SKSize(Viewport.PixelWidth, Viewport.PixelHeight),
+        };
+    }
+
+    /// <summary>No readouts this frame: every nudge returns and no spot is remembered.</summary>
+    private (IReadOnlyDictionary<int, SKRect> ReadoutRects, IReadOnlyDictionary<string, SKPoint> Offsets) ClearRblPlacement(
+        IReadOnlyDictionary<string, SKPoint> deconflictOffsets
+    )
+    {
+        _rblNudgeOffsets.Clear();
+        _rblReadoutSpots.Clear();
+        return (NoReadoutRects, deconflictOffsets);
+    }
+
+    /// <summary>
+    /// Builds one render snapshot, as a frame does, and returns the datablock offsets and readout rects it ships to the
+    /// draw — the parity tests compare them with the hit-test placement.
+    /// </summary>
+    internal (IReadOnlyDictionary<string, SKPoint> DeconflictOffsets, IReadOnlyDictionary<int, SKRect> ReadoutRects) CaptureSnapshotPlacement()
+    {
+        var snapshot = (RenderSnapshot)CreateRenderSnapshot()!;
+        return (snapshot.DeconflictOffsets, snapshot.RblReadoutRects);
     }
 
     /// <summary>
@@ -1066,7 +1193,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         _renderer.DrawPendingPushPoint(canvas, viewport, s.PendingPushPoint);
 
         // Drawn last so a measurement stays readable over aircraft symbols, datablocks, and the surface.
-        _renderer.DrawRangeBearingLines(canvas, viewport, s.RangeBearingLines, s.PendingRangeBearingLine);
+        _renderer.DrawRangeBearingLines(canvas, viewport, s.RangeBearingLines, s.PendingRangeBearingLine, s.RblReadoutRects);
     }
 
     private static IReadOnlyList<AircraftModel> SortByZOrder(IReadOnlyList<AircraftModel> aircraft, Dictionary<string, int> zOrder)
@@ -1991,35 +2118,62 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         return hits;
     }
 
-    private bool DataBlockContains(AircraftModel ac, Point screenPos)
+    private bool DataBlockContains(AircraftModel ac, Point screenPos) =>
+        DataBlockRect(ac, includeNudge: true).Contains((float)screenPos.X, (float)screenPos.Y);
+
+    /// <summary>The datablock's hit-test rect where it is drawn, measurement-readout nudge included.</summary>
+    internal SKRect DataBlockRect(AircraftModel ac) => DataBlockRect(ac, includeNudge: true);
+
+    private SKRect DataBlockRect(AircraftModel ac, bool includeNudge)
     {
         (float sx, float sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
-        SKPoint offset = ResolvedDataBlockOffset(ac.Callsign);
+        SKPoint offset = ResolvedDataBlockOffset(ac.Callsign, includeNudge);
 
         // Match the draw path's airborne flag (GroundRenderer.DrawOneDataBlock) so an airborne
         // aircraft's altitude line is included in the hit rect — otherwise its block is one line
         // shorter than drawn and clicks near the bottom miss.
-        var layout = DataBlockLayout.Compute(ac, sx, sy, offset, HitTestStyle, isAirborne: !ac.IsOnGround);
-        return layout.Rect.Contains((float)screenPos.X, (float)screenPos.Y);
+        return DataBlockLayout.Compute(ac, sx, sy, offset, HitTestStyle, isAirborne: !ac.IsOnGround).Rect;
     }
 
     /// <summary>
-    /// The offset the callsign's datablock is currently drawn at: manual drag > deconfliction > default.
-    /// Shared by hit-testing and the drag-start seed so grabbing a deconflicted block never jumps it
-    /// back to the default slot on the first move (mirrors <c>RadarCanvas.ComputeDataBlockPlacement</c>).
+    /// The offset the callsign's datablock is currently drawn at: manual drag > deconfliction (plus any
+    /// measurement-readout nudge) > default. Shared by hit-testing and the drag-start seed so grabbing a
+    /// deconflicted block never jumps it back to the default slot on the first move (mirrors
+    /// <c>RadarCanvas.ComputeDataBlockPlacement</c>).
     /// </summary>
-    public SKPoint ResolvedDataBlockOffset(string callsign)
+    public SKPoint ResolvedDataBlockOffset(string callsign) => ResolvedDataBlockOffset(callsign, includeNudge: true);
+
+    private SKPoint ResolvedDataBlockOffset(string callsign, bool includeNudge)
     {
         if (State.ManualOffsets.TryGetValue(callsign, out SKPoint manual))
         {
             return manual;
         }
-        return DeconflictOffsetFor(callsign) ?? DataBlockLayout.DefaultOffset;
+
+        SKPoint? deconflict = includeNudge ? DeconflictOffsetFor(callsign) : BaseDeconflictOffsetFor(callsign);
+        return deconflict ?? DataBlockLayout.DefaultOffset;
     }
 
     /// <summary>The deconfliction-resolved offset for a callsign, or null when deconfliction is off or absent.</summary>
-    private SKPoint? DeconflictOffsetFor(string callsign) =>
+    private SKPoint? BaseDeconflictOffsetFor(string callsign) =>
         DeconflictMode != DatablockDeconflictMode.Off && _resolvedDeconflictOffsets.TryGetValue(callsign, out SKPoint off) ? off : null;
+
+    /// <summary>
+    /// The offset the deconfliction layer gives a block, plus its measurement-readout nudge when it has one: with a
+    /// nudge and no deconfliction offset (mode Off), the default offset plus the nudge. Null when neither applies.
+    /// A manual offset still wins over this in <see cref="ResolvedDataBlockOffset"/>; manual blocks are never nudged.
+    /// </summary>
+    private SKPoint? DeconflictOffsetFor(string callsign)
+    {
+        SKPoint? deconflict = BaseDeconflictOffsetFor(callsign);
+        if (!_rblNudgeOffsets.TryGetValue(callsign, out RblNudge nudge))
+        {
+            return deconflict;
+        }
+
+        SKPoint from = deconflict ?? DataBlockLayout.DefaultOffset;
+        return new SKPoint(from.X + nudge.Delta.X, from.Y + nudge.Delta.Y);
+    }
 
     /// <summary>
     /// Runs the deconfliction pass for the current frame and returns an immutable copy for the snapshot.
@@ -2414,5 +2568,6 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         _renderer.Dispose();
         _hitTestPaint.Dispose();
         _hitTestFont.Dispose();
+        _rblMeasureFont.Dispose();
     }
 }
