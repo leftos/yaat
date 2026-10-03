@@ -2056,6 +2056,7 @@ Two collapsible sections, each toggled by its header checkbox. Speech recognitio
 | Setting | What it does | Default |
 |---------|--------------|---------|
 | **Solo pilot voice — Volume** | Speaks typed solo-training pilot transmissions with the local Piper voice pack. | 80% |
+| **Speed** | How fast solo pilots speak, from 0.75× to 1.5× in 0.05 steps; 1.00× is the voice's natural pace. Pitch is unchanged. | 1.10× |
 | **Radio effect** | Applies a radio-style filter to the pilot voice. | On |
 | **Piper voice pack** | Download / delete the local voice pack (shared across app upgrades). | — |
 

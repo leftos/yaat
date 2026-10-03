@@ -66,7 +66,7 @@ public class MainViewModelPilotVoiceWarningTests
     {
         var vm = new MainViewModel(new FakeFilePickerService());
         Dispatcher.UIThread.RunJobs();
-        vm.Preferences.SetPilotVoiceSettings(false, 80, true);
+        vm.Preferences.SetPilotVoiceSettings(false, 80, true, 1.1);
         vm.ApplyRoomState(PausedRoom(solo));
         Dispatcher.UIThread.RunJobs();
         vm.PilotVoiceWarningPrompt = prompt.Show;
@@ -204,7 +204,7 @@ public class MainViewModelPilotVoiceWarningTests
         var prompt = new PromptStub(PilotVoiceWarningChoice.StartAnyway);
         var vm = new MainViewModel(new FakeFilePickerService());
         Dispatcher.UIThread.RunJobs();
-        vm.Preferences.SetPilotVoiceSettings(false, 80, true);
+        vm.Preferences.SetPilotVoiceSettings(false, 80, true, 1.1);
         vm.PilotVoiceWarningPrompt = prompt.Show;
         Assert.False(vm.NoPilotVoiceInSolo); // not in a room
 

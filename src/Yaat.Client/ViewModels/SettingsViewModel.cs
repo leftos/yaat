@@ -275,6 +275,9 @@ public partial class SettingsViewModel : ObservableObject
     private bool _pilotVoiceRadioFxEnabled = true;
 
     [ObservableProperty]
+    private double _pilotVoiceSpeechRate = UserPreferences.PilotVoiceSpeechRateDefault;
+
+    [ObservableProperty]
     private string _aircraftSelectKeyDisplay = "Numpad +";
 
     [ObservableProperty]
@@ -735,6 +738,7 @@ public partial class SettingsViewModel : ObservableObject
         _pilotVoiceEnabled = _preferences.PilotVoiceEnabled;
         _pilotVoiceVolume = _preferences.PilotVoiceVolume;
         _pilotVoiceRadioFxEnabled = _preferences.PilotVoiceRadioFxEnabled;
+        _pilotVoiceSpeechRate = _preferences.PilotVoiceSpeechRate;
         _aircraftSelectKeyName = _preferences.AircraftSelectKey;
         _aircraftSelectKeyDisplay = KeyComboToDisplay(_aircraftSelectKeyName);
         _focusInputKeyName = _preferences.FocusInputKey;
@@ -900,7 +904,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetSoloTrainingMode(SoloTrainingMode);
         _preferences.SetSoloGoAroundProbabilityGlobal(SoloGoAroundProbabilityPercent);
         _preferences.SetRpoPilotSpeechAudibleAlert(RpoPilotSpeechAudibleAlert);
-        _preferences.SetPilotVoiceSettings(PilotVoiceEnabled, PilotVoiceVolume, PilotVoiceRadioFxEnabled);
+        _preferences.SetPilotVoiceSettings(PilotVoiceEnabled, PilotVoiceVolume, PilotVoiceRadioFxEnabled, PilotVoiceSpeechRate);
         _preferences.SetEuroScopeMode(EuroScopeMode);
         _preferences.SetFlashNoLandingClearance(FlashNoLandingClearance);
         _preferences.SetShowConflictAlerts(ShowConflictAlerts);

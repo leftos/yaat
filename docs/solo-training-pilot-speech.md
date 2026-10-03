@@ -242,6 +242,7 @@ Two scenario knobs control pilot-AI cadence (persisted via `RecordedSettingChang
 
 - **Synthesizer.** `SherpaOnnxPilotVoiceSynthesizer` loads the Piper LibriTTS-R medium voice pack (904 speakers). The voice pack is downloaded by `PiperVoiceInstaller` from the sherpa-onnx GitHub release into `YaatPaths.Combine("voices", ...)` so Velopack upgrades don't wipe it.
 - **Speaker assignment.** `PilotVoiceAssigner` (yaat-server) maps `(scenarioRngSeed, callsign)` → speaker id 0–903 deterministically. Same callsign in the same scenario keeps the same voice.
+- **Speaking rate.** `UserPreferences.PilotVoiceSpeechRate` (0.75–1.5 in 0.05 steps, default 1.1) is read with volume and radio FX when `MainViewModel.OnPilotTransmissionReceived` enqueues a transmission, and becomes the synthesis call's `OfflineTtsGenerationConfig.Speed`, which shortens phoneme durations without shifting pitch. The prewarm call and the model's `LengthScale` stay at 1.0. The rate is client playback only: the server's airtime serialization does not read it.
 - **Radio FX.** `RadioAudioFx` applies a band-pass (1450 Hz, Q=0.9), highpass at 200 Hz, soft tanh saturation, and a 120 ms squelch tail. Toggle via `UserPreferences.PilotVoiceRadioFxEnabled`.
 - **Output.** `PortAudioFloatPlayer` writes mono float32 to the default output device.
 
