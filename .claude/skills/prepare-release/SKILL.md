@@ -56,7 +56,7 @@ builds and tests yaat + yaat-server in Release configuration; failures here
 would ship to users:
 
 ```bash
-pwsh tools/gate.ps1 -Log .tmp/test-all-prerelease.log -TimeoutSeconds 900 -Slot heavy -- pwsh tools/test-all.ps1
+pwsh tools/gate.ps1 -Log .tmp/test-all-prerelease.log -TimeoutSeconds 360 -Slot heavy -- pwsh tools/test-all.ps1
 ```
 
 **Do not append `| tail` or `| grep`.** A teed pipeline reports its last stage's status, so a failed build reads as green — that is exactly how a release once went out over a `main` that did not compile, with four "Passed!" lines above it. `tools/gate.ps1` propagates the command's own status and also fails when the log contains `Build FAILED` or `error CS`.

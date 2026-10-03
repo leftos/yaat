@@ -159,7 +159,7 @@ The bot's tests are its own claim, not your verification. Run the repo gate in t
 ```bash
 YAAT="$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd)" && cd "$YAAT"
 pwsh tools/gate.ps1 -Log .tmp/build.log -TimeoutSeconds 300 -Slot heavy -- dotnet build -p:TreatWarningsAsErrors=true
-pwsh tools/gate.ps1 -Log .tmp/test-all.log -TimeoutSeconds 900 -Slot heavy -- pwsh tools/test-all.ps1
+pwsh tools/gate.ps1 -Log .tmp/test-all.log -TimeoutSeconds 360 -Slot heavy -- pwsh tools/test-all.ps1
 ```
 
 `test-all.ps1` is the right gate here rather than a bare `dotnet test`: a bot fix

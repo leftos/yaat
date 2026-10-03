@@ -163,7 +163,7 @@ Don't add rules in `PhraseologyRules.cs` without a failing test first.
 
 7. **Cross-repo sanity** before committing:
    ```bash
-   pwsh tools/gate.ps1 -Log .tmp/stt-test-all.log -TimeoutSeconds 900 -Slot heavy -- pwsh tools/test-all.ps1
+   pwsh tools/gate.ps1 -Log .tmp/stt-test-all.log -TimeoutSeconds 360 -Slot heavy -- pwsh tools/test-all.ps1
    ```
 
    If more than one test is red, classify every failure before editing any of

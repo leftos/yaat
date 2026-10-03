@@ -224,7 +224,7 @@ Each is a product decision: does YAAT model this surface? Write a short proposal
 Before each commit:
 1. `pwsh tools/gate.ps1 -Log .tmp/build.log -TimeoutSeconds 300 -Slot heavy -- dotnet build -p:TreatWarningsAsErrors=true` — zero warnings
 2. `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -- dotnet test -- --filter-method "*Speech*"` — speech-specific tests pass
-3. `pwsh tools/gate.ps1 -Log .tmp/test-all.log -TimeoutSeconds 900 -Slot heavy -- pwsh tools/test-all.ps1` — cross-repo full suite passes
+3. `pwsh tools/gate.ps1 -Log .tmp/test-all.log -TimeoutSeconds 360 -Slot heavy -- pwsh tools/test-all.ps1` — cross-repo full suite passes
 4. `prek run` — pre-commit hooks pass (will run automatically on `git commit` too)
 
 Then commit. Don't push without the user asking.
