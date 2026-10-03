@@ -12,7 +12,7 @@ namespace Yaat.Client.Automation.Handlers;
 
 /// <summary>
 /// <c>list_windows</c>: every root the registry reports (the host's windows and the windows they own), plus the popups
-/// open in each window's overlay layer, each with its stable node id and its owner's. The host runs only where popups
+/// open in each window's overlay layer, each with its stable node id, its owner's and its native window handle. The host runs only where popups
 /// are overlay popups (automation mode on Windows), so there are no popup windows to list.
 /// </summary>
 public sealed class ListWindowsHandler(NodeRegistry registry) : IRequestHandler
@@ -21,6 +21,15 @@ public sealed class ListWindowsHandler(NodeRegistry registry) : IRequestHandler
 
     public async Task<object> Handle(AutomationRequest request, CancellationToken cancellationToken) =>
         await Dispatcher.UIThread.InvokeAsync<object>(ListWindows);
+
+    /// <summary>The native window handle the platform gives <paramref name="root"/> (an HWND on Windows); 0 when it gives none.</summary>
+    public static long HwndOf(TopLevel root) => ToHwnd(root.TryGetPlatformHandle()?.Handle ?? 0);
+
+    /// <summary>
+    /// <paramref name="handle"/> as an HWND's value: its low 32 bits, unsigned. An HWND fits in 32 bits even in a 64-bit
+    /// process and may arrive sign-extended; UI Automation's reading and the recorder's <c>--hwnd</c> both take it unsigned.
+    /// </summary>
+    public static long ToHwnd(nint handle) => (long)(uint)handle;
 
     private List<WindowInfo> ListWindows()
     {
@@ -55,9 +64,20 @@ public sealed class ListWindowsHandler(NodeRegistry registry) : IRequestHandler
                 OwnerId: window.Owner is { } owner ? registry.GetOrRegister(owner) : null,
                 bounds,
                 window.IsActive,
-                window.IsVisible
+                window.IsVisible,
+                HwndOf(window)
             ),
-            _ => new WindowInfo(nodeId, null, root.GetType().Name, IsPopup: false, OwnerId: null, bounds, IsActive: false, root.IsVisible),
+            _ => new WindowInfo(
+                nodeId,
+                null,
+                root.GetType().Name,
+                IsPopup: false,
+                OwnerId: null,
+                bounds,
+                IsActive: false,
+                root.IsVisible,
+                HwndOf(root)
+            ),
         };
     }
 
@@ -91,7 +111,8 @@ public sealed class ListWindowsHandler(NodeRegistry registry) : IRequestHandler
                     ownerId,
                     bounds,
                     IsActive: false,
-                    host.IsVisible
+                    host.IsVisible,
+                    Hwnd: 0
                 )
             );
         }

@@ -12,6 +12,10 @@ namespace Yaat.Client.Automation.Protocol;
 /// </param>
 /// <param name="IsActive">Whether the window is the active (foreground) window.</param>
 /// <param name="IsVisible">Whether the element is visible.</param>
+/// <param name="Hwnd">
+/// The native window handle (an HWND on Windows), for capturing the window from outside the client; 0 when the platform gives
+/// none, as for an overlay popup, which lives inside its window.
+/// </param>
 public sealed record WindowInfo(
     int NodeId,
     string? Title,
@@ -20,5 +24,6 @@ public sealed record WindowInfo(
     int? OwnerId,
     BoundsInfo Bounds,
     bool IsActive,
-    bool IsVisible
+    bool IsVisible,
+    long Hwnd
 );

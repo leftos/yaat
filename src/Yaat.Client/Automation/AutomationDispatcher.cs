@@ -47,6 +47,7 @@ public sealed class AutomationDispatcher
         var screenshots = new ScreenshotHandler(registry, targets);
         Register(screenshots);
         Register(new WaitUntilHandler(stateProvider, screenshots));
+        Register(new GetSimTimeHandler(stateProvider));
         Register(new ListAppToolsHandler(toolsProvider));
         Register(new CallAppToolHandler(toolsProvider));
     }

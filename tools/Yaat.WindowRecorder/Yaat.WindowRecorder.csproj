@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- The Windows SDK projections for Windows.Graphics.Capture come with this target framework. The 26100 projection is
+         needed at compile time for GraphicsCaptureSession.IsBorderRequired (a 20348 API); the tool still runs on 19041,
+         the build that introduced IsCursorCaptureEnabled, and checks the OS version before touching a newer member. -->
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <RootNamespace>Yaat.WindowRecorder</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Vortice wraps the D3D11 device, the staging texture and the map/unmap that read a captured frame back to the CPU;
+         the alternative is hand-written COM vtable calls for five interfaces. SharpDX, the older wrapper, is unmaintained. -->
+    <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
+    <PackageReference Include="Vortice.DXGI" Version="3.8.3" />
+  </ItemGroup>
+</Project>

@@ -10,6 +10,7 @@ public static class ProtocolMethods
     public const string Click = "click";
     public const string ClickPoint = "click_point";
     public const string Focus = "focus";
+    public const string GetSimTime = "get_sim_time";
     public const string GetTree = "get_tree";
     public const string ListAppTools = "list_app_tools";
     public const string ListWindows = "list_windows";

@@ -48,7 +48,7 @@ public sealed class InspectToolsPipeTests : AutomationHostFixture
             string rows = await tools.ListWindowsAsync(Pid, CancellationToken.None);
 
             string row = Assert.Single(Lines(rows));
-            Assert.Equal($"{IdOf(row)} | Window | PipeWindow | id= | visible=True | active=True | rect=(0,0 400x300)", row);
+            Assert.Equal($"{IdOf(row)} | Window | PipeWindow | id= | visible=True | active=True | rect=(0,0 400x300) | hwnd=0x0", row);
         }
         finally
         {
@@ -413,12 +413,38 @@ public sealed class InspectToolsPipeTests : AutomationHostFixture
                 StringComparison.Ordinal
             );
             Assert.StartsWith($"{IdOf(popupRow)} | OverlayPopupHost |", popupTree, StringComparison.Ordinal);
-            Assert.Equal(RectOf(popupRow), RectOf(popupTree));
+            Assert.Equal(RectOf(popupTree), RectOf(popupRow));
+            Assert.EndsWith(" | hwnd=0x0", popupRow, StringComparison.Ordinal);
         }
         finally
         {
             await directory.ForgetAsync(Pid);
         }
+    }
+
+    // A headless window's handle is zero, so a scripted pipe server reports a real-looking one.
+    [Fact]
+    public async Task ListWindows_PipeWindow_LineCarriesItsHwnd()
+    {
+        string pipeName = $"yaat-scripted-host-{Guid.NewGuid():N}";
+        await StubPipeHost.AdvertiseAsync(DiscoveryDirectory, pipeName, TestContext.Current.CancellationToken);
+        var bounds = new BoundsInfo { Width = 400, Height = 300 };
+        List<WindowInfo> answer = [new WindowInfo(1, "PipeWindow", "Window", false, null, bounds, true, true, 0x1A2B)];
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        Task server = StubPipeHost.ServeAsync(pipeName, (_, _) => answer, TimeSpan.Zero, timeout.Token);
+        PipeDirectory directory = NewPipeDirectory();
+        try
+        {
+            string row = Assert.Single(Lines(await NewTools(directory).ListWindowsAsync(Pid, CancellationToken.None)));
+
+            Assert.EndsWith(" | rect=(0,0 400x300) | hwnd=0x1A2B", row, StringComparison.Ordinal);
+        }
+        finally
+        {
+            await directory.ForgetAsync(Pid);
+        }
+
+        await server;
     }
 
     // A real host answers list_windows with no coded error, so a scripted pipe server stands in for one.
@@ -496,7 +522,13 @@ public sealed class InspectToolsPipeTests : AutomationHostFixture
         }
     }
 
-    private static string RectOf(string row) => row[row.LastIndexOf(" | rect=", StringComparison.Ordinal)..];
+    /// <summary>The row's <c> | rect=…</c> field, up to the next field or the end of the row.</summary>
+    private static string RectOf(string row)
+    {
+        int start = row.LastIndexOf(" | rect=", StringComparison.Ordinal);
+        int end = row.IndexOf(" | ", start + 1, StringComparison.Ordinal);
+        return (end < 0) ? row[start..] : row[start..end];
+    }
 
     /// <summary>
     /// A form at (20,10) in the window: a 100 x 40 text box reading KOAK, then <paramref name="button"/> below it, then a

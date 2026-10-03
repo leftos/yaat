@@ -9,6 +9,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.Automation;
+using Yaat.Client.Automation.Handlers;
 using Yaat.Client.Automation.Protocol;
 using Yaat.Client.UI.Tests.Helpers;
 
@@ -68,6 +69,29 @@ public sealed class AutomationHostTests : AutomationHostFixture
         Assert.Equal(ownerId, EntryTitled(second, "Owner window").GetProperty("nodeId").GetInt32());
         Assert.Equal(ownedId, EntryTitled(second, "Owned window").GetProperty("nodeId").GetInt32());
     }
+
+    // Headless windows carry the platform's stub handle (zero), so this pins the wire to the accessor rather than a non-zero value;
+    // a real window's handle is checked against a live client.
+    [AvaloniaFact]
+    public async Task ListWindows_EachWindowCarriesItsHwnd()
+    {
+        using AutomationHost host = StartHost(() => Windows.Take(1));
+        Window owner = ShowWindow("Owner window", null);
+        Window owned = ShowWindow("Owned window", owner);
+        await using AutomationPipeTestClient client = await Connect();
+
+        JsonElement windows = Result(await client.SendAsync(ProtocolMethods.ListWindows));
+
+        Assert.Equal(ListWindowsHandler.HwndOf(owner), EntryTitled(windows, "Owner window").GetProperty("hwnd").GetInt64());
+        Assert.Equal(ListWindowsHandler.HwndOf(owned), EntryTitled(windows, "Owned window").GetProperty("hwnd").GetInt64());
+    }
+
+    [Theory]
+    [InlineData(0L, 0L)]
+    [InlineData(0x1A2BL, 0x1A2BL)]
+    [InlineData(-2147024896L, 0x80070000L)]
+    public void ToHwnd_ReadsTheHandleAsItsUnsigned32BitValue(long handle, long expected) =>
+        Assert.Equal(expected, ListWindowsHandler.ToHwnd((nint)handle));
 
     [AvaloniaFact]
     public async Task ListWindows_IncludesAnOpenPopup()

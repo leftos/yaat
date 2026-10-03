@@ -56,7 +56,10 @@ public sealed class InspectTools(ElementRegistry registry, PipeDirectory pipes, 
                 return NoWindowsMessage(pid);
             }
 
-            return string.Join(Environment.NewLine, pipeWindows.Select(window => PipeDescribe.Window(window, registry.Register(pid, window.NodeId))));
+            return string.Join(
+                Environment.NewLine,
+                pipeWindows.Select(window => WithHwnd(PipeDescribe.Window(window, registry.Register(pid, window.NodeId)), window.Hwnd))
+            );
         }
 
         List<AutomationElement> windows = UiaRouted(UiaQuery.Guarded(logger, "list_windows", $"pid {pid}", () => UiaQuery.TopLevelWindows(pid)));
@@ -65,8 +68,21 @@ public sealed class InspectTools(ElementRegistry registry, PipeDirectory pipes, 
             return NoWindowsMessage(pid);
         }
 
-        return string.Join(Environment.NewLine, windows.Select(window => UiaQuery.Describe(window, registry.Register(window))));
+        // An HWND fits in 32 bits even in a 64-bit process; UI Automation hands it over as a signed int.
+        return UiaQuery.Guarded(
+            logger,
+            "list_windows",
+            $"pid {pid}",
+            () =>
+                string.Join(
+                    Environment.NewLine,
+                    windows.Select(window => WithHwnd(UiaQuery.Describe(window, registry.Register(window)), (uint)window.Current.NativeWindowHandle))
+                )
+        );
     }
+
+    /// <summary>A list_windows row with the window's native handle, which the window recorder takes to capture it.</summary>
+    private static string WithHwnd(string row, long hwnd) => string.Create(CultureInfo.InvariantCulture, $"{row} | hwnd=0x{hwnd:X}");
 
     [McpServerTool]
     [Description(

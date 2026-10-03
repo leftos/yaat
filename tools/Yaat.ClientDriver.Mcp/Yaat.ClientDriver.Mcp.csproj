@@ -36,6 +36,41 @@
     <PackageReference Include="ModelContextProtocol" Version="2.2.0" />
   </ItemGroup>
 
+  <!-- The window recorder is a helper exe the server starts, not a library it loads: built first, never referenced by the
+       compiler, and its whole output copied under recorder/ (into this output and into every project referencing this one).
+       Its target framework carries the Windows SDK projection version, which a net10.0-windows project cannot negotiate, so the
+       reference skips the negotiation and builds the recorder with no TargetFramework global: the same project instance the
+       solution builds, so the two never write the same obj/bin concurrently. -->
+  <PropertyGroup>
+    <WindowRecorderProject>..\Yaat.WindowRecorder\Yaat.WindowRecorder.csproj</WindowRecorderProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference
+      Include="$(WindowRecorderProject)"
+      ReferenceOutputAssembly="false"
+      SkipGetTargetFrameworkProperties="true"
+      UndefineProperties="TargetFramework"
+    />
+  </ItemGroup>
+
+  <Target Name="IncludeWindowRecorderOutput" BeforeTargets="AssignTargetPaths" DependsOnTargets="ResolveProjectReferences">
+    <MSBuild Projects="$(WindowRecorderProject)" Targets="GetTargetPath" RemoveProperties="TargetFramework">
+      <Output TaskParameter="TargetOutputs" PropertyName="_WindowRecorderTargetPath" />
+    </MSBuild>
+    <Error
+      Condition="'$(_WindowRecorderTargetPath)' == ''"
+      Text="$(WindowRecorderProject) reported no target path, so its output cannot be copied under recorder/. Build it on its own to see why."
+    />
+    <PropertyGroup>
+      <_WindowRecorderOutputDir>$([System.IO.Path]::GetDirectoryName('$(_WindowRecorderTargetPath)'))\</_WindowRecorderOutputDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <_WindowRecorderFile Include="$(_WindowRecorderOutputDir)**\*" />
+      <None Include="@(_WindowRecorderFile)" Link="recorder\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+  </Target>
+
   <!-- The automation pipe protocol DTOs are shared source, not a project reference: the MCP must speak the same wire
        format as the client without dragging Yaat.Client (and Avalonia) into the server. These files use only System.Text.Json. -->
   <ItemGroup>
