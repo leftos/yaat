@@ -18,12 +18,18 @@ namespace Yaat.Client.Automation;
 /// <param name="pipeName">The pipe's name, unique per process.</param>
 /// <param name="discoveryDirectory">The directory the discovery file <c>&lt;pid&gt;.json</c> is written to.</param>
 /// <param name="rootsProvider">The top-level windows to report; read on the UI thread.</param>
-public sealed class AutomationHost(string pipeName, string discoveryDirectory, Func<IEnumerable<TopLevel>> rootsProvider) : IDisposable
+/// <param name="stateProvider">The simulation state, or null while the main window is not up; read on the UI thread.</param>
+public sealed class AutomationHost(
+    string pipeName,
+    string discoveryDirectory,
+    Func<IEnumerable<TopLevel>> rootsProvider,
+    Func<IAutomationState?> stateProvider
+) : IDisposable
 {
     private static readonly ILogger Log = AppLog.CreateLogger("AutomationHost");
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
-    private readonly AutomationDispatcher _dispatcher = new(new NodeRegistry(rootsProvider));
+    private readonly AutomationDispatcher _dispatcher = new(new NodeRegistry(rootsProvider), stateProvider);
     private readonly NamedPipeTransport _transport = new(pipeName);
     private readonly DiscoveryFile _discoveryFile = new(discoveryDirectory, pipeName);
     private int _disposed;

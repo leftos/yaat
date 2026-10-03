@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Client.Automation;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
+using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 
 namespace Yaat.Client;
@@ -93,7 +94,8 @@ public class App : Application
                 OperatingSystem.IsWindows() && AutomationMode.IsEnabled,
                 AutomationHostFactory.PipeName(Environment.ProcessId),
                 AutomationHostFactory.DiscoveryDirectory,
-                () => desktop.Windows
+                () => desktop.Windows,
+                () => (desktop.MainWindow?.DataContext is MainViewModel viewModel) ? new MainViewModelAutomationState(viewModel) : null
             );
             if (automationHost is not null)
             {

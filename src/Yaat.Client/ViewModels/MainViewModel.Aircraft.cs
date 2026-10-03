@@ -26,12 +26,12 @@ public partial class MainViewModel
     /// sim-elapsed time needed to scrub the replay. Added directly (not via <see cref="AddTerminalEntry"/>)
     /// to avoid logging every historical line.
     /// </summary>
-    private void RepopulateTerminalFromRecording(IReadOnlyList<TerminalBroadcastDto> terminalLog)
+    public void RepopulateTerminalFromRecording(IReadOnlyList<TerminalBroadcastDto> terminalLog)
     {
         TerminalEntries.Clear();
         foreach (TerminalBroadcastDto dto in terminalLog)
         {
-            TerminalEntries.Add(TerminalEntryFromBroadcast(dto));
+            TerminalEntries.Add(TerminalEntryFromBroadcast(dto, isHistory: true));
         }
 
         while (TerminalEntries.Count > 2000)
@@ -105,7 +105,7 @@ public partial class MainViewModel
     /// the visible categorization is uniform. Reused for both live broadcasts and recording-load
     /// terminal repopulation.
     /// </summary>
-    public static TerminalEntry TerminalEntryFromBroadcast(TerminalBroadcastDto dto)
+    public static TerminalEntry TerminalEntryFromBroadcast(TerminalBroadcastDto dto, bool isHistory)
     {
         TerminalEntryKind kind;
         if (dto.Kind.StartsWith("Say", StringComparison.Ordinal))
@@ -125,6 +125,7 @@ public partial class MainViewModel
             Kind = kind,
             Callsign = dto.Callsign,
             Message = dto.Message,
+            IsHistory = isHistory,
         };
     }
 
@@ -132,7 +133,7 @@ public partial class MainViewModel
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            TerminalEntry entry = TerminalEntryFromBroadcast(dto);
+            TerminalEntry entry = TerminalEntryFromBroadcast(dto, isHistory: false);
             AddTerminalEntry(entry);
 
             if (entry.Kind == TerminalEntryKind.PilotSpeech && _preferences.RpoPilotSpeechAudibleAlert)

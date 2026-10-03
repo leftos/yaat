@@ -47,9 +47,12 @@ public abstract class AutomationHostFixture : IDisposable
         }
     }
 
-    protected AutomationHost StartHost(Func<IEnumerable<TopLevel>> rootsProvider)
+    /// <summary>Starts a host over <paramref name="rootsProvider"/> with no main window, so it has no simulation state.</summary>
+    protected AutomationHost StartHost(Func<IEnumerable<TopLevel>> rootsProvider) => StartHost(rootsProvider, () => null);
+
+    protected AutomationHost StartHost(Func<IEnumerable<TopLevel>> rootsProvider, Func<IAutomationState?> stateProvider)
     {
-        var host = new AutomationHost(PipeName, DiscoveryDirectory, rootsProvider);
+        var host = new AutomationHost(PipeName, DiscoveryDirectory, rootsProvider, stateProvider);
         host.Start();
         return host;
     }

@@ -307,7 +307,7 @@ public sealed class AutomationHostTests : AutomationHostFixture
     [AvaloniaFact]
     public async Task Host_IsNotStarted_WhenAutomationModeOff()
     {
-        AutomationHost? host = AutomationHostFactory.StartIfEnabled(false, PipeName, DiscoveryDirectory, () => Windows);
+        AutomationHost? host = AutomationHostFactory.StartIfEnabled(false, PipeName, DiscoveryDirectory, () => Windows, () => null);
 
         Assert.Null(host);
         Assert.False(Directory.Exists(DiscoveryDirectory));

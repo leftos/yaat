@@ -51,6 +51,17 @@ public enum TerminalEntryKind
 
 public sealed class TerminalEntry
 {
+    private static long s_lastSequence;
+
+    /// <summary>The <see cref="Sequence"/> of the newest entry constructed so far, or 0 before the first.</summary>
+    public static long LastSequence => Interlocked.Read(ref s_lastSequence);
+
+    /// <summary>
+    /// A number from one process-wide counter, higher for every entry constructed later. A position in the terminal log
+    /// that survives the log's trimming and clearing, which an index does not.
+    /// </summary>
+    public long Sequence { get; } = Interlocked.Increment(ref s_lastSequence);
+
     public required DateTime Timestamp { get; init; }
 
     /// <summary>
@@ -63,4 +74,10 @@ public sealed class TerminalEntry
     public required TerminalEntryKind Kind { get; init; }
     public required string Callsign { get; init; }
     public required string Message { get; init; }
+
+    /// <summary>
+    /// True for a line rebuilt from a loaded recording's terminal history rather than added as it happened, so an
+    /// automation wait on new terminal lines skips it.
+    /// </summary>
+    public bool IsHistory { get; init; }
 }

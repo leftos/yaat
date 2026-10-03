@@ -17,4 +17,5 @@ public static class ProtocolMethods
     public const string SendKeys = "send_keys";
     public const string SetText = "set_text";
     public const string WaitFor = "wait_for";
+    public const string WaitUntil = "wait_until";
 }

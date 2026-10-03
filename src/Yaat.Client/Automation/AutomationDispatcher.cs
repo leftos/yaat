@@ -25,7 +25,9 @@ public sealed class AutomationDispatcher
 
     private readonly Dictionary<string, IRequestHandler> _handlers = new(StringComparer.Ordinal);
 
-    public AutomationDispatcher(NodeRegistry registry)
+    /// <param name="registry">The node ids of the windows the host reports.</param>
+    /// <param name="stateProvider">The simulation state, or null while the main window is not up; read on the UI thread.</param>
+    public AutomationDispatcher(NodeRegistry registry, Func<IAutomationState?> stateProvider)
     {
         Register(new PingHandler());
         Register(new QueueFilePickHandler());
@@ -40,7 +42,9 @@ public sealed class AutomationDispatcher
         Register(new SetTextHandler(registry, targets));
         Register(new FocusHandler(registry, targets));
         Register(new WaitForHandler(engine));
-        Register(new ScreenshotHandler(registry, targets));
+        var screenshots = new ScreenshotHandler(registry, targets);
+        Register(screenshots);
+        Register(new WaitUntilHandler(stateProvider, screenshots));
     }
 
     private void Register(IRequestHandler handler) => _handlers[handler.Method] = handler;

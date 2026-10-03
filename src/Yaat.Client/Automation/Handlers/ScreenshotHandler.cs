@@ -16,21 +16,18 @@ namespace Yaat.Client.Automation.Handlers;
 /// (<c>nodeId</c> or <c>selector</c>) to a PNG with <see cref="RenderTargetBitmap"/>, at its window's
 /// <see cref="TopLevel.RenderScaling"/>: the pixel size is the DIP size times the scale, rounded up, at 96 × scale DPI.
 /// A hidden target is <c>ELEMENT_DISABLED</c>, as for <c>click</c>; one with no area is <c>OUT_OF_BOUNDS</c>.
+/// <c>wait_until</c> takes the same target and captures it through <see cref="ParseTarget"/>, <see cref="Capture"/> and
+/// <see cref="Encode"/>.
 /// </summary>
 public sealed class ScreenshotHandler(NodeRegistry registry, TargetResolver targets) : IRequestHandler
 {
     private const double BaseDpi = 96;
 
-    private sealed record ScreenshotTarget(ElementTarget Target, bool IsWindow);
-
-    /// <summary>A target rendered on the UI thread, waiting to be encoded off it.</summary>
-    private sealed record RenderedTarget(RenderTargetBitmap Bitmap, PixelSize PixelSize, double Scale);
-
     public string Method => ProtocolMethods.Screenshot;
 
     public async Task<object> Handle(AutomationRequest request, CancellationToken cancellationToken)
     {
-        object parsed = ParseParams(request.Params);
+        object parsed = ParseTarget(request.Params);
         if (parsed is not ScreenshotTarget target)
         {
             return parsed;
@@ -40,7 +37,10 @@ public sealed class ScreenshotHandler(NodeRegistry registry, TargetResolver targ
         return (captured is RenderedTarget rendered) ? Encode(rendered) : captured;
     }
 
-    private static object ParseParams(JsonElement? raw)
+    /// <summary>Reads the target from a params object: a window or one element, by node id or selector.</summary>
+    /// <param name="raw">The params object.</param>
+    /// <returns>A <see cref="ScreenshotTarget"/>, or the <see cref="HandlerErrorResult"/> naming the bad param.</returns>
+    public static object ParseTarget(JsonElement? raw)
     {
         (JsonElement element, HandlerErrorResult? objectError) = InputParams.RequireObject(raw);
         if (objectError is not null)
@@ -75,7 +75,10 @@ public sealed class ScreenshotHandler(NodeRegistry registry, TargetResolver targ
         return window.IsGiven ? new ScreenshotTarget(window, IsWindow: true) : new ScreenshotTarget(item, IsWindow: false);
     }
 
-    private object Capture(ScreenshotTarget target)
+    /// <summary>Renders <paramref name="target"/>; on the UI thread.</summary>
+    /// <param name="target">The target <see cref="ParseTarget"/> read.</param>
+    /// <returns>A <see cref="RenderedTarget"/> to <see cref="Encode"/>, or the <see cref="HandlerErrorResult"/> saying why there is none.</returns>
+    public object Capture(ScreenshotTarget target)
     {
         if (!targets.TryResolve(target.Target, out Visual? visual, out HandlerErrorResult? error))
         {
@@ -131,7 +134,7 @@ public sealed class ScreenshotHandler(NodeRegistry registry, TargetResolver targ
     /// Encodes a rendered target off the UI thread. Avalonia's Skia render-target bitmap is a CPU bitmap whose
     /// <c>Save</c> snapshots it under its own lock and encodes with SkiaSharp, with no dispatcher check.
     /// </summary>
-    private static ScreenshotResult Encode(RenderedTarget rendered)
+    public static ScreenshotResult Encode(RenderedTarget rendered)
     {
         using RenderTargetBitmap bitmap = rendered.Bitmap;
         using var stream = new MemoryStream();
@@ -139,3 +142,9 @@ public sealed class ScreenshotHandler(NodeRegistry registry, TargetResolver targ
         return new ScreenshotResult(rendered.PixelSize.Width, rendered.PixelSize.Height, rendered.Scale, Convert.ToBase64String(stream.ToArray()));
     }
 }
+
+/// <summary>What a screenshot renders: a window (its client area) or one element.</summary>
+public sealed record ScreenshotTarget(ElementTarget Target, bool IsWindow);
+
+/// <summary>A target rendered on the UI thread, waiting to be encoded off it; <see cref="ScreenshotHandler.Encode"/> disposes the bitmap.</summary>
+public sealed record RenderedTarget(RenderTargetBitmap Bitmap, PixelSize PixelSize, double Scale);

@@ -20,7 +20,8 @@ public static class AutomationHostFactory
         bool isEnabled,
         string pipeName,
         string discoveryDirectory,
-        Func<IEnumerable<TopLevel>> rootsProvider
+        Func<IEnumerable<TopLevel>> rootsProvider,
+        Func<IAutomationState?> stateProvider
     )
     {
         if (!isEnabled)
@@ -28,7 +29,7 @@ public static class AutomationHostFactory
             return null;
         }
 
-        var host = new AutomationHost(pipeName, discoveryDirectory, rootsProvider);
+        var host = new AutomationHost(pipeName, discoveryDirectory, rootsProvider, stateProvider);
         try
         {
             host.Start();

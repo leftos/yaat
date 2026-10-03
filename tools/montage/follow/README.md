@@ -57,6 +57,16 @@ Trim a long run down to the clip window with `--max-seconds`:
 uv run --with brotli python tools/bug_bundle.py trim "$B" --max-seconds 240 --out .tmp/montage/<ID>/<ID>-trim.yaat-recording.zip
 ```
 
+## Stop a capture
+
+A capture of a clip replayed in the client ends on the client-driver's `wait_until` ([`docs/client-driver-mcp.md`](../../../docs/client-driver-mcp.md)), not on a guessed duration. The default stop is the follower on the ground plus a few seconds of roll-out:
+
+```json
+{"conditions": [{"kind": "landed", "callsign": "N738SP"}], "timeoutMs": 600000}
+```
+
+Stop the recorder a few seconds after it returns `met`. A clip whose story ends elsewhere (a go-around, a pattern re-entry) names its own condition in its `card.md`; with no such line, the default applies to the clip's follower.
+
 ## Callsign roster
 
 Kept consistent across clips so the reel reads as one session.
