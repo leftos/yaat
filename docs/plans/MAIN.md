@@ -8,21 +8,24 @@
 
 ## Bug reports and feature requests
 
+- [x] YAAT-242 Deconflict the RBL readout from data blocks so it stays readable · release vNext
+- [x] YAAT-259 Pilots no longer report 'the traffic's on the ground, breaking off the follow' · release vNext
+- [x] YAAT-244 Aircraft owned by a TCP flash a pending handoff to that same TCP · release vNext
+- [x] YAAT-246 Client-driver wait_until on sim state, so a capture stops when the follower lands · release vNext
+- [x] YAAT-243 Say 'make straight-in', not 'make straight-in approach' · release vNext
 - [x] YAAT-249 Client driver batch_drive: steps, waits and assertions in one call · release vNext
 - [x] YAAT-245 Automation-mode client came to the foreground on its own during a capture · release vNext
 - [x] YAAT-247 Replayed solo recording loads with solo off and speaks only the opening check-ins · release vNext
-- [/] YAAT-243 Say 'make straight-in', not 'make straight-in approach'
-- [/] YAAT-246 Client-driver wait_until on sim state, so a capture stops when the follower lands · release vNext
 - [/] YAAT-250 Client-defined automation tools; client log errors on every pipe result · release vNext
 - [ ] YAAT-248 Client driver records a window: start, mark and stop, with sim-time marks and the client's audio · release vNext
 - [x] YAAT-232 Solo dev cheat so montage clips can use RPO-only commands (FOLLOWF for A11) · release vNext
 - [/] YAAT-7 Record the FOLLOW video montage (release cut and review reel) · release vNext
   - [x] YAAT-238 Re-script montage clip C3 on OAK runway 30 (no B738 on 28R) · release vNext
   - [!] YAAT-239 Short edited montage sampler of the clips so far, for presentation feedback · release vNext
-  - [/] YAAT-240 Aviation review of the montage cards; visual follow should not use the radar wake minimum (C3) · release vNext
+  - [x] YAAT-240 Aviation review of the montage cards; visual follow should not use the radar wake minimum (C3) · release vNext
 - [ ] YAAT-217 Pattern: apply a pending pattern-altitude override before the wrong-side join decides on a teardrop
-- [ ] YAAT-242 Deconflict the RBL readout from data blocks so it stays readable
-- [ ] YAAT-244 Aircraft owned by a TCP flash a pending handoff to that same TCP
+- [ ] YAAT-256 batch_drive: save a wait_until step's screenshot and fit its wait inside the batch ceiling
+- [ ] YAAT-261 AutomationWaitUntilTests.Landed_HeldAfterAirborneThenGround times out in the full UI suite
 
 ## Client driver in the background (#474)
 
@@ -41,6 +44,7 @@
   - [ ] YAAT-15 Context-menu quick commands step 3: per-situation lists with the icon strip · release vNext
 - [ ] YAAT-16 Merge feat/context-menu-quick-commands (#471, yaat-server#21) · release vNext
 - [ ] YAAT-229 Route the data-block field popups through MenuPopups.Open; wrap MenuPopups' summary line
+- [ ] YAAT-264 Context menus: no double separator before Track in the builder
 
 ## Tick-path unification
 
@@ -102,6 +106,7 @@
 - [ ] YAAT-48 Check the SFO I28L MAP/DA (65 ft) against CIFP
 - [ ] YAAT-49 Re-validate the reroute rate after the fillet floor; corner speed, sample gaps
 - [ ] YAAT-254 Visual follower behind a heavier lead lands beyond its touchdown point
+- [ ] YAAT-257 A follower whose lead has landed joins final instead of re-entering the pattern
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -219,9 +224,11 @@
 - [ ] YAAT-213 Isolate UserPreferences writes between UI tests
 - [ ] YAAT-222 land-bot-pr: name the real merge contrast and add the landing family's shared rules
 - [ ] YAAT-227 Fix the two broken vEDST doc links (architecture.md, CLAUDE.md)
+- [ ] YAAT-265 Re-measure the bare dotnet test ceilings and the test-loop baseline on a quiet machine
 
 ## Singles
 
+- [x] YAAT-145 Align approach-side follow spacing with wake-aware PatternSpacingNm · release vNext
 - [ ] YAAT-4 Airport sidecar ideas
 - [ ] YAAT-132 Table-drive AircraftChangeTracker.DetectChanges comparisons (yaat-server)
 - [ ] YAAT-133 Fly direct to the destination after the last route fix, then hold
@@ -236,7 +243,6 @@
 - [ ] YAAT-142 Clear the follow in GoAroundHelper.Trigger
 - [ ] YAAT-143 Rule and implement the per-tick cross-runway check for a running follow
 - [ ] YAAT-144 FOLLOW B5b-2 leftovers: missed-approach hold flag, snapshot tests
-- [ ] YAAT-145 Align approach-side follow spacing with wake-aware PatternSpacingNm
 - [ ] YAAT-146 Rule FOLLOW B5b-5 leftovers: FAS ceiling, at-or-below fix speeds
 - [ ] YAAT-147 Give ApproachGateDatabase a scoped override; fix the XRWY refusal wording
 - [ ] YAAT-148 Keep the field-in-sight report across a new approach clearance
@@ -304,3 +310,7 @@
 - [ ] YAAT-203 Measure ApproachEvaluator separation at a common instant, not the current lead
 - [ ] YAAT-214 Warn the RPO in the terminal when an amended flight plan has unresolvable route elements
 - [ ] YAAT-237 Automation-mode client ignores a close request; bare error on a null click id; radar redraws while paused
+- [ ] YAAT-258 Live traffic never sets a handoff to the track's own position
+- [ ] YAAT-260 Two follow comments cite the wrong AIM paragraph for no cutting in on final
+- [ ] YAAT-262 RBL readout nudges: avoid pinned blocks; two RadarCanvas tidy-ups
+- [ ] YAAT-263 Solo toggle: a failed SetSoloTrainingMode send is silent
