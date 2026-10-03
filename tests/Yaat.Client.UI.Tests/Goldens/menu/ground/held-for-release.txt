@@ -10,21 +10,64 @@ Favorite Commands
 ---
 Hold position
 Break conflict
-Line up and wait 30
-Cleared for takeoff 30
-  Default (SID/on course)
-  Fly runway heading
-  ---
-  Custom... picker:input
----
+Tower
+  Line up and wait 30
+  Cleared for takeoff 30
+    Default (SID/on course)
+    Fly runway heading
+    ---
+    Custom... picker:input
 Preset taxi route
   30 to TERMINAL
 Draw taxi route...
-Taxi route
-  Always show
-  Always hide
-  Follow “Show all” setting [checked]
-Hide datablock
-Measure from SWA108
 ---
+Track
+  Track
+  Drop track
+  ---
+  Accept handoff
+  Initiate handoff... picker:input
+  Cancel handoff
+  ---
+  Point out... picker:input
+  Acknowledge pointout
+Data Block
+  Scratchpad... picker:input
+  Temporary altitude... picker:input
+  Cruise... picker:input
+  Annotate
+Squawk
+  Squawk... picker:input
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
+Ask pilot to say...
+  Altitude
+  Heading
+  Speed
+  Mach
+  Position
+  Expected approach
+  ---
+  Custom... picker:input
+Coordination
+  Release
+  Hold
+  Recall
+  Acknowledge release
+---
+Edit flight plan
+---
+Display
+  Taxi route
+    Always show
+    Always hide
+    Follow “Show all” setting [checked]
+  Hide datablock
+  Measure from SWA108
+---
+Warp...
 Delete

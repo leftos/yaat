@@ -7,14 +7,125 @@ Note…
 Favorite Commands
   (no items) [disabled]
 ---
-Cleared to land 30
-Force landing 30
-Go around 30
-Taxi route
-  Always show
-  Always hide
-  Follow “Show all” setting [checked]
-Hide datablock
-Measure from AAL207
+Tower
+  Cleared to land 30
+  Force landing 30
+  Go around 30
 ---
+Heading
+  Present heading
+  Fly heading picker:list [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 130, 135, 140, 145, 150, 155, 160, 165, 170, 175, 180, 185, 190, 195, 200, 205, 210, 215, 220, 225, 230, 235, 240, 245, 250, 255, 260, 265, 270, 275, 280, 285, 290, 295, 300, 305, 310, 315, 320, 325, 330, 335, 340, 345, 350, 355, 360]
+  Turn left picker:list [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 130, 135, 140, 145, 150, 155, 160, 165, 170, 175, 180, 185, 190, 195, 200, 205, 210, 215, 220, 225, 230, 235, 240, 245, 250, 255, 260, 265, 270, 275, 280, 285, 290, 295, 300, 305, 310, 315, 320, 325, 330, 335, 340, 345, 350, 355, 360]
+  Turn right picker:list [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 130, 135, 140, 145, 150, 155, 160, 165, 170, 175, 180, 185, 190, 195, 200, 205, 210, 215, 220, 225, 230, 235, 240, 245, 250, 255, 260, 265, 270, 275, 280, 285, 290, 295, 300, 305, 310, 315, 320, 325, 330, 335, 340, 345, 350, 355, 360]
+  Turn left (degrees) picker:list [5, 10, 15, 20, 30, 45, 60, 90]
+  Turn right (degrees) picker:list [5, 10, 15, 20, 30, 45, 60, 90]
+Altitude
+  Maintain picker:list [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000, 3100, 3200, 3300, 3400, 3500, 3600, 3700, 3800, 3900, 4000, 4100, 4200, 4300, 4400, 4500, 4600, 4700, 4800, 4900, 5000, 5500, 6000, 6500, 7000, 7500, 8000, 8500, 9000, 9500, 10000, 10500, 11000, 11500, 12000, 12500, 13000, 13500, 14000, 14500, 15000, 15500, 16000, 16500, 17000, 17500, FL180, FL185, FL190, FL195, FL200, FL205, FL210, FL215, FL220, FL225, FL230, FL235, FL240, FL245, FL250, FL255, FL260, FL265, FL270, FL275, FL280, FL285, FL290, FL295, FL300, FL305, FL310, FL315, FL320, FL325, FL330, FL335, FL340, FL345, FL350, FL355, FL360, FL365, FL370, FL375, FL380, FL385, FL390, FL395, FL400, FL405, FL410, FL415, FL420, FL425, FL430, FL435, FL440, FL445, FL450, FL455, FL460, FL465, FL470, FL475, FL480, FL485, FL490, FL495, FL500, FL505, FL510, FL515, FL520, FL525, FL530, FL535, FL540, FL545, FL550, FL555, FL560, FL565, FL570, FL575, FL580, FL585, FL590, FL595, FL600]
+Speed
+  Assign speed picker:list [150, 160, 170, 180, 190, 200, 210, 220, 230, 240, 250, 260, 270, 280, 290, 300, 310, 320, 330, 340, 350]
+  Speed... picker:input
+  Resume normal speed
+  FAS
+Navigation
+  Direct to picker:list [KOAK, KLAX]
+Hold
+  Hold present position (left)
+  Hold present position (right)
+  Hold at fix (left)... picker:input
+  Hold at fix (right)... picker:input
+Approach
+  Cleared approach picker:list [H12-Z, H28LZ, H28RZ, H30-Z, I12, I28R, I30, L12, L28R, L30, R10L, R10R, R12-Y, R28LY, R28RY, R30-Y, S10R]
+  Join approach picker:list [H12-Z, H28LZ, H28RZ, H30-Z, I12, I28R, I30, L12, L28R, L30, R10L, R10R, R12-Y, R28LY, R28RY, R30-Y, S10R]
+  Cleared straight-in picker:list [H12-Z, H28LZ, H28RZ, H30-Z, I12, I28R, I30, L12, L28R, L30, R10L, R10R, R12-Y, R28LY, R28RY, R30-Y, S10R]
+  Join straight-in picker:list [H12-Z, H28LZ, H28RZ, H30-Z, I12, I28R, I30, L12, L28R, L30, R10L, R10R, R12-Y, R28LY, R28RY, R30-Y, S10R]
+  Cleared approach (force) picker:list [H12-Z, H28LZ, H28RZ, H30-Z, I12, I28R, I30, L12, L28R, L30, R10L, R10R, R12-Y, R28LY, R28RY, R30-Y, S10R]
+  Join approach (force) picker:list [H12-Z, H28LZ, H28RZ, H30-Z, I12, I28R, I30, L12, L28R, L30, R10L, R10R, R12-Y, R28LY, R28RY, R30-Y, S10R]
+  Join final approach course picker:list [H12-Z, H28LZ, H28RZ, H30-Z, I12, I28R, I30, L12, L28R, L30, R10L, R10R, R12-Y, R28LY, R28RY, R30-Y, S10R]
+  Expect approach picker:list [H12-Z, H28LZ, H28RZ, H30-Z, I12, I28R, I30, L12, L28R, L30, R10L, R10R, R12-Y, R28LY, R28RY, R30-Y, S10R]
+  Cleared visual approach 30
+  Cleared visual approach (other)... picker:list [10L, 10R, 12, 15, 28L, 28R, 30, 33]
+  ---
+  Report field in sight
+  Report traffic in sight... picker:input
+  ---
+  Report when…
+    Turning base
+    Turning final
+    Turning crosswind
+    Turning downwind
+    N-mile final... picker:input
+    At fix... picker:input
+    ---
+    Stop reporting
+      Base
+      Final
+      Crosswind
+      Downwind
+      ---
+      All reports
+Procedures
+  Join STAR... picker:list [AANET1, EMZOH4, OAKES3, PIRAT3, PXN6, WNDSR2]
+  Climb via SID
+  Descend via STAR
+  Cross fix... picker:list [KOAK, KLAX]
+  Cross fix (other)... picker:input
+  Depart fix... picker:list [KOAK, KLAX]
+  Depart fix (other)... picker:input
+  PTAC... picker:input
+  Join airway... picker:input
+  Join radial outbound... picker:input
+  Join radial inbound... picker:input
+Pattern
+  Enter straight-in final 30
+  Enter straight-in final (other)... picker:list [10L, 10R, 12, 15, 28L, 28R, 30, 33]
+---
+Track
+  Track
+  Drop track
+  ---
+  Accept handoff
+  Initiate handoff... picker:input
+  Cancel handoff
+  ---
+  Point out... picker:input
+  Acknowledge pointout
+Data Block
+  Scratchpad... picker:input
+  Temporary altitude... picker:input
+  Cruise... picker:input
+  Annotate
+Squawk
+  Squawk... picker:input
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
+Ask pilot to say...
+  Altitude
+  Heading
+  Speed
+  Mach
+  Position
+  Expected approach
+  ---
+  Custom... picker:input
+Coordination
+  Release
+  Hold
+  Recall
+  Acknowledge release
+---
+Edit flight plan
+---
+Display
+  Taxi route
+    Always show
+    Always hide
+    Follow “Show all” setting [checked]
+  Hide datablock
+  Measure from AAL207
+---
+Warp...
 Delete

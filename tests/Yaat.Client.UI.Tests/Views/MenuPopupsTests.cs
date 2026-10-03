@@ -473,42 +473,37 @@ public class MenuPopupsTests
         Assert.False(popup.IsOpen, $"The warp popup should close on {how}.");
     }
 
-    // --- The ground host's Custom… ------------------------------------------------------------
+    // --- The client host's Custom… on the ground --------------------------------------------
 
     /// <summary>
-    /// The ground host's takeoff Custom… opens the input popup on the ground canvas and sends the clearance the
-    /// controller typed, trimmed.
+    /// On the ground canvas, the client host's takeoff Custom… opens the input popup there, and a submit goes to the main
+    /// view model's send. That send needs a server a test cannot reach (a real <c>ServerConnection</c> with no seam), so
+    /// the failure it shows in the status line proves the hand-off; <c>MenuCatalogCommandTests</c>' recording host pins
+    /// the composed command text.
     /// </summary>
     [AvaloniaFact]
-    public void GroundMenuHost_CustomTakeoff_SendsCtoWithTheTypedArgument()
+    public void ClientHost_CustomTakeoff_OnTheGround_OpensTheInputPopupAndSendsThroughMain()
     {
-        var sent = new List<(string Callsign, string Command, string Initials)>();
-        var ground = new GroundViewModel(
-            new ServerConnection(),
-            sendCommand: (callsign, command, initials) =>
-            {
-                sent.Add((callsign, command, initials));
-                return Task.CompletedTask;
-            }
-        );
-        var view = new GroundView { DataContext = ground };
-        var window = new Window { Content = view };
+        var main = new MainViewModel(new FakeFilePickerService());
+        var view = new GroundView { DataContext = main.Ground };
+        var window = new Window { DataContext = main, Content = view };
         window.ShowAndRunLayout();
 
         AircraftModel ac = TaxiingJet();
-        var host = new GroundMenuHost(view, ground, null, ac);
+        var host = new ClientMenuHost(main, ac, view.Canvas);
 
         Click(CustomTakeoff(ac, CatalogMenuView.Ground, host));
         HeadlessWindowExtensions.PumpDispatcher();
 
         Popup popup = FindPopup(view);
-        Assert.True(popup.IsOpen, "Clicking Custom… should open the ground's input popup.");
+        Assert.True(popup.IsOpen, "Clicking Custom… should open the input popup on the ground canvas.");
         TextBox textBox = FindTextBox(view);
         Assert.Equal(Placeholder, textBox.PlaceholderText);
         textBox.Text = "  LT 270 ";
         RaiseKey(textBox, Key.Enter);
+        HeadlessWindowExtensions.PumpDispatcher();
 
-        Assert.Equal([(Callsign, "CTO LT 270", Initials)], sent);
+        Assert.StartsWith("Command error:", main.StatusText);
     }
 
     // --- The list host's Custom… --------------------------------------------------------------

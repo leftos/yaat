@@ -124,43 +124,15 @@ public class MenuHeaderTests
     }
 
     /// <summary>
-    /// Through the ground's real host: Note… opens the note popup on the ground canvas, prefilled with the current note
-    /// and showing the 40-character limit, and sends <c>NOTE {text}</c> for what the controller typed.
+    /// Through the client host on the ground canvas: Note… opens the note popup there, prefilled with the current note
+    /// and showing the 40-character limit, and hands back <c>NOTE {text}</c> for what the controller typed.
     /// </summary>
     [AvaloniaFact]
-    public void GroundHost_Note_OpensThePrefilledNotePopup_AndSendsNoteText()
+    public void ClientHost_Note_OpensThePrefilledPopupOnTheGround_AndHandsBackTheNoteCommand()
     {
-        (GroundView view, List<(string Callsign, string Command, string Initials)> sent, AircraftModel ac) = GroundHostFixture();
-        ac.Note = "OLD NOTE";
-        var host = new GroundMenuHost(view, (GroundViewModel)view.DataContext!, null, ac);
+        (MainViewModel main, GroundView view) = GroundOnMain();
 
-        Click(Item(Header(ac, host), "Note…"));
-        HeadlessWindowExtensions.PumpDispatcher();
-
-        TextBox textBox = FindTextBox(view);
-        Assert.Equal("OLD NOTE", textBox.Text);
-        Assert.Contains("max 40", textBox.PlaceholderText, StringComparison.Ordinal);
-        textBox.Text = " NEW NOTE ";
-        RaiseKey(textBox, Key.Enter);
-
-        Assert.Equal([(Callsign, "NOTE NEW NOTE", Initials)], sent);
-    }
-
-    /// <summary>Through the ground's real host: Command… opens the command popup on the ground canvas and sends what was typed.</summary>
-    [AvaloniaFact]
-    public void GroundHost_Command_OpensTheCommandPopup_AndSendsTheTypedCommand()
-    {
-        (GroundView view, List<(string Callsign, string Command, string Initials)> sent, AircraftModel ac) = GroundHostFixture();
-        var host = new GroundMenuHost(view, (GroundViewModel)view.DataContext!, null, ac);
-
-        Click(Item(Header(ac, host), "Command…"));
-        HeadlessWindowExtensions.PumpDispatcher();
-
-        TextBox textBox = FindTextBox(view);
-        textBox.Text = "HOLD";
-        RaiseKey(textBox, Key.Enter);
-
-        Assert.Equal([(Callsign, "HOLD", Initials)], sent);
+        AssertNotePopup(new ClientMenuHost(main, Jet(), view.Canvas), view);
     }
 
     // --- Each host's two flyout members, over a real main view model -----------------------
@@ -178,14 +150,35 @@ public class MenuHeaderTests
         AssertCommandRefusedByTheGate(new ClientMenuHost(main, ac, view.Canvas), view, main);
     }
 
+    /// <summary>
+    /// A command the VFR gate allows goes on to the main view model's send. That send needs a server a test cannot reach,
+    /// so the failure it shows in the status line proves the hand-off.
+    /// </summary>
     [AvaloniaFact]
-    public void GroundHost_Command_WithAMainViewModel_GoesThroughTheVfrGate_NotTheRawSend()
+    public void ClientHost_Command_Allowed_ReachesTheSend()
     {
         (MainViewModel main, AircraftModel ac) = GatedMain();
-        (GroundView view, List<(string Callsign, string Command, string Initials)> sent, AircraftModel _) = GroundHostFixture();
+        var view = new RadarView { DataContext = main.Radar };
+        new Window { DataContext = main, Content = view }.ShowAndRunLayout();
 
-        AssertCommandRefusedByTheGate(new GroundMenuHost(view, (GroundViewModel)view.DataContext!, main, ac), view, main);
-        Assert.Empty(sent);
+        new ClientMenuHost(main, ac, view.Canvas).ShowCommandFlyout(Callsign, Initials);
+        HeadlessWindowExtensions.PumpDispatcher();
+        TextBox textBox = FindTextBox(view);
+        textBox.Text = "FH 270";
+        RaiseKey(textBox, Key.Enter);
+        HeadlessWindowExtensions.PumpDispatcher();
+
+        Assert.StartsWith("Command error:", main.StatusText);
+    }
+
+    [AvaloniaFact]
+    public void ClientHost_Command_OpensOnTheGroundAndGoesThroughTheVfrGate()
+    {
+        (MainViewModel main, AircraftModel ac) = GatedMain();
+        var view = new GroundView { DataContext = main.Ground };
+        new Window { DataContext = main, Content = view }.ShowAndRunLayout();
+
+        AssertCommandRefusedByTheGate(new ClientMenuHost(main, ac, view.Canvas), view, main);
     }
 
     [AvaloniaFact]
@@ -269,7 +262,8 @@ public class MenuHeaderTests
 
         TextBox textBox = FindTextBox(anchor);
         Assert.Equal("OLD NOTE", textBox.Text);
-        textBox.Text = "NEW NOTE";
+        Assert.Contains("max 40", textBox.PlaceholderText, StringComparison.Ordinal);
+        textBox.Text = " NEW NOTE ";
         RaiseKey(textBox, Key.Enter);
         HeadlessWindowExtensions.PumpDispatcher();
 
@@ -507,7 +501,7 @@ public class MenuHeaderTests
         menu = view switch
         {
             MenuView.Radar => MenuHostHarness.BuildRadarMenu(main, ac, null),
-            MenuView.Ground => MenuHostHarness.BuildGroundMenu(main, ac, null, MenuGoldenFixtures.Initials),
+            MenuView.Ground => MenuHostHarness.BuildGroundMenu(main, ac, null),
             _ => DataGridView.BuildAircraftMenu(main, new DataGrid(), ac, null, [ac], MenuGoldenFixtures.Initials),
         };
         return [.. menu.Items.Select(Describe)];
@@ -535,21 +529,13 @@ public class MenuHeaderTests
         return menu.Items;
     }
 
-    private static (GroundView View, List<(string Callsign, string Command, string Initials)> Sent, AircraftModel Aircraft) GroundHostFixture()
+    /// <summary>A ground view over a main view model's primary ground view model, shown in a window hosted by that main view model.</summary>
+    private static (MainViewModel Main, GroundView View) GroundOnMain()
     {
-        var sent = new List<(string Callsign, string Command, string Initials)>();
-        var ground = new GroundViewModel(
-            new ServerConnection(),
-            sendCommand: (callsign, command, initials) =>
-            {
-                sent.Add((callsign, command, initials));
-                return Task.CompletedTask;
-            }
-        );
-        var view = new GroundView { DataContext = ground };
-        var window = new Window { Content = view };
-        window.ShowAndRunLayout();
-        return (view, sent, Jet());
+        var main = new MainViewModel(new FakeFilePickerService());
+        var view = new GroundView { DataContext = main.Ground };
+        new Window { DataContext = main, Content = view }.ShowAndRunLayout();
+        return (main, view);
     }
 
     private static MenuItem Item(ItemCollection items, string header) => items.OfType<MenuItem>().Single(i => (i.Header as string) == header);

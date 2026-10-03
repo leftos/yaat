@@ -18,7 +18,7 @@ using CatalogMenuView = Yaat.Client.ContextMenus.MenuView;
 
 namespace Yaat.Client.UI.Tests.Views;
 
-// The canvas section a view builds for itself, over the real view model and canvas: the ground's flat display items and
+// The canvas section a view builds for itself, over the real view model and canvas: the ground's Display items and
 // the radar's Display submenu, each reading the state the running client keeps (the data-block offsets, minified and
 // hidden choices, the nav route and the measure tool) and writing it back. CanvasMenuItemsTests pins the item builders;
 // these pin the wiring that turns them into a section, since no golden carries a moved or minified data block, a shown
@@ -72,7 +72,7 @@ public class CanvasMenuSectionTests
 
     private static MenuContext Context(CatalogMenuView view) => TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None, view);
 
-    // The ground's flat display items: the order with a data-block offset set (no golden carries one), and that the
+    // The ground's Display items: the order with a data-block offset set (no golden carries one), and that the
     // taxi-route radio and the datablock item write the ground view model and the canvas the section reads back.
     [AvaloniaFact]
     public void GroundCanvasItems_OrderAndClicks_ReachTheViewModelAndCanvas()

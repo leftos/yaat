@@ -3,11 +3,9 @@ using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
-using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
-using Yaat.Client.Views.Ground;
 using Yaat.Sim;
 using CatalogMenuView = Yaat.Client.ContextMenus.MenuView;
 
@@ -57,9 +55,9 @@ public class GroundMovementMenuTests
     }
 
     /// <summary>
-    /// Builds the ground-map right-click menu's command items for a single aircraft in <paramref name="phase"/> from
-    /// the Core group the ground view calls, over a <see cref="GroundMenuHost"/> carrying the MainViewModel, which is what the
-    /// Follow… submenu needs; a second ground aircraft supplies the follow candidate.
+    /// Builds the ground-map right-click menu for a single aircraft in <paramref name="phase"/> through the ground view's
+    /// right-click path (<see cref="MenuHostHarness.BuildGroundMenu"/>), over a MainViewModel holding a second ground
+    /// aircraft that supplies the follow candidate.
     /// </summary>
     private static ContextMenu BuildGroundMenu(string phase, bool held)
     {
@@ -67,22 +65,28 @@ public class GroundMovementMenuTests
         var mainVm = new MainViewModel(new FakeFilePickerService());
         mainVm.Aircraft.Add(ac);
         mainVm.Aircraft.Add(GroundAircraft("SWA200", "Taxiing", held: false));
-
-        var groundVm = new GroundViewModel(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask);
-        var host = new GroundMenuHost(new GroundView { DataContext = groundVm }, groundVm, mainVm, ac);
-        MenuContext context = TestMenuContext.Create(
-            ac.Callsign,
-            "AB",
-            null,
-            mainVm.SessionSoloTrainingMode,
-            mainVm.VfrCommandsForIfr,
-            CatalogMenuView.Ground
-        );
-
-        var menu = new ContextMenu();
-        SharedMenuGroups.AddGroundAircraftCommands(menu.Items, ac, context, host);
-        return menu;
+        return MenuHostHarness.BuildGroundMenu(mainVm, ac, null);
     }
+
+    /// <summary>The headers of the ground-movement and taxi-route items: the ground pins below compare these, in menu order.</summary>
+    private static readonly HashSet<string> GroundBlockHeaders =
+    [
+        "Push back",
+        "Push back to...",
+        "Push route...",
+        "Hold position",
+        "Hold short of...",
+        "Follow...",
+        "Give way to...",
+        "Break conflict",
+        "Resume taxi",
+        "Preset taxi route",
+        "Draw taxi route...",
+    ];
+
+    /// <summary>Pins the ground-movement and taxi-route items of <paramref name="menu"/> in full, ignoring the shared groups around them.</summary>
+    private static void AssertGroundBlockSequence(ContextMenu menu, params string[] expected) =>
+        Assert.Equal(expected, Headers(menu).Where(h => GroundBlockHeaders.Contains(h) || h.StartsWith("Cross ", StringComparison.Ordinal)));
 
     private static ContextMenu BuildAircraftListMenu(string phase, bool held)
     {
@@ -93,6 +97,72 @@ public class GroundMovementMenuTests
         var menu = new ContextMenu();
         SharedMenuGroups.AddListAircraftCommands(menu.Items, ac, context, host);
         return menu;
+    }
+
+    private static AircraftModel AirborneIfr(string callsign, string phase) =>
+        new()
+        {
+            Callsign = callsign,
+            AircraftType = "B738",
+            IsOnGround = false,
+            FlightRules = "IFR",
+            CurrentPhase = phase,
+        };
+
+    /// <summary>The whole ground-view menu for <paramref name="ac"/>, through the view's right-click path.</summary>
+    private static ContextMenu BuildWholeGroundMenu(AircraftModel ac)
+    {
+        var main = new MainViewModel(new FakeFilePickerService());
+        main.Aircraft.Add(ac);
+        return MenuHostHarness.BuildGroundMenu(main, ac, null);
+    }
+
+    // The ground view builds the same aircraft menu every view builds, so an airborne aircraft clicked on the ground
+    // map gets the flight submenus and the always-present groups, as on the radar.
+    [AvaloniaFact]
+    public void GroundMenu_AirborneAircraft_OffersTheFlightSubmenus()
+    {
+        List<string> headers = Headers(BuildWholeGroundMenu(AirborneIfr("AAL601", "ApproachNav")));
+
+        string[] expected =
+        [
+            "Heading",
+            "Altitude",
+            "Speed",
+            "Navigation",
+            "Approach",
+            "Procedures",
+            "Track",
+            "Data Block",
+            "Squawk",
+            "Coordination",
+            "Edit flight plan",
+        ];
+        Assert.All(expected, header => Assert.Contains(header, headers));
+    }
+
+    // The ground's canvas items live in its view section: one Display submenu after Edit flight plan, directly above
+    // the foot, and none of them flat at the top level.
+    [AvaloniaFact]
+    public void GroundMenu_DisplayIsASubmenuInTheViewSection()
+    {
+        ContextMenu menu = BuildWholeGroundMenu(GroundAircraft("UAL100", "Taxiing", held: false));
+        List<object?> items = [.. menu.Items];
+        List<string> headers = Headers(menu);
+
+        MenuItem display = Assert.Single(menu.Items.OfType<MenuItem>(), m => (m.Header as string) == "Display");
+        List<string> displayHeaders = [.. display.Items.OfType<MenuItem>().Select(m => m.Header as string ?? "")];
+        Assert.Equal(["Taxi route", "Hide datablock", "Measure from UAL100"], displayHeaders);
+
+        int displayIndex = items.IndexOf(display);
+        Assert.True(headers.IndexOf("Edit flight plan") >= 0, string.Join(" | ", headers));
+        Assert.True(items.IndexOf(menu.Items.OfType<MenuItem>().Single(m => (m.Header as string) == "Edit flight plan")) < displayIndex);
+        Assert.IsType<Separator>(items[displayIndex + 1]);
+        Assert.Equal("Warp...", Assert.IsType<MenuItem>(items[displayIndex + 2]).Header);
+
+        Assert.DoesNotContain("Taxi route", headers);
+        Assert.DoesNotContain("Hide datablock", headers);
+        Assert.DoesNotContain(headers, h => h.StartsWith("Measure", StringComparison.Ordinal));
     }
 
     [AvaloniaTheory]
@@ -175,12 +245,12 @@ public class GroundMovementMenuTests
 
     [AvaloniaFact]
     public void GroundMenu_AtParking_PinsHeaderSequence() =>
-        AssertHeaderSequence(BuildGroundMenu("At Parking", held: false), "Push back", "Push route...", "Follow...", "Draw taxi route...");
+        AssertGroundBlockSequence(BuildGroundMenu("At Parking", held: false), "Push back", "Push route...", "Follow...", "Draw taxi route...");
 
     [AvaloniaFact]
     public void GroundMenu_Taxiing_PinsHeaderSequence()
     {
-        AssertHeaderSequence(
+        AssertGroundBlockSequence(
             BuildGroundMenu("Taxiing", held: false),
             "Hold position",
             "Follow...",
@@ -193,40 +263,52 @@ public class GroundMovementMenuTests
     // FollowingPhase.Name is "Following <target>", so the client never sees a bare "Following".
     [AvaloniaFact]
     public void GroundMenu_Following_PinsHeaderSequence() =>
-        AssertHeaderSequence(BuildGroundMenu("Following SWA200", held: false), "Hold position", "Draw taxi route...");
+        AssertGroundBlockSequence(BuildGroundMenu("Following SWA200", held: false), "Hold position", "Draw taxi route...");
 
     [AvaloniaFact]
     public void GroundMenu_HoldingInPosition_PinsHeaderSequence() =>
-        AssertHeaderSequence(BuildGroundMenu("Holding In Position", held: true), "Resume taxi", "Follow...", "Give way to...", "Draw taxi route...");
+        AssertGroundBlockSequence(
+            BuildGroundMenu("Holding In Position", held: true),
+            "Follow...",
+            "Give way to...",
+            "Resume taxi",
+            "Draw taxi route..."
+        );
 
     [AvaloniaFact]
     public void GroundMenu_HoldingInPositionUnheld_PinsHeaderSequence() =>
-        AssertHeaderSequence(BuildGroundMenu("Holding In Position", held: false), "Follow...", "Give way to...", "Draw taxi route...");
+        AssertGroundBlockSequence(BuildGroundMenu("Holding In Position", held: false), "Follow...", "Give way to...", "Draw taxi route...");
 
     [AvaloniaFact]
     public void GroundMenu_HoldingAfterPushback_PinsHeaderSequence()
     {
-        AssertHeaderSequence(
+        AssertGroundBlockSequence(
             BuildGroundMenu("Holding After Pushback", held: true),
             "Push back",
             "Push route...",
-            "Resume taxi",
             "Follow...",
+            "Resume taxi",
             "Draw taxi route..."
         );
     }
 
     [AvaloniaFact]
     public void GroundMenu_HoldingAfterPushbackUnheld_PinsHeaderSequence() =>
-        AssertHeaderSequence(BuildGroundMenu("Holding After Pushback", held: false), "Push back", "Push route...", "Follow...", "Draw taxi route...");
+        AssertGroundBlockSequence(
+            BuildGroundMenu("Holding After Pushback", held: false),
+            "Push back",
+            "Push route...",
+            "Follow...",
+            "Draw taxi route..."
+        );
 
     [AvaloniaFact]
     public void GroundMenu_HoldingAfterExit_PinsHeaderSequence() =>
-        AssertHeaderSequence(BuildGroundMenu("Holding After Exit", held: true), "Resume taxi", "Follow...", "Draw taxi route...");
+        AssertGroundBlockSequence(BuildGroundMenu("Holding After Exit", held: true), "Follow...", "Resume taxi", "Draw taxi route...");
 
     [AvaloniaFact]
     public void GroundMenu_HoldingAfterExitUnheld_PinsHeaderSequence() =>
-        AssertHeaderSequence(BuildGroundMenu("Holding After Exit", held: false), "Follow...", "Draw taxi route...");
+        AssertGroundBlockSequence(BuildGroundMenu("Holding After Exit", held: false), "Follow...", "Draw taxi route...");
 
     [AvaloniaFact]
     public void AircraftListMenu_AtParking_PinsHeaderSequence() =>

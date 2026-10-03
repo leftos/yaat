@@ -9,32 +9,22 @@ using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
-using Yaat.Client.Views.Ground;
 using Yaat.Sim;
-using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
-using CatalogMenuView = Yaat.Client.ContextMenus.MenuView;
 
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// The ground menu host's ground traffic, hold-short, route-preview, pushback and preset-taxi members, and the Core
-/// hold-short and follow groups built over it on the real KOAK layout. The display items the menu shows are the view's
-/// own (see <c>CanvasMenuItemsTests</c>), so the host serves none of them.
+/// The client menu host's ground members — ground traffic, hold short, route preview, pushback and preset taxi — which
+/// answer from the primary ground view model on the real KOAK layout, and the builder's hold-short and follow items built
+/// over them. The display items the menu shows are the view's own (see <c>CanvasMenuItemsTests</c>), so the host serves
+/// none of them.
 /// </summary>
-public class GroundMenuHostTests
+public class ClientMenuHostGroundTests
 {
     private const string Callsign = "UAL100";
     private const string OtherCallsign = "SWA200";
-    private const string Initials = "AB";
-
-    private static (GroundView View, GroundViewModel Ground) GroundHarness()
-    {
-        var ground = new GroundViewModel(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask);
-        var view = new GroundView { DataContext = ground };
-        return (view, ground);
-    }
 
     // --- Ground traffic, hold short and route preview ----------------------------------------
 
@@ -52,32 +42,25 @@ public class GroundMenuHostTests
             .. Enumerable.Range(1, 14).Reverse().Select(i => GroundAircraft($"SWA{i:000}", "Taxiing", new LatLon(at.Lat + (i * 0.001), at.Lon))),
         ];
         MainViewModel main = MainWith(target, [self, airborne, .. traffic]);
-        (GroundView view, GroundViewModel ground) = GroundHarness();
-        var host = new GroundMenuHost(view, ground, main, target);
+        var host = new ClientMenuHost(main, target, new Border());
 
         Assert.Equal(Enumerable.Range(1, 12).Select(i => $"SWA{i:000}"), host.GetGroundTrafficCallsigns(Callsign));
     }
 
     [AvaloniaFact]
-    public void GetGroundTrafficCallsigns_NoMainViewModel_IsEmpty()
+    public void GroundMembers_AircraftNotInTheList_AnswerNothing()
     {
-        (GroundView view, GroundViewModel ground) = GroundHarness();
-        var host = new GroundMenuHost(view, ground, null, GroundAircraft(Callsign, "Taxiing", new LatLon(37.72, -122.22)));
+        var main = new MainViewModel(new FakeFilePickerService());
+        var host = new ClientMenuHost(main, null, new Border());
 
         Assert.Empty(host.GetGroundTrafficCallsigns(Callsign));
-    }
+        Assert.Empty(host.GetHoldShortChoices(Callsign));
+        Assert.Empty(host.GetPushbackFaceChoices(Callsign));
+        Assert.Empty(host.GetPushbackToChoices(Callsign));
+        Assert.Empty(host.GetPresetTaxiChoices(Callsign));
 
-    [AvaloniaFact]
-    public void GroundMenuHost_MovementMembers_ActOnlyOnTheRightClickedAircraft()
-    {
-        (GroundView view, GroundViewModel ground) = GroundHarness();
-        var host = new GroundMenuHost(view, ground, null, new AircraftModel { Callsign = Callsign });
-        var noModel = new GroundMenuHost(view, ground, null, null);
-
-        Assert.Throws<InvalidOperationException>(() => host.GetGroundTrafficCallsigns(OtherCallsign));
-        Assert.Throws<InvalidOperationException>(() => host.GetHoldShortChoices(OtherCallsign));
-        Assert.Throws<InvalidOperationException>(() => noModel.GetGroundTrafficCallsigns(Callsign));
-        Assert.Throws<InvalidOperationException>(() => noModel.GetHoldShortChoices(Callsign));
+        host.EnterPushRoute(Callsign);
+        Assert.False(main.Ground.IsDrawingRoute);
     }
 
     [AvaloniaFact]
@@ -85,8 +68,8 @@ public class GroundMenuHostTests
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = TaxiingOnW3();
-        GroundViewModel ground = OakGround(_ => { });
-        var host = new GroundMenuHost(new GroundView { DataContext = ground }, ground, null, target);
+        MainViewModel main = OakMain(target, []);
+        var host = new ClientMenuHost(main, target, new Border());
 
         IReadOnlyList<MenuCommandChoice> choices = host.GetHoldShortChoices(Callsign);
 
@@ -94,7 +77,7 @@ public class GroundMenuHostTests
         string[] runways = ["12", "30"];
         foreach ((MenuCommandChoice choice, string runway) in choices.Zip(runways))
         {
-            TaxiRoute? expected = ground.FindHoldShortPreviewRoute(target, runway);
+            TaxiRoute? expected = main.Ground.FindHoldShortPreviewRoute(target, runway);
             Assert.NotNull(expected);
             Assert.NotNull(choice.Preview);
             Assert.Equal(SegmentsOf(expected), SegmentsOf(choice.Preview));
@@ -104,49 +87,30 @@ public class GroundMenuHostTests
     [AvaloniaFact]
     public void SetRoutePreview_SetsAndClearsTheGroundPreview()
     {
-        (GroundView view, GroundViewModel ground) = GroundHarness();
-        var host = new GroundMenuHost(view, ground, null, null);
+        var main = new MainViewModel(new FakeFilePickerService());
+        var host = new ClientMenuHost(main, null, new Border());
         var route = new TaxiRoute { Segments = [], HoldShortPoints = [] };
 
         host.SetRoutePreview(route);
-        Assert.Same(route, ground.PreviewRoute);
+        Assert.Same(route, main.Ground.PreviewRoute);
 
         host.SetRoutePreview(null);
-        Assert.Null(ground.PreviewRoute);
+        Assert.Null(main.Ground.PreviewRoute);
     }
 
     // --- Pushback faces, push back to, push route and preset taxi routes ---------------------
-
-    [AvaloniaFact]
-    public void GroundMenuHost_PushbackAndPresetMembers_ActOnlyOnTheRightClickedAircraft()
-    {
-        (GroundView view, GroundViewModel ground) = GroundHarness();
-        var host = new GroundMenuHost(view, ground, null, new AircraftModel { Callsign = Callsign });
-        var noModel = new GroundMenuHost(view, ground, null, null);
-
-        (GroundMenuHost Host, string Asked)[] cases = [(host, OtherCallsign), (noModel, Callsign)];
-        foreach ((GroundMenuHost h, string asked) in cases)
-        {
-            Assert.Throws<InvalidOperationException>(() => h.GetPushbackFaceChoices(asked));
-            Assert.Throws<InvalidOperationException>(() => h.GetPushbackToChoices(asked));
-            Assert.Throws<InvalidOperationException>(() => h.GetPresetTaxiChoices(asked));
-            Assert.Throws<InvalidOperationException>(() => h.EnterPushRoute(asked));
-        }
-
-        Assert.False(ground.IsDrawingRoute);
-    }
 
     [AvaloniaFact]
     public void GetPushbackFaceChoices_AtSpotI30_SendPushFaceForEachNonRampTaxiway()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(PushbackFaceNode));
-        GroundViewModel ground = OakGround(_ => { });
-        var host = new GroundMenuHost(new GroundView { DataContext = ground }, ground, null, target);
+        MainViewModel main = OakMain(target, []);
+        var host = new ClientMenuHost(main, target, new Border());
 
         IReadOnlyList<MenuCommandChoice> choices = host.GetPushbackFaceChoices(Callsign);
 
-        List<(string Label, string Cardinal)> directions = ground.GetPushbackDirections(target);
+        List<(string Label, string Cardinal)> directions = main.Ground.GetPushbackDirections(target);
         Assert.NotEmpty(directions);
         Assert.Equal(directions.Select(d => ($"Push back, {d.Label}", $"PUSH FACE {d.Cardinal}")), choices.Select(c => (c.Label, c.Command)));
         Assert.All(choices, c => Assert.StartsWith("Push back, face ", c.Label));
@@ -158,8 +122,7 @@ public class GroundMenuHostTests
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(PushbackFaceNode));
-        GroundViewModel ground = OakGround(_ => { });
-        var host = new GroundMenuHost(new GroundView { DataContext = ground }, ground, null, target);
+        var host = new ClientMenuHost(OakMain(target, []), target, new Border());
 
         IReadOnlyList<MenuCommandChoice> choices = host.GetPushbackToChoices(Callsign);
 
@@ -179,8 +142,7 @@ public class GroundMenuHostTests
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = GroundAircraft(Callsign, "Taxiing", PositionOf(PresetTaxiNode));
         target.AssignedRunway = "30";
-        GroundViewModel ground = OakGround(_ => { });
-        var host = new GroundMenuHost(new GroundView { DataContext = ground }, ground, null, target);
+        var host = new ClientMenuHost(OakMain(target, []), target, new Border());
 
         IReadOnlyList<MenuCommandChoice> choices = host.GetPresetTaxiChoices(Callsign);
 
@@ -193,9 +155,8 @@ public class GroundMenuHostTests
     [AvaloniaFact]
     public void PushbackAndPresetChoices_NoLayout_AreEmpty()
     {
-        (GroundView view, GroundViewModel ground) = GroundHarness();
         AircraftModel target = GroundAircraft(Callsign, "At Parking", new LatLon(37.72, -122.22));
-        var host = new GroundMenuHost(view, ground, null, target);
+        var host = new ClientMenuHost(MainWith(target, []), target, new Border());
 
         Assert.Empty(host.GetPushbackFaceChoices(Callsign));
         Assert.Empty(host.GetPushbackToChoices(Callsign));
@@ -207,54 +168,46 @@ public class GroundMenuHostTests
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = GroundAircraft(Callsign, "At Parking", PositionOf(PushbackFaceNode));
-        GroundViewModel ground = OakGround(_ => { });
-        var host = new GroundMenuHost(new GroundView { DataContext = ground }, ground, null, target);
+        MainViewModel main = OakMain(target, []);
+        var host = new ClientMenuHost(main, target, new Border());
 
         host.EnterPushRoute(Callsign);
 
-        Assert.True(ground.IsDrawingRoute);
-        Assert.Equal(Callsign, ground.PushRouteCallsign);
+        Assert.True(main.Ground.IsDrawingRoute);
+        Assert.Equal(Callsign, main.Ground.PushRouteCallsign);
     }
 
-    // --- The Core groups over the ground host ------------------------------------------------
+    // --- The builder's ground items over the host's answers ---------------------------------
 
+    // The menu is built over the client host with only its sends captured, since the client host sends to a server a test
+    // has none of; the choices and the hover preview are the client host's own.
     [AvaloniaFact]
-    public void CoreGroups_Taxiing_HoldShortFollowAndGiveWay_SendAndPreview()
+    public void Builder_Taxiing_HoldShortFollowAndGiveWay_SendAndPreview()
     {
         using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
         AircraftModel target = TaxiingOnW3();
         AircraftModel candidate = GroundAircraft(OtherCallsign, "Taxiing", new LatLon(target.Position.Lat + 0.002, target.Position.Lon));
-        var sent = new List<(string Callsign, string Command, string Initials)>();
-        GroundViewModel ground = OakGround(sent.Add);
-        var host = new GroundMenuHost(new GroundView { DataContext = ground }, ground, MainWith(target, [candidate]), target);
-        MenuContext context = TestMenuContext.Create(Callsign, Initials, null, false, VfrCommandsForIfr.None, CatalogMenuView.Ground);
+        MainViewModel main = OakMain(target, [candidate]);
+        var host = new SendCapturingHost(new ClientMenuHost(main, target, new Border()), "AB");
 
-        var menu = new ContextMenu();
-        SharedMenuGroups.AddGroundFollowAndGiveWay(menu.Items, target, context, host, GroundFollowPosition.Parking);
-        SharedMenuGroups.AddGroundFollowAndGiveWay(menu.Items, target, context, host, GroundFollowPosition.Hold);
-        Assert.Empty(menu.Items);
+        ContextMenu menu = AircraftMenuBuilder.Build(target, new MenuClick(Callsign, null, []), host, _ => []);
 
-        SharedMenuGroups.AddGroundHoldShort(menu.Items, target, context, host);
-        SharedMenuGroups.AddGroundFollowAndGiveWay(menu.Items, target, context, host, GroundFollowPosition.Taxi);
-
-        Assert.Equal(["Hold short of...", "Follow...", "Give way to..."], Headers(menu.Items));
+        string[] groundItems = ["Hold short of...", "Follow...", "Give way to..."];
+        Assert.Equal(groundItems, Headers(menu.Items).Where(groundItems.Contains));
         Assert.Equal(["Runway 12", "Runway 30"], Headers(Item(menu.Items, "Hold short of...").Items));
         Assert.Equal([OtherCallsign], Headers(Item(menu.Items, "Follow...").Items));
         Assert.Equal([OtherCallsign], Headers(Item(menu.Items, "Give way to...").Items));
 
         MenuItem holdShort30 = Item(Item(menu.Items, "Hold short of...").Items, "Runway 30");
         RaisePointerEntered(holdShort30);
-        Assert.NotNull(ground.PreviewRoute);
-        Assert.Equal(SegmentsOf(ground.FindHoldShortPreviewRoute(target, "30")!), SegmentsOf(ground.PreviewRoute));
+        Assert.NotNull(main.Ground.PreviewRoute);
+        Assert.Equal(SegmentsOf(main.Ground.FindHoldShortPreviewRoute(target, "30")!), SegmentsOf(main.Ground.PreviewRoute));
 
         Click(holdShort30);
         Click(Item(Item(menu.Items, "Follow...").Items, OtherCallsign));
         Click(Item(Item(menu.Items, "Give way to...").Items, OtherCallsign));
 
-        Assert.Equal(
-            [(Callsign, "HS 30", Initials), (Callsign, $"FOLLOWG {OtherCallsign}", Initials), (Callsign, $"GW {OtherCallsign}", Initials)],
-            sent
-        );
+        Assert.Equal([(Callsign, "HS 30", "AB"), (Callsign, $"FOLLOWG {OtherCallsign}", "AB"), (Callsign, $"GW {OtherCallsign}", "AB")], host.Sent);
     }
 
     // --- Fixtures ---------------------------------------------------------------------------
@@ -295,19 +248,15 @@ public class GroundMenuHostTests
         return main;
     }
 
-    /// <summary>A ground view model over the committed KOAK layout, handing every command it sends to <paramref name="onSend"/>.</summary>
-    private static GroundViewModel OakGround(Action<(string Callsign, string Command, string Initials)> onSend)
+    /// <summary>
+    /// A main view model holding <paramref name="target"/> and <paramref name="others"/>, its primary ground view model
+    /// over the committed KOAK layout.
+    /// </summary>
+    private static MainViewModel OakMain(AircraftModel target, AircraftModel[] others)
     {
-        var ground = new GroundViewModel(
-            new ServerConnection(),
-            sendCommand: (callsign, command, initials) =>
-            {
-                onSend((callsign, command, initials));
-                return Task.CompletedTask;
-            }
-        );
-        ground.SetLayoutForTesting(MenuGoldenFixtures.OakLayoutForClient);
-        return ground;
+        MainViewModel main = MainWith(target, others);
+        main.Ground.SetLayoutForTesting(MenuGoldenFixtures.OakLayoutForClient);
+        return main;
     }
 
     private static GroundLayoutDto Oak => MenuGoldenFixtures.OakLayoutForClient;

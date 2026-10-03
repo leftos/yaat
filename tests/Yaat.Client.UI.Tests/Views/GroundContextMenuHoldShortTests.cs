@@ -3,8 +3,6 @@ using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
-using Yaat.Sim.Commands;
-using CatalogMenuView = Yaat.Client.ContextMenus.MenuView;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -27,10 +25,7 @@ public class GroundContextMenuHoldShortTests
             AssignedRunway = "28R",
             HasActiveTaxiRoute = true,
         };
-        MenuContext context = TestMenuContext.Create("N784ME", "AB", null, false, VfrCommandsForIfr.EnterFinalOnly, CatalogMenuView.Ground);
-
-        var menu = new ContextMenu();
-        SharedMenuGroups.AddGroundClearances(menu.Items, ac, context, new RecordingMenuHost(""));
+        ContextMenu menu = AircraftMenuBuilder.Build(ac, new MenuClick("N784ME", null, []), new RecordingMenuHost(""), _ => []);
 
         var crossItems = menu
             .Items.OfType<MenuItem>()

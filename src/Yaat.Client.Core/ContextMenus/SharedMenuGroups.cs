@@ -12,11 +12,10 @@ namespace Yaat.Client.ContextMenus;
 /// group themselves. The read-only tree a surface live-traffic shadow gets (<see cref="AddSurfaceShadow"/>) uses the radar's
 /// Track on every view, so a shadow's handoff and point-out pickers are there on all three. Data block takes no view: its
 /// entries are capability-gated, so a surface without the free-text popup shows fewer of them; the flight groups are the
-/// radar's own, so they take no view either. The relative items (<see cref="AddRelative"/>) and
-/// the ground view's pushback block, runway clearances, landing block, hold short and follow submenus and taxi-route block
-/// are groups of their own, and its tower variants branch on <see cref="MenuContext.View"/> inside the entries. Whether a
-/// group is offered at all stays with the caller. A group whose items are canvas-only in nature — the Display submenu
-/// and its flat ground form — takes the surface's prebuilt items instead of the entries: the surface builds them with
+/// radar's own, so they take no view either. The relative items (<see cref="AddRelative"/>) are a group of their own,
+/// and the tower variants branch on <see cref="MenuContext.View"/> inside the entries. Whether a group is offered at all
+/// stays with the caller. A group whose items are canvas-only in nature — the Display submenu — takes the surface's
+/// prebuilt items instead of the entries: the surface builds them with
 /// <see cref="CanvasMenuItems"/> from its own canvas state and only the placing stays here.
 /// </summary>
 public static class SharedMenuGroups
@@ -537,8 +536,7 @@ public static class SharedMenuGroups
     private static bool IsApplicable(string id, IMenuAircraft? aircraft, MenuContext context) => MenuCatalog.Get(id).IsApplicable(aircraft, context);
 
     /// <summary>
-    /// Adds the entry's item when the entry applies to the aircraft, otherwise nothing, and returns whether it added one;
-    /// the ground view places its single entries with it between its groups.
+    /// Adds the entry's item when the entry applies to the aircraft, otherwise nothing, and returns whether it added one.
     /// </summary>
     public static bool AddIfApplicable(ItemCollection items, string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
     {
@@ -600,179 +598,8 @@ public static class SharedMenuGroups
     }
 
     /// <summary>
-    /// The ground view's runway clearances that apply, in the ground's order: resume taxi (from a hold-short or a
-    /// stationary hold), cross the held runway, line up and wait, Cleared for takeoff, then cancel takeoff clearance
-    /// while lined up and waiting. Cancel takeoff while rolling comes after the landing items instead
-    /// (<see cref="AddGroundLanding"/>). The caller builds the context with <see cref="MenuView.Ground"/>.
-    /// </summary>
-    public static void AddGroundClearances(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-    {
-        foreach (string id in GroundClearanceIds)
-        {
-            AddIfApplicable(items, id, aircraft, context, host);
-        }
-
-        if ((aircraft?.CurrentPhase ?? "") == "LinedUpAndWaiting")
-        {
-            AddIfApplicable(items, MenuIds.TowerCancelTakeoff, aircraft, context, host);
-        }
-    }
-
-    /// <summary>The ground view's runway clearances, in menu order.</summary>
-    private static readonly string[] GroundClearanceIds =
-    [
-        MenuIds.GroundResumeTaxi,
-        MenuIds.GroundCrossRunway,
-        MenuIds.TowerLineUpAndWait,
-        MenuIds.TowerClearedForTakeoff,
-    ];
-
-    /// <summary>
-    /// The ground view's landing items and runway exits, flat (<see cref="AddFlatLandingAndExits"/>); then cancel
-    /// takeoff clearance while rolling.
-    /// </summary>
-    public static void AddGroundLanding(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-    {
-        AddFlatLandingAndExits(items, aircraft, context, host);
-        if ((aircraft?.CurrentPhase ?? "") == "Takeoff")
-        {
-            AddIfApplicable(items, MenuIds.TowerCancelTakeoff, aircraft, context, host);
-        }
-    }
-
-    /// <summary>
-    /// The ground view's display items, flat in the order the view built them
-    /// (<c>GroundView.BuildCanvasItems</c>, which reads the ground view model's data-block, taxi-route and measure
-    /// state). An item the view's state hid is null and adds nothing.
-    /// </summary>
-    public static void AddGroundDisplay(ItemCollection items, IReadOnlyList<MenuItem?> viewItems)
-    {
-        foreach (MenuItem? item in viewItems)
-        {
-            TryAdd(items, item);
-        }
-    }
-
-    /// <summary>
-    /// The ground view's Hold short of… submenu while the aircraft is taxiing
-    /// (<see cref="AircraftCommandApplicability.CanHoldShort"/>) and its route offers a target; otherwise nothing.
-    /// </summary>
-    public static void AddGroundHoldShort(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host) =>
-        AddIfApplicableAndBuilt(items, MenuIds.GroundHoldShort, aircraft, context, host);
-
-    /// <summary>
-    /// The ground view's Follow… and Give way to… submenus at <paramref name="position"/>, which offers them only for
-    /// its own phases: <see cref="GroundFollowPosition.Parking"/> for an aircraft at parking,
-    /// <see cref="GroundFollowPosition.Taxi"/> for a taxiing one, <see cref="GroundFollowPosition.Hold"/> for the
-    /// three stationary holds. Each submenu is added while its predicate
-    /// (<see cref="AircraftCommandApplicability.CanFollowBehind"/>, <see cref="AircraftCommandApplicability.CanGiveWayTo"/>)
-    /// allows it and there is other ground traffic, so the parking position never offers Give way to….
-    /// </summary>
-    public static void AddGroundFollowAndGiveWay(
-        ItemCollection items,
-        IMenuAircraft? aircraft,
-        MenuContext context,
-        IMenuHost host,
-        GroundFollowPosition position
-    )
-    {
-        if (!IsAtFollowPosition(aircraft, position))
-        {
-            return;
-        }
-
-        AddIfApplicableAndBuilt(items, MenuIds.GroundFollow, aircraft, context, host);
-        AddIfApplicableAndBuilt(items, MenuIds.GroundGiveWay, aircraft, context, host);
-    }
-
-    /// <summary>
-    /// The ground view's phase-aware command items, in the ground's order: the relative items
-    /// (<see cref="AddRelative"/>), the pushback block, hold position, hold short, the taxi position's follow and give
-    /// way, break conflict, the runway clearances, the hold position's follow and give way, the landing items, then the
-    /// taxi-route block. Each adds nothing when it does not apply.
-    /// </summary>
-    public static void AddGroundAircraftCommands(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-    {
-        AddRelative(items, aircraft, context, host);
-        AddGroundPushback(items, aircraft, context, host);
-
-        // The single emission for the whole HOLD window, taxi-follow phases included — those emit
-        // nothing of their own before this item, so it stays the first item they show.
-        AddIfApplicable(items, MenuIds.GroundHoldPosition, aircraft, context, host);
-        AddGroundHoldShort(items, aircraft, context, host);
-        AddGroundFollowAndGiveWay(items, aircraft, context, host, GroundFollowPosition.Taxi);
-        AddIfApplicable(items, MenuIds.GroundBreakConflict, aircraft, context, host);
-        AddGroundClearances(items, aircraft, context, host);
-        AddGroundFollowAndGiveWay(items, aircraft, context, host, GroundFollowPosition.Hold);
-        AddGroundLanding(items, aircraft, context, host);
-        AddGroundTaxiRoutes(items, aircraft, context, host);
-    }
-
-    /// <summary>
-    /// The ground view's pushback block while the aircraft can push back (<see cref="AircraftCommandApplicability.CanPushBack"/>):
-    /// Push back, the flat face items (<see cref="MenuCatalog.BuildPushbackFaces"/>), Push back to… when the host
-    /// answers a stand, Push route…, then the parking position's Follow…
-    /// (<see cref="GroundFollowPosition.Parking"/>). Holding After Pushback gets its follow submenus from the hold
-    /// position after the clearances instead. Adds nothing otherwise.
-    /// </summary>
-    public static void AddGroundPushback(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-    {
-        if (!AddIfApplicable(items, MenuIds.GroundPushback, aircraft, context, host))
-        {
-            return;
-        }
-
-        if (IsApplicable(MenuIds.GroundPushbackFace, aircraft, context))
-        {
-            AddRange(items, MenuCatalog.BuildPushbackFaces(context, host));
-        }
-
-        AddIfApplicableAndBuilt(items, MenuIds.GroundPushbackTo, aircraft, context, host);
-        AddIfApplicable(items, MenuIds.GroundPushRoute, aircraft, context, host);
-        AddGroundFollowAndGiveWay(items, aircraft, context, host, GroundFollowPosition.Parking);
-    }
-
-    /// <summary>
-    /// The ground view's taxi-route block while a taxi route can be drawn (<see cref="AircraftCommandApplicability.CanDrawTaxiRoute"/>):
-    /// a separator, the Preset taxi route submenu when a preset applies, then Draw taxi route…. Adds nothing otherwise.
-    /// </summary>
-    public static void AddGroundTaxiRoutes(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-    {
-        if (!IsApplicable(MenuIds.GroundDrawTaxiRoute, aircraft, context))
-        {
-            return;
-        }
-
-        items.Add(new Separator());
-        AddIfApplicableAndBuilt(items, MenuIds.GroundTaxiPreset, aircraft, context, host);
-        AddIfApplicable(items, MenuIds.GroundDrawTaxiRoute, aircraft, context, host);
-    }
-
-    /// <summary>Whether the aircraft's phase is one <paramref name="position"/> places the follow submenus for.</summary>
-    private static bool IsAtFollowPosition(IMenuAircraft? aircraft, GroundFollowPosition position)
-    {
-        string phase = aircraft?.CurrentPhase ?? "";
-        return position switch
-        {
-            GroundFollowPosition.Parking => phase == "At Parking",
-            GroundFollowPosition.Taxi => phase == "Taxiing",
-            GroundFollowPosition.Hold => phase is "Holding In Position" or "Holding After Exit" or "Holding After Pushback",
-            _ => throw new ArgumentOutOfRangeException(nameof(position), position, "Unknown ground follow position"),
-        };
-    }
-
-    /// <summary>Adds the entry's item when the entry applies and the surface's state gives it something to show; otherwise nothing.</summary>
-    private static void AddIfApplicableAndBuilt(ItemCollection items, string id, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)
-    {
-        if (IsApplicable(id, aircraft, context))
-        {
-            AddIfBuilt(items, id, aircraft, context, host);
-        }
-    }
-
-    /// <summary>
     /// The aircraft list's phase-aware command items, in the list's order: the relative items
-    /// (<see cref="AddRelative"/>) while another row was selected at the right-click, as the ground's command block
+    /// (<see cref="AddRelative"/>) while another row was selected at the right-click, as the builder's command tree
     /// opens with them; the ground-movement block (push back, hold position, resume taxi and cross the held runway) for
     /// an on-ground aircraft, then line up and wait, Cleared for takeoff and cancel takeoff clearance, then the landing
     /// items and the runway exits. The landing block and the exits come from <see cref="AddFlatLandingAndExits"/>. The
@@ -797,8 +624,7 @@ public static class SharedMenuGroups
 
     /// <summary>
     /// The landing items in the Tower submenu's order (<see cref="LandingIds"/>) while any of cleared to land, go around
-    /// or cancel landing clearance applies, then the runway exits, for the flat menus of the ground view and the
-    /// aircraft list. Each block opens with a separator when items precede it (<see cref="AddBlockSeparator"/>), as the
+    /// or cancel landing clearance applies, then the runway exits, for the aircraft list's flat menu. Each block opens with a separator when items precede it (<see cref="AddBlockSeparator"/>), as the
     /// Tower submenu separates its blocks.
     /// </summary>
     private static void AddFlatLandingAndExits(ItemCollection items, IMenuAircraft? aircraft, MenuContext context, IMenuHost host)

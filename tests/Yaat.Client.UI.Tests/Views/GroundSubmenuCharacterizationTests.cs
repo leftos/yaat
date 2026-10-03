@@ -3,25 +3,22 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Xunit;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
-using Yaat.Client.Views.Ground;
 using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.UI.Tests.Views;
 
-// Characterization of the ground map's host-answered submenus on today's builders: the pushback face
-// items and "Push back to...", "Preset taxi route", "Hold short of...", "Follow..." and "Give way to...".
+// The aircraft menu's host-answered ground submenus, built through AircraftMenuBuilder over the client menu host: the
+// pushback face items and "Push back to...", "Preset taxi route", "Hold short of...", "Follow..." and "Give way to...".
 // The menu goldens are single-aircraft fixtures and show none of them, so nothing else pins their
 // headers, their children and order, their caps and gates, or the exact command a click sends.
-//
-// Every test here must pass against the current code unchanged; they exist so the move of these submenus
-// into the Core catalog can prove "behaviour unchanged" through them. Nothing under src/ changes.
 //
 // Fixtures sit on the real committed KOAK layout (MenuGoldenFixtures.OakLayoutForClient), whose LatLons
 // place each aircraft on a named node:
@@ -154,7 +151,7 @@ public class GroundSubmenuCharacterizationTests
     }
 
     [AvaloniaFact]
-    public void GroundMenu_HoldingAfterPushback_FollowAppearsOnceFromHoldBranch()
+    public void GroundMenu_HoldingAfterPushback_FollowAppearsOnce()
     {
         AircraftModel target = GroundAircraft("SWA104", "Holding After Pushback", PositionOf(PushbackFaceNode));
 
@@ -376,11 +373,11 @@ public class GroundSubmenuCharacterizationTests
     private sealed record Built(GroundViewModel Vm, List<(string Callsign, string Command, string Initials)> Sent, ContextMenu Menu);
 
     /// <summary>
-    /// Builds the ground view's simulated-aircraft items for <paramref name="target"/>, with the KOAK layout installed
-    /// on the ground view model and every other aircraft in the main view model's list so the follow candidates resolve.
-    /// The view is parented to a host carrying the main view model, which is what <c>GroundView.FindMainViewModel</c>
-    /// walks; commands land in <see cref="Built.Sent"/> through the view model's send delegate. Built under a scoped
-    /// navigation database so the main view model's background navdata load cannot replace it mid-build.
+    /// Builds the aircraft menu for <paramref name="target"/> through <see cref="AircraftMenuBuilder"/> over the client
+    /// menu host, with the KOAK layout installed on the main view model's primary ground view model and every other
+    /// aircraft in its list so the follow candidates resolve; commands land in <see cref="Built.Sent"/>, sent with the
+    /// test's initials. Built under a scoped navigation database so the main view model's background navdata load cannot
+    /// replace it mid-build.
     /// </summary>
     private Built BuildMenu(AircraftModel target, AircraftModel? prevSelected, params AircraftModel[] others)
     {
@@ -394,24 +391,11 @@ public class GroundSubmenuCharacterizationTests
             main.Aircraft.Add(other);
         }
 
-        var sent = new List<(string Callsign, string Command, string Initials)>();
-        var vm = new GroundViewModel(
-            new ServerConnection(),
-            sendCommand: (callsign, command, initials) =>
-            {
-                sent.Add((callsign, command, initials));
-                return Task.CompletedTask;
-            }
-        );
-        vm.SetLayoutForTesting(MenuGoldenFixtures.OakLayoutForClient);
+        main.Ground.SetLayoutForTesting(MenuGoldenFixtures.OakLayoutForClient);
 
-        var view = new GroundView { DataContext = vm };
-        var host = new Grid { DataContext = main };
-        host.Children.Add(view);
-
-        var menu = new ContextMenu();
-        view.AddSimulatedAircraftItems(menu, vm, new GroundMenuTarget(target, prevSelected, target.Callsign, Initials));
-        return new Built(vm, sent, menu);
+        var host = new SendCapturingHost(new ClientMenuHost(main, target, new Border()), Initials);
+        ContextMenu menu = AircraftMenuBuilder.Build(target, new MenuClick(target.Callsign, prevSelected, []), host, _ => []);
+        return new Built(main.Ground, host.Sent, menu);
     }
 
     private static List<string> Headers(ItemCollection items) =>

@@ -26,7 +26,7 @@ internal sealed record MenuFixture(string Name, AircraftModel Aircraft, Aircraft
 /// The fixed aircraft the menu goldens right-click, with the committed NavData, CIFP and KOAK layout they are built
 /// against. Every call returns fresh <see cref="AircraftModel"/>s built from constants (no clock, no randomness), one per
 /// <see cref="AircraftSituation"/> except <see cref="AircraftSituation.Unknown"/> (an IFR and a VFR one where the
-/// situation allows both), plus live traffic, a delayed spawn (radar and list) and a relative selection (radar and ground).
+/// situation allows both), plus live traffic, a delayed spawn (every view) and a relative selection (radar and ground).
 /// IFR fixtures fly a B738 to KOAK runway 30 and VFR fixtures a C172 to 28R.
 /// </summary>
 internal static class MenuGoldenFixtures
@@ -54,14 +54,19 @@ internal static class MenuGoldenFixtures
     public static IReadOnlyList<MenuFixture> For(MenuView view)
     {
         AirportGroundLayout layout = OakLayout.Value;
-        List<MenuFixture> fixtures = [.. GroundFixtures(layout), .. AirborneIfrFixtures(), .. AirborneVfrFixtures(), .. LiveTrafficFixtures(layout)];
+        List<MenuFixture> fixtures =
+        [
+            .. GroundFixtures(layout),
+            .. AirborneIfrFixtures(),
+            .. AirborneVfrFixtures(),
+            .. LiveTrafficFixtures(layout),
+            DelayedSpawn(),
+        ];
         switch (view)
         {
             case MenuView.List:
-                fixtures.Add(DelayedSpawn());
                 break;
             case MenuView.Radar:
-                fixtures.Add(DelayedSpawn());
                 fixtures.Add(RadarRelativeSelection());
                 break;
             case MenuView.Ground:

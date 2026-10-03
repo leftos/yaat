@@ -61,15 +61,14 @@ public class ContextMenuBuilderSeamTests
         return (view, main);
     }
 
-    /// <summary>A ground view parented the same way, with the ground view model the handler reads.</summary>
+    /// <summary>A ground view over the main view model's primary ground view model, parented the same way.</summary>
     private static (GroundView View, GroundViewModel Ground, MainViewModel Main) GroundHarness()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        var ground = new GroundViewModel(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask);
-        var view = new GroundView { DataContext = ground };
+        var view = new GroundView { DataContext = main.Ground };
         var host = new Grid { DataContext = main };
         host.Children.Add(view);
-        return (view, ground, main);
+        return (view, main.Ground, main);
     }
 
     private static AircraftModel AirborneIfr(string callsign, string phase) =>
@@ -178,7 +177,7 @@ public class ContextMenuBuilderSeamTests
     {
         (GroundView view, GroundViewModel ground, MainViewModel main) = GroundHarness();
         main.Aircraft.Add(shadow);
-        return view.BuildAircraftContextMenu(ground, new GroundMenuTarget(shadow, PrevSelected: null, shadow.Callsign, "AB"));
+        return view.BuildAircraftContextMenu(ground, shadow, prevSelected: null, shadow.Callsign);
     }
 
     /// <summary>A surface shadow's list menu, through the list's whole-menu builder.</summary>
@@ -207,7 +206,7 @@ public class ContextMenuBuilderSeamTests
         [.. DisplayOf(menu).Items.OfType<MenuItem>().Select(i => i.Header as string ?? "")];
 
     // Every view's Display is the view's own: each builds it from its own canvas state (or from none, on the aircraft
-    // list), so it still builds over a host with no canvas members at all, and so does the ground's flat item list.
+    // list), so it still builds over a host with no canvas members at all.
     [AvaloniaFact]
     public void EveryViewsDisplay_BuildsOverAHostWithNoCanvasMembers()
     {
@@ -215,7 +214,7 @@ public class ContextMenuBuilderSeamTests
         AircraftModel shadow = SurfaceShadow("SWA9");
 
         (RadarView radarView, MainViewModel radarMain) = RadarHarness();
-        (GroundView groundView, GroundViewModel ground, MainViewModel groundMain) = GroundHarness();
+        (GroundView groundView, GroundViewModel ground, _) = GroundHarness();
         MenuContext radar = Context(CatalogMenuView.Radar);
         MenuContext groundContext = Context(CatalogMenuView.Ground);
         MenuContext list = Context(CatalogMenuView.List);
@@ -223,7 +222,7 @@ public class ContextMenuBuilderSeamTests
         (MenuContext Context, MenuItem Display)[] sections =
         [
             (radar, radarView.BuildCanvasDisplay(radarMain.Radar, radar, host)),
-            (groundContext, groundView.BuildCanvasDisplay(ground, groundContext, host)),
+            (groundContext, groundView.BuildCanvasDisplay(ground, groundContext)),
             (list, DataGridView.BuildCanvasDisplay(list, host)),
         ];
 
@@ -236,13 +235,6 @@ public class ContextMenuBuilderSeamTests
             Assert.NotEmpty(display.Items);
             Assert.False(display.Items[0] is Separator);
         }
-
-        // The ground's flat display items come from the ground view too, and still build over the same host.
-        var groundMenu = new ContextMenu();
-        SharedMenuGroups.AddGroundDisplay(groundMenu.Items, groundView.BuildCanvasItems(ground, groundContext));
-        List<string?> groundItems = [.. groundMenu.Items.Select(i => (i as MenuItem)?.Header as string)];
-        Assert.Equal("Taxi route", groundItems[0]);
-        Assert.Equal("Hide datablock", groundItems[1]);
     }
 
     // Every view gives a surface shadow the same read-only tree: track / data block / coordination / display, then the foot.
@@ -279,6 +271,7 @@ public class ContextMenuBuilderSeamTests
         List<string> groundHeaders = DisplayHeaders(GroundSurfaceShadowMenu(SurfaceShadow("SWA9")));
         Assert.Contains("Taxi route", groundHeaders);
         Assert.Contains("Hide datablock", groundHeaders);
+        Assert.DoesNotContain("Leader direction", groundHeaders);
 
         Assert.DoesNotContain("Taxi route", DisplayHeaders(RadarSurfaceShadowMenu(SurfaceShadow("SWA9"))));
         Assert.DoesNotContain("Taxi route", DisplayHeaders(ListSurfaceShadowMenu(SurfaceShadow("SWA9"))));
@@ -301,7 +294,7 @@ public class ContextMenuBuilderSeamTests
         };
         main.Aircraft.Add(ac);
 
-        ContextMenu menu = view.BuildAircraftContextMenu(ground, new GroundMenuTarget(ac, PrevSelected: null, ac.Callsign, "AB"));
+        ContextMenu menu = view.BuildAircraftContextMenu(ground, ac, prevSelected: null, ac.Callsign);
 
         AssertSequence(
             menu,
@@ -314,11 +307,19 @@ public class ContextMenuBuilderSeamTests
             "---",
             "Push back",
             "Push route...",
-            "---",
             "Draw taxi route...",
-            "Taxi route",
-            "Hide datablock",
             "---",
+            "Track",
+            "Data Block",
+            "Squawk",
+            "Ask pilot to say...",
+            "Coordination",
+            "---",
+            "Edit flight plan",
+            "---",
+            "Display",
+            "---",
+            "Warp...",
             "Delete"
         );
     }
@@ -463,7 +464,7 @@ public class ContextMenuBuilderSeamTests
         main.Aircraft.Add(clicked);
         main.Aircraft.Add(selected);
 
-        ContextMenu menu = view.BuildAircraftContextMenu(ground, new GroundMenuTarget(clicked, selected, clicked.Callsign, "AB"));
+        ContextMenu menu = view.BuildAircraftContextMenu(ground, clicked, selected, clicked.Callsign);
 
         List<string> sequence = Sequence(menu);
         Assert.Contains("↪ AAL602:", sequence);

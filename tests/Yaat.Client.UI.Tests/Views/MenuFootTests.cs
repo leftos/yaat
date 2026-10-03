@@ -49,24 +49,11 @@ public class MenuFootTests
     }
 
     [AvaloniaFact]
-    public void GroundMenu_EndsWithSeparatorReleaseDeleteThenRpoItems()
+    public void GroundMenu_EndsWithSeparatorWarpReleaseDeleteThenRpoItems()
     {
         List<string> items = TopLevel(MenuView.Ground, "taxiing", assumedFromLiveFeed: true);
 
-        Assert.Equal(
-            ["Hide datablock", "Measure from SWA104", "---", "Release to live feed", "Delete", "---", "Give control", "Unassign"],
-            items[^8..]
-        );
-    }
-
-    [AvaloniaFact]
-    public void GroundMenu_MeasureIsAFlatItemAfterTheDisplayItems_NotInTheHeader()
-    {
-        List<string> items = TopLevel(MenuView.Ground, "taxiing", assumedFromLiveFeed: false);
-
-        int favorites = items.IndexOf("Favorite Commands");
-        Assert.DoesNotContain(items[..favorites], i => i.StartsWith("Measure", StringComparison.Ordinal));
-        Assert.Equal(items.IndexOf("Hide datablock") + 1, items.IndexOf("Measure from SWA104"));
+        Assert.Equal(["Display", "---", "Warp...", "Release to live feed", "Delete", "---", "Give control", "Unassign"], items[^8..]);
     }
 
     [AvaloniaFact]
@@ -108,7 +95,7 @@ public class MenuFootTests
         ContextMenu menu = view switch
         {
             MenuView.Radar => MenuHostHarness.BuildRadarMenu(main, ac, null),
-            MenuView.Ground => MenuHostHarness.BuildGroundMenu(main, ac, null, MenuGoldenFixtures.Initials),
+            MenuView.Ground => MenuHostHarness.BuildGroundMenu(main, ac, null),
             _ => DataGridView.BuildAircraftMenu(main, new DataGrid(), ac, null, [ac], MenuGoldenFixtures.Initials),
         };
         return [.. menu.Items.Select(Describe)];

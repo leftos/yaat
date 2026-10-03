@@ -5,8 +5,7 @@ namespace Yaat.Client.ContextMenus;
 
 /// <summary>
 /// What a catalog entry's builder needs from the surface that owns the menu: the send path, the popups and flyouts, the
-/// ground choices and route drawing. A surface's own canvas items — the Display submenu and the ground's flat display
-/// items — are not here: the view builds them with <see cref="CanvasMenuItems"/> from its own canvas state.
+/// ground choices and route drawing. A surface's own canvas items — every view's view section — are not here: the view builds them with <see cref="CanvasMenuItems"/> from its own canvas state.
 /// </summary>
 public interface IMenuHost
 {

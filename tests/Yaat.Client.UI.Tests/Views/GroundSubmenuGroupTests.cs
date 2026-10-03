@@ -5,31 +5,33 @@ using Avalonia.Interactivity;
 using Xunit;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
-using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
-using CatalogMenuView = Yaat.Client.ContextMenus.MenuView;
 
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// The Core hold-short, follow, pushback and taxi-route groups over a <see cref="RecordingMenuHost"/>: they build each
-/// submenu and the flat face items only from the host's answers, send the host's finished commands or <c>FOLLOWG</c> /
-/// <c>GW</c> with the host's callsigns in the host's order, preview only the choices that carry a route, and hand push
-/// route and taxi-route drawing to the host.
+/// The builder's hold-short, follow, pushback and taxi-route items over a <see cref="RecordingMenuHost"/>: they build
+/// each submenu and the flat face items only from the host's answers, send the host's finished commands or
+/// <c>FOLLOWG</c> / <c>GW</c> with the host's callsigns in the host's order, preview only the choices that carry a
+/// route, and hand push route and taxi-route drawing to the host.
 /// </summary>
 public class GroundSubmenuGroupTests
 {
     private const string Callsign = "SWA104";
     private const string Initials = "AB";
 
-    private static readonly MenuContext Context = TestMenuContext.Create(
-        Callsign,
-        Initials,
-        null,
-        false,
-        VfrCommandsForIfr.None,
-        CatalogMenuView.Ground
-    );
+    /// <summary>The whole aircraft menu for <paramref name="ac"/> over <paramref name="host"/>, with no view section.</summary>
+    private static ContextMenu BuildMenu(RecordingMenuHost host, AircraftModel ac) =>
+        AircraftMenuBuilder.Build(ac, new MenuClick(Callsign, null, []), host, _ => []);
+
+    /// <summary>The top-level headers of <paramref name="menu"/> that <paramref name="keep"/> picks, in order.</summary>
+    private static List<string> HeadersWhere(ContextMenu menu, Func<string, bool> keep) => [.. Headers(menu.Items).Where(keep)];
+
+    private static bool IsTaxiGroup(string header) => header is "Hold short of..." or "Follow..." or "Give way to...";
+
+    private static bool IsPushItem(string header) => header.StartsWith("Push", StringComparison.Ordinal);
+
+    private static bool IsTaxiRouteItem(string header) => header is "Preset taxi route" or "Draw taxi route...";
 
     private static AircraftModel Taxiing() =>
         new()
@@ -42,14 +44,7 @@ public class GroundSubmenuGroupTests
             HasActiveTaxiRoute = true,
         };
 
-    private static ContextMenu BuildTaxiGroups(RecordingMenuHost host)
-    {
-        AircraftModel ac = Taxiing();
-        var menu = new ContextMenu();
-        SharedMenuGroups.AddGroundHoldShort(menu.Items, ac, Context, host);
-        SharedMenuGroups.AddGroundFollowAndGiveWay(menu.Items, ac, Context, host, GroundFollowPosition.Taxi);
-        return menu;
-    }
+    private static ContextMenu BuildTaxiGroups(RecordingMenuHost host) => BuildMenu(host, Taxiing());
 
     [AvaloniaFact]
     public void EmptyHostAnswers_BuildNoHoldShortFollowOrGiveWaySubmenu()
@@ -58,7 +53,7 @@ public class GroundSubmenuGroupTests
 
         ContextMenu menu = BuildTaxiGroups(host);
 
-        Assert.Empty(menu.Items);
+        Assert.Empty(HeadersWhere(menu, IsTaxiGroup));
     }
 
     [AvaloniaFact]
@@ -92,7 +87,7 @@ public class GroundSubmenuGroupTests
         host.GroundTraffic.AddRange(traffic);
 
         ContextMenu menu = BuildTaxiGroups(host);
-        Assert.Equal(["Follow...", "Give way to..."], Headers(menu.Items));
+        Assert.Equal(["Follow...", "Give way to..."], HeadersWhere(menu, IsTaxiGroup));
 
         MenuItem follow = Item(menu.Items, "Follow...");
         MenuItem giveWay = Item(menu.Items, "Give way to...");
@@ -127,19 +122,7 @@ public class GroundSubmenuGroupTests
             CurrentPhase = "At Parking",
         };
 
-    private static ContextMenu BuildPushbackGroup(RecordingMenuHost host)
-    {
-        var menu = new ContextMenu();
-        SharedMenuGroups.AddGroundPushback(menu.Items, Parked(), Context, host);
-        return menu;
-    }
-
-    private static ContextMenu BuildTaxiRouteGroup(RecordingMenuHost host, AircraftModel aircraft)
-    {
-        var menu = new ContextMenu();
-        SharedMenuGroups.AddGroundTaxiRoutes(menu.Items, aircraft, Context, host);
-        return menu;
-    }
+    private static ContextMenu BuildPushbackGroup(RecordingMenuHost host) => BuildMenu(host, Parked());
 
     [AvaloniaFact]
     public void Pushback_FaceItemsFollowPushBack_AndSendTheHostsCommands()
@@ -149,7 +132,7 @@ public class GroundSubmenuGroupTests
         host.PushbackFaceChoices.Add(new MenuCommandChoice("Push back, face W2", "PUSH FACE SE", null));
 
         ContextMenu menu = BuildPushbackGroup(host);
-        Assert.Equal(["Push back", "Push back, face W1", "Push back, face W2", "Push route..."], Headers(menu.Items));
+        Assert.Equal(["Push back", "Push back, face W1", "Push back, face W2", "Push route..."], HeadersWhere(menu, IsPushItem));
 
         Click(Item(menu.Items, "Push back, face W1"));
         Click(Item(menu.Items, "Push back, face W2"));
@@ -164,7 +147,7 @@ public class GroundSubmenuGroupTests
         host.PushbackToChoices.Add(new MenuCommandChoice("32", "PUSH @32", null));
 
         ContextMenu menu = BuildPushbackGroup(host);
-        Assert.Equal(["Push back", "Push back to...", "Push route..."], Headers(menu.Items));
+        Assert.Equal(["Push back", "Push back to...", "Push route..."], HeadersWhere(menu, IsPushItem));
 
         MenuItem pushTo = Item(menu.Items, "Push back to...");
         Assert.Equal(["1", "32"], Headers(pushTo.Items));
@@ -190,7 +173,7 @@ public class GroundSubmenuGroupTests
     {
         var host = new RecordingMenuHost("");
 
-        Assert.Equal(["Push back", "Push route..."], Headers(BuildPushbackGroup(host).Items));
+        Assert.Equal(["Push back", "Push route..."], HeadersWhere(BuildPushbackGroup(host), IsPushItem));
     }
 
     [AvaloniaFact]
@@ -199,11 +182,8 @@ public class GroundSubmenuGroupTests
         var host = new RecordingMenuHost("");
         host.PushbackFaceChoices.Add(new MenuCommandChoice("Push back, face W1", "PUSH FACE N", null));
         host.PushbackToChoices.Add(new MenuCommandChoice("1", "PUSH $1", null));
-        var menu = new ContextMenu();
 
-        SharedMenuGroups.AddGroundPushback(menu.Items, Taxiing(), Context, host);
-
-        Assert.Empty(menu.Items);
+        Assert.Empty(HeadersWhere(BuildMenu(host, Taxiing()), IsPushItem));
     }
 
     [AvaloniaFact]
@@ -213,9 +193,8 @@ public class GroundSubmenuGroupTests
         host.PresetTaxiChoices.Add(new MenuCommandChoice("TERMINAL to 30", "TAXI T U W RWY 30", null));
         host.PresetTaxiChoices.Add(new MenuCommandChoice("TERMINAL to 28R", "TAXI B C RWY 28R", null));
 
-        ContextMenu menu = BuildTaxiRouteGroup(host, Taxiing());
-        Assert.IsType<Separator>(menu.Items[0]);
-        Assert.Equal(["Preset taxi route", "Draw taxi route..."], Headers(menu.Items));
+        ContextMenu menu = BuildMenu(host, Taxiing());
+        Assert.Equal(["Preset taxi route", "Draw taxi route..."], HeadersWhere(menu, IsTaxiRouteItem));
 
         MenuItem presets = Item(menu.Items, "Preset taxi route");
         Assert.Equal(["TERMINAL to 30", "TERMINAL to 28R"], Headers(presets.Items));
@@ -231,10 +210,9 @@ public class GroundSubmenuGroupTests
     {
         var host = new RecordingMenuHost("");
 
-        ContextMenu menu = BuildTaxiRouteGroup(host, Taxiing());
+        ContextMenu menu = BuildMenu(host, Taxiing());
 
-        Assert.Equal(2, menu.Items.Count);
-        Assert.Equal(["Draw taxi route..."], Headers(menu.Items));
+        Assert.Equal(["Draw taxi route..."], HeadersWhere(menu, IsTaxiRouteItem));
     }
 
     [AvaloniaFact]
@@ -246,7 +224,7 @@ public class GroundSubmenuGroupTests
         airborne.IsOnGround = false;
         airborne.CurrentPhase = "ApproachNav";
 
-        Assert.Empty(BuildTaxiRouteGroup(host, airborne).Items);
+        Assert.Empty(HeadersWhere(BuildMenu(host, airborne), IsTaxiRouteItem));
     }
 
     private static List<string> Headers(ItemCollection items) =>

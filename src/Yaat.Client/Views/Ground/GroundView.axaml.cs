@@ -3,7 +3,9 @@ using Avalonia.Controls;
 using Avalonia.Data.Converters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Microsoft.Extensions.Logging;
 using Yaat.Client.ContextMenus;
+using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -19,6 +21,7 @@ public partial class GroundView : UserControl
     public static readonly FuncValueConverter<bool, string> BoolToLockLabel = new(v => v ? "LOCK" : "UNLK");
     public static readonly FuncValueConverter<GroundFilterMode, bool> FilterIsActive = new(v => v == GroundFilterMode.LabelsAndIcons);
     public static readonly FuncValueConverter<GroundFilterMode, bool> FilterIsPartial = new(v => v == GroundFilterMode.IconsOnly);
+    private static readonly ILogger MenuLog = AppLog.CreateLogger("GroundView");
     private GroundCanvas? _canvas;
     private Button? _resetButton;
     private ContextMenu? _activeContextMenu;
@@ -496,7 +499,13 @@ public partial class GroundView : UserControl
             return;
         }
 
-        AircraftModel? ac = FindMainViewModel()?.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
+        if (FindMainViewModel() is not { } main)
+        {
+            MenuLog.LogWarning("Right-click on {Callsign}: the ground view has no main view model, so no aircraft menu opens", callsign);
+            return;
+        }
+
+        AircraftModel? ac = main.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
 
         // Keep the previously-selected aircraft as the command recipient when the
         // controller right-clicks a DIFFERENT aircraft, so selected→right-clicked
@@ -509,74 +518,35 @@ public partial class GroundView : UserControl
             vm.SelectedAircraft = ac;
         }
 
-        ShowContextMenu(BuildAircraftContextMenu(vm, new GroundMenuTarget(ac, prevSelected, callsign, GetInitials())));
+        ShowContextMenu(BuildAircraftContextMenu(vm, ac, prevSelected, callsign));
     }
 
     /// <summary>
-    /// The whole aircraft context menu a right-click shows, built without opening it: the header, the favorites
-    /// block, then either the phase-aware ground command groups and the display items or, for a surface live-traffic
-    /// shadow, the read-only shadow tree every view shares (SharedMenuGroups.AddSurfaceShadow), for the aircraft
-    /// <paramref name="target"/> resolves. Touches no canvas, popup or pointer state.
+    /// The whole aircraft context menu a right-click shows, built without opening it through
+    /// <see cref="AircraftMenuBuilder"/>: the right-clicked <paramref name="callsign"/> and its model
+    /// <paramref name="ac"/>, the selected aircraft <paramref name="prevSelected"/> that relative actions target, and
+    /// the ground's view section (<see cref="BuildViewSection"/>). Touches no canvas, popup or pointer state.
     /// </summary>
-    internal ContextMenu BuildAircraftContextMenu(GroundViewModel vm, GroundMenuTarget target)
+    internal ContextMenu BuildAircraftContextMenu(GroundViewModel vm, AircraftModel? ac, AircraftModel? prevSelected, string callsign)
     {
-        (AircraftModel? ac, AircraftModel? _, string callsign, string _) = target;
-        MenuContext context = MenuContextFor(target);
-        var host = new GroundMenuHost(this, vm, FindMainViewModel(), ac);
-        var menu = new ContextMenu();
-
-        SharedMenuGroups.AddHeader(menu.Items, ac, context, host);
-        menu.Items.Add(SharedMenuGroups.Favorites(ac, context, host));
-        menu.Items.Add(new Separator());
-
-        if (ac is { IsLiveTraffic: true } && !AircraftCommandApplicability.CanAssume(ac))
-        {
-            // A surface shadow is never assumable, so it stays read-only: the shared shadow tree every view gives it
-            // (SharedMenuGroups.AddSurfaceShadow), then the foot. No ground command group is offered for it.
-            SharedMenuGroups.AddSurfaceShadow(menu.Items, ac, context, host, BuildCanvasDisplay(vm, context, host));
-        }
-        else
-        {
-            if (ac is { IsLiveTraffic: true })
-            {
-                // An assumable shadow takes the two assume items and then the same ground command groups a simulated
-                // aircraft gets: a command sent to it auto-assumes it server-side, so the groups apply as they are.
-                SharedMenuGroups.AddLiveTrafficAssume(menu.Items, ac, context, host);
-                menu.Items.Add(new Separator());
-            }
-
-            AddSimulatedAircraftItems(menu, vm, target);
-            SharedMenuGroups.AddGroundDisplay(menu.Items, BuildCanvasItems(vm, context));
-        }
-
-        SharedMenuGroups.AddFoot(menu.Items, ac, context, host);
-
-        // RPO control
-        FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
-
-        return menu;
+        MainViewModel main =
+            FindMainViewModel()
+            ?? throw new InvalidOperationException("The ground aircraft menu needs the main view model; the ground view is not hosted by one");
+        var host = new ClientMenuHost(main, ac, Canvas);
+        return AircraftMenuBuilder.Build(ac, new MenuClick(callsign, prevSelected, []), host, context => BuildViewSection(vm, context));
     }
 
     /// <summary>
-    /// The catalog context for <paramref name="target"/> on the ground view: the solo-training flag and the
-    /// "VFR commands for IFR aircraft" setting come from the main view model, the setting falling back to
-    /// <see cref="VfrCommandsForIfr.None"/> when none is attached.
+    /// The ground's view section: its Display submenu (<see cref="BuildCanvasDisplay"/>), the same for a surface
+    /// live-traffic shadow as for an aircraft the controller commands.
     /// </summary>
-    private MenuContext MenuContextFor(GroundMenuTarget target)
-    {
-        MainViewModel? main = FindMainViewModel();
-        return new MenuContext(
-            new MenuClick(target.Callsign, target.PrevSelected, []),
-            new MenuSession(target.Initials, main?.SessionSoloTrainingMode ?? false, main?.VfrCommandsForIfr ?? VfrCommandsForIfr.None),
-            MenuView.Ground
-        );
-    }
+    internal IReadOnlyList<Control> BuildViewSection(GroundViewModel vm, MenuContext context) => [BuildCanvasDisplay(vm, context)];
 
     /// <summary>
     /// The ground canvas's display items, built from the ground view model's own state: the taxi-route submenu, show
     /// or hide datablock, then reset datablock position while the data block sits away from its position, then the
     /// measure item, which latches the measurement to the aircraft so the line follows it as it taxis. An item the
-    /// state hides is null. The ground's flat menu places them as they are; the shadow's Display submenu wraps them.
+    /// state hides is null; the Display submenu (<see cref="BuildCanvasDisplay"/>) wraps them.
     /// </summary>
     internal IReadOnlyList<MenuItem?> BuildCanvasItems(GroundViewModel vm, MenuContext context)
     {
@@ -591,15 +561,10 @@ public partial class GroundView : UserControl
     }
 
     /// <summary>
-    /// The ground canvas's Display submenu for a live-traffic shadow: the ground's own display items, then the
-    /// leader-direction, J-ring and cone overlays, then blank and unblank.
+    /// The ground canvas's Display submenu: the ground's own display items (<see cref="BuildCanvasItems"/>). The
+    /// ground renderer draws no leader direction, J-ring, cone or blanking, so it offers none of them.
     /// </summary>
-    internal MenuItem BuildCanvasDisplay(GroundViewModel vm, MenuContext context, IMenuHost host) =>
-        CanvasMenuItems.Display([
-            BuildCanvasItems(vm, context),
-            [CanvasMenuItems.LeaderDirection(context, host), CanvasMenuItems.JRing(context, host), CanvasMenuItems.Cone(context, host)],
-            [CanvasMenuItems.Blank(context, host), CanvasMenuItems.Unblank(context, host)],
-        ]);
+    internal MenuItem BuildCanvasDisplay(GroundViewModel vm, MenuContext context) => CanvasMenuItems.Display([BuildCanvasItems(vm, context)]);
 
     /// <summary>What the ground view's measure tool is doing, which decides whether the display items offer a measure item.</summary>
     private static MenuMeasureState MeasureState(GroundViewModel vm) =>
@@ -617,23 +582,6 @@ public partial class GroundView : UserControl
         {
             measure.Pick(RblEndpoint.OnAircraft(callsign), GroundViewModel.MeasureView, vm.MeasureTrackLookup, GroundViewModel.MeasureUnits);
         }
-    }
-
-    /// <summary>
-    /// The phase-aware ground command items, for a simulated aircraft and for an assumable live-traffic shadow:
-    /// release checks, the relative items, pushback, taxi holds, hold-short / crossing, takeoff and landing
-    /// clearances, runway exits, preset taxi routes and taxi-route drawing, all catalog entries and ground groups from
-    /// <see cref="SharedMenuGroups"/>, in the ground's order. An airborne shadow has no
-    /// ground phase, so the state-gated predicates inside yield nothing for it, and a surface shadow never reaches
-    /// here, being unassumable — it takes the shared shadow tree instead.
-    /// </summary>
-    internal void AddSimulatedAircraftItems(ContextMenu menu, GroundViewModel vm, GroundMenuTarget target)
-    {
-        AircraftModel? ac = target.Aircraft;
-        MenuContext context = MenuContextFor(target);
-        var host = new GroundMenuHost(this, vm, FindMainViewModel(), ac);
-
-        SharedMenuGroups.AddGroundAircraftCommands(menu.Items, ac, context, host);
     }
 
     private void OnEmptySpaceClicked()
@@ -1281,6 +1229,3 @@ public partial class GroundView : UserControl
         e.Handled = true;
     }
 }
-
-/// <summary>The aircraft a ground context menu is being built for, with the selection it may act relative to.</summary>
-internal readonly record struct GroundMenuTarget(AircraftModel? Aircraft, AircraftModel? PrevSelected, string Callsign, string Initials);

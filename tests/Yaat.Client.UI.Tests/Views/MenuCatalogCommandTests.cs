@@ -10,7 +10,6 @@ using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
-using Yaat.Client.Views.Ground;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -1284,7 +1283,7 @@ public class MenuCatalogCommandTests
         Assert.Equal("Line up and wait 15", entry.Build(ac, context, new RecordingMenuHost(""))?.Header as string);
     }
 
-    // A VFR C172 on the downwind to 28R: the radar's Tower submenu, the ground's landing block and the list's command
+    // A VFR C172 on the downwind to 28R: the Tower submenu (radar and ground) and the list's command
     // block offer the landing items in one order.
     [AvaloniaFact]
     public void LandingBlockOrder_IsTheSameOnEveryView()
@@ -1313,25 +1312,20 @@ public class MenuCatalogCommandTests
         var host = new RecordingMenuHost("");
 
         MenuItem? tower = SharedMenuGroups.Tower(ac, RadarContext(VfrCommandsForIfr.None), host);
-        var ground = new ContextMenu();
-        SharedMenuGroups.AddGroundLanding(ground.Items, ac, GroundContext(VfrCommandsForIfr.None), host);
         var list = new ContextMenu();
         SharedMenuGroups.AddListAircraftCommands(list.Items, ac, ListContext(VfrCommandsForIfr.None), host);
 
         Assert.NotNull(tower);
         Assert.Equal(expected, tower.Items.Select(Describe));
-        Assert.Equal(expected, ground.Items.Select(Describe));
         Assert.Equal(expected, list.Items.Select(Describe));
     }
 
-    // The flat ground and list menus open the landing block and the exits with exactly one separator, whether the
-    // items before them end in a plain item or already in a separator.
+    // The flat list menu opens the landing block and the exits with exactly one separator, whether the items before
+    // them end in a plain item or already in a separator.
     [AvaloniaTheory]
-    [InlineData(CatalogMenuView.Ground, false)]
-    [InlineData(CatalogMenuView.Ground, true)]
-    [InlineData(CatalogMenuView.List, false)]
-    [InlineData(CatalogMenuView.List, true)]
-    public void FlatLandingAndExits_OpenWithOneSeparator(CatalogMenuView view, bool seedEndsInSeparator)
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FlatLandingAndExits_OpenWithOneSeparator(bool seedEndsInSeparator)
     {
         var downwind = new AircraftModel
         {
@@ -1362,16 +1356,16 @@ public class MenuCatalogCommandTests
                 "Low approach 28R",
                 "Go around 28R",
             ],
-            FlatLandingItems(view, downwind, seedEndsInSeparator)
+            FlatLandingItems(downwind, seedEndsInSeparator)
         );
-        Assert.Equal(["Seed", "---", "Exit left", "Exit right"], FlatLandingItems(view, rollout, seedEndsInSeparator));
+        Assert.Equal(["Seed", "---", "Exit left", "Exit right"], FlatLandingItems(rollout, seedEndsInSeparator));
     }
 
     /// <summary>
     /// The items of a flat menu seeded with a plain "Seed" item (and a separator after it when
-    /// <paramref name="seedEndsInSeparator"/>), after the ground's landing builder or the list's command block runs.
+    /// <paramref name="seedEndsInSeparator"/>), after the list's command block runs.
     /// </summary>
-    private static List<string> FlatLandingItems(CatalogMenuView view, AircraftModel aircraft, bool seedEndsInSeparator)
+    private static List<string> FlatLandingItems(AircraftModel aircraft, bool seedEndsInSeparator)
     {
         var menu = new ContextMenu();
         menu.Items.Add(new MenuItem { Header = "Seed" });
@@ -1380,16 +1374,7 @@ public class MenuCatalogCommandTests
             menu.Items.Add(new Separator());
         }
 
-        var host = new RecordingMenuHost("");
-        if (view == CatalogMenuView.Ground)
-        {
-            SharedMenuGroups.AddGroundLanding(menu.Items, aircraft, GroundContext(VfrCommandsForIfr.None), host);
-        }
-        else
-        {
-            SharedMenuGroups.AddListAircraftCommands(menu.Items, aircraft, ListContext(VfrCommandsForIfr.None), host);
-        }
-
+        SharedMenuGroups.AddListAircraftCommands(menu.Items, aircraft, ListContext(VfrCommandsForIfr.None), new RecordingMenuHost(""));
         return [.. menu.Items.Select(Describe)];
     }
 
@@ -1514,16 +1499,15 @@ public class MenuCatalogCommandTests
         Assert.IsType<Separator>(cto.Items[^2]);
     }
 
-    // The ground view and the aircraft list serve free text through the shared input flyout, so both real hosts end
-    // the takeoff submenu with the separator and Custom as the radar does.
+    // The client host (radar and ground) and the aircraft list serve free text through the shared input popup, so both
+    // real hosts end the takeoff submenu with the separator and Custom.
     [AvaloniaFact]
-    public void Cto_GroundAndListHosts_ServeCustomInput()
+    public void Cto_ClientAndListHosts_ServeCustomInput()
     {
         AircraftModel ac = OnGround("Taxiing", "IFR", "30");
-        var ground = new GroundViewModel(new ServerConnection(), sendCommand: (_, _, _) => Task.CompletedTask);
         (CatalogMenuView View, IMenuHost Host)[] hosts =
         [
-            (CatalogMenuView.Ground, new GroundMenuHost(new GroundView { DataContext = ground }, ground, null, ac)),
+            (CatalogMenuView.Ground, new ClientMenuHost(new MainViewModel(new FakeFilePickerService()), ac, new Border())),
             (CatalogMenuView.List, new ListMenuHost(new MainViewModel(new FakeFilePickerService()), ac, new Border())),
         ];
 
@@ -1700,35 +1684,6 @@ public class MenuCatalogCommandTests
         Assert.Equal(offered, entry.IsApplicable(ac, RadarContext(VfrCommandsForIfr.None)));
         Assert.Equal(offered, entry.IsApplicable(ac, ListContext(VfrCommandsForIfr.None)));
         Assert.Equal(offered, entry.IsApplicable(ac, GroundContext(VfrCommandsForIfr.None)));
-    }
-
-    [AvaloniaFact]
-    public void GroundLanding_OnFinal_UsesTheTowerOrder_TheOptionBeforeTouchAndGo()
-    {
-        var ac = new AircraftModel
-        {
-            Callsign = Callsign,
-            IsOnGround = false,
-            CurrentPhase = "FinalApproach",
-            FlightRules = "VFR",
-            AssignedRunway = "28R",
-        };
-        var menu = new ContextMenu();
-
-        SharedMenuGroups.AddGroundLanding(menu.Items, ac, GroundContext(VfrCommandsForIfr.None), new RecordingMenuHost(""));
-
-        Assert.Equal(
-            [
-                "Cleared to land 28R",
-                "Force landing 28R",
-                "Cleared for the option 28R",
-                "Touch and go 28R",
-                "Stop and go 28R",
-                "Low approach 28R",
-                "Go around 28R",
-            ],
-            menu.Items.Select(Describe)
-        );
     }
 
     // --- The aircraft list's flat command block (MenuView.List) ---

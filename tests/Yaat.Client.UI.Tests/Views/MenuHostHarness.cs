@@ -31,7 +31,7 @@ internal static class MenuHostHarness
     }
 
     /// <summary>The ground menu for <paramref name="ac"/>, over the main view model's ground view model and its layout.</summary>
-    public static ContextMenu BuildGroundMenu(MainViewModel main, AircraftModel ac, AircraftModel? selected, string initials)
+    public static ContextMenu BuildGroundMenu(MainViewModel main, AircraftModel ac, AircraftModel? selected)
     {
         var view = new GroundView { DataContext = main.Ground };
         var window = new Window { DataContext = main, Content = view };
@@ -39,7 +39,7 @@ internal static class MenuHostHarness
         try
         {
             main.Ground.SelectedAircraft = selected ?? ac;
-            return view.BuildAircraftContextMenu(main.Ground, new GroundMenuTarget(ac, selected, ac.Callsign, initials));
+            return view.BuildAircraftContextMenu(main.Ground, ac, selected, ac.Callsign);
         }
         finally
         {
