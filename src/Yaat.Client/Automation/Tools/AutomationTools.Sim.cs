@@ -12,4 +12,20 @@ public sealed partial class AutomationTools
             ? AppToolOutcome.Done($"Sim rate set to {rate}.")
             : AppToolOutcome.Done($"The room refused SIMRATE {rate}: {outcome.Error ?? "no reason given"}");
     }
+
+    [AutomationTool("play", "Resumes the room's sim, as the UNPAUSE command does.", nameof(NotInRoom))]
+    public async Task<AppToolOutcome> Play()
+    {
+        AutomationActionOutcome outcome = await _state.UnpauseAsync();
+        return outcome.Ok
+            ? AppToolOutcome.Done("Sim resumed.")
+            : AppToolOutcome.Done($"The room refused UNPAUSE: {outcome.Error ?? "no reason given"}");
+    }
+
+    [AutomationTool("pause", "Pauses the room's sim, as the PAUSE command does.", nameof(NotInRoom))]
+    public async Task<AppToolOutcome> Pause()
+    {
+        AutomationActionOutcome outcome = await _state.PauseAsync();
+        return outcome.Ok ? AppToolOutcome.Done("Sim paused.") : AppToolOutcome.Done($"The room refused PAUSE: {outcome.Error ?? "no reason given"}");
+    }
 }

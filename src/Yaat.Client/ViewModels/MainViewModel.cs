@@ -67,6 +67,9 @@ public partial class MainViewModel : ObservableObject
     private string? _studentPositionType;
     private bool _isAutoClearedToLand;
 
+    /// <summary>The URL of the server this client connected to, or empty when it has not connected.</summary>
+    public string ConnectedServerUrl => _connectedServerUrl;
+
     /// <summary>
     /// The single write path for <see cref="_studentPositionType"/>: every scenario load, join, rewind and unload
     /// goes through here so the settings that depend on the position — auto arrival spacing, which has no simulated

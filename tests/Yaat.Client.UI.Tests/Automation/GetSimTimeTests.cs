@@ -58,6 +58,8 @@ public sealed class GetSimTimeTests : AutomationHostFixture
 
         public Task<AutomationActionOutcome> PauseAsync() => throw new InvalidOperationException("get_sim_time never pauses.");
 
+        public Task<AutomationActionOutcome> UnpauseAsync() => throw new InvalidOperationException("get_sim_time never unpauses.");
+
         public Task<AutomationActionOutcome> SetRateAsync(int rate) => throw new InvalidOperationException("get_sim_time never sets the rate.");
     }
 }

@@ -31,11 +31,19 @@ public sealed partial class AutomationTools
             _viewModel.Measure.Remove(slot) ? AppToolOutcome.Done($"RBL {slot} removed.") : AppToolOutcome.Unavailable($"No RBL in slot {slot}.")
         );
 
+    /// <summary>Removes the primary radar's lines only; the Ground view's lines in the shared store keep their slots.</summary>
     [AutomationTool("clear_rbls", "Remove every range-bearing line from the primary radar.", nameof(RadarNotReady))]
-    public Task<AppToolOutcome> ClearRbls()
+    public Task<AppToolOutcome> ClearRbls() => Task.FromResult(AppToolOutcome.Done($"Cleared {ClearPrimaryRadarRbls()} RBL(s)."));
+
+    /// <summary>Removes every primary-radar line from the shared store and returns how many it removed.</summary>
+    private int ClearPrimaryRadarRbls()
     {
-        int count = _viewModel.Measure.Lines.Count;
-        _viewModel.Measure.Clear();
-        return Task.FromResult(AppToolOutcome.Done($"Cleared {count} RBL(s)."));
+        List<int> slots = [.. PrimaryRadarRbls().Select(line => line.Slot)];
+        foreach (int slot in slots)
+        {
+            _viewModel.Measure.Remove(slot);
+        }
+
+        return slots.Count;
     }
 }

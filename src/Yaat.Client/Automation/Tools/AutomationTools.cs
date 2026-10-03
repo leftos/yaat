@@ -47,6 +47,15 @@ public sealed partial class AutomationTools(MainViewModel viewModel, IAutomation
     /// <summary>Why a tool that needs a loaded scenario cannot run now, or null.</summary>
     public string? NoScenario() => NotInRoom() ?? (_viewModel.HasScenario ? null : "No scenario is loaded in the room.");
 
+    /// <summary>Why <c>seek</c> cannot run now, or null: the server refuses a rewind while the room loads a scenario.</summary>
+    public string? NoSeek() => NoScenario() ?? RoomLoadingReason();
+
+    /// <summary>
+    /// Why a tool that loads a recording cannot run now, or null: the same reasons <see cref="MainViewModel.CanLoadScenario"/>
+    /// excludes, which the room refuses the load for.
+    /// </summary>
+    public string? CannotLoadRecording() => NotInRoom() ?? RoomLoadingReason() ?? NonMentorReason();
+
     /// <summary>Why a tool that needs the scenario's video map list cannot run now, or null.</summary>
     public string? MapsNotLoaded() => NoScenario() ?? (_viewModel.Radar.VideoMapsReady ? null : "The video maps are still loading.");
 
@@ -55,6 +64,13 @@ public sealed partial class AutomationTools(MainViewModel viewModel, IAutomation
     /// that restore would overwrite a centre or range set now.
     /// </summary>
     public string? RadarNotReady() => NoScenario() ?? (_viewModel.Radar.VideoMapsReady ? null : "The radar is still loading its maps and settings.");
+
+    /// <summary>Why a tool that changes the room cannot run now, or null: a scenario load is in flight, and the server refuses.</summary>
+    private string? RoomLoadingReason() => _viewModel.IsRoomLoading ? "A scenario is loading in the room." : null;
+
+    /// <summary>Why a tool that loads a scenario or recording cannot run now, or null: this client has no mentor rights.</summary>
+    private string? NonMentorReason() =>
+        _viewModel.IsNonMentor ? "Signed in without mentor or instructor rights: only a mentor or instructor can load a recording." : null;
 
     /// <summary>The client's aircraft with <paramref name="callsign"/>, matched case-insensitively, or null.</summary>
     private AircraftModel? FindAircraft(string callsign) =>

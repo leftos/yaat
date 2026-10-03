@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Reflection;
 using System.Text.Json;
 using Avalonia.Headless.XUnit;
+using Avalonia.Threading;
 using SkiaSharp;
 using Xunit;
 using Yaat.Client.Automation;
@@ -13,6 +14,8 @@ using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
 using Yaat.Sim;
+using Yaat.Sim.Data;
+using Yaat.Sim.Testing;
 
 namespace Yaat.Client.UI.Tests.Automation;
 
@@ -33,6 +36,15 @@ public sealed class AppToolsTests : AutomationHostFixture
         viewModel.IsConnected = true;
         viewModel.ActiveRoomId = "room-1";
         viewModel.ActiveScenarioId = "scenario-1";
+        return viewModel;
+    }
+
+    /// <summary><see cref="InScenario"/> with the room mid-load, as another member's scenario load leaves it.</summary>
+    private static MainViewModel RoomLoading()
+    {
+        MainViewModel viewModel = InScenario();
+        viewModel.OnRoomLoadingChanged("AB");
+        Dispatcher.UIThread.RunJobs();
         return viewModel;
     }
 
@@ -114,13 +126,24 @@ public sealed class AppToolsTests : AutomationHostFixture
         Assert.Equal(
             [
                 "center_radar(callsign:string,rangeNm:double)",
+                "center_radar_at(lat:double,lon:double,rangeNm:double)",
+                "center_radar_on_fix(fix:string,rangeNm:double)",
                 "clear_rbls()",
+                "connect(url:string)",
+                "create_room(artccId:string)",
+                "get_framing()",
                 "load_recording(path:string)",
+                "pause()",
                 "place_rbl(from:string,to:string)",
+                "play()",
+                "prepare_take(path:string,centerLat:double,centerLon:double,rangeNm:double,videoMaps:string,ptlMinutes:double,ptlAll:bool,"
+                    + "rbls:string,simRate:int,seekSeconds:double)",
                 "remove_rbl(slot:int)",
                 "reset_datablock_offset(callsign:string)",
+                "seek(simSeconds:double)",
                 "set_datablock_offset(callsign:string,dxPx:int,dyPx:int)",
                 "set_leader_direction(callsign:string,direction:int)",
+                "set_ptl(lengthMinutes:double,all:bool)",
                 "set_sim_rate(rate:int)",
                 "set_solo(enabled:bool)",
                 "set_video_map(starsId:int,enabled:bool)",
@@ -145,14 +168,16 @@ public sealed class AppToolsTests : AutomationHostFixture
     {
         JsonElement list = Result(await ListTools(ToolsOf(NewMain())));
 
-        foreach (JsonElement tool in list.EnumerateArray())
+        // connect is the one tool that needs no server: it is how the agent gets one.
+        foreach (JsonElement tool in list.EnumerateArray().Where(tool => tool.GetProperty("name").GetString() != "connect"))
         {
             Assert.False(tool.GetProperty("available").GetBoolean(), tool.GetRawText());
             Assert.False(string.IsNullOrWhiteSpace(tool.GetProperty("reason").GetString()), tool.GetRawText());
         }
 
+        Assert.True(ToolNamed(list, "connect").GetProperty("available").GetBoolean());
         Assert.Contains("room", ToolNamed(list, "set_sim_rate").GetProperty("reason").GetString(), StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("connected", ToolNamed(list, "load_recording").GetProperty("reason").GetString(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("connected", ToolNamed(list, "create_room").GetProperty("reason").GetString(), StringComparison.OrdinalIgnoreCase);
     }
 
     [AvaloniaFact]
@@ -446,6 +471,7 @@ public sealed class AppToolsTests : AutomationHostFixture
     {
         MainViewModel viewModel = NewMain();
         viewModel.IsConnected = true;
+        viewModel.ActiveRoomId = "room-1";
         string missing = Path.Combine(DiscoveryDirectory, "missing.yaat-recording.zip");
 
         JsonElement error = Error(await CallTool(ToolsOf(viewModel), "load_recording", new { path = missing }), AutomationErrorCodes.InvalidParam);
@@ -460,7 +486,7 @@ public sealed class AppToolsTests : AutomationHostFixture
     public async Task LoadRecording_NotConnected_SameStatusAsThePicker()
     {
         var picker = new FakeFilePickerService();
-        var viewModel = new MainViewModel(picker) { IsConnected = true };
+        var viewModel = new MainViewModel(picker) { IsConnected = true, ActiveRoomId = "room-1" };
         Directory.CreateDirectory(DiscoveryDirectory);
         string path = Path.Combine(DiscoveryDirectory, "take.yaat-recording.zip");
         await File.WriteAllBytesAsync(path, [1, 2, 3], TestContext.Current.CancellationToken);
@@ -475,6 +501,88 @@ public sealed class AppToolsTests : AutomationHostFixture
         Assert.True(result.GetProperty("available").GetBoolean());
         Assert.Equal(pickerStatus, result.GetProperty("message").GetString());
         Assert.Equal(pickerStatus, viewModel.StatusText);
+    }
+
+    // Out of a room the server answers a recording load with "Not in a room", so the tool says so before it sends anything.
+    [AvaloniaFact]
+    public async Task LoadRecording_OutOfRoom_IsUnavailable_NotInRoom()
+    {
+        var viewModel = new MainViewModel(new FakeFilePickerService()) { IsConnected = true };
+        Directory.CreateDirectory(DiscoveryDirectory);
+        string path = Path.Combine(DiscoveryDirectory, "take.yaat-recording.zip");
+        await File.WriteAllBytesAsync(path, [1, 2, 3], TestContext.Current.CancellationToken);
+
+        JsonElement result = Result(await CallTool(ToolsOf(viewModel), "load_recording", new { path }));
+
+        Assert.False(result.GetProperty("available").GetBoolean());
+        Assert.Equal("Not in a room: connect, then create or join one.", result.GetProperty("reason").GetString());
+    }
+
+    // The server refuses a load while a scenario load is in flight, so the tool says so before it sends anything.
+    [AvaloniaFact]
+    public async Task LoadRecording_WhileRoomLoading_IsUnavailable()
+    {
+        MainViewModel viewModel = RoomLoading();
+
+        JsonElement result = Result(await CallTool(ToolsOf(viewModel), "load_recording", new { path = "take.yaat-recording.zip" }));
+
+        Assert.False(result.GetProperty("available").GetBoolean());
+        Assert.Equal("A scenario is loading in the room.", result.GetProperty("reason").GetString());
+    }
+
+    [AvaloniaFact]
+    public async Task CreateRoom_WhenInRoom_IsUnavailable()
+    {
+        JsonElement result = Result(await CallTool(ToolsOf(InScenario()), "create_room", new { artccId = "ZOA" }));
+
+        Assert.False(result.GetProperty("available").GetBoolean());
+        Assert.Equal("Already in a room; leave it first.", result.GetProperty("reason").GetString());
+    }
+
+    [AvaloniaFact]
+    public async Task CreateRoom_RejectsBadArtccId()
+    {
+        MainViewModel viewModel = NewMain();
+        viewModel.IsConnected = true;
+
+        JsonElement[] responses = await SendAll(
+            ToolsOf(viewModel),
+            (ProtocolMethods.CallAppTool, new { tool = "create_room", arguments = new { artccId = "ZO1" } }),
+            (ProtocolMethods.CallAppTool, new { tool = "create_room", arguments = new { artccId = "ZOAK" } }),
+            (ProtocolMethods.CallAppTool, new { tool = "create_room", arguments = new { artccId = "" } })
+        );
+
+        Assert.All(responses, response => Assert.Equal("artccId", ErrorParam(Error(response, AutomationErrorCodes.InvalidParam))));
+        Assert.False(viewModel.IsInRoom);
+    }
+
+    [AvaloniaFact]
+    public async Task Connect_WhenConnected_IsUnavailable()
+    {
+        MainViewModel viewModel = NewMain();
+        viewModel.IsConnected = true;
+
+        JsonElement result = Result(await CallTool(ToolsOf(viewModel), "connect", new { url = "http://localhost:5130" }));
+
+        Assert.False(result.GetProperty("available").GetBoolean());
+        Assert.EndsWith("; disconnect first.", result.GetProperty("reason").GetString(), StringComparison.Ordinal);
+        Assert.StartsWith("Already connected to ", result.GetProperty("reason").GetString(), StringComparison.Ordinal);
+    }
+
+    [AvaloniaFact]
+    public async Task Connect_RejectsNonHttpUrl()
+    {
+        MainViewModel viewModel = NewMain();
+
+        JsonElement[] responses = await SendAll(
+            ToolsOf(viewModel),
+            (ProtocolMethods.CallAppTool, new { tool = "connect", arguments = new { url = "ftp://localhost:5130" } }),
+            (ProtocolMethods.CallAppTool, new { tool = "connect", arguments = new { url = "localhost:5130" } }),
+            (ProtocolMethods.CallAppTool, new { tool = "connect", arguments = new { url = "not a url" } })
+        );
+
+        Assert.All(responses, response => Assert.Equal("url", ErrorParam(Error(response, AutomationErrorCodes.InvalidParam))));
+        Assert.False(viewModel.IsConnected);
     }
 
     /// <summary><see cref="RadarReady"/> with two aircraft, UAL123 and AAL9, to measure between.</summary>
@@ -590,6 +698,22 @@ public sealed class AppToolsTests : AutomationHostFixture
 
         Assert.Equal("Cleared 2 RBL(s).", result.GetProperty("message").GetString());
         Assert.Empty(viewModel.Measure.Lines);
+    }
+
+    [AvaloniaFact]
+    public async Task ClearRbls_KeepsTheGroundViewsLines()
+    {
+        MainViewModel viewModel = RadarReadyWithTwoAircraft();
+        viewModel.PlaceMeasurementFromText("UAL123", "AAL9");
+        PlaceGroundLine(viewModel);
+        viewModel.PlaceMeasurementFromText("AAL9", "UAL123");
+
+        JsonElement result = Result(await CallTool(ToolsOf(viewModel), "clear_rbls", new { }));
+
+        Assert.Equal("Cleared 2 RBL(s).", result.GetProperty("message").GetString());
+        RangeBearingLine ground = Assert.Single(viewModel.Measure.Lines);
+        Assert.Equal(RblView.Ground, ground.View);
+        Assert.Equal(2, ground.Slot);
     }
 
     // The command and place_rbl share PlaceMeasurementFromText; the command still writes its outcome to the status line.
@@ -734,6 +858,652 @@ public sealed class AppToolsTests : AutomationHostFixture
         Assert.False(viewModel.Radar.DataBlockState.ManualOffsets.ContainsKey("UAL123"));
     }
 
+    [AvaloniaFact]
+    public async Task CenterRadarAt_SetsCentreAndRange()
+    {
+        MainViewModel viewModel = RadarReady();
+
+        JsonElement result = Result(
+            await CallTool(
+                ToolsOf(viewModel),
+                "center_radar_at",
+                new
+                {
+                    lat = 37.5,
+                    lon = -122.25,
+                    rangeNm = 30,
+                }
+            )
+        );
+
+        Assert.True(result.GetProperty("available").GetBoolean(), result.GetRawText());
+        Assert.Equal("Primary radar centred on (37.5000, -122.2500) at 30 nm.", result.GetProperty("message").GetString());
+        Assert.Equal(37.5, viewModel.Radar.CenterLat, 6);
+        Assert.Equal(-122.25, viewModel.Radar.CenterLon, 6);
+        Assert.Equal(30, viewModel.Radar.RangeNm, 6);
+    }
+
+    [AvaloniaFact]
+    public async Task CenterRadarAt_RejectsOutOfRangeLat()
+    {
+        MainViewModel viewModel = RadarReady();
+        double latBefore = viewModel.Radar.CenterLat;
+
+        JsonElement[] responses = await SendAll(
+            ToolsOf(viewModel),
+            (
+                ProtocolMethods.CallAppTool,
+                new
+                {
+                    tool = "center_radar_at",
+                    arguments = new
+                    {
+                        lat = 90.5,
+                        lon = -122.25,
+                        rangeNm = 30,
+                    },
+                }
+            ),
+            (
+                ProtocolMethods.CallAppTool,
+                new
+                {
+                    tool = "center_radar_at",
+                    arguments = new
+                    {
+                        lat = -91,
+                        lon = -122.25,
+                        rangeNm = 30,
+                    },
+                }
+            ),
+            (
+                ProtocolMethods.CallAppTool,
+                new
+                {
+                    tool = "center_radar_at",
+                    arguments = new
+                    {
+                        lat = 37.5,
+                        lon = 180.5,
+                        rangeNm = 30,
+                    },
+                }
+            ),
+            (
+                ProtocolMethods.CallAppTool,
+                new
+                {
+                    tool = "center_radar_at",
+                    arguments = new
+                    {
+                        lat = 37.5,
+                        lon = -122.25,
+                        rangeNm = 300,
+                    },
+                }
+            )
+        );
+
+        string[] culprits = [.. responses.Select(response => ErrorParam(Error(response, AutomationErrorCodes.InvalidParam)))];
+        Assert.Equal(["lat", "lat", "lon", "rangeNm"], culprits);
+        Assert.Equal(latBefore, viewModel.Radar.CenterLat);
+    }
+
+    /// <summary><see cref="RadarReady"/> with the real navigation data installed and the client told it is loaded.</summary>
+    private static MainViewModel RadarReadyWithNavData()
+    {
+        TestVnasData.EnsureInitialized();
+        Assert.NotNull(TestVnasData.NavigationDb);
+        MainViewModel viewModel = RadarReady();
+        viewModel.MarkNavDbReady();
+        return viewModel;
+    }
+
+    [AvaloniaFact]
+    public async Task CenterRadarOnFix_UnknownFix_IsUnavailable()
+    {
+        MainViewModel viewModel = RadarReadyWithNavData();
+        double latBefore = viewModel.Radar.CenterLat;
+
+        JsonElement result = Result(await CallTool(ToolsOf(viewModel), "center_radar_on_fix", new { fix = "ZZZZQ", rangeNm = 20 }));
+
+        Assert.False(result.GetProperty("available").GetBoolean());
+        Assert.Equal("No fix or airport named ZZZZQ in the navigation data.", result.GetProperty("reason").GetString());
+        Assert.Equal(latBefore, viewModel.Radar.CenterLat);
+    }
+
+    [AvaloniaFact]
+    public async Task CenterRadarOnFix_KnownFix_Centres()
+    {
+        MainViewModel viewModel = RadarReadyWithNavData();
+        (double Lat, double Lon)? oak = NavigationDatabase.Instance.GetFixPosition("OAK");
+        Assert.NotNull(oak);
+
+        JsonElement result = Result(await CallTool(ToolsOf(viewModel), "center_radar_on_fix", new { fix = "oak", rangeNm = 20 }));
+
+        Assert.True(result.GetProperty("available").GetBoolean(), result.GetRawText());
+        Assert.Equal(oak.Value.Lat, viewModel.Radar.CenterLat, 6);
+        Assert.Equal(oak.Value.Lon, viewModel.Radar.CenterLon, 6);
+        Assert.Equal(20, viewModel.Radar.RangeNm, 6);
+        Assert.StartsWith("Primary radar centred on OAK (", result.GetProperty("message").GetString(), StringComparison.Ordinal);
+    }
+
+    [AvaloniaFact]
+    public async Task SetPtl_SetsLengthAndAll()
+    {
+        MainViewModel viewModel = RadarReady();
+        viewModel.Radar.PtlOwn = true;
+
+        JsonElement[] responses = await SendAll(
+            ToolsOf(viewModel),
+            (ProtocolMethods.CallAppTool, new { tool = "set_ptl", arguments = new { lengthMinutes = 1.5, all = true } }),
+            (ProtocolMethods.CallAppTool, new { tool = "set_ptl", arguments = new { lengthMinutes = 3.0, all = false } })
+        );
+
+        Assert.Equal("PTL 1.5 min, all tracks on.", Result(responses[0]).GetProperty("message").GetString());
+        Assert.Equal("PTL 3.0 min, all tracks off.", Result(responses[1]).GetProperty("message").GetString());
+        Assert.Equal(3.0, viewModel.Radar.PtlLengthMinutes);
+        Assert.False(viewModel.Radar.PtlAll);
+        Assert.True(viewModel.Radar.PtlOwn);
+    }
+
+    [AvaloniaFact]
+    public async Task SetPtl_RejectsOffStepLength()
+    {
+        MainViewModel viewModel = RadarReady();
+        double lengthBefore = viewModel.Radar.PtlLengthMinutes;
+
+        JsonElement[] responses = await SendAll(
+            ToolsOf(viewModel),
+            (ProtocolMethods.CallAppTool, new { tool = "set_ptl", arguments = new { lengthMinutes = 0.75, all = true } }),
+            (ProtocolMethods.CallAppTool, new { tool = "set_ptl", arguments = new { lengthMinutes = 3.5, all = true } }),
+            (ProtocolMethods.CallAppTool, new { tool = "set_ptl", arguments = new { lengthMinutes = 0, all = true } })
+        );
+
+        Assert.All(responses, response => Assert.Equal("lengthMinutes", ErrorParam(Error(response, AutomationErrorCodes.InvalidParam))));
+        Assert.Equal(lengthBefore, viewModel.Radar.PtlLengthMinutes);
+        Assert.False(viewModel.Radar.PtlAll);
+    }
+
+    [AvaloniaFact]
+    public async Task GetFraming_ReportsCentreRangeMapsPtlAndRbls()
+    {
+        MainViewModel viewModel = RadarReadyWithTwoAircraft();
+        RadarViewModel radar = viewModel.Radar;
+        VideoMapToggleItem five = MapFive();
+        five.IsEnabled = true;
+        radar.MapToggles.Add(five);
+        radar.MapToggles.Add(
+            new VideoMapToggleItem
+            {
+                MapId = "map-2",
+                ShortName = "OAK",
+                Name = "Oakland",
+                BrightnessCategory = "A",
+                StarsId = 2,
+                IsEnabled = true,
+            }
+        );
+        radar.MapToggles.Add(
+            new VideoMapToggleItem
+            {
+                MapId = "map-9",
+                ShortName = "SFO",
+                Name = "San Francisco",
+                BrightnessCategory = "B",
+                StarsId = 9,
+            }
+        );
+        radar.CenterLat = 37.7;
+        radar.CenterLon = -122.2;
+        radar.RangeNm = 25;
+        radar.PtlLengthMinutes = 2.0;
+        radar.PtlAll = true;
+        radar.PtlOwn = false;
+        viewModel.PlaceMeasurementFromText("UAL123", "AAL9");
+        viewModel.PlaceMeasurementFromText("AAL9", "UAL123");
+        viewModel.PlaceMeasurementFromText("UAL123", "AAL9");
+        viewModel.Measure.Remove(1);
+        PlaceGroundLine(viewModel);
+        viewModel.SimRate = 4;
+        viewModel.IsPaused = true;
+        viewModel.ScenarioElapsedSeconds = 123.5;
+
+        JsonElement result = Result(await CallTool(ToolsOf(viewModel), "get_framing", new { }));
+
+        Assert.True(result.GetProperty("available").GetBoolean(), result.GetRawText());
+        using var framing = JsonDocument.Parse(result.GetProperty("message").GetString() ?? "");
+        JsonElement root = framing.RootElement;
+        Assert.Equal(
+            ["centerLat", "centerLon", "rangeNm", "videoMaps", "ptl", "rbls", "simRate", "paused", "simSeconds"],
+            root.EnumerateObject().Select(property => property.Name)
+        );
+        Assert.Equal(37.7, root.GetProperty("centerLat").GetDouble(), 6);
+        Assert.Equal(-122.2, root.GetProperty("centerLon").GetDouble(), 6);
+        Assert.Equal(25, root.GetProperty("rangeNm").GetDouble(), 6);
+        JsonElement[] maps = [.. root.GetProperty("videoMaps").EnumerateArray()];
+        Assert.Equal([2, 5], maps.Select(map => map.GetProperty("starsId").GetInt32()));
+        Assert.Equal(["Oakland", "Center map"], maps.Select(map => map.GetProperty("name").GetString()));
+        Assert.Equal(["starsId", "name"], maps[0].EnumerateObject().Select(property => property.Name));
+        JsonElement ptl = root.GetProperty("ptl");
+        Assert.Equal(["lengthMinutes", "all", "own"], ptl.EnumerateObject().Select(property => property.Name));
+        Assert.Equal(2.0, ptl.GetProperty("lengthMinutes").GetDouble());
+        Assert.True(ptl.GetProperty("all").GetBoolean());
+        Assert.False(ptl.GetProperty("own").GetBoolean());
+        Assert.Equal([2, 3], root.GetProperty("rbls").EnumerateArray().Select(slot => slot.GetInt32()));
+        Assert.Equal(4, root.GetProperty("simRate").GetInt32());
+        Assert.True(root.GetProperty("paused").GetBoolean());
+        Assert.Equal(123.5, root.GetProperty("simSeconds").GetDouble(), 6);
+    }
+
+    [AvaloniaFact]
+    public async Task Seek_RejectsNegative()
+    {
+        JsonElement error = Error(await CallTool(ToolsOf(InScenario()), "seek", new { simSeconds = -1 }), AutomationErrorCodes.InvalidParam);
+
+        Assert.Equal("simSeconds", ErrorParam(error));
+    }
+
+    // The server refuses a rewind while a scenario load is in flight, so the tool says so before it sends anything.
+    [AvaloniaFact]
+    public async Task Seek_WhileRoomLoading_IsUnavailable()
+    {
+        MainViewModel viewModel = RoomLoading();
+
+        JsonElement result = Result(await CallTool(ToolsOf(viewModel), "seek", new { simSeconds = 60 }));
+
+        Assert.False(result.GetProperty("available").GetBoolean());
+        Assert.Equal("A scenario is loading in the room.", result.GetProperty("reason").GetString());
+    }
+
+    /// <summary>A recording file's path in the test's directory; prepare_take checks only that it exists before its other arguments.</summary>
+    private async Task<string> TakeFile()
+    {
+        Directory.CreateDirectory(DiscoveryDirectory);
+        string path = Path.Combine(DiscoveryDirectory, "take.yaat-recording.zip");
+        await File.WriteAllBytesAsync(path, [1, 2, 3], TestContext.Current.CancellationToken);
+        return path;
+    }
+
+    /// <summary>A prepare_take call whose arguments are all valid except the ones <paramref name="change"/> overrides.</summary>
+    private static object TakeCall(string path, Func<Dictionary<string, object>, Dictionary<string, object>> change) =>
+        new
+        {
+            tool = "prepare_take",
+            arguments = change(
+                new Dictionary<string, object>
+                {
+                    ["path"] = path,
+                    ["centerLat"] = 37.7,
+                    ["centerLon"] = -122.2,
+                    ["rangeNm"] = 30,
+                    ["videoMaps"] = "5, 12",
+                    ["ptlMinutes"] = 1.0,
+                    ["ptlAll"] = true,
+                    ["rbls"] = "UAL123,AAL9; OAK,SFO",
+                    ["simRate"] = 2,
+                    ["seekSeconds"] = 60,
+                }
+            ),
+        };
+
+    private static Func<Dictionary<string, object>, Dictionary<string, object>> With(string name, object value) =>
+        arguments =>
+        {
+            arguments[name] = value;
+            return arguments;
+        };
+
+    [AvaloniaFact]
+    public async Task PrepareTake_RejectsBadVideoMapList()
+    {
+        MainViewModel viewModel = InScenario();
+        string path = await TakeFile();
+
+        JsonElement[] responses = await SendAll(
+            ToolsOf(viewModel),
+            (ProtocolMethods.CallAppTool, TakeCall(path, With("videoMaps", "5,abc"))),
+            (ProtocolMethods.CallAppTool, TakeCall(path, With("videoMaps", "5;12"))),
+            (ProtocolMethods.CallAppTool, TakeCall(path, With("videoMaps", "-5")))
+        );
+
+        Assert.All(responses, response => Assert.Equal("videoMaps", ErrorParam(Error(response, AutomationErrorCodes.InvalidParam))));
+        // Every argument is checked before the load, so no load was attempted.
+        Assert.DoesNotContain("recording", viewModel.StatusText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [AvaloniaFact]
+    public async Task PrepareTake_RejectsBadRblPair()
+    {
+        MainViewModel viewModel = InScenario();
+        string path = await TakeFile();
+
+        JsonElement[] responses = await SendAll(
+            ToolsOf(viewModel),
+            (ProtocolMethods.CallAppTool, TakeCall(path, With("rbls", "UAL123"))),
+            (ProtocolMethods.CallAppTool, TakeCall(path, With("rbls", "UAL123,AAL9,OAK"))),
+            (ProtocolMethods.CallAppTool, TakeCall(path, With("rbls", "UAL123,")))
+        );
+
+        Assert.All(responses, response => Assert.Equal("rbls", ErrorParam(Error(response, AutomationErrorCodes.InvalidParam))));
+        // Every argument is checked before the load, so no load was attempted.
+        Assert.DoesNotContain("recording", viewModel.StatusText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [AvaloniaFact]
+    public async Task PrepareTake_MissingFile_IsArgumentError()
+    {
+        string missing = Path.Combine(DiscoveryDirectory, "missing.yaat-recording.zip");
+
+        JsonElement error = Error(
+            (await SendAll(ToolsOf(InScenario()), (ProtocolMethods.CallAppTool, TakeCall(missing, arguments => arguments))))[0],
+            AutomationErrorCodes.InvalidParam
+        );
+
+        Assert.Equal("path", ErrorParam(error));
+        Assert.Contains(missing, Message(error), StringComparison.Ordinal);
+    }
+
+    [AvaloniaFact]
+    public async Task PrepareTake_RejectsEachBadArgument()
+    {
+        MainViewModel viewModel = InScenario();
+        string path = await TakeFile();
+        string sixteenRbls = string.Join(";", Enumerable.Repeat("UAL123,AAL9", RangeBearingLineStore.MaxLines + 1));
+
+        JsonElement[] responses = await SendAll(
+            ToolsOf(viewModel),
+            (ProtocolMethods.CallAppTool, TakeCall(path, With("simRate", 0))),
+            (ProtocolMethods.CallAppTool, TakeCall(path, With("seekSeconds", -1))),
+            (ProtocolMethods.CallAppTool, TakeCall(path, With("ptlMinutes", 0.75))),
+            (ProtocolMethods.CallAppTool, TakeCall(path, With("rbls", sixteenRbls))),
+            (ProtocolMethods.CallAppTool, TakeCall(path, With("centerLat", 91))),
+            (ProtocolMethods.CallAppTool, TakeCall(path, With("centerLon", -181))),
+            (ProtocolMethods.CallAppTool, TakeCall(path, With("videoMaps", "0")))
+        );
+
+        string[] culprits = [.. responses.Select(response => ErrorParam(Error(response, AutomationErrorCodes.InvalidParam)))];
+        Assert.Equal(["simRate", "seekSeconds", "ptlMinutes", "rbls", "centerLat", "centerLon", "videoMaps"], culprits);
+        Assert.DoesNotContain("recording", viewModel.StatusText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // With no server behind the view model the load is refused, so an accepted call ends at the load step: a Done naming it.
+    [AvaloniaFact]
+    public async Task PrepareTake_PtlZeroAccepted_StopsAtTheLoadWithItsStatus()
+    {
+        string path = await TakeFile();
+
+        JsonElement result = Result((await SendAll(ToolsOf(InScenario()), (ProtocolMethods.CallAppTool, TakeCall(path, With("ptlMinutes", 0)))))[0]);
+
+        Assert.True(result.GetProperty("available").GetBoolean(), result.GetRawText());
+        Assert.StartsWith(
+            "prepare_take stopped at 'load the recording': Load recording error:",
+            result.GetProperty("message").GetString(),
+            StringComparison.Ordinal
+        );
+    }
+
+    // A non-mentor may not load a scenario, so the room would refuse the load; the tool says so before it sends anything.
+    [AvaloniaFact]
+    public async Task PrepareTake_NonMentor_IsUnavailable()
+    {
+        MainViewModel viewModel = InScenario();
+        viewModel.IsNonMentor = true;
+        string path = await TakeFile();
+
+        JsonElement result = Result((await SendAll(ToolsOf(viewModel), (ProtocolMethods.CallAppTool, TakeCall(path, arguments => arguments))))[0]);
+
+        Assert.False(result.GetProperty("available").GetBoolean());
+        Assert.Equal(
+            "Signed in without mentor or instructor rights: only a mentor or instructor can load a recording.",
+            result.GetProperty("reason").GetString()
+        );
+    }
+
+    /// <summary><see cref="RadarReadyWithTwoAircraft"/> with maps 2 and 9 on and map 5 off.</summary>
+    private static MainViewModel FramingReady()
+    {
+        MainViewModel viewModel = RadarReadyWithTwoAircraft();
+        RadarViewModel radar = viewModel.Radar;
+        radar.MapToggles.Add(MapFive());
+        foreach (int starsId in new[] { 2, 9 })
+        {
+            radar.MapToggles.Add(
+                new VideoMapToggleItem
+                {
+                    MapId = $"map-{starsId}",
+                    ShortName = $"M{starsId}",
+                    Name = $"Map {starsId}",
+                    BrightnessCategory = "A",
+                    StarsId = starsId,
+                    IsEnabled = true,
+                }
+            );
+        }
+
+        return viewModel;
+    }
+
+    /// <summary>Places a Ground-view RBL in the shared store, as a measurement drawn on the Ground view does.</summary>
+    private static void PlaceGroundLine(MainViewModel viewModel) =>
+        Assert.NotNull(
+            viewModel.Measure.Place(
+                RblEndpoint.OnAircraft("UAL123"),
+                RblEndpoint.OnAircraft("AAL9"),
+                RblView.Ground,
+                viewModel.Radar.MeasureTrackLookup,
+                RadarViewModel.MeasureUnits
+            )
+        );
+
+    private static TakeFraming Framing(IReadOnlySet<int> maps, double ptlMinutes, bool ptlAll, IReadOnlyList<(string From, string To)> rbls) =>
+        new(CenterLat: 37.5, CenterLon: -122.25, RangeNm: 35, VideoMaps: maps, PtlMinutes: ptlMinutes, PtlAll: ptlAll, Rbls: rbls);
+
+    private static AutomationTools RealTools(MainViewModel viewModel) => new(viewModel, new MainViewModelAutomationState(viewModel));
+
+    [AvaloniaFact]
+    public void FrameTake_SetsExactlyTheGivenMapsCentrePtlAndPrimaryRadarRbls()
+    {
+        MainViewModel viewModel = FramingReady();
+        viewModel.PlaceMeasurementFromText("AAL9", "UAL123");
+        viewModel.PlaceMeasurementFromText("AAL9", "UAL123");
+        PlaceGroundLine(viewModel);
+
+        string? stopped = RealTools(viewModel).FrameTake(Framing(new HashSet<int> { 5 }, 1.5, true, [("UAL123", "AAL9")]));
+
+        Assert.Null(stopped);
+        RadarViewModel radar = viewModel.Radar;
+        Assert.Equal([5], radar.MapToggles.Where(toggle => toggle.IsEnabled).Select(toggle => toggle.StarsId));
+        Assert.Equal(37.5, radar.CenterLat, 6);
+        Assert.Equal(-122.25, radar.CenterLon, 6);
+        Assert.Equal(35, radar.RangeNm, 6);
+        Assert.Equal(1.5, radar.PtlLengthMinutes);
+        Assert.True(radar.PtlAll);
+        RangeBearingLine ground = Assert.Single(viewModel.Measure.Lines, line => line.View == RblView.Ground);
+        Assert.Equal(3, ground.Slot);
+        RangeBearingLine placed = Assert.Single(viewModel.Measure.Lines, line => line.View == RadarViewModel.MeasureView);
+        Assert.Equal(("UAL123", "AAL9"), (placed.A.Callsign, placed.B.Callsign));
+    }
+
+    [AvaloniaFact]
+    public void FrameTake_UnknownStarsId_StopsBeforeAnyToggleChanges()
+    {
+        MainViewModel viewModel = FramingReady();
+        double latBefore = viewModel.Radar.CenterLat;
+
+        string? stopped = RealTools(viewModel).FrameTake(Framing(new HashSet<int> { 5, 77 }, 1.0, true, []));
+
+        Assert.Equal("prepare_take stopped at 'set the video maps': no video map with STARS id 77 in this scenario.", stopped);
+        Assert.Equal([2, 9], viewModel.Radar.MapToggles.Where(toggle => toggle.IsEnabled).Select(toggle => toggle.StarsId).Order());
+        Assert.Equal(latBefore, viewModel.Radar.CenterLat);
+    }
+
+    [AvaloniaFact]
+    public void FrameTake_PtlZero_TurnsAllTracksOffAndKeepsTheLength()
+    {
+        MainViewModel viewModel = FramingReady();
+        viewModel.Radar.PtlLengthMinutes = 2.0;
+        viewModel.Radar.PtlAll = true;
+
+        string? stopped = RealTools(viewModel).FrameTake(Framing(new HashSet<int>(), 0, true, []));
+
+        Assert.Null(stopped);
+        Assert.False(viewModel.Radar.PtlAll);
+        Assert.Equal(2.0, viewModel.Radar.PtlLengthMinutes);
+        Assert.DoesNotContain(viewModel.Radar.MapToggles, toggle => toggle.IsEnabled);
+    }
+
+    [AvaloniaFact]
+    public void FrameTake_RblFailure_NamesItsStep()
+    {
+        MainViewModel viewModel = FramingReady();
+
+        string? stopped = RealTools(viewModel).FrameTake(Framing(new HashSet<int> { 2 }, 1.0, false, [("UAL123", "AAL9"), ("UAL123", "ZZZ9")]));
+
+        Assert.StartsWith("prepare_take stopped at 'place the RBL UAL123,ZZZ9': Unknown", stopped, StringComparison.Ordinal);
+        Assert.Single(viewModel.Measure.Lines);
+    }
+
+    [AvaloniaFact]
+    public async Task PlayAndPause_SendUnpauseAndPause()
+    {
+        MainViewModel viewModel = InScenario();
+        var state = new RateRecordingState(null);
+
+        JsonElement[] responses = await SendAll(
+            () => new AutomationTools(viewModel, state),
+            (ProtocolMethods.CallAppTool, new { tool = "play", arguments = new { } }),
+            (ProtocolMethods.CallAppTool, new { tool = "pause", arguments = new { } })
+        );
+
+        Assert.Equal(["unpause", "pause"], state.Calls);
+        Assert.Equal("Sim resumed.", Result(responses[0]).GetProperty("message").GetString());
+        Assert.Equal("Sim paused.", Result(responses[1]).GetProperty("message").GetString());
+    }
+
+    [AvaloniaFact]
+    public async Task Connect_WhileConnecting_IsUnavailable()
+    {
+        MainViewModel viewModel = NewMain();
+        viewModel.IsConnecting = true;
+
+        JsonElement result = Result(await CallTool(ToolsOf(viewModel), "connect", new { url = "http://localhost:5130" }));
+
+        Assert.False(result.GetProperty("available").GetBoolean());
+        Assert.Equal("A connection attempt is already in progress.", result.GetProperty("reason").GetString());
+    }
+
+    [AvaloniaFact]
+    public async Task CreateRoom_NonMentor_IsUnavailable()
+    {
+        MainViewModel viewModel = NewMain();
+        viewModel.IsConnected = true;
+        viewModel.IsNonMentor = true;
+
+        JsonElement result = Result(await CallTool(ToolsOf(viewModel), "create_room", new { artccId = "ZOA" }));
+
+        Assert.False(result.GetProperty("available").GetBoolean());
+        Assert.StartsWith("Signed in without mentor or instructor rights", result.GetProperty("reason").GetString(), StringComparison.Ordinal);
+    }
+
+    // No server is behind the view model, so the create itself is refused; the answer shows the lower-case id was accepted.
+    [AvaloniaFact]
+    public async Task CreateRoom_LowerCaseArtcc_IsAccepted()
+    {
+        MainViewModel viewModel = NewMain();
+        viewModel.IsConnected = true;
+        viewModel.PermittedArtccs.Add("ZOA");
+
+        JsonElement result = Result(await CallTool(ToolsOf(viewModel), "create_room", new { artccId = "zoa" }));
+
+        Assert.True(result.GetProperty("available").GetBoolean(), result.GetRawText());
+        Assert.StartsWith("Could not create a ZOA room: Create room error:", result.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.Equal("ZOA", viewModel.SelectedCreateArtccId);
+    }
+
+    [AvaloniaFact]
+    public async Task CreateRoom_ArtccNotPermitted_IsInvalidParam()
+    {
+        MainViewModel viewModel = NewMain();
+        viewModel.IsConnected = true;
+        viewModel.PermittedArtccs.Add("ZOA");
+        viewModel.PermittedArtccs.Add("ZLA");
+        viewModel.SelectedCreateArtccId = "ZOA";
+
+        JsonElement error = Error(await CallTool(ToolsOf(viewModel), "create_room", new { artccId = "ZNY" }), AutomationErrorCodes.InvalidParam);
+
+        Assert.Equal("artccId", ErrorParam(error));
+        Assert.Contains("ZOA, ZLA", Message(error), StringComparison.Ordinal);
+        Assert.Equal("ZOA", viewModel.SelectedCreateArtccId);
+    }
+
+    /// <summary>Runs the <c>prepare_take</c> steps after the load on <paramref name="viewModel"/> and its stub state.</summary>
+    private static Task<string?> RunTakeSteps(MainViewModel viewModel, IAutomationState state, double seekSeconds, TimeSpan videoMapWait) =>
+        new AutomationTools(viewModel, state).RunTakeStepsAsync(Framing(new HashSet<int> { 2 }, 1.0, false, []), 2, seekSeconds, videoMapWait);
+
+    [AvaloniaFact]
+    public async Task TakeSteps_AlreadyPaused_SkipsThePause()
+    {
+        MainViewModel viewModel = FramingReady();
+        var state = new RateRecordingState(null) { IsPaused = true };
+
+        string? stopped = await RunTakeSteps(viewModel, state, 0, TimeSpan.FromSeconds(30));
+
+        Assert.Null(stopped);
+        Assert.Empty(state.Calls);
+        Assert.Equal([2], state.Rates);
+    }
+
+    // Standing in for a load whose maps never arrive, with a wait short enough for a test.
+    [AvaloniaFact]
+    public async Task TakeSteps_VideoMapsNotReady_StopsAtTheWait()
+    {
+        var state = new RateRecordingState(null);
+
+        string? stopped = await RunTakeSteps(InScenario(), state, 0, TimeSpan.FromMilliseconds(50));
+
+        Assert.Equal("prepare_take stopped at 'wait for the video maps': still loading after 0.05 s.", stopped);
+    }
+
+    [AvaloniaFact]
+    public async Task TakeSteps_RewindFails_StopsAtSeek()
+    {
+        MainViewModel viewModel = FramingReady();
+        var state = new RateRecordingState(null);
+
+        string? stopped = await RunTakeSteps(viewModel, state, 60, TimeSpan.FromSeconds(30));
+
+        Assert.Equal("prepare_take stopped at 'seek': Rewind error: Not connected.", stopped);
+        Assert.Empty(state.Calls);
+    }
+
+    [AvaloniaFact]
+    public async Task TakeSteps_PauseRefused_StopsAtPause()
+    {
+        MainViewModel viewModel = FramingReady();
+        var state = new RateRecordingState(null) { PauseRefusal = "The room did not accept the pause." };
+
+        string? stopped = await RunTakeSteps(viewModel, state, 0, TimeSpan.FromSeconds(30));
+
+        Assert.Equal("prepare_take stopped at 'pause': The room did not accept the pause.", stopped);
+        Assert.Equal(["pause"], state.Calls);
+        Assert.Empty(state.Rates);
+    }
+
+    [AvaloniaFact]
+    public async Task TakeSteps_RateRefused_StopsAtTheRate()
+    {
+        MainViewModel viewModel = FramingReady();
+        var state = new RateRecordingState("Invalid sim rate");
+
+        string? stopped = await RunTakeSteps(viewModel, state, 0, TimeSpan.FromSeconds(30));
+
+        Assert.Equal("prepare_take stopped at 'set the sim rate': Invalid sim rate", stopped);
+        Assert.Equal(["pause"], state.Calls);
+        Assert.Equal([2], state.Rates);
+    }
+
     /// <summary>
     /// An <see cref="IAutomationState"/> that records each sim rate it is asked to send, and accepts it, or refuses it with
     /// <paramref name="refusal"/> when one is given.
@@ -746,7 +1516,7 @@ public sealed class AppToolsTests : AutomationHostFixture
 
         public double ScenarioElapsedSeconds => 0;
 
-        public bool IsPaused => false;
+        public bool IsPaused { get; set; }
 
         public int SimRate => 1;
 
@@ -754,7 +1524,23 @@ public sealed class AppToolsTests : AutomationHostFixture
 
         public IReadOnlyList<TerminalEntry> TerminalEntriesSince(long cursor) => [];
 
-        public Task<AutomationActionOutcome> PauseAsync() => Task.FromResult(new AutomationActionOutcome(true, null));
+        /// <summary>Each pause and unpause asked for, in order: "pause" or "unpause".</summary>
+        public List<string> Calls { get; } = [];
+
+        /// <summary>The reason <see cref="PauseAsync"/> refuses with, or null to accept the pause.</summary>
+        public string? PauseRefusal { get; init; }
+
+        public Task<AutomationActionOutcome> PauseAsync()
+        {
+            Calls.Add("pause");
+            return Task.FromResult(new AutomationActionOutcome(PauseRefusal is null, PauseRefusal));
+        }
+
+        public Task<AutomationActionOutcome> UnpauseAsync()
+        {
+            Calls.Add("unpause");
+            return Task.FromResult(new AutomationActionOutcome(true, null));
+        }
 
         public Task<AutomationActionOutcome> SetRateAsync(int rate)
         {

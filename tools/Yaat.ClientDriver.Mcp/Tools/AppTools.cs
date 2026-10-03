@@ -24,8 +24,9 @@ public sealed class AppTools(PipeDirectory pipes)
 
     [McpServerTool]
     [Description(
-        "Lists a YAAT client's app tools: client actions it offers by name (e.g. set_sim_rate, center_radar, set_video_map, set_solo, "
-            + "load_recording), one line each with its parameters (name: type — meaning) and whether it can run now, or why not. Call "
+        "Lists a YAAT client's app tools: client actions it offers by name (e.g. connect, create_room, load_recording, prepare_take, "
+            + "get_framing, play, set_sim_rate, center_radar, set_video_map), one line each with its parameters (name: type — meaning) and "
+            + "whether it can run now, or why not. Call "
             + "one with call_app_tool. Goes over the client's automation pipe to pid, or with pid 0 to the client the last pipe call "
             + "reached; the first line ends with (pipe)."
     )]

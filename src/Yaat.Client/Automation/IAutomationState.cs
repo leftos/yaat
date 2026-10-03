@@ -33,6 +33,9 @@ public interface IAutomationState
     /// <summary>Sends the room a <c>PAUSE</c>.</summary>
     Task<AutomationActionOutcome> PauseAsync();
 
+    /// <summary>Sends the room an <c>UNPAUSE</c>.</summary>
+    Task<AutomationActionOutcome> UnpauseAsync();
+
     /// <summary>Sends the room a <c>SIMRATE</c> of <paramref name="rate"/>, with no check of the rate.</summary>
     /// <param name="rate">The sim rate to set.</param>
     Task<AutomationActionOutcome> SetRateAsync(int rate);

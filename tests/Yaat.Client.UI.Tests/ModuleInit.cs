@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using Yaat.Client.Logging;
+using Yaat.Sim.Testing;
 
 namespace Yaat.Client.UI.Tests;
 
@@ -31,11 +32,36 @@ internal static class ModuleInit
         File.WriteAllText(Path.Combine(testDir, PidMarker), Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
         Environment.SetEnvironmentVariable("YAAT_APPDATA_DIR", testDir);
 
+        // The tests that need real navdata (TestVnasData.EnsureInitialized) read the pins committed beside Yaat.Sim.Tests, offline:
+        // the redirect above leaves no user cache, so TestVnasData would otherwise download NavData.dat on every run.
+        TestVnasData.SetTestDataDir(Path.Combine(FindRepoRoot(), "tests", "Yaat.Sim.Tests", "TestData"));
+
+        // CIFP likewise: the empty redirected cache would make every run fetch the current AIRAC cycle, so these tests use the
+        // committed bundle offline. Fix and airport positions, all they read, do not depend on the cycle.
+        Environment.SetEnvironmentVariable("YAAT_SKIP_CIFP_DOWNLOAD", "1");
+
         // Logging is set up once, before any test or YAAT static runs, so every logger a class creates on first use (the
         // automation dispatcher's among them) writes to the per-run log and feeds AppLog.RecentErrors, whatever the order.
         AppLog.Initialize("yaat-ui-tests.log");
 
         AppDomain.CurrentDomain.ProcessExit += (_, _) => TryDeleteDir(testDir);
+    }
+
+    /// <summary>The checkout this test assembly was built in: the nearest folder above the output that holds yaat.slnx.</summary>
+    /// <exception cref="InvalidOperationException">No folder above the test output holds yaat.slnx.</exception>
+    private static string FindRepoRoot()
+    {
+        for (DirectoryInfo? dir = new(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "yaat.slnx")))
+            {
+                return dir.FullName;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"No yaat.slnx above {AppContext.BaseDirectory}: the UI tests read navdata from tests/Yaat.Sim.Tests/TestData in the checkout."
+        );
     }
 
     private static void SweepStaleDirs()

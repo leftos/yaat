@@ -34,6 +34,8 @@ public sealed class MainViewModelAutomationState(MainViewModel viewModel) : IAut
 
     public Task<AutomationActionOutcome> PauseAsync() => Send("PAUSE");
 
+    public Task<AutomationActionOutcome> UnpauseAsync() => Send("UNPAUSE");
+
     public Task<AutomationActionOutcome> SetRateAsync(int rate) => Send($"SIMRATE {rate}");
 
     private async Task<AutomationActionOutcome> Send(string command)

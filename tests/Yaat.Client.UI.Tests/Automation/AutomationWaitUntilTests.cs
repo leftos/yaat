@@ -639,6 +639,8 @@ public sealed class AutomationWaitUntilTests : AutomationHostFixture
             return recorded;
         }
 
+        public Task<AutomationActionOutcome> UnpauseAsync() => throw new InvalidOperationException("wait_until never unpauses.");
+
         public Task<AutomationActionOutcome> SetRateAsync(int rate) => Record($"set_rate {rate}");
 
         private Task<AutomationActionOutcome> Record(string action)
