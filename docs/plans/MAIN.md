@@ -9,6 +9,8 @@
 
 ## Bug reports and feature requests
 
+- [x] YAAT-282 Automation-mode client came to the foreground during the sampler run · release vNext
+- [x] YAAT-283 Montage capture pipeline: launch_yaat env, load_recording room, PTL wording, caption filter · release vNext
 - [x] YAAT-286 vEDST sign-in: enable it on yaat1 and fix the connect docs · release vNext
 - [x] YAAT-248 Client driver records a window: start, mark and stop, with sim-time marks and the client's audio · release vNext
 - [x] YAAT-250 Client-defined automation tools; client log errors on every pipe result · release vNext
@@ -31,10 +33,10 @@
 - [ ] YAAT-256 batch_drive: save a wait_until step's screenshot and fit its wait inside the batch ceiling
 - [ ] YAAT-261 AutomationWaitUntilTests.Landed_HeldAfterAirborneThenGround times out in the full UI suite
 - [ ] YAAT-270 Widen the timing bound in AutomationWaitForTests.WaitFor_ConditionNeverMet (flakes under a loaded full UI suite)
-- [ ] YAAT-282 Automation-mode client came to the foreground during the sampler run
-- [ ] YAAT-283 Montage capture pipeline: launch_yaat env, load_recording room, PTL wording, caption filter
 - [ ] YAAT-284 FOLLOW gets no pilot readback in solo; late 'traffic in sight' in clip C2
 - [ ] YAAT-285 Record demos fully in the background: no visible window, no audio to the speakers
+- [ ] YAAT-288 Find what gave an automation-mode client the keyboard foreground for 3.5 s (YAAT-282 leftover)
+- [ ] YAAT-289 WindowRecorder: refuse a hidden window cleanly instead of crashing
 
 ## Client driver in the background (#474)
 
@@ -46,7 +48,7 @@
 
 ## Context-menu quick commands (#471)
 
-- [/] YAAT-275 Ground right-click on a runway surface offers taxi to that runway (nearest hold short)
+- [x] YAAT-275 Ground right-click on a runway surface offers taxi to that runway (nearest hold short) · release vNext
 - [x] YAAT-224 Open the command and note flyouts through MenuPopups; drop the unreachable blank-input branches · release vNext
 - [/] YAAT-12 Context-menu quick commands: per-situation lists with the icon strip · release vNext
   - [x] YAAT-13 Context-menu quick commands: brief 7d (header, footer, relative items) · release vNext
@@ -245,6 +247,7 @@
 - [ ] YAAT-267 Record AircraftProfiles.json provenance and licence in NOTICE
 - [ ] YAAT-271 Use linear release add in the yaat-nextup profile; note test-all's silent test phase
 - [ ] YAAT-276 Correct the gear flyout's field count in client-mainviewmodel.md
+- [ ] YAAT-287 Remove the phantom GuideCapture Fakes/FakeFilePickerService.cs line from architecture.md
 
 ## Singles
 
