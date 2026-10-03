@@ -351,3 +351,4 @@
 - [ ] YAAT-262 RBL readout nudges: avoid pinned blocks; two RadarCanvas tidy-ups
 - [ ] YAAT-263 Solo toggle: a failed SetSoloTrainingMode send is silent
 - [ ] YAAT-298 Server admin settings are stored but nothing reads them: wire them up or remove them
+- [ ] YAAT-301 Flaky on Linux CI: CenterRadarOnFix tests see no navigation database
