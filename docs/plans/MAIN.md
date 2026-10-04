@@ -9,6 +9,7 @@
 
 ## Bug reports and feature requests
 
+- [x] YAAT-300 Pilot voice speech rate setting, default 1.1x · release vNext
 - [x] YAAT-285 Record demos fully in the background: no visible window, no audio to the speakers · release vNext
 - [x] YAAT-289 WindowRecorder: refuse a hidden window cleanly instead of crashing · release vNext
 - [x] YAAT-282 Automation-mode client came to the foreground during the sampler run · release vNext
@@ -30,14 +31,13 @@
   - [x] YAAT-238 Re-script montage clip C3 on OAK runway 30 (no B738 on 28R) · release vNext
   - [!] YAAT-239 Short edited montage sampler of the clips so far, for presentation feedback · release vNext
   - [x] YAAT-240 Aviation review of the montage cards; visual follow should not use the radar wake minimum (C3) · release vNext
-  - [/] YAAT-278 FOLLOW sizzle reel: add ground FOLLOW and give-way taxi clips · release vNext
+  - [!] YAAT-278 FOLLOW sizzle reel: add ground FOLLOW and give-way taxi clips · release vNext
 - [ ] YAAT-217 Pattern: apply a pending pattern-altitude override before the wrong-side join decides on a teardrop
 - [ ] YAAT-256 batch_drive: save a wait_until step's screenshot and fit its wait inside the batch ceiling
 - [ ] YAAT-261 AutomationWaitUntilTests.Landed_HeldAfterAirborneThenGround times out in the full UI suite
 - [ ] YAAT-270 Widen the timing bound in AutomationWaitForTests.WaitFor_ConditionNeverMet (flakes under a loaded full UI suite)
 - [ ] YAAT-284 FOLLOW gets no pilot readback in solo; late 'traffic in sight' in clip C2
 - [ ] YAAT-288 Find what gave an automation-mode client the keyboard foreground for 3.5 s (YAAT-282 leftover)
-- [ ] YAAT-300 Pilot voice speech rate setting, default 1.1x
 
 ## Client driver in the background (#474)
 
@@ -49,13 +49,14 @@
 
 ## Context-menu quick commands (#471)
 
+- [/] YAAT-16 Merge feat/context-menu-quick-commands (#471, yaat-server#21) · release vNext
 - [x] YAAT-275 Ground right-click on a runway surface offers taxi to that runway (nearest hold short) · release vNext
 - [x] YAAT-224 Open the command and note flyouts through MenuPopups; drop the unreachable blank-input branches · release vNext
 - [/] YAAT-12 Context-menu quick commands: per-situation lists with the icon strip · release vNext
   - [x] YAAT-13 Context-menu quick commands: brief 7d (header, footer, relative items) · release vNext
-  - [/] YAAT-14 Context-menu quick commands: brief 7e (one tree on every surface) · release vNext
+  - [x] YAAT-14 Context-menu quick commands: brief 7e (one tree on every surface) · release vNext
+    - [ ] YAAT-312 Context menu: stale descriptions after the builder refactor
   - [ ] YAAT-15 Context-menu quick commands step 3: per-situation lists with the icon strip · release vNext
-- [ ] YAAT-16 Merge feat/context-menu-quick-commands (#471, yaat-server#21) · release vNext
 - [ ] YAAT-229 Route the data-block field popups through MenuPopups.Open; wrap MenuPopups' summary line
 - [ ] YAAT-264 Context menus: no double separator before Track in the builder
 - [ ] YAAT-268 Context menus in an extra ground window at another airport use the primary view's layout
@@ -65,13 +66,14 @@
 
 ## Client surfaces redesign
 
-- [/] YAAT-291 Client surfaces redesign: Settings window shell (sidebar sections, OK/Apply/Cancel)
+- [x] YAAT-291 Client surfaces redesign: Settings window shell (sidebar sections, OK/Apply/Cancel) · release vNext
 - [ ] YAAT-292 Client surfaces redesign: Settings search with aliases and cross-section links
 - [ ] YAAT-293 Client surfaces redesign: open Settings at a section (view menus, Ctrl+comma, status-bar links)
 - [ ] YAAT-294 Client surfaces redesign: reconcile Scenario defaults with the session flyout
 - [ ] YAAT-295 Client surfaces redesign: regroup the View menu and add pop-out hotkeys
 - [ ] YAAT-296 Client surfaces redesign: merge Window Profiles and Copy View Settings into Layouts
 - [ ] YAAT-297 Client surfaces redesign: one Import / Export hub with a .yaat-settings.zip bundle
+- [ ] YAAT-310 Merge feat/client-surfaces-redesign (#782)
 
 ## Tick-path unification
 
@@ -113,6 +115,8 @@
 
 ## Wave 1 — Ground realism and braking
 
+- [/] YAAT-309 Hold-short warning under FOLLOWG omits the taxiway name · release vNext
+- [/] YAAT-306 Ground stops snap to 0 kt instead of braking: FOLLOWG hold short, GIVEWAY · release vNext
 - [ ] YAAT-30 Rollout retune follow-ups: separation intervals, exit completion, firm rates
 - [ ] YAAT-31 LAHSO residuals: carry the limit past handoff, arc fit, ALD gate, CROSS release
 - [ ] YAAT-32 Fold aircraft-length fallbacks into AircraftLength.ResolveFt; fix CWT labels
@@ -135,9 +139,11 @@
 - [ ] YAAT-49 Re-validate the reroute rate after the fillet floor; corner speed, sample gaps
 - [ ] YAAT-254 Visual follower behind a heavier lead lands beyond its touchdown point
 - [ ] YAAT-257 A follower whose lead has landed joins final instead of re-entering the pattern
+- [ ] YAAT-311 Taxi speed drops ~10 kt in one second mid-route (H2 clip, KOAK F) · release vNext
 
 ## Wave 2 — Ground command grammar and dispatch
 
+- [/] YAAT-307 FOLLOWG and GIVEWAY get no pilot readback · release vNext
 - [ ] YAAT-50 Armed FOLLOWG leftovers: RES at bars, follow readbacks, repeat crossings
 - [ ] YAAT-51 Offer standalone TAXI modifiers at slot 1; test cross-command alias collisions
 - [ ] YAAT-52 Keep the line-up yaw rate when a command fires mid resumed rollout
@@ -149,6 +155,7 @@
 - [ ] YAAT-58 Split SegmentExpander.ResolveExplicitFrom (over 100 lines)
 - [ ] YAAT-59 GroundCommandHandler leftovers: split TryTaxiCore, cut Resolve*Route params
 - [ ] YAAT-212 A no-destination taxi stops with its nose in the junction it ends at
+- [ ] YAAT-308 Solo ready-to-taxi call-up fires for aircraft taxiing, following or arrived · release vNext
 
 ## Wave 3 — Ground routing, pathfinder and their docs
 
@@ -217,6 +224,7 @@
 - [ ] YAAT-210 Skip hidden datablocks in the ground view's hit test
 - [ ] YAAT-211 Split RadarCanvas.OnPointerPressed into one helper per ladder rung
 - [ ] YAAT-269 Route the ground canvas's data-block drag and reset through DataBlockViewState
+- [ ] YAAT-305 UI tests: AppLifetime.IsShuttingDown never resets after a MainWindow close
 
 ## Wave 8 — Live traffic
 
@@ -352,3 +360,6 @@
 - [ ] YAAT-263 Solo toggle: a failed SetSoloTrainingMode send is silent
 - [ ] YAAT-298 Server admin settings are stored but nothing reads them: wire them up or remove them
 - [ ] YAAT-301 Flaky on Linux CI: CenterRadarOnFix tests see no navigation database
+- [ ] YAAT-302 Client driver: prepare_take selects the Radar View tab
+- [ ] YAAT-303 Client driver: launch_yaat refuses an audio output device name that matches nothing
+- [ ] YAAT-304 Client driver: wait_until landed reports coarse, late sim times
