@@ -56,24 +56,25 @@
   - [x] YAAT-13 Context-menu quick commands: brief 7d (header, footer, relative items) · release vNext
   - [x] YAAT-14 Context-menu quick commands: brief 7e (one tree on every surface) · release vNext
     - [ ] YAAT-312 Context menu: stale descriptions after the builder refactor
-  - [ ] YAAT-15 Context-menu quick commands step 3: per-situation lists with the icon strip · release vNext
+  - [/] YAAT-15 Context-menu quick commands step 3: per-situation lists with the icon strip · release vNext
 - [ ] YAAT-229 Route the data-block field popups through MenuPopups.Open; wrap MenuPopups' summary line
 - [ ] YAAT-264 Context menus: no double separator before Track in the builder
 - [ ] YAAT-268 Context menus in an extra ground window at another airport use the primary view's layout
 - [ ] YAAT-273 DataGridContextMenuStateTests depend on test order for NavigationDatabase
 - [ ] YAAT-280 DataGridContextMenuStateTests fail when run alone (NavigationDatabase not initialized)
 - [ ] YAAT-281 Aircraft menus leave a hold-short route preview on other ground windows
+- [ ] YAAT-329 Add EFC and exit-hold commands, then their Holding quick-list entries
 
 ## Client surfaces redesign
 
+- [/] YAAT-310 Merge feat/client-surfaces-redesign (#782)
 - [x] YAAT-291 Client surfaces redesign: Settings window shell (sidebar sections, OK/Apply/Cancel) · release vNext
 - [ ] YAAT-292 Client surfaces redesign: Settings search with aliases and cross-section links
 - [ ] YAAT-293 Client surfaces redesign: open Settings at a section (view menus, Ctrl+comma, status-bar links)
 - [ ] YAAT-294 Client surfaces redesign: reconcile Scenario defaults with the session flyout
 - [ ] YAAT-295 Client surfaces redesign: regroup the View menu and add pop-out hotkeys
-- [ ] YAAT-296 Client surfaces redesign: merge Window Profiles and Copy View Settings into Layouts
+- [/] YAAT-296 Client surfaces redesign: merge Window Profiles and Copy View Settings into Layouts
 - [ ] YAAT-297 Client surfaces redesign: one Import / Export hub with a .yaat-settings.zip bundle
-- [ ] YAAT-310 Merge feat/client-surfaces-redesign (#782)
 
 ## Tick-path unification
 
@@ -151,6 +152,7 @@
 - [ ] YAAT-324 Ground conflict limit drops a runway-crossing aircraft's speed in one second instead of braking
 - [ ] YAAT-325 GIVEWAY to traffic that is just starting to taxi releases at once
 - [ ] YAAT-328 HOLD issued mid runway crossing stops the aircraft dead on the runway
+- [ ] YAAT-334 TAXI during landing rollout throws a navigator teleport on the next tick
 
 ## Wave 2 — Ground command grammar and dispatch
 
@@ -169,6 +171,7 @@
 - [ ] YAAT-59 GroundCommandHandler leftovers: split TryTaxiCore, cut Resolve*Route params
 - [ ] YAAT-212 A no-destination taxi stops with its nose in the junction it ends at
 - [ ] YAAT-313 Readback RPO form (callsign of the traffic) never reaches the instructor
+- [ ] YAAT-330 Pilot readback for REL: released for departure
 
 ## Wave 3 — Ground routing, pathfinder and their docs
 
@@ -379,3 +382,6 @@
 - [ ] YAAT-304 Client driver: wait_until landed reports coarse, late sim times
 - [ ] YAAT-315 Solo call-up: ask for push-back at stands that need one, taxi elsewhere
 - [ ] YAAT-326 Split the over-150-character lines in GroundConflictDetector and NodeAimedEntryOntoFilletTests
+- [ ] YAAT-331 Move the remaining FNV callsign hashes onto one DeterministicHash helper
+- [ ] YAAT-332 VFR departure direction: skip heliports and private strips, prefer the 91.159 direction
+- [ ] YAAT-333 Drop the generic Airport suffix from spoken airport names
