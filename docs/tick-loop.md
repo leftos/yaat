@@ -48,7 +48,7 @@ Physics ×4     sim TickPhysics(0.25)                                 (fixed cod
                    ├─ [IsShadow] LiveTrafficKinematics.Advance + airborne latch, then continue (no PreTick, no physics — live-traffic.md)
                    ├─ PreTick → PhaseRunner.Tick   (per aircraft)
                    └─ FlightPhysics.Update         (per aircraft, 8 steps)
-PostPhysics    SpineOrder.PostPhysics — the live server's 34-step order
+PostPhysics    SpineOrder.PostPhysics — the live server's 35-step order
                ├─ sim TickLiveTrafficRunwayUse, TickTransponders
                ├─ sim TickAltitudeFixPassage                          an ERAM fix-qualified altitude (170/SJC/110) latches to its second altitude once the aircraft has closed within 10 nm of the fix (≤90° off track) and then has it >90° off; data only (Field B, QF), never flown
                ├─ sim TickEramVerticalConformance                     the ERAM vertical-conformance latch: AircraftEramState.ReachedAssignedAltitude sets inside the assigned band and clears only when the assignment changes, so CRC draws - or + instead of the climb/descent arrow once reached; paused while QT-coasted, frozen or without Mode C
@@ -62,6 +62,7 @@ PostPhysics    SpineOrder.PostPhysics — the live server's 34-step order
                ├─ sim TickAsdexAlerts → host                          the ASDE-X Safety Logic detector over the scenario's standing alert set; hands over only the diff (new alerts, cleared ids), and only when something changed
                ├─ sim TickSoloTrainingEvaluation → host                empty outside solo mode
                ├─ sim TickPilotProactive                              after the detectors, before the drains
+               ├─ sim TickSituation                                   stamps each aircraft's liftoff time, then classifies it into `AircraftSituationState.Current` with the stored value as the previous one (the hysteresis bands); snapshotted, so it runs on every run kind
                ├─ sim drains → host: warnings, notifications, pilot speech, readbacks, transmissions, approach scores
                ├─ sim TickAutoArrivalStrips, TickAutoApproachDepartureStrips
                ├─ sim TickAutoTdlsQueue, TickTdlsAutoWilco, TickTdlsExpiry, TickTdlsTrackRemoval

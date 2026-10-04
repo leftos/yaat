@@ -45,6 +45,7 @@ public class SpineTraceTests
         new(StepId.AsdexAlerts, 0),
         new(StepId.SoloTrainingEvaluation, 0),
         new(StepId.PilotProactive, 0),
+        new(StepId.Situation, 0),
         new(StepId.Warnings, 0),
         new(StepId.Notifications, 0),
         new(StepId.PilotSpeech, 0),

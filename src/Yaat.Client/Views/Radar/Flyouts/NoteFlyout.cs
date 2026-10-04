@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
-using Avalonia.Threading;
 
 namespace Yaat.Client.Views.Radar.Flyouts;
 
@@ -32,29 +31,5 @@ internal static class NoteFlyout
                 await sendCommand(command);
             }
         );
-    }
-
-    /// <summary>
-    /// Opens the note popup attached to the anchor's overlay layer, deferring the open one
-    /// message loop so a closing context menu doesn't immediately light-dismiss it.
-    /// </summary>
-    public static void Open(Control anchor, string callsign, string currentNote, Func<string, Task> sendCommand)
-    {
-        Popup popup = Build(anchor, callsign, currentNote, sendCommand);
-
-        var overlay = OverlayLayer.GetOverlayLayer(anchor);
-        if (overlay is null)
-        {
-            return;
-        }
-        overlay.Children.Add(popup);
-        popup.Closed += (s, _) =>
-        {
-            if (s is Popup p)
-            {
-                overlay.Children.Remove(p);
-            }
-        };
-        Dispatcher.UIThread.Post(() => popup.IsOpen = true);
     }
 }

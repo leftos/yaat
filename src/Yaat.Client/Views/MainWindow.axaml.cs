@@ -244,6 +244,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         // parameterless event, view forwards to the relevant control).
         vm.RequestCommandInputFocus += FocusActiveCommandInput;
 
+        // A menu on another view starting a draw on the popped-out primary ground view brings its window forward.
+        vm.RequestPrimaryGroundViewActivation += () => _groundViewWindow?.RestoreAndActivate();
+
         vm.PropertyChanged += OnViewModelPropertyChanged;
 
         if (vm.IsDataGridPoppedOut)

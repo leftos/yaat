@@ -1,0 +1,20 @@
+# ground delayed-spawn
+AAL501 — B738 [disabled]
+---
+Command…
+Note…
+---
+Favorite Commands
+  (no items) [disabled]
+---
+Spawn now
+Change spawn delay
+  15 seconds
+  30 seconds
+  1 minute
+  2 minutes
+  5 minutes
+  10 minutes
+  ---
+  <TextBox>
+Delete

@@ -1212,12 +1212,15 @@ public record AircraftDto(
     // What the controller is most likely to do next with the aircraft, classified server-side by
     // Yaat.Sim.Situation.SituationClassifier and sent as a number.
     Yaat.Sim.Situation.AircraftSituation Situation = Yaat.Sim.Situation.AircraftSituation.Unknown,
+    // The situation flags the server's Situation step computes beside the situation (Yaat.Sim.Situation.SituationFlagCalculator),
+    // sent as a number.
+    Yaat.Sim.Situation.SituationFlags SituationFlags = Yaat.Sim.Situation.SituationFlags.None,
     // Airport id of the ground layout this aircraft is on (server AircraftGroundOps.LayoutAirportId,
     // scenario primary airport as fallback). Null when airborne / unknown. Lets the radar surface a
     // ground aircraft's speech bubble when no ground view is currently showing that airport.
     string? GroundAirportId = null,
-    // True when this ground departure is held for release. Drives the radar "Release (HFR)"
-    // context-menu item and a held badge.
+    // True when this departure is held for release. Drives the menu header's
+    // Release (HFR) item on every view and a held badge.
     bool HeldForRelease = false,
     // Student-scope STARS view projected by the server (StarsDatablockClassifier) relative to the
     // scenario's student position. Null when there is no student position. Drives the instructor

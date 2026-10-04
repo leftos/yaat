@@ -546,14 +546,23 @@ public sealed class AppToolsTests : AutomationHostFixture
             on.GetProperty("message").GetString()
         );
 
+        // The preference is saved to the run's shared preferences file, and every later MainViewModel seeds its session solo
+        // mode from it, so the test puts it back however it ends.
         viewModel.Preferences.SetSoloTrainingMode(true);
-        JsonElement off = Result(await CallTool(ToolsOf(viewModel), "set_solo", new { enabled = false }));
+        try
+        {
+            JsonElement off = Result(await CallTool(ToolsOf(viewModel), "set_solo", new { enabled = false }));
 
-        Assert.False(viewModel.SessionSoloTrainingMode);
-        Assert.Equal(
-            "Solo training mode requested off; the room's next settings broadcast confirms or overrides it.",
-            off.GetProperty("message").GetString()
-        );
+            Assert.False(viewModel.SessionSoloTrainingMode);
+            Assert.Equal(
+                "Solo training mode requested off; the room's next settings broadcast confirms or overrides it.",
+                off.GetProperty("message").GetString()
+            );
+        }
+        finally
+        {
+            viewModel.Preferences.SetSoloTrainingMode(false);
+        }
     }
 
     [AvaloniaFact]

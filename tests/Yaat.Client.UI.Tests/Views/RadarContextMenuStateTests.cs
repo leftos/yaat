@@ -1,10 +1,9 @@
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Xunit;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
-using Yaat.Client.UI.Tests.Fakes;
-using Yaat.Client.ViewModels;
-using Yaat.Client.Views.Radar;
+using Yaat.Sim.Commands;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -13,10 +12,55 @@ namespace Yaat.Client.UI.Tests.Views;
 // omitted) when nothing applies. Builds run through AircraftCommandApplicability.
 public class RadarContextMenuStateTests
 {
-    private static (RadarView View, RadarViewModel Vm) Harness()
+    /// <summary>
+    /// A menu context outside solo training, under the "VFR commands for IFR aircraft" setting
+    /// <see cref="VfrCommandsForIfr.None"/>.
+    /// </summary>
+    private static MenuContext Context(string callsign) => Context(callsign, false, VfrCommandsForIfr.None);
+
+    private static MenuContext Context(string callsign, bool soloTrainingMode, VfrCommandsForIfr vfrCommandsForIfr) =>
+        TestMenuContext.Create(callsign, "AB", null, soloTrainingMode, vfrCommandsForIfr);
+
+    /// <summary>An aircraft on final for 28R under <paramref name="flightRules"/>, which cleared to land applies to.</summary>
+    private static AircraftModel OnFinal(string callsign, string flightRules) =>
+        new()
+        {
+            Callsign = callsign,
+            IsOnGround = false,
+            CurrentPhase = "FinalApproach",
+            FlightRules = flightRules,
+            AssignedRunway = "28R",
+        };
+
+    [AvaloniaTheory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public void Tower_ForceLanding_HiddenInSoloTraining(bool soloTrainingMode, bool offered)
     {
-        var main = new MainViewModel(new FakeFilePickerService());
-        return (new RadarView(), main.Radar);
+        AircraftModel ac = OnFinal("AAL123", "IFR");
+
+        MenuItem? tower = SharedMenuGroups.Tower(ac, Context("AAL123", soloTrainingMode, VfrCommandsForIfr.None), new RecordingMenuHost(""));
+
+        Assert.NotNull(tower);
+        List<string> headers = Headers(tower);
+        Assert.Contains("Cleared to land 28R", headers);
+        Assert.Equal(offered, headers.Contains("Force landing 28R"));
+    }
+
+    [AvaloniaTheory]
+    [InlineData(VfrCommandsForIfr.None, false)]
+    [InlineData(VfrCommandsForIfr.EnterFinalOnly, false)]
+    [InlineData(VfrCommandsForIfr.All, true)]
+    public void Tower_VfrOptions_HiddenForIfrUnderNone_ShownUnderAll(VfrCommandsForIfr mode, bool offered)
+    {
+        AircraftModel ac = OnFinal("AAL123", "IFR");
+
+        MenuItem? tower = SharedMenuGroups.Tower(ac, Context("AAL123", false, mode), new RecordingMenuHost(""));
+
+        Assert.NotNull(tower);
+        List<string> headers = Headers(tower);
+        string[] options = ["Cleared for the option 28R", "Touch and go 28R", "Stop and go 28R", "Low approach 28R"];
+        Assert.All(options, option => Assert.Equal(offered, headers.Contains(option)));
     }
 
     private static List<string> Headers(MenuItem menu) =>
@@ -25,7 +69,6 @@ public class RadarContextMenuStateTests
     [AvaloniaFact]
     public void AirborneIfrOnFinal_TowerHasLanding_NotTakeoff()
     {
-        (RadarView? view, RadarViewModel? vm) = Harness();
         var ac = new AircraftModel
         {
             Callsign = "AAL123",
@@ -35,7 +78,7 @@ public class RadarContextMenuStateTests
             AssignedRunway = "28R",
         };
 
-        MenuItem? tower = view.BuildTowerSubmenu(vm, "AAL123", "AB", ac);
+        MenuItem? tower = SharedMenuGroups.Tower(ac, Context("AAL123"), new RecordingMenuHost(""));
 
         Assert.NotNull(tower);
         List<string> headers = Headers(tower!);
@@ -50,7 +93,6 @@ public class RadarContextMenuStateTests
     [AvaloniaFact]
     public void GroundDeparture_TowerHasTakeoff_NotLanding()
     {
-        (RadarView? view, RadarViewModel? vm) = Harness();
         var ac = new AircraftModel
         {
             Callsign = "SWA1",
@@ -60,7 +102,7 @@ public class RadarContextMenuStateTests
             AssignedRunway = "30",
         };
 
-        MenuItem? tower = view.BuildTowerSubmenu(vm, "SWA1", "AB", ac);
+        MenuItem? tower = SharedMenuGroups.Tower(ac, Context("SWA1"), new RecordingMenuHost(""));
 
         Assert.NotNull(tower);
         List<string> headers = Headers(tower!);
@@ -72,7 +114,6 @@ public class RadarContextMenuStateTests
     [AvaloniaFact]
     public void AirborneDeparture_TowerOmitted()
     {
-        (RadarView? view, RadarViewModel? vm) = Harness();
         var ac = new AircraftModel
         {
             Callsign = "UAL9",
@@ -82,7 +123,7 @@ public class RadarContextMenuStateTests
             AssignedRunway = "1L",
         };
 
-        MenuItem? tower = view.BuildTowerSubmenu(vm, "UAL9", "AB", ac);
+        MenuItem? tower = SharedMenuGroups.Tower(ac, Context("UAL9"), new RecordingMenuHost(""));
 
         // Nothing tower-related applies to a climbing departure — the submenu is dropped.
         Assert.Null(tower);
@@ -91,7 +132,6 @@ public class RadarContextMenuStateTests
     [AvaloniaFact]
     public void Landing_TowerHasExits()
     {
-        (RadarView? view, RadarViewModel? vm) = Harness();
         var ac = new AircraftModel
         {
             Callsign = "DAL5",
@@ -101,7 +141,7 @@ public class RadarContextMenuStateTests
             AssignedRunway = "28R",
         };
 
-        MenuItem? tower = view.BuildTowerSubmenu(vm, "DAL5", "AB", ac);
+        MenuItem? tower = SharedMenuGroups.Tower(ac, Context("DAL5"), new RecordingMenuHost(""));
 
         Assert.NotNull(tower);
         List<string> headers = Headers(tower!);
@@ -113,7 +153,6 @@ public class RadarContextMenuStateTests
     [AvaloniaFact]
     public void IfrTakeoffClearance_HidesVfrModifiers()
     {
-        (RadarView? view, RadarViewModel? vm) = Harness();
         var ac = new AircraftModel
         {
             Callsign = "AAL2",
@@ -123,10 +162,10 @@ public class RadarContextMenuStateTests
             AssignedRunway = "30",
         };
 
-        MenuItem? tower = view.BuildTowerSubmenu(vm, "AAL2", "AB", ac);
+        MenuItem? tower = SharedMenuGroups.Tower(ac, Context("AAL2"), new RecordingMenuHost(""));
         Assert.NotNull(tower);
 
-        MenuItem? cto = tower!.Items.OfType<MenuItem>().FirstOrDefault(m => m.Header is "Cleared for takeoff");
+        MenuItem? cto = tower!.Items.OfType<MenuItem>().FirstOrDefault(m => m.Header is "Cleared for takeoff 30");
         Assert.NotNull(cto);
         List<string> ctoHeaders = Headers(cto!);
         // IFR gets the default (follow-SID) clearance and an explicit runway-heading clearance (issue #221).
@@ -141,7 +180,6 @@ public class RadarContextMenuStateTests
     [AvaloniaFact]
     public void VfrTakeoffClearance_ShowsRunwayHeadingAndOnCourseAndModifiers()
     {
-        (RadarView? view, RadarViewModel? vm) = Harness();
         var ac = new AircraftModel
         {
             Callsign = "N123",
@@ -151,23 +189,37 @@ public class RadarContextMenuStateTests
             AssignedRunway = "30",
         };
 
-        MenuItem? tower = view.BuildTowerSubmenu(vm, "N123", "AB", ac);
+        MenuItem? tower = SharedMenuGroups.Tower(ac, Context("N123"), new RecordingMenuHost(""));
         Assert.NotNull(tower);
 
-        MenuItem? cto = tower!.Items.OfType<MenuItem>().FirstOrDefault(m => m.Header is "Cleared for takeoff");
+        MenuItem? cto = tower!.Items.OfType<MenuItem>().FirstOrDefault(m => m.Header is "Cleared for takeoff 30");
         Assert.NotNull(cto);
-        List<string> ctoHeaders = Headers(cto!);
-        Assert.Contains("Default (SID/on course)", ctoHeaders);
-        Assert.Contains("Fly runway heading", ctoHeaders);
-        Assert.Contains("Fly on course", ctoHeaders);
-        Assert.Contains("Make left traffic", ctoHeaders);
-        Assert.Contains("360 overhead", ctoHeaders);
+        Assert.Equal(
+            [
+                "Default (SID/on course)",
+                "Fly runway heading",
+                "Fly on course",
+                "Make left traffic",
+                "Make right traffic",
+                "Turn left crosswind",
+                "Turn right crosswind",
+                "Turn left downwind",
+                "Turn right downwind",
+                "Left 270",
+                "Right 270",
+                "360 overhead",
+                "Custom…",
+            ],
+            Headers(cto!)
+        );
+        List<object?> items = [.. cto!.Items];
+        int custom = items.FindIndex(i => i is MenuItem { Header: "Custom…" });
+        Assert.IsType<Separator>(items[custom - 1]);
     }
 
     [AvaloniaFact]
     public void VfrPatternAircraft_PatternSubmenuLegGated()
     {
-        (RadarView? view, RadarViewModel? vm) = Harness();
         var ac = new AircraftModel
         {
             Callsign = "N77",
@@ -177,7 +229,7 @@ public class RadarContextMenuStateTests
             AssignedRunway = "28L",
         };
 
-        MenuItem? pattern = view.BuildPatternSubmenu(vm, "N77", "AB", ac);
+        MenuItem? pattern = SharedMenuGroups.Pattern(ac, Context("N77"), new RecordingMenuHost(""));
 
         Assert.NotNull(pattern);
         List<string> headers = Headers(pattern!);
@@ -190,7 +242,6 @@ public class RadarContextMenuStateTests
     [AvaloniaFact]
     public void IfrAircraft_PatternSubmenuOmitted()
     {
-        (RadarView? view, RadarViewModel? vm) = Harness();
         var ac = new AircraftModel
         {
             Callsign = "AAL3",
@@ -200,7 +251,7 @@ public class RadarContextMenuStateTests
             AssignedRunway = "28R",
         };
 
-        MenuItem? pattern = view.BuildPatternSubmenu(vm, "AAL3", "AB", ac);
+        MenuItem? pattern = SharedMenuGroups.Pattern(ac, Context("AAL3"), new RecordingMenuHost(""));
 
         // Pattern ops are VFR-only.
         Assert.Null(pattern);

@@ -1,0 +1,38 @@
+# ground live-traffic-surface
+UAL402 — B738 [disabled]
+---
+Command…
+Note…
+---
+Favorite Commands
+  (no items) [disabled]
+---
+Track
+  Track
+  Drop track
+  ---
+  Accept handoff
+  Initiate handoff… picker:input
+  Cancel handoff
+  ---
+  Point out… picker:input
+  Acknowledge pointout
+Data Block
+  Scratchpad… picker:input
+  Temporary altitude… picker:input
+  Cruise… picker:input
+  Annotate
+Coordination
+  Release
+  Hold
+  Recall
+  Acknowledge release
+Display
+  Taxi route
+    Always show
+    Always hide
+    Follow “Show all” setting [checked]
+  Hide datablock
+  Measure from UAL402
+---
+Delete

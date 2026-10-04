@@ -1028,30 +1028,16 @@ public sealed class GroundRenderer : IDisposable
 
             double[] first = rwy.Coordinates[0];
             double[] last = rwy.Coordinates[^1];
-            if (first.Length < 2 || last.Length < 2)
+            if (RunwayRectangle.ScreenCorners(rwy, vp) is not { } corners)
             {
                 continue;
             }
 
-            double heading = GeoMath.BearingTo(first[0], first[1], last[0], last[1]);
-            double halfWidthNm = (rwy.WidthFt / 2.0) / GeoMath.FeetPerNm;
-
-            // Perpendicular angle (heading + 90)
-            double perpRad = (heading + 90.0) * Math.PI / 180.0;
-            double dLat = halfWidthNm / 60.0 * Math.Cos(perpRad);
-            double dLon = halfWidthNm / 60.0 * Math.Sin(perpRad) / Math.Cos(first[0] * Math.PI / 180.0);
-
-            // Build the 4 corners of the runway rectangle
-            (float x1, float y1) = vp.LatLonToScreen(first[0] + dLat, first[1] + dLon);
-            (float x2, float y2) = vp.LatLonToScreen(first[0] - dLat, first[1] - dLon);
-            (float x3, float y3) = vp.LatLonToScreen(last[0] - dLat, last[1] - dLon);
-            (float x4, float y4) = vp.LatLonToScreen(last[0] + dLat, last[1] + dLon);
-
             using var path = new SKPath();
-            path.MoveTo(x1, y1);
-            path.LineTo(x2, y2);
-            path.LineTo(x3, y3);
-            path.LineTo(x4, y4);
+            path.MoveTo(corners[0]);
+            path.LineTo(corners[1]);
+            path.LineTo(corners[2]);
+            path.LineTo(corners[3]);
             path.Close();
 
             canvas.DrawPath(path, _runwayFillPaint);

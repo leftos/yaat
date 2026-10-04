@@ -1,0 +1,56 @@
+# list pushing-back
+SWA102 — B738 [disabled]
+---
+Command…
+Note…
+---
+Favorite Commands
+  (no items) [disabled]
+---
+Hold position
+Preset taxi route
+  TERMINAL to 30
+Draw taxi route…
+---
+Track
+  Track
+  Drop track
+  ---
+  Accept handoff
+  Initiate handoff… picker:input
+  Cancel handoff
+  ---
+  Point out… picker:input
+  Acknowledge pointout
+Data Block
+  Scratchpad… picker:input
+  Temporary altitude… picker:input
+  Cruise… picker:input
+  Annotate
+Squawk
+  Squawk… picker:input
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
+Ask pilot to say…
+  Altitude
+  Heading
+  Speed
+  Mach
+  Position
+  Expected approach
+  ---
+  Custom… picker:input
+Coordination
+  Release
+  Hold
+  Recall
+  Acknowledge release
+---
+Edit flight plan
+---
+Warp…
+Delete

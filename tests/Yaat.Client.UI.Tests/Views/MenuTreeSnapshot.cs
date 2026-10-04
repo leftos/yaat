@@ -1,0 +1,80 @@
+using System.Text;
+using Avalonia.Controls;
+using Yaat.Client.ContextMenus;
+
+namespace Yaat.Client.UI.Tests.Views;
+
+/// <summary>
+/// Renders a context menu as plain text, one line per node, depth-first in <c>Items</c> order with two spaces of
+/// indent per level: a <see cref="MenuItem"/> as its header text followed by <c>[disabled]</c>, <c>[checked]</c> and
+/// its <see cref="MenuPickerDescriptor"/> (<c>picker:list [a, b]</c>, <c>picker:filteredList [a, b]</c> or
+/// <c>picker:input</c>); a <see cref="Separator"/> as <c>---</c>; anything else as its type name in angle brackets.
+/// Commands, tooltips, gestures and icons are left out. Every line ends with <c>\n</c>.
+/// </summary>
+internal static class MenuTreeSnapshot
+{
+    private const string Indent = "  ";
+
+    /// <summary>The whole menu as text, each line terminated by a line feed.</summary>
+    public static string Render(ContextMenu menu)
+    {
+        var text = new StringBuilder();
+        AppendItems(text, menu.Items, depth: 0);
+        return text.ToString();
+    }
+
+    private static void AppendItems(StringBuilder text, ItemCollection items, int depth)
+    {
+        foreach (object? item in items)
+        {
+            AppendNode(text, item, depth);
+        }
+    }
+
+    private static void AppendNode(StringBuilder text, object? item, int depth)
+    {
+        for (int i = 0; i < depth; i++)
+        {
+            text.Append(Indent);
+        }
+
+        switch (item)
+        {
+            case Separator:
+                text.Append("---\n");
+                break;
+            case MenuItem menuItem:
+                text.Append(Describe(menuItem)).Append('\n');
+                AppendItems(text, menuItem.Items, depth + 1);
+                break;
+            default:
+                text.Append('<').Append(item?.GetType().Name ?? "null").Append(">\n");
+                break;
+        }
+    }
+
+    /// <summary>The header text, then the state flags and picker descriptor, space-separated.</summary>
+    private static string Describe(MenuItem menuItem)
+    {
+        var parts = new List<string> { menuItem.Header as string ?? menuItem.Header?.ToString() ?? "" };
+        if (!menuItem.IsEnabled)
+        {
+            parts.Add("[disabled]");
+        }
+
+        if (menuItem.IsChecked)
+        {
+            parts.Add("[checked]");
+        }
+
+        if (menuItem.Tag is MenuPickerDescriptor picker)
+        {
+            parts.Add(DescribePicker(picker));
+        }
+
+        return string.Join(' ', parts);
+    }
+
+    private static string DescribePicker(MenuPickerDescriptor picker) =>
+        picker.Kind == MenuPickerDescriptor.Input ? "picker:input" : $"picker:{picker.Kind} [{string.Join(", ", picker.Items)}]";
+}

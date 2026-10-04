@@ -15,6 +15,7 @@ using Yaat.Sim.Pilot;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation.Replay;
 using Yaat.Sim.Simulation.Snapshots;
+using Yaat.Sim.Situation;
 using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Simulation;
@@ -245,6 +246,47 @@ public sealed partial class SimulationEngine
 
             Pilot.PilotProactive.TickPendingRequests(ac, scenario);
             Pilot.PilotProactive.TickReportTriggers(ac, scenario);
+        }
+    }
+
+    /// <summary>
+    /// The post-physics situation pass: each aircraft, shadows included, is classified into
+    /// <see cref="AircraftSituationState.Current"/> with the stored value as the previous one, which the classifier's
+    /// hysteresis bands read. First it stamps <see cref="AircraftSituationState.AirborneAtSeconds"/> when an aircraft the
+    /// last step saw on the ground is now airborne, so every liftoff counts, including one begun inside command dispatch
+    /// and a second departure. Then it computes <see cref="AircraftSituationState.Flags"/>
+    /// (<see cref="SituationFlagCalculator"/>) against the new situation, the stored flags, the aircraft's ground
+    /// layout as its phases see it (taxi and hold-short flags) and its assigned runway's own airport layout (inside-FAF). A spine step (<see cref="Spine.StepId.Situation"/>) after the pilot-proactive step, so
+    /// it sees this second's phase changes; it runs on every run kind because the stored situation is snapshotted state
+    /// that depends on the previous second's.
+    /// </summary>
+    public void TickSituation()
+    {
+        if (Scenario is not { } scenario)
+        {
+            return;
+        }
+
+        foreach (AircraftState ac in World.GetSnapshot())
+        {
+            AircraftSituationState situation = ac.Situation;
+            if ((!ac.IsOnGround) && situation.WasOnGround)
+            {
+                situation.AirborneAtSeconds = scenario.ElapsedSeconds;
+            }
+
+            situation.WasOnGround = ac.IsOnGround;
+            situation.Current = SituationClassifier.Classify(ac, scenario.ElapsedSeconds, situation.Current);
+            // Layouts are resolved only for the phases that read them: a resolve can fetch and pin an airport's map.
+            Phase? phase = ac.Phases?.CurrentPhase;
+            AirportGroundLayout? groundLayout = SituationFlagCalculator.NeedsGroundLayout(phase)
+                ? (ac.Ground.Layout ?? ResolveGroundLayout(ac))
+                : null;
+            AirportGroundLayout? runwayLayout =
+                (SituationFlagCalculator.IsInstrumentApproachPhase(phase) && (ac.Phases?.AssignedRunway is { } runway))
+                    ? ResolveAirportLayout(runway.AirportId)
+                    : null;
+            situation.Flags = SituationFlagCalculator.Compute(ac, situation.Current, situation.Flags, groundLayout, runwayLayout);
         }
     }
 

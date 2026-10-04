@@ -97,15 +97,11 @@ internal static class TextEntryPopup
             actionWrap.Children.Add(btn);
         }
 
-        var stack = new StackPanel
+        var stack = new StackPanel { Orientation = Orientation.Vertical, Spacing = 2 };
+        if (!string.IsNullOrEmpty(title))
         {
-            Orientation = Orientation.Vertical,
-            Spacing = 2,
-            Children =
-            {
-                new TextBlock { Text = title, FontWeight = FontWeight.SemiBold },
-            },
-        };
+            stack.Children.Add(new TextBlock { Text = title, FontWeight = FontWeight.SemiBold });
+        }
         if (!string.IsNullOrEmpty(subtitle))
         {
             stack.Children.Add(

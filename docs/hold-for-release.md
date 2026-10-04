@@ -138,10 +138,7 @@ The armed-airports set + held departures are **dynamic per-room state**, broadca
   re-broadcasts on a change-detected per-tick basis for mid-tick changes a command didn't drive (a held
   departure spawning, or a status transition taxiing → holding-short).
 - `RoomStateDto.Rundown` seeds the rundown on join/reconnect (`MainViewModel.ApplyRoomState` → `ApplyRundown`).
-- Per-aircraft, `AircraftStateDto.HeldForRelease` rides the normal delta engine — mapped in
-  `DtoConverter.ToTrainingDto` and **added to `AircraftChangeTracker`'s `TrainingDtoFingerprint` +
-  `CaptureTrainingDto`** (or it would appear on join but never update live). It drives the radar
-  context-menu "Release (HFR)" item and `AircraftModel.IsHeldForRelease`.
+- Per-aircraft, `AircraftStateDto.HeldForRelease` rides the normal delta engine — mapped in `DtoConverter.ToTrainingDto` and **added to `AircraftChangeTracker`'s `TrainingDtoFingerprint` + `CaptureTrainingDto`** (or it would appear on join but never update live). It drives `AircraftModel.IsHeldForRelease` and the "Release (HFR)" item (`coordination.release-held`, gated by `AircraftCommandApplicability.CanReleaseHeld`) under the title of the aircraft context menu on every view.
 - Client: `MainViewModel` (the `HoldForRelease` partial) mirrors the rundown grouped by airport and
   exposes `ReleaseDepartureCommand` / `ReleaseNextAtAirportCommand`; the **Releases** flyout in
   `CommandInputView.axaml` renders it.
@@ -189,8 +186,7 @@ the sim enforcing it mechanically.
 - `CFR <HHMM>` → window `[HHMM-2min, HHMM+1min]`.
 - Bare `CFR` → immediate release: assigned time = now+2min, so the window opens now (`[now, now+3min]`).
 - `CFR OFF` / `CFR CANCEL` → clears the window.
-- `CFR CHECK` / `CFR STATUS` → read-only status readout (opens-in / closes-in / expired) via `CfrDepartureService.DescribeStatus` —
-  no mutation, still broadcasts a terminal line. Right-click "Check release window" in radar/ground/list menus sends `CFR CHECK`.
+- `CFR CHECK` / `CFR STATUS` → read-only status readout (opens-in / closes-in / expired) via `CfrDepartureService.DescribeStatus` — no mutation, still broadcasts a terminal line. "Check release window" under the title of the radar/ground/list aircraft menu (`coordination.check-release-window`, on the ground with a window) sends `CFR CHECK`.
 
 **The −2/+1 window is FAA-fixed** (7110.65 §4-3-4.e.5), not a user/session preference — hardcoded constants in `Commands/CfrWindow.cs`
 (`WindowBeforeSeconds=120`, `WindowAfterSeconds=60`). `CfrWindowResolver.Resolve(hhmm, nowUtc)` (pure, nearest-instant HHMM, handles

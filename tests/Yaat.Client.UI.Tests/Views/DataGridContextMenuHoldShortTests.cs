@@ -25,16 +25,15 @@ public class DataGridContextMenuHoldShortTests
             AssignedRunway = "28R",
         };
 
-        var menu = new ContextMenu();
-        DataGridView.AddPhaseAwareItems(menu, ac, vm, "N784ME", "AB");
+        vm.Aircraft.Add(ac);
+        ContextMenu menu = DataGridView.BuildAircraftMenu(vm, new DataGrid(), ac, null, [ac]);
+        List<string> headers = HeadersIn(menu.Items);
 
-        var crossItems = menu
-            .Items.OfType<MenuItem>()
-            .Where(m => m.Header is string s && s.StartsWith("Cross ", StringComparison.Ordinal))
-            .Select(m => (string)m.Header!)
-            .ToList();
-
-        Assert.Equal(new[] { "Cross 15" }, crossItems);
-        Assert.DoesNotContain(menu.Items.OfType<MenuItem>(), m => m.Header is string s && s.Contains("28R", StringComparison.Ordinal));
+        Assert.Equal(["Cross 15"], headers.Where(h => h.StartsWith("Cross ", StringComparison.Ordinal)));
+        Assert.DoesNotContain(headers, h => h.Contains("28R", StringComparison.Ordinal));
     }
+
+    /// <summary>Every item header in <paramref name="items"/>' whole tree, submenus included, depth first.</summary>
+    private static List<string> HeadersIn(ItemCollection items) =>
+        [.. items.OfType<MenuItem>().SelectMany(m => (m.Header is string header ? [header] : Array.Empty<string>()).Concat(HeadersIn(m.Items)))];
 }

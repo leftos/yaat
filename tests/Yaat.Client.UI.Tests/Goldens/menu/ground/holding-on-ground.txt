@@ -1,0 +1,63 @@
+# ground holding-on-ground
+SWA103 — B738 [disabled]
+---
+Command…
+Note…
+---
+Favorite Commands
+  (no items) [disabled]
+---
+Preset taxi route
+  30 to TERMINAL
+Draw taxi route…
+---
+Track
+  Track
+  Drop track
+  ---
+  Accept handoff
+  Initiate handoff… picker:input
+  Cancel handoff
+  ---
+  Point out… picker:input
+  Acknowledge pointout
+Data Block
+  Scratchpad… picker:input
+  Temporary altitude… picker:input
+  Cruise… picker:input
+  Annotate
+Squawk
+  Squawk… picker:input
+  Squawk random
+  Squawk VFR
+  Squawk normal
+  Squawk standby
+  ---
+  Ident
+Ask pilot to say…
+  Altitude
+  Heading
+  Speed
+  Mach
+  Position
+  Expected approach
+  ---
+  Custom… picker:input
+Coordination
+  Release
+  Hold
+  Recall
+  Acknowledge release
+---
+Edit flight plan
+---
+Display
+  Taxi route
+    Always show
+    Always hide
+    Follow “Show all” setting [checked]
+  Hide datablock
+  Measure from SWA103
+---
+Warp…
+Delete

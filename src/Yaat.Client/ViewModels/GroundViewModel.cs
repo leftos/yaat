@@ -3,6 +3,7 @@ using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
 using SkiaSharp;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
@@ -15,19 +16,6 @@ using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Data.Faa;
 
 namespace Yaat.Client.ViewModels;
-
-/// <summary>Per-aircraft override for how its taxi route is drawn on the ground view.</summary>
-public enum TaxiRouteDisplayMode
-{
-    /// <summary>Track the global "show all taxiing routes" setting (the default, no override).</summary>
-    Follow,
-
-    /// <summary>Always draw this aircraft's route, regardless of the global setting.</summary>
-    AlwaysShow,
-
-    /// <summary>Never draw this aircraft's route, regardless of the global setting.</summary>
-    AlwaysHide,
-}
 
 /// <summary>Which interactive route the ground view's draw mode is building.</summary>
 public enum DrawRouteKind
@@ -838,18 +826,6 @@ public partial class GroundViewModel : ObservableObject
         ApplySettings(saved);
     }
 
-    public void UpdateAircraftList(IEnumerable<AircraftModel> allAircraft)
-    {
-        GroundAircraft.Clear();
-        foreach (AircraftModel ac in allAircraft)
-        {
-            if (ac.IsOnGround)
-            {
-                GroundAircraft.Add(ac);
-            }
-        }
-    }
-
     /// <summary>
     /// Resolve the performance category the sim will use for <paramref name="ac"/>, so route
     /// previews match command execution — <see cref="Yaat.Sim.Commands.GroundCommandHandler"/>
@@ -886,17 +862,6 @@ public partial class GroundViewModel : ObservableObject
         return variants.Count > 0 ? variants[^1].Command : $"TAXI {readablePath}{(spot is not null ? $" {spot.Token}" : "")}";
     }
 
-    public int? FindNearestNodeId(LatLon position)
-    {
-        if (_domainLayout is null)
-        {
-            return null;
-        }
-
-        GroundNode? node = _domainLayout.FindNearestNode(position);
-        return node?.Id;
-    }
-
     public int? GetAircraftNearestNodeId(AircraftModel ac)
     {
         if (_domainLayout is null)
@@ -931,85 +896,7 @@ public partial class GroundViewModel : ObservableObject
 
     // --- Command methods ---
 
-    public async Task TaxiToNodeAsync(string callsign, string initials, int toNodeId)
-    {
-        if (_domainLayout is null || SelectedAircraft is null)
-        {
-            return;
-        }
-
-        int? fromNodeId = GetAircraftNearestNodeId(SelectedAircraft);
-        if (fromNodeId is null)
-        {
-            return;
-        }
-
-        TaxiRoute? route = FindRouteToNode(fromNodeId.Value, toNodeId, CategoryFor(SelectedAircraft), WakeClassFor(SelectedAircraft));
-        if (route is null)
-        {
-            _log.LogWarning("No route from node {From} to {To}", fromNodeId, toNodeId);
-            return;
-        }
-
-        string taxiways = BuildTaxiCommand(route);
-        if (string.IsNullOrEmpty(taxiways))
-        {
-            return;
-        }
-
-        await _sendCommand(callsign, $"TAXI {taxiways}", initials);
-    }
-
-    public async Task HoldPositionAsync(string callsign, string initials) => await _sendCommand(callsign, "HP", initials);
-
-    public async Task ResumeAsync(string callsign, string initials) => await _sendCommand(callsign, "RES", initials);
-
-    public async Task PushbackAsync(string callsign, string initials) => await _sendCommand(callsign, "PUSH", initials);
-
-    public async Task CrossRunwayAsync(string callsign, string initials, string runwayId) =>
-        await _sendCommand(callsign, $"CROSS {runwayId}", initials);
-
-    public async Task LineUpAndWaitAsync(string callsign, string initials) => await _sendCommand(callsign, "LUAW", initials);
-
-    public async Task ClearedForTakeoffAsync(string callsign, string initials, string? arg)
-    {
-        string cmd = string.IsNullOrWhiteSpace(arg) ? "CTO" : $"CTO {arg.Trim()}";
-        await _sendCommand(callsign, cmd, initials);
-    }
-
-    public async Task GoAroundAsync(string callsign, string initials) => await _sendCommand(callsign, "GA", initials);
-
-    public async Task CancelTakeoffClearanceAsync(string callsign, string initials) => await _sendCommand(callsign, "CTOC", initials);
-
-    public async Task ClearedToLandAsync(string callsign, string initials) => await _sendCommand(callsign, "CLAND", initials);
-
-    public async Task ForceLandingAsync(string callsign, string initials) => await _sendCommand(callsign, "CLANDF", initials);
-
-    public async Task CancelLandingClearanceAsync(string callsign, string initials) => await _sendCommand(callsign, "CLC", initials);
-
-    public async Task TouchAndGoAsync(string callsign, string initials) => await _sendCommand(callsign, "TG", initials);
-
-    public async Task StopAndGoAsync(string callsign, string initials) => await _sendCommand(callsign, "SG", initials);
-
-    public async Task LowApproachAsync(string callsign, string initials) => await _sendCommand(callsign, "LA", initials);
-
-    public async Task ClearedForOptionAsync(string callsign, string initials) => await _sendCommand(callsign, "COPT", initials);
-
-    public async Task ExitLeftAsync(string callsign, string initials) => await _sendCommand(callsign, "EL", initials);
-
-    public async Task ExitRightAsync(string callsign, string initials) => await _sendCommand(callsign, "ER", initials);
-
-    /// <summary>Pushes back to an absolute magnetic facing given as an 8-point compass cardinal (N, NE, E, SE, S, SW, W, NW).</summary>
-    public async Task PushbackFacingAsync(string callsign, string initials, string cardinal) =>
-        await _sendCommand(callsign, $"PUSH FACE {cardinal}", initials);
-
     public async Task SendRawCommandAsync(string callsign, string initials, string command) => await _sendCommand(callsign, command, initials);
-
-    public async Task HoldShortAsync(string callsign, string initials, string target) => await _sendCommand(callsign, $"HS {target}", initials);
-
-    public async Task DeleteAsync(string callsign, string initials) => await _sendCommand(callsign, "DEL", initials);
-
-    public async Task WarpToNodeAsync(string callsign, string initials, int nodeId) => await _sendCommand(callsign, $"WARPG #{nodeId}", initials);
 
     public List<TaxiRoute> FindRoutesToNode(int fromNodeId, int toNodeId, AircraftCategory category, WakeTurbulenceData.WakeClass wakeClass)
     {
@@ -1273,6 +1160,91 @@ public partial class GroundViewModel : ObservableObject
         return Cardinals[bucket];
     }
 
+    /// <summary>
+    /// The pushback facings at the aircraft's node (<see cref="GetPushbackDirections"/>) as menu choices: "Push back,
+    /// face {taxiway}", sending <c>PUSH FACE {cardinal}</c>, an absolute magnetic facing.
+    /// </summary>
+    public List<MenuCommandChoice> GetPushbackFaceChoices(AircraftModel ac) =>
+        [.. GetPushbackDirections(ac).Select(d => new MenuCommandChoice($"Push back, {d.Label}", $"PUSH FACE {d.Cardinal}", null, []))];
+
+    /// <summary>The most stands the Push back to… submenu lists.</summary>
+    private const int MaxPushbackToChoices = 30;
+
+    /// <summary>
+    /// The named Parking, Spot and Helipad nodes the aircraft can be pushed back to, nearest first, at most
+    /// <see cref="MaxPushbackToChoices"/>, excluding the node it stands on: each labelled with its name and sending the
+    /// canonical PUSH command (<c>$name</c> for a spot, <c>@name</c> for parking or a helipad). Empty without a layout.
+    /// </summary>
+    public List<MenuCommandChoice> GetPushbackToChoices(AircraftModel ac)
+    {
+        if (_domainLayout is null)
+        {
+            return [];
+        }
+
+        int? currentNodeId = GetAircraftNearestNodeId(ac);
+        return
+        [
+            .. _domainLayout
+                .Nodes.Values.Where(node =>
+                    (node.Type is GroundNodeType.Parking or GroundNodeType.Spot or GroundNodeType.Helipad)
+                    && (!string.IsNullOrEmpty(node.Name))
+                    && (node.Id != currentNodeId)
+                )
+                .OrderBy(node => GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, node.Position.Lat, node.Position.Lon))
+                .Take(MaxPushbackToChoices)
+                .Select(node => new MenuCommandChoice(node.Name!, $"PUSH {(node.Type == GroundNodeType.Spot ? '$' : '@')}{node.Name}", null, [])),
+        ];
+    }
+
+    /// <summary>
+    /// The loaded per-ARTCC catalog's preset taxi routes for this airport that can be walked from the aircraft's node,
+    /// each labelled with the route's name and sending its canonical <c>TAXI</c> command; a route whose path cannot be
+    /// walked from here is dropped. Empty without a layout, a navigation database, routes or a nearest node.
+    /// </summary>
+    public List<MenuCommandChoice> GetPresetTaxiChoices(AircraftModel ac)
+    {
+        if (_domainLayout is null)
+        {
+            return [];
+        }
+
+        if (NavigationDatabase.InstanceOrNull is not { } navDb)
+        {
+            return [];
+        }
+
+        AirportSidecarCatalog catalog = navDb.AirportSidecars;
+
+        int? fromNodeId = GetAircraftNearestNodeId(ac);
+        if (fromNodeId is null)
+        {
+            return [];
+        }
+
+        AirportGroundLayout layout = _domainLayout;
+        return
+        [
+            .. catalog
+                .GetTaxiRoutes(layout.AirportId)
+                .Where(route => IsPresetWalkable(layout, fromNodeId.Value, route))
+                .Select(route => new MenuCommandChoice(route.Name, route.ToCanonicalCommand(), null, [])),
+        ];
+    }
+
+    /// <summary>Whether <paramref name="route"/>'s path resolves from <paramref name="fromNodeId"/>, as a large jet.</summary>
+    private static bool IsPresetWalkable(AirportGroundLayout layout, int fromNodeId, TaxiRouteDefinition route) =>
+        TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            fromNodeId,
+            route.GetPathTokens(),
+            out _,
+            new ExplicitPathOptions { OccupiedTaxiway = null, DestinationRunway = route.DestinationRunway },
+            AircraftCategory.Jet,
+            WakeTurbulenceData.WakeClass.Large
+        )
+            is not null;
+
     public List<(string DisplayName, string Target)> GetHoldShortTargets(AircraftModel ac)
     {
         if (_domainLayout is null)
@@ -1399,6 +1371,136 @@ public partial class GroundViewModel : ObservableObject
         return null;
     }
 
+    /// <summary>How far past the first hold short from a threshold, along the runway, another still counts as a full-length one.</summary>
+    private const double FullLengthWindowFt = 300;
+
+    /// <summary>
+    /// The <c>RunwayHoldShort</c> node of <paramref name="runwayName"/> (e.g. <c>"28R/10L"</c>) with the smallest
+    /// great-circle distance to <paramref name="point"/>; null when no layout is loaded or the runway has none.
+    /// </summary>
+    public int? FindHoldShortNodeNearestPoint(string runwayName, LatLon point) =>
+        HoldShortNodesOf(RunwayIdentifier.Parse(runwayName)).MinBy(n => GeoMath.DistanceNm(point.Lat, point.Lon, n.Latitude, n.Longitude))?.Id;
+
+    /// <summary>
+    /// The full-length hold short for a departure from <paramref name="runwayEnd"/> of <paramref name="runwayName"/>:
+    /// among the runway's <c>RunwayHoldShort</c> nodes whose along-track distance from that end's threshold is within
+    /// <see cref="FullLengthWindowFt"/> of the smallest (the hold shorts either side of the runway at that end), the one
+    /// with the lowest-cost route from <paramref name="ac"/>'s nearest node. Null when no layout is loaded, the runway or
+    /// end is not in it, or no such node is reachable.
+    /// </summary>
+    public int? FindFullLengthHoldShortNode(AircraftModel ac, string runwayName, string runwayEnd)
+    {
+        var runway = RunwayIdentifier.Parse(runwayName);
+        if ((GetAircraftNearestNodeId(ac) is not { } fromNodeId) || (RunwayEndGeometry(runway, runwayEnd) is not { } end))
+        {
+            return null;
+        }
+
+        List<(GroundNodeDto Node, double AlongNm)> along =
+        [
+            .. HoldShortNodesOf(runway)
+                .Select(n => (n, GeoMath.AlongTrackDistanceNm(n.Latitude, n.Longitude, end.Threshold.Lat, end.Threshold.Lon, end.Heading))),
+        ];
+        if (along.Count == 0)
+        {
+            return null;
+        }
+
+        double windowNm = along.Min(a => a.AlongNm) + (FullLengthWindowFt / GeoMath.FeetPerNm);
+        int? bestNodeId = null;
+        double bestCostNm = double.MaxValue;
+        foreach ((GroundNodeDto node, double alongNm) in along)
+        {
+            if ((alongNm <= windowNm) && (RouteCostNm(ac, fromNodeId, node.Id) is { } costNm) && (costNm < bestCostNm))
+            {
+                bestCostNm = costNm;
+                bestNodeId = node.Id;
+            }
+        }
+
+        return bestNodeId;
+    }
+
+    /// <summary>The layout's <c>RunwayHoldShort</c> nodes for <paramref name="runway"/> (either end); none when no layout is loaded.</summary>
+    private IEnumerable<GroundNodeDto> HoldShortNodesOf(RunwayIdentifier runway) =>
+        Layout?.Nodes.Where(n => (n.Type == "RunwayHoldShort") && (n.RunwayId is { } id) && (RunwayIdentifier.Parse(id) == runway)) ?? [];
+
+    /// <summary>
+    /// <paramref name="runwayEnd"/>'s threshold on <paramref name="runway"/> and the true heading from it toward the other
+    /// end, from the layout's runway coordinates; null when the runway or the end is not in the layout.
+    /// </summary>
+    private (LatLon Threshold, TrueHeading Heading)? RunwayEndGeometry(RunwayIdentifier runway, string runwayEnd)
+    {
+        GroundRunwayDto? dto = Layout?.Runways?.FirstOrDefault(r => (r.Coordinates.Count >= 2) && (RunwayIdentifier.Parse(r.Name) == runway));
+        if (dto is null)
+        {
+            return null;
+        }
+
+        var ids = RunwayIdentifier.Parse(dto.Name);
+        string end = RunwayIdentifier.NormalizeDesignator(runwayEnd);
+        double[] threshold;
+        double[] far;
+        if (string.Equals(ids.End1, end, StringComparison.OrdinalIgnoreCase))
+        {
+            (threshold, far) = (dto.Coordinates[0], dto.Coordinates[^1]);
+        }
+        else if (string.Equals(ids.End2, end, StringComparison.OrdinalIgnoreCase))
+        {
+            (threshold, far) = (dto.Coordinates[^1], dto.Coordinates[0]);
+        }
+        else
+        {
+            return null;
+        }
+
+        return (new LatLon(threshold[0], threshold[1]), new TrueHeading(GeoMath.BearingTo(threshold[0], threshold[1], far[0], far[1])));
+    }
+
+    /// <summary>
+    /// The length in nautical miles of the lowest-cost route from <paramref name="fromNodeId"/> to
+    /// <paramref name="toNodeId"/> for <paramref name="ac"/>; null when no layout is loaded or no route exists.
+    /// </summary>
+    private double? RouteCostNm(AircraftModel ac, int fromNodeId, int toNodeId)
+    {
+        if (_domainLayout is null)
+        {
+            return null;
+        }
+
+        TaxiRoute? route = TaxiPathfinder.FindRoute(_domainLayout, fromNodeId, toNodeId, CategoryFor(ac), WakeClassFor(ac));
+        if (route is null)
+        {
+            return null;
+        }
+
+        double costNm = 0;
+        foreach (TaxiRouteSegment seg in route.Segments)
+        {
+            costNm += seg.Edge.DistanceNm;
+        }
+
+        return costNm;
+    }
+
+    /// <summary>
+    /// The taxiway a <c>RunwayHoldShort</c> node sits on: the name of its edge that leads off the runway — not along a
+    /// runway centerline, toward a node with no runway-centerline edge — else of any edge not along a centerline, the
+    /// ordinal-first name when several qualify, so the answer does not depend on edge order. Null when the node is not in
+    /// the layout or no such edge is named.
+    /// </summary>
+    public string? GetHoldShortTaxiwayName(int nodeId)
+    {
+        if ((_domainLayout is null) || !_domainLayout.Nodes.TryGetValue(nodeId, out GroundNode? node))
+        {
+            return null;
+        }
+
+        List<IGroundEdge> offRunway = [.. node.Edges.Where(e => !e.IsRunwayCenterline && !string.IsNullOrEmpty(e.TaxiwayName))];
+        List<IGroundEdge> leadingOff = [.. offRunway.Where(e => !e.OtherNode(node).Edges.Any(other => other.IsRunwayCenterline))];
+        return (leadingOff.Count > 0 ? leadingOff : offRunway).Select(e => e.TaxiwayName).Order(StringComparer.Ordinal).FirstOrDefault();
+    }
+
     /// <summary>
     /// Finds the lowest-cost <c>RunwayHoldShort</c> node for <paramref name="runwayEnd"/>
     /// (e.g. <c>"28L"</c>) reachable from <paramref name="ac"/>'s current nearest node.
@@ -1435,16 +1537,9 @@ public partial class GroundViewModel : ObservableObject
                 continue;
             }
 
-            TaxiRoute? route = TaxiPathfinder.FindRoute(_domainLayout, fromNodeId.Value, node.Id, CategoryFor(ac), WakeClassFor(ac));
-            if (route is null)
+            if (RouteCostNm(ac, fromNodeId.Value, node.Id) is not { } costNm)
             {
                 continue;
-            }
-
-            double costNm = 0;
-            foreach (TaxiRouteSegment seg in route.Segments)
-            {
-                costNm += seg.Edge.DistanceNm;
             }
 
             if (costNm < bestCostNm)

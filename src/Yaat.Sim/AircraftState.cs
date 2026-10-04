@@ -6,6 +6,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Snapshots;
+using Yaat.Sim.Situation;
 using Yaat.Sim.Training;
 
 namespace Yaat.Sim;
@@ -410,6 +411,9 @@ public class AircraftState
     /// <summary>AP/1B military training route clearance state. See <see cref="AircraftMilitaryRoute"/>.</summary>
     public AircraftMilitaryRoute MilitaryRoute { get; set; } = new();
 
+    /// <summary>The stored situation and liftoff time. See <see cref="AircraftSituationState"/>.</summary>
+    public AircraftSituationState Situation { get; set; } = new();
+
     /// <summary>
     /// Live-traffic state while this aircraft is a shadow of a real aircraft (driven by external
     /// samples via <see cref="LiveTrafficKinematics"/>, not <see cref="FlightPhysics"/>). Null for
@@ -489,6 +493,7 @@ public class AircraftState
             DataBlock = dto.DataBlock is not null ? AircraftDataBlock.FromSnapshot(dto.DataBlock) : new(),
             MilitaryRoute = dto.MilitaryRoute is not null ? AircraftMilitaryRoute.FromSnapshot(dto.MilitaryRoute) : new(),
             LiveTraffic = dto.LiveTraffic is not null ? AircraftLiveTraffic.FromSnapshot(dto.LiveTraffic) : null,
+            Situation = dto.Situation is not null ? AircraftSituationState.FromSnapshot(dto.Situation) : new(),
             AssumedFromLiveTraffic = dto.AssumedFromLiveTraffic,
             Queue = CommandQueue.FromSnapshot(dto.Queue),
             Phases = dto.Phases is not null ? PhaseList.FromSnapshot(dto.Phases, groundLayout) : null,
@@ -598,6 +603,7 @@ public class AircraftState
             DataBlock = DataBlock.ToSnapshot(),
             MilitaryRoute = MilitaryRoute.ToSnapshot(),
             LiveTraffic = LiveTraffic?.ToSnapshot(),
+            Situation = Situation.ToSnapshot(),
             AssumedFromLiveTraffic = AssumedFromLiveTraffic,
             PositionHistory = PositionHistory.Count > 0 ? [.. PositionHistory.Select(p => new PositionDto { Lat = p.Lat, Lon = p.Lon })] : null,
             ActiveApproachScore = ActiveApproachScore?.ToSnapshot(),

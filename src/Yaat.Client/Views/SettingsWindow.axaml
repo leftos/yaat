@@ -532,7 +532,7 @@
                 Margin="0,4,0,0"
               />
               <TextBlock
-                Text="Orients each datablock's leader line in the direction the student set in STARS. Datablocks you have dragged keep their position; use the radar right-click menu's 'Reset to student position' to snap one back. Default off."
+                Text="Orients each datablock's leader line in the direction the student set in STARS. Datablocks you have dragged keep their position; use the radar right-click menu's 'Reset datablock position' to snap one back. Default off."
                 TextWrapping="Wrap"
                 Foreground="{DynamicResource SubtleTextBrush}"
                 FontSize="11"

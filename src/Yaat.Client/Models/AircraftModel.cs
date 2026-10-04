@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Services;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
@@ -11,7 +12,7 @@ using Yaat.Sim.Situation;
 
 namespace Yaat.Client.Models;
 
-public partial class AircraftModel : ObservableObject
+public partial class AircraftModel : ObservableObject, IMenuAircraft
 {
     [ObservableProperty]
     private string _callsign = "";
@@ -453,6 +454,9 @@ public partial class AircraftModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowNavRoute))]
     [NotifyPropertyChangedFor(nameof(NavigationRouteDisplay))]
     private List<string> _navigationRoute = [];
+
+    /// <summary>The route's fix names as the context menu's read-only view of an aircraft exposes them.</summary>
+    IReadOnlyList<string> IMenuAircraft.NavigationRoute => NavigationRoute;
 
     /// <summary>
     /// Full flown lateral route as projected by the server: each fix's geographic position (arc
@@ -1020,6 +1024,9 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     private AircraftSituation _situation = AircraftSituation.Unknown;
 
+    [ObservableProperty]
+    private SituationFlags _situationFlags = SituationFlags.None;
+
     // Live CFR release-window badge shown as a prefix in the Aircraft List Info column.
     [ObservableProperty]
     private string _cfrBadge = "";
@@ -1047,10 +1054,7 @@ public partial class AircraftModel : ObservableObject
     /// </summary>
     public string? GroundAirportId { get; set; }
 
-    /// <summary>
-    /// True when this ground departure is held for release (hold-for-release armed at its airport).
-    /// Drives the radar "Release (HFR)" context-menu item and the held datablock badge.
-    /// </summary>
+    /// <inheritdoc />
     public bool IsHeldForRelease { get; set; }
 
     /// <summary>
@@ -1082,6 +1086,18 @@ public partial class AircraftModel : ObservableObject
     /// </summary>
     public string PendingLandingClearance { get; set; } = string.Empty;
 
+    /// <inheritdoc />
+    public double HeadingDegrees => Heading.Degrees;
+
+    /// <inheritdoc />
+    public double AltitudeFeet => Altitude;
+
+    /// <inheritdoc />
+    public double IndicatedAirspeedKnots => IndicatedAirspeed;
+
+    /// <inheritdoc />
+    public IReadOnlyList<string> RouteFixNames() => FixSuggester.CollectRouteFixNames(this);
+
     /// <summary>Route and altitude as one label for the Aircraft List and the strip, or empty.</summary>
     public string MilitaryRouteSummary =>
         string.IsNullOrEmpty(MilitaryRoute) ? string.Empty
@@ -1095,6 +1111,9 @@ public partial class AircraftModel : ObservableObject
     public DateTime? CfrWindowStartUtc { get; set; }
 
     public DateTime? CfrWindowEndUtc { get; set; }
+
+    /// <inheritdoc />
+    public bool HasCfrWindow => CfrWindowStartUtc is not null;
 
     /// <summary>
     /// Recomputes the live CFR release-window badge (Info column) from the window vs <paramref name="nowUtc"/>:
@@ -1246,6 +1265,7 @@ public partial class AircraftModel : ObservableObject
         model.SmartStatus = dto.SmartStatus;
         model.SmartStatusSeverity = dto.SmartStatusSeverity;
         model.Situation = dto.Situation;
+        model.SituationFlags = dto.SituationFlags;
         return model;
     }
 
@@ -1367,6 +1387,7 @@ public partial class AircraftModel : ObservableObject
         SmartStatus = dto.SmartStatus;
         SmartStatusSeverity = dto.SmartStatusSeverity;
         Situation = dto.Situation;
+        SituationFlags = dto.SituationFlags;
     }
 
     internal static (int Order, int Seconds) ParseStatusSortKey(string status)

@@ -1,6 +1,6 @@
 using Xunit;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
-using Yaat.Client.Services;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Client.Tests;
@@ -68,7 +68,7 @@ public class AircraftCommandApplicabilityTests
 
     [Theory]
     [InlineData("Holding Short 28L/10R", true, true)]
-    [InlineData("Holding Short", true, true)]
+    [InlineData("Holding Short", true, false)] // no runway to name: neither held nor assigned
     [InlineData("LinedUpAndWaiting", true, false)] // already on the runway
     [InlineData("At Parking", true, false)]
     [InlineData("FinalApproach", false, false)] // airborne arrival
@@ -87,7 +87,8 @@ public class AircraftCommandApplicabilityTests
     [InlineData("LinedUpAndWaiting", true, true)]
     [InlineData("LiningUp", true, true)]
     [InlineData("Holding Short 28L", true, true)]
-    [InlineData("Takeoff", true, true)] // on-ground rolling re-clear
+    [InlineData("Holding Short", true, false)] // no runway to name: neither held nor assigned
+    [InlineData("Takeoff", true, false)] // never once rolling
     [InlineData("Takeoff", false, false)] // airborne — already departing
     [InlineData("At Parking", true, false)]
     [InlineData("FinalApproach", false, false)]
@@ -431,5 +432,223 @@ public class AircraftCommandApplicabilityTests
         Assert.True(AircraftCommandApplicability.IsControllable(ac));
         Assert.True(AircraftCommandApplicability.CanClearToLand(ac));
         Assert.True(AircraftCommandApplicability.CanEnterFinal(ac, VfrCommandsForIfr.None));
+    }
+
+    // --- Ground view gates ---
+
+    [Fact]
+    public void CanResumeFromHoldShort_HoldingShortWithAnActiveTaxiRoute()
+    {
+        AircraftModel withRoute = Ac("Holding Short 28R/10L", onGround: true);
+        withRoute.HasActiveTaxiRoute = true;
+        Assert.True(AircraftCommandApplicability.CanResumeFromHoldShort(withRoute));
+
+        // Without a route there is nothing to resume onto.
+        Assert.False(AircraftCommandApplicability.CanResumeFromHoldShort(Ac("Holding Short 28R/10L", onGround: true)));
+
+        // The stationary holds resume through CanResumeTaxi, not here.
+        AircraftModel inPosition = Ac("Holding In Position", onGround: true);
+        inPosition.HasActiveTaxiRoute = true;
+        Assert.False(AircraftCommandApplicability.CanResumeFromHoldShort(inPosition));
+
+        // A surface shadow is never controllable.
+        AircraftModel shadow = Shadow(onGround: true);
+        shadow.CurrentPhase = "Holding Short 28R/10L";
+        shadow.HasActiveTaxiRoute = true;
+        Assert.False(AircraftCommandApplicability.CanResumeFromHoldShort(shadow));
+
+        Assert.False(AircraftCommandApplicability.CanResumeFromHoldShort(null));
+    }
+
+    [Theory]
+    [InlineData("Holding Short 15/33", "28R", false, true)]
+    [InlineData("Holding Short", "10R", false, true)]
+    [InlineData("Holding Short", "", false, false)]
+    [InlineData("Taxiing", "28R", false, false)]
+    [InlineData("LinedUpAndWaiting", "28R", false, false)]
+    [InlineData("Holding Short 15/33", "28R", true, false)]
+    public void CanCrossRunway_HoldingShortOfARunwayNamedByThePhaseOrTheAssignment(
+        string phase,
+        string assignedRunway,
+        bool surfaceShadow,
+        bool expected
+    )
+    {
+        AircraftModel ac = Ac(phase, onGround: true, assignedRunway: assignedRunway);
+        ac.IsLiveTraffic = surfaceShadow;
+        Assert.Equal(expected, AircraftCommandApplicability.CanCrossRunway(ac));
+    }
+
+    [Fact]
+    public void CanCheckReleaseWindow_OnTheGroundWithAReleaseWindow()
+    {
+        AircraftModel ac = Ac("At Parking", onGround: true);
+        Assert.False(AircraftCommandApplicability.CanCheckReleaseWindow(ac));
+
+        ac.CfrWindowStartUtc = new DateTime(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc);
+        Assert.True(AircraftCommandApplicability.CanCheckReleaseWindow(ac));
+
+        // A surface shadow is never controllable.
+        AircraftModel shadow = Shadow(onGround: true);
+        shadow.CfrWindowStartUtc = ac.CfrWindowStartUtc;
+        Assert.False(AircraftCommandApplicability.CanCheckReleaseWindow(shadow));
+
+        ac.IsOnGround = false;
+        Assert.False(AircraftCommandApplicability.CanCheckReleaseWindow(ac));
+
+        Assert.False(AircraftCommandApplicability.CanCheckReleaseWindow(null));
+    }
+
+    [Fact]
+    public void CanReleaseHeld_HeldAndControllable()
+    {
+        AircraftModel ac = Ac("At Parking", onGround: true);
+        Assert.False(AircraftCommandApplicability.CanReleaseHeld(ac));
+
+        ac.IsHeldForRelease = true;
+        Assert.True(AircraftCommandApplicability.CanReleaseHeld(ac));
+
+        // No on-ground term: a departure can be held for release off the ground.
+        ac.IsOnGround = false;
+        Assert.True(AircraftCommandApplicability.CanReleaseHeld(ac));
+
+        // A surface shadow is never controllable.
+        AircraftModel shadow = Shadow(onGround: true);
+        shadow.IsHeldForRelease = true;
+        Assert.False(AircraftCommandApplicability.CanReleaseHeld(shadow));
+
+        // An airborne shadow is controllable: the sim auto-assumes it and applies the command in the same call.
+        AircraftModel airborneShadow = Shadow(onGround: false);
+        airborneShadow.IsHeldForRelease = true;
+        Assert.True(AircraftCommandApplicability.CanReleaseHeld(airborneShadow));
+
+        Assert.False(AircraftCommandApplicability.CanReleaseHeld(null));
+    }
+
+    [Theory]
+    [InlineData("Taxiing", false, true)]
+    [InlineData("Holding Short 28R", false, false)]
+    [InlineData("Following UAL1", false, false)]
+    [InlineData("Pushback", false, false)]
+    [InlineData("Holding In Position", false, false)]
+    [InlineData("Taxiing", true, false)]
+    public void CanBreakConflict_TaxiingOnly(string phase, bool surfaceShadow, bool expected)
+    {
+        AircraftModel ac = Ac(phase, onGround: true);
+        ac.IsLiveTraffic = surfaceShadow;
+        Assert.Equal(expected, AircraftCommandApplicability.CanBreakConflict(ac));
+    }
+
+    // --- Hold short, follow and give way ---
+
+    /// <summary>A menu context for the <see cref="Ac"/> aircraft, with <paramref name="previousSelection"/> selected before it.</summary>
+    private static MenuContext Context(AircraftModel? previousSelection) =>
+        new(new MenuClick("TST123", previousSelection, null, []), new MenuSession("AB", false, VfrCommandsForIfr.None));
+
+    /// <summary>Another on-ground aircraft, selected before the right-click, which makes the ground menu relative.</summary>
+    private static AircraftModel OtherGroundAircraft()
+    {
+        AircraftModel other = Ac("Taxiing", onGround: true);
+        other.Callsign = "SWA200";
+        return other;
+    }
+
+    [Theory]
+    [InlineData("Taxiing", false, true)]
+    [InlineData("At Parking", false, false)]
+    [InlineData("Holding Short 28R", false, false)]
+    [InlineData("Following UAL1", false, false)]
+    [InlineData("Holding In Position", false, false)]
+    [InlineData("Taxiing", true, false)]
+    public void CanHoldShort_TaxiingOnly(string phase, bool surfaceShadow, bool expected)
+    {
+        AircraftModel ac = Ac(phase, onGround: true);
+        ac.IsLiveTraffic = surfaceShadow;
+        Assert.Equal(expected, AircraftCommandApplicability.CanHoldShort(ac));
+    }
+
+    [Fact]
+    public void CanHoldShort_NoAircraft_IsFalse() => Assert.False(AircraftCommandApplicability.CanHoldShort(null));
+
+    [Theory]
+    [InlineData("At Parking", true)]
+    [InlineData("Taxiing", true)]
+    [InlineData("Holding In Position", true)]
+    [InlineData("Holding After Exit", true)]
+    [InlineData("Holding After Pushback", true)]
+    [InlineData("Pushback", false)]
+    [InlineData("Holding Short 28R", false)]
+    [InlineData("Following UAL1", false)]
+    public void CanFollowBehind_GroundPhases(string phase, bool expected) =>
+        Assert.Equal(expected, AircraftCommandApplicability.CanFollowBehind(Ac(phase, onGround: true), Context(null)));
+
+    [Fact]
+    public void CanFollowBehind_RelativeSelectionShadowOrNoAircraft_IsFalse()
+    {
+        AircraftModel ac = Ac("Taxiing", onGround: true);
+        AircraftModel selected = OtherGroundAircraft();
+        Assert.False(AircraftCommandApplicability.CanFollowBehind(ac, Context(selected)));
+
+        AircraftModel shadow = Ac("Taxiing", onGround: true);
+        shadow.IsLiveTraffic = true;
+        Assert.False(AircraftCommandApplicability.CanFollowBehind(shadow, Context(null)));
+
+        Assert.False(AircraftCommandApplicability.CanFollowBehind(null, Context(null)));
+    }
+
+    /// <summary>An airborne selection, or the right-clicked aircraft itself, offers no relative items, so follow stays.</summary>
+    [Fact]
+    public void CanFollowBehind_AirborneOrSelfSelection_IsTrue()
+    {
+        AircraftModel ac = Ac("Taxiing", onGround: true);
+        AircraftModel airborne = OtherGroundAircraft();
+        airborne.IsOnGround = false;
+
+        Assert.True(AircraftCommandApplicability.CanFollowBehind(ac, Context(airborne)));
+        Assert.True(AircraftCommandApplicability.CanFollowBehind(ac, Context(Ac("Taxiing", onGround: true))));
+    }
+
+    [Theory]
+    [InlineData("Taxiing", false, true)]
+    [InlineData("Holding In Position", false, true)]
+    [InlineData("Holding After Exit", false, false)]
+    [InlineData("Holding After Exit", true, true)]
+    [InlineData("Holding After Pushback", false, false)]
+    [InlineData("Holding After Pushback", true, true)]
+    [InlineData("At Parking", false, false)]
+    [InlineData("At Parking", true, false)]
+    [InlineData("Pushback", true, false)]
+    [InlineData("Holding Short 28R", true, false)]
+    public void CanGiveWayTo_GroundPhasesAndTaxiRoute(string phase, bool hasActiveTaxiRoute, bool expected)
+    {
+        AircraftModel ac = Ac(phase, onGround: true);
+        ac.HasActiveTaxiRoute = hasActiveTaxiRoute;
+        Assert.Equal(expected, AircraftCommandApplicability.CanGiveWayTo(ac, Context(null)));
+    }
+
+    [Fact]
+    public void CanGiveWayTo_RelativeSelectionShadowOrNoAircraft_IsFalse()
+    {
+        AircraftModel ac = Ac("Taxiing", onGround: true);
+        AircraftModel selected = OtherGroundAircraft();
+        Assert.False(AircraftCommandApplicability.CanGiveWayTo(ac, Context(selected)));
+
+        AircraftModel shadow = Ac("Taxiing", onGround: true);
+        shadow.IsLiveTraffic = true;
+        Assert.False(AircraftCommandApplicability.CanGiveWayTo(shadow, Context(null)));
+
+        Assert.False(AircraftCommandApplicability.CanGiveWayTo(null, Context(null)));
+    }
+
+    /// <summary>An airborne selection, or the right-clicked aircraft itself, offers no relative items, so give way stays.</summary>
+    [Fact]
+    public void CanGiveWayTo_AirborneOrSelfSelection_IsTrue()
+    {
+        AircraftModel ac = Ac("Taxiing", onGround: true);
+        AircraftModel airborne = OtherGroundAircraft();
+        airborne.IsOnGround = false;
+
+        Assert.True(AircraftCommandApplicability.CanGiveWayTo(ac, Context(airborne)));
+        Assert.True(AircraftCommandApplicability.CanGiveWayTo(ac, Context(Ac("Taxiing", onGround: true))));
     }
 }

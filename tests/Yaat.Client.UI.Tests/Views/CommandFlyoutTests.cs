@@ -11,11 +11,11 @@ using Yaat.Client.Views;
 
 namespace Yaat.Client.UI.Tests.Views;
 
-// Coverage for CommandFlyout, the floating command-entry popup that replaced the in-menu
-// "Command" TextBox. The old TextBox lived inside an Avalonia ContextMenu and could not retain
-// keyboard focus (the menu's interaction handler stole it on click). These tests assert the
-// replacement popup focuses its TextBox on open, submits trimmed text on Enter, and treats
-// blank input as a no-op.
+// Coverage for the command flyout, the floating command-entry popup that replaced the in-menu
+// "Command" TextBox, opened through MenuPopups.ShowCommand. The old TextBox lived inside an Avalonia
+// ContextMenu and could not retain keyboard focus (the menu's interaction handler stole it on click).
+// These tests assert the replacement popup focuses its TextBox on open, submits trimmed text on
+// Enter, and treats blank input as a no-op.
 public class CommandFlyoutTests
 {
     [AvaloniaFact]
@@ -23,7 +23,7 @@ public class CommandFlyoutTests
     {
         (Window _, Control? anchor) = ShowAnchorWindow();
 
-        CommandFlyout.Open(anchor, "UAL123", _ => Task.CompletedTask);
+        MenuPopups.ShowCommand(anchor, "UAL123", _ => Task.CompletedTask);
         HeadlessWindowExtensions.PumpDispatcher();
 
         TextBox textBox = FindCommandTextBox(anchor);
@@ -36,7 +36,7 @@ public class CommandFlyoutTests
         (Window _, Control? anchor) = ShowAnchorWindow();
         var submitted = new TaskCompletionSource<string>();
 
-        CommandFlyout.Open(
+        MenuPopups.ShowCommand(
             anchor,
             "UAL123",
             cmd =>
@@ -65,7 +65,7 @@ public class CommandFlyoutTests
         (Window _, Control? anchor) = ShowAnchorWindow();
         bool submitted = false;
 
-        CommandFlyout.Open(
+        MenuPopups.ShowCommand(
             anchor,
             "UAL123",
             _ =>

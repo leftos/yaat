@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using Yaat.Client.Logging;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Testing;
 
 namespace Yaat.Client.UI.Tests;
@@ -32,19 +33,52 @@ internal static class ModuleInit
         File.WriteAllText(Path.Combine(testDir, PidMarker), Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
         Environment.SetEnvironmentVariable("YAAT_APPDATA_DIR", testDir);
 
-        // The tests that need real navdata (TestVnasData.EnsureInitialized) read the pins committed beside Yaat.Sim.Tests, offline:
-        // the redirect above leaves no user cache, so TestVnasData would otherwise download NavData.dat on every run.
-        TestVnasData.SetTestDataDir(Path.Combine(FindRepoRoot(), "tests", "Yaat.Sim.Tests", "TestData"));
-
-        // CIFP likewise: the empty redirected cache would make every run fetch the current AIRAC cycle, so these tests use the
-        // committed bundle offline. Fix and airport positions, all they read, do not depend on the cycle.
+        // The menu goldens load the committed CIFP through TestVnasData; resolving it offline keeps them pinned to
+        // that cycle instead of whatever the FAA publishes on the day of the run.
         Environment.SetEnvironmentVariable("YAAT_SKIP_CIFP_DOWNLOAD", "1");
+        ResolveCommittedNavData();
 
         // Logging is set up once, before any test or YAAT static runs, so every logger a class creates on first use (the
         // automation dispatcher's among them) writes to the per-run log and feeds AppLog.RecentErrors, whatever the order.
         AppLog.Initialize("yaat-ui-tests.log");
 
         AppDomain.CurrentDomain.ProcessExit += (_, _) => TryDeleteDir(testDir);
+    }
+
+    /// <summary>
+    /// Resolves NavData and CIFP against the pins committed in <c>tests/Yaat.Sim.Tests/TestData</c> of this checkout before
+    /// any test runs; every assembly that links this file reads them there, offline. Both resolvers keep their first answer
+    /// for the whole process, so without this a <c>MainViewModel</c>'s background navdata load, which finds no cache in the
+    /// per-process app-data folder and may not download, could store a null that the menu goldens'
+    /// <see cref="TestVnasData"/> would then read.
+    /// </summary>
+    private static void ResolveCommittedNavData()
+    {
+        string testDataDir = Path.Combine(FindRepoRoot(), "tests", "Yaat.Sim.Tests", "TestData");
+        TestVnasData.SetTestDataDir(testDataDir);
+
+        string? cifpPath = CifpPathResolver.EnsureCurrentCycle(
+            new CifpResolveOptions(
+                BundledGzPath: Path.Combine(testDataDir, "FAACIFP18.gz"),
+                BundledManifestPath: Path.Combine(testDataDir, "cifp-manifest.json"),
+                AllowDownload: false
+            )
+        );
+        string? navDataPath = NavDataPathResolver.EnsureCurrent(
+            new NavDataResolveOptions(
+                BundledPath: Path.Combine(testDataDir, "NavData.dat"),
+                BundledManifestPath: Path.Combine(testDataDir, "navdata-manifest.json"),
+                AllowDownload: false
+            )
+        );
+
+        if ((cifpPath is null) || (navDataPath is null))
+        {
+            throw new InvalidOperationException(
+                $"The committed NavData or CIFP under {testDataDir} could not be resolved (CIFP: {cifpPath ?? "none"}, NavData: "
+                    + $"{navDataPath ?? "none"}); restore them with git checkout."
+            );
+        }
     }
 
     /// <summary>The checkout this test assembly was built in: the nearest folder above the output that holds yaat.slnx.</summary>

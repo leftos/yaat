@@ -28,7 +28,7 @@ internal static class SquawkFlyout
         Add(menu, "Squawk Normal (SN)", radarVm, aircraft, initials, "SN");
         Add(menu, "Squawk Standby (SS)", radarVm, aircraft, initials, "SS");
         Add(menu, "Squawk VFR (SQVFR)", radarVm, aircraft, initials, "SQVFR");
-        Add(menu, "Ident (ID)", radarVm, aircraft, initials, "ID");
+        Add(menu, "Ident (IDENT)", radarVm, aircraft, initials, "IDENT");
         Add(menu, "Random Squawk (RANDSQ)", radarVm, aircraft, initials, "RANDSQ");
 
         menu.Items.Add(new Separator());

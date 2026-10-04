@@ -4,16 +4,19 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Microsoft.Extensions.Logging;
+using Yaat.Client.ContextMenus;
+using Yaat.Client.Logging;
 using Yaat.Client.Models;
-using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
-using Yaat.Client.Views.Radar.Flyouts;
 
 namespace Yaat.Client.Views;
 
 public partial class DataGridView : UserControl
 {
+    private static readonly ILogger MenuLog = AppLog.CreateLogger("DataGridView");
     private bool _suppressSelectionFeedback;
+    private RightPress? _rightPress;
 
     public DataGridView()
     {
@@ -22,6 +25,9 @@ public partial class DataGridView : UserControl
     }
 
     public DataGrid? GetDataGrid() => this.FindControl<DataGrid>("AircraftGrid");
+
+    /// <summary>A right-click on a list row: the row's aircraft, and the selected row that sends the relative items, or null.</summary>
+    internal readonly record struct RightPress(AircraftModel Clicked, AircraftModel? Previous);
 
     protected override void OnLoaded(RoutedEventArgs e)
     {
@@ -36,6 +42,7 @@ public partial class DataGridView : UserControl
         grid.SelectionChanged += OnGridSelectionChanged;
         grid.DoubleTapped += OnGridDoubleTapped;
         grid.ContextRequested += OnGridContextRequested;
+        grid.AddHandler(PointerPressedEvent, OnGridPointerPressed, RoutingStrategies.Tunnel);
         vm.PropertyChanged += OnViewModelPropertyChanged;
 
         TextBox? searchBox = this.FindControl<TextBox>("SearchBox");
@@ -52,6 +59,7 @@ public partial class DataGridView : UserControl
             grid.SelectionChanged -= OnGridSelectionChanged;
             grid.DoubleTapped -= OnGridDoubleTapped;
             grid.ContextRequested -= OnGridContextRequested;
+            grid.RemoveHandler(PointerPressedEvent, OnGridPointerPressed);
         }
 
         TextBox? searchBox = this.FindControl<TextBox>("SearchBox");
@@ -124,22 +132,23 @@ public partial class DataGridView : UserControl
         vm.SelectedAircraft = grid.SelectedItem as AircraftModel;
     }
 
-    private static bool IsInDataRow(object? source)
+    /// <summary>The data row <paramref name="source"/> sits in; null for a column header or the space outside the rows.</summary>
+    private static DataGridRow? FindDataRow(object? source)
     {
         for (var visual = source as Control; visual is not null; visual = visual.GetVisualParent() as Control)
         {
-            if (visual is DataGridRow)
+            if (visual is DataGridRow row)
             {
-                return true;
+                return row;
             }
 
             if (visual is DataGridColumnHeader)
             {
-                return false;
+                return null;
             }
         }
 
-        return false;
+        return null;
     }
 
     private void OnGridDoubleTapped(object? sender, TappedEventArgs e)
@@ -149,7 +158,7 @@ public partial class DataGridView : UserControl
             return;
         }
 
-        if (!IsInDataRow(e.Source))
+        if (FindDataRow(e.Source) is null)
         {
             return;
         }
@@ -157,125 +166,135 @@ public partial class DataGridView : UserControl
         FlightPlanEditorManager.Open(ac, vm);
     }
 
-    private void OnGridContextRequested(object? sender, ContextRequestedEventArgs e)
+    /// <summary>
+    /// Records a right-press on a data row before the grid handles it: the row's aircraft and, when another row is
+    /// selected, that row as the sender of the relative items (<see cref="ResolveRightClick"/>). With another row
+    /// selected the press is marked handled, so the grid keeps that selection; the context request still follows on
+    /// release.
+    /// </summary>
+    private void OnGridPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (sender is not DataGrid grid || grid.SelectedItem is not AircraftModel ac || DataContext is not MainViewModel vm)
+        _rightPress = null;
+        if (sender is not DataGrid grid || DataContext is not MainViewModel vm)
         {
             return;
         }
 
-        if (!IsInDataRow(e.Source))
+        if (e.GetCurrentPoint(grid).Properties.PointerUpdateKind != PointerUpdateKind.RightButtonPressed)
         {
             return;
         }
 
-        string callsign = ac.Callsign;
-        string initials = vm.Preferences.UserInitials;
-        var menu = new ContextMenu();
-
-        menu.Items.Add(
-            new MenuItem
-            {
-                Header = $"{callsign} — {ac.AircraftType}",
-                IsEnabled = false,
-                FontWeight = Avalonia.Media.FontWeight.Bold,
-            }
-        );
-        menu.Items.Add(new Separator());
-
-        var commandItem = new MenuItem { Header = "Command…" };
-        // Free-text: the RPO types arbitrary canonical, so it goes through the VFR gate like typed input.
-        commandItem.Click += (_, _) => CommandFlyout.Open(grid, callsign, cmd => vm.SendGatedCommandForViewAsync(ac, callsign, cmd, initials));
-        menu.Items.Add(commandItem);
-
-        var noteItem = new MenuItem { Header = "Note…" };
-        noteItem.Click += (_, _) => NoteFlyout.Open(grid, callsign, ac.Note, cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials));
-        menu.Items.Add(noteItem);
-        menu.Items.Add(new Separator());
-
-        menu.Items.Add(FavoritesContextMenu.Build(vm, ac, callsign, initials));
-        menu.Items.Add(new Separator());
-
-        if (ac.IsDelayed)
+        if (FindDataRow(e.Source)?.DataContext is not AircraftModel clicked)
         {
-            AddDelayedSpawnItems(menu, vm, callsign, initials);
-            grid.ContextMenu = menu;
             return;
         }
 
-        AddCommandGroups(menu, ac, vm, callsign, initials);
-
-        var deleteItem = new MenuItem { Header = "Delete" };
-        deleteItem.Click += async (_, _) => await vm.Connection.SendCommandAsync(callsign, "DEL", initials);
-        menu.Items.Add(deleteItem);
-
-        // RPO control
-        var selectedCallsigns = grid.SelectedItems.OfType<AircraftModel>().Select(a => a.Callsign).ToList();
-        if (selectedCallsigns.Count == 0)
+        RightPress press = ResolveRightClick(clicked, vm.SelectedAircraft);
+        _rightPress = press;
+        if (press.Previous is not null)
         {
-            selectedCallsigns = [callsign];
+            e.Handled = true;
         }
-
-        List<string> selectedShadows =
-        [
-            .. grid.SelectedItems.OfType<AircraftModel>().Where(AircraftCommandApplicability.CanAssume).Select(a => a.Callsign),
-        ];
-        if (selectedShadows.Count >= 2)
-        {
-            menu.Items.Add(new Separator());
-            var assumeSelectedItem = new MenuItem { Header = $"Assume selected live traffic ({selectedShadows.Count})" };
-            assumeSelectedItem.Click += async (_, _) => await vm.AssumeSelectedLiveTrafficAsync(selectedShadows);
-            menu.Items.Add(assumeSelectedItem);
-        }
-
-        vm.BuildRpoMenuItems(menu, selectedCallsigns);
-
-        grid.ContextMenu = menu;
     }
 
     /// <summary>
-    /// The command groups between the favorites block and the Delete item. An assumable live-traffic shadow takes
-    /// the two assume items and then the same phase-aware groups a simulated aircraft gets: a command sent to an
-    /// airborne shadow auto-assumes it server-side, so the groups apply as they are, minus the two the server
-    /// refuses for a shadow — the ask-pilot queries (<see cref="AircraftCommandApplicability.CanAskPilot"/>) and
-    /// the flight-plan editor (<see cref="AircraftCommandApplicability.CanEditFlightPlan"/>). A surface shadow is
-    /// not assumable and keeps its read-only track / coordination menu.
+    /// Attaches the menu for the request, after detaching the last one so a request outside the rows opens none. A
+    /// pointer request commands the row under the pointer, sent from the selection recorded on its press; a keyboard
+    /// request has no pointer and commands the selected row, with no previous selection.
     /// </summary>
-    private static void AddCommandGroups(ContextMenu menu, AircraftModel ac, MainViewModel vm, string callsign, string initials)
+    private void OnGridContextRequested(object? sender, ContextRequestedEventArgs e)
     {
-        if (LiveTrafficMenuItems.Add(menu, ac, cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials)))
+        RightPress? press = _rightPress;
+        _rightPress = null;
+        if (sender is not DataGrid grid)
         {
-            menu.Items.Add(new Separator());
-        }
-        else if (ac.IsLiveTraffic)
-        {
-            menu.Items.Add(BuildTrackSubmenu(vm, callsign, initials));
-            menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
-            menu.Items.Add(new Separator());
             return;
         }
 
-        AddPhaseAwareItems(menu, ac, vm, callsign, initials);
-
-        menu.Items.Add(new Separator());
-        menu.Items.Add(BuildTrackSubmenu(vm, callsign, initials));
-        menu.Items.Add(BuildSquawkSubmenu(vm, callsign, initials));
-        if (AircraftCommandApplicability.CanAskPilot(ac))
+        grid.ContextMenu = null;
+        if (DataContext is not MainViewModel vm)
         {
-            menu.Items.Add(BuildAskPilotSubmenu(vm, callsign, initials));
+            MenuLog.LogWarning("Context request on the aircraft list: the list has no main view model, so no aircraft menu opens");
+            return;
         }
 
-        menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
-
-        menu.Items.Add(new Separator());
-        if (AircraftCommandApplicability.CanEditFlightPlan(ac))
+        RightPress? click;
+        if (e.TryGetPosition(grid, out _))
         {
-            var editItem = new MenuItem { Header = "Edit flight plan" };
-            editItem.Click += (_, _) => FlightPlanEditorManager.Open(ac, vm);
-            menu.Items.Add(editItem);
+            click = PointerClick(e.Source, press);
+        }
+        else
+        {
+            click = KeyboardClick(grid);
         }
 
-        LiveTrafficMenuItems.AddUnassume(menu.Items, ac, cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials));
+        if (click is not { } resolved)
+        {
+            return;
+        }
+
+        grid.ContextMenu = BuildAircraftMenu(vm, grid, resolved.Clicked, resolved.Previous, [resolved.Clicked]);
+    }
+
+    /// <summary>
+    /// The row under a pointer request: the press recorded on that row when there is one, otherwise the row with no
+    /// previous selection; null outside the rows.
+    /// </summary>
+    private static RightPress? PointerClick(object? source, RightPress? press)
+    {
+        if (FindDataRow(source)?.DataContext is not AircraftModel clicked)
+        {
+            return null;
+        }
+
+        if ((press is { } recorded) && ReferenceEquals(recorded.Clicked, clicked))
+        {
+            return recorded;
+        }
+
+        return new RightPress(clicked, null);
+    }
+
+    /// <summary>The selected row for a keyboard request, with no previous selection; null when no row is selected.</summary>
+    private static RightPress? KeyboardClick(DataGrid grid)
+    {
+        if (grid.SelectedItem is AircraftModel selected)
+        {
+            return new RightPress(selected, null);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Which aircraft a right-click on a list row commands and which sends its relative items, by the canvases' rule:
+    /// the previous selection is <paramref name="selected"/> when it is another aircraft than
+    /// <paramref name="clicked"/> (callsigns compared ignoring case), otherwise null.
+    /// </summary>
+    internal static RightPress ResolveRightClick(AircraftModel clicked, AircraftModel? selected)
+    {
+        bool another = (selected is not null) && !string.Equals(selected.Callsign, clicked.Callsign, StringComparison.OrdinalIgnoreCase);
+        return new RightPress(clicked, another ? selected : null);
+    }
+
+    /// <summary>
+    /// The whole aircraft-list context menu a right-click shows, built without assigning it, through
+    /// <see cref="AircraftMenuBuilder"/>: the right-clicked <paramref name="ac"/>, the selected aircraft
+    /// <paramref name="previousSelection"/> that relative actions target, and <paramref name="selection"/> supplying the
+    /// RPO callsigns and the assumable shadows. The list draws no canvas, so its view section is empty. Popups and
+    /// flyouts open at the pointer on <paramref name="flyoutTarget"/>.
+    /// </summary>
+    internal static ContextMenu BuildAircraftMenu(
+        MainViewModel vm,
+        Control flyoutTarget,
+        AircraftModel ac,
+        AircraftModel? previousSelection,
+        IReadOnlyList<AircraftModel> selection
+    )
+    {
+        var host = new ClientMenuHost(vm, ac, flyoutTarget);
+        return AircraftMenuBuilder.Build(ac, new MenuClick(ac.Callsign, previousSelection, null, selection), host, _ => []);
     }
 
     private void OnDataGridViewKeyDown(object? sender, KeyEventArgs e)

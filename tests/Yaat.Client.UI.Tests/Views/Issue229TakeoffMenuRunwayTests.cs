@@ -2,10 +2,8 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Interactivity;
 using Xunit;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
-using Yaat.Client.Services;
-using Yaat.Client.ViewModels;
-using Yaat.Client.Views.Ground;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -17,26 +15,23 @@ namespace Yaat.Client.UI.Tests.Views;
 // item ("LUAW 28R"). Both must send the bare verb; the runway belongs in the label only.
 public class Issue229TakeoffMenuRunwayTests
 {
-    private static (GroundViewModel Vm, Func<string?> LastCommand) BuildVm()
-    {
-        string? lastCommand = null;
-        var vm = new GroundViewModel(
-            new ServerConnection(),
-            sendCommand: (_, command, _) =>
-            {
-                lastCommand = command;
-                return Task.CompletedTask;
-            }
-        );
-        return (vm, () => lastCommand);
-    }
+    private const string Callsign = "EJA921";
+    private const string Initials = "GG";
 
-    private static ContextMenu BuildHoldShortMenu(GroundViewModel vm)
+    /// <summary>A recording host whose session sends with this test's initials.</summary>
+    private static RecordingMenuHost Host() => new("") { Session = new MenuSession(Initials, false, VfrCommandsForIfr.EnterFinalOnly) };
+
+    /// <summary>The Tower submenu's items for an aircraft holding short of 28R/10L, built over <paramref name="host"/>.</summary>
+    private static ItemCollection BuildTowerItems(RecordingMenuHost host)
     {
-        var ac = new AircraftModel { Callsign = "EJA921", CurrentPhase = "Holding Short 28R/10L" };
-        var menu = new ContextMenu();
-        GroundView.AddHoldShortCrossingItems(menu, vm, ac, "Holding Short 28R/10L", "EJA921", "GG", VfrCommandsForIfr.EnterFinalOnly);
-        return menu;
+        var ac = new AircraftModel
+        {
+            Callsign = Callsign,
+            IsOnGround = true,
+            CurrentPhase = "Holding Short 28R/10L",
+        };
+        ContextMenu menu = AircraftMenuBuilder.Build(ac, new MenuClick(Callsign, null, null, []), host, _ => []);
+        return FindItem(menu.Items, "Tower").Items;
     }
 
     private static MenuItem FindItem(ItemCollection items, string header) =>
@@ -45,25 +40,25 @@ public class Issue229TakeoffMenuRunwayTests
     [AvaloniaFact]
     public void ClearedForTakeoffDefault_SendsBareCto_NotRunwayArgument()
     {
-        (GroundViewModel? vm, Func<string?>? lastCommand) = BuildVm();
-        ContextMenu menu = BuildHoldShortMenu(vm);
+        RecordingMenuHost host = Host();
+        ItemCollection tower = BuildTowerItems(host);
 
-        MenuItem ctoParent = FindItem(menu.Items, "Cleared for takeoff 28R");
+        MenuItem ctoParent = FindItem(tower, "Cleared for takeoff 28R");
         MenuItem defaultItem = FindItem(ctoParent.Items, "Default (SID/on course)");
         defaultItem.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
 
-        Assert.Equal("CTO", lastCommand());
+        Assert.Equal([(Callsign, "CTO", Initials)], host.Sent);
     }
 
     [AvaloniaFact]
     public void LineUpAndWait_SendsBareLuaw_NotRunwayArgument()
     {
-        (GroundViewModel? vm, Func<string?>? lastCommand) = BuildVm();
-        ContextMenu menu = BuildHoldShortMenu(vm);
+        RecordingMenuHost host = Host();
+        ItemCollection tower = BuildTowerItems(host);
 
-        MenuItem luawItem = FindItem(menu.Items, "Line up and wait 28R");
+        MenuItem luawItem = FindItem(tower, "Line up and wait 28R");
         luawItem.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
 
-        Assert.Equal("LUAW", lastCommand());
+        Assert.Equal([(Callsign, "LUAW", Initials)], host.Sent);
     }
 }
